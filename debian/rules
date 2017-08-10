@@ -49,16 +49,8 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_SELINUX         = --with-selinux --with-secdriver-selinux --with-selinux-mount=/sys/fs/selinux
     WITH_APPARMOR        = --with-apparmor --with-secdriver-apparmor --with-apparmor-profiles
     WITH_NSS_PLUGIN      = --with-nss-plugin
-    ifneq (,$(findstring $(DEB_HOST_ARCH), amd64 armel armhf i386 ia64 powerpc s390))
-        WITH_DTRACE      = --with-dtrace
-    else
-        WITH_DTRACE      = --without-dtrace
-    endif
-    ifneq (,$(findstring $(DEB_HOST_ARCH), amd64 arm64 i386 ia64 mips mipsel powerpc ppc64el))
-        WITH_NUMA        = --with-numactl --with-numad
-    else
-        WITH_NUMA        = --without-numactl --without-numad
-    endif
+    WITH_DTRACE          = --with-dtrace
+    WITH_NUMA            = --with-numactl --with-numad
     ifneq (,$(findstring $(DEB_HOST_ARCH), ia64))
         WITH_LXC         = --without-lxc
     else
