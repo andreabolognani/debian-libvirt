@@ -8,26 +8,40 @@ Include local apparmor profile
  src/security/apparmor/usr.sbin.libvirtd.in              | 3 +++
  2 files changed, 4 insertions(+)
 
-diff --git a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-index dd18c8a..be8b9ee 100644
 --- a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
 +++ b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-@@ -69,5 +69,6 @@ profile virt-aa-helper @libexecdir@/virt-aa-helper {
+@@ -69,5 +69,6 @@ profile virt-aa-helper @libexecdir@/virt
    /**.[iI][sS][oO] r,
    /**/disk{,.*} r,
  
 +  # Site-specific additions and overrides. See local/README for details.
    #include <local/usr.lib.libvirt.virt-aa-helper>
  }
-diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
-index bf4563e..6fce647 100644
 --- a/src/security/apparmor/usr.sbin.libvirtd.in
 +++ b/src/security/apparmor/usr.sbin.libvirtd.in
-@@ -134,4 +134,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
+@@ -134,4 +134,7 @@ profile libvirtd @sbindir@/libvirtd flag
  
     /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
    }
-+  
++
 +  # Site-specific additions and overrides. See local/README for details.
 +  #include <local/usr.sbin.libvirtd>
  }
+--- a/src/security/apparmor/libvirt-qemu
++++ b/src/security/apparmor/libvirt-qemu
+@@ -242,3 +242,6 @@
+   # /sys/bus/nd/devices
+   / r, # harmless on any lsb compliant system
+   /sys/bus/nd/devices/{,**/} r,
++
++  # Site-specific additions and overrides. See local/README for details.
++  #include <local/abstractions/libvirt-qemu>
+--- a/src/security/apparmor/libvirt-lxc
++++ b/src/security/apparmor/libvirt-lxc
+@@ -112,3 +112,6 @@
+   deny /sys/fs/cgrou[^p]*{,/**} wklx,
+   deny /sys/fs/cgroup?*{,/**} wklx,
+   deny /sys/fs?*{,/**} wklx,
++
++  # Site-specific additions and overrides. See local/README for details.
++  #include <local/abstractions/libvirt-lxc>

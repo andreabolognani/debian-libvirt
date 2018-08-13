@@ -132,6 +132,23 @@ case "$1" in
 
         # Force refresh of capabilities (#731815)
         rm -f /var/cache/libvirt/qemu/capabilities/*.xml
+
+        # dh_apparmor can't work with dir/file profile filenames yet (#979500)
+        # Also we don't want the reload section of dh_apparmor. Just the
+        # install of an empty include.
+        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
+        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
+        LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
+
+        for name in $LIBVIRT_ABSTRACTIONS; do
+            abstraction="$ABSTRACTIONS_DIR/$name"
+            local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
+
+            if [ -e "$abstraction" ] && [ ! -e "$local_abstraction" ]; then
+                mkdir -p "$LOCAL_ABSTRACTIONS_DIR"
+                install -m 0644 /dev/null "$local_abstraction"
+            fi
+        done
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
