@@ -46,14 +46,17 @@ system used on the host so that the hypervisor can access the files and possibly
 also directly to configure the hypervisor to use the appropriate images. Thus
 it's important to properly setup the formats and paths of the backing images.
 
+Any externally created image should always use the -F switch of ``qemu-img``
+to specify the format of the backing file to avoid probing.
+
 Image detection caveats
 -----------------------
 
 Detection of the backing chain requires libvirt to read and understand the
 ``backing file`` field recorded in the image metadata and also being able to
 recurse and read the backing file. Due to security implications libvirt
-will not attempt to detect the format of the backing image if the image metadata
-doesn't contain it.
+will refuse to use backing images of any image whose format was not specified
+explicitly in the XML or the overlay image itself.
 
 Libvirt also might lack support for a network disk storage technology and thus
 may be unable to visit and detect backing chains on such storage. This may
@@ -104,6 +107,8 @@ Note that it's also possible to partially specify the chain in the XML but omit
 the terminating element. This will result into probing from the last specified
 ``<backingStore>``
 
+Any image specified explicitly will not be probed for backing file or format.
+
 
 Manual image creation
 =====================
@@ -112,6 +117,13 @@ When creating disk images manually outside of libvirt it's important to create
 them properly so that they work with libvirt as expected. The created disk
 images must contain the format of the backing image in the metadata. This
 means that the **-F** parameter of ``qemu-img`` must always be used.
+
+::
+
+  qemu-img -f qcow2 -F qcow2 -b /path/to/backing /path/to/overlay
+
+Note that if '/path/to/backing' is relative the path is considered relative to
+the location of '/path/to/overlay'.
 
 Troubleshooting
 ===============
@@ -163,6 +175,21 @@ It is important to fill out ``$BACKING_IMAGE_FORMAT`` and ``$IMAGE_FORMAT``
 properly. ``$BACKING_IMAGE_PATH`` should be specified as a full absolute path.
 If relative referencing of the backing image is desired, the path must be
 relative to the location of image described by ``$IMAGE_PATH``.
+
+**Important:** If the ``$BACKING_IMAGE_FORMAT`` is not known it can be queried
+using ``qemu-img info $BACKING_IMAGE_PATH`` and looking for the ``file format:``
+field, but for security reasons should be used *only* if at least one of the
+following criteria is met:
+
+- ``file format`` is ``raw``
+- ``backing file`` is NOT present
+- ``backing file`` is present AND is correct/trusted
+
+Note that the last criteria may require manual inspection and thus should not
+be scripted unless the trust for the image can be expressed programatically.
+
+Also note that the above steps may need to be repeated recursively for any
+subsequent backing images.
 
 Missing images reported after after moving disk images into a different path
 ----------------------------------------------------------------------------

@@ -32,6 +32,7 @@
 #include "virt-host-validate-common.h"
 #include "virstring.h"
 #include "virarch.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -96,7 +97,7 @@ static const char * failMessages[] = {
     N_("NOTE"),
 };
 
-verify(G_N_ELEMENTS(failMessages) == VIR_HOST_VALIDATE_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(failMessages) == VIR_HOST_VALIDATE_LAST);
 
 static const char *failEscapeCodes[] = {
     "\033[31m",
@@ -104,7 +105,7 @@ static const char *failEscapeCodes[] = {
     "\033[34m",
 };
 
-verify(G_N_ELEMENTS(failEscapeCodes) == VIR_HOST_VALIDATE_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(failEscapeCodes) == VIR_HOST_VALIDATE_LAST);
 
 void virHostMsgFail(virHostValidateLevel level,
                     const char *format,
@@ -410,4 +411,31 @@ int virHostValidateIOMMU(const char *hvname,
     }
     virHostMsgPass();
     return 0;
+}
+
+
+bool virHostKernelModuleIsLoaded(const char *module)
+{
+    FILE *fp;
+    bool ret = false;
+
+    if (!(fp = fopen("/proc/modules", "r")))
+        return false;
+
+    do {
+        char line[1024];
+
+        if (!fgets(line, sizeof(line), fp))
+            break;
+
+        if (STRPREFIX(line, module)) {
+            ret = true;
+            break;
+        }
+
+    } while (1);
+
+    VIR_FORCE_FCLOSE(fp);
+
+    return ret;
 }

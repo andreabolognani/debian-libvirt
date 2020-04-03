@@ -27,7 +27,6 @@
 #include "virbuffer.h"
 #include "virlog.h"
 #include "virstring.h"
-#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_URI
 
@@ -375,4 +374,20 @@ virURIResolveAlias(virConfPtr conf, const char *alias, char **uri)
     }
 
     return ret;
+}
+
+
+const char *
+virURIGetParam(virURIPtr uri, const char *name)
+{
+    size_t i;
+
+    for (i = 0; i < uri->paramsCount; i++) {
+        if (STREQ(uri->params[i].name, name))
+            return uri->params[i].value;
+    }
+
+    virReportError(VIR_ERR_INVALID_ARG,
+                   _("Missing URI parameter '%s'"), name);
+    return NULL;
 }

@@ -24,17 +24,11 @@
 #include <stdarg.h>
 #include <time.h>
 #include <sys/time.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/uio.h>
 #if HAVE_SYSLOG_H
 # include <syslog.h>
-#endif
-#include <sys/socket.h>
-#if HAVE_SYS_UN_H
-# include <sys/un.h>
 #endif
 
 #include "virerror.h"
@@ -45,14 +39,15 @@
 #include "virthread.h"
 #include "virfile.h"
 #include "virtime.h"
-#include "intprops.h"
 #include "virstring.h"
 #include "configmake.h"
+#include "virsocket.h"
 
 /* Journald output is only supported on Linux new enough to expose
  * htole64.  */
 #if HAVE_SYSLOG_H && defined(__linux__) && HAVE_DECL_HTOLE64
 # define USE_JOURNALD 1
+# include <sys/uio.h>
 #endif
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -832,7 +827,7 @@ virLogNewOutputToSyslog(virLogPriority priority,
 #  define IOVEC_SET_STRING(iov, str) IOVEC_SET(iov, str, strlen(str))
 
 /* Used for conversion of numbers to strings, and for length of binary data */
-#  define JOURNAL_BUF_SIZE (MAX(INT_BUFSIZE_BOUND(int), sizeof(uint64_t)))
+#  define JOURNAL_BUF_SIZE (MAX(VIR_INT64_STR_BUFLEN, sizeof(uint64_t)))
 
 struct journalState
 {

@@ -82,6 +82,10 @@ struct qemuBlockStorageSourceAttachData {
     const char *storageNodeName;
     bool storageAttached;
 
+    virJSONValuePtr storageSliceProps;
+    const char *storageSliceNodeName;
+    bool storageSliceAttached;
+
     virJSONValuePtr formatProps;
     const char *formatNodeName;
     bool formatAttached;
@@ -95,6 +99,9 @@ struct qemuBlockStorageSourceAttachData {
 
     virJSONValuePtr encryptsecretProps;
     char *encryptsecretAlias;
+
+    virJSONValuePtr httpcookiesecretProps;
+    char *httpcookiesecretAlias;
 
     virJSONValuePtr tlsProps;
     char *tlsAlias;
@@ -171,7 +178,8 @@ qemuBlockSnapshotAddBlockdev(virJSONValuePtr actions,
                              virStorageSourcePtr newsrc);
 
 char *
-qemuBlockGetBackingStoreString(virStorageSourcePtr src)
+qemuBlockGetBackingStoreString(virStorageSourcePtr src,
+                               bool pretty)
     ATTRIBUTE_NONNULL(1);
 
 int
@@ -208,3 +216,53 @@ qemuBlockNamedNodeDataBitmapPtr
 qemuBlockNamedNodeDataGetBitmapByName(virHashTablePtr blockNamedNodeData,
                                       virStorageSourcePtr src,
                                       const char *bitmap);
+
+virHashTablePtr
+qemuBlockGetNamedNodeData(virDomainObjPtr vm,
+                          qemuDomainAsyncJob asyncJob);
+
+bool
+qemuBlockBitmapChainIsValid(virStorageSourcePtr src,
+                            const char *bitmapname,
+                            virHashTablePtr blockNamedNodeData);
+
+int
+qemuBlockBitmapsHandleBlockcopy(virStorageSourcePtr src,
+                                virStorageSourcePtr mirror,
+                                virHashTablePtr blockNamedNodeData,
+                                bool shallow,
+                                virJSONValuePtr *actions);
+
+int
+qemuBlockBitmapsHandleCommitStart(virStorageSourcePtr topsrc,
+                                  virStorageSourcePtr basesrc,
+                                  virHashTablePtr blockNamedNodeData,
+                                  virJSONValuePtr *actions,
+                                  char ***disabledBitmapsBase);
+
+int
+qemuBlockBitmapsHandleCommitFinish(virStorageSourcePtr topsrc,
+                                   virStorageSourcePtr basesrc,
+                                   virHashTablePtr blockNamedNodeData,
+                                   virJSONValuePtr *actions,
+                                   char **disabledBitmapsBase);
+
+int
+qemuBlockReopenReadWrite(virDomainObjPtr vm,
+                         virStorageSourcePtr src,
+                         qemuDomainAsyncJob asyncJob);
+int
+qemuBlockReopenReadOnly(virDomainObjPtr vm,
+                        virStorageSourcePtr src,
+                        qemuDomainAsyncJob asyncJob);
+
+bool
+qemuBlockStorageSourceNeedsStorageSliceLayer(const virStorageSource *src);
+
+char *
+qemuBlockStorageSourceGetCookieString(virStorageSourcePtr src);
+
+int
+qemuBlockUpdateRelativeBacking(virDomainObjPtr vm,
+                               virStorageSourcePtr src,
+                               virStorageSourcePtr topsrc);

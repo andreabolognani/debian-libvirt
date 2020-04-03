@@ -5,7 +5,6 @@
 @BUILDDIR@/src/admin/admin_server_dispatch_stubs.h
 @BUILDDIR@/src/remote/remote_client_bodies.h
 @BUILDDIR@/src/remote/remote_daemon_dispatch_stubs.h
-@SRCDIR@/gnulib/lib/gai_strerror.c
 @SRCDIR@/src/access/viraccessdriverpolkit.c
 @SRCDIR@/src/access/viraccessmanager.c
 @SRCDIR@/src/admin/admin_server.c
@@ -79,6 +78,10 @@
 @SRCDIR@/src/hyperv/hyperv_driver.c
 @SRCDIR@/src/hyperv/hyperv_util.c
 @SRCDIR@/src/hyperv/hyperv_wmi.c
+@SRCDIR@/src/hypervisor/domain_cgroup.c
+@SRCDIR@/src/hypervisor/domain_driver.c
+@SRCDIR@/src/hypervisor/virclosecallbacks.c
+@SRCDIR@/src/hypervisor/virhostdev.c
 @SRCDIR@/src/interface/interface_backend_netcf.c
 @SRCDIR@/src/interface/interface_backend_udev.c
 @SRCDIR@/src/internal.h
@@ -169,6 +172,7 @@
 @SRCDIR@/src/qemu/qemu_tpm.c
 @SRCDIR@/src/qemu/qemu_vhost_user.c
 @SRCDIR@/src/qemu/qemu_vhost_user_gpu.c
+@SRCDIR@/src/qemu/qemu_virtiofs.c
 @SRCDIR@/src/remote/remote_daemon.c
 @SRCDIR@/src/remote/remote_daemon_config.c
 @SRCDIR@/src/remote/remote_daemon_dispatch.c
@@ -190,7 +194,6 @@
 @SRCDIR@/src/rpc/virnetsshsession.c
 @SRCDIR@/src/rpc/virnettlscontext.c
 @SRCDIR@/src/secret/secret_driver.c
-@SRCDIR@/src/secret/secret_util.c
 @SRCDIR@/src/security/security_apparmor.c
 @SRCDIR@/src/security/security_dac.c
 @SRCDIR@/src/security/security_driver.c
@@ -224,23 +227,22 @@
 @SRCDIR@/src/util/virauth.c
 @SRCDIR@/src/util/virauthconfig.c
 @SRCDIR@/src/util/virbitmap.c
-@SRCDIR@/src/util/virbpf.c
 @SRCDIR@/src/util/vircgroup.c
 @SRCDIR@/src/util/vircgroupbackend.c
 @SRCDIR@/src/util/vircgroupbackend.h
 @SRCDIR@/src/util/vircgroupv1.c
 @SRCDIR@/src/util/vircgroupv2.c
 @SRCDIR@/src/util/vircgroupv2devices.c
-@SRCDIR@/src/util/virclosecallbacks.c
 @SRCDIR@/src/util/vircommand.c
 @SRCDIR@/src/util/virconf.c
 @SRCDIR@/src/util/vircrypto.c
+@SRCDIR@/src/util/virdaemon.c
 @SRCDIR@/src/util/virdbus.c
 @SRCDIR@/src/util/virdnsmasq.c
 @SRCDIR@/src/util/virerror.c
 @SRCDIR@/src/util/virerror.h
 @SRCDIR@/src/util/virevent.c
-@SRCDIR@/src/util/vireventpoll.c
+@SRCDIR@/src/util/vireventthread.c
 @SRCDIR@/src/util/virfcp.c
 @SRCDIR@/src/util/virfdstream.c
 @SRCDIR@/src/util/virfile.c
@@ -251,7 +253,6 @@
 @SRCDIR@/src/util/virhash.c
 @SRCDIR@/src/util/virhook.c
 @SRCDIR@/src/util/virhostcpu.c
-@SRCDIR@/src/util/virhostdev.c
 @SRCDIR@/src/util/virhostmem.c
 @SRCDIR@/src/util/virhostuptime.c
 @SRCDIR@/src/util/viridentity.c
@@ -259,7 +260,6 @@
 @SRCDIR@/src/util/viriptables.c
 @SRCDIR@/src/util/viriscsi.c
 @SRCDIR@/src/util/virjson.c
-@SRCDIR@/src/util/virkeyfile.c
 @SRCDIR@/src/util/virlease.c
 @SRCDIR@/src/util/virlockspace.c
 @SRCDIR@/src/util/virlog.c

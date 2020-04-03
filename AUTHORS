@@ -122,6 +122,7 @@ Anton Khramov <anton@endocode.com>
 Antoni S. Puimedon <asegurap@redhat.com>
 Antoni Segura Puimedon <toni@midokura.com>
 Anya Harter <aharter@redhat.com>
+Arnaud Patard <apatard@hupstream.com>
 Aron Griffis <aron.griffis@hp.com>
 Asad Saeed <asad.saeed@acidseed.com>
 Ashish Mittal <Ashish.Mittal@veritas.com>
@@ -169,6 +170,7 @@ Chris Wright <chrisw@redhat.com>
 Christian Benvenuti <benve@cisco.com>
 Christian Franke <nobody@nowhere.ws>
 Christian Loehle <cloehle@linutronix.de>
+Christian Schoenebeck <qemu_oss@crudebyte.com>
 Christoffer Dall <cdall@linaro.org>
 Chuck Short <chuck.short@canonical.com>
 Chuck Short <zulcss@gmail.com>
@@ -193,6 +195,7 @@ Daniel J Walsh <dwalsh@redhat.com>
 Daniel Liu <srwx4096@gmail.com>
 Daniel Nicoletti <dantti12@gmail.com>
 Dario Faggioli <dario.faggioli@citrix.com>
+Dario Faggioli <dfaggioli@suse.com>
 Darryl L. Pierce <dpierce@redhat.com>
 David Dai <zdai@linux.vnet.ibm.com>
 David Jorm <dfj@redhat.com>
@@ -261,6 +264,7 @@ Félix Bouliane <felixbouliane@gmail.com>
 Gao feng <gaofeng@cn.fujitsu.com>
 Garry Dolley <gdolley@arpnetworks.com>
 Gary R Hook <grhookatwork@gmail.com>
+Gaurav Agrawal <agrawalgaurav@gnome.org>
 Gema Gomez <gema.gomez-solano@linaro.org>
 Gene Czarcinski <gene@czarc.net>
 Geoff Hickey <ghickey@datagravity.com>
@@ -411,6 +415,7 @@ Matthias Gatto <matthias.gatto@outscale.com>
 Matthieu Coudron <mattator@gmail.com>
 Mattias Bolte <matthias.bolte@googlemail.com>
 Matwey V. Kornilov <matwey.kornilov@gmail.com>
+Mauro S. M. Rodrigues <maurosr@linux.vnet.ibm.com>
 Maxim Kozin <kolomaxes@gmail.com>
 Maxim Perevedentsev <mperevedentsev@virtuozzo.com>
 Maxime Leroy <maxime.leroy@6wind.com>
@@ -499,6 +504,7 @@ Qiaowei Ren <qiaowei.ren@intel.com>
 Radoslaw Biernacki <radoslaw.biernacki@linaro.org>
 Radostin Stoyanov <rstoyanov1@gmail.com>
 Radu Caragea <dmns_serp@yahoo.com>
+Rafael Fonseca <r4f4rfs@gmail.com>
 Rainer Müller <raimue@codingfarm.de>
 Ramon Medeiros <ramonn@linux.vnet.ibm.com>
 Reinier Schoof <reinier@transip.nl>
@@ -506,6 +512,7 @@ Richa Marwaha <rmarwah@linux.vnet.ibm.com>
 Richard Laager <rlaager@wiktel.com>
 Richard Weinberger <richard@nod.at>
 Rick Harris <rconradharris@gmail.com>
+Rikard Falkeborn <rikard.falkeborn@gmail.com>
 Riku Voipio <riku.voipio@linaro.org>
 Roland Schulz <schullzroll@gmail.com>
 Rolf Eike Beer <eike@sf-mail.de>
@@ -519,9 +526,11 @@ Ruben Kerkhof <ruben@rubenkerkhof.com>
 Rudy Zhang <rudyflyzhang@gmail.com>
 Rufo Dogav <rufo@rufoa.com>
 Ryan Harper <ryanh@us.ibm.com>
+Ryan Moeller <ryan@ixsystems.com>
 Ryan Woodsmall <rwoodsmall@gmail.com>
 Ryota Ozaki <ozaki.ryota@gmail.com>
 Sage Weil <sage@newdream.net>
+Sahid Orentino Ferdjaoui <sahid.ferdjaoui@canonical.com>
 Sahid Orentino Ferdjaoui <sahid.ferdjaoui@cloudwatt.com>
 Sam Bobroff <sam.bobroff@au1.ibm.com>
 Sascha Peilicke <saschpe@suse.de>
@@ -534,6 +543,7 @@ Scott Moser <smoser@ubuntu.com>
 Scott Sullivan <ssullivan@liquidweb.com>
 Sebastian Mitterle <smitterl@redhat.com>
 Sebastian Wiedenroth <wiedi@frubar.net>
+Seeteena Thoufeek <s1seetee@linux.vnet.ibm.com>
 Serge E. Hallyn <serge.hallyn@canonical.com>
 Serge Hallyn <serge.hallyn@ubuntu.com>
 Sergey Bronnikov <sergeyb@openvz.org>
@@ -652,6 +662,7 @@ Yi Wang <wang.yi59@zte.com.cn>
 Yingle Hou <houyingle@hygon.cn>
 Yogesh Tillu <tillu.yogesh@gmail.com>
 Yohan BELLEGUIC <yohan.belleguic@diateam.net>
+Your Name <you@example.com>
 Yudai Yamagish <yummy@sfc.wide.ad.jp>
 Yue wenyuan <yuewenyuan@huawei.com>
 Yufang Zhang <yufang521247@gmail.com>
@@ -670,6 +681,7 @@ Zhang Xiaohe <zhangxh@cn.fujitsu.com>
 Zhangzijian <zhang.zijian@h3c.com>
 ZhiPeng Lu <lu.zhipeng@zte.com.cn>
 ZhiPeng Lu <luzhipeng@uniudc.com>
+Zhimin Feng <fengzhimin1@huawei.com>
 Zhou Yimin <zhouyimin@huawei.com>
 Zhou yimin <zhouyimin@huawei.com>
 Zhuang Yanying <ann.zhuangyanying@huawei.com>
@@ -696,6 +708,7 @@ xuzhang <xuzhang@redhat.com>
 yangdongsheng <yangds.fnst@cn.fujitsu.com>
 yuelongguang <yuelongguang@le.com>
 zhang bo <oscar.zhangbo@huawei.com>
+zhenwei pi <pizhenwei@bytedance.com>
 Марк Коренберг <socketpair@gmail.com>
 
 The libvirt logo was designed by Diana Fong

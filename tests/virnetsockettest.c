@@ -19,13 +19,12 @@
 #include <config.h>
 
 #include <signal.h>
+#include <unistd.h>
 #ifdef HAVE_IFADDRS_H
 # include <ifaddrs.h>
 #endif
-#include <netdb.h>
 
 #include "testutils.h"
-#include "virutil.h"
 #include "virerror.h"
 #include "viralloc.h"
 #include "virlog.h"
@@ -523,7 +522,9 @@ mymain(void)
     int freePort;
 #endif
 
+#ifndef WIN32
     signal(SIGPIPE, SIG_IGN);
+#endif /* WIN32 */
 
     virEventRegisterDefaultImpl();
 

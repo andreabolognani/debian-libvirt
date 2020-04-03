@@ -20,6 +20,7 @@
 
 #include <config.h>
 #include "virsh-secret.h"
+#include "virsh-util.h"
 
 #include "internal.h"
 #include "virbuffer.h"
@@ -106,8 +107,7 @@ cmdSecretDefine(vshControl *ctl, const vshCmd *cmd)
 
  cleanup:
     VIR_FREE(buffer);
-    if (res)
-        virSecretFree(res);
+    virshSecretFree(res);
     return ret;
 }
 
@@ -153,7 +153,7 @@ cmdSecretDumpXML(vshControl *ctl, const vshCmd *cmd)
     ret = true;
 
  cleanup:
-    virSecretFree(secret);
+    virshSecretFree(secret);
     return ret;
 }
 
@@ -177,9 +177,21 @@ static const vshCmdOptDef opts_secret_set_value[] = {
      .help = N_("secret UUID"),
      .completer = virshSecretUUIDCompleter,
     },
+    {.name = "file",
+     .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
+     .help = N_("read secret from file"),
+    },
+    {.name = "plain",
+     .type = VSH_OT_BOOL,
+     .help = N_("read the secret from file without converting from base64")
+    },
+    {.name = "interactive",
+     .type = VSH_OT_BOOL,
+     .help = N_("read the secret from the terminal")
+    },
     {.name = "base64",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
      .help = N_("base64-encoded secret value")
     },
     {.name = NULL}
@@ -188,35 +200,82 @@ static const vshCmdOptDef opts_secret_set_value[] = {
 static bool
 cmdSecretSetValue(vshControl *ctl, const vshCmd *cmd)
 {
-    virSecretPtr secret;
-    size_t value_size;
+    g_autoptr(virshSecret) secret = NULL;
     const char *base64 = NULL;
+    const char *filename = NULL;
+    char *file_buf = NULL;
+    size_t file_len = 0;
     unsigned char *value;
+    size_t value_size;
+    bool plain = vshCommandOptBool(cmd, "plain");
+    bool interactive = vshCommandOptBool(cmd, "interactive");
     int res;
-    bool ret = false;
+
+    VSH_EXCLUSIVE_OPTIONS("file", "base64");
+    VSH_EXCLUSIVE_OPTIONS("plain", "base64");
+    VSH_EXCLUSIVE_OPTIONS("interactive", "base64");
+    VSH_EXCLUSIVE_OPTIONS("interactive", "plain");
+    VSH_EXCLUSIVE_OPTIONS("interactive", "file");
 
     if (!(secret = virshCommandOptSecret(ctl, cmd, NULL)))
         return false;
 
     if (vshCommandOptStringReq(ctl, cmd, "base64", &base64) < 0)
-        goto cleanup;
+        return false;
 
-    value = g_base64_decode(base64, &value_size);
+    if (vshCommandOptStringReq(ctl, cmd, "file", &filename) < 0)
+        return false;
+
+    if (!base64 && !filename && !interactive) {
+        vshError(ctl, _("Input secret value is missing"));
+        return false;
+    }
+
+    /* warn users that the --base64 option passed from command line is wrong */
+    if (base64)
+        vshError(ctl, _("Passing secret value as command-line argument is insecure!"));
+
+    if (filename) {
+        ssize_t read_ret;
+        if ((read_ret = virFileReadAll(filename, 1024, &file_buf)) < 0) {
+            vshSaveLibvirtError();
+            return false;
+        }
+
+        file_len = read_ret;
+        base64 = file_buf;
+    }
+
+    if (interactive) {
+        vshPrint(ctl, "%s", _("Enter new value for secret:"));
+        fflush(stdout);
+
+        if (!(file_buf = virGetPassword())) {
+            vshError(ctl, "%s", _("Failed to read secret"));
+            return false;
+        }
+        file_len = strlen(file_buf);
+        plain = true;
+    }
+
+    if (plain) {
+        value = g_steal_pointer(&file_buf);
+        value_size = file_len;
+        file_len = 0;
+    } else {
+        value = g_base64_decode(base64, &value_size);
+    }
 
     res = virSecretSetValue(secret, value, value_size, 0);
-    memset(value, 0, value_size);
-    VIR_FREE(value);
+    VIR_DISPOSE_N(value, value_size);
+    VIR_DISPOSE_N(file_buf, file_len);
 
     if (res != 0) {
         vshError(ctl, "%s", _("Failed to set secret value"));
-        goto cleanup;
+        return false;
     }
     vshPrintExtra(ctl, "%s", _("Secret value set\n"));
-    ret = true;
-
- cleanup:
-    virSecretFree(secret);
-    return ret;
+    return true;
 }
 
 /*
@@ -239,35 +298,42 @@ static const vshCmdOptDef opts_secret_get_value[] = {
      .help = N_("secret UUID"),
      .completer = virshSecretUUIDCompleter,
     },
+    {.name = "plain",
+     .type = VSH_OT_BOOL,
+     .help = N_("get value without converting to base64")
+    },
     {.name = NULL}
 };
 
 static bool
 cmdSecretGetValue(vshControl *ctl, const vshCmd *cmd)
 {
-    virSecretPtr secret;
+    g_autoptr(virshSecret) secret = NULL;
     VIR_AUTODISPOSE_STR base64 = NULL;
     unsigned char *value;
     size_t value_size;
-    bool ret = false;
+    bool plain = vshCommandOptBool(cmd, "plain");
 
-    secret = virshCommandOptSecret(ctl, cmd, NULL);
-    if (secret == NULL)
+    if (!(secret = virshCommandOptSecret(ctl, cmd, NULL)))
         return false;
 
-    value = virSecretGetValue(secret, &value_size, 0);
-    if (value == NULL)
-        goto cleanup;
+    if (!(value = virSecretGetValue(secret, &value_size, 0)))
+        return false;
 
-    base64 = g_base64_encode(value, value_size);
+    if (plain) {
+        if (fwrite(value, 1, value_size, stdout) != value_size) {
+            VIR_DISPOSE_N(value, value_size);
+            vshError(ctl, "failed to write secret");
+            return false;
+        }
+    } else {
+        base64 = g_base64_encode(value, value_size);
 
-    vshPrint(ctl, "%s", base64);
-    ret = true;
+        vshPrint(ctl, "%s", base64);
+    }
 
- cleanup:
     VIR_DISPOSE_N(value, value_size);
-    virSecretFree(secret);
-    return ret;
+    return true;
 }
 
 /*
@@ -312,7 +378,7 @@ cmdSecretUndefine(vshControl *ctl, const vshCmd *cmd)
     ret = true;
 
  cleanup:
-    virSecretFree(secret);
+    virshSecretFree(secret);
     return ret;
 }
 
@@ -348,10 +414,9 @@ virshSecretListFree(virshSecretListPtr list)
     size_t i;
 
     if (list && list->secrets) {
-        for (i = 0; i < list->nsecrets; i++) {
-            if (list->secrets[i])
-                virSecretFree(list->secrets[i]);
-        }
+        for (i = 0; i < list->nsecrets; i++)
+            virshSecretFree(list->secrets[i]);
+
         VIR_FREE(list->secrets);
     }
     VIR_FREE(list);
@@ -649,7 +714,7 @@ virshSecretEventCallback virshSecretEventCallbacks[] = {
       VIR_SECRET_EVENT_CALLBACK(vshEventLifecyclePrint), },
     { "value-changed", vshEventGenericPrint, },
 };
-verify(VIR_SECRET_EVENT_ID_LAST == G_N_ELEMENTS(virshSecretEventCallbacks));
+G_STATIC_ASSERT(VIR_SECRET_EVENT_ID_LAST == G_N_ELEMENTS(virshSecretEventCallbacks));
 
 static const vshCmdInfo info_secret_event[] = {
     {.name = "help",
@@ -763,8 +828,7 @@ cmdSecretEvent(vshControl *ctl, const vshCmd *cmd)
     if (eventId >= 0 &&
         virConnectSecretEventDeregisterAny(priv->conn, eventId) < 0)
         ret = false;
-    if (secret)
-        virSecretFree(secret);
+    virshSecretFree(secret);
     return ret;
 }
 

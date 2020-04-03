@@ -59,13 +59,13 @@
 #include "virstring.h"
 #include "cpu/cpu.h"
 #include "virauth.h"
-#include "viratomic.h"
 #include "virdomainobjlist.h"
 #include "virinterfaceobj.h"
 #include "virhostcpu.h"
 #include "virdomaincheckpointobjlist.h"
 #include "virdomainsnapshotobjlist.h"
 #include "virkeycode.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_TEST
 
@@ -106,7 +106,7 @@ struct _testDriver {
     size_t numAuths;
     testAuthPtr auths;
 
-    /* virAtomic access only */
+    /* g_atomic access only */
     volatile int nextDomID;
 
     /* immutable pointer, immutable object after being initialized with
@@ -156,6 +156,7 @@ static void
 testDriverDispose(void *obj)
 {
     testDriverPtr driver = obj;
+    size_t i;
 
     virObjectUnref(driver->caps);
     virObjectUnref(driver->xmlopt);
@@ -165,6 +166,11 @@ testDriverDispose(void *obj)
     virObjectUnref(driver->ifaces);
     virObjectUnref(driver->pools);
     virObjectUnref(driver->eventState);
+    for (i = 0; i < driver->numAuths; i++) {
+        g_free(driver->auths[i].username);
+        g_free(driver->auths[i].password);
+    }
+    g_free(driver->auths);
 }
 
 typedef struct _testDomainNamespaceDef testDomainNamespaceDef;
@@ -401,6 +407,28 @@ testDomainObjPrivateAlloc(void *opaque)
 }
 
 
+static int
+testDomainDevicesDefPostParse(virDomainDeviceDefPtr dev G_GNUC_UNUSED,
+                              const virDomainDef *def G_GNUC_UNUSED,
+                              unsigned int parseFlags G_GNUC_UNUSED,
+                              void *opaque G_GNUC_UNUSED,
+                              void *parseOpaque G_GNUC_UNUSED)
+{
+    if (dev->type == VIR_DOMAIN_DEVICE_VIDEO &&
+        dev->data.video->type == VIR_DOMAIN_VIDEO_TYPE_DEFAULT) {
+        if (def->os.type == VIR_DOMAIN_OSTYPE_XEN ||
+            def->os.type == VIR_DOMAIN_OSTYPE_LINUX)
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_XEN;
+        else if (ARCH_IS_PPC64(def->os.arch))
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_VGA;
+        else
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_CIRRUS;
+    }
+
+    return 0;
+}
+
+
 static void
 testDomainObjPrivateFree(void *data)
 {
@@ -425,6 +453,7 @@ testDriverNew(void)
                     VIR_DOMAIN_DEF_FEATURE_USER_ALIAS |
                     VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT |
                     VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING,
+        .devicesPostParseCallback = testDomainDevicesDefPostParse,
         .defArch = VIR_ARCH_I686,
     };
     virDomainXMLPrivateDataCallbacks privatecb = {
@@ -448,7 +477,7 @@ testDriverNew(void)
         !(ret->pools = virStoragePoolObjListNew()))
         goto error;
 
-    virAtomicIntSet(&ret->nextDomID, 1);
+    g_atomic_int_set(&ret->nextDomID, 1);
 
     return ret;
 
@@ -695,7 +724,7 @@ testDomainStartState(testDriverPtr privconn,
     int ret = -1;
 
     virDomainObjSetState(dom, VIR_DOMAIN_RUNNING, reason);
-    dom->def->id = virAtomicIntAdd(&privconn->nextDomID, 1);
+    dom->def->id = g_atomic_int_add(&privconn->nextDomID, 1);
 
     if (virDomainObjSetDefTransient(privconn->xmlopt,
                                     dom, NULL) < 0) {
@@ -4960,7 +4989,7 @@ static int testDomainBlockStats(virDomainPtr domain,
         goto error;
     }
 
-    /* No significance to these numbers, just enough to mix it up*/
+    /* No significance to these numbers, just enough to mix it up */
     statbase = g_get_real_time();
     stats->rd_req = statbase / 10;
     stats->rd_bytes = statbase / 20;
@@ -5119,7 +5148,7 @@ testDomainInterfaceStats(virDomainPtr domain,
     if (!(net = virDomainNetFind(privdom->def, device)))
         goto error;
 
-    /* No significance to these numbers, just enough to mix it up*/
+    /* No significance to these numbers, just enough to mix it up */
     statbase = g_get_real_time();
     stats->rx_bytes = statbase / 10;
     stats->rx_packets = statbase / 100;

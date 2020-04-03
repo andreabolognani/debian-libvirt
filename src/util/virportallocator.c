@@ -21,10 +21,9 @@
 
 #include <config.h>
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include <unistd.h>
 
+#include "virsocket.h"
 #include "viralloc.h"
 #include "virbitmap.h"
 #include "virportallocator.h"
@@ -32,6 +31,7 @@
 #include "virerror.h"
 #include "virfile.h"
 #include "virstring.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -192,7 +192,8 @@ virPortAllocatorBindToPort(bool *used,
 
     ret = 0;
  cleanup:
-    VIR_FORCE_CLOSE(fd);
+    if (fd != -1)
+        closesocket(fd);
     return ret;
 }
 

@@ -1,5 +1,5 @@
 /*
- * qemu_dbus.h: QEMU DBus-related helpers
+ * qemu_dbus.h: QEMU dbus daemon
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,22 +21,17 @@
 #include "qemu_conf.h"
 #include "qemu_domain.h"
 
-typedef struct _qemuDBusVMState qemuDBusVMState;
-typedef qemuDBusVMState *qemuDBusVMStatePtr;
-struct _qemuDBusVMState {
-    char *id;
-    char *addr;
-};
+int qemuDBusPrepareHost(virQEMUDriverPtr driver);
 
+char *qemuDBusGetAddress(virQEMUDriverPtr driver,
+                         virDomainObjPtr vm);
 
-qemuDBusVMStatePtr qemuDBusVMStateNew(const char *id, const char *addr);
+int qemuDBusStart(virQEMUDriverPtr driver,
+                  virDomainObjPtr vm);
 
-void qemuDBusVMStateFree(qemuDBusVMStatePtr self);
+void qemuDBusStop(virQEMUDriverPtr driver,
+                  virDomainObjPtr vm);
 
-int qemuDBusVMStateAdd(virQEMUDriverPtr driver, virDomainObjPtr vm,
-                       const char *id, const char *addr, bool hot);
+int qemuDBusVMStateAdd(virDomainObjPtr vm, const char *id);
 
-void qemuDBusVMStateRemove(virQEMUDriverPtr driver, virDomainObjPtr vm,
-                           const char *id, bool hot);
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuDBusVMState, qemuDBusVMStateFree);
+void qemuDBusVMStateRemove(virDomainObjPtr vm, const char *id);

@@ -75,7 +75,9 @@ typedef virQEMUDriverConfig *virQEMUDriverConfigPtr;
 struct _virQEMUDriverConfig {
     virObject parent;
 
-    const char *uri;
+    char *uri;
+    char *root; /* The root directory for embed driver,
+                   NULL for system/session connections */
 
     uid_t user;
     gid_t group;
@@ -97,6 +99,7 @@ struct _virQEMUDriverConfig {
     char *stateDir;
     char *swtpmStateDir;
     char *slirpStateDir;
+    char *dbusStateDir;
     /* These two directories are ones QEMU processes use (so must match
      * the QEMU user/group */
     char *libDir;
@@ -155,6 +158,7 @@ struct _virQEMUDriverConfig {
     char *bridgeHelperName;
     char *prHelperName;
     char *slirpHelperName;
+    char *dbusDaemonName;
 
     bool macFilter;
 
@@ -202,6 +206,7 @@ struct _virQEMUDriverConfig {
     virFirmwarePtr *firmwares;
     size_t nfirmwares;
     unsigned int glusterDebugLevel;
+    bool virtiofsdDebug;
 
     char *memoryBackingDir;
 
@@ -240,8 +245,9 @@ struct _virQEMUDriver {
     /* Atomic inc/dec only */
     unsigned int nactive;
 
-    /* Immutable value */
+    /* Immutable values */
     bool privileged;
+    char *embeddedRoot;
 
     /* Immutable pointers. Caller must provide locking */
     virStateInhibitCallback inhibitCallback;
@@ -300,7 +306,7 @@ struct _virQEMUDriver {
     /* Immutable pointer, immutable object */
     virPortAllocatorRangePtr migrationPorts;
 
-    /* Immutable pointer, lockless APIs*/
+    /* Immutable pointer, lockless APIs */
     virSysinfoDefPtr hostsysinfo;
 
     /* Immutable pointer. lockless access */
@@ -313,7 +319,8 @@ struct _virQEMUDriver {
     virHashAtomicPtr migrationErrors;
 };
 
-virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged);
+virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged,
+                                              const char *root);
 
 int virQEMUDriverConfigLoadFile(virQEMUDriverConfigPtr cfg,
                                 const char *filename,

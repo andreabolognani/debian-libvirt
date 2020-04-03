@@ -283,7 +283,7 @@ qemuDomainChangeMediaLegacy(virQEMUDriverPtr driver,
             return -1;
 
     } else  {
-        /* otherwise report possible errors from the attempt to eject the media*/
+        /* otherwise report possible errors from the attempt to eject the media */
         if (rc < 0)
             return -1;
     }
@@ -308,6 +308,88 @@ qemuDomainChangeMediaLegacy(virQEMUDriverPtr driver,
         return -1;
 
     return 0;
+}
+
+
+/**
+ * qemuHotplugAttachDBusVMState:
+ * @driver: QEMU driver object
+ * @vm: domain object
+ * @asyncJob: asynchronous job identifier
+ *
+ * Add -object dbus-vmstate if necessary.
+ *
+ * Returns: 0 on success, -1 on error.
+ */
+int
+qemuHotplugAttachDBusVMState(virQEMUDriverPtr driver,
+                             virDomainObjPtr vm,
+                             qemuDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    g_autoptr(virJSONValue) props = NULL;
+    int ret;
+
+    if (priv->dbusVMState)
+        return 0;
+
+    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
+        VIR_DEBUG("dbus-vmstate object is not supported by this QEMU binary");
+        return 0;
+    }
+
+    if (!(props = qemuBuildDBusVMStateInfoProps(driver, vm)))
+        return -1;
+
+    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+        return -1;
+
+    ret = qemuMonitorAddObject(priv->mon, &props, NULL);
+
+    if (ret == 0)
+        priv->dbusVMState = true;
+
+    if (qemuDomainObjExitMonitor(driver, vm) < 0)
+        return -1;
+
+    return ret;
+}
+
+
+/**
+ * qemuHotplugRemoveDBusVMState:
+ * @driver: QEMU driver object
+ * @vm: domain object
+ * @asyncJob: asynchronous job identifier
+ *
+ * Remove -object dbus-vmstate from @vm if the configuration does not require
+ * it any more.
+ *
+ * Returns: 0 on success, -1 on error.
+ */
+int
+qemuHotplugRemoveDBusVMState(virQEMUDriverPtr driver,
+                             virDomainObjPtr vm,
+                             qemuDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    int ret;
+
+    if (!priv->dbusVMState)
+        return 0;
+
+    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+        return -1;
+
+    ret = qemuMonitorDelObject(priv->mon, qemuDomainGetDBusVMStateAlias(), true);
+
+    if (ret == 0)
+        priv->dbusVMState = false;
+
+    if (qemuDomainObjExitMonitor(driver, vm) < 0)
+        return -1;
+
+    return ret;
 }
 
 
@@ -390,7 +472,8 @@ qemuHotplugRemoveManagedPR(virQEMUDriverPtr driver,
 
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
         goto cleanup;
-    ignore_value(qemuMonitorDelObject(priv->mon, qemuDomainGetManagedPRAlias()));
+    ignore_value(qemuMonitorDelObject(priv->mon, qemuDomainGetManagedPRAlias(),
+                                      false));
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
         goto cleanup;
 
@@ -399,83 +482,6 @@ qemuHotplugRemoveManagedPR(virQEMUDriverPtr driver,
     ret = 0;
  cleanup:
     virErrorRestore(&orig_err);
-    return ret;
-}
-
-
-/**
- * qemuDomainAttachDBusVMState:
- * @driver: QEMU driver object
- * @vm: domain object
- * @id
- * @addr
- * @asyncJob: asynchronous job identifier
- *
- * Add dbus-vmstate object.
- *
- * Returns: 0 on success, -1 on error.
- */
-int
-qemuDomainAttachDBusVMState(virQEMUDriverPtr driver,
-                            virDomainObjPtr vm,
-                            const char *id,
-                            const char *addr,
-                            qemuDomainAsyncJob asyncJob)
-{
-    qemuDomainObjPrivatePtr priv = vm->privateData;
-    g_autoptr(virJSONValue) props = NULL;
-    int ret;
-
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("dbus-vmstate object is not supported by this QEMU binary"));
-        return -1;
-    }
-
-    if (!(props = qemuBuildDBusVMStateInfoProps(id, addr)))
-        return -1;
-
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
-        return -1;
-
-    ret = qemuMonitorAddObject(priv->mon, &props, NULL);
-
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return -1;
-
-    return ret;
-}
-
-
-/**
- * qemuDomainDetachDBusVMState:
- * @driver: QEMU driver object
- * @vm: domain object
- * @asyncJob: asynchronous job identifier
- *
- * Remove dbus-vmstate object from @vm.
- *
- * Returns: 0 on success, -1 on error.
- */
-int
-qemuDomainDetachDBusVMState(virQEMUDriverPtr driver,
-                            virDomainObjPtr vm,
-                            const char *id,
-                            qemuDomainAsyncJob asyncJob)
-{
-    qemuDomainObjPrivatePtr priv = vm->privateData;
-    g_autofree char *alias = qemuAliasDBusVMStateFromId(id);
-    int ret;
-
-    if (!alias ||
-        qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
-        return -1;
-
-    ret = qemuMonitorDelObject(priv->mon, alias);
-
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return -1;
-
     return ret;
 }
 
@@ -590,6 +596,8 @@ qemuDomainChangeEjectableMedia(virQEMUDriverPtr driver,
     virStorageSourcePtr oldsrc = disk->src;
     qemuDomainDiskPrivatePtr diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
     bool sharedAdded = false;
+    bool managedpr = virStorageSourceChainHasManagedPR(oldsrc) ||
+                     virStorageSourceChainHasManagedPR(newsrc);
     int ret = -1;
     int rc;
 
@@ -653,7 +661,8 @@ qemuDomainChangeEjectableMedia(virQEMUDriverPtr driver,
     }
 
     /* remove PR manager object if unneeded */
-    ignore_value(qemuHotplugRemoveManagedPR(driver, vm, QEMU_ASYNC_JOB_NONE));
+    if (managedpr)
+        ignore_value(qemuHotplugRemoveManagedPR(driver, vm, QEMU_ASYNC_JOB_NONE));
 
     /* revert old image do the disk definition */
     if (oldsrc)
@@ -680,6 +689,7 @@ qemuDomainAttachDiskGeneric(virQEMUDriverPtr driver,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(virJSONValue) corProps = NULL;
     g_autofree char *corAlias = NULL;
+    bool corAdded = false;
     bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
 
     if (qemuDomainStorageSourceChainAccessAllow(driver, vm, disk->src) < 0)
@@ -692,15 +702,18 @@ qemuDomainAttachDiskGeneric(virQEMUDriverPtr driver,
         goto cleanup;
 
     if (blockdev) {
-        if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON &&
-            !(corProps = qemuBlockStorageGetCopyOnReadProps(disk)))
-        goto cleanup;
+        if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON) {
+            if (!(corProps = qemuBlockStorageGetCopyOnReadProps(disk)))
+                goto cleanup;
+
+            corAlias = g_strdup(QEMU_DOMAIN_DISK_PRIVATE(disk)->nodeCopyOnRead);
+        }
 
         if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(disk->src,
                                                                       priv->qemuCaps)))
             goto cleanup;
     } else {
-        if (!(data = qemuBuildStorageSourceChainAttachPrepareDrive(disk,
+        if (!(data = qemuBuildStorageSourceChainAttachPrepareDrive(disk, vm->def,
                                                                    priv->qemuCaps)))
             goto cleanup;
     }
@@ -719,9 +732,12 @@ qemuDomainAttachDiskGeneric(virQEMUDriverPtr driver,
     if (qemuBlockStorageSourceChainAttach(priv->mon, data) < 0)
         goto exit_monitor;
 
-    if (corProps &&
-        qemuMonitorAddObject(priv->mon, &corProps, &corAlias) < 0)
-        goto exit_monitor;
+    if (corProps) {
+        if (qemuMonitorBlockdevAdd(priv->mon, &corProps) < 0)
+            goto exit_monitor;
+
+        corAdded = true;
+    }
 
     if (qemuDomainAttachExtensionDevice(priv->mon, &disk->info) < 0)
         goto exit_monitor;
@@ -763,8 +779,8 @@ qemuDomainAttachDiskGeneric(virQEMUDriverPtr driver,
     return ret;
 
  exit_monitor:
-    if (corAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, corAlias));
+    if (corAdded)
+        ignore_value(qemuMonitorBlockdevDel(priv->mon, corAlias));
     qemuBlockStorageSourceChainDetach(priv->mon, data);
 
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
@@ -1301,7 +1317,7 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
             QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp = slirp;
 
             if (qemuSlirpOpen(slirp, driver, vm->def) < 0 ||
-                qemuSlirpStart(slirp, vm, driver, net, true, NULL) < 0) {
+                qemuSlirpStart(slirp, vm, driver, net, NULL) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                "%s", _("Failed to start slirp"));
                 goto cleanup;
@@ -1335,7 +1351,7 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
     /* Set bandwidth or warn if requested and not supported. */
     actualBandwidth = virDomainNetGetActualBandwidth(net);
     if (actualBandwidth) {
-        if (virNetDevSupportBandwidth(actualType)) {
+        if (virNetDevSupportsBandwidth(actualType)) {
             if (virNetDevBandwidthSet(net->ifname, actualBandwidth, false,
                                       !virDomainNetTypeSharesHostView(net)) < 0)
                 goto cleanup;
@@ -1508,7 +1524,7 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
     virErrorPreserveLast(&originalError);
     netdev_name = g_strdup_printf("host%s", net->info.alias);
     if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp)
-        qemuSlirpStop(QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp, vm, driver, net, true);
+        qemuSlirpStop(QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp, vm, driver, net);
     qemuDomainObjEnterMonitor(driver, vm);
     if (charDevPlugged &&
         qemuMonitorDetachCharDev(priv->mon, charDevAlias) < 0)
@@ -1598,11 +1614,9 @@ qemuDomainAttachHostPCIDevice(virQEMUDriverPtr driver,
     if (qemuAssignDeviceHostdevAlias(vm->def, &info->alias, -1) < 0)
         goto error;
 
-    if (qemuDomainIsPSeries(vm->def)) {
+    if (qemuDomainIsPSeries(vm->def))
         /* Isolation groups are only relevant for pSeries guests */
-        if (qemuDomainFillDeviceIsolationGroup(vm->def, &dev) < 0)
-            goto error;
-    }
+        qemuDomainFillDeviceIsolationGroup(vm->def, &dev);
 
     if (qemuDomainEnsurePCIAddress(vm, &dev, driver) < 0)
         goto error;
@@ -1677,10 +1691,10 @@ qemuDomainDelTLSObjects(virQEMUDriverPtr driver,
         goto cleanup;
 
     if (tlsAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, tlsAlias));
+        ignore_value(qemuMonitorDelObject(priv->mon, tlsAlias, false));
 
     if (secAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, secAlias));
+        ignore_value(qemuMonitorDelObject(priv->mon, secAlias, false));
 
     ignore_value(qemuDomainObjExitMonitor(driver, vm));
 
@@ -1837,14 +1851,14 @@ qemuDomainDelChardevTLSObjects(virQEMUDriverPtr driver,
      * secret UUID and we have a serial TCP chardev, then formulate a
      * secAlias which we'll attempt to destroy. */
     if (cfg->chardevTLSx509secretUUID &&
-        !(secAlias = qemuDomainGetSecretAESAlias(inAlias, false)))
+        !(secAlias = qemuAliasForSecret(inAlias, NULL)))
         return -1;
 
     qemuDomainObjEnterMonitor(driver, vm);
 
-    ignore_value(qemuMonitorDelObject(priv->mon, tlsAlias));
+    ignore_value(qemuMonitorDelObject(priv->mon, tlsAlias, false));
     if (secAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, secAlias));
+        ignore_value(qemuMonitorDelObject(priv->mon, secAlias, false));
 
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
         return -1;
@@ -2299,7 +2313,7 @@ qemuDomainAttachRNGDevice(virQEMUDriverPtr driver,
  exit_monitor:
     virErrorPreserveLast(&orig_err);
     if (objAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, objAlias));
+        ignore_value(qemuMonitorDelObject(priv->mon, objAlias, false));
     if (rng->backend == VIR_DOMAIN_RNG_BACKEND_EGD && chardevAdded)
         ignore_value(qemuMonitorDetachCharDev(priv->mon, charAlias));
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
@@ -2343,7 +2357,8 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
     int id;
     int ret = -1;
 
-    qemuDomainMemoryDeviceAlignSize(vm->def, mem);
+    if (qemuDomainMemoryDeviceAlignSize(vm->def, mem) < 0)
+        goto cleanup;
 
     if (qemuDomainDefValidateMemoryHotplug(vm->def, priv->qemuCaps, mem) < 0)
         goto cleanup;
@@ -2435,7 +2450,7 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
  exit_monitor:
     virErrorPreserveLast(&orig_err);
     if (objAdded)
-        ignore_value(qemuMonitorDelObject(priv->mon, objalias));
+        ignore_value(qemuMonitorDelObject(priv->mon, objalias, false));
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
         mem = NULL;
 
@@ -2657,7 +2672,7 @@ qemuDomainAttachHostSCSIDevice(virQEMUDriverPtr driver,
                  drvstr, devstr);
     }
     if (secobjAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, secobjAlias));
+        ignore_value(qemuMonitorDelObject(priv->mon, secobjAlias, false));
     ignore_value(qemuDomainObjExitMonitor(driver, vm));
     virErrorRestore(&orig_err);
 
@@ -3033,7 +3048,7 @@ qemuDomainAttachShmemDevice(virQEMUDriverPtr driver,
         if (shmem->server.enabled)
             ignore_value(qemuMonitorDetachCharDev(priv->mon, charAlias));
         else
-            ignore_value(qemuMonitorDelObject(priv->mon, memAlias));
+            ignore_value(qemuMonitorDelObject(priv->mon, memAlias, false));
     }
 
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
@@ -3345,16 +3360,31 @@ qemuDomainChangeNetBridge(virDomainObjPtr vm,
     }
 
     ret = virNetDevBridgeAddPort(newbridge, olddev->ifname);
+    if (ret == 0 &&
+        virDomainNetGetActualPortOptionsIsolated(newdev) == VIR_TRISTATE_BOOL_YES) {
+
+        ret = virNetDevBridgePortSetIsolated(newbridge, olddev->ifname, true);
+        if (ret < 0) {
+            virErrorPtr err;
+
+            virErrorPreserveLast(&err);
+            ignore_value(virNetDevBridgeRemovePort(newbridge, olddev->ifname));
+            virErrorRestore(&err);
+        }
+    }
     virDomainAuditNet(vm, NULL, newdev, "attach", ret == 0);
     if (ret < 0) {
+        virErrorPtr err;
+
+        virErrorPreserveLast(&err);
         ret = virNetDevBridgeAddPort(oldbridge, olddev->ifname);
-        virDomainAuditNet(vm, NULL, olddev, "attach", ret == 0);
-        if (ret < 0) {
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("unable to recover former state by adding port "
-                             "to bridge %s"), oldbridge);
+        if (ret == 0 &&
+            virDomainNetGetActualPortOptionsIsolated(olddev) == VIR_TRISTATE_BOOL_YES) {
+            ignore_value(virNetDevBridgePortSetIsolated(newbridge, olddev->ifname, true));
         }
-        return ret;
+        virDomainAuditNet(vm, NULL, olddev, "attach", ret == 0);
+        virErrorRestore(&err);
+        return -1;
     }
     /* caller will replace entire olddev with newdev in domain nets list */
     return 0;
@@ -3461,6 +3491,7 @@ qemuDomainChangeNet(virQEMUDriverPtr driver,
     bool needBandwidthSet = false;
     bool needCoalesceChange = false;
     bool needVlanUpdate = false;
+    bool needIsolatedPortChange = false;
     int ret = -1;
     int changeidx = -1;
     g_autoptr(virConnect) conn = NULL;
@@ -3785,6 +3816,11 @@ qemuDomainChangeNet(virQEMUDriverPtr driver,
         needVlanUpdate = true;
     }
 
+    if (virDomainNetGetActualPortOptionsIsolated(olddev) !=
+        virDomainNetGetActualPortOptionsIsolated(newdev)) {
+        needIsolatedPortChange = true;
+    }
+
     if (olddev->linkstate != newdev->linkstate)
         needLinkStateChange = true;
 
@@ -3830,6 +3866,20 @@ qemuDomainChangeNet(virQEMUDriverPtr driver,
         /* we successfully switched to the new bridge, and we've
          * determined that the rest of newdev is equivalent to olddev,
          * so move newdev into place */
+        needReplaceDevDef = true;
+
+        /* this is already updated as a part of reconnecting the bridge */
+        needIsolatedPortChange = false;
+    }
+
+    if (needIsolatedPortChange) {
+        const char *bridge = virDomainNetGetActualBridgeName(newdev);
+        bool isolatedOn = (virDomainNetGetActualPortOptionsIsolated(newdev) ==
+                           VIR_TRISTATE_BOOL_YES);
+
+        if (virNetDevBridgePortSetIsolated(bridge, newdev->ifname, isolatedOn) < 0)
+            goto cleanup;
+
         needReplaceDevDef = true;
     }
 
@@ -4252,7 +4302,7 @@ qemuDomainRemoveDiskDevice(virQEMUDriverPtr driver,
     qemuDomainObjEnterMonitor(driver, vm);
 
     if (corAlias)
-        ignore_value(qemuMonitorDelObject(priv->mon, corAlias));
+        ignore_value(qemuMonitorBlockdevDel(priv->mon, corAlias));
 
     if (diskBackend)
         qemuBlockStorageSourceChainDetach(priv->mon, diskBackend);
@@ -4324,7 +4374,7 @@ qemuDomainRemoveMemoryDevice(virQEMUDriverPtr driver,
     backendAlias = g_strdup_printf("mem%s", mem->info.alias);
 
     qemuDomainObjEnterMonitor(driver, vm);
-    rc = qemuMonitorDelObject(priv->mon, backendAlias);
+    rc = qemuMonitorDelObject(priv->mon, backendAlias, true);
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
         rc = -1;
 
@@ -4431,7 +4481,7 @@ qemuDomainRemoveHostDevice(virQEMUDriverPtr driver,
         if (scsisrc->protocol == VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI &&
             virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET) &&
             qemuDomainStorageSourceHasAuth(iscsisrc->src)) {
-            if (!(objAlias = qemuDomainGetSecretAESAlias(hostdev->info->alias, false)))
+            if (!(objAlias = qemuAliasForSecret(hostdev->info->alias, NULL)))
                 return -1;
         }
 
@@ -4440,7 +4490,7 @@ qemuDomainRemoveHostDevice(virQEMUDriverPtr driver,
 
         /* If it fails, then so be it - it was a best shot */
         if (objAlias)
-            ignore_value(qemuMonitorDelObject(priv->mon, objAlias));
+            ignore_value(qemuMonitorDelObject(priv->mon, objAlias, false));
 
         if (qemuDomainObjExitMonitor(driver, vm) < 0)
             return -1;
@@ -4542,7 +4592,7 @@ qemuDomainRemoveNetDevice(virQEMUDriverPtr driver,
         return -1;
 
     if (virDomainNetGetActualBandwidth(net) &&
-        virNetDevSupportBandwidth(virDomainNetGetActualType(net)) &&
+        virNetDevSupportsBandwidth(virDomainNetGetActualType(net)) &&
         virNetDevBandwidthClear(net->ifname) < 0)
         VIR_WARN("cannot clear bandwidth setting for device : %s",
                  net->ifname);
@@ -4575,7 +4625,7 @@ qemuDomainRemoveNetDevice(virQEMUDriverPtr driver,
         return -1;
 
     if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp)
-        qemuSlirpStop(QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp, vm, driver, net, true);
+        qemuSlirpStop(QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp, vm, driver, net);
 
     virDomainAuditNet(vm, net, NULL, "detach", true);
 
@@ -4698,7 +4748,7 @@ qemuDomainRemoveRNGDevice(virQEMUDriverPtr driver,
     qemuDomainObjEnterMonitor(driver, vm);
 
     if (rc == 0 &&
-        qemuMonitorDelObject(priv->mon, objAlias) < 0)
+        qemuMonitorDelObject(priv->mon, objAlias, true) < 0)
         rc = -1;
 
     if (rng->backend == VIR_DOMAIN_RNG_BACKEND_EGD &&
@@ -4759,7 +4809,7 @@ qemuDomainRemoveShmemDevice(virQEMUDriverPtr driver,
     if (shmem->server.enabled)
         rc = qemuMonitorDetachCharDev(priv->mon, charAlias);
     else
-        rc = qemuMonitorDelObject(priv->mon, memAlias);
+        rc = qemuMonitorDelObject(priv->mon, memAlias, true);
 
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
         return -1;
@@ -5597,7 +5647,8 @@ qemuDomainDetachPrepMemory(virDomainObjPtr vm,
     virDomainMemoryDefPtr mem;
     int idx;
 
-    qemuDomainMemoryDeviceAlignSize(vm->def, match);
+    if (qemuDomainMemoryDeviceAlignSize(vm->def, match) < 0)
+        return -1;
 
     if ((idx = virDomainMemoryFindByDef(vm->def, match)) < 0) {
         virReportError(VIR_ERR_DEVICE_MISSING,
@@ -6438,18 +6489,16 @@ qemuDomainVcpuValidateConfig(virDomainDefPtr def,
         return -1;
     }
 
+    firstvcpu = virBitmapNextSetBit(map, -1);
+
     /* non-hotpluggable vcpus need to stay clustered starting from vcpu 0 */
-    for (next = virBitmapNextSetBit(map, -1) + 1; next < maxvcpus; next++) {
+    for (next = firstvcpu + 1; next < maxvcpus; next++) {
         if (!(vcpu = virDomainDefGetVcpu(def, next)))
             continue;
 
         /* skip vcpus being modified */
-        if (virBitmapIsBitSet(map, next)) {
-            if (firstvcpu < 0)
-                firstvcpu = next;
-
+        if (virBitmapIsBitSet(map, next))
             continue;
-        }
 
         if (vcpu->online && vcpu->hotpluggable == VIR_TRISTATE_BOOL_NO) {
             virReportError(VIR_ERR_INVALID_ARG,

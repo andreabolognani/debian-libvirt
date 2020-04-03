@@ -111,7 +111,7 @@ getSocketPath(virURIPtr uri)
         virURIParamPtr param = &uri->params[i];
 
         if (STREQ(param->name, "socket")) {
-            VIR_FREE(sock_path);
+            g_free(sock_path);
             sock_path = g_strdup(param->value);
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -203,11 +203,11 @@ virAdmGetDefaultURI(virConfPtr conf, char **uristr)
 virAdmConnectPtr
 virAdmConnectOpen(const char *name, unsigned int flags)
 {
-    char *sock_path = NULL;
+    g_autofree char *sock_path = NULL;
     char *alias = NULL;
     virAdmConnectPtr conn = NULL;
     g_autoptr(virConf) conf = NULL;
-    char *uristr = NULL;
+    g_autofree char *uristr = NULL;
 
     if (virAdmInitialize() < 0)
         goto error;
@@ -233,7 +233,7 @@ virAdmConnectOpen(const char *name, unsigned int flags)
         goto error;
 
     if (alias) {
-        VIR_FREE(uristr);
+        g_free(uristr);
         uristr = alias;
     }
 
@@ -251,16 +251,12 @@ virAdmConnectOpen(const char *name, unsigned int flags)
     if (remoteAdminConnectOpen(conn, flags) < 0)
         goto error;
 
- cleanup:
-    VIR_FREE(sock_path);
-    VIR_FREE(uristr);
     return conn;
 
  error:
     virDispatchError(NULL);
     virObjectUnref(conn);
-    conn = NULL;
-    goto cleanup;
+    return NULL;
 }
 
 /**
@@ -1074,6 +1070,36 @@ virAdmServerSetClientLimits(virAdmServerPtr srv,
 
     if ((ret = remoteAdminServerSetClientLimits(srv, params, nparams,
                                                 flags)) < 0)
+        goto error;
+
+    return ret;
+ error:
+    virDispatchError(NULL);
+    return ret;
+}
+
+/**
+ * virAdmServerUpdateTlsFiles:
+ * @srv: a valid server object reference
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Notify server to update tls file, such as cacert, cacrl, server cert / key.
+ *
+ * Returns 0 if the TLS files have been updated successfully or -1 in case of an
+ * error.
+ */
+int
+virAdmServerUpdateTlsFiles(virAdmServerPtr srv,
+                           unsigned int flags)
+{
+    int ret = -1;
+
+    VIR_DEBUG("srv=%p, flags=0x%x", srv, flags);
+    virResetLastError();
+
+    virCheckAdmServerGoto(srv, error);
+
+    if ((ret = remoteAdminServerUpdateTlsFiles(srv, flags)) < 0)
         goto error;
 
     return ret;

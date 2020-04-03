@@ -27,6 +27,7 @@
 #include "bhyve_capabilities.h"
 #include "viralloc.h"
 #include "virlog.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_BHYVE
 
@@ -158,6 +159,11 @@ bhyveDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
                              "should have index 0"));
             return -1;
         }
+    }
+
+    if (dev->type == VIR_DOMAIN_DEVICE_VIDEO &&
+        dev->data.video->type == VIR_DOMAIN_VIDEO_TYPE_DEFAULT) {
+        dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_GOP;
     }
 
     return 0;

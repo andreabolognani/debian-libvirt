@@ -21,8 +21,6 @@
 
 #include <config.h>
 
-#include <netdb.h>
-#include <sys/socket.h>
 #include <sys/time.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -62,6 +60,8 @@
 #include "virprocess.h"
 #include "nwfilter_conf.h"
 #include "virdomainsnapshotobjlist.h"
+#include "virsocket.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -931,7 +931,7 @@ qemuMigrationSrcNBDStorageCopyOne(virQEMUDriverPtr driver,
 
     if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV)) {
         jobname = diskAlias;
-        sourcename = disk->src->nodeformat;
+        sourcename = qemuDomainDiskGetTopNodename(disk);
         persistjob = true;
     } else {
         jobname = NULL;
@@ -1093,10 +1093,54 @@ qemuMigrationSrcIsAllowedHostdev(const virDomainDef *def)
      * forbidden. */
     for (i = 0; i < def->nhostdevs; i++) {
         virDomainHostdevDefPtr hostdev = def->hostdevs[i];
-        if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS ||
-            hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("domain has assigned non-USB host devices"));
+        switch ((virDomainHostdevMode)hostdev->mode) {
+        case VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES:
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("cannot migrate a domain with <hostdev mode='capabilities'>"));
+            return false;
+
+        case VIR_DOMAIN_HOSTDEV_MODE_SUBSYS:
+            switch ((virDomainHostdevSubsysType)hostdev->source.subsys.type) {
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
+                /* USB devices can be "migrated" */
+                continue;
+
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                               _("cannot migrate a domain with <hostdev mode='subsystem' type='%s'>"),
+                               virDomainHostdevSubsysTypeToString(hostdev->source.subsys.type));
+                return false;
+
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+                /*
+                 * if this is a network interface with <teaming
+                 * type='transient'>, migration *is* allowed because
+                 * the device will be auto-unplugged by QEMU during
+                 * migration.
+                 */
+                if (hostdev->parentnet &&
+                    hostdev->parentnet->teaming.type == VIR_DOMAIN_NET_TEAMING_TYPE_TRANSIENT) {
+                    continue;
+                }
+
+                /* all other PCI hostdevs can't be migrated */
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                               _("cannot migrate a domain with <hostdev mode='subsystem' type='%s'>"),
+                               virDomainHostdevSubsysTypeToString(hostdev->source.subsys.type));
+                return false;
+
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("invalid hostdev subsystem type"));
+                return false;
+            }
+            break;
+
+        case VIR_DOMAIN_HOSTDEV_MODE_LAST:
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("invalid hostdev mode"));
             return false;
         }
     }
@@ -1142,43 +1186,25 @@ qemuMigrationSrcIsAllowed(virQEMUDriverPtr driver,
                            nsnapshots);
             return false;
         }
-
-        /* cancel migration if disk I/O error is emitted while migrating */
-        if (flags & VIR_MIGRATE_ABORT_ON_ERROR &&
-            !(flags & VIR_MIGRATE_OFFLINE) &&
-            virDomainObjGetState(vm, &pauseReason) == VIR_DOMAIN_PAUSED &&
-            pauseReason == VIR_DOMAIN_PAUSED_IOERROR) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("cannot migrate domain with I/O error"));
-            return false;
-        }
-    }
-
-    if (virHashSize(priv->dbusVMStates) > 0 &&
-        !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("domain requires dbus-vmstate support"));
-        return false;
-    }
-
-    for (i = 0; i < vm->def->nnets; i++) {
-        virDomainNetDefPtr net = vm->def->nets[i];
-        qemuSlirpPtr slirp = QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp;
-
-        if (slirp && !qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_MIGRATE)) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("a slirp-helper cannot be migrated"));
-            return false;
-        }
     }
 
     /* following checks don't make sense for offline migration */
     if (!(flags & VIR_MIGRATE_OFFLINE)) {
-        if (remote &&
-            qemuProcessAutoDestroyActive(driver, vm)) {
-            virReportError(VIR_ERR_OPERATION_INVALID,
-                           "%s", _("domain is marked for auto destroy"));
-            return false;
+        if (remote) {
+            /* cancel migration if disk I/O error is emitted while migrating */
+            if (flags & VIR_MIGRATE_ABORT_ON_ERROR &&
+                virDomainObjGetState(vm, &pauseReason) == VIR_DOMAIN_PAUSED &&
+                pauseReason == VIR_DOMAIN_PAUSED_IOERROR) {
+                virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                               _("cannot migrate domain with I/O error"));
+                return false;
+            }
+
+            if (qemuProcessAutoDestroyActive(driver, vm)) {
+                virReportError(VIR_ERR_OPERATION_INVALID,
+                               "%s", _("domain is marked for auto destroy"));
+                return false;
+            }
         }
 
 
@@ -1235,6 +1261,34 @@ qemuMigrationSrcIsAllowed(virQEMUDriverPtr driver,
         if (vm->def->nshmems) {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                            _("migration with shmem device is not supported"));
+            return false;
+        }
+
+        for (i = 0; i < vm->def->nnets; i++) {
+            virDomainNetDefPtr net = vm->def->nets[i];
+            qemuSlirpPtr slirp = QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp;
+
+            if (slirp && !qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_MIGRATE)) {
+                virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                               _("a slirp-helper cannot be migrated"));
+                return false;
+            }
+        }
+
+        for (i = 0; i < vm->def->nfss; i++) {
+            virDomainFSDefPtr fs = vm->def->fss[i];
+
+            if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS) {
+                virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                               _("migration with virtiofs device is not supported"));
+                return false;
+            }
+        }
+
+        if (virStringListLength((const char **)priv->dbusVMStateIds) > 0 &&
+            !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("cannot migrate this domain without dbus-vmstate support"));
             return false;
         }
     }
@@ -1413,6 +1467,7 @@ qemuMigrationUpdateJobType(qemuDomainJobInfoPtr jobInfo)
     case QEMU_MONITOR_MIGRATION_STATUS_SETUP:
     case QEMU_MONITOR_MIGRATION_STATUS_ACTIVE:
     case QEMU_MONITOR_MIGRATION_STATUS_CANCELLING:
+    case QEMU_MONITOR_MIGRATION_STATUS_WAIT_UNPLUG:
     case QEMU_MONITOR_MIGRATION_STATUS_LAST:
         break;
     }
@@ -1901,8 +1956,14 @@ qemuMigrationDstRun(virQEMUDriverPtr driver,
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
         return -1;
 
+    rv = qemuMonitorSetDBusVMStateIdList(priv->mon,
+                                         (const char **)priv->dbusVMStateIds);
+    if (rv < 0)
+        goto exit_monitor;
+
     rv = qemuMonitorMigrateIncoming(priv->mon, uri);
 
+ exit_monitor:
     if (qemuDomainObjExitMonitor(driver, vm) < 0 || rv < 0)
         return -1;
 
@@ -2489,11 +2550,8 @@ qemuMigrationDstPrepareAny(virQEMUDriverPtr driver,
         goto done;
 
     if (tunnel &&
-        (pipe(dataFD) < 0 || virSetCloseExec(dataFD[1]) < 0)) {
-        virReportSystemError(errno, "%s",
-                             _("cannot create pipe for tunnelled migration"));
+        virPipe(dataFD) < 0)
         goto stopjob;
-    }
 
     startFlags = VIR_QEMU_PROCESS_START_AUTODESTROY;
 
@@ -3246,11 +3304,8 @@ qemuMigrationSrcStartTunnel(virStreamPtr st,
     qemuMigrationIOThreadPtr io = NULL;
     int wakeupFD[2] = { -1, -1 };
 
-    if (pipe2(wakeupFD, O_CLOEXEC) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Unable to make pipe"));
+    if (virPipe(wakeupFD) < 0)
         goto error;
-    }
 
     if (VIR_ALLOC(io) < 0)
         goto error;
@@ -3260,9 +3315,11 @@ qemuMigrationSrcStartTunnel(virStreamPtr st,
     io->wakeupRecvFD = wakeupFD[0];
     io->wakeupSendFD = wakeupFD[1];
 
-    if (virThreadCreate(&io->thread, true,
-                        qemuMigrationSrcIOFunc,
-                        io) < 0) {
+    if (virThreadCreateFull(&io->thread, true,
+                            qemuMigrationSrcIOFunc,
+                            "qemu-mig-tunnel",
+                            false,
+                            io) < 0) {
         virReportSystemError(errno, "%s",
                              _("Unable to create migration thread"));
         goto error;
@@ -3374,6 +3431,37 @@ qemuMigrationSrcContinue(virQEMUDriverPtr driver,
         ret = -1;
 
     return ret;
+}
+
+
+static int
+qemuMigrationSetDBusVMState(virQEMUDriverPtr driver,
+                            virDomainObjPtr vm)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+
+    if (virStringListLength((const char **)priv->dbusVMStateIds) > 0) {
+        int rv;
+
+        if (qemuHotplugAttachDBusVMState(driver, vm, QEMU_ASYNC_JOB_NONE) < 0)
+            return -1;
+
+        if (qemuDomainObjEnterMonitorAsync(driver, vm, QEMU_ASYNC_JOB_NONE) < 0)
+            return -1;
+
+        rv = qemuMonitorSetDBusVMStateIdList(priv->mon,
+                                             (const char **)priv->dbusVMStateIds);
+
+        if (qemuDomainObjExitMonitor(driver, vm) < 0)
+            rv = -1;
+
+        return rv;
+    } else {
+        if (qemuHotplugRemoveDBusVMState(driver, vm, QEMU_ASYNC_JOB_NONE) < 0)
+            return -1;
+    }
+
+    return 0;
 }
 
 
@@ -3528,6 +3616,9 @@ qemuMigrationSrcRun(virQEMUDriverPtr driver,
                       "Falling back to previous implementation.");
         }
     }
+
+    if (qemuMigrationSetDBusVMState(driver, vm) < 0)
+        goto exit_monitor;
 
     /* Before EnterMonitor, since already qemuProcessStopCPUs does that */
     if (!(flags & VIR_MIGRATE_LIVE) &&
@@ -3864,10 +3955,12 @@ qemuMigrationSrcPerformTunnel(virQEMUDriverPtr driver,
     spec.dest.fd.qemu = -1;
     spec.dest.fd.local = -1;
 
-    if (pipe2(fds, O_CLOEXEC) == 0) {
-        spec.dest.fd.qemu = fds[1];
-        spec.dest.fd.local = fds[0];
-    }
+    if (virPipe(fds) < 0)
+        goto cleanup;
+
+    spec.dest.fd.qemu = fds[1];
+    spec.dest.fd.local = fds[0];
+
     if (spec.dest.fd.qemu == -1 ||
         qemuSecuritySetImageFDLabel(driver->securityManager, vm->def,
                                     spec.dest.fd.qemu) < 0) {
@@ -5212,6 +5305,9 @@ qemuMigrationSrcToFile(virQEMUDriverPtr driver, virDomainObjPtr vm,
     char *errbuf = NULL;
     virErrorPtr orig_err = NULL;
 
+    if (qemuMigrationSetDBusVMState(driver, vm) < 0)
+        return -1;
+
     /* Increase migration bandwidth to unlimited since target is a file.
      * Failure to change migration speed is not fatal. */
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) == 0) {
@@ -5229,11 +5325,8 @@ qemuMigrationSrcToFile(virQEMUDriverPtr driver, virDomainObjPtr vm,
         return -1;
     }
 
-    if (compressor && pipe(pipeFD) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Failed to create pipe for migration"));
+    if (compressor && virPipe(pipeFD) < 0)
         return -1;
-    }
 
     /* All right! We can use fd migration, which means that qemu
      * doesn't have to open() the file, so while we still have to

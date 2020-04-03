@@ -23,12 +23,14 @@
 
 #include "lxc_cgroup.h"
 #include "lxc_container.h"
+#include "domain_cgroup.h"
 #include "virfile.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "viralloc.h"
 #include "virstring.h"
 #include "virsystemd.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -39,23 +41,13 @@ static int virLXCCgroupSetupCpuTune(virDomainDefPtr def,
 {
     if (def->cputune.sharesSpecified) {
         unsigned long long val;
-        if (virCgroupSetCpuShares(cgroup, def->cputune.shares) < 0)
-            return -1;
-
-        if (virCgroupGetCpuShares(cgroup, &val) < 0)
+        if (virCgroupSetupCpuShares(cgroup, def->cputune.shares, &val) < 0)
             return -1;
         def->cputune.shares = val;
     }
 
-    if (def->cputune.quota != 0 &&
-        virCgroupSetCpuCfsQuota(cgroup, def->cputune.quota) < 0)
-        return -1;
-
-    if (def->cputune.period != 0 &&
-        virCgroupSetCpuCfsPeriod(cgroup, def->cputune.period) < 0)
-        return -1;
-
-    return 0;
+    return virCgroupSetupCpuPeriodQuota(cgroup, def->cputune.period,
+                                        def->cputune.quota);
 }
 
 
@@ -63,92 +55,35 @@ static int virLXCCgroupSetupCpusetTune(virDomainDefPtr def,
                                        virCgroupPtr cgroup,
                                        virBitmapPtr nodemask)
 {
-    int ret = -1;
-    char *mask = NULL;
+    g_autofree char *mask = NULL;
     virDomainNumatuneMemMode mode;
 
     if (def->placement_mode != VIR_DOMAIN_CPU_PLACEMENT_MODE_AUTO &&
-        def->cpumask) {
-        if (!(mask = virBitmapFormat(def->cpumask)))
-            return -1;
-
-        if (virCgroupSetCpusetCpus(cgroup, mask) < 0)
-            goto cleanup;
-        /* free mask to make sure we won't use it in a wrong way later */
-        VIR_FREE(mask);
+        def->cpumask &&
+        virCgroupSetupCpusetCpus(cgroup, def->cpumask) < 0) {
+        return -1;
     }
 
     if (virDomainNumatuneGetMode(def->numa, -1, &mode) < 0 ||
         mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
     if (virDomainNumatuneMaybeFormatNodeset(def->numa, nodemask,
                                             &mask, -1) < 0)
-        goto cleanup;
+        return -1;
 
     if (mask && virCgroupSetCpusetMems(cgroup, mask) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(mask);
-    return ret;
+    return 0;
 }
 
 
 static int virLXCCgroupSetupBlkioTune(virDomainDefPtr def,
                                       virCgroupPtr cgroup)
 {
-    size_t i;
-
-    if (def->blkio.weight &&
-        virCgroupSetBlkioWeight(cgroup, def->blkio.weight) < 0)
-        return -1;
-
-    if (def->blkio.ndevices) {
-        for (i = 0; i < def->blkio.ndevices; i++) {
-            virBlkioDevicePtr dev = &def->blkio.devices[i];
-
-            if (dev->weight &&
-                (virCgroupSetBlkioDeviceWeight(cgroup, dev->path,
-                                               dev->weight) < 0 ||
-                 virCgroupGetBlkioDeviceWeight(cgroup, dev->path,
-                                               &dev->weight) < 0))
-                return -1;
-
-            if (dev->riops &&
-                (virCgroupSetBlkioDeviceReadIops(cgroup, dev->path,
-                                                 dev->riops) < 0 ||
-                 virCgroupGetBlkioDeviceReadIops(cgroup, dev->path,
-                                                 &dev->riops) < 0))
-                return -1;
-
-            if (dev->wiops &&
-                (virCgroupSetBlkioDeviceWriteIops(cgroup, dev->path,
-                                                  dev->wiops) < 0 ||
-                 virCgroupGetBlkioDeviceWriteIops(cgroup, dev->path,
-                                                  &dev->wiops) < 0))
-                return -1;
-
-            if (dev->rbps &&
-                (virCgroupSetBlkioDeviceReadBps(cgroup, dev->path,
-                                                dev->rbps) < 0 ||
-                 virCgroupGetBlkioDeviceReadBps(cgroup, dev->path,
-                                                &dev->rbps) < 0))
-                return -1;
-
-            if (dev->wbps &&
-                (virCgroupSetBlkioDeviceWriteBps(cgroup, dev->path,
-                                                 dev->wbps) < 0 ||
-                 virCgroupGetBlkioDeviceWriteBps(cgroup, dev->path,
-                                                 &dev->wbps) < 0))
-                return -1;
-        }
-    }
-
-    return 0;
+    return virDomainCgroupSetupBlkio(cgroup, def->blkio);
 }
 
 
@@ -158,19 +93,7 @@ static int virLXCCgroupSetupMemTune(virDomainDefPtr def,
     if (virCgroupSetMemory(cgroup, virDomainDefGetMemoryInitial(def)) < 0)
         return -1;
 
-    if (virMemoryLimitIsSet(def->mem.hard_limit))
-        if (virCgroupSetMemoryHardLimit(cgroup, def->mem.hard_limit) < 0)
-            return -1;
-
-    if (virMemoryLimitIsSet(def->mem.soft_limit))
-        if (virCgroupSetMemorySoftLimit(cgroup, def->mem.soft_limit) < 0)
-            return -1;
-
-    if (virMemoryLimitIsSet(def->mem.swap_hard_limit))
-        if (virCgroupSetMemSwapHardLimit(cgroup, def->mem.swap_hard_limit) < 0)
-            return -1;
-
-    return 0;
+    return virDomainCgroupSetupMemtune(cgroup, def->mem);
 }
 
 
@@ -409,6 +332,48 @@ static int virLXCCgroupSetupDeviceACL(virDomainDefPtr def,
     if (virCgroupAllowDevice(cgroup, 'c', LXC_DEV_MAJ_PTY, -1,
                              VIR_CGROUP_DEVICE_RWM) < 0)
         return -1;
+
+    VIR_DEBUG("Allowing timers char devices");
+
+    /* Sync'ed with Host clock */
+    for (i = 0; i < def->clock.ntimers; i++) {
+        virDomainTimerDefPtr timer = def->clock.timers[i];
+        const char *dev = NULL;
+
+        /* Check if "present" is set to "no" otherwise enable it. */
+        if (!timer->present)
+            continue;
+
+        switch ((virDomainTimerNameType)timer->name) {
+        case VIR_DOMAIN_TIMER_NAME_PLATFORM:
+        case VIR_DOMAIN_TIMER_NAME_TSC:
+        case VIR_DOMAIN_TIMER_NAME_KVMCLOCK:
+        case VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK:
+        case VIR_DOMAIN_TIMER_NAME_PIT:
+        case VIR_DOMAIN_TIMER_NAME_ARMVTIMER:
+        case VIR_DOMAIN_TIMER_NAME_LAST:
+            break;
+        case VIR_DOMAIN_TIMER_NAME_RTC:
+            dev = "/dev/rtc0";
+            break;
+        case VIR_DOMAIN_TIMER_NAME_HPET:
+            dev = "/dev/hpet";
+            break;
+        }
+
+        if (!dev)
+            continue;
+
+        if (!virFileExists(dev)) {
+            VIR_DEBUG("Ignoring non-existent device %s", dev);
+            continue;
+        }
+
+        if (virCgroupAllowDevicePath(cgroup, dev,
+                                     VIR_CGROUP_DEVICE_READ,
+                                     false) < 0)
+            return -1;
+    }
 
     VIR_DEBUG("Device whitelist complete");
 

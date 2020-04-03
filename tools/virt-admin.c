@@ -40,11 +40,6 @@
 #include "vsh-table.h"
 #include "virenum.h"
 
-/* Gnulib doesn't guarantee SA_SIGINFO support.  */
-#ifndef SA_SIGINFO
-# define SA_SIGINFO 0
-#endif
-
 #define VIRT_ADMIN_PROMPT "virt-admin # "
 
 /* we don't need precision to milliseconds in this module */
@@ -69,40 +64,6 @@ vshAdmClientTransportToString(int transport)
     return str ? _(str) : _("unknown");
 }
 
-/*
- * vshAdmGetTimeStr:
- *
- * Produces string representation (local time) of @then
- * (seconds since epoch UTC) using format 'YYYY-MM-DD HH:MM:SS+ZZZZ'.
- *
- * Returns 0 if conversion finished successfully, -1 in case of an error.
- * Caller is responsible for freeing the string returned.
- */
-static int
-vshAdmGetTimeStr(vshControl *ctl, time_t then, char **result)
-{
-    char *tmp = NULL;
-    struct tm timeinfo;
-
-    if (!localtime_r(&then, &timeinfo))
-        goto error;
-
-    if (VIR_ALLOC_N(tmp, VIRT_ADMIN_TIME_BUFLEN) < 0)
-        goto error;
-
-    if (strftime(tmp, VIRT_ADMIN_TIME_BUFLEN, "%Y-%m-%d %H:%M:%S%z",
-                 &timeinfo) == 0) {
-        VIR_FREE(tmp);
-        goto error;
-    }
-
-    *result = tmp;
-    return 0;
-
- error:
-    vshError(ctl, "%s", _("Timestamp string conversion failed"));
-    return -1;
-}
 
 /*
  * vshAdmCatchDisconnect:
@@ -646,19 +607,19 @@ cmdSrvClientsList(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
 
     for (i = 0; i < nclts; i++) {
-        g_autofree char *timestr = NULL;
+        g_autoptr(GDateTime) then = NULL;
+        g_autofree gchar *thenstr = NULL;
         g_autofree char *idStr = NULL;
         virAdmClientPtr client = clts[i];
         id = virAdmClientGetID(client);
+        then = g_date_time_new_from_unix_local(virAdmClientGetTimestamp(client));
         transport = virAdmClientGetTransport(client);
-        if (vshAdmGetTimeStr(ctl, virAdmClientGetTimestamp(client),
-                             &timestr) < 0)
-            goto cleanup;
 
+        thenstr = g_date_time_format(then,  "%Y-%m-%d %H:%M:%S%z");
         idStr = g_strdup_printf("%llu", id);
         if (vshTableRowAppend(table, idStr,
                               vshAdmClientTransportToString(transport),
-                              timestr, NULL) < 0)
+                              thenstr, NULL) < 0)
             goto cleanup;
     }
 
@@ -714,7 +675,8 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
     size_t i;
     unsigned long long id;
     const char *srvname = NULL;
-    char *timestr = NULL;
+    g_autoptr(GDateTime) then = NULL;
+    g_autofree gchar *thenstr = NULL;
     virAdmServerPtr srv = NULL;
     virAdmClientPtr clnt = NULL;
     virTypedParameterPtr params = NULL;
@@ -739,12 +701,13 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (vshAdmGetTimeStr(ctl, virAdmClientGetTimestamp(clnt), &timestr) < 0)
-        goto cleanup;
+
+    then = g_date_time_new_from_unix_local(virAdmClientGetTimestamp(clnt));
+    thenstr = g_date_time_format(then,  "%Y-%m-%d %H:%M:%S%z");
 
     /* this info is provided by the client object itself */
     vshPrint(ctl, "%-15s: %llu\n", "id", virAdmClientGetID(clnt));
-    vshPrint(ctl, "%-15s: %s\n", "connection_time", timestr);
+    vshPrint(ctl, "%-15s: %s\n", "connection_time", thenstr);
     vshPrint(ctl, "%-15s: %s\n", "transport",
              vshAdmClientTransportToString(virAdmClientGetTransport(clnt)));
 
@@ -760,7 +723,6 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
     virTypedParamsFree(params, nparams);
     virAdmServerFree(srv);
     virAdmClientFree(clnt);
-    VIR_FREE(timestr);
     return ret;
 }
 
@@ -993,6 +955,60 @@ cmdSrvClientsSet(vshControl *ctl, const vshCmd *cmd)
     vshError(ctl, "%s", _("Unable to change server's client-related "
                           "configuration limits"));
     goto cleanup;
+}
+
+/* ------------------------
+ *  Command srv-update-tls
+ * ------------------------
+ */
+static const vshCmdInfo info_srv_update_tls_file[] = {
+    {.name = "help",
+     .data = N_("notify server to update TLS related files online.")
+    },
+    {.name = "desc",
+     .data = N_("notify server to update the CA cert, "
+                "CA CRL, server cert / key without restarts. "
+                "See OPTIONS for currently supported attributes.")
+    },
+    {.name = NULL}
+};
+
+static const vshCmdOptDef opts_srv_update_tls_file[] = {
+    {.name = "server",
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
+     .help = N_("Available servers on a daemon. "
+                "Currently only supports 'libvirtd'.")
+    },
+    {.name = NULL}
+};
+
+static bool
+cmdSrvUpdateTlsFiles(vshControl *ctl, const vshCmd *cmd)
+{
+    bool ret = false;
+    const char *srvname = NULL;
+
+    virAdmServerPtr srv = NULL;
+    vshAdmControlPtr priv = ctl->privData;
+
+    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+        return false;
+
+    if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
+        goto cleanup;
+
+    if (virAdmServerUpdateTlsFiles(srv, 0) < 0) {
+        vshError(ctl, "%s", _("Unable to update server's tls related files."));
+        goto cleanup;
+    }
+
+    ret = true;
+    vshPrint(ctl, "update tls related files succeed\n");
+
+ cleanup:
+    virAdmServerFree(srv);
+    return ret;
 }
 
 /* --------------------------
@@ -1472,6 +1488,16 @@ static const vshCmdDef managementCmds[] = {
      .handler = cmdSrvClientsSet,
      .opts = opts_srv_clients_set,
      .info = info_srv_clients_set,
+     .flags = 0
+    },
+    {.name = "srv-update-tls",
+     .flags = VSH_CMD_FLAG_ALIAS,
+     .alias = "server-update-tls"
+    },
+    {.name = "server-update-tls",
+     .handler = cmdSrvUpdateTlsFiles,
+     .opts = opts_srv_update_tls_file,
+     .info = info_srv_update_tls_file,
      .flags = 0
     },
     {.name = "daemon-log-filters",

@@ -41,7 +41,7 @@
  * The UUID of a network is the MD5 sum of its key. Therefore, verify that
  * UUID and MD5 sum match in size, because we rely on that.
  */
-verify(VIR_CRYPTO_HASH_SIZE_MD5 == VIR_UUID_BUFLEN);
+G_STATIC_ASSERT(VIR_CRYPTO_HASH_SIZE_MD5 == VIR_UUID_BUFLEN);
 
 
 static int
@@ -508,7 +508,7 @@ esxNetworkUndefine(virNetworkPtr network)
     if (esxVI_EnsureSession(priv->primary) < 0)
         return -1;
 
-    /* Lookup HostVirtualSwitch and HostPortGroup list*/
+    /* Lookup HostVirtualSwitch and HostPortGroup list */
     if (esxVI_LookupHostVirtualSwitchByName(priv->primary, network->name,
                                             &hostVirtualSwitch,
                                             esxVI_Occurrence_RequiredItem) < 0 ||

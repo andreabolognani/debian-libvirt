@@ -637,42 +637,75 @@ virBufferStrcat(virBufferPtr buf, ...)
 /**
  * virBufferTrim:
  * @buf: the buffer to trim
- * @str: the optional string, to force an exact trim
- * @len: the number of bytes to trim, or -1 to use @str
+ * @str: the string to be trimmed from the tail
  *
- * Trim the tail of a buffer.  If @str is provided, the trim only occurs
- * if the current tail of the buffer matches @str; a non-negative @len
- * further limits how much of the tail is trimmed.  If @str is NULL, then
- * @len must be non-negative.
+ * Trim the supplied string from the tail of the buffer.
  */
 void
-virBufferTrim(virBufferPtr buf, const char *str, int len)
+virBufferTrim(virBufferPtr buf, const char *str)
 {
-    size_t len2 = 0;
+    size_t len = 0;
 
     if (!buf || !buf->str)
         return;
 
-    if (!str && len < 0)
+    if (!str)
         return;
 
+    len = strlen(str);
 
-    if (len > 0 && len > buf->str->len)
+    if (len > buf->str->len ||
+        memcmp(&buf->str->str[buf->str->len - len], str, len) != 0)
         return;
-
-    if (str) {
-        len2 = strlen(str);
-        if (len2 > buf->str->len ||
-            memcmp(&buf->str->str[buf->str->len - len2], str, len2) != 0)
-            return;
-    }
-
-    if (len < 0)
-        len = len2;
 
     g_string_truncate(buf->str, buf->str->len - len);
 }
 
+/**
+ * virBufferTrimChars:
+ * @buf: the buffer to trim
+ * @trim: the characters to be trimmed
+ *
+ * Trim the tail of the buffer. The longest string that can be formed with
+ * the characters from @trim is trimmed.
+ */
+void
+virBufferTrimChars(virBufferPtr buf, const char *trim)
+{
+    ssize_t i;
+
+    if (!buf || !buf->str)
+        return;
+
+    if (!trim)
+        return;
+
+    for (i = buf->str->len - 1; i > 0; i--) {
+        if (!strchr(trim, buf->str->str[i]))
+            break;
+    }
+
+    g_string_truncate(buf->str, i + 1);
+}
+
+/**
+ * virBufferTrimLen:
+ * @buf: the buffer to trim
+ * @len: the number of bytes to trim
+ *
+ * Trim the tail of a buffer.
+ */
+void
+virBufferTrimLen(virBufferPtr buf, int len)
+{
+    if (!buf || !buf->str)
+        return;
+
+    if (len > buf->str->len)
+        return;
+
+    g_string_truncate(buf->str, buf->str->len - len);
+}
 
 /**
  * virBufferAddStr:

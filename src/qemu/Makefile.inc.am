@@ -67,6 +67,8 @@ QEMU_DRIVER_SOURCES = \
 	qemu/qemu_vhost_user.h \
 	qemu/qemu_vhost_user_gpu.c \
 	qemu/qemu_vhost_user_gpu.h \
+	qemu/qemu_virtiofs.c \
+	qemu/qemu_virtiofs.h \
 	qemu/qemu_checkpoint.c \
 	qemu/qemu_checkpoint.h \
 	qemu/qemu_backup.c \
@@ -85,7 +87,6 @@ libvirt_driver_qemu_la_LIBADD = \
 	libvirt_driver_qemu_impl.la \
 	libvirt.la \
 	$(GLIB_LIBS) \
-	../gnulib/lib/libgnu.la \
 	$(NULL)
 mod_LTLIBRARIES += libvirt_driver_qemu.la
 libvirt_driver_qemu_la_LDFLAGS = $(AM_LDFLAGS_MOD_NOUNDEF)
@@ -99,6 +100,7 @@ libvirt_driver_qemu_impl_la_CFLAGS = \
 	-I$(builddir)/access \
 	-I$(srcdir)/conf \
 	-I$(srcdir)/secret \
+	-I$(srcdir)/hypervisor \
 	$(AM_CFLAGS) \
 	$(NULL)
 libvirt_driver_qemu_impl_la_LDFLAGS = $(AM_LDFLAGS)
@@ -243,3 +245,19 @@ EXTRA_DIST += \
 	qemu/THREADS.txt \
 	libvirt_qemu_probes.d \
 	$(NULL)
+
+QEMU_SHIM_SOURCES = qemu/qemu_shim.c
+
+EXTRA_DIST += $(QEMU_SHIM_SOURCES)
+
+if WITH_QEMU
+bin_PROGRAMS += virt-qemu-run
+
+virt_qemu_run_SOURCES = $(QEMU_SHIM_SOURCES)
+
+virt_qemu_run_LDADD = \
+	libvirt.la \
+	$(GLIB_LIBS) \
+	$(NULL)
+virt_qemu_run_LDFLAGS = -export-dynamic
+endif WITH_QEMU

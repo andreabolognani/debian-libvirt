@@ -19,13 +19,19 @@
  */
 
 #include <config.h>
+#include <unistd.h>
 
 #include "viralloc.h"
 #include "virerror.h"
 #include "virstring.h"
 #include "virfile.h"
+#include "virnetdevmacvlan.h"
 #include "virnetworkportdef.h"
 #include "network_conf.h"
+
+#include "netdev_bandwidth_conf.h"
+#include "netdev_vlan_conf.h"
+#include "netdev_vport_profile_conf.h"
 
 #define VIR_FROM_THIS VIR_FROM_NETWORK
 
@@ -161,6 +167,8 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
     if (vlanNode && virNetDevVlanParse(vlanNode, ctxt, &def->vlan) < 0)
         return NULL;
 
+    if (virNetworkPortOptionsParseXML(ctxt, &def->isolatedPort) < 0)
+        return NULL;
 
     trustGuestRxFilters
         = virXPathString("string(./rxfilters/@trustGuest)", ctxt);
@@ -360,6 +368,7 @@ virNetworkPortDefFormatBuf(virBufferPtr buf,
         virNetDevBandwidthFormat(def->bandwidth, def->class_id, buf);
     if (virNetDevVlanFormat(&def->vlan, buf) < 0)
         return -1;
+    virNetworkPortOptionsFormat(def->isolatedPort, buf);
     if (def->trustGuestRxFilters)
         virBufferAsprintf(buf, "<rxfilters trustGuest='%s'/>\n",
                           virTristateBoolTypeToString(def->trustGuestRxFilters));
@@ -435,29 +444,24 @@ virNetworkPortDefSaveStatus(virNetworkPortDef *def,
                             const char *dir)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    char *path;
-    char *xml = NULL;
-    int ret = -1;
+    g_autofree char *path = NULL;
+    g_autofree char *xml = NULL;
 
     virUUIDFormat(def->uuid, uuidstr);
 
     if (virFileMakePath(dir) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(path = virNetworkPortDefConfigFile(dir, uuidstr)))
-        goto cleanup;
+        return -1;
 
     if (!(xml = virNetworkPortDefFormat(def)))
-        goto cleanup;
+        return -1;
 
     if (virXMLSaveFile(path, uuidstr, "net-port-create", xml) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(xml);
-    VIR_FREE(path);
-    return ret;
+    return 0;
 }
 
 

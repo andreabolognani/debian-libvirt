@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include "virutil.h"
 #include "virbitmap.h"
 #include "virenum.h"
 
@@ -49,7 +48,7 @@ VIR_ENUM_DECL(virCgroupController);
  * bit array stored in int. Like this:
  *   1 << VIR_CGROUP_CONTROLLER_CPU
  * Make sure we will not overflow */
-verify(VIR_CGROUP_CONTROLLER_LAST < 8 * sizeof(int));
+G_STATIC_ASSERT(VIR_CGROUP_CONTROLLER_LAST < 8 * sizeof(int));
 
 typedef enum {
     VIR_CGROUP_THREAD_VCPU = 0,
@@ -135,45 +134,25 @@ int virCgroupGetBlkioIoDeviceServiced(virCgroupPtr group,
                                       long long *requests_read,
                                       long long *requests_write);
 
-int virCgroupSetBlkioDeviceWeight(virCgroupPtr group,
-                                  const char *path,
-                                  unsigned int weight);
-
-int virCgroupSetBlkioDeviceReadIops(virCgroupPtr group,
+int virCgroupSetupBlkioDeviceWeight(virCgroupPtr cgroup,
                                     const char *path,
-                                    unsigned int riops);
+                                    unsigned int *weight);
 
-int virCgroupSetBlkioDeviceWriteIops(virCgroupPtr group,
+int virCgroupSetupBlkioDeviceReadIops(virCgroupPtr cgroup,
+                                      const char *path,
+                                      unsigned int *riops);
+
+int virCgroupSetupBlkioDeviceWriteIops(virCgroupPtr cgroup,
+                                       const char *path,
+                                       unsigned int *wiops);
+
+int virCgroupSetupBlkioDeviceReadBps(virCgroupPtr cgroup,
                                      const char *path,
-                                     unsigned int wiops);
+                                     unsigned long long *rbps);
 
-int virCgroupSetBlkioDeviceReadBps(virCgroupPtr group,
-                                   const char *path,
-                                   unsigned long long rbps);
-
-int virCgroupSetBlkioDeviceWriteBps(virCgroupPtr group,
-                                    const char *path,
-                                    unsigned long long wbps);
-
-int virCgroupGetBlkioDeviceWeight(virCgroupPtr group,
-                                  const char *path,
-                                  unsigned int *weight);
-
-int virCgroupGetBlkioDeviceReadIops(virCgroupPtr group,
-                                    const char *path,
-                                    unsigned int *riops);
-
-int virCgroupGetBlkioDeviceWriteIops(virCgroupPtr group,
-                                     const char *path,
-                                     unsigned int *wiops);
-
-int virCgroupGetBlkioDeviceReadBps(virCgroupPtr group,
-                                   const char *path,
-                                   unsigned long long *rbps);
-
-int virCgroupGetBlkioDeviceWriteBps(virCgroupPtr group,
-                                    const char *path,
-                                    unsigned long long *wbps);
+int virCgroupSetupBlkioDeviceWriteBps(virCgroupPtr cgroup,
+                                      const char *path,
+                                      unsigned long long *wbps);
 
 int virCgroupSetMemory(virCgroupPtr group, unsigned long long kb);
 int virCgroupGetMemoryStat(virCgroupPtr group,
@@ -242,9 +221,15 @@ virCgroupGetDomainTotalCpuStats(virCgroupPtr group,
 
 int virCgroupSetCpuShares(virCgroupPtr group, unsigned long long shares);
 int virCgroupGetCpuShares(virCgroupPtr group, unsigned long long *shares);
+int virCgroupSetupCpuShares(virCgroupPtr cgroup, unsigned long long shares,
+                            unsigned long long *realValue);
 
 int virCgroupSetCpuCfsPeriod(virCgroupPtr group, unsigned long long cfs_period);
 int virCgroupGetCpuCfsPeriod(virCgroupPtr group, unsigned long long *cfs_period);
+int virCgroupGetCpuPeriodQuota(virCgroupPtr cgroup, unsigned long long *period,
+                               long long *quota);
+int virCgroupSetupCpuPeriodQuota(virCgroupPtr cgroup, unsigned long long period,
+                                 long long quota);
 
 int virCgroupSetCpuCfsQuota(virCgroupPtr group, long long cfs_quota);
 int virCgroupGetCpuCfsQuota(virCgroupPtr group, long long *cfs_quota);
@@ -265,6 +250,7 @@ int virCgroupGetCpusetMemoryMigrate(virCgroupPtr group, bool *migrate);
 
 int virCgroupSetCpusetCpus(virCgroupPtr group, const char *cpus);
 int virCgroupGetCpusetCpus(virCgroupPtr group, char **cpus);
+int virCgroupSetupCpusetCpus(virCgroupPtr cgroup, virBitmapPtr cpumask);
 
 int virCgroupRemove(virCgroupPtr group);
 

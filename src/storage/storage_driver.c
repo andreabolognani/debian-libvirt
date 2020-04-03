@@ -49,6 +49,7 @@
 #include "virstring.h"
 #include "viraccessapicheck.h"
 #include "storage_util.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -250,12 +251,19 @@ storageDriverAutostart(void)
  */
 static int
 storageStateInitialize(bool privileged,
+                       const char *root,
                        virStateInhibitCallback callback G_GNUC_UNUSED,
                        void *opaque G_GNUC_UNUSED)
 {
     g_autofree char *configdir = NULL;
     g_autofree char *rundir = NULL;
     bool autostart = true;
+
+    if (root != NULL) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Driver does not support embedded mode"));
+        return -1;
+    }
 
     if (VIR_ALLOC(driver) < 0)
         return VIR_DRV_STATE_INIT_ERROR;
@@ -892,9 +900,8 @@ storagePoolUndefine(virStoragePoolPtr pool)
 
     if (autostartLink && unlink(autostartLink) < 0 &&
         errno != ENOENT && errno != ENOTDIR) {
-        char ebuf[1024];
         VIR_ERROR(_("Failed to delete autostart link '%s': %s"),
-                  autostartLink, virStrerror(errno, ebuf, sizeof(ebuf)));
+                  autostartLink, g_strerror(errno));
     }
 
     event = virStoragePoolEventLifecycleNew(def->name,
@@ -2359,8 +2366,8 @@ virStorageVolFDStreamCloseCb(virStreamPtr st G_GNUC_UNUSED,
 {
     virThread thread;
 
-    if (virThreadCreate(&thread, false, virStorageVolPoolRefreshThread,
-                        opaque) < 0) {
+    if (virThreadCreateFull(&thread, false, virStorageVolPoolRefreshThread,
+                            "vol-refresh", false, opaque) < 0) {
         /* Not much else can be done */
         VIR_ERROR(_("Failed to create thread to handle pool refresh"));
         goto error;

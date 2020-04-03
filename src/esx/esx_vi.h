@@ -32,10 +32,6 @@
 #include "esx_vi_types.h"
 #include "esx_util.h"
 
-/* curl_multi_wait was added in libcurl 7.28.0, emulate it on older versions */
-#define ESX_EMULATE_CURL_MULTI_WAIT (LIBCURL_VERSION_NUM < 0x071C00)
-
-
 
 #define ESX_VI__SOAP__REQUEST_HEADER \
     "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" \
@@ -159,11 +155,6 @@ int esxVI_SharedCURL_Remove(esxVI_SharedCURL *shared, esxVI_CURL *curl);
 struct _esxVI_MultiCURL {
     CURLM *handle;
     size_t count; /* number of added easy handle */
-#if ESX_EMULATE_CURL_MULTI_WAIT
-    struct pollfd *pollfds;
-    size_t npollfds;
-    bool timeoutPending;
-#endif
 };
 
 int esxVI_MultiCURL_Alloc(esxVI_MultiCURL **multi);
@@ -213,8 +204,8 @@ struct _esxVI_Context {
 
 int esxVI_Context_Alloc(esxVI_Context **ctx);
 void esxVI_Context_Free(esxVI_Context **ctx);
-int esxVI_Context_Connect(esxVI_Context *ctx, const char *ipAddress,
-                          const char *url, const char *username,
+int esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
+                          const char *ipAddress, const char *username,
                           const char *password, esxUtil_ParsedUri *parsedUri);
 int esxVI_Context_LookupManagedObjects(esxVI_Context *ctx);
 int esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path);

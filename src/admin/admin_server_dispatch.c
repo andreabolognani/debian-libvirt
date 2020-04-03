@@ -34,6 +34,7 @@
 #include "virstring.h"
 #include "virthreadjob.h"
 #include "virtypedparam.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_ADMIN
 
@@ -117,9 +118,6 @@ virJSONValuePtr remoteAdmClientPreExecRestart(virNetServerClientPtr client G_GNU
                                               void *data G_GNUC_UNUSED)
 {
     virJSONValuePtr object = virJSONValueNewObject();
-
-    if (!object)
-        return NULL;
 
     /* No content to add at this time - just need empty object */
 

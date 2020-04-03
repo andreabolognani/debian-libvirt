@@ -1,5 +1,7 @@
 #include <config.h>
 
+#include <unistd.h>
+
 #include "testutils.h"
 
 #ifdef WITH_VBOX
@@ -147,4 +149,4 @@ int main(void)
     return EXIT_AM_SKIP;
 }
 
-#endif /*WITH_VBOX*/
+#endif /* WITH_VBOX */

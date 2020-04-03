@@ -217,7 +217,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 6.0.0
+Version: 6.2.0
 Release: 1%{?dist}
 License: LGPLv2+
 URL: https://libvirt.org/
@@ -302,7 +302,7 @@ BuildRequires: yajl-devel
 %if %{with_sanlock}
 BuildRequires: sanlock-devel >= 2.4
 %endif
-BuildRequires: libpcap-devel
+BuildRequires: libpcap-devel >= 1.5.0
 BuildRequires: libnl3-devel
 BuildRequires: libselinux-devel
 BuildRequires: dnsmasq >= 2.41
@@ -413,8 +413,6 @@ BuildRequires: libtirpc-devel
 %if %{with_firewalld_zone}
 BuildRequires: firewalld-filesystem
 %endif
-
-Provides: bundled(gnulib)
 
 %description
 Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -1749,6 +1747,8 @@ exit 0
 %{_libdir}/%{name}/connection-driver/libvirt_driver_qemu.so
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/swtpm/
 %dir %attr(0711, root, root) %{_localstatedir}/log/swtpm/libvirt/qemu/
+%{_bindir}/virt-qemu-run
+%{_mandir}/man1/virt-qemu-run.1*
 %endif
 
 %if %{with_lxc}

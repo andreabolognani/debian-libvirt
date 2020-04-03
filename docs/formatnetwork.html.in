@@ -548,10 +548,10 @@
         (<span class="since">since 0.9.4</span>). Setting
         <code>bandwidth</code> for a network is supported only
         for networks with a <code>&lt;forward&gt;</code> mode
-        of <code>route</code>, <code>nat</code>, or no mode at all
-        (i.e. an "isolated" network). Setting <code>bandwidth</code>
-        is <b>not</b> supported for forward modes
-        of <code>bridge</code>, <code>passthrough</code>, <code>private</code>,
+        of <code>route</code>, <code>nat</code>, <code>bridge</code>,
+        or no mode at all (i.e. an "isolated" network). Setting
+        <code>bandwidth</code> is <b>not</b> supported for forward modes
+        <code>passthrough</code>, <code>private</code>,
         or <code>hostdev</code>. Attempts to do this will lead to
         a failure to define the network or to create a transient network.
       </p>
@@ -631,7 +631,7 @@
           goes through one point where QoS decisions can take place, hence
           why this attribute works only for virtual networks for now
           (that is <code>&lt;interface type='network'/&gt;</code> with a
-          forward type of route, nat, or no forward at all). Moreover, the
+          forward type of route, nat, open or no forward at all). Moreover, the
           virtual network the interface is connected to is required to have
           at least inbound QoS set (<code>average</code> at least). If
           using the <code>floor</code> attribute users don't need to specify
@@ -727,6 +727,31 @@
       in <code>&lt;network&gt;</code> will be selected only if none is
       given in <code>&lt;portgroup&gt;</code>
       or <code>&lt;interface&gt;</code>.
+    </p>
+
+    <h5><a id="elementPort">Isolating ports from one another</a></h5>
+
+<pre>
+&lt;network&gt;
+  &lt;name&gt;isolated-ports&lt;/name&gt;
+  &lt;forward mode='bridge'/&gt;
+  &lt;bridge name='br0'/&gt;
+  &lt;port isolated='yes'/&gt;
+&lt;/network&gt;
+</pre>
+
+    <p>
+      <span class="since">Since 6.1.0.</span> The <code>port</code>
+      element property <code>isolated</code>, when set
+      to <code>yes</code> (default setting is <code>no</code>) is used
+      to isolate the network traffic of each guest on the network from
+      all other guests connected to the network; it does not have an
+      effect on communication between the guests and the host, or
+      between the guests and destinations beyond this network. This
+      setting is only supported for networks that use a Linux host
+      bridge to connect guest interfaces via a standard tap device
+      (i.e. those with a forward mode of nat, route, open, bridge, or
+      no forward mode).
     </p>
 
     <h5><a id="elementsPortgroup">Portgroups</a></h5>

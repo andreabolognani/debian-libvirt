@@ -89,17 +89,15 @@ static void virLockSpaceResourceFree(virLockSpaceResourcePtr res)
             } else {
                 if (unlink(res->path) < 0 &&
                     errno != ENOENT) {
-                    char ebuf[1024];
                     VIR_WARN("Failed to unlink resource %s: %s",
-                             res->path, virStrerror(errno, ebuf, sizeof(ebuf)));
+                             res->path, g_strerror(errno));
                 }
             }
         } else {
             if (unlink(res->path) < 0 &&
                 errno != ENOENT) {
-                char ebuf[1024];
                 VIR_WARN("Failed to unlink resource %s: %s",
-                         res->path, virStrerror(errno, ebuf, sizeof(ebuf)));
+                         res->path, g_strerror(errno));
             }
         }
     }
@@ -173,9 +171,8 @@ virLockSpaceResourceNew(virLockSpacePtr lockspace,
              * one that now exists on the filesystem
              */
             if (stat(res->path, &a) < 0) {
-                char ebuf[1024] G_GNUC_UNUSED;
                 VIR_DEBUG("Resource '%s' disappeared: %s",
-                          res->path, virStrerror(errno, ebuf, sizeof(ebuf)));
+                          res->path, g_strerror(errno));
                 VIR_FORCE_CLOSE(res->fd);
                 /* Someone else must be racing with us, so try again */
                 continue;
@@ -434,17 +431,13 @@ virJSONValuePtr virLockSpacePreExecRestart(virLockSpacePtr lockspace)
     virJSONValuePtr resources;
     virHashKeyValuePairPtr pairs = NULL, tmp;
 
-    if (!object)
-        return NULL;
-
     virMutexLock(&lockspace->lock);
 
     if (lockspace->dir &&
         virJSONValueObjectAppendString(object, "directory", lockspace->dir) < 0)
         goto error;
 
-    if (!(resources = virJSONValueNewArray()))
-        goto error;
+    resources = virJSONValueNewArray();
 
     if (virJSONValueObjectAppend(object, "resources", resources) < 0) {
         virJSONValueFree(resources);
@@ -457,9 +450,6 @@ virJSONValuePtr virLockSpacePreExecRestart(virLockSpacePtr lockspace)
         virJSONValuePtr child = virJSONValueNewObject();
         virJSONValuePtr owners = NULL;
         size_t i;
-
-        if (!child)
-            goto error;
 
         if (virJSONValueArrayAppend(resources, child) < 0) {
             virJSONValueFree(child);
@@ -479,8 +469,7 @@ virJSONValuePtr virLockSpacePreExecRestart(virLockSpacePtr lockspace)
             goto error;
         }
 
-        if (!(owners = virJSONValueNewArray()))
-            goto error;
+        owners = virJSONValueNewArray();
 
         if (virJSONValueObjectAppend(child, "owners", owners) < 0) {
             virJSONValueFree(owners);

@@ -171,7 +171,13 @@ sub get_conn_method {
     if ($proc =~ /Connect.*Network/) {
         return "remoteGetNetworkConn";
     }
-    if ($proc =~ /Node.*Device/) {
+    # Carefully whitelist a few APIs with NodeDevice name
+    # prefix which actually get handled by the virt drivers
+    if ($proc =~ /Node.*Device/ &&
+        !($proc =~ /NodeDeviceReset/ ||
+          $proc =~ /NodeDeviceReAttach/ ||
+          $proc =~ /NodeDeviceDettach/ ||
+          $proc =~ /NodeDeviceDetachFlags/)) {
         return "remoteGetNodeDevConn";
     }
     if ($proc =~ /Connect.*NWFilter/) {
@@ -565,7 +571,7 @@ elsif ($mode eq "server") {
                 $has_node_device = 1;
                 push(@vars_list, "virNodeDevicePtr dev = NULL");
                 push(@getters_list,
-                     "    if (!(dev = virNodeDeviceLookupByName($conn_var, args->name)))\n" .
+                     "    if (!(dev = get_nonnull_node_device_name($conn_var, args->name)))\n" .
                      "        goto cleanup;\n");
                 push(@args_list, "dev");
                 push(@free_list,
@@ -994,6 +1000,7 @@ elsif ($mode eq "server") {
                 } else {
                     my $struct_name = $call->{ProcName};
                     $struct_name =~ s/Get//;
+                    $struct_name =~ s/Flags$//;
 
                     splice(@args_list, $call->{ret_offset}, 0, ("&tmp"));
 

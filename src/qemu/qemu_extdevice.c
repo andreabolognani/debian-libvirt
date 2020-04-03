@@ -20,11 +20,13 @@
 
 #include <config.h>
 
+#include "qemu_command.h"
 #include "qemu_extdevice.h"
 #include "qemu_vhost_user_gpu.h"
 #include "qemu_domain.h"
 #include "qemu_tpm.h"
 #include "qemu_slirp.h"
+#include "qemu_virtiofs.h"
 
 #include "viralloc.h"
 #include "virlog.h"
@@ -103,6 +105,15 @@ qemuExtDevicesPrepareDomain(virQEMUDriverPtr driver,
         }
     }
 
+    for (i = 0; i < vm->def->nfss; i++) {
+        virDomainFSDefPtr fs = vm->def->fss[i];
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS) {
+            if (qemuVirtioFSPrepareDomain(driver, fs) < 0)
+                return -1;
+        }
+    }
+
     return ret;
 }
 
@@ -153,38 +164,46 @@ qemuExtDevicesCleanupHost(virQEMUDriverPtr driver,
 int
 qemuExtDevicesStart(virQEMUDriverPtr driver,
                     virDomainObjPtr vm,
+                    virLogManagerPtr logManager,
                     bool incomingMigration)
 {
     virDomainDefPtr def = vm->def;
-    int ret = 0;
     size_t i;
 
-    if (qemuExtDevicesInitPaths(driver, vm->def) < 0)
+    if (qemuExtDevicesInitPaths(driver, def) < 0)
         return -1;
 
-    for (i = 0; i < vm->def->nvideos; i++) {
-        virDomainVideoDefPtr video = vm->def->videos[i];
+    for (i = 0; i < def->nvideos; i++) {
+        virDomainVideoDefPtr video = def->videos[i];
 
         if (video->backend == VIR_DOMAIN_VIDEO_BACKEND_TYPE_VHOSTUSER) {
-            ret = qemuExtVhostUserGPUStart(driver, vm, video);
-            if (ret < 0)
-                return ret;
+            if (qemuExtVhostUserGPUStart(driver, vm, video) < 0)
+                return -1;
         }
     }
 
-    if (vm->def->tpm)
-        ret = qemuExtTPMStart(driver, vm, incomingMigration);
+    if (def->tpm && qemuExtTPMStart(driver, vm, incomingMigration) < 0)
+        return -1;
 
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
         qemuSlirpPtr slirp = QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp;
 
         if (slirp &&
-            qemuSlirpStart(slirp, vm, driver, net, false, incomingMigration) < 0)
+            qemuSlirpStart(slirp, vm, driver, net, incomingMigration) < 0)
             return -1;
     }
 
-    return ret;
+    for (i = 0; i < def->nfss; i++) {
+        virDomainFSDefPtr fs = def->fss[i];
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS) {
+            if (qemuVirtioFSStart(logManager, driver, vm, fs) < 0)
+                return -1;
+        }
+    }
+
+    return 0;
 }
 
 
@@ -213,7 +232,14 @@ qemuExtDevicesStop(virQEMUDriverPtr driver,
         qemuSlirpPtr slirp = QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp;
 
         if (slirp)
-            qemuSlirpStop(slirp, vm, driver, net, false);
+            qemuSlirpStop(slirp, vm, driver, net);
+    }
+
+    for (i = 0; i < def->nfss; i++) {
+        virDomainFSDefPtr fs = def->fss[i];
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
+            qemuVirtioFSStop(driver, vm, fs);
     }
 }
 
@@ -231,15 +257,23 @@ qemuExtDevicesHasDevice(virDomainDefPtr def)
     if (def->tpm && def->tpm->type == VIR_DOMAIN_TPM_TYPE_EMULATOR)
         return true;
 
+    for (i = 0; i < def->nfss; i++) {
+        virDomainFSDefPtr fs = def->fss[i];
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
+            return true;
+    }
+
     return false;
 }
 
 
 int
 qemuExtDevicesSetupCgroup(virQEMUDriverPtr driver,
-                          virDomainDefPtr def,
+                          virDomainObjPtr vm,
                           virCgroupPtr cgroup)
 {
+    virDomainDefPtr def = vm->def;
     size_t i;
 
     for (i = 0; i < def->nvideos; i++) {
@@ -253,6 +287,14 @@ qemuExtDevicesSetupCgroup(virQEMUDriverPtr driver,
     if (def->tpm &&
         qemuExtTPMSetupCgroup(driver, def, cgroup) < 0)
         return -1;
+
+    for (i = 0; i < def->nfss; i++) {
+        virDomainFSDefPtr fs = def->fss[i];
+
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS &&
+            qemuVirtioFSSetupCgroup(vm, fs, cgroup) < 0)
+            return -1;
+    }
 
     return 0;
 }

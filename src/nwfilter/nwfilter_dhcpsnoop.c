@@ -43,9 +43,6 @@
 #include <fcntl.h>
 #include <poll.h>
 
-#include <arpa/inet.h>
-#include <netinet/ip.h>
-#include <netinet/udp.h>
 #include <net/if.h>
 
 #include "viralloc.h"
@@ -58,7 +55,6 @@
 #include "nwfilter_ipaddrmap.h"
 #include "virnetdev.h"
 #include "virfile.h"
-#include "viratomic.h"
 #include "virsocketaddr.h"
 #include "virthreadpool.h"
 #include "configmake.h"
@@ -186,7 +182,7 @@ struct _virNWFilterSnoopEthHdr {
     uint16_t eh_type;
     uint8_t eh_data[];
 } ATTRIBUTE_PACKED;
-verify(sizeof(struct _virNWFilterSnoopEthHdr) == 14);
+G_STATIC_ASSERT(sizeof(struct _virNWFilterSnoopEthHdr) == 14);
 
 typedef struct _virNWFilterSnoopDHCPHdr virNWFilterSnoopDHCPHdr;
 typedef virNWFilterSnoopDHCPHdr *virNWFilterSnoopDHCPHdrPtr;
@@ -208,7 +204,7 @@ struct _virNWFilterSnoopDHCPHdr {
     char      d_file[128];
     uint8_t   d_opts[];
 } ATTRIBUTE_PACKED;
-verify(sizeof(struct _virNWFilterSnoopDHCPHdr) == 236);
+G_STATIC_ASSERT(sizeof(struct _virNWFilterSnoopDHCPHdr) == 236);
 
 /* DHCP options */
 
@@ -244,23 +240,6 @@ struct _virNWFilterDHCPDecodeJob {
 # define DHCP_PKT_RATE          10 /* pkts/sec */
 # define DHCP_PKT_BURST         50 /* pkts/sec */
 # define DHCP_BURST_INTERVAL_S  10 /* sec */
-
-/*
- * NB: Any libpcap built with HAVE_TPACKET3 will require
- * PCAP_BUFFERSIZE to be at least 262144 (although
- * pcap_set_buffer_size() with a lower value will succeed, and the
- * error will only show up later when pcap_setfilter() is called).
- *
- * It is possible that in the future libpcap could increase the
- * minimum size even further, but due to the fact that each guest
- * using dhcp snooping keeps 2 pcap sockets open (and thus 2 buffers
- * allocated) for the life of the guest, we want to minimize the
- * length of the buffer, so instead of leaving it at the default size
- * (2MB), we are setting it to the minimum viable size and including
- * this clue in the source to help quickly resolve the problem when/if
- * it reoccurs.
- */
-# define PCAP_BUFFERSIZE        (256 * 1024)
 
 # define MAX_QUEUED_JOBS        (DHCP_PKT_BURST + 2 * DHCP_PKT_RATE)
 
@@ -561,7 +540,7 @@ virNWFilterSnoopReqLeaseTimerRun(virNWFilterSnoopReqPtr req)
 static void
 virNWFilterSnoopReqGet(virNWFilterSnoopReqPtr req)
 {
-    virAtomicIntInc(&req->refctr);
+    g_atomic_int_add(&req->refctr, 1);
 }
 
 /*
@@ -621,7 +600,7 @@ virNWFilterSnoopReqFree(virNWFilterSnoopReqPtr req)
     if (!req)
         return;
 
-    if (virAtomicIntGet(&req->refctr) != 0)
+    if (g_atomic_int_get(&req->refctr) != 0)
         return;
 
     /* free all leases */
@@ -712,7 +691,7 @@ virNWFilterSnoopReqPut(virNWFilterSnoopReqPtr req)
 
     virNWFilterSnoopLock();
 
-    if (virAtomicIntDecAndTest(&req->refctr)) {
+    if (!!g_atomic_int_dec_and_test(&req->refctr)) {
         /*
          * delete the request:
          * - if we don't find req on the global list anymore
@@ -776,7 +755,7 @@ virNWFilterSnoopReqLeaseAdd(virNWFilterSnoopReqPtr req,
     /* put the lease on the req's list */
     virNWFilterSnoopIPLeaseTimerAdd(pl);
 
-    virAtomicIntInc(&virNWFilterSnoopState.nLeases);
+    g_atomic_int_add(&virNWFilterSnoopState.nLeases, 1);
 
  exit:
     if (update_leasefile)
@@ -888,7 +867,7 @@ virNWFilterSnoopReqLeaseDel(virNWFilterSnoopReqPtr req,
  skip_instantiate:
     VIR_FREE(ipl);
 
-    virAtomicIntDecAndTest(&virNWFilterSnoopState.nLeases);
+    ignore_value(!!g_atomic_int_dec_and_test(&virNWFilterSnoopState.nLeases));
 
  lease_not_found:
     VIR_FREE(ipstr);
@@ -1101,13 +1080,8 @@ virNWFilterSnoopDHCPOpen(const char *ifname, virMacAddr *mac,
         goto cleanup_nohandle;
     }
 
-    /* IMPORTANT: If there is any failure of *any* pcap_* function
-     * during setup of the socket, look to the comment where
-     * PCAP_BUFFERSIZE is defined. It may be too small, even if the
-     * generated error doesn't imply that.
-     */
     if (pcap_set_snaplen(handle, PCAP_PBUFSIZE) < 0 ||
-        pcap_set_buffer_size(handle, PCAP_BUFFERSIZE) < 0 ||
+        pcap_set_immediate_mode(handle, 1) < 0 ||
         pcap_activate(handle) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("setup of pcap handle failed: %s"),
@@ -1167,7 +1141,7 @@ static void virNWFilterDHCPDecodeWorker(void *jobdata, void *opaque)
                        _("Instantiation of rules failed on "
                          "interface '%s'"), req->binding->portdevname);
     }
-    virAtomicIntDecAndTest(job->qCtr);
+    ignore_value(!!g_atomic_int_dec_and_test(job->qCtr));
     VIR_FREE(job);
 }
 
@@ -1197,7 +1171,7 @@ virNWFilterSnoopDHCPDecodeJobSubmit(virThreadPoolPtr pool,
     ret = virThreadPoolSendJob(pool, 0, job);
 
     if (ret == 0)
-        virAtomicIntInc(qCtr);
+        g_atomic_int_add(qCtr, 1);
     else
         VIR_FREE(job);
 
@@ -1392,9 +1366,10 @@ virNWFilterDHCPSnoopThread(void *req0)
         }
         tmp = virNetDevGetIndex(req->binding->portdevname, &ifindex);
         threadkey = g_strdup(req->threadkey);
-        worker = virThreadPoolNew(1, 1, 0,
-                                  virNWFilterDHCPDecodeWorker,
-                                  req);
+        worker = virThreadPoolNewFull(1, 1, 0,
+                                      virNWFilterDHCPDecodeWorker,
+                                      "dhcp-decode",
+                                      req);
     }
 
     /* let creator know how well we initialized */
@@ -1502,7 +1477,7 @@ virNWFilterDHCPSnoopThread(void *req0)
                 unsigned int diff;
 
                 /* submit packet to worker thread */
-                if (virAtomicIntGet(&pcapConf[i].qCtr) >
+                if (g_atomic_int_get(&pcapConf[i].qCtr) >
                     pcapConf[i].maxQSize) {
                     if (last_displayed_queue - time(0) > 10) {
                         last_displayed_queue = time(0);
@@ -1568,7 +1543,7 @@ virNWFilterDHCPSnoopThread(void *req0)
             pcap_close(pcapConf[i].handle);
     }
 
-    virAtomicIntDecAndTest(&virNWFilterSnoopState.nThreads);
+    ignore_value(!!g_atomic_int_dec_and_test(&virNWFilterSnoopState.nThreads));
 
     return;
 }
@@ -1664,8 +1639,8 @@ virNWFilterDHCPSnoopReq(virNWFilterTechDriverPtr techdriver,
     /* prevent thread from holding req */
     virNWFilterSnoopReqLock(req);
 
-    if (virThreadCreate(&thread, false, virNWFilterDHCPSnoopThread,
-                        req) != 0) {
+    if (virThreadCreateFull(&thread, false, virNWFilterDHCPSnoopThread,
+                            "dhcp-snoop", false, req) != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("virNWFilterDHCPSnoopReq virThreadCreate "
                          "failed on interface '%s'"), binding->portdevname);
@@ -1674,7 +1649,7 @@ virNWFilterDHCPSnoopReq(virNWFilterTechDriverPtr techdriver,
 
     threadPuts = true;
 
-    virAtomicIntInc(&virNWFilterSnoopState.nThreads);
+    g_atomic_int_add(&virNWFilterSnoopState.nThreads, 1);
 
     req->threadkey = virNWFilterSnoopActivate(req);
     if (!req->threadkey) {
@@ -1802,8 +1777,8 @@ virNWFilterSnoopLeaseFileSave(virNWFilterSnoopIPLeasePtr ipl)
         goto err_exit;
 
     /* keep dead leases at < ~95% of file size */
-    if (virAtomicIntInc(&virNWFilterSnoopState.wLeases) >=
-        virAtomicIntGet(&virNWFilterSnoopState.nLeases) * 20)
+    if (g_atomic_int_add(&virNWFilterSnoopState.wLeases, 1) >=
+        g_atomic_int_get(&virNWFilterSnoopState.nLeases) * 20)
         virNWFilterSnoopLeaseFileLoad();   /* load & refresh lease file */
 
  err_exit:
@@ -1834,7 +1809,7 @@ virNWFilterSnoopPruneIter(const void *payload,
     /*
      * have the entry removed if it has no leases and no one holds a ref
      */
-    del_req = ((req->start == NULL) && (virAtomicIntGet(&req->refctr) == 0));
+    del_req = ((req->start == NULL) && (g_atomic_int_get(&req->refctr) == 0));
 
     virNWFilterSnoopReqUnlock(req);
 
@@ -1909,7 +1884,7 @@ virNWFilterSnoopLeaseFileRefresh(void)
                              TMPLEASEFILE, LEASEFILE);
         unlink(TMPLEASEFILE);
     }
-    virAtomicIntSet(&virNWFilterSnoopState.wLeases, 0);
+    g_atomic_int_set(&virNWFilterSnoopState.wLeases, 0);
 
  skip_rename:
     virNWFilterSnoopLeaseFileOpen();
@@ -1998,9 +1973,9 @@ virNWFilterSnoopLeaseFileLoad(void)
 static void
 virNWFilterSnoopJoinThreads(void)
 {
-    while (virAtomicIntGet(&virNWFilterSnoopState.nThreads) != 0) {
+    while (g_atomic_int_get(&virNWFilterSnoopState.nThreads) != 0) {
         VIR_WARN("Waiting for snooping threads to terminate: %u",
-                 virAtomicIntGet(&virNWFilterSnoopState.nThreads));
+                 g_atomic_int_get(&virNWFilterSnoopState.nThreads));
         g_usleep(1000 * 1000);
     }
 }

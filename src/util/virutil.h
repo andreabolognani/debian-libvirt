@@ -44,8 +44,6 @@ int virScaleInteger(unsigned long long *value, const char *suffix,
                     unsigned long long scale, unsigned long long limit)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
-int virHexToBin(unsigned char c);
-
 int virParseVersionString(const char *str, unsigned long *version,
                           bool allowMissing);
 
@@ -122,7 +120,7 @@ bool virValidateWWN(const char *wwn);
 
 int virGetDeviceID(const char *path,
                    int *maj,
-                   int *min);
+                   int *min) G_GNUC_NO_INLINE;
 int virSetDeviceUnprivSGIO(const char *path,
                            const char *sysfs_dir,
                            int unpriv_sgio);
@@ -159,3 +157,39 @@ char *virHostGetDRMRenderNode(void) G_GNUC_NO_INLINE;
  */
 #define VIR_ASSIGN_IS_OVERFLOW(lvalue, rvalue) \
     (((lvalue) = (rvalue)) != (rvalue))
+
+char *virGetPassword(void);
+
+/*
+ * virPipe:
+ *
+ * Open a pair of FDs which can be used to communicate
+ * with each other. The FDs will have O_CLOEXEC set.
+ * This will report a libvirt error on failure.
+ *
+ * Returns: -1 on error, 0 on success
+ */
+int virPipe(int fds[2]);
+
+/*
+ * virPipeQuiet:
+ *
+ * Open a pair of FDs which can be used to communicate
+ * with each other. The FDs will have O_CLOEXEC set.
+ * This will set errno on failure.
+ *
+ * Returns: -1 on error, 0 on success
+ */
+int virPipeQuiet(int fds[2]);
+
+/*
+ * virPipe:
+ *
+ * Open a pair of FDs which can be used to communicate
+ * with each other. The FDs will have O_CLOEXEC and
+ * O_NONBLOCK set.
+ * This will report a libvirt error on failure.
+ *
+ * Returns: -1 on error, 0 on success
+ */
+int virPipeNonBlock(int fds[2]);

@@ -27,7 +27,6 @@
 #include "viralloc.h"
 #include "virlog.h"
 #include "virthread.h"
-#include "virutil.h"
 #include "virstring.h"
 
 #define LIBVIRT_VIRERRORPRIV_H_ALLOW
@@ -1233,6 +1232,9 @@ static const virErrorMsgTuple virErrorMsgStrings[] = {
     [VIR_ERR_NO_NETWORK_PORT] = {
         N_("network port not found"),
         N_("network port not found: %s") },
+    [VIR_ERR_NO_HOSTNAME] = {
+        N_("no hostname found"),
+        N_("no hostname found: %s") },
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(virErrorMsgStrings) == VIR_ERR_NUMBER_LAST);
@@ -1303,31 +1305,6 @@ void virReportErrorHelper(int domcode,
                       virerr, errorMessage, NULL,
                       -1, -1, virerr, errorMessage);
     errno = save_errno;
-}
-
-/**
- * virStrerror:
- * @theerrno: the errno value
- * @errBuf: the buffer to save the error to
- * @errBufLen: the buffer length
- *
- * Generate an error string for the given errno
- *
- * Returns a pointer to the error string, possibly indicating that the
- *         error is unknown
- */
-const char *virStrerror(int theerrno, char *errBuf, size_t errBufLen)
-{
-    int save_errno = errno;
-    const char *ret;
-    const char *str = g_strerror(theerrno);
-    size_t len = strlen(str);
-
-    memcpy(errBuf, str, MIN(len, errBufLen));
-    errBuf[errBufLen-1] = '\0';
-    ret = errBuf;
-    errno = save_errno;
-    return ret;
 }
 
 /**

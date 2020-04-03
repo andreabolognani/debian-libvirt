@@ -25,8 +25,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/wait.h>
-#include <arpa/inet.h>
 
 #include "virerror.h"
 #include "qemu_conf.h"
@@ -44,10 +42,10 @@
 #include "cpu/cpu.h"
 #include "domain_nwfilter.h"
 #include "virfile.h"
-#include "virsocketaddr.h"
+#include "virsocket.h"
 #include "virstring.h"
-#include "viratomic.h"
 #include "storage_conf.h"
+#include "virutil.h"
 #include "configmake.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
@@ -104,7 +102,8 @@ qemuDriverUnlock(virQEMUDriverPtr driver)
 #endif
 
 
-virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged)
+virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged,
+                                              const char *root)
 {
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
 
@@ -114,7 +113,12 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged)
     if (!(cfg = virObjectNew(virQEMUDriverConfigClass)))
         return NULL;
 
-    cfg->uri = privileged ? "qemu:///system" : "qemu:///session";
+    if (root) {
+        cfg->uri = g_strdup_printf("qemu:///embed?root=%s", root);
+        cfg->root = g_strdup(root);
+    } else {
+        cfg->uri = g_strdup(privileged ? "qemu:///system" : "qemu:///session");
+    }
 
     if (privileged) {
         if (virGetUserID(QEMU_USER, &cfg->user) < 0)
@@ -130,7 +134,24 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged)
 
     cfg->cgroupControllers = -1; /* -1 == auto-detect */
 
-    if (privileged) {
+    if (root != NULL) {
+        cfg->logDir = g_strdup_printf("%s/log/qemu", root);
+        cfg->swtpmLogDir = g_strdup_printf("%s/log/swtpm", root);
+        cfg->configBaseDir = g_strdup_printf("%s/etc", root);
+        cfg->stateDir = g_strdup_printf("%s/run/qemu", root);
+        cfg->swtpmStateDir = g_strdup_printf("%s/run/swtpm", root);
+        cfg->cacheDir = g_strdup_printf("%s/cache/qemu", root);
+        cfg->libDir = g_strdup_printf("%s/lib/qemu", root);
+        cfg->swtpmStorageDir = g_strdup_printf("%s/lib/swtpm", root);
+
+        cfg->saveDir = g_strdup_printf("%s/save", cfg->libDir);
+        cfg->snapshotDir = g_strdup_printf("%s/snapshot", cfg->libDir);
+        cfg->checkpointDir = g_strdup_printf("%s/checkpoint", cfg->libDir);
+        cfg->autoDumpPath = g_strdup_printf("%s/dump", cfg->libDir);
+        cfg->channelTargetDir = g_strdup_printf("%s/channel/target", cfg->libDir);
+        cfg->nvramDir = g_strdup_printf("%s/nvram", cfg->libDir);
+        cfg->memoryBackingDir = g_strdup_printf("%s/ram", cfg->libDir);
+    } else if (privileged) {
         cfg->logDir = g_strdup_printf("%s/log/libvirt/qemu", LOCALSTATEDIR);
 
         cfg->swtpmLogDir = g_strdup_printf("%s/log/swtpm/libvirt/qemu",
@@ -189,6 +210,16 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged)
         cfg->memoryBackingDir = g_strdup_printf("%s/qemu/ram", cfg->configBaseDir);
         cfg->swtpmStorageDir = g_strdup_printf("%s/qemu/swtpm",
                                                cfg->configBaseDir);
+    }
+
+    if (privileged) {
+        if (!virDoesUserExist("tss") ||
+            virGetUserID("tss", &cfg->swtpm_user) < 0)
+            cfg->swtpm_user = 0; /* fall back to root */
+        if (!virDoesGroupExist("tss") ||
+            virGetGroupID("tss", &cfg->swtpm_group) < 0)
+            cfg->swtpm_group = 0; /* fall back to root */
+    } else {
         cfg->swtpm_user = (uid_t)-1;
         cfg->swtpm_group = (gid_t)-1;
     }
@@ -196,12 +227,17 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged)
     cfg->configDir = g_strdup_printf("%s/qemu", cfg->configBaseDir);
     cfg->autostartDir = g_strdup_printf("%s/qemu/autostart", cfg->configBaseDir);
     cfg->slirpStateDir = g_strdup_printf("%s/slirp", cfg->stateDir);
+    cfg->dbusStateDir = g_strdup_printf("%s/dbus", cfg->stateDir);
 
     /* Set the default directory to find TLS X.509 certificates.
      * This will then be used as a fallback if the service specific
      * directory doesn't exist (although we don't check if this exists).
      */
-    cfg->defaultTLSx509certdir = g_strdup(SYSCONFDIR "/pki/qemu");
+    if (root == NULL) {
+        cfg->defaultTLSx509certdir = g_strdup(SYSCONFDIR "pki/qemu");
+    } else {
+        cfg->defaultTLSx509certdir = g_strdup_printf("%s/etc/pki/qemu", root);
+    }
 
     cfg->vncListen = g_strdup(VIR_LOOPBACK_IPV4_ADDR);
     cfg->spiceListen = g_strdup(VIR_LOOPBACK_IPV4_ADDR);
@@ -228,6 +264,7 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged)
     cfg->bridgeHelperName = g_strdup(QEMU_BRIDGE_HELPER);
     cfg->prHelperName = g_strdup(QEMU_PR_HELPER);
     cfg->slirpHelperName = g_strdup(QEMU_SLIRP_HELPER);
+    cfg->dbusDaemonName = g_strdup(QEMU_DBUS_DAEMON);
 
     cfg->securityDefaultConfined = true;
     cfg->securityRequireConfined = false;
@@ -264,6 +301,8 @@ static void virQEMUDriverConfigDispose(void *obj)
     virBitmapFree(cfg->namespaces);
 
     virStringListFree(cfg->cgroupDeviceACL);
+    VIR_FREE(cfg->uri);
+    VIR_FREE(cfg->root);
 
     VIR_FREE(cfg->configBaseDir);
     VIR_FREE(cfg->configDir);
@@ -273,6 +312,7 @@ static void virQEMUDriverConfigDispose(void *obj)
     VIR_FREE(cfg->stateDir);
     VIR_FREE(cfg->swtpmStateDir);
     VIR_FREE(cfg->slirpStateDir);
+    VIR_FREE(cfg->dbusStateDir);
 
     VIR_FREE(cfg->libDir);
     VIR_FREE(cfg->cacheDir);
@@ -313,6 +353,7 @@ static void virQEMUDriverConfigDispose(void *obj)
     VIR_FREE(cfg->bridgeHelperName);
     VIR_FREE(cfg->prHelperName);
     VIR_FREE(cfg->slirpHelperName);
+    VIR_FREE(cfg->dbusDaemonName);
 
     VIR_FREE(cfg->saveImageFormat);
     VIR_FREE(cfg->dumpImageFormat);
@@ -604,6 +645,9 @@ virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfigPtr cfg,
     if (virConfGetValueString(conf, "slirp_helper", &cfg->slirpHelperName) < 0)
         return -1;
 
+    if (virConfGetValueString(conf, "dbus_daemon", &cfg->dbusDaemonName) < 0)
+        return -1;
+
     if (virConfGetValueBool(conf, "set_process_name", &cfg->setProcessName) < 0)
         return -1;
     if (virConfGetValueUInt(conf, "max_processes", &cfg->maxProcesses) < 0)
@@ -800,6 +844,8 @@ virQEMUDriverConfigLoadDebugEntry(virQEMUDriverConfigPtr cfg,
                                   virConfPtr conf)
 {
     if (virConfGetValueUInt(conf, "gluster_debug_level", &cfg->glusterDebugLevel) < 0)
+        return -1;
+    if (virConfGetValueBool(conf, "virtiofsd_debug", &cfg->virtiofsdDebug) < 0)
         return -1;
 
     return 0;
@@ -1201,32 +1247,42 @@ virQEMUDriverCreateXMLConf(virQEMUDriverPtr driver,
 virCapsHostNUMAPtr
 virQEMUDriverGetHostNUMACaps(virQEMUDriverPtr driver)
 {
+    virCapsHostNUMAPtr hostnuma;
+
     qemuDriverLock(driver);
 
     if (!driver->hostnuma)
         driver->hostnuma = virCapabilitiesHostNUMANewHost();
 
+    hostnuma = driver->hostnuma;
+
     qemuDriverUnlock(driver);
 
-    virCapabilitiesHostNUMARef(driver->hostnuma);
+    if (hostnuma)
+        virCapabilitiesHostNUMARef(hostnuma);
 
-    return driver->hostnuma;
+    return hostnuma;
 }
 
 
 virCPUDefPtr
 virQEMUDriverGetHostCPU(virQEMUDriverPtr driver)
 {
+    virCPUDefPtr hostcpu;
+
     qemuDriverLock(driver);
 
     if (!driver->hostcpu)
         driver->hostcpu = virCPUProbeHost(virArchFromHost());
 
+    hostcpu = driver->hostcpu;
+
     qemuDriverUnlock(driver);
 
-    virCPUDefRef(driver->hostcpu);
+    if (hostcpu)
+        virCPUDefRef(hostcpu);
 
-    return driver->hostcpu;
+    return hostcpu;
 }
 
 
@@ -1328,31 +1384,6 @@ virCapsPtr virQEMUDriverGetCapabilities(virQEMUDriverPtr driver,
 }
 
 
-struct virQEMUDriverSearchDomcapsData {
-    const char *path;
-    const char *machine;
-    virArch arch;
-    virDomainVirtType virttype;
-};
-
-
-static int
-virQEMUDriverSearchDomcaps(const void *payload,
-                           const void *name G_GNUC_UNUSED,
-                           const void *opaque)
-{
-    virDomainCapsPtr domCaps = (virDomainCapsPtr) payload;
-    struct virQEMUDriverSearchDomcapsData *data = (struct virQEMUDriverSearchDomcapsData *) opaque;
-
-    if (STREQ_NULLABLE(data->path, domCaps->path) &&
-        STREQ_NULLABLE(data->machine, domCaps->machine) &&
-        data->arch == domCaps->arch &&
-        data->virttype == domCaps->virttype)
-        return 1;
-
-    return 0;
-}
-
 /**
  * virQEMUDriverGetDomainCapabilities:
  *
@@ -1371,40 +1402,16 @@ virQEMUDriverGetDomainCapabilities(virQEMUDriverPtr driver,
                                    virArch arch,
                                    virDomainVirtType virttype)
 {
-    g_autoptr(virDomainCaps) domCaps = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    virHashTablePtr domCapsCache = virQEMUCapsGetDomainCapsCache(qemuCaps);
-    struct virQEMUDriverSearchDomcapsData data = {
-        .path = virQEMUCapsGetBinary(qemuCaps),
-        .machine = machine,
-        .arch = arch,
-        .virttype = virttype,
-    };
 
-    domCaps = virHashSearch(domCapsCache,
-                            virQEMUDriverSearchDomcaps, &data, NULL);
-    if (!domCaps) {
-        g_autofree char *key = NULL;
-
-        /* hash miss, build new domcaps */
-        if (!(domCaps = virDomainCapsNew(data.path, data.machine,
-                                         data.arch, data.virttype)))
-            return NULL;
-
-        if (virQEMUCapsFillDomainCaps(qemuCaps, driver->hostarch, domCaps,
-                                      driver->privileged,
-                                      cfg->firmwares, cfg->nfirmwares) < 0)
-            return NULL;
-
-        key = g_strdup_printf("%d:%d:%s:%s", data.arch, data.virttype,
-                              NULLSTR(data.machine), NULLSTR(data.path));
-
-        if (virHashAddEntry(domCapsCache, key, domCaps) < 0)
-            return NULL;
-    }
-
-    virObjectRef(domCaps);
-    return g_steal_pointer(&domCaps);
+    return virQEMUCapsGetDomainCapsCache(qemuCaps,
+                                         machine,
+                                         arch,
+                                         virttype,
+                                         driver->hostarch,
+                                         driver->privileged,
+                                         cfg->firmwares,
+                                         cfg->nfirmwares);
 }
 
 
@@ -1861,7 +1868,7 @@ qemuSetUnprivSGIO(virDomainDeviceDefPtr dev)
 
 int qemuDriverAllocateID(virQEMUDriverPtr driver)
 {
-    return virAtomicIntInc(&driver->lastvmid);
+    return g_atomic_int_add(&driver->lastvmid, 1) + 1;
 }
 
 

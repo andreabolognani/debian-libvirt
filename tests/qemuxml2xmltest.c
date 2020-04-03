@@ -162,6 +162,7 @@ mymain(void)
         return EXIT_FAILURE;
 
     cfg = virQEMUDriverGetConfig(&driver);
+    driver.privileged = true;
 
 # define DO_TEST_INTERNAL(_name, suffix, when, ...) \
     do { \
@@ -266,9 +267,11 @@ mymain(void)
     DO_TEST("cpu-host-kvmclock", NONE);
     DO_TEST("cpu-host-passthrough-features", NONE);
     DO_TEST("cpu-host-model-features", NONE);
+    DO_TEST("cpu-host-model-vendor", NONE);
     DO_TEST("clock-catchup", QEMU_CAPS_KVM_PIT_TICK_POLICY);
     DO_TEST("kvmclock", NONE);
     DO_TEST("clock-timer-hyperv-rtc", NONE);
+    DO_TEST_CAPS_ARCH_LATEST("clock-timer-armvtimer", "aarch64");
 
     DO_TEST("cpu-eoi-disabled", NONE);
     DO_TEST("cpu-eoi-enabled", NONE);
@@ -321,7 +324,11 @@ mymain(void)
     DO_TEST("disk-boot-cdrom", NONE);
     DO_TEST("disk-error-policy", NONE);
     DO_TEST("disk-fmt-qcow", NONE);
-    DO_TEST("disk-cache", QEMU_CAPS_SCSI_LSI);
+    DO_TEST_CAPS_VER("disk-cache", "1.5.3");
+    DO_TEST_CAPS_VER("disk-cache", "2.6.0");
+    DO_TEST_CAPS_VER("disk-cache", "2.7.0");
+    DO_TEST_CAPS_VER("disk-cache", "2.12.0");
+    DO_TEST_CAPS_LATEST("disk-cache");
     DO_TEST("disk-network-nbd", NONE);
     DO_TEST("disk-network-iscsi", QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST("disk-network-gluster", NONE);
@@ -451,6 +458,13 @@ mymain(void)
     DO_TEST("net-eth-unmanaged-tap", NONE);
     DO_TEST("net-virtio-network-portgroup", NONE);
     DO_TEST("net-virtio-rxtxqueuesize", NONE);
+    DO_TEST("net-virtio-teaming",
+            QEMU_CAPS_VIRTIO_NET_FAILOVER,
+            QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST("net-virtio-teaming-network",
+            QEMU_CAPS_VIRTIO_NET_FAILOVER,
+            QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_CAPS_LATEST("net-isolated-port");
     DO_TEST("net-hostdev", NONE);
     DO_TEST("net-hostdev-bootorder", NONE);
     DO_TEST("net-hostdev-vfio", QEMU_CAPS_DEVICE_VFIO_PCI);
@@ -519,6 +533,8 @@ mymain(void)
     DO_TEST("pci-rom-disabled", NONE);
     DO_TEST("pci-rom-disabled-invalid", NONE);
     DO_TEST("pci-serial-dev-chardev", NONE);
+
+    DO_TEST_CAPS_LATEST("disk-slices");
 
     DO_TEST("encrypted-disk", QEMU_CAPS_QCOW2_LUKS);
     DO_TEST("encrypted-disk-usage", QEMU_CAPS_QCOW2_LUKS);
@@ -630,6 +646,7 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_RNG);
     DO_TEST("virtio-rng-egd",
             QEMU_CAPS_DEVICE_VIRTIO_RNG);
+    DO_TEST_CAPS_LATEST("virtio-rng-builtin");
 
     DO_TEST("pseries-nvram",
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
@@ -1078,6 +1095,8 @@ mymain(void)
     DO_TEST("disk-backing-chains-index", NONE);
     DO_TEST("disk-backing-chains-noindex", NONE);
 
+    DO_TEST_CAPS_LATEST("disk-network-http");
+
     DO_TEST("chardev-label",
             QEMU_CAPS_DEVICE_VIRTIO_RNG);
 
@@ -1229,6 +1248,8 @@ mymain(void)
     DO_TEST("memory-hotplug-nvdimm-align", QEMU_CAPS_DEVICE_NVDIMM);
     DO_TEST("memory-hotplug-nvdimm-pmem", QEMU_CAPS_DEVICE_NVDIMM);
     DO_TEST("memory-hotplug-nvdimm-readonly", QEMU_CAPS_DEVICE_NVDIMM);
+    DO_TEST("memory-hotplug-nvdimm-ppc64", QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                                           QEMU_CAPS_DEVICE_NVDIMM);
     DO_TEST("net-udp", NONE);
 
     DO_TEST("video-virtio-gpu-device", QEMU_CAPS_DEVICE_VIRTIO_GPU);
@@ -1417,6 +1438,9 @@ mymain(void)
     DO_TEST("vhost-vsock-ccw-auto", QEMU_CAPS_DEVICE_VHOST_VSOCK,
             QEMU_CAPS_CCW);
 
+    DO_TEST_CAPS_LATEST("vhost-user-fs-fd-memory");
+    DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");
+
     DO_TEST("riscv64-virt",
             QEMU_CAPS_DEVICE_VIRTIO_MMIO);
     DO_TEST("riscv64-virt-pci",
@@ -1452,6 +1476,8 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-4.2", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-4.2", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-2.7", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-2.7", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-pc-4.2", "x86_64");

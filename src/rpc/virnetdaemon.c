@@ -37,14 +37,11 @@
 #include "virstring.h"
 #include "virsystemd.h"
 
-#ifndef SA_SIGINFO
-# define SA_SIGINFO 0
-#endif
-
 #define VIR_FROM_THIS VIR_FROM_RPC
 
 VIR_LOG_INIT("rpc.netdaemon");
 
+#ifndef WIN32
 typedef struct _virNetDaemonSignal virNetDaemonSignal;
 typedef virNetDaemonSignal *virNetDaemonSignalPtr;
 
@@ -54,17 +51,20 @@ struct _virNetDaemonSignal {
     virNetDaemonSignalFunc func;
     void *opaque;
 };
+#endif /* !WIN32 */
 
 struct _virNetDaemon {
     virObjectLockable parent;
 
     bool privileged;
 
+#ifndef WIN32
     size_t nsignals;
     virNetDaemonSignalPtr *signals;
     int sigread;
     int sigwrite;
     int sigwatch;
+#endif /* !WIN32 */
 
     virHashTablePtr servers;
     virJSONValuePtr srvObject;
@@ -84,9 +84,8 @@ static void
 virNetDaemonDispose(void *obj)
 {
     virNetDaemonPtr dmn = obj;
+#ifndef WIN32
     size_t i;
-
-    VIR_FORCE_CLOSE(dmn->autoShutdownInhibitFd);
 
     for (i = 0; i < dmn->nsignals; i++) {
         sigaction(dmn->signals[i]->signum, &dmn->signals[i]->oldaction, NULL);
@@ -97,6 +96,9 @@ virNetDaemonDispose(void *obj)
     VIR_FORCE_CLOSE(dmn->sigwrite);
     if (dmn->sigwatch > 0)
         virEventRemoveHandle(dmn->sigwatch);
+#endif /* !WIN32 */
+
+    VIR_FORCE_CLOSE(dmn->autoShutdownInhibitFd);
 
     virHashFree(dmn->servers);
 
@@ -119,7 +121,9 @@ virNetDaemonPtr
 virNetDaemonNew(void)
 {
     virNetDaemonPtr dmn;
+#ifndef WIN32
     struct sigaction sig_action;
+#endif /* !WIN32 */
 
     if (virNetDaemonInitialize() < 0)
         return NULL;
@@ -130,16 +134,21 @@ virNetDaemonNew(void)
     if (!(dmn->servers = virHashCreate(5, virObjectFreeHashData)))
         goto error;
 
+#ifndef WIN32
     dmn->sigwrite = dmn->sigread = -1;
+#endif /* !WIN32 */
+
     dmn->privileged = geteuid() == 0;
     dmn->autoShutdownInhibitFd = -1;
 
     if (virEventRegisterDefaultImpl() < 0)
         goto error;
 
+#ifndef WIN32
     memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sig_action, NULL);
+#endif /* !WIN32 */
 
     return dmn;
 
@@ -373,17 +382,11 @@ virJSONValuePtr
 virNetDaemonPreExecRestart(virNetDaemonPtr dmn)
 {
     size_t i = 0;
-    virJSONValuePtr object = NULL;
-    virJSONValuePtr srvObj = NULL;
+    virJSONValuePtr object = virJSONValueNewObject();
+    virJSONValuePtr srvObj = virJSONValueNewObject();
     virHashKeyValuePairPtr srvArray = NULL;
 
     virObjectLock(dmn);
-
-    if (!(object = virJSONValueNewObject()))
-        goto error;
-
-    if (!(srvObj = virJSONValueNewObject()))
-        goto error;
 
     if (virJSONValueObjectAppend(object, "servers", srvObj) < 0) {
         virJSONValueFree(srvObj);
@@ -587,7 +590,7 @@ virNetDaemonRemoveShutdownInhibition(virNetDaemonPtr dmn)
 }
 
 
-
+#ifndef WIN32
 static sig_atomic_t sigErrors;
 static int sigLastErrno;
 static int sigWrite = -1;
@@ -662,11 +665,8 @@ virNetDaemonSignalSetup(virNetDaemonPtr dmn)
     if (dmn->sigwrite != -1)
         return 0;
 
-    if (pipe2(fds, O_CLOEXEC|O_NONBLOCK) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Unable to create signal pipe"));
+    if (virPipeNonBlock(fds) < 0)
         return -1;
-    }
 
     if ((dmn->sigwatch = virEventAddHandle(fds[0],
                                            VIR_EVENT_HANDLE_READABLE,
@@ -688,6 +688,7 @@ virNetDaemonSignalSetup(virNetDaemonPtr dmn)
     VIR_FORCE_CLOSE(fds[1]);
     return -1;
 }
+
 
 int
 virNetDaemonAddSignalHandler(virNetDaemonPtr dmn,
@@ -730,6 +731,21 @@ virNetDaemonAddSignalHandler(virNetDaemonPtr dmn,
     virObjectUnlock(dmn);
     return -1;
 }
+
+#else /* WIN32 */
+
+int
+virNetDaemonAddSignalHandler(virNetDaemonPtr dmn G_GNUC_UNUSED,
+                             int signum G_GNUC_UNUSED,
+                             virNetDaemonSignalFunc func G_GNUC_UNUSED,
+                             void *opaque G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Signal handling not available on this platform"));
+    return -1;
+}
+
+#endif /* WIN32 */
 
 
 static void

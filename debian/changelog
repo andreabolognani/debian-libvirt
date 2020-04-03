@@ -1,3 +1,16 @@
+libvirt (6.2.0-1~1.gbp73a029) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @73a029ebb62a053a00cf627be681575da2066b06 **
+
+  [ Laurent Bigonville ]
+  * [ea7b8b7] autopkgtest exits with 2 when there are skipped tests
+    do not consider that as fatal
+
+  [ Guido Günther ]
+  * [1b6982f] New upstream version 6.2.0
+
+ -- Guido Günther <agx@sigxcpu.org>  Fri, 03 Apr 2020 10:54:06 +0200
+
 libvirt (6.0.0-5) unstable; urgency=medium
 
   [ Guido Günther ]

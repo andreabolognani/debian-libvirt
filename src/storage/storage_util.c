@@ -19,7 +19,6 @@
 #include <config.h>
 
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -62,7 +61,7 @@
 #include "viralloc.h"
 #include "internal.h"
 #include "secret_conf.h"
-#include "secret_util.h"
+#include "virsecret.h"
 #include "vircrypto.h"
 #include "viruuid.h"
 #include "virstoragefile.h"
@@ -71,15 +70,18 @@
 #include "virfile.h"
 #include "virjson.h"
 #include "virqemu.h"
-#include "stat-time.h"
 #include "virstring.h"
 #include "virxml.h"
 #include "virfdstream.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
 VIR_LOG_INIT("storage.storage_util");
 
+#ifndef S_IRWXUGO
+# define S_IRWXUGO (S_IRWXU | S_IRWXG | S_IRWXO)
+#endif
 
 /* virStorageBackendNamespaceInit:
  * @poolType: virStoragePoolType
@@ -753,7 +755,7 @@ storageBackendCreateQemuImgOpts(virStorageEncryptionInfoDefPtr encinfo,
         }
     }
 
-    virBufferTrim(&buf, ",", -1);
+    virBufferTrim(&buf, ",");
 
     *opts = virBufferContentAndReset(&buf);
     return 0;
@@ -1755,7 +1757,7 @@ storageBackendUpdateVolTargetInfo(virStorageVolType voltype,
             }
         }
 
-        if (virStorageSourceUpdateCapacity(target, buf, len, false) < 0)
+        if (virStorageSourceUpdateCapacity(target, buf, len) < 0)
             return -1;
     }
 
@@ -1830,10 +1832,22 @@ virStorageBackendUpdateVolTargetInfoFD(virStorageSourcePtr target,
 
     if (!target->timestamps && VIR_ALLOC(target->timestamps) < 0)
         return -1;
-    target->timestamps->atime = get_stat_atime(sb);
-    target->timestamps->btime = get_stat_birthtime(sb);
-    target->timestamps->ctime = get_stat_ctime(sb);
-    target->timestamps->mtime = get_stat_mtime(sb);
+
+#ifdef __APPLE__
+    target->timestamps->atime = sb->st_atimespec;
+    target->timestamps->btime = sb->st_birthtimespec;
+    target->timestamps->ctime = sb->st_ctimespec;
+    target->timestamps->mtime = sb->st_mtimespec;
+#else /* ! __APPLE__ */
+    target->timestamps->atime = sb->st_atim;
+# ifdef __linux__
+    target->timestamps->btime = (struct timespec){0, 0};
+# else /* ! __linux__ */
+    target->timestamps->btime = sb->st_birthtim;
+# endif /* ! __linux__ */
+    target->timestamps->ctime = sb->st_ctim;
+    target->timestamps->mtime = sb->st_mtim;
+#endif /* ! __APPLE__ */
 
     target->type = VIR_STORAGE_TYPE_FILE;
 
@@ -3123,7 +3137,7 @@ typedef enum {
     VIR_STORAGE_PARTED_DIFFERENT,   /* Valid label found but not match format */
     VIR_STORAGE_PARTED_UNKNOWN,     /* No or unrecognized label */
     VIR_STORAGE_PARTED_NOPTTYPE,    /* Did not find the Partition Table type */
-    VIR_STORAGE_PARTED_PTTYPE_UNK,  /* Partition Table type unknown*/
+    VIR_STORAGE_PARTED_PTTYPE_UNK,  /* Partition Table type unknown */
 } virStorageBackendPARTEDResult;
 
 /**
@@ -3316,7 +3330,6 @@ static int
 storageBackendProbeTarget(virStorageSourcePtr target,
                           virStorageEncryptionPtr *encryption)
 {
-    int backingStoreFormat;
     int rc;
     struct stat sb;
     g_autoptr(virStorageSource) meta = NULL;
@@ -3346,15 +3359,12 @@ storageBackendProbeTarget(virStorageSourcePtr target,
 
     if (!(meta = virStorageFileGetMetadataFromFD(target->path,
                                                  fd,
-                                                 VIR_STORAGE_FILE_AUTO,
-                                                 &backingStoreFormat)))
+                                                 VIR_STORAGE_FILE_AUTO)))
         return -1;
 
     if (meta->backingStoreRaw) {
         if (virStorageSourceNewFromBacking(meta, &target->backingStore) < 0)
             return -1;
-
-        target->backingStore->format = backingStoreFormat;
 
         /* XXX: Remote storage doesn't play nicely with volumes backed by
          * remote storage. To avoid trouble, just fake the backing store is RAW
@@ -4069,7 +4079,7 @@ virStorageBackendFileSystemMountAddOptions(virCommandPtr cmd,
                  "mount_opts from XML", def->name, uuidstr);
     }
 
-    virBufferTrim(&buf, ",", -1);
+    virBufferTrim(&buf, ",");
     mountOpts = virBufferContentAndReset(&buf);
 
     if (mountOpts)

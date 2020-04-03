@@ -25,13 +25,23 @@
 #include <config.h>
 #include "internal.h"
 
-#include <passfd.h>
 #include <fcntl.h>
-#include <pty.h>
+#ifndef WIN32
+# include <termios.h>
+#endif /* !WIN32 */
+#ifdef HAVE_PTY_H
+/* Linux openpty */
+# include <pty.h>
+#endif /* !HAVE_PTY_H */
+#ifdef HAVE_UTIL_H
+/* macOS openpty */
+# include <util.h>
+#endif /* !HAVE_LIBUTIL_H */
+#ifdef HAVE_LIBUTIL_H
+/* FreeBSD openpty */
+# include <libutil.h>
+#endif /* !HAVE_LIBUTIL_H */
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
 #if defined(HAVE_SYS_MOUNT_H)
 # include <sys/mount.h>
 #endif
@@ -68,7 +78,6 @@
 #endif
 
 #include "configmake.h"
-#include "intprops.h"
 #include "viralloc.h"
 #include "vircommand.h"
 #include "virerror.h"
@@ -78,10 +87,26 @@
 #include "virprocess.h"
 #include "virstring.h"
 #include "virutil.h"
+#include "virsocket.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 VIR_LOG_INIT("util.file");
+
+#ifndef S_ISUID
+# define S_ISUID 04000
+#endif
+#ifndef S_ISGID
+# define S_ISGID 02000
+#endif
+#ifndef S_ISVTX
+# define S_ISVTX 01000
+#endif
+
+
+#ifndef O_DIRECT
+# define O_DIRECT 0
+#endif
 
 int virFileClose(int *fdptr, virFileCloseFlags flags)
 {
@@ -102,9 +127,8 @@ int virFileClose(int *fdptr, virFileCloseFlags flags)
                 if (!(flags & VIR_FILE_CLOSE_IGNORE_EBADF))
                     VIR_WARN("Tried to close invalid fd %d", *fdptr);
             } else {
-                char ebuf[1024] G_GNUC_UNUSED;
                 VIR_DEBUG("Failed to close fd %d: %s",
-                          *fdptr, virStrerror(errno, ebuf, sizeof(ebuf)));
+                          *fdptr, g_strerror(errno));
             }
         } else {
             VIR_DEBUG("Closed fd %d", *fdptr);
@@ -250,11 +274,8 @@ virFileWrapperFdNew(int *fd, const char *name, unsigned int flags)
         goto error;
     }
 
-    if (pipe2(pipefd, O_CLOEXEC) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to create pipe for %s"), name);
+    if (virPipe(pipefd) < 0)
         goto error;
-    }
 
     if (!(iohelper_path = virFileFindResource("libvirt_iohelper",
                                               abs_top_builddir "/src",
@@ -298,7 +319,7 @@ virFileWrapperFdNew(int *fd, const char *name, unsigned int flags)
     virFileWrapperFdFree(ret);
     return NULL;
 }
-#else
+#else /* WIN32 */
 virFileWrapperFdPtr
 virFileWrapperFdNew(int *fd G_GNUC_UNUSED,
                     const char *name G_GNUC_UNUSED,
@@ -308,7 +329,7 @@ virFileWrapperFdNew(int *fd G_GNUC_UNUSED,
                    _("virFileWrapperFd unsupported on this platform"));
     return NULL;
 }
-#endif
+#endif /* WIN32 */
 
 /**
  * virFileWrapperFdClose:
@@ -463,7 +484,7 @@ int virFileFlock(int fd, bool lock, bool shared)
     return flock(fd, LOCK_UN);
 }
 
-#else
+#else /* WIN32 */
 
 int virFileLock(int fd G_GNUC_UNUSED,
                 bool shared G_GNUC_UNUSED,
@@ -491,7 +512,7 @@ int virFileFlock(int fd G_GNUC_UNUSED,
     return -1;
 }
 
-#endif
+#endif /* WIN32 */
 
 
 int
@@ -1305,9 +1326,7 @@ virBuildPathInternal(char **path, ...)
     return ret;
 }
 
-/* Like gnulib's fread_file, but read no more than the specified maximum
-   number of bytes.  If the length of the input is <= max_len, and
-   upon error while reading that data, it works just like fread_file.  */
+/* Read no more than the specified maximum number of bytes. */
 static char *
 saferead_lim(int fd, size_t max_len, size_t *length)
 {
@@ -1565,10 +1584,12 @@ virFileResolveLinkHelper(const char *linkpath,
         if (g_lstat(linkpath, &st) < 0)
             return -1;
 
+#ifndef WIN32
         if (!S_ISLNK(st.st_mode)) {
             *resultpath = g_strdup(linkpath);
             return 0;
         }
+#endif /* WIN32 */
     }
 
     *resultpath = virFileCanonicalizePath(linkpath);
@@ -1614,10 +1635,17 @@ virFileIsLink(const char *linkpath)
 {
     GStatBuf st;
 
+    /* Still do this on Windows so we report
+     * errors like ENOENT, etc
+     */
     if (g_lstat(linkpath, &st) < 0)
         return -errno;
 
+#ifndef WIN32
     return S_ISLNK(st.st_mode) != 0;
+#else /* WIN32 */
+    return 0;
+#endif /* WIN32 */
 }
 
 /*
@@ -2255,7 +2283,7 @@ virFileOpenForked(const char *path, int openflags, mode_t mode,
         }
 
         do {
-            ret = sendfd(pair[1], fd);
+            ret = virSocketSendFD(pair[1], fd);
         } while (ret < 0 && errno == EINTR);
 
         if (ret < 0) {
@@ -2289,7 +2317,7 @@ virFileOpenForked(const char *path, int openflags, mode_t mode,
     VIR_FORCE_CLOSE(pair[1]);
 
     do {
-        fd = recvfd(pair[0], 0);
+        fd = virSocketRecvFD(pair[0], 0);
     } while (fd < 0 && errno == EINTR);
     VIR_FORCE_CLOSE(pair[0]); /* NB: this preserves errno */
     if (fd < 0)
@@ -2599,6 +2627,7 @@ virDirCreateNoFork(const char *path,
         virReportSystemError(errno, _("stat of '%s' failed"), path);
         goto error;
     }
+# ifndef WIN32
     if (((uid != (uid_t) -1 && st.st_uid != uid) ||
          (gid != (gid_t) -1 && st.st_gid != gid))
         && (chown(path, uid, gid) < 0)) {
@@ -2607,6 +2636,7 @@ virDirCreateNoFork(const char *path,
                              path, (unsigned int) uid, (unsigned int) gid);
         goto error;
     }
+# endif /* !WIN32 */
     if (mode != (mode_t) -1 && chmod(path, mode) < 0) {
         ret = -errno;
         virReportSystemError(errno,
@@ -2943,6 +2973,7 @@ void virDirClose(DIR **dirp)
  *
  * Returns -1 on error, with error already reported, 0 on success.
  */
+#ifndef WIN32
 int virFileChownFiles(const char *name,
                       uid_t uid,
                       gid_t gid)
@@ -2983,6 +3014,19 @@ int virFileChownFiles(const char *name,
     return ret;
 }
 
+#else /* WIN32 */
+
+int virFileChownFiles(const char *name,
+                      uid_t uid,
+                      gid_t gid)
+{
+    virReportSystemError(ENOSYS,
+                         _("cannot chown '%s' to (%u, %u)"),
+                         name, (unsigned int) uid,
+                         (unsigned int) gid);
+    return -1;
+}
+#endif /* WIN32 */
 
 static int
 virFileMakePathHelper(char *path, mode_t mode)
@@ -3017,7 +3061,7 @@ virFileMakePathHelper(char *path, mode_t mode)
         *p = '/';
     }
 
-    if (mkdir(path, mode) < 0 && errno != EEXIST)
+    if (g_mkdir(path, mode) < 0 && errno != EEXIST)
         return -1;
 
     return 0;
@@ -3167,8 +3211,7 @@ virFileOpenTty(int *ttymaster G_GNUC_UNUSED,
                char **ttyName G_GNUC_UNUSED,
                int rawmode G_GNUC_UNUSED)
 {
-    /* mingw completely lacks pseudo-terminals, and the gnulib
-     * replacements are not (yet) license compatible.  */
+    /* mingw completely lacks pseudo-terminals */
     errno = ENOSYS;
     return -1;
 }
@@ -3283,37 +3326,6 @@ virFileRemoveLastComponent(char *path)
     else
         path[0] = '\0';
 }
-
-/**
- * virFilePrintf:
- *
- * A replacement for fprintf() which uses g_strdup_vprintf
- * to ensure that portable string format placeholders can
- * be used, since gnulib's fprintf() replacement is not
- * LGPLV2+ compatible
- */
-int virFilePrintf(FILE *fp, const char *msg, ...)
-{
-    va_list vargs;
-    g_autofree char *str = NULL;
-    int ret = -1;
-
-    va_start(vargs, msg);
-
-    str = g_strdup_vprintf(msg, vargs);
-    ret = strlen(str);
-
-    if (fwrite(str, 1, ret, fp) != ret) {
-        virReportSystemError(errno, "%s",
-                             _("Could not write to stream"));
-        ret = -1;
-    }
-
-    va_end(vargs);
-
-    return ret;
-}
-
 
 #ifdef __linux__
 
@@ -3731,8 +3743,17 @@ int
 virFileBindMountDevice(const char *src,
                        const char *dst)
 {
-    if (virFileTouch(dst, 0666) < 0)
-        return -1;
+    if (!virFileExists(dst)) {
+        if (virFileIsDir(src)) {
+            if (virFileMakePath(dst) < 0) {
+                virReportSystemError(errno, _("Unable to make dir %s"), dst);
+                return -1;
+            }
+        } else {
+            if (virFileTouch(dst, 0666) < 0)
+                return -1;
+        }
+    }
 
     if (mount(src, dst, "none", MS_BIND, NULL) < 0) {
         virReportSystemError(errno, _("Failed to bind %s on to %s"), src,
@@ -4067,7 +4088,7 @@ virFileReadValueInt(int *value, const char *format, ...)
     if (!virFileExists(path))
         return -2;
 
-    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+    if (virFileReadAll(path, VIR_INT64_STR_BUFLEN, &str) < 0)
         return -1;
 
     virStringTrimOptionalNewline(str);
@@ -4107,7 +4128,7 @@ virFileReadValueUint(unsigned int *value, const char *format, ...)
     if (!virFileExists(path))
         return -2;
 
-    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+    if (virFileReadAll(path, VIR_INT64_STR_BUFLEN, &str) < 0)
         return -1;
 
     virStringTrimOptionalNewline(str);
@@ -4147,7 +4168,7 @@ virFileReadValueUllong(unsigned long long *value, const char *format, ...)
     if (!virFileExists(path))
         return -2;
 
-    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+    if (virFileReadAll(path, VIR_INT64_STR_BUFLEN, &str) < 0)
         return -1;
 
     virStringTrimOptionalNewline(str);
@@ -4188,7 +4209,7 @@ virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
     if (!virFileExists(path))
         return -2;
 
-    if (virFileReadAll(path, INT_BUFSIZE_BOUND(*value), &str) < 0)
+    if (virFileReadAll(path, VIR_INT64_STR_BUFLEN, &str) < 0)
         return -1;
 
     virStringTrimOptionalNewline(str);

@@ -79,6 +79,13 @@ VIRTLOCKD_UNIT_FILES_IN = \
 SYSTEMD_UNIT_FILES += $(notdir $(VIRTLOCKD_UNIT_FILES_IN:%.in=%))
 SYSTEMD_UNIT_FILES_IN += $(VIRTLOCKD_UNIT_FILES_IN)
 
+OPENRC_INIT_FILES += \
+	virtlockd.init \
+	$(NULL)
+OPENRC_INIT_FILES_IN += \
+	locking/virtlockd.init.in \
+	$(NULL)
+
 noinst_LTLIBRARIES += libvirt_driver_lock.la
 
 libvirt_la_BUILT_LIBADD += libvirt_driver_lock.la
@@ -113,7 +120,6 @@ lockd_la_LDFLAGS = $(AM_LDFLAGS_MOD_NOUNDEF)
 lockd_la_LIBADD = \
 	libvirt.la \
 	$(GLIB_LIBS) \
-	../gnulib/lib/libgnu.la \
 	$(NULL)
 augeas_DATA += locking/libvirt_lockd.aug
 if WITH_DTRACE_PROBES
@@ -161,8 +167,6 @@ virtlockd_LDADD = \
 	libvirt.la \
 	libvirt_driver_admin.la \
 	$(GLIB_LIBS) \
-	../gnulib/lib/libgnu.la \
-	$(CYGWIN_EXTRA_LIBADD) \
 	$(NULL)
 if WITH_DTRACE_PROBES
 virtlockd_LDADD += libvirt_probes.lo
@@ -183,7 +187,6 @@ sanlock_la_LIBADD = \
 	-lsanlock_client \
 	libvirt.la \
 	$(GLIB_LIBS) \
-	../gnulib/lib/libgnu.la \
 	$(NULL)
 
 augeas_DATA += locking/libvirt_sanlock.aug
@@ -209,7 +212,10 @@ libvirt_sanlock_helper_LDFLAGS = \
 	$(AM_LDFLAGS) \
 	$(PIE_LDFLAGS) \
 	$(NULL)
-libvirt_sanlock_helper_LDADD = libvirt.la
+libvirt_sanlock_helper_LDADD = \
+	libvirt.la \
+	$(GLIB_LIBS) \
+	$(NULL)
 endif WITH_SANLOCK
 
 conf_DATA += locking/virtlockd.conf
@@ -276,6 +282,8 @@ locking/lock_daemon_dispatch_stubs.h: $(LOCK_PROTOCOL) \
 	    virLockSpaceProtocol VIR_LOCK_SPACE_PROTOCOL \
 	    $(LOCK_PROTOCOL) > locking/lock_daemon_dispatch_stubs.h
 
+virtlockd.init: locking/virtlockd.init.in $(top_builddir)/config.status
+	$(AM_V_GEN)$(SED) $(COMMON_UNIT_VARS) $< > $@-t && mv $@-t $@
 
 virtlockd.service: locking/virtlockd.service.in $(top_builddir)/config.status
 	$(AM_V_GEN)sed $(COMMON_UNIT_VARS) $< > $@-t && mv $@-t $@

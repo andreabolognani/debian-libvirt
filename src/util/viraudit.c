@@ -24,28 +24,13 @@
 #ifdef WITH_AUDIT
 # include <libaudit.h>
 #endif
-#include <unistd.h>
 
 #include "virerror.h"
 #include "virlog.h"
 #include "viraudit.h"
 #include "virfile.h"
-#include "viralloc.h"
-#include "virstring.h"
 
 VIR_LOG_INIT("util.audit");
-
-/* Provide the macros in case the header file is old.
-   FIXME: should be removed. */
-#ifndef AUDIT_VIRT_CONTROL
-# define AUDIT_VIRT_CONTROL              2500 /* Start, Pause, Stop VM */
-#endif
-#ifndef AUDIT_VIRT_RESOURCE
-# define AUDIT_VIRT_RESOURCE             2501 /* Resource assignment */
-#endif
-#ifndef AUDIT_VIRT_MACHINE_ID
-# define AUDIT_VIRT_MACHINE_ID           2502 /* Binding of label to VM */
-#endif
 
 #define VIR_FROM_THIS VIR_FROM_AUDIT
 
@@ -136,9 +121,8 @@ void virAuditSend(virLogSourcePtr source,
             VIR_WARN("Unknown audit record type %d", type);
         else if (audit_log_user_message(auditfd, record_types[type], str, NULL,
                                         clientaddr, clienttty, success) < 0) {
-            char ebuf[1024];
             VIR_WARN("Failed to send audit message %s: %s",
-                     NULLSTR(str), virStrerror(errno, ebuf, sizeof(ebuf)));
+                     NULLSTR(str), g_strerror(errno));
         }
     }
 #endif

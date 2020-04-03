@@ -23,7 +23,6 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <termios.h>
 
 #include "internal.h"
 #include "virerror.h"
@@ -160,7 +159,8 @@ struct _virshControl {
 struct _virshCtrlData {
     vshControl *ctl;
     const vshCmd *cmd;
-    int writefd;
+    GMainLoop *eventLoop;
+    int ret;
     virConnectPtr dconn;
 };
 

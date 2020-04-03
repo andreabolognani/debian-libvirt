@@ -22,7 +22,6 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <verify.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -37,6 +36,8 @@
 #else
 # define sa_assert(expr) /* empty */
 #endif
+
+#define VIR_INT_MULTIPLY_OVERFLOW(a,b) (G_UNLIKELY ((b) > 0 && (a) > G_MAXINT / (b)))
 
 /* The library itself is allowed to use deprecated functions /
  * variables, so effectively undefine the deprecated attribute
@@ -87,6 +88,12 @@
 #define STRNEQ_NULLABLE(a, b) (g_strcmp0(a, b) != 0)
 
 #define NUL_TERMINATE(buf) do { (buf)[sizeof(buf)-1] = '\0'; } while (0)
+
+#ifdef WIN32
+# ifndef O_CLOEXEC
+#  define O_CLOEXEC _O_NOINHERIT
+# endif
+#endif
 
 /**
  * G_GNUC_NO_INLINE:
@@ -153,6 +160,10 @@
 #define VIR_WARNINGS_NO_DEPRECATED \
     _Pragma ("GCC diagnostic push") \
     _Pragma ("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+
+#define VIR_WARNINGS_NO_POINTER_SIGN \
+    _Pragma ("GCC diagnostic push") \
+    _Pragma ("GCC diagnostic ignored \"-Wpointer-sign\"")
 
 #if HAVE_SUGGEST_ATTRIBUTE_FORMAT
 # define VIR_WARNINGS_NO_PRINTF \
@@ -471,3 +482,23 @@ enum {
 #ifndef ENODATA
 # define ENODATA EIO
 #endif
+
+#ifdef WIN32
+# ifndef ENOMSG
+#  define ENOMSG 122
+# endif
+#endif
+
+/* Ideally callers would use the g_*printf
+ * functions directly but there are alot to
+ * convert, so until then...
+ */
+#ifndef VIR_NO_GLIB_STDIO
+
+# undef printf
+# define printf(...) g_printf(__VA_ARGS__)
+
+# undef fprintf
+# define fprintf(fh, ...) g_fprintf(fh, __VA_ARGS__)
+
+#endif /* VIR_NO_GLIB_STDIO */

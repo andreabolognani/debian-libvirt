@@ -25,23 +25,22 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <sys/stat.h>
 
-#ifdef MAJOR_IN_MKDEV
-# include <sys/mkdev.h>
-#elif MAJOR_IN_SYSMACROS
+#ifdef WIN32
+# include <conio.h>
+#endif /* WIN32 */
+
+#ifdef __linux__
 # include <sys/sysmacros.h>
 #endif
 
 #include <sys/types.h>
-#include <termios.h>
 
 #if WITH_DEVMAPPER
 # include <libdevmapper.h>
 #endif
 
-#include <netdb.h>
 #ifdef HAVE_GETPWUID_R
 # include <pwd.h>
 # include <grp.h>
@@ -51,32 +50,18 @@
 # include <sys/prctl.h>
 #endif
 
-#ifdef WIN32
-# ifdef HAVE_WINSOCK2_H
-#  include <winsock2.h>
-# endif
-# include <windows.h>
-# include <shlobj.h>
-#endif
-
-#ifdef HAVE_SYS_UN_H
-# include <sys/un.h>
-#endif
-
-#include "mgetgroups.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "virbuffer.h"
 #include "viralloc.h"
-#include "verify.h"
 #include "virfile.h"
 #include "vircommand.h"
-#include "nonblocking.h"
 #include "virprocess.h"
 #include "virstring.h"
 #include "virutil.h"
+#include "virsocket.h"
 
-verify(sizeof(gid_t) <= sizeof(unsigned int) &&
+G_STATIC_ASSERT(sizeof(gid_t) <= sizeof(unsigned int) &&
        sizeof(uid_t) <= sizeof(unsigned int));
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -99,6 +84,21 @@ int virSetInherit(int fd, bool inherit)
     return 0;
 }
 
+
+int virSetBlocking(int fd, bool block)
+{
+    int fflags;
+    if ((fflags = fcntl(fd, F_GETFL)) < 0)
+        return -1;
+    if (block)
+        fflags &= ~O_NONBLOCK;
+    else
+        fflags |= O_NONBLOCK;
+    if ((fcntl(fd, F_SETFL, fflags)) < 0)
+        return -1;
+    return 0;
+}
+
 #else /* WIN32 */
 
 int virSetInherit(int fd G_GNUC_UNUSED, bool inherit G_GNUC_UNUSED)
@@ -110,12 +110,18 @@ int virSetInherit(int fd G_GNUC_UNUSED, bool inherit G_GNUC_UNUSED)
     return 0;
 }
 
-#endif /* WIN32 */
-
 int virSetBlocking(int fd, bool blocking)
 {
-    return set_nonblocking_flag(fd, !blocking);
+    unsigned long arg = blocking ? 0 : 1;
+
+    if (ioctlsocket(fd, FIONBIO, &arg) < 0)
+        return -1;
+
+    return 0;
 }
+
+#endif /* WIN32 */
+
 
 int virSetNonBlock(int fd)
 {
@@ -157,21 +163,6 @@ int virSetSockReuseAddr(int fd, bool fatal)
 }
 #endif
 
-
-/* Convert C from hexadecimal character to integer.  */
-int
-virHexToBin(unsigned char c)
-{
-    switch (c) {
-    default: return c - '0';
-    case 'a': case 'A': return 10;
-    case 'b': case 'B': return 11;
-    case 'c': case 'C': return 12;
-    case 'd': case 'D': return 13;
-    case 'e': case 'E': return 14;
-    case 'f': case 'F': return 15;
-    }
-}
 
 /* Scale an integer VALUE in-place by an optional case-insensitive
  * SUFFIX, defaulting to SCALE if suffix is NULL or empty (scale is
@@ -802,12 +793,11 @@ virGetUserIDByName(const char *name, uid_t *uid, bool missing_ok)
 
     if (!pw) {
         if (rc != 0 && !missing_ok) {
-            char buf[1024];
             /* log the possible error from getpwnam_r. Unfortunately error
              * reporting from this function is bad and we can't really
              * rely on it, so we just report that the user wasn't found */
             VIR_WARN("User record for user '%s' was not found: %s",
-                     name, virStrerror(rc, buf, sizeof(buf)));
+                     name, g_strerror(rc));
         }
 
         ret = 1;
@@ -885,12 +875,11 @@ virGetGroupIDByName(const char *name, gid_t *gid, bool missing_ok)
 
     if (!gr) {
         if (rc != 0 && !missing_ok) {
-            char buf[1024];
             /* log the possible error from getgrnam_r. Unfortunately error
              * reporting from this function is bad and we can't really
              * rely on it, so we just report that the user wasn't found */
             VIR_WARN("Group record for user '%s' was not found: %s",
-                     name, virStrerror(rc, buf, sizeof(buf)));
+                     name, g_strerror(rc));
         }
 
         ret = 1;
@@ -957,6 +946,11 @@ virDoesGroupExist(const char *name)
 }
 
 
+
+/* Work around an incompatibility of OS X 10.11: getgrouplist
+   accepts int *, not gid_t *, and int and gid_t differ in sign.  */
+VIR_WARNINGS_NO_POINTER_SIGN
+
 /* Compute the list of primary and supplementary groups associated
  * with @uid, and including @gid in the list (unless it is -1),
  * storing a malloc'd result into @list. If uid is -1 or doesn't exist in the
@@ -977,11 +971,28 @@ virGetGroupList(uid_t uid, gid_t gid, gid_t **list)
     /* invalid users have no supplementary groups */
     if (uid != (uid_t)-1 &&
         virGetUserEnt(uid, &user, &primary, NULL, NULL, true) >= 0) {
-        if ((ret = mgetgroups(user, primary, list)) < 0) {
-            virReportSystemError(errno,
-                                 _("cannot get group list for '%s'"), user);
-            ret = -1;
-            goto cleanup;
+        int nallocgrps = 10;
+        gid_t *grps = g_new(gid_t, nallocgrps);
+
+        while (1) {
+            int nprevallocgrps = nallocgrps;
+            int rv;
+
+            rv = getgrouplist(user, primary, grps, &nallocgrps);
+
+            /* Some systems (like Darwin) have a bug where they
+               never increase max_n_groups.  */
+            if (rv < 0 && nprevallocgrps == nallocgrps)
+                nallocgrps *= 2;
+
+            /* either shrinks to actual size, or enlarges to new size */
+            grps = g_renew(gid_t, grps, nallocgrps);
+
+            if (rv >= 0) {
+                ret = rv;
+                *list = grps;
+                break;
+            }
         }
     }
 
@@ -1005,6 +1016,8 @@ virGetGroupList(uid_t uid, gid_t gid, gid_t **list)
     VIR_FREE(user);
     return ret;
 }
+
+VIR_WARNINGS_RESET
 
 
 /* Set the real and effective uid and gid to the given values, as well
@@ -1392,9 +1405,10 @@ virGetDeviceID(const char *path, int *maj, int *min)
 #else
 int
 virGetDeviceID(const char *path G_GNUC_UNUSED,
-               int *maj G_GNUC_UNUSED,
-               int *min G_GNUC_UNUSED)
+               int *maj,
+               int *min)
 {
+    *maj = *min = 0;
     return -ENOSYS;
 }
 #endif
@@ -1711,4 +1725,93 @@ virHostGetDRMRenderNode(void)
  cleanup:
     VIR_DIR_CLOSE(driDir);
     return ret;
+}
+
+/*
+ * Get a password from the console input stream.
+ * The caller must free the returned password.
+ *
+ * Returns: the password, or NULL
+ */
+char *virGetPassword(void)
+{
+#ifdef WIN32
+    GString *pw = g_string_new("");
+
+    while (1) {
+        char c = _getch();
+        if (c == '\r')
+            break;
+
+        g_string_append_c(pw, c);
+    }
+
+    return g_string_free(pw, FALSE);
+#else /* !WIN32 */
+    return g_strdup(getpass(""));
+#endif /* ! WIN32 */
+}
+
+
+static int
+virPipeImpl(int fds[2], bool nonblock, bool errreport)
+{
+#ifdef HAVE_PIPE2
+    int flags = O_CLOEXEC;
+    if (nonblock)
+        flags |= O_NONBLOCK;
+    int rv = pipe2(fds, flags);
+#else /* !HAVE_PIPE2 */
+# ifdef WIN32
+    int rv = _pipe(fds, 4096, _O_BINARY);
+# else /* !WIN32 */
+    int rv = pipe(fds);
+# endif /* !WIN32 */
+#endif /* !HAVE_PIPE2 */
+
+    if (rv < 0) {
+        if (errreport)
+            virReportSystemError(errno, "%s",
+                                 _("Unable to create pipes"));
+        return rv;
+    }
+
+#ifndef HAVE_PIPE2
+    if (nonblock) {
+        if (virSetNonBlock(fds[0]) < 0 ||
+            virSetNonBlock(fds[1]) < 0) {
+            if (errreport)
+                virReportSystemError(errno, "%s",
+                                     _("Unable to set pipes to non-blocking"));
+            virReportSystemError(errno, "%s",
+                                 _("Unable to create pipes"));
+            VIR_FORCE_CLOSE(fds[0]);
+            VIR_FORCE_CLOSE(fds[1]);
+            return -1;
+        }
+    }
+#endif /* !HAVE_PIPE2 */
+
+    return 0;
+}
+
+
+int
+virPipe(int fds[2])
+{
+    return virPipeImpl(fds, false, true);
+}
+
+
+int
+virPipeQuiet(int fds[2])
+{
+    return virPipeImpl(fds, false, false);
+}
+
+
+int
+virPipeNonBlock(int fds[2])
+{
+    return virPipeImpl(fds, true, true);
 }

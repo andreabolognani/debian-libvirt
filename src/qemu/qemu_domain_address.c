@@ -35,6 +35,7 @@ VIR_LOG_INIT("qemu.qemu_domain_address");
 #define VIO_ADDR_SCSI 0x2000ul
 #define VIO_ADDR_SERIAL 0x30000000ul
 #define VIO_ADDR_NVRAM 0x3000ul
+#define VIO_ADDR_TPM 0x4000ul
 
 
 /**
@@ -264,6 +265,14 @@ qemuDomainAssignSpaprVIOAddresses(virDomainDefPtr def)
             def->nvram->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO;
         if (qemuDomainAssignSpaprVIOAddress(def, &def->nvram->info,
                                             VIO_ADDR_NVRAM) < 0)
+            return -1;
+    }
+
+    if (def->tpm) {
+        if (qemuDomainIsPSeries(def))
+            def->tpm->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO;
+        if (qemuDomainAssignSpaprVIOAddress(def, &def->tpm->info,
+                                            VIO_ADDR_TPM) < 0)
             return -1;
     }
 
@@ -689,6 +698,10 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
                 break;
             }
             break;
+
+        case VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS:
+            /* vhost-user-fs-pci */
+            return virtioFlags;
 
         case VIR_DOMAIN_FS_DRIVER_TYPE_LOOP:
         case VIR_DOMAIN_FS_DRIVER_TYPE_NBD:
@@ -1249,10 +1262,8 @@ qemuDomainFindUnusedIsolationGroup(virDomainDefPtr def)
  * @dev: device definition
  *
  * Fill isolation group information for a single device.
- *
- * Return: 0 on success, <0 on failure
- * */
-int
+ */
+void
 qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
                                    virDomainDeviceDefPtr dev)
 {
@@ -1270,7 +1281,7 @@ qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
         /* Only PCI host devices are subject to isolation */
         if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS ||
             hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI) {
-            return 0;
+            return;
         }
 
         hostAddr = &hostdev->source.subsys.u.pci.addr;
@@ -1278,7 +1289,7 @@ qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
         /* If a non-default isolation has already been assigned to the
          * device, we can avoid looking up the information again */
         if (info->isolationGroup > 0)
-            return 0;
+            return;
 
         /* The isolation group depends on the IOMMU group assigned by the host */
         tmp = virPCIDeviceAddressGetIOMMUGroupNum(hostAddr);
@@ -1288,7 +1299,7 @@ qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
                      "%04x:%02x:%02x.%x, device won't be isolated",
                      hostAddr->domain, hostAddr->bus,
                      hostAddr->slot, hostAddr->function);
-            return 0;
+            return;
         }
 
         /* The isolation group for a host device is its IOMMU group,
@@ -1314,13 +1325,13 @@ qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
          * require us to isolate the guest device, so we can skip them */
         if (iface->type != VIR_DOMAIN_NET_TYPE_NETWORK ||
             virDomainNetResolveActualType(iface) != VIR_DOMAIN_NET_TYPE_HOSTDEV) {
-            return 0;
+            return;
         }
 
         /* If a non-default isolation has already been assigned to the
          * device, we can avoid looking up the information again */
         if (info->isolationGroup > 0)
-            return 0;
+            return;
 
         /* Obtain a synthetic isolation group for the device, since at this
          * point in time we don't have access to the IOMMU group of the host
@@ -1332,7 +1343,7 @@ qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
                      "configured to use hostdev-backed network '%s', "
                      "device won't be isolated",
                      iface->data.network.name);
-            return 0;
+            return;
         }
 
         info->isolationGroup = tmp;
@@ -1341,8 +1352,6 @@ qemuDomainFillDeviceIsolationGroup(virDomainDefPtr def,
                   "hostdev-backed network '%s' is %u",
                   iface->data.network.name, info->isolationGroup);
     }
-
-    return 0;
 }
 
 
@@ -1364,7 +1373,9 @@ qemuDomainFillDeviceIsolationGroupIter(virDomainDefPtr def,
                                        virDomainDeviceInfoPtr info G_GNUC_UNUSED,
                                        void *opaque G_GNUC_UNUSED)
 {
-    return qemuDomainFillDeviceIsolationGroup(def, dev);
+    qemuDomainFillDeviceIsolationGroup(def, dev);
+
+    return 0;
 }
 
 
@@ -2211,7 +2222,7 @@ qemuDomainAssignDevicePCISlots(virDomainDefPtr def,
             continue;
 
         /* First IDE controller lives on the PIIX3 at slot=1, function=1,
-           dealt with earlier on*/
+           dealt with earlier on */
         if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_IDE &&
             cont->idx == 0)
             continue;

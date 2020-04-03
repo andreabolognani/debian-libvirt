@@ -29,7 +29,6 @@
 #include "virlog.h"
 #include "configmake.h"
 #include "virthread.h"
-#include "virutil.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "virobject.h"
@@ -345,7 +344,7 @@ virNetSSHCheckHostKey(virNetSSHSessionPtr sess)
             }
 
             /* calculate remote key hash, using MD5 algorithm that is
-             * usual in OpenSSH. The returned value should *NOT* be freed*/
+             * usual in OpenSSH. The returned value should *NOT* be freed */
             if (!(keyhash = libssh2_hostkey_hash(sess->session,
                                                  LIBSSH2_HOSTKEY_HASH_MD5))) {
                 virReportError(VIR_ERR_SSH, "%s",
@@ -357,7 +356,7 @@ virNetSSHCheckHostKey(virNetSSHSessionPtr sess)
              * we have to use a *MAGIC* constant. */
             for (i = 0; i < 16; i++)
                 virBufferAsprintf(&buff, "%02hhX:", keyhash[i]);
-            virBufferTrim(&buff, ":", 1);
+            virBufferTrim(&buff, ":");
 
             keyhashstr = virBufferContentAndReset(&buff);
 
@@ -925,7 +924,7 @@ virNetSSHOpenChannel(virNetSSHSessionPtr sess)
         return -1;
     }
 
-    /* nonblocking mode - currently does nothing*/
+    /* nonblocking mode - currently does nothing */
     libssh2_channel_set_blocking(sess->channel, 0);
 
     /* channel open */

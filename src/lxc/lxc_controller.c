@@ -23,16 +23,11 @@
 
 #include <sys/epoll.h>
 #include <sys/wait.h>
-#include <sys/socket.h>
 
-#ifdef MAJOR_IN_MKDEV
-# include <sys/mkdev.h>
-#elif MAJOR_IN_SYSMACROS
+#ifdef __linux__
 # include <sys/sysmacros.h>
 #endif
 
-#include <sys/types.h>
-#include <sys/un.h>
 #include <sys/personality.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -69,6 +64,8 @@
 #include "rpc/virnetdaemon.h"
 #include "virstring.h"
 #include "virgettext.h"
+#include "virsocket.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -672,7 +669,7 @@ static int virLXCControllerSetupLoopDevices(virLXCControllerPtr ctrl)
 
             /* The NBD device will be cleaned up while the cgroup will end.
              * For this we need to remember the qemu-nbd pid and add it to
-             * the cgroup*/
+             * the cgroup */
             if (virLXCControllerAppendNBDPids(ctrl, fs->src->path) < 0)
                 return -1;
         } else {
@@ -737,7 +734,7 @@ static int virLXCControllerSetupLoopDevices(virLXCControllerPtr ctrl)
 
             /* The NBD device will be cleaned up while the cgroup will end.
              * For this we need to remember the qemu-nbd pid and add it to
-             * the cgroup*/
+             * the cgroup */
             if (virLXCControllerAppendNBDPids(ctrl, virDomainDiskGetSource(disk)) < 0)
                 return -1;
         } else {
@@ -806,8 +803,7 @@ static int virLXCControllerGetNumadAdvice(virLXCControllerPtr ctrl,
                                           virBitmapPtr *mask)
 {
     virBitmapPtr nodemask = NULL;
-    char *nodeset = NULL;
-    int ret = -1;
+    g_autofree char *nodeset = NULL;
 
     /* Get the advisory nodeset from numad if 'placement' of
      * either <vcpu> or <numatune> is 'auto'.
@@ -816,20 +812,17 @@ static int virLXCControllerGetNumadAdvice(virLXCControllerPtr ctrl,
         nodeset = virNumaGetAutoPlacementAdvice(virDomainDefGetVcpus(ctrl->def),
                                                 ctrl->def->mem.cur_balloon);
         if (!nodeset)
-            goto cleanup;
+            return -1;
 
         VIR_DEBUG("Nodeset returned from numad: %s", nodeset);
 
         if (virBitmapParse(nodeset, &nodemask, VIR_DOMAIN_CPUMASK_LEN) < 0)
-            goto cleanup;
+            return -1;
     }
 
-    ret = 0;
     *mask = nodemask;
 
- cleanup:
-    VIR_FREE(nodeset);
-    return ret;
+    return 0;
 }
 
 
@@ -1438,9 +1431,8 @@ virLXCControllerSetupUsernsMap(virDomainIdMapEntryPtr map,
  */
 static int virLXCControllerSetupUserns(virLXCControllerPtr ctrl)
 {
-    char *uid_map = NULL;
-    char *gid_map = NULL;
-    int ret = -1;
+    g_autofree char *uid_map = NULL;
+    g_autofree char *gid_map = NULL;
 
     /* User namespace is disabled for container */
     if (ctrl->def->idmap.nuidmap == 0) {
@@ -1454,28 +1446,23 @@ static int virLXCControllerSetupUserns(virLXCControllerPtr ctrl)
     if (virLXCControllerSetupUsernsMap(ctrl->def->idmap.uidmap,
                                        ctrl->def->idmap.nuidmap,
                                        uid_map) < 0)
-        goto cleanup;
+        return -1;
 
     gid_map = g_strdup_printf("/proc/%d/gid_map", ctrl->initpid);
 
     if (virLXCControllerSetupUsernsMap(ctrl->def->idmap.gidmap,
                                        ctrl->def->idmap.ngidmap,
                                        gid_map) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(uid_map);
-    VIR_FREE(gid_map);
-    return ret;
+    return 0;
 }
 
 static int virLXCControllerSetupDev(virLXCControllerPtr ctrl)
 {
-    char *mount_options = NULL;
-    char *opts = NULL;
-    char *dev = NULL;
-    int ret = -1;
+    g_autofree char *mount_options = NULL;
+    g_autofree char *opts = NULL;
+    g_autofree char *dev = NULL;
 
     VIR_DEBUG("Setting up /dev/ for container");
 
@@ -1492,24 +1479,18 @@ static int virLXCControllerSetupDev(virLXCControllerPtr ctrl)
     opts = g_strdup_printf("mode=755,size=65536%s", mount_options);
 
     if (virFileSetupDev(dev, opts) < 0)
-        goto cleanup;
+        return -1;
 
     if (lxcContainerChown(ctrl->def, dev) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(opts);
-    VIR_FREE(mount_options);
-    VIR_FREE(dev);
-    return ret;
+    return 0;
 }
 
 static int virLXCControllerPopulateDevices(virLXCControllerPtr ctrl)
 {
     size_t i;
-    int ret = -1;
-    char *path = NULL;
+    g_autofree char *path = NULL;
     const struct {
         int maj;
         int min;
@@ -1525,7 +1506,7 @@ static int virLXCControllerPopulateDevices(virLXCControllerPtr ctrl)
     };
 
     if (virLXCControllerSetupDev(ctrl) < 0)
-        goto cleanup;
+        return -1;
 
     /* Populate /dev/ with a few important bits */
     for (i = 0; i < G_N_ELEMENTS(devs); i++) {
@@ -1538,19 +1519,85 @@ static int virLXCControllerPopulateDevices(virLXCControllerPtr ctrl)
             virReportSystemError(errno,
                                  _("Failed to make device %s"),
                                  path);
-            goto cleanup;
+            return -1;
         }
 
         if (lxcContainerChown(ctrl->def, path) < 0)
-            goto cleanup;
-
-        VIR_FREE(path);
+            return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(path);
-    return ret;
+    return 0;
+}
+
+
+static int
+virLXCControllerSetupTimers(virLXCControllerPtr ctrl)
+{
+    virDomainDefPtr def = ctrl->def;
+    size_t i;
+
+    /* Not sync'ed with Host clock */
+    if (def->clock.offset != VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME)
+        return 0;
+
+    for (i = 0; i < def->clock.ntimers; i++) {
+        virDomainTimerDefPtr timer = def->clock.timers[i];
+        g_autofree char *path = NULL;
+        const char *timer_dev = NULL;
+        struct stat sb;
+        dev_t dev;
+
+        /* Check if "present" is set to "no" otherwise enable it. */
+        if (!timer->present)
+            continue;
+
+        switch ((virDomainTimerNameType)timer->name) {
+        case VIR_DOMAIN_TIMER_NAME_PLATFORM:
+        case VIR_DOMAIN_TIMER_NAME_TSC:
+        case VIR_DOMAIN_TIMER_NAME_KVMCLOCK:
+        case VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK:
+        case VIR_DOMAIN_TIMER_NAME_PIT:
+        case VIR_DOMAIN_TIMER_NAME_ARMVTIMER:
+        case VIR_DOMAIN_TIMER_NAME_LAST:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("unsupported timer type (name) '%s'"),
+                           virDomainTimerNameTypeToString(timer->name));
+            return -1;
+        case VIR_DOMAIN_TIMER_NAME_RTC:
+            timer_dev = "/dev/rtc0";
+            path = g_strdup_printf("/%s/%s.dev/%s", LXC_STATE_DIR,
+                                   def->name, "/rtc");
+            break;
+        case VIR_DOMAIN_TIMER_NAME_HPET:
+            timer_dev = "/dev/hpet";
+            path = g_strdup_printf("/%s/%s.dev/%s", LXC_STATE_DIR,
+                                   ctrl->def->name, "/hpet");
+            break;
+        }
+
+        if (!timer_dev)
+            continue;
+
+        if (stat(timer_dev, &sb) < 0) {
+            virReportSystemError(errno, _("Unable to access %s"),
+                                 timer_dev);
+            return -1;
+        }
+
+        dev = makedev(major(sb.st_rdev), minor(sb.st_rdev));
+        if (mknod(path, S_IFCHR, dev) < 0 ||
+            chmod(path, sb.st_mode)) {
+            virReportSystemError(errno,
+                                 _("Failed to make device %s"),
+                                 path);
+            return -1;
+        }
+
+        if (lxcContainerChown(def, path) < 0)
+            return -1;
+    }
+
+    return 0;
 }
 
 
@@ -2116,10 +2163,9 @@ virLXCControllerSetupPrivateNS(void)
 static int
 virLXCControllerSetupDevPTS(virLXCControllerPtr ctrl)
 {
-    char *mount_options = NULL;
-    char *opts = NULL;
-    char *devpts = NULL;
-    int ret = -1;
+    g_autofree char *mount_options = NULL;
+    g_autofree char *opts = NULL;
+    g_autofree char *devpts = NULL;
     gid_t ptsgid = 5;
 
     VIR_DEBUG("Setting up private /dev/pts");
@@ -2134,7 +2180,7 @@ virLXCControllerSetupDevPTS(virLXCControllerPtr ctrl)
         virReportSystemError(errno,
                              _("Failed to make path %s"),
                              devpts);
-        goto cleanup;
+        return -1;
     }
 
     if (ctrl->def->idmap.ngidmap)
@@ -2153,26 +2199,20 @@ virLXCControllerSetupDevPTS(virLXCControllerPtr ctrl)
         virReportSystemError(errno,
                              _("Failed to mount devpts on %s"),
                              devpts);
-        goto cleanup;
+        return -1;
     }
 
     if (access(ctrl->devptmx, R_OK) < 0) {
         virReportSystemError(ENOSYS, "%s",
                              _("Kernel does not support private devpts"));
-        goto cleanup;
+        return -1;
     }
 
     if ((lxcContainerChown(ctrl->def, ctrl->devptmx) < 0) ||
         (lxcContainerChown(ctrl->def, devpts) < 0))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(opts);
-    VIR_FREE(devpts);
-    VIR_FREE(mount_options);
-    return ret;
+    return 0;
 }
 
 
@@ -2193,8 +2233,7 @@ virLXCControllerSetupConsoles(virLXCControllerPtr ctrl,
                               char **containerTTYPaths)
 {
     size_t i;
-    int ret = -1;
-    char *ttyHostPath = NULL;
+    g_autofree char *ttyHostPath = NULL;
 
     for (i = 0; i < ctrl->nconsoles; i++) {
         VIR_DEBUG("Opening tty on private %s", ctrl->devptmx);
@@ -2203,20 +2242,17 @@ virLXCControllerSetupConsoles(virLXCControllerPtr ctrl,
                          &containerTTYPaths[i], &ttyHostPath) < 0) {
             virReportSystemError(errno, "%s",
                                  _("Failed to allocate tty"));
-            goto cleanup;
+            return -1;
         }
 
         /* Change the owner of tty device to the root user of container */
         if (lxcContainerChown(ctrl->def, ttyHostPath) < 0)
-            goto cleanup;
+            return -1;
 
         VIR_FREE(ttyHostPath);
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(ttyHostPath);
-    return ret;
+    return 0;
 }
 
 
@@ -2354,6 +2390,9 @@ virLXCControllerRun(virLXCControllerPtr ctrl)
         goto cleanup;
 
     if (virLXCControllerPopulateDevices(ctrl) < 0)
+        goto cleanup;
+
+    if (virLXCControllerSetupTimers(ctrl) < 0)
         goto cleanup;
 
     if (virLXCControllerSetupAllDisks(ctrl) < 0)

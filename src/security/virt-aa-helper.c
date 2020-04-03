@@ -41,6 +41,7 @@
 #include "virxml.h"
 #include "viruuid.h"
 #include "virusb.h"
+#include "virutil.h"
 #include "virpci.h"
 #include "virfile.h"
 #include "configmake.h"
@@ -263,22 +264,21 @@ static int
 create_profile(const char *profile, const char *profile_name,
                const char *profile_files, int virtType)
 {
-    char *template;
-    char *tcontent = NULL;
-    char *pcontent = NULL;
-    char *replace_name = NULL;
-    char *replace_files = NULL;
+    g_autofree char *template = NULL;
+    g_autofree char *tcontent = NULL;
+    g_autofree char *pcontent = NULL;
+    g_autofree char *replace_name = NULL;
+    g_autofree char *replace_files = NULL;
     char *tmp = NULL;
     const char *template_name = "\nprofile LIBVIRT_TEMPLATE";
     const char *template_end = "\n}";
     int tlen, plen;
     int fd;
-    int rc = -1;
     const char *driver_name = NULL;
 
     if (virFileExists(profile)) {
         vah_error(NULL, 0, _("profile exists"));
-        goto end;
+        return -1;
     }
 
     switch (virtType) {
@@ -295,22 +295,22 @@ create_profile(const char *profile, const char *profile_name,
 
     if (!virFileExists(template)) {
         vah_error(NULL, 0, _("template does not exist"));
-        goto end;
+        return -1;
     }
 
     if ((tlen = virFileReadAll(template, MAX_FILE_LEN, &tcontent)) < 0) {
         vah_error(NULL, 0, _("failed to read AppArmor template"));
-        goto end;
+        return -1;
     }
 
     if (strstr(tcontent, template_name) == NULL) {
         vah_error(NULL, 0, _("no replacement string in template"));
-        goto clean_tcontent;
+        return -1;
     }
 
     if (strstr(tcontent, template_end) == NULL) {
         vah_error(NULL, 0, _("no replacement string in template"));
-        goto clean_tcontent;
+        return -1;
     }
 
     /* '\nprofile <profile_name>\0' */
@@ -327,15 +327,15 @@ create_profile(const char *profile, const char *profile_name,
 
     if (plen > MAX_FILE_LEN || plen < tlen) {
         vah_error(NULL, 0, _("invalid length for new profile"));
-        goto clean_replace;
+        return -1;
     }
 
     if (!(pcontent = virStringReplace(tcontent, template_name, replace_name)))
-        goto clean_all;
+        return -1;
 
     if (virtType != VIR_DOMAIN_VIRT_LXC) {
         if (!(tmp = virStringReplace(pcontent, template_end, replace_files)))
-            goto clean_all;
+            return -1;
         VIR_FREE(pcontent);
         pcontent = g_steal_pointer(&tmp);
     }
@@ -343,31 +343,21 @@ create_profile(const char *profile, const char *profile_name,
     /* write the file */
     if ((fd = open(profile, O_CREAT | O_EXCL | O_WRONLY, 0644)) == -1) {
         vah_error(NULL, 0, _("failed to create profile"));
-        goto clean_all;
+        return -1;
     }
 
     if (safewrite(fd, pcontent, plen - 1) < 0) { /* don't write the '\0' */
         VIR_FORCE_CLOSE(fd);
         vah_error(NULL, 0, _("failed to write to profile"));
-        goto clean_all;
+        return -1;
     }
 
     if (VIR_CLOSE(fd) != 0) {
         vah_error(NULL, 0, _("failed to close or write to profile"));
-        goto clean_all;
+        return -1;
     }
-    rc = 0;
 
- clean_all:
-    VIR_FREE(pcontent);
- clean_replace:
-    VIR_FREE(replace_name);
-    VIR_FREE(replace_files);
- clean_tcontent:
-    VIR_FREE(tcontent);
- end:
-    VIR_FREE(template);
-    return rc;
+    return 0;
 }
 
 /*
@@ -1262,6 +1252,39 @@ get_files(vahControl * ctl)
         case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
         case VIR_DOMAIN_TPM_TYPE_LAST:
             break;
+        }
+    }
+
+    for (i = 0; i < ctl->def->nsmartcards; i++) {
+        virDomainSmartcardDefPtr sc = ctl->def->smartcards[i];
+        virDomainSmartcardType sc_type = sc->type;
+        char *sc_db = (char *)VIR_DOMAIN_SMARTCARD_DEFAULT_DATABASE;
+        if (sc->data.cert.database)
+            sc_db = sc->data.cert.database;
+        switch (sc_type) {
+            /*
+             * Note: At time of writing, to get this working, qemu seccomp sandbox has
+             * to be disabled or the host must be running QEMU with commit
+             * 9a1565a03b79d80b236bc7cc2dbce52a2ef3a1b8.
+             * It's possibly due to libcacard:vcard_emul_new_event_thread(), which calls
+             * PR_CreateThread(), which calls {g,s}etpriority(). And resourcecontrol seccomp
+             * filter forbids it (cf src/qemu/qemu_command.c which seems to always use
+             * resourcecontrol=deny).
+             */
+            case VIR_DOMAIN_SMARTCARD_TYPE_HOST:
+                virBufferAddLit(&buf, "  \"/etc/pki/nssdb/{,*}\" rk,\n");
+                break;
+            case VIR_DOMAIN_SMARTCARD_TYPE_HOST_CERTIFICATES:
+                virBufferAsprintf(&buf, "  \"%s/{,*}\" rk,\n", sc_db);
+                break;
+            /*
+             * Nothing to do for passthrough, as the smartcard
+             * access is done through TCP or Spice
+             */
+            case VIR_DOMAIN_SMARTCARD_TYPE_PASSTHROUGH:
+                break;
+            case VIR_DOMAIN_SMARTCARD_TYPE_LAST:
+                break;
         }
     }
 

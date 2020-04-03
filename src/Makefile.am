@@ -19,9 +19,7 @@
 # No libraries with the exception of LIBXML should be listed
 # here. List them against the individual XXX_la_CFLAGS targets
 # that actually use them.
-AM_CPPFLAGS =	-I../gnulib/lib \
-		-I$(top_srcdir)/gnulib/lib \
-		-I$(top_srcdir) \
+AM_CPPFLAGS =	-I$(top_srcdir) \
 		-I../include \
 		-I$(top_srcdir)/include \
 		-I$(srcdir)/util \
@@ -42,7 +40,6 @@ AM_LDFLAGS =	$(DRIVER_MODULES_LDFLAGS) \
 		$(COVERAGE_LDFLAGS) \
 		$(RELRO_LDFLAGS) \
 		$(NO_INDIRECT_LDFLAGS) \
-		$(CYGWIN_EXTRA_LDFLAGS) \
 		$(MINGW_EXTRA_LDFLAGS) \
 		$(NULL)
 AM_LDFLAGS_MOD = \
@@ -87,6 +84,7 @@ OPENRC_INIT_FILES_IN =
 OPENRC_CONF_FILES =
 SYSCONF_FILES =
 sbin_PROGRAMS =
+bin_PROGRAMS =
 DRIVER_SOURCES =
 
 COMMON_UNIT_VARS = \
@@ -110,6 +108,7 @@ include locking/Makefile.inc.am
 include admin/Makefile.inc.am
 include rpc/Makefile.inc.am
 include test/Makefile.inc.am
+include hypervisor/Makefile.inc.am
 include esx/Makefile.inc.am
 include hyperv/Makefile.inc.am
 include vmx/Makefile.inc.am
@@ -129,8 +128,6 @@ include secret/Makefile.inc.am
 include storage/Makefile.inc.am
 include remote/Makefile.inc.am
 
-
-THREAD_LIBS = $(LIB_PTHREAD) $(LTLIBMULTITHREAD)
 
 SECDRIVER_CFLAGS =
 SECDRIVER_LIBS =
@@ -390,12 +387,6 @@ else ! WITH_SSH2
 SYM_FILES += $(srcdir)/libvirt_libssh2.syms
 endif ! WITH_SSH2
 
-if WITH_ATOMIC_OPS_PTHREAD
-USED_SYM_FILES += $(srcdir)/libvirt_atomic.syms
-else ! WITH_ATOMIC_OPS_PTHREAD
-SYM_FILES += $(srcdir)/libvirt_atomic.syms
-endif ! WITH_ATOMIC_OPS_PTHREAD
-
 if WITH_LIBSSH
 USED_SYM_FILES += $(srcdir)/libvirt_libssh.syms
 else ! WITH_LIBSSH
@@ -447,10 +438,8 @@ if WITH_MACOS
 libvirt_la_LDFLAGS += -Wl,-flat_namespace
 endif WITH_MACOS
 libvirt_la_LDFLAGS += $(NULL)
-libvirt_la_BUILT_LIBADD += ../gnulib/lib/libgnu.la
 libvirt_la_LIBADD += \
-		    $(DRIVER_MODULES_LIBS) \
-		    $(CYGWIN_EXTRA_LIBADD)
+		    $(DRIVER_MODULES_LIBS)
 libvirt_la_CFLAGS = -DIN_LIBVIRT $(AM_CFLAGS)
 # Because we specify libvirt_la_DEPENDENCIES for $(LIBVIRT_SYMBOL_FILE), we
 # lose automake's automatic dependencies on an appropriate subset of
@@ -517,7 +506,7 @@ libvirt_qemu_la_LDFLAGS = \
 		$(AM_LDFLAGS) \
 		$(NULL)
 libvirt_qemu_la_CFLAGS = $(AM_CFLAGS)
-libvirt_qemu_la_LIBADD = libvirt.la $(CYGWIN_EXTRA_LIBADD)
+libvirt_qemu_la_LIBADD = libvirt.la
 
 libvirt_lxc_la_SOURCES = libvirt-lxc.c
 libvirt_lxc_la_LDFLAGS = \
@@ -527,7 +516,7 @@ libvirt_lxc_la_LDFLAGS = \
 		$(AM_LDFLAGS) \
 		$(NULL)
 libvirt_lxc_la_CFLAGS = $(AM_CFLAGS)
-libvirt_lxc_la_LIBADD = libvirt.la $(CYGWIN_EXTRA_LIBADD)
+libvirt_lxc_la_LIBADD = libvirt.la
 
 EXTRA_DIST += \
 	$(SYSCONF_FILES) \
@@ -671,7 +660,7 @@ libvirt_iohelper_LDFLAGS = \
 libvirt_iohelper_LDADD = \
 		libvirt.la \
 		$(GLIB_LIBS) \
-		../gnulib/lib/libgnu.la
+		$(NULL)
 if WITH_DTRACE_PROBES
 libvirt_iohelper_LDADD += libvirt_probes.lo
 endif WITH_DTRACE_PROBES

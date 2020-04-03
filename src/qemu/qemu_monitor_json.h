@@ -91,7 +91,8 @@ virHashTablePtr
 qemuMonitorJSONBlockGetNamedNodeDataJSON(virJSONValuePtr nodes);
 
 virHashTablePtr
-qemuMonitorJSONBlockGetNamedNodeData(qemuMonitorPtr mon);
+qemuMonitorJSONBlockGetNamedNodeData(qemuMonitorPtr mon,
+                                     bool supports_flat);
 
 int qemuMonitorJSONBlockResize(qemuMonitorPtr mon,
                                const char *device,
@@ -236,7 +237,8 @@ int qemuMonitorJSONAddObject(qemuMonitorPtr mon,
                              virJSONValuePtr props);
 
 int qemuMonitorJSONDelObject(qemuMonitorPtr mon,
-                             const char *objalias);
+                             const char *objalias,
+                             bool report_error);
 
 int qemuMonitorJSONTransaction(qemuMonitorPtr mon, virJSONValuePtr *actions)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
@@ -584,7 +586,8 @@ int qemuMonitorJSONSetBlockThreshold(qemuMonitorPtr mon,
                                      unsigned long long threshold)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-virJSONValuePtr qemuMonitorJSONQueryNamedBlockNodes(qemuMonitorPtr mon)
+virJSONValuePtr qemuMonitorJSONQueryNamedBlockNodes(qemuMonitorPtr mon,
+                                                    bool flat)
     ATTRIBUTE_NONNULL(1);
 
 int qemuMonitorJSONSetWatchdogAction(qemuMonitorPtr mon,
@@ -597,7 +600,11 @@ int qemuMonitorJSONBlockdevCreate(qemuMonitorPtr mon,
     ATTRIBUTE_NONNULL(1);
 
 int qemuMonitorJSONBlockdevAdd(qemuMonitorPtr mon,
-                               virJSONValuePtr props)
+                               virJSONValuePtr *props)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+
+int qemuMonitorJSONBlockdevReopen(qemuMonitorPtr mon,
+                                  virJSONValuePtr *props)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorJSONBlockdevDel(qemuMonitorPtr mon,
@@ -679,3 +686,8 @@ qemuMonitorJSONTransactionBackup(virJSONValuePtr actions,
                                  const char *target,
                                  const char *bitmap,
                                  qemuMonitorTransactionBackupSyncMode syncmode);
+
+int qemuMonitorJSONSetDBusVMStateIdList(qemuMonitorPtr mon,
+                                        const char *vmstatepath,
+                                        const char **list)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);

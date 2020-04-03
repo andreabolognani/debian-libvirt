@@ -240,6 +240,20 @@ virSecurityDACTransactionRun(pid_t pid G_GNUC_UNUSED,
 
         if (!(state = virSecurityManagerMetadataLock(list->manager, paths, npaths)))
             goto cleanup;
+
+        for (i = 0; i < list->nItems; i++) {
+            virSecurityDACChownItemPtr item = list->items[i];
+            size_t j;
+
+            for (j = 0; j < state->nfds; j++) {
+                if (STREQ_NULLABLE(item->path, state->paths[j]))
+                    break;
+            }
+
+            /* If path wasn't locked, don't try to remember its label. */
+            if (j == state->nfds)
+                item->remember = false;
+        }
     }
 
     for (i = 0; i < list->nItems; i++) {
@@ -626,15 +640,23 @@ virSecurityDACTransactionCommit(virSecurityManagerPtr mgr G_GNUC_UNUSED,
 
     list->lock = lock;
 
+    if (pid != -1) {
+        rc = virProcessRunInMountNamespace(pid,
+                                           virSecurityDACTransactionRun,
+                                           list);
+        if (rc < 0) {
+            if (virGetLastErrorCode() == VIR_ERR_SYSTEM_ERROR)
+                pid = -1;
+            else
+                goto cleanup;
+        }
+    }
+
     if (pid == -1) {
         if (lock)
             rc = virProcessRunInFork(virSecurityDACTransactionRun, list);
         else
             rc = virSecurityDACTransactionRun(pid, list);
-    } else {
-        rc = virProcessRunInMountNamespace(pid,
-                                           virSecurityDACTransactionRun,
-                                           list);
     }
 
     if (rc < 0)
@@ -710,7 +732,11 @@ virSecurityDACSetOwnershipInternal(const virSecurityDACData *priv,
             return 0;
         }
 
+#ifdef WIN32
+        rc = ENOSYS;
+#else /* !WIN32 */
         rc = chown(path, uid, gid);
+#endif /* !WIN32 */
     }
 
     if (rc < 0) {
@@ -871,14 +897,14 @@ static int
 virSecurityDACSetImageLabelInternal(virSecurityManagerPtr mgr,
                                     virDomainDefPtr def,
                                     virStorageSourcePtr src,
-                                    virStorageSourcePtr parent)
+                                    virStorageSourcePtr parent,
+                                    bool isChainTop)
 {
     virSecurityLabelDefPtr secdef;
     virSecurityDeviceLabelDefPtr disk_seclabel;
     virSecurityDeviceLabelDefPtr parent_seclabel = NULL;
     virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
     bool remember;
-    bool is_toplevel = parent == src || parent->externalDataStore == src;
     uid_t user;
     gid_t group;
 
@@ -936,7 +962,7 @@ virSecurityDACSetImageLabelInternal(virSecurityManagerPtr mgr,
      * but the top layer, or read only image, or disk explicitly
      * marked as shared.
      */
-    remember = is_toplevel && !src->readonly && !src->shared;
+    remember = isChainTop && !src->readonly && !src->shared;
 
     return virSecurityDACSetOwnership(mgr, src, NULL, user, group, remember);
 }
@@ -952,7 +978,9 @@ virSecurityDACSetImageLabelRelative(virSecurityManagerPtr mgr,
     virStorageSourcePtr n;
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
-        if (virSecurityDACSetImageLabelInternal(mgr, def, n, parent) < 0)
+        const bool isChainTop = flags & VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP;
+
+        if (virSecurityDACSetImageLabelInternal(mgr, def, n, parent, isChainTop) < 0)
             return -1;
 
         if (n->externalDataStore &&
@@ -965,6 +993,8 @@ virSecurityDACSetImageLabelRelative(virSecurityManagerPtr mgr,
 
         if (!(flags & VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN))
             break;
+
+        flags &= ~VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP;
     }
 
     return 0;
@@ -1144,6 +1174,7 @@ virSecurityDACMoveImageMetadata(virSecurityManagerPtr mgr,
 
 static int
 virSecurityDACSetHostdevLabelHelper(const char *file,
+                                    bool remember,
                                     void *opaque)
 {
     virSecurityDACCallbackDataPtr cbdata = opaque;
@@ -1156,7 +1187,7 @@ virSecurityDACSetHostdevLabelHelper(const char *file,
     if (virSecurityDACGetIds(secdef, priv, &user, &group, NULL, NULL) < 0)
         return -1;
 
-    return virSecurityDACSetOwnership(mgr, NULL, file, user, group, true);
+    return virSecurityDACSetOwnership(mgr, NULL, file, user, group, remember);
 }
 
 
@@ -1165,7 +1196,7 @@ virSecurityDACSetPCILabel(virPCIDevicePtr dev G_GNUC_UNUSED,
                           const char *file,
                           void *opaque)
 {
-    return virSecurityDACSetHostdevLabelHelper(file, opaque);
+    return virSecurityDACSetHostdevLabelHelper(file, true, opaque);
 }
 
 
@@ -1174,7 +1205,7 @@ virSecurityDACSetUSBLabel(virUSBDevicePtr dev G_GNUC_UNUSED,
                           const char *file,
                           void *opaque)
 {
-    return virSecurityDACSetHostdevLabelHelper(file, opaque);
+    return virSecurityDACSetHostdevLabelHelper(file, true, opaque);
 }
 
 
@@ -1183,7 +1214,7 @@ virSecurityDACSetSCSILabel(virSCSIDevicePtr dev G_GNUC_UNUSED,
                            const char *file,
                            void *opaque)
 {
-    return virSecurityDACSetHostdevLabelHelper(file, opaque);
+    return virSecurityDACSetHostdevLabelHelper(file, true, opaque);
 }
 
 
@@ -1192,7 +1223,7 @@ virSecurityDACSetHostLabel(virSCSIVHostDevicePtr dev G_GNUC_UNUSED,
                            const char *file,
                            void *opaque)
 {
-    return virSecurityDACSetHostdevLabelHelper(file, opaque);
+    return virSecurityDACSetHostdevLabelHelper(file, true, opaque);
 }
 
 
@@ -1262,7 +1293,9 @@ virSecurityDACSetHostdevLabel(virSecurityManagerPtr mgr,
                 virPCIDeviceFree(pci);
                 return -1;
             }
-            ret = virSecurityDACSetPCILabel(pci, vfioGroupDev, &cbdata);
+            ret = virSecurityDACSetHostdevLabelHelper(vfioGroupDev,
+                                                      false,
+                                                      &cbdata);
             VIR_FREE(vfioGroupDev);
         } else {
             ret = virPCIDeviceFileIterate(pci,
@@ -1312,7 +1345,7 @@ virSecurityDACSetHostdevLabel(virSecurityManagerPtr mgr,
         if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
             return -1;
 
-        ret = virSecurityDACSetHostdevLabelHelper(vfiodev, &cbdata);
+        ret = virSecurityDACSetHostdevLabelHelper(vfiodev, true, &cbdata);
 
         VIR_FREE(vfiodev);
         break;
@@ -1429,7 +1462,8 @@ virSecurityDACRestoreHostdevLabel(virSecurityManagerPtr mgr,
                 virPCIDeviceFree(pci);
                 return -1;
             }
-            ret = virSecurityDACRestorePCILabel(pci, vfioGroupDev, mgr);
+            ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL,
+                                                         vfioGroupDev, false);
             VIR_FREE(vfioGroupDev);
         } else {
             ret = virPCIDeviceFileIterate(pci, virSecurityDACRestorePCILabel, mgr);
@@ -2092,7 +2126,8 @@ virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
         if (virDomainDiskGetType(def->disks[i]) == VIR_STORAGE_TYPE_DIR)
             continue;
         if (virSecurityDACSetImageLabel(mgr, def, def->disks[i]->src,
-                                        VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN) < 0)
+                                        VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN |
+                                        VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP) < 0)
             return -1;
     }
 

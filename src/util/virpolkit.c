@@ -20,7 +20,7 @@
  */
 
 #include <config.h>
-#include <poll.h>
+#include <unistd.h>
 
 #include "virpolkit.h"
 #include "virerror.h"
@@ -30,12 +30,14 @@
 #include "viralloc.h"
 #include "virdbus.h"
 #include "virfile.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_POLKIT
 
 VIR_LOG_INIT("util.polkit");
 
 #if WITH_POLKIT
+# include <poll.h>
 
 struct _virPolkitAgent {
     virCommandPtr cmd;
@@ -171,7 +173,7 @@ virPolkitAgentCreate(void)
     if (!isatty(STDIN_FILENO))
         goto error;
 
-    if (pipe2(pipe_fd, 0) < 0)
+    if (virPipe(pipe_fd) < 0)
         goto error;
 
     if (VIR_ALLOC(agent) < 0)

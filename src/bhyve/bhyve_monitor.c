@@ -32,24 +32,89 @@
 #include "virerror.h"
 #include "virfile.h"
 #include "virlog.h"
+#include "virobject.h"
 
 #define VIR_FROM_THIS   VIR_FROM_BHYVE
 
 VIR_LOG_INIT("bhyve.bhyve_monitor");
 
 struct _bhyveMonitor {
+    virObject parent;
+
+    bhyveConnPtr driver;
+    virDomainObjPtr vm;
     int kq;
     int watch;
-    bhyveConnPtr driver;
+    bool reboot;
 };
+
+static virClassPtr bhyveMonitorClass;
+
+static void
+bhyveMonitorDispose(void *obj)
+{
+    bhyveMonitorPtr mon = obj;
+
+    VIR_FORCE_CLOSE(mon->kq);
+    virObjectUnref(mon->vm);
+}
+
+static int
+bhyveMonitorOnceInit(void)
+{
+    if (!VIR_CLASS_NEW(bhyveMonitor, virClassForObject()))
+        return -1;
+
+    return 0;
+}
+
+VIR_ONCE_GLOBAL_INIT(bhyveMonitor);
+
+static void bhyveMonitorIO(int, int, int, void *);
+
+static bool
+bhyveMonitorRegister(bhyveMonitorPtr mon)
+{
+    virObjectRef(mon);
+    mon->watch = virEventAddHandle(mon->kq,
+                                   VIR_EVENT_HANDLE_READABLE |
+                                   VIR_EVENT_HANDLE_ERROR |
+                                   VIR_EVENT_HANDLE_HANGUP,
+                                   bhyveMonitorIO,
+                                   mon,
+                                   virObjectFreeCallback);
+    if (mon->watch < 0) {
+        VIR_DEBUG("failed to add event handle for mon %p", mon);
+        virObjectUnref(mon);
+        return false;
+    }
+    return true;
+}
+
+static void
+bhyveMonitorUnregister(bhyveMonitorPtr mon)
+{
+    if (mon->watch < 0)
+        return;
+
+    virEventRemoveHandle(mon->watch);
+    mon->watch = -1;
+}
+
+void
+bhyveMonitorSetReboot(bhyveMonitorPtr mon)
+{
+    mon->reboot = true;
+}
 
 static void
 bhyveMonitorIO(int watch, int kq, int events G_GNUC_UNUSED, void *opaque)
 {
     const struct timespec zerowait = { 0, 0 };
-    virDomainObjPtr vm = opaque;
-    bhyveDomainObjPrivatePtr priv = vm->privateData;
-    bhyveMonitorPtr mon = priv->mon;
+    bhyveMonitorPtr mon = opaque;
+    virDomainObjPtr vm = mon->vm;
+    bhyveConnPtr driver = mon->driver;
+    const char *name;
     struct kevent kev;
     int rc, status;
 
@@ -77,65 +142,53 @@ bhyveMonitorIO(int watch, int kq, int events G_GNUC_UNUSED, void *opaque)
     if (kev.filter == EVFILT_PROC && (kev.fflags & NOTE_EXIT) != 0) {
         if ((pid_t)kev.ident != vm->pid) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("event from unexpected proc %ju!=%ju"),
-                        (uintmax_t)vm->pid, (uintmax_t)kev.ident);
+                           _("event from unexpected proc %ju!=%ju"),
+                           (uintmax_t)vm->pid, (uintmax_t)kev.ident);
             return;
         }
 
+        name = vm->def->name;
         status = kev.data;
         if (WIFSIGNALED(status) && WCOREDUMP(status)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Guest %s got signal %d and crashed"),
-                           vm->def->name,
-                           WTERMSIG(status));
-            virBhyveProcessStop(mon->driver, vm,
-                                VIR_DOMAIN_SHUTOFF_CRASHED);
+                           name, WTERMSIG(status));
+            virBhyveProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_CRASHED);
         } else if (WIFEXITED(status)) {
-            if (WEXITSTATUS(status) == 0) {
+            if (WEXITSTATUS(status) == 0 || mon->reboot) {
                 /* 0 - reboot */
-                /* TODO: Implementing reboot is a little more complicated. */
-                VIR_INFO("Guest %s rebooted; destroying domain.",
-                         vm->def->name);
-                virBhyveProcessStop(mon->driver, vm,
-                                    VIR_DOMAIN_SHUTOFF_SHUTDOWN);
+                VIR_INFO("Guest %s rebooted; restarting domain.", name);
+                virBhyveProcessRestart(driver, vm);
             } else if (WEXITSTATUS(status) < 3) {
                 /* 1 - shutdown, 2 - halt, 3 - triple fault. others - error */
-                VIR_INFO("Guest %s shut itself down; destroying domain.",
-                         vm->def->name);
-                virBhyveProcessStop(mon->driver, vm,
-                                    VIR_DOMAIN_SHUTOFF_SHUTDOWN);
+                VIR_INFO("Guest %s shut itself down; destroying domain.", name);
+                virBhyveProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_SHUTDOWN);
             } else {
                 VIR_INFO("Guest %s had an error and exited with status %d; destroying domain.",
-                         vm->def->name, WEXITSTATUS(status));
-                virBhyveProcessStop(mon->driver, vm,
-                                    VIR_DOMAIN_SHUTOFF_UNKNOWN);
+                         name, WEXITSTATUS(status));
+                virBhyveProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_UNKNOWN);
             }
         }
     }
 }
 
-static void
-bhyveMonitorRelease(void *opaque)
+static bhyveMonitorPtr
+bhyveMonitorOpenImpl(virDomainObjPtr vm, bhyveConnPtr driver)
 {
-    virDomainObjPtr vm = opaque;
-    bhyveDomainObjPrivatePtr priv = vm->privateData;
-    bhyveMonitorPtr mon = priv->mon;
-
-    VIR_FORCE_CLOSE(mon->kq);
-    VIR_FREE(mon);
-}
-
-bhyveMonitorPtr
-bhyveMonitorOpen(virDomainObjPtr vm, bhyveConnPtr driver)
-{
-    bhyveMonitorPtr mon = NULL;
+    bhyveMonitorPtr mon;
     struct kevent kev;
-    int rc;
 
-    if (VIR_ALLOC(mon) < 0)
+    if (bhyveMonitorInitialize() < 0)
+        return NULL;
+
+    if (!(mon = virObjectNew(bhyveMonitorClass)))
         return NULL;
 
     mon->driver = driver;
+    mon->reboot = false;
+
+    virObjectRef(vm);
+    mon->vm = vm;
 
     mon->kq = kqueue();
     if (mon->kq < 0) {
@@ -145,21 +198,13 @@ bhyveMonitorOpen(virDomainObjPtr vm, bhyveConnPtr driver)
     }
 
     EV_SET(&kev, vm->pid, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, mon);
-    rc = kevent(mon->kq, &kev, 1, NULL, 0, NULL);
-    if (rc < 0) {
+    if (kevent(mon->kq, &kev, 1, NULL, 0, NULL) < 0) {
         virReportError(VIR_ERR_SYSTEM_ERROR, "%s",
                        _("Unable to register process kevent"));
         goto cleanup;
     }
 
-    mon->watch = virEventAddHandle(mon->kq,
-                                   VIR_EVENT_HANDLE_READABLE |
-                                   VIR_EVENT_HANDLE_ERROR |
-                                   VIR_EVENT_HANDLE_HANGUP,
-                                   bhyveMonitorIO,
-                                   vm,
-                                   bhyveMonitorRelease);
-    if (mon->watch < 0) {
+    if (!bhyveMonitorRegister(mon)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("unable to register monitor events"));
         goto cleanup;
@@ -168,8 +213,20 @@ bhyveMonitorOpen(virDomainObjPtr vm, bhyveConnPtr driver)
     return mon;
 
  cleanup:
-    bhyveMonitorRelease(mon);
+    bhyveMonitorClose(mon);
     return NULL;
+}
+
+bhyveMonitorPtr
+bhyveMonitorOpen(virDomainObjPtr vm, bhyveConnPtr driver)
+{
+    bhyveMonitorPtr mon;
+
+    virObjectRef(vm);
+    mon = bhyveMonitorOpenImpl(vm, driver);
+    virObjectUnref(vm);
+
+    return mon;
 }
 
 void
@@ -178,8 +235,8 @@ bhyveMonitorClose(bhyveMonitorPtr mon)
     if (mon == NULL)
         return;
 
-    if (mon->watch > 0)
-        virEventRemoveHandle(mon->watch);
-    else
-        bhyveMonitorRelease(mon);
+    VIR_DEBUG("cleaning up bhyveMonitor %p", mon);
+
+    bhyveMonitorUnregister(mon);
+    virObjectUnref(mon);
 }

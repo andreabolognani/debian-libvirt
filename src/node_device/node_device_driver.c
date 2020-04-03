@@ -39,6 +39,7 @@
 #include "virvhba.h"
 #include "viraccessapicheck.h"
 #include "virnetdev.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_NODEDEV
 
@@ -106,10 +107,9 @@ int nodeConnectIsAlive(virConnectPtr conn G_GNUC_UNUSED)
 static int
 nodeDeviceUpdateDriverName(virNodeDeviceDefPtr def)
 {
-    char *driver_link = NULL;
-    char *devpath = NULL;
+    g_autofree char *driver_link = NULL;
+    g_autofree char *devpath = NULL;
     char *p;
-    int ret = -1;
 
     VIR_FREE(def->driver);
 
@@ -117,26 +117,20 @@ nodeDeviceUpdateDriverName(virNodeDeviceDefPtr def)
 
     /* Some devices don't have an explicit driver, so just return
        without a name */
-    if (access(driver_link, R_OK) < 0) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (access(driver_link, R_OK) < 0)
+        return 0;
 
     if (virFileResolveLink(driver_link, &devpath) < 0) {
         virReportSystemError(errno,
                              _("cannot resolve driver link %s"), driver_link);
-        goto cleanup;
+        return -1;
     }
 
     p = strrchr(devpath, '/');
     if (p)
         def->driver = g_strdup(p + 1);
-    ret = 0;
 
- cleanup:
-    VIR_FREE(driver_link);
-    VIR_FREE(devpath);
-    return ret;
+    return 0;
 }
 #else
 /* XXX: Implement me for non-linux */
@@ -162,6 +156,22 @@ nodeDeviceUnlock(void)
 }
 
 
+static int
+nodeDeviceWaitInit(void)
+{
+    nodeDeviceLock();
+    while (!driver->initialized) {
+        if (virCondWait(&driver->initCond, &driver->lock) < 0) {
+            virReportSystemError(errno, "%s",
+                                 _("failed to wait on condition"));
+            nodeDeviceUnlock();
+            return -1;
+        }
+    }
+    nodeDeviceUnlock();
+    return 0;
+}
+
 int
 nodeNumOfDevices(virConnectPtr conn,
                  const char *cap,
@@ -171,6 +181,9 @@ nodeNumOfDevices(virConnectPtr conn,
         return -1;
 
     virCheckFlags(0, -1);
+
+    if (nodeDeviceWaitInit() < 0)
+        return -1;
 
     return virNodeDeviceObjListNumOfDevices(driver->devs, conn, cap,
                                             virNodeNumOfDevicesCheckACL);
@@ -189,6 +202,9 @@ nodeListDevices(virConnectPtr conn,
 
     virCheckFlags(0, -1);
 
+    if (nodeDeviceWaitInit() < 0)
+        return -1;
+
     return virNodeDeviceObjListGetNames(driver->devs, conn,
                                         virNodeListDevicesCheckACL,
                                         cap, names, maxnames);
@@ -203,6 +219,9 @@ nodeConnectListAllNodeDevices(virConnectPtr conn,
     virCheckFlags(VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_CAP, -1);
 
     if (virConnectListAllNodeDevicesEnsureACL(conn) < 0)
+        return -1;
+
+    if (nodeDeviceWaitInit() < 0)
         return -1;
 
     return virNodeDeviceObjListExport(conn, driver->devs, devices,
@@ -234,6 +253,9 @@ nodeDeviceLookupByName(virConnectPtr conn,
     virNodeDeviceDefPtr def;
     virNodeDevicePtr device = NULL;
 
+    if (nodeDeviceWaitInit() < 0)
+        return NULL;
+
     if (!(obj = nodeDeviceObjFindByName(name)))
         return NULL;
     def = virNodeDeviceObjGetDef(obj);
@@ -261,6 +283,9 @@ nodeDeviceLookupSCSIHostByWWN(virConnectPtr conn,
     virNodeDevicePtr device = NULL;
 
     virCheckFlags(0, NULL);
+
+    if (nodeDeviceWaitInit() < 0)
+        return NULL;
 
     if (!(obj = virNodeDeviceObjListFindSCSIHostByWWNs(driver->devs,
                                                        wwnn, wwpn)))
@@ -468,29 +493,34 @@ nodeDeviceCreateXML(virConnectPtr conn,
                     const char *xmlDesc,
                     unsigned int flags)
 {
-    virNodeDeviceDefPtr def = NULL;
-    char *wwnn = NULL, *wwpn = NULL;
+    g_autoptr(virNodeDeviceDef) def = NULL;
+    g_autofree char *wwnn = NULL;
+    g_autofree char *wwpn = NULL;
     int parent_host = -1;
     virNodeDevicePtr device = NULL;
     const char *virt_type = NULL;
 
     virCheckFlags(0, NULL);
+
+    if (nodeDeviceWaitInit() < 0)
+        return NULL;
+
     virt_type  = virConnectGetType(conn);
 
     if (!(def = virNodeDeviceDefParseString(xmlDesc, CREATE_DEVICE, virt_type)))
-        goto cleanup;
+        return NULL;
 
     if (virNodeDeviceCreateXMLEnsureACL(conn, def) < 0)
-        goto cleanup;
+        return NULL;
 
     if (virNodeDeviceGetWWNs(def, &wwnn, &wwpn) == -1)
-        goto cleanup;
+        return NULL;
 
     if ((parent_host = virNodeDeviceObjListGetParentHost(driver->devs, def)) < 0)
-        goto cleanup;
+        return NULL;
 
     if (virVHBAManageVport(parent_host, wwpn, wwnn, VPORT_CREATE) < 0)
-        goto cleanup;
+        return NULL;
 
     device = nodeDeviceFindNewDevice(conn, wwnn, wwpn);
     /* We don't check the return value, because one way or another,
@@ -501,10 +531,7 @@ nodeDeviceCreateXML(virConnectPtr conn,
                        _("no node device for '%s' with matching "
                          "wwnn '%s' and wwpn '%s'"),
                        def->name, wwnn, wwpn);
- cleanup:
-    virNodeDeviceDefFree(def);
-    VIR_FREE(wwnn);
-    VIR_FREE(wwpn);
+
     return device;
 }
 
@@ -515,9 +542,13 @@ nodeDeviceDestroy(virNodeDevicePtr device)
     int ret = -1;
     virNodeDeviceObjPtr obj = NULL;
     virNodeDeviceDefPtr def;
-    char *parent = NULL;
-    char *wwnn = NULL, *wwpn = NULL;
+    g_autofree char *parent = NULL;
+    g_autofree char *wwnn = NULL;
+    g_autofree char *wwpn = NULL;
     unsigned int parent_host;
+
+    if (nodeDeviceWaitInit() < 0)
+        return -1;
 
     if (!(obj = nodeDeviceObjFindByName(device->name)))
         return -1;
@@ -554,9 +585,6 @@ nodeDeviceDestroy(virNodeDevicePtr device)
 
  cleanup:
     virNodeDeviceObjEndAPI(&obj);
-    VIR_FREE(parent);
-    VIR_FREE(wwnn);
-    VIR_FREE(wwpn);
     return ret;
 }
 
@@ -574,6 +602,9 @@ nodeConnectNodeDeviceEventRegisterAny(virConnectPtr conn,
     if (virConnectNodeDeviceEventRegisterAnyEnsureACL(conn) < 0)
         return -1;
 
+    if (nodeDeviceWaitInit() < 0)
+        return -1;
+
     if (virNodeDeviceEventStateRegisterID(conn, driver->nodeDeviceEventState,
                                           device, eventID, callback,
                                           opaque, freecb, &callbackID) < 0)
@@ -588,6 +619,9 @@ nodeConnectNodeDeviceEventDeregisterAny(virConnectPtr conn,
                                         int callbackID)
 {
     if (virConnectNodeDeviceEventDeregisterAnyEnsureACL(conn) < 0)
+        return -1;
+
+    if (nodeDeviceWaitInit() < 0)
         return -1;
 
     if (virObjectEventStateDeregisterID(conn,

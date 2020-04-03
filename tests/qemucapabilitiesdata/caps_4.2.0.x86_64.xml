@@ -218,6 +218,12 @@
   <flag name='blockdev-file-dynamic-auto-read-only'/>
   <flag name='savevm-monitor-nodes'/>
   <flag name='drive-nvme'/>
+  <flag name='smp-dies'/>
+  <flag name='i8042'/>
+  <flag name='rng-builtin'/>
+  <flag name='virtio-net.failover'/>
+  <flag name='vhost-user-fs'/>
+  <flag name='storage.werror'/>
   <version>4002000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>43100242</microcodeVersion>

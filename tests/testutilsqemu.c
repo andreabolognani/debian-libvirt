@@ -12,6 +12,7 @@
 # include "qemu/qemu_capspriv.h"
 # include "virstring.h"
 # include "virfilecache.h"
+# include "virutil.h"
 
 # define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -41,17 +42,22 @@ static const virArch arch_alias[VIR_ARCH_LAST] = {
 static const char *const i386_machines[] = {
     "pc", "isapc", NULL
 };
-static const char *const x86_64_machines_kvm[] = {
-    "pc", "isapc", NULL
-};
-static const char *const x86_64_machines_qemu[] = {
-    "pc-0.11", "pc", "pc-0.10", "isapc", NULL
+/**
+ * Oldest supported qemu-1.5 supports machine types back to pc-0.10.
+ */
+static const char *const x86_64_machines[] = {
+    "pc", "isapc", "q35",
+    "pc-1.0", "pc-1.2",
+    "pc-i440fx-1.4", "pc-i440fx-2.1", "pc-i440fx-2.3", "pc-i440fx-2.5",
+    "pc-i440fx-2.6", "pc-i440fx-2.9", "pc-i440fx-2.12",
+    "pc-q35-2.3", "pc-q35-2.4", "pc-q35-2.5", "pc-q35-2.7", "pc-q35-2.10",
+    NULL
 };
 static const char *const aarch64_machines[] = {
-    "virt", NULL
+    "virt", "virt-2.6", "versatilepb", NULL
 };
 static const char *const arm_machines[] = {
-    "vexpress-a9", "vexpress-a15", "versatilepb", NULL
+    "vexpress-a9", "vexpress-a15", "versatilepb", "virt", NULL
 };
 static const char *const ppc64_machines[] = {
     "pseries", NULL
@@ -66,12 +72,12 @@ static const char *const riscv64_machines[] = {
     "spike_v1.10", "spike_v1.9.1", "sifive_e", "virt", "sifive_u", NULL
 };
 static const char *const s390x_machines[] = {
-    "s390-virtio", "s390-ccw-virtio", NULL
+    "s390-virtio", "s390-ccw-virtio", "s390-ccw", NULL
 };
 
 static const char *const *qemu_machines[VIR_ARCH_LAST] = {
     [VIR_ARCH_I686] = i386_machines,
-    [VIR_ARCH_X86_64] = x86_64_machines_qemu,
+    [VIR_ARCH_X86_64] = x86_64_machines,
     [VIR_ARCH_AARCH64] = aarch64_machines,
     [VIR_ARCH_ARMV7L] = arm_machines,
     [VIR_ARCH_PPC64] = ppc64_machines,
@@ -83,7 +89,7 @@ static const char *const *qemu_machines[VIR_ARCH_LAST] = {
 
 static const char *const *kvm_machines[VIR_ARCH_LAST] = {
     [VIR_ARCH_I686] = i386_machines,
-    [VIR_ARCH_X86_64] = x86_64_machines_kvm,
+    [VIR_ARCH_X86_64] = x86_64_machines,
     [VIR_ARCH_AARCH64] = aarch64_machines,
     [VIR_ARCH_ARMV7L] = arm_machines,
     [VIR_ARCH_PPC64] = ppc64_machines,
@@ -283,8 +289,8 @@ qemuTestParseCapabilitiesArch(virArch arch,
                               const char *capsFile)
 {
     virQEMUCapsPtr qemuCaps = NULL;
-    char *binary = g_strdup_printf("/usr/bin/qemu-system-%s",
-                                   virArchToString(arch));
+    g_autofree char *binary = g_strdup_printf("/usr/bin/qemu-system-%s",
+                                              virArchToString(arch));
 
     if (!(qemuCaps = virQEMUCapsNewBinary(binary)) ||
         virQEMUCapsLoadCache(arch, qemuCaps, capsFile) < 0)
@@ -327,28 +333,32 @@ int qemuTestCapsCacheInsert(virFileCachePtr cache,
         } else {
             tmpCaps = virQEMUCapsNew();
         }
-        virQEMUCapsSetArch(tmpCaps, i);
-        for (j = 0; qemu_machines[i][j] != NULL; j++) {
-            virQEMUCapsAddMachine(tmpCaps,
-                                  VIR_DOMAIN_VIRT_QEMU,
-                                  qemu_machines[i][j],
-                                  NULL,
-                                  NULL,
-                                  0,
-                                  false,
-                                  false);
+
+        if (!virQEMUCapsHasMachines(tmpCaps)) {
+            virQEMUCapsSetArch(tmpCaps, i);
+            for (j = 0; qemu_machines[i][j] != NULL; j++) {
+                virQEMUCapsAddMachine(tmpCaps,
+                                      VIR_DOMAIN_VIRT_QEMU,
+                                      qemu_machines[i][j],
+                                      NULL,
+                                      NULL,
+                                      0,
+                                      false,
+                                      false);
+            }
+            for (j = 0; kvm_machines[i][j] != NULL; j++) {
+                virQEMUCapsAddMachine(tmpCaps,
+                                      VIR_DOMAIN_VIRT_KVM,
+                                      kvm_machines[i][j],
+                                      NULL,
+                                      NULL,
+                                      0,
+                                      false,
+                                      false);
+                virQEMUCapsSet(tmpCaps, QEMU_CAPS_KVM);
+            }
         }
-        for (j = 0; kvm_machines[i][j] != NULL; j++) {
-            virQEMUCapsAddMachine(tmpCaps,
-                                  VIR_DOMAIN_VIRT_KVM,
-                                  kvm_machines[i][j],
-                                  NULL,
-                                  NULL,
-                                  0,
-                                  false,
-                                  false);
-            virQEMUCapsSet(tmpCaps, QEMU_CAPS_KVM);
-        }
+
         if (virFileCacheInsertData(cache, qemu_emulators[i], tmpCaps) < 0) {
             virObjectUnref(tmpCaps);
             return -1;
@@ -380,8 +390,7 @@ int qemuTestDriverInit(virQEMUDriver *driver)
         return -1;
 
     driver->hostarch = virArchFromHost();
-
-    driver->config = virQEMUDriverConfigNew(false);
+    driver->config = virQEMUDriverConfigNew(false, "");
     if (!driver->config)
         goto error;
 
@@ -397,14 +406,14 @@ int qemuTestDriverInit(virQEMUDriver *driver)
     driver->config->channelTargetDir = g_strdup("/tmp/channel");
 
     if (!g_mkdtemp(statedir)) {
-        virFilePrintf(stderr, "Cannot create fake stateDir");
+        fprintf(stderr, "Cannot create fake stateDir");
         goto error;
     }
 
     driver->config->stateDir = g_strdup(statedir);
 
     if (!g_mkdtemp(configdir)) {
-        virFilePrintf(stderr, "Cannot create fake configDir");
+        fprintf(stderr, "Cannot create fake configDir");
         goto error;
     }
 
@@ -489,7 +498,7 @@ testQemuGetLatestCapsForArch(const char *arch,
     char *tmp = NULL;
     unsigned long maxver = 0;
     unsigned long ver;
-    const char *maxname = NULL;
+    g_autofree char *maxname = NULL;
     char *ret = NULL;
 
     fullsuffix = g_strdup_printf("%s.%s", arch, suffix);
@@ -514,7 +523,8 @@ testQemuGetLatestCapsForArch(const char *arch,
         }
 
         if (ver > maxver) {
-            maxname = ent->d_name;
+            g_free(maxname);
+            maxname = g_strdup(ent->d_name);
             maxver = ver;
         }
     }

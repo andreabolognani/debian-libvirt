@@ -1,6 +1,164 @@
 libvirt releases
 ================
 
+# v6.2.0 (2020-04-02)
+
+  * New features
+
+    - qemu: NVDIMM support for pSeries guests
+        QEMU 5.0 implements NVDIMM memory support for pSeries guests. This is
+        done by adding an 'uuid' element in the memory XML, which can either be
+        provided in the XML or, if omitted, generated automatically.
+
+    - qemu: Add virtiofs support
+        This feature, introduced in QEMU 4.2, is a more modern alternative to
+        virtio-9p, which is exposed through the same <filesystem/> element.
+
+    - admin: Support reloading TLS certificates
+        After renewing TLS certificates, it was usually necessary to restart
+        libvirtd for the new ones to be loaded: now the same result can be
+        obtained without restarting the daemon by using virt-admin
+        server-update-tls.
+
+  * Removed features
+
+    - Removed support for INI style of comments
+        With switching of our internal code to GLib, parsing of client
+        authentication config files is handed over to GLib which does not
+        support INI style of comments starting with a semicolon (;). Use number
+        sign (#) instead.
+
+  * Improvements
+
+    - qemu: Don't compare local and remote hostnames on migration
+        This check was introduced to prevent same-host migration, but did not
+        work as expected when multiple libvirtd instances were running on the
+        same host but in different containers. With this release, the host UUID
+        (which should be unique to the container) is checked instead.
+
+    - qemu: Use per-VM event loops
+        Instead of using a single even loop to process communication with the
+        QEMU monitor and guest agent, create a separate one for each VM. This
+        helps with scalability and prevents scenarios where a single
+        malfunctioning VM could affect all those running on the same host.
+
+    - qemu: Support migration with SLIRP helper interface
+        With QEMU 5.0, a new D-Bus backend allows migration of external
+        processes. When needed, libvirt will start a per-vm D-Bus bus, and
+        migrate the slirp-helper along with QEMU.
+
+  * Bug fixes
+
+    - qemu: Open backing chain late for shallow block copy reusing external
+      images
+        With introduction of -blockdev for QEMU storage configuration in
+        libvirt-5.10 we've started opening the backing chain of the
+        destination/mirror of a virDomainBlockcopy started with
+        VIR_DOMAIN_BLOCK_COPY_REUSE_EXT | VIR_DOMAIN_BLOCK_COPY_SHALLOW flags
+        when starting the job rather than when virDomainBlockJobAbort with
+        VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT is issued. For users depending on this
+        undocumented quirky pre-blockdev behaviour this caused a regression as
+        the backing chain could not be modified while the copy of the top image
+        was progressing due to QEMU image locking. Note that this fix also
+        requires qemu-5.0 while -blockdev is used starting from QEMU-4.2.
+
+    - Don't generate machine names containing dots
+        Even though the guest name containing dots is not a problem for libvirt
+        itself, we need to strip them out when registering with machined
+        because of the latter's requirements.
+
+# v6.1.0 (2020-03-03)
+
+  * New features
+
+    - qemu: new rng backend type: builtin
+        It implements qemu builtin rng backend. That uses getrandom syscall to
+        generate random, no external rng source needed. Available since QEMU
+        4.2.
+
+    - support for virtio+hostdev NIC <teaming>
+        QEMU 4.2.0 and later, combined with a sufficiently recent guest
+        virtio-net driver (e.g. the driver included in Linux kernel 4.18 and
+        later), supports setting up a simple network bond device comprised of
+        one virtio emulated NIC and one hostdev NIC (which must be an SRIOV
+        VF). (in QEMU, this is known as the "virtio failover" feature). The
+        allure of this setup is that the bond will always favor the hostdev
+        device, providing better performance, until the guest is migrated - at
+        that time QEMU will automatically unplug the hostdev NIC and the bond
+        will send all traffic via the virtio NIC until migration is completed,
+        then QEMU on the destination side will hotplug a new hostdev NIC and
+        the bond will switch back to using the hostdev for network traffic. The
+        result is that guests desiring the extra performance of a hostdev NIC
+        are now migratable without network downtime (performance is just
+        degraded during migration) and without requiring a complicated bonding
+        configuration in the guest OS network config and complicated
+        unplug/replug logic in the management application on the host - it can
+        instead all be accomplished in libvirt with the interface <teaming>
+        subelement "type" and "persistent" attributes.
+
+    - support BR_ISOLATED flag for guest interfaces attached to a Linux host
+      bridge
+        Since Linux kernel 4.18, the Linux host bridge has had a flag
+        BR_ISOLATED that can be applied to individual ports. When this flag is
+        set for a port, traffic is blocked between that port and any other port
+        that also has the BR_ISOLATED flag set. libvirt domain interface config
+        now supports setting this flag via the <port isolated='yes'/> setting.
+        It can also be set for all connections to a particular libvirt network
+        by setting the same option in the network config - since the port for
+        the host itself does not have BR_ISOLATED set, the guests can
+        communicate with the host and the outside world, but guests on that
+        network can't communicate with each other. This feature works for QEMU
+        and LXC guests with interfaces attached to a Linux host bridge.
+
+    - qemu: Introduce the 'armvtimer' timer type
+        QEMU 5.0 introduces the ability to control the behavior of the virtual
+        timer for KVM ARM/virt guests, and this new timer type exposes the same
+        capability to libvirt users.
+
+    - qemu: Storage configuration improvements
+        Libvirt now accepts <backingStore type='volume'> and allows specifying
+        the offset and size of the image format container inside the storage
+        source via the <slices> subelement.
+
+    - qemu: Introduce the 'tpm-spapr' TPM model
+        This device, available starting from QEMU 5.0, is limited to pSeries
+        guests.
+
+  * Improvements
+
+    - qemu: Image format probing is allowed in certain cases
+        To resolve regressions when users didn't specify the backing image
+        format in the overlay, libvirt now probes the format in certain secure
+        scenarios which fixes a few common existing cases. Additionally the
+        knowledge base was extended to provide more information on how to
+        rectify the problem.
+
+    - qemu: Support "dies" in CPU topology
+        This CPU topology concept, new in QEMU 4.1.0, sits between the existing
+        "socket" and "core".
+
+    - libxl: Add support for Credit2 scheduler parameters
+
+    - lxc: Add support LXC 3 network configuration format
+
+  * Bug fixes
+
+    - conf: Do not generate machine names ending with a dash
+        Recent systemd versions do not allow them.
+
+  * Packaging changes
+
+    - use of gnulib has been completely eliminated
+        Historically libvirt has embedded gnulib to provide fixes for various
+        platform portability problems. This usage has now been eliminated and
+        alternative approaches for platform portability problems adopted where
+        required. This has been validated on the set of platforms covered by
+        automated CI build testing. Other modern Linux distros using glibc are
+        expected to work. Linux distros using non-glibc packages, and other
+        non-Linux platforms may encounter regressions when building this
+        release. Please report any build problems encountered back to the
+        project maintainers for evaluation.
+
 # v6.0.0 (2020-01-15)
 
   * Packaging changes

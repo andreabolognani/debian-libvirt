@@ -574,3 +574,12 @@ ul.news-section-content li dl dd {
     margin-top: 0.5em;
     margin-bottom: 0.5em;
 }
+
+.literal, code {
+    font-family: monospace;
+    background: #eeeeee;
+}
+
+.contents li p {
+    margin: 2px;
+}

@@ -19,17 +19,16 @@
 #include <config.h>
 
 #include <fcntl.h>
-#include <sys/socket.h>
+#include <unistd.h>
 
 #include "testutils.h"
 #include "virnettlshelpers.h"
-#include "virutil.h"
 #include "virerror.h"
 #include "viralloc.h"
 #include "virlog.h"
 #include "virfile.h"
 #include "vircommand.h"
-#include "virsocketaddr.h"
+#include "virsocket.h"
 
 #if !defined WIN32 && HAVE_LIBTASN1_H && LIBGNUTLS_VERSION_NUMBER >= 0x020600
 

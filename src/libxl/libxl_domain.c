@@ -26,7 +26,6 @@
 #include "libxl_capabilities.h"
 
 #include "viralloc.h"
-#include "viratomic.h"
 #include "virfile.h"
 #include "virerror.h"
 #include "virhook.h"
@@ -316,31 +315,43 @@ libxlDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
             pcisrc->backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN;
     }
 
-    if (dev->type == VIR_DOMAIN_DEVICE_VIDEO && def->os.type == VIR_DOMAIN_OSTYPE_HVM) {
-        int dm_type = libxlDomainGetEmulatorType(def);
+    if (dev->type == VIR_DOMAIN_DEVICE_VIDEO) {
+        if (dev->data.video->type == VIR_DOMAIN_VIDEO_TYPE_DEFAULT) {
+            if (def->os.type == VIR_DOMAIN_OSTYPE_XEN ||
+                def->os.type == VIR_DOMAIN_OSTYPE_LINUX)
+                dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_XEN;
+            else if (ARCH_IS_PPC64(def->os.arch))
+                dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_VGA;
+            else
+                dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_CIRRUS;
+        }
 
-        switch (dev->data.video->type) {
-        case VIR_DOMAIN_VIDEO_TYPE_VGA:
-        case VIR_DOMAIN_VIDEO_TYPE_XEN:
-            if (dev->data.video->vram == 0) {
-                if (dm_type == LIBXL_DEVICE_MODEL_VERSION_QEMU_XEN)
-                    dev->data.video->vram = 16 * 1024;
-                else
-                    dev->data.video->vram = 8 * 1024;
-                }
-            break;
-        case VIR_DOMAIN_VIDEO_TYPE_CIRRUS:
-            if (dev->data.video->vram == 0) {
-                if (dm_type == LIBXL_DEVICE_MODEL_VERSION_QEMU_XEN)
-                    dev->data.video->vram = 8 * 1024;
-                else
-                    dev->data.video->vram = 4 * 1024;
+        if (def->os.type == VIR_DOMAIN_OSTYPE_HVM) {
+            int dm_type = libxlDomainGetEmulatorType(def);
+
+            switch (dev->data.video->type) {
+                case VIR_DOMAIN_VIDEO_TYPE_VGA:
+                case VIR_DOMAIN_VIDEO_TYPE_XEN:
+                    if (dev->data.video->vram == 0) {
+                        if (dm_type == LIBXL_DEVICE_MODEL_VERSION_QEMU_XEN)
+                            dev->data.video->vram = 16 * 1024;
+                        else
+                            dev->data.video->vram = 8 * 1024;
+                    }
+                    break;
+                case VIR_DOMAIN_VIDEO_TYPE_CIRRUS:
+                    if (dev->data.video->vram == 0) {
+                        if (dm_type == LIBXL_DEVICE_MODEL_VERSION_QEMU_XEN)
+                            dev->data.video->vram = 8 * 1024;
+                        else
+                            dev->data.video->vram = 4 * 1024;
+                    }
+                    break;
+                case VIR_DOMAIN_VIDEO_TYPE_QXL:
+                    if (dev->data.video->vram == 0)
+                        dev->data.video->vram = 128 * 1024;
+                    break;
             }
-            break;
-        case VIR_DOMAIN_VIDEO_TYPE_QXL:
-            if (dev->data.video->vram == 0)
-                dev->data.video->vram = 128 * 1024;
-            break;
         }
     }
 
@@ -665,6 +676,7 @@ libxlDomainEventHandler(void *data, VIR_LIBXL_EVENT_CONST libxl_event *event)
     virThread thread;
     g_autoptr(libxlDriverConfig) cfg = NULL;
     int ret = -1;
+    g_autofree char *name = NULL;
 
     if (event->type != LIBXL_EVENT_TYPE_DOMAIN_SHUTDOWN &&
             event->type != LIBXL_EVENT_TYPE_DOMAIN_DEATH) {
@@ -688,12 +700,13 @@ libxlDomainEventHandler(void *data, VIR_LIBXL_EVENT_CONST libxl_event *event)
 
     shutdown_info->driver = driver;
     shutdown_info->event = (libxl_event *)event;
+    name = g_strdup_printf("ev-%d", event->domid);
     if (event->type == LIBXL_EVENT_TYPE_DOMAIN_SHUTDOWN)
-        ret = virThreadCreate(&thread, false, libxlDomainShutdownThread,
-                              shutdown_info);
+        ret = virThreadCreateFull(&thread, false, libxlDomainShutdownThread,
+                                  name, false, shutdown_info);
     else if (event->type == LIBXL_EVENT_TYPE_DOMAIN_DEATH)
-        ret = virThreadCreate(&thread, false, libxlDomainDeathThread,
-                              shutdown_info);
+        ret = virThreadCreateFull(&thread, false, libxlDomainDeathThread,
+                                  name, false, shutdown_info);
 
     if (ret < 0) {
         /*
@@ -878,7 +891,7 @@ libxlDomainCleanup(libxlDriverPrivatePtr driver,
 
     priv->ignoreDeathEvent = false;
 
-    if (virAtomicIntDecAndTest(&driver->nactive) && driver->inhibitCallback)
+    if (!!g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
         driver->inhibitCallback(false, driver->inhibitOpaque);
 
     if ((vm->def->ngraphics == 1) &&
@@ -943,16 +956,14 @@ libxlDomainAutoCoreDump(libxlDriverPrivatePtr driver,
                         virDomainObjPtr vm)
 {
     g_autoptr(libxlDriverConfig) cfg = libxlDriverConfigGet(driver);
-    time_t curtime = time(NULL);
-    char timestr[100];
-    struct tm time_info;
+    g_autoptr(GDateTime) now = g_date_time_new_now_local();
+    g_autofree char *nowstr = NULL;
     char *dumpfile = NULL;
 
-    localtime_r(&curtime, &time_info);
-    strftime(timestr, sizeof(timestr), "%Y-%m-%d-%H:%M:%S", &time_info);
+    nowstr = g_date_time_format(now, "%Y-%m-%d-%H:%M:%S");
 
     dumpfile = g_strdup_printf("%s/%s-%s", cfg->autoDumpDir, vm->def->name,
-                               timestr);
+                               nowstr);
 
     /* Unlock virDomainObj while dumping core */
     virObjectUnlock(vm);
@@ -1473,7 +1484,7 @@ libxlDomainStart(libxlDriverPrivatePtr driver,
     if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
         goto destroy_dom;
 
-    if (virAtomicIntInc(&driver->nactive) == 1 && driver->inhibitCallback)
+    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
         driver->inhibitCallback(true, driver->inhibitOpaque);
 
     /* finally we can call the 'started' hook script if any */

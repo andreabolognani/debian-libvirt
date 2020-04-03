@@ -88,6 +88,7 @@ struct _virCapsGuest {
 struct _virCapsHostNUMACellCPU {
     unsigned int id;
     unsigned int socket_id;
+    unsigned int die_id;
     unsigned int core_id;
     virBitmapPtr siblings;
 };
@@ -149,7 +150,7 @@ struct _virCapsHostCache {
 
 struct _virCapsHostMemBWNode {
     unsigned int id;
-    virBitmapPtr cpus;  /* All CPUs that belong to this node*/
+    virBitmapPtr cpus;  /* All CPUs that belong to this node */
     virResctrlInfoMemBWPerNode control;
 };
 
@@ -257,12 +258,6 @@ virCapabilitiesHostNUMAAddCell(virCapsHostNUMAPtr caps,
                                virCapsHostNUMACellSiblingInfoPtr siblings,
                                int npageinfo,
                                virCapsHostNUMACellPageInfoPtr pageinfo);
-
-
-int
-virCapabilitiesSetHostCPU(virCapsPtr caps,
-                          virCPUDefPtr cpu);
-
 
 virCapsGuestMachinePtr *
 virCapabilitiesAllocMachines(const char *const *names,

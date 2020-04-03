@@ -40,6 +40,7 @@
 #include "virstring.h"
 #include "virnetdev.h"
 #include "virmdev.h"
+#include "virutil.h"
 
 #include "configmake.h"
 
@@ -1476,6 +1477,7 @@ nodeStateCleanup(void)
         virPidFileRelease(driver->stateDir, "driver", driver->lockFD);
 
     VIR_FREE(driver->stateDir);
+    virCondDestroy(&driver->initCond);
     virMutexDestroy(&driver->lock);
     VIR_FREE(driver);
 
@@ -1743,6 +1745,11 @@ nodeStateInitializeEnumerate(void *opaque)
     if (udevEnumerateDevices(udev) != 0)
         goto error;
 
+    nodeDeviceLock();
+    driver->initialized = true;
+    nodeDeviceUnlock();
+    virCondBroadcast(&driver->initCond);
+
     return;
 
  error:
@@ -1781,12 +1788,19 @@ udevPCITranslateInit(bool privileged G_GNUC_UNUSED)
 
 static int
 nodeStateInitialize(bool privileged,
+                    const char *root,
                     virStateInhibitCallback callback G_GNUC_UNUSED,
                     void *opaque G_GNUC_UNUSED)
 {
     udevEventDataPtr priv = NULL;
     struct udev *udev = NULL;
     virThread enumThread;
+
+    if (root != NULL) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Driver does not support embedded mode"));
+        return -1;
+    }
 
     if (VIR_ALLOC(driver) < 0)
         return VIR_DRV_STATE_INIT_ERROR;
@@ -1795,6 +1809,13 @@ nodeStateInitialize(bool privileged,
     if (virMutexInit(&driver->lock) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Unable to initialize mutex"));
+        VIR_FREE(driver);
+        return VIR_DRV_STATE_INIT_ERROR;
+    }
+    if (virCondInit(&driver->initCond) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to initialize condition variable"));
+        virMutexDestroy(&driver->lock);
         VIR_FREE(driver);
         return VIR_DRV_STATE_INIT_ERROR;
     }
@@ -1855,7 +1876,8 @@ nodeStateInitialize(bool privileged,
         udev_monitor_set_receive_buffer_size(priv->udev_monitor,
                                              128 * 1024 * 1024);
 
-    if (virThreadCreate(&priv->th, true, udevEventHandleThread, NULL) < 0) {
+    if (virThreadCreateFull(&priv->th, true, udevEventHandleThread,
+                            "udev-event", false, NULL) < 0) {
         virReportSystemError(errno, "%s",
                              _("failed to create udev handler thread"));
         goto unlock;
@@ -1881,8 +1903,8 @@ nodeStateInitialize(bool privileged,
     if (udevSetupSystemDev() != 0)
         goto cleanup;
 
-    if (virThreadCreate(&enumThread, false, nodeStateInitializeEnumerate,
-                        udev) < 0) {
+    if (virThreadCreateFull(&enumThread, false, nodeStateInitializeEnumerate,
+                            "nodedev-init", false, udev) < 0) {
         virReportSystemError(errno, "%s",
                              _("failed to create udev enumerate thread"));
         goto cleanup;

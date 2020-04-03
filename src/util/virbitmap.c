@@ -27,7 +27,6 @@
 #include "viralloc.h"
 #include "virbuffer.h"
 #include "virstring.h"
-#include "virutil.h"
 #include "virerror.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -111,17 +110,12 @@ virBitmapNew(size_t size)
  *
  * Allocate an empty bitmap. It can be used with self-expanding APIs.
  *
- * Returns a pointer to the allocated bitmap or NULL if memory cannot be
- * allocated. Reports libvirt errors.
+ * Returns a pointer to the allocated bitmap.
  */
 virBitmapPtr
 virBitmapNewEmpty(void)
 {
-    virBitmapPtr ret;
-
-    ignore_value(VIR_ALLOC(ret));
-
-    return ret;
+    return g_new0(virBitmap, 1);
 }
 
 
@@ -611,15 +605,12 @@ virBitmapParse(const char *str,
 virBitmapPtr
 virBitmapParseUnlimited(const char *str)
 {
-    virBitmapPtr bitmap;
+    virBitmapPtr bitmap = virBitmapNewEmpty();
     bool neg = false;
     const char *cur = str;
     char *tmp;
     size_t i;
     int start, last;
-
-    if (!(bitmap = virBitmapNewEmpty()))
-        return NULL;
 
     if (!str)
         goto error;
@@ -754,7 +745,7 @@ virBitmapNewData(const void *data,
     if (!bitmap)
         return NULL;
 
-    /* le64toh is not provided by gnulib, so we do the conversion by hand */
+    /* le64toh is not available, so we do the conversion by hand */
     p = bitmap->map;
     for (i = j = 0; i < len; i++, j++) {
         if (j == sizeof(*p)) {
@@ -825,7 +816,7 @@ virBitmapToDataBuf(virBitmapPtr bitmap,
     /* If bitmap and buffer differ in size, only fill to the smaller length */
     len = MIN(len, nbytes);
 
-    /* htole64 is not provided by gnulib, so we do the conversion by hand */
+    /* htole64 is not available, so we do the conversion by hand */
     l = bitmap->map;
     for (i = j = 0; i < len; i++, j++) {
         if (j == sizeof(*l)) {
@@ -1168,7 +1159,7 @@ virBitmapNewString(const char *string)
         return NULL;
 
     for (i = 0; i < len; i++) {
-        unsigned long nibble = virHexToBin(string[len - i - 1]);
+        unsigned long nibble = g_ascii_xdigit_value(string[len - i - 1]);
         nibble <<= VIR_BITMAP_BIT_OFFSET(i * 4);
         bitmap->map[VIR_BITMAP_UNIT_OFFSET(i * 4)] |= nibble;
     }

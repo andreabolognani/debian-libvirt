@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include "virutil.h"
 #include "virbuffer.h"
 #include "virxml.h"
 #include "virbitmap.h"
@@ -134,6 +133,7 @@ struct _virCPUDef {
     char *vendor;
     unsigned int microcodeVersion;
     unsigned int sockets;
+    unsigned int dies;
     unsigned int cores;
     unsigned int threads;
     size_t nfeatures;

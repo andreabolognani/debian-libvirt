@@ -125,6 +125,8 @@ typedef struct _virCPUx86Model virCPUx86Model;
 typedef virCPUx86Model *virCPUx86ModelPtr;
 struct _virCPUx86Model {
     char *name;
+    bool decodeHost;
+    bool decodeGuest;
     virCPUx86VendorPtr vendor;
     size_t nsignatures;
     uint32_t *signatures;
@@ -1348,6 +1350,44 @@ x86ModelCompare(virCPUx86ModelPtr model1,
 
 
 static int
+x86ModelParseDecode(virCPUx86ModelPtr model,
+                    xmlXPathContextPtr ctxt)
+{
+    g_autofree char *host = NULL;
+    g_autofree char *guest = NULL;
+    int val;
+
+    if ((host = virXPathString("string(./decode/@host)", ctxt)))
+        val = virTristateSwitchTypeFromString(host);
+    else
+        val = VIR_TRISTATE_SWITCH_ABSENT;
+
+    if (val <= 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("invalid or missing decode/host attribute in CPU model %s"),
+                       model->name);
+        return -1;
+    }
+    model->decodeHost = val == VIR_TRISTATE_SWITCH_ON;
+
+    if ((guest = virXPathString("string(./decode/@guest)", ctxt)))
+        val = virTristateSwitchTypeFromString(guest);
+    else
+        val = VIR_TRISTATE_SWITCH_ABSENT;
+
+    if (val <= 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("invalid or missing decode/guest attribute in CPU model %s"),
+                       model->name);
+        return -1;
+    }
+    model->decodeGuest = val == VIR_TRISTATE_SWITCH_ON;
+
+    return 0;
+}
+
+
+static int
 x86ModelParseAncestor(virCPUx86ModelPtr model,
                       xmlXPathContextPtr ctxt,
                       virCPUx86MapPtr map)
@@ -1520,6 +1560,9 @@ x86ModelParse(xmlXPathContextPtr ctxt,
         goto cleanup;
 
     model->name = g_strdup(name);
+
+    if (x86ModelParseDecode(model, ctxt) < 0)
+        goto cleanup;
 
     if (x86ModelParseAncestor(model, ctxt, map) < 0)
         goto cleanup;
@@ -1981,7 +2024,7 @@ x86FormatSignatures(virCPUx86ModelPtr model)
                           (unsigned long)model->signatures[i]);
     }
 
-    virBufferTrim(&buf, ",", -1);
+    virBufferTrim(&buf, ",");
 
     return virBufferContentAndReset(&buf);
 }
@@ -2001,10 +2044,23 @@ x86DecodeUseCandidate(virCPUx86ModelPtr current,
                       virCPUx86ModelPtr candidate,
                       virCPUDefPtr cpuCandidate,
                       uint32_t signature,
-                      const char *preferred,
-                      bool checkPolicy)
+                      const char *preferred)
 {
-    if (checkPolicy) {
+    if (cpuCandidate->type == VIR_CPU_TYPE_HOST &&
+        !candidate->decodeHost) {
+        VIR_DEBUG("%s is not supposed to be used for host CPU definition",
+                  cpuCandidate->model);
+        return 0;
+    }
+
+    if (cpuCandidate->type == VIR_CPU_TYPE_GUEST &&
+        !candidate->decodeGuest) {
+        VIR_DEBUG("%s is not supposed to be used for guest CPU definition",
+                  cpuCandidate->model);
+        return 0;
+    }
+
+    if (cpuCandidate->type == VIR_CPU_TYPE_HOST) {
         size_t i;
         for (i = 0; i < cpuCandidate->nfeatures; i++) {
             if (cpuCandidate->features[i].policy == VIR_CPU_FEATURE_DISABLE)
@@ -2166,8 +2222,7 @@ x86Decode(virCPUDefPtr cpu,
 
         if ((rc = x86DecodeUseCandidate(model, cpuModel,
                                         candidate, cpuCandidate,
-                                        signature, preferred,
-                                        cpu->type == VIR_CPU_TYPE_HOST))) {
+                                        signature, preferred))) {
             virCPUDefFree(cpuModel);
             cpuModel = cpuCandidate;
             model = candidate;
@@ -3009,8 +3064,10 @@ virCPUx86UpdateLive(virCPUDefPtr cpu,
                     virCPUDataPtr dataEnabled,
                     virCPUDataPtr dataDisabled)
 {
+    bool hostPassthrough = cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH;
     virCPUx86MapPtr map;
     virCPUx86ModelPtr model = NULL;
+    virCPUx86ModelPtr modelDisabled = NULL;
     virCPUx86Data enabled = VIR_CPU_X86_DATA_INIT;
     virCPUx86Data disabled = VIR_CPU_X86_DATA_INIT;
     virBuffer bufAdded = VIR_BUFFER_INITIALIZER;
@@ -3026,6 +3083,10 @@ virCPUx86UpdateLive(virCPUDefPtr cpu,
     if (!(model = x86ModelFromCPU(cpu, map, -1)))
         goto cleanup;
 
+    if (hostPassthrough &&
+        !(modelDisabled = x86ModelFromCPU(cpu, map, VIR_CPU_FEATURE_DISABLE)))
+        goto cleanup;
+
     if (dataEnabled &&
         x86DataCopy(&enabled, &dataEnabled->data.x86) < 0)
         goto cleanup;
@@ -3036,9 +3097,16 @@ virCPUx86UpdateLive(virCPUDefPtr cpu,
 
     for (i = 0; i < map->nfeatures; i++) {
         virCPUx86FeaturePtr feature = map->features[i];
+        virCPUFeaturePolicy expected = VIR_CPU_FEATURE_LAST;
 
-        if (x86DataIsSubset(&enabled, &feature->data) &&
-            !x86DataIsSubset(&model->data, &feature->data)) {
+        if (x86DataIsSubset(&model->data, &feature->data))
+            expected = VIR_CPU_FEATURE_REQUIRE;
+        else if (!hostPassthrough ||
+                 x86DataIsSubset(&modelDisabled->data, &feature->data))
+            expected = VIR_CPU_FEATURE_DISABLE;
+
+        if (expected == VIR_CPU_FEATURE_DISABLE &&
+            x86DataIsSubset(&enabled, &feature->data)) {
             VIR_DEBUG("Feature '%s' enabled by the hypervisor", feature->name);
             if (cpu->check == VIR_CPU_CHECK_FULL)
                 virBufferAsprintf(&bufAdded, "%s,", feature->name);
@@ -3048,7 +3116,7 @@ virCPUx86UpdateLive(virCPUDefPtr cpu,
         }
 
         if (x86DataIsSubset(&disabled, &feature->data) ||
-            (x86DataIsSubset(&model->data, &feature->data) &&
+            (expected == VIR_CPU_FEATURE_REQUIRE &&
              !x86DataIsSubset(&enabled, &feature->data))) {
             VIR_DEBUG("Feature '%s' disabled by the hypervisor", feature->name);
             if (cpu->check == VIR_CPU_CHECK_FULL)
@@ -3059,8 +3127,8 @@ virCPUx86UpdateLive(virCPUDefPtr cpu,
         }
     }
 
-    virBufferTrim(&bufAdded, ",", -1);
-    virBufferTrim(&bufRemoved, ",", -1);
+    virBufferTrim(&bufAdded, ",");
+    virBufferTrim(&bufRemoved, ",");
 
     added = virBufferContentAndReset(&bufAdded);
     removed = virBufferContentAndReset(&bufRemoved);
@@ -3095,6 +3163,7 @@ virCPUx86UpdateLive(virCPUDefPtr cpu,
 
  cleanup:
     x86ModelFree(model);
+    x86ModelFree(modelDisabled);
     virCPUx86DataClear(&enabled);
     virCPUx86DataClear(&disabled);
     VIR_FREE(added);

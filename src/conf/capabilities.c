@@ -26,7 +26,6 @@
 #include "capabilities.h"
 #include "cpu_conf.h"
 #include "domain_conf.h"
-#include "physmem.h"
 #include "storage_conf.h"
 #include "viralloc.h"
 #include "virarch.h"
@@ -41,6 +40,7 @@
 #include "virtypedparam.h"
 #include "viruuid.h"
 #include "virenum.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_CAPABILITIES
 
@@ -367,27 +367,6 @@ virCapabilitiesHostNUMAAddCell(virCapsHostNUMAPtr caps,
 
     g_ptr_array_add(caps->cells, cell);
 }
-
-
-/**
- * virCapabilitiesSetHostCPU:
- * @caps: capabilities to extend
- * @cpu: CPU definition
- *
- * Sets host CPU specification
- */
-int
-virCapabilitiesSetHostCPU(virCapsPtr caps,
-                          virCPUDefPtr cpu)
-{
-    if (cpu == NULL)
-        return -1;
-
-    caps->host.cpu = cpu;
-
-    return 0;
-}
-
 
 /**
  * virCapabilitiesAllocMachines:
@@ -895,8 +874,9 @@ virCapabilitiesHostNUMAFormat(virCapsHostNUMAPtr caps,
                     return -1;
 
                 virBufferAsprintf(buf,
-                                  " socket_id='%d' core_id='%d' siblings='%s'",
+                                  " socket_id='%d' die_id='%d' core_id='%d' siblings='%s'",
                                   cell->cpus[j].socket_id,
+                                  cell->cpus[j].die_id,
                                   cell->cpus[j].core_id,
                                   siblings);
                 VIR_FREE(siblings);
@@ -1484,6 +1464,7 @@ virCapabilitiesFillCPUInfo(int cpu_id G_GNUC_UNUSED,
     cpu->id = cpu_id;
 
     if (virHostCPUGetSocket(cpu_id, &cpu->socket_id) < 0 ||
+        virHostCPUGetDie(cpu_id, &cpu->die_id) < 0 ||
         virHostCPUGetCore(cpu_id, &cpu->core_id) < 0)
         return -1;
 
@@ -1612,6 +1593,7 @@ virCapabilitiesHostNUMAInitFake(virCapsHostNUMAPtr caps)
                         goto error;
                     if (tmp) {
                         cpus[cid].id = id;
+                        cpus[cid].die_id = 0;
                         cpus[cid].socket_id = s;
                         cpus[cid].core_id = c;
                         if (!(cpus[cid].siblings = virBitmapNew(ncpus)))

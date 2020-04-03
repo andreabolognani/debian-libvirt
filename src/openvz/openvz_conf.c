@@ -29,7 +29,6 @@
 #include <dirent.h>
 #include <time.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 
 #include "virerror.h"
 #include "openvz_conf.h"
@@ -41,6 +40,7 @@
 #include "vircommand.h"
 #include "virstring.h"
 #include "virhostcpu.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_OPENVZ
 
@@ -233,7 +233,7 @@ openvzReadNetworkConf(virDomainDefPtr def,
     } else if (ret > 0) {
         token = strtok_r(temp, ";", &saveptr);
         while (token != NULL) {
-            /*add new device to list*/
+            /* add new device to list */
             if (VIR_ALLOC(net) < 0)
                 goto error;
 
@@ -243,9 +243,11 @@ openvzReadNetworkConf(virDomainDefPtr def,
             char cpy_temp[32];
             int len;
 
-            /*parse string*/
+            /* parse string */
             do {
-                char *next = strchrnul(p, ',');
+                char *next = strchr(p, ',');
+                if (!next)
+                    next = strchr(p, '\0');
                 if (STRPREFIX(p, "ifname=")) {
                     /* skip in libvirt */
                 } else if (STRPREFIX(p, "host_ifname=")) {
@@ -1113,6 +1115,14 @@ openvzDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
                          "supported in %s"),
                        virDomainVirtTypeToString(def->virtType));
         return -1;
+    }
+
+    if (dev->type == VIR_DOMAIN_DEVICE_VIDEO &&
+        dev->data.video->type == VIR_DOMAIN_VIDEO_TYPE_DEFAULT) {
+        if (def->os.type == VIR_DOMAIN_OSTYPE_HVM)
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_VGA;
+        else
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_PARALLELS;
     }
 
     return 0;

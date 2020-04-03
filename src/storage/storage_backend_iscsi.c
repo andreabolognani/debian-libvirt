@@ -22,7 +22,6 @@
 #include <config.h>
 
 #include <dirent.h>
-#include <sys/wait.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -39,8 +38,9 @@
 #include "virobject.h"
 #include "virstring.h"
 #include "viruuid.h"
-#include "secret_util.h"
+#include "virsecret.h"
 #include "storage_util.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 

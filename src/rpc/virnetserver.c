@@ -28,6 +28,7 @@
 #include "virthread.h"
 #include "virthreadpool.h"
 #include "virstring.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
 
@@ -367,10 +368,11 @@ virNetServerPtr virNetServerNew(const char *name,
     if (!(srv = virObjectLockableNew(virNetServerClass)))
         return NULL;
 
-    if (!(srv->workers = virThreadPoolNew(min_workers, max_workers,
-                                          priority_workers,
-                                          virNetServerHandleJob,
-                                          srv)))
+    if (!(srv->workers = virThreadPoolNewFull(min_workers, max_workers,
+                                              priority_workers,
+                                              virNetServerHandleJob,
+                                              "rpc-worker",
+                                              srv)))
         goto error;
 
     srv->name = g_strdup(name);
@@ -546,15 +548,12 @@ virNetServerPtr virNetServerNewPostExecRestart(virJSONValuePtr object,
 
 virJSONValuePtr virNetServerPreExecRestart(virNetServerPtr srv)
 {
-    virJSONValuePtr object;
+    virJSONValuePtr object = virJSONValueNewObject();
     virJSONValuePtr clients;
     virJSONValuePtr services;
     size_t i;
 
     virObjectLock(srv);
-
-    if (!(object = virJSONValueNewObject()))
-        goto error;
 
     if (virJSONValueObjectAppendNumberUint(object, "min_workers",
                                            virThreadPoolGetMinWorkers(srv->workers)) < 0) {
@@ -603,8 +602,7 @@ virJSONValuePtr virNetServerPreExecRestart(virNetServerPtr srv)
         goto error;
     }
 
-    if (!(services = virJSONValueNewArray()))
-        goto error;
+    services = virJSONValueNewArray();
 
     if (virJSONValueObjectAppend(object, "services", services) < 0) {
         virJSONValueFree(services);
@@ -622,8 +620,7 @@ virJSONValuePtr virNetServerPreExecRestart(virNetServerPtr srv)
         }
     }
 
-    if (!(clients = virJSONValueNewArray()))
-        goto error;
+    clients = virJSONValueNewArray();
 
     if (virJSONValueObjectAppend(object, "clients", clients) < 0) {
         virJSONValueFree(clients);
@@ -1206,6 +1203,55 @@ virNetServerSetClientLimits(virNetServerPtr srv,
 
     ret = 0;
  cleanup:
+    virObjectUnlock(srv);
+    return ret;
+}
+
+static virNetTLSContextPtr
+virNetServerGetTLSContext(virNetServerPtr srv)
+{
+    size_t i;
+    virNetTLSContextPtr ctxt = NULL;
+    virNetServerServicePtr svc = NULL;
+
+    /* find svcTLS from srv, get svcTLS->tls */
+    for (i = 0; i < srv->nservices; i++) {
+        svc = srv->services[i];
+        ctxt = virNetServerServiceGetTLSContext(svc);
+        if (ctxt != NULL)
+            break;
+    }
+
+    return ctxt;
+}
+
+int
+virNetServerUpdateTlsFiles(virNetServerPtr srv)
+{
+    int ret = -1;
+    virNetTLSContextPtr ctxt = NULL;
+    bool privileged = geteuid() == 0 ? true : false;
+
+    ctxt = virNetServerGetTLSContext(srv);
+    if (!ctxt) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("no tls service found, unable to update tls files"));
+        return -1;
+    }
+
+    virObjectLock(srv);
+    virObjectLock(ctxt);
+
+    if (virNetTLSContextReloadForServer(ctxt, !privileged)) {
+        VIR_DEBUG("failed to reload server's tls context");
+        goto cleanup;
+    }
+
+    VIR_DEBUG("update tls files success");
+    ret = 0;
+
+ cleanup:
+    virObjectUnlock(ctxt);
     virObjectUnlock(srv);
     return ret;
 }
