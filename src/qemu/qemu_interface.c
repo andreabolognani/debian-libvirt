@@ -25,7 +25,6 @@
 #include "domain_audit.h"
 #include "domain_nwfilter.h"
 #include "qemu_interface.h"
-#include "passfd.h"
 #include "viralloc.h"
 #include "virlog.h"
 #include "virstring.h"
@@ -34,6 +33,7 @@
 #include "virnetdevmacvlan.h"
 #include "virnetdevbridge.h"
 #include "virnetdevvportprofile.h"
+#include "virsocket.h"
 
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -347,11 +347,10 @@ qemuCreateInBridgePortWithHelper(virQEMUDriverConfigPtr cfg,
     }
 
     do {
-        *tapfd = recvfd(pair[0], 0);
+        *tapfd = virSocketRecvFD(pair[0], 0);
     } while (*tapfd < 0 && errno == EINTR);
 
     if (*tapfd < 0) {
-        char ebuf[1024];
         char *errstr = NULL;
 
         if (!(cmdstr = virCommandToString(cmd, false)))
@@ -363,7 +362,7 @@ qemuCreateInBridgePortWithHelper(virQEMUDriverConfigPtr cfg,
 
         virReportError(VIR_ERR_INTERNAL_ERROR,
             _("%s: failed to communicate with bridge helper: %s%s"),
-            cmdstr, virStrerror(errno, ebuf, sizeof(ebuf)),
+            cmdstr, g_strerror(errno),
             NULLSTR_EMPTY(errstr));
         VIR_FREE(errstr);
         goto cleanup;
@@ -568,6 +567,7 @@ qemuInterfaceBridgeConnect(virDomainDefPtr def,
                                            def->uuid, tunpath, tapfd, *tapfdSize,
                                            virDomainNetGetActualVirtPortProfile(net),
                                            virDomainNetGetActualVlan(net),
+                                           virDomainNetGetActualPortOptionsIsolated(net),
                                            net->coalesce, 0, NULL,
                                            tap_create_flags) < 0) {
             virDomainAuditNetDevice(def, net, tunpath, false);
@@ -685,7 +685,7 @@ qemuInterfaceOpenVhostNet(virDomainDefPtr def,
         vhostnet_path = "/dev/vhost-net";
 
     /* If running a plain QEMU guest, or
-     * if the config says explicitly to not use vhost, return now*/
+     * if the config says explicitly to not use vhost, return now */
     if (def->virtType != VIR_DOMAIN_VIRT_KVM ||
         net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_QEMU) {
         *vhostfdSize = 0;

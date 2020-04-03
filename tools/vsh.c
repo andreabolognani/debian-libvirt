@@ -37,7 +37,6 @@
 #endif
 
 #include "internal.h"
-#include "virerror.h"
 #include "virbuffer.h"
 #include "viralloc.h"
 #include "virfile.h"
@@ -45,11 +44,7 @@
 #include "vircommand.h"
 #include "virtypedparam.h"
 #include "virstring.h"
-
-/* Gnulib doesn't guarantee SA_SIGINFO support.  */
-#ifndef SA_SIGINFO
-# define SA_SIGINFO 0
-#endif
+#include "virutil.h"
 
 #ifdef WITH_READLINE
 /* For autocompletion */
@@ -1928,28 +1923,13 @@ vshTTYRestore(vshControl *ctl G_GNUC_UNUSED)
 }
 
 
-#if !defined(WIN32) && !defined(HAVE_CFMAKERAW)
-/* provide fallback in case cfmakeraw isn't available */
-static void
-cfmakeraw(struct termios *attr)
-{
-    attr->c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
-                         | INLCR | IGNCR | ICRNL | IXON);
-    attr->c_oflag &= ~OPOST;
-    attr->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-    attr->c_cflag &= ~(CSIZE | PARENB);
-    attr->c_cflag |= CS8;
-}
-#endif /* !WIN32 && !HAVE_CFMAKERAW */
-
-
 int
 vshTTYMakeRaw(vshControl *ctl G_GNUC_UNUSED,
               bool report_errors G_GNUC_UNUSED)
 {
 #ifndef WIN32
     struct termios rawattr = ctl->termattr;
-    char ebuf[1024];
+
 
     if (!ctl->istty) {
         if (report_errors) {
@@ -1965,7 +1945,7 @@ vshTTYMakeRaw(vshControl *ctl G_GNUC_UNUSED,
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &rawattr) < 0) {
         if (report_errors)
             vshError(ctl, _("unable to set tty attributes: %s"),
-                     virStrerror(errno, ebuf, sizeof(ebuf)));
+                     g_strerror(errno));
         return -1;
     }
 #endif
@@ -2028,6 +2008,7 @@ vshEventLoop(void *opaque)
 
 /* We want to use SIGINT to cancel a wait; but as signal handlers
  * don't have an opaque argument, we have to use static storage.  */
+#ifndef WIN32
 static int vshEventFd = -1;
 static struct sigaction vshEventOldAction;
 
@@ -2042,6 +2023,7 @@ vshEventInt(int sig G_GNUC_UNUSED,
     if (vshEventFd >= 0)
         ignore_value(safewrite(vshEventFd, &reason, 1));
 }
+#endif /* !WIN32 */
 
 
 /* Event loop handler used to limit length of waiting for any other event. */
@@ -2072,23 +2054,27 @@ vshEventTimeout(int timer G_GNUC_UNUSED,
 int
 vshEventStart(vshControl *ctl, int timeout_ms)
 {
+#ifndef WIN32
     struct sigaction action;
+    assert(vshEventFd == -1);
+#endif /* !WIN32 */
 
     assert(ctl->eventPipe[0] == -1 && ctl->eventPipe[1] == -1 &&
-           vshEventFd == -1 && ctl->eventTimerId >= 0);
-    if (pipe2(ctl->eventPipe, O_CLOEXEC) < 0) {
-        char ebuf[1024];
-
-        vshError(ctl, _("failed to create pipe: %s"),
-                 virStrerror(errno, ebuf, sizeof(ebuf)));
+           ctl->eventTimerId >= 0);
+    if (virPipe(ctl->eventPipe) < 0) {
+        vshSaveLibvirtError();
+        vshReportError(ctl);
         return -1;
     }
+
+#ifndef WIN32
     vshEventFd = ctl->eventPipe[1];
 
     action.sa_sigaction = vshEventInt;
     action.sa_flags = SA_SIGINFO;
     sigemptyset(&action.sa_mask);
     sigaction(SIGINT, &action, &vshEventOldAction);
+#endif /* !WIN32 */
 
     if (timeout_ms)
         virEventUpdateTimeout(ctl->eventTimerId, timeout_ms);
@@ -2133,12 +2119,10 @@ vshEventWait(vshControl *ctl)
     assert(ctl->eventPipe[0] >= 0);
     while ((rv = read(ctl->eventPipe[0], &buf, 1)) < 0 && errno == EINTR);
     if (rv != 1) {
-        char ebuf[1024];
-
         if (!rv)
             errno = EPIPE;
         vshError(ctl, _("failed to determine loop exit status: %s"),
-                 virStrerror(errno, ebuf, sizeof(ebuf)));
+                 g_strerror(errno));
         return -1;
     }
     return buf;
@@ -2155,16 +2139,22 @@ vshEventWait(vshControl *ctl)
 void
 vshEventCleanup(vshControl *ctl)
 {
+#ifndef WIN32
     if (vshEventFd >= 0) {
         sigaction(SIGINT, &vshEventOldAction, NULL);
         vshEventFd = -1;
     }
+#endif /* !WIN32 */
     VIR_FORCE_CLOSE(ctl->eventPipe[0]);
     VIR_FORCE_CLOSE(ctl->eventPipe[1]);
     virEventUpdateTimeout(ctl->eventTimerId, -1);
 }
 
-#define LOGFILE_FLAGS (O_WRONLY | O_APPEND | O_CREAT | O_SYNC)
+#ifdef O_SYNC
+# define LOGFILE_FLAGS (O_WRONLY | O_APPEND | O_CREAT | O_SYNC)
+#else
+# define LOGFILE_FLAGS (O_WRONLY | O_APPEND | O_CREAT)
+#endif
 
 /**
  * vshOpenLogFile:
@@ -2197,8 +2187,8 @@ vshOutputLogFile(vshControl *ctl, int log_level, const char *msg_format,
     char *str = NULL;
     size_t len;
     const char *lvl = "";
-    time_t stTime;
-    struct tm stTm;
+    g_autoptr(GDateTime) now = g_date_time_new_now_local();
+    g_autofree gchar *nowstr = NULL;
 
     if (ctl->log_fd == -1)
         return;
@@ -2208,15 +2198,9 @@ vshOutputLogFile(vshControl *ctl, int log_level, const char *msg_format,
      *
      * [YYYY.MM.DD HH:MM:SS SIGNATURE PID] LOG_LEVEL message
     */
-    time(&stTime);
-    localtime_r(&stTime, &stTm);
-    virBufferAsprintf(&buf, "[%d.%02d.%02d %02d:%02d:%02d %s %d] ",
-                      (1900 + stTm.tm_year),
-                      (1 + stTm.tm_mon),
-                      stTm.tm_mday,
-                      stTm.tm_hour,
-                      stTm.tm_min,
-                      stTm.tm_sec,
+    nowstr = g_date_time_format(now, "%Y.%m.%d %H:%M:%S");
+    virBufferAsprintf(&buf, "[%s %s %d] ",
+                      nowstr,
                       ctl->progname,
                       (int) getpid());
     switch (log_level) {
@@ -2241,7 +2225,7 @@ vshOutputLogFile(vshControl *ctl, int log_level, const char *msg_format,
     }
     virBufferAsprintf(&buf, "%s ", lvl);
     virBufferVasprintf(&buf, msg_format, ap);
-    virBufferTrim(&buf, "\n", -1);
+    virBufferTrim(&buf, "\n");
     virBufferAddChar(&buf, '\n');
 
     str = virBufferContentAndReset(&buf);
@@ -2269,13 +2253,11 @@ vshOutputLogFile(vshControl *ctl, int log_level, const char *msg_format,
 void
 vshCloseLogFile(vshControl *ctl)
 {
-    char ebuf[1024];
-
     /* log file close */
     if (VIR_CLOSE(ctl->log_fd) < 0) {
         vshError(ctl, _("%s: failed to write log file: %s"),
                  ctl->logfile ? ctl->logfile : "?",
-                 virStrerror(errno, ebuf, sizeof(ebuf)));
+                 g_strerror(errno));
     }
 
     if (ctl->logfile) {
@@ -2379,7 +2361,6 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
     char *ret;
     const char *tmpdir;
     int fd;
-    char ebuf[1024];
 
     tmpdir = getenv("TMPDIR");
     if (!tmpdir) tmpdir = "/tmp";
@@ -2387,14 +2368,14 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
     fd = g_mkstemp_full(ret, O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
     if (fd == -1) {
         vshError(ctl, _("g_mkstemp_full: failed to create temporary file: %s"),
-                 virStrerror(errno, ebuf, sizeof(ebuf)));
+                 g_strerror(errno));
         VIR_FREE(ret);
         return NULL;
     }
 
     if (safewrite(fd, doc, strlen(doc)) == -1) {
         vshError(ctl, _("write: %s: failed to write to temporary file: %s"),
-                 ret, virStrerror(errno, ebuf, sizeof(ebuf)));
+                 ret, g_strerror(errno));
         VIR_FORCE_CLOSE(fd);
         unlink(ret);
         VIR_FREE(ret);
@@ -2402,7 +2383,7 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
     }
     if (VIR_CLOSE(fd) < 0) {
         vshError(ctl, _("close: %s: failed to write or close temporary file: %s"),
-                 ret, virStrerror(errno, ebuf, sizeof(ebuf)));
+                 ret, g_strerror(errno));
         unlink(ret);
         VIR_FREE(ret);
         return NULL;
@@ -2472,12 +2453,11 @@ char *
 vshEditReadBackFile(vshControl *ctl, const char *filename)
 {
     char *ret;
-    char ebuf[1024];
 
     if (virFileReadAll(filename, VSH_MAX_XML_FILE, &ret) == -1) {
         vshError(ctl,
                  _("%s: failed to read temporary file: %s"),
-                 filename, virStrerror(errno, ebuf, sizeof(ebuf)));
+                 filename, g_strerror(errno));
         return NULL;
     }
     return ret;
@@ -2533,7 +2513,7 @@ vshTreePrintInternal(vshControl *ctl,
                                  false, indent) < 0)
             return -1;
     }
-    virBufferTrim(indent, "  ", -1);
+    virBufferTrim(indent, "  ");
 
     /* If there was no child device, and we're the last in
      * a list of devices, then print another blank line */
@@ -2541,7 +2521,7 @@ vshTreePrintInternal(vshControl *ctl,
         vshPrint(ctl, "%s\n", virBufferCurrentContent(indent));
 
     if (!root)
-        virBufferTrim(indent, NULL, 2);
+        virBufferTrimLen(indent, 2);
 
     return 0;
 }
@@ -2929,9 +2909,8 @@ vshReadlineDeinit(vshControl *ctl)
     if (ctl->historyfile != NULL) {
         if (virFileMakePathWithMode(ctl->historydir, 0755) < 0 &&
             errno != EEXIST) {
-            char ebuf[1024];
             vshError(ctl, _("Failed to create '%s': %s"),
-                     ctl->historydir, virStrerror(errno, ebuf, sizeof(ebuf)));
+                     ctl->historydir, g_strerror(errno));
         } else {
             write_history(ctl->historyfile);
         }
@@ -3168,7 +3147,6 @@ cmdCd(vshControl *ctl, const vshCmd *cmd)
 {
     const char *dir = NULL;
     g_autofree char *dir_malloced = NULL;
-    char ebuf[1024];
 
     if (!ctl->imode) {
         vshError(ctl, "%s", _("cd: command valid only in interactive mode"));
@@ -3182,7 +3160,7 @@ cmdCd(vshControl *ctl, const vshCmd *cmd)
 
     if (chdir(dir) == -1) {
         vshError(ctl, _("cd: %s: %s"),
-                 virStrerror(errno, ebuf, sizeof(ebuf)), dir);
+                 g_strerror(errno), dir);
         return false;
     }
 

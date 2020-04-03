@@ -218,7 +218,7 @@ static const qemuMigrationParamType qemuMigrationParamTypes[] = {
     [QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH] = QEMU_MIGRATION_PARAM_TYPE_ULL,
     [QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS] = QEMU_MIGRATION_PARAM_TYPE_INT,
 };
-verify(G_N_ELEMENTS(qemuMigrationParamTypes) == QEMU_MIGRATION_PARAM_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(qemuMigrationParamTypes) == QEMU_MIGRATION_PARAM_LAST);
 
 
 virBitmapPtr
@@ -729,14 +729,11 @@ qemuMigrationParamsFromJSON(virJSONValuePtr params)
 virJSONValuePtr
 qemuMigrationParamsToJSON(qemuMigrationParamsPtr migParams)
 {
-    virJSONValuePtr params = NULL;
+    virJSONValuePtr params = virJSONValueNewObject();
     qemuMigrationParamValuePtr pv;
     const char *name;
     size_t i;
     int rc;
-
-    if (!(params = virJSONValueNewObject()))
-        return NULL;
 
     for (i = 0; i < QEMU_MIGRATION_PARAM_LAST; i++) {
         name = qemuMigrationParamTypeToString(i);
@@ -785,8 +782,7 @@ qemuMigrationCapsToJSON(virBitmapPtr caps,
     qemuMigrationCapability bit;
     const char *name;
 
-    if (!(json = virJSONValueNewArray()))
-        return NULL;
+    json = virJSONValueNewArray();
 
     for (bit = 0; bit < QEMU_MIGRATION_CAP_LAST; bit++) {
         bool supported = false;
@@ -798,8 +794,7 @@ qemuMigrationCapsToJSON(virBitmapPtr caps,
 
         ignore_value(virBitmapGetBit(states, bit, &state));
 
-        if (!(cap = virJSONValueNewObject()))
-            goto error;
+        cap = virJSONValueNewObject();
 
         name = qemuMigrationCapabilityTypeToString(bit);
         if (virJSONValueObjectAppendString(cap, "capability", name) < 0)
@@ -1066,7 +1061,7 @@ qemuMigrationParamsDisableTLS(virDomainObjPtr vm,
  * @apiFlags: API flags used to start the migration
  *
  * Deconstruct all the setup possibly done for TLS - delete the TLS and
- * security objects, free the secinfo, and reset the migration params to "".
+ * security objects and free the secinfo
  */
 static void
 qemuMigrationParamsResetTLS(virQEMUDriverPtr driver,
@@ -1075,8 +1070,8 @@ qemuMigrationParamsResetTLS(virQEMUDriverPtr driver,
                             qemuMigrationParamsPtr origParams,
                             unsigned long apiFlags)
 {
-    char *tlsAlias = NULL;
-    char *secAlias = NULL;
+    g_autofree char *tlsAlias = NULL;
+    g_autofree char *secAlias = NULL;
 
     /* There's nothing to do if QEMU does not support TLS migration or we were
      * not asked to enable it. */
@@ -1084,17 +1079,11 @@ qemuMigrationParamsResetTLS(virQEMUDriverPtr driver,
         !(apiFlags & VIR_MIGRATE_TLS))
         return;
 
-    /* NB: If either or both fail to allocate memory we can still proceed
-     *     since the next time we migrate another deletion attempt will be
-     *     made after successfully generating the aliases. */
     tlsAlias = qemuAliasTLSObjFromSrcAlias(QEMU_MIGRATION_TLS_ALIAS_BASE);
-    secAlias = qemuDomainGetSecretAESAlias(QEMU_MIGRATION_TLS_ALIAS_BASE, false);
+    secAlias = qemuAliasForSecret(QEMU_MIGRATION_TLS_ALIAS_BASE, NULL);
 
     qemuDomainDelTLSObjects(driver, vm, asyncJob, secAlias, tlsAlias);
-    qemuDomainSecretInfoFree(&QEMU_DOMAIN_PRIVATE(vm)->migSecinfo);
-
-    VIR_FREE(tlsAlias);
-    VIR_FREE(secAlias);
+    g_clear_pointer(&QEMU_DOMAIN_PRIVATE(vm)->migSecinfo, qemuDomainSecretInfoFree);
 }
 
 

@@ -16,15 +16,13 @@
 ## License along with this library.  If not, see
 ## <http://www.gnu.org/licenses/>.
 
-SHELL = $(PREFERABLY_POSIX_SHELL)
-
 AM_CPPFLAGS = \
 	-I$(top_builddir) -I$(top_srcdir) \
-	-I$(top_builddir)/gnulib/lib -I$(top_srcdir)/gnulib/lib \
 	-I$(top_builddir)/include -I$(top_srcdir)/include \
 	-I$(top_builddir)/src -I$(top_srcdir)/src \
 	-I$(top_srcdir)/src/util \
 	-I$(top_srcdir)/src/conf \
+	-I$(top_srcdir)/src/hypervisor \
 	-I$(top_builddir)/src/rpc \
 	$(NULL)
 
@@ -67,19 +65,14 @@ if WITH_DTRACE_PROBES
 PROBES_O += ../src/libvirt_probes.lo
 endif WITH_DTRACE_PROBES
 
-GNULIB_LIBS = \
-       ../gnulib/lib/libgnu.la
-
 LDADDS = \
 	$(NO_INDIRECT_LDFLAGS) \
 	$(PROBES_O) \
-	$(GNULIB_LIBS) \
 	../src/libvirt.la \
 	$(GLIB_LIBS) \
 	$(NULL)
 
 MOCKLIBS_LIBS = \
-	$(GNULIB_LIBS) \
 	../src/libvirt.la
 
 EXTRA_DIST = \
@@ -171,6 +164,7 @@ EXTRA_DIST = \
 	xlconfigdata \
 	xmconfigdata \
 	xml2vmxdata \
+	virsh-auth.xml \
 	virstorageutildata \
 	virfilecachedata \
 	virresctrldata \
@@ -181,9 +175,8 @@ test_programs = virshtest sockettest \
 	virhostcputest virbuftest \
 	commandtest seclabeltest \
 	virhashtest virconftest \
-	viratomictest \
 	utiltest shunloadtest \
-	virtimetest viruritest virkeyfiletest \
+	virtimetest viruritest \
 	viralloctest \
 	virauthconfigtest \
 	virbitmaptest \
@@ -414,6 +407,7 @@ test_scripts =
 libvirtd_test_scripts = \
 	libvirtd-fail \
 	libvirtd-pool \
+	virsh-auth \
 	virsh-cpuset \
 	virsh-define-dev-segfault \
 	virsh-int-overflow \
@@ -484,7 +478,6 @@ TESTS_ENVIRONMENT = \
   abs_top_srcdir="$(abs_top_srcdir)" \
   abs_builddir="$(abs_builddir)" \
   abs_srcdir="$(abs_srcdir)" \
-  SHELL="$(SHELL)" \
   LIBVIRT_AUTOSTART=0 \
   LC_ALL=C \
   VIR_TEST_EXPENSIVE=$(VIR_TEST_EXPENSIVE) \
@@ -492,7 +485,7 @@ TESTS_ENVIRONMENT = \
 
 
 VALGRIND = valgrind --quiet --leak-check=full --trace-children=yes \
-	--trace-children-skip="*/tools/virsh","*/tests/commandhelper" \
+	--trace-children-skip="*/tools/virsh","*/tests/commandhelper","/usr/bin/*" \
 	--suppressions=$(abs_srcdir)/.valgrind.supp
 valgrind:
 	$(MAKE) check VG="$(LIBTOOL) --mode=execute $(VALGRIND)"
@@ -515,17 +508,20 @@ libxltestdriver_la_LIBADD = $(libxl_LDADDS)
 xlconfigtest_SOURCES = \
 	xlconfigtest.c testutilsxen.c testutilsxen.h \
 	testutils.c testutils.h
-xlconfigtest_LDADD =$(libxl_LDADDS)
+xlconfigtest_LDADD = libxltestdriver.la \
+	$(libxl_LDADDS)
 
 xmconfigtest_SOURCES = \
 	xmconfigtest.c testutilsxen.c testutilsxen.h \
 	testutils.c testutils.h
-xmconfigtest_LDADD = $(libxl_LDADDS)
+xmconfigtest_LDADD = libxltestdriver.la \
+	$(libxl_LDADDS)
 
 libxlxml2domconfigtest_SOURCES = \
 	libxlxml2domconfigtest.c testutilsxen.c testutilsxen.h \
 	testutils.c testutils.h
-libxlxml2domconfigtest_LDADD = $(libxl_LDADDS) $(LIBXML_LIBS)
+libxlxml2domconfigtest_LDADD = libxltestdriver.la \
+	$(libxl_LDADDS) $(LIBXML_LIBS)
 
 libxlmock_la_SOURCES = \
 	libxlmock.c
@@ -949,8 +945,7 @@ storagepoolxml2xmltest_SOURCES = \
 	storagepoolxml2xmltest.c \
 	testutils.c testutils.h
 storagepoolxml2xmltest_LDADD = $(LDADDS) \
-	../src/libvirt_driver_storage_impl.la \
-	$(GNULIB_LIBS)
+	../src/libvirt_driver_storage_impl.la
 
 storagepoolcapstest_SOURCES = \
         storagepoolcapstest.c testutils.h testutils.c
@@ -1024,15 +1019,14 @@ commandtest_SOURCES = \
 	commandtest.c testutils.h testutils.c
 commandtest_LDADD = $(LDADDS)
 
-# Must not link to any libvirt modules - libc / gnulib only
+# Must not link to any libvirt modules - libc only
 # otherwise external libraries might unexpectedly leak
 # file descriptors into commandhelper invalidating the
 # test logic assumptions
 commandhelper_SOURCES = \
 	commandhelper.c
 commandhelper_LDADD = \
-	$(NO_INDIRECT_LDFLAGS) \
-	$(GNULIB_LIBS)
+	$(NO_INDIRECT_LDFLAGS)
 
 commandhelper_LDFLAGS = -static
 
@@ -1073,16 +1067,16 @@ domaincapstest_LDADD = $(LDADDS)
 
 if WITH_QEMU
 domaincapstest_SOURCES += testutilsqemu.c testutilsqemu.h
-domaincapstest_LDADD += libqemutestdriver.la $(GNULIB_LIBS)
+domaincapstest_LDADD += libqemutestdriver.la
 endif WITH_QEMU
 
 if WITH_LIBXL
 domaincapstest_SOURCES += testutilsxen.c testutilsxen.h
-domaincapstest_LDADD += libxltestdriver.la $(GNULIB_LIBS)
+domaincapstest_LDADD += libxltestdriver.la
 endif WITH_LIBXL
 
 if WITH_BHYVE
-domaincapstest_LDADD += ../src/libvirt_driver_bhyve_impl.la $(GNULIB_LIBS)
+domaincapstest_LDADD += ../src/libvirt_driver_bhyve_impl.la
 endif WITH_BHYVE
 
 virnetmessagetest_SOURCES = \
@@ -1149,7 +1143,6 @@ virstoragetest_SOURCES = \
 virstoragetest_LDADD = $(LDADDS) \
 	../src/libvirt.la \
 	../src/libvirt_driver_storage_impl.la \
-	../gnulib/lib/libgnu.la \
 	$(NULL)
 
 viridentitytest_SOURCES = \
@@ -1404,10 +1397,6 @@ viruritest_SOURCES = \
 	viruritest.c testutils.h testutils.c
 viruritest_LDADD = $(LDADDS)
 
-virkeyfiletest_SOURCES = \
-	virkeyfiletest.c testutils.h testutils.c
-virkeyfiletest_LDADD = $(LDADDS)
-
 viralloctest_SOURCES = \
 	viralloctest.c testutils.h testutils.c
 viralloctest_LDADD = $(LDADDS)
@@ -1458,10 +1447,6 @@ virbuftest_LDADD = $(LDADDS)
 virhashtest_SOURCES = \
 	virhashtest.c virhashdata.h testutils.h testutils.c
 virhashtest_LDADD = $(LDADDS)
-
-viratomictest_SOURCES = \
-	viratomictest.c testutils.h testutils.c
-viratomictest_LDADD = $(LDADDS)
 
 virbitmaptest_SOURCES = \
 	virbitmaptest.c testutils.h testutils.c
@@ -1514,7 +1499,7 @@ libshunload_la_LDFLAGS = $(MOCKLIBS_LDFLAGS)
 
 shunloadtest_SOURCES = \
 	shunloadtest.c
-shunloadtest_LDADD = $(LIB_PTHREAD) $(DLOPEN_LIBS)
+shunloadtest_LDADD = $(THREAD_LIBS) $(DLOPEN_LIBS)
 shunloadtest_DEPENDENCIES = libshunload.la
 
 sysinfotest_SOURCES = \

@@ -24,7 +24,9 @@
 
 #include <fcntl.h>
 #include <signal.h>
-#include <sys/wait.h>
+#ifndef WIN32
+# include <sys/wait.h>
+#endif
 #include <unistd.h>
 #if HAVE_SYS_MOUNT_H
 # include <sys/mount.h>
@@ -50,7 +52,11 @@
 # include <sys/cpuset.h>
 #endif
 
-#include "viratomic.h"
+#ifdef WIN32
+# define WIN32_LEAN_AND_MEAN
+# include <windows.h>
+#endif
+
 #include "virprocess.h"
 #include "virerror.h"
 #include "viralloc.h"
@@ -116,6 +122,8 @@ VIR_ENUM_IMPL(virProcessSchedPolicy,
               "rr",
 );
 
+
+#ifndef WIN32
 /**
  * virProcessTranslateStatus:
  * @status: child exit status to translate
@@ -141,7 +149,6 @@ virProcessTranslateStatus(int status)
 }
 
 
-#ifndef WIN32
 /**
  * virProcessAbort:
  * @pid: child process to kill
@@ -201,14 +208,6 @@ virProcessAbort(pid_t pid)
  cleanup:
     errno = saved_errno;
 }
-#else
-void
-virProcessAbort(pid_t pid)
-{
-    /* Not yet ported to mingw.  Any volunteers?  */
-    VIR_DEBUG("failed to reap child %lld, abandoning it", (long long)pid);
-}
-#endif
 
 
 /**
@@ -276,6 +275,33 @@ virProcessWait(pid_t pid, int *exitstatus, bool raw)
                    (long long) pid, NULLSTR(st));
     return -1;
 }
+
+#else /* WIN32 */
+
+char *
+virProcessTranslateStatus(int status)
+{
+    return g_strdup_printf(_("invalid value %d"), status);
+}
+
+
+void
+virProcessAbort(pid_t pid)
+{
+    /* Not yet ported to mingw.  Any volunteers?  */
+    VIR_DEBUG("failed to reap child %lld, abandoning it", (long long)pid);
+}
+
+
+int
+virProcessWait(pid_t pid, int *exitstatus G_GNUC_UNUSED, bool raw G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, _("unable to wait for process %lld"),
+                         (long long) pid);
+    return -1;
+}
+
+#endif /* WIN32 */
 
 
 /* send signal to a single process */
@@ -1021,7 +1047,7 @@ int virProcessGetStartTime(pid_t pid,
                            unsigned long long *timestamp)
 {
     static int warned;
-    if (virAtomicIntInc(&warned) == 1) {
+    if (g_atomic_int_add(&warned, 1) == 0) {
         VIR_WARN("Process start time of pid %lld not available on this platform",
                  (long long) pid);
     }
@@ -1031,6 +1057,7 @@ int virProcessGetStartTime(pid_t pid,
 #endif
 
 
+#ifdef __linux__
 typedef struct _virProcessNamespaceHelperData virProcessNamespaceHelperData;
 struct _virProcessNamespaceHelperData {
     pid_t pid;
@@ -1083,6 +1110,38 @@ virProcessRunInMountNamespace(pid_t pid,
     return virProcessRunInFork(virProcessNamespaceHelper, &data);
 }
 
+#else /* ! __linux__ */
+
+int
+virProcessRunInMountNamespace(pid_t pid G_GNUC_UNUSED,
+                              virProcessNamespaceCallback cb G_GNUC_UNUSED,
+                              void *opaque G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Namespaces are not supported on this platform"));
+    return -1;
+}
+
+#endif /* ! __linux__ */
+
+
+#ifndef WIN32
+typedef struct {
+    int code;
+    int domain;
+    char message[VIR_ERROR_MAX_LENGTH];
+    virErrorLevel level;
+    char str1[VIR_ERROR_MAX_LENGTH];
+    char str2[VIR_ERROR_MAX_LENGTH];
+    char str3[VIR_ERROR_MAX_LENGTH];
+    int int1;
+    int int2;
+} errorData;
+
+typedef union {
+    errorData data;
+    char bindata[sizeof(errorData)];
+} errorDataBin;
 
 static int
 virProcessRunInForkHelper(int errfd,
@@ -1092,9 +1151,24 @@ virProcessRunInForkHelper(int errfd,
 {
     if (cb(ppid, opaque) < 0) {
         virErrorPtr err = virGetLastError();
+
         if (err) {
-            size_t len = strlen(err->message) + 1;
-            ignore_value(safewrite(errfd, err->message, len));
+            g_autofree errorDataBin *bin = g_new0(errorDataBin, 1);
+
+            bin->data.code = err->code;
+            bin->data.domain = err->domain;
+            ignore_value(virStrcpy(bin->data.message, err->message, sizeof(bin->data.message)));
+            bin->data.level = err->level;
+            if (err->str1)
+                ignore_value(virStrcpy(bin->data.str1, err->str1, sizeof(bin->data.str1)));
+            if (err->str2)
+                ignore_value(virStrcpy(bin->data.str2, err->str2, sizeof(bin->data.str2)));
+            if (err->str3)
+                ignore_value(virStrcpy(bin->data.str3, err->str3, sizeof(bin->data.str3)));
+            bin->data.int1 = err->int1;
+            bin->data.int2 = err->int2;
+
+            ignore_value(safewrite(errfd, bin->bindata, sizeof(*bin)));
         }
 
         return -1;
@@ -1132,11 +1206,8 @@ virProcessRunInFork(virProcessForkCallback cb,
     pid_t parent = getpid();
     int errfd[2] = { -1, -1 };
 
-    if (pipe2(errfd, O_CLOEXEC) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Cannot create pipe for child"));
+    if (virPipe(errfd) < 0)
         return -1;
-    }
 
     if ((child = virFork()) < 0)
         goto cleanup;
@@ -1149,16 +1220,38 @@ virProcessRunInFork(virProcessForkCallback cb,
     } else {
         int status;
         g_autofree char *buf = NULL;
+        g_autofree errorDataBin *bin = NULL;
+        int nread;
 
         VIR_FORCE_CLOSE(errfd[1]);
-        ignore_value(virFileReadHeaderFD(errfd[0], 1024, &buf));
+        nread = virFileReadHeaderFD(errfd[0], sizeof(*bin), &buf);
         ret = virProcessWait(child, &status, false);
         if (ret == 0) {
             ret = status == EXIT_CANCELED ? -1 : status;
             if (ret) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("child reported (status=%d): %s"),
-                               status, NULLSTR(buf));
+                if (nread == sizeof(*bin)) {
+                    bin = g_new0(errorDataBin, 1);
+                    memcpy(bin->bindata, buf, sizeof(*bin));
+
+                    virReportError(VIR_ERR_INTERNAL_ERROR,
+                                   _("child reported (status=%d): %s"),
+                                   status, NULLSTR(bin->data.message));
+
+                    virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__,
+                                      bin->data.domain,
+                                      bin->data.code,
+                                      bin->data.level,
+                                      bin->data.str1,
+                                      bin->data.str2,
+                                      bin->data.str3,
+                                      bin->data.int1,
+                                      bin->data.int2,
+                                      "%s", bin->data.message);
+                } else {
+                    virReportError(VIR_ERR_INTERNAL_ERROR,
+                                   _("child didn't write error (status=%d)"),
+                                   status);
+                }
             }
         }
     }
@@ -1169,8 +1262,21 @@ virProcessRunInFork(virProcessForkCallback cb,
     return ret;
 }
 
+#else /* WIN32 */
 
-#if defined(HAVE_SYS_MOUNT_H) && defined(HAVE_UNSHARE)
+int
+virProcessRunInFork(virProcessForkCallback cb G_GNUC_UNUSED,
+                    void *opaque G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Process spawning is not supported on this platform"));
+    return -1;
+}
+
+#endif /* WIN32 */
+
+
+#if defined(__linux__)
 int
 virProcessSetupPrivateMountNS(void)
 {
@@ -1189,23 +1295,13 @@ virProcessSetupPrivateMountNS(void)
     return 0;
 }
 
-#else /* !defined(HAVE_SYS_MOUNT_H) || !defined(HAVE_UNSHARE) */
 
-int
-virProcessSetupPrivateMountNS(void)
-{
-    virReportSystemError(ENOSYS, "%s",
-                         _("Namespaces are not supported on this platform."));
-    return -1;
-}
-#endif /* !defined(HAVE_SYS_MOUNT_H) || !defined(HAVE_UNSHARE) */
-
-#if defined(__linux__)
 G_GNUC_NORETURN static int
 virProcessDummyChild(void *argv G_GNUC_UNUSED)
 {
     _exit(0);
 }
+
 
 /**
  * virProcessNamespaceAvailable:
@@ -1250,9 +1346,8 @@ virProcessNamespaceAvailable(unsigned int ns)
     cpid = clone(virProcessDummyChild, childStack, flags, NULL);
 
     if (cpid < 0) {
-        char ebuf[1024] G_GNUC_UNUSED;
         VIR_DEBUG("clone call returned %s, container support is not enabled",
-                  virStrerror(errno, ebuf, sizeof(ebuf)));
+                  g_strerror(errno));
         return -1;
     } else if (virProcessWait(cpid, NULL, false) < 0) {
         return -1;
@@ -1265,12 +1360,21 @@ virProcessNamespaceAvailable(unsigned int ns)
 #else /* !defined(__linux__) */
 
 int
+virProcessSetupPrivateMountNS(void)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Namespaces are not supported on this platform."));
+    return -1;
+}
+
+int
 virProcessNamespaceAvailable(unsigned int ns G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS, "%s",
                          _("Namespaces are not supported on this platform."));
     return -1;
 }
+
 #endif /* !defined(__linux__) */
 
 /**
@@ -1291,6 +1395,7 @@ virProcessExitWithStatus(int status)
 {
     int value = EXIT_CANNOT_INVOKE;
 
+#ifndef WIN32
     if (WIFEXITED(status)) {
         value = WEXITSTATUS(status);
     } else if (WIFSIGNALED(status)) {
@@ -1307,6 +1412,9 @@ virProcessExitWithStatus(int status)
         raise(WTERMSIG(status));
         value = 128 + WTERMSIG(status);
     }
+#else /* WIN32 */
+    (void)status;
+#endif /* WIN32 */
     exit(value);
 }
 

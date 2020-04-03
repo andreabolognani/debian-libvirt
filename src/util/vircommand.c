@@ -21,11 +21,15 @@
 
 #include <config.h>
 
-#include <poll.h>
+#ifndef WIN32
+# include <poll.h>
+#endif
 #include <signal.h>
 #include <stdarg.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
+#ifndef WIN32
+# include <sys/wait.h>
+#endif
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -153,7 +157,9 @@ struct _virCommand {
 static virBufferPtr dryRunBuffer;
 static virCommandDryRunCallback dryRunCallback;
 static void *dryRunOpaque;
+#ifndef WIN32
 static int dryRunStatus;
+#endif /* !WIN32 */
 
 /*
  * virCommandFDIsSet:
@@ -488,6 +494,60 @@ virCommandMassCloseGetFDsGeneric(virCommandPtr cmd G_GNUC_UNUSED,
 }
 # endif /* !__linux__ */
 
+# ifdef __FreeBSD__
+
+static int
+virCommandMassClose(virCommandPtr cmd,
+                    int childin,
+                    int childout,
+                    int childerr)
+{
+    int lastfd = -1;
+    int fd = -1;
+    size_t i;
+
+    /*
+     * Two phases of closing.
+     *
+     * The first (inefficient) phase iterates over FDs,
+     * preserving certain FDs we need to pass down, and
+     * closing others. The number of iterations is bounded
+     * to the number of the biggest FD we need to preserve.
+     *
+     * The second (speedy) phase uses closefrom() to cull
+     * all remaining FDs in the process.
+     *
+     * Usually the first phase will be fairly quick only
+     * processing a handful of low FD numbers, and thus using
+     * closefrom() is a massive win for high ulimit() NFILES
+     * values.
+     */
+    lastfd = MAX(lastfd, childin);
+    lastfd = MAX(lastfd, childout);
+    lastfd = MAX(lastfd, childerr);
+
+    for (i = 0; i < cmd->npassfd; i++)
+        lastfd = MAX(lastfd, cmd->passfd[i].fd);
+
+    for (fd = 0; fd <= lastfd; fd++) {
+        if (fd == childin || fd == childout || fd == childerr)
+            continue;
+        if (!virCommandFDIsSet(cmd, fd)) {
+            int tmpfd = fd;
+            VIR_MASS_CLOSE(tmpfd);
+        } else if (virSetInherit(fd, true) < 0) {
+            virReportSystemError(errno, _("failed to preserve fd %d"), fd);
+            return -1;
+        }
+    }
+
+    closefrom(lastfd + 1);
+
+    return 0;
+}
+
+# else /* ! __FreeBSD__ */
+
 static int
 virCommandMassClose(virCommandPtr cmd,
                     int childin,
@@ -514,13 +574,13 @@ virCommandMassClose(virCommandPtr cmd,
     if (!(fds = virBitmapNew(openmax)))
         return -1;
 
-# ifdef __linux__
+#  ifdef __linux__
     if (virCommandMassCloseGetFDsLinux(cmd, fds) < 0)
         return -1;
-# else
+#  else
     if (virCommandMassCloseGetFDsGeneric(cmd, fds) < 0)
         return -1;
-# endif
+#  endif
 
     fd = virBitmapNextSetBit(fds, 2);
     for (; fd >= 0; fd = virBitmapNextSetBit(fds, fd)) {
@@ -538,6 +598,8 @@ virCommandMassClose(virCommandPtr cmd,
     return 0;
 }
 
+# endif /* ! __FreeBSD__ */
+
 /*
  * virExec:
  * @cmd virCommandPtr containing all information about the program to
@@ -550,6 +612,7 @@ virExec(virCommandPtr cmd)
     int null = -1;
     int pipeout[2] = {-1, -1};
     int pipeerr[2] = {-1, -1};
+    int pipesync[2] = {-1, -1};
     int childin = cmd->infd;
     int childout = -1;
     int childerr = -1;
@@ -578,11 +641,8 @@ virExec(virCommandPtr cmd)
 
     if (cmd->outfdptr != NULL) {
         if (*cmd->outfdptr == -1) {
-            if (pipe2(pipeout, O_CLOEXEC) < 0) {
-                virReportSystemError(errno,
-                                     "%s", _("cannot create pipe"));
+            if (virPipe(pipeout) < 0)
                 goto cleanup;
-            }
 
             if ((cmd->flags & VIR_EXEC_NONBLOCK) &&
                 virSetNonBlock(pipeout[0]) == -1) {
@@ -605,11 +665,8 @@ virExec(virCommandPtr cmd)
         if (cmd->errfdptr == cmd->outfdptr) {
             childerr = childout;
         } else if (*cmd->errfdptr == -1) {
-            if (pipe2(pipeerr, O_CLOEXEC) < 0) {
-                virReportSystemError(errno,
-                                     "%s", _("Failed to create pipe"));
+            if (virPipe(pipeerr) < 0)
                 goto cleanup;
-            }
 
             if ((cmd->flags & VIR_EXEC_NONBLOCK) &&
                 virSetNonBlock(pipeerr[0]) == -1) {
@@ -689,9 +746,15 @@ virExec(virCommandPtr cmd)
     /* Initialize full logging for a while */
     virLogSetFromEnv();
 
+    if (cmd->pidfile &&
+        virPipe(pipesync) < 0)
+        goto fork_error;
+
     /* Daemonize as late as possible, so the parent process can detect
      * the above errors with wait* */
     if (cmd->flags & VIR_EXEC_DAEMON) {
+        char c;
+
         if (setsid() < 0) {
             virReportSystemError(errno,
                                  "%s", _("cannot become session leader"));
@@ -712,12 +775,13 @@ virExec(virCommandPtr cmd)
         }
 
         if (pid > 0) {
-            if (cmd->pidfile && (virPidFileWritePath(cmd->pidfile, pid) < 0)) {
-                if (virProcessKillPainfully(pid, true) >= 0)
-                    virReportSystemError(errno,
-                                         _("could not write pidfile %s for %d"),
-                                         cmd->pidfile, pid);
-                goto fork_error;
+            /* The parent expect us to have written the pid file before
+             * exiting. Wait here for the child to write it and signal us. */
+            if (cmd->pidfile &&
+                saferead(pipesync[0], &c, sizeof(c)) != sizeof(c)) {
+                virReportSystemError(errno, "%s",
+                                     _("Unable to wait for child process"));
+                _exit(EXIT_FAILURE);
             }
             _exit(EXIT_SUCCESS);
         }
@@ -732,6 +796,29 @@ virExec(virCommandPtr cmd)
     if (cmd->setMaxCore &&
         virProcessSetMaxCoreSize(0, cmd->maxCore) < 0)
         goto fork_error;
+    if (cmd->pidfile) {
+        int pidfilefd = -1;
+        char c;
+
+        pidfilefd = virPidFileAcquirePath(cmd->pidfile, false, getpid());
+        if (pidfilefd < 0)
+            goto fork_error;
+        if (virSetInherit(pidfilefd, true) < 0) {
+            virReportSystemError(errno, "%s",
+                                 _("Cannot disable close-on-exec flag"));
+            goto fork_error;
+        }
+
+        c = '1';
+        if (safewrite(pipesync[1], &c, sizeof(c)) != sizeof(c)) {
+            virReportSystemError(errno, "%s", _("Unable to notify child process"));
+            goto fork_error;
+        }
+        VIR_FORCE_CLOSE(pipesync[0]);
+        VIR_FORCE_CLOSE(pipesync[1]);
+
+        /* pidfilefd is intentionally leaked. */
+    }
 
     if (cmd->hook) {
         VIR_DEBUG("Run hook %p %p", cmd->hook, cmd->opaque);
@@ -805,6 +892,7 @@ virExec(virCommandPtr cmd)
     return -1;
 }
 
+
 /**
  * virRun:
  * @argv NULL terminated argv to run
@@ -839,18 +927,6 @@ virRun(const char *const *argv G_GNUC_UNUSED,
     else
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "%s", _("virRun is not implemented for WIN32"));
-    return -1;
-}
-
-static int
-virExec(virCommandPtr cmd G_GNUC_UNUSED)
-{
-    /* XXX: Some day we can implement pieces of virCommand/virExec on
-     * top of _spawn() or CreateProcess(), but we can't implement
-     * everything, since mingw completely lacks fork(), so we cannot
-     * run our own code in the child process.  */
-    virReportError(VIR_ERR_INTERNAL_ERROR,
-                   "%s", _("virExec is not implemented for WIN32"));
     return -1;
 }
 
@@ -1035,8 +1111,9 @@ virCommandPassFDGetFDIndex(virCommandPtr cmd, int fd)
  * @cmd: the command to modify
  * @pidfile: filename to use
  *
- * Save the child PID in a pidfile.  The pidfile will be populated
- * before the exec of the child.
+ * Save the child PID in a pidfile. The pidfile will be populated before the
+ * exec of the child and the child will inherit opened and locked FD to the
+ * pidfile.
  */
 void
 virCommandSetPidFile(virCommandPtr cmd, const char *pidfile)
@@ -1682,6 +1759,7 @@ virCommandFreeSendBuffers(virCommandPtr cmd)
 }
 
 
+#ifndef WIN32
 /**
  * virCommandSetSendBuffer
  * @cmd: the command to modify
@@ -1690,7 +1768,6 @@ virCommandFreeSendBuffers(virCommandPtr cmd)
  * given file descriptor. The buffer will be freed automatically
  * and the file descriptor closed.
  */
-#if defined(F_SETFL)
 int
 virCommandSetSendBuffer(virCommandPtr cmd,
                         int fd,
@@ -1724,23 +1801,6 @@ virCommandSetSendBuffer(virCommandPtr cmd,
     return 0;
 }
 
-#else /* !defined(F_SETFL) */
-
-int
-virCommandSetSendBuffer(virCommandPtr cmd,
-                        int fd G_GNUC_UNUSED,
-                        unsigned char *buffer G_GNUC_UNUSED,
-                        size_t buflen G_GNUC_UNUSED)
-{
-    if (!cmd || cmd->has_error)
-        return -1;
-
-    cmd->has_error = ENOTSUP;
-
-    return -1;
-}
-
-#endif
 
 static int
 virCommandSendBuffersFillPollfd(virCommandPtr cmd,
@@ -1796,6 +1856,9 @@ virCommandSendBuffersHandlePoll(virCommandPtr cmd,
     }
     return 0;
 }
+
+#endif /* !WIN32 */
+
 
 /**
  * virCommandSetInputBuffer:
@@ -2030,9 +2093,8 @@ virCommandWriteArgLog(virCommandPtr cmd, int logfd)
     }
 
     if (ioError) {
-        char ebuf[1024];
         VIR_WARN("Unable to write command %s args to logfile: %s",
-                 cmd->args[0], virStrerror(ioError, ebuf, sizeof(ebuf)));
+                 cmd->args[0], g_strerror(ioError));
     }
 }
 
@@ -2105,6 +2167,7 @@ virCommandToString(virCommandPtr cmd, bool linebreaks)
 }
 
 
+#ifndef WIN32
 /*
  * Manage input and output to the child process.
  */
@@ -2276,7 +2339,6 @@ virCommandProcessIO(virCommandPtr cmd)
  * Returns -1 on any error executing the command.
  * Will not return on success.
  */
-#ifndef WIN32
 int virCommandExec(virCommandPtr cmd, gid_t *groups, int ngroups)
 {
     if (!cmd ||cmd->has_error == ENOMEM) {
@@ -2299,19 +2361,7 @@ int virCommandExec(virCommandPtr cmd, gid_t *groups, int ngroups)
                          cmd->args[0]);
     return -1;
 }
-#else
-int virCommandExec(virCommandPtr cmd G_GNUC_UNUSED, gid_t *groups G_GNUC_UNUSED,
-                   int ngroups G_GNUC_UNUSED)
-{
-    /* Mingw execve() has a broken signature. Disable this
-     * function until gnulib fixes the signature, since we
-     * don't really need this on Win32 anyway.
-     */
-    virReportSystemError(ENOSYS, "%s",
-                         _("Executing new processes is not supported on Win32 platform"));
-    return -1;
-}
-#endif
+
 
 /**
  * virCommandRun:
@@ -2456,7 +2506,7 @@ virCommandDoAsyncIOHelper(void *opaque)
 {
     virCommandPtr cmd = opaque;
     if (virCommandProcessIO(cmd) < 0) {
-        /* If something went wrong, save errno or -1*/
+        /* If something went wrong, save errno or -1 */
         cmd->has_error = errno ? errno : -1;
     }
 }
@@ -2508,15 +2558,13 @@ virCommandRunAsync(virCommandPtr cmd, pid_t *pid)
      * virCommandDoAsyncIO. */
     if (cmd->inbuf && cmd->infd == -1 &&
         (synchronous || cmd->flags & VIR_EXEC_ASYNC_IO)) {
-        if (pipe2(infd, O_CLOEXEC) < 0) {
-            virReportSystemError(errno, "%s",
-                                 _("unable to open pipe"));
+        if (virPipe(infd) < 0) {
             cmd->has_error = -1;
             return -1;
         }
         cmd->infd = infd[0];
         cmd->inpipe = infd[1];
-#if defined (F_SETFL)
+
         if (fcntl(cmd->inpipe, F_SETFL, O_NONBLOCK) < 0) {
             virReportSystemError(errno, "%s",
                                  _("fcntl failed to set O_NONBLOCK"));
@@ -2524,11 +2572,6 @@ virCommandRunAsync(virCommandPtr cmd, pid_t *pid)
             ret = -1;
             goto cleanup;
         }
-#else /* !defined(F_SETFL) */
-        cmd->has_error = ENOTSUP;
-        ret = -1;
-        goto cleanup;
-#endif
     } else if ((cmd->inbuf && cmd->infd == -1) ||
                (cmd->outbuf && cmd->outfdptr != &cmd->outfd) ||
                (cmd->errbuf && cmd->errfdptr != &cmd->errfd)) {
@@ -2608,8 +2651,9 @@ virCommandRunAsync(virCommandPtr cmd, pid_t *pid)
         /* clear any error so we can catch if the helper thread reports one */
         cmd->has_error = 0;
         if (VIR_ALLOC(cmd->asyncioThread) < 0 ||
-            virThreadCreate(cmd->asyncioThread, true,
-                            virCommandDoAsyncIOHelper, cmd) < 0) {
+            virThreadCreateFull(cmd->asyncioThread, true,
+                                virCommandDoAsyncIOHelper,
+                                "cmd-async-io", false, cmd) < 0) {
             virReportSystemError(errno, "%s",
                                  _("Unable to create thread "
                                    "to process command's IO"));
@@ -2719,7 +2763,6 @@ virCommandWait(virCommandPtr cmd, int *exitstatus)
 }
 
 
-#ifndef WIN32
 /**
  * virCommandAbort:
  * @cmd: command to abort
@@ -2738,15 +2781,6 @@ virCommandAbort(virCommandPtr cmd)
     cmd->pid = -1;
     cmd->reap = false;
 }
-#else /* WIN32 */
-void
-virCommandAbort(virCommandPtr cmd G_GNUC_UNUSED)
-{
-    /* Mingw lacks WNOHANG and kill().  But since we haven't ported
-     * virExec to mingw yet, there's no process to be killed,
-     * making this implementation trivially correct for now :)  */
-}
-#endif
 
 
 /**
@@ -2769,11 +2803,11 @@ void virCommandRequireHandshake(virCommandPtr cmd)
         return;
     }
 
-    if (pipe2(cmd->handshakeWait, O_CLOEXEC) < 0) {
+    if (virPipeQuiet(cmd->handshakeWait) < 0) {
         cmd->has_error = errno;
         return;
     }
-    if (pipe2(cmd->handshakeNotify, O_CLOEXEC) < 0) {
+    if (virPipeQuiet(cmd->handshakeNotify) < 0) {
         VIR_FORCE_CLOSE(cmd->handshakeWait[0]);
         VIR_FORCE_CLOSE(cmd->handshakeWait[1]);
         cmd->has_error = errno;
@@ -2891,6 +2925,92 @@ int virCommandHandshakeNotify(virCommandPtr cmd)
     VIR_FORCE_CLOSE(cmd->handshakeNotify[1]);
     return 0;
 }
+#else /* WIN32 */
+int
+virCommandSetSendBuffer(virCommandPtr cmd,
+                        int fd G_GNUC_UNUSED,
+                        unsigned char *buffer G_GNUC_UNUSED,
+                        size_t buflen G_GNUC_UNUSED)
+{
+    if (!cmd || cmd->has_error)
+        return -1;
+
+    cmd->has_error = ENOTSUP;
+
+    return -1;
+}
+
+
+int
+virCommandExec(virCommandPtr cmd G_GNUC_UNUSED, gid_t *groups G_GNUC_UNUSED,
+               int ngroups G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Executing new processes is not supported on Win32 platform"));
+    return -1;
+}
+
+
+int
+virCommandRun(virCommandPtr cmd G_GNUC_UNUSED, int *exitstatus G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Executing new processes is not supported on Win32 platform"));
+    return -1;
+}
+
+
+int
+virCommandRunAsync(virCommandPtr cmd G_GNUC_UNUSED, pid_t *pid G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Executing new processes is not supported on Win32 platform"));
+    return -1;
+}
+
+
+int
+virCommandWait(virCommandPtr cmd G_GNUC_UNUSED, int *exitstatus G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Executing new processes is not supported on Win32 platform"));
+    return -1;
+}
+
+
+void
+virCommandAbort(virCommandPtr cmd G_GNUC_UNUSED)
+{
+    /* Mingw lacks WNOHANG and kill().  But since we haven't ported
+     * virExec to mingw yet, there's no process to be killed,
+     * making this implementation trivially correct for now :)  */
+}
+
+
+void virCommandRequireHandshake(virCommandPtr cmd)
+{
+    if (!cmd || cmd->has_error)
+        return;
+
+    cmd->has_error = ENOSYS;
+}
+
+
+int virCommandHandshakeWait(virCommandPtr cmd G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Executing new processes is not supported on Win32 platform"));
+    return -1;
+}
+
+
+int virCommandHandshakeNotify(virCommandPtr cmd G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Executing new processes is not supported on Win32 platform"));
+    return -1;
+}
+#endif /* WIN32 */
 
 
 /**

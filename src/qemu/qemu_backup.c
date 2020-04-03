@@ -180,8 +180,7 @@ qemuBackupDiskPrepareOneBitmapsChain(virDomainMomentDefPtr *incremental,
     g_autoptr(virJSONValue) ret = NULL;
     size_t incridx = 0;
 
-    if (!(ret = virJSONValueNewArray()))
-        return NULL;
+    ret = virJSONValueNewArray();
 
     if (!(bitmap = qemuBlockNamedNodeDataGetBitmapByName(blockNamedNodeData,
                                                          backingChain,
@@ -322,7 +321,10 @@ qemuBackupDiskPrepareDataOne(virDomainObjPtr vm,
         return -1;
 
     if (incremental) {
-        dd->incrementalBitmap = g_strdup_printf("backup-%s", dd->domdisk->dst);
+        if (dd->backupdisk->exportbitmap)
+            dd->incrementalBitmap = g_strdup(dd->backupdisk->exportbitmap);
+        else
+            dd->incrementalBitmap = g_strdup_printf("backup-%s", dd->domdisk->dst);
 
         if (qemuBackupDiskPrepareOneBitmaps(dd, actions, incremental,
                                             blockNamedNodeData) < 0)
@@ -368,6 +370,10 @@ static int
 qemuBackupDiskPrepareDataOnePull(virJSONValuePtr actions,
                                  struct qemuBackupDiskData *dd)
 {
+    if (!dd->backupdisk->exportbitmap &&
+        dd->incrementalBitmap)
+        dd->backupdisk->exportbitmap = g_strdup(dd->incrementalBitmap);
+
     if (qemuMonitorTransactionBackup(actions,
                                      dd->domdisk->src->nodeformat,
                                      dd->blockjob->name,
@@ -463,8 +469,8 @@ qemuBackupDiskPrepareOneStorage(virDomainObjPtr vm,
         dd->created = true;
     }
 
-    if (qemuDomainStorageSourceAccessAllow(priv->driver, vm, dd->store, false,
-                                           true) < 0)
+    if (qemuDomainStorageSourceAccessAllow(priv->driver, vm, dd->store,
+                                           false, true, true) < 0)
         return -1;
 
     dd->labelled = true;
@@ -548,9 +554,12 @@ qemuBackupBeginPullExportDisks(virDomainObjPtr vm,
     for (i = 0; i < ndisks; i++) {
         struct qemuBackupDiskData *dd = disks + i;
 
+        if (!dd->backupdisk->exportname)
+            dd->backupdisk->exportname = g_strdup(dd->domdisk->dst);
+
         if (qemuMonitorNBDServerAdd(priv->mon,
                                     dd->store->nodeformat,
-                                    dd->domdisk->dst,
+                                    dd->backupdisk->exportname,
                                     false,
                                     dd->incrementalBitmap) < 0)
             return -1;
@@ -809,8 +818,7 @@ qemuBackupBegin(virDomainObjPtr vm,
         !(incremental = qemuBackupBeginCollectIncrementalCheckpoints(vm, def->incremental)))
         goto endjob;
 
-    if (!(actions = virJSONValueNewArray()))
-        goto endjob;
+    actions = virJSONValueNewArray();
 
     /* The 'chk' checkpoint must be rolled back if the transaction command
      * which creates it on disk is not executed or fails */
@@ -820,10 +828,7 @@ qemuBackupBegin(virDomainObjPtr vm,
             goto endjob;
     }
 
-    if (qemuDomainObjEnterMonitorAsync(priv->driver, vm, QEMU_ASYNC_JOB_BACKUP) < 0)
-        goto endjob;
-    blockNamedNodeData = qemuMonitorBlockGetNamedNodeData(priv->mon);
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || !blockNamedNodeData)
+    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_BACKUP)))
         goto endjob;
 
     if ((ndd = qemuBackupDiskPrepareData(vm, def, incremental, blockNamedNodeData,
@@ -889,7 +894,7 @@ qemuBackupBegin(virDomainObjPtr vm,
     qemuCheckpointRollbackMetadata(vm, chk);
 
     if (!job_started && nbd_running &&
-        qemuDomainObjEnterMonitorAsync(priv->driver, vm, QEMU_ASYNC_JOB_BACKUP) < 0) {
+        qemuDomainObjEnterMonitorAsync(priv->driver, vm, QEMU_ASYNC_JOB_BACKUP) == 0) {
         ignore_value(qemuMonitorNBDServerStop(priv->mon));
         ignore_value(qemuDomainObjExitMonitor(priv->driver, vm));
     }

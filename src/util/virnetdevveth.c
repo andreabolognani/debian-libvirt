@@ -19,8 +19,6 @@
 
 #include <config.h>
 
-#include <sys/wait.h>
-
 #include "virnetdevveth.h"
 #include "viralloc.h"
 #include "virlog.h"
@@ -28,7 +26,6 @@
 #include "virerror.h"
 #include "virfile.h"
 #include "virstring.h"
-#include "virutil.h"
 #include "virnetdev.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE

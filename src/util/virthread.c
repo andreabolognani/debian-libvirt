@@ -23,6 +23,10 @@
 
 #include "virthread.h"
 
+#ifdef __FreeBSD__
+# include <pthread_np.h>
+#endif
+
 #include <unistd.h>
 #include <inttypes.h>
 #if HAVE_SYS_SYSCALL_H
@@ -175,36 +179,70 @@ void virCondBroadcast(virCondPtr c)
 
 struct virThreadArgs {
     virThreadFunc func;
-    const char *funcName;
+    char *name;
     bool worker;
     void *opaque;
 };
+
+size_t virThreadMaxName(void)
+{
+#if defined(__FreeBSD__) || defined(__APPLE__)
+    return 63;
+#else
+# ifdef __linux__
+    return 15;
+# else
+    return 0; /* unlimited */
+# endif
+#endif
+}
 
 static void *virThreadHelper(void *data)
 {
     struct virThreadArgs *args = data;
     struct virThreadArgs local = *args;
+    g_autofree char *thname = NULL;
+    size_t maxname = virThreadMaxName();
 
     /* Free args early, rather than tying it up during the entire thread.  */
-    VIR_FREE(args);
+    g_free(args);
 
     if (local.worker)
-        virThreadJobSetWorker(local.funcName);
+        virThreadJobSetWorker(local.name);
     else
-        virThreadJobSet(local.funcName);
+        virThreadJobSet(local.name);
+
+    if (maxname) {
+        thname = g_strndup(local.name, maxname);
+    } else {
+        thname = g_strdup(local.name);
+    }
+
+#if defined(__linux__) || defined(WIN32)
+    pthread_setname_np(pthread_self(), thname);
+#else
+# ifdef __FreeBSD__
+    pthread_set_name_np(pthread_self(), thname);
+# else
+#  ifdef __APPLE__
+    pthread_setname_np(thname);
+#  endif
+# endif
+#endif
 
     local.func(local.opaque);
 
     if (!local.worker)
         virThreadJobClear(0);
 
+    g_free(local.name);
     return NULL;
 }
 
 int virThreadCreateFull(virThreadPtr thread,
                         bool joinable,
                         virThreadFunc func,
-                        const char *funcName,
+                        const char *name,
                         bool worker,
                         void *opaque)
 {
@@ -221,7 +259,7 @@ int virThreadCreateFull(virThreadPtr thread,
     }
 
     args->func = func;
-    args->funcName = funcName;
+    args->name = g_strdup(name);
     args->worker = worker;
     args->opaque = opaque;
 
@@ -230,7 +268,8 @@ int virThreadCreateFull(virThreadPtr thread,
 
     err = pthread_create(&thread->thread, &attr, virThreadHelper, args);
     if (err != 0) {
-        VIR_FREE(args);
+        g_free(args->name);
+        g_free(args);
         goto cleanup;
     }
     /* New thread owns 'args' in success case, so don't free */

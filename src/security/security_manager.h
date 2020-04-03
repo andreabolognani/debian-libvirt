@@ -151,6 +151,10 @@ virSecurityManagerPtr* virSecurityManagerGetNested(virSecurityManagerPtr mgr);
 
 typedef enum {
     VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN = 1 << 0,
+    /* The VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP should be set if the
+     * image passed to virSecurityManagerSetImageLabel() is the top parent of
+     * the whole backing chain. */
+    VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP = 1 << 1,
 } virSecurityDomainImageLabelFlags;
 
 int virSecurityManagerSetImageLabel(virSecurityManagerPtr mgr,
@@ -203,6 +207,12 @@ int virSecurityManagerRestoreTPMLabels(virSecurityManagerPtr mgr,
 
 typedef struct _virSecurityManagerMetadataLockState virSecurityManagerMetadataLockState;
 typedef virSecurityManagerMetadataLockState *virSecurityManagerMetadataLockStatePtr;
+struct _virSecurityManagerMetadataLockState {
+    size_t nfds; /* Captures size of both @fds and @paths */
+    int *fds;
+    const char **paths;
+};
+
 
 virSecurityManagerMetadataLockStatePtr
 virSecurityManagerMetadataLock(virSecurityManagerPtr mgr,

@@ -19,6 +19,8 @@
 
 #include <config.h>
 
+#include <unistd.h>
+
 #include "testutils.h"
 
 #include "virerror.h"
@@ -864,7 +866,7 @@ mymain(void)
         ret = EXIT_FAILURE;
 
     /* Network event tests */
-    /* Tests requiring the test network not to be set up*/
+    /* Tests requiring the test network not to be set up */
     if (virTestRun("Network createXML start event ", testNetworkCreateXML, &test) < 0)
         ret = EXIT_FAILURE;
     if (virTestRun("Network (un)define events", testNetworkDefine, &test) < 0)

@@ -30,6 +30,7 @@
 #include "viralloc.h"
 #include "virerror.h"
 #include "domain_audit.h"
+#include "domain_cgroup.h"
 #include "virscsi.h"
 #include "virstring.h"
 #include "virfile.h"
@@ -37,6 +38,7 @@
 #include "virnuma.h"
 #include "virsystemd.h"
 #include "virdevmapper.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -591,7 +593,6 @@ static int
 qemuSetupBlkioCgroup(virDomainObjPtr vm)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    size_t i;
 
     if (!virCgroupHasController(priv->cgroup,
                                 VIR_CGROUP_CONTROLLER_BLKIO)) {
@@ -604,51 +605,7 @@ qemuSetupBlkioCgroup(virDomainObjPtr vm)
         }
     }
 
-    if (vm->def->blkio.weight != 0 &&
-        virCgroupSetBlkioWeight(priv->cgroup, vm->def->blkio.weight) < 0)
-        return -1;
-
-    if (vm->def->blkio.ndevices) {
-        for (i = 0; i < vm->def->blkio.ndevices; i++) {
-            virBlkioDevicePtr dev = &vm->def->blkio.devices[i];
-            if (dev->weight &&
-                (virCgroupSetBlkioDeviceWeight(priv->cgroup, dev->path,
-                                               dev->weight) < 0 ||
-                 virCgroupGetBlkioDeviceWeight(priv->cgroup, dev->path,
-                                               &dev->weight) < 0))
-                return -1;
-
-            if (dev->riops &&
-                (virCgroupSetBlkioDeviceReadIops(priv->cgroup, dev->path,
-                                                 dev->riops) < 0 ||
-                 virCgroupGetBlkioDeviceReadIops(priv->cgroup, dev->path,
-                                                 &dev->riops) < 0))
-                return -1;
-
-            if (dev->wiops &&
-                (virCgroupSetBlkioDeviceWriteIops(priv->cgroup, dev->path,
-                                                  dev->wiops) < 0 ||
-                 virCgroupGetBlkioDeviceWriteIops(priv->cgroup, dev->path,
-                                                  &dev->wiops) < 0))
-                return -1;
-
-            if (dev->rbps &&
-                (virCgroupSetBlkioDeviceReadBps(priv->cgroup, dev->path,
-                                                dev->rbps) < 0 ||
-                 virCgroupGetBlkioDeviceReadBps(priv->cgroup, dev->path,
-                                                &dev->rbps) < 0))
-                return -1;
-
-            if (dev->wbps &&
-                (virCgroupSetBlkioDeviceWriteBps(priv->cgroup, dev->path,
-                                                 dev->wbps) < 0 ||
-                 virCgroupGetBlkioDeviceWriteBps(priv->cgroup, dev->path,
-                                                 &dev->wbps) < 0))
-                return -1;
-        }
-    }
-
-    return 0;
+    return virDomainCgroupSetupBlkio(priv->cgroup, vm->def->blkio);
 }
 
 
@@ -669,19 +626,7 @@ qemuSetupMemoryCgroup(virDomainObjPtr vm)
         }
     }
 
-    if (virMemoryLimitIsSet(vm->def->mem.hard_limit))
-        if (virCgroupSetMemoryHardLimit(priv->cgroup, vm->def->mem.hard_limit) < 0)
-            return -1;
-
-    if (virMemoryLimitIsSet(vm->def->mem.soft_limit))
-        if (virCgroupSetMemorySoftLimit(priv->cgroup, vm->def->mem.soft_limit) < 0)
-            return -1;
-
-    if (virMemoryLimitIsSet(vm->def->mem.swap_hard_limit))
-        if (virCgroupSetMemSwapHardLimit(priv->cgroup, vm->def->mem.swap_hard_limit) < 0)
-            return -1;
-
-    return 0;
+    return virDomainCgroupSetupMemtune(priv->cgroup, vm->def->mem);
 }
 
 
@@ -950,11 +895,10 @@ qemuSetupCpuCgroup(virDomainObjPtr vm)
 
     if (vm->def->cputune.sharesSpecified) {
         unsigned long long val;
-        if (virCgroupSetCpuShares(priv->cgroup, vm->def->cputune.shares) < 0)
+        if (virCgroupSetupCpuShares(priv->cgroup, vm->def->cputune.shares,
+                                    &val) < 0)
             return -1;
 
-        if (virCgroupGetCpuShares(priv->cgroup, &val) < 0)
-            return -1;
         if (vm->def->cputune.shares != val) {
             vm->def->cputune.shares = val;
             if (virTypedParamsAddULLong(&eventParams, &eventNparams,
@@ -1184,36 +1128,7 @@ qemuSetupCgroupVcpuBW(virCgroupPtr cgroup,
                       unsigned long long period,
                       long long quota)
 {
-    unsigned long long old_period;
-
-    if (period == 0 && quota == 0)
-        return 0;
-
-    if (period) {
-        /* get old period, and we can rollback if set quota failed */
-        if (virCgroupGetCpuCfsPeriod(cgroup, &old_period) < 0)
-            return -1;
-
-        if (virCgroupSetCpuCfsPeriod(cgroup, period) < 0)
-            return -1;
-    }
-
-    if (quota &&
-        virCgroupSetCpuCfsQuota(cgroup, quota) < 0)
-        goto error;
-
-    return 0;
-
- error:
-    if (period) {
-        virErrorPtr saved;
-
-        virErrorPreserveLast(&saved);
-        ignore_value(virCgroupSetCpuCfsPeriod(cgroup, old_period));
-        virErrorRestore(&saved);
-    }
-
-    return -1;
+    return virCgroupSetupCpuPeriodQuota(cgroup, period, quota);
 }
 
 
@@ -1221,19 +1136,7 @@ int
 qemuSetupCgroupCpusetCpus(virCgroupPtr cgroup,
                           virBitmapPtr cpumask)
 {
-    int ret = -1;
-    char *new_cpus = NULL;
-
-    if (!(new_cpus = virBitmapFormat(cpumask)))
-        goto cleanup;
-
-    if (virCgroupSetCpusetCpus(cgroup, new_cpus) < 0)
-        goto cleanup;
-
-    ret = 0;
- cleanup:
-    VIR_FREE(new_cpus);
-    return ret;
+    return virCgroupSetupCpusetCpus(cgroup, cpumask);
 }
 
 
@@ -1262,7 +1165,7 @@ qemuSetupCgroupForExtDevices(virDomainObjPtr vm,
                            false, &cgroup_temp) < 0)
         goto cleanup;
 
-    ret = qemuExtDevicesSetupCgroup(driver, vm->def, cgroup_temp);
+    ret = qemuExtDevicesSetupCgroup(driver, vm, cgroup_temp);
 
  cleanup:
     virCgroupFree(&cgroup_temp);

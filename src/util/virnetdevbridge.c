@@ -21,17 +21,15 @@
 #include "virnetdevbridge.h"
 #include "virnetdev.h"
 #include "virerror.h"
-#include "virutil.h"
 #include "virfile.h"
 #include "viralloc.h"
 #include "virlog.h"
-#include "intprops.h"
 #include "virstring.h"
+#include "virsocket.h"
 
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <net/if.h>
-#include <netinet/in.h>
+#ifdef HAVE_NET_IF
+# include <net/if.h>
+#endif
 
 #ifdef __linux__
 # if defined(HAVE_LIBNL)
@@ -125,8 +123,7 @@ static int virNetDevBridgeSet(const char *brname,
     path = g_strdup_printf(SYSFS_NET_DIR "%s/bridge/%s", brname, paramname);
 
     if (virFileExists(path)) {
-        char valuestr[INT_BUFSIZE_BOUND(value)];
-        g_snprintf(valuestr, sizeof(valuestr), "%lu", value);
+        g_autofree char *valuestr = g_strdup_printf("%lu", value);
         if (virFileWriteStr(path, valuestr, 0) >= 0)
             return 0;
         VIR_DEBUG("Unable to set bridge %s %s via sysfs", brname, paramname);
@@ -169,7 +166,7 @@ static int virNetDevBridgeGet(const char *brname,
     if (virFileExists(path)) {
         g_autofree char *valuestr = NULL;
 
-        if (virFileReadAll(path, INT_BUFSIZE_BOUND(unsigned long),
+        if (virFileReadAll(path, VIR_INT64_STR_BUFLEN,
                            &valuestr) < 0)
             return -1;
 
@@ -215,7 +212,7 @@ virNetDevBridgePortSet(const char *brname,
                        const char *paramname,
                        unsigned long value)
 {
-    char valuestr[INT_BUFSIZE_BOUND(value)];
+    char valuestr[VIR_INT64_STR_BUFLEN];
     int ret = -1;
     g_autofree char *path = NULL;
 
@@ -251,7 +248,7 @@ virNetDevBridgePortGet(const char *brname,
     path = g_strdup_printf(SYSFS_NET_DIR "%s/brif/%s/%s", brname, ifname,
                            paramname);
 
-    if (virFileReadAll(path, INT_BUFSIZE_BOUND(unsigned long), &valuestr) < 0)
+    if (virFileReadAll(path, VIR_INT64_STR_BUFLEN, &valuestr) < 0)
         return -1;
 
     if (virStrToLong_ul(valuestr, NULL, 10, value) < 0) {
@@ -313,6 +310,30 @@ virNetDevBridgePortSetUnicastFlood(const char *brname,
 }
 
 
+int
+virNetDevBridgePortGetIsolated(const char *brname,
+                               const char *ifname,
+                               bool *enable)
+{
+    unsigned long value;
+
+    if (virNetDevBridgePortGet(brname, ifname, "isolated", &value) < 0)
+       return -1;
+
+    *enable = !!value;
+    return 0;
+}
+
+
+int
+virNetDevBridgePortSetIsolated(const char *brname,
+                               const char *ifname,
+                               bool enable)
+{
+    return virNetDevBridgePortSet(brname, ifname, "isolated", enable ? 1 : 0);
+}
+
+
 #else
 int
 virNetDevBridgePortGetLearning(const char *brname G_GNUC_UNUSED,
@@ -354,6 +375,28 @@ virNetDevBridgePortSetUnicastFlood(const char *brname G_GNUC_UNUSED,
 {
     virReportSystemError(ENOSYS, "%s",
                          _("Unable to set bridge port unicast_flood on this platform"));
+    return -1;
+}
+
+
+int
+virNetDevBridgePortGetIsolated(const char *brname G_GNUC_UNUSED,
+                               const char *ifname G_GNUC_UNUSED,
+                               bool *enable G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Unable to get bridge port isolated on this platform"));
+    return -1;
+}
+
+
+int
+virNetDevBridgePortSetIsolated(const char *brname G_GNUC_UNUSED,
+                               const char *ifname G_GNUC_UNUSED,
+                               bool enable G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Unable to set bridge port isolated on this platform"));
     return -1;
 }
 #endif

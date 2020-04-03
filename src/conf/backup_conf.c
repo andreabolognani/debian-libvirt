@@ -71,6 +71,8 @@ virDomainBackupDefFree(virDomainBackupDefPtr def)
         virDomainBackupDiskDefPtr disk = def->disks + i;
 
         g_free(disk->name);
+        g_free(disk->exportname);
+        g_free(disk->exportbitmap);
         virObjectUnref(disk->store);
     }
 
@@ -123,6 +125,11 @@ virDomainBackupDiskDefParseXML(xmlNodePtr node,
     /* don't parse anything else if backup is disabled */
     if (def->backup == VIR_TRISTATE_BOOL_NO)
         return 0;
+
+    if (!push) {
+        def->exportname = virXMLPropString(node, "exportname");
+        def->exportbitmap = virXMLPropString(node, "exportbitmap");
+    }
 
     if (internal) {
         if (!(state = virXMLPropString(node, "state")) ||
@@ -333,6 +340,9 @@ virDomainBackupDiskDefFormat(virBufferPtr buf,
     if (disk->backup == VIR_TRISTATE_BOOL_YES) {
         virBufferAsprintf(&attrBuf, " type='%s'", virStorageTypeToString(disk->store->type));
 
+        virBufferEscapeString(&attrBuf, " exportname='%s'", disk->exportname);
+        virBufferEscapeString(&attrBuf, " exportbitmap='%s'", disk->exportbitmap);
+
         if (disk->store->format > 0)
             virBufferEscapeString(&childBuf, "<driver type='%s'/>\n",
                                   virStorageFileFormatTypeToString(disk->store->format));
@@ -429,14 +439,10 @@ virDomainBackupAlignDisks(virDomainBackupDefPtr def,
                           virDomainDefPtr dom,
                           const char *suffix)
 {
-    g_autoptr(virHashTable) disks = NULL;
+    g_autoptr(virHashTable) disks = virHashNew(NULL);
     size_t i;
     int ndisks;
     bool backup_all = false;
-
-
-    if (!(disks = virHashNew(NULL)))
-        return -1;
 
     /* Unlikely to have a guest without disks but technically possible.  */
     if (!dom->ndisks) {

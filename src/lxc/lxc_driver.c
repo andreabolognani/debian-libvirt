@@ -25,16 +25,11 @@
 #include <sched.h>
 #include <sys/utsname.h>
 
-#ifdef MAJOR_IN_MKDEV
-# include <sys/mkdev.h>
-#elif MAJOR_IN_SYSMACROS
+#ifdef __linux__
 # include <sys/sysmacros.h>
 #endif
 
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/un.h>
 #include <sys/poll.h>
 #include <unistd.h>
 #include <wait.h>
@@ -61,6 +56,8 @@
 #include "virpidfile.h"
 #include "virfdstream.h"
 #include "domain_audit.h"
+#include "domain_cgroup.h"
+#include "domain_driver.h"
 #include "domain_nwfilter.h"
 #include "virinitctl.h"
 #include "virnetdev.h"
@@ -75,6 +72,8 @@
 #include "viraccessapichecklxc.h"
 #include "virhostdev.h"
 #include "netdev_bandwidth_conf.h"
+#include "virsocket.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -85,6 +84,7 @@ VIR_LOG_INIT("lxc.lxc_driver");
 
 
 static int lxcStateInitialize(bool privileged,
+                              const char *root,
                               virStateInhibitCallback callback,
                               void *opaque);
 static int lxcStateCleanup(void);
@@ -750,13 +750,6 @@ lxcDomainSetMemoryParameters(virDomainPtr dom,
     virLXCDomainObjPrivatePtr priv = NULL;
     virLXCDriverConfigPtr cfg = NULL;
     virLXCDriverPtr driver = dom->conn->privateData;
-    unsigned long long hard_limit;
-    unsigned long long soft_limit;
-    unsigned long long swap_hard_limit;
-    bool set_hard_limit = false;
-    bool set_soft_limit = false;
-    bool set_swap_hard_limit = false;
-    int rc;
     int ret = -1;
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
@@ -795,66 +788,10 @@ lxcDomainSetMemoryParameters(virDomainPtr dom,
         goto endjob;
     }
 
-#define VIR_GET_LIMIT_PARAMETER(PARAM, VALUE) \
-    if ((rc = virTypedParamsGetULLong(params, nparams, PARAM, &VALUE)) < 0) \
-        goto endjob; \
- \
-    if (rc == 1) \
-        set_ ## VALUE = true;
-
-    VIR_GET_LIMIT_PARAMETER(VIR_DOMAIN_MEMORY_SWAP_HARD_LIMIT, swap_hard_limit)
-    VIR_GET_LIMIT_PARAMETER(VIR_DOMAIN_MEMORY_HARD_LIMIT, hard_limit)
-    VIR_GET_LIMIT_PARAMETER(VIR_DOMAIN_MEMORY_SOFT_LIMIT, soft_limit)
-
-#undef VIR_GET_LIMIT_PARAMETER
-
-    /* Swap hard limit must be greater than hard limit. */
-    if (set_swap_hard_limit || set_hard_limit) {
-        unsigned long long mem_limit = vm->def->mem.hard_limit;
-        unsigned long long swap_limit = vm->def->mem.swap_hard_limit;
-
-        if (set_swap_hard_limit)
-            swap_limit = swap_hard_limit;
-
-        if (set_hard_limit)
-            mem_limit = hard_limit;
-
-        if (mem_limit > swap_limit) {
-            virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("memory hard_limit tunable value must be lower "
-                             "than or equal to swap_hard_limit"));
-            goto endjob;
-        }
-    }
-
-#define VIR_SET_MEM_PARAMETER(FUNC, VALUE) \
-    if (set_ ## VALUE) { \
-        if (def) { \
-            if ((rc = FUNC(priv->cgroup, VALUE)) < 0) \
-                goto endjob; \
-            def->mem.VALUE = VALUE; \
-        } \
- \
-        if (persistentDef) \
-            persistentDef->mem.VALUE = VALUE; \
-    }
-
-    /* Soft limit doesn't clash with the others */
-    VIR_SET_MEM_PARAMETER(virCgroupSetMemorySoftLimit, soft_limit);
-
-    /* set hard limit before swap hard limit if decreasing it */
-    if (def && def->mem.hard_limit > hard_limit) {
-        VIR_SET_MEM_PARAMETER(virCgroupSetMemoryHardLimit, hard_limit);
-        /* inhibit changing the limit a second time */
-        set_hard_limit = false;
-    }
-
-    VIR_SET_MEM_PARAMETER(virCgroupSetMemSwapHardLimit, swap_hard_limit);
-
-    /* otherwise increase it after swap hard limit */
-    VIR_SET_MEM_PARAMETER(virCgroupSetMemoryHardLimit, hard_limit);
-
-#undef VIR_SET_MEM_PARAMETER
+    if (virDomainCgroupSetMemoryLimitParameters(priv->cgroup, vm, def,
+                                                persistentDef,
+                                                params, nparams) < 0)
+        goto endjob;
 
     if (def &&
         virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
@@ -1526,11 +1463,18 @@ lxcSecurityInit(virLXCDriverConfigPtr cfg)
 
 
 static int lxcStateInitialize(bool privileged,
+                              const char *root,
                               virStateInhibitCallback callback G_GNUC_UNUSED,
                               void *opaque G_GNUC_UNUSED)
 {
     virLXCDriverConfigPtr cfg = NULL;
     bool autostart = true;
+
+    if (root != NULL) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Driver does not support embedded mode"));
+        return -1;
+    }
 
     /* Check that the user is root, silently disable if not */
     if (!privileged) {
@@ -1740,6 +1684,49 @@ static int lxcConnectGetVersion(virConnectPtr conn, unsigned long *version)
 }
 
 
+static int
+lxcDomainInterfaceAddresses(virDomainPtr dom,
+                            virDomainInterfacePtr **ifaces,
+                            unsigned int source,
+                            unsigned int flags)
+{
+    virDomainObjPtr vm = NULL;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = lxcDomObjFromDomain(dom)))
+        goto cleanup;
+
+    if (virDomainInterfaceAddressesEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto cleanup;
+
+    switch (source) {
+    case VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE:
+        ret = virDomainNetDHCPInterfaces(vm->def, ifaces);
+        break;
+
+    case VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_ARP:
+        ret = virDomainNetARPInterfaces(vm->def, ifaces);
+        break;
+
+    default:
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
+                       _("Unknown IP address data source %d"),
+                       source);
+        break;
+    }
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+
+
 static char *lxcConnectGetHostname(virConnectPtr conn)
 {
     if (virConnectGetHostnameEnsureACL(conn) < 0)
@@ -1797,50 +1784,14 @@ static int
 lxcGetVcpuBWLive(virCgroupPtr cgroup, unsigned long long *period,
                  long long *quota)
 {
-    if (virCgroupGetCpuCfsPeriod(cgroup, period) < 0)
-        return -1;
-
-    if (virCgroupGetCpuCfsQuota(cgroup, quota) < 0)
-        return -1;
-
-    return 0;
+    return virCgroupGetCpuPeriodQuota(cgroup, period, quota);
 }
 
 
 static int lxcSetVcpuBWLive(virCgroupPtr cgroup, unsigned long long period,
                             long long quota)
 {
-    unsigned long long old_period;
-
-    if (period == 0 && quota == 0)
-        return 0;
-
-    if (period) {
-        /* get old period, and we can rollback if set quota failed */
-        if (virCgroupGetCpuCfsPeriod(cgroup, &old_period) < 0)
-            return -1;
-
-        if (virCgroupSetCpuCfsPeriod(cgroup, period) < 0)
-            return -1;
-    }
-
-    if (quota) {
-        if (virCgroupSetCpuCfsQuota(cgroup, quota) < 0)
-            goto error;
-    }
-
-    return 0;
-
- error:
-    if (period) {
-        virErrorPtr saved;
-
-        virErrorPreserveLast(&saved);
-        virCgroupSetCpuCfsPeriod(cgroup, old_period);
-        virErrorRestore(&saved);
-    }
-
-    return -1;
+    return virCgroupSetupCpuPeriodQuota(cgroup, period, quota);
 }
 
 
@@ -1912,10 +1863,8 @@ lxcDomainSetSchedulerParametersFlags(virDomainPtr dom,
         if (STREQ(param->field, VIR_DOMAIN_SCHEDULER_CPU_SHARES)) {
             if (def) {
                 unsigned long long val;
-                if (virCgroupSetCpuShares(priv->cgroup, params[i].value.ul) < 0)
-                    goto endjob;
-
-                if (virCgroupGetCpuShares(priv->cgroup, &val) < 0)
+                if (virCgroupSetupCpuShares(priv->cgroup, params[i].value.ul,
+                                            &val) < 0)
                     goto endjob;
 
                 def->cputune.shares = val;
@@ -2090,181 +2039,6 @@ lxcDomainGetSchedulerParameters(virDomainPtr domain,
                                 int *nparams)
 {
     return lxcDomainGetSchedulerParametersFlags(domain, params, nparams, 0);
-}
-
-static int
-lxcDomainParseBlkioDeviceStr(char *blkioDeviceStr, const char *type,
-                             virBlkioDevicePtr *dev, size_t *size)
-{
-    char *temp;
-    int ndevices = 0;
-    int nsep = 0;
-    size_t i;
-    virBlkioDevicePtr result = NULL;
-
-    *dev = NULL;
-    *size = 0;
-
-    if (STREQ(blkioDeviceStr, ""))
-        return 0;
-
-    temp = blkioDeviceStr;
-    while (temp) {
-        temp = strchr(temp, ',');
-        if (temp) {
-            temp++;
-            nsep++;
-        }
-    }
-
-    /* A valid string must have even number of fields, hence an odd
-     * number of commas.  */
-    if (!(nsep & 1))
-        goto parse_error;
-
-    ndevices = (nsep + 1) / 2;
-
-    if (VIR_ALLOC_N(result, ndevices) < 0)
-        return -1;
-
-    i = 0;
-    temp = blkioDeviceStr;
-    while (temp) {
-        char *p = temp;
-
-        /* device path */
-        p = strchr(p, ',');
-        if (!p)
-            goto parse_error;
-
-        result[i].path = g_strndup(temp, p - temp);
-
-        /* value */
-        temp = p + 1;
-
-        if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT)) {
-            if (virStrToLong_uip(temp, &p, 10, &result[i].weight) < 0)
-                goto number_error;
-        } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS)) {
-            if (virStrToLong_uip(temp, &p, 10, &result[i].riops) < 0)
-                goto number_error;
-        } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS)) {
-            if (virStrToLong_uip(temp, &p, 10, &result[i].wiops) < 0)
-                goto number_error;
-        } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS)) {
-            if (virStrToLong_ullp(temp, &p, 10, &result[i].rbps) < 0)
-                goto number_error;
-        } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-            if (virStrToLong_ullp(temp, &p, 10, &result[i].wbps) < 0)
-                goto number_error;
-        } else {
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("unknown parameter '%s'"), type);
-            goto cleanup;
-        }
-
-        i++;
-
-        if (*p == '\0')
-            break;
-        else if (*p != ',')
-            goto parse_error;
-        temp = p + 1;
-    }
-
-    if (!i)
-        VIR_FREE(result);
-
-    *dev = result;
-    *size = i;
-
-    return 0;
-
- parse_error:
-    virReportError(VIR_ERR_INVALID_ARG,
-                   _("unable to parse blkio device '%s' '%s'"),
-                   type, blkioDeviceStr);
-    goto cleanup;
-
- number_error:
-    virReportError(VIR_ERR_INVALID_ARG,
-                   _("invalid value '%s' for parameter '%s' of device '%s'"),
-                   temp, type, result[i].path);
-
- cleanup:
-    if (result) {
-        virBlkioDeviceArrayClear(result, ndevices);
-        VIR_FREE(result);
-    }
-    return -1;
-}
-
-static int
-lxcDomainMergeBlkioDevice(virBlkioDevicePtr *dest_array,
-                          size_t *dest_size,
-                          virBlkioDevicePtr src_array,
-                          size_t src_size,
-                          const char *type)
-{
-    size_t i, j;
-    virBlkioDevicePtr dest, src;
-
-    for (i = 0; i < src_size; i++) {
-        bool found = false;
-
-        src = &src_array[i];
-        for (j = 0; j < *dest_size; j++) {
-            dest = &(*dest_array)[j];
-            if (STREQ(src->path, dest->path)) {
-                found = true;
-
-                if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT)) {
-                    dest->weight = src->weight;
-                } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS)) {
-                    dest->riops = src->riops;
-                } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS)) {
-                    dest->wiops = src->wiops;
-                } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS)) {
-                    dest->rbps = src->rbps;
-                } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-                    dest->wbps = src->wbps;
-                } else {
-                    virReportError(VIR_ERR_INVALID_ARG, _("Unknown parameter %s"),
-                                   type);
-                    return -1;
-                }
-
-                break;
-            }
-        }
-        if (!found) {
-            if (!src->weight && !src->riops && !src->wiops && !src->rbps && !src->wbps)
-                continue;
-            if (VIR_EXPAND_N(*dest_array, *dest_size, 1) < 0)
-                return -1;
-            dest = &(*dest_array)[*dest_size - 1];
-
-            if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT)) {
-                dest->weight = src->weight;
-            } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS)) {
-                dest->riops = src->riops;
-            } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS)) {
-                dest->wiops = src->wiops;
-            } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS)) {
-                dest->rbps = src->rbps;
-            } else if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-                dest->wbps = src->wbps;
-            } else {
-                *dest_size = *dest_size - 1;
-                return -1;
-            }
-
-            dest->path = src->path;
-            src->path = NULL;
-        }
-    }
-
-    return 0;
 }
 
 
@@ -2472,7 +2246,6 @@ lxcDomainSetBlkioParameters(virDomainPtr dom,
                             unsigned int flags)
 {
     virLXCDriverPtr driver = dom->conn->privateData;
-    size_t i;
     virDomainObjPtr vm = NULL;
     virDomainDefPtr def = NULL;
     virDomainDefPtr persistentDef = NULL;
@@ -2523,140 +2296,15 @@ lxcDomainSetBlkioParameters(virDomainPtr dom,
 
     ret = 0;
     if (def) {
-        for (i = 0; i < nparams; i++) {
-            virTypedParameterPtr param = &params[i];
-
-            if (STREQ(param->field, VIR_DOMAIN_BLKIO_WEIGHT)) {
-                if (virCgroupSetBlkioWeight(priv->cgroup, params[i].value.ui) < 0)
-                    ret = -1;
-            } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-                size_t ndevices;
-                virBlkioDevicePtr devices = NULL;
-                size_t j;
-
-                if (lxcDomainParseBlkioDeviceStr(params[i].value.s,
-                                                 param->field,
-                                                 &devices,
-                                                 &ndevices) < 0) {
-                    ret = -1;
-                    continue;
-                }
-
-                if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT)) {
-                    for (j = 0; j < ndevices; j++) {
-                        if (virCgroupSetBlkioDeviceWeight(priv->cgroup,
-                                                          devices[j].path,
-                                                          devices[j].weight) < 0 ||
-                            virCgroupGetBlkioDeviceWeight(priv->cgroup,
-                                                          devices[j].path,
-                                                          &devices[j].weight) < 0) {
-                            ret = -1;
-                            break;
-                        }
-                    }
-                } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS)) {
-                    for (j = 0; j < ndevices; j++) {
-                        if (virCgroupSetBlkioDeviceReadIops(priv->cgroup,
-                                                            devices[j].path,
-                                                            devices[j].riops) < 0 ||
-                            virCgroupGetBlkioDeviceReadIops(priv->cgroup,
-                                                            devices[j].path,
-                                                            &devices[j].riops) < 0) {
-                            ret = -1;
-                            break;
-                        }
-                    }
-                } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS)) {
-                    for (j = 0; j < ndevices; j++) {
-                        if (virCgroupSetBlkioDeviceWriteIops(priv->cgroup,
-                                                             devices[j].path,
-                                                             devices[j].wiops) < 0 ||
-                            virCgroupGetBlkioDeviceWriteIops(priv->cgroup,
-                                                             devices[j].path,
-                                                             &devices[j].wiops) < 0) {
-                            ret = -1;
-                            break;
-                        }
-                    }
-                } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS)) {
-                    for (j = 0; j < ndevices; j++) {
-                        if (virCgroupSetBlkioDeviceReadBps(priv->cgroup,
-                                                           devices[j].path,
-                                                           devices[j].rbps) < 0 ||
-                            virCgroupGetBlkioDeviceReadBps(priv->cgroup,
-                                                           devices[j].path,
-                                                           &devices[j].rbps) < 0) {
-                            ret = -1;
-                            break;
-                        }
-                    }
-                } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-                    for (j = 0; j < ndevices; j++) {
-                        if (virCgroupSetBlkioDeviceWriteBps(priv->cgroup,
-                                                            devices[j].path,
-                                                            devices[j].wbps) < 0 ||
-                            virCgroupGetBlkioDeviceWriteBps(priv->cgroup,
-                                                            devices[j].path,
-                                                            &devices[j].wbps) < 0) {
-                            ret = -1;
-                            break;
-                        }
-                    }
-                } else {
-                    virReportError(VIR_ERR_INVALID_ARG, _("Unknown blkio parameter %s"),
-                                   param->field);
-                    ret = -1;
-                    virBlkioDeviceArrayClear(devices, ndevices);
-                    VIR_FREE(devices);
-
-                    continue;
-                }
-
-                if (j != ndevices ||
-                    lxcDomainMergeBlkioDevice(&def->blkio.devices,
-                                              &def->blkio.ndevices,
-                                              devices, ndevices, param->field) < 0)
-                    ret = -1;
-                virBlkioDeviceArrayClear(devices, ndevices);
-                VIR_FREE(devices);
-            }
-        }
+        ret = virDomainCgroupSetupDomainBlkioParameters(priv->cgroup, def,
+                                                        params, nparams);
     }
     if (ret < 0)
         goto endjob;
     if (persistentDef) {
-        for (i = 0; i < nparams; i++) {
-            virTypedParameterPtr param = &params[i];
-
-            if (STREQ(param->field, VIR_DOMAIN_BLKIO_WEIGHT)) {
-                persistentDef->blkio.weight = params[i].value.ui;
-            } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS) ||
-                       STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-                virBlkioDevicePtr devices = NULL;
-                size_t ndevices;
-
-                if (lxcDomainParseBlkioDeviceStr(params[i].value.s,
-                                                 param->field,
-                                                 &devices,
-                                                 &ndevices) < 0) {
-                    ret = -1;
-                    continue;
-                }
-                if (lxcDomainMergeBlkioDevice(&persistentDef->blkio.devices,
-                                              &persistentDef->blkio.ndevices,
-                                              devices, ndevices, param->field) < 0)
-                    ret = -1;
-                virBlkioDeviceArrayClear(devices, ndevices);
-                VIR_FREE(devices);
-            }
-        }
+        ret = virDomainDriverSetupPersistentDefBlkioParams(persistentDef,
+                                                           params,
+                                                           nparams);
 
         if (virDomainDefSave(persistentDef, driver->xmlopt, cfg->configDir) < 0)
             ret = -1;
@@ -3873,7 +3521,7 @@ lxcDomainAttachDeviceNetLive(virLXCDriverPtr driver,
     /* Set bandwidth or warn if requested and not supported. */
     actualBandwidth = virDomainNetGetActualBandwidth(net);
     if (actualBandwidth) {
-        if (virNetDevSupportBandwidth(actualType)) {
+        if (virNetDevSupportsBandwidth(actualType)) {
             if (virNetDevBandwidthSet(net->ifname, actualBandwidth, false,
                                       !virDomainNetTypeSharesHostView(net)) < 0)
                 goto cleanup;
@@ -4330,7 +3978,7 @@ lxcDomainDetachDeviceNetLive(virDomainObjPtr vm,
 
     /* clear network bandwidth */
     if (virDomainNetGetActualBandwidth(detach) &&
-        virNetDevSupportBandwidth(actualType) &&
+        virNetDevSupportsBandwidth(actualType) &&
         virNetDevBandwidthClear(detach->ifname))
         goto cleanup;
 
@@ -5291,6 +4939,84 @@ lxcDomainGetCPUStats(virDomainPtr dom,
 }
 
 
+static char *
+lxcDomainGetHostname(virDomainPtr dom,
+                     unsigned int flags)
+{
+    virLXCDriverPtr driver = dom->conn->privateData;
+    virDomainObjPtr vm = NULL;
+    char macaddr[VIR_MAC_STRING_BUFLEN];
+    g_autoptr(virConnect) conn = NULL;
+    virNetworkDHCPLeasePtr *leases = NULL;
+    int n_leases;
+    size_t i, j;
+    char *hostname = NULL;
+
+    virCheckFlags(VIR_DOMAIN_GET_HOSTNAME_LEASE, NULL);
+
+    if (!(vm = lxcDomObjFromDomain(dom)))
+        return NULL;
+
+    if (virDomainGetHostnameEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virLXCDomainObjBeginJob(driver, vm, LXC_JOB_QUERY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (!(conn = virGetConnectNetwork()))
+        goto endjob;
+
+    for (i = 0; i < vm->def->nnets; i++) {
+        g_autoptr(virNetwork) network = NULL;
+        virDomainNetDefPtr net = vm->def->nets[i];
+
+        if (net->type != VIR_DOMAIN_NET_TYPE_NETWORK)
+            continue;
+
+        virMacAddrFormat(&net->mac, macaddr);
+        network = virNetworkLookupByName(conn, net->data.network.name);
+
+        if (!network)
+            goto endjob;
+
+        if ((n_leases = virNetworkGetDHCPLeases(network, macaddr,
+                                                &leases, 0)) < 0)
+            goto endjob;
+
+        for (j = 0; j < n_leases; j++) {
+            virNetworkDHCPLeasePtr lease = leases[j];
+
+            if (lease->hostname && !hostname)
+                hostname = g_strdup(lease->hostname);
+
+            virNetworkDHCPLeaseFree(lease);
+        }
+
+        VIR_FREE(leases);
+
+        if (hostname)
+            goto endjob;
+    }
+
+    if (!hostname) {
+        virReportError(VIR_ERR_NO_HOSTNAME,
+                       _("no hostname found for domain %s"),
+                       vm->def->name);
+        goto endjob;
+    }
+
+ endjob:
+    virLXCDomainObjEndJob(driver, vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return hostname;
+}
+
+
 static int
 lxcNodeGetFreePages(virConnectPtr conn,
                     unsigned int npages,
@@ -5436,6 +5162,8 @@ static virHypervisorDriver lxcHypervisorDriver = {
     .domainSetMetadata = lxcDomainSetMetadata, /* 1.1.3 */
     .domainGetMetadata = lxcDomainGetMetadata, /* 1.1.3 */
     .domainGetCPUStats = lxcDomainGetCPUStats, /* 1.2.2 */
+    .domainGetHostname = lxcDomainGetHostname, /* 6.0.0 */
+    .domainInterfaceAddresses = lxcDomainInterfaceAddresses, /* 6.1.0 */
     .nodeGetMemoryParameters = lxcNodeGetMemoryParameters, /* 0.10.2 */
     .nodeSetMemoryParameters = lxcNodeSetMemoryParameters, /* 0.10.2 */
     .domainSendProcessSignal = lxcDomainSendProcessSignal, /* 1.0.1 */

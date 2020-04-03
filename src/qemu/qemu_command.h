@@ -59,12 +59,12 @@ virCommandPtr qemuBuildCommandLine(virQEMUDriverPtr driver,
 virJSONValuePtr qemuBuildPRManagerInfoProps(virStorageSourcePtr src);
 virJSONValuePtr qemuBuildPRManagedManagerInfoProps(qemuDomainObjPrivatePtr priv);
 
+virJSONValuePtr qemuBuildDBusVMStateInfoProps(virQEMUDriverPtr driver,
+                                              virDomainObjPtr vm);
+
 /* Generate the object properties for a secret */
 int qemuBuildSecretInfoProps(qemuDomainSecretInfoPtr secinfo,
                              virJSONValuePtr *propsret);
-
-virJSONValuePtr qemuBuildDBusVMStateInfoProps(const char *id,
-                                              const char *addr);
 
 /* Generate the object properties for a tls-creds-x509 */
 int qemuBuildTLSx509BackendProps(const char *tlspath,
@@ -105,6 +105,7 @@ bool qemuDiskBusNeedsDriveArg(int bus);
 
 qemuBlockStorageSourceAttachDataPtr
 qemuBuildStorageSourceAttachPrepareDrive(virDomainDiskDefPtr disk,
+                                         const virDomainDef *def,
                                          virQEMUCapsPtr qemuCaps);
 int
 qemuBuildStorageSourceAttachPrepareCommon(virStorageSourcePtr src,
@@ -114,6 +115,7 @@ qemuBuildStorageSourceAttachPrepareCommon(virStorageSourcePtr src,
 
 qemuBlockStorageSourceChainDataPtr
 qemuBuildStorageSourceChainAttachPrepareDrive(virDomainDiskDefPtr disk,
+                                              const virDomainDef *def,
                                               virQEMUCapsPtr qemuCaps);
 
 
@@ -199,6 +201,7 @@ bool
 qemuDiskConfigBlkdeviotuneEnabled(virDomainDiskDefPtr disk);
 
 int qemuCheckDiskConfig(virDomainDiskDefPtr disk,
+                        const virDomainDef *def,
                         virQEMUCapsPtr qemuCaps);
 
 bool

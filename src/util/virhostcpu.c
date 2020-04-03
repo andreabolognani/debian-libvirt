@@ -22,9 +22,10 @@
 #include <config.h>
 
 #include <dirent.h>
-#include <sys/utsname.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
+#ifndef WIN32
+# include <sys/ioctl.h>
+#endif
 #include <unistd.h>
 
 #if HAVE_LINUX_KVM_H
@@ -41,9 +42,7 @@
 #include "viralloc.h"
 #define LIBVIRT_VIRHOSTCPUPRIV_H_ALLOW
 #include "virhostcpupriv.h"
-#include "physmem.h"
 #include "virerror.h"
-#include "intprops.h"
 #include "virarch.h"
 #include "virfile.h"
 #include "virtypedparam.h"
@@ -219,6 +218,29 @@ virHostCPUGetSocket(unsigned int cpu, unsigned int *socket)
 }
 
 int
+virHostCPUGetDie(unsigned int cpu, unsigned int *die)
+{
+    int die_id;
+    int ret = virFileReadValueInt(&die_id,
+                                  "%s/cpu/cpu%u/topology/die_id",
+                                  SYSFS_SYSTEM_PATH, cpu);
+
+    if (ret == -1)
+        return -1;
+
+    /* If the file is not there, it's 0.
+     * Another alternative is die_id set to -1, meaning that
+     * the arch does not have die_id support. Set @die to
+     * 0 in this case too. */
+    if (ret == -2 || die_id < 0)
+        *die = 0;
+    else
+        *die = die_id;
+
+    return 0;
+}
+
+int
 virHostCPUGetCore(unsigned int cpu, unsigned int *core)
 {
     int ret = virFileReadValueUint(core,
@@ -314,8 +336,7 @@ virHostCPUParseNode(const char *node,
         goto cleanup;
 
     /* enumerate sockets in the node */
-    if (!(sockets_map = virBitmapNewEmpty()))
-        goto cleanup;
+    sockets_map = virBitmapNewEmpty();
 
     while ((direrr = virDirRead(cpudir, &cpudirent, node)) > 0) {
         if (sscanf(cpudirent->d_name, "cpu%u", &cpu) != 1)
@@ -351,8 +372,7 @@ virHostCPUParseNode(const char *node,
         goto cleanup;
 
     for (i = 0; i < sock_max; i++)
-        if (!(cores_maps[i] = virBitmapNewEmpty()))
-            goto cleanup;
+        cores_maps[i] = virBitmapNewEmpty();
 
     /* Iterate over all CPUs in the node, in ascending order */
     for (cpu = 0; cpu < npresent_cpus; cpu++) {
@@ -775,7 +795,7 @@ virHostCPUGetStatsLinux(FILE *procstat,
     char line[1024];
     unsigned long long usr, ni, sys, idle, iowait;
     unsigned long long irq, softirq, steal, guest, guest_nice;
-    char cpu_header[4 + INT_BUFSIZE_BOUND(cpuNum)];
+    char cpu_header[4 + VIR_INT64_STR_BUFLEN];
 
     if ((*nparams) == 0) {
         /* Current number of cpu stats supported by linux */
@@ -832,7 +852,7 @@ virHostCPUGetStatsLinux(FILE *procstat,
                         _("Invalid cpuNum in %s"),
                         __FUNCTION__);
 
-    return 0;
+    return -1;
 }
 
 
@@ -1213,9 +1233,8 @@ virHostCPUGetMicrocodeVersion(void)
     unsigned int version = 0;
 
     if (virFileReadHeaderQuiet(CPUINFO_PATH, 4096, &outbuf) < 0) {
-        char ebuf[1024];
         VIR_DEBUG("Failed to read microcode version from %s: %s",
-                  CPUINFO_PATH, virStrerror(errno, ebuf, sizeof(ebuf)));
+                  CPUINFO_PATH, g_strerror(errno));
         return 0;
     }
 
@@ -1286,13 +1305,12 @@ virHostCPUGetMSR(unsigned long index,
                  uint64_t *msr)
 {
     VIR_AUTOCLOSE fd = -1;
-    char ebuf[1024];
 
     *msr = 0;
 
     if ((fd = open(MSR_DEVICE, O_RDONLY)) < 0) {
         VIR_DEBUG("Unable to open %s: %s",
-                  MSR_DEVICE, virStrerror(errno, ebuf, sizeof(ebuf)));
+                  MSR_DEVICE, g_strerror(errno));
     } else {
         int rc = pread(fd, msr, sizeof(*msr), index);
 
@@ -1305,7 +1323,7 @@ virHostCPUGetMSR(unsigned long index,
         }
 
         VIR_DEBUG("Cannot read MSR 0x%lx from %s: %s",
-                  index, MSR_DEVICE, virStrerror(errno, ebuf, sizeof(ebuf)));
+                  index, MSR_DEVICE, g_strerror(errno));
     }
 
     VIR_DEBUG("Falling back to KVM ioctl");

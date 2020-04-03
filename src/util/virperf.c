@@ -17,7 +17,10 @@
  */
 #include <config.h>
 
-#include <sys/ioctl.h>
+#include <unistd.h>
+#ifndef WIN32
+# include <sys/ioctl.h>
+#endif
 #if defined HAVE_SYS_SYSCALL_H
 # include <sys/syscall.h>
 #endif
@@ -168,7 +171,7 @@ static struct virPerfEventAttr attrs[] = {
         .attrConfig = PERF_COUNT_SW_EMULATION_FAULTS
     },
 };
-verify(G_N_ELEMENTS(attrs) == VIR_PERF_EVENT_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(attrs) == VIR_PERF_EVENT_LAST);
 typedef struct virPerfEventAttr *virPerfEventAttrPtr;
 
 

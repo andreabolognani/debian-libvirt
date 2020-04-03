@@ -25,6 +25,7 @@
 #include "viralloc.h"
 #include "virlog.h"
 #include "virstring.h"
+#include "virutil.h"
 
 #define QEMU_DRIVE_HOST_PREFIX "drive-"
 
@@ -763,34 +764,22 @@ qemuDomainGetMasterKeyAlias(void)
 }
 
 
-/* qemuDomainGetSecretAESAlias:
- * @srcalias: Source alias used to generate the secret alias
- * @isLuks: True when we are generating a secret for LUKS encrypt/decrypt
+/* qemuAliasForSecret:
+ * @parentalias: alias of the parent object
+ * @obj: optional sub-object of the parent device the secret is for
  *
- * Generate and return an alias for the encrypted secret
- *
- * Returns NULL or a string containing the alias
+ * Generate alias for a secret object used by @parentalias device or one of
+ * the dependencies of the device described by @obj.
  */
 char *
-qemuDomainGetSecretAESAlias(const char *srcalias,
-                            bool isLuks)
+qemuAliasForSecret(const char *parentalias,
+                   const char *obj)
 {
-    char *alias;
-
-    if (!srcalias) {
-        virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("encrypted secret alias requires valid source alias"));
-        return NULL;
-    }
-
-    if (isLuks)
-        alias = g_strdup_printf("%s-luks-secret0", srcalias);
+    if (obj)
+        return g_strdup_printf("%s-%s-secret0", parentalias, obj);
     else
-        alias = g_strdup_printf("%s-secret0", srcalias);
-
-    return alias;
+        return g_strdup_printf("%s-secret0", parentalias);
 }
-
 
 /* qemuAliasTLSObjFromSrcAlias
  * @srcAlias: Pointer to a source alias string
@@ -841,18 +830,9 @@ qemuDomainGetUnmanagedPRAlias(const char *parentalias)
     return ret;
 }
 
-char *
-qemuAliasDBusVMStateFromId(const char *id)
+
+const char *
+qemuDomainGetDBusVMStateAlias(void)
 {
-    char *ret;
-    size_t i;
-
-    ret = g_strdup_printf("dbus-vms-%s", id);
-
-    for (i = 0; ret[i]; i++) {
-        if (ret[i] == ':')
-            ret[i] = '_';
-    }
-
-    return ret;
+    return "dbus-vmstate0";
 }

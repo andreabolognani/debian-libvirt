@@ -44,10 +44,6 @@ VC = $(GIT)
 
 VC_LIST = $(srcdir)/$(_build-aux)/vc-list-files -C $(srcdir)
 
-# You can override this variable in syntax-check.mk if your gnulib submodule lives
-# in a different location.
-gnulib_dir ?= $(srcdir)/gnulib
-
 # You can override this variable in syntax-check.mk to set your own regexp
 # matching files to ignore.
 VC_LIST_ALWAYS_EXCLUDE_REGEX ?= ^$$
@@ -73,8 +69,6 @@ _sc_excl = \
   $(or $(exclude_file_name_regexp--$@),^$$)
 VC_LIST_EXCEPT = \
   $(VC_LIST) | $(SED) 's|^$(_dot_escaped_srcdir)/||' \
-	| if test -f $(srcdir)/.x-$@; then $(GREP) -vEf $(srcdir)/.x-$@; \
-	  else $(GREP) -Ev -e "$${VC_LIST_EXCEPT_DEFAULT-ChangeLog}"; fi \
 	| $(GREP) -Ev -e '($(VC_LIST_ALWAYS_EXCLUDE_REGEX)|$(_sc_excl))' \
 	$(_prepend_srcdir_prefix)
 
@@ -132,22 +126,7 @@ local-check :=								\
 
 syntax-check: $(local-check)
 
-# We use .gnulib, not gnulib.
-gnulib_dir = $(srcdir)/.gnulib
-
-# We haven't converted all scripts to using gnulib's init.sh yet.
-_test_script_regex = \<\(init\|test-lib\)\.sh\>
-
-# Most developers don't run 'make distcheck'.  We want the official
-# dist to be secure, but don't want to penalize other developers
-# using a distro that has not yet picked up the automake fix.
-# FIXME remove this ifeq (making the syntax check unconditional)
-# once fixed automake (1.11.6 or 1.12.2+) is more common.
-ifeq ($(filter dist%, $(MAKECMDGOALS)), )
-local-checks-to-skip +=	sc_vulnerable_makefile_CVE-2012-3386
-else
-distdir: sc_vulnerable_makefile_CVE-2012-3386.z
-endif
+_test_script_regex = \<test-lib\.sh\>
 
 # Files that should never cause syntax check failures.
 VC_LIST_ALWAYS_EXCLUDE_REGEX = \
@@ -423,7 +402,6 @@ sc_prohibit_access_xok:
 	halt='use virFileIsExecutable instead of access(,X_OK)' \
 	  $(_sc_search_regexp)
 
-# Similar to the gnulib syntax-check.mk rule for sc_prohibit_strcmp
 # Use STREQLEN or STRPREFIX rather than comparing strncmp == 0, or != 0.
 snp_ = strncmp *\(.+\)
 sc_prohibit_strncmp:
@@ -476,8 +454,6 @@ sc_prohibit_risky_id_promotion:
 	halt='cast -1 to ([ug]id_t) before comparing against id' \
 	  $(_sc_search_regexp)
 
-# Use g_snprintf rather than s'printf, even if buffer is provably large enough,
-# since gnulib has more guarantees for snprintf portability
 sc_prohibit_sprintf:
 	@prohibit='\<[s]printf\>' \
 	in_vc_files='\.[ch]$$' \
@@ -570,9 +546,8 @@ sc_size_of_brackets:
 	  $(_sc_search_regexp)
 
 # Ensure that no C source file, docs, or rng schema uses TABs for
-# indentation.  Also match *.h.in files, to get libvirt.h.in.  Exclude
-# files in gnulib, since they're imported.
-space_indent_files=(\.(aug(\.in)?|rng|s?[ch](\.in)?|html.in|py|pl|syms)|(daemon|tools)/.*\.in)
+# indentation.  Also match *.h.in files, to get libvirt.h.in.
+space_indent_files=(\.(aug(\.in)?|rng|s?[ch](\.in)?|html.in|py|pl|syms)|tools/.*\.in)
 sc_TAB_in_indentation:
 	@prohibit='^ *	' \
 	in_vc_files='$(space_indent_files)$$' \
@@ -712,8 +687,7 @@ msg_gen_function += virLastErrorPrefixMessage
 # msg_gen_function += vshPrint
 # msg_gen_function += vshError
 
-space =
-space +=
+space = $(null) $(null)
 func_re= ($(subst $(space),|,$(msg_gen_function)))
 
 # Look for diagnostics that aren't marked for translation.
@@ -881,9 +855,9 @@ sc_prohibit_cross_inclusion:
 	    access/ | conf/) safe="($$dir|conf|util)";; \
 	    cpu/| network/| node_device/| rpc/| security/| storage/) \
 	      safe="($$dir|util|conf|storage)";; \
-	    *) safe="($$dir|$(mid_dirs)|util)";; \
+	    *) safe="($$dir|$(mid_dirs)|hypervisor|util)";; \
 	  esac; \
-	  in_vc_files="^src/$$dir" \
+	  in_vc_files="src/$$dir" \
 	  prohibit='^# *include .$(cross_dirs_re)' \
 	  exclude="# *include .$$safe" \
 	  halt='unsafe cross-directory include' \
@@ -1121,7 +1095,7 @@ sc_gettext_init:
 	  $(_sc_search_regexp)
 
 sc_prohibit_obj_free_apis_in_virsh:
-	@prohibit='\bvir(Domain|DomainSnapshot)Free\b' \
+	@prohibit='\bvir(Domain|DomainSnapshot|Secret)Free\b' \
 	in_vc_files='virsh.*\.[ch]$$' \
 	exclude='sc_prohibit_obj_free_apis_in_virsh' \
 	halt='avoid using virDomain(Snapshot)Free in virsh, use virsh-prefixed wrappers instead' \
@@ -1606,20 +1580,6 @@ sc_prohibit_strings_without_use:
 	re='\<(strn?casecmp|ffs(ll)?)\>'				\
 	  $(_sc_header_without_use)
 
-# Extract the raw list of symbol names with this:
-gl_extract_define_simple = \
-  /^\# *define ([A-Z]\w+)\(/ and print $$1
-# Filter out duplicates and convert to a space-separated list:
-_intprops_names = \
-  $(shell f=$(gnulib_dir)/lib/intprops.h;				\
-    perl -lne '$(gl_extract_define_simple)' $$f | sort -u | tr '\n' ' ')
-# Remove trailing space and convert to a regular expression:
-_intprops_syms_re = $(subst $(_sp),|,$(strip $(_intprops_names)))
-# Prohibit the inclusion of intprops.h without an actual use.
-sc_prohibit_intprops_without_use:
-	@h='intprops.h'							\
-	re='\<($(_intprops_syms_re)) *\('				\
-	  $(_sc_header_without_use)
 
 _stddef_syms_re = NULL|offsetof|ptrdiff_t|size_t|wchar_t
 # Prohibit the inclusion of stddef.h without an actual use.
@@ -1638,22 +1598,9 @@ sc_prohibit_dirent_without_use:
 	re='\<($(_dirent_syms_re))\>'					\
 	  $(_sc_header_without_use)
 
-# Prohibit the inclusion of verify.h without an actual use.
-sc_prohibit_verify_without_use:
-	@h='verify.h'							\
-	re='\<(verify(true|expr)?|assume|static_assert) *\('		\
-	  $(_sc_header_without_use)
-
 # Don't include xfreopen.h unless you use one of its functions.
 sc_prohibit_xfreopen_without_use:
 	@h='xfreopen.h' re='\<xfreopen *\(' $(_sc_header_without_use)
-
-# Each nonempty ChangeLog line must start with a year number, or a TAB.
-sc_changelog:
-	@prohibit='^[^12	]'					\
-	in_vc_files='^ChangeLog$$'					\
-	halt='found unexpected prefix in a ChangeLog'			\
-	  $(_sc_search_regexp)
 
 # Ensure that each .c file containing a "main" function also
 # calls bindtextdomain.
@@ -1683,80 +1630,12 @@ sc_unmarked_diagnostics:
 	halt='found unmarked diagnostic(s)'				\
 	  $(_sc_search_regexp)
 
-# List headers for which HAVE_HEADER_H is always true, assuming you are
-# using the appropriate gnulib module.  CAUTION: for each "unnecessary"
-# #if HAVE_HEADER_H that you remove, be sure that your project explicitly
-# requires the gnulib module that guarantees the usability of that header.
-gl_assured_headers_ = \
-  cd $(gnulib_dir)/lib && echo *.in.h|$(SED) 's/\.in\.h//g'
-
-# Convert the list of names to upper case, and replace each space with "|".
-az_ = abcdefghijklmnopqrstuvwxyz
-AZ_ = ABCDEFGHIJKLMNOPQRSTUVWXYZ
-gl_header_upper_case_or_ =						\
-  $$($(gl_assured_headers_)						\
-    | tr $(az_)/.- $(AZ_)___						\
-    | tr -s ' ' '|'							\
-    )
-sc_prohibit_always_true_header_tests:
-	@or=$(gl_header_upper_case_or_);				\
-	re="HAVE_($$or)_H";						\
-	prohibit='\<'"$$re"'\>'						\
-	halt=$$(printf '%s\n'						\
-	'do not test the above HAVE_<header>_H symbol(s);'		\
-	'  with the corresponding gnulib module, they are always true')	\
-	  $(_sc_search_regexp)
 
 sc_prohibit_defined_have_decl_tests:
 	@prohibit='(#[	 ]*ifn?def|\<defined)\>[	 (]+HAVE_DECL_'	\
 	halt='HAVE_DECL macros are always defined'			\
 	  $(_sc_search_regexp)
 
-# ==================================================================
-gl_other_headers_ ?= \
-  intprops.h	\
-  openat.h	\
-  stat-macros.h
-
-# Perl -lne code to extract "significant" cpp-defined symbols from a
-# gnulib header file, eliminating a few common false-positives.
-# The exempted names below are defined only conditionally in gnulib,
-# and hence sometimes must/may be defined in application code.
-gl_extract_significant_defines_ = \
-  /^\# *define ([^_ (][^ (]*)(\s*\(|\s+\w+)/\
-    && $$2 !~ /(?:rpl_|_used_without_)/\
-    && $$1 !~ /^(?:NSIG|ENODATA)$$/\
-    && $$1 !~ /^(?:SA_RESETHAND|SA_RESTART)$$/\
-    and print $$1
-
-# Create a list of regular expressions matching the names
-# of macros that are guaranteed to be defined by parts of gnulib.
-define def_sym_regex
-	gen_h=$(gl_generated_headers_);					\
-	(cd $(gnulib_dir)/lib;						\
-	  for f in *.in.h $(gl_other_headers_); do			\
-	    test -f $$f							\
-	      && perl -lne '$(gl_extract_significant_defines_)' $$f;	\
-	  done;								\
-	) | sort -u							\
-	  | $(SED) 's/^/^ *# *(define|undef)  */;s/$$/\\>/'
-endef
-
-# Don't define macros that we already get from gnulib header files.
-sc_prohibit_always-defined_macros:
-	@if test -d $(gnulib_dir); then					\
-	  case $$(echo all: | $(GREP) -l -f - $(abs_top_builddir)/Makefile) in $(abs_top_builddir)/Makefile);; *) \
-	    echo '$(ME): skipping $@: you lack GNU grep' 1>&2; exit 0;;	\
-	  esac;								\
-	  regex=$$($(def_sym_regex)); export regex;			\
-	  $(VC_LIST_EXCEPT)						\
-	    | xargs sh -c 'echo $$regex | $(GREP) -E -f - "$$@"'	\
-		dummy /dev/null						\
-	    && { printf '$(ME): define the above'			\
-			' via some gnulib .h file\n' 1>&2;		\
-	         exit 1; }						\
-	    || :;							\
-	fi
 # ==================================================================
 
 # Prohibit checked in backup files.
@@ -1771,14 +1650,6 @@ _GFDL_regexp = (Free ''Documentation.*Version 1\.[^3]|Version 1\.[^3] or any)
 sc_GFDL_version:
 	@prohibit='$(_GFDL_regexp)'					\
 	halt='GFDL vN, N!=3'						\
-	  $(_sc_search_regexp)
-
-cvs_keywords = \
-  Author|Date|Header|Id|Name|Locker|Log|RCSfile|Revision|Source|State
-
-sc_prohibit_cvs_keyword:
-	@prohibit='\$$($(cvs_keywords))\$$'				\
-	halt='do not use CVS keyword expansion'				\
 	  $(_sc_search_regexp)
 
 # This Perl code is slightly obfuscated.  Not only is each "$" doubled
@@ -1921,20 +1792,6 @@ sc_const_long_option:
 	halt='add "const" to the above declarations'			\
 	  $(_sc_search_regexp)
 
-NEWS_hash =								\
-  $$($(SED) -n '/^\*.* $(PREV_VERSION_REGEXP) ([0-9-]*)/,$$p'		\
-       $(srcdir)/NEWS							\
-     | perl -0777 -pe							\
-	's/^Copyright.+?Free\sSoftware\sFoundation,\sInc\.\n//ms'	\
-     | md5sum -								\
-     | $(SED) 's/ .*//')
-
-# Update the hash stored above.  Do this after each release and
-# for any corrections to old entries.
-update-NEWS-hash: NEWS
-	perl -pi -e 's/^(old_NEWS_hash[ \t]+:?=[ \t]+).*/$${1}'"$(NEWS_hash)/" \
-	  $(srcdir)/syntax-check.mk
-
 # Ensure that we use only the standard $(VAR) notation,
 # not @...@ in Makefile.am, now that we can rely on automake
 # to emit a definition for each substituted variable.
@@ -1996,11 +1853,10 @@ perl_translatable_files_list_ =						\
 po_file ?= $(srcdir)/po/POTFILES.in
 
 # List of additional files that we want to pick up in our POTFILES.in
-# This is all gnulib files, as well as generated files for RPC code.
+# This is all generated files for RPC code.
 generated_files = \
   $(builddir)/src/*.[ch] \
-  $(builddir)/src/*/*.[ch] \
-  $(srcdir)/gnulib/lib/*.[ch]
+  $(builddir)/src/*/*.[ch]
 
 _gl_translatable_string_re ?= \b(N?_|gettext *)\([^)"]*("|$$)
 
@@ -2036,25 +1892,6 @@ writable-files:
 	else :;								\
 	fi
 
-v_etc_file = $(gnulib_dir)/lib/version-etc.c
-sample-test = tests/sample-test
-texi = doc/$(PACKAGE).texi
-# Make sure that the copyright date in $(v_etc_file) is up to date.
-# Do the same for the $(sample-test) and the main doc/.texi file.
-sc_copyright_check:
-	@require='enum { COPYRIGHT_YEAR = '$$(date +%Y)' };'		\
-	in_files=$(v_etc_file)						\
-	halt='out of date copyright in $(v_etc_file); update it'	\
-	  $(_sc_search_regexp)
-	@require='# Copyright \(C\) '$$(date +%Y)' Free'		\
-	in_vc_files=$(sample-test)					\
-	halt='out of date copyright in $(sample-test); update it'	\
-	  $(_sc_search_regexp)
-	@require='Copyright @copyright\{\} .*'$$(date +%Y)		\
-	in_vc_files=$(texi)						\
-	halt='out of date copyright in $(texi); update it'		\
-	  $(_sc_search_regexp)
-
 
 # BRE regex of file contents to identify a test script.
 _test_script_regex ?= \<init\.sh\>
@@ -2083,70 +1920,6 @@ sc_prohibit_path_max_allocation:
 	@prohibit='(\balloca *\([^)]*|\[[^]]*)\bPATH_MAX'		\
 	halt='Avoid stack allocations of size PATH_MAX'			\
 	  $(_sc_search_regexp)
-
-sc_vulnerable_makefile_CVE-2009-4029:
-	@prohibit='perm -777 -exec chmod a\+rwx|chmod 777 \$$\(distdir\)' \
-	in_files='(^|/)Makefile\.in$$'					\
-	halt=$$(printf '%s\n'						\
-	  'the above files are vulnerable; beware of running'		\
-	  '  "make dist*" rules, and upgrade to fixed automake'		\
-	  '  see https://bugzilla.redhat.com/show_bug.cgi?id=542609 for details') \
-	  $(_sc_search_regexp)
-
-sc_vulnerable_makefile_CVE-2012-3386:
-	@prohibit='chmod a\+w \$$\(distdir\)'				\
-	in_files='(^|/)Makefile\.in$$'					\
-	halt=$$(printf '%s\n'						\
-	  'the above files are vulnerable; beware of running'		\
-	  '  "make distcheck", and upgrade to fixed automake'		\
-	  '  see https://bugzilla.redhat.com/show_bug.cgi?id=CVE-2012-3386 for details') \
-	  $(_sc_search_regexp)
-
-# We don't use this feature of syntax-check.mk.
-prev_version_file = /dev/null
-
-ifneq ($(_gl-Makefile),)
-ifeq (0,$(MAKELEVEL))
-  _dry_run_result := $(shell \
-      cd '$(srcdir)'; \
-      test -d .git || test -f .git || { echo 0; exit; }; \
-      $(srcdir)/autogen.sh --dry-run >/dev/null 2>&1; \
-      echo $$?; \
-  )
-  _clean_requested = $(filter %clean,$(MAKECMDGOALS))
-
-  # A return value of 0 means no action is required
-
-  # A return value of 1 means a genuine error has occurred while
-  # performing the dry run, and it should be reported so it can
-  # be investigated
-  ifeq (1,$(_dry_run_result))
-    $(info INFO: autogen.sh error, running again to show details)
-syntax-check.mk Makefile: _autogen_error
-  endif
-
-  # A return value of 2 means that autogen.sh needs to be executed
-  # in earnest before building, probably because of gnulib updates.
-  # We don't run autogen.sh if the clean target has been invoked,
-  # though, as it would be quite pointless
-  ifeq (2,$(_dry_run_result)$(_clean_requested))
-    $(info INFO: running autogen.sh is required, running it now...)
-    $(shell touch $(srcdir)/AUTHORS)
-syntax-check.mk Makefile: _autogen
-  endif
-endif
-endif
-
-# It is necessary to call autogen any time gnulib changes.  Autogen
-# reruns configure, then we regenerate all Makefiles at once.
-.PHONY: _autogen
-_autogen:
-	$(srcdir)/autogen.sh
-	./config.status
-
-.PHONY: _autogen_error
-_autogen_error:
-	$(srcdir)/autogen.sh --dry-run
 
 ifneq ($(_gl-Makefile),)
 syntax-check: spacing-check test-wrap-argv \
@@ -2193,14 +1966,14 @@ group-qemu-caps:
 # List all syntax-check exemptions:
 exclude_file_name_regexp--sc_avoid_strcase = ^tools/vsh\.h$$
 
-_src1=libvirt-stream|qemu/qemu_monitor|util/vir(command|file|fdstream)|xen/xend_internal|rpc/virnetsocket|lxc/lxc_controller|locking/lock_daemon|logging/log_daemon
+_src1=libvirt-stream|qemu/qemu_monitor|util/vir(command|file|fdstream)|rpc/virnetsocket|lxc/lxc_controller|locking/lock_daemon|logging/log_daemon
 _test1=shunloadtest|virnettlscontexttest|virnettlssessiontest|vircgroupmock|commandhelper
 exclude_file_name_regexp--sc_avoid_write = \
   ^(src/($(_src1))|tools/virsh-console|tests/($(_test1)))\.c$$
 
 exclude_file_name_regexp--sc_bindtextdomain = .*
 
-exclude_file_name_regexp--sc_gettext_init = ^((tests|examples)/|tools/virt-login-shell.c)
+exclude_file_name_regexp--sc_gettext_init = ^((tests|examples)/|tools/virt-login-shell.c|src/util/vireventglib\.c)
 
 exclude_file_name_regexp--sc_copyright_format = \
 	^build-aux/syntax-check\.mk$$
@@ -2214,7 +1987,7 @@ exclude_file_name_regexp--sc_flags_usage = \
 exclude_file_name_regexp--sc_libvirt_unmarked_diagnostics = \
   ^(src/rpc/gendispatch\.pl$$|tests/)
 
-exclude_file_name_regexp--sc_po_check = ^(docs/|src/rpc/gendispatch\.pl$$)
+exclude_file_name_regexp--sc_po_check = ^(docs/|src/rpc/gendispatch\.pl$$|tests/commandtest.c$$)
 
 exclude_file_name_regexp--sc_prohibit_VIR_ERR_NO_MEMORY = \
   ^(build-aux/syntax-check\.mk|include/libvirt/virterror\.h|src/remote/remote_daemon_dispatch\.c|src/util/virerror\.c|docs/internals/oomtesting\.html\.in)$$
@@ -2232,10 +2005,10 @@ exclude_file_name_regexp--sc_prohibit_access_xok = \
 	^(src/util/virutil\.c)$$
 
 exclude_file_name_regexp--sc_prohibit_asprintf = \
-  ^(build-aux/syntax-check\.mk|bootstrap.conf$$|examples/|src/util/virstring\.[ch]$$|tests/vircgroupmock\.c|tools/virt-login-shell\.c|tools/nss/libvirt_nss\.c$$)
+  ^(build-aux/syntax-check\.mk|examples/|tests/vircgroupmock\.c|tools/virt-login-shell\.c|tools/nss/libvirt_nss\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_strdup = \
-  ^(docs/|examples/|src/util/virstring\.c|tests/vir(netserverclient|cgroup)mock.c|tests/commandhelper\.c|tools/nss/libvirt_nss_(leases|macs)\.c$$)
+  ^(docs/|examples/|tests/virnetserverclientmock.c|tests/commandhelper.c|tools/nss/libvirt_nss_(leases|macs)\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_close = \
   (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)$$)
@@ -2243,9 +2016,8 @@ exclude_file_name_regexp--sc_prohibit_close = \
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
   (^tests/(virhostcpu|virpcitest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
 
-_src2=src/(util/vircommand|libvirt|lxc/lxc_controller|locking/lock_daemon|logging/log_daemon|remote/remote_daemon)
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
-  (^($(_src2)|tests/testutils)\.c$$)
+  (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_gethostname = ^src/util/vir(util|log)\.c$$
 
@@ -2278,8 +2050,6 @@ exclude_file_name_regexp--sc_prohibit_setuid = ^src/util/virutil\.c|tools/virt-l
 exclude_file_name_regexp--sc_prohibit_snprintf = \
   ^(build-aux/syntax-check\.mk|docs/hacking\.html\.in|tools/virt-login-shell\.c)$$
 
-exclude_file_name_regexp--sc_prohibit_strncpy = ^src/util/virstring\.c$$
-
 exclude_file_name_regexp--sc_prohibit_strtol = ^examples/.*$$
 
 exclude_file_name_regexp--sc_prohibit_xmlGetProp = ^src/util/virxml\.c$$
@@ -2295,7 +2065,7 @@ exclude_file_name_regexp--sc_require_config_h_first = \
 	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers.c)
 
 exclude_file_name_regexp--sc_trailing_blank = \
-  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo|^gnulib/local/.*/.*diff$$
+  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo$$
 
 exclude_file_name_regexp--sc_unmarked_diagnostics = \
   ^(scripts/apibuild.py|tests/virt-aa-helper-test|docs/js/.*\.js)$$
@@ -2326,7 +2096,7 @@ exclude_file_name_regexp--sc_prohibit_mixed_case_abbreviations = \
   ^src/(vbox/vbox_CAPI.*.h|esx/esx_vi.(c|h)|esx/esx_storage_backend_iscsi.c)$$
 
 exclude_file_name_regexp--sc_prohibit_empty_first_line = \
-  ^(README|src/esx/README|tests/(vmwarever|virhostcpu)data/.*)$$
+  ^(src/esx/README|tests/(vmwarever|virhostcpu)data/.*)$$
 
 exclude_file_name_regexp--sc_prohibit_useless_translation = \
   ^tests/virpolkittest.c
@@ -2335,22 +2105,16 @@ exclude_file_name_regexp--sc_prohibit_devname = \
   ^(tools/virsh.pod|build-aux/syntax-check\.mk|docs/.*)$$
 
 exclude_file_name_regexp--sc_prohibit_virXXXFree = \
-  ^(docs/|tests/|examples/|tools/|build-aux/syntax-check\.mk|src/test/test_driver.c|src/libvirt_public.syms|include/libvirt/libvirt-(domain|network|nodedev|storage|stream|secret|nwfilter|interface|domain-snapshot).h|src/libvirt-(domain|qemu|network|nodedev|storage|stream|secret|nwfilter|interface|domain-snapshot).c$$)
+  ^(docs/|tests/|examples/|tools/|build-aux/syntax-check\.mk|src/test/test_driver.c|src/libvirt_public.syms|include/libvirt/libvirt-(domain|network|nodedev|storage|stream|secret|nwfilter|interface|domain-snapshot).h|src/libvirt-(domain|qemu|network|nodedev|storage|stream|secret|nwfilter|interface|domain-snapshot).c|src/qemu/qemu_shim.c$$)
 
 exclude_file_name_regexp--sc_prohibit_sysconf_pagesize = \
-  ^(build-aux/syntax-check\.mk|src/util/virutil\.c)$$
+  ^(build-aux/syntax-check\.mk|src/util/vir(hostmem|util)\.c)$$
 
 exclude_file_name_regexp--sc_prohibit_pthread_create = \
   ^(build-aux/syntax-check\.mk|src/util/virthread\.c|tests/.*)$$
 
-exclude_file_name_regexp--sc_prohibit_always-defined_macros = \
-  ^tests/virtestmock.c$$
-
 exclude_file_name_regexp--sc_prohibit_readdir = \
   ^(tests/(.*mock|virfilewrapper)\.c|tools/nss/libvirt_nss\.c)$$
-
-exclude_file_name_regexp--sc_prohibit_cross_inclusion = \
-  ^(src/util/virclosecallbacks\.h|src/util/virhostdev\.h)$$
 
 exclude_file_name_regexp--sc_prohibit_dirent_d_type = \
   ^(src/util/vircgroup.c)$
@@ -2360,3 +2124,6 @@ exclude_file_name_regexp--sc_prohibit_strcmp = \
 
 exclude_file_name_regexp--sc_prohibit_backslash_alignment = \
   ^build-aux/syntax-check\.mk$$
+
+exclude_file_name_regexp--sc_prohibit_select = \
+  ^build-aux/syntax-check\.mk|src/util/vireventglibwatch\.c$$

@@ -11,8 +11,6 @@ UTIL_SOURCES = \
 	util/virarch.h \
 	util/virarptable.c \
 	util/virarptable.h \
-	util/viratomic.c \
-	util/viratomic.h \
 	util/viraudit.c \
 	util/viraudit.h \
 	util/virauth.c \
@@ -37,8 +35,6 @@ UTIL_SOURCES = \
 	util/vircgroupv2.h \
 	util/vircgroupv2devices.c \
 	util/vircgroupv2devices.h \
-	util/virclosecallbacks.c \
-	util/virclosecallbacks.h \
 	util/vircommand.c \
 	util/vircommand.h \
 	util/vircommandpriv.h \
@@ -46,6 +42,8 @@ UTIL_SOURCES = \
 	util/virconf.h \
 	util/vircrypto.c \
 	util/vircrypto.h \
+	util/virdaemon.c \
+	util/virdaemon.h \
 	util/virdbus.c \
 	util/virdbus.h \
 	util/virdbuspriv.h \
@@ -63,8 +61,12 @@ UTIL_SOURCES = \
 	util/virerrorpriv.h \
 	util/virevent.c \
 	util/virevent.h \
-	util/vireventpoll.c \
-	util/vireventpoll.h \
+	util/vireventglib.c \
+	util/vireventglib.h \
+	util/vireventglibwatch.c \
+	util/vireventglibwatch.h \
+	util/vireventthread.c \
+	util/vireventthread.h \
 	util/virfcp.c \
 	util/virfcp.h \
 	util/virfdstream.c \
@@ -92,8 +94,6 @@ UTIL_SOURCES = \
 	util/virhostcpu.c \
 	util/virhostcpu.h \
 	util/virhostcpupriv.h \
-	util/virhostdev.c \
-	util/virhostdev.h \
 	util/virhostmem.c \
 	util/virhostmem.h \
 	util/virhostuptime.c \
@@ -110,8 +110,6 @@ UTIL_SOURCES = \
 	util/virjson.h \
 	util/virkeycode.c \
 	util/virkeycode.h \
-	util/virkeyfile.c \
-	util/virkeyfile.h \
 	util/virlease.c \
 	util/virlease.h \
 	util/virlockspace.c \
@@ -188,6 +186,8 @@ UTIL_SOURCES = \
 	util/virseclabel.h \
 	util/virsecret.c \
 	util/virsecret.h \
+	util/virsocket.c \
+	util/virsocket.h \
 	util/virsocketaddr.c \
 	util/virsocketaddr.h \
 	util/virstorageencryption.c \
@@ -282,6 +282,7 @@ libvirt_util_la_CFLAGS = \
 	$(NULL)
 libvirt_util_la_LIBADD = \
 	-lm \
+	$(OPENPTY_LIBS) \
 	$(CAPNG_LIBS) \
 	$(YAJL_LIBS) \
 	$(LIBNL_LIBS) \

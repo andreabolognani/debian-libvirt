@@ -239,6 +239,7 @@ virCPUDefCopyWithoutModel(const virCPUDef *cpu)
     copy->check = cpu->check;
     copy->fallback = cpu->fallback;
     copy->sockets = cpu->sockets;
+    copy->dies = cpu->dies;
     copy->cores = cpu->cores;
     copy->threads = cpu->threads;
     copy->arch = cpu->arch;
@@ -506,7 +507,7 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
                 goto cleanup;
             }
 
-            /* ensure that the string can be passed to qemu*/
+            /* ensure that the string can be passed to qemu */
             if (strchr(vendor_id, ',')) {
                     virReportError(VIR_ERR_XML_ERROR, "%s",
                                    _("vendor id is invalid"));
@@ -535,6 +536,17 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
         }
         def->sockets = (unsigned int) ul;
 
+        if (virXPathNode("./topology[1]/@dies", ctxt)) {
+            if (virXPathULong("string(./topology[1]/@dies)", ctxt, &ul) < 0) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("Malformed 'dies' attribute in CPU topology"));
+                goto cleanup;
+            }
+            def->dies = (unsigned int) ul;
+        } else {
+            def->dies = 1;
+        }
+
         if (virXPathULong("string(./topology[1]/@cores)", ctxt, &ul) < 0) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("Missing 'cores' attribute in CPU topology"));
@@ -549,7 +561,7 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
         }
         def->threads = (unsigned int) ul;
 
-        if (!def->sockets || !def->cores || !def->threads) {
+        if (!def->sockets || !def->cores || !def->threads || !def->dies) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("Invalid CPU topology"));
             goto cleanup;
@@ -779,10 +791,10 @@ virCPUDefFormatBuf(virBufferPtr buf,
         return -1;
     }
 
-    if (formatModel && def->model) {
+    if (formatModel && (def->model || def->vendor_id)) {
         virBufferAddLit(buf, "<model");
 
-        if (def->type == VIR_CPU_TYPE_GUEST) {
+        if (def->type == VIR_CPU_TYPE_GUEST && def->model) {
             const char *fallback;
 
             fallback = virCPUFallbackTypeToString(def->fallback);
@@ -793,11 +805,15 @@ virCPUDefFormatBuf(virBufferPtr buf,
                 return -1;
             }
             virBufferAsprintf(buf, " fallback='%s'", fallback);
-            if (def->vendor_id)
-                virBufferEscapeString(buf, " vendor_id='%s'", def->vendor_id);
         }
 
-        virBufferEscapeString(buf, ">%s</model>\n", def->model);
+        if (def->type == VIR_CPU_TYPE_GUEST)
+            virBufferEscapeString(buf, " vendor_id='%s'", def->vendor_id);
+
+        if (def->model)
+            virBufferEscapeString(buf, ">%s</model>\n", def->model);
+        else
+            virBufferAddLit(buf, "/>\n");
     }
 
     if (formatModel && def->vendor)
@@ -817,9 +833,10 @@ virCPUDefFormatBuf(virBufferPtr buf,
         virBufferAddLit(buf, "/>\n");
     }
 
-    if (def->sockets && def->cores && def->threads) {
+    if (def->sockets && def->dies && def->cores && def->threads) {
         virBufferAddLit(buf, "<topology");
         virBufferAsprintf(buf, " sockets='%u'", def->sockets);
+        virBufferAsprintf(buf, " dies='%u'", def->dies);
         virBufferAsprintf(buf, " cores='%u'", def->cores);
         virBufferAsprintf(buf, " threads='%u'", def->threads);
         virBufferAddLit(buf, "/>\n");
@@ -1055,6 +1072,12 @@ virCPUDefIsEqual(virCPUDefPtr src,
     if (src->sockets != dst->sockets) {
         MISMATCH(_("Target CPU sockets %d does not match source %d"),
                  dst->sockets, src->sockets);
+        return false;
+    }
+
+    if (src->dies != dst->dies) {
+        MISMATCH(_("Target CPU dies %d does not match source %d"),
+                 dst->dies, src->dies);
         return false;
     }
 

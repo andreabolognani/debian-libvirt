@@ -421,6 +421,7 @@ virCPUGetHost(virArch arch,
 
     if (nodeInfo) {
         cpu->sockets = nodeInfo->sockets;
+        cpu->dies = 1;
         cpu->cores = nodeInfo->cores;
         cpu->threads = nodeInfo->threads;
     }
@@ -455,7 +456,7 @@ virCPUProbeHost(virArch arch)
 {
     virNodeInfo nodeinfo;
 
-    if (virCapabilitiesGetNodeInfo(&nodeinfo))
+    if (virCapabilitiesGetNodeInfo(&nodeinfo) < 0)
         return NULL;
 
     return virCPUGetHost(arch, VIR_CPU_TYPE_HOST, &nodeinfo, NULL);
@@ -646,13 +647,15 @@ virCPUUpdateLive(virArch arch,
     if (!driver->updateLive)
         return 1;
 
-    if (cpu->mode != VIR_CPU_MODE_CUSTOM)
-        return 1;
+    if (cpu->mode == VIR_CPU_MODE_CUSTOM ||
+        cpu->check == VIR_CPU_CHECK_FULL) {
+        if (driver->updateLive(cpu, dataEnabled, dataDisabled) < 0)
+            return -1;
 
-    if (driver->updateLive(cpu, dataEnabled, dataDisabled) < 0)
-        return -1;
+        return 0;
+    }
 
-    return 0;
+    return 1;
 }
 
 
@@ -1094,4 +1097,28 @@ virCPUDataAddFeature(virCPUDataPtr cpuData,
     }
 
     return driver->dataAddFeature(cpuData, name);
+}
+
+
+/**
+ * virCPUArchIsSupported:
+ *
+ * @arch: CPU architecture
+ *
+ * Returns true if the architecture is supported by any CPU driver.
+ */
+bool
+virCPUArchIsSupported(virArch arch)
+{
+    size_t i;
+    size_t j;
+
+    for (i = 0; i < G_N_ELEMENTS(drivers); i++) {
+        for (j = 0; j < drivers[i]->narch; j++) {
+            if (arch == drivers[i]->arch[j])
+                return true;
+        }
+    }
+
+    return false;
 }

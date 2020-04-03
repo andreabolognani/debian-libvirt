@@ -89,6 +89,7 @@ module Libvirtd_qemu =
                  | str_entry "bridge_helper"
                  | str_entry "pr_helper"
                  | str_entry "slirp_helper"
+                 | str_entry "dbus_daemon"
                  | bool_entry "set_process_name"
                  | int_entry "max_processes"
                  | int_entry "max_files"
@@ -116,6 +117,7 @@ module Libvirtd_qemu =
    let nvram_entry = str_array_entry "nvram"
 
    let debug_level_entry = int_entry "gluster_debug_level"
+                 | bool_entry "virtiofsd_debug"
 
    let memory_entry = str_entry "memory_backing_dir"
 

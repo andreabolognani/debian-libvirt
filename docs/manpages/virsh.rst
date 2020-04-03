@@ -356,7 +356,7 @@ connect
 is automatically run with the *URI* parameter requested by the ``-c``
 option on the command line. The *URI* parameter specifies how to
 connect to the hypervisor. The URI docs
-`https://libvirt.org/uri.html <https://libvirt.org/uri.html>`_ list the
+`https://libvirt.org/uri.html <https://libvirt.org/uri.html>`__ list the
 values supported, but the most common are:
 
 
@@ -379,7 +379,7 @@ values supported, but the most common are:
 To find the currently used URI, check the *uri* command documented below.
 
 For remote access see the URI docs
-`https://libvirt.org/uri.html <https://libvirt.org/uri.html>`_ on how
+`https://libvirt.org/uri.html <https://libvirt.org/uri.html>`__ on how
 to make URIs. The *--readonly* option allows for read-only connection
 
 
@@ -879,7 +879,7 @@ domain capabilities XML (printed by ``domcapabilities`` command). In
 addition to the <cpu> element itself, this command accepts
 full domain XML, capabilities XML, or domain capabilities XML containing
 the CPU definition. For more information on guest CPU definition see:
-`https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#elementsCPU>`_. If *--error* is
+`https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#elementsCPU>`__. If *--error* is
 specified, the command will return an error when the given CPU is
 incompatible with host CPU and a message providing more details about the
 incompatibility will be printed out.
@@ -943,7 +943,7 @@ host CPU model found in the domain capabilities XML (printed by the
 ``domcapabilities`` command). In addition to the <cpu> element itself, this
 command accepts full domain XML, capabilities XML, or domain capabilities XML
 containing the CPU definition. For more information on guest CPU definition
-see: `https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#elementsCPU>`_.
+see: `https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#elementsCPU>`__.
 
 The *virttype* option specifies the virtualization type (usable in the 'type'
 attribute of the <domain> top level element from the domain XML). *emulator*
@@ -1797,9 +1797,14 @@ domhostname
 
 .. code-block::
 
-   domhostname domain
+   domhostname domain [--source lease|agent]
 
 Returns the hostname of a domain, if the hypervisor makes it available.
+
+The *--source* argument specifies what data source to use for the
+hostnames, currently 'lease' to read DHCP leases or 'agent' to query
+the guest OS via an agent. If unspecified, driver returns the default
+method available (some drivers support only one type of source).
 
 
 domid
@@ -1814,8 +1819,8 @@ domid
 Convert a domain name (or UUID) to a domain id
 
 
-domif
------
+domif-getlink
+-------------
 
 **Syntax:**
 
@@ -1830,8 +1835,8 @@ purposes, *--persistent* is alias of *--config*.
 *interface-device* can be the interface's target name or the MAC address.
 
 
-domif
------
+domif-setlink
+-------------
 
 **Syntax:**
 
@@ -1974,7 +1979,7 @@ inbound or outbound bandwidth. *average,peak,burst,floor* is the same as
 in command *attach-interface*.  Values for *average*, *peak* and *floor*
 are expressed in kilobytes per second, while *burst* is expressed in kilobytes
 in a single burst at *peak* speed as described in the Network XML
-documentation at `https://libvirt.org/formatnetwork.html#elementQoS <https://libvirt.org/formatnetwork.html#elementQoS>`_.
+documentation at `https://libvirt.org/formatnetwork.html#elementQoS <https://libvirt.org/formatnetwork.html#elementQoS>`__.
 
 To clear inbound or outbound settings, use *--inbound* or *--outbound*
 respectfully with average value of zero.
@@ -2439,8 +2444,8 @@ domuuid
 Convert a domain name or id to domain UUID
 
 
-domxml
-------
+domxml-from-native
+------------------
 
 **Syntax:**
 
@@ -2457,8 +2462,8 @@ VMware/ESX hypervisor, the *format* argument must be ``vmware-vmx``.
 For the Bhyve hypervisor, the *format* argument must be ``bhyve-argv``.
 
 
-domxml
-------
+domxml-to-native
+----------------
 
 **Syntax:**
 
@@ -4387,7 +4392,7 @@ attach-device
 Attach a device to the domain, using a device definition in an XML
 file using a device definition element such as <disk> or <interface>
 as the top-level element.  See the documentation at
-`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#elementsDevices>`_ to learn about
+`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#elementsDevices>`__ to learn about
 libvirt XML format for a device.  If *--config* is specified the
 command alters the persistent domain configuration with the device
 attach taking effect the next time libvirt starts the domain.
@@ -4544,7 +4549,7 @@ specified.  The other two *peak* and *burst* are optional, so
 are expressed in kilobytes per second, while *burst* is expressed in
 kilobytes in a single burst at *peak* speed as described in the
 Network XML documentation at
-`https://libvirt.org/formatnetwork.html#elementQoS <https://libvirt.org/formatnetwork.html#elementQoS>`_.
+`https://libvirt.org/formatnetwork.html#elementQoS <https://libvirt.org/formatnetwork.html#elementQoS>`__.
 
 ``--managed`` is usable only for *hostdev* type and tells libvirt
 that the interface should be managed, which means detached and reattached
@@ -4714,7 +4719,7 @@ Update the characteristics of a device associated with *domain*,
 based on the device definition in an XML *file*.  The *--force* option
 can be used to force device update, e.g., to eject a CD-ROM even if it is
 locked/mounted in the domain. See the documentation at
-`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#elementsDevices>`_ to learn about
+`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#elementsDevices>`__ to learn about
 libvirt XML format for a device.
 
 If *--live* is specified, affect a running domain.
@@ -4952,7 +4957,7 @@ VIRTUAL NETWORK COMMANDS
 The following commands manipulate networks. Libvirt has the capability to
 define virtual networks which can then be used by domains and linked to
 actual network devices. For more detailed information about this feature
-see the documentation at `https://libvirt.org/formatnetwork.html <https://libvirt.org/formatnetwork.html>`_ . Many
+see the documentation at `https://libvirt.org/formatnetwork.html <https://libvirt.org/formatnetwork.html>`__ . Many
 of the commands for virtual networks are similar to the ones used for domains,
 but the way to name a virtual network is either by its name or UUID.
 
@@ -4981,7 +4986,7 @@ net-create
 
 Create a transient (temporary) virtual network from an
 XML *file* and instantiate (start) the network.
-See the documentation at `https://libvirt.org/formatnetwork.html <https://libvirt.org/formatnetwork.html>`_
+See the documentation at `https://libvirt.org/formatnetwork.html <https://libvirt.org/formatnetwork.html>`__
 to get a description of the XML network format used by libvirt.
 
 
@@ -6558,10 +6563,20 @@ secret-set-value
 
 .. code-block::
 
-   secret-set-value secret base64
+   secret-set-value secret (--file filename [--plain] | --interactive | base64)
 
 Set the value associated with *secret* (specified by its UUID) to the value
-Base64-encoded value *base64*.
+Base64-encoded value *base64* or Base-64-encoded contents of file named
+*filename*. Using the *--plain* flag is together with *--file* allows to use
+the file contents directly as the secret value.
+
+If *--interactive* flag is used the secret value is read as a password from the
+terminal.
+
+Note that *--file*, *--interactive* and *base64* options are mutually exclusive.
+
+Passing secrets via the *base64* option on command line is INSECURE and
+deprecated. Use the *--file* option instead.
 
 
 secret-get-value
@@ -6571,11 +6586,15 @@ secret-get-value
 
 .. code-block::
 
-   secret-get-value secret
+   secret-get-value [--plain] secret
 
 Output the value associated with *secret* (specified by its UUID) to stdout,
 encoded using Base64.
 
+If the *--plain* flag is used the value is not base64 encoded, but rather
+printed raw. Note that unless virsh is started in quiet mode (*virsh -q*) it
+prints a newline at the end of the command. This newline is not part of the
+secret.
 
 secret-undefine
 ---------------
@@ -7463,16 +7482,24 @@ qemu-monitor-command
 
 .. code-block::
 
-   qemu-monitor-command domain { [--hmp] | [--pretty] } command...
+   qemu-monitor-command domain { [--hmp] | [--pretty] [--return-value] } command...
 
 Send an arbitrary monitor command *command* to domain *domain* through the
-QEMU monitor.  The results of the command will be printed on stdout.  If
-*--hmp* is passed, the command is considered to be a human monitor command
-and libvirt will automatically convert it into QMP if needed.  In that case
-the result will also be converted back from QMP.  If *--pretty* is given,
-and the monitor uses QMP, then the output will be pretty-printed.  If more
-than one argument is provided for *command*, they are concatenated with a
-space in between before passing the single command to the monitor.
+QEMU monitor.  The results of the command will be printed on stdout.
+
+If more than one argument is provided for *command*, they are concatenated with
+a space in between before passing the single command to the monitor.
+
+Note that libvirt uses the QMP to talk to qemu so *command* must be valid JSON
+in QMP format to work properly.
+
+If *--pretty* is given the QMP reply is pretty-printed.
+
+If *--return-value* is given the 'return' key of the QMP response object is
+extracted rather than passing through the full reply from QEMU.
+
+If *--hmp* is passed, the command is considered to be a human monitor command
+and libvirt will automatically convert it into QMP and convert the result back.
 
 
 qemu-agent-command

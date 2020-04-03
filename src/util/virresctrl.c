@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #define LIBVIRT_VIRRESCTRLPRIV_H_ALLOW
 #include "virresctrlpriv.h"
@@ -234,7 +235,7 @@ virResctrlInfoMonFree(virResctrlInfoMonPtr mon)
 }
 
 
-/* virResctrlAlloc and virResctrlMonitor*/
+/* virResctrlAlloc and virResctrlMonitor */
 
 /*
  * virResctrlAlloc and virResctrlMonitor are representing a resource control
@@ -455,7 +456,7 @@ VIR_ONCE_GLOBAL_INIT(virResctrl);
 static int
 virResctrlLockWrite(void)
 {
-    int fd = open(SYSFS_RESCTRL_PATH, O_DIRECTORY | O_CLOEXEC);
+    int fd = open(SYSFS_RESCTRL_PATH, O_RDWR | O_CLOEXEC);
 
     if (fd < 0) {
         virReportSystemError(errno, "%s", _("Cannot open resctrl"));
@@ -1432,7 +1433,7 @@ virResctrlAllocMemoryBandwidthFormat(virResctrlAllocPtr alloc,
         }
     }
 
-    virBufferTrim(buf, ";", 1);
+    virBufferTrim(buf, ";");
     virBufferAddChar(buf, '\n');
     return 0;
 }
@@ -1574,7 +1575,7 @@ virResctrlAllocFormatCache(virResctrlAllocPtr alloc,
                 VIR_FREE(mask_str);
             }
 
-            virBufferTrim(buf, ";", 1);
+            virBufferTrim(buf, ";");
             virBufferAddChar(buf, '\n');
         }
     }

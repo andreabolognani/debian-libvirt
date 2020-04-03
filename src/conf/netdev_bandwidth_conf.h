@@ -23,6 +23,7 @@
 #include "virbuffer.h"
 #include "virxml.h"
 #include "domain_conf.h"
+#include "network_conf.h"
 
 int virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
                             unsigned int *class_id,
@@ -33,27 +34,9 @@ int virNetDevBandwidthFormat(const virNetDevBandwidth *def,
                              unsigned int class_id,
                              virBufferPtr buf);
 
-void virDomainClearNetBandwidth(virDomainObjPtr vm)
+void virDomainClearNetBandwidth(virDomainDefPtr def)
     ATTRIBUTE_NONNULL(1);
 
-static inline bool virNetDevSupportBandwidth(virDomainNetType type)
-{
-    switch (type) {
-    case VIR_DOMAIN_NET_TYPE_BRIDGE:
-    case VIR_DOMAIN_NET_TYPE_NETWORK:
-    case VIR_DOMAIN_NET_TYPE_DIRECT:
-    case VIR_DOMAIN_NET_TYPE_ETHERNET:
-        return true;
-    case VIR_DOMAIN_NET_TYPE_USER:
-    case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
-    case VIR_DOMAIN_NET_TYPE_SERVER:
-    case VIR_DOMAIN_NET_TYPE_CLIENT:
-    case VIR_DOMAIN_NET_TYPE_MCAST:
-    case VIR_DOMAIN_NET_TYPE_UDP:
-    case VIR_DOMAIN_NET_TYPE_INTERNAL:
-    case VIR_DOMAIN_NET_TYPE_HOSTDEV:
-    case VIR_DOMAIN_NET_TYPE_LAST:
-        break;
-    }
-    return false;
-}
+bool virNetDevSupportsBandwidth(virDomainNetType type);
+bool virNetDevBandwidthHasFloor(const virNetDevBandwidth *b);
+bool virNetDevBandwidthSupportsFloor(virNetworkForwardType type);

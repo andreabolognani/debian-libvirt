@@ -30,7 +30,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include <sys/wait.h>
 
 #include "virerror.h"
 #include "datatypes.h"
@@ -48,6 +47,7 @@
 #include "viruri.h"
 #include "virnetdevtap.h"
 #include "virstring.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_OPENVZ
 
@@ -1498,7 +1498,7 @@ Version: 2.2
     if ((fp = fopen("/proc/vz/vestat", "r")) == NULL)
         return -1;
 
-    /*search line with VEID=vpsid*/
+    /* search line with VEID=vpsid */
     while (1) {
         ret = getline(&line, &line_size, fp);
         if (ret < 0) {
@@ -1508,7 +1508,7 @@ Version: 2.2
 
         if (sscanf(line, "%d %llu %llu %llu",
                    &readvps, &usertime, &nicetime, &systime) == 4
-            && readvps == vpsid) { /*found vpsid*/
+            && readvps == vpsid) { /* found vpsid */
             /* convert jiffies to nanoseconds */
             *cpuTime = (1000ull * 1000ull * 1000ull
                         * (usertime + nicetime  + systime)

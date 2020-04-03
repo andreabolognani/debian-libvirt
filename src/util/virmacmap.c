@@ -200,15 +200,13 @@ virMACMapHashDumper(void *payload,
                     const void *name,
                     void *data)
 {
-    virJSONValuePtr obj = NULL;
+    virJSONValuePtr obj = virJSONValueNewObject();
     virJSONValuePtr arr = NULL;
     const char **macs = payload;
     size_t i;
     int ret = -1;
 
-    if (!(obj = virJSONValueNewObject()) ||
-        !(arr = virJSONValueNewArray()))
-        goto cleanup;
+    arr = virJSONValueNewArray();
 
     for (i = 0; macs[i]; i++) {
         virJSONValuePtr m = virJSONValueNewString(macs[i]);
@@ -244,8 +242,7 @@ virMacMapDumpStrLocked(virMacMapPtr mgr,
     virJSONValuePtr arr;
     int ret = -1;
 
-    if (!(arr = virJSONValueNewArray()))
-        goto cleanup;
+    arr = virJSONValueNewArray();
 
     if (virHashForEach(mgr->macs, virMACMapHashDumper, arr) < 0)
         goto cleanup;
@@ -264,19 +261,15 @@ static int
 virMacMapWriteFileLocked(virMacMapPtr mgr,
                          const char *file)
 {
-    char *str;
-    int ret = -1;
+    g_autofree char *str = NULL;
 
     if (virMacMapDumpStrLocked(mgr, &str) < 0)
-        goto cleanup;
+        return -1;
 
     if (virFileRewriteStr(file, 0644, str) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(str);
-    return ret;
+    return 0;
 }
 
 

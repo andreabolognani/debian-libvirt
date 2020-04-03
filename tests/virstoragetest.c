@@ -18,6 +18,7 @@
 
 #include <config.h>
 
+#include <unistd.h>
 
 #include "testutils.h"
 #include "vircommand.h"
@@ -964,7 +965,7 @@ mymain(void)
     /* Rewrite wrap and qcow2 back to 3-deep chain, absolute backing */
     virCommandFree(cmd);
     cmd = virCommandNewArgList(qemuimg, "rebase", "-u", "-f", "qcow2",
-                               "-F", "qcow2", "-b", absraw, "qcow2", NULL);
+                               "-F", "raw", "-b", absraw, "qcow2", NULL);
     if (virCommandRun(cmd, NULL) < 0)
         ret = -1;
 
@@ -1225,6 +1226,7 @@ mymain(void)
     TEST_BACKING_PARSE_FULL(bck, xml, 0)
 
     TEST_BACKING_PARSE("path", "<source file='path'/>\n");
+    TEST_BACKING_PARSE("fat:/somedir", "<source dir='/somedir'/>\n");
     TEST_BACKING_PARSE("://", NULL);
     TEST_BACKING_PARSE("http://example.com",
                        "<source protocol='http' name=''>\n"
@@ -1258,6 +1260,10 @@ mymain(void)
                        "<source protocol='nbd' name=':test'>\n"
                        "  <host name='example.org' port='6000'/>\n"
                        "</source>\n");
+    TEST_BACKING_PARSE("nbd:unix:/tmp/sock:exportname=/",
+                       "<source protocol='nbd' name='/'>\n"
+                       "  <host transport='unix' socket='/tmp/sock'/>\n"
+                       "</source>\n");
     TEST_BACKING_PARSE("nbd://example.org:1234",
                        "<source protocol='nbd'>\n"
                        "  <host name='example.org' port='1234'/>\n"
@@ -1269,6 +1275,26 @@ mymain(void)
     TEST_BACKING_PARSE("nbd://example.org:1234/exportname",
                        "<source protocol='nbd' name='exportname'>\n"
                        "  <host name='example.org' port='1234'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("nbd+unix://?socket=/tmp/sock",
+                       "<source protocol='nbd'>\n"
+                       "  <host transport='unix' socket='/tmp/sock'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("nbd+unix:///?socket=/tmp/sock",
+                       "<source protocol='nbd'>\n"
+                       "  <host transport='unix' socket='/tmp/sock'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("nbd+unix:////?socket=/tmp/sock",
+                       "<source protocol='nbd' name='/'>\n"
+                       "  <host transport='unix' socket='/tmp/sock'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("nbd+unix:///exp?socket=/tmp/sock",
+                       "<source protocol='nbd' name='exp'>\n"
+                       "  <host transport='unix' socket='/tmp/sock'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("nbd+unix:////exp?socket=/tmp/sock",
+                       "<source protocol='nbd' name='/exp'>\n"
+                       "  <host transport='unix' socket='/tmp/sock'/>\n"
                        "</source>\n");
     TEST_BACKING_PARSE_FULL("iscsi://testuser:testpass@example.org:1234/exportname",
                             "<source protocol='iscsi' name='exportname'>\n"
@@ -1289,6 +1315,10 @@ mymain(void)
     TEST_BACKING_PARSE("json:{\"file\" : { \"driver\":\"file\","
                                           "\"filename\":\"/path/to/file\""
                                         "}"
+                            "}",
+                       "<source file='/path/to/file'/>\n");
+    TEST_BACKING_PARSE("json:{\"driver\":\"file\","
+                             "\"filename\":\"/path/to/file\""
                             "}",
                        "<source file='/path/to/file'/>\n");
     TEST_BACKING_PARSE("json:{\"file.driver\":\"host_device\", "
@@ -1358,9 +1388,33 @@ mymain(void)
                         "  <host transport='unix' socket='/path/socket'/>\n"
                         "  <host name='example.com' port='24007'/>\n"
                         "</source>\n");
+    TEST_BACKING_PARSE("json:{\"driver\": \"raw\","
+                             "\"file\": {\"server.0.host\": \"A.A.A.A\","
+                                        "\"server.1.host\": \"B.B.B.B\","
+                                        "\"server.2.host\": \"C.C.C.C\","
+                                        "\"driver\": \"gluster\","
+                                        "\"path\": \"raw\","
+                                        "\"server.0.type\": \"tcp\","
+                                        "\"server.1.type\": \"tcp\","
+                                        "\"server.2.type\": \"tcp\","
+                                        "\"server.0.port\": \"24007\","
+                                        "\"server.1.port\": \"24007\","
+                                        "\"server.2.port\": \"24007\","
+                                        "\"volume\": \"vol1\"}}",
+                       "<source protocol='gluster' name='vol1/raw'>\n"
+                       "  <host name='A.A.A.A' port='24007'/>\n"
+                       "  <host name='B.B.B.B' port='24007'/>\n"
+                       "  <host name='C.C.C.C' port='24007'/>\n"
+                       "</source>\n");
     TEST_BACKING_PARSE("json:{\"file\":{\"driver\":\"nbd\","
                                        "\"path\":\"/path/to/socket\""
                                       "}"
+                            "}",
+                       "<source protocol='nbd'>\n"
+                       "  <host transport='unix' socket='/path/to/socket'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("json:{\"driver\":\"nbd\","
+                             "\"path\":\"/path/to/socket\""
                             "}",
                        "<source protocol='nbd'>\n"
                        "  <host transport='unix' socket='/path/to/socket'/>\n"
@@ -1559,6 +1613,58 @@ mymain(void)
                        "<source protocol='vxhs' name='c6718f6b-0401-441d-a8c3-1f0064d75ee0'>\n"
                        "  <host name='example.com' port='9999'/>\n"
                        "</source>\n");
+    TEST_BACKING_PARSE_FULL("json:{ \"driver\": \"raw\","
+                                    "\"offset\": 10752,"
+                                    "\"size\": 4063232,"
+                                    "\"file\": { \"driver\": \"file\","
+                                                "\"filename\": \"/tmp/testfle\""
+                                              "}"
+                                  "}",
+                            "<source file='/tmp/testfle'>\n"
+                            "  <slices>\n"
+                            "    <slice type='storage' offset='10752' size='4063232'/>\n"
+                            "  </slices>\n"
+                            "</source>\n", 0);
+
+    TEST_BACKING_PARSE_FULL("json:{ \"file.cookie\": \"vmware_soap_session=\\\"0c8db85112873a79b7ef74f294cb70ef7f\\\"\","
+                                   "\"file.sslverify\": false,"
+                                   "\"file.driver\": \"https\","
+                                   "\"file.url\": \"https://host/folder/esx6.5-rhel7.7-x86%5f64/esx6.5-rhel7.7-x86%5f64-flat.vmdk?dcPath=data&dsName=esx6.5-matrix\","
+                                   "\"file.timeout\": 2000"
+                                 "}",
+                           "<source protocol='https' name='folder/esx6.5-rhel7.7-x86_64/esx6.5-rhel7.7-x86_64-flat.vmdk' query='dcPath=data&amp;dsName=esx6.5-matrix'>\n"
+                           "  <host name='host' port='443'/>\n"
+                           "  <ssl verify='no'/>\n"
+                           "  <cookies>\n"
+                           "    <cookie name='vmware_soap_session'>&quot;0c8db85112873a79b7ef74f294cb70ef7f&quot;</cookie>\n"
+                           "  </cookies>\n"
+                           "  <timeout seconds='2000'/>\n"
+                           "</source>\n", 0);
+
+    TEST_BACKING_PARSE_FULL("json:{ \"file.cookie\": \"vmware_soap_session=\\\"0c8db85112873a79b7ef74f294cb70ef7f\\\"\","
+                                   "\"file.sslverify\": \"off\","
+                                   "\"file.driver\": \"https\","
+                                   "\"file.url\": \"https://host/folder/esx6.5-rhel7.7-x86%5f64/esx6.5-rhel7.7-x86%5f64-flat.vmdk?dcPath=data&dsName=esx6.5-matrix\","
+                                   "\"file.timeout\": 2000"
+                                 "}",
+                           "<source protocol='https' name='folder/esx6.5-rhel7.7-x86_64/esx6.5-rhel7.7-x86_64-flat.vmdk' query='dcPath=data&amp;dsName=esx6.5-matrix'>\n"
+                           "  <host name='host' port='443'/>\n"
+                           "  <ssl verify='no'/>\n"
+                           "  <cookies>\n"
+                           "    <cookie name='vmware_soap_session'>&quot;0c8db85112873a79b7ef74f294cb70ef7f&quot;</cookie>\n"
+                           "  </cookies>\n"
+                           "  <timeout seconds='2000'/>\n"
+                           "</source>\n", 0);
+
+    TEST_BACKING_PARSE("json:{\"file\":{\"driver\": \"nvme\","
+                                       "\"device\": \"0000:01:00.0\","
+                                       "\"namespace\": 1"
+                                      "}"
+                            "}",
+                        "<source type='pci' namespace='1'>\n"
+                        "  <address domain='0x0000' bus='0x01' slot='0x00' function='0x0'/>\n"
+                        "</source>\n");
+
 #endif /* WITH_YAJL */
 
  cleanup:

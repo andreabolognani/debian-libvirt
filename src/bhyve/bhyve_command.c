@@ -21,10 +21,6 @@
 
 #include <config.h>
 
-#include <sys/types.h>
-#include <net/if.h>
-#include <net/if_tap.h>
-
 #include "bhyve_capabilities.h"
 #include "bhyve_command.h"
 #include "bhyve_domain.h"
@@ -44,9 +40,9 @@
 VIR_LOG_INIT("bhyve.bhyve_command");
 
 static int
-bhyveBuildNetArgStr(virConnectPtr conn,
-                    const virDomainDef *def,
+bhyveBuildNetArgStr(const virDomainDef *def,
                     virDomainNetDefPtr net,
+                    bhyveConnPtr driver,
                     virCommandPtr cmd,
                     bool dryRun)
 {
@@ -60,7 +56,7 @@ bhyveBuildNetArgStr(virConnectPtr conn,
     if (net->model == VIR_DOMAIN_NET_MODEL_VIRTIO) {
         nic_model = g_strdup("virtio-net");
     } else if (net->model == VIR_DOMAIN_NET_MODEL_E1000) {
-        if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_NET_E1000) != 0) {
+        if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_NET_E1000) != 0) {
             nic_model = g_strdup("e1000");
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -95,6 +91,7 @@ bhyveBuildNetArgStr(virConnectPtr conn,
                                            def->uuid, NULL, NULL, 0,
                                            virDomainNetGetActualVirtPortProfile(net),
                                            virDomainNetGetActualVlan(net),
+                                           virDomainNetGetActualPortOptionsIsolated(net),
                                            NULL, 0, NULL,
                                            VIR_NETDEV_TAP_CREATE_IFUP | VIR_NETDEV_TAP_CREATE_PERSIST) < 0) {
             goto cleanup;
@@ -166,7 +163,7 @@ bhyveBuildConsoleArgStr(const virDomainDef *def, virCommandPtr cmd)
 static int
 bhyveBuildAHCIControllerArgStr(const virDomainDef *def,
                                virDomainControllerDefPtr controller,
-                               virConnectPtr conn,
+                               bhyveConnPtr driver,
                                virCommandPtr cmd)
 {
     virBuffer buf = VIR_BUFFER_INITIALIZER;
@@ -199,21 +196,21 @@ bhyveBuildAHCIControllerArgStr(const virDomainDef *def,
 
         if ((disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) &&
             (disk_source == NULL)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("cdrom device without source path "
-                                 "not supported"));
-                goto error;
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("cdrom device without source path "
+                             "not supported"));
+            goto error;
         }
 
         switch (disk->device) {
         case VIR_DOMAIN_DISK_DEVICE_DISK:
-            if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_AHCI32SLOT))
+            if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_AHCI32SLOT))
                 virBufferAsprintf(&device, ",hd:%s", disk_source);
             else
                 virBufferAsprintf(&device, "-hd,%s", disk_source);
             break;
         case VIR_DOMAIN_DISK_DEVICE_CDROM:
-            if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_AHCI32SLOT))
+            if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_AHCI32SLOT))
                 virBufferAsprintf(&device, ",cd:%s", disk_source);
             else
                 virBufferAsprintf(&device, "-cd,%s", disk_source);
@@ -279,8 +276,8 @@ bhyveBuildUSBControllerArgStr(const virDomainDef *def,
 
 static int
 bhyveBuildVirtIODiskArgStr(const virDomainDef *def G_GNUC_UNUSED,
-                     virDomainDiskDefPtr disk,
-                     virCommandPtr cmd)
+                           virDomainDiskDefPtr disk,
+                           virCommandPtr cmd)
 {
     const char *disk_source;
 
@@ -311,6 +308,61 @@ bhyveBuildVirtIODiskArgStr(const virDomainDef *def G_GNUC_UNUSED,
 }
 
 static int
+bhyveBuildDiskArgStr(const virDomainDef *def,
+                     virDomainDiskDefPtr disk,
+                     virCommandPtr cmd)
+{
+    switch (disk->bus) {
+    case VIR_DOMAIN_DISK_BUS_SATA:
+        /* Handled by bhyveBuildAHCIControllerArgStr() */
+        break;
+    case VIR_DOMAIN_DISK_BUS_VIRTIO:
+        if (bhyveBuildVirtIODiskArgStr(def, disk, cmd) < 0)
+            return -1;
+        break;
+    default:
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("unsupported disk device"));
+        return -1;
+    }
+    return 0;
+}
+
+static int
+bhyveBuildControllerArgStr(const virDomainDef *def,
+                           virDomainControllerDefPtr controller,
+                           bhyveConnPtr driver,
+                           virCommandPtr cmd,
+                           unsigned *nusbcontrollers)
+{
+    switch (controller->type) {
+    case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
+        if (controller->model != VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("unsupported PCI controller model: "
+                             "only PCI root supported"));
+            return -1;
+        }
+        break;
+    case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
+        if (bhyveBuildAHCIControllerArgStr(def, controller, driver, cmd) < 0)
+            return -1;
+        break;
+    case VIR_DOMAIN_CONTROLLER_TYPE_USB:
+        if (++*nusbcontrollers > 1) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("only single USB controller is supported"));
+            return -1;
+        }
+
+        if (bhyveBuildUSBControllerArgStr(def, controller, cmd) < 0)
+            return -1;
+        break;
+    }
+    return 0;
+}
+
+static int
 bhyveBuildLPCArgStr(const virDomainDef *def G_GNUC_UNUSED,
                     virCommandPtr cmd)
 {
@@ -322,7 +374,7 @@ static int
 bhyveBuildGraphicsArgStr(const virDomainDef *def,
                          virDomainGraphicsDefPtr graphics,
                          virDomainVideoDefPtr video,
-                         virConnectPtr conn,
+                         bhyveConnPtr driver,
                          virCommandPtr cmd,
                          bool dryRun)
 {
@@ -331,9 +383,7 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
     bool escapeAddr;
     unsigned short port;
 
-    bhyveConnPtr driver = conn->privateData;
-
-    if (!(bhyveDriverGetCaps(conn) & BHYVE_CAP_LPC_BOOTROM) ||
+    if (!(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_LPC_BOOTROM) ||
         def->os.bootloader ||
         !def->os.loader) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -342,7 +392,7 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
         return -1;
     }
 
-    if (!(bhyveDriverGetCaps(conn) & BHYVE_CAP_FBUF)) {
+    if (!(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_FBUF)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("Bhyve version does not support framebuffer"));
         return -1;
@@ -433,8 +483,8 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
 }
 
 virCommandPtr
-virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
-                             virDomainDefPtr def, bool dryRun)
+virBhyveProcessBuildBhyveCmd(bhyveConnPtr driver, virDomainDefPtr def,
+                             bool dryRun)
 {
     /*
      * /usr/sbin/bhyve -c 2 -m 256 -AI -H -P \
@@ -444,15 +494,19 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
      *            -S 31,uart,stdio \
      *            vm0
      */
-    size_t i;
-    int nusbcontrollers = 0;
-    unsigned int nvcpus = virDomainDefGetVcpus(def);
-
     virCommandPtr cmd = virCommandNew(BHYVE);
+    size_t i;
+    unsigned nusbcontrollers = 0;
+    unsigned nvcpus = virDomainDefGetVcpus(def);
 
     /* CPUs */
     virCommandAddArg(cmd, "-c");
     if (def->cpu && def->cpu->sockets) {
+        if (def->cpu->dies != 1) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only 1 die per socket is supported"));
+            goto error;
+        }
         if (nvcpus != def->cpu->sockets * def->cpu->cores * def->cpu->threads) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Invalid CPU topology: total number of vCPUs "
@@ -461,7 +515,7 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
             goto error;
         }
 
-        if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_CPUTOPOLOGY) != 0) {
+        if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_CPUTOPOLOGY) != 0) {
             virCommandAddArgFormat(cmd, "cpus=%d,sockets=%d,cores=%d,threads=%d",
                                    nvcpus,
                                    def->cpu->sockets,
@@ -500,7 +554,7 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
         /* used by default in bhyve */
         break;
     case VIR_DOMAIN_CLOCK_OFFSET_UTC:
-        if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_RTC_UTC) != 0) {
+        if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_RTC_UTC) != 0) {
             virCommandAddArg(cmd, "-u");
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -534,7 +588,7 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
 
     if (def->os.bootloader == NULL &&
         def->os.loader) {
-        if ((bhyveDriverGetCaps(conn) & BHYVE_CAP_LPC_BOOTROM)) {
+        if ((bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_LPC_BOOTROM)) {
             virCommandAddArg(cmd, "-l");
             virCommandAddArgFormat(cmd, "bootrom,%s", def->os.loader->path);
         } else {
@@ -547,58 +601,23 @@ virBhyveProcessBuildBhyveCmd(virConnectPtr conn,
 
     /* Devices */
     for (i = 0; i < def->ncontrollers; i++) {
-        virDomainControllerDefPtr controller = def->controllers[i];
-        switch (controller->type) {
-        case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
-                if (controller->model != VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT) {
-                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                       "%s", _("unsupported PCI controller model: only PCI root supported"));
-                        goto error;
-                }
-                break;
-        case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
-                if (bhyveBuildAHCIControllerArgStr(def, controller, conn, cmd) < 0)
-                    goto error;
-                break;
-        case VIR_DOMAIN_CONTROLLER_TYPE_USB:
-                if (++nusbcontrollers > 1) {
-                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                       "%s", _("only single USB controller is supported"));
-                        goto error;
-                }
-
-                if (bhyveBuildUSBControllerArgStr(def, controller, cmd) < 0)
-                    goto error;
-                break;
-        }
+        if (bhyveBuildControllerArgStr(def, def->controllers[i], driver, cmd,
+                                       &nusbcontrollers) < 0)
+            goto error;
     }
     for (i = 0; i < def->nnets; i++) {
-        virDomainNetDefPtr net = def->nets[i];
-        if (bhyveBuildNetArgStr(conn, def, net, cmd, dryRun) < 0)
+        if (bhyveBuildNetArgStr(def, def->nets[i], driver, cmd, dryRun) < 0)
             goto error;
     }
     for (i = 0; i < def->ndisks; i++) {
-        virDomainDiskDefPtr disk = def->disks[i];
-
-        switch (disk->bus) {
-        case VIR_DOMAIN_DISK_BUS_SATA:
-            /* Handled by bhyveBuildAHCIControllerArgStr() */
-            break;
-        case VIR_DOMAIN_DISK_BUS_VIRTIO:
-            if (bhyveBuildVirtIODiskArgStr(def, disk, cmd) < 0)
-                goto error;
-            break;
-        default:
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("unsupported disk device"));
+        if (bhyveBuildDiskArgStr(def, def->disks[i], cmd) < 0)
             goto error;
-        }
     }
 
     if (def->ngraphics && def->nvideos) {
         if (def->ngraphics == 1 && def->nvideos == 1) {
             if (bhyveBuildGraphicsArgStr(def, def->graphics[0], def->videos[0],
-                                         conn, cmd, dryRun) < 0)
+                                         driver, cmd, dryRun) < 0)
                 goto error;
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -741,7 +760,7 @@ virBhyveFormatGrubDevice(virBufferPtr devicemap, virDomainDiskDefPtr def)
 
 static virCommandPtr
 virBhyveProcessBuildGrubbhyveCmd(virDomainDefPtr def,
-                                 virConnectPtr conn,
+                                 bhyveConnPtr driver,
                                  const char *devmap_file,
                                  char **devicesmap_out)
 {
@@ -824,7 +843,7 @@ virBhyveProcessBuildGrubbhyveCmd(virDomainDefPtr def,
     virCommandAddArgFormat(cmd, "%llu",
                            VIR_DIV_UP(virDomainDefGetMemoryInitial(def), 1024));
 
-    if ((bhyveDriverGetGrubCaps(conn) & BHYVE_GRUB_CAP_CONSDEV) != 0 &&
+    if ((bhyveDriverGetGrubCaps(driver) & BHYVE_GRUB_CAP_CONSDEV) != 0 &&
         def->nserials > 0) {
         virDomainChrDefPtr chr;
 
@@ -933,7 +952,7 @@ virBhyveGetBootDisk(virDomainDefPtr def)
 }
 
 virCommandPtr
-virBhyveProcessBuildLoadCmd(virConnectPtr conn, virDomainDefPtr def,
+virBhyveProcessBuildLoadCmd(bhyveConnPtr driver, virDomainDefPtr def,
                             const char *devmap_file, char **devicesmap_out)
 {
     virDomainDiskDefPtr disk = NULL;
@@ -946,7 +965,7 @@ virBhyveProcessBuildLoadCmd(virConnectPtr conn, virDomainDefPtr def,
 
         return virBhyveProcessBuildBhyveloadCmd(def, disk);
     } else if (strstr(def->os.bootloader, "grub-bhyve") != NULL) {
-        return virBhyveProcessBuildGrubbhyveCmd(def, conn, devmap_file,
+        return virBhyveProcessBuildGrubbhyveCmd(def, driver, devmap_file,
                                                 devicesmap_out);
     } else {
         return virBhyveProcessBuildCustomLoaderCmd(def);

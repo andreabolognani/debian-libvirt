@@ -30,7 +30,6 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <pwd.h>
-#include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #ifdef HAVE_SYSCTLBYNAME
@@ -68,6 +67,9 @@
 #include "virhook.h"
 #include "virjson.h"
 #include "virnetworkportdef.h"
+#include "virutil.h"
+
+#include "netdev_bandwidth_conf.h"
 
 #define VIR_FROM_THIS VIR_FROM_NETWORK
 #define MAX_BRIDGE_ID 256
@@ -702,6 +704,7 @@ firewalld_dbus_filter_bridge(DBusConnection *connection G_GNUC_UNUSED,
  */
 static int
 networkStateInitialize(bool privileged,
+                       const char *root,
                        virStateInhibitCallback callback G_GNUC_UNUSED,
                        void *opaque G_GNUC_UNUSED)
 {
@@ -712,6 +715,12 @@ networkStateInitialize(bool privileged,
 #ifdef WITH_FIREWALLD
     DBusConnection *sysbus = NULL;
 #endif
+
+    if (root != NULL) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Driver does not support embedded mode"));
+        return -1;
+    }
 
     if (VIR_ALLOC(network_driver) < 0)
         goto error;
@@ -954,68 +963,6 @@ static int networkConnectIsEncrypted(virConnectPtr conn G_GNUC_UNUSED)
 static int networkConnectIsAlive(virConnectPtr conn G_GNUC_UNUSED)
 {
     return 1;
-}
-
-
-/* networkKillDaemon:
- *
- * kill the specified pid/name, and wait a bit to make sure it's dead.
- */
-static int
-networkKillDaemon(pid_t pid,
-                  const char *daemonName,
-                  const char *networkName)
-{
-    size_t i;
-    int ret = -1;
-    const char *signame = "TERM";
-
-    /* send SIGTERM, then wait up to 3 seconds for the process to
-     * disappear, send SIGKILL, then wait for up to another 2
-     * seconds. If that fails, log a warning and continue, hoping
-     * for the best.
-     */
-    for (i = 0; i < 25; i++) {
-        int signum = 0;
-        if (i == 0) {
-            signum = SIGTERM;
-        } else if (i == 15) {
-            signum = SIGKILL;
-            signame = "KILL";
-        }
-        if (kill(pid, signum) < 0) {
-            if (errno == ESRCH) {
-                ret = 0;
-            } else {
-                char ebuf[1024];
-                VIR_WARN("Failed to terminate %s process %d "
-                         "for network '%s' with SIG%s: %s",
-                         daemonName, pid, networkName, signame,
-                         virStrerror(errno, ebuf, sizeof(ebuf)));
-            }
-            return ret;
-        }
-        /* NB: since networks have no reference count like
-         * domains, there is no safe way to unlock the network
-         * object temporarily, and so we can't follow the
-         * procedure used by the qemu driver of 1) unlock driver
-         * 2) sleep, 3) add ref to object 4) unlock object, 5)
-         * re-lock driver, 6) re-lock object. We may need to add
-         * that functionality eventually, but for now this
-         * function is rarely used and, at worst, leaving the
-         * network driver locked during this loop of sleeps will
-         * have the effect of holding up any other thread trying
-         * to make modifications to a network for up to 5 seconds;
-         * since modifications to networks are much less common
-         * than modifications to domains, this seems a reasonable
-         * tradeoff in exchange for less code disruption.
-         */
-        g_usleep(20 * 1000);
-    }
-    VIR_WARN("Timed out waiting after SIG%s to %s process %d "
-             "(network '%s')",
-             signame, daemonName, pid, networkName);
-    return ret;
 }
 
 
@@ -1824,12 +1771,11 @@ static int
 networkRestartDhcpDaemon(virNetworkDriverStatePtr driver,
                          virNetworkObjPtr obj)
 {
-    virNetworkDefPtr def = virNetworkObjGetDef(obj);
     pid_t dnsmasqPid = virNetworkObjGetDnsmasqPid(obj);
 
     /* if there is a running dnsmasq, kill it */
     if (dnsmasqPid > 0) {
-        networkKillDaemon(dnsmasqPid, "dnsmasq", def->name);
+        virProcessKillPainfully(dnsmasqPid, false);
         virNetworkObjSetDnsmasqPid(obj, -1);
     }
     /* now start dnsmasq if it should be started */
@@ -2058,23 +2004,19 @@ networkRefreshRadvd(virNetworkDriverStatePtr driver,
 {
     virNetworkDefPtr def = virNetworkObjGetDef(obj);
     dnsmasqCapsPtr dnsmasq_caps = networkGetDnsmasqCaps(driver);
-    char *radvdpidbase;
+    g_autofree char *radvdpidbase = NULL;
+    g_autofree char *pidfile = NULL;
     pid_t radvdPid;
 
     /* Is dnsmasq handling RA? */
     if (DNSMASQ_RA_SUPPORT(dnsmasq_caps)) {
         virObjectUnref(dnsmasq_caps);
-        radvdPid = virNetworkObjGetRadvdPid(obj);
-        if (radvdPid <= 0)
-            return 0;
-        /* radvd should not be running but in case it is */
-        if ((networkKillDaemon(radvdPid, "radvd", def->name) >= 0) &&
-            ((radvdpidbase = networkRadvdPidfileBasename(def->name))
-             != NULL)) {
-            virPidFileDelete(driver->pidDir, radvdpidbase);
-            VIR_FREE(radvdpidbase);
+        if ((radvdpidbase = networkRadvdPidfileBasename(def->name)) &&
+            (pidfile = virPidFileBuildPath(driver->pidDir, radvdpidbase))) {
+            /* radvd should not be running but in case it is */
+            virPidFileForceCleanupPath(pidfile);
+            virNetworkObjSetRadvdPid(obj, -1);
         }
-        virNetworkObjSetRadvdPid(obj, -1);
         return 0;
     }
     virObjectUnref(dnsmasq_caps);
@@ -2102,23 +2044,19 @@ static int
 networkRestartRadvd(virNetworkObjPtr obj)
 {
     virNetworkDefPtr def = virNetworkObjGetDef(obj);
-    char *radvdpidbase;
-    pid_t radvdPid = virNeworkObjGetRadvdPid(obj);
+    g_autofree char *radvdpidbase = NULL;
+    g_autofree char *pidfile = NULL;
 
-    /* if there is a running radvd, kill it */
-    if (radvdPid > 0) {
-        /* essentially ignore errors from the following two functions,
-         * since there's really no better recovery to be done than to
-         * just push ahead (and that may be exactly what's needed).
-         */
-        if ((networkKillDaemon(radvdPid, "radvd", def->name) >= 0) &&
-            ((radvdpidbase = networkRadvdPidfileBasename(def->name))
-             != NULL)) {
-            virPidFileDelete(driver->pidDir, radvdpidbase);
-            VIR_FREE(radvdpidbase);
-        }
+    /* If there is a running radvd, kill it. Essentially ignore errors from the
+     * following two functions, since there's really no better recovery to be
+     * done than to just push ahead (and that may be exactly what's needed).
+     */
+    if ((radvdpidbase = networkRadvdPidfileBasename(def->name)) &&
+        (pidfile = virPidFileBuildPath(driver->pidDir, radvdpidbase))) {
+        virPidFileForceCleanupPath(pidfile);
         virNetworkObjSetRadvdPid(obj, -1);
     }
+
     /* now start radvd if it should be started */
     return networkStartRadvd(obj);
 }
@@ -2483,6 +2421,7 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
         if (virNetDevTapCreateInBridgePort(def->bridge,
                                            &macTapIfName, &def->mac,
                                            NULL, NULL, &tapfd, 1, NULL, NULL,
+                                           VIR_TRISTATE_BOOL_NO,
                                            NULL, def->mtu, NULL,
                                            VIR_NETDEV_TAP_CREATE_USE_MAC_FOR_BRIDGE |
                                            VIR_NETDEV_TAP_CREATE_IFUP |
@@ -4052,7 +3991,7 @@ networkDestroy(virNetworkPtr net)
 
     virNetworkObjDeleteAllPorts(obj, driver->stateDir);
 
-    /* @def replaced in virNetworkObjUnsetDefTransient*/
+    /* @def replaced in virNetworkObjUnsetDefTransient */
     def = virNetworkObjGetDef(obj);
 
     event = virNetworkEventLifecycleNew(def->name,
@@ -4526,6 +4465,9 @@ networkAllocatePort(virNetworkObjPtr obj,
             port->trustGuestRxFilters = netdef->trustGuestRxFilters;
     }
 
+    if (port->isolatedPort == VIR_TRISTATE_BOOL_ABSENT)
+        port->isolatedPort = netdef->isolatedPort;
+
     /* merge virtualports from interface, network, and portgroup to
      * arrive at actual virtualport to use
      */
@@ -4565,8 +4507,6 @@ networkAllocatePort(virNetworkObjPtr obj,
             return -1;
         }
 
-        if (networkPlugBandwidth(obj, &port->mac, port->bandwidth, &port->class_id) < 0)
-            return -1;
         break;
 
     case VIR_NETWORK_FORWARD_HOSTDEV: {
@@ -4631,8 +4571,6 @@ networkAllocatePort(virNetworkObjPtr obj,
                 }
             }
 
-            if (networkPlugBandwidth(obj, &port->mac, port->bandwidth, &port->class_id) < 0)
-                return -1;
             break;
         }
 
@@ -4729,6 +4667,11 @@ networkAllocatePort(virNetworkObjPtr obj,
         virReportEnumRangeError(virNetworkForwardType, netdef->forward.type);
         return -1;
     }
+
+
+    if (networkPlugBandwidth(obj, &port->mac, port->bandwidth,
+                             &port->class_id) < 0)
+        return -1;
 
     if (virNetworkObjMacMgrAdd(obj, driver->dnsmasqStateDir,
                                port->ownername, &port->mac) < 0)
@@ -5059,7 +5002,16 @@ networkCheckBandwidth(virNetworkObjPtr obj,
 
     virMacAddrFormat(ifaceMac, ifmac);
 
-    if (ifaceBand && ifaceBand->in && ifaceBand->in->floor &&
+    if (virNetDevBandwidthHasFloor(ifaceBand) &&
+        !virNetDevBandwidthSupportsFloor(def->forward.type)) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("Invalid use of 'floor' on interface with MAC address %s "
+                         "- 'floor' is only supported for interface type 'network' with forward type 'nat', 'route', 'open' or none"),
+                       ifmac);
+        return -1;
+    }
+
+    if (virNetDevBandwidthHasFloor(ifaceBand) &&
         !(netBand && netBand->in)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("Invalid use of 'floor' on interface with MAC "
@@ -5073,8 +5025,9 @@ networkCheckBandwidth(virNetworkObjPtr obj,
         /* no QoS required, claim success */
         return 1;
     }
-    if (((!ifaceBand || !ifaceBand->in || !ifaceBand->in->floor) &&
-         (!oldBandwidth || !oldBandwidth->in || !oldBandwidth->in->floor))) {
+    if (!virNetDevBandwidthHasFloor(ifaceBand) &&
+        !virNetDevBandwidthHasFloor(oldBandwidth)) {
+
         VIR_DEBUG("No old/new interface bandwidth floor");
         /* no QoS required, claim success */
         return 1;

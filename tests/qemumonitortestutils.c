@@ -36,6 +36,7 @@
 #include "virlog.h"
 #include "virerror.h"
 #include "virstring.h"
+#include "vireventthread.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -65,6 +66,8 @@ struct _qemuMonitorTest {
 
     virNetSocketPtr server;
     virNetSocketPtr client;
+
+    virEventThread *eventThread;
 
     qemuMonitorPtr mon;
     qemuAgentPtr agent;
@@ -389,6 +392,8 @@ qemuMonitorTestFree(qemuMonitorTestPtr test)
         qemuAgentClose(test->agent);
     }
 
+    g_object_unref(test->eventThread);
+
     virObjectUnref(test->vm);
 
     if (test->started)
@@ -529,12 +534,8 @@ qemuMonitorTestProcessCommandDefaultValidate(qemuMonitorTestPtr test,
         return -1;
     }
 
-    if (!args) {
-        if (!(emptyargs = virJSONValueNewObject()))
-            return -1;
-
-        args = emptyargs;
-    }
+    if (!args)
+        args = emptyargs = virJSONValueNewObject();
 
     if (testQEMUSchemaValidate(args, schemaroot, test->qapischema, &debug) < 0) {
         if (qemuMonitorReportError(test,
@@ -1142,6 +1143,7 @@ qemuMonitorCommonTestInit(qemuMonitorTestPtr test)
                             "}"
 /* We skip the normal handshake reply of "{\"execute\":\"qmp_capabilities\"}" */
 
+
 qemuMonitorTestPtr
 qemuMonitorTestNew(virDomainXMLOptionPtr xmlopt,
                    virDomainObjPtr vm,
@@ -1157,11 +1159,15 @@ qemuMonitorTestNew(virDomainXMLOptionPtr xmlopt,
     if (!(test = qemuMonitorCommonTestNew(xmlopt, vm, &src)))
         goto error;
 
+    if (!(test->eventThread = virEventThreadNew("mon-test")))
+        goto error;
+
     test->qapischema = schema;
     if (!(test->mon = qemuMonitorOpen(test->vm,
                                       &src,
                                       true,
                                       0,
+                                      virEventThreadGetContext(test->eventThread),
                                       &qemuMonitorTestCallbacks,
                                       driver)))
         goto error;
@@ -1395,9 +1401,14 @@ qemuMonitorTestNewAgent(virDomainXMLOptionPtr xmlopt)
     if (!(test = qemuMonitorCommonTestNew(xmlopt, NULL, &src)))
         goto error;
 
+    if (!(test->eventThread = virEventThreadNew("agent-test")))
+        goto error;
+
     if (!(test->agent = qemuAgentOpen(test->vm,
                                       &src,
-                                      &qemuMonitorTestAgentCallbacks)))
+                                      virEventThreadGetContext(test->eventThread),
+                                      &qemuMonitorTestAgentCallbacks,
+                                      false)))
         goto error;
 
     virObjectLock(test->agent);

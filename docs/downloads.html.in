@@ -61,7 +61,7 @@
         <tr>
           <td>Go</td>
           <td>
-            <a href="https://libvirt.org/sources/go/">libvirt</a>
+            <a href="https://libvirt.org/libvirt-go">libvirt</a>
           </td>
           <td>
             <a href="https://libvirt.org/git/?p=libvirt-go.git;a=summary">libvirt</a>
@@ -71,7 +71,7 @@
             <a href="https://github.com/libvirt/libvirt-go">github</a>
           </td>
           <td>
-            <a href="https://godoc.org/github.com/libvirt/libvirt-go">api ref</a>
+            <a href="https://godoc.org/libvirt.org/libvirt-go">api ref</a>
           </td>
         </tr>
         <tr>
@@ -165,7 +165,7 @@
         <tr>
           <td>Rust</td>
           <td>
-            <a href="https://libvirt.org/sources/rust/">libvirt</a>
+            <a href="https://crates.io/crates/virt">crates.io</a>
           </td>
           <td>
             <a href="https://libvirt.org/git/?p=libvirt-rust.git;a=summary">libvirt</a>
@@ -174,7 +174,9 @@
             <a href="https://gitlab.com/libvirt/libvirt-rust">gitlab</a>
             <a href="https://github.com/libvirt/libvirt-rust">github</a>
           </td>
-          <td></td>
+          <td>
+            <a href="https://docs.rs/virt">api ref</a>
+          </td>
         </tr>
         <tr>
           <th colspan="7">Integration modules</th>
@@ -196,7 +198,7 @@
         <tr>
           <td>Go XML</td>
           <td>
-            <a href="https://libvirt.org/sources/go/">libvirt</a>
+            <a href="https://libvirt.org/libvirt-go-xml">libvirt</a>
           </td>
           <td>
             <a href="https://libvirt.org/git/?p=libvirt-go-xml.git;a=summary">libvirt</a>
@@ -206,7 +208,7 @@
             <a href="https://github.com/libvirt/libvirt-go-xml">github</a>
           </td>
           <td>
-            <a href="https://godoc.org/github.com/libvirt/libvirt-go-xml">api ref</a>
+            <a href="https://godoc.org/libvirt.org/libvirt-go-xml">api ref</a>
           </td>
         </tr>
         <tr>

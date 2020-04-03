@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <sys/mount.h>
 #include <mntent.h>
+#include <unistd.h>
 
 #include "lxc_fuse.h"
 #include "lxc_cgroup.h"
@@ -31,6 +32,7 @@
 #include "virbuffer.h"
 #include "virstring.h"
 #include "viralloc.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -40,8 +42,7 @@ static const char *fuse_meminfo_path = "/meminfo";
 
 static int lxcProcGetattr(const char *path, struct stat *stbuf)
 {
-    int res;
-    char *mempath = NULL;
+    g_autofree char *mempath = NULL;
     struct stat sb;
     struct fuse_context *context = fuse_get_context();
     virDomainDefPtr def = (virDomainDefPtr)context->private_data;
@@ -49,16 +50,12 @@ static int lxcProcGetattr(const char *path, struct stat *stbuf)
     memset(stbuf, 0, sizeof(struct stat));
     mempath = g_strdup_printf("/proc/%s", path);
 
-    res = 0;
-
     if (STREQ(path, "/")) {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
     } else if (STREQ(path, fuse_meminfo_path)) {
-        if (stat(mempath, &sb) < 0) {
-            res = -errno;
-            goto cleanup;
-        }
+        if (stat(mempath, &sb) < 0)
+            return -errno;
 
         stbuf->st_uid = def->idmap.uidmap ? def->idmap.uidmap[0].target : 0;
         stbuf->st_gid = def->idmap.gidmap ? def->idmap.gidmap[0].target : 0;
@@ -71,12 +68,10 @@ static int lxcProcGetattr(const char *path, struct stat *stbuf)
         stbuf->st_ctime = sb.st_ctime;
         stbuf->st_mtime = sb.st_mtime;
     } else {
-        res = -ENOENT;
+        return -ENOENT;
     }
 
- cleanup:
-    VIR_FREE(mempath);
-    return res;
+    return 0;
 }
 
 static int lxcProcReaddir(const char *path, void *buf,
@@ -127,7 +122,7 @@ static int lxcProcReadMeminfo(char *hostpath, virDomainDefPtr def,
 {
     int res;
     FILE *fd = NULL;
-    char *line = NULL;
+    g_autofree char *line = NULL;
     size_t n;
     struct virLXCMeminfo meminfo;
     virBuffer buffer = VIR_BUFFER_INITIALIZER;
@@ -229,7 +224,6 @@ static int lxcProcReadMeminfo(char *hostpath, virDomainDefPtr def,
     memcpy(buf, virBufferCurrentContent(new_meminfo), res);
 
  cleanup:
-    VIR_FREE(line);
     virBufferFreeAndReset(new_meminfo);
     VIR_FORCE_FCLOSE(fd);
     return res;
@@ -242,7 +236,7 @@ static int lxcProcRead(const char *path G_GNUC_UNUSED,
                        struct fuse_file_info *fi G_GNUC_UNUSED)
 {
     int res = -ENOENT;
-    char *hostpath = NULL;
+    g_autofree char *hostpath = NULL;
     struct fuse_context *context = NULL;
     virDomainDefPtr def = NULL;
 
@@ -256,7 +250,6 @@ static int lxcProcRead(const char *path G_GNUC_UNUSED,
             res = lxcProcHostRead(hostpath, buf, size, offset);
     }
 
-    VIR_FREE(hostpath);
     return res;
 }
 
@@ -342,8 +335,8 @@ int lxcSetupFuse(virLXCFusePtr *f, virDomainDefPtr def)
 
 int lxcStartFuse(virLXCFusePtr fuse)
 {
-    if (virThreadCreate(&fuse->thread, false, lxcFuseRun,
-                        (void *)fuse) < 0) {
+    if (virThreadCreateFull(&fuse->thread, false, lxcFuseRun,
+                            "lxc-fuse", false, (void *)fuse) < 0) {
         lxcFuseDestroy(fuse);
         return -1;
     }

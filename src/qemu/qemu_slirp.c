@@ -207,30 +207,9 @@ static char *
 qemuSlirpGetDBusVMStateId(virDomainNetDefPtr net)
 {
     char macstr[VIR_MAC_STRING_BUFLEN] = "";
-    char *id = NULL;
 
     /* can't use alias, because it's not stable across restarts */
-    id = g_strdup_printf("slirp-%s", virMacAddrFormat(&net->mac, macstr));
-
-    return id;
-}
-
-
-static char *
-qemuSlirpGetDBusPath(virQEMUDriverConfigPtr cfg,
-                     const virDomainDef *def,
-                     const char *alias)
-{
-    g_autofree char *shortName = NULL;
-    char *path = NULL;
-
-    if (!(shortName = virDomainDefGetShortName(def)))
-        return NULL;
-
-    path = g_strdup_printf("%s/%s-%s-slirp",
-                           cfg->slirpStateDir, shortName, alias);
-
-    return path;
+    return g_strdup_printf("slirp-%s", virMacAddrFormat(&net->mac, macstr));
 }
 
 
@@ -238,51 +217,25 @@ void
 qemuSlirpStop(qemuSlirpPtr slirp,
               virDomainObjPtr vm,
               virQEMUDriverPtr driver,
-              virDomainNetDefPtr net,
-              bool hot)
+              virDomainNetDefPtr net)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    g_autofree char *pidfile = NULL;
-    g_autofree char *dbus_path = NULL;
     g_autofree char *id = qemuSlirpGetDBusVMStateId(net);
+    g_autofree char *pidfile = NULL;
     virErrorPtr orig_err;
-    pid_t pid;
-    int rc;
+
+    qemuDBusVMStateRemove(vm, id);
 
     if (!(pidfile = qemuSlirpCreatePidFilename(cfg, vm->def, net->info.alias))) {
         VIR_WARN("Unable to construct slirp pidfile path");
         return;
     }
 
-    if (id) {
-        qemuDBusVMStateRemove(driver, vm, id, hot);
-    } else {
-        VIR_WARN("Unable to construct vmstate id");
-    }
-
     virErrorPreserveLast(&orig_err);
-    rc = virPidFileReadPathIfAlive(pidfile, &pid, cfg->slirpHelperName);
-    if (rc >= 0 && pid != (pid_t) -1)
-        virProcessKillPainfully(pid, true);
-
-    if (unlink(pidfile) < 0 &&
-        errno != ENOENT) {
-        virReportSystemError(errno,
-                             _("Unable to remove stale pidfile %s"),
-                             pidfile);
-    }
-    slirp->pid = 0;
-
-    dbus_path = qemuSlirpGetDBusPath(cfg, vm->def, net->info.alias);
-    if (dbus_path) {
-        if (unlink(dbus_path) < 0 &&
-            errno != ENOENT) {
-            virReportSystemError(errno,
-                                 _("Unable to remove stale dbus socket %s"),
-                                 dbus_path);
-        }
+    if (virPidFileForceCleanupPath(pidfile) < 0) {
+        VIR_WARN("Unable to kill slirp process");
     } else {
-        VIR_WARN("Unable to construct dbus socket path");
+        slirp->pid = 0;
     }
 
     virErrorRestore(&orig_err);
@@ -294,17 +247,12 @@ qemuSlirpStart(qemuSlirpPtr slirp,
                virDomainObjPtr vm,
                virQEMUDriverPtr driver,
                virDomainNetDefPtr net,
-               bool hotplug,
                bool incoming)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(virCommand) cmd = NULL;
     g_autofree char *pidfile = NULL;
-    g_autofree char *dbus_path = NULL;
-    g_autofree char *dbus_addr = NULL;
-    g_autofree char *id = NULL;
     size_t i;
-    const unsigned long long timeout = 5 * 1000; /* ms */
     pid_t pid = (pid_t) -1;
     int rc;
     int exitstatus = 0;
@@ -337,68 +285,53 @@ qemuSlirpStart(qemuSlirpPtr slirp,
         const virNetDevIPAddr *ip = net->guestIP.ips[i];
         g_autofree char *addr = NULL;
         const char *opt = "";
+        unsigned prefix = ip->prefix;
 
         if (!(addr = virSocketAddrFormat(&ip->address)))
             return -1;
 
-        if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET))
+        if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET)) {
             opt = "--net";
-        if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6))
-            opt = "--prefix-ipv6";
-
-        virCommandAddArgFormat(cmd, "%s=%s", opt, addr);
-
-        if (ip->prefix) {
-            if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET)) {
-                virSocketAddr netmask;
-                g_autofree char *netmaskStr = NULL;
-
-                if (virSocketAddrPrefixToNetmask(ip->prefix, &netmask, AF_INET) < 0) {
-                    virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("Failed to translate prefix %d to netmask"),
-                                   ip->prefix);
-                    return -1;
-                }
-                if (!(netmaskStr = virSocketAddrFormat(&netmask)))
-                    return -1;
-                virCommandAddArgFormat(cmd, "--mask=%s", netmaskStr);
-            }
-            if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6))
-                virCommandAddArgFormat(cmd, "--prefix-length-ipv6=%u", ip->prefix);
+            prefix = prefix ?: 24;
         }
+        if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6)) {
+            opt = "--net6";
+            prefix = prefix ?: 64;
+        }
+
+        virCommandAddArgFormat(cmd, "%s=%s/%u", opt, addr, prefix);
     }
 
-    if (qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_DBUS_P2P)) {
-        if (!(id = qemuSlirpGetDBusVMStateId(net)))
-            return -1;
+    if (qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_DBUS_ADDRESS)) {
+        g_autofree char *id = qemuSlirpGetDBusVMStateId(net);
+        g_autofree char *dbus_addr = qemuDBusGetAddress(driver, vm);
 
-        if (!(dbus_path = qemuSlirpGetDBusPath(cfg, vm->def, net->info.alias)))
+        if (qemuDBusStart(driver, vm) < 0)
             return -1;
-
-        if (unlink(dbus_path) < 0 && errno != ENOENT) {
-            virReportSystemError(errno, _("Unable to unlink %s"), dbus_path);
-            return -1;
-        }
-
-        dbus_addr = g_strdup_printf("unix:path=%s", dbus_path);
 
         virCommandAddArgFormat(cmd, "--dbus-id=%s", id);
 
-        virCommandAddArgFormat(cmd, "--dbus-p2p=%s", dbus_addr);
+        virCommandAddArgFormat(cmd, "--dbus-address=%s", dbus_addr);
 
-        if (incoming &&
-            qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_MIGRATE))
-            virCommandAddArg(cmd, "--dbus-incoming");
+        if (qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_MIGRATE)) {
+            if (qemuDBusVMStateAdd(vm, id) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("Failed to register slirp migration"));
+                goto error;
+            }
+            if (incoming)
+                virCommandAddArg(cmd, "--dbus-incoming");
+        }
     }
 
     if (qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_EXIT_WITH_PARENT))
         virCommandAddArg(cmd, "--exit-with-parent");
 
     if (qemuExtDeviceLogCommand(driver, vm, cmd, "slirp") < 0)
-        return -1;
+        goto error;
 
     if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, &exitstatus, &cmdret) < 0)
-        return -1;
+        goto error;
 
     if (cmdret < 0 || exitstatus != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -414,46 +347,6 @@ qemuSlirpStart(qemuSlirpPtr slirp,
         goto error;
     }
 
-    if (dbus_path) {
-        virTimeBackOffVar timebackoff;
-
-        if (virTimeBackOffStart(&timebackoff, 1, timeout) < 0)
-            goto error;
-
-        while (virTimeBackOffWait(&timebackoff)) {
-            char errbuf[1024] = { 0 };
-
-            if (virFileExists(dbus_path))
-                break;
-
-            if (virProcessKill(pid, 0) == 0)
-                continue;
-
-            if (saferead(errfd, errbuf, sizeof(errbuf) - 1) < 0) {
-                virReportSystemError(errno,
-                                     _("slirp helper %s died unexpectedly"),
-                                     cfg->prHelperName);
-            } else {
-                virReportError(VIR_ERR_OPERATION_FAILED,
-                               _("slirp helper died and reported: %s"), errbuf);
-            }
-            goto error;
-        }
-
-        if (!virFileExists(dbus_path)) {
-            virReportError(VIR_ERR_OPERATION_TIMEOUT, "%s",
-                           _("slirp dbus socket did not show up"));
-            goto error;
-        }
-    }
-
-    if (qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_MIGRATE) &&
-        qemuDBusVMStateAdd(driver, vm, id, dbus_addr, hotplug) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to register slirp migration"));
-        goto error;
-    }
-
     slirp->pid = pid;
     return 0;
 
@@ -462,7 +355,6 @@ qemuSlirpStart(qemuSlirpPtr slirp,
         virProcessKillPainfully(pid, true);
     if (pidfile)
         unlink(pidfile);
-    if (dbus_path)
-        unlink(dbus_path);
+    qemuDBusStop(driver, vm);
     return -1;
 }

@@ -24,7 +24,6 @@
 
 #include "internal.h"
 #include "virbitmap.h"
-#include "virutil.h"
 #include "virscsihost.h"
 #include "virpci.h"
 #include "virvhba.h"
@@ -343,6 +342,8 @@ virNodeDeviceGetWWNs(virNodeDeviceDefPtr def,
 
 void
 virNodeDeviceDefFree(virNodeDeviceDefPtr def);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNodeDeviceDef, virNodeDeviceDefFree);
 
 void
 virNodeDevCapsDefFree(virNodeDevCapsDefPtr caps);

@@ -48,10 +48,10 @@
 #include "lxc_hostdev.h"
 #include "virhook.h"
 #include "virstring.h"
-#include "viratomic.h"
 #include "virprocess.h"
 #include "virsystemd.h"
 #include "netdev_bandwidth_conf.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -135,14 +135,13 @@ static void
 lxcProcessRemoveDomainStatus(virLXCDriverConfigPtr cfg,
                               virDomainObjPtr vm)
 {
-    char ebuf[1024];
     char *file = NULL;
 
     file = g_strdup_printf("%s/%s.xml", cfg->stateDir, vm->def->name);
 
     if (unlink(file) < 0 && errno != ENOENT && errno != ENOTDIR)
         VIR_WARN("Failed to remove domain XML for %s: %s",
-                 vm->def->name, virStrerror(errno, ebuf, sizeof(ebuf)));
+                 vm->def->name, g_strerror(errno));
     VIR_FREE(file);
 }
 
@@ -208,7 +207,7 @@ static void virLXCProcessCleanup(virLXCDriverPtr driver,
     vm->pid = -1;
     vm->def->id = -1;
 
-    if (virAtomicIntDecAndTest(&driver->nactive) && driver->inhibitCallback)
+    if (!!g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
         driver->inhibitCallback(false, driver->inhibitOpaque);
 
     virLXCDomainReAttachHostDevices(driver, vm->def);
@@ -304,6 +303,16 @@ virLXCProcessSetupInterfaceTap(virDomainDefPtr vm,
         } else {
             if (virNetDevBridgeAddPort(brname, parentVeth) < 0)
                 return NULL;
+
+            if (virDomainNetGetActualPortOptionsIsolated(net) == VIR_TRISTATE_BOOL_YES &&
+                virNetDevBridgePortSetIsolated(brname, parentVeth, true) < 0) {
+                virErrorPtr err;
+
+                virErrorPreserveLast(&err);
+                ignore_value(virNetDevBridgeRemovePort(brname, parentVeth));
+                virErrorRestore(&err);
+                return NULL;
+            }
         }
     }
 
@@ -399,7 +408,7 @@ static int virLXCProcessSetupNamespaceName(virLXCDriverPtr driver,
     int fd = -1;
     virDomainObjPtr vm;
     virLXCDomainObjPrivatePtr priv;
-    char *path;
+    g_autofree char *path = NULL;
 
     vm = virDomainObjListFindByName(driver->domains, name);
     if (!vm) {
@@ -426,7 +435,6 @@ static int virLXCProcessSetupNamespaceName(virLXCDriverPtr driver,
     }
 
  cleanup:
-    VIR_FREE(path);
     virDomainObjEndAPI(&vm);
     return fd;
 }
@@ -493,7 +501,7 @@ virLXCProcessSetupNamespaces(virLXCDriverPtr driver,
 
     for (i = 0; i < VIR_LXC_DOMAIN_NAMESPACE_LAST; i++)
         nsFDs[i] = -1;
-    /*If there are no namespace to be opened just return success*/
+    /* If there are no namespaces to be opened just return success */
     if (lxcDef == NULL)
         return 0;
 
@@ -612,7 +620,7 @@ virLXCProcessSetupInterfaces(virLXCDriverPtr driver,
         /* Set bandwidth or warn if requested and not supported. */
         actualBandwidth = virDomainNetGetActualBandwidth(net);
         if (actualBandwidth) {
-            if (virNetDevSupportBandwidth(type)) {
+            if (virNetDevSupportsBandwidth(type)) {
                 if (virNetDevBandwidthSet(net->ifname, actualBandwidth, false,
                                           !virDomainNetTypeSharesHostView(net)) < 0)
                     goto cleanup;
@@ -1364,11 +1372,8 @@ int virLXCProcessStart(virConnectPtr conn,
         goto cleanup;
     }
 
-    if (pipe(handshakefds) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Unable to create pipe"));
+    if (virPipe(handshakefds) < 0)
         goto cleanup;
-    }
 
     if (!(cmd = virLXCProcessBuildControllerCmd(driver,
                                                 vm,
@@ -1404,7 +1409,7 @@ int virLXCProcessStart(virConnectPtr conn,
     if (safewrite(logfd, timestamp, strlen(timestamp)) < 0 ||
         safewrite(logfd, START_POSTFIX, strlen(START_POSTFIX)) < 0) {
         VIR_WARN("Unable to write timestamp to logfile: %s",
-                 virStrerror(errno, ebuf, sizeof(ebuf)));
+                 g_strerror(errno));
     }
     VIR_FREE(timestamp);
 
@@ -1412,7 +1417,7 @@ int virLXCProcessStart(virConnectPtr conn,
     virCommandWriteArgLog(cmd, logfd);
     if ((pos = lseek(logfd, 0, SEEK_END)) < 0)
         VIR_WARN("Unable to seek to end of logfile: %s",
-                 virStrerror(errno, ebuf, sizeof(ebuf)));
+                 g_strerror(errno));
 
     VIR_DEBUG("Launching container");
     virCommandRawStatus(cmd);
@@ -1468,7 +1473,7 @@ int virLXCProcessStart(virConnectPtr conn,
     if (virCommandHandshakeNotify(cmd) < 0)
         goto cleanup;
 
-    if (virAtomicIntInc(&driver->nactive) == 1 && driver->inhibitCallback)
+    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
         driver->inhibitCallback(true, driver->inhibitOpaque);
 
     if (lxcContainerWaitForContinue(handshakefds[0]) < 0) {
@@ -1670,7 +1675,7 @@ virLXCProcessReconnectDomain(virDomainObjPtr vm,
         virDomainObjSetState(vm, VIR_DOMAIN_RUNNING,
                              VIR_DOMAIN_RUNNING_UNKNOWN);
 
-        if (virAtomicIntInc(&driver->nactive) == 1 && driver->inhibitCallback)
+        if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
             driver->inhibitCallback(true, driver->inhibitOpaque);
 
         if (!(priv->monitor = virLXCProcessConnectMonitor(driver, vm)))

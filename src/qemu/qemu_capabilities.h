@@ -123,7 +123,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_CHARDEV_SPICEVMC, /* newer -chardev spicevmc */
 
     /* 55 */
-    X_QEMU_CAPS_DEVICE_SPICEVMC, /* older -device spicevmc*/
+    X_QEMU_CAPS_DEVICE_SPICEVMC, /* older -device spicevmc */
     QEMU_CAPS_VIRTIO_TX_ALG, /* -device virtio-net-pci,tx=string */
     X_QEMU_CAPS_DEVICE_QXL_VGA, /* primary qxl device named qxl-vga? */
     X_QEMU_CAPS_PCI_MULTIFUNCTION, /* -device multifunction=on|off */
@@ -232,7 +232,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_DTB, /* -dtb file */
     QEMU_CAPS_SCSI_MEGASAS, /* -device megasas */
     X_QEMU_CAPS_IPV6_MIGRATION, /* -incoming [::] */
-    X_QEMU_CAPS_MACHINE_OPT, /* -machine xxxx*/
+    X_QEMU_CAPS_MACHINE_OPT, /* -machine xxxx */
 
     /* 135 */
     X_QEMU_CAPS_MACHINE_USB_OPT, /* -machine xxx,usb=on/off */
@@ -534,6 +534,21 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_BLOCK_FILE_AUTO_READONLY_DYNAMIC, /* the auto-read-only property of block backends for files is dynamic */
     QEMU_CAPS_SAVEVM_MONITOR_NODES, /* 'savevm' handles monitor-owned nodes properly */
     QEMU_CAPS_DRIVE_NVME, /* -drive file.driver=nvme */
+    QEMU_CAPS_SMP_DIES, /*  -smp dies= */
+
+    /* 350 */
+    QEMU_CAPS_DEVICE_I8042, /* PS/2 controller */
+    QEMU_CAPS_OBJECT_RNG_BUILTIN, /* -object rng-builtin */
+    QEMU_CAPS_VIRTIO_NET_FAILOVER, /* virtio-net-*.failover */
+    QEMU_CAPS_DEVICE_TPM_SPAPR, /* -device tpm-spapr */
+    QEMU_CAPS_CPU_KVM_NO_ADJVTIME, /* cpu.kvm-no-adjvtime */
+
+    /* 355 */
+    QEMU_CAPS_DEVICE_VHOST_USER_FS, /* -device vhost-user-fs */
+    QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT, /* query-named-block-nodes supports the 'flat' option */
+    QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY, /* blockdev-snapshot has the 'allow-write-only-overlay' feature */
+    QEMU_CAPS_BLOCKDEV_REOPEN, /* 'blockdev-reopen' qmp command is supported */
+    QEMU_CAPS_STORAGE_WERROR, /* virtio-blk,scsi-hd.werror */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -571,7 +586,17 @@ const char *virQEMUCapsGetBinary(virQEMUCapsPtr qemuCaps);
 virArch virQEMUCapsGetArch(virQEMUCapsPtr qemuCaps);
 unsigned int virQEMUCapsGetVersion(virQEMUCapsPtr qemuCaps);
 const char *virQEMUCapsGetPackage(virQEMUCapsPtr qemuCaps);
-virHashTablePtr virQEMUCapsGetDomainCapsCache(virQEMUCapsPtr qemuCaps);
+
+virDomainCapsPtr
+virQEMUCapsGetDomainCapsCache(virQEMUCapsPtr qemuCaps,
+                              const char *machine,
+                              virArch arch,
+                              virDomainVirtType virttype,
+                              virArch hostarch,
+                              bool privileged,
+                              virFirmwarePtr *firmwares,
+                              size_t nfirmwares);
+
 unsigned int virQEMUCapsGetKVMVersion(virQEMUCapsPtr qemuCaps);
 int virQEMUCapsAddCPUDefinitions(virQEMUCapsPtr qemuCaps,
                                  virDomainVirtType type,
@@ -612,10 +637,15 @@ bool virQEMUCapsIsVirtTypeSupported(virQEMUCapsPtr qemuCaps,
 bool virQEMUCapsIsCPUModeSupported(virQEMUCapsPtr qemuCaps,
                                    virArch hostarch,
                                    virDomainVirtType type,
-                                   virCPUMode mode);
+                                   virCPUMode mode,
+                                   const char *machineType);
 const char *virQEMUCapsGetCanonicalMachine(virQEMUCapsPtr qemuCaps,
                                            virDomainVirtType virtType,
                                            const char *name);
+bool virQEMUCapsIsMachineSupported(virQEMUCapsPtr qemuCaps,
+                                   virDomainVirtType virtType,
+                                   const char *canonical_machine)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
 int virQEMUCapsGetMachineMaxCpus(virQEMUCapsPtr qemuCaps,
                                  virDomainVirtType virtType,
                                  const char *name);

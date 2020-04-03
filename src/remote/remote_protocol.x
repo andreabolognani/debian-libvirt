@@ -37,7 +37,7 @@
 %#include <libvirt/libvirt.h>
 %#include "internal.h"
 %#include "virxdrdefs.h"
-%#include <arpa/inet.h>
+%#include "virsocket.h"
 
 /*----- Data types. -----*/
 
@@ -6367,7 +6367,7 @@ enum remote_procedure {
     REMOTE_PROC_NODE_DEVICE_EVENT_UPDATE = 377,
 
     /**
-     * @generate: none
+     * @generate: server
      * @priority: high
      * @acl: storage_vol:read
      */

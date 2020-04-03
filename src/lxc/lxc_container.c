@@ -25,7 +25,6 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <mntent.h>
@@ -61,6 +60,7 @@
 #include "virnetdevip.h"
 #include "virprocess.h"
 #include "virstring.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -215,7 +215,7 @@ static virCommandPtr lxcContainerBuildInitCmd(virDomainDefPtr vmDef,
         virBufferAdd(&buf, ttyPaths[i] + 5, -1);
         virBufferAddChar(&buf, ' ');
     }
-    virBufferTrim(&buf, NULL, 1);
+    virBufferTrimLen(&buf, 1);
 
     virUUIDFormat(vmDef->uuid, uuidstr);
 
@@ -566,12 +566,11 @@ static int lxcContainerUnmountSubtree(const char *prefix,
     for (i = 0; i < nmounts; i++) {
         VIR_DEBUG("Umount %s", mounts[i]);
         if (umount(mounts[i]) < 0) {
-            char ebuf[1024];
             failedUmount = mounts[i];
             saveErrno = errno;
             VIR_WARN("Failed to unmount '%s', trying to detach subtree '%s': %s",
                      failedUmount, mounts[nmounts-1],
-                     virStrerror(errno, ebuf, sizeof(ebuf)));
+                     g_strerror(errno));
             break;
         }
     }

@@ -27,9 +27,10 @@
 # include <libxl.h>
 # include <xenstore.h>
 # include <xenctrl.h>
-# include <sys/socket.h>
 
 # include "virfile.h"
+# include "virsocket.h"
+# include "libxl/libxl_capabilities.h"
 
 VIR_MOCK_IMPL_RET_VOID(xs_daemon_open,
                        struct xs_handle *)
@@ -94,17 +95,6 @@ VIR_MOCK_STUB_RET_ARGS(bind,
                        const struct sockaddr *, addr,
                        socklen_t, addrlen)
 
-VIR_MOCK_IMPL_RET_ARGS(virFileMakePath, int,
-                       const char *, path)
-{
-    /* replace log path with a writable directory */
-    if (strstr(path, "/log/")) {
-        g_snprintf((char*)path, strlen(path), ".");
-        return 0;
-    }
-    return real_virFileMakePath(path);
-}
-
 VIR_MOCK_IMPL_RET_ARGS(__xstat, int,
                        int, ver,
                        const char *, path,
@@ -132,6 +122,12 @@ VIR_MOCK_IMPL_RET_ARGS(stat, int,
     }
 
     return real_stat(path, sb);
+}
+
+int
+libxlDomainGetEmulatorType(const virDomainDef *def G_GNUC_UNUSED)
+{
+    return LIBXL_DEVICE_MODEL_VERSION_QEMU_XEN;
 }
 
 #endif /* WITH_LIBXL && WITH_YAJL */

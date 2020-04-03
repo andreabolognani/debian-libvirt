@@ -138,7 +138,7 @@ struct _libxlDriverPrivate {
     /* Immutable pointer, immutable object */
     virPortAllocatorRangePtr migrationPorts;
 
-    /* Immutable pointer, lockless APIs*/
+    /* Immutable pointer, lockless APIs */
     virSysinfoDefPtr hostsysinfo;
 
     /* Immutable pointer. lockless access */
@@ -164,6 +164,8 @@ struct _libxlSavefileHeader {
 
 libxlDriverConfigPtr
 libxlDriverConfigNew(void);
+int
+libxlDriverConfigInit(libxlDriverConfigPtr cfg);
 
 libxlDriverConfigPtr
 libxlDriverConfigGet(libxlDriverPrivatePtr driver);

@@ -22,7 +22,6 @@
 #pragma once
 
 #include "internal.h"
-#include "virutil.h"
 #include "virbitmap.h"
 #include "virenum.h"
 
@@ -83,3 +82,5 @@ int virHostValidateCGroupControllers(const char *hvname,
 
 int virHostValidateIOMMU(const char *hvname,
                          virHostValidateLevel level);
+
+bool virHostKernelModuleIsLoaded(const char *module);

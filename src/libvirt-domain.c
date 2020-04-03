@@ -21,13 +21,12 @@
 #include <config.h>
 #include <sys/stat.h>
 
-#include "intprops.h"
-
 #include "datatypes.h"
 #include "viralloc.h"
 #include "virfile.h"
 #include "virlog.h"
 #include "virtypedparam.h"
+#include "virutil.h"
 
 VIR_LOG_INIT("libvirt.domain");
 
@@ -3548,6 +3547,10 @@ virDomainMigrate(virDomainPtr domain,
                              VIR_MIGRATE_NON_SHARED_INC,
                              error);
 
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_TUNNELLED,
+                             VIR_MIGRATE_PARALLEL,
+                             error);
+
     if (flags & VIR_MIGRATE_OFFLINE) {
         if (!VIR_DRV_SUPPORTS_FEATURE(domain->conn->driver, domain->conn,
                                       VIR_DRV_FEATURE_MIGRATION_OFFLINE)) {
@@ -3701,6 +3704,10 @@ virDomainMigrate2(virDomainPtr domain,
 
     VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_NON_SHARED_DISK,
                              VIR_MIGRATE_NON_SHARED_INC,
+                             error);
+
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_TUNNELLED,
+                             VIR_MIGRATE_PARALLEL,
                              error);
 
     if (flags & VIR_MIGRATE_OFFLINE) {
@@ -4089,6 +4096,10 @@ virDomainMigrateToURI(virDomainPtr domain,
     virCheckReadOnlyGoto(domain->conn->flags, error);
     virCheckNonNullArgGoto(duri, error);
 
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_TUNNELLED,
+                             VIR_MIGRATE_PARALLEL,
+                             error);
+
     if (virDomainMigrateUnmanagedCheckCompat(domain, flags) < 0)
         goto error;
 
@@ -4160,6 +4171,10 @@ virDomainMigrateToURI2(virDomainPtr domain,
     /* First checkout the source */
     virCheckDomainReturn(domain, -1);
     virCheckReadOnlyGoto(domain->conn->flags, error);
+
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_TUNNELLED,
+                             VIR_MIGRATE_PARALLEL,
+                             error);
 
     if (virDomainMigrateUnmanagedCheckCompat(domain, flags) < 0)
         goto error;
@@ -4233,6 +4248,10 @@ virDomainMigrateToURI3(virDomainPtr domain,
     /* First checkout the source */
     virCheckDomainReturn(domain, -1);
     virCheckReadOnlyGoto(domain->conn->flags, error);
+
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_TUNNELLED,
+                             VIR_MIGRATE_PARALLEL,
+                             error);
 
     if (virDomainMigrateUnmanagedCheckCompat(domain, flags) < 0)
         goto error;
@@ -7302,7 +7321,7 @@ virDomainGetVcpuPinInfo(virDomainPtr domain, int ncpumaps,
     virCheckPositiveArgGoto(ncpumaps, error);
     virCheckPositiveArgGoto(maplen, error);
 
-    if (INT_MULTIPLY_OVERFLOW(ncpumaps, maplen)) {
+    if (VIR_INT_MULTIPLY_OVERFLOW(ncpumaps, maplen)) {
         virReportError(VIR_ERR_OVERFLOW, _("input too large: %d * %d"),
                        ncpumaps, maplen);
         goto error;
@@ -7503,7 +7522,7 @@ virDomainGetVcpus(virDomainPtr domain, virVcpuInfoPtr info, int maxinfo,
     else
         virCheckZeroArgGoto(maplen, error);
 
-    if (cpumaps && INT_MULTIPLY_OVERFLOW(maxinfo, maplen)) {
+    if (cpumaps && VIR_INT_MULTIPLY_OVERFLOW(maxinfo, maplen)) {
         virReportError(VIR_ERR_OVERFLOW, _("input too large: %d * %d"),
                        maxinfo, maplen);
         goto error;
@@ -10586,12 +10605,14 @@ virDomainOpenGraphics(virDomainPtr dom,
         goto error;
     }
 
+#ifndef WIN32
     if (!S_ISSOCK(sb.st_mode)) {
         virReportInvalidArg(fd,
                             _("fd %d must be a socket"),
                             fd);
         goto error;
     }
+#endif /* !WIN32 */
 
     virCheckReadOnlyGoto(dom->conn->flags, error);
 
@@ -11025,12 +11046,13 @@ virDomainGetDiskErrors(virDomainPtr dom,
 /**
  * virDomainGetHostname:
  * @domain: a domain object
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virDomainGetHostnameFlags
  *
- * Get the hostname for that domain.
+ * Get the hostname for that domain. If no hostname is found,
+ * then an error is raised with VIR_ERR_NO_HOSTNAME code.
  *
- * Dependent on hypervisor used, this may require a guest agent to be
- * available.
+ * Dependent on hypervisor and @flags used, this may require a
+ * guest agent to be available.
  *
  * Returns the hostname which must be freed by the caller, or
  * NULL if there was an error.
@@ -11924,15 +11946,15 @@ virDomainFSInfoFree(virDomainFSInfoPtr info)
     if (!info)
         return;
 
-    VIR_FREE(info->mountpoint);
-    VIR_FREE(info->name);
-    VIR_FREE(info->fstype);
+    g_free(info->mountpoint);
+    g_free(info->name);
+    g_free(info->fstype);
 
     for (i = 0; i < info->ndevAlias; i++)
-        VIR_FREE(info->devAlias[i]);
-    VIR_FREE(info->devAlias);
+        g_free(info->devAlias[i]);
+    g_free(info->devAlias);
 
-    VIR_FREE(info);
+    g_free(info);
 }
 
 /**
@@ -12553,6 +12575,8 @@ virDomainAgentSetResponseTimeout(virDomainPtr domain,
 
     virCheckDomainReturn(domain, -1);
     conn = domain->conn;
+
+    virCheckReadOnlyGoto(conn->flags, error);
 
     if (conn->driver->domainAgentSetResponseTimeout) {
         if (conn->driver->domainAgentSetResponseTimeout(domain, timeout, flags) < 0)

@@ -1239,6 +1239,7 @@
             <choice>
               <value>hpet</value>
               <value>pit</value>
+              <value>armvtimer</value>
             </choice>
           </attribute>
           <optional>
@@ -1595,11 +1596,30 @@
     </optional>
   </define>
 
+  <define name="diskSourceSlice">
+    <attribute name='offset'>
+      <ref name="positiveInteger"/>
+    </attribute>
+    <attribute name='size'>
+      <ref name="positiveInteger"/>
+    </attribute>
+  </define>
+
   <define name="diskSourceCommon">
     <optional>
       <attribute name="index">
         <ref name="positiveInteger"/>
       </attribute>
+    </optional>
+    <optional>
+      <element name='slices'>
+        <element name='slice'>
+          <attribute name='type'>
+            <value>storage</value>
+          </attribute>
+          <ref name="diskSourceSlice"/>
+        </element>
+      </element>
     </optional>
   </define>
 
@@ -1622,21 +1642,23 @@
     </optional>
     <optional>
       <element name="source">
-        <optional>
-          <attribute name="file">
-            <ref name="absFilePath"/>
-          </attribute>
-        </optional>
-        <ref name="diskSourceCommon"/>
-        <optional>
-          <ref name="storageStartupPolicy"/>
-        </optional>
-        <optional>
-          <ref name="encryption"/>
-        </optional>
-        <zeroOrMore>
-          <ref name='devSeclabel'/>
-        </zeroOrMore>
+        <interleave>
+          <optional>
+            <attribute name="file">
+              <ref name="absFilePath"/>
+            </attribute>
+          </optional>
+          <ref name="diskSourceCommon"/>
+          <optional>
+            <ref name="storageStartupPolicy"/>
+          </optional>
+          <optional>
+            <ref name="encryption"/>
+          </optional>
+          <zeroOrMore>
+            <ref name='devSeclabel'/>
+          </zeroOrMore>
+        </interleave>
       </element>
     </optional>
   </define>
@@ -1647,24 +1669,26 @@
     </attribute>
     <optional>
       <element name="source">
-        <optional>
-          <attribute name="dev">
-            <ref name="absFilePath"/>
-          </attribute>
-        </optional>
-        <ref name="diskSourceCommon"/>
-        <optional>
-          <ref name="storageStartupPolicy"/>
-        </optional>
-        <optional>
-          <ref name="encryption"/>
-        </optional>
-        <optional>
-          <ref name="reservations"/>
-        </optional>
-        <zeroOrMore>
-          <ref name='devSeclabel'/>
-        </zeroOrMore>
+        <interleave>
+          <optional>
+            <attribute name="dev">
+              <ref name="absFilePath"/>
+            </attribute>
+          </optional>
+          <ref name="diskSourceCommon"/>
+          <optional>
+            <ref name="storageStartupPolicy"/>
+          </optional>
+          <optional>
+            <ref name="encryption"/>
+          </optional>
+          <optional>
+            <ref name="reservations"/>
+          </optional>
+          <zeroOrMore>
+            <ref name='devSeclabel'/>
+          </zeroOrMore>
+        </interleave>
       </element>
     </optional>
   </define>
@@ -1675,17 +1699,19 @@
     </attribute>
     <optional>
       <element name="source">
-        <attribute name="dir">
-          <ref name="absFilePath"/>
-        </attribute>
-        <ref name="diskSourceCommon"/>
-        <optional>
-          <ref name="storageStartupPolicy"/>
-        </optional>
-        <optional>
-          <ref name="encryption"/>
-        </optional>
-        <empty/>
+        <interleave>
+          <attribute name="dir">
+            <ref name="absFilePath"/>
+          </attribute>
+          <ref name="diskSourceCommon"/>
+          <optional>
+            <ref name="storageStartupPolicy"/>
+          </optional>
+          <optional>
+            <ref name="encryption"/>
+          </optional>
+          <empty/>
+        </interleave>
       </element>
     </optional>
   </define>
@@ -1788,94 +1814,206 @@
     </element>
   </define>
 
+  <define name="diskSourceNetworkProtocolPropsCommon">
+    <optional>
+      <element name="readahead">
+        <attribute name="size">
+          <ref name="positiveInteger"/>
+        </attribute>
+        <empty/>
+      </element>
+    </optional>
+    <optional>
+      <element name="timeout">
+        <attribute name="seconds">
+          <ref name="positiveInteger"/>
+        </attribute>
+        <empty/>
+      </element>
+    </optional>
+  </define>
+
+  <define name="diskSourceNetworkProtocolSSLVerify">
+    <element name="ssl">
+      <attribute name="verify">
+        <ref name="virYesNo"/>
+      </attribute>
+      <empty/>
+    </element>
+  </define>
+
+  <define name="diskSourceNetworkProtocolHTTPCookies">
+    <element name="cookies">
+      <oneOrMore>
+        <element name="cookie">
+          <attribute name="name">
+            <data type="string">
+              <param name="pattern">[!#$%&amp;'*+\-.0-9A-Z\^_`a-z|~]+</param>
+            </data>
+          </attribute>
+          <data type="string">
+            <param name="pattern">"?[!#$%&amp;'()*+\-./0-9:&gt;=&lt;?@A-Z\^_`\[\]a-z|~]+"?</param>
+          </data>
+        </element>
+      </oneOrMore>
+      <empty/>
+    </element>
+  </define>
+
+  <define name="diskSourceNetworkProtocolHTTPS">
+    <element name="source">
+      <interleave>
+        <attribute name="protocol">
+          <choice>
+            <value>https</value>
+          </choice>
+        </attribute>
+        <attribute name="name"/>
+        <optional>
+          <attribute name="query"/>
+        </optional>
+        <ref name="diskSourceCommon"/>
+        <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+        <optional>
+          <ref name="diskSourceNetworkProtocolSSLVerify"/>
+        </optional>
+        <optional>
+          <ref name="diskSourceNetworkProtocolHTTPCookies"/>
+        </optional>
+        <ref name="diskSourceNetworkProtocolPropsCommon"/>
+        </interleave>
+    </element>
+  </define>
+
   <define name="diskSourceNetworkProtocolHTTP">
     <element name="source">
-      <attribute name="protocol">
-        <choice>
-          <value>http</value>
-          <value>https</value>
-        </choice>
-      </attribute>
-      <attribute name="name"/>
-      <ref name="diskSourceCommon"/>
-      <ref name="diskSourceNetworkHost"/>
-      <optional>
-        <ref name="encryption"/>
-      </optional>
+      <interleave>
+        <attribute name="protocol">
+          <choice>
+            <value>http</value>
+          </choice>
+        </attribute>
+        <attribute name="name"/>
+        <optional>
+          <attribute name="query"/>
+        </optional>
+        <ref name="diskSourceCommon"/>
+        <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+        <optional>
+          <ref name="diskSourceNetworkProtocolHTTPCookies"/>
+        </optional>
+        <ref name="diskSourceNetworkProtocolPropsCommon"/>
+      </interleave>
+    </element>
+  </define>
+
+  <define name="diskSourceNetworkProtocolFTPS">
+    <element name="source">
+      <interleave>
+        <attribute name="protocol">
+          <choice>
+            <value>ftps</value>
+          </choice>
+        </attribute>
+        <attribute name="name"/>
+        <ref name="diskSourceCommon"/>
+        <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+        <optional>
+          <ref name="diskSourceNetworkProtocolSSLVerify"/>
+        </optional>
+        <ref name="diskSourceNetworkProtocolPropsCommon"/>
+      </interleave>
     </element>
   </define>
 
   <define name="diskSourceNetworkProtocolSimple">
     <element name="source">
-      <attribute name="protocol">
-        <choice>
-          <value>sheepdog</value>
-          <value>ftp</value>
-          <value>ftps</value>
-          <value>tftp</value>
-        </choice>
-      </attribute>
-      <attribute name="name"/>
-      <ref name="diskSourceCommon"/>
-      <ref name="diskSourceNetworkHost"/>
-      <optional>
-        <ref name="encryption"/>
-      </optional>
+      <interleave>
+        <attribute name="protocol">
+          <choice>
+            <value>sheepdog</value>
+            <value>ftp</value>
+            <value>tftp</value>
+          </choice>
+        </attribute>
+        <attribute name="name"/>
+        <ref name="diskSourceCommon"/>
+        <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+        <ref name="diskSourceNetworkProtocolPropsCommon"/>
+      </interleave>
     </element>
   </define>
 
   <define name="diskSourceNetworkProtocolNBD">
     <element name="source">
-      <attribute name="protocol">
-        <value>nbd</value>
-      </attribute>
-      <optional>
-        <attribute name="name"/>
-      </optional>
-      <optional>
-        <attribute name="tls">
-          <ref name="virYesNo"/>
+      <interleave>
+        <attribute name="protocol">
+          <value>nbd</value>
         </attribute>
-      </optional>
-      <ref name="diskSourceCommon"/>
-      <ref name="diskSourceNetworkHost"/>
-      <optional>
-        <ref name="encryption"/>
-      </optional>
+        <optional>
+          <attribute name="name"/>
+        </optional>
+        <optional>
+          <attribute name="tls">
+            <ref name="virYesNo"/>
+          </attribute>
+        </optional>
+        <ref name="diskSourceCommon"/>
+        <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+      </interleave>
     </element>
   </define>
 
   <define name="diskSourceNetworkProtocolGluster">
     <element name="source">
-      <attribute name="protocol">
-        <value>gluster</value>
-      </attribute>
-      <attribute name="name"/>
-      <ref name="diskSourceCommon"/>
-      <oneOrMore>
-        <ref name="diskSourceNetworkHost"/>
-      </oneOrMore>
-      <optional>
-        <ref name="encryption"/>
-      </optional>
+      <interleave>
+        <attribute name="protocol">
+          <value>gluster</value>
+        </attribute>
+        <attribute name="name"/>
+        <ref name="diskSourceCommon"/>
+        <oneOrMore>
+          <ref name="diskSourceNetworkHost"/>
+        </oneOrMore>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+      </interleave>
     </element>
   </define>
 
   <define name="diskSourceNetworkProtocolVxHS">
     <element name="source">
-      <attribute name="protocol">
-        <choice>
-          <value>vxhs</value>
-        </choice>
-      </attribute>
-      <attribute name="name"/>
-      <ref name="diskSourceCommon"/>
-      <optional>
-        <attribute name="tls">
-          <ref name="virYesNo"/>
+      <interleave>
+        <attribute name="protocol">
+          <choice>
+            <value>vxhs</value>
+          </choice>
         </attribute>
-      </optional>
-      <ref name="diskSourceNetworkHost"/>
+        <attribute name="name"/>
+        <ref name="diskSourceCommon"/>
+        <optional>
+          <attribute name="tls">
+            <ref name="virYesNo"/>
+          </attribute>
+        </optional>
+        <ref name="diskSourceNetworkHost"/>
+      </interleave>
     </element>
   </define>
 
@@ -1889,6 +2027,8 @@
       <ref name="diskSourceNetworkProtocolRBD"/>
       <ref name="diskSourceNetworkProtocolISCSI"/>
       <ref name="diskSourceNetworkProtocolHTTP"/>
+      <ref name="diskSourceNetworkProtocolHTTPS"/>
+      <ref name="diskSourceNetworkProtocolFTPS"/>
       <ref name="diskSourceNetworkProtocolSimple"/>
       <ref name="diskSourceNetworkProtocolVxHS"/>
     </choice>
@@ -1900,30 +2040,32 @@
     </attribute>
     <optional>
       <element name="source">
-        <attribute name="pool">
-          <ref name="poolName"/>
-        </attribute>
-        <attribute name="volume">
-          <ref name="volName"/>
-        </attribute>
-        <optional>
-          <attribute name="mode">
-            <choice>
-              <value>host</value>
-              <value>direct</value>
-            </choice>
+        <interleave>
+          <attribute name="pool">
+            <ref name="poolName"/>
           </attribute>
-        </optional>
-        <ref name="diskSourceCommon"/>
-        <optional>
-          <ref name="storageStartupPolicy"/>
-        </optional>
-        <optional>
-          <ref name="encryption"/>
-        </optional>
-        <zeroOrMore>
-          <ref name='devSeclabel'/>
-        </zeroOrMore>
+          <attribute name="volume">
+            <ref name="volName"/>
+          </attribute>
+          <optional>
+            <attribute name="mode">
+              <choice>
+                <value>host</value>
+                <value>direct</value>
+              </choice>
+            </attribute>
+          </optional>
+          <ref name="diskSourceCommon"/>
+          <optional>
+            <ref name="storageStartupPolicy"/>
+          </optional>
+          <optional>
+            <ref name="encryption"/>
+          </optional>
+          <zeroOrMore>
+            <ref name='devSeclabel'/>
+          </zeroOrMore>
+        </interleave>
       </element>
     </optional>
   </define>
@@ -1934,27 +2076,29 @@
     </attribute>
     <optional>
       <element name="source">
-        <attribute name="type">
-          <value>pci</value>
-        </attribute>
-        <attribute name="namespace">
-          <ref name="uint32"/>
-        </attribute>
-        <optional>
-          <attribute name="managed">
-            <ref name="virYesNo"/>
+        <interleave>
+          <attribute name="type">
+            <value>pci</value>
           </attribute>
-        </optional>
-        <element name="address">
-          <ref name="pciaddress"/>
-        </element>
-        <ref name="diskSourceCommon"/>
-        <optional>
-          <ref name="storageStartupPolicy"/>
-        </optional>
-        <optional>
-          <ref name="encryption"/>
-        </optional>
+          <attribute name="namespace">
+            <ref name="uint32"/>
+          </attribute>
+          <optional>
+            <attribute name="managed">
+              <ref name="virYesNo"/>
+            </attribute>
+          </optional>
+          <element name="address">
+            <ref name="pciaddress"/>
+          </element>
+          <ref name="diskSourceCommon"/>
+          <optional>
+            <ref name="storageStartupPolicy"/>
+          </optional>
+          <optional>
+            <ref name="encryption"/>
+          </optional>
+        </interleave>
       </element>
     </optional>
   </define>
@@ -2480,6 +2624,9 @@
           <optional>
             <ref name="fsDriver"/>
           </optional>
+          <optional>
+            <ref name="fsBinary"/>
+          </optional>
           <interleave>
             <element name="source">
               <attribute name="dir">
@@ -2600,29 +2747,84 @@
            for this kind of info, and 'type' for the
            storage format. We need the latter too, so
            had to invent a new attribute name -->
+      <choice>
+        <group>
+          <optional>
+            <attribute name="type">
+              <choice>
+                <value>path</value>
+                <value>handle</value>
+                <value>loop</value>
+                <value>nbd</value>
+                <value>ploop</value>
+              </choice>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="format">
+              <ref name="storageFormat"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="wrpolicy">
+              <value>immediate</value>
+            </attribute>
+          </optional>
+          <ref name='virtioOptions'/>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>virtiofs</value>
+          </attribute>
+          <optional>
+            <attribute name="queue">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </optional>
+          <ref name='virtioOptions'/>
+        </group>
+        <empty/>
+      </choice>
+    </element>
+  </define>
+  <define name="fsBinary">
+    <element name="binary">
       <optional>
-        <attribute name="type">
-          <choice>
-            <value>path</value>
-            <value>handle</value>
-            <value>loop</value>
-            <value>nbd</value>
-            <value>ploop</value>
-          </choice>
+        <attribute name="path">
+          <ref name="absFilePath"/>
         </attribute>
       </optional>
       <optional>
-        <attribute name="format">
-          <ref name="storageFormat"/>
+        <attribute name="xattr">
+          <ref name="virOnOff"/>
         </attribute>
       </optional>
       <optional>
-        <attribute name="wrpolicy">
-          <value>immediate</value>
-        </attribute>
+        <element name="cache">
+          <optional>
+            <attribute name="mode">
+              <choice>
+                <value>none</value>
+                <value>always</value>
+              </choice>
+            </attribute>
+          </optional>
+        </element>
       </optional>
-      <ref name='virtioOptions'/>
-      <empty/>
+      <optional>
+        <element name="lock">
+          <optional>
+            <attribute name="posix">
+              <ref name="virOnOff"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="flock">
+              <ref name="virOnOff"/>
+            </attribute>
+          </optional>
+        </element>
+      </optional>
     </element>
   </define>
 
@@ -3157,6 +3359,28 @@
       </optional>
       <optional>
         <ref name="vlan"/>
+      </optional>
+      <optional>
+        <ref name="portOptions"/>
+      </optional>
+      <optional>
+        <element name="teaming">
+          <choice>
+            <group>
+              <attribute name="type">
+                <value>persistent</value>
+              </attribute>
+            </group>
+            <group>
+              <attribute name="type">
+                <value>transient</value>
+              </attribute>
+              <attribute name="persistent">
+                <ref name="aliasName"/>
+              </attribute>
+            </group>
+          </choice>
+        </element>
       </optional>
     </interleave>
   </define>
@@ -4364,12 +4588,16 @@
           <choice>
             <value>tpm-tis</value>
             <value>tpm-crb</value>
+            <value>tpm-spapr</value>
           </choice>
         </attribute>
       </optional>
       <ref name="tpm-backend"/>
       <optional>
         <ref name="alias"/>
+      </optional>
+      <optional>
+        <ref name="address"/>
       </optional>
     </element>
   </define>
@@ -5557,6 +5785,11 @@
       </optional>
       <interleave>
         <optional>
+          <element name="uuid">
+            <ref name="UUID"/>
+          </element>
+        </optional>
+        <optional>
           <ref name="memorydev-source"/>
         </optional>
         <ref name="memorydev-target"/>
@@ -5682,6 +5915,12 @@
           </attribute>
           <ref name="qemucdevSrcType"/>
           <ref name="qemucdevSrcDef"/>
+        </group>
+        <group>
+          <attribute name="model">
+            <value>builtin</value>
+          </attribute>
+          <empty/>
         </group>
       </choice>
     </element>

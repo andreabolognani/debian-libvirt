@@ -29,6 +29,7 @@
 #include "virtime.h"
 #include "conf/node_device_conf.h"
 #include "virenum.h"
+#include "virutil.h"
 
 /*
  * "nodedev-create" command
@@ -845,7 +846,7 @@ virshNodeDeviceEventCallback virshNodeDeviceEventCallbacks[] = {
       VIR_NODE_DEVICE_EVENT_CALLBACK(vshEventLifecyclePrint), },
     { "update", vshEventGenericPrint, }
 };
-verify(VIR_NODE_DEVICE_EVENT_ID_LAST == G_N_ELEMENTS(virshNodeDeviceEventCallbacks));
+G_STATIC_ASSERT(VIR_NODE_DEVICE_EVENT_ID_LAST == G_N_ELEMENTS(virshNodeDeviceEventCallbacks));
 
 
 static const vshCmdInfo info_node_device_event[] = {

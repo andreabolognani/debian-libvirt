@@ -67,9 +67,9 @@ struct _virChrdevStreamInfo {
  */
 static char *virChrdevLockFilePath(const char *dev)
 {
-    char *path = NULL;
-    char *sanitizedPath = NULL;
-    char *devCopy;
+    g_autofree char *path = NULL;
+    g_autofree char *sanitizedPath = NULL;
+    g_autofree char *devCopy = NULL;
     char *filename;
     char *p;
 
@@ -92,10 +92,7 @@ static char *virChrdevLockFilePath(const char *dev)
 
     sanitizedPath = virFileSanitizePath(path);
 
-    VIR_FREE(path);
-    VIR_FREE(devCopy);
-
-    return sanitizedPath;
+    return g_steal_pointer(&sanitizedPath);
 }
 
 /**
@@ -107,15 +104,14 @@ static char *virChrdevLockFilePath(const char *dev)
  */
 static int virChrdevLockFileCreate(const char *dev)
 {
-    char *path = NULL;
-    int ret = -1;
-    int lockfd = -1;
-    char *pidStr = NULL;
+    g_autofree char *path = NULL;
+    g_autofree char *pidStr = NULL;
+    VIR_AUTOCLOSE lockfd = -1;
     pid_t pid;
 
     /* build lock file path */
     if (!(path = virChrdevLockFilePath(dev)))
-        goto cleanup;
+        return -1;
 
     /* check if a log file and process holding the lock still exists */
     if (virPidFileReadPathIfAlive(path, &pid, NULL) == 0 && pid >= 0) {
@@ -124,7 +120,7 @@ static int virChrdevLockFileCreate(const char *dev)
                        _("Requested device '%s' is locked by "
                          "lock file '%s' held by process %lld"),
                        dev, path, (long long) pid);
-        goto cleanup;
+        return -1;
     } else {
         /* clean up the stale/corrupted/nonexistent lockfile */
         unlink(path);
@@ -145,14 +141,13 @@ static int virChrdevLockFileCreate(const char *dev)
         if (errno == EACCES && geteuid() != 0) {
             VIR_DEBUG("Skipping lock file creation for device '%s in path '%s'.",
                       dev, path);
-            ret = 0;
-            goto cleanup;
+            return 0;
         }
         virReportSystemError(errno,
                              _("Couldn't create lock file for "
                                "device '%s' in path '%s'"),
                              dev, path);
-        goto cleanup;
+        return -1;
     }
 
     /* write the pid to the file */
@@ -161,20 +156,12 @@ static int virChrdevLockFileCreate(const char *dev)
                              _("Couldn't write to lock file for "
                                "device '%s' in path '%s'"),
                              dev, path);
-        VIR_FORCE_CLOSE(lockfd);
         unlink(path);
-        goto cleanup;
+        return -1;
     }
 
     /* we hold the lock */
-    ret = 0;
-
- cleanup:
-    VIR_FORCE_CLOSE(lockfd);
-    VIR_FREE(path);
-    VIR_FREE(pidStr);
-
-    return ret;
+    return 0;
 }
 
 /**
@@ -184,10 +171,8 @@ static int virChrdevLockFileCreate(const char *dev)
  */
 static void virChrdevLockFileRemove(const char *dev)
 {
-    char *path = virChrdevLockFilePath(dev);
-    if (path)
-        unlink(path);
-    VIR_FREE(path);
+    g_autofree char *path = virChrdevLockFilePath(dev);
+    unlink(path);
 }
 #else /* #ifdef VIR_CHRDEV_LOCK_FILE_PATH */
 /* file locking for character devices is disabled */
@@ -225,6 +210,7 @@ static void virChrdevHashEntryFree(void *data)
     /* delete lock file */
     virChrdevLockFileRemove(ent->dev);
 
+    g_free(ent->dev);
     g_free(ent);
 }
 
@@ -310,7 +296,7 @@ static int virChrdevFreeClearCallbacks(void *payload,
  */
 void virChrdevFree(virChrdevsPtr devs)
 {
-    if (!devs || !devs->hash)
+    if (!devs)
         return;
 
     virMutexLock(&devs->lock);

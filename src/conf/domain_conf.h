@@ -44,6 +44,7 @@
 #include "virnetdevvportprofile.h"
 #include "virnetdevbandwidth.h"
 #include "virnetdevvlan.h"
+#include "virnetworkportdef.h"
 #include "virobject.h"
 #include "device_conf.h"
 #include "virbitmap.h"
@@ -489,6 +490,8 @@ struct _virDomainBlockIoTuneInfo {
     unsigned long long total_iops_sec_max_length;
     unsigned long long read_iops_sec_max_length;
     unsigned long long write_iops_sec_max_length;
+    /* Don't forget to update virDomainBlockIoTuneInfoCopy and
+     * virDomainBlockIoTuneInfoEqual. */
 };
 
 
@@ -771,6 +774,7 @@ typedef enum {
     VIR_DOMAIN_FS_DRIVER_TYPE_LOOP,
     VIR_DOMAIN_FS_DRIVER_TYPE_NBD,
     VIR_DOMAIN_FS_DRIVER_TYPE_PLOOP,
+    VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS,
 
     VIR_DOMAIN_FS_DRIVER_TYPE_LAST
 } virDomainFSDriverType;
@@ -801,6 +805,14 @@ typedef enum {
     VIR_DOMAIN_FS_MODEL_LAST
 } virDomainFSModel;
 
+typedef enum {
+    VIR_DOMAIN_FS_CACHE_MODE_DEFAULT = 0,
+    VIR_DOMAIN_FS_CACHE_MODE_NONE,
+    VIR_DOMAIN_FS_CACHE_MODE_ALWAYS,
+
+    VIR_DOMAIN_FS_CACHE_MODE_LAST
+} virDomainFSCacheMode;
+
 struct _virDomainFSDef {
     int type;
     int fsdriver; /* enum virDomainFSDriverType */
@@ -816,6 +828,12 @@ struct _virDomainFSDef {
     unsigned long long space_hard_limit; /* in bytes */
     unsigned long long space_soft_limit; /* in bytes */
     bool symlinksResolved;
+    char *binary;
+    unsigned long long queue_size;
+    virTristateSwitch xattr;
+    virDomainFSCacheMode cache;
+    virTristateSwitch posix_lock;
+    virTristateSwitch flock;
     virDomainVirtioOptionsPtr virtio;
     virObjectPtr privateData;
 };
@@ -884,6 +902,15 @@ typedef enum {
     VIR_DOMAIN_NET_VIRTIO_TX_MODE_LAST
 } virDomainNetVirtioTxModeType;
 
+/* the type of teaming device */
+typedef enum {
+    VIR_DOMAIN_NET_TEAMING_TYPE_NONE,
+    VIR_DOMAIN_NET_TEAMING_TYPE_PERSISTENT,
+    VIR_DOMAIN_NET_TEAMING_TYPE_TRANSIENT,
+
+    VIR_DOMAIN_NET_TEAMING_TYPE_LAST
+} virDomainNetTeamingType;
+
 /* link interface states */
 typedef enum {
         VIR_DOMAIN_NET_INTERFACE_LINK_STATE_DEFAULT = 0, /* Default link state (up) */
@@ -917,6 +944,7 @@ struct _virDomainActualNetDef {
     virNetDevBandwidthPtr bandwidth;
     virNetDevVlan vlan;
     int trustGuestRxFilters; /* enum virTristateBool */
+    virTristateBool isolatedPort;
     unsigned int class_id; /* class ID for bandwidth 'floor' */
 };
 
@@ -958,6 +986,10 @@ struct _virDomainNetDef {
         char *tap;
         char *vhost;
     } backend;
+    struct {
+        virDomainNetTeamingType type;
+        char *persistent; /* alias name of persistent device */
+    } teaming;
     union {
         virDomainChrSourceDefPtr vhostuser;
         struct {
@@ -1017,6 +1049,7 @@ struct _virDomainNetDef {
     virNetDevBandwidthPtr bandwidth;
     virNetDevVlan vlan;
     int trustGuestRxFilters; /* enum virTristateBool */
+    virTristateBool isolatedPort;
     int linkstate;
     unsigned int mtu;
     virNetDevCoalescePtr coalesce;
@@ -1237,8 +1270,10 @@ struct _virDomainHubDef {
 };
 
 typedef enum {
+    VIR_DOMAIN_TPM_MODEL_DEFAULT,
     VIR_DOMAIN_TPM_MODEL_TIS,
     VIR_DOMAIN_TPM_MODEL_CRB,
+    VIR_DOMAIN_TPM_MODEL_SPAPR,
 
     VIR_DOMAIN_TPM_MODEL_LAST
 } virDomainTPMModel;
@@ -1976,6 +2011,7 @@ typedef enum {
     VIR_DOMAIN_TIMER_NAME_TSC,
     VIR_DOMAIN_TIMER_NAME_KVMCLOCK,
     VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK,
+    VIR_DOMAIN_TIMER_NAME_ARMVTIMER,
 
     VIR_DOMAIN_TIMER_NAME_LAST
 } virDomainTimerNameType;
@@ -2106,6 +2142,7 @@ typedef enum {
 typedef enum {
     VIR_DOMAIN_RNG_BACKEND_RANDOM,
     VIR_DOMAIN_RNG_BACKEND_EGD,
+    VIR_DOMAIN_RNG_BACKEND_BUILTIN,
 
     VIR_DOMAIN_RNG_BACKEND_LAST
 } virDomainRNGBackend;
@@ -2151,6 +2188,9 @@ struct _virDomainMemoryDef {
     unsigned long long size; /* kibibytes */
     unsigned long long labelsize; /* kibibytes; valid only for NVDIMM */
     bool readonly; /* valid only for NVDIMM */
+
+    /* required for QEMU NVDIMM ppc64 support */
+    unsigned char uuid[VIR_UUID_BUFLEN];
 
     virDomainDeviceInfo info;
 };
@@ -2875,6 +2915,7 @@ void virDomainFSDefFree(virDomainFSDefPtr def);
 void virDomainActualNetDefFree(virDomainActualNetDefPtr def);
 virDomainVsockDefPtr virDomainVsockDefNew(virDomainXMLOptionPtr xmlopt);
 void virDomainVsockDefFree(virDomainVsockDefPtr vsock);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVsockDef, virDomainVsockDefFree);
 void virDomainNetDefClear(virDomainNetDefPtr def);
 void virDomainNetDefFree(virDomainNetDefPtr def);
 void virDomainSmartcardDefFree(virDomainSmartcardDefPtr def);
@@ -2900,6 +2941,7 @@ void virDomainRedirdevDefFree(virDomainRedirdevDefPtr def);
 void virDomainRedirFilterDefFree(virDomainRedirFilterDefPtr def);
 void virDomainShmemDefFree(virDomainShmemDefPtr def);
 void virDomainDeviceDefFree(virDomainDeviceDefPtr def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainDeviceDef, virDomainDeviceDefFree);
 virDomainDeviceDefPtr virDomainDeviceDefCopy(virDomainDeviceDefPtr src,
                                              const virDomainDef *def,
                                              virDomainXMLOptionPtr xmlopt,
@@ -3186,6 +3228,8 @@ virDomainNetDefPtr virDomainNetFindByName(virDomainDefPtr def, const char *ifnam
 bool virDomainHasNet(virDomainDefPtr def, virDomainNetDefPtr net);
 int virDomainNetInsert(virDomainDefPtr def, virDomainNetDefPtr net);
 int virDomainNetUpdate(virDomainDefPtr def, size_t netidx, virDomainNetDefPtr newnet);
+int virDomainNetDHCPInterfaces(virDomainDefPtr def, virDomainInterfacePtr **ifaces);
+int virDomainNetARPInterfaces(virDomainDefPtr def, virDomainInterfacePtr **ifaces);
 virDomainNetDefPtr virDomainNetRemove(virDomainDefPtr def, size_t i);
 void virDomainNetRemoveHostdev(virDomainDefPtr def, virDomainNetDefPtr net);
 
@@ -3216,6 +3260,8 @@ const virNetDevBandwidth *
 virDomainNetGetActualBandwidth(const virDomainNetDef *iface);
 const virNetDevVlan *virDomainNetGetActualVlan(const virDomainNetDef *iface);
 bool virDomainNetGetActualTrustGuestRxFilters(const virDomainNetDef *iface);
+virTristateBool
+virDomainNetGetActualPortOptionsIsolated(const virDomainNetDef *iface);
 const char *virDomainNetGetModelString(const virDomainNetDef *net);
 int virDomainNetSetModelString(virDomainNetDefPtr et,
                                const char *model);
@@ -3318,7 +3364,6 @@ int virDomainFSInsert(virDomainDefPtr def, virDomainFSDefPtr fs);
 int virDomainFSIndexByName(virDomainDefPtr def, const char *name);
 virDomainFSDefPtr virDomainFSRemove(virDomainDefPtr def, size_t i);
 
-int virDomainVideoDefaultType(const virDomainDef *def);
 unsigned int virDomainVideoDefaultRAM(const virDomainDef *def,
                                       const virDomainVideoType type);
 
@@ -3422,9 +3467,11 @@ VIR_ENUM_DECL(virDomainFSDriver);
 VIR_ENUM_DECL(virDomainFSAccessMode);
 VIR_ENUM_DECL(virDomainFSWrpolicy);
 VIR_ENUM_DECL(virDomainFSModel);
+VIR_ENUM_DECL(virDomainFSCacheMode);
 VIR_ENUM_DECL(virDomainNet);
 VIR_ENUM_DECL(virDomainNetBackend);
 VIR_ENUM_DECL(virDomainNetVirtioTxMode);
+VIR_ENUM_DECL(virDomainNetTeaming);
 VIR_ENUM_DECL(virDomainNetInterfaceLinkState);
 VIR_ENUM_DECL(virDomainNetModel);
 VIR_ENUM_DECL(virDomainChrDevice);
@@ -3604,6 +3651,7 @@ int virDomainDiskSetBlockIOTune(virDomainDiskDefPtr disk,
 
 char *
 virDomainGenerateMachineName(const char *drivername,
+                             const char *root,
                              int id,
                              const char *name,
                              bool privileged);
@@ -3614,11 +3662,6 @@ virDomainNetTypeSharesHostView(const virDomainNetDef *net);
 bool
 virDomainDefLifecycleActionAllowed(virDomainLifecycle type,
                                    virDomainLifecycleAction action);
-
-// Forward decl to avoid pulling in virnetworkportdef.h because
-// that pulls in virhostdev.h which pulls in domain_conf.h (evil)
-typedef struct _virNetworkPortDef virNetworkPortDef;
-typedef virNetworkPortDef *virNetworkPortDefPtr;
 
 virNetworkPortDefPtr
 virDomainNetDefToNetworkPort(virDomainDefPtr dom,
@@ -3695,3 +3738,33 @@ virDomainGraphicsGetRenderNode(const virDomainGraphicsDef *graphics);
 
 bool
 virDomainGraphicsNeedsAutoRenderNode(const virDomainGraphicsDef *graphics);
+
+bool
+virDomainBlockIoTuneInfoHasBasic(const virDomainBlockIoTuneInfo *iotune);
+
+bool
+virDomainBlockIoTuneInfoHasMax(const virDomainBlockIoTuneInfo *iotune);
+
+bool
+virDomainBlockIoTuneInfoHasMaxLength(const virDomainBlockIoTuneInfo *iotune);
+
+bool
+virDomainBlockIoTuneInfoHasAny(const virDomainBlockIoTuneInfo *iotune);
+
+void
+virDomainBlockIoTuneInfoCopy(const virDomainBlockIoTuneInfo *src,
+                             virDomainBlockIoTuneInfoPtr dst);
+
+bool
+virDomainBlockIoTuneInfoEqual(const virDomainBlockIoTuneInfo *a,
+                              const virDomainBlockIoTuneInfo *b);
+
+bool
+virHostdevIsSCSIDevice(const virDomainHostdevDef *hostdev)
+    ATTRIBUTE_NONNULL(1);
+bool
+virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
+    ATTRIBUTE_NONNULL(1);
+bool
+virHostdevIsVFIODevice(const virDomainHostdevDef *hostdev)
+    ATTRIBUTE_NONNULL(1);

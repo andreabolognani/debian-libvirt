@@ -1363,7 +1363,7 @@ cmdPoolList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     if (!table)
         goto cleanup;
 
-    /* Insert the pool info rows into table*/
+    /* Insert the pool info rows into table */
     for (i = 0; i < list->npools; i++) {
         if (vshTableRowAppend(table,
                               virStoragePoolGetName(list->pools[i]),
@@ -1972,7 +1972,7 @@ virshPoolEventCallback virshPoolEventCallbacks[] = {
       VIR_STORAGE_POOL_EVENT_CALLBACK(vshEventLifecyclePrint), },
     { "refresh", vshEventGenericPrint, }
 };
-verify(VIR_STORAGE_POOL_EVENT_ID_LAST == G_N_ELEMENTS(virshPoolEventCallbacks));
+G_STATIC_ASSERT(VIR_STORAGE_POOL_EVENT_ID_LAST == G_N_ELEMENTS(virshPoolEventCallbacks));
 
 
 static const vshCmdInfo info_pool_event[] = {

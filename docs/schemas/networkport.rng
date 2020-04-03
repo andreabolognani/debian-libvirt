@@ -30,6 +30,12 @@
           <ref name="bandwidth"/>
         </optional>
         <optional>
+          <ref name="vlan"/>
+        </optional>
+        <optional>
+          <ref name="portOptions"/>
+        </optional>
+        <optional>
           <ref name="plug"/>
         </optional>
       </interleave>

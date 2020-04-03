@@ -22,18 +22,11 @@
 #include <config.h>
 
 #include <sys/stat.h>
-#include <sys/socket.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
 #ifdef HAVE_IFADDRS_H
 # include <ifaddrs.h>
-#endif
-#include <netdb.h>
-
-#ifdef HAVE_NETINET_TCP_H
-# include <netinet/tcp.h>
 #endif
 
 #ifdef HAVE_SYS_UCRED_H
@@ -44,6 +37,7 @@
 # include <selinux/selinux.h>
 #endif
 
+#include "virsocket.h"
 #include "virnetsocket.h"
 #include "virutil.h"
 #include "viralloc.h"
@@ -55,7 +49,6 @@
 #include "virprobe.h"
 #include "virprocess.h"
 #include "virstring.h"
-#include "passfd.h"
 
 #if WITH_SSH2
 # include "virnetsshsession.h"
@@ -92,9 +85,7 @@ struct _virNetSocket {
     char *remoteAddrStrSASL;
     char *remoteAddrStrURI;
 
-#if WITH_GNUTLS
     virNetTLSSessionPtr tlsSession;
-#endif
 #if WITH_SASL
     virNetSASLSessionPtr saslSession;
 
@@ -186,8 +177,10 @@ int virNetSocketCheckProtocols(bool *hasIPv4,
     hints.ai_socktype = SOCK_STREAM;
 
     if ((gaierr = getaddrinfo("::1", NULL, &hints, &ai)) != 0) {
-        if (gaierr == EAI_ADDRFAMILY ||
-            gaierr == EAI_FAMILY ||
+        if (gaierr == EAI_FAMILY ||
+# ifdef EAI_ADDRFAMILY
+            gaierr == EAI_ADDRFAMILY ||
+# endif
             gaierr == EAI_NONAME) {
             *hasIPv6 = false;
         } else {
@@ -403,7 +396,8 @@ int virNetSocketNewListenTCP(const char *nodename,
                 goto error;
             }
             bindErrno = errno;
-            VIR_FORCE_CLOSE(fd);
+            closesocket(fd);
+            fd = -1;
             runp = runp->ai_next;
             continue;
         }
@@ -454,12 +448,13 @@ int virNetSocketNewListenTCP(const char *nodename,
         virObjectUnref(socks[i]);
     VIR_FREE(socks);
     freeaddrinfo(ai);
-    VIR_FORCE_CLOSE(fd);
+    if (fd != -1)
+        closesocket(fd);
     return -1;
 }
 
 
-#if HAVE_SYS_UN_H
+#ifndef WIN32
 int virNetSocketNewListenUNIX(const char *path,
                               mode_t mask,
                               uid_t user,
@@ -521,7 +516,8 @@ int virNetSocketNewListenUNIX(const char *path,
  error:
     if (path[0] != '@')
         unlink(path);
-    VIR_FORCE_CLOSE(fd);
+    if (fd != -1)
+        closesocket(fd);
     return -1;
 }
 #else
@@ -579,7 +575,7 @@ int virNetSocketNewConnectTCP(const char *nodename,
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = family;
-    hints.ai_flags = AI_PASSIVE | AI_ADDRCONFIG;
+    hints.ai_flags = AI_PASSIVE | AI_ADDRCONFIG | AI_V4MAPPED;
     hints.ai_socktype = SOCK_STREAM;
 
     int e = getaddrinfo(nodename, service, &hints, &ai);
@@ -605,7 +601,8 @@ int virNetSocketNewConnectTCP(const char *nodename,
             break;
 
         savedErrno = errno;
-        VIR_FORCE_CLOSE(fd);
+        closesocket(fd);
+        fd = -1;
         runp = runp->ai_next;
     }
 
@@ -637,12 +634,13 @@ int virNetSocketNewConnectTCP(const char *nodename,
 
  error:
     freeaddrinfo(ai);
-    VIR_FORCE_CLOSE(fd);
+    if (fd != -1)
+        closesocket(fd);
     return -1;
 }
 
 
-#ifdef HAVE_SYS_UN_H
+#ifndef WIN32
 int virNetSocketNewConnectUNIX(const char *path,
                                bool spawnDaemon,
                                const char *binary,
@@ -758,8 +756,8 @@ int virNetSocketNewConnectUNIX(const char *path,
     VIR_FREE(lockpath);
     VIR_FREE(rundir);
 
-    if (ret < 0)
-        VIR_FORCE_CLOSE(fd);
+    if (ret < 0 && fd != -1)
+        closesocket(fd);
 
     return ret;
 }
@@ -796,11 +794,8 @@ int virNetSocketNewConnectCommand(virCommandPtr cmd,
         goto error;
     }
 
-    if (pipe(errfd) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("unable to create socket pair"));
+    if (virPipe(errfd) < 0)
         goto error;
-    }
 
     virCommandSetInputFD(cmd, sv[1]);
     virCommandSetOutputFD(cmd, &sv[1]);
@@ -1282,16 +1277,13 @@ virJSONValuePtr virNetSocketPreExecRestart(virNetSocketPtr sock)
         goto error;
     }
 #endif
-#if WITH_GNUTLS
     if (sock->tlsSession) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("Unable to save socket state when TLS session is active"));
         goto error;
     }
-#endif
 
-    if (!(object = virJSONValueNewObject()))
-        goto error;
+    object = virJSONValueNewObject();
 
     if (virJSONValueObjectAppendNumberInt(object, "fd", sock->fd) < 0)
         goto error;
@@ -1344,7 +1336,7 @@ void virNetSocketDispose(void *obj)
         sock->watch = -1;
     }
 
-#ifdef HAVE_SYS_UN_H
+#ifndef WIN32
     /* If a server socket, then unlink UNIX path */
     if (sock->unlinkUNIX &&
         sock->localAddr.data.sa.sa_family == AF_UNIX &&
@@ -1352,12 +1344,10 @@ void virNetSocketDispose(void *obj)
         unlink(sock->localAddr.data.un.sun_path);
 #endif
 
-#if WITH_GNUTLS
     /* Make sure it can't send any more I/O during shutdown */
     if (sock->tlsSession)
         virNetTLSSessionSetIOCallbacks(sock->tlsSession, NULL, NULL, NULL);
     virObjectUnref(sock->tlsSession);
-#endif
 #if WITH_SASL
     virObjectUnref(sock->saslSession);
 #endif
@@ -1370,8 +1360,10 @@ void virNetSocketDispose(void *obj)
     virObjectUnref(sock->libsshSession);
 #endif
 
-    if (sock->ownsFd)
-        VIR_FORCE_CLOSE(sock->fd);
+    if (sock->ownsFd && sock->fd != -1) {
+        closesocket(sock->fd);
+        sock->fd = -1;
+    }
     VIR_FORCE_CLOSE(sock->errfd);
 
     virProcessAbort(sock->pid);
@@ -1391,20 +1383,31 @@ int virNetSocketGetFD(virNetSocketPtr sock)
     return fd;
 }
 
-
 int virNetSocketDupFD(virNetSocketPtr sock, bool cloexec)
 {
     int fd;
 
+#ifdef F_DUPFD_CLOEXEC
     if (cloexec)
         fd = fcntl(sock->fd, F_DUPFD_CLOEXEC, 0);
     else
+#endif /* F_DUPFD_CLOEXEC */
         fd = dup(sock->fd);
     if (fd < 0) {
         virReportSystemError(errno, "%s",
                              _("Unable to copy socket file handle"));
         return -1;
     }
+#ifndef F_DUPFD_CLOEXEC
+    if (cloexec &&
+        virSetCloseExec(fd < 0)) {
+        int saveerr = errno;
+        closesocket(fd);
+        errno = saveerr;
+        return -1;
+    }
+#endif /* F_DUPFD_CLOEXEC */
+
     return fd;
 }
 
@@ -1652,7 +1655,6 @@ const char *virNetSocketRemoteAddrStringURI(virNetSocketPtr sock)
     return sock->remoteAddrStrURI;
 }
 
-#if WITH_GNUTLS
 static ssize_t virNetSocketTLSSessionWrite(const char *buf,
                                            size_t len,
                                            void *opaque)
@@ -1683,7 +1685,6 @@ void virNetSocketSetTLSSession(virNetSocketPtr sock,
                                    sock);
     virObjectUnlock(sock);
 }
-#endif
 
 #if WITH_SASL
 void virNetSocketSetSASLSession(virNetSocketPtr sock,
@@ -1781,17 +1782,13 @@ static ssize_t virNetSocketReadWire(virNetSocketPtr sock, char *buf, size_t len)
 #endif
 
  reread:
-#if WITH_GNUTLS
     if (sock->tlsSession &&
         virNetTLSSessionGetHandshakeStatus(sock->tlsSession) ==
         VIR_NET_TLS_HANDSHAKE_COMPLETE) {
         ret = virNetTLSSessionRead(sock->tlsSession, buf, len);
     } else {
-#endif
         ret = read(sock->fd, buf, len);
-#if WITH_GNUTLS
     }
-#endif
 
     if ((ret < 0) && (errno == EINTR))
         goto reread;
@@ -1854,17 +1851,13 @@ static ssize_t virNetSocketWriteWire(virNetSocketPtr sock, const char *buf, size
 #endif
 
  rewrite:
-#if WITH_GNUTLS
     if (sock->tlsSession &&
         virNetTLSSessionGetHandshakeStatus(sock->tlsSession) ==
         VIR_NET_TLS_HANDSHAKE_COMPLETE) {
         ret = virNetTLSSessionWrite(sock->tlsSession, buf, len);
     } else {
-#endif
         ret = write(sock->fd, buf, len);
-#if WITH_GNUTLS
     }
-#endif
 
     if (ret < 0) {
         if (errno == EINTR)
@@ -2037,7 +2030,7 @@ int virNetSocketSendFD(virNetSocketPtr sock, int fd)
     virObjectLock(sock);
     PROBE(RPC_SOCKET_SEND_FD,
           "sock=%p fd=%d", sock, fd);
-    if (sendfd(sock->fd, fd) < 0) {
+    if (virSocketSendFD(sock->fd, fd) < 0) {
         if (errno == EAGAIN)
             ret = 0;
         else
@@ -2070,7 +2063,7 @@ int virNetSocketRecvFD(virNetSocketPtr sock, int *fd)
     }
     virObjectLock(sock);
 
-    if ((*fd = recvfd(sock->fd, O_CLOEXEC)) < 0) {
+    if ((*fd = virSocketRecvFD(sock->fd, O_CLOEXEC)) < 0) {
         if (errno == EAGAIN)
             ret = 0;
         else
@@ -2144,7 +2137,8 @@ int virNetSocketAccept(virNetSocketPtr sock, virNetSocketPtr *clientsock)
     ret = 0;
 
  cleanup:
-    VIR_FORCE_CLOSE(fd);
+    if (fd != -1)
+        closesocket(fd);
     virObjectUnlock(sock);
     return ret;
 }
@@ -2264,9 +2258,12 @@ void virNetSocketClose(virNetSocketPtr sock)
 
     virObjectLock(sock);
 
-    VIR_FORCE_CLOSE(sock->fd);
+    if (sock->fd != -1) {
+        closesocket(sock->fd);
+        sock->fd = -1;
+    }
 
-#ifdef HAVE_SYS_UN_H
+#ifndef WIN32
     /* If a server socket, then unlink UNIX path */
     if (sock->unlinkUNIX &&
         sock->localAddr.data.sa.sa_family == AF_UNIX &&

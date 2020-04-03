@@ -23,13 +23,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <poll.h>
 
-#include "internal.h"
-#define NO_LIBVIRT
+#define VIR_NO_GLIB_STDIO /* This file intentionally does not link to libvirt/glib */
 #include "testutils.h"
 
 #ifndef WIN32
+# include <poll.h>
+
+/* Some UNIX lack it in headers & it doesn't hurt to redeclare */
+extern char **environ;
 
 # define VIR_FROM_THIS VIR_FROM_NONE
 

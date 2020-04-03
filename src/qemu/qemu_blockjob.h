@@ -44,7 +44,7 @@ typedef enum {
     QEMU_BLOCKJOB_STATE_PIVOTING,
     QEMU_BLOCKJOB_STATE_LAST
 } qemuBlockjobState;
-verify((int)QEMU_BLOCKJOB_STATE_NEW == VIR_DOMAIN_BLOCK_JOB_LAST);
+G_STATIC_ASSERT((int)QEMU_BLOCKJOB_STATE_NEW == VIR_DOMAIN_BLOCK_JOB_LAST);
 
 VIR_ENUM_DECL(qemuBlockjobState);
 
@@ -67,7 +67,7 @@ typedef enum {
     QEMU_BLOCKJOB_TYPE_BROKEN,
     QEMU_BLOCKJOB_TYPE_LAST
 } qemuBlockJobType;
-verify((int)QEMU_BLOCKJOB_TYPE_INTERNAL == VIR_DOMAIN_BLOCK_JOB_TYPE_LAST);
+G_STATIC_ASSERT((int)QEMU_BLOCKJOB_TYPE_INTERNAL == VIR_DOMAIN_BLOCK_JOB_TYPE_LAST);
 
 VIR_ENUM_DECL(qemuBlockjob);
 
@@ -88,6 +88,8 @@ struct _qemuBlockJobCommitData {
     virStorageSourcePtr top;
     virStorageSourcePtr base;
     bool deleteCommittedImages;
+    char **disabledBitmapsBase; /* a NULL-terminated list of bitmap names which
+                                   were disabled in @base for the commit job */
 };
 
 
@@ -128,6 +130,9 @@ struct _qemuBlockJobData {
     virDomainDiskDefPtr disk; /* may be NULL, if blockjob does not correspond to any disk */
     virStorageSourcePtr chain; /* Reference to the chain the job operates on. */
     virStorageSourcePtr mirrorChain; /* reference to 'mirror' part of the job */
+
+    unsigned int jobflags; /* per job flags */
+    bool jobflagsmissing; /* job flags were not stored */
 
     union {
         qemuBlockJobPullData pull;
@@ -173,7 +178,8 @@ qemuBlockJobDiskNew(virDomainObjPtr vm,
 qemuBlockJobDataPtr
 qemuBlockJobDiskNewPull(virDomainObjPtr vm,
                         virDomainDiskDefPtr disk,
-                        virStorageSourcePtr base);
+                        virStorageSourcePtr base,
+                        unsigned int jobflags);
 
 qemuBlockJobDataPtr
 qemuBlockJobDiskNewCommit(virDomainObjPtr vm,
@@ -181,7 +187,9 @@ qemuBlockJobDiskNewCommit(virDomainObjPtr vm,
                           virStorageSourcePtr topparent,
                           virStorageSourcePtr top,
                           virStorageSourcePtr base,
-                          bool delete_imgs);
+                          char ***disabledBitmapsBase,
+                          bool delete_imgs,
+                          unsigned int jobflags);
 
 qemuBlockJobDataPtr
 qemuBlockJobNewCreate(virDomainObjPtr vm,
@@ -194,7 +202,8 @@ qemuBlockJobDiskNewCopy(virDomainObjPtr vm,
                         virDomainDiskDefPtr disk,
                         virStorageSourcePtr mirror,
                         bool shallow,
-                        bool reuse);
+                        bool reuse,
+                        unsigned int jobflags);
 
 qemuBlockJobDataPtr
 qemuBlockJobDiskNewBackup(virDomainObjPtr vm,

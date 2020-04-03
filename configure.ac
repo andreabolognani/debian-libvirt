@@ -16,7 +16,7 @@ dnl You should have received a copy of the GNU Lesser General Public
 dnl License along with this library.  If not, see
 dnl <http://www.gnu.org/licenses/>.
 
-AC_INIT([libvirt], [6.0.0], [libvir-list@redhat.com], [], [https://libvirt.org])
+AC_INIT([libvirt], [6.2.0], [libvir-list@redhat.com], [], [https://libvirt.org])
 
 if test $srcdir = "."
 then
@@ -42,11 +42,6 @@ dnl we don't really need the 'u' even in older toolchains.  Then there is
 dnl older libtool, which spelled it AR_FLAGS
 m4_divert_text([DEFAULTS], [: "${ARFLAGS=cr} ${AR_FLAGS=cr}"])
 
-# Maintainer note - comment this line out if you plan to rerun
-# GNULIB_POSIXCHECK testing to see if libvirt should be using more modules.
-# Leave it uncommented for normal releases, for faster ./configure.
-gl_ASSERT_NO_GNULIB_POSIXCHECK
-
 # Default to using the silent-rules feature when possible.  Formatting
 # chosen to bypass 'grep' checks that cause older automake to warn.
 # Users (include rpm) can still change the default at configure time.
@@ -54,6 +49,8 @@ m4_ifndef([AM_SILENT_RULES],
  [m4_define([AM_SILENT_RULES],[])])AM_SILENT_RULES([yes])
 
 AC_CANONICAL_HOST
+
+AC_USE_SYSTEM_EXTENSIONS
 
 # First extract pieces from the version number string
 LIBVIRT_MAJOR_VERSION=`echo $VERSION | awk -F. '{print $1}'`
@@ -132,14 +129,12 @@ AC_PROG_CPP
 dnl autoconf 2.70 adds a --runstatedir option so that downstreams
 dnl can point to /run instead of the historic /var/run, but
 dnl autoconf hasn't had a release since 2012.
-dnl
-dnl gnulib sets configmake.h to include runstatedir, but sets
-dnl it to $localstatedir/run if $runstatedir env var is not set
-dnl which is useless for apps that need to use /run without
-dnl waiting for autoconf 2.70
-dnl
+if test "x$runstatedir" = x; then
+  AC_SUBST([runstatedir], ['${localstatedir}/run'])
+fi
+
 dnl we introduce --with-runstatedir and then overwrite the
-dnl value of $runstatedir so gnulib's configmake.h becomes useful
+dnl value of $runstatedir so configmake.h is more useful
 AC_ARG_WITH(
     [runstatedir],
     [AS_HELP_STRING(
@@ -152,8 +147,8 @@ then
 fi
 
 
-gl_EARLY
-gl_INIT
+dnl get 64-int interfaces on 32-bit platforms
+AC_SYS_LARGEFILE
 
 AC_TYPE_UID_T
 
@@ -183,8 +178,6 @@ case "$host" in
     # mingw's ld has the --version-script parameter, but it requires a .def file
     # instead to work properly, therefore clear --version-script here and use
     # -Wl, to pass the .def file to the linker
-    # cygwin's ld has the --version-script parameter too, but for some reason
-    # it's working there as expected
     VERSION_SCRIPT_FLAGS="-Wl,"
     ;;
   * )
@@ -206,13 +199,12 @@ dnl are also linux specific.  The "network" and storage_fs drivers are known
 dnl to not work on macOS presently, so we also make a note if compiling
 dnl for that
 
-with_linux=no with_macos=no with_freebsd=no with_win=no with_cygwin=no
+with_linux=no with_macos=no with_freebsd=no with_win=no
 case $host in
   *-*-linux*) with_linux=yes ;;
   *-*-darwin*) with_macos=yes ;;
   *-*-freebsd*) with_freebsd=yes ;;
   *-*-mingw* | *-*-msvc* ) with_win=yes ;;
-  *-*-cygwin*) with_cygwin=yes ;;
 esac
 
 if test $with_linux = no; then
@@ -229,17 +221,18 @@ if test $with_freebsd = yes; then
     with_firewalld=no
 fi
 
-if test $with_cygwin = yes; then
-    with_vbox=no
-fi
 
 AM_CONDITIONAL([WITH_LINUX], [test "$with_linux" = "yes"])
 AM_CONDITIONAL([WITH_FREEBSD], [test "$with_freebsd" = "yes"])
 AM_CONDITIONAL([WITH_MACOS], [test "$with_macos" = "yes"])
 
-# We don't support the daemon yet
 if test "$with_win" = "yes" ; then
+  # We don't support the daemon yet
   with_libvirtd=no
+
+  # For AI_ADDRCONFIG
+  AC_DEFINE([_WIN32_WINNT], [0x0600], [Win Vista / Server 2008])
+  AC_DEFINE([WINVER], [0x0600], [Win Vista / Server 2008])
 fi
 
 # The daemon requires remote support.  Likewise, if we are not using
@@ -304,7 +297,6 @@ LIBVIRT_ARG_YAJL
 
 LIBVIRT_CHECK_ACL
 LIBVIRT_CHECK_APPARMOR
-LIBVIRT_CHECK_ATOMIC
 LIBVIRT_CHECK_ATTR
 LIBVIRT_CHECK_AUDIT
 LIBVIRT_CHECK_BASH_COMPLETION
@@ -353,8 +345,8 @@ AC_CHECK_SIZEOF([long])
 dnl Availability of various common functions (non-fatal if missing),
 dnl and various less common threadsafe functions
 AC_CHECK_FUNCS_ONCE([\
-  cfmakeraw \
   fallocate \
+  getegid \
   geteuid \
   getgid \
   getifaddrs \
@@ -368,6 +360,7 @@ AC_CHECK_FUNCS_ONCE([\
   newlocale \
   posix_fallocate \
   posix_memalign \
+  pipe2 \
   prlimit \
   sched_getaffinity \
   sched_setscheduler \
@@ -383,18 +376,22 @@ dnl Availability of various common headers (non-fatal if missing).
 AC_CHECK_HEADERS([\
   ifaddrs.h \
   libtasn1.h \
+  util.h \
+  libutil.h \
   linux/magic.h \
   mntent.h \
   net/ethernet.h \
-  netinet/tcp.h \
+  net/if.h \
+  pty.h \
   pwd.h \
   stdarg.h \
   syslog.h \
+  sys/ioctl.h \
   sys/mount.h \
   sys/syscall.h \
   sys/sysctl.h \
   sys/ucred.h \
-  sys/un.h \
+  xlocale.h \
   ])
 dnl Check whether endian provides handy macros.
 AC_CHECK_DECLS([htole64], [], [], [[#include <endian.h>]])
@@ -430,6 +427,7 @@ dnl header could be found.
 AM_CONDITIONAL([HAVE_LIBTASN1], [test "x$ac_cv_header_libtasn1_h" = "xyes"])
 
 AC_CHECK_LIB([intl],[gettext],[])
+AC_CHECK_LIB([util],[openpty],[])
 
 
 dnl
@@ -740,7 +738,7 @@ AM_CONDITIONAL([WITH_TESTS], [test "$with_test_suite" = "yes"])
 
 LIBVIRT_ARG_ENABLE([EXPENSIVE_TESTS],
                    [set the default for enabling expensive tests ]
-                     [(gnulib and long timeouts), use VIR_TEST_EXPENSIVE to ]
+                     [(long timeouts), use VIR_TEST_EXPENSIVE to ]
                      [override during make],
                    [check])
 case "$enable_expensive_tests" in
@@ -776,9 +774,8 @@ if test "$enable_test_coverage" = yes; then
   WARN_CFLAGS=$save_WARN_CFLAGS
 fi
 
-dnl Cygwin, MinGW and MSVC checks
+dnl MinGW checks
 LIBVIRT_WIN_CHECK_COMMON
-LIBVIRT_WIN_CHECK_CYGWIN
 LIBVIRT_WIN_CHECK_MINGW
 LIBVIRT_WIN_CHECK_SYMBOLS
 LIBVIRT_WIN_CHECK_WINDRES
@@ -920,8 +917,6 @@ AC_CONFIG_FILES([run],
                 [chmod +x,-w run])
 AC_CONFIG_FILES([\
         Makefile src/Makefile include/libvirt/Makefile docs/Makefile \
-        gnulib/lib/Makefile \
-        gnulib/tests/Makefile \
         .color_coded \
         .ycm_extra_conf.py \
         libvirt.pc \

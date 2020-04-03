@@ -27,7 +27,6 @@
 #include "virlog.h"
 #include "virerror.h"
 #include "virstring.h"
-#include "virutil.h"
 #include "virfile.h"
 #include "virtime.h"
 #include "virsystemd.h"
@@ -407,7 +406,7 @@ virLXCDomainGetMachineName(virDomainDefPtr def, pid_t pid)
     }
 
     if (!ret)
-        ret = virDomainGenerateMachineName("lxc", def->id, def->name, true);
+        ret = virDomainGenerateMachineName("lxc", NULL, def->id, def->name, true);
 
     return ret;
 }

@@ -285,15 +285,65 @@ virNetDevBandwidthFormat(const virNetDevBandwidth *def,
 }
 
 void
-virDomainClearNetBandwidth(virDomainObjPtr vm)
+virDomainClearNetBandwidth(virDomainDefPtr def)
 {
     size_t i;
     virDomainNetType type;
 
-    for (i = 0; i < vm->def->nnets; i++) {
-        type = virDomainNetGetActualType(vm->def->nets[i]);
-        if (virDomainNetGetActualBandwidth(vm->def->nets[i]) &&
-            virNetDevSupportBandwidth(type))
-            virNetDevBandwidthClear(vm->def->nets[i]->ifname);
+    for (i = 0; i < def->nnets; i++) {
+        type = virDomainNetGetActualType(def->nets[i]);
+        if (virDomainNetGetActualBandwidth(def->nets[i]) &&
+            virNetDevSupportsBandwidth(type))
+            virNetDevBandwidthClear(def->nets[i]->ifname);
     }
+}
+
+
+bool virNetDevSupportsBandwidth(virDomainNetType type)
+{
+    switch ((virDomainNetType) type) {
+    case VIR_DOMAIN_NET_TYPE_BRIDGE:
+    case VIR_DOMAIN_NET_TYPE_NETWORK:
+    case VIR_DOMAIN_NET_TYPE_DIRECT:
+    case VIR_DOMAIN_NET_TYPE_ETHERNET:
+        return true;
+    case VIR_DOMAIN_NET_TYPE_USER:
+    case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+    case VIR_DOMAIN_NET_TYPE_SERVER:
+    case VIR_DOMAIN_NET_TYPE_CLIENT:
+    case VIR_DOMAIN_NET_TYPE_MCAST:
+    case VIR_DOMAIN_NET_TYPE_UDP:
+    case VIR_DOMAIN_NET_TYPE_INTERNAL:
+    case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+    case VIR_DOMAIN_NET_TYPE_LAST:
+        break;
+    }
+    return false;
+}
+
+
+bool
+virNetDevBandwidthHasFloor(const virNetDevBandwidth *b)
+{
+    return b && b->in && b->in->floor != 0;
+}
+
+
+bool virNetDevBandwidthSupportsFloor(virNetworkForwardType type)
+{
+    switch (type) {
+    case VIR_NETWORK_FORWARD_NONE:
+    case VIR_NETWORK_FORWARD_NAT:
+    case VIR_NETWORK_FORWARD_ROUTE:
+    case VIR_NETWORK_FORWARD_OPEN:
+        return true;
+    case VIR_NETWORK_FORWARD_BRIDGE:
+    case VIR_NETWORK_FORWARD_PRIVATE:
+    case VIR_NETWORK_FORWARD_VEPA:
+    case VIR_NETWORK_FORWARD_PASSTHROUGH:
+    case VIR_NETWORK_FORWARD_HOSTDEV:
+    case VIR_NETWORK_FORWARD_LAST:
+        break;
+    }
+    return false;
 }

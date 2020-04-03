@@ -496,6 +496,17 @@ testCompareXMLToArgv(const void *data)
         }
     }
 
+    for (i = 0; i < vm->def->nfss; i++) {
+        virDomainFSDefPtr fs = vm->def->fss[i];
+        char *s;
+
+        if (fs->fsdriver != VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
+            continue;
+
+        s = g_strdup_printf("/tmp/lib/domain--1-guest/fs%zu.vhost-fs.sock", i);
+        QEMU_DOMAIN_FS_PRIVATE(fs)->vhostuser_fs_sock = s;
+    }
+
     if (vm->def->vsock) {
         virDomainVsockDefPtr vsock = vm->def->vsock;
         qemuDomainVsockPrivatePtr vsockPriv =
@@ -737,6 +748,9 @@ mymain(void)
 
 # define DO_TEST_CAPS_VER(name, ver) \
     DO_TEST_CAPS_ARCH_VER(name, "x86_64", ver)
+
+# define DO_TEST_CAPS_LATEST_PPC64(name) \
+    DO_TEST_CAPS_ARCH_LATEST(name, "ppc64")
 
 # define DO_TEST_CAPS_ARCH_LATEST_FAILURE(name, arch) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
@@ -1040,6 +1054,8 @@ mymain(void)
     DO_TEST("disk-error-policy", NONE);
     DO_TEST_CAPS_VER("disk-error-policy", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-error-policy");
+    DO_TEST_CAPS_ARCH_VER("disk-error-policy-s390x", "s390x", "2.12.0");
+    DO_TEST_CAPS_ARCH_LATEST("disk-error-policy-s390x", "s390x");
     DO_TEST_CAPS_VER("disk-cache", "1.5.3");
     DO_TEST_CAPS_VER("disk-cache", "2.6.0");
     DO_TEST_CAPS_VER("disk-cache", "2.7.0");
@@ -1078,6 +1094,7 @@ mymain(void)
             QEMU_CAPS_OBJECT_TLS_CREDS_X509, QEMU_CAPS_NBD_TLS);
     DO_TEST_CAPS_VER("disk-network-tlsx509", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509");
+    DO_TEST_CAPS_LATEST("disk-network-http");
     driver.config->vxhsTLS = 0;
     VIR_FREE(driver.config->vxhsTLSx509certdir);
     DO_TEST("disk-no-boot", NONE);
@@ -1161,6 +1178,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-backing-chains-index");
     DO_TEST_CAPS_VER("disk-backing-chains-noindex", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-backing-chains-noindex");
+
+    DO_TEST_CAPS_LATEST("disk-slices");
 
     DO_TEST("graphics-egl-headless",
             QEMU_CAPS_EGL_HEADLESS,
@@ -1308,6 +1327,10 @@ mymain(void)
             QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE,
             QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE);
     DO_TEST_PARSE_ERROR("net-virtio-rxqueuesize-invalid-size", NONE);
+    DO_TEST("net-virtio-teaming",
+            QEMU_CAPS_VIRTIO_NET_FAILOVER,
+            QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_PARSE_ERROR("net-virtio-teaming", NONE);
     DO_TEST("net-eth", NONE);
     DO_TEST("net-eth-ifname", NONE);
     DO_TEST("net-eth-names", NONE);
@@ -1689,6 +1712,7 @@ mymain(void)
     DO_TEST("qemu-ns-alt", NONE);
 
     DO_TEST("smp", NONE);
+    DO_TEST("smp-dies", QEMU_CAPS_SMP_DIES);
 
     DO_TEST("iothreads", QEMU_CAPS_OBJECT_IOTHREAD);
     DO_TEST("iothreads-ids", QEMU_CAPS_OBJECT_IOTHREAD);
@@ -2111,6 +2135,11 @@ mymain(void)
     DO_TEST_PARSE_ERROR("video-invalid-multiple-devices", NONE);
     DO_TEST_PARSE_ERROR("default-video-type-x86_64-caps-test-0", NONE);
 
+    DO_TEST_CAPS_ARCH_LATEST("default-video-type-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("default-video-type-ppc64", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST("default-video-type-riscv64", "riscv64");
+    DO_TEST_CAPS_ARCH_LATEST("default-video-type-s390x", "s390x");
+
     DO_TEST("virtio-rng-default",
             QEMU_CAPS_DEVICE_VIRTIO_RNG,
             QEMU_CAPS_OBJECT_RNG_RANDOM);
@@ -2120,6 +2149,7 @@ mymain(void)
     DO_TEST("virtio-rng-egd",
             QEMU_CAPS_DEVICE_VIRTIO_RNG,
             QEMU_CAPS_OBJECT_RNG_EGD);
+    DO_TEST_CAPS_LATEST("virtio-rng-builtin");
     DO_TEST_CAPS_VER("virtio-rng-egd-unix", "2.5.0");
     DO_TEST_CAPS_LATEST("virtio-rng-egd-unix");
     DO_TEST("virtio-rng-multiple",
@@ -2175,15 +2205,14 @@ mymain(void)
     DO_TEST("ppce500-serial",
             QEMU_CAPS_KVM);
 
-    DO_TEST("tpm-passthrough",
-            QEMU_CAPS_DEVICE_TPM_PASSTHROUGH, QEMU_CAPS_DEVICE_TPM_TIS);
-    DO_TEST("tpm-passthrough-crb",
-            QEMU_CAPS_DEVICE_TPM_PASSTHROUGH, QEMU_CAPS_DEVICE_TPM_CRB);
+    DO_TEST_CAPS_LATEST("tpm-passthrough");
+    DO_TEST_CAPS_LATEST("tpm-passthrough-crb");
     DO_TEST_PARSE_ERROR("tpm-no-backend-invalid",
                         QEMU_CAPS_DEVICE_TPM_PASSTHROUGH, QEMU_CAPS_DEVICE_TPM_TIS);
     DO_TEST_CAPS_LATEST("tpm-emulator");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-enc");
+    DO_TEST_CAPS_LATEST_PPC64("tpm-emulator-spapr");
 
     DO_TEST_PARSE_ERROR("pci-domain-invalid", NONE);
     DO_TEST_PARSE_ERROR("pci-bus-invalid", NONE);
@@ -2716,6 +2745,8 @@ mymain(void)
     /* SVE aarch64 CPU features work on modern QEMU */
     DO_TEST_CAPS_ARCH_LATEST("aarch64-features-sve", "aarch64");
 
+    DO_TEST_CAPS_ARCH_LATEST("clock-timer-armvtimer", "aarch64");
+
     qemuTestSetHostArch(&driver, VIR_ARCH_NONE);
 
     DO_TEST("kvm-pit-delay", QEMU_CAPS_KVM_PIT_TICK_POLICY);
@@ -2762,6 +2793,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-align");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-pmem");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-readonly");
+    DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-nvdimm-ppc64", "ppc64");
 
     DO_TEST("machine-aeskeywrap-on-caps",
             QEMU_CAPS_AES_KEY_WRAP,
@@ -3033,6 +3065,9 @@ mymain(void)
 
     DO_TEST_CAPS_VER("launch-security-sev", "2.12.0");
 
+    DO_TEST_CAPS_LATEST("vhost-user-fs-fd-memory");
+    DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");
+
     DO_TEST("riscv64-virt",
             QEMU_CAPS_DEVICE_VIRTIO_MMIO);
     DO_TEST("riscv64-virt-pci",
@@ -3080,6 +3115,8 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-4.2", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-4.2", "ppc64");
+    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-2.7", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-2.7", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-pc-4.2", "x86_64");

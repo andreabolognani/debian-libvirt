@@ -30,6 +30,7 @@
 #include "util/virstring.h"
 #include "util/virconf.h"
 #include "conf/domain_conf.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -44,10 +45,12 @@ VIR_ENUM_IMPL(virLXCNetworkConfigEntry,
               "flags",
               "macvlan.mode",
               "vlan.id",
-              "ipv4",
+              "ipv4", /* Legacy: LXC IPv4 address */
               "ipv4.gateway",
-              "ipv6",
-              "ipv6.gateway"
+              "ipv4.address",
+              "ipv6", /* Legacy: LXC IPv6 address */
+              "ipv6.gateway",
+              "ipv6.address"
 );
 
 static virDomainFSDefPtr
@@ -411,8 +414,9 @@ lxcCreateHostdevDef(int mode, int type, const char *data)
     return hostdev;
 }
 
-typedef struct {
-    virDomainDefPtr def;
+typedef struct _lxcNetworkParseData lxcNetworkParseData;
+typedef lxcNetworkParseData *lxcNetworkParseDataPtr;
+struct _lxcNetworkParseData {
     char *type;
     char *link;
     char *mac;
@@ -424,9 +428,14 @@ typedef struct {
     size_t nips;
     char *gateway_ipv4;
     char *gateway_ipv6;
-    bool privnet;
-    size_t networks;
-} lxcNetworkParseData;
+    size_t index;
+};
+
+typedef struct {
+    size_t ndata;
+    lxcNetworkParseDataPtr *parseData;
+} lxcNetworkParseDataArray;
+
 
 static int
 lxcAddNetworkRouteDefinition(const char *address,
@@ -463,7 +472,7 @@ lxcAddNetworkRouteDefinition(const char *address,
 }
 
 static int
-lxcAddNetworkDefinition(lxcNetworkParseData *data)
+lxcAddNetworkDefinition(virDomainDefPtr def, lxcNetworkParseData *data)
 {
     virDomainNetDefPtr net = NULL;
     virDomainHostdevDefPtr hostdev = NULL;
@@ -511,9 +520,9 @@ lxcAddNetworkDefinition(lxcNetworkParseData *data)
                                          &hostdev->source.caps.u.net.ip.nroutes) < 0)
                 goto error;
 
-        if (VIR_EXPAND_N(data->def->hostdevs, data->def->nhostdevs, 1) < 0)
+        if (VIR_EXPAND_N(def->hostdevs, def->nhostdevs, 1) < 0)
             goto error;
-        data->def->hostdevs[data->def->nhostdevs - 1] = hostdev;
+        def->hostdevs[def->nhostdevs - 1] = hostdev;
     } else {
         if (!(net = lxcCreateNetDef(data->type, data->link, data->mac,
                                     data->flag, data->macvlanmode,
@@ -535,9 +544,9 @@ lxcAddNetworkDefinition(lxcNetworkParseData *data)
                                          &net->guestIP.nroutes) < 0)
                 goto error;
 
-        if (VIR_EXPAND_N(data->def->nets, data->def->nnets, 1) < 0)
+        if (VIR_EXPAND_N(def->nets, def->nnets, 1) < 0)
             goto error;
-        data->def->nets[data->def->nnets - 1] = net;
+        def->nets[def->nnets - 1] = net;
     }
 
     return 1;
@@ -553,39 +562,6 @@ lxcAddNetworkDefinition(lxcNetworkParseData *data)
 
 
 static int
-lxcNetworkParseDataType(virConfValuePtr value,
-                        lxcNetworkParseData *parseData)
-{
-    virDomainDefPtr def = parseData->def;
-    size_t networks = parseData->networks;
-    bool privnet = parseData->privnet;
-    int status;
-
-    /* Store the previous NIC */
-    status = lxcAddNetworkDefinition(parseData);
-
-    if (status < 0)
-        return -1;
-    else if (status > 0)
-        networks++;
-    else if (parseData->type != NULL && STREQ(parseData->type, "none"))
-        privnet = false;
-
-    /* clean NIC to store a new one */
-    memset(parseData, 0, sizeof(*parseData));
-
-    parseData->def = def;
-    parseData->networks = networks;
-    parseData->privnet = privnet;
-
-    /* Keep the new value */
-    parseData->type = value->str;
-
-    return 0;
-}
-
-
-static int
 lxcNetworkParseDataIPs(const char *name,
                        virConfValuePtr value,
                        lxcNetworkParseData *parseData)
@@ -597,7 +573,7 @@ lxcNetworkParseDataIPs(const char *name,
     if (VIR_ALLOC(ip) < 0)
         return -1;
 
-    if (STREQ(name, "ipv6"))
+    if (STREQ(name, "ipv6") || STREQ(name, "ipv6.address"))
         family = AF_INET6;
 
     ipparts = virStringSplit(value->str, "/", 2);
@@ -633,8 +609,7 @@ lxcNetworkParseDataSuffix(const char *entry,
 
     switch (elem) {
     case VIR_LXC_NETWORK_CONFIG_TYPE:
-        if (lxcNetworkParseDataType(value, parseData) < 0)
-            return -1;
+        parseData->type = value->str;
         break;
     case VIR_LXC_NETWORK_CONFIG_LINK:
         parseData->link = value->str;
@@ -655,7 +630,9 @@ lxcNetworkParseDataSuffix(const char *entry,
         parseData->name = value->str;
         break;
     case VIR_LXC_NETWORK_CONFIG_IPV4:
+    case VIR_LXC_NETWORK_CONFIG_IPV4_ADDRESS:
     case VIR_LXC_NETWORK_CONFIG_IPV6:
+    case VIR_LXC_NETWORK_CONFIG_IPV6_ADDRESS:
         if (lxcNetworkParseDataIPs(entry, value, parseData) < 0)
             return -1;
         break;
@@ -676,12 +653,93 @@ lxcNetworkParseDataSuffix(const char *entry,
 }
 
 
+static lxcNetworkParseDataPtr
+lxcNetworkGetParseDataByIndex(lxcNetworkParseDataArray *networks,
+                              unsigned int index)
+{
+    size_t ndata = networks->ndata;
+    size_t i;
+
+    for (i = 0; i < ndata; i++) {
+        if (networks->parseData[i]->index == index)
+            return networks->parseData[i];
+    }
+
+    /* Index was not found. So, it is time to add new *
+     * interface and return this last position.       */
+    if (VIR_EXPAND_N(networks->parseData, networks->ndata, 1) < 0)
+        return NULL;
+
+    networks->parseData[ndata] = g_new0(lxcNetworkParseData, 1);
+    networks->parseData[ndata]->index = index;
+
+    return networks->parseData[ndata];
+}
+
+
 static int
 lxcNetworkParseDataEntry(const char *name,
                          virConfValuePtr value,
-                         lxcNetworkParseData *parseData)
+                         lxcNetworkParseDataArray *networks)
+{
+    lxcNetworkParseData *parseData;
+    const char *suffix_tmp = STRSKIP(name, "lxc.net.");
+    char *suffix = NULL;
+    unsigned long long index;
+
+    if (virStrToLong_ull(suffix_tmp, &suffix, 10, &index) < 0)
+        return -1;
+
+    if (suffix[0] != '.')
+        return -1;
+
+    suffix++;
+
+    if (!(parseData = lxcNetworkGetParseDataByIndex(networks, index)))
+        return -1;
+
+    return lxcNetworkParseDataSuffix(suffix, value, parseData);
+}
+
+
+static lxcNetworkParseDataPtr
+lxcNetworkGetParseDataByIndexLegacy(lxcNetworkParseDataArray *networks,
+                                    const char *entry)
+{
+    int elem = virLXCNetworkConfigEntryTypeFromString(entry);
+    size_t ndata = networks->ndata;
+
+    if (elem == VIR_LXC_NETWORK_CONFIG_TYPE) {
+        /* Index was not found. So, it is time to add new *
+         * interface and return this last position.       */
+        if (VIR_EXPAND_N(networks->parseData, networks->ndata, 1) < 0)
+            return NULL;
+
+        networks->parseData[ndata] = g_new0(lxcNetworkParseData, 1);
+        networks->parseData[ndata]->index = networks->ndata;
+
+        return networks->parseData[ndata];
+    }
+
+    /* Return last element added like a stack. */
+    if (ndata > 0)
+        return networks->parseData[ndata - 1];
+
+    /* Not able to retrive an element */
+    return NULL;
+}
+
+
+static int
+lxcNetworkParseDataEntryLegacy(const char *name,
+                               virConfValuePtr value,
+                               lxcNetworkParseDataArray *networks)
 {
     const char *suffix = STRSKIP(name, "lxc.network.");
+    lxcNetworkParseData *parseData;
+
+    if (!(parseData = lxcNetworkGetParseDataByIndexLegacy(networks, suffix)))
+        return -1;
 
     return lxcNetworkParseDataSuffix(suffix, value, parseData);
 }
@@ -690,10 +748,12 @@ lxcNetworkParseDataEntry(const char *name,
 static int
 lxcNetworkWalkCallback(const char *name, virConfValuePtr value, void *data)
 {
-    lxcNetworkParseData *parseData = data;
+    lxcNetworkParseDataArray *networks = data;
 
     if (STRPREFIX(name, "lxc.network."))
-        return lxcNetworkParseDataEntry(name, value, parseData);
+        return lxcNetworkParseDataEntryLegacy(name, value, networks);
+    if (STRPREFIX(name, "lxc.net."))
+        return lxcNetworkParseDataEntry(name, value, networks);
 
     return 0;
 }
@@ -702,36 +762,48 @@ static int
 lxcConvertNetworkSettings(virDomainDefPtr def, virConfPtr properties)
 {
     int status;
-    size_t i;
-    lxcNetworkParseData data = {def, NULL, NULL, NULL, NULL,
-                                NULL, NULL, NULL, NULL, 0,
-                                NULL, NULL, true, 0};
+    bool privnet = true;
+    size_t i, j;
+    lxcNetworkParseDataArray networks = {0, NULL};
+    int ret = -1;
 
-    if (virConfWalk(properties, lxcNetworkWalkCallback, &data) < 0)
+    networks.parseData = g_new0(lxcNetworkParseDataPtr, 1);
+
+    if (virConfWalk(properties, lxcNetworkWalkCallback, &networks) < 0)
         goto error;
 
+    for (i = 0; i < networks.ndata; i++) {
+        lxcNetworkParseDataPtr data = networks.parseData[i];
 
-    /* Add the last network definition found */
-    status = lxcAddNetworkDefinition(&data);
+        status = lxcAddNetworkDefinition(def, data);
 
-    if (status < 0)
-        goto error;
-    else if (status > 0)
-        data.networks++;
-    else if (data.type != NULL && STREQ(data.type, "none"))
-        data.privnet = false;
+        if (status < 0)
+            goto error;
+        else if (data->type != NULL && STREQ(data->type, "none"))
+            privnet = false;
+    }
 
-    if (data.networks == 0 && data.privnet) {
+    if (networks.ndata == 0 && privnet) {
         /* When no network type is provided LXC only adds loopback */
         def->features[VIR_DOMAIN_FEATURE_PRIVNET] = VIR_TRISTATE_SWITCH_ON;
     }
-    return 0;
+
+    ret = 0;
+
+ cleanup:
+    for (i = 0; i < networks.ndata; i++)
+        VIR_FREE(networks.parseData[i]);
+    VIR_FREE(networks.parseData);
+    return ret;
 
  error:
-    for (i = 0; i < data.nips; i++)
-        VIR_FREE(data.ips[i]);
-    VIR_FREE(data.ips);
-    return -1;
+    for (i = 0; i < networks.ndata; i++) {
+        lxcNetworkParseDataPtr data = networks.parseData[i];
+        for (j = 0; j < data->nips; j++)
+            VIR_FREE(data->ips[j]);
+        VIR_FREE(data->ips);
+    }
+    goto cleanup;
 }
 
 static int

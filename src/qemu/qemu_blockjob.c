@@ -252,7 +252,8 @@ qemuBlockJobDiskNew(virDomainObjPtr vm,
 qemuBlockJobDataPtr
 qemuBlockJobDiskNewPull(virDomainObjPtr vm,
                         virDomainDiskDefPtr disk,
-                        virStorageSourcePtr base)
+                        virStorageSourcePtr base,
+                        unsigned int jobflags)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     g_autoptr(qemuBlockJobData) job = NULL;
@@ -269,6 +270,7 @@ qemuBlockJobDiskNewPull(virDomainObjPtr vm,
         return NULL;
 
     job->data.pull.base = base;
+    job->jobflags = jobflags;
 
     if (qemuBlockJobRegister(job, vm, disk, true) < 0)
         return NULL;
@@ -283,7 +285,9 @@ qemuBlockJobDiskNewCommit(virDomainObjPtr vm,
                           virStorageSourcePtr topparent,
                           virStorageSourcePtr top,
                           virStorageSourcePtr base,
-                          bool delete_imgs)
+                          char ***disabledBitmapsBase,
+                          bool delete_imgs,
+                          unsigned int jobflags)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     g_autoptr(qemuBlockJobData) job = NULL;
@@ -307,6 +311,8 @@ qemuBlockJobDiskNewCommit(virDomainObjPtr vm,
     job->data.commit.top = top;
     job->data.commit.base = base;
     job->data.commit.deleteCommittedImages = delete_imgs;
+    job->data.commit.disabledBitmapsBase = g_steal_pointer(disabledBitmapsBase);
+    job->jobflags = jobflags;
 
     if (qemuBlockJobRegister(job, vm, disk, true) < 0)
         return NULL;
@@ -350,7 +356,8 @@ qemuBlockJobDiskNewCopy(virDomainObjPtr vm,
                         virDomainDiskDefPtr disk,
                         virStorageSourcePtr mirror,
                         bool shallow,
-                        bool reuse)
+                        bool reuse,
+                        unsigned int jobflags)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     g_autoptr(qemuBlockJobData) job = NULL;
@@ -370,6 +377,8 @@ qemuBlockJobDiskNewCopy(virDomainObjPtr vm,
 
     if (shallow && !reuse)
         job->data.copy.shallownew = true;
+
+    job->jobflags = jobflags;
 
     if (qemuBlockJobRegister(job, vm, disk, true) < 0)
         return NULL;
@@ -1040,6 +1049,55 @@ qemuBlockJobDeleteImages(virQEMUDriverPtr driver,
     }
 }
 
+
+/**
+ * qemuBlockJobProcessEventCompletedCommitBitmaps:
+ *
+ * Handles the bitmap changes after commit. This returns -1 on monitor failures.
+ */
+static int
+qemuBlockJobProcessEventCompletedCommitBitmaps(virDomainObjPtr vm,
+                                               qemuBlockJobDataPtr job,
+                                               qemuDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    g_autoptr(virHashTable) blockNamedNodeData = NULL;
+    g_autoptr(virJSONValue) actions = NULL;
+
+    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN))
+        return 0;
+
+    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
+        return -1;
+
+    if (qemuBlockBitmapsHandleCommitFinish(job->data.commit.top,
+                                           job->data.commit.base,
+                                           blockNamedNodeData,
+                                           &actions,
+                                           job->data.commit.disabledBitmapsBase) < 0)
+        return 0;
+
+    if (!actions)
+        return 0;
+
+    if (qemuBlockReopenReadWrite(vm, job->data.commit.base, asyncJob) < 0)
+        return -1;
+
+    if (qemuDomainObjEnterMonitorAsync(priv->driver, vm, asyncJob) < 0)
+        return -1;
+
+    qemuMonitorTransaction(priv->mon, &actions);
+
+    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
+        return -1;
+
+    if (qemuBlockReopenReadOnly(vm, job->data.commit.base, asyncJob) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 /**
  * qemuBlockJobProcessEventCompletedCommit:
  * @driver: qemu driver object
@@ -1097,10 +1155,15 @@ qemuBlockJobProcessEventCompletedCommit(virQEMUDriverPtr driver,
     if (!n)
         return;
 
+    if (qemuBlockJobProcessEventCompletedCommitBitmaps(vm, job, asyncJob) < 0)
+        return;
+
     /* revert access to images */
-    qemuDomainStorageSourceAccessAllow(driver, vm, job->data.commit.base, true, false);
+    qemuDomainStorageSourceAccessAllow(driver, vm, job->data.commit.base,
+                                       true, false, false);
     if (job->data.commit.topparent != job->disk->src)
-        qemuDomainStorageSourceAccessAllow(driver, vm, job->data.commit.topparent, true, false);
+        qemuDomainStorageSourceAccessAllow(driver, vm, job->data.commit.topparent,
+                                           true, false, true);
 
     baseparent->backingStore = NULL;
     job->data.commit.topparent->backingStore = job->data.commit.base;
@@ -1283,6 +1346,40 @@ qemuBlockJobProcessEventFailedActiveCommit(virQEMUDriverPtr driver,
 
 
 static void
+qemuBlockJobProcessEventFailedCommitCommon(virDomainObjPtr vm,
+                                           qemuBlockJobDataPtr job,
+                                           qemuDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    g_autoptr(virJSONValue) actions = virJSONValueNewArray();
+    char **disabledBitmaps = job->data.commit.disabledBitmapsBase;
+
+    if (!disabledBitmaps || !*disabledBitmaps)
+        return;
+
+    for (; *disabledBitmaps; disabledBitmaps++) {
+        qemuMonitorTransactionBitmapEnable(actions,
+                                           job->data.commit.base->nodeformat,
+                                           *disabledBitmaps);
+    }
+
+    if (qemuBlockReopenReadWrite(vm, job->data.commit.base, asyncJob) < 0)
+        return;
+
+    if (qemuDomainObjEnterMonitorAsync(priv->driver, vm, asyncJob) < 0)
+        return;
+
+    qemuMonitorTransaction(priv->mon, &actions);
+
+    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
+        return;
+
+    if (qemuBlockReopenReadOnly(vm, job->data.commit.base, asyncJob) < 0)
+        return;
+}
+
+
+static void
 qemuBlockJobProcessEventConcludedCreate(virQEMUDriverPtr driver,
                                         virDomainObjPtr vm,
                                         qemuBlockJobDataPtr job,
@@ -1309,6 +1406,7 @@ qemuBlockJobProcessEventConcludedCreate(virQEMUDriverPtr driver,
     backend->formatAttached = false;
     if (job->data.create.storage) {
         backend->storageAttached = false;
+        backend->storageSliceAttached = false;
         VIR_FREE(backend->encryptsecretAlias);
     }
 
@@ -1344,8 +1442,7 @@ qemuBlockJobProcessEventConcludedBackup(virQEMUDriverPtr driver,
         return;
 
     if (job->data.backup.bitmap) {
-        if (!(actions = virJSONValueNewArray()))
-            return;
+        actions = virJSONValueNewArray();
 
         if (qemuMonitorTransactionBitmapRemove(actions,
                                                job->disk->src->nodeformat,
@@ -1389,13 +1486,17 @@ qemuBlockJobEventProcessConcludedTransition(qemuBlockJobDataPtr job,
     case QEMU_BLOCKJOB_TYPE_COMMIT:
         if (success)
             qemuBlockJobProcessEventCompletedCommit(driver, vm, job, asyncJob);
+        else
+            qemuBlockJobProcessEventFailedCommitCommon(vm, job, asyncJob);
         break;
 
     case QEMU_BLOCKJOB_TYPE_ACTIVE_COMMIT:
-        if (success)
+        if (success) {
             qemuBlockJobProcessEventCompletedActiveCommit(driver, vm, job, asyncJob);
-        else
+        } else {
             qemuBlockJobProcessEventFailedActiveCommit(driver, vm, job);
+            qemuBlockJobProcessEventFailedCommitCommon(vm, job, asyncJob);
+        }
         break;
 
     case QEMU_BLOCKJOB_TYPE_CREATE:

@@ -30,7 +30,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pwd.h>
-#include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/statvfs.h>
 
@@ -49,6 +48,7 @@
 #include "virhostmem.h"
 #include "virhostcpu.h"
 #include "viraccessapicheck.h"
+#include "virutil.h"
 
 #include "vz_driver.h"
 #include "vz_utils.h"
@@ -122,7 +122,7 @@ vzBuildCapabilities(void)
     if (virCapabilitiesInitCaches(caps) < 0)
         goto error;
 
-    verify(G_N_ELEMENTS(archs) == G_N_ELEMENTS(emulators));
+    G_STATIC_ASSERT(G_N_ELEMENTS(archs) == G_N_ELEMENTS(emulators));
 
     for (i = 0; i < G_N_ELEMENTS(ostypes); i++)
         for (j = 0; j < G_N_ELEMENTS(archs); j++)
@@ -281,6 +281,14 @@ vzDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
         def->os.type == VIR_DOMAIN_OSTYPE_HVM)
         dev->data.net->model = VIR_DOMAIN_NET_MODEL_E1000;
 
+    if (dev->type == VIR_DOMAIN_DEVICE_VIDEO &&
+        dev->data.video->type == VIR_DOMAIN_VIDEO_TYPE_DEFAULT) {
+        if (def->os.type == VIR_DOMAIN_OSTYPE_HVM)
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_VGA;
+        else
+            dev->data.video->type = VIR_DOMAIN_VIDEO_TYPE_PARALLELS;
+    }
+
     return 0;
 }
 
@@ -341,7 +349,7 @@ vzDriverObjNew(void)
     ignore_value(prlsdkLoadDomains(driver));
 
     /* As far as waitDomainJob finally calls virReportErrorHelper
-     * and we are not going to report it, reset it expicitly*/
+     * and we are not going to report it, reset it explicitly */
     virResetLastError();
 
     return driver;
@@ -4094,11 +4102,18 @@ vzStateCleanup(void)
 
 static int
 vzStateInitialize(bool privileged,
+                  const char *root,
                   virStateInhibitCallback callback G_GNUC_UNUSED,
                   void *opaque G_GNUC_UNUSED)
 {
     if (!privileged)
         return VIR_DRV_STATE_INIT_SKIPPED;
+
+    if (root != NULL) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Driver does not support embedded mode"));
+        return -1;
+    }
 
     vz_driver_privileged = privileged;
 
@@ -4136,7 +4151,7 @@ static virStateDriver vzStateDriver = {
     .stateCleanup = vzStateCleanup,
 };
 
-/* Parallels domain type backward compatibility*/
+/* Parallels domain type backward compatibility */
 static virHypervisorDriver parallelsHypervisorDriver;
 static virConnectDriver parallelsConnectDriver = {
     .localOnly = true,

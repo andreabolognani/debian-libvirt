@@ -2162,8 +2162,7 @@ testQemuMonitorJSONqemuMonitorJSONGetTargetArch(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOptionPtr xmlopt = data->xmlopt;
-    int ret = -1;
-    char *arch;
+    g_autofree char *arch = NULL;
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
@@ -2176,22 +2175,19 @@ testQemuMonitorJSONqemuMonitorJSONGetTargetArch(const void *opaque)
                                "    },"
                                "    \"id\": \"libvirt-21\""
                                "}") < 0)
-        goto cleanup;
+        return -1;
 
     if (!(arch = qemuMonitorJSONGetTargetArch(qemuMonitorTestGetMonitor(test))))
-        goto cleanup;
+        return -1;
 
     if (STRNEQ(arch, "x86_64")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "Unexpected architecture %s, expecting x86_64",
                        arch);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(arch);
-    return ret;
+    return 0;
 }
 
 static int
@@ -2619,6 +2615,8 @@ testQemuMonitorCPUInfoFormat(qemuMonitorCPUInfoPtr vcpus,
             virBufferAddLit(&buf, "topology:");
             if (vcpu->socket_id != -1)
                 virBufferAsprintf(&buf, " socket='%d'", vcpu->socket_id);
+            if (vcpu->die_id != -1)
+                virBufferAsprintf(&buf, " die='%d'", vcpu->die_id);
             if (vcpu->core_id != -1)
                 virBufferAsprintf(&buf, " core='%d'", vcpu->core_id);
             if (vcpu->thread_id != -1)
@@ -2777,7 +2775,7 @@ testBlockNodeNameDetect(const void *opaque)
 
     virHashForEach(nodedata, testBlockNodeNameDetectFormat, &buf);
 
-    virBufferTrim(&buf, "\n", -1);
+    virBufferTrim(&buf, "\n");
 
     actual = virBufferContentAndReset(&buf);
 
@@ -2919,7 +2917,7 @@ testQueryJobs(const void *opaque)
     for (i = 0; i < njobs; i++)
         testQueryJobsPrintJob(&buf, jobs[i]);
 
-    virBufferTrim(&buf, "\n", -1);
+    virBufferTrim(&buf, "\n");
 
     actual = virBufferContentAndReset(&buf);
 
@@ -2948,9 +2946,8 @@ testQemuMonitorJSONTransaction(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
         return -1;
 
-    if (!(actions = virJSONValueNewArray()) ||
-        !(mergebitmaps = virJSONValueNewArray()))
-        return -1;
+    actions = virJSONValueNewArray();
+    mergebitmaps = virJSONValueNewArray();
 
     if (qemuMonitorTransactionBitmapMergeSourceAddBitmap(mergebitmaps, "node1", "bitmap1") < 0 ||
         qemuMonitorTransactionBitmapMergeSourceAddBitmap(mergebitmaps, "node2", "bitmap2") < 0)
@@ -2982,6 +2979,110 @@ testQemuMonitorJSONTransaction(const void *opaque)
 
 
 static int
+testQemuMonitorJSONqemuMonitorJSONGetCPUModelComparison(const void *opaque)
+{
+    const testGenericData *data = opaque;
+    g_autoptr(qemuMonitorTest) test = NULL;
+    g_autoptr(virCPUDef) cpu_a = virCPUDefNew();
+    g_autoptr(virCPUDef) cpu_b = virCPUDefNew();
+    g_autofree char *result = NULL;
+
+    if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
+        return -1;
+
+    if (qemuMonitorTestAddItem(test, "query-cpu-model-comparison",
+                               "{\"return\":{\"result\":\"test\"}}") < 0)
+        return -1;
+
+    cpu_a->model = g_strdup("cpu_a");
+    cpu_b->model = g_strdup("cpu_b");
+
+    if (qemuMonitorJSONGetCPUModelComparison(qemuMonitorTestGetMonitor(test),
+                                             cpu_a, cpu_b, &result) < 0)
+        return -1;
+
+    if (!result || STRNEQ(result, "test")) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       "Compare result not set");
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+testQemuMonitorJSONqemuMonitorJSONGetCPUModelBaseline(const void *opaque)
+{
+    const testGenericData *data = opaque;
+    g_autoptr(qemuMonitorTest) test = NULL;
+    g_autoptr(virCPUDef) cpu_a = virCPUDefNew();
+    g_autoptr(virCPUDef) cpu_b = virCPUDefNew();
+    qemuMonitorCPUModelInfoPtr baseline = NULL;
+    int ret = -1;
+
+    if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
+        return -1;
+
+    if (qemuMonitorTestAddItem(test, "query-cpu-model-baseline",
+                               "{ "
+                               "   \"return\": { "
+                               "       \"model\": { "
+                               "           \"name\": \"cpu_c\", "
+                               "           \"props\": { "
+                               "                \"feat_a\": true, "
+                               "                \"feat_b\": false "
+                               "            } "
+                               "        } "
+                               "    } "
+                               "}") < 0)
+        return -1;
+
+    cpu_a->model = g_strdup("cpu_a");
+    cpu_b->model = g_strdup("cpu_b");
+
+    if (virCPUDefAddFeature(cpu_a, "feat_a", VIR_CPU_FEATURE_REQUIRE) < 0 ||
+        virCPUDefAddFeature(cpu_a, "feat_b", VIR_CPU_FEATURE_REQUIRE) < 0 ||
+        virCPUDefAddFeature(cpu_a, "feat_c", VIR_CPU_FEATURE_REQUIRE) < 0)
+        goto cleanup;
+
+    if (qemuMonitorJSONGetCPUModelBaseline(qemuMonitorTestGetMonitor(test),
+                                           cpu_a, cpu_b, &baseline) < 0)
+        goto cleanup;
+
+    if (!baseline) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       "Baseline missing result");
+        goto cleanup;
+    }
+    if (!baseline->name) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       "Baseline missing model name");
+        goto cleanup;
+    }
+    if (baseline->nprops != 2) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       "Baseline missing properties");
+        goto cleanup;
+    }
+    if (STRNEQ(baseline->props[0].name, "feat_a") ||
+        !baseline->props[0].value.boolean ||
+        STRNEQ(baseline->props[1].name, "feat_b") ||
+        baseline->props[1].value.boolean) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       "Baseline property error");
+        goto cleanup;
+    }
+
+    ret = 0;
+
+ cleanup:
+    qemuMonitorCPUModelInfoFree(baseline);
+    return ret;
+}
+
+
+static int
 mymain(void)
 {
     int ret = 0;
@@ -2996,7 +3097,7 @@ mymain(void)
 
     virEventRegisterDefaultImpl();
 
-    if (!(qapiData.schema = testQEMUSchemaLoad())) {
+    if (!(qapiData.schema = testQEMUSchemaLoad("x86_64"))) {
         VIR_TEST_VERBOSE("failed to load qapi schema");
         ret = -1;
         goto cleanup;
@@ -3136,6 +3237,7 @@ mymain(void)
     DO_TEST_CPU_INFO("x86-full", 11);
     DO_TEST_CPU_INFO("x86-node-full", 8);
     DO_TEST_CPU_INFO_FAST("x86-full-fast", 11);
+    DO_TEST_CPU_INFO_FAST("x86-dies", 16);
 
     DO_TEST_CPU_INFO("ppc64-basic", 24);
     DO_TEST_CPU_INFO("ppc64-hotplug-1", 24);
@@ -3233,7 +3335,7 @@ mymain(void)
     DO_TEST_QAPI_VALIDATE("alternate 2", "blockdev-add/arg-type", false,
                           "{\"driver\":\"qcow2\",\"file\": 1234}");
 
-    if (!(metaschema = testQEMUSchemaGetLatest()) ||
+    if (!(metaschema = testQEMUSchemaGetLatest("x86_64")) ||
         !(metaschemastr = virJSONValueToString(metaschema, false))) {
         VIR_TEST_VERBOSE("failed to load latest qapi schema");
         ret = -1;
@@ -3257,6 +3359,16 @@ mymain(void)
     DO_TEST_QUERY_JOBS("create");
 
 #undef DO_TEST_QUERY_JOBS
+
+    virHashFree(qapiData.schema);
+    if (!(qapiData.schema = testQEMUSchemaLoad("s390x"))) {
+        VIR_TEST_VERBOSE("failed to load qapi schema for s390x");
+        ret = -1;
+        goto cleanup;
+    }
+
+    DO_TEST(qemuMonitorJSONGetCPUModelComparison);
+    DO_TEST(qemuMonitorJSONGetCPUModelBaseline);
 
  cleanup:
     VIR_FREE(metaschemastr);

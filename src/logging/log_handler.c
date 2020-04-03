@@ -29,6 +29,7 @@
 #include "virlog.h"
 #include "virrotatingfile.h"
 #include "viruuid.h"
+#include "virutil.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -385,11 +386,9 @@ virLogHandlerDomainOpenLogFile(virLogHandlerPtr handler,
         }
     }
 
-    if (pipe(pipefd) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Cannot open fifo pipe"));
+    if (virPipe(pipefd) < 0)
         goto error;
-    }
+
     if (VIR_ALLOC(file) < 0)
         goto error;
 
@@ -616,11 +615,7 @@ virLogHandlerPreExecRestart(virLogHandlerPtr handler)
     size_t i;
     char domuuid[VIR_UUID_STRING_BUFLEN];
 
-    if (!ret)
-        return NULL;
-
-    if (!(files = virJSONValueNewArray()))
-        goto error;
+    files = virJSONValueNewArray();
 
     if (virJSONValueObjectAppend(ret, "files", files) < 0) {
         virJSONValueFree(files);
@@ -629,8 +624,6 @@ virLogHandlerPreExecRestart(virLogHandlerPtr handler)
 
     for (i = 0; i < handler->nfiles; i++) {
         virJSONValuePtr file = virJSONValueNewObject();
-        if (!file)
-            goto error;
 
         if (virJSONValueArrayAppend(files, file) < 0) {
             virJSONValueFree(file);

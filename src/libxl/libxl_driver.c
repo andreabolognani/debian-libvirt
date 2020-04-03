@@ -50,12 +50,12 @@
 #include "virstring.h"
 #include "virsysinfo.h"
 #include "viraccessapicheck.h"
-#include "viratomic.h"
 #include "virhostdev.h"
 #include "virpidfile.h"
 #include "locking/domain_lock.h"
 #include "virnetdevtap.h"
 #include "cpu/cpu.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LIBXL
 
@@ -73,7 +73,7 @@ VIR_LOG_INIT("libxl.libxl_driver");
 #define HYPERVISOR_CAPABILITIES "/proc/xen/capabilities"
 #define HYPERVISOR_XENSTORED "/dev/xen/xenstored"
 
-/* Number of Xen scheduler parameters */
+/* Number of Xen scheduler parameters. credit and credit2 both support 2 */
 #define XEN_SCHED_CREDIT_NPARAM   2
 
 #define LIBXL_CHECK_DOM0_GOTO(name, label) \
@@ -446,7 +446,7 @@ libxlReconnectDomain(virDomainObjPtr vm,
         virDomainObjSetState(vm, VIR_DOMAIN_RUNNING,
                              VIR_DOMAIN_RUNNING_UNKNOWN);
 
-    if (virAtomicIntInc(&driver->nactive) == 1 && driver->inhibitCallback)
+    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
         driver->inhibitCallback(true, driver->inhibitOpaque);
 
     /* Enable domain death events */
@@ -648,13 +648,19 @@ libxlAddDom0(libxlDriverPrivatePtr driver)
 
 static int
 libxlStateInitialize(bool privileged,
-                     virStateInhibitCallback callback G_GNUC_UNUSED,
-                     void *opaque G_GNUC_UNUSED)
+                     const char *root,
+                     virStateInhibitCallback callback,
+                     void *opaque)
 {
     libxlDriverConfigPtr cfg;
-    char *driverConf = NULL;
-    char ebuf[1024];
+    g_autofree char *driverConf = NULL;
     bool autostart = true;
+
+    if (root != NULL) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Driver does not support embedded mode"));
+        return -1;
+    }
 
     if (!libxlDriverShouldLoad(privileged))
         return VIR_DRV_STATE_INIT_SKIPPED;
@@ -669,6 +675,9 @@ libxlStateInitialize(bool privileged,
         VIR_FREE(libxl_driver);
         return VIR_DRV_STATE_INIT_ERROR;
     }
+
+    libxl_driver->inhibitCallback = callback;
+    libxl_driver->inhibitOpaque = opaque;
 
     /* Allocate bitmap for vnc port reservation */
     if (!(libxl_driver->reservedGraphicsPorts =
@@ -697,7 +706,9 @@ libxlStateInitialize(bool privileged,
 
     if (libxlDriverConfigLoadFile(cfg, driverConf) < 0)
         goto error;
-    VIR_FREE(driverConf);
+
+    if (libxlDriverConfigInit(cfg) < 0)
+        goto error;
 
     /* Register the callbacks providing access to libvirt's event loop */
     libxl_osevent_register_hooks(cfg->ctx, &libxl_osevent_callbacks, cfg->ctx);
@@ -713,35 +724,35 @@ libxlStateInitialize(bool privileged,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to create state dir '%s': %s"),
                        cfg->stateDir,
-                       virStrerror(errno, ebuf, sizeof(ebuf)));
+                       g_strerror(errno));
         goto error;
     }
     if (virFileMakePath(cfg->libDir) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to create lib dir '%s': %s"),
                        cfg->libDir,
-                       virStrerror(errno, ebuf, sizeof(ebuf)));
+                       g_strerror(errno));
         goto error;
     }
     if (virFileMakePath(cfg->saveDir) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to create save dir '%s': %s"),
                        cfg->saveDir,
-                       virStrerror(errno, ebuf, sizeof(ebuf)));
+                       g_strerror(errno));
         goto error;
     }
     if (virFileMakePath(cfg->autoDumpDir) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to create dump dir '%s': %s"),
                        cfg->autoDumpDir,
-                       virStrerror(errno, ebuf, sizeof(ebuf)));
+                       g_strerror(errno));
         goto error;
     }
     if (virFileMakePath(cfg->channelDir) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to create channel dir '%s': %s"),
                        cfg->channelDir,
-                       virStrerror(errno, ebuf, sizeof(ebuf)));
+                       g_strerror(errno));
         goto error;
     }
 
@@ -813,7 +824,6 @@ libxlStateInitialize(bool privileged,
     return VIR_DRV_STATE_INIT_COMPLETE;
 
  error:
-    VIR_FREE(driverConf);
     libxlStateCleanup();
     return VIR_DRV_STATE_INIT_ERROR;
 }
@@ -4576,6 +4586,8 @@ libxlDomainGetSchedulerType(virDomainPtr dom, int *nparams)
         break;
     case LIBXL_SCHEDULER_CREDIT2:
         name = "credit2";
+        if (nparams)
+            *nparams = XEN_SCHED_CREDIT_NPARAM;
         break;
     case LIBXL_SCHEDULER_ARINC653:
         name = "arinc653";
@@ -4622,11 +4634,11 @@ libxlDomainGetSchedulerParametersFlags(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto cleanup;
 
+    /* Only credit and credit2 are supported for now. */
     sched_id = libxl_get_scheduler(cfg->ctx);
-
-    if (sched_id != LIBXL_SCHEDULER_CREDIT) {
+    if (sched_id != LIBXL_SCHEDULER_CREDIT && sched_id != LIBXL_SCHEDULER_CREDIT2) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Only 'credit' scheduler is supported"));
+                       _("Only 'credit' and 'credit2' schedulers are supported"));
         goto cleanup;
     }
 
@@ -4699,11 +4711,11 @@ libxlDomainSetSchedulerParametersFlags(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
+    /* Only credit and credit2 are supported for now. */
     sched_id = libxl_get_scheduler(cfg->ctx);
-
-    if (sched_id != LIBXL_SCHEDULER_CREDIT) {
+    if (sched_id != LIBXL_SCHEDULER_CREDIT && sched_id != LIBXL_SCHEDULER_CREDIT2) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Only 'credit' scheduler is supported"));
+                       _("Only 'credit' and 'credit2' schedulers are supported"));
         goto endjob;
     }
 
@@ -5774,10 +5786,23 @@ libxlNodeDeviceDetachFlags(virNodeDevicePtr dev,
     char *xml = NULL;
     libxlDriverPrivatePtr driver = dev->conn->privateData;
     virHostdevManagerPtr hostdev_mgr = driver->hostdevMgr;
+    virConnectPtr nodeconn = NULL;
+    virNodeDevicePtr nodedev = NULL;
 
     virCheckFlags(0, -1);
 
-    xml = virNodeDeviceGetXMLDesc(dev, 0);
+    if (!(nodeconn = virGetConnectNodeDev()))
+        goto cleanup;
+
+    /* 'dev' is associated with the QEMU virConnectPtr,
+     * so for split daemons, we need to get a copy that
+     * is associated with the virnodedevd daemon.
+     */
+    if (!(nodedev = virNodeDeviceLookupByName(nodeconn,
+                                              virNodeDeviceGetName(dev))))
+        goto cleanup;
+
+    xml = virNodeDeviceGetXMLDesc(nodedev, 0);
     if (!xml)
         goto cleanup;
 
@@ -5785,6 +5810,8 @@ libxlNodeDeviceDetachFlags(virNodeDevicePtr dev,
     if (!def)
         goto cleanup;
 
+    /* ACL check must happen against original 'dev',
+     * not the new 'nodedev' we acquired */
     if (virNodeDeviceDetachFlagsEnsureACL(dev->conn, def) < 0)
         goto cleanup;
 
@@ -5810,6 +5837,8 @@ libxlNodeDeviceDetachFlags(virNodeDevicePtr dev,
  cleanup:
     virPCIDeviceFree(pci);
     virNodeDeviceDefFree(def);
+    virObjectUnref(nodedev);
+    virObjectUnref(nodeconn);
     VIR_FREE(xml);
     return ret;
 }
@@ -5830,8 +5859,21 @@ libxlNodeDeviceReAttach(virNodeDevicePtr dev)
     char *xml = NULL;
     libxlDriverPrivatePtr driver = dev->conn->privateData;
     virHostdevManagerPtr hostdev_mgr = driver->hostdevMgr;
+    virConnectPtr nodeconn = NULL;
+    virNodeDevicePtr nodedev = NULL;
 
-    xml = virNodeDeviceGetXMLDesc(dev, 0);
+    if (!(nodeconn = virGetConnectNodeDev()))
+        goto cleanup;
+
+    /* 'dev' is associated with the QEMU virConnectPtr,
+     * so for split daemons, we need to get a copy that
+     * is associated with the virnodedevd daemon.
+     */
+    if (!(nodedev = virNodeDeviceLookupByName(
+              nodeconn, virNodeDeviceGetName(dev))))
+        goto cleanup;
+
+    xml = virNodeDeviceGetXMLDesc(nodedev, 0);
     if (!xml)
         goto cleanup;
 
@@ -5839,6 +5881,8 @@ libxlNodeDeviceReAttach(virNodeDevicePtr dev)
     if (!def)
         goto cleanup;
 
+    /* ACL check must happen against original 'dev',
+     * not the new 'nodedev' we acquired */
     if (virNodeDeviceReAttachEnsureACL(dev->conn, def) < 0)
         goto cleanup;
 
@@ -5857,6 +5901,8 @@ libxlNodeDeviceReAttach(virNodeDevicePtr dev)
  cleanup:
     virPCIDeviceFree(pci);
     virNodeDeviceDefFree(def);
+    virObjectUnref(nodedev);
+    virObjectUnref(nodeconn);
     VIR_FREE(xml);
     return ret;
 }
@@ -5871,8 +5917,21 @@ libxlNodeDeviceReset(virNodeDevicePtr dev)
     char *xml = NULL;
     libxlDriverPrivatePtr driver = dev->conn->privateData;
     virHostdevManagerPtr hostdev_mgr = driver->hostdevMgr;
+    virConnectPtr nodeconn = NULL;
+    virNodeDevicePtr nodedev = NULL;
 
-    xml = virNodeDeviceGetXMLDesc(dev, 0);
+    if (!(nodeconn = virGetConnectNodeDev()))
+        goto cleanup;
+
+    /* 'dev' is associated with the QEMU virConnectPtr,
+     * so for split daemons, we need to get a copy that
+     * is associated with the virnodedevd daemon.
+     */
+    if (!(nodedev = virNodeDeviceLookupByName(
+              nodeconn, virNodeDeviceGetName(dev))))
+        goto cleanup;
+
+    xml = virNodeDeviceGetXMLDesc(nodedev, 0);
     if (!xml)
         goto cleanup;
 
@@ -5880,6 +5939,8 @@ libxlNodeDeviceReset(virNodeDevicePtr dev)
     if (!def)
         goto cleanup;
 
+    /* ACL check must happen against original 'dev',
+     * not the new 'nodedev' we acquired */
     if (virNodeDeviceResetEnsureACL(dev->conn, def) < 0)
         goto cleanup;
 
@@ -5898,6 +5959,8 @@ libxlNodeDeviceReset(virNodeDevicePtr dev)
  cleanup:
     virPCIDeviceFree(pci);
     virNodeDeviceDefFree(def);
+    virObjectUnref(nodedev);
+    virObjectUnref(nodeconn);
     VIR_FREE(xml);
     return ret;
 }

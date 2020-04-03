@@ -43,12 +43,12 @@
 #include "viralloc.h"
 #include "virfile.h"
 #include "vircommand.h"
-#include "intprops.h"
 #include "virtypedparam.h"
 #include "viruri.h"
 #include "virauth.h"
 #include "virauthconfig.h"
 #include "virstring.h"
+#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_REMOTE
 
@@ -125,9 +125,7 @@ struct private_data {
 
     int counter; /* Serial number for RPC */
 
-#ifdef WITH_GNUTLS
     virNetTLSContextPtr tls;
-#endif
 
     int is_secure;              /* Secure if TLS or SASL or UNIX sockets */
     char *type;                 /* Cached return from remoteType. */
@@ -235,6 +233,7 @@ static int remoteSplitURIScheme(virURIPtr uri,
 
 static int
 remoteStateInitialize(bool privileged G_GNUC_UNUSED,
+                      const char *root G_GNUC_UNUSED,
                       virStateInhibitCallback callback G_GNUC_UNUSED,
                       void *opaque G_GNUC_UNUSED)
 {
@@ -1133,7 +1132,6 @@ doRemoteOpen(virConnectPtr conn,
             virConfGetValueString(conf, "tls_priority", &tls_priority) < 0)
             goto failed;
 
-#ifdef WITH_GNUTLS
         priv->tls = virNetTLSContextNewClientPath(pkipath,
                                                   geteuid() != 0 ? true : false,
                                                   tls_priority,
@@ -1142,27 +1140,17 @@ doRemoteOpen(virConnectPtr conn,
             goto failed;
         priv->is_secure = 1;
         G_GNUC_FALLTHROUGH;
-#else
-        (void)tls_priority;
-        (void)sanity;
-        (void)verify;
-        virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("GNUTLS support not available in this build"));
-        goto failed;
-#endif
 
     case REMOTE_DRIVER_TRANSPORT_TCP:
         priv->client = virNetClientNewTCP(priv->hostname, port, AF_UNSPEC);
         if (!priv->client)
             goto failed;
 
-#ifdef WITH_GNUTLS
         if (priv->tls) {
             VIR_DEBUG("Starting TLS session");
             if (virNetClientSetTLSSession(priv->client, priv->tls) < 0)
                 goto failed;
         }
-#endif
 
         break;
 
@@ -1389,10 +1377,8 @@ doRemoteOpen(virConnectPtr conn,
     priv->client = NULL;
     virObjectUnref(priv->closeCallback);
     priv->closeCallback = NULL;
-#ifdef WITH_GNUTLS
     virObjectUnref(priv->tls);
     priv->tls = NULL;
-#endif
 
     VIR_FREE(priv->hostname);
     return VIR_DRV_OPEN_ERROR;
@@ -1534,10 +1520,8 @@ doRemoteClose(virConnectPtr conn, struct private_data *priv)
              (xdrproc_t) xdr_void, (char *) NULL) == -1)
         ret = -1;
 
-#ifdef WITH_GNUTLS
     virObjectUnref(priv->tls);
     priv->tls = NULL;
-#endif
 
     virNetClientSetCloseCallback(priv->client,
                                  NULL,
@@ -2236,7 +2220,7 @@ remoteDomainGetVcpuPinInfo(virDomainPtr domain,
         goto done;
     }
 
-    if (INT_MULTIPLY_OVERFLOW(ncpumaps, maplen) ||
+    if (VIR_INT_MULTIPLY_OVERFLOW(ncpumaps, maplen) ||
         ncpumaps * maplen > REMOTE_CPUMAPS_MAX) {
         virReportError(VIR_ERR_RPC,
                        _("vCPU map buffer length exceeds maximum: %d > %d"),
@@ -2405,7 +2389,7 @@ remoteDomainGetVcpus(virDomainPtr domain,
                        maxinfo, REMOTE_VCPUINFO_MAX);
         goto done;
     }
-    if (INT_MULTIPLY_OVERFLOW(maxinfo, maplen) ||
+    if (VIR_INT_MULTIPLY_OVERFLOW(maxinfo, maplen) ||
         maxinfo * maplen > REMOTE_CPUMAPS_MAX) {
         virReportError(VIR_ERR_RPC,
                        _("vCPU map buffer length exceeds maximum: %d > %d"),
@@ -4272,7 +4256,6 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
     /* saslcb is now owned by sasl */
     saslcb = NULL;
 
-# ifdef WITH_GNUTLS
     /* Initialize some connection props we care about */
     if (priv->tls) {
         if ((ssf = virNetClientGetTLSKeySize(priv->client)) < 0)
@@ -4284,7 +4267,6 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
         if (virNetSASLSessionExtKeySize(sasl, ssf) < 0)
             goto cleanup;
     }
-# endif
 
     /* If we've got a secure channel (TLS or UNIX sock), we don't care about SSF */
     /* If we're not secure, then forbid any anonymous or trivially crackable auth */

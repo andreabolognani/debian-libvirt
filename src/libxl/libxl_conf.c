@@ -24,7 +24,6 @@
 
 #include <libxl.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 
 #include "internal.h"
 #include "virlog.h"
@@ -41,13 +40,12 @@
 #include "libxl_conf.h"
 #include "libxl_utils.h"
 #include "virstoragefile.h"
-#include "secret_util.h"
+#include "virsecret.h"
 #include "cpu/cpu.h"
 #include "xen_common.h"
 #include "xen_xl.h"
 #include "virnetdevvportprofile.h"
 #include "virenum.h"
-
 
 #define VIR_FROM_THIS VIR_FROM_LIBXL
 
@@ -361,6 +359,7 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
         case VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK:
         case VIR_DOMAIN_TIMER_NAME_RTC:
         case VIR_DOMAIN_TIMER_NAME_PIT:
+        case VIR_DOMAIN_TIMER_NAME_ARMVTIMER:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unsupported timer type (name) '%s'"),
                            virDomainTimerNameTypeToString(clock.timers[i]->name));
@@ -397,7 +396,7 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
             char xlCPU[32];
 
             /* enable nested HVM only if global nested_hvm option enable it and
-             * host support it*/
+             * host support it */
             if (ARCH_IS_X86(def->os.arch)) {
                 vmx = virCPUCheckFeature(caps->host.arch, caps->host.cpu, "vmx");
                 svm = virCPUCheckFeature(caps->host.arch, caps->host.cpu, "svm");
@@ -1687,8 +1686,6 @@ libxlDriverConfigPtr
 libxlDriverConfigNew(void)
 {
     libxlDriverConfigPtr cfg;
-    char ebuf[1024];
-    unsigned int free_mem;
 
     if (libxlConfigInitialize() < 0)
         return NULL;
@@ -1705,41 +1702,6 @@ libxlDriverConfigNew(void)
     cfg->saveDir = g_strdup(LIBXL_SAVE_DIR);
     cfg->autoDumpDir = g_strdup(LIBXL_DUMP_DIR);
     cfg->channelDir = g_strdup(LIBXL_CHANNEL_DIR);
-
-    if (virFileMakePath(cfg->logDir) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create log dir '%s': %s"),
-                       cfg->logDir,
-                       virStrerror(errno, ebuf, sizeof(ebuf)));
-        goto error;
-    }
-
-    cfg->logger = libxlLoggerNew(cfg->logDir, virLogGetDefaultPriority());
-    if (!cfg->logger) {
-        VIR_ERROR(_("cannot create logger for libxenlight, disabling driver"));
-        goto error;
-    }
-
-    if (libxl_ctx_alloc(&cfg->ctx, LIBXL_VERSION, 0, (xentoollog_logger *)cfg->logger)) {
-        VIR_ERROR(_("cannot initialize libxenlight context, probably not "
-                    "running in a Xen Dom0, disabling driver"));
-        goto error;
-    }
-
-    if ((cfg->verInfo = libxl_get_version_info(cfg->ctx)) == NULL) {
-        VIR_ERROR(_("cannot version information from libxenlight, "
-                    "disabling driver"));
-        goto error;
-    }
-    cfg->version = (cfg->verInfo->xen_version_major * 1000000) +
-        (cfg->verInfo->xen_version_minor * 1000);
-
-    /* This will fill xenstore info about free and dom0 memory if missing,
-     * should be called before starting first domain */
-    if (libxl_get_free_memory(cfg->ctx, &free_mem)) {
-        VIR_ERROR(_("Unable to configure libxl's memory management parameters"));
-        goto error;
-    }
 
 #ifdef DEFAULT_LOADER_NVRAM
     if (virFirmwareParseList(DEFAULT_LOADER_NVRAM,
@@ -1764,11 +1726,58 @@ libxlDriverConfigNew(void)
         goto error;
     cfg->firmwares[cfg->nfirmwares - 1]->name = g_strdup(LIBXL_FIRMWARE_DIR "/hvmloader");
 
+    /* defaults for keepalive messages */
+    cfg->keepAliveInterval = 5;
+    cfg->keepAliveCount = 5;
+
     return cfg;
 
  error:
     virObjectUnref(cfg);
     return NULL;
+}
+
+int
+libxlDriverConfigInit(libxlDriverConfigPtr cfg)
+{
+    unsigned int free_mem;
+
+    if (virFileMakePath(cfg->logDir) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("failed to create log dir '%s': %s"),
+                       cfg->logDir,
+                       g_strerror(errno));
+        return -1;
+    }
+
+    cfg->logger = libxlLoggerNew(cfg->logDir, virLogGetDefaultPriority());
+    if (!cfg->logger) {
+        VIR_ERROR(_("cannot create logger for libxenlight, disabling driver"));
+        return -1;
+    }
+
+    if (libxl_ctx_alloc(&cfg->ctx, LIBXL_VERSION, 0, (xentoollog_logger *)cfg->logger)) {
+        VIR_ERROR(_("cannot initialize libxenlight context, probably not "
+                    "running in a Xen Dom0, disabling driver"));
+        return -1;
+    }
+
+    if ((cfg->verInfo = libxl_get_version_info(cfg->ctx)) == NULL) {
+        VIR_ERROR(_("cannot version information from libxenlight, "
+                    "disabling driver"));
+        return -1;
+    }
+    cfg->version = (cfg->verInfo->xen_version_major * 1000000) +
+        (cfg->verInfo->xen_version_minor * 1000);
+
+    /* This will fill xenstore info about free and dom0 memory if missing,
+     * should be called before starting first domain */
+    if (libxl_get_free_memory(cfg->ctx, &free_mem)) {
+        VIR_ERROR(_("Unable to configure libxl's memory management parameters"));
+        return -1;
+    }
+
+    return 0;
 }
 
 libxlDriverConfigPtr
@@ -1786,10 +1795,6 @@ int libxlDriverConfigLoadFile(libxlDriverConfigPtr cfg,
                               const char *filename)
 {
     g_autoptr(virConf) conf = NULL;
-
-    /* defaults for keepalive messages */
-    cfg->keepAliveInterval = 5;
-    cfg->keepAliveCount = 5;
 
     /* Check the file is readable before opening it, otherwise
      * libvirt emits an error.

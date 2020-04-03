@@ -22,8 +22,6 @@
 #include <config.h>
 
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -1174,6 +1172,26 @@ virNetworkIPDefParseXML(const char *networkName,
 }
 
 
+int
+virNetworkPortOptionsParseXML(xmlXPathContextPtr ctxt,
+                              virTristateBool *isolatedPort)
+{
+    g_autofree char *str = NULL;
+    int tmp = VIR_TRISTATE_BOOL_ABSENT;
+
+    if ((str = virXPathString("string(./port/@isolated)", ctxt))) {
+        if ((tmp = virTristateBoolTypeFromString(str)) <= 0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("unknown port isolated value '%s'"), str);
+            return -1;
+        }
+    }
+
+    *isolatedPort = tmp;
+    return 0;
+}
+
+
 static int
 virNetworkPortGroupParseXML(virPortGroupDefPtr def,
                             xmlNodePtr node,
@@ -1725,6 +1743,9 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
 
     vlanNode = virXPathNode("./vlan", ctxt);
     if (vlanNode && virNetDevVlanParse(vlanNode, ctxt, &def->vlan) < 0)
+        goto error;
+
+    if (virNetworkPortOptionsParseXML(ctxt, &def->isolatedPort) < 0)
         goto error;
 
     /* Parse bridge information */
@@ -2333,6 +2354,14 @@ virNetworkIPDefFormat(virBufferPtr buf,
     return 0;
 }
 
+void
+virNetworkPortOptionsFormat(virTristateBool isolatedPort,
+                            virBufferPtr buf)
+{
+    if (isolatedPort != VIR_TRISTATE_BOOL_ABSENT)
+        virBufferAsprintf(buf, "<port isolated='%s'/>\n",
+                          virTristateBoolTypeToString(isolatedPort));
+}
 
 static int
 virPortGroupDefFormat(virBufferPtr buf,
@@ -2610,6 +2639,7 @@ virNetworkDefFormatBuf(virBufferPtr buf,
         return -1;
     if (virNetDevBandwidthFormat(def->bandwidth, 0, buf) < 0)
         return -1;
+    virNetworkPortOptionsFormat(def->isolatedPort, buf);
 
     for (i = 0; i < def->nips; i++) {
         if (virNetworkIPDefFormat(buf, &def->ips[i]) < 0)

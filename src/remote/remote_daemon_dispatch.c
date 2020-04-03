@@ -31,7 +31,6 @@
 #include "remote_daemon_stream.h"
 #include "viruuid.h"
 #include "vircommand.h"
-#include "intprops.h"
 #include "virnetserverservice.h"
 #include "virnetserver.h"
 #include "virfile.h"
@@ -96,6 +95,7 @@ static virNWFilterBindingPtr get_nonnull_nwfilter_binding(virConnectPtr conn, re
 static virDomainCheckpointPtr get_nonnull_domain_checkpoint(virDomainPtr dom, remote_nonnull_domain_checkpoint checkpoint);
 static virDomainSnapshotPtr get_nonnull_domain_snapshot(virDomainPtr dom, remote_nonnull_domain_snapshot snapshot);
 static virNodeDevicePtr get_nonnull_node_device(virConnectPtr conn, remote_nonnull_node_device dev);
+static virNodeDevicePtr get_nonnull_node_device_name(virConnectPtr conn, remote_nonnull_string name);
 static void make_nonnull_domain(remote_nonnull_domain *dom_dst, virDomainPtr dom_src);
 static void make_nonnull_network(remote_nonnull_network *net_dst, virNetworkPtr net_src);
 static void make_nonnull_network_port(remote_nonnull_network_port *port_dst, virNetworkPortPtr port_src);
@@ -1332,7 +1332,7 @@ static virConnectDomainEventGenericCallback domainEventCallbacks[] = {
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventBlockThreshold),
 };
 
-verify(G_N_ELEMENTS(domainEventCallbacks) == VIR_DOMAIN_EVENT_ID_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(domainEventCallbacks) == VIR_DOMAIN_EVENT_ID_LAST);
 
 static int
 remoteRelayNetworkEventLifecycle(virConnectPtr conn,
@@ -1369,7 +1369,7 @@ static virConnectNetworkEventGenericCallback networkEventCallbacks[] = {
     VIR_NETWORK_EVENT_CALLBACK(remoteRelayNetworkEventLifecycle),
 };
 
-verify(G_N_ELEMENTS(networkEventCallbacks) == VIR_NETWORK_EVENT_ID_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(networkEventCallbacks) == VIR_NETWORK_EVENT_ID_LAST);
 
 static int
 remoteRelayStoragePoolEventLifecycle(virConnectPtr conn,
@@ -1436,7 +1436,7 @@ static virConnectStoragePoolEventGenericCallback storageEventCallbacks[] = {
     VIR_STORAGE_POOL_EVENT_CALLBACK(remoteRelayStoragePoolEventRefresh),
 };
 
-verify(G_N_ELEMENTS(storageEventCallbacks) == VIR_STORAGE_POOL_EVENT_ID_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(storageEventCallbacks) == VIR_STORAGE_POOL_EVENT_ID_LAST);
 
 static int
 remoteRelayNodeDeviceEventLifecycle(virConnectPtr conn,
@@ -1503,7 +1503,7 @@ static virConnectNodeDeviceEventGenericCallback nodeDeviceEventCallbacks[] = {
     VIR_NODE_DEVICE_EVENT_CALLBACK(remoteRelayNodeDeviceEventUpdate),
 };
 
-verify(G_N_ELEMENTS(nodeDeviceEventCallbacks) == VIR_NODE_DEVICE_EVENT_ID_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(nodeDeviceEventCallbacks) == VIR_NODE_DEVICE_EVENT_ID_LAST);
 
 static int
 remoteRelaySecretEventLifecycle(virConnectPtr conn,
@@ -1570,7 +1570,7 @@ static virConnectSecretEventGenericCallback secretEventCallbacks[] = {
     VIR_SECRET_EVENT_CALLBACK(remoteRelaySecretEventValueChanged),
 };
 
-verify(G_N_ELEMENTS(secretEventCallbacks) == VIR_SECRET_EVENT_ID_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(secretEventCallbacks) == VIR_SECRET_EVENT_ID_LAST);
 
 static void
 remoteRelayDomainQemuMonitorEvent(virConnectPtr conn,
@@ -2755,7 +2755,7 @@ remoteDispatchDomainGetVcpuPinInfo(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (INT_MULTIPLY_OVERFLOW(args->ncpumaps, args->maplen) ||
+    if (VIR_INT_MULTIPLY_OVERFLOW(args->ncpumaps, args->maplen) ||
         args->ncpumaps * args->maplen > REMOTE_CPUMAPS_MAX) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("maxinfo * maplen > REMOTE_CPUMAPS_MAX"));
         goto cleanup;
@@ -2898,7 +2898,7 @@ remoteDispatchDomainGetVcpus(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (INT_MULTIPLY_OVERFLOW(args->maxinfo, args->maplen) ||
+    if (VIR_INT_MULTIPLY_OVERFLOW(args->maxinfo, args->maplen) ||
         args->maxinfo * args->maplen > REMOTE_CPUMAPS_MAX) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("maxinfo * maplen > REMOTE_CPUMAPS_MAX"));
         goto cleanup;
@@ -7032,7 +7032,7 @@ remoteDispatchDomainGetFSInfo(virNetServerPtr server G_GNUC_UNUSED,
     if (ninfo >= 0)
         for (i = 0; i < ninfo; i++)
             virDomainFSInfoFree(info[i]);
-    VIR_FREE(info);
+    g_free(info);
 
     return rv;
 }
@@ -7164,41 +7164,6 @@ remoteDispatchDomainInterfaceAddresses(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchStorageVolGetInfoFlags(virNetServerPtr server G_GNUC_UNUSED,
-                                     virNetServerClientPtr client,
-                                     virNetMessagePtr msg G_GNUC_UNUSED,
-                                     virNetMessageErrorPtr rerr,
-                                     remote_storage_vol_get_info_flags_args *args,
-                                     remote_storage_vol_get_info_flags_ret *ret)
-{
-    int rv = -1;
-    virStorageVolPtr vol = NULL;
-    virStorageVolInfo tmp;
-    virConnectPtr conn = remoteGetStorageConn(client);
-
-    if (!conn)
-        goto cleanup;
-
-    if (!(vol = get_nonnull_storage_vol(conn, args->vol)))
-        goto cleanup;
-
-    if (virStorageVolGetInfoFlags(vol, &tmp, args->flags) < 0)
-        goto cleanup;
-
-    ret->type = tmp.type;
-    ret->capacity = tmp.capacity;
-    ret->allocation = tmp.allocation;
-    rv = 0;
-
- cleanup:
-    if (rv < 0)
-        virNetMessageSaveError(rerr);
-    virObjectUnref(vol);
-    return rv;
-}
-
-
-static int
 remoteDispatchNetworkPortGetParameters(virNetServerPtr server G_GNUC_UNUSED,
                                        virNetServerClientPtr client,
                                        virNetMessagePtr msg G_GNUC_UNUSED,
@@ -7325,6 +7290,12 @@ static virNodeDevicePtr
 get_nonnull_node_device(virConnectPtr conn, remote_nonnull_node_device dev)
 {
     return virGetNodeDevice(conn, dev.name);
+}
+
+static virNodeDevicePtr
+get_nonnull_node_device_name(virConnectPtr conn, remote_nonnull_string name)
+{
+    return virGetNodeDevice(conn, name);
 }
 
 static void

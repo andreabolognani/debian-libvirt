@@ -33,6 +33,7 @@
 #include "virtime.h"
 #include "virhostcpu.h"
 #include "virsocketaddr.h"
+#include "virutil.h"
 
 #include "vz_sdk.h"
 
@@ -1455,44 +1456,40 @@ prlsdkConvertCpuInfo(PRL_HANDLE sdkdom,
                      virDomainDefPtr def,
                      virDomainXMLOptionPtr xmlopt)
 {
-    char *buf;
+    g_autofree char *buf = NULL;
     int hostcpus;
     PRL_UINT32 cpuCount;
     PRL_RESULT pret;
-    int ret = -1;
 
     if ((hostcpus = virHostCPUGetCount()) < 0)
-        goto cleanup;
+        return -1;
 
     /* get number of CPUs */
     pret = PrlVmCfg_GetCpuCount(sdkdom, &cpuCount);
-    prlsdkCheckRetGoto(pret, cleanup);
+    prlsdkCheckRetExit(pret, -1);
 
     if (cpuCount > hostcpus)
         cpuCount = hostcpus;
 
     if (virDomainDefSetVcpusMax(def, cpuCount, xmlopt) < 0)
-        goto cleanup;
+        return -1;
 
     if (virDomainDefSetVcpus(def, cpuCount) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(buf = prlsdkGetStringParamVar(PrlVmCfg_GetCpuMask, sdkdom)))
-        goto cleanup;
+        return -1;
 
     if (strlen(buf) == 0) {
         if (!(def->cpumask = virBitmapNew(hostcpus)))
-            goto cleanup;
+            return -1;
         virBitmapSetAll(def->cpumask);
     } else {
         if (virBitmapParse(buf, &def->cpumask, hostcpus) < 0)
-            goto cleanup;
+            return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(buf);
-    return ret;
+    return 0;
 }
 
 static int
@@ -1609,13 +1606,13 @@ prlsdkInBootList(PRL_HANDLE sdkdom,
     size_t i;
 
     pret = PrlVmDev_GetType(sdktargetdev, &targetType);
-    prlsdkCheckRetExit(pret, -1);
+    prlsdkCheckRetExit(pret, false);
 
     pret = PrlVmDev_GetIndex(sdktargetdev, &targetIndex);
-    prlsdkCheckRetExit(pret, -1);
+    prlsdkCheckRetExit(pret, false);
 
     pret = PrlVmCfg_GetBootDevCount(sdkdom, &bootNum);
-    prlsdkCheckRetExit(pret, -1);
+    prlsdkCheckRetExit(pret, false);
 
     for (i = 0; i < bootNum; ++i) {
         pret = PrlVmCfg_GetBootDev(sdkdom, i, &bootDev);
@@ -3186,7 +3183,7 @@ static int prlsdkConfigureGateways(PRL_HANDLE sdknet, virDomainNetDefPtr net)
                                  : VIR_SOCKET_ADDR_IPV6_ALL),
                                 VIR_SOCKET_ADDR_FAMILY(addrdst)));
         /* virSocketAddrParse raises an error
-         * and we are not going to report it, reset it expicitly*/
+         * and we are not going to report it, reset it explicitly */
         virResetLastError();
 
         if (!virSocketAddrEqual(addrdst, &zero)) {

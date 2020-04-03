@@ -25,7 +25,6 @@
 #include "virerror.h"
 #include "virlog.h"
 #include "virstring.h"
-#include "virutil.h"
 #include "vircommand.h"
 #include "viralloc.h"
 
@@ -33,8 +32,12 @@
 # include <ifaddrs.h>
 #endif
 
-#include <sys/ioctl.h>
-#include <net/if.h>
+#ifndef WIN32
+# include <sys/ioctl.h>
+#endif
+#ifdef HAVE_NET_IF_H
+# include <net/if.h>
+#endif
 #include <fcntl.h>
 
 #ifdef __linux__

@@ -59,6 +59,7 @@ struct _virHashTable {
     virHashKeyCode keyCode;
     virHashKeyEqual keyEqual;
     virHashKeyCopy keyCopy;
+    virHashKeyPrintHuman keyPrint;
     virHashKeyFree keyFree;
 };
 
@@ -93,10 +94,16 @@ static bool virHashStrEqual(const void *namea, const void *nameb)
 
 static void *virHashStrCopy(const void *name)
 {
-    char *ret;
-    ret = g_strdup(name);
-    return ret;
+    return g_strdup(name);
 }
+
+
+static char *
+virHashStrPrintHuman(const void *name)
+{
+    return g_strdup(name);
+}
+
 
 static void virHashStrFree(void *name)
 {
@@ -129,13 +136,14 @@ virHashComputeKey(const virHashTable *table, const void *name)
  *
  * Create a new virHashTablePtr.
  *
- * Returns the newly created object, or NULL if an error occurred.
+ * Returns the newly created object.
  */
 virHashTablePtr virHashCreateFull(ssize_t size,
                                   virHashDataFree dataFree,
                                   virHashKeyCode keyCode,
                                   virHashKeyEqual keyEqual,
                                   virHashKeyCopy keyCopy,
+                                  virHashKeyPrintHuman keyPrint,
                                   virHashKeyFree keyFree)
 {
     virHashTablePtr table = NULL;
@@ -143,8 +151,7 @@ virHashTablePtr virHashCreateFull(ssize_t size,
     if (size <= 0)
         size = 256;
 
-    if (VIR_ALLOC(table) < 0)
-        return NULL;
+    table = g_new0(virHashTable, 1);
 
     table->seed = virRandomBits(32);
     table->size = size;
@@ -153,12 +160,10 @@ virHashTablePtr virHashCreateFull(ssize_t size,
     table->keyCode = keyCode;
     table->keyEqual = keyEqual;
     table->keyCopy = keyCopy;
+    table->keyPrint = keyPrint;
     table->keyFree = keyFree;
 
-    if (VIR_ALLOC_N(table->table, size) < 0) {
-        VIR_FREE(table);
-        return NULL;
-    }
+    table->table = g_new0(virHashEntryPtr, table->size);
 
     return table;
 }
@@ -170,7 +175,7 @@ virHashTablePtr virHashCreateFull(ssize_t size,
  *
  * Create a new virHashTablePtr.
  *
- * Returns the newly created object, or NULL if an error occurred.
+ * Returns the newly created object.
  */
 virHashTablePtr
 virHashNew(virHashDataFree dataFree)
@@ -180,6 +185,7 @@ virHashNew(virHashDataFree dataFree)
                              virHashStrCode,
                              virHashStrEqual,
                              virHashStrCopy,
+                             virHashStrPrintHuman,
                              virHashStrFree);
 }
 
@@ -191,7 +197,7 @@ virHashNew(virHashDataFree dataFree)
  *
  * Create a new virHashTablePtr.
  *
- * Returns the newly created object, or NULL if an error occurred.
+ * Returns the newly created object.
  */
 virHashTablePtr virHashCreate(ssize_t size, virHashDataFree dataFree)
 {
@@ -200,6 +206,7 @@ virHashTablePtr virHashCreate(ssize_t size, virHashDataFree dataFree)
                              virHashStrCode,
                              virHashStrEqual,
                              virHashStrCopy,
+                             virHashStrPrintHuman,
                              virHashStrFree);
 }
 
@@ -337,7 +344,6 @@ virHashAddOrUpdateEntry(virHashTablePtr table, const void *name,
     size_t key, len = 0;
     virHashEntryPtr entry;
     virHashEntryPtr last = NULL;
-    void *new_name;
 
     if ((table == NULL) || (name == NULL))
         return -1;
@@ -353,8 +359,13 @@ virHashAddOrUpdateEntry(virHashTablePtr table, const void *name,
                 entry->payload = userdata;
                 return 0;
             } else {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("Duplicate key"));
+                g_autofree char *keystr = NULL;
+
+                if (table->keyPrint)
+                    keystr = table->keyPrint(name);
+
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Duplicate hash table key '%s'"), NULLSTR(keystr));
                 return -1;
             }
         }
@@ -362,12 +373,8 @@ virHashAddOrUpdateEntry(virHashTablePtr table, const void *name,
         len++;
     }
 
-    if (VIR_ALLOC(entry) < 0 || !(new_name = table->keyCopy(name))) {
-        VIR_FREE(entry);
-        return -1;
-    }
-
-    entry->name = new_name;
+    entry = g_new0(virHashEntry, 1);
+    entry->name = table->keyCopy(name);
     entry->payload = userdata;
 
     if (last)

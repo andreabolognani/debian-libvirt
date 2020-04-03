@@ -87,6 +87,8 @@ qemuHotplugCreateObjects(virDomainXMLOptionPtr xmlopt,
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_VNC);
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_SPICE);
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_SPICE_FILE_XFER_DISABLE);
+    virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_PR_MANAGER_HELPER);
+    virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_SCSI_BLOCK);
 
     if (qemuTestCapsCacheInsert(driver.qemuCapsCache, priv->qemuCaps) < 0)
         return -1;
@@ -335,6 +337,8 @@ testQemuHotplug(const void *data)
         ret = testQemuHotplugUpdate(vm, dev);
     }
 
+    virObjectLock(priv->mon);
+
  cleanup:
     VIR_FREE(domain_filename);
     VIR_FREE(device_filename);
@@ -376,6 +380,7 @@ static void
 testQemuHotplugCpuDataFree(struct testQemuHotplugCpuData *data)
 {
     qemuDomainObjPrivatePtr priv;
+    qemuMonitorPtr mon;
 
     if (!data)
         return;
@@ -394,6 +399,8 @@ testQemuHotplugCpuDataFree(struct testQemuHotplugCpuData *data)
         virObjectUnref(data->vm);
     }
 
+    mon = qemuMonitorTestGetMonitor(data->mon);
+    virObjectLock(mon);
     qemuMonitorTestFree(data->mon);
     VIR_FREE(data);
 }
@@ -436,6 +443,8 @@ testQemuHotplugCpuPrepare(const char *test,
         goto error;
 
     priv = data->vm->privateData;
+
+    virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_QUERY_CPUS_FAST);
 
     if (data->modern)
         virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS);
@@ -620,7 +629,7 @@ mymain(void)
     if (!(driver.domainEventState = virObjectEventStateNew()))
         return EXIT_FAILURE;
 
-    if (!(qmpschema = testQEMUSchemaLoad())) {
+    if (!(qmpschema = testQEMUSchemaLoad("x86_64"))) {
         VIR_TEST_VERBOSE("failed to load qapi schema\n");
         return EXIT_FAILURE;
     }
@@ -634,6 +643,11 @@ mymain(void)
         return EXIT_FAILURE;
 
     driver.hostdevMgr = virHostdevManagerGetDefault();
+    if (driver.hostdevMgr == NULL) {
+        VIR_TEST_VERBOSE("Could not initialize HostdevManager - %s\n",
+                         virGetLastErrorMessage());
+        return EXIT_FAILURE;
+    }
 
 
 #define DO_TEST(file, ACTION, dev, fial, kep, ...) \
@@ -741,6 +755,17 @@ mymain(void)
                    "human-monitor-command", HMP(""));
     DO_TEST_DETACH("base-with-scsi-controller-live", "disk-scsi-2", false, false,
                    "device_del", QMP_DEVICE_DELETED("scsi3-0-5-6") QMP_OK,
+                   "human-monitor-command", HMP(""));
+
+    DO_TEST_ATTACH("base-live", "disk-scsi-multipath", false, true,
+                   "object-add", QMP_OK,
+                   "human-monitor-command", HMP("OK\\r\\n"),
+                   "device_add", QMP_OK);
+    DO_TEST_DETACH("base-live", "disk-scsi-multipath", true, true,
+                   "device_del", QMP_OK,
+                   "human-monitor-command", HMP(""));
+    DO_TEST_DETACH("base-live", "disk-scsi-multipath", false, false,
+                   "device_del", QMP_DEVICE_DELETED("scsi0-0-0-0") QMP_OK,
                    "human-monitor-command", HMP(""));
 
     DO_TEST_ATTACH("base-live", "qemu-agent", false, true,

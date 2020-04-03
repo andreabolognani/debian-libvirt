@@ -27,7 +27,6 @@
 #include "virobject.h"
 #include "virseclabel.h"
 #include "virstorageencryption.h"
-#include "virutil.h"
 #include "virsecret.h"
 #include "virenum.h"
 #include "virpci.h"
@@ -162,6 +161,17 @@ struct _virStorageNetHostDef {
     char *socket;  /* path to unix socket */
 };
 
+typedef struct _virStorageNetCookieDef virStorageNetCookieDef;
+typedef virStorageNetCookieDef *virStorageNetCookieDefPtr;
+struct _virStorageNetCookieDef {
+    char *name;
+    char *value;
+};
+
+void virStorageNetCookieDefFree(virStorageNetCookieDefPtr def);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virStorageNetCookieDef, virStorageNetCookieDefFree);
+
 /* Information for a storage volume from a virStoragePool */
 
 /*
@@ -235,12 +245,22 @@ struct _virStorageSourceInitiatorDef {
 typedef struct _virStorageSourceNVMeDef virStorageSourceNVMeDef;
 typedef virStorageSourceNVMeDef *virStorageSourceNVMeDefPtr;
 struct _virStorageSourceNVMeDef {
-    unsigned long long namespace;
+    unsigned long long namespc;
     int managed; /* enum virTristateBool */
     virPCIDeviceAddress pciAddr;
 
     /* Don't forget to update virStorageSourceNVMeDefCopy */
 };
+
+
+typedef struct _virStorageSourceSlice virStorageSourceSlice;
+typedef virStorageSourceSlice *virStorageSourceSlicePtr;
+struct _virStorageSourceSlice {
+    unsigned long long offset;
+    unsigned long long size;
+    char *nodename;
+};
+
 
 typedef struct _virStorageDriverData virStorageDriverData;
 typedef virStorageDriverData *virStorageDriverDataPtr;
@@ -264,14 +284,21 @@ struct _virStorageSource {
     char *snapshot; /* for storage systems supporting internal snapshots */
     char *configFile; /* some storage systems use config file as part of
                          the source definition */
+    char *query; /* query string for HTTP based protocols */
     size_t nhosts;
     virStorageNetHostDefPtr hosts;
+    size_t ncookies;
+    virStorageNetCookieDefPtr *cookies;
     virStorageSourcePoolDefPtr srcpool;
     virStorageAuthDefPtr auth;
     bool authInherited;
     virStorageEncryptionPtr encryption;
     bool encryptionInherited;
     virStoragePRDefPtr pr;
+    virTristateBool sslverify;
+    /* both values below have 0 as default value */
+    unsigned long long readahead; /* size of the readahead buffer in bytes */
+    unsigned long long timeout; /* connection timeout in seconds */
 
     virStorageSourceNVMeDefPtr nvme; /* type == VIR_STORAGE_TYPE_NVME */
 
@@ -285,6 +312,8 @@ struct _virStorageSource {
     char *compat;
     bool nocow;
     bool sparse;
+
+    virStorageSourceSlicePtr sliceStorage;
 
     virStoragePermsPtr perms;
     virStorageTimestampsPtr timestamps;
@@ -318,6 +347,7 @@ struct _virStorageSource {
     /* Name of the child backing store recorded in metadata of the
      * current file.  */
     char *backingStoreRaw;
+    virStorageFileFormat backingStoreRawFormat;
     /* Name of the child data file recorded in metadata of the current file. */
     char *externalDataStoreRaw;
 
@@ -355,6 +385,11 @@ struct _virStorageSource {
                        as a source for floppy drive */
 
     bool hostcdrom; /* backing device is a cdrom */
+
+    /* passthrough variables for the ssh driver which we don't handle properly */
+    /* these must not be used apart from formatting the output JSON in the qemu driver */
+    char *ssh_user;
+    bool ssh_host_key_check_disabled;
 };
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virStorageSource, virObjectUnref);
@@ -368,13 +403,11 @@ int virStorageFileProbeFormat(const char *path, uid_t uid, gid_t gid);
 
 virStorageSourcePtr virStorageFileGetMetadataFromFD(const char *path,
                                                     int fd,
-                                                    int format,
-                                                    int *backingFormat);
+                                                    int format);
 virStorageSourcePtr virStorageFileGetMetadataFromBuf(const char *path,
                                                      char *buf,
                                                      size_t len,
-                                                     int format,
-                                                     int *backingFormat)
+                                                     int format)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 int virStorageFileChainGetBroken(virStorageSourcePtr chain,
                                  char **broken_file);
@@ -460,11 +493,12 @@ int virStorageSourceUpdatePhysicalSize(virStorageSourcePtr src,
 int virStorageSourceUpdateBackingSizes(virStorageSourcePtr src,
                                        int fd, struct stat const *sb);
 int virStorageSourceUpdateCapacity(virStorageSourcePtr src,
-                                   char *buf, ssize_t len,
-                                   bool probe);
+                                   char *buf, ssize_t len);
 
 int virStorageSourceNewFromBacking(virStorageSourcePtr parent,
                                    virStorageSourcePtr *backing);
+
+int virStorageSourceNetCookiesValidate(virStorageSourcePtr src);
 
 virStorageSourcePtr virStorageSourceCopy(const virStorageSource *src,
                                          bool backingChain)
