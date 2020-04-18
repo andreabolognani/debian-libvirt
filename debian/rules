@@ -36,6 +36,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
   WITH_NETWORK        = --with-network
   WITH_OPENVZ         = --with-openvz
   WITH_NETCF          = --with-netcf
+  WITH_POLKIT         = --with-polkit
   WITH_SANLOCK        = --with-sanlock
   WITH_INIT_SCRIPT    =	--with-init-script=systemd
   WITH_SYSTEMD        = --with-systemd-daemon
@@ -75,6 +76,7 @@ else
   WITH_NUMA           = --without-numactl --without-numad
   WITH_NETCF          = --without-netcf
   WITH_INIT_SCRIPT    =	--with-init-script=none
+  WITH_POLKIT         = --without-polkit
   WITH_SYSTEMD        = --without-systemd-daemon
   WITH_FIREWALLD      = --without-firewalld
   WITH_AUDIT          = --without-audit
@@ -101,7 +103,7 @@ DEB_CONFIGURE_EXTRA_ARGS :=      \
 	--with-sasl              \
 	--with-yajl              \
 	--with-ssh2		 \
-	--with-polkit		 \
+	$(WITH_POLKIT)		 \
 	$(WITH_UDEV)		 \
 	--with-storage-fs        \
 	--with-storage-dir       \
