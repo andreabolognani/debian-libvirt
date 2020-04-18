@@ -52,7 +52,7 @@ Build-Depends:
  librbd-dev [linux-any],
  librados-dev [linux-any],
 # for --with-storage-gluster
- libglusterfs-dev,
+ libglusterfs-dev [linux-any],
 # for --with-wireshark-dissector
  libwireshark-dev (>= 1.11.3),
  libwiretap-dev,
