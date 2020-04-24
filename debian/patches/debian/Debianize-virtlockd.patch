@@ -6,6 +6,8 @@ Subject: Debianize virtlockd
  src/locking/virtlockd.service.in | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
+diff --git a/src/locking/virtlockd.service.in b/src/locking/virtlockd.service.in
+index e7f8057..6d52f0e 100644
 --- a/src/locking/virtlockd.service.in
 +++ b/src/locking/virtlockd.service.in
 @@ -7,7 +7,7 @@ Documentation=man:virtlockd(8)

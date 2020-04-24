@@ -8,6 +8,8 @@ Origin: vendor
  tools/libvirt-guests.sysconf |  4 ++--
  2 files changed, 30 insertions(+), 19 deletions(-)
 
+diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
+index a881f62..22ac873 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
 @@ -1,5 +1,17 @@
@@ -88,6 +90,8 @@ Origin: vendor
  rh_status() {
      if [ -f "$LISTFILE" ]; then
          gettext "stopped, with saved guests"; echo
+diff --git a/tools/libvirt-guests.sysconf b/tools/libvirt-guests.sysconf
+index 669b046..1c4b450 100644
 --- a/tools/libvirt-guests.sysconf
 +++ b/tools/libvirt-guests.sysconf
 @@ -8,7 +8,7 @@
