@@ -3,11 +3,8 @@ debian/Debianize-libvirt-guests.patch
 debian/Debianize-systemd-service-files.patch
 debian/Debianize-virtlockd.patch
 debian/Debianize-virtlogd.patch
-openpty-Skip-test-if-no-pty-is-available.patch
-Disable-gnulib-s-test-nonplocking-pipe.sh.patch
 Skip-vircgrouptest.patch
 debian/Don-t-enable-default-network-on-boot.patch
-test-posix_openpt-don-t-fail-on-EACCESS.patch
 Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Use-upstreams-polkit-rule.patch
 debian/apparmor_profiles_local_include.patch
