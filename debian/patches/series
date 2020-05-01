@@ -1,4 +1,4 @@
-skip-qemuhotplugtest.patch
+tests-Mock-virGetUserRuntimeDirectory-for-qemuhotplug.patch
 debian/Debianize-libvirt-guests.patch
 debian/Debianize-systemd-service-files.patch
 debian/Debianize-virtlockd.patch

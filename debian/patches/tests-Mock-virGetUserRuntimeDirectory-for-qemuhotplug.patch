@@ -1,0 +1,50 @@
+From: Andrea Bolognani <abologna@redhat.com>
+Date: Fri, 1 May 2020 13:13:04 +0200
+Subject: tests: Mock virGetUserRuntimeDirectory() for qemuhotplug
+
+Not mocking this function results in files being created in the
+user's home directory when running the test and in the build
+failing altogether inside a constrained environment such as the
+one used by pbuilder:
+
+  Could not initialize HostdevManager - operation failed: Failed
+  to create state dir '/nonexistent/.cache/libvirt/hostdevmgr'
+
+Signed-off-by: Andrea Bolognani <abologna@redhat.com>
+
+Forwarded: https://www.redhat.com/archives/libvir-list/2020-May/msg00020.html
+---
+ tests/qemuhotplugmock.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/tests/qemuhotplugmock.c b/tests/qemuhotplugmock.c
+index 8e5b077..eff9d76 100644
+--- a/tests/qemuhotplugmock.c
++++ b/tests/qemuhotplugmock.c
+@@ -27,6 +27,7 @@
+ 
+ static int (*real_virGetDeviceID)(const char *path, int *maj, int *min);
+ static bool (*real_virFileExists)(const char *path);
++static char *(*real_virGetUserRuntimeDirectory)(void);
+ 
+ static void
+ init_syms(void)
+@@ -36,6 +37,7 @@ init_syms(void)
+ 
+     VIR_MOCK_REAL_INIT(virGetDeviceID);
+     VIR_MOCK_REAL_INIT(virFileExists);
++    VIR_MOCK_REAL_INIT(virGetUserRuntimeDirectory);
+ }
+ 
+ unsigned long long
+@@ -106,3 +108,10 @@ void
+ qemuProcessKillManagedPRDaemon(virDomainObjPtr vm G_GNUC_UNUSED)
+ {
+ }
++
++char *
++virGetUserRuntimeDirectory(void)
++{
++    return g_build_filename(g_getenv("LIBVIRT_FAKE_ROOT_DIR"),
++                            "user-runtime-directory", NULL);
++}
