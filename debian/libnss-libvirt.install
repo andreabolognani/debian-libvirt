@@ -1,2 +1,2 @@
 # the nss module (once enabled) will make apt call getdents (LP: #1732030)
-debian/90libnss-libvirt etc/apt/apt.conf.d
+debian/apt/90libnss-libvirt etc/apt/apt.conf.d
