@@ -10,7 +10,6 @@ Comment: Among many source files this also includes many generated, test-data or
 
 Files: src/conf/*
 Copyright: 2005-2019 Red Hat, Inc
-           2006-2014 Red Hat, Inc.
            2015 SUSE LINUX Products GmbH, Nuernberg, Germany.
 License: LGPL-2.1+
 
