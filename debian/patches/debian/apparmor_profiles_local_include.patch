@@ -4,26 +4,26 @@ Subject: apparmor_profiles_local_include
 
 Include local apparmor profile
 ---
- src/security/apparmor/usr.lib.libvirt.virt-aa-helper | 1 +
- src/security/apparmor/usr.sbin.libvirtd              | 3 +++
+ src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in | 1 +
+ src/security/apparmor/usr.sbin.libvirtd.in              | 3 +++
  2 files changed, 4 insertions(+)
 
-diff --git a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper
-index 11e9c03..70550d4 100644
---- a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper
-+++ b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper
-@@ -70,5 +70,6 @@ profile virt-aa-helper /usr/{lib,lib64}/libvirt/virt-aa-helper {
+diff --git a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
+index dd18c8a..be8b9ee 100644
+--- a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
++++ b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
+@@ -69,5 +69,6 @@ profile virt-aa-helper @libexecdir@/virt-aa-helper {
    /**.[iI][sS][oO] r,
    /**/disk{,.*} r,
  
 +  # Site-specific additions and overrides. See local/README for details.
    #include <local/usr.lib.libvirt.virt-aa-helper>
  }
-diff --git a/src/security/apparmor/usr.sbin.libvirtd b/src/security/apparmor/usr.sbin.libvirtd
-index 29f9936..a66452b 100644
---- a/src/security/apparmor/usr.sbin.libvirtd
-+++ b/src/security/apparmor/usr.sbin.libvirtd
-@@ -131,4 +131,7 @@ profile libvirtd /usr/sbin/libvirtd flags=(attach_disconnected) {
+diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
+index 1e13703..5ad1a62 100644
+--- a/src/security/apparmor/usr.sbin.libvirtd.in
++++ b/src/security/apparmor/usr.sbin.libvirtd.in
+@@ -131,4 +131,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
  
     /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
    }

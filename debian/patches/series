@@ -14,4 +14,3 @@ apparmor-Allow-virt-aa-helper-to-access-the-name-service-.patch
 debian/Prefer-sbin-over-usr-sbin.patch
 Include-etc-pki-qemu-in-apparmor.patch
 apparmor-Allow-run-pygrub.patch
-api-disallow-virDomainAgentSetResponseTimeout-on-read-onl.patch

@@ -12,7 +12,7 @@ Closes: #930100
  1 file changed, 2 insertions(+)
 
 diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
-index d33348a..95e8e98 100644
+index 80986ae..2972bc5 100644
 --- a/src/security/apparmor/libvirt-qemu
 +++ b/src/security/apparmor/libvirt-qemu
 @@ -94,6 +94,8 @@

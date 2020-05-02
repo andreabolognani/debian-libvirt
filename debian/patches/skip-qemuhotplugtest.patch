@@ -13,10 +13,10 @@ For now let us skip those few sub-tests.
  1 file changed, 2 insertions(+)
 
 diff --git a/tests/qemuhotplugtest.c b/tests/qemuhotplugtest.c
-index a60c8d1..6c11f16 100644
+index d9244dc..1da1426 100644
 --- a/tests/qemuhotplugtest.c
 +++ b/tests/qemuhotplugtest.c
-@@ -803,6 +803,7 @@ mymain(void)
+@@ -828,6 +828,7 @@ mymain(void)
                     "human-monitor-command", HMP("OK\\r\\n"),
                     "device_add", QMP_OK);
  
@@ -24,7 +24,7 @@ index a60c8d1..6c11f16 100644
      DO_TEST_ATTACH("base-live", "hostdev-pci", false, true,
                     "device_add", QMP_OK);
      DO_TEST_DETACH("base-live", "hostdev-pci", false, false,
-@@ -811,6 +812,7 @@ mymain(void)
+@@ -836,6 +837,7 @@ mymain(void)
                     "device_add", QMP_OK);
      DO_TEST_DETACH("pseries-base-live", "hostdev-pci", false, false,
                     "device_del", QMP_DEVICE_DELETED("hostdev0") QMP_OK);
