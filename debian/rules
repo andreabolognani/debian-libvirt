@@ -153,6 +153,7 @@ LIBVIRT_NOSTART_UNITS = \
 	$(NULL)
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
+DEB_DESTDIR := $(CURDIR)/debian/tmp
 LOGROTATE = $(basename $(basename $(notdir $(wildcard src/remote/libvirtd*.logrotate.in))))
 SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirtd-tls virt-guest-shutdown
 # For split daemons later, as of 6.0 the remaining elments are
@@ -180,7 +181,7 @@ override_dh_install-arch:
 	dh_install
 
 	# Copy upstream files to debian/ so dh_* can find them
-	cp debian/tmp/usr/lib/libvirt/libvirt-guests.sh \
+	cp $(DEB_DESTDIR)/usr/lib/libvirt/libvirt-guests.sh \
 	    debian/libvirt-daemon-system-sysv.libvirt-guests.init
 	cp tools/libvirt-guests.sysconf \
 	    debian/libvirt-daemon-system.libvirt-guests.default
@@ -202,7 +203,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	dh_apparmor -p libvirt-daemon-system --profile-name=usr.lib.libvirt.virt-aa-helper
 	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
 	# Not all linux arches have systemtap yet
-	mkdir -p debian/tmp/usr/share/systemtap
+	mkdir -p $(DEB_DESTDIR)/usr/share/systemtap
 	dh_install -p libvirt-daemon-system usr/share/systemtap
 	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
@@ -220,7 +221,7 @@ ifeq ($(XEN_ENABLED), 1)
 endif
 
 	set -e; for l in $(LOGROTATE); do \
-		mv $(CURDIR)/debian/tmp/etc/logrotate.d/$$l \
+		mv $(DEB_DESTDIR)/etc/logrotate.d/$$l \
 	        debian/libvirt-daemon-system.$$l.logrotate; \
 		dh_installlogrotate --name=$$l;     \
 	done
