@@ -1,3 +1,22 @@
+libvirt (6.0.0-7) unstable; urgency=medium
+
+  [ Laurent Bigonville ]
+  * [4e6f909] Disable polkit support on !linux, see: #927896
+  * [3ee1c87] Do not build-depends against libglusterfs-dev on non-linux
+    architectures
+
+  [ Guido Günther ]
+  * [41c33eb] Rediff patches
+  * [da804f9] Backport fix for CVE-2020-10701.
+    Thanks to Carnil for the triage (Closes: #955841)
+  * [a5dd08c] d/rules: systemd: Also pass --no-restart-on-upgrade when using
+    --no-start.
+
+  [ Andrea Bolognani ]
+  * [0c6a3a0] salsa-ci: Create local pristine-tar branch.
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 13 May 2020 12:12:36 +0200
+
 libvirt (6.0.0-6) unstable; urgency=medium
 
   [ Laurent Bigonville ]
