@@ -1,15 +1,26 @@
-libvirt (6.2.0-1~1.gbp73a029) UNRELEASED; urgency=medium
+libvirt (6.2.0-1) experimental; urgency=medium
 
-  ** SNAPSHOT build @73a029ebb62a053a00cf627be681575da2066b06 **
-
-  [ Laurent Bigonville ]
-  * [ea7b8b7] autopkgtest exits with 2 when there are skipped tests
-    do not consider that as fatal
+  * Team upload
 
   [ Guido Günther ]
+  * Upload to experimental
   * [1b6982f] New upstream version 6.2.0
+    Contains fix for CVE-2020-10701. (Closes: #955841)
+      Thanks to Carnil for the triage
+    Contains fix for CVE-2020-12430. (Closes: #959447)
 
- -- Guido Günther <agx@sigxcpu.org>  Fri, 03 Apr 2020 10:54:06 +0200
+  [ Andrea Bolognani ]
+  * [ba77756] patches: Drop all gnulib-related patches
+    Specifically:
+      openpty-Skip-test-if-no-pty-is-available.patch
+      Disable-gnulib-s-test-nonplocking-pipe.sh.patch
+      test-posix_openpt-don-t-fail-on-EACCESS.patch
+  * [2e0b5f1] patches: Add tests-Mock-[...]-for-qemuhotplug.patch
+    Replaces:
+      skip-qemuhotplugtest.patch
+  * [7c1e182] debhelper: Use debhelper-compat package
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 03 May 2020 01:32:30 +0200
 
 libvirt (6.0.0-7) unstable; urgency=medium
 
