@@ -10,7 +10,7 @@ Issue reported upstresm.
  1 file changed, 4 insertions(+)
 
 diff --git a/gnulib/tests/test-nonblocking-pipe.sh b/gnulib/tests/test-nonblocking-pipe.sh
-index dd692be..9690791 100755
+index f86e134..8a3fb1c 100755
 --- a/gnulib/tests/test-nonblocking-pipe.sh
 +++ b/gnulib/tests/test-nonblocking-pipe.sh
 @@ -1,5 +1,9 @@

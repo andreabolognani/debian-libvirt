@@ -36,6 +36,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
   WITH_NETWORK        = --with-network
   WITH_OPENVZ         = --with-openvz
   WITH_NETCF          = --with-netcf
+  WITH_POLKIT         = --with-polkit
   WITH_SANLOCK        = --with-sanlock
   WITH_INIT_SCRIPT    =	--with-init-script=systemd
   WITH_SYSTEMD        = --with-systemd-daemon
@@ -75,6 +76,7 @@ else
   WITH_NUMA           = --without-numactl --without-numad
   WITH_NETCF          = --without-netcf
   WITH_INIT_SCRIPT    =	--with-init-script=none
+  WITH_POLKIT         = --without-polkit
   WITH_SYSTEMD        = --without-systemd-daemon
   WITH_FIREWALLD      = --without-firewalld
   WITH_AUDIT          = --without-audit
@@ -101,7 +103,7 @@ DEB_CONFIGURE_EXTRA_ARGS :=      \
 	--with-sasl              \
 	--with-yajl              \
 	--with-ssh2		 \
-	--with-polkit		 \
+	$(WITH_POLKIT)		 \
 	$(WITH_UDEV)		 \
 	--with-storage-fs        \
 	--with-storage-dir       \
@@ -135,17 +137,20 @@ DEB_CONFIGURE_EXTRA_ARGS :=      \
         $(NULL)
 
 LIBVIRT_SYSTEM_SERVICES = \
+	virtlogd.service \
+	virtlockd.service \
+	$(NULL)
+
+LIBVIRT_NOSTART_UNITS = \
+	libvirt-guests.service \
 	libvirtd.socket \
 	libvirtd-ro.socket \
 	libvirtd-admin.socket \
 	virtlogd.socket \
 	virtlogd-admin.socket \
-	virtlogd.service \
 	virtlockd.socket \
 	virtlockd-admin.socket \
-	virtlockd.service \
 	$(NULL)
-
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
 LOGROTATE = $(basename $(basename $(notdir $(wildcard src/remote/libvirtd*.logrotate.in))))
@@ -240,9 +245,9 @@ override_dh_installinit:
 	dh_installinit -p libvirt-daemon-system --name=libvirtd --no-scripts
 
 override_dh_installsystemd:
-	dh_installsystemd -p libvirt-daemon-system --restart-after-upgrade libvirtd.service
-	dh_installsystemd -p libvirt-daemon-system --no-stop-on-upgrade $(LIBVIRT_SYSTEM_SERVICES)
-	dh_installsystemd -p libvirt-daemon-system --no-start libvirt-guests.service
+	dh_installsystemd -p libvirt-daemon-system --no-also --restart-after-upgrade libvirtd.service
+	dh_installsystemd -p libvirt-daemon-system --no-also --no-stop-on-upgrade $(LIBVIRT_SYSTEM_SERVICES)
+	dh_installsystemd -p libvirt-daemon-system --no-also --no-restart-after-upgrade --no-start $(LIBVIRT_NOSTART_UNITS)
 
 override_dh_installdocs:
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc

@@ -23,6 +23,7 @@ build-debian-package:
   script:
     - 'UPSTREAM_BRANCH=$(gbp config dch.upstream-branch)'
     - git branch "${UPSTREAM_BRANCH}" "origin/${UPSTREAM_BRANCH}"
+    - git branch pristine-tar origin/pristine-tar
     - gbp dch --git-author -S -a --ignore-branch
     - mkdir -p "${LV_WORKING_DIR}/tarballs"
     - gbp export-orig --tarball-dir="${LV_WORKING_DIR}/tarballs"
