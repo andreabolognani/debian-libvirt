@@ -84,6 +84,11 @@ qemuBlockJobDataDisposeJobdata(qemuBlockJobDataPtr job)
         virObjectUnref(job->data.backup.store);
         g_free(job->data.backup.bitmap);
     }
+
+    if (job->type == QEMU_BLOCKJOB_TYPE_COMMIT ||
+        job->type == QEMU_BLOCKJOB_TYPE_ACTIVE_COMMIT) {
+        virStringListFree(job->data.commit.disabledBitmapsBase);
+    }
 }
 
 
@@ -571,6 +576,7 @@ qemuBlockJobRefreshJobs(virQEMUDriverPtr driver,
 
         if (job->newstate != -1)
             qemuBlockJobUpdate(vm, job, QEMU_ASYNC_JOB_NONE);
+        /* 'job' may be invalid after this update */
     }
 
     /* remove data for job which qemu didn't report (the algorithm is
@@ -1281,6 +1287,7 @@ qemuBlockJobProcessEventConcludedCopyPivot(virQEMUDriverPtr driver,
                                            qemuBlockJobDataPtr job,
                                            qemuDomainAsyncJob asyncJob)
 {
+    qemuDomainObjPrivatePtr priv = vm->privateData;
     VIR_DEBUG("copy job '%s' on VM '%s' pivoted", job->name, vm->def->name);
 
     /* mirror may be NULL for copy job corresponding to migration */
@@ -1295,6 +1302,10 @@ qemuBlockJobProcessEventConcludedCopyPivot(virQEMUDriverPtr driver,
     if (job->data.copy.shallownew &&
         !virStorageSourceIsBacking(job->disk->mirror->backingStore))
         job->disk->mirror->backingStore = g_steal_pointer(&job->disk->src->backingStore);
+
+    if (job->disk->src->readonly &&
+        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN))
+        ignore_value(qemuBlockReopenReadOnly(vm, job->disk->mirror, asyncJob));
 
     qemuBlockJobRewriteConfigDiskSource(vm, job->disk, job->disk->mirror);
 
@@ -1434,7 +1445,7 @@ qemuBlockJobProcessEventConcludedBackup(virQEMUDriverPtr driver,
     g_autoptr(qemuBlockStorageSourceAttachData) backend = NULL;
     g_autoptr(virJSONValue) actions = NULL;
 
-    qemuBackupNotifyBlockjobEnd(vm, job->disk, newstate,
+    qemuBackupNotifyBlockjobEnd(vm, job->disk, newstate, job->errmsg,
                                 progressCurrent, progressTotal, asyncJob);
 
     if (job->data.backup.store &&
@@ -1658,10 +1669,8 @@ qemuBlockJobEventProcess(virQEMUDriverPtr driver,
  *
  * Update disk's mirror state in response to a block job event stored in
  * blockJobStatus by qemuProcessHandleBlockJob event handler.
- *
- * Returns the block job event processed or -1 if there was no pending event.
  */
-int
+void
 qemuBlockJobUpdate(virDomainObjPtr vm,
                    qemuBlockJobDataPtr job,
                    int asyncJob)
@@ -1669,14 +1678,12 @@ qemuBlockJobUpdate(virDomainObjPtr vm,
     qemuDomainObjPrivatePtr priv = vm->privateData;
 
     if (job->newstate == -1)
-        return -1;
+        return;
 
     if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV))
         qemuBlockJobEventProcess(priv->driver, vm, job, asyncJob);
     else
         qemuBlockJobEventProcessLegacy(priv->driver, vm, job, asyncJob);
-
-    return job->state;
 }
 
 

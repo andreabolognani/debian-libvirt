@@ -291,9 +291,7 @@ struct _virStorageSource {
     virStorageNetCookieDefPtr *cookies;
     virStorageSourcePoolDefPtr srcpool;
     virStorageAuthDefPtr auth;
-    bool authInherited;
     virStorageEncryptionPtr encryption;
-    bool encryptionInherited;
     virStoragePRDefPtr pr;
     virTristateBool sslverify;
     /* both values below have 0 as default value */
@@ -334,9 +332,6 @@ struct _virStorageSource {
     /* backing chain of the storage source */
     virStorageSourcePtr backingStore;
 
-    /* external data store storage source */
-    virStorageSourcePtr externalDataStore;
-
     /* metadata for storage driver access to remote and local volumes */
     virStorageDriverDataPtr drv;
 
@@ -348,8 +343,6 @@ struct _virStorageSource {
      * current file.  */
     char *backingStoreRaw;
     virStorageFileFormat backingStoreRawFormat;
-    /* Name of the child data file recorded in metadata of the current file. */
-    char *externalDataStoreRaw;
 
     /* metadata that allows identifying given storage source */
     char *nodeformat;  /* name of the format handler object */

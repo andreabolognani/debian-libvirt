@@ -550,6 +550,20 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_BLOCKDEV_REOPEN, /* 'blockdev-reopen' qmp command is supported */
     QEMU_CAPS_STORAGE_WERROR, /* virtio-blk,scsi-hd.werror */
 
+    /* 360 */
+    QEMU_CAPS_FSDEV_MULTIDEVS, /* fsdev.multidevs */
+    QEMU_CAPS_VIRTIO_PACKED_QUEUES, /* virtio.packed */
+    QEMU_CAPS_PCIE_ROOT_PORT_HOTPLUG, /* pcie-root-port.hotplug */
+    QEMU_CAPS_AIO_IO_URING, /* -blockdev {...,"aio":"io_uring",...} */
+    QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC, /* -machine pseries.cap-cfpc */
+
+    /* 365 */
+    QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC, /* -machine pseries.cap-sbbc */
+    QEMU_CAPS_MACHINE_PSERIES_CAP_IBS, /* -machine pseries.cap-ibs */
+    QEMU_CAPS_TCG, /* QEMU does support TCG */
+    QEMU_CAPS_VIRTIO_BLK_SCSI_DEFAULT_DISABLED, /* virtio-blk-pci.scsi disabled by default */
+    QEMU_CAPS_SCSI_PVSCSI, /* -device pvscsi */
+
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
 
@@ -630,6 +644,8 @@ int virQEMUCapsGetCPUFeatures(virQEMUCapsPtr qemuCaps,
                               bool migratable,
                               char ***features);
 
+virDomainVirtType virQEMUCapsGetVirtType(virQEMUCapsPtr qemuCaps);
+
 bool virQEMUCapsIsArchSupported(virQEMUCapsPtr qemuCaps,
                                 virArch arch);
 bool virQEMUCapsIsVirtTypeSupported(virQEMUCapsPtr qemuCaps,
@@ -655,6 +671,9 @@ bool virQEMUCapsGetMachineHotplugCpus(virQEMUCapsPtr qemuCaps,
 const char *virQEMUCapsGetMachineDefaultCPU(virQEMUCapsPtr qemuCaps,
                                             const char *name,
                                             virDomainVirtType type);
+bool virQEMUCapsGetMachineNumaMemSupported(virQEMUCapsPtr qemuCaps,
+                                           virDomainVirtType virtType,
+                                           const char *name);
 
 void virQEMUCapsFilterByMachineType(virQEMUCapsPtr qemuCaps,
                                     virDomainVirtType virtType,

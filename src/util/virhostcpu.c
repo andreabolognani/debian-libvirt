@@ -1416,3 +1416,119 @@ virHostCPUGetTscInfo(void)
 #endif /* HAVE_LINUX_KVM_H && defined(KVM_GET_MSRS) && \
           (defined(__i386__) || defined(__x86_64__)) && \
           (defined(__linux__) || defined(__FreeBSD__)) */
+
+int
+virHostCPUReadSignature(virArch arch,
+                        FILE *cpuinfo,
+                        char **signature)
+{
+    size_t lineLen = 1024;
+    g_autofree char *line = g_new0(char, lineLen);
+    g_autofree char *vendor = NULL;
+    g_autofree char *name = NULL;
+    g_autofree char *family = NULL;
+    g_autofree char *model = NULL;
+    g_autofree char *stepping = NULL;
+    g_autofree char *revision = NULL;
+    g_autofree char *proc = NULL;
+    g_autofree char *facilities = NULL;
+
+    if (!ARCH_IS_X86(arch) && !ARCH_IS_PPC64(arch) && !ARCH_IS_S390(arch))
+        return 0;
+
+    while (fgets(line, lineLen, cpuinfo)) {
+        g_auto(GStrv) parts = g_strsplit(line, ": ", 2);
+
+        if (g_strv_length(parts) != 2)
+            continue;
+
+        g_strstrip(parts[0]);
+        g_strstrip(parts[1]);
+
+        if (ARCH_IS_X86(arch)) {
+            if (STREQ(parts[0], "vendor_id")) {
+                if (!vendor)
+                    vendor = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "model name")) {
+                if (!name)
+                    name = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "cpu family")) {
+                if (!family)
+                    family = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "model")) {
+                if (!model)
+                    model = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "stepping")) {
+                if (!stepping)
+                    stepping = g_steal_pointer(&parts[1]);
+            }
+
+            if (vendor && name && family && model && stepping) {
+                *signature = g_strdup_printf("%s, %s, family: %s, model: %s, stepping: %s",
+                                             vendor, name, family, model, stepping);
+                return 0;
+            }
+        } else if (ARCH_IS_PPC64(arch)) {
+            if (STREQ(parts[0], "cpu")) {
+                if (!name)
+                    name = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "revision")) {
+                if (!revision)
+                    revision = g_steal_pointer(&parts[1]);
+            }
+
+            if (name && revision) {
+                *signature = g_strdup_printf("%s, rev %s", name, revision);
+                return 0;
+            }
+        } else if (ARCH_IS_S390(arch)) {
+            if (STREQ(parts[0], "vendor_id")) {
+                if (!vendor)
+                    vendor = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "processor 0")) {
+                if (!proc)
+                    proc = g_steal_pointer(&parts[1]);
+            } else if (STREQ(parts[0], "facilities")) {
+                if (!facilities)
+                    facilities = g_steal_pointer(&parts[1]);
+            }
+
+            if (vendor && proc && facilities) {
+                *signature = g_strdup_printf("%s, %s, facilities: %s",
+                                             vendor, proc, facilities);
+                return 0;
+            }
+        }
+    }
+
+    return 0;
+}
+
+#ifdef __linux__
+
+int
+virHostCPUGetSignature(char **signature)
+{
+    g_autoptr(FILE) cpuinfo = NULL;
+
+    *signature = NULL;
+
+    if (!(cpuinfo = fopen(CPUINFO_PATH, "r"))) {
+        virReportSystemError(errno, _("Failed to open cpuinfo file '%s'"),
+                             CPUINFO_PATH);
+        return -1;
+    }
+
+    return virHostCPUReadSignature(virArchFromHost(), cpuinfo, signature);
+}
+
+#else
+
+int
+virHostCPUGetSignature(char **signature)
+{
+    *signature = NULL;
+    return 0;
+}
+
+#endif /* __linux__ */

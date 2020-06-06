@@ -900,6 +900,7 @@ sc_flake8:
 sc_prohibit_exit_in_tests:
 	@prohibit='\<exit *\(' \
 	in_vc_files='tests/.*\.c$$' \
+	exclude='exempt from syntax-check' \
 	halt='use return, not exit(), in tests' \
 	  $(_sc_search_regexp)
 
@@ -2040,7 +2041,7 @@ exclude_file_name_regexp--sc_prohibit_canonicalize_file_name = \
   ^(build-aux/syntax-check\.mk|tests/virfilemock\.c)$$
 
 exclude_file_name_regexp--sc_prohibit_raw_allocation = \
-  ^(docs/hacking\.html\.in|src/util/viralloc\.[ch]|examples/.*|tests/(securityselinuxhelper|(vircgroup|nss)mock|commandhelper)\.c|tools/wireshark/src/packet-libvirt\.c|tools/nss/libvirt_nss(_leases|_macs)?\.c|build-aux/useless-if-before-free)$$
+  ^(docs/advanced-tests\.rst|src/util/viralloc\.[ch]|examples/.*|tests/(securityselinuxhelper|(vircgroup|nss)mock|commandhelper)\.c|tools/wireshark/src/packet-libvirt\.c|tools/nss/libvirt_nss(_leases|_macs)?\.c|build-aux/useless-if-before-free)$$
 
 exclude_file_name_regexp--sc_prohibit_readlink = \
   ^src/(util/virutil|lxc/lxc_container)\.c$$
@@ -2048,7 +2049,7 @@ exclude_file_name_regexp--sc_prohibit_readlink = \
 exclude_file_name_regexp--sc_prohibit_setuid = ^src/util/virutil\.c|tools/virt-login-shell\.c$$
 
 exclude_file_name_regexp--sc_prohibit_snprintf = \
-  ^(build-aux/syntax-check\.mk|docs/hacking\.html\.in|tools/virt-login-shell\.c)$$
+  ^(build-aux/syntax-check\.mk|docs/coding-style\.rst|tools/virt-login-shell\.c)$$
 
 exclude_file_name_regexp--sc_prohibit_strtol = ^examples/.*$$
 
@@ -2102,7 +2103,7 @@ exclude_file_name_regexp--sc_prohibit_useless_translation = \
   ^tests/virpolkittest.c
 
 exclude_file_name_regexp--sc_prohibit_devname = \
-  ^(tools/virsh.pod|build-aux/syntax-check\.mk|docs/.*)$$
+  ^(tools/virsh.pod|build-aux/syntax-check\.mk|docs/.*|tests/qemucapabilitiesdata/.*)$$
 
 exclude_file_name_regexp--sc_prohibit_virXXXFree = \
   ^(docs/|tests/|examples/|tools/|build-aux/syntax-check\.mk|src/test/test_driver.c|src/libvirt_public.syms|include/libvirt/libvirt-(domain|network|nodedev|storage|stream|secret|nwfilter|interface|domain-snapshot).h|src/libvirt-(domain|qemu|network|nodedev|storage|stream|secret|nwfilter|interface|domain-snapshot).c|src/qemu/qemu_shim.c$$)

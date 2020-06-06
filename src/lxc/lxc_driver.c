@@ -1423,10 +1423,11 @@ lxcDomainDestroy(virDomainPtr dom)
 
 static int lxcCheckNetNsSupport(void)
 {
-    const char *argv[] = {"ip", "link", "set", "lo", "netns", "-1", NULL};
+    g_autoptr(virCommand) cmd = virCommandNewArgList("ip", "link", "set", "lo",
+                                                     "netns", "-1", NULL);
     int ip_rc;
 
-    if (virRun(argv, &ip_rc) < 0 || ip_rc == 255)
+    if (virCommandRun(cmd, &ip_rc) < 0 || ip_rc == 255)
         return 0;
 
     if (virProcessNamespaceAvailable(VIR_PROCESS_NAMESPACE_NET) < 0)
@@ -1511,7 +1512,7 @@ static int lxcStateInitialize(bool privileged,
     if (!(lxc_driver->config = cfg = virLXCDriverConfigNew()))
         goto cleanup;
 
-    cfg->log_libvirtd = 0; /* by default log to container logfile */
+    cfg->log_libvirtd = false; /* by default log to container logfile */
     cfg->have_netns = lxcCheckNetNsSupport();
 
     /* Call function to load lxc driver configuration information */

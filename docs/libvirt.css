@@ -453,7 +453,7 @@ br.clear {
     text-decoration: underline;
 }
 
-#contact, #community {
+#contact, #community, #contribute {
     float: left;
     padding: 0px;
     margin-left: 3em;
@@ -582,4 +582,18 @@ ul.news-section-content li dl dd {
 
 .contents li p {
     margin: 2px;
+}
+
+td.gitmirror {
+    font-size: smaller;
+    font-style: italic;
+}
+
+td.gitmirror a {
+    color: inherit;
+}
+
+th p, td p {
+    margin-top: 0px;
+    margin-bottom: 0px;
 }

@@ -580,7 +580,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
                                          virDomainPCIConnectFlags virtioFlags)
 {
     virDomainPCIConnectFlags pciFlags = (VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
-                                         VIR_PCI_CONNECT_HOTPLUGGABLE);
+                                         VIR_PCI_CONNECT_AUTOASSIGN);
 
     switch ((virDomainDeviceType)dev->type) {
     case VIR_DOMAIN_DEVICE_CONTROLLER: {
@@ -1072,17 +1072,17 @@ qemuDomainFillDevicePCIConnectFlagsIterInit(virDomainDefPtr def,
 
     if (qemuDomainHasPCIeRoot(def)) {
         data->pcieFlags = (VIR_PCI_CONNECT_TYPE_PCIE_DEVICE |
-                           VIR_PCI_CONNECT_HOTPLUGGABLE);
+                           VIR_PCI_CONNECT_AUTOASSIGN);
     } else {
         data->pcieFlags = (VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
-                           VIR_PCI_CONNECT_HOTPLUGGABLE);
+                           VIR_PCI_CONNECT_AUTOASSIGN);
     }
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY)) {
         data->virtioFlags = data->pcieFlags;
     } else {
         data->virtioFlags = (VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
-                             VIR_PCI_CONNECT_HOTPLUGGABLE);
+                             VIR_PCI_CONNECT_AUTOASSIGN);
     }
 }
 
@@ -1652,6 +1652,7 @@ qemuDomainPCIAddressSetCreate(virDomainDefPtr def,
     for (i = 0; i < def->ncontrollers; i++) {
         virDomainControllerDefPtr cont = def->controllers[i];
         size_t idx = cont->idx;
+        bool allowHotplug = false;
 
         if (cont->type != VIR_DOMAIN_CONTROLLER_TYPE_PCI)
             continue;
@@ -1663,7 +1664,10 @@ qemuDomainPCIAddressSetCreate(virDomainDefPtr def,
             goto error;
         }
 
-        if (virDomainPCIAddressBusSetModel(&addrs->buses[idx], cont->model) < 0)
+        if (cont->opts.pciopts.hotplug != VIR_TRISTATE_SWITCH_OFF)
+            allowHotplug = true;
+
+        if (virDomainPCIAddressBusSetModel(&addrs->buses[idx], cont->model, allowHotplug) < 0)
             goto error;
 
         /* Forward the information about isolation groups */
@@ -1681,7 +1685,7 @@ qemuDomainPCIAddressSetCreate(virDomainDefPtr def,
          * assigning addresses to devices.
          */
         if (virDomainPCIAddressBusSetModel(&addrs->buses[0],
-                                           VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT) < 0)
+                                           VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT, true) < 0)
             goto error;
     }
 
@@ -1703,7 +1707,7 @@ qemuDomainPCIAddressSetCreate(virDomainDefPtr def,
         if (addrs->buses[i].model)
             continue;
 
-        if (virDomainPCIAddressBusSetModel(&addrs->buses[i], defaultModel) < 0)
+        if (virDomainPCIAddressBusSetModel(&addrs->buses[i], defaultModel, true) < 0)
             goto error;
 
         VIR_DEBUG("Auto-adding <controller type='pci' model='%s' index='%zu'/>",
@@ -1736,7 +1740,7 @@ qemuDomainValidateDevicePCISlotsPIIX3(virDomainDefPtr def,
     virPCIDeviceAddress tmp_addr;
     bool qemuDeviceVideoUsable = virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIDEO_PRIMARY);
     g_autofree char *addrStr = NULL;
-    virDomainPCIConnectFlags flags = (VIR_PCI_CONNECT_HOTPLUGGABLE
+    virDomainPCIConnectFlags flags = (VIR_PCI_CONNECT_AUTOASSIGN
                                       | VIR_PCI_CONNECT_TYPE_PCI_DEVICE);
 
     /* Verify that first IDE and USB controllers (if any) is on the PIIX3, fn 1 */
@@ -2673,7 +2677,7 @@ qemuDomainAssignPCIAddresses(virDomainDefPtr def,
              * domain.
              */
             virDomainDeviceInfo info = {
-                .pciConnectFlags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+                .pciConnectFlags = (VIR_PCI_CONNECT_AUTOASSIGN |
                                     VIR_PCI_CONNECT_TYPE_PCI_DEVICE),
                 .pciAddrExtFlags = VIR_PCI_ADDRESS_EXTENSION_NONE
             };
@@ -2714,7 +2718,7 @@ qemuDomainAssignPCIAddresses(virDomainDefPtr def,
             addrs->nbuses > max_idx + 1 &&
             qemuDomainHasPCIeRoot(def)) {
             virDomainDeviceInfo info = {
-                .pciConnectFlags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+                .pciConnectFlags = (VIR_PCI_CONNECT_AUTOASSIGN |
                                     VIR_PCI_CONNECT_TYPE_PCIE_DEVICE),
                 .pciAddrExtFlags = VIR_PCI_ADDRESS_EXTENSION_NONE
             };

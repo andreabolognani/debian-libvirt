@@ -203,27 +203,19 @@ load_profile(virSecurityManagerPtr mgr G_GNUC_UNUSED,
 static int
 remove_profile(const char *profile)
 {
-    int rc = -1;
-    const char * const argv[] = {
-        VIRT_AA_HELPER, "-D", "-u", profile, NULL
-    };
+    g_autoptr(virCommand) cmd = virCommandNewArgList(VIRT_AA_HELPER, "-D", "-u",
+                                                     profile, NULL);
 
-    if (virRun(argv, NULL) == 0)
-        rc = 0;
-
-    return rc;
+    return virCommandRun(cmd, NULL);
 }
 
 static char *
 get_profile_name(virDomainDefPtr def)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    char *name = NULL;
 
     virUUIDFormat(def->uuid, uuidstr);
-    name = g_strdup_printf("%s%s", AA_PREFIX, uuidstr);
-
-    return name;
+    return g_strdup_printf("%s%s", AA_PREFIX, uuidstr);
 }
 
 /* returns -1 on error or profile for libvirtd is unconfined, 0 if complain

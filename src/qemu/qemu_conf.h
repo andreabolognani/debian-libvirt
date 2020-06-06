@@ -76,8 +76,6 @@ struct _virQEMUDriverConfig {
     virObject parent;
 
     char *uri;
-    char *root; /* The root directory for embed driver,
-                   NULL for system/session connections */
 
     uid_t user;
     gid_t group;
@@ -333,7 +331,6 @@ int
 virQEMUDriverConfigSetDefaults(virQEMUDriverConfigPtr cfg);
 
 virQEMUDriverConfigPtr virQEMUDriverGetConfig(virQEMUDriverPtr driver);
-bool virQEMUDriverIsPrivileged(virQEMUDriverPtr driver);
 
 virCapsHostNUMAPtr virQEMUDriverGetHostNUMACaps(virQEMUDriverPtr driver);
 virCPUDefPtr virQEMUDriverGetHostCPU(virQEMUDriverPtr driver);
@@ -389,21 +386,21 @@ virDomainXMLOptionPtr virQEMUDriverCreateXMLConf(virQEMUDriverPtr driver,
 
 int qemuTranslateSnapshotDiskSourcePool(virDomainSnapshotDiskDefPtr def);
 
-char * qemuGetBaseHugepagePath(virHugeTLBFSPtr hugepage);
-char * qemuGetDomainHugepagePath(const virDomainDef *def,
+char * qemuGetBaseHugepagePath(virQEMUDriverPtr driver,
+                               virHugeTLBFSPtr hugepage);
+char * qemuGetDomainHugepagePath(virQEMUDriverPtr driver,
+                                 const virDomainDef *def,
                                  virHugeTLBFSPtr hugepage);
 
-int qemuGetDomainHupageMemPath(const virDomainDef *def,
-                               virQEMUDriverConfigPtr cfg,
+int qemuGetDomainHupageMemPath(virQEMUDriverPtr driver,
+                               const virDomainDef *def,
                                unsigned long long pagesize,
                                char **memPath);
 
-void qemuGetMemoryBackingBasePath(virQEMUDriverConfigPtr cfg,
-                                  char **path);
-int qemuGetMemoryBackingDomainPath(const virDomainDef *def,
-                                   virQEMUDriverConfigPtr cfg,
+int qemuGetMemoryBackingDomainPath(virQEMUDriverPtr driver,
+                                   const virDomainDef *def,
                                    char **path);
-int qemuGetMemoryBackingPath(const virDomainDef *def,
-                             virQEMUDriverConfigPtr cfg,
+int qemuGetMemoryBackingPath(virQEMUDriverPtr driver,
+                             const virDomainDef *def,
                              const char *alias,
                              char **memPath);

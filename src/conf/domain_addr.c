@@ -358,18 +358,34 @@ virDomainPCIAddressFlagsCompatible(virPCIDeviceAddressPtr addr,
          */
         if (busFlags & VIR_PCI_CONNECT_TYPES_ENDPOINT)
             busFlags |= VIR_PCI_CONNECT_TYPES_ENDPOINT;
-        /* Also allow manual specification of bus to override
-         * libvirt's assumptions about whether or not hotplug
-         * capability will be required.
-         */
-        if (devFlags & VIR_PCI_CONNECT_HOTPLUGGABLE)
-            busFlags |= VIR_PCI_CONNECT_HOTPLUGGABLE;
         /* if the device is a pci-bridge, allow manually
          * assigning to any bus that would also accept a
          * standard PCI device.
          */
         if (devFlags & VIR_PCI_CONNECT_TYPE_PCI_BRIDGE)
             devFlags |= VIR_PCI_CONNECT_TYPE_PCI_DEVICE;
+    } else if ((devFlags & VIR_PCI_CONNECT_AUTOASSIGN) &&
+               !(busFlags & VIR_PCI_CONNECT_AUTOASSIGN)) {
+        if (reportError) {
+            virReportError(errType,
+                           _("The device at PCI address %s was auto-assigned "
+                             "this address, but the PCI controller "
+                             "with index='%d' doesn't allow auto-assignment"),
+                           addrStr, addr->bus);
+        }
+        return false;
+    }
+
+    if ((devFlags & VIR_PCI_CONNECT_HOTPLUGGABLE) &&
+        !(busFlags & VIR_PCI_CONNECT_HOTPLUGGABLE)) {
+        if (reportError) {
+            virReportError(errType,
+                           _("The device at PCI address %s requires "
+                             "hotplug capability, but the PCI controller "
+                             "with index='%d' doesn't support hotplug"),
+                           addrStr, addr->bus);
+        }
+        return false;
     }
 
     /* If this bus doesn't allow the type of connection (PCI
@@ -417,17 +433,6 @@ virDomainPCIAddressFlagsCompatible(virPCIDeviceAddressPtr addr,
                          "plugged into the PCI controller with index='%d'. "
                          "It requires a controller that accepts a %s."),
                        addrStr, addr->bus, connectStr);
-        return false;
-    }
-    if ((devFlags & VIR_PCI_CONNECT_HOTPLUGGABLE) &&
-        !(busFlags & VIR_PCI_CONNECT_HOTPLUGGABLE)) {
-        if (reportError) {
-            virReportError(errType,
-                           _("The device at PCI address %s requires "
-                             "hotplug capability, but the PCI controller "
-                             "with index='%d' doesn't support hotplug"),
-                           addrStr, addr->bus);
-        }
         return false;
     }
     return true;
@@ -502,31 +507,40 @@ virDomainPCIAddressValidate(virDomainPCIAddressSetPtr addrs,
 
 int
 virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
-                               virDomainControllerModelPCI model)
+                               virDomainControllerModelPCI model,
+                               bool allowHotplug)
 {
     /* set flags for what can be connected *downstream* from each
      * bus.
      */
+    virDomainPCIConnectFlags hotplugFlag = 0;
+
+    if (allowHotplug)
+        hotplugFlag = VIR_PCI_CONNECT_HOTPLUGGABLE;
+
     switch (model) {
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT:
-        bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+        bus->flags = (VIR_PCI_CONNECT_AUTOASSIGN |
                       VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
                       VIR_PCI_CONNECT_TYPE_PCI_BRIDGE |
-                      VIR_PCI_CONNECT_TYPE_PCI_EXPANDER_BUS);
+                      VIR_PCI_CONNECT_TYPE_PCI_EXPANDER_BUS |
+                      hotplugFlag);
         bus->minSlot = 1;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_BRIDGE:
-        bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+        bus->flags = (VIR_PCI_CONNECT_AUTOASSIGN |
                       VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
-                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE);
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE |
+                      hotplugFlag);
         bus->minSlot = 1;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_PCI_EXPANDER_BUS:
-        bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+        bus->flags = (VIR_PCI_CONNECT_AUTOASSIGN |
                       VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
-                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE);
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE |
+                      hotplugFlag);
         bus->minSlot = 0;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
@@ -555,9 +569,10 @@ virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
     case VIR_DOMAIN_CONTROLLER_MODEL_PCIE_TO_PCI_BRIDGE:
         /* Same as pci-bridge: 32 hotpluggable traditional PCI slots (0-31),
          * the first of which is not usable because of the SHPC */
-        bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+        bus->flags = (VIR_PCI_CONNECT_AUTOASSIGN |
                       VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
-                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE);
+                      VIR_PCI_CONNECT_TYPE_PCI_BRIDGE |
+                      hotplugFlag);
         bus->minSlot = 1;
         bus->maxSlot = VIR_PCI_ADDRESS_SLOT_LAST;
         break;
@@ -566,10 +581,11 @@ virDomainPCIAddressBusSetModel(virDomainPCIAddressBusPtr bus,
         /* provides one slot which is pcie, can be used by endpoint
          * devices, pcie-switch-upstream-ports or pcie-to-pci-bridges,
          * and is hotpluggable */
-        bus->flags = (VIR_PCI_CONNECT_HOTPLUGGABLE |
+        bus->flags = (VIR_PCI_CONNECT_AUTOASSIGN |
                       VIR_PCI_CONNECT_TYPE_PCIE_DEVICE |
                       VIR_PCI_CONNECT_TYPE_PCIE_SWITCH_UPSTREAM_PORT |
-                      VIR_PCI_CONNECT_TYPE_PCIE_TO_PCI_BRIDGE);
+                      VIR_PCI_CONNECT_TYPE_PCIE_TO_PCI_BRIDGE |
+                      hotplugFlag);
         bus->minSlot = 0;
         bus->maxSlot = 0;
         break;
@@ -766,7 +782,7 @@ virDomainPCIAddressSetGrow(virDomainPCIAddressSetPtr addrs,
          * rest are of the requested type
          */
         if (virDomainPCIAddressBusSetModel(&addrs->buses[i++],
-                                           VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE) < 0) {
+                                           VIR_DOMAIN_CONTROLLER_MODEL_DMI_TO_PCI_BRIDGE, false) < 0) {
             return -1;
         }
     }
@@ -783,20 +799,20 @@ virDomainPCIAddressSetGrow(virDomainPCIAddressSetPtr addrs,
          * will be allocated for the dummy PCIe device later on.
          */
         if (virDomainPCIAddressBusSetModel(&addrs->buses[i],
-                                           VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT_PORT) < 0) {
+                                           VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT_PORT, true) < 0) {
             return -1;
         }
         addrs->buses[i].flags = VIR_PCI_CONNECT_TYPE_PCIE_TO_PCI_BRIDGE;
         i++;
 
         if (virDomainPCIAddressBusSetModel(&addrs->buses[i++],
-                                           VIR_DOMAIN_CONTROLLER_MODEL_PCIE_TO_PCI_BRIDGE) < 0) {
+                                           VIR_DOMAIN_CONTROLLER_MODEL_PCIE_TO_PCI_BRIDGE, true) < 0) {
             return -1;
         }
     }
 
     for (; i < addrs->nbuses; i++) {
-        if (virDomainPCIAddressBusSetModel(&addrs->buses[i], model) < 0)
+        if (virDomainPCIAddressBusSetModel(&addrs->buses[i], model, true) < 0)
             return -1;
     }
 
@@ -914,6 +930,11 @@ virDomainPCIAddressEnsureAddr(virDomainPCIAddressSetPtr addrs,
      */
     if (!flags)
        return 0;
+
+    /* This function is only called during hotplug, so we require hotplug
+     * support from the controller.
+     */
+    flags |= VIR_PCI_CONNECT_HOTPLUGGABLE;
 
     if (!(addrStr = virPCIDeviceAddressAsString(&dev->addr.pci)))
         return -1;
@@ -1371,13 +1392,7 @@ virDomainPCIAddressSetAllMulti(virDomainDefPtr def)
 static char*
 virDomainCCWAddressAsString(virDomainDeviceCCWAddressPtr addr)
 {
-    char *addrstr = NULL;
-
-    addrstr = g_strdup_printf("%x.%x.%04x",
-                              addr->cssid,
-                              addr->ssid,
-                              addr->devno);
-    return addrstr;
+    return g_strdup_printf("%x.%x.%04x", addr->cssid, addr->ssid, addr->devno);
 }
 
 static int

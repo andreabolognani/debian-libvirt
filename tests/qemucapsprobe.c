@@ -55,6 +55,8 @@ main(int argc, char **argv)
 
     VIR_TEST_PRELOAD(mock);
 
+    virFileActivateDirOverrideForProg(argv[0]);
+
     if (argc != 2) {
         fprintf(stderr, "%s QEMU_binary\n", argv[0]);
         return EXIT_FAILURE;
@@ -75,7 +77,7 @@ main(int argc, char **argv)
         return EXIT_FAILURE;
 
     if (!(caps = virQEMUCapsNewForBinaryInternal(VIR_ARCH_NONE, argv[1], "/tmp",
-                                                 -1, -1, 0, NULL)))
+                                                 -1, -1, NULL, 0, NULL)))
         return EXIT_FAILURE;
 
     virObjectUnref(caps);

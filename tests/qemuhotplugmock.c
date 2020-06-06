@@ -39,14 +39,14 @@ init_syms(void)
 }
 
 unsigned long long
-qemuDomainGetUnplugTimeout(virDomainObjPtr vm G_GNUC_UNUSED)
+qemuDomainGetUnplugTimeout(virDomainObjPtr vm)
 {
     /* Wait only 100ms for DEVICE_DELETED event. Give a greater
      * timeout in case of PSeries guest to be consistent with the
      * original logic. */
     if (qemuDomainIsPSeries(vm->def))
-        return 200;
-    return 100;
+        return 20;
+    return 10;
 }
 
 

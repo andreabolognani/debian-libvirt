@@ -42,6 +42,214 @@
      -->
 
 <libvirt>
+  <release version="v6.4.0" date="2020-06-02">
+    <section title="Improvements">
+      <change>
+        <summary>
+          qemu: stricter validation for disk type='lun'
+        </summary>
+        <description>
+          The 'lun' type is meant for SCSI command passthrough, which can't be
+          achieved if qemu's block layer features are used. Disk type='lun' is now
+          allowed only when the format is 'raw' and no other block layer features
+          are requested.
+        </description>
+      </change>
+    </section>
+    <section title="Bug fixes">
+      <change>
+        <summary>
+          qemu: fixed regression in network device hotplug with new qemu versions
+        </summary>
+        <description>
+          Starting from QEMU-5.0 it's required to conform to strict schema when
+          hotplugging network devices. Libvirt didn't conform to the schema so
+          in versions prior to 6.4.0 network device hotplug fails in certain
+          cases. This version fixes it and adds stricter testing to prevent
+          further issues.
+        </description>
+      </change>
+    </section>
+  </release>
+  <release version="v6.3.0" date="2020-05-05">
+    <section title="New features">
+      <change>
+        <summary>
+          qemu: support network interface downscript
+        </summary>
+        <description>
+          QEMU has the ability to run a script when a NIC is brought up
+          and down. Libvirt only enables use of the up script.
+          Now add support for postscript when NIC is down/detached.
+        </description>
+      </change>
+      <change>
+        <summary>
+          qemu: support disabling hotplug/unplug of PCIe devices
+        </summary>
+        <description>
+          libvirt can now set the "hotplug" option for pcie-root-ports
+          and pcie-switch-downstream-ports, which can be used to
+          disable hotplug/unplug of devices from these ports (default
+          behavior is for these controllers to accept all
+          hotplug/unplug attempts, but this is often undesireable).
+        </description>
+      </change>
+      <change>
+        <summary>
+          vbox: added support for version 6.0 and 6.1 APIs
+        </summary>
+        <description>
+          libvirt can now support use of the VirtualBox 6.0 and 6.1
+          APIs. This is compile tested only, so we are looking for
+          feedback from users on how well it works in practice.
+        </description>
+      </change>
+      <change>
+        <summary>
+          xen: Add support for 'e820_host' hypervisor feature
+        </summary>
+        <description>
+          <code>e820_host</code> is a Xen-specific option only available for
+          PV guests. When enabled it provides the guest with a virtual e820
+          memory map based on the host one. It must be enabled to allow
+          hotplugging PCI devices to PV guests, particularly when memory
+          ballooning is enabled.
+        </description>
+      </change>
+      <change>
+        <summary>
+          xen: Add support for 'passthrough' hypervisor feature
+        </summary>
+        <description>
+          <code>passthrough</code> is a Xen-specific option new to Xen 4.13
+          that enables PCI passthrough for guests. It must be enabled to allow
+          hotplugging PCI devices.
+        </description>
+      </change>
+      <change>
+        <summary>
+          qemu: support async IO mode 'io_uring'
+        </summary>
+        <description>
+          Linux 5.1 introduces a fast and efficient async IO interface
+          io_uring, then qemu implements that in version 5.0. It could be used
+          in file, host device and host cdrom backend by
+          <code>io='io_uring'</code> of disk XML.
+        </description>
+      </change>
+      <change>
+        <summary>
+          Lease time option included for network DHCP settings
+        </summary>
+        <description>
+          Users can now configure expiry time for leases for networks where
+          libvirt manages DHCP. The time can be specified for whole range
+          and/or fine tuned per individual host.
+        </description>
+      </change>
+      <change>
+        <summary>
+          qemu: Implement pSeries Spectre mitigation features
+        </summary>
+        <description>
+          Users can now setup the following capabilities of pSeries guests:
+          CFPC (Cache Flush on Privilege Change), SBBC (Speculation Barrier
+          Bounds Checking) and IBS (Indirect Branch Speculation).
+        </description>
+      </change>
+    </section>
+    <section title="Improvements">
+      <change>
+        <summary>
+          qemu: Allow checkpoint redefine for offline VMs
+        </summary>
+        <description>
+          Skip the liveness and capability checks when redefining checkpoints as
+          we don't need QEMU interactions to update the metadata.
+        </description>
+      </change>
+      <change>
+        <summary>
+          daemons: Improve timeout handling
+        </summary>
+        <description>
+          Daemons now support <code>--timeout 0 </code> which suppresses daemon
+          killing after given time of inactivity.
+        </description>
+      </change>
+      <change>
+        <summary>
+          qemu: Add support for 'multidevs' option
+        </summary>
+        <description>
+          This option prevents misbehaviours on guest if a QEMU 9pfs export
+          contains multiple devices, due to the potential file ID collisions
+          this otherwise may cause.
+        </description>
+      </change>
+    </section>
+    <section title="Bug fixes">
+      <change>
+        <summary>
+          qemu: Various embed driver fixes
+        </summary>
+        <description>
+          When using shared resources from embed driver (e.g. hugepages,
+          machined, etc.) libvirt now generates an unique handler that is not
+          conflicting with other embed drivers or system or session daemons.
+        </description>
+      </change>
+      <change>
+        <summary>
+          cpu: Distinguish Cascadelake-Server from Skylake-Server
+        </summary>
+        <description>
+          Libvirt now properly detects Cascadelake-Server and Skylake-Server
+          processors which differ only in stepping.
+        </description>
+      </change>
+      <change>
+        <summary>
+          qemu: Fix domain restore from a block device
+        </summary>
+        <description>
+          When using namespaces, libvirt was unable to restore a domain from a
+          block device because libvirt tried to relabel the device inside the
+          namespace while QEMU was given FD to the block device in the host.
+        </description>
+      </change>
+      <change>
+        <summary>
+          node_device_udev: Handle move events
+        </summary>
+        <description>
+          Libvirt now handles <code>move</code> event which is emitted on a NIC rename.
+        </description>
+      </change>
+      <change>
+        <summary>
+          qemu: Fix capabilities probing with TCG
+        </summary>
+        <description>
+          Libvirt no long assumes TCG is always available. It now detects
+          whether QEMU supports TCG and reports it accordingly.
+        </description>
+      </change>
+    </section>
+    <section title="Removed features">
+      <change>
+        <summary>
+          vbox: removed support for version 5.0 and 5.1 APIs
+        </summary>
+        <description>
+          libvirt no longer supports use of VirtualBox 5.0 and 5.1
+          since these versions reached their end of life on 2017/05
+          and 2018/04 respectively.
+        </description>
+      </change>
+    </section>
+  </release>
   <release version="v6.2.0" date="2020-04-02">
     <section title="New features">
       <change>

@@ -65,6 +65,7 @@ virDomainBackupDefFree(virDomainBackupDefPtr def)
         return;
 
     g_free(def->incremental);
+    g_free(def->errmsg);
     virStorageNetHostDefFree(1, def->server);
 
     for (i = 0; i < def->ndisks; i++) {
@@ -348,7 +349,8 @@ virDomainBackupDiskDefFormat(virBufferPtr buf,
                                   virStorageFileFormatTypeToString(disk->store->format));
 
         if (virDomainDiskSourceFormat(&childBuf, disk->store, sourcename,
-                                      0, false, storageSourceFormatFlags, true, NULL) < 0)
+                                      0, false, storageSourceFormatFlags,
+                                      false, false, NULL) < 0)
             return -1;
     }
 

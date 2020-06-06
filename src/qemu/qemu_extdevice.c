@@ -23,6 +23,7 @@
 #include "qemu_command.h"
 #include "qemu_extdevice.h"
 #include "qemu_vhost_user_gpu.h"
+#include "qemu_dbus.h"
 #include "qemu_domain.h"
 #include "qemu_tpm.h"
 #include "qemu_slirp.h"
@@ -229,10 +230,13 @@ qemuExtDevicesStop(virQEMUDriverPtr driver,
 
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
+        virDomainNetType actualType = virDomainNetGetActualType(net);
         qemuSlirpPtr slirp = QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp;
 
         if (slirp)
             qemuSlirpStop(slirp, vm, driver, net);
+        if (actualType == VIR_DOMAIN_NET_TYPE_ETHERNET && net->downscript)
+            virNetDevRunEthernetScript(net->ifname, net->downscript);
     }
 
     for (i = 0; i < def->nfss; i++) {
@@ -276,11 +280,22 @@ qemuExtDevicesSetupCgroup(virQEMUDriverPtr driver,
     virDomainDefPtr def = vm->def;
     size_t i;
 
+    if (qemuDBusSetupCgroup(driver, vm) < 0)
+        return -1;
+
     for (i = 0; i < def->nvideos; i++) {
         virDomainVideoDefPtr video = def->videos[i];
 
         if (video->backend == VIR_DOMAIN_VIDEO_BACKEND_TYPE_VHOSTUSER &&
             qemuExtVhostUserGPUSetupCgroup(driver, def, video, cgroup) < 0)
+            return -1;
+    }
+
+    for (i = 0; i < def->nnets; i++) {
+        virDomainNetDefPtr net = def->nets[i];
+        qemuSlirpPtr slirp = QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp;
+
+        if (slirp && qemuSlirpSetupCgroup(slirp, cgroup) < 0)
             return -1;
     }
 

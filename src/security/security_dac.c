@@ -983,14 +983,6 @@ virSecurityDACSetImageLabelRelative(virSecurityManagerPtr mgr,
         if (virSecurityDACSetImageLabelInternal(mgr, def, n, parent, isChainTop) < 0)
             return -1;
 
-        if (n->externalDataStore &&
-            virSecurityDACSetImageLabelRelative(mgr,
-                                                def,
-                                                n->externalDataStore,
-                                                parent,
-                                                flags) < 0)
-            return -1;
-
         if (!(flags & VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN))
             break;
 
@@ -1090,13 +1082,6 @@ virSecurityDACRestoreImageLabelInt(virSecurityManagerPtr mgr,
     if (virSecurityDACRestoreImageLabelSingle(mgr, def, src, migrated) < 0)
         return -1;
 
-    if (src->externalDataStore &&
-        virSecurityDACRestoreImageLabelSingle(mgr,
-                                              def,
-                                              src->externalDataStore,
-                                              migrated) < 0)
-        return -1;
-
     return 0;
 }
 
@@ -1132,6 +1117,12 @@ virSecurityDACMoveImageMetadataHelper(pid_t pid G_GNUC_UNUSED,
 
     ret = virSecurityMoveRememberedLabel(SECURITY_DAC_NAME, data->src, data->dst);
     virSecurityManagerMetadataUnlock(data->mgr, &state);
+
+    if (ret == -2) {
+        /* Libvirt built without XATTRS */
+        ret = 0;
+    }
+
     return ret;
 }
 

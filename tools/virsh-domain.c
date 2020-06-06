@@ -3658,7 +3658,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
     bool checkpoints_metadata = vshCommandOptBool(cmd, "checkpoints-metadata");
     bool wipe_storage = vshCommandOptBool(cmd, "wipe-storage");
     bool remove_all_storage = vshCommandOptBool(cmd, "remove-all-storage");
-    bool delete_snapshots = vshCommandOptBool(cmd, "delete-snapshots");
+    bool delete_snapshots = vshCommandOptBool(cmd, "delete-storage-volume-snapshots");
     bool nvram = vshCommandOptBool(cmd, "nvram");
     bool keep_nvram = vshCommandOptBool(cmd, "keep-nvram");
     /* Positive if these items exist.  */
@@ -3687,7 +3687,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
     size_t j;
     virshControlPtr priv = ctl->privData;
 
-    VSH_REQUIRE_OPTION("delete-snapshots", "remove-all-storage");
+    VSH_REQUIRE_OPTION("delete-storage-volume-snapshots", "remove-all-storage");
     VSH_EXCLUSIVE_OPTIONS("nvram", "keep-nvram");
 
     ignore_value(vshCommandOptStringQuiet(ctl, cmd, "storage", &vol_string));
@@ -5436,7 +5436,6 @@ static const vshCmdOptDef opts_dump[] = {
 static void
 doDump(void *opaque)
 {
-    char ret = '1';
     virshCtrlData *data = opaque;
     vshControl *ctl = data->ctl;
     const vshCmd *cmd = data->cmd;
@@ -5508,7 +5507,7 @@ doDump(void *opaque)
         }
     }
 
-    ret = '0';
+    data->ret = 0;
  out:
 #ifndef WIN32
     pthread_sigmask(SIG_SETMASK, &oldsigmask, NULL);
@@ -5516,7 +5515,6 @@ doDump(void *opaque)
 #endif /* !WIN32 */
     if (dom)
         virshDomainFree(dom);
-    data->ret = ret;
     g_main_loop_quit(data->eventLoop);
 }
 
@@ -5524,7 +5522,6 @@ static bool
 cmdDump(vshControl *ctl, const vshCmd *cmd)
 {
     virDomainPtr dom;
-    bool ret = false;
     bool verbose = false;
     const char *name = NULL;
     const char *to = NULL;
@@ -5558,12 +5555,12 @@ cmdDump(vshControl *ctl, const vshCmd *cmd)
 
     virThreadJoin(&workerThread);
 
-    if (!ret)
+    if (!data.ret)
         vshPrintExtra(ctl, _("\nDomain %s dumped to %s\n"), name, to);
 
  cleanup:
     virshDomainFree(dom);
-    return !ret;
+    return !data.ret;
 }
 
 static const vshCmdInfo info_screenshot[] = {
@@ -6228,6 +6225,7 @@ cmdDomjobinfo(vshControl *ctl, const vshCmd *cmd)
     unsigned long long value;
     unsigned int flags = 0;
     int ivalue;
+    const char *svalue;
     int op;
     int rc;
     size_t i;
@@ -6506,6 +6504,13 @@ cmdDomjobinfo(vshControl *ctl, const vshCmd *cmd)
     } else if (rc) {
         val = vshPrettyCapacity(value, &unit);
         vshPrint(ctl, "%-17s %-.3lf %s\n", _("Temporary disk space total:"), val, unit);
+    }
+
+    if ((rc = virTypedParamsGetString(params, nparams, VIR_DOMAIN_JOB_ERRMSG,
+                                      &svalue)) < 0) {
+        goto save_error;
+    } else if (rc == 1) {
+        vshPrint(ctl, "%-17s %s\n", _("Error message:"), svalue);
     }
 
     ret = true;
@@ -10722,7 +10727,6 @@ static const vshCmdOptDef opts_migrate[] = {
 static void
 doMigrate(void *opaque)
 {
-    char ret = '1';
     virDomainPtr dom = NULL;
     const char *desturi = NULL;
     const char *opt = NULL;
@@ -11001,14 +11005,14 @@ doMigrate(void *opaque)
 
     if (flags & VIR_MIGRATE_PEER2PEER || vshCommandOptBool(cmd, "direct")) {
         if (virDomainMigrateToURI3(dom, desturi, params, nparams, flags) == 0)
-            ret = '0';
+            data->ret = 0;
     } else {
         /* For traditional live migration, connect to the destination host directly. */
         virDomainPtr ddom = NULL;
 
         if ((ddom = virDomainMigrate3(dom, dconn, params, nparams, flags))) {
             virshDomainFree(ddom);
-            ret = '0';
+            data->ret = 0;
         }
     }
 
@@ -11019,7 +11023,6 @@ doMigrate(void *opaque)
 #endif /* !WIN32 */
     virTypedParamsFree(params, nparams);
     virshDomainFree(dom);
-    data->ret = ret;
     g_main_loop_quit(data->eventLoop);
     return;
 

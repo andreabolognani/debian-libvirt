@@ -312,6 +312,7 @@ mymain(void)
     DO_TEST("migrate", NONE);
     DO_TEST("qemu-ns-no-env", NONE);
     DO_TEST("disk-aio", NONE);
+    DO_TEST_CAPS_LATEST("disk-aio-io_uring");
     DO_TEST("disk-cdrom", NONE);
     DO_TEST_CAPS_LATEST("disk-cdrom-empty-network-invalid");
     DO_TEST("disk-cdrom-bus-other", NONE);
@@ -338,8 +339,7 @@ mymain(void)
     DO_TEST("disk-network-vxhs", NONE);
     DO_TEST("disk-network-tlsx509", NONE);
     DO_TEST("disk-nvme", QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_QCOW2_LUKS);
-    DO_TEST("disk-scsi", QEMU_CAPS_SCSI_LSI, QEMU_CAPS_SCSI_MEGASAS,
-            QEMU_CAPS_SCSI_MPTSAS1068, QEMU_CAPS_SCSI_DISK_WWN);
+    DO_TEST_CAPS_LATEST("disk-scsi");
     DO_TEST("disk-virtio-scsi-reservations",
             QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_PR_MANAGER_HELPER);
     DO_TEST("controller-virtio-scsi", QEMU_CAPS_VIRTIO_SCSI);
@@ -602,10 +602,10 @@ mymain(void)
     DO_TEST("usb-redir", NONE);
     DO_TEST("usb-redir-filter", NONE);
     DO_TEST("usb-redir-filter-version", NONE);
-    DO_TEST("blkdeviotune", NONE);
-    DO_TEST("blkdeviotune-max", NONE);
-    DO_TEST("blkdeviotune-group-num", NONE);
-    DO_TEST("blkdeviotune-max-length", NONE);
+    DO_TEST_CAPS_LATEST("blkdeviotune");
+    DO_TEST_CAPS_LATEST("blkdeviotune-max");
+    DO_TEST_CAPS_LATEST("blkdeviotune-group-num");
+    DO_TEST_CAPS_LATEST("blkdeviotune-max-length");
     DO_TEST("controller-usb-order",
             QEMU_CAPS_PIIX_DISABLE_S3,
             QEMU_CAPS_PIIX_DISABLE_S4);
@@ -637,10 +637,12 @@ mymain(void)
     DO_TEST("disk-source-pool", NONE);
     DO_TEST("disk-source-pool-mode", NONE);
 
-    DO_TEST("disk-discard", NONE);
-    DO_TEST("disk-detect-zeroes", NONE);
+    DO_TEST_CAPS_LATEST("disk-discard");
+    DO_TEST_CAPS_LATEST("disk-detect-zeroes");
 
     DO_TEST("disk-serial", NONE);
+
+    DO_TEST_CAPS_ARCH_LATEST("disk-arm-virtio-sd", "aarch64");
 
     DO_TEST("virtio-rng-random",
             QEMU_CAPS_DEVICE_VIRTIO_RNG);
@@ -694,7 +696,10 @@ mymain(void)
             QEMU_CAPS_MACHINE_PSERIES_CAP_HTM,
             QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV,
             QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST,
-            QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT);
+            QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT,
+            QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
+            QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
+            QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
 
     DO_TEST("pseries-serial-native",
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
@@ -959,7 +964,7 @@ mymain(void)
             QEMU_CAPS_DEVICE_IOH3420);
     DO_TEST("pcie-root-port-model-ioh3420",
             QEMU_CAPS_DEVICE_IOH3420);
-
+    DO_TEST_CAPS_LATEST("pcie-root-port-nohotplug");
     DO_TEST("pcie-switch-upstream-port",
             QEMU_CAPS_DEVICE_IOH3420,
             QEMU_CAPS_DEVICE_X3130_UPSTREAM,
@@ -1278,20 +1283,7 @@ mymain(void)
     DO_TEST("memorybacking-set", NONE);
     DO_TEST("memorybacking-unset", NONE);
 
-    DO_TEST("virtio-options",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIDEO_PRIMARY,
-            QEMU_CAPS_VIRTIO_PCI_IOMMU_PLATFORM,
-            QEMU_CAPS_VIRTIO_PCI_ATS,
-            QEMU_CAPS_DEVICE_VHOST_USER_GPU);
+    DO_TEST_CAPS_LATEST("virtio-options");
 
     DO_TEST("fd-memory-numa-topology", QEMU_CAPS_OBJECT_MEMORY_FILE,
             QEMU_CAPS_KVM);
@@ -1484,6 +1476,9 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-pc-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35-4.2", "x86_64");
+
+    DO_TEST_CAPS_LATEST("virtio-9p-multidevs");
+    DO_TEST("downscript", NONE);
 
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);

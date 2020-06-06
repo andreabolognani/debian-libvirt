@@ -405,9 +405,8 @@ qemuCheckpointPrepare(virQEMUDriverPtr driver,
                       virDomainObjPtr vm,
                       virDomainCheckpointDefPtr def)
 {
-    int ret = -1;
     size_t i;
-    char *xml = NULL;
+    g_autofree char *xml = NULL;
     qemuDomainObjPrivatePtr priv = vm->privateData;
 
     /* Easiest way to clone inactive portion of vm->def is via
@@ -419,10 +418,10 @@ qemuCheckpointPrepare(virQEMUDriverPtr driver,
                                                     priv->qemuCaps,
                                                     VIR_DOMAIN_DEF_PARSE_INACTIVE |
                                                     VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE)))
-        goto cleanup;
+        return -1;
 
     if (virDomainCheckpointAlignDisks(def) < 0)
-        goto cleanup;
+        return -1;
 
     for (i = 0; i < def->ndisks; i++) {
         virDomainCheckpointDiskDefPtr disk = &def->disks[i];
@@ -434,7 +433,7 @@ qemuCheckpointPrepare(virQEMUDriverPtr driver,
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("bitmap for disk '%s' must match checkpoint name '%s'"),
                            disk->name, def->parent.name);
-            goto cleanup;
+            return -1;
         }
 
         if (vm->def->disks[i]->src->format != VIR_STORAGE_FILE_QCOW2) {
@@ -444,15 +443,14 @@ qemuCheckpointPrepare(virQEMUDriverPtr driver,
                            disk->name,
                            virStorageFileFormatTypeToString(
                                vm->def->disks[i]->src->format));
-            goto cleanup;
+            return -1;
         }
+
+        if (!qemuDomainDiskBlockJobIsSupported(vm, vm->def->disks[i]))
+            return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(xml);
-    return ret;
+    return 0;
 }
 
 static int
@@ -647,16 +645,18 @@ qemuCheckpointCreateXML(virDomainPtr domain,
         update_current = false;
     }
 
-    if (!virDomainObjIsActive(vm)) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("cannot create checkpoint for inactive domain"));
-        return NULL;
-    }
+    if (!redefine) {
+        if (!virDomainObjIsActive(vm)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("cannot create checkpoint for inactive domain"));
+            return NULL;
+        }
 
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_INCREMENTAL_BACKUP)) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("incremental backup is not supported yet"));
-        return NULL;
+        if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_INCREMENTAL_BACKUP)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("incremental backup is not supported yet"));
+            return NULL;
+        }
     }
 
     if (!(def = virDomainCheckpointDefParseString(xmlDesc, driver->xmlopt,

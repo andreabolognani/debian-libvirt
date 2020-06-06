@@ -212,6 +212,7 @@ test_libraries = libshunload.la \
 	libvirnetdaemonmock.la \
 	libvirnetserverclientmock.la \
 	libvircgroupmock.la \
+	libvirhostdevmock.la \
 	libvirpcimock.la \
 	libvirnetdevmock.la \
 	libvirrandommock.la \
@@ -569,7 +570,7 @@ qemuxml2argvtest_SOURCES = \
 	testutils.c testutils.h \
 	virfilewrapper.c virfilewrapper.h \
 	$(NULL)
-qemuxml2argvtest_LDADD = libqemutestdriver.la \
+qemuxml2argvtest_LDADD = libqemutestdriver.la libqemumonitortestutils.la \
 	$(LDADDS) $(LIBXML_LIBS)
 
 libqemuxml2argvmock_la_SOURCES = \
@@ -1225,6 +1226,12 @@ libvirfilecachemock_la_SOURCES = \
 	virfilecachemock.c
 libvirfilecachemock_la_LDFLAGS = $(MOCKLIBS_LDFLAGS)
 libvirfilecachemock_la_LIBADD = $(MOCKLIBS_LIBS)
+
+libvirhostdevmock_la_SOURCES = \
+	virhostdevmock.c \
+	$(NULL)
+libvirhostdevmock_la_LDFLAGS = $(MOCKLIBS_LDFLAGS)
+libvirhostdevmock_la_LIBADD = $(MOCKLIBS_LIBS)
 
 if WITH_LINUX
 vircaps2xmltest_SOURCES = \

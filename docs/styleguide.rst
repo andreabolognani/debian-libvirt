@@ -24,6 +24,18 @@ Whitespace
 
 Blocks should be indented with 3 spaces, and no tabs
 
+Code blocks
+===========
+
+Code blocks should be created using
+
+::
+
+   This is regular text.
+
+   ::
+
+      This is a code block.
 
 Headings
 ========
@@ -64,6 +76,26 @@ which allows for 6 levels of headings
 
    Heading 6
    ^^^^^^^^^
+
+Tables
+======
+
+Tables should be created using the ``list-table`` directive whenever
+possible, as in
+
+::
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Option
+        - Description
+
+      * - ``foo_enabled``
+        - Whether or not ``foo`` should be enabled
+
+      * - ``bar_user``
+        - Which user to run ``bar`` as
 
 Manual pages
 ============

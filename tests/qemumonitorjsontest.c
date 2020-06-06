@@ -46,6 +46,8 @@ struct _testQemuMonitorJSONSimpleFuncData {
     virDomainXMLOptionPtr xmlopt;
     const char *reply;
     virHashTablePtr schema;
+    bool allowDeprecated;
+    bool allowRemoved;
 };
 
 typedef struct _testGenericData testGenericData;
@@ -796,6 +798,8 @@ qemuMonitorJSONTestAttachOneChardev(virDomainXMLOptionPtr xmlopt,
     if (!(data.test = qemuMonitorTestNewSchema(xmlopt, schema)))
         goto cleanup;
 
+    qemuMonitorTestAllowUnusedCommands(data.test);
+
     if (qemuMonitorTestAddItemExpect(data.test, "chardev-add",
                                      expectargs, true, jsonreply) < 0)
         goto cleanup;
@@ -1277,6 +1281,9 @@ testQemuMonitorJSON ## funcName(const void *opaque) \
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema))) \
         return -1; \
  \
+    if (data->allowDeprecated) \
+        qemuMonitorTestSkipDeprecatedValidation(test, data->allowRemoved); \
+ \
     if (!reply) \
         reply = "{\"return\":{}}"; \
  \
@@ -1308,7 +1315,6 @@ GEN_TEST_FUNC(qemuMonitorJSONDump, "dummy_protocol", "elf",
               true)
 GEN_TEST_FUNC(qemuMonitorJSONGraphicsRelocate, VIR_DOMAIN_GRAPHICS_TYPE_SPICE,
               "localhost", 12345, 12346, "certsubjectval")
-GEN_TEST_FUNC(qemuMonitorJSONAddNetdev, "id=net0,type=test")
 GEN_TEST_FUNC(qemuMonitorJSONRemoveNetdev, "net0")
 GEN_TEST_FUNC(qemuMonitorJSONDelDevice, "ide0")
 GEN_TEST_FUNC(qemuMonitorJSONAddDevice, "some_dummy_devicestr")
@@ -1428,14 +1434,12 @@ testQemuMonitorJSONqemuMonitorJSONQueryCPUs(const void *opaque)
             {2, 17626, (char *) "/machine/unattached/device[2]", true},
             {3, 17628, NULL, true},
     };
-    struct qemuMonitorQueryCpusEntry expect_fast[] = {
-            {0, 17629, (char *) "/machine/unattached/device[0]", false},
-            {1, 17630, (char *) "/machine/unattached/device[1]", false},
-    };
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
+
+    qemuMonitorTestSkipDeprecatedValidation(test, true);
 
     if (qemuMonitorTestAddItem(test, "query-cpus",
                                "{"
@@ -1476,6 +1480,29 @@ testQemuMonitorJSONqemuMonitorJSONQueryCPUs(const void *opaque)
                                "}") < 0)
         return -1;
 
+    /* query-cpus */
+    if (testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(test, expect_slow,
+                                                          false, 4))
+        return -1;
+
+    return 0;
+}
+
+
+static int
+testQemuMonitorJSONqemuMonitorJSONQueryCPUsFast(const void *opaque)
+{
+    const testGenericData *data = opaque;
+    virDomainXMLOptionPtr xmlopt = data->xmlopt;
+    struct qemuMonitorQueryCpusEntry expect_fast[] = {
+            {0, 17629, (char *) "/machine/unattached/device[0]", false},
+            {1, 17630, (char *) "/machine/unattached/device[1]", false},
+    };
+    g_autoptr(qemuMonitorTest) test = NULL;
+
+    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
+        return -1;
+
     if (qemuMonitorTestAddItem(test, "query-cpus-fast",
                                "{"
                                "    \"return\": ["
@@ -1492,11 +1519,6 @@ testQemuMonitorJSONqemuMonitorJSONQueryCPUs(const void *opaque)
                                "    ],"
                                "    \"id\": \"libvirt-8\""
                                "}") < 0)
-        return -1;
-
-    /* query-cpus */
-    if (testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(test, expect_slow,
-                                                          false, 4))
         return -1;
 
     /* query-cpus-fast */
@@ -1865,6 +1887,8 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationCacheSize(const void *opaque)
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
+
+    qemuMonitorTestSkipDeprecatedValidation(test, false);
 
     if (qemuMonitorTestAddItem(test, "query-migrate-cache-size",
                                "{"
@@ -2675,10 +2699,12 @@ testQemuMonitorCPUInfo(const void *opaque)
                                queryHotpluggableStr) < 0)
         goto cleanup;
 
-    if (data->fast)
+    if (data->fast) {
         queryCpusFunction = "query-cpus-fast";
-    else
+    } else {
         queryCpusFunction = "query-cpus";
+        qemuMonitorTestSkipDeprecatedValidation(test, true);
+    }
 
     if (qemuMonitorTestAddItem(test, queryCpusFunction, queryCpusStr) < 0)
         goto cleanup;
@@ -2840,7 +2866,8 @@ testQAPISchemaValidate(const void *opaque)
     if (!(json = virJSONValueFromString(data->json)))
         goto cleanup;
 
-    if ((testQEMUSchemaValidate(json, schemaroot, data->schema, &debug) == 0) != data->success) {
+    if ((testQEMUSchemaValidate(json, schemaroot, data->schema, false,
+                                &debug) == 0) != data->success) {
         if (!data->success)
             VIR_TEST_VERBOSE("\nschema validation should have failed");
     } else {
@@ -3097,7 +3124,7 @@ mymain(void)
 
     virEventRegisterDefaultImpl();
 
-    if (!(qapiData.schema = testQEMUSchemaLoad("x86_64"))) {
+    if (!(qapiData.schema = testQEMUSchemaLoadLatest("x86_64"))) {
         VIR_TEST_VERBOSE("failed to load qapi schema");
         ret = -1;
         goto cleanup;
@@ -3118,12 +3145,18 @@ mymain(void)
     if (virTestRun(# FNC, testQemuMonitorJSONSimpleFunc, &simpleFunc) < 0) \
         ret = -1
 
-#define DO_TEST_GEN(name, ...) \
+#define DO_TEST_GEN_FULL(name, dpr, rmvd, ...) \
     simpleFunc = (testQemuMonitorJSONSimpleFuncData) {.xmlopt = driver.xmlopt, \
+                                                      .allowDeprecated = dpr, \
+                                                      .allowRemoved = rmvd, \
                                                       .schema = qapiData.schema \
                                                      __VA_ARGS__ }; \
     if (virTestRun(# name, testQemuMonitorJSON ## name, &simpleFunc) < 0) \
         ret = -1
+
+#define DO_TEST_GEN(name, ...) DO_TEST_GEN_FULL(name, false, false, __VA_ARGS__)
+#define DO_TEST_GEN_DEPRECATED(name, removed, ...) \
+    DO_TEST_GEN_FULL(name, true, removed, __VA_ARGS__)
 
 #define DO_TEST_CPU_DATA(name) \
     do { \
@@ -3182,17 +3215,16 @@ mymain(void)
     DO_TEST_GEN(qemuMonitorJSONSetPassword);
     DO_TEST_GEN(qemuMonitorJSONExpirePassword);
     DO_TEST_GEN(qemuMonitorJSONSetBalloon);
-    DO_TEST_GEN(qemuMonitorJSONSetCPU);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetCPU, true);
     DO_TEST_GEN(qemuMonitorJSONEjectMedia);
-    DO_TEST_GEN(qemuMonitorJSONChangeMedia);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONChangeMedia, true);
     DO_TEST_GEN(qemuMonitorJSONSaveVirtualMemory);
     DO_TEST_GEN(qemuMonitorJSONSavePhysicalMemory);
-    DO_TEST_GEN(qemuMonitorJSONSetMigrationSpeed);
-    DO_TEST_GEN(qemuMonitorJSONSetMigrationDowntime);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationSpeed, false);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationDowntime, false);
     DO_TEST_GEN(qemuMonitorJSONMigrate);
     DO_TEST_GEN(qemuMonitorJSONDump);
     DO_TEST_GEN(qemuMonitorJSONGraphicsRelocate);
-    DO_TEST_GEN(qemuMonitorJSONAddNetdev);
     DO_TEST_GEN(qemuMonitorJSONRemoveNetdev);
     DO_TEST_GEN(qemuMonitorJSONDelDevice);
     DO_TEST_GEN(qemuMonitorJSONAddDevice);
@@ -3222,6 +3254,7 @@ mymain(void)
     DO_TEST(qemuMonitorJSONGetTargetArch);
     DO_TEST(qemuMonitorJSONGetMigrationCapabilities);
     DO_TEST(qemuMonitorJSONQueryCPUs);
+    DO_TEST(qemuMonitorJSONQueryCPUsFast);
     DO_TEST(qemuMonitorJSONGetVirtType);
     DO_TEST(qemuMonitorJSONSendKey);
     DO_TEST(qemuMonitorJSONGetDumpGuestMemoryCapability);
@@ -3272,7 +3305,7 @@ mymain(void)
         qapiData.query = qry; \
         qapiData.rc = scc; \
         qapiData.replyobj = rplobj; \
-        if (virTestRun("qapi schema query" nme, testQAPISchemaQuery, &qapiData) < 0)\
+        if (virTestRun("qapi schema query " nme, testQAPISchemaQuery, &qapiData) < 0)\
             ret = -1; \
     } while (0)
 
@@ -3304,7 +3337,7 @@ mymain(void)
         qapiData.query = rootquery; \
         qapiData.success = scc; \
         qapiData.json = jsonstr; \
-        if (virTestRun("qapi schema validate" nme, testQAPISchemaValidate, &qapiData) < 0)\
+        if (virTestRun("qapi schema validate " nme, testQAPISchemaValidate, &qapiData) < 0)\
             ret = -1; \
     } while (0)
 
@@ -3361,7 +3394,7 @@ mymain(void)
 #undef DO_TEST_QUERY_JOBS
 
     virHashFree(qapiData.schema);
-    if (!(qapiData.schema = testQEMUSchemaLoad("s390x"))) {
+    if (!(qapiData.schema = testQEMUSchemaLoadLatest("s390x"))) {
         VIR_TEST_VERBOSE("failed to load qapi schema for s390x");
         ret = -1;
         goto cleanup;
