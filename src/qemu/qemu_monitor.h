@@ -881,7 +881,7 @@ int qemuMonitorCloseFileHandle(qemuMonitorPtr mon,
                                const char *fdname);
 
 int qemuMonitorAddNetdev(qemuMonitorPtr mon,
-                         const char *netdevstr,
+                         virJSONValuePtr *props,
                          int *tapfd, char **tapfdName, int tapfdSize,
                          int *vhostfd, char **vhostfdName, int vhostfdSize,
                          int slirpfd, char *slirpfdName);
@@ -1095,6 +1095,7 @@ struct _qemuMonitorMachineInfo {
     unsigned int maxCpus;
     bool hotplugCpus;
     char *defaultCPU;
+    bool numaMemSupported;
 };
 
 int qemuMonitorGetMachines(qemuMonitorPtr mon,
@@ -1203,9 +1204,8 @@ int qemuMonitorGetKVMState(qemuMonitorPtr mon,
 
 int qemuMonitorGetObjectTypes(qemuMonitorPtr mon,
                               char ***types);
-int qemuMonitorGetDeviceProps(qemuMonitorPtr mon,
-                              const char *device,
-                              char ***props);
+virHashTablePtr qemuMonitorGetDeviceProps(qemuMonitorPtr mon,
+                                          const char *device);
 int qemuMonitorGetObjectProps(qemuMonitorPtr mon,
                               const char *object,
                               char ***props);

@@ -421,6 +421,7 @@ typedef enum {
     VIR_DOMAIN_DISK_IO_DEFAULT = 0,
     VIR_DOMAIN_DISK_IO_NATIVE,
     VIR_DOMAIN_DISK_IO_THREADS,
+    VIR_DOMAIN_DISK_IO_URING,
 
     VIR_DOMAIN_DISK_IO_LAST
 } virDomainDiskIo;
@@ -578,6 +579,9 @@ struct _virDomainDiskDef {
     unsigned int queues;
     int model; /* enum virDomainDiskModel */
     virDomainVirtioOptionsPtr virtio;
+
+    bool diskElementAuth;
+    bool diskElementEnc;
 };
 
 
@@ -722,6 +726,7 @@ struct _virDomainPCIControllerOpts {
      * item in memory target config) -1 == unspecified
      */
     int numaNode;
+    virTristateSwitch hotplug; /* 'off' to prevent hotplug/unplug, default 'on' */
 };
 
 struct _virDomainUSBControllerOpts {
@@ -730,6 +735,7 @@ struct _virDomainUSBControllerOpts {
 
 struct _virDomainXenbusControllerOpts {
     int maxGrantFrames;   /* -1 == undef */
+    int maxEventChannels; /* -1 == undef */
 };
 
 /* Stores the virtual disk controller configuration */
@@ -796,6 +802,18 @@ typedef enum {
     VIR_DOMAIN_FS_WRPOLICY_LAST
 } virDomainFSWrpolicy;
 
+/* How to handle exports containing multiple devices. */
+typedef enum {
+    VIR_DOMAIN_FS_MULTIDEVS_DEFAULT = 0, /* Use QEMU's default setting */
+    VIR_DOMAIN_FS_MULTIDEVS_REMAP, /* Remap inodes from host to guest */
+    VIR_DOMAIN_FS_MULTIDEVS_FORBID, /* Prohibit more than one device */
+    VIR_DOMAIN_FS_MULTIDEVS_WARN, /* Just log a warning if multiple devices */
+
+    VIR_DOMAIN_FS_MULTIDEVS_LAST
+} virDomainFSMultidevs;
+
+VIR_ENUM_DECL(virDomainFSMultidevs);
+
 typedef enum {
     VIR_DOMAIN_FS_MODEL_DEFAULT = 0,
     VIR_DOMAIN_FS_MODEL_VIRTIO,
@@ -820,6 +838,7 @@ struct _virDomainFSDef {
     int wrpolicy; /* enum virDomainFSWrpolicy */
     int format; /* virStorageFileFormat */
     int model; /* virDomainFSModel */
+    int multidevs; /* virDomainFSMultidevs */
     unsigned long long usage; /* in bytes */
     virStorageSourcePtr src;
     char *dst;
@@ -1036,6 +1055,7 @@ struct _virDomainNetDef {
         unsigned long sndbuf;
     } tune;
     char *script;
+    char *downscript;
     char *domain_name; /* backend domain name */
     char *ifname; /* interface name on the host (<target dev='x'/>) */
     int managed_tap; /* enum virTristateBool - ABSENT == YES */
@@ -1799,6 +1819,10 @@ typedef enum {
     VIR_DOMAIN_FEATURE_NESTED_HV,
     VIR_DOMAIN_FEATURE_MSRS,
     VIR_DOMAIN_FEATURE_CCF_ASSIST,
+    VIR_DOMAIN_FEATURE_XEN,
+    VIR_DOMAIN_FEATURE_CFPC,
+    VIR_DOMAIN_FEATURE_SBBC,
+    VIR_DOMAIN_FEATURE_IBS,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -1843,6 +1867,21 @@ typedef enum {
 
     VIR_DOMAIN_MSRS_UNKNOWN_LAST
 } virDomainMsrsUnknown;
+
+typedef enum {
+    VIR_DOMAIN_XEN_E820_HOST = 0,
+    VIR_DOMAIN_XEN_PASSTHROUGH,
+
+    VIR_DOMAIN_XEN_LAST
+} virDomainXen;
+
+typedef enum {
+    VIR_DOMAIN_XEN_PASSTHROUGH_MODE_DEFAULT = 0,
+    VIR_DOMAIN_XEN_PASSTHROUGH_MODE_SYNC_PT,
+    VIR_DOMAIN_XEN_PASSTHROUGH_MODE_SHARE_PT,
+
+    VIR_DOMAIN_XEN_PASSTHROUGH_MODE_LAST
+} virDomainXenPassthroughMode;
 
 typedef enum {
     VIR_DOMAIN_CAPABILITIES_POLICY_DEFAULT = 0,
@@ -1954,6 +1993,41 @@ typedef enum {
 } virDomainHPTResizing;
 
 VIR_ENUM_DECL(virDomainHPTResizing);
+
+typedef enum {
+    VIR_DOMAIN_CFPC_NONE = 0,
+    VIR_DOMAIN_CFPC_BROKEN,
+    VIR_DOMAIN_CFPC_WORKAROUND,
+    VIR_DOMAIN_CFPC_FIXED,
+
+    VIR_DOMAIN_CFPC_LAST
+} virDomainCFPC;
+
+VIR_ENUM_DECL(virDomainCFPC);
+
+typedef enum {
+    VIR_DOMAIN_SBBC_NONE = 0,
+    VIR_DOMAIN_SBBC_BROKEN,
+    VIR_DOMAIN_SBBC_WORKAROUND,
+    VIR_DOMAIN_SBBC_FIXED,
+
+    VIR_DOMAIN_SBBC_LAST
+} virDomainSBBC;
+
+VIR_ENUM_DECL(virDomainSBBC);
+
+typedef enum {
+    VIR_DOMAIN_IBS_NONE = 0,
+    VIR_DOMAIN_IBS_BROKEN,
+    VIR_DOMAIN_IBS_WORKAROUND,
+    VIR_DOMAIN_IBS_FIXEDIBS,
+    VIR_DOMAIN_IBS_FIXEDCCD,
+    VIR_DOMAIN_IBS_FIXEDNA,
+
+    VIR_DOMAIN_IBS_LAST
+} virDomainIBS;
+
+VIR_ENUM_DECL(virDomainIBS);
 
 /* Operating system configuration data & machine / arch */
 struct _virDomainOSEnv {
@@ -2069,7 +2143,7 @@ struct _virDomainTimerDef {
     virDomainTimerCatchupDef catchup;
 
     /* track is only valid for name='platform|rtc' */
-    int track;  /* host|guest */
+    int track;  /* boot|guest|wall */
 
     /* frequency & mode are only valid for name='tsc' */
     unsigned long frequency; /* in Hz, unspecified = 0 */
@@ -2404,6 +2478,7 @@ struct _virDomainVsockDef {
 struct _virDomainVirtioOptions {
     virTristateSwitch iommu;
     virTristateSwitch ats;
+    virTristateSwitch packed;
 };
 
 /*
@@ -2468,6 +2543,8 @@ struct _virDomainDef {
     int hyperv_features[VIR_DOMAIN_HYPERV_LAST];
     int kvm_features[VIR_DOMAIN_KVM_LAST];
     int msrs_features[VIR_DOMAIN_MSRS_LAST];
+    int xen_features[VIR_DOMAIN_XEN_LAST];
+    int xen_passthrough_mode;
     unsigned int hyperv_spinlocks;
     int hyperv_stimer_direct;
     virGICVersion gic_version;
@@ -3160,7 +3237,8 @@ int virDomainDiskSourceFormat(virBufferPtr buf,
                               int policy,
                               bool attrIndex,
                               unsigned int flags,
-                              bool formatsecrets,
+                              bool skipAuth,
+                              bool skipEnc,
                               virDomainXMLOptionPtr xmlopt);
 
 int
@@ -3513,6 +3591,8 @@ VIR_ENUM_DECL(virDomainGraphicsSpiceMouseMode);
 VIR_ENUM_DECL(virDomainGraphicsVNCSharePolicy);
 VIR_ENUM_DECL(virDomainHyperv);
 VIR_ENUM_DECL(virDomainKVM);
+VIR_ENUM_DECL(virDomainXen);
+VIR_ENUM_DECL(virDomainXenPassthroughMode);
 VIR_ENUM_DECL(virDomainMsrsUnknown);
 VIR_ENUM_DECL(virDomainRNGModel);
 VIR_ENUM_DECL(virDomainRNGBackend);
@@ -3648,13 +3728,6 @@ virDomainGetBlkioParametersAssignFromDef(virDomainDefPtr def,
 
 int virDomainDiskSetBlockIOTune(virDomainDiskDefPtr disk,
                                 virDomainBlockIoTuneInfo *info);
-
-char *
-virDomainGenerateMachineName(const char *drivername,
-                             const char *root,
-                             int id,
-                             const char *name,
-                             bool privileged);
 
 bool
 virDomainNetTypeSharesHostView(const virDomainNetDef *net);

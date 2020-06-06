@@ -1222,17 +1222,15 @@ udevGetDeviceDetails(struct udev_device *device,
 
 
 static int
-udevRemoveOneDevice(struct udev_device *device)
+udevRemoveOneDeviceSysPath(const char *path)
 {
     virNodeDeviceObjPtr obj = NULL;
     virNodeDeviceDefPtr def;
     virObjectEventPtr event = NULL;
-    const char *name = NULL;
 
-    name = udev_device_get_syspath(device);
-    if (!(obj = virNodeDeviceObjListFindBySysfsPath(driver->devs, name))) {
-        VIR_DEBUG("Failed to find device to remove that has udev name '%s'",
-                  name);
+    if (!(obj = virNodeDeviceObjListFindBySysfsPath(driver->devs, path))) {
+        VIR_DEBUG("Failed to find device to remove that has udev path '%s'",
+                  path);
         return -1;
     }
     def = virNodeDeviceObjGetDef(obj);
@@ -1242,12 +1240,21 @@ udevRemoveOneDevice(struct udev_device *device)
                                            0);
 
     VIR_DEBUG("Removing device '%s' with sysfs path '%s'",
-              def->name, name);
+              def->name, path);
     virNodeDeviceObjListRemove(driver->devs, obj);
-    virObjectUnref(obj);
+    virNodeDeviceObjEndAPI(&obj);
 
     virObjectEventStateQueue(driver->nodeDeviceEventState, event);
     return 0;
+}
+
+
+static int
+udevRemoveOneDevice(struct udev_device *device)
+{
+    const char *path = udev_device_get_syspath(device);
+
+    return udevRemoveOneDeviceSysPath(path);
 }
 
 
@@ -1498,6 +1505,18 @@ udevHandleOneDevice(struct udev_device *device)
 
     if (STREQ(action, "remove"))
         return udevRemoveOneDevice(device);
+
+    if (STREQ(action, "move")) {
+        const char *devpath_old = udevGetDeviceProperty(device, "DEVPATH_OLD");
+
+        if (devpath_old) {
+            g_autofree char *devpath_old_fixed = g_strdup_printf("/sys%s", devpath_old);
+
+            udevRemoveOneDeviceSysPath(devpath_old_fixed);
+        }
+
+        return udevAddOneDevice(device);
+    }
 
     return 0;
 }
@@ -1860,7 +1879,7 @@ nodeStateInitialize(bool privileged,
 
     virObjectLock(priv);
 
-    priv->udev_monitor = udev_monitor_new_from_netlink(udev, "udev");
+    priv->udev_monitor = udev_monitor_new_from_netlink(udev, "kernel");
     if (!priv->udev_monitor) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("udev_monitor_new_from_netlink returned NULL"));

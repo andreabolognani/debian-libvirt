@@ -47,6 +47,7 @@
       <feature policy='require' name='pdpe1gb'/>
       <feature policy='require' name='invtsc'/>
       <feature policy='require' name='skip-l1dfl-vmentry'/>
+      <feature policy='require' name='pschange-mc-no'/>
     </mode>
     <mode name='custom' supported='yes'>
       <model usable='yes'>qemu64</model>
@@ -92,6 +93,7 @@
       <model usable='no'>EPYC-IBPB</model>
       <model usable='no'>EPYC</model>
       <model usable='no'>Dhyana</model>
+      <model usable='no'>Cooperlake</model>
       <model usable='yes'>Conroe</model>
       <model usable='no'>Cascadelake-Server-noTSX</model>
       <model usable='no'>Cascadelake-Server</model>

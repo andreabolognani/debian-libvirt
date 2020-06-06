@@ -643,8 +643,8 @@ ACLOCAL_AMFLAGS = -I m4
 EXTRA_DIST = config-post.h libvirt.spec libvirt.spec.in \
 	mingw-libvirt.spec.in libvirt.pc.in libvirt-qemu.pc.in \
 	libvirt-lxc.pc.in libvirt-admin.pc.in Makefile.nonreentrant \
-	autogen.sh GNUmakefile run.in README.md AUTHORS.in \
-	scripts/apibuild.py scripts/augeas-gentest.py \
+	autogen.sh GNUmakefile run.in README.rst AUTHORS.in \
+	CONTRIBUTING.rst scripts/apibuild.py scripts/augeas-gentest.py \
 	build-aux/check-spacing.pl scripts/check-aclperms.py \
 	scripts/check-aclrules.py scripts/check-drivername.py \
 	scripts/check-driverimpls.py scripts/check-file-access.py \

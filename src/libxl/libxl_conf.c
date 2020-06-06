@@ -158,6 +158,27 @@ libxlMakeDomCreateInfo(libxl_ctx *ctx,
         c_info->type = LIBXL_DOMAIN_TYPE_PV;
     }
 
+#ifdef LIBXL_HAVE_CREATEINFO_PASSTHROUGH
+    if (def->features[VIR_DOMAIN_FEATURE_XEN] == VIR_TRISTATE_SWITCH_ON) {
+        switch ((virTristateSwitch) def->xen_features[VIR_DOMAIN_XEN_PASSTHROUGH]) {
+        case VIR_TRISTATE_SWITCH_ON:
+            if (def->xen_passthrough_mode == VIR_DOMAIN_XEN_PASSTHROUGH_MODE_SYNC_PT)
+                c_info->passthrough = LIBXL_PASSTHROUGH_SYNC_PT;
+            else if (def->xen_passthrough_mode == VIR_DOMAIN_XEN_PASSTHROUGH_MODE_SHARE_PT)
+                c_info->passthrough = LIBXL_PASSTHROUGH_SHARE_PT;
+            else
+                c_info->passthrough = LIBXL_PASSTHROUGH_ENABLED;
+            break;
+        case VIR_TRISTATE_SWITCH_OFF:
+            c_info->passthrough = LIBXL_PASSTHROUGH_DISABLED;
+            break;
+        case VIR_TRISTATE_SWITCH_ABSENT:
+        case VIR_TRISTATE_SWITCH_LAST:
+            break;
+        }
+    }
+#endif
+
     c_info->name = g_strdup(def->name);
 
     if (def->nseclabels &&
@@ -380,13 +401,17 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
     b_info->max_memkb = virDomainDefGetMemoryInitial(def);
     b_info->target_memkb = def->mem.cur_balloon;
 
-#ifdef LIBXL_HAVE_BUILDINFO_GRANT_LIMITS
     for (i = 0; i < def->ncontrollers; i++) {
-        if (def->controllers[i]->type == VIR_DOMAIN_CONTROLLER_TYPE_XENBUS &&
-            def->controllers[i]->opts.xenbusopts.maxGrantFrames > 0)
-            b_info->max_grant_frames = def->controllers[i]->opts.xenbusopts.maxGrantFrames;
-    }
+        if (def->controllers[i]->type == VIR_DOMAIN_CONTROLLER_TYPE_XENBUS) {
+            if (def->controllers[i]->opts.xenbusopts.maxEventChannels > 0)
+                b_info->event_channels = def->controllers[i]->opts.xenbusopts.maxEventChannels;
+
+#ifdef LIBXL_HAVE_BUILDINFO_GRANT_LIMITS
+            if (def->controllers[i]->opts.xenbusopts.maxGrantFrames > 0)
+                b_info->max_grant_frames = def->controllers[i]->opts.xenbusopts.maxGrantFrames;
 #endif
+        }
+    }
 
     if (hvm || pvh) {
         if (caps &&
@@ -688,6 +713,20 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
             b_info->u.pv.kernel = g_strdup(def->os.kernel);
         }
         b_info->u.pv.ramdisk = g_strdup(def->os.initrd);
+
+        if (def->features[VIR_DOMAIN_FEATURE_XEN] == VIR_TRISTATE_SWITCH_ON) {
+            switch ((virTristateSwitch) def->xen_features[VIR_DOMAIN_XEN_E820_HOST]) {
+                case VIR_TRISTATE_SWITCH_ON:
+                    libxl_defbool_set(&b_info->u.pv.e820_host, true);
+                    break;
+                case VIR_TRISTATE_SWITCH_OFF:
+                    libxl_defbool_set(&b_info->u.pv.e820_host, false);
+                    break;
+                case VIR_TRISTATE_SWITCH_ABSENT:
+                case VIR_TRISTATE_SWITCH_LAST:
+                    break;
+            }
+        }
     }
 
     /* only the 'xen' balloon device model is supported */
@@ -2365,6 +2404,7 @@ libxlMakeVideo(virDomainDefPtr def, libxl_domain_config *d_config)
         b_info->video_memkb = def->videos[0]->vram;
     } else {
         libxl_defbool_set(&b_info->u.hvm.nographic, 1);
+        b_info->u.hvm.vga.kind = LIBXL_VGA_INTERFACE_TYPE_NONE;
     }
 
     return 0;

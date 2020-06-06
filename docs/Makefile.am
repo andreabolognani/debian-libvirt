@@ -48,7 +48,7 @@ vpathhack:
 	do \
 	  test -e $$dir || ln -s $(srcdir)/$$dir $$dir ; \
 	done
-	@for file in $(css); \
+	@for file in $(assets); \
 	do \
 	  test -e $$file || ln -s $(srcdir)/$$file $$file ; \
 	done
@@ -58,7 +58,7 @@ clean-local:
 	do \
 	  rm -f $$dir ; \
 	done
-	for file in $(css); \
+	for file in $(assets); \
 	do \
 	  rm -f $$file ; \
 	done
@@ -104,12 +104,6 @@ apipng = \
 apirefdir = $(HTML_DIR)/html
 apiref_DATA = $(apihtml) $(apiadminhtml) $(apiqemuhtml) $(apilxchtml) $(apipng)
 
-css = \
-  generic.css \
-  libvirt.css \
-  mobile.css \
-  main.css
-
 javascript = \
   js/main.js \
   $(NULL)
@@ -118,7 +112,7 @@ javascriptdir = $(HTML_DIR)/js
 javascript_DATA = $(javascript)
 
 fonts = \
-  fonts/LICENSE.md \
+  fonts/LICENSE.rst \
   fonts/stylesheet.css \
   fonts/overpass-bold-italic.woff \
   fonts/overpass-bold.woff \
@@ -156,20 +150,32 @@ logofiles = \
 logofilesdir = $(HTML_DIR)/logos
 logofiles_DATA = $(logofiles)
 
-png = \
-  32favicon.png \
+assets = \
+  android-chrome-192x192.png \
+  android-chrome-256x256.png \
+  apple-touch-icon.png \
+  architecture.gif \
+  browserconfig.xml \
+  favicon.ico \
+  favicon-16x16.png \
+  favicon-32x32.png \
+  generic.css \
+  libvirt.css \
   libvirt-daemon-arch.png \
   libvirt-driver-arch.png \
   libvirt-object-model.png \
+  libvirt-virConnect-example.png \
+  main.css \
+  manifest.json \
   migration-managed-direct.png \
   migration-managed-p2p.png \
   migration-native.png \
   migration-tunnel.png \
-  migration-unmanaged-direct.png
-
-gif = \
-  architecture.gif \
-  node.gif
+  migration-unmanaged-direct.png \
+  mobile.css \
+  mstile-150x150.png \
+  node.gif \
+  $(NULL)
 
 internals_html_in = \
   $(patsubst $(srcdir)/%,%,$(wildcard $(srcdir)/internals/*.html.in))
@@ -326,7 +332,7 @@ dot_html = \
   $(dot_rst_html_in:%.html.in=%.html)
 
 htmldir = $(HTML_DIR)
-html_DATA = $(css) $(png) $(gif) $(dot_html)
+html_DATA = $(assets) $(dot_html)
 
 apidir = $(pkgdatadir)/api
 api_DATA = \
@@ -351,8 +357,8 @@ schema_DATA = $(wildcard $(srcdir)/schemas/*.rng)
 EXTRA_DIST= \
   site.xsl subsite.xsl newapi.xsl page.xsl \
   wrapstring.xsl \
-  $(dot_html_in) $(dot_rst) $(gif) $(apipng) \
-  $(fig) $(png) $(css) \
+  $(dot_html_in) $(dot_rst) $(apipng) \
+  $(fig) $(assets) \
   $(javascript) $(logofiles) \
   $(internals_html_in) $(internals_rst) $(fonts) \
   $(kbase_html_in) $(kbase_rst) \
@@ -429,6 +435,10 @@ manpages/%.html.in: manpages/%.rst
 %.html.tmp: %.html.in site.xsl subsite.xsl page.xsl \
 		$(acl_generated)
 	$(AM_V_GEN)name=`echo $@ | sed -e 's/.tmp//'`; \
+	  genhtmlin=`echo $@ | sed -e 's/.tmp/.in/'`; \
+	  rst=`echo $@ | sed -e 's/.html.tmp/.rst/'`; \
+	  src="$$genhtmlin"; \
+	  test -f "$$genhtmlin" && src="$$rst"; \
 	  dir=`dirname $@` ; \
 	  if test "$$dir" = "."; \
 	  then \
@@ -438,6 +448,7 @@ manpages/%.html.in: manpages/%.rst
 	    style=subsite.xsl; \
 	  fi; \
 	  $(XSLTPROC) --stringparam pagename $$name \
+	    --stringparam pagesrc $$src \
 	    --stringparam builddir '$(abs_top_builddir)' \
 	    --stringparam timestamp $(timestamp) --nonet \
 	    $(top_srcdir)/docs/$$style $< > $@ \

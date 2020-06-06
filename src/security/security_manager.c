@@ -451,7 +451,7 @@ virSecurityManagerRestoreImageLabel(virSecurityManagerPtr mgr,
  * If @dst is NULL then metadata is removed from @src and not
  * stored anywhere.
  *
- * If @pid is not -1 enther the @pid mount namespace (usually
+ * If @pid is not -1 enter the @pid mount namespace (usually
  * @pid refers to a domain) and perform the move from there. If
  * @pid is -1 then the move is performed from the caller's
  * namespace.
@@ -473,8 +473,7 @@ virSecurityManagerMoveImageMetadata(virSecurityManagerPtr mgr,
         return ret;
     }
 
-    virReportUnsupportedError();
-    return -1;
+    return 0;
 }
 
 
@@ -1069,6 +1068,35 @@ virSecurityManagerDomainSetPathLabel(virSecurityManagerPtr mgr,
         int ret;
         virObjectLock(mgr);
         ret = mgr->drv->domainSetPathLabel(mgr, vm, path, allowSubtree);
+        virObjectUnlock(mgr);
+        return ret;
+    }
+
+    return 0;
+}
+
+
+/**
+ * virSecurityManagerDomainSetPathLabelRO:
+ * @mgr: security manager object
+ * @vm: domain definition object
+ * @path: path to label
+ *
+ * This function relabels given @path for read only access, which
+ * is in contrast with virSecurityManagerDomainSetPathLabel() which
+ * gives read write access.
+ *
+ * Returns: 0 on success, -1 on error.
+ */
+int
+virSecurityManagerDomainSetPathLabelRO(virSecurityManagerPtr mgr,
+                                       virDomainDefPtr vm,
+                                       const char *path)
+{
+    if (mgr->drv->domainSetPathLabelRO) {
+        int ret;
+        virObjectLock(mgr);
+        ret = mgr->drv->domainSetPathLabelRO(mgr, vm, path);
         virObjectUnlock(mgr);
         return ret;
     }

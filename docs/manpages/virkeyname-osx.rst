@@ -1,6 +1,6 @@
 ..
    This file is auto-generated from keymaps.csv
-   Database checksum sha256(ef8f29f4e4294479e2789aa61e410c4b0464d4f0ad16bcc1526086a4f123bc10)
+   Database checksum sha256(942bc2adbb375bc5661d3c2bf3ac1ef4f45615ea3e9020a356c9fd83c135328f)
    To re-generate, run:
      keymap-gen --lang=rst --title=virkeyname-osx --subtitle=Key name values for osx name-docs keymaps.csv osx
 

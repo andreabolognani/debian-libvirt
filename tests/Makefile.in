@@ -694,6 +694,15 @@ libvirhostcpumock_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(LDFLAGS) -o $@
 @WITH_TESTS_FALSE@am_libvirhostcpumock_la_rpath =
 @WITH_TESTS_TRUE@am_libvirhostcpumock_la_rpath =
+libvirhostdevmock_la_DEPENDENCIES = $(MOCKLIBS_LIBS)
+am_libvirhostdevmock_la_OBJECTS = virhostdevmock.lo
+libvirhostdevmock_la_OBJECTS = $(am_libvirhostdevmock_la_OBJECTS)
+libvirhostdevmock_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(AM_CFLAGS) $(CFLAGS) $(libvirhostdevmock_la_LDFLAGS) \
+	$(LDFLAGS) -o $@
+@WITH_TESTS_FALSE@am_libvirhostdevmock_la_rpath =
+@WITH_TESTS_TRUE@am_libvirhostdevmock_la_rpath =
 libvirnetdaemonmock_la_DEPENDENCIES = $(MOCKLIBS_LIBS)
 am_libvirnetdaemonmock_la_OBJECTS = virnetdaemonmock.lo
 libvirnetdaemonmock_la_OBJECTS = $(am_libvirnetdaemonmock_la_OBJECTS)
@@ -1190,6 +1199,7 @@ am__qemuxml2argvtest_SOURCES_DIST = qemuxml2argvtest.c testutilsqemu.c \
 @WITH_QEMU_TRUE@	virfilewrapper.$(OBJEXT)
 qemuxml2argvtest_OBJECTS = $(am_qemuxml2argvtest_OBJECTS)
 @WITH_QEMU_TRUE@qemuxml2argvtest_DEPENDENCIES = libqemutestdriver.la \
+@WITH_QEMU_TRUE@	libqemumonitortestutils.la \
 @WITH_QEMU_TRUE@	$(am__DEPENDENCIES_2) $(am__DEPENDENCIES_1)
 am__qemuxml2xmltest_SOURCES_DIST = qemuxml2xmltest.c testutilsqemu.c \
 	testutilsqemu.h testutils.c testutils.h virfilewrapper.c \
@@ -1717,12 +1727,12 @@ am__depfiles_remade = ./$(DEPDIR)/bhyveargv2xmlmock.Plo \
 	./$(DEPDIR)/virfirewalltest-testutils.Po \
 	./$(DEPDIR)/virfirewalltest-virfirewalltest.Po \
 	./$(DEPDIR)/virhashtest.Po ./$(DEPDIR)/virhostcpumock.Plo \
-	./$(DEPDIR)/virhostcputest.Po ./$(DEPDIR)/virhostdevtest.Po \
-	./$(DEPDIR)/viridentitytest.Po ./$(DEPDIR)/viriscsitest.Po \
-	./$(DEPDIR)/virjsontest.Po ./$(DEPDIR)/virkeycodetest.Po \
-	./$(DEPDIR)/virkmodtest.Po ./$(DEPDIR)/virlockspacetest.Po \
-	./$(DEPDIR)/virlogtest.Po ./$(DEPDIR)/virmacmaptest.Po \
-	./$(DEPDIR)/virnetdaemonmock.Plo \
+	./$(DEPDIR)/virhostcputest.Po ./$(DEPDIR)/virhostdevmock.Plo \
+	./$(DEPDIR)/virhostdevtest.Po ./$(DEPDIR)/viridentitytest.Po \
+	./$(DEPDIR)/viriscsitest.Po ./$(DEPDIR)/virjsontest.Po \
+	./$(DEPDIR)/virkeycodetest.Po ./$(DEPDIR)/virkmodtest.Po \
+	./$(DEPDIR)/virlockspacetest.Po ./$(DEPDIR)/virlogtest.Po \
+	./$(DEPDIR)/virmacmaptest.Po ./$(DEPDIR)/virnetdaemonmock.Plo \
 	./$(DEPDIR)/virnetdaemontest.Po \
 	./$(DEPDIR)/virnetdevbandwidthmock.Plo \
 	./$(DEPDIR)/virnetdevbandwidthtest.Po \
@@ -1791,6 +1801,7 @@ SOURCES = $(libbhyveargv2xmlmock_la_SOURCES) \
 	$(libvirdeterministichashmock_la_SOURCES) \
 	$(libvirfilecachemock_la_SOURCES) $(libvirfilemock_la_SOURCES) \
 	$(libvirhostcpumock_la_SOURCES) \
+	$(libvirhostdevmock_la_SOURCES) \
 	$(libvirnetdaemonmock_la_SOURCES) \
 	$(libvirnetdevbandwidthmock_la_SOURCES) \
 	$(libvirnetdevmock_la_SOURCES) \
@@ -1891,6 +1902,7 @@ DIST_SOURCES = $(am__libbhyveargv2xmlmock_la_SOURCES_DIST) \
 	$(libvirfilecachemock_la_SOURCES) \
 	$(am__libvirfilemock_la_SOURCES_DIST) \
 	$(libvirhostcpumock_la_SOURCES) \
+	$(libvirhostdevmock_la_SOURCES) \
 	$(libvirnetdaemonmock_la_SOURCES) \
 	$(am__libvirnetdevbandwidthmock_la_SOURCES_DIST) \
 	$(libvirnetdevmock_la_SOURCES) \
@@ -2643,12 +2655,13 @@ test_programs = virshtest sockettest virhostcputest virbuftest \
 	objecteventtest $(am__append_74)
 test_libraries = libshunload.la libvirportallocatormock.la \
 	libvirnetdaemonmock.la libvirnetserverclientmock.la \
-	libvircgroupmock.la libvirpcimock.la libvirnetdevmock.la \
-	libvirrandommock.la libvirprocessmock.la libvirhostcpumock.la \
-	libdomaincapsmock.la libvirfilecachemock.la \
-	libqemuhotplugmock.la $(NULL) $(am__append_5) $(am__append_8) \
-	$(am__append_13) $(am__append_16) $(am__append_24) \
-	$(am__append_34) libvirdeterministichashmock.la
+	libvircgroupmock.la libvirhostdevmock.la libvirpcimock.la \
+	libvirnetdevmock.la libvirrandommock.la libvirprocessmock.la \
+	libvirhostcpumock.la libdomaincapsmock.la \
+	libvirfilecachemock.la libqemuhotplugmock.la $(NULL) \
+	$(am__append_5) $(am__append_8) $(am__append_13) \
+	$(am__append_16) $(am__append_24) $(am__append_34) \
+	libvirdeterministichashmock.la
 
 # This is a fake SSH we use from virnetsockettest
 ssh_SOURCES = ssh.c
@@ -2761,7 +2774,7 @@ QEMUMONITORTESTUTILS_SOURCES = \
 @WITH_QEMU_TRUE@	virfilewrapper.c virfilewrapper.h \
 @WITH_QEMU_TRUE@	$(NULL)
 
-@WITH_QEMU_TRUE@qemuxml2argvtest_LDADD = libqemutestdriver.la \
+@WITH_QEMU_TRUE@qemuxml2argvtest_LDADD = libqemutestdriver.la libqemumonitortestutils.la \
 @WITH_QEMU_TRUE@	$(LDADDS) $(LIBXML_LIBS)
 
 @WITH_QEMU_TRUE@libqemuxml2argvmock_la_SOURCES = \
@@ -3307,6 +3320,12 @@ libvirfilecachemock_la_SOURCES = \
 
 libvirfilecachemock_la_LDFLAGS = $(MOCKLIBS_LDFLAGS)
 libvirfilecachemock_la_LIBADD = $(MOCKLIBS_LIBS)
+libvirhostdevmock_la_SOURCES = \
+	virhostdevmock.c \
+	$(NULL)
+
+libvirhostdevmock_la_LDFLAGS = $(MOCKLIBS_LDFLAGS)
+libvirhostdevmock_la_LIBADD = $(MOCKLIBS_LIBS)
 @WITH_LINUX_TRUE@vircaps2xmltest_SOURCES = \
 @WITH_LINUX_TRUE@	vircaps2xmltest.c testutils.h testutils.c virfilewrapper.h virfilewrapper.c
 
@@ -3701,6 +3720,9 @@ libvirfilemock.la: $(libvirfilemock_la_OBJECTS) $(libvirfilemock_la_DEPENDENCIES
 
 libvirhostcpumock.la: $(libvirhostcpumock_la_OBJECTS) $(libvirhostcpumock_la_DEPENDENCIES) $(EXTRA_libvirhostcpumock_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(libvirhostcpumock_la_LINK) $(am_libvirhostcpumock_la_rpath) $(libvirhostcpumock_la_OBJECTS) $(libvirhostcpumock_la_LIBADD) $(LIBS)
+
+libvirhostdevmock.la: $(libvirhostdevmock_la_OBJECTS) $(libvirhostdevmock_la_DEPENDENCIES) $(EXTRA_libvirhostdevmock_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(libvirhostdevmock_la_LINK) $(am_libvirhostdevmock_la_rpath) $(libvirhostdevmock_la_OBJECTS) $(libvirhostdevmock_la_LIBADD) $(LIBS)
 
 libvirnetdaemonmock.la: $(libvirnetdaemonmock_la_OBJECTS) $(libvirnetdaemonmock_la_DEPENDENCIES) $(EXTRA_libvirnetdaemonmock_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(libvirnetdaemonmock_la_LINK) $(am_libvirnetdaemonmock_la_rpath) $(libvirnetdaemonmock_la_OBJECTS) $(libvirnetdaemonmock_la_LIBADD) $(LIBS)
@@ -4374,6 +4396,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/virhashtest.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/virhostcpumock.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/virhostcputest.Po@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/virhostdevmock.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/virhostdevtest.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/viridentitytest.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/viriscsitest.Po@am__quote@ # am--include-marker
@@ -6140,6 +6163,7 @@ distclean: distclean-am
 	-rm -f ./$(DEPDIR)/virhashtest.Po
 	-rm -f ./$(DEPDIR)/virhostcpumock.Plo
 	-rm -f ./$(DEPDIR)/virhostcputest.Po
+	-rm -f ./$(DEPDIR)/virhostdevmock.Plo
 	-rm -f ./$(DEPDIR)/virhostdevtest.Po
 	-rm -f ./$(DEPDIR)/viridentitytest.Po
 	-rm -f ./$(DEPDIR)/viriscsitest.Po
@@ -6359,6 +6383,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f ./$(DEPDIR)/virhashtest.Po
 	-rm -f ./$(DEPDIR)/virhostcpumock.Plo
 	-rm -f ./$(DEPDIR)/virhostcputest.Po
+	-rm -f ./$(DEPDIR)/virhostdevmock.Plo
 	-rm -f ./$(DEPDIR)/virhostdevtest.Po
 	-rm -f ./$(DEPDIR)/viridentitytest.Po
 	-rm -f ./$(DEPDIR)/viriscsitest.Po

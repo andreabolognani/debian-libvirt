@@ -43,8 +43,9 @@ EXTRA_DIST = \
   autogen.sh \
   GNUmakefile \
   run.in \
-  README.md \
+  README.rst \
   AUTHORS.in \
+  CONTRIBUTING.rst \
   scripts/apibuild.py \
   scripts/augeas-gentest.py \
   build-aux/check-spacing.pl \

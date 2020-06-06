@@ -40,6 +40,7 @@
 #include "virxml.h"
 #include "virlog.h"
 #include "cpu/cpu.h"
+#include "domain_driver.h"
 #include "domain_nwfilter.h"
 #include "virfile.h"
 #include "virsocket.h"
@@ -115,7 +116,6 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged,
 
     if (root) {
         cfg->uri = g_strdup_printf("qemu:///embed?root=%s", root);
-        cfg->root = g_strdup(root);
     } else {
         cfg->uri = g_strdup(privileged ? "qemu:///system" : "qemu:///session");
     }
@@ -302,7 +302,6 @@ static void virQEMUDriverConfigDispose(void *obj)
 
     virStringListFree(cfg->cgroupDeviceACL);
     VIR_FREE(cfg->uri);
-    VIR_FREE(cfg->root);
 
     VIR_FREE(cfg->configBaseDir);
     VIR_FREE(cfg->configDir);
@@ -970,7 +969,18 @@ static int
 virQEMUDriverConfigLoadMemoryEntry(virQEMUDriverConfigPtr cfg,
                                    virConfPtr conf)
 {
-    return virConfGetValueString(conf, "memory_backing_dir", &cfg->memoryBackingDir);
+    g_autofree char *dir = NULL;
+    int rc;
+
+    if ((rc = virConfGetValueString(conf, "memory_backing_dir", &dir)) < 0) {
+        return -1;
+    } else if (rc > 0) {
+        VIR_FREE(cfg->memoryBackingDir);
+        cfg->memoryBackingDir = g_strdup_printf("%s/libvirt/qemu", dir);
+        return 0;
+    }
+
+    return 0;
 }
 
 
@@ -1224,12 +1234,6 @@ virQEMUDriverConfigPtr virQEMUDriverGetConfig(virQEMUDriverPtr driver)
     return conf;
 }
 
-bool
-virQEMUDriverIsPrivileged(virQEMUDriverPtr driver)
-{
-    return driver->privileged;
-}
-
 virDomainXMLOptionPtr
 virQEMUDriverCreateXMLConf(virQEMUDriverPtr driver,
                            const char *defsecmodel)
@@ -1425,7 +1429,6 @@ char *
 qemuGetSharedDeviceKey(const char *device_path)
 {
     int maj, min;
-    char *key = NULL;
     int rc;
 
     if ((rc = virGetDeviceID(device_path, &maj, &min)) < 0) {
@@ -1435,9 +1438,7 @@ qemuGetSharedDeviceKey(const char *device_path)
         return NULL;
     }
 
-    key = g_strdup_printf("%d:%d", maj, min);
-
-    return key;
+    return g_strdup_printf("%d:%d", maj, min);
 }
 
 /*
@@ -1702,7 +1703,6 @@ qemuGetHostdevPath(virDomainHostdevDefPtr hostdev)
     virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
     virDomainHostdevSubsysSCSIHostPtr scsihostsrc = &scsisrc->u.host;
     g_autofree char *dev_name = NULL;
-    char *dev_path = NULL;
 
     if (!(dev_name = virSCSIDeviceGetDevName(NULL,
                                              scsihostsrc->adapter,
@@ -1711,8 +1711,7 @@ qemuGetHostdevPath(virDomainHostdevDefPtr hostdev)
                                              scsihostsrc->unit)))
         return NULL;
 
-    dev_path = g_strdup_printf("/dev/%s", dev_name);
-    return dev_path;
+    return g_strdup_printf("/dev/%s", dev_name);
 }
 
 
@@ -1884,21 +1883,29 @@ qemuTranslateSnapshotDiskSourcePool(virDomainSnapshotDiskDefPtr def)
 }
 
 char *
-qemuGetBaseHugepagePath(virHugeTLBFSPtr hugepage)
+qemuGetBaseHugepagePath(virQEMUDriverPtr driver,
+                        virHugeTLBFSPtr hugepage)
 {
+    const char *root = driver->embeddedRoot;
     char *ret;
 
-    ret = g_strdup_printf("%s/libvirt/qemu", hugepage->mnt_dir);
+    if (root && !STRPREFIX(hugepage->mnt_dir, root)) {
+        g_autofree char * hash = virDomainDriverGenerateRootHash("qemu", root);
+        ret = g_strdup_printf("%s/libvirt/%s", hugepage->mnt_dir, hash);
+    } else {
+        ret = g_strdup_printf("%s/libvirt/qemu", hugepage->mnt_dir);
+    }
 
     return ret;
 }
 
 
 char *
-qemuGetDomainHugepagePath(const virDomainDef *def,
+qemuGetDomainHugepagePath(virQEMUDriverPtr driver,
+                          const virDomainDef *def,
                           virHugeTLBFSPtr hugepage)
 {
-    g_autofree char *base = qemuGetBaseHugepagePath(hugepage);
+    g_autofree char *base = qemuGetBaseHugepagePath(driver, hugepage);
     g_autofree char *domPath = virDomainDefGetShortName(def);
     char *ret = NULL;
 
@@ -1917,11 +1924,12 @@ qemuGetDomainHugepagePath(const virDomainDef *def,
  *        -1 otherwise.
  */
 int
-qemuGetDomainHupageMemPath(const virDomainDef *def,
-                           virQEMUDriverConfigPtr cfg,
+qemuGetDomainHupageMemPath(virQEMUDriverPtr driver,
+                           const virDomainDef *def,
                            unsigned long long pagesize,
                            char **memPath)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     size_t i = 0;
 
     if (!cfg->nhugetlbfs) {
@@ -1944,34 +1952,31 @@ qemuGetDomainHupageMemPath(const virDomainDef *def,
         return -1;
     }
 
-    if (!(*memPath = qemuGetDomainHugepagePath(def, &cfg->hugetlbfs[i])))
+    if (!(*memPath = qemuGetDomainHugepagePath(driver, def, &cfg->hugetlbfs[i])))
         return -1;
 
     return 0;
 }
 
 
-void
-qemuGetMemoryBackingBasePath(virQEMUDriverConfigPtr cfg,
-                             char **path)
-{
-    *path = g_strdup_printf("%s/libvirt/qemu", cfg->memoryBackingDir);
-}
-
-
 int
-qemuGetMemoryBackingDomainPath(const virDomainDef *def,
-                               virQEMUDriverConfigPtr cfg,
+qemuGetMemoryBackingDomainPath(virQEMUDriverPtr driver,
+                               const virDomainDef *def,
                                char **path)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    const char *root = driver->embeddedRoot;
     g_autofree char *shortName = NULL;
-    g_autofree char *base = NULL;
 
     if (!(shortName = virDomainDefGetShortName(def)))
         return -1;
 
-    qemuGetMemoryBackingBasePath(cfg, &base);
-    *path = g_strdup_printf("%s/%s", base, shortName);
+    if (root && !STRPREFIX(cfg->memoryBackingDir, root)) {
+        g_autofree char * hash = virDomainDriverGenerateRootHash("qemu", root);
+        *path = g_strdup_printf("%s/%s-%s", cfg->memoryBackingDir, hash, shortName);
+    } else {
+        *path = g_strdup_printf("%s/%s", cfg->memoryBackingDir, shortName);
+    }
 
     return 0;
 }
@@ -1979,8 +1984,8 @@ qemuGetMemoryBackingDomainPath(const virDomainDef *def,
 
 /**
  * qemuGetMemoryBackingPath:
+ * @driver: the qemu driver
  * @def: domain definition
- * @cfg: the driver config
  * @alias: memory object alias
  * @memPath: constructed path
  *
@@ -1990,8 +1995,8 @@ qemuGetMemoryBackingDomainPath(const virDomainDef *def,
  *          -1 otherwise (with error reported).
  */
 int
-qemuGetMemoryBackingPath(const virDomainDef *def,
-                         virQEMUDriverConfigPtr cfg,
+qemuGetMemoryBackingPath(virQEMUDriverPtr driver,
+                         const virDomainDef *def,
                          const char *alias,
                          char **memPath)
 {
@@ -2004,7 +2009,7 @@ qemuGetMemoryBackingPath(const virDomainDef *def,
         return -1;
     }
 
-    if (qemuGetMemoryBackingDomainPath(def, cfg, &domainPath) < 0)
+    if (qemuGetMemoryBackingDomainPath(driver, def, &domainPath) < 0)
         return -1;
 
     *memPath = g_strdup_printf("%s/%s", domainPath, alias);

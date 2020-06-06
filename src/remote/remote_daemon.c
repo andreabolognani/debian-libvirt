@@ -770,7 +770,7 @@ int main(int argc, char **argv) {
     char *sock_file = NULL;
     char *sock_file_ro = NULL;
     char *sock_file_adm = NULL;
-    int timeout = -1;        /* -t: Shutdown timeout */
+    int timeout = 0;         /* -t: Shutdown timeout */
     int verbose = 0;
     int godaemon = 0;
 #ifdef WITH_IP
@@ -781,7 +781,7 @@ int main(int argc, char **argv) {
 # endif /* ! LIBVIRTD */
 #endif /* ! WITH_IP */
     struct daemonConfig *config;
-    bool privileged = geteuid() == 0 ? true : false;
+    bool privileged = geteuid() == 0;
     bool implicit_conf = false;
     char *run_dir = NULL;
     mode_t old_umask;
@@ -844,7 +844,7 @@ int main(int argc, char **argv) {
 
         case 't':
             if (virStrToLong_i(optarg, &tmp, 10, &timeout) != 0
-                || timeout <= 0
+                || timeout < 0
                 /* Ensure that we can multiply by 1000 without overflowing.  */
                 || timeout > INT_MAX / 1000) {
                 VIR_ERROR(_("Invalid value for timeout"));
@@ -1107,7 +1107,7 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    if (timeout != -1) {
+    if (timeout > 0) {
         VIR_DEBUG("Registering shutdown timeout %d", timeout);
         virNetDaemonAutoShutdown(dmn, timeout);
     }
