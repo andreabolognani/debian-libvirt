@@ -54,6 +54,7 @@
 #include "virstoragefile.h"
 #include "virstring.h"
 #include "virtime.h"
+#include "virqemu.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -713,7 +714,7 @@ qemuDomainAttachDiskGeneric(virQEMUDriverPtr driver,
                                                                       priv->qemuCaps)))
             goto cleanup;
     } else {
-        if (!(data = qemuBuildStorageSourceChainAttachPrepareDrive(disk, vm->def,
+        if (!(data = qemuBuildStorageSourceChainAttachPrepareDrive(disk,
                                                                    priv->qemuCaps)))
             goto cleanup;
     }
@@ -1072,7 +1073,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriverPtr driver,
     case VIR_DOMAIN_DISK_BUS_SD:
         /* Note that SD card hotplug support should be added only once
          * they support '-device' (don't require -drive only).
-         * See also: qemuDiskBusNeedsDriveArg */
+         * See also: qemuDiskBusIsSD */
     case VIR_DOMAIN_DISK_BUS_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("disk bus '%s' cannot be hotplugged."),
@@ -1157,7 +1158,7 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
     size_t vhostfdSize = 0;
     size_t queueSize = 0;
     g_autofree char *nicstr = NULL;
-    g_autofree char *netstr = NULL;
+    g_autoptr(virJSONValue) netprops = NULL;
     int ret = -1;
     bool releaseaddr = false;
     bool iface_connected = false;
@@ -1382,10 +1383,10 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
     for (i = 0; i < vhostfdSize; i++)
         vhostfdName[i] = g_strdup_printf("vhostfd-%s%zu", net->info.alias, i);
 
-    if (!(netstr = qemuBuildHostNetStr(net,
-                                       tapfdName, tapfdSize,
-                                       vhostfdName, vhostfdSize,
-                                       slirpfdName)))
+    if (!(netprops = qemuBuildHostNetStr(net,
+                                         tapfdName, tapfdSize,
+                                         vhostfdName, vhostfdSize,
+                                         slirpfdName)))
         goto cleanup;
 
     qemuDomainObjEnterMonitor(driver, vm);
@@ -1399,7 +1400,7 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
         charDevPlugged = true;
     }
 
-    if (qemuMonitorAddNetdev(priv->mon, netstr,
+    if (qemuMonitorAddNetdev(priv->mon, &netprops,
                              tapfd, tapfdName, tapfdSize,
                              vhostfd, vhostfdName, vhostfdSize,
                              slirpfd, slirpfdName) < 0) {
@@ -2108,6 +2109,7 @@ int qemuDomainAttachChrDevice(virQEMUDriverPtr driver,
     virErrorPtr orig_err;
     virDomainDefPtr vmdef = vm->def;
     g_autofree char *devstr = NULL;
+    g_autoptr(virJSONValue) netdevprops = NULL;
     virDomainChrSourceDefPtr dev = chr->source;
     g_autofree char *charAlias = NULL;
     bool chardevAttached = false;
@@ -2146,8 +2148,13 @@ int qemuDomainAttachChrDevice(virQEMUDriverPtr driver,
         goto cleanup;
     teardowncgroup = true;
 
-    if (qemuBuildChrDeviceStr(&devstr, vmdef, chr, priv->qemuCaps) < 0)
-        goto cleanup;
+    if (guestfwd) {
+        if (!(netdevprops = qemuBuildChannelGuestfwdNetdevProps(chr)))
+            goto cleanup;
+    } else {
+        if (qemuBuildChrDeviceStr(&devstr, vmdef, chr, priv->qemuCaps) < 0)
+            goto cleanup;
+    }
 
     if (!(charAlias = qemuAliasChardevFromDevAlias(chr->info.alias)))
         goto cleanup;
@@ -2166,11 +2173,13 @@ int qemuDomainAttachChrDevice(virQEMUDriverPtr driver,
         goto exit_monitor;
     chardevAttached = true;
 
-    if (guestfwd) {
-        if (qemuMonitorAddNetdev(priv->mon, devstr,
+    if (netdevprops) {
+        if (qemuMonitorAddNetdev(priv->mon, &netdevprops,
                                  NULL, NULL, 0, NULL, NULL, 0, -1, NULL) < 0)
             goto exit_monitor;
-    } else {
+    }
+
+    if (devstr) {
         if (qemuMonitorAddDevice(priv->mon, devstr) < 0)
             goto exit_monitor;
     }
@@ -4270,7 +4279,8 @@ qemuDomainRemoveDiskDevice(virQEMUDriverPtr driver,
               disk->info.alias, vm, vm->def->name);
 
 
-    if (blockdev) {
+    if (blockdev &&
+        !qemuDiskBusIsSD(disk->bus)) {
         corAlias = g_strdup(diskPriv->nodeCopyOnRead);
 
         if (diskPriv->blockjob) {
@@ -4662,6 +4672,9 @@ qemuDomainRemoveNetDevice(virQEMUDriverPtr driver,
             virDomainNetReleaseActualDevice(conn, vm->def, net);
         else
             VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
+    } else if (net->type == VIR_DOMAIN_NET_TYPE_ETHERNET) {
+        if (net->downscript)
+            virNetDevRunEthernetScript(net->ifname, net->downscript);
     }
     virDomainNetDefFree(net);
     return 0;
@@ -5122,7 +5135,7 @@ qemuDomainResetDeviceRemoval(virDomainObjPtr vm)
 }
 
 
-unsigned long long
+unsigned long long G_GNUC_NO_INLINE
 qemuDomainGetUnplugTimeout(virDomainObjPtr vm)
 {
     if (qemuDomainIsPSeries(vm->def))
@@ -5888,6 +5901,36 @@ qemuDomainDetachDeviceLive(virDomainObjPtr vm,
                        info->addr.pci.domain, info->addr.pci.bus,
                        info->addr.pci.slot, info->addr.pci.function);
         return -1;
+    }
+
+    if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+
+        virDomainControllerDefPtr controller;
+        int controllerIdx = virDomainControllerFind(vm->def,
+                                                    VIR_DOMAIN_CONTROLLER_TYPE_PCI,
+                                                    info->addr.pci.bus);
+        if (controllerIdx < 0) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("cannot hot unplug %s device with PCI guest address: "
+                             VIR_PCI_DEVICE_ADDRESS_FMT
+                             " - controller not found"),
+                           virDomainDeviceTypeToString(detach.type),
+                           info->addr.pci.domain, info->addr.pci.bus,
+                           info->addr.pci.slot, info->addr.pci.function);
+            return -1;
+        }
+
+        controller = vm->def->controllers[controllerIdx];
+        if (controller->opts.pciopts.hotplug == VIR_TRISTATE_SWITCH_OFF) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("cannot hot unplug %s device with PCI guest address: "
+                             VIR_PCI_DEVICE_ADDRESS_FMT
+                             " - not allowed by controller"),
+                           virDomainDeviceTypeToString(detach.type),
+                           info->addr.pci.domain, info->addr.pci.bus,
+                           info->addr.pci.slot, info->addr.pci.function);
+            return -1;
+        }
     }
 
     /*

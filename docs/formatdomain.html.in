@@ -808,6 +808,12 @@
       <dd>
          The optional <code>cputune</code> element provides details
          regarding the CPU tunable parameters for the domain.
+         Note: for the qemu driver, the optional <code>vcpupin</code>
+         and <code>emulatorpin</code> pinning settings are honored after
+         the emulator is launched and NUMA constraints considered. This
+         means that it is expected that other physical CPUs of the host
+         will be used during this time by the domain, which will be
+         reflected by the output of <code>virsh cpu-stats</code>.
          <span class="since">Since 0.9.0</span>
       </dd>
       <dt><code>vcpupin</code></dt>
@@ -1675,9 +1681,9 @@
       <dd>The <code>topology</code> element specifies requested topology of
         virtual CPU provided to the guest. Four attributes, <code>sockets</code>,
         <code>dies</code>, <code>cores</code>, and <code>threads</code>,
-        accept non-zero positive integer values. They refer to the total number
-        of CPU sockets, number of dies per socket, number of cores per die, and
-        number of threads per core, respectively. The <code>dies</code>
+        accept non-zero positive integer values. They refer to the number of
+        CPU sockets per NUMA node, number of dies per socket, number of cores
+        per die, and number of threads per core, respectively. The <code>dies</code>
         attribute is optional and will default to 1 if omitted, while the other
         attributes are all mandatory. Hypervisors may require that the maximum
         number of vCPUs specified by the <code>cpus</code> element equals to
@@ -2055,6 +2061,10 @@
     &lt;hidden state='on'/&gt;
     &lt;hint-dedicated state='on'/&gt;
   &lt;/kvm&gt;
+  &lt;xen&gt;
+    &lt;e820_host state='on'/&gt;
+    &lt;passthrough state='on' mode='share_pt'/&gt;
+  &lt;/xen&gt;
   &lt;pvspinlock state='on'/&gt;
   &lt;gic version='2'/&gt;
   &lt;ioapic driver='qemu'/&gt;
@@ -2068,6 +2078,9 @@
   &lt;htm state='on'/&gt;
   &lt;ccf-assist state='on'/&gt;
   &lt;msrs unknown='ignore'/&gt;
+  &lt;cfpc value='workaround'/&gt;
+  &lt;sbbc value='workaround'/&gt;
+  &lt;ibs value='fixed-na'/&gt;
 &lt;/features&gt;
 ...</pre>
 
@@ -2236,6 +2249,29 @@
         </tr>
       </table>
       </dd>
+      <dt><code>xen</code></dt>
+      <dd>Various features to change the behavior of the Xen hypervisor.
+      <table class="top_table">
+        <tr>
+          <th>Feature</th>
+          <th>Description</th>
+          <th>Value</th>
+          <th>Since</th>
+        </tr>
+        <tr>
+          <td>e820_host</td>
+          <td>Expose the host e820 to the guest (PV only)</td>
+          <td>on, off</td>
+          <td><span class="since">6.3.0</span></td>
+        </tr>
+        <tr>
+          <td>passthrough</td>
+          <td>Enable IOMMU mappings allowing PCI passthrough</td>
+          <td>on, off; mode - optional string sync_pt or share_pt</td>
+          <td><span class="since">6.3.0</span></td>
+        </tr>
+      </table>
+      </dd>
       <dt><code>pmu</code></dt>
       <dd>Depending on the <code>state</code> attribute (values <code>on</code>,
         <code>off</code>, default <code>on</code>) enable or disable the
@@ -2373,6 +2409,39 @@
           defined, the hypervisor default will be used.
           <span class="since">Since 5.9.0</span> (QEMU/KVM only)
       </dd>
+      <dt><code>cfpc</code></dt>
+      <dd>Configure cfpc (Cache Flush on Privilege Change) availability for
+          pSeries guests.
+          Possible values for the <code>value</code> attribute
+          are <code>broken</code> (no protection), <code>workaround</code>
+          (software workaround available) and <code>fixed</code> (fixed in
+          hardware). If the attribute is not defined, the hypervisor
+          default will be used.
+          <span class="since">Since 6.3.0</span> (QEMU/KVM only)
+      </dd>
+      <dt><code>sbbc</code></dt>
+      <dd>Configure sbbc (Speculation Barrier Bounds Checking) availability for
+          pSeries guests.
+          Possible values for the <code>value</code> attribute
+          are <code>broken</code> (no protection), <code>workaround</code>
+          (software workaround available) and <code>fixed</code> (fixed in
+          hardware). If the attribute is not defined, the hypervisor
+          default will be used.
+          <span class="since">Since 6.3.0</span> (QEMU/KVM only)
+      </dd>
+      <dt><code>ibs</code></dt>
+      <dd>Configure ibs (Indirect Branch Speculation) availability for
+          pSeries guests.
+          Possible values for the <code>value</code> attribute
+          are <code>broken</code> (no protection), <code>workaround</code>
+          (count cache flush), <code>fixed-ibs</code> (fixed by
+          serializing indirect branches), <code>fixed-ccd</code> (fixed by
+          disabling the cache count) and <code>fixed-na (fixed in
+          hardware - no longer applicable)</code>.
+          If the attribute is not defined, the hypervisor
+          default will be used.
+          <span class="since">Since 6.3.0</span> (QEMU/KVM only)
+      </dd>
     </dl>
 
     <h3><a id="elementsTime">Time keeping</a></h3>
@@ -2464,8 +2533,8 @@
             The <code>name</code> attribute selects which timer is
             being modified, and can be one of
             "platform" (currently unsupported),
-            "hpet" (libxl, xen, qemu, lxc), "kvmclock" (qemu),
-            "pit" (qemu), "rtc" (qemu, lxc), "tsc" (libxl, qemu -
+            "hpet" (xen, qemu, lxc), "kvmclock" (qemu),
+            "pit" (qemu), "rtc" (qemu, lxc), "tsc" (xen, qemu -
             <span class="since">since 3.2.0</span>), "hypervclock"
             (qemu - <span class="since">since 1.2.2</span>) or
             "armvtimer" (qemu - <span class="since">since 6.1.0</span>).
@@ -3741,7 +3810,8 @@
           <li>
             The optional <code>io</code> attribute controls specific
             policies on I/O; qemu guests support "threads" and
-            "native". <span class="since">Since 0.8.8</span>
+            "native" <span class="since">Since 0.8.8</span>, io_uring
+            <span class="since">Since 6.3.0 (QEMU 5.0)</span>.
           </li>
           <li>
             The optional <code>ioeventfd</code> attribute allows users to
@@ -3973,7 +4043,7 @@
     &lt;source name='my-vm-template'/&gt;
     &lt;target dir='/'/&gt;
   &lt;/filesystem&gt;
-  &lt;filesystem type='mount' accessmode='passthrough'&gt;
+  &lt;filesystem type='mount' accessmode='passthrough' multidevs='remap'&gt;
     &lt;driver type='path' wrpolicy='immediate'/&gt;
     &lt;source dir='/export/to/guest'/&gt;
     &lt;target dir='/import/from/host'/&gt;
@@ -4097,6 +4167,44 @@
       See <a href="#elementsVirtioTransitional">Virtio transitional devices</a>
       for more details.
       </p>
+
+      <p>
+      The filesystem element has an optional attribute <code>multidevs</code>
+      which specifies how to deal with a filesystem export containing more than
+      one device, in order to avoid file ID collisions on guest when using 9pfs
+      (<span class="since">since 6.3.0, requires QEMU 4.2</span>).
+      This attribute is not available for virtiofs. The possible values are:
+      </p>
+
+        <dl>
+        <dt><code>default</code></dt>
+        <dd>
+        Use QEMU's default setting (which currently is <code>warn</code>).
+        </dd>
+        <dt><code>remap</code></dt>
+        <dd>
+        This setting allows guest to access multiple devices per export without
+        encountering misbehaviours. Inode numbers from host are automatically
+        remapped on guest to actively prevent file ID collisions if guest
+        accesses one export containing multiple devices.
+        </dd>
+        <dt><code>forbid</code></dt>
+        <dd>
+        Only allow to access one device per export by guest. Attempts to access
+        additional devices on the same export will cause the individual
+        filesystem access by guest to fail with an error and being logged (once)
+        as error on host side.
+        </dd>
+        <dt><code>warn</code></dt>
+        <dd>
+        This setting resembles the behaviour of 9pfs prior to QEMU 4.2, that is
+        no action is performed to prevent any potential file ID collisions if an
+        export contains multiple devices, with the only exception: a warning is
+        logged (once) on host side now. This setting may lead to misbehaviours
+        on guest side if more than one device is exported per export, due to the
+        potential file ID collisions this may cause on guest side in that case.
+        </dd>
+        </dl>
 
       </dd>
 
@@ -4242,7 +4350,11 @@
         element with no other attributes as an explicit request to
         assign a PCI address for the device rather than some other
         type of address that may also be appropriate for that same
-        device (e.g. virtio-mmio).
+        device (e.g. virtio-mmio).<br/>
+        The relationship between the PCI addresses configured in the domain
+        XML and those seen by the guest OS can sometime seem confusing: a
+        separate document describes <a href="pci-addresses.html">how PCI
+        addresses work</a> in more detail.
       </dd>
       <dt><code>drive</code></dt>
       <dd>Drive addresses have the following additional
@@ -4334,6 +4446,16 @@
       Possible values are <code>on</code> or <code>off</code>.
       <span class="since">Since 3.5.0</span>
     </p>
+    <p>
+      The attribute <code>packed</code> controls if QEMU should try to use
+      packed virtqueues. Compared to regular split queues, packed queues
+      consist of only a single descriptor ring replacing available and used
+      ring, index and descriptor buffer. This can result in better cache
+      utilization and performance. If packed virtqueues are actually used
+      depends on the feature negotiation between QEMU, vhost backends and guest
+      drivers. Possible values are <code>on</code> or <code>off</code>.
+      <span class="since">Since 6.3.0 (QEMU and KVM only)</span>
+    </p>
 
     <h4><a id="elementsVirtioTransitional">Virtio transitional devices</a></h4>
 
@@ -4416,7 +4538,7 @@
     &lt;driver iothread='4'/&gt;
     &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x0b' function='0x0'/&gt;
   &lt;/controller&gt;
-  &lt;controller type='xenbus' maxGrantFrames='64'/&gt;
+  &lt;controller type='xenbus' maxGrantFrames='64' maxEventChannels='2047'/&gt;
   ...
 &lt;/devices&gt;
 ...</pre>
@@ -4476,7 +4598,11 @@
         <dd><span class="since">Since 5.2.0</span>, the <code>xenbus</code>
         controller has an optional attribute <code>maxGrantFrames</code>,
         which specifies the maximum number of grant frames the controller
-        makes available for connected devices.</dd>
+        makes available for connected devices.
+        <span class="since">Since 6.3.0</span>, the xenbus controller
+        supports the optional <code>maxEventChannels</code> attribute,
+        which specifies maximum number of event channels (PV interrupts)
+        that can be used by the guest.</dd>
       </dl>
 
     <p>
@@ -4667,6 +4793,17 @@
         is used to set the controller's "port" configuration value,
         which is visible to the virtual machine. If set, port must be
         between 0 and 255.
+      </dd>
+      <dt><code>hotplug</code></dt>
+      <dd>
+        pcie-root-port and pcie-switch-downstream-port controllers can
+        also have a <code>hotplug</code> attribute in
+        the <code>&lt;target&gt;</code> subelement, which is used to
+        disable hotplug/unplug of devices on a particular
+        controller. The default setting of <code>hotplug</code>
+        is <code>on</code>; it should be set to <code>off</code> to
+        disable hotplug/unplug of devices on a particular controller.
+        <span class="since">Since 6.3.0</span>
       </dd>
       <dt><code>busNr</code></dt>
       <dd>
@@ -5742,8 +5879,13 @@
     <p>
       After creating/opening the tap device, an optional shell script
       (given in the <code>path</code> attribute of
-      the <code>&lt;script&gt;</code> element) will be run; this can
-      be used to do whatever extra host network integration is
+      the <code>&lt;script&gt;</code> element) will be run.
+      <span class="since">Since 0.2.1</span>
+      Also, after detaching/closing the tap device, an optional shell
+      script (given in the <code>path</code> attribute of
+      the <code>&lt;downscript&gt;</code> element) will be run.
+      <span class="since">Since 5.1.0</span>
+      These can be used to do whatever extra host network integration is
       required.
     </p>
 
@@ -5752,6 +5894,7 @@
 &lt;devices&gt;
   &lt;interface type='ethernet'&gt;
     &lt;script path='/etc/qemu-ifup-mynet'/&gt;
+    &lt;downscript path='/etc/qemu-ifdown-mynet'/&gt;
   &lt;/interface&gt;
   ...
   &lt;interface type='ethernet'&gt;
@@ -6902,7 +7045,7 @@ qemu-kvm -net nic,model=? /dev/null
   &lt;input type='keyboard' bus='virtio'/&gt;
   &lt;input type='tablet' bus='virtio'/&gt;
   &lt;input type='passthrough' bus='virtio'&gt;
-    &lt;source evdev='/dev/input/event1/&gt;
+    &lt;source evdev='/dev/input/event1'/&gt;
   &lt;/input&gt;
 &lt;/devices&gt;
 ...</pre>
@@ -7381,7 +7524,7 @@ qemu-kvm -net nic,model=? /dev/null
         <p>
           You can provide the amount of video memory in kibibytes (blocks of
           1024 bytes) using <code>vram</code>. This is supported only for guest
-          type of "libxl", "vz", "qemu", "vbox", "vmx" and "xen". If no
+          type of "vz", "qemu", "vbox", "vmx" and "xen". If no
           value is provided the default is used. If the size is not a power of
           two it will be rounded to closest one.
         </p>

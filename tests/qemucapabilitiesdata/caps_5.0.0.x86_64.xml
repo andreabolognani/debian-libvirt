@@ -227,10 +227,17 @@
   <flag name='query-named-block-nodes.flat'/>
   <flag name='blockdev-snapshot.allow-write-only-overlay'/>
   <flag name='storage.werror'/>
-  <version>4002050</version>
+  <flag name='fsdev.multidevs'/>
+  <flag name='virtio.packed'/>
+  <flag name='pcie-root-port.hotplug'/>
+  <flag name='aio.io_uring'/>
+  <flag name='tcg'/>
+  <flag name='virtio-blk-pci.scsi.default.disabled'/>
+  <flag name='pvscsi'/>
+  <version>5000000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>43100241</microcodeVersion>
-  <package>v4.2.0-2365-gd4f7d56759</package>
+  <package>v5.0.0</package>
   <arch>x86_64</arch>
   <hostCPU type='kvm' model='base' migratability='yes'>
     <property name='vmx-entry-load-rtit-ctl' type='boolean' value='false'/>
@@ -475,6 +482,7 @@
     <property name='kvm-pv-unhalt' type='boolean' value='true' migratable='yes'/>
     <property name='tsc-scale' type='boolean' value='false'/>
     <property name='topoext' type='boolean' value='false'/>
+    <property name='amd-stibp' type='boolean' value='false'/>
     <property name='vmx-preemption-timer' type='boolean' value='true' migratable='yes'/>
     <property name='clflushopt' type='boolean' value='true' migratable='yes'/>
     <property name='vmx-vnmi-pending' type='boolean' value='true' migratable='yes'/>
@@ -776,6 +784,33 @@
   <cpu type='kvm' name='IvyBridge-v1' typename='IvyBridge-v1-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='IvyBridge-IBRS' typename='IvyBridge-IBRS-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='IvyBridge' typename='IvyBridge-x86_64-cpu' usable='yes'/>
+  <cpu type='kvm' name='Icelake-Server-v3' typename='Icelake-Server-v3-x86_64-cpu' usable='no'>
+    <blocker name='avx512f'/>
+    <blocker name='avx512dq'/>
+    <blocker name='clwb'/>
+    <blocker name='avx512cd'/>
+    <blocker name='avx512bw'/>
+    <blocker name='avx512vl'/>
+    <blocker name='avx512vbmi'/>
+    <blocker name='pku'/>
+    <blocker name='avx512vbmi2'/>
+    <blocker name='gfni'/>
+    <blocker name='vaes'/>
+    <blocker name='vpclmulqdq'/>
+    <blocker name='avx512vnni'/>
+    <blocker name='avx512bitalg'/>
+    <blocker name='avx512-vpopcntdq'/>
+    <blocker name='la57'/>
+    <blocker name='wbnoinvd'/>
+    <blocker name='avx512f'/>
+    <blocker name='avx512f'/>
+    <blocker name='avx512f'/>
+    <blocker name='pku'/>
+    <blocker name='rdctl-no'/>
+    <blocker name='ibrs-all'/>
+    <blocker name='mds-no'/>
+    <blocker name='taa-no'/>
+  </cpu>
   <cpu type='kvm' name='Icelake-Server-v2' typename='Icelake-Server-v2-x86_64-cpu' usable='no'>
     <blocker name='avx512f'/>
     <blocker name='avx512dq'/>
@@ -928,6 +963,21 @@
   <cpu type='kvm' name='Haswell-noTSX' typename='Haswell-noTSX-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='Haswell-IBRS' typename='Haswell-IBRS-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='Haswell' typename='Haswell-x86_64-cpu' usable='yes'/>
+  <cpu type='kvm' name='EPYC-v3' typename='EPYC-v3-x86_64-cpu' usable='no'>
+    <blocker name='sha-ni'/>
+    <blocker name='mmxext'/>
+    <blocker name='fxsr-opt'/>
+    <blocker name='cr8legacy'/>
+    <blocker name='sse4a'/>
+    <blocker name='misalignsse'/>
+    <blocker name='osvw'/>
+    <blocker name='perfctr-core'/>
+    <blocker name='clzero'/>
+    <blocker name='xsaveerptr'/>
+    <blocker name='ibpb'/>
+    <blocker name='npt'/>
+    <blocker name='nrip-save'/>
+  </cpu>
   <cpu type='kvm' name='EPYC-v2' typename='EPYC-v2-x86_64-cpu' usable='no'>
     <blocker name='sha-ni'/>
     <blocker name='mmxext'/>
@@ -948,6 +998,44 @@
     <blocker name='sse4a'/>
     <blocker name='misalignsse'/>
     <blocker name='osvw'/>
+    <blocker name='npt'/>
+    <blocker name='nrip-save'/>
+  </cpu>
+  <cpu type='kvm' name='EPYC-Rome-v1' typename='EPYC-Rome-v1-x86_64-cpu' usable='no'>
+    <blocker name='clwb'/>
+    <blocker name='sha-ni'/>
+    <blocker name='rdpid'/>
+    <blocker name='mmxext'/>
+    <blocker name='fxsr-opt'/>
+    <blocker name='cr8legacy'/>
+    <blocker name='sse4a'/>
+    <blocker name='misalignsse'/>
+    <blocker name='osvw'/>
+    <blocker name='perfctr-core'/>
+    <blocker name='clzero'/>
+    <blocker name='xsaveerptr'/>
+    <blocker name='wbnoinvd'/>
+    <blocker name='ibpb'/>
+    <blocker name='amd-stibp'/>
+    <blocker name='npt'/>
+    <blocker name='nrip-save'/>
+  </cpu>
+  <cpu type='kvm' name='EPYC-Rome' typename='EPYC-Rome-x86_64-cpu' usable='no'>
+    <blocker name='clwb'/>
+    <blocker name='sha-ni'/>
+    <blocker name='rdpid'/>
+    <blocker name='mmxext'/>
+    <blocker name='fxsr-opt'/>
+    <blocker name='cr8legacy'/>
+    <blocker name='sse4a'/>
+    <blocker name='misalignsse'/>
+    <blocker name='osvw'/>
+    <blocker name='perfctr-core'/>
+    <blocker name='clzero'/>
+    <blocker name='xsaveerptr'/>
+    <blocker name='wbnoinvd'/>
+    <blocker name='ibpb'/>
+    <blocker name='amd-stibp'/>
     <blocker name='npt'/>
     <blocker name='nrip-save'/>
   </cpu>
@@ -995,6 +1083,10 @@
     <blocker name='ibpb'/>
     <blocker name='npt'/>
     <blocker name='nrip-save'/>
+  </cpu>
+  <cpu type='kvm' name='Denverton-v2' typename='Denverton-v2-x86_64-cpu' usable='no'>
+    <blocker name='sha-ni'/>
+    <blocker name='rdctl-no'/>
   </cpu>
   <cpu type='kvm' name='Denverton-v1' typename='Denverton-v1-x86_64-cpu' usable='no'>
     <blocker name='sha-ni'/>
@@ -1133,51 +1225,51 @@
   <cpu type='kvm' name='Broadwell' typename='Broadwell-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='486-v1' typename='486-v1-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='486' typename='486-x86_64-cpu' usable='yes'/>
-  <machine type='kvm' name='pc-i440fx-5.0' alias='pc' hotplugCpus='yes' maxCpus='255' default='yes' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.12' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-4.2' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-4.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-1.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.9' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.11' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-4.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-4.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.9' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='isapc' hotplugCpus='yes' maxCpus='1' defaultCPU='486-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-1.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-3.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.12' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-5.0' alias='q35' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.8' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.10' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-3.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-4.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
+  <machine type='kvm' name='pc-i440fx-5.0' alias='pc' hotplugCpus='yes' maxCpus='255' default='yes' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.12' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-4.2' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-4.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-1.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.9' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.11' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-4.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-4.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.9' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='isapc' hotplugCpus='yes' maxCpus='1' defaultCPU='486-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-1.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-3.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.12' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-5.0' alias='q35' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.8' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.10' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-3.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-4.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
   <machine type='kvm' name='microvm' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-4.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-2.8' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-i440fx-3.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='kvm' name='pc-q35-2.11' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
+  <machine type='kvm' name='pc-i440fx-2.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-4.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-2.8' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-i440fx-3.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-q35-2.11' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
   <hostCPU type='tcg' model='base' migratability='yes'>
     <property name='vmx-entry-load-rtit-ctl' type='boolean' value='false'/>
     <property name='cmov' type='boolean' value='true' migratable='yes'/>
@@ -1421,6 +1513,7 @@
     <property name='kvm-pv-unhalt' type='boolean' value='false'/>
     <property name='tsc-scale' type='boolean' value='false'/>
     <property name='topoext' type='boolean' value='false'/>
+    <property name='amd-stibp' type='boolean' value='false'/>
     <property name='vmx-preemption-timer' type='boolean' value='false'/>
     <property name='clflushopt' type='boolean' value='true' migratable='yes'/>
     <property name='vmx-vnmi-pending' type='boolean' value='false'/>
@@ -1916,6 +2009,43 @@
     <blocker name='avx'/>
     <blocker name='f16c'/>
   </cpu>
+  <cpu type='tcg' name='Icelake-Server-v3' typename='Icelake-Server-v3-x86_64-cpu' usable='no'>
+    <blocker name='fma'/>
+    <blocker name='pcid'/>
+    <blocker name='x2apic'/>
+    <blocker name='tsc-deadline'/>
+    <blocker name='avx'/>
+    <blocker name='f16c'/>
+    <blocker name='avx2'/>
+    <blocker name='invpcid'/>
+    <blocker name='avx512f'/>
+    <blocker name='avx512dq'/>
+    <blocker name='rdseed'/>
+    <blocker name='avx512cd'/>
+    <blocker name='avx512bw'/>
+    <blocker name='avx512vl'/>
+    <blocker name='avx512vbmi'/>
+    <blocker name='umip'/>
+    <blocker name='avx512vbmi2'/>
+    <blocker name='gfni'/>
+    <blocker name='vaes'/>
+    <blocker name='vpclmulqdq'/>
+    <blocker name='avx512vnni'/>
+    <blocker name='avx512bitalg'/>
+    <blocker name='avx512-vpopcntdq'/>
+    <blocker name='spec-ctrl'/>
+    <blocker name='arch-capabilities'/>
+    <blocker name='ssbd'/>
+    <blocker name='3dnowprefetch'/>
+    <blocker name='wbnoinvd'/>
+    <blocker name='xsavec'/>
+    <blocker name='rdctl-no'/>
+    <blocker name='ibrs-all'/>
+    <blocker name='skip-l1dfl-vmentry'/>
+    <blocker name='mds-no'/>
+    <blocker name='pschange-mc-no'/>
+    <blocker name='taa-no'/>
+  </cpu>
   <cpu type='tcg' name='Icelake-Server-v2' typename='Icelake-Server-v2-x86_64-cpu' usable='no'>
     <blocker name='fma'/>
     <blocker name='pcid'/>
@@ -2236,6 +2366,26 @@
     <blocker name='invpcid'/>
     <blocker name='rtm'/>
   </cpu>
+  <cpu type='tcg' name='EPYC-v3' typename='EPYC-v3-x86_64-cpu' usable='no'>
+    <blocker name='fma'/>
+    <blocker name='avx'/>
+    <blocker name='f16c'/>
+    <blocker name='avx2'/>
+    <blocker name='rdseed'/>
+    <blocker name='sha-ni'/>
+    <blocker name='fxsr-opt'/>
+    <blocker name='misalignsse'/>
+    <blocker name='3dnowprefetch'/>
+    <blocker name='osvw'/>
+    <blocker name='topoext'/>
+    <blocker name='perfctr-core'/>
+    <blocker name='clzero'/>
+    <blocker name='xsaveerptr'/>
+    <blocker name='ibpb'/>
+    <blocker name='nrip-save'/>
+    <blocker name='xsavec'/>
+    <blocker name='xsaves'/>
+  </cpu>
   <cpu type='tcg' name='EPYC-v2' typename='EPYC-v2-x86_64-cpu' usable='no'>
     <blocker name='fma'/>
     <blocker name='avx'/>
@@ -2266,6 +2416,54 @@
     <blocker name='topoext'/>
     <blocker name='nrip-save'/>
     <blocker name='xsavec'/>
+  </cpu>
+  <cpu type='tcg' name='EPYC-Rome-v1' typename='EPYC-Rome-v1-x86_64-cpu' usable='no'>
+    <blocker name='fma'/>
+    <blocker name='avx'/>
+    <blocker name='f16c'/>
+    <blocker name='avx2'/>
+    <blocker name='rdseed'/>
+    <blocker name='sha-ni'/>
+    <blocker name='umip'/>
+    <blocker name='rdpid'/>
+    <blocker name='fxsr-opt'/>
+    <blocker name='misalignsse'/>
+    <blocker name='3dnowprefetch'/>
+    <blocker name='osvw'/>
+    <blocker name='topoext'/>
+    <blocker name='perfctr-core'/>
+    <blocker name='clzero'/>
+    <blocker name='xsaveerptr'/>
+    <blocker name='wbnoinvd'/>
+    <blocker name='ibpb'/>
+    <blocker name='amd-stibp'/>
+    <blocker name='nrip-save'/>
+    <blocker name='xsavec'/>
+    <blocker name='xsaves'/>
+  </cpu>
+  <cpu type='tcg' name='EPYC-Rome' typename='EPYC-Rome-x86_64-cpu' usable='no'>
+    <blocker name='fma'/>
+    <blocker name='avx'/>
+    <blocker name='f16c'/>
+    <blocker name='avx2'/>
+    <blocker name='rdseed'/>
+    <blocker name='sha-ni'/>
+    <blocker name='umip'/>
+    <blocker name='rdpid'/>
+    <blocker name='fxsr-opt'/>
+    <blocker name='misalignsse'/>
+    <blocker name='3dnowprefetch'/>
+    <blocker name='osvw'/>
+    <blocker name='topoext'/>
+    <blocker name='perfctr-core'/>
+    <blocker name='clzero'/>
+    <blocker name='xsaveerptr'/>
+    <blocker name='wbnoinvd'/>
+    <blocker name='ibpb'/>
+    <blocker name='amd-stibp'/>
+    <blocker name='nrip-save'/>
+    <blocker name='xsavec'/>
+    <blocker name='xsaves'/>
   </cpu>
   <cpu type='tcg' name='EPYC-IBPB' typename='EPYC-IBPB-x86_64-cpu' usable='no'>
     <blocker name='fma'/>
@@ -2327,6 +2525,19 @@
     <blocker name='ibpb'/>
     <blocker name='nrip-save'/>
     <blocker name='xsavec'/>
+  </cpu>
+  <cpu type='tcg' name='Denverton-v2' typename='Denverton-v2-x86_64-cpu' usable='no'>
+    <blocker name='x2apic'/>
+    <blocker name='tsc-deadline'/>
+    <blocker name='rdseed'/>
+    <blocker name='sha-ni'/>
+    <blocker name='spec-ctrl'/>
+    <blocker name='arch-capabilities'/>
+    <blocker name='ssbd'/>
+    <blocker name='3dnowprefetch'/>
+    <blocker name='xsavec'/>
+    <blocker name='rdctl-no'/>
+    <blocker name='skip-l1dfl-vmentry'/>
   </cpu>
   <cpu type='tcg' name='Denverton-v1' typename='Denverton-v1-x86_64-cpu' usable='no'>
     <blocker name='x2apic'/>
@@ -2656,49 +2867,49 @@
   </cpu>
   <cpu type='tcg' name='486-v1' typename='486-v1-x86_64-cpu' usable='yes'/>
   <cpu type='tcg' name='486' typename='486-x86_64-cpu' usable='yes'/>
-  <machine type='tcg' name='pc-i440fx-5.0' alias='pc' hotplugCpus='yes' maxCpus='255' default='yes' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.12' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-4.2' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-4.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-1.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.9' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.11' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-4.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-4.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.9' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='isapc' hotplugCpus='yes' maxCpus='1' defaultCPU='486-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-1.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-3.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.12' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-5.0' alias='q35' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.8' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.10' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-3.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-4.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
+  <machine type='tcg' name='pc-i440fx-5.0' alias='pc' hotplugCpus='yes' maxCpus='255' default='yes' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.12' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-4.2' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-4.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-1.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.9' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.11' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-4.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-4.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.9' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='isapc' hotplugCpus='yes' maxCpus='1' defaultCPU='486-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-1.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-3.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.12' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-5.0' alias='q35' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.8' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.10' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-3.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-4.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
   <machine type='tcg' name='microvm' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-4.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-2.8' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-i440fx-3.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu'/>
-  <machine type='tcg' name='pc-q35-2.11' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu'/>
+  <machine type='tcg' name='pc-i440fx-2.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-4.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-2.8' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-i440fx-3.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-q35-2.11' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes'/>
 </qemuCaps>

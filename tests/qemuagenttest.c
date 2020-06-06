@@ -413,7 +413,7 @@ qemuAgentShutdownTestMonitorHandler(qemuMonitorTestPtr test,
         return -1;
 
     if (!(cmdname = virJSONValueObjectGetString(val, "execute"))) {
-        ret = qemuMonitorReportError(test, "Missing command name in %s", cmdstr);
+        ret = qemuMonitorTestAddErrorResponse(test, "Missing command name in %s", cmdstr);
         goto cleanup;
     }
 
@@ -424,20 +424,20 @@ qemuAgentShutdownTestMonitorHandler(qemuMonitorTestPtr test,
     }
 
     if (!(args = virJSONValueObjectGet(val, "arguments"))) {
-        ret = qemuMonitorReportError(test,
-                                     "Missing arguments section");
+        ret = qemuMonitorTestAddErrorResponse(test,
+                                              "Missing arguments section");
         goto cleanup;
     }
 
     if (!(mode = virJSONValueObjectGetString(args, "mode"))) {
-        ret = qemuMonitorReportError(test, "Missing shutdown mode");
+        ret = qemuMonitorTestAddErrorResponse(test, "Missing shutdown mode");
         goto cleanup;
     }
 
     if (STRNEQ(mode, data->mode)) {
-        ret = qemuMonitorReportError(test,
-                                     "expected shutdown mode '%s' got '%s'",
-                                     data->mode, mode);
+        ret = qemuMonitorTestAddErrorResponse(test,
+                                              "expected shutdown mode '%s' got '%s'",
+                                              data->mode, mode);
         goto cleanup;
     }
 
@@ -471,7 +471,8 @@ testQemuAgentShutdown(const void *data)
     priv.event = QEMU_AGENT_EVENT_SHUTDOWN;
     priv.mode = "halt";
 
-    if (qemuMonitorTestAddHandler(test, qemuAgentShutdownTestMonitorHandler,
+    if (qemuMonitorTestAddHandler(test, "guest-shutdown",
+                                  qemuAgentShutdownTestMonitorHandler,
                                   &priv, NULL) < 0)
         goto cleanup;
 
@@ -485,7 +486,8 @@ testQemuAgentShutdown(const void *data)
     priv.event = QEMU_AGENT_EVENT_SHUTDOWN;
     priv.mode = "powerdown";
 
-    if (qemuMonitorTestAddHandler(test, qemuAgentShutdownTestMonitorHandler,
+    if (qemuMonitorTestAddHandler(test, "guest-shutdown",
+                                  qemuAgentShutdownTestMonitorHandler,
                                   &priv, NULL) < 0)
         goto cleanup;
 
@@ -499,7 +501,9 @@ testQemuAgentShutdown(const void *data)
     priv.event = QEMU_AGENT_EVENT_RESET;
     priv.mode = "reboot";
 
-    if (qemuMonitorTestAddHandler(test, qemuAgentShutdownTestMonitorHandler,
+    if (qemuMonitorTestAddHandler(test,
+                                  "guest-shutdown",
+                                  qemuAgentShutdownTestMonitorHandler,
                                   &priv, NULL) < 0)
         goto cleanup;
 
@@ -720,7 +724,8 @@ testQemuAgentTimeout(const void *data)
         goto cleanup;
     }
 
-    if (qemuMonitorTestAddHandler(test, qemuAgentTimeoutTestMonitorHandler,
+    if (qemuMonitorTestAddHandler(test, NULL,
+                                  qemuAgentTimeoutTestMonitorHandler,
                                   NULL, NULL) < 0)
         goto cleanup;
 
@@ -734,7 +739,9 @@ testQemuAgentTimeout(const void *data)
     if (qemuMonitorTestAddAgentSyncResponse(test) < 0)
         goto cleanup;
 
-    if (qemuMonitorTestAddHandler(test, qemuAgentTimeoutTestMonitorHandler,
+    if (qemuMonitorTestAddHandler(test,
+                                  NULL,
+                                  qemuAgentTimeoutTestMonitorHandler,
                                   NULL, NULL) < 0)
         goto cleanup;
 

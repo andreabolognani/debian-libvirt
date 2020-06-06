@@ -617,7 +617,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
         /* If IO process resulted in an error & we have a message,
          * then wakeup that waiter */
         if (mon->msg && !mon->msg->finished) {
-            mon->msg->finished = 1;
+            mon->msg->finished = true;
             virCondSignal(&mon->notify);
         }
     }
@@ -880,7 +880,7 @@ qemuMonitorClose(qemuMonitorPtr mon)
             else
                 virResetLastError();
         }
-        mon->msg->finished = 1;
+        mon->msg->finished = true;
         virCondSignal(&mon->notify);
     }
 
@@ -2667,7 +2667,7 @@ qemuMonitorCloseFileHandle(qemuMonitorPtr mon,
 
 int
 qemuMonitorAddNetdev(qemuMonitorPtr mon,
-                     const char *netdevstr,
+                     virJSONValuePtr *props,
                      int *tapfd, char **tapfdName, int tapfdSize,
                      int *vhostfd, char **vhostfdName, int vhostfdSize,
                      int slirpfd, char *slirpfdName)
@@ -2675,10 +2675,10 @@ qemuMonitorAddNetdev(qemuMonitorPtr mon,
     int ret = -1;
     size_t i = 0, j = 0;
 
-    VIR_DEBUG("netdevstr=%s tapfd=%p tapfdName=%p tapfdSize=%d"
+    VIR_DEBUG("props=%p tapfd=%p tapfdName=%p tapfdSize=%d"
               "vhostfd=%p vhostfdName=%p vhostfdSize=%d"
               "slirpfd=%d slirpfdName=%s",
-              netdevstr, tapfd, tapfdName, tapfdSize,
+              props, tapfd, tapfdName, tapfdSize,
               vhostfd, vhostfdName, vhostfdSize, slirpfd, slirpfdName);
 
     QEMU_CHECK_MONITOR(mon);
@@ -2696,7 +2696,7 @@ qemuMonitorAddNetdev(qemuMonitorPtr mon,
         qemuMonitorSendFileHandle(mon, slirpfdName, slirpfd) < 0)
         goto cleanup;
 
-    ret = qemuMonitorJSONAddNetdev(mon, netdevstr);
+    ret = qemuMonitorJSONAddNetdev(mon, props);
 
  cleanup:
     if (ret < 0) {
@@ -3764,16 +3764,15 @@ qemuMonitorGetObjectTypes(qemuMonitorPtr mon,
 }
 
 
-int
+virHashTablePtr
 qemuMonitorGetDeviceProps(qemuMonitorPtr mon,
-                          const char *device,
-                          char ***props)
+                          const char *device)
 {
-    VIR_DEBUG("device=%s props=%p", device, props);
+    VIR_DEBUG("device=%s", device);
 
-    QEMU_CHECK_MONITOR(mon);
+    QEMU_CHECK_MONITOR_NULL(mon);
 
-    return qemuMonitorJSONGetDeviceProps(mon, device, props);
+    return qemuMonitorJSONGetDeviceProps(mon, device);
 }
 
 

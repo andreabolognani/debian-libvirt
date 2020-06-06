@@ -510,7 +510,6 @@ qemuMigrationSrcNBDStorageCopyReady(virDomainObjPtr vm,
 {
     size_t i;
     size_t notReady = 0;
-    int status;
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDefPtr disk = vm->def->disks[i];
@@ -526,8 +525,8 @@ qemuMigrationSrcNBDStorageCopyReady(virDomainObjPtr vm,
             return -1;
         }
 
-        status = qemuBlockJobUpdate(vm, job, asyncJob);
-        if (status == VIR_DOMAIN_BLOCK_JOB_FAILED) {
+        qemuBlockJobUpdate(vm, job, asyncJob);
+        if (job->state == VIR_DOMAIN_BLOCK_JOB_FAILED) {
             qemuMigrationNBDReportMirrorError(job, disk->dst);
             virObjectUnref(job);
             return -1;
@@ -567,7 +566,6 @@ qemuMigrationSrcNBDCopyCancelled(virDomainObjPtr vm,
     size_t i;
     size_t active = 0;
     size_t completed = 0;
-    int status;
     bool failed = false;
 
  retry:
@@ -582,8 +580,8 @@ qemuMigrationSrcNBDCopyCancelled(virDomainObjPtr vm,
         if (!(job = qemuBlockJobDiskGetJob(disk)))
             continue;
 
-        status = qemuBlockJobUpdate(vm, job, asyncJob);
-        switch (status) {
+        qemuBlockJobUpdate(vm, job, asyncJob);
+        switch (job->state) {
         case VIR_DOMAIN_BLOCK_JOB_FAILED:
             if (check) {
                 qemuMigrationNBDReportMirrorError(job, disk->dst);
@@ -599,7 +597,7 @@ qemuMigrationSrcNBDCopyCancelled(virDomainObjPtr vm,
             active++;
         }
 
-        if (status == VIR_DOMAIN_BLOCK_JOB_COMPLETED)
+        if (job->state == VIR_DOMAIN_BLOCK_JOB_COMPLETED)
             completed++;
 
         virObjectUnref(job);
@@ -650,11 +648,10 @@ qemuMigrationSrcNBDCopyCancelOne(virQEMUDriverPtr driver,
                                  qemuDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    int status;
     int rv;
 
-    status = qemuBlockJobUpdate(vm, job, asyncJob);
-    switch (status) {
+    qemuBlockJobUpdate(vm, job, asyncJob);
+    switch (job->state) {
     case VIR_DOMAIN_BLOCK_JOB_FAILED:
     case VIR_DOMAIN_BLOCK_JOB_CANCELED:
         if (failNoJob) {
@@ -1727,11 +1724,9 @@ qemuMigrationSrcWaitForCompletion(virQEMUDriverPtr driver,
 
     qemuDomainJobInfoUpdateTime(jobInfo);
     qemuDomainJobInfoUpdateDowntime(jobInfo);
-    VIR_FREE(priv->job.completed);
-    if (VIR_ALLOC(priv->job.completed) == 0) {
-        *priv->job.completed = *jobInfo;
-        priv->job.completed->status = QEMU_DOMAIN_JOB_STATUS_COMPLETED;
-    }
+    g_clear_pointer(&priv->job.completed, qemuDomainJobInfoFree);
+    priv->job.completed = qemuDomainJobInfoCopy(jobInfo);
+    priv->job.completed->status = QEMU_DOMAIN_JOB_STATUS_COMPLETED;
 
     if (asyncJob != QEMU_ASYNC_JOB_MIGRATION_OUT &&
         jobInfo->status == QEMU_DOMAIN_JOB_STATUS_QEMU_COMPLETED)
@@ -3020,7 +3015,7 @@ qemuMigrationSrcConfirmPhase(virQEMUDriverPtr driver,
     if (retcode == 0)
         jobInfo = priv->job.completed;
     else
-        VIR_FREE(priv->job.completed);
+        g_clear_pointer(&priv->job.completed, qemuDomainJobInfoFree);
 
     /* Update times with the values sent by the destination daemon */
     if (mig->jobInfo && jobInfo) {
@@ -5039,7 +5034,7 @@ qemuMigrationDstFinish(virQEMUDriverPtr driver,
                                        : QEMU_MIGRATION_PHASE_FINISH2);
 
     qemuDomainCleanupRemove(vm, qemuMigrationDstPrepareCleanup);
-    VIR_FREE(priv->job.completed);
+    g_clear_pointer(&priv->job.completed, qemuDomainJobInfoFree);
 
     cookie_flags = QEMU_MIGRATION_COOKIE_NETWORK |
                    QEMU_MIGRATION_COOKIE_STATS |
@@ -5260,7 +5255,7 @@ qemuMigrationDstFinish(virQEMUDriverPtr driver,
          * is obsolete anyway.
          */
         if (inPostCopy)
-            VIR_FREE(priv->job.completed);
+            g_clear_pointer(&priv->job.completed, qemuDomainJobInfoFree);
     }
 
     qemuMigrationParamsReset(driver, vm, QEMU_ASYNC_JOB_MIGRATION_IN,
@@ -5271,7 +5266,7 @@ qemuMigrationDstFinish(virQEMUDriverPtr driver,
         qemuDomainRemoveInactiveJob(driver, vm);
 
  cleanup:
-    VIR_FREE(jobInfo);
+    g_clear_pointer(&jobInfo, qemuDomainJobInfoFree);
     virPortAllocatorRelease(port);
     if (priv->mon)
         qemuMonitorSetDomainLog(priv->mon, NULL, NULL, NULL);

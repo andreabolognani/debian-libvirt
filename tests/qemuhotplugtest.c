@@ -409,6 +409,7 @@ testQemuHotplugCpuDataFree(struct testQemuHotplugCpuData *data)
 static struct testQemuHotplugCpuData *
 testQemuHotplugCpuPrepare(const char *test,
                           bool modern,
+                          bool fail,
                           virHashTablePtr qmpschema)
 {
     qemuDomainObjPrivatePtr priv = NULL;
@@ -452,6 +453,12 @@ testQemuHotplugCpuPrepare(const char *test,
     if (!(data->mon = qemuMonitorTestNewFromFileFull(data->file_json_monitor,
                                                      &driver, data->vm, qmpschema)))
         goto error;
+
+    if (fail)
+        qemuMonitorTestAllowUnusedCommands(data->mon);
+
+    if (!data->modern)
+        qemuMonitorTestSkipDeprecatedValidation(data->mon, true);
 
     priv->mon = qemuMonitorTestGetMonitor(data->mon);
     virObjectUnlock(priv->mon);
@@ -526,7 +533,7 @@ testQemuHotplugCpuGroup(const void *opaque)
     int rc;
 
     if (!(data = testQemuHotplugCpuPrepare(params->test, params->modern,
-                                           params->schema)))
+                                           params->fail, params->schema)))
         return -1;
 
     rc = qemuDomainSetVcpusInternal(&driver, data->vm, data->vm->def,
@@ -563,7 +570,7 @@ testQemuHotplugCpuIndividual(const void *opaque)
     int rc;
 
     if (!(data = testQemuHotplugCpuPrepare(params->test, params->modern,
-                                           params->schema)))
+                                           params->fail, params->schema)))
         return -1;
 
     if (virBitmapParse(params->cpumap, &map, 128) < 0)
@@ -629,7 +636,7 @@ mymain(void)
     if (!(driver.domainEventState = virObjectEventStateNew()))
         return EXIT_FAILURE;
 
-    if (!(qmpschema = testQEMUSchemaLoad("x86_64"))) {
+    if (!(qmpschema = testQEMUSchemaLoadLatest("x86_64"))) {
         VIR_TEST_VERBOSE("failed to load qapi schema\n");
         return EXIT_FAILURE;
     }
@@ -715,8 +722,7 @@ mymain(void)
                    "human-monitor-command", HMP("OK\\r\\n"),
                    "device_add", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-virtio", true, true,
-                   "device_del", QMP_OK,
-                   "human-monitor-command", HMP(""));
+                   "device_del", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-virtio", false, false,
                    "device_del", QMP_DEVICE_DELETED("virtio-disk4") QMP_OK,
                    "human-monitor-command", HMP(""));
@@ -725,8 +731,7 @@ mymain(void)
                    "human-monitor-command", HMP("OK\\r\\n"),
                    "device_add", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-usb", true, true,
-                   "device_del", QMP_OK,
-                   "human-monitor-command", HMP(""));
+                   "device_del", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-usb", false, false,
                    "device_del", QMP_DEVICE_DELETED("usb-disk16") QMP_OK,
                    "human-monitor-command", HMP(""));
@@ -735,8 +740,7 @@ mymain(void)
                    "human-monitor-command", HMP("OK\\r\\n"),
                    "device_add", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-scsi", true, true,
-                   "device_del", QMP_OK,
-                   "human-monitor-command", HMP(""));
+                   "device_del", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-scsi", false, false,
                    "device_del", QMP_DEVICE_DELETED("scsi0-0-0-5") QMP_OK,
                    "human-monitor-command", HMP(""));
@@ -751,8 +755,7 @@ mymain(void)
                    /* Disk added */
                    "device_add", QMP_OK);
     DO_TEST_DETACH("base-with-scsi-controller-live", "disk-scsi-2", true, true,
-                   "device_del", QMP_OK,
-                   "human-monitor-command", HMP(""));
+                   "device_del", QMP_OK);
     DO_TEST_DETACH("base-with-scsi-controller-live", "disk-scsi-2", false, false,
                    "device_del", QMP_DEVICE_DELETED("scsi3-0-5-6") QMP_OK,
                    "human-monitor-command", HMP(""));
@@ -762,11 +765,11 @@ mymain(void)
                    "human-monitor-command", HMP("OK\\r\\n"),
                    "device_add", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-scsi-multipath", true, true,
-                   "device_del", QMP_OK,
-                   "human-monitor-command", HMP(""));
+                   "device_del", QMP_OK);
     DO_TEST_DETACH("base-live", "disk-scsi-multipath", false, false,
                    "device_del", QMP_DEVICE_DELETED("scsi0-0-0-0") QMP_OK,
-                   "human-monitor-command", HMP(""));
+                   "human-monitor-command", HMP(""),
+                   "object-del", QMP_OK);
 
     DO_TEST_ATTACH("base-live", "qemu-agent", false, true,
                    "chardev-add", QMP_OK,
@@ -888,7 +891,6 @@ mymain(void)
     DO_TEST_CPU_INDIVIDUAL("x86-modern-individual-add", "7", true, true, false);
     DO_TEST_CPU_INDIVIDUAL("x86-modern-individual-add", "6,7", true, true, true);
     DO_TEST_CPU_INDIVIDUAL("x86-modern-individual-add", "7", false, true, true);
-    DO_TEST_CPU_INDIVIDUAL("x86-modern-individual-add", "7", true, false, true);
 
     DO_TEST_CPU_INDIVIDUAL("ppc64-modern-individual", "16-23", true, true, false);
     DO_TEST_CPU_INDIVIDUAL("ppc64-modern-individual", "16-22", true, true, true);
@@ -903,6 +905,7 @@ mymain(void)
 }
 
 VIR_TEST_MAIN_PRELOAD(mymain,
+                      VIR_TEST_MOCK("virhostdev"),
                       VIR_TEST_MOCK("virpci"),
                       VIR_TEST_MOCK("domaincaps"),
                       VIR_TEST_MOCK("virprocess"),

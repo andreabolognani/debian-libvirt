@@ -482,6 +482,8 @@ cpuTestMakeQEMUCaps(const struct data *data)
     if (!(testMon = qemuMonitorTestNewFromFile(json, driver.xmlopt, true)))
         goto error;
 
+    qemuMonitorTestAllowUnusedCommands(testMon);
+
     cpu = virCPUDefNew();
 
     cpu->model = g_strdup("host");
@@ -1250,6 +1252,7 @@ mymain(void)
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Pentium-P6100", JSON_NONE);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Phenom-B95", JSON_HOST);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Ryzen-7-1800X-Eight-Core", JSON_HOST);
+    DO_TEST_CPUID(VIR_ARCH_X86_64, "Ryzen-9-3900X-12-Core", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-5110", JSON_NONE);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-E3-1225-v5", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-E3-1245-v5", JSON_MODELS);
@@ -1265,11 +1268,14 @@ mymain(void)
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-E7-8890-v3", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-E7540", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-Gold-5115", JSON_MODELS);
+    DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-Gold-6130", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-Gold-6148", JSON_HOST);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-Platinum-8268", JSON_HOST);
+    DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-Platinum-9242", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-W3520", JSON_HOST);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Xeon-X5460", JSON_NONE);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Ice-Lake-Server", JSON_MODELS);
+    DO_TEST_CPUID(VIR_ARCH_X86_64, "Cooperlake", JSON_MODELS);
 
  cleanup:
 #if WITH_QEMU

@@ -54,6 +54,7 @@
     <include filename="x86_Icelake-Client-noTSX.xml"/>
     <include filename="x86_Icelake-Server.xml"/>
     <include filename="x86_Icelake-Server-noTSX.xml"/>
+    <include filename="x86_Cooperlake.xml"/>
 
     <!-- AMD CPUs -->
     <include filename="x86_athlon.xml"/>
@@ -85,6 +86,21 @@
   </arch>
 
   <arch name='arm'>
+    <include filename="arm_vendors.xml"/>
     <include filename='arm_features.xml'/>
+
+    <!-- ARM-based CPU models -->
+    <include filename="arm_cortex-a53.xml"/>
+    <include filename="arm_cortex-a57.xml"/>
+    <include filename="arm_cortex-a72.xml"/>
+
+    <!-- Qualcomm-based CPU models -->
+    <include filename='arm_Falkor.xml'/>
+
+    <!-- Cavium-based CPU models -->
+    <include filename='arm_ThunderX299xx.xml'/>
+
+    <!-- Hisilicon-based CPU models -->
+    <include filename="arm_Kunpeng-920.xml"/>
   </arch>
 </cpus>

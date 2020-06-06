@@ -28,6 +28,7 @@
 #include "qemu/qemu_monitor_json.h"
 #include "qemu/qemu_backup.h"
 #include "qemu/qemu_checkpoint.h"
+#include "qemu/qemu_validate.h"
 
 #include "qemu/qemu_command.h"
 
@@ -85,7 +86,7 @@ testBackingXMLjsonXML(const void *args)
 
     if (!data->legacy) {
         if (testQEMUSchemaValidate(backendprops, data->schemaroot,
-                                   data->schema, &debug) < 0) {
+                                   data->schema, false, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             g_autofree char *debugprops = virJSONValueToString(backendprops, true);
 
@@ -110,8 +111,8 @@ testBackingXMLjsonXML(const void *args)
         return -1;
     }
 
-    if (virDomainDiskSourceFormat(&buf, jsonsrc, "source", 0, false, 0, true,
-                                  NULL) < 0 ||
+    if (virDomainDiskSourceFormat(&buf, jsonsrc, "source", 0, false, 0,
+                                  false, false, NULL) < 0 ||
         !(actualxml = virBufferContentAndReset(&buf))) {
         fprintf(stderr, "failed to format disk source xml\n");
         return -1;
@@ -167,7 +168,7 @@ testJSONtoJSON(const void *args)
         return -1;
 
     if (testQEMUSchemaValidate(jsonsrcout, data->schemaroot,
-                               data->schema, &debug) < 0) {
+                               data->schema, false, &debug) < 0) {
         g_autofree char *debugmsg = virBufferContentAndReset(&debug);
 
         VIR_TEST_VERBOSE("json does not conform to QAPI schema");
@@ -282,8 +283,7 @@ testQemuDiskXMLToProps(const void *opaque)
         virDomainDiskInsert(vmdef, disk) < 0)
         return -1;
 
-    if (qemuCheckDiskConfig(disk, vmdef, data->qemuCaps) < 0 ||
-        qemuDomainDeviceDefValidateDisk(disk, data->qemuCaps) < 0) {
+    if (qemuValidateDomainDeviceDefDisk(disk, vmdef, data->qemuCaps) < 0) {
         VIR_TEST_VERBOSE("invalid configuration for disk");
         return -1;
     }
@@ -294,7 +294,7 @@ testQemuDiskXMLToProps(const void *opaque)
         if (testQemuDiskXMLToJSONFakeSecrets(n) < 0)
             return -1;
 
-        if (qemuDomainValidateStorageSource(n, data->qemuCaps) < 0)
+        if (qemuDomainValidateStorageSource(n, data->qemuCaps, false) < 0)
             return -1;
 
         qemuDomainPrepareDiskSourceData(disk, n);
@@ -341,7 +341,7 @@ testQemuDiskXMLToPropsValidateSchema(const void *opaque)
         g_auto(virBuffer) debug = VIR_BUFFER_INITIALIZER;
 
         if (testQEMUSchemaValidate(data->images[i].formatprops, data->schemaroot,
-                                   data->schema, &debug) < 0) {
+                                   data->schema, false, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             g_autofree char *propsstr = virJSONValueToString(data->images[i].formatprops, true);
             VIR_TEST_VERBOSE("json does not conform to QAPI schema");
@@ -353,7 +353,7 @@ testQemuDiskXMLToPropsValidateSchema(const void *opaque)
         virBufferFreeAndReset(&debug);
 
         if (testQEMUSchemaValidate(data->images[i].storageprops, data->schemaroot,
-                                   data->schema, &debug) < 0) {
+                                   data->schema, false, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             g_autofree char *propsstr = virJSONValueToString(data->images[i].storageprops, true);
             VIR_TEST_VERBOSE("json does not conform to QAPI schema");
@@ -365,7 +365,7 @@ testQemuDiskXMLToPropsValidateSchema(const void *opaque)
         virBufferFreeAndReset(&debug);
 
         if (testQEMUSchemaValidate(data->images[i].storagepropssrc, data->schemaroot,
-                                   data->schema, &debug) < 0) {
+                                   data->schema, false, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             g_autofree char *propsstr = virJSONValueToString(data->images[i].storagepropssrc, true);
             VIR_TEST_VERBOSE("json does not conform to QAPI schema");
@@ -529,7 +529,7 @@ testQemuImageCreate(const void *opaque)
     src->capacity = UINT_MAX * 2ULL;
     src->physical = UINT_MAX + 1ULL;
 
-    if (qemuDomainValidateStorageSource(src, data->qemuCaps) < 0)
+    if (qemuDomainValidateStorageSource(src, data->qemuCaps, false) < 0)
         return -1;
 
     if (qemuBlockStorageSourceCreateGetStorageProps(src, &protocolprops) < 0)
@@ -543,7 +543,7 @@ testQemuImageCreate(const void *opaque)
             return -1;
 
         if (testQEMUSchemaValidate(formatprops, data->schemaroot, data->schema,
-                                   &debug) < 0) {
+                                   false, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             VIR_TEST_VERBOSE("blockdev-create format json does not conform to QAPI schema");
             VIR_TEST_DEBUG("json:\n%s\ndoes not match schema. Debug output:\n %s",
@@ -558,7 +558,7 @@ testQemuImageCreate(const void *opaque)
             return -1;
 
         if (testQEMUSchemaValidate(protocolprops, data->schemaroot, data->schema,
-                                   &debug) < 0) {
+                                   false, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             VIR_TEST_VERBOSE("blockdev-create protocol json does not conform to QAPI schema");
             VIR_TEST_DEBUG("json:\n%s\ndoes not match schema. Debug output:\n %s",
@@ -1056,7 +1056,7 @@ mymain(void)
     diskxmljsondata.qemuCaps = caps_x86_64;
     imagecreatedata.qemuCaps = caps_x86_64;
 
-    if (!(qmp_schema_x86_64 = testQEMUSchemaLoad("x86_64"))) {
+    if (!(qmp_schema_x86_64 = testQEMUSchemaLoadLatest("x86_64"))) {
         ret = -1;
         goto cleanup;
     }
@@ -1198,6 +1198,7 @@ mymain(void)
     TEST_DISK_TO_JSON("dir-fat-floppy");
     TEST_DISK_TO_JSON("file-raw-aio_native");
     TEST_DISK_TO_JSON("file-backing_basic-aio_threads");
+    TEST_DISK_TO_JSON("file-backing_basic-aio_io_uring");
     TEST_DISK_TO_JSON("file-raw-luks");
     TEST_DISK_TO_JSON("file-qcow2-backing-chain-noopts");
     TEST_DISK_TO_JSON("file-qcow2-backing-chain-unterminated");

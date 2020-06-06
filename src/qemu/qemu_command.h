@@ -43,6 +43,10 @@
 VIR_ENUM_DECL(qemuVideo);
 VIR_ENUM_DECL(qemuSoundCodec);
 
+typedef enum {
+    QEMU_BUILD_COMMANDLINE_VALIDATE_KEEP_JSON = 1 << 0,
+} qemuBuildCommandLineFlags;
+
 virCommandPtr qemuBuildCommandLine(virQEMUDriverPtr driver,
                                    virLogManagerPtr logManager,
                                    virSecurityManagerPtr secManager,
@@ -53,7 +57,8 @@ virCommandPtr qemuBuildCommandLine(virQEMUDriverPtr driver,
                                    bool standalone,
                                    bool enableFips,
                                    size_t *nnicindexes,
-                                   int **nicindexes);
+                                   int **nicindexes,
+                                   unsigned int flags);
 
 /* Generate the object properties for pr-manager */
 virJSONValuePtr qemuBuildPRManagerInfoProps(virStorageSourcePtr src);
@@ -86,12 +91,15 @@ qemuBuildChrDeviceStr(char **deviceStr,
                       virDomainChrDefPtr chr,
                       virQEMUCapsPtr qemuCaps);
 
-char *qemuBuildHostNetStr(virDomainNetDefPtr net,
-                          char **tapfd,
-                          size_t tapfdSize,
-                          char **vhostfd,
-                          size_t vhostfdSize,
-                          const char *slirpfd);
+virJSONValuePtr
+qemuBuildChannelGuestfwdNetdevProps(virDomainChrDefPtr chr);
+
+virJSONValuePtr qemuBuildHostNetStr(virDomainNetDefPtr net,
+                                    char **tapfd,
+                                    size_t tapfdSize,
+                                    char **vhostfd,
+                                    size_t vhostfdSize,
+                                    const char *slirpfd);
 
 /* Current, best practice */
 char *qemuBuildNicDevStr(virDomainDefPtr def,
@@ -101,11 +109,10 @@ char *qemuBuildNicDevStr(virDomainDefPtr def,
                          virQEMUCapsPtr qemuCaps);
 
 char *qemuDeviceDriveHostAlias(virDomainDiskDefPtr disk);
-bool qemuDiskBusNeedsDriveArg(int bus);
+bool qemuDiskBusIsSD(int bus);
 
 qemuBlockStorageSourceAttachDataPtr
 qemuBuildStorageSourceAttachPrepareDrive(virDomainDiskDefPtr disk,
-                                         const virDomainDef *def,
                                          virQEMUCapsPtr qemuCaps);
 int
 qemuBuildStorageSourceAttachPrepareCommon(virStorageSourcePtr src,
@@ -115,7 +122,6 @@ qemuBuildStorageSourceAttachPrepareCommon(virStorageSourcePtr src,
 
 qemuBlockStorageSourceChainDataPtr
 qemuBuildStorageSourceChainAttachPrepareDrive(virDomainDiskDefPtr disk,
-                                              const virDomainDef *def,
                                               virQEMUCapsPtr qemuCaps);
 
 
@@ -200,9 +206,6 @@ int qemuGetDriveSourceString(virStorageSourcePtr src,
 bool
 qemuDiskConfigBlkdeviotuneEnabled(virDomainDiskDefPtr disk);
 
-int qemuCheckDiskConfig(virDomainDiskDefPtr disk,
-                        const virDomainDef *def,
-                        virQEMUCapsPtr qemuCaps);
 
 bool
 qemuCheckFips(void);

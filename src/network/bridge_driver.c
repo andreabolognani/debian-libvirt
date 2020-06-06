@@ -273,7 +273,9 @@ static int
 networkShutdownNetworkExternal(virNetworkObjPtr obj);
 
 static void
-networkReloadFirewallRules(virNetworkDriverStatePtr driver, bool startup);
+networkReloadFirewallRules(virNetworkDriverStatePtr driver,
+                           bool startup,
+                           bool force);
 
 static void
 networkRefreshDaemons(virNetworkDriverStatePtr driver);
@@ -689,7 +691,7 @@ firewalld_dbus_filter_bridge(DBusConnection *connection G_GNUC_UNUSED,
 
     if (reload) {
         VIR_DEBUG("Reload in bridge_driver because of firewalld.");
-        networkReloadFirewallRules(driver, false);
+        networkReloadFirewallRules(driver, false, true);
     }
 
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -798,7 +800,7 @@ networkStateInitialize(bool privileged,
     virNetworkObjListPrune(network_driver->networks,
                            VIR_CONNECT_LIST_NETWORKS_INACTIVE |
                            VIR_CONNECT_LIST_NETWORKS_TRANSIENT);
-    networkReloadFirewallRules(network_driver, true);
+    networkReloadFirewallRules(network_driver, true, false);
     networkRefreshDaemons(network_driver);
 
     if (virDriverShouldAutostart(network_driver->stateDir, &autostart) < 0)
@@ -868,7 +870,7 @@ networkStateReload(void)
                                 network_driver->networkConfigDir,
                                 network_driver->networkAutostartDir,
                                 network_driver->xmlopt);
-    networkReloadFirewallRules(network_driver, false);
+    networkReloadFirewallRules(network_driver, false, false);
     networkRefreshDaemons(network_driver);
     virNetworkObjListForEach(network_driver->networks,
                              networkAutostartConfig,
@@ -966,6 +968,27 @@ static int networkConnectIsAlive(virConnectPtr conn G_GNUC_UNUSED)
 }
 
 
+static char *
+networkBuildDnsmasqLeaseTime(virNetworkDHCPLeaseTimeDefPtr lease)
+{
+    const char *unit;
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+
+    if (!lease)
+        return NULL;
+
+    if (lease->expiry == 0) {
+        virBufferAddLit(&buf, "infinite");
+    } else {
+        unit = virNetworkDHCPLeaseTimeUnitTypeToString(lease->unit);
+        /* We get only first compatible char from string: 's', 'm' or 'h' */
+        virBufferAsprintf(&buf, "%lu%c", lease->expiry, unit[0]);
+    }
+
+    return virBufferContentAndReset(&buf);
+}
+
+
 /* the following does not build a file, it builds a list
  * which is later saved into a file
  */
@@ -980,9 +1003,12 @@ networkBuildDnsmasqDhcpHostsList(dnsmasqContext *dctx,
         ipv6 = true;
     for (i = 0; i < ipdef->nhosts; i++) {
         virNetworkDHCPHostDefPtr host = &(ipdef->hosts[i]);
+        g_autofree char *leasetime = networkBuildDnsmasqLeaseTime(host->lease);
+
         if (VIR_SOCKET_ADDR_VALID(&host->ip))
             if (dnsmasqAddDhcpHost(dctx, host->mac, &host->ip,
-                                   host->name, host->id, ipv6) < 0)
+                                   host->name, host->id, leasetime,
+                                   ipv6) < 0)
                 return -1;
     }
 
@@ -1052,6 +1078,7 @@ int
 networkDnsmasqConfContents(virNetworkObjPtr obj,
                            const char *pidfile,
                            char **configstr,
+                           char **hostsfilestr,
                            dnsmasqContext *dctx,
                            dnsmasqCapsPtr caps G_GNUC_UNUSED)
 {
@@ -1381,13 +1408,15 @@ networkDnsmasqConfContents(virNetworkObjPtr obj,
         }
         for (r = 0; r < ipdef->nranges; r++) {
             int thisRange;
+            virNetworkDHCPRangeDef range = ipdef->ranges[r];
+            g_autofree char *leasetime = NULL;
 
-            if (!(saddr = virSocketAddrFormat(&ipdef->ranges[r].start)) ||
-                !(eaddr = virSocketAddrFormat(&ipdef->ranges[r].end)))
+            if (!(saddr = virSocketAddrFormat(&range.addr.start)) ||
+                !(eaddr = virSocketAddrFormat(&range.addr.end)))
                 goto cleanup;
 
             if (VIR_SOCKET_ADDR_IS_FAMILY(&ipdef->address, AF_INET6)) {
-               virBufferAsprintf(&configbuf, "dhcp-range=%s,%s,%d\n",
+               virBufferAsprintf(&configbuf, "dhcp-range=%s,%s,%d",
                                  saddr, eaddr, prefix);
             } else {
                 /* IPv4 - dnsmasq requires a netmask rather than prefix */
@@ -1404,14 +1433,19 @@ networkDnsmasqConfContents(virNetworkObjPtr obj,
 
                 if (!(netmaskStr = virSocketAddrFormat(&netmask)))
                     goto cleanup;
-                virBufferAsprintf(&configbuf, "dhcp-range=%s,%s,%s\n",
+                virBufferAsprintf(&configbuf, "dhcp-range=%s,%s,%s",
                                   saddr, eaddr, netmaskStr);
             }
 
+            if ((leasetime = networkBuildDnsmasqLeaseTime(range.lease)))
+                virBufferAsprintf(&configbuf, ",%s", leasetime);
+
+            virBufferAddLit(&configbuf, "\n");
+
             VIR_FREE(saddr);
             VIR_FREE(eaddr);
-            thisRange = virSocketAddrGetRange(&ipdef->ranges[r].start,
-                                              &ipdef->ranges[r].end,
+            thisRange = virSocketAddrGetRange(&range.addr.start,
+                                              &range.addr.end,
                                               &ipdef->address,
                                               virNetworkIPDefPrefix(ipdef));
             if (thisRange < 0)
@@ -1525,6 +1559,9 @@ networkDnsmasqConfContents(virNetworkObjPtr obj,
     if (!(*configstr = virBufferContentAndReset(&configbuf)))
         goto cleanup;
 
+    *hostsfilestr = dnsmasqDhcpHostsToString(dctx->hostsfile->hosts,
+                                             dctx->hostsfile->nhosts);
+
     ret = 0;
 
  cleanup:
@@ -1549,11 +1586,12 @@ networkBuildDhcpDaemonCommandLine(virNetworkDriverStatePtr driver,
     int ret = -1;
     char *configfile = NULL;
     char *configstr = NULL;
+    char *hostsfilestr = NULL;
     char *leaseshelper_path = NULL;
 
     virNetworkObjSetDnsmasqPid(obj, -1);
 
-    if (networkDnsmasqConfContents(obj, pidfile, &configstr,
+    if (networkDnsmasqConfContents(obj, pidfile, &configstr, &hostsfilestr,
                                    dctx, dnsmasq_caps) < 0)
         goto cleanup;
     if (!configstr)
@@ -2165,14 +2203,16 @@ networkReloadFirewallRulesHelper(virNetworkObjPtr obj,
 
 
 static void
-networkReloadFirewallRules(virNetworkDriverStatePtr driver, bool startup)
+networkReloadFirewallRules(virNetworkDriverStatePtr driver,
+                           bool startup,
+                           bool force)
 {
     VIR_INFO("Reloading iptables rules");
     /* Ideally we'd not even register the driver when unprivilegd
      * but until we untangle the virt driver that's not viable */
     if (!driver->privileged)
         return;
-    networkPreReloadFirewallRules(driver, startup);
+    networkPreReloadFirewallRules(driver, startup, force);
     virNetworkObjListForEach(driver->networks,
                              networkReloadFirewallRulesHelper,
                              NULL);

@@ -1,33 +1,29 @@
 # vim: filetype=automake
 
 VBOX_DRIVER_SOURCES = \
-	vbox/vbox_glue.c \
-	vbox/vbox_glue.h \
 	vbox/vbox_driver.c \
 	vbox/vbox_driver.h \
 	vbox/vbox_snapshot_conf.c \
 	vbox/vbox_snapshot_conf.h \
-	vbox/vbox_V5_0.c \
-	vbox/vbox_CAPI_v5_0.h \
-	vbox/vbox_V5_1.c \
-	vbox/vbox_CAPI_v5_1.h \
 	vbox/vbox_V5_2.c \
 	vbox/vbox_CAPI_v5_2.h \
+	vbox/vbox_CAPI_v6_0.h \
+	vbox/vbox_V6_0.c \
+	vbox/vbox_CAPI_v6_1.h \
+	vbox/vbox_V6_1.c \
 	vbox/vbox_common.c \
 	vbox/vbox_common.h \
 	vbox/vbox_uniformed_api.h \
 	vbox/vbox_get_driver.h \
 	vbox/vbox_network.c \
 	vbox/vbox_storage.c \
+	vbox/vbox_XPCOMCGlue.c \
+	vbox/vbox_XPCOMCGlue.h \
 	$(NULL)
 
 VBOX_DRIVER_EXTRA_DIST = \
 	vbox/vbox_tmpl.c \
 	vbox/README \
-	vbox/vbox_MSCOMGlue.c \
-	vbox/vbox_MSCOMGlue.h \
-	vbox/vbox_XPCOMCGlue.c \
-	vbox/vbox_XPCOMCGlue.h \
 	$(NULL)
 
 DRIVER_SOURCE_FILES += \
@@ -80,6 +76,8 @@ virtvboxd_CFLAGS = \
        $(NULL)
 virtvboxd_LDFLAGS = $(REMOTE_DAEMON_LD_FLAGS)
 virtvboxd_LDADD = $(REMOTE_DAEMON_LD_ADD)
+
+SYSCONF_FILES += vbox/virtvboxd.sysconf
 
 SYSTEMD_UNIT_FILES += \
 	virtvboxd.service \

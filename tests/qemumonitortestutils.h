@@ -34,6 +34,7 @@ typedef int (*qemuMonitorTestResponseCallback)(qemuMonitorTestPtr test,
                                                const char *message);
 
 int qemuMonitorTestAddHandler(qemuMonitorTestPtr test,
+                              const char *identifier,
                               qemuMonitorTestResponseCallback cb,
                               void *opaque,
                               virFreeCallback freecb);
@@ -47,7 +48,11 @@ int qemuMonitorTestAddInvalidCommandResponse(qemuMonitorTestPtr test,
 
 void *qemuMonitorTestItemGetPrivateData(qemuMonitorTestItemPtr item);
 
-int qemuMonitorReportError(qemuMonitorTestPtr test, const char *errmsg, ...);
+int qemuMonitorTestAddErrorResponse(qemuMonitorTestPtr test, const char *errmsg, ...);
+
+void qemuMonitorTestAllowUnusedCommands(qemuMonitorTestPtr test);
+void qemuMonitorTestSkipDeprecatedValidation(qemuMonitorTestPtr test,
+                                             bool allowRemoved);
 
 int qemuMonitorTestAddItem(qemuMonitorTestPtr test,
                            const char *command_name,

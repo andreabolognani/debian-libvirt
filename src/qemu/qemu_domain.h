@@ -175,7 +175,17 @@ struct _qemuDomainJobInfo {
         qemuDomainBackupStats backup;
     } stats;
     qemuDomainMirrorStats mirrorStats;
+
+    char *errmsg; /* optional error message for failed completed jobs */
 };
+
+void
+qemuDomainJobInfoFree(qemuDomainJobInfoPtr info);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuDomainJobInfo, qemuDomainJobInfoFree);
+
+qemuDomainJobInfoPtr
+qemuDomainJobInfoCopy(qemuDomainJobInfoPtr info);
 
 typedef struct _qemuDomainJobObj qemuDomainJobObj;
 typedef qemuDomainJobObj *qemuDomainJobObjPtr;
@@ -1227,7 +1237,8 @@ qemuDomainPrepareDiskSourceData(virDomainDiskDefPtr disk,
 
 int
 qemuDomainValidateStorageSource(virStorageSourcePtr src,
-                                virQEMUCapsPtr qemuCaps);
+                                virQEMUCapsPtr qemuCaps,
+                                bool maskBlockdev);
 
 
 int
@@ -1282,3 +1293,7 @@ qemuDomainMakeCPUMigratable(virCPUDefPtr cpu);
 
 int
 qemuDomainInitializePflashStorageSource(virDomainObjPtr vm);
+
+bool
+qemuDomainDiskBlockJobIsSupported(virDomainObjPtr vm,
+                                  virDomainDiskDefPtr disk);
