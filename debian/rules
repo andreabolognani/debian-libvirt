@@ -173,21 +173,38 @@ override_dh_auto_test:
 	    exit 1; \
 	fi
 
-override_dh_install-arch:
-	dh_install
+# After the upstream build system has installed libvirt into $(DEB_DESTDIR),
+# we need to make some tweaks (add a few extra files, delete some contents
+# we're not interested in, move things around) so that later calls to the
+# various dh_* tools will work optimally. This target is the perfect place
+# to perform such operations
+override_dh_auto_install:
+	dh_auto_install
 
 	# Copy upstream files to debian/ so dh_* can find them
 	cp $(DEB_DESTDIR)/usr/lib/libvirt/libvirt-guests.sh \
-	    debian/libvirt-daemon-system-sysv.libvirt-guests.init
+	   debian/libvirt-daemon-system-sysv.libvirt-guests.init
 	cp tools/libvirt-guests.sysconf \
-	    debian/libvirt-daemon-system.libvirt-guests.default
+	   debian/libvirt-daemon-system.libvirt-guests.default
 	cp src/logging/virtlogd.sysconf \
-	    debian/libvirt-daemon-system.virtlogd.default
+	   debian/libvirt-daemon-system.virtlogd.default
 	cp src/locking/virtlockd.sysconf \
-	    debian/libvirt-daemon-system.virtlockd.default
+	   debian/libvirt-daemon-system.virtlockd.default
+
 	# Add our backward compat polkit rule
+	mkdir -p $(DEB_DESTDIR)/var/lib/polkit-1/localauthority/10-vendor.d/
 	cp debian/polkit/60-libvirt.pkla \
-	    debian/libvirt-daemon-system/var/lib/polkit-1/localauthority/10-vendor.d/
+	   $(DEB_DESTDIR)/var/lib/polkit-1/localauthority/10-vendor.d/
+
+	# Don't ship any la files
+	rm $(DEB_DESTDIR)/usr/lib/*/wireshark/plugins/*/*/*.la
+
+	# Don't ship any files that are managed by the user only
+	rm $(DEB_DESTDIR)/etc/apparmor.d/local/*
+
+override_dh_install-arch:
+	dh_install
+
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	# Linux supports more nice things:
 	set -e; for f in $(SRV_MONOLITHIC); do \
@@ -215,11 +232,6 @@ ifeq ($(XEN_ENABLED), 1)
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-lockd.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-sanlock.conf
 endif
-
-	# Don't ship any la files
-	rm debian/libvirt-wireshark/usr/lib/*/wireshark/plugins/*/*/*.la
-	# Don't ship any files that are managed by the user only
-	rm debian/libvirt-daemon-system/etc/apparmor.d/local/*
 
 override_dh_installinit:
 	dh_installinit -p libvirt-daemon-system-sysv --name=virtlogd --no-stop-on-upgrade

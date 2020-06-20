@@ -7,3 +7,4 @@ etc/logrotate.d/*
 etc/sasl2/*
 usr/share/polkit-1
 usr/lib/firewalld/zones/libvirt.xml
+var/lib/polkit-1/localauthority/10-vendor.d/*
