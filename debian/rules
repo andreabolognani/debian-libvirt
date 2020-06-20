@@ -5,6 +5,8 @@ DEB_BUILDDATE=$(shell dpkg-parsechangelog -SDate)
 DEB_BUILDUSER=$(shell dpkg-parsechangelog -SMaintainer)
 NULL=
 
+DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
+
 # If the build environment sets -Bsymbolic-functions, which is often used as
 # hardening option, that would break libvirt build time self-testing.
 # Therefore let dpkg-buildflag strip that option if present.
