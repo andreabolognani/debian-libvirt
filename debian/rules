@@ -8,7 +8,10 @@ NULL=
 # If the build environment sets -Bsymbolic-functions, which is often used as
 # hardening option, that would break libvirt build time self-testing.
 # Therefore let dpkg-buildflag strip that option if present.
-export DEB_LDFLAGS_MAINT_STRIP = -Wl,-Bsymbolic-functions
+DEB_LDFLAGS_MAINT_STRIP = -Wl,-Bsymbolic-functions
+
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
 
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
   ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64))
@@ -163,7 +166,7 @@ override_dh_auto_configure:
 	IPTABLES_PATH=/usr/sbin/iptables \
 	IP6TABLES_PATH=/usr/sbin/ip6tables \
 	EBTABLES_PATH=/usr/sbin/ebtables \
-	dh_auto_configure -- $(DEB_CONFIGURE_EXTRA_ARGS) $(shell dpkg-buildflags --export=configure)
+	dh_auto_configure -- $(DEB_CONFIGURE_EXTRA_ARGS)
 
 override_dh_auto_test:
 	export LD_PRELOAD="";     \
