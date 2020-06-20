@@ -191,6 +191,10 @@ override_dh_auto_install:
 	cp src/locking/virtlockd.sysconf \
 	   debian/libvirt-daemon-system.virtlockd.default
 
+	# Copy the release notes where dh_installdocs can find them
+	cp NEWS \
+	   $(DEB_DESTDIR)/usr/share/doc/libvirt/
+
 	# Add our backward compat polkit rule
 	mkdir -p $(DEB_DESTDIR)/var/lib/polkit-1/localauthority/10-vendor.d/
 	cp debian/polkit/60-libvirt.pkla \
@@ -262,6 +266,7 @@ override_dh_auto_clean:
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlockd.default \
 	      $(NULL)
 
+# The upstream ChangeLog file doesn't contain any useful information, and we
+# already install the release notes elsewhere
 override_dh_installchangelogs:
-	dh_installchangelogs -plibvirt0
-	dh_installchangelogs -Nlibvirt0 -XChangeLog
+	dh_installchangelogs -XChangeLog
