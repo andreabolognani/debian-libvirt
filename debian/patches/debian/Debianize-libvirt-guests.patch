@@ -9,7 +9,7 @@ Origin: vendor
  2 files changed, 30 insertions(+), 19 deletions(-)
 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index a881f62..22ac873 100644
+index 7af24da..c44a4a9 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
 @@ -1,5 +1,17 @@
@@ -80,7 +80,7 @@ index a881f62..22ac873 100644
  
  RETVAL=0
  
-@@ -543,8 +555,7 @@ gueststatus() {
+@@ -562,8 +574,7 @@ gueststatus() {
  
  # rh_status
  # Display current status: whether saved state exists, and whether start
@@ -91,10 +91,10 @@ index a881f62..22ac873 100644
      if [ -f "$LISTFILE" ]; then
          gettext "stopped, with saved guests"; echo
 diff --git a/tools/libvirt-guests.sysconf b/tools/libvirt-guests.sysconf
-index 669b046..1c4b450 100644
+index 0765efe..1bda2ef 100644
 --- a/tools/libvirt-guests.sysconf
 +++ b/tools/libvirt-guests.sysconf
-@@ -8,7 +8,7 @@
+@@ -10,7 +10,7 @@
  # - ignore  libvirt-guests init script won't start any guest on boot, however,
  #           guests marked as autostart will still be automatically started by
  #           libvirtd
@@ -103,7 +103,7 @@ index 669b046..1c4b450 100644
  
  # Number of seconds to wait between each guest start. Set to 0 to allow
  # parallel startup.
-@@ -22,7 +22,7 @@
+@@ -24,7 +24,7 @@
  #             which just needs a long time to shutdown. When setting
  #             ON_SHUTDOWN=shutdown, you must also set SHUTDOWN_TIMEOUT to a
  #             value suitable for your guests.

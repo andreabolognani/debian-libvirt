@@ -8,10 +8,10 @@ to not interfere with existing network configurations
  1 file changed, 1 insertion(+), 2 deletions(-)
 
 diff --git a/src/network/Makefile.inc.am b/src/network/Makefile.inc.am
-index bc05b01..6119dd7 100644
+index 196a30e..6fb4917 100644
 --- a/src/network/Makefile.inc.am
 +++ b/src/network/Makefile.inc.am
-@@ -166,8 +166,7 @@ install-data-network:
+@@ -168,8 +168,7 @@ install-data-network:
  	      $(DESTDIR)$(confdir)/qemu/networks/default.xml && \
  	    rm $(DESTDIR)$(confdir)/qemu/networks/default.xml.t; }
  	( cd $(DESTDIR)$(confdir)/qemu/networks/autostart && \
