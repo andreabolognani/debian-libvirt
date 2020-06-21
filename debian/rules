@@ -242,14 +242,13 @@ override_dh_installdocs:
 	dh_installdocs -Nlibvirt-doc
 
 override_dh_auto_clean:
-	[ ! -f Makefile ] || dh_auto_clean
+	dh_auto_clean
+
 	rm -f $(CURDIR)/debian/libvirt-daemon-system.libvirt-guests.init \
 	      $(CURDIR)/debian/libvirt-daemon-system.libvirt-guests.default \
-	      $(CURDIR)/debian/*.service \
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlogd.default \
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlockd.default \
 	      $(NULL)
-	rm -rf $(DEB_BUILDDIR)
 
 override_dh_installchangelogs:
 	dh_installchangelogs -plibvirt0
