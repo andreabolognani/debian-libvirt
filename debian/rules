@@ -22,8 +22,6 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
   else
     WITH_LIBXL        = --without-libxl
   endif
-  MAKE_CHECK        = 1
-  FAIL_CHECK        = 1
   WITH_STORAGE_LVM    = --with-storage-lvm
   WITH_STORAGE_ISCSI  = --with-storage-iscsi
   WITH_STORAGE_DISK   =	--with-storage-disk
@@ -171,10 +169,9 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	export LD_PRELOAD="";     \
 	export VIR_TEST_DEBUG=1;  \
-	[ -n "$(MAKE_CHECK)" ] || exit 0; \
 	if ! dh_auto_test; then \
 	    cat $(DEB_BUILDDIR)/tests/test-suite.log; \
-	    [ -z "$(FAIL_CHECK)" ] || exit 1; \
+	    exit 1; \
 	fi
 
 override_dh_install-arch:
