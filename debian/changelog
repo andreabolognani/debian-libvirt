@@ -1,8 +1,15 @@
-libvirt (6.4.0-1) UNRELEASED; urgency=medium
+libvirt (6.4.0-1) experimental; urgency=medium
+
+  * Team upload
 
   * [1662a90] New upstream version 6.4.0
+  * [ad19936] patches: Drop tests-Mock-[...]-for-qemuhotplug.patch
+  * [bfc4f8b] rules: Install upstream release notes
+  * [995991b] control: Set Rules-Requires-Root: no
+  * [dd75022] control: Bump Standards-Version to 4.5.0
+  * [fa6aefb] rules: Enable 'bindnow' hardening option
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 06 Jun 2020 16:25:41 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 21 Jun 2020 23:59:13 +0200
 
 libvirt (6.2.0-1) experimental; urgency=medium
 
