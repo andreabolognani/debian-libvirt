@@ -152,7 +152,6 @@ LIBVIRT_NOSTART_UNITS = \
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
-LOGROTATE = $(basename $(basename $(notdir $(wildcard src/remote/libvirtd*.logrotate.in))))
 SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirtd-tls virt-guest-shutdown
 # For split daemons later, as of 6.0 the remaining elments are
 #SRV_SPLIT = virtnwfilterd virtinterfaced virtlxcd virtnetworkd virtnodedevd virtproxyd virtqemud virtsecretd virtstoraged virtvboxd virtxend virtproxyd-tcp virtproxyd-tls
@@ -217,12 +216,6 @@ ifeq ($(XEN_ENABLED), 1)
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-sanlock.conf
 endif
 
-	set -e; for l in $(LOGROTATE); do \
-		mv $(DEB_DESTDIR)/etc/logrotate.d/$$l \
-	        debian/libvirt-daemon-system.$$l.logrotate; \
-		dh_installlogrotate --name=$$l;     \
-	done
-
 	# Don't ship any la files
 	rm debian/libvirt-wireshark/usr/lib/*/wireshark/plugins/*/*/*.la
 	# Don't ship any files that are managed by the user only
@@ -252,7 +245,6 @@ override_dh_auto_clean:
 	[ ! -f Makefile ] || dh_auto_clean
 	rm -f $(CURDIR)/debian/libvirt-daemon-system.libvirt-guests.init \
 	      $(CURDIR)/debian/libvirt-daemon-system.libvirt-guests.default \
-	      $(CURDIR)/debian/libvirt-daemon-system.*.logrotate \
 	      $(CURDIR)/debian/*.service \
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlogd.default \
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlockd.default \
