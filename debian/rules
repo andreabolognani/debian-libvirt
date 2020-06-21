@@ -206,6 +206,10 @@ override_dh_auto_install:
 	# Don't ship any files that are managed by the user only
 	rm $(DEB_DESTDIR)/etc/apparmor.d/local/*
 
+	# Don't ship the CI dashboard, which is not useful as documentation
+	# triggers the privacy-breach-generic Lintian tag
+	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci.html
+
 override_dh_install-arch:
 	dh_install
 
