@@ -22,6 +22,7 @@ Build-Depends:
  libdevmapper-dev [linux-any],
  uuid-dev,
  libudev-dev [linux-any],
+ libattr1-dev [linux-any],
  libpciaccess-dev,
  kmod [linux-any],
  policykit-1 (>= 0.105-4~) [linux-any],
