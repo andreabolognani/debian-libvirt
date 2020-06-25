@@ -3,6 +3,7 @@ libvirt (6.4.0-1) experimental; urgency=medium
   * Team upload
 
   * [1662a90] New upstream version 6.4.0
+    Includes a fix for CVE-2020-14301 (Closes: #963474)
   * [ad19936] patches: Drop tests-Mock-[...]-for-qemuhotplug.patch
   * [bfc4f8b] rules: Install upstream release notes
   * [995991b] control: Set Rules-Requires-Root: no
