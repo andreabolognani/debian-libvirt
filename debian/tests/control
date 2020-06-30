@@ -13,4 +13,3 @@ Restrictions: allow-stderr, needs-root, isolation-machine
 Tests: build-test
 Depends: libvirt-dev, build-essential, pkg-config
 Restrictions: allow-stderr
-

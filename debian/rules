@@ -1,9 +1,9 @@
 #!/usr/bin/make -f
 
-DEB_RELEASE=$(shell dpkg-parsechangelog -SVersion | sed 's/[^-]\+-//')
-DEB_BUILDDATE=$(shell dpkg-parsechangelog -SDate)
-DEB_BUILDUSER=$(shell dpkg-parsechangelog -SMaintainer)
-NULL=
+DEB_RELEASE = $(shell dpkg-parsechangelog -SVersion | sed 's/[^-]\+-//')
+DEB_BUILDDATE = $(shell dpkg-parsechangelog -SDate)
+DEB_BUILDUSER = $(shell dpkg-parsechangelog -SMaintainer)
+NULL =
 
 DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
 
@@ -16,146 +16,146 @@ DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
-  ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64))
-    WITH_VBOX         = --with-vbox
-  else
-    WITH_VBOX         = --without-vbox
-  endif
-  ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64 armhf arm64))
-    WITH_LIBXL        = --with-libxl
-    XEN_ENABLED       = 1
-  else
-    WITH_LIBXL        = --without-libxl
-  endif
-  WITH_STORAGE_LVM    = --with-storage-lvm
-  WITH_STORAGE_ISCSI  = --with-storage-iscsi
-  WITH_STORAGE_DISK   =	--with-storage-disk
-  WITH_STORAGE_RBD    = --with-storage-rbd
-  WITH_STORAGE_ZFS    = --with-storage-zfs
-  WITH_STORAGE_GLUSTER = --with-storage-gluster
-  WITH_UDEV           = --with-udev
-  WITH_CAPNG          = --with-capng
-  WITH_MACVTAP        = --with-macvtap
-  WITH_NETWORK        = --with-network
-  WITH_OPENVZ         = --with-openvz
-  WITH_NETCF          = --with-netcf
-  WITH_POLKIT         = --with-polkit
-  WITH_SANLOCK        = --with-sanlock
-  WITH_INIT_SCRIPT    =	--with-init-script=systemd
-  WITH_SYSTEMD        = --with-systemd-daemon
-  WITH_FIREWALLD      = --with-firewalld
-  WITH_ATTR           = --with-attr
-  WITH_AUDIT          = --with-audit
-  WITH_SELINUX        = --with-selinux --with-secdriver-selinux --with-selinux-mount=/sys/fs/selinux
-  WITH_APPARMOR       = --with-apparmor --with-secdriver-apparmor --with-apparmor-profiles
-  WITH_NSS_PLUGIN     = --with-nss-plugin
-  ifneq (,$(findstring $(DEB_HOST_ARCH), amd64 armel armhf i386 ia64 powerpc s390))
-      WITH_DTRACE     = --with-dtrace
-  else
-      WITH_DTRACE     = --without-dtrace
-  endif
-  ifneq (,$(findstring $(DEB_HOST_ARCH), amd64 arm64 i386 ia64 mips mipsel powerpc ppc64el))
-      WITH_NUMA       = --with-numactl --with-numad
-  else
-      WITH_NUMA       = --without-numactl --without-numad
-  endif
-  ifneq (,$(findstring $(DEB_HOST_ARCH), ia64))
-      WITH_LXC        = --without-lxc
-  else
-      WITH_LXC        = --with-lxc
-  endif
+    ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64))
+        WITH_VBOX        = --with-vbox
+    else
+        WITH_VBOX        = --without-vbox
+    endif
+    ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64 armhf arm64))
+        WITH_LIBXL       = --with-libxl
+        XEN_ENABLED      = 1
+    else
+        WITH_LIBXL       = --without-libxl
+    endif
+    WITH_STORAGE_LVM     = --with-storage-lvm
+    WITH_STORAGE_ISCSI   = --with-storage-iscsi
+    WITH_STORAGE_DISK    = --with-storage-disk
+    WITH_STORAGE_RBD     = --with-storage-rbd
+    WITH_STORAGE_ZFS     = --with-storage-zfs
+    WITH_STORAGE_GLUSTER = --with-storage-gluster
+    WITH_UDEV            = --with-udev
+    WITH_CAPNG           = --with-capng
+    WITH_MACVTAP         = --with-macvtap
+    WITH_NETWORK         = --with-network
+    WITH_OPENVZ          = --with-openvz
+    WITH_NETCF           = --with-netcf
+    WITH_POLKIT          = --with-polkit
+    WITH_SANLOCK         = --with-sanlock
+    WITH_INIT_SCRIPT     = --with-init-script=systemd
+    WITH_SYSTEMD         = --with-systemd-daemon
+    WITH_FIREWALLD       = --with-firewalld
+    WITH_ATTR            = --with-attr
+    WITH_AUDIT           = --with-audit
+    WITH_SELINUX         = --with-selinux --with-secdriver-selinux --with-selinux-mount=/sys/fs/selinux
+    WITH_APPARMOR        = --with-apparmor --with-secdriver-apparmor --with-apparmor-profiles
+    WITH_NSS_PLUGIN      = --with-nss-plugin
+    ifneq (,$(findstring $(DEB_HOST_ARCH), amd64 armel armhf i386 ia64 powerpc s390))
+        WITH_DTRACE      = --with-dtrace
+    else
+        WITH_DTRACE      = --without-dtrace
+    endif
+    ifneq (,$(findstring $(DEB_HOST_ARCH), amd64 arm64 i386 ia64 mips mipsel powerpc ppc64el))
+        WITH_NUMA        = --with-numactl --with-numad
+    else
+        WITH_NUMA        = --without-numactl --without-numad
+    endif
+    ifneq (,$(findstring $(DEB_HOST_ARCH), ia64))
+        WITH_LXC         = --without-lxc
+    else
+        WITH_LXC         = --with-lxc
+    endif
 else
-  ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
-    WITH_STORAGE_ZFS  = --with-storage-zfs
-  endif
-  WITH_STORAGE_LVM    = --without-storage-lvm
-  WITH_STORAGE_ISCSI  = --without-storage-iscsi
-  WITH_STORAGE_DISK   =	--without-storage-disk
-  WITH_STORAGE_RBD    = --without-storage-rbd
-  WITH_UDEV           = --without-udev
-  WITH_CAPNG          = --without-capng
-  WITH_MACVTAP        = --without-macvtap
-  WITH_NETWORK        = --without-network
-  WITH_LXC            = --without-lxc
-  WITH_NUMA           = --without-numactl --without-numad
-  WITH_NETCF          = --without-netcf
-  WITH_INIT_SCRIPT    =	--with-init-script=none
-  WITH_POLKIT         = --without-polkit
-  WITH_SYSTEMD        = --without-systemd-daemon
-  WITH_FIREWALLD      = --without-firewalld
-  WITH_ATTR           = --without-attr
-  WITH_AUDIT          = --without-audit
-  WITH_SELINUX        = --without-selinux
-  WITH_APPARMOR       = --without-apparmor
-  WITH_NSS_PLUGIN     = --without-nss-plugin
-  WITH_DTRACE         = --without-dtrace
-  WITH_LIBXL          = --without-libxl
-  WITH_VBOX           = --without-vbox
+    ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
+        WITH_STORAGE_ZFS = --with-storage-zfs
+    endif
+    WITH_STORAGE_LVM     = --without-storage-lvm
+    WITH_STORAGE_ISCSI   = --without-storage-iscsi
+    WITH_STORAGE_DISK    = --without-storage-disk
+    WITH_STORAGE_RBD     = --without-storage-rbd
+    WITH_UDEV            = --without-udev
+    WITH_CAPNG           = --without-capng
+    WITH_MACVTAP         = --without-macvtap
+    WITH_NETWORK         = --without-network
+    WITH_LXC             = --without-lxc
+    WITH_NUMA            = --without-numactl --without-numad
+    WITH_NETCF           = --without-netcf
+    WITH_INIT_SCRIPT     = --with-init-script=none
+    WITH_POLKIT          = --without-polkit
+    WITH_SYSTEMD         = --without-systemd-daemon
+    WITH_FIREWALLD       = --without-firewalld
+    WITH_ATTR            = --without-attr
+    WITH_AUDIT           = --without-audit
+    WITH_SELINUX         = --without-selinux
+    WITH_APPARMOR        = --without-apparmor
+    WITH_NSS_PLUGIN      = --without-nss-plugin
+    WITH_DTRACE          = --without-dtrace
+    WITH_LIBXL           = --without-libxl
+    WITH_VBOX            = --without-vbox
 endif
 
-DEB_CONFIGURE_EXTRA_ARGS :=      \
-	--libexecdir=/usr/lib/libvirt \
-	--with-packager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
-	--with-packager-version="$(DEB_RELEASE)" \
-	--with-default-editor="sensible-editor" \
-	--enable-dependency-tracking \
-	--disable-silent-rules   \
-	--disable-rpath          \
-	--with-qemu		 \
-	--with-qemu-user=libvirt-qemu  \
-	--with-qemu-group=libvirt-qemu \
-	$(WITH_OPENVZ)		 \
-	--with-sasl              \
-	--with-yajl              \
-	--with-ssh2		 \
-	$(WITH_POLKIT)		 \
-	$(WITH_UDEV)		 \
-	--with-storage-fs        \
-	--with-storage-dir       \
-	$(WITH_STORAGE_LVM)	 \
-	$(WITH_STORAGE_ISCSI)	 \
-	$(WITH_STORAGE_DISK)	 \
-	--without-storage-sheepdog \
-	$(WITH_STORAGE_RBD)      \
-	$(WITH_STORAGE_GLUSTER)  \
-	$(WITH_STORAGE_ZFS)      \
-	$(WITH_INIT_SCRIPT)      \
-	$(WITH_NUMA)             \
-	$(WITH_SELINUX)          \
-	$(WITH_APPARMOR)         \
-	--with-esx               \
-	$(WITH_CAPNG)		 \
-	--enable-debug		 \
-	$(WITH_MACVTAP)		 \
-	$(WITH_NETWORK)		 \
-	$(WITH_NETCF)		 \
-	$(WITH_LIBXL)		 \
-	$(WITH_VBOX)		 \
-	$(WITH_LXC)              \
-	$(WITH_DTRACE)           \
-	$(WITH_AUDIT)            \
-	--without-hal            \
-	$(WITH_FIREWALLD)        \
-	$(WITH_ATTR)             \
-	$(WITH_NSS_PLUGIN)       \
-        --with-wireshark-dissector \
-        $(NULL)
+DEB_CONFIGURE_EXTRA_ARGS := \
+    --libexecdir=/usr/lib/libvirt \
+    --with-packager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
+    --with-packager-version="$(DEB_RELEASE)" \
+    --with-default-editor="sensible-editor" \
+    --enable-dependency-tracking \
+    --disable-silent-rules \
+    --disable-rpath \
+    --with-qemu \
+    --with-qemu-user=libvirt-qemu \
+    --with-qemu-group=libvirt-qemu \
+    $(WITH_OPENVZ) \
+    --with-sasl \
+    --with-yajl \
+    --with-ssh2 \
+    $(WITH_POLKIT) \
+    $(WITH_UDEV) \
+    --with-storage-fs \
+    --with-storage-dir \
+    $(WITH_STORAGE_LVM) \
+    $(WITH_STORAGE_ISCSI) \
+    $(WITH_STORAGE_DISK) \
+    --without-storage-sheepdog \
+    $(WITH_STORAGE_RBD) \
+    $(WITH_STORAGE_GLUSTER) \
+    $(WITH_STORAGE_ZFS) \
+    $(WITH_INIT_SCRIPT) \
+    $(WITH_NUMA) \
+    $(WITH_SELINUX) \
+    $(WITH_APPARMOR) \
+    --with-esx \
+    $(WITH_CAPNG) \
+    --enable-debug \
+    $(WITH_MACVTAP) \
+    $(WITH_NETWORK) \
+    $(WITH_NETCF) \
+    $(WITH_LIBXL) \
+    $(WITH_VBOX) \
+    $(WITH_LXC) \
+    $(WITH_DTRACE) \
+    $(WITH_AUDIT) \
+    --without-hal \
+    $(WITH_FIREWALLD) \
+    $(WITH_ATTR) \
+    $(WITH_NSS_PLUGIN) \
+    --with-wireshark-dissector \
+    $(NULL)
 
 LIBVIRT_SYSTEM_SERVICES = \
-	virtlogd.service \
-	virtlockd.service \
-	$(NULL)
+    virtlogd.service \
+    virtlockd.service \
+    $(NULL)
 
 LIBVIRT_NOSTART_UNITS = \
-	libvirt-guests.service \
-	libvirtd.socket \
-	libvirtd-ro.socket \
-	libvirtd-admin.socket \
-	virtlogd.socket \
-	virtlogd-admin.socket \
-	virtlockd.socket \
-	virtlockd-admin.socket \
-	$(NULL)
+    libvirt-guests.service \
+    libvirtd.socket \
+    libvirtd-ro.socket \
+    libvirtd-admin.socket \
+    virtlogd.socket \
+    virtlogd-admin.socket \
+    virtlockd.socket \
+    virtlockd-admin.socket \
+    $(NULL)
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
@@ -173,8 +173,8 @@ override_dh_auto_configure:
 	dh_auto_configure -- $(DEB_CONFIGURE_EXTRA_ARGS)
 
 override_dh_auto_test:
-	export LD_PRELOAD="";     \
-	export VIR_TEST_DEBUG=1;  \
+	export LD_PRELOAD=""; \
+	export VIR_TEST_DEBUG=1; \
 	if ! dh_auto_test; then \
 	    cat $(DEB_BUILDDIR)/tests/test-suite.log; \
 	    exit 1; \
@@ -223,8 +223,9 @@ override_dh_install-arch:
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	# Linux supports more nice things:
 	set -e; for f in $(SRV_MONOLITHIC); do \
-		dh_install -p libvirt-daemon-system  usr/lib/systemd/system/$${f}* \
-			lib/systemd/system/; \
+	    dh_install -p libvirt-daemon-system \
+	               usr/lib/systemd/system/$${f}* \
+	               lib/systemd/system/; \
 	done
 	dh_install -p libvirt-daemon-system usr/lib/libvirt/virt-aa-helper
 	dh_install -p libvirt-daemon-system etc/apparmor.d
@@ -239,8 +240,8 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	dh_install -p libvirt-daemon-system etc/libvirt/nwfilter/
 	dh_install -p libvirt-clients etc/libvirt/virt-login-shell.conf
 	dh_install -p libnss-libvirt \
-                      usr/lib/$(DEB_HOST_MULTIARCH)/libnss_libvirt*.so.2 \
-                      lib/$(DEB_HOST_MULTIARCH)/
+	           usr/lib/$(DEB_HOST_MULTIARCH)/libnss_libvirt*.so.2 \
+	           lib/$(DEB_HOST_MULTIARCH)/
 endif
 ifeq ($(XEN_ENABLED), 1)
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl.conf

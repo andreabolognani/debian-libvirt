@@ -9,17 +9,17 @@ DOMAIN=sl
 
 cleanup()
 {
-   if [ -z "$CLEANED_UP" ]; then
-     virsh destroy ${DOMAIN}  || true
-     virsh undefine ${DOMAIN} || true
-     CLEANED_UP=1
-   fi
+    if [ -z "$CLEANED_UP" ]; then
+        virsh destroy ${DOMAIN} || true
+        virsh undefine ${DOMAIN} || true
+        CLEANED_UP=1
+    fi
 }
 
 check_domain()
 {
-  virsh list | grep -qs "${DOMAIN}[[:space:]]\+running"
-  virsh lxc-enter-namespace --noseclabel ${DOMAIN} /bin/ls /bin/ls
+    virsh list | grep -qs "${DOMAIN}[[:space:]]\+running"
+    virsh lxc-enter-namespace --noseclabel ${DOMAIN} /bin/ls /bin/ls
 }
 
 trap cleanup EXIT

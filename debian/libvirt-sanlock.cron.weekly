@@ -5,6 +5,3 @@ exit 0
 
 /usr/sbin/virt-sanlock-cleanup -q
 exit 0
-
-
-

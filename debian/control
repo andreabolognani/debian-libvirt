@@ -417,4 +417,3 @@ Description: Wireshark dissector for the libvirt protocol
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the wireshark dissector.
-

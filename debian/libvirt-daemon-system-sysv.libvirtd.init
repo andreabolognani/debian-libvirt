@@ -32,16 +32,16 @@ DODTIME=1                   # Time to wait for the server to die, in seconds
 
 # Include libvirtd defaults if available
 if [ -f /etc/default/libvirtd ] ; then
-	. /etc/default/libvirtd
+    . /etc/default/libvirtd
 fi
 
 check_start_libvirtd_option() {
-  if [ ! "$start_libvirtd" = "yes" ]; then
-    log_warning_msg "Not starting libvirt management daemon libvirtd, disabled via /etc/default/libvirtd"
-    return 1
-  else
-    return 0
-  fi
+    if [ ! "$start_libvirtd" = "yes" ]; then
+        log_warning_msg "Not starting libvirt management daemon libvirtd, disabled via /etc/default/libvirtd"
+        return 1
+    else
+        return 0
+    fi
 }
 
 running_pid()
@@ -49,18 +49,19 @@ running_pid()
     # Check if a given process pid's cmdline matches a given name
     pid=$1
     name=$2
-    [ -z "$pid" ] && return 1 
-    [ ! -d /proc/$pid ] &&  return 1
-    cmd=`cat /proc/$pid/cmdline | tr "\000" "\n"|head -n 1 |cut -d : -f 1`
+    [ -z "$pid" ] && return 1
+    [ ! -d /proc/$pid ] && return 1
+    cmd=`cat /proc/$pid/cmdline | tr "\000" "\n" | head -n 1 | cut -d : -f 1`
     # Is this the expected child?
-    [ "$cmd" != "$name" ] &&  return 1
+    [ "$cmd" != "$name" ] && return 1
     return 0
 }
 
 running()
 {
-# Check if the process is running looking at /proc
-# (works for all users)
+    # Check if the process is running looking at /proc
+    # (works for all users)
+
     # No pidfile, probably no daemon present
     [ ! -f "$PIDFILE" ] && return 1
     # Obtain the pid and check it against the binary name
@@ -89,7 +90,6 @@ mount_cgroups()
     else
         log_warning_msg "Systemd running, skipping cgroup mount."
     fi
-
 }
 
 umount_cgroups()
@@ -107,15 +107,15 @@ umount_cgroups()
 }
 
 check_mount_cgroup_options() {
-  if [ ! "$mount_cgroups" = "yes" ]; then
-    return 1
-  else
-    return 0
-  fi
+    if [ ! "$mount_cgroups" = "yes" ]; then
+        return 1
+    else
+        return 0
+    fi
 }
 
 force_stop() {
-# Forcefully kill the process
+    # Forcefully kill the process
     [ ! -f "$PIDFILE" ] && return
     if running ; then
         kill -15 $pid
@@ -135,81 +135,81 @@ force_stop() {
 }
 
 case "$1" in
-  start)
-	if check_start_libvirtd_option; then
-		log_daemon_msg "Starting $DESC" "$NAME"
-        	if running ;  then
-            		log_progress_msg "already running"
-            		log_end_msg 0
-            		exit 0
-        	fi
-		rm -f /var/run/libvirtd.pid
-		if check_mount_cgroup_options; then
-		    if ! mount_cgroups;then
-			log_warning_msg "Can not mount cgroups layout"
-			exit 1
-		    fi
-		fi
-		start-stop-daemon --start --quiet --pidfile $PIDFILE \
-			--exec $DAEMON -- -d $libvirtd_opts
-		if running; then
-			log_end_msg 0
-		else
-			log_end_msg 1
-		fi
-	fi
-	;;
-  stop)
-	log_daemon_msg "Stopping $DESC" "$NAME"
-	if ! running ;  then
-           	log_progress_msg "not running"
-            	log_end_msg 0
-            	exit 0
-       	fi
-	if check_mount_cgroup_options; then
-		umount_cgroups
-	fi
-	start-stop-daemon --stop --quiet --pidfile $PIDFILE \
-		--exec $DAEMON
-	log_end_msg 0
-	;;
-  force-stop)
-	log_daemon_msg "Forcefully stopping $DESC" "$NAME"
-	force_stop
-	if ! running; then
-		log_end_msg 0
-	else
-		log_end_msg 1
-	fi
-	;;
-  restart)
-	if check_start_libvirtd_option; then
-		log_daemon_msg "Restarting $DESC" "$DAEMON"
-		start-stop-daemon --oknodo --stop --quiet --pidfile \
-			/var/run/$NAME.pid --exec $DAEMON
-		[ -n "$DODTIME" ] && sleep $DODTIME
-		start-stop-daemon --start --quiet --pidfile \
-			/var/run/$NAME.pid --exec $DAEMON -- -d $libvirtd_opts
-		if running; then
-			log_end_msg 0
-		else
-			log_end_msg 1
-		fi
-	fi
-	;;
-  reload|force-reload)
-  	if running; then
+    start)
+        if check_start_libvirtd_option; then
+            log_daemon_msg "Starting $DESC" "$NAME"
+            if running ; then
+                log_progress_msg "already running"
+                log_end_msg 0
+                exit 0
+            fi
+            rm -f /var/run/libvirtd.pid
+            if check_mount_cgroup_options; then
+                if ! mount_cgroups; then
+                    log_warning_msg "Can not mount cgroups layout"
+                    exit 1
+                fi
+            fi
+            start-stop-daemon --start --quiet --pidfile $PIDFILE \
+                              --exec $DAEMON -- -d $libvirtd_opts
+            if running; then
+                log_end_msg 0
+            else
+                log_end_msg 1
+            fi
+        fi
+        ;;
+    stop)
+        log_daemon_msg "Stopping $DESC" "$NAME"
+        if ! running ; then
+            log_progress_msg "not running"
+            log_end_msg 0
+            exit 0
+        fi
+        if check_mount_cgroup_options; then
+            umount_cgroups
+        fi
+        start-stop-daemon --stop --quiet --pidfile $PIDFILE \
+                          --exec $DAEMON
+        log_end_msg 0
+        ;;
+    force-stop)
+        log_daemon_msg "Forcefully stopping $DESC" "$NAME"
+        force_stop
+        if ! running; then
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
+        ;;
+    restart)
+        if check_start_libvirtd_option; then
+            log_daemon_msg "Restarting $DESC" "$DAEMON"
+            start-stop-daemon --oknodo --stop --quiet --pidfile \
+                              /var/run/$NAME.pid --exec $DAEMON
+            [ -n "$DODTIME" ] && sleep $DODTIME
+            start-stop-daemon --start --quiet --pidfile \
+                              /var/run/$NAME.pid --exec $DAEMON -- -d $libvirtd_opts
+            if running; then
+                log_end_msg 0
+            else
+                log_end_msg 1
+            fi
+        fi
+        ;;
+    reload|force-reload)
+        if running; then
             log_daemon_msg "Reloading configuration of $DESC" "$NAME"
-	    start-stop-daemon --stop --signal 1 --quiet --pidfile \
-	             /var/run/$NAME.pid --exec $DAEMON
-	    log_end_msg 0
-	else
+            start-stop-daemon --stop --signal 1 --quiet --pidfile \
+                              /var/run/$NAME.pid --exec $DAEMON
+            log_end_msg 0
+        else
             log_warning_msg "libvirtd not running, doing nothing."
-	fi
-	;;
-  status)
+        fi
+        ;;
+    status)
         log_daemon_msg "Checking status of $DESC" "$NAME"
-        if running ;  then
+        if running ; then
             log_progress_msg "running"
             log_end_msg 0
         else
@@ -220,13 +220,13 @@ case "$1" in
             else
                 exit 3
             fi
-	fi
-	;;
-  *)
-	N=/etc/init.d/libvirtd
-	echo "Usage: $N {start|stop|restart|reload|force-reload|status|force-stop}" >&2
-	exit 1
-	;;
+        fi
+        ;;
+    *)
+        N=/etc/init.d/libvirtd
+        echo "Usage: $N {start|stop|restart|reload|force-reload|status|force-stop}" >&2
+        exit 1
+        ;;
 esac
 
 exit 0

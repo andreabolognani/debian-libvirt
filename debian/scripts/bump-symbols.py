@@ -43,4 +43,3 @@ symbols_new.close()
 os.unlink(symbols_file)
 shutil.move(symbols_new_file, symbols_file)
 subprocess.call(['git', 'commit', '-m', 'Bump symbol versions', symbols_file])
-

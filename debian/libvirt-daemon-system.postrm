@@ -21,44 +21,43 @@ set -e
 
 case "$1" in
     purge)
-    	if getent group libvirt >/dev/null; then
-    		delgroup libvirt >/dev/null || true
-	fi
+        if getent group libvirt >/dev/null; then
+            delgroup libvirt >/dev/null || true
+        fi
 
-    	if getent passwd libvirt-qemu >/dev/null; then
-    		deluser libvirt-qemu >/dev/null || true
-	fi
+        if getent passwd libvirt-qemu >/dev/null; then
+            deluser libvirt-qemu >/dev/null || true
+        fi
 
-    	if getent group libvirt-qemu >/dev/null; then
-    		delgroup libvirt-qemu >/dev/null || true
-	fi
+        if getent group libvirt-qemu >/dev/null; then
+            delgroup libvirt-qemu >/dev/null || true
+        fi
 
-	# Clean up logs and cached capabilities
-	rm -rf /var/log/libvirt \
-	       /var/cache/libvirt/qemu/capabilities
+        # Clean up logs and cached capabilities
+        rm -rf /var/log/libvirt \
+               /var/cache/libvirt/qemu/capabilities
 
-	# Clean up created dirs if existend and emtpy, they contain precious
-	# data otherwise
-	for dir in /var/lib/libvirt/qemu/save         \
-		   /var/lib/libvirt/qemu/snapshot         \
-		   /var/lib/libvirt/qemu/dump             \
-		   /var/lib/libvirt/qemu/nvram            \
-		   /var/lib/libvirt/qemu/ram/libvirt/qemu \
-		   /var/lib/libvirt/qemu/ram/libvirt      \
-		   /var/lib/libvirt/qemu/ram              \
-		   /var/lib/libvirt/qemu/channel          \
-		   /var/lib/libvirt/qemu                  \
-		   /var/cache/libvirt/qemu; do
-	    [ ! -d $dir ] || rmdir --ignore-fail-on-non-empty $dir
-	done
-    ;;
+        # Clean up created dirs if existend and emtpy, they contain precious
+        # data otherwise
+        for dir in /var/lib/libvirt/qemu/save \
+                   /var/lib/libvirt/qemu/snapshot \
+                   /var/lib/libvirt/qemu/dump \
+                   /var/lib/libvirt/qemu/nvram \
+                   /var/lib/libvirt/qemu/ram/libvirt/qemu \
+                   /var/lib/libvirt/qemu/ram/libvirt \
+                   /var/lib/libvirt/qemu/ram \
+                   /var/lib/libvirt/qemu/channel \
+                   /var/lib/libvirt/qemu \
+                   /var/cache/libvirt/qemu; do
+            [ ! -d $dir ] || rmdir --ignore-fail-on-non-empty $dir
+        done
+        ;;
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-    ;;
-
+        ;;
     *)
         echo "postrm called with unknown argument \`$1'" >&2
         exit 1
-    ;;
+        ;;
 esac
 
 # dh_installdeb will replace this with shell code automatically
@@ -67,5 +66,3 @@ esac
 #DEBHELPER#
 
 exit 0
-
-
