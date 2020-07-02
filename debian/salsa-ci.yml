@@ -73,3 +73,19 @@ autopkgtest-debian-package:
       autopkgtest -U ${LV_WORKING_DIR}/*.changes -- autopkgtest-virt-null || RET=$?;
       echo "Autopkgtest exited with ${RET}";
       [ "${RET}" -eq 8 -o "${RET}" -eq 2 ] && exit 0 || exit "${RET}"
+
+verify-wrap-and-sort:
+  image: ${LV_DOCKER_IMAGE}
+  stage: test
+  before_script:
+    - echo "man-db man-db/auto-update boolean false" | debconf-set-selections
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get -y update
+    - apt-get -y install devscripts
+  script:
+    - wrap-and-sort -ast
+    - git diff >wrap-and-sort.diff
+    - if test -s wrap-and-sort.diff; then
+          echo "Please run 'wrap-and-sort -ast' before 'git commit'" >&2;
+          exit 1;
+      fi
