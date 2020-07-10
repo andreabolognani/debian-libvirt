@@ -1,3 +1,17 @@
+libvirt (6.4.0-2) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * [d0f7eb5] enable attr support to be able to store XATTR labels.
+    Among other things this allows to properly restore file ownership
+    - d/control: build depend on libattr1-dev
+    - d/rules: configure --with-attr
+    Fixes: https://bugs.launchpad.net/ubuntu/+source/libvirt/+bug/691590
+
+  [ Andrea Bolognani ]
+  * Use consistent layout in packaging files
+
+ -- Guido Günther <agx@sigxcpu.org>  Fri, 10 Jul 2020 16:44:12 +0200
+
 libvirt (6.4.0-1) experimental; urgency=medium
 
   * Team upload
