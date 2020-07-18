@@ -2140,7 +2140,7 @@ cmdBlockcommit(vshControl *ctl, const vshCmd *cmd)
             break;
 
         case VIR_DOMAIN_BLOCK_JOB_FAILED:
-            vshError(ctl, "\n%s", _("Commit failed"));
+            vshPrintExtra(ctl, "\n%s", _("Commit failed"));
             goto cleanup;
             break;
 
@@ -2457,7 +2457,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
             break;
 
         case VIR_DOMAIN_BLOCK_JOB_FAILED:
-            vshError(ctl, "\n%s", _("Copy failed"));
+            vshPrintExtra(ctl, "\n%s", _("Copy failed"));
             goto cleanup;
             break;
 
@@ -2865,7 +2865,7 @@ cmdBlockpull(vshControl *ctl, const vshCmd *cmd)
             break;
 
         case VIR_DOMAIN_BLOCK_JOB_FAILED:
-            vshError(ctl, "\n%s", _("Pull failed"));
+            vshPrintExtra(ctl, "\n%s", _("Pull failed"));
             goto cleanup;
             break;
 
@@ -6818,7 +6818,6 @@ virshDomainGetVcpuBitmap(vshControl *ctl,
     xmlDocPtr xml = NULL;
     xmlXPathContextPtr ctxt = NULL;
     xmlNodePtr *nodes = NULL;
-    xmlNodePtr old;
     int nnodes;
     size_t i;
     unsigned int curvcpus = 0;
@@ -6853,8 +6852,6 @@ virshDomainGetVcpuBitmap(vshControl *ctl,
         goto cleanup;
     }
 
-    old = ctxt->node;
-
     for (i = 0; i < nnodes; i++) {
         ctxt->node = nodes[i];
 
@@ -6867,8 +6864,6 @@ virshDomainGetVcpuBitmap(vshControl *ctl,
 
         VIR_FREE(online);
     }
-
-    ctxt->node = old;
 
     if (virBitmapCountBits(ret) != curvcpus) {
         vshError(ctl, "%s", _("Failed to retrieve vcpu state bitmap"));
@@ -13564,7 +13559,7 @@ virshEventMetadataChangePrint(virConnectPtr conn G_GNUC_UNUSED,
 {
     virBuffer buf = VIR_BUFFER_INITIALIZER;
 
-    virBufferAsprintf(&buf, _("event 'metdata-change' for domain %s: %s %s\n"),
+    virBufferAsprintf(&buf, _("event 'metadata-change' for domain %s: %s %s\n"),
                       virDomainGetName(dom),
                       UNKNOWNSTR(virshEventMetadataChangeTypeTypeToString(type)),
                       NULLSTR(nsuri));

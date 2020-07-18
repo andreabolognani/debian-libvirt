@@ -1294,6 +1294,7 @@ typedef enum {
     VIR_DOMAIN_TPM_MODEL_TIS,
     VIR_DOMAIN_TPM_MODEL_CRB,
     VIR_DOMAIN_TPM_MODEL_SPAPR,
+    VIR_DOMAIN_TPM_MODEL_SPAPR_PROXY,
 
     VIR_DOMAIN_TPM_MODEL_LAST
 } virDomainTPMModel;
@@ -2314,7 +2315,7 @@ struct _virDomainHugePage {
     unsigned long long size;    /* hugepage size in KiB */
 };
 
-#define VIR_DOMAIN_CPUMASK_LEN 1024
+#define VIR_DOMAIN_CPUMASK_LEN 16384
 
 struct _virDomainIOThreadIDDef {
     bool autofill;
@@ -2454,6 +2455,7 @@ struct _virDomainIOMMUDef {
     virTristateSwitch caching_mode;
     virTristateSwitch eim;
     virTristateSwitch iotlb;
+    unsigned int aw_bits;
 };
 
 typedef enum {
@@ -2624,13 +2626,18 @@ struct _virDomainDef {
     size_t npanics;
     virDomainPanicDefPtr *panics;
 
+    size_t nsysinfo;
+    virSysinfoDefPtr *sysinfo;
+
+    /* At maximum 2 TPMs on the domain if a TPM Proxy is present. */
+    size_t ntpms;
+    virDomainTPMDefPtr *tpms;
+
     /* Only 1 */
     virDomainWatchdogDefPtr watchdog;
     virDomainMemballoonDefPtr memballoon;
     virDomainNVRAMDefPtr nvram;
-    virDomainTPMDefPtr tpm;
     virCPUDefPtr cpu;
-    virSysinfoDefPtr sysinfo;
     virDomainRedirFilterDefPtr redirfilter;
     virDomainIOMMUDefPtr iommu;
     virDomainVsockDefPtr vsock;

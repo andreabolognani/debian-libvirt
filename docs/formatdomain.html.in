@@ -479,6 +479,10 @@
     &lt;entry&gt;otherappname:more arbitrary data&lt;/entry&gt;
   &lt;/oemStrings&gt;
 &lt;/sysinfo&gt;
+&lt;sysinfo type='fwcfg'&gt;
+  &lt;entry name='opt/com.example/name'&gt;example value&lt;/entry&gt;
+  &lt;entry name='opt/com.coreos/config' file='/tmp/provision.ign'/&gt;
+&lt;/sysinfo&gt;
 ...</pre>
 
     <p>
@@ -592,6 +596,34 @@
             the application name as a prefix in the string. (<span class="since">Since 4.1.0</span>)
           </dd>
         </dl>
+      </dd>
+
+      <dt><code>fwcfg</code></dt>
+      <dd>
+       Some hypervisors provide unified way to tweak how firmware configures
+       itself, or may contain tables to be installed for the guest OS, for
+       instance boot order, ACPI, SMBIOS, etc. It even allows users to define
+       their own config blobs. In case of QEMU, these then appear under domain's
+       sysfs, under <code>/sys/firmware/qemu_fw_cfg</code>. Note, that these
+       values apply regardless the &lt;smbios/&gt; mode under &lt;os/&gt;.
+       <span class="since">Since 6.5.0</span>
+
+<pre>
+  &lt;smbios type='fwcfg'&gt;
+    &lt;entry name='opt/com.example/name'&gt;example value&lt;/entry&gt;
+    &lt;entry name='opt/com.coreos/config' file='/tmp/provision.ign'/&gt;
+  &lt;/smbios&gt;
+</pre>
+
+       The <code>smbios</code> element can have multiple <code>entry</code>
+       child elements. Each element then has mandatory <code>name</code>
+       attribute, which defines the name of the blob and must begin with
+       <code>"opt/"</code> and to avoid clashing with other names is advised to
+       be in form <code>"opt/$RFQDN/$name"</code> where <code>$RFQDN</code> is a
+       reverse fully qualified domain name you control.
+       Then, the element can either contain the value (to set the blob value
+       directly), or <code>file</code> attribute (to set the blob value from
+       the file).
       </dd>
     </dl>
 
@@ -1490,7 +1522,7 @@
 ...</pre>
 
 <pre>
-&lt;cpu mode='host-passthrough'&gt;
+&lt;cpu mode='host-passthrough' migratable='off'&gt;
   &lt;cache mode='passthrough'/&gt;
   &lt;feature policy='disable' name='lahf_lm'/&gt;
 ...</pre>
@@ -1639,7 +1671,17 @@
           using host-passthrough is dangerous if the source and destination hosts
           are not identical in both hardware, QEMU version, microcode version
           and configuration. If such a migration is attempted then the guest may
-          hang or crash upon resuming execution on the destination host.</dd>
+          hang or crash upon resuming execution on the destination host.
+          Depending on hypervisor version the virtual CPU may or may not
+          contain features which may block migration even to an identical host.
+          <span class="since">Since 6.5.0</span> optional
+          <code>migratable</code> attribute may be used to explicitly request
+          such features to be removed from (<code>on</code>) or kept in
+          (<code>off</code>) the virtual CPU. This attribute does not make
+          migration to another host safer: even with
+          <code>migratable='on'</code> migration will be dangerous unless both
+          hosts are identical as described above.
+        </dd>
         </dl>
 
         Both <code>host-model</code> and <code>host-passthrough</code> modes
@@ -1787,7 +1829,16 @@
     <p>
       Each <code>cell</code> element specifies a NUMA cell or a NUMA node.
       <code>cpus</code> specifies the CPU or range of CPUs that are
-      part of the node. <code>memory</code> specifies the node memory
+      part of the node. <span class="since">Since 6.5.0</span> For the qemu
+      driver, if the emulator binary supports disjointed <code>cpus</code> ranges
+      in each <code>cell</code>, the sum of all CPUs declared in each <code>cell</code>
+      will be matched with the maximum number of virtual CPUs declared in the
+      <code>vcpu</code> element. This is done by filling any remaining CPUs
+      into the first NUMA <code>cell</code>. Users are encouraged to supply a
+      complete NUMA topology, where the sum of the NUMA CPUs matches the maximum
+      virtual CPUs number declared in <code>vcpus</code>, to make the domain
+      consistent across qemu and libvirt versions.
+      <code>memory</code> specifies the node memory
       in kibibytes (i.e. blocks of 1024 bytes).
       <span class="since">Since 1.2.11</span> one can use an additional <a
           href="#elementsMemoryAllocation"><code>unit</code></a> attribute to
@@ -5734,11 +5785,11 @@
     <p>
       Provides a bridge from the VM directly to the LAN. This assumes
       there is a bridge device on the host which has one or more of the hosts
-      physical NICs enslaved. The guest VM will have an associated tun device
+      physical NICs attached. The guest VM will have an associated tun device
       created with a name of vnetN, which can also be overridden with the
       &lt;target&gt; element (see
       <a href="#elementsNICSTargetOverride">overriding the target element</a>).
-      The tun device will be enslaved to the bridge. The IP range / network
+      The tun device will be attached to the bridge. The IP range / network
       configuration is whatever is used on the LAN. This provides the guest VM
       full incoming &amp; outgoing net access just like a physical machine.
     </p>
@@ -8798,6 +8849,18 @@ qemu-kvm -net nic,model=? /dev/null
           backend device is a TPM 2.0. <span class="since">Since 6.1.0</span>,
           pSeries guests on PPC64 are supported and the default is
           <code>tpm-spapr</code>.
+
+          <span class="since">Since 6.5.0</span>, a new model called
+          <code>spapr-tpm-proxy</code> was added for pSeries guests. This model
+          only works with the <code>passthrough</code> backend. It creates a
+          TPM Proxy device that communicates with an existing TPM Resource Manager
+          in the host, for example <code>/dev/tpmrm0</code>, enabling the guest to
+          run in secure virtual machine mode with the help of an Ultravisor. Adding
+          a TPM Proxy to a pSeries guest brings no security benefits unless the guest
+          is running on a PPC64 host that has an Ultravisor and a TPM Resource Manager.
+          Only one TPM Proxy device is allowed per guest, but a TPM Proxy device can
+          be added together with
+          other TPM devices.
         </p>
       </dd>
       <dt><code>backend</code></dt>
@@ -8810,7 +8873,7 @@ qemu-kvm -net nic,model=? /dev/null
           <dt><code>passthrough</code></dt>
           <dd>
             <p>
-              Use the host's TPM device.
+              Use the host's TPM or TPM Resource Manager device.
             </p>
             <p>
               This backend type requires exclusive access to a TPM device on
@@ -8818,6 +8881,11 @@ qemu-kvm -net nic,model=? /dev/null
               qualified file name is specified by path attribute of the
               <code>source</code> element. If no file name is specified then
               /dev/tpm0 is automatically used.
+
+              <span class="since">Since 6.5.0</span>, when choosing the
+              <code>spapr-tpm-proxy</code> model, the file name specified is
+              expected to be a TPM Resource Manager device, e.g.
+              <code>/dev/tpmrm0</code>.
             </p>
           </dd>
         </dl>
@@ -9324,6 +9392,15 @@ qemu-kvm -net nic,model=? /dev/null
               turn on the IOTLB used to cache address translation
               requests from devices.
               <span class="since">Since 3.5.0</span> (QEMU/KVM only)
+            </p>
+          </dd>
+          <dt><code>aw_bits</code></dt>
+          <dd>
+            <p>
+              The <code>aw_bits</code> attribute can be used to set
+              the address width to allow mapping larger iova addresses
+              in the guest.
+              <span class="since">Since 6.5.0</span> (QEMU/KVM only)
             </p>
           </dd>
         </dl>

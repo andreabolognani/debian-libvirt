@@ -834,6 +834,7 @@ virDomainMemoryAccessTypeFromString;
 virDomainMemoryAccessTypeToString;
 virDomainNumaCheckABIStability;
 virDomainNumaEquals;
+virDomainNumaFillCPUsInNode;
 virDomainNumaFree;
 virDomainNumaGetCPUCountTotal;
 virDomainNumaGetMaxCPUID;
@@ -1178,6 +1179,7 @@ virNodeDeviceObjListAssignDef;
 virNodeDeviceObjListExport;
 virNodeDeviceObjListFindByName;
 virNodeDeviceObjListFindBySysfsPath;
+virNodeDeviceObjListFindMediatedDeviceByUUID;
 virNodeDeviceObjListFindSCSIHostByWWNs;
 virNodeDeviceObjListFree;
 virNodeDeviceObjListGetNames;
@@ -1534,6 +1536,7 @@ virSecurityDriverLookup;
 # security/security_manager.h
 virSecurityManagerCheckAllLabel;
 virSecurityManagerClearSocketLabel;
+virSecurityManagerDomainRestorePathLabel;
 virSecurityManagerDomainSetPathLabel;
 virSecurityManagerDomainSetPathLabelRO;
 virSecurityManagerGenLabel;
@@ -1557,7 +1560,6 @@ virSecurityManagerRestoreHostdevLabel;
 virSecurityManagerRestoreImageLabel;
 virSecurityManagerRestoreInputLabel;
 virSecurityManagerRestoreMemoryLabel;
-virSecurityManagerRestoreSavedStateLabel;
 virSecurityManagerRestoreTPMLabels;
 virSecurityManagerSetAllLabel;
 virSecurityManagerSetChardevLabel;
@@ -1569,7 +1571,6 @@ virSecurityManagerSetImageLabel;
 virSecurityManagerSetInputLabel;
 virSecurityManagerSetMemoryLabel;
 virSecurityManagerSetProcessLabel;
-virSecurityManagerSetSavedStateLabel;
 virSecurityManagerSetSocketLabel;
 virSecurityManagerSetTapFDLabel;
 virSecurityManagerSetTPMLabels;
@@ -1943,6 +1944,7 @@ virDBusSetSharedBus;
 
 # util/virdevmapper.h
 virDevMapperGetTargets;
+virIsDevMapperDevice;
 
 
 # util/virdnsmasq.h
@@ -2400,8 +2402,7 @@ virKeycodeValueTranslate;
 
 
 # util/virkmod.h
-virKModConfig;
-virKModIsBlacklisted;
+virKModIsProhibited;
 virKModLoad;
 virKModUnload;
 
@@ -2486,6 +2487,8 @@ virMacMapRemove;
 virMacMapWriteFile;
 
 # util/virmdev.h
+virMediatedDeviceAttrFree;
+virMediatedDeviceAttrNew;
 virMediatedDeviceFree;
 virMediatedDeviceGetIOMMUGroupDev;
 virMediatedDeviceGetIOMMUGroupNum;
@@ -2836,8 +2839,8 @@ virPCIHeaderTypeToString;
 virPCIIsVirtualFunction;
 virPCIStubDriverTypeFromString;
 virPCIStubDriverTypeToString;
-virZPCIDeviceAddressIsEmpty;
-virZPCIDeviceAddressIsValid;
+virZPCIDeviceAddressIsIncomplete;
+virZPCIDeviceAddressIsPresent;
 
 
 # util/virperf.h
@@ -3432,7 +3435,8 @@ virGetUserShell;
 virHostGetDRMRenderNode;
 virHostHasIOMMU;
 virIndexToDiskName;
-virIsDevMapperDevice;
+virKernelCmdlineMatchParam;
+virKernelCmdlineNextParam;
 virMemoryLimitIsSet;
 virMemoryLimitTruncate;
 virMemoryMaxValue;

@@ -29,7 +29,6 @@
 #include "lxc_domain.h"
 #include "virerror.h"
 #include "virconf.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "viruuid.h"
 #include "configmake.h"
@@ -62,7 +61,7 @@ virCapsPtr virLXCDriverCapsInit(virLXCDriverPtr driver)
     virCapsPtr caps;
     virCapsGuestPtr guest;
     virArch altArch;
-    char *lxc_path = NULL;
+    g_autofree char *lxc_path = NULL;
 
     if ((caps = virCapabilitiesNew(virArchFromHost(),
                                    false, false)) == NULL)
@@ -135,8 +134,6 @@ virCapsPtr virLXCDriverCapsInit(virLXCDriverPtr driver)
             goto error;
     }
 
-    VIR_FREE(lxc_path);
-
     if (driver) {
         /* Security driver data */
         const char *doi, *model, *label, *type;
@@ -147,8 +144,7 @@ virCapsPtr virLXCDriverCapsInit(virLXCDriverPtr driver)
                                                VIR_DOMAIN_VIRT_LXC);
         type = virDomainVirtTypeToString(VIR_DOMAIN_VIRT_LXC);
         /* Allocate the primary security driver for LXC. */
-        if (VIR_ALLOC(caps->host.secModels) < 0)
-            goto error;
+        caps->host.secModels = g_new0(virCapsHostSecModel, 1);
         caps->host.nsecModels = 1;
         caps->host.secModels[0].model = g_strdup(model);
         caps->host.secModels[0].doi = g_strdup(doi);
@@ -167,7 +163,6 @@ virCapsPtr virLXCDriverCapsInit(virLXCDriverPtr driver)
     return caps;
 
  error:
-    VIR_FREE(lxc_path);
     virObjectUnref(caps);
     return NULL;
 }
@@ -290,9 +285,9 @@ virLXCDriverConfigDispose(void *obj)
 {
     virLXCDriverConfigPtr cfg = obj;
 
-    VIR_FREE(cfg->configDir);
-    VIR_FREE(cfg->autostartDir);
-    VIR_FREE(cfg->stateDir);
-    VIR_FREE(cfg->logDir);
-    VIR_FREE(cfg->securityDriverName);
+    g_free(cfg->configDir);
+    g_free(cfg->autostartDir);
+    g_free(cfg->stateDir);
+    g_free(cfg->logDir);
+    g_free(cfg->securityDriverName);
 }

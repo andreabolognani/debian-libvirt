@@ -1902,10 +1902,10 @@ qemuBuildZPCIDevStr(virDomainDeviceInfoPtr dev)
 
     virBufferAsprintf(&buf,
                       "zpci,uid=%u,fid=%u,target=%s,id=zpci%u",
-                      dev->addr.pci.zpci.uid,
-                      dev->addr.pci.zpci.fid,
+                      dev->addr.pci.zpci.uid.value,
+                      dev->addr.pci.zpci.fid.value,
                       dev->alias,
-                      dev->addr.pci.zpci.uid);
+                      dev->addr.pci.zpci.uid.value);
 
     return virBufferContentAndReset(&buf);
 }
@@ -5736,13 +5736,19 @@ qemuBuildSmbiosCommandLine(virCommandPtr cmd,
         /* Host and guest uuid must differ, by definition of UUID. */
         skip_uuid = true;
     } else if (def->os.smbios_mode == VIR_DOMAIN_SMBIOS_SYSINFO) {
-        if (def->sysinfo == NULL) {
+        for (i = 0; i < def->nsysinfo; i++) {
+            if (def->sysinfo[i]->type == VIR_SYSINFO_SMBIOS) {
+                source = def->sysinfo[i];
+                break;
+            }
+        }
+
+        if (!source) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("Domain '%s' sysinfo are not available"),
                            def->name);
             return -1;
         }
-        source = def->sysinfo;
         /* domain_conf guaranteed that system_uuid matches guest uuid. */
     }
     if (source != NULL) {
@@ -5787,6 +5793,47 @@ qemuBuildSmbiosCommandLine(virCommandPtr cmd,
 
             virCommandAddArgList(cmd, "-smbios", smbioscmd, NULL);
             VIR_FREE(smbioscmd);
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+qemuBuildSysinfoCommandLine(virCommandPtr cmd,
+                            virQEMUCapsPtr qemuCaps,
+                            const virDomainDef *def)
+{
+    size_t i;
+
+    /* We need to handle VIR_SYSINFO_FWCFG here, because
+     * VIR_SYSINFO_SMBIOS is handled in qemuBuildSmbiosCommandLine() */
+    for (i = 0; i < def->nsysinfo; i++) {
+        size_t j;
+
+        if (def->sysinfo[i]->type != VIR_SYSINFO_FWCFG)
+            continue;
+
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_FW_CFG)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("fw_cfg is not supported with this QEMU"));
+            return -1;
+        }
+
+        for (j = 0; j < def->sysinfo[i]->nfw_cfgs; j++) {
+            const virSysinfoFWCfgDef *f = &def->sysinfo[i]->fw_cfgs[j];
+            g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+
+            virBufferAsprintf(&buf, "name=%s", f->name);
+
+            if (f->value)
+                virBufferEscapeString(&buf, ",string=%s", f->value);
+            else
+                virBufferEscapeString(&buf, ",file=%s", f->file);
+
+            virCommandAddArg(cmd, "-fw_cfg");
+            virCommandAddArgBuffer(cmd, &buf);
         }
     }
 
@@ -6133,7 +6180,7 @@ qemuBuildIOMMUCommandLine(virCommandPtr cmd,
     case VIR_DOMAIN_IOMMU_MODEL_INTEL: {
         g_auto(virBuffer) opts = VIR_BUFFER_INITIALIZER;
 
-        /* qemuDomainDeviceDefValidateIOMMU() already made sure we have
+        /* qemuValidateDomainDeviceDefIOMMU() already made sure we have
          * one of QEMU_CAPS_DEVICE_INTEL_IOMMU or QEMU_CAPS_MACHINE_IOMMU:
          * here we handle the former case, while the latter is taken care
          * of in qemuBuildMachineCommandLine() */
@@ -6157,6 +6204,8 @@ qemuBuildIOMMUCommandLine(virCommandPtr cmd,
             virBufferAsprintf(&opts, ",device-iotlb=%s",
                               virTristateSwitchTypeToString(iommu->iotlb));
         }
+        if (iommu->aw_bits > 0)
+            virBufferAsprintf(&opts, ",aw-bits=%d", iommu->aw_bits);
 
         virCommandAddArg(cmd, "-device");
         virCommandAddArgBuffer(cmd, &opts);
@@ -6253,6 +6302,21 @@ qemuBuildCpuModelArgStr(virQEMUDriverPtr driver,
                 return -1;
             }
             virBufferAddLit(buf, ",aarch64=off");
+        }
+
+        if (cpu->migratable) {
+            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_MIGRATABLE)) {
+                virBufferAsprintf(buf, ",migratable=%s",
+                                  virTristateSwitchTypeToString(cpu->migratable));
+            } else if (ARCH_IS_X86(def->os.arch) &&
+                       cpu->migratable == VIR_TRISTATE_SWITCH_OFF) {
+                /* This is the default on x86 */
+            } else {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Migratable attribute for host-passthrough "
+                                 "CPU is not supported by QEMU binary"));
+                return -1;
+            }
         }
         break;
 
@@ -6769,7 +6833,7 @@ qemuBuildMachineCommandLine(virCommandPtr cmd,
     if (def->iommu) {
         switch (def->iommu->model) {
         case VIR_DOMAIN_IOMMU_MODEL_INTEL:
-            /* qemuDomainDeviceDefValidateIOMMU() already made sure we have
+            /* qemuValidateDomainDeviceDefIOMMU() already made sure we have
              * one of QEMU_CAPS_DEVICE_INTEL_IOMMU or QEMU_CAPS_MACHINE_IOMMU:
              * here we handle the latter case, while the former is taken care
              * of in qemuBuildIOMMUCommandLine() */
@@ -8890,10 +8954,10 @@ qemuBuildDomainLoaderCommandLine(virCommandPtr cmd,
 
 static char *
 qemuBuildTPMDevStr(const virDomainDef *def,
+                   virDomainTPMDefPtr tpm,
                    virQEMUCapsPtr qemuCaps)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    virDomainTPMDef *tpm = def->tpm;
     const char *model = virDomainTPMModelTypeToString(tpm->model);
 
     virBufferAsprintf(&buf, "%s,tpmdev=tpm-%s,id=%s",
@@ -8932,13 +8996,12 @@ qemuBuildTPMOpenBackendFDs(const char *tpmdev,
 
 
 static char *
-qemuBuildTPMBackendStr(const virDomainDef *def,
-                       virCommandPtr cmd,
+qemuBuildTPMBackendStr(virCommandPtr cmd,
+                       virDomainTPMDefPtr tpm,
                        int *tpmfd,
                        int *cancelfd,
                        char **chardev)
 {
-    const virDomainTPMDef *tpm = def->tpm;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_autofree char *cancel_path = NULL;
     g_autofree char *devset = NULL;
@@ -8992,6 +9055,7 @@ qemuBuildTPMBackendStr(const virDomainDef *def,
 static int
 qemuBuildTPMCommandLine(virCommandPtr cmd,
                         const virDomainDef *def,
+                        virDomainTPMDefPtr tpm,
                         virQEMUCapsPtr qemuCaps)
 {
     char *optstr;
@@ -9000,10 +9064,7 @@ qemuBuildTPMCommandLine(virCommandPtr cmd,
     int cancelfd = -1;
     char *fdset;
 
-    if (!def->tpm)
-        return 0;
-
-    if (!(optstr = qemuBuildTPMBackendStr(def, cmd,
+    if (!(optstr = qemuBuildTPMBackendStr(cmd, tpm,
                                           &tpmfd, &cancelfd,
                                           &chardev)))
         return -1;
@@ -9032,7 +9093,7 @@ qemuBuildTPMCommandLine(virCommandPtr cmd,
         VIR_FREE(fdset);
     }
 
-    if (!(optstr = qemuBuildTPMDevStr(def, qemuCaps)))
+    if (!(optstr = qemuBuildTPMDevStr(def, tpm, qemuCaps)))
         return -1;
 
     virCommandAddArgList(cmd, "-device", optstr, NULL);
@@ -9040,6 +9101,48 @@ qemuBuildTPMCommandLine(virCommandPtr cmd,
 
     return 0;
 }
+
+
+static int
+qemuBuildTPMProxyCommandLine(virCommandPtr cmd,
+                             virDomainTPMDefPtr tpm)
+{
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    const char *filePath = NULL;
+
+    filePath = tpm->data.passthrough.source.data.file.path;
+
+    virCommandAddArg(cmd, "-device");
+    virBufferAsprintf(&buf, "%s,id=%s,host-path=",
+                      virDomainTPMModelTypeToString(tpm->model),
+                      tpm->info.alias);
+    virQEMUBuildBufferEscapeComma(&buf, filePath);
+    virCommandAddArgBuffer(cmd, &buf);
+
+    return 0;
+}
+
+
+static int
+qemuBuildTPMsCommandLine(virCommandPtr cmd,
+                         const virDomainDef *def,
+                         virQEMUCapsPtr qemuCaps)
+{
+    size_t i;
+
+    for (i = 0; i < def->ntpms; i++) {
+        if (def->tpms[i]->model == VIR_DOMAIN_TPM_MODEL_SPAPR_PROXY) {
+            if (qemuBuildTPMProxyCommandLine(cmd, def->tpms[i]) < 0)
+                return -1;
+        } else if (qemuBuildTPMCommandLine(cmd, def,
+                                           def->tpms[i], qemuCaps) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
 
 static int
 qemuBuildSEVCommandLine(virDomainObjPtr vm, virCommandPtr cmd,
@@ -9634,6 +9737,9 @@ qemuBuildCommandLine(virQEMUDriverPtr driver,
     if (qemuBuildSmbiosCommandLine(cmd, driver, def) < 0)
         return NULL;
 
+    if (qemuBuildSysinfoCommandLine(cmd, qemuCaps, def) < 0)
+        return NULL;
+
     if (qemuBuildVMGenIDCommandLine(cmd, def) < 0)
         return NULL;
 
@@ -9720,7 +9826,7 @@ qemuBuildCommandLine(virQEMUDriverPtr driver,
                                     chardevStdioLogd) < 0)
         return NULL;
 
-    if (qemuBuildTPMCommandLine(cmd, def, qemuCaps) < 0)
+    if (qemuBuildTPMsCommandLine(cmd, def, qemuCaps) < 0)
         return NULL;
 
     if (qemuBuildInputCommandLine(cmd, def, qemuCaps) < 0)

@@ -4064,7 +4064,7 @@ qemuDomainScreenshot(virDomainPtr dom,
     }
     unlink_tmp = true;
 
-    qemuSecuritySetSavedStateLabel(driver, vm, tmp);
+    qemuSecurityDomainSetPathLabel(driver, vm, tmp, false);
 
     qemuDomainObjEnterMonitor(driver, vm);
     if (qemuMonitorScreendump(priv->mon, videoAlias, screen, tmp) < 0) {
@@ -4994,11 +4994,13 @@ qemuDomainSetVcpusAgent(virDomainObjPtr vm,
 
 static int
 qemuDomainSetVcpusMax(virQEMUDriverPtr driver,
+                      virDomainObjPtr vm,
                       virDomainDefPtr def,
                       virDomainDefPtr persistentDef,
                       unsigned int nvcpus)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuDomainObjPrivatePtr priv = vm->privateData;
     unsigned int topologycpus;
 
     if (def) {
@@ -5027,6 +5029,9 @@ qemuDomainSetVcpusMax(virQEMUDriverPtr driver,
     virDomainDefVcpuOrderClear(persistentDef);
 
     if (virDomainDefSetVcpusMax(persistentDef, nvcpus, driver->xmlopt) < 0)
+        return -1;
+
+    if (qemuDomainDefNumaCPUsRectify(persistentDef, priv->qemuCaps) < 0)
         return -1;
 
     if (virDomainDefSave(persistentDef, driver->xmlopt, cfg->configDir) < 0)
@@ -5076,7 +5081,7 @@ qemuDomainSetVcpusFlags(virDomainPtr dom,
     if (useAgent)
         ret = qemuDomainSetVcpusAgent(vm, nvcpus);
     else if (flags & VIR_DOMAIN_VCPU_MAXIMUM)
-        ret = qemuDomainSetVcpusMax(driver, def, persistentDef, nvcpus);
+        ret = qemuDomainSetVcpusMax(driver, vm, def, persistentDef, nvcpus);
     else
         ret = qemuDomainSetVcpusInternal(driver, vm, def, persistentDef,
                                          nvcpus, hotpluggable);
@@ -6953,7 +6958,7 @@ qemuDomainSaveImageStartVM(virConnectPtr conn,
         qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED,
                         asyncJob, VIR_QEMU_PROCESS_STOP_MIGRATED);
     }
-    if (qemuSecurityRestoreSavedStateLabel(driver, vm, path) < 0)
+    if (qemuSecurityDomainRestorePathLabel(driver, vm, path, true) < 0)
         VIR_WARN("failed to restore save state label on %s", path);
     return ret;
 }
@@ -9702,6 +9707,10 @@ qemuDomainSetNumaParamsLive(virDomainObjPtr vm,
         virCgroupFree(&cgroup_temp);
     }
 
+    /* set nodeset for root cgroup */
+    if (virCgroupSetCpusetMems(priv->cgroup, nodeset_str) < 0)
+        goto cleanup;
+
     ret = 0;
  cleanup:
     virCgroupFree(&cgroup_temp);
@@ -11662,7 +11671,7 @@ qemuDomainMemoryPeek(virDomainPtr dom,
         goto endjob;
     }
 
-    qemuSecuritySetSavedStateLabel(driver, vm, tmp);
+    qemuSecurityDomainSetPathLabel(driver, vm, tmp, false);
 
     priv = vm->privateData;
     qemuDomainObjEnterMonitor(driver, vm);
@@ -13853,7 +13862,9 @@ qemuDomainMigrateSetMaxDowntime(virDomainPtr dom,
     virQEMUDriverPtr driver = dom->conn->privateData;
     virDomainObjPtr vm;
     qemuDomainObjPrivatePtr priv;
+    g_autoptr(qemuMigrationParams) migParams = NULL;
     int ret = -1;
+    int rc;
 
     virCheckFlags(0, -1);
 
@@ -13872,10 +13883,27 @@ qemuDomainMigrateSetMaxDowntime(virDomainPtr dom,
     priv = vm->privateData;
 
     VIR_DEBUG("Setting migration downtime to %llums", downtime);
-    qemuDomainObjEnterMonitor(driver, vm);
-    ret = qemuMonitorSetMigrationDowntime(priv->mon, downtime);
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        ret = -1;
+
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_DOWNTIME)) {
+        if (!(migParams = qemuMigrationParamsNew()))
+            goto endjob;
+
+        if (qemuMigrationParamsSetULL(migParams,
+                                      QEMU_MIGRATION_PARAM_DOWNTIME_LIMIT,
+                                      downtime) < 0)
+            goto endjob;
+
+        if (qemuMigrationParamsApply(driver, vm, QEMU_ASYNC_JOB_NONE,
+                                     migParams) < 0)
+            goto endjob;
+    } else {
+        qemuDomainObjEnterMonitor(driver, vm);
+        rc = qemuMonitorSetMigrationDowntime(priv->mon, downtime);
+        if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+            goto endjob;
+    }
+
+    ret = 0;
 
  endjob:
     qemuDomainObjEndJob(driver, vm);
@@ -13948,7 +13976,9 @@ qemuDomainMigrateGetCompressionCache(virDomainPtr dom,
     virQEMUDriverPtr driver = dom->conn->privateData;
     virDomainObjPtr vm;
     qemuDomainObjPrivatePtr priv;
+    g_autoptr(qemuMigrationParams) migParams = NULL;
     int ret = -1;
+    int rc;
 
     virCheckFlags(0, -1);
 
@@ -13973,12 +14003,23 @@ qemuDomainMigrateGetCompressionCache(virDomainPtr dom,
         goto endjob;
     }
 
-    qemuDomainObjEnterMonitor(driver, vm);
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE)) {
+        if (qemuMigrationParamsFetch(driver, vm, QEMU_ASYNC_JOB_NONE,
+                                     &migParams) < 0)
+            goto endjob;
 
-    ret = qemuMonitorGetMigrationCacheSize(priv->mon, cacheSize);
+        if (qemuMigrationParamsGetULL(migParams,
+                                      QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
+                                      cacheSize) < 0)
+            goto endjob;
+    } else {
+        qemuDomainObjEnterMonitor(driver, vm);
+        rc = qemuMonitorGetMigrationCacheSize(priv->mon, cacheSize);
+        if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+            goto endjob;
+    }
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        ret = -1;
+    ret = 0;
 
  endjob:
     qemuDomainObjEndJob(driver, vm);
@@ -13996,7 +14037,9 @@ qemuDomainMigrateSetCompressionCache(virDomainPtr dom,
     virQEMUDriverPtr driver = dom->conn->privateData;
     virDomainObjPtr vm;
     qemuDomainObjPrivatePtr priv;
+    g_autoptr(qemuMigrationParams) migParams = NULL;
     int ret = -1;
+    int rc;
 
     virCheckFlags(0, -1);
 
@@ -14021,13 +14064,27 @@ qemuDomainMigrateSetCompressionCache(virDomainPtr dom,
         goto endjob;
     }
 
-    qemuDomainObjEnterMonitor(driver, vm);
-
     VIR_DEBUG("Setting compression cache to %llu B", cacheSize);
-    ret = qemuMonitorSetMigrationCacheSize(priv->mon, cacheSize);
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE)) {
+        if (!(migParams = qemuMigrationParamsNew()))
+            goto endjob;
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        ret = -1;
+        if (qemuMigrationParamsSetULL(migParams,
+                                      QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
+                                      cacheSize) < 0)
+            goto endjob;
+
+        if (qemuMigrationParamsApply(driver, vm, QEMU_ASYNC_JOB_NONE,
+                                     migParams) < 0)
+            goto endjob;
+    } else {
+        qemuDomainObjEnterMonitor(driver, vm);
+        rc = qemuMonitorSetMigrationCacheSize(priv->mon, cacheSize);
+        if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+            goto endjob;
+    }
+
+    ret = 0;
 
  endjob:
     qemuDomainObjEndJob(driver, vm);
@@ -14047,6 +14104,7 @@ qemuDomainMigrateSetMaxSpeed(virDomainPtr dom,
     qemuDomainObjPrivatePtr priv;
     bool postcopy = !!(flags & VIR_DOMAIN_MIGRATE_MAX_SPEED_POSTCOPY);
     g_autoptr(qemuMigrationParams) migParams = NULL;
+    bool bwParam;
     unsigned long long max;
     int ret = -1;
 
@@ -14085,12 +14143,20 @@ qemuDomainMigrateSetMaxSpeed(virDomainPtr dom,
 
     VIR_DEBUG("Setting migration bandwidth to %luMbs", bandwidth);
 
-    if (postcopy) {
+    bwParam = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH);
+
+    if (postcopy || bwParam) {
+        qemuMigrationParam param;
+
         if (!(migParams = qemuMigrationParamsNew()))
             goto endjob;
 
-        if (qemuMigrationParamsSetULL(migParams,
-                                      QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH,
+        if (postcopy)
+            param = QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH;
+        else
+            param = QEMU_MIGRATION_PARAM_MAX_BANDWIDTH;
+
+        if (qemuMigrationParamsSetULL(migParams, param,
                                       bandwidth * 1024 * 1024) < 0)
             goto endjob;
 
@@ -14104,9 +14170,10 @@ qemuDomainMigrateSetMaxSpeed(virDomainPtr dom,
         rc = qemuMonitorSetMigrationSpeed(priv->mon, bandwidth);
         if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
             goto endjob;
-
-        priv->migMaxBandwidth = bandwidth;
     }
+
+    if (!postcopy)
+        priv->migMaxBandwidth = bandwidth;
 
     ret = 0;
 
@@ -17312,16 +17379,17 @@ qemuDomainBlockPivot(virQEMUDriverPtr driver,
 
     case QEMU_BLOCKJOB_TYPE_COPY:
         if (blockdev && !job->jobflagsmissing) {
-            g_autoptr(virHashTable) blockNamedNodeData = NULL;
             bool shallow = job->jobflags & VIR_DOMAIN_BLOCK_COPY_SHALLOW;
             bool reuse = job->jobflags & VIR_DOMAIN_BLOCK_COPY_REUSE_EXT;
 
-            if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
-                return -1;
+            actions = virJSONValueNewArray();
 
-            if (qemuBlockBitmapsHandleBlockcopy(disk->src, disk->mirror,
-                                                blockNamedNodeData,
-                                                shallow, &actions) < 0)
+            if (qemuMonitorTransactionBitmapAdd(actions,
+                                                disk->mirror->nodeformat,
+                                                "libvirt-tmp-activewrite",
+                                                false,
+                                                false,
+                                                0) < 0)
                 return -1;
 
             /* Open and install the backing chain of 'mirror' late if we can use
@@ -17352,16 +17420,15 @@ qemuDomainBlockPivot(virQEMUDriverPtr driver,
          * the bitmaps if it wasn't present thus must skip this */
         if (blockdev &&
             virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN)) {
-            g_autoptr(virHashTable) blockNamedNodeData = NULL;
 
-            if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
-                return -1;
+            actions = virJSONValueNewArray();
 
-            if (qemuBlockBitmapsHandleCommitFinish(job->data.commit.top,
-                                                   job->data.commit.base,
-                                                   blockNamedNodeData,
-                                                   &actions,
-                                                   job->data.commit.disabledBitmapsBase) < 0)
+            if (qemuMonitorTransactionBitmapAdd(actions,
+                                                job->data.commit.base->nodeformat,
+                                                "libvirt-tmp-activewrite",
+                                                false,
+                                                false,
+                                                0) < 0)
                 return -1;
         }
 
@@ -18482,8 +18549,6 @@ qemuDomainBlockCommit(virDomainPtr dom,
     const char *nodebase = NULL;
     bool persistjob = false;
     bool blockdev = false;
-    g_autoptr(virJSONValue) bitmapDisableActions = NULL;
-    VIR_AUTOSTRINGLIST bitmapDisableList = NULL;
 
     virCheckFlags(VIR_DOMAIN_BLOCK_COMMIT_SHALLOW |
                   VIR_DOMAIN_BLOCK_COMMIT_ACTIVE |
@@ -18504,9 +18569,6 @@ qemuDomainBlockCommit(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    if (!qemuDomainDiskBlockJobIsSupported(vm, disk))
-        goto endjob;
-
     blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
 
     /* Convert bandwidth MiB to bytes, if necessary */
@@ -18521,6 +18583,9 @@ qemuDomainBlockCommit(virDomainPtr dom,
     }
 
     if (!(disk = qemuDomainDiskByName(vm->def, path)))
+        goto endjob;
+
+    if (!qemuDomainDiskBlockJobIsSupported(vm, disk))
         goto endjob;
 
     if (virStorageSourceIsEmpty(disk->src)) {
@@ -18647,29 +18712,8 @@ qemuDomainBlockCommit(virDomainPtr dom,
             goto endjob;
     }
 
-    if (blockdev &&
-        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN)) {
-        g_autoptr(virHashTable) blockNamedNodeData = NULL;
-        if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
-            goto endjob;
-
-        if (qemuBlockBitmapsHandleCommitStart(topSource, baseSource,
-                                              blockNamedNodeData,
-                                              &bitmapDisableActions,
-                                              &bitmapDisableList) < 0)
-            goto endjob;
-
-        /* if we don't have terminator on 'base' we can't reopen it */
-        if (bitmapDisableActions && !baseSource->backingStore) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("can't handle bitmaps on unterminated backing image '%s'"),
-                           base);
-            goto endjob;
-        }
-    }
-
     if (!(job = qemuBlockJobDiskNewCommit(vm, disk, top_parent, topSource,
-                                          baseSource, &bitmapDisableList,
+                                          baseSource,
                                           flags & VIR_DOMAIN_BLOCK_COMMIT_DELETE,
                                           flags)))
         goto endjob;
@@ -18692,23 +18736,6 @@ qemuDomainBlockCommit(virDomainPtr dom,
             !(backingPath = qemuBlockGetBackingStoreString(baseSource, false)))
             goto endjob;
 
-        if (bitmapDisableActions) {
-            int rc;
-
-            if (qemuBlockReopenReadWrite(vm, baseSource, QEMU_ASYNC_JOB_NONE) < 0)
-                goto endjob;
-
-            qemuDomainObjEnterMonitor(driver, vm);
-            rc = qemuMonitorTransaction(priv->mon, &bitmapDisableActions);
-            if (qemuDomainObjExitMonitor(driver, vm) < 0)
-                goto endjob;
-
-            if (qemuBlockReopenReadOnly(vm, baseSource, QEMU_ASYNC_JOB_NONE) < 0)
-                goto endjob;
-
-            if (rc < 0)
-                goto endjob;
-        }
     } else {
         device = job->name;
     }

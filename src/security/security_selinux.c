@@ -812,7 +812,6 @@ virSecuritySELinuxGenLabel(virSecurityManagerPtr mgr,
 {
     int rc = -1;
     char *mcs = NULL;
-    char *scontext = NULL;
     context_t ctx = NULL;
     const char *range;
     virSecurityLabelDefPtr seclabel;
@@ -949,7 +948,6 @@ virSecuritySELinuxGenLabel(virSecurityManagerPtr mgr,
 
     if (ctx)
         context_free(ctx);
-    VIR_FREE(scontext);
     VIR_FREE(mcs);
     VIR_FREE(sens);
 
@@ -2721,6 +2719,24 @@ virSecuritySELinuxGetBaseLabel(virSecurityManagerPtr mgr, int virtType)
 
 
 static int
+virSecuritySELinuxRestoreSysinfoLabel(virSecurityManagerPtr mgr,
+                                      virSysinfoDefPtr def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nfw_cfgs; i++) {
+        virSysinfoFWCfgDefPtr f = &def->fw_cfgs[i];
+
+        if (f->file &&
+            virSecuritySELinuxRestoreFileLabel(mgr, f->file, true) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virSecuritySELinuxRestoreAllLabel(virSecurityManagerPtr mgr,
                                   virDomainDefPtr def,
                                   bool migrated,
@@ -2764,8 +2780,8 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManagerPtr mgr,
             return -1;
     }
 
-    if (def->tpm) {
-        if (virSecuritySELinuxRestoreTPMFileLabelInt(mgr, def, def->tpm) < 0)
+    for (i = 0; i < def->ntpms; i++) {
+        if (virSecuritySELinuxRestoreTPMFileLabelInt(mgr, def, def->tpms[i]) < 0)
             rc = -1;
     }
 
@@ -2785,6 +2801,11 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManagerPtr mgr,
                                      virSecuritySELinuxRestoreSecuritySmartcardCallback,
                                      mgr) < 0)
         rc = -1;
+
+    for (i = 0; i < def->nsysinfo; i++) {
+        if (virSecuritySELinuxRestoreSysinfoLabel(mgr, def->sysinfo[i]) < 0)
+            rc = -1;
+    }
 
     if (def->os.loader && def->os.loader->nvram &&
         virSecuritySELinuxRestoreFileLabel(mgr, def->os.loader->nvram, true) < 0)
@@ -2834,36 +2855,6 @@ virSecuritySELinuxReleaseLabel(virSecurityManagerPtr mgr,
     VIR_FREE(secdef->imagelabel);
 
     return 0;
-}
-
-
-static int
-virSecuritySELinuxSetSavedStateLabel(virSecurityManagerPtr mgr,
-                                     virDomainDefPtr def,
-                                     const char *savefile)
-{
-    virSecurityLabelDefPtr secdef;
-
-    secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
-    if (!secdef || !secdef->relabel)
-        return 0;
-
-    return virSecuritySELinuxSetFilecon(mgr, savefile, secdef->imagelabel, true);
-}
-
-
-static int
-virSecuritySELinuxRestoreSavedStateLabel(virSecurityManagerPtr mgr,
-                                         virDomainDefPtr def,
-                                         const char *savefile)
-{
-    virSecurityLabelDefPtr secdef;
-
-    secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
-    if (!secdef || !secdef->relabel)
-        return 0;
-
-    return virSecuritySELinuxRestoreFileLabel(mgr, savefile, true);
 }
 
 
@@ -3124,6 +3115,26 @@ virSecuritySELinuxSetSecuritySmartcardCallback(virDomainDefPtr def,
 
 
 static int
+virSecuritySELinuxSetSysinfoLabel(virSecurityManagerPtr mgr,
+                                  virSysinfoDefPtr def,
+                                  virSecuritySELinuxDataPtr data)
+{
+    size_t i;
+
+    for (i = 0; i < def->nfw_cfgs; i++) {
+        virSysinfoFWCfgDefPtr f = &def->fw_cfgs[i];
+
+        if (f->file &&
+            virSecuritySELinuxSetFilecon(mgr, f->file,
+                                         data->content_context, true) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virSecuritySELinuxSetAllLabel(virSecurityManagerPtr mgr,
                               virDomainDefPtr def,
                               const char *stdin_path G_GNUC_UNUSED,
@@ -3172,8 +3183,8 @@ virSecuritySELinuxSetAllLabel(virSecurityManagerPtr mgr,
             return -1;
     }
 
-    if (def->tpm) {
-        if (virSecuritySELinuxSetTPMFileLabel(mgr, def, def->tpm) < 0)
+    for (i = 0; i < def->ntpms; i++) {
+        if (virSecuritySELinuxSetTPMFileLabel(mgr, def, def->tpms[i]) < 0)
             return -1;
     }
 
@@ -3193,6 +3204,13 @@ virSecuritySELinuxSetAllLabel(virSecurityManagerPtr mgr,
                                      virSecuritySELinuxSetSecuritySmartcardCallback,
                                      mgr) < 0)
         return -1;
+
+    for (i = 0; i < def->nsysinfo; i++) {
+        if (virSecuritySELinuxSetSysinfoLabel(mgr,
+                                              def->sysinfo[i],
+                                              data) < 0)
+            return -1;
+    }
 
     /* This is different than kernel or initrd. The nvram store
      * is really a disk, qemu can read and write to it. */
@@ -3395,6 +3413,21 @@ virSecuritySELinuxDomainSetPathLabelRO(virSecurityManagerPtr mgr,
     return virSecuritySELinuxSetFilecon(mgr, path, data->content_context, false);
 }
 
+static int
+virSecuritySELinuxDomainRestorePathLabel(virSecurityManagerPtr mgr,
+                                         virDomainDefPtr def,
+                                         const char *path)
+{
+    virSecurityLabelDefPtr secdef;
+
+    secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
+    if (!secdef || !secdef->relabel)
+        return 0;
+
+    return virSecuritySELinuxRestoreFileLabel(mgr, path, true);
+}
+
+
 /*
  * virSecuritySELinuxSetFileLabels:
  *
@@ -3493,26 +3526,24 @@ virSecuritySELinuxSetTPMLabels(virSecurityManagerPtr mgr,
                                virDomainDefPtr def)
 {
     int ret = 0;
+    size_t i;
     virSecurityLabelDefPtr seclabel;
 
     seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
     if (seclabel == NULL)
         return 0;
 
-    switch (def->tpm->type) {
-    case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        break;
-    case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+    for (i = 0; i < def->ntpms; i++) {
+        if (def->tpms[i]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR)
+            continue;
+
         ret = virSecuritySELinuxSetFileLabels(
-            mgr, def->tpm->data.emulator.storagepath,
+            mgr, def->tpms[i]->data.emulator.storagepath,
             seclabel);
-        if (ret == 0 && def->tpm->data.emulator.logfile)
+        if (ret == 0 && def->tpms[i]->data.emulator.logfile)
             ret = virSecuritySELinuxSetFileLabels(
-                mgr, def->tpm->data.emulator.logfile,
+                mgr, def->tpms[i]->data.emulator.logfile,
                 seclabel);
-        break;
-    case VIR_DOMAIN_TPM_TYPE_LAST:
-        break;
     }
 
     return ret;
@@ -3524,19 +3555,17 @@ virSecuritySELinuxRestoreTPMLabels(virSecurityManagerPtr mgr,
                                    virDomainDefPtr def)
 {
     int ret = 0;
+    size_t i;
 
-    switch (def->tpm->type) {
-    case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        break;
-    case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+    for (i = 0; i < def->ntpms; i++) {
+        if (def->tpms[i]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR)
+            continue;
+
         ret = virSecuritySELinuxRestoreFileLabels(
-            mgr, def->tpm->data.emulator.storagepath);
-        if (ret == 0 && def->tpm->data.emulator.logfile)
+            mgr, def->tpms[i]->data.emulator.storagepath);
+        if (ret == 0 && def->tpms[i]->data.emulator.logfile)
             ret = virSecuritySELinuxRestoreFileLabels(
-                mgr, def->tpm->data.emulator.logfile);
-        break;
-    case VIR_DOMAIN_TPM_TYPE_LAST:
-        break;
+                mgr, def->tpms[i]->data.emulator.logfile);
     }
 
     return ret;
@@ -3587,9 +3616,6 @@ virSecurityDriver virSecurityDriverSELinux = {
     .domainSetSecurityHostdevLabel      = virSecuritySELinuxSetHostdevLabel,
     .domainRestoreSecurityHostdevLabel  = virSecuritySELinuxRestoreHostdevLabel,
 
-    .domainSetSavedStateLabel           = virSecuritySELinuxSetSavedStateLabel,
-    .domainRestoreSavedStateLabel       = virSecuritySELinuxRestoreSavedStateLabel,
-
     .domainSetSecurityImageFDLabel      = virSecuritySELinuxSetImageFDLabel,
     .domainSetSecurityTapFDLabel        = virSecuritySELinuxSetTapFDLabel,
 
@@ -3598,6 +3624,7 @@ virSecurityDriver virSecurityDriverSELinux = {
 
     .domainSetPathLabel                 = virSecuritySELinuxDomainSetPathLabel,
     .domainSetPathLabelRO               = virSecuritySELinuxDomainSetPathLabelRO,
+    .domainRestorePathLabel             = virSecuritySELinuxDomainRestorePathLabel,
 
     .domainSetSecurityChardevLabel      = virSecuritySELinuxSetChardevLabel,
     .domainRestoreSecurityChardevLabel  = virSecuritySELinuxRestoreChardevLabel,

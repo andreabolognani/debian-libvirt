@@ -26,7 +26,7 @@
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
-VIR_LOG_INIT("qemu.qemu_process");
+VIR_LOG_INIT("qemu.qemu_security");
 
 
 int
@@ -615,54 +615,25 @@ qemuSecurityDomainSetPathLabel(virQEMUDriverPtr driver,
 
 
 int
-qemuSecuritySetSavedStateLabel(virQEMUDriverPtr driver,
+qemuSecurityDomainRestorePathLabel(virQEMUDriverPtr driver,
                                    virDomainObjPtr vm,
-                                   const char *savefile)
+                                   const char *path,
+                                   bool ignoreNS)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     pid_t pid = -1;
     int ret = -1;
 
-    if (qemuDomainNamespaceEnabled(vm, QEMU_DOMAIN_NS_MOUNT))
+    if (!ignoreNS &&
+        qemuDomainNamespaceEnabled(vm, QEMU_DOMAIN_NS_MOUNT))
         pid = vm->pid;
 
     if (virSecurityManagerTransactionStart(driver->securityManager) < 0)
         goto cleanup;
 
-    if (virSecurityManagerSetSavedStateLabel(driver->securityManager,
-                                             vm->def,
-                                             savefile) < 0)
-        goto cleanup;
-
-    if (virSecurityManagerTransactionCommit(driver->securityManager,
-                                            pid, priv->rememberOwner) < 0)
-        goto cleanup;
-
-    ret = 0;
- cleanup:
-    virSecurityManagerTransactionAbort(driver->securityManager);
-    return ret;
-}
-
-
-int
-qemuSecurityRestoreSavedStateLabel(virQEMUDriverPtr driver,
-                                       virDomainObjPtr vm,
-                                       const char *savefile)
-{
-    qemuDomainObjPrivatePtr priv = vm->privateData;
-    pid_t pid = -1;
-    int ret = -1;
-
-    if (qemuDomainNamespaceEnabled(vm, QEMU_DOMAIN_NS_MOUNT))
-        pid = vm->pid;
-
-    if (virSecurityManagerTransactionStart(driver->securityManager) < 0)
-        goto cleanup;
-
-    if (virSecurityManagerRestoreSavedStateLabel(driver->securityManager,
+    if (virSecurityManagerDomainRestorePathLabel(driver->securityManager,
                                                  vm->def,
-                                                 savefile) < 0)
+                                                 path) < 0)
         goto cleanup;
 
     if (virSecurityManagerTransactionCommit(driver->securityManager,

@@ -1888,7 +1888,7 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationCacheSize(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    qemuMonitorTestSkipDeprecatedValidation(test, false);
+    qemuMonitorTestSkipDeprecatedValidation(test, true);
 
     if (qemuMonitorTestAddItem(test, "query-migrate-cache-size",
                                "{"
@@ -3220,8 +3220,8 @@ mymain(void)
     DO_TEST_GEN_DEPRECATED(qemuMonitorJSONChangeMedia, true);
     DO_TEST_GEN(qemuMonitorJSONSaveVirtualMemory);
     DO_TEST_GEN(qemuMonitorJSONSavePhysicalMemory);
-    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationSpeed, false);
-    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationDowntime, false);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationSpeed, true);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationDowntime, true);
     DO_TEST_GEN(qemuMonitorJSONMigrate);
     DO_TEST_GEN(qemuMonitorJSONDump);
     DO_TEST_GEN(qemuMonitorJSONGraphicsRelocate);

@@ -1013,7 +1013,6 @@ udevProcessMediatedDevice(struct udev_device *dev,
                           virNodeDeviceDefPtr def)
 {
     int ret = -1;
-    const char *uuidstr = NULL;
     int iommugrp = -1;
     char *linkpath = NULL;
     char *canonicalpath = NULL;
@@ -1041,8 +1040,8 @@ udevProcessMediatedDevice(struct udev_device *dev,
 
     data->type = g_path_get_basename(canonicalpath);
 
-    uuidstr = udev_device_get_sysname(dev);
-    if ((iommugrp = virMediatedDeviceGetIOMMUGroupNum(uuidstr)) < 0)
+    data->uuid = g_strdup(udev_device_get_sysname(dev));
+    if ((iommugrp = virMediatedDeviceGetIOMMUGroupNum(data->uuid)) < 0)
         goto cleanup;
 
     if (udevGenerateDeviceName(dev, def, NULL) != 0)
@@ -1398,7 +1397,7 @@ udevProcessDeviceListEntry(struct udev *udev,
  * Do not bother enumerating over subsystems that do not
  * contain interesting devices.
  */
-const char *subsystem_blacklist[] = {
+const char *subsystem_ignored[] = {
     "acpi", "tty", "vc", "i2c",
 };
 
@@ -1407,8 +1406,8 @@ udevEnumerateAddMatches(struct udev_enumerate *udev_enumerate)
 {
     size_t i;
 
-    for (i = 0; i < G_N_ELEMENTS(subsystem_blacklist); i++) {
-        const char *s = subsystem_blacklist[i];
+    for (i = 0; i < G_N_ELEMENTS(subsystem_ignored); i++) {
+        const char *s = subsystem_ignored[i];
         if (udev_enumerate_add_nomatch_subsystem(udev_enumerate, s) < 0) {
             virReportSystemError(errno, "%s", _("failed to add susbsystem filter"));
             return -1;

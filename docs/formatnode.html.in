@@ -31,11 +31,16 @@
         name is just the bus type and address, as in
         "pci_0000_00_02_1" or "usb_1_5_3", but some devices are able
         to provide more specific names, such as
-        "net_eth1_00_27_13_6a_fe_00".
+        "net_eth1_00_27_13_6a_fe_00". This is a read-only field that is
+        reported by the device driver. If this element is set when defining a
+        new device, it will be ignored.
+
       </dd>
       <dt><code>path</code></dt>
       <dd>
-        Fully qualified sysfs path to the device.
+        Fully qualified sysfs path to the device. This is a read-only field
+        that is reported by the device driver. If this element is set when
+        defining a new device, it will be ignored.
       </dd>
       <dt><code>parent</code></dt>
       <dd>
@@ -390,8 +395,16 @@
               <dt><code>iommuGroup</code></dt>
               <dd>
                 This element supports a single attribute <code>number</code>
-                which holds the IOMMU group number the mediated device belongs
-                  to.
+                which holds the IOMMU group number to which the mediated device
+                belongs. This is a read-only field that is reported by the
+                device driver.
+              </dd>
+              <dt><code>attr</code></dt>
+              <dd>
+                This optional element can occur multiple times. It represents a
+                vendor-specific attribute that is used to configure this
+                mediated device. It has two required attributes:
+                <code>name</code> and <code>value</code>.
               </dd>
             </dl>
           </dd>

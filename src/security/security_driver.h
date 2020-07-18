@@ -67,12 +67,6 @@ typedef int (*virSecurityDomainSetHostdevLabel) (virSecurityManagerPtr mgr,
                                                  virDomainDefPtr def,
                                                  virDomainHostdevDefPtr dev,
                                                  const char *vroot);
-typedef int (*virSecurityDomainSetSavedStateLabel) (virSecurityManagerPtr mgr,
-                                                    virDomainDefPtr def,
-                                                    const char *savefile);
-typedef int (*virSecurityDomainRestoreSavedStateLabel) (virSecurityManagerPtr mgr,
-                                                        virDomainDefPtr def,
-                                                        const char *savefile);
 typedef int (*virSecurityDomainGenLabel) (virSecurityManagerPtr mgr,
                                           virDomainDefPtr sec);
 typedef int (*virSecurityDomainReserveLabel) (virSecurityManagerPtr mgr,
@@ -143,6 +137,9 @@ typedef int (*virSecurityDomainSetPathLabel) (virSecurityManagerPtr mgr,
 typedef int (*virSecurityDomainSetPathLabelRO) (virSecurityManagerPtr mgr,
                                                 virDomainDefPtr def,
                                                 const char *path);
+typedef int (*virSecurityDomainRestorePathLabel) (virSecurityManagerPtr mgr,
+                                                  virDomainDefPtr def,
+                                                  const char *path);
 typedef int (*virSecurityDomainSetChardevLabel) (virSecurityManagerPtr mgr,
                                                  virDomainDefPtr def,
                                                  virDomainChrSourceDefPtr dev_source,
@@ -203,9 +200,6 @@ struct _virSecurityDriver {
     virSecurityDomainSetHostdevLabel domainSetSecurityHostdevLabel;
     virSecurityDomainRestoreHostdevLabel domainRestoreSecurityHostdevLabel;
 
-    virSecurityDomainSetSavedStateLabel domainSetSavedStateLabel;
-    virSecurityDomainRestoreSavedStateLabel domainRestoreSavedStateLabel;
-
     virSecurityDomainSetImageFDLabel domainSetSecurityImageFDLabel;
     virSecurityDomainSetTapFDLabel domainSetSecurityTapFDLabel;
 
@@ -215,6 +209,7 @@ struct _virSecurityDriver {
 
     virSecurityDomainSetPathLabel domainSetPathLabel;
     virSecurityDomainSetPathLabelRO domainSetPathLabelRO;
+    virSecurityDomainRestorePathLabel domainRestorePathLabel;
 
     virSecurityDomainSetChardevLabel domainSetSecurityChardevLabel;
     virSecurityDomainRestoreChardevLabel domainRestoreSecurityChardevLabel;

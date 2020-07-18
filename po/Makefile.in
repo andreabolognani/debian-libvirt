@@ -340,6 +340,7 @@ LVS = @LVS@
 LV_LIBTOOL_OBJDIR = @LV_LIBTOOL_OBJDIR@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
+MDEVCTL = @MDEVCTL@
 MINGW_EXTRA_LDFLAGS = @MINGW_EXTRA_LDFLAGS@
 MKDIR_P = @MKDIR_P@
 MKFS = @MKFS@
@@ -506,28 +507,17 @@ ws_plugindir = @ws_plugindir@
 DOMAIN = $(PACKAGE_NAME)
 COPYRIGHT_HOLDER = The Libvirt authors
 MSGID_BUGS_ADDRESS = https://libvirt.org/bugs.html
-LANGS := \
-	af am anp ar as ast bal be bg bn_IN \
-	bn bo br brx bs ca cs cy da de_CH \
-	de el en_GB eo es et eu fa fil fi \
-	fr fur ga gl gu he hi hr hu ia \
-	id ilo is it ja ka kk km kn ko \
-	kw_GB kw@kkcor kw kw@uccor ky lt lv mai mk ml \
-	mn mr ms my nb nds ne nl nn nso \
-	or pa pl pt_BR pt ro ru si sk sl \
-	sq sr@latin sr sv ta te tg th tr tw \
-	uk ur vi wba yo zh_CN zh_HK zh_TW zu
-
+LANGS := $(shell cat $(srcdir)/LINGUAS)
 POTFILES_IN = $(srcdir)/POTFILES.in
 POTFILE_DEPS = $(shell cat POTFILES)
 POTFILE := $(DOMAIN).pot
-POMINIFILES := $(LANGS:%=%.mini.po)
 POFILES := $(LANGS:%=%.po)
 GMOFILES := $(LANGS:%=%.gmo)
-CLEANFILES = $(POTFILE) $(POFILES) $(GMOFILES) POTFILES
+CLEANFILES = $(GMOFILES) POTFILES
 EXTRA_DIST = \
+	LINGUAS \
 	$(POTFILES_IN) \
-	$(POMINIFILES)
+	$(POFILES)
 
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@XGETTEXT_ARGS = \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	--default-domain=$(DOMAIN) \
@@ -538,21 +528,13 @@ EXTRA_DIST = \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	--package-name="$(PACKAGE_NAME)" \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	--package-version="$(PACKAGE_VERSION)" \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	--msgid-bugs-address="$(MSGID_BUGS_ADDRESS)" \
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@	--sort-output \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(NULL)
-
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@POT_CREATION_DATE = $(shell \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	if test -n "$$SOURCE_DATE_EPOCH"; \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	then \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		date --date="@$$SOURCE_DATE_EPOCH" +"%F %R%z"; \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	else \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		date +'%F %R%z'; \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	fi)
 
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@SED_PO_FIXUP_ARGS = \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	-e "s|text/plain; charset=CHARSET|text/plain; charset=UTF-8|g" \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	-e "s|SOME DESCRIPTIVE TITLE|Libvirt package strings|g" \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	-e "s|Copyright (C) YEAR|Copyright (C) $$(date +'%Y')|" \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	-e "s|POT-Creation-Date:[^\]*|POT-Creation-Date: $(POT_CREATION_DATE)|" \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(NULL)
 
 
@@ -763,52 +745,32 @@ POTFILES: $(POTFILES_IN)
 		$(SED) 's|[@]SRCDIR[@]|$(top_srcdir)|' | \
 		$(SED) 's|[@]BUILDDIR[@]|$(top_builddir)|' > $@
 
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@update-po: $(POFILES)
-
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@update-gmo: $(GMOFILES)
 
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@update-mini-po: $(POTFILE)
+# The results of this target should not be committed to Git. The Weblate
+# service is responsible for updating .po files when the .pot is changed.
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@update-po: $(POTFILE)
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@	cd $(srcdir) && \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	for lang in $(LANGS); do \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	  echo "Minimizing $$lang content" && \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	  $(MSGMERGE) --no-location --no-fuzzy-matching --sort-output \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	    $$lang.po $(POTFILE) | \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	  $(SED) $(SED_PO_FIXUP_ARGS) | \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	  $(RUNUTF8) $(PYTHON) $(top_srcdir)/scripts/minimize-po.py > \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	    $(srcdir)/$$lang.mini.po ; \
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@	  $(SED) $(SED_PO_FIXUP_ARGS) > $$lang.po-t && \
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@	  mv $$lang.po-t $$lang.po ; \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	done
 
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@push-pot: $(POTFILE)
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	zanata push \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--project-config $(srcdir)/zanata.xml \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--push-type=source \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--transdir $(builddir) \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--srcdir $(srcdir)
-
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@pull-po: $(POTFILE)
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	zanata pull \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--project-config $(srcdir)/zanata.xml \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--create-skeletons \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--transdir $(builddir) \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@		--srcdir $(srcdir)
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(MAKE) update-mini-po
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(MAKE) update-gmo
-
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@$(POTFILE): POTFILES $(POTFILE_DEPS)
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@$(POTFILE): POTFILES
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(XGETTEXT) -o $@-t $(XGETTEXT_ARGS) \
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	  --files-from=$(abs_builddir)/POTFILES
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(SED) $(SED_PO_FIXUP_ARGS) < $@-t > $@
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(SED) $(SED_PO_FIXUP_ARGS) < $@-t > $(srcdir)/$@
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	rm -f $@-t
-
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@%.po: %.mini.po $(POTFILE)
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(MSGMERGE) --no-fuzzy-matching $< $(POTFILE) | \
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@	  $(SED) $(SED_PO_FIXUP_ARGS) > $@
 
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@%.gmo: %.po
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	rm -f $@ $@-t
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	$(MSGFMT) -c -o $@-t $<
 @HAVE_GNU_GETTEXT_TOOLS_TRUE@	mv $@-t $@
 
-@HAVE_GNU_GETTEXT_TOOLS_TRUE@.PRECIOUS: $(POTFILE) $(POFILES)
+@HAVE_GNU_GETTEXT_TOOLS_TRUE@.PHONY: $(POTFILE)
 
 @ENABLE_NLS_TRUE@install-data-hook: $(GMOFILES)
 @ENABLE_NLS_TRUE@	mkdir -p $(DESTDIR)$(langinstdir)

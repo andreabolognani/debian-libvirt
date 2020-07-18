@@ -315,6 +315,7 @@ qemuMigrationDstPrecreateStorage(virDomainObjPtr vm,
     for (i = 0; i < nbd->ndisks; i++) {
         virDomainDiskDefPtr disk;
         const char *diskSrcPath;
+        g_autofree char *nvmePath = NULL;
 
         VIR_DEBUG("Looking up disk target '%s' (capacity=%llu)",
                   nbd->disks[i].target, nbd->disks[i].capacity);
@@ -326,7 +327,12 @@ qemuMigrationDstPrecreateStorage(virDomainObjPtr vm,
             goto cleanup;
         }
 
-        diskSrcPath = virDomainDiskGetSource(disk);
+        if (disk->src->type == VIR_STORAGE_TYPE_NVME) {
+            virPCIDeviceAddressGetSysfsFile(&disk->src->nvme->pciAddr, &nvmePath);
+            diskSrcPath = nvmePath;
+        } else {
+            diskSrcPath = virDomainDiskGetSource(disk);
+        }
 
         /* Skip disks we don't want to migrate and already existing disks. */
         if (!qemuMigrationAnyCopyDisk(disk, nmigrate_disks, migrate_disks) ||
@@ -3489,6 +3495,7 @@ qemuMigrationSrcRun(virQEMUDriverPtr driver,
     unsigned int cookieFlags = 0;
     bool abort_on_error = !!(flags & VIR_MIGRATE_ABORT_ON_ERROR);
     bool events = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT);
+    bool bwParam = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH);
     bool cancel = false;
     unsigned int waitFlags;
     virDomainDefPtr persistDef = NULL;
@@ -3576,6 +3583,11 @@ qemuMigrationSrcRun(virQEMUDriverPtr driver,
             goto error;
     }
 
+    if (bwParam &&
+        qemuMigrationParamsSetULL(migParams, QEMU_MIGRATION_PARAM_MAX_BANDWIDTH,
+                                  migrate_speed * 1024 * 1024) < 0)
+        goto error;
+
     if (qemuMigrationParamsApply(driver, vm, QEMU_ASYNC_JOB_MIGRATION_OUT,
                                  migParams) < 0)
         goto error;
@@ -3638,7 +3650,8 @@ qemuMigrationSrcRun(virQEMUDriverPtr driver,
         goto exit_monitor;
     }
 
-    if (qemuMonitorSetMigrationSpeed(priv->mon, migrate_speed) < 0)
+    if (!bwParam &&
+        qemuMonitorSetMigrationSpeed(priv->mon, migrate_speed) < 0)
         goto exit_monitor;
 
     /* connect to the destination qemu if needed */
@@ -5293,24 +5306,41 @@ qemuMigrationSrcToFile(virQEMUDriverPtr driver, virDomainObjPtr vm,
                        qemuDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
+    bool bwParam = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH);
     int rc;
     int ret = -1;
     int pipeFD[2] = { -1, -1 };
     unsigned long saveMigBandwidth = priv->migMaxBandwidth;
     char *errbuf = NULL;
     virErrorPtr orig_err = NULL;
+    g_autoptr(qemuMigrationParams) migParams = NULL;
 
     if (qemuMigrationSetDBusVMState(driver, vm) < 0)
         return -1;
 
     /* Increase migration bandwidth to unlimited since target is a file.
      * Failure to change migration speed is not fatal. */
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) == 0) {
-        qemuMonitorSetMigrationSpeed(priv->mon,
-                                     QEMU_DOMAIN_MIG_BANDWIDTH_MAX);
-        priv->migMaxBandwidth = QEMU_DOMAIN_MIG_BANDWIDTH_MAX;
-        if (qemuDomainObjExitMonitor(driver, vm) < 0)
+    if (bwParam) {
+        if (!(migParams = qemuMigrationParamsNew()))
             return -1;
+
+        if (qemuMigrationParamsSetULL(migParams,
+                                      QEMU_MIGRATION_PARAM_MAX_BANDWIDTH,
+                                      QEMU_DOMAIN_MIG_BANDWIDTH_MAX * 1024 * 1024) < 0)
+            return -1;
+
+        if (qemuMigrationParamsApply(driver, vm, asyncJob, migParams) < 0)
+            return -1;
+
+        priv->migMaxBandwidth = QEMU_DOMAIN_MIG_BANDWIDTH_MAX;
+    } else {
+        if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) == 0) {
+            qemuMonitorSetMigrationSpeed(priv->mon,
+                                         QEMU_DOMAIN_MIG_BANDWIDTH_MAX);
+            priv->migMaxBandwidth = QEMU_DOMAIN_MIG_BANDWIDTH_MAX;
+            if (qemuDomainObjExitMonitor(driver, vm) < 0)
+                return -1;
+        }
     }
 
     if (!virDomainObjIsActive(vm)) {
@@ -5391,11 +5421,20 @@ qemuMigrationSrcToFile(virQEMUDriverPtr driver, virDomainObjPtr vm,
         virErrorPreserveLast(&orig_err);
 
     /* Restore max migration bandwidth */
-    if (virDomainObjIsActive(vm) &&
-        qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) == 0) {
-        qemuMonitorSetMigrationSpeed(priv->mon, saveMigBandwidth);
+    if (virDomainObjIsActive(vm)) {
+        if (bwParam) {
+            if (qemuMigrationParamsSetULL(migParams,
+                                          QEMU_MIGRATION_PARAM_MAX_BANDWIDTH,
+                                          saveMigBandwidth * 1024 * 1024) == 0)
+                ignore_value(qemuMigrationParamsApply(driver, vm, asyncJob,
+                                                      migParams));
+        } else {
+            if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) == 0) {
+                qemuMonitorSetMigrationSpeed(priv->mon, saveMigBandwidth);
+                ignore_value(qemuDomainObjExitMonitor(driver, vm));
+            }
+        }
         priv->migMaxBandwidth = saveMigBandwidth;
-        ignore_value(qemuDomainObjExitMonitor(driver, vm));
     }
 
     VIR_FORCE_CLOSE(pipeFD[0]);

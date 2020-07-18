@@ -1917,6 +1917,24 @@ virSecurityDACRestoreSEVLabel(virSecurityManagerPtr mgr G_GNUC_UNUSED,
 
 
 static int
+virSecurityDACRestoreSysinfoLabel(virSecurityManagerPtr mgr,
+                                  virSysinfoDefPtr def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nfw_cfgs; i++) {
+        virSysinfoFWCfgDefPtr f = &def->fw_cfgs[i];
+
+        if (f->file &&
+            virSecurityDACRestoreFileLabel(mgr, f->file) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virSecurityDACRestoreAllLabel(virSecurityManagerPtr mgr,
                               virDomainDefPtr def,
                               bool migrated,
@@ -1979,15 +1997,21 @@ virSecurityDACRestoreAllLabel(virSecurityManagerPtr mgr,
                                &chardevData) < 0)
         rc = -1;
 
-    if (def->tpm) {
+    for (i = 0; i < def->ntpms; i++) {
         if (virSecurityDACRestoreTPMFileLabel(mgr,
                                               def,
-                                              def->tpm) < 0)
+                                              def->tpms[i]) < 0)
             rc = -1;
     }
 
     if (def->sev) {
         if (virSecurityDACRestoreSEVLabel(mgr, def) < 0)
+            rc = -1;
+    }
+
+    for (i = 0; i < def->nsysinfo; i++) {
+        if (virSecurityDACRestoreSysinfoLabel(mgr,
+                                              def->sysinfo[i]) < 0)
             rc = -1;
     }
 
@@ -2095,6 +2119,27 @@ virSecurityDACSetSEVLabel(virSecurityManagerPtr mgr,
 
 
 static int
+virSecurityDACSetSysinfoLabel(virSecurityManagerPtr mgr,
+                              uid_t user,
+                              gid_t group,
+                              virSysinfoDefPtr def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nfw_cfgs; i++) {
+        virSysinfoFWCfgDefPtr f = &def->fw_cfgs[i];
+
+        if (f->file &&
+            virSecurityDACSetOwnership(mgr, NULL, f->file,
+                                       user, group, true) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
                           virDomainDefPtr def,
                           const char *stdin_path G_GNUC_UNUSED,
@@ -2158,10 +2203,10 @@ virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
                                &chardevData) < 0)
         return -1;
 
-    if (def->tpm) {
+    for (i = 0; i < def->ntpms; i++) {
         if (virSecurityDACSetTPMFileLabel(mgr,
                                           def,
-                                          def->tpm) < 0)
+                                          def->tpms[i]) < 0)
             return -1;
     }
 
@@ -2172,6 +2217,11 @@ virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
 
     if (virSecurityDACGetImageIds(secdef, priv, &user, &group))
         return -1;
+
+    for (i = 0; i < def->nsysinfo; i++) {
+        if (virSecurityDACSetSysinfoLabel(mgr, user, group, def->sysinfo[i]) < 0)
+            return -1;
+    }
 
     if (def->os.loader && def->os.loader->nvram &&
         virSecurityDACSetOwnership(mgr, NULL,
@@ -2204,39 +2254,6 @@ virSecurityDACSetAllLabel(virSecurityManagerPtr mgr,
         return -1;
 
     return 0;
-}
-
-
-static int
-virSecurityDACSetSavedStateLabel(virSecurityManagerPtr mgr,
-                                 virDomainDefPtr def,
-                                 const char *savefile)
-{
-    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
-    virSecurityLabelDefPtr secdef;
-    uid_t user;
-    gid_t group;
-
-    secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
-
-    if (virSecurityDACGetImageIds(secdef, priv, &user, &group) < 0)
-        return -1;
-
-    return virSecurityDACSetOwnership(mgr, NULL, savefile, user, group, true);
-}
-
-
-static int
-virSecurityDACRestoreSavedStateLabel(virSecurityManagerPtr mgr,
-                                     virDomainDefPtr def G_GNUC_UNUSED,
-                                     const char *savefile)
-{
-    virSecurityDACDataPtr priv = virSecurityManagerGetPrivateData(mgr);
-
-    if (!priv->dynamicOwnership)
-        return 0;
-
-    return virSecurityDACRestoreFileLabel(mgr, savefile);
 }
 
 
@@ -2539,6 +2556,15 @@ virSecurityDACDomainSetPathLabel(virSecurityManagerPtr mgr,
     return virSecurityDACSetOwnership(mgr, NULL, path, user, group, true);
 }
 
+static int
+virSecurityDACDomainRestorePathLabel(virSecurityManagerPtr mgr,
+                                     virDomainDefPtr def G_GNUC_UNUSED,
+                                     const char *path)
+{
+    return virSecurityDACRestoreFileLabel(mgr, path);
+}
+
+
 virSecurityDriver virSecurityDriverDAC = {
     .privateDataLen                     = sizeof(virSecurityDACData),
     .name                               = SECURITY_DAC_NAME,
@@ -2585,9 +2611,6 @@ virSecurityDriver virSecurityDriverDAC = {
     .domainSetSecurityHostdevLabel      = virSecurityDACSetHostdevLabel,
     .domainRestoreSecurityHostdevLabel  = virSecurityDACRestoreHostdevLabel,
 
-    .domainSetSavedStateLabel           = virSecurityDACSetSavedStateLabel,
-    .domainRestoreSavedStateLabel       = virSecurityDACRestoreSavedStateLabel,
-
     .domainSetSecurityImageFDLabel      = virSecurityDACSetImageFDLabel,
     .domainSetSecurityTapFDLabel        = virSecurityDACSetTapFDLabel,
 
@@ -2596,6 +2619,7 @@ virSecurityDriver virSecurityDriverDAC = {
     .getBaseLabel                       = virSecurityDACGetBaseLabel,
 
     .domainSetPathLabel                 = virSecurityDACDomainSetPathLabel,
+    .domainRestorePathLabel             = virSecurityDACDomainRestorePathLabel,
 
     .domainSetSecurityChardevLabel      = virSecurityDACSetChardevLabel,
     .domainRestoreSecurityChardevLabel  = virSecurityDACRestoreChardevLabel,

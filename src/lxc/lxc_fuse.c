@@ -31,7 +31,6 @@
 #include "virfile.h"
 #include "virbuffer.h"
 #include "virstring.h"
-#include "viralloc.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
@@ -284,10 +283,7 @@ int lxcSetupFuse(virLXCFusePtr *f, virDomainDefPtr def)
 {
     int ret = -1;
     struct fuse_args args = FUSE_ARGS_INIT(0, NULL);
-    virLXCFusePtr fuse = NULL;
-
-    if (VIR_ALLOC(fuse) < 0)
-        goto cleanup;
+    virLXCFusePtr fuse = g_new0(virLXCFuse, 1);
 
     fuse->def = def;
 
@@ -326,10 +322,10 @@ int lxcSetupFuse(virLXCFusePtr *f, virDomainDefPtr def)
     *f = fuse;
     return ret;
  cleanup1:
-    VIR_FREE(fuse->mountpoint);
+    g_free(fuse->mountpoint);
     virMutexDestroy(&fuse->lock);
  cleanup2:
-    VIR_FREE(fuse);
+    g_free(fuse);
     goto cleanup;
 }
 
@@ -356,8 +352,8 @@ void lxcFreeFuse(virLXCFusePtr *f)
             fuse_exit(fuse->fuse);
         virMutexUnlock(&fuse->lock);
 
-        VIR_FREE(fuse->mountpoint);
-        VIR_FREE(*f);
+        g_free(fuse->mountpoint);
+        g_free(*f);
     }
 }
 #else

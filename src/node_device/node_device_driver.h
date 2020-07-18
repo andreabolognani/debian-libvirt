@@ -24,6 +24,7 @@
 #include "internal.h"
 #include "driver.h"
 #include "virnodedeviceobj.h"
+#include "vircommand.h"
 
 #define LINUX_NEW_DEVICE_WAIT_TIME 60
 
@@ -116,3 +117,9 @@ nodeConnectNodeDeviceEventRegisterAny(virConnectPtr conn,
 int
 nodeConnectNodeDeviceEventDeregisterAny(virConnectPtr conn,
                                         int callbackID);
+
+virCommandPtr
+nodeDeviceGetMdevctlStartCommand(virNodeDeviceDefPtr def,
+                                 char **uuid_out);
+virCommandPtr
+nodeDeviceGetMdevctlStopCommand(const char *uuid);

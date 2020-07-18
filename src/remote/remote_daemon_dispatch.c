@@ -3030,7 +3030,7 @@ remoteDispatchDomainMigratePrepare(virNetServerPtr server G_GNUC_UNUSED,
     char *cookie = NULL;
     int cookielen = 0;
     char *uri_in;
-    char **uri_out;
+    char **uri_out = NULL;
     char *dname;
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
@@ -3082,7 +3082,7 @@ remoteDispatchDomainMigratePrepare2(virNetServerPtr server G_GNUC_UNUSED,
     char *cookie = NULL;
     int cookielen = 0;
     char *uri_in;
-    char **uri_out;
+    char **uri_out = NULL;
     char *dname;
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
@@ -3861,7 +3861,7 @@ remoteDispatchAuthSaslStart(virNetServerPtr server,
     if (err == VIR_NET_SASL_CONTINUE) {
         ret->complete = 0;
     } else {
-        /* Check username whitelist ACL */
+        /* Check username ACL */
         if ((err = remoteSASLFinish(server, client)) < 0) {
             if (err == -2)
                 goto authdeny;
@@ -3957,7 +3957,7 @@ remoteDispatchAuthSaslStep(virNetServerPtr server,
     if (err == VIR_NET_SASL_CONTINUE) {
         ret->complete = 0;
     } else {
-        /* Check username whitelist ACL */
+        /* Check username ACL */
         if ((err = remoteSASLFinish(server, client)) < 0) {
             if (err == -2)
                 goto authdeny;
@@ -4789,7 +4789,7 @@ remoteDispatchDomainMigratePrepare3(virNetServerPtr server G_GNUC_UNUSED,
     char *cookieout = NULL;
     int cookieoutlen = 0;
     char *uri_in;
-    char **uri_out;
+    char **uri_out = NULL;
     char *dname;
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
@@ -5584,7 +5584,7 @@ remoteDispatchDomainMigratePrepare3Params(virNetServerPtr server G_GNUC_UNUSED,
     int nparams = 0;
     char *cookieout = NULL;
     int cookieoutlen = 0;
-    char **uri_out;
+    char **uri_out = NULL;
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
 

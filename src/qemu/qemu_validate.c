@@ -762,6 +762,33 @@ qemuValidateDefGetVcpuHotplugGranularity(const virDomainDef *def)
 }
 
 
+static int
+qemuValidateDomainDefSysinfo(const virSysinfoDef *def,
+                             virQEMUCapsPtr qemuCaps G_GNUC_UNUSED)
+{
+    size_t i;
+
+    for (i = 0; i < def->nfw_cfgs; i++) {
+        const virSysinfoFWCfgDef *f = &def->fw_cfgs[i];
+
+        if (!STRPREFIX(f->name, "opt/")) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Invalid firmware name"));
+            return -1;
+        }
+
+        if (STRPREFIX(f->name, "opt/ovmf/") ||
+            STRPREFIX(f->name, "opt/org.qemu/")) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("That firmware name is reserved"));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 int
 qemuValidateDomainDef(const virDomainDef *def,
                       void *opaque)
@@ -978,6 +1005,11 @@ qemuValidateDomainDef(const virDomainDef *def,
         }
     }
 
+    for (i = 0; i < def->nsysinfo; i++) {
+        if (qemuValidateDomainDefSysinfo(def->sysinfo[i], qemuCaps) < 0)
+            return -1;
+    }
+
     return 0;
 }
 
@@ -986,11 +1018,27 @@ static int
 qemuValidateDomainDeviceDefZPCIAddress(virDomainDeviceInfoPtr info,
                                        virQEMUCapsPtr qemuCaps)
 {
-    if (!virZPCIDeviceAddressIsEmpty(&info->addr.pci.zpci) &&
+    virZPCIDeviceAddressPtr zpci = &info->addr.pci.zpci;
+
+    if (virZPCIDeviceAddressIsPresent(zpci) &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_ZPCI)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        "%s",
                        _("This QEMU binary doesn't support zPCI"));
+        return -1;
+    }
+
+    /* We don't need to check fid because fid covers
+     * all range of uint32 type.
+     */
+    if (zpci->uid.isSet &&
+        (zpci->uid.value > VIR_DOMAIN_DEVICE_ZPCI_MAX_UID ||
+         zpci->uid.value == 0)) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Invalid PCI address uid='0x%.4x', "
+                         "must be > 0x0000 and <= 0x%.4x"),
+                       zpci->uid.value,
+                       VIR_DOMAIN_DEVICE_ZPCI_MAX_UID);
         return -1;
     }
 
@@ -1009,7 +1057,9 @@ qemuValidateDomainDeviceDefAddress(const virDomainDeviceDef *dev,
 
     switch ((virDomainDeviceAddressType) info->type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI:
-        return qemuValidateDomainDeviceDefZPCIAddress(info, qemuCaps);
+        if (qemuValidateDomainDeviceDefZPCIAddress(info, qemuCaps) < 0)
+            return -1;
+        break;
 
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE:
         /* Address validation might happen before we have had a chance to
@@ -1892,6 +1942,14 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
 
     if (qemuValidateDomainVirtioOptions(video->virtio, qemuCaps) < 0)
         return -1;
+
+    if (video->type == VIR_DOMAIN_VIDEO_TYPE_RAMFB &&
+        video->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("'address' is not supported for 'ramfb' video devices"));
+        return -1;
+    }
+
 
     return 0;
 }
@@ -3623,6 +3681,25 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
     case VIR_DOMAIN_TPM_MODEL_SPAPR:
         flag = QEMU_CAPS_DEVICE_TPM_SPAPR;
         break;
+    case VIR_DOMAIN_TPM_MODEL_SPAPR_PROXY:
+        if (!ARCH_IS_PPC64(def->os.arch)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("TPM Proxy model %s is only available for "
+                             "PPC64 guests"),
+                          virDomainTPMModelTypeToString(tpm->model));
+            return -1;
+        }
+
+        /* TPM Proxy devices have 'passthrough' backend */
+        if (tpm->type != VIR_DOMAIN_TPM_TYPE_PASSTHROUGH) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("TPM Proxy model %s requires "
+                             "'Passthrough' backend"),
+                            virDomainTPMModelTypeToString(tpm->model));
+        }
+
+        flag = QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY;
+        break;
     case VIR_DOMAIN_TPM_MODEL_LAST:
     default:
         virReportEnumRangeError(virDomainTPMModel, tpm->model);
@@ -3855,6 +3932,13 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_DEVICE_IOTLB)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("iommu: device IOTLB is not supported "
+                         "with this QEMU binary"));
+        return -1;
+    }
+    if (iommu->aw_bits > 0 &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_AW_BITS)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("iommu: aw_bits is not supported "
                          "with this QEMU binary"));
         return -1;
     }

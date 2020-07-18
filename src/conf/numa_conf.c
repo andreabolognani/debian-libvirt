@@ -846,7 +846,7 @@ virDomainNumaDefCPUParseXML(virDomainNumaPtr def,
                             xmlXPathContextPtr ctxt)
 {
     xmlNodePtr *nodes = NULL;
-    xmlNodePtr oldNode = ctxt->node;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt);
     char *tmp = NULL;
     int n;
     size_t i, j;
@@ -963,7 +963,6 @@ virDomainNumaDefCPUParseXML(virDomainNumaPtr def,
     ret = 0;
 
  cleanup:
-    ctxt->node = oldNode;
     VIR_FREE(nodes);
     VIR_FREE(tmp);
     return ret;
@@ -1372,4 +1371,35 @@ virDomainNumaGetMemorySize(virDomainNumaPtr numa)
         ret += numa->mem_nodes[i].mem;
 
     return ret;
+}
+
+
+int
+virDomainNumaFillCPUsInNode(virDomainNumaPtr numa,
+                            size_t node,
+                            unsigned int maxCpus)
+{
+    g_autoptr(virBitmap) maxCPUsBitmap = virBitmapNew(maxCpus);
+    size_t i;
+
+    if (node >= virDomainNumaGetNodeCount(numa))
+        return -1;
+
+    virBitmapSetAll(maxCPUsBitmap);
+
+    for (i = 0; i < numa->nmem_nodes; i++) {
+        virBitmapPtr nodeCpus = virDomainNumaGetNodeCpumask(numa, i);
+
+        if (i == node)
+            continue;
+
+        virBitmapSubtract(maxCPUsBitmap, nodeCpus);
+    }
+
+    if (!virBitmapEqual(numa->mem_nodes[node].cpumask, maxCPUsBitmap)) {
+        virBitmapFree(numa->mem_nodes[node].cpumask);
+        numa->mem_nodes[node].cpumask = g_steal_pointer(&maxCPUsBitmap);
+    }
+
+    return 0;
 }
