@@ -437,17 +437,13 @@ testCompareXMLToArgvCreateArgs(virQEMUDriverPtr drv,
         vsockPriv->vhostfd = 6789;
     }
 
-    if (vm->def->tpm) {
-        switch (vm->def->tpm->type) {
-        case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-            VIR_FREE(vm->def->tpm->data.emulator.source.data.file.path);
-            vm->def->tpm->data.emulator.source.data.file.path = g_strdup("/dev/test");
-            vm->def->tpm->data.emulator.source.type = VIR_DOMAIN_CHR_TYPE_FILE;
-            break;
-        case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        case VIR_DOMAIN_TPM_TYPE_LAST:
-            break;
-       }
+    for (i = 0; i < vm->def->ntpms; i++) {
+        if (vm->def->tpms[i]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR)
+            continue;
+
+        VIR_FREE(vm->def->tpms[i]->data.emulator.source.data.file.path);
+        vm->def->tpms[i]->data.emulator.source.data.file.path = g_strdup("/dev/test");
+        vm->def->tpms[i]->data.emulator.source.type = VIR_DOMAIN_CHR_TYPE_FILE;
     }
 
     for (i = 0; i < vm->def->nvideos; i++) {
@@ -611,6 +607,12 @@ testCompareXMLToArgv(const void *data)
 
     if (!(vm = virDomainObjNew(driver.xmlopt)))
         goto cleanup;
+
+    if (!virFileExists(info->infile)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       "Input file '%s' not found", info->infile);
+        goto cleanup;
+    }
 
     parseFlags |= VIR_DOMAIN_DEF_PARSE_INACTIVE;
     if (!(vm->def = virDomainDefParseFile(info->infile,
@@ -1684,6 +1686,7 @@ mymain(void)
     DO_TEST("smbios", NONE);
     DO_TEST_PARSE_ERROR("smbios-date", NONE);
     DO_TEST_PARSE_ERROR("smbios-uuid-match", NONE);
+    DO_TEST("smbios-type-fwcfg", QEMU_CAPS_FW_CFG);
 
     DO_TEST("watchdog", NONE);
     DO_TEST("watchdog-device", NONE);
@@ -1742,6 +1745,11 @@ mymain(void)
     DO_TEST("hostdev-vfio-zpci",
             QEMU_CAPS_DEVICE_VFIO_PCI,
             QEMU_CAPS_DEVICE_ZPCI);
+    DO_TEST_PARSE_ERROR("hostdev-vfio-zpci-autogenerate-fids",
+                        QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_PARSE_ERROR("hostdev-vfio-zpci-invalid-uid-valid-fid",
+                        QEMU_CAPS_DEVICE_VFIO_PCI,
+                        QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST("hostdev-vfio-zpci-multidomain-many",
             QEMU_CAPS_DEVICE_VFIO_PCI,
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
@@ -1749,12 +1757,32 @@ mymain(void)
     DO_TEST("hostdev-vfio-zpci-autogenerate",
             QEMU_CAPS_DEVICE_VFIO_PCI,
             QEMU_CAPS_DEVICE_ZPCI);
+    DO_TEST("hostdev-vfio-zpci-autogenerate-uids",
+            QEMU_CAPS_DEVICE_VFIO_PCI,
+            QEMU_CAPS_DEVICE_ZPCI);
+    DO_TEST("hostdev-vfio-zpci-autogenerate-fids",
+            QEMU_CAPS_DEVICE_VFIO_PCI,
+            QEMU_CAPS_DEVICE_ZPCI);
+    DO_TEST_PARSE_ERROR("hostdev-vfio-zpci-uid-set-zero",
+                        QEMU_CAPS_DEVICE_VFIO_PCI,
+                        QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST("hostdev-vfio-zpci-boundaries",
             QEMU_CAPS_DEVICE_VFIO_PCI,
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST_PARSE_ERROR("hostdev-vfio-zpci",
                         QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_PARSE_ERROR("hostdev-vfio-zpci-duplicate",
+                        QEMU_CAPS_DEVICE_VFIO_PCI,
+                        QEMU_CAPS_DEVICE_ZPCI);
+    DO_TEST_PARSE_ERROR("hostdev-vfio-zpci-set-zero",
+                        QEMU_CAPS_DEVICE_VFIO_PCI,
+                        QEMU_CAPS_DEVICE_ZPCI);
+    DO_TEST("hostdev-vfio-zpci-ccw-memballoon",
+            QEMU_CAPS_CCW,
+            QEMU_CAPS_DEVICE_VFIO_PCI,
+            QEMU_CAPS_DEVICE_ZPCI);
+
     DO_TEST("pci-rom", QEMU_CAPS_DEVICE_VFIO_PCI);
     DO_TEST("pci-rom-disabled", NONE);
     DO_TEST("pci-rom-disabled-invalid", NONE);
@@ -1900,6 +1928,7 @@ mymain(void)
     DO_TEST("vcpu-placement-static",
             QEMU_CAPS_KVM,
             QEMU_CAPS_OBJECT_IOTHREAD);
+    DO_TEST_CAPS_LATEST("cputune-cpuset-big-id");
 
     DO_TEST("numatune-memory", NONE);
     DO_TEST_PARSE_ERROR("numatune-memory-invalid-nodeset", NONE);
@@ -2278,6 +2307,7 @@ mymain(void)
             QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS);
     DO_TEST_CAPS_LATEST("video-bochs-display-device");
     DO_TEST_CAPS_LATEST("video-ramfb-display-device");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("video-ramfb-display-device-pci-address");
     DO_TEST("video-none-device",
             QEMU_CAPS_VNC);
     DO_TEST_PARSE_ERROR("video-invalid-multiple-devices", NONE);
@@ -2654,35 +2684,13 @@ mymain(void)
                         QEMU_CAPS_DEVICE_IOH3420,
                         QEMU_CAPS_DEVICE_PXB_PCIE);
 
-    DO_TEST("hostdev-scsi-lsi",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-virtio-scsi",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-readonly",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-virtio-scsi",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-lsi-iscsi",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-lsi-iscsi-auth",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-virtio-iscsi",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-virtio-iscsi-auth",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("disk-hostdev-scsi-virtio-iscsi-auth-AES",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI,
-            QEMU_CAPS_OBJECT_SECRET,
-            QEMU_CAPS_ISCSI_PASSWORD_SECRET);
+    DO_TEST_CAPS_VER("hostdev-scsi-lsi", "2.8.0");
+    DO_TEST_CAPS_VER("hostdev-scsi-lsi", "4.1.0");
+    DO_TEST_CAPS_LATEST("hostdev-scsi-lsi");
+    DO_TEST_CAPS_VER("hostdev-scsi-virtio-scsi", "2.8.0");
+    DO_TEST_CAPS_VER("hostdev-scsi-virtio-scsi", "4.1.0");
+    DO_TEST_CAPS_LATEST("hostdev-scsi-virtio-scsi");
+
     DO_TEST("hostdev-scsi-vhost-scsi-ccw",
             QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_DEVICE_VHOST_SCSI,
             QEMU_CAPS_CCW);
@@ -3068,6 +3076,21 @@ mymain(void)
                  QEMU_CAPS_NEC_USB_XHCI,
                  QEMU_CAPS_DEVICE_QEMU_XHCI);
 
+    DO_TEST_PARSE_ERROR("ppc64-tpmproxy-double",
+                        QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                        QEMU_CAPS_PCI_OHCI,
+                        QEMU_CAPS_DEVICE_TPM_PASSTHROUGH,
+                        QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY);
+
+    DO_TEST_PARSE_ERROR("ppc64-tpm-double",
+                        QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                        QEMU_CAPS_PCI_OHCI,
+                        QEMU_CAPS_DEVICE_TPM_PASSTHROUGH,
+                        QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY);
+
+    DO_TEST_CAPS_LATEST_PPC64("ppc64-tpmproxy-single");
+    DO_TEST_CAPS_LATEST_PPC64("ppc64-tpmproxy-with-tpm");
+
     DO_TEST("aarch64-usb-controller-qemu-xhci",
             QEMU_CAPS_OBJECT_GPEX,
             QEMU_CAPS_NEC_USB_XHCI,
@@ -3122,6 +3145,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("intel-iommu-caching-mode");
     DO_TEST_CAPS_LATEST("intel-iommu-eim");
     DO_TEST_CAPS_LATEST("intel-iommu-device-iotlb");
+    DO_TEST_CAPS_LATEST("intel-iommu-aw-bits");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("intel-iommu-wrong-machine");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
 

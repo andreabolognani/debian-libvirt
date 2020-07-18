@@ -560,6 +560,9 @@
    <sysmacros.h>. */
 #undef MAJOR_IN_SYSMACROS
 
+/* Location or name of the mdevctl program */
+#undef MDEVCTL
+
 /* Location or name of the mkfs program */
 #undef MKFS
 

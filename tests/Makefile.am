@@ -103,6 +103,7 @@ EXTRA_DIST = \
 	networkxml2xmlupdatein \
 	networkxml2xmlupdateout \
 	nodedevschemadata \
+	nodedevmdevctldata \
 	virhostcpudata \
 	nssdata \
 	nwfilterxml2firewalldata \
@@ -388,6 +389,10 @@ test_programs += storagevolxml2xmltest
 
 test_programs += nodedevxml2xmltest
 
+if WITH_NODE_DEVICES
+test_programs += nodedevmdevctltest
+endif WITH_NODE_DEVICES
+
 test_programs += interfacexml2xmltest
 
 test_programs += cputest
@@ -453,14 +458,14 @@ check-access: file-access-clean
 	VIR_TEST_FILE_ACCESS=1 $(MAKE) $(AM_MAKEFLAGS) check
 	$(RUNUTF8) $(PYTHON) $(top_srcdir)/scripts/check-file-access.py \
 		$(abs_builddir)/test_file_access.txt \
-		$(abs_srcdir)/file_access_whitelist.txt | sort -u
+		$(abs_srcdir)/permitted_file_access.txt | sort -u
 
 file-access-clean:
 	> test_file_access.txt
 endif WITH_LINUX
 
 EXTRA_DIST += \
-	file_access_whitelist.txt
+	permitted_file_access.txt
 
 if WITH_TESTS
 noinst_PROGRAMS = $(test_programs) $(test_helpers)
@@ -969,6 +974,16 @@ nodedevxml2xmltest_SOURCES = \
 	nodedevxml2xmltest.c \
 	testutils.c testutils.h
 nodedevxml2xmltest_LDADD = $(LDADDS)
+
+if WITH_NODE_DEVICES
+nodedevmdevctltest_SOURCES = \
+	nodedevmdevctltest.c \
+	testutils.c testutils.h
+
+nodedevmdevctltest_LDADD = \
+	../src/libvirt_driver_nodedev_impl.la \
+	$(LDADDS)
+endif WITH_NODE_DEVICES
 
 interfacexml2xmltest_SOURCES = \
 	interfacexml2xmltest.c \

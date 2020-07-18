@@ -1,3 +1,10 @@
+<!--
+  After adding new features, update existing test files with
+
+    for json in tests/cputestdata/x86_64-cpuid-*.json; do
+      tests/cputestdata/cpu-cpuid.py diff $json
+    done
+-->
 <cpus>
   <!-- standard features, EDX -->
   <feature name='fpu'>
@@ -286,6 +293,9 @@
   <feature name='ospke'>
     <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x00000010'/>
   </feature>
+  <feature name='waitpkg'>
+    <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x00000020'/>
+  </feature>
   <feature name='avx512vbmi2'>
     <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x00000040'/>
   </feature>
@@ -310,8 +320,17 @@
   <feature name='la57'>
     <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x00010000'/>
   </feature>
+  <feature name='rdpid'>
+    <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x00400000'/>
+  </feature>
   <feature name='cldemote'>
     <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x02000000'/>
+  </feature>
+  <feature name='movdiri'>
+    <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x08000000'/>
+  </feature>
+  <feature name='movdir64b'>
+    <cpuid eax_in='0x07' ecx_in='0x00' ecx='0x10000000'/>
   </feature>
 
   <feature name='avx512-4vnniw'>
@@ -474,11 +493,17 @@
   <feature name='clzero'>
     <cpuid eax_in='0x80000008' ebx='0x00000001'/>
   </feature>
+  <feature name='xsaveerptr'>
+    <cpuid eax_in='0x80000008' ebx='0x00000004'/>
+  </feature>
   <feature name='wbnoinvd'>
     <cpuid eax_in='0x80000008' ebx='0x00000200'/>
   </feature>
   <feature name='ibpb'>
     <cpuid eax_in='0x80000008' ebx='0x00001000'/>
+  </feature>
+  <feature name='amd-stibp'>
+    <cpuid eax_in='0x80000008' ebx='0x00008000'/>
   </feature>
   <feature name='amd-ssbd'>
     <cpuid eax_in='0x80000008' ebx='0x01000000'/>
@@ -488,6 +513,38 @@
   </feature>
   <feature name='amd-no-ssb'>
     <cpuid eax_in='0x80000008' ebx='0x04000000'/>
+  </feature>
+
+  <!-- SVM features -->
+  <feature name='npt'>
+    <cpuid eax_in='0x8000000a' edx='0x00000001'/>
+  </feature>
+  <feature name='lbrv'>
+    <cpuid eax_in='0x8000000a' edx='0x00000002'/>
+  </feature>
+  <feature name='svm-lock'>
+    <cpuid eax_in='0x8000000a' edx='0x00000004'/>
+  </feature>
+  <feature name='nrip-save'>
+    <cpuid eax_in='0x8000000a' edx='0x00000008'/>
+  </feature>
+  <feature name='tsc-scale'>
+    <cpuid eax_in='0x8000000a' edx='0x00000010'/>
+  </feature>
+  <feature name='vmcb-clean'>
+    <cpuid eax_in='0x8000000a' edx='0x00000020'/>
+  </feature>
+  <feature name='flushbyasid'>
+    <cpuid eax_in='0x8000000a' edx='0x00000040'/>
+  </feature>
+  <feature name='decodeassists'>
+    <cpuid eax_in='0x8000000a' edx='0x00000080'/>
+  </feature>
+  <feature name='pause-filter'>
+    <cpuid eax_in='0x8000000a' edx='0x00000400'/>
+  </feature>
+  <feature name='pfthreshold'>
+    <cpuid eax_in='0x8000000a' edx='0x00001000'/>
   </feature>
 
   <!-- IA32_ARCH_CAPABILITIES features -->

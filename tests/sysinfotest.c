@@ -34,94 +34,99 @@
 #define LIBVIRT_VIRSYSINFOPRIV_H_ALLOW
 #include "virsysinfopriv.h"
 
+#define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
+#include "vircommandpriv.h"
+
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 struct testSysinfoData {
+    const char *name; /* test name, also base name for result files */
     virSysinfoDefPtr (*func)(void); /* sysinfo gathering function */
-    char *decoder; /* name of dmi decoder binary/script */
-    char *sysinfo; /* name of /proc/sysinfo substitute file */
-    char *cpuinfo; /* name of /proc/cpuinfo substitute file */
-    char *expected; /* (required) file containing output of virSysinfoFormat */
 };
+
+
+static void
+testDMIDecodeDryRun(const char *const*args G_GNUC_UNUSED,
+                    const char *const*env G_GNUC_UNUSED,
+                    const char *input G_GNUC_UNUSED,
+                    char **output,
+                    char **error,
+                    int *status,
+                    void *opaque)
+{
+    const char *sysinfo = opaque;
+
+    if (STREQ_NULLABLE(args[1], "--dump") &&
+        STREQ_NULLABLE(args[2], "--oem-string")) {
+        if (!args[3]) {
+            *error = g_strdup("dmidecode: option '--oem-string' requires an argument");
+            *status = EXIT_FAILURE;
+            return;
+        }
+
+        if (STREQ(args[3], "3")) {
+            *output = g_strdup("Ha ha ha try parsing\\n\n"
+                               "      String 3: this correctly\n"
+                               "      String 4:then");
+        } else {
+            *error = g_strdup_printf("No OEM string number %s", args[3]);
+            *status = EXIT_FAILURE;
+            return;
+        }
+    } else {
+        if (virFileReadAll(sysinfo, 10 * 1024 * 1024, output) < 0) {
+            *error = g_strdup(virGetLastErrorMessage());
+            *status = EXIT_FAILURE;
+            return;
+        }
+    }
+
+    *error = g_strdup("");
+    *status = 0;
+}
+
 
 static int
 testSysinfo(const void *data)
 {
-    int result = -1;
-    const char *sysfsActualData;
-    virSysinfoDefPtr ret = NULL;
-    virBuffer buf = VIR_BUFFER_INITIALIZER;
     const struct testSysinfoData *testdata = data;
+    const char *sysfsActualData;
+    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    g_autofree char *sysinfo = NULL;
+    g_autofree char *cpuinfo = NULL;
+    g_autofree char *expected = NULL;
 
-    virSysinfoSetup(testdata->decoder, testdata->sysinfo, testdata->cpuinfo);
+    sysinfo = g_strdup_printf("%s/sysinfodata/%ssysinfo.data", abs_srcdir, testdata->name);
+    cpuinfo = g_strdup_printf("%s/sysinfodata/%scpuinfo.data", abs_srcdir, testdata->name);
+    expected = g_strdup_printf("%s/sysinfodata/%ssysinfo.expect", abs_srcdir, testdata->name);
 
-    if (!testdata->expected ||
-        !(ret = testdata->func()))
-        goto cleanup;
+    virCommandSetDryRun(NULL, testDMIDecodeDryRun, sysinfo);
+
+    virSysinfoSetup(sysinfo, cpuinfo);
+
+    ret = testdata->func();
+    virCommandSetDryRun(NULL, NULL, NULL);
+
+    if (!ret)
+        return -1;
 
     if (virSysinfoFormat(&buf, ret) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(sysfsActualData = virBufferCurrentContent(&buf)))
-        goto cleanup;
+        return -1;
 
-    if (virTestCompareToFile(sysfsActualData, testdata->expected) < 0)
-        goto cleanup;
-
-    result = 0;
-
- cleanup:
-    virSysinfoDefFree(ret);
-    virBufferFreeAndReset(&buf);
-
-    return result;
+    return virTestCompareToFile(sysfsActualData, expected);
 }
-
-static int
-sysinfotest_run(const char *test,
-                virSysinfoDefPtr (*func)(void),
-                const char *decoder,
-                const char *sysinfo,
-                const char *cpuinfo,
-                const char *expected)
-{
-    struct testSysinfoData testdata = { 0 };
-    int ret = EXIT_FAILURE;
-
-    testdata.func = func;
-
-    if (decoder)
-        testdata.decoder = g_strdup_printf("%s/%s", abs_srcdir, decoder);
-    if (sysinfo)
-        testdata.sysinfo = g_strdup_printf("%s/%s", abs_srcdir, sysinfo);
-    if (cpuinfo)
-        testdata.cpuinfo = g_strdup_printf("%s/%s", abs_srcdir, cpuinfo);
-    if (expected)
-        testdata.expected = g_strdup_printf("%s/%s", abs_srcdir, expected);
-
-    if (virTestRun(test, testSysinfo, &testdata) < 0)
-        goto error;
-
-    ret = EXIT_SUCCESS;
-
- error:
-    VIR_FREE(testdata.decoder);
-    VIR_FREE(testdata.sysinfo);
-    VIR_FREE(testdata.cpuinfo);
-    VIR_FREE(testdata.expected);
-    return ret;
-}
-
-#define TEST_FULL(name, func, decoder) \
-    if (sysinfotest_run(name " sysinfo", func, decoder, \
-                        "/sysinfodata/" name "sysinfo.data", \
-                        "/sysinfodata/" name "cpuinfo.data", \
-                        "/sysinfodata/" name "sysinfo.expect") != EXIT_SUCCESS) \
-        ret = EXIT_FAILURE
 
 
 #define TEST(name, func) \
-        TEST_FULL(name, func, NULL)
+    do { \
+        struct testSysinfoData data = { name, func }; \
+        if (virTestRun(name " sysinfo", testSysinfo, &data) < 0) \
+            ret = EXIT_FAILURE; \
+    } while (0)
 
 static int
 mymain(void)
@@ -131,13 +136,12 @@ mymain(void)
     TEST("s390", virSysinfoReadS390);
     TEST("s390-freq", virSysinfoReadS390);
     TEST("ppc", virSysinfoReadPPC);
-    TEST_FULL("x86", virSysinfoReadDMI, "/sysinfodata/x86dmidecode.sh");
+    TEST("x86", virSysinfoReadDMI);
     TEST("arm", virSysinfoReadARM);
     TEST("arm-rpi2", virSysinfoReadARM);
     TEST("aarch64", virSysinfoReadARM);
     TEST("aarch64-moonshot", virSysinfoReadARM);
-    TEST_FULL("aarch64-gigabyte", virSysinfoReadARM,
-              "/sysinfodata/aarch64-gigabytedmidecode.sh");
+    TEST("aarch64-gigabyte", virSysinfoReadARM);
 
     return ret;
 }

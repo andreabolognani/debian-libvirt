@@ -43,24 +43,21 @@ VIR_LOG_INIT("util.sysinfo");
 VIR_ENUM_IMPL(virSysinfo,
               VIR_SYSINFO_LAST,
               "smbios",
+              "fwcfg"
 );
 
-static const char *sysinfoDmidecode = DMIDECODE;
 static const char *sysinfoSysinfo = "/proc/sysinfo";
 static const char *sysinfoCpuinfo = "/proc/cpuinfo";
 
-#define SYSINFO_SMBIOS_DECODER sysinfoDmidecode
 #define SYSINFO sysinfoSysinfo
 #define CPUINFO sysinfoCpuinfo
 #define CPUINFO_FILE_LEN (1024*1024)    /* 1MB limit for /proc/cpuinfo file */
 
 
 void
-virSysinfoSetup(const char *dmidecode,
-                const char *sysinfo,
+virSysinfoSetup(const char *sysinfo,
                 const char *cpuinfo)
 {
-    sysinfoDmidecode = dmidecode;
     sysinfoSysinfo = sysinfo;
     sysinfoCpuinfo = cpuinfo;
 }
@@ -134,6 +131,19 @@ void virSysinfoOEMStringsDefFree(virSysinfoOEMStringsDefPtr def)
     VIR_FREE(def);
 }
 
+
+static void
+virSysinfoFWCfgDefClear(virSysinfoFWCfgDefPtr def)
+{
+    if (!def)
+        return;
+
+    VIR_FREE(def->name);
+    VIR_FREE(def->value);
+    VIR_FREE(def->file);
+}
+
+
 /**
  * virSysinfoDefFree:
  * @def: a sysinfo structure
@@ -186,6 +196,10 @@ void virSysinfoDefFree(virSysinfoDefPtr def)
     VIR_FREE(def->memory);
 
     virSysinfoOEMStringsDefFree(def->oemStrings);
+
+    for (i = 0; i < def->nfw_cfgs; i++)
+        virSysinfoFWCfgDefClear(&def->fw_cfgs[i]);
+    VIR_FREE(def->fw_cfgs);
 
     VIR_FREE(def);
 }
@@ -773,7 +787,6 @@ virSysinfoParseX86BaseBoard(const char *base,
     char *eol = NULL;
     virSysinfoBaseBoardDefPtr boards = NULL;
     size_t nboards = 0;
-    char *board_type = NULL;
 
     while (base && (cur = strstr(base, "Base Board Information"))) {
         virSysinfoBaseBoardDefPtr def;
@@ -848,7 +861,6 @@ virSysinfoParseX86BaseBoard(const char *base,
     while (nboards--)
         virSysinfoBaseBoardDefClear(&boards[nboards]);
     VIR_FREE(boards);
-    VIR_FREE(board_type);
     return ret;
 }
 
@@ -915,6 +927,103 @@ virSysinfoParseX86Chassis(const char *base,
     def = NULL;
     ret = 0;
     virSysinfoChassisDefFree(def);
+    return ret;
+}
+
+
+static int
+virSysinfoDMIDecodeOEMString(size_t i,
+                             char **str)
+{
+    g_autofree char *err = NULL;
+    g_autoptr(virCommand) cmd = virCommandNewArgList(DMIDECODE, "--dump",
+                                                     "--oem-string", NULL);
+    virCommandAddArgFormat(cmd, "%zu", i);
+    virCommandSetOutputBuffer(cmd, str);
+    virCommandSetErrorBuffer(cmd, &err);
+
+    if (virCommandRun(cmd, NULL) < 0)
+        return -1;
+
+    /* Unfortunately, dmidecode returns 0 even if OEM String index is out
+     * of bounds, but it prints an error message in that case. Check stderr
+     * and return success/failure accordingly. */
+
+    if (err && *err != '\0')
+        return -1;
+
+    return 0;
+}
+
+
+static int
+virSysinfoParseOEMStrings(const char *base,
+                          virSysinfoOEMStringsDefPtr *stringsRet)
+{
+    virSysinfoOEMStringsDefPtr strings = NULL;
+    size_t i = 1;
+    int ret = -1;
+    const char *cur;
+
+    if (!(cur = strstr(base, "OEM Strings")))
+        return 0;
+
+    if (VIR_ALLOC(strings) < 0)
+        return -1;
+
+    while ((cur = strstr(cur, "String "))) {
+        char *eol;
+
+        cur += 7;
+
+        if (!(eol = strchr(cur, '\n'))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Malformed output of dmidecode"));
+            goto cleanup;
+        }
+
+        while (g_ascii_isdigit(*cur))
+            cur++;
+
+        if (*cur != ':') {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Malformed output of dmidecode"));
+            goto cleanup;
+        }
+
+        cur += 2;
+
+        virSkipSpacesBackwards(cur, &eol);
+        if (!eol)
+            continue;
+
+        if (VIR_EXPAND_N(strings->values, strings->nvalues, 1) < 0)
+            goto cleanup;
+
+        /* If OEM String contains newline, dmidecode escapes it as a dot.
+         * If this is the case then run dmidecode again to get raw string.
+         * Unfortunately, we can't dinstinguish betwen dot an new line at
+         * this level. */
+        if (memchr(cur, '.', eol - cur)) {
+            char *str;
+
+            if (virSysinfoDMIDecodeOEMString(i, &str) < 0)
+                goto cleanup;
+
+            strings->values[strings->nvalues - 1] = g_steal_pointer(&str);
+        } else {
+            strings->values[strings->nvalues - 1] = g_strndup(cur, eol - cur);
+        }
+
+        i++;
+        cur = eol;
+    }
+
+    *stringsRet = g_steal_pointer(&strings);
+    ret = 0;
+
+ cleanup:
+    virSysinfoOEMStringsDefFree(strings);
     return ret;
 }
 
@@ -1119,62 +1228,46 @@ virSysinfoParseX86Memory(const char *base, virSysinfoDefPtr ret)
 virSysinfoDefPtr
 virSysinfoReadDMI(void)
 {
-    char *path;
-    virSysinfoDefPtr ret = NULL;
-    char *outbuf = NULL;
-    virCommandPtr cmd;
+    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_autofree char *outbuf = NULL;
+    g_autoptr(virCommand) cmd = NULL;
 
-    path = virFindFileInPath(SYSINFO_SMBIOS_DECODER);
-    if (path == NULL) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to find path for %s binary"),
-                       SYSINFO_SMBIOS_DECODER);
-        return NULL;
-    }
-
-    cmd = virCommandNewArgList(path, "-q", "-t", "0,1,2,3,4,17", NULL);
-    VIR_FREE(path);
+    cmd = virCommandNewArgList(DMIDECODE, "-q", "-t", "0,1,2,3,4,11,17", NULL);
     virCommandSetOutputBuffer(cmd, &outbuf);
     if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
+        return NULL;
 
     if (VIR_ALLOC(ret) < 0)
-        goto error;
+        return NULL;
 
     ret->type = VIR_SYSINFO_SMBIOS;
 
     if (virSysinfoParseBIOS(outbuf, &ret->bios) < 0)
-        goto error;
+        return NULL;
 
     if (virSysinfoParseX86System(outbuf, &ret->system) < 0)
-        goto error;
+        return NULL;
 
     if (virSysinfoParseX86BaseBoard(outbuf, &ret->baseBoard, &ret->nbaseBoard) < 0)
-        goto error;
+        return NULL;
 
     if (virSysinfoParseX86Chassis(outbuf, &ret->chassis) < 0)
-        goto error;
+        return NULL;
+
+    if (virSysinfoParseOEMStrings(outbuf, &ret->oemStrings) < 0)
+        return NULL;
 
     ret->nprocessor = 0;
     ret->processor = NULL;
     if (virSysinfoParseX86Processor(outbuf, ret) < 0)
-        goto error;
+        return NULL;
 
     ret->nmemory = 0;
     ret->memory = NULL;
     if (virSysinfoParseX86Memory(outbuf, ret) < 0)
-        goto error;
+        return NULL;
 
- cleanup:
-    VIR_FREE(outbuf);
-    virCommandFree(cmd);
-
-    return ret;
-
- error:
-    virSysinfoDefFree(ret);
-    ret = NULL;
-    goto cleanup;
+    return g_steal_pointer(&ret);
 }
 
 
@@ -1436,6 +1529,40 @@ virSysinfoOEMStringsFormat(virBufferPtr buf, virSysinfoOEMStringsDefPtr def)
     virBufferAddLit(buf, "</oemStrings>\n");
 }
 
+
+static void
+virSysinfoFormatSMBIOS(virBufferPtr buf,
+                       virSysinfoDefPtr def)
+{
+    virSysinfoBIOSFormat(buf, def->bios);
+    virSysinfoSystemFormat(buf, def->system);
+    virSysinfoBaseBoardFormat(buf, def->baseBoard, def->nbaseBoard);
+    virSysinfoChassisFormat(buf, def->chassis);
+    virSysinfoProcessorFormat(buf, def);
+    virSysinfoMemoryFormat(buf, def);
+    virSysinfoOEMStringsFormat(buf, def->oemStrings);
+}
+
+
+static void
+virSysinfoFormatFWCfg(virBufferPtr buf,
+                      virSysinfoDefPtr def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nfw_cfgs; i++) {
+        const virSysinfoFWCfgDef *f = &def->fw_cfgs[i];
+
+        virBufferAsprintf(buf, "<entry name='%s'", f->name);
+
+        if (f->file)
+            virBufferEscapeString(buf, " file='%s'/>\n", f->file);
+        else
+            virBufferEscapeString(buf, ">%s</entry>\n", f->value);
+    }
+}
+
+
 /**
  * virSysinfoFormat:
  * @buf: buffer to append output to (may use auto-indentation)
@@ -1458,13 +1585,16 @@ virSysinfoFormat(virBufferPtr buf, virSysinfoDefPtr def)
         return -1;
     }
 
-    virSysinfoBIOSFormat(&childrenBuf, def->bios);
-    virSysinfoSystemFormat(&childrenBuf, def->system);
-    virSysinfoBaseBoardFormat(&childrenBuf, def->baseBoard, def->nbaseBoard);
-    virSysinfoChassisFormat(&childrenBuf, def->chassis);
-    virSysinfoProcessorFormat(&childrenBuf, def);
-    virSysinfoMemoryFormat(&childrenBuf, def);
-    virSysinfoOEMStringsFormat(&childrenBuf, def->oemStrings);
+    switch (def->type) {
+    case VIR_SYSINFO_SMBIOS:
+        virSysinfoFormatSMBIOS(&childrenBuf, def);
+        break;
+    case VIR_SYSINFO_FWCFG:
+        virSysinfoFormatFWCfg(&childrenBuf, def);
+        break;
+    case VIR_SYSINFO_LAST:
+        break;
+    }
 
     virBufferAsprintf(&attrBuf, " type='%s'", type);
 

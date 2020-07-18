@@ -294,7 +294,7 @@ am__DIST_COMMON = $(srcdir)/.color_coded.in \
 	$(top_srcdir)/build-aux/install-sh \
 	$(top_srcdir)/build-aux/ltmain.sh \
 	$(top_srcdir)/build-aux/missing ABOUT-NLS AUTHORS COPYING \
-	COPYING.LESSER ChangeLog INSTALL NEWS README build-aux/compile \
+	COPYING.LESSER ChangeLog INSTALL README build-aux/compile \
 	build-aux/config.guess build-aux/config.sub \
 	build-aux/install-sh build-aux/ltmain.sh build-aux/missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -467,6 +467,7 @@ LVS = @LVS@
 LV_LIBTOOL_OBJDIR = @LV_LIBTOOL_OBJDIR@
 MAKEINFO = @MAKEINFO@
 MANIFEST_TOOL = @MANIFEST_TOOL@
+MDEVCTL = @MDEVCTL@
 MINGW_EXTRA_LDFLAGS = @MINGW_EXTRA_LDFLAGS@
 MKDIR_P = @MKDIR_P@
 MKFS = @MKFS@
@@ -640,27 +641,54 @@ SUBDIRS = . include/libvirt src tools docs \
   tests po examples
 
 ACLOCAL_AMFLAGS = -I m4
-EXTRA_DIST = config-post.h libvirt.spec libvirt.spec.in \
-	mingw-libvirt.spec.in libvirt.pc.in libvirt-qemu.pc.in \
-	libvirt-lxc.pc.in libvirt-admin.pc.in Makefile.nonreentrant \
-	autogen.sh GNUmakefile run.in README.rst AUTHORS.in \
-	CONTRIBUTING.rst scripts/apibuild.py scripts/augeas-gentest.py \
-	build-aux/check-spacing.pl scripts/check-aclperms.py \
-	scripts/check-aclrules.py scripts/check-drivername.py \
-	scripts/check-driverimpls.py scripts/check-file-access.py \
-	scripts/check-remote-protocol.py scripts/check-symfile.py \
-	scripts/check-symsorting.py scripts/dtrace2systemtap.py \
-	scripts/esx_vi_generator.py scripts/genaclperms.py \
-	scripts/genpolkit.py scripts/gensystemtap.py \
-	scripts/group-qemu-caps.py scripts/header-ifdef.py \
-	scripts/hvsupport.py scripts/hyperv_wmi_generator.py \
-	scripts/minimize-po.py scripts/mock-noinline.py \
-	scripts/prohibit-duplicate-header.py scripts/reformat-news.py \
-	scripts/test-wrap-argv.py build-aux/syntax-check.mk \
-	build-aux/useless-if-before-free build-aux/vc-list-files \
-	ci/Makefile ci/build.sh ci/list-images.sh ci/prepare.sh \
-	$(NULL) $(srcdir)/docs/news.xml $(srcdir)/docs/news-ascii.xsl \
-	$(NULL)
+EXTRA_DIST = \
+  config-post.h \
+  libvirt.spec libvirt.spec.in \
+  mingw-libvirt.spec.in \
+  libvirt.pc.in \
+  libvirt-qemu.pc.in \
+  libvirt-lxc.pc.in \
+  libvirt-admin.pc.in \
+  Makefile.nonreentrant \
+  autogen.sh \
+  GNUmakefile \
+  run.in \
+  README.rst \
+  AUTHORS.in \
+  CONTRIBUTING.rst \
+  NEWS.rst \
+  scripts/apibuild.py \
+  scripts/augeas-gentest.py \
+  build-aux/check-spacing.pl \
+  scripts/check-aclperms.py \
+  scripts/check-aclrules.py \
+  scripts/check-drivername.py \
+  scripts/check-driverimpls.py \
+  scripts/check-file-access.py \
+  scripts/check-remote-protocol.py \
+  scripts/check-symfile.py \
+  scripts/check-symsorting.py \
+  scripts/dtrace2systemtap.py \
+  scripts/esx_vi_generator.py \
+  scripts/genaclperms.py \
+  scripts/genpolkit.py \
+  scripts/gensystemtap.py \
+  scripts/group-qemu-caps.py \
+  scripts/header-ifdef.py \
+  scripts/hvsupport.py \
+  scripts/hyperv_wmi_generator.py \
+  scripts/mock-noinline.py \
+  scripts/prohibit-duplicate-header.py \
+  scripts/test-wrap-argv.py \
+  build-aux/syntax-check.mk \
+  build-aux/useless-if-before-free \
+  build-aux/vc-list-files \
+  ci/Makefile \
+  ci/build.sh \
+  ci/list-images.sh \
+  ci/prepare.sh \
+  $(NULL)
+
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libvirt.pc libvirt-qemu.pc libvirt-lxc.pc libvirt-admin.pc
 MAINTAINERCLEANFILES = .git-module-status
@@ -1206,22 +1234,6 @@ uninstall-am: uninstall-pkgconfigDATA
 
 XZ_OPT ?= -v -T0
 export XZ_OPT
-
-NEWS: \
-	  $(srcdir)/docs/news.xml \
-	  $(srcdir)/docs/news-ascii.xsl \
-	  $(top_srcdir)/scripts/reformat-news.py
-	$(AM_V_GEN) \
-	if [ -x $(XSLTPROC) ]; then \
-	  $(XSLTPROC) --nonet \
-	    $(srcdir)/docs/news-ascii.xsl \
-	    $(srcdir)/docs/news.xml \
-	  >$@-tmp \
-	    || { rm -f $@-tmp; exit 1; }; \
-	  $(RUNUTF8) $(PYTHON) $(top_srcdir)/scripts/reformat-news.py $@-tmp >$@ \
-	    || { rm -f $@-tmp; exit 1; }; \
-	  rm -f $@-tmp; \
-	fi
 
 rpm: clean
 	@(unset CDPATH ; $(MAKE) dist && rpmbuild -ta $(distdir).tar.xz)

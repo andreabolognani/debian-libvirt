@@ -1165,6 +1165,7 @@ VIR_ENUM_IMPL(virDomainTPMModel,
               "tpm-tis",
               "tpm-crb",
               "tpm-spapr",
+              "spapr-tpm-proxy",
 );
 
 VIR_ENUM_IMPL(virDomainTPMBackend,
@@ -3480,7 +3481,9 @@ void virDomainDefFree(virDomainDefPtr def)
         virDomainMemoryDefFree(def->mems[i]);
     VIR_FREE(def->mems);
 
-    virDomainTPMDefFree(def->tpm);
+    for (i = 0; i < def->ntpms; i++)
+        virDomainTPMDefFree(def->tpms[i]);
+    VIR_FREE(def->tpms);
 
     for (i = 0; i < def->npanics; i++)
         virDomainPanicDefFree(def->panics[i]);
@@ -3551,7 +3554,9 @@ void virDomainDefFree(virDomainDefPtr def)
 
     virDomainNumaFree(def->numa);
 
-    virSysinfoDefFree(def->sysinfo);
+    for (i = 0; i < def->nsysinfo; i++)
+        virSysinfoDefFree(def->sysinfo[i]);
+    VIR_FREE(def->sysinfo);
 
     virDomainRedirFilterDefFree(def->redirfilter);
 
@@ -4313,10 +4318,10 @@ virDomainDeviceInfoIterateInternal(virDomainDefPtr def,
         if ((rc = cb(def, &device, &def->shmems[i]->info, opaque)) != 0)
             return rc;
     }
-    if (def->tpm) {
-        device.type = VIR_DOMAIN_DEVICE_TPM;
-        device.data.tpm = def->tpm;
-        if ((rc = cb(def, &device, &def->tpm->info, opaque)) != 0)
+    device.type = VIR_DOMAIN_DEVICE_TPM;
+    for (i = 0; i < def->ntpms; i++) {
+        device.data.tpm = def->tpms[i];
+        if ((rc = cb(def, &device, &def->tpms[i]->info, opaque)) != 0)
             return rc;
     }
     device.type = VIR_DOMAIN_DEVICE_PANIC;
@@ -7517,11 +7522,11 @@ virDomainDeviceInfoFormat(virBufferPtr buf,
                               virTristateSwitchTypeToString(info->addr.pci.multi));
         }
 
-        if (!virZPCIDeviceAddressIsEmpty(&info->addr.pci.zpci)) {
+        if (virZPCIDeviceAddressIsPresent(&info->addr.pci.zpci)) {
             virBufferAsprintf(&childBuf,
                               "<zpci uid='0x%.4x' fid='0x%.8x'/>\n",
-                              info->addr.pci.zpci.uid,
-                              info->addr.pci.zpci.fid);
+                              info->addr.pci.zpci.uid.value,
+                              info->addr.pci.zpci.fid.value);
         }
         break;
 
@@ -13265,16 +13270,14 @@ virDomainChrSourceDefParseXML(virDomainChrSourceDefPtr def,
 
             /* Check for an optional seclabel override in <source/>. */
             if (chr_def) {
-                xmlNodePtr saved_node = ctxt->node;
+                VIR_XPATH_NODE_AUTORESTORE(ctxt);
                 ctxt->node = cur;
                 if (virSecurityDeviceLabelDefParseXML(&def->seclabels,
                                                       &def->nseclabels,
                                                       ctxt,
                                                       flags) < 0) {
-                    ctxt->node = saved_node;
                     goto error;
                 }
-                ctxt->node = saved_node;
             }
         } else if (virXMLNodeNameEqual(cur, "log")) {
             if (logParsed) {
@@ -15710,15 +15713,117 @@ virSysinfoChassisParseXML(xmlNodePtr node,
 }
 
 
+static int
+virSysinfoParseSMBIOSDef(virSysinfoDefPtr def,
+                         xmlXPathContextPtr ctxt,
+                         unsigned char *domUUID,
+                         bool uuid_generated)
+{
+    xmlNodePtr tmpnode;
+
+    /* Extract BIOS related metadata */
+    if ((tmpnode = virXPathNode("./bios[1]", ctxt)) != NULL) {
+        if (virSysinfoBIOSParseXML(tmpnode, ctxt, &def->bios) < 0)
+            return -1;
+    }
+
+    /* Extract system related metadata */
+    if ((tmpnode = virXPathNode("./system[1]", ctxt)) != NULL) {
+        if (virSysinfoSystemParseXML(tmpnode, ctxt, &def->system,
+                                     domUUID, uuid_generated) < 0)
+            return -1;
+    }
+
+    /* Extract system base board metadata */
+    if (virSysinfoBaseBoardParseXML(ctxt, &def->baseBoard, &def->nbaseBoard) < 0)
+        return -1;
+
+    /* Extract chassis related metadata */
+    if ((tmpnode = virXPathNode("./chassis[1]", ctxt)) != NULL) {
+        if (virSysinfoChassisParseXML(tmpnode, ctxt, &def->chassis) < 0)
+            return -1;
+    }
+
+    /* Extract system related metadata */
+    if ((tmpnode = virXPathNode("./oemStrings[1]", ctxt)) != NULL) {
+        if (virSysinfoOEMStringsParseXML(tmpnode, ctxt, &def->oemStrings) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+virSysinfoParseFWCfgDef(virSysinfoDefPtr def,
+                        xmlNodePtr node,
+                        xmlXPathContextPtr ctxt)
+{
+    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    g_autofree xmlNodePtr *nodes = NULL;
+    int n;
+    size_t i;
+
+    ctxt->node = node;
+
+    if ((n = virXPathNodeSet("./entry", ctxt, &nodes)) < 0)
+        return -1;
+
+    if (n == 0)
+        return 0;
+
+    def->fw_cfgs = g_new0(virSysinfoFWCfgDef, n);
+
+    for (i = 0; i < n; i++) {
+        g_autofree char *name = NULL;
+        g_autofree char *value = NULL;
+        g_autofree char *file = NULL;
+        g_autofree char *sanitizedFile = NULL;
+
+        if (!(name = virXMLPropString(nodes[i], "name"))) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("Firmware entry is missing 'name' attribute"));
+            return -1;
+        }
+
+        value = virXMLNodeContentString(nodes[i]);
+        file = virXMLPropString(nodes[i], "file");
+
+        if (virStringIsEmpty(value))
+            VIR_FREE(value);
+
+        if (!value && !file) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("Firmware entry must have either value or "
+                             "'file' attribute"));
+            return -1;
+        }
+
+        if (file)
+            sanitizedFile = virFileSanitizePath(file);
+
+        def->fw_cfgs[i].name = g_steal_pointer(&name);
+        def->fw_cfgs[i].value = g_steal_pointer(&value);
+        def->fw_cfgs[i].file = g_steal_pointer(&sanitizedFile);
+        def->nfw_cfgs++;
+    }
+
+    return 0;
+}
+
+
 static virSysinfoDefPtr
 virSysinfoParseXML(xmlNodePtr node,
-                  xmlXPathContextPtr ctxt,
-                  unsigned char *domUUID,
-                  bool uuid_generated)
+                   xmlXPathContextPtr ctxt,
+                   unsigned char *domUUID,
+                   bool uuid_generated)
 {
+    VIR_XPATH_NODE_AUTORESTORE(ctxt);
     virSysinfoDefPtr def;
-    xmlNodePtr tmpnode;
-    g_autofree char *type = NULL;
+    g_autofree char *typeStr = NULL;
+    int type;
+
+    ctxt->node = node;
 
     if (!virXMLNodeNameEqual(node, "sysinfo")) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -15729,45 +15834,32 @@ virSysinfoParseXML(xmlNodePtr node,
     if (VIR_ALLOC(def) < 0)
         return NULL;
 
-    type = virXMLPropString(node, "type");
-    if (type == NULL) {
+    typeStr = virXMLPropString(node, "type");
+    if (typeStr == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("sysinfo must contain a type attribute"));
         goto error;
     }
-    if ((def->type = virSysinfoTypeFromString(type)) < 0) {
+    if ((type = virSysinfoTypeFromString(typeStr)) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown sysinfo type '%s'"), type);
+                       _("unknown sysinfo type '%s'"), typeStr);
         goto error;
     }
+    def->type = type;
 
-    /* Extract BIOS related metadata */
-    if ((tmpnode = virXPathNode("./bios[1]", ctxt)) != NULL) {
-        if (virSysinfoBIOSParseXML(tmpnode, ctxt, &def->bios) < 0)
+    switch (def->type) {
+    case VIR_SYSINFO_SMBIOS:
+        if (virSysinfoParseSMBIOSDef(def, ctxt, domUUID, uuid_generated) < 0)
             goto error;
-    }
+        break;
 
-    /* Extract system related metadata */
-    if ((tmpnode = virXPathNode("./system[1]", ctxt)) != NULL) {
-        if (virSysinfoSystemParseXML(tmpnode, ctxt, &def->system,
-                                     domUUID, uuid_generated) < 0)
+    case VIR_SYSINFO_FWCFG:
+        if (virSysinfoParseFWCfgDef(def, node, ctxt) < 0)
             goto error;
-    }
+        break;
 
-    /* Extract system base board metadata */
-    if (virSysinfoBaseBoardParseXML(ctxt, &def->baseBoard, &def->nbaseBoard) < 0)
-        goto error;
-
-    /* Extract chassis related metadata */
-    if ((tmpnode = virXPathNode("./chassis[1]", ctxt)) != NULL) {
-        if (virSysinfoChassisParseXML(tmpnode, ctxt, &def->chassis) < 0)
-            goto error;
-    }
-
-    /* Extract system related metadata */
-    if ((tmpnode = virXPathNode("./oemStrings[1]", ctxt)) != NULL) {
-        if (virSysinfoOEMStringsParseXML(tmpnode, ctxt, &def->oemStrings) < 0)
-            goto error;
+    case VIR_SYSINFO_LAST:
+        break;
     }
 
     return def;
@@ -16816,6 +16908,15 @@ virDomainIOMMUDefParseXML(xmlNodePtr node,
             }
             iommu->eim = val;
         }
+
+        VIR_FREE(tmp);
+        if ((tmp = virXMLPropString(driver, "aw_bits"))) {
+            if (virStrToLong_ui(tmp, NULL, 10, &iommu->aw_bits) < 0) {
+                virReportError(VIR_ERR_XML_ERROR, _("unknown aw_bits value: %s"), tmp);
+                return NULL;
+            }
+        }
+
     }
 
     return g_steal_pointer(&iommu);
@@ -21971,15 +22072,23 @@ virDomainDefParseXML(xmlDocPtr xml,
     if ((n = virXPathNodeSet("./devices/tpm", ctxt, &nodes)) < 0)
         goto error;
 
-    if (n > 1) {
+    if (n > 2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("only a single TPM device is supported"));
+                       _("a maximum of two TPM devices is supported, one of "
+                         "them being a TPM Proxy device"));
         goto error;
     }
 
-    if (n > 0) {
-        if (!(def->tpm = virDomainTPMDefParseXML(xmlopt, nodes[0], ctxt, flags)))
+    if (n && VIR_ALLOC_N(def->tpms, n) < 0)
+        goto error;
+
+    for (i = 0; i < n; i++) {
+        virDomainTPMDefPtr tpm = virDomainTPMDefParseXML(xmlopt, nodes[i],
+                                                         ctxt, flags);
+        if (!tpm)
             goto error;
+
+        def->tpms[def->ntpms++] = tpm;
     }
     VIR_FREE(nodes);
 
@@ -22172,6 +22281,7 @@ virDomainDefParseXML(xmlDocPtr xml,
 
         def->idmap.ngidmap = n;
     }
+    VIR_FREE(nodes);
 
     if ((def->idmap.uidmap && !def->idmap.gidmap) ||
         (!def->idmap.uidmap && def->idmap.gidmap)) {
@@ -22180,16 +22290,21 @@ virDomainDefParseXML(xmlDocPtr xml,
             goto error;
     }
 
-    if ((node = virXPathNode("./sysinfo[1]", ctxt)) != NULL) {
-        xmlNodePtr oldnode = ctxt->node;
-        ctxt->node = node;
-        def->sysinfo = virSysinfoParseXML(node, ctxt,
-                                          def->uuid, uuid_generated);
-        ctxt->node = oldnode;
+    if ((n = virXPathNodeSet("./sysinfo", ctxt, &nodes)) < 0)
+        goto error;
 
-        if (def->sysinfo == NULL)
+    def->sysinfo = g_new0(virSysinfoDefPtr, n);
+
+    for (i = 0; i < n; i++) {
+        virSysinfoDefPtr sysinfo = virSysinfoParseXML(nodes[i], ctxt,
+                                                      def->uuid, uuid_generated);
+
+        if (!sysinfo)
             goto error;
+
+        def->sysinfo[def->nsysinfo++] = sysinfo;
     }
+    VIR_FREE(nodes);
 
     if ((tmp = virXPathString("string(./os/smbios/@mode)", ctxt))) {
         int mode;
@@ -23894,6 +24009,14 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDefPtr src,
                        virTristateSwitchTypeToString(src->iotlb));
         return false;
     }
+    if (src->aw_bits != dst->aw_bits) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device aw_bits value '%d' "
+                         "does not match source '%d'"),
+                       dst->aw_bits, src->aw_bits);
+        return false;
+    }
+
     return true;
 }
 
@@ -24074,8 +24197,16 @@ virDomainDefCheckABIStabilityFlags(virDomainDefPtr src,
     if (!virCPUDefIsEqual(src->cpu, dst->cpu, true))
         goto error;
 
-    if (!virSysinfoIsEqual(src->sysinfo, dst->sysinfo))
-        goto error;
+    if (src->nsysinfo != dst->nsysinfo) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Target domain count of sysinfo does not match source"));
+            goto error;
+    }
+
+    for (i = 0; i < src->nsysinfo; i++) {
+        if (!virSysinfoIsEqual(src->sysinfo[i], dst->sysinfo[i]))
+            goto error;
+    }
 
     if (src->ndisks != dst->ndisks) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -24341,14 +24472,17 @@ virDomainDefCheckABIStabilityFlags(virDomainDefPtr src,
             goto error;
     }
 
-    if (src->tpm && dst->tpm) {
-        if (!virDomainTPMDefCheckABIStability(src->tpm, dst->tpm))
-            goto error;
-    } else if (src->tpm || dst->tpm) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Either both target and source domains or none of "
-                         "them must have TPM device present"));
+    if (src->ntpms != dst->ntpms) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain TPM device count %zu "
+                         "does not match source %zu"),
+                       dst->ntpms, src->ntpms);
         goto error;
+    }
+
+    for (i = 0; i < src->ntpms; i++) {
+        if (!virDomainTPMDefCheckABIStability(src->tpms[i], dst->tpms[i]))
+            goto error;
     }
 
     if (src->nmems != dst->nmems) {
@@ -28209,6 +28343,9 @@ virDomainHostdevDefFormat(virBufferPtr buf,
             if (mdevsrc->display != VIR_TRISTATE_SWITCH_ABSENT)
                 virBufferAsprintf(buf, " display='%s'",
                                   virTristateSwitchTypeToString(mdevsrc->display));
+            if (mdevsrc->ramfb != VIR_TRISTATE_SWITCH_ABSENT)
+                virBufferAsprintf(buf, " ramfb='%s'",
+                                  virTristateSwitchTypeToString(mdevsrc->ramfb));
         }
 
     }
@@ -28889,6 +29026,10 @@ virDomainIOMMUDefFormat(virBufferPtr buf,
         virBufferAsprintf(&driverAttrBuf, " iotlb='%s'",
                           virTristateSwitchTypeToString(iommu->iotlb));
     }
+    if (iommu->aw_bits > 0) {
+        virBufferAsprintf(&driverAttrBuf, " aw_bits='%d'",
+                          iommu->aw_bits);
+    }
 
     virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, NULL);
 
@@ -29509,8 +29650,8 @@ virDomainDefFormatInternalSetRootName(virDomainDefPtr def,
     if (def->resource)
         virDomainResourceDefFormat(buf, def->resource);
 
-    if (def->sysinfo)
-        ignore_value(virSysinfoFormat(buf, def->sysinfo));
+    for (i = 0; i < def->nsysinfo; i++)
+        virSysinfoFormat(buf, def->sysinfo[i]);
 
     if (def->os.bootloader) {
         virBufferEscapeString(buf, "<bootloader>%s</bootloader>\n",
@@ -29793,8 +29934,8 @@ virDomainDefFormatInternalSetRootName(virDomainDefPtr def,
             goto error;
     }
 
-    if (def->tpm) {
-        if (virDomainTPMDefFormat(buf, def->tpm, flags) < 0)
+    for (n = 0; n < def->ntpms; n++) {
+        if (virDomainTPMDefFormat(buf, def->tpms[n], flags) < 0)
             goto error;
     }
 
@@ -29880,15 +30021,15 @@ virDomainDefFormatInternalSetRootName(virDomainDefPtr def,
     for (n = 0; n < def->nseclabels; n++)
         virSecurityLabelDefFormat(buf, def->seclabels[n], flags);
 
-    if (def->namespaceData && def->ns.format) {
-        if ((def->ns.format)(buf, def->namespaceData) < 0)
-            goto error;
-    }
-
     if (def->keywrap)
         virDomainKeyWrapDefFormat(buf, def->keywrap);
 
     virDomainSEVDefFormat(buf, def->sev);
+
+    if (def->namespaceData && def->ns.format) {
+        if ((def->ns.format)(buf, def->namespaceData) < 0)
+            goto error;
+    }
 
     virBufferAdjustIndent(buf, -2);
     virBufferAsprintf(buf, "</%s>\n", rootname);

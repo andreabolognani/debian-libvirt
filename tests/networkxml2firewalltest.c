@@ -61,7 +61,6 @@ static int testCompareXMLToArgvFiles(const char *xml,
                                      const char *cmdline,
                                      const char *baseargs)
 {
-    char *expectargv = NULL;
     char *actualargv = NULL;
     virBuffer buf = VIR_BUFFER_INITIALIZER;
     virNetworkDefPtr def = NULL;
@@ -94,7 +93,6 @@ static int testCompareXMLToArgvFiles(const char *xml,
 
  cleanup:
     virBufferFreeAndReset(&buf);
-    VIR_FREE(expectargv);
     VIR_FREE(actualargv);
     virNetworkDefFree(def);
     return ret;
@@ -173,6 +171,7 @@ mymain(void)
     DO_TEST("nat-many-ips");
     DO_TEST("nat-no-dhcp");
     DO_TEST("nat-ipv6");
+    DO_TEST("nat-ipv6-masquerade");
     DO_TEST("route-default");
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

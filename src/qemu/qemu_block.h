@@ -221,6 +221,16 @@ virHashTablePtr
 qemuBlockGetNamedNodeData(virDomainObjPtr vm,
                           qemuDomainAsyncJob asyncJob);
 
+int
+qemuBlockGetBitmapMergeActions(virStorageSourcePtr topsrc,
+                               virStorageSourcePtr basesrc,
+                               virStorageSourcePtr target,
+                               const char *bitmapname,
+                               const char *dstbitmapname,
+                               virStorageSourcePtr writebitmapsrc,
+                               virJSONValuePtr *actions,
+                               virHashTablePtr blockNamedNodeData);
+
 bool
 qemuBlockBitmapChainIsValid(virStorageSourcePtr src,
                             const char *bitmapname,
@@ -234,18 +244,11 @@ qemuBlockBitmapsHandleBlockcopy(virStorageSourcePtr src,
                                 virJSONValuePtr *actions);
 
 int
-qemuBlockBitmapsHandleCommitStart(virStorageSourcePtr topsrc,
-                                  virStorageSourcePtr basesrc,
-                                  virHashTablePtr blockNamedNodeData,
-                                  virJSONValuePtr *actions,
-                                  char ***disabledBitmapsBase);
-
-int
 qemuBlockBitmapsHandleCommitFinish(virStorageSourcePtr topsrc,
                                    virStorageSourcePtr basesrc,
+                                   bool active,
                                    virHashTablePtr blockNamedNodeData,
-                                   virJSONValuePtr *actions,
-                                   char **disabledBitmapsBase);
+                                   virJSONValuePtr *actions);
 
 int
 qemuBlockReopenReadWrite(virDomainObjPtr vm,

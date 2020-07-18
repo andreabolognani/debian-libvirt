@@ -1175,6 +1175,18 @@ get_files(vahControl * ctl)
         }
     }
 
+    for (i = 0; i < ctl->def->nsysinfo; i++) {
+        size_t j;
+
+        for (j = 0; j < ctl->def->sysinfo[i]->nfw_cfgs; j++) {
+            virSysinfoFWCfgDefPtr f = &ctl->def->sysinfo[i]->fw_cfgs[j];
+
+            if (f->file &&
+                vah_add_file(&buf, f->file, "r") != 0)
+                goto cleanup;
+        }
+    }
+
     for (i = 0; i < ctl->def->nshmems; i++) {
         virDomainShmemDef *shmem = ctl->def->shmems[i];
         /* explicit server paths can be on any model to overwrites defaults.
@@ -1206,15 +1218,17 @@ get_files(vahControl * ctl)
     }
 
 
-    if (ctl->def->tpm) {
+    if (ctl->def->ntpms > 0) {
         char *shortName = NULL;
         const char *tpmpath = NULL;
 
-        switch (ctl->def->tpm->type) {
-        case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+        for (i = 0; i < ctl->def->ntpms; i++) {
+            if (ctl->def->tpms[i]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR)
+                continue;
+
             shortName = virDomainDefGetShortName(ctl->def);
 
-            switch (ctl->def->tpm->version) {
+            switch (ctl->def->tpms[i]->version) {
             case VIR_DOMAIN_TPM_VERSION_1_2:
                 tpmpath = "tpm1.2";
                 break;
@@ -1244,10 +1258,6 @@ get_files(vahControl * ctl)
                 RUNSTATEDIR, shortName);
 
             VIR_FREE(shortName);
-            break;
-        case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        case VIR_DOMAIN_TPM_TYPE_LAST:
-            break;
         }
     }
 

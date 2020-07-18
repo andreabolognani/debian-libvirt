@@ -102,7 +102,7 @@ struct _testDriver {
     virStoragePoolObjListPtr pools;
     virNodeDeviceObjListPtr devs;
     int numCells;
-    testCell cells[MAX_CELLS];
+    testCell *cells;
     size_t numAuths;
     testAuthPtr auths;
 
@@ -128,6 +128,7 @@ static testDriverPtr defaultPrivconn;
 static virMutex defaultLock = VIR_MUTEX_INITIALIZER;
 
 static virClassPtr testDriverClass;
+static __thread bool testDriverDisposed;
 static void testDriverDispose(void *obj);
 static int testDriverOnceInit(void)
 {
@@ -170,7 +171,10 @@ testDriverDispose(void *obj)
         g_free(driver->auths[i].username);
         g_free(driver->auths[i].password);
     }
+    g_free(driver->cells);
     g_free(driver->auths);
+
+    testDriverDisposed = true;
 }
 
 typedef struct _testDomainNamespaceDef testDomainNamespaceDef;
@@ -777,7 +781,7 @@ testParseXMLDocFromFile(xmlNodePtr node, const char *file, const char *type)
 {
     xmlNodePtr ret = NULL;
     xmlDocPtr doc = NULL;
-    char *absFile = NULL;
+    g_autofree char *absFile = NULL;
     g_autofree char *relFile = NULL;
 
     if ((relFile = virXMLPropString(node, "file"))) {
@@ -1350,6 +1354,7 @@ testOpenDefault(virConnectPtr conn)
 
     /* Numa setup */
     privconn->numCells = 2;
+    privconn->cells = g_new0(testCell, privconn->numCells);
     for (i = 0; i < privconn->numCells; i++) {
         privconn->cells[i].numCpus = 8;
         privconn->cells[i].mem = (i + 1) * 2048 * 1024;
@@ -1446,8 +1451,9 @@ static void
 testDriverCloseInternal(testDriverPtr driver)
 {
     virMutexLock(&defaultLock);
-    bool disposed = !virObjectUnref(driver);
-    if (disposed && driver == defaultPrivconn)
+    testDriverDisposed = false;
+    virObjectUnref(driver);
+    if (testDriverDisposed && driver == defaultPrivconn)
         defaultPrivconn = NULL;
     virMutexUnlock(&defaultLock);
 }
@@ -8971,7 +8977,6 @@ testDomainCheckpointCreateXML(virDomainPtr domain,
 {
     testDriverPtr privconn = domain->conn->privateData;
     virDomainObjPtr vm = NULL;
-    char *xml = NULL;
     virDomainMomentObjPtr chk = NULL;
     virDomainCheckpointPtr checkpoint = NULL;
     virDomainMomentObjPtr current = NULL;
@@ -9058,7 +9063,6 @@ testDomainCheckpointCreateXML(virDomainPtr domain,
     }
 
     virDomainObjEndAPI(&vm);
-    VIR_FREE(xml);
     return checkpoint;
 }
 

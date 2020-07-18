@@ -64,7 +64,6 @@ virDevMapperGetTargetsImpl(const char *path,
                            char ***devPaths_ret,
                            unsigned int ttl)
 {
-    struct stat sb;
     struct dm_task *dmt = NULL;
     struct dm_deps *deps;
     struct dm_info info;
@@ -83,13 +82,7 @@ virDevMapperGetTargetsImpl(const char *path,
         return ret;
     }
 
-    if (stat(path, &sb) < 0) {
-        if (errno == ENOENT)
-            return 0;
-        return -1;
-    }
-
-    if (!dm_is_dm_major(major(sb.st_dev)))
+    if (!virIsDevMapperDevice(path))
         return 0;
 
     if (!(dmt = dm_task_create(DM_DEVICE_DEPS))) {
@@ -210,5 +203,29 @@ virDevMapperGetTargets(const char *path G_GNUC_UNUSED,
 {
     errno = ENOSYS;
     return -1;
+}
+#endif /* ! WITH_DEVMAPPER */
+
+
+#if WITH_DEVMAPPER
+bool
+virIsDevMapperDevice(const char *dev_name)
+{
+    struct stat buf;
+
+    if (!stat(dev_name, &buf) &&
+        S_ISBLK(buf.st_mode) &&
+        dm_is_dm_major(major(buf.st_rdev)))
+            return true;
+
+    return false;
+}
+
+#else /* ! WITH_DEVMAPPER */
+
+bool
+virIsDevMapperDevice(const char *dev_name G_GNUC_UNUSED)
+{
+    return false;
 }
 #endif /* ! WITH_DEVMAPPER */

@@ -1049,14 +1049,6 @@ AppArmorRestoreChardevLabel(virSecurityManagerPtr mgr,
 }
 
 static int
-AppArmorSetSavedStateLabel(virSecurityManagerPtr mgr,
-                           virDomainDefPtr def,
-                           const char *savefile)
-{
-    return reload_profile(mgr, def, savefile, true);
-}
-
-static int
 AppArmorSetPathLabel(virSecurityManagerPtr mgr,
                            virDomainDefPtr def,
                            const char *path,
@@ -1077,9 +1069,9 @@ AppArmorSetPathLabel(virSecurityManagerPtr mgr,
 }
 
 static int
-AppArmorRestoreSavedStateLabel(virSecurityManagerPtr mgr,
-                               virDomainDefPtr def,
-                               const char *savefile G_GNUC_UNUSED)
+AppArmorRestorePathLabel(virSecurityManagerPtr mgr,
+                         virDomainDefPtr def,
+                         const char *path G_GNUC_UNUSED)
 {
     return reload_profile(mgr, def, NULL, false);
 }
@@ -1165,10 +1157,8 @@ virSecurityDriver virAppArmorSecurityDriver = {
     .domainSetSecurityHostdevLabel      = AppArmorSetSecurityHostdevLabel,
     .domainRestoreSecurityHostdevLabel  = AppArmorRestoreSecurityHostdevLabel,
 
-    .domainSetSavedStateLabel           = AppArmorSetSavedStateLabel,
-    .domainRestoreSavedStateLabel       = AppArmorRestoreSavedStateLabel,
-
     .domainSetPathLabel                 = AppArmorSetPathLabel,
+    .domainRestorePathLabel             = AppArmorRestorePathLabel,
 
     .domainSetSecurityChardevLabel      = AppArmorSetChardevLabel,
     .domainRestoreSecurityChardevLabel  = AppArmorRestoreChardevLabel,
