@@ -278,6 +278,7 @@ Recommends:
  dmidecode,
  dnsmasq-base (>= 2.46-1),
  iproute2,
+ mdevctl,
  parted,
 Suggests:
  apparmor,
