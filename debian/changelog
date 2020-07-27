@@ -1,8 +1,11 @@
-libvirt (6.5.0-1) UNRELEASED; urgency=medium
+libvirt (6.5.0-1) unstable; urgency=medium
+
+  * Team upload
 
   * [38c0fa7] New upstream version 6.5.0
+  * [b8a07b4] control: Add Recommends for mdevctl
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 18 Jul 2020 21:21:13 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 27 Jul 2020 22:50:08 +0200
 
 libvirt (6.4.0-2) unstable; urgency=medium
 
