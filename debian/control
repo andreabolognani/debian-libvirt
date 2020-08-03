@@ -24,7 +24,6 @@ Build-Depends:
  libgcrypt20-dev,
  libglusterfs-dev [linux-any],
  libgnutls28-dev,
- libncurses5-dev,
  libnetcf-dev (>= 1:0.2.3-3~) [linux-any],
  libnl-3-dev [linux-any],
  libnl-route-3-dev [linux-any],
