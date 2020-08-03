@@ -317,9 +317,14 @@ struct _qemuDomainStorageSourcePrivate {
 
     /* secure passthrough of the http cookie */
     qemuDomainSecretInfoPtr httpcookie;
+
+    /* key for decrypting TLS certificate */
+    qemuDomainSecretInfoPtr tlsKeySecret;
 };
 
 virObjectPtr qemuDomainStorageSourcePrivateNew(void);
+qemuDomainStorageSourcePrivatePtr
+qemuDomainStorageSourcePrivateFetch(virStorageSourcePtr src);
 
 typedef struct _qemuDomainVcpuPrivate qemuDomainVcpuPrivate;
 typedef qemuDomainVcpuPrivate *qemuDomainVcpuPrivatePtr;
@@ -485,6 +490,16 @@ struct _qemuDomainXmlNsDef {
 
     size_t ncapsdel;
     char **capsdel;
+};
+
+typedef struct _qemuDomainJobPrivate qemuDomainJobPrivate;
+typedef qemuDomainJobPrivate *qemuDomainJobPrivatePtr;
+struct _qemuDomainJobPrivate {
+    bool spiceMigration;                /* we asked for spice migration and we
+                                         * should wait for it to finish */
+    bool spiceMigrated;                 /* spice migration completed */
+    bool dumpCompleted;                 /* dump completed */
+    qemuMigrationParamsPtr migParams;
 };
 
 int qemuDomainObjStartWorker(virDomainObjPtr dom);
@@ -835,9 +850,6 @@ void qemuDomainSecretDiskDestroy(virDomainDiskDefPtr disk)
 bool qemuDomainStorageSourceHasAuth(virStorageSourcePtr src)
     ATTRIBUTE_NONNULL(1);
 
-bool qemuDomainDiskHasEncryptionSecret(virStorageSourcePtr src)
-    ATTRIBUTE_NONNULL(1);
-
 qemuDomainSecretInfoPtr
 qemuDomainSecretInfoTLSNew(qemuDomainObjPrivatePtr priv,
                            const char *srcAlias,
@@ -957,11 +969,9 @@ int qemuDomainNamespaceTeardownInput(virDomainObjPtr vm,
 
 virDomainDiskDefPtr qemuDomainDiskLookupByNodename(virDomainDefPtr def,
                                                    const char *nodename,
-                                                   virStorageSourcePtr *src,
-                                                   unsigned int *idx);
+                                                   virStorageSourcePtr *src);
 
 char *qemuDomainDiskBackingStoreGetName(virDomainDiskDefPtr disk,
-                                        virStorageSourcePtr src,
                                         unsigned int idx);
 
 virStorageSourcePtr qemuDomainGetStorageSourceByDevstr(const char *devstr,

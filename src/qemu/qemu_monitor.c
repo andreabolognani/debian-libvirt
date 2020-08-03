@@ -203,7 +203,7 @@ static char *
 qemuMonitorEscapeNonPrintable(const char *text)
 {
     size_t i;
-    virBuffer buf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     for (i = 0; text[i] != '\0'; i++) {
         if (g_ascii_isprint(text[i]) ||
             text[i] == '\n' ||
@@ -4340,7 +4340,7 @@ qemuMonitorSetWatchdogAction(qemuMonitorPtr mon,
  * @jobname: name of the job
  * @props: JSON object describing the blockdev to add
  *
- * Instructs qemu to create/format a new stroage or format layer. Note that
+ * Instructs qemu to create/format a new storage or format layer. Note that
  * the job does not add the created/formatted image into qemu and
  * qemuMonitorBlockdevAdd needs to be called separately with corresponding
  * arguments. Note that the arguments for creating and adding are different.
@@ -4523,6 +4523,24 @@ qemuMonitorGetJobInfo(qemuMonitorPtr mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONGetJobInfo(mon, jobs, njobs);
+}
+
+
+/* qemuMonitorGetCPUMigratable:
+ *
+ * Get the migratable property of the CPU object.
+ *
+ * Returns -1 on error,
+ *          1 when the property is not supported,
+ *          0 on success (@migratable is set accordingly).
+ */
+int
+qemuMonitorGetCPUMigratable(qemuMonitorPtr mon,
+                            bool *migratable)
+{
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONGetCPUMigratable(mon, migratable);
 }
 
 

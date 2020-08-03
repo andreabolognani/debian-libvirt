@@ -147,7 +147,7 @@
 
 %define with_firewalld 1
 
-%if 0%{?fedora} >= 31 || 0%{?rhel} > 7
+%if 0%{?fedora} || 0%{?rhel} > 7
     %define with_firewalld_zone 0%{!?_without_firewalld_zone:1}
 %endif
 
@@ -217,7 +217,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 6.5.0
+Version: 6.6.0
 Release: 1%{?dist}
 License: LGPLv2+
 URL: https://libvirt.org/
@@ -288,7 +288,6 @@ BuildRequires: readline-devel
 %if %{with_bash_completion}
 BuildRequires: bash-completion >= 2.0
 %endif
-BuildRequires: ncurses-devel
 BuildRequires: gettext
 BuildRequires: libtasn1-devel
 BuildRequires: gnutls-devel
@@ -406,10 +405,12 @@ BuildRequires: wireshark-devel >= 2.4.0
 BuildRequires: libssh-devel >= 0.7.0
 %endif
 
+# On RHEL-7 rpcgen is still part of glibc-common package
 %if 0%{?fedora} || 0%{?rhel} > 7
 BuildRequires: rpcgen
-BuildRequires: libtirpc-devel
 %endif
+
+BuildRequires: libtirpc-devel
 
 %if %{with_firewalld_zone}
 BuildRequires: firewalld-filesystem
@@ -524,7 +525,9 @@ Requires: libvirt-libs = %{version}-%{release}
 # needed for device enumeration
 Requires: systemd >= 185
 # For managing persistent mediated devices
+%if 0%{?fedora} || 0%{?rhel} > 7
 Requires: mdevctl
+%endif
 
 %description daemon-driver-nodedev
 The nodedev driver plugin for the libvirtd daemon, providing
@@ -899,7 +902,6 @@ capabilities of VirtualBox
 Summary: Client side utilities of the libvirt library
 Requires: %{name}-libs = %{version}-%{release}
 Requires: readline
-Requires: ncurses
 # Needed by /usr/libexec/libvirt-guests.sh script.
 Requires: gettext
 # Needed by virt-pki-validate script.

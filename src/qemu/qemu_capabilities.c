@@ -595,6 +595,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "migration-param.xbzrle-cache-size",
               "intel-iommu.aw-bits",
               "spapr-tpm-proxy",
+              "numa.hmat",
+              "blockdev-hostdev-scsi"
     );
 
 
@@ -614,7 +616,7 @@ typedef struct _virQEMUCapsHostCPUData virQEMUCapsHostCPUData;
 typedef virQEMUCapsHostCPUData *virQEMUCapsHostCPUDataPtr;
 struct _virQEMUCapsHostCPUData {
     /* Only the "info" part is stored in the capabilities cache, the rest is
-     * re-computed from other fields and external data sources everytime we
+     * re-computed from other fields and external data sources every time we
      * probe QEMU or load the cache.
      */
     qemuMonitorCPUModelInfoPtr info;
@@ -1522,6 +1524,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "migrate-set-parameters/arg-type/max-bandwidth", QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH },
     { "migrate-set-parameters/arg-type/downtime-limit", QEMU_CAPS_MIGRATION_PARAM_DOWNTIME },
     { "migrate-set-parameters/arg-type/xbzrle-cache-size", QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE },
+    { "set-numa-node/arg-type/+hmat-lb", QEMU_CAPS_NUMA_HMAT },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -4602,7 +4605,7 @@ virQEMUCapsFormatSEVInfo(virQEMUCapsPtr qemuCaps, virBufferPtr buf)
 char *
 virQEMUCapsFormatCache(virQEMUCapsPtr qemuCaps)
 {
-    virBuffer buf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     size_t i;
 
     virBufferAddLit(&buf, "<qemuCaps>\n");
@@ -5121,6 +5124,9 @@ virQEMUCapsInitProcessCapsInterlock(virQEMUCapsPtr qemuCaps)
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_USB_STORAGE_WERROR)) {
         virQEMUCapsClear(qemuCaps, QEMU_CAPS_STORAGE_WERROR);
     }
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV))
+        virQEMUCapsSet(qemuCaps, QEMU_CAPS_BLOCKDEV_HOSTDEV_SCSI);
 }
 
 
@@ -5278,7 +5284,7 @@ virQEMUCapsInitQMPMonitor(virQEMUCapsPtr qemuCaps,
 
     virQEMUCapsInitQMPBasicArch(qemuCaps);
 
-    /* initiate all capapbilities based on qemu version */
+    /* initiate all capabilities based on qemu version */
     virQEMUCapsInitQMPVersionCaps(qemuCaps);
 
     if (virQEMUCapsProbeQMPCommands(qemuCaps, mon) < 0)
@@ -5376,7 +5382,7 @@ virQEMUCapsInitQMPSingle(virQEMUCapsPtr qemuCaps,
                          gid_t runGid,
                          bool onlyTCG)
 {
-    qemuProcessQMPPtr proc = NULL;
+    g_autoptr(qemuProcessQMP) proc = NULL;
     int ret = -1;
 
     if (!(proc = qemuProcessQMPNew(qemuCaps->binary, libDir,
@@ -5395,7 +5401,6 @@ virQEMUCapsInitQMPSingle(virQEMUCapsPtr qemuCaps,
     if (ret < 0)
         virQEMUCapsLogProbeFailure(qemuCaps->binary);
 
-    qemuProcessQMPFree(proc);
     return ret;
 }
 
@@ -5634,11 +5639,6 @@ virQEMUCapsCacheLookup(virFileCachePtr cache,
     priv->microcodeVersion = virHostCPUGetMicrocodeVersion();
 
     ret = virFileCacheLookup(cache, binary);
-    if (!ret) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("no capabilities available for %s"), binary);
-        return NULL;
-    }
 
     VIR_DEBUG("Returning caps %p for %s", ret, binary);
     return ret;
@@ -5664,69 +5664,6 @@ virQEMUCapsCacheLookupCopy(virFileCachePtr cache,
         return NULL;
 
     virQEMUCapsFilterByMachineType(ret, virtType, machineType);
-    return ret;
-}
-
-
-static int
-virQEMUCapsCompareArch(const void *payload,
-                       const void *name G_GNUC_UNUSED,
-                       const void *opaque)
-{
-    struct virQEMUCapsSearchData *data = (struct virQEMUCapsSearchData *)opaque;
-    const virQEMUCaps *qemuCaps = payload;
-
-    if (qemuCaps->arch != data->arch)
-        return false;
-
-    if (data->binaryFilter &&
-        !strstr(qemuCaps->binary, data->binaryFilter)) {
-        return false;
-    }
-
-    return true;
-}
-
-
-virQEMUCapsPtr
-virQEMUCapsCacheLookupByArch(virFileCachePtr cache,
-                             virArch arch)
-{
-    virQEMUCapsCachePrivPtr priv = virFileCacheGetPriv(cache);
-    virQEMUCapsPtr ret = NULL;
-    const char *binaryFilters[] = {
-        "qemu-system-",
-        NULL,
-    };
-    virArch archs[] = {
-        arch,
-        virQEMUCapsFindTarget(virArchFromHost(), arch),
-    };
-    size_t i;
-    size_t j;
-
-    priv->microcodeVersion = virHostCPUGetMicrocodeVersion();
-
-    for (i = 0; i < G_N_ELEMENTS(binaryFilters); i++) {
-        for (j = 0; j < G_N_ELEMENTS(archs); j++) {
-            struct virQEMUCapsSearchData data = {
-                .arch = archs[j],
-                .binaryFilter = binaryFilters[i],
-            };
-
-            ret = virFileCacheLookupByFunc(cache, virQEMUCapsCompareArch, &data);
-            if (ret)
-                goto done;
-        }
-    }
-
-    virReportError(VIR_ERR_INVALID_ARG,
-                   _("unable to find any emulator to serve '%s' "
-                     "architecture"), virArchToString(arch));
-
- done:
-    VIR_DEBUG("Returning caps %p for arch %s", ret, virArchToString(arch));
-
     return ret;
 }
 

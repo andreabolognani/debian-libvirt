@@ -519,7 +519,7 @@ qemuBlockJobRefreshJobs(virQEMUDriverPtr driver,
         /* try cancelling invalid jobs - this works only if the job is not
          * concluded. In such case it will fail. We'll leave such job linger
          * in qemu and just forget about it in libvirt because there's not much
-         * we coud do besides killing the VM */
+         * we could do besides killing the VM */
         if (job->invalidData) {
 
             qemuBlockJobMarkBroken(job);
@@ -936,6 +936,41 @@ qemuBlockJobClearConfigChain(virDomainObjPtr vm,
 }
 
 
+static int
+qemuBlockJobProcessEventCompletedPullBitmaps(virDomainObjPtr vm,
+                                             qemuBlockJobDataPtr job,
+                                             qemuDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    g_autoptr(virHashTable) blockNamedNodeData = NULL;
+    g_autoptr(virJSONValue) actions = NULL;
+
+    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
+        return -1;
+
+    if (qemuBlockGetBitmapMergeActions(job->disk->src,
+                                       job->data.pull.base,
+                                       job->disk->src,
+                                       NULL, NULL, NULL,
+                                       &actions,
+                                       blockNamedNodeData) < 0)
+        return -1;
+
+    if (!actions)
+        return 0;
+
+    if (qemuDomainObjEnterMonitorAsync(priv->driver, vm, asyncJob) < 0)
+        return -1;
+
+    qemuMonitorTransaction(priv->mon, &actions);
+
+    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 /**
  * qemuBlockJobProcessEventCompletedPull:
  * @driver: qemu driver object
@@ -975,6 +1010,8 @@ qemuBlockJobProcessEventCompletedPull(virQEMUDriverPtr driver,
 
     if (!cfgdisk)
         qemuBlockJobClearConfigChain(vm, job->disk);
+
+    qemuBlockJobProcessEventCompletedPullBitmaps(vm, job, asyncJob);
 
     /* when pulling if 'base' is right below the top image we don't have to modify it */
     if (job->disk->src->backingStore == job->data.pull.base)
@@ -1064,7 +1101,8 @@ qemuBlockJobProcessEventCompletedCommitBitmaps(virDomainObjPtr vm,
     g_autoptr(virJSONValue) actions = NULL;
     bool active = job->type == QEMU_BLOCKJOB_TYPE_ACTIVE_COMMIT;
 
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN))
+    if (!active &&
+        !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_REOPEN))
         return 0;
 
     if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
@@ -1378,8 +1416,10 @@ qemuBlockJobProcessEventConcludedCopyAbort(virQEMUDriverPtr driver,
 static void
 qemuBlockJobProcessEventFailedActiveCommit(virQEMUDriverPtr driver,
                                            virDomainObjPtr vm,
-                                           qemuBlockJobDataPtr job)
+                                           qemuBlockJobDataPtr job,
+                                           qemuDomainAsyncJob asyncJob)
 {
+    qemuDomainObjPrivatePtr priv = vm->privateData;
     g_autoptr(virJSONValue) actions = virJSONValueNewArray();
     virDomainDiskDefPtr disk = job->disk;
 
@@ -1391,6 +1431,13 @@ qemuBlockJobProcessEventFailedActiveCommit(virQEMUDriverPtr driver,
     ignore_value(qemuMonitorTransactionBitmapRemove(actions, disk->mirror->nodeformat,
                                                     "libvirt-tmp-activewrite"));
 
+    if (qemuDomainObjEnterMonitorAsync(priv->driver, vm, asyncJob) < 0)
+        return;
+
+    qemuMonitorTransaction(priv->mon, &actions);
+
+    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
+        return;
 
     /* Ideally, we would make the backing chain read only again (yes, SELinux
      * can do that using different labels). But that is not implemented yet and
@@ -1515,7 +1562,7 @@ qemuBlockJobEventProcessConcludedTransition(qemuBlockJobDataPtr job,
         if (success) {
             qemuBlockJobProcessEventCompletedActiveCommit(driver, vm, job, asyncJob);
         } else {
-            qemuBlockJobProcessEventFailedActiveCommit(driver, vm, job);
+            qemuBlockJobProcessEventFailedActiveCommit(driver, vm, job, asyncJob);
         }
         break;
 

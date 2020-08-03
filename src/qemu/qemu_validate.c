@@ -654,7 +654,7 @@ qemuValidateDomainDefNuma(const virDomainDef *def,
     }
 
     for (i = 0; i < ncells; i++) {
-        g_autofree char * cpumask = NULL;
+        virBitmapPtr cpumask = virDomainNumaGetNodeCpumask(def->numa, i);
 
         if (!hasMemoryCap &&
             virDomainNumaGetNodeMemoryAccessMode(def->numa, i)) {
@@ -664,17 +664,19 @@ qemuValidateDomainDefNuma(const virDomainDef *def,
             return -1;
         }
 
-        if (!(cpumask = virBitmapFormat(virDomainNumaGetNodeCpumask(def->numa, i))))
-            return -1;
+        if (cpumask) {
+            g_autofree char * cpumaskStr = NULL;
+            if (!(cpumaskStr = virBitmapFormat(cpumask)))
+                return -1;
 
-        if (strchr(cpumask, ',') &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NUMA)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("disjoint NUMA cpu ranges are not supported "
-                             "with this QEMU"));
-            return -1;
+            if (strchr(cpumaskStr, ',') &&
+                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NUMA)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("disjoint NUMA cpu ranges are not supported "
+                                 "with this QEMU"));
+                return -1;
+            }
         }
-
     }
 
     if (virDomainNumaNodesDistancesAreBeingSet(def->numa) &&
@@ -884,6 +886,13 @@ qemuValidateDomainDef(const virDomainDef *def,
                            _("Secure boot requires SMM feature enabled"));
             return -1;
         }
+    }
+
+    if (virDomainNumaHasHMAT(def->numa) &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NUMA_HMAT)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("HMAT is not supported with this QEMU"));
+        return -1;
     }
 
     if (def->genidRequested &&
@@ -3635,10 +3644,6 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
 {
     virQEMUCapsFlags flag;
 
-    /* TPM 1.2 and 2 are not compatible, so we choose a specific version here */
-    if (tpm->version == VIR_DOMAIN_TPM_VERSION_DEFAULT)
-        tpm->version = VIR_DOMAIN_TPM_VERSION_1_2;
-
     switch (tpm->version) {
     case VIR_DOMAIN_TPM_VERSION_1_2:
         /* TPM 1.2 + CRB do not work */
@@ -3647,6 +3652,12 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Unsupported interface %s for TPM 1.2"),
                            virDomainTPMModelTypeToString(tpm->model));
+            return -1;
+        }
+        /* TPM 1.2 + SPAPR do not work with any 'type' (backend) */
+        if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("TPM 1.2 is not supported with the SPAPR device model"));
             return -1;
         }
         break;
