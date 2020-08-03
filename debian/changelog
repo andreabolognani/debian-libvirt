@@ -1,3 +1,11 @@
+libvirt (6.6.0-1) UNRELEASED; urgency=medium
+
+  * [ecdcc72] New upstream version 6.6.0
+    Includes fix for CVE-2020-14339 (Closes: #966563)
+  * [751e146] upstream: Add key for Jiří Denemark
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 03 Aug 2020 22:47:15 +0200
+
 libvirt (6.5.0-1) unstable; urgency=medium
 
   * Team upload
