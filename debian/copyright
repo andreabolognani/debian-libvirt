@@ -26,8 +26,7 @@ License: AS-IS-I
  MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS AND
  CONTRIBUTORS ACCEPT NO RESPONSIBILITY IN ANY CONCEIVABLE MANNER.
 
-Files: build-aux/ltmain.sh
-       tests/pkix_asn1_tab.c
+Files: tests/pkix_asn1_tab.c
        tests/virsh-cpuset
        tests/virsh-optparse
        tests/virsh-read-bufsiz
@@ -59,8 +58,6 @@ License: SIL-1.1
 Files: Makefile.in
        aclocal.m4
        build-aux/compile
-       build-aux/config.guess
-       build-aux/config.sub
        build-aux/depcomp
        build-aux/install-sh
        build-aux/ltmain.sh
