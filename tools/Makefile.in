@@ -111,13 +111,12 @@ bin_PROGRAMS = virsh$(EXEEXT) virt-admin$(EXEEXT) $(am__EXEEXT_1) \
 @WITH_NSS_TRUE@	nss/libnss_libvirt_guest_impl.la
 subdir = tools
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/extensions.m4 \
-	$(top_srcdir)/m4/largefile.m4 $(top_srcdir)/m4/libtool.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/libtool.m4 \
 	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
 	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
-	$(top_srcdir)/m4/sys_types_h.m4 $(top_srcdir)/m4/virt-acl.m4 \
-	$(top_srcdir)/m4/virt-apparmor.m4 $(top_srcdir)/m4/virt-arg.m4 \
-	$(top_srcdir)/m4/virt-attr.m4 $(top_srcdir)/m4/virt-audit.m4 \
+	$(top_srcdir)/m4/virt-acl.m4 $(top_srcdir)/m4/virt-apparmor.m4 \
+	$(top_srcdir)/m4/virt-arg.m4 $(top_srcdir)/m4/virt-attr.m4 \
+	$(top_srcdir)/m4/virt-audit.m4 \
 	$(top_srcdir)/m4/virt-bash-completion.m4 \
 	$(top_srcdir)/m4/virt-blkid.m4 $(top_srcdir)/m4/virt-capng.m4 \
 	$(top_srcdir)/m4/virt-chrdev-lock-files.m4 \
@@ -198,13 +197,14 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/extensions.m4 \
 	$(top_srcdir)/m4/virt-tls-priority.m4 \
 	$(top_srcdir)/m4/virt-udev.m4 \
 	$(top_srcdir)/m4/virt-virtualport.m4 \
+	$(top_srcdir)/m4/virt-warnings.m4 \
 	$(top_srcdir)/m4/virt-win-common.m4 \
 	$(top_srcdir)/m4/virt-win-mingw.m4 \
 	$(top_srcdir)/m4/virt-win-symbols.m4 \
 	$(top_srcdir)/m4/virt-win-windres.m4 \
 	$(top_srcdir)/m4/virt-wireshark.m4 \
 	$(top_srcdir)/m4/virt-xdr.m4 $(top_srcdir)/m4/virt-yajl.m4 \
-	$(top_srcdir)/m4/warnings.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
@@ -571,7 +571,6 @@ DLOPEN_LIBS = @DLOPEN_LIBS@
 DMIDECODE = @DMIDECODE@
 DNSMASQ = @DNSMASQ@
 DRIVER_MODULES_LDFLAGS = @DRIVER_MODULES_LDFLAGS@
-DRIVER_MODULES_LIBS = @DRIVER_MODULES_LIBS@
 DSYMUTIL = @DSYMUTIL@
 DTRACE = @DTRACE@
 DUMPBIN = @DUMPBIN@
@@ -583,6 +582,7 @@ EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
 FLAKE8 = @FLAKE8@
+FLAT_NAMESPACE_FLAGS = @FLAT_NAMESPACE_FLAGS@
 FUSE_CFLAGS = @FUSE_CFLAGS@
 FUSE_LIBS = @FUSE_LIBS@
 GLIB_CFLAGS = @GLIB_CFLAGS@
@@ -653,7 +653,7 @@ MDEVCTL = @MDEVCTL@
 MINGW_EXTRA_LDFLAGS = @MINGW_EXTRA_LDFLAGS@
 MKDIR_P = @MKDIR_P@
 MKFS = @MKFS@
-MMCTL = @MMCTL@
+MM_CTL = @MM_CTL@
 MODPROBE = @MODPROBE@
 MOUNT = @MOUNT@
 MSGFMT = @MSGFMT@
@@ -673,7 +673,7 @@ OPENWSMAN_CFLAGS = @OPENWSMAN_CFLAGS@
 OPENWSMAN_LIBS = @OPENWSMAN_LIBS@
 OTOOL = @OTOOL@
 OTOOL64 = @OTOOL64@
-OVSVSCTL = @OVSVSCTL@
+OVS_VSCTL = @OVS_VSCTL@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -752,6 +752,7 @@ WINDRES = @WINDRES@
 WIRESHARK_DISSECTOR_CFLAGS = @WIRESHARK_DISSECTOR_CFLAGS@
 WIRESHARK_DISSECTOR_LIBS = @WIRESHARK_DISSECTOR_LIBS@
 XDR_CFLAGS = @XDR_CFLAGS@
+XDR_LIBS = @XDR_LIBS@
 XGETTEXT = @XGETTEXT@
 XMLLINT = @XMLLINT@
 XSLTPROC = @XSLTPROC@
@@ -1015,7 +1016,7 @@ BUILT_SOURCES = libvirt-guests.sh $(am__append_12)
 SYSTEMD_UNIT_DIR = $(prefix)/lib/systemd/system
 @WITH_WIRESHARK_DISSECTOR_TRUE@ws_plugin_LTLIBRARIES = wireshark/src/libvirt.la
 @WITH_WIRESHARK_DISSECTOR_TRUE@wireshark_src_libvirt_la_CFLAGS = \
-@WITH_WIRESHARK_DISSECTOR_TRUE@	-I wireshark/src $(WIRESHARK_DISSECTOR_CFLAGS) $(XDR_CFLAGS)
+@WITH_WIRESHARK_DISSECTOR_TRUE@	-I wireshark/src $(WIRESHARK_DISSECTOR_CFLAGS) $(XDR_CFLAGS) $(AM_CFLAGS)
 
 @WITH_WIRESHARK_DISSECTOR_TRUE@wireshark_src_libvirt_la_LDFLAGS = -avoid-version -module
 @WITH_WIRESHARK_DISSECTOR_TRUE@wireshark_src_libvirt_la_SOURCES = \

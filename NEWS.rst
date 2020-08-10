@@ -8,6 +8,91 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v6.6.0 (2020-08-02)
+===================
+
+* **New features**
+
+  * Allow configuring of ACPI NUMA HMAT
+
+    Libvirt allows configuring ACPI Heterogeneous Memory Attribute Table to
+    hint software running inside the guest on optimization.
+
+  * esx: Add a ``type`` attribute for mac addresses.
+
+    This attribute allows (when set to ``static``) ignoring VMWare checks of the
+    MAC addresses that would generate a new one if they were in its OUI
+    (00:0c:29).
+
+  * conf: add control over COW for storage pool directories
+
+    The storage pool code now attempts to disable COW by default on btrfs, but
+    management applications may wish to override this behaviour. This is now
+    possible via new ``cow`` element.
+
+* **Improvements**
+
+  * esx: Change the NIC limit for recent virtualHW versions
+
+    Specifying a virtualHW version greater or equal to 7 (ESXi 4.0) will allow
+    you to use up to 10 NICs instead of 4 as it was previously.
+
+  * qemu: Support encrypted TLS keys for NBD disks
+
+    The secret key used for disks can now be encrypted similarly to TLS keys
+    used for migration, chardev and others.
+
+  * qemu: ``VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD`` can now be registered for ``<mirror>``
+
+    The event can now be used also for block copy destinations by using the
+    index of the ``<mirror>`` image.
+
+  * qemu: consider available CPUs in ``vcpupin/emulatorpin`` output
+
+    This patch changes the default bitmap of ``vcpupin`` and ``emulatorpin``,
+    in the case of domains with static vcpu placement, all available CPUs
+    instead of all possible CPUs are returned making these APIs consistent with
+    the behavior of ``vcpuinfo``.
+
+
+* **Bug fixes**
+
+  * virdevmapper: Don't use libdevmapper to obtain dependencies
+
+    When building domain's private ``/dev`` in a namespace, libdevmapper was
+    consulted for getting full dependency tree of domain's disks. However, this
+    meant that libdevmapper opened ``/dev/mapper/control`` which wasn't closed
+    and was leaked to QEMU. CVE-2020-14339
+
+  * qemu: Report correct ``index`` in ``VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD``
+
+    Starting from libvirt 5.10 with QEMU 4.2 the
+    ``VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD`` event would report incorrect device
+    ``index`` when reported for an image from the backing chain of a disk.
+
+  * qemu: Don't fail active layer block commit or block copy in certain cases
+
+    Starting from libvirt-6.5 an active layer block commit or a block copy could
+    fail if the same destination was used more than once.
+
+  * qemu: Don't change ownership of restore file
+
+    When restoring a domain from a file, Libvirt no longer changes its ownership.
+
+  * qemu: Set SPAPR TPM default to 2.0 and prevent 1.2 choice
+
+    The firmware (SLOF) on QEMU for ppc64 does not support TPM 1.2, so prevent
+    the choice of TPM 1.2 when the SPAPR device model is chosen and use a
+    default of '2.0' (TPM 2) for the backend.
+
+  * qemu: Do not set ``//cpu/@migratable`` for running domains
+
+    Libvirt release of 6.4.0 started to fill the default value for
+    ``//cpu/@migratable`` attribute according to QEMU support. However, active
+    domains either have the migratable attribute already set or they were
+    started with older Libvirt which doesn't support the attribute.
+
+
 v6.5.0 (2020-07-03)
 ===================
 
@@ -144,6 +229,10 @@ v6.4.0 (2020-06-02)
     firewalld resets all iptables rules and chains on restart, and this
     includes deleting those created by libvirt.
 
+  * qemu: reject readonly attribute for virtiofs
+
+    virtiofs does not yet support read-only shares.
+
 
 v6.3.0 (2020-05-05)
 ===================
@@ -199,6 +288,11 @@ v6.3.0 (2020-05-05)
     Users can now setup the following capabilities of pSeries guests: CFPC
     (Cache Flush on Privilege Change), SBBC (Speculation Barrier Bounds
     Checking) and IBS (Indirect Branch Speculation).
+
+  * qemu: Add support for virtio packed option
+
+    The ``packed`` attribute controls if QEMU should try to use packed
+    virtqueues. Possible values are ``on`` or ``off``.
 
 * **Improvements**
 
@@ -391,6 +485,19 @@ v6.1.0 (2020-03-03)
 
     This device, available starting from QEMU 5.0, is limited to pSeries
     guests.
+
+  * qemu: support Panic Crashloaded event handling
+
+    The pvpanic device now supports a 'crashloaded' event, which is emitted
+    when a guest panic has occurred but has already been handled by the guest
+    itself.
+
+  * qemu: Implement virDomainGetHostnameFlags
+
+    The ``--source`` argument to ``virsh domhostname`` can be used to specify
+    what data source to use for the domain hostnames. Currently, in addition
+    to the 'agent', libvirt can also use 'lease' information from dnsmasq to
+    get the hostname.
 
 * **Improvements**
 

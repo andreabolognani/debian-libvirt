@@ -1190,10 +1190,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-network-source-auth");
     DO_TEST("disk-network-vxhs", QEMU_CAPS_VXHS);
     driver.config->vxhsTLS = 1;
-    DO_TEST("disk-network-tlsx509", QEMU_CAPS_VXHS,
-            QEMU_CAPS_OBJECT_TLS_CREDS_X509, QEMU_CAPS_NBD_TLS);
-    DO_TEST_CAPS_VER("disk-network-tlsx509", "2.12.0");
-    DO_TEST_CAPS_LATEST("disk-network-tlsx509");
+    driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
+    driver.config->vxhsTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
+    DO_TEST_CAPS_VER("disk-network-tlsx509-nbd", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-tlsx509-vxhs", "2.12.0");
+    DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd");
+    DO_TEST_CAPS_VER("disk-network-tlsx509-vxhs", "5.0.0");
     DO_TEST_CAPS_LATEST("disk-network-http");
     driver.config->vxhsTLS = 0;
     VIR_FREE(driver.config->vxhsTLSx509certdir);
@@ -1943,6 +1945,8 @@ mymain(void)
     DO_TEST_PARSE_ERROR("numatune-memnode-no-memory", NONE);
 
     DO_TEST("numatune-distances", QEMU_CAPS_NUMA, QEMU_CAPS_NUMA_DIST);
+    DO_TEST("numatune-no-vcpu", NONE);
+    DO_TEST_CAPS_LATEST("numatune-hmat");
 
     DO_TEST("numatune-auto-nodeset-invalid", NONE);
     DO_TEST("numatune-auto-prefer", QEMU_CAPS_OBJECT_MEMORY_RAM,
