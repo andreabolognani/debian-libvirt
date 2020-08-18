@@ -4,7 +4,6 @@ debian/Debianize-virtlockd.patch
 debian/Debianize-virtlogd.patch
 Skip-vircgrouptest.patch
 Reduce-udevadm-settle-timeout-to-10-seconds.patch
-debian/Use-upstreams-polkit-rule.patch
 debian/apparmor_profiles_local_include.patch
 Set-defaults-for-zfs-tools.patch
 Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
