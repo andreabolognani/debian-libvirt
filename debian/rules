@@ -209,6 +209,9 @@ override_dh_auto_install:
 	# triggers the privacy-breach-generic Lintian tag
 	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci.html
 
+	# Don't autostart the default network
+	rm $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/default.xml
+
 override_dh_install-arch:
 	dh_install
 
