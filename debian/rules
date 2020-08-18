@@ -41,7 +41,6 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_POLKIT          = --with-polkit
     WITH_SANLOCK         = --with-sanlock
     WITH_INIT_SCRIPT     = --with-init-script=systemd
-    WITH_SYSTEMD         = --with-systemd-daemon
     WITH_FIREWALLD       = --with-firewalld
     WITH_ATTR            = --with-attr
     WITH_AUDIT           = --with-audit
@@ -72,7 +71,6 @@ else
     WITH_INIT_SCRIPT     = --with-init-script=none
     WITH_POLKIT          = --without-polkit
     WITH_SANLOCK         = --without-sanlock
-    WITH_SYSTEMD         = --without-systemd-daemon
     WITH_FIREWALLD       = --without-firewalld
     WITH_ATTR            = --without-attr
     WITH_AUDIT           = --without-audit
