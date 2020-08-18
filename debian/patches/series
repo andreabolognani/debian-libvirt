@@ -3,7 +3,6 @@ debian/Debianize-systemd-service-files.patch
 debian/Debianize-virtlockd.patch
 debian/Debianize-virtlogd.patch
 Skip-vircgrouptest.patch
-debian/Don-t-enable-default-network-on-boot.patch
 Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Use-upstreams-polkit-rule.patch
 debian/apparmor_profiles_local_include.patch
