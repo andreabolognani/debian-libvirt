@@ -86,7 +86,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
     --with-packager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
     --with-packager-version="$(DEB_RELEASE)" \
-    --with-default-editor="sensible-editor" \
     --with-qemu \
     --with-qemu-user=libvirt-qemu \
     --with-qemu-group=libvirt-qemu \
