@@ -60,6 +60,7 @@ else
     WITH_STORAGE_ISCSI   = --without-storage-iscsi
     WITH_STORAGE_DISK    = --without-storage-disk
     WITH_STORAGE_RBD     = --without-storage-rbd
+    WITH_STORAGE_GLUSTER = --without-storage-gluster
     WITH_UDEV            = --without-udev
     WITH_CAPNG           = --without-capng
     WITH_MACVTAP         = --without-macvtap
