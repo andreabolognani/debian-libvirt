@@ -8,3 +8,4 @@ debian/Debianize-virtlogd.patch
 debian/apparmor_profiles_local_include.patch
 debian/Set-defaults-for-zfs-tools.patch
 debian/Revert-m4-virt-xdr-rewrite-XDR-check.patch
+debian/Use-sensible-editor-by-default.patch
