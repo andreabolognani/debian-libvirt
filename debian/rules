@@ -157,9 +157,6 @@ SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirt
 	dh $@ --builddirectory=$(DEB_BUILDDIR)
 
 override_dh_auto_configure:
-	IPTABLES_PATH=/usr/sbin/iptables \
-	IP6TABLES_PATH=/usr/sbin/ip6tables \
-	EBTABLES_PATH=/usr/sbin/ebtables \
 	dh_auto_configure -- $(DEB_CONFIGURE_EXTRA_ARGS)
 
 override_dh_auto_test:
