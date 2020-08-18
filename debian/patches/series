@@ -1,10 +1,3 @@
-backport/virdevmapper-Don-t-cache-device-mapper-major.patch
-backport/virdevmapper-Handle-kernel-without-device-mapper-support.patch
-backport/virdevmapper-Ignore-all-errors-when-opening-dev-mapper-co.patch
-backport/tools-fix-libvirt-guests.sh-text-assignments.patch
-backport/apparmor-allow-default-pki-path.patch
-backport/apparmor-allow-libvirtd-to-call-pygrub.patch
-backport/apparmor-allow-libvirtd-to-call-virtiofsd.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
@@ -14,5 +7,4 @@ debian/Debianize-virtlockd.patch
 debian/Debianize-virtlogd.patch
 debian/apparmor_profiles_local_include.patch
 debian/Set-defaults-for-zfs-tools.patch
-debian/Prefer-sbin-over-usr-sbin.patch
 debian/Revert-m4-virt-xdr-rewrite-XDR-check.patch
