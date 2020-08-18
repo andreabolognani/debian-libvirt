@@ -196,9 +196,6 @@ override_dh_auto_install:
 	mv $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/50-libvirt.rules \
 	   $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/60-libvirt.rules
 
-	# Don't ship any la files
-	rm $(DEB_DESTDIR)/usr/lib/*/wireshark/plugins/*/*/*.la
-
 	# Don't ship any files that are managed by the user only
 	rm $(DEB_DESTDIR)/etc/apparmor.d/local/*
 

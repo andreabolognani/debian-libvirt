@@ -1,9 +1,3 @@
-# libtool files for the shared libraries, not needed by end user
-usr/lib/*/*libvirt*.la
-usr/lib/*/libvirt/storage-file/libvirt_storage*.la
-usr/lib/*/libvirt/storage-backend/libvirt_storage_backend*.la
-usr/lib/*/libvirt/lock-driver/*.la
-usr/lib/*/libvirt/connection-driver/*.la
 # debianized versions are in /etc/default
 etc/sysconfig/*
 # Installed in examples already
