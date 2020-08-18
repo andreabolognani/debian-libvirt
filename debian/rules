@@ -17,99 +17,99 @@ include /usr/share/dpkg/buildflags.mk
 
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64))
-        WITH_VBOX        = --with-vbox
+        WITH_VBOX        = -Ddriver_vbox=enabled
     else
-        WITH_VBOX        = --without-vbox
+        WITH_VBOX        = -Ddriver_vbox=disabled
     endif
     ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64 armhf arm64))
-        WITH_LIBXL       = --with-libxl
+        WITH_LIBXL       = -Ddriver_libxl=enabled
         XEN_ENABLED      = 1
     else
-        WITH_LIBXL       = --without-libxl
+        WITH_LIBXL       = -Ddriver_libxl=disabled
     endif
-    WITH_STORAGE_LVM     = --with-storage-lvm
-    WITH_STORAGE_ISCSI   = --with-storage-iscsi
-    WITH_STORAGE_DISK    = --with-storage-disk
-    WITH_STORAGE_RBD     = --with-storage-rbd
-    WITH_STORAGE_GLUSTER = --with-storage-gluster
-    WITH_UDEV            = --with-udev
-    WITH_CAPNG           = --with-capng
-    WITH_MACVTAP         = --with-macvtap
-    WITH_NETWORK         = --with-network
-    WITH_OPENVZ          = --with-openvz
-    WITH_NETCF           = --with-netcf
-    WITH_POLKIT          = --with-polkit
-    WITH_SANLOCK         = --with-sanlock
-    WITH_INIT_SCRIPT     = --with-init-script=systemd
-    WITH_FIREWALLD       = --with-firewalld
-    WITH_ATTR            = --with-attr
-    WITH_AUDIT           = --with-audit
-    WITH_SELINUX         = --with-selinux --with-secdriver-selinux --with-selinux-mount=/sys/fs/selinux
-    WITH_APPARMOR        = --with-apparmor --with-secdriver-apparmor --with-apparmor-profiles
-    WITH_NSS_PLUGIN      = --with-nss-plugin
-    WITH_DTRACE          = --with-dtrace
-    WITH_NUMA            = --with-numactl --with-numad
+    WITH_STORAGE_LVM     = -Dstorage_lvm=enabled
+    WITH_STORAGE_ISCSI   = -Dstorage_iscsi=enabled
+    WITH_STORAGE_DISK    = -Dstorage_disk=enabled
+    WITH_STORAGE_RBD     = -Dstorage_rbd=enabled
+    WITH_STORAGE_GLUSTER = -Dstorage_gluster=enabled
+    WITH_UDEV            = -Dudev=enabled
+    WITH_CAPNG           = -Dcapng=enabled
+    WITH_MACVTAP         = -Dmacvtap=enabled
+    WITH_NETWORK         = -Ddriver_network=enabled
+    WITH_OPENVZ          = -Ddriver_openvz=enabled
+    WITH_NETCF           = -Dnetcf=enabled
+    WITH_POLKIT          = -Dpolkit=enabled
+    WITH_SANLOCK         = -Dsanlock=enabled
+    WITH_INIT_SCRIPT     = -Dinit_script=systemd
+    WITH_FIREWALLD       = -Dfirewalld=enabled
+    WITH_ATTR            = -Dattr=enabled
+    WITH_AUDIT           = -Daudit=enabled
+    WITH_SELINUX         = -Dselinux=enabled -Dsecdriver_selinux=enabled -Dselinux-mount=/sys/fs/selinux
+    WITH_APPARMOR        = -Dapparmor=enabled -Dsecdriver_apparmor=enabled -Dapparmor_profiles=true
+    WITH_NSS_PLUGIN      = -Dnss=enabled
+    WITH_DTRACE          = -Ddtrace=enabled
+    WITH_NUMA            = -Dnumactl=enabled -Dnumad=enabled
     ifneq (,$(findstring $(DEB_HOST_ARCH), ia64))
-        WITH_LXC         = --without-lxc
+        WITH_LXC         = -Ddriver_lxc=disabled
     else
-        WITH_LXC         = --with-lxc
+        WITH_LXC         = -Ddriver_lxc=enabled
     endif
 else
-    WITH_STORAGE_LVM     = --without-storage-lvm
-    WITH_STORAGE_ISCSI   = --without-storage-iscsi
-    WITH_STORAGE_DISK    = --without-storage-disk
-    WITH_STORAGE_RBD     = --without-storage-rbd
-    WITH_STORAGE_GLUSTER = --without-storage-gluster
-    WITH_UDEV            = --without-udev
-    WITH_CAPNG           = --without-capng
-    WITH_MACVTAP         = --without-macvtap
-    WITH_NETWORK         = --without-network
-    WITH_OPENVZ          = --without-openvz
-    WITH_LXC             = --without-lxc
-    WITH_NUMA            = --without-numactl --without-numad
-    WITH_NETCF           = --without-netcf
-    WITH_INIT_SCRIPT     = --with-init-script=none
-    WITH_POLKIT          = --without-polkit
-    WITH_SANLOCK         = --without-sanlock
-    WITH_FIREWALLD       = --without-firewalld
-    WITH_ATTR            = --without-attr
-    WITH_AUDIT           = --without-audit
-    WITH_SELINUX         = --without-selinux
-    WITH_APPARMOR        = --without-apparmor
-    WITH_NSS_PLUGIN      = --without-nss-plugin
-    WITH_DTRACE          = --without-dtrace
-    WITH_LIBXL           = --without-libxl
-    WITH_VBOX            = --without-vbox
+    WITH_VBOX            = -Ddriver_vbox=disabled
+    WITH_LIBXL           = -Ddriver_libxl=disabled
+    WITH_STORAGE_LVM     = -Dstorage_lvm=disabled
+    WITH_STORAGE_ISCSI   = -Dstorage_iscsi=disabled
+    WITH_STORAGE_DISK    = -Dstorage_disk=disabled
+    WITH_STORAGE_RBD     = -Dstorage_rbd=disabled
+    WITH_STORAGE_GLUSTER = -Dstorage_gluster=disabled
+    WITH_UDEV            = -Dudev=disabled
+    WITH_CAPNG           = -Dcapng=disabled
+    WITH_MACVTAP         = -Dmacvtap=disabled
+    WITH_NETWORK         = -Ddriver_network=disabled
+    WITH_OPENVZ          = -Ddriver_openvz=disabled
+    WITH_NETCF           = -Dnetcf=disabled
+    WITH_POLKIT          = -Dpolkit=disabled
+    WITH_SANLOCK         = -Dsanlock=disabled
+    WITH_INIT_SCRIPT     = -Dinit_script=none
+    WITH_FIREWALLD       = -Dfirewalld=disabled
+    WITH_ATTR            = -Dattr=disabled
+    WITH_AUDIT           = -Daudit=disabled
+    WITH_SELINUX         = -Dselinux=disabled -Dsecdriver_selinux=disabled -Dselinux-mount=
+    WITH_APPARMOR        = -Dapparmor=disabled -Dsecdriver_apparmor=disabled -Dapparmor_profiles=false
+    WITH_NSS_PLUGIN      = -Dnss=disabled
+    WITH_DTRACE          = -Ddtrace=disabled
+    WITH_NUMA            = -Dnumactl=disabled -Dnumad=disabled
+    WITH_LXC             = -Ddriver_lxc=disabled
 endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
-    --with-packager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
-    --with-packager-version="$(DEB_RELEASE)" \
-    --with-qemu \
-    --with-qemu-user=libvirt-qemu \
-    --with-qemu-group=libvirt-qemu \
+    -Dpackager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
+    -Dpackager_version="$(DEB_RELEASE)" \
+    -Ddriver_qemu=enabled \
+    -Dqemu_user=libvirt-qemu \
+    -Dqemu_group=libvirt-qemu \
     $(WITH_OPENVZ) \
-    --with-sasl \
-    --with-yajl \
-    --with-ssh2 \
+    -Dsasl=enabled \
+    -Dyajl=enabled \
+    -Dlibssh2=enabled \
     $(WITH_POLKIT) \
     $(WITH_SANLOCK) \
     $(WITH_UDEV) \
-    --with-storage-fs \
-    --with-storage-dir \
+    -Dstorage_fs=enabled \
+    -Dstorage_dir=enabled \
     $(WITH_STORAGE_LVM) \
     $(WITH_STORAGE_ISCSI) \
     $(WITH_STORAGE_DISK) \
-    --without-storage-sheepdog \
+    -Dstorage_sheepdog=disabled \
     $(WITH_STORAGE_RBD) \
     $(WITH_STORAGE_GLUSTER) \
-    --with-storage-zfs \
+    -Dstorage_zfs=enabled \
     $(WITH_INIT_SCRIPT) \
     $(WITH_NUMA) \
     $(WITH_SELINUX) \
     $(WITH_APPARMOR) \
-    --with-esx \
+    -Ddriver_esx=enabled \
     $(WITH_CAPNG) \
     $(WITH_MACVTAP) \
     $(WITH_NETWORK) \
@@ -119,11 +119,11 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_LXC) \
     $(WITH_DTRACE) \
     $(WITH_AUDIT) \
-    --without-hal \
+    -Dhal=disabled \
     $(WITH_FIREWALLD) \
     $(WITH_ATTR) \
     $(WITH_NSS_PLUGIN) \
-    --with-wireshark-dissector \
+    -Dwireshark_dissector=enabled \
     $(NULL)
 
 LIBVIRT_SYSTEM_SERVICES = \
