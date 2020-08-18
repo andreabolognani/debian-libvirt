@@ -197,6 +197,12 @@ override_dh_auto_install:
 	cp debian/polkit/60-libvirt.pkla \
 	   $(DEB_DESTDIR)/var/lib/polkit-1/localauthority/10-vendor.d/
 
+	# Rename the upstream polkit rule so that it matches the name used
+	# historically in Debian, as well as that of the backwards compat
+	# rules we just installed
+	mv $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/50-libvirt.rules \
+	   $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/60-libvirt.rules
+
 	# Don't ship any la files
 	rm $(DEB_DESTDIR)/usr/lib/*/wireshark/plugins/*/*/*.la
 
