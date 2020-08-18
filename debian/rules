@@ -69,6 +69,7 @@ else
     WITH_NETCF           = --without-netcf
     WITH_INIT_SCRIPT     = --with-init-script=none
     WITH_POLKIT          = --without-polkit
+    WITH_SANLOCK         = --without-sanlock
     WITH_SYSTEMD         = --without-systemd-daemon
     WITH_FIREWALLD       = --without-firewalld
     WITH_ATTR            = --without-attr
@@ -97,6 +98,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     --with-yajl \
     --with-ssh2 \
     $(WITH_POLKIT) \
+    $(WITH_SANLOCK) \
     $(WITH_UDEV) \
     --with-storage-fs \
     --with-storage-dir \
