@@ -87,9 +87,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     --with-packager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
     --with-packager-version="$(DEB_RELEASE)" \
     --with-default-editor="sensible-editor" \
-    --enable-dependency-tracking \
-    --disable-silent-rules \
-    --disable-rpath \
     --with-qemu \
     --with-qemu-user=libvirt-qemu \
     --with-qemu-group=libvirt-qemu \
@@ -115,7 +112,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_APPARMOR) \
     --with-esx \
     $(WITH_CAPNG) \
-    --enable-debug \
     $(WITH_MACVTAP) \
     $(WITH_NETWORK) \
     $(WITH_NETCF) \
