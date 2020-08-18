@@ -4,21 +4,31 @@ Subject: Set defaults for zfs tools
 
 so we don't have to build-depend on a program in contrib
 ---
- m4/virt-storage-zfs.m4 | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ meson.build | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
 
-diff --git a/m4/virt-storage-zfs.m4 b/m4/virt-storage-zfs.m4
-index 0c52264..1d5781b 100644
---- a/m4/virt-storage-zfs.m4
-+++ b/m4/virt-storage-zfs.m4
-@@ -24,8 +24,8 @@ AC_DEFUN([LIBVIRT_STORAGE_ARG_ZFS], [
- AC_DEFUN([LIBVIRT_STORAGE_CHECK_ZFS], [
-   if test "$with_storage_zfs" = "yes" ||
-      test "$with_storage_zfs" = "check"; then
--    AC_PATH_PROG([ZFS], [zfs], [], [$LIBVIRT_SBIN_PATH])
--    AC_PATH_PROG([ZPOOL], [zpool], [], [$LIBVIRT_SBIN_PATH])
-+    AC_PATH_PROG([ZFS], [zfs], [/sbin/zfs], [$LIBVIRT_SBIN_PATH])
-+    AC_PATH_PROG([ZPOOL], [zpool], [/sbin/zpool], [$LIBVIRT_SBIN_PATH])
+diff --git a/meson.build b/meson.build
+index dabd419..8178c31 100644
+--- a/meson.build
++++ b/meson.build
+@@ -2060,18 +2060,15 @@ if conf.has('WITH_LIBVIRTD')
+     foreach name : ['zfs', 'zpool']
+       set_variable(
+         '@0@_prog'.format(name),
+-        find_program(name, required: get_option('storage_zfs'), dirs: libvirt_sbin_path)
++        '/sbin' / name
+       )
+-      if not get_variable('@0@_prog'.format(name)).found()
+-        zfs_enable = false
+-      endif
+     endforeach
  
-     if test "$with_storage_zfs" = "yes"; then
-       if test -z "$ZFS" || test -z "$ZPOOL"; then
+     if zfs_enable
+       use_storage = true
+       conf.set('WITH_STORAGE_ZFS', 1)
+       foreach name : ['zfs', 'zpool']
+-        conf.set_quoted(name.to_upper(), get_variable('@0@_prog'.format(name)).path())
++        conf.set_quoted(name.to_upper(), get_variable('@0@_prog'.format(name)))
+       endforeach
+     endif
+   endif

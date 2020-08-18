@@ -33,154 +33,19 @@ As soon as we rebuild agains 2.32 which is about to arrive we can drop
 this revert and follow upstream as 2.32 dropped the option to enable
 --enable-obsolete-rpc.
 ---
- libvirt.spec.in             |  4 +---
- m4/virt-xdr.m4              | 39 ++++++++++++++++++++++++++++-----------
- src/Makefile.am             |  4 +---
- src/admin/Makefile.inc.am   |  1 -
- src/locking/Makefile.inc.am |  2 --
- src/logging/Makefile.inc.am |  1 -
- src/remote/Makefile.inc.am  |  1 -
- 7 files changed, 30 insertions(+), 22 deletions(-)
+ meson.build | 2 --
+ 1 file changed, 2 deletions(-)
 
-diff --git a/libvirt.spec.in b/libvirt.spec.in
-index be48231..e1b0be6 100644
---- a/libvirt.spec.in
-+++ b/libvirt.spec.in
-@@ -405,12 +405,10 @@ BuildRequires: wireshark-devel >= 2.4.0
- BuildRequires: libssh-devel >= 0.7.0
- %endif
- 
--# On RHEL-7 rpcgen is still part of glibc-common package
- %if 0%{?fedora} || 0%{?rhel} > 7
- BuildRequires: rpcgen
--%endif
--
- BuildRequires: libtirpc-devel
-+%endif
- 
- %if %{with_firewalld_zone}
- BuildRequires: firewalld-filesystem
-diff --git a/m4/virt-xdr.m4 b/m4/virt-xdr.m4
-index 09d0c2b..8375415 100644
---- a/m4/virt-xdr.m4
-+++ b/m4/virt-xdr.m4
-@@ -18,20 +18,37 @@ dnl <http://www.gnu.org/licenses/>.
- dnl
- 
- AC_DEFUN([LIBVIRT_CHECK_XDR], [
-+  with_xdr="no"
-   if test x"$with_remote" = x"yes" || test x"$with_libvirtd" = x"yes"; then
--    dnl On MinGW portablexdr provides XDR functions, on linux they are
--    dnl provided by libtirpc and on FreeBSD/macOS there is no need to
--    dnl use extra library as it's provided by libc directly.
--
-+    dnl Where are the XDR functions?
-+    dnl If portablexdr is installed, prefer that.
-+    dnl Otherwise try -lxdr (some MinGW)
-+    dnl -ltirpc (glibc 2.13.90 or newer) or none (most Unix)
-+    AC_CHECK_LIB([portablexdr],[xdrmem_create],[],[
-+      AC_SEARCH_LIBS([xdrmem_create],[xdr tirpc],[],
-+        [AC_MSG_ERROR([Cannot find a XDR library])])
-+    ])
-     with_xdr="yes"
- 
--    if test "$with_win" = "yes"; then
--      LIBVIRT_CHECK_LIB([XDR], [portablexdr], [xdrmem_create], [rpc/rpc.h])
--    elif test "$with_linux" = "yes"; then
--      LIBVIRT_CHECK_PKG([XDR], [libtirpc], [0.1.10])
--    else
--      AM_CONDITIONAL([WITH_XDR], [test "x$with_xdr" = "xyes"])
--    fi
-+    dnl Recent glibc requires -I/usr/include/tirpc for <rpc/rpc.h>
-+    old_CFLAGS=$CFLAGS
-+    AC_CACHE_CHECK([where to find <rpc/rpc.h>], [lv_cv_xdr_cflags], [
-+      for add_CFLAGS in '' '-I/usr/include/tirpc' 'missing'; do
-+        if test x"$add_CFLAGS" = xmissing; then
-+          lv_cv_xdr_cflags=missing; break
-+        fi
-+        CFLAGS="$old_CFLAGS $add_CFLAGS"
-+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <rpc/rpc.h>
-+        ]])], [lv_cv_xdr_cflags=${add_CFLAGS:-none}; break])
-+      done
-+    ])
-+    CFLAGS=$old_CFLAGS
-+    case $lv_cv_xdr_cflags in
-+      none) XDR_CFLAGS= ;;
-+      missing) AC_MSG_ERROR([Unable to find <rpc/rpc.h>]) ;;
-+      *) XDR_CFLAGS=$lv_cv_xdr_cflags ;;
-+    esac
-+    AC_SUBST([XDR_CFLAGS])
-   fi
- ])
- 
-diff --git a/src/Makefile.am b/src/Makefile.am
-index 834e356..57e1d4d 100644
---- a/src/Makefile.am
-+++ b/src/Makefile.am
-@@ -434,9 +434,7 @@ libvirt_la_LDFLAGS = \
- 		$(AM_LDFLAGS) \
- 		$(NULL)
- libvirt_la_LIBADD += \
--		$(DLOPEN_LIBS) \
--		$(XDR_LIBS) \
--		$(NULL)
-+		    $(DLOPEN_LIBS)
- libvirt_la_CFLAGS = -DIN_LIBVIRT $(AM_CFLAGS)
- # Because we specify libvirt_la_DEPENDENCIES for $(LIBVIRT_SYMBOL_FILE), we
- # lose automake's automatic dependencies on an appropriate subset of
-diff --git a/src/admin/Makefile.inc.am b/src/admin/Makefile.inc.am
-index 8556a3b..0a9717a 100644
---- a/src/admin/Makefile.inc.am
-+++ b/src/admin/Makefile.inc.am
-@@ -72,7 +72,6 @@ libvirt_admin_la_LDFLAGS = \
- 
- libvirt_admin_la_LIBADD = \
- 	libvirt.la \
--	$(XDR_LIBS) \
- 	$(CAPNG_LIBS) \
- 	$(YAJL_LIBS) \
- 	$(DEVMAPPER_LIBS) \
-diff --git a/src/locking/Makefile.inc.am b/src/locking/Makefile.inc.am
-index ab01d8e..d1bf49c 100644
---- a/src/locking/Makefile.inc.am
-+++ b/src/locking/Makefile.inc.am
-@@ -120,7 +120,6 @@ lockd_la_LDFLAGS = $(AM_LDFLAGS_MOD_NOUNDEF)
- lockd_la_LIBADD = \
- 	libvirt.la \
- 	$(GLIB_LIBS) \
--	$(XDR_LIBS) \
- 	$(NULL)
- augeas_DATA += locking/libvirt_lockd.aug
- if WITH_DTRACE_PROBES
-@@ -162,7 +161,6 @@ virtlockd_CFLAGS = \
- virtlockd_LDFLAGS = \
- 	$(AM_LDFLAGS) \
- 	$(PIE_LDFLAGS) \
--	$(XDR_LIBS) \
- 	$(NO_UNDEFINED_LDFLAGS) \
- 	$(NULL)
- virtlockd_LDADD = \
-diff --git a/src/logging/Makefile.inc.am b/src/logging/Makefile.inc.am
-index 873e602..64023aa 100644
---- a/src/logging/Makefile.inc.am
-+++ b/src/logging/Makefile.inc.am
-@@ -98,7 +98,6 @@ virtlogd_CFLAGS = \
- virtlogd_LDFLAGS = \
- 		$(AM_LDFLAGS) \
- 		$(PIE_LDFLAGS) \
--		$(XDR_LIBS) \
- 		$(NO_UNDEFINED_LDFLAGS) \
- 		$(NULL)
- virtlogd_LDADD = \
-diff --git a/src/remote/Makefile.inc.am b/src/remote/Makefile.inc.am
-index 80f4aad..5b8eb59 100644
---- a/src/remote/Makefile.inc.am
-+++ b/src/remote/Makefile.inc.am
-@@ -64,7 +64,6 @@ REMOTE_DAEMON_LD_ADD = \
- 	$(LIBXML_LIBS) \
- 	$(GNUTLS_LIBS) \
- 	$(SASL_LIBS) \
--	$(XDR_LIBS) \
- 	$(DBUS_LIBS) \
- 	$(LIBNL_LIBS) \
- 	$(NULL)
+diff --git a/meson.build b/meson.build
+index 8178c31..6cb9bd8 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1481,8 +1481,6 @@ endif
+ # use extra library as it's provided by libc directly.
+ if host_machine.system() == 'windows'
+   xdr_dep = cc.find_library('portablexdr', required: false)
+-elif host_machine.system() == 'linux'
+-  xdr_dep = dependency('libtirpc', required: false)
+ else
+   xdr_dep = declare_dependency()
+ endif
