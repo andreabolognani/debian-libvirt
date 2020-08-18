@@ -64,6 +64,7 @@ else
     WITH_CAPNG           = --without-capng
     WITH_MACVTAP         = --without-macvtap
     WITH_NETWORK         = --without-network
+    WITH_OPENVZ          = --without-openvz
     WITH_LXC             = --without-lxc
     WITH_NUMA            = --without-numactl --without-numad
     WITH_NETCF           = --without-netcf
