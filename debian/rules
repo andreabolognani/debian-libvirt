@@ -84,6 +84,7 @@ endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
+    -Drunstatedir=/run \
     -Dpackager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
     -Dpackager_version="$(DEB_RELEASE)" \
     -Ddriver_qemu=enabled \
