@@ -14,3 +14,4 @@ apparmor-Allow-run-pygrub.patch
 virdevmapper-Don-t-cache-device-mapper-major.patch
 virdevmapper-Handle-kernel-without-device-mapper-support.patch
 virdevmapper-Ignore-all-errors-when-opening-dev-mapper-co.patch
+tools-fix-libvirt-guests.sh-text-assignments.patch
