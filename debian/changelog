@@ -1,10 +1,31 @@
-libvirt (6.6.0-1) UNRELEASED; urgency=medium
+libvirt (6.6.0-1) unstable; urgency=medium
 
+  * Team upload
+
+  [ Andrea Bolognani ]
   * [ecdcc72] New upstream version 6.6.0
     Includes fix for CVE-2020-14339 (Closes: #966563)
   * [751e146] upstream: Add key for Jiří Denemark
+  * [ab2a1b4] control: Add Build-Depends on libtirpc-dev
+  * [8714f7d] control: Drop Build-Depends on libncurses5-dev.
+  * [1137e33] patches: Assign topic to all patches.
+  * [51e52ab] patches: Reorder patches.
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 03 Aug 2020 22:47:15 +0200
+  [ Christian Ehrhardt ]
+  * [ceab403] d/control, d/rules: feature architecture parity.
+    Enable systemtap, numa and numad on more architectures.
+  * [dd2d1a9] Drop d/p/apparmor-Allow-[....]-name-service-.patch.
+    Doesn't seem to be necessary anymore.
+  * [d31eba5] fix device mapper issues.
+    Add the following backports:
+    - virdevmapper-Don-t-cache-device-mapper-major.patch
+    - virdevmapper-Ignore-all-errors-when-opening-dev-mapper-co.patch
+    - virdevmapper-Handle-kernel-without-device-mapper-support.patch
+  * [3145e31] tools: fix libvirt-guests.sh text assignments
+    Add the following backports:
+    - tools-fix-libvirt-guests.sh-text-assignments.patch
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 22 Aug 2020 17:05:23 +0200
 
 libvirt (6.5.0-1) unstable; urgency=medium
 
