@@ -9,7 +9,7 @@ Origin: vendor
  2 files changed, 30 insertions(+), 19 deletions(-)
 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 534c4d5..111395d 100644
+index d69df90..d4f962d 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
 @@ -1,5 +1,17 @@
@@ -58,11 +58,11 @@ index 534c4d5..111395d 100644
 -export TEXTDOMAIN="@PACKAGE@" TEXTDOMAINDIR="@localedir@"
 +export TEXTDOMAIN="libvirt" TEXTDOMAINDIR="/usr/share/locale"
  
- URIS=default
--ON_BOOT=start
--ON_SHUTDOWN=suspend
-+ON_BOOT=ignore
-+ON_SHUTDOWN=shutdown
+ URIS="default"
+-ON_BOOT="start"
+-ON_SHUTDOWN="suspend"
++ON_BOOT="ignore"
++ON_SHUTDOWN="shutdown"
  SHUTDOWN_TIMEOUT=300
  PARALLEL_SHUTDOWN=0
  START_DELAY=0

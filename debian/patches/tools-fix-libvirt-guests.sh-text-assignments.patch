@@ -34,23 +34,23 @@ Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
  1 file changed, 68 insertions(+), 68 deletions(-)
 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 111395d..d4f962d 100644
+index 534c4d5..d69df90 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
-@@ -42,9 +42,9 @@ libvirtd=/usr/sbin/libvirtd
+@@ -30,9 +30,9 @@ test ! -r "$sysconfdir"/rc.d/init.d/functions ||
  
- export TEXTDOMAIN="libvirt" TEXTDOMAINDIR="/usr/share/locale"
+ export TEXTDOMAIN="@PACKAGE@" TEXTDOMAINDIR="@localedir@"
  
 -URIS=default
--ON_BOOT=ignore
--ON_SHUTDOWN=shutdown
+-ON_BOOT=start
+-ON_SHUTDOWN=suspend
 +URIS="default"
-+ON_BOOT="ignore"
-+ON_SHUTDOWN="shutdown"
++ON_BOOT="start"
++ON_SHUTDOWN="suspend"
  SHUTDOWN_TIMEOUT=300
  PARALLEL_SHUTDOWN=0
  START_DELAY=0
-@@ -77,7 +77,7 @@ retval() {
+@@ -65,7 +65,7 @@ retval() {
  # If URI is "default" virsh is called without the "-c" argument
  # (using libvirt's default connection)
  run_virsh() {
@@ -59,7 +59,7 @@ index 111395d..d4f962d 100644
      shift
  
      if [ "x$uri" = xdefault ]; then
-@@ -98,7 +98,7 @@ run_virsh_c() {
+@@ -86,7 +86,7 @@ run_virsh_c() {
  # check if URI is reachable
  test_connect()
  {
@@ -68,7 +68,7 @@ index 111395d..d4f962d 100644
  
      if run_virsh "$uri" connect 2>/dev/null; then
          return 0;
-@@ -115,9 +115,9 @@ test_connect()
+@@ -103,9 +103,9 @@ test_connect()
  # --transient: list only transient guests
  # [none]: list both persistent and transient guests
  list_guests() {
@@ -81,7 +81,7 @@ index 111395d..d4f962d 100644
  
      if [ $? -ne 0 ]; then
          RETVAL=1
-@@ -130,8 +130,8 @@ list_guests() {
+@@ -118,8 +118,8 @@ list_guests() {
  # guest_name URI UUID
  # return name of guest UUID on URI
  guest_name() {
@@ -92,7 +92,7 @@ index 111395d..d4f962d 100644
  
      run_virsh "$uri" domname "$uuid" 2>/dev/null
  }
-@@ -140,17 +140,17 @@ guest_name() {
+@@ -128,17 +128,17 @@ guest_name() {
  # check if guest UUID on URI is running
  # Result is returned by variable "guest_running"
  guest_is_on() {
@@ -115,7 +115,7 @@ index 111395d..d4f962d 100644
      return 0
  }
  
-@@ -163,9 +163,9 @@ started() {
+@@ -151,9 +151,9 @@ started() {
  # start
  # Start or resume the guests
  start() {
@@ -127,7 +127,7 @@ index 111395d..d4f962d 100644
      local uri=
      local list=
  
-@@ -179,10 +179,10 @@ start() {
+@@ -167,10 +167,10 @@ start() {
          return 0
      fi
  
@@ -141,7 +141,7 @@ index 111395d..d4f962d 100644
          local confuri=
          local guest=
  
-@@ -190,7 +190,7 @@ start() {
+@@ -178,7 +178,7 @@ start() {
          for confuri in $URIS; do
              set +f
              if [ "x$confuri" = "x$uri" ]; then
@@ -150,7 +150,7 @@ index 111395d..d4f962d 100644
                  break
              fi
          done
-@@ -204,14 +204,14 @@ start() {
+@@ -192,14 +192,14 @@ start() {
  
          eval_gettext "Resuming guests on \$uri URI..."; echo
          for guest in $list; do
@@ -167,7 +167,7 @@ index 111395d..d4f962d 100644
                      else
                          sleep $START_DELAY
                      fi
-@@ -235,25 +235,25 @@ start() {
+@@ -223,25 +223,25 @@ start() {
  # was saved.
  suspend_guest()
  {
@@ -201,7 +201,7 @@ index 111395d..d4f962d 100644
              if [ -n "$progress" ]; then
                  printf '%s%s\n' "$label" "$progress"
              else
-@@ -269,11 +269,11 @@ suspend_guest()
+@@ -257,11 +257,11 @@ suspend_guest()
  # was successfully shutdown or the timeout defined by $SHUTDOWN_TIMEOUT expired.
  shutdown_guest()
  {
@@ -218,7 +218,7 @@ index 111395d..d4f962d 100644
      local format=
      local slept=
  
-@@ -282,11 +282,11 @@ shutdown_guest()
+@@ -270,11 +270,11 @@ shutdown_guest()
      retval run_virsh "$uri" shutdown "$guest" >/dev/null || return
  
      if [ $timeout -gt 0 ]; then
@@ -233,7 +233,7 @@ index 111395d..d4f962d 100644
      fi
      while ! $check_timeout || [ "$timeout" -gt 0 ]; do
          sleep 1
-@@ -321,9 +321,9 @@ shutdown_guest()
+@@ -309,9 +309,9 @@ shutdown_guest()
  # was issued to libvirt to allow parallel shutdown.
  shutdown_guest_async()
  {
@@ -246,7 +246,7 @@ index 111395d..d4f962d 100644
  
      eval_gettext "Starting shutdown on guest: \$name"
      echo
-@@ -344,8 +344,8 @@ guest_count()
+@@ -332,8 +332,8 @@ guest_count()
  # Result is returned in "guests_shutting_down"
  check_guests_shutdown()
  {
@@ -257,7 +257,7 @@ index 111395d..d4f962d 100644
      local guest=
  
      guests_shutting_down=
-@@ -366,9 +366,9 @@ check_guests_shutdown()
+@@ -354,9 +354,9 @@ check_guests_shutdown()
  # a shutdown complete notice for guests that have finished
  print_guests_shutdown()
  {
@@ -270,7 +270,7 @@ index 111395d..d4f962d 100644
      local guest=
  
      for guest in $before; do
-@@ -376,7 +376,7 @@ print_guests_shutdown()
+@@ -364,7 +364,7 @@ print_guests_shutdown()
              *" $guest "*) continue;;
          esac
  
@@ -279,7 +279,7 @@ index 111395d..d4f962d 100644
          if [ -n "$name" ]; then
              eval_gettext "Shutdown of guest \$name complete."
              echo
-@@ -388,28 +388,28 @@ print_guests_shutdown()
+@@ -376,28 +376,28 @@ print_guests_shutdown()
  # Shutdown guests GUESTS on machine URI in parallel
  shutdown_guests_parallel()
  {
@@ -317,7 +317,7 @@ index 111395d..d4f962d 100644
              if [ -z "$(echo $on_shutdown | grep $guest)" ] &&
                 [ -n "$(guest_name "$uri" "$guest")" ]; then
                  shutdown_guest_async "$uri" "$guest"
-@@ -440,7 +440,7 @@ shutdown_guests_parallel()
+@@ -428,7 +428,7 @@ shutdown_guests_parallel()
              fi
          fi
  
@@ -326,7 +326,7 @@ index 111395d..d4f962d 100644
          check_guests_shutdown "$uri" "$on_shutdown"
          on_shutdown="$guests_shutting_down"
          print_guests_shutdown "$uri" "$on_shutdown_prev" "$on_shutdown"
-@@ -450,14 +450,14 @@ shutdown_guests_parallel()
+@@ -438,14 +438,14 @@ shutdown_guests_parallel()
  # stop
  # Shutdown or save guests on the configured uris
  stop() {
@@ -343,7 +343,7 @@ index 111395d..d4f962d 100644
          if [ $SHUTDOWN_TIMEOUT -lt 0 ]; then
              gettext "SHUTDOWN_TIMEOUT must be equal or greater than 0"
              echo
-@@ -475,13 +475,13 @@ stop() {
+@@ -463,13 +463,13 @@ stop() {
  
          eval_gettext "Running guests on \$uri URI: "
  
@@ -359,7 +359,7 @@ index 111395d..d4f962d 100644
              done
  
              if "$empty"; then
-@@ -491,15 +491,15 @@ stop() {
+@@ -479,15 +479,15 @@ stop() {
          fi
  
          if "$suspending"; then
@@ -378,7 +378,7 @@ index 111395d..d4f962d 100644
                      else
                          printf ", "
                      fi
-@@ -507,7 +507,7 @@ stop() {
+@@ -495,7 +495,7 @@ stop() {
                  done
                  echo
                  # reload domain list to contain only persistent guests
@@ -387,7 +387,7 @@ index 111395d..d4f962d 100644
                  if [ $? -ne 0 ]; then
                      eval_gettext "Failed to list persistent guests on \$uri"
                      echo
-@@ -593,7 +593,7 @@ rh_status() {
+@@ -582,7 +582,7 @@ rh_status() {
  # usage [val]
  # Display usage string, then exit with VAL (defaults to 2).
  usage() {
@@ -396,7 +396,7 @@ index 111395d..d4f962d 100644
      eval_gettext "Usage: \$program_name {start|stop|status|restart|"\
  "condrestart|try-restart|reload|force-reload|gueststatus|shutdown}"; echo
      exit ${1-2}
-@@ -623,7 +623,7 @@ case "$1" in
+@@ -612,7 +612,7 @@ case "$1" in
          rh_status
          ;;
      shutdown)
