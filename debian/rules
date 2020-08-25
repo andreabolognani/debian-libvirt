@@ -269,8 +269,3 @@ override_dh_auto_clean:
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlogd.default \
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlockd.default \
 	      $(NULL)
-
-# The upstream ChangeLog file doesn't contain any useful information, and we
-# already install the release notes elsewhere
-override_dh_installchangelogs:
-	dh_installchangelogs -XChangeLog
