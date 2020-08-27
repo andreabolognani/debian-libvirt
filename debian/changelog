@@ -1,8 +1,27 @@
-libvirt (6.7.0-1) UNRELEASED; urgency=medium
+libvirt (6.7.0-1) experimental; urgency=medium
+
+  * Team upload
 
   * [0d7a347] New upstream version 6.7.0
+  * [c6306e9] patches: Drop obsolete patches
+    The following patches are no longer necessary:
+    - backport/apparmor-allow-default-pki-path.patch
+    - backport/apparmor-allow-libvirtd-to-call-pygrub.patch
+    - backport/apparmor-allow-libvirtd-to-call-virtiofsd.patch
+    - backport/tools-fix-libvirt-guests.sh-text-assignments.patch
+    - backport/virdevmapper-Don-t-cache-device-mapper-major.patch
+    - backport/virdevmapper-Handle-kernel-without-device-mapper-support.patch
+    - backport/virdevmapper-Ignore-all-errors-when-opening-dev-mapper-co.patch
+    - debian/Prefer-sbin-over-usr-sbin.patch
+  * [72f7997] patches: Rewrite build system patches
+    The following patches have been rewritten:
+    - debian/Revert-m4-virt-xdr-rewrite-XDR-check.patch
+    - debian/Set-defaults-for-zfs-tools.patch
+  * [37e7b80] patches: Add debian/Use-sensible-editor-by-default.patch
+    Replaces use of the removed --with-default-editor configure option
+  * [c326ac4] control: Add Build-Depends on meson
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 18 Aug 2020 19:16:45 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 01 Sep 2020 23:26:23 +0200
 
 libvirt (6.6.0-2) unstable; urgency=medium
 
