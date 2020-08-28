@@ -4,6 +4,7 @@ backport/virdevmapper-Ignore-all-errors-when-opening-dev-mapper-co.patch
 backport/tools-fix-libvirt-guests.sh-text-assignments.patch
 backport/apparmor-allow-default-pki-path.patch
 backport/apparmor-allow-libvirtd-to-call-pygrub.patch
+backport/apparmor-allow-libvirtd-to-call-virtiofsd.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
