@@ -1,7 +1,9 @@
 libvirt (6.6.0-2) unstable; urgency=medium
 
+  * Team upload
+
   * fix libvirt-lxc that was broken by libtirpc linking issues (LP: #1892826)
-    - [92acaf6] d/p/debian/Revert-m4-virt-xdr-rewrite-XDR-check.patch:
+    - [92acaf6] add d/p/debian/Revert-m4-virt-xdr-rewrite-XDR-check.patch
     - [90093c0] Revert "control: Add Build-Depends on libtirpc-dev"
   * [c12faf1] replace patches for pki and pygrub with clean upstream backports
   * [6377d90] apparmor: allow libvirtd to call virtiofsd (LP: #1892736)
