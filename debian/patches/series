@@ -2,11 +2,11 @@ backport/virdevmapper-Don-t-cache-device-mapper-major.patch
 backport/virdevmapper-Handle-kernel-without-device-mapper-support.patch
 backport/virdevmapper-Ignore-all-errors-when-opening-dev-mapper-co.patch
 backport/tools-fix-libvirt-guests.sh-text-assignments.patch
+backport/apparmor-allow-default-pki-path.patch
+backport/apparmor-allow-libvirtd-to-call-pygrub.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
-forward/Include-etc-pki-qemu-in-apparmor.patch
-forward/apparmor-Allow-run-pygrub.patch
 debian/Debianize-libvirt-guests.patch
 debian/Debianize-systemd-service-files.patch
 debian/Debianize-virtlockd.patch

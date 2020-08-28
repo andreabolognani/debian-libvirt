@@ -1,0 +1,40 @@
+From: Stefan Bader <stefan.bader@canonical.com>
+Date: Mon, 3 Aug 2020 12:21:23 +0200
+Subject: apparmor: allow libvirtd to call pygrub
+
+When using xen through libxl in Debian/Ubuntu it needs to be able to
+call pygrub.
+
+This is placed in a versioned path like /usr/lib/xen-4.11/bin.
+In theory the rule could be more strict by rendering the libexec_dir
+setting pkg-config can derive from libbxen-dev. But that would make
+particular libvirt/xen packages version-depend on each other. It seems
+more reasonable to avoid these versioned dependencies and use a wildcard
+rule instead as it is already in place for libxl-save-helper.
+
+Note: This change was in Debian [1] and Ubuntu [2] for quite some time
+already.
+
+[1]: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=931768
+[2]: https://bugs.launchpad.net/ubuntu/+source/libvirt/+bug/1326003
+
+Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Reviewed-by: Andrea Bolognani <abologna@redhat.com>
+Acked-by: Jamie Strandboge <jamie@canonical.com>
+(cherry picked from commit 8b6ee1afdb664ef5d90e1a92b69fc9f2f9221090)
+---
+ src/security/apparmor/usr.sbin.libvirtd.in | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
+index 1e13703..312fa4b 100644
+--- a/src/security/apparmor/usr.sbin.libvirtd.in
++++ b/src/security/apparmor/usr.sbin.libvirtd.in
+@@ -86,6 +86,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
+   /usr/{lib,lib64}/xen-common/bin/xen-toolstack PUx,
+   /usr/{lib,lib64}/xen/bin/* Ux,
+   /usr/lib/xen-*/bin/libxl-save-helper PUx,
++  /usr/lib/xen-*/bin/pygrub PUx,
+   /usr/{lib,lib64,lib/qemu,libexec}/vhost-user-gpu PUx,
+ 
+   # Required by nwfilter_ebiptables_driver.c:ebiptablesWriteToTempFile() to
