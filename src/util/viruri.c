@@ -20,6 +20,8 @@
 
 #include <config.h>
 
+#include <libxml/uri.h>
+
 #include "viruri.h"
 
 #include "viralloc.h"
@@ -368,7 +370,7 @@ virURIResolveAlias(virConfPtr conf, const char *alias, char **uri)
 
     if (aliases && *aliases) {
         ret = virURIFindAliasMatch(aliases, alias, uri);
-        virStringListFree(aliases);
+        g_strfreev(aliases);
     } else {
         ret = 0;
     }

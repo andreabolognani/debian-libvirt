@@ -1486,7 +1486,7 @@ x86ModelParseSignatures(virCPUx86ModelPtr model,
                         xmlXPathContextPtr ctxt)
 {
     g_autofree xmlNodePtr *nodes = NULL;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
     size_t i;
     int n;
 
@@ -2759,7 +2759,7 @@ virCPUx86GetHost(virCPUDefPtr cpu,
     }
 
     ret = x86DecodeCPUData(cpu, cpuData, models);
-    cpu->microcodeVersion = virHostCPUGetMicrocodeVersion();
+    cpu->microcodeVersion = virHostCPUGetMicrocodeVersion(cpuData->arch);
 
     /* Probing for TSC frequency makes sense only if the CPU supports
      * invariant TSC (Linux calls this constant_tsc in /proc/cpuinfo). */

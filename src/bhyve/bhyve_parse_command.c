@@ -171,11 +171,12 @@ bhyveCommandLineToArgv(const char *nativeConfig,
     }
 
     for (i = 0; i < line_count; i++) {
-        curr = lines[i];
         size_t j;
         char **arglist = NULL;
         size_t args_count = 0;
         size_t args_alloc = 0;
+
+        curr = lines[i];
 
         /* iterate over each line, splitting on sequences of ' '. This code is
          * adapted from qemu/qemu_parse_command.c. */
@@ -246,7 +247,7 @@ bhyveCommandLineToArgv(const char *nativeConfig,
         } else {
             /* To prevent a use-after-free here, only free the argument list
              * when it is definitely not going to be used */
-            virStringListFree(arglist);
+            g_strfreev(arglist);
         }
     }
 
@@ -254,13 +255,13 @@ bhyveCommandLineToArgv(const char *nativeConfig,
     if (!(*bhyve_argv = _bhyve_argv))
         goto error;
 
-    virStringListFree(lines);
+    g_strfreev(lines);
     return 0;
 
  error:
     VIR_FREE(_loader_argv);
     VIR_FREE(_bhyve_argv);
-    virStringListFree(lines);
+    g_strfreev(lines);
     return -1;
 }
 
@@ -277,11 +278,11 @@ bhyveParseBhyveLPCArg(virDomainDefPtr def,
     char *type = NULL;
 
     separator = strchr(arg, ',');
-    param = separator + 1;
 
     if (!separator)
         goto error;
 
+    param = separator + 1;
     type = g_strndup(arg, separator - arg);
 
     /* Only support com%d */
@@ -434,13 +435,13 @@ bhyveParsePCIDisk(virDomainDefPtr def,
     disk->info.addr.pci.slot = pcislot;
     disk->info.addr.pci.function = function;
 
+    if (!config)
+        goto error;
+
     if (STRPREFIX(config, "/dev/"))
         disk->src->type = VIR_STORAGE_TYPE_BLOCK;
     else
         disk->src->type = VIR_STORAGE_TYPE_FILE;
-
-    if (!config)
-        goto error;
 
     separator = strchr(config, ',');
     if (separator)
@@ -884,8 +885,8 @@ bhyveParseCommandLineString(const char* nativeConfig,
     }
 
  cleanup:
-    virStringListFree(loader_argv);
-    virStringListFree(bhyve_argv);
+    g_strfreev(loader_argv);
+    g_strfreev(bhyve_argv);
     return def;
  error:
     virDomainDefFree(def);

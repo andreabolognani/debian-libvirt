@@ -463,29 +463,8 @@ int virFileUnlock(int fd, off_t start, off_t len)
 }
 
 
-/**
- * virFileFlock:
- * @fd: file descriptor to call flock on
- * @lock: true for lock, false for unlock
- * @shared: true if shared, false for exclusive, ignored if `@lock == false`
- *
- * This is just a simple wrapper around flock(2) that errors out on unsupported
- * platforms.
- *
- * The lock will be released when @fd is closed or this function is called with
- * `@lock == false`.
- *
- * Returns 0 on success, -1 otherwise (with errno set)
- */
-int virFileFlock(int fd, bool lock, bool shared)
-{
-    if (lock)
-        return flock(fd, shared ? LOCK_SH : LOCK_EX);
-
-    return flock(fd, LOCK_UN);
-}
-
 #else /* WIN32 */
+
 
 int virFileLock(int fd G_GNUC_UNUSED,
                 bool shared G_GNUC_UNUSED,
@@ -504,14 +483,6 @@ int virFileUnlock(int fd G_GNUC_UNUSED,
     return -ENOSYS;
 }
 
-
-int virFileFlock(int fd G_GNUC_UNUSED,
-                 bool lock G_GNUC_UNUSED,
-                 bool shared G_GNUC_UNUSED)
-{
-    errno = ENOSYS;
-    return -1;
-}
 
 #endif /* WIN32 */
 
@@ -1441,13 +1412,16 @@ virFileReadLimFD(int fd, int maxlen, char **buf)
 int
 virFileReadAll(const char *path, int maxlen, char **buf)
 {
-    int fd = open(path, O_RDONLY);
+    int fd;
+    int len;
+
+    fd = open(path, O_RDONLY);
     if (fd < 0) {
         virReportSystemError(errno, _("Failed to open file '%s'"), path);
         return -1;
     }
 
-    int len = virFileReadLimFD(fd, maxlen, buf);
+    len = virFileReadLimFD(fd, maxlen, buf);
     VIR_FORCE_CLOSE(fd);
     if (len < 0) {
         virReportSystemError(errno, _("Failed to read file '%s'"), path);
@@ -1460,11 +1434,14 @@ virFileReadAll(const char *path, int maxlen, char **buf)
 int
 virFileReadAllQuiet(const char *path, int maxlen, char **buf)
 {
-    int fd = open(path, O_RDONLY);
+    int fd;
+    int len;
+
+    fd = open(path, O_RDONLY);
     if (fd < 0)
         return -errno;
 
-    int len = virFileReadLimFD(fd, maxlen, buf);
+    len = virFileReadLimFD(fd, maxlen, buf);
     VIR_FORCE_CLOSE(fd);
     if (len < 0)
         return -errno;
@@ -1782,21 +1759,22 @@ virFileFindResource(const char *filename,
  * virFileActivateDirOverrideForProg:
  * @argv0: argv[0] of the calling program
  *
- * Look at @argv0 and try to detect if running from
- * a build directory, by looking for a 'lt-' prefix
- * on the binary name, or '/.libs/' in the path
+ * Canonicalize current process path from argv0 and check if abs_top_builddir
+ * matches as prefix in the path.
  */
 void
 virFileActivateDirOverrideForProg(const char *argv0)
 {
-    char *file = strrchr(argv0, '/');
-    if (!file || file[1] == '\0')
+    g_autofree char *path = virFileCanonicalizePath(argv0);
+
+    if (!path) {
+        VIR_DEBUG("Failed to get canonicalized path errno=%d", errno);
         return;
-    file++;
-    if (STRPREFIX(file, "lt-") ||
-        strstr(argv0, "/.libs/")) {
+    }
+
+    if (STRPREFIX(path, abs_top_builddir)) {
         useDirOverride = true;
-        VIR_DEBUG("Activating build dir override for %s", argv0);
+        VIR_DEBUG("Activating build dir override for %s", path);
     }
 }
 
@@ -2038,7 +2016,7 @@ virFileGetMountSubtreeImpl(const char *mtabpath,
 
  cleanup:
     if (ret < 0)
-        virStringListFree(mounts);
+        g_strfreev(mounts);
     endmntent(procmnt);
     return ret;
 }
@@ -2067,7 +2045,7 @@ virFileGetMountSubtreeImpl(const char *mtabpath G_GNUC_UNUSED,
  * the path @prefix, sorted alphabetically.
  *
  * The @mountsret array will be NULL terminated and should
- * be freed with virStringListFree
+ * be freed with g_strfreev
  *
  * Returns 0 on success, -1 on error
  */
@@ -2090,7 +2068,7 @@ int virFileGetMountSubtree(const char *mtabpath,
  * the path @prefix, reverse-sorted alphabetically.
  *
  * The @mountsret array will be NULL terminated and should
- * be freed with virStringListFree
+ * be freed with g_strfreev
  *
  * Returns 0 on success, -1 on error
  */
@@ -4550,7 +4528,7 @@ virFileSetCOW(const char *path,
     }
 
     if (buf.f_type != BTRFS_SUPER_MAGIC) {
-        if (state == VIR_TRISTATE_BOOL_ABSENT) {
+        if (state != VIR_TRISTATE_BOOL_ABSENT) {
             virReportSystemError(ENOSYS,
                                  _("unable to control COW flag on '%s', not btrfs"),
                                  path);

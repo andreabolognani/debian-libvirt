@@ -36,6 +36,12 @@ typedef enum {
     VIR_FILE_CLOSE_DONT_LOG = 1 << 2,
 } virFileCloseFlags;
 
+#ifdef __APPLE__
+# define VIR_FILE_MODULE_EXT ".dylib"
+#else
+# define VIR_FILE_MODULE_EXT ".so"
+#endif
+
 ssize_t saferead(int fd, void *buf, size_t count) G_GNUC_WARN_UNUSED_RESULT;
 ssize_t safewrite(int fd, const void *buf, size_t count)
     G_GNUC_WARN_UNUSED_RESULT;
@@ -117,8 +123,6 @@ int virFileLock(int fd, bool shared, off_t start, off_t len, bool waitForLock)
     G_GNUC_NO_INLINE;
 int virFileUnlock(int fd, off_t start, off_t len)
     G_GNUC_NO_INLINE;
-
-int virFileFlock(int fd, bool lock, bool shared);
 
 typedef int (*virFileRewriteFunc)(int fd, const void *opaque);
 int virFileRewrite(const char *path,

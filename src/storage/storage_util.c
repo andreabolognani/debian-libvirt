@@ -192,8 +192,8 @@ virStorageBackendCopyToFD(virStorageVolDefPtr vol,
          * blocks */
         amtleft = amtread;
         do {
-            interval = ((wbytes > amtleft) ? amtleft : wbytes);
             int offset = amtread - amtleft;
+            interval = ((wbytes > amtleft) ? amtleft : wbytes);
 
             if (want_sparse && memcmp(buf+offset, zerobuf, interval) == 0) {
                 if (lseek(fd, interval, SEEK_CUR) < 0) {
@@ -1044,7 +1044,7 @@ virStorageBackendCreateQemuImgCmdFromVol(virStoragePoolObjPtr pool,
         .type = NULL,
         .inputType = NULL,
         .path = vol->target.path,
-        .allocation = vol->target.allocation,
+        .allocation = VIR_DIV_UP(vol->target.allocation, 1024),
         .encryption = !!vol->target.encryption,
         .preallocate = !!(flags & VIR_STORAGE_VOL_CREATE_PREALLOC_METADATA),
         .compat = vol->target.compat,

@@ -55,7 +55,7 @@ testCompareStatusXMLToXMLFiles(const void *opaque)
 {
     const struct testQemuInfo *data = opaque;
     virDomainObjPtr obj = NULL;
-    char *actual = NULL;
+    g_autofree char *actual = NULL;
     int ret = -1;
 
     if (!(obj = virDomainObjParseFile(data->infile, driver.xmlopt,
@@ -85,7 +85,6 @@ testCompareStatusXMLToXMLFiles(const void *opaque)
 
  cleanup:
     virDomainObjEndAPI(&obj);
-    VIR_FREE(actual);
     return ret;
 }
 
@@ -132,9 +131,9 @@ static int
 mymain(void)
 {
     int ret = 0;
-    char *fakerootdir;
+    g_autofree char *fakerootdir = NULL;
     virQEMUDriverConfigPtr cfg = NULL;
-    virHashTablePtr capslatest = NULL;
+    g_autoptr(virHashTable) capslatest = NULL;
     g_autoptr(virConnect) conn = NULL;
 
     capslatest = testQemuGetLatestCaps();
@@ -1136,7 +1135,8 @@ mymain(void)
     DO_TEST("tap-vhost", NONE);
     DO_TEST("tap-vhost-incorrect", NONE);
     DO_TEST("shmem", NONE);
-    DO_TEST("shmem-plain-doorbell", NONE);
+    DO_TEST("shmem-plain-doorbell",
+            QEMU_CAPS_DEVICE_IVSHMEM_PLAIN, QEMU_CAPS_DEVICE_IVSHMEM_DOORBELL);
     DO_TEST("smbios", NONE);
     DO_TEST("smbios-multiple-type2", NONE);
     DO_TEST("smbios-type-fwcfg", NONE);
@@ -1500,9 +1500,7 @@ mymain(void)
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);
 
-    virHashFree(capslatest);
     qemuTestDriverFree(&driver);
-    VIR_FREE(fakerootdir);
     virFileWrapperClearPrefixes();
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

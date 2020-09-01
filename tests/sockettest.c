@@ -90,6 +90,7 @@ testRange(const char *saddrstr, const char *eaddrstr,
     virSocketAddr saddr;
     virSocketAddr eaddr;
     virSocketAddr netaddr;
+    int gotsize;
 
     if (virSocketAddrParse(&saddr, saddrstr, AF_UNSPEC) < 0)
         return -1;
@@ -98,8 +99,8 @@ testRange(const char *saddrstr, const char *eaddrstr,
     if (netstr && virSocketAddrParse(&netaddr, netstr, AF_UNSPEC) < 0)
         return -1;
 
-    int gotsize = virSocketAddrGetRange(&saddr, &eaddr,
-                                        netstr ? &netaddr : NULL, prefix);
+    gotsize = virSocketAddrGetRange(&saddr, &eaddr,
+                                    netstr ? &netaddr : NULL, prefix);
     VIR_DEBUG("Size want %d vs got %d", size, gotsize);
     if (pass) {
         /* fail if virSocketAddrGetRange returns failure, or unexpected size */
@@ -136,6 +137,7 @@ static int testNetmask(const char *addr1str, const char *addr2str,
     virSocketAddr addr1;
     virSocketAddr addr2;
     virSocketAddr netmask;
+    int ret;
 
     if (virSocketAddrParse(&addr1, addr1str, AF_UNSPEC) < 0)
         return -1;
@@ -144,7 +146,7 @@ static int testNetmask(const char *addr1str, const char *addr2str,
     if (virSocketAddrParse(&netmask, netmaskstr, AF_UNSPEC) < 0)
         return -1;
 
-    int ret = virSocketAddrCheckNetmask(&addr1, &addr2, &netmask);
+    ret = virSocketAddrCheckNetmask(&addr1, &addr2, &netmask);
 
     if (ret <= 0) {
         return pass ? -1 : 0;
@@ -275,11 +277,11 @@ mymain(void)
     do { \
         virSocketAddr addr; \
         struct testParseData data = { &addr, addrstr, family, pass }; \
+        struct testFormatData data2 = { &addr, addrstr, pass }; \
         memset(&addr, 0, sizeof(addr)); \
         if (virTestRun("Test parse " addrstr " family " #family, \
                        testParseHelper, &data) < 0) \
             ret = -1; \
-        struct testFormatData data2 = { &addr, addrstr, pass }; \
         if (virTestRun("Test format " addrstr " family " #family, \
                        testFormatHelper, &data2) < 0) \
             ret = -1; \
@@ -289,11 +291,11 @@ mymain(void)
     do { \
         virSocketAddr addr; \
         struct testParseData data = { &addr, addrstr, family, true}; \
+        struct testFormatData data2 = { &addr, addrformated, pass }; \
         memset(&addr, 0, sizeof(addr)); \
         if (virTestRun("Test parse " addrstr " family " #family, \
                        testParseHelper, &data) < 0) \
             ret = -1; \
-        struct testFormatData data2 = { &addr, addrformated, pass }; \
         if (virTestRun("Test format " addrstr " family " #family, \
                        testFormatHelper, &data2) < 0) \
             ret = -1; \

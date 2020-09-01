@@ -25,9 +25,7 @@
 #include <fcntl.h>
 
 #include <libxml/parser.h>
-#include <libxml/tree.h>
 #include <libxml/xpath.h>
-#include <libxml/xmlsave.h>
 
 #include "internal.h"
 #include "virbuffer.h"
@@ -277,12 +275,14 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
 
     /* Convert the snapshot parameters into backingStore XML */
     if (snapshotStrVol) {
+        virStorageVolPtr snapVol;
+        char *snapshotStrVolPath;
         /* Lookup snapshot backing volume.  Try the backing-vol
          *  parameter as a name */
         vshDebug(ctl, VSH_ERR_DEBUG,
                  "%s: Look up backing store volume '%s' as name\n",
                  cmd->def->name, snapshotStrVol);
-        virStorageVolPtr snapVol = virStorageVolLookupByName(pool, snapshotStrVol);
+        snapVol = virStorageVolLookupByName(pool, snapshotStrVol);
         if (snapVol)
                 vshDebug(ctl, VSH_ERR_DEBUG,
                          "%s: Backing store volume found using '%s' as name\n",
@@ -317,7 +317,6 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
             goto cleanup;
         }
 
-        char *snapshotStrVolPath;
         if ((snapshotStrVolPath = virStorageVolGetPath(snapVol)) == NULL) {
             virStorageVolFree(snapVol);
             goto cleanup;
@@ -678,6 +677,7 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
     virshControlPtr priv = ctl->privData;
     unsigned int flags = 0;
     virshStreamCallbackData cbData;
+    struct stat sb;
 
     if (vshCommandOptULongLong(ctl, cmd, "offset", &offset) < 0)
         return false;
@@ -696,8 +696,14 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
+    if (fstat(fd, &sb) < 0) {
+        vshError(ctl, _("unable to stat %s"), file);
+        goto cleanup;
+    }
+
     cbData.ctl = ctl;
     cbData.fd = fd;
+    cbData.isBlock = !!S_ISBLK(sb.st_mode);
 
     if (vshCommandOptBool(cmd, "sparse"))
         flags |= VIR_STORAGE_VOL_UPLOAD_SPARSE_STREAM;
@@ -792,7 +798,9 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
     unsigned long long offset = 0, length = 0;
     bool created = false;
     virshControlPtr priv = ctl->privData;
+    virshStreamCallbackData cbData;
     unsigned int flags = 0;
+    struct stat sb;
 
     if (vshCommandOptULongLong(ctl, cmd, "offset", &offset) < 0)
         return false;
@@ -819,6 +827,15 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
         created = true;
     }
 
+    if (fstat(fd, &sb) < 0) {
+        vshError(ctl, _("unable to stat %s"), file);
+        goto cleanup;
+    }
+
+    cbData.ctl = ctl;
+    cbData.fd = fd;
+    cbData.isBlock = !!S_ISBLK(sb.st_mode);
+
     if (!(st = virStreamNew(priv->conn, 0))) {
         vshError(ctl, _("cannot create a new stream"));
         goto cleanup;
@@ -829,7 +846,7 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (virStreamSparseRecvAll(st, virshStreamSink, virshStreamSkip, &fd) < 0) {
+    if (virStreamSparseRecvAll(st, virshStreamSink, virshStreamSkip, &cbData) < 0) {
         vshError(ctl, _("cannot receive data from volume %s"), name);
         goto cleanup;
     }

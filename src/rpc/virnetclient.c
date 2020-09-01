@@ -826,6 +826,7 @@ virNetClientIOEventTLS(int fd,
 static gboolean
 virNetClientTLSHandshake(virNetClientPtr client)
 {
+    g_autoptr(GSource) source = NULL;
     GIOCondition ev;
     int ret;
 
@@ -840,10 +841,10 @@ virNetClientTLSHandshake(virNetClientPtr client)
     else
         ev = G_IO_OUT;
 
-    virEventGLibAddSocketWatch(virNetSocketGetFD(client->sock),
-                               ev,
-                               client->eventCtx,
-                               virNetClientIOEventTLS, client, NULL);
+    source = virEventGLibAddSocketWatch(virNetSocketGetFD(client->sock),
+                                        ev,
+                                        client->eventCtx,
+                                        virNetClientIOEventTLS, client, NULL);
 
     return TRUE;
 }
@@ -882,6 +883,7 @@ int virNetClientSetTLSSession(virNetClientPtr client,
     int ret;
     char buf[1];
     int len;
+    g_autoptr(GSource) source = NULL;
 
 #ifndef WIN32
     sigset_t oldmask, blockedsigs;
@@ -934,10 +936,10 @@ int virNetClientSetTLSSession(virNetClientPtr client,
      * etc.  If we make the grade, it will send us a '\1' byte.
      */
 
-    virEventGLibAddSocketWatch(virNetSocketGetFD(client->sock),
-                               G_IO_IN,
-                               client->eventCtx,
-                               virNetClientIOEventTLSConfirm, client, NULL);
+    source = virEventGLibAddSocketWatch(virNetSocketGetFD(client->sock),
+                                        G_IO_IN,
+                                        client->eventCtx,
+                                        virNetClientIOEventTLSConfirm, client, NULL);
 
 #ifndef WIN32
     /* Block SIGWINCH from interrupting poll in curses programs */
@@ -1043,8 +1045,10 @@ int virNetClientAddStream(virNetClientPtr client,
 void virNetClientRemoveStream(virNetClientPtr client,
                               virNetClientStreamPtr st)
 {
-    virObjectLock(client);
     size_t i;
+
+    virObjectLock(client);
+
     for (i = 0; i < client->nstreams; i++) {
         if (client->streams[i] == st)
             break;
@@ -1556,8 +1560,10 @@ static void
 virNetClientIOEventLoopPassTheBuck(virNetClientPtr client,
                                    virNetClientCallPtr thiscall)
 {
-    VIR_DEBUG("Giving up the buck %p", thiscall);
     virNetClientCallPtr tmp = client->waitDispatch;
+
+    VIR_DEBUG("Giving up the buck %p", thiscall);
+
     /* See if someone else is still waiting
      * and if so, then pass the buck ! */
     while (tmp) {
@@ -1617,6 +1623,7 @@ static int virNetClientIOEventLoop(virNetClientPtr client,
 #endif /* !WIN32 */
         int timeout = -1;
         virNetMessagePtr msg = NULL;
+        g_autoptr(GSource) source = NULL;
         GIOCondition ev = 0;
         struct virNetClientIOEventData data = {
             .client = client,
@@ -1651,10 +1658,10 @@ static int virNetClientIOEventLoop(virNetClientPtr client,
         if (client->nstreams)
             ev |= G_IO_IN;
 
-        virEventGLibAddSocketWatch(virNetSocketGetFD(client->sock),
-                                   ev,
-                                   client->eventCtx,
-                                   virNetClientIOEventFD, &data, NULL);
+        source = virEventGLibAddSocketWatch(virNetSocketGetFD(client->sock),
+                                            ev,
+                                            client->eventCtx,
+                                            virNetClientIOEventFD, &data, NULL);
 
         /* Release lock while poll'ing so other threads
          * can stuff themselves on the queue */

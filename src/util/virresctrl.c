@@ -216,7 +216,7 @@ virResctrlInfoDispose(void *obj)
     }
 
     if (resctrl->monitor_info)
-        virStringListFree(resctrl->monitor_info->features);
+        g_strfreev(resctrl->monitor_info->features);
 
     VIR_FREE(resctrl->membw_info);
     VIR_FREE(resctrl->levels);
@@ -230,7 +230,7 @@ virResctrlInfoMonFree(virResctrlInfoMonPtr mon)
     if (!mon)
         return;
 
-    virStringListFree(mon->features);
+    g_strfreev(mon->features);
     VIR_FREE(mon);
 }
 
@@ -453,8 +453,10 @@ VIR_ONCE_GLOBAL_INIT(virResctrl);
 
 
 /* Common functions */
+#ifndef WIN32
+
 static int
-virResctrlLockWrite(void)
+virResctrlLock(void)
 {
     int fd = open(SYSFS_RESCTRL_PATH, O_RDONLY | O_CLOEXEC);
 
@@ -463,7 +465,7 @@ virResctrlLockWrite(void)
         return -1;
     }
 
-    if (virFileFlock(fd, true, true) < 0) {
+    if (flock(fd, LOCK_EX) < 0) {
         virReportSystemError(errno, "%s", _("Cannot lock resctrl"));
         VIR_FORCE_CLOSE(fd);
         return -1;
@@ -485,7 +487,7 @@ virResctrlUnlock(int fd)
         virReportSystemError(errno, "%s", _("Cannot close resctrl"));
 
         /* Trying to save the already broken */
-        if (virFileFlock(fd, false, false) < 0)
+        if (flock(fd, LOCK_UN) < 0)
             virReportSystemError(errno, "%s", _("Cannot unlock resctrl"));
 
         return -1;
@@ -493,6 +495,29 @@ virResctrlUnlock(int fd)
 
     return 0;
 }
+
+#else /* WIN32 */
+
+static int
+virResctrlLock(void)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("resctrl locking is not supported "
+                           "on this platform"));
+    return -1;
+}
+
+
+static int
+virResctrlUnlock(int fd G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("resctrl locking is not supported "
+                           "on this platform"));
+    return -1;
+}
+
+#endif /* WIN32 */
 
 
 /* virResctrlInfo-related definitions */
@@ -755,7 +780,7 @@ virResctrlGetMonitorInfo(virResctrlInfoPtr resctrl)
     ret = 0;
  cleanup:
     VIR_FREE(featurestr);
-    virStringListFree(features);
+    g_strfreev(features);
     VIR_FREE(info_monitor);
     return ret;
 }
@@ -1533,7 +1558,7 @@ virResctrlAllocParseMemoryBandwidthLine(virResctrlInfoPtr resctrl,
 
     ret = 0;
  cleanup:
-    virStringListFree(mbs);
+    g_strfreev(mbs);
     return ret;
 }
 
@@ -1707,7 +1732,7 @@ virResctrlAllocParseCacheLine(virResctrlInfoPtr resctrl,
 
     ret = 0;
  cleanup:
-    virStringListFree(caches);
+    g_strfreev(caches);
     return ret;
 }
 
@@ -1733,7 +1758,7 @@ virResctrlAllocParse(virResctrlInfoPtr resctrl,
 
     ret = 0;
  cleanup:
-    virStringListFree(lines);
+    g_strfreev(lines);
     return ret;
 }
 
@@ -2391,7 +2416,7 @@ virResctrlAllocCreate(virResctrlInfoPtr resctrl,
     if (STREQ(alloc->path, SYSFS_RESCTRL_PATH))
         return 0;
 
-    lockfd = virResctrlLockWrite();
+    lockfd = virResctrlLock();
     if (lockfd < 0)
         goto cleanup;
 
@@ -2584,7 +2609,7 @@ virResctrlMonitorCreate(virResctrlMonitorPtr monitor,
     if (virResctrlMonitorDeterminePath(monitor, machinename) < 0)
         return -1;
 
-    lockfd = virResctrlLockWrite();
+    lockfd = virResctrlLock();
     if (lockfd < 0)
         return -1;
 
@@ -2768,7 +2793,7 @@ virResctrlMonitorStatsFree(virResctrlMonitorStatsPtr stat)
     if (!stat)
         return;
 
-    virStringListFree(stat->features);
+    g_strfreev(stat->features);
     VIR_FREE(stat->vals);
     VIR_FREE(stat);
 }

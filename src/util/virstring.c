@@ -64,7 +64,7 @@ VIR_LOG_INIT("util.string");
  * before calling virStringSplit().
  *
  * Return value: a newly-allocated NULL-terminated array of strings. Use
- *    virStringListFree() to free it.
+ *    g_strfreev() to free it.
  */
 char **
 virStringSplitCount(const char *string,
@@ -252,65 +252,10 @@ virStringListMerge(char ***dst,
     for (i = 0; i <= src_len; i++)
         (*dst)[i + dst_len] = (*src)[i];
 
-    /* Don't call virStringListFree() as it would free strings in
+    /* Don't call g_strfreev() as it would free strings in
      * @src. */
     VIR_FREE(*src);
     return 0;
-}
-
-
-/**
- * virStringListCopy:
- * @dst: where to store the copy of @strings
- * @src: a NULL-terminated array of strings
- *
- * Makes a deep copy of the @src string list and stores it in @dst. Callers
- * are responsible for freeing @dst.
- *
- * Returns 0 on success, -1 on error.
- */
-int
-virStringListCopy(char ***dst,
-                  const char **src)
-{
-    char **copy = NULL;
-    size_t i;
-
-    *dst = NULL;
-
-    if (!src)
-        return 0;
-
-    if (VIR_ALLOC_N(copy, virStringListLength(src) + 1) < 0)
-        goto error;
-
-    for (i = 0; src[i]; i++)
-        copy[i] = g_strdup(src[i]);
-
-    *dst = copy;
-    return 0;
-
- error:
-    virStringListFree(copy);
-    return -1;
-}
-
-
-/**
- * virStringListFree:
- * @strings: a NULL-terminated array of strings to free
- *
- * Frees a NULL-terminated array of strings, and the array itself.
- * If called on a NULL value, virStringListFree() simply returns.
- */
-void virStringListFree(char **strings)
-{
-    char **tmp = strings;
-    while (tmp && *tmp) {
-        VIR_FREE(*tmp);
-        tmp++;
-    }
-    VIR_FREE(strings);
 }
 
 
@@ -319,7 +264,7 @@ void virStringListAutoFree(char ***strings)
     if (!*strings)
         return;
 
-    virStringListFree(*strings);
+    g_strfreev(*strings);
     *strings = NULL;
 }
 
@@ -937,7 +882,7 @@ int virStringSortRevCompare(const void *a, const void *b)
  * @matches: pointer to an array to be filled with NULL terminated list of matches
  *
  * Performs a POSIX extended regex search against a string and return all matching substrings.
- * The @matches value should be freed with virStringListFree() when no longer
+ * The @matches value should be freed with g_strfreev() when no longer
  * required.
  *
  * @code
@@ -957,7 +902,7 @@ int virStringSortRevCompare(const void *a, const void *b)
  *  // matches[2] == "bbb3c75c-d60f-43b0-b802-fd56b84a4222"
  *  // matches[3] == NULL;
  *
- *  virStringListFree(matches);
+ *  g_strfreev(matches);
  * @endcode
  *
  * Returns: -1 on error, or number of matches
@@ -1022,7 +967,7 @@ virStringSearch(const char *str,
 
  cleanup:
     if (ret < 0) {
-        virStringListFree(*matches);
+        g_strfreev(*matches);
         *matches = NULL;
     }
     return ret;

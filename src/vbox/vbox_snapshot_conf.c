@@ -103,7 +103,7 @@ virVBoxSnapshotConfCreateVBoxSnapshotConfHardDiskPtr(xmlNodePtr diskNode,
     VIR_FREE(nodes);
     VIR_FREE(location);
     VIR_FREE(tmp);
-    virStringListFree(searchTabResult);
+    g_strfreev(searchTabResult);
     if (result < 0) {
         virVboxSnapshotConfHardDiskFree(hardDisk);
         hardDisk = NULL;
@@ -271,7 +271,7 @@ virVBoxSnapshotConfRetrieveSnapshot(xmlNodePtr snapshotNode,
     }
     VIR_FREE(nodes);
     VIR_FREE(uuid);
-    virStringListFree(searchTabResult);
+    g_strfreev(searchTabResult);
     return snapshot;
 }
 
@@ -451,8 +451,8 @@ virVBoxSnapshotConfSerializeSnapshot(xmlNodePtr node,
         xmlUnlinkNode(snapshotsNode);
         xmlFreeNode(snapshotsNode);
     }
-    virStringListFree(firstRegex);
-    virStringListFree(secondRegex);
+    g_strfreev(firstRegex);
+    g_strfreev(secondRegex);
     VIR_FREE(uuid);
     VIR_FREE(timeStamp);
     return result;
@@ -730,7 +730,7 @@ virVBoxSnapshotConfLoadVboxFile(const char *filePath,
 
     VIR_FREE(currentStateModifiedString);
     VIR_FREE(currentSnapshotAttribute);
-    virStringListFree(searchResultTab);
+    g_strfreev(searchResultTab);
     if (ret < 0) {
         virVBoxSnapshotConfMachineFree(machineDescription);
         machineDescription = NULL;
@@ -1211,8 +1211,8 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachinePtr machine,
 
     xmlFreeDoc(xml);
 
-    virStringListFree(firstRegex);
-    virStringListFree(secondRegex);
+    g_strfreev(firstRegex);
+    g_strfreev(secondRegex);
     return ret;
 }
 
@@ -1286,8 +1286,10 @@ virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(const char *filePath,
 
     for (i = 0; i < nodeSize; i++) {
         xmlNodePtr node = nodes[i];
+        xmlNodePtr sourceNode;
+
         xPathContext->node = node;
-        xmlNodePtr sourceNode = virXPathNode("./source", xPathContext);
+        sourceNode = virXPathNode("./source", xPathContext);
         if (sourceNode)
             ret[i] = virXMLPropString(sourceNode, "file");
     }
@@ -1297,7 +1299,7 @@ virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(const char *filePath,
     xmlFreeDoc(xml);
     xmlXPathFreeContext(xPathContext);
     if (result < 0) {
-        virStringListFree(ret);
+        g_strfreev(ret);
         nodeSize = -1;
     } else {
         *rwDisksPath = ret;
@@ -1347,8 +1349,10 @@ virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(const char *filePath,
 
     for (i = 0; i < nodeSize; i++) {
         xmlNodePtr node = nodes[i];
+        xmlNodePtr sourceNode;
+
         xPathContext->node = node;
-        xmlNodePtr sourceNode = virXPathNode("./source", xPathContext);
+        sourceNode = virXPathNode("./source", xPathContext);
         if (sourceNode)
             ret[i] = virXMLPropString(sourceNode, "file");
     }
@@ -1358,7 +1362,7 @@ virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(const char *filePath,
     xmlFreeDoc(xml);
     xmlXPathFreeContext(xPathContext);
     if (result < 0) {
-        virStringListFree(ret);
+        g_strfreev(ret);
         nodeSize = -1;
     } else {
         *roDisksPath = ret;

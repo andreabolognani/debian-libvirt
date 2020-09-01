@@ -244,20 +244,14 @@ qemuMigrationParamsGetAlwaysOnCaps(qemuMigrationParty party)
 qemuMigrationParamsPtr
 qemuMigrationParamsNew(void)
 {
-    qemuMigrationParamsPtr params;
+    g_autoptr(qemuMigrationParams) params = NULL;
 
-    if (VIR_ALLOC(params) < 0)
+    params = g_new0(qemuMigrationParams, 1);
+
+    if (!(params->caps = virBitmapNew(QEMU_MIGRATION_CAP_LAST)))
         return NULL;
 
-    params->caps = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
-    if (!params->caps)
-        goto error;
-
-    return params;
-
- error:
-    qemuMigrationParamsFree(params);
-    return NULL;
+    return g_steal_pointer(&params);
 }
 
 
@@ -540,7 +534,7 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
                              unsigned long flags,
                              qemuMigrationParty party)
 {
-    qemuMigrationParamsPtr migParams;
+    g_autoptr(qemuMigrationParams) migParams = NULL;
     size_t i;
 
     if (!(migParams = qemuMigrationParamsNew()))
@@ -571,14 +565,14 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
             if (qemuMigrationParamsGetTPInt(migParams, item->param, params,
                                             nparams, item->typedParam,
                                             item->unit) < 0)
-                goto error;
+                return NULL;
             break;
 
         case QEMU_MIGRATION_PARAM_TYPE_ULL:
             if (qemuMigrationParamsGetTPULL(migParams, item->param, params,
                                             nparams, item->typedParam,
                                             item->unit) < 0)
-                goto error;
+                return NULL;
             break;
 
         case QEMU_MIGRATION_PARAM_TYPE_BOOL:
@@ -587,7 +581,7 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
         case QEMU_MIGRATION_PARAM_TYPE_STRING:
             if (qemuMigrationParamsGetTPString(migParams, item->param, params,
                                                nparams, item->typedParam) < 0)
-                goto error;
+                return NULL;
             break;
         }
     }
@@ -597,24 +591,20 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
         !(flags & VIR_MIGRATE_AUTO_CONVERGE)) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
                        _("Turn auto convergence on to tune it"));
-        goto error;
+        return NULL;
     }
 
     if (migParams->params[QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS].set &&
         !(flags & VIR_MIGRATE_PARALLEL)) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
                        _("Turn parallel migration on to tune it"));
-        goto error;
+        return NULL;
     }
 
     if (qemuMigrationParamsSetCompression(params, nparams, flags, migParams) < 0)
-        goto error;
+        return NULL;
 
-    return migParams;
-
- error:
-    qemuMigrationParamsFree(migParams);
-    return NULL;
+    return g_steal_pointer(&migParams);
 }
 
 
@@ -680,7 +670,7 @@ qemuMigrationParamsDump(qemuMigrationParamsPtr migParams,
 qemuMigrationParamsPtr
 qemuMigrationParamsFromJSON(virJSONValuePtr params)
 {
-    qemuMigrationParamsPtr migParams;
+    g_autoptr(qemuMigrationParams) migParams = NULL;
     qemuMigrationParamValuePtr pv;
     const char *name;
     const char *str;
@@ -690,7 +680,7 @@ qemuMigrationParamsFromJSON(virJSONValuePtr params)
         return NULL;
 
     if (!params)
-        return migParams;
+        return g_steal_pointer(&migParams);
 
     for (i = 0; i < QEMU_MIGRATION_PARAM_LAST; i++) {
         name = qemuMigrationParamTypeToString(i);
@@ -721,27 +711,24 @@ qemuMigrationParamsFromJSON(virJSONValuePtr params)
         }
     }
 
-    return migParams;
+    return g_steal_pointer(&migParams);
 }
 
 
 virJSONValuePtr
 qemuMigrationParamsToJSON(qemuMigrationParamsPtr migParams)
 {
-    virJSONValuePtr params = virJSONValueNewObject();
-    qemuMigrationParamValuePtr pv;
-    const char *name;
+    g_autoptr(virJSONValue) params = virJSONValueNewObject();
     size_t i;
-    int rc;
 
     for (i = 0; i < QEMU_MIGRATION_PARAM_LAST; i++) {
-        name = qemuMigrationParamTypeToString(i);
-        pv = &migParams->params[i];
+        const char *name = qemuMigrationParamTypeToString(i);
+        qemuMigrationParamValuePtr pv = &migParams->params[i];
+        int rc = 0;
 
         if (!pv->set)
             continue;
 
-        rc = 0;
         switch (qemuMigrationParamTypes[i]) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             rc = virJSONValueObjectAppendNumberInt(params, name, pv->value.i);
@@ -761,14 +748,10 @@ qemuMigrationParamsToJSON(qemuMigrationParamsPtr migParams)
         }
 
         if (rc < 0)
-            goto error;
+            return NULL;
     }
 
-    return params;
-
- error:
-    virJSONValueFree(params);
-    return NULL;
+    return g_steal_pointer(&params);
 }
 
 
@@ -776,44 +759,28 @@ virJSONValuePtr
 qemuMigrationCapsToJSON(virBitmapPtr caps,
                         virBitmapPtr states)
 {
-    virJSONValuePtr json = NULL;
-    virJSONValuePtr cap = NULL;
+    g_autoptr(virJSONValue) json = virJSONValueNewArray();
     qemuMigrationCapability bit;
-    const char *name;
-
-    json = virJSONValueNewArray();
 
     for (bit = 0; bit < QEMU_MIGRATION_CAP_LAST; bit++) {
-        bool supported = false;
-        bool state = false;
+        g_autoptr(virJSONValue) cap = NULL;
 
-        ignore_value(virBitmapGetBit(caps, bit, &supported));
-        if (!supported)
+        if (!virBitmapIsBitSet(caps, bit))
             continue;
 
-        ignore_value(virBitmapGetBit(states, bit, &state));
-
-        cap = virJSONValueNewObject();
-
-        name = qemuMigrationCapabilityTypeToString(bit);
-        if (virJSONValueObjectAppendString(cap, "capability", name) < 0)
-            goto error;
-
-        if (virJSONValueObjectAppendBoolean(cap, "state", state) < 0)
-            goto error;
+        if (virJSONValueObjectCreate(&cap,
+                                     "s:capability", qemuMigrationCapabilityTypeToString(bit),
+                                     "b:state", virBitmapIsBitSet(states, bit),
+                                     NULL) < 0)
+            return NULL;
 
         if (virJSONValueArrayAppend(json, cap) < 0)
-            goto error;
+            return NULL;
 
         cap = NULL;
     }
 
-    return json;
-
- error:
-    virJSONValueFree(json);
-    virJSONValueFree(cap);
-    return NULL;
+    return g_steal_pointer(&json);
 }
 
 
@@ -1292,44 +1259,42 @@ int
 qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
                          qemuMigrationParamsPtr *migParams)
 {
-    qemuMigrationParamsPtr params = NULL;
+    g_autoptr(qemuMigrationParams) params = NULL;
     qemuMigrationParamValuePtr pv;
-    xmlNodePtr *nodes = NULL;
-    char *name = NULL;
-    char *value = NULL;
-    int param;
+    g_autofree xmlNodePtr *nodes = NULL;
     size_t i;
     int rc;
     int n;
-    int ret = -1;
 
     *migParams = NULL;
 
     if ((rc = virXPathBoolean("boolean(./migParams)", ctxt)) < 0)
-        goto cleanup;
+        return -1;
 
-    if (rc == 0) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (rc == 0)
+        return 0;
 
     if ((n = virXPathNodeSet("./migParams[1]/param", ctxt, &nodes)) < 0)
         return -1;
 
     if (!(params = qemuMigrationParamsNew()))
-        goto cleanup;
+        return -1;
 
     for (i = 0; i < n; i++) {
+        g_autofree char *name = NULL;
+        g_autofree char *value = NULL;
+        int param;
+
         if (!(name = virXMLPropString(nodes[i], "name"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("missing migration parameter name"));
-            goto cleanup;
+            return -1;
         }
 
         if ((param = qemuMigrationParamTypeFromString(name)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unknown migration parameter '%s'"), name);
-            goto cleanup;
+            return -1;
         }
         pv = &params->params[param];
 
@@ -1337,7 +1302,7 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("missing value for migration parameter '%s'"),
                            name);
-            goto cleanup;
+            return -1;
         }
 
         rc = 0;
@@ -1363,23 +1328,15 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("invalid value '%s' for migration parameter '%s'"),
                            value, name);
-            goto cleanup;
+            return -1;
         }
 
         pv->set = true;
-        VIR_FREE(name);
-        VIR_FREE(value);
     }
 
     *migParams = g_steal_pointer(&params);
-    ret = 0;
 
- cleanup:
-    qemuMigrationParamsFree(params);
-    VIR_FREE(nodes);
-    VIR_FREE(name);
-    VIR_FREE(value);
-    return ret;
+    return 0;
 }
 
 
@@ -1389,11 +1346,10 @@ qemuMigrationCapsCheck(virQEMUDriverPtr driver,
                        int asyncJob)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    virBitmapPtr migEvent = NULL;
-    virJSONValuePtr json = NULL;
-    char **caps = NULL;
+    g_autoptr(virBitmap) migEvent = NULL;
+    g_autoptr(virJSONValue) json = NULL;
+    g_auto(GStrv) caps = NULL;
     char **capStr;
-    int ret = -1;
     int rc;
 
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
@@ -1402,16 +1358,14 @@ qemuMigrationCapsCheck(virQEMUDriverPtr driver,
     rc = qemuMonitorGetMigrationCapabilities(priv->mon, &caps);
 
     if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
-        goto cleanup;
+        return -1;
 
-    if (!caps) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (!caps)
+        return 0;
 
     priv->migrationCaps = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
     if (!priv->migrationCaps)
-        goto cleanup;
+        return -1;
 
     for (capStr = caps; *capStr; capStr++) {
         int cap = qemuMigrationCapabilityTypeFromString(*capStr);
@@ -1427,21 +1381,21 @@ qemuMigrationCapsCheck(virQEMUDriverPtr driver,
     if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT)) {
         migEvent = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
         if (!migEvent)
-            goto cleanup;
+            return -1;
 
         ignore_value(virBitmapSetBit(migEvent, QEMU_MIGRATION_CAP_EVENTS));
 
         if (!(json = qemuMigrationCapsToJSON(migEvent, migEvent)))
-            goto cleanup;
+            return -1;
 
         if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
-            goto cleanup;
+            return -1;
 
         rc = qemuMonitorSetMigrationCapabilities(priv->mon, json);
         json = NULL;
 
         if (qemuDomainObjExitMonitor(driver, vm) < 0)
-            goto cleanup;
+            return -1;
 
         if (rc < 0) {
             virResetLastError();
@@ -1457,13 +1411,7 @@ qemuMigrationCapsCheck(virQEMUDriverPtr driver,
     ignore_value(virBitmapClearBit(priv->migrationCaps,
                                    QEMU_MIGRATION_CAP_EVENTS));
 
-    ret = 0;
-
- cleanup:
-    virBitmapFree(migEvent);
-    virJSONValueFree(json);
-    virStringListFree(caps);
-    return ret;
+    return 0;
 }
 
 

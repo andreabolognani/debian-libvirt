@@ -22,10 +22,8 @@
 #include "virsh-network.h"
 
 #include "internal.h"
-#include "virbuffer.h"
 #include "viralloc.h"
 #include "virfile.h"
-#include "virstring.h"
 #include "virtime.h"
 #include "conf/network_conf.h"
 #include "vsh-table.h"
@@ -71,8 +69,9 @@ virshCommandOptNetworkBy(vshControl *ctl, const vshCmd *cmd,
     virNetworkPtr network = NULL;
     const char *n = NULL;
     const char *optname = "network";
-    virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
     virshControlPtr priv = ctl->privData;
+
+    virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
     if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
         return NULL;
@@ -1744,9 +1743,6 @@ static const vshCmdOptDef opts_network_port_list[] = {
     {.name = NULL}
 };
 
-#define FILTER(NAME, FLAG) \
-    if (vshCommandOptBool(cmd, NAME)) \
-        flags |= (FLAG)
 static bool
 cmdNetworkPortList(vshControl *ctl, const vshCmd *cmd)
 {
@@ -1802,7 +1798,6 @@ cmdNetworkPortList(vshControl *ctl, const vshCmd *cmd)
     virshNetworkPortListFree(list);
     return ret;
 }
-#undef FILTER
 
 
 const vshCmdDef networkCmds[] = {

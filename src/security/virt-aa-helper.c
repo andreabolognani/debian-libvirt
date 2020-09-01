@@ -99,7 +99,7 @@ vah_usage(void)
             "  Modes:\n"
             "    -a | --add                     load profile\n"
             "    -c | --create                  create profile from template\n"
-            "    -D | --delete                  unload and delete profile\n"
+            "    -D | --delete                  unload profile and delete generated rules\n"
             "    -r | --replace                 reload profile\n"
             "    -R | --remove                  unload profile\n"
             "  Options:\n"
@@ -1489,10 +1489,8 @@ main(int argc, char **argv)
         rc = parserLoad(ctl->uuid);
     } else if (ctl->cmd == 'R' || ctl->cmd == 'D') {
         rc = parserRemove(ctl->uuid);
-        if (ctl->cmd == 'D') {
+        if (ctl->cmd == 'D')
             unlink(include_file);
-            unlink(profile);
-        }
     } else if (ctl->cmd == 'c' || ctl->cmd == 'r') {
         char *included_files = NULL;
         g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;

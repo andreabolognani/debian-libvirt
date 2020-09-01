@@ -475,6 +475,61 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
 
 }
 
+static int
+bhyveBuildSoundArgStr(const virDomainDef *def G_GNUC_UNUSED,
+                      virDomainSoundDefPtr sound,
+                      virDomainAudioDefPtr audio,
+                      bhyveConnPtr driver,
+                      virCommandPtr cmd)
+{
+    g_auto(virBuffer) params = VIR_BUFFER_INITIALIZER;
+
+    if (!(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_SOUND_HDA)) {
+        /* Currently, bhyve only supports "hda" sound devices, so
+           if it's not supported, sound devices are not supported at all */
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Sound devices emulation is not supported "
+                         "by given bhyve binary"));
+        return -1;
+    }
+
+    if (sound->model != VIR_DOMAIN_SOUND_MODEL_ICH7) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Sound device model is not supported"));
+        return -1;
+    }
+
+    virCommandAddArg(cmd, "-s");
+
+    if (audio) {
+        switch ((virDomainAudioType) audio->type) {
+        case  VIR_DOMAIN_AUDIO_TYPE_OSS:
+            if (audio->backend.oss.inputDev)
+                virBufferAsprintf(&params, ",play=%s",
+                                  audio->backend.oss.inputDev);
+
+            if (audio->backend.oss.outputDev)
+                virBufferAsprintf(&params, ",rec=%s",
+                                  audio->backend.oss.outputDev);
+
+            break;
+
+        case VIR_DOMAIN_AUDIO_TYPE_LAST:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("unsupported audio backend '%s'"),
+                           virDomainAudioTypeTypeToString(audio->type));
+            return -1;
+        }
+    }
+
+    virCommandAddArgFormat(cmd, "%d:%d,hda%s",
+                           sound->info.addr.pci.slot,
+                           sound->info.addr.pci.function,
+                           virBufferCurrentContent(&params));
+
+    return 0;
+}
+
 virCommandPtr
 virBhyveProcessBuildBhyveCmd(bhyveConnPtr driver, virDomainDefPtr def,
                              bool dryRun)
@@ -619,6 +674,13 @@ virBhyveProcessBuildBhyveCmd(bhyveConnPtr driver, virDomainDefPtr def,
         }
     }
 
+    for (i = 0; i < def->nsounds; i++) {
+        if (bhyveBuildSoundArgStr(def, def->sounds[i],
+                                  virDomainDefFindAudioForSound(def, def->sounds[i]),
+                                  driver, cmd) < 0)
+            goto error;
+    }
+
     if (bhyveDomainDefNeedsISAController(def))
         bhyveBuildLPCArgStr(def, cmd);
 
@@ -666,7 +728,7 @@ virAppendBootloaderArgs(virCommandPtr cmd, virDomainDefPtr def)
     /* XXX: Handle quoted? */
     blargs = virStringSplit(def->os.bootloaderArgs, " ", 0);
     virCommandAddArgSet(cmd, (const char * const *)blargs);
-    virStringListFree(blargs);
+    g_strfreev(blargs);
 }
 
 static virCommandPtr

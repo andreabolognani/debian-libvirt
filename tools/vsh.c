@@ -24,9 +24,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <sys/time.h>
 #include <fcntl.h>
-#include <time.h>
 #include <sys/stat.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -42,7 +40,6 @@
 #include "virfile.h"
 #include "virthread.h"
 #include "vircommand.h"
-#include "virtypedparam.h"
 #include "virstring.h"
 #include "virutil.h"
 
@@ -130,7 +127,7 @@ vshNameSorter(const void *a, const void *b)
 /*
  * Convert the strings separated by ',' into array. The returned
  * array is a NULL terminated string list. The caller has to free
- * the array using virStringListFree or a similar method.
+ * the array using g_strfreev or a similar method.
  *
  * Returns the length of the filled array on success, or -1
  * on error.
@@ -1034,7 +1031,7 @@ vshCommandOptStringReq(vshControl *ctl,
     /* this should not be propagated here, just to be sure */
     if (ret == -1)
         error = N_("Mandatory option not present");
-    else if (!*arg->data && !(arg->def->flags & VSH_OFLAG_EMPTY_OK))
+    else if (arg && !*arg->data && !(arg->def->flags & VSH_OFLAG_EMPTY_OK))
         error = N_("Option argument is empty");
 
     if (error) {
@@ -2396,6 +2393,10 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
 #define ACCEPTED_CHARS \
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/_.:@"
 
+/* Hard-code default editor used as a fallback if not configured by
+ * VISUAL or EDITOR environment variables. */
+#define DEFAULT_EDITOR "vi"
+
 int
 vshEditFile(vshControl *ctl, const char *filename)
 {
@@ -2581,7 +2582,7 @@ vshReadlineCommandGenerator(const char *text)
 
                 if (STREQLEN(name, text, len)) {
                     if (VIR_REALLOC_N(ret, ret_size + 2) < 0) {
-                        virStringListFree(ret);
+                        g_strfreev(ret);
                         return NULL;
                     }
                     ret[ret_size] = g_strdup(name);
@@ -2646,7 +2647,7 @@ vshReadlineOptionsGenerator(const char *text,
             continue;
 
         if (VIR_REALLOC_N(ret, ret_size + 2) < 0) {
-            virStringListFree(ret);
+            g_strfreev(ret);
             return NULL;
         }
 
@@ -2740,7 +2741,7 @@ vshReadlineParse(const char *text, int state)
 
         vshCommandFree(partial);
         partial = NULL;
-        virStringListFree(list);
+        g_strfreev(list);
         list = NULL;
         list_index = 0;
 
@@ -2790,7 +2791,7 @@ vshReadlineParse(const char *text, int state)
                 if (completer_list &&
                     (vshCompleterFilter(&completer_list, text) < 0 ||
                      virStringListMerge(&list, &completer_list) < 0)) {
-                    virStringListFree(completer_list);
+                    g_strfreev(completer_list);
                     goto cleanup;
                 }
             }
@@ -2814,7 +2815,7 @@ vshReadlineParse(const char *text, int state)
     if (!ret) {
         vshCommandFree(partial);
         partial = NULL;
-        virStringListFree(list);
+        g_strfreev(list);
         list = NULL;
         list_index = 0;
     }
@@ -3404,7 +3405,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
 
     ret = true;
  cleanup:
-    virStringListFree(matches);
+    g_strfreev(matches);
     return ret;
 }
 

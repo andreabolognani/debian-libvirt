@@ -26,8 +26,8 @@ static int
 testCompareXMLToXMLHelper(const void *data)
 {
     const struct testInfo *info = data;
-    char *xml_in = NULL;
-    char *xml_out = NULL;
+    g_autofree char *xml_in = NULL;
+    g_autofree char *xml_out = NULL;
     bool is_different = info->flags & FLAG_IS_DIFFERENT;
     int ret = -1;
 
@@ -48,8 +48,6 @@ testCompareXMLToXMLHelper(const void *data)
         virResetLastError();
     }
 
-    VIR_FREE(xml_in);
-    VIR_FREE(xml_out);
     return ret;
 }
 
@@ -110,6 +108,7 @@ mymain(void)
     DO_TEST_DIFFERENT("vnc-autoport");
     DO_TEST_DIFFERENT("commandline");
     DO_TEST_DIFFERENT("msrs");
+    DO_TEST_DIFFERENT("sound");
 
     /* Address allocation tests */
     DO_TEST_DIFFERENT("addr-single-sata-disk");

@@ -596,7 +596,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "intel-iommu.aw-bits",
               "spapr-tpm-proxy",
               "numa.hmat",
-              "blockdev-hostdev-scsi"
+              "blockdev-hostdev-scsi",
     );
 
 
@@ -3166,7 +3166,7 @@ virQEMUCapsGetCPUFeatures(virQEMUCapsPtr qemuCaps,
     else
         ret = 0;
 
-    virStringListFree(list);
+    g_strfreev(list);
     return ret;
 }
 
@@ -3222,7 +3222,7 @@ virQEMUCapsProbeQMPTPM(virQEMUCapsPtr qemuCaps,
                                virQEMUCapsTPMModelsToCaps[i].caps);
         }
     }
-    virStringListFree(entries);
+    g_strfreev(entries);
 
     if ((nentries = qemuMonitorGetTPMTypes(mon, &entries)) < 0)
         return -1;
@@ -3235,7 +3235,7 @@ virQEMUCapsProbeQMPTPM(virQEMUCapsPtr qemuCaps,
                 virQEMUCapsSet(qemuCaps, virQEMUCapsTPMTypesToCaps[i].caps);
         }
     }
-    virStringListFree(entries);
+    g_strfreev(entries);
 
     return 0;
 }
@@ -3324,7 +3324,7 @@ virQEMUCapsProbeQMPCommandLine(virQEMUCapsPtr qemuCaps,
                 break;
             }
         }
-        virStringListFree(values);
+        g_strfreev(values);
     }
 
     return 0;
@@ -3822,7 +3822,7 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccelPtr caps,
     char *str = NULL;
     xmlNodePtr hostCPUNode;
     xmlNodePtr *nodes = NULL;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
     qemuMonitorCPUModelInfoPtr hostCPU = NULL;
     g_autofree char *xpath = g_strdup_printf("./hostCPU[@type='%s']", typeStr);
     int ret = -1;
@@ -5502,7 +5502,7 @@ virQEMUCapsNewData(const char *binary,
                                            priv->runUid,
                                            priv->runGid,
                                            priv->hostCPUSignature,
-                                           virHostCPUGetMicrocodeVersion(),
+                                           virHostCPUGetMicrocodeVersion(priv->hostArch),
                                            priv->kernelVersion);
 }
 
@@ -5636,7 +5636,7 @@ virQEMUCapsCacheLookup(virFileCachePtr cache,
     virQEMUCapsCachePrivPtr priv = virFileCacheGetPriv(cache);
     virQEMUCapsPtr ret = NULL;
 
-    priv->microcodeVersion = virHostCPUGetMicrocodeVersion();
+    priv->microcodeVersion = virHostCPUGetMicrocodeVersion(priv->hostArch);
 
     ret = virFileCacheLookup(cache, binary);
 
