@@ -31,6 +31,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
 
   mount options=(rw,rslave)  -> /,
   mount options=(rw, nosuid) -> /{var/,}run/libvirt/qemu/*.dev/,
+  umount /{var/,}run/libvirt/qemu/*.dev/,
 
   # libvirt provides any mounts under /dev to qemu namespaces
   mount options=(rw, move) /dev/ -> /{,var/}run/libvirt/qemu/*.dev/,
@@ -86,7 +87,9 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
   /usr/{lib,lib64}/xen-common/bin/xen-toolstack PUx,
   /usr/{lib,lib64}/xen/bin/* Ux,
   /usr/lib/xen-*/bin/libxl-save-helper PUx,
+  /usr/lib/xen-*/bin/pygrub PUx,
   /usr/{lib,lib64,lib/qemu,libexec}/vhost-user-gpu PUx,
+  /usr/{lib,lib64,lib/qemu,libexec}/virtiofsd PUx,
 
   # Required by nwfilter_ebiptables_driver.c:ebiptablesWriteToTempFile() to
   # read and run an ebtables script.

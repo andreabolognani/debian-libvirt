@@ -35,8 +35,11 @@
 # include "viralloc.h"
 # include "virstring.h"
 # include "virfile.h"
+# include "virlog.h"
 
 # define VIR_FROM_THIS VIR_FROM_STORAGE
+
+VIR_LOG_INIT("util.virdevmapper");
 
 # define PROC_DEVICES "/proc/devices"
 # define DM_NAME "device-mapper"
@@ -46,15 +49,16 @@
 
 G_STATIC_ASSERT(BUF_SIZE > sizeof(struct dm_ioctl));
 
-static unsigned int virDMMajor;
-
 
 static int
-virDevMapperOnceInit(void)
+virDevMapperGetMajor(unsigned int *major)
 {
     g_autofree char *buf = NULL;
     VIR_AUTOSTRINGLIST lines = NULL;
     size_t i;
+
+    if (!virFileExists(CONTROL_PATH))
+        return -2;
 
     if (virFileReadAll(PROC_DEVICES, BUF_SIZE, &buf) < 0)
         return -1;
@@ -69,7 +73,7 @@ virDevMapperOnceInit(void)
 
         if (sscanf(lines[i], "%u %ms\n", &maj, &dev) == 2 &&
             STREQ(dev, DM_NAME)) {
-            virDMMajor = maj;
+            *major = maj;
             break;
         }
     }
@@ -83,9 +87,6 @@ virDevMapperOnceInit(void)
 
     return 0;
 }
-
-
-VIR_ONCE_GLOBAL_INIT(virDevMapper);
 
 
 static void *
@@ -131,8 +132,17 @@ virDMOpen(void)
 
     memset(&dm, 0, sizeof(dm));
 
-    if ((controlFD = open(CONTROL_PATH, O_RDWR)) < 0)
-        return -1;
+    if ((controlFD = open(CONTROL_PATH, O_RDWR)) < 0) {
+        /* We can't talk to devmapper. Produce a warning and let
+         * the caller decide what to do next. */
+        if (errno == ENOENT) {
+            VIR_DEBUG("device mapper not available");
+        } else {
+            VIR_WARN("unable to open %s: %s",
+                     CONTROL_PATH, g_strerror(errno));
+        }
+        return -2;
+    }
 
     if (!virDMIoctl(controlFD, DM_VERSION, &dm, &tmp)) {
         virReportSystemError(errno, "%s",
@@ -162,7 +172,6 @@ virDMSanitizepath(const char *path)
     DIR *dh = NULL;
     const char *p;
     char *ret = NULL;
-    int rc;
 
     /* If a path is NOT provided then assume it's DM name */
     p = strrchr(path, '/');
@@ -192,7 +201,7 @@ virDMSanitizepath(const char *path)
     if (virDirOpen(&dh, DEV_DM_DIR) < 0)
         return NULL;
 
-    while ((rc = virDirRead(dh, &ent, DEV_DM_DIR)) > 0) {
+    while (virDirRead(dh, &ent, DEV_DM_DIR) > 0) {
         g_autofree char *tmp = g_strdup_printf(DEV_DM_DIR "/%s", ent->d_name);
 
         if (stat(tmp, &sb[1]) == 0 &&
@@ -305,11 +314,16 @@ virDevMapperGetTargets(const char *path,
      * consist of devices or yet another targets. If that's the
      * case, we have to stop recursion somewhere. */
 
-    if (virDevMapperInitialize() < 0)
-        return -1;
+    if ((controlFD = virDMOpen()) < 0) {
+        if (controlFD == -2) {
+            /* The CONTROL_PATH doesn't exist or is unusable.
+             * Probably the module isn't loaded, yet. Don't error
+             * out, just exit. */
+            return 0;
+        }
 
-    if ((controlFD = virDMOpen()) < 0)
         return -1;
+    }
 
     return virDevMapperGetTargetsImpl(controlFD, path, devPaths, ttl);
 }
@@ -319,13 +333,14 @@ bool
 virIsDevMapperDevice(const char *dev_name)
 {
     struct stat buf;
+    unsigned int major;
 
-    if (virDevMapperInitialize() < 0)
+    if (virDevMapperGetMajor(&major) < 0)
         return false;
 
     if (!stat(dev_name, &buf) &&
         S_ISBLK(buf.st_mode) &&
-        major(buf.st_rdev) == virDMMajor)
+        major(buf.st_rdev) == major)
         return true;
 
     return false;

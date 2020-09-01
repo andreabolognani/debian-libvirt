@@ -3588,6 +3588,7 @@ qemuValidateDomainDeviceDefSound(virDomainSoundDefPtr sound,
     case VIR_DOMAIN_SOUND_MODEL_SB16:
     case VIR_DOMAIN_SOUND_MODEL_PCSPK:
         break;
+    case VIR_DOMAIN_SOUND_MODEL_ICH7:
     case VIR_DOMAIN_SOUND_MODEL_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("sound card model '%s' is not supported by qemu"),
@@ -4012,15 +4013,45 @@ qemuValidateDomainDeviceDefHub(virDomainHubDefPtr hub,
 }
 
 
+static unsigned long long
+qemuValidateGetNVDIMMAlignedSizePseries(virDomainMemoryDefPtr mem,
+                                        const virDomainDef *def)
+{
+    unsigned long long ppc64AlignSize = qemuDomainGetMemorySizeAlignment(def);
+    unsigned long long guestArea = mem->size - mem->labelsize;
+
+    /* NVDIMM is already aligned */
+    if (guestArea % ppc64AlignSize == 0)
+        return mem->size;
+
+    /* Suggested aligned size is rounded up */
+    guestArea = (guestArea/ppc64AlignSize + 1) * ppc64AlignSize;
+    return guestArea + mem->labelsize;
+}
+
 static int
 qemuValidateDomainDeviceDefMemory(virDomainMemoryDefPtr mem,
+                                  const virDomainDef *def,
                                   virQEMUCapsPtr qemuCaps)
 {
-    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVDIMM)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("nvdimm isn't supported by this QEMU binary"));
-        return -1;
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVDIMM)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("nvdimm isn't supported by this QEMU binary"));
+            return -1;
+        }
+
+        if (qemuDomainIsPSeries(def)) {
+            unsigned long long alignedNVDIMMSize =
+                qemuValidateGetNVDIMMAlignedSizePseries(mem, def);
+
+            if (mem->size != alignedNVDIMMSize) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("nvdimm size is not aligned. Suggested aligned "
+                                 "size: %llu KiB"), alignedNVDIMMSize);
+                return -1;
+            }
+        }
     }
 
     return 0;
@@ -4138,12 +4169,13 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_DEVICE_MEMORY:
-        ret = qemuValidateDomainDeviceDefMemory(dev->data.memory, qemuCaps);
+        ret = qemuValidateDomainDeviceDefMemory(dev->data.memory, def, qemuCaps);
         break;
 
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_SHMEM:
     case VIR_DOMAIN_DEVICE_PANIC:
+    case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LAST:
         break;

@@ -760,6 +760,13 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
         libxl_get_required_shadow_memory(b_info->max_memkb,
                                          b_info->max_vcpus);
 
+    if (def->namespaceData) {
+        libxlDomainXmlNsDefPtr nsdata = def->namespaceData;
+
+        if (nsdata->num_args > 0)
+            b_info->extra = g_strdupv(nsdata->args);
+    }
+
     return 0;
 }
 
@@ -1922,7 +1929,7 @@ libxlDriverGetDom0MaxmemConf(libxlDriverConfigPtr cfg,
                 goto cleanup;
             }
         }
-        virStringListFree(mem_tokens);
+        g_strfreev(mem_tokens);
         mem_tokens = NULL;
     }
 
@@ -1938,8 +1945,8 @@ libxlDriverGetDom0MaxmemConf(libxlDriverConfigPtr cfg,
     ret = 0;
 
  cleanup:
-    virStringListFree(cmd_tokens);
-    virStringListFree(mem_tokens);
+    g_strfreev(cmd_tokens);
+    g_strfreev(mem_tokens);
     return ret;
 }
 
@@ -2513,5 +2520,6 @@ libxlCreateXMLConf(libxlDriverPrivatePtr driver)
     libxlDomainDefParserConfig.priv = driver;
     return virDomainXMLOptionNew(&libxlDomainDefParserConfig,
                                  &libxlDomainXMLPrivateDataCallbacks,
-                                 NULL, NULL, NULL);
+                                 &libxlDriverDomainXMLNamespace,
+                                 NULL, NULL);
 }

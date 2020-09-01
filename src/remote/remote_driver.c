@@ -957,6 +957,7 @@ doRemoteOpen(virConnectPtr conn,
     bool tty = true;
 #endif
     int mode;
+    size_t i;
 
     if (inside_daemon && !conn->uri->server) {
         mode = REMOTE_DRIVER_MODE_DIRECT;
@@ -1014,8 +1015,6 @@ doRemoteOpen(virConnectPtr conn,
      * feasibly it might contain variables needed by the real driver,
      * although that won't be the case for now).
      */
-    size_t i;
-
     if (conn->uri) {
         for (i = 0; i < conn->uri->paramsCount; i++) {
             virURIParamPtr var = &conn->uri->params[i];
@@ -5692,10 +5691,11 @@ remoteStreamSend(virStreamPtr st,
                  const char *data,
                  size_t nbytes)
 {
-    VIR_DEBUG("st=%p data=%p nbytes=%zu", st, data, nbytes);
     struct private_data *priv = st->conn->privateData;
     virNetClientStreamPtr privst = st->privateData;
     int rv;
+
+    VIR_DEBUG("st=%p data=%p nbytes=%zu", st, data, nbytes);
 
     remoteDriverLock(priv);
     priv->localUses++;
@@ -5720,11 +5720,12 @@ remoteStreamRecvFlags(virStreamPtr st,
                       size_t nbytes,
                       unsigned int flags)
 {
-    VIR_DEBUG("st=%p data=%p nbytes=%zu flags=0x%x",
-              st, data, nbytes, flags);
     struct private_data *priv = st->conn->privateData;
     virNetClientStreamPtr privst = st->privateData;
     int rv;
+
+    VIR_DEBUG("st=%p data=%p nbytes=%zu flags=0x%x",
+              st, data, nbytes, flags);
 
     virCheckFlags(VIR_STREAM_RECV_STOP_AT_HOLE, -1);
 
@@ -5761,11 +5762,12 @@ remoteStreamSendHole(virStreamPtr st,
                      long long length,
                      unsigned int flags)
 {
-    VIR_DEBUG("st=%p length=%lld flags=0x%x",
-              st, length, flags);
     struct private_data *priv = st->conn->privateData;
     virNetClientStreamPtr privst = st->privateData;
     int rv;
+
+    VIR_DEBUG("st=%p length=%lld flags=0x%x",
+              st, length, flags);
 
     remoteDriverLock(priv);
     priv->localUses++;
@@ -6529,7 +6531,7 @@ remoteConnectGetCPUModelNames(virConnectPtr conn,
     rv = ret.ret;
 
  cleanup:
-    virStringListFree(retmodels);
+    g_strfreev(retmodels);
 
     xdr_free((xdrproc_t) xdr_remote_connect_get_cpu_model_names_ret, (char *) &ret);
 

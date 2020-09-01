@@ -256,11 +256,11 @@ waitDomainJobHelper(PRL_HANDLE job, virDomainObjPtr dom, unsigned int timeout,
     }
 
     pdom->job.sdkJob = job;
-    if (dom)
-        virObjectUnlock(dom);
+
+    virObjectUnlock(dom);
     ret = waitJobHelper(job, timeout, filename, funcname, linenr);
-    if (dom)
-        virObjectLock(dom);
+    virObjectLock(dom);
+
     pdom->job.sdkJob = NULL;
 
     return ret;
@@ -796,7 +796,7 @@ prlsdkGetFSInfo(PRL_HANDLE prldisk,
 
  cleanup:
     VIR_FREE(buf);
-    virStringListFree(matches);
+    g_strfreev(matches);
     return ret;
 }
 

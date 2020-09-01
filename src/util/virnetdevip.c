@@ -43,11 +43,6 @@
 #ifdef __linux__
 # include <linux/sockios.h>
 # include <linux/if_vlan.h>
-# define VIR_NETDEV_FAMILY AF_UNIX
-#elif defined(HAVE_STRUCT_IFREQ) && defined(AF_LOCAL)
-# define VIR_NETDEV_FAMILY AF_LOCAL
-#else
-# undef HAVE_STRUCT_IFREQ
 #endif
 
 #define VIR_DAD_WAIT_TIMEOUT 20 /* seconds */
@@ -301,8 +296,10 @@ virNetDevIPRouteAdd(const char *ifname,
 
     /* If we have no valid network address, then use the default one */
     if (!addr || !VIR_SOCKET_ADDR_VALID(addr)) {
-        VIR_DEBUG("computing default address");
         int family = VIR_SOCKET_ADDR_FAMILY(gateway);
+
+        VIR_DEBUG("computing default address");
+
         if (family == AF_INET) {
             if (virSocketAddrParseIPv4(&defaultAddr, VIR_SOCKET_ADDR_IPV4_ALL) < 0)
                 return -1;

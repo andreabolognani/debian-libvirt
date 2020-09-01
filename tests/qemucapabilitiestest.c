@@ -71,12 +71,12 @@ testQemuCaps(const void *opaque)
 {
     int ret = -1;
     testQemuData *data = (void *) opaque;
-    char *repliesFile = NULL;
-    char *capsFile = NULL;
+    g_autofree char *repliesFile = NULL;
+    g_autofree char *capsFile = NULL;
     qemuMonitorTestPtr mon = NULL;
-    virQEMUCapsPtr capsActual = NULL;
-    char *binary = NULL;
-    char *actual = NULL;
+    g_autoptr(virQEMUCaps) capsActual = NULL;
+    g_autofree char *binary = NULL;
+    g_autofree char *actual = NULL;
     unsigned int fakeMicrocodeVersion = 0;
     const char *p;
 
@@ -133,12 +133,7 @@ testQemuCaps(const void *opaque)
 
     ret = 0;
  cleanup:
-    VIR_FREE(repliesFile);
-    VIR_FREE(capsFile);
-    VIR_FREE(actual);
-    VIR_FREE(binary);
     qemuMonitorTestFree(mon);
-    virObjectUnref(capsActual);
     return ret;
 }
 
@@ -146,12 +141,11 @@ testQemuCaps(const void *opaque)
 static int
 testQemuCapsCopy(const void *opaque)
 {
-    int ret = -1;
     const testQemuData *data = opaque;
-    char *capsFile = NULL;
-    virQEMUCapsPtr orig = NULL;
-    virQEMUCapsPtr copy = NULL;
-    char *actual = NULL;
+    g_autofree char *capsFile = NULL;
+    g_autoptr(virQEMUCaps) orig = NULL;
+    g_autoptr(virQEMUCaps) copy = NULL;
+    g_autofree char *actual = NULL;
 
     capsFile = g_strdup_printf("%s/%s_%s.%s.xml",
                                data->outputDir, data->prefix, data->version,
@@ -159,25 +153,18 @@ testQemuCapsCopy(const void *opaque)
 
     if (!(orig = qemuTestParseCapabilitiesArch(
               virArchFromString(data->archName), capsFile)))
-        goto cleanup;
+        return -1;
 
     if (!(copy = virQEMUCapsNewCopy(orig)))
-        goto cleanup;
+        return -1;
 
     if (!(actual = virQEMUCapsFormatCache(copy)))
-        goto cleanup;
+        return -1;
 
     if (virTestCompareToFile(actual, capsFile) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(capsFile);
-    virObjectUnref(orig);
-    virObjectUnref(copy);
-    VIR_FREE(actual);
-    return ret;
+    return 0;
 }
 
 
@@ -238,7 +225,7 @@ mymain(void)
      * programs will automatically pick it up.
      *
      * To generate the corresponding output files after a new replies
-     * file has been added, run "VIR_TEST_REGENERATE_OUTPUT=1 make check".
+     * file has been added, run "VIR_TEST_REGENERATE_OUTPUT=1 ninja test".
      */
 
     testQemuDataReset(&data);

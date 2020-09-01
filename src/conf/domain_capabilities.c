@@ -114,7 +114,7 @@ virDomainCapsCPUModelsDispose(void *obj)
 
     for (i = 0; i < cpuModels->nmodels; i++) {
         VIR_FREE(cpuModels->models[i].name);
-        virStringListFree(cpuModels->models[i].blockers);
+        g_strfreev(cpuModels->models[i].blockers);
     }
 
     VIR_FREE(cpuModels->models);
@@ -199,13 +199,9 @@ virDomainCapsCPUModelsAdd(virDomainCapsCPUModelsPtr cpuModels,
                           char **blockers)
 {
     g_autofree char * nameCopy = NULL;
-    VIR_AUTOSTRINGLIST blockersCopy = NULL;
     virDomainCapsCPUModelPtr cpu;
 
     nameCopy = g_strdup(name);
-
-    if (virStringListCopy(&blockersCopy, (const char **)blockers) < 0)
-        return -1;
 
     if (VIR_RESIZE_N(cpuModels->models, cpuModels->nmodels_max,
                      cpuModels->nmodels, 1) < 0)
@@ -216,7 +212,7 @@ virDomainCapsCPUModelsAdd(virDomainCapsCPUModelsPtr cpuModels,
 
     cpu->usable = usable;
     cpu->name = g_steal_pointer(&nameCopy);
-    cpu->blockers = g_steal_pointer(&blockersCopy);
+    cpu->blockers = g_strdupv(blockers);
 
     return 0;
 }
@@ -690,6 +686,10 @@ virDomainCapsDeviceDefValidate(const virDomainCaps *caps,
         break;
     case VIR_DOMAIN_DEVICE_VIDEO:
         ret = virDomainCapsDeviceVideoDefValidate(caps, dev->data.video);
+        break;
+
+    case VIR_DOMAIN_DEVICE_AUDIO:
+        /* TODO: add validation */
         break;
 
     case VIR_DOMAIN_DEVICE_DISK:

@@ -50,7 +50,7 @@ prepend()
 # Find this script.
 b=@abs_builddir@
 
-prepend LD_LIBRARY_PATH "$b/src/.libs"
+prepend LD_LIBRARY_PATH "$b/src"
 export LD_LIBRARY_PATH
 
 prepend PKG_CONFIG_PATH "$b/src"
@@ -71,4 +71,4 @@ random_val="$(awk 'BEGIN{srand(); print 1+int(255*rand())}' < /dev/null)"
 export MALLOC_PERTURB_=$random_val
 
 # Run the program.
-exec $b/libtool --mode=execute "$@"
+exec "$@"

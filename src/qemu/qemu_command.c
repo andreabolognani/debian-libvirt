@@ -64,6 +64,7 @@
 # include <linux/capability.h>
 #endif
 #include "logging/log_manager.h"
+#include "logging/log_protocol.h"
 #include "virutil.h"
 
 #include <sys/stat.h>
@@ -522,6 +523,7 @@ qemuBuildVirtioDevStr(virBufferPtr buf,
         case VIR_DOMAIN_DEVICE_PANIC:
         case VIR_DOMAIN_DEVICE_MEMORY:
         case VIR_DOMAIN_DEVICE_IOMMU:
+        case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_LAST:
         default:
             return 0;
@@ -4025,6 +4027,7 @@ qemuBuildSoundDevStr(const virDomainDef *def,
         model = "sb16";
         break;
     case VIR_DOMAIN_SOUND_MODEL_PCSPK: /* pc-speaker is handled separately */
+    case VIR_DOMAIN_SOUND_MODEL_ICH7:
     case VIR_DOMAIN_SOUND_MODEL_LAST:
         return NULL;
     }
@@ -4232,7 +4235,9 @@ qemuBuildVgaVideoCommand(virCommandPtr cmd,
                          virDomainVideoDefPtr video,
                          virQEMUCapsPtr qemuCaps)
 {
+    const char *dev;
     const char *vgastr = qemuVideoTypeToString(video->type);
+
     if (!vgastr || STREQ(vgastr, "")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("invalid model for video type '%s'"),
@@ -4253,7 +4258,7 @@ qemuBuildVgaVideoCommand(virCommandPtr cmd,
      * See 'Graphics Devices' section in docs/qdev-device-use.txt in
      * QEMU repository.
      */
-    const char *dev = qemuDeviceVideoTypeToString(video->type);
+    dev = qemuDeviceVideoTypeToString(video->type);
 
     if (video->type == VIR_DOMAIN_VIDEO_TYPE_QXL &&
         (video->vram || video->ram)) {
@@ -4935,9 +4940,11 @@ qemuBuildChrChardevStr(virLogManagerPtr logManager,
         if (dev->data.nix.listen &&
             (flags & QEMU_BUILD_CHARDEV_UNIX_FD_PASS) &&
             virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS)) {
+            int fd;
+
             if (qemuSecuritySetSocketLabel(secManager, (virDomainDefPtr)def) < 0)
                 return NULL;
-            int fd = qemuOpenChrChardevUNIXSocket(dev);
+            fd = qemuOpenChrChardevUNIXSocket(dev);
             if (qemuSecurityClearSocketLabel(secManager, (virDomainDefPtr)def) < 0) {
                 VIR_FORCE_CLOSE(fd);
                 return NULL;
@@ -8539,10 +8546,23 @@ qemuBuildShmemDevStr(virDomainDefPtr def,
     virBufferAdd(&buf, virDomainShmemModelTypeToString(shmem->model), -1);
     virBufferAsprintf(&buf, ",id=%s", shmem->info.alias);
 
-    if (shmem->server.enabled)
+    if (shmem->server.enabled) {
         virBufferAsprintf(&buf, ",chardev=char%s", shmem->info.alias);
-    else
+    } else {
         virBufferAsprintf(&buf, ",memdev=shmmem-%s", shmem->info.alias);
+
+        switch ((virDomainShmemRole) shmem->role) {
+        case VIR_DOMAIN_SHMEM_ROLE_MASTER:
+            virBufferAddLit(&buf, ",master=on");
+            break;
+        case VIR_DOMAIN_SHMEM_ROLE_PEER:
+            virBufferAddLit(&buf, ",master=off");
+            break;
+        case VIR_DOMAIN_SHMEM_ROLE_DEFAULT:
+        case VIR_DOMAIN_SHMEM_ROLE_LAST:
+            break;
+        }
+    }
 
     if (shmem->msi.vectors)
         virBufferAsprintf(&buf, ",vectors=%u", shmem->msi.vectors);

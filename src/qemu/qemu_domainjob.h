@@ -161,9 +161,11 @@ typedef void *(*qemuDomainObjPrivateJobAlloc)(void);
 typedef void (*qemuDomainObjPrivateJobFree)(void *);
 typedef void (*qemuDomainObjPrivateJobReset)(void *);
 typedef int (*qemuDomainObjPrivateJobFormat)(virBufferPtr,
-                                             qemuDomainJobObjPtr);
+                                             qemuDomainJobObjPtr,
+                                             virDomainObjPtr);
 typedef int (*qemuDomainObjPrivateJobParse)(xmlXPathContextPtr,
-                                            qemuDomainJobObjPtr);
+                                            qemuDomainJobObjPtr,
+                                            virDomainObjPtr);
 
 typedef struct _qemuDomainObjPrivateJobCallbacks qemuDomainObjPrivateJobCallbacks;
 typedef qemuDomainObjPrivateJobCallbacks *qemuDomainObjPrivateJobCallbacksPtr;
@@ -255,12 +257,6 @@ int qemuDomainObjRestoreJob(virDomainObjPtr obj,
 void qemuDomainObjDiscardAsyncJob(virQEMUDriverPtr driver,
                                   virDomainObjPtr obj);
 void qemuDomainObjReleaseAsyncJob(virDomainObjPtr obj);
-
-void qemuDomainRemoveInactiveJob(virQEMUDriverPtr driver,
-                                 virDomainObjPtr vm);
-
-void qemuDomainRemoveInactiveJobLocked(virQEMUDriverPtr driver,
-                                       virDomainObjPtr vm);
 
 int qemuDomainJobInfoUpdateTime(qemuDomainJobInfoPtr jobInfo)
     ATTRIBUTE_NONNULL(1);

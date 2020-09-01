@@ -1239,11 +1239,14 @@ virHostCPUGetKVMMaxVCPUs(void)
  * some reason.
  */
 unsigned int
-virHostCPUGetMicrocodeVersion(void)
+virHostCPUGetMicrocodeVersion(virArch hostArch)
 {
-    char *outbuf = NULL;
+    g_autofree char *outbuf = NULL;
     char *cur;
     unsigned int version = 0;
+
+    if (!ARCH_IS_X86(hostArch))
+        return 0;
 
     if (virFileReadHeaderQuiet(CPUINFO_PATH, 4096, &outbuf) < 0) {
         VIR_DEBUG("Failed to read microcode version from %s: %s",
@@ -1254,23 +1257,21 @@ virHostCPUGetMicrocodeVersion(void)
     /* Account for format 'microcode    : XXXX'*/
     if (!(cur = strstr(outbuf, "microcode")) ||
         !(cur = strchr(cur, ':')))
-        goto cleanup;
+        return 0;
     cur++;
 
     /* Linux places the microcode revision in a 32-bit integer, so
      * ui is fine for us too.  */
     if (virStrToLong_ui(cur, &cur, 0, &version) < 0)
-        goto cleanup;
+        return 0;
 
- cleanup:
-    VIR_FREE(outbuf);
     return version;
 }
 
 #else
 
 unsigned int
-virHostCPUGetMicrocodeVersion(void)
+virHostCPUGetMicrocodeVersion(virArch hostArch G_GNUC_UNUSED)
 {
     return 0;
 }

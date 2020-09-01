@@ -720,9 +720,12 @@ virNetworkDNSHostDefParseXML(const char *networkName,
         if (cur->type == XML_ELEMENT_NODE &&
             virXMLNodeNameEqual(cur, "hostname")) {
               if (cur->children != NULL) {
-                  g_autofree char *name = (char *) xmlNodeGetContent(cur);
+                  g_autofree char *name = virXMLNodeContentString(cur);
 
-                  if (!name) {
+                  if (!name)
+                      goto error;
+
+                  if (!name[0]) {
                       virReportError(VIR_ERR_XML_DETAIL,
                                      _("Missing hostname in network '%s' DNS HOST record"),
                                      networkName);
@@ -779,7 +782,7 @@ virNetworkDNSSrvDefParseXML(const char *networkName,
                             bool partialOkay)
 {
     int ret;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = node;
 
@@ -937,7 +940,7 @@ virNetworkDNSDefParseXML(const char *networkName,
     g_autofree char *enable = NULL;
     int nhosts, nsrvs, ntxts, nfwds;
     size_t i;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = node;
 
@@ -1081,7 +1084,7 @@ virNetworkIPDefParseXML(const char *networkName,
      * On failure clear it out, but don't free it.
      */
 
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr dhcp;
     g_autofree char *address = NULL;
     g_autofree char *netmask = NULL;
@@ -1252,7 +1255,7 @@ virNetworkPortGroupParseXML(virPortGroupDefPtr def,
      * On failure clear it out, but don't free it.
      */
 
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr virtPortNode;
     xmlNodePtr vlanNode;
     xmlNodePtr bandwidth_node;
@@ -1322,7 +1325,7 @@ virNetworkForwardNatDefParseXML(const char *networkName,
     g_autofree char *addrStart = NULL;
     g_autofree char *addrEnd = NULL;
     g_autofree char *ipv6 = NULL;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = node;
 
@@ -1460,7 +1463,7 @@ virNetworkForwardDefParseXML(const char *networkName,
     g_autofree char *forwardManaged = NULL;
     g_autofree char *forwardDriverName = NULL;
     g_autofree char *type = NULL;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = node;
 
@@ -1699,7 +1702,7 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
     xmlNodePtr forwardNode = NULL;
     g_autofree char *ipv6nogwStr = NULL;
     g_autofree char *trustGuestRxFilters = NULL;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr bandwidthNode = NULL;
     xmlNodePtr vlanNode;
     xmlNodePtr metadataNode = NULL;
@@ -1932,11 +1935,13 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
             addrMatch = false;
             for (j = 0; j < nips; j++) {
                 virNetworkIPDefPtr def2 = &def->ips[j];
+                int prefix;
+
                 if (VIR_SOCKET_ADDR_FAMILY(gateway)
                     != VIR_SOCKET_ADDR_FAMILY(&def2->address)) {
                     continue;
                 }
-                int prefix = virNetworkIPDefPrefix(def2);
+                prefix = virNetworkIPDefPrefix(def2);
                 virSocketAddrMaskByPrefix(&def2->address, prefix, &testAddr);
                 virSocketAddrMaskByPrefix(gateway, prefix, &testGw);
                 if (VIR_SOCKET_ADDR_VALID(&testAddr) &&
@@ -2534,9 +2539,10 @@ virNetworkDefFormatBuf(virBufferPtr buf,
 
     if (def->forward.type != VIR_NETWORK_FORWARD_NONE) {
         const char *dev = NULL;
+        const char *mode = virNetworkForwardTypeToString(def->forward.type);
+
         if (!def->forward.npfs)
             dev = virNetworkDefForwardIf(def, 0);
-        const char *mode = virNetworkForwardTypeToString(def->forward.type);
 
         if (!mode) {
             virReportError(VIR_ERR_INTERNAL_ERROR,

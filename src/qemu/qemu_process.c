@@ -45,6 +45,7 @@
 #include "qemu_block.h"
 #include "qemu_domain.h"
 #include "qemu_domain_address.h"
+#include "qemu_namespace.h"
 #include "qemu_cgroup.h"
 #include "qemu_capabilities.h"
 #include "qemu_monitor.h"
@@ -522,9 +523,10 @@ qemuProcessShutdownOrReboot(virQEMUDriverPtr driver,
 
     if (priv->fakeReboot) {
         g_autofree char *name = g_strdup_printf("reboot-%s", vm->def->name);
+        virThread th;
+
         qemuDomainSetFakeReboot(driver, vm, false);
         virObjectRef(vm);
-        virThread th;
         if (virThreadCreateFull(&th,
                                 false,
                                 qemuProcessFakeReboot,
@@ -3163,7 +3165,7 @@ static int qemuProcessHook(void *data)
     if (qemuSecurityClearSocketLabel(h->driver->securityManager, h->vm->def) < 0)
         goto cleanup;
 
-    if (qemuDomainBuildNamespace(h->cfg, h->driver->securityManager, h->vm) < 0)
+    if (qemuDomainUnshareNamespace(h->cfg, h->driver->securityManager, h->vm) < 0)
         goto cleanup;
 
     if (virDomainNumatuneGetMode(h->vm->def->numa, -1, &mode) == 0) {
@@ -3732,7 +3734,7 @@ qemuProcessUpdateDevices(virQEMUDriverPtr driver,
     ret = 0;
 
  cleanup:
-    virStringListFree(old);
+    g_strfreev(old);
     return ret;
 }
 
@@ -5017,11 +5019,12 @@ qemuProcessSetupRawIO(virQEMUDriverPtr driver,
     /* If rawio not already set, check hostdevs as well */
     if (!rawio) {
         for (i = 0; i < vm->def->nhostdevs; i++) {
+            virDomainHostdevSubsysSCSIPtr scsisrc;
+
             if (!virHostdevIsSCSIDevice(vm->def->hostdevs[i]))
                 continue;
 
-            virDomainHostdevSubsysSCSIPtr scsisrc =
-                &vm->def->hostdevs[i]->source.subsys.u.scsi;
+            scsisrc = &vm->def->hostdevs[i]->source.subsys.u.scsi;
             if (scsisrc->rawio == VIR_TRISTATE_BOOL_YES) {
                 rawio = true;
                 break;
@@ -6639,6 +6642,20 @@ qemuProcessSetupDiskThrottlingBlockdev(virQEMUDriverPtr driver,
 }
 
 
+static int
+qemuProcessEnableDomainNamespaces(virQEMUDriverPtr driver,
+                                  virDomainObjPtr vm)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
+    if (virBitmapIsBitSet(cfg->namespaces, QEMU_DOMAIN_NS_MOUNT) &&
+        qemuDomainEnableNamespace(vm, QEMU_DOMAIN_NS_MOUNT) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 /**
  * qemuProcessLaunch:
  *
@@ -6758,7 +6775,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     VIR_DEBUG("Building mount namespace");
 
-    if (qemuDomainCreateNamespace(driver, vm) < 0)
+    if (qemuProcessEnableDomainNamespaces(driver, vm) < 0)
         goto cleanup;
 
     VIR_DEBUG("Setting up raw IO");
@@ -6815,6 +6832,10 @@ qemuProcessLaunch(virConnectPtr conn,
                                   _("Process exited prior to exec"));
         goto cleanup;
     }
+
+    VIR_DEBUG("Building domain mount namespace (if required)");
+    if (qemuDomainBuildNamespace(cfg, vm) < 0)
+        goto cleanup;
 
     VIR_DEBUG("Setting up domain cgroup (if required)");
     if (qemuSetupCgroup(vm, nnicindexes, nicindexes) < 0)
@@ -6887,12 +6908,6 @@ qemuProcessLaunch(virConnectPtr conn,
     if (virCommandHandshakeNotify(cmd) < 0)
         goto cleanup;
     VIR_DEBUG("Handshake complete, child running");
-
-    if (rv == -1) /* The VM failed to start; tear filters before taps */
-        virDomainConfVMNWFilterTeardown(vm);
-
-    if (rv == -1) /* The VM failed to start */
-        goto cleanup;
 
     if (qemuDomainObjStartWorker(vm) < 0)
         goto cleanup;

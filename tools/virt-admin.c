@@ -19,8 +19,9 @@
  */
 
 #include <config.h>
-#include "virt-admin.h"
 
+#include <stdio.h>
+#include <unistd.h>
 #include <getopt.h>
 
 #if WITH_READLINE
@@ -29,6 +30,7 @@
 #endif
 
 #include "internal.h"
+#include "virt-admin.h"
 #include "viralloc.h"
 #include "virerror.h"
 #include "virfile.h"
@@ -41,9 +43,6 @@
 #include "virenum.h"
 
 #define VIRT_ADMIN_PROMPT "virt-admin # "
-
-/* we don't need precision to milliseconds in this module */
-#define VIRT_ADMIN_TIME_BUFLEN VIR_TIME_STRING_BUFLEN - 3
 
 static char *progname;
 
@@ -1040,20 +1039,19 @@ static const vshCmdOptDef opts_daemon_log_filters[] = {
 static bool
 cmdDaemonLogFilters(vshControl *ctl, const vshCmd *cmd)
 {
-    int nfilters;
-    char *filters = NULL;
     vshAdmControlPtr priv = ctl->privData;
 
     if (vshCommandOptBool(cmd, "filters")) {
-        if ((vshCommandOptStringReq(ctl, cmd, "filters",
-                                    (const char **) &filters) < 0 ||
+        const char *filters = NULL;
+        if ((vshCommandOptStringReq(ctl, cmd, "filters", &filters) < 0 ||
              virAdmConnectSetLoggingFilters(priv->conn, filters, 0) < 0)) {
             vshError(ctl, _("Unable to change daemon logging settings"));
             return false;
         }
     } else {
-        if ((nfilters = virAdmConnectGetLoggingFilters(priv->conn,
-                                                       &filters, 0)) < 0) {
+        g_autofree char *filters = NULL;
+        if (virAdmConnectGetLoggingFilters(priv->conn,
+                                           &filters, 0) < 0) {
             vshError(ctl, _("Unable to get daemon logging filters information"));
             return false;
         }
@@ -1094,20 +1092,18 @@ static const vshCmdOptDef opts_daemon_log_outputs[] = {
 static bool
 cmdDaemonLogOutputs(vshControl *ctl, const vshCmd *cmd)
 {
-    int noutputs;
-    char *outputs = NULL;
     vshAdmControlPtr priv = ctl->privData;
 
     if (vshCommandOptBool(cmd, "outputs")) {
-        if ((vshCommandOptStringReq(ctl, cmd, "outputs",
-                                    (const char **) &outputs) < 0 ||
+        const char *outputs = NULL;
+        if ((vshCommandOptStringReq(ctl, cmd, "outputs", &outputs) < 0 ||
              virAdmConnectSetLoggingOutputs(priv->conn, outputs, 0) < 0)) {
             vshError(ctl, _("Unable to change daemon logging settings"));
             return false;
         }
     } else {
-        if ((noutputs = virAdmConnectGetLoggingOutputs(priv->conn,
-                                                       &outputs, 0)) < 0) {
+        g_autofree char *outputs = NULL;
+        if (virAdmConnectGetLoggingOutputs(priv->conn, &outputs, 0) < 0) {
             vshError(ctl, _("Unable to get daemon logging outputs information"));
             return false;
         }
@@ -1277,9 +1273,7 @@ vshAdmShowVersion(vshControl *ctl G_GNUC_UNUSED)
 #ifdef WITH_LIBVIRTD
     vshPrint(ctl, " Daemon");
 #endif
-#ifdef ENABLE_DEBUG
     vshPrint(ctl, " Debug");
-#endif
 #if WITH_READLINE
     vshPrint(ctl, " Readline");
 #endif

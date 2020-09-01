@@ -27,6 +27,7 @@
 #include "qemu_capabilities.h"
 #include "qemu_domain.h"
 #include "qemu_domain_address.h"
+#include "qemu_namespace.h"
 #include "qemu_command.h"
 #include "qemu_hostdev.h"
 #include "qemu_interface.h"
@@ -2367,8 +2368,7 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
     int id;
     int ret = -1;
 
-    if (qemuDomainMemoryDeviceAlignSize(vm->def, mem) < 0)
-        goto cleanup;
+    qemuDomainMemoryDeviceAlignSize(vm->def, mem);
 
     if (qemuDomainDefValidateMemoryHotplug(vm->def, priv->qemuCaps, mem) < 0)
         goto cleanup;
@@ -4711,8 +4711,7 @@ qemuDomainRemoveRNGDevice(virQEMUDriverPtr driver,
 
     qemuDomainObjEnterMonitor(driver, vm);
 
-    if (rc == 0 &&
-        qemuMonitorDelObject(priv->mon, objAlias, true) < 0)
+    if (qemuMonitorDelObject(priv->mon, objAlias, true) < 0)
         rc = -1;
 
     if (rng->backend == VIR_DOMAIN_RNG_BACKEND_EGD &&
@@ -4944,6 +4943,7 @@ qemuDomainRemoveAuditDevice(virDomainObjPtr vm,
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
+    case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_LAST:
         /* libvirt doesn't yet support detaching these devices */
         break;
@@ -5042,6 +5042,7 @@ qemuDomainRemoveDevice(virQEMUDriverPtr driver,
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
+    case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("don't know how to remove a %s device"),
@@ -5611,8 +5612,7 @@ qemuDomainDetachPrepMemory(virDomainObjPtr vm,
     virDomainMemoryDefPtr mem;
     int idx;
 
-    if (qemuDomainMemoryDeviceAlignSize(vm->def, match) < 0)
-        return -1;
+    qemuDomainMemoryDeviceAlignSize(vm->def, match);
 
     if ((idx = virDomainMemoryFindByDef(vm->def, match)) < 0) {
         virReportError(VIR_ERR_DEVICE_MISSING,
@@ -5813,6 +5813,7 @@ qemuDomainDetachDeviceLive(virDomainObjPtr vm,
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
+    case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("live detach of device '%s' is not supported"),

@@ -987,7 +987,7 @@ mymain(void)
     struct testQemuBlockBitmapBlockcopyData blockbitmapblockcopydata;
     struct testQemuBlockBitmapBlockcommitData blockbitmapblockcommitdata;
     char *capslatest_x86_64 = NULL;
-    virQEMUCapsPtr caps_x86_64 = NULL;
+    g_autoptr(virQEMUCaps) caps_x86_64 = NULL;
     g_autoptr(virHashTable) qmp_schema_x86_64 = NULL;
     virJSONValuePtr qmp_schemaroot_x86_64_blockdev_add = NULL;
     g_autoptr(virStorageSource) bitmapSourceChain = NULL;
@@ -1394,7 +1394,6 @@ mymain(void)
  cleanup:
     qemuTestDriverFree(&driver);
     VIR_FREE(capslatest_x86_64);
-    virObjectUnref(caps_x86_64);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

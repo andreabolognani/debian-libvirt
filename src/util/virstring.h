@@ -18,8 +18,6 @@
 
 #pragma once
 
-#include <stdarg.h>
-
 #include "internal.h"
 
 #define VIR_INT64_STR_BUFLEN 21
@@ -47,10 +45,6 @@ void virStringListRemove(char ***strings,
 int virStringListMerge(char ***dst,
                        char ***src);
 
-int virStringListCopy(char ***dst,
-                      const char **src);
-
-void virStringListFree(char **strings);
 void virStringListAutoFree(char ***strings);
 void virStringListFreeCount(char **strings,
                             size_t count);

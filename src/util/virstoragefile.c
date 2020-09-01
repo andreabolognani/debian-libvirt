@@ -1597,7 +1597,6 @@ virStorageFileChainLookup(virStorageSourcePtr chain,
 {
     virStorageSourcePtr prev;
     const char *start = chain->path;
-    char *parentDir = NULL;
     bool nameIsFile = virStorageIsFile(name);
 
     if (!parent)
@@ -1626,15 +1625,16 @@ virStorageFileChainLookup(virStorageSourcePtr chain,
                 break;
 
             if (nameIsFile && virStorageSourceIsLocalStorage(chain)) {
+                g_autofree char *parentDir = NULL;
+                int result;
+
                 if (*parent && virStorageSourceIsLocalStorage(*parent))
                     parentDir = g_path_get_dirname((*parent)->path);
                 else
                     parentDir = g_strdup(".");
 
-                int result = virFileRelLinkPointsTo(parentDir, name,
-                                                    chain->path);
-
-                VIR_FREE(parentDir);
+                result = virFileRelLinkPointsTo(parentDir, name,
+                                                chain->path);
 
                 if (result < 0)
                     goto error;
@@ -1781,7 +1781,7 @@ virStorageAuthDefPtr
 virStorageAuthDefParse(xmlNodePtr node,
                        xmlXPathContextPtr ctxt)
 {
-    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
     virStorageAuthDefPtr ret = NULL;
     xmlNodePtr secretnode = NULL;
     g_autoptr(virStorageAuthDef) authdef = NULL;
@@ -5335,13 +5335,13 @@ virStorageFileGetMetadata(virStorageSourcePtr src,
                           uid_t uid, gid_t gid,
                           bool report_broken)
 {
-    VIR_DEBUG("path=%s format=%d uid=%u gid=%u report_broken=%d",
-              src->path, src->format, (unsigned int)uid, (unsigned int)gid,
-              report_broken);
-
     virHashTablePtr cycle = NULL;
     virStorageType actualType = virStorageSourceGetActualType(src);
     int ret = -1;
+
+    VIR_DEBUG("path=%s format=%d uid=%u gid=%u report_broken=%d",
+              src->path, src->format, (unsigned int)uid, (unsigned int)gid,
+              report_broken);
 
     if (!(cycle = virHashCreate(5, NULL)))
         return -1;

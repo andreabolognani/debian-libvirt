@@ -21,7 +21,7 @@
 
 # This is reported not to work with make-3.79.1
 # ME := $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
-ME := $(_build-aux)/syntax-check.mk
+ME := build-aux/syntax-check.mk
 
 # These variables ought to be defined through the configure.ac section
 # of the module description. But some packages import this file directly,
@@ -42,39 +42,35 @@ _equal = $(and $(findstring $(1),$(2)),$(findstring $(2),$(1)))
 GIT = git
 VC = $(GIT)
 
-VC_LIST = $(srcdir)/$(_build-aux)/vc-list-files -C $(srcdir)
+VC_LIST = $(top_srcdir)/build-aux/vc-list-files -C $(top_srcdir)
 
 # You can override this variable in syntax-check.mk to set your own regexp
 # matching files to ignore.
 VC_LIST_ALWAYS_EXCLUDE_REGEX ?= ^$$
 
 # This is to preprocess robustly the output of $(VC_LIST), so that even
-# when $(srcdir) is a pathological name like "....", the leading sed command
+# when $(top_srcdir) is a pathological name like "....", the leading sed command
 # removes only the intended prefix.
-_dot_escaped_srcdir = $(subst .,\.,$(srcdir))
-_dot_escaped_builddir = $(subst .,\.,$(builddir))
+_dot_escaped_srcdir = $(subst .,\.,$(top_srcdir))
+_dot_escaped_builddir = $(subst .,\.,$(top_builddir))
 
-# Post-process $(VC_LIST) output, prepending $(srcdir)/, but only
-# when $(srcdir) is not ".".
-ifeq ($(srcdir),.)
+# Post-process $(VC_LIST) output, prepending $(top_srcdir)/, but only
+# when $(top_srcdir) is not ".".
+ifeq ($(top_srcdir),.)
   _prepend_srcdir_prefix =
 else
-  _prepend_srcdir_prefix = | $(SED) 's|^|$(srcdir)/|'
+  _prepend_srcdir_prefix = | $(SED) 's|^|$(top_srcdir)/|'
 endif
 
 # In order to be able to consistently filter "."-relative names,
-# (i.e., with no $(srcdir) prefix), this definition is careful to
-# remove any $(srcdir) prefix, and to restore what it removes.
+# (i.e., with no $(top_srcdir) prefix), this definition is careful to
+# remove any $(top_srcdir) prefix, and to restore what it removes.
 _sc_excl = \
   $(or $(exclude_file_name_regexp--$@),^$$)
 VC_LIST_EXCEPT = \
   $(VC_LIST) | $(SED) 's|^$(_dot_escaped_srcdir)/||' \
 	| $(GREP) -Ev -e '($(VC_LIST_ALWAYS_EXCLUDE_REGEX)|$(_sc_excl))' \
 	$(_prepend_srcdir_prefix)
-
-# Override this in syntax-check.mk if you are using a different format in your
-# NEWS file.
-today = $(shell date +%Y-%m-%d)
 
 # Prevent programs like 'sort' from considering distinct strings to be equal.
 # Doing it here saves us from having to set LC_ALL elsewhere in this file.
@@ -84,11 +80,11 @@ export LC_ALL = C
 ## Sanity checks.  ##
 ## --------------- ##
 
-_cfg_mk := $(wildcard $(srcdir)/$(_build-aux)/syntax-check.mk)
+_cfg_mk := $(wildcard $(top_srcdir)/build-aux/syntax-check.mk)
 
 # Collect the names of rules starting with 'sc_'.
 syntax-check-rules := $(sort $(shell $(SED) -n \
-   's/^\(sc_[a-zA-Z0-9_-]*\):.*/\1/p' $(srcdir)/$(ME) $(_cfg_mk)))
+   's/^\(sc_[a-zA-Z0-9_-]*\):.*/\1/p' $(top_srcdir)/$(ME) $(_cfg_mk)))
 .PHONY: $(syntax-check-rules)
 
 ifeq ($(shell $(VC_LIST) >/dev/null 2>&1; echo $$?),0)
@@ -333,11 +329,11 @@ sc_flags_debug:
 # than d).  The existence of long long, and of documentation about
 # flags, makes the regex in the third test slightly harder.
 sc_flags_usage:
-	@test "$$(cat $(srcdir)/include/libvirt/libvirt-domain.h \
-	    $(srcdir)/include/libvirt/virterror.h \
-	    $(srcdir)/include/libvirt/libvirt-qemu.h \
-	    $(srcdir)/include/libvirt/libvirt-lxc.h \
-	    $(srcdir)/include/libvirt/libvirt-admin.h \
+	@test "$$(cat $(top_srcdir)/include/libvirt/libvirt-domain.h \
+	    $(top_srcdir)/include/libvirt/virterror.h \
+	    $(top_srcdir)/include/libvirt/libvirt-qemu.h \
+	    $(top_srcdir)/include/libvirt/libvirt-lxc.h \
+	    $(top_srcdir)/include/libvirt/libvirt-admin.h \
 	  | $(GREP) -c '\(long\|unsigned\) flags')" != 4 && \
 	  { echo '$(ME): new API should use "unsigned int flags"' 1>&2; \
 	    exit 1; } || :
@@ -496,7 +492,7 @@ sc_prohibit_PATH_MAX:
 	halt='dynamically allocate paths, do not use PATH_MAX' \
 	  $(_sc_search_regexp)
 
-include $(srcdir)/Makefile.nonreentrant
+include $(top_srcdir)/build-aux/Makefile.nonreentrant
 sc_prohibit_nonreentrant:
 	@prohibit="\\<(${NON_REENTRANT_RE}) *\\(" \
 	halt="use re-entrant functions (usually ending with _r)" \
@@ -679,7 +675,7 @@ msg_gen_function += virReportErrorHelper
 msg_gen_function += virReportSystemError
 msg_gen_function += virLastErrorPrefixMessage
 
-# Uncomment the following and run "make syntax-check" to see diagnostics
+# Uncomment the following and run "ninja test" to see diagnostics
 # that are not yet marked for translation, but that need to be rewritten
 # so that they are translatable.
 # msg_gen_function += fprintf
@@ -785,14 +781,6 @@ sc_spec_indentation:
 	  echo '$(ME): skipping test $@: cppi not installed' 1>&2; \
 	fi
 
-# Nested conditionals are easier to understand if we enforce that endifs
-# can be paired back to the if
-sc_makefile_conditionals:
-	@prohibit='(else|endif)($$| *#)' \
-	in_vc_files='Makefile\.am' \
-	halt='match "if FOO" with "endif FOO" in Makefiles' \
-	  $(_sc_search_regexp)
-
 # Long lines can be harder to diff; too long, and git send-email chokes.
 # For now, only enforce line length on files where we have intentionally
 # fixed things and don't want to regress.
@@ -800,10 +788,6 @@ sc_prohibit_long_lines:
 	@prohibit='.{90}' \
 	in_vc_files='\.arg[sv]' \
 	halt='Wrap long lines in expected output files' \
-	  $(_sc_search_regexp)
-	@prohibit='.{80}' \
-	in_vc_files='Makefile(\.inc)?\.am' \
-	halt='Wrap long lines in Makefiles' \
 	  $(_sc_search_regexp)
 
 sc_copyright_format:
@@ -845,7 +829,7 @@ sc_prohibit_gettext_markup:
 
 # Our code is divided into modular subdirectories for a reason, and
 # lower-level code must not include higher-level headers.
-cross_dirs=$(patsubst $(srcdir)/src/%.,%,$(wildcard $(srcdir)/src/*/.))
+cross_dirs=$(patsubst $(top_srcdir)/src/%.,%,$(wildcard $(top_srcdir)/src/*/.))
 cross_dirs_re=($(subst / ,/|,$(cross_dirs)))
 mid_dirs=access|admin|conf|cpu|locking|logging|rpc|security
 sc_prohibit_cross_inclusion:
@@ -1189,7 +1173,7 @@ sc_prohibit_dirent_d_type:
 #     grep-E-style regexp selecting the files to check.  For in_vc_files,
 #     the regexp is used to select matching files from the list of all
 #     version-controlled files; for in_files, it's from the names printed
-#     by "find $(srcdir)".  When neither is specified, use all files that
+#     by "find $(top_srcdir)".  When neither is specified, use all files that
 #     are under version control.
 #
 #  containing | non_containing
@@ -1261,7 +1245,7 @@ define _sc_search_regexp
 									\
    : Filter by file name;						\
    if test -n "$$in_files"; then					\
-     files=$$(find $(srcdir) | $(GREP) -E "$$in_files"			\
+     files=$$(find $(top_srcdir) | $(GREP) -E "$$in_files"			\
               | $(GREP) -Ev '$(_sc_excl)');				\
    else									\
      files=$$($(VC_LIST_EXCEPT));					\
@@ -1305,7 +1289,7 @@ sc_avoid_if_before_free:
 	@$(VC_LIST_EXCEPT)						\
 	  | $(GREP) -v useless-if-before-free				\
 	  | xargs							\
-	      $(srcdir)/$(_build-aux)/useless-if-before-free		\
+	      $(top_srcdir)/build-aux/useless-if-before-free		\
 	      $(useless_free_options)					\
 	  && { printf '$(ME): found useless "if"'			\
 		      ' before "free" above\n' 1>&2;			\
@@ -1756,29 +1740,6 @@ sc_prohibit_test_double_equal:
 	halt='use "test x = x", not "test x =''= x"'			\
 	  $(_sc_search_regexp)
 
-# Each program that uses proper_name_utf8 must link with one of the
-# ICONV libraries.  Otherwise, some ICONV library must appear in LDADD.
-# The perl -0777 invocation below extracts the possibly-multi-line
-# definition of LDADD from the appropriate Makefile.am and exits 0
-# when it contains "ICONV".
-sc_proper_name_utf8_requires_ICONV:
-	@progs=$$($(VC_LIST_EXCEPT)					\
-		    | xargs $(GREP) -l 'proper_name_utf8 ''("');	\
-	if test "x$$progs" != x; then					\
-	  fail=0;							\
-	  for p in $$progs; do						\
-	    dir=$$(dirname "$$p");					\
-	    perl -0777							\
-	      -ne 'exit !(/^LDADD =(.+?[^\\]\n)/ms && $$1 =~ /ICONV/)'	\
-	      $$dir/Makefile.am && continue;				\
-	    base=$$(basename "$$p" .c);					\
-	    $(GREP) "$${base}_LDADD.*ICONV)" $$dir/Makefile.am > /dev/null	\
-	      || { fail=1; echo 1>&2 "$(ME): $$p uses proper_name_utf8"; }; \
-	  done;								\
-	  test $$fail = 1 &&						\
-	    { echo 1>&2 '$(ME): the above do not link with any ICONV library'; \
-	      exit 1; } || :;						\
-	fi
 
 # Warn about "c0nst struct Foo const foo[]",
 # but not about "char const *const foo" or "#define const const".
@@ -1793,43 +1754,6 @@ sc_const_long_option:
 	halt='add "const" to the above declarations'			\
 	  $(_sc_search_regexp)
 
-# Ensure that we use only the standard $(VAR) notation,
-# not @...@ in Makefile.am, now that we can rely on automake
-# to emit a definition for each substituted variable.
-# However, there is still one case in which @VAR@ use is not just
-# legitimate, but actually required: when augmenting an automake-defined
-# variable with a prefix.  For example, gettext uses this:
-# MAKEINFO = env LANG= LC_MESSAGES= LC_ALL= LANGUAGE= @MAKEINFO@
-# otherwise, makeinfo would put German or French (current locale)
-# navigation hints in the otherwise-English documentation.
-#
-# Allow the package to add exceptions via a hook in syntax-check.mk;
-# for example, @PRAGMA_SYSTEM_HEADER@ can be permitted by
-# setting this to ' && !/PRAGMA_SYSTEM_HEADER/'.
-_makefile_at_at_check_exceptions ?=
-sc_makefile_at_at_check:
-	@perl -ne '/\@\w+\@/'						\
-          -e ' && !/(\w+)\s+=.*\@\1\@$$/'				\
-          -e ''$(_makefile_at_at_check_exceptions)			\
-	  -e 'and (print "$$ARGV:$$.: $$_"), $$m=1; END {exit !$$m}'	\
-	    $$($(VC_LIST_EXCEPT) | $(GREP) -E '(^|/)(Makefile\.am|[^/]+\.mk)$$') \
-	  && { echo '$(ME): use $$(...), not @...@' 1>&2; exit 1; } || :
-
-sc_makefile_TAB_only_indentation:
-	@prohibit='^	[ ]{8}'						\
-	in_vc_files='akefile|\.mk$$'					\
-	halt='found TAB-8-space indentation'				\
-	  $(_sc_search_regexp)
-
-sc_m4_quote_check:
-	@prohibit='(AC_DEFINE(_UNQUOTED)?|AC_DEFUN)\([^[]'		\
-	in_vc_files='(^configure\.ac|\.m4)$$'				\
-	halt='quote the first arg to AC_DEF*'				\
-	  $(_sc_search_regexp)
-
-gen_source_files:
-	$(MAKE) -C src generated-sources
-
 fix_po_file_diag = \
 'you have changed the set of files with translatable diagnostics;\n\
 apply the above patch\n'
@@ -1839,8 +1763,8 @@ perl_translatable_files_list_ =						\
   -e 'foreach $$file (@ARGV) {'						\
   -e '	\# Consider only file extensions with one or two letters'	\
   -e '	$$file =~ /\...?$$/ or next;'					\
-  -e '	\# Ignore m4 and mk files'					\
-  -e '	$$file =~ /\.m[4k]$$/ and next;'				\
+  -e '	\# Ignore mk files'						\
+  -e '	$$file =~ /\.mk$$/ and next;'					\
   -e '	\# Ignore a .c or .h file with a corresponding .l or .y file'	\
   -e '	$$file =~ /(.+)\.[ch]$$/ && (-e "$${1}.l" || -e "$${1}.y")'	\
   -e '	  and next;'							\
@@ -1851,58 +1775,31 @@ perl_translatable_files_list_ =						\
 
 # Verify that all source files using _() (more specifically, files that
 # match $(_gl_translatable_string_re)) are listed in po/POTFILES.in.
-po_file ?= $(srcdir)/po/POTFILES.in
+po_file ?= $(top_srcdir)/po/POTFILES.in
 
 # List of additional files that we want to pick up in our POTFILES.in
 # This is all generated files for RPC code.
 generated_files = \
-  $(builddir)/src/*.[ch] \
-  $(builddir)/src/*/*.[ch]
+  $(top_builddir)/src/*.[ch] \
+  $(top_builddir)/src/*/*.[ch]
 
 _gl_translatable_string_re ?= \b(N?_|gettext *)\([^)"]*("|$$)
 
 # sc_po_check can fail if generated files are not built first
-sc_po_check: gen_source_files
+sc_po_check:
 	@if test -f $(po_file); then					\
 	  $(GREP) -E -v '^(#|$$)' $(po_file)				\
 	    | $(GREP) -v '^src/false\.c$$' | sort > $@-1;		\
 	  { $(VC_LIST_EXCEPT); echo $(generated_files); }		\
 	    | xargs perl $(perl_translatable_files_list_)		\
 	    | xargs $(GREP) -E -l '$(_gl_translatable_string_re)'	\
-	    | $(SED) 's|^$(_dot_escaped_srcdir)/|@SRCDIR@|'		\
 	    | $(SED) 's|^$(_dot_escaped_builddir)/|@BUILDDIR@|'		\
+	    | $(SED) 's|^$(_dot_escaped_srcdir)/|@SRCDIR@|'		\
 	    | sort -u > $@-2;						\
 	  diff -u -L $(po_file) -L $(po_file) $@-1 $@-2			\
 	    || { printf '$(ME): '$(fix_po_file_diag) 1>&2; exit 1; };	\
 	  rm -f $@-1 $@-2;						\
 	fi
-
-# Check that 'make alpha' will not fail at the end of the process,
-# i.e., when pkg-M.N.tar.xz already exists (either in "." or in ../release)
-# and is read-only.
-writable-files:
-	$(AM_V_GEN)if test -d $(release_archive_dir); then		\
-	  for file in $(DIST_ARCHIVES); do				\
-	    for p in ./ $(release_archive_dir)/; do			\
-	      test -e $$p$$file || continue;				\
-	      test -w $$p$$file						\
-		|| { echo ERROR: $$p$$file is not writable; fail=1; };	\
-	    done;							\
-	  done;								\
-	  test "$$fail" && exit 1 || : ;				\
-	else :;								\
-	fi
-
-
-# BRE regex of file contents to identify a test script.
-_test_script_regex ?= \<init\.sh\>
-
-# In tests, use "compare expected actual", not the reverse.
-sc_prohibit_reversed_compare_failure:
-	@prohibit='\<compare [^ ]+ ([^ ]*exp|/dev/null)'		\
-	containing='$(_test_script_regex)'				\
-	halt='reversed compare arguments'				\
-	  $(_sc_search_regexp)
 
 # #if HAVE_... will evaluate to false for any non numeric string.
 # That would be flagged by using -Wundef, however gnulib currently
@@ -1923,9 +1820,9 @@ sc_prohibit_path_max_allocation:
 	  $(_sc_search_regexp)
 
 ifneq ($(_gl-Makefile),)
-syntax-check: spacing-check test-wrap-argv \
-	prohibit-duplicate-header mock-noinline group-qemu-caps \
-        header-ifdef
+syntax-check: sc_spacing-check sc_test-wrap-argv \
+	sc_prohibit-duplicate-header sc_mock-noinline sc_group-qemu-caps \
+        sc_header-ifdef
 	@if ! cppi --version >/dev/null 2>&1; then \
 		echo "*****************************************************" >&2; \
 		echo "* cppi not installed, some checks have been skipped *" >&2; \
@@ -1939,28 +1836,28 @@ syntax-check: spacing-check test-wrap-argv \
 endif
 
 # Don't include duplicate header in the source (either *.c or *.h)
-prohibit-duplicate-header:
+sc_prohibit-duplicate-header:
 	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[chx]$$' | $(RUNUTF8) xargs \
 	$(PYTHON) $(top_srcdir)/scripts/prohibit-duplicate-header.py
 
-spacing-check:
+sc_spacing-check:
 	$(AM_V_GEN)$(VC_LIST) | $(GREP) '\.c$$' | xargs \
 	$(PERL) $(top_srcdir)/build-aux/check-spacing.pl || \
 	  { echo '$(ME): incorrect formatting' 1>&2; exit 1; }
 
-mock-noinline:
+sc_mock-noinline:
 	$(AM_V_GEN)$(VC_LIST) | $(GREP) '\.[ch]$$' | $(RUNUTF8) xargs \
 	$(PYTHON) $(top_srcdir)/scripts/mock-noinline.py
 
-header-ifdef:
+sc_header-ifdef:
 	$(AM_V_GEN)$(VC_LIST) | $(GREP) '\.[h]$$' | $(RUNUTF8) xargs \
 	$(PYTHON) $(top_srcdir)/scripts/header-ifdef.py
 
-test-wrap-argv:
+sc_test-wrap-argv:
 	$(AM_V_GEN)$(VC_LIST) | $(GREP) -E '\.(ldargs|args)' | $(RUNUTF8) xargs \
 	$(PYTHON) $(top_srcdir)/scripts/test-wrap-argv.py --check
 
-group-qemu-caps:
+sc_group-qemu-caps:
 	$(AM_V_GEN)$(RUNUTF8) $(PYTHON) $(top_srcdir)/scripts/group-qemu-caps.py \
 		--check --prefix $(top_srcdir)/
 
@@ -1992,12 +1889,6 @@ exclude_file_name_regexp--sc_po_check = ^(docs/|src/rpc/gendispatch\.pl$$|tests/
 
 exclude_file_name_regexp--sc_prohibit_VIR_ERR_NO_MEMORY = \
   ^(build-aux/syntax-check\.mk|include/libvirt/virterror\.h|src/remote/remote_daemon_dispatch\.c|src/util/virerror\.c|docs/internals/oomtesting\.html\.in)$$
-
-exclude_file_name_regexp--sc_makefile_TAB_only_indentation = \
-  ^build-aux/syntax-check\.mk$$
-
-exclude_file_name_regexp--sc_makefile_at_at_check = \
-  ^build-aux/syntax-check\.mk$$
 
 exclude_file_name_regexp--sc_prohibit_PATH_MAX = \
 	^build-aux/syntax-check\.mk$$
@@ -2076,8 +1967,6 @@ exclude_file_name_regexp--sc_size_of_brackets = build-aux/syntax-check\.mk
 exclude_file_name_regexp--sc_correct_id_types = \
   (^src/locking/lock_protocol.x$$)
 
-exclude_file_name_regexp--sc_m4_quote_check = m4/virt-lib.m4
-
 exclude_file_name_regexp--sc_prohibit_include_public_headers_quote = \
   ^(src/internal\.h$$|tools/wireshark/src/packet-libvirt.c$$)
 
@@ -2128,3 +2017,6 @@ exclude_file_name_regexp--sc_prohibit_backslash_alignment = \
 
 exclude_file_name_regexp--sc_prohibit_select = \
   ^build-aux/syntax-check\.mk|src/util/vireventglibwatch\.c$$
+
+exclude_file_name_regexp--sc_prohibit_config_h_in_headers = \
+  ^config\.h$$

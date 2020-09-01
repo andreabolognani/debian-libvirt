@@ -85,6 +85,7 @@ typedef enum {
     VIR_DOMAIN_DEVICE_MEMORY,
     VIR_DOMAIN_DEVICE_IOMMU,
     VIR_DOMAIN_DEVICE_VSOCK,
+    VIR_DOMAIN_DEVICE_AUDIO,
 
     VIR_DOMAIN_DEVICE_LAST
 } virDomainDeviceType;
@@ -116,6 +117,7 @@ struct _virDomainDeviceDef {
         virDomainMemoryDefPtr memory;
         virDomainIOMMUDefPtr iommu;
         virDomainVsockDefPtr vsock;
+        virDomainAudioDefPtr audio;
     } data;
 };
 
@@ -1401,6 +1403,7 @@ typedef enum {
     VIR_DOMAIN_SOUND_MODEL_ICH6,
     VIR_DOMAIN_SOUND_MODEL_ICH9,
     VIR_DOMAIN_SOUND_MODEL_USB,
+    VIR_DOMAIN_SOUND_MODEL_ICH7,
 
     VIR_DOMAIN_SOUND_MODEL_LAST
 } virDomainSoundModel;
@@ -1416,6 +1419,27 @@ struct _virDomainSoundDef {
 
     size_t ncodecs;
     virDomainSoundCodecDefPtr *codecs;
+
+    unsigned int audioId;
+};
+
+typedef enum {
+    VIR_DOMAIN_AUDIO_TYPE_OSS,
+
+    VIR_DOMAIN_AUDIO_TYPE_LAST
+} virDomainAudioType;
+
+struct _virDomainAudioDef {
+    int type;
+
+    unsigned int id;
+
+    union {
+        struct {
+            char *inputDev;
+            char *outputDev;
+        } oss;
+    } backend;
 };
 
 typedef enum {
@@ -1772,10 +1796,19 @@ typedef enum {
     VIR_DOMAIN_SHMEM_MODEL_LAST
 } virDomainShmemModel;
 
+typedef enum {
+    VIR_DOMAIN_SHMEM_ROLE_DEFAULT,
+    VIR_DOMAIN_SHMEM_ROLE_MASTER,
+    VIR_DOMAIN_SHMEM_ROLE_PEER,
+
+    VIR_DOMAIN_SHMEM_ROLE_LAST
+} virDomainShmemRole;
+
 struct _virDomainShmemDef {
     char *name;
     unsigned long long size;
     int model; /* enum virDomainShmemModel */
+    int role; /* enum virDomainShmemRole */
     struct {
         bool enabled;
         virDomainChrSourceDef chr;
@@ -2592,6 +2625,9 @@ struct _virDomainDef {
     size_t nsounds;
     virDomainSoundDefPtr *sounds;
 
+    size_t naudios;
+    virDomainAudioDefPtr *audios;
+
     size_t nvideos;
     virDomainVideoDefPtr *videos;
 
@@ -3022,6 +3058,7 @@ ssize_t virDomainSoundDefFind(const virDomainDef *def,
                               const virDomainSoundDef *sound);
 void virDomainSoundDefFree(virDomainSoundDefPtr def);
 virDomainSoundDefPtr virDomainSoundDefRemove(virDomainDefPtr def, size_t idx);
+void virDomainAudioDefFree(virDomainAudioDefPtr def);
 void virDomainMemballoonDefFree(virDomainMemballoonDefPtr def);
 void virDomainNVRAMDefFree(virDomainNVRAMDefPtr def);
 void virDomainWatchdogDefFree(virDomainWatchdogDefPtr def);
@@ -3581,6 +3618,7 @@ VIR_ENUM_DECL(virDomainChrTcpProtocol);
 VIR_ENUM_DECL(virDomainChrSpicevmc);
 VIR_ENUM_DECL(virDomainSoundCodec);
 VIR_ENUM_DECL(virDomainSoundModel);
+VIR_ENUM_DECL(virDomainAudioType);
 VIR_ENUM_DECL(virDomainKeyWrapCipherName);
 VIR_ENUM_DECL(virDomainMemballoonModel);
 VIR_ENUM_DECL(virDomainSmbiosMode);
@@ -3625,6 +3663,7 @@ VIR_ENUM_DECL(virDomainMemoryAllocation);
 VIR_ENUM_DECL(virDomainIOMMUModel);
 VIR_ENUM_DECL(virDomainVsockModel);
 VIR_ENUM_DECL(virDomainShmemModel);
+VIR_ENUM_DECL(virDomainShmemRole);
 VIR_ENUM_DECL(virDomainLaunchSecurity);
 /* from libvirt.h */
 VIR_ENUM_DECL(virDomainState);
@@ -3672,6 +3711,10 @@ int virDomainDefFindDevice(virDomainDefPtr def,
                            const char *devAlias,
                            virDomainDeviceDefPtr dev,
                            bool reportError);
+
+virDomainAudioDefPtr
+virDomainDefFindAudioForSound(virDomainDefPtr def,
+                              virDomainSoundDefPtr sound);
 
 const char *virDomainChrSourceDefGetPath(virDomainChrSourceDefPtr chr);
 
@@ -3731,9 +3774,9 @@ int virDomainDefGetVcpuPinInfoHelper(virDomainDefPtr def,
                                      int maplen,
                                      int ncpumaps,
                                      unsigned char *cpumaps,
-                                     int hostcpus,
+                                     virBitmapPtr hostcpus,
                                      virBitmapPtr autoCpuset)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4) G_GNUC_WARN_UNUSED_RESULT;
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5) G_GNUC_WARN_UNUSED_RESULT;
 
 bool virDomainDefHasMemballoon(const virDomainDef *def) ATTRIBUTE_NONNULL(1);
 

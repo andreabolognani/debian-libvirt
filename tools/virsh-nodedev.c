@@ -22,7 +22,6 @@
 #include "virsh-nodedev.h"
 
 #include "internal.h"
-#include "virbuffer.h"
 #include "viralloc.h"
 #include "virfile.h"
 #include "virstring.h"
@@ -154,7 +153,7 @@ cmdNodeDeviceDestroy(vshControl *ctl, const vshCmd *cmd)
 
     ret = true;
  cleanup:
-    virStringListFree(arr);
+    g_strfreev(arr);
     if (dev)
         virNodeDeviceFree(dev);
     return ret;
@@ -286,6 +285,7 @@ virshNodeDeviceListCollect(vshControl *ctl,
         char **caps = NULL;
         int ncaps = 0;
         bool match = false;
+        size_t j, k;
 
         device = list->devices[i];
 
@@ -306,7 +306,6 @@ virshNodeDeviceListCollect(vshControl *ctl,
         /* Check if the device's capability matches with provided
          * capabilities.
          */
-        size_t j, k;
         for (j = 0; j < ncaps; j++) {
             for (k = 0; k < ncapnames; k++) {
                 if (STREQ(caps[j], capnames[k])) {
@@ -508,7 +507,7 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     }
 
  cleanup:
-    virStringListFree(caps);
+    g_strfreev(caps);
     virshNodeDeviceListFree(list);
     return ret;
 }
@@ -578,7 +577,7 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
 
     ret = true;
  cleanup:
-    virStringListFree(arr);
+    g_strfreev(arr);
     VIR_FREE(xml);
     if (device)
         virNodeDeviceFree(device);

@@ -91,15 +91,6 @@ struct _qemuDomainUnpluggingDevice {
 #define QEMU_DEVICE_MAPPER_CONTROL_PATH "/dev/mapper/control"
 
 
-typedef enum {
-    QEMU_DOMAIN_NS_MOUNT = 0,
-    QEMU_DOMAIN_NS_LAST
-} qemuDomainNamespace;
-VIR_ENUM_DECL(qemuDomainNamespace);
-
-bool qemuDomainNamespaceEnabled(virDomainObjPtr vm,
-                                qemuDomainNamespace ns);
-
 /* Type of domain secret */
 typedef enum {
     VIR_DOMAIN_SECRET_INFO_TYPE_PLAIN = 0,
@@ -760,9 +751,11 @@ bool qemuDomainDiskBlockJobIsActive(virDomainDiskDefPtr disk);
 bool qemuDomainHasBlockjob(virDomainObjPtr vm, bool copy_only)
     ATTRIBUTE_NONNULL(1);
 
+unsigned long long qemuDomainGetMemorySizeAlignment(const virDomainDef *def);
+
 int qemuDomainAlignMemorySizes(virDomainDefPtr def);
-int qemuDomainMemoryDeviceAlignSize(virDomainDefPtr def,
-                                    virDomainMemoryDefPtr mem);
+void qemuDomainMemoryDeviceAlignSize(virDomainDefPtr def,
+                                     virDomainMemoryDefPtr mem);
 
 virDomainChrDefPtr qemuFindAgentConfig(virDomainDefPtr def);
 
@@ -919,54 +912,6 @@ int qemuDomainGetHostdevPath(virDomainHostdevDefPtr dev,
                              char **path,
                              int *perms);
 
-int qemuDomainBuildNamespace(virQEMUDriverConfigPtr cfg,
-                             virSecurityManagerPtr mgr,
-                             virDomainObjPtr vm);
-
-int qemuDomainCreateNamespace(virQEMUDriverPtr driver,
-                              virDomainObjPtr vm);
-
-void qemuDomainDestroyNamespace(virQEMUDriverPtr driver,
-                                virDomainObjPtr vm);
-
-bool qemuDomainNamespaceAvailable(qemuDomainNamespace ns);
-
-int qemuDomainNamespaceSetupDisk(virDomainObjPtr vm,
-                                 virStorageSourcePtr src);
-
-int qemuDomainNamespaceTeardownDisk(virDomainObjPtr vm,
-                                    virStorageSourcePtr src);
-
-int qemuDomainNamespaceSetupHostdev(virDomainObjPtr vm,
-                                    virDomainHostdevDefPtr hostdev);
-
-int qemuDomainNamespaceTeardownHostdev(virDomainObjPtr vm,
-                                       virDomainHostdevDefPtr hostdev);
-
-int qemuDomainNamespaceSetupMemory(virDomainObjPtr vm,
-                                   virDomainMemoryDefPtr memory);
-
-int qemuDomainNamespaceTeardownMemory(virDomainObjPtr vm,
-                                      virDomainMemoryDefPtr memory);
-
-int qemuDomainNamespaceSetupChardev(virDomainObjPtr vm,
-                                    virDomainChrDefPtr chr);
-
-int qemuDomainNamespaceTeardownChardev(virDomainObjPtr vm,
-                                       virDomainChrDefPtr chr);
-
-int qemuDomainNamespaceSetupRNG(virDomainObjPtr vm,
-                                virDomainRNGDefPtr rng);
-
-int qemuDomainNamespaceTeardownRNG(virDomainObjPtr vm,
-                                   virDomainRNGDefPtr rng);
-
-int qemuDomainNamespaceSetupInput(virDomainObjPtr vm,
-                                  virDomainInputDefPtr input);
-
-int qemuDomainNamespaceTeardownInput(virDomainObjPtr vm,
-                                     virDomainInputDefPtr input);
-
 virDomainDiskDefPtr qemuDomainDiskLookupByNodename(virDomainDefPtr def,
                                                    const char *nodename,
                                                    virStorageSourcePtr *src);
@@ -1074,3 +1019,27 @@ qemuDomainDiskBlockJobIsSupported(virDomainObjPtr vm,
 int
 qemuDomainDefNumaCPUsRectify(virDomainDefPtr def,
                              virQEMUCapsPtr qemuCaps);
+
+void qemuDomainRemoveInactiveJob(virQEMUDriverPtr driver,
+                                 virDomainObjPtr vm);
+
+void qemuDomainRemoveInactiveJobLocked(virQEMUDriverPtr driver,
+                                       virDomainObjPtr vm);
+
+int virQEMUFileOpenAs(uid_t fallback_uid,
+                      gid_t fallback_gid,
+                      bool dynamicOwnership,
+                      const char *path,
+                      int oflags,
+                      bool *needUnlink);
+
+int
+qemuDomainOpenFile(virQEMUDriverPtr driver,
+                   virDomainObjPtr vm,
+                   const char *path,
+                   int oflags,
+                   bool *needUnlink);
+
+int
+qemuDomainFileWrapperFDClose(virDomainObjPtr vm,
+                             virFileWrapperFdPtr fd);
