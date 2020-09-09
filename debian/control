@@ -8,7 +8,7 @@ Uploaders:
 Build-Depends:
  augeas-tools,
  bash-completion,
- debhelper-compat (= 12),
+ debhelper-compat (= 13),
  dh-apparmor [linux-any],
  dnsmasq-base,
  iptables (>= 1.8.1) [linux-any],
