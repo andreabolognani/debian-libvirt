@@ -1,0 +1,26 @@
+From: Pavel Hrdina <phrdina@redhat.com>
+Date: Tue, 8 Sep 2020 15:45:11 +0200
+Subject: src/storage/meson: fix vir_storage_file_gluster module dependencies
+
+The correct key for dependencies for virt_modules hash is `deps`.
+
+Signed-off-by: Pavel Hrdina <phrdina@redhat.com>
+Reviewed-by: Peter Krempa <pkrempa@redhat.com>
+(cherry picked from commit a490693367ea903542a5200214b87430772b27db)
+---
+ src/storage/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/storage/meson.build b/src/storage/meson.build
+index 18ea0f3..b4cefe9 100644
+--- a/src/storage/meson.build
++++ b/src/storage/meson.build
+@@ -187,7 +187,7 @@ if conf.has('WITH_STORAGE_GLUSTER')
+     'sources': [
+       files(storage_file_gluster_sources),
+     ],
+-    'dependenciec': [
++    'deps': [
+       glusterfs_dep,
+     ],
+     'install_dir': storage_file_install_dir,
