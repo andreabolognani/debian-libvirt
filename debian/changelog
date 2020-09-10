@@ -1,3 +1,11 @@
+libvirt (6.7.0-2) experimental; urgency=medium
+
+  * [7b7ff73] patches: Add backport/[...]gluster-module-dep.patch
+  * [a9cc391] debhelper: Use compat level 13
+  * [b327f9a] rules: Increase timeout for tests to 15m
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 10 Sep 2020 18:29:25 +0200
+
 libvirt (6.7.0-1) experimental; urgency=medium
 
   * Team upload
