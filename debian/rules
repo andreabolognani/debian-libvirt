@@ -269,3 +269,10 @@ override_dh_auto_clean:
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlogd.default \
 	      $(CURDIR)/debian/libvirt-daemon-system.virtlockd.default \
 	      $(NULL)
+
+# dh_missing can't figure out that some files are skipped on purpose due
+# to the conditionals above, so let's make the error non-fatal for -indep
+# builds. -arch builds don't need this because we sync whether each feature
+# is enabled and whether the corresponding files are installed
+override_dh_missing-indep:
+	dh_missing --list-missing
