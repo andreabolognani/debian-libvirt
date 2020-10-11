@@ -1,3 +1,12 @@
+libvirt (6.7.0-3) experimental; urgency=medium
+
+  * Team upload
+
+  * [2a7b4f4] rules: Decrease timeout for tests to 5m
+  * [6337ea2] rules: Make dh_missing errors non-fatal for -indep builds
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 11 Oct 2020 16:29:18 +0200
+
 libvirt (6.7.0-2) experimental; urgency=medium
 
   * [7b7ff73] patches: Add backport/[...]gluster-module-dep.patch
