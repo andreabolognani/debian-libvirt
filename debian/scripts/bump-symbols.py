@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 # Bump symbol versions of libvirt0
 
@@ -19,7 +19,7 @@ symbols = open(symbols_file)
 symbols_new = open('%s.new' % symbols_file, 'w+')
 
 if len(sys.argv) != 2:
-    print >>sys.stderr, "Need a version"
+    print("Need a version", file=sys.stderr)
     sys.exit(1)
 
 version = sys.argv[1]
