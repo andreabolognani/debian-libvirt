@@ -1146,6 +1146,8 @@ cmdPoolList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     inactive = vshCommandOptBool(cmd, "inactive");
     all = vshCommandOptBool(cmd, "all");
 
+    VSH_EXCLUSIVE_OPTIONS_VAR(all, inactive);
+
     if (inactive)
         flags = VIR_CONNECT_LIST_STORAGE_POOLS_INACTIVE;
 
@@ -1581,7 +1583,6 @@ cmdPoolInfo(vshControl *ctl, const vshCmd *cmd)
     virStoragePoolInfo info;
     virStoragePoolPtr pool;
     int autostart = 0;
-    int persistent = 0;
     bool ret = true;
     bool bytes = false;
     char uuid[VIR_UUID_STRING_BUFLEN];
@@ -1599,6 +1600,8 @@ cmdPoolInfo(vshControl *ctl, const vshCmd *cmd)
     if (virStoragePoolGetInfo(pool, &info) == 0) {
         double val;
         const char *unit;
+        int persistent;
+
         vshPrint(ctl, "%-15s %s\n", _("State:"),
                  virshStoragePoolStateToString(info.state));
 

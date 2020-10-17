@@ -42,6 +42,7 @@ virNetClientSendStream;
 virNetClientSendWithReply;
 virNetClientSetCloseCallback;
 virNetClientSetTLSSession;
+virNetClientSSHHelperCommand;
 
 
 # rpc/virnetclientprogram.h
@@ -75,7 +76,6 @@ virNetDaemonAddServer;
 virNetDaemonAddShutdownInhibition;
 virNetDaemonAddSignalHandler;
 virNetDaemonAutoShutdown;
-virNetDaemonClose;
 virNetDaemonGetServer;
 virNetDaemonGetServers;
 virNetDaemonHasClients;
@@ -87,6 +87,7 @@ virNetDaemonPreExecRestart;
 virNetDaemonQuit;
 virNetDaemonRemoveShutdownInhibition;
 virNetDaemonRun;
+virNetDaemonSetShutdownCallbacks;
 virNetDaemonUpdateServices;
 
 

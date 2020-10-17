@@ -49,13 +49,13 @@
 /* The library itself needs to know enum sizes.  */
 #define VIR_ENUM_SENTINELS
 
-#ifdef HAVE_LIBINTL_H
+#ifdef WITH_LIBINTL_H
 # define DEFAULT_TEXT_DOMAIN PACKAGE
 # include <libintl.h>
 # define _(str) dgettext(PACKAGE, str)
-#else /* HAVE_LIBINTL_H */
+#else /* WITH_LIBINTL_H */
 # define _(str) str
-#endif /* HAVE_LIBINTL_H */
+#endif /* WITH_LIBINTL_H */
 #define N_(str) str
 
 #include "libvirt/libvirt.h"
@@ -128,7 +128,7 @@
  * whether a parameter is nonnull.  Make this attribute conditional
  * based on whether we are compiling for real or for analysis, while
  * still requiring correct gcc syntax when it is turned off.  See also
- * http://gcc.gnu.org/bugzilla/show_bug.cgi?id=17308 */
+ * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=17308 */
 #ifndef ATTRIBUTE_NONNULL
 # if STATIC_ANALYSIS
 #  define ATTRIBUTE_NONNULL(m) __attribute__((__nonnull__(m)))
@@ -165,7 +165,7 @@
     _Pragma ("GCC diagnostic push") \
     _Pragma ("GCC diagnostic ignored \"-Wpointer-sign\"")
 
-#if HAVE_SUGGEST_ATTRIBUTE_FORMAT
+#if WITH_SUGGEST_ATTRIBUTE_FORMAT
 # define VIR_WARNINGS_NO_PRINTF \
     _Pragma ("GCC diagnostic push") \
     _Pragma ("GCC diagnostic ignored \"-Wsuggest-attribute=format\"")

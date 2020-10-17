@@ -1090,6 +1090,36 @@ qemuStateStop(void)
     return ret;
 }
 
+
+static int
+qemuStateShutdownPrepare(void)
+{
+    virThreadPoolStop(qemu_driver->workerPool);
+    return 0;
+}
+
+
+static int
+qemuDomainObjStopWorkerIter(virDomainObjPtr vm,
+                            void *opaque G_GNUC_UNUSED)
+{
+    virObjectLock(vm);
+    qemuDomainObjStopWorker(vm);
+    virObjectUnlock(vm);
+    return 0;
+}
+
+
+static int
+qemuStateShutdownWait(void)
+{
+    virDomainObjListForEach(qemu_driver->domains, false,
+                            qemuDomainObjStopWorkerIter, NULL);
+    virThreadPoolDrain(qemu_driver->workerPool);
+    return 0;
+}
+
+
 /**
  * qemuStateCleanup:
  *
@@ -4529,7 +4559,8 @@ qemuDomainPinVcpuLive(virDomainObjPtr vm,
                 goto cleanup;
         }
 
-        if (virProcessSetAffinity(qemuDomainGetVcpuPid(vm, vcpu), cpumap) < 0)
+        if (virProcessSetAffinity(qemuDomainGetVcpuPid(vm, vcpu),
+                                  cpumap, false) < 0)
             goto cleanup;
     }
 
@@ -4747,7 +4778,7 @@ qemuDomainPinEmulator(virDomainPtr dom,
             }
         }
 
-        if (virProcessSetAffinity(vm->pid, pcpumap) < 0)
+        if (virProcessSetAffinity(vm->pid, pcpumap, false) < 0)
             goto endjob;
 
         virBitmapFree(def->cputune.emulatorpin);
@@ -5222,7 +5253,7 @@ qemuDomainPinIOThread(virDomainPtr dom,
             }
         }
 
-        if (virProcessSetAffinity(iothrid->thread_id, pcpumap) < 0)
+        if (virProcessSetAffinity(iothrid->thread_id, pcpumap, false) < 0)
             goto endjob;
 
         if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
@@ -9078,6 +9109,7 @@ qemuDomainGetPerfEvents(virDomainPtr dom,
     int npar = 0;
     size_t i;
     int ret = -1;
+    bool live = false;
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
                   VIR_DOMAIN_AFFECT_CONFIG |
@@ -9092,7 +9124,7 @@ qemuDomainGetPerfEvents(virDomainPtr dom,
     if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_QUERY) < 0)
         goto cleanup;
 
-    if (!(def = virDomainObjGetOneDef(vm, flags)))
+    if (!(def = virDomainObjGetOneDefState(vm, flags, &live)))
         goto endjob;
 
     priv = vm->privateData;
@@ -9100,7 +9132,7 @@ qemuDomainGetPerfEvents(virDomainPtr dom,
     for (i = 0; i < VIR_PERF_EVENT_LAST; i++) {
         bool perf_enabled;
 
-        if (flags & VIR_DOMAIN_AFFECT_CONFIG)
+        if ((flags & VIR_DOMAIN_AFFECT_CONFIG) || !live)
             perf_enabled = def->perf.events[i] == VIR_TRISTATE_BOOL_YES;
         else
             perf_enabled = virPerfEventIsEnabled(priv->perf, i);
@@ -11233,7 +11265,7 @@ qemuDomainMigratePrepare2(virConnectPtr dconn,
     ret = qemuMigrationDstPrepareDirect(driver, dconn,
                                         NULL, 0, NULL, NULL, /* No cookies */
                                         uri_in, uri_out,
-                                        &def, origname, NULL, 0, NULL, 0,
+                                        &def, origname, NULL, 0, NULL, 0, NULL,
                                         migParams, flags);
 
  cleanup:
@@ -11289,6 +11321,7 @@ qemuDomainMigratePerform(virDomainPtr dom,
      */
     ret = qemuMigrationSrcPerform(driver, dom->conn, vm, NULL,
                                   NULL, dconnuri, uri, NULL, NULL, 0, NULL, 0,
+                                  NULL,
                                   migParams, cookie, cookielen,
                                   NULL, NULL, /* No output cookies in v2 */
                                   flags, dname, resource, false);
@@ -11459,7 +11492,7 @@ qemuDomainMigratePrepare3(virConnectPtr dconn,
                                          cookieout, cookieoutlen,
                                          uri_in, uri_out,
                                          &def, origname, NULL, 0, NULL, 0,
-                                         migParams, flags);
+                                         NULL, migParams, flags);
 }
 
 static int
@@ -11479,12 +11512,13 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
     const char *dom_xml = NULL;
     const char *dname = NULL;
     const char *uri_in = NULL;
-    const char *listenAddress = cfg->migrationAddress;
+    const char *listenAddress = NULL;
     int nbdPort = 0;
     int nmigrate_disks;
     g_autofree const char **migrate_disks = NULL;
     g_autofree char *origname = NULL;
     g_autoptr(qemuMigrationParams) migParams = NULL;
+    const char *nbdURI = NULL;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
     if (virTypedParamsValidate(params, nparams, QEMU_MIGRATION_PARAMETERS) < 0)
@@ -11502,6 +11536,9 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
         virTypedParamsGetString(params, nparams,
                                 VIR_MIGRATE_PARAM_LISTEN_ADDRESS,
                                 &listenAddress) < 0 ||
+        virTypedParamsGetString(params, nparams,
+                                VIR_MIGRATE_PARAM_DISKS_URI,
+                                &nbdURI) < 0 ||
         virTypedParamsGetInt(params, nparams,
                              VIR_MIGRATE_PARAM_DISKS_PORT,
                              &nbdPort) < 0)
@@ -11517,6 +11554,24 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
     if (!(migParams = qemuMigrationParamsFromFlags(params, nparams, flags,
                                                    QEMU_MIGRATION_DESTINATION)))
         return -1;
+
+    if (nbdURI && nbdPort) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Both port and URI requested for disk migration "
+                         "while being mutually exclusive"));
+        return -1;
+    }
+
+    if (listenAddress) {
+        if (uri_in && STRPREFIX(uri_in, "unix:")) {
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                           _("Usage of listen-address is forbidden when "
+                             "migration URI uses UNIX transport method"));
+            return -1;
+        }
+    } else {
+        listenAddress = cfg->migrationAddress;
+    }
 
     if (flags & VIR_MIGRATE_TUNNELLED) {
         /* this is a logical error; we never should have gotten here with
@@ -11540,7 +11595,7 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
                                          uri_in, uri_out,
                                          &def, origname, listenAddress,
                                          nmigrate_disks, migrate_disks, nbdPort,
-                                         migParams, flags);
+                                         nbdURI, migParams, flags);
 }
 
 
@@ -11682,7 +11737,7 @@ qemuDomainMigratePerform3(virDomainPtr dom,
 
     ret = qemuMigrationSrcPerform(driver, dom->conn, vm, xmlin, NULL,
                                   dconnuri, uri, NULL, NULL, 0, NULL, 0,
-                                  migParams,
+                                  NULL, migParams,
                                   cookiein, cookieinlen,
                                   cookieout, cookieoutlen,
                                   flags, dname, resource, true);
@@ -11716,6 +11771,7 @@ qemuDomainMigratePerform3Params(virDomainPtr dom,
     unsigned long long bandwidth = 0;
     int nbdPort = 0;
     g_autoptr(qemuMigrationParams) migParams = NULL;
+    const char *nbdURI = NULL;
     int ret = -1;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
@@ -11744,9 +11800,28 @@ qemuDomainMigratePerform3Params(virDomainPtr dom,
                              VIR_MIGRATE_PARAM_DISKS_PORT,
                              &nbdPort) < 0 ||
         virTypedParamsGetString(params, nparams,
+                                VIR_MIGRATE_PARAM_DISKS_URI,
+                                &nbdURI) < 0 ||
+        virTypedParamsGetString(params, nparams,
                                 VIR_MIGRATE_PARAM_PERSIST_XML,
                                 &persist_xml) < 0)
         goto cleanup;
+
+    if (nbdURI && nbdPort) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Both port and URI requested for disk migration "
+                         "while being mutually exclusive"));
+        goto cleanup;
+    }
+
+    if (listenAddress) {
+        if (uri && STRPREFIX(uri, "unix:")) {
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                           _("Usage of listen-address is forbidden when "
+                             "migration URI uses UNIX transport method"));
+            return -1;
+        }
+    }
 
     nmigrate_disks = virTypedParamsGetStringList(params, nparams,
                                                  VIR_MIGRATE_PARAM_MIGRATE_DISKS,
@@ -11768,7 +11843,7 @@ qemuDomainMigratePerform3Params(virDomainPtr dom,
     ret = qemuMigrationSrcPerform(driver, dom->conn, vm, dom_xml, persist_xml,
                                   dconnuri, uri, graphicsuri, listenAddress,
                                   nmigrate_disks, migrate_disks, nbdPort,
-                                  migParams,
+                                  nbdURI, migParams,
                                   cookiein, cookieinlen, cookieout, cookieoutlen,
                                   flags, dname, bandwidth, true);
  cleanup:
@@ -12261,6 +12336,15 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
         if (virCPUDefParseXMLString(xmlCPU, VIR_CPU_TYPE_AUTO, &cpu) < 0)
             goto cleanup;
 
+        if (!cpu->model) {
+            if (cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH) {
+                cpu->model = g_strdup("host");
+            } else {
+                virReportError(VIR_ERR_INVALID_ARG, "%s",
+                               _("cpu parameter is missing a model name"));
+                goto cleanup;
+            }
+        }
         ret = qemuConnectCPUModelComparison(qemuCaps, cfg->libDir,
                                             cfg->user, cfg->group,
                                             hvCPU, cpu, failIncompatible);
@@ -14820,10 +14904,8 @@ qemuDomainBlockCopyCommonValidateUserMirrorBackingStore(virStorageSourcePtr mirr
 {
     if (!virStorageSourceHasBacking(mirror)) {
         /* for deep copy there won't be backing chain so we can terminate it */
-        if (!mirror->backingStore &&
-            !shallow &&
-            !(mirror->backingStore = virStorageSourceNew()))
-            return -1;
+        if (!mirror->backingStore && !shallow)
+            mirror->backingStore = virStorageSourceNew();
 
         /* When reusing an external image we document that the user must ensure
          * that the <mirror> image must expose data as the original image did
@@ -15074,9 +15156,6 @@ qemuDomainBlockCopyCommon(virDomainObjPtr vm,
             if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY)) {
                 g_autoptr(virStorageSource) terminator = virStorageSourceNew();
 
-                if (!terminator)
-                    goto endjob;
-
                 if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdevTop(mirror,
                                                                                  terminator,
                                                                                  priv->qemuCaps)))
@@ -15221,10 +15300,11 @@ qemuDomainBlockRebase(virDomainPtr dom, const char *path, const char *base,
         return qemuDomainBlockPullCommon(vm, path, base, bandwidth, flags);
 
     /* If we got here, we are doing a block copy rebase. */
-    if (!(dest = virStorageSourceNew()))
-        goto cleanup;
-    dest->type = (flags & VIR_DOMAIN_BLOCK_REBASE_COPY_DEV) ?
-        VIR_STORAGE_TYPE_BLOCK : VIR_STORAGE_TYPE_FILE;
+    dest = virStorageSourceNew();
+    if (flags & VIR_DOMAIN_BLOCK_REBASE_COPY_DEV)
+        dest->type = VIR_STORAGE_TYPE_BLOCK;
+    else
+        dest->type = VIR_STORAGE_TYPE_FILE;
     dest->path = g_strdup(base);
     if (flags & VIR_DOMAIN_BLOCK_REBASE_COPY_RAW)
         dest->format = VIR_STORAGE_FILE_RAW;
@@ -16696,7 +16776,7 @@ qemuDomainPMSuspendAgent(virQEMUDriverPtr driver,
     if (qemuDomainObjBeginAgentJob(driver, vm, QEMU_AGENT_JOB_MODIFY) < 0)
         return -1;
 
-    if ((ret = virDomainObjCheckActive(vm)) < 0)
+    if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
     if (!qemuDomainAgentAvailable(vm, true))
@@ -16744,6 +16824,9 @@ qemuDomainPMSuspendForDuration(virDomainPtr dom,
         goto cleanup;
 
     if (virDomainPMSuspendForDurationEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (!qemuDomainAgentAvailable(vm, true))
         goto cleanup;
 
     /*
@@ -18812,14 +18895,17 @@ qemuAgentFSInfoToPublic(qemuAgentFSInfoPtr agent,
         qemuAgentDiskInfoPtr agentdisk = agent->disks[i];
         virDomainDiskDefPtr diskDef;
 
-        if (!(diskDef = virDomainDiskByAddress(vmdef,
-                                               &agentdisk->pci_controller,
-                                               agentdisk->bus,
-                                               agentdisk->target,
-                                               agentdisk->unit)))
-            continue;
-
-        ret->devAlias[i] = g_strdup(diskDef->dst);
+        diskDef = virDomainDiskByAddress(vmdef,
+                                         &agentdisk->pci_controller,
+                                         agentdisk->bus,
+                                         agentdisk->target,
+                                         agentdisk->unit);
+        if (diskDef != NULL)
+            ret->devAlias[i] = g_strdup(diskDef->dst);
+        else if (agentdisk->devnode != NULL)
+            ret->devAlias[i] = g_strdup(agentdisk->devnode);
+        else
+            VIR_DEBUG("Missing devnode name for '%s'.", ret->mountpoint);
     }
 
     return ret;
@@ -18918,7 +19004,7 @@ qemuDomainInterfaceAddresses(virDomainPtr dom,
     if (!(vm = qemuDomainObjFromDomain(dom)))
         goto cleanup;
 
-    if (virDomainInterfaceAddressesEnsureACL(dom->conn, vm->def) < 0)
+    if (virDomainInterfaceAddressesEnsureACL(dom->conn, vm->def, source) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -20290,6 +20376,8 @@ static virStateDriver qemuStateDriver = {
     .stateCleanup = qemuStateCleanup,
     .stateReload = qemuStateReload,
     .stateStop = qemuStateStop,
+    .stateShutdownPrepare = qemuStateShutdownPrepare,
+    .stateShutdownWait = qemuStateShutdownWait,
 };
 
 int qemuRegister(void)

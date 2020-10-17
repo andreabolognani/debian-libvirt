@@ -20,7 +20,7 @@
 
 #include <signal.h>
 #include <unistd.h>
-#ifdef HAVE_IFADDRS_H
+#ifdef WITH_IFADDRS_H
 # include <ifaddrs.h>
 #endif
 
@@ -32,12 +32,13 @@
 #include "virstring.h"
 
 #include "rpc/virnetsocket.h"
+#include "rpc/virnetclient.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
 
 VIR_LOG_INIT("tests.netsockettest");
 
-#if HAVE_IFADDRS_H
+#if WITH_IFADDRS_H
 # define BASE_PORT 5672
 
 static int
@@ -205,11 +206,7 @@ testSocketAccept(const void *opaque)
         if (virNetSocketNewListenUNIX(path, 0700, -1, getegid(), &usock) < 0)
             goto cleanup;
 
-        if (VIR_ALLOC_N(lsock, 1) < 0) {
-            virObjectUnref(usock);
-            goto cleanup;
-        }
-
+        lsock = g_new0(virNetSocketPtr, 1);
         lsock[0] = usock;
         nlsock = 1;
 
@@ -468,6 +465,11 @@ static int testSocketSSH(const void *opaque)
     virNetSocketPtr csock = NULL; /* Client socket */
     int ret = -1;
     char buf[1024];
+    g_autofree char *command = virNetClientSSHHelperCommand(VIR_NET_CLIENT_PROXY_AUTO,
+                                                            data->netcat,
+                                                            data->path,
+                                                            "qemu:///session",
+                                                            true);
 
     if (virNetSocketNewConnectSSH(data->nodename,
                                   data->service,
@@ -475,9 +477,8 @@ static int testSocketSSH(const void *opaque)
                                   data->username,
                                   data->noTTY,
                                   data->noVerify,
-                                  data->netcat,
                                   data->keyfile,
-                                  data->path,
+                                  command,
                                   &csock) < 0)
         goto cleanup;
 
@@ -522,7 +523,7 @@ static int
 mymain(void)
 {
     int ret = 0;
-#ifdef HAVE_IFADDRS_H
+#ifdef WITH_IFADDRS_H
     bool hasIPv4, hasIPv6;
     int freePort;
 #endif
@@ -533,7 +534,7 @@ mymain(void)
 
     virEventRegisterDefaultImpl();
 
-#ifdef HAVE_IFADDRS_H
+#ifdef WITH_IFADDRS_H
     if (checkProtocols(&hasIPv4, &hasIPv6, &freePort) < 0) {
         fprintf(stderr, "Cannot identify IPv4/6 availability\n");
         return EXIT_FAILURE;
@@ -576,6 +577,7 @@ mymain(void)
     struct testSSHData sshData1 = {
         .nodename = "somehost",
         .path = "/tmp/socket",
+        .netcat = "nc",
         .expectOut = "-T -e none -- somehost sh -c '"
                      "if 'nc' -q 2>&1 | grep \"requires an argument\" >/dev/null 2>&1; then "
                          "ARG=-q0;"
@@ -636,6 +638,7 @@ mymain(void)
     struct testSSHData sshData5 = {
         .nodename = "crashyhost",
         .path = "/tmp/socket",
+        .netcat = "nc",
         .expectOut = "-T -e none -- crashyhost sh -c "
                      "'if 'nc' -q 2>&1 | grep \"requires an argument\" >/dev/null 2>&1; then "
                          "ARG=-q0;"
@@ -651,6 +654,7 @@ mymain(void)
     struct testSSHData sshData6 = {
         .nodename = "example.com",
         .path = "/tmp/socket",
+        .netcat = "nc",
         .keyfile = "/root/.ssh/example_key",
         .noVerify = true,
         .expectOut = "-i /root/.ssh/example_key -T -e none -o StrictHostKeyChecking=no -- example.com sh -c '"

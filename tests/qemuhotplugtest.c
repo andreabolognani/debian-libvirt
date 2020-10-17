@@ -413,8 +413,7 @@ testQemuHotplugCpuPrepare(const char *test,
 
     prefix = g_strdup_printf("%s/qemuhotplugtestcpus/%s", abs_srcdir, test);
 
-    if (VIR_ALLOC(data) < 0)
-        goto error;
+    data = g_new0(struct testQemuHotplugCpuData, 1);
 
     data->modern = modern;
 
@@ -641,28 +640,28 @@ mymain(void)
     }
 
 
-#define DO_TEST(file, ACTION, dev, fial, kep, ...) \
+#define DO_TEST(file, ACTION, dev, fail_, keep_, ...) \
     do { \
         const char *my_mon[] = { __VA_ARGS__, NULL}; \
         const char *name = file " " #ACTION " " dev; \
         data.action = ACTION; \
         data.domain_filename = file; \
         data.device_filename = dev; \
-        data.fail = fial; \
+        data.fail = fail_; \
         data.mon = my_mon; \
-        data.keep = kep; \
+        data.keep = keep_; \
         if (virTestRun(name, testQemuHotplug, &data) < 0) \
             ret = -1; \
     } while (0)
 
-#define DO_TEST_ATTACH(file, dev, fial, kep, ...) \
-    DO_TEST(file, ATTACH, dev, fial, kep, __VA_ARGS__)
+#define DO_TEST_ATTACH(file, dev, fail, keep, ...) \
+    DO_TEST(file, ATTACH, dev, fail, keep, __VA_ARGS__)
 
-#define DO_TEST_DETACH(file, dev, fial, kep, ...) \
-    DO_TEST(file, DETACH, dev, fial, kep, __VA_ARGS__)
+#define DO_TEST_DETACH(file, dev, fail, keep, ...) \
+    DO_TEST(file, DETACH, dev, fail, keep, __VA_ARGS__)
 
-#define DO_TEST_UPDATE(file, dev, fial, kep, ...) \
-    DO_TEST(file, UPDATE, dev, fial, kep, __VA_ARGS__)
+#define DO_TEST_UPDATE(file, dev, fail, keep, ...) \
+    DO_TEST(file, UPDATE, dev, fail, keep, __VA_ARGS__)
 
 
 #define QMP_OK      "{\"return\": {}}"

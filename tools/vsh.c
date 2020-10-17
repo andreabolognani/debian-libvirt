@@ -30,6 +30,10 @@
 #include <signal.h>
 
 #if WITH_READLINE
+/* In order to have proper rl_message declaration with older
+ * versions of readline, we have to declare this. See 9ea3424a178
+ * for more info. */
+# define HAVE_STDARG_H
 # include <readline/readline.h>
 # include <readline/history.h>
 #endif
@@ -2705,13 +2709,11 @@ vshCompleterFilter(char ***list,
         return -1;
 
     list_len = virStringListLength((const char **) *list);
-
-    if (VIR_ALLOC_N(newList, list_len + 1) < 0)
-        return -1;
+    newList = g_new0(char *, list_len + 1);
 
     for (i = 0; i < list_len; i++) {
         if (!STRPREFIX((*list)[i], text)) {
-            VIR_FREE((*list)[i]);
+            g_clear_pointer(&(*list)[i], g_free);
             continue;
         }
 
@@ -2719,8 +2721,8 @@ vshCompleterFilter(char ***list,
         newList_len++;
     }
 
-    ignore_value(VIR_REALLOC_N_QUIET(newList, newList_len + 1));
-    VIR_FREE(*list);
+    newList = g_renew(char *, newList, newList_len + 1);
+    g_free(*list);
     *list = newList;
     return 0;
 }
@@ -2776,6 +2778,7 @@ vshReadlineParse(const char *text, int state)
         } else {
             if (!opt || (opt->type != VSH_OT_DATA &&
                          opt->type != VSH_OT_STRING &&
+                         opt->type != VSH_OT_INT &&
                          opt->type != VSH_OT_ARGV))
                 list = vshReadlineOptionsGenerator(text, cmd, partial);
 
@@ -2925,6 +2928,12 @@ vshReadline(vshControl *ctl G_GNUC_UNUSED, const char *prompt)
     return readline(prompt);
 }
 
+void
+vshReadlineHistoryAdd(const char *cmd)
+{
+    return add_history(cmd);
+}
+
 #else /* !WITH_READLINE */
 
 static int
@@ -2958,6 +2967,12 @@ vshReadline(vshControl *ctl G_GNUC_UNUSED,
         r[len-1] = '\0';
 
     return g_strdup(r);
+}
+
+void
+vshReadlineHistoryAdd(const char *cmd G_GNUC_UNUSED)
+{
+    /* empty */
 }
 
 #endif /* !WITH_READLINE */

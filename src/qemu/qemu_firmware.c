@@ -434,9 +434,16 @@ qemuFirmwareMappingParse(const char *path,
                          virJSONValuePtr doc,
                          qemuFirmwarePtr fw)
 {
-    virJSONValuePtr mapping = virJSONValueObjectGet(doc, "mapping");
+    virJSONValuePtr mapping;
     const char *deviceStr;
     int tmp;
+
+    if (!(mapping = virJSONValueObjectGet(doc, "mapping"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("missing mapping in '%s'"),
+                       path);
+        return -1;
+    }
 
     if (!(deviceStr = virJSONValueObjectGetString(mapping, "device"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1228,9 +1235,6 @@ qemuFirmwareFillDomain(virQEMUDriverPtr driver,
     size_t i;
     int ret = -1;
 
-    if (!(flags & VIR_QEMU_PROCESS_START_NEW))
-        return 0;
-
     /* Fill in FW paths if either os.firmware is enabled, or
      * loader path was provided with no nvram varstore. */
     if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE) {
@@ -1246,6 +1250,11 @@ qemuFirmwareFillDomain(virQEMUDriverPtr driver,
         /* ... then we want to consult JSON FW descriptors first,
          * but we don't want to fail if we haven't found a match. */
         needResult = false;
+    } else {
+        /* Domain has FW autoselection enabled => do nothing if
+         * we are not starting it from scratch. */
+        if (!(flags & VIR_QEMU_PROCESS_START_NEW))
+            return 0;
     }
 
     if ((nfirmwares = qemuFirmwareFetchParsedConfigs(driver->privileged,

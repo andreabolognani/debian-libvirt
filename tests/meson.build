@@ -57,6 +57,7 @@ mock_libs = [
   { 'name': 'vircgroupmock' },
   { 'name': 'virdeterministichashmock' },
   { 'name': 'virfilecachemock' },
+  { 'name': 'virgdbusmock' },
   { 'name': 'virhostcpumock' },
   { 'name': 'virhostdevmock' },
   { 'name': 'virnetdaemonmock' },
@@ -82,12 +83,6 @@ if conf.has('WITH_BHYVE')
   mock_libs += [
     { 'name': 'bhyveargv2xmlmock' },
     { 'name': 'bhyvexml2argvmock' },
-  ]
-endif
-
-if conf.has('WITH_DBUS')
-  mock_libs += [
-    { 'name': 'virdbusmock', 'deps': [ dbus_dep ] },
   ]
 endif
 
@@ -120,9 +115,13 @@ if conf.has('WITH_SECDRIVER_SELINUX')
 endif
 
 foreach mock : mock_libs
-  shared_module(
+  shared_library(
     mock['name'],
     mock.get('sources', [ '@0@.c'.format(mock['name']) ]),
+    override_options: [
+     'b_asneeded=false',
+     'b_lundef=false',
+    ],
     dependencies: [
       tests_dep,
       mock.get('deps', []),
@@ -309,7 +308,7 @@ tests += [
   { 'name': 'virerrortest' },
   { 'name': 'virfilecachetest' },
   { 'name': 'virfiletest' },
-  { 'name': 'virfirewalltest', 'deps': [ dbus_dep ] },
+  { 'name': 'virfirewalltest' },
   { 'name': 'virhashtest' },
   { 'name': 'virhostcputest', 'link_whole': [ test_file_wrapper_lib ] },
   { 'name': 'virhostdevtest' },
@@ -327,10 +326,12 @@ tests += [
   { 'name': 'virschematest' },
   { 'name': 'virshtest' },
   { 'name': 'virstringtest' },
+  { 'name': 'virsystemdtest' },
   { 'name': 'virtimetest' },
   { 'name': 'virtypedparamtest' },
   { 'name': 'viruritest' },
   { 'name': 'vshtabletest', 'link_with': [ libvirt_shell_lib ] },
+  { 'name': 'virmigtest' },
 ]
 
 if host_machine.system() == 'linux'
@@ -353,22 +354,9 @@ if conf.has('WITH_BHYVE')
   ]
 endif
 
-if conf.has('WITH_DBUS')
-  tests += [
-    { 'name': 'virdbustest', 'deps': [ dbus_dep ] },
-    { 'name': 'virsystemdtest', 'deps': [ dbus_dep ] },
-  ]
-
-  if conf.has('WITH_POLKIT')
-    tests += [
-      { 'name': 'virpolkittest', 'deps': [ dbus_dep ] },
-    ]
-  endif
-endif
-
 if conf.has('WITH_ESX')
   tests += [
-    { 'name': 'esxutilstest', 'include': [ esx_inc_dir ] },
+    { 'name': 'esxutilstest', 'deps': [ esx_dep ] },
   ]
 endif
 
@@ -440,6 +428,12 @@ if conf.has('WITH_OPENVZ')
   ]
 endif
 
+if conf.has('WITH_POLKIT')
+  tests += [
+    { 'name': 'virpolkittest' },
+  ]
+endif
+
 if conf.has('WITH_QEMU')
   tests += [
     { 'name': 'qemuagenttest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
@@ -470,7 +464,7 @@ if conf.has('WITH_REMOTE')
   ]
 
   nettls_sources = [ 'virnettlshelpers.c' ]
-  if conf.has('HAVE_LIBTASN1_H')
+  if conf.has('WITH_LIBTASN1_H')
     nettls_sources += 'pkix_asn1_tab.c'
   endif
 
@@ -483,7 +477,7 @@ if conf.has('WITH_REMOTE')
 endif
 
 if conf.has('WITH_SECDRIVER_SELINUX')
-  if conf.has('WITH_ATTR')
+  if conf.has('WITH_LIBATTR')
     tests += [
       { 'name': 'securityselinuxtest' },
       { 'name': 'viridentitytest' },
@@ -491,7 +485,7 @@ if conf.has('WITH_SECDRIVER_SELINUX')
 
     if conf.has('WITH_QEMU')
       tests += [
-        { 'name': 'securityselinuxlabeltest', 'link_whole': [ test_utils_qemu_lib ] },
+        { 'name': 'securityselinuxlabeltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
       ]
     endif
   endif

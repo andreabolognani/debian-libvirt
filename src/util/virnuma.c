@@ -53,7 +53,7 @@
 VIR_LOG_INIT("util.numa");
 
 
-#if HAVE_NUMAD
+#if WITH_NUMAD
 char *
 virNumaGetAutoPlacementAdvice(unsigned short vcpus,
                               unsigned long long balloon)
@@ -76,7 +76,7 @@ virNumaGetAutoPlacementAdvice(unsigned short vcpus,
 
     return output;
 }
-#else /* !HAVE_NUMAD */
+#else /* !WITH_NUMAD */
 char *
 virNumaGetAutoPlacementAdvice(unsigned short vcpus G_GNUC_UNUSED,
                               unsigned long long balloon G_GNUC_UNUSED)
@@ -85,7 +85,7 @@ virNumaGetAutoPlacementAdvice(unsigned short vcpus G_GNUC_UNUSED,
                    _("numad is not available on this host"));
     return NULL;
 }
-#endif /* !HAVE_NUMAD */
+#endif /* !WITH_NUMAD */
 
 #if WITH_NUMACTL
 int
@@ -260,7 +260,7 @@ virNumaGetNodeCPUs(int node,
 
     *cpus = NULL;
 
-    if (!nodemask_isset(&numa_all_nodes, node)) {
+    if (!virNumaNodeIsAvailable(node)) {
         VIR_DEBUG("NUMA topology for cell %d is not available, ignoring", node);
         return -2;
     }
@@ -316,12 +316,21 @@ virNumaNodesetToCPUset(virBitmapPtr nodeset,
 
     for (i = 0; i < nodesetSize; i++) {
         g_autoptr(virBitmap) nodeCPUs = NULL;
+        int rc;
 
         if (!virBitmapIsBitSet(nodeset, i))
             continue;
 
-        if (virNumaGetNodeCPUs(i, &nodeCPUs) < 0)
+        rc = virNumaGetNodeCPUs(i, &nodeCPUs);
+        if (rc < 0) {
+            /* Error is reported for cases other than non-existent NUMA node. */
+            if (rc == -2) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("NUMA node %zu is not available"),
+                               i);
+            }
             return -1;
+        }
 
         if (virBitmapUnion(allNodesCPUs, nodeCPUs) < 0)
             return -1;
@@ -414,7 +423,7 @@ virNumaGetMaxCPUs(void)
 }
 
 
-#if WITH_NUMACTL && HAVE_NUMA_BITMASK_ISBITSET
+#if WITH_NUMACTL
 /**
  * virNumaNodeIsAvailable:
  * @node: node to check
@@ -484,7 +493,7 @@ virNumaGetDistances(int node,
     return 0;
 }
 
-#else /* !(WITH_NUMACTL && HAVE_NUMA_BITMASK_ISBITSET) */
+#else /* !WITH_NUMACTL */
 
 bool
 virNumaNodeIsAvailable(int node)
@@ -509,7 +518,7 @@ virNumaGetDistances(int node G_GNUC_UNUSED,
     VIR_DEBUG("NUMA distance information isn't available on this host");
     return 0;
 }
-#endif /* !(WITH_NUMACTL && HAVE_NUMA_BITMASK_ISBITSET) */
+#endif /* !WITH_NUMACTL */
 
 
 /* currently all the huge page stuff below is linux only */

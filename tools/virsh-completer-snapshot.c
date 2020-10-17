@@ -52,8 +52,7 @@ virshSnapshotNameCompleter(vshControl *ctl,
         goto cleanup;
     nsnapshots = rc;
 
-    if (VIR_ALLOC_N(tmp, nsnapshots + 1) < 0)
-        goto cleanup;
+    tmp = g_new0(char *, nsnapshots + 1);
 
     for (i = 0; i < nsnapshots; i++) {
         const char *name = virDomainSnapshotGetName(snapshots[i]);
@@ -67,6 +66,6 @@ virshSnapshotNameCompleter(vshControl *ctl,
     virshDomainFree(dom);
     for (i = 0; i < nsnapshots; i++)
         virshDomainSnapshotFree(snapshots[i]);
-    VIR_FREE(snapshots);
+    g_free(snapshots);
     return ret;
 }

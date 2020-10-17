@@ -751,11 +751,9 @@ bool qemuDomainDiskBlockJobIsActive(virDomainDiskDefPtr disk);
 bool qemuDomainHasBlockjob(virDomainObjPtr vm, bool copy_only)
     ATTRIBUTE_NONNULL(1);
 
-unsigned long long qemuDomainGetMemorySizeAlignment(const virDomainDef *def);
-
 int qemuDomainAlignMemorySizes(virDomainDefPtr def);
-void qemuDomainMemoryDeviceAlignSize(virDomainDefPtr def,
-                                     virDomainMemoryDefPtr mem);
+int qemuDomainMemoryDeviceAlignSize(virDomainDefPtr def,
+                                    virDomainMemoryDefPtr mem);
 
 virDomainChrDefPtr qemuFindAgentConfig(virDomainDefPtr def);
 
@@ -850,10 +848,6 @@ qemuDomainSecretInfoTLSNew(qemuDomainObjPrivatePtr priv,
 
 void qemuDomainSecretHostdevDestroy(virDomainHostdevDefPtr disk)
     ATTRIBUTE_NONNULL(1);
-
-int qemuDomainSecretHostdevPrepare(qemuDomainObjPrivatePtr priv,
-                                   virDomainHostdevDefPtr hostdev)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 void qemuDomainSecretChardevDestroy(virDomainChrSourceDefPtr dev)
     ATTRIBUTE_NONNULL(1);
@@ -969,6 +963,10 @@ qemuDomainDiskCachemodeFlags(int cachemode,
                              bool *writeback,
                              bool *direct,
                              bool *noflush);
+
+int
+qemuDomainPrepareHostdev(virDomainHostdevDefPtr hostdev,
+                         qemuDomainObjPrivatePtr priv);
 
 char * qemuDomainGetManagedPRSocketPath(qemuDomainObjPrivatePtr priv);
 

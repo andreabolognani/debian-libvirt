@@ -28,14 +28,14 @@
 #include "vircommand.h"
 #include "viralloc.h"
 
-#if HAVE_GETIFADDRS
+#if WITH_GETIFADDRS
 # include <ifaddrs.h>
 #endif
 
 #ifndef WIN32
 # include <sys/ioctl.h>
 #endif
-#ifdef HAVE_NET_IF_H
+#ifdef WITH_NET_IF_H
 # include <net/if.h>
 #endif
 #include <fcntl.h>
@@ -43,15 +43,16 @@
 #ifdef __linux__
 # include <linux/sockios.h>
 # include <linux/if_vlan.h>
+# include <linux/ipv6_route.h>
 #endif
 
-#define VIR_DAD_WAIT_TIMEOUT 20 /* seconds */
+#define PROC_NET_IPV6_ROUTE "/proc/net/ipv6_route"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 VIR_LOG_INIT("util.netdevip");
 
-#if defined(__linux__) && defined(HAVE_LIBNL)
+#if defined(__linux__) && defined(WITH_LIBNL)
 
 static int
 virNetDevGetIPAddressBinary(virSocketAddr *addr, void **data, size_t *len)
@@ -372,311 +373,7 @@ virNetDevIPRouteAdd(const char *ifname,
 }
 
 
-/* return true if there is a known address with 'tentative' flag set */
-static bool
-virNetDevIPParseDadStatus(struct nlmsghdr *nlh, int len,
-                          virSocketAddrPtr *addrs, size_t count)
-{
-    struct ifaddrmsg *ifaddrmsg_ptr;
-    unsigned int ifaddrmsg_len;
-    struct rtattr *rtattr_ptr;
-    size_t i;
-    struct in6_addr *addr;
-
-    VIR_WARNINGS_NO_CAST_ALIGN
-    for (; NLMSG_OK(nlh, len); nlh = NLMSG_NEXT(nlh, len)) {
-        VIR_WARNINGS_RESET
-        if (NLMSG_PAYLOAD(nlh, 0) < sizeof(struct ifaddrmsg)) {
-            /* Message without payload is the last one. */
-            break;
-        }
-
-        ifaddrmsg_ptr = (struct ifaddrmsg *)NLMSG_DATA(nlh);
-        if (!(ifaddrmsg_ptr->ifa_flags & IFA_F_TENTATIVE)) {
-            /* Not tentative: we are not interested in this entry. */
-            continue;
-        }
-
-        ifaddrmsg_len = IFA_PAYLOAD(nlh);
-        VIR_WARNINGS_NO_CAST_ALIGN
-        rtattr_ptr = (struct rtattr *) IFA_RTA(ifaddrmsg_ptr);
-        for (; RTA_OK(rtattr_ptr, ifaddrmsg_len);
-             rtattr_ptr = RTA_NEXT(rtattr_ptr, ifaddrmsg_len)) {
-            VIR_WARNINGS_RESET
-            if (RTA_PAYLOAD(rtattr_ptr) != sizeof(struct in6_addr)) {
-                /* No address: ignore. */
-                continue;
-            }
-
-            /* We check only known addresses. */
-            for (i = 0; i < count; i++) {
-                addr = &addrs[i]->data.inet6.sin6_addr;
-                if (!memcmp(addr, RTA_DATA(rtattr_ptr),
-                            sizeof(struct in6_addr))) {
-                    /* We found matching tentative address. */
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-
-/* return after DAD finishes for all known IPv6 addresses or an error */
-int
-virNetDevIPWaitDadFinish(virSocketAddrPtr *addrs, size_t count)
-{
-    struct ifaddrmsg ifa;
-    unsigned int recvbuflen;
-    bool dad = true;
-    time_t max_time = time(NULL) + VIR_DAD_WAIT_TIMEOUT;
-    g_autoptr(virNetlinkMsg) nlmsg = NULL;
-
-    if (!(nlmsg = nlmsg_alloc_simple(RTM_GETADDR,
-                                     NLM_F_REQUEST | NLM_F_DUMP))) {
-        virReportOOMError();
-        return -1;
-    }
-
-    memset(&ifa, 0, sizeof(ifa));
-    /* DAD is for IPv6 addresses only. */
-    ifa.ifa_family = AF_INET6;
-    if (nlmsg_append(nlmsg, &ifa, sizeof(ifa), NLMSG_ALIGNTO) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("allocated netlink buffer is too small"));
-        return -1;
-    }
-
-    /* Periodically query netlink until DAD finishes on all known addresses. */
-    while (dad && time(NULL) < max_time) {
-        g_autofree struct nlmsghdr *resp = NULL;
-
-        if (virNetlinkCommand(nlmsg, &resp, &recvbuflen, 0, 0,
-                              NETLINK_ROUTE, 0) < 0)
-            return -1;
-
-        if (virNetlinkGetErrorCode(resp, recvbuflen) < 0) {
-            virReportError(VIR_ERR_SYSTEM_ERROR, "%s",
-                           _("error reading DAD state information"));
-            return -1;
-        }
-
-        /* Parse response. */
-        dad = virNetDevIPParseDadStatus(resp, recvbuflen, addrs, count);
-        if (dad)
-            g_usleep(1000 * 10);
-    }
-    /* Check timeout. */
-    if (dad) {
-        virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Duplicate Address Detection "
-                         "not finished in %d seconds"), VIR_DAD_WAIT_TIMEOUT);
-    } else {
-        return 0;
-    }
-
-    return -1;
-}
-
-static int
-virNetDevIPGetAcceptRA(const char *ifname)
-{
-    g_autofree char *path = NULL;
-    g_autofree char *buf = NULL;
-    char *suffix;
-    int accept_ra = -1;
-
-    path = g_strdup_printf("/proc/sys/net/ipv6/conf/%s/accept_ra",
-                           ifname ? ifname : "all");
-
-    if ((virFileReadAll(path, 512, &buf) < 0) ||
-        (virStrToLong_i(buf, &suffix, 10, &accept_ra) < 0))
-        return -1;
-
-    return accept_ra;
-}
-
-struct virNetDevIPCheckIPv6ForwardingData {
-    bool hasRARoutes;
-
-    /* Devices with conflicting accept_ra */
-    char **devices;
-    size_t ndevices;
-};
-
-
-static int
-virNetDevIPCheckIPv6ForwardingAddIF(struct virNetDevIPCheckIPv6ForwardingData *data,
-                                    char **ifname)
-{
-    size_t i;
-
-    /* add ifname to the array if it's not already there
-     * (ifname is char** so VIR_APPEND_ELEMENT() will move the
-     * original pointer out of the way and avoid having it freed)
-     */
-    for (i = 0; i < data->ndevices; i++) {
-        if (STREQ(data->devices[i], *ifname))
-            return 0;
-    }
-    return VIR_APPEND_ELEMENT(data->devices, data->ndevices, *ifname);
-}
-
-
-static int
-virNetDevIPCheckIPv6ForwardingCallback(struct nlmsghdr *resp,
-                                       void *opaque)
-{
-    struct rtmsg *rtmsg = NLMSG_DATA(resp);
-    struct virNetDevIPCheckIPv6ForwardingData *data = opaque;
-    struct rtattr *rta_attr;
-    int accept_ra = -1;
-    int ifindex = -1;
-    g_autofree char *ifname = NULL;
-
-    /* Ignore messages other than route ones */
-    if (resp->nlmsg_type != RTM_NEWROUTE)
-        return 0;
-
-    /* No need to do anything else for non RA routes */
-    if (rtmsg->rtm_protocol != RTPROT_RA)
-        return 0;
-
-    rta_attr = (struct rtattr *)nlmsg_find_attr(resp, sizeof(struct rtmsg), RTA_OIF);
-    if (rta_attr) {
-        /* This is a single path route, with interface used to reach
-         * nexthop in the RTA_OIF attribute.
-         */
-        ifindex = *(int *)RTA_DATA(rta_attr);
-        ifname = virNetDevGetName(ifindex);
-
-        if (!ifname)
-           return -1;
-
-        accept_ra = virNetDevIPGetAcceptRA(ifname);
-
-        VIR_DEBUG("Checking route for device %s (%d), accept_ra: %d",
-                  ifname, ifindex, accept_ra);
-
-        if (accept_ra != 2 && virNetDevIPCheckIPv6ForwardingAddIF(data, &ifname) < 0)
-            return -1;
-
-        data->hasRARoutes = true;
-        return 0;
-    }
-
-    /* if no RTA_OIF was found, see if this is a multipath route (one
-     * which has an array of nexthops, each with its own interface)
-     */
-
-    rta_attr = (struct rtattr *)nlmsg_find_attr(resp, sizeof(struct rtmsg), RTA_MULTIPATH);
-    if (rta_attr) {
-        /* The data of the attribute is an array of rtnexthop */
-        struct rtnexthop *nh = RTA_DATA(rta_attr);
-        size_t len = RTA_PAYLOAD(rta_attr);
-
-        /* validate the attribute array length */
-        len = MIN(len, ((char *)resp + NLMSG_PAYLOAD(resp, 0) - (char *)rta_attr));
-
-        while (len >= sizeof(*nh) && len >= nh->rtnh_len) {
-            /* check accept_ra for the interface of each nexthop */
-
-            ifname = virNetDevGetName(nh->rtnh_ifindex);
-
-            if (!ifname)
-                return -1;
-
-            accept_ra = virNetDevIPGetAcceptRA(ifname);
-
-            VIR_DEBUG("Checking multipath route nexthop device %s (%d), accept_ra: %d",
-                      ifname, nh->rtnh_ifindex, accept_ra);
-
-            if (accept_ra != 2 && virNetDevIPCheckIPv6ForwardingAddIF(data, &ifname) < 0)
-                return -1;
-
-            VIR_FREE(ifname);
-            data->hasRARoutes = true;
-
-            len -= NLMSG_ALIGN(nh->rtnh_len);
-            VIR_WARNINGS_NO_CAST_ALIGN
-            nh = RTNH_NEXT(nh);
-            VIR_WARNINGS_RESET
-        }
-    }
-
-    return 0;
-}
-
-bool
-virNetDevIPCheckIPv6Forwarding(void)
-{
-    bool valid = false;
-    struct rtgenmsg genmsg;
-    size_t i;
-    struct virNetDevIPCheckIPv6ForwardingData data = {
-        .hasRARoutes = false,
-        .devices = NULL,
-        .ndevices = 0
-    };
-    g_autoptr(virNetlinkMsg) nlmsg = NULL;
-
-
-    /* Prepare the request message */
-    if (!(nlmsg = nlmsg_alloc_simple(RTM_GETROUTE,
-                                     NLM_F_REQUEST | NLM_F_DUMP))) {
-        virReportOOMError();
-        goto cleanup;
-    }
-
-    memset(&genmsg, 0, sizeof(genmsg));
-    genmsg.rtgen_family = AF_INET6;
-
-    if (nlmsg_append(nlmsg, &genmsg, sizeof(genmsg), NLMSG_ALIGNTO) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("allocated netlink buffer is too small"));
-        goto cleanup;
-    }
-
-    /* Send the request and loop over the responses */
-    if (virNetlinkDumpCommand(nlmsg, virNetDevIPCheckIPv6ForwardingCallback,
-                              0, 0, NETLINK_ROUTE, 0, &data) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to loop over IPv6 routes"));
-        goto cleanup;
-    }
-
-    valid = !data.hasRARoutes || data.ndevices == 0;
-
-    /* Check the global accept_ra if at least one isn't set on a
-       per-device basis */
-    if (!valid && data.hasRARoutes) {
-        int accept_ra = virNetDevIPGetAcceptRA(NULL);
-        valid = accept_ra == 2;
-        VIR_DEBUG("Checked global accept_ra: %d", accept_ra);
-    }
-
-    if (!valid) {
-        g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-        for (i = 0; i < data.ndevices; i++) {
-            virBufferAdd(&buf, data.devices[i], -1);
-            if (i < data.ndevices - 1)
-                virBufferAddLit(&buf, ", ");
-        }
-
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Check the host setup: enabling IPv6 forwarding with "
-                         "RA routes without accept_ra set to 2 is likely to cause "
-                         "routes loss. Interfaces to look at: %s"),
-                       virBufferCurrentContent(&buf));
-    }
-
- cleanup:
-    virStringListFreeCount(data.devices, data.ndevices);
-    return valid;
-}
-
-#else /* defined(__linux__) && defined(HAVE_LIBNL) */
+#else /* defined(__linux__) && defined(WITH_LIBNL) */
 
 
 int
@@ -797,25 +494,132 @@ virNetDevIPRouteAdd(const char *ifname,
     return 0;
 }
 
+#endif /* defined(__linux__) && defined(HAVE_LIBNL) */
 
-/* return after DAD finishes for all known IPv6 addresses or an error */
-int
-virNetDevIPWaitDadFinish(virSocketAddrPtr *addrs G_GNUC_UNUSED,
-                         size_t count G_GNUC_UNUSED)
+
+#if defined(__linux__)
+
+static int
+virNetDevIPGetAcceptRA(const char *ifname)
 {
-    virReportSystemError(ENOSYS, "%s",
-                         _("Unable to wait for IPv6 DAD on this platform"));
-    return -1;
+    g_autofree char *path = NULL;
+    g_autofree char *buf = NULL;
+    char *suffix;
+    int accept_ra = -1;
+
+    path = g_strdup_printf("/proc/sys/net/ipv6/conf/%s/accept_ra",
+                           ifname ? ifname : "all");
+
+    if ((virFileReadAll(path, 512, &buf) < 0) ||
+        (virStrToLong_i(buf, &suffix, 10, &accept_ra) < 0))
+        return -1;
+
+    return accept_ra;
 }
+
+/**
+ * virNetDevIPCheckIPv6Forwarding
+ *
+ * This function checks if IPv6 routes have the RTF_ADDRCONF flag set,
+ * indicating they have been created by the kernel's RA configuration
+ * handling.  These routes are subject to being flushed when ipv6
+ * forwarding is enabled unless accept_ra is explicitly set to "2".
+ * This will most likely result in ipv6 networking being broken.
+ *
+ * Returns: true if it is safe to enable forwarding, or false if
+ *          breakable routes are found.
+ *
+ **/
+bool
+virNetDevIPCheckIPv6Forwarding(void)
+{
+    int len;
+    char *cur;
+    g_autofree char *buf = NULL;
+    /* lines are 150 chars */
+    enum {MAX_ROUTE_SIZE = 150*100000};
+
+    /* This is /proc/sys/net/ipv6/conf/all/accept_ra */
+    int all_accept_ra = virNetDevIPGetAcceptRA(NULL);
+
+    /* Read ipv6 routes */
+    if ((len = virFileReadAll(PROC_NET_IPV6_ROUTE,
+                              MAX_ROUTE_SIZE, &buf)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to read %s "
+                         "for ipv6 forwarding checks"), PROC_NET_IPV6_ROUTE);
+        return false;
+    }
+
+    /* Dropping the last character to stop the loop */
+    if (len > 0)
+        buf[len-1] = '\0';
+
+    cur = buf;
+    while (cur) {
+        char route[33], flags[9], iface[9];
+        unsigned int flags_val;
+        char *iface_val;
+        int num;
+        char *nl = strchr(cur, '\n');
+
+        if (nl)
+            *nl++ = '\0';
+
+        num = sscanf(cur, "%32s %*s %*s %*s %*s %*s %*s %*s %8s %8s",
+                     route, flags, iface);
+
+        cur = nl;
+        if (num != 3) {
+            VIR_DEBUG("Failed to parse route line: %s", cur);
+            continue;
+        }
+
+        if (virStrToLong_ui(flags, NULL, 16, &flags_val)) {
+            VIR_DEBUG("Failed to parse flags: %s", flags);
+            continue;
+        }
+
+        /* This is right justified, strip leading spaces */
+        iface_val = &iface[0];
+        while (*iface_val && g_ascii_isspace(*iface_val))
+            iface_val++;
+
+        VIR_DEBUG("%s iface %s flags %s : RTF_ADDRCONF %sset",
+                  route, iface_val, flags,
+                  (flags_val & RTF_ADDRCONF ? "" : "not "));
+
+        if (flags_val & RTF_ADDRCONF) {
+            int ret = virNetDevIPGetAcceptRA(iface_val);
+            VIR_DEBUG("%s reports accept_ra of %d",
+                      iface_val, ret);
+            /* If the interface for this autoconfigured route
+             * has accept_ra == 1, or it is default and the "all"
+             * value of accept_ra == 1, it will be subject to
+             * flushing if forwarding is enabled.
+             */
+            if (ret == 1 || (ret == 0 && all_accept_ra == 1)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Check the host setup: interface %s has kernel "
+                                 "autoconfigured IPv6 routes and enabling forwarding "
+                                 " without accept_ra set to 2 will cause the kernel "
+                                 "to flush them, breaking networking."), iface_val);
+                return false;
+            }
+        }
+    }
+    return true;
+}
+#else
 
 bool
 virNetDevIPCheckIPv6Forwarding(void)
 {
-    VIR_WARN("built without libnl: unable to check if IPv6 forwarding can be safely enabled");
+    VIR_DEBUG("No checks for IPv6 forwarding issues on non-Linux systems");
     return true;
 }
 
-#endif /* defined(__linux__) && defined(HAVE_LIBNL) */
+#endif /* defined(__linux__) */
 
 
 /**
@@ -828,7 +632,7 @@ virNetDevIPCheckIPv6Forwarding(void)
  *
  * Returns 0 on success, -errno on failure.
  */
-#if defined(SIOCGIFADDR) && defined(HAVE_STRUCT_IFREQ)
+#if defined(SIOCGIFADDR) && defined(WITH_STRUCT_IFREQ)
 static int
 virNetDevGetIPv4AddressIoctl(const char *ifname,
                              virSocketAddrPtr addr)
@@ -878,7 +682,7 @@ virNetDevGetIPv4AddressIoctl(const char *ifname G_GNUC_UNUSED,
  *
  * Returns 0 on success, -1 on failure, -2 on unsupported.
  */
-#if HAVE_GETIFADDRS
+#if WITH_GETIFADDRS
 static int
 virNetDevGetifaddrsAddress(const char *ifname,
                            virSocketAddrPtr addr)
@@ -925,7 +729,7 @@ virNetDevGetifaddrsAddress(const char *ifname,
     return ret;
 }
 
-#else  /* ! HAVE_GETIFADDRS */
+#else  /* ! WITH_GETIFADDRS */
 
 static int
 virNetDevGetifaddrsAddress(const char *ifname G_GNUC_UNUSED,

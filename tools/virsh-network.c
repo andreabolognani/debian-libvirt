@@ -806,6 +806,7 @@ static const vshCmdOptDef opts_network_name[] = {
     {.name = "network",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshNetworkUUIDCompleter,
      .help = N_("network uuid")
     },
     {.name = NULL}
@@ -1371,7 +1372,7 @@ static const vshCmdInfo info_network_dhcp_leases[] = {
 };
 
 static const vshCmdOptDef opts_network_dhcp_leases[] = {
-    VIRSH_COMMON_OPT_NETWORK_FULL(0),
+    VIRSH_COMMON_OPT_NETWORK_FULL(VIR_CONNECT_LIST_NETWORKS_ACTIVE),
     {.name = "mac",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_NONE,
@@ -1484,7 +1485,7 @@ static const vshCmdInfo info_network_port_create[] = {
 };
 
 static const vshCmdOptDef opts_network_port_create[] = {
-    VIRSH_COMMON_OPT_NETWORK_FULL(0),
+    VIRSH_COMMON_OPT_NETWORK_FULL(VIR_CONNECT_LIST_NETWORKS_ACTIVE),
     VIRSH_COMMON_OPT_FILE(N_("file containing an XML network port description")),
     {.name = NULL}
 };
@@ -1505,8 +1506,10 @@ cmdNetworkPortCreate(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
         goto cleanup;
 
-    if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
+    if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0) {
+        vshSaveLibvirtError();
         goto cleanup;
+    }
 
     port = virNetworkPortCreateXML(network, buffer, 0);
 
@@ -1544,7 +1547,7 @@ static const vshCmdInfo info_network_port_dumpxml[] = {
 };
 
 static const vshCmdOptDef opts_network_port_dumpxml[] = {
-    VIRSH_COMMON_OPT_NETWORK_FULL(0),
+    VIRSH_COMMON_OPT_NETWORK_FULL(VIR_CONNECT_LIST_NETWORKS_ACTIVE),
     VIRSH_COMMON_OPT_NETWORK_PORT(0),
     {.name = NULL}
 };
@@ -1596,7 +1599,7 @@ static const vshCmdInfo info_network_port_delete[] = {
 };
 
 static const vshCmdOptDef opts_network_port_delete[] = {
-    VIRSH_COMMON_OPT_NETWORK_FULL(0),
+    VIRSH_COMMON_OPT_NETWORK_FULL(VIR_CONNECT_LIST_NETWORKS_ACTIVE),
     VIRSH_COMMON_OPT_NETWORK_PORT(0),
     {.name = NULL}
 };
@@ -1731,7 +1734,7 @@ static const vshCmdInfo info_network_port_list[] = {
 };
 
 static const vshCmdOptDef opts_network_port_list[] = {
-    VIRSH_COMMON_OPT_NETWORK_FULL(0),
+    VIRSH_COMMON_OPT_NETWORK_FULL(VIR_CONNECT_LIST_NETWORKS_ACTIVE),
     {.name = "uuid",
      .type = VSH_OT_BOOL,
      .help = N_("list uuid's only")

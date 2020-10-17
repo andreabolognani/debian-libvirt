@@ -64,6 +64,7 @@ typedef enum {
     VIR_NODE_DEV_CAP_MDEV_TYPES,        /* Device capable of mediated devices */
     VIR_NODE_DEV_CAP_MDEV,              /* Mediated device */
     VIR_NODE_DEV_CAP_CCW_DEV,           /* s390 CCW device */
+    VIR_NODE_DEV_CAP_CSS_DEV,           /* s390 channel subsystem device */
 
     VIR_NODE_DEV_CAP_LAST
 } virNodeDevCapType;
@@ -367,7 +368,8 @@ virNodeDevCapsDefFree(virNodeDevCapsDefPtr caps);
                  VIR_CONNECT_LIST_NODE_DEVICES_CAP_DRM           | \
                  VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV_TYPES    | \
                  VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV          | \
-                 VIR_CONNECT_LIST_NODE_DEVICES_CAP_CCW_DEV)
+                 VIR_CONNECT_LIST_NODE_DEVICES_CAP_CCW_DEV       | \
+                 VIR_CONNECT_LIST_NODE_DEVICES_CAP_CSS_DEV)
 
 int
 virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHostPtr scsi_host);

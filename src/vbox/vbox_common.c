@@ -397,6 +397,7 @@ vboxSetStorageController(virDomainControllerDefPtr controller,
     case VIR_DOMAIN_CONTROLLER_TYPE_USB:
     case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+    case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("The vbox driver does not support %s controller type"),
@@ -2110,7 +2111,7 @@ vboxStartMachine(virDomainPtr dom, int maxDomID, IMachine *machine, vboxIID *iid
                 VBOX_UTF16_TO_UTF8(valueDisplayUtf16, &valueDisplayUtf8);
                 VBOX_UTF16_FREE(valueDisplayUtf16);
 
-                if (strlen(valueDisplayUtf8) <= 0)
+                if (strlen(valueDisplayUtf8) == 0)
                     VBOX_UTF8_FREE(valueDisplayUtf8);
             }
 
@@ -2987,7 +2988,7 @@ vboxHostDeviceGetXMLDesc(vboxDriverPtr data, virDomainDefPtr def, IMachine *mach
     gVBoxAPI.UArray.vboxArrayGet(&deviceFilters, USBCommon,
                                  gVBoxAPI.UArray.handleUSBGetDeviceFilters(USBCommon));
 
-    if (deviceFilters.count <= 0)
+    if (deviceFilters.count == 0)
         goto release_filters;
 
     /* check if the filters are active and then only
@@ -3076,23 +3077,18 @@ static int
 vboxDumpStorageControllers(virDomainDefPtr def, IMachine *machine)
 {
     vboxArray storageControllers = VBOX_ARRAY_INITIALIZER;
-    IStorageController *controller = NULL;
-    PRUint32 storageBus = StorageBus_Null;
-    PRUint32 controllerType = StorageControllerType_Null;
-    virDomainControllerDefPtr cont = NULL;
     size_t i = 0;
-    int model = -1, ret = -1;
-    virDomainControllerType type = VIR_DOMAIN_CONTROLLER_TYPE_LAST;
+    int ret = -1;
 
     gVBoxAPI.UArray.vboxArrayGet(&storageControllers, machine,
                  gVBoxAPI.UArray.handleMachineGetStorageControllers(machine));
 
     for (i = 0; i < storageControllers.count; i++) {
-        controller = storageControllers.items[i];
-        storageBus = StorageBus_Null;
-        controllerType = StorageControllerType_Null;
-        type = VIR_DOMAIN_CONTROLLER_TYPE_LAST;
-        model = -1;
+        IStorageController *controller = storageControllers.items[i];
+        PRUint32 storageBus = StorageBus_Null;
+        PRUint32 controllerType = StorageControllerType_Null;
+        virDomainControllerType type = VIR_DOMAIN_CONTROLLER_TYPE_LAST;
+        int model = -1;
 
         if (!controller)
             continue;
@@ -3130,8 +3126,6 @@ vboxDumpStorageControllers(virDomainDefPtr def, IMachine *machine)
         case StorageControllerType_IntelAhci:
         case StorageControllerType_I82078:
         case StorageControllerType_Null:
-            model = -1;
-
             break;
         }
 
@@ -3162,6 +3156,8 @@ vboxDumpStorageControllers(virDomainDefPtr def, IMachine *machine)
         }
 
         if (type != VIR_DOMAIN_CONTROLLER_TYPE_LAST) {
+            virDomainControllerDefPtr cont;
+
             cont = virDomainDefAddController(def, type, -1, model);
             if (!cont) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -3609,9 +3605,8 @@ vboxDumpSharedFolders(virDomainDefPtr def, vboxDriverPtr data, IMachine *machine
     gVBoxAPI.UArray.vboxArrayGet(&sharedFolders, machine,
                                  gVBoxAPI.UArray.handleMachineGetSharedFolders(machine));
 
-    if (sharedFolders.count <= 0) {
-        if (sharedFolders.count == 0)
-            ret = 0;
+    if (sharedFolders.count == 0) {
+        ret = 0;
         goto cleanup;
     }
 

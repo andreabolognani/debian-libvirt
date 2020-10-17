@@ -166,7 +166,8 @@ mymain(void)
     driver.bhyvecaps = BHYVE_CAP_RTC_UTC | BHYVE_CAP_AHCI32SLOT | \
                        BHYVE_CAP_NET_E1000 | BHYVE_CAP_LPC_BOOTROM | \
                        BHYVE_CAP_FBUF | BHYVE_CAP_XHCI | \
-                       BHYVE_CAP_CPUTOPOLOGY | BHYVE_CAP_SOUND_HDA;
+                       BHYVE_CAP_CPUTOPOLOGY | BHYVE_CAP_SOUND_HDA | \
+                       BHYVE_CAP_VNC_PASSWORD;
 
     DO_TEST("base");
     DO_TEST("wired");
@@ -197,11 +198,16 @@ mymain(void)
     DO_TEST("vnc-vgaconf-off");
     DO_TEST("vnc-vgaconf-io");
     DO_TEST("vnc-autoport");
+    DO_TEST("vnc-resolution");
+    DO_TEST("vnc-password");
+    DO_TEST_FAILURE("vnc-password-comma");
     DO_TEST("cputopology");
     DO_TEST_FAILURE("cputopology-nvcpu-mismatch");
     DO_TEST("commandline");
     DO_TEST("msrs");
     DO_TEST("sound");
+    DO_TEST("isa-controller");
+    DO_TEST_FAILURE("isa-multiple-controllers");
 
     /* Address allocation tests */
     DO_TEST("addr-single-sata-disk");
@@ -209,6 +215,9 @@ mymain(void)
     DO_TEST("addr-more-than-32-sata-disks");
     DO_TEST("addr-single-virtio-disk");
     DO_TEST("addr-multiple-virtio-disks");
+    DO_TEST("addr-isa-controller-on-slot-1");
+    DO_TEST("addr-isa-controller-on-slot-31");
+    DO_TEST("addr-non-isa-controller-on-slot-1");
 
     /* The same without 32 devs per controller support */
     driver.bhyvecaps ^= BHYVE_CAP_AHCI32SLOT;
@@ -243,6 +252,9 @@ mymain(void)
 
     driver.bhyvecaps &= ~BHYVE_CAP_SOUND_HDA;
     DO_TEST_FAILURE("sound");
+
+    driver.bhyvecaps &= ~BHYVE_CAP_VNC_PASSWORD;
+    DO_TEST_FAILURE("vnc-password");
 
     virObjectUnref(driver.caps);
     virObjectUnref(driver.xmlopt);

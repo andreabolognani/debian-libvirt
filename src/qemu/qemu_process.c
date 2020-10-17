@@ -323,9 +323,6 @@ qemuProcessHandleMonitorEOF(qemuMonitorPtr mon,
     qemuDomainDestroyNamespace(driver, vm);
 
  cleanup:
-    /* Now we got EOF we're not expecting more I/O, so we
-     * can finally kill the event thread */
-    qemuDomainObjStopWorker(vm);
     virObjectUnlock(vm);
 }
 
@@ -2085,7 +2082,7 @@ qemuProcessReadLog(qemuDomainLogContextPtr logCtxt,
         got -= skip;
     }
 
-    ignore_value(VIR_REALLOC_N_QUIET(buf, got + 1));
+    buf = g_renew(char, buf, got + 1);
     *msg = buf;
     return 0;
 }
@@ -2524,10 +2521,11 @@ qemuProcessGetAllCpuAffinity(virBitmapPtr *cpumapRet)
 /*
  * To be run between fork/exec of QEMU only
  */
-#if defined(HAVE_SCHED_GETAFFINITY) || defined(HAVE_BSD_CPU_AFFINITY)
+#if defined(WITH_SCHED_GETAFFINITY) || defined(WITH_BSD_CPU_AFFINITY)
 static int
 qemuProcessInitCpuAffinity(virDomainObjPtr vm)
 {
+    bool settingAll = false;
     g_autoptr(virBitmap) cpumapToSet = NULL;
     virDomainNumatuneMemMode mem_mode;
     qemuDomainObjPrivatePtr priv = vm->privateData;
@@ -2566,24 +2564,37 @@ qemuProcessInitCpuAffinity(virDomainObjPtr vm)
         if (!(cpumapToSet = virBitmapNewCopy(vm->def->cputune.emulatorpin)))
             return -1;
     } else {
+        settingAll = true;
         if (qemuProcessGetAllCpuAffinity(&cpumapToSet) < 0)
             return -1;
     }
 
+    /*
+     * We only want to error out if we failed to set the affinity to
+     * user-requested mapping.  If we are just trying to reset the affinity
+     * to all CPUs and this fails it can only be an issue if:
+     *  1) libvirtd does not have CAP_SYS_NICE
+     *  2) libvirtd does not run on all CPUs
+     *
+     * This scenario can easily occur when libvirtd is run inside a
+     * container with restrictive permissions and CPU pinning.
+     *
+     * See also: https://bugzilla.redhat.com/1819801#c2
+     */
     if (cpumapToSet &&
-        virProcessSetAffinity(vm->pid, cpumapToSet) < 0) {
+        virProcessSetAffinity(vm->pid, cpumapToSet, settingAll) < 0) {
         return -1;
     }
 
     return 0;
 }
-#else /* !defined(HAVE_SCHED_GETAFFINITY) && !defined(HAVE_BSD_CPU_AFFINITY) */
+#else /* !defined(WITH_SCHED_GETAFFINITY) && !defined(WITH_BSD_CPU_AFFINITY) */
 static int
 qemuProcessInitCpuAffinity(virDomainObjPtr vm G_GNUC_UNUSED)
 {
     return 0;
 }
-#endif /* !defined(HAVE_SCHED_GETAFFINITY) && !defined(HAVE_BSD_CPU_AFFINITY) */
+#endif /* !defined(WITH_SCHED_GETAFFINITY) && !defined(WITH_BSD_CPU_AFFINITY) */
 
 /* set link states to down on interfaces at qemu start */
 static int
@@ -2725,9 +2736,24 @@ qemuProcessSetupPid(virDomainObjPtr vm,
     if (!affinity_cpumask)
         affinity_cpumask = use_cpumask;
 
-    /* Setup legacy affinity. */
-    if (affinity_cpumask && virProcessSetAffinity(pid, affinity_cpumask) < 0)
+    /* Setup legacy affinity.
+     *
+     * We only want to error out if we failed to set the affinity to
+     * user-requested mapping.  If we are just trying to reset the affinity
+     * to all CPUs and this fails it can only be an issue if:
+     *  1) libvirtd does not have CAP_SYS_NICE
+     *  2) libvirtd does not run on all CPUs
+     *
+     * This scenario can easily occur when libvirtd is run inside a
+     * container with restrictive permissions and CPU pinning.
+     *
+     * See also: https://bugzilla.redhat.com/1819801#c2
+     */
+    if (affinity_cpumask &&
+        virProcessSetAffinity(pid, affinity_cpumask,
+                              affinity_cpumask == hostcpumap) < 0) {
         goto cleanup;
+    }
 
     /* Set scheduler type and priority, but not for the main thread. */
     if (sched &&
@@ -3320,8 +3346,26 @@ qemuProcessNotifyNets(virDomainDefPtr def)
          * domain to be unceremoniously killed, which would be *very*
          * impolite.
          */
-        if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_DIRECT)
-           ignore_value(virNetDevMacVLanReserveName(net->ifname, false));
+        switch (virDomainNetGetActualType(net)) {
+        case VIR_DOMAIN_NET_TYPE_DIRECT:
+            virNetDevMacVLanReserveName(net->ifname);
+            break;
+        case VIR_DOMAIN_NET_TYPE_BRIDGE:
+        case VIR_DOMAIN_NET_TYPE_NETWORK:
+        case VIR_DOMAIN_NET_TYPE_ETHERNET:
+            virNetDevTapReserveName(net->ifname);
+            break;
+        case VIR_DOMAIN_NET_TYPE_USER:
+        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+        case VIR_DOMAIN_NET_TYPE_SERVER:
+        case VIR_DOMAIN_NET_TYPE_CLIENT:
+        case VIR_DOMAIN_NET_TYPE_MCAST:
+        case VIR_DOMAIN_NET_TYPE_INTERNAL:
+        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+        case VIR_DOMAIN_NET_TYPE_UDP:
+        case VIR_DOMAIN_NET_TYPE_LAST:
+            break;
+        }
 
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             if (!conn && !(conn = virGetConnectNetwork()))
@@ -6169,6 +6213,23 @@ qemuProcessPrepareDomainStorage(virQEMUDriverPtr driver,
 }
 
 
+static int
+qemuProcessPrepareDomainHostdevs(virDomainObjPtr vm,
+                                 qemuDomainObjPrivatePtr priv)
+{
+    size_t i;
+
+    for (i = 0; i < vm->def->nhostdevs; i++) {
+        virDomainHostdevDefPtr hostdev = vm->def->hostdevs[i];
+
+        if (qemuDomainPrepareHostdev(hostdev, priv) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
 static void
 qemuProcessPrepareAllowReboot(virDomainObjPtr vm)
 {
@@ -6269,6 +6330,10 @@ qemuProcessPrepareDomain(virQEMUDriverPtr driver,
 
     VIR_DEBUG("Setting up storage");
     if (qemuProcessPrepareDomainStorage(driver, vm, priv, cfg, flags) < 0)
+        return -1;
+
+    VIR_DEBUG("Setting up host devices");
+    if (qemuProcessPrepareDomainHostdevs(vm, priv) < 0)
         return -1;
 
     VIR_DEBUG("Prepare chardev source backends for TLS");
@@ -6656,6 +6721,25 @@ qemuProcessEnableDomainNamespaces(virQEMUDriverPtr driver,
 }
 
 
+static int
+qemuProcessEnablePerf(virDomainObjPtr vm)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    size_t i;
+
+    if (!(priv->perf = virPerfNew()))
+        return -1;
+
+    for (i = 0; i < VIR_PERF_EVENT_LAST; i++) {
+        if (vm->def->perf.events[i] == VIR_TRISTATE_BOOL_YES &&
+            virPerfEventEnable(priv->perf, i, vm->pid) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
 /**
  * qemuProcessLaunch:
  *
@@ -6689,7 +6773,6 @@ qemuProcessLaunch(virConnectPtr conn,
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     size_t nnicindexes = 0;
     g_autofree int *nicindexes = NULL;
-    size_t i;
 
     VIR_DEBUG("conn=%p driver=%p vm=%p name=%s if=%d asyncJob=%d "
               "incoming.launchURI=%s incoming.deferredURI=%s "
@@ -6841,14 +6924,9 @@ qemuProcessLaunch(virConnectPtr conn,
     if (qemuSetupCgroup(vm, nnicindexes, nicindexes) < 0)
         goto cleanup;
 
-    if (!(priv->perf = virPerfNew()))
+    VIR_DEBUG("Setting up domain perf (if required)");
+    if (qemuProcessEnablePerf(vm) < 0)
         goto cleanup;
-
-    for (i = 0; i < VIR_PERF_EVENT_LAST; i++) {
-        if (vm->def->perf.events[i] == VIR_TRISTATE_BOOL_YES &&
-            virPerfEventEnable(priv->perf, i, vm->pid) < 0)
-            goto cleanup;
-    }
 
     /* This must be done after cgroup placement to avoid resetting CPU
      * affinity */
@@ -8024,7 +8102,9 @@ qemuProcessReconnect(void *opaque)
     virQEMUDriverPtr driver = data->driver;
     virDomainObjPtr obj = data->obj;
     qemuDomainObjPrivatePtr priv;
-    qemuDomainJobObj oldjob;
+    g_auto(qemuDomainJobObj) oldjob = {
+      .cb = NULL,
+    };
     int state;
     int reason;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;

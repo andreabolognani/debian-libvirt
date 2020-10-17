@@ -1557,7 +1557,6 @@ qemuBlockStorageSourceAttachDataFree(qemuBlockStorageSourceAttachDataPtr data)
     virJSONValueFree(data->encryptsecretProps);
     virJSONValueFree(data->tlsProps);
     virJSONValueFree(data->tlsKeySecretProps);
-    VIR_FREE(data->storageNodeNameCopy);
     VIR_FREE(data->tlsAlias);
     VIR_FREE(data->tlsKeySecretAlias);
     VIR_FREE(data->authsecretAlias);
@@ -2315,6 +2314,7 @@ qemuBlockStorageSourceCreateGetFormatPropsQcow2(virStorageSourcePtr src,
                                  "s:file", src->nodestorage,
                                  "U:size", src->capacity,
                                  "S:version", qcow2version,
+                                 "P:cluster-size", src->clusterSize,
                                  NULL) < 0)
         return -1;
 
@@ -2787,6 +2787,12 @@ qemuBlockStorageSourceCreateDetectSize(virHashTablePtr blockNamedNodeData,
                        templ->nodeformat);
         return -1;
     }
+
+    /* propagate cluster size if the images are compatible */
+    if (templ->format == VIR_STORAGE_FILE_QCOW2 &&
+        src->format == VIR_STORAGE_FILE_QCOW2 &&
+        src->clusterSize == 0)
+        src->clusterSize = entry->clusterSize;
 
     if (src->format == VIR_STORAGE_FILE_RAW) {
         src->physical = entry->capacity;

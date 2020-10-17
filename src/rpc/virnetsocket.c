@@ -25,11 +25,11 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
-#ifdef HAVE_IFADDRS_H
+#ifdef WITH_IFADDRS_H
 # include <ifaddrs.h>
 #endif
 
-#ifdef HAVE_SYS_UCRED_H
+#ifdef WITH_SYS_UCRED_H
 # include <sys/ucred.h>
 #endif
 
@@ -182,7 +182,7 @@ virNetSocketCheckProtocolByLookup(const char *address,
 int virNetSocketCheckProtocols(bool *hasIPv4,
                                bool *hasIPv6)
 {
-#ifdef HAVE_IFADDRS_H
+#ifdef WITH_IFADDRS_H
     struct ifaddrs *ifaddr = NULL, *ifa;
 
     *hasIPv4 = *hasIPv6 = false;
@@ -865,14 +865,11 @@ int virNetSocketNewConnectSSH(const char *nodename,
                               const char *username,
                               bool noTTY,
                               bool noVerify,
-                              const char *netcat,
                               const char *keyfile,
-                              const char *path,
+                              const char *command,
                               virNetSocketPtr *retsock)
 {
-    char *quoted;
     virCommandPtr cmd;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
     *retsock = NULL;
 
@@ -897,38 +894,8 @@ int virNetSocketNewConnectSSH(const char *nodename,
     if (noVerify)
         virCommandAddArgList(cmd, "-o", "StrictHostKeyChecking=no", NULL);
 
-    if (!netcat)
-        netcat = "nc";
+    virCommandAddArgList(cmd, "--", nodename, command, NULL);
 
-    virCommandAddArgList(cmd, "--", nodename, "sh", "-c", NULL);
-
-    virBufferEscapeShell(&buf, netcat);
-    quoted = virBufferContentAndReset(&buf);
-
-    virBufferEscapeShell(&buf, quoted);
-    VIR_FREE(quoted);
-    quoted = virBufferContentAndReset(&buf);
-
-    /*
-     * This ugly thing is a shell script to detect availability of
-     * the -q option for 'nc': debian and suse based distros need this
-     * flag to ensure the remote nc will exit on EOF, so it will go away
-     * when we close the connection tunnel. If it doesn't go away, subsequent
-     * connection attempts will hang.
-     *
-     * Fedora's 'nc' doesn't have this option, and defaults to the desired
-     * behavior.
-     */
-    virCommandAddArgFormat(cmd,
-         "'if '%s' -q 2>&1 | grep \"requires an argument\" >/dev/null 2>&1; then "
-             "ARG=-q0;"
-         "else "
-             "ARG=;"
-         "fi;"
-         "'%s' $ARG -U %s'",
-         quoted, quoted, path);
-
-    VIR_FREE(quoted);
     return virNetSocketNewConnectCommand(cmd, retsock);
 }
 
@@ -1421,7 +1388,7 @@ int virNetSocketDupFD(virNetSocketPtr sock, bool cloexec)
     }
 #ifndef F_DUPFD_CLOEXEC
     if (cloexec &&
-        virSetCloseExec(fd < 0)) {
+        virSetCloseExec(fd) < 0) {
         int saveerr = errno;
         closesocket(fd);
         errno = saveerr;
@@ -1480,7 +1447,7 @@ int virNetSocketGetUNIXIdentity(virNetSocketPtr sock,
                                 pid_t *pid,
                                 unsigned long long *timestamp)
 {
-# if defined(HAVE_STRUCT_SOCKPEERCRED)
+# if defined(WITH_STRUCT_SOCKPEERCRED)
     struct sockpeercred cr;
 # else
     struct ucred cr;

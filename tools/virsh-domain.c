@@ -243,6 +243,7 @@ static const vshCmdOptDef opts_attach_disk[] = {
     },
     {.name = "iothread",
      .type = VSH_OT_STRING,
+     .completer = virshDomainIOThreadIdCompleter,
      .help = N_("IOThread to be used by supported device")
     },
     {.name = "cache",
@@ -4848,7 +4849,7 @@ static const vshCmdInfo info_managedsaveremove[] = {
 };
 
 static const vshCmdOptDef opts_managedsaveremove[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_MANAGEDSAVE),
     {.name = NULL}
 };
 
@@ -4903,7 +4904,7 @@ static const vshCmdInfo info_managed_save_edit[] = {
 };
 
 static const vshCmdOptDef opts_managed_save_edit[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_MANAGEDSAVE),
     {.name = "running",
      .type = VSH_OT_BOOL,
      .help = N_("set domain to be running on start")
@@ -4969,7 +4970,7 @@ static const vshCmdInfo info_managed_save_dumpxml[] = {
 };
 
 static const vshCmdOptDef opts_managed_save_dumpxml[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_MANAGEDSAVE),
     {.name = "security-info",
      .type = VSH_OT_BOOL,
      .help = N_("include security sensitive information in XML dump")
@@ -5017,7 +5018,7 @@ static const vshCmdInfo info_managed_save_define[] = {
 };
 
 static const vshCmdOptDef opts_managed_save_define[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_MANAGEDSAVE),
     {.name = "xml",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
@@ -5509,8 +5510,7 @@ doDump(void *opaque)
     pthread_sigmask(SIG_SETMASK, &oldsigmask, NULL);
  out_sig:
 #endif /* !WIN32 */
-    if (dom)
-        virshDomainFree(dom);
+    virshDomainFree(dom);
     g_main_loop_quit(data->eventLoop);
 }
 
@@ -5628,6 +5628,7 @@ cmdScreenshot(vshControl *ctl, const vshCmd *cmd)
     bool generated = false;
     char *mime = NULL;
     virshControlPtr priv = ctl->privData;
+    virshStreamCallbackData cbdata;
 
     if (vshCommandOptStringReq(ctl, cmd, "file", (const char **) &file) < 0)
         return false;
@@ -5663,7 +5664,10 @@ cmdScreenshot(vshControl *ctl, const vshCmd *cmd)
         created = true;
     }
 
-    if (virStreamRecvAll(st, virshStreamSink, &fd) < 0) {
+    cbdata.ctl = ctl;
+    cbdata.fd = fd;
+
+    if (virStreamRecvAll(st, virshStreamSink, &cbdata) < 0) {
         vshError(ctl, _("could not receive data from domain %s"), name);
         goto cleanup;
     }
@@ -6998,11 +7002,13 @@ static const vshCmdOptDef opts_vcpupin[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "vcpu",
      .type = VSH_OT_INT,
+     .completer = virshDomainVcpuCompleter,
      .help = N_("vcpu number")
     },
     {.name = "cpulist",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_EMPTY_OK,
+     .completer = virshDomainCpulistCompleter,
      .help = N_("host cpu number(s) to set, or omit option to query")
     },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
@@ -7230,6 +7236,7 @@ static const vshCmdOptDef opts_emulatorpin[] = {
     {.name = "cpulist",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_EMPTY_OK,
+     .completer = virshDomainCpulistCompleter,
      .help = N_("host cpu number(s) to set, or omit option to query")
     },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
@@ -7517,6 +7524,7 @@ static const vshCmdOptDef opts_setvcpu[] = {
     {.name = "vcpulist",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshDomainVcpulistCompleter,
      .help = N_("ids of vcpus to manipulate")
     },
     {.name = "enable",
@@ -7745,11 +7753,13 @@ static const vshCmdOptDef opts_iothreadpin[] = {
     {.name = "iothread",
      .type = VSH_OT_INT,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshDomainIOThreadIdCompleter,
      .help = N_("IOThread ID number")
     },
     {.name = "cpulist",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshDomainCpulistCompleter,
      .help = N_("host cpu number(s) to set")
     },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
@@ -7893,6 +7903,7 @@ static const vshCmdOptDef opts_iothreadset[] = {
     {.name = "id",
      .type = VSH_OT_INT,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshDomainIOThreadIdCompleter,
      .help = N_("iothread id of existing IOThread")
     },
     {.name = "poll-max-ns",
@@ -7996,6 +8007,7 @@ static const vshCmdOptDef opts_iothreaddel[] = {
     {.name = "id",
      .type = VSH_OT_INT,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshDomainIOThreadIdCompleter,
      .help = N_("iothread_id for the IOThread to delete")
     },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
@@ -9329,10 +9341,12 @@ static const vshCmdOptDef opts_perf[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "enable",
      .type = VSH_OT_STRING,
+     .completer = virshDomainPerfEnableCompleter,
      .help = N_("perf events which will be enabled")
     },
     {.name = "disable",
      .type = VSH_OT_STRING,
+     .completer = virshDomainPerfDisableCompleter,
      .help = N_("perf events which will be disabled")
     },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
@@ -10364,7 +10378,12 @@ static const vshCmdInfo info_domname[] = {
 };
 
 static const vshCmdOptDef opts_domname[] = {
-    VIRSH_COMMON_OPT_DOMAIN(N_("domain id or uuid"), 0),
+    {.name = "domain",
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
+     .completer = virshDomainUUIDCompleter,
+     .help = N_("domain id or uuid")
+    },
     {.name = NULL}
 };
 
@@ -10643,6 +10662,10 @@ static const vshCmdOptDef opts_migrate[] = {
      .type = VSH_OT_INT,
      .help = N_("port to use by target server for incoming disks migration")
     },
+    {.name = "disks-uri",
+     .type = VSH_OT_STRING,
+     .help = N_("URI to use for disks migration (overrides --disks-port)")
+    },
     {.name = "comp-methods",
      .type = VSH_OT_STRING,
      .help = N_("comma separated list of compression methods to be used")
@@ -10708,7 +10731,6 @@ doMigrate(void *opaque)
     virDomainPtr dom = NULL;
     const char *desturi = NULL;
     const char *opt = NULL;
-    int disksPort = 0;
     unsigned int flags = 0;
     virshCtrlData *data = opaque;
     vshControl *ctl = data->ctl;
@@ -10756,11 +10778,19 @@ doMigrate(void *opaque)
                                 VIR_MIGRATE_PARAM_LISTEN_ADDRESS, opt) < 0)
         goto save_error;
 
-    if (vshCommandOptInt(ctl, cmd, "disks-port", &disksPort) < 0)
+    if (vshCommandOptInt(ctl, cmd, "disks-port", &intOpt) < 0)
         goto out;
-    if (disksPort &&
+    if (intOpt &&
         virTypedParamsAddInt(&params, &nparams, &maxparams,
-                             VIR_MIGRATE_PARAM_DISKS_PORT, disksPort) < 0)
+                             VIR_MIGRATE_PARAM_DISKS_PORT, intOpt) < 0)
+        goto save_error;
+
+    if (vshCommandOptStringReq(ctl, cmd, "disks-uri", &opt) < 0)
+        goto out;
+    if (opt &&
+        virTypedParamsAddString(&params, &nparams, &maxparams,
+                                VIR_MIGRATE_PARAM_DISKS_URI,
+                                opt) < 0)
         goto save_error;
 
     if (vshCommandOptStringReq(ctl, cmd, "dname", &opt) < 0)
@@ -11507,6 +11537,8 @@ cmdDomDisplay(vshControl *ctl, const vshCmd *cmd)
     bool all = vshCommandOptBool(cmd, "all");
     const char *xpath_fmt = "string(/domain/devices/graphics[@type='%s']/%s)";
     virSocketAddr addr;
+
+    VSH_EXCLUSIVE_OPTIONS("all", "type");
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -13677,6 +13709,10 @@ cmdEvent(vshControl *ctl, const vshCmd *cmd)
     bool timestamp = vshCommandOptBool(cmd, "timestamp");
     int count = 0;
     virshControlPtr priv = ctl->privData;
+
+    VSH_EXCLUSIVE_OPTIONS("all", "event");
+    VSH_EXCLUSIVE_OPTIONS("list", "all");
+    VSH_EXCLUSIVE_OPTIONS("list", "event");
 
     if (vshCommandOptBool(cmd, "list")) {
         for (event = 0; event < VIR_DOMAIN_EVENT_ID_LAST; event++)

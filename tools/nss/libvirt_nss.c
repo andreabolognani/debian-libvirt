@@ -37,7 +37,7 @@
 #include <time.h>
 
 
-#if defined(HAVE_BSD_NSS)
+#if defined(WITH_BSD_NSS)
 # include <nsswitch.h>
 #endif
 
@@ -356,7 +356,7 @@ NSS_NAME(gethostbyname3)(const char *name, int af, struct hostent *result,
     return ret;
 }
 
-#ifdef HAVE_STRUCT_GAIH_ADDRTUPLE
+#ifdef WITH_STRUCT_GAIH_ADDRTUPLE
 enum nss_status
 NSS_NAME(gethostbyname4)(const char *name, struct gaih_addrtuple **pat,
                          char *buffer, size_t buflen, int *errnop,
@@ -449,9 +449,9 @@ NSS_NAME(gethostbyname4)(const char *name, struct gaih_addrtuple **pat,
     free(addr);
     return ret;
 }
-#endif /* HAVE_STRUCT_GAIH_ADDRTUPLE */
+#endif /* WITH_STRUCT_GAIH_ADDRTUPLE */
 
-#if defined(HAVE_BSD_NSS)
+#if defined(WITH_BSD_NSS)
 NSS_METHOD_PROTOTYPE(_nss_compat_getaddrinfo);
 NSS_METHOD_PROTOTYPE(_nss_compat_gethostbyname2_r);
 
@@ -598,4 +598,4 @@ nss_module_register(const char *name __attribute__((unused)),
     *unregister = NULL;
     return methods;
 }
-#endif /* HAVE_BSD_NSS */
+#endif /* WITH_BSD_NSS */

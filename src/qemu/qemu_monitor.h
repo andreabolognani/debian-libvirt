@@ -696,6 +696,9 @@ struct _qemuBlockNamedNodeData {
 
     qemuBlockNamedNodeDataBitmapPtr *bitmaps;
     size_t nbitmaps;
+
+    /* the cluster size of the image is valid only when > 0 */
+    unsigned long long clusterSize;
 };
 
 virHashTablePtr
@@ -852,6 +855,10 @@ int qemuMonitorMigrateToHost(qemuMonitorPtr mon,
                              const char *protocol,
                              const char *hostname,
                              int port);
+
+int qemuMonitorMigrateToSocket(qemuMonitorPtr mon,
+                               unsigned int flags,
+                               const char *socketPath);
 
 int qemuMonitorMigrateCancel(qemuMonitorPtr mon);
 

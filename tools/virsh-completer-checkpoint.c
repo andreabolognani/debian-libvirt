@@ -50,8 +50,7 @@ virshCheckpointNameCompleter(vshControl *ctl,
                                                     flags)) < 0)
         goto error;
 
-    if (VIR_ALLOC_N(ret, ncheckpoints + 1) < 0)
-        goto error;
+    ret = g_new0(char *, ncheckpoints + 1);
 
     for (i = 0; i < ncheckpoints; i++) {
         const char *name = virDomainCheckpointGetName(checkpoints[i]);
@@ -60,7 +59,7 @@ virshCheckpointNameCompleter(vshControl *ctl,
 
         virshDomainCheckpointFree(checkpoints[i]);
     }
-    VIR_FREE(checkpoints);
+    g_free(checkpoints);
     virshDomainFree(dom);
 
     return ret;
@@ -68,10 +67,10 @@ virshCheckpointNameCompleter(vshControl *ctl,
  error:
     for (; i < ncheckpoints; i++)
         virshDomainCheckpointFree(checkpoints[i]);
-    VIR_FREE(checkpoints);
+    g_free(checkpoints);
     for (i = 0; i < ncheckpoints; i++)
-        VIR_FREE(ret[i]);
-    VIR_FREE(ret);
+        g_free(ret[i]);
+    g_free(ret);
     virshDomainFree(dom);
     return NULL;
 }

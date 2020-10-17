@@ -371,6 +371,18 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
         case VIR_DOMAIN_TIMER_NAME_TSC:
         case VIR_DOMAIN_TIMER_NAME_KVMCLOCK:
         case VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK:
+            if (!ARCH_IS_X86(def->os.arch) && timer->present == 1) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("Configuring the '%s' timer is not supported "
+                                 "for virtType=%s arch=%s machine=%s guests"),
+                               virDomainTimerNameTypeToString(timer->name),
+                               virDomainVirtTypeToString(def->virtType),
+                               virArchToString(def->os.arch),
+                               def->os.machine);
+                return -1;
+            }
+            break;
+
         case VIR_DOMAIN_TIMER_NAME_LAST:
             break;
 
@@ -915,6 +927,9 @@ qemuValidateDomainDef(const virDomainDef *def,
             return -1;
         }
     }
+
+    if (qemuDomainDefValidateMemoryHotplug(def, qemuCaps, NULL) < 0)
+        return -1;
 
     if (qemuValidateDomainDefClockTimers(def, qemuCaps) < 0)
         return -1;
@@ -1637,10 +1652,9 @@ qemuValidateDomainWatchdogDef(const virDomainWatchdogDef *dev,
         break;
 
     case VIR_DOMAIN_WATCHDOG_MODEL_IB700:
-        if (dev->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
-            dev->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_ISA) {
+        if (dev->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("%s model of watchdog can go only on ISA bus"),
+                           _("%s model of watchdog does not support configuring the address"),
                            virDomainWatchdogModelTypeToString(dev->model));
             return -1;
         }
@@ -1832,6 +1846,13 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
                                      "supported by this version of qemu"));
                     return -1;
                 }
+            }
+
+            if (hostdev->writeFiltering != VIR_TRISTATE_BOOL_ABSENT) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Write filtering of PCI device configuration "
+                                 "space is not supported by qemu"));
+                return -1;
             }
             break;
 
@@ -3220,6 +3241,7 @@ qemuValidateDomainDeviceDefController(const virDomainControllerDef *controller,
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
     case VIR_DOMAIN_CONTROLLER_TYPE_USB:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+    case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         break;
     }
@@ -4013,45 +4035,15 @@ qemuValidateDomainDeviceDefHub(virDomainHubDefPtr hub,
 }
 
 
-static unsigned long long
-qemuValidateGetNVDIMMAlignedSizePseries(virDomainMemoryDefPtr mem,
-                                        const virDomainDef *def)
-{
-    unsigned long long ppc64AlignSize = qemuDomainGetMemorySizeAlignment(def);
-    unsigned long long guestArea = mem->size - mem->labelsize;
-
-    /* NVDIMM is already aligned */
-    if (guestArea % ppc64AlignSize == 0)
-        return mem->size;
-
-    /* Suggested aligned size is rounded up */
-    guestArea = (guestArea/ppc64AlignSize + 1) * ppc64AlignSize;
-    return guestArea + mem->labelsize;
-}
-
 static int
 qemuValidateDomainDeviceDefMemory(virDomainMemoryDefPtr mem,
-                                  const virDomainDef *def,
                                   virQEMUCapsPtr qemuCaps)
 {
-    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVDIMM)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("nvdimm isn't supported by this QEMU binary"));
-            return -1;
-        }
-
-        if (qemuDomainIsPSeries(def)) {
-            unsigned long long alignedNVDIMMSize =
-                qemuValidateGetNVDIMMAlignedSizePseries(mem, def);
-
-            if (mem->size != alignedNVDIMMSize) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("nvdimm size is not aligned. Suggested aligned "
-                                 "size: %llu KiB"), alignedNVDIMMSize);
-                return -1;
-            }
-        }
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVDIMM)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("nvdimm isn't supported by this QEMU binary"));
+        return -1;
     }
 
     return 0;
@@ -4169,7 +4161,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_DEVICE_MEMORY:
-        ret = qemuValidateDomainDeviceDefMemory(dev->data.memory, def, qemuCaps);
+        ret = qemuValidateDomainDeviceDefMemory(dev->data.memory, qemuCaps);
         break;
 
     case VIR_DOMAIN_DEVICE_LEASE:

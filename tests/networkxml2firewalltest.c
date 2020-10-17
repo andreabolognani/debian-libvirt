@@ -26,8 +26,11 @@
 
 #if defined (__linux__)
 
+# include <gio/gio.h>
+
 # include "network/bridge_driver_platform.h"
 # include "virbuffer.h"
+# include "virmock.h"
 
 # define LIBVIRT_VIRFIREWALLPRIV_H_ALLOW
 # include "virfirewallpriv.h"
@@ -42,6 +45,31 @@
 # else
 #  error "test case not ported to this platform"
 # endif
+
+VIR_MOCK_WRAP_RET_ARGS(g_dbus_connection_call_sync,
+                       GVariant *,
+                       GDBusConnection *, connection,
+                       const gchar *, bus_name,
+                       const gchar *, object_path,
+                       const gchar *, interface_name,
+                       const gchar *, method_name,
+                       GVariant *, parameters,
+                       const GVariantType *, reply_type,
+                       GDBusCallFlags, flags,
+                       gint, timeout_msec,
+                       GCancellable *, cancellable,
+                       GError **, error)
+{
+    if (parameters)
+        g_variant_unref(parameters);
+
+    VIR_MOCK_REAL_INIT(g_dbus_connection_call_sync);
+
+    *error = g_dbus_error_new_for_dbus_error("org.freedesktop.error",
+                                             "dbus is disabled");
+
+    return NULL;
+}
 
 static void
 testCommandDryRun(const char *const*args G_GNUC_UNUSED,
@@ -176,7 +204,7 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIR_TEST_MAIN(mymain)
+VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"))
 
 #else /* ! defined (__linux__) */
 

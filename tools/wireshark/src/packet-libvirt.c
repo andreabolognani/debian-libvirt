@@ -18,13 +18,9 @@
  */
 #include <config.h>
 
-#include <wireshark/config.h>
 #include <wireshark/epan/proto.h>
 #include <wireshark/epan/packet.h>
 #include <wireshark/epan/dissectors/packet-tcp.h>
-#ifdef HAVE_RPC_TYPES_H
-# include <rpc/types.h>
-#endif
 #include <rpc/xdr.h>
 #include "packet-libvirt.h"
 #include "internal.h"

@@ -38,6 +38,7 @@
 #include "virbuffer.h"
 #include "remote_driver.h"
 #include "remote_protocol.h"
+#include "remote_sockets.h"
 #include "lxc_protocol.h"
 #include "qemu_protocol.h"
 #include "viralloc.h"
@@ -54,46 +55,6 @@
 
 VIR_LOG_INIT("remote.remote_driver");
 
-typedef enum {
-    REMOTE_DRIVER_TRANSPORT_TLS,
-    REMOTE_DRIVER_TRANSPORT_UNIX,
-    REMOTE_DRIVER_TRANSPORT_SSH,
-    REMOTE_DRIVER_TRANSPORT_LIBSSH2,
-    REMOTE_DRIVER_TRANSPORT_EXT,
-    REMOTE_DRIVER_TRANSPORT_TCP,
-    REMOTE_DRIVER_TRANSPORT_LIBSSH,
-
-    REMOTE_DRIVER_TRANSPORT_LAST,
-} remoteDriverTransport;
-
-VIR_ENUM_DECL(remoteDriverTransport);
-VIR_ENUM_IMPL(remoteDriverTransport,
-              REMOTE_DRIVER_TRANSPORT_LAST,
-              "tls",
-              "unix",
-              "ssh",
-              "libssh2",
-              "ext",
-              "tcp",
-              "libssh");
-
-typedef enum {
-    /* Try to figure out the "best" choice magically */
-    REMOTE_DRIVER_MODE_AUTO,
-    /* Always use the legacy libvirtd */
-    REMOTE_DRIVER_MODE_LEGACY,
-    /* Always use the per-driver virt*d daemons */
-    REMOTE_DRIVER_MODE_DIRECT,
-
-    REMOTE_DRIVER_MODE_LAST
-} remoteDriverMode;
-
-VIR_ENUM_DECL(remoteDriverMode);
-VIR_ENUM_IMPL(remoteDriverMode,
-              REMOTE_DRIVER_MODE_LAST,
-              "auto",
-              "legacy",
-              "direct");
 
 #if SIZEOF_LONG < 8
 # define HYPER_TO_TYPE(_type, _to, _from) \
@@ -204,31 +165,6 @@ static void make_nonnull_domain_snapshot(remote_nonnull_domain_snapshot *snapsho
 /*----------------------------------------------------------------------*/
 
 /* Helper functions for remoteOpen. */
-static int remoteSplitURIScheme(virURIPtr uri,
-                                char **driver,
-                                char **transport)
-{
-    char *p = strchr(uri->scheme, '+');
-
-    *driver = *transport = NULL;
-
-    if (p)
-        *driver = g_strndup(uri->scheme, p - uri->scheme);
-    else
-        *driver = g_strdup(uri->scheme);
-
-    if (p) {
-        *transport = g_strdup(p + 1);
-
-        p = *transport;
-        while (*p) {
-            *p = g_ascii_tolower(*p);
-            p++;
-        }
-    }
-
-    return 0;
-}
 
 
 static int
@@ -761,131 +697,6 @@ remoteConnectSupportsFeatureUnlocked(virConnectPtr conn,
     }
 
 
-static char *
-remoteGetUNIXSocketHelper(remoteDriverTransport transport,
-                          const char *sock_prefix,
-                          unsigned int flags)
-{
-    char *sockname = NULL;
-    g_autofree char *userdir = NULL;
-
-    if (flags & VIR_DRV_OPEN_REMOTE_USER) {
-        if (transport != REMOTE_DRIVER_TRANSPORT_UNIX) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("Connecting to session instance without "
-                             "socket path is not supported by the %s "
-                             "transport"),
-                           remoteDriverTransportTypeToString(transport));
-            return NULL;
-        }
-        userdir = virGetUserRuntimeDirectory();
-
-        sockname = g_strdup_printf("%s/%s-sock", userdir, sock_prefix);
-    } else {
-        /* Intentionally do *NOT* use RUNSTATEDIR here. We might
-         * be connecting to a remote machine, and cannot assume
-         * the remote host has /run. The converse is ok though,
-         * any machine with /run will have a /var/run symlink.
-         * The portable option is to thus use $LOCALSTATEDIR/run
-         */
-        sockname = g_strdup_printf("%s/run/libvirt/%s-%s", LOCALSTATEDIR,
-                                   sock_prefix,
-                                   flags & VIR_DRV_OPEN_REMOTE_RO ? "sock-ro" : "sock");
-    }
-
-    VIR_DEBUG("Built UNIX sockname %s for transport %s prefix %s flags=0x%x",
-              sockname, remoteDriverTransportTypeToString(transport),
-              sock_prefix, flags);
-    return sockname;
-}
-
-
-static char *
-remoteGetUNIXSocket(remoteDriverTransport transport,
-                    remoteDriverMode mode,
-                    const char *driver,
-                    char **daemon,
-                    unsigned int flags)
-{
-    char *sock_name = NULL;
-    g_autofree char *direct_daemon = NULL;
-    g_autofree char *legacy_daemon = NULL;
-    g_autofree char *direct_sock_name = NULL;
-    g_autofree char *legacy_sock_name = NULL;
-
-    if (driver)
-        direct_daemon = g_strdup_printf("virt%sd", driver);
-
-    legacy_daemon = g_strdup("libvirtd");
-
-    if (driver &&
-        !(direct_sock_name = remoteGetUNIXSocketHelper(transport, direct_daemon, flags)))
-        return NULL;
-
-    if (!(legacy_sock_name = remoteGetUNIXSocketHelper(transport, "libvirt", flags)))
-        return NULL;
-
-    if (mode == REMOTE_DRIVER_MODE_AUTO) {
-        if (transport == REMOTE_DRIVER_TRANSPORT_UNIX) {
-            if (direct_sock_name && virFileExists(direct_sock_name)) {
-                mode = REMOTE_DRIVER_MODE_DIRECT;
-            } else if (virFileExists(legacy_sock_name)) {
-                mode = REMOTE_DRIVER_MODE_LEGACY;
-            } else if (driver) {
-                /*
-                 * This constant comes from the configure script and
-                 * maps to either the direct or legacy mode constant
-                 */
-                mode = REMOTE_DRIVER_MODE_DEFAULT;
-            } else {
-                mode = REMOTE_DRIVER_MODE_LEGACY;
-            }
-        } else {
-            mode = REMOTE_DRIVER_MODE_LEGACY;
-        }
-    }
-
-    switch ((remoteDriverMode)mode) {
-    case REMOTE_DRIVER_MODE_LEGACY:
-        sock_name = g_steal_pointer(&legacy_sock_name);
-        *daemon = g_steal_pointer(&legacy_daemon);
-        break;
-
-    case REMOTE_DRIVER_MODE_DIRECT:
-        if (transport != REMOTE_DRIVER_TRANSPORT_UNIX) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("Cannot use direct socket mode for %s transport"),
-                           remoteDriverTransportTypeToString(transport));
-            return NULL;
-        }
-
-        if (!direct_sock_name) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("Cannot use direct socket mode if no URI is set"));
-            return NULL;
-        }
-
-        sock_name = g_steal_pointer(&direct_sock_name);
-        *daemon = g_steal_pointer(&direct_daemon);
-        break;
-
-    case REMOTE_DRIVER_MODE_AUTO:
-    case REMOTE_DRIVER_MODE_LAST:
-    default:
-        virReportEnumRangeError(remoteDriverMode, mode);
-        return NULL;
-    }
-
-    VIR_DEBUG("Chosen UNIX sockname %s daemon %s "
-              "for mode %s transport %s flags=0x%x",
-              sock_name, NULLSTR(*daemon),
-              remoteDriverModeTypeToString(mode),
-              remoteDriverTransportTypeToString(transport),
-              flags);
-    return sock_name;
-}
-
-
 #ifndef WIN32
 static const char *
 remoteGetDaemonPathEnv(void)
@@ -927,12 +738,11 @@ static int
 doRemoteOpen(virConnectPtr conn,
              struct private_data *priv,
              const char *driver_str,
-             const char *transport_str,
+             remoteDriverTransport transport,
              virConnectAuthPtr auth G_GNUC_UNUSED,
              virConfPtr conf,
              unsigned int flags)
 {
-    int transport;
 #ifndef WIN32
     g_autofree char *daemonPath = NULL;
 #endif
@@ -951,6 +761,7 @@ doRemoteOpen(virConnectPtr conn,
     g_autofree char *knownHosts = NULL;
     g_autofree char *mode_str = NULL;
     g_autofree char *daemon_name = NULL;
+    g_autofree char *proxy_str = NULL;
     bool sanity = true;
     bool verify = true;
 #ifndef WIN32
@@ -958,6 +769,7 @@ doRemoteOpen(virConnectPtr conn,
 #endif
     int mode;
     size_t i;
+    int proxy;
 
     if (inside_daemon && !conn->uri->server) {
         mode = REMOTE_DRIVER_MODE_DIRECT;
@@ -965,36 +777,16 @@ doRemoteOpen(virConnectPtr conn,
         mode = REMOTE_DRIVER_MODE_AUTO;
     }
 
+    /* Historically we didn't allow ssh tunnel with session mode,
+     * since we can't construct the accurate path remotely,
+     * so we can default to modern virt-ssh-helper */
+    if (flags & VIR_DRV_OPEN_REMOTE_USER)
+        proxy = VIR_NET_CLIENT_PROXY_NATIVE;
+    else
+        proxy = VIR_NET_CLIENT_PROXY_AUTO;
+
     /* We handle *ALL* URIs here. The caller has rejected any
      * URIs we don't care about */
-
-    if (conn->uri) {
-        if (!transport_str) {
-            if (conn->uri->server)
-                transport = REMOTE_DRIVER_TRANSPORT_TLS;
-            else
-                transport = REMOTE_DRIVER_TRANSPORT_UNIX;
-        } else {
-            if ((transport = remoteDriverTransportTypeFromString(transport_str)) < 0) {
-                virReportError(VIR_ERR_INVALID_ARG, "%s",
-                               _("remote_open: transport in URL not recognised "
-                                 "(should be tls|unix|ssh|ext|tcp|libssh2|libssh)"));
-                return VIR_DRV_OPEN_ERROR;
-            }
-
-            if (transport == REMOTE_DRIVER_TRANSPORT_UNIX &&
-                conn->uri->server) {
-                virReportError(VIR_ERR_INVALID_ARG,
-                               _("using unix socket and remote "
-                                 "server '%s' is not supported."),
-                               conn->uri->server);
-                return VIR_DRV_OPEN_ERROR;
-            }
-        }
-    } else {
-        /* No URI, then must be probing so use UNIX socket */
-        transport = REMOTE_DRIVER_TRANSPORT_UNIX;
-    }
 
     /* Remote server defaults to "localhost" if not specified. */
     if (conn->uri && conn->uri->port != 0) {
@@ -1030,6 +822,7 @@ doRemoteOpen(virConnectPtr conn,
             EXTRACT_URI_ARG_STR("known_hosts_verify", knownHostsVerify);
             EXTRACT_URI_ARG_STR("tls_priority", tls_priority);
             EXTRACT_URI_ARG_STR("mode", mode_str);
+            EXTRACT_URI_ARG_STR("proxy", proxy_str);
             EXTRACT_URI_ARG_BOOL("no_sanity", sanity);
             EXTRACT_URI_ARG_BOOL("no_verify", verify);
 #ifndef WIN32
@@ -1079,8 +872,22 @@ doRemoteOpen(virConnectPtr conn,
         goto failed;
 
     if (mode_str &&
-        (mode = remoteDriverModeTypeFromString(mode_str)) < 0)
+        (mode = remoteDriverModeTypeFromString(mode_str)) < 0) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("Unknown remote mode '%s'"), mode_str);
         goto failed;
+    }
+
+    if (conf && !proxy_str &&
+        virConfGetValueString(conf, "remote_proxy", &proxy_str) < 0)
+        goto failed;
+
+    if (proxy_str &&
+        (proxy = virNetClientProxyTypeFromString(proxy_str)) < 0) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("Unnkown proxy type '%s'"), proxy_str);
+        goto failed;
+    }
 
     /* Sanity check that nothing requested !direct mode by mistake */
     if (inside_daemon && !conn->uri->server && mode != REMOTE_DRIVER_MODE_DIRECT) {
@@ -1107,7 +914,9 @@ doRemoteOpen(virConnectPtr conn,
     case REMOTE_DRIVER_TRANSPORT_LIBSSH2:
         if (!sockname &&
             !(sockname = remoteGetUNIXSocket(transport, mode, driver_str,
-                                             &daemon_name, flags)))
+                                             flags & VIR_DRV_OPEN_REMOTE_RO,
+                                             flags & VIR_DRV_OPEN_REMOTE_USER,
+                                             &daemon_name)))
             goto failed;
         break;
 
@@ -1164,8 +973,11 @@ doRemoteOpen(virConnectPtr conn,
                                               knownHosts,
                                               knownHostsVerify,
                                               sshauth,
+                                              proxy,
                                               netcat,
                                               sockname,
+                                              name,
+                                              flags & VIR_DRV_OPEN_REMOTE_RO,
                                               auth,
                                               conn->uri);
         if (!priv->client)
@@ -1185,8 +997,11 @@ doRemoteOpen(virConnectPtr conn,
                                              knownHosts,
                                              knownHostsVerify,
                                              sshauth,
+                                             proxy,
                                              netcat,
                                              sockname,
+                                             name,
+                                             flags & VIR_DRV_OPEN_REMOTE_RO,
                                              auth,
                                              conn->uri);
         if (!priv->client)
@@ -1225,9 +1040,12 @@ doRemoteOpen(virConnectPtr conn,
                                                 username,
                                                 !tty,
                                                 !verify,
-                                                netcat ? netcat : "nc",
                                                 keyfile,
-                                                sockname)))
+                                                proxy,
+                                                netcat,
+                                                sockname,
+                                                name,
+                                                flags & VIR_DRV_OPEN_REMOTE_RO)))
             goto failed;
 
         priv->is_secure = 1;
@@ -1413,13 +1231,19 @@ remoteConnectOpen(virConnectPtr conn,
     struct private_data *priv;
     int ret = VIR_DRV_OPEN_ERROR;
     int rflags = 0;
-    const char *autostart = getenv("LIBVIRT_AUTOSTART");
+    bool user;
+    bool autostart;
     char *driver = NULL;
-    char *transport = NULL;
+    remoteDriverTransport transport;
 
-    if (conn->uri &&
-        remoteSplitURIScheme(conn->uri, &driver, &transport) < 0)
-        goto cleanup;
+    if (conn->uri) {
+        if (remoteSplitURIScheme(conn->uri, &driver, &transport) < 0)
+            goto cleanup;
+    } else {
+        /* No URI, then must be probing so use UNIX socket */
+        transport = REMOTE_DRIVER_TRANSPORT_UNIX;
+    }
+
 
     if (inside_daemon) {
         if (!conn->uri) {
@@ -1429,9 +1253,13 @@ remoteConnectOpen(virConnectPtr conn,
 
         /* If there's a driver registered we must defer to that.
          * If there isn't a driver, we must connect in "direct"
-         * mode - see doRemoteOpen */
+         * mode - see doRemoteOpen.
+         * One exception is if we are trying to connect to an
+         * unknown socket path as that might be proxied to remote
+         * host */
         if (!conn->uri->server &&
-            virHasDriverForURIScheme(driver)) {
+            virHasDriverForURIScheme(driver) &&
+            !virURICheckUnixSocket(conn->uri)) {
             ret = VIR_DRV_OPEN_DECLINED;
             goto cleanup;
         }
@@ -1443,51 +1271,11 @@ remoteConnectOpen(virConnectPtr conn,
     if (flags & VIR_CONNECT_RO)
         rflags |= VIR_DRV_OPEN_REMOTE_RO;
 
-    /*
-     * User session daemon is used for
-     *
-     *  - Any URI with /session suffix
-     *  - Test driver, if a protocol is given
-     *
-     * provided we are running non-root
-     */
-    if (conn->uri &&
-        conn->uri->path &&
-        conn->uri->scheme &&
-        (STREQ(conn->uri->path, "/session") ||
-         STRPREFIX(conn->uri->scheme, "test+")) &&
-        geteuid() > 0) {
-        VIR_DEBUG("User session daemon required");
+    remoteGetURIDaemonInfo(conn->uri, transport, &user, &autostart);
+    if (user)
         rflags |= VIR_DRV_OPEN_REMOTE_USER;
-
-        /*
-         * Furthermore if no servername is given, and no +XXX
-         * transport is listed, or transport is unix,
-         * and uid is unprivileged then auto-spawn a daemon.
-         */
-        if (!conn->uri->server &&
-            (transport == NULL || STREQ(transport, "unix")) &&
-            (!autostart ||
-             STRNEQ(autostart, "0"))) {
-            VIR_DEBUG("Try daemon autostart");
-            rflags |= VIR_DRV_OPEN_REMOTE_AUTOSTART;
-        }
-    }
-
-    /*
-     * If URI is NULL, then do a UNIX connection possibly auto-spawning
-     * unprivileged server and probe remote server for URI.
-     */
-    if (!conn->uri) {
-        VIR_DEBUG("Auto-probe remote URI");
-        if (geteuid() > 0) {
-            VIR_DEBUG("Auto-spawn user daemon instance");
-            rflags |= VIR_DRV_OPEN_REMOTE_USER;
-            if (!autostart ||
-                STRNEQ(autostart, "0"))
-                rflags |= VIR_DRV_OPEN_REMOTE_AUTOSTART;
-        }
-    }
+    if (autostart)
+        rflags |= VIR_DRV_OPEN_REMOTE_AUTOSTART;
 
     ret = doRemoteOpen(conn, priv, driver, transport, auth, conf, rflags);
     if (ret != VIR_DRV_OPEN_SUCCESS) {
@@ -1501,7 +1289,6 @@ remoteConnectOpen(virConnectPtr conn,
 
  cleanup:
     VIR_FREE(driver);
-    VIR_FREE(transport);
     return ret;
 }
 
@@ -1576,7 +1363,7 @@ remoteConnectClose(virConnectPtr conn)
  * private data, and free it when we close the connection.
  *
  * See also:
- * http://www.redhat.com/archives/libvir-list/2007-February/msg00096.html
+ * https://www.redhat.com/archives/libvir-list/2007-February/msg00096.html
  */
 static const char *
 remoteConnectGetType(virConnectPtr conn)

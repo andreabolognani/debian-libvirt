@@ -469,6 +469,8 @@ cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
     char *phy = NULL;
     vshTablePtr table = NULL;
 
+    VSH_EXCLUSIVE_OPTIONS("all", "device");
+
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
@@ -1610,10 +1612,8 @@ virshDomainListFree(virshDomainListPtr domlist)
     size_t i;
 
     if (domlist && domlist->domains) {
-        for (i = 0; i < domlist->ndomains; i++) {
-            if (domlist->domains[i])
-                virshDomainFree(domlist->domains[i]);
-        }
+        for (i = 0; i < domlist->ndomains; i++)
+            virshDomainFree(domlist->domains[i]);
         VIR_FREE(domlist->domains);
     }
     VIR_FREE(domlist);

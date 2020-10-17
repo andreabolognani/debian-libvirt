@@ -32,7 +32,7 @@
 #include "virutil.h"
 #include "virfile.h"
 #include "virnetserver.h"
-#include "virdbus.h"
+#include "virgdbus.h"
 #include "virhash.h"
 #include "virstring.h"
 #include "virsystemd.h"
@@ -69,16 +69,25 @@ struct _virNetDaemon {
     virHashTablePtr servers;
     virJSONValuePtr srvObject;
 
+    virNetDaemonShutdownCallback shutdownPrepareCb;
+    virNetDaemonShutdownCallback shutdownWaitCb;
+    int finishTimer;
     bool quit;
+    bool finished;
+    bool graceful;
 
     unsigned int autoShutdownTimeout;
     size_t autoShutdownInhibitions;
-    bool autoShutdownCallingInhibit;
     int autoShutdownInhibitFd;
 };
 
 
 static virClassPtr virNetDaemonClass;
+
+static int
+daemonServerClose(void *payload,
+                  const void *key G_GNUC_UNUSED,
+                  void *opaque G_GNUC_UNUSED);
 
 static void
 virNetDaemonDispose(void *obj)
@@ -449,54 +458,8 @@ virNetDaemonAutoShutdown(virNetDaemonPtr dmn,
 }
 
 
-#if defined(WITH_DBUS) && defined(DBUS_TYPE_UNIX_FD)
-static void
-virNetDaemonGotInhibitReplyLocked(DBusPendingCall *pending,
-                                  virNetDaemonPtr dmn)
-{
-    DBusMessage *reply;
-    int fd;
-
-    dmn->autoShutdownCallingInhibit = false;
-
-    VIR_DEBUG("dmn=%p", dmn);
-
-    reply = dbus_pending_call_steal_reply(pending);
-    if (reply == NULL)
-        goto cleanup;
-
-    if (dbus_message_get_args(reply, NULL,
-                              DBUS_TYPE_UNIX_FD, &fd,
-                              DBUS_TYPE_INVALID)) {
-        if (dmn->autoShutdownInhibitions) {
-            dmn->autoShutdownInhibitFd = fd;
-            VIR_DEBUG("Got inhibit FD %d", fd);
-        } else {
-            /* We stopped the last VM since we made the inhibit call */
-            VIR_DEBUG("Closing inhibit FD %d", fd);
-            VIR_FORCE_CLOSE(fd);
-        }
-    }
-    virDBusMessageUnref(reply);
-
- cleanup:
-    dbus_pending_call_unref(pending);
-}
-
-
-static void
-virNetDaemonGotInhibitReply(DBusPendingCall *pending,
-                            void *opaque)
-{
-    virNetDaemonPtr dmn = opaque;
-
-    virObjectLock(dmn);
-    virNetDaemonGotInhibitReplyLocked(pending, dmn);
-    virObjectUnlock(dmn);
-}
-
-
-/* As per: http://www.freedesktop.org/wiki/Software/systemd/inhibit */
+#ifdef G_OS_UNIX
+/* As per: https://www.freedesktop.org/wiki/Software/systemd/inhibit */
 static void
 virNetDaemonCallInhibit(virNetDaemonPtr dmn,
                         const char *what,
@@ -504,9 +467,12 @@ virNetDaemonCallInhibit(virNetDaemonPtr dmn,
                         const char *why,
                         const char *mode)
 {
-    DBusMessage *message;
-    DBusPendingCall *pendingReply = NULL;
-    DBusConnection *systemBus;
+    g_autoptr(GVariant) reply = NULL;
+    g_autoptr(GUnixFDList) replyFD = NULL;
+    g_autoptr(GVariant) message = NULL;
+    GDBusConnection *systemBus;
+    int fd;
+    int rc;
 
     VIR_DEBUG("dmn=%p what=%s who=%s why=%s mode=%s",
               dmn, NULLSTR(what), NULLSTR(who), NULLSTR(why), NULLSTR(mode));
@@ -514,41 +480,41 @@ virNetDaemonCallInhibit(virNetDaemonPtr dmn,
     if (virSystemdHasLogind() < 0)
         return;
 
-    if (!(systemBus = virDBusGetSystemBus()))
+    if (!(systemBus = virGDBusGetSystemBus()))
         return;
 
-    /* Only one outstanding call at a time */
-    if (dmn->autoShutdownCallingInhibit)
+    message = g_variant_new("(ssss)", what, who, why, mode);
+
+    rc = virGDBusCallMethodWithFD(systemBus,
+                                  &reply,
+                                  G_VARIANT_TYPE("(h)"),
+                                  &replyFD,
+                                  NULL,
+                                  "org.freedesktop.login1",
+                                  "/org/freedesktop/login1",
+                                  "org.freedesktop.login1.Manager",
+                                  "Inhibit",
+                                  message,
+                                  NULL);
+
+    if (rc < 0)
         return;
 
-    message = dbus_message_new_method_call("org.freedesktop.login1",
-                                           "/org/freedesktop/login1",
-                                           "org.freedesktop.login1.Manager",
-                                           "Inhibit");
-    if (message == NULL)
+    if (g_unix_fd_list_get_length(replyFD) <= 0)
         return;
 
-    dbus_message_append_args(message,
-                             DBUS_TYPE_STRING, &what,
-                             DBUS_TYPE_STRING, &who,
-                             DBUS_TYPE_STRING, &why,
-                             DBUS_TYPE_STRING, &mode,
-                             DBUS_TYPE_INVALID);
+    fd = g_unix_fd_list_get(replyFD, 0, NULL);
+    if (fd < 0)
+        return;
 
-    if (dbus_connection_send_with_reply(systemBus, message,
-                                        &pendingReply,
-                                        25 * 1000) &&
-        pendingReply) {
-        if (dbus_pending_call_get_completed(pendingReply)) {
-            virNetDaemonGotInhibitReplyLocked(pendingReply, dmn);
-        } else {
-            dbus_pending_call_set_notify(pendingReply,
-                                         virNetDaemonGotInhibitReply,
-                                         dmn, NULL);
-        }
-        dmn->autoShutdownCallingInhibit = true;
+    if (dmn->autoShutdownInhibitions) {
+        dmn->autoShutdownInhibitFd = fd;
+        VIR_DEBUG("Got inhibit FD %d", fd);
+    } else {
+        /* We stopped the last VM since we made the inhibit call */
+        VIR_DEBUG("Closing inhibit FD %d", fd);
+        VIR_FORCE_CLOSE(fd);
     }
-    virDBusMessageUnref(message);
 }
 #endif
 
@@ -560,7 +526,7 @@ virNetDaemonAddShutdownInhibition(virNetDaemonPtr dmn)
 
     VIR_DEBUG("dmn=%p inhibitions=%zu", dmn, dmn->autoShutdownInhibitions);
 
-#if defined(WITH_DBUS) && defined(DBUS_TYPE_UNIX_FD)
+#ifdef G_OS_UNIX
     if (dmn->autoShutdownInhibitions == 1)
         virNetDaemonCallInhibit(dmn,
                                 "shutdown",
@@ -796,11 +762,53 @@ daemonServerProcessClients(void *payload,
     return 0;
 }
 
+static int
+daemonServerShutdownWait(void *payload,
+                         const void *key G_GNUC_UNUSED,
+                         void *opaque G_GNUC_UNUSED)
+{
+    virNetServerPtr srv = payload;
+
+    virNetServerShutdownWait(srv);
+    return 0;
+}
+
+static void
+daemonShutdownWait(void *opaque)
+{
+    virNetDaemonPtr dmn = opaque;
+    bool graceful = false;
+
+    virHashForEach(dmn->servers, daemonServerShutdownWait, NULL);
+    if (dmn->shutdownWaitCb && dmn->shutdownWaitCb() < 0)
+        goto finish;
+
+    graceful = true;
+
+ finish:
+    virObjectLock(dmn);
+    dmn->graceful = graceful;
+    virEventUpdateTimeout(dmn->finishTimer, 0);
+    virObjectUnlock(dmn);
+}
+
+static void
+virNetDaemonFinishTimer(int timerid G_GNUC_UNUSED,
+                        void *opaque)
+{
+    virNetDaemonPtr dmn = opaque;
+
+    virObjectLock(dmn);
+    dmn->finished = true;
+    virObjectUnlock(dmn);
+}
+
 void
 virNetDaemonRun(virNetDaemonPtr dmn)
 {
     int timerid = -1;
     bool timerActive = false;
+    virThread shutdownThread;
 
     virObjectLock(dmn);
 
@@ -811,6 +819,9 @@ virNetDaemonRun(virNetDaemonPtr dmn)
     }
 
     dmn->quit = false;
+    dmn->finishTimer = -1;
+    dmn->finished = false;
+    dmn->graceful = false;
 
     if (dmn->autoShutdownTimeout &&
         (timerid = virEventAddTimeout(-1,
@@ -826,7 +837,7 @@ virNetDaemonRun(virNetDaemonPtr dmn)
     virSystemdNotifyStartup();
 
     VIR_DEBUG("dmn=%p quit=%d", dmn, dmn->quit);
-    while (!dmn->quit) {
+    while (!dmn->finished) {
         /* A shutdown timeout is specified, so check
          * if any drivers have active state, if not
          * shutdown after timeout seconds
@@ -857,6 +868,32 @@ virNetDaemonRun(virNetDaemonPtr dmn)
         virObjectLock(dmn);
 
         virHashForEach(dmn->servers, daemonServerProcessClients, NULL);
+
+        if (dmn->quit && dmn->finishTimer == -1) {
+            virHashForEach(dmn->servers, daemonServerClose, NULL);
+            if (dmn->shutdownPrepareCb && dmn->shutdownPrepareCb() < 0)
+                break;
+
+            if ((dmn->finishTimer = virEventAddTimeout(30 * 1000,
+                                                       virNetDaemonFinishTimer,
+                                                       dmn, NULL)) < 0) {
+                VIR_WARN("Failed to register finish timer.");
+                break;
+            }
+
+            if (virThreadCreateFull(&shutdownThread, true, daemonShutdownWait,
+                                    "daemon-shutdown", false, dmn) < 0) {
+                VIR_WARN("Failed to register join thread.");
+                break;
+            }
+        }
+    }
+
+    if (dmn->graceful) {
+        virThreadJoin(&shutdownThread);
+    } else {
+        VIR_WARN("Make forcefull daemon shutdown");
+        exit(EXIT_FAILURE);
     }
 
  cleanup:
@@ -886,19 +923,6 @@ daemonServerClose(void *payload,
     return 0;
 }
 
-void
-virNetDaemonClose(virNetDaemonPtr dmn)
-{
-    if (!dmn)
-        return;
-
-    virObjectLock(dmn);
-
-    virHashForEach(dmn->servers, daemonServerClose, NULL);
-
-    virObjectUnlock(dmn);
-}
-
 static int
 daemonServerHasClients(void *payload,
                        const void *key G_GNUC_UNUSED,
@@ -921,4 +945,17 @@ virNetDaemonHasClients(virNetDaemonPtr dmn)
     virHashForEach(dmn->servers, daemonServerHasClients, &ret);
 
     return ret;
+}
+
+void
+virNetDaemonSetShutdownCallbacks(virNetDaemonPtr dmn,
+                                 virNetDaemonShutdownCallback prepareCb,
+                                 virNetDaemonShutdownCallback waitCb)
+{
+    virObjectLock(dmn);
+
+    dmn->shutdownPrepareCb = prepareCb;
+    dmn->shutdownWaitCb = waitCb;
+
+    virObjectUnlock(dmn);
 }

@@ -18,7 +18,7 @@ by running
 
   $ meson test --setup valgrind
 
-`Valgrind <http://valgrind.org/>`__ is a test that checks for
+`Valgrind <https://valgrind.org/>`__ is a test that checks for
 memory management issues, such as leaks or use of uninitialized
 variables.
 
@@ -26,13 +26,7 @@ Some tests are skipped by default in a development environment,
 based on the time they take in comparison to the likelihood
 that those tests will turn up problems during incremental
 builds. These tests default to being run when building from a
-tarball or with the configure option -Dexpensive_tests=enabled;
-you can also force a one-time toggle of these tests by setting
-VIR_TEST_EXPENSIVE to 0 or 1 at make time, as in:
-
-::
-
-  $ VIR_TEST_EXPENSIVE=1 ninja test
+tarball or with the configure option -Dexpensive_tests=enabled.
 
 If you encounter any failing tests, the VIR_TEST_DEBUG
 environment variable may provide extra information to debug the
@@ -160,7 +154,7 @@ filter. The filter should be unique enough to not suppress real
 leaks, but it should be generic enough to cover multiple code
 paths. The format of the entry can be found in the
 documentation found at the `Valgrind home
-page <http://valgrind.org/>`__. The following trace was added
+page <https://valgrind.org/>`__. The following trace was added
 to ``tests/.valgrind.supp`` in order to suppress the warning:
 
 ::

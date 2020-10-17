@@ -148,9 +148,7 @@ virDomainSnapshotDiskDefParseXML(xmlNodePtr node,
 
     ctxt->node = node;
 
-    if (!(def->src = virStorageSourceNew()))
-        goto cleanup;
-
+    def->src = virStorageSourceNew();
     def->name = virXMLPropString(node, "name");
     if (!def->name) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -629,16 +627,6 @@ virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDefPtr def)
 }
 
 
-static int
-virDomainSnapshotCompareDiskIndex(const void *a, const void *b)
-{
-    const virDomainSnapshotDiskDef *diska = a;
-    const virDomainSnapshotDiskDef *diskb = b;
-
-    /* Integer overflow shouldn't be a problem here.  */
-    return diska->idx - diskb->idx;
-}
-
 /* Align def->disks to def->parent.dom.  Sort the list of def->disks,
  * filling in any missing disks or snapshot state defaults given by
  * the domain, with a fallback to a passed in default.  Convert paths
@@ -647,131 +635,123 @@ virDomainSnapshotCompareDiskIndex(const void *a, const void *b)
  * dom->disks.  If require_match, also ensure that there is no
  * conflicting requests for both internal and external snapshots.  */
 int
-virDomainSnapshotAlignDisks(virDomainSnapshotDefPtr def,
+virDomainSnapshotAlignDisks(virDomainSnapshotDefPtr snapdef,
                             int default_snapshot,
                             bool require_match)
 {
-    int ret = -1;
-    virBitmapPtr map = NULL;
+    virDomainDefPtr domdef = snapdef->parent.dom;
+    g_autoptr(virHashTable) map = virHashNew(NULL);
+    g_autofree virDomainSnapshotDiskDefPtr olddisks = NULL;
     size_t i;
-    int ndisks;
 
-    if (!def->parent.dom) {
+    if (!domdef) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing domain in snapshot"));
-        goto cleanup;
+        return -1;
     }
 
-    if (def->ndisks > def->parent.dom->ndisks) {
+    if (snapdef->ndisks > domdef->ndisks) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("too many disk snapshot requests for domain"));
-        goto cleanup;
+        return -1;
     }
 
     /* Unlikely to have a guest without disks but technically possible.  */
-    if (!def->parent.dom->ndisks) {
-        ret = 0;
-        goto cleanup;
-    }
-
-    if (!(map = virBitmapNew(def->parent.dom->ndisks)))
-        goto cleanup;
+    if (!domdef->ndisks)
+        return 0;
 
     /* Double check requested disks.  */
-    for (i = 0; i < def->ndisks; i++) {
-        virDomainSnapshotDiskDefPtr disk = &def->disks[i];
-        int idx = virDomainDiskIndexByName(def->parent.dom, disk->name, false);
-        int disk_snapshot;
+    for (i = 0; i < snapdef->ndisks; i++) {
+        virDomainSnapshotDiskDefPtr snapdisk = &snapdef->disks[i];
+        int idx = virDomainDiskIndexByName(domdef, snapdisk->name, false);
+        virDomainDiskDefPtr domdisk = NULL;
 
         if (idx < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("no disk named '%s'"), disk->name);
-            goto cleanup;
+                           _("no disk named '%s'"), snapdisk->name);
+            return -1;
         }
 
-        if (virBitmapIsBitSet(map, idx)) {
+        domdisk = domdef->disks[idx];
+
+        if (virHashHasEntry(map, domdisk->dst)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("disk '%s' specified twice"),
-                           disk->name);
-            goto cleanup;
+                           snapdisk->name);
+            return -1;
         }
-        ignore_value(virBitmapSetBit(map, idx));
-        disk->idx = idx;
 
-        disk_snapshot = def->parent.dom->disks[idx]->snapshot;
-        if (!disk->snapshot) {
-            if (disk_snapshot &&
+        if (virHashAddEntry(map, domdisk->dst, snapdisk) < 0)
+            return -1;
+
+        if (snapdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT) {
+            if (domdisk->snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT &&
                 (!require_match ||
-                 disk_snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE))
-                disk->snapshot = disk_snapshot;
-            else
-                disk->snapshot = default_snapshot;
+                 domdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE)) {
+                snapdisk->snapshot = domdisk->snapshot;
+            } else {
+                snapdisk->snapshot = default_snapshot;
+            }
         } else if (require_match &&
-                   disk->snapshot != default_snapshot &&
-                   !(disk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE &&
-                     disk_snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE)) {
-            const char *tmp;
-
-            tmp = virDomainSnapshotLocationTypeToString(default_snapshot);
+                   snapdisk->snapshot != default_snapshot &&
+                   !(snapdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE &&
+                     domdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("disk '%s' must use snapshot mode '%s'"),
-                           disk->name, tmp);
-            goto cleanup;
+                           snapdisk->name,
+                           virDomainSnapshotLocationTypeToString(default_snapshot));
+            return -1;
         }
-        if (disk->src->path &&
-            disk->snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
+
+        if (snapdisk->src->path &&
+            snapdisk->snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("file '%s' for disk '%s' requires "
                              "use of external snapshot mode"),
-                           disk->src->path, disk->name);
-            goto cleanup;
+                           snapdisk->src->path, snapdisk->name);
+            return -1;
         }
-        if (STRNEQ(disk->name, def->parent.dom->disks[idx]->dst)) {
-            VIR_FREE(disk->name);
-            disk->name = g_strdup(def->parent.dom->disks[idx]->dst);
+        if (STRNEQ(snapdisk->name, domdisk->dst)) {
+            VIR_FREE(snapdisk->name);
+            snapdisk->name = g_strdup(domdisk->dst);
         }
     }
 
-    /* Provide defaults for all remaining disks.  */
-    ndisks = def->ndisks;
-    if (VIR_EXPAND_N(def->disks, def->ndisks,
-                     def->parent.dom->ndisks - def->ndisks) < 0)
-        goto cleanup;
+    olddisks = g_steal_pointer(&snapdef->disks);
+    snapdef->disks = g_new0(virDomainSnapshotDiskDef, domdef->ndisks);
+    snapdef->ndisks = domdef->ndisks;
 
-    for (i = 0; i < def->parent.dom->ndisks; i++) {
-        virDomainSnapshotDiskDefPtr disk;
+    for (i = 0; i < domdef->ndisks; i++) {
+        virDomainDiskDefPtr domdisk = domdef->disks[i];
+        virDomainSnapshotDiskDefPtr snapdisk = snapdef->disks + i;
+        virDomainSnapshotDiskDefPtr existing;
 
-        if (virBitmapIsBitSet(map, i))
+        /* copy existing disks */
+        if ((existing = virHashLookup(map, domdisk->dst))) {
+            memcpy(snapdisk, existing, sizeof(*snapdisk));
             continue;
-        disk = &def->disks[ndisks++];
-        if (!(disk->src = virStorageSourceNew()))
-            goto cleanup;
-        disk->name = g_strdup(def->parent.dom->disks[i]->dst);
-        disk->idx = i;
+        }
+
+        /* Provide defaults for all remaining disks. */
+        snapdisk->src = virStorageSourceNew();
+        snapdisk->name = g_strdup(domdef->disks[i]->dst);
 
         /* Don't snapshot empty drives */
-        if (virStorageSourceIsEmpty(def->parent.dom->disks[i]->src))
-            disk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
+        if (virStorageSourceIsEmpty(domdef->disks[i]->src))
+            snapdisk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
         else
-            disk->snapshot = def->parent.dom->disks[i]->snapshot;
+            snapdisk->snapshot = domdef->disks[i]->snapshot;
 
-        disk->src->type = VIR_STORAGE_TYPE_FILE;
-        if (!disk->snapshot)
-            disk->snapshot = default_snapshot;
+        snapdisk->src->type = VIR_STORAGE_TYPE_FILE;
+        if (!snapdisk->snapshot)
+            snapdisk->snapshot = default_snapshot;
     }
 
-    qsort(&def->disks[0], def->ndisks, sizeof(def->disks[0]),
-          virDomainSnapshotCompareDiskIndex);
-
     /* Generate default external file names for external snapshot locations */
-    if (virDomainSnapshotDefAssignExternalNames(def) < 0)
-        goto cleanup;
+    if (virDomainSnapshotDefAssignExternalNames(snapdef) < 0)
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virBitmapFree(map);
-    return ret;
+    return 0;
 }
 
 

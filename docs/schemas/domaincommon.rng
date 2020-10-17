@@ -2419,6 +2419,12 @@
               </attribute>
             </optional>
           </group>
+          <!-- isa -->
+          <group>
+            <attribute name="type">
+              <value>isa</value>
+            </attribute>
+          </group>
           <!-- pci has an optional attribute "model" -->
           <group>
             <attribute name="type">
@@ -5020,6 +5026,11 @@
       <element name="source">
         <optional>
           <ref name="startupPolicy"/>
+        </optional>
+        <optional>
+          <attribute name="writeFiltering">
+            <ref name="virYesNo"/>
+          </attribute>
         </optional>
         <element name="address">
           <ref name="pciaddress"/>
