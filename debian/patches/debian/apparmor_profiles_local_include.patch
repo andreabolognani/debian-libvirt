@@ -20,7 +20,7 @@ index dd18c8a..be8b9ee 100644
    #include <local/usr.lib.libvirt.virt-aa-helper>
  }
 diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
-index f203076..c3b1b63 100644
+index bf4563e..6fce647 100644
 --- a/src/security/apparmor/usr.sbin.libvirtd.in
 +++ b/src/security/apparmor/usr.sbin.libvirtd.in
 @@ -134,4 +134,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
