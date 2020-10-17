@@ -246,11 +246,14 @@ qemuDomainObjRestoreJob(virDomainObjPtr obj,
 }
 
 void
-qemuDomainObjFreeJob(qemuDomainJobObjPtr job)
+qemuDomainObjClearJob(qemuDomainJobObjPtr job)
 {
+    if (!job->cb)
+        return;
+
     qemuDomainObjResetJob(job);
     qemuDomainObjResetAsyncJob(job);
-    job->cb->freeJobPrivate(job->privateData);
+    g_clear_pointer(&job->privateData, job->cb->freeJobPrivate);
     g_clear_pointer(&job->current, qemuDomainJobInfoFree);
     g_clear_pointer(&job->completed, qemuDomainJobInfoFree);
     virCondDestroy(&job->cond);

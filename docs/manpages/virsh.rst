@@ -2156,7 +2156,7 @@ dompmwakeup
 Wakeup a domain from pmsuspended state (either suspended by dompmsuspend or
 from the guest itself). Injects a wakeup into the guest that is in pmsuspended
 state, rather than waiting for the previously requested duration (if any) to
-elapse. This operation doesn't not necessarily fail if the domain is running.
+elapse. This operation does not necessarily fail if the domain is running.
 
 
 domrename
@@ -3113,6 +3113,7 @@ migrate
       [--postcopy-bandwidth bandwidth]
       [--parallel [--parallel-connections connections]]
       [--bandwidth bandwidth] [--tls-destination hostname]
+      [--disks-uri URI]
 
 Migrate domain to another host.  Add *--live* for live migration; <--p2p>
 for peer-2-peer migration; *--direct* for direct migration; or *--tunnelled*
@@ -3234,6 +3235,15 @@ has different semantics:
 
 * peer2peer migration: the *desturi* is an address of the target host as seen from the source machine.
 
+In a special circumstance where you require a complete control of the connection
+and/or libvirt does not have network access to the remote side you can use a
+UNIX transport in the URI and specify a socket path in the query, for example
+with the qemu driver you could use this:
+
+.. code-block::
+
+      qemu+unix:///system?socket=/path/to/socket
+
 When *migrateuri* is not specified, libvirt will automatically determine the
 hypervisor specific URI.  Some hypervisors, including QEMU, have an optional
 "migration_host" configuration parameter (useful when the host has multiple
@@ -3259,6 +3269,14 @@ There are a few scenarios where specifying *migrateuri* may help:
   others require a whole range of port numbers.  In the latter case *migrateuri*
   might be specified to choose a specific port number outside the default range in
   order to comply with local firewall policies.
+
+* The *desturi* uses UNIX transport method.  In this advanced case libvirt
+  should not guess a *migrateuri* and it should be specified using
+  UNIX socket path URI:
+
+.. code-block::
+
+      unix:///path/to/socket
 
 See `https://libvirt.org/migration.html#uris <https://libvirt.org/migration.html#uris>`_ for more details on
 migration URIs.
@@ -3286,11 +3304,22 @@ specific parameters separated by '&'. Currently recognized parameters are
 Optional *listen-address* sets the listen address that hypervisor on the
 destination side should bind to for incoming migration. Both IPv4 and IPv6
 addresses are accepted as well as hostnames (the resolving is done on
-destination). Some hypervisors do not support this feature and will return an
-error if this parameter is used.
+destination).  Some hypervisors do not support specifying the listen address and
+will return an error if this parameter is used. This parameter cannot be used if
+*desturi* uses UNIX transport method.
 
 Optional *disks-port* sets the port that hypervisor on destination side should
 bind to for incoming disks traffic. Currently it is supported only by QEMU.
+
+Optional *disks-uri* can also be specified (mutually exclusive with
+*disks-port*) to specify what the remote hypervisor should bind/connect to when
+migrating disks.  This can be *tcp://address:port* to specify a listen address
+(which overrides *--listen-address* for the disk migration) and a port or
+*unix:///path/to/socket* in case you need the disk migration to happen over a
+UNIX socket with that specified path.  In this case you need to make sure the
+same socket path is accessible to both source and destination hypervisors and
+connecting to the socket on the source (after hypervisor creates it on the
+destination) will actually connect to the destination.
 
 
 migrate-compcache
@@ -3729,7 +3758,8 @@ available for each hypervisor are:
 LXC (posix scheduler) : cpu_shares, vcpu_period, vcpu_quota
 
 QEMU/KVM (posix scheduler): cpu_shares, vcpu_period, vcpu_quota,
-emulator_period, emulator_quota, iothread_quota, iothread_period
+emulator_period, emulator_quota, global_period, global_quota,
+iothread_period, iothread_quota
 
 Xen (credit scheduler): weight, cap
 
@@ -4492,7 +4522,8 @@ within the existing virtual cdrom or floppy device; consider using
 *sourcetype* can indicate the type of source (block|file)
 *cache* can be one of "default", "none", "writethrough", "writeback",
 "directsync" or "unsafe".
-*io* controls specific policies on I/O; QEMU guests support "threads" and "native".
+*io* controls specific policies on I/O; QEMU guests support "threads",
+"native" and "io_uring".
 *iothread* is the number within the range of domain IOThreads to which
 this disk may be attached (QEMU only).
 *serial* is the serial of disk device. *wwn* is the wwn of disk device.
@@ -4935,7 +4966,7 @@ List all of the devices available on the node that are known by libvirt.
 separated by comma, e.g. --cap pci,scsi. Valid capability types include
 'system', 'pci', 'usb_device', 'usb', 'net', 'scsi_host', 'scsi_target',
 'scsi', 'storage', 'fc_host', 'vports', 'scsi_generic', 'drm', 'mdev',
-'mdev_types', 'ccw'.
+'mdev_types', 'ccw', 'css'.
 If *--tree* is used, the output is formatted in a tree representing parents of each
 node.  *cap* and *--tree* are mutually exclusive.
 
@@ -6348,7 +6379,7 @@ algorithms in order to define which algorithm to use for the wipe.
   disks: random, 0x00, 0xff, verify.
 * bsi        - 9-pass method recommended by the German Center of
   Security in Information Technologies
-  (http://www.bsi.bund.de): 0xff, 0xfe, 0xfd, 0xfb,
+  (https://www.bsi.bund.de): 0xff, 0xfe, 0xfd, 0xfb,
   0xf7, 0xef, 0xdf, 0xbf, 0x7f.
 * gutmann    - The canonical 35-pass sequence described in
   Gutmann's paper.

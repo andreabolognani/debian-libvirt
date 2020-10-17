@@ -85,10 +85,7 @@ testStorageFileGetMetadata(const char *path,
                            uid_t uid, gid_t gid)
 {
     struct stat st;
-    g_autoptr(virStorageSource) def = NULL;
-
-    if (!(def = virStorageSourceNew()))
-        return NULL;
+    g_autoptr(virStorageSource) def = virStorageSourceNew();
 
     def->type = VIR_STORAGE_TYPE_FILE;
     def->format = format;
@@ -198,7 +195,7 @@ testPrepImages(void)
     if (virCommandRun(cmd, NULL) < 0)
         goto skip;
 
-#ifdef HAVE_SYMLINK
+#ifdef WITH_SYMLINK
     /* Create some symlinks in a sub-directory. */
     if (symlink("../qcow2", datadir "/sub/link1") < 0 ||
         symlink("../wrap", datadir "/sub/link2") < 0) {
@@ -859,7 +856,7 @@ mymain(void)
     TEST_CHAIN(absdir, VIR_STORAGE_FILE_NONE, (&dir), EXP_PASS);
     TEST_CHAIN(absdir, VIR_STORAGE_FILE_DIR, (&dir), EXP_PASS);
 
-#ifdef HAVE_SYMLINK
+#ifdef WITH_SYMLINK
     /* Rewrite qcow2 and wrap file to use backing names relative to a
      * symlink from a different directory */
     virCommandFree(cmd);

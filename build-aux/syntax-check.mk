@@ -28,7 +28,15 @@ ME := build-aux/syntax-check.mk
 # ignoring the module description.
 AWK ?= awk
 GREP ?= grep
+# FreeBSD (and probably some other OSes too) ships own version of sed(1), not
+# compatible with the GNU sed. GNU sed is available as gsed(1), so use this
+# instead
+UNAME := $(shell uname)
+ifeq ($(UNAME),FreeBSD)
+SED ?= gsed
+else
 SED ?= sed
+endif
 
 # Helper variables.
 _empty =
@@ -1397,8 +1405,8 @@ sc_require_config_h_first:
 	else :;								\
 	fi
 
-sc_prohibit_HAVE_MBRTOWC:
-	@prohibit='\bHAVE_MBRTOWC\b'					\
+sc_prohibit_WITH_MBRTOWC:
+	@prohibit='\bWITH_MBRTOWC\b'					\
 	halt="do not use $$prohibit; it is always defined"		\
 	  $(_sc_search_regexp)
 
@@ -1617,8 +1625,8 @@ sc_unmarked_diagnostics:
 
 
 sc_prohibit_defined_have_decl_tests:
-	@prohibit='(#[	 ]*ifn?def|\<defined)\>[	 (]+HAVE_DECL_'	\
-	halt='HAVE_DECL macros are always defined'			\
+	@prohibit='(#[	 ]*ifn?def|\<defined)\>[	 (]+WITH_DECL_'	\
+	halt='WITH_DECL macros are always defined'			\
 	  $(_sc_search_regexp)
 
 # ==================================================================
@@ -1801,7 +1809,7 @@ sc_po_check:
 	  rm -f $@-1 $@-2;						\
 	fi
 
-# #if HAVE_... will evaluate to false for any non numeric string.
+# #if WITH_... will evaluate to false for any non numeric string.
 # That would be flagged by using -Wundef, however gnulib currently
 # tests many undefined macros, and so we can't enable that option.
 # So at least preclude common boolean strings as macro values.
@@ -1864,7 +1872,7 @@ sc_group-qemu-caps:
 # List all syntax-check exemptions:
 exclude_file_name_regexp--sc_avoid_strcase = ^tools/vsh\.h$$
 
-_src1=libvirt-stream|qemu/qemu_monitor|util/vir(command|file|fdstream)|rpc/virnetsocket|lxc/lxc_controller|locking/lock_daemon|logging/log_daemon
+_src1=libvirt-stream|qemu/qemu_monitor|util/vir(command|file|fdstream)|rpc/virnetsocket|lxc/lxc_controller|locking/lock_daemon|logging/log_daemon|remote/remote_ssh_helper
 _test1=shunloadtest|virnettlscontexttest|virnettlssessiontest|vircgroupmock|commandhelper
 exclude_file_name_regexp--sc_avoid_write = \
   ^(src/($(_src1))|tools/virsh-console|tests/($(_test1)))\.c$$

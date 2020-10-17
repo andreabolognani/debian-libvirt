@@ -28,7 +28,7 @@ $
 </pre>
 
 <p>
-Additional information on bhyve could be obtained on <a href="http://bhyve.org/">bhyve.org</a>.
+Additional information on bhyve could be obtained on <a href="https://bhyve.org/">bhyve.org</a>.
 </p>
 
 <h2><a id="uri">Connections to the Bhyve driver</a></h2>
@@ -233,7 +233,7 @@ of a guest.</p>
 
 <p><b>NB:</b> Some versions of bhyve have a bug that prevents guests from booting
 until the console is opened by a client. This bug was fixed in FreeBSD
-<a href="http://svnweb.freebsd.org/changeset/base/262884">r262884</a>. If
+<a href="https://svnweb.freebsd.org/changeset/base/262884">r262884</a>. If
 an older version is used, one either has to open a console manually with <code>virsh console</code>
 to let a guest boot or start a guest using:</p>
 
@@ -389,11 +389,35 @@ it with the <code>port</code> attribute):</p>
     &lt;graphics type='vnc' autoport='yes'&gt;
 </pre>
 
+<p><span class="since">Since 6.8.0</span>, it's possible to set framebuffer resolution
+using the <code>resolution</code> sub-element:</p>
+
+<pre>
+   &lt;video&gt;
+     &lt;model type='gop' heads='1' primary='yes'&gt;
+       &lt;resolution x='800' y='600'/&gt;
+     &lt;/model&gt;
+   &lt;/video&gt;
+</pre>
+
+<p><span class="since">Since 6.8.0</span>, VNC server can be configured to use
+password based authentication:</p>
+
+<pre>
+  &lt;graphics type='vnc' port='5904' passwd='foobar'&gt;
+    &lt;listen type='address' address='127.0.0.1'/&gt;
+  &lt;/graphics&gt;
+</pre>
+
+<p>Note: VNC password authentication is known to be cryptographically weak.
+Additionally, the password is passed as a command line argument in clear text.
+Make sure you understand the risks associated with this feature before using it.</p>
+
 <h3><a id="clockconfig">Clock configuration</a></h3>
 
 <p>Originally bhyve supported only localtime for RTC. Support for UTC time was introduced in
-<a href="http://svnweb.freebsd.org/changeset/base/284894">r284894</a> for <i>10-STABLE</i> and
-in <a href="http://svnweb.freebsd.org/changeset/base/279225">r279225</a> for <i>-CURRENT</i>.
+<a href="https://svnweb.freebsd.org/changeset/base/284894">r284894</a> for <i>10-STABLE</i> and
+in <a href="https://svnweb.freebsd.org/changeset/base/279225">r279225</a> for <i>-CURRENT</i>.
 It's possible to use this in libvirt <span class="since">since 1.2.18</span>, just place the
 following to domain XML:</p>
 
@@ -432,6 +456,29 @@ supports Intel e1000 network adapter emulation. It's supported in libvirt
 ...
 </pre>
 
+<h3><a id="sound">Sound device</a></h3>
+
+<p>As of <a href="https://svnweb.freebsd.org/changeset/base/349355">FreeBSD changeset r349355</a>
+bhyve supports sound device emulation. It's supported in libvirt
+<span class="since">since 6.7.0</span>.</p>
+
+<pre>
+...
+  &lt;sound model='ich7'&gt;
+    &lt;audio id='1'/&gt;
+  &lt;/sound&gt;
+  &lt;audio id='1' type='oss'&gt;
+    &lt;input dev='/dev/dsp0'/&gt;
+    &lt;output dev='/dev/dsp0'/&gt;
+  &lt;/audio&gt;
+...
+</pre>
+
+<p>Here, the <code>sound</code> element specifies the sound device as it's exposed
+to the guest, with <code>ich7</code> being the only supported model now,
+and the <code>audio</code> element specifies how the guest device is mapped
+to the host sound device.</p>
+
 <h3><a id="wired">Wiring guest memory</a></h3>
 
 <p><span class="since">Since 4.4.0</span>, it's possible to specify that guest memory should
@@ -450,7 +497,7 @@ be wired and cannot be swapped out as follows:</p>
 
 <p><span class="since">Since 4.5.0</span>, it's possible to specify guest CPU topology, if bhyve
 supports that. Support for specifying guest CPU topology was added to bhyve in
-<a href="http://svnweb.freebsd.org/changeset/base/332298">r332298</a> for <i>-CURRENT</i>.
+<a href="https://svnweb.freebsd.org/changeset/base/332298">r332298</a> for <i>-CURRENT</i>.
 Example:</p>
 <pre>
 &lt;domain type="bhyve"&gt;

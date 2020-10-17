@@ -49,8 +49,7 @@ virshNetworkNameCompleter(vshControl *ctl,
     if ((nnets = virConnectListAllNetworks(priv->conn, &nets, flags)) < 0)
         return NULL;
 
-    if (VIR_ALLOC_N(tmp, nnets + 1) < 0)
-        goto cleanup;
+    tmp = g_new0(char *, nnets + 1);
 
     for (i = 0; i < nnets; i++) {
         const char *name = virNetworkGetName(nets[i]);
@@ -60,10 +59,9 @@ virshNetworkNameCompleter(vshControl *ctl,
 
     ret = g_steal_pointer(&tmp);
 
- cleanup:
     for (i = 0; i < nnets; i++)
         virNetworkFree(nets[i]);
-    VIR_FREE(nets);
+    g_free(nets);
     return ret;
 }
 
@@ -78,8 +76,7 @@ virshNetworkEventNameCompleter(vshControl *ctl G_GNUC_UNUSED,
 
     virCheckFlags(0, NULL);
 
-    if (VIR_ALLOC_N(tmp, VIR_NETWORK_EVENT_ID_LAST + 1) < 0)
-        return NULL;
+    tmp = g_new0(char *, VIR_NETWORK_EVENT_ID_LAST + 1);
 
     for (i = 0; i < VIR_NETWORK_EVENT_ID_LAST; i++)
         tmp[i] = g_strdup(virshNetworkEventCallbacks[i].name);
@@ -106,13 +103,12 @@ virshNetworkPortUUIDCompleter(vshControl *ctl,
         return NULL;
 
     if (!(net = virshCommandOptNetwork(ctl, cmd, NULL)))
-        return false;
+        return NULL;
 
     if ((nports = virNetworkListAllPorts(net, &ports, flags)) < 0)
         return NULL;
 
-    if (VIR_ALLOC_N(ret, nports + 1) < 0)
-        goto error;
+    ret = g_new0(char *, nports + 1);
 
     for (i = 0; i < nports; i++) {
         char uuid[VIR_UUID_STRING_BUFLEN];
@@ -124,16 +120,57 @@ virshNetworkPortUUIDCompleter(vshControl *ctl,
 
         virNetworkPortFree(ports[i]);
     }
-    VIR_FREE(ports);
+    g_free(ports);
 
     return ret;
 
  error:
     for (; i < nports; i++)
         virNetworkPortFree(ports[i]);
-    VIR_FREE(ports);
+    g_free(ports);
     for (i = 0; i < nports; i++)
-        VIR_FREE(ret[i]);
-    VIR_FREE(ret);
+        g_free(ret[i]);
+    g_free(ret);
     return NULL;
+}
+
+
+char **
+virshNetworkUUIDCompleter(vshControl *ctl,
+                          const vshCmd *cmd G_GNUC_UNUSED,
+                          unsigned int flags)
+{
+    virshControlPtr priv = ctl->privData;
+    virNetworkPtr *nets = NULL;
+    int nnets = 0;
+    size_t i = 0;
+    char **ret = NULL;
+    VIR_AUTOSTRINGLIST tmp = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (!priv->conn || virConnectIsAlive(priv->conn) <= 0)
+        return NULL;
+
+    if ((nnets = virConnectListAllNetworks(priv->conn, &nets, flags)) < 0)
+        return NULL;
+
+    tmp = g_new0(char *, nnets + 1);
+
+    for (i = 0; i < nnets; i++) {
+        char uuid[VIR_UUID_STRING_BUFLEN];
+
+        if (virNetworkGetUUIDString(nets[i], uuid) < 0)
+            goto cleanup;
+
+        tmp[i] = g_strdup(uuid);
+    }
+
+    ret = g_steal_pointer(&tmp);
+
+ cleanup:
+    for (i = 0; i < nnets; i++)
+        virNetworkFree(nets[i]);
+    g_free(nets);
+    return ret;
 }

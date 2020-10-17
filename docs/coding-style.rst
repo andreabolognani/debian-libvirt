@@ -116,7 +116,7 @@ following to your ~/.vimrc file:
 Or if you don't want to mess your ~/.vimrc up, you can save the
 above into a file called .lvimrc (not .vimrc) located at the root
 of libvirt source, then install a vim script from
-http://www.vim.org/scripts/script.php?script_id=1408, which will
+https://www.vim.org/scripts/script.php?script_id=1408, which will
 load the .lvimrc only when you edit libvirt code.
 
 Code formatting (especially for new code)
@@ -258,15 +258,15 @@ comment, although use of a semicolon is not currently rejected.
 Curly braces
 ------------
 
-Omit the curly braces around an ``if``, ``while``, ``for`` etc.
-body only when both that body and the condition itself occupy a
-single line. In every other case we require the braces. This
+Curly braces around an ``if``, ``while``, ``for`` etc. can be omitted if the
+body and the condition itself occupy only a single line.
+In every other case we require the braces. This
 ensures that it is trivially easy to identify a
 single-\ *statement* loop: each has only one *line* in its body.
 
 ::
 
-  while (expr)             // single line body; {} is forbidden
+  while (expr)             // single line body; {} is optional
       single_line_stmt();
 
 ::
@@ -474,7 +474,7 @@ indentation to track nesting:
 
 ::
 
-  #if defined(HAVE_POSIX_FALLOCATE) && !defined(HAVE_FALLOCATE)
+  #if defined(WITH_POSIX_FALLOCATE) && !defined(WITH_FALLOCATE)
   # define fallocate(a, ignored, b, c) posix_fallocate(a, b, c)
   #endif
 

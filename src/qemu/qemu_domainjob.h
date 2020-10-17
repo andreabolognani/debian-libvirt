@@ -274,7 +274,8 @@ int qemuDomainJobInfoToParams(qemuDomainJobInfoPtr jobInfo,
 
 bool qemuDomainTrackJob(qemuDomainJob job);
 
-void qemuDomainObjFreeJob(qemuDomainJobObjPtr job);
+void qemuDomainObjClearJob(qemuDomainJobObjPtr job);
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(qemuDomainJobObj, qemuDomainObjClearJob);
 
 int
 qemuDomainObjInitJob(qemuDomainJobObjPtr job,

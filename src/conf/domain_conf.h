@@ -245,6 +245,7 @@ struct _virDomainHostdevSubsysSCSIHost {
     unsigned bus;
     unsigned target;
     unsigned long long unit;
+    virStorageSourcePtr src;
 };
 
 struct _virDomainHostdevSubsysSCSIiSCSI {
@@ -347,6 +348,7 @@ struct _virDomainHostdevDef {
     bool missing;
     bool readonly;
     bool shareable;
+    virTristateBool writeFiltering;
     union {
         virDomainHostdevSubsys subsys;
         virDomainHostdevCaps caps;
@@ -597,6 +599,7 @@ typedef enum {
     VIR_DOMAIN_CONTROLLER_TYPE_USB,
     VIR_DOMAIN_CONTROLLER_TYPE_PCI,
     VIR_DOMAIN_CONTROLLER_TYPE_XENBUS,
+    VIR_DOMAIN_CONTROLLER_TYPE_ISA,
 
     VIR_DOMAIN_CONTROLLER_TYPE_LAST
 } virDomainControllerType;
@@ -687,6 +690,12 @@ typedef enum {
 
     VIR_DOMAIN_CONTROLLER_MODEL_VIRTIO_SERIAL_LAST
 } virDomainControllerModelVirtioSerial;
+
+typedef enum {
+    VIR_DOMAIN_CONTROLLER_MODEL_ISA_DEFAULT = -1,
+
+    VIR_DOMAIN_CONTROLLER_MODEL_ISA_LAST
+} virDomainControllerModelISA;
 
 #define IS_USB2_CONTROLLER(ctrl) \
     (((ctrl)->type == VIR_DOMAIN_CONTROLLER_TYPE_USB) && \
@@ -3595,6 +3604,7 @@ VIR_ENUM_DECL(virDomainControllerModelSCSI);
 VIR_ENUM_DECL(virDomainControllerModelUSB);
 VIR_ENUM_DECL(virDomainControllerModelIDE);
 VIR_ENUM_DECL(virDomainControllerModelVirtioSerial);
+VIR_ENUM_DECL(virDomainControllerModelISA);
 VIR_ENUM_DECL(virDomainFS);
 VIR_ENUM_DECL(virDomainFSDriver);
 VIR_ENUM_DECL(virDomainFSAccessMode);
@@ -3893,6 +3903,9 @@ virDomainBlockIoTuneInfoCopy(const virDomainBlockIoTuneInfo *src,
 bool
 virDomainBlockIoTuneInfoEqual(const virDomainBlockIoTuneInfo *a,
                               const virDomainBlockIoTuneInfo *b);
+
+int
+virDomainNVDimmAlignSizePseries(virDomainMemoryDefPtr mem);
 
 bool
 virHostdevIsSCSIDevice(const virDomainHostdevDef *hostdev)

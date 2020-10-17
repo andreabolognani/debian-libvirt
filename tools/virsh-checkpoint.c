@@ -90,7 +90,7 @@ static const vshCmdInfo info_checkpoint_create[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_create[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "xmlfile",
      .type = VSH_OT_STRING,
      .help = N_("domain checkpoint XML")
@@ -201,7 +201,7 @@ static const vshCmdInfo info_checkpoint_create_as[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_create_as[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "name",
      .type = VSH_OT_STRING,
      .help = N_("name of checkpoint")
@@ -332,7 +332,7 @@ static const vshCmdInfo info_checkpoint_edit[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_edit[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
      .help = N_("checkpoint name"),
@@ -452,7 +452,7 @@ static const vshCmdInfo info_checkpoint_info[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_info[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
      .help = N_("checkpoint name"),
@@ -581,7 +581,6 @@ virshCheckpointListCollect(vshControl *ctl,
                            bool tree)
 {
     size_t i;
-    char **names = NULL;
     int count = -1;
     virDomainCheckpointPtr *chks;
     virshCheckpointListPtr checkpointlist = vshMalloc(ctl,
@@ -628,10 +627,6 @@ virshCheckpointListCollect(vshControl *ctl,
 
  cleanup:
     virshCheckpointListFree(checkpointlist);
-    if (names && count > 0)
-        for (i = 0; i < count; i++)
-            VIR_FREE(names[i]);
-    VIR_FREE(names);
     return ret;
 }
 
@@ -662,7 +657,7 @@ static const vshCmdInfo info_checkpoint_list[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_list[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "parent",
      .type = VSH_OT_BOOL,
      .help = N_("add a column showing parent checkpoint")
@@ -879,7 +874,7 @@ static const vshCmdInfo info_checkpoint_dumpxml[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_dumpxml[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
      .help = N_("checkpoint name"),
@@ -954,7 +949,7 @@ static const vshCmdInfo info_checkpoint_parent[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_parent[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
      .help = N_("find parent of checkpoint name"),
@@ -1015,7 +1010,8 @@ static const vshCmdInfo info_checkpoint_delete[] = {
 };
 
 static const vshCmdOptDef opts_checkpoint_delete[] = {
-    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT |
+                                 VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
      .help = N_("checkpoint name"),

@@ -105,14 +105,13 @@ virshCommaStringListComplete(const char *input,
         if ((comma = strrchr(inputCopy, ',')))
             *comma = '\0';
         else
-            VIR_FREE(inputCopy);
+            g_clear_pointer(&inputCopy, g_free);
     }
 
     if (inputCopy && !(inputList = virStringSplit(inputCopy, ",", 0)))
         return NULL;
 
-    if (VIR_ALLOC_N(ret, optionsLen + 1) < 0)
-        return NULL;
+    ret = g_new0(char *, optionsLen + 1);
 
     for (i = 0; i < optionsLen; i++) {
         if (virStringListHasString((const char **)inputList, options[i]))

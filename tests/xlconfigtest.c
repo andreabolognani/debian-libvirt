@@ -73,8 +73,7 @@ testCompareParseXML(const char *xlcfg, const char *xml, bool replaceVars)
     virDomainDefPtr def = NULL;
     char *replacedXML = NULL;
 
-    if (VIR_ALLOC_N(gotxlcfgData, wrote) < 0)
-        goto fail;
+    gotxlcfgData = g_new0(char, wrote);
 
     conn = virGetConnect();
     if (!conn) goto fail;
@@ -260,6 +259,7 @@ mymain(void)
     DO_TEST("fullvirt-nestedhvm-disabled");
     DO_TEST("fullvirt-cpuid");
     DO_TEST("fullvirt-acpi-slic");
+    DO_TEST("fullvirt-pci");
 #ifdef LIBXL_HAVE_VNUMA
     DO_TEST("fullvirt-vnuma");
     DO_TEST_PARSE("fullvirt-vnuma-autocomplete", false);

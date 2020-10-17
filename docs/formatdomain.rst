@@ -508,19 +508,25 @@ layout of sub-elements, with supported values of:
 ``fwcfg``
    Some hypervisors provide unified way to tweak how firmware configures itself,
    or may contain tables to be installed for the guest OS, for instance boot
-   order, ACPI, SMBIOS, etc. It even allows users to define their own config
-   blobs. In case of QEMU, these then appear under domain's sysfs, under
-   ``/sys/firmware/qemu_fw_cfg``. Note, that these values apply regardless the
-   <smbios/> mode under <os/>. :since:`Since 6.5.0`
+   order, ACPI, SMBIOS, etc.
+
+   It even allows users to define their own config blobs. In case of QEMU,
+   these then appear under domain's sysfs (if the guest kernel has FW_CFG_SYSFS
+   config option enabled), under ``/sys/firmware/qemu_fw_cfg``. Note, that
+   these values apply regardless the ``<smbios/>`` mode under ``<os/>``.
+   :since:`Since 6.5.0`
+
+   **Please note that because of limited number of data slots use of fwcfg is
+   strongly discouraged and <oemStrings/> should be used instead**.
 
    ::
 
-        <smbios type='fwcfg'>
+        <sysinfo type='fwcfg'>
           <entry name='opt/com.example/name'>example value</entry>
-          <entry name='opt/com.coreos/config' file='/tmp/provision.ign'/>
-        </smbios>
+          <entry name='opt/com.example/config' file='/tmp/provision.ign'/>
+        </sysinfo>
 
-   The ``smbios`` element can have multiple ``entry`` child elements. Each
+   The ``sysinfo`` element can have multiple ``entry`` child elements. Each
    element then has mandatory ``name`` attribute, which defines the name of the
    blob and must begin with ``"opt/"`` and to avoid clashing with other names is
    advised to be in form ``"opt/$RFQDN/$name"`` where ``$RFQDN`` is a reverse
@@ -1036,7 +1042,7 @@ Memory Tuning
    QEMU and KVM are strongly advised not to set this limit as domain may get
    killed by the kernel if the guess is too low, and determining the memory
    needed for a process to run is an `undecidable
-   problem <http://en.wikipedia.org/wiki/Undecidable_problem>`__; that said, if
+   problem <https://en.wikipedia.org/wiki/Undecidable_problem>`__; that said, if
    you already set ``locked`` in `memory backing <#elementsMemoryBacking>`__
    because your workload demands it, you'll have to take into account the
    specifics of your deployment and figure out a value for ``hard_limit`` that
@@ -2423,7 +2429,7 @@ paravirtualized driver is specified via the ``disk`` element.
       Using "lun" ( :since:`since 0.9.10` ) is only valid when the ``type`` is
       "block" or "network" for ``protocol='iscsi'`` or when the ``type`` is
       "volume" when using an iSCSI source ``pool`` for ``mode`` "host" or as an
-      `NPIV <http://wiki.libvirt.org/page/NPIV_in_libvirt>`__ virtual Host Bus
+      `NPIV <https://wiki.libvirt.org/page/NPIV_in_libvirt>`__ virtual Host Bus
       Adapter (vHBA) using a Fibre Channel storage pool. Configured in this
       manner, the LUN behaves identically to "disk", except that generic SCSI
       commands from the guest are accepted and passed through to the physical
@@ -3118,16 +3124,16 @@ A directory on the host that can be accessed directly from the guest.
    ``passthrough``
       The ``source`` is accessed with the permissions of the user inside the
       guest. This is the default ``accessmode`` if one is not specified. `More
-      info <http://lists.gnu.org/archive/html/qemu-devel/2010-05/msg02673.html>`__
+      info <https://lists.gnu.org/archive/html/qemu-devel/2010-05/msg02673.html>`__
    ``mapped``
       The ``source`` is accessed with the permissions of the hypervisor (QEMU
       process). `More
-      info <http://lists.gnu.org/archive/html/qemu-devel/2010-05/msg02673.html>`__
+      info <https://lists.gnu.org/archive/html/qemu-devel/2010-05/msg02673.html>`__
    ``squash``
       Similar to 'passthrough', the exception is that failure of privileged
       operations like 'chown' are ignored. This makes a passthrough-like mode
       usable for people who run the hypervisor as non-root. `More
-      info <http://lists.gnu.org/archive/html/qemu-devel/2010-09/msg00121.html>`__
+      info <https://lists.gnu.org/archive/html/qemu-devel/2010-09/msg00121.html>`__
 
    :since:`Since 5.2.0` , the filesystem element has an optional attribute
    ``model`` with supported values "virtio-transitional",
@@ -3354,7 +3360,7 @@ few exceptions:
 For more details see the `qemu patch
 posting <https://lists.gnu.org/archive/html/qemu-devel/2018-12/msg00923.html>`__
 and the `virtio-1.0
-spec <http://docs.oasis-open.org/virtio/virtio/v1.0/virtio-v1.0.html>`__.
+spec <https://docs.oasis-open.org/virtio/virtio/v1.0/virtio-v1.0.html>`__.
 
 :anchor:`<a id="elementsControllers"/>`
 
@@ -3733,7 +3739,7 @@ or:
    ...
    <devices>
      <hostdev mode='subsystem' type='pci' managed='yes'>
-       <source>
+       <source writeFiltering='no'>
          <address domain='0x0000' bus='0x06' slot='0x02' function='0x0'/>
        </source>
        <boot order='1'/>
@@ -3899,6 +3905,11 @@ or:
 
    ``pci``
       PCI devices can only be described by their ``address``.
+      :since:`Since 6.8.0 (Xen only)` , the ``source`` element of a PCI device
+      may contain the ``writeFiltering`` attribute to control write access to
+      the PCI configuration space. By default Xen only allows writes of known
+      safe values to the configuration space. Setting ``writeFiltering='no'``
+      will allow all writes to the device's PCI configuration space.
    ``scsi``
       SCSI devices are described by both the ``adapter`` and ``address``
       elements. The ``address`` element includes a ``bus`` attribute (a 2-digit
@@ -4461,7 +4472,7 @@ Direct attachment to physical interface
   interface of the host. :since:`Since 0.7.7 (QEMU and KVM only)`
 | This setup requires the Linux macvtap driver to be available. :since:`(Since
   Linux 2.6.34.)` One of the modes 'vepa' ( `'Virtual Ethernet Port
-  Aggregator' <http://www.ieee802.org/1/files/public/docs2009/new-evb-congdon-vepa-modular-0709-v01.pdf>`__),
+  Aggregator' <https://www.ieee802.org/1/files/public/docs2009/new-evb-congdon-vepa-modular-0709-v01.pdf>`__),
   'bridge' or 'private' can be chosen for the operation mode of the macvtap
   device, 'vepa' being the default mode. The individual modes cause the delivery
   of packets to behave as follows:
@@ -5779,13 +5790,16 @@ A video device.
    value "vga", "cirrus", "vmvga", "xen", "vbox", "qxl" ( :since:`since 0.8.6`
    ), "virtio" ( :since:`since 1.3.0` ), "gop" ( :since:`since 3.2.0` ), "bochs"
    ( :since:`since 5.6.0` ), "ramfb" ( :since:`since 5.9.0` ), or "none" (
-   :since:`since 4.6.0` , depending on the hypervisor features available. The
-   purpose of the type ``none`` is to instruct libvirt not to add a default
-   video device in the guest (see the paragraph above). This legacy behaviour
-   can be inconvenient in cases where GPU mediated devices are meant to be the
-   only rendering device within a guest and so specifying another ``video``
-   device along with type ``none``. Refer to Host device assignment to see how
-   to add a mediated device into a guest.
+   :since:`since 4.6.0` ), depending on the hypervisor features available.
+
+   Note: The purpose of the type ``none`` is to instruct libvirt not to add a
+   default video device in the guest (see the ``video`` element description
+   above), since such behaviour is inconvenient in cases where GPU mediated
+   devices are meant to be the only rendering device within a guest. If this
+   is your use case specify a ``none`` type ``video`` device in the XML to stop
+   the default behaviour. Refer to `Host device assignment
+   <#host-device-assignment>`__ to see how to add a mediated device into a
+   guest.
 
    You can provide the amount of video memory in kibibytes (blocks of 1024
    bytes) using ``vram``. This is supported only for guest type of "vz", "qemu",
@@ -5808,7 +5822,8 @@ A video device.
    :since:`Since 5.9.0` , the ``model`` element may also have an optional
    ``resolution`` sub-element. The ``resolution`` element has attributes ``x``
    and ``y`` to set the minimum resolution for the video device. This
-   sub-element is valid for model types "vga", "qxl", "bochs", and "virtio".
+   sub-element is valid for model types "vga", "qxl", "bochs", "gop",
+   and "virtio".
 
 ``acceleration``
    Configure if video acceleration should be enabled.
@@ -6060,7 +6075,7 @@ type ``serial`` per guest.
 
 Virtio consoles are usually accessible as ``/dev/hvc[0-7]`` from inside the
 guest; for more information, see
-http://fedoraproject.org/wiki/Features/VirtioSerial. :since:`Since 0.8.3`
+https://fedoraproject.org/wiki/Features/VirtioSerial. :since:`Since 0.8.3`
 
 For the relationship between serial ports and consoles, `see
 below <#elementCharSerialAndConsole>`__.
@@ -6181,7 +6196,7 @@ types have different ``target`` attributes.
    Paravirtualized virtio channel. Channel is exposed in the guest under
    /dev/vport*, and if the optional element ``name`` is specified,
    /dev/virtio-ports/$name (for more info, please see
-   http://fedoraproject.org/wiki/Features/VirtioSerial). The optional element
+   https://fedoraproject.org/wiki/Features/VirtioSerial). The optional element
    ``address`` can tie the channel to a particular ``type='virtio-serial'``
    controller, `documented above <#elementsAddress>`__. With qemu, if ``name``
    is "org.qemu.guest_agent.0", then libvirt can interact with a guest agent
@@ -7202,8 +7217,10 @@ Example: usage of the memory devices
       following restrictions apply:
 
       #. the minimum label size is 128KiB,
-      #. the remaining size (total-size - label-size) will be aligned
-         to 4KiB as default.
+      #. the remaining size (total-size - label-size), also called guest area,
+         will be aligned to 4KiB as default. For pSeries guests, the guest area
+         will be aligned down to 256MiB, and the minimum size of the guest area
+         must be at least 256MiB.
 
    ``readonly``
       The ``readonly`` element is used to mark the vNVDIMM as read-only. Only

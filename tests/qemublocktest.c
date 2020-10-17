@@ -67,9 +67,7 @@ testBackingXMLjsonXML(const void *args)
     if (data->legacy)
         backendpropsflags |= QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_LEGACY;
 
-    if (!(xmlsrc = virStorageSourceNew()))
-        return -1;
-
+    xmlsrc = virStorageSourceNew();
     xmlsrc->type = data->type;
 
     if (!(xml = virXMLParseStringCtxt(data->xml, "(test storage source XML)", &ctxt)))
@@ -234,8 +232,7 @@ testQemuDiskXMLToJSONFakeSecrets(virStorageSourcePtr src)
     srcpriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
 
     if (src->auth) {
-        if (VIR_ALLOC(srcpriv->secinfo) < 0)
-            return -1;
+        srcpriv->secinfo = g_new0(qemuDomainSecretInfo, 1);
 
         srcpriv->secinfo->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
         srcpriv->secinfo->s.aes.username = g_strdup(src->auth->username);
@@ -245,8 +242,7 @@ testQemuDiskXMLToJSONFakeSecrets(virStorageSourcePtr src)
     }
 
     if (src->encryption) {
-        if (VIR_ALLOC(srcpriv->encinfo) < 0)
-            return -1;
+        srcpriv->encinfo = g_new0(qemuDomainSecretInfo, 1);
 
         srcpriv->encinfo->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
         srcpriv->encinfo->s.aes.alias = g_strdup_printf("%s-encalias",
@@ -493,8 +489,7 @@ testQemuImageCreateLoadDiskXML(const char *name,
         return NULL;
     }
 
-    if (VIR_ALLOC(diskdef) < 0)
-        return NULL;
+    diskdef = g_new0(virDomainSnapshotDiskDef, 1);
 
     if (virDomainSnapshotDiskDefParseXML(node, ctxt, diskdef,
                                          VIR_DOMAIN_DEF_PARSE_STATUS,
@@ -673,10 +668,7 @@ testQemuBitmapListPrint(const char *title,
 static virStorageSourcePtr
 testQemuBackupIncrementalBitmapCalculateGetFakeImage(size_t idx)
 {
-   virStorageSourcePtr ret;
-
-   if (!(ret = virStorageSourceNew()))
-       abort();
+   virStorageSourcePtr ret = virStorageSourceNew();
 
    ret->id = idx;
    ret->type = VIR_STORAGE_TYPE_FILE;
@@ -755,9 +747,7 @@ testQemuBackupIncrementalBitmapCalculate(const void *opaque)
         return -1;
     }
 
-    if (!(target = virStorageSourceNew()))
-        return -1;
-
+    target = virStorageSourceNew();
     target->nodeformat = g_strdup_printf("target_node");
 
     if (qemuBackupDiskPrepareOneBitmapsChain(data->chain,
@@ -888,9 +878,6 @@ testQemuBlockBitmapBlockcopy(const void *opaque)
     g_autoptr(virHashTable) nodedata = NULL;
     g_autoptr(virStorageSource) fakemirror = virStorageSourceNew();
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-
-    if (!fakemirror)
-        return -1;
 
     fakemirror->nodeformat = g_strdup("mirror-format-node");
 

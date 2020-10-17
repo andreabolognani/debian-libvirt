@@ -28,6 +28,7 @@
 
 #include "virerror.h"
 #include "datatypes.h"
+#include "domain_addr.h"
 #include "viralloc.h"
 #include "virfile.h"
 #include "virjson.h"
@@ -35,7 +36,6 @@
 #include "node_device_conf.h"
 #include "node_device_event.h"
 #include "node_device_driver.h"
-#include "node_device_hal.h"
 #include "node_device_util.h"
 #include "virvhba.h"
 #include "viraccessapicheck.h"
@@ -97,14 +97,13 @@ int nodeConnectIsAlive(virConnectPtr conn G_GNUC_UNUSED)
     return 1;
 }
 
-#if defined (__linux__) && ( defined (WITH_HAL) || defined(WITH_UDEV))
+#if defined (__linux__) && defined(WITH_UDEV)
 /* NB: It was previously believed that changes in driver name were
  * relayed to libvirt as "change" events by udev, and the udev event
  * notification is setup to recognize such events and effectively
  * recreate the device entry in the cache. However, neither the kernel
  * nor udev sends such an event, so it is necessary to manually update
- * the driver name for a device each time its entry is used, both for
- * udev *and* HAL backends.
+ * the driver name for a device each time its entry is used.
  */
 static int
 nodeDeviceUpdateDriverName(virNodeDeviceDefPtr def)
@@ -628,7 +627,7 @@ nodeDeviceFindAddressByName(const char *name)
 {
     virNodeDeviceDefPtr def = NULL;
     virNodeDevCapsDefPtr caps = NULL;
-    char *pci_addr = NULL;
+    char *addr = NULL;
     virNodeDeviceObjPtr dev = virNodeDeviceObjListFindByName(driver->devs, name);
 
     if (!dev) {
@@ -640,21 +639,30 @@ nodeDeviceFindAddressByName(const char *name)
     def = virNodeDeviceObjGetDef(dev);
     for (caps = def->caps; caps != NULL; caps = caps->next) {
         if (caps->data.type == VIR_NODE_DEV_CAP_PCI_DEV) {
-            virPCIDeviceAddress addr = {
+            virPCIDeviceAddress pci_addr = {
                 .domain = caps->data.pci_dev.domain,
                 .bus = caps->data.pci_dev.bus,
                 .slot = caps->data.pci_dev.slot,
                 .function = caps->data.pci_dev.function
             };
 
-            pci_addr = virPCIDeviceAddressAsString(&addr);
+            addr = virPCIDeviceAddressAsString(&pci_addr);
+            break;
+        } else if (caps->data.type == VIR_NODE_DEV_CAP_CSS_DEV) {
+            virDomainDeviceCCWAddress ccw_addr = {
+                .cssid = caps->data.ccw_dev.cssid,
+                .ssid = caps->data.ccw_dev.ssid,
+                .devno = caps->data.ccw_dev.devno
+            };
+
+            addr = virDomainCCWAddressAsString(&ccw_addr);
             break;
         }
     }
 
     virNodeDeviceObjEndAPI(&dev);
 
-    return pci_addr;
+    return addr;
 }
 
 
@@ -664,11 +672,11 @@ nodeDeviceGetMdevctlStartCommand(virNodeDeviceDefPtr def,
 {
     virCommandPtr cmd;
     g_autofree char *json = NULL;
-    g_autofree char *parent_pci = nodeDeviceFindAddressByName(def->parent);
+    g_autofree char *parent_addr = nodeDeviceFindAddressByName(def->parent);
 
-    if (!parent_pci) {
+    if (!parent_addr) {
         virReportError(VIR_ERR_NO_NODE_DEVICE,
-                       _("unable to find PCI address for parent device '%s'"), def->parent);
+                       _("unable to find parent device '%s'"), def->parent);
         return NULL;
     }
 
@@ -679,7 +687,7 @@ nodeDeviceGetMdevctlStartCommand(virNodeDeviceDefPtr def,
     }
 
     cmd = virCommandNewArgList(MDEVCTL, "start",
-                               "-p", parent_pci,
+                               "-p", parent_addr,
                                "--jsonfile", "/dev/stdin",
                                NULL);
 
@@ -739,7 +747,6 @@ nodeDeviceCreateXML(virConnectPtr conn,
     g_autoptr(virNodeDeviceDef) def = NULL;
     g_autofree char *wwnn = NULL;
     g_autofree char *wwpn = NULL;
-    int parent_host = -1;
     virNodeDevicePtr device = NULL;
     const char *virt_type = NULL;
 
@@ -757,6 +764,8 @@ nodeDeviceCreateXML(virConnectPtr conn,
         return NULL;
 
     if (nodeDeviceHasCapability(def, VIR_NODE_DEV_CAP_SCSI_HOST)) {
+        int parent_host;
+
         if (virNodeDeviceGetWWNs(def, &wwnn, &wwpn) == -1)
             return NULL;
 
@@ -925,9 +934,5 @@ nodedevRegister(void)
 {
 #ifdef WITH_UDEV
     return udevNodeRegister();
-#else
-# ifdef WITH_HAL
-    return halNodeRegister();
-# endif
 #endif
 }

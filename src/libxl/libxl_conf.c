@@ -130,7 +130,7 @@ libxlMakeDomCreateInfo(libxl_ctx *ctx,
 
     if (def->os.type == VIR_DOMAIN_OSTYPE_HVM ||
         def->os.type == VIR_DOMAIN_OSTYPE_XENPVH) {
-#ifdef HAVE_XEN_PVH
+#ifdef WITH_XEN_PVH
         c_info->type = def->os.type == VIR_DOMAIN_OSTYPE_HVM ?
             LIBXL_DOMAIN_TYPE_HVM : LIBXL_DOMAIN_TYPE_PVH;
 #else
@@ -300,7 +300,7 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
     if (hvm) {
         libxl_domain_build_info_init_type(b_info, LIBXL_DOMAIN_TYPE_HVM);
     } else if (pvh) {
-#ifdef HAVE_XEN_PVH
+#ifdef WITH_XEN_PVH
         libxl_domain_build_info_init_type(b_info, LIBXL_DOMAIN_TYPE_PVH);
 #else
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -508,12 +508,25 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
         libxl_defbool_set(&b_info->u.hvm.pae,
                           def->features[VIR_DOMAIN_FEATURE_PAE] ==
                           VIR_TRISTATE_SWITCH_ON);
+#ifdef LIBXL_HAVE_BUILDINFO_APIC
+        libxl_defbool_set(&b_info->apic,
+                          def->features[VIR_DOMAIN_FEATURE_APIC] ==
+                          VIR_TRISTATE_SWITCH_ON);
+        /*
+         * Strictly speaking b_info->acpi was introduced earlier (Xen 4.8), but
+         * there is no separate #define in libxl.h.
+         */
+        libxl_defbool_set(&b_info->acpi,
+                          def->features[VIR_DOMAIN_FEATURE_ACPI] ==
+                          VIR_TRISTATE_SWITCH_ON);
+#else
         libxl_defbool_set(&b_info->u.hvm.apic,
                           def->features[VIR_DOMAIN_FEATURE_APIC] ==
                           VIR_TRISTATE_SWITCH_ON);
         libxl_defbool_set(&b_info->u.hvm.acpi,
                           def->features[VIR_DOMAIN_FEATURE_ACPI] ==
                           VIR_TRISTATE_SWITCH_ON);
+#endif
 
         /* copy SLIC table path to acpi_firmware */
         if (def->os.slic_table)
@@ -567,7 +580,7 @@ libxlMakeDomBuildInfo(virDomainDefPtr def,
          * configured when building Xen using '--with-system-ovmf='. If
          * not specified, LIBXL_FIRMWARE_DIR/ovmf.bin is used. In the
          * future, Xen will support a user-specified firmware path. See
-         * http://lists.xenproject.org/archives/html/xen-devel/2016-03/msg01628.html
+         * https://lists.xenproject.org/archives/html/xen-devel/2016-03/msg01628.html
          */
         if (virDomainDefHasOldStyleUEFI(def))
             b_info->u.hvm.bios = LIBXL_BIOS_TYPE_OVMF;
@@ -2286,6 +2299,7 @@ libxlMakePCI(virDomainHostdevDefPtr hostdev, libxl_device_pci *pcidev)
     pcidev->bus = pcisrc->addr.bus;
     pcidev->dev = pcisrc->addr.slot;
     pcidev->func = pcisrc->addr.function;
+    pcidev->permissive = hostdev->writeFiltering == VIR_TRISTATE_BOOL_NO;
 
     return 0;
 }

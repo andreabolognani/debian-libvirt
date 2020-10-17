@@ -231,6 +231,15 @@ qemuInterfaceStopDevices(virDomainDefPtr def)
 }
 
 
+static bool
+qemuInterfaceIsVnetCompatModel(const virDomainNetDef *net)
+{
+    return (virDomainNetIsVirtioModel(net) ||
+            net->model == VIR_DOMAIN_NET_MODEL_E1000E ||
+            net->model == VIR_DOMAIN_NET_MODEL_VMXNET3);
+}
+
+
 /**
  * qemuInterfaceDirectConnect:
  * @def: the definition of the VM (needed by 802.1Qbh and audit)
@@ -252,10 +261,10 @@ qemuInterfaceDirectConnect(virDomainDefPtr def,
 {
     int ret = -1;
     char *res_ifname = NULL;
-    virQEMUDriverConfigPtr cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     unsigned int macvlan_create_flags = VIR_NETDEV_MACVLAN_CREATE_WITH_TAP;
 
-    if (virDomainNetIsVirtioModel(net))
+    if (qemuInterfaceIsVnetCompatModel(net))
         macvlan_create_flags |= VIR_NETDEV_MACVLAN_VNET_HDR;
 
     if (virNetDevMacVLanCreateWithVPortProfile(net->ifname,
@@ -281,7 +290,6 @@ qemuInterfaceDirectConnect(virDomainDefPtr def,
         while (tapfdSize--)
             VIR_FORCE_CLOSE(tapfd[tapfdSize]);
     }
-    virObjectUnref(cfg);
     return ret;
 }
 
@@ -404,7 +412,7 @@ qemuInterfaceEthernetConnect(virDomainDefPtr def,
     int ret = -1;
     unsigned int tap_create_flags = VIR_NETDEV_TAP_CREATE_IFUP;
     bool template_ifname = false;
-    virQEMUDriverConfigPtr cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     const char *tunpath = "/dev/net/tun";
     const char *auditdev = tunpath;
 
@@ -417,7 +425,7 @@ qemuInterfaceEthernetConnect(virDomainDefPtr def,
         }
     }
 
-    if (virDomainNetIsVirtioModel(net))
+    if (qemuInterfaceIsVnetCompatModel(net))
         tap_create_flags |= VIR_NETDEV_TAP_CREATE_VNET_HDR;
 
     if (net->managed_tap == VIR_TRISTATE_BOOL_NO) {
@@ -436,7 +444,7 @@ qemuInterfaceEthernetConnect(virDomainDefPtr def,
             if (virNetDevMacVLanTapOpen(net->ifname, tapfd, tapfdSize) < 0)
                 goto cleanup;
             if (virNetDevMacVLanTapSetup(tapfd, tapfdSize,
-                                         virDomainNetIsVirtioModel(net)) < 0) {
+                                         qemuInterfaceIsVnetCompatModel(net)) < 0) {
                 goto cleanup;
             }
         } else {
@@ -505,7 +513,6 @@ qemuInterfaceEthernetConnect(virDomainDefPtr def,
         if (template_ifname)
             VIR_FREE(net->ifname);
     }
-    virObjectUnref(cfg);
 
     return ret;
 }
@@ -533,7 +540,7 @@ qemuInterfaceBridgeConnect(virDomainDefPtr def,
     int ret = -1;
     unsigned int tap_create_flags = VIR_NETDEV_TAP_CREATE_IFUP;
     bool template_ifname = false;
-    virQEMUDriverConfigPtr cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     const char *tunpath = "/dev/net/tun";
 
     if (net->backend.tap) {
@@ -559,7 +566,7 @@ qemuInterfaceBridgeConnect(virDomainDefPtr def,
         template_ifname = true;
     }
 
-    if (virDomainNetIsVirtioModel(net))
+    if (qemuInterfaceIsVnetCompatModel(net))
         tap_create_flags |= VIR_NETDEV_TAP_CREATE_VNET_HDR;
 
     if (driver->privileged) {
@@ -624,7 +631,6 @@ qemuInterfaceBridgeConnect(virDomainDefPtr def,
         if (template_ifname)
             VIR_FREE(net->ifname);
     }
-    virObjectUnref(cfg);
 
     return ret;
 }
@@ -634,7 +640,7 @@ qemuSlirpPtr
 qemuInterfacePrepareSlirp(virQEMUDriverPtr driver,
                           virDomainNetDefPtr net)
 {
-    virQEMUDriverConfigPtr cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(qemuSlirp) slirp = NULL;
     size_t i;
 

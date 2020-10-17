@@ -871,6 +871,19 @@ udevProcessSD(struct udev_device *device,
 }
 
 
+static int
+udevProcessDASD(struct udev_device *device,
+                virNodeDeviceDefPtr def)
+{
+    virNodeDevCapStoragePtr storage = &def->caps->data.storage;
+
+    if (udevGetStringSysfsAttr(device, "device/uid", &storage->serial) < 0)
+        return -1;
+
+    return udevProcessDisk(device, def);
+}
+
+
 /* This function exists to deal with the case in which a driver does
  * not provide a device type in the usual place, but udev told us it's
  * a storage device, and we can make a good guess at what kind of
@@ -885,6 +898,19 @@ udevKludgeStorageType(virNodeDeviceDefPtr def)
     /* virtio disk */
     if (STRPREFIX(def->caps->data.storage.block, "/dev/vd")) {
         def->caps->data.storage.drive_type = g_strdup("disk");
+        VIR_DEBUG("Found storage type '%s' for device "
+                  "with sysfs path '%s'",
+                  def->caps->data.storage.drive_type,
+                  def->sysfs_path);
+        return 0;
+    }
+
+    /* For Direct Access Storage Devices (DASDs) there are
+     * currently no identifiers in udev besides ID_PATH. Since
+     * ID_TYPE=disk does not exist on DASDs they fall through
+     * the udevProcessStorage detection logic. */
+    if (STRPREFIX(def->caps->data.storage.block, "/dev/dasd")) {
+        def->caps->data.storage.drive_type = g_strdup("dasd");
         VIR_DEBUG("Found storage type '%s' for device "
                   "with sysfs path '%s'",
                   def->caps->data.storage.drive_type,
@@ -978,6 +1004,8 @@ udevProcessStorage(struct udev_device *device,
         ret = udevProcessFloppy(device, def);
     } else if (STREQ(def->caps->data.storage.drive_type, "sd")) {
         ret = udevProcessSD(device, def);
+    } else if (STREQ(def->caps->data.storage.drive_type, "dasd")) {
+        ret = udevProcessDASD(device, def);
     } else {
         VIR_DEBUG("Unsupported storage type '%s'",
                   def->caps->data.storage.drive_type);
@@ -1058,26 +1086,37 @@ udevProcessMediatedDevice(struct udev_device *dev,
 
 
 static int
-udevProcessCCW(struct udev_device *device,
-               virNodeDeviceDefPtr def)
+udevGetCCWAddress(const char *sysfs_path,
+                  virNodeDevCapDataPtr data)
 {
-    int online;
     char *p;
-    virNodeDevCapDataPtr data = &def->caps->data;
 
-    /* process only online devices to keep the list sane */
-    if (udevGetIntSysfsAttr(device, "online", &online, 0) < 0 || online != 1)
-        return -1;
-
-    if ((p = strrchr(def->sysfs_path, '/')) == NULL ||
+    if ((p = strrchr(sysfs_path, '/')) == NULL ||
         virStrToLong_ui(p + 1, &p, 16, &data->ccw_dev.cssid) < 0 || p == NULL ||
         virStrToLong_ui(p + 1, &p, 16, &data->ccw_dev.ssid) < 0 || p == NULL ||
         virStrToLong_ui(p + 1, &p, 16, &data->ccw_dev.devno) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to parse the CCW address from sysfs path: '%s'"),
-                       def->sysfs_path);
+                       sysfs_path);
         return -1;
     }
+
+    return 0;
+}
+
+
+static int
+udevProcessCCW(struct udev_device *device,
+               virNodeDeviceDefPtr def)
+{
+    int online;
+
+    /* process only online devices to keep the list sane */
+    if (udevGetIntSysfsAttr(device, "online", &online, 0) < 0 || online != 1)
+        return -1;
+
+    if (udevGetCCWAddress(def->sysfs_path, &def->caps->data) < 0)
+        return -1;
 
     if (udevGenerateDeviceName(device, def, NULL) != 0)
         return -1;
@@ -1085,6 +1124,25 @@ udevProcessCCW(struct udev_device *device,
     return 0;
 }
 
+
+static int
+udevProcessCSS(struct udev_device *device,
+               virNodeDeviceDefPtr def)
+{
+    /* only process IO subchannel and vfio-ccw devices to keep the list sane */
+    if (!def->driver ||
+        (STRNEQ(def->driver, "io_subchannel") &&
+         STRNEQ(def->driver, "vfio_ccw")))
+        return -1;
+
+    if (udevGetCCWAddress(def->sysfs_path, &def->caps->data) < 0)
+        return -1;
+
+    if (udevGenerateDeviceName(device, def, NULL) != 0)
+        return -1;
+
+    return 0;
+}
 
 static int
 udevGetDeviceNodes(struct udev_device *device,
@@ -1164,6 +1222,8 @@ udevGetDeviceType(struct udev_device *device,
             *type = VIR_NODE_DEV_CAP_MDEV;
         else if (STREQ_NULLABLE(subsystem, "ccw"))
             *type = VIR_NODE_DEV_CAP_CCW_DEV;
+        else if (STREQ_NULLABLE(subsystem, "css"))
+            *type = VIR_NODE_DEV_CAP_CSS_DEV;
 
         VIR_FREE(subsystem);
     }
@@ -1208,6 +1268,8 @@ udevGetDeviceDetails(struct udev_device *device,
         return udevProcessMediatedDevice(device, def);
     case VIR_NODE_DEV_CAP_CCW_DEV:
         return udevProcessCCW(device, def);
+    case VIR_NODE_DEV_CAP_CSS_DEV:
+        return udevProcessCSS(device, def);
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
     case VIR_NODE_DEV_CAP_SYSTEM:
     case VIR_NODE_DEV_CAP_FC_HOST:

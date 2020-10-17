@@ -111,21 +111,15 @@ virCPUCompareXML(virArch arch,
                  const char *xml,
                  bool failIncompatible)
 {
-    virCPUDefPtr cpu = NULL;
-    virCPUCompareResult ret = VIR_CPU_COMPARE_ERROR;
+    g_autoptr(virCPUDef) cpu = NULL;
 
     VIR_DEBUG("arch=%s, host=%p, xml=%s",
               virArchToString(arch), host, NULLSTR(xml));
 
     if (virCPUDefParseXMLString(xml, VIR_CPU_TYPE_AUTO, &cpu) < 0)
-        goto cleanup;
+        return VIR_CPU_COMPARE_ERROR;
 
-    ret = virCPUCompare(arch, host, cpu, failIncompatible);
-
- cleanup:
-    virCPUDefFree(cpu);
-
-    return ret;
+    return virCPUCompare(arch, host, cpu, failIncompatible);
 }
 
 
@@ -292,9 +286,7 @@ virCPUDataNew(virArch arch)
 {
     virCPUDataPtr data;
 
-    if (VIR_ALLOC(data) < 0)
-        return NULL;
-
+    data = g_new0(virCPUData, 1);
     data->arch = arch;
 
     return data;
@@ -323,7 +315,7 @@ virCPUDataFree(virCPUDataPtr data)
     if ((driver = cpuGetSubDriver(data->arch)) && driver->dataFree)
         driver->dataFree(data);
     else
-        VIR_FREE(data);
+        g_free(data);
 }
 
 
@@ -384,7 +376,7 @@ virCPUGetHost(virArch arch,
               virDomainCapsCPUModelsPtr models)
 {
     struct cpuArchDriver *driver;
-    virCPUDefPtr cpu = NULL;
+    g_autoptr(virCPUDef) cpu = NULL;
 
     VIR_DEBUG("arch=%s, type=%s, nodeInfo=%p, models=%p",
               virArchToString(arch), virCPUTypeToString(type), nodeInfo,
@@ -406,7 +398,7 @@ virCPUGetHost(virArch arch,
             virReportError(VIR_ERR_INVALID_ARG,
                            _("cannot set topology for CPU type '%s'"),
                            virCPUTypeToString(type));
-            goto error;
+            return NULL;
         }
         cpu->type = type;
         break;
@@ -416,7 +408,7 @@ virCPUGetHost(virArch arch,
         virReportError(VIR_ERR_INVALID_ARG,
                        _("unsupported CPU type: %s"),
                        virCPUTypeToString(type));
-        goto error;
+        return NULL;
     }
 
     if (nodeInfo) {
@@ -430,9 +422,8 @@ virCPUGetHost(virArch arch,
      * filled in.
      */
     if (driver->getHost) {
-        if (driver->getHost(cpu, models) < 0 &&
-            !nodeInfo)
-            goto error;
+        if (driver->getHost(cpu, models) < 0 && !nodeInfo)
+            return NULL;
     } else if (nodeInfo) {
         VIR_DEBUG("cannot detect host CPU model for %s architecture",
                   virArchToString(arch));
@@ -440,14 +431,10 @@ virCPUGetHost(virArch arch,
         virReportError(VIR_ERR_NO_SUPPORT,
                        _("cannot detect host CPU model for %s architecture"),
                        virArchToString(arch));
-        goto error;
+        return NULL;
     }
 
-    return cpu;
-
- error:
-    virCPUDefFree(cpu);
-    return NULL;
+    return g_steal_pointer(&cpu);
 }
 
 

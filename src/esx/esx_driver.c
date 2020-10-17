@@ -3375,9 +3375,9 @@ esxDomainSetAutostart(virDomainPtr domain, int autostart)
 /*
  * The scheduler interface exposes basically the CPU ResourceAllocationInfo:
  *
- * - http://www.vmware.com/support/developer/vc-sdk/visdk25pubs/ReferenceGuide/vim.ResourceAllocationInfo.html
- * - http://www.vmware.com/support/developer/vc-sdk/visdk25pubs/ReferenceGuide/vim.SharesInfo.html
- * - http://www.vmware.com/support/developer/vc-sdk/visdk25pubs/ReferenceGuide/vim.SharesInfo.Level.html
+ * - https://www.vmware.com/support/developer/vc-sdk/visdk25pubs/ReferenceGuide/vim.ResourceAllocationInfo.html
+ * - https://www.vmware.com/support/developer/vc-sdk/visdk25pubs/ReferenceGuide/vim.SharesInfo.html
+ * - https://www.vmware.com/support/developer/vc-sdk/visdk25pubs/ReferenceGuide/vim.SharesInfo.Level.html
  *
  *
  * Available parameters:
@@ -5060,6 +5060,228 @@ esxDomainHasManagedSaveImage(virDomainPtr domain, unsigned int flags)
 }
 
 
+static char *
+esxDomainGetHostname(virDomainPtr domain,
+                     unsigned int flags)
+{
+    esxPrivate *priv = domain->conn->privateData;
+    esxVI_String *propertyNameList = NULL;
+    esxVI_ObjectContent *virtualMachine = NULL;
+    esxVI_VirtualMachinePowerState powerState;
+    char *hostname = NULL;
+    char *new_hostname = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (esxVI_EnsureSession(priv->primary) < 0)
+        return NULL;
+
+    if (esxVI_String_AppendValueListToList(&propertyNameList,
+                                       "runtime.powerState\0"
+                                       "guest.hostName") < 0 ||
+        esxVI_LookupVirtualMachineByUuid(priv->primary, domain->uuid,
+                                         propertyNameList, &virtualMachine,
+                                         esxVI_Occurrence_OptionalItem) ||
+        esxVI_GetVirtualMachinePowerState(virtualMachine, &powerState) < 0) {
+        goto cleanup;
+    }
+
+    if (powerState != esxVI_VirtualMachinePowerState_PoweredOn) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("Domain is not powered on"));
+        goto cleanup;
+    }
+
+    if (esxVI_GetStringValue(virtualMachine, "guest.hostName",
+                             &hostname, esxVI_Occurrence_OptionalItem) < 0) {
+        goto cleanup;
+    }
+
+    if (!hostname) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("hostName field not available (missing VMware Tools?)"));
+        goto cleanup;
+    }
+
+    new_hostname = g_strdup(hostname);
+
+ cleanup:
+    esxVI_String_Free(&propertyNameList);
+    esxVI_ObjectContent_Free(&virtualMachine);
+
+    return new_hostname;
+}
+
+
+static int
+esxParseIPAddress(const char *ipAddress, int prefixLength,
+                  virDomainIPAddress *addr)
+{
+    virSocketAddr tmp_addr;
+    virIPAddrType addr_type;
+
+    if (virSocketAddrParseAny(&tmp_addr, ipAddress, AF_UNSPEC, false) <= 0)
+        return 0;
+
+    switch (VIR_SOCKET_ADDR_FAMILY(&tmp_addr)) {
+    case AF_INET:
+        addr_type = VIR_IP_ADDR_TYPE_IPV4;
+        break;
+    case AF_INET6:
+        addr_type = VIR_IP_ADDR_TYPE_IPV6;
+        break;
+    default:
+        return 0;
+    }
+
+    addr->type = addr_type;
+    addr->addr = g_strdup(ipAddress);
+    addr->prefix = prefixLength;
+
+    return 1;
+}
+
+
+static int
+esxDomainInterfaceAddresses(virDomainPtr domain,
+                            virDomainInterfacePtr **ifaces,
+                            unsigned int source,
+                            unsigned int flags)
+{
+    int result = -1;
+    esxPrivate *priv = domain->conn->privateData;
+    esxVI_String *propertyNameList = NULL;
+    esxVI_ObjectContent *virtualMachine = NULL;
+    esxVI_VirtualMachinePowerState powerState;
+    esxVI_DynamicProperty *dynamicProperty;
+    esxVI_GuestNicInfo *guestNicInfoList = NULL;
+    esxVI_GuestNicInfo *guestNicInfo = NULL;
+    virDomainInterfacePtr *ifaces_ret = NULL;
+    size_t ifaces_count = 0;
+    size_t i;
+    int ret;
+
+    virCheckFlags(0, -1);
+    if (source != VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
+                       _("Unknown IP address data source %d"),
+                       source);
+        return -1;
+    }
+
+    if (esxVI_EnsureSession(priv->primary) < 0)
+        return -1;
+
+    if (esxVI_String_AppendValueListToList(&propertyNameList,
+                                           "runtime.powerState\0"
+                                           "guest.net") < 0 ||
+        esxVI_LookupVirtualMachineByUuid(priv->primary, domain->uuid,
+                                         propertyNameList, &virtualMachine,
+                                         esxVI_Occurrence_RequiredItem) ||
+        esxVI_GetVirtualMachinePowerState(virtualMachine, &powerState) < 0) {
+        goto cleanup;
+    }
+
+    if (powerState != esxVI_VirtualMachinePowerState_PoweredOn) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("Domain is not powered on"));
+        goto cleanup;
+    }
+
+    for (dynamicProperty = virtualMachine->propSet; dynamicProperty;
+         dynamicProperty = dynamicProperty->_next) {
+        if (STREQ(dynamicProperty->name, "guest.net")) {
+            if (esxVI_GuestNicInfo_CastListFromAnyType
+                     (dynamicProperty->val, &guestNicInfoList) < 0) {
+                goto cleanup;
+            }
+        }
+    }
+
+    if (!guestNicInfoList) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Missing property '%s' in answer"),
+                       "guest.net");
+        goto cleanup;
+    }
+
+    for (guestNicInfo = guestNicInfoList; guestNicInfo;
+         guestNicInfo = guestNicInfo->_next) {
+        virDomainInterfacePtr iface = NULL;
+        size_t addrs_count = 0;
+
+        if (guestNicInfo->connected != esxVI_Boolean_True ||
+            !guestNicInfo->network) {
+            continue;
+        }
+
+        if (VIR_EXPAND_N(ifaces_ret, ifaces_count, 1) < 0)
+            goto cleanup;
+
+        if (VIR_ALLOC(ifaces_ret[ifaces_count - 1]) < 0)
+            goto cleanup;
+
+        iface = ifaces_ret[ifaces_count - 1];
+        iface->naddrs = 0;
+        iface->name = g_strdup(guestNicInfo->network);
+        iface->hwaddr = g_strdup(guestNicInfo->macAddress);
+
+        if (guestNicInfo->ipConfig) {
+            esxVI_NetIpConfigInfoIpAddress *ipAddress;
+            for (ipAddress = guestNicInfo->ipConfig->ipAddress; ipAddress;
+                 ipAddress = ipAddress->_next) {
+                virDomainIPAddress ip_addr;
+
+                ret = esxParseIPAddress(ipAddress->ipAddress,
+                                        ipAddress->prefixLength->value, &ip_addr);
+                if (ret < 0)
+                    goto cleanup;
+                else if (ret == 0)
+                    continue;
+
+                if (VIR_APPEND_ELEMENT(iface->addrs, addrs_count, ip_addr)  < 0)
+                    goto cleanup;
+            }
+        } else {
+            esxVI_String *str;
+            for (str = guestNicInfo->ipAddress; str;
+                 str = str->_next) {
+                virDomainIPAddress ip_addr;
+
+                /* Not even the netmask seems available... */
+                ret = esxParseIPAddress(str->value, 0, &ip_addr);
+                if (ret < 0)
+                    goto cleanup;
+                else if (ret == 0)
+                    continue;
+
+                if (VIR_APPEND_ELEMENT(iface->addrs, addrs_count, ip_addr)  < 0)
+                    goto cleanup;
+
+            }
+        }
+
+        iface->naddrs = addrs_count;
+    }
+
+    *ifaces = ifaces_ret;
+    result = ifaces_count;
+
+ cleanup:
+    if (result < 0) {
+        if (ifaces_ret) {
+            for (i = 0; i < ifaces_count; i++)
+                virDomainInterfaceFree(ifaces_ret[i]);
+        }
+    }
+    esxVI_String_Free(&propertyNameList);
+    esxVI_ObjectContent_Free(&virtualMachine);
+    esxVI_GuestNicInfo_Free(&guestNicInfoList);
+
+    return result;
+}
+
+
 static virHypervisorDriver esxHypervisorDriver = {
     .name = "ESX",
     .connectOpen = esxConnectOpen, /* 0.7.0 */
@@ -5140,6 +5362,8 @@ static virHypervisorDriver esxHypervisorDriver = {
     .domainSnapshotDelete = esxDomainSnapshotDelete, /* 0.8.0 */
     .connectIsAlive = esxConnectIsAlive, /* 0.9.8 */
     .domainHasManagedSaveImage = esxDomainHasManagedSaveImage, /* 1.2.13 */
+    .domainGetHostname = esxDomainGetHostname, /* 6.8.0 */
+    .domainInterfaceAddresses = esxDomainInterfaceAddresses, /* 6.8.0 */
 };
 
 

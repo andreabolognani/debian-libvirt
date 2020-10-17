@@ -8,6 +8,95 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v6.8.0 (2020-10-01)
+===================
+
+* **New features**
+
+  * xen: Add ``writeFiltering`` attribute for PCI devices
+
+    By default Xen filters guest writes to the PCI configuration space of a
+    PCI hostdev, which may cause problems for some devices. The ``writeFiltering``
+    attribute of the device's ``<source>`` element can be used to disable the
+    filtering and allow all guest writes to the configuration space.
+
+  * bhyve: Support setting the framebuffer resolution
+
+    Libvirt can now set the framebuffer's "w" and "h" parameters
+    using the ``resolution`` element.
+
+  * bhyve: Support VNC password authentication
+
+    Libvirt can now probe whether the bhyve binary supports
+    VNC password authentication. In case it does, a VNC password
+    can now be passed using the ``passwd`` attribute on
+    the ``<graphics>`` element.
+
+  * remote: ``virt-ssh-helper`` replaces ``nc`` for SSH tunnelling
+
+    Libvirt now provides a ``virt-ssh-helper`` binary on the server
+    side. The libvirt remote client will use this binary for setting
+    up an SSH tunnelled connection to hosts. If not present, it will
+    transparently fallback to the traditional ``nc`` tunnel. The new
+    binary makes it possible for libvirt to transparently connect
+    across hosts even if libvirt is built with a different installation
+    prefix on the client vs server. It also enables remote access to
+    the unprivileged per-user libvirt daemons (e.g. using a URI such as
+    ``qemu+ssh://hostname/session``). The only requirement is that
+    ``virt-ssh-helper`` is present in ``$PATH`` of the remote host.
+
+  * esx: implement few APIs
+
+    The ``virConnectListAllNetworks()``, ``virDomainGetHostname()``, and
+    ``virDomainInterfaceAddresses()`` (only for
+    ``VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT`` source) APIs were implemented
+    in the esx driver.
+
+* **Improvements**
+
+  * qemu: Allow migration over UNIX sockets
+
+    QEMU migration can now be performed completely over UNIX sockets. This is
+    useful for containerised scenarios and can be used in both peer2peer and
+    direct migrations.
+
+  * dbus: Use GLib implementation instead of libdbus
+
+    Adopting GLib DBus implementation simplifies our code as libdbus provides
+    low-level APIs where we had to have a lot of helper functions. With this
+    change we also remove dependency on libdbus and possibly fix all the DBus
+    related libvirtd crashes seen over the time.
+
+  * Re-introduce NVDIMM auto-alignment for pSeries Guests
+
+    The auto-alignment logic was removed in v6.7.0 in favor of requiring the
+    size provided by the user to be already aligned; however, this had the
+    unintended consequence of breaking some existing guests. v6.8.0 restores
+    the previous behavior with an improvement: it also reflects the auto-aligned
+    value in the domain XML.
+
+  * qemu: Preserve qcow2 cluster size after external snapshots
+
+   The new overlay image which is installed on top of the current chain when
+   taking an external snapshot now preserves the cluser size of the original
+   top image to preserve any performance tuning done on the original image.
+
+* **Bug fixes**
+
+  * qemu: Various (i)SCSI backed hostdev fixes
+
+   (i)SCSI backed hostdevs now work again with an arbitrarily long
+   user-specified device alias and also honor the 'readonly' property after a
+   recent rewrite.
+
+* **Removed features**
+
+  * node_device: Remove HAL node device backend
+
+    HAL is deprecated on all supported OS so there is no need to keep it
+    in libvirt. udev backend is used on Linux OSes and devd can be eventually
+    implemented as replacement for FreeBSD.
+
 v6.7.0 (2020-09-01)
 ===================
 

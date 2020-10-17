@@ -511,7 +511,7 @@ qemuDomainMasterKeyReadFile(qemuDomainObjPrivatePtr priv)
         goto error;
     }
 
-    ignore_value(VIR_REALLOC_N_QUIET(masterKey, masterKeyLen));
+    masterKey = g_renew(uint8_t, masterKey, masterKeyLen);
 
     priv->masterKey = masterKey;
     priv->masterKeyLen = masterKeyLen;
@@ -1381,56 +1381,6 @@ qemuDomainSecretHostdevDestroy(virDomainHostdevDefPtr hostdev)
 }
 
 
-/* qemuDomainSecretHostdevPrepare:
- * @priv: pointer to domain private object
- * @hostdev: Pointer to a hostdev definition
- *
- * For the right host device, generate the qemuDomainSecretInfo structure.
- *
- * Returns 0 on success, -1 on failure
- */
-int
-qemuDomainSecretHostdevPrepare(qemuDomainObjPrivatePtr priv,
-                               virDomainHostdevDefPtr hostdev)
-{
-    if (virHostdevIsSCSIDevice(hostdev)) {
-        virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
-        virDomainHostdevSubsysSCSIiSCSIPtr iscsisrc = &scsisrc->u.iscsi;
-        virStorageSourcePtr src = iscsisrc->src;
-
-        if (scsisrc->protocol == VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI &&
-            src->auth) {
-            bool iscsiHasPS = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET);
-            virSecretUsageType usageType = VIR_SECRET_USAGE_TYPE_ISCSI;
-            qemuDomainStorageSourcePrivatePtr srcPriv;
-
-            if (!(src->privateData = qemuDomainStorageSourcePrivateNew()))
-                return -1;
-
-            srcPriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
-
-            if (!qemuDomainSupportsEncryptedSecret(priv) || !iscsiHasPS) {
-                srcPriv->secinfo = qemuDomainSecretInfoNewPlain(usageType,
-                                                                src->auth->username,
-                                                                &src->auth->seclookupdef);
-            } else {
-                srcPriv->secinfo = qemuDomainSecretAESSetupFromSecret(priv,
-                                                                      hostdev->info->alias,
-                                                                      NULL,
-                                                                      usageType,
-                                                                      src->auth->username,
-                                                                      &src->auth->seclookupdef);
-            }
-
-            if (!srcPriv->secinfo)
-                return -1;
-        }
-    }
-
-    return 0;
-}
-
-
 void
 qemuDomainSecretChardevDestroy(virDomainChrSourceDefPtr dev)
 {
@@ -1596,13 +1546,7 @@ qemuDomainSecretPrepare(virQEMUDriverPtr driver,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     size_t i;
 
-    /* disk secrets are prepared when preparing disks */
-
-    for (i = 0; i < vm->def->nhostdevs; i++) {
-        if (qemuDomainSecretHostdevPrepare(priv,
-                                           vm->def->hostdevs[i]) < 0)
-            return -1;
-    }
+    /* disk and hostdev secrets are prepared when preparing internal data */
 
     for (i = 0; i < vm->def->nserials; i++) {
         if (qemuDomainSecretChardevPrepare(cfg, priv,
@@ -1722,11 +1666,21 @@ void
 qemuDomainObjStopWorker(virDomainObjPtr dom)
 {
     qemuDomainObjPrivatePtr priv = dom->privateData;
+    virEventThread *eventThread;
 
-    if (priv->eventThread) {
-        g_object_unref(priv->eventThread);
-        priv->eventThread = NULL;
-    }
+    if (!priv->eventThread)
+        return;
+
+    /*
+     * We are dropping the only reference here so that the event loop thread
+     * is going to be exited synchronously. In order to avoid deadlocks we
+     * need to unlock the VM so that any handler being called can finish
+     * execution and thus even loop thread be finished too.
+     */
+    eventThread = g_steal_pointer(&priv->eventThread);
+    virObjectUnlock(dom);
+    g_object_unref(eventThread);
+    virObjectLock(dom);
 }
 
 
@@ -1849,7 +1803,7 @@ qemuDomainObjPrivateFree(void *data)
     qemuDomainObjPrivateDataClear(priv);
 
     virObjectUnref(priv->monConfig);
-    qemuDomainObjFreeJob(&priv->job);
+    qemuDomainObjClearJob(&priv->job);
     VIR_FREE(priv->lockState);
     VIR_FREE(priv->origname);
 
@@ -4976,6 +4930,7 @@ qemuDomainControllerDefPostParse(virDomainControllerDefPtr cont,
     case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+    case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         break;
     }
@@ -5291,6 +5246,56 @@ qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(virDomainHostdevDefPtr hostde
 }
 
 
+/**
+ * qemuDomainDeviceHostdevDefPostParseRestoreBackendAlias:
+ *
+ * Re-generate backend alias if it wasn't stored in the status XML by an older
+ * libvirtd.
+ *
+ * Note that qemuCaps should be always present for a status XML.
+ */
+static int
+qemuDomainDeviceHostdevDefPostParseRestoreBackendAlias(virDomainHostdevDefPtr hostdev,
+                                                       virQEMUCapsPtr qemuCaps,
+                                                       unsigned int parseFlags)
+{
+    virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
+    virStorageSourcePtr src;
+
+    if (!(parseFlags & VIR_DOMAIN_DEF_PARSE_STATUS))
+        return 0;
+
+    if (!qemuCaps ||
+        hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS ||
+        hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI ||
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV_HOSTDEV_SCSI))
+        return 0;
+
+    switch ((virDomainHostdevSCSIProtocolType) scsisrc->protocol) {
+    case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE:
+        if (!scsisrc->u.host.src)
+            scsisrc->u.host.src = virStorageSourceNew();
+
+        src = scsisrc->u.host.src;
+        break;
+
+    case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI:
+        src = scsisrc->u.iscsi.src;
+        break;
+
+    case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_LAST:
+    default:
+        virReportEnumRangeError(virDomainHostdevSCSIProtocolType, scsisrc->protocol);
+        return -1;
+    }
+
+    if (!src->nodestorage)
+        src->nodestorage = g_strdup_printf("libvirt-%s-backend", hostdev->info->alias);
+
+    return 0;
+}
+
+
 static int
 qemuDomainHostdevDefMdevPostParse(virDomainHostdevSubsysMediatedDevPtr mdevsrc,
                                   virQEMUCapsPtr qemuCaps)
@@ -5315,6 +5320,10 @@ qemuDomainHostdevDefPostParse(virDomainHostdevDefPtr hostdev,
 
     if (qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(hostdev, qemuCaps,
                                                            parseFlags) < 0)
+        return -1;
+
+    if (qemuDomainDeviceHostdevDefPostParseRestoreBackendAlias(hostdev, qemuCaps,
+                                                               parseFlags) < 0)
         return -1;
 
     if (hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
@@ -6347,7 +6356,7 @@ ssize_t qemuDomainLogContextRead(qemuDomainLogContextPtr ctxt,
 
         buf[got] = '\0';
 
-        ignore_value(VIR_REALLOC_N_QUIET(buf, got + 1));
+        buf = g_renew(char, buf, got + 1);
         buflen = got;
     }
 
@@ -7157,9 +7166,8 @@ qemuDomainDetermineDiskChain(virQEMUDriverPtr driver,
         }
 
         /* terminate the chain for such images as the code below would do */
-        if (!disksrc->backingStore &&
-            !(disksrc->backingStore = virStorageSourceNew()))
-            return -1;
+        if (!disksrc->backingStore)
+            disksrc->backingStore = virStorageSourceNew();
 
         /* host cdrom requires special treatment in qemu, so we need to check
          * whether a block device is a cdrom */
@@ -8027,7 +8035,7 @@ qemuDomainAgentAvailable(virDomainObjPtr vm,
 }
 
 
-unsigned long long
+static unsigned long long
 qemuDomainGetMemorySizeAlignment(const virDomainDef *def)
 {
     /* PPC requires the memory sizes to be rounded to 256MiB increments, so
@@ -8103,8 +8111,11 @@ qemuDomainAlignMemorySizes(virDomainDefPtr def)
 
     /* Align memory module sizes */
     for (i = 0; i < def->nmems; i++) {
-        if (!(def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
-              ARCH_IS_PPC64(def->os.arch))) {
+        if (def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+            ARCH_IS_PPC64(def->os.arch)) {
+            if (virDomainNVDimmAlignSizePseries(def->mems[i]) < 0)
+                return -1;
+        } else {
             align = qemuDomainGetMemoryModuleSizeAlignment(def, def->mems[i]);
             def->mems[i]->size = VIR_ROUND_UP(def->mems[i]->size, align);
         }
@@ -8133,15 +8144,19 @@ qemuDomainAlignMemorySizes(virDomainDefPtr def)
  * inplace. Default rounding is now to 1 MiB (qemu requires rounding to page,
  * size so this should be safe).
  */
-void
+int
 qemuDomainMemoryDeviceAlignSize(virDomainDefPtr def,
                                 virDomainMemoryDefPtr mem)
 {
-    if (!(mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
-          ARCH_IS_PPC64(def->os.arch))) {
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+        ARCH_IS_PPC64(def->os.arch)) {
+        return virDomainNVDimmAlignSizePseries(mem);
+    } else {
         mem->size = VIR_ROUND_UP(mem->size,
                                  qemuDomainGetMemorySizeAlignment(def));
     }
+
+    return 0;
 }
 
 
@@ -8468,6 +8483,8 @@ qemuCheckMemoryDimmConflict(const virDomainDef *def,
 
     return false;
 }
+
+
 static int
 qemuDomainDefValidateMemoryHotplugDevice(const virDomainMemoryDef *mem,
                                          const virDomainDef *def)
@@ -8867,7 +8884,7 @@ qemuDomainGetMemLockLimitBytes(virDomainDefPtr def,
      * small. Although it's not guaranteed that the limit will be enough for all
      * configurations it didn't pose a problem for now.
      *
-     * http://www.redhat.com/archives/libvir-list/2015-November/msg00329.html
+     * https://www.redhat.com/archives/libvir-list/2015-November/msg00329.html
      *
      * Note that this may not be valid for all platforms.
      */
@@ -10388,6 +10405,68 @@ qemuDomainPrepareDiskSource(virDomainDiskDefPtr disk,
 }
 
 
+int
+qemuDomainPrepareHostdev(virDomainHostdevDefPtr hostdev,
+                         qemuDomainObjPrivatePtr priv)
+{
+    if (virHostdevIsSCSIDevice(hostdev)) {
+        virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
+        virStorageSourcePtr src = NULL;
+
+        switch ((virDomainHostdevSCSIProtocolType) scsisrc->protocol) {
+        case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE:
+            virObjectUnref(scsisrc->u.host.src);
+            scsisrc->u.host.src = virStorageSourceNew();
+            src = scsisrc->u.host.src;
+            break;
+
+        case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI:
+            src = scsisrc->u.iscsi.src;
+            break;
+
+        case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_LAST:
+        default:
+            virReportEnumRangeError(virDomainHostdevSCSIProtocolType, scsisrc->protocol);
+            return -1;
+        }
+
+        if (src) {
+            const char *backendalias = hostdev->info->alias;
+
+            if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_HOSTDEV_SCSI)) {
+                src->id = qemuDomainStorageIdNew(priv);
+                src->nodestorage = g_strdup_printf("libvirt-%d-backend", src->id);
+                backendalias = src->nodestorage;
+            }
+
+            if (src->auth) {
+                bool iscsiHasPS = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET);
+                virSecretUsageType usageType = VIR_SECRET_USAGE_TYPE_ISCSI;
+                qemuDomainStorageSourcePrivatePtr srcPriv = qemuDomainStorageSourcePrivateFetch(src);
+
+                if (!qemuDomainSupportsEncryptedSecret(priv) || !iscsiHasPS) {
+                    srcPriv->secinfo = qemuDomainSecretInfoNewPlain(usageType,
+                                                                    src->auth->username,
+                                                                    &src->auth->seclookupdef);
+                } else {
+                    srcPriv->secinfo = qemuDomainSecretAESSetupFromSecret(priv,
+                                                                          backendalias,
+                                                                          NULL,
+                                                                          usageType,
+                                                                          src->auth->username,
+                                                                          &src->auth->seclookupdef);
+                }
+
+                if (!srcPriv->secinfo)
+                    return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
 /**
  * qemuDomainDiskCachemodeFlags:
  *
@@ -10730,9 +10809,7 @@ qemuDomainInitializePflashStorageSource(virDomainObjPtr vm)
     if (!virDomainDefHasOldStyleUEFI(def))
         return 0;
 
-    if (!(pflash0 = virStorageSourceNew()))
-        return -1;
-
+    pflash0 = virStorageSourceNew();
     pflash0->type = VIR_STORAGE_TYPE_FILE;
     pflash0->format = VIR_STORAGE_FILE_RAW;
     pflash0->path = g_strdup(def->os.loader->path);
@@ -10742,9 +10819,7 @@ qemuDomainInitializePflashStorageSource(virDomainObjPtr vm)
 
 
     if (def->os.loader->nvram) {
-        if (!(pflash1 = virStorageSourceNew()))
-            return -1;
-
+        pflash1 = virStorageSourceNew();
         pflash1->type = VIR_STORAGE_TYPE_FILE;
         pflash1->format = VIR_STORAGE_FILE_RAW;
         pflash1->path = g_strdup(def->os.loader->nvram);

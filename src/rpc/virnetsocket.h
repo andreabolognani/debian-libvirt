@@ -34,6 +34,7 @@
 typedef struct _virNetSocket virNetSocket;
 typedef virNetSocket *virNetSocketPtr;
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNetSocket, virObjectUnref);
 
 typedef void (*virNetSocketIOFunc)(virNetSocketPtr sock,
                                    int events,
@@ -78,9 +79,8 @@ int virNetSocketNewConnectSSH(const char *nodename,
                               const char *username,
                               bool noTTY,
                               bool noVerify,
-                              const char *netcat,
                               const char *keyfile,
-                              const char *path,
+                              const char *command,
                               virNetSocketPtr *addr);
 
 int virNetSocketNewConnectLibSSH2(const char *host,

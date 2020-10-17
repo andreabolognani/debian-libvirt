@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '6.7.0',
+  version: '6.8.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -106,7 +106,7 @@ configmake_conf.set_quoted('SYSCONFDIR', sysconfdir)
 
 configure_file(
   input: 'configmake.h.in',
-  output: 'configmake.h',
+  output: '@BASENAME@',
   configuration: configmake_conf,
 )
 
@@ -228,6 +228,7 @@ cc_flags += [
   '-Waddress',
   '-Waddress-of-packed-member',
   '-Waggressive-loop-optimizations',
+  '-Wall',
   '-Wattribute-warning',
   '-Wattributes',
   '-Wbool-compare',
@@ -257,6 +258,7 @@ cc_flags += [
   '-Wempty-body',
   '-Wendif-labels',
   '-Wexpansion-to-defined',
+  '-Wextra',
   '-Wformat-contains-nul',
   '-Wformat-extra-args',
   '-Wformat-nonliteral',
@@ -503,10 +505,6 @@ cc_flags_disabled = [
   # In meson this is specified using 'c_std=gnu99' in project() function.
   '-std=gnu99',
 
-  # In meson this is specified using 'warning_level=2' in project() function.
-  '-Wall',
-  '-Wextra',
-
   # don't care about C++ compiler compat
   '-Wc++-compat',
   '-Wabi',
@@ -583,7 +581,7 @@ supported_cc_flags = cc.get_supported_arguments(cc_flags)
 add_project_arguments(supported_cc_flags, language: 'c')
 
 if cc.has_argument('-Wsuggest-attribute=format')
-  conf.set('HAVE_SUGGEST_ATTRIBUTE_FORMAT', 1)
+  conf.set('WITH_SUGGEST_ATTRIBUTE_FORMAT', 1)
 endif
 
 # used in tests
@@ -672,12 +670,11 @@ functions = [
   'stat64',
   'symlink',
   'sysctlbyname',
-  'unshare',
 ]
 
 foreach function : functions
   if cc.has_function(function)
-    conf.set('HAVE_@0@'.format(function.to_upper()), 1)
+    conf.set('WITH_@0@'.format(function.to_upper()), 1)
   endif
 endforeach
 
@@ -688,7 +685,6 @@ headers = [
   'asm/hwcap.h',
   'ifaddrs.h',
   'libtasn1.h',
-  'libutil.h',
   'linux/kvm.h',
   'linux/magic.h',
   'mntent.h',
@@ -696,11 +692,9 @@ headers = [
   'net/if.h',
   'pty.h',
   'pwd.h',
-  'stdarg.h',
   'sys/ioctl.h',
   'sys/mount.h',
   'sys/syscall.h',
-  'sys/sysctl.h',
   'sys/ucred.h',
   'syslog.h',
   'util.h',
@@ -716,9 +710,13 @@ if host_machine.system() == 'linux'
   headers += 'linux/devlink.h'
 endif
 
+if host_machine.system() == 'freebsd'
+  headers += 'libutil.h'
+endif
+
 foreach name : headers
   if cc.has_header(name)
-    conf.set('HAVE_@0@'.format(name.underscorify().to_upper()), 1)
+    conf.set('WITH_@0@'.format(name.underscorify().to_upper()), 1)
   endif
 endforeach
 
@@ -802,7 +800,7 @@ endif
 
 foreach symbol : symbols
   if cc.has_header_symbol(symbol[0], symbol[1], args: '-D_GNU_SOURCE', prefix: symbol.get(2, ''))
-    conf.set('HAVE_DECL_@0@'.format(symbol[1].to_upper()), 1)
+    conf.set('WITH_DECL_@0@'.format(symbol[1].to_upper()), 1)
   endif
 endforeach
 
@@ -813,19 +811,19 @@ brd_required_headers = '''#include <stdint.h>
 if (cc.has_header_symbol('net/if_bridgevar.h', 'BRDGSFD', prefix: brd_required_headers) and
     cc.has_header_symbol('net/if_bridgevar.h', 'BRDGADD', prefix: brd_required_headers) and
     cc.has_header_symbol('net/if_bridgevar.h', 'BRDGDEL', prefix: brd_required_headers))
-  conf.set('HAVE_BSD_BRIDGE_MGMT', 1)
+  conf.set('WITH_BSD_BRIDGE_MGMT', 1)
 endif
 
 # Check for BSD CPU affinity availability
 if cc.has_header_symbol('sys/cpuset.h', 'cpuset_getaffinity')
-  conf.set('HAVE_BSD_CPU_AFFINITY', 1)
+  conf.set('WITH_BSD_CPU_AFFINITY', 1)
 endif
 
 # whether Mach clock routines are available
 if (cc.has_header_symbol('mach/clock.h', 'clock_serv_t') and
     cc.has_header_symbol('mach/clock.h', 'host_get_clock_service') and
     cc.has_header_symbol('mach/clock.h', 'clock_get_time'))
-  conf.set('HAVE_MACH_CLOCK_ROUTINES', 1)
+  conf.set('WITH_MACH_CLOCK_ROUTINES', 1)
 endif
 
 
@@ -839,7 +837,7 @@ types = [
 foreach type : types
   if cc.has_type(type[0], prefix: type[1])
     name = type[0].underscorify().to_upper()
-    conf.set('HAVE_@0@'.format(name), 1)
+    conf.set('WITH_@0@'.format(name), 1)
   endif
 endforeach
 
@@ -870,7 +868,7 @@ foreach member : members
   if cc.has_member(member[0], member[1], prefix: member[2])
     type = member[0].underscorify().to_upper()
     member = member[1].underscorify().to_upper()
-    conf.set('HAVE_@0@_@1@'.format(type, member), 1)
+    conf.set('WITH_@0@_@1@'.format(type, member), 1)
   endif
 endforeach
 
@@ -900,8 +898,7 @@ required_programs = [
 
 required_programs_groups = [
   {'name':'rpcgen', 'prog':['rpcgen', 'portable-rpcgen']},
-  # Drop the rst2html (aka HTML4) variants once we stop supporting Ubuntu 16.04 (Xenial)
-  {'name':'rst2html', 'prog':['rst2html5', 'rst2html5.py', 'rst2html5-3', 'rst2html', 'rst2html.py', 'rst2html-3']},
+  {'name':'rst2html', 'prog':['rst2html5', 'rst2html5.py', 'rst2html5-3']},
   {'name':'rst2man', 'prog':['rst2man', 'rst2man.py', 'rst2man-3']},
 ]
 
@@ -969,7 +966,7 @@ endforeach
 
 if host_machine.system() == 'linux' and cc.has_header('sys/acl.h')
   acl_dep = cc.find_library('acl', required: false)
-  conf.set('HAVE_SYS_ACL_H', 1)
+  conf.set('WITH_SYS_ACL_H', 1)
 else
   acl_dep = dependency('', required: false)
 endif
@@ -986,7 +983,7 @@ endif
 
 attr_dep = cc.find_library('attr', required: get_option('attr'))
 if attr_dep.found()
-  conf.set('HAVE_LIBATTR', 1)
+  conf.set('WITH_LIBATTR', 1)
 endif
 
 audit_dep = cc.find_library('audit', required: get_option('audit'))
@@ -1024,22 +1021,6 @@ if curl_dep.found()
   conf.set('WITH_CURL', 1)
 endif
 
-dbus_version = '1.0.0'
-dbus_dep = dependency('dbus-1', version: '>=' + dbus_version, required: get_option('dbus'))
-if dbus_dep.found()
-  conf.set('WITH_DBUS', 1)
-
-  function = 'dbus_watch_get_unix_fd'
-  if cc.has_function(function, dependencies: dbus_dep)
-    conf.set('HAVE_@0@'.format(function.to_upper()), 1)
-  endif
-
-  type = 'DBusBasicValue'
-  if cc.has_type(type, dependencies: dbus_dep, prefix: '#include <dbus/dbus.h>')
-    conf.set('HAVE_@0@'.format(type.to_upper()), 1)
-  endif
-endif
-
 devmapper_version = '1.0.0'
 devmapper_dep = dependency('devmapper', version: '>=' + devmapper_version, required: false)
 if not devmapper_dep.found()
@@ -1059,7 +1040,7 @@ if dlopen_dep.found()
   if not cc.has_header('dlfcn.h')
     error('Unable to find dlfcn.h')
   endif
-  conf.set('HAVE_DLFCN_H', 1)
+  conf.set('WITH_DLFCN_H', 1)
 endif
 
 fuse_version = '2.8.6'
@@ -1071,7 +1052,11 @@ endif
 glib_version = '2.48.0'
 glib_dep = dependency('glib-2.0', version: '>=' + glib_version)
 gobject_dep = dependency('gobject-2.0', version: '>=' + glib_version)
-gio_dep = dependency('gio-2.0', version: '>=' + glib_version)
+if host_machine.system() == 'windows'
+  gio_dep = dependency('gio-2.0', version: '>=' + glib_version)
+else
+  gio_dep = dependency('gio-unix-2.0', version: '>=' + glib_version)
+endif
 glib_dep = declare_dependency(
   dependencies: [ glib_dep, gobject_dep, gio_dep ],
 )
@@ -1082,16 +1067,11 @@ glusterfs_dep = dependency('glusterfs-api', version: '>=' + glusterfs_version, r
 gnutls_version = '3.2.0'
 gnutls_dep = dependency('gnutls', version: '>=' + gnutls_version)
 
-hal_version = '0.5.0'
-hal_dep = dependency('hal', version: '>=' + hal_version, required: get_option('hal'))
-if hal_dep.found()
-  conf.set('WITH_HAL', 1)
-endif
-
 # Check for BSD kvm (kernel memory interface)
 if host_machine.system() == 'freebsd'
   kvm_dep = cc.find_library('kvm')
-  add_project_link_arguments('-lkvm', language: 'c')
+else
+  kvm_dep = dependency('', required: false)
 endif
 
 libiscsi_version = '1.18.0'
@@ -1106,7 +1086,7 @@ if host_machine.system() == 'linux'
     libnl_dep = declare_dependency(
       dependencies: [ libnl_dep, libnl_route_dep ],
     )
-    conf.set('HAVE_LIBNL', 1)
+    conf.set('WITH_LIBNL', 1)
   endif
 else
   libnl_dep = dependency('', required: false)
@@ -1137,7 +1117,7 @@ if not libpcap_dep.found()
   endif
 endif
 if libpcap_dep.found()
-  conf.set('HAVE_LIBPCAP', 1)
+  conf.set('WITH_LIBPCAP', 1)
 endif
 
 libssh_version = '0.7'
@@ -1176,6 +1156,9 @@ endif
 libxml_version = '2.9.1'
 libxml_dep = dependency('libxml-2.0', version: '>=' + libxml_version)
 
+cc = meson.get_compiler('c')
+m_dep = cc.find_library('m', required : false)
+
 use_macvtap = false
 if not get_option('macvtap').disabled()
   if (cc.has_header_symbol('linux/if_link.h', 'MACVLAN_MODE_BRIDGE') and
@@ -1191,7 +1174,7 @@ if use_macvtap
   conf.set('WITH_MACVTAP', 1)
 
   if cc.has_header_symbol('linux/if_link.h', 'MACVLAN_MODE_PASSTHRU')
-    conf.set('HAVE_DECL_MACVLAN_MODE_PASSTHRU', 1)
+    conf.set('WITH_DECL_MACVLAN_MODE_PASSTHRU', 1)
   endif
 endif
 
@@ -1205,18 +1188,17 @@ have_gnu_gettext_tools = false
 if not get_option('nls').disabled()
   have_gettext = cc.has_function('gettext')
   if not have_gettext
-    intl_lib = cc.find_library('intl', required: false)
-    have_gettext = intl_lib.found()
-    if have_gettext
-      add_project_link_arguments('-lintl', language: 'c')
-    endif
+    intl_dep = cc.find_library('intl', required: false)
+    have_gettext = intl_dep.found()
+  else
+    intl_dep = dependency('', required: false)
   endif
   if not have_gettext and get_option('nls').enabled()
     error('gettext() is required to build libvirt')
   endif
 
   if cc.has_header('libintl.h')
-    conf.set('HAVE_LIBINTL_H', 1)
+    conf.set('WITH_LIBINTL_H', 1)
   elif get_option('nls').enabled()
     error('libintl.h is required to build libvirt')
   endif
@@ -1237,15 +1219,14 @@ if not get_option('nls').disabled()
       have_gnu_gettext_tools = true
     endif
   endif
+else
+  intl_dep = dependency('', required: false)
 endif
 
+numactl_version = '2.0.6'
 numactl_dep = cc.find_library('numa', required: get_option('numactl'))
 if numactl_dep.found()
   conf.set('WITH_NUMACTL', 1)
-
-  if cc.has_function('numa_bitmask_isbitset', dependencies: [ numactl_dep ])
-    conf.set('HAVE_NUMA_BITMASK_ISBITSET', 1)
-  endif
 endif
 
 openwsman_version = '2.2.3'
@@ -1270,7 +1251,7 @@ if rbd_dep.found() and not cc.has_function('rbd_get_features', dependencies: rbd
 endif
 if rbd_dep.found() and rados_dep.found()
   if cc.has_function('rbd_list2', dependencies: rbd_dep)
-    conf.set('HAVE_RBD_LIST2', 1)
+    conf.set('WITH_RBD_LIST2', 1)
   endif
 
   rbd_dep = declare_dependency(dependencies: [ rbd_dep, rados_dep ])
@@ -1313,7 +1294,7 @@ if readline_dep.found()
   # the fix has landed in FreeBSD ports and macOS homebrew we can safely
   # drop the kludge and rely on pkg-config alone on those platforms.
   #
-  # [1] http://lists.gnu.org/archive/html/bug-readline/2019-04/msg00007.html
+  # [1] https://lists.gnu.org/archive/html/bug-readline/2019-04/msg00007.html
   if readline_dep.type_name() == 'pkgconfig' and host_machine.system() != 'linux'
     pkg_config_prog = find_program('pkg-config')
     rc = run_command(pkg_config_prog, '--cflags', 'readline', check: true)
@@ -1350,7 +1331,7 @@ if not get_option('sanlock').disabled()
     conf.set('WITH_SANLOCK', 1)
     # check for sanlock_strerror introduced in sanlock-3.5.0
     if cc.has_function('sanlock_strerror', dependencies: sanlock_dep)
-      conf.set('HAVE_SANLOCK_STRERROR', 1)
+      conf.set('WITH_SANLOCK_STRERROR', 1)
     endif
   endif
 endif
@@ -1404,9 +1385,6 @@ if udev_dep.found()
 endif
 
 util_dep = cc.find_library('util', required: false)
-if util_dep.found()
-  add_project_link_arguments('-lutil', language: 'c')
-endif
 
 if not get_option('virtualport').disabled()
   if cc.has_header_symbol('linux/if_link.h', 'IFLA_PORT_MAX')
@@ -1474,6 +1452,12 @@ if wireshark_dep.found()
   # Since wireshark 2.5.0 plugins can't live in top level plugindir but have
   # to be under one of ["epan", "wiretap", "codecs"] subdir. The first one looks okay.
   wireshark_plugindir = wireshark_plugindir / 'epan'
+
+  # Wireshark is installing ws_version.h since v2.9.0, but some distributions
+  # are not shipping it.
+  if cc.has_header('wireshark/ws_version.h')
+    conf.set('WITH_WS_VERSION', 1)
+  endif
 endif
 
 # On MinGW portablexdr provides XDR functions, on linux they are
@@ -1538,10 +1522,8 @@ if bash_completion_dep.found()
 endif
 
 if host_machine.system() != 'freebsd'
-  if not get_option('firewalld').disabled() and dbus_dep.found()
+  if not get_option('firewalld').disabled()
     conf.set('WITH_FIREWALLD', 1)
-  elif get_option('firewalld').enabled()
-    error('You must have dbus enabled for firewalld support')
   endif
 endif
 
@@ -1551,14 +1533,12 @@ elif get_option('firewalld_zone').enabled()
   error('You must have firewalld support enabled to enable firewalld_zone')
 endif
 
-if conf.has('WITH_MACVTAP') and not conf.has('HAVE_LIBNL')
+if conf.has('WITH_MACVTAP') and not conf.has('WITH_LIBNL')
   error('libnl3-devel is required for macvtap support')
 endif
 
-if (pkcheck_prog.found() or get_option('polkit').enabled()) and dbus_dep.found()
+if (pkcheck_prog.found() or get_option('polkit').enabled())
   conf.set('WITH_POLKIT', 1)
-elif get_option('polkit').enabled()
-  error('You must install dbus to compile libvirt with polkit-1')
 endif
 
 if udev_dep.found() and not pciaccess_dep.found()
@@ -1654,7 +1634,7 @@ if not get_option('driver_libxl').disabled() and conf.has('WITH_LIBVIRTD')
 
     # If building with libxl, use the libxl utility header and lib too
     if cc.has_header('libxlutil.h')
-      conf.set('HAVE_LIBXLUTIL_H', 1)
+      conf.set('WITH_LIBXLUTIL_H', 1)
     endif
     xl_util_dep = cc.find_library('xlutil')
 
@@ -1680,7 +1660,7 @@ if not get_option('driver_libxl').disabled() and conf.has('WITH_LIBVIRTD')
 
     # Check if Xen has support for PVH
     if cc.has_header_symbol('libxl.h', 'LIBXL_DOMAIN_TYPE_PVH')
-      conf.set('HAVE_XEN_PVH', 1)
+      conf.set('WITH_XEN_PVH', 1)
     endif
 
     conf.set('WITH_LIBXL', 1)
@@ -1701,7 +1681,7 @@ void main(void) {
   '''
   if cc.compiles(lxc_support_code, name: 'lxc support', args: '-D_GNU_SOURCE')
     conf.set('WITH_LXC', 1)
-    conf.set('HAVE_DECL_LO_FLAGS_AUTOCLEAR', 1)
+    conf.set('WITH_DECL_LO_FLAGS_AUTOCLEAR', 1)
   elif get_option('driver_lxc').enabled()
     error('Required kernel features for LXC were not found')
   endif
@@ -1716,7 +1696,7 @@ void main(void) {
 }
   '''
   if cc.compiles(lxc_get_free_code)
-    conf.set('HAVE_DECL_LOOP_CTL_GET_FREE', 1)
+    conf.set('WITH_DECL_LOOP_CTL_GET_FREE', 1)
   endif
 elif get_option('driver_lxc').enabled()
   error('linux and remote_driver are required for LXC')
@@ -1728,7 +1708,7 @@ if not get_option('driver_network').disabled() and conf.has('WITH_LIBVIRTD') and
   conf.set('WITH_NETWORK', 1)
 endif
 
-if hal_dep.found() or udev_dep.found()
+if udev_dep.found()
   conf.set('WITH_NODE_DEVICES', 1)
 endif
 
@@ -1757,6 +1737,12 @@ if not get_option('driver_qemu').disabled()
 
   if use_qemu
     conf.set('WITH_QEMU', 1)
+
+    qemu_moddir = get_option('qemu_moddir')
+    if qemu_moddir == ''
+      qemu_moddir = '/usr' / libdir / 'qemu'
+    endif
+    conf.set_quoted('QEMU_MODDIR', qemu_moddir)
 
     if host_machine.system() in ['freebsd', 'darwin']
       default_qemu_user = 'root'
@@ -2094,7 +2080,7 @@ endif
 
 driver_modules_flags = []
 if conf.has('WITH_LIBVIRTD')
-  if not conf.has('HAVE_DLFCN_H') or not dlopen_dep.found()
+  if not conf.has('WITH_DLFCN_H') or not dlopen_dep.found()
     error('You must have dlfcn.h / dlopen() support to build driver modules')
   endif
   driver_modules_flags = libvirt_export_dynamic
@@ -2171,7 +2157,7 @@ if not get_option('nss').disabled()
     conf.set('WITH_NSS', 1)
 
     if cc.has_type('struct gaih_addrtuple', prefix: '#include <nss.h>')
-      conf.set('HAVE_STRUCT_GAIH_ADDRTUPLE', 1)
+      conf.set('WITH_STRUCT_GAIH_ADDRTUPLE', 1)
     endif
 
     if (cc.has_type('ns_mtab', prefix: '#include <nsswitch.h>') and
@@ -2184,7 +2170,7 @@ endif
 if not get_option('numad').disabled() and numactl_dep.found()
   numad_prog = find_program('numad', required: get_option('numad'), dirs: libvirt_sbin_path)
   if numad_prog.found()
-    conf.set('HAVE_NUMAD', 1)
+    conf.set('WITH_NUMAD', 1)
     conf.set_quoted('NUMAD', numad_prog.path())
   endif
 elif get_option('numad').enabled()
@@ -2199,7 +2185,7 @@ endif
 
 if not get_option('pm_utils').disabled()
   use_pm_utils = true
-  if dbus_dep.found() and init_script == 'systemd'
+  if init_script == 'systemd'
     use_pm_utils = false
   endif
 
@@ -2300,7 +2286,7 @@ if git
   endforeach
 
   authors = run_command(python3_prog, meson_gen_authors_prog.path(), env: runutf8)
-  authors_file = 'AUTHORS.in'
+  authors_file = 'AUTHORS.rst.in'
 
   authors_conf = configuration_data()
   authors_conf.set('contributorslist', authors.stdout())
@@ -2314,7 +2300,7 @@ if git
   # Using return values from configure_file in add_dist_script is possible since 0.55.0
   dist_files = [
     'libvirt.spec',
-    'AUTHORS',
+    'AUTHORS.rst',
   ]
 
   foreach file : dist_files
@@ -2335,7 +2321,7 @@ run_conf = configuration_data()
 run_conf.set('abs_builddir', meson.build_root())
 configure_file(
   input: 'run.in',
-  output: 'run',
+  output: '@BASENAME@',
   configuration: run_conf,
 )
 run_command('chmod', 'a+x', meson.current_build_dir() / 'run')
@@ -2419,7 +2405,6 @@ libs_summary = {
   'blkid': blkid_dep.found(),
   'capng': capng_dep.found(),
   'curl': curl_dep.found(),
-  'dbus': dbus_dep.found(),
   'dlopen': dlopen_dep.found(),
   'firewalld': conf.has('WITH_FIREWALLD'),
   'firewalld-zone': conf.has('WITH_FIREWALLD_ZONE'),
@@ -2427,7 +2412,6 @@ libs_summary = {
   'glib_dep': glib_dep.found(),
   'glusterfs': glusterfs_dep.found(),
   'gnutls': gnutls_dep.found(),
-  'hal': hal_dep.found(),
   'libiscsi': libiscsi_dep.found(),
   'libnl': libnl_dep.found(),
   'libpcap': libpcap_dep.found(),
@@ -2462,6 +2446,7 @@ win_summary = {
 summary(win_summary, section: 'Windows', bool_yn: true)
 
 test_summary = {
+  'Expensive': use_expensive_tests,
   'Coverage': coverage_flags.length() > 0,
 }
 summary(test_summary, section: 'Test suite', bool_yn: true)
@@ -2475,7 +2460,7 @@ misc_summary = {
   'Use -Werror': cc_flags.contains('-Werror'),
   'Warning Flags': supported_cc_flags,
   'DTrace': conf.has('WITH_DTRACE_PROBES'),
-  'numad': conf.has('HAVE_NUMAD'),
+  'numad': conf.has('WITH_NUMAD'),
   'Init script': init_script,
   'Char device locks': chrdev_lock_files,
   'Loader/NVRAM': loader_res,

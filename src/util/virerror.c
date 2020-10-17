@@ -223,14 +223,8 @@ virCopyError(virErrorPtr from,
 virErrorPtr
 virErrorCopyNew(virErrorPtr err)
 {
-    virErrorPtr ret;
-
-    if (VIR_ALLOC_QUIET(ret) < 0)
-        return NULL;
-
-    if (virCopyError(err, ret) < 0)
-        VIR_FREE(ret);
-
+    virErrorPtr ret = g_new0(virError, 1);
+    virCopyError(err, ret);
     return ret;
 }
 
@@ -241,10 +235,9 @@ virLastErrorObject(void)
     virErrorPtr err;
     err = virThreadLocalGet(&virLastErr);
     if (!err) {
-        if (VIR_ALLOC_QUIET(err) < 0)
-            return NULL;
+        err = g_new0(virError, 1);
         if (virThreadLocalSet(&virLastErr, err) < 0)
-            VIR_FREE(err);
+            g_clear_pointer(&err, g_free);
     }
     return err;
 }
@@ -404,8 +397,7 @@ virSaveLastError(void)
     virErrorPtr to;
     int saved_errno = errno;
 
-    if (VIR_ALLOC_QUIET(to) < 0)
-        return NULL;
+    to = g_new0(virError, 1);
 
     virCopyLastError(to);
     errno = saved_errno;

@@ -32,7 +32,7 @@
 #include <pwd.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-#ifdef HAVE_SYSCTLBYNAME
+#ifdef WITH_SYSCTLBYNAME
 # include <sys/sysctl.h>
 #endif
 
@@ -59,7 +59,7 @@
 #include "virnetdevtap.h"
 #include "virnetdevvportprofile.h"
 #include "virpci.h"
-#include "virdbus.h"
+#include "virgdbus.h"
 #include "virfile.h"
 #include "virstring.h"
 #include "viraccessapicheck.h"
@@ -638,33 +638,29 @@ networkAutostartConfig(virNetworkObjPtr obj,
 
 
 #ifdef WITH_FIREWALLD
-static DBusHandlerResult
-firewalld_dbus_filter_bridge(DBusConnection *connection G_GNUC_UNUSED,
-                             DBusMessage *message,
-                             void *user_data)
+static void
+firewalld_dbus_signal_callback(GDBusConnection *connection G_GNUC_UNUSED,
+                               const char *senderName G_GNUC_UNUSED,
+                               const char *objectPath G_GNUC_UNUSED,
+                               const char *interfaceName,
+                               const char *signalName,
+                               GVariant *parameters,
+                               gpointer user_data)
 {
     virNetworkDriverStatePtr driver = user_data;
     bool reload = false;
 
-    if (dbus_message_is_signal(message,
-                               "org.fedoraproject.FirewallD1", "Reloaded")) {
+    if (STREQ(interfaceName, "org.fedoraproject.FirewallD1") &&
+        STREQ(signalName, "Reloaded")) {
         reload = true;
+    } else if (STREQ(interfaceName, "org.freedesktop.DBus") &&
+               STREQ(signalName, "NameOwnerChanged")) {
+        char *name = NULL;
+        char *old_owner = NULL;
+        char *new_owner = NULL;
 
-    } else if (dbus_message_is_signal(message,
-                                      DBUS_INTERFACE_DBUS, "NameOwnerChanged")) {
+        g_variant_get(parameters, "(&s&s&s)", &name, &old_owner, &new_owner);
 
-        g_autofree char *name = NULL;
-        g_autofree char *old_owner = NULL;
-        g_autofree char *new_owner = NULL;
-
-        if (virDBusMessageDecode(message, "sss", &name, &old_owner, &new_owner) < 0) {
-            VIR_WARN("Failed to decode DBus NameOwnerChanged message");
-            return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-        }
-        /*
-         * if new_owner is empty, firewalld is shutting down. If it is
-         * non-empty, then it is starting
-         */
         if (new_owner && *new_owner)
             reload = true;
     }
@@ -673,8 +669,6 @@ firewalld_dbus_filter_bridge(DBusConnection *connection G_GNUC_UNUSED,
         VIR_DEBUG("Reload in bridge_driver because of firewalld.");
         networkReloadFirewallRules(driver, false, true);
     }
-
-    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 #endif
 
@@ -694,7 +688,7 @@ networkStateInitialize(bool privileged,
     g_autofree char *rundir = NULL;
     bool autostart = true;
 #ifdef WITH_FIREWALLD
-    DBusConnection *sysbus = NULL;
+    GDBusConnection *sysbus = NULL;
 #endif
 
     if (root != NULL) {
@@ -793,27 +787,30 @@ networkStateInitialize(bool privileged,
     network_driver->networkEventState = virObjectEventStateNew();
 
 #ifdef WITH_FIREWALLD
-    if (!(sysbus = virDBusGetSystemBus())) {
+    if (!(sysbus = virGDBusGetSystemBus())) {
         VIR_WARN("DBus not available, disabling firewalld support "
                  "in bridge_network_driver: %s", virGetLastErrorMessage());
     } else {
-        /* add matches for
-         * NameOwnerChanged on org.freedesktop.DBus for firewalld start/stop
-         * Reloaded on org.fedoraproject.FirewallD1 for firewalld reload
-         */
-        dbus_bus_add_match(sysbus,
-                           "type='signal'"
-                           ",interface='"DBUS_INTERFACE_DBUS"'"
-                           ",member='NameOwnerChanged'"
-                           ",arg0='org.fedoraproject.FirewallD1'",
-                           NULL);
-        dbus_bus_add_match(sysbus,
-                           "type='signal'"
-                           ",interface='org.fedoraproject.FirewallD1'"
-                           ",member='Reloaded'",
-                           NULL);
-        dbus_connection_add_filter(sysbus, firewalld_dbus_filter_bridge,
-                                   network_driver, NULL);
+        g_dbus_connection_signal_subscribe(sysbus,
+                                           NULL,
+                                           "org.freedesktop.DBus",
+                                           "NameOwnerChanged",
+                                           NULL,
+                                           "org.fedoraproject.FirewallD1",
+                                           G_DBUS_SIGNAL_FLAGS_NONE,
+                                           firewalld_dbus_signal_callback,
+                                           network_driver,
+                                           NULL);
+        g_dbus_connection_signal_subscribe(sysbus,
+                                           NULL,
+                                           "org.fedoraproject.FirewallD1",
+                                           "Reloaded",
+                                           NULL,
+                                           NULL,
+                                           G_DBUS_SIGNAL_FLAGS_NONE,
+                                           firewalld_dbus_signal_callback,
+                                           network_driver,
+                                           NULL);
     }
 #endif
 
@@ -2140,7 +2137,7 @@ networkEnableIPForwarding(bool enableIPv4,
                           bool enableIPv6)
 {
     int ret = 0;
-#ifdef HAVE_SYSCTLBYNAME
+#ifdef WITH_SYSCTLBYNAME
     int enabled = 1;
     if (enableIPv4)
         ret = sysctlbyname("net.inet.ip.forwarding", NULL, 0,
@@ -2247,8 +2244,7 @@ networkAddAddrToBridge(virNetworkObjPtr obj,
 
 
 static int
-networkStartHandleMACTableManagerMode(virNetworkObjPtr obj,
-                                      const char *macTapIfName)
+networkStartHandleMACTableManagerMode(virNetworkObjPtr obj)
 {
     virNetworkDefPtr def = virNetworkObjGetDef(obj);
     const char *brname = def->bridge;
@@ -2257,12 +2253,6 @@ networkStartHandleMACTableManagerMode(virNetworkObjPtr obj,
         def->macTableManager == VIR_NETWORK_BRIDGE_MAC_TABLE_MANAGER_LIBVIRT) {
         if (virNetDevBridgeSetVlanFiltering(brname, true) < 0)
             return -1;
-        if (macTapIfName) {
-            if (virNetDevBridgePortSetLearning(brname, macTapIfName, false) < 0)
-                return -1;
-            if (virNetDevBridgePortSetUnicastFlood(brname, macTapIfName, false) < 0)
-                return -1;
-        }
     }
     return 0;
 }
@@ -2293,32 +2283,6 @@ networkAddRouteToBridge(virNetworkObjPtr obj,
     return 0;
 }
 
-static int
-networkWaitDadFinish(virNetworkObjPtr obj)
-{
-    virNetworkDefPtr def = virNetworkObjGetDef(obj);
-    virNetworkIPDefPtr ipdef;
-    g_autofree virSocketAddrPtr *addrs = NULL;
-    virSocketAddrPtr addr = NULL;
-    size_t naddrs = 0;
-    int ret = -1;
-
-    VIR_DEBUG("Begin waiting for IPv6 DAD on network %s", def->name);
-
-    while ((ipdef = virNetworkDefGetIPByIndex(def, AF_INET6, naddrs))) {
-        addr = &ipdef->address;
-        if (VIR_APPEND_ELEMENT_COPY(addrs, naddrs, addr) < 0)
-            goto cleanup;
-    }
-
-    ret = (naddrs == 0) ? 0 : virNetDevIPWaitDadFinish(addrs, naddrs);
-
- cleanup:
-    VIR_DEBUG("Finished waiting for IPv6 DAD on network %s with status %d",
-              def->name, ret);
-    return ret;
-}
-
 
 static int
 networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
@@ -2330,10 +2294,8 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
     virErrorPtr save_err = NULL;
     virNetworkIPDefPtr ipdef;
     virNetDevIPRoutePtr routedef;
-    g_autofree char *macTapIfName = NULL;
     virMacMapPtr macmap;
     g_autofree char *macMapFile = NULL;
-    int tapfd = -1;
     bool dnsmasqStarted = false;
     bool devOnline = false;
     bool firewalRulesAdded = false;
@@ -2359,29 +2321,6 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
     }
     if (virNetDevBridgeCreate(def->bridge, &def->mac) < 0)
         return -1;
-
-    if (def->mac_specified) {
-        /* To set a mac for the bridge, we need to define a dummy tap
-         * device, set its mac, then attach it to the bridge. As long
-         * as its mac address is lower than any other interface that
-         * gets attached, the bridge will always maintain this mac
-         * address.
-         */
-        macTapIfName = networkBridgeDummyNicName(def->bridge);
-        if (!macTapIfName)
-            goto error;
-        /* Keep tun fd open and interface up to allow for IPv6 DAD to happen */
-        if (virNetDevTapCreateInBridgePort(def->bridge,
-                                           &macTapIfName, &def->mac,
-                                           NULL, NULL, &tapfd, 1, NULL, NULL,
-                                           VIR_TRISTATE_BOOL_NO,
-                                           NULL, def->mtu, NULL,
-                                           VIR_NETDEV_TAP_CREATE_USE_MAC_FOR_BRIDGE |
-                                           VIR_NETDEV_TAP_CREATE_IFUP |
-                                           VIR_NETDEV_TAP_CREATE_PERSIST) < 0) {
-            goto error;
-        }
-    }
 
     if (!(macMapFile = virMacMapFileName(driver->dnsmasqStateDir,
                                          def->bridge)) ||
@@ -2426,7 +2365,7 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
             goto error;
     }
 
-    if (networkStartHandleMACTableManagerMode(obj, macTapIfName) < 0)
+    if (networkStartHandleMACTableManagerMode(obj) < 0)
         goto error;
 
     /* Bring up the bridge interface */
@@ -2476,21 +2415,6 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
     if (v6present && networkStartRadvd(driver, obj) < 0)
         goto error;
 
-    /* dnsmasq does not wait for DAD to complete before daemonizing,
-     * so we need to wait for it ourselves.
-     */
-    if (v6present && networkWaitDadFinish(obj) < 0)
-        goto error;
-
-    /* DAD has finished, dnsmasq is now bound to the
-     * bridge's IPv6 address, so we can set the dummy tun down.
-     */
-    if (tapfd >= 0) {
-        if (virNetDevSetOnline(macTapIfName, false) < 0)
-            goto error;
-        VIR_FORCE_CLOSE(tapfd);
-    }
-
     if (virNetDevBandwidthSet(def->bridge, def->bandwidth, true, true) < 0)
         goto error;
 
@@ -2514,16 +2438,11 @@ networkStartNetworkVirtual(virNetworkDriverStatePtr driver,
         def->forward.type != VIR_NETWORK_FORWARD_OPEN)
         networkRemoveFirewallRules(def);
 
-    if (macTapIfName) {
-        VIR_FORCE_CLOSE(tapfd);
-        ignore_value(virNetDevTapDelete(macTapIfName, NULL));
-    }
     virNetworkObjUnrefMacMap(obj);
 
     ignore_value(virNetDevBridgeDelete(def->bridge));
 
     virErrorRestore(&save_err);
-    /* coverity[leaked_handle] - 'tapfd' is not leaked */
     return -1;
 }
 
@@ -2555,9 +2474,13 @@ networkShutdownNetworkVirtual(virNetworkDriverStatePtr driver,
     if (dnsmasqPid > 0)
         kill(dnsmasqPid, SIGTERM);
 
+    /* We no longer create a dummy NIC, but if we've upgraded
+     * from old libvirt, we still need to delete any dummy NIC
+     * that might exist. Keep this logic around for a while...
+     */
     if (def->mac_specified) {
         g_autofree char *macTapIfName = networkBridgeDummyNicName(def->bridge);
-        if (macTapIfName)
+        if (macTapIfName && virNetDevExists(macTapIfName))
             ignore_value(virNetDevTapDelete(macTapIfName, NULL));
     }
 
@@ -2597,7 +2520,7 @@ networkStartNetworkBridge(virNetworkObjPtr obj)
     if (virNetDevBandwidthSet(def->bridge, def->bandwidth, true, true) < 0)
         goto error;
 
-    if (networkStartHandleMACTableManagerMode(obj, NULL) < 0)
+    if (networkStartHandleMACTableManagerMode(obj) < 0)
         goto error;
 
     return 0;

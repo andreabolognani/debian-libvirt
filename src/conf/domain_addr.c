@@ -1365,7 +1365,7 @@ virDomainPCIAddressSetAllMulti(virDomainDefPtr def)
 }
 
 
-static char*
+char*
 virDomainCCWAddressAsString(virDomainDeviceCCWAddressPtr addr)
 {
     return g_strdup_printf("%x.%x.%04x", addr->cssid, addr->ssid, addr->devno);
@@ -1401,7 +1401,7 @@ virDomainCCWAddressAssign(virDomainDeviceInfoPtr dev,
 
         if (virHashLookup(addrs->defined, addr)) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("The CCW devno '%s' is in use already "),
+                           _("The CCW devno '%s' is in use already"),
                            addr);
             return -1;
         }
