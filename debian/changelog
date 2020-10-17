@@ -1,3 +1,9 @@
+libvirt (6.8.0-1) UNRELEASED; urgency=medium
+
+  * [a09e8f2] New upstream version 6.8.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 17 Oct 2020 11:59:14 +0200
+
 libvirt (6.7.0-3) experimental; urgency=medium
 
   * Team upload
