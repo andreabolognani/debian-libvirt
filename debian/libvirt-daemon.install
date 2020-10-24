@@ -1,3 +1,4 @@
+usr/bin/virt-ssh-helper
 usr/lib/*/libvirt/connection-driver/libvirt_driver_interface.so
 usr/lib/*/libvirt/connection-driver/libvirt_driver_network.so
 usr/lib/*/libvirt/connection-driver/libvirt_driver_nodedev.so
