@@ -18,7 +18,6 @@ Build-Depends:
  libaudit-dev [linux-any],
  libcap-ng-dev [linux-any],
  libcurl4-gnutls-dev,
- libdbus-1-dev [linux-any],
  libdevmapper-dev [linux-any],
  libfuse-dev [linux-any],
  libgcrypt20-dev,
