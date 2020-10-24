@@ -48,7 +48,6 @@ Build-Depends:
  libyajl-dev,
  lvm2 [linux-any],
  meson (>= 0.54.0~),
- netcat-openbsd,
  nfs-common,
  numad [linux-any],
  open-iscsi [linux-any],
