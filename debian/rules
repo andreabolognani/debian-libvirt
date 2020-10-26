@@ -44,7 +44,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_FIREWALLD       = -Dfirewalld=enabled
     WITH_ATTR            = -Dattr=enabled
     WITH_AUDIT           = -Daudit=enabled
-    WITH_SELINUX         = -Dselinux=enabled -Dsecdriver_selinux=enabled -Dselinux-mount=/sys/fs/selinux
+    WITH_SELINUX         = -Dselinux=enabled -Dsecdriver_selinux=enabled -Dselinux_mount=/sys/fs/selinux
     WITH_APPARMOR        = -Dapparmor=enabled -Dsecdriver_apparmor=enabled -Dapparmor_profiles=true
     WITH_NSS_PLUGIN      = -Dnss=enabled
     WITH_DTRACE          = -Ddtrace=enabled
@@ -74,7 +74,7 @@ else
     WITH_FIREWALLD       = -Dfirewalld=disabled
     WITH_ATTR            = -Dattr=disabled
     WITH_AUDIT           = -Daudit=disabled
-    WITH_SELINUX         = -Dselinux=disabled -Dsecdriver_selinux=disabled -Dselinux-mount=
+    WITH_SELINUX         = -Dselinux=disabled -Dsecdriver_selinux=disabled -Dselinux_mount=
     WITH_APPARMOR        = -Dapparmor=disabled -Dsecdriver_apparmor=disabled -Dapparmor_profiles=false
     WITH_NSS_PLUGIN      = -Dnss=disabled
     WITH_DTRACE          = -Ddtrace=disabled
