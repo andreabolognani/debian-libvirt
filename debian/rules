@@ -90,6 +90,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Ddriver_qemu=enabled \
     -Dqemu_user=libvirt-qemu \
     -Dqemu_group=libvirt-qemu \
+    -Dqemu_moddir=/usr/lib/$(DEB_HOST_MULTIARCH)/qemu \
     $(WITH_OPENVZ) \
     -Dsasl=enabled \
     -Dyajl=enabled \
