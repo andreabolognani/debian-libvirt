@@ -120,7 +120,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_LXC) \
     $(WITH_DTRACE) \
     $(WITH_AUDIT) \
-    -Dhal=disabled \
     $(WITH_FIREWALLD) \
     $(WITH_ATTR) \
     $(WITH_NSS_PLUGIN) \
