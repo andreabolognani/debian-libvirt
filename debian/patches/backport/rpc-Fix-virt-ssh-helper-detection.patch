@@ -1,0 +1,35 @@
+From: Andrea Bolognani <abologna@redhat.com>
+Date: Tue, 27 Oct 2020 00:15:33 +0100
+Subject: rpc: Fix virt-ssh-helper detection
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+When trying to figure out whether virt-ssh-helper is available
+on the remote host, we mistakenly look for the helper by the
+name it had while the feature was being worked on instead of
+the one that was ultimately picked, and thus end up using the
+netcat fallback every single time.
+
+Fixes: f8ec7c842df9e40c6607eae9b0223766cb226336
+Signed-off-by: Andrea Bolognani <abologna@redhat.com>
+Reviewed-by: Neal Gompa <ngompa13@gmail.com>
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+(cherry picked from commit 7d959c302d10e97390b171334b885887de427a32)
+---
+ src/rpc/virnetclient.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/rpc/virnetclient.c b/src/rpc/virnetclient.c
+index 8c7c7a0..d430f32 100644
+--- a/src/rpc/virnetclient.c
++++ b/src/rpc/virnetclient.c
+@@ -453,7 +453,7 @@ virNetClientSSHHelperCommand(virNetClientProxy proxy,
+ 
+     switch (proxy) {
+     case VIR_NET_CLIENT_PROXY_AUTO:
+-        return g_strdup_printf("sh -c 'which virt-nc 1>/dev/null 2>&1; "
++        return g_strdup_printf("sh -c 'which virt-ssh-helper 1>/dev/null 2>&1; "
+                                "if test $? = 0; then "
+                                "    %s; "
+                                "else"
