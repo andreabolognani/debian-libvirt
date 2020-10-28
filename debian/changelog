@@ -1,8 +1,15 @@
-libvirt (6.8.0-1) UNRELEASED; urgency=medium
+libvirt (6.8.0-1) unstable; urgency=medium
+
+  * Team upload
 
   * [a09e8f2] New upstream version 6.8.0
+  * [11671ad] patches: Drop backport/[...]gluster-module-dep.patch
+  * [d4522ee] patches: Add backport/rpc-Fix-virt-ssh-helper-detection.patch
+  * [1012105] libvirt-daemon: Install virt-ssh-helper
+  * [1070367] control: Drop Build-Depends on netcat-openbsd
+  * [509eb72] control: Drop Build-Depends on libdbus-1-dev
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 17 Oct 2020 11:59:14 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 28 Oct 2020 01:08:23 +0100
 
 libvirt (6.7.0-3) experimental; urgency=medium
 
