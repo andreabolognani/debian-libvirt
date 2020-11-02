@@ -124,12 +124,12 @@ Package: libvirt-daemon
 Section: admin
 Architecture: any
 Depends:
- libvirt-daemon-driver-qemu,
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
  libvirt-daemon-driver-lxc,
+ libvirt-daemon-driver-qemu,
  libvirt-daemon-driver-vbox,
  libvirt-daemon-driver-xen,
  libxml2-utils,
