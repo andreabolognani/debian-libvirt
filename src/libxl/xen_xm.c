@@ -42,8 +42,9 @@ xenParseXMOS(virConfPtr conf, virDomainDefPtr def)
     if (def->os.type == VIR_DOMAIN_OSTYPE_HVM) {
         g_autofree char *boot = NULL;
 
-        if (VIR_ALLOC(def->os.loader) < 0 ||
-            xenConfigCopyString(conf, "kernel", &def->os.loader->path) < 0)
+        def->os.loader = g_new0(virDomainLoaderDef, 1);
+
+        if (xenConfigCopyString(conf, "kernel", &def->os.loader->path) < 0)
             return -1;
 
         if (xenConfigGetString(conf, "boot", &boot, "c") < 0)
@@ -148,8 +149,7 @@ xenParseXMDisk(char *entry, int hvm)
     if (!(offset = strchr(head, ',')))
         goto error;
 
-    if (VIR_ALLOC_N(disk->dst, (offset - head) + 1) < 0)
-        goto error;
+    disk->dst = g_new0(char, (offset - head) + 1);
 
     if (virStrncpy(disk->dst, head, offset - head,
                    (offset - head) + 1) < 0) {
@@ -345,9 +345,7 @@ xenFormatXMDisk(virConfValuePtr list,
         return -1;
     }
 
-    if (VIR_ALLOC(val) < 0)
-        return -1;
-
+    val = g_new0(virConfValue, 1);
     val->type = VIR_CONF_STRING;
     val->str = virBufferContentAndReset(&buf);
     tmp = list->list;
@@ -368,8 +366,7 @@ xenFormatXMDisks(virConfPtr conf, virDomainDefPtr def)
     virConfValuePtr diskVal = NULL;
     size_t i = 0;
 
-    if (VIR_ALLOC(diskVal) < 0)
-        goto cleanup;
+    diskVal = g_new0(virConfValue, 1);
 
     diskVal->type = VIR_CONF_LIST;
     diskVal->list = NULL;
@@ -411,8 +408,7 @@ xenParseXMInputDevs(virConfPtr conf, virDomainDefPtr def)
                  STREQ(str, "mouse") ||
                  STREQ(str, "keyboard"))) {
             virDomainInputDefPtr input;
-            if (VIR_ALLOC(input) < 0)
-                return -1;
+            input = g_new0(virDomainInputDef, 1);
 
             input->bus = VIR_DOMAIN_INPUT_BUS_USB;
             if (STREQ(str, "mouse"))

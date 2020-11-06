@@ -32,7 +32,6 @@ docs_assets = [
 
 docs_html_in_files = [
   '404',
-  'acl',
   'aclpolkit',
   'api_extension',
   'api',
@@ -117,6 +116,7 @@ docs_rst_files = [
   'formatbackup',
   'formatcheckpoint',
   'formatdomain',
+  'glib-adoption',
   'hacking',
   'kbase',
   'libvirt-go',
@@ -193,30 +193,40 @@ docs_rst2html_gen = generator(
 )
 
 
-# docs_html_in_gen:
+# html_xslt_gen config
+
+html_xslt_gen_xslt = site_xsl
+html_xslt_gen_install_dir = docs_html_dir
+
+html_xslt_gen = []
+# html_xslt_gen:
 #   each entry is a dictionary with following items:
-#   name - base file name (required)
-#   file - generated file (required)
+#   name - base file name (required), output file will become 'name.html'
+#   file - input file (optional, 'name.html.in' assumed if missing)
 # source - source filename relative to repository root (optional, if there is no source)
-docs_html_in_gen = []
+# depends - explicit dependency on other input (optional)
 
 foreach name : docs_html_in_files
-  html_in_file = '@0@.html.in'.format(name)
-  docs_html_in_gen += {
+  html_xslt_gen += {
     'name': name,
-    'file': html_in_file,
-    'source': 'docs' / html_in_file,
+    'source': 'docs' / name + '.html.in',
   }
 endforeach
 
 foreach name : docs_rst_files
   rst_file = '@0@.rst'.format(name)
-  docs_html_in_gen += {
+  html_xslt_gen += {
     'name': name,
     'file': docs_rst2html_gen.process(rst_file),
     'source': 'docs' / rst_file,
   }
 endforeach
+
+html_xslt_gen += {
+  'name': 'acl',
+  'source': 'docs' / 'acl.html.in',
+  'depends': aclperms_gen,
+}
 
 hvsupport_html_in = custom_target(
   'hvsupport.html.in',
@@ -239,47 +249,54 @@ hvsupport_html_in = custom_target(
     docs_api_generated,
   ],
 )
-docs_html_in_gen += {
+html_xslt_gen += {
   'name': 'hvsupport',
   'file': hvsupport_html_in,
 }
 
 news_html_in = docs_rst2html_gen.process(meson.source_root() / 'NEWS.rst')
-docs_html_in_gen += {
+html_xslt_gen += {
   'name': 'news',
   'file': news_html_in,
   'source': 'NEWS.rst',
 }
 
-foreach data : docs_html_in_gen
-  html_file = '@0@.html'.format(data['name'])
+# The following code between the markers must be kept identical with the other
+# copies of the code in various subdirs, since meson doesn't support any kind
+# of functions.
 
-  out_file = custom_target(
-    html_file,
-    input: data['file'],
-    output: html_file,
+# --- begin of XSLT processing ---
+
+foreach data : html_xslt_gen
+  html_filename = data['name'] + '.html'
+
+  html_file = custom_target(
+    html_filename,
+    input: data.get('file', data['name'] + '.html.in'),
+    output: html_filename,
     command: [
-      meson_python_prog,
-      python3_prog.path(),
-      meson_html_gen_prog.path(),
-      xsltproc_prog.path(),
-      xmllint_prog.path(),
-      meson.build_root(),
-      docs_timestamp,
-      site_xsl,
+      xsltproc_prog,
+      '--stringparam', 'pagesrc', data.get('source', ''),
+      '--stringparam', 'builddir', meson.build_root(),
+      '--stringparam', 'timestamp', docs_timestamp,
+      '--nonet',
+      html_xslt_gen_xslt,
       '@INPUT@',
-      '@OUTPUT@',
-      data.get('source', []),
     ],
-    depends: [ aclperms_gen ],
+    depends: data.get('depends', []),
     depend_files: [ page_xsl ],
+    capture: true,
     install: true,
-    install_dir: docs_html_dir,
+    install_dir: html_xslt_gen_install_dir,
   )
 
-  install_web_deps += out_file
-  install_web_files += '@0@:@1@'.format(out_file.full_path(), docs_html_dir)
+  install_web_deps += html_file
+  install_web_files += html_file.full_path() + ':' + html_xslt_gen_install_dir
 endforeach
+
+html_xslt_gen = []
+
+# --- end of XSLT processing ---
 
 subdir('fonts')
 subdir('html')

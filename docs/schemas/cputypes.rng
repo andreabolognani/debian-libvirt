@@ -46,7 +46,7 @@
       <optional>
         <attribute name="vendor_id">
           <data type="string">
-            <param name='pattern'>[^,]{12}</param>
+            <param name="pattern">[^,]{12}</param>
           </data>
         </attribute>
       </optional>
@@ -274,7 +274,7 @@
   </define>
   <define name="featureName">
     <data type="string">
-      <param name='pattern'>[a-zA-Z0-9\-_\.]+</param>
+      <param name="pattern">[a-zA-Z0-9\-_\.]+</param>
     </data>
   </define>
 
@@ -296,6 +296,121 @@
           <value>disable</value>
         </choice>
       </attribute>
+    </element>
+  </define>
+
+  <define name="hostcpu">
+    <element name="cpu">
+      <element name="arch">
+        <ref name="archnames"/>
+      </element>
+      <optional>
+        <element name="features">
+          <optional>
+            <element name="pae"><empty/></element>
+          </optional>
+          <optional>
+            <element name="nonpae"><empty/></element>
+          </optional>
+          <optional>
+            <element name="vmx"><empty/></element>
+          </optional>
+          <optional>
+            <element name="svm"><empty/></element>
+          </optional>
+        </element>
+      </optional>
+      <optional>
+        <element name="model">
+          <text/>
+        </element>
+        <optional>
+          <element name="vendor">
+            <text/>
+          </element>
+        </optional>
+        <optional>
+          <element name="microcode">
+            <attribute name="version">
+              <ref name="positiveInteger"/>
+            </attribute>
+          </element>
+        </optional>
+        <optional>
+          <element name="topology">
+            <attribute name="sockets">
+              <ref name="positiveInteger"/>
+            </attribute>
+            <attribute name="cores">
+              <ref name="positiveInteger"/>
+            </attribute>
+            <attribute name="threads">
+              <ref name="positiveInteger"/>
+            </attribute>
+          </element>
+        </optional>
+        <zeroOrMore>
+          <element name="feature">
+            <attribute name="name">
+              <data type="string">
+                <param name="pattern">[a-zA-Z0-9\-_]+</param>
+              </data>
+            </attribute>
+            <empty/>
+          </element>
+        </zeroOrMore>
+        <zeroOrMore>
+          <element name="pages">
+            <optional>
+              <attribute name="unit">
+                <ref name="unit"/>
+              </attribute>
+            </optional>
+            <attribute name="size">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </element>
+        </zeroOrMore>
+      </optional>
+    </element>
+  </define>
+
+  <define name="guestcpu">
+    <element name="cpu">
+      <optional>
+        <ref name="cpuMode"/>
+      </optional>
+      <optional>
+        <ref name="cpuMatch"/>
+      </optional>
+      <optional>
+        <ref name="cpuCheck"/>
+      </optional>
+      <optional>
+        <attribute name="migratable">
+          <ref name="virOnOff"/>
+        </attribute>
+      </optional>
+      <interleave>
+        <optional>
+          <ref name="cpuModel"/>
+        </optional>
+        <optional>
+          <ref name="cpuVendor"/>
+        </optional>
+        <optional>
+          <ref name="cpuTopology"/>
+        </optional>
+        <zeroOrMore>
+          <ref name="cpuFeature"/>
+        </zeroOrMore>
+        <optional>
+          <ref name="cpuNuma"/>
+        </optional>
+        <optional>
+          <ref name="cpuCache"/>
+        </optional>
+      </interleave>
     </element>
   </define>
 

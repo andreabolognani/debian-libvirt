@@ -883,6 +883,7 @@ typedef enum {
     VIR_DOMAIN_NET_TYPE_DIRECT,
     VIR_DOMAIN_NET_TYPE_HOSTDEV,
     VIR_DOMAIN_NET_TYPE_UDP,
+    VIR_DOMAIN_NET_TYPE_VDPA,
 
     VIR_DOMAIN_NET_TYPE_LAST
 } virDomainNetType;
@@ -1056,6 +1057,9 @@ struct _virDomainNetDef {
              */
             virDomainActualNetDefPtr actual;
         } network;
+        struct {
+            char *devicepath;
+        } vdpa;
         struct {
             char *brname;
         } bridge;
@@ -1790,6 +1794,7 @@ struct _virDomainMemballoonDef {
     virDomainDeviceInfo info;
     int period; /* seconds between collections */
     int autodeflate; /* enum virTristateSwitch */
+    int free_page_reporting; /* enum virTristateSwitch */
     virDomainVirtioOptionsPtr virtio;
 };
 
@@ -2490,7 +2495,9 @@ struct _virDomainSEVDef {
     char *dh_cert;
     char *session;
     unsigned int policy;
+    bool haveCbitpos;
     unsigned int cbitpos;
+    bool haveReducedPhysBits;
     unsigned int reduced_phys_bits;
 };
 
@@ -2736,7 +2743,7 @@ typedef enum {
     VIR_DOMAIN_TAINT_SHELL_SCRIPTS,    /* Network configuration using opaque shell scripts */
     VIR_DOMAIN_TAINT_DISK_PROBING,     /* Relying on potentially unsafe disk format probing */
     VIR_DOMAIN_TAINT_EXTERNAL_LAUNCH,  /* Externally launched guest domain */
-    VIR_DOMAIN_TAINT_HOST_CPU,         /* Host CPU passthrough in use */
+    VIR_DOMAIN_TAINT_HOST_CPU,         /* Host CPU passthrough in use after migration */
     VIR_DOMAIN_TAINT_HOOK,             /* Domain (possibly) changed via hook script */
     VIR_DOMAIN_TAINT_CDROM_PASSTHROUGH,/* CDROM passthrough */
     VIR_DOMAIN_TAINT_CUSTOM_DTB,       /* Custom device tree blob was specified */
@@ -3056,7 +3063,6 @@ void virDomainActualNetDefFree(virDomainActualNetDefPtr def);
 virDomainVsockDefPtr virDomainVsockDefNew(virDomainXMLOptionPtr xmlopt);
 void virDomainVsockDefFree(virDomainVsockDefPtr vsock);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVsockDef, virDomainVsockDefFree);
-void virDomainNetDefClear(virDomainNetDefPtr def);
 void virDomainNetDefFree(virDomainNetDefPtr def);
 void virDomainSmartcardDefFree(virDomainSmartcardDefPtr def);
 void virDomainChrDefFree(virDomainChrDefPtr def);

@@ -413,13 +413,11 @@ udevProcessPCI(struct udev_device *device,
             goto cleanup;
 
         if (virPCIDeviceIsPCIExpress(pciDev) > 0) {
-            if (VIR_ALLOC(pci_express) < 0)
-                goto cleanup;
+            pci_express = g_new0(virPCIEDeviceInfo, 1);
 
             if (virPCIDeviceHasPCIExpressLink(pciDev) > 0) {
-                if (VIR_ALLOC(pci_express->link_cap) < 0 ||
-                    VIR_ALLOC(pci_express->link_sta) < 0)
-                    goto cleanup;
+                pci_express->link_cap = g_new0(virPCIELink, 1);
+                pci_express->link_sta = g_new0(virPCIELink, 1);
 
                 if (virPCIDeviceGetLinkCapSta(pciDev,
                                               &pci_express->link_cap->port,
@@ -1144,6 +1142,58 @@ udevProcessCSS(struct udev_device *device,
     return 0;
 }
 
+
+static int
+udevGetVDPACharDev(const char *sysfs_path,
+                   virNodeDevCapDataPtr data)
+{
+    struct dirent *entry;
+    DIR *dir = NULL;
+    int direrr;
+
+    if (virDirOpenIfExists(&dir, sysfs_path) <= 0)
+        return -1;
+
+    while ((direrr = virDirRead(dir, &entry, NULL)) > 0) {
+        if (g_str_has_prefix(entry->d_name, "vhost-vdpa")) {
+            g_autofree char *chardev = g_strdup_printf("/dev/%s", entry->d_name);
+
+            if (!virFileExists(chardev)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("vDPA chardev path '%s' does not exist"),
+                               chardev);
+                VIR_DIR_CLOSE(dir);
+                return -1;
+            }
+            VIR_DEBUG("vDPA chardev is at '%s'", chardev);
+
+            data->vdpa.chardev = g_steal_pointer(&chardev);
+            break;
+        }
+    }
+
+    VIR_DIR_CLOSE(dir);
+
+    if (direrr < 0)
+        return -1;
+
+    return 0;
+}
+
+static int
+udevProcessVDPA(struct udev_device *device,
+                virNodeDeviceDefPtr def)
+{
+    if (udevGenerateDeviceName(device, def, NULL) != 0)
+        return -1;
+
+    if (udevGetVDPACharDev(def->sysfs_path, &def->caps->data) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 static int
 udevGetDeviceNodes(struct udev_device *device,
                    virNodeDeviceDefPtr def)
@@ -1159,8 +1209,7 @@ udevGetDeviceNodes(struct udev_device *device,
     udev_list_entry_foreach(list_entry, udev_device_get_devlinks_list_entry(device))
         n++;
 
-    if (VIR_ALLOC_N(def->devlinks, n + 1) < 0)
-        return -1;
+    def->devlinks = g_new0(char *, n + 1);
 
     n = 0;
     udev_list_entry_foreach(list_entry, udev_device_get_devlinks_list_entry(device)) {
@@ -1224,6 +1273,8 @@ udevGetDeviceType(struct udev_device *device,
             *type = VIR_NODE_DEV_CAP_CCW_DEV;
         else if (STREQ_NULLABLE(subsystem, "css"))
             *type = VIR_NODE_DEV_CAP_CSS_DEV;
+        else if (STREQ_NULLABLE(subsystem, "vdpa"))
+            *type = VIR_NODE_DEV_CAP_VDPA;
 
         VIR_FREE(subsystem);
     }
@@ -1270,6 +1321,8 @@ udevGetDeviceDetails(struct udev_device *device,
         return udevProcessCCW(device, def);
     case VIR_NODE_DEV_CAP_CSS_DEV:
         return udevProcessCSS(device, def);
+    case VIR_NODE_DEV_CAP_VDPA:
+        return udevProcessVDPA(device, def);
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
     case VIR_NODE_DEV_CAP_SYSTEM:
     case VIR_NODE_DEV_CAP_FC_HOST:
@@ -1371,16 +1424,14 @@ udevAddOneDevice(struct udev_device *device)
     bool new_device = true;
     int ret = -1;
 
-    if (VIR_ALLOC(def) != 0)
-        goto cleanup;
+    def = g_new0(virNodeDeviceDef, 1);
 
     def->sysfs_path = g_strdup(udev_device_get_syspath(device));
 
     if (udevGetStringProperty(device, "DRIVER", &def->driver) < 0)
         goto cleanup;
 
-    if (VIR_ALLOC(def->caps) != 0)
-        goto cleanup;
+    def->caps = g_new0(virNodeDevCapsDef, 1);
 
     if (udevGetDeviceType(device, &def->caps->data.type) != 0)
         goto cleanup;
@@ -1736,14 +1787,11 @@ udevGetDMIData(virNodeDevCapSystemPtr syscap)
 
     device = udev_device_new_from_syspath(udev, DMI_DEVPATH);
     if (device == NULL) {
-        device = udev_device_new_from_syspath(udev, DMI_DEVPATH_FALLBACK);
-        if (device == NULL) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Failed to get udev device for syspath '%s' or '%s'"),
-                           DMI_DEVPATH, DMI_DEVPATH_FALLBACK);
-            virObjectUnlock(priv);
-            return;
-        }
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Failed to get udev device for syspath '%s'"),
+                       DMI_DEVPATH);
+        virObjectUnlock(priv);
+        return;
     }
     virObjectUnlock(priv);
 
@@ -1788,13 +1836,10 @@ udevSetupSystemDev(void)
     virNodeDeviceObjPtr obj = NULL;
     int ret = -1;
 
-    if (VIR_ALLOC(def) < 0)
-        return -1;
+    def = g_new0(virNodeDeviceDef, 1);
 
     def->name = g_strdup("computer");
-
-    if (VIR_ALLOC(def->caps) != 0)
-        goto cleanup;
+    def->caps = g_new0(virNodeDevCapsDef, 1);
 
 #if defined(__x86_64__) || defined(__i386__) || defined(__amd64__)
     udevGetDMIData(&def->caps->data.system);
@@ -1882,8 +1927,7 @@ nodeStateInitialize(bool privileged,
         return -1;
     }
 
-    if (VIR_ALLOC(driver) < 0)
-        return VIR_DRV_STATE_INIT_ERROR;
+    driver = g_new0(virNodeDeviceDriverState, 1);
 
     driver->lockFD = -1;
     if (virMutexInit(&driver->lock) < 0) {

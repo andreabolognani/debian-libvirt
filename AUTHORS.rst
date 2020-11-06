@@ -96,6 +96,7 @@ Patches have also been contributed by:
 
 * Adam Litke <agl@us.ibm.com>
 * Adam Walters <adam@pandorasboxen.com>
+* Adolfo Jayme Barrientos <fitoschido@gmail.com>
 * Adrian Brzezinski <adrian.brzezinski@eo.pl>
 * Akarshan Biswas <akarshan.biswas@gmail.com>
 * Alan Pevec <apevec@redhat.com>
@@ -216,6 +217,7 @@ Patches have also been contributed by:
 * Daniel Hansel <daniel.hansel@linux.vnet.ibm.com>
 * Daniel Henrique Barboza <danielhb413@gmail.com>
 * Daniel J Walsh <dwalsh@redhat.com>
+* Daniel Letai <dani@letai.org.il>
 * Daniel Liu <srwx4096@gmail.com>
 * Daniel Nicoletti <dantti12@gmail.com>
 * Daniel P. Berrangé <berrange@redhat.com>
@@ -312,6 +314,7 @@ Patches have also been contributed by:
 * Guannan Ren <gren@redhat.com>
 * Gui Jianfeng <guijianfeng@cn.fujitsu.com>
 * Guido Günther <agx@sigxcpu.org>
+* Halil Pasic <pasic@linux.ibm.com>
 * Han Cheng <hanc.fnst@cn.fujitsu.com>
 * Han Han <hhan@redhat.com>
 * Hao Liu <hliu@redhat.com>
@@ -463,11 +466,13 @@ Patches have also been contributed by:
 * Mark Wu <dwu@redhat.com>
 * Marko Myllynen <myllynen@redhat.com>
 * Markus Groß <gross@univention.de>
+* Markus Schade <markus.schade@hetzner.com>
 * Marti Raudsepp <marti@juffo.org>
 * Martin Kletzander <mkletzan@redhat.com>
 * Martin Pietsch <martin.pietsch@tu-dresden.de>
 * Martin Wilck <mwilck@suse.de>
-* Matt Coleman <mcoleman@datto.com>
+* Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+* Matt Coleman <matt@datto.com>
 * Matthew Booth <mbooth@redhat.com>
 * Matthew Rosato <mjrosato@linux.vnet.ibm.com>
 * Matthias Bolte <matthias.bolte@googlemail.com>
@@ -476,6 +481,7 @@ Patches have also been contributed by:
 * Matthieu Coudron <mattator@gmail.com>
 * Mattias Bolte <matthias.bolte@googlemail.com>
 * Matwey V. Kornilov <matwey.kornilov@gmail.com>
+* Mauro Matteo Cascella <mcascell@redhat.com>
 * Mauro S. M. Rodrigues <maurosr@linux.vnet.ibm.com>
 * Maxim Kozin <kolomaxes@gmail.com>
 * Maxim Nestratov <mnestratov@virtuozzo.com>
@@ -520,6 +526,7 @@ Patches have also been contributed by:
 * Nehal J Wani <nehaljw.kkd1@gmail.com>
 * Neil Wilson <neil@aldur.co.uk>
 * Nguyen Anh Quynh <aquynh@gmail.com>
+* Nico Pache <npache@redhat.com>
 * Nicolas Brignone <nmbrignone@gmail.com>
 * Niels de Vos <ndevos@redhat.com>
 * Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>

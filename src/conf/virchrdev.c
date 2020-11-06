@@ -255,8 +255,7 @@ static void virChrdevFDStreamCloseCb(virStreamPtr st G_GNUC_UNUSED,
 virChrdevsPtr virChrdevAlloc(void)
 {
     virChrdevsPtr devs;
-    if (VIR_ALLOC(devs) < 0)
-        return NULL;
+    devs = g_new0(virChrdevs, 1);
 
     if (virMutexInit(&devs->lock) < 0) {
         virReportSystemError(errno, "%s",
@@ -267,7 +266,7 @@ virChrdevsPtr virChrdevAlloc(void)
 
     /* there will hardly be any devices most of the time, the hash
      * does not have to be huge */
-    if (!(devs->hash = virHashCreate(3, virChrdevHashEntryFree)))
+    if (!(devs->hash = virHashNew(virChrdevHashEntryFree)))
         goto error;
 
     return devs;
@@ -280,7 +279,7 @@ virChrdevsPtr virChrdevAlloc(void)
  * Helper to clear stream callbacks when freeing the hash
  */
 static int virChrdevFreeClearCallbacks(void *payload,
-                                       const void *name G_GNUC_UNUSED,
+                                       const char *name G_GNUC_UNUSED,
                                        void *data G_GNUC_UNUSED)
 {
     virChrdevHashEntry *ent = payload;
@@ -388,11 +387,8 @@ int virChrdevOpen(virChrdevsPtr devs,
         return -1;
     }
 
-    if (VIR_ALLOC(cbdata) < 0)
-        goto error;
-
-    if (VIR_ALLOC(ent) < 0)
-        goto error;
+    cbdata = g_new0(virChrdevStreamInfo, 1);
+    ent = g_new0(virChrdevHashEntry, 1);
 
     ent->st = st;
     ent->dev = g_strdup(path);

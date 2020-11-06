@@ -15,27 +15,21 @@
 VIR_LOG_INIT("tests.hashtest");
 
 static virHashTablePtr
-testHashInit(int size)
+testHashInit(void)
 {
     virHashTablePtr hash;
     ssize_t i;
 
-    if (!(hash = virHashCreate(size, NULL)))
+    if (!(hash = virHashNew(NULL)))
         return NULL;
 
     /* entries are added in reverse order so that they will be linked in
      * collision list in the same order as in the uuids array
      */
     for (i = G_N_ELEMENTS(uuids) - 1; i >= 0; i--) {
-        ssize_t oldsize = virHashTableSize(hash);
         if (virHashAddEntry(hash, uuids[i], (void *) uuids[i]) < 0) {
             virHashFree(hash);
             return NULL;
-        }
-
-        if (virHashTableSize(hash) != oldsize) {
-            VIR_TEST_DEBUG("hash grown from %zu to %zu",
-                     (size_t)oldsize, (size_t)virHashTableSize(hash));
         }
     }
 
@@ -52,7 +46,7 @@ testHashInit(int size)
 
 static int
 testHashCheckForEachCount(void *payload G_GNUC_UNUSED,
-                          const void *name G_GNUC_UNUSED,
+                          const char *name G_GNUC_UNUSED,
                           void *data G_GNUC_UNUSED)
 {
     size_t *count = data;
@@ -89,13 +83,12 @@ struct testInfo {
 
 
 static int
-testHashGrow(const void *data)
+testHashGrow(const void *data G_GNUC_UNUSED)
 {
-    const struct testInfo *info = data;
     virHashTablePtr hash;
     int ret = -1;
 
-    if (!(hash = testHashInit(info->count)))
+    if (!(hash = testHashInit()))
         return -1;
 
     if (testHashCheckCount(hash, G_N_ELEMENTS(uuids)) < 0)
@@ -117,7 +110,7 @@ testHashUpdate(const void *data G_GNUC_UNUSED)
     size_t i;
     int ret = -1;
 
-    if (!(hash = testHashInit(0)))
+    if (!(hash = testHashInit()))
         return -1;
 
     for (i = 0; i < G_N_ELEMENTS(uuids_subset); i++) {
@@ -155,7 +148,7 @@ testHashRemove(const void *data G_GNUC_UNUSED)
     size_t i;
     int ret = -1;
 
-    if (!(hash = testHashInit(0)))
+    if (!(hash = testHashInit()))
         return -1;
 
     for (i = 0; i < G_N_ELEMENTS(uuids_subset); i++) {
@@ -182,7 +175,7 @@ const int testHashCountRemoveForEachSome =
 
 static int
 testHashRemoveForEachSome(void *payload G_GNUC_UNUSED,
-                          const void *name,
+                          const char *name,
                           void *data)
 {
     virHashTablePtr hash = data;
@@ -205,7 +198,7 @@ const int testHashCountRemoveForEachAll = 0;
 
 static int
 testHashRemoveForEachAll(void *payload G_GNUC_UNUSED,
-                         const void *name,
+                         const char *name,
                          void *data)
 {
     virHashTablePtr hash = data;
@@ -222,7 +215,7 @@ testHashRemoveForEach(const void *data)
     virHashTablePtr hash;
     int ret = -1;
 
-    if (!(hash = testHashInit(0)))
+    if (!(hash = testHashInit()))
         return -1;
 
     if (virHashForEach(hash, (virHashIterator) info->data, hash)) {
@@ -249,7 +242,7 @@ testHashSteal(const void *data G_GNUC_UNUSED)
     size_t i;
     int ret = -1;
 
-    if (!(hash = testHashInit(0)))
+    if (!(hash = testHashInit()))
         return -1;
 
     for (i = 0; i < G_N_ELEMENTS(uuids_subset); i++) {
@@ -273,7 +266,7 @@ testHashSteal(const void *data G_GNUC_UNUSED)
 
 static int
 testHashRemoveSetIter(const void *payload G_GNUC_UNUSED,
-                      const void *name,
+                      const char *name,
                       const void *data)
 {
     int *count = (int *) data;
@@ -303,7 +296,7 @@ testHashRemoveSet(const void *data G_GNUC_UNUSED)
     int rcount;
     int ret = -1;
 
-    if (!(hash = testHashInit(0)))
+    if (!(hash = testHashInit()))
         return -1;
 
     /* seed the generator so that rand() provides reproducible sequence */
@@ -333,7 +326,7 @@ const int testSearchIndex = G_N_ELEMENTS(uuids_subset) / 2;
 
 static int
 testHashSearchIter(const void *payload G_GNUC_UNUSED,
-                   const void *name,
+                   const char *name,
                    const void *data G_GNUC_UNUSED)
 {
     return STREQ(uuids_subset[testSearchIndex], name);
@@ -346,7 +339,7 @@ testHashSearch(const void *data G_GNUC_UNUSED)
     void *entry;
     int ret = -1;
 
-    if (!(hash = testHashInit(0)))
+    if (!(hash = testHashInit()))
         return -1;
 
     entry = virHashSearch(hash, testHashSearchIter, NULL, NULL);
@@ -395,7 +388,7 @@ testHashGetItems(const void *data G_GNUC_UNUSED)
     char value2[] = "2";
     char value3[] = "3";
 
-    if (!(hash = virHashCreate(0, NULL)) ||
+    if (!(hash = virHashNew(NULL)) ||
         virHashAddEntry(hash, keya, value3) < 0 ||
         virHashAddEntry(hash, keyc, value1) < 0 ||
         virHashAddEntry(hash, keyb, value2) < 0) {
@@ -465,8 +458,8 @@ testHashEqual(const void *data G_GNUC_UNUSED)
     char value3_u[] = "O";
     char value4_u[] = "P";
 
-    if (!(hash1 = virHashCreate(0, NULL)) ||
-        !(hash2 = virHashCreate(0, NULL)) ||
+    if (!(hash1 = virHashNew(NULL)) ||
+        !(hash2 = virHashNew(NULL)) ||
         virHashAddEntry(hash1, keya, value1_l) < 0 ||
         virHashAddEntry(hash1, keyb, value2_l) < 0 ||
         virHashAddEntry(hash1, keyc, value3_l) < 0 ||
@@ -515,7 +508,7 @@ testHashDuplicate(const void *data G_GNUC_UNUSED)
 {
     g_autoptr(virHashTable) hash = NULL;
 
-    if (!(hash = virHashCreate(0, NULL)))
+    if (!(hash = virHashNew(NULL)))
         return -1;
 
     if (virHashAddEntry(hash, "a", NULL) < 0) {
@@ -550,15 +543,10 @@ mymain(void)
                  testHash ## cmd ## data, \
                  testHashCount ## cmd ## data)
 
-#define DO_TEST_COUNT(name, cmd, count) \
-    DO_TEST_FULL(name "(" #count ")", cmd, NULL, count)
-
 #define DO_TEST(name, cmd) \
     DO_TEST_FULL(name, cmd, NULL, -1)
 
-    DO_TEST_COUNT("Grow", Grow, 1);
-    DO_TEST_COUNT("Grow", Grow, 10);
-    DO_TEST_COUNT("Grow", Grow, 42);
+    DO_TEST("Grow", Grow);
     DO_TEST("Update", Update);
     DO_TEST("Remove", Remove);
     DO_TEST_DATA("Remove in ForEach", RemoveForEach, Some);

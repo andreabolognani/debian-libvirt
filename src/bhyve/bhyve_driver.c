@@ -1224,8 +1224,7 @@ bhyveStateInitialize(bool privileged,
         return VIR_DRV_STATE_INIT_SKIPPED;
     }
 
-    if (VIR_ALLOC(bhyve_driver) < 0)
-        return VIR_DRV_STATE_INIT_ERROR;
+    bhyve_driver = g_new0(bhyveConn, 1);
 
     bhyve_driver->lockFD = -1;
     if (virMutexInit(&bhyve_driver->lock) < 0) {
@@ -1442,14 +1441,17 @@ bhyveConnectCompareCPU(virConnectPtr conn,
     int ret = VIR_CPU_COMPARE_ERROR;
     virCapsPtr caps = NULL;
     bool failIncompatible;
+    bool validateXML;
 
-    virCheckFlags(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE,
+    virCheckFlags(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE |
+                  VIR_CONNECT_COMPARE_CPU_VALIDATE_XML,
                   VIR_CPU_COMPARE_ERROR);
 
     if (virConnectCompareCPUEnsureACL(conn) < 0)
         goto cleanup;
 
     failIncompatible = !!(flags & VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE);
+    validateXML = !!(flags & VIR_CONNECT_COMPARE_CPU_VALIDATE_XML);
 
     if (!(caps = bhyveDriverGetCapabilities(driver)))
         goto cleanup;
@@ -1465,7 +1467,7 @@ bhyveConnectCompareCPU(virConnectPtr conn,
         }
     } else {
         ret = virCPUCompareXML(caps->host.arch, caps->host.cpu,
-                               xmlDesc, failIncompatible);
+                               xmlDesc, failIncompatible, validateXML);
     }
 
  cleanup:

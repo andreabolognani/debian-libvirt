@@ -1063,8 +1063,7 @@ cmdDomblkstat(vshControl *ctl, const vshCmd *cmd)
         DOMBLKSTAT_LEGACY_PRINT(3, stats.wr_bytes);
         DOMBLKSTAT_LEGACY_PRINT(4, stats.errs);
     } else {
-        params = vshCalloc(ctl, nparams, sizeof(*params));
-
+        params = g_new0(virTypedParameter, nparams);
         if (virDomainBlockStatsFlags(dom, device, params, &nparams, 0) < 0) {
             vshError(ctl, _("Failed to get block stats for domain '%s' device '%s'"), name, device);
             goto cleanup;
@@ -1234,8 +1233,7 @@ cmdDomBlkError(vshControl *ctl, const vshCmd *cmd)
     ndisks = count;
 
     if (ndisks) {
-        if (VIR_ALLOC_N(disks, ndisks) < 0)
-            goto cleanup;
+        disks = g_new0(virDomainDiskError, ndisks);
 
         if ((count = virDomainGetDiskErrors(dom, disks, ndisks, 0)) == -1)
             goto cleanup;
@@ -1378,10 +1376,7 @@ cmdDominfo(vshControl *ctl, const vshCmd *cmd)
             vshPrint(ctl, "%-15s %s\n", _("Security DOI:"), secmodel.doi);
 
             /* Security labels are only valid for active domains */
-            if (VIR_ALLOC(seclabel) < 0) {
-                virshDomainFree(dom);
-                return false;
-            }
+            seclabel = g_new0(virSecurityLabel, 1);
 
             if (virDomainGetSecurityLabel(dom, seclabel) == -1) {
                 virshDomainFree(dom);
@@ -1622,7 +1617,7 @@ virshDomainListFree(virshDomainListPtr domlist)
 static virshDomainListPtr
 virshDomainListCollect(vshControl *ctl, unsigned int flags)
 {
-    virshDomainListPtr list = vshMalloc(ctl, sizeof(*list));
+    virshDomainListPtr list = g_new0(struct virshDomainList, 1);
     size_t i;
     int ret;
     int *ids = NULL;
@@ -1684,7 +1679,7 @@ virshDomainListCollect(vshControl *ctl, unsigned int flags)
         }
 
         if (nids) {
-            ids = vshMalloc(ctl, sizeof(int) * nids);
+            ids = g_new0(int, nids);
 
             if ((nids = virConnectListDomains(priv->conn, ids, nids)) < 0) {
                 vshError(ctl, "%s", _("Failed to list active domains"));
@@ -1701,7 +1696,7 @@ virshDomainListCollect(vshControl *ctl, unsigned int flags)
         }
 
         if (nnames) {
-            names = vshMalloc(ctl, sizeof(char *) * nnames);
+            names = g_new0(char *, nnames);
 
             if ((nnames = virConnectListDefinedDomains(priv->conn, names,
                                                       nnames)) < 0) {
@@ -1711,7 +1706,7 @@ virshDomainListCollect(vshControl *ctl, unsigned int flags)
         }
     }
 
-    list->domains = vshMalloc(ctl, sizeof(virDomainPtr) * (nids + nnames));
+    list->domains = g_new0(virDomainPtr, nids + nnames);
     list->ndomains = 0;
 
     /* get active domains */
@@ -2280,8 +2275,7 @@ cmdDomstats(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_CONNECT_GET_ALL_DOMAINS_STATS_NOWAIT;
 
     if (vshCommandOptBool(cmd, "domain")) {
-        if (VIR_ALLOC_N(domlist, 1) < 0)
-            goto cleanup;
+        domlist = g_new0(virDomainPtr, 1);
         ndoms = 1;
 
         while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {

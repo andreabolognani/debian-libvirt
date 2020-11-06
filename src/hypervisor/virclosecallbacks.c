@@ -69,7 +69,7 @@ virCloseCallbacksNew(void)
     if (!(closeCallbacks = virObjectLockableNew(virCloseCallbacksClass)))
         return NULL;
 
-    closeCallbacks->list = virHashCreate(5, virHashValueFree);
+    closeCallbacks->list = virHashNew(g_free);
     if (!closeCallbacks->list) {
         virObjectUnref(closeCallbacks);
         return NULL;
@@ -120,9 +120,7 @@ virCloseCallbacksSet(virCloseCallbacksPtr closeCallbacks,
 
         closeDef->cb = cb;
     } else {
-        if (VIR_ALLOC(closeDef) < 0)
-            goto cleanup;
-
+        closeDef = g_new0(virDriverCloseDef, 1);
         closeDef->conn = conn;
         closeDef->cb = cb;
         if (virHashAddEntry(closeCallbacks->list, uuidstr, closeDef) < 0) {
@@ -248,7 +246,7 @@ struct virCloseCallbacksData {
 
 static int
 virCloseCallbacksGetOne(void *payload,
-                        const void *key,
+                        const char *key,
                         void *opaque)
 {
     struct virCloseCallbacksData *data = opaque;
@@ -284,8 +282,7 @@ virCloseCallbacksGetForConn(virCloseCallbacksPtr closeCallbacks,
     virCloseCallbacksListPtr list = NULL;
     struct virCloseCallbacksData data;
 
-    if (VIR_ALLOC(list) < 0)
-        return NULL;
+    list = g_new0(virCloseCallbacksList, 1);
 
     data.conn = conn;
     data.list = list;

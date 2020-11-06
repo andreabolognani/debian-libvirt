@@ -45,7 +45,7 @@ General metadata
 
 ``name``
    The content of the ``name`` element provides a short name for the virtual
-   machine. This name should consist only of alpha-numeric characters and is
+   machine. This name should consist only of alphanumeric characters and is
    required to be unique within the scope of a single host. It is often used to
    form the filename for storing the persistent configuration file.
    :since:`Since 0.0.1`
@@ -804,7 +804,7 @@ CPU Tuning
 ``vcpusched``, ``iothreadsched`` and ``emulatorsched``
    The optional ``vcpusched``, ``iothreadsched`` and ``emulatorsched`` elements
    specify the scheduler type (values ``batch``, ``idle``, ``fifo``, ``rr``) for
-   particular vCPU, IOThread and emulator threads respecively. For ``vcpusched``
+   particular vCPU, IOThread and emulator threads respectively. For ``vcpusched``
    and ``iothreadsched`` the attributes ``vcpus`` and ``iothreads`` select which
    vCPUs/IOThreads this setting applies to, leaving them out sets the default.
    The element ``emulatorsched`` does not have that attribute. Valid ``vcpus``
@@ -1361,7 +1361,7 @@ In case no restrictions need to be put on CPU model and its features, a simpler
 ``model``
    The content of the ``model`` element specifies CPU model requested by the
    guest. The list of available CPU models and their definition can be found in
-   ``cpu_map.xml`` file installed in libvirt's data directory. If a hypervisor
+   directory ``cpu_map``, installed in libvirt's data directory. If a hypervisor
    is not able to use the exact CPU model, libvirt automatically falls back to a
    closest model supported by the hypervisor while maintaining the list of CPU
    features. :since:`Since 0.9.10` , an optional ``fallback`` attribute can be
@@ -1376,7 +1376,7 @@ In case no restrictions need to be put on CPU model and its features, a simpler
    :since:`Since 0.8.3` the content of the ``vendor`` element specifies CPU
    vendor requested by the guest. If this element is missing, the guest can be
    run on a CPU matching given features regardless on its vendor. The list of
-   supported vendors can be found in ``cpu_map.xml``.
+   supported vendors can be found in ``cpu_map/*_vendors.xml``.
 ``topology``
    The ``topology`` element specifies requested topology of virtual CPU provided
    to the guest. Four attributes, ``sockets``, ``dies``, ``cores``, and
@@ -1388,11 +1388,11 @@ In case no restrictions need to be put on CPU model and its features, a simpler
    of vCPUs specified by the ``cpus`` element equals to the number of vcpus
    resulting from the topology.
 ``feature``
-   The ``cpu`` element can contain zero or more ``elements`` used to fine-tune
-   features provided by the selected CPU model. The list of known feature names
-   can be found in the same file as CPU models. The meaning of each ``feature``
-   element depends on its ``policy`` attribute, which has to be set to one of
-   the following values:
+   The ``cpu`` element can contain zero or more ``feature`` elements used to
+   fine-tune features provided by the selected CPU model. The list of known
+   feature names can be found in the same file as CPU models. The meaning of
+   each ``feature`` element depends on its ``policy`` attribute, which has to be
+   set to one of the following values:
 
    ``force``
       The virtual CPU will claim the feature is supported regardless of it being
@@ -2974,8 +2974,9 @@ paravirtualized driver is specified via the ``disk`` element.
 ``transient``
    If present, this indicates that changes to the device contents should be
    reverted automatically when the guest exits. With some hypervisors, marking a
-   disk transient prevents the domain from participating in migration or
-   snapshots. Only suppported in vmx hypervisor. :since:`Since 0.9.5`
+   disk transient prevents the domain from participating in migration,
+   snapshots, or blockjobs. Only supported in vmx hypervisor
+   (:since:`Since 0.9.5`) and ``qemu`` hypervisor (:since:`Since 6.9.0`).
 ``serial``
    If present, this specify serial number of virtual hard drive. For example, it
    may look like ``<serial>WD-WMAP9A966149</serial>``. Not supported for
@@ -3063,7 +3064,6 @@ A directory on the host that can be accessed directly from the guest.
      </filesystem>
      <filesystem type='file' accessmode='passthrough'>
        <driver type='loop' format='raw'/>
-       <driver type='path' wrpolicy='immediate'/>
        <source file='/export/to/guest.img'/>
        <target dir='/import/from/host'/>
        <readonly/>
@@ -4066,6 +4066,7 @@ after 0.9.5 (KVM only)` :
 
    ...
    <devices>
+     <redirdev bus='usb' type='spicevmc'/>
      <redirdev bus='usb' type='tcp'>
        <source mode='connect' host='localhost' service='4000'/>
        <boot order='1'/>
@@ -4421,7 +4422,7 @@ Generic ethernet connection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Provides a means to use a new or existing tap device (or veth device pair,
-depening on the needs of the hypervisor driver) that is partially or wholly
+depending on the needs of the hypervisor driver) that is partially or wholly
 setup external to libvirt (either prior to the guest starting, or while the
 guest is being started via an optional script specified in the config).
 
@@ -4444,7 +4445,7 @@ After creating/opening the tap device, an optional shell script (given in the
 ``path`` attribute of the ``<script>`` element) will be run. :since:`Since
 0.2.1` Also, after detaching/closing the tap device, an optional shell script
 (given in the ``path`` attribute of the ``<downscript>`` element) will be run.
-:since:`Since 5.1.0` These can be used to do whatever extra host network
+:since:`Since 6.4.0` These can be used to do whatever extra host network
 integration is required.
 
 ::
@@ -4639,6 +4640,30 @@ or stopping the guest.
        <virtualport type='802.1Qbh'>
          <parameters profileid='finance'/>
        </virtualport>
+     </interface>
+   </devices>
+   ...
+
+:anchor:`<a id="elementsNICSVDPA"/>`
+
+vDPA devices
+^^^^^^^^^^^^
+
+A vDPA network device can be used to provide wire speed network performance
+within a domain. A vDPA device is a specialized type of network device that
+uses a datapath that complies with the virtio specification but has a
+vendor-specific control path.  To use such a device with libvirt, the host
+device must already be bound to the appropriate device-specific vDPA driver.
+This creates a vDPA char device (e.g. /dev/vhost-vdpa-0) that can be used to
+assign the device to a libvirt domain.  :since:`Since 6.9.0 (QEMU only,
+requires QEMU 5.1.0 or newer)`
+
+::
+
+   ...
+   <devices>
+     <interface type='vdpa'>
+       <source dev='/dev/vhost-vdpa-0'/>
      </interface>
    </devices>
    ...
@@ -6754,6 +6779,14 @@ Example: manually added device with static PCI slot 2 requested
    release some memory at the last moment before a guest's process get killed by
    Out of Memory killer. :since:`Since 1.3.1, QEMU and KVM only`
 
+``freePageReporting``
+   The optional ``freePageReporting`` attribute allows to enable/disable
+   ("on"/"off", respectively) the ability of the QEMU virtio memory balloon to
+   return unused pages back to the hypervisor to be used by other guests or
+   processes. Please note that despite its name it has no effect on free memory
+   as reported by ``virDomainMemoryStats()`` and/or ``virsh dommemstat``.
+   :since:`Since 6.9.0, QEMU and KVM only`
+
 ``period``
    The optional ``period`` allows the QEMU virtio memory balloon driver to
    provide statistics through the ``virsh dommemstat           [domain]``
@@ -7286,7 +7319,7 @@ Example:
 :anchor:`<a id="vsock"/>`
 
 Vsock
------
+~~~~~
 
 A vsock host/guest interface. The ``model`` attribute defaults to ``virtio``.
 :since:`Since 5.2.0` ``model`` can also be 'virtio-transitional' and

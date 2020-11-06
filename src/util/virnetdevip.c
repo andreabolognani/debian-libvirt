@@ -52,7 +52,7 @@
 
 VIR_LOG_INIT("util.netdevip");
 
-#if defined(__linux__) && defined(WITH_LIBNL)
+#if defined(WITH_LIBNL)
 
 static int
 virNetDevGetIPAddressBinary(virSocketAddr *addr, void **data, size_t *len)
@@ -180,8 +180,7 @@ virNetDevIPAddrAdd(const char *ifname,
     if (VIR_SOCKET_ADDR_FAMILY(addr) == AF_INET &&
         !(peer && VIR_SOCKET_ADDR_VALID(peer))) {
         /* compute a broadcast address if this is IPv4 */
-        if (VIR_ALLOC(broadcast) < 0)
-            return -1;
+        broadcast = g_new0(virSocketAddr, 1);
 
         if (virSocketAddrBroadcastByPrefix(addr, prefix, broadcast) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -373,7 +372,7 @@ virNetDevIPRouteAdd(const char *ifname,
 }
 
 
-#else /* defined(__linux__) && defined(WITH_LIBNL) */
+#else /* defined(WITH_LIBNL) */
 
 
 int
@@ -494,7 +493,7 @@ virNetDevIPRouteAdd(const char *ifname,
     return 0;
 }
 
-#endif /* defined(__linux__) && defined(HAVE_LIBNL) */
+#endif /* defined(HAVE_LIBNL) */
 
 
 #if defined(__linux__)

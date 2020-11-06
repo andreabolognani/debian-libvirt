@@ -209,20 +209,14 @@ VIR_ONCE_GLOBAL_INIT(virPCI);
 static char *
 virPCIDriverDir(const char *driver)
 {
-    char *buffer;
-
-    buffer = g_strdup_printf(PCI_SYSFS "drivers/%s", driver);
-    return buffer;
+    return g_strdup_printf(PCI_SYSFS "drivers/%s", driver);
 }
 
 
 static char *
 virPCIFile(const char *device, const char *file)
 {
-    char *buffer;
-
-    buffer = g_strdup_printf(PCI_SYSFS "devices/%s/%s", device, file);
-    return buffer;
+    return g_strdup_printf(PCI_SYSFS "devices/%s/%s", device, file);
 }
 
 
@@ -240,9 +234,9 @@ virPCIDeviceGetDriverPathAndName(virPCIDevicePtr dev, char **path, char **name)
     g_autofree char *drvlink = NULL;
 
     *path = *name = NULL;
+
     /* drvlink = "/sys/bus/pci/dddd:bb:ss.ff/driver" */
-    if (!(drvlink = virPCIFile(dev->name, "driver")))
-        goto cleanup;
+    drvlink = virPCIFile(dev->name, "driver");
 
     if (!virFileExists(drvlink)) {
         ret = 0;
@@ -376,8 +370,7 @@ virPCIDeviceReadClass(virPCIDevicePtr dev, uint16_t *device_class)
     g_autofree char *id_str = NULL;
     unsigned int value;
 
-    if (!(path = virPCIFile(dev->name, "class")))
-        return -1;
+    path = virPCIFile(dev->name, "class");
 
     /* class string is '0xNNNNNN\n' ... i.e. 9 bytes */
     if (virFileReadAll(path, 9, &id_str) < 0)
@@ -995,7 +988,7 @@ virPCIProbeStubDriver(virPCIStubDriver driver)
 {
     const char *drvname = NULL;
     g_autofree char *drvpath = NULL;
-    bool probed = false;
+    g_autofree char *errbuf = NULL;
 
     if (driver == VIR_PCI_STUB_DRIVER_NONE ||
         !(drvname = virPCIStubDriverTypeToString(driver))) {
@@ -1005,22 +998,20 @@ virPCIProbeStubDriver(virPCIStubDriver driver)
         return -1;
     }
 
- recheck:
-    if ((drvpath = virPCIDriverDir(drvname)) && virFileExists(drvpath))
-        /* driver already loaded, return */
+    drvpath = virPCIDriverDir(drvname);
+
+    /* driver previously loaded, return */
+    if (virFileExists(drvpath))
         return 0;
 
-    if (!probed) {
-        g_autofree char *errbuf = NULL;
-        probed = true;
-        if ((errbuf = virKModLoad(drvname))) {
-            VIR_WARN("failed to load driver %s: %s", drvname, errbuf);
-            goto cleanup;
-        }
-
-        VIR_FREE(drvpath);
-        goto recheck;
+    if ((errbuf = virKModLoad(drvname))) {
+        VIR_WARN("failed to load driver %s: %s", drvname, errbuf);
+        goto cleanup;
     }
+
+    /* driver loaded after probing */
+    if (virFileExists(drvpath))
+        return 0;
 
  cleanup:
     /* If we know failure was because of admin config, let's report that;
@@ -1054,8 +1045,7 @@ virPCIDeviceUnbind(virPCIDevicePtr dev)
         /* The device is not bound to any driver */
         return 0;
 
-    if (!(path = virPCIFile(dev->name, "driver/unbind")))
-        return -1;
+    path = virPCIFile(dev->name, "driver/unbind");
 
     if (virFileExists(path)) {
         if (virFileWriteStr(path, dev->name, 0) < 0) {
@@ -1111,8 +1101,7 @@ virPCIDeviceBindWithDriverOverride(virPCIDevicePtr dev,
 {
     g_autofree char *path = NULL;
 
-    if (!(path = virPCIFile(dev->name, "driver_override")))
-        return -1;
+    path = virPCIFile(dev->name, "driver_override");
 
     if (virFileWriteStr(path, driverName, 0) < 0) {
         virReportSystemError(errno,
@@ -1159,9 +1148,8 @@ virPCIDeviceBindToStub(virPCIDevicePtr dev)
         return -1;
     }
 
-    if (!(stubDriverPath = virPCIDriverDir(stubDriverName))  ||
-        !(driverLink = virPCIFile(dev->name, "driver")))
-        return -1;
+    stubDriverPath = virPCIDriverDir(stubDriverName);
+    driverLink = virPCIFile(dev->name, "driver");
 
     if (virFileExists(driverLink)) {
         if (virFileLinkPointsTo(driverLink, stubDriverPath)) {
@@ -1257,25 +1245,22 @@ static char *
 virPCIDeviceReadID(virPCIDevicePtr dev, const char *id_name)
 {
     g_autofree char *path = NULL;
-    char *id_str;
+    g_autofree char *id_str = NULL;
 
-    if (!(path = virPCIFile(dev->name, id_name)))
-        return NULL;
+    path = virPCIFile(dev->name, id_name);
 
     /* ID string is '0xNNNN\n' ... i.e. 7 bytes */
     if (virFileReadAll(path, 7, &id_str) < 0)
         return NULL;
 
     /* Check for 0x suffix */
-    if (id_str[0] != '0' || id_str[1] != 'x') {
-        VIR_FREE(id_str);
+    if (id_str[0] != '0' || id_str[1] != 'x')
         return NULL;
-    }
 
     /* Chop off the newline; we know the string is 7 bytes */
     id_str[6] = '\0';
 
-    return id_str;
+    return g_steal_pointer(&id_str);
 }
 
 bool
@@ -1372,8 +1357,7 @@ virPCIDeviceNew(unsigned int domain,
     g_autofree char *vendor = NULL;
     g_autofree char *product = NULL;
 
-    if (VIR_ALLOC(dev) < 0)
-        return NULL;
+    dev = g_new0(virPCIDevice, 1);
 
     dev->address.domain = domain;
     dev->address.bus = bus;
@@ -1422,8 +1406,7 @@ virPCIDeviceCopy(virPCIDevicePtr dev)
 {
     virPCIDevicePtr copy;
 
-    if (VIR_ALLOC(copy) < 0)
-        return NULL;
+    copy = g_new0(virPCIDevice, 1);
 
     /* shallow copy to take care of most attributes */
     *copy = *dev;
@@ -1866,24 +1849,19 @@ typedef virPCIDeviceAddressList *virPCIDeviceAddressListPtr;
 static int
 virPCIGetIOMMUGroupAddressesAddOne(virPCIDeviceAddressPtr newDevAddr, void *opaque)
 {
-    int ret = -1;
     virPCIDeviceAddressListPtr addrList = opaque;
-    virPCIDeviceAddressPtr copyAddr;
+    g_autofree virPCIDeviceAddressPtr copyAddr = NULL;
 
     /* make a copy to insert onto the list */
-    if (VIR_ALLOC(copyAddr) < 0)
-        goto cleanup;
+    copyAddr = g_new0(virPCIDeviceAddress, 1);
 
     *copyAddr = *newDevAddr;
 
     if (VIR_APPEND_ELEMENT(*addrList->iommuGroupDevices,
                            *addrList->nIommuGroupDevices, copyAddr) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(copyAddr);
-    return ret;
+    return 0;
 }
 
 
@@ -1927,8 +1905,8 @@ virPCIDeviceAddressGetIOMMUGroupNum(virPCIDeviceAddressPtr addr)
     devName = g_strdup_printf(VIR_PCI_DEVICE_ADDRESS_FMT, addr->domain, addr->bus,
                               addr->slot, addr->function);
 
-    if (!(devPath = virPCIFile(devName, "iommu_group")))
-        return -1;
+    devPath = virPCIFile(devName, "iommu_group");
+
     if (virFileIsLink(devPath) != 1)
         return -2;
     if (virFileResolveLink(devPath, &groupPath) < 0) {
@@ -1976,8 +1954,8 @@ virPCIDeviceGetIOMMUGroupDev(virPCIDevicePtr dev)
     g_autofree char *groupPath = NULL;
     g_autofree char *groupFile = NULL;
 
-    if (!(devPath = virPCIFile(dev->name, "iommu_group")))
-        return NULL;
+    devPath = virPCIFile(dev->name, "iommu_group");
+
     if (virFileIsLink(devPath) != 1) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Invalid device %s iommu_group file %s is not a symlink"),
@@ -2186,7 +2164,7 @@ virZPCIDeviceAddressIsPresent(const virZPCIDeviceAddress *addr)
 virPCIDeviceAddressPtr
 virPCIGetDeviceAddressFromSysfsLink(const char *device_link)
 {
-    virPCIDeviceAddressPtr bdf = NULL;
+    g_autofree virPCIDeviceAddressPtr bdf = NULL;
     g_autofree char *config_address = NULL;
     g_autofree char *device_path = NULL;
 
@@ -2204,18 +2182,16 @@ virPCIGetDeviceAddressFromSysfsLink(const char *device_link)
     }
 
     config_address = g_path_get_basename(device_path);
-    if (VIR_ALLOC(bdf) < 0)
-        return NULL;
+    bdf = g_new0(virPCIDeviceAddress, 1);
 
     if (virPCIDeviceAddressParse(config_address, bdf) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Failed to parse PCI config address '%s'"),
                        config_address);
-        VIR_FREE(bdf);
         return NULL;
     }
 
-    return bdf;
+    return g_steal_pointer(&bdf);
 }
 
 /**
@@ -2264,11 +2240,10 @@ virPCIGetVirtualFunctions(const char *sysfs_path,
                           size_t *num_virtual_functions,
                           unsigned int *max_virtual_functions)
 {
-    int ret = -1;
     size_t i;
     g_autofree char *totalvfs_file = NULL;
     g_autofree char *totalvfs_str = NULL;
-    virPCIDeviceAddressPtr config_addr = NULL;
+    g_autofree virPCIDeviceAddressPtr config_addr = NULL;
 
     *virtual_functions = NULL;
     *num_virtual_functions = 0;
@@ -2311,17 +2286,14 @@ virPCIGetVirtualFunctions(const char *sysfs_path,
 
     VIR_DEBUG("Found %zu virtual functions for %s",
               *num_virtual_functions, sysfs_path);
-    ret = 0;
- cleanup:
-    VIR_FREE(config_addr);
-    return ret;
+    return 0;
 
  error:
     for (i = 0; i < *num_virtual_functions; i++)
         VIR_FREE((*virtual_functions)[i]);
     VIR_FREE(*virtual_functions);
     *num_virtual_functions = 0;
-    goto cleanup;
+    return -1;
 }
 
 
@@ -2350,7 +2322,7 @@ virPCIGetVirtualFunctionIndex(const char *pf_sysfs_device_link,
     size_t i;
     size_t num_virt_fns = 0;
     unsigned int max_virt_fns = 0;
-    virPCIDeviceAddressPtr vf_bdf = NULL;
+    g_autofree virPCIDeviceAddressPtr vf_bdf = NULL;
     virPCIDeviceAddressPtr *virt_fns = NULL;
 
     if (!(vf_bdf = virPCIGetDeviceAddressFromSysfsLink(vf_sysfs_device_link)))
@@ -2379,22 +2351,12 @@ virPCIGetVirtualFunctionIndex(const char *pf_sysfs_device_link,
         VIR_FREE(virt_fns[i]);
 
     VIR_FREE(virt_fns);
-    VIR_FREE(vf_bdf);
-
     return ret;
 }
 
 /*
  * Returns a path to the PCI sysfs file given the BDF of the PCI function
  */
-
-int
-virPCIGetSysfsFile(char *virPCIDeviceName, char **pci_sysfs_device_link)
-{
-    *pci_sysfs_device_link = g_strdup_printf(PCI_SYSFS "devices/%s",
-                                             virPCIDeviceName);
-    return 0;
-}
 
 int
 virPCIDeviceAddressGetSysfsFile(virPCIDeviceAddressPtr addr,
@@ -2425,7 +2387,6 @@ virPCIGetNetName(const char *device_link_sysfs_path,
 {
     g_autofree char *pcidev_sysfs_net_path = NULL;
     g_autofree char *firstEntryName = NULL;
-    g_autofree char *thisPhysPortID = NULL;
     int ret = -1;
     DIR *dir = NULL;
     struct dirent *entry = NULL;
@@ -2450,12 +2411,13 @@ virPCIGetNetName(const char *device_link_sysfs_path,
          * physportID of this netdev. If not, look for entry[idx].
          */
         if (physPortID) {
+            g_autofree char *thisPhysPortID = NULL;
+
             if (virNetDevGetPhysPortID(entry->d_name, &thisPhysPortID) < 0)
                 goto cleanup;
 
             /* if this one doesn't match, keep looking */
             if (STRNEQ_NULLABLE(physPortID, thisPhysPortID)) {
-                VIR_FREE(thisPhysPortID);
                 /* save the first entry we find to use as a failsafe
                  * in case we don't match the phys_port_id. This is
                  * needed because some NIC drivers (e.g. i40e)
@@ -2509,26 +2471,25 @@ virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path,
                              char **pfname,
                              int *vf_index)
 {
-    virPCIDeviceAddressPtr pf_config_address = NULL;
+    g_autofree virPCIDeviceAddressPtr pf_config_address = NULL;
     g_autofree char *pf_sysfs_device_path = NULL;
     g_autofree char *vfname = NULL;
     g_autofree char *vfPhysPortID = NULL;
-    int ret = -1;
 
     if (virPCIGetPhysicalFunction(vf_sysfs_device_path, &pf_config_address) < 0)
-        goto cleanup;
+        return -1;
 
     if (!pf_config_address)
-        goto cleanup;
+        return -1;
 
     if (virPCIDeviceAddressGetSysfsFile(pf_config_address,
                                         &pf_sysfs_device_path) < 0) {
-        goto cleanup;
+        return -1;
     }
 
     if (virPCIGetVirtualFunctionIndex(pf_sysfs_device_path,
                                       vf_sysfs_device_path, vf_index) < 0) {
-        goto cleanup;
+        return -1;
     }
 
     /* If the caller hasn't asked for a specific pfNetDevIdx, and VF
@@ -2540,18 +2501,18 @@ virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path,
      */
     if (pfNetDevIdx == -1) {
         if (virPCIGetNetName(vf_sysfs_device_path, 0, NULL, &vfname) < 0)
-            goto cleanup;
+            return -1;
 
         if (vfname) {
             if (virNetDevGetPhysPortID(vfname, &vfPhysPortID) < 0)
-                goto cleanup;
+                return -1;
         }
         pfNetDevIdx = 0;
     }
 
     if (virPCIGetNetName(pf_sysfs_device_path,
                          pfNetDevIdx, vfPhysPortID, pfname) < 0) {
-        goto cleanup;
+        return -1;
     }
 
     if (!*pfname) {
@@ -2561,14 +2522,10 @@ virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("The PF device for VF %s has no network device name"),
                        vf_sysfs_device_path);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(pf_config_address);
-
-    return ret;
+    return 0;
 }
 
 
@@ -2668,13 +2625,6 @@ virPCIGetVirtualFunctionIndex(const char *pf_sysfs_device_link G_GNUC_UNUSED,
 
 }
 
-int
-virPCIGetSysfsFile(char *virPCIDeviceName G_GNUC_UNUSED,
-                   char **pci_sysfs_device_link G_GNUC_UNUSED)
-{
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _(unsupported));
-    return -1;
-}
 
 int
 virPCIDeviceAddressGetSysfsFile(virPCIDeviceAddressPtr dev G_GNUC_UNUSED,

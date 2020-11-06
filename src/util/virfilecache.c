@@ -242,7 +242,7 @@ virFileCacheNew(const char *dir,
     if (!(cache = virObjectNew(virFileCacheClass)))
         return NULL;
 
-    if (!(cache->table = virHashCreate(10, virObjectFreeHashData)))
+    if (!(cache->table = virHashNew(virObjectFreeHashData)))
         goto cleanup;
 
     cache->dir = g_strdup(dir);
@@ -337,7 +337,7 @@ virFileCacheLookupByFunc(virFileCachePtr cache,
 
     virObjectLock(cache);
 
-    data = virHashSearch(cache->table, iter, iterData, (void **)&name);
+    data = virHashSearch(cache->table, iter, iterData, &name);
     virFileCacheValidate(cache, name, &data);
 
     virObjectRef(data);

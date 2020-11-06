@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '6.8.0',
+  version: '6.9.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -636,10 +636,6 @@ libvirt_export_dynamic = cc.first_supported_link_argument([
 # check availability of various common functions (non-fatal if missing)
 
 functions = [
-  '__lxstat',
-  '__lxstat64',
-  '__xstat',
-  '__xstat64',
   'elf_aux_info',
   'fallocate',
   'getauxval',
@@ -653,8 +649,6 @@ functions = [
   'getuid',
   'getutxid',
   'if_indextoname',
-  'lstat',
-  'lstat64',
   'mmap',
   'newlocale',
   'pipe2',
@@ -666,15 +660,33 @@ functions = [
   'setgroups',
   'setns',
   'setrlimit',
-  'stat',
-  'stat64',
   'symlink',
   'sysctlbyname',
 ]
 
+stat_functions = [
+  '__lxstat',
+  '__lxstat64',
+  '__xstat',
+  '__xstat64',
+  'lstat',
+  'lstat64',
+  'stat',
+  'stat64',
+]
+
+functions += stat_functions
+
 foreach function : functions
   if cc.has_function(function)
     conf.set('WITH_@0@'.format(function.to_upper()), 1)
+  endif
+endforeach
+
+
+foreach function : stat_functions
+  if cc.has_header_symbol('sys/stat.h', function)
+    conf.set('WITH_@0@_DECL'.format(function.to_upper()), 1)
   endif
 endforeach
 
@@ -773,9 +785,6 @@ symbols = [
   [ 'linux/if_vlan.h', 'GET_VLAN_VID_CMD' ],
 
   [ 'unistd.h', 'SEEK_HOLE' ],
-
-  # GET_VLAN_VID_CMD is required for virNetDevGetVLanID
-  [ 'linux/if_vlan.h', 'GET_VLAN_VID_CMD' ],
 
   # Check for BSD approach for setting MAC addr
   [ 'net/if_dl.h', 'link_addr', '#include <sys/types.h>\n#include <sys/socket.h>' ],
@@ -1023,13 +1032,6 @@ endif
 
 devmapper_version = '1.0.0'
 devmapper_dep = dependency('devmapper', version: '>=' + devmapper_version, required: false)
-if not devmapper_dep.found()
-  # devmapper is missing pkg-config files in ubuntu, suse, etc
-  devmapper_dep = cc.find_library('devmapper', required: false)
-  if devmapper_dep.found() and not cc.has_function('dm_task_run', dependencies: tmp)
-    devmapper_dep = dependency('', required: false)
-  endif
-endif
 if devmapper_dep.found()
   conf.set('WITH_DEVMAPPER', 1)
 endif
@@ -1069,18 +1071,18 @@ gnutls_dep = dependency('gnutls', version: '>=' + gnutls_version)
 
 # Check for BSD kvm (kernel memory interface)
 if host_machine.system() == 'freebsd'
-  kvm_dep = cc.find_library('kvm')
+  libkvm_dep = cc.find_library('kvm')
 else
-  kvm_dep = dependency('', required: false)
+  libkvm_dep = dependency('', required: false)
 endif
 
 libiscsi_version = '1.18.0'
 libiscsi_dep = dependency('libiscsi', version: '>=' + libiscsi_version, required: get_option('libiscsi'))
 
 libnl_version = '3.0'
-if host_machine.system() == 'linux'
-  libnl_dep = dependency('libnl-3.0', version: '>=' + libnl_version, required: false)
-  libnl_route_dep = dependency('libnl-route-3.0', version: '>=' + libnl_version, required: false)
+if not get_option('libnl').disabled() and host_machine.system() == 'linux'
+  libnl_dep = dependency('libnl-3.0', version: '>=' + libnl_version, required: get_option('libnl'))
+  libnl_route_dep = dependency('libnl-route-3.0', version: '>=' + libnl_version, required: get_option('libnl'))
 
   if libnl_dep.found() and libnl_route_dep.found()
     libnl_dep = declare_dependency(
@@ -1088,6 +1090,8 @@ if host_machine.system() == 'linux'
     )
     conf.set('WITH_LIBNL', 1)
   endif
+elif get_option('libnl').enabled()
+  error('libnl can be enabled only on linux')
 else
   libnl_dep = dependency('', required: false)
 endif
@@ -1104,17 +1108,22 @@ if libparted_dep.found()
 endif
 
 libpcap_version = '1.5.0'
-libpcap_dep = dependency('libpcap', version: '>=' + libpcap_version, required: false)
-if not libpcap_dep.found()
-  pcap_config_prog = find_program('pcap-config', required: get_option('libpcap'))
-  if pcap_config_prog.found()
-    pcap_args = run_command(pcap_config_prog, '--cflags').stdout().strip().split()
-    pcap_libs = run_command(pcap_config_prog, '--libs').stdout().strip().split()
-    libpcap_dep = declare_dependency(
-      compile_args: pcap_args,
-      link_args: pcap_libs,
-    )
+if not get_option('libpcap').disabled()
+  libpcap_dep = dependency('libpcap', version: '>=' + libpcap_version, required: false)
+
+  if not libpcap_dep.found()
+    pcap_config_prog = find_program('pcap-config', required: get_option('libpcap'))
+    if pcap_config_prog.found()
+      pcap_args = run_command(pcap_config_prog, '--cflags').stdout().strip().split()
+      pcap_libs = run_command(pcap_config_prog, '--libs').stdout().strip().split()
+      libpcap_dep = declare_dependency(
+        compile_args: pcap_args,
+        link_args: pcap_libs,
+      )
+    endif
   endif
+else
+  libpcap_dep = dependency('', required: false)
 endif
 if libpcap_dep.found()
   conf.set('WITH_LIBPCAP', 1)
@@ -1156,27 +1165,7 @@ endif
 libxml_version = '2.9.1'
 libxml_dep = dependency('libxml-2.0', version: '>=' + libxml_version)
 
-cc = meson.get_compiler('c')
-m_dep = cc.find_library('m', required : false)
-
-use_macvtap = false
-if not get_option('macvtap').disabled()
-  if (cc.has_header_symbol('linux/if_link.h', 'MACVLAN_MODE_BRIDGE') and
-      cc.has_header_symbol('linux/if_link.h', 'IFLA_VF_MAX'))
-    use_macvtap = true
-  endif
-
-  if get_option('macvtap').enabled() and not use_macvtap
-    error('Installed linux headers don\'t show support for macvtap device.')
-  endif
-endif
-if use_macvtap
-  conf.set('WITH_MACVTAP', 1)
-
-  if cc.has_header_symbol('linux/if_link.h', 'MACVLAN_MODE_PASSTHRU')
-    conf.set('WITH_DECL_MACVLAN_MODE_PASSTHRU', 1)
-  endif
-endif
+libm_dep = cc.find_library('m', required : false)
 
 netcf_version = '0.1.8'
 netcf_dep = dependency('netcf', version: '>=' + netcf_version, required: get_option('netcf'))
@@ -1229,7 +1218,7 @@ if numactl_dep.found()
   conf.set('WITH_NUMACTL', 1)
 endif
 
-openwsman_version = '2.2.3'
+openwsman_version = '2.6.3'
 openwsman_dep = dependency('openwsman', version: '>=' + openwsman_version, required: get_option('openwsman'))
 
 parallels_sdk_version = '7.0.22'
@@ -1261,26 +1250,30 @@ endif
 
 # readline 7.0 is the first version which includes pkg-config support
 readline_version = '7.0'
-readline_dep = dependency('readline', version: '>=' + readline_version, required: false)
-if not readline_dep.found()
-  readline_dep = cc.find_library('readline', required: get_option('readline'))
+if not get_option('readline').disabled()
+  readline_dep = dependency('readline', version: '>=' + readline_version, required: false)
+  if not readline_dep.found()
+    readline_dep = cc.find_library('readline', required: get_option('readline'))
 
-  if readline_dep.found()
-    # This variable is present in all reasonable (5.0+) readline versions;
-    # however, the macOS base system contains a library called libedit which
-    # takes over the readline name despite lacking many of its features. We
-    # want to make sure we only enable readline support when linking against
-    # the actual readline library, and the availability of this specific
-    # variable is as good a witness for that fact as any.
-    correct_rl = cc.has_header_symbol('readline/readline.h', 'rl_completion_quote_character', prefix: '#include <stdio.h>')
-    if not correct_rl
-      if get_option('readline').enabled()
-        error('readline is missing rl_completion_quote_character')
-      else
-        readline_dep = dependency('', required: false)
+    if readline_dep.found()
+      # This variable is present in all reasonable (5.0+) readline versions;
+      # however, the macOS base system contains a library called libedit which
+      # takes over the readline name despite lacking many of its features. We
+      # want to make sure we only enable readline support when linking against
+      # the actual readline library, and the availability of this specific
+      # variable is as good a witness for that fact as any.
+      correct_rl = cc.has_header_symbol('readline/readline.h', 'rl_completion_quote_character', prefix: '#include <stdio.h>')
+      if not correct_rl
+        if get_option('readline').enabled()
+          error('readline is missing rl_completion_quote_character')
+        else
+          readline_dep = dependency('', required: false)
+        endif
       endif
     endif
   endif
+else
+  readline_dep = dependency('', required: false)
 endif
 if readline_dep.found()
   # Gross kludge for readline include path obtained through pkg-config.
@@ -1384,15 +1377,7 @@ if udev_dep.found()
   conf.set('WITH_UDEV', 1)
 endif
 
-util_dep = cc.find_library('util', required: false)
-
-if not get_option('virtualport').disabled()
-  if cc.has_header_symbol('linux/if_link.h', 'IFLA_PORT_MAX')
-    conf.set('WITH_VIRTUALPORT', 1)
-  elif get_option('virtualport').enabled()
-    error('Installed linux headers don\'t show support for virtual port support.')
-  endif
-endif
+libutil_dep = cc.find_library('util', required: false)
 
 if host_machine.system() == 'windows'
   ole32_dep = cc.find_library('ole32')
@@ -1533,20 +1518,12 @@ elif get_option('firewalld_zone').enabled()
   error('You must have firewalld support enabled to enable firewalld_zone')
 endif
 
-if conf.has('WITH_MACVTAP') and not conf.has('WITH_LIBNL')
-  error('libnl3-devel is required for macvtap support')
-endif
-
 if (pkcheck_prog.found() or get_option('polkit').enabled())
   conf.set('WITH_POLKIT', 1)
 endif
 
 if udev_dep.found() and not pciaccess_dep.found()
   error('You must install the pciaccess module to build with udev')
-endif
-
-if conf.has('WITH_VIRTUALPORT') and not conf.has('WITH_MACVTAP')
-  error('macvtap is required for virtualport support')
 endif
 
 
@@ -1708,7 +1685,7 @@ if not get_option('driver_network').disabled() and conf.has('WITH_LIBVIRTD') and
   conf.set('WITH_NETWORK', 1)
 endif
 
-if udev_dep.found()
+if udev_dep.found() and conf.has('WITH_LIBVIRTD')
   conf.set('WITH_NODE_DEVICES', 1)
 endif
 
@@ -2225,13 +2202,19 @@ subdir('src')
 
 subdir('tools')
 
-subdir('tests')
+build_tests = not get_option('tests').disabled()
+if build_tests
+  subdir('tests')
+endif
 
 subdir('examples')
 
 subdir('po')
 
-subdir('docs')
+gen_docs = not get_option('docs').disabled()
+if gen_docs
+  subdir('docs')
+endif
 
 subdir('build-aux')
 
@@ -2405,27 +2388,25 @@ libs_summary = {
   'blkid': blkid_dep.found(),
   'capng': capng_dep.found(),
   'curl': curl_dep.found(),
+  'devmapper': devmapper_dep.found(),
   'dlopen': dlopen_dep.found(),
-  'firewalld': conf.has('WITH_FIREWALLD'),
-  'firewalld-zone': conf.has('WITH_FIREWALLD_ZONE'),
   'fuse': fuse_dep.found(),
-  'glib_dep': glib_dep.found(),
   'glusterfs': glusterfs_dep.found(),
-  'gnutls': gnutls_dep.found(),
   'libiscsi': libiscsi_dep.found(),
+  'libkvm': libkvm_dep.found(),
+  'libm': libm_dep.found(),
   'libnl': libnl_dep.found(),
+  'libparted': libparted_dep.found(),
   'libpcap': libpcap_dep.found(),
   'libssh': libssh_dep.found(),
   'libssh2': libssh2_dep.found(),
-  'libxml': libxml_dep.found(),
-  'macvtap': conf.has('WITH_MACVTAP'),
+  'libutil': libutil_dep.found(),
   'netcf': netcf_dep.found(),
   'NLS': have_gnu_gettext_tools,
-  'nss': conf.has('WITH_NSS'),
   'numactl': numactl_dep.found(),
   'openwsman': openwsman_dep.found(),
+  'parallels-sdk': parallels_sdk_dep.found(),
   'pciaccess': pciaccess_dep.found(),
-  'pm_utils': conf.has('WITH_PM_UTILS'),
   'polkit': conf.has('WITH_POLKIT'),
   'rbd': rbd_dep.found(),
   'readline': readline_dep.found(),
@@ -2433,7 +2414,6 @@ libs_summary = {
   'sasl': sasl_dep.found(),
   'selinux': selinux_dep.found(),
   'udev': udev_dep.found(),
-  'virtualport': conf.has('WITH_VIRTUALPORT'),
   'xdr': xdr_dep.found(),
   'yajl': yajl_dep.found(),
 }
@@ -2459,11 +2439,17 @@ endif
 misc_summary = {
   'Use -Werror': cc_flags.contains('-Werror'),
   'Warning Flags': supported_cc_flags,
+  'docs': gen_docs,
+  'tests': build_tests,
   'DTrace': conf.has('WITH_DTRACE_PROBES'),
+  'firewalld': conf.has('WITH_FIREWALLD'),
+  'firewalld-zone': conf.has('WITH_FIREWALLD_ZONE'),
+  'nss': conf.has('WITH_NSS'),
   'numad': conf.has('WITH_NUMAD'),
   'Init script': init_script,
   'Char device locks': chrdev_lock_files,
   'Loader/NVRAM': loader_res,
+  'pm_utils': conf.has('WITH_PM_UTILS'),
   'virt-login-shell': conf.has('WITH_LOGIN_SHELL'),
   'virt-host-validate': conf.has('WITH_HOST_VALIDATE'),
   'TLS priority': conf.get_unquoted('TLS_PRIORITY'),

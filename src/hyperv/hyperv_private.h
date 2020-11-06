@@ -22,10 +22,12 @@
 
 #pragma once
 
+#include <wsman-api.h>
+
 #include "internal.h"
 #include "virerror.h"
 #include "hyperv_util.h"
-#include "openwsman.h"
+#include "capabilities.h"
 
 typedef enum _hypervWmiVersion hypervWmiVersion;
 enum _hypervWmiVersion {
@@ -38,4 +40,5 @@ struct _hypervPrivate {
     hypervParsedUri *parsedUri;
     WsManClient *client;
     hypervWmiVersion wmiVersion;
+    virCapsPtr caps;
 };

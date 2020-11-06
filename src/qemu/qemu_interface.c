@@ -118,6 +118,7 @@ qemuInterfaceStartDevice(virDomainNetDefPtr net)
     case VIR_DOMAIN_NET_TYPE_UDP:
     case VIR_DOMAIN_NET_TYPE_INTERNAL:
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+    case VIR_DOMAIN_NET_TYPE_VDPA:
     case VIR_DOMAIN_NET_TYPE_LAST:
         /* these types all require no action */
         break;
@@ -203,6 +204,7 @@ qemuInterfaceStopDevice(virDomainNetDefPtr net)
     case VIR_DOMAIN_NET_TYPE_UDP:
     case VIR_DOMAIN_NET_TYPE_INTERNAL:
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+    case VIR_DOMAIN_NET_TYPE_VDPA:
     case VIR_DOMAIN_NET_TYPE_LAST:
         /* these types all require no action */
         break;
@@ -636,30 +638,62 @@ qemuInterfaceBridgeConnect(virDomainDefPtr def,
 }
 
 
-qemuSlirpPtr
+/* qemuInterfaceVDPAConnect:
+ * @net: pointer to the VM's interface description
+ *
+ * returns: file descriptor of the vdpa device
+ *
+ * Called *only* called if actualType is VIR_DOMAIN_NET_TYPE_VDPA
+ */
+int
+qemuInterfaceVDPAConnect(virDomainNetDefPtr net)
+{
+    int fd;
+
+    if ((fd = open(net->data.vdpa.devicepath, O_RDWR)) < 0) {
+        virReportSystemError(errno,
+                             _("Unable to open '%s' for vdpa device"),
+                             net->data.vdpa.devicepath);
+        return -1;
+    }
+
+    return fd;
+}
+
+
+/*
+ * Returns: -1 on error, 0 if slirp isn't available, 1 on succcess
+ */
+int
 qemuInterfacePrepareSlirp(virQEMUDriverPtr driver,
-                          virDomainNetDefPtr net)
+                          virDomainNetDefPtr net,
+                          qemuSlirpPtr *slirpret)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(qemuSlirp) slirp = NULL;
     size_t i;
 
+    if (!cfg->slirpHelperName ||
+        !virFileExists(cfg->slirpHelperName))
+        return 0; /* fallback to builtin slirp impl */
+
     if (!(slirp = qemuSlirpNewForHelper(cfg->slirpHelperName)))
-        return NULL;
+        return -1;
 
     for (i = 0; i < net->guestIP.nips; i++) {
         const virNetDevIPAddr *ip = net->guestIP.ips[i];
 
         if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET) &&
             !qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_IPV4))
-            return NULL;
+            return 0;
 
         if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6) &&
             !qemuSlirpHasFeature(slirp, QEMU_SLIRP_FEATURE_IPV6))
-            return NULL;
+            return 0;
     }
 
-    return g_steal_pointer(&slirp);
+    *slirpret = g_steal_pointer(&slirp);
+    return 1;
 }
 
 

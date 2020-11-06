@@ -99,7 +99,8 @@ virJSONValuePtr qemuBuildHostNetStr(virDomainNetDefPtr net,
                                     size_t tapfdSize,
                                     char **vhostfd,
                                     size_t vhostfdSize,
-                                    const char *slirpfd);
+                                    const char *slirpfd,
+                                    const char *vdpadev);
 
 /* Current, best practice */
 char *qemuBuildNicDevStr(virDomainDefPtr def,
@@ -150,12 +151,11 @@ int qemuBuildMemoryBackendProps(virJSONValuePtr *backendProps,
                                 const char *alias,
                                 virQEMUDriverConfigPtr cfg,
                                 qemuDomainObjPrivatePtr priv,
-                                virDomainDefPtr def,
-                                virDomainMemoryDefPtr mem,
+                                const virDomainDef *def,
+                                const virDomainMemoryDef *mem,
                                 bool force);
 
-char *qemuBuildMemoryDeviceStr(virDomainMemoryDefPtr mem,
-                               qemuDomainObjPrivatePtr priv);
+char *qemuBuildMemoryDeviceStr(virDomainMemoryDefPtr mem);
 
 /* Current, best practice */
 char *qemuBuildPCIHostdevDevStr(const virDomainDef *def,
@@ -167,7 +167,6 @@ char *qemuBuildRNGDevStr(const virDomainDef *def,
                          virDomainRNGDefPtr dev,
                          virQEMUCapsPtr qemuCaps);
 int qemuBuildRNGBackendProps(virDomainRNGDefPtr rng,
-                             virQEMUCapsPtr qemuCaps,
                              virJSONValuePtr *props);
 
 /* Current, best practice */
@@ -215,7 +214,7 @@ qemuDiskConfigBlkdeviotuneEnabled(virDomainDiskDefPtr disk);
 
 
 bool
-qemuCheckFips(void);
+qemuCheckFips(virDomainObjPtr vm);
 
 virJSONValuePtr qemuBuildHotpluggableCPUProps(const virDomainVcpuDef *vcpu)
     ATTRIBUTE_NONNULL(1);

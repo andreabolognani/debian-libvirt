@@ -142,7 +142,7 @@ virInterfaceObjListNew(void)
     if (!(interfaces = virObjectRWLockableNew(virInterfaceObjListClass)))
         return NULL;
 
-    if (!(interfaces->objsName = virHashCreate(10, virObjectFreeHashData))) {
+    if (!(interfaces->objsName = virHashNew(virObjectFreeHashData))) {
         virObjectUnref(interfaces);
         return NULL;
     }
@@ -161,7 +161,7 @@ struct _virInterfaceObjFindMACData {
 
 static int
 virInterfaceObjListFindByMACStringCb(void *payload,
-                                     const void *name G_GNUC_UNUSED,
+                                     const char *name G_GNUC_UNUSED,
                                      void *opaque)
 {
     virInterfaceObjPtr obj = payload;
@@ -269,7 +269,7 @@ struct _virInterfaceObjListExportData {
 
 static int
 virInterfaceObjListExportCallback(void *payload,
-                                  const void *name G_GNUC_UNUSED,
+                                  const char *name G_GNUC_UNUSED,
                                   void *opaque)
 {
     virInterfaceObjListExportDataPtr data = opaque;
@@ -319,9 +319,8 @@ virInterfaceObjListExport(virConnectPtr conn,
         .nifaces = 0, .error = false };
 
     virObjectRWLockRead(ifaceobjs);
-    if (ifaces && VIR_ALLOC_N(data.ifaces,
-                              virHashSize(ifaceobjs->objsName) + 1) < 0)
-        goto cleanup;
+    if (ifaces)
+        data.ifaces = g_new0(virInterfacePtr, virHashSize(ifaceobjs->objsName) + 1);
 
     virHashForEach(ifaceobjs->objsName, virInterfaceObjListExportCallback, &data);
 
@@ -362,7 +361,7 @@ struct _virInterfaceObjListCloneData {
 
 static int
 virInterfaceObjListCloneCb(void *payload,
-                           const void *name G_GNUC_UNUSED,
+                           const char *name G_GNUC_UNUSED,
                            void *opaque)
 {
     virInterfaceObjPtr srcObj = payload;
@@ -481,7 +480,7 @@ struct _virInterfaceObjNumOfInterfacesData {
 
 static int
 virInterfaceObjListNumOfInterfacesCb(void *payload,
-                                     const void *name G_GNUC_UNUSED,
+                                     const char *name G_GNUC_UNUSED,
                                      void *opaque)
 {
     virInterfaceObjPtr obj = payload;
@@ -523,7 +522,7 @@ struct _virInterfaceObjGetNamesData {
 
 static int
 virInterfaceObjListGetNamesCb(void *payload,
-                              const void *name G_GNUC_UNUSED,
+                              const char *name G_GNUC_UNUSED,
                               void *opaque)
 {
     virInterfaceObjPtr obj = payload;

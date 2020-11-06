@@ -8,8 +8,73 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v6.9.0 (2020-11-02)
+===================
+
+* **New features**
+
+  * nodedev: Add support for channel subsystem (CSS) devices on S390
+
+    A CSS device is represented as a parent device of a CCW device.
+    This support allows to create vfio-ccw mediated devices with
+    ``virNodeDeviceCreateXML()``.
+
+  * qemu: Implement memory failure event
+
+    New event is implemented that is emitted whenever a guest encounters a
+    memory failure.
+
+  * qemu: Implement support for ``<transient/>`` disks
+
+    VMs based on the QEMU hypervisor now can use ``<transient/>`` option for
+    local file-backed disks to configure a disk which discards changes made to
+    it while the VM was active.
+
+  * hyperv: implement new APIs
+
+    The ``virConnectGetCapabilities()``, ``virConnectGetMaxVcpus()``,
+    ``virConnectGetVersion()``, ``virDomainGetAutostart()``,
+    ``virDomainSetAutostart()``, ``virNodeGetFreeMemory()``,
+    ``virDomainReboot()``, ``virDomainReset()``, ``virDomainShutdown()``, and
+    ``virDomainShutdownFlags()`` APIs have been implemented in the Hyper-V
+    driver.
+
+  * bhyve: implement virtio-9p filesystem support
+
+    Implement virito-9p shared filesystem using the ``<filesystem/>`` element.
+
+  * qemu: Add support for vDPA network devices.
+
+    VMs using the QEMU hypervisor can now specify vDPA network devices
+    using ``<interface type='vdpa'>``. The node device APIs also now
+    list and provide XML descriptions for vDPA devices.
+
+* **Improvements**
+
+* **Bug fixes**
+
+  * hyperv: ensure WQL queries work in all locales
+
+    Relying on the "Description" field caused queries to fail on non-"en-US"
+    systems. The queries have been updated to avoid using localized strings.
+
+  * rpc: Fix ``virt-ssh-helper`` detection
+
+    libvirt 6.8.0 failed to correctly detect the availability of the new
+    ``virt-ssh-helper`` command on the remote host, and thus always used the
+    fallback instead; this has now been fixed.
+
+
 v6.8.0 (2020-10-01)
 ===================
+
+* **Security**
+
+  * qemu: double free in qemuAgentGetInterfaces() in qemu_agent.c
+
+    Clients connecting to the read-write socket with limited ACL permissions
+    may be able to crash the libvirt daemon, resulting in a denial of service,
+    or potentially escalate their privileges on the system. CVE-2020-25637.
 
 * **New features**
 
@@ -96,6 +161,7 @@ v6.8.0 (2020-10-01)
     HAL is deprecated on all supported OS so there is no need to keep it
     in libvirt. udev backend is used on Linux OSes and devd can be eventually
     implemented as replacement for FreeBSD.
+
 
 v6.7.0 (2020-09-01)
 ===================
@@ -380,6 +446,12 @@ v6.4.0 (2020-06-02)
     ``virsh capabilities`` will now include information about the host CPU when
     run on ARM machines.
 
+  * qemu: support network interface downscript
+
+    QEMU has the ability to run a script when a NIC is brought up and down.
+    Libvirt only enables use of the up script. Now add support for postscript
+    when NIC is down/detached.
+
 * **Improvements**
 
   * qemu: stricter validation for disk type='lun'
@@ -430,18 +502,12 @@ v6.3.0 (2020-05-05)
 
 * **New features**
 
-  * qemu: support network interface downscript
-
-    QEMU has the ability to run a script when a NIC is brought up and down.
-    Libvirt only enables use of the up script. Now add support for postscript
-    when NIC is down/detached.
-
   * qemu: support disabling hotplug/unplug of PCIe devices
 
     libvirt can now set the "hotplug" option for pcie-root-ports and
     pcie-switch-downstream-ports, which can be used to disable hotplug/unplug
     of devices from these ports (default behavior is for these controllers to
-    accept all hotplug/unplug attempts, but this is often undesireable).
+    accept all hotplug/unplug attempts, but this is often undesirable).
 
   * vbox: added support for version 6.0 and 6.1 APIs
 
@@ -925,7 +991,7 @@ v5.10.0 (2019-12-02)
 
   * Forcibly create nodes in domain's namespace
 
-    The QEMU driver starts a domain in a namepsace with private ``/dev`` and
+    The QEMU driver starts a domain in a namespace with private ``/dev`` and
     creates only those nodes there which the domain is configured to have.
     However, it may have happened that if a node changed its minor number this
     change wasn't propagated to the namespace.
@@ -1228,7 +1294,7 @@ v5.6.0 (2019-08-05)
 
   * network: Allow passing arbitrary options to dnsmasq
 
-    This works similarly to the existing support for passing arbitary options
+    This works similarly to the existing support for passing arbitrary options
     to QEMU, and just like that feature it comes with no support guarantees.
 
 * **Removed features**
@@ -2242,7 +2308,7 @@ v4.4.0 (2018-06-04)
 
 * **Improvements**
 
-  * qemu: Add suport for OpenGL rendering with SDL
+  * qemu: Add support for OpenGL rendering with SDL
 
     Domains using SDL as a graphics backend will now be able to use OpenGL
     accelerated rendering.

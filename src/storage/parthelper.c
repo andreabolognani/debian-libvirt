@@ -62,11 +62,12 @@ int main(int argc, char **argv)
     PedPartition *part;
     int cmd = DISK_LAYOUT;
     const char *path;
-    char *canonical_path;
+    g_autofree char *canonical_path = NULL;
     const char *partsep;
     bool devmap_partsep = false;
 
-    if (virGettextInitialize() < 0)
+    if (virGettextInitialize() < 0 ||
+        virErrorInitialize() < 0)
         exit(EXIT_FAILURE);
 
     if (argc == 3 && STREQ(argv[2], "-g")) {

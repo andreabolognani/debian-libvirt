@@ -1649,8 +1649,8 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (!(blockDevices = virHashCreate(32, virHashValueFree)) ||
-        !(expectedBlockDevices = virHashCreate(32, virHashValueFree)))
+    if (!(blockDevices = virHashNew(g_free)) ||
+        !(expectedBlockDevices = virHashNew(g_free)))
         goto cleanup;
 
     info = g_new0(struct qemuDomainDiskInfo, 1);
@@ -1811,7 +1811,7 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (!(blockstats = virHashCreate(10, virHashValueFree)))
+    if (!(blockstats = virHashNew(g_free)))
         goto cleanup;
 
     if (qemuMonitorTestAddItem(test, "query-blockstats", reply) < 0)
@@ -2018,8 +2018,8 @@ testQemuMonitorJSONqemuMonitorJSONGetChardevInfo(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (!(info = virHashCreate(32, qemuMonitorChardevInfoFree)) ||
-        !(expectedInfo = virHashCreate(32, NULL)))
+    if (!(info = virHashNew(qemuMonitorChardevInfoFree)) ||
+        !(expectedInfo = virHashNew(NULL)))
         goto cleanup;
 
     if (virHashAddEntry(expectedInfo, "charserial1", &info1) < 0 ||
@@ -2252,9 +2252,6 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationCapabilities(const void *opaque)
     }
 
     bitmap = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
-    if (!bitmap)
-        goto cleanup;
-
     ignore_value(virBitmapSetBit(bitmap, QEMU_MIGRATION_CAP_XBZRLE));
     if (!(json = qemuMigrationCapsToJSON(bitmap, bitmap)))
         goto cleanup;
@@ -2735,7 +2732,7 @@ testQemuMonitorCPUInfo(const void *opaque)
 
 static int
 testBlockNodeNameDetectFormat(void *payload,
-                              const void *name,
+                              const char *name,
                               void *opaque)
 {
     qemuBlockNodeNameBackingChainDataPtr entry = payload;
@@ -3050,6 +3047,28 @@ testQemuMonitorJSONTransaction(const void *opaque)
 
 
 static int
+testQemuMonitorJSONBlockExportAdd(const void *opaque)
+{
+    const testGenericData *data = opaque;
+    g_autoptr(qemuMonitorTest) test = NULL;
+    g_autoptr(virJSONValue) nbddata = NULL;
+
+    if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
+        return -1;
+
+    if (!(nbddata = qemuBlockExportGetNBDProps("nodename", "exportname", true, "bitmapname")))
+        return -1;
+
+    if (qemuMonitorTestAddItem(test, "block-export-add", "{\"return\":{}}") < 0)
+        return -1;
+
+    if (qemuMonitorJSONBlockExportAdd(qemuMonitorTestGetMonitor(test), &nbddata) < 0)
+        return -1;
+
+    return 0;
+}
+
+static int
 testQemuMonitorJSONqemuMonitorJSONGetCPUModelComparison(const void *opaque)
 {
     const testGenericData *data = opaque;
@@ -3246,6 +3265,7 @@ mymain(void)
     DO_TEST(GetNonExistingCPUData);
     DO_TEST(GetIOThreads);
     DO_TEST(Transaction);
+    DO_TEST(BlockExportAdd);
     DO_TEST_SIMPLE("qmp_capabilities", qemuMonitorJSONSetCapabilities);
     DO_TEST_SIMPLE("system_powerdown", qemuMonitorJSONSystemPowerdown);
     DO_TEST_SIMPLE("system_reset", qemuMonitorJSONSystemReset);
@@ -3279,7 +3299,7 @@ mymain(void)
     DO_TEST_GEN(qemuMonitorJSONDrivePivot);
     DO_TEST_GEN(qemuMonitorJSONScreendump);
     DO_TEST_GEN(qemuMonitorJSONOpenGraphics);
-    DO_TEST_GEN(qemuMonitorJSONNBDServerAdd);
+    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONNBDServerAdd, true);
     DO_TEST_GEN(qemuMonitorJSONDetachCharDev);
     DO_TEST_GEN(qemuMonitorJSONBlockdevTrayOpen);
     DO_TEST_GEN(qemuMonitorJSONBlockdevTrayClose);

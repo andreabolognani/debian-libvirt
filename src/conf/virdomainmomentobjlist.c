@@ -76,7 +76,7 @@ struct moment_act_on_descendant {
 
 static int
 virDomainMomentActOnDescendant(void *payload,
-                               const void *name,
+                               const char *name,
                                void *data)
 {
     virDomainMomentObjPtr obj = payload;
@@ -212,8 +212,7 @@ virDomainMomentObjNew(void)
 {
     virDomainMomentObjPtr moment;
 
-    if (VIR_ALLOC(moment) < 0)
-        return NULL;
+    moment = g_new0(virDomainMomentObj, 1);
 
     VIR_DEBUG("obj=%p", moment);
 
@@ -275,9 +274,8 @@ virDomainMomentObjListNew(void)
 {
     virDomainMomentObjListPtr moments;
 
-    if (VIR_ALLOC(moments) < 0)
-        return NULL;
-    moments->objs = virHashCreate(50, virDomainMomentObjListDataFree);
+    moments = g_new0(virDomainMomentObjList, 1);
+    moments->objs = virHashNew(virDomainMomentObjListDataFree);
     if (!moments->objs) {
         VIR_FREE(moments);
         return NULL;
@@ -309,7 +307,7 @@ struct virDomainMomentNameData {
 
 
 static int virDomainMomentObjListCopyNames(void *payload,
-                                           const void *name G_GNUC_UNUSED,
+                                           const char *name G_GNUC_UNUSED,
                                            void *opaque)
 {
     virDomainMomentObjPtr obj = payload;
@@ -493,7 +491,7 @@ struct moment_set_relation {
 };
 static int
 virDomainMomentSetRelations(void *payload,
-                            const void *name G_GNUC_UNUSED,
+                            const char *name G_GNUC_UNUSED,
                             void *data)
 {
     virDomainMomentObjPtr obj = payload;

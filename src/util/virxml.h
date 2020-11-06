@@ -212,8 +212,15 @@ virXMLValidatorValidate(virXMLValidatorPtr validator,
 int
 virXMLValidateAgainstSchema(const char *schemafile,
                             xmlDocPtr xml);
+
+int
+virXMLValidateNodeAgainstSchema(const char *schemafile,
+                                xmlDocPtr doc,
+                                xmlNodePtr node);
+
 void
 virXMLValidatorFree(virXMLValidatorPtr validator);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virXMLValidator, virXMLValidatorFree);
 
 void
 virXMLFormatElement(virBufferPtr buf,

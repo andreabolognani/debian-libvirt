@@ -138,7 +138,7 @@ virLogHandlerGetLogFileFromWatch(virLogHandlerPtr handler,
 static void
 virLogHandlerDomainLogFileEvent(int watch,
                                 int fd,
-                                int events,
+                                int events G_GNUC_UNUSED,
                                 void *opaque)
 {
     virLogHandlerPtr handler = opaque;
@@ -168,12 +168,11 @@ virLogHandlerDomainLogFileEvent(int watch,
         virReportSystemError(errno, "%s",
                              _("Unable to read from log pipe"));
         goto error;
+    } else if (len == 0) {
+        goto error;
     }
 
     if (virRotatingFileWriterAppend(logfile->file, buf, len) != len)
-        goto error;
-
-    if (events & VIR_EVENT_HANDLE_HANGUP)
         goto error;
 
  cleanup:
@@ -221,8 +220,7 @@ virLogHandlerLogFilePostExecRestart(virLogHandlerPtr handler,
     const char *domuuid;
     const char *tmp;
 
-    if (VIR_ALLOC(file) < 0)
-        return NULL;
+    file = g_new0(virLogHandlerLogFile, 1);
 
     handler->inhibitor(true, handler->opaque);
 
@@ -389,8 +387,7 @@ virLogHandlerDomainOpenLogFile(virLogHandlerPtr handler,
     if (virPipe(pipefd) < 0)
         goto error;
 
-    if (VIR_ALLOC(file) < 0)
-        goto error;
+    file = g_new0(virLogHandlerLogFile, 1);
 
     file->watch = -1;
     file->pipefd = pipefd[0];
@@ -463,6 +460,8 @@ virLogHandlerDomainLogFileDrain(virLogHandlerLogFilePtr file)
         if (len < 0) {
             if (errno == EINTR)
                 continue;
+            return;
+        } else if (len == 0) {
             return;
         }
 
@@ -537,8 +536,7 @@ virLogHandlerDomainReadLogFile(virLogHandlerPtr handler,
     if (virRotatingFileReaderSeek(file, inode, offset) < 0)
         goto error;
 
-    if (VIR_ALLOC_N(data, maxlen + 1) < 0)
-        goto error;
+    data = g_new0(char, maxlen + 1);
 
     got = virRotatingFileReaderConsume(file, data, maxlen);
     if (got < 0)

@@ -885,7 +885,7 @@ int virNetDevGetIndex(const char *ifname G_GNUC_UNUSED,
 #endif /* ! SIOCGIFINDEX */
 
 
-#if defined(__linux__) && defined(WITH_LIBNL)
+#if defined(WITH_LIBNL)
 /**
  * virNetDevGetMaster:
  * @ifname: name of interface we're interested in
@@ -915,9 +915,30 @@ virNetDevGetMaster(const char *ifname, char **master)
     return 0;
 }
 
+#elif defined(__linux__)
+
+/* libnl isn't available, so we can't use netlink.
+ * Fall back to using sysfs
+ */
+int
+virNetDevGetMaster(const char *ifname, char **master)
+{
+    g_autofree char *path = NULL;
+    g_autofree char *canonical = NULL;
+
+    if (virNetDevSysfsFile(&path, ifname, "master") < 0)
+        return -1;
+
+    if (!(canonical = virFileCanonicalizePath(path)))
+        return -1;
+
+    *master = g_path_get_basename(canonical);
+
+    VIR_DEBUG("IFLA_MASTER for %s is %s", ifname, *master ? *master : "(none)");
+    return 0;
+}
 
 #else
-
 
 int
 virNetDevGetMaster(const char *ifname G_GNUC_UNUSED,
@@ -929,7 +950,7 @@ virNetDevGetMaster(const char *ifname G_GNUC_UNUSED,
 }
 
 
-#endif /* defined(__linux__) && defined(WITH_LIBNL) */
+#endif /* defined(WITH_LIBNL) */
 
 
 #if defined(SIOCGIFVLAN) && defined(WITH_STRUCT_IFREQ) && WITH_DECL_GET_VLAN_VID_CMD
@@ -1058,6 +1079,9 @@ virNetDevSysfsDeviceFile(char **pf_sysfs_device_link, const char *ifname,
     return 0;
 }
 
+
+# if defined(WITH_LIBNL)
+
 /**
  * Determine if the device path specified in devpath is a PCI Device
  * by resolving the 'subsystem'-link in devpath and looking for
@@ -1091,6 +1115,7 @@ virNetDevIsPCIDevice(const char *devpath)
     return STRPREFIX(subsys, "pci");
 }
 
+
 static virPCIDevicePtr
 virNetDevGetPCIDevice(const char *devName)
 {
@@ -1110,6 +1135,7 @@ virNetDevGetPCIDevice(const char *devName)
     return virPCIDeviceNew(vfPCIAddr->domain, vfPCIAddr->bus,
                            vfPCIAddr->slot, vfPCIAddr->function);
 }
+# endif
 
 
 /**
@@ -1183,17 +1209,13 @@ virNetDevGetVirtualFunctions(const char *pfname,
                                   n_vfname, max_vfs) < 0)
         goto cleanup;
 
-    if (VIR_ALLOC_N(*vfname, *n_vfname) < 0)
-        goto cleanup;
+    *vfname = g_new0(char *, *n_vfname);
 
     for (i = 0; i < *n_vfname; i++) {
-        g_autofree char *pciConfigAddr = NULL;
         g_autofree char *pci_sysfs_device_link = NULL;
 
-        if (!(pciConfigAddr = virPCIDeviceAddressAsString((*virt_fns)[i])))
-            goto cleanup;
-
-        if (virPCIGetSysfsFile(pciConfigAddr, &pci_sysfs_device_link) < 0) {
+        if (virPCIDeviceAddressGetSysfsFile((*virt_fns)[i],
+                                            &pci_sysfs_device_link) < 0) {
             virReportSystemError(ENOSYS, "%s",
                                  _("Failed to get PCI SYSFS file"));
             goto cleanup;
@@ -1473,7 +1495,7 @@ virNetDevSysfsFile(char **pf_sysfs_device_link G_GNUC_UNUSED,
 
 
 #endif /* !__linux__ */
-#if defined(__linux__) && defined(WITH_LIBNL) && defined(IFLA_VF_MAX)
+#if defined(WITH_LIBNL)
 
 
 static virMacAddr zeroMAC = { .addr = { 0, 0, 0, 0, 0, 0 } };
@@ -1489,6 +1511,17 @@ static struct nla_policy ifla_vf_policy[IFLA_VF_MAX+1] = {
                             .maxlen = sizeof(struct ifla_vf_mac) },
     [IFLA_VF_VLAN]      = { .type = NLA_UNSPEC,
                             .maxlen = sizeof(struct ifla_vf_vlan) },
+    [IFLA_VF_STATS]     = { .type = NLA_NESTED },
+};
+
+
+static struct nla_policy ifla_vfstats_policy[IFLA_VF_STATS_MAX+1] = {
+    [IFLA_VF_STATS_RX_PACKETS]  = { .type = NLA_U64 },
+    [IFLA_VF_STATS_TX_PACKETS]  = { .type = NLA_U64 },
+    [IFLA_VF_STATS_RX_BYTES]    = { .type = NLA_U64 },
+    [IFLA_VF_STATS_TX_BYTES]    = { .type = NLA_U64 },
+    [IFLA_VF_STATS_BROADCAST]   = { .type = NLA_U64 },
+    [IFLA_VF_STATS_MULTICAST]   = { .type = NLA_U64 },
 };
 
 
@@ -1624,15 +1657,22 @@ virNetDevSetVfConfig(const char *ifname, int vf,
     goto cleanup;
 }
 
+/**
+ * virNetDevParseVfInfo:
+ * Get the VF interface infomation from kernel by netlink, To make netlink
+ * parsing logic easy to maintain, extending this function to get some new
+ * data is better than add a new function.
+ */
 static int
-virNetDevParseVfConfig(struct nlattr **tb, int32_t vf, virMacAddrPtr mac,
-                       int *vlanid)
+virNetDevParseVfInfo(struct nlattr **tb, int32_t vf, virMacAddrPtr mac,
+                     int *vlanid, virDomainInterfaceStatsPtr stats)
 {
     int rc = -1;
     struct ifla_vf_mac *vf_mac;
     struct ifla_vf_vlan *vf_vlan;
     struct nlattr *tb_vf_info = {NULL, };
     struct nlattr *tb_vf[IFLA_VF_MAX+1];
+    struct nlattr *tb_vf_stats[IFLA_VF_STATS_MAX+1];
     int rem;
 
     if (!tb[IFLA_VFINFO_LIST]) {
@@ -1652,7 +1692,7 @@ virNetDevParseVfConfig(struct nlattr **tb, int32_t vf, virMacAddrPtr mac,
             return rc;
         }
 
-        if (mac && tb[IFLA_VF_MAC]) {
+        if (mac && tb_vf[IFLA_VF_MAC]) {
             vf_mac = RTA_DATA(tb_vf[IFLA_VF_MAC]);
             if (vf_mac && vf_mac->vf == vf)  {
                 virMacAddrSetRaw(mac, vf_mac->mac);
@@ -1660,10 +1700,30 @@ virNetDevParseVfConfig(struct nlattr **tb, int32_t vf, virMacAddrPtr mac,
             }
         }
 
-        if (vlanid && tb[IFLA_VF_VLAN]) {
+        if (vlanid && tb_vf[IFLA_VF_VLAN]) {
             vf_vlan = RTA_DATA(tb_vf[IFLA_VF_VLAN]);
             if (vf_vlan && vf_vlan->vf == vf)  {
                 *vlanid = vf_vlan->vlan;
+                rc = 0;
+            }
+        }
+
+        if (stats && tb_vf[IFLA_VF_STATS] && tb_vf[IFLA_VF_MAC]) {
+            vf_mac = RTA_DATA(tb_vf[IFLA_VF_MAC]);
+            if (vf_mac && vf_mac->vf == vf)  {
+                rc = nla_parse_nested(tb_vf_stats, IFLA_VF_STATS_MAX,
+                                      tb_vf[IFLA_VF_STATS],
+                                      ifla_vfstats_policy);
+                if (rc < 0) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                                   _("error parsing IFLA_VF_STATS"));
+                     return rc;
+                }
+
+                stats->rx_bytes = nla_get_u64(tb_vf_stats[IFLA_VF_STATS_RX_BYTES]);
+                stats->tx_bytes = nla_get_u64(tb_vf_stats[IFLA_VF_STATS_TX_BYTES]);
+                stats->rx_packets = nla_get_u64(tb_vf_stats[IFLA_VF_STATS_RX_PACKETS]);
+                stats->tx_packets = nla_get_u64(tb_vf_stats[IFLA_VF_STATS_TX_PACKETS]);
                 rc = 0;
             }
         }
@@ -1689,7 +1749,43 @@ virNetDevGetVfConfig(const char *ifname, int vf, virMacAddrPtr mac,
     if (virNetlinkDumpLink(ifname, ifindex, &nlData, tb, 0, 0) < 0)
         return -1;
 
-    return virNetDevParseVfConfig(tb, vf, mac, vlanid);
+    return virNetDevParseVfInfo(tb, vf, mac, vlanid, NULL);
+}
+
+
+/**
+ * virNetDevVFInterfaceStats:
+ * @vfAddr: PCI address of a VF
+ * @stats: returns stats of the VF interface
+ *
+ * Get the VF interface from kernel by netlink.
+ * Returns 0 on success, -1 on failure.
+ */
+int
+virNetDevVFInterfaceStats(virPCIDeviceAddressPtr vfAddr,
+                          virDomainInterfaceStatsPtr stats)
+{
+    g_autofree void *nlData = NULL;
+    struct nlattr *tb[IFLA_MAX + 1] = {NULL, };
+    g_autofree char *vfSysfsPath = NULL;
+    g_autofree char *pfname = NULL;
+    int vf = -1;
+
+    if (virPCIDeviceAddressGetSysfsFile(vfAddr, &vfSysfsPath) < 0)
+        return -1;
+
+    if (!virPCIIsVirtualFunction(vfSysfsPath)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("'%s' is not a VF device"), vfSysfsPath);
+       return -1;
+    }
+
+    if (virPCIGetVirtualFunctionInfo(vfSysfsPath, -1, &pfname, &vf) < 0)
+        return -1;
+
+    if (virNetlinkDumpLink(pfname, -1, &nlData, tb, 0, 0) < 0)
+        return -1;
+
+    return virNetDevParseVfInfo(tb, vf, NULL, NULL, stats);
 }
 
 
@@ -2013,8 +2109,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
     }
 
     if (MACStr) {
-        if (VIR_ALLOC(*MAC) < 0)
-            goto cleanup;
+        *MAC = g_new0(virMacAddr, 1);
 
         if (virMacAddrParse(MACStr, *MAC) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -2025,8 +2120,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
     }
 
     if (adminMACStr) {
-        if (VIR_ALLOC(*adminMAC) < 0)
-            goto cleanup;
+        *adminMAC = g_new0(virMacAddr, 1);
 
         if (virMacAddrParse(adminMACStr, *adminMAC) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -2038,10 +2132,8 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
 
     if (vlanTag != -1) {
         /* construct a simple virNetDevVlan object with a single tag */
-        if (VIR_ALLOC(*vlan) < 0)
-            goto cleanup;
-        if (VIR_ALLOC((*vlan)->tag) < 0)
-            goto cleanup;
+        *vlan = g_new0(virNetDevVlan, 1);
+        (*vlan)->tag = g_new0(unsigned int, 1);
         (*vlan)->nTags = 1;
         (*vlan)->tag[0] = vlanTag;
     }
@@ -2266,7 +2358,7 @@ virNetDevSetNetConfig(const char *linkdev, int vf,
 }
 
 
-#else /* defined(__linux__) && defined(WITH_LIBNL)  && defined(IFLA_VF_MAX) */
+#else /* defined(WITH_LIBNL) */
 
 
 int
@@ -2309,7 +2401,17 @@ virNetDevSetNetConfig(const char *linkdev G_GNUC_UNUSED,
 }
 
 
-#endif /* defined(__linux__) && defined(WITH_LIBNL) && defined(IFLA_VF_MAX) */
+int
+virNetDevVFInterfaceStats(virPCIDeviceAddressPtr vfAddr G_GNUC_UNUSED,
+                          virDomainInterfaceStatsPtr stats G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Unable to get VF net device stats on this platform"));
+    return -1;
+}
+
+
+#endif /* defined(WITH_LIBNL) */
 
 VIR_ENUM_IMPL(virNetDevIfState,
               VIR_NETDEV_IF_STATE_LAST,
@@ -2638,8 +2740,8 @@ static int virNetDevGetMcastList(const char *ifname,
 
     cur = buf;
     while (cur) {
-        if (!entry && VIR_ALLOC(entry) < 0)
-                return -1;
+        if (!entry)
+            entry = g_new0(virNetDevMcastEntry, 1);
 
         next = strchr(cur, '\n');
         if (next)
@@ -2683,8 +2785,7 @@ static int virNetDevGetMulticastTable(const char *ifname,
         goto cleanup;
 
     if (mcast.nentries > 0) {
-        if (VIR_ALLOC_N(filter->multicast.table, mcast.nentries) < 0)
-            goto cleanup;
+        filter->multicast.table = g_new0(virMacAddr, mcast.nentries);
 
         for (i = 0; i < mcast.nentries; i++) {
             virMacAddrSet(&filter->multicast.table[i],
@@ -2707,8 +2808,7 @@ virNetDevRxFilterNew(void)
 {
     virNetDevRxFilterPtr filter;
 
-    if (VIR_ALLOC(filter) < 0)
-        return NULL;
+    filter = g_new0(virNetDevRxFilter, 1);
     return filter;
 }
 
@@ -2958,7 +3058,7 @@ virNetDevGetEthtoolFeatures(const char *ifname,
 }
 
 
-# if WITH_DECL_DEVLINK_CMD_ESWITCH_GET
+# if defined(WITH_LIBNL) && WITH_DECL_DEVLINK_CMD_ESWITCH_GET
 
 /**
  * virNetDevGetFamilyId:
@@ -3305,8 +3405,7 @@ virNetDevGetFeatures(const char *ifname,
     struct ifreq ifr;
     VIR_AUTOCLOSE fd = -1;
 
-    if (!(*out = virBitmapNew(VIR_NET_DEV_FEAT_LAST)))
-        return -1;
+    *out = virBitmapNew(VIR_NET_DEV_FEAT_LAST);
 
     if ((fd = virNetDevSetupControl(ifname, &ifr)) < 0)
         return -1;
@@ -3375,4 +3474,50 @@ virNetDevRunEthernetScript(const char *ifname, const char *script)
     virCommandAddEnvPassCommon(cmd);
 
     return virCommandRun(cmd, NULL);
+}
+
+
+/**
+ * virNetDevSetRootQDisc:
+ * @ifname: the interface name
+ * @qdisc: queueing discipline to set
+ *
+ * For given interface @ifname set its root queueing discipline
+ * to @qdisc. This can be used to replace the default qdisc
+ * (usually pfifo_fast or whatever is set in
+ * /proc/sys/net/core/default_qdisc) with different qdisc.
+ *
+ * Returns: 0 on success,
+ *         -1 if failed to exec tc (with error reported)
+ *         -2 if tc failed (with no error reported)
+ */
+int
+virNetDevSetRootQDisc(const char *ifname,
+                      const char *qdisc)
+{
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *outbuf = NULL;
+    g_autofree char *errbuf = NULL;
+    int status;
+
+    /* Ideally, we would have a netlink implementation and just
+     * call it here.  But honestly, I tried and failed miserably.
+     * Fallback to spawning tc. */
+    cmd = virCommandNewArgList(TC, "qdisc", "add", "dev", ifname,
+                               "root", "handle", "0:", qdisc,
+                               NULL);
+
+    virCommandAddEnvString(cmd, "LC_ALL=C");
+    virCommandSetOutputBuffer(cmd, &outbuf);
+    virCommandSetErrorBuffer(cmd, &errbuf);
+
+    if (virCommandRun(cmd, &status) < 0)
+        return -1;
+
+    if (status != 0) {
+        VIR_DEBUG("Setting qdisc failed: output='%s' err='%s'", outbuf, errbuf);
+        return -2;
+    }
+
+    return 0;
 }

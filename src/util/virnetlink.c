@@ -40,7 +40,7 @@ VIR_LOG_INIT("util.netlink");
 
 #define NETLINK_ACK_TIMEOUT_S  (2*1000)
 
-#if defined(__linux__) && defined(WITH_LIBNL)
+#if defined(WITH_LIBNL)
 /* State for a single netlink event handle */
 struct virNetlinkEventHandle {
     int watch;
@@ -1018,8 +1018,7 @@ virNetlinkEventServiceStart(unsigned int protocol, unsigned int groups)
 
     VIR_INFO("starting netlink event service with protocol %d", protocol);
 
-    if (VIR_ALLOC(srv) < 0)
-        return -1;
+    srv = g_new0(virNetlinkEventSrvPrivate, 1);
 
     if (virMutexInit(&srv->lock) < 0) {
         VIR_FREE(srv);
@@ -1387,4 +1386,4 @@ virNetlinkGetErrorCode(struct nlmsghdr *resp G_GNUC_UNUSED,
     return -EINVAL;
 }
 
-#endif /* __linux__ */
+#endif /* WITH_LIBNL */
