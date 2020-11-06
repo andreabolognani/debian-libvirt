@@ -34,7 +34,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_STORAGE_GLUSTER = -Dstorage_gluster=enabled
     WITH_UDEV            = -Dudev=enabled
     WITH_CAPNG           = -Dcapng=enabled
-    WITH_MACVTAP         = -Dmacvtap=enabled
+    WITH_LIBNL           = -Dlibnl=enabled
     WITH_NETWORK         = -Ddriver_network=enabled
     WITH_OPENVZ          = -Ddriver_openvz=enabled
     WITH_NETCF           = -Dnetcf=enabled
@@ -64,7 +64,7 @@ else
     WITH_STORAGE_GLUSTER = -Dstorage_gluster=disabled
     WITH_UDEV            = -Dudev=disabled
     WITH_CAPNG           = -Dcapng=disabled
-    WITH_MACVTAP         = -Dmacvtap=disabled
+    WITH_LIBNL           = -Dlibnl=disabled
     WITH_NETWORK         = -Ddriver_network=disabled
     WITH_OPENVZ          = -Ddriver_openvz=disabled
     WITH_NETCF           = -Dnetcf=disabled
@@ -91,6 +91,8 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dqemu_user=libvirt-qemu \
     -Dqemu_group=libvirt-qemu \
     -Dqemu_moddir=/usr/lib/$(DEB_HOST_MULTIARCH)/qemu \
+    -Ddocs=enabled \
+    -Dtests=enabled \
     $(WITH_OPENVZ) \
     -Dsasl=enabled \
     -Dyajl=enabled \
@@ -113,7 +115,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_APPARMOR) \
     -Ddriver_esx=enabled \
     $(WITH_CAPNG) \
-    $(WITH_MACVTAP) \
+    $(WITH_LIBNL) \
     $(WITH_NETWORK) \
     $(WITH_NETCF) \
     $(WITH_LIBXL) \
