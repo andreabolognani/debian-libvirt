@@ -8,10 +8,10 @@ so we don't have to build-depend on a program in contrib
  1 file changed, 2 insertions(+), 5 deletions(-)
 
 diff --git a/meson.build b/meson.build
-index 2e57a43..ebfac74 100644
+index 365c16d..604b597 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -2046,18 +2046,15 @@ if conf.has('WITH_LIBVIRTD')
+@@ -2023,18 +2023,15 @@ if conf.has('WITH_LIBVIRTD')
      foreach name : ['zfs', 'zpool']
        set_variable(
          '@0@_prog'.format(name),

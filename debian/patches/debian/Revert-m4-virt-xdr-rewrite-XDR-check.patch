@@ -37,10 +37,10 @@ this revert and follow upstream as 2.32 dropped the option to enable
  1 file changed, 2 deletions(-)
 
 diff --git a/meson.build b/meson.build
-index ebfac74..fac914b 100644
+index 604b597..fd49d18 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1465,8 +1465,6 @@ endif
+@@ -1450,8 +1450,6 @@ endif
  # use extra library as it's provided by libc directly.
  if host_machine.system() == 'windows'
    xdr_dep = cc.find_library('portablexdr', required: false)
