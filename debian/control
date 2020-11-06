@@ -132,7 +132,7 @@ Recommends:
  libvirt-daemon-driver-xen,
  libxml2-utils,
  netcat-openbsd,
- qemu-kvm | qemu (>= 0.9.1),
+ qemu-kvm | qemu-system (>= 0.9.1),
 Suggests:
  libvirt-daemon-driver-storage-gluster,
  libvirt-daemon-driver-storage-iscsi-direct,
@@ -141,8 +141,8 @@ Suggests:
  libvirt-daemon-system,
  numad,
 Enhances:
- qemu,
  qemu-kvm,
+ qemu-system,
  xen,
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
