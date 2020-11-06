@@ -110,8 +110,7 @@ virNetworkObjNew(void)
     if (!(obj = virObjectLockableNew(virNetworkObjClass)))
         return NULL;
 
-    if (!(obj->classIdMap = virBitmapNew(INIT_CLASS_ID_BITMAP_SIZE)))
-        goto error;
+    obj->classIdMap = virBitmapNew(INIT_CLASS_ID_BITMAP_SIZE);
 
     /* The first three class IDs are already taken */
     if (virBitmapSetBitExpand(obj->classIdMap, 0) < 0 ||
@@ -119,8 +118,7 @@ virNetworkObjNew(void)
         virBitmapSetBitExpand(obj->classIdMap, 2) < 0)
         goto error;
 
-    if (!(obj->ports = virHashCreate(10,
-                                     virNetworkObjPortFree)))
+    if (!(obj->ports = virHashNew(virNetworkObjPortFree)))
         goto error;
 
     virObjectLock(obj);
@@ -352,7 +350,7 @@ virNetworkObjListNew(void)
     if (!(nets = virObjectRWLockableNew(virNetworkObjListClass)))
         return NULL;
 
-    if (!(nets->objs = virHashCreate(50, virObjectFreeHashData))) {
+    if (!(nets->objs = virHashNew(virObjectFreeHashData))) {
         virObjectUnref(nets);
         return NULL;
     }
@@ -404,7 +402,7 @@ virNetworkObjFindByUUID(virNetworkObjListPtr nets,
 
 static int
 virNetworkObjSearchName(const void *payload,
-                        const void *name G_GNUC_UNUSED,
+                        const char *name G_GNUC_UNUSED,
                         const void *data)
 {
     virNetworkObjPtr obj = (virNetworkObjPtr) payload;
@@ -1180,7 +1178,7 @@ struct virNetworkObjBridgeInUseHelperData {
 
 static int
 virNetworkObjBridgeInUseHelper(const void *payload,
-                               const void *name G_GNUC_UNUSED,
+                               const char *name G_GNUC_UNUSED,
                                const void *opaque)
 {
     int ret;
@@ -1357,7 +1355,7 @@ struct _virNetworkObjListExportData {
 
 static int
 virNetworkObjListExportCallback(void *payload,
-                                const void *name G_GNUC_UNUSED,
+                                const char *name G_GNUC_UNUSED,
                                 void *opaque)
 {
     virNetworkObjListExportDataPtr data = opaque;
@@ -1407,8 +1405,8 @@ virNetworkObjListExport(virConnectPtr conn,
         .nnets = 0, .error = false };
 
     virObjectRWLockRead(netobjs);
-    if (nets && VIR_ALLOC_N(data.nets, virHashSize(netobjs->objs) + 1) < 0)
-        goto cleanup;
+    if (nets)
+        data.nets = g_new0(virNetworkPtr, virHashSize(netobjs->objs) + 1);
 
     virHashForEach(netobjs->objs, virNetworkObjListExportCallback, &data);
 
@@ -1441,7 +1439,7 @@ struct virNetworkObjListForEachHelperData {
 
 static int
 virNetworkObjListForEachHelper(void *payload,
-                               const void *name G_GNUC_UNUSED,
+                               const char *name G_GNUC_UNUSED,
                                void *opaque)
 {
     struct virNetworkObjListForEachHelperData *data = opaque;
@@ -1491,7 +1489,7 @@ struct virNetworkObjListGetHelperData {
 
 static int
 virNetworkObjListGetHelper(void *payload,
-                           const void *name G_GNUC_UNUSED,
+                           const char *name G_GNUC_UNUSED,
                            void *opaque)
 {
     struct virNetworkObjListGetHelperData *data = opaque;
@@ -1578,7 +1576,7 @@ struct virNetworkObjListPruneHelperData {
 
 static int
 virNetworkObjListPruneHelper(const void *payload,
-                             const void *name G_GNUC_UNUSED,
+                             const char *name G_GNUC_UNUSED,
                              const void *opaque)
 {
     const struct virNetworkObjListPruneHelperData *data = opaque;
@@ -1758,7 +1756,7 @@ struct _virNetworkObjPortListExportData {
 
 static int
 virNetworkObjPortListExportCallback(void *payload,
-                                    const void *name G_GNUC_UNUSED,
+                                    const char *name G_GNUC_UNUSED,
                                     void *opaque)
 {
     virNetworkObjPortListExportDataPtr data = opaque;
@@ -1802,8 +1800,7 @@ virNetworkObjPortListExport(virNetworkPtr net,
     if (ports) {
         *ports = NULL;
 
-        if (VIR_ALLOC_N(data.ports, virHashSize(obj->ports) + 1) < 0)
-            goto cleanup;
+        data.ports = g_new0(virNetworkPortPtr, virHashSize(obj->ports) + 1);
     }
 
     virHashForEach(obj->ports, virNetworkObjPortListExportCallback, &data);
@@ -1837,7 +1834,7 @@ struct _virNetworkObjPortListForEachData {
 
 static int
 virNetworkObjPortForEachCallback(void *payload,
-                                 const void *name G_GNUC_UNUSED,
+                                 const char *name G_GNUC_UNUSED,
                                  void *opaque)
 {
     virNetworkObjPortListForEachData *data = opaque;

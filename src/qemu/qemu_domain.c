@@ -496,8 +496,7 @@ qemuDomainMasterKeyReadFile(qemuDomainObjPrivatePtr priv)
         goto error;
     }
 
-    if (VIR_ALLOC_N(masterKey, 1024) < 0)
-        goto error;
+    masterKey = g_new0(uint8_t, 1024);
 
     if ((masterKeyLen = saferead(fd, masterKey, 1024)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -572,8 +571,7 @@ qemuDomainMasterKeyCreate(virDomainObjPtr vm)
     if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_SECRET))
         return 0;
 
-    if (VIR_ALLOC_N(priv->masterKey, QEMU_DOMAIN_MASTER_KEY_LEN) < 0)
-        return -1;
+    priv->masterKey = g_new0(uint8_t, QEMU_DOMAIN_MASTER_KEY_LEN);
     priv->masterKeyLen = QEMU_DOMAIN_MASTER_KEY_LEN;
 
     if (virRandomBytes(priv->masterKey, priv->masterKeyLen) < 0) {
@@ -1188,8 +1186,7 @@ qemuDomainSecretInfoNewPlain(virSecretUsageType usageType,
 {
     qemuDomainSecretInfoPtr secinfo = NULL;
 
-    if (VIR_ALLOC(secinfo) < 0)
-        return NULL;
+    secinfo = g_new0(qemuDomainSecretInfo, 1);
 
     if (qemuDomainSecretPlainSetup(secinfo, usageType, username, lookupDef) < 0) {
         g_clear_pointer(&secinfo, qemuDomainSecretInfoFree);
@@ -1689,8 +1686,7 @@ qemuDomainObjPrivateAlloc(void *opaque)
 {
     qemuDomainObjPrivatePtr priv;
 
-    if (VIR_ALLOC(priv) < 0)
-        return NULL;
+    priv = g_new0(qemuDomainObjPrivate, 1);
 
     if (qemuDomainObjInitJob(&priv->job, &qemuPrivateJobCallbacks) < 0) {
         virReportSystemError(errno, "%s",
@@ -1701,7 +1697,7 @@ qemuDomainObjPrivateAlloc(void *opaque)
     if (!(priv->devs = virChrdevAlloc()))
         goto error;
 
-    if (!(priv->blockjobs = virHashCreate(5, virObjectFreeHashData)))
+    if (!(priv->blockjobs = virHashNew(virObjectFreeHashData)))
         goto error;
 
     /* agent commands block by default, user can choose different behavior */
@@ -1729,7 +1725,8 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivatePtr priv)
     g_strfreev(priv->qemuDevices);
     priv->qemuDevices = NULL;
 
-    virCgroupFree(&priv->cgroup);
+    virCgroupFree(priv->cgroup);
+    priv->cgroup = NULL;
 
     virPerfFree(priv->perf);
     priv->perf = NULL;
@@ -1792,6 +1789,8 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivatePtr priv)
     priv->dbusVMStateIds = NULL;
 
     priv->dbusVMState = false;
+
+    priv->inhibitDiskTransientDelete = false;
 }
 
 
@@ -1843,9 +1842,7 @@ qemuStorageSourcePrivateDataAssignSecinfo(qemuDomainSecretInfoPtr *secinfo,
         return 0;
 
     if (!*secinfo) {
-        if (VIR_ALLOC(*secinfo) < 0)
-            return -1;
-
+        *secinfo = g_new0(qemuDomainSecretInfo, 1);
         (*secinfo)->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
     }
 
@@ -2109,7 +2106,7 @@ qemuDomainPrivateBlockJobFormatCommit(qemuBlockJobDataPtr job,
 
 static int
 qemuDomainObjPrivateXMLFormatBlockjobIterator(void *payload,
-                                              const void *name G_GNUC_UNUSED,
+                                              const char *name G_GNUC_UNUSED,
                                               void *opaque)
 {
     struct qemuDomainPrivateBlockJobFormatData *data = opaque;
@@ -3081,8 +3078,7 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
     }
     if (n > 0) {
         /* NULL-terminated list */
-        if (VIR_ALLOC_N(priv->qemuDevices, n + 1) < 0)
-            goto error;
+        priv->qemuDevices = g_new0(char *, n + 1);
 
         for (i = 0; i < n; i++) {
             priv->qemuDevices[i] = virXMLPropString(nodes[i], "alias");
@@ -3135,7 +3131,8 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
 
     qemuDomainSetPrivatePathsOld(driver, vm);
 
-    if (virCPUDefParseXML(ctxt, "./cpu", VIR_CPU_TYPE_GUEST, &priv->origCPU) < 0)
+    if (virCPUDefParseXML(ctxt, "./cpu", VIR_CPU_TYPE_GUEST, &priv->origCPU,
+                          false) < 0)
         goto error;
 
     priv->chardevStdioLogd = virXPathBoolean("boolean(./chardevStdioLogd)",
@@ -3243,8 +3240,7 @@ qemuDomainDefNamespaceParseCommandlineArgs(qemuDomainXmlNsDefPtr nsdef,
     if (nnodes == 0)
         return 0;
 
-    if (VIR_ALLOC_N(nsdef->args, nnodes) < 0)
-        return -1;
+    nsdef->args = g_new0(char *, nnodes);
 
     for (i = 0; i < nnodes; i++) {
         if (!(nsdef->args[nsdef->num_args++] = virXMLPropString(nodes[i], "value"))) {
@@ -3291,9 +3287,8 @@ qemuDomainDefNamespaceParseCommandlineEnv(qemuDomainXmlNsDefPtr nsdef,
     if (nnodes == 0)
         return 0;
 
-    if (VIR_ALLOC_N(nsdef->env_name, nnodes) < 0 ||
-        VIR_ALLOC_N(nsdef->env_value, nnodes) < 0)
-        return -1;
+    nsdef->env_name = g_new0(char *, nnodes);
+    nsdef->env_value = g_new0(char *, nnodes);
 
     for (i = 0; i < nnodes; i++) {
         if (!(nsdef->env_name[nsdef->num_env] = virXMLPropString(nodes[i], "name"))) {
@@ -3329,8 +3324,7 @@ qemuDomainDefNamespaceParseCaps(qemuDomainXmlNsDefPtr nsdef,
         return -1;
 
     if (nnodesadd > 0) {
-        if (VIR_ALLOC_N(nsdef->capsadd, nnodesadd) < 0)
-            return -1;
+        nsdef->capsadd = g_new0(char *, nnodesadd);
 
         for (i = 0; i < nnodesadd; i++) {
             if (!(nsdef->capsadd[nsdef->ncapsadd++] = virXMLPropString(nodesadd[i], "capability"))) {
@@ -3342,8 +3336,7 @@ qemuDomainDefNamespaceParseCaps(qemuDomainXmlNsDefPtr nsdef,
     }
 
     if (nnodesdel > 0) {
-        if (VIR_ALLOC_N(nsdef->capsdel, nnodesdel) < 0)
-            return -1;
+        nsdef->capsdel = g_new0(char *, nnodesdel);
 
         for (i = 0; i < nnodesdel; i++) {
             if (!(nsdef->capsdel[nsdef->ncapsdel++] = virXMLPropString(nodesdel[i], "capability"))) {
@@ -3365,8 +3358,7 @@ qemuDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
     qemuDomainXmlNsDefPtr nsdata = NULL;
     int ret = -1;
 
-    if (VIR_ALLOC(nsdata) < 0)
-        return -1;
+    nsdata = g_new0(qemuDomainXmlNsDef, 1);
 
     if (qemuDomainDefNamespaceParseCommandlineArgs(nsdata, ctxt) < 0 ||
         qemuDomainDefNamespaceParseCommandlineEnv(nsdata, ctxt) < 0 ||
@@ -3659,8 +3651,7 @@ qemuDomainDefAddDefaultDevices(virDomainDefPtr def,
 
     if (addDefaultMemballoon && !def->memballoon) {
         virDomainMemballoonDefPtr memballoon;
-        if (VIR_ALLOC(memballoon) < 0)
-            return -1;
+        memballoon = g_new0(virDomainMemballoonDef, 1);
 
         memballoon->model = VIR_DOMAIN_MEMBALLOON_MODEL_VIRTIO;
         def->memballoon = memballoon;
@@ -3716,9 +3707,9 @@ qemuDomainDefAddDefaultDevices(virDomainDefPtr def,
         }
 
         if (j == def->npanics) {
-            virDomainPanicDefPtr panic;
-            if (VIR_ALLOC(panic) < 0 ||
-                VIR_APPEND_ELEMENT_COPY(def->panics,
+            virDomainPanicDefPtr panic = g_new0(virDomainPanicDef, 1);
+
+            if (VIR_APPEND_ELEMENT_COPY(def->panics,
                                         def->npanics, panic) < 0) {
                 VIR_FREE(panic);
                 return -1;
@@ -5129,7 +5120,10 @@ qemuDomainDeviceNetDefPostParse(virDomainNetDefPtr net,
                                 const virDomainDef *def,
                                 virQEMUCapsPtr qemuCaps)
 {
-    if (net->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
+    if (net->type == VIR_DOMAIN_NET_TYPE_VDPA &&
+        !virDomainNetGetModelString(net))
+        net->model = VIR_DOMAIN_NET_MODEL_VIRTIO;
+    else if (net->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
         !virDomainNetGetModelString(net) &&
         virDomainNetResolveActualType(net) != VIR_DOMAIN_NET_TYPE_HOSTDEV)
         net->model = qemuDomainDefaultNetModel(def, qemuCaps);
@@ -5907,12 +5901,9 @@ qemuDomainDefFormatBufInternal(virQEMUDriverPtr driver,
             virDomainControllerDefPtr *controllers = def->controllers;
             int ncontrollers = def->ncontrollers;
 
-            if (VIR_ALLOC_N(def->controllers, ncontrollers - toremove) < 0) {
-                def->controllers = controllers;
-                goto cleanup;
-            }
-
+            def->controllers = g_new0(virDomainControllerDefPtr, ncontrollers - toremove);
             def->ncontrollers = 0;
+
             for (i = 0; i < ncontrollers; i++) {
                 if (controllers[i] != usb && controllers[i] != pci)
                     def->controllers[def->ncontrollers++] = controllers[i];
@@ -6113,7 +6104,8 @@ void qemuDomainObjTaint(virQEMUDriverPtr driver,
 
 void qemuDomainObjCheckTaint(virQEMUDriverPtr driver,
                              virDomainObjPtr obj,
-                             qemuDomainLogContextPtr logCtxt)
+                             qemuDomainLogContextPtr logCtxt,
+                             bool incomingMigration)
 {
     size_t i;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
@@ -6142,7 +6134,9 @@ void qemuDomainObjCheckTaint(virQEMUDriverPtr driver,
                            VIR_DOMAIN_TAINT_CUSTOM_HYPERVISOR_FEATURE, logCtxt);
     }
 
-    if (obj->def->cpu && obj->def->cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH)
+    if (obj->def->cpu &&
+        obj->def->cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH &&
+        incomingMigration)
         qemuDomainObjTaint(driver, obj, VIR_DOMAIN_TAINT_HOST_CPU, logCtxt);
 
     for (i = 0; i < obj->def->ndisks; i++)
@@ -6257,7 +6251,7 @@ qemuDomainLogContextPtr qemuDomainLogContextNew(virQEMUDriverPtr driver,
         }
 
         if (mode == QEMU_DOMAIN_LOG_CONTEXT_MODE_START) {
-            if ((ctxt->readfd = open(ctxt->path, O_RDONLY, S_IRUSR | S_IWUSR)) < 0) {
+            if ((ctxt->readfd = open(ctxt->path, O_RDONLY)) < 0) {
                 virReportSystemError(errno, _("failed to open logfile %s"),
                                      ctxt->path);
                 goto error;
@@ -6343,8 +6337,7 @@ ssize_t qemuDomainLogContextRead(qemuDomainLogContextPtr ctxt,
         /* Best effort jump to start of messages */
         ignore_value(lseek(ctxt->readfd, ctxt->pos, SEEK_SET));
 
-        if (VIR_ALLOC_N(buf, buflen) < 0)
-            return -1;
+        buf = g_new0(char, buflen);
 
         got = saferead(ctxt->readfd, buf, buflen - 1);
         if (got < 0) {
@@ -6648,7 +6641,7 @@ qemuDomainSnapshotDiscard(virQEMUDriverPtr driver,
 
 /* Hash iterator callback to discard multiple snapshots.  */
 int qemuDomainMomentDiscardAll(void *payload,
-                               const void *name G_GNUC_UNUSED,
+                               const char *name G_GNUC_UNUSED,
                                void *data)
 {
     virDomainMomentObjPtr moment = payload;
@@ -9323,6 +9316,7 @@ qemuDomainNetSupportsMTU(virDomainNetType type)
     case VIR_DOMAIN_NET_TYPE_DIRECT:
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
     case VIR_DOMAIN_NET_TYPE_UDP:
+    case VIR_DOMAIN_NET_TYPE_VDPA:
     case VIR_DOMAIN_NET_TYPE_LAST:
         break;
     }
@@ -10009,7 +10003,7 @@ qemuDomainSaveCookieParse(xmlXPathContextPtr ctxt G_GNUC_UNUSED,
         return -1;
 
     if (virCPUDefParseXML(ctxt, "./cpu[1]", VIR_CPU_TYPE_GUEST,
-                          &cookie->cpu) < 0)
+                          &cookie->cpu, false) < 0)
         return -1;
 
     cookie->slirpHelper = virXPathBoolean("boolean(./slirpHelper)", ctxt) > 0;
@@ -10418,6 +10412,9 @@ qemuDomainPrepareHostdev(virDomainHostdevDefPtr hostdev,
             virObjectUnref(scsisrc->u.host.src);
             scsisrc->u.host.src = virStorageSourceNew();
             src = scsisrc->u.host.src;
+
+            src->type = VIR_STORAGE_TYPE_BLOCK;
+
             break;
 
         case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI:
@@ -10432,6 +10429,8 @@ qemuDomainPrepareHostdev(virDomainHostdevDefPtr hostdev,
 
         if (src) {
             const char *backendalias = hostdev->info->alias;
+
+            src->readonly = hostdev->readonly;
 
             if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_HOSTDEV_SCSI)) {
                 src->id = qemuDomainStorageIdNew(priv);
@@ -10719,7 +10718,7 @@ qemuDomainPausedReasonToSuspendedEvent(virDomainPausedReason reason)
 
 static int
 qemuDomainDefHasManagedPRBlockjobIterator(void *payload,
-                                          const void *name G_GNUC_UNUSED,
+                                          const char *name G_GNUC_UNUSED,
                                           void *opaque)
 {
     qemuBlockJobDataPtr job = payload;
@@ -10853,6 +10852,13 @@ qemuDomainDiskBlockJobIsSupported(virDomainObjPtr vm,
         qemuDiskBusIsSD(disk->bus)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("block jobs are not supported on disk '%s' using bus 'sd'"),
+                       disk->dst);
+        return false;
+    }
+
+    if (disk->transient) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("block jobs are not supported on transient disk '%s'"),
                        disk->dst);
         return false;
     }
@@ -11051,4 +11057,40 @@ qemuDomainFileWrapperFDClose(virDomainObjPtr vm,
         ret = -1;
     }
     return ret;
+}
+
+
+/**
+ * qemuDomainInterfaceSetDefaultQDisc:
+ * @driver: QEMU driver
+ * @net: domain interface
+ *
+ * Set the noqueue qdisc on @net if running as privileged. The
+ * noqueue qdisc is a lockless transmit and thus faster than the
+ * default pfifo_fast (at least in theory). But we can modify
+ * root qdisc only if we have CAP_NET_ADMIN.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise.
+ */
+int
+qemuDomainInterfaceSetDefaultQDisc(virQEMUDriverPtr driver,
+                                   virDomainNetDefPtr net)
+{
+    virDomainNetType actualType = virDomainNetGetActualType(net);
+
+    if (!driver->privileged || !net->ifname)
+        return 0;
+
+    /* We want only those types which are represented as TAP
+     * devices in the host. */
+    if (actualType == VIR_DOMAIN_NET_TYPE_ETHERNET ||
+        actualType == VIR_DOMAIN_NET_TYPE_NETWORK ||
+        actualType == VIR_DOMAIN_NET_TYPE_BRIDGE ||
+        actualType == VIR_DOMAIN_NET_TYPE_DIRECT) {
+        if (virNetDevSetRootQDisc(net->ifname, "noqueue") < 0)
+            return -1;
+    }
+
+    return 0;
 }

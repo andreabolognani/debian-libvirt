@@ -380,8 +380,7 @@ vzConnectOpen(virConnectPtr conn,
     if (!(driver = vzGetDriverConnection()))
         return VIR_DRV_OPEN_ERROR;
 
-    if (VIR_ALLOC(privconn) < 0)
-        goto error;
+    privconn = g_new0(vzConn, 1);
 
     conn->privateData = privconn;
     privconn->driver = driver;
@@ -2790,11 +2789,9 @@ vzEatCookie(const char *cookiein, int cookieinlen, unsigned int flags)
 {
     xmlDocPtr doc = NULL;
     xmlXPathContextPtr ctx = NULL;
-    char *tmp = NULL;
     vzMigrationCookiePtr mig = NULL;
 
-    if (VIR_ALLOC(mig) < 0)
-        return NULL;
+    mig = g_new0(vzMigrationCookie, 1);
 
     if (!cookiein || cookieinlen <= 0 || cookiein[cookieinlen - 1] != '\0') {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -2806,28 +2803,30 @@ vzEatCookie(const char *cookiein, int cookieinlen, unsigned int flags)
                                       _("(_migration_cookie)"), &ctx)))
         goto error;
 
-    if ((flags & VZ_MIGRATION_COOKIE_SESSION_UUID)
-        && (!(tmp = virXPathString("string(./session-uuid[1])", ctx))
-            || (VIR_ALLOC_N(mig->session_uuid, VIR_UUID_BUFLEN) < 0)
-            || (virUUIDParse(tmp, mig->session_uuid) < 0))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("missing or malformed session-uuid element "
-                         "in migration data"));
-        VIR_FREE(tmp);
-        goto error;
-    }
-    VIR_FREE(tmp);
+    if (flags & VZ_MIGRATION_COOKIE_SESSION_UUID) {
+        g_autofree char *tmp = NULL;
+        mig->session_uuid = g_new0(unsigned char, VIR_UUID_BUFLEN);
 
-    if ((flags & VZ_MIGRATION_COOKIE_DOMAIN_UUID)
-        && (!(tmp = virXPathString("string(./uuid[1])", ctx))
-            || (VIR_ALLOC_N(mig->uuid, VIR_UUID_BUFLEN) < 0)
-            || (virUUIDParse(tmp, mig->uuid) < 0))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("missing or malformed uuid element in migration data"));
-        VIR_FREE(tmp);
-        goto error;
+        if ((!(tmp = virXPathString("string(./session-uuid[1])", ctx))
+            || (virUUIDParse(tmp, mig->session_uuid) < 0))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("missing or malformed session-uuid element "
+                             "in migration data"));
+            goto error;
+        }
     }
-    VIR_FREE(tmp);
+
+    if (flags & VZ_MIGRATION_COOKIE_DOMAIN_UUID) {
+        g_autofree char *tmp = NULL;
+        mig->uuid = g_new0(unsigned char, VIR_UUID_BUFLEN);
+
+        if ((!(tmp = virXPathString("string(./uuid[1])", ctx))
+            || (virUUIDParse(tmp, mig->uuid) < 0))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("missing or malformed uuid element in migration data"));
+            goto error;
+        }
+    }
 
     if ((flags & VZ_MIGRATION_COOKIE_DOMAIN_NAME)
         && !(mig->name = virXPathString("string(./name[1])", ctx))) {
@@ -3716,8 +3715,7 @@ vzDomainGetAllStats(virConnectPtr conn,
     virDomainStatsRecordPtr stat;
     int maxparams = 0;
 
-    if (VIR_ALLOC(stat) < 0)
-        return NULL;
+    stat = g_new0(virDomainStatsRecord, 1);
 
     if (vzDomainGetStateStats(dom, stat, &maxparams) < 0)
         goto error;
@@ -3801,8 +3799,7 @@ vzConnectGetAllDomainStats(virConnectPtr conn,
             return -1;
     }
 
-    if (VIR_ALLOC_N(tmpstats, ndoms + 1) < 0)
-        goto cleanup;
+    tmpstats = g_new0(virDomainStatsRecordPtr, ndoms + 1);
 
     for (i = 0; i < ndoms; i++) {
         virDomainStatsRecordPtr tmp;

@@ -32,20 +32,12 @@ typedef virBitmap *virBitmapPtr;
 /*
  * Allocate a bitmap capable of containing @size bits.
  */
-virBitmapPtr virBitmapNewQuiet(size_t size) G_GNUC_WARN_UNUSED_RESULT;
-virBitmapPtr virBitmapNew(size_t size) G_GNUC_WARN_UNUSED_RESULT;
-virBitmapPtr virBitmapNewEmpty(void) G_GNUC_WARN_UNUSED_RESULT;
+virBitmapPtr virBitmapNew(size_t size);
 
 /*
  * Free previously allocated bitmap
  */
 void virBitmapFree(virBitmapPtr bitmap);
-
-/*
- * Copy all bits from @src to @dst. The bitmap sizes
- * must be the same
- */
-int virBitmapCopy(virBitmapPtr dst, virBitmapPtr src);
 
 /*
  * Set bit position @b in @bitmap
@@ -81,7 +73,7 @@ virBitmapPtr
 virBitmapNewString(const char *string)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
-char *virBitmapToString(virBitmapPtr bitmap, bool prefix, bool trim)
+char *virBitmapToString(virBitmapPtr bitmap)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
 char *virBitmapFormat(virBitmapPtr bitmap);

@@ -602,7 +602,7 @@ esxConnectToHost(esxPrivate *priv,
                  char **vCenterIPAddress)
 {
     int result = -1;
-    char ipAddress[NI_MAXHOST] = "";
+    g_autofree char *ipAddress = NULL;
     char *username = NULL;
     char *password = NULL;
     char *url = NULL;
@@ -615,7 +615,7 @@ esxConnectToHost(esxPrivate *priv,
 
     ESX_VI_CHECK_ARG_LIST(vCenterIPAddress);
 
-    if (esxUtil_ResolveHostname(conn->uri->server, ipAddress, NI_MAXHOST) < 0)
+    if (esxUtil_ResolveHostname(conn->uri->server, &ipAddress) < 0)
         return -1;
 
     if (conn->uri->user) {
@@ -692,7 +692,7 @@ esxConnectToVCenter(esxPrivate *priv,
                     const char *hostSystemIPAddress)
 {
     int result = -1;
-    char ipAddress[NI_MAXHOST] = "";
+    g_autofree char *ipAddress = NULL;
     char *username = NULL;
     char *password = NULL;
     char *url = NULL;
@@ -704,7 +704,7 @@ esxConnectToVCenter(esxPrivate *priv,
         return -1;
     }
 
-    if (esxUtil_ResolveHostname(hostname, ipAddress, NI_MAXHOST) < 0)
+    if (esxUtil_ResolveHostname(hostname, &ipAddress) < 0)
         return -1;
 
     if (conn->uri->user) {
@@ -813,7 +813,7 @@ esxConnectOpen(virConnectPtr conn, virConnectAuthPtr auth,
     virDrvOpenStatus result = VIR_DRV_OPEN_ERROR;
     esxPrivate *priv = NULL;
     char *potentialVCenterIPAddress = NULL;
-    char vCenterIPAddress[NI_MAXHOST] = "";
+    g_autofree char *vCenterIPAddress = NULL;
 
     virCheckFlags(VIR_CONNECT_RO, VIR_DRV_OPEN_ERROR);
 
@@ -824,8 +824,7 @@ esxConnectOpen(virConnectPtr conn, virConnectAuthPtr auth,
     }
 
     /* Allocate per-connection private data */
-    if (VIR_ALLOC(priv) < 0)
-        goto cleanup;
+    priv = g_new0(esxPrivate, 1);
 
     if (esxUtil_ParseUri(&priv->parsedUri, conn->uri) < 0)
         goto cleanup;
@@ -876,16 +875,10 @@ esxConnectOpen(virConnectPtr conn, virConnectAuthPtr auth,
                     goto cleanup;
                 }
 
-                if (virStrcpyStatic(vCenterIPAddress,
-                                    potentialVCenterIPAddress) < 0) {
-                    virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("vCenter IP address %s too big for destination"),
-                                   potentialVCenterIPAddress);
-                    goto cleanup;
-                }
+                vCenterIPAddress = g_strdup(potentialVCenterIPAddress);
             } else {
                 if (esxUtil_ResolveHostname(priv->parsedUri->vCenter,
-                                            vCenterIPAddress, NI_MAXHOST) < 0) {
+                                            &vCenterIPAddress) < 0) {
                     goto cleanup;
                 }
 
@@ -4823,9 +4816,8 @@ esxConnectListAllDomains(virConnectPtr conn,
          !MATCH(VIR_CONNECT_LIST_DOMAINS_PERSISTENT)) ||
         (MATCH(VIR_CONNECT_LIST_DOMAINS_MANAGEDSAVE) &&
          !MATCH(VIR_CONNECT_LIST_DOMAINS_NO_MANAGEDSAVE))) {
-        if (domains &&
-            VIR_ALLOC_N(*domains, 1) < 0)
-            goto cleanup;
+        if (domains)
+            *domains = g_new0(virDomainPtr, 1);
 
         ret = 0;
         goto cleanup;
@@ -4885,8 +4877,7 @@ esxConnectListAllDomains(virConnectPtr conn,
         goto cleanup;
 
     if (domains) {
-        if (VIR_ALLOC_N(doms, 1) < 0)
-            goto cleanup;
+        doms = g_new0(virDomainPtr, 1);
         ndoms = 1;
     }
 
@@ -5218,8 +5209,7 @@ esxDomainInterfaceAddresses(virDomainPtr domain,
         if (VIR_EXPAND_N(ifaces_ret, ifaces_count, 1) < 0)
             goto cleanup;
 
-        if (VIR_ALLOC(ifaces_ret[ifaces_count - 1]) < 0)
-            goto cleanup;
+        ifaces_ret[ifaces_count - 1] = g_new0(virDomainInterface, 1);
 
         iface = ifaces_ret[ifaces_count - 1];
         iface->naddrs = 0;

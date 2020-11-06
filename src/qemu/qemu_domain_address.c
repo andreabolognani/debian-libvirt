@@ -3038,8 +3038,7 @@ qemuDomainUSBAddressAddHubs(virDomainDefPtr def)
               data.count, available_ports, hubs_needed);
 
     for (i = 0; i < hubs_needed; i++) {
-        if (VIR_ALLOC(hub) < 0)
-            return -1;
+        hub = g_new0(virDomainHubDef, 1);
         hub->type = VIR_DOMAIN_HUB_TYPE_USB;
 
         if (VIR_APPEND_ELEMENT(def->hubs, def->nhubs, hub) < 0)
@@ -3056,12 +3055,9 @@ qemuDomainUSBAddressAddHubs(virDomainDefPtr def)
 static virBitmapPtr
 qemuDomainGetMemorySlotMap(const virDomainDef *def)
 {
-    virBitmapPtr ret;
+    virBitmapPtr ret = virBitmapNew(def->mem.memory_slots);
     virDomainMemoryDefPtr mem;
     size_t i;
-
-    if (!(ret = virBitmapNew(def->mem.memory_slots)))
-        return NULL;
 
     for (i = 0; i < def->nmems; i++) {
         mem = def->mems[i];

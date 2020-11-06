@@ -1007,6 +1007,7 @@ cmdAttachInterface(vshControl *ctl, const vshCmd *cmd)
     case VIR_DOMAIN_NET_TYPE_CLIENT:
     case VIR_DOMAIN_NET_TYPE_MCAST:
     case VIR_DOMAIN_NET_TYPE_UDP:
+    case VIR_DOMAIN_NET_TYPE_VDPA:
     case VIR_DOMAIN_NET_TYPE_INTERNAL:
     case VIR_DOMAIN_NET_TYPE_LAST:
         vshError(ctl, _("No support for %s in command 'attach-interface'"),
@@ -1431,7 +1432,7 @@ cmdBlkdeviotune(vshControl *ctl, const vshCmd *cmd)
             goto cleanup;
         }
 
-        params = vshCalloc(ctl, nparams, sizeof(*params));
+        params = g_new0(virTypedParameter, nparams);
 
         if (virDomainGetBlockIoTune(dom, disk, params, &nparams, flags) != 0) {
             vshError(ctl, "%s",
@@ -1629,7 +1630,7 @@ cmdBlkiotune(vshControl * ctl, const vshCmd * cmd)
         }
 
         /* now go get all the blkio parameters */
-        params = vshCalloc(ctl, nparams, sizeof(*params));
+        params = g_new0(virTypedParameter, nparams);
         if (virDomainGetBlkioParameters(dom, params, &nparams, flags) != 0) {
             vshError(ctl, "%s", _("Unable to get blkio parameters"));
             goto cleanup;
@@ -1762,8 +1763,7 @@ virshBlockJobWaitInit(vshControl *ctl,
     virshBlockJobWaitDataPtr ret;
     virshControlPtr priv = ctl->privData;
 
-    if (VIR_ALLOC(ret) < 0)
-        return NULL;
+    ret = g_new0(virshBlockJobWaitData, 1);
 
     ret->ctl = ctl;
     ret->dom = dom;
@@ -2373,7 +2373,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
         transientjob) {
         /* New API */
         if (bandwidth || granularity || buf_size) {
-            params = vshCalloc(ctl, 3, sizeof(*params));
+            params = g_new0(virTypedParameter, 3);
             if (bandwidth) {
                 if (!bytes) {
                     /* bandwidth is ulong MiB/s, but the typed parameter is
@@ -3376,7 +3376,7 @@ cmdDomIftune(vshControl *ctl, const vshCmd *cmd)
         }
 
         /* get all interface parameters */
-        params = vshCalloc(ctl, nparams, sizeof(*params));
+        params = g_new0(virTypedParameter, nparams);
         if (virDomainGetInterfaceParameters(dom, device, params, &nparams, flags) != 0) {
             vshError(ctl, "%s", _("Unable to get interface parameters"));
             goto cleanup;
@@ -5244,7 +5244,7 @@ cmdSchedinfo(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (nparams) {
-        params = vshMalloc(ctl, sizeof(*params) * nparams);
+        params = g_new0(virTypedParameter, nparams);
 
         memset(params, 0, sizeof(*params) * nparams);
         if (flags || current) {
@@ -6841,8 +6841,7 @@ virshDomainGetVcpuBitmap(vshControl *ctl,
     if (curvcpus == 0)
         curvcpus = maxvcpus;
 
-    if (!(ret = virBitmapNew(maxvcpus)))
-        goto cleanup;
+    ret = virBitmapNew(maxvcpus);
 
     if ((nnodes = virXPathNodeSet("/domain/vcpus/vcpu", ctxt, &nodes)) <= 0) {
         /* if the specific vcpu state is missing provide a fallback */
@@ -6896,7 +6895,7 @@ virshVcpuinfoInactive(vshControl *ctl,
         return false;
 
     cpumaplen = VIR_CPU_MAPLEN(maxcpu);
-    cpumaps = vshMalloc(ctl, virBitmapSize(vcpus) * cpumaplen);
+    cpumaps = g_new0(unsigned char, virBitmapSize(vcpus) * cpumaplen);
 
     if (virDomainGetVcpuPinInfo(dom, virBitmapSize(vcpus),
                                 cpumaps, cpumaplen,
@@ -6945,9 +6944,9 @@ cmdVcpuinfo(vshControl *ctl, const vshCmd *cmd)
     if (virDomainGetInfo(dom, &info) != 0)
         return false;
 
-    cpuinfo = vshMalloc(ctl, sizeof(virVcpuInfo)*info.nrVirtCpu);
+    cpuinfo = g_new0(virVcpuInfo, info.nrVirtCpu);
     cpumaplen = VIR_CPU_MAPLEN(maxcpu);
-    cpumaps = vshMalloc(ctl, info.nrVirtCpu * cpumaplen);
+    cpumaps = g_new0(unsigned char, info.nrVirtCpu * cpumaplen);
 
     if ((ncpus = virDomainGetVcpus(dom,
                                    cpuinfo, info.nrVirtCpu,
@@ -7077,7 +7076,7 @@ virshVcpuPinQuery(vshControl *ctl,
     }
 
     cpumaplen = VIR_CPU_MAPLEN(maxcpu);
-    cpumap = vshMalloc(ctl, ncpus * cpumaplen);
+    cpumap = g_new0(unsigned char, ncpus * cpumaplen);
     if ((ncpus = virDomainGetVcpuPinInfo(dom, ncpus, cpumap,
                                          cpumaplen, flags)) >= 0) {
         table = vshTableNew(_("VCPU"), _("CPU Affinity"), NULL);
@@ -7119,8 +7118,7 @@ virshParseCPUList(vshControl *ctl, int *cpumaplen,
     virBitmapPtr map = NULL;
 
     if (cpulist[0] == 'r') {
-        if (!(map = virBitmapNew(maxcpu)))
-            return NULL;
+        map = virBitmapNew(maxcpu);
         virBitmapSetAll(map);
     } else {
         int lastcpu;
@@ -7294,7 +7292,7 @@ cmdEmulatorPin(vshControl *ctl, const vshCmd *cmd)
             flags = VIR_DOMAIN_AFFECT_CURRENT;
 
         cpumaplen = VIR_CPU_MAPLEN(maxcpu);
-        cpumap = vshMalloc(ctl, cpumaplen);
+        cpumap = g_new0(unsigned char, cpumaplen);
         if (virDomainGetEmulatorPinInfo(dom, cpumap,
                                         cpumaplen, flags) >= 0) {
             vshPrintExtra(ctl, "%s %s\n", _("emulator:"), _("CPU Affinity"));
@@ -8177,8 +8175,7 @@ cmdCPUStats(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (VIR_ALLOC_N(params, nparams * MIN(show_count, 128)) < 0)
-        goto cleanup;
+    params = g_new0(virTypedParameter, nparams * MIN(show_count, 128));
 
     while (show_count) {
         int ncpus = MIN(show_count, 128);
@@ -8215,8 +8212,7 @@ cmdCPUStats(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
     }
 
-    if (VIR_ALLOC_N(params, nparams) < 0)
-        goto cleanup;
+    params = g_new0(virTypedParameter, nparams);
 
     /* passing start_cpu == -1 gives us domain's total status */
     if ((stats_per_cpu = virDomainGetCPUStats(dom, params, nparams,
@@ -9286,7 +9282,7 @@ cmdMemtune(vshControl *ctl, const vshCmd *cmd)
         }
 
         /* now go get all the memory parameters */
-        params = vshCalloc(ctl, nparams, sizeof(*params));
+        params = g_new0(virTypedParameter, nparams);
         if (virDomainGetMemoryParameters(dom, params, &nparams, flags) != 0) {
             vshError(ctl, "%s", _("Unable to get memory parameters"));
             goto cleanup;
@@ -9559,7 +9555,7 @@ cmdNumatune(vshControl * ctl, const vshCmd * cmd)
         }
 
         /* now go get all the numa parameters */
-        params = vshCalloc(ctl, nparams, sizeof(*params));
+        params = g_new0(virTypedParameter, nparams);
         if (virDomainGetNumaParameters(dom, params, &nparams, flags) != 0) {
             vshError(ctl, "%s", _("Unable to get numa parameters"));
             goto cleanup;
@@ -10086,14 +10082,9 @@ cmdLxcEnterNamespace(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
 
     if (setlabel) {
-        if (VIR_ALLOC(secmodel) < 0) {
-            vshError(ctl, "%s", _("Failed to allocate security model"));
-            goto cleanup;
-        }
-        if (VIR_ALLOC(seclabel) < 0) {
-            vshError(ctl, "%s", _("Failed to allocate security label"));
-            goto cleanup;
-        }
+        secmodel = g_new0(virSecurityModel, 1);
+        seclabel = g_new0(virSecurityLabel, 1);
+
         if (virNodeGetSecurityModel(priv->conn, secmodel) < 0)
             goto cleanup;
         if (virDomainGetSecurityLabel(dom, seclabel) < 0)
@@ -11997,8 +11988,7 @@ virshNodeIsSuperset(xmlNodePtr n1, xmlNodePtr n2)
     if (n1_child_size == 0 && n2_child_size == 0)
         return true;
 
-    if (!(bitmap = virBitmapNew(n1_child_size)))
-        return false;
+    bitmap = virBitmapNew(n1_child_size);
 
     child2 = n2->children;
     while (child2) {
@@ -13601,6 +13591,44 @@ virshEventBlockThresholdPrint(virConnectPtr conn G_GNUC_UNUSED,
 }
 
 
+VIR_ENUM_DECL(virshEventMemoryFailureRecipientType);
+VIR_ENUM_IMPL(virshEventMemoryFailureRecipientType,
+              VIR_DOMAIN_EVENT_MEMORY_FAILURE_RECIPIENT_LAST,
+              N_("hypervisor"),
+              N_("guest"));
+
+VIR_ENUM_DECL(virshEventMemoryFailureActionType);
+VIR_ENUM_IMPL(virshEventMemoryFailureActionType,
+              VIR_DOMAIN_EVENT_MEMORY_FAILURE_ACTION_LAST,
+              N_("ignore"),
+              N_("inject"),
+              N_("fatal"),
+              N_("reset"));
+
+static void
+virshEventMemoryFailurePrint(virConnectPtr conn G_GNUC_UNUSED,
+                             virDomainPtr dom,
+                             int recipient,
+                             int action,
+                             unsigned int flags,
+                             void *opaque)
+{
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+
+    virBufferAsprintf(&buf, _("event 'memory-failure' for domain %s:\n"
+                              "recipient: %s\naction: %s\n"),
+                      virDomainGetName(dom),
+                      UNKNOWNSTR(virshEventMemoryFailureRecipientTypeTypeToString(recipient)),
+                      UNKNOWNSTR(virshEventMemoryFailureActionTypeTypeToString(action)));
+    virBufferAsprintf(&buf, _("flags:\n"
+                              "\taction required: %d\n\trecursive: %d\n"),
+                      !!(flags & VIR_DOMAIN_MEMORY_FAILURE_ACTION_REQUIRED),
+                      !!(flags & VIR_DOMAIN_MEMORY_FAILURE_RECURSIVE));
+
+    virshEventPrint(opaque, &buf);
+}
+
+
 virshDomainEventCallback virshDomainEventCallbacks[] = {
     { "lifecycle",
       VIR_DOMAIN_EVENT_CALLBACK(virshEventLifecyclePrint), },
@@ -13650,6 +13678,8 @@ virshDomainEventCallback virshDomainEventCallbacks[] = {
       VIR_DOMAIN_EVENT_CALLBACK(virshEventMetadataChangePrint), },
     { "block-threshold",
       VIR_DOMAIN_EVENT_CALLBACK(virshEventBlockThresholdPrint), },
+    { "memory-failure",
+      VIR_DOMAIN_EVENT_CALLBACK(virshEventMemoryFailurePrint), },
 };
 G_STATIC_ASSERT(VIR_DOMAIN_EVENT_ID_LAST == G_N_ELEMENTS(virshDomainEventCallbacks));
 
@@ -13737,8 +13767,7 @@ cmdEvent(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (all) {
-        if (VIR_ALLOC_N(data, VIR_DOMAIN_EVENT_ID_LAST) < 0)
-            goto cleanup;
+        data = g_new0(virshDomEventData, VIR_DOMAIN_EVENT_ID_LAST);
         for (i = 0; i < VIR_DOMAIN_EVENT_ID_LAST; i++) {
             data[i].ctl = ctl;
             data[i].loop = loop;
@@ -13748,8 +13777,7 @@ cmdEvent(vshControl *ctl, const vshCmd *cmd)
             data[i].id = -1;
         }
     } else {
-        if (VIR_ALLOC_N(data, 1) < 0)
-            goto cleanup;
+        data = g_new0(virshDomEventData, 1);
         data[0].ctl = ctl;
         data[0].loop = vshCommandOptBool(cmd, "loop");
         data[0].count = &count;

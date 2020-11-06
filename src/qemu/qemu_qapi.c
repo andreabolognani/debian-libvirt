@@ -166,7 +166,7 @@ virQEMUQAPISchemaTraverseObject(virJSONValuePtr cur,
     if (!g_ascii_isalpha(modifier))
         query++;
 
-    /* exit on modifers for other types */
+    /* exit on modifiers for other types */
     if (modifier == '^' || modifier == '!')
         return 0;
 
@@ -219,7 +219,7 @@ virQEMUQAPISchemaTraverseCommand(virJSONValuePtr cur,
     if (!g_ascii_isalpha(modifier))
         query++;
 
-    /* exit on modifers for other types */
+    /* exit on modifiers for other types */
     if (modifier == '^' || modifier == '!' || modifier == '+' || modifier == '*')
         return 0;
 
@@ -517,7 +517,7 @@ virQEMUQAPISchemaConvert(virJSONValuePtr schemareply)
     g_autoptr(virHashTable) schema = NULL;
     g_autoptr(virJSONValue) schemajson = schemareply;
 
-    if (!(schema = virHashCreate(512, virJSONValueHashFree)))
+    if (!(schema = virHashNew(virJSONValueHashFree)))
         return NULL;
 
     if (virJSONValueArrayForeachSteal(schemajson,

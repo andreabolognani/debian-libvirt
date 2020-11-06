@@ -44,8 +44,7 @@ virNWFilterBindingDefForNet(const char *vmname,
 {
     virNWFilterBindingDefPtr ret;
 
-    if (VIR_ALLOC(ret) < 0)
-        return NULL;
+    ret = g_new0(virNWFilterBindingDef, 1);
 
     ret->ownername = g_strdup(vmname);
 
@@ -60,7 +59,7 @@ virNWFilterBindingDefForNet(const char *vmname,
 
     ret->filter = g_strdup(net->filter);
 
-    if (!(ret->filterparams = virNWFilterHashTableCreate(0)))
+    if (!(ret->filterparams = virHashNew(virNWFilterVarValueHashFree)))
         goto error;
 
     if (net->filterparams &&

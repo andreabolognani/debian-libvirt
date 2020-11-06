@@ -56,8 +56,6 @@
 
 VIR_LOG_INIT("locking.lock_daemon");
 
-#define VIR_LOCK_DAEMON_NUM_LOCKSPACES 3
-
 struct _virLockDaemon {
     GMutex lock;
     virNetDaemonPtr dmn;
@@ -120,8 +118,7 @@ virLockDaemonNew(virLockDaemonConfigPtr config, bool privileged)
     virLockDaemonPtr lockd;
     virNetServerPtr srv = NULL;
 
-    if (VIR_ALLOC(lockd) < 0)
-        return NULL;
+    lockd = g_new0(virLockDaemon, 1);
 
     g_mutex_init(&lockd->lock);
 
@@ -156,8 +153,7 @@ virLockDaemonNew(virLockDaemonConfigPtr config, bool privileged)
     virObjectUnref(srv);
     srv = NULL;
 
-    if (!(lockd->lockspaces = virHashCreate(VIR_LOCK_DAEMON_NUM_LOCKSPACES,
-                                            virLockDaemonLockSpaceDataFree)))
+    if (!(lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree)))
         goto error;
 
     if (!(lockd->defaultLockspace = virLockSpaceNew(NULL)))
@@ -212,13 +208,11 @@ virLockDaemonNewPostExecRestart(virJSONValuePtr object, bool privileged)
     size_t i;
     const char *serverNames[] = { "virtlockd" };
 
-    if (VIR_ALLOC(lockd) < 0)
-        return NULL;
+    lockd = g_new0(virLockDaemon, 1);
 
     g_mutex_init(&lockd->lock);
 
-    if (!(lockd->lockspaces = virHashCreate(VIR_LOCK_DAEMON_NUM_LOCKSPACES,
-                                            virLockDaemonLockSpaceDataFree)))
+    if (!(lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree)))
         goto error;
 
     if (!(child = virJSONValueObjectGet(object, "defaultLockspace"))) {
@@ -368,7 +362,7 @@ struct virLockDaemonClientReleaseData {
 
 static int
 virLockDaemonClientReleaseLockspace(void *payload,
-                                    const void *name G_GNUC_UNUSED,
+                                    const char *name G_GNUC_UNUSED,
                                     void *opaque)
 {
     virLockSpacePtr lockspace = payload;
@@ -456,8 +450,7 @@ virLockDaemonClientNew(virNetServerClientPtr client,
     unsigned long long timestamp;
     bool privileged = opaque != NULL;
 
-    if (VIR_ALLOC(priv) < 0)
-        return NULL;
+    priv = g_new0(virLockDaemonClient, 1);
 
     g_mutex_init(&priv->lock);
 

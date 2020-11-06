@@ -145,31 +145,27 @@ static int virLXCCgroupGetMemStat(virCgroupPtr cgroup,
 
 int virLXCCgroupGetMeminfo(virLXCMeminfoPtr meminfo)
 {
-    int ret = -1;
-    virCgroupPtr cgroup;
+    g_autoptr(virCgroup) cgroup = NULL;
 
     if (virCgroupNewSelf(&cgroup) < 0)
         return -1;
 
     if (virLXCCgroupGetMemStat(cgroup, meminfo) < 0)
-        goto cleanup;
+        return -1;
 
     if (virLXCCgroupGetMemTotal(cgroup, meminfo) < 0)
-        goto cleanup;
+        return -1;
 
     if (virLXCCgroupGetMemUsage(cgroup, meminfo) < 0)
-        goto cleanup;
+        return -1;
 
     if (virLXCCgroupGetMemSwapTotal(cgroup, meminfo) < 0)
-        goto cleanup;
+        return -1;
 
     if (virLXCCgroupGetMemSwapUsage(cgroup, meminfo) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virCgroupFree(&cgroup);
-    return ret;
+    return 0;
 }
 
 
@@ -417,7 +413,7 @@ virCgroupPtr virLXCCgroupCreate(virDomainDefPtr def,
                               def->idmap.uidmap[0].target,
                               def->idmap.gidmap[0].target,
                               (1 << VIR_CGROUP_CONTROLLER_SYSTEMD)) < 0) {
-            virCgroupFree(&cgroup);
+            virCgroupFree(cgroup);
             return NULL;
         }
     }

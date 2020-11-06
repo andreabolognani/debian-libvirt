@@ -578,6 +578,12 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_NUMA_HMAT, /* -numa hmat */
     QEMU_CAPS_BLOCKDEV_HOSTDEV_SCSI, /* -blockdev used for (i)SCSI hostdevs */
 
+    /* 380 */
+    QEMU_CAPS_USB_HOST_HOSTDEVICE, /* -device usb-host.hostdevice */
+    QEMU_CAPS_VIRTIO_BALLOON_FREE_PAGE_REPORTING, /*virtio balloon free-page-reporting */
+    QEMU_CAPS_BLOCK_EXPORT_ADD, /* 'block-export-add' command is supported */
+    QEMU_CAPS_NETDEV_VHOST_VDPA, /* -netdev vhost-vdpa*/
+
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
 
@@ -607,8 +613,6 @@ bool virQEMUCapsHasPCIMultiBus(virQEMUCapsPtr qemuCaps,
 
 bool virQEMUCapsSupportsVmport(virQEMUCapsPtr qemuCaps,
                                const virDomainDef *def);
-
-char *virQEMUCapsFlagsString(virQEMUCapsPtr qemuCaps);
 
 const char *virQEMUCapsGetBinary(virQEMUCapsPtr qemuCaps);
 virArch virQEMUCapsGetArch(virQEMUCapsPtr qemuCaps);
@@ -688,6 +692,9 @@ const char *virQEMUCapsGetMachineDefaultCPU(virQEMUCapsPtr qemuCaps,
 bool virQEMUCapsGetMachineNumaMemSupported(virQEMUCapsPtr qemuCaps,
                                            virDomainVirtType virtType,
                                            const char *name);
+const char *virQEMUCapsGetMachineDefaultRAMid(virQEMUCapsPtr qemuCaps,
+                                              virDomainVirtType virtType,
+                                              const char *name);
 
 void virQEMUCapsFilterByMachineType(virQEMUCapsPtr qemuCaps,
                                     virDomainVirtType virtType,

@@ -50,66 +50,37 @@ struct _virBitmap {
 
 
 /**
- * virBitmapNewQuiet:
- * @size: number of bits
- *
- * Allocate a bitmap capable of containing @size bits.
- *
- * Returns a pointer to the allocated bitmap or NULL if either memory cannot be
- * allocated or size is 0. Does not report libvirt errors.
- */
-virBitmapPtr
-virBitmapNewQuiet(size_t size)
-{
-    virBitmapPtr bitmap;
-    size_t sz;
-
-    if (SIZE_MAX - VIR_BITMAP_BITS_PER_UNIT < size || size == 0)
-        return NULL;
-
-    sz = VIR_DIV_UP(size, VIR_BITMAP_BITS_PER_UNIT);
-
-    bitmap = g_new0(virBitmap, 1);
-    bitmap->map = g_new0(unsigned long, sz);
-    bitmap->nbits = size;
-    bitmap->map_len = sz;
-    bitmap->map_alloc = sz;
-    return bitmap;
-}
-
-
-/**
  * virBitmapNew:
  * @size: number of bits
  *
  * Allocate a bitmap capable of containing @size bits.
  *
- * Returns a pointer to the allocated bitmap or NULL if either memory cannot be
- * allocated or size is 0. Reports libvirt errors.
+ * Returns a pointer to the allocated bitmap.
  */
 virBitmapPtr
 virBitmapNew(size_t size)
 {
-    virBitmapPtr ret;
+    virBitmapPtr bitmap;
+    size_t sz;
 
-    if (!(ret = virBitmapNewQuiet(size)))
-        virReportOOMError();
+    if (SIZE_MAX - VIR_BITMAP_BITS_PER_UNIT < size) {
+        /* VIR_DIV_UP would overflow, let's overallocate by 1 entry instead of
+         * the potential overflow */
+        sz = (size / VIR_BITMAP_BITS_PER_UNIT) + 1;
+    } else {
+        sz = VIR_DIV_UP(size, VIR_BITMAP_BITS_PER_UNIT);
+    }
 
-    return ret;
-}
+    bitmap = g_new0(virBitmap, 1);
 
+    if (size == 0)
+        return bitmap;
 
-/**
- * virBitmapNewEmpty:
- *
- * Allocate an empty bitmap. It can be used with self-expanding APIs.
- *
- * Returns a pointer to the allocated bitmap.
- */
-virBitmapPtr
-virBitmapNewEmpty(void)
-{
-    return g_new0(virBitmap, 1);
+    bitmap->map = g_new0(unsigned long, sz);
+    bitmap->nbits = size;
+    bitmap->map_len = sz;
+    bitmap->map_alloc = sz;
+    return bitmap;
 }
 
 
@@ -126,29 +97,6 @@ virBitmapFree(virBitmapPtr bitmap)
         VIR_FREE(bitmap->map);
         VIR_FREE(bitmap);
     }
-}
-
-
-/**
- * virBitmapCopy:
- * @dst: destination bitmap
- * @src: source bitmap
- *
- * Copies contents of @src to @dst. @dst must have the same size as @src.
- * Returns -1 if the size is not the same or 0 on success.
- */
-int
-virBitmapCopy(virBitmapPtr dst,
-              virBitmapPtr src)
-{
-    if (dst->nbits != src->nbits) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    memcpy(dst->map, src->map, src->map_len * sizeof(src->map[0]));
-
-    return 0;
 }
 
 
@@ -327,17 +275,15 @@ virBitmapGetBit(virBitmapPtr bitmap,
 /**
  * virBitmapToString:
  * @bitmap: Pointer to bitmap
- * @prefix: Whether to prepend "0x"
- * @trim: Whether to output only the minimum required characters
  *
- * Convert @bitmap to printable string.
+ * Convert @bitmap to a number where the bit with highest position/index in
+ * @bitmap represents the most significant bit and return the number in form
+ * of a hexadecimal string.
  *
  * Returns pointer to the string or NULL on error.
  */
 char *
-virBitmapToString(virBitmapPtr bitmap,
-                  bool prefix,
-                  bool trim)
+virBitmapToString(virBitmapPtr bitmap)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     size_t sz;
@@ -345,10 +291,10 @@ virBitmapToString(virBitmapPtr bitmap,
     size_t diff;
     char *ret = NULL;
 
-    if (prefix)
-        virBufferAddLit(&buf, "0x");
-
     sz = bitmap->map_len;
+
+    /* initialize buffer to return empty string for 0 length bitmap */
+    virBufferAdd(&buf, "", -1);
 
     while (sz--) {
         virBufferAsprintf(&buf, "%0*lx",
@@ -360,14 +306,8 @@ virBitmapToString(virBitmapPtr bitmap,
     if (!ret)
         return NULL;
 
-    if (!trim)
-        return ret;
-
     if (bitmap->nbits != bitmap->map_len * VIR_BITMAP_BITS_PER_UNIT) {
         char *tmp = ret;
-
-        if (prefix)
-            tmp += 2;
 
         len = strlen(tmp);
         sz = VIR_DIV_UP(bitmap->nbits, 4);
@@ -470,8 +410,7 @@ virBitmapParseSeparator(const char *str,
     size_t i;
     int start, last;
 
-    if (!(*bitmap = virBitmapNew(bitmapSize)))
-        return -1;
+    *bitmap = virBitmapNew(bitmapSize);
 
     if (!str)
         goto error;
@@ -599,7 +538,7 @@ virBitmapParse(const char *str,
 virBitmapPtr
 virBitmapParseUnlimited(const char *str)
 {
-    virBitmapPtr bitmap = virBitmapNewEmpty();
+    virBitmapPtr bitmap = virBitmapNew(0);
     bool neg = false;
     const char *cur = str;
     char *tmp;
@@ -693,23 +632,14 @@ virBitmapParseUnlimited(const char *str)
  * virBitmapNewCopy:
  * @src: the source bitmap.
  *
- * Makes a copy of bitmap @src.
- *
- * returns the copied bitmap on success, or NULL otherwise. Caller
- * should call virBitmapFree to free the returned bitmap.
+ * Returns a copy of bitmap @src.
  */
 virBitmapPtr
 virBitmapNewCopy(virBitmapPtr src)
 {
-    virBitmapPtr dst;
+    virBitmapPtr dst = virBitmapNew(src->nbits);
 
-    if ((dst = virBitmapNew(src->nbits)) == NULL)
-        return NULL;
-
-    if (virBitmapCopy(dst, src) != 0) {
-        virBitmapFree(dst);
-        return NULL;
-    }
+    memcpy(dst->map, src->map, src->map_len * sizeof(src->map[0]));
 
     return dst;
 }
@@ -736,8 +666,6 @@ virBitmapNewData(const void *data,
     const unsigned char *bytes = data;
 
     bitmap = virBitmapNew(len * CHAR_BIT);
-    if (!bitmap)
-        return NULL;
 
     /* le64toh is not available, so we do the conversion by hand */
     p = bitmap->map;
@@ -776,9 +704,7 @@ virBitmapToData(virBitmapPtr bitmap,
     else
         len = (len + CHAR_BIT) / CHAR_BIT;
 
-    if (VIR_ALLOC_N(*data, len) < 0)
-        return -1;
-
+    *data = g_new0(unsigned char, len);
     *dataLen = len;
 
     virBitmapToDataBuf(bitmap, *data, *dataLen);
@@ -1130,10 +1056,14 @@ virBitmapCountBits(virBitmapPtr bitmap)
  * virBitmapNewString:
  * @string: the string to be converted to a bitmap
  *
- * Allocate a bitmap from a string of hexadecimal data.
+ * Allocate a bitmap and populate it from @string representing a number in
+ * hexadecimal format. Note that the most significant bit of the number
+ * represented by @string will correspond to the highest index/position in the
+ * bitmap. The size of the returned bitmap corresponds to 4 * the length of
+ * @string.
  *
- * Returns a pointer to the allocated bitmap or NULL if
- * memory cannot be allocated.
+ * Returns a pointer to the allocated bitmap or NULL and reports an error if
+ * @string can't be converted.
  */
 virBitmapPtr
 virBitmapNewString(const char *string)
@@ -1149,8 +1079,6 @@ virBitmapNewString(const char *string)
     }
 
     bitmap = virBitmapNew(len * 4);
-    if (!bitmap)
-        return NULL;
 
     for (i = 0; i < len; i++) {
         unsigned long nibble = g_ascii_xdigit_value(string[len - i - 1]);

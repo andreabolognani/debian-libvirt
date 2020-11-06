@@ -625,8 +625,7 @@ qemuStateInitialize(bool privileged,
     const char *defsecmodel = NULL;
     g_autofree virSecurityManagerPtr *sec_managers = NULL;
 
-    if (VIR_ALLOC(qemu_driver) < 0)
-        return VIR_DRV_STATE_INIT_ERROR;
+    qemu_driver = g_new0(virQEMUDriver, 1);
 
     qemu_driver->lockFD = -1;
 
@@ -788,7 +787,7 @@ qemuStateInitialize(bool privileged,
     if (!(qemu_driver->hostdevMgr = virHostdevManagerGetDefault()))
         goto error;
 
-    if (!(qemu_driver->sharedDevices = virHashCreate(30, qemuSharedDeviceEntryFree)))
+    if (!(qemu_driver->sharedDevices = virHashNew(qemuSharedDeviceEntryFree)))
         goto error;
 
     if (qemuMigrationDstErrorInit(qemu_driver) < 0)
@@ -1059,8 +1058,7 @@ qemuStateStop(void)
                                                VIR_CONNECT_LIST_DOMAINS_ACTIVE)) < 0)
         goto cleanup;
 
-    if (VIR_ALLOC_N(flags, numDomains) < 0)
-        goto cleanup;
+    flags = g_new0(unsigned int, numDomains);
 
     /* First we pause all VMs to make them stop dirtying
        pages, etc. We remember if any VMs were paused so
@@ -4521,7 +4519,7 @@ qemuDomainPinVcpuLive(virDomainObjPtr vm,
     virBitmapPtr tmpmap = NULL;
     virDomainVcpuDefPtr vcpuinfo;
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    virCgroupPtr cgroup_vcpu = NULL;
+    g_autoptr(virCgroup) cgroup_vcpu = NULL;
     g_autofree char *str = NULL;
     virObjectEventPtr event = NULL;
     char paramField[VIR_TYPED_PARAM_FIELD_LENGTH] = "";
@@ -4543,8 +4541,7 @@ qemuDomainPinVcpuLive(virDomainObjPtr vm,
         goto cleanup;
     }
 
-    if (!(tmpmap = virBitmapNewCopy(cpumap)))
-        goto cleanup;
+    tmpmap = virBitmapNewCopy(cpumap);
 
     if (!(str = virBitmapFormat(cpumap)))
         goto cleanup;
@@ -4586,7 +4583,6 @@ qemuDomainPinVcpuLive(virDomainObjPtr vm,
 
  cleanup:
     virBitmapFree(tmpmap);
-    virCgroupFree(&cgroup_vcpu);
     virObjectEventStateQueue(driver->domainEventState, event);
     return ret;
 }
@@ -4723,7 +4719,7 @@ qemuDomainPinEmulator(virDomainPtr dom,
 {
     virQEMUDriverPtr driver = dom->conn->privateData;
     virDomainObjPtr vm;
-    virCgroupPtr cgroup_emulator = NULL;
+    g_autoptr(virCgroup) cgroup_emulator = NULL;
     virDomainDefPtr def;
     virDomainDefPtr persistentDef;
     int ret = -1;
@@ -4782,10 +4778,7 @@ qemuDomainPinEmulator(virDomainPtr dom,
             goto endjob;
 
         virBitmapFree(def->cputune.emulatorpin);
-        def->cputune.emulatorpin = NULL;
-
-        if (!(def->cputune.emulatorpin = virBitmapNewCopy(pcpumap)))
-            goto endjob;
+        def->cputune.emulatorpin = virBitmapNewCopy(pcpumap);
 
         if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
             goto endjob;
@@ -4802,10 +4795,7 @@ qemuDomainPinEmulator(virDomainPtr dom,
 
     if (persistentDef) {
         virBitmapFree(persistentDef->cputune.emulatorpin);
-        persistentDef->cputune.emulatorpin = NULL;
-
-        if (!(persistentDef->cputune.emulatorpin = virBitmapNewCopy(pcpumap)))
-            goto endjob;
+        persistentDef->cputune.emulatorpin = virBitmapNewCopy(pcpumap);
 
         ret = virDomainDefSave(persistentDef, driver->xmlopt, cfg->configDir);
         goto endjob;
@@ -4817,8 +4807,6 @@ qemuDomainPinEmulator(virDomainPtr dom,
     qemuDomainObjEndJob(driver, vm);
 
  cleanup:
-    if (cgroup_emulator)
-        virCgroupFree(&cgroup_emulator);
     virObjectEventStateQueue(driver->domainEventState, event);
     virBitmapFree(pcpumap);
     virDomainObjEndAPI(&vm);
@@ -5043,14 +5031,12 @@ qemuDomainGetIOThreadsLive(virQEMUDriverPtr driver,
         goto endjob;
     }
 
-    if (VIR_ALLOC_N(info_ret, niothreads) < 0)
-        goto endjob;
+    info_ret = g_new0(virDomainIOThreadInfoPtr, niothreads);
 
     for (i = 0; i < niothreads; i++) {
         virBitmapPtr map = NULL;
 
-        if (VIR_ALLOC(info_ret[i]) < 0)
-            goto endjob;
+        info_ret[i] = g_new0(virDomainIOThreadInfo, 1);
         info_ret[i]->iothread_id = iothreads[i]->iothread_id;
 
         if (!(map = virProcessGetAffinity(iothreads[i]->thread_id)))
@@ -5098,12 +5084,10 @@ qemuDomainGetIOThreadsConfig(virDomainDefPtr targetDef,
     if (targetDef->niothreadids == 0)
         return 0;
 
-    if (VIR_ALLOC_N(info_ret, targetDef->niothreadids) < 0)
-        goto cleanup;
+    info_ret = g_new0(virDomainIOThreadInfoPtr, targetDef->niothreadids);
 
     for (i = 0; i < targetDef->niothreadids; i++) {
-        if (VIR_ALLOC(info_ret[i]) < 0)
-            goto cleanup;
+        info_ret[i] = g_new0(virDomainIOThreadInfo, 1);
 
         /* IOThread ID's are taken from the iothreadids list */
         info_ret[i]->iothread_id = targetDef->iothreadids[i]->iothread_id;
@@ -5187,7 +5171,7 @@ qemuDomainPinIOThread(virDomainPtr dom,
     virDomainDefPtr persistentDef;
     virBitmapPtr pcpumap = NULL;
     qemuDomainObjPrivatePtr priv;
-    virCgroupPtr cgroup_iothread = NULL;
+    g_autoptr(virCgroup) cgroup_iothread = NULL;
     virObjectEventPtr event = NULL;
     char paramField[VIR_TYPED_PARAM_FIELD_LENGTH] = "";
     g_autofree char *str = NULL;
@@ -5299,8 +5283,6 @@ qemuDomainPinIOThread(virDomainPtr dom,
     qemuDomainObjEndJob(driver, vm);
 
  cleanup:
-    if (cgroup_iothread)
-        virCgroupFree(&cgroup_iothread);
     virObjectEventStateQueue(driver->domainEventState, event);
     virBitmapFree(pcpumap);
     virDomainObjEndAPI(&vm);
@@ -5945,10 +5927,7 @@ static int qemuDomainGetSecurityLabelList(virDomainPtr dom,
         for (i = 0; mgrs[i]; i++)
             len++;
 
-        if (VIR_ALLOC_N((*seclabels), len) < 0) {
-            VIR_FREE(mgrs);
-            goto cleanup;
-        }
+        (*seclabels) = g_new0(virSecurityLabel, len);
         memset(*seclabels, 0, sizeof(**seclabels) * len);
 
         /* Fill the array */
@@ -6419,6 +6398,59 @@ static char
 }
 
 
+static int
+qemuConnectDomainXMLToNativePrepareHostHostdev(virDomainHostdevDefPtr hostdev)
+{
+    if (virHostdevIsSCSIDevice(hostdev)) {
+        virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
+
+        switch ((virDomainHostdevSCSIProtocolType) scsisrc->protocol) {
+        case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE: {
+            virDomainHostdevSubsysSCSIHostPtr scsihostsrc = &scsisrc->u.host;
+            virStorageSourcePtr src = scsisrc->u.host.src;
+            g_autofree char *devstr = NULL;
+
+            if (!(devstr = virSCSIDeviceGetSgName(NULL,
+                                                  scsihostsrc->adapter,
+                                                  scsihostsrc->bus,
+                                                  scsihostsrc->target,
+                                                  scsihostsrc->unit)))
+                return -1;
+
+            src->path = g_strdup_printf("/dev/%s", devstr);
+            break;
+        }
+
+        case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI:
+            break;
+
+        case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_LAST:
+        default:
+            virReportEnumRangeError(virDomainHostdevSCSIProtocolType, scsisrc->protocol);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+qemuConnectDomainXMLToNativePrepareHost(virDomainObjPtr vm)
+{
+    size_t i;
+
+    for (i = 0; i < vm->def->nhostdevs; i++) {
+        virDomainHostdevDefPtr hostdev = vm->def->hostdevs[i];
+
+        if (qemuConnectDomainXMLToNativePrepareHostHostdev(hostdev) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
 static char *qemuConnectDomainXMLToNative(virConnectPtr conn,
                                           const char *format,
                                           const char *xmlData,
@@ -6456,29 +6488,31 @@ static char *qemuConnectDomainXMLToNative(virConnectPtr conn,
      */
     for (i = 0; i < vm->def->nnets; i++) {
         virDomainNetDefPtr net = vm->def->nets[i];
-        unsigned int bootIndex = net->info.bootIndex;
-        g_autofree char *model = NULL;
-        virMacAddr mac = net->mac;
-        char *script = net->script;
+        virDomainNetDefPtr newNet = virDomainNetDefNew(driver->xmlopt);
 
-        model = g_strdup(virDomainNetGetModelString(net));
-
-        net->script = NULL;
-
-        virDomainNetDefClear(net);
-
-        net->type = VIR_DOMAIN_NET_TYPE_ETHERNET;
-        net->info.bootIndex = bootIndex;
-        net->mac = mac;
-        net->script = script;
-
-        if (virDomainNetSetModelString(net, model) < 0)
+        if (!newNet)
             goto cleanup;
+
+        newNet->type = VIR_DOMAIN_NET_TYPE_ETHERNET;
+        newNet->info.bootIndex = net->info.bootIndex;
+        newNet->model = net->model;
+        newNet->modelstr = g_steal_pointer(&net->modelstr);
+        newNet->mac = net->mac;
+        newNet->script = g_steal_pointer(&net->script);
+
+        virDomainNetDefFree(net);
+        vm->def->nets[i] = newNet;
     }
 
-    if (!(cmd = qemuProcessCreatePretendCmd(driver, vm, NULL,
-                                            qemuCheckFips(), true, false,
-                                            VIR_QEMU_PROCESS_START_COLD)))
+    if (qemuProcessCreatePretendCmdPrepare(driver, vm, NULL, true,
+                                           VIR_QEMU_PROCESS_START_COLD) < 0)
+        goto cleanup;
+
+    if (qemuConnectDomainXMLToNativePrepareHost(vm) < 0)
+        goto cleanup;
+
+    if (!(cmd = qemuProcessCreatePretendCmdBuild(driver, vm, NULL,
+                                                 qemuCheckFips(vm), true, false)))
         goto cleanup;
 
     ret = virCommandToString(cmd, false);
@@ -8711,65 +8745,60 @@ static int
 qemuDomainSetNumaParamsLive(virDomainObjPtr vm,
                             virBitmapPtr nodeset)
 {
-    virCgroupPtr cgroup_temp = NULL;
+    g_autoptr(virCgroup) cgroup_thread = NULL;
     qemuDomainObjPrivatePtr priv = vm->privateData;
     g_autofree char *nodeset_str = NULL;
     virDomainNumatuneMemMode mode;
     size_t i = 0;
-    int ret = -1;
 
     if (virDomainNumatuneGetMode(vm->def->numa, -1, &mode) == 0 &&
         mode != VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("change of nodeset for running domain "
                          "requires strict numa mode"));
-        goto cleanup;
+        return -1;
     }
 
     if (!virNumaNodesetIsAvailable(nodeset))
-        goto cleanup;
+        return -1;
 
     /* Ensure the cpuset string is formatted before passing to cgroup */
     if (!(nodeset_str = virBitmapFormat(nodeset)))
-        goto cleanup;
+        return -1;
 
     if (virCgroupNewThread(priv->cgroup, VIR_CGROUP_THREAD_EMULATOR, 0,
-                           false, &cgroup_temp) < 0 ||
-        virCgroupSetCpusetMems(cgroup_temp, nodeset_str) < 0)
-        goto cleanup;
-    virCgroupFree(&cgroup_temp);
+                           false, &cgroup_thread) < 0 ||
+        virCgroupSetCpusetMems(cgroup_thread, nodeset_str) < 0)
+        return -1;
 
     for (i = 0; i < virDomainDefGetVcpusMax(vm->def); i++) {
+        g_autoptr(virCgroup) cgroup_vcpu = NULL;
         virDomainVcpuDefPtr vcpu = virDomainDefGetVcpu(vm->def, i);
 
         if (!vcpu->online)
             continue;
 
         if (virCgroupNewThread(priv->cgroup, VIR_CGROUP_THREAD_VCPU, i,
-                               false, &cgroup_temp) < 0 ||
-            virCgroupSetCpusetMems(cgroup_temp, nodeset_str) < 0)
-            goto cleanup;
-        virCgroupFree(&cgroup_temp);
+                               false, &cgroup_vcpu) < 0 ||
+            virCgroupSetCpusetMems(cgroup_vcpu, nodeset_str) < 0)
+            return -1;
     }
 
     for (i = 0; i < vm->def->niothreadids; i++) {
+        g_autoptr(virCgroup) cgroup_iothread = NULL;
+
         if (virCgroupNewThread(priv->cgroup, VIR_CGROUP_THREAD_IOTHREAD,
                                vm->def->iothreadids[i]->iothread_id,
-                               false, &cgroup_temp) < 0 ||
-            virCgroupSetCpusetMems(cgroup_temp, nodeset_str) < 0)
-            goto cleanup;
-        virCgroupFree(&cgroup_temp);
+                               false, &cgroup_iothread) < 0 ||
+            virCgroupSetCpusetMems(cgroup_iothread, nodeset_str) < 0)
+            return -1;
     }
 
     /* set nodeset for root cgroup */
     if (virCgroupSetCpusetMems(priv->cgroup, nodeset_str) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virCgroupFree(&cgroup_temp);
-
-    return ret;
+    return 0;
 }
 
 static int
@@ -9163,7 +9192,6 @@ qemuSetVcpusBWLive(virDomainObjPtr vm, virCgroupPtr cgroup,
                    unsigned long long period, long long quota)
 {
     size_t i;
-    virCgroupPtr cgroup_vcpu = NULL;
 
     if (period == 0 && quota == 0)
         return 0;
@@ -9172,26 +9200,21 @@ qemuSetVcpusBWLive(virDomainObjPtr vm, virCgroupPtr cgroup,
         return 0;
 
     for (i = 0; i < virDomainDefGetVcpusMax(vm->def); i++) {
+        g_autoptr(virCgroup) cgroup_vcpu = NULL;
         virDomainVcpuDefPtr vcpu = virDomainDefGetVcpu(vm->def, i);
 
         if (!vcpu->online)
-            continue;
+            return -1;
 
         if (virCgroupNewThread(cgroup, VIR_CGROUP_THREAD_VCPU, i,
                                false, &cgroup_vcpu) < 0)
-            goto cleanup;
+            return -1;
 
         if (qemuSetupCgroupVcpuBW(cgroup_vcpu, period, quota) < 0)
-            goto cleanup;
-
-        virCgroupFree(&cgroup_vcpu);
+            return -1;
     }
 
     return 0;
-
- cleanup:
-    virCgroupFree(&cgroup_vcpu);
-    return -1;
 }
 
 static int
@@ -9199,24 +9222,19 @@ qemuSetEmulatorBandwidthLive(virCgroupPtr cgroup,
                              unsigned long long period,
                              long long quota)
 {
-    virCgroupPtr cgroup_emulator = NULL;
+    g_autoptr(virCgroup) cgroup_emulator = NULL;
 
     if (period == 0 && quota == 0)
         return 0;
 
     if (virCgroupNewThread(cgroup, VIR_CGROUP_THREAD_EMULATOR, 0,
                            false, &cgroup_emulator) < 0)
-        goto cleanup;
+        return -1;
 
     if (qemuSetupCgroupVcpuBW(cgroup_emulator, period, quota) < 0)
-        goto cleanup;
+        return -1;
 
-    virCgroupFree(&cgroup_emulator);
     return 0;
-
- cleanup:
-    virCgroupFree(&cgroup_emulator);
-    return -1;
 }
 
 
@@ -9225,7 +9243,6 @@ qemuSetIOThreadsBWLive(virDomainObjPtr vm, virCgroupPtr cgroup,
                        unsigned long long period, long long quota)
 {
     size_t i;
-    virCgroupPtr cgroup_iothread = NULL;
 
     if (period == 0 && quota == 0)
         return 0;
@@ -9234,22 +9251,18 @@ qemuSetIOThreadsBWLive(virDomainObjPtr vm, virCgroupPtr cgroup,
         return 0;
 
     for (i = 0; i < vm->def->niothreadids; i++) {
+        g_autoptr(virCgroup) cgroup_iothread = NULL;
+
         if (virCgroupNewThread(cgroup, VIR_CGROUP_THREAD_IOTHREAD,
                                vm->def->iothreadids[i]->iothread_id,
                                false, &cgroup_iothread) < 0)
-            goto cleanup;
+            return -1;
 
         if (qemuSetupCgroupVcpuBW(cgroup_iothread, period, quota) < 0)
-            goto cleanup;
-
-        virCgroupFree(&cgroup_iothread);
+            return -1;
     }
 
     return 0;
-
- cleanup:
-    virCgroupFree(&cgroup_iothread);
-    return -1;
 }
 
 
@@ -9591,38 +9604,32 @@ static int
 qemuGetVcpusBWLive(virDomainObjPtr vm,
                    unsigned long long *period, long long *quota)
 {
-    virCgroupPtr cgroup_vcpu = NULL;
+    g_autoptr(virCgroup) cgroup_vcpu = NULL;
     qemuDomainObjPrivatePtr priv = NULL;
     int rc;
-    int ret = -1;
 
     priv = vm->privateData;
     if (!qemuDomainHasVcpuPids(vm)) {
         /* We do not create sub dir for each vcpu */
         rc = qemuGetVcpuBWLive(priv->cgroup, period, quota);
         if (rc < 0)
-            goto cleanup;
+            return -1;
 
         if (*quota > 0)
             *quota /= virDomainDefGetVcpus(vm->def);
-        goto out;
+        return 0;
     }
 
     /* get period and quota for vcpu0 */
     if (virCgroupNewThread(priv->cgroup, VIR_CGROUP_THREAD_VCPU, 0,
                            false, &cgroup_vcpu) < 0)
-        goto cleanup;
+        return -1;
 
     rc = qemuGetVcpuBWLive(cgroup_vcpu, period, quota);
     if (rc < 0)
-        goto cleanup;
+        return -1;
 
- out:
-    ret = 0;
-
- cleanup:
-    virCgroupFree(&cgroup_vcpu);
-    return ret;
+    return 0;
 }
 
 static int
@@ -9630,58 +9637,47 @@ qemuGetEmulatorBandwidthLive(virCgroupPtr cgroup,
                              unsigned long long *period,
                              long long *quota)
 {
-    virCgroupPtr cgroup_emulator = NULL;
-    int ret = -1;
+    g_autoptr(virCgroup) cgroup_emulator = NULL;
 
     /* get period and quota for emulator */
     if (virCgroupNewThread(cgroup, VIR_CGROUP_THREAD_EMULATOR, 0,
                            false, &cgroup_emulator) < 0)
-        goto cleanup;
+        return -1;
 
     if (qemuGetVcpuBWLive(cgroup_emulator, period, quota) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virCgroupFree(&cgroup_emulator);
-    return ret;
+    return 0;
 }
 
 static int
 qemuGetIOThreadsBWLive(virDomainObjPtr vm,
                        unsigned long long *period, long long *quota)
 {
-    virCgroupPtr cgroup_iothread = NULL;
+    g_autoptr(virCgroup) cgroup_iothread = NULL;
     qemuDomainObjPrivatePtr priv = NULL;
     int rc;
-    int ret = -1;
 
     priv = vm->privateData;
     if (!vm->def->niothreadids) {
         /* We do not create sub dir for each iothread */
         if ((rc = qemuGetVcpuBWLive(priv->cgroup, period, quota)) < 0)
-            goto cleanup;
+            return -1;
 
-        goto out;
+        return 0;
     }
 
     /* get period and quota for the "first" IOThread */
     if (virCgroupNewThread(priv->cgroup, VIR_CGROUP_THREAD_IOTHREAD,
                            vm->def->iothreadids[0]->iothread_id,
                            false, &cgroup_iothread) < 0)
-        goto cleanup;
+        return -1;
 
     rc = qemuGetVcpuBWLive(cgroup_iothread, period, quota);
     if (rc < 0)
-        goto cleanup;
+        return -1;
 
- out:
-    ret = 0;
-
- cleanup:
-    virCgroupFree(&cgroup_iothread);
-    return ret;
+    return 0;
 }
 
 
@@ -9983,8 +9979,7 @@ qemuDomainBlocksStatsGather(virQEMUDriverPtr driver,
     if (qemuDomainObjExitMonitor(driver, vm) < 0 || nstats < 0 || rc < 0)
         goto cleanup;
 
-    if (VIR_ALLOC(*retstats) < 0)
-        goto cleanup;
+    *retstats = g_new0(qemuBlockStats, 1);
 
     if (entryname) {
         if (!(stats = virHashLookup(blockstats, entryname))) {
@@ -10196,6 +10191,20 @@ qemuDomainInterfaceStats(virDomainPtr dom,
     if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
         if (virNetDevOpenvswitchInterfaceStats(net->ifname, stats) < 0)
             goto cleanup;
+    } else if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_HOSTDEV) {
+        virDomainHostdevDefPtr hostdev = virDomainNetGetActualHostdev(net);
+        virPCIDeviceAddressPtr vfAddr;
+
+        if (!hostdev) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           "%s", _("hostdev interface missing hostdev data"));
+            goto cleanup;
+        }
+
+        vfAddr = &hostdev->source.subsys.u.pci.addr;
+        if (virNetDevVFInterfaceStats(vfAddr, stats) < 0)
+            goto cleanup;
+
     } else {
         if (virNetDevTapInterfaceStats(net->ifname, stats,
                                        !virDomainNetTypeSharesHostView(net)) < 0)
@@ -10288,10 +10297,9 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
         goto endjob;
     }
 
-    if ((VIR_ALLOC(bandwidth) < 0) ||
-        (VIR_ALLOC(bandwidth->in) < 0) ||
-        (VIR_ALLOC(bandwidth->out) < 0))
-        goto endjob;
+    bandwidth = g_new0(virNetDevBandwidth, 1);
+    bandwidth->in = g_new0(virNetDevBandwidthRate, 1);
+    bandwidth->out = g_new0(virNetDevBandwidthRate, 1);
 
     for (i = 0; i < nparams; i++) {
         virTypedParameterPtr param = &params[i];
@@ -10325,16 +10333,14 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
         VIR_FREE(bandwidth->out);
 
     if (net) {
-        if (VIR_ALLOC(newBandwidth) < 0)
-            goto endjob;
+        newBandwidth = g_new0(virNetDevBandwidth, 1);
 
         /* virNetDevBandwidthSet() will clear any previous value of
          * bandwidth parameters, so merge with old bandwidth parameters
          * here to prevent them from being lost. */
         if (bandwidth->in ||
             (!inboundSpecified && net->bandwidth && net->bandwidth->in)) {
-            if (VIR_ALLOC(newBandwidth->in) < 0)
-                goto endjob;
+            newBandwidth->in = g_new0(virNetDevBandwidthRate, 1);
 
             memcpy(newBandwidth->in,
                    bandwidth->in ? bandwidth->in : net->bandwidth->in,
@@ -10342,8 +10348,7 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
         }
         if (bandwidth->out ||
             (!outboundSpecified && net->bandwidth && net->bandwidth->out)) {
-            if (VIR_ALLOC(newBandwidth->out) < 0)
-                goto endjob;
+            newBandwidth->out = g_new0(virNetDevBandwidthRate, 1);
 
             memcpy(newBandwidth->out,
                    bandwidth->out ? bandwidth->out : net->bandwidth->out,
@@ -12227,20 +12232,23 @@ qemuConnectCompareCPU(virConnectPtr conn,
     virQEMUDriverPtr driver = conn->privateData;
     g_autoptr(virCPUDef) cpu = NULL;
     bool failIncompatible;
+    bool validateXML;
 
-    virCheckFlags(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE,
+    virCheckFlags(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE |
+                  VIR_CONNECT_COMPARE_CPU_VALIDATE_XML,
                   VIR_CPU_COMPARE_ERROR);
 
     if (virConnectCompareCPUEnsureACL(conn) < 0)
         return VIR_CPU_COMPARE_ERROR;
 
     failIncompatible = !!(flags & VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE);
+    validateXML = !!(flags & VIR_CONNECT_COMPARE_CPU_VALIDATE_XML);
 
     if (!(cpu = virQEMUDriverGetHostCPU(driver)))
         return VIR_CPU_COMPARE_ERROR;
 
     return virCPUCompareXML(driver->hostarch, cpu,
-                            xmlDesc, failIncompatible);
+                            xmlDesc, failIncompatible, validateXML);
 }
 
 
@@ -12295,18 +12303,21 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(virQEMUCaps) qemuCaps = NULL;
     bool failIncompatible;
+    bool validateXML;
     virCPUDefPtr hvCPU;
     virCPUDefPtr cpu = NULL;
     virArch arch;
     virDomainVirtType virttype;
 
-    virCheckFlags(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE,
+    virCheckFlags(VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE |
+                  VIR_CONNECT_COMPARE_CPU_VALIDATE_XML,
                   VIR_CPU_COMPARE_ERROR);
 
     if (virConnectCompareHypervisorCPUEnsureACL(conn) < 0)
         goto cleanup;
 
     failIncompatible = !!(flags & VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE);
+    validateXML = !!(flags & VIR_CONNECT_COMPARE_CPU_VALIDATE_XML);
 
     qemuCaps = virQEMUCapsCacheLookupDefault(driver->qemuCapsCache,
                                              emulator,
@@ -12330,10 +12341,12 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
     }
 
     if (ARCH_IS_X86(arch)) {
-        ret = virCPUCompareXML(arch, hvCPU, xmlCPU, failIncompatible);
+        ret = virCPUCompareXML(arch, hvCPU, xmlCPU, failIncompatible,
+                               validateXML);
     } else if (ARCH_IS_S390(arch) &&
                virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON)) {
-        if (virCPUDefParseXMLString(xmlCPU, VIR_CPU_TYPE_AUTO, &cpu) < 0)
+        if (virCPUDefParseXMLString(xmlCPU, VIR_CPU_TYPE_AUTO, &cpu,
+                                    validateXML) < 0)
             goto cleanup;
 
         if (!cpu->model) {
@@ -12467,8 +12480,7 @@ qemuConnectCPUModelBaseline(virQEMUCapsPtr qemuCaps,
     if (qemuProcessQMPStart(proc) < 0)
         return NULL;
 
-    if (VIR_ALLOC(baseline) < 0)
-        return NULL;
+    baseline = g_new0(virCPUDef, 1);
 
     if (virCPUDefCopyModel(baseline, cpus[0], false))
         return NULL;
@@ -17725,8 +17737,7 @@ qemuDomainGetResctrlMonData(virQEMUDriverPtr driver,
             if (domresmon->tag != tag)
                 continue;
 
-            if (VIR_ALLOC(res) < 0)
-                return -1;
+            res = g_new0(virQEMUResctrlMonData, 1);
 
             /* If virBitmapFormat successfully returns an vcpu string, then
              * res.vcpus is assigned with an memory space holding it,
@@ -18040,9 +18051,8 @@ qemuDomainGetStatsVcpu(virQEMUDriverPtr driver,
                                  "vcpu.maximum") < 0)
         return -1;
 
-    if (VIR_ALLOC_N(cpuinfo, virDomainDefGetVcpus(dom->def)) < 0 ||
-        VIR_ALLOC_N(cpuwait, virDomainDefGetVcpus(dom->def)) < 0)
-        goto cleanup;
+    cpuinfo = g_new0(virVcpuInfo, virDomainDefGetVcpus(dom->def));
+    cpuwait = g_new0(unsigned long long, virDomainDefGetVcpus(dom->def));
 
     if (HAVE_JOB(privflags) && virDomainObjIsActive(dom) &&
         qemuDomainRefreshVcpuHalted(driver, dom, QEMU_ASYNC_JOB_NONE) < 0) {
@@ -18694,8 +18704,7 @@ qemuDomainGetStats(virConnectPtr conn,
     g_autoptr(virTypedParamList) params = NULL;
     size_t i;
 
-    if (VIR_ALLOC(params) < 0)
-        return -1;
+    params = g_new0(virTypedParamList, 1);
 
     for (i = 0; qemuDomainGetStatsWorkers[i].func; i++) {
         if (stats & qemuDomainGetStatsWorkers[i].stats) {
@@ -18705,8 +18714,7 @@ qemuDomainGetStats(virConnectPtr conn,
         }
     }
 
-    if (VIR_ALLOC(tmp) < 0)
-        return -1;
+    tmp = g_new0(virDomainStatsRecord, 1);
 
     if (!(tmp->dom = virGetDomain(conn, dom->def->name,
                                   dom->def->uuid, dom->def->id)))
@@ -18767,8 +18775,7 @@ qemuConnectGetAllDomainStats(virConnectPtr conn,
             return -1;
     }
 
-    if (VIR_ALLOC_N(tmpstats, nvms + 1) < 0)
-        goto cleanup;
+    tmpstats = g_new0(virDomainStatsRecordPtr, nvms + 1);
 
     if (qemuDomainGetStatsNeedMonitor(stats))
         privflags |= QEMU_DOMAIN_STATS_HAVE_JOB;
@@ -19284,17 +19291,12 @@ qemuDomainGetGuestVcpusParams(virTypedParameterPtr *params,
     virTypedParameterPtr par = NULL;
     int npar = 0;
     int maxpar = 0;
-    virBitmapPtr vcpus = NULL;
-    virBitmapPtr online = NULL;
-    virBitmapPtr offlinable = NULL;
+    virBitmapPtr vcpus = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID);
+    virBitmapPtr online = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID);
+    virBitmapPtr offlinable = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID);
     g_autofree char *tmp = NULL;
     size_t i;
     int ret = -1;
-
-    if (!(vcpus = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID)) ||
-        !(online = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID)) ||
-        !(offlinable = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID)))
-        goto cleanup;
 
     for (i = 0; i < ninfo; i++) {
         if (virBitmapSetBit(vcpus, info[i].id) < 0) {

@@ -20,9 +20,11 @@
 
 #include <config.h>
 
+#include "configmake.h"
 #include "virerror.h"
 #include "viralloc.h"
 #include "virbuffer.h"
+#include "virfile.h"
 #include "cpu_conf.h"
 #include "domain_conf.h"
 #include "virstring.h"
@@ -151,9 +153,7 @@ virCPUDefCopyModelFilter(virCPUDefPtr dst,
     size_t i;
     size_t n;
 
-    if (VIR_ALLOC_N(dst->features, src->nfeatures) < 0)
-        return -1;
-
+    dst->features = g_new0(virCPUFeatureDef, src->nfeatures);
     dst->model = g_strdup(src->model);
     dst->vendor = g_strdup(src->vendor);
     dst->vendor_id = g_strdup(src->vendor_id);
@@ -246,16 +246,12 @@ virCPUDefCopyWithoutModel(const virCPUDef *cpu)
     copy->migratable = cpu->migratable;
 
     if (cpu->cache) {
-        if (VIR_ALLOC(copy->cache) < 0)
-            return NULL;
-
+        copy->cache = g_new0(virCPUCacheDef, 1);
         *copy->cache = *cpu->cache;
     }
 
     if (cpu->tsc) {
-        if (VIR_ALLOC(copy->tsc) < 0)
-            return NULL;
-
+        copy->tsc = g_new0(virHostCPUTscInfo, 1);
         *copy->tsc = *cpu->tsc;
     }
 
@@ -281,7 +277,8 @@ virCPUDefCopy(const virCPUDef *cpu)
 int
 virCPUDefParseXMLString(const char *xml,
                         virCPUType type,
-                        virCPUDefPtr *cpu)
+                        virCPUDefPtr *cpu,
+                        bool validateXML)
 {
     xmlDocPtr doc = NULL;
     xmlXPathContextPtr ctxt = NULL;
@@ -295,7 +292,7 @@ virCPUDefParseXMLString(const char *xml,
     if (!(doc = virXMLParseStringCtxt(xml, _("(CPU_definition)"), &ctxt)))
         goto cleanup;
 
-    if (virCPUDefParseXML(ctxt, NULL, type, cpu) < 0)
+    if (virCPUDefParseXML(ctxt, NULL, type, cpu, validateXML) < 0)
         goto cleanup;
 
     ret = 0;
@@ -323,7 +320,8 @@ int
 virCPUDefParseXML(xmlXPathContextPtr ctxt,
                   const char *xpath,
                   virCPUType type,
-                  virCPUDefPtr *cpu)
+                  virCPUDefPtr *cpu,
+                  bool validateXML)
 {
     g_autoptr(virCPUDef) def = NULL;
     g_autofree xmlNodePtr *nodes = NULL;
@@ -346,6 +344,19 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("XML does not contain expected 'cpu' element"));
         return -1;
+    }
+
+    if (validateXML) {
+        g_autofree char *schemafile = NULL;
+
+        if (!(schemafile = virFileFindResource("cpu.rng",
+                                               abs_top_srcdir "/docs/schemas",
+                                               PKGDATADIR "/schemas")))
+            return -1;
+
+        if (virXMLValidateNodeAgainstSchema(schemafile, ctxt->doc,
+                                            ctxt->node) < 0)
+            return -1;
     }
 
     def = virCPUDefNew();
@@ -1139,14 +1150,13 @@ virCPUDefListParse(const char **xmlCPUs,
         goto error;
     }
 
-    if (VIR_ALLOC_N(cpus, ncpus + 1))
-        goto error;
+    cpus = g_new0(virCPUDefPtr, ncpus + 1);
 
     for (i = 0; i < ncpus; i++) {
         if (!(doc = virXMLParseStringCtxt(xmlCPUs[i], _("(CPU_definition)"), &ctxt)))
             goto error;
 
-        if (virCPUDefParseXML(ctxt, NULL, cpuType, &cpus[i]) < 0)
+        if (virCPUDefParseXML(ctxt, NULL, cpuType, &cpus[i], false) < 0)
             goto error;
 
         xmlXPathFreeContext(ctxt);

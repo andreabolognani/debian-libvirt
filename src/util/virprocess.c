@@ -447,6 +447,7 @@ int virProcessSetAffinity(pid_t pid, virBitmapPtr map, bool quiet)
     int numcpus = 1024;
     size_t masklen;
     cpu_set_t *mask;
+    int rv = -1;
 
     VIR_DEBUG("Set process affinity on %lld", (long long)pid);
 
@@ -472,8 +473,10 @@ int virProcessSetAffinity(pid_t pid, virBitmapPtr map, bool quiet)
             CPU_SET_S(i, masklen, mask);
     }
 
-    if (sched_setaffinity(pid, masklen, mask) < 0) {
-        CPU_FREE(mask);
+    rv = sched_setaffinity(pid, masklen, mask);
+    CPU_FREE(mask);
+
+    if (rv < 0) {
         if (errno == EINVAL &&
             numcpus < (1024 << 8)) { /* 262144 cpus ought to be enough for anyone */
             numcpus = numcpus << 2;
@@ -488,7 +491,6 @@ int virProcessSetAffinity(pid_t pid, virBitmapPtr map, bool quiet)
             return -1;
         }
     }
-    CPU_FREE(mask);
 
     return 0;
 }
@@ -520,8 +522,7 @@ virProcessGetAffinity(pid_t pid)
         goto cleanup;
     }
 
-    if (!(ret = virBitmapNew(ncpus)))
-          goto cleanup;
+    ret = virBitmapNew(ncpus);
 
     for (i = 0; i < ncpus; i++) {
          /* coverity[overrun-local] */
@@ -580,8 +581,7 @@ virProcessGetAffinity(pid_t pid)
         return NULL;
     }
 
-    if (!(ret = virBitmapNew(sizeof(mask) * 8)))
-        return NULL;
+    ret = virBitmapNew(sizeof(mask) * 8);
 
     for (i = 0; i < sizeof(mask) * 8; i++)
         if (CPU_ISSET(i, &mask))
@@ -1353,8 +1353,7 @@ virProcessNamespaceAvailable(unsigned int ns)
     /* Signal parent as soon as the child dies. RIP. */
     flags |= SIGCHLD;
 
-    if (VIR_ALLOC_N(stack, stacksize) < 0)
-        return -1;
+    stack = g_new0(char, stacksize);
 
     childStack = stack + stacksize;
 

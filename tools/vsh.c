@@ -100,24 +100,6 @@ vshPrettyCapacity(unsigned long long val, const char **unit)
 }
 
 
-void *
-_vshMalloc(vshControl *ctl, size_t size, const char *filename, int line)
-{
-    char *x;
-
-    if (VIR_ALLOC_N(x, size) == 0)
-        return x;
-    vshError(ctl, _("%s: %d: failed to allocate %d bytes"),
-             filename, line, (int) size);
-    exit(EXIT_FAILURE);
-}
-
-void *
-vshCalloc(vshControl *ctl G_GNUC_UNUSED, size_t nmemb, size_t size)
-{
-    return g_malloc0_n(nmemb, size);
-}
-
 int
 vshNameSorter(const void *a, const void *b)
 {
@@ -162,10 +144,7 @@ vshStringToArray(const char *str,
     }
 
     /* reserve the NULL element at the end */
-    if (VIR_ALLOC_N(arr, nstr_tokens + 1) < 0) {
-        VIR_FREE(str_copied);
-        return -1;
-    }
+    arr = g_new0(char *, nstr_tokens + 1);
 
     /* tokenize the input string, while treating ,, as a literal comma */
     nstr_tokens = 0;
@@ -1453,7 +1432,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
                         goto syntaxError;
                     if (tk != VSH_TK_ARG) {
                         if (partial) {
-                            vshCmdOpt *arg = vshMalloc(ctl, sizeof(vshCmdOpt));
+                            vshCmdOpt *arg = g_new0(vshCmdOpt, 1);
                             arg->def = opt;
                             arg->data = tkdata;
                             tkdata = NULL;
@@ -1502,7 +1481,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
             }
             if (opt) {
                 /* save option */
-                vshCmdOpt *arg = vshMalloc(ctl, sizeof(vshCmdOpt));
+                vshCmdOpt *arg = g_new0(vshCmdOpt, 1);
 
                 arg->def = opt;
                 arg->data = tkdata;
@@ -1526,7 +1505,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
 
         /* command parsed -- allocate new struct for the command */
         if (cmd) {
-            vshCmd *c = vshMalloc(ctl, sizeof(vshCmd));
+            vshCmd *c = g_new0(vshCmd, 1);
             vshCmdOpt *tmpopt = first;
 
             /* if we encountered --help, replace parsed command with
@@ -1538,7 +1517,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
 
                 help = vshCmddefSearch("help");
                 vshCommandOptFree(first);
-                first = vshMalloc(ctl, sizeof(vshCmdOpt));
+                first = g_new0(vshCmdOpt, 1);
                 first->def = help->opts;
                 first->data = g_strdup(cmd->name);
                 first->next = NULL;
@@ -1582,7 +1561,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
     if (partial) {
         vshCmd *tmp;
 
-        tmp = vshMalloc(ctl, sizeof(*tmp));
+        tmp = g_new0(vshCmd, 1);
         tmp->opts = first;
         tmp->def = cmd;
 
@@ -2656,7 +2635,7 @@ vshReadlineOptionsGenerator(const char *text,
         }
 
         name_len = strlen(name);
-        ret[ret_size] = vshMalloc(NULL, name_len + 3);
+        ret[ret_size] = g_new0(char, name_len + 3);
         g_snprintf(ret[ret_size], name_len + 3,  "--%s", name);
         ret_size++;
         /* Terminate the string list properly. */

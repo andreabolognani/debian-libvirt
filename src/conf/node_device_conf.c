@@ -66,6 +66,7 @@ VIR_ENUM_IMPL(virNodeDevCap,
               "mdev",
               "ccw",
               "css",
+              "vdpa",
 );
 
 VIR_ENUM_IMPL(virNodeDevNetCap,
@@ -518,6 +519,13 @@ virNodeDeviceCapMdevDefFormat(virBufferPtr buf,
     }
 }
 
+static void
+virNodeDeviceCapVDPADefFormat(virBufferPtr buf,
+                              const virNodeDevCapData *data)
+{
+    virBufferEscapeString(buf, "<chardev>%s</chardev>\n", data->vdpa.chardev);
+}
+
 char *
 virNodeDeviceDefFormat(const virNodeDeviceDef *def)
 {
@@ -610,6 +618,9 @@ virNodeDeviceDefFormat(const virNodeDeviceDef *def)
                               data->ccw_dev.ssid);
             virBufferAsprintf(&buf, "<devno>0x%04x</devno>\n",
                               data->ccw_dev.devno);
+            break;
+        case VIR_NODE_DEV_CAP_VDPA:
+            virNodeDeviceCapVDPADefFormat(&buf, data);
             break;
         case VIR_NODE_DEV_CAP_MDEV_TYPES:
         case VIR_NODE_DEV_CAP_FC_HOST:
@@ -1143,10 +1154,8 @@ virNodeDevCapNetParseXML(xmlXPathContextPtr ctxt,
     if ((n = virXPathNodeSet("./feature", ctxt, &nodes)) < 0)
         goto out;
 
-    if (n > 0) {
-        if (!(net->features = virBitmapNew(VIR_NET_DEV_FEAT_LAST)))
-            goto out;
-    }
+    if (n > 0)
+        net->features = virBitmapNew(VIR_NET_DEV_FEAT_LAST);
 
     for (i = 0; i < n; i++) {
         int val;
@@ -1339,8 +1348,7 @@ virNodeDevCapPCIDevIommuGroupParseXML(xmlXPathContextPtr ctxt,
         virPCIDeviceAddress addr = {0};
         if (virPCIDeviceAddressParseXML(addrNodes[i], &addr) < 0)
             goto cleanup;
-        if (VIR_ALLOC(pciAddr) < 0)
-            goto cleanup;
+        pciAddr = g_new0(virPCIDeviceAddress, 1);
         pciAddr->domain = addr.domain;
         pciAddr->bus = addr.bus;
         pciAddr->slot = addr.slot;
@@ -1418,8 +1426,7 @@ virPCIEDeviceInfoParseXML(xmlXPathContextPtr ctxt,
     ctxt->node = pciExpressNode;
 
     if ((lnk = virXPathNode("./link[@validity='cap']", ctxt))) {
-        if (VIR_ALLOC(pci_express->link_cap) < 0)
-            goto cleanup;
+        pci_express->link_cap = g_new0(virPCIELink, 1);
 
         if (virPCIEDeviceInfoLinkParseXML(ctxt, lnk,
                                           pci_express->link_cap) < 0)
@@ -1427,8 +1434,7 @@ virPCIEDeviceInfoParseXML(xmlXPathContextPtr ctxt,
     }
 
     if ((lnk = virXPathNode("./link[@validity='sta']", ctxt))) {
-        if (VIR_ALLOC(pci_express->link_sta) < 0)
-            goto cleanup;
+        pci_express->link_sta = g_new0(virPCIELink, 1);
 
         if (virPCIEDeviceInfoLinkParseXML(ctxt, lnk,
                                           pci_express->link_sta) < 0)
@@ -1447,8 +1453,7 @@ virNodeDevPCICapSRIOVPhysicalParseXML(xmlXPathContextPtr ctxt,
 {
     xmlNodePtr address = virXPathNode("./address[1]", ctxt);
 
-    if (VIR_ALLOC(pci_dev->physical_function) < 0)
-        return -1;
+    pci_dev->physical_function = g_new0(virPCIDeviceAddress, 1);
 
     if (!address) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1487,14 +1492,12 @@ virNodeDevPCICapSRIOVVirtualParseXML(xmlXPathContextPtr ctxt,
         goto cleanup;
     }
 
-    if (VIR_ALLOC_N(pci_dev->virtual_functions, naddresses) < 0)
-        goto cleanup;
+    pci_dev->virtual_functions = g_new0(virPCIDeviceAddressPtr, naddresses);
 
     for (i = 0; i < naddresses; i++) {
         g_autoptr(virPCIDeviceAddress) addr = NULL;
 
-        if (VIR_ALLOC(addr) < 0)
-            goto cleanup;
+        addr = g_new0(virPCIDeviceAddress, 1);
 
         if (virPCIDeviceAddressParseXML(addresses[i], addr) < 0)
             goto cleanup;
@@ -1532,8 +1535,7 @@ virNodeDevPCICapMdevTypesParseXML(xmlXPathContextPtr ctxt,
     for (i = 0; i < nmdev_types; i++) {
         ctxt->node = nodes[i];
 
-        if (VIR_ALLOC(type) < 0)
-            goto cleanup;
+        type = g_new0(virMediatedDeviceType, 1);
 
         if (!(type->id = virXPathString("string(./@id[1])", ctxt))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1707,8 +1709,7 @@ virNodeDevCapPCIDevParseXML(xmlXPathContextPtr ctxt,
         goto out;
 
     if ((pciExpress = virXPathNode("./pci-express[1]", ctxt))) {
-        if (VIR_ALLOC(pci_express) < 0)
-            goto out;
+        pci_express = g_new0(virPCIEDeviceInfo, 1);
 
         if (virPCIEDeviceInfoParseXML(ctxt, pciExpress, pci_express) < 0)
             goto out;
@@ -1846,8 +1847,7 @@ virNodeDevCapsDefParseXML(xmlXPathContextPtr ctxt,
     char *tmp;
     int val, ret = -1;
 
-    if (VIR_ALLOC(caps) < 0)
-        return NULL;
+    caps = g_new0(virNodeDevCapsDef, 1);
 
     tmp = virXMLPropString(node, "type");
     if (!tmp) {
@@ -1913,6 +1913,7 @@ virNodeDevCapsDefParseXML(xmlXPathContextPtr ctxt,
     case VIR_NODE_DEV_CAP_FC_HOST:
     case VIR_NODE_DEV_CAP_VPORTS:
     case VIR_NODE_DEV_CAP_SCSI_GENERIC:
+    case VIR_NODE_DEV_CAP_VDPA:
     case VIR_NODE_DEV_CAP_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unknown capability type '%d' for '%s'"),
@@ -1942,8 +1943,7 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
     int n, m;
     size_t i;
 
-    if (VIR_ALLOC(def) < 0)
-        return NULL;
+    def = g_new0(virNodeDeviceDef, 1);
 
     /* Extract device name */
     if (create == EXISTING_DEVICE) {
@@ -1963,8 +1963,7 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
     if ((n = virXPathNodeSet("./devnode", ctxt, &nodes)) < 0)
         goto error;
 
-    if (VIR_ALLOC_N(def->devlinks, n + 1) < 0)
-        goto error;
+    def->devlinks = g_new0(char *, n + 1);
 
     for (i = 0, m = 0; i < n; i++) {
         xmlNodePtr node = nodes[i];
@@ -2232,6 +2231,7 @@ virNodeDevCapsDefFree(virNodeDevCapsDefPtr caps)
     case VIR_NODE_DEV_CAP_VPORTS:
     case VIR_NODE_DEV_CAP_CCW_DEV:
     case VIR_NODE_DEV_CAP_CSS_DEV:
+    case VIR_NODE_DEV_CAP_VDPA:
     case VIR_NODE_DEV_CAP_LAST:
         /* This case is here to shutup the compiler */
         break;
@@ -2286,6 +2286,7 @@ virNodeDeviceUpdateCaps(virNodeDeviceDefPtr def)
         case VIR_NODE_DEV_CAP_MDEV:
         case VIR_NODE_DEV_CAP_CCW_DEV:
         case VIR_NODE_DEV_CAP_CSS_DEV:
+        case VIR_NODE_DEV_CAP_VDPA:
         case VIR_NODE_DEV_CAP_LAST:
             break;
         }
@@ -2327,8 +2328,8 @@ virNodeDeviceCapsListExport(virNodeDeviceDefPtr def,
     if (virNodeDeviceUpdateCaps(def) < 0)
         goto cleanup;
 
-    if (want_list && VIR_ALLOC_N(tmp, VIR_NODE_DEV_CAP_LAST - 1) < 0)
-        goto cleanup;
+    if (want_list)
+        tmp = g_new0(virNodeDevCapType, VIR_NODE_DEV_CAP_LAST - 1);
 
     for (caps = def->caps; caps; caps = caps->next) {
         unsigned int flags;

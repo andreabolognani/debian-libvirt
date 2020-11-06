@@ -23,8 +23,9 @@
 
 #pragma once
 
+#include <wsman-api.h>
+
 #include "internal.h"
-#include "openwsman.h"
 
 #include "hyperv_wmi_classes.generated.typedef"
 
@@ -44,10 +45,10 @@
  */
 
 #define MSVM_COMPUTERSYSTEM_WQL_VIRTUAL \
-    "Description = \"Microsoft Virtual Machine\" "
+    "Name != __SERVER "
 
 #define MSVM_COMPUTERSYSTEM_WQL_PHYSICAL \
-    "Description = \"Microsoft Hosting Computer System\" "
+    "Name = __SERVER "
 
 #define MSVM_COMPUTERSYSTEM_WQL_ACTIVE \
     "(EnabledState != 0 and EnabledState != 3 and EnabledState != 32769) "
@@ -72,7 +73,10 @@ enum _Msvm_ComputerSystem_EnabledState {
 enum _Msvm_ComputerSystem_RequestedState {
     MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_ENABLED = 2,
     MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_DISABLED = 3,
+    MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_OFFLINE = 6,
+    MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_QUIESCE = 9,
     MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_REBOOT = 10,
+    MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_RESET = 11,
     MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_PAUSED = 32768,
     MSVM_COMPUTERSYSTEM_REQUESTEDSTATE_SUSPENDED = 32769,
 };

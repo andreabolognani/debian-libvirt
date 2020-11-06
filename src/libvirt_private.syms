@@ -402,6 +402,7 @@ virDomainDiskSourceFormat;
 virDomainDiskTranslateSourcePool;
 virDomainFeatureTypeFromString;
 virDomainFeatureTypeToString;
+virDomainFSAccessModeTypeToString;
 virDomainFSCacheModeTypeToString;
 virDomainFSDefFree;
 virDomainFSDefNew;
@@ -507,7 +508,6 @@ virDomainNetARPInterfaces;
 virDomainNetBandwidthUpdate;
 virDomainNetDefActualFromNetworkPort;
 virDomainNetDefActualToNetworkPort;
-virDomainNetDefClear;
 virDomainNetDefFormat;
 virDomainNetDefFree;
 virDomainNetDefNew;
@@ -705,6 +705,8 @@ virDomainEventLifecycleNew;
 virDomainEventLifecycleNewFromDef;
 virDomainEventLifecycleNewFromDom;
 virDomainEventLifecycleNewFromObj;
+virDomainEventMemoryFailureNewFromDom;
+virDomainEventMemoryFailureNewFromObj;
 virDomainEventMetadataChangeNewFromDom;
 virDomainEventMetadataChangeNewFromObj;
 virDomainEventMigrationIterationNewFromDom;
@@ -927,7 +929,6 @@ virNWFilterIPAddrMapShutdown;
 
 
 # conf/nwfilter_params.h
-virNWFilterHashTableCreate;
 virNWFilterHashTableEqual;
 virNWFilterHashTablePutAll;
 virNWFilterVarAccessGetVarName;
@@ -948,6 +949,7 @@ virNWFilterVarValueFree;
 virNWFilterVarValueGetCardinality;
 virNWFilterVarValueGetNthValue;
 virNWFilterVarValueGetSimple;
+virNWFilterVarValueHashFree;
 
 
 # conf/object_event.h
@@ -1615,8 +1617,6 @@ vir_g_strdup_vprintf;
 
 
 # util/viralloc.h
-virAlloc;
-virAllocN;
 virAllocVar;
 virDeleteElementsN;
 virDispose;
@@ -1669,7 +1669,6 @@ virAuthConfigNewData;
 virBitmapClearAll;
 virBitmapClearBit;
 virBitmapClearBitExpand;
-virBitmapCopy;
 virBitmapCountBits;
 virBitmapDataFormat;
 virBitmapEqual;
@@ -1684,8 +1683,6 @@ virBitmapLastSetBit;
 virBitmapNew;
 virBitmapNewCopy;
 virBitmapNewData;
-virBitmapNewEmpty;
-virBitmapNewQuiet;
 virBitmapNewString;
 virBitmapNextClearBit;
 virBitmapNextSetBit;
@@ -2204,7 +2201,6 @@ virHashAddEntry;
 virHashAtomicNew;
 virHashAtomicSteal;
 virHashAtomicUpdate;
-virHashCreate;
 virHashEqual;
 virHashForEach;
 virHashFree;
@@ -2218,9 +2214,7 @@ virHashRemoveSet;
 virHashSearch;
 virHashSize;
 virHashSteal;
-virHashTableSize;
 virHashUpdateEntry;
-virHashValueFree;
 
 
 # util/virhashcode.h
@@ -2585,9 +2579,11 @@ virNetDevSetOnline;
 virNetDevSetPromiscuous;
 virNetDevSetRcvAllMulti;
 virNetDevSetRcvMulti;
+virNetDevSetRootQDisc;
 virNetDevSetupControl;
 virNetDevSysfsFile;
 virNetDevValidateConfig;
+virNetDevVFInterfaceStats;
 
 
 # util/virnetdevbandwidth.h
@@ -2852,7 +2848,6 @@ virPCIGetHeaderType;
 virPCIGetMdevTypes;
 virPCIGetNetName;
 virPCIGetPhysicalFunction;
-virPCIGetSysfsFile;
 virPCIGetVirtualFunctionIndex;
 virPCIGetVirtualFunctionInfo;
 virPCIGetVirtualFunctions;

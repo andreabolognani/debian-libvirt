@@ -53,8 +53,7 @@ bhyveParseCommandLineUnescape(const char *command)
 
     /* Since we are only removing characters, allocating a buffer of the same
      * size as command shouldn't be a problem here */
-    if (VIR_ALLOC_N(unescaped, len+1) < 0)
-        return NULL;
+    unescaped = g_new0(char, len + 1);
 
     /* Iterate over characters in the command, skipping "\\\n", "\\\r" as well
      * as "\\\r\n". */
@@ -574,6 +573,8 @@ bhyveParsePCIFbuf(virDomainDefPtr def,
     if (!(video = virDomainVideoDefNew(xmlopt)))
         goto cleanup;
 
+    video->type = VIR_DOMAIN_VIDEO_TYPE_GOP;
+
     if (!(graphics = virDomainGraphicsDefNew(xmlopt)))
         goto cleanup;
 
@@ -590,8 +591,8 @@ bhyveParsePCIFbuf(virDomainDefPtr def,
 
     for (i = 0; i < nparams; i++) {
         param = params[i];
-        if (!video->driver && VIR_ALLOC(video->driver) < 0)
-            goto error;
+        if (!video->driver)
+            video->driver = g_new0(virDomainVideoDriverDef, 1);
 
         if (STREQ(param, "vga=on"))
             video->driver->vgaconf = VIR_DOMAIN_VIDEO_VGACONF_ON;

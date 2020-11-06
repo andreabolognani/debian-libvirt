@@ -26,7 +26,6 @@
 #include "virbuffer.h"
 #include "hyperv_private.h"
 #include "hyperv_wmi_classes.h"
-#include "openwsman.h"
 #include "virhash.h"
 
 
@@ -133,30 +132,38 @@ typedef hypervInvokeParamsList *hypervInvokeParamsListPtr;
 
 
 hypervInvokeParamsListPtr hypervCreateInvokeParamsList(hypervPrivate *priv,
-        const char *method, const char *selector, hypervWmiClassInfoListPtr obj);
+                                                       const char *method,
+                                                       const char *selector,
+                                                       hypervWmiClassInfoListPtr obj);
 
 void hypervFreeInvokeParams(hypervInvokeParamsListPtr params);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(hypervInvokeParamsList, hypervFreeInvokeParams);
 
 int hypervAddSimpleParam(hypervInvokeParamsListPtr params, const char *name,
-        const char *value);
+                         const char *value);
 
 int hypervAddEprParam(hypervInvokeParamsListPtr params, const char *name,
-        hypervPrivate *priv, virBufferPtr query,
-        hypervWmiClassInfoListPtr eprInfo);
+                      hypervPrivate *priv, virBufferPtr query,
+                      hypervWmiClassInfoListPtr eprInfo);
 
 virHashTablePtr hypervCreateEmbeddedParam(hypervPrivate *priv,
-        hypervWmiClassInfoListPtr info);
+                                          hypervWmiClassInfoListPtr info);
 
-int hypervSetEmbeddedProperty(virHashTablePtr table, const char *name,
-        char *value);
+int hypervSetEmbeddedProperty(virHashTablePtr table,
+                              const char *name,
+                              const char *value);
 
-int hypervAddEmbeddedParam(hypervInvokeParamsListPtr params, hypervPrivate *priv,
-        const char *name, virHashTablePtr table, hypervWmiClassInfoListPtr info);
+int hypervAddEmbeddedParam(hypervInvokeParamsListPtr params,
+                           hypervPrivate *priv,
+                           const char *name,
+                           virHashTablePtr *table,
+                           hypervWmiClassInfoListPtr info);
 
 void hypervFreeEmbeddedParam(virHashTablePtr p);
 
-int hypervInvokeMethod(hypervPrivate *priv, hypervInvokeParamsListPtr params,
-        WsXmlDocH *res);
+int hypervInvokeMethod(hypervPrivate *priv,
+                       hypervInvokeParamsListPtr *paramsPtr,
+                       WsXmlDocH *res);
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * CIM/Msvm_ReturnCode
@@ -198,39 +205,17 @@ const char *hypervReturnCodeToString(int returnCode);
  * Generic "Get WMI class list" helpers
  */
 
-int hypervGetMsvmComputerSystemList(hypervPrivate *priv, virBufferPtr query,
-                                    Msvm_ComputerSystem **list);
-
-int hypervGetMsvmConcreteJobList(hypervPrivate *priv, virBufferPtr query,
-                                 Msvm_ConcreteJob **list);
-
-int hypervGetWin32ComputerSystemList(hypervPrivate *priv, virBufferPtr query,
-                                     Win32_ComputerSystem **list);
-
-int hypervGetWin32ProcessorList(hypervPrivate *priv, virBufferPtr query,
-                                    Win32_Processor **list);
-
-int hypervGetMsvmVirtualSystemSettingDataList(hypervPrivate *priv,
-                                              virBufferPtr query,
-                                              Msvm_VirtualSystemSettingData **list);
+int hypervGetWmiClassList(hypervPrivate *priv,
+                          hypervWmiClassInfoListPtr wmiInfo, virBufferPtr query,
+                          hypervObject **wmiClass);
 
 int hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
                                                   const char *uuid_string,
                                                   Msvm_VirtualSystemSettingData **list);
 
-int hypervGetMsvmProcessorSettingDataList(hypervPrivate *priv,
-                                          virBufferPtr query,
-                                          Msvm_ProcessorSettingData **list);
-
-int hypervGetMsvmMemorySettingDataList(hypervPrivate *priv, virBufferPtr query,
-                                       Msvm_MemorySettingData **list);
-
 int hypervGetMsvmMemorySettingDataFromVSSD(hypervPrivate *priv,
                                            const char *vssd_instanceid,
                                            Msvm_MemorySettingData **list);
-
-int hypervGetMsvmKeyboardList(hypervPrivate *priv, virBufferPtr query,
-                                       Msvm_Keyboard **list);
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Msvm_ComputerSystem
@@ -239,8 +224,7 @@ int hypervGetMsvmKeyboardList(hypervPrivate *priv, virBufferPtr query,
 int hypervInvokeMsvmComputerSystemRequestStateChange(virDomainPtr domain,
                                                      int requestedState);
 
-int hypervMsvmComputerSystemEnabledStateToDomainState
-      (Msvm_ComputerSystem *computerSystem);
+int hypervMsvmComputerSystemEnabledStateToDomainState(Msvm_ComputerSystem *computerSystem);
 
 bool hypervIsMsvmComputerSystemActive(Msvm_ComputerSystem *computerSystem,
                                       bool *in_transition);

@@ -263,6 +263,10 @@ struct _qemuDomainObjPrivate {
     char **dbusVMStateIds;
     /* true if -object dbus-vmstate was added */
     bool dbusVMState;
+
+    /* prevent deletion of <transient> disk overlay files between startup and
+     * succesful setup of the overlays */
+    bool inhibitDiskTransientDelete;
 };
 
 #define QEMU_DOMAIN_PRIVATE(vm) \
@@ -563,7 +567,8 @@ void qemuDomainObjTaint(virQEMUDriverPtr driver,
 
 void qemuDomainObjCheckTaint(virQEMUDriverPtr driver,
                              virDomainObjPtr obj,
-                             qemuDomainLogContextPtr logCtxt);
+                             qemuDomainLogContextPtr logCtxt,
+                             bool incomingMigration);
 void qemuDomainObjCheckDiskTaint(virQEMUDriverPtr driver,
                                  virDomainObjPtr obj,
                                  virDomainDiskDefPtr disk,
@@ -633,7 +638,7 @@ struct _virQEMUMomentRemove {
 };
 
 int qemuDomainMomentDiscardAll(void *payload,
-                               const void *name,
+                               const char *name,
                                void *data);
 
 int qemuDomainSnapshotDiscardAllMetadata(virQEMUDriverPtr driver,
@@ -1041,3 +1046,7 @@ qemuDomainOpenFile(virQEMUDriverPtr driver,
 int
 qemuDomainFileWrapperFDClose(virDomainObjPtr vm,
                              virFileWrapperFdPtr fd);
+
+int
+qemuDomainInterfaceSetDefaultQDisc(virQEMUDriverPtr driver,
+                                   virDomainNetDefPtr net);

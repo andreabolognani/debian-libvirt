@@ -1302,6 +1302,37 @@ remoteRelayDomainEventBlockThreshold(virConnectPtr conn,
 }
 
 
+static int
+remoteRelayDomainEventMemoryFailure(virConnectPtr conn,
+                                    virDomainPtr dom,
+                                    int recipient,
+                                    int action,
+                                    unsigned int flags,
+                                    void *opaque)
+{
+    daemonClientEventCallbackPtr callback = opaque;
+    remote_domain_event_memory_failure_msg data;
+
+    if (callback->callbackID < 0 ||
+        !remoteRelayDomainEventCheckACL(callback->client, conn, dom))
+        return -1;
+
+    /* build return data */
+    memset(&data, 0, sizeof(data));
+    data.callbackID = callback->callbackID;
+    data.recipient = recipient;
+    data.action = action;
+    data.flags = flags;
+    make_nonnull_domain(&data.dom, dom);
+
+    remoteDispatchObjectEventSend(callback->client, remoteProgram,
+                                  REMOTE_PROC_DOMAIN_EVENT_MEMORY_FAILURE,
+                                  (xdrproc_t)xdr_remote_domain_event_memory_failure_msg, &data);
+
+    return 0;
+}
+
+
 static virConnectDomainEventGenericCallback domainEventCallbacks[] = {
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventLifecycle),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventReboot),
@@ -1328,6 +1359,7 @@ static virConnectDomainEventGenericCallback domainEventCallbacks[] = {
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventDeviceRemovalFailed),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMetadataChange),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventBlockThreshold),
+    VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMemoryFailure),
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(domainEventCallbacks) == VIR_DOMAIN_EVENT_ID_LAST);
@@ -1597,8 +1629,7 @@ remoteRelayDomainQemuMonitorEvent(virConnectPtr conn,
     data.seconds = seconds;
     data.micros = micros;
     if (details) {
-        if (VIR_ALLOC(data.details) < 0)
-            goto error;
+        data.details = g_new0(char *, 1);
         *(data.details) = g_strdup(details);
     }
     make_nonnull_domain(&data.dom, dom);
@@ -1607,11 +1638,6 @@ remoteRelayDomainQemuMonitorEvent(virConnectPtr conn,
                                   QEMU_PROC_DOMAIN_MONITOR_EVENT,
                                   (xdrproc_t)xdr_qemu_domain_monitor_event_msg,
                                   &data);
-    return;
-
- error:
-    xdr_free((xdrproc_t)xdr_qemu_domain_monitor_event_msg,
-             (char *) &data);
     return;
 }
 
@@ -1907,8 +1933,7 @@ void *remoteClientNew(virNetServerClientPtr client,
 {
     struct daemonClientPrivate *priv;
 
-    if (VIR_ALLOC(priv) < 0)
-        return NULL;
+    priv = g_new0(struct daemonClientPrivate, 1);
 
     if (virMutexInit(&priv->lock) < 0) {
         VIR_FREE(priv);
@@ -2309,8 +2334,8 @@ remoteDispatchDomainGetSchedulerParameters(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -2357,8 +2382,8 @@ remoteDispatchDomainGetSchedulerParametersFlags(virNetServerPtr server G_GNUC_UN
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -2413,16 +2438,14 @@ remoteDispatchDomainMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     /* Allocate stats array for making dispatch call */
-    if (VIR_ALLOC_N(stats, args->maxStats) < 0)
-        goto cleanup;
+    stats = g_new0(struct _virDomainMemoryStat, args->maxStats);
 
     nr_stats = virDomainMemoryStats(dom, stats, args->maxStats, args->flags);
     if (nr_stats < 0)
         goto cleanup;
 
     /* Allocate return buffer */
-    if (VIR_ALLOC_N(ret->stats.stats_val, args->maxStats) < 0)
-        goto cleanup;
+    ret->stats.stats_val = g_new0(remote_domain_memory_stat, args->maxStats);
 
     /* Copy the stats into the xdr return structure */
     for (i = 0; i < nr_stats; i++) {
@@ -2473,8 +2496,7 @@ remoteDispatchDomainBlockPeek(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     ret->buffer.buffer_len = size;
-    if (VIR_ALLOC_N(ret->buffer.buffer_val, size) < 0)
-        goto cleanup;
+    ret->buffer.buffer_val = g_new0(char, size);
 
     if (virDomainBlockPeek(dom, path, offset, size,
                            ret->buffer.buffer_val, flags) < 0)
@@ -2518,8 +2540,8 @@ remoteDispatchDomainBlockStatsFlags(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (virDomainBlockStatsFlags(dom, path, params, &nparams, flags) < 0)
@@ -2583,8 +2605,7 @@ remoteDispatchDomainMemoryPeek(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     ret->buffer.buffer_len = size;
-    if (VIR_ALLOC_N(ret->buffer.buffer_val, size) < 0)
-        goto cleanup;
+    ret->buffer.buffer_val = g_new0(char, size);
 
     if (virDomainMemoryPeek(dom, offset, size,
                             ret->buffer.buffer_val, flags) < 0)
@@ -2620,15 +2641,13 @@ remoteDispatchDomainGetSecurityLabel(virNetServerPtr server G_GNUC_UNUSED,
     if (!(dom = get_nonnull_domain(conn, args->dom)))
         goto cleanup;
 
-    if (VIR_ALLOC(seclabel) < 0)
-        goto cleanup;
+    seclabel = g_new0(virSecurityLabel, 1);
 
     if (virDomainGetSecurityLabel(dom, seclabel) < 0)
         goto cleanup;
 
     ret->label.label_len = strlen(seclabel->label) + 1;
-    if (VIR_ALLOC_N(ret->label.label_val, ret->label.label_len) < 0)
-        goto cleanup;
+    ret->label.label_val = g_new0(char, ret->label.label_len);
     strcpy(ret->label.label_val, seclabel->label);
     ret->enforcing = seclabel->enforcing;
 
@@ -2669,8 +2688,7 @@ remoteDispatchDomainGetSecurityLabelList(virNetServerPtr server G_GNUC_UNUSED,
         goto done;
     }
 
-    if (VIR_ALLOC_N(ret->labels.labels_val, len) < 0)
-        goto cleanup;
+    ret->labels.labels_val = g_new0(remote_domain_get_security_label_ret, len);
 
     for (i = 0; i < len; i++) {
         size_t label_len = strlen(seclabels[i].label) + 1;
@@ -2711,13 +2729,11 @@ remoteDispatchNodeGetSecurityModel(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     ret->model.model_len = strlen(secmodel.model) + 1;
-    if (VIR_ALLOC_N(ret->model.model_val, ret->model.model_len) < 0)
-        goto cleanup;
+    ret->model.model_val = g_new0(char, ret->model.model_len);
     strcpy(ret->model.model_val, secmodel.model);
 
     ret->doi.doi_len = strlen(secmodel.doi) + 1;
-    if (VIR_ALLOC_N(ret->doi.doi_val, ret->doi.doi_len) < 0)
-        goto cleanup;
+    ret->doi.doi_val = g_new0(char, ret->doi.doi_len);
     strcpy(ret->doi.doi_val, secmodel.doi);
 
     rv = 0;
@@ -2760,9 +2776,8 @@ remoteDispatchDomainGetVcpuPinInfo(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     /* Allocate buffers to take the results. */
-    if (args->maplen > 0 &&
-        VIR_ALLOC_N(cpumaps, args->ncpumaps * args->maplen) < 0)
-        goto cleanup;
+    if (args->maplen > 0)
+        cpumaps = g_new0(unsigned char, args->ncpumaps * args->maplen);
 
     if ((num = virDomainGetVcpuPinInfo(dom,
                                        args->ncpumaps,
@@ -2844,9 +2859,8 @@ remoteDispatchDomainGetEmulatorPinInfo(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     /* Allocate buffers to take the results */
-    if (args->maplen > 0 &&
-        VIR_ALLOC_N(cpumaps, args->maplen) < 0)
-        goto cleanup;
+    if (args->maplen > 0)
+        cpumaps = g_new0(unsigned char, args->maplen);
 
     if ((r = virDomainGetEmulatorPinInfo(dom,
                                          cpumaps,
@@ -2903,11 +2917,9 @@ remoteDispatchDomainGetVcpus(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     /* Allocate buffers to take the results. */
-    if (VIR_ALLOC_N(info, args->maxinfo) < 0)
-        goto cleanup;
-    if (args->maplen > 0 &&
-        VIR_ALLOC_N(cpumaps, args->maxinfo * args->maplen) < 0)
-        goto cleanup;
+    info = g_new0(virVcpuInfo, args->maxinfo);
+    if (args->maplen > 0)
+        cpumaps = g_new0(unsigned char, args->maxinfo * args->maplen);
 
     if ((info_len = virDomainGetVcpus(dom,
                                       info, args->maxinfo,
@@ -2916,8 +2928,7 @@ remoteDispatchDomainGetVcpus(virNetServerPtr server G_GNUC_UNUSED,
 
     /* Allocate the return buffer for info. */
     ret->info.info_len = info_len;
-    if (VIR_ALLOC_N(ret->info.info_val, info_len) < 0)
-        goto cleanup;
+    ret->info.info_val = g_new0(remote_vcpu_info, info_len);
 
     for (i = 0; i < info_len; ++i) {
         ret->info.info_val[i].number = info[i].number;
@@ -2980,9 +2991,7 @@ remoteDispatchDomainGetIOThreadInfo(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     if (ninfo) {
-        if (VIR_ALLOC_N(ret->info.info_val, ninfo) < 0)
-            goto cleanup;
-
+        ret->info.info_val = g_new0(remote_domain_iothread_info, ninfo);
         ret->info.info_len = ninfo;
 
         for (i = 0; i < ninfo; i++) {
@@ -3040,8 +3049,7 @@ remoteDispatchDomainMigratePrepare(virNetServerPtr server G_GNUC_UNUSED,
     dname = args->dname == NULL ? NULL : *args->dname;
 
     /* Wacky world of XDR ... */
-    if (VIR_ALLOC(uri_out) < 0)
-        goto cleanup;
+    uri_out = g_new0(char *, 1);
 
     if (virDomainMigratePrepare(conn, &cookie, &cookielen,
                                 uri_in, uri_out,
@@ -3092,8 +3100,7 @@ remoteDispatchDomainMigratePrepare2(virNetServerPtr server G_GNUC_UNUSED,
     dname = args->dname == NULL ? NULL : *args->dname;
 
     /* Wacky world of XDR ... */
-    if (VIR_ALLOC(uri_out) < 0)
-        goto cleanup;
+    uri_out = g_new0(char *, 1);
 
     if (virDomainMigratePrepare2(conn, &cookie, &cookielen,
                                  uri_in, uri_out,
@@ -3142,8 +3149,8 @@ remoteDispatchDomainGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -3202,8 +3209,8 @@ remoteDispatchDomainGetNumaParameters(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -3262,8 +3269,8 @@ remoteDispatchDomainGetBlkioParameters(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -3323,8 +3330,8 @@ remoteDispatchNodeGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virNodeCPUStats, args->nparams);
     nparams = args->nparams;
 
     if (virNodeGetCPUStats(conn, cpuNum, params, &nparams, flags) < 0)
@@ -3340,8 +3347,7 @@ remoteDispatchNodeGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
 
     /* Serialise the memory parameters. */
     ret->params.params_len = nparams;
-    if (VIR_ALLOC_N(ret->params.params_val, nparams) < 0)
-        goto cleanup;
+    ret->params.params_val = g_new0(remote_node_get_cpu_stats, nparams);
 
     for (i = 0; i < nparams; ++i) {
         /* remoteDispatchClientRequest will free this: */
@@ -3391,8 +3397,8 @@ remoteDispatchNodeGetMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virNodeMemoryStats, args->nparams);
     nparams = args->nparams;
 
     if (virNodeGetMemoryStats(conn, cellNum, params, &nparams, flags) < 0)
@@ -3408,8 +3414,7 @@ remoteDispatchNodeGetMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
 
     /* Serialise the memory parameters. */
     ret->params.params_len = nparams;
-    if (VIR_ALLOC_N(ret->params.params_val, nparams) < 0)
-        goto cleanup;
+    ret->params.params_val = g_new0(remote_node_get_memory_stats, nparams);
 
     for (i = 0; i < nparams; ++i) {
         /* remoteDispatchClientRequest will free this: */
@@ -3573,8 +3578,8 @@ remoteDispatchDomainGetBlockIoTune(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -3617,10 +3622,9 @@ static int
 remoteDispatchAuthList(virNetServerPtr server,
                        virNetServerClientPtr client,
                        virNetMessagePtr msg G_GNUC_UNUSED,
-                       virNetMessageErrorPtr rerr,
+                       virNetMessageErrorPtr rerr G_GNUC_UNUSED,
                        remote_auth_list_ret *ret)
 {
-    int rv = -1;
     int auth = virNetServerClientGetAuth(client);
     uid_t callerUid;
     gid_t callerGid;
@@ -3649,8 +3653,7 @@ remoteDispatchAuthList(virNetServerPtr server,
     }
 
     ret->types.types_len = 1;
-    if (VIR_ALLOC_N(ret->types.types_val, ret->types.types_len) < 0)
-        goto cleanup;
+    ret->types.types_val = g_new0(remote_auth_type, ret->types.types_len);
 
     switch ((virNetServerServiceAuthMethods) auth) {
     case VIR_NET_SERVER_SERVICE_AUTH_NONE:
@@ -3664,12 +3667,7 @@ remoteDispatchAuthList(virNetServerPtr server,
         break;
     }
 
-    rv = 0;
-
- cleanup:
-    if (rv < 0)
-        virNetMessageSaveError(rerr);
-    return rv;
+    return 0;
 }
 
 
@@ -3846,8 +3844,7 @@ remoteDispatchAuthSaslStart(virNetServerPtr server,
 
     /* NB, distinction of NULL vs "" is *critical* in SASL */
     if (serverout) {
-        if (VIR_ALLOC_N(ret->data.data_val, serveroutlen) < 0)
-            goto authfail;
+        ret->data.data_val = g_new0(char, serveroutlen);
         memcpy(ret->data.data_val, serverout, serveroutlen);
     } else {
         ret->data.data_val = NULL;
@@ -3942,8 +3939,7 @@ remoteDispatchAuthSaslStep(virNetServerPtr server,
 
     /* NB, distinction of NULL vs "" is *critical* in SASL */
     if (serverout) {
-        if (VIR_ALLOC_N(ret->data.data_val, serveroutlen) < 0)
-            goto authfail;
+        ret->data.data_val = g_new0(char, serveroutlen);
         memcpy(ret->data.data_val, serverout, serveroutlen);
     } else {
         ret->data.data_val = NULL;
@@ -4147,8 +4143,7 @@ remoteDispatchNodeDeviceGetParent(virNetServerPtr server G_GNUC_UNUSED,
         ret->parentName = NULL;
     } else {
         /* remoteDispatchClientRequest will free this. */
-        if (VIR_ALLOC(ret->parentName) < 0)
-            goto cleanup;
+        ret->parentName = g_new0(char *, 1);
         *(ret->parentName) = g_strdup(parent);
     }
 
@@ -4250,8 +4245,7 @@ remoteDispatchConnectDomainEventRegister(virNetServerPtr server G_GNUC_UNUSED,
      * clearing 'callback' and having to juggle the pointer
      * between 'ref' and 'callback'.
      */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = VIR_DOMAIN_EVENT_ID_LIFECYCLE;
@@ -4479,8 +4473,7 @@ remoteDispatchConnectDomainEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = args->eventID;
@@ -4555,8 +4548,7 @@ remoteDispatchConnectDomainEventCallbackRegisterAny(virNetServerPtr server G_GNU
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = args->eventID;
@@ -4799,8 +4791,7 @@ remoteDispatchDomainMigratePrepare3(virNetServerPtr server G_GNUC_UNUSED,
     dname = args->dname == NULL ? NULL : *args->dname;
 
     /* Wacky world of XDR ... */
-    if (VIR_ALLOC(uri_out) < 0)
-        goto cleanup;
+    uri_out = g_new0(char *, 1);
 
     if (virDomainMigratePrepare3(conn,
                                  args->cookie_in.cookie_in_val,
@@ -5130,8 +5121,8 @@ remoteDispatchDomainGetInterfaceParameters(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
@@ -5192,9 +5183,8 @@ remoteDispatchDomainGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (args->nparams > 0 &&
-        VIR_ALLOC_N(params, args->ncpus * args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams > 0)
+        params = g_new0(virTypedParameter, args->ncpus * args->nparams);
 
     if (!(dom = get_nonnull_domain(conn, args->dom)))
         goto cleanup;
@@ -5261,9 +5251,8 @@ remoteDispatchDomainGetDiskErrors(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (args->maxerrors &&
-        VIR_ALLOC_N(errors, args->maxerrors) < 0)
-        goto cleanup;
+    if (args->maxerrors)
+        errors = g_new0(virDomainDiskError, args->maxerrors);
 
     if ((len = virDomainGetDiskErrors(dom, errors,
                                       args->maxerrors,
@@ -5352,8 +5341,8 @@ remoteDispatchNodeGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("nparams too large"));
         goto cleanup;
     }
-    if (args->nparams && VIR_ALLOC_N(params, args->nparams) < 0)
-        goto cleanup;
+    if (args->nparams)
+        params = g_new0(virTypedParameter, args->nparams);
     nparams = args->nparams;
 
     if (virNodeGetMemoryParameters(conn, params, &nparams, flags) < 0)
@@ -5602,8 +5591,7 @@ remoteDispatchDomainMigratePrepare3Params(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     /* Wacky world of XDR ... */
-    if (VIR_ALLOC(uri_out) < 0)
-        goto cleanup;
+    uri_out = g_new0(char *, 1);
 
     if (virDomainMigratePrepare3Params(conn, params, nparams,
                                        args->cookie_in.cookie_in_val,
@@ -5924,8 +5912,7 @@ remoteDispatchDomainCreateXMLWithFiles(virNetServerPtr server G_GNUC_UNUSED,
     if (!conn)
         goto cleanup;
 
-    if (VIR_ALLOC_N(files, msg->nfds) < 0)
-        goto cleanup;
+    files = g_new0(int, msg->nfds);
     for (i = 0; i < msg->nfds; i++) {
         if ((files[i] = virNetMessageDupFD(msg, i)) < 0)
             goto cleanup;
@@ -5969,8 +5956,7 @@ static int remoteDispatchDomainCreateWithFiles(virNetServerPtr server G_GNUC_UNU
     if (!conn)
         goto cleanup;
 
-    if (VIR_ALLOC_N(files, msg->nfds) < 0)
-        goto cleanup;
+    files = g_new0(int, msg->nfds);
     for (i = 0; i < msg->nfds; i++) {
         if ((files[i] = virNetMessageDupFD(msg, i)) < 0)
             goto cleanup;
@@ -6038,8 +6024,7 @@ remoteDispatchConnectNetworkEventRegisterAny(virNetServerPtr server G_GNUC_UNUSE
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = args->eventID;
@@ -6159,8 +6144,7 @@ remoteDispatchConnectStoragePoolEventRegisterAny(virNetServerPtr server G_GNUC_U
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = args->eventID;
@@ -6279,8 +6263,7 @@ remoteDispatchConnectNodeDeviceEventRegisterAny(virNetServerPtr server G_GNUC_UN
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = args->eventID;
@@ -6399,8 +6382,7 @@ remoteDispatchConnectSecretEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(remoteProgram);
     callback->eventID = args->eventID;
@@ -6514,8 +6496,7 @@ qemuDispatchConnectDomainMonitorEventRegister(virNetServerPtr server G_GNUC_UNUS
      * incomplete callback to our array, then register, then fix up
      * our callback; but since VIR_APPEND_ELEMENT clears 'callback' on
      * success, we use 'ref' to save a copy of the pointer.  */
-    if (VIR_ALLOC(callback) < 0)
-        goto cleanup;
+    callback = g_new0(daemonClientEventCallback, 1);
     callback->client = virObjectRef(client);
     callback->program = virObjectRef(qemuProgram);
     callback->eventID = -1;
@@ -6656,9 +6637,8 @@ remoteDispatchNodeGetFreePages(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     /* Allocate return buffer. */
-    if (VIR_ALLOC_N(ret->counts.counts_val,
-                    args->pages.pages_len * args->cellCount) < 0)
-        goto cleanup;
+    ret->counts.counts_val = g_new0(uint64_t,
+                                    args->pages.pages_len * args->cellCount);
 
     if ((len = virNodeGetFreePages(conn,
                                    args->pages.pages_len,
@@ -6684,11 +6664,6 @@ remoteDispatchNodeGetFreePages(virNetServerPtr server G_GNUC_UNUSED,
 static int
 remoteSerializeDHCPLease(remote_network_dhcp_lease *lease_dst, virNetworkDHCPLeasePtr lease_src)
 {
-    char **mac_tmp = NULL;
-    char **iaid_tmp = NULL;
-    char **hostname_tmp = NULL;
-    char **clientid_tmp = NULL;
-
     lease_dst->expirytime = lease_src->expirytime;
     lease_dst->type = lease_src->type;
     lease_dst->prefix = lease_src->prefix;
@@ -6697,49 +6672,23 @@ remoteSerializeDHCPLease(remote_network_dhcp_lease *lease_dst, virNetworkDHCPLea
     lease_dst->ipaddr = g_strdup(lease_src->ipaddr);
 
     if (lease_src->mac) {
-        if (VIR_ALLOC(mac_tmp) < 0)
-            goto error;
-        *mac_tmp = g_strdup(lease_src->mac);
+        lease_dst->mac = g_new0(char *, 1);
+        *lease_dst->mac = g_strdup(lease_src->mac);
     }
     if (lease_src->iaid) {
-        if (VIR_ALLOC(iaid_tmp) < 0)
-            goto error;
-        *iaid_tmp = g_strdup(lease_src->iaid);
+        lease_dst->iaid = g_new0(char *, 1);
+        *lease_dst->iaid = g_strdup(lease_src->iaid);
     }
     if (lease_src->hostname) {
-        if (VIR_ALLOC(hostname_tmp) < 0)
-            goto error;
-        *hostname_tmp = g_strdup(lease_src->hostname);
+        lease_dst->hostname = g_new0(char *, 1);
+        *lease_dst->hostname = g_strdup(lease_src->hostname);
     }
     if (lease_src->clientid) {
-        if (VIR_ALLOC(clientid_tmp) < 0)
-            goto error;
-        *clientid_tmp = g_strdup(lease_src->clientid);
+        lease_dst->clientid = g_new0(char *, 1);
+        *lease_dst->clientid = g_strdup(lease_src->clientid);
     }
 
-    lease_dst->mac = mac_tmp;
-    lease_dst->iaid = iaid_tmp;
-    lease_dst->hostname = hostname_tmp;
-    lease_dst->clientid = clientid_tmp;
-
     return 0;
-
- error:
-    if (mac_tmp)
-        VIR_FREE(*mac_tmp);
-    if (iaid_tmp)
-        VIR_FREE(*iaid_tmp);
-    if (hostname_tmp)
-        VIR_FREE(*hostname_tmp);
-    if (clientid_tmp)
-        VIR_FREE(*clientid_tmp);
-    VIR_FREE(mac_tmp);
-    VIR_FREE(iaid_tmp);
-    VIR_FREE(hostname_tmp);
-    VIR_FREE(clientid_tmp);
-    VIR_FREE(lease_dst->ipaddr);
-    VIR_FREE(lease_dst->iface);
-    return -1;
 }
 
 
@@ -6778,9 +6727,7 @@ remoteDispatchNetworkGetDHCPLeases(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     if (leases && nleases) {
-        if (VIR_ALLOC_N(ret->leases.leases_val, nleases) < 0)
-            goto cleanup;
-
+        ret->leases.leases_val = g_new0(remote_network_dhcp_lease, nleases);
         ret->leases.leases_len = nleases;
 
         for (i = 0; i < nleases; i++) {
@@ -6828,8 +6775,7 @@ remoteDispatchConnectGetAllDomainStats(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     if (args->doms.doms_len) {
-        if (VIR_ALLOC_N(doms, args->doms.doms_len + 1) < 0)
-            goto cleanup;
+        doms = g_new0(virDomainPtr, args->doms.doms_len + 1);
 
         for (i = 0; i < args->doms.doms_len; i++) {
             if (!(doms[i] = get_nonnull_domain(conn, args->doms.doms_val[i])))
@@ -6858,9 +6804,7 @@ remoteDispatchConnectGetAllDomainStats(virNetServerPtr server G_GNUC_UNUSED,
             goto cleanup;
         }
 
-        if (VIR_ALLOC_N(ret->retStats.retStats_val, nrecords) < 0)
-            goto cleanup;
-
+        ret->retStats.retStats_val = g_new0(remote_domain_stats_record, nrecords);
         ret->retStats.retStats_len = nrecords;
 
         for (i = 0; i < nrecords; i++) {
@@ -6965,9 +6909,7 @@ remoteDispatchDomainGetFSInfo(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     if (ninfo) {
-        if (VIR_ALLOC_N(ret->info.info_val, ninfo) < 0)
-            goto cleanup;
-
+        ret->info.info_val = g_new0(remote_domain_fsinfo, ninfo);
         ret->info.info_len = ninfo;
 
         for (i = 0; i < ninfo; i++) {
@@ -6987,8 +6929,7 @@ remoteDispatchDomainGetFSInfo(virNetServerPtr server G_GNUC_UNUSED,
             }
 
             if (ndisk > 0) {
-                if (VIR_ALLOC_N(dst->dev_aliases.dev_aliases_val, ndisk) < 0)
-                    goto cleanup;
+                dst->dev_aliases.dev_aliases_val = g_new0(char *, ndisk);
 
                 for (j = 0; j < ndisk; j++)
                     dst->dev_aliases.dev_aliases_val[j] = g_strdup(info[i]->devAlias[j]);
@@ -7050,9 +6991,7 @@ remoteSerializeDomainInterface(virDomainInterfacePtr *ifaces,
         return -1;
     }
 
-    if (VIR_ALLOC_N(ret->ifaces.ifaces_val, ifaces_count) < 0)
-        return -1;
-
+    ret->ifaces.ifaces_val = g_new0(remote_domain_interface, ifaces_count);
     ret->ifaces.ifaces_len = ifaces_count;
 
     for (i = 0; i < ifaces_count; i++) {
@@ -7062,8 +7001,7 @@ remoteSerializeDomainInterface(virDomainInterfacePtr *ifaces,
         iface_ret->name = g_strdup(iface->name);
 
         if (iface->hwaddr) {
-            if (VIR_ALLOC(iface_ret->hwaddr) < 0)
-                goto cleanup;
+            iface_ret->hwaddr = g_new0(char *, 1);
             *iface_ret->hwaddr = g_strdup(iface->hwaddr);
         }
 
@@ -7074,10 +7012,7 @@ remoteSerializeDomainInterface(virDomainInterfacePtr *ifaces,
             goto cleanup;
         }
 
-        if (VIR_ALLOC_N(iface_ret->addrs.addrs_val,
-                        iface->naddrs) < 0)
-            goto cleanup;
-
+        iface_ret->addrs.addrs_val = g_new0(remote_domain_ip_addr, iface->naddrs);
         iface_ret->addrs.addrs_len = iface->naddrs;
 
         for (j = 0; j < iface->naddrs; j++) {
@@ -7393,8 +7328,7 @@ remoteSerializeDomainDiskErrors(virDomainDiskErrorPtr errors,
     remote_domain_disk_error *val = NULL;
     size_t i = 0;
 
-    if (VIR_ALLOC_N(val, nerrors) < 0)
-        goto error;
+    val = g_new0(remote_domain_disk_error, nerrors);
 
     for (i = 0; i < nerrors; i++) {
         val[i].disk = g_strdup(errors[i].disk);
@@ -7405,15 +7339,6 @@ remoteSerializeDomainDiskErrors(virDomainDiskErrorPtr errors,
     *ret_errors_val = val;
 
     return 0;
-
- error:
-    if (val) {
-        size_t j;
-        for (j = 0; j < i; j++)
-            VIR_FREE(val[j].disk);
-        VIR_FREE(val);
-    }
-    return -1;
 }
 
 static int

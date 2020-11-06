@@ -583,10 +583,11 @@ virshCheckpointListCollect(vshControl *ctl,
     size_t i;
     int count = -1;
     virDomainCheckpointPtr *chks;
-    virshCheckpointListPtr checkpointlist = vshMalloc(ctl,
-                                                      sizeof(*checkpointlist));
+    virshCheckpointListPtr checkpointlist = NULL;
     virshCheckpointListPtr ret = NULL;
     unsigned int flags = orig_flags;
+
+    checkpointlist = g_new0(struct virshCheckpointList, 1);
 
     if (from)
         count = virDomainCheckpointListAllChildren(from, &chks, flags);
@@ -600,8 +601,10 @@ virshCheckpointListCollect(vshControl *ctl,
 
     /* When mixing --from and --tree, we also want a copy of from
      * in the list, but with no parent for that one entry.  */
-    checkpointlist->chks = vshCalloc(ctl, count + (tree && from),
-                                     sizeof(*checkpointlist->chks));
+    if (from && tree)
+        checkpointlist->chks = g_new0(struct virshChk, count + 1);
+    else
+        checkpointlist->chks = g_new0(struct virshChk, count);
     checkpointlist->nchks = count;
     for (i = 0; i < count; i++)
         checkpointlist->chks[i].chk = chks[i];

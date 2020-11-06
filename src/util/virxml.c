@@ -672,12 +672,8 @@ virXPathNodeSet(const char *xpath,
 
     ret = obj->nodesetval->nodeNr;
     if (list != NULL && ret) {
-        if (VIR_ALLOC_N(*list, ret) < 0) {
-            ret = -1;
-        } else {
-            memcpy(*list, obj->nodesetval->nodeTab,
-                   ret * sizeof(xmlNodePtr));
-        }
+        *list = g_new0(xmlNodePtr, ret);
+        memcpy(*list, obj->nodesetval->nodeTab, ret * sizeof(xmlNodePtr));
     }
     xmlXPathFreeObject(obj);
     return ret;
@@ -1239,8 +1235,7 @@ virXMLValidatorInit(const char *schemafile)
 {
     virXMLValidatorPtr validator = NULL;
 
-    if (VIR_ALLOC(validator) < 0)
-        return NULL;
+    validator = g_new0(virXMLValidator, 1);
 
     validator->schemafile = g_strdup(schemafile);
 
@@ -1316,6 +1311,21 @@ virXMLValidateAgainstSchema(const char *schemafile,
     ret = 0;
  cleanup:
     virXMLValidatorFree(validator);
+    return ret;
+}
+
+
+int
+virXMLValidateNodeAgainstSchema(const char *schemafile,
+                                xmlDocPtr doc,
+                                xmlNodePtr node)
+{
+    xmlNodePtr root;
+    int ret;
+
+    root = xmlDocSetRootElement(doc, node);
+    ret = virXMLValidateAgainstSchema(schemafile, doc);
+    xmlDocSetRootElement(doc, root);
     return ret;
 }
 

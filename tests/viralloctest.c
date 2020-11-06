@@ -44,81 +44,13 @@ testCheckNonNull(void *t)
 }
 
 static int
-testAllocScalar(const void *opaque G_GNUC_UNUSED)
-{
-    testDummyStruct *t;
-    int ret = -1;
-
-    if (VIR_ALLOC(t) < 0)
-        return -1;
-
-    if (testCheckNonNull(t) < 0)
-        goto cleanup;
-
-    if (t->a != 0 ||
-        t->b != 0) {
-        fprintf(stderr, "Allocated ram was not zerod\n");
-        goto cleanup;
-    }
-
-    VIR_FREE(t);
-
-    if (t != NULL) {
-        fprintf(stderr, "Pointer is still set after free\n");
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    VIR_FREE(t);
-    return ret;
-}
-
-
-static int
-testAllocArray(const void *opaque G_GNUC_UNUSED)
-{
-    testDummyStruct *t;
-    size_t nt = 10, i;
-    int ret = -1;
-
-    if (VIR_ALLOC_N(t, nt) < 0)
-        return -1;
-
-    if (testCheckNonNull(t) < 0)
-        goto cleanup;
-
-    for (i = 0; i < nt; i++) {
-        if (t[i].a != 0 ||
-            t[i].b != 0) {
-            fprintf(stderr, "Allocated ram block %zu was not zerod\n", i);
-            goto cleanup;
-        }
-    }
-
-    VIR_FREE(t);
-
-    if (t != NULL) {
-        fprintf(stderr, "Pointer is still set after free\n");
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    VIR_FREE(t);
-    return ret;
-}
-
-
-static int
 testReallocArray(const void *opaque G_GNUC_UNUSED)
 {
     testDummyStruct *t;
     size_t nt = 10, i;
     int ret = -1;
 
-    if (VIR_ALLOC_N(t, nt) < 0)
-        return -1;
+    t = g_new0(testDummyStruct, nt);
 
     if (testCheckNonNull(t) < 0)
         goto cleanup;
@@ -191,8 +123,7 @@ testExpandArray(const void *opaque G_GNUC_UNUSED)
     size_t nt = 10, i;
     int ret = -1;
 
-    if (VIR_ALLOC_N(t, nt) < 0)
-        return -1;
+    t = g_new0(testDummyStruct, nt);
 
     if (testCheckNonNull(t) < 0)
         goto cleanup;
@@ -271,8 +202,7 @@ testResizeArray(const void *opaque G_GNUC_UNUSED)
     size_t nt = 10, at, i;
     int ret = -1;
 
-    if (VIR_ALLOC_N(t, nt) < 0)
-        return -1;
+    t = g_new0(testDummyStruct, nt);
 
     at = nt;
 
@@ -333,8 +263,7 @@ testInsertArray(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     testDummyStruct *n = (void *)0xff;
 
-    if (VIR_ALLOC_N(t, nt) < 0)
-        return -1;
+    t = g_new0(testDummyStruct *, nt);
 
     if (testCheckNonNull(t) < 0)
         goto cleanup;
@@ -398,14 +327,12 @@ testDispose(const void *opaque G_GNUC_UNUSED)
     nnums = 10;
     VIR_DISPOSE_N(nums, nnums);
 
-    if (VIR_ALLOC(num) < 0)
-        return -1;
+    num = g_new0(int, 1);
 
     VIR_DISPOSE(num);
 
     nnums = 10;
-    if (VIR_ALLOC_N(nums, nnums) < 0)
-        return -1;
+    nums = g_new0(int, nnums);
 
     VIR_DISPOSE_N(nums, nnums);
 
@@ -422,10 +349,6 @@ mymain(void)
 {
     int ret = 0;
 
-    if (virTestRun("alloc scalar", testAllocScalar, NULL) < 0)
-        ret = -1;
-    if (virTestRun("alloc array", testAllocArray, NULL) < 0)
-        ret = -1;
     if (virTestRun("realloc array", testReallocArray, NULL) < 0)
         ret = -1;
     if (virTestRun("expand array", testExpandArray, NULL) < 0)

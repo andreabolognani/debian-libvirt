@@ -169,8 +169,7 @@ qemuBlockNodeNameGetBackingChainBacking(virJSONValuePtr next,
         }
     }
 
-    if (VIR_ALLOC(data) < 0)
-        return -1;
+    data = g_new0(qemuBlockNodeNameBackingChainData, 1);
 
     data->nodeformat = g_strdup(nodename);
     data->nodestorage = g_strdup(parentnodename);
@@ -235,7 +234,7 @@ qemuBlockNodeNameGetBackingChain(virJSONValuePtr namednodes,
 
     memset(&data, 0, sizeof(data));
 
-    if (!(namednodestable = virHashCreate(50, virJSONValueHashFree)))
+    if (!(namednodestable = virHashNew(virJSONValueHashFree)))
         return NULL;
 
     if (virJSONValueArrayForeachSteal(namednodes,
@@ -243,7 +242,7 @@ qemuBlockNodeNameGetBackingChain(virJSONValuePtr namednodes,
                                       namednodestable) < 0)
         return NULL;
 
-    if (!(disks = virHashCreate(50, qemuBlockNodeNameBackingChainDataHashEntryFree)))
+    if (!(disks = virHashNew(qemuBlockNodeNameBackingChainDataHashEntryFree)))
         return NULL;
 
     data.nodenamestable = namednodestable;
@@ -371,7 +370,7 @@ qemuBlockGetNodeData(virJSONValuePtr data)
 {
     g_autoptr(virHashTable) nodedata = NULL;
 
-    if (!(nodedata = virHashCreate(50, virJSONValueHashFree)))
+    if (!(nodedata = virHashNew(virJSONValueHashFree)))
         return NULL;
 
     if (virJSONValueArrayForeachSteal(data,
@@ -415,8 +414,7 @@ qemuBlockStorageSourceGetURI(virStorageSourcePtr src)
         return NULL;
     }
 
-    if (VIR_ALLOC(uri) < 0)
-        return NULL;
+    uri = g_new0(virURI, 1);
 
     if (src->hosts->transport == VIR_STORAGE_NET_HOST_TRANS_TCP) {
         uri->port = src->hosts->port;
@@ -1595,8 +1593,7 @@ qemuBlockStorageSourceAttachPrepareBlockdev(virStorageSourcePtr src,
     if (autoreadonly)
         backendpropsflags |= QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_AUTO_READONLY;
 
-    if (VIR_ALLOC(data) < 0)
-        return NULL;
+    data = g_new0(qemuBlockStorageSourceAttachData, 1);
 
     if (!(data->formatProps = qemuBlockStorageSourceGetBlockdevProps(src,
                                                                      backingStore)) ||
@@ -1886,8 +1883,7 @@ qemuBlockStorageSourceChainDetachPrepareBlockdev(virStorageSourcePtr src)
     g_autoptr(qemuBlockStorageSourceChainData) data = NULL;
     virStorageSourcePtr n;
 
-    if (VIR_ALLOC(data) < 0)
-        return NULL;
+    data = g_new0(qemuBlockStorageSourceChainData, 1);
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
         if (!(backend = qemuBlockStorageSourceDetachPrepare(n, NULL)))
@@ -1916,8 +1912,7 @@ qemuBlockStorageSourceChainDetachPrepareDrive(virStorageSourcePtr src,
     g_autoptr(qemuBlockStorageSourceAttachData) backend = NULL;
     g_autoptr(qemuBlockStorageSourceChainData) data = NULL;
 
-    if (VIR_ALLOC(data) < 0)
-        return NULL;
+    data = g_new0(qemuBlockStorageSourceChainData, 1);
 
     if (!(backend = qemuBlockStorageSourceDetachPrepare(src, driveAlias)))
         return NULL;
@@ -3364,6 +3359,81 @@ qemuBlockUpdateRelativeBacking(virDomainObjPtr vm,
 
         if (backingStoreStr && virStorageIsRelative(backingStoreStr))
             n->backingStore->relPath = g_steal_pointer(&backingStoreStr);
+    }
+
+    return 0;
+}
+
+
+virJSONValuePtr
+qemuBlockExportGetNBDProps(const char *nodename,
+                           const char *exportname,
+                           bool writable,
+                           const char *bitmap)
+{
+    g_autofree char *exportid = NULL;
+    virJSONValuePtr ret = NULL;
+
+    exportid = g_strdup_printf("libvirt-nbd-%s", nodename);
+
+    if (virJSONValueObjectCreate(&ret,
+                                 "s:type", "nbd",
+                                 "s:id", exportid,
+                                 "s:node-name", nodename,
+                                 "b:writable", writable,
+                                 "s:name", exportname,
+                                 "S:bitmap", bitmap,
+                                 NULL) < 0)
+        return NULL;
+
+    return ret;
+}
+
+
+/**
+ * qemuBlockExportAddNBD:
+ * @vm: domain object
+ * @drivealias: (optional) alias of -drive to export in pre-blockdev configurations
+ * @src: disk source to export
+ * @exportname: name for the export
+ * @writable: whether the NBD export allows writes
+ * @bitmap: (optional) block dirty bitmap to export along
+ *
+ * This function automatically selects the proper invocation of exporting a
+ * block backend via NBD in qemu. This includes use of nodename for blockdev
+ * and proper configuration for the exportname for older qemus.
+ *
+ * This function must be called while in the monitor context.
+ */
+int
+qemuBlockExportAddNBD(virDomainObjPtr vm,
+                      const char *drivealias,
+                      virStorageSourcePtr src,
+                      const char *exportname,
+                      bool writable,
+                      const char *bitmap)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV)) {
+        if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCK_EXPORT_ADD)) {
+            g_autoptr(virJSONValue) nbdprops = NULL;
+
+            if (!(nbdprops = qemuBlockExportGetNBDProps(src->nodeformat,
+                                                        exportname,
+                                                        writable,
+                                                        bitmap)))
+                return -1;
+
+            return qemuMonitorBlockExportAdd(priv->mon, &nbdprops);
+        } else {
+            return qemuMonitorNBDServerAdd(priv->mon, src->nodeformat,
+                                           exportname, writable, bitmap);
+        }
+    } else {
+        /* older qemu versions didn't support configuring the exportname and
+         * took the 'drivealias' as the export name */
+        return qemuMonitorNBDServerAdd(priv->mon, drivealias, NULL, writable, NULL);
     }
 
     return 0;

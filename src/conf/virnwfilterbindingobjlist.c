@@ -66,7 +66,7 @@ virNWFilterBindingObjListNew(void)
     if (!(bindings = virObjectRWLockableNew(virNWFilterBindingObjListClass)))
         return NULL;
 
-    if (!(bindings->objs = virHashCreate(50, virObjectFreeHashData))) {
+    if (!(bindings->objs = virHashNew(virObjectFreeHashData))) {
         virObjectUnref(bindings);
         return NULL;
     }
@@ -345,7 +345,7 @@ struct virNWFilterBindingListIterData {
 
 static int
 virNWFilterBindingObjListHelper(void *payload,
-                                const void *name G_GNUC_UNUSED,
+                                const char *name G_GNUC_UNUSED,
                                 void *opaque)
 {
     struct virNWFilterBindingListIterData *data = opaque;
@@ -379,7 +379,7 @@ struct virNWFilterBindingListData {
 
 static int
 virNWFilterBindingObjListCollectIterator(void *payload,
-                                         const void *name G_GNUC_UNUSED,
+                                         const char *name G_GNUC_UNUSED,
                                          void *opaque)
 {
     struct virNWFilterBindingListData *data = opaque;
@@ -434,10 +434,7 @@ virNWFilterBindingObjListCollect(virNWFilterBindingObjListPtr domlist,
 
     virObjectRWLockRead(domlist);
     sa_assert(domlist->objs);
-    if (VIR_ALLOC_N(data.bindings, virHashSize(domlist->objs)) < 0) {
-        virObjectRWUnlock(domlist);
-        return -1;
-    }
+    data.bindings = g_new0(virNWFilterBindingObjPtr, virHashSize(domlist->objs));
 
     virHashForEach(domlist->objs, virNWFilterBindingObjListCollectIterator, &data);
     virObjectRWUnlock(domlist);
@@ -467,8 +464,7 @@ virNWFilterBindingObjListExport(virNWFilterBindingObjListPtr bindings,
         return -1;
 
     if (bindinglist) {
-        if (VIR_ALLOC_N(*bindinglist, nbindings + 1) < 0)
-            goto cleanup;
+        *bindinglist = g_new0(virNWFilterBindingPtr, nbindings + 1);
 
         for (i = 0; i < nbindings; i++) {
             virNWFilterBindingObjPtr binding = bindingobjs[i];

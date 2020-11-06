@@ -150,8 +150,7 @@ virBhyveDomainCapsBuild(bhyveConnPtr conn,
         goto cleanup;
     }
 
-    if (VIR_ALLOC(firmwares) < 0)
-        goto cleanup;
+    firmwares = g_new0(virDomainCapsStringValues, 1);
 
     if (virDirOpenIfExists(&dir, firmware_dir) > 0) {
         while ((virDirRead(dir, &entry, firmware_dir)) > 0) {
@@ -345,6 +344,17 @@ bhyveProbeCapsVNCPassword(unsigned int *caps, char *binary)
 }
 
 
+static int
+bhyveProbeCapsVirtio9p(unsigned int *caps, char *binary)
+{
+    return bhyveProbeCapsDeviceHelper(caps, binary,
+                                      "-s",
+                                      "0,virtio-9p",
+                                      "pci slot 0:0: unknown device \"hda\"",
+                                      BHYVE_CAP_VIRTIO_9P);
+}
+
+
 int
 virBhyveProbeCaps(unsigned int *caps)
 {
@@ -377,6 +387,9 @@ virBhyveProbeCaps(unsigned int *caps)
         goto out;
 
     if ((ret = bhyveProbeCapsVNCPassword(caps, binary)))
+        goto out;
+
+    if ((ret = bhyveProbeCapsVirtio9p(caps, binary)))
         goto out;
 
  out:

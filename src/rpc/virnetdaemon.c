@@ -86,7 +86,7 @@ static virClassPtr virNetDaemonClass;
 
 static int
 daemonServerClose(void *payload,
-                  const void *key G_GNUC_UNUSED,
+                  const char *key G_GNUC_UNUSED,
                   void *opaque G_GNUC_UNUSED);
 
 static void
@@ -140,7 +140,7 @@ virNetDaemonNew(void)
     if (!(dmn = virObjectLockableNew(virNetDaemonClass)))
         return NULL;
 
-    if (!(dmn->servers = virHashCreate(5, virObjectFreeHashData)))
+    if (!(dmn->servers = virHashNew(virObjectFreeHashData)))
         goto error;
 
 #ifndef WIN32
@@ -228,7 +228,7 @@ struct collectData {
 
 static int
 collectServers(void *payload,
-               const void *name G_GNUC_UNUSED,
+               const char *name G_GNUC_UNUSED,
                void *opaque)
 {
     virNetServerPtr srv = virObjectRef(payload);
@@ -673,8 +673,7 @@ virNetDaemonAddSignalHandler(virNetDaemonPtr dmn,
     if (VIR_EXPAND_N(dmn->signals, dmn->nsignals, 1) < 0)
         goto error;
 
-    if (VIR_ALLOC(sigdata) < 0)
-        goto error;
+    sigdata = g_new0(virNetDaemonSignal, 1);
 
     sigdata->signum = signum;
     sigdata->func = func;
@@ -732,7 +731,7 @@ virNetDaemonAutoShutdownTimer(int timerid G_GNUC_UNUSED,
 
 static int
 daemonServerUpdateServices(void *payload,
-                           const void *key G_GNUC_UNUSED,
+                           const char *key G_GNUC_UNUSED,
                            void *opaque)
 {
     bool *enable = opaque;
@@ -753,7 +752,7 @@ virNetDaemonUpdateServices(virNetDaemonPtr dmn,
 
 static int
 daemonServerProcessClients(void *payload,
-                           const void *key G_GNUC_UNUSED,
+                           const char *key G_GNUC_UNUSED,
                            void *opaque G_GNUC_UNUSED)
 {
     virNetServerPtr srv = payload;
@@ -764,7 +763,7 @@ daemonServerProcessClients(void *payload,
 
 static int
 daemonServerShutdownWait(void *payload,
-                         const void *key G_GNUC_UNUSED,
+                         const char *key G_GNUC_UNUSED,
                          void *opaque G_GNUC_UNUSED)
 {
     virNetServerPtr srv = payload;
@@ -914,7 +913,7 @@ virNetDaemonQuit(virNetDaemonPtr dmn)
 
 static int
 daemonServerClose(void *payload,
-                  const void *key G_GNUC_UNUSED,
+                  const char *key G_GNUC_UNUSED,
                   void *opaque G_GNUC_UNUSED)
 {
     virNetServerPtr srv = payload;
@@ -925,7 +924,7 @@ daemonServerClose(void *payload,
 
 static int
 daemonServerHasClients(void *payload,
-                       const void *key G_GNUC_UNUSED,
+                       const char *key G_GNUC_UNUSED,
                        void *opaque)
 {
     bool *clients = opaque;

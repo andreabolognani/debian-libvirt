@@ -284,7 +284,7 @@ virDomainCreateLinux(virConnectPtr conn, const char *xmlDesc,
  *
  * Try to find a domain based on the hypervisor ID number
  * Note that this won't work for inactive domains which have an ID of -1,
- * in that case a lookup based on the Name or UUId need to be done instead.
+ * in that case a lookup based on the Name or UUID need to be done instead.
  *
  * virDomainFree should be used to free the resources after the
  * domain object is no longer needed.
@@ -3383,14 +3383,14 @@ virDomainMigrateUnmanagedProto3(virDomainPtr domain,
 
 
 /*
- * In normal migration, the libvirt client co-ordinates communication
+ * In normal migration, the libvirt client coordinates communication
  * between the 2 libvirtd instances on source & dest hosts.
  *
  * This function encapsulates 2 alternatives to the above case.
  *
  * 1. peer-2-peer migration, the libvirt client only talks to the source
  * libvirtd instance. The source libvirtd then opens its own
- * connection to the destination and co-ordinates migration itself.
+ * connection to the destination and coordinates migration itself.
  *
  * 2. direct migration, where there is no requirement for a libvirtd instance
  * on the dest host. Eg, XenD can talk direct to XenD, so libvirtd on dest

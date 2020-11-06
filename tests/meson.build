@@ -36,6 +36,7 @@ tests_env = [
   'abs_top_srcdir=@0@'.format(meson.source_root()),
   'LC_ALL=C',
   'LIBVIRT_AUTOSTART=0',
+  'G_DEBUG=fatal-warnings',
 ]
 
 if use_expensive_tests
@@ -184,6 +185,7 @@ if conf.has('WITH_QEMU')
   test_qemu_driver_lib = shared_library(
     'test_qemu_driver',
     [ qemu_dtrace_gen_objects ],
+    link_args: [ libvirt_flat_namespace ],
     link_whole: [ qemu_driver_impl ],
     link_with: [ libvirt_lib ],
   )

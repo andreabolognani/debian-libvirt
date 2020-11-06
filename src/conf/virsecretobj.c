@@ -119,7 +119,7 @@ virSecretObjListNew(void)
     if (!(secrets = virObjectRWLockableNew(virSecretObjListClass)))
         return NULL;
 
-    if (!(secrets->objs = virHashCreate(50, virObjectFreeHashData))) {
+    if (!(secrets->objs = virHashNew(virObjectFreeHashData))) {
         virObjectUnref(secrets);
         return NULL;
     }
@@ -197,7 +197,7 @@ virSecretObjListFindByUUID(virSecretObjListPtr secrets,
 
 static int
 virSecretObjSearchName(const void *payload,
-                       const void *name G_GNUC_UNUSED,
+                       const char *name G_GNUC_UNUSED,
                        const void *opaque)
 {
     virSecretObjPtr obj = (virSecretObjPtr) payload;
@@ -410,7 +410,7 @@ struct virSecretCountData {
 
 static int
 virSecretObjListNumOfSecretsCallback(void *payload,
-                                     const void *name G_GNUC_UNUSED,
+                                     const char *name G_GNUC_UNUSED,
                                      void *opaque)
 {
     struct virSecretCountData *data = opaque;
@@ -443,7 +443,7 @@ struct virSecretListData {
 
 static int
 virSecretObjListGetUUIDsCallback(void *payload,
-                                 const void *name G_GNUC_UNUSED,
+                                 const char *name G_GNUC_UNUSED,
                                  void *opaque)
 {
     struct virSecretListData *data = opaque;
@@ -465,10 +465,7 @@ virSecretObjListGetUUIDsCallback(void *payload,
     if (data->uuids) {
         char *uuidstr;
 
-        if (VIR_ALLOC_N(uuidstr, VIR_UUID_STRING_BUFLEN) < 0) {
-            data->error = true;
-            goto cleanup;
-        }
+        uuidstr = g_new0(char, VIR_UUID_STRING_BUFLEN);
 
         virUUIDFormat(def->uuid, uuidstr);
         data->uuids[data->nuuids++] = uuidstr;
@@ -537,7 +534,7 @@ struct _virSecretObjListExportData {
 
 static int
 virSecretObjListExportCallback(void *payload,
-                               const void *name G_GNUC_UNUSED,
+                               const char *name G_GNUC_UNUSED,
                                void *opaque)
 {
     virSecretObjListExportDataPtr data = opaque;
@@ -590,11 +587,8 @@ virSecretObjListExport(virConnectPtr conn,
         .nsecrets = 0, .error = false };
 
     virObjectRWLockRead(secretobjs);
-    if (secrets &&
-        VIR_ALLOC_N(data.secrets, virHashSize(secretobjs->objs) + 1) < 0) {
-        virObjectRWUnlock(secretobjs);
-        return -1;
-    }
+    if (secrets)
+        data.secrets = g_new0(virSecretPtr, virHashSize(secretobjs->objs) + 1);
 
     virHashForEach(secretobjs->objs, virSecretObjListExportCallback, &data);
     virObjectRWUnlock(secretobjs);
@@ -735,8 +729,7 @@ virSecretObjGetValue(virSecretObjPtr obj)
         return NULL;
     }
 
-    if (VIR_ALLOC_N(ret, obj->value_size) < 0)
-        return NULL;
+    ret = g_new0(unsigned char, obj->value_size);
     memcpy(ret, obj->value, obj->value_size);
 
     return ret;
@@ -753,8 +746,7 @@ virSecretObjSetValue(virSecretObjPtr obj,
     g_autofree unsigned char *new_value = NULL;
     size_t old_value_size;
 
-    if (VIR_ALLOC_N(new_value, value_size) < 0)
-        return -1;
+    new_value = g_new0(unsigned char, value_size);
 
     old_value = obj->value;
     old_value_size = obj->value_size;
@@ -846,8 +838,7 @@ virSecretLoadValue(virSecretObjPtr obj)
         goto cleanup;
     }
 
-    if (VIR_ALLOC_N(contents, st.st_size + 1) < 0)
-        goto cleanup;
+    contents = g_new0(char, st.st_size + 1);
 
     if (saferead(fd, contents, st.st_size) != st.st_size) {
         virReportSystemError(errno, _("cannot read '%s'"),

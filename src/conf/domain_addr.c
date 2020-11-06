@@ -25,17 +25,18 @@
 #include "virlog.h"
 #include "virstring.h"
 #include "domain_addr.h"
-#include "virhashcode.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
 
 VIR_LOG_INIT("conf.domain_addr");
 
 static int
-virDomainZPCIAddressReserveId(virHashTablePtr set,
+virDomainZPCIAddressReserveId(GHashTable *set,
                               virZPCIDeviceAddressID *id,
                               const char *name)
 {
+    int *idval;
+
     if (!id->isSet) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("No zPCI %s to reserve"),
@@ -43,26 +44,24 @@ virDomainZPCIAddressReserveId(virHashTablePtr set,
         return -1;
     }
 
-    if (virHashLookup(set, &id->value)) {
+    if (g_hash_table_lookup(set, &id->value)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("zPCI %s %o is already reserved"),
                        name, id->value);
         return -1;
     }
 
-    if (virHashAddEntry(set, &id->value, (void*)1) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to reserve %s %o"),
-                       name, id->value);
-        return -1;
-    }
+    idval = g_new0(int, 1);
+    *idval = (int) id->value;
+
+    g_hash_table_add(set, idval);
 
     return 0;
 }
 
 
 static int
-virDomainZPCIAddressReserveUid(virHashTablePtr set,
+virDomainZPCIAddressReserveUid(GHashTable *set,
                                virZPCIDeviceAddressPtr addr)
 {
     return virDomainZPCIAddressReserveId(set, &addr->uid, "uid");
@@ -70,7 +69,7 @@ virDomainZPCIAddressReserveUid(virHashTablePtr set,
 
 
 static int
-virDomainZPCIAddressReserveFid(virHashTablePtr set,
+virDomainZPCIAddressReserveFid(GHashTable *set,
                                virZPCIDeviceAddressPtr addr)
 {
     return virDomainZPCIAddressReserveId(set, &addr->fid, "fid");
@@ -78,7 +77,7 @@ virDomainZPCIAddressReserveFid(virHashTablePtr set,
 
 
 static int
-virDomainZPCIAddressAssignId(virHashTablePtr set,
+virDomainZPCIAddressAssignId(GHashTable *set,
                              virZPCIDeviceAddressID *id,
                              unsigned int min,
                              unsigned int max,
@@ -87,7 +86,7 @@ virDomainZPCIAddressAssignId(virHashTablePtr set,
     if (id->isSet)
         return 0;
 
-    while (virHashLookup(set, &min)) {
+    while (g_hash_table_lookup(set, &min)) {
         if (min == max) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("There is no more free %s."),
@@ -105,7 +104,7 @@ virDomainZPCIAddressAssignId(virHashTablePtr set,
 
 
 static int
-virDomainZPCIAddressAssignUid(virHashTablePtr set,
+virDomainZPCIAddressAssignUid(GHashTable *set,
                               virZPCIDeviceAddressPtr addr)
 {
     return virDomainZPCIAddressAssignId(set, &addr->uid, 1,
@@ -114,7 +113,7 @@ virDomainZPCIAddressAssignUid(virHashTablePtr set,
 
 
 static int
-virDomainZPCIAddressAssignFid(virHashTablePtr set,
+virDomainZPCIAddressAssignFid(GHashTable *set,
                               virZPCIDeviceAddressPtr addr)
 {
     return virDomainZPCIAddressAssignId(set, &addr->fid, 0,
@@ -123,37 +122,16 @@ virDomainZPCIAddressAssignFid(virHashTablePtr set,
 
 
 static void
-virDomainZPCIAddressReleaseId(virHashTablePtr set,
-                              virZPCIDeviceAddressID *id,
-                              const char *name)
+virDomainZPCIAddressReleaseId(GHashTable *set,
+                              virZPCIDeviceAddressID *id)
 {
     if (!id->isSet)
         return;
 
-    if (virHashRemoveEntry(set, &id->value) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Release %s %o failed"),
-                       name, id->value);
-    }
+    g_hash_table_remove(set, &id->value);
 
     id->value = 0;
     id->isSet = false;
-}
-
-
-static void
-virDomainZPCIAddressReleaseUid(virHashTablePtr set,
-                               virZPCIDeviceAddressPtr addr)
-{
-    virDomainZPCIAddressReleaseId(set, &addr->uid, "uid");
-}
-
-
-static void
-virDomainZPCIAddressReleaseFid(virHashTablePtr set,
-                               virZPCIDeviceAddressPtr addr)
-{
-    virDomainZPCIAddressReleaseId(set, &addr->fid, "fid");
 }
 
 
@@ -164,8 +142,8 @@ virDomainZPCIAddressReleaseIds(virDomainZPCIAddressIdsPtr zpciIds,
     if (!zpciIds)
         return;
 
-    virDomainZPCIAddressReleaseUid(zpciIds->uids, addr);
-    virDomainZPCIAddressReleaseFid(zpciIds->fids, addr);
+    virDomainZPCIAddressReleaseId(zpciIds->uids, &addr->uid);
+    virDomainZPCIAddressReleaseId(zpciIds->fids, &addr->fid);
 }
 
 
@@ -183,7 +161,7 @@ virDomainZPCIAddressEnsureAddr(virDomainZPCIAddressIdsPtr zpciIds,
         return -1;
 
     if (virDomainZPCIAddressReserveFid(zpciIds->fids, addr) < 0) {
-        virDomainZPCIAddressReleaseUid(zpciIds->uids, addr);
+        virDomainZPCIAddressReleaseId(zpciIds->uids, &addr->uid);
         return -1;
     }
 
@@ -965,55 +943,15 @@ virDomainPCIAddressReleaseAddr(virDomainPCIAddressSetPtr addrs,
 }
 
 
-static uint32_t
-virZPCIAddrKeyCode(const void *name,
-                   uint32_t seed)
-{
-    unsigned int value = *((unsigned int *)name);
-    return virHashCodeGen(&value, sizeof(value), seed);
-}
-
-
-static bool
-virZPCIAddrKeyEqual(const void *namea,
-                    const void *nameb)
-{
-    return *((unsigned int *)namea) == *((unsigned int *)nameb);
-}
-
-
-static void *
-virZPCIAddrKeyCopy(const void *name)
-{
-    unsigned int *copy = g_new0(unsigned int, 1);
-
-    *copy = *((unsigned int *)name);
-    return (void *)copy;
-}
-
-
-static char *
-virZPCIAddrKeyPrintHuman(const void *name)
-{
-    return g_strdup_printf("%u", *((unsigned int *)name));
-}
-
-
-static void
-virZPCIAddrKeyFree(void *name)
-{
-    VIR_FREE(name);
-}
-
-
 static void
 virDomainPCIAddressSetExtensionFree(virDomainPCIAddressSetPtr addrs)
 {
     if (!addrs || !addrs->zpciIds)
         return;
 
-    virHashFree(addrs->zpciIds->uids);
-    virHashFree(addrs->zpciIds->fids);
+    g_clear_pointer(&addrs->zpciIds->uids, g_hash_table_unref);
+    g_clear_pointer(&addrs->zpciIds->fids, g_hash_table_unref);
+
     VIR_FREE(addrs->zpciIds);
 }
 
@@ -1026,22 +964,10 @@ virDomainPCIAddressSetExtensionAlloc(virDomainPCIAddressSetPtr addrs,
         if (addrs->zpciIds)
             return 0;
 
-        if (VIR_ALLOC(addrs->zpciIds) < 0)
-            return -1;
+        addrs->zpciIds = g_new0(virDomainZPCIAddressIds, 1);
 
-        addrs->zpciIds->uids = virHashCreateFull(10, NULL,
-                                                 virZPCIAddrKeyCode,
-                                                 virZPCIAddrKeyEqual,
-                                                 virZPCIAddrKeyCopy,
-                                                 virZPCIAddrKeyPrintHuman,
-                                                 virZPCIAddrKeyFree);
-
-        addrs->zpciIds->fids = virHashCreateFull(10, NULL,
-                                                 virZPCIAddrKeyCode,
-                                                 virZPCIAddrKeyEqual,
-                                                 virZPCIAddrKeyCopy,
-                                                 virZPCIAddrKeyPrintHuman,
-                                                 virZPCIAddrKeyFree);
+        addrs->zpciIds->uids = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, NULL);
+        addrs->zpciIds->fids = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, NULL);
     }
 
     return 0;
@@ -1054,12 +980,8 @@ virDomainPCIAddressSetAlloc(unsigned int nbuses,
 {
     virDomainPCIAddressSetPtr addrs;
 
-    if (VIR_ALLOC(addrs) < 0)
-        goto error;
-
-    if (VIR_ALLOC_N(addrs->buses, nbuses) < 0)
-        goto error;
-
+    addrs = g_new0(virDomainPCIAddressSet, 1);
+    addrs->buses = g_new0(virDomainPCIAddressBus, nbuses);
     addrs->nbuses = nbuses;
 
     if (virDomainPCIAddressSetExtensionAlloc(addrs, extFlags) < 0)
@@ -1465,10 +1387,9 @@ virDomainCCWAddressSetCreate(void)
 {
     virDomainCCWAddressSetPtr addrs = NULL;
 
-    if (VIR_ALLOC(addrs) < 0)
-        goto error;
+    addrs = g_new0(virDomainCCWAddressSet, 1);
 
-    if (!(addrs->defined = virHashCreate(10, virHashValueFree)))
+    if (!(addrs->defined = virHashNew(g_free)))
         goto error;
 
     /* must use cssid = 0xfe (254) for virtio-ccw devices */
@@ -1520,8 +1441,7 @@ virDomainVirtioSerialAddrSetCreate(void)
 {
     virDomainVirtioSerialAddrSetPtr ret = NULL;
 
-    if (VIR_ALLOC(ret) < 0)
-        return NULL;
+    ret = g_new0(virDomainVirtioSerialAddrSet, 1);
 
     return ret;
 }
@@ -1592,11 +1512,9 @@ virDomainVirtioSerialAddrSetAddController(virDomainVirtioSerialAddrSetPtr addrs,
     VIR_DEBUG("Adding virtio serial controller index %u with %d"
               " ports to the address set", cont->idx, ports);
 
-    if (VIR_ALLOC(cnt) < 0)
-        goto cleanup;
+    cnt = g_new0(virDomainVirtioSerialController, 1);
 
-    if (!(cnt->ports = virBitmapNew(ports)))
-        goto cleanup;
+    cnt->ports = virBitmapNew(ports);
     cnt->idx = cont->idx;
 
     if ((insertAt = virDomainVirtioSerialAddrPlaceController(addrs, cnt)) < -1)
@@ -1952,8 +1870,7 @@ virDomainUSBAddressSetCreate(void)
 {
     virDomainUSBAddressSetPtr addrs;
 
-    if (VIR_ALLOC(addrs) < 0)
-        return NULL;
+    addrs = g_new0(virDomainUSBAddressSet, 1);
 
     return addrs;
 }
@@ -2038,22 +1955,16 @@ virDomainUSBAddressControllerModelToPorts(virDomainControllerDefPtr cont)
 static virDomainUSBAddressHubPtr
 virDomainUSBAddressHubNew(size_t nports)
 {
-    virDomainUSBAddressHubPtr hub = NULL, ret = NULL;
+    virDomainUSBAddressHubPtr hub;
 
-    if (VIR_ALLOC(hub) < 0)
-        goto cleanup;
+    hub = g_new0(virDomainUSBAddressHub, 1);
 
-    if (!(hub->portmap = virBitmapNew(nports)))
-        goto cleanup;
+    hub->portmap = virBitmapNew(nports);
 
-    if (VIR_ALLOC_N(hub->ports, nports) < 0)
-        goto cleanup;
+    hub->ports = g_new0(virDomainUSBAddressHubPtr, nports);
     hub->nports = nports;
 
-    ret = g_steal_pointer(&hub);
- cleanup:
-    virDomainUSBAddressHubFree(hub);
-    return ret;
+    return hub;
 }
 
 

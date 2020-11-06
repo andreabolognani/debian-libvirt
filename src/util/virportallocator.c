@@ -70,13 +70,9 @@ virPortAllocatorNew(void)
     if (!(pa = virObjectLockableNew(virPortAllocatorClass)))
         return NULL;
 
-    if (!(pa->bitmap = virBitmapNew(VIR_PORT_ALLOCATOR_NUM_PORTS)))
-        goto error;
+    pa->bitmap = virBitmapNew(VIR_PORT_ALLOCATOR_NUM_PORTS);
 
     return pa;
- error:
-    virObjectUnref(pa);
-    return NULL;
 }
 
 static int
@@ -106,8 +102,7 @@ virPortAllocatorRangeNew(const char *name,
         return NULL;
     }
 
-    if (VIR_ALLOC(range) < 0)
-        return NULL;
+    range = g_new0(virPortAllocatorRange, 1);
 
     range->start = start;
     range->end = end;

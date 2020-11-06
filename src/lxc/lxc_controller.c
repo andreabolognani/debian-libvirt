@@ -310,7 +310,7 @@ static void virLXCControllerFree(virLXCControllerPtr ctrl)
     g_free(ctrl->nbdpids);
 
     g_free(ctrl->nsFDs);
-    virCgroupFree(&ctrl->cgroup);
+    virCgroupFree(ctrl->cgroup);
 
     /* This must always be the last thing to be closed */
     VIR_FORCE_CLOSE(ctrl->handshakeFd);
@@ -422,6 +422,7 @@ static int virLXCControllerGetNICIndexes(virLXCControllerPtr ctrl)
         case VIR_DOMAIN_NET_TYPE_UDP:
         case VIR_DOMAIN_NET_TYPE_INTERNAL:
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+        case VIR_DOMAIN_NET_TYPE_VDPA:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Unsupported net type %s"),
                            virDomainNetTypeToString(actualType));
@@ -756,9 +757,6 @@ static int virLXCControllerSetupCpuAffinity(virLXCControllerPtr ctrl)
         maxcpu = hostcpus;
 
     cpumap = virBitmapNew(maxcpu);
-    if (!cpumap)
-        return -1;
-
     cpumapToSet = cpumap;
 
     if (ctrl->def->cpumask) {

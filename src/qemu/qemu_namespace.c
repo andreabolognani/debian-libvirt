@@ -155,8 +155,7 @@ qemuDomainGetPreservedMounts(virQEMUDriverConfigPtr cfg,
         }
     }
 
-    if (VIR_ALLOC_N(paths, nmounts) < 0)
-        goto error;
+    paths = g_new0(char *, nmounts);
 
     for (i = 0; i < nmounts; i++) {
         if (!(paths[i] = qemuDomainGetPreservedMountPath(cfg, vm, mounts[i])))
@@ -799,9 +798,8 @@ qemuDomainEnableNamespace(virDomainObjPtr vm,
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
 
-    if (!priv->namespaces &&
-        !(priv->namespaces = virBitmapNew(QEMU_DOMAIN_NS_LAST)))
-        return -1;
+    if (!priv->namespaces)
+        priv->namespaces = virBitmapNew(QEMU_DOMAIN_NS_LAST);
 
     if (virBitmapSetBit(priv->namespaces, ns) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,

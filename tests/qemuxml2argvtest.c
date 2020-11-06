@@ -380,7 +380,7 @@ testCheckExclusiveFlags(int flags)
 {
     virCheckFlags(FLAG_EXPECT_FAILURE |
                   FLAG_EXPECT_PARSE_ERROR |
-                  FLAG_FIPS |
+                  FLAG_FIPS_HOST |
                   FLAG_REAL_CAPS |
                   FLAG_SKIP_LEGACY_CPUS |
                   FLAG_SLIRP_HELPER |
@@ -399,7 +399,13 @@ testCompareXMLToArgvCreateArgs(virQEMUDriverPtr drv,
                                unsigned int flags,
                                bool jsonPropsValidation)
 {
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    bool enableFips = !!(flags & FLAG_FIPS_HOST);
     size_t i;
+
+    if (qemuProcessCreatePretendCmdPrepare(drv, vm, migrateURI, false,
+                                           VIR_QEMU_PROCESS_START_COLD) < 0)
+        return NULL;
 
     for (i = 0; i < vm->def->nhostdevs; i++) {
         virDomainHostdevDefPtr hostdev = vm->def->hostdevs[i];
@@ -408,6 +414,24 @@ testCompareXMLToArgvCreateArgs(virQEMUDriverPtr drv,
             hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI &&
             hostdev->source.subsys.u.pci.backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT) {
             hostdev->source.subsys.u.pci.backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
+        }
+
+        if (virHostdevIsSCSIDevice(hostdev)) {
+            virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
+
+            switch ((virDomainHostdevSCSIProtocolType) scsisrc->protocol) {
+            case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE:
+                scsisrc->u.host.src->path = g_strdup("/dev/sg0");
+                break;
+
+            case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI:
+                break;
+
+            case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_LAST:
+            default:
+                virReportEnumRangeError(virDomainHostdevSCSIProtocolType, scsisrc->protocol);
+                return NULL;
+            }
         }
     }
 
@@ -466,10 +490,13 @@ testCompareXMLToArgvCreateArgs(virQEMUDriverPtr drv,
         }
     }
 
-    return qemuProcessCreatePretendCmd(drv, vm, migrateURI,
-                                       (flags & FLAG_FIPS), false,
-                                       jsonPropsValidation,
-                                       VIR_QEMU_PROCESS_START_COLD);
+    /* we can't use qemuCheckFips() directly as it queries host state */
+    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ENABLE_FIPS))
+        enableFips = false;
+
+    return qemuProcessCreatePretendCmdBuild(drv, vm, migrateURI,
+                                            enableFips, false,
+                                            jsonPropsValidation);
 }
 
 
@@ -588,9 +615,6 @@ testCompareXMLToArgv(const void *data)
     virSetConnectNodeDev(conn);
     virSetConnectSecret(conn);
     virSetConnectStorage(conn);
-
-    if (virQEMUCapsGet(info->qemuCaps, QEMU_CAPS_ENABLE_FIPS))
-        flags |= FLAG_FIPS;
 
     if (testCheckExclusiveFlags(info->flags) < 0)
         goto cleanup;
@@ -1175,6 +1199,8 @@ mymain(void)
     DO_TEST_CAPS_VER("disk-cache", "2.7.0");
     DO_TEST_CAPS_VER("disk-cache", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-cache");
+    DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("disk-transient", "x86_64", "4.1.0");
+    DO_TEST_CAPS_LATEST("disk-transient");
     DO_TEST("disk-network-nbd", NONE);
     DO_TEST_CAPS_VER("disk-network-nbd", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-network-nbd");
@@ -1218,14 +1244,14 @@ mymain(void)
     DO_TEST_PARSE_ERROR("disk-device-lun-type-invalid",
                         QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-attaching-partition-nosupport");
-    DO_TEST_FAILURE("disk-usb-nosupport", NONE);
+    DO_TEST_PARSE_ERROR("disk-usb-nosupport", NONE);
     DO_TEST("disk-usb-device",
             QEMU_CAPS_DEVICE_USB_STORAGE);
     DO_TEST("disk-usb-device-removable",
             QEMU_CAPS_DEVICE_USB_STORAGE,
             QEMU_CAPS_USB_STORAGE_REMOVABLE);
-    DO_TEST_FAILURE("disk-usb-pci",
-                    QEMU_CAPS_DEVICE_USB_STORAGE);
+    DO_TEST_PARSE_ERROR("disk-usb-pci",
+                        QEMU_CAPS_DEVICE_USB_STORAGE);
     DO_TEST_CAPS_LATEST("disk-scsi");
     DO_TEST_CAPS_VER("disk-scsi-device-auto", "1.5.3");
     DO_TEST_CAPS_LATEST("disk-scsi-device-auto");
@@ -1443,7 +1469,8 @@ mymain(void)
     DO_TEST("net-virtio-rxtxqueuesize",
             QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE,
             QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE);
-    DO_TEST_PARSE_ERROR("net-virtio-rxqueuesize-invalid-size", NONE);
+    DO_TEST_PARSE_ERROR("net-virtio-rxqueuesize-invalid-size",
+                        QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE);
     DO_TEST("net-virtio-teaming",
             QEMU_CAPS_VIRTIO_NET_FAILOVER,
             QEMU_CAPS_DEVICE_VFIO_PCI);
@@ -1467,6 +1494,7 @@ mymain(void)
             QEMU_CAPS_DEVICE_VFIO_PCI);
     DO_TEST_FAILURE("net-hostdev-fail",
                     QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_CAPS_LATEST("net-vdpa");
 
     DO_TEST("hostdev-pci-multifunction",
             QEMU_CAPS_KVM,
@@ -2062,8 +2090,8 @@ mymain(void)
     DO_TEST("pseries-panic-no-address",
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
             QEMU_CAPS_DEVICE_SPAPR_VTY);
-    DO_TEST_FAILURE("pseries-panic-address",
-                    QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE);
+    DO_TEST_PARSE_ERROR("pseries-panic-address",
+                        QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE);
 
     DO_TEST("pseries-phb-simple",
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE);
@@ -2250,7 +2278,9 @@ mymain(void)
     DO_TEST_PARSE_ERROR("mach-virt-serial-invalid-machine", NONE);
 
     DO_TEST("disk-ide-split", NONE);
-    DO_TEST("disk-ide-wwn", QEMU_CAPS_IDE_DRIVE_WWN);
+    DO_TEST("disk-ide-wwn",
+            QEMU_CAPS_IDE_DRIVE_WWN,
+            QEMU_CAPS_SCSI_DISK_WWN);
 
     DO_TEST("disk-geometry", NONE);
     DO_TEST("disk-blockio", QEMU_CAPS_BLOCKIO);
@@ -2373,9 +2403,9 @@ mymain(void)
     DO_TEST("s390-panic-no-address",
             QEMU_CAPS_CCW,
             QEMU_CAPS_VIRTIO_S390);
-    DO_TEST_FAILURE("s390-panic-address",
-            QEMU_CAPS_CCW,
-            QEMU_CAPS_VIRTIO_S390);
+    DO_TEST_PARSE_ERROR("s390-panic-address",
+                        QEMU_CAPS_CCW,
+                        QEMU_CAPS_VIRTIO_S390);
     DO_TEST("s390-panic-missing",
             QEMU_CAPS_CCW,
             QEMU_CAPS_VIRTIO_S390);
@@ -2887,9 +2917,9 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_MMIO,
             QEMU_CAPS_DEVICE_PL011,
             QEMU_CAPS_KVM, QEMU_CAPS_CPU_AARCH64_OFF);
-    DO_TEST_FAILURE("aarch64-kvm-32-on-64",
-            QEMU_CAPS_DEVICE_VIRTIO_MMIO,
-            QEMU_CAPS_KVM);
+    DO_TEST_PARSE_ERROR("aarch64-kvm-32-on-64",
+                        QEMU_CAPS_DEVICE_VIRTIO_MMIO,
+                        QEMU_CAPS_KVM);
     DO_TEST("aarch64-pci-serial",
             QEMU_CAPS_DEVICE_PCI_SERIAL,
             QEMU_CAPS_CHARDEV_LOGFILE,
@@ -2935,13 +2965,14 @@ mymain(void)
     DO_TEST("panic-no-address",
             QEMU_CAPS_DEVICE_PANIC);
 
-    DO_TEST("fips-enabled", QEMU_CAPS_ENABLE_FIPS);
+    DO_TEST_CAPS_ARCH_VER_FULL("fips-enabled", "x86_64", "5.1.0", ARG_FLAGS, FLAG_FIPS_HOST);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("fips-enabled", "x86_64", ARG_FLAGS, FLAG_FIPS_HOST);
 
     DO_TEST("shmem", QEMU_CAPS_DEVICE_IVSHMEM);
     DO_TEST("shmem-plain-doorbell", QEMU_CAPS_DEVICE_IVSHMEM,
             QEMU_CAPS_DEVICE_IVSHMEM_PLAIN,
             QEMU_CAPS_DEVICE_IVSHMEM_DOORBELL);
-    DO_TEST_FAILURE("shmem", NONE);
+    DO_TEST_PARSE_ERROR("shmem", NONE);
     DO_TEST_FAILURE("shmem-invalid-size",
                     QEMU_CAPS_DEVICE_IVSHMEM);
     DO_TEST_FAILURE("shmem-invalid-address",
@@ -3193,6 +3224,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("virtio-options-fs-packed");
     DO_TEST_CAPS_LATEST("virtio-options-input-packed");
     DO_TEST_CAPS_LATEST("virtio-options-memballoon-packed");
+    DO_TEST_CAPS_LATEST("virtio-options-memballoon-freepage-reporting");
     DO_TEST_CAPS_LATEST("virtio-options-net-packed");
     DO_TEST_CAPS_LATEST("virtio-options-rng-packed");
     DO_TEST_CAPS_LATEST("virtio-options-video-packed");
@@ -3230,6 +3262,7 @@ mymain(void)
     DO_TEST_PARSE_ERROR("virtio-options-input-packed", QEMU_CAPS_VIRTIO_MOUSE,
                         QEMU_CAPS_VIRTIO_KEYBOARD);
     DO_TEST_PARSE_ERROR("virtio-options-memballoon-packed", NONE);
+    DO_TEST_PARSE_ERROR("virtio-options-memballoon-freepage-reporting", NONE);
     DO_TEST_PARSE_ERROR("virtio-options-net-packed", NONE);
     DO_TEST_PARSE_ERROR("virtio-options-rng-packed", QEMU_CAPS_DEVICE_VIRTIO_RNG,
                         QEMU_CAPS_OBJECT_RNG_RANDOM);
@@ -3312,6 +3345,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("vhost-vsock-ccw-auto", "s390x");
 
     DO_TEST_CAPS_VER("launch-security-sev", "2.12.0");
+    DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "2.12.0");
 
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-memory");
     DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");

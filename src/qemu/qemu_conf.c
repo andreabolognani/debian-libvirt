@@ -278,8 +278,7 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged,
     cfg->glusterDebugLevel = 4;
     cfg->stdioLogD = true;
 
-    if (!(cfg->namespaces = virBitmapNew(QEMU_DOMAIN_NS_LAST)))
-        return NULL;
+    cfg->namespaces = virBitmapNew(QEMU_DOMAIN_NS_LAST);
 
     if (privileged &&
         qemuDomainNamespaceAvailable(QEMU_DOMAIN_NS_MOUNT) &&
@@ -641,9 +640,8 @@ virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfigPtr cfg,
         VIR_FREE(cfg->hugetlbfs);
 
         cfg->nhugetlbfs = virStringListLength((const char *const *)hugetlbfs);
-        if (hugetlbfs[0] &&
-            VIR_ALLOC_N(cfg->hugetlbfs, cfg->nhugetlbfs) < 0)
-            return -1;
+        if (hugetlbfs[0])
+            cfg->hugetlbfs = g_new0(virHugeTLBFS, cfg->nhugetlbfs);
 
         for (i = 0; hugetlbfs[i] != NULL; i++) {
             if (virQEMUDriverConfigHugeTLBFSInit(&cfg->hugetlbfs[i],
@@ -840,12 +838,11 @@ virQEMUDriverConfigLoadNVRAMEntry(virQEMUDriverConfigPtr cfg,
         }
 
         cfg->nfirmwares = virStringListLength((const char *const *)nvram);
-        if (nvram[0] && VIR_ALLOC_N(cfg->firmwares, cfg->nfirmwares) < 0)
-            return -1;
+        if (nvram[0])
+            cfg->firmwares = g_new0(virFirmwarePtr, cfg->nfirmwares);
 
         for (i = 0; nvram[i] != NULL; i++) {
-            if (VIR_ALLOC(cfg->firmwares[i]) < 0)
-                return -1;
+            cfg->firmwares[i] = g_new0(virFirmware, 1);
             if (virFirmwareParse(nvram[i], cfg->firmwares[i]) < 0)
                 return -1;
         }
@@ -1349,8 +1346,7 @@ virCapsPtr virQEMUDriverCreateCapabilities(virQEMUDriverPtr driver)
         ;
     caps->host.nsecModels = i;
 
-    if (VIR_ALLOC_N(caps->host.secModels, caps->host.nsecModels) < 0)
-        return NULL;
+    caps->host.secModels = g_new0(virCapsHostSecModel, caps->host.nsecModels);
 
     for (i = 0; sec_managers[i]; i++) {
         virCapsHostSecModelPtr sm = &caps->host.secModels[i];
@@ -1616,9 +1612,8 @@ qemuSharedDeviceEntryInsert(virQEMUDriverPtr driver,
             entry->domains[entry->ref - 1] = g_strdup(name);
         }
     } else {
-        if (VIR_ALLOC(entry) < 0 ||
-            VIR_ALLOC_N(entry->domains, 1) < 0)
-            goto error;
+        entry = g_new0(qemuSharedDeviceEntry, 1);
+        entry->domains = g_new0(char *, 1);
 
         entry->domains[0] = g_strdup(name);
 

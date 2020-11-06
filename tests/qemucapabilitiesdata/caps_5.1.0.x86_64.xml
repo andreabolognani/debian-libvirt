@@ -68,6 +68,7 @@
   <flag name='kvm-pit-lost-tick-policy'/>
   <flag name='boot-strict'/>
   <flag name='pvpanic'/>
+  <flag name='enable-fips'/>
   <flag name='spice-file-xfer-disable'/>
   <flag name='usb-kbd'/>
   <flag name='msg-timestamp'/>
@@ -242,6 +243,9 @@
   <flag name='intel-iommu.aw-bits'/>
   <flag name='numa.hmat'/>
   <flag name='blockdev-hostdev-scsi'/>
+  <flag name='usb-host.hostdevice'/>
+  <flag name='virtio-balloon.free-page-reporting'/>
+  <flag name='netdev.vhost-vdpa'/>
   <version>5001000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>43100242</microcodeVersion>

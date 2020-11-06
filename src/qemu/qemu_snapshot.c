@@ -75,7 +75,7 @@ qemuSnapObjFromSnapshot(virDomainObjPtr vm,
 /* Count how many snapshots in a set are external snapshots.  */
 static int
 qemuSnapshotCountExternal(void *payload,
-                          const void *name G_GNUC_UNUSED,
+                          const char *name G_GNUC_UNUSED,
                           void *data)
 {
     virDomainMomentObjPtr snap = payload;
@@ -163,8 +163,7 @@ qemuSnapshotCreateInactiveExternal(virQEMUDriverPtr driver,
     if (!(qemuImgPath = qemuFindQemuImgBinary(driver)))
         goto cleanup;
 
-    if (!(created = virBitmapNew(snapdef->ndisks)))
-        goto cleanup;
+    created = virBitmapNew(snapdef->ndisks);
 
     /* If reuse is true, then qemuSnapshotPrepare already
      * ensured that the new files exist, and it was up to the user to
@@ -986,6 +985,7 @@ qemuSnapshotDiskPrepareOne(virDomainObjPtr vm,
                            qemuSnapshotDiskDataPtr dd,
                            virHashTablePtr blockNamedNodeData,
                            bool reuse,
+                           bool updateConfig,
                            qemuDomainAsyncJob asyncJob,
                            virJSONValuePtr actions)
 {
@@ -1008,7 +1008,8 @@ qemuSnapshotDiskPrepareOne(virDomainObjPtr vm,
         return -1;
 
     /* modify disk in persistent definition only when the source is the same */
-    if (vm->newDef &&
+    if (updateConfig &&
+        vm->newDef &&
         (persistdisk = virDomainDiskByTarget(vm->newDef, dd->disk->dst)) &&
         virStorageSourceIsSameLocation(dd->disk->src, persistdisk->src)) {
 
@@ -1116,6 +1117,55 @@ qemuSnapshotDiskPrepareActiveExternal(virDomainObjPtr vm,
                                        snapctxt->dd + snapctxt->ndd++,
                                        blockNamedNodeData,
                                        reuse,
+                                       true,
+                                       asyncJob,
+                                       snapctxt->actions) < 0)
+            return NULL;
+    }
+
+    return g_steal_pointer(&snapctxt);
+}
+
+
+static qemuSnapshotDiskContextPtr
+qemuSnapshotDiskPrepareDisksTransient(virDomainObjPtr vm,
+                                      virQEMUDriverConfigPtr cfg,
+                                      virHashTablePtr blockNamedNodeData,
+                                      qemuDomainAsyncJob asyncJob)
+{
+    g_autoptr(qemuSnapshotDiskContext) snapctxt = NULL;
+    size_t i;
+
+    snapctxt = qemuSnapshotDiskContextNew(vm->def->ndisks, vm, asyncJob);
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDefPtr domdisk = vm->def->disks[i];
+        g_autoptr(virDomainSnapshotDiskDef) snapdisk = g_new0(virDomainSnapshotDiskDef, 1);
+
+        if (!domdisk->transient)
+            continue;
+
+        /* validation code makes sure that we do this only for local disks
+         * with a file source */
+        snapdisk->name = g_strdup(domdisk->dst);
+        snapdisk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
+        snapdisk->src = virStorageSourceNew();
+        snapdisk->src->type = VIR_STORAGE_TYPE_FILE;
+        snapdisk->src->format = VIR_STORAGE_FILE_QCOW2;
+        snapdisk->src->path = g_strdup_printf("%s.TRANSIENT", domdisk->src->path);
+
+        if (virFileExists(snapdisk->src->path)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                           _("Overlay file '%s' for transient disk '%s' already exists"),
+                           snapdisk->src->path, domdisk->dst);
+            return NULL;
+        }
+
+        if (qemuSnapshotDiskPrepareOne(vm, cfg, domdisk, snapdisk,
+                                       snapctxt->dd + snapctxt->ndd++,
+                                       blockNamedNodeData,
+                                       false,
+                                       false,
                                        asyncJob,
                                        snapctxt->actions) < 0)
             return NULL;
@@ -1248,6 +1298,45 @@ qemuSnapshotCreateActiveExternalDisks(virDomainObjPtr vm,
 
     if (qemuSnapshotDiskCreate(snapctxt, cfg) < 0)
         return -1;
+
+    return 0;
+}
+
+
+/**
+ * qemuSnapshotCreateDisksTransient:
+ * @vm: domain object
+ * @asyncJob: qemu async job type
+ *
+ * Creates overlays on top of disks which are configured as <transient/>. Note
+ * that the validation code ensures that <transient> disks have appropriate
+ * configuration.
+ */
+int
+qemuSnapshotCreateDisksTransient(virDomainObjPtr vm,
+                                 qemuDomainAsyncJob asyncJob)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    virQEMUDriverPtr driver = priv->driver;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    g_autoptr(qemuSnapshotDiskContext) snapctxt = NULL;
+    g_autoptr(virHashTable) blockNamedNodeData = NULL;
+
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV)) {
+        if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
+            return -1;
+
+        if (!(snapctxt = qemuSnapshotDiskPrepareDisksTransient(vm, cfg,
+                                                               blockNamedNodeData,
+                                                               asyncJob)))
+            return -1;
+
+        if (qemuSnapshotDiskCreate(snapctxt, cfg) < 0)
+            return -1;
+    }
+
+    /* the overlays are established, so they can be deleted on shutdown */
+    priv->inhibitDiskTransientDelete = false;
 
     return 0;
 }
@@ -2176,7 +2265,7 @@ struct _virQEMUMomentReparent {
 
 static int
 qemuSnapshotChildrenReparent(void *payload,
-                             const void *name G_GNUC_UNUSED,
+                             const char *name G_GNUC_UNUSED,
                              void *data)
 {
     virDomainMomentObjPtr moment = payload;

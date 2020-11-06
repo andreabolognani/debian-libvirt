@@ -34,7 +34,7 @@
  * too.
  *
  * On 64-bit hosts the stat & stat64 functions are identical, always
- * refering to the 64-bit ABI.
+ * referring to the 64-bit ABI.
  *
  * On 32-bit hosts they refer to the 32-bit & 64-bit ABIs respectively.
  *
@@ -49,11 +49,15 @@
  * In GLibC there may be two additional functions exposed by the headers,
  * __xstat() and __xstat64(). When these exist, stat() and stat64() are
  * transparently rewritten to call __xstat() and __xstat64() respectively.
- * The former symbols will not actally exist in the library at all, only
+ * The former symbols will not actually exist in the library at all, only
  * the header. The leading "__" indicates the symbols are a private impl
  * detail of the C library that applications should not care about.
  * Unfortunately, because we are trying to mock replace the C library,
  * we need to know about this internal impl detail.
+ *
+ * On macOS stat() and lstat() are resolved to _stat$INODE64 and
+ * _lstat$INODE64, respectively. stat(2) man page also declares that
+ * stat64(), lstat64() and fstat64() are deprecated.
  *
  * With all this in mind the list of functions we have to mock will depend
  * on several factors
@@ -63,35 +67,49 @@
  *  - If __xstat & __xstat64 exist, then stat & stat64 will not exist
  *    as symbols in the library, so the latter should not be mocked.
  *
+ *  - If __xstat exists in the library, but not the header than it
+ *    it is just there for binary back compat and should not be
+ *    mocked
+ *
  * The same all applies to lstat()
  */
 
 
+#if !defined(WITH___XSTAT_DECL)
+# if defined(WITH_STAT)
+#  if !defined(WITH___XSTAT) && !defined(WITH_STAT64) || defined(__APPLE__)
+#   define MOCK_STAT
+#  endif
+# endif
+# if defined(WITH_STAT64)
+#  define MOCK_STAT64
+# endif
+#else /* WITH___XSTAT_DECL */
+# if defined(WITH___XSTAT) && !defined(WITH___XSTAT64)
+#  define MOCK___XSTAT
+# endif
+# if defined(WITH___XSTAT64)
+#  define MOCK___XSTAT64
+# endif
+#endif /* WITH___XSTAT_DECL */
 
-#if defined(WITH_STAT) && !defined(WITH___XSTAT) && !defined(WITH_STAT64)
-# define MOCK_STAT
-#endif
-#if defined(WITH_STAT64) && !defined(WITH___XSTAT64)
-# define MOCK_STAT64
-#endif
-#if defined(WITH___XSTAT) && !defined(WITH___XSTAT64)
-# define MOCK___XSTAT
-#endif
-#if defined(WITH___XSTAT64)
-# define MOCK___XSTAT64
-#endif
-#if defined(WITH_LSTAT) && !defined(WITH___LXSTAT) && !defined(WITH_LSTAT64)
-# define MOCK_LSTAT
-#endif
-#if defined(WITH_LSTAT64) && !defined(WITH___LXSTAT64)
-# define MOCK_LSTAT64
-#endif
-#if defined(WITH___LXSTAT) && !defined(WITH___LXSTAT64)
-# define MOCK___LXSTAT
-#endif
-#if defined(WITH___LXSTAT64)
-# define MOCK___LXSTAT64
-#endif
+#if !defined(WITH___LXSTAT_DECL)
+# if defined(WITH_LSTAT)
+#  if !defined(WITH___LXSTAT) && !defined(WITH_LSTAT64) || defined(__APPLE__)
+#   define MOCK_LSTAT
+#  endif
+# endif
+# if defined(WITH_LSTAT64)
+#  define MOCK_LSTAT64
+# endif
+#else /* WITH___LXSTAT_DECL */
+# if defined(WITH___LXSTAT) && !defined(WITH___LXSTAT64)
+#  define MOCK___LXSTAT
+# endif
+# if defined(WITH___LXSTAT64)
+#  define MOCK___LXSTAT64
+# endif
+#endif /* WITH___LXSTAT_DECL */
 
 #ifdef MOCK_STAT
 static int (*real_stat)(const char *path, struct stat *sb);
@@ -153,7 +171,7 @@ static void virMockStatInit(void)
 #endif
 #ifdef MOCK_LSTAT
 # ifdef __APPLE__
-    VIR_MOCK_REAL_INIT_ALIASED(stat, "lstat$INODE64");
+    VIR_MOCK_REAL_INIT_ALIASED(lstat, "lstat$INODE64");
 # else
     VIR_MOCK_REAL_INIT(lstat);
 # endif
