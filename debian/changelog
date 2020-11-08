@@ -1,10 +1,11 @@
-libvirt (6.9.0-1) UNRELEASED; urgency=medium
+libvirt (6.9.0-1) unstable; urgency=medium
 
   * Team upload
 
   * [9328bc8] New upstream version 6.9.0
+  * [88c8a9e] patches: Drop backport/rpc-Fix-virt-ssh-helper-detection.patch
 
- -- Andrea Bolognani <eof@kiyuko.org>  Fri, 06 Nov 2020 22:51:12 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 08 Nov 2020 15:33:59 +0100
 
 libvirt (6.8.0-1) unstable; urgency=medium
 
