@@ -32,6 +32,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     endif
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
+    WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled
     WITH_STORAGE_DISK         = -Dstorage_disk=enabled
     WITH_STORAGE_RBD          = -Dstorage_rbd=enabled
     WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
@@ -64,6 +65,7 @@ else
     WITH_LIBXL                = -Ddriver_libxl=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
+    WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled
     WITH_STORAGE_DISK         = -Dstorage_disk=disabled
     WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
     WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
@@ -110,6 +112,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dstorage_dir=enabled \
     $(WITH_STORAGE_LVM) \
     $(WITH_STORAGE_ISCSI) \
+    $(WITH_STORAGE_ISCSI_DIRECT) \
     $(WITH_STORAGE_DISK) \
     -Dstorage_sheepdog=disabled \
     $(WITH_STORAGE_RBD) \

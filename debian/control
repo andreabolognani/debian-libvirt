@@ -23,6 +23,7 @@ Build-Depends:
  libgcrypt20-dev,
  libglusterfs-dev [linux-any],
  libgnutls28-dev,
+ libiscsi-dev [linux-any],
  libnetcf-dev (>= 1:0.2.3-3~) [linux-any],
  libnl-3-dev [linux-any],
  libnl-route-3-dev [linux-any],
@@ -107,6 +108,7 @@ Recommends:
  qemu-kvm | qemu (>= 0.9.1),
 Suggests:
  libvirt-daemon-driver-storage-gluster,
+ libvirt-daemon-driver-storage-iscsi-direct,
  libvirt-daemon-driver-storage-rbd,
  libvirt-daemon-driver-storage-zfs,
  libvirt-daemon-system,
@@ -217,6 +219,22 @@ Description: Virtualization daemon glusterfs storage driver
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the libvirtd storage driver for GlusterFS.
+
+Package: libvirt-daemon-driver-storage-iscsi-direct
+Section: admin
+Architecture: linux-any
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Virtualization daemon iSCSI (libiscsi) storage driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains a libvirtd storage driver for iSCSI volumes implemented
+ using libiscsi.
 
 Package: libvirt-daemon-driver-storage-rbd
 Section: admin
