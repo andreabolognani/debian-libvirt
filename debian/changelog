@@ -1,3 +1,9 @@
+libvirt (6.9.0-2) experimental; urgency=medium
+
+  * Team upload
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 14 Nov 2020 22:30:41 +0100
+
 libvirt (6.9.0-1) unstable; urgency=medium
 
   * Team upload
