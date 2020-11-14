@@ -4,13 +4,11 @@ usr/bin/virsh
 usr/bin/virt-admin
 usr/bin/virt-host-validate
 usr/bin/virt-pki-validate
-usr/bin/virt-qemu-run
 usr/bin/virt-xml-validate
 usr/share/man/man1/virsh.1
 usr/share/man/man1/virt-admin.1
 usr/share/man/man1/virt-host-validate.1
 usr/share/man/man1/virt-pki-validate.1
-usr/share/man/man1/virt-qemu-run.1
 usr/share/man/man1/virt-xml-validate.1
 usr/share/man/man7/virkeycode-*.7
 usr/share/man/man7/virkeyname-*.7

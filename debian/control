@@ -84,6 +84,7 @@ Depends:
 Suggests:
  libvirt-daemon,
 Breaks:
+ libvirt-daemon-driver-qemu (<< 6.9.0-2~),
  libvirt-login-shell (<< 6.9.0-2~),
 Description: Programs for the libvirt library
  Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -156,8 +157,10 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
+ libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon (<< 6.0.0-1~),
 Replaces:
+ libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon (<< 6.0.0-1~),
 Description: Virtualization daemon QEMU connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
