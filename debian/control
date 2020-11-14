@@ -143,6 +143,7 @@ Enhances:
  xen,
 Breaks:
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
+ libvirt-sanlock (<< 6.9.0-2~),
 Description: Virtualization daemon
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -452,6 +453,10 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
+Breaks:
+ libvirt-daemon (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon (<< 6.9.0-2~),
 Description: Sanlock plugin for virtlockd
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
