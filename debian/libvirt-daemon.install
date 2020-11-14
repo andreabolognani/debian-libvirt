@@ -14,7 +14,11 @@ usr/lib/*/libvirt/storage-backend/libvirt_storage_backend_mpath.so
 usr/lib/*/libvirt/storage-backend/libvirt_storage_backend_scsi.so
 usr/lib/*/libvirt/storage-file/libvirt_storage_file_fs.so
 usr/lib/libvirt/libvirt-guests.sh
-usr/lib/libvirt/libvirt_*
+usr/lib/libvirt/libvirt_iohelper
+usr/lib/libvirt/libvirt_leaseshelper
+usr/lib/libvirt/libvirt_lxc
+usr/lib/libvirt/libvirt_parthelper
+usr/lib/libvirt/libvirt_sanlock_helper
 usr/sbin/libvirtd
 usr/sbin/virt-sanlock-cleanup
 usr/sbin/virtlockd
@@ -29,5 +33,10 @@ usr/share/augeas/lenses/tests/test_virtlockd.aug
 usr/share/augeas/lenses/tests/test_virtlogd.aug
 usr/share/augeas/lenses/virtlockd.aug
 usr/share/augeas/lenses/virtlogd.aug
-usr/share/bash-completion/*
-usr/share/man/man8/*
+usr/share/bash-completion/completions/virsh
+usr/share/bash-completion/completions/virt-admin
+usr/share/bash-completion/completions/vsh
+usr/share/man/man8/libvirtd.8
+usr/share/man/man8/virt-sanlock-cleanup.8
+usr/share/man/man8/virtlockd.8
+usr/share/man/man8/virtlogd.8
