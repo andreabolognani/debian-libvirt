@@ -1,0 +1,2 @@
+# Moved to libvirt-login-shell
+rm_conffile /etc/libvirt/libvirt-login-shell.conf 6.9.0-2~ libvirt-clients
