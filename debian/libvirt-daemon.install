@@ -16,7 +16,6 @@ usr/lib/*/libvirt/storage-file/libvirt_storage_file_fs.so
 usr/lib/libvirt/libvirt-guests.sh
 usr/lib/libvirt/libvirt_iohelper
 usr/lib/libvirt/libvirt_leaseshelper
-usr/lib/libvirt/libvirt_lxc
 usr/lib/libvirt/libvirt_parthelper
 usr/lib/libvirt/libvirt_sanlock_helper
 usr/sbin/libvirtd

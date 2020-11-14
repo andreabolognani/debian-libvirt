@@ -141,6 +141,8 @@ Enhances:
  qemu,
  qemu-kvm,
  xen,
+Breaks:
+ libvirt-daemon-driver-lxc (<< 6.9.0-2~),
 Description: Virtualization daemon
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -178,9 +180,9 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
- libvirt-daemon (<< 6.0.0-1~),
+ libvirt-daemon (<< 6.9.0-2~),
 Replaces:
- libvirt-daemon (<< 6.0.0-1~),
+ libvirt-daemon (<< 6.9.0-2~),
 Description: Virtualization daemon LXC connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
