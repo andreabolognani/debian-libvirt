@@ -54,8 +54,10 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
     ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_LXC)))
         WITH_LXC              = -Ddriver_lxc=enabled
+        WITH_LOGIN_SHELL      = -Dlogin_shell=enabled
     else
         WITH_LXC              = -Ddriver_lxc=disabled
+        WITH_LOGIN_SHELL      = -Dlogin_shell=disabled
     endif
 else
     WITH_VBOX                 = -Ddriver_vbox=disabled
@@ -83,6 +85,7 @@ else
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
     WITH_LXC                  = -Ddriver_lxc=disabled
+    WITH_LOGIN_SHELL          = -Dlogin_shell=disabled
 endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
@@ -124,6 +127,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_LIBXL) \
     $(WITH_VBOX) \
     $(WITH_LXC) \
+    $(WITH_LOGIN_SHELL) \
     $(WITH_DTRACE) \
     $(WITH_AUDIT) \
     $(WITH_FIREWALLD) \
