@@ -399,6 +399,7 @@ Description: development files for the libvirt library
  needed for developing the applications with libvirt.
 
 Package: libvirt-sanlock
+Section: admin
 Architecture: linux-any
 Depends:
  augeas-tools,
@@ -414,6 +415,7 @@ Description: Sanlock plugin for virtlockd
  This package contains the sanlock plugin for libvirt's locking daemon.
 
 Package: libnss-libvirt
+Section: admin
 Architecture: linux-any
 Multi-Arch: same
 Pre-Depends:
@@ -433,6 +435,7 @@ Description: nss plugins providing IP address resolution for virtual machines
  names while the 'libvirt' plugin looks at the guest's hostname.
 
 Package: libvirt-wireshark
+Section: admin
 Architecture: any
 Depends:
  ${misc:Depends},
