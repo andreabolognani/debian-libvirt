@@ -30,9 +30,6 @@ usr/share/augeas/lenses/tests/test_virtlockd.aug
 usr/share/augeas/lenses/tests/test_virtlogd.aug
 usr/share/augeas/lenses/virtlockd.aug
 usr/share/augeas/lenses/virtlogd.aug
-usr/share/bash-completion/completions/virsh
-usr/share/bash-completion/completions/virt-admin
-usr/share/bash-completion/completions/vsh
 usr/share/man/man8/libvirtd.8
 usr/share/man/man8/virtlockd.8
 usr/share/man/man8/virtlogd.8

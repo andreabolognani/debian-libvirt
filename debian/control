@@ -84,8 +84,11 @@ Depends:
 Suggests:
  libvirt-daemon,
 Breaks:
+ libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
  libvirt-login-shell (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon (<< 6.9.0-2~),
 Description: Programs for the libvirt library
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -142,6 +145,7 @@ Enhances:
  qemu-kvm,
  xen,
 Breaks:
+ libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
  libvirt-sanlock (<< 6.9.0-2~),
 Description: Virtualization daemon
