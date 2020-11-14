@@ -17,69 +17,69 @@ include /usr/share/dpkg/buildflags.mk
 
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64))
-        WITH_VBOX        = -Ddriver_vbox=enabled
+        WITH_VBOX             = -Ddriver_vbox=enabled
     else
-        WITH_VBOX        = -Ddriver_vbox=disabled
+        WITH_VBOX             = -Ddriver_vbox=disabled
     endif
     ifneq (,$(findstring $(DEB_HOST_ARCH), i386 amd64 armhf arm64))
-        WITH_LIBXL       = -Ddriver_libxl=enabled
-        XEN_ENABLED      = 1
+        WITH_LIBXL            = -Ddriver_libxl=enabled
+        XEN_ENABLED           = 1
     else
-        WITH_LIBXL       = -Ddriver_libxl=disabled
+        WITH_LIBXL            = -Ddriver_libxl=disabled
     endif
-    WITH_STORAGE_LVM     = -Dstorage_lvm=enabled
-    WITH_STORAGE_ISCSI   = -Dstorage_iscsi=enabled
-    WITH_STORAGE_DISK    = -Dstorage_disk=enabled
-    WITH_STORAGE_RBD     = -Dstorage_rbd=enabled
-    WITH_STORAGE_GLUSTER = -Dstorage_gluster=enabled
-    WITH_UDEV            = -Dudev=enabled
-    WITH_CAPNG           = -Dcapng=enabled
-    WITH_LIBNL           = -Dlibnl=enabled
-    WITH_NETWORK         = -Ddriver_network=enabled
-    WITH_OPENVZ          = -Ddriver_openvz=enabled
-    WITH_NETCF           = -Dnetcf=enabled
-    WITH_POLKIT          = -Dpolkit=enabled
-    WITH_SANLOCK         = -Dsanlock=enabled
-    WITH_INIT_SCRIPT     = -Dinit_script=systemd
-    WITH_FIREWALLD       = -Dfirewalld=enabled
-    WITH_ATTR            = -Dattr=enabled
-    WITH_AUDIT           = -Daudit=enabled
-    WITH_SELINUX         = -Dselinux=enabled -Dsecdriver_selinux=enabled -Dselinux_mount=/sys/fs/selinux
-    WITH_APPARMOR        = -Dapparmor=enabled -Dsecdriver_apparmor=enabled -Dapparmor_profiles=true
-    WITH_NSS_PLUGIN      = -Dnss=enabled
-    WITH_DTRACE          = -Ddtrace=enabled
-    WITH_NUMA            = -Dnumactl=enabled -Dnumad=enabled
+    WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
+    WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
+    WITH_STORAGE_DISK         = -Dstorage_disk=enabled
+    WITH_STORAGE_RBD          = -Dstorage_rbd=enabled
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
+    WITH_UDEV                 = -Dudev=enabled
+    WITH_CAPNG                = -Dcapng=enabled
+    WITH_LIBNL                = -Dlibnl=enabled
+    WITH_NETWORK              = -Ddriver_network=enabled
+    WITH_OPENVZ               = -Ddriver_openvz=enabled
+    WITH_NETCF                = -Dnetcf=enabled
+    WITH_POLKIT               = -Dpolkit=enabled
+    WITH_SANLOCK              = -Dsanlock=enabled
+    WITH_INIT_SCRIPT          = -Dinit_script=systemd
+    WITH_FIREWALLD            = -Dfirewalld=enabled
+    WITH_ATTR                 = -Dattr=enabled
+    WITH_AUDIT                = -Daudit=enabled
+    WITH_SELINUX              = -Dselinux=enabled -Dsecdriver_selinux=enabled -Dselinux_mount=/sys/fs/selinux
+    WITH_APPARMOR             = -Dapparmor=enabled -Dsecdriver_apparmor=enabled -Dapparmor_profiles=true
+    WITH_NSS_PLUGIN           = -Dnss=enabled
+    WITH_DTRACE               = -Ddtrace=enabled
+    WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
     ifneq (,$(findstring $(DEB_HOST_ARCH), ia64))
-        WITH_LXC         = -Ddriver_lxc=disabled
+        WITH_LXC              = -Ddriver_lxc=disabled
     else
-        WITH_LXC         = -Ddriver_lxc=enabled
+        WITH_LXC              = -Ddriver_lxc=enabled
     endif
 else
-    WITH_VBOX            = -Ddriver_vbox=disabled
-    WITH_LIBXL           = -Ddriver_libxl=disabled
-    WITH_STORAGE_LVM     = -Dstorage_lvm=disabled
-    WITH_STORAGE_ISCSI   = -Dstorage_iscsi=disabled
-    WITH_STORAGE_DISK    = -Dstorage_disk=disabled
-    WITH_STORAGE_RBD     = -Dstorage_rbd=disabled
-    WITH_STORAGE_GLUSTER = -Dstorage_gluster=disabled
-    WITH_UDEV            = -Dudev=disabled
-    WITH_CAPNG           = -Dcapng=disabled
-    WITH_LIBNL           = -Dlibnl=disabled
-    WITH_NETWORK         = -Ddriver_network=disabled
-    WITH_OPENVZ          = -Ddriver_openvz=disabled
-    WITH_NETCF           = -Dnetcf=disabled
-    WITH_POLKIT          = -Dpolkit=disabled
-    WITH_SANLOCK         = -Dsanlock=disabled
-    WITH_INIT_SCRIPT     = -Dinit_script=none
-    WITH_FIREWALLD       = -Dfirewalld=disabled
-    WITH_ATTR            = -Dattr=disabled
-    WITH_AUDIT           = -Daudit=disabled
-    WITH_SELINUX         = -Dselinux=disabled -Dsecdriver_selinux=disabled -Dselinux_mount=
-    WITH_APPARMOR        = -Dapparmor=disabled -Dsecdriver_apparmor=disabled -Dapparmor_profiles=false
-    WITH_NSS_PLUGIN      = -Dnss=disabled
-    WITH_DTRACE          = -Ddtrace=disabled
-    WITH_NUMA            = -Dnumactl=disabled -Dnumad=disabled
-    WITH_LXC             = -Ddriver_lxc=disabled
+    WITH_VBOX                 = -Ddriver_vbox=disabled
+    WITH_LIBXL                = -Ddriver_libxl=disabled
+    WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
+    WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
+    WITH_STORAGE_DISK         = -Dstorage_disk=disabled
+    WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
+    WITH_UDEV                 = -Dudev=disabled
+    WITH_CAPNG                = -Dcapng=disabled
+    WITH_LIBNL                = -Dlibnl=disabled
+    WITH_NETWORK              = -Ddriver_network=disabled
+    WITH_OPENVZ               = -Ddriver_openvz=disabled
+    WITH_NETCF                = -Dnetcf=disabled
+    WITH_POLKIT               = -Dpolkit=disabled
+    WITH_SANLOCK              = -Dsanlock=disabled
+    WITH_INIT_SCRIPT          = -Dinit_script=none
+    WITH_FIREWALLD            = -Dfirewalld=disabled
+    WITH_ATTR                 = -Dattr=disabled
+    WITH_AUDIT                = -Daudit=disabled
+    WITH_SELINUX              = -Dselinux=disabled -Dsecdriver_selinux=disabled -Dselinux_mount=
+    WITH_APPARMOR             = -Dapparmor=disabled -Dsecdriver_apparmor=disabled -Dapparmor_profiles=false
+    WITH_NSS_PLUGIN           = -Dnss=disabled
+    WITH_DTRACE               = -Ddtrace=disabled
+    WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
+    WITH_LXC                  = -Ddriver_lxc=disabled
 endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
