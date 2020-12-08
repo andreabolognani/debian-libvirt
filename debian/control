@@ -81,6 +81,8 @@ Depends:
  sensible-utils,
  ${misc:Depends},
  ${shlibs:Depends},
+Recommends:
+ libvirt-login-shell,
 Suggests:
  libvirt-daemon,
 Breaks:
