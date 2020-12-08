@@ -86,7 +86,6 @@ Suggests:
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
- libvirt-login-shell (<< 6.9.0-2~),
 Replaces:
  libvirt-daemon (<< 6.9.0-2~),
 Description: Programs for the libvirt library
