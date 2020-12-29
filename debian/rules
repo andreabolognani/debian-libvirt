@@ -218,8 +218,12 @@ override_dh_auto_install:
 	# triggers the privacy-breach-generic Lintian tag
 	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci.html
 
-	# Don't autostart the default network
-	rm $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/default.xml
+	# Disable network autostart
+	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
+
+	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/
+	mv $(DEB_DESTDIR)/etc/libvirt/qemu/networks/ \
+	   $(DEB_DESTDIR)/usr/share/libvirt/
 
 override_dh_install-arch:
 	dh_install
@@ -240,7 +244,6 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	dh_install -p libvirt-daemon-system usr/share/systemtap
 	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/qemu/networks/
 	dh_install -p libvirt-daemon-system etc/libvirt/nwfilter/
 	dh_install -p libnss-libvirt \
 	           usr/lib/$(DEB_HOST_MULTIARCH)/libnss_libvirt*.so.2 \

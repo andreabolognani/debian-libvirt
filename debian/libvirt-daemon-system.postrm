@@ -15,6 +15,36 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+abort_conffile_transfer() {
+    local conffile="$1"
+    local lastver="$2"
+    local pkgfrom="$3"
+    local pkgto="$4"
+
+    if [ "$5" != "--" ]; then
+        echo "abort_conffile_transfer called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 5); do
+        shift
+    done
+
+    # If we were installing from scratch or upgrading from a new enough version
+    # when the error occurred, then no transfer was in progress and we don't
+    # need to rollback any changes
+    if [ -z "$2" ] || dpkg --compare-versions -- "$2" gt "$lastver"; then
+        return 0
+    fi
+
+    # If the conffile was being transferred, return it to its original location
+    if [ -e "$conffile.dpkg-transfer" ]; then
+        mv -f "$conffile.dpkg-transfer" "$conffile"
+    fi
+
+    # Clean up additional state
+    rm -f "$conffile.dpkg-disappear"
+}
+
 case "$1" in
     purge)
         if getent group libvirt >/dev/null; then
@@ -49,7 +79,17 @@ case "$1" in
         done
     ;;
 
-    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    abort-install|abort-upgrade)
+        abort_conffile_transfer \
+            "/etc/libvirt/qemu/networks/default.xml" \
+            "6.9.0-2~" \
+            "libvirt-daemon-system" \
+            "libvirt-daemon-config-network" \
+            -- \
+            "$@"
+    ;;
+
+    remove|upgrade|failed-upgrade|disappear)
     ;;
 
     *)
