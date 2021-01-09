@@ -330,6 +330,7 @@ Recommends:
  dnsmasq-base (>= 2.46-1),
  iproute2,
  libvirt-daemon-config-network,
+ libvirt-daemon-config-nwfilter,
  mdevctl,
  parted,
 Suggests:
@@ -418,6 +419,27 @@ Description: Libvirt daemon configuration files (default network)
  which only needs to exist if your VMs are configured to use it or some other
  application expects it to be present; if that's not the case, this package
  can safely be uninstalled.
+
+Package: libvirt-daemon-config-nwfilter
+Section: admin
+Architecture: all
+Depends:
+ libvirt-daemon-system (= ${binary:Version}),
+ ${misc:Depends},
+Breaks:
+ libvirt-daemon-system (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon-system (<< 6.9.0-2~),
+Description: Libvirt daemon configuration files (default network filters)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the configuration for the default libvirt network
+ filters, which only needs to exist if your VMs are configured to use them or
+ some other application expects them to be present; if that's not the case,
+ this package can safely be uninstalled.
 
 Package: libvirt0
 Architecture: any

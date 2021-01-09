@@ -45,6 +45,27 @@ abort_conffile_transfer() {
     rm -f "$conffile.dpkg-disappear"
 }
 
+NWFILTERS="
+    allow-arp
+    allow-dhcp-server
+    allow-dhcp
+    allow-incoming-ipv4
+    allow-ipv4
+    clean-traffic-gateway
+    clean-traffic
+    no-arp-ip-spoofing
+    no-arp-mac-spoofing
+    no-arp-spoofing
+    no-ip-multicast
+    no-ip-spoofing
+    no-mac-broadcast
+    no-mac-spoofing
+    no-other-l2-traffic
+    no-other-rarp-traffic
+    qemu-announce-self-rarp
+    qemu-announce-self
+"
+
 case "$1" in
     purge)
         if getent group libvirt >/dev/null; then
@@ -87,6 +108,15 @@ case "$1" in
             "libvirt-daemon-config-network" \
             -- \
             "$@"
+        for nwfilter in $NWFILTERS; do
+            abort_conffile_transfer \
+                "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "6.9.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-config-nwfilter" \
+                -- \
+                "$@"
+        done
     ;;
 
     remove|upgrade|failed-upgrade|disappear)

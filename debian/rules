@@ -223,6 +223,7 @@ override_dh_auto_install:
 
 	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/
 	mv $(DEB_DESTDIR)/etc/libvirt/qemu/networks/ \
+	   $(DEB_DESTDIR)/etc/libvirt/nwfilter/ \
 	   $(DEB_DESTDIR)/usr/share/libvirt/
 
 override_dh_install-arch:
@@ -244,7 +245,6 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	dh_install -p libvirt-daemon-system usr/share/systemtap
 	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/nwfilter/
 	dh_install -p libnss-libvirt \
 	           usr/lib/$(DEB_HOST_MULTIARCH)/libnss_libvirt*.so.2 \
 	           lib/$(DEB_HOST_MULTIARCH)/
