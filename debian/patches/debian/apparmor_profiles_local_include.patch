@@ -4,38 +4,14 @@ Subject: apparmor_profiles_local_include
 
 Include local apparmor profile
 ---
+ src/security/apparmor/libvirt-lxc                       | 3 +++
+ src/security/apparmor/libvirt-qemu                      | 3 +++
  src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in | 1 +
  src/security/apparmor/usr.sbin.libvirtd.in              | 3 +++
- 2 files changed, 4 insertions(+)
+ 4 files changed, 10 insertions(+)
 
---- a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-+++ b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-@@ -69,5 +69,6 @@ profile virt-aa-helper @libexecdir@/virt
-   /**.[iI][sS][oO] r,
-   /**/disk{,.*} r,
- 
-+  # Site-specific additions and overrides. See local/README for details.
-   #include <local/usr.lib.libvirt.virt-aa-helper>
- }
---- a/src/security/apparmor/usr.sbin.libvirtd.in
-+++ b/src/security/apparmor/usr.sbin.libvirtd.in
-@@ -134,4 +134,7 @@ profile libvirtd @sbindir@/libvirtd flag
- 
-    /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
-   }
-+
-+  # Site-specific additions and overrides. See local/README for details.
-+  #include <local/usr.sbin.libvirtd>
- }
---- a/src/security/apparmor/libvirt-qemu
-+++ b/src/security/apparmor/libvirt-qemu
-@@ -242,3 +242,6 @@
-   # /sys/bus/nd/devices
-   / r, # harmless on any lsb compliant system
-   /sys/bus/nd/devices/{,**/} r,
-+
-+  # Site-specific additions and overrides. See local/README for details.
-+  #include <local/abstractions/libvirt-qemu>
+diff --git a/src/security/apparmor/libvirt-lxc b/src/security/apparmor/libvirt-lxc
+index e556f2a..9d28353 100644
 --- a/src/security/apparmor/libvirt-lxc
 +++ b/src/security/apparmor/libvirt-lxc
 @@ -112,3 +112,6 @@
@@ -45,3 +21,37 @@ Include local apparmor profile
 +
 +  # Site-specific additions and overrides. See local/README for details.
 +  #include <local/abstractions/libvirt-lxc>
+diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
+index a03e9e2..f055b63 100644
+--- a/src/security/apparmor/libvirt-qemu
++++ b/src/security/apparmor/libvirt-qemu
+@@ -242,3 +242,6 @@
+   # /sys/bus/nd/devices
+   / r, # harmless on any lsb compliant system
+   /sys/bus/nd/devices/{,**/} r,
++
++  # Site-specific additions and overrides. See local/README for details.
++  #include <local/abstractions/libvirt-qemu>
+diff --git a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
+index dd18c8a..be8b9ee 100644
+--- a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
++++ b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
+@@ -69,5 +69,6 @@ profile virt-aa-helper @libexecdir@/virt-aa-helper {
+   /**.[iI][sS][oO] r,
+   /**/disk{,.*} r,
+ 
++  # Site-specific additions and overrides. See local/README for details.
+   #include <local/usr.lib.libvirt.virt-aa-helper>
+ }
+diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
+index bf4563e..d48cd36 100644
+--- a/src/security/apparmor/usr.sbin.libvirtd.in
++++ b/src/security/apparmor/usr.sbin.libvirtd.in
+@@ -134,4 +134,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
+ 
+    /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
+   }
++
++  # Site-specific additions and overrides. See local/README for details.
++  #include <local/usr.sbin.libvirtd>
+ }
