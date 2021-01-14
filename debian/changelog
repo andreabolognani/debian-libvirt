@@ -2,7 +2,29 @@ libvirt (6.9.0-2) experimental; urgency=medium
 
   * Team upload
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 14 Nov 2020 22:30:41 +0100
+  [ Andrea Bolognani ]
+  * [55504dd] libvirt-daemon-config-network: New binary package
+    - Closes: #973489
+  * [0168a25] libvirt-daemon-config-nwfilter: New binary package
+  * [7ad0fe3] libvirt-daemon-driver-storage-iscsi-direct: New binary package
+    - Closes: #918728
+  * [aadb56a] libvirt-login-shell: New binary package
+  * [807a8de] libvirt-clients: Move out virt-qemu-run
+  * [3af477f] libvirt-daemon: Move out libvirt_lxc
+  * [03f8bbb] libvirt-daemon: Move out sanlock-related files
+  * [b94f649] libvirt-daemon: Move out bash-completion support
+    - Closes: #904036
+
+  [ Guido Günther ]
+  * [acb5c16] d/control: Use qemu-system instead of qemu
+    - Closes: #966239
+
+  [ Christian Ehrhardt ]
+  * [8c1bf5d] d/control: fix circular dependency on libvirt-daemon-driver-qemu
+    - Closes: #963898
+  * [3d8fdd2] apparmor: add local include for libvirt-qemu & libvirt-lxc
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 14 Jan 2021 23:51:32 +0100
 
 libvirt (6.9.0-1) unstable; urgency=medium
 
