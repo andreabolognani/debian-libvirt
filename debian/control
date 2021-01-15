@@ -358,7 +358,7 @@ Description: Libvirt daemon configuration files
 
 Package: libvirt-daemon-system-systemd
 Section: admin
-Architecture: any
+Architecture: all
 Depends:
  systemd-container,
  systemd-sysv,
@@ -377,7 +377,7 @@ Description: Libvirt daemon configuration files (systemd)
 
 Package: libvirt-daemon-system-sysv
 Section: admin
-Architecture: any
+Architecture: all
 Pre-Depends:
  ${misc:Pre-Depends},
 Depends:
