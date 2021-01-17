@@ -149,7 +149,10 @@ Enhances:
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
+ libvirt-daemon-system (<< 6.9.0-3~),
  libvirt-sanlock (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon-system (<< 6.9.0-3~),
 Description: Virtualization daemon
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
