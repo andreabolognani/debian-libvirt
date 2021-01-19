@@ -1,3 +1,12 @@
+libvirt (6.9.0-3) unstable; urgency=medium
+
+  * Team upload
+
+  * [81999fb] rules: Move virt-aa-helper to libvirt-daemon
+  * [b9b6a95] control: Make libvirt-daemon-system-{systemd,sysv} Arch: all
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 19 Jan 2021 23:10:20 +0100
+
 libvirt (6.9.0-2) experimental; urgency=medium
 
   * Team upload
