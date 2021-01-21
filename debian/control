@@ -413,10 +413,7 @@ Description: Libvirt daemon configuration files (default network)
  a long term stable C API for different virtualization mechanisms. It currently
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
- This package contains the configuration for the 'default' libvirt network,
- which only needs to exist if your VMs are configured to use it or some other
- application expects it to be present; if that's not the case, this package
- can safely be uninstalled.
+ This package contains the configuration for the 'default' libvirt network.
 
 Package: libvirt-daemon-config-nwfilter
 Section: admin
@@ -433,10 +430,7 @@ Description: Libvirt daemon configuration files (default network filters)
  a long term stable C API for different virtualization mechanisms. It currently
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
- This package contains the configuration for the default libvirt network
- filters, which only needs to exist if your VMs are configured to use them or
- some other application expects them to be present; if that's not the case,
- this package can safely be uninstalled.
+ This package contains the configuration for the default set of nwfilters.
 
 Package: libvirt0
 Architecture: any
