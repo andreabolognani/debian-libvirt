@@ -1,14 +1,11 @@
-libvirt (6.9.0-2) experimental; urgency=medium
+libvirt (6.9.0-4) experimental; urgency=medium
 
   The configuration for the default network and the default set
   of nwfilters have been moved from the libvirt-daemon-system
   package to the new libvirt-daemon-config-network and
-  libvirt-daemon-config-nwfilter packages respectively: this
-  change makes it possible to get rid of either configuration by
-  simply uninstalling the corresponding package or, for new
-  installations, not installing them in the first place.
+  libvirt-daemon-config-nwfilter packages respectively.
 
- -- Andrea Bolognani <eof@kiyuko.org>  Thu, 31 Dec 2020 17:05:45 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 21 Jan 2020 21:54:03 +0100
 
 libvirt (6.0.0-2) unstable; urgency=medium
 
