@@ -165,7 +165,6 @@ Package: libvirt-daemon-driver-qemu
 Section: admin
 Architecture: linux-any
 Depends:
- libvirt-daemon (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -403,7 +402,6 @@ Package: libvirt-daemon-config-network
 Section: admin
 Architecture: all
 Depends:
- libvirt-daemon-system (>= ${source:Version}),
  ${misc:Depends},
 Breaks:
  libvirt-daemon-system (<< 6.9.0-2~),
@@ -424,7 +422,6 @@ Package: libvirt-daemon-config-nwfilter
 Section: admin
 Architecture: all
 Depends:
- libvirt-daemon-system (>= ${source:Version}),
  ${misc:Depends},
 Breaks:
  libvirt-daemon-system (<< 6.9.0-2~),
