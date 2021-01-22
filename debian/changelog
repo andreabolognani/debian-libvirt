@@ -1,3 +1,11 @@
+libvirt (6.9.0-4) unstable; urgency=medium
+
+  * Team upload
+
+  * [f5c0ebf] control: Strengthen dependencies between packages
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 22 Jan 2021 22:31:04 +0100
+
 libvirt (6.9.0-3) unstable; urgency=medium
 
   * Team upload
