@@ -1,4 +1,4 @@
-libvirt (6.9.0-4) experimental; urgency=medium
+libvirt (6.9.0-4) unstable; urgency=medium
 
   The configuration for the default network and the default set
   of nwfilters have been moved from the libvirt-daemon-system
