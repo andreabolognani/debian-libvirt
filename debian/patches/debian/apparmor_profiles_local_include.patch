@@ -11,10 +11,10 @@ Include local apparmor profile
  4 files changed, 10 insertions(+)
 
 diff --git a/src/security/apparmor/libvirt-lxc b/src/security/apparmor/libvirt-lxc
-index e556f2a..9d28353 100644
+index 0c8b812..72278b5 100644
 --- a/src/security/apparmor/libvirt-lxc
 +++ b/src/security/apparmor/libvirt-lxc
-@@ -112,3 +112,6 @@
+@@ -116,3 +116,6 @@
    deny /sys/fs/cgrou[^p]*{,/**} wklx,
    deny /sys/fs/cgroup?*{,/**} wklx,
    deny /sys/fs?*{,/**} wklx,
@@ -22,10 +22,10 @@ index e556f2a..9d28353 100644
 +  # Site-specific additions and overrides. See local/README for details.
 +  #include <local/abstractions/libvirt-lxc>
 diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
-index a03e9e2..f055b63 100644
+index 85c9e61..677a464 100644
 --- a/src/security/apparmor/libvirt-qemu
 +++ b/src/security/apparmor/libvirt-qemu
-@@ -242,3 +242,6 @@
+@@ -243,3 +243,6 @@
    # /sys/bus/nd/devices
    / r, # harmless on any lsb compliant system
    /sys/bus/nd/devices/{,**/} r,

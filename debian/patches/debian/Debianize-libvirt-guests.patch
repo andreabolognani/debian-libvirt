@@ -9,7 +9,7 @@ Origin: vendor
  2 files changed, 30 insertions(+), 19 deletions(-)
 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index d69df90..d4f962d 100644
+index 87f96af..38cdfbb 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
 @@ -1,5 +1,17 @@
@@ -91,7 +91,7 @@ index d69df90..d4f962d 100644
      if [ -f "$LISTFILE" ]; then
          gettext "stopped, with saved guests"; echo
 diff --git a/tools/libvirt-guests.sysconf b/tools/libvirt-guests.sysconf
-index 0765efe..1bda2ef 100644
+index 4f83eda..4b09bdb 100644
 --- a/tools/libvirt-guests.sysconf
 +++ b/tools/libvirt-guests.sysconf
 @@ -10,7 +10,7 @@
