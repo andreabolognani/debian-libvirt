@@ -1,3 +1,9 @@
+libvirt (7.0.0-1) UNRELEASED; urgency=medium
+
+  * Team upload
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 23 Jan 2021 15:14:51 +0100
+
 libvirt (6.9.0-4) unstable; urgency=medium
 
   * Team upload
