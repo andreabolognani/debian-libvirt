@@ -190,6 +190,12 @@ virDomainSnapshotDiskDefParseXML(xmlNodePtr node,
             goto cleanup;
     }
 
+    if (virParseScaledValue("./driver/metadata_cache/max_size", NULL,
+                            ctxt,
+                            &def->src->metadataCacheMaxSize,
+                            1, ULLONG_MAX, false) < 0)
+        goto cleanup;
+
     /* validate that the passed path is absolute */
     if (virStorageSourceIsRelative(def->src)) {
         virReportError(VIR_ERR_XML_ERROR,
@@ -640,7 +646,7 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDefPtr snapdef,
                             bool require_match)
 {
     virDomainDefPtr domdef = snapdef->parent.dom;
-    g_autoptr(virHashTable) map = virHashNew(NULL);
+    g_autoptr(GHashTable) map = virHashNew(NULL);
     g_autofree virDomainSnapshotDiskDefPtr olddisks = NULL;
     size_t i;
 
@@ -663,16 +669,13 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDefPtr snapdef,
     /* Double check requested disks.  */
     for (i = 0; i < snapdef->ndisks; i++) {
         virDomainSnapshotDiskDefPtr snapdisk = &snapdef->disks[i];
-        int idx = virDomainDiskIndexByName(domdef, snapdisk->name, false);
-        virDomainDiskDefPtr domdisk = NULL;
+        virDomainDiskDefPtr domdisk = virDomainDiskByName(domdef, snapdisk->name, false);
 
-        if (idx < 0) {
+        if (!domdisk) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("no disk named '%s'"), snapdisk->name);
             return -1;
         }
-
-        domdisk = domdef->disks[idx];
 
         if (virHashHasEntry(map, domdisk->dst)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -775,33 +778,45 @@ virDomainSnapshotDiskDefFormat(virBufferPtr buf,
                                virDomainSnapshotDiskDefPtr disk,
                                virDomainXMLOptionPtr xmlopt)
 {
-    int type = disk->src->type;
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
     if (!disk->name)
         return 0;
 
-    virBufferEscapeString(buf, "<disk name='%s'", disk->name);
+    virBufferEscapeString(&attrBuf, " name='%s'", disk->name);
     if (disk->snapshot > 0)
-        virBufferAsprintf(buf, " snapshot='%s'",
+        virBufferAsprintf(&attrBuf, " snapshot='%s'",
                           virDomainSnapshotLocationTypeToString(disk->snapshot));
 
-    if (!disk->src->path && disk->src->format == 0) {
-        virBufferAddLit(buf, "/>\n");
-        return 0;
+    if (disk->src->path || disk->src->format != 0) {
+        g_auto(virBuffer) driverAttrBuf = VIR_BUFFER_INITIALIZER;
+        g_auto(virBuffer) driverChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+
+        virBufferAsprintf(&attrBuf, " type='%s'", virStorageTypeToString(disk->src->type));
+
+        if (disk->src->format > 0)
+            virBufferEscapeString(&driverAttrBuf, " type='%s'",
+                                  virStorageFileFormatTypeToString(disk->src->format));
+
+        if (disk->src->metadataCacheMaxSize > 0) {
+            g_auto(virBuffer) metadataCacheChildBuf = VIR_BUFFER_INIT_CHILD(&driverChildBuf);
+
+            virBufferAsprintf(&metadataCacheChildBuf,
+                              "<max_size unit='bytes'>%llu</max_size>\n",
+                              disk->src->metadataCacheMaxSize);
+
+            virXMLFormatElement(&driverChildBuf, "metadata_cache", NULL, &metadataCacheChildBuf);
+        }
+
+        virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, &driverChildBuf);
+
+        if (virDomainDiskSourceFormat(&childBuf, disk->src, "source", 0, false, 0,
+                                      false, false, xmlopt) < 0)
+        return -1;
     }
 
-    virBufferAsprintf(buf, " type='%s'>\n", virStorageTypeToString(type));
-    virBufferAdjustIndent(buf, 2);
-
-    if (disk->src->format > 0)
-        virBufferEscapeString(buf, "<driver type='%s'/>\n",
-                              virStorageFileFormatTypeToString(disk->src->format));
-    if (virDomainDiskSourceFormat(buf, disk->src, "source", 0, false, 0,
-                                  false, false, xmlopt) < 0)
-        return -1;
-
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</disk>\n");
+    virXMLFormatElement(buf, "disk", &attrBuf, &childBuf);
     return 0;
 }
 

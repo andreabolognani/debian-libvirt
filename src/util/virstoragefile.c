@@ -90,6 +90,7 @@ VIR_ENUM_IMPL(virStorageNetProtocol,
               "tftp",
               "ssh",
               "vxhs",
+              "nfs",
 );
 
 VIR_ENUM_IMPL(virStorageNetHostTransport,
@@ -1193,159 +1194,6 @@ virStorageFileGetMetadataFromFD(const char *path,
 }
 
 
-/**
- * virStorageFileChainCheckBroken
- *
- * If CHAIN is broken, set *brokenFile to the broken file name,
- * otherwise set it to NULL. Caller MUST free *brokenFile after use.
- * Return 0 on success (including when brokenFile is set), negative on
- * error (allocation failure).
- */
-int
-virStorageFileChainGetBroken(virStorageSourcePtr chain,
-                             char **brokenFile)
-{
-    virStorageSourcePtr tmp;
-
-    *brokenFile = NULL;
-
-    if (!chain)
-        return 0;
-
-    for (tmp = chain; virStorageSourceIsBacking(tmp); tmp = tmp->backingStore) {
-        /* Break when we hit end of chain; report error if we detected
-         * a missing backing file, infinite loop, or other error */
-        if (!tmp->backingStore && tmp->backingStoreRaw) {
-            *brokenFile = g_strdup(tmp->backingStoreRaw);
-
-           return 0;
-        }
-    }
-
-    return 0;
-}
-
-
-/**
- * virStorageFileResize:
- *
- * Change the capacity of the raw storage file at 'path'.
- */
-int
-virStorageFileResize(const char *path,
-                     unsigned long long capacity,
-                     bool pre_allocate)
-{
-    int rc;
-    VIR_AUTOCLOSE fd = -1;
-
-    if ((fd = open(path, O_RDWR)) < 0) {
-        virReportSystemError(errno, _("Unable to open '%s'"), path);
-        return -1;
-    }
-
-    if (pre_allocate) {
-        if ((rc = virFileAllocate(fd, 0, capacity)) != 0) {
-            if (rc == -2) {
-                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                               _("preallocate is not supported on this platform"));
-            } else {
-                virReportSystemError(errno,
-                                     _("Failed to pre-allocate space for "
-                                       "file '%s'"), path);
-            }
-            return -1;
-        }
-    }
-
-    if (ftruncate(fd, capacity) < 0) {
-        virReportSystemError(errno,
-                             _("Failed to truncate file '%s'"), path);
-        return -1;
-    }
-
-    if (VIR_CLOSE(fd) < 0) {
-        virReportSystemError(errno, _("Unable to save '%s'"), path);
-        return -1;
-    }
-
-    return 0;
-}
-
-
-int virStorageFileIsClusterFS(const char *path)
-{
-    /* These are coherent cluster filesystems known to be safe for
-     * migration with cache != none
-     */
-    return virFileIsSharedFSType(path,
-                                 VIR_FILE_SHFS_GFS2 |
-                                 VIR_FILE_SHFS_OCFS |
-                                 VIR_FILE_SHFS_CEPH);
-}
-
-#ifdef LVS
-int virStorageFileGetLVMKey(const char *path,
-                            char **key)
-{
-    /*
-     *  # lvs --noheadings --unbuffered --nosuffix --options "uuid" LVNAME
-     *    06UgP5-2rhb-w3Bo-3mdR-WeoL-pytO-SAa2ky
-     */
-    int status;
-    int ret = -1;
-    g_autoptr(virCommand) cmd = NULL;
-
-    cmd = virCommandNewArgList(LVS, "--noheadings",
-                               "--unbuffered", "--nosuffix",
-                               "--options", "uuid", path,
-                               NULL
-                               );
-    *key = NULL;
-
-    /* Run the program and capture its output */
-    virCommandSetOutputBuffer(cmd, key);
-    if (virCommandRun(cmd, &status) < 0)
-        goto cleanup;
-
-    /* Explicitly check status == 0, rather than passing NULL
-     * to virCommandRun because we don't want to raise an actual
-     * error in this scenario, just return a NULL key.
-     */
-
-    if (status == 0 && *key) {
-        char *nl;
-        char *tmp = *key;
-
-        /* Find first non-space character */
-        while (*tmp && g_ascii_isspace(*tmp))
-            tmp++;
-        /* Kill leading spaces */
-        if (tmp != *key)
-            memmove(*key, tmp, strlen(tmp)+1);
-
-        /* Kill trailing newline */
-        if ((nl = strchr(*key, '\n')))
-            *nl = '\0';
-    }
-
-    ret = 0;
-
- cleanup:
-    if (*key && STREQ(*key, ""))
-        VIR_FREE(*key);
-
-    return ret;
-}
-#else
-int virStorageFileGetLVMKey(const char *path,
-                            char **key G_GNUC_UNUSED)
-{
-    virReportSystemError(ENOSYS, _("Unable to get LVM key for %s"), path);
-    return -1;
-}
-#endif
-
 #ifdef WITH_UDEV
 /* virStorageFileGetSCSIKey
  * @path: Path to the SCSI device
@@ -1503,7 +1351,7 @@ virStorageFileParseBackingStoreStr(const char *str,
     size_t nstrings;
     unsigned int idx = 0;
     char *suffix;
-    VIR_AUTOSTRINGLIST strings = NULL;
+    g_auto(GStrv) strings = NULL;
 
     *chainIndex = 0;
 
@@ -2369,6 +2217,7 @@ virStorageSourceCopy(const virStorageSource *src,
     def->sslverify = src->sslverify;
     def->readahead = src->readahead;
     def->timeout = src->timeout;
+    def->metadataCacheMaxSize = src->metadataCacheMaxSize;
 
     /* storage driver metadata are not copied */
     def->drv = NULL;
@@ -2444,6 +2293,11 @@ virStorageSourceCopy(const virStorageSource *src,
     /* ssh config passthrough for libguestfs */
     def->ssh_host_key_check_disabled = src->ssh_host_key_check_disabled;
     def->ssh_user = g_strdup(src->ssh_user);
+
+    def->nfs_user = g_strdup(src->nfs_user);
+    def->nfs_group = g_strdup(src->nfs_group);
+    def->nfs_uid = src->nfs_uid;
+    def->nfs_gid = src->nfs_gid;
 
     return g_steal_pointer(&def);
 }
@@ -2685,6 +2539,9 @@ virStorageSourceClear(virStorageSourcePtr def)
 
     VIR_FREE(def->ssh_user);
 
+    VIR_FREE(def->nfs_user);
+    VIR_FREE(def->nfs_group);
+
     virStorageSourceInitiatorClear(&def->initiator);
 
     /* clear everything except the class header as the object APIs
@@ -2778,7 +2635,7 @@ virStorageSourceParseBackingURI(virStorageSourcePtr src,
 {
     g_autoptr(virURI) uri = NULL;
     const char *path = NULL;
-    VIR_AUTOSTRINGLIST scheme = NULL;
+    g_auto(GStrv) scheme = NULL;
 
     if (!(uri = virURIParse(uristr))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -2880,7 +2737,7 @@ virStorageSourceRBDAddHost(virStorageSourcePtr src,
 {
     char *port;
     size_t skip;
-    VIR_AUTOSTRINGLIST parts = NULL;
+    g_auto(GStrv) parts = NULL;
 
     if (VIR_EXPAND_N(src->hosts, src->nhosts, 1) < 0)
         return -1;
@@ -3152,6 +3009,7 @@ virStorageSourceParseBackingColon(virStorageSourcePtr src,
     case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
     case VIR_STORAGE_NET_PROTOCOL_SSH:
     case VIR_STORAGE_NET_PROTOCOL_VXHS:
+    case VIR_STORAGE_NET_PROTOCOL_NFS:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("malformed backing store path for protocol %s"),
                        protocol);
@@ -3220,7 +3078,7 @@ virStorageSourceParseBackingJSONUriCookies(virStorageSourcePtr src,
                                            const char *jsonstr)
 {
     const char *cookiestr;
-    VIR_AUTOSTRINGLIST cookies = NULL;
+    g_auto(GStrv) cookies = NULL;
     size_t ncookies = 0;
     size_t i;
 
@@ -3796,6 +3654,54 @@ virStorageSourceParseBackingJSONVxHS(virStorageSourcePtr src,
 
 
 static int
+virStorageSourceParseBackingJSONNFS(virStorageSourcePtr src,
+                                    virJSONValuePtr json,
+                                    const char *jsonstr G_GNUC_UNUSED,
+                                    int opaque G_GNUC_UNUSED)
+{
+    virJSONValuePtr server = virJSONValueObjectGetObject(json, "server");
+    int uidStore = -1;
+    int gidStore = -1;
+    int gotUID = virJSONValueObjectGetNumberInt(json, "user", &uidStore);
+    int gotGID = virJSONValueObjectGetNumberInt(json, "group", &gidStore);
+
+    if (!server) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing 'server' attribute in JSON backing definition for NFS volume"));
+        return -1;
+    }
+
+    if (gotUID < 0 || gotGID < 0) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing 'user' or 'group' attribute in JSON backing definition for NFS volume"));
+        return -1;
+    }
+
+    src->path = g_strdup(virJSONValueObjectGetString(json, "path"));
+    if (!src->path) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing 'path' attribute in JSON backing definition for NFS volume"));
+        return -1;
+    }
+
+    src->nfs_user = g_strdup_printf("+%d", uidStore);
+    src->nfs_group = g_strdup_printf("+%d", gidStore);
+
+    src->type = VIR_STORAGE_TYPE_NETWORK;
+    src->protocol = VIR_STORAGE_NET_PROTOCOL_NFS;
+
+    src->hosts = g_new0(virStorageNetHostDef, 1);
+    src->nhosts = 1;
+
+    if (virStorageSourceParseBackingJSONInetSocketAddress(src->hosts,
+                                                          server) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 virStorageSourceParseBackingJSONNVMe(virStorageSourcePtr src,
                                      virJSONValuePtr json,
                                      const char *jsonstr G_GNUC_UNUSED,
@@ -3854,6 +3760,7 @@ static const struct virStorageSourceJSONDriverParser jsonParsers[] = {
     {"ssh", false, virStorageSourceParseBackingJSONSSH, 0},
     {"rbd", false, virStorageSourceParseBackingJSONRBD, 0},
     {"raw", true, virStorageSourceParseBackingJSONRaw, 0},
+    {"nfs", false, virStorageSourceParseBackingJSONNFS, 0},
     {"vxhs", false, virStorageSourceParseBackingJSONVxHS, 0},
     {"nvme", false, virStorageSourceParseBackingJSONNVMe, 0},
 };
@@ -4291,7 +4198,7 @@ virStorageFileCanonicalizePath(const char *path,
                                virStorageFileSimplifyPathReadlinkCallback cb,
                                void *cbdata)
 {
-    virHashTablePtr cycle = NULL;
+    GHashTable *cycle = NULL;
     bool beginSlash = false;
     bool beginDoubleSlash = false;
     char **components = NULL;
@@ -4505,30 +4412,6 @@ virStorageFileGetRelativeBackingPath(virStorageSourcePtr top,
 }
 
 
-/*
- * virStorageFileCheckCompat
- */
-int
-virStorageFileCheckCompat(const char *compat)
-{
-    unsigned int result;
-    VIR_AUTOSTRINGLIST version = NULL;
-
-    if (!compat)
-        return 0;
-
-    version = virStringSplit(compat, ".", 2);
-    if (!version || !version[1] ||
-        virStrToLong_ui(version[0], NULL, 10, &result) < 0 ||
-        virStrToLong_ui(version[1], NULL, 10, &result) < 0) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("forbidden characters in 'compat' attribute"));
-        return -1;
-    }
-    return 0;
-}
-
-
 /**
  * virStorageSourceIsRelative:
  * @src: storage source to check
@@ -4626,6 +4509,10 @@ virStorageSourceNetworkDefaultPort(virStorageNetProtocol protocol)
 
         case VIR_STORAGE_NET_PROTOCOL_VXHS:
             return 9999;
+
+        case VIR_STORAGE_NET_PROTOCOL_NFS:
+            /* Port is not supported by NFS, so no default is provided */
+            return 0;
 
         case VIR_STORAGE_NET_PROTOCOL_LAST:
         case VIR_STORAGE_NET_PROTOCOL_NONE:
@@ -5160,7 +5047,7 @@ virStorageFileGetMetadataRecurseReadHeader(virStorageSourcePtr src,
                                            gid_t gid,
                                            char **buf,
                                            size_t *headerLen,
-                                           virHashTablePtr cycle)
+                                           GHashTable *cycle)
 {
     int ret = -1;
     const char *uniqueName;
@@ -5205,7 +5092,7 @@ virStorageFileGetMetadataRecurse(virStorageSourcePtr src,
                                  virStorageSourcePtr parent,
                                  uid_t uid, gid_t gid,
                                  bool report_broken,
-                                 virHashTablePtr cycle,
+                                 GHashTable *cycle,
                                  unsigned int depth)
 {
     virStorageFileFormat orig_format = src->format;
@@ -5309,7 +5196,7 @@ virStorageFileGetMetadata(virStorageSourcePtr src,
                           uid_t uid, gid_t gid,
                           bool report_broken)
 {
-    virHashTablePtr cycle = NULL;
+    GHashTable *cycle = NULL;
     virStorageType actualType = virStorageSourceGetActualType(src);
     int ret = -1;
 

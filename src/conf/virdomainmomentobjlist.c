@@ -42,7 +42,7 @@ VIR_LOG_INIT("conf.virdomainmomentobjlist");
 struct _virDomainMomentObjList {
     /* name string -> virDomainMomentObj  mapping
      * for O(1), lockless lookup-by-name */
-    virHashTable *objs;
+    GHashTable *objs;
 
     virDomainMomentObj metaroot; /* Special parent of all root moments */
     virDomainMomentObjPtr current; /* The current moment, if any */
@@ -475,7 +475,7 @@ virDomainMomentForEach(virDomainMomentObjListPtr moments,
                        virHashIterator iter,
                        void *data)
 {
-    return virHashForEach(moments->objs, iter, data);
+    return virHashForEachSafe(moments->objs, iter, data);
 }
 
 

@@ -68,7 +68,6 @@
   <flag name='kvm-pit-lost-tick-policy'/>
   <flag name='boot-strict'/>
   <flag name='pvpanic'/>
-  <flag name='enable-fips'/>
   <flag name='spice-file-xfer-disable'/>
   <flag name='usb-kbd'/>
   <flag name='msg-timestamp'/>
@@ -246,11 +245,15 @@
   <flag name='blockdev-hostdev-scsi'/>
   <flag name='usb-host.hostdevice'/>
   <flag name='virtio-balloon.free-page-reporting'/>
+  <flag name='block-export-add'/>
   <flag name='netdev.vhost-vdpa'/>
-  <version>5001050</version>
+  <flag name='fsdev.createmode'/>
+  <flag name='dc390'/>
+  <flag name='am53c974'/>
+  <version>5002000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>43100243</microcodeVersion>
-  <package>v5.1.0-2207-g96292515c0</package>
+  <package>v5.2.0</package>
   <arch>x86_64</arch>
   <hostCPU type='kvm' model='base' migratability='yes'>
     <property name='vmx-entry-load-rtit-ctl' type='boolean' value='false'/>
@@ -284,7 +287,7 @@
     <property name='sse4.1' type='boolean' value='true' migratable='yes'/>
     <property name='family' type='number' value='23'/>
     <property name='vmx-vmwrite-vmexit-fields' type='boolean' value='false'/>
-    <property name='kvm-asyncpf-int' type='boolean' value='false'/>
+    <property name='kvm-asyncpf-int' type='boolean' value='true' migratable='yes'/>
     <property name='vmx-vnmi' type='boolean' value='false'/>
     <property name='vmx-true-ctls' type='boolean' value='false'/>
     <property name='vmx-ept-execonly' type='boolean' value='false'/>

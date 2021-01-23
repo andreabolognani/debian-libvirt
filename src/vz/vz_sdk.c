@@ -674,8 +674,8 @@ prlsdkGetDiskInfo(vzDriverPtr driver,
     if (!(buf = prlsdkGetStringParamVar(PrlVmDev_GetFriendlyName, prldisk)))
         goto cleanup;
 
-    if (*buf != '\0' && virDomainDiskSetSource(disk, buf) < 0)
-        goto cleanup;
+    if (*buf != '\0')
+        virDomainDiskSetSource(disk, buf);
 
     if (prlsdkGetDiskId(prldisk, &disk->bus, &disk->dst) < 0)
         goto cleanup;
@@ -698,8 +698,7 @@ prlsdkGetDiskInfo(vzDriverPtr driver,
             VIR_FREE(disk->serial);
     }
 
-    if (virDomainDiskSetDriver(disk, "vz") < 0)
-        goto cleanup;
+    virDomainDiskSetDriver(disk, "vz");
 
     if (disk->device == VIR_DOMAIN_DISK_DEVICE_DISK) {
         pret = PrlVmDevHd_GetDiskSize(prldisk, &size);
@@ -834,8 +833,7 @@ prlsdkAddDomainHardDisksInfo(vzDriverPtr driver, PRL_HANDLE sdkdom, virDomainDef
             if (prlsdkGetDiskInfo(driver, hdd, disk, false, IS_CT(def)) < 0)
                 goto error;
 
-            if (virDomainDiskInsert(def, disk) < 0)
-                goto error;
+            virDomainDiskInsert(def, disk);
 
             disk = NULL;
             PrlHandle_Free(hdd);
@@ -877,8 +875,7 @@ prlsdkAddDomainOpticalDisksInfo(vzDriverPtr driver, PRL_HANDLE sdkdom, virDomain
         PrlHandle_Free(cdrom);
         cdrom = PRL_INVALID_HANDLE;
 
-        if (virDomainDiskInsert(def, disk) < 0)
-            goto error;
+        virDomainDiskInsert(def, disk);
     }
 
     return 0;

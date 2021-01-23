@@ -142,7 +142,7 @@ virStorageEncryptionSecretParse(xmlXPathContextPtr ctxt,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     virStorageEncryptionSecretPtr ret;
-    char *type_str = NULL;
+    g_autofree char *type_str = NULL;
 
     ret = g_new0(virStorageEncryptionSecret, 1);
 
@@ -164,12 +164,9 @@ virStorageEncryptionSecretParse(xmlXPathContextPtr ctxt,
     if (virSecretLookupParseSecret(node, &ret->seclookupdef) < 0)
         goto cleanup;
 
-    VIR_FREE(type_str);
-
     return ret;
 
  cleanup:
-    VIR_FREE(type_str);
     virStorageEncryptionSecretFree(ret);
     return NULL;
 }
@@ -179,13 +176,12 @@ static int
 virStorageEncryptionInfoParseCipher(xmlNodePtr info_node,
                                     virStorageEncryptionInfoDefPtr info)
 {
-    int ret = -1;
-    char *size_str = NULL;
+    g_autofree char *size_str = NULL;
 
     if (!(info->cipher_name = virXMLPropString(info_node, "name"))) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("cipher info missing 'name' attribute"));
-        goto cleanup;
+        return -1;
     }
 
     if ((size_str = virXMLPropString(info_node, "size")) &&
@@ -193,23 +189,19 @@ virStorageEncryptionInfoParseCipher(xmlNodePtr info_node,
         virReportError(VIR_ERR_XML_ERROR,
                        _("cannot parse cipher size: '%s'"),
                        size_str);
-        goto cleanup;
+        return -1;
     }
 
     if (!size_str) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("cipher info missing 'size' attribute"));
-        goto cleanup;
+        return -1;
     }
 
     info->cipher_mode = virXMLPropString(info_node, "mode");
     info->cipher_hash = virXMLPropString(info_node, "hash");
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(size_str);
-    return ret;
+    return 0;
 }
 
 
@@ -237,7 +229,7 @@ virStorageEncryptionParseNode(xmlNodePtr node,
     xmlNodePtr *nodes = NULL;
     virStorageEncryptionPtr encdef = NULL;
     virStorageEncryptionPtr ret = NULL;
-    char *format_str = NULL;
+    g_autofree char *format_str = NULL;
     int n;
     size_t i;
 
@@ -297,7 +289,6 @@ virStorageEncryptionParseNode(xmlNodePtr node,
     ret = g_steal_pointer(&encdef);
 
  cleanup:
-    VIR_FREE(format_str);
     VIR_FREE(nodes);
     virStorageEncryptionFree(encdef);
 
@@ -371,39 +362,5 @@ virStorageEncryptionFormat(virBufferPtr buf,
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</encryption>\n");
 
-    return 0;
-}
-
-int
-virStorageGenerateQcowPassphrase(unsigned char *dest)
-{
-    int fd;
-    size_t i;
-
-    /* A qcow passphrase is up to 16 bytes, with any data following a NUL
-       ignored.  Prohibit control and non-ASCII characters to avoid possible
-       unpleasant surprises with the qemu monitor input mechanism. */
-    fd = open("/dev/urandom", O_RDONLY);
-    if (fd < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot open /dev/urandom"));
-        return -1;
-    }
-    i = 0;
-    while (i < VIR_STORAGE_QCOW_PASSPHRASE_SIZE) {
-        ssize_t r;
-
-        while ((r = read(fd, dest + i, 1)) == -1 && errno == EINTR)
-            ;
-        if (r <= 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot read from /dev/urandom"));
-            VIR_FORCE_CLOSE(fd);
-            return -1;
-        }
-        if (dest[i] >= 0x20 && dest[i] <= 0x7E)
-            i++; /* Got an acceptable character */
-    }
-    VIR_FORCE_CLOSE(fd);
     return 0;
 }

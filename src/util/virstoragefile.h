@@ -135,6 +135,7 @@ typedef enum {
     VIR_STORAGE_NET_PROTOCOL_TFTP,
     VIR_STORAGE_NET_PROTOCOL_SSH,
     VIR_STORAGE_NET_PROTOCOL_VXHS,
+    VIR_STORAGE_NET_PROTOCOL_NFS,
 
     VIR_STORAGE_NET_PROTOCOL_LAST
 } virStorageNetProtocol;
@@ -321,6 +322,8 @@ struct _virStorageSource {
     unsigned long long clusterSize; /* in bytes, 0 if unknown */
     bool has_allocation; /* Set to true when provided in XML */
 
+    unsigned long long metadataCacheMaxSize; /* size of the metadata cache in bytes */
+
     size_t nseclabels;
     virSecurityDeviceLabelDefPtr *seclabels;
 
@@ -384,6 +387,14 @@ struct _virStorageSource {
     /* these must not be used apart from formatting the output JSON in the qemu driver */
     char *ssh_user;
     bool ssh_host_key_check_disabled;
+
+    /* nfs_user and nfs_group store the strings passed in by the user for NFS params.
+     * nfs_uid and nfs_gid represent the converted/looked up ID numbers which are used
+     * during run time, and are not based on the configuration */
+    char *nfs_user;
+    char *nfs_group;
+    uid_t nfs_uid;
+    gid_t nfs_gid;
 };
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virStorageSource, virObjectUnref);
@@ -403,9 +414,6 @@ virStorageSourcePtr virStorageFileGetMetadataFromBuf(const char *path,
                                                      size_t len,
                                                      int format)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-int virStorageFileChainGetBroken(virStorageSourcePtr chain,
-                                 char **broken_file);
-
 int virStorageFileParseChainIndex(const char *diskTarget,
                                   const char *name,
                                   unsigned int *chainIndex)
@@ -423,16 +431,9 @@ virStorageSourcePtr virStorageFileChainLookup(virStorageSourcePtr chain,
                                               virStorageSourcePtr *parent)
     ATTRIBUTE_NONNULL(1);
 
-int virStorageFileResize(const char *path,
-                         unsigned long long capacity,
-                         bool pre_allocate);
-
-int virStorageFileIsClusterFS(const char *path);
 bool virStorageIsFile(const char *path);
 bool virStorageIsRelative(const char *backing);
 
-int virStorageFileGetLVMKey(const char *path,
-                            char **key);
 int virStorageFileGetSCSIKey(const char *path,
                              char **key,
                              bool ignoreError);
@@ -517,8 +518,6 @@ int virStorageFileGetRelativeBackingPath(virStorageSourcePtr from,
                                          virStorageSourcePtr to,
                                          char **relpath)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
-
-int virStorageFileCheckCompat(const char *compat);
 
 int virStorageSourceNewFromBackingAbsolute(const char *path,
                                            virStorageSourcePtr *src);

@@ -287,7 +287,7 @@ virDomainCapsEnumFormat(virBufferPtr buf,
     for (i = 0; i < sizeof(capsEnum->values) * CHAR_BIT; i++) {
         const char *val;
 
-        if (!(capsEnum->values & (1 << i)))
+        if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(*capsEnum, i))
             continue;
 
         if ((val = (valToStr)(i)))
@@ -627,92 +627,4 @@ virDomainCapsFormat(const virDomainCaps *caps)
     virBufferAddLit(&buf, "</domainCapabilities>\n");
 
     return virBufferContentAndReset(&buf);
-}
-
-
-#define ENUM_VALUE_MISSING(capsEnum, value) !(capsEnum.values & (1 << value))
-
-#define ENUM_VALUE_ERROR(valueLabel, valueString) \
-    do { \
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, \
-                       _("domain configuration does not support '%s' value '%s'"), \
-                       valueLabel, valueString); \
-    } while (0)
-
-
-static int
-virDomainCapsDeviceRNGDefValidate(const virDomainCaps *caps,
-                                  const virDomainRNGDef *dev)
-{
-    if (ENUM_VALUE_MISSING(caps->rng.model, dev->model)) {
-        ENUM_VALUE_ERROR("rng model",
-                         virDomainRNGModelTypeToString(dev->model));
-        return -1;
-    }
-
-    return 0;
-}
-
-
-static int
-virDomainCapsDeviceVideoDefValidate(const virDomainCaps *caps,
-                                    const virDomainVideoDef *dev)
-{
-    if (ENUM_VALUE_MISSING(caps->video.modelType, dev->type)) {
-        ENUM_VALUE_ERROR("video model",
-                         virDomainVideoTypeToString(dev->type));
-        return -1;
-    }
-
-    return 0;
-}
-
-
-int
-virDomainCapsDeviceDefValidate(const virDomainCaps *caps,
-                               const virDomainDeviceDef *dev,
-                               const virDomainDef *def G_GNUC_UNUSED)
-{
-    int ret = 0;
-
-    switch ((virDomainDeviceType) dev->type) {
-    case VIR_DOMAIN_DEVICE_RNG:
-        ret = virDomainCapsDeviceRNGDefValidate(caps, dev->data.rng);
-        break;
-    case VIR_DOMAIN_DEVICE_VIDEO:
-        ret = virDomainCapsDeviceVideoDefValidate(caps, dev->data.video);
-        break;
-
-    case VIR_DOMAIN_DEVICE_AUDIO:
-        /* TODO: add validation */
-        break;
-
-    case VIR_DOMAIN_DEVICE_DISK:
-    case VIR_DOMAIN_DEVICE_REDIRDEV:
-    case VIR_DOMAIN_DEVICE_NET:
-    case VIR_DOMAIN_DEVICE_CONTROLLER:
-    case VIR_DOMAIN_DEVICE_CHR:
-    case VIR_DOMAIN_DEVICE_SMARTCARD:
-    case VIR_DOMAIN_DEVICE_HOSTDEV:
-    case VIR_DOMAIN_DEVICE_MEMORY:
-    case VIR_DOMAIN_DEVICE_VSOCK:
-    case VIR_DOMAIN_DEVICE_INPUT:
-    case VIR_DOMAIN_DEVICE_SHMEM:
-    case VIR_DOMAIN_DEVICE_LEASE:
-    case VIR_DOMAIN_DEVICE_FS:
-    case VIR_DOMAIN_DEVICE_SOUND:
-    case VIR_DOMAIN_DEVICE_WATCHDOG:
-    case VIR_DOMAIN_DEVICE_GRAPHICS:
-    case VIR_DOMAIN_DEVICE_HUB:
-    case VIR_DOMAIN_DEVICE_MEMBALLOON:
-    case VIR_DOMAIN_DEVICE_NVRAM:
-    case VIR_DOMAIN_DEVICE_TPM:
-    case VIR_DOMAIN_DEVICE_PANIC:
-    case VIR_DOMAIN_DEVICE_IOMMU:
-    case VIR_DOMAIN_DEVICE_NONE:
-    case VIR_DOMAIN_DEVICE_LAST:
-        break;
-    }
-
-    return ret;
 }

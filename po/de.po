@@ -13,21 +13,22 @@
 # Timo Trinks <ttrinks@redhat.com>, 2007
 # noxin <transifex.com@davidmainzer.com>, 2013
 # Florian H. <postfuerflo@gmail.com>, 2016
+# Fabian Affolter <mail@fabian-affolter.ch>, 2020.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2020-10-26 17:26+0000\n"
-"PO-Revision-Date: 2016-04-01 11:32+0000\n"
-"Last-Translator: Florian H. <postfuerflo@gmail.com>\n"
-"Language-Team: German (http://www.transifex.com/projects/p/libvirt/language/"
-"de/)\n"
+"POT-Creation-Date: 2021-01-08 17:11+0000\n"
+"PO-Revision-Date: 2020-12-13 02:19+0000\n"
+"Last-Translator: Fabian Affolter <mail@fabian-affolter.ch>\n"
+"Language-Team: German <https://translate.fedoraproject.org/projects/libvirt/"
+"libvirt/de/>\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Zanata 4.6.2\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 4.3.2\n"
 
 msgid ""
 "\n"
@@ -45,6 +46,7 @@ msgstr ""
 "\n"
 "(Angeben der Hilfe <group> für Details über die Befehle in der Gruppe)\n"
 
+#. Print the description only if it's not empty.
 msgid ""
 "\n"
 "  DESCRIPTION\n"
@@ -257,26 +259,20 @@ msgstr ""
 #, c-format
 msgid ""
 "\n"
-"Domain %s dumped to %s\n"
+"Domain '%s' dumped to %s\n"
 msgstr ""
-"\n"
-"Domain %s dumped nach %s\n"
 
 #, c-format
 msgid ""
 "\n"
-"Domain %s saved to %s\n"
+"Domain '%s' saved to %s\n"
 msgstr ""
-"\n"
-"Domain %s gesichert auf %s\n"
 
 #, c-format
 msgid ""
 "\n"
-"Domain %s state saved by libvirt\n"
+"Domain '%s' state saved by libvirt\n"
 msgstr ""
-"\n"
-"Domain %s Status gesichert durch libvirt\n"
 
 #, c-format
 msgid ""
@@ -350,6 +346,7 @@ msgstr ""
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
 msgstr ""
 
+#. true if 'arg' works instead of '--opt arg'
 msgid "  NAME\n"
 msgstr "  NAME\n"
 
@@ -427,8 +424,12 @@ msgid "%s 3d acceleration is not supported"
 msgstr "Funktion nicht unterstützt"
 
 #, c-format
-msgid "%s array element does not contain data"
-msgstr "%s Arrayelement enthält keine Daten"
+msgid "%s array element does not contain a string"
+msgstr ""
+
+#, c-format
+msgid "%s array element is missing item %zu"
+msgstr ""
 
 #, c-format
 msgid "%s can't be empty"
@@ -474,6 +475,10 @@ msgstr ""
 "geliefert"
 
 #, c-format
+msgid "%s graphics are not supported with this QEMU"
+msgstr ""
+
+#, c-format
 msgid "%s harddisk '%s' has unsupported cache mode '%s'"
 msgstr "%s Festplatte '%s' hat nicht unterstützten Cache-Modus '%s'"
 
@@ -512,6 +517,10 @@ msgstr "%s in %s darf nicht Null sein"
 #, c-format
 msgid "%s is missing 'type' property"
 msgstr "%s fehlt die 'type' Eigenschaft"
+
+#, c-format
+msgid "%s is missing or not an array"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "%s is not a supported cipher name"
@@ -563,6 +572,10 @@ msgstr ""
 msgid "%s namespace is not available"
 msgstr "System ist nicht verfügbar"
 
+#, c-format
+msgid "%s not available, firewall backend will not function"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "%s not found in %s"
 msgstr "Platte %s nicht gefunden"
@@ -587,6 +600,16 @@ msgstr "%s in dieser QEMU-Binärdatei nicht unterstützt"
 msgid "%s object has invalid dynamic type"
 msgstr "%s Objekt hat ungültigen dynamischen Typ"
 
+#.
+#. * A required property must be != 0 (NULL for pointers, "undefined" == 0 for
+#. * enumeration values).
+#. *
+#. * To be used as part of ESX_VI__TEMPLATE__VALIDATE.
+#.
+#.
+#. * Macros to implement managed objects
+#.
+#. FIXME: This results in O(n^2) runtime in case of missing required, but      * unselected properties.
 #, c-format
 msgid "%s object is missing the required '%s' property"
 msgstr "Dem %s Objekt fehlt die erforderliche '%s' Eigenschaft"
@@ -635,6 +658,7 @@ msgstr "%s: %d: scheiterte beim Zuweisen von argv"
 msgid "%s: %d: failed to allocate mountpoints"
 msgstr "%s: %d: scheiterte beim Zuweisen von %d Bytes"
 
+#. The length of the formatting string minus two '%s'
 #, c-format
 msgid "%s: %s"
 msgstr "%s: %s"
@@ -864,9 +888,11 @@ msgstr "%s: Initialisierung fehlgeschlagen\n"
 msgid "%s: initialization failed\n"
 msgstr "%s: Initialisierung fehlgeschlagen\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%s: ipv6 family specified for non-IPv6 address '%s' in route definition"
-msgstr "%s Familie spezifiziert für nicht-IPv4-Adresse '%s' in Netzwerk '%s'"
+msgstr ""
+"%s: IPv6-Familie spezifiziert für nicht-IPv6-Adresse '%s' in der Route-"
+"Beschreibung"
 
 #, fuzzy, c-format
 msgid ""
@@ -885,22 +911,17 @@ msgstr ""
 "%s: remote_display_port_max: Port muss zwischen dem Minimalen Port und %d "
 "sein"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%s: migration_port_min: port must be greater than 0"
-msgstr ""
-"%s: remote_display_port_min: Port muss größer als oder gleich mit %d sein"
+msgstr "%s: migration_port_min: Port muss größer als 0 sein"
 
 #, c-format
 msgid "%s: must be run as root\n"
-msgstr ""
+msgstr "%s: darf nicht als root ausgeführt werden\n"
 
 #, fuzzy, c-format
 msgid "%s: must not be run setuid root\n"
 msgstr "%s in %s darf nicht Null sein"
-
-#, fuzzy, c-format
-msgid "%s: nvdimm without a path"
-msgstr "Listen Domänen ohne einen Snapshot"
 
 #, fuzzy, c-format
 msgid "%s: passthrough input device has no source"
@@ -958,9 +979,9 @@ msgstr "%s: Zu viele Befehlszeilen-Argumente\n"
 msgid "%s: try --help for more details"
 msgstr "%s: Versuchen Sie --help für mehr Details"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%s: try --help for more details\n"
-msgstr "%s: Versuchen Sie --help für mehr Details"
+msgstr "%s: Versuchen Sie --help für mehr Details\n"
 
 #, c-format
 msgid "%s: unable to determine access mode of fd %d"
@@ -1020,15 +1041,15 @@ msgstr ""
 
 #, c-format
 msgid "'%s'"
-msgstr ""
+msgstr "'%s'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "'%s' architecture is not supported by CPU driver"
-msgstr "Filtern wird nicht unterstützt von diesem libvirt"
+msgstr "'%s'-Architektur wird nicht unterstützt vom CPU-Treiber"
 
 #, c-format
 msgid "'%s' attributes '%s' must not overlap"
-msgstr ""
+msgstr "'%s'-Attribute '%s' dürfen sich nicht überlappen"
 
 #, c-format
 msgid "'%s' controller cannot be hot plugged."
@@ -1038,13 +1059,13 @@ msgstr "Controller '%s' kann nicht im laufenden Betrieb entfernt werden."
 msgid "'%s' controller cannot be hot unplugged."
 msgstr "Controller '%s' kann nicht im laufenden Betrieb entfernt werden."
 
-#, fuzzy, c-format
+#, c-format
 msgid "'%s' controller only supports up to '%u' ports"
-msgstr "SCSI-Controller unterstützt nur 1 Bus"
+msgstr "'%s' -Controller unterstützt nur bis '%u' Ports"
 
 #, c-format
 msgid "'%s' denied access"
-msgstr ""
+msgstr "'%s' Zugriff verweigert"
 
 #, c-format
 msgid "'%s' does not exist"
@@ -1079,7 +1100,7 @@ msgid "'%s' is not supported in this QEMU binary"
 msgstr "%s in dieser QEMU-Binärdatei nicht unterstützt"
 
 #, c-format
-msgid "'%s' missing in guest-get-fsinfo 'disk' data"
+msgid "'%s' missing"
 msgstr ""
 
 #, c-format
@@ -1220,6 +1241,9 @@ msgstr ""
 msgid "'mountpoint' missing in reply of guest-get-fsinfo"
 msgstr "'online' fehlt in Antwort auf guest-get-vcpus"
 
+msgid "'name' missing in reply of guest-get-disks"
+msgstr ""
+
 #, fuzzy
 msgid "'name' missing in reply of guest-get-fsinfo"
 msgstr "'online' fehlt in Antwort auf guest-get-vcpus"
@@ -1232,6 +1256,15 @@ msgid "'network' attribute is valid only for listen type 'network'"
 msgstr ""
 "Kein <source> 'network'-Attribut für <interface type='network'/> spezifiziert"
 
+msgid "'nfs' host must use TCP protocol"
+msgstr ""
+
+msgid "'nfs' protocol is not supported with this QEMU binary"
+msgstr ""
+
+msgid "'nfs' protocol requires the usage of exactly one host"
+msgstr ""
+
 #, fuzzy
 msgid "'offset' missing in reply of guest-get-timezone"
 msgstr "'can-offline' fehlt in Antwort auf guest-get-vcpus"
@@ -1243,7 +1276,10 @@ msgid "'parent' for vHBA not specified, and cannot find one on this host"
 msgstr ""
 "'parent' für vHBA nicht angegeben, und kann keinen auf diesem Host finden"
 
-msgid "'pci-controller' missing in guest-get-fsinfo 'disk' data"
+msgid "'partition' missing in reply of guest-get-disks"
+msgstr ""
+
+msgid "'pci-controller' missing"
 msgstr ""
 
 msgid "'peak' and 'burst' require 'average' attribute"
@@ -1388,6 +1424,7 @@ msgstr "(interface_definition)"
 msgid "(libxl_migration_cookie)"
 msgstr "(qemu_migration_cookie)"
 
+#. parse and modify the xml from the user
 #, fuzzy
 msgid "(metadata_xml)"
 msgstr "Metadata:"
@@ -1451,6 +1488,7 @@ msgstr ""
 msgid "(volume_definition)"
 msgstr "(volume_definition)"
 
+#. Capacity related information isn't available
 msgid "-"
 msgstr "-"
 
@@ -1515,6 +1553,9 @@ msgstr "cellNum in %s muss kleiner oder gleich sein zu %d"
 #, fuzzy
 msgid "--min-workers must be less than or equal to --max-workers"
 msgstr "cellNum in %s muss kleiner oder gleich sein zu %d"
+
+msgid "--source-protocol option requires --sourcetype network"
+msgstr ""
 
 msgid ""
 "--verbose requires at least one of --timeout, --wait, --pivot, or --finish"
@@ -1806,6 +1847,11 @@ msgid "AnyType is missing 'type' property"
 msgstr "AnyType fehlt die 'type' Eigenschaft"
 
 msgid ""
+"Append, reset or remove specified key from the authorized keys file for "
+"given user"
+msgstr ""
+
+msgid ""
 "Argument 'cellid' in memnode element must correspond to existing guest's "
 "NUMA cell"
 msgstr ""
@@ -1971,9 +2017,6 @@ msgstr "Block Kopieren gestartet"
 #, fuzzy, c-format
 msgid "Bad $%s value."
 msgstr "Kann Wert %s nicht lesen"
-
-msgid "Bad child elements counting."
-msgstr "Schlechte untergeordneten Elemente zählen."
 
 #, c-format
 msgid "Bad ipv4 end address '%s' in <nat> in <forward> in network '%s'"
@@ -2240,6 +2283,10 @@ msgstr "CPU-Modell '%s' wird vom Hypervisor nicht unterstützt"
 msgid "CPU model %s too long for destination"
 msgstr "CPU-Modell %s zu lang für Ziel"
 
+#, c-format
+msgid "CPU model '%s' not supported by hypervisor"
+msgstr ""
+
 msgid "CPU model:"
 msgstr "CPU-Modell:"
 
@@ -2359,10 +2406,14 @@ msgstr ""
 msgid "Cache with id %u does not exists for level %d"
 msgstr ""
 
+#.
+#. * Macros to implement dynamic dispatched functions
+#.
 #, c-format
 msgid "Call to %s for unexpected type '%s'"
 msgstr "Aufruf von %s für unerwarteten Typ '%s'"
 
+#. nothing
 #, c-format
 msgid "Call to %s for unexpected type '%s', expected '%s'"
 msgstr "Aufruf von %s für unerwarteten Typ '%s', erwartete '%s'"
@@ -2593,10 +2644,6 @@ msgstr "Kann privates Flag nicht bei bestehendem Secret ändern"
 #, c-format
 msgid "Cannot alter an existing nmem_nodes distances set for node: %zu"
 msgstr ""
-
-#, fuzzy
-msgid "Cannot assign SCSI host device address"
-msgstr "Kein PTY für Gerät %s zugewiesen"
 
 msgid "Cannot attach disk until init PID is known"
 msgstr "Kann Disk nicht anschliessen bis init PID bekannt ist"
@@ -2976,9 +3023,6 @@ msgstr "Kann nicht genug CPUs offline stellen"
 msgid "Cannot open %s"
 msgstr "%s kann nicht geöffnet werden"
 
-msgid "Cannot open /dev/urandom"
-msgstr "/dev/urandom kann nicht geöffnet werden"
-
 msgid "Cannot open /proc/cgroups"
 msgstr " /proc/cgroups kann nicht geöffnet werden"
 
@@ -3251,9 +3295,6 @@ msgstr "Kann %s '%s' nicht lesen"
 
 msgid "Cannot read cputime for domain"
 msgstr "CPU-Zeit für Domain kann nicht gelesen werden"
-
-msgid "Cannot read from /dev/urandom"
-msgstr "/dev/urandom kann nicht gelesen werden"
 
 msgid "Cannot recv data"
 msgstr "Kann keine Daten empfangen"
@@ -3645,6 +3686,10 @@ msgstr "Domain %s XML-Konfiguration nicht verändert.\n"
 msgid "Checkpoint %s edited.\n"
 msgstr "Snapshot %s bearbeitet.\n"
 
+#, c-format
+msgid "Checkpoint '%s' for incremental backup of disk '%s' not found"
+msgstr ""
+
 #, fuzzy
 msgid "Checkpoint Delete"
 msgstr "Snapshot Löschen"
@@ -3890,8 +3935,8 @@ msgid "Connected since"
 msgstr "Verbunden mit der Domain: %s\n"
 
 #, c-format
-msgid "Connected to domain %s\n"
-msgstr "Verbunden mit der Domain: %s\n"
+msgid "Connected to domain '%s'\n"
+msgstr ""
 
 #, fuzzy
 msgid "Connected to the admin server"
@@ -3960,6 +4005,9 @@ msgstr "Datenträger mit Namen %s konnte nicht gefunden werden"
 msgid "Could not add CDATA to doc root"
 msgstr ""
 
+msgid "Could not add IDE controller"
+msgstr ""
+
 #, fuzzy
 msgid "Could not add attribute to XML node"
 msgstr "Konnte einen XML-Knoten nicht kopieren"
@@ -3978,6 +4026,12 @@ msgstr ""
 #, fuzzy
 msgid "Could not add child to XML node"
 msgstr "Konnte einen XML-Knoten nicht kopieren"
+
+msgid "Could not allocate disk def"
+msgstr ""
+
+msgid "Could not allocate disk definition"
+msgstr ""
 
 #, c-format
 msgid "Could not assign address to disk '%s'"
@@ -4157,6 +4211,9 @@ msgstr "HostVirtualSwitch mit UUID '%s' konnte nicht gefunden werden"
 msgid "Could not find HostVirtualSwitch with name '%s'"
 msgstr "HostVirtualSwitch mit Namen '%s' konnte nicht gefunden werden"
 
+msgid "Could not find Msvm_DiskDrive object"
+msgstr ""
+
 #, c-format
 msgid ""
 "Could not find PCI controller with index %u required for device at address %s"
@@ -4194,6 +4251,9 @@ msgstr "Konnte Speicherpool mit Namen: %s nicht finden"
 #, c-format
 msgid "Could not find compute resource specified in '%s'"
 msgstr "Konnte die in '%s' angegebene Rechen-Ressource nicht finden"
+
+msgid "Could not find controller for disk!"
+msgstr ""
 
 #, c-format
 msgid "Could not find datacenter specified in '%s'"
@@ -4572,11 +4632,6 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Could not look up memory setting data with virtual system instance ID '%s'"
-msgstr ""
-
-#, c-format
-msgid ""
 "Could not look up processor setting data with virtual system instance ID '%s'"
 msgstr ""
 
@@ -4585,7 +4640,9 @@ msgid "Could not look up processor(s) on '%s'"
 msgstr ""
 
 #, c-format
-msgid "Could not look up virtual system setting data with UUID '%s'"
+msgid ""
+"Could not look up resource allocation setting data with virtual system "
+"instance ID '%s'"
 msgstr ""
 
 #, c-format
@@ -4622,10 +4679,6 @@ msgstr "Konnte nicht Pull Response Einzelheiten suchen"
 
 msgid "Could not lookup root snapshot list"
 msgstr "Konnte nicht die Stamm-Snapshot-Liste suchen"
-
-#, fuzzy, c-format
-msgid "Could not match WMI class info for version %s"
-msgstr "Konnte Sklaven der Verbindung '%s' nicht abgerufen"
 
 #, c-format
 msgid "Could not migrate domain, migration task finished with an error: %s"
@@ -4691,6 +4744,9 @@ msgstr "Konnte 'bridge/stp_state' '%s' für '%s' nicht analysieren"
 msgid "Could not parse MTU value '%s'"
 msgstr "konnte MTU Wert '%s' nicht analysieren"
 
+msgid "Could not parse SCSI controller"
+msgstr ""
+
 #, c-format
 msgid "Could not parse UUID from '%s'"
 msgstr "UUID von »%s« konnte nicht verarbeitet werden"
@@ -4746,10 +4802,6 @@ msgstr "Konnte nicht gültigen Disk-Index von '%s' analysieren"
 msgid "Could not parse version from '%s'"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "Could not press key %d"
-msgstr "Konnte USB-Datei %s nicht parsen"
-
 #, c-format
 msgid "Could not produce packed version number from '%s'"
 msgstr ""
@@ -4803,10 +4855,6 @@ msgstr "Konnte Pool-Information nicht abrufen"
 msgid "Could not read typefile '%s'"
 msgstr "Konnte Typ-Datei '%s' nicht lesen"
 
-#, fuzzy, c-format
-msgid "Could not release key %s"
-msgstr "Datenträger konnte nicht erstellt werden: %s"
-
 #, c-format
 msgid "Could not resume domain: %s"
 msgstr "Domain konnte nicht fortgesetzt werden: %s"
@@ -4851,6 +4899,7 @@ msgstr "Konnte 'bonding/forward_delay' für '%s' nicht abrufen"
 msgid "Could not retrieve 'bridge/stp_state' for '%s'"
 msgstr "Konnte 'bridge/stp_state' für '%s' nicht abrufen"
 
+#. Something went wrong retrieving pool info, cope with it
 msgid "Could not retrieve pool information"
 msgstr "Konnte Pool-Information nicht abrufen"
 
@@ -4878,10 +4927,6 @@ msgstr "UUID konnte nicht gesetzt werden"
 msgid "Could not set disk quota"
 msgstr "Datenträgerkontingent konnte nicht gesetzt werden"
 
-#, fuzzy
-msgid "Could not set disk source"
-msgstr "Datenträgerkontingent konnte nicht gesetzt werden"
-
 #, c-format
 msgid ""
 "Could not set limit to %lld MHz, expecting positive value or -1 (unlimited)"
@@ -4892,10 +4937,6 @@ msgstr ""
 #, c-format
 msgid "Could not set max-memory to %lu kilobytes: %s"
 msgstr "Konnte max-memory nicht auf %lu Kilobytes einstellen: %s"
-
-#, fuzzy
-msgid "Could not set memory"
-msgstr "Speichergrösse konnte nicht festgesetzt werden"
 
 msgid "Could not set memory size"
 msgstr "Speichergrösse konnte nicht festgesetzt werden"
@@ -5533,101 +5574,100 @@ msgid "Do not include features that block migration"
 msgstr ""
 
 #, c-format
-msgid "Domain %s XML configuration edited.\n"
-msgstr "Domain %s XML-Konfiguration editiert.\n"
-
-#, c-format
-msgid "Domain %s XML configuration not changed.\n"
-msgstr "Domain %s XML-Konfiguration nicht verändert.\n"
-
-#, c-format
-msgid "Domain %s attached to pid %u\n"
-msgstr "Domain %s angeschlossen an pid %u\n"
-
-#, c-format
-msgid "Domain %s could not be suspended"
-msgstr "Domain %s konnte nicht angehalten werden"
-
-#, c-format
-msgid "Domain %s could not be woken up"
-msgstr "Domain %s konnte nicht aufgeweckt werden"
-
-#, c-format
-msgid "Domain %s created from %s\n"
-msgstr "Domain %s von %s erstellt\n"
-
-#, c-format
-msgid "Domain %s defined from %s\n"
-msgstr "Domain %s von %s definiert\n"
-
-#, c-format
-msgid "Domain %s destroyed\n"
-msgstr "Domain %s gelöscht\n"
-
-#, c-format
 msgid "Domain %s didn't show up"
 msgstr "Domain %s wurde nicht angezeigt"
-
-#, c-format
-msgid "Domain %s has been undefined\n"
-msgstr "Domain %s wurde undefiniert\n"
-
-#, c-format
-msgid "Domain %s has no manage save image; removal skipped"
-msgstr ""
-" Domain %s hat kein verwaltetes Sicherungs-Image; Entfernung ausgelassen "
-
-#, c-format
-msgid "Domain %s is being rebooted\n"
-msgstr "Domain %s wird neu gestartet\n"
-
-#, c-format
-msgid "Domain %s is being shutdown\n"
-msgstr "Domain %s wird heruntergefahren\n"
-
-#, c-format
-msgid "Domain %s marked as autostarted\n"
-msgstr "Domain %s als automatisch zu starten markiert\n"
-
-#, c-format
-msgid "Domain %s resumed\n"
-msgstr "Domain %s fortgesetzt\n"
-
-#, c-format
-msgid "Domain %s started\n"
-msgstr "Domain %s gestartet\n"
-
-#, c-format
-msgid "Domain %s successfully suspended"
-msgstr "Domain %s erfolgreich angehalten"
-
-#, c-format
-msgid "Domain %s successfully woken up"
-msgstr "Domain %s erfolgreich aufgeweckt"
-
-#, c-format
-msgid "Domain %s suspended\n"
-msgstr "Domain %s angehalten\n"
-
-#, c-format
-msgid "Domain %s unmarked as autostarted\n"
-msgstr "Domain %s als automatisch zu starten demarkiert\n"
-
-#, c-format
-msgid "Domain %s was reset\n"
-msgstr "Domain %s wurde zurückgesetzt\n"
 
 #, c-format
 msgid "Domain '%d' has to be running because libxenlight will suspend it"
 msgstr "Domain '%d' hat aktiv zu sein, weil sie libxenlight unterbrechen wird"
 
 #, c-format
+msgid "Domain '%s' XML configuration edited.\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' XML configuration not changed.\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' attached to pid %u\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' could not be suspended"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' could not be woken up"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' created from %s\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' defined from %s\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' destroyed\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' has been undefined\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' has no manage save image; removal skipped"
+msgstr ""
+
+#, c-format
 msgid "Domain '%s' is already running"
 msgstr "Domain '%s' läuft bereits"
 
 #, c-format
+msgid "Domain '%s' is being rebooted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' is being shutdown\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' marked as autostarted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' resumed\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' started\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' successfully suspended"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' successfully woken up"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' suspended\n"
+msgstr ""
+
+#, c-format
 msgid "Domain '%s' sysinfo are not available"
 msgstr "Domäne '%s' System-Informationen sind nicht verfügbar"
+
+#, c-format
+msgid "Domain '%s' unmarked as autostarted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' was reset\n"
+msgstr ""
 
 #, fuzzy
 msgid "Domain Events"
@@ -5719,6 +5759,7 @@ msgstr ""
 "Domain hat %d Schnittstellen. Bitte geben Sie an, welche mit --mac abzulösen "
 "ist"
 
+#. this is the 2nd match, so it's ambiguous
 #, c-format
 msgid ""
 "Domain has multiple interfaces matching MAC address %s. You must use detach-"
@@ -6575,10 +6616,6 @@ msgid "Failed to allocate XML buffer"
 msgstr "Zuweisung von XML-Puffer schlug fehl"
 
 #, fuzzy, c-format
-msgid "Failed to allocate free veth pair after %d attempts"
-msgstr "Zuweisen von Speicher für Pfad fehlgeschlagen"
-
-#, fuzzy, c-format
 msgid "Failed to allocate memory for checkpoint directory for domain %s"
 msgstr "Zuweisen von Speicher für Snapshot-Verzeichnis für Domain %s"
 
@@ -6810,8 +6847,8 @@ msgid "Failed to copy XML node"
 msgstr "Konnte einen XML-Knoten nicht kopieren"
 
 #, c-format
-msgid "Failed to core dump domain %s to %s"
-msgstr "Fehler beim Debuggen der Domain %s nach %s"
+msgid "Failed to core dump domain '%s' to %s"
+msgstr ""
 
 msgid "Failed to count network filters"
 msgstr "Zählen von Netzwerkfiltern fehlgeschlagen"
@@ -6982,14 +7019,21 @@ msgstr "Erstellen von %s fehlgeschlagen"
 msgid "Failed to create thread for receiving migration data"
 msgstr "Konnte Thread nicht erstellen um den Host zu suspendieren"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 #, fuzzy
 msgid "Failed to create thread to handle daemon restart"
 msgstr "Konnte Thread nicht erstellen um den Host zu suspendieren"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 #, fuzzy
 msgid "Failed to create thread to handle domain shutdown"
 msgstr "Konnte Thread nicht erstellen um den Host zu suspendieren"
 
+#. Not much else can be done
 #, fuzzy
 msgid "Failed to create thread to handle pool refresh"
 msgstr "Konnte Thread nicht erstellen um den Host zu suspendieren"
@@ -7106,12 +7150,12 @@ msgid "Failed to destroy bridge interface %s"
 msgstr "Bridge Schnittstelle %s konnte nicht zerstört werden"
 
 #, c-format
-msgid "Failed to destroy domain %s"
-msgstr "Löschen der Domain %s gescheitert"
-
-#, c-format
 msgid "Failed to destroy domain '%d'"
 msgstr "Löschen der Domain '%d' gescheitert"
+
+#, c-format
+msgid "Failed to destroy domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to destroy interface %s"
@@ -7308,10 +7352,6 @@ msgstr "UUID-Generierung fehlgeschlagen"
 #, fuzzy
 msgid "Failed to generate genid"
 msgstr "UUID generieren fehlgeschlagen"
-
-#, c-format
-msgid "Failed to generate new name for interface %s"
-msgstr "Fehler beim Erstellen eines neuen Namens für Schnittstelle %s"
 
 #, fuzzy
 msgid "Failed to generate uuid"
@@ -7554,6 +7594,7 @@ msgstr "Auflistung aktiver Netzwerke schlug fehl"
 msgid "Failed to list active pools"
 msgstr "Auflistung aktiver Pool schlug fehl"
 
+#. there was an error during the first or second call
 msgid "Failed to list domains"
 msgstr "Auflistung der Domains schlug fehl"
 
@@ -7569,22 +7610,28 @@ msgstr "Auflistung inaktiver Netzwerke schlug fehl"
 msgid "Failed to list inactive pools"
 msgstr "Auflistung inaktiver Pool schlug fehl"
 
+#. there was an error during the first or second call
 msgid "Failed to list interfaces"
 msgstr "Auflisten von Schnittstellen fehlgeschlagen"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list network filter bindings"
 msgstr "Auflisten von Netzwerk-Filtern fehlgeschlagen"
 
+#. there was an error during the call
 msgid "Failed to list network filters"
 msgstr "Auflisten von Netzwerk-Filtern fehlgeschlagen"
 
+#. there was an error during the first or second call
 msgid "Failed to list networks"
 msgstr "Auflisten von Netzwerken fehlgeschlagen"
 
+#. there was an error during the call
 msgid "Failed to list node devices"
 msgstr "Auflistung der Knoten-Geräte schlug fehl"
 
+#. there was an error during the call
 msgid "Failed to list node secrets"
 msgstr "Auflistung von Knoten-Secrets schlug fehl"
 
@@ -7592,6 +7639,7 @@ msgstr "Auflistung von Knoten-Secrets schlug fehl"
 msgid "Failed to list persistent guests on $uri"
 msgstr "Konnte dauerhafte Gäste auf $uri nicht auflisten"
 
+#. there was an error during the first or second call
 msgid "Failed to list pools"
 msgstr "Auflisten von Pools fehlgeschlagen"
 
@@ -7611,6 +7659,7 @@ msgstr "Konnte kurzfristige Gäste nicht auflisten"
 msgid "Failed to list vcpus for domain '%d' with libxenlight"
 msgstr "Auflisten der vcpus der Domain '%d' mit libxenlight gescheitert"
 
+#. there was an error during the call
 msgid "Failed to list volumes"
 msgstr "Auflisten von Datenträgern fehlgeschlagen"
 
@@ -7648,6 +7697,10 @@ msgstr "Laden von Plugin %s fehlgeschlagen: %s"
 #, fuzzy, c-format
 msgid "Failed to load snapshot: %s"
 msgstr "Erstellen von Snapshot fehlgeschlagen: %s"
+
+#, c-format
+msgid "Failed to locate parent device with ID '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to login: %s"
@@ -7699,8 +7752,8 @@ msgid "Failed to make root private"
 msgstr "Privatisieren von root fehlgeschlagen"
 
 #, c-format
-msgid "Failed to mark domain %s as autostarted"
-msgstr "Markierung der Domain %s als automatisch zu starten gescheitert"
+msgid "Failed to mark domain '%s' as autostarted"
+msgstr ""
 
 #, c-format
 msgid "Failed to mkdir %s"
@@ -7839,10 +7892,6 @@ msgstr "Analyse der Bitmap '%s' fehlgeschlagen"
 msgid "Failed to parse block name %s"
 msgstr "Parsen von Blockname %s fehlgeschlagen"
 
-#, fuzzy, c-format
-msgid "Failed to parse checkpoint XML from file '%s'"
-msgstr "Verarbeiten von Snapshot-XML aus Datei »%s« fehlgeschlagen"
-
 #, c-format
 msgid "Failed to parse configuration of %s"
 msgstr "Konfiguration von %s konnte nicht analysiert werden"
@@ -7861,6 +7910,10 @@ msgstr "Konnte Verzeichnisnamen '%s' nicht parsen"
 #, c-format
 msgid "Failed to parse group '%s'"
 msgstr "Analyse der Gruppe '%s' fehlgeschlagen"
+
+#, c-format
+msgid "Failed to parse int '%s' from udev property '%s' on '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to parse interface index from '%s'"
@@ -7912,6 +7965,10 @@ msgstr "Analyse der Bitmap '%s' fehlgeschlagen"
 #, c-format
 msgid "Failed to parse uid and gid from '%s'"
 msgstr "Verarbeiten von uid und gid von '%s' fehlgeschlagen"
+
+#, c-format
+msgid "Failed to parse uint '%s' from udev property '%s' on '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to parse user '%s'"
@@ -8048,12 +8105,12 @@ msgid "Failed to reattach NVMe for disk target: %s"
 msgstr "Erstellen von Bind-Ziel %s fehlgeschlagen"
 
 #, c-format
-msgid "Failed to reboot domain %s"
-msgstr "Neustart der Domain %s gescheitert"
-
-#, c-format
 msgid "Failed to reboot domain '%d' with libxenlight"
 msgstr "Neustart der Domain '%d' mit libxenlight gescheitert"
+
+#, c-format
+msgid "Failed to reboot domain '%s'"
+msgstr ""
 
 #, fuzzy
 msgid "Failed to reconnect to the admin server"
@@ -8110,8 +8167,8 @@ msgid "Failed to remove managed save file '%s'"
 msgstr "Kann verwaltete Sicherungs-Datei '%s' nicht entfernen"
 
 #, c-format
-msgid "Failed to remove managed save image for domain %s"
-msgstr "Fehler beim Entfernen des verwalteten Sicherungs-Image der Domain %s"
+msgid "Failed to remove managed save image for domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to remove storage volume '%s'(%s)"
@@ -8142,8 +8199,8 @@ msgid "Failed to reset device %s"
 msgstr "Zurücksetzen von Gerät %s"
 
 #, c-format
-msgid "Failed to reset domain %s"
-msgstr "Zurücksetzen der Domain %s gescheitert"
+msgid "Failed to reset domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to resize block device '%s'"
@@ -8180,10 +8237,6 @@ msgstr "Einschränken Prozess fehlgeschlagen"
 msgid "Failed to restrict process: %s"
 msgstr "Einschränken Prozess fehlgeschlagen"
 
-#, c-format
-msgid "Failed to resume domain %s"
-msgstr "Fortsetzen der Domain %s gescheitert"
-
 #, fuzzy, c-format
 msgid "Failed to resume domain '%d'"
 msgstr "Fortsetzen der Domain %s gescheitert"
@@ -8192,6 +8245,13 @@ msgstr "Fortsetzen der Domain %s gescheitert"
 msgid "Failed to resume domain '%d' with libxenlight"
 msgstr "Konnte Domain '%d' nicht mit libxenlight fortsetzen"
 
+#, c-format
+msgid "Failed to resume domain '%s'"
+msgstr ""
+
+#. Hm, we already know we are in error here.  We don't want to
+#. * overwrite the previous error, though, so we just throw something
+#. * to the logs and hope for the best
 #, c-format
 msgid "Failed to resume guest %s after failure"
 msgstr "Fortsetzen des Gastes %s nach Absturz gescheitert"
@@ -8250,16 +8310,16 @@ msgid "Failed to save VM settings, rc=%08x"
 msgstr "Speichern der Domain %s nach %s gescheitert"
 
 #, c-format
-msgid "Failed to save domain %s state"
-msgstr "Fehler beim Speichern des Zustandes der Domain %s"
-
-#, c-format
-msgid "Failed to save domain %s to %s"
-msgstr "Speichern der Domain %s nach %s gescheitert"
-
-#, c-format
 msgid "Failed to save domain '%d' with libxenlight"
 msgstr "Konnte Domain '%d' nicht mit libxenlight sichern"
+
+#, c-format
+msgid "Failed to save domain '%s' state"
+msgstr ""
+
+#, c-format
+msgid "Failed to save domain '%s' to %s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to seek to %llu bytes to the end in volume with path '%s'"
@@ -8428,12 +8488,12 @@ msgid "Failed to setup keepalive on connection\n"
 msgstr "Setzen der neuen Domain-Beschreibung ist fehlgeschlagen"
 
 #, c-format
-msgid "Failed to shutdown domain %s"
-msgstr "Herunterfahren der Domain %s gescheitert"
-
-#, c-format
 msgid "Failed to shutdown domain '%d' with libxenlight"
 msgstr "Herunterfahren der Domain '%d' mit libxenlight gescheitert"
+
+#, c-format
+msgid "Failed to shutdown domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to soft reset VM '%s'. Destroying VM"
@@ -8452,8 +8512,8 @@ msgid "Failed to start bridge interface %s"
 msgstr "Bridge Schnittstelle %s konnte nicht gestartet werden"
 
 #, c-format
-msgid "Failed to start domain %s"
-msgstr "Domain %s konnte nicht gestartet werden"
+msgid "Failed to start domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to start interface %s"
@@ -8494,10 +8554,6 @@ msgstr "Konnte Status von Speicher-Datenträger mit Pfad '%s' nicht ermitteln"
 msgid "Failed to step SASL negotiation: %d (%s)"
 msgstr "Stufen der SASL-Verhandlung fehlgeschlagen: %d (%s)"
 
-#, c-format
-msgid "Failed to suspend domain %s"
-msgstr "Anhalten von Domain %s schlug fehl"
-
 #, fuzzy, c-format
 msgid "Failed to suspend domain '%d'"
 msgstr "Anhalten von Domain %s schlug fehl"
@@ -8505,6 +8561,10 @@ msgstr "Anhalten von Domain %s schlug fehl"
 #, c-format
 msgid "Failed to suspend domain '%d' with libxenlight"
 msgstr "Konnte Domain '%d' nicht mit libxenlight sperren"
+
+#, c-format
+msgid "Failed to suspend domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to symlink device %s to %s"
@@ -8551,8 +8611,8 @@ msgid "Failed to undefine bridge interface %s"
 msgstr "Zurücksetzen der Bridge-Schnittstelle %s gescheitert"
 
 #, c-format
-msgid "Failed to undefine domain %s"
-msgstr "Domain %s konnte nicht undefiniert werden"
+msgid "Failed to undefine domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to undefine interface %s"
@@ -8575,8 +8635,12 @@ msgid "Failed to unescape command line string"
 msgstr "Kann nicht Befehl 'id' String anhängen"
 
 #, c-format
-msgid "Failed to unmark domain %s as autostarted"
-msgstr "Demarkieren der Domain %s als automatisch zu starten gescheitert"
+msgid "Failed to unlink '%s'"
+msgstr ""
+
+#, c-format
+msgid "Failed to unmark domain '%s' as autostarted"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to unmarshall reply: %s"
@@ -8698,6 +8762,10 @@ msgid "Field name too long"
 msgstr "Feld-Name '%s' zu lang"
 
 #, c-format
+msgid "File %s contains no keys"
+msgstr ""
+
+#, c-format
 msgid ""
 "File '%s' does not contain any <cpu> element or valid domain XML, host "
 "capabilities XML, or domain capabilities XML"
@@ -8796,10 +8864,63 @@ msgstr ""
 "Erste dateibasierte Festplatte hat keine Quelle, Datenspeicher und Pfad für "
 "VMX-Datei kann nicht abgeleitet werden"
 
+#. Macros to help dealing with flag requirements.
+#. *
+#. * VIR_REQUIRE_FLAG_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @RET: Return value.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_REQUIRE_FLAG_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if required flag is not set.
+#.
 #, c-format
 msgid "Flag '%s' is required by flag '%s'"
 msgstr ""
 
+#. Macros to help dealing with mutually exclusive flags.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @RET: Return value.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, fuzzy, c-format
 msgid "Flags '%s' and '%s' are mutually exclusive"
 msgstr "Optionen --%s und --%s schließen sich gegenseitig aus"
@@ -9654,6 +9775,10 @@ msgstr ""
 msgid "Invalid 'memAccess' attribute value '%s'"
 msgstr "Ungültiger Speicher Core Dump Attribut Wert '%s'"
 
+#, c-format
+msgid "Invalid 'removed' attribute for feature %s in model %s"
+msgstr ""
+
 msgid "Invalid 'target' attribute in NUMA interconnects"
 msgstr ""
 
@@ -9833,6 +9958,15 @@ msgstr "Ungültiger Erlauben Wert, entweder 'yes' oder no'"
 msgid "Invalid append attribute value '%s'"
 msgstr "Ungültiger Speicher Core Dump Attribut Wert '%s'"
 
+#.
+#. * Don't check for *selectSet != NULL here because selectSet is a list
+#. * and might contain items already. This function appends to selectSet.
+#.
+#. optional
+#. optional
+#. nothing
+#. nothing
+#. nothing
 msgid "Invalid argument"
 msgstr "Ungültiger Parameter"
 
@@ -9998,6 +10132,9 @@ msgstr "Ungültiger Kontext"
 #, fuzzy, c-format
 msgid "Invalid controller id '%d'"
 msgstr "Ungültiger Erfassungs-Zeitraum Wert '%d'"
+
+msgid "Invalid controller type for LUN"
+msgstr ""
 
 #, c-format
 msgid "Invalid cpuNum in %s"
@@ -10428,6 +10565,9 @@ msgstr "Ungültiger Modus: %s"
 #, fuzzy, c-format
 msgid "Invalid peer '%s' in <ip>"
 msgstr "Ungültiger Bus-Typ '%s' für Festplatte"
+
+msgid "Invalid persistent_state value, either 'yes' or 'no'"
+msgstr ""
 
 #, c-format
 msgid "Invalid pool type '%s'"
@@ -11115,14 +11255,6 @@ msgid "Malformed owners array"
 msgstr "Ungültiges Eigentümer-Element"
 
 #, fuzzy
-msgid "Malformed query-command-line-options array"
-msgstr "query-command-line-options Antwort fehlen die Rückgabedaten"
-
-#, fuzzy
-msgid "Malformed query-command-line-options parameters array"
-msgstr "query-command-line-options Parameter-Daten fehlt 'name'"
-
-#, fuzzy
 msgid "Malformed resources array"
 msgstr "Fehlerhafter Rückgabewert"
 
@@ -11153,17 +11285,17 @@ msgstr "Fehlerhaftes wwn: %s"
 msgid "Manage active block operations"
 msgstr "Verwalten aktiver Block Operationen"
 
-#, fuzzy, c-format
-msgid "Managed save image of Domain %s XML configuration edited.\n"
-msgstr "Domain %s XML-Konfiguration editiert.\n"
+#, c-format
+msgid "Managed save image of Domain '%s' XML configuration edited.\n"
+msgstr ""
 
-#, fuzzy, c-format
-msgid "Managed save image of domain %s XML configuration not changed.\n"
-msgstr "image-Sicherung %s XML Konfiguration nicht verändert.\n"
+#, c-format
+msgid "Managed save image of domain '%s' XML configuration not changed.\n"
+msgstr ""
 
-#, fuzzy, c-format
-msgid "Managed save state file of domain %s updated.\n"
-msgstr "Verwaltete Sicherung eines Domain Zustandes"
+#, c-format
+msgid "Managed save state file of domain '%s' updated.\n"
+msgstr ""
 
 msgid "Managed save:"
 msgstr "Verwaltete Sicherung:"
@@ -12077,6 +12209,10 @@ msgid "Missing storage volume name for disk '%s'"
 msgstr "Ungültiger Speicher-Datenträger-Zeiger in %s"
 
 #, c-format
+msgid "Missing udev property '%s' on '%s'"
+msgstr ""
+
+#, c-format
 msgid "Missing vendor string for CPU vendor %s"
 msgstr "Fehlender Herstellerangabe für CPU-Hersteller %s"
 
@@ -12182,9 +12318,15 @@ msgstr "Muss --rename oder --clone verwenden um %s auf %s zu ändern"
 msgid "N/A"
 msgstr "N/A"
 
+msgid "NBD URI must be supplied when migration URI uses UNIX transport method"
+msgstr ""
+
 #, fuzzy
 msgid "NBD migration with TLS is not supported"
 msgstr "CPU-Affinität wird nicht unterstützt"
+
+msgid "NBD migration with TLS is not supported over UNIX socket"
+msgstr ""
 
 #, fuzzy
 msgid "NIC model 'e1000' is not supported by given bhyve binary"
@@ -12309,6 +12451,12 @@ msgstr "SATA wird im Zusammenhang mit dieser QEMU-Binärdatei nicht unterstützt
 msgid "NVMe namespace can't be zero"
 msgstr ""
 
+#. Output old style header
+#. We only get here if the --details option was selected.
+#. Insert the header into table
+#. The old output format
+#. We only get here if the --details option was selected.
+#. Insert the header into table
 msgid "Name"
 msgstr "Name"
 
@@ -12603,6 +12751,10 @@ msgstr "Kein Kategorie-Bereich verfügbar"
 msgid "No URI scheme specified"
 msgstr "Kein Bridge-Name angegeben"
 
+#, c-format
+msgid "No URI scheme specified: %s"
+msgstr ""
+
 #, fuzzy
 msgid "No access manager registered"
 msgstr "zu viele Treiber registriert"
@@ -12751,10 +12903,6 @@ msgid ""
 "No free busNr lower than current lowest busNr is available to auto-assign to "
 "bus %d. Must be manually assigned"
 msgstr ""
-
-#, fuzzy
-msgid "No free veth devices available"
-msgstr "Keine freien NBD Einheiten"
 
 msgid "No graphical display found"
 msgstr ""
@@ -13070,6 +13218,10 @@ msgid "Number of interfaces, %d exceeds the max limit: %d"
 msgstr ""
 
 #, c-format
+msgid "Number of keys %d, which exceeds max liit: %d"
+msgstr ""
+
+#, c-format
 msgid "Number of leases is %d, which exceeds max limit: %d"
 msgstr ""
 
@@ -13357,8 +13509,25 @@ msgstr ""
 "Einheiten-Alias ​​wurde nicht erstellt für PCI-Controller mit Index %u "
 "erforderlich für Einheit an Adresse %s"
 
+#. Macros to help dealing with required options.
+#. VSH_REQUIRE_OPTION_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable).
+#. * @NAME2: String containing the name of required option.
+#. * @EXPR2: Expression to validate the variable (boolean variable).
+#. *
+#. * Check if required command options in virsh was set.  Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Option --%s is required by option --%s"
+msgstr ""
+
+msgid "Option --file is required"
 msgstr ""
 
 msgid "Option argument is empty"
@@ -13367,6 +13536,20 @@ msgstr "Option-Argument ist leer"
 msgid "Optional flags or --rawstats are not supported by the daemon"
 msgstr ""
 
+#. Macros to help dealing with mutually exclusive options.
+#. VSH_EXCLUSIVE_OPTIONS_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable)
+#. * @NAME2: String containing the name of the option.
+#. * @EXPR2: Expression to validate the variable (boolean variable)
+#. *
+#. * Reject mutually exclusive command options in virsh. Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Options --%s and --%s are mutually exclusive"
 msgstr "Optionen --%s und --%s schließen sich gegenseitig aus"
@@ -13470,15 +13653,15 @@ msgid ""
 msgstr ""
 
 #, c-format
-msgid "PCI controller busNr '%s' out of range - must be 1-254"
+msgid "PCI controller busNr '%d' out of range - must be 1-254"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "PCI controller chassis '%s' out of range - must be 0-255"
-msgstr "FDC Controller index %d außerhalb dem [0] Bereich"
+#, c-format
+msgid "PCI controller chassis '%d' out of range - must be 0-255"
+msgstr ""
 
 #, c-format
-msgid "PCI controller chassisNr '%s' out of range - must be 1-255"
+msgid "PCI controller chassisNr '%d' out of range - must be 1-255"
 msgstr ""
 
 #, fuzzy, c-format
@@ -13489,9 +13672,9 @@ msgstr "FDC Controller index %d außerhalb dem [0] Bereich"
 msgid "PCI controller model was not set correctly"
 msgstr "Ziel Controller Modell %d stimmt nicht mit der Quelle %d überein"
 
-#, fuzzy, c-format
-msgid "PCI controller port '%s' out of range - must be 0-255"
-msgstr "FDC Controller index %d außerhalb dem [0] Bereich"
+#, c-format
+msgid "PCI controller port '%d' out of range - must be 0-255"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "PCI controller target index '%d' out of range - must be 0-30"
@@ -14214,8 +14397,8 @@ msgid "Removed"
 msgstr ""
 
 #, c-format
-msgid "Removed managedsave image for domain %s"
-msgstr "Verwaltetes Sicherungs-Image der Domain %s entfernt"
+msgid "Removed managedsave image for domain '%s'"
+msgstr ""
 
 msgid "Renamed"
 msgstr ""
@@ -14234,8 +14417,9 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Requested TSC frequency %llu Hz does not match host (%llu Hz) and TSC "
-"scaling is not supported by the host CPU"
+"Requested TSC frequency %llu Hz is outside tolerance range ([%llu, %llu] Hz) "
+"around host frequency %llu Hz and TSC scaling is not supported by the host "
+"CPU"
 msgstr ""
 
 #, fuzzy, c-format
@@ -14519,6 +14703,7 @@ msgstr "S3-Status ist für diese Domain deaktiviert"
 msgid "S4 state is disabled for this domain"
 msgstr "S4-Status ist für diese Domain deaktiviert"
 
+#. Denied
 #, c-format
 msgid "SASL client identity '%s' not allowed by ACL"
 msgstr ""
@@ -15063,6 +15248,9 @@ msgstr "CPU-Zeit:"
 msgid "Shared memory mapping is not supported with this QEMU"
 msgstr "SPICE-Grafiken werden nicht unterstützt mit diesem QEMU"
 
+#. XXX: Need to sort the returned params once new parameter
+#. * fields not of shared memory are added.
+#.
 msgid "Shared memory:\n"
 msgstr "Gemeinsamer Speicher:\n"
 
@@ -15140,6 +15328,7 @@ msgstr "SATA wird im Zusammenhang mit dieser QEMU-Binärdatei nicht unterstützt
 msgid "Snapshot"
 msgstr "Snapshot Liste"
 
+#. Depending on flags, we re-edit even if XML is unchanged.
 #, c-format
 msgid "Snapshot %s XML configuration not changed.\n"
 msgstr "Snapshot %s XML Konfiguration nicht verändert.\n"
@@ -15623,6 +15812,7 @@ msgstr "TPM Einheiten Pfad %s ist ungültig"
 msgid "Table row cannot be empty"
 msgstr "%s kann nicht leer sein"
 
+#. title
 msgid "Target"
 msgstr "Ziel"
 
@@ -15698,6 +15888,9 @@ msgstr "Ziel Disk Zugriffs-Modus stimmt nicht mit der Quelle überein"
 msgid "Target NUMA node count '%zu' doesn't match source '%zu'"
 msgstr "Ziel-CPU Funktions-Anzahl %zu stimmt nicht mit der Quelle %zu überein"
 
+msgid "Target NVDIMM UUID doesn't match source NVDIMM"
+msgstr ""
+
 #, fuzzy, c-format
 msgid ""
 "Target NVDIMM alignment '%llu' doesn't match source NVDIMM alignment '%llu'"
@@ -15733,8 +15926,8 @@ msgid "Target TPM version doesn't match source"
 msgstr "Ziel USB Version stimmt nicht mit der Quelle überein"
 
 #, c-format
-msgid "Target TSC frequency %lu does not match source %lu"
-msgstr "Ziel TSC-Frequenz %lu stimmt nicht mit der Quelle %lu überein"
+msgid "Target TSC frequency %llu does not match source %llu"
+msgstr ""
 
 #, c-format
 msgid "Target TSC mode %s does not match source %s"
@@ -16421,9 +16614,6 @@ msgstr "Die QEMU ausführbare Datei %s unterstützt nicht TPM Backend Typ %s"
 msgid "The QEMU executable %s does not support TPM model %s"
 msgstr "Die QEMU ausführbare Datei %s unterstützt nicht TPM Modell %s"
 
-msgid "The WMI class info list is empty"
-msgstr ""
-
 msgid "The XML configuration was changed by another user."
 msgstr "Die XML-Konfiguration wurde von einem anderen Benutzer verändert."
 
@@ -16633,6 +16823,12 @@ msgstr "Diese QEMU unterstützt kein Ziel größer als 7"
 msgid "This QEMU doesn't support target greater than 7"
 msgstr "Diese QEMU unterstützt kein Ziel größer als 7"
 
+msgid "This QEMU doesn't support the AM53C974 (ESP) controller"
+msgstr ""
+
+msgid "This QEMU doesn't support the DC390 (ESP) controller"
+msgstr ""
+
 msgid "This QEMU doesn't support the LSI 53C895A SCSI controller"
 msgstr "Diese QEMU unterstützt nicht den LSI 53C895A SCSI Controller"
 
@@ -16643,6 +16839,9 @@ msgstr "Diese QEMU unterstützt nicht den LSI 53C895A SCSI Controller"
 #, fuzzy
 msgid "This QEMU doesn't support the LSI SAS1078 (MegaRAID) controller"
 msgstr "Diese QEMU unterstützt nicht den LSI 53C895A SCSI Controller"
+
+msgid "This QEMU doesn't support the NCR53C90 (ESP) controller"
+msgstr ""
 
 #, fuzzy
 msgid ""
@@ -16911,9 +17110,11 @@ msgstr "Versuchte Socket im Fehlerzustand zu schreiben"
 msgid "Try again?"
 msgstr ""
 
+#. Better leak than crash
 msgid "Trying to free MultiCURL object that is still in use"
 msgstr "Versuche ein MultiCURL Object freizugeben das noch verwendet wird"
 
+#. Better leak than crash
 msgid "Trying to free SharedCURL object that is still in use"
 msgstr "Versuche ein SharedCURL Object freizugeben das noch verwendet wird"
 
@@ -17442,10 +17643,6 @@ msgstr "Kann Bridge-Einheit nicht erstellen"
 #, c-format
 msgid "Unable to create device %s"
 msgstr "Kann Einheit %s nicht erstellen"
-
-#, c-format
-msgid "Unable to create device '%s'"
-msgstr ""
 
 #, c-format
 msgid "Unable to create directory %s"
@@ -19505,6 +19702,7 @@ msgstr "Unbekannter Weiterleitungstyp %d im Netzwerk '%s'"
 msgid "Unknown error"
 msgstr "Unbekannter Fehler"
 
+#. should never happen (tm)
 msgid "Unknown error value"
 msgstr "Unbekannter Fehlerwert"
 
@@ -19731,6 +19929,10 @@ msgstr ""
 #, fuzzy
 msgid "Unpaused"
 msgstr "wieder gestartet"
+
+#, c-format
+msgid "Unrecognized controller type %d"
+msgstr ""
 
 msgid "Unrecognized disk label found, requires build"
 msgstr ""
@@ -20136,6 +20338,9 @@ msgid ""
 "'type'"
 msgstr ""
 
+msgid "Use the guest agent to query authorized SSH keys for given user"
+msgstr ""
+
 msgid ""
 "Use the guest agent to query or set cpu state from guest's point of view"
 msgstr ""
@@ -20299,10 +20504,12 @@ msgstr "SPICE-Grafiken werden nicht unterstützt mit diesem QEMU"
 msgid "Vifname %s too big for destination"
 msgstr "Vifname %s zu groß für Ziel"
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virsh command line tool of libvirt %s\n"
 msgstr "Virsh Befehlszeilen Tool von libvirt %s\n"
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, fuzzy, c-format
 msgid "Virt-admin command line tool of libvirt %s\n"
 msgstr "Virsh Befehlszeilen Tool von libvirt %s\n"
@@ -20769,6 +20976,14 @@ msgstr "nach dem Zurücksetzen Zustand auf laufen ändern"
 msgid "algorithm=%d is not supported"
 msgstr "Lösch-Algorithmus %d "
 
+#, c-format
+msgid "alias '%s' of command '%s' has mismatched alias type"
+msgstr ""
+
+#, c-format
+msgid "alias '%s' of command '%s' has missing alias option"
+msgstr ""
+
 #, fuzzy
 msgid "all CPU models are accepted"
 msgstr "CPU-Modell %s bereits definiert"
@@ -20841,6 +21056,10 @@ msgstr "Domain läuft bereits"
 msgid "any configuration"
 msgstr "Nicht unterstützte Konfiguration"
 
+#, c-format
+msgid "ap-domain value '%s' is out of range for '%s'"
+msgstr ""
+
 msgid "apparmor_parser exited with error"
 msgstr "apparmor_parser beendete mit Fehler"
 
@@ -20894,6 +21113,9 @@ msgstr "Array-Element fehlt in guest-get-vcpus Antwort-Wert"
 #, fuzzy, c-format
 msgid "array element '%zd' of '%zd' missing in guest-get-fsinfo return data"
 msgstr "Array-Element fehlt in guest-get-vcpus Antwort-Wert"
+
+msgid "array element missing in guest-get-disks return value"
+msgstr ""
 
 #, fuzzy
 msgid "array element missing in guest-get-users return value"
@@ -21512,6 +21734,10 @@ msgid "can't keep relative backing relationship"
 msgstr "Verwalten aktiver Block Operationen"
 
 #, c-format
+msgid "can't manipulate inactive snapshots of disk '%s'"
+msgstr ""
+
+#, c-format
 msgid "can't open session to the domain with id %d"
 msgstr "kann nicht öffnen eine Sitzung auf der Domäne mit id %d"
 
@@ -21790,8 +22016,8 @@ msgid "cannot close file: %s"
 msgstr "Kann Datei %s nicht schließen"
 
 #, c-format
-msgid "cannot close stream on domain %s"
-msgstr "Kann Stream auf Domain %s nicht schließen"
+msgid "cannot close stream on domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "cannot close volume %s"
@@ -22407,6 +22633,9 @@ msgstr "Kann persistente Konfiguration einer Domain nicht modifizieren"
 msgid "cannot modify virtio network device driver attributes"
 msgstr "Kann virtio Netzwerk-Einheiten Treiber-Attribute nicht ändern"
 
+msgid "cannot modify virtio network device driver options"
+msgstr ""
+
 msgid "cannot obtain CPU freq"
 msgstr "Kann CPU freq nicht erhalten"
 
@@ -22444,6 +22673,7 @@ msgstr "Kann Pfad '%s' nicht öffnen"
 msgid "cannot open path '%s' in '%s'"
 msgstr "Kann Pfad '%s' nicht öffnen"
 
+#. A dangling symlink now implies a TOCTTOU race; report it.
 #, c-format
 msgid "cannot open volume '%s'"
 msgstr "Kann Datenträger '%s' nicht öffnen"
@@ -22779,10 +23009,6 @@ msgstr "Kann verwaltete Sicherungs-Datei %s nicht entfernen"
 msgid "cannot remove managed save file %s"
 msgstr "Kann verwaltete Sicherungs-Datei %s nicht entfernen"
 
-#, fuzzy, c-format
-msgid "cannot remove old domain config file %s"
-msgstr "Konfigurationsdatei '%s' kann nicht gelöscht werden"
-
 #, fuzzy
 msgid "cannot rename a transient domain"
 msgstr "Kann Definition der Übergangs-Domain nicht rückgängig machen"
@@ -22790,14 +23016,6 @@ msgstr "Kann Definition der Übergangs-Domain nicht rückgängig machen"
 #, fuzzy
 msgid "cannot rename active domain"
 msgstr "Kann cputime für Domain nicht lesen"
-
-#, fuzzy
-msgid "cannot rename domain with checkpoints"
-msgstr "Kann Domain mit %d Snapshots nicht migrieren"
-
-#, fuzzy
-msgid "cannot rename domain with snapshots"
-msgstr "Kann Domain mit %d Snapshots nicht migrieren"
 
 #, c-format
 msgid "cannot rename file '%s' as '%s'"
@@ -23142,12 +23360,12 @@ msgid "cfpc configuration is not supported by this QEMU binary"
 msgstr "nvram Einheit wird von dieser QEMU-Programmdatei nicht unterstützt"
 
 #, c-format
-msgid "cfs_period '%llu' must be in range (1000, 1000000)"
-msgstr "cfs_period '%llu' muss im Bereich (1000, 1000000) sein"
+msgid "cfs_period '%llu' must be in range (%llu, %llu)"
+msgstr ""
 
 #, c-format
-msgid "cfs_quota '%lld' must be in range (1000, %llu)"
-msgstr "cfs_quota '%lld' muss im Bereich (1000, %llu) sein"
+msgid "cfs_quota '%lld' must be in range (%llu, %llu)"
+msgstr ""
 
 msgid "cgroup CPU controller is not mounted"
 msgstr "cgroup CPU Controller ist nicht angeschlossen"
@@ -23297,6 +23515,13 @@ msgstr "Snapshot '%s' hat keinen Übergeordneten"
 msgid "checkpoint for disk %s unsupported for storage type %s"
 msgstr "Interner Snapshot für Disk %s nicht für Speicher-Typ %s unterstützt"
 
+msgid "checkpoint inconsistent"
+msgstr ""
+
+#, c-format
+msgid "checkpoint inconsistent: %s"
+msgstr ""
+
 #, fuzzy
 msgid "checkpoint information"
 msgstr "Domain-Informationen"
@@ -23309,6 +23534,7 @@ msgstr "Klone-Name"
 msgid "child didn't write error (status=%d)"
 msgstr ""
 
+#. in case of EACCES, the parent will retry
 #, c-format
 msgid "child failed to create directory '%s'"
 msgstr "Anlegen des Verzeichnisses '%s' durch Child fehlgeschlagen"
@@ -23342,6 +23568,9 @@ msgid "cipher info missing 'size' attribute"
 msgstr "Dem Speicher-Pool fehlt das Type-Attribut"
 
 msgid "classID attribute not supported on <bandwidth> in this usage context"
+msgstr ""
+
+msgid "clear out authorized keys file before adding new keys"
 msgstr ""
 
 #, fuzzy
@@ -23394,10 +23623,6 @@ msgstr ""
 msgid "command"
 msgstr "Befehl"
 
-#, fuzzy, c-format
-msgid "command '%s' does not list argv option last"
-msgstr "Befehl '%s' unterstützt die Option --%s nicht"
-
 #, c-format
 msgid "command '%s' doesn't support option --%s"
 msgstr "Befehl '%s' unterstützt die Option --%s nicht"
@@ -23407,31 +23632,11 @@ msgid "command '%s' has inconsistent alias"
 msgstr "Domain '%s' hat keinen aktuellen Snapshot"
 
 #, fuzzy, c-format
-msgid "command '%s' has incorrect alias option"
-msgstr "Befehl '%s' erfordert --%s Option"
-
-#, c-format
-msgid "command '%s' has mismatched alias type"
-msgstr ""
-
-#, fuzzy, c-format
-msgid "command '%s' has missing alias option"
-msgstr "Befehl '%s' erfordert --%s Option"
-
-#, c-format
-msgid "command '%s' has non-required VSH_OT_DATA"
-msgstr ""
-
-#, fuzzy, c-format
 msgid "command '%s' has too many options"
 msgstr "Befehl '%s' erfordert --%s Option"
 
 #, c-format
 msgid "command '%s' lacks help"
-msgstr ""
-
-#, c-format
-msgid "command '%s' misused VSH_OFLAG_REQ"
 msgstr ""
 
 #, c-format
@@ -23947,8 +24152,8 @@ msgid "could not read xml file"
 msgstr "XML-Datei konnte nicht gelesen werden"
 
 #, c-format
-msgid "could not receive data from domain %s"
-msgstr "Konnte keine Daten von Domain %s empfangen"
+msgid "could not receive data from domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "could not remove profile for '%s'"
@@ -24606,10 +24811,6 @@ msgstr ""
 msgid "dir"
 msgstr "dir"
 
-#, c-format
-msgid "direct firewall backend requested, but %s is not available"
-msgstr ""
-
 msgid "direct migration"
 msgstr "Direkte Migration"
 
@@ -24832,8 +25033,9 @@ msgstr "Disk device='lun' ist nicht unterstützt für Bus='%s'"
 msgid "disk port address is not supported by tunnelled migration"
 msgstr "Kann Pipe nicht für getunnelte Migration weitergeben"
 
-msgid "disk product is more than 16 characters"
-msgstr "Disk-Produkt ist länger als 16 Zeichen"
+#, c-format
+msgid "disk product is more than %d characters"
+msgstr ""
 
 msgid "disk product is not printable string"
 msgstr "Disk-Produkt ist kein druckbarer String"
@@ -24863,8 +25065,9 @@ msgstr "Platte %s nicht gefunden"
 msgid "disk type of '%s' does not support ejectable media"
 msgstr "Pool-Typ '%s' unterstützt keine Quell-Entdeckung"
 
-msgid "disk vendor is more than 8 characters"
-msgstr "Disk-Hersteller ist länger als 8 Zeichen"
+#, c-format
+msgid "disk vendor is more than %d characters"
+msgstr ""
 
 msgid "disk vendor is not printable string"
 msgstr "Disk-Hersteller ist kein druckbarer String"
@@ -25045,9 +25248,13 @@ msgstr "Domain Snapshot XML"
 msgid "domain config update needs VIR_DOMAIN_AFFECT_CONFIG flag to be set"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "domain configuration does not support '%s' value '%s'"
-msgstr "Umbenennen von Domains bei Migration wird nicht unterstützt"
+#, c-format
+msgid "domain configuration does not support rng model '%s'"
+msgstr ""
+
+#, c-format
+msgid "domain configuration does not support video model '%s'"
+msgstr ""
 
 msgid "domain control interface state"
 msgstr "Domain Kontrolle Schnittstellen Status"
@@ -25399,10 +25606,6 @@ msgid "edit XML for a snapshot"
 msgstr "Editieren XML für einen Snapshot"
 
 #, fuzzy
-msgid "egl-headless display is not supported with this QEMU binary"
-msgstr "vhost-net wird mit dieser QEMU-Binärdatei nicht unterstützt"
-
-#, fuzzy
 msgid "either --list or --event <type> is required"
 msgstr "--%s oder --current ist erforderlich"
 
@@ -25647,12 +25850,12 @@ msgstr "Escape für Shell-Anwendung"
 msgid "ethtool ioctl error on %s"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "event '%s' for domain %s\n"
-msgstr "Konnte nicht %s für Domain %s suchen"
+#, c-format
+msgid "event '%s' for domain '%s'\n"
+msgstr ""
 
 #, c-format
-msgid "event '%s' for domain %s: %s for %s %s\n"
+msgid "event '%s' for domain '%s': %s for %s %s\n"
 msgstr ""
 
 #, fuzzy, c-format
@@ -25667,53 +25870,53 @@ msgstr "revert erfordert force: %s"
 msgid "event '%s' for storage pool %s\n"
 msgstr "Unbekannter Speicher-Pool-Typ %s"
 
-#, fuzzy, c-format
-msgid "event 'agent-lifecycle' for domain %s: state: '%s' reason: '%s'\n"
-msgstr "Ungültiger Domain-Status Anlass '%s'"
-
 #, c-format
-msgid "event 'balloon-change' for domain %s: %lluKiB\n"
+msgid "event 'agent-lifecycle' for domain '%s': state: '%s' reason: '%s'\n"
 msgstr ""
 
 #, c-format
-msgid "event 'block-threshold' for domain %s: dev: %s(%s) %llu %llu\n"
+msgid "event 'balloon-change' for domain '%s': %lluKiB\n"
 msgstr ""
 
 #, c-format
-msgid "event 'device-added' for domain %s: %s\n"
+msgid "event 'block-threshold' for domain '%s': dev: %s(%s) %llu %llu\n"
 msgstr ""
 
 #, c-format
-msgid "event 'device-removal-failed' for domain %s: %s\n"
+msgid "event 'device-added' for domain '%s': %s\n"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "event 'device-removed' for domain %s: %s\n"
-msgstr "Keine Beschreibung für Domain: %s"
+#, c-format
+msgid "event 'device-removal-failed' for domain '%s': %s\n"
+msgstr ""
 
 #, c-format
-msgid "event 'disk-change' for domain %s disk %s: %s -> %s: %s\n"
+msgid "event 'device-removed' for domain '%s': %s\n"
+msgstr ""
+
+#, c-format
+msgid "event 'disk-change' for domain '%s' disk %s: %s -> %s: %s\n"
 msgstr ""
 
 #, c-format
 msgid ""
-"event 'graphics' for domain %s: %s local[%s %s %s] remote[%s %s %s] %s\n"
+"event 'graphics' for domain '%s': %s local[%s %s %s] remote[%s %s %s] %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'io-error' for domain %s: %s (%s) %s\n"
+msgid "event 'io-error' for domain '%s': %s (%s) %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'io-error-reason' for domain %s: %s (%s) %s due to %s\n"
+msgid "event 'io-error-reason' for domain '%s': %s (%s) %s due to %s\n"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "event 'job-completed' for domain %s:\n"
-msgstr "Verbunden mit der Domain: %s\n"
+#, c-format
+msgid "event 'job-completed' for domain '%s':\n"
+msgstr ""
 
 #, c-format
-msgid "event 'lifecycle' for domain %s: %s %s\n"
+msgid "event 'lifecycle' for domain '%s': %s %s\n"
 msgstr ""
 
 #, c-format
@@ -25734,33 +25937,33 @@ msgstr "Autostart von Speicherpool »%s« fehlgeschlagen: %s"
 
 #, c-format
 msgid ""
-"event 'memory-failure' for domain %s:\n"
+"event 'memory-failure' for domain '%s':\n"
 "recipient: %s\n"
 "action: %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'metadata-change' for domain %s: %s %s\n"
+msgid "event 'metadata-change' for domain '%s': %s %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'migration-iteration' for domain %s: iteration: '%d'\n"
+msgid "event 'migration-iteration' for domain '%s': iteration: '%d'\n"
 msgstr ""
 
 #, c-format
-msgid "event 'rtc-change' for domain %s: %lld\n"
+msgid "event 'rtc-change' for domain '%s': %lld\n"
 msgstr ""
 
 #, c-format
-msgid "event 'tray-change' for domain %s disk %s: %s\n"
+msgid "event 'tray-change' for domain '%s' disk %s: %s\n"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "event 'tunable' for domain %s:\n"
-msgstr "Verwaltetes Sicherungs-Image der Domain %s entfernt"
+#, c-format
+msgid "event 'tunable' for domain '%s':\n"
+msgstr ""
 
 #, c-format
-msgid "event 'watchdog' for domain %s: %s\n"
+msgid "event 'watchdog' for domain '%s': %s\n"
 msgstr ""
 
 msgid "event callback already tracked"
@@ -26434,6 +26637,9 @@ msgstr "Abruf des nwfilter »%s« fehlgeschlagen"
 msgid "failed to get parent pool"
 msgstr "Konnte Parent-Pool nicht abrufen"
 
+msgid "failed to get persistent definition object"
+msgstr ""
+
 #, c-format
 msgid "failed to get pool '%s'"
 msgstr "Konnte Pool '%s' nicht ermitteln"
@@ -26746,6 +26952,14 @@ msgstr "Konnte QEMU Einheiten-Liste nicht analysieren"
 #, fuzzy
 msgid "failed to parse slirp-helper features"
 msgstr "Analyse des Wertes von %s fehlgeschlagen"
+
+#, c-format
+msgid "failed to parse the AP Card from sysfs path: '%s'"
+msgstr ""
+
+#, c-format
+msgid "failed to parse the AP Queue from sysfs path: '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "failed to parse the CCW address from sysfs path: '%s'"
@@ -27179,6 +27393,9 @@ msgstr ""
 msgid "fetch or set the currently defined set of logging outputs on daemon"
 msgstr ""
 
+#. parse inbound and outbound which are in the format of
+#. * 'average,peak,burst,floor', in which peak and burst are optional,
+#. * thus 'average,,burst' and 'average,peak' are also legal.
 #, fuzzy, c-format
 msgid "field '%s' is malformed"
 msgstr "Konfigurationswert %s war fehlerhaft"
@@ -27367,7 +27584,7 @@ msgstr "Potentielle Speicher-Pool-Quellen finden"
 msgid "finish step ignored that migration was cancelled"
 msgstr ""
 
-msgid "firewalld firewall backend requested, but service is not running"
+msgid "firewalld backend requested, but service is not running"
 msgstr ""
 
 msgid ""
@@ -27398,6 +27615,12 @@ msgstr ""
 #, fuzzy
 msgid "floor attribute is not supported for this config"
 msgstr "ram Attribut nur unterstützt für Typ von qxl"
+
+msgid "fmode and dmode are not supported with this QEMU binary"
+msgstr ""
+
+msgid "fmode and dmode must be used with accessmode=mapped"
+msgstr ""
 
 #, c-format
 msgid "for %s module"
@@ -27792,6 +28015,7 @@ msgstr "Domain nach erstellen Snapshot anhalten"
 msgid "handler failed to wait on condition"
 msgstr "Warten auf Bedingung fehlgeschlagen"
 
+#. caller's error
 msgid "hash lookup resulted in NULL pointer"
 msgstr "Hash-Lookup ergab NULL-Zeiger"
 
@@ -27862,6 +28086,9 @@ msgstr ""
 msgid "host migration TLS directory not configured"
 msgstr ""
 
+msgid "host name for source of disk device"
+msgstr ""
+
 #, fuzzy
 msgid "host pci device "
 msgstr "Blockeinheit"
@@ -27882,6 +28109,12 @@ msgstr "Host-USB-Gerät %03d.%03d nicht gefunden"
 #, fuzzy, c-format
 msgid "host scsi iSCSI path %s not found"
 msgstr "hostdev %s nicht gefunden"
+
+msgid "host socket for source of disk device"
+msgstr ""
+
+msgid "host transport for source of disk device"
+msgstr ""
 
 #, c-format
 msgid "host usb device %03d.%03d not found"
@@ -28167,9 +28400,6 @@ msgstr "Umbenennen von Domains bei Migration wird nicht unterstützt"
 msgid "info balloon reply was missing balloon data"
 msgstr "Der Antwort der Informationssprechblase fehlten die Sprechblasedaten"
 
-msgid "info kvm reply missing 'enabled' field"
-msgstr ""
-
 msgid "info migration reply was missing return status"
 msgstr "Der Info-Migration-Antwort fehlte der Rücklaufstatus"
 
@@ -28353,6 +28583,25 @@ msgstr "Schnittstellenname"
 msgid "interface name %s does not fit into buffer "
 msgstr "Schnittstellenname %s passt nicht in Puffer "
 
+#.
+#. * virsh-interface.c: Commands to manage host interface
+#. *
+#. * Copyright (C) 2005, 2007-2016 Red Hat, Inc.
+#. *
+#. * This library is free software; you can redistribute it and/or
+#. * modify it under the terms of the GNU Lesser General Public
+#. * License as published by the Free Software Foundation; either
+#. * version 2.1 of the License, or (at your option) any later version.
+#. *
+#. * This library is distributed in the hope that it will be useful,
+#. * but WITHOUT ANY WARRANTY; without even the implied warranty of
+#. * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#. * Lesser General Public License for more details.
+#. *
+#. * You should have received a copy of the GNU Lesser General Public
+#. * License along with this library.  If not, see
+#. * <http://www.gnu.org/licenses/>.
+#.
 msgid "interface name or MAC address"
 msgstr "Schnittstellen-Name oder -MAC-Adresse"
 
@@ -28394,10 +28643,6 @@ msgstr "Interner Fehler"
 #, c-format
 msgid "internal error: %s"
 msgstr "Interner Fehler: %s"
-
-#, c-format
-msgid "internal error: bad options in command: '%s'"
-msgstr "Interner Fehler: Falsche Optionen mit Befehl: '%s'"
 
 #, fuzzy, c-format
 msgid "internal inactive snapshots are not supported on '%s' disks"
@@ -28643,6 +28888,14 @@ msgstr "Ungültiger Schlüsselcode: '%s'"
 msgid "invalid allowReboot value '%s'"
 msgstr "Ungültiger Umsetzungs-Wert '%s'"
 
+#, c-format
+msgid "invalid ap-adapter value '%s' for '%s'"
+msgstr ""
+
+#, c-format
+msgid "invalid ap-domain value '%s' for '%s'"
+msgstr ""
+
 msgid "invalid argument"
 msgstr "Ungültiges Argument"
 
@@ -28767,6 +29020,10 @@ msgstr "Ungültiger Link Status '%s'"
 msgid "invalid disk target '%s', partitions can't appear in disk targets"
 msgstr ""
 
+#, c-format
+msgid "invalid dmode: '%s'"
+msgstr ""
+
 msgid "invalid domain pointer in"
 msgstr "ungültiger Domain-Zeiger in"
 
@@ -28808,6 +29065,10 @@ msgstr "ungültige Flag"
 #, c-format
 msgid "invalid flag combination: (0x%x)"
 msgstr "Ungültige Flag-Kombination: (0x%x)"
+
+#, c-format
+msgid "invalid fmode: '%s'"
+msgstr ""
 
 #, c-format
 msgid "invalid freePageReporting attribute value '%s'"
@@ -28947,7 +29208,7 @@ msgstr ""
 
 #, c-format
 msgid ""
-"invalid mac address check value: '%s'. Valid values are \"generated\" and "
+"invalid mac address type value: '%s'. Valid values are \"generated\" and "
 "\"static\"."
 msgstr ""
 
@@ -29281,9 +29542,15 @@ msgstr "Ungültiger Typ '%s' für Parameter '%s', erwartete '%s'"
 msgid "invalid value for 'managed': %s"
 msgstr "Ungültiger 'private'-Wert"
 
+msgid "invalid value for boot menu timeout"
+msgstr ""
+
 #, fuzzy
 msgid "invalid value for boot menu timeout, must be in range [0,65535]"
 msgstr "ungültiger Wert für rebootTimeout, muss im Bereich [-1,65535] liegen"
+
+msgid "invalid value for rebootTimeout"
+msgstr ""
 
 msgid "invalid value for rebootTimeout, must be in range [-1,65535]"
 msgstr "ungültiger Wert für rebootTimeout, muss im Bereich [-1,65535] liegen"
@@ -29675,6 +29942,9 @@ msgstr "Liste aller Domain Blöcke"
 msgid "list all domain virtual interfaces"
 msgstr "Auflisten aller Domain Virtuellen Schnittstellen"
 
+msgid "list authorized SSH keys for given user (via agent)"
+msgstr ""
+
 msgid "list available servers on a daemon"
 msgstr ""
 
@@ -29691,6 +29961,9 @@ msgstr ""
 
 msgid "list devices in a tree"
 msgstr "Geräte in einer Baumstruktur auflisten"
+
+msgid "list domain IDs only"
+msgstr ""
 
 msgid "list domain names only"
 msgstr "Nur Domain-Namen auflisten"
@@ -30264,6 +30537,9 @@ msgstr "Verwaltete Sicherung eines Domain Zustandes"
 msgid "mandatory attribute 'width' is missing or malformed"
 msgstr ""
 
+msgid "manipulate authorized SSH keys file for given user (via agent)"
+msgstr ""
+
 msgid "mark inactive domains with managed save state"
 msgstr "markieren inaktive Domains mit verwaltetem Sicherungs-Status"
 
@@ -30496,6 +30772,12 @@ msgstr "Metadaten Vorbelegungen nur verfügbar mit qcow2"
 msgid "metadata title can't contain newlines"
 msgstr "Domain Titel dürfen keine Zeilenvorschübe enthalten"
 
+msgid "metdata cache max size control is not supported with this QEMU binary"
+msgstr ""
+
+msgid "metdata cache max size control is supported only with qcow2 images"
+msgstr ""
+
 msgid "migrate domain to another host"
 msgstr "Domain auf anderen Host migrieren"
 
@@ -30551,6 +30833,11 @@ msgstr "Status von '%s' fehlgeschlagen"
 #, fuzzy, c-format
 msgid "migration of disk %s failed: %s"
 msgstr "Operation schlug fehl: %s"
+
+msgid ""
+"migration of non-shared storage is not supported with tunnelled migration "
+"and this QEMU"
+msgstr ""
 
 #, fuzzy
 msgid "migration out job"
@@ -30723,11 +31010,17 @@ msgstr "Fehlender Name für Festplattenquelle"
 msgid "missing 'nvram-template' in '%s'"
 msgstr "fehlende Namens-Information in %s"
 
+msgid "missing 'path' attribute in JSON backing definition for NFS volume"
+msgstr ""
+
 msgid "missing 'portal' address in iSCSI backing definition"
 msgstr ""
 
 #, c-format
 msgid "missing 'process' value in selinux lxc contexts file '%s'"
+msgstr ""
+
+msgid "missing 'server' attribute in JSON backing definition for NFS volume"
 msgstr ""
 
 #, c-format
@@ -30782,6 +31075,10 @@ msgstr ""
 msgid "missing 'usage' attribute for RAM filesystem"
 msgstr "Fehlendes 'usage' Attribut für RAM Datei-System"
 
+msgid ""
+"missing 'user' or 'group' attribute in JSON backing definition for NFS volume"
+msgstr ""
+
 #, fuzzy
 msgid "missing 'value' attribute for HyperV feature 'vendor_id'"
 msgstr "fehlendes 'state' Attribut für HyperV Erleuchtungs-Funktion % s"
@@ -30799,6 +31096,9 @@ msgstr ""
 #, fuzzy
 msgid "missing <target> element for <memory> device"
 msgstr "Fehlendes 'target' Element für Leasing"
+
+msgid "missing <type> element in <capability> element"
+msgstr ""
 
 #, fuzzy
 msgid "missing @managed attribute for <reservations/>"
@@ -30873,6 +31173,14 @@ msgstr "Quellen-Gerät fehlt"
 #, fuzzy, c-format
 msgid "missing alias or qom-type for qemu object '%s'"
 msgstr "Fehlender Namens-Parameter für Domain-Objekt"
+
+#, c-format
+msgid "missing ap-adapter value for '%s'"
+msgstr ""
+
+#, c-format
+msgid "missing ap-domain value for '%s'"
+msgstr ""
 
 #, fuzzy
 msgid "missing arch in QEMU capabilities cache"
@@ -31009,10 +31317,6 @@ msgstr ""
 
 #, fuzzy
 msgid "missing domain in checkpoint"
-msgstr "Fehlende Domain im Snapshot"
-
-#, fuzzy
-msgid "missing domain in checkpoint redefine"
 msgstr "Fehlende Domain im Snapshot"
 
 msgid "missing domain in snapshot"
@@ -31712,6 +32016,15 @@ msgstr "Titel anstatt Beschreibung ändern/erhalten"
 msgid "monitor failure"
 msgstr "Kein Monitor-Pfad"
 
+#. *
+#. * QEMU_CHECK_MONITOR_FULL:
+#. * @mon: monitor pointer variable to check, evaluated multiple times, no parentheses
+#. * @exit: statement that is used to exit the function
+#. *
+#. * This macro checks that the monitor is valid for given operation and exits
+#. * the function if not. The macro also adds a debug statement regarding the
+#. * monitor.
+#.
 msgid "monitor must not be NULL"
 msgstr "Monitor darf nicht NULL sein"
 
@@ -31897,6 +32210,12 @@ msgstr ""
 msgid "ncpus too large"
 msgstr "ncpus zu lang"
 
+msgid "ncr53c90 SCSI controller is not a built-in for this machine"
+msgstr ""
+
+msgid "ncr53c90 can only be used as first SCSI controller"
+msgstr ""
+
 msgid "need at least one serial port to use SGA"
 msgstr "Benötige mindestens einen seriellen Port für SGA"
 
@@ -31913,6 +32232,7 @@ msgstr "benötigt rawio Funktionalität"
 msgid "negative size requires --shrink"
 msgstr ""
 
+#. 56 is good for Kerberos
 #, c-format
 msgid "negotiated SSF %d was not strong enough"
 msgstr "verhandelter SSF %d war nicht stark genug"
@@ -33301,6 +33621,9 @@ msgstr "Funktion Typ %d nicht unterstützt"
 msgid "optional file of source xml to query for pools"
 msgstr "Optionale Datei des Quell-XML zur Abfrage für Pools"
 
+msgid "optional file to read keys from"
+msgstr ""
+
 msgid "optional host to query"
 msgstr "Optional abzufragender Host"
 
@@ -33440,6 +33763,27 @@ msgstr "Parameter '%s' nicht unterstützt"
 #, c-format
 msgid "parameter '%s' occurs multiple times"
 msgstr "Parameter '%s' kommt mehrmals vor"
+
+#, c-format
+msgid "parameter '%s' of command '%s' has incorrect alias option"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' misused VSH_OFLAG_REQ"
+msgstr ""
+
+#, c-format
+msgid ""
+"parameter '%s' of command '%s' must be listed before optional parameters"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' must be listed last"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' must use VSH_OFLAG_REQ flag"
+msgstr ""
 
 msgid "parameter=value"
 msgstr "parameter=value"
@@ -33746,6 +34090,9 @@ msgstr "Knoten %zu ausserhalb des Bereiches"
 msgid "port UUID"
 msgstr "Secret-UUID"
 
+msgid "port cannot be specified in 'nfs' protocol host"
+msgstr ""
+
 msgid "port to use by target server for incoming disks migration"
 msgstr ""
 
@@ -33958,6 +34305,9 @@ msgstr ""
 msgid "protocol misses the family attribute"
 msgstr "Protokoll fehlt das Familienattribut"
 
+msgid "protocol used by disk device source"
+msgstr ""
+
 msgid "provide XML suitable for migrations"
 msgstr "XML passend für Migrationen bereitstellen"
 
@@ -33966,7 +34316,7 @@ msgid "ps2 bus does not support %s input device"
 msgstr "PS/2-Bus unterstützt %s-Eingabegerät nicht"
 
 #, c-format
-msgid "pull mode requires qcow2 driver, not '%s'"
+msgid "pull mode backup for disk '%s' requires qcow2 driver"
 msgstr ""
 
 #, fuzzy, c-format
@@ -33981,7 +34331,13 @@ msgstr ""
 msgid "qemu agent didn't provide 'name' field"
 msgstr ""
 
+msgid "qemu agent didn't return an array of disks"
+msgstr ""
+
 msgid "qemu agent didn't return an array of interfaces"
+msgstr ""
+
+msgid "qemu agent didn't return an array of keys"
 msgstr ""
 
 #, fuzzy, c-format
@@ -34075,15 +34431,6 @@ msgstr "ändern CPU Status auf dem Gast"
 #, fuzzy
 msgid "query-block device entry was not in expected format"
 msgstr "Der Blockstats-Geräteeintrag war nicht im entsprechenden Format"
-
-msgid "query-command-line-options parameter data was missing 'name'"
-msgstr "query-command-line-options Parameter-Daten fehlt 'name'"
-
-msgid "query-command-line-options reply data was missing 'option'"
-msgstr "query-command-line-options Antwort-Daten fehlt 'option'"
-
-msgid "query-command-line-options reply was missing return data"
-msgstr "query-command-line-options Antwort fehlen die Rückgabedaten"
 
 msgid "query-commands reply data was missing 'name'"
 msgstr "query-commands Antwort-Daten fehlt 'name'"
@@ -34214,8 +34561,8 @@ msgstr "quiesce die Datei-Systeme der Gäste"
 msgid "quit this interactive terminal"
 msgstr "Dieses interaktive Terminal beenden"
 
-msgid "ram attribute only supported for type of qxl"
-msgstr "ram Attribut nur unterstützt für Typ von qxl"
+msgid "ram attribute only supported for video type qxl"
+msgstr ""
 
 #, c-format
 msgid "range %s - %s is not entirely within network %s/%d"
@@ -34362,6 +34709,12 @@ msgstr ""
 msgid "refusing to generate file name for disk '%s'"
 msgstr "Fehler beim Erstellen eines neuen Namens für Schnittstelle %s"
 
+msgid "remoteDomainAuthorizedSSHKeysGet: returned number of keys exceeds limit"
+msgstr ""
+
+msgid "remoteDomainAuthorizedSSHKeysSet: returned number of keys exceeds limit"
+msgstr ""
+
 msgid "remoteDomainBlockStatsFlags: returned number of stats exceeds limit"
 msgstr ""
 "remoteDomainBlockStatsFlags: Zurückgegebene Anzahl von Statistiken "
@@ -34414,6 +34767,9 @@ msgstr ""
 msgid "remove domain managed state file"
 msgstr "Entfernen der von der Domain verwalteten Status-Datei"
 
+msgid "remove keys from the authorized keys file"
+msgstr ""
+
 msgid "remove nvram file, if inactive"
 msgstr ""
 
@@ -34443,6 +34799,9 @@ msgstr "rename(\"%s\", \"%s\")"
 msgid "reply data was missing 'name'"
 msgstr "qom-list Antwort-Daten fehlt 'name'"
 
+msgid "reply data was missing 'option' name or parameters"
+msgstr ""
+
 msgid "reply was missing return data"
 msgstr "Antwort fehlten die Rückgabedaten"
 
@@ -34454,6 +34813,9 @@ msgstr ""
 
 msgid "report daemon version too"
 msgstr "Bericht auch der Dämon Version"
+
+msgid "report disk information"
+msgstr ""
 
 #, fuzzy
 msgid "report domain IOThread information"
@@ -35354,8 +35716,8 @@ msgstr "Quelle des Plattengeräts"
 msgid "source name for underlying storage"
 msgstr "Quell-Name für zugrundeliegenden Speicher"
 
-msgid "source of disk device"
-msgstr "Quelle des Plattengeräts"
+msgid "source of disk device or name of network disk"
+msgstr ""
 
 msgid "source of network interface"
 msgstr "Quelle der Netzwerkschnittstelle"
@@ -35429,9 +35791,6 @@ msgstr "SPICE Kanal fehlender Name/Modus"
 #, fuzzy
 msgid "spice gl element missing enable"
 msgstr "SPICE Maus fehlender Modus"
-
-msgid "spice graphics are not supported with this QEMU"
-msgstr "SPICE-Grafiken werden nicht unterstützt mit diesem QEMU"
 
 msgid "spice image missing compression"
 msgstr "Spice Image fehlende Kompression"
@@ -36195,6 +36554,9 @@ msgstr "Diese Funktion wird vom Verbindungstreiber nicht unterstützt"
 msgid "this function is not supported by the connection driver: %s"
 msgstr "Diese Funktion wird vom Verbindungstreiber nicht unterstützt: %s"
 
+msgid "this libvirtd instance allows migration only with VIR_MIGRATE_TLS flag"
+msgstr ""
+
 msgid "this network exists already"
 msgstr "Diese Domain existiert bereits"
 
@@ -36741,8 +37103,8 @@ msgstr "Hub Typ %s nicht unterstützt"
 msgid "type mismatch in event (actual 0x%x, expected 0x%x)"
 msgstr "Programme stimmen nicht überein (ist %x, erwartet %x)"
 
-msgid "type of source (block|file)"
-msgstr "Quellen-Typ (block|file)"
+msgid "type of source (block|file|network)"
+msgstr ""
 
 msgid "type of storage pool sources to discover"
 msgstr "Typ der zu entdeckenden Speicher-Pool-Quellen"
@@ -36929,6 +37291,7 @@ msgstr "mutex kann nicht initialisiert werden"
 msgid "unable to find valid requested VMware backend '%s'"
 msgstr ""
 
+#. fdatasync() may fail on some special FDs, e.g. pipes
 #, c-format
 msgid "unable to fsync %s"
 msgstr "Kann nicht fsync %s"
@@ -37089,10 +37452,6 @@ msgstr "MAC-Adresse '%s' konnte nicht geparst werden"
 #, fuzzy, c-format
 msgid "unable to parse page size: %s"
 msgstr "memspec konnte nicht analysiert werden: %s"
-
-#, fuzzy, c-format
-msgid "unable to parse unique_id: %s"
-msgstr "diskspec konnte nicht analysiert werden: %s"
 
 #, fuzzy, c-format
 msgid "unable to parse: %s"
@@ -37279,11 +37638,6 @@ msgstr "konnte nicht auf den Eingang des Unterelements schreiben"
 #, c-format
 msgid "unable write to %s"
 msgstr "Kann nicht auf %s schreiben"
-
-#, fuzzy
-msgid ""
-"unavailable-features in query-cpu-definitions reply data was not an array"
-msgstr "query-cpu-definitions Antwort-Daten fehlte 'name'"
 
 msgid "unbridge a network device"
 msgstr "Bridge einer Netzwerk-Einheit zurücksetzen"
@@ -37738,13 +38092,6 @@ msgstr "Unerwarteter Wert %s für on_poweroff"
 msgid "unexpected value %s for on_reboot"
 msgstr "Unerwarteter Wert %s für on_reboot"
 
-#, fuzzy, c-format
-msgid "unexpected value in %s array"
-msgstr "Unerwarteter Wert %s für on_crash"
-
-msgid "unexpected value in unavailable-features array"
-msgstr ""
-
 #, c-format
 msgid "unexpected video model %d"
 msgstr "Unerwartetes Video-Modell %d"
@@ -37791,6 +38138,8 @@ msgstr ""
 msgid "unix socket for spice graphics are not supported with this QEMU"
 msgstr "SPICE-Grafiken werden nicht unterstützt mit diesem QEMU"
 
+#. Something went wrong retrieving a volume path, cope with it
+#. Something went wrong retrieving volume info, cope with it
 msgid "unknown"
 msgstr "unbekannt"
 
@@ -38003,14 +38352,6 @@ msgstr "Unbekannter Einheiten Typ '%s'"
 #, c-format
 msgid "unknown dhcp peerdns value %s"
 msgstr "Unbekannter DHCP-peerdns-Wert %s"
-
-#, fuzzy, c-format
-msgid "unknown disk backup driver '%s'"
-msgstr "Unbekannte Disk Snapshot Treiber '%s'"
-
-#, fuzzy, c-format
-msgid "unknown disk backup type '%s'"
-msgstr "Unbekannter Platten-Bus-Typ '%s'"
 
 #, c-format
 msgid "unknown disk bus type '%s'"
@@ -38999,6 +39340,28 @@ msgstr ""
 msgid "unsupported filesystem type '%s'"
 msgstr ""
 
+#. *
+#. * virCheckFlags:
+#. * @supported: an OR'ed set of supported flags
+#. * @retval: return value in case unsupported flags were passed
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Exits the caller function if unsupported flags were
+#. * passed to it.
+#.
+#. *
+#. * virCheckFlagsGoto:
+#. * @supported: an OR'ed set of supported flags
+#. * @label: label to jump to on error
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "unsupported flags (0x%lx) in function %s"
 msgstr "Nicht unterstützte Flags (0x%lx) in Funktion %s"
@@ -39022,10 +39385,6 @@ msgstr "Nicht unterstützte Funktion %s"
 #, fuzzy
 msgid "unsupported gluster lookup"
 msgstr "Nicht unterstützter Laufwerkstyp %s"
-
-#, c-format
-msgid "unsupported graphics type '%s'"
-msgstr "Nicht unterstützter Grafiktyp »%s«"
 
 #, fuzzy, c-format
 msgid "unsupported guest information types '0x%x'"
@@ -39256,6 +39615,12 @@ msgstr "Benutzer"
 msgid "user cancelled authentication process"
 msgstr "Nicht unterstützter Authentifikationstyps %d"
 
+msgid "user to list authorized keys for"
+msgstr ""
+
+msgid "user to set authorized keys for"
+msgstr ""
+
 msgid "user:"
 msgstr "Benutzer:"
 
@@ -39338,6 +39703,9 @@ msgid "validate the XML against the schema"
 msgstr ""
 
 msgid "validate the XML document against schema"
+msgstr ""
+
+msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
@@ -39535,9 +39903,8 @@ msgstr "Versionen stimmen nicht überein (ist %x, erwartet %x)"
 msgid "version parsing error"
 msgstr "Fehler bei Verarbeitung von Version"
 
-#, fuzzy
-msgid "vgamem attribute only supported for type of qxl"
-msgstr "ram Attribut nur unterstützt für Typ von qxl"
+msgid "vgamem attribute only supported for video type qxl"
+msgstr ""
 
 msgid "vhost-net is not supported with this QEMU binary"
 msgstr "vhost-net wird mit dieser QEMU-Binärdatei nicht unterstützt"
@@ -39770,6 +40137,9 @@ msgstr ""
 msgid "virtio-serial controller %u not available"
 msgstr "virGetUserDirectory ist nicht verfügbar"
 
+msgid "virtiofs does not support fmode and dmode"
+msgstr ""
+
 #, fuzzy
 msgid "virtiofs does not support format"
 msgstr "Diese Disk unterstützt Aktualisierung nicht"
@@ -39874,9 +40244,6 @@ msgstr "Fehlende Sicherheitskennung"
 
 msgid "vnc display"
 msgstr "VNC-Anzeige"
-
-msgid "vnc graphics are not supported with this QEMU"
-msgstr "vnc Grafiken werden nicht unterstützt mit diesem QEMU"
 
 #, fuzzy
 msgid "vnc port must be in range [5900,65535]"
@@ -39984,9 +40351,8 @@ msgstr "Datenträgerverwendung angegeben, aber Datenträgerpfad fehlt"
 msgid "vport operation '%s' is not supported for host%d"
 msgstr "vport Operation '%s' ist nicht unterstützt für Host%d"
 
-#, fuzzy
-msgid "vram64 attribute only supported for type of qxl"
-msgstr "ram Attribut nur unterstützt für Typ von qxl"
+msgid "vram64 attribute only supported for video type qxl"
+msgstr ""
 
 #, fuzzy
 msgid "vsock device is not supported with this QEMU binary"
@@ -40213,6 +40579,356 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <string>}..."
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s dumped to %s\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Domain %s dumped nach %s\n"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s saved to %s\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Domain %s gesichert auf %s\n"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s state saved by libvirt\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Domain %s Status gesichert durch libvirt\n"
+
+#~ msgid "%s array element does not contain data"
+#~ msgstr "%s Arrayelement enthält keine Daten"
+
+#, fuzzy
+#~ msgid "%s: nvdimm without a path"
+#~ msgstr "Listen Domänen ohne einen Snapshot"
+
+#~ msgid "Cannot open /dev/urandom"
+#~ msgstr "/dev/urandom kann nicht geöffnet werden"
+
+#~ msgid "Cannot read from /dev/urandom"
+#~ msgstr "/dev/urandom kann nicht gelesen werden"
+
+#~ msgid "Connected to domain %s\n"
+#~ msgstr "Verbunden mit der Domain: %s\n"
+
+#~ msgid "Domain %s XML configuration edited.\n"
+#~ msgstr "Domain %s XML-Konfiguration editiert.\n"
+
+#~ msgid "Domain %s XML configuration not changed.\n"
+#~ msgstr "Domain %s XML-Konfiguration nicht verändert.\n"
+
+#~ msgid "Domain %s attached to pid %u\n"
+#~ msgstr "Domain %s angeschlossen an pid %u\n"
+
+#~ msgid "Domain %s could not be suspended"
+#~ msgstr "Domain %s konnte nicht angehalten werden"
+
+#~ msgid "Domain %s could not be woken up"
+#~ msgstr "Domain %s konnte nicht aufgeweckt werden"
+
+#~ msgid "Domain %s created from %s\n"
+#~ msgstr "Domain %s von %s erstellt\n"
+
+#~ msgid "Domain %s defined from %s\n"
+#~ msgstr "Domain %s von %s definiert\n"
+
+#~ msgid "Domain %s destroyed\n"
+#~ msgstr "Domain %s gelöscht\n"
+
+#~ msgid "Domain %s has been undefined\n"
+#~ msgstr "Domain %s wurde undefiniert\n"
+
+#~ msgid "Domain %s has no manage save image; removal skipped"
+#~ msgstr ""
+#~ " Domain %s hat kein verwaltetes Sicherungs-Image; Entfernung ausgelassen "
+
+#~ msgid "Domain %s is being rebooted\n"
+#~ msgstr "Domain %s wird neu gestartet\n"
+
+#~ msgid "Domain %s is being shutdown\n"
+#~ msgstr "Domain %s wird heruntergefahren\n"
+
+#~ msgid "Domain %s marked as autostarted\n"
+#~ msgstr "Domain %s als automatisch zu starten markiert\n"
+
+#~ msgid "Domain %s resumed\n"
+#~ msgstr "Domain %s fortgesetzt\n"
+
+#~ msgid "Domain %s started\n"
+#~ msgstr "Domain %s gestartet\n"
+
+#~ msgid "Domain %s successfully suspended"
+#~ msgstr "Domain %s erfolgreich angehalten"
+
+#~ msgid "Domain %s successfully woken up"
+#~ msgstr "Domain %s erfolgreich aufgeweckt"
+
+#~ msgid "Domain %s suspended\n"
+#~ msgstr "Domain %s angehalten\n"
+
+#~ msgid "Domain %s unmarked as autostarted\n"
+#~ msgstr "Domain %s als automatisch zu starten demarkiert\n"
+
+#~ msgid "Domain %s was reset\n"
+#~ msgstr "Domain %s wurde zurückgesetzt\n"
+
+#, fuzzy
+#~ msgid "Failed to allocate free veth pair after %d attempts"
+#~ msgstr "Zuweisen von Speicher für Pfad fehlgeschlagen"
+
+#~ msgid "Failed to core dump domain %s to %s"
+#~ msgstr "Fehler beim Debuggen der Domain %s nach %s"
+
+#~ msgid "Failed to destroy domain %s"
+#~ msgstr "Löschen der Domain %s gescheitert"
+
+#~ msgid "Failed to generate new name for interface %s"
+#~ msgstr "Fehler beim Erstellen eines neuen Namens für Schnittstelle %s"
+
+#~ msgid "Failed to mark domain %s as autostarted"
+#~ msgstr "Markierung der Domain %s als automatisch zu starten gescheitert"
+
+#, fuzzy
+#~ msgid "Failed to parse checkpoint XML from file '%s'"
+#~ msgstr "Verarbeiten von Snapshot-XML aus Datei »%s« fehlgeschlagen"
+
+#~ msgid "Failed to reboot domain %s"
+#~ msgstr "Neustart der Domain %s gescheitert"
+
+#~ msgid "Failed to remove managed save image for domain %s"
+#~ msgstr ""
+#~ "Fehler beim Entfernen des verwalteten Sicherungs-Image der Domain %s"
+
+#~ msgid "Failed to reset domain %s"
+#~ msgstr "Zurücksetzen der Domain %s gescheitert"
+
+#~ msgid "Failed to resume domain %s"
+#~ msgstr "Fortsetzen der Domain %s gescheitert"
+
+#~ msgid "Failed to save domain %s state"
+#~ msgstr "Fehler beim Speichern des Zustandes der Domain %s"
+
+#~ msgid "Failed to save domain %s to %s"
+#~ msgstr "Speichern der Domain %s nach %s gescheitert"
+
+#~ msgid "Failed to shutdown domain %s"
+#~ msgstr "Herunterfahren der Domain %s gescheitert"
+
+#~ msgid "Failed to start domain %s"
+#~ msgstr "Domain %s konnte nicht gestartet werden"
+
+#~ msgid "Failed to suspend domain %s"
+#~ msgstr "Anhalten von Domain %s schlug fehl"
+
+#~ msgid "Failed to undefine domain %s"
+#~ msgstr "Domain %s konnte nicht undefiniert werden"
+
+#~ msgid "Failed to unmark domain %s as autostarted"
+#~ msgstr "Demarkieren der Domain %s als automatisch zu starten gescheitert"
+
+#, fuzzy
+#~ msgid "Malformed query-command-line-options array"
+#~ msgstr "query-command-line-options Antwort fehlen die Rückgabedaten"
+
+#, fuzzy
+#~ msgid "Malformed query-command-line-options parameters array"
+#~ msgstr "query-command-line-options Parameter-Daten fehlt 'name'"
+
+#, fuzzy
+#~ msgid "Managed save image of Domain %s XML configuration edited.\n"
+#~ msgstr "Domain %s XML-Konfiguration editiert.\n"
+
+#, fuzzy
+#~ msgid "Managed save image of domain %s XML configuration not changed.\n"
+#~ msgstr "image-Sicherung %s XML Konfiguration nicht verändert.\n"
+
+#, fuzzy
+#~ msgid "Managed save state file of domain %s updated.\n"
+#~ msgstr "Verwaltete Sicherung eines Domain Zustandes"
+
+#, fuzzy
+#~ msgid "No free veth devices available"
+#~ msgstr "Keine freien NBD Einheiten"
+
+#, fuzzy
+#~ msgid "PCI controller chassis '%s' out of range - must be 0-255"
+#~ msgstr "FDC Controller index %d außerhalb dem [0] Bereich"
+
+#, fuzzy
+#~ msgid "PCI controller port '%s' out of range - must be 0-255"
+#~ msgstr "FDC Controller index %d außerhalb dem [0] Bereich"
+
+#~ msgid "Removed managedsave image for domain %s"
+#~ msgstr "Verwaltetes Sicherungs-Image der Domain %s entfernt"
+
+#~ msgid "cannot close stream on domain %s"
+#~ msgstr "Kann Stream auf Domain %s nicht schließen"
+
+#~ msgid "cfs_period '%llu' must be in range (1000, 1000000)"
+#~ msgstr "cfs_period '%llu' muss im Bereich (1000, 1000000) sein"
+
+#~ msgid "cfs_quota '%lld' must be in range (1000, %llu)"
+#~ msgstr "cfs_quota '%lld' muss im Bereich (1000, %llu) sein"
+
+#~ msgid "could not receive data from domain %s"
+#~ msgstr "Konnte keine Daten von Domain %s empfangen"
+
+#~ msgid "disk product is more than 16 characters"
+#~ msgstr "Disk-Produkt ist länger als 16 Zeichen"
+
+#~ msgid "disk vendor is more than 8 characters"
+#~ msgstr "Disk-Hersteller ist länger als 8 Zeichen"
+
+#, fuzzy
+#~ msgid "event '%s' for domain %s\n"
+#~ msgstr "Konnte nicht %s für Domain %s suchen"
+
+#, fuzzy
+#~ msgid "event 'agent-lifecycle' for domain %s: state: '%s' reason: '%s'\n"
+#~ msgstr "Ungültiger Domain-Status Anlass '%s'"
+
+#, fuzzy
+#~ msgid "event 'device-removed' for domain %s: %s\n"
+#~ msgstr "Keine Beschreibung für Domain: %s"
+
+#, fuzzy
+#~ msgid "event 'job-completed' for domain %s:\n"
+#~ msgstr "Verbunden mit der Domain: %s\n"
+
+#, fuzzy
+#~ msgid "event 'tunable' for domain %s:\n"
+#~ msgstr "Verwaltetes Sicherungs-Image der Domain %s entfernt"
+
+#, fuzzy
+#~ msgid "missing domain in checkpoint redefine"
+#~ msgstr "Fehlende Domain im Snapshot"
+
+#~ msgid "query-command-line-options parameter data was missing 'name'"
+#~ msgstr "query-command-line-options Parameter-Daten fehlt 'name'"
+
+#~ msgid "query-command-line-options reply data was missing 'option'"
+#~ msgstr "query-command-line-options Antwort-Daten fehlt 'option'"
+
+#~ msgid "query-command-line-options reply was missing return data"
+#~ msgstr "query-command-line-options Antwort fehlen die Rückgabedaten"
+
+#~ msgid "ram attribute only supported for type of qxl"
+#~ msgstr "ram Attribut nur unterstützt für Typ von qxl"
+
+#, fuzzy
+#~ msgid ""
+#~ "unavailable-features in query-cpu-definitions reply data was not an array"
+#~ msgstr "query-cpu-definitions Antwort-Daten fehlte 'name'"
+
+#, fuzzy
+#~ msgid "unexpected value in %s array"
+#~ msgstr "Unerwarteter Wert %s für on_crash"
+
+#, fuzzy
+#~ msgid "unknown disk backup driver '%s'"
+#~ msgstr "Unbekannte Disk Snapshot Treiber '%s'"
+
+#, fuzzy
+#~ msgid "unknown disk backup type '%s'"
+#~ msgstr "Unbekannter Platten-Bus-Typ '%s'"
+
+#, fuzzy
+#~ msgid "vgamem attribute only supported for type of qxl"
+#~ msgstr "ram Attribut nur unterstützt für Typ von qxl"
+
+#, fuzzy
+#~ msgid "vram64 attribute only supported for type of qxl"
+#~ msgstr "ram Attribut nur unterstützt für Typ von qxl"
+
+#~ msgid "Bad child elements counting."
+#~ msgstr "Schlechte untergeordneten Elemente zählen."
+
+#, fuzzy
+#~ msgid "Cannot assign SCSI host device address"
+#~ msgstr "Kein PTY für Gerät %s zugewiesen"
+
+#, fuzzy
+#~ msgid "Could not match WMI class info for version %s"
+#~ msgstr "Konnte Sklaven der Verbindung '%s' nicht abgerufen"
+
+#, fuzzy
+#~ msgid "Could not press key %d"
+#~ msgstr "Konnte USB-Datei %s nicht parsen"
+
+#, fuzzy
+#~ msgid "Could not release key %s"
+#~ msgstr "Datenträger konnte nicht erstellt werden: %s"
+
+#, fuzzy
+#~ msgid "Could not set disk source"
+#~ msgstr "Datenträgerkontingent konnte nicht gesetzt werden"
+
+#, fuzzy
+#~ msgid "Could not set memory"
+#~ msgstr "Speichergrösse konnte nicht festgesetzt werden"
+
+#~ msgid "Target TSC frequency %lu does not match source %lu"
+#~ msgstr "Ziel TSC-Frequenz %lu stimmt nicht mit der Quelle %lu überein"
+
+#, fuzzy
+#~ msgid "cannot remove old domain config file %s"
+#~ msgstr "Konfigurationsdatei '%s' kann nicht gelöscht werden"
+
+#, fuzzy
+#~ msgid "cannot rename domain with checkpoints"
+#~ msgstr "Kann Domain mit %d Snapshots nicht migrieren"
+
+#, fuzzy
+#~ msgid "cannot rename domain with snapshots"
+#~ msgstr "Kann Domain mit %d Snapshots nicht migrieren"
+
+#, fuzzy
+#~ msgid "command '%s' does not list argv option last"
+#~ msgstr "Befehl '%s' unterstützt die Option --%s nicht"
+
+#, fuzzy
+#~ msgid "command '%s' has incorrect alias option"
+#~ msgstr "Befehl '%s' erfordert --%s Option"
+
+#, fuzzy
+#~ msgid "command '%s' has missing alias option"
+#~ msgstr "Befehl '%s' erfordert --%s Option"
+
+#, fuzzy
+#~ msgid "domain configuration does not support '%s' value '%s'"
+#~ msgstr "Umbenennen von Domains bei Migration wird nicht unterstützt"
+
+#, fuzzy
+#~ msgid "egl-headless display is not supported with this QEMU binary"
+#~ msgstr "vhost-net wird mit dieser QEMU-Binärdatei nicht unterstützt"
+
+#~ msgid "internal error: bad options in command: '%s'"
+#~ msgstr "Interner Fehler: Falsche Optionen mit Befehl: '%s'"
+
+#~ msgid "source of disk device"
+#~ msgstr "Quelle des Plattengeräts"
+
+#~ msgid "spice graphics are not supported with this QEMU"
+#~ msgstr "SPICE-Grafiken werden nicht unterstützt mit diesem QEMU"
+
+#~ msgid "type of source (block|file)"
+#~ msgstr "Quellen-Typ (block|file)"
+
+#, fuzzy
+#~ msgid "unable to parse unique_id: %s"
+#~ msgstr "diskspec konnte nicht analysiert werden: %s"
+
+#~ msgid "unsupported graphics type '%s'"
+#~ msgstr "Nicht unterstützter Grafiktyp »%s«"
+
+#~ msgid "vnc graphics are not supported with this QEMU"
+#~ msgstr "vnc Grafiken werden nicht unterstützt mit diesem QEMU"
 
 #~ msgid "%s: %d: failed to allocate %d bytes"
 #~ msgstr "%s: %d: scheiterte beim Zuweisen von %d Bytes"

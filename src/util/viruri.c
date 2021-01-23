@@ -209,7 +209,7 @@ char *
 virURIFormat(virURIPtr uri)
 {
     xmlURI xmluri;
-    char *tmpserver = NULL;
+    g_autofree char *tmpserver = NULL;
     char *ret;
 
     memset(&xmluri, 0, sizeof(xmluri));
@@ -241,11 +241,8 @@ virURIFormat(virURIPtr uri)
     ret = (char *)xmlSaveUri(&xmluri);
     if (!ret) {
         virReportOOMError();
-        goto cleanup;
+        return NULL;
     }
-
- cleanup:
-    VIR_FREE(tmpserver);
 
     return ret;
 }

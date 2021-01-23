@@ -64,6 +64,8 @@ qemuDomainGetSCSIControllerModel(const virDomainDef *def,
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
     else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
+    else if (qemuDomainHasBuiltinESP(def))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90;
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
                    _("Unable to determine model for SCSI controller idx=%d"),
@@ -406,18 +408,16 @@ qemuDomainAssignS390Addresses(virDomainDefPtr def,
     if (qemuDomainIsS390CCW(def) &&
         virQEMUCapsGet(qemuCaps, QEMU_CAPS_CCW)) {
         if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_CCW))
-            qemuDomainPrimeVfioDeviceAddresses(
-                def, VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW);
-        qemuDomainPrimeVirtioDeviceAddresses(
-            def, VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW);
+            qemuDomainPrimeVfioDeviceAddresses(def, VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW);
+
+        qemuDomainPrimeVirtioDeviceAddresses(def, VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW);
 
         if (!(addrs = virDomainCCWAddressSetCreateFromDomain(def)))
             goto cleanup;
 
     } else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_S390)) {
         /* deal with legacy virtio-s390 */
-        qemuDomainPrimeVirtioDeviceAddresses(
-            def, VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390);
+        qemuDomainPrimeVirtioDeviceAddresses(def, VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390);
     }
 
     ret = 0;
@@ -579,7 +579,6 @@ qemuDomainDeviceCalculatePCIAddressExtensionFlags(virQEMUCapsPtr qemuCaps,
  */
 static virDomainPCIConnectFlags
 qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
-                                         virQEMUDriverPtr driver,
                                          virDomainPCIConnectFlags pcieFlags,
                                          virDomainPCIConnectFlags virtioFlags)
 {
@@ -637,6 +636,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
         case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
             switch ((virDomainControllerModelSCSI) cont->model) {
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
+            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90:
                 return 0;
 
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI:
@@ -652,6 +652,8 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VMPVSCSI:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSISAS1078:
+            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DC390:
+            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AM53C974:
                 return pciFlags;
 
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LAST:
@@ -799,8 +801,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
 
     case VIR_DOMAIN_DEVICE_HOSTDEV: {
         virDomainHostdevDefPtr hostdev = dev->data.hostdev;
-        bool isExpress = false;
-        virPCIDevicePtr pciDev;
+        g_autoptr(virPCIDevice) pciDev = NULL;
         virPCIDeviceAddressPtr hostAddr = &hostdev->source.subsys.u.pci.addr;
 
         if (!virHostdevIsMdevDevice(hostdev) &&
@@ -870,40 +871,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDefPtr dev,
             return pcieFlags;
         }
 
-        if (!driver->privileged) {
-            /* unprivileged libvirtd is unable to read *all* of a
-             * device's PCI config (it can only read the first 64
-             * bytes, which isn't enough for the check that's done
-             * in virPCIDeviceIsPCIExpress()), so instead of
-             * trying and failing, we make an educated guess based
-             * on the length of the device's config file - if it
-             * is 256 bytes, then it is definitely a legacy PCI
-             * device. If it's larger than that, then it is
-             * *probably PCIe (although it could be PCI-x, but
-             * those are extremely rare). If the config file can't
-             * be found (in which case the "length" will be -1),
-             * then we blindly assume the most likely outcome -
-             * PCIe.
-             */
-            off_t configLen
-               = virFileLength(virPCIDeviceGetConfigPath(pciDev), -1);
-
-            virPCIDeviceFree(pciDev);
-
-            if (configLen == 256)
-                return pciFlags;
-
-            return pcieFlags;
-        }
-
-        /* If we are running with privileges, we can examine the
-         * PCI config contents with virPCIDeviceIsPCIExpress() for
-         * a definitive answer.
-         */
-        isExpress = virPCIDeviceIsPCIExpress(pciDev);
-        virPCIDeviceFree(pciDev);
-
-        if (isExpress)
+        if (virPCIDeviceIsPCIExpress(pciDev))
             return pcieFlags;
 
         return pciFlags;
@@ -1124,7 +1092,7 @@ qemuDomainFillDevicePCIConnectFlagsIter(virDomainDefPtr def G_GNUC_UNUSED,
     qemuDomainFillDevicePCIConnectFlagsIterData *data = opaque;
 
     info->pciConnectFlags
-        = qemuDomainDeviceCalculatePCIConnectFlags(dev, data->driver,
+        = qemuDomainDeviceCalculatePCIConnectFlags(dev,
                                                    data->pcieFlags,
                                                    data->virtioFlags);
     return 0;
@@ -1468,7 +1436,7 @@ qemuDomainFillDevicePCIConnectFlags(virDomainDefPtr def,
         qemuDomainFillDevicePCIConnectFlagsIterInit(def, qemuCaps, driver, &data);
 
         info->pciConnectFlags
-            = qemuDomainDeviceCalculatePCIConnectFlags(dev, data.driver,
+            = qemuDomainDeviceCalculatePCIConnectFlags(dev,
                                                        data.pcieFlags,
                                                        data.virtioFlags);
     }
@@ -2244,6 +2212,11 @@ qemuDomainAssignDevicePCISlots(virDomainDefPtr def,
            dealt with earlier on */
         if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_IDE &&
             cont->idx == 0)
+            continue;
+
+        /* NCR53C90 SCSI controller is always a built-in device */
+        if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_SCSI &&
+            cont->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90)
             continue;
 
         if (!virDeviceInfoPCIAddressIsWanted(&cont->info))

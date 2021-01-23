@@ -46,7 +46,7 @@ struct _virNodeDeviceObjList {
 
     /* name string -> virNodeDeviceObj mapping
      * for O(1), lockless lookup-by-name */
-    virHashTable *objs;
+    GHashTable *objs;
 
 };
 
@@ -696,6 +696,18 @@ virNodeDeviceObjHasCap(const virNodeDeviceObj *obj,
                 return true;
             break;
 
+        case VIR_NODE_DEV_CAP_CSS_DEV:
+            if (type == VIR_NODE_DEV_CAP_MDEV_TYPES &&
+                (cap->data.ccw_dev.flags & VIR_NODE_DEV_CAP_FLAG_CSS_MDEV))
+                return true;
+            break;
+
+        case VIR_NODE_DEV_CAP_AP_MATRIX:
+            if (type == VIR_NODE_DEV_CAP_MDEV_TYPES &&
+                (cap->data.ap_matrix.flags & VIR_NODE_DEV_CAP_FLAG_AP_MATRIX_MDEV))
+                return true;
+            break;
+
         case VIR_NODE_DEV_CAP_SYSTEM:
         case VIR_NODE_DEV_CAP_USB_DEV:
         case VIR_NODE_DEV_CAP_USB_INTERFACE:
@@ -710,8 +722,9 @@ virNodeDeviceObjHasCap(const virNodeDeviceObj *obj,
         case VIR_NODE_DEV_CAP_MDEV_TYPES:
         case VIR_NODE_DEV_CAP_MDEV:
         case VIR_NODE_DEV_CAP_CCW_DEV:
-        case VIR_NODE_DEV_CAP_CSS_DEV:
         case VIR_NODE_DEV_CAP_VDPA:
+        case VIR_NODE_DEV_CAP_AP_CARD:
+        case VIR_NODE_DEV_CAP_AP_QUEUE:
         case VIR_NODE_DEV_CAP_LAST:
             break;
         }
@@ -864,7 +877,10 @@ virNodeDeviceObjMatch(virNodeDeviceObjPtr obj,
               MATCH(MDEV)          ||
               MATCH(CCW_DEV)       ||
               MATCH(CSS_DEV)       ||
-              MATCH(VDPA)))
+              MATCH(VDPA)          ||
+              MATCH(AP_CARD)       ||
+              MATCH(AP_QUEUE)      ||
+              MATCH(AP_MATRIX)))
             return false;
     }
 

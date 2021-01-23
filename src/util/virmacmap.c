@@ -43,7 +43,7 @@ VIR_LOG_INIT("util.virmacmap");
 struct virMacMap {
     virObjectLockable parent;
 
-    virHashTablePtr macs;
+    GHashTable *macs;
 };
 
 
@@ -129,7 +129,7 @@ static int
 virMacMapLoadFile(virMacMapPtr mgr,
                   const char *file)
 {
-    char *map_str = NULL;
+    g_autofree char *map_str = NULL;
     virJSONValuePtr map = NULL;
     int map_str_len = 0;
     size_t i;
@@ -189,7 +189,6 @@ virMacMapLoadFile(virMacMapPtr mgr,
 
     ret = 0;
  cleanup:
-    VIR_FREE(map_str);
     virJSONValueFree(map);
     return ret;
 }
@@ -244,7 +243,7 @@ virMacMapDumpStrLocked(virMacMapPtr mgr,
 
     arr = virJSONValueNewArray();
 
-    if (virHashForEach(mgr->macs, virMACMapHashDumper, arr) < 0)
+    if (virHashForEachSorted(mgr->macs, virMACMapHashDumper, arr) < 0)
         goto cleanup;
 
     if (!(*str = virJSONValueToString(arr, true)))

@@ -101,9 +101,6 @@ struct _qemuMonitor {
 
     bool waitGreeting;
 
-    /* cache of query-command-line-options results */
-    virJSONValuePtr options;
-
     /* If found, path to the virtio memballoon driver */
     char *balloonpath;
     bool ballooninit;
@@ -240,7 +237,6 @@ qemuMonitorDispose(void *obj)
     virResetError(&mon->lastError);
     virCondDestroy(&mon->notify);
     VIR_FREE(mon->buffer);
-    virJSONValueFree(mon->options);
     VIR_FREE(mon->balloonpath);
 }
 
@@ -992,20 +988,6 @@ qemuMonitorLastError(qemuMonitorPtr mon)
 }
 
 
-virJSONValuePtr
-qemuMonitorGetOptions(qemuMonitorPtr mon)
-{
-    return mon->options;
-}
-
-
-void
-qemuMonitorSetOptions(qemuMonitorPtr mon, virJSONValuePtr options)
-{
-    mon->options = options;
-}
-
-
 /**
  * Search the qom objects for the balloon driver object by its known names
  * of "virtio-balloon-pci" or "virtio-balloon-ccw". The entry for the driver
@@ -1035,7 +1017,27 @@ qemuMonitorInitBalloonObjectPath(qemuMonitorPtr mon,
 
     switch (balloon->info.type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI:
-        name = "virtio-balloon-pci";
+        switch ((virDomainMemballoonModel) balloon->model) {
+            case VIR_DOMAIN_MEMBALLOON_MODEL_VIRTIO:
+                name = "virtio-balloon-pci";
+                break;
+            case VIR_DOMAIN_MEMBALLOON_MODEL_VIRTIO_TRANSITIONAL:
+                name = "virtio-balloon-pci-transitional";
+                break;
+            case VIR_DOMAIN_MEMBALLOON_MODEL_VIRTIO_NON_TRANSITIONAL:
+                name = "virtio-balloon-pci-non-transitional";
+                break;
+            case VIR_DOMAIN_MEMBALLOON_MODEL_XEN:
+            case VIR_DOMAIN_MEMBALLOON_MODEL_NONE:
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                        _("invalid model for virtio-balloon-pci"));
+                return;
+            case VIR_DOMAIN_MEMBALLOON_MODEL_LAST:
+            default:
+                virReportEnumRangeError(virDomainMemballoonModel,
+                                        balloon->model);
+                return;
+        }
         break;
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
         name = "virtio-balloon-ccw";
@@ -1982,16 +1984,6 @@ qemuMonitorSetLink(qemuMonitorPtr mon,
 }
 
 
-int
-qemuMonitorGetVirtType(qemuMonitorPtr mon,
-                       virDomainVirtType *virtType)
-{
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONGetVirtType(mon, virtType);
-}
-
-
 /**
  * Returns: 0 if balloon not supported, +1 if balloon query worked
  * or -1 on failure
@@ -2098,11 +2090,11 @@ qemuDomainDiskInfoFree(void *value)
 }
 
 
-virHashTablePtr
+GHashTable *
 qemuMonitorGetBlockInfo(qemuMonitorPtr mon)
 {
     int ret;
-    virHashTablePtr table;
+    GHashTable *table;
 
     QEMU_CHECK_MONITOR_NULL(mon);
 
@@ -2149,7 +2141,7 @@ qemuMonitorQueryBlockstats(qemuMonitorPtr mon)
  */
 int
 qemuMonitorGetAllBlockStatsInfo(qemuMonitorPtr mon,
-                                virHashTablePtr *ret_stats,
+                                GHashTable **ret_stats,
                                 bool backingChain)
 {
     int ret = -1;
@@ -2178,7 +2170,7 @@ qemuMonitorGetAllBlockStatsInfo(qemuMonitorPtr mon,
 /* Updates "stats" to fill virtual and physical size of the image */
 int
 qemuMonitorBlockStatsUpdateCapacity(qemuMonitorPtr mon,
-                                    virHashTablePtr stats,
+                                    GHashTable *stats,
                                     bool backingChain)
 {
     VIR_DEBUG("stats=%p, backing=%d", stats, backingChain);
@@ -2191,7 +2183,7 @@ qemuMonitorBlockStatsUpdateCapacity(qemuMonitorPtr mon,
 
 int
 qemuMonitorBlockStatsUpdateCapacityBlockdev(qemuMonitorPtr mon,
-                                            virHashTablePtr stats)
+                                            GHashTable *stats)
 {
     VIR_DEBUG("stats=%p", stats);
 
@@ -2210,7 +2202,7 @@ qemuMonitorBlockStatsUpdateCapacityBlockdev(qemuMonitorPtr mon,
  * storage nodes and returns them in a hash table of qemuBlockNamedNodeDataPtrs
  * filled with the data. The hash table keys are node names.
  */
-virHashTablePtr
+GHashTable *
 qemuMonitorBlockGetNamedNodeData(qemuMonitorPtr mon,
                                  bool supports_flat)
 {
@@ -2492,22 +2484,17 @@ qemuMonitorGetMigrationParams(qemuMonitorPtr mon,
  * @mon: Pointer to the monitor object.
  * @params: Migration parameters.
  *
- * The @params object is consumed and should not be referenced by the caller
- * after this function returns.
+ * The @params object is consumed and cleared on success and some errors.
  *
  * Returns 0 on success, -1 on error.
  */
 int
 qemuMonitorSetMigrationParams(qemuMonitorPtr mon,
-                              virJSONValuePtr params)
+                              virJSONValuePtr *params)
 {
-    QEMU_CHECK_MONITOR_GOTO(mon, error);
+    QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONSetMigrationParams(mon, params);
-
- error:
-    virJSONValueFree(params);
-    return -1;
 }
 
 
@@ -2736,6 +2723,8 @@ void qemuMonitorFdsetsFree(qemuMonitorFdsetsPtr fdsets)
 
         for (j = 0; j < set->nfds; j++)
             g_free(set->fds[j].opaque);
+
+        g_free(set->fds);
     }
     g_free(fdsets->fdsets);
     g_free(fdsets);
@@ -2889,10 +2878,10 @@ qemuMonitorChardevInfoFree(void *data)
 
 int
 qemuMonitorGetChardevInfo(qemuMonitorPtr mon,
-                          virHashTablePtr *retinfo)
+                          GHashTable **retinfo)
 {
     int ret;
-    virHashTablePtr info = NULL;
+    GHashTable *info = NULL;
 
     VIR_DEBUG("retinfo=%p", retinfo);
 
@@ -3083,13 +3072,12 @@ qemuMonitorAddObject(qemuMonitorPtr mon,
 {
     const char *type = NULL;
     const char *id = NULL;
-    char *tmp = NULL;
-    int ret = -1;
+    g_autofree char *aliasCopy = NULL;
 
     if (!*props) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("object props can't be NULL"));
-        goto cleanup;
+        return -1;
     }
 
     type = virJSONValueObjectGetString(*props, "qom-type");
@@ -3097,29 +3085,25 @@ qemuMonitorAddObject(qemuMonitorPtr mon,
 
     VIR_DEBUG("type=%s id=%s", NULLSTR(type), NULLSTR(id));
 
-    QEMU_CHECK_MONITOR_GOTO(mon, cleanup);
+    QEMU_CHECK_MONITOR(mon);
 
     if (!id || !type) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("missing alias or qom-type for qemu object '%s'"),
                        NULLSTR(type));
-        goto cleanup;
+        return -1;
     }
 
     if (alias)
-        tmp = g_strdup(id);
+        aliasCopy = g_strdup(id);
 
-    ret = qemuMonitorJSONAddObject(mon, *props);
-    *props = NULL;
+    if (qemuMonitorJSONAddObject(mon, props) < 0)
+        return -1;
 
     if (alias)
-        *alias = g_steal_pointer(&tmp);
+        *alias = g_steal_pointer(&aliasCopy);
 
- cleanup:
-    VIR_FREE(tmp);
-    virJSONValueFree(*props);
-    *props = NULL;
-    return ret;
+    return 0;
 }
 
 
@@ -3412,41 +3396,12 @@ qemuMonitorBlockJobSetSpeed(qemuMonitorPtr mon,
 }
 
 
-virHashTablePtr
+GHashTable *
 qemuMonitorGetAllBlockJobInfo(qemuMonitorPtr mon,
                               bool rawjobname)
 {
     QEMU_CHECK_MONITOR_NULL(mon);
     return qemuMonitorJSONGetAllBlockJobInfo(mon, rawjobname);
-}
-
-
-/**
- * qemuMonitorGetBlockJobInfo:
- * Parse Block Job information, and populate info for the named device.
- * Return 1 if info available, 0 if device has no block job, and -1 on error.
- */
-int
-qemuMonitorGetBlockJobInfo(qemuMonitorPtr mon,
-                           const char *alias,
-                           qemuMonitorBlockJobInfoPtr info)
-{
-    virHashTablePtr all;
-    qemuMonitorBlockJobInfoPtr data;
-    int ret = 0;
-
-    VIR_DEBUG("alias=%s, info=%p", alias, info);
-
-    if (!(all = qemuMonitorGetAllBlockJobInfo(mon, true)))
-        return -1;
-
-    if ((data = virHashLookup(all, alias))) {
-        *info = *data;
-        ret = 1;
-    }
-
-    virHashFree(all);
-    return ret;
 }
 
 
@@ -3856,20 +3811,12 @@ qemuMonitorGetEvents(qemuMonitorPtr mon,
 }
 
 
-/* Collect the parameters associated with a given command line option.
- * Return count of known parameters or -1 on error.  */
-int
-qemuMonitorGetCommandLineOptionParameters(qemuMonitorPtr mon,
-                                          const char *option,
-                                          char ***params,
-                                          bool *found)
+GHashTable *
+qemuMonitorGetCommandLineOptions(qemuMonitorPtr mon)
 {
-    VIR_DEBUG("option=%s params=%p", option, params);
+    QEMU_CHECK_MONITOR_NULL(mon);
 
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONGetCommandLineOptionParameters(mon, option,
-                                                         params, found);
+    return qemuMonitorJSONGetCommandLineOptions(mon);
 }
 
 
@@ -3898,7 +3845,7 @@ qemuMonitorGetObjectTypes(qemuMonitorPtr mon,
 }
 
 
-virHashTablePtr
+GHashTable *
 qemuMonitorGetDeviceProps(qemuMonitorPtr mon,
                           const char *device)
 {
@@ -3947,22 +3894,17 @@ qemuMonitorGetMigrationCapabilities(qemuMonitorPtr mon,
  * @mon: Pointer to the monitor object.
  * @caps: Migration capabilities.
  *
- * The @caps object is consumed and should not be referenced by the caller
- * after this function returns.
+ * The @caps object is consumed cleared on success and some errors.
  *
  * Returns 0 on success, -1 on error.
  */
 int
 qemuMonitorSetMigrationCapabilities(qemuMonitorPtr mon,
-                                    virJSONValuePtr caps)
+                                    virJSONValuePtr *caps)
 {
-    QEMU_CHECK_MONITOR_GOTO(mon, error);
+    QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONSetMigrationCapabilities(mon, caps);
-
- error:
-    virJSONValueFree(caps);
-    return -1;
 }
 
 
@@ -4247,22 +4189,24 @@ qemuMonitorRTCResetReinjection(qemuMonitorPtr mon)
  * qemuMonitorGetIOThreads:
  * @mon: Pointer to the monitor
  * @iothreads: Location to return array of IOThreadInfo data
+ * @niothreads: Count of the number of IOThreads in the array
  *
  * Issue query-iothreads command.
  * Retrieve the list of iothreads defined/running for the machine
  *
- * Returns count of IOThreadInfo structures on success
+ * Returns 0 on success
  *        -1 on error.
  */
 int
 qemuMonitorGetIOThreads(qemuMonitorPtr mon,
-                        qemuMonitorIOThreadInfoPtr **iothreads)
+                        qemuMonitorIOThreadInfoPtr **iothreads,
+                        int *niothreads)
 {
     VIR_DEBUG("iothreads=%p", iothreads);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONGetIOThreads(mon, iothreads);
+    return qemuMonitorJSONGetIOThreads(mon, iothreads, niothreads);
 }
 
 
@@ -4299,7 +4243,7 @@ qemuMonitorSetIOThread(qemuMonitorPtr mon,
  */
 int
 qemuMonitorGetMemoryDeviceInfo(qemuMonitorPtr mon,
-                               virHashTablePtr *info)
+                               GHashTable **info)
 {
     int ret;
 
@@ -4604,10 +4548,10 @@ qemuMonitorGetSEVMeasurement(qemuMonitorPtr mon)
 
 int
 qemuMonitorGetPRManagerInfo(qemuMonitorPtr mon,
-                            virHashTablePtr *retinfo)
+                            GHashTable **retinfo)
 {
     int ret = -1;
-    virHashTablePtr info = NULL;
+    GHashTable *info = NULL;
 
     *retinfo = NULL;
 

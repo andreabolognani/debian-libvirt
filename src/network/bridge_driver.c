@@ -74,6 +74,8 @@
 #define VIR_FROM_THIS VIR_FROM_NETWORK
 #define MAX_BRIDGE_ID 256
 
+static virMutex bridgeNameValidateMutex = VIR_MUTEX_INITIALIZER;
+
 /**
  * VIR_NETWORK_DHCP_LEASE_FILE_SIZE_MAX:
  *
@@ -653,6 +655,7 @@ firewalld_dbus_signal_callback(GDBusConnection *connection G_GNUC_UNUSED,
     if (STREQ(interfaceName, "org.fedoraproject.FirewallD1") &&
         STREQ(signalName, "Reloaded")) {
         reload = true;
+        VIR_DEBUG("Reload in bridge_driver because of 'Reloaded' signal");
     } else if (STREQ(interfaceName, "org.freedesktop.DBus") &&
                STREQ(signalName, "NameOwnerChanged")) {
         char *name = NULL;
@@ -661,14 +664,15 @@ firewalld_dbus_signal_callback(GDBusConnection *connection G_GNUC_UNUSED,
 
         g_variant_get(parameters, "(&s&s&s)", &name, &old_owner, &new_owner);
 
-        if (new_owner && *new_owner)
+        if (new_owner && *new_owner) {
+            VIR_DEBUG("Reload in bridge_driver because of 'NameOwnerChanged' signal, new owner is: '%s'",
+                      new_owner);
             reload = true;
+        }
     }
 
-    if (reload) {
-        VIR_DEBUG("Reload in bridge_driver because of firewalld.");
+    if (reload)
         networkReloadFirewallRules(driver, false, true);
-    }
 }
 #endif
 
@@ -3113,20 +3117,27 @@ static int
 networkBridgeNameValidate(virNetworkObjListPtr nets,
                           virNetworkDefPtr def)
 {
+    virMutexLock(&bridgeNameValidateMutex);
+
     if (def->bridge && !strstr(def->bridge, "%d")) {
         if (virNetworkObjBridgeInUse(nets, def->bridge, def->name)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("bridge name '%s' already in use."),
                            def->bridge);
-            return -1;
+            goto error;
         }
     } else {
         /* Allocate a bridge name */
         if (networkFindUnusedBridgeName(nets, def) < 0)
-            return -1;
+            goto error;
     }
 
+    virMutexUnlock(&bridgeNameValidateMutex);
     return 0;
+
+ error:
+    virMutexUnlock(&bridgeNameValidateMutex);
+    return -1;
 }
 
 
@@ -4029,23 +4040,16 @@ networkGetDHCPLeases(virNetworkPtr net,
                      unsigned int flags)
 {
     virNetworkDriverStatePtr driver = networkGetDriver();
-    size_t i, j;
+    size_t i;
     size_t nleases = 0;
     int rv = -1;
     size_t size = 0;
-    int custom_lease_file_len = 0;
     bool need_results = !!leases;
     long long currtime = 0;
-    long long expirytime_tmp = -1;
-    bool ipv6 = false;
     g_autofree char *lease_entries = NULL;
     g_autofree char *custom_lease_file = NULL;
-    const char *ip_tmp = NULL;
-    const char *mac_tmp = NULL;
-    virJSONValuePtr lease_tmp = NULL;
     g_autoptr(virJSONValue) leases_array = NULL;
-    virNetworkIPDefPtr ipdef_tmp = NULL;
-    virNetworkDHCPLeasePtr *leases_ret = NULL;
+    g_autofree virNetworkDHCPLeasePtr *leases_ret = NULL;
     virNetworkObjPtr obj;
     virNetworkDefPtr def;
     virMacAddr mac_addr;
@@ -4069,9 +4073,9 @@ networkGetDHCPLeases(virNetworkPtr net,
     custom_lease_file = networkDnsmasqLeaseFileNameCustom(driver, def->bridge);
 
     /* Read entire contents */
-    if ((custom_lease_file_len = virFileReadAllQuiet(custom_lease_file,
-                                                     VIR_NETWORK_DHCP_LEASE_FILE_SIZE_MAX,
-                                                     &lease_entries)) < 0) {
+    if (virFileReadAllQuiet(custom_lease_file,
+                            VIR_NETWORK_DHCP_LEASE_FILE_SIZE_MAX,
+                            &lease_entries) < 0) {
         /* Not all networks are guaranteed to have leases file.
          * Only those which run dnsmasq. Therefore, if we failed
          * to read the leases file, don't report error. Return 0
@@ -4083,31 +4087,38 @@ networkGetDHCPLeases(virNetworkPtr net,
                                  _("Unable to read leases file: %s"),
                                  custom_lease_file);
         }
-        goto error;
+        goto cleanup;
     }
 
-    if (custom_lease_file_len) {
-        if (!(leases_array = virJSONValueFromString(lease_entries))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("invalid json in file: %s"), custom_lease_file);
-            goto error;
-        }
-
-        if (!virJSONValueIsArray(leases_array)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Malformed lease_entries array"));
-            goto error;
-        }
-        size = virJSONValueArraySize(leases_array);
+    if (STREQ(lease_entries, "")) {
+        rv = 0;
+        goto cleanup;
     }
+
+    if (!(leases_array = virJSONValueFromString(lease_entries))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("invalid json in file: %s"), custom_lease_file);
+        goto cleanup;
+    }
+
+    if (!virJSONValueIsArray(leases_array)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Malformed lease_entries array"));
+        goto cleanup;
+    }
+    size = virJSONValueArraySize(leases_array);
 
     currtime = (long long)time(NULL);
 
     for (i = 0; i < size; i++) {
-        if (!(lease_tmp = virJSONValueArrayGet(leases_array, i))) {
+        virJSONValuePtr lease_tmp = virJSONValueArrayGet(leases_array, i);
+        long long expirytime_tmp = -1;
+        const char *mac_tmp = NULL;
+
+        if (!lease_tmp) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("failed to parse json"));
-            goto error;
+            goto cleanup;
         }
 
         if (!(mac_tmp = virJSONValueObjectGetString(lease_tmp, "mac-address"))) {
@@ -4115,7 +4126,7 @@ networkGetDHCPLeases(virNetworkPtr net,
              * mac-address is known otherwise not */
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("found lease without mac-address"));
-            goto error;
+            goto cleanup;
         }
 
         if (mac && virMacAddrCompare(mac, mac_tmp))
@@ -4125,15 +4136,18 @@ networkGetDHCPLeases(virNetworkPtr net,
             /* A lease cannot be present without expiry-time */
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("found lease without expiry-time"));
-            goto error;
+            goto cleanup;
         }
 
         /* Do not report expired lease */
-        if (expirytime_tmp < currtime)
+        if (expirytime_tmp > 0 && expirytime_tmp < currtime)
             continue;
 
         if (need_results) {
             g_autoptr(virNetworkDHCPLease) lease = g_new0(virNetworkDHCPLease, 1);
+            const char *ip_tmp = NULL;
+            bool ipv6 = false;
+            size_t j;
 
             lease->expirytime = expirytime_tmp;
 
@@ -4141,7 +4155,7 @@ networkGetDHCPLeases(virNetworkPtr net,
                 /* A lease without ip-address makes no sense */
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("found lease without ip-address"));
-                goto error;
+                goto cleanup;
             }
 
             /* Unlike IPv4, IPv6 uses ':' instead of '.' as separator */
@@ -4150,7 +4164,7 @@ networkGetDHCPLeases(virNetworkPtr net,
 
             /* Obtain prefix */
             for (j = 0; j < def->nips; j++) {
-                ipdef_tmp = &def->ips[j];
+                virNetworkIPDefPtr ipdef_tmp = &def->ips[j];
 
                 if (ipv6 && VIR_SOCKET_ADDR_IS_FAMILY(&ipdef_tmp->address,
                                                       AF_INET6)) {
@@ -4158,7 +4172,7 @@ networkGetDHCPLeases(virNetworkPtr net,
                     break;
                 }
                 if (!ipv6 && VIR_SOCKET_ADDR_IS_FAMILY(&ipdef_tmp->address,
-                                                      AF_INET)) {
+                                                       AF_INET)) {
                     lease->prefix = virSocketAddrGetIPPrefix(&ipdef_tmp->address,
                                                              &ipdef_tmp->netmask,
                                                              ipdef_tmp->prefix);
@@ -4175,8 +4189,8 @@ networkGetDHCPLeases(virNetworkPtr net,
             lease->clientid = g_strdup(virJSONValueObjectGetString(lease_tmp, "client-id"));
             lease->hostname = g_strdup(virJSONValueObjectGetString(lease_tmp, "hostname"));
 
-            if (VIR_INSERT_ELEMENT(leases_ret, nleases, nleases, lease) < 0)
-                goto error;
+            if (VIR_APPEND_ELEMENT(leases_ret, nleases, lease) < 0)
+                goto cleanup;
 
         } else {
             nleases++;
@@ -4193,15 +4207,11 @@ networkGetDHCPLeases(virNetworkPtr net,
 
  cleanup:
     virNetworkObjEndAPI(&obj);
-    return rv;
-
- error:
     if (leases_ret) {
         for (i = 0; i < nleases; i++)
             virNetworkDHCPLeaseFree(leases_ret[i]);
-        g_free(leases_ret);
     }
-    goto cleanup;
+    return rv;
 }
 
 

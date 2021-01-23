@@ -41,53 +41,14 @@
 #include "virlog.h"
 #include "virxml.h"
 
-#define WS_SERIALIZER_FREE_MEM_WORKS 0
-
 #define VIR_FROM_THIS VIR_FROM_HYPERV
 
 #define HYPERV_JOB_TIMEOUT_MS 300000
 
 VIR_LOG_INIT("hyperv.hyperv_wmi");
 
-static int
-hypervGetWmiClassInfo(hypervPrivate *priv, hypervWmiClassInfoListPtr list,
-                      hypervWmiClassInfoPtr *info)
-{
-    const char *version = "v2";
-    size_t i;
-
-    if (list->count == 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("The WMI class info list is empty"));
-        return -1;
-    }
-
-    /* if there's just one WMI class and isn't versioned, assume "shared" */
-    if (list->count == 1 && list->objs[0]->version == NULL) {
-        *info = list->objs[0];
-        return 0;
-    }
-
-    if (priv->wmiVersion == HYPERV_WMI_VERSION_V1)
-        version = "v1";
-
-    for (i = 0; i < list->count; i++) {
-        if (STRCASEEQ(list->objs[i]->version, version)) {
-            *info = list->objs[i];
-            return 0;
-        }
-    }
-
-    virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Could not match WMI class info for version %s"),
-                   version);
-
-    return -1;
-}
-
-
 int
-hypervGetWmiClassList(hypervPrivate *priv, hypervWmiClassInfoListPtr wmiInfo,
+hypervGetWmiClassList(hypervPrivate *priv, hypervWmiClassInfoPtr wmiInfo,
                       virBufferPtr query, hypervObject **wmiClass)
 {
     hypervWqlQuery wqlQuery = HYPERV_WQL_QUERY_INITIALIZER;
@@ -160,7 +121,6 @@ hypervVerifyResponse(WsManClient *client, WsXmlDocH response,
 
 /*
  * hypervCreateInvokeParamsList:
- * @priv: hypervPrivate object associated with the connection.
  * @method: The name of the method you are calling
  * @selector: The selector for the object you are invoking the method on
  * @obj: The WmiInfo of the object class you are invoking the method on.
@@ -171,14 +131,11 @@ hypervVerifyResponse(WsManClient *client, WsXmlDocH response,
  * be freed by hypervInvokeMethod. Otherwise returns NULL.
  */
 hypervInvokeParamsListPtr
-hypervCreateInvokeParamsList(hypervPrivate *priv, const char *method,
-                             const char *selector, hypervWmiClassInfoListPtr obj)
+hypervCreateInvokeParamsList(const char *method,
+                             const char *selector,
+                             hypervWmiClassInfoPtr info)
 {
     hypervInvokeParamsListPtr params = NULL;
-    hypervWmiClassInfoPtr info = NULL;
-
-    if (hypervGetWmiClassInfo(priv, obj, &info) < 0)
-        return NULL;
 
     params = g_new0(hypervInvokeParamsList, 1);
 
@@ -287,15 +244,14 @@ hypervAddSimpleParam(hypervInvokeParamsListPtr params, const char *name,
  * Adds an EPR param to the params list. Returns -1 on failure, 0 on success.
  */
 int
-hypervAddEprParam(hypervInvokeParamsListPtr params, const char *name,
-                  hypervPrivate *priv, virBufferPtr query,
-                  hypervWmiClassInfoListPtr eprInfo)
+hypervAddEprParam(hypervInvokeParamsListPtr params,
+                  const char *name,
+                  virBufferPtr query,
+                  hypervWmiClassInfoPtr classInfo)
 {
     hypervParamPtr p = NULL;
-    hypervWmiClassInfoPtr classInfo = NULL;
 
-    if (hypervGetWmiClassInfo(priv, eprInfo, &classInfo) < 0 ||
-        hypervCheckParams(params) < 0)
+    if (hypervCheckParams(params) < 0)
         return -1;
 
     p = &params->params[params->nbParams];
@@ -311,27 +267,21 @@ hypervAddEprParam(hypervInvokeParamsListPtr params, const char *name,
 
 /*
  * hypervCreateEmbeddedParam:
- * @priv: hypervPrivate object associated with the connection
  * @info: WmiInfo of the object type to serialize
  *
- * Instantiates a virHashTable pre-filled with all the properties pre-added
+ * Instantiates a GHashTable pre-filled with all the properties pre-added
  * a key/value pairs set to NULL. The user then sets only those properties that
  * they wish to serialize, and passes the table via hypervAddEmbeddedParam.
  *
- * Returns a pointer to the virHashTable on success, otherwise NULL.
+ * Returns a pointer to the GHashTable on success, otherwise NULL.
  */
-virHashTablePtr
-hypervCreateEmbeddedParam(hypervPrivate *priv, hypervWmiClassInfoListPtr info)
+GHashTable *
+hypervCreateEmbeddedParam(hypervWmiClassInfoPtr classInfo)
 {
     size_t i;
     size_t count;
-    g_autoptr(virHashTable) table = NULL;
+    g_autoptr(GHashTable) table = NULL;
     XmlSerializerInfo *typeinfo = NULL;
-    hypervWmiClassInfoPtr classInfo = NULL;
-
-    /* Get the typeinfo out of the class info list */
-    if (hypervGetWmiClassInfo(priv, info, &classInfo) < 0)
-        return NULL;
 
     typeinfo = classInfo->serializerInfo;
 
@@ -368,7 +318,7 @@ hypervCreateEmbeddedParam(hypervPrivate *priv, hypervWmiClassInfoListPtr info)
  *         -1 otherwise.
  */
 int
-hypervSetEmbeddedProperty(virHashTablePtr table,
+hypervSetEmbeddedProperty(GHashTable *table,
                           const char *name,
                           const char *value)
 {
@@ -379,12 +329,11 @@ hypervSetEmbeddedProperty(virHashTablePtr table,
 /*
  * hypervAddEmbeddedParam:
  * @params: Params list to add to
- * @priv: hypervPrivate object associated with the connection
  * @name: Name of the parameter
  * @table: pointer to table of properties to add
  * @info: WmiInfo of the object to serialize
  *
- * Add a virHashTable containing object properties as an embedded param to
+ * Add a GHashTable containing object properties as an embedded param to
  * an invocation list.
  *
  * Upon successfull return the @table is consumed and the pointer is cleared out.
@@ -393,19 +342,13 @@ hypervSetEmbeddedProperty(virHashTablePtr table,
  */
 int
 hypervAddEmbeddedParam(hypervInvokeParamsListPtr params,
-                       hypervPrivate *priv,
                        const char *name,
-                       virHashTablePtr *table,
-                       hypervWmiClassInfoListPtr info)
+                       GHashTable **table,
+                       hypervWmiClassInfoPtr classInfo)
 {
     hypervParamPtr p = NULL;
-    hypervWmiClassInfoPtr classInfo = NULL;
 
     if (hypervCheckParams(params) < 0)
-        return -1;
-
-    /* Get the typeinfo out of the class info list */
-    if (hypervGetWmiClassInfo(priv, info, &classInfo) < 0)
         return -1;
 
     p = &params->params[params->nbParams];
@@ -426,7 +369,7 @@ hypervAddEmbeddedParam(hypervInvokeParamsListPtr params,
  * Free the embedded param hash table.
  */
 void
-hypervFreeEmbeddedParam(virHashTablePtr p)
+hypervFreeEmbeddedParam(GHashTable *p)
 {
     virHashFree(p);
 }
@@ -683,7 +626,7 @@ hypervSerializeEmbeddedParam(hypervParamPtr p, const char *resourceUri,
 
     /* retrieve parameters out of hash table */
     numKeys = virHashSize(p->embedded.table);
-    items = virHashGetItems(p->embedded.table, NULL);
+    items = virHashGetItems(p->embedded.table, NULL, false);
     if (!items) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Could not read embedded param hash table"));
@@ -914,14 +857,14 @@ hypervInvokeMethod(hypervPrivate *priv,
          * side! That is up to Windows to control, we don't do anything about it.
          */
         while (!completed && timeout >= 0) {
-            virBufferAddLit(&query, MSVM_CONCRETEJOB_WQL_SELECT);
-            virBufferEscapeSQL(&query, "where InstanceID = \"%s\"", instanceID);
+            virBufferEscapeSQL(&query,
+                               MSVM_CONCRETEJOB_WQL_SELECT
+                               "WHERE InstanceID = '%s'", instanceID);
 
-            if (hypervGetWmiClassList(priv, Msvm_ConcreteJob_WmiInfo, &query,
-                                      (hypervObject **)&job) < 0 || job == NULL)
+            if (hypervGetWmiClass(Msvm_ConcreteJob, &job) < 0 || !job)
                 goto cleanup;
 
-            jobState = job->data.common->JobState;
+            jobState = job->data->JobState;
             switch (jobState) {
             case MSVM_CONCRETEJOB_JOBSTATE_NEW:
             case MSVM_CONCRETEJOB_JOBSTATE_STARTING:
@@ -992,14 +935,13 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQueryPtr wqlQuery,
     WsSerializerContextH serializerContext;
     client_opt_t *options = NULL;
     char *query_string = NULL;
-    hypervWmiClassInfoPtr wmiInfo = NULL;
+    hypervWmiClassInfoPtr wmiInfo = wqlQuery->info;
     filter_t *filter = NULL;
     WsXmlDocH response = NULL;
     char *enumContext = NULL;
     hypervObject *head = NULL;
     hypervObject *tail = NULL;
     WsXmlNodeH node = NULL;
-    XML_TYPE_PTR data = NULL;
     hypervObject *object;
 
     query_string = virBufferContentAndReset(wqlQuery->query);
@@ -1009,9 +951,6 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQueryPtr wqlQuery,
         VIR_FREE(query_string);
         return -1;
     }
-
-    if (hypervGetWmiClassInfo(priv, wqlQuery->info, &wmiInfo) < 0)
-        goto cleanup;
 
     serializerContext = wsmc_get_serialization_context(priv->client);
 
@@ -1043,6 +982,8 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQueryPtr wqlQuery,
     response = NULL;
 
     while (enumContext != NULL && *enumContext != '\0') {
+        XML_TYPE_PTR data = NULL;
+
         response = wsmc_action_pull(priv->client, wmiInfo->resourceUri, options,
                                     filter, enumContext);
 
@@ -1088,9 +1029,7 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQueryPtr wqlQuery,
 
         object = g_new0(hypervObject, 1);
         object->info = wmiInfo;
-        object->data.common = data;
-
-        data = NULL;
+        object->data = data;
 
         if (head == NULL) {
             head = object;
@@ -1119,15 +1058,6 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQueryPtr wqlQuery,
     if (filter != NULL)
         filter_destroy(filter);
 
-    if (data != NULL) {
-#if WS_SERIALIZER_FREE_MEM_WORKS
-        if (ws_serializer_free_mem(serializerContext, data,
-                                   wmiInfo->serializerInfo) < 0) {
-            VIR_ERROR(_("Could not free deserialized data"));
-        }
-#endif
-    }
-
     VIR_FREE(query_string);
     ws_xml_destroy_doc(response);
     VIR_FREE(enumContext);
@@ -1141,26 +1071,20 @@ void
 hypervFreeObject(hypervPrivate *priv G_GNUC_UNUSED, hypervObject *object)
 {
     hypervObject *next;
-#if WS_SERIALIZER_FREE_MEM_WORKS
     WsSerializerContextH serializerContext;
-#endif
 
     if (object == NULL)
         return;
 
-#if WS_SERIALIZER_FREE_MEM_WORKS
     serializerContext = wsmc_get_serialization_context(priv->client);
-#endif
 
     while (object != NULL) {
         next = object->next;
 
-#if WS_SERIALIZER_FREE_MEM_WORKS
-        if (ws_serializer_free_mem(serializerContext, object->data.common,
+        if (ws_serializer_free_mem(serializerContext, object->data,
                                    object->info->serializerInfo) < 0) {
             VIR_ERROR(_("Could not free deserialized data"));
         }
-#endif
 
         VIR_FREE(object);
 
@@ -1270,15 +1194,11 @@ hypervInvokeMsvmComputerSystemRequestStateChange(virDomainPtr domain,
     g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
     Msvm_ConcreteJob *concreteJob = NULL;
     bool completed = false;
-    const char *resourceUri = MSVM_COMPUTERSYSTEM_V2_RESOURCE_URI;
 
     virUUIDFormat(domain->uuid, uuid_string);
 
     selector = g_strdup_printf("Name=%s&CreationClassName=Msvm_ComputerSystem", uuid_string);
     properties = g_strdup_printf("RequestedState=%d", requestedState);
-
-    if (priv->wmiVersion == HYPERV_WMI_VERSION_V1)
-        resourceUri = MSVM_COMPUTERSYSTEM_V1_RESOURCE_URI;
 
     options = wsmc_options_init();
 
@@ -1292,7 +1212,7 @@ hypervInvokeMsvmComputerSystemRequestStateChange(virDomainPtr domain,
     wsmc_add_prop_from_str(options, properties);
 
     /* Invoke method */
-    response = wsmc_action_invoke(priv->client, resourceUri,
+    response = wsmc_action_invoke(priv->client, MSVM_COMPUTERSYSTEM_RESOURCE_URI,
                                   options, "RequestStateChange", NULL);
 
     if (hypervVerifyResponse(priv->client, response, "invocation") < 0)
@@ -1328,11 +1248,11 @@ hypervInvokeMsvmComputerSystemRequestStateChange(virDomainPtr domain,
         /* FIXME: Poll every 100ms until the job completes or fails. There
          *        seems to be no other way than polling. */
         while (!completed) {
-            virBufferAddLit(&query, MSVM_CONCRETEJOB_WQL_SELECT);
-            virBufferAsprintf(&query, "where InstanceID = \"%s\"", instanceID);
+            virBufferAsprintf(&query,
+                              MSVM_CONCRETEJOB_WQL_SELECT
+                              "WHERE InstanceID = '%s'", instanceID);
 
-            if (hypervGetWmiClassList(priv, Msvm_ConcreteJob_WmiInfo, &query,
-                                      (hypervObject **)&concreteJob) < 0)
+            if (hypervGetWmiClass(Msvm_ConcreteJob, &concreteJob) < 0)
                 goto cleanup;
 
             if (concreteJob == NULL) {
@@ -1342,7 +1262,7 @@ hypervInvokeMsvmComputerSystemRequestStateChange(virDomainPtr domain,
                 goto cleanup;
             }
 
-            switch (concreteJob->data.common->JobState) {
+            switch (concreteJob->data->JobState) {
             case MSVM_CONCRETEJOB_JOBSTATE_NEW:
             case MSVM_CONCRETEJOB_JOBSTATE_STARTING:
             case MSVM_CONCRETEJOB_JOBSTATE_RUNNING:
@@ -1402,7 +1322,7 @@ int
 hypervMsvmComputerSystemEnabledStateToDomainState
 (Msvm_ComputerSystem *computerSystem)
 {
-    switch (computerSystem->data.common->EnabledState) {
+    switch (computerSystem->data->EnabledState) {
     case MSVM_COMPUTERSYSTEM_ENABLEDSTATE_UNKNOWN:
         return VIR_DOMAIN_NOSTATE;
 
@@ -1443,7 +1363,7 @@ hypervIsMsvmComputerSystemActive(Msvm_ComputerSystem *computerSystem,
     if (in_transition != NULL)
         *in_transition = false;
 
-    switch (computerSystem->data.common->EnabledState) {
+    switch (computerSystem->data->EnabledState) {
     case MSVM_COMPUTERSYSTEM_ENABLEDSTATE_UNKNOWN:
         return false;
 
@@ -1489,19 +1409,47 @@ hypervMsvmComputerSystemToDomain(virConnectPtr conn,
         return -1;
     }
 
-    if (virUUIDParse(computerSystem->data.common->Name, uuid) < 0) {
+    if (virUUIDParse(computerSystem->data->Name, uuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not parse UUID from string '%s'"),
-                       computerSystem->data.common->Name);
+                       computerSystem->data->Name);
         return -1;
     }
 
     if (hypervIsMsvmComputerSystemActive(computerSystem, NULL))
-        id = computerSystem->data.common->ProcessID;
+        id = computerSystem->data->ProcessID;
 
-    *domain = virGetDomain(conn, computerSystem->data.common->ElementName, uuid, id);
+    *domain = virGetDomain(conn, computerSystem->data->ElementName, uuid, id);
 
     return *domain ? 0 : -1;
+}
+
+
+int
+hypervMsvmComputerSystemFromUUID(hypervPrivate *priv, const char *uuid,
+                                 Msvm_ComputerSystem **computerSystem)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    if (!computerSystem || *computerSystem) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid argument"));
+        return -1;
+    }
+
+    virBufferEscapeSQL(&query,
+                       MSVM_COMPUTERSYSTEM_WQL_SELECT
+                       "WHERE " MSVM_COMPUTERSYSTEM_WQL_VIRTUAL
+                       "AND Name = '%s'", uuid);
+
+    if (hypervGetWmiClass(Msvm_ComputerSystem, computerSystem) < 0)
+        return -1;
+
+    if (!*computerSystem) {
+        virReportError(VIR_ERR_NO_DOMAIN, _("No domain with UUID %s"), uuid);
+        return -1;
+    }
+
+    return 0;
 }
 
 
@@ -1510,55 +1458,123 @@ hypervMsvmComputerSystemFromDomain(virDomainPtr domain,
                                    Msvm_ComputerSystem **computerSystem)
 {
     hypervPrivate *priv = domain->conn->privateData;
-    char uuid_string[VIR_UUID_STRING_BUFLEN];
-    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    char uuidString[VIR_UUID_STRING_BUFLEN];
 
-    if (computerSystem == NULL || *computerSystem != NULL) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid argument"));
-        return -1;
-    }
+    virUUIDFormat(domain->uuid, uuidString);
 
-    virUUIDFormat(domain->uuid, uuid_string);
-
-    virBufferAddLit(&query, MSVM_COMPUTERSYSTEM_WQL_SELECT);
-    virBufferAddLit(&query, "where ");
-    virBufferAddLit(&query, MSVM_COMPUTERSYSTEM_WQL_VIRTUAL);
-    virBufferAsprintf(&query, "and Name = \"%s\"", uuid_string);
-
-    if (hypervGetWmiClassList(priv, Msvm_ComputerSystem_WmiInfo, &query,
-                              (hypervObject **)computerSystem) < 0)
-        return -1;
-
-    if (*computerSystem == NULL) {
-        virReportError(VIR_ERR_NO_DOMAIN,
-                       _("No domain with UUID %s"), uuid_string);
-        return -1;
-    }
-
-    return 0;
+    return hypervMsvmComputerSystemFromUUID(priv, uuidString, computerSystem);
 }
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Msvm_VirtualSystemSettingData
+ * Generic "Get WMI class list" helpers
  */
 
 int
 hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
-                                              const char *uuid_string, Msvm_VirtualSystemSettingData **list)
+                                              const char *uuid_string,
+                                              Msvm_VirtualSystemSettingData **list)
 {
     g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
 
     virBufferAsprintf(&query,
-                      "associators of "
-                      "{Msvm_ComputerSystem.CreationClassName=\"Msvm_ComputerSystem\","
-                      "Name=\"%s\"} "
-                      "where AssocClass = Msvm_SettingsDefineState "
+                      "ASSOCIATORS OF {Msvm_ComputerSystem.CreationClassName='Msvm_ComputerSystem',Name='%s'} "
+                      "WHERE AssocClass = Msvm_SettingsDefineState "
                       "ResultClass = Msvm_VirtualSystemSettingData",
                       uuid_string);
 
-    if (hypervGetWmiClassList(priv, Msvm_VirtualSystemSettingData_WmiInfo, &query,
-                              (hypervObject **)list) < 0 || *list == NULL)
+    if (hypervGetWmiClass(Msvm_VirtualSystemSettingData, list) < 0 || !*list)
+        return -1;
+
+    return 0;
+}
+
+
+int
+hypervGetResourceAllocationSD(hypervPrivate *priv,
+                              const char *id,
+                              Msvm_ResourceAllocationSettingData **data)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    virBufferEscapeSQL(&query,
+                       "ASSOCIATORS OF {Msvm_VirtualSystemSettingData.InstanceID='%s'} "
+                       "WHERE AssocClass = Msvm_VirtualSystemSettingDataComponent "
+                       "ResultClass = Msvm_ResourceAllocationSettingData",
+                       id);
+
+    if (hypervGetWmiClass(Msvm_ResourceAllocationSettingData, data) < 0)
+        return -1;
+
+    if (!*data) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not look up resource allocation setting data with virtual system instance ID '%s'"),
+                       id);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int
+hypervGetProcessorSD(hypervPrivate *priv,
+                     const char *id,
+                     Msvm_ProcessorSettingData **data)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    virBufferEscapeSQL(&query,
+                       "ASSOCIATORS OF {Msvm_VirtualSystemSettingData.InstanceID='%s'} "
+                       "WHERE AssocClass = Msvm_VirtualSystemSettingDataComponent "
+                       "ResultClass = Msvm_ProcessorSettingData",
+                       id);
+
+    if (hypervGetWmiClass(Msvm_ProcessorSettingData, data) < 0)
+        return -1;
+
+    if (!*data) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not look up processor setting data with virtual system instance ID '%s'"),
+                       id);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int
+hypervGetMemorySD(hypervPrivate *priv,
+                  const char *vssd_instanceid,
+                  Msvm_MemorySettingData **list)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+
+    virBufferAsprintf(&query,
+                      "ASSOCIATORS OF {Msvm_VirtualSystemSettingData.InstanceID='%s'} "
+                      "WHERE AssocClass = Msvm_VirtualSystemSettingDataComponent "
+                      "ResultClass = Msvm_MemorySettingData",
+                      vssd_instanceid);
+
+    if (hypervGetWmiClass(Msvm_MemorySettingData, list) < 0 || !*list)
+        return -1;
+
+    return 0;
+}
+
+
+int
+hypervGetStorageAllocationSD(hypervPrivate *priv,
+                             const char *id,
+                             Msvm_StorageAllocationSettingData **data)
+{
+    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    virBufferEscapeSQL(&query,
+                       "ASSOCIATORS OF {Msvm_VirtualSystemSettingData.InstanceID='%s'} "
+                       "WHERE AssocClass = Msvm_VirtualSystemSettingDataComponent "
+                       "ResultClass = Msvm_StorageAllocationSettingData",
+                       id);
+
+    if (hypervGetWmiClass(Msvm_StorageAllocationSettingData, data) < 0)
         return -1;
 
     return 0;
@@ -1566,25 +1582,37 @@ hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
 
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Msvm_MemorySettingData
+ * Msvm_VirtualSystemManagementService
  */
 
 int
-hypervGetMsvmMemorySettingDataFromVSSD(hypervPrivate *priv,
-                                       const char *vssd_instanceid, Msvm_MemorySettingData **list)
+hypervMsvmVSMSModifyResourceSettings(hypervPrivate *priv,
+                                     GHashTable **resourceSettingsPtr,
+                                     hypervWmiClassInfoPtr wmiInfo)
 {
-    g_auto(virBuffer) query = VIR_BUFFER_INITIALIZER;
+    int result = -1;
+    GHashTable *resourceSettings = *resourceSettingsPtr;
+    g_autoptr(hypervInvokeParamsList) params = NULL;
 
-    virBufferAsprintf(&query,
-                      "associators of "
-                      "{Msvm_VirtualSystemSettingData.InstanceID=\"%s\"} "
-                      "where AssocClass = Msvm_VirtualSystemSettingDataComponent "
-                      "ResultClass = Msvm_MemorySettingData",
-                      vssd_instanceid);
+    params = hypervCreateInvokeParamsList("ModifyResourceSettings",
+                                          MSVM_VIRTUALSYSTEMMANAGEMENTSERVICE_SELECTOR,
+                                          Msvm_VirtualSystemManagementService_WmiInfo);
 
-    if (hypervGetWmiClassList(priv, Msvm_MemorySettingData_WmiInfo, &query,
-                              (hypervObject **)list) < 0 || *list == NULL)
-        return -1;
+    if (!params)
+        goto cleanup;
 
-    return 0;
+    if (hypervAddEmbeddedParam(params, "ResourceSettings", &resourceSettings, wmiInfo) < 0) {
+        hypervFreeEmbeddedParam(resourceSettings);
+        goto cleanup;
+    }
+
+    if (hypervInvokeMethod(priv, &params, NULL) < 0)
+        goto cleanup;
+
+    result = 0;
+
+ cleanup:
+    *resourceSettingsPtr = NULL;
+
+    return result;
 }

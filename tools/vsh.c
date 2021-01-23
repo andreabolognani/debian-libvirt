@@ -276,6 +276,7 @@ vshCmddefCheckInternals(vshControl *ctl,
 {
     size_t i;
     const char *help = NULL;
+    bool seenOptionalOption = false;
 
     /* in order to perform the validation resolve the alias first */
     if (cmd->flags & VSH_CMD_FLAG_ALIAS) {
@@ -307,10 +308,12 @@ vshCmddefCheckInternals(vshControl *ctl,
         case VSH_OT_STRING:
         case VSH_OT_BOOL:
             if (opt->flags & VSH_OFLAG_REQ) {
-                vshError(ctl, _("command '%s' misused VSH_OFLAG_REQ"),
-                         cmd->name);
+                vshError(ctl, _("parameter '%s' of command '%s' misused VSH_OFLAG_REQ"),
+                         opt->name, cmd->name);
                 return -1; /* neither bool nor string options can be mandatory */
             }
+
+            seenOptionalOption = true;
             break;
 
         case VSH_OT_ALIAS: {
@@ -319,8 +322,8 @@ vshCmddefCheckInternals(vshControl *ctl,
             char *p;
 
             if (opt->flags || !opt->help) {
-                vshError(ctl, _("command '%s' has incorrect alias option"),
-                         cmd->name);
+                vshError(ctl, _("parameter '%s' of command '%s' has incorrect alias option"),
+                         opt->name, cmd->name);
                 return -1; /* alias options are tracked by the original name */
             }
             if ((p = strchr(name, '=')))
@@ -334,35 +337,51 @@ vshCmddefCheckInternals(vshControl *ctl,
                 VIR_FREE(name);
                 /* If alias comes with value, replacement must not be bool */
                 if (cmd->opts[j].type == VSH_OT_BOOL) {
-                    vshError(ctl, _("command '%s' has mismatched alias type"),
-                             cmd->name);
+                    vshError(ctl, _("alias '%s' of command '%s' has mismatched alias type"),
+                             opt->name, cmd->name);
                     return -1;
                 }
             }
             if (!cmd->opts[j].name) {
-                vshError(ctl, _("command '%s' has missing alias option"),
-                         cmd->name);
+                vshError(ctl, _("alias '%s' of command '%s' has missing alias option"),
+                         opt->name, cmd->name);
                 return -1; /* alias option must map to a later option name */
             }
         }
             break;
         case VSH_OT_ARGV:
             if (cmd->opts[i + 1].name) {
-                vshError(ctl, _("command '%s' does not list argv option last"),
-                         cmd->name);
+                vshError(ctl, _("parameter '%s' of command '%s' must be listed last"),
+                         opt->name, cmd->name);
                 return -1; /* argv option must be listed last */
             }
             break;
 
         case VSH_OT_DATA:
             if (!(opt->flags & VSH_OFLAG_REQ)) {
-                vshError(ctl, _("command '%s' has non-required VSH_OT_DATA"),
-                         cmd->name);
+                vshError(ctl, _("parameter '%s' of command '%s' must use VSH_OFLAG_REQ flag"),
+                         opt->name, cmd->name);
                 return -1; /* OT_DATA should always be required. */
+            }
+
+            if (seenOptionalOption) {
+                vshError(ctl, _("parameter '%s' of command '%s' must be listed before optional parameters"),
+                         opt->name, cmd->name);
+                return -1;  /* mandatory options must be listed first */
             }
             break;
 
         case VSH_OT_INT:
+            if (opt->flags & VSH_OFLAG_REQ) {
+                if (seenOptionalOption) {
+                    vshError(ctl, _("parameter '%s' of command '%s' must be listed before optional parameters"),
+                             opt->name, cmd->name);
+                    return -1;  /* mandatory options must be listed first */
+                }
+            } else {
+                seenOptionalOption = true;
+            }
+
             break;
         }
     }
@@ -370,54 +389,36 @@ vshCmddefCheckInternals(vshControl *ctl,
 }
 
 /* Parse the options associated with @cmd, i.e. test whether options are
- * required or need an argument.
- *
- * Returns -1 on error or 0 on success, filling the caller-provided bitmaps
- * which keep track of required options and options needing an argument.
+ * required or need an argument and fill the appropriate caller-provided bitmaps
  */
-static int
-vshCmddefOptParse(const vshCmdDef *cmd, uint64_t *opts_need_arg,
+static void
+vshCmddefOptParse(const vshCmdDef *cmd,
+                  uint64_t *opts_need_arg,
                   uint64_t *opts_required)
 {
     size_t i;
-    bool optional = false;
 
     *opts_need_arg = 0;
     *opts_required = 0;
 
     if (!cmd->opts)
-        return 0;
+        return;
 
     for (i = 0; cmd->opts[i].name; i++) {
         const vshCmdOptDef *opt = &cmd->opts[i];
 
-        if (opt->type == VSH_OT_BOOL) {
-            optional = true;
+        if (opt->type == VSH_OT_BOOL)
             continue;
-        }
-
-        if (opt->flags & VSH_OFLAG_REQ_OPT) {
-            if (opt->flags & VSH_OFLAG_REQ)
-                *opts_required |= 1ULL << i;
-            else
-                optional = true;
-            continue;
-        }
 
         if (opt->type == VSH_OT_ALIAS)
             continue; /* skip the alias option */
 
-        *opts_need_arg |= 1ULL << i;
-        if (opt->flags & VSH_OFLAG_REQ) {
-            if (optional && opt->type != VSH_OT_ARGV)
-                return -1; /* mandatory options must be listed first */
-            *opts_required |= 1ULL << i;
-        } else {
-            optional = true;
-        }
-    }
+        if (!(opt->flags & VSH_OFLAG_REQ_OPT))
+            *opts_need_arg |= 1ULL << i;
 
-    return 0;
+        if (opt->flags & VSH_OFLAG_REQ)
+            *opts_required |= 1ULL << i;
+    }
 }
 
 static vshCmdOptDef helpopt = {
@@ -600,20 +601,12 @@ vshCmdGrpHelp(vshControl *ctl, const vshCmdGrp *grp)
     return true;
 }
 
-bool
-vshCmddefHelp(vshControl *ctl, const vshCmdDef *def)
+static bool
+vshCmddefHelp(const vshCmdDef *def)
 {
     const char *desc = NULL;
     char buf[256];
-    uint64_t opts_need_arg;
-    uint64_t opts_required;
     bool shortopt = false; /* true if 'arg' works instead of '--opt arg' */
-
-    if (vshCmddefOptParse(def, &opts_need_arg, &opts_required)) {
-        vshError(ctl, _("internal error: bad options in command: '%s'"),
-                 def->name);
-        return false;
-    }
 
     fputs(_("  NAME\n"), stdout);
     fprintf(stdout, "    %s - %s\n", def->name,
@@ -1391,14 +1384,8 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
                     tkdata = g_strdup(cmd->alias);
                     cmd = vshCmddefSearch(tkdata);
                 }
-                if (vshCmddefOptParse(cmd, &opts_need_arg,
-                                      &opts_required) < 0) {
-                    if (!partial)
-                        vshError(ctl,
-                                 _("internal error: bad options in command: '%s'"),
-                                 tkdata);
-                    goto syntaxError;
-                }
+
+                vshCmddefOptParse(cmd, &opts_need_arg, &opts_required);
                 VIR_FREE(tkdata);
             } else if (data_only) {
                 goto get_data;
@@ -3108,7 +3095,7 @@ cmdHelp(vshControl *ctl, const vshCmd *cmd)
     if ((def = vshCmddefSearch(name))) {
         if (def->flags & VSH_CMD_FLAG_ALIAS)
             def = vshCmddefSearch(def->alias);
-        return vshCmddefHelp(ctl, def);
+        return vshCmddefHelp(def);
     } else if ((grp = vshCmdGrpSearch(name))) {
         return vshCmdGrpHelp(ctl, grp);
     } else {
@@ -3305,9 +3292,6 @@ const vshCmdInfo info_selftest[] = {
     {.name = NULL}
 };
 
-/* Prints help for every command.
- * That runs vshCmddefOptParse which validates
- * the per-command options structure. */
 bool
 cmdSelfTest(vshControl *ctl,
             const vshCmd *cmd G_GNUC_UNUSED)

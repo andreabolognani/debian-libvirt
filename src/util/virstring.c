@@ -259,16 +259,6 @@ virStringListMerge(char ***dst,
 }
 
 
-void virStringListAutoFree(char ***strings)
-{
-    if (!*strings)
-        return;
-
-    g_strfreev(*strings);
-    *strings = NULL;
-}
-
-
 /**
  * virStringListFreeCount:
  * @strings: array of strings to free
@@ -761,6 +751,24 @@ virSkipSpacesAndBackslash(const char **str)
         cur++;
     *str = cur;
 }
+
+
+/**
+ * virSkipToDigit:
+ * @str: pointer to the char pointer used
+ *
+ * Skip over any character that is not 0-9
+ */
+void
+virSkipToDigit(const char **str)
+{
+    const char *cur = *str;
+
+    while (*cur && !g_ascii_isdigit(*cur))
+        cur++;
+    *str = cur;
+}
+
 
 /**
  * virTrimSpaces:

@@ -3126,9 +3126,12 @@ virNWFilterRuleInstSortPtr(const void *a, const void *b)
 
 
 static int
-ebiptablesFilterOrderSort(const virHashKeyValuePair *a,
-                          const virHashKeyValuePair *b)
+ebiptablesFilterOrderSort(const void *va,
+                          const void *vb)
 {
+    const virHashKeyValuePair *a = va;
+    const virHashKeyValuePair *b = vb;
+
     /* elements' values has been limited to range [-1000, 1000] */
     return *(virNWFilterChainPriority *)a->value -
            *(virNWFilterChainPriority *)b->value;
@@ -3282,18 +3285,20 @@ ebtablesSubChainInstSort(const void *a, const void *b)
 
 
 static int
-ebtablesGetSubChainInsts(virHashTablePtr chains,
+ebtablesGetSubChainInsts(GHashTable *chains,
                          bool incoming,
                          ebtablesSubChainInstPtr **insts,
                          size_t *ninsts)
 {
     g_autofree virHashKeyValuePairPtr filter_names = NULL;
+    size_t nfilter_names;
     size_t i;
 
-    filter_names = virHashGetItems(chains,
-                                   ebiptablesFilterOrderSort);
+    filter_names = virHashGetItems(chains, &nfilter_names, false);
     if (filter_names == NULL)
         return -1;
+
+    qsort(filter_names, nfilter_names, sizeof(*filter_names), ebiptablesFilterOrderSort);
 
     for (i = 0; filter_names[i].key; i++) {
         g_autofree ebtablesSubChainInstPtr inst = NULL;
@@ -3323,8 +3328,8 @@ ebiptablesApplyNewRules(const char *ifname,
 {
     size_t i, j;
     g_autoptr(virFirewall) fw = virFirewallNew();
-    g_autoptr(virHashTable) chains_in_set  = virHashNew(NULL);
-    g_autoptr(virHashTable) chains_out_set = virHashNew(NULL);
+    g_autoptr(GHashTable) chains_in_set  = virHashNew(NULL);
+    g_autoptr(GHashTable) chains_out_set = virHashNew(NULL);
     bool haveEbtables = false;
     bool haveIptables = false;
     bool haveIp6tables = false;

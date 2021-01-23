@@ -87,6 +87,9 @@
         <ref name="capccwdev"/>
         <ref name="capcssdev"/>
         <ref name="capvdpa"/>
+        <ref name="capapcard"/>
+        <ref name="capapqueue"/>
+        <ref name="capapmatrix"/>
       </choice>
     </element>
   </define>
@@ -216,27 +219,7 @@
     </optional>
 
     <optional>
-      <element name="capability">
-        <attribute name="type">
-          <value>mdev_types</value>
-        </attribute>
-        <oneOrMore>
-          <element name="type">
-            <attribute name="id">
-              <data type="string"/>
-            </attribute>
-            <optional>
-              <element name="name"><text/></element>
-            </optional>
-            <element name="deviceAPI">
-              <value>vfio-pci</value>
-            </element>
-            <element name="availableInstances">
-              <ref name="unsignedInt"/>
-            </element>
-          </element>
-        </oneOrMore>
-      </element>
+      <ref name="mdev_types"/>
     </optional>
 
     <optional>
@@ -674,6 +657,9 @@
     <element name="devno">
       <ref name="ccwDevnoRange"/>
     </element>
+    <optional>
+      <ref name="mdev_types"/>
+    </optional>
   </define>
 
   <define name="capvdpa">
@@ -683,6 +669,36 @@
     <element name="chardev">
       <ref name="path"/>
     </element>
+  </define>
+
+  <define name="capapcard">
+    <attribute name="type">
+      <value>ap_card</value>
+    </attribute>
+    <element name="ap-adapter">
+      <ref name="uint8"/>
+    </element>
+  </define>
+
+  <define name="capapqueue">
+    <attribute name="type">
+      <value>ap_queue</value>
+    </attribute>
+    <element name="ap-adapter">
+      <ref name="uint8"/>
+    </element>
+    <element name="ap-domain">
+      <ref name="apDomainRange"/>
+    </element>
+  </define>
+
+  <define name='capapmatrix'>
+    <attribute name='type'>
+      <value>ap_matrix</value>
+    </attribute>
+    <optional>
+      <ref name="mdev_types"/>
+    </optional>
   </define>
 
   <define name="address">
@@ -704,6 +720,46 @@
     <data type="string">
       <param name="pattern">/[a-zA-Z0-9_\+\-/%]+</param>
     </data>
+  </define>
+
+  <define name="mdev_types">
+    <element name="capability">
+      <attribute name="type">
+        <value>mdev_types</value>
+      </attribute>
+      <oneOrMore>
+        <element name="type">
+          <attribute name="id">
+            <data type="string"/>
+          </attribute>
+          <optional>
+            <element name="name"><text/></element>
+          </optional>
+          <element name="deviceAPI">
+            <choice>
+              <value>vfio-pci</value>
+              <value>vfio-ccw</value>
+              <value>vfio-ap</value>
+            </choice>
+          </element>
+          <element name="availableInstances">
+            <ref name="unsignedInt"/>
+          </element>
+        </element>
+      </oneOrMore>
+    </element>
+  </define>
+
+  <define name="apDomainRange">
+    <choice>
+      <data type="string">
+        <param name="pattern">0x[0-9a-fA-F]{1,4}</param>
+      </data>
+      <data type="int">
+        <param name="minInclusive">0</param>
+        <param name="maxInclusive">255</param>
+      </data>
+    </choice>
   </define>
 
 </grammar>

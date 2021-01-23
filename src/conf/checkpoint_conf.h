@@ -42,7 +42,6 @@ typedef struct _virDomainCheckpointDiskDef virDomainCheckpointDiskDef;
 typedef virDomainCheckpointDiskDef *virDomainCheckpointDiskDefPtr;
 struct _virDomainCheckpointDiskDef {
     char *name;     /* name matching the <target dev='...' of the domain */
-    int idx;        /* index within checkpoint->dom->disks that matches name */
     int type;       /* virDomainCheckpointType */
     char *bitmap;   /* bitmap name, if type is bitmap */
     unsigned long long size; /* current checkpoint size in bytes */
@@ -90,10 +89,13 @@ virDomainCheckpointDefFormat(virDomainCheckpointDefPtr def,
 int
 virDomainCheckpointAlignDisks(virDomainCheckpointDefPtr checkpoint);
 
-int virDomainCheckpointRedefinePrep(virDomainObjPtr vm,
-                                    virDomainCheckpointDefPtr *def,
-                                    virDomainMomentObjPtr *checkpoint,
-                                    virDomainXMLOptionPtr xmlopt,
-                                    bool *update_current);
+int
+virDomainCheckpointRedefinePrep(virDomainObjPtr vm,
+                                virDomainCheckpointDefPtr def,
+                                bool *update_current);
+
+virDomainMomentObjPtr
+virDomainCheckpointRedefineCommit(virDomainObjPtr vm,
+                                  virDomainCheckpointDefPtr *defptr);
 
 VIR_ENUM_DECL(virDomainCheckpoint);

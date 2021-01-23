@@ -883,30 +883,6 @@ virJSONValueObjectGet(virJSONValuePtr object,
 }
 
 
-static virJSONValuePtr
-virJSONValueObjectSteal(virJSONValuePtr object,
-                        const char *key)
-{
-    size_t i;
-    virJSONValuePtr obj = NULL;
-
-    if (object->type != VIR_JSON_TYPE_OBJECT)
-        return NULL;
-
-    for (i = 0; i < object->data.object.npairs; i++) {
-        if (STREQ(object->data.object.pairs[i].key, key)) {
-            obj = g_steal_pointer(&object->data.object.pairs[i].value);
-            VIR_FREE(object->data.object.pairs[i].key);
-            VIR_DELETE_ELEMENT(object->data.object.pairs, i,
-                               object->data.object.npairs);
-            break;
-        }
-    }
-
-    return obj;
-}
-
-
 /* Return the value associated with KEY within OBJECT, but return NULL
  * if the key is missing or if value is not the correct TYPE.  */
 virJSONValuePtr
@@ -929,7 +905,10 @@ virJSONValueObjectStealByType(virJSONValuePtr object,
                               const char *key,
                               virJSONType type)
 {
-    virJSONValuePtr value = virJSONValueObjectSteal(object, key);
+    virJSONValuePtr value;
+
+    if (virJSONValueObjectRemoveKey(object, key, &value) <= 0)
+        return NULL;
 
     if (value && value->type == type)
         return value;
@@ -1463,6 +1442,47 @@ virJSONValueObjectIsNull(virJSONValuePtr object,
     return virJSONValueIsNull(val);
 }
 
+char **
+virJSONValueObjectGetStringArray(virJSONValuePtr object, const char *key)
+{
+    g_auto(GStrv) ret = NULL;
+    virJSONValuePtr data;
+    size_t n;
+    size_t i;
+
+    data = virJSONValueObjectGetArray(object, key);
+    if (!data) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("%s is missing or not an array"),
+                       key);
+        return NULL;
+    }
+
+    n = virJSONValueArraySize(data);
+    ret = g_new0(char *, n + 1);
+    for (i = 0; i < n; i++) {
+        virJSONValuePtr child = virJSONValueArrayGet(data, i);
+        const char *tmp;
+
+        if (!child) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("%s array element is missing item %zu"),
+                           key, i);
+            return NULL;
+        }
+
+        if (!(tmp = virJSONValueGetString(child))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("%s array element does not contain a string"),
+                           key);
+            return NULL;
+        }
+
+        ret[i] = g_strdup(tmp);
+    }
+
+    return g_steal_pointer(&ret);
+}
 
 /**
  * virJSONValueObjectForeachKeyValue:
@@ -2071,7 +2091,7 @@ virJSONValueObjectDeflattenWorker(const char *key,
     virJSONValuePtr retobj = opaque;
     g_autoptr(virJSONValue) newval = NULL;
     virJSONValuePtr existobj;
-    VIR_AUTOSTRINGLIST tokens = NULL;
+    g_auto(GStrv) tokens = NULL;
     size_t ntokens = 0;
 
     /* non-nested keys only need to be copied */

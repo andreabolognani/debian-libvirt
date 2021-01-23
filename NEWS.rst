@@ -8,6 +8,174 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v7.0.0 (2021-01-15)
+===================
+
+* **Project governance**
+
+  * Formal handover of release tarball signing
+
+    Starting from libvirt-6.6 the release tarballs are signed by Jiří Denemark.
+    Releases starting with 7.0 contain a note from the previous maintainer
+    Daniel Veillard offically handing over the signing of packages so that the
+    transition can be verified.
+
+* **New features**
+
+  * nodedev: Add node device driver support for AP devices
+
+    Add support for detecting and listing Adjunct Processor(AP) cards, AP
+    queues and AP matrix devices (which are capable of MDEV) of a KVM host
+    system in libvirt node device driver with correct object relationships.
+
+  * qemu: Allow control of ``qcow2`` metadata cache
+
+    In specific usecases such as when massive storage images are used it's
+    possible to achieve better performance by increasing the metadata cache
+    size. The new knob allows advanced users setting the size according to
+    qemu's documentation to suit their image.
+
+  * conf: Add support for keeping TPM emulator state
+
+    Currently, swtpm TPM state file is removed when a transient domain is
+    powered off or undefined. Add per-TPM emulator option ``persistent_state``
+    for keeping TPM state.
+
+* **Improvements**
+
+  * qemu: Discourage users from polling ``virDomainGetBlockJobInfo`` for block
+    job completion
+
+    Document that waiting for events is a more robust solution.
+
+  * secret: Relax XML schema for the ``usage`` name of a ``secret``
+
+    Various bits of documentation of how to use libvirt with RBD volumes used
+    an usage name which would not pass the XML validation. Relax the requirement
+    to make such XMLs valid.
+
+  * virnetdevopenvswitch: Various improvements
+
+    The code that handles ``<interface type='vhostuser'/>`` was given various
+    improvements. So far, libvirt assumed vhostuser interfaces are handled
+    exclusively by OpenVSwitch and refused to start a guest if it was not so.
+    Now a guest can be started successfully even if the interface is created by
+    some other tool (e.g. ``dpdk-testpmd``). Also, the code that detects the
+    interface name was adapted to new versions of OpenVSwitch and thus can
+    detect name more reliably.
+
+  * qemu: Report guest disks informations in ``virDomainGetGuestInfo``
+
+    Libvirt is now able to report disks and filesystems from the guest's
+    perspective (using guest agent). And with sufficiently new guest agent
+    (5.3.0 or newer) the API also handles disks on CCW bus.
+
+* **Bug fixes**
+
+  * qemu: Fix logic bug in inactive snapshot deletion
+
+    This release fixes a bug introduced in libvirt-6.9 where libvirt's
+    snapshot metadata would not be deleted on successful snapshot deletion.
+
+  * qemu: Fix VMs with ``<iotune>`` on an empty cdrom
+
+    Specifying ``<iotune>`` for an empty cdrom would prevent the VM from
+    starting as qemu doesn't accept the tuning for an empty drive. We now
+    postpone setting the parameters until a new media is inserted.
+
+  * Avoid taking extra host memory when launching pSeries guests
+
+    Under certain conditions, pSeries guests were being launched with more
+    RAM than it was specified in the domain XML by the user. New pSeries
+    domains created with libvirt 7.0.0 will always launch with the right
+    amount of initial memory. Existing guests that migrate from an older
+    libvirt version to 7.0.0 will not be affected by this change.
+
+  * qemu: Don't cache NUMA caps
+
+    ``virsh capabilities`` contains ``<topology/>`` section which reports NUMA
+    topology among with amount of free hugepages per each NUMA node. However,
+    these amounts were not updated between calls.
+
+  * networkGetDHCPLeases: Handle leases with infinite expiry time
+
+    Since libvirt-6.3.0 it is possible to configure expiry time for DHCP
+    leases. If the expiry time was infinite then ``virsh net-dhcp-leases``
+    and NSS plugins refused to work.
+
+  * qemu: Don't prealloc mem for real NVDIMMs
+
+    If a real life NVDIMM is assigned to a guest via ``<memory model='nvdimm'/>``
+    then QEMU is no longer instructed to preallocate memory
+    for it. This prevents unnecessary wear on the NVDIMM.
+
+  * network: Introduce mutex for bridge name generation
+
+    When new libvirt network is defined or created and the input XML does not
+    contain any bridge name, libvirt generates one. However, it might have
+    happened that the same name would be generated for different networks if
+    two or more networks were defined/created at once.
+
+
+v6.10.0 (2020-12-01)
+====================
+
+* **Security**
+
+  * qemu: Enable client TLS certificate validation by default for ``chardev``,
+    ``migration``, and ``backup`` servers.
+
+  The default value if qemu.conf options ``chardev_tls_x509_verify``,
+  ``migrate_tls_x509_verify``, or  ``backup_tls_x509_verify`` are not specified
+  explicitly in the config file and also the ``default_tls_x509_verify`` config
+  option is missing are now '1'. This ensures that only legitimate clients
+  access servers, which don't have any additional form of authentication.
+
+* **New features**
+
+  * qemu: Implement OpenSSH authorized key file management APIs
+
+    New APIs (``virDomainAuthorizedSSHKeysGet()`` and
+    ``virDomainAuthorizedSSHKeysSet()``) and virsh commands
+    (``get-user-sshkeys`` and ``set-user-sshkeys``) are added to manage
+    authorized_keys SSH file for user.
+
+  * hyperv: implement new APIs
+
+    The ``virDomainGetMaxMemory()``, ``virDomainSetMaxMemory()``,
+    ``virDomainGetSchedulerType()``, ``virDomainGetSchedulerParameters()``,
+    ``virDomainGetSchedulerParametersFlags()``, ``virDomainGetVcpus()``,
+    ``virDomainGetVcpusFlags()``, ``virDomainGetMaxVcpus()``,
+    ``virDomainSetVcpus()``, and ``virDomainSetVcpusFlags()`` APIs have been
+    implemented in the Hyper-V driver.
+
+* **Improvements**
+
+  * virsh: Support network disks in ``virsh attach-disk``
+
+    The ``virsh attach-disk`` helper command which simplifies attaching of disks
+    without the need for the user to formulate the disk XML manually now
+    supports network-backed images. Users can specify the protocol and host
+    specification with new command line arguments. Please refer to the man
+    page of virsh for further information.
+
+* **Bug fixes**
+
+  * remote: fixed performance regression in SSH tunnelling
+
+    The ``virt-ssh-helper`` binary introduced in 6.8.0 had very
+    poor scalability which impacted libvirt tunnelled migration
+    and storage volume upload/download in particular. It has been
+    updated and now has performance on par with netcat.
+
+* **Removed features**
+
+  * hyperv: removed support for the Hyper-V V1 WMI API
+
+    This drops support for Windows Server 2008R2 and 2012.
+    The earliest supported version is now Windows 2012R2.
+
+
 v6.9.0 (2020-11-02)
 ===================
 
@@ -48,8 +216,6 @@ v6.9.0 (2020-11-02)
     VMs using the QEMU hypervisor can now specify vDPA network devices
     using ``<interface type='vdpa'>``. The node device APIs also now
     list and provide XML descriptions for vDPA devices.
-
-* **Improvements**
 
 * **Bug fixes**
 
@@ -142,17 +308,17 @@ v6.8.0 (2020-10-01)
 
   * qemu: Preserve qcow2 cluster size after external snapshots
 
-   The new overlay image which is installed on top of the current chain when
-   taking an external snapshot now preserves the cluser size of the original
-   top image to preserve any performance tuning done on the original image.
+    The new overlay image which is installed on top of the current chain when
+    taking an external snapshot now preserves the cluser size of the original
+    top image to preserve any performance tuning done on the original image.
 
 * **Bug fixes**
 
   * qemu: Various (i)SCSI backed hostdev fixes
 
-   (i)SCSI backed hostdevs now work again with an arbitrarily long
-   user-specified device alias and also honor the 'readonly' property after a
-   recent rewrite.
+    (i)SCSI backed hostdevs now work again with an arbitrarily long
+    user-specified device alias and also honor the 'readonly' property after a
+    recent rewrite.
 
 * **Removed features**
 
@@ -215,6 +381,11 @@ v6.7.0 (2020-09-01)
     and the guest, unaligned NVDIMM sizes for pSeries guests will now be
     forbidden and no size auto-alignment will be made. Instead, libvirt will
     suggest an aligned round up size for the user.
+
+  * apparmor: Several improvements
+
+    Add support for virtiofs filesystem and allow QEMU to load old
+    shared objects after upgrade.
 
 * **Bug fixes**
 
@@ -468,6 +639,8 @@ v6.4.0 (2020-06-02)
     be auto-filled with the remaining vCPUs. This behavior reproduces what QEMU
     already does in these cases. Users are encouraged to provide complete NUMA
     topologies to avoid unexpected changes in the domain XML.
+
+  * Cooperlake x86 CPU model is added
 
 * **Bug fixes**
 

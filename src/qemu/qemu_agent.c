@@ -1815,8 +1815,8 @@ qemuAgentSetTime(qemuAgentPtr agent,
     return ret;
 }
 
-static void
-qemuAgentDiskInfoFree(qemuAgentDiskInfoPtr info)
+void
+qemuAgentDiskAddressFree(qemuAgentDiskAddressPtr info)
 {
     if (!info)
         return;
@@ -1824,8 +1824,24 @@ qemuAgentDiskInfoFree(qemuAgentDiskInfoPtr info)
     g_free(info->serial);
     g_free(info->bus_type);
     g_free(info->devnode);
+    g_free(info->ccw_addr);
     g_free(info);
 }
+
+
+void
+qemuAgentDiskInfoFree(qemuAgentDiskInfoPtr info)
+{
+    if (!info)
+        return;
+
+    g_free(info->name);
+    g_strfreev(info->dependencies);
+    qemuAgentDiskAddressFree(info->address);
+    g_free(info->alias);
+    g_free(info);
+}
+
 
 void
 qemuAgentFSInfoFree(qemuAgentFSInfoPtr info)
@@ -1840,11 +1856,67 @@ qemuAgentFSInfoFree(qemuAgentFSInfoPtr info)
     g_free(info->fstype);
 
     for (i = 0; i < info->ndisks; i++)
-        qemuAgentDiskInfoFree(info->disks[i]);
+        qemuAgentDiskAddressFree(info->disks[i]);
     g_free(info->disks);
 
     g_free(info);
 }
+
+
+static qemuAgentDiskAddressPtr
+qemuAgentGetDiskAddress(virJSONValuePtr json)
+{
+    virJSONValuePtr pci;
+    virJSONValuePtr ccw;
+    g_autoptr(qemuAgentDiskAddress) addr = NULL;
+
+    addr = g_new0(qemuAgentDiskAddress, 1);
+    addr->bus_type = g_strdup(virJSONValueObjectGetString(json, "bus-type"));
+    addr->serial = g_strdup(virJSONValueObjectGetString(json, "serial"));
+    addr->devnode = g_strdup(virJSONValueObjectGetString(json, "dev"));
+
+#define GET_DISK_ADDR(jsonObject, var, name) \
+    do { \
+        if (virJSONValueObjectGetNumberUint(jsonObject, name, var) < 0) { \
+            virReportError(VIR_ERR_INTERNAL_ERROR, \
+                           _("'%s' missing"), name); \
+            return NULL; \
+        } \
+    } while (0)
+
+    GET_DISK_ADDR(json, &addr->bus, "bus");
+    GET_DISK_ADDR(json, &addr->target, "target");
+    GET_DISK_ADDR(json, &addr->unit, "unit");
+
+    if (!(pci = virJSONValueObjectGet(json, "pci-controller"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("'pci-controller' missing"));
+        return NULL;
+    }
+
+    GET_DISK_ADDR(pci, &addr->pci_controller.domain, "domain");
+    GET_DISK_ADDR(pci, &addr->pci_controller.bus, "bus");
+    GET_DISK_ADDR(pci, &addr->pci_controller.slot, "slot");
+    GET_DISK_ADDR(pci, &addr->pci_controller.function, "function");
+
+    if ((ccw = virJSONValueObjectGet(json, "ccw-address"))) {
+        g_autofree virDomainDeviceCCWAddressPtr ccw_addr = NULL;
+
+        ccw_addr = g_new0(virDomainDeviceCCWAddress, 1);
+
+        GET_DISK_ADDR(ccw, &ccw_addr->cssid, "cssid");
+        if (ccw_addr->cssid == 0)  /* Guest CSSID 0 is 0xfe on host */
+            ccw_addr->cssid = 0xfe;
+        GET_DISK_ADDR(ccw, &ccw_addr->ssid, "ssid");
+        GET_DISK_ADDR(ccw, &ccw_addr->devno, "devno");
+
+        addr->ccw_addr = g_steal_pointer(&ccw_addr);
+    }
+#undef GET_DISK_ADDR
+
+    return g_steal_pointer(&addr);
+}
+
 
 static int
 qemuAgentGetFSInfoFillDisks(virJSONValuePtr jsondisks,
@@ -1862,14 +1934,11 @@ qemuAgentGetFSInfoFillDisks(virJSONValuePtr jsondisks,
     ndisks = virJSONValueArraySize(jsondisks);
 
     if (ndisks)
-        fsinfo->disks = g_new0(qemuAgentDiskInfoPtr, ndisks);
+        fsinfo->disks = g_new0(qemuAgentDiskAddressPtr, ndisks);
     fsinfo->ndisks = ndisks;
 
     for (i = 0; i < fsinfo->ndisks; i++) {
         virJSONValuePtr jsondisk = virJSONValueArrayGet(jsondisks, i);
-        virJSONValuePtr pci;
-        qemuAgentDiskInfoPtr disk;
-        const char *val;
 
         if (!jsondisk) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1879,44 +1948,8 @@ qemuAgentGetFSInfoFillDisks(virJSONValuePtr jsondisks,
             return -1;
         }
 
-        fsinfo->disks[i] = g_new0(qemuAgentDiskInfo, 1);
-        disk = fsinfo->disks[i];
-
-        if ((val = virJSONValueObjectGetString(jsondisk, "bus-type")))
-            disk->bus_type = g_strdup(val);
-
-        if ((val = virJSONValueObjectGetString(jsondisk, "serial")))
-            disk->serial = g_strdup(val);
-
-        if ((val = virJSONValueObjectGetString(jsondisk, "dev")))
-            disk->devnode = g_strdup(val);
-
-#define GET_DISK_ADDR(jsonObject, var, name) \
-        do { \
-            if (virJSONValueObjectGetNumberUint(jsonObject, name, var) < 0) { \
-                virReportError(VIR_ERR_INTERNAL_ERROR, \
-                               _("'%s' missing in guest-get-fsinfo " \
-                                 "'disk' data"), name); \
-                return -1; \
-            } \
-        } while (0)
-
-        GET_DISK_ADDR(jsondisk, &disk->bus, "bus");
-        GET_DISK_ADDR(jsondisk, &disk->target, "target");
-        GET_DISK_ADDR(jsondisk, &disk->unit, "unit");
-
-        if (!(pci = virJSONValueObjectGet(jsondisk, "pci-controller"))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("'pci-controller' missing in guest-get-fsinfo "
-                             "'disk' data"));
+        if (!(fsinfo->disks[i] = qemuAgentGetDiskAddress(jsondisk)))
             return -1;
-        }
-
-        GET_DISK_ADDR(pci, &disk->pci_controller.domain, "domain");
-        GET_DISK_ADDR(pci, &disk->pci_controller.bus, "bus");
-        GET_DISK_ADDR(pci, &disk->pci_controller.slot, "slot");
-        GET_DISK_ADDR(pci, &disk->pci_controller.function, "function");
-#undef GET_DISK_ADDR
     }
 
     return 0;
@@ -2128,7 +2161,7 @@ qemuAgentGetInterfaceOneAddress(virDomainIPAddressPtr ip_addr,
 static int
 qemuAgentGetInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
                                size_t *ifaces_count,
-                               virHashTablePtr ifaces_store,
+                               GHashTable *ifaces_store,
                                virJSONValuePtr iface_obj)
 {
     virJSONValuePtr ip_addr_arr = NULL;
@@ -2205,7 +2238,7 @@ static int
 qemuAgentGetAllInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
                                   virJSONValuePtr ret_array)
 {
-    g_autoptr(virHashTable) ifaces_store = NULL;
+    g_autoptr(GHashTable) ifaces_store = NULL;
     size_t ifaces_count = 0;
     size_t i;
 
@@ -2495,4 +2528,200 @@ qemuAgentSetResponseTimeout(qemuAgentPtr agent,
                             int timeout)
 {
     agent->timeout = timeout;
+}
+
+/**
+ * qemuAgentSSHGetAuthorizedKeys:
+ * @agent: agent object
+ * @user: user to get authorized keys for
+ * @keys: Array of authorized keys
+ *
+ * Fetch the public keys from @user's $HOME/.ssh/authorized_keys.
+ *
+ * Returns: number of keys returned on success,
+ *          -1 otherwise (error is reported)
+ */
+int
+qemuAgentSSHGetAuthorizedKeys(qemuAgentPtr agent,
+                              const char *user,
+                              char ***keys)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValuePtr data = NULL;
+
+    if (!(cmd = qemuAgentMakeCommand("guest-ssh-get-authorized-keys",
+                                     "s:username", user,
+                                     NULL)))
+        return -1;
+
+    if (qemuAgentCommand(agent, cmd, &reply, agent->timeout) < 0)
+        return -1;
+
+    if (!(data = virJSONValueObjectGetObject(reply, "return"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("qemu agent didn't return an array of keys"));
+        return -1;
+    }
+
+    if (!(*keys = virJSONValueObjectGetStringArray(data, "keys")))
+        return -1;
+
+    return g_strv_length(*keys);
+}
+
+
+/**
+ * qemuAgentSSHAddAuthorizedKeys:
+ * @agent: agent object
+ * @user: user to add authorized keys for
+ * @keys: Array of authorized keys
+ * @nkeys: number of items in @keys array
+ * @reset: whether to truncate authorized keys file before writing
+ *
+ * Append SSH @keys into the @user's authorized keys file. If
+ * @reset is true then the file is truncated before write and
+ * thus contains only newly added @keys.
+ *
+ * Returns: 0 on success,
+ *          -1 otherwise (error is reported)
+ */
+int
+qemuAgentSSHAddAuthorizedKeys(qemuAgentPtr agent,
+                              const char *user,
+                              const char **keys,
+                              size_t nkeys,
+                              bool reset)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    g_autoptr(virJSONValue) jkeys = NULL;
+
+    jkeys = qemuAgentMakeStringsArray(keys, nkeys);
+    if (jkeys == NULL)
+        return -1;
+
+    if (!(cmd = qemuAgentMakeCommand("guest-ssh-add-authorized-keys",
+                                     "s:username", user,
+                                     "a:keys", &jkeys,
+                                     "b:reset", reset,
+                                     NULL)))
+        return -1;
+
+    return qemuAgentCommand(agent, cmd, &reply, agent->timeout);
+}
+
+
+/**
+ * qemuAgentSSHRemoveAuthorizedKeys:
+ * @agent: agent object
+ * @user: user to remove authorized keys for
+ * @keys: Array of authorized keys
+ * @nkeys: number of items in @keys array
+ *
+ * Remove SSH @keys from the @user's authorized keys file. It's
+ * not considered an error when trying to remove a non-existent
+ * key.
+ *
+ * Returns: 0 on success,
+ *          -1 otherwise (error is reported)
+ */
+int
+qemuAgentSSHRemoveAuthorizedKeys(qemuAgentPtr agent,
+                                 const char *user,
+                                 const char **keys,
+                                 size_t nkeys)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    g_autoptr(virJSONValue) jkeys = NULL;
+
+    jkeys = qemuAgentMakeStringsArray(keys, nkeys);
+    if (jkeys == NULL)
+        return -1;
+
+    if (!(cmd = qemuAgentMakeCommand("guest-ssh-remove-authorized-keys",
+                                     "s:username", user,
+                                     "a:keys", &jkeys,
+                                     NULL)))
+        return -1;
+
+    return qemuAgentCommand(agent, cmd, &reply, agent->timeout);
+}
+
+
+int qemuAgentGetDisks(qemuAgentPtr agent,
+                      qemuAgentDiskInfoPtr **disks,
+                      bool report_unsupported)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValuePtr data = NULL;
+    size_t ndata;
+    size_t i;
+    int rc;
+
+    if (!(cmd = qemuAgentMakeCommand("guest-get-disks", NULL)))
+        return -1;
+
+    if ((rc = qemuAgentCommandFull(agent, cmd, &reply, agent->timeout,
+                                   report_unsupported)) < 0)
+        return rc;
+
+    if (!(data = virJSONValueObjectGetArray(reply, "return"))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("qemu agent didn't return an array of disks"));
+        return -1;
+    }
+
+    ndata = virJSONValueArraySize(data);
+
+    *disks = g_new0(qemuAgentDiskInfoPtr, ndata);
+
+    for (i = 0; i < ndata; i++) {
+        virJSONValuePtr addr;
+        virJSONValuePtr entry = virJSONValueArrayGet(data, i);
+        qemuAgentDiskInfoPtr disk;
+
+        if (!entry) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("array element missing in guest-get-disks return "
+                             "value"));
+            goto error;
+        }
+
+        disk = g_new0(qemuAgentDiskInfo, 1);
+        (*disks)[i] = disk;
+
+        disk->name = g_strdup(virJSONValueObjectGetString(entry, "name"));
+        if (!disk->name) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("'name' missing in reply of guest-get-disks"));
+            goto error;
+        }
+
+        if (virJSONValueObjectGetBoolean(entry, "partition", &disk->partition) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("'partition' missing in reply of guest-get-disks"));
+            goto error;
+        }
+
+        disk->dependencies = virJSONValueObjectGetStringArray(entry, "dependencies");
+        disk->alias = g_strdup(virJSONValueObjectGetString(entry, "alias"));
+        addr = virJSONValueObjectGetObject(entry, "address");
+        if (addr) {
+            disk->address = qemuAgentGetDiskAddress(addr);
+            if (!disk->address)
+                goto error;
+        }
+    }
+
+    return ndata;
+
+ error:
+    for (i = 0; i < ndata; i++) {
+        qemuAgentDiskInfoFree((*disks)[i]);
+    }
+    g_free(*disks);
+    return -1;
 }

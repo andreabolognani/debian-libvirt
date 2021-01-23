@@ -60,8 +60,6 @@ typedef struct _virCgroupV2Controller virCgroupV2Controller;
 typedef virCgroupV2Controller *virCgroupV2ControllerPtr;
 
 struct _virCgroup {
-    char *path;
-
     virCgroupBackendPtr backends[VIR_CGROUP_BACKEND_TYPE_LAST];
 
     virCgroupV1Controller legacy[VIR_CGROUP_CONTROLLER_LAST];
@@ -112,12 +110,6 @@ int virCgroupGetValueForBlkDev(const char *str,
                                const char *devPath,
                                char **value);
 
-int virCgroupNew(pid_t pid,
-                 const char *path,
-                 virCgroupPtr parent,
-                 int controllers,
-                 virCgroupPtr *group);
-
 int virCgroupNewPartition(const char *path,
                           bool create,
                           int controllers,
@@ -127,9 +119,8 @@ int virCgroupNewPartition(const char *path,
 int virCgroupNewDomainPartition(virCgroupPtr partition,
                                 const char *driver,
                                 const char *name,
-                                bool create,
                                 virCgroupPtr *group)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(5);
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(4);
 
 int virCgroupRemoveRecursively(char *grppath);
 

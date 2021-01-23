@@ -29,6 +29,10 @@
 #include <stdlib.h>
 #include "glibcompat.h"
 
+#if defined __clang_analyzer__ || defined __COVERITY__
+# define STATIC_ANALYSIS 1
+#endif
+
 #if STATIC_ANALYSIS
 # undef NDEBUG /* Don't let a prior NDEBUG definition cause trouble.  */
 # include <assert.h>
@@ -232,6 +236,16 @@
         (b) = (a) ^ (b); \
         (a) = (a) ^ (b); \
     } while (0)
+
+
+/**
+ * VIR_IS_POW2:
+ *
+ * Returns true if given number is a power of two
+ */
+#define VIR_IS_POW2(x) \
+    ((x) && !((x) & ((x) - 1)))
+
 
 /**
  * virCheckFlags:

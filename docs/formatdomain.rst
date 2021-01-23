@@ -1766,6 +1766,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      <kvm>
        <hidden state='on'/>
        <hint-dedicated state='on'/>
+       <poll-control='on'/>
      </kvm>
      <xen>
        <e820_host state='on'/>
@@ -1848,12 +1849,13 @@ are:
 ``kvm``
    Various features to change the behavior of the KVM hypervisor.
 
-   ============== ====================================================================== ======= ============================
-   Feature        Description                                                            Value   Since
-   ============== ====================================================================== ======= ============================
-   hidden         Hide the KVM hypervisor from standard MSR based discovery              on, off :since:`1.2.8 (QEMU 2.1.0)`
-   hint-dedicated Allows a guest to enable optimizations when running on dedicated vCPUs on, off :since:`5.7.0 (QEMU 2.12.0)`
-   ============== ====================================================================== ======= ============================
+   ============== ============================================================================ ======= ============================
+   Feature        Description                                                                  Value   Since
+   ============== ============================================================================ ======= ============================
+   hidden         Hide the KVM hypervisor from standard MSR based discovery                    on, off :since:`1.2.8 (QEMU 2.1.0)`
+   hint-dedicated Allows a guest to enable optimizations when running on dedicated vCPUs       on, off :since:`5.7.0 (QEMU 2.12.0)`
+   poll-control   Decrease IO completion latency by introducing a grace period of busy waiting on, off :since:`6.10.0 (QEMU 4.2)`
+   ============== ============================================================================ ======= ============================
 
 ``xen``
    Various features to change the behavior of the Xen hypervisor.
@@ -2368,6 +2370,14 @@ paravirtualized driver is specified via the ``disk`` element.
        </source>
        <target dev='sdb' bus='scsi'/>
      </disk>
+     <disk type='network' device='disk'>
+       <driver name='qemu' type='raw'/>
+       <source protocol='nfs' name='PATH'>
+         <host name='example.com'/>
+         <identity user='USER' group='GROUP'/>
+       </source>
+       <target dev='vda' bus='virtio'/>
+     </disk>
      <disk type='network' device='lun'>
        <driver name='qemu' type='raw'/>
        <source protocol='iscsi' name='iqn.2013-07.com.example:iscsi-nopool/0'>
@@ -2489,7 +2499,7 @@ paravirtualized driver is specified via the ``disk`` element.
    ``network``
       The ``protocol`` attribute specifies the protocol to access to the
       requested image. Possible values are "nbd", "iscsi", "rbd", "sheepdog",
-      "gluster", "vxhs", "http", "https", "ftp", ftps", or "tftp".
+      "gluster", "vxhs", "nfs", "http", "https", "ftp", ftps", or "tftp".
 
       For any ``protocol`` other than ``nbd`` an additional attribute ``name``
       is mandatory to specify which volume/image will be used.
@@ -2599,12 +2609,15 @@ paravirtualized driver is specified via the ``disk`` element.
       sheepdog one of the sheepdog servers (default is localhost:7000) zero or one                                                  7000
       gluster  a server running glusterd daemon                        one or more ( :since:`Since 2.1.0` ), just one prior to that 24007
       vxhs     a server running Veritas HyperScale daemon              only one                                                     9999
+      nfs      a server running Network File System                    only one ( :since:`Since 7.0.0` )                            must be omitted
       ======== ======================================================= ============================================================ ================
 
       gluster supports "tcp", "rdma", "unix" as valid values for the transport
       attribute. nbd supports "tcp" and "unix". Others only support "tcp". If
       nothing is specified, "tcp" is assumed. If the transport is "unix", the
-      socket attribute specifies the path to an AF_UNIX socket.
+      socket attribute specifies the path to an AF_UNIX socket. nfs only
+      supports the use of a "tcp" transport, and does not support using a
+      port at all so it must be omitted.
 
    ``snapshot``
       The ``name`` attribute of ``snapshot`` element can optionally specify an
@@ -2681,6 +2694,15 @@ paravirtualized driver is specified via the ``disk`` element.
    ``timeout``
       Specifies the connection timeout for protocols which support it. Note that
       '0' is considered as if the value is not provided. :since:`Since 6.2.0`
+   ``identity``
+      When using an ``nfs`` protocol, this is used to provide information on the
+      configuration of the user and group. The element has two attributes,
+      ``user`` and ``group``. The user can provide these elements as user or
+      group strings, or as user and group ID numbers directly if the string
+      is formatted using a "+" at the beginning of the ID number. If either
+      of these attributes is omitted, then that field is assumed to be the
+      default value for the current system. If both ``user`` and ``group``
+      are intended to be default, then the entire element may be omitted.
 
    For a "file" or "volume" disk type which represents a cdrom or floppy (the
    ``device`` attribute), it is possible to define policy what to do with the
@@ -2733,6 +2755,11 @@ paravirtualized driver is specified via the ``disk`` element.
    ``format``
       The ``format`` element contains ``type`` attribute which specifies the
       internal format of the backing store, such as ``raw`` or ``qcow2``.
+
+      The ``format`` element can contain ``metadata_cache`` subelement, which
+      has identical semantics to the identically named subelement of ``driver``
+      of a ``disk``.
+
    ``source``
       This element has the same structure as the ``source`` element in ``disk``.
       It specifies which file, device, or network location contains the data of
@@ -2945,6 +2972,44 @@ paravirtualized driver is specified via the ``disk`` element.
       virtio-blk. ( :since:`Since 3.9.0` )
    -  For virtio disks, `Virtio-specific options <#elementsVirtio>`__ can also
       be set. ( :since:`Since 3.5.0` )
+   -  The optional ``metadata_cache`` subelement controls aspects related to the
+      format specific caching of storage image metadata. Note that this setting
+      applies only on the top level image; the identically named subelement of
+      ``backingStore``'s ``format`` element can be used to specify cache
+      settings for the backing image.
+
+      :since:`Since 7.0.0` the maximum size of the metadata cache of ``qcow2``
+      format driver of the ``qemu`` hypervisor can be controlled via the
+      ``max_size`` subelement (see example below).
+
+      In the majority of cases the default configuration used by the hypervisor
+      is sufficient so modifying this setting should not be necessary. For
+      specifics on how the metadata cache of ``qcow2`` in ``qemu`` behaves refer
+      to the ``qemu``
+      `qcow2 cache docs <https://git.qemu.org/?p=qemu.git;a=blob;f=docs/qcow2-cache.txt>`__
+
+      **Example:**
+
+::
+
+   <disk type='file' device='disk'>
+     <driver name='qemu' type='qcow2'>
+       <metadata_cache>
+         <max_size unit='bytes'>1234</max_size>
+       </metadata_cache>
+     </driver>
+     <source file='/var/lib/libvirt/images/domain.qcow'/>
+     <backingStore type='file'>
+       <format type='qcow2'>
+         <metadata_cache>
+           <max_size unit='bytes'>1234</max_size>
+         </metadata_cache>
+       </format>
+       <source file='/var/lib/libvirt/images/snapshot.qcow'/>
+       <backingStore/>
+     </backingStore>
+     <target dev='vdd' bus='virtio'/>
+   </disk>
 
 ``backenddomain``
    The optional ``backenddomain`` element allows specifying a backend domain
@@ -3062,6 +3127,12 @@ A directory on the host that can be accessed directly from the guest.
        <target dir='/import/from/host'/>
        <readonly/>
      </filesystem>
+     <filesystem type='mount' accessmode='mapped' fmode='644' dmode='755'>
+       <driver type='path'/>
+       <source dir='/export/to/guest'/>
+       <target dir='/import/from/host'/>
+       <readonly/>
+     </filesystem>
      <filesystem type='file' accessmode='passthrough'>
        <driver type='loop' format='raw'/>
        <source file='/export/to/guest.img'/>
@@ -3139,6 +3210,13 @@ A directory on the host that can be accessed directly from the guest.
    ``model`` with supported values "virtio-transitional",
    "virtio-non-transitional", or "virtio". See `Virtio transitional
    devices <#elementsVirtioTransitional>`__ for more details.
+
+   The filesystem element has optional attributes ``fmode`` and ``dmode``.
+   These two attributes control the creation mode for files and directories
+   when used with the ``mapped`` value for ``accessmode`` (:since:`since 6.10.0,
+   requires QEMU 2.10` ).  If not specified, QEMU creates files with mode
+   ``600`` and directories with mode ``700``. The setuid, setgid, and sticky
+   bit are unsupported.
 
    The filesystem element has an optional attribute ``multidevs`` which
    specifies how to deal with a filesystem export containing more than one
@@ -3411,7 +3489,8 @@ specific features, such as:
 ``scsi``
    A ``scsi`` controller has an optional attribute ``model``, which is one of
    'auto', 'buslogic', 'ibmvscsi', 'lsilogic', 'lsisas1068', 'lsisas1078',
-   'virtio-scsi', 'vmpvscsi', 'virtio-transitional', 'virtio-non-transitional'.
+   'virtio-scsi', 'vmpvscsi', 'virtio-transitional', 'virtio-non-transitional',
+   'ncr53c90' (as builtin implicit controller only), 'am53c974', 'dc390'.
    See `Virtio transitional devices <#elementsVirtioTransitional>`__ for more
    details.
 ``usb``
@@ -6970,6 +7049,13 @@ Example: usage of the TPM Emulator
    -  '1.2' : creates a TPM 1.2
    -  '2.0' : creates a TPM 2.0
 
+``persistent_state``
+   The ``persistent_state`` attribute indicates whether 'swtpm' TPM state is
+   kept or not when a transient domain is powered off or undefined. This
+   option can be used for preserving TPM state. By default the value is ``no``.
+   This attribute only works with the ``emulator`` backend. The accepted values
+   are ``yes`` and ``no``. :since:`Since 7.0.0`
+
 ``encryption``
    The ``encryption`` element allows the state of a TPM emulator to be
    encrypted. The ``secret`` must reference a secret object that holds the
@@ -7143,7 +7229,7 @@ Example: usage of the memory devices
        </target>
      </memory>
      <memory model='nvdimm'>
-       <uuid>
+       <uuid>9066901e-c90a-46ad-8b55-c18868cf92ae</uuid>
        <source>
          <path>/tmp/nvdimm</path>
        </source>
@@ -7157,7 +7243,7 @@ Example: usage of the memory devices
        </target>
      </memory>
      <memory model='nvdimm' access='shared'>
-       <uuid>
+       <uuid>e39080c8-7f99-4b12-9c43-d80014e977b8</uuid>
        <source>
          <path>/dev/dax0.0</path>
          <alignsize unit='KiB'>2048</alignsize>
@@ -7195,7 +7281,7 @@ Example: usage of the memory devices
 
 ``uuid``
    For pSeries guests, an uuid can be set to identify the nvdimm module. If
-   absent, libvirt will generate an uuid. automatically. This attribute is
+   absent, libvirt will generate an uuid automatically. This attribute is
    allowed only for ``model='nvdimm'`` for pSeries guests. :since:`Since 6.2.0`
 
 ``source``

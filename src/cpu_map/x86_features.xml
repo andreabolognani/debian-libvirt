@@ -1,9 +1,8 @@
 <!--
   After adding new features, update existing test files with
 
-    for json in tests/cputestdata/x86_64-cpuid-*.json; do
-      tests/cputestdata/cpu-cpuid.py diff $json
-    done
+    tests/cputestdata/cpu-data.py diff tests/cputestdata/x86_64-cpuid-*.json
+
 -->
 <cpus>
   <!-- standard features, EDX -->
@@ -339,6 +338,9 @@
   <feature name='avx512-4fmaps'>
     <cpuid eax_in='0x07' ecx_in='0x00' edx='0x00000008'/>
   </feature>
+  <feature name='fsrm'>
+    <cpuid eax_in='0x07' ecx_in='0x00' edx='0x00000010'/>
+  </feature>
   <feature name='md-clear'> <!-- md_clear -->
     <cpuid eax_in='0x07' ecx_in='0x00' edx='0x00000400'/>
   </feature>
@@ -353,6 +355,9 @@
   </feature>
   <feature name='arch-capabilities'> <!-- arch_capabilities, arch-facilities -->
     <cpuid eax_in='0x07' ecx_in='0x00' edx='0x20000000'/>
+  </feature>
+  <feature name='core-capability'>
+    <cpuid eax_in='0x07' ecx_in='0x00' edx='0x40000000'/>
   </feature>
   <feature name='ssbd'>
     <cpuid eax_in='0x07' ecx_in='0x00' edx='0x80000000'/>
@@ -574,5 +579,10 @@
   </feature>
   <feature name='taa-no'>
     <msr index='0x10a' edx='0x00000000' eax='0x00000100'/>
+  </feature>
+
+  <!-- IA32_CORE_CAPABILITIES features -->
+  <feature name='split-lock-detect'>
+    <msr index='0xcf' edx='0x00000000' eax='0x00000020'/>
   </feature>
 </cpus>

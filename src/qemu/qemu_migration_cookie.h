@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "qemu_domain.h"
+#include "qemu_domainjob.h"
 #include "qemu_migration_params.h"
 #include "virenum.h"
 
@@ -183,3 +185,10 @@ qemuMigrationCookieAddPersistent(qemuMigrationCookiePtr mig,
 
 virDomainDefPtr
 qemuMigrationCookieGetPersistent(qemuMigrationCookiePtr mig);
+
+/* qemuMigrationCookieXMLFormat is exported for test use only! */
+int
+qemuMigrationCookieXMLFormat(virQEMUDriverPtr driver,
+                             virQEMUCapsPtr qemuCaps,
+                             virBufferPtr buf,
+                             qemuMigrationCookiePtr mig);

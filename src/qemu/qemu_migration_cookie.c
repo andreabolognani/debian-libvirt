@@ -435,7 +435,7 @@ qemuMigrationCookieAddNBD(qemuMigrationCookiePtr mig,
                           virDomainObjPtr vm)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    g_autoptr(virHashTable) stats = virHashNew(g_free);
+    g_autoptr(GHashTable) stats = virHashNew(g_free);
     bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
     size_t i;
     int rc;
@@ -758,7 +758,7 @@ qemuMigrationCookieNBDXMLFormat(qemuMigrationCookieNBDPtr nbd,
 }
 
 
-static int
+int
 qemuMigrationCookieXMLFormat(virQEMUDriverPtr driver,
                              virQEMUCapsPtr qemuCaps,
                              virBufferPtr buf,
@@ -1429,7 +1429,7 @@ qemuMigrationCookieParse(virQEMUDriverPtr driver,
         }
     }
 
-    if (flags & QEMU_MIGRATION_COOKIE_STATS && mig->jobInfo)
+    if (flags & QEMU_MIGRATION_COOKIE_STATS && mig->jobInfo && priv->job.current)
         mig->jobInfo->operation = priv->job.current->operation;
 
     return g_steal_pointer(&mig);

@@ -60,6 +60,10 @@ typedef enum {
 
 bool virCgroupAvailable(void);
 
+int virCgroupNew(const char *path,
+                 int controllers,
+                 virCgroupPtr *group);
+
 int virCgroupNewSelf(virCgroupPtr *group)
     ATTRIBUTE_NONNULL(1);
 
@@ -225,6 +229,13 @@ int virCgroupSetCpuShares(virCgroupPtr group, unsigned long long shares);
 int virCgroupGetCpuShares(virCgroupPtr group, unsigned long long *shares);
 int virCgroupSetupCpuShares(virCgroupPtr cgroup, unsigned long long shares,
                             unsigned long long *realValue);
+
+#define VIR_CGROUP_CPU_PERIOD_MIN 1000LL
+#define VIR_CGROUP_CPU_PERIOD_MAX 1000000LL
+#define VIR_CGROUP_CPU_QUOTA_MIN 1000LL
+/* Based on kernel code ((1ULL << MAX_BW_BITS) - 1) where MAX_BW_BITS is
+ * (64 - BW_SHIFT) and BW_SHIFT is 20 */
+#define VIR_CGROUP_CPU_QUOTA_MAX 17592186044415LL
 
 int virCgroupSetCpuCfsPeriod(virCgroupPtr group, unsigned long long cfs_period);
 int virCgroupGetCpuCfsPeriod(virCgroupPtr group, unsigned long long *cfs_period);

@@ -129,14 +129,11 @@ xenParseXMDisk(char *entry, int hvm)
 
     if (offset == head) {
         /* No source file given, eg CDROM with no media */
-        ignore_value(virDomainDiskSetSource(disk, NULL));
+        virDomainDiskSetSource(disk, NULL);
     } else {
         tmp = g_strndup(head, offset - head);
 
-        if (virDomainDiskSetSource(disk, tmp) < 0) {
-            VIR_FREE(tmp);
-            goto error;
-        }
+        virDomainDiskSetSource(disk, tmp);
         VIR_FREE(tmp);
     }
 
@@ -168,15 +165,11 @@ xenParseXMDisk(char *entry, int hvm)
             len = tmp - src;
             tmp = g_strndup(src, len);
 
-            if (virDomainDiskSetDriver(disk, tmp) < 0) {
-                VIR_FREE(tmp);
-                goto error;
-            }
+            virDomainDiskSetDriver(disk, tmp);
             VIR_FREE(tmp);
 
             /* Strip the prefix we found off the source file name */
-            if (virDomainDiskSetSource(disk, src + len + 1) < 0)
-                goto error;
+            virDomainDiskSetSource(disk, src + len + 1);
 
             src = virDomainDiskGetSource(disk);
         }
@@ -206,16 +199,14 @@ xenParseXMDisk(char *entry, int hvm)
             }
 
             /* Strip the prefix we found off the source file name */
-            if (virDomainDiskSetSource(disk, src + len + 1) < 0)
-                goto error;
+            virDomainDiskSetSource(disk, src + len + 1);
             src = virDomainDiskGetSource(disk);
         }
     }
 
     /* No source, or driver name, so fix to phy: */
-    if (!virDomainDiskGetDriver(disk) &&
-        virDomainDiskSetDriver(disk, "phy") < 0)
-        goto error;
+    if (!virDomainDiskGetDriver(disk))
+        virDomainDiskSetDriver(disk, "phy");
 
     /* phy: type indicates a block device */
     virDomainDiskSetType(disk,

@@ -41,6 +41,7 @@
 #include "virsystemd.h"
 #include "virerror.h"
 #include "viralloc.h"
+#include "virthread.h"
 
 VIR_LOG_INIT("util.cgroup");
 
@@ -190,26 +191,24 @@ virCgroupV1CopyPlacement(virCgroupPtr group,
 {
     size_t i;
     for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
+        bool delim;
+
         if (!group->legacy[i].mountPoint)
             continue;
 
         if (i == VIR_CGROUP_CONTROLLER_SYSTEMD)
             continue;
 
-        if (path[0] == '/') {
-            group->legacy[i].placement = g_strdup(path);
-        } else {
-            bool delim = STREQ(parent->legacy[i].placement, "/") || STREQ(path, "");
-            /*
-             * parent == "/" + path="" => "/"
-             * parent == "/libvirt.service" + path == "" => "/libvirt.service"
-             * parent == "/libvirt.service" + path == "foo" => "/libvirt.service/foo"
-             */
-            group->legacy[i].placement = g_strdup_printf("%s%s%s",
-                                                         parent->legacy[i].placement,
-                                                         delim ? "" : "/",
-                                                         path);
-        }
+        delim = STREQ(parent->legacy[i].placement, "/") || STREQ(path, "");
+        /*
+         * parent == "/" + path="" => "/"
+         * parent == "/libvirt.service" + path == "" => "/libvirt.service"
+         * parent == "/libvirt.service" + path == "foo" => "/libvirt.service/foo"
+         */
+        group->legacy[i].placement = g_strdup_printf("%s%s%s",
+                                                     parent->legacy[i].placement,
+                                                     delim ? "" : "/",
+                                                     path);
     }
 
     return 0;
@@ -358,6 +357,26 @@ virCgroupV1DetectPlacement(virCgroupPtr group,
                                                              path);
             }
         }
+    }
+
+    return 0;
+}
+
+
+static int
+virCgroupV1SetPlacement(virCgroupPtr group,
+                        const char *path)
+{
+    size_t i;
+
+    for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
+        if (!group->legacy[i].mountPoint)
+            continue;
+
+        if (i == VIR_CGROUP_CONTROLLER_SYSTEMD)
+            continue;
+
+        group->legacy[i].placement = g_strdup(path);
     }
 
     return 0;
@@ -545,7 +564,9 @@ virCgroupV1CpuSetInherit(virCgroupPtr parent,
         "cpuset.memory_migrate",
     };
 
-    VIR_DEBUG("Setting up inheritance %s -> %s", parent->path, group->path);
+    VIR_DEBUG("Setting up inheritance %s -> %s",
+              parent->legacy[VIR_CGROUP_CONTROLLER_CPUSET].placement,
+              group->legacy[VIR_CGROUP_CONTROLLER_CPUSET].placement);
     for (i = 0; i < G_N_ELEMENTS(inherit_values); i++) {
         g_autofree char *value = NULL;
 
@@ -583,7 +604,6 @@ virCgroupV1SetMemoryUseHierarchy(virCgroupPtr group)
     if (value == 1)
         return 0;
 
-    VIR_DEBUG("Setting up %s/%s", group->path, filename);
     if (virCgroupSetValueU64(group,
                              VIR_CGROUP_CONTROLLER_MEMORY,
                              filename, 1) < 0)
@@ -601,7 +621,6 @@ virCgroupV1MakeGroup(virCgroupPtr parent,
 {
     size_t i;
 
-    VIR_DEBUG("Make group %s", group->path);
     for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
         g_autofree char *path = NULL;
 
@@ -671,7 +690,6 @@ virCgroupV1Remove(virCgroupPtr group)
     int rc = 0;
     size_t i;
 
-    VIR_DEBUG("Removing cgroup %s", group->path);
     for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
         g_autofree char *grppath = NULL;
 
@@ -697,7 +715,6 @@ virCgroupV1Remove(virCgroupPtr group)
         VIR_DEBUG("Removing cgroup %s and all child cgroups", grppath);
         rc = virCgroupRemoveRecursively(grppath);
     }
-    VIR_DEBUG("Done removing cgroup %s", group->path);
 
     return rc;
 }
@@ -875,12 +892,12 @@ virCgroupV1SetOwner(virCgroupPtr cgroup,
 {
     int ret = -1;
     size_t i;
-    DIR *dh = NULL;
     int direrr;
 
     for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
         g_autofree char *base = NULL;
         struct dirent *de;
+        g_autoptr(DIR) dh = NULL;
 
         if (!((1 << i) & controllers))
             continue;
@@ -915,14 +932,11 @@ virCgroupV1SetOwner(virCgroupPtr cgroup,
                                  base, uid, gid);
             goto cleanup;
         }
-
-        VIR_DIR_CLOSE(dh);
     }
 
     ret = 0;
 
  cleanup:
-    VIR_DIR_CLOSE(dh);
     return ret;
 }
 
@@ -1473,7 +1487,7 @@ virCgroupV1MemoryOnceInit(void)
     g_autoptr(virCgroup) group = NULL;
     unsigned long long int mem_unlimited = 0ULL;
 
-    if (virCgroupNew(-1, "/", NULL, -1, &group) < 0)
+    if (virCgroupNew("/", -1, &group) < 0)
         return;
 
     if (!virCgroupV1HasController(group, VIR_CGROUP_CONTROLLER_MEMORY))
@@ -1536,7 +1550,7 @@ virCgroupV1GetMemoryStat(virCgroupPtr group,
                          unsigned long long *unevictable)
 {
     int ret = -1;
-    char *stat = NULL;
+    g_autofree char *stat = NULL;
     char *line = NULL;
     unsigned long long cacheVal = 0;
     unsigned long long activeAnonVal = 0;
@@ -1601,7 +1615,6 @@ virCgroupV1GetMemoryStat(virCgroupPtr group,
     ret = 0;
 
  cleanup:
-    VIR_FREE(stat);
     return ret;
 }
 
@@ -1869,13 +1882,13 @@ static int
 virCgroupV1SetCpuCfsPeriod(virCgroupPtr group,
                            unsigned long long cfs_period)
 {
-    /* The cfs_period should be greater or equal than 1ms, and less or equal
-     * than 1s.
-     */
-    if (cfs_period < 1000 || cfs_period > 1000000) {
+    if (cfs_period < VIR_CGROUP_CPU_PERIOD_MIN ||
+        cfs_period > VIR_CGROUP_CPU_PERIOD_MAX) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("cfs_period '%llu' must be in range (1000, 1000000)"),
-                       cfs_period);
+                       _("cfs_period '%llu' must be in range (%llu, %llu)"),
+                       cfs_period,
+                       VIR_CGROUP_CPU_PERIOD_MIN,
+                       VIR_CGROUP_CPU_PERIOD_MAX);
         return -1;
     }
 
@@ -1899,13 +1912,14 @@ static int
 virCgroupV1SetCpuCfsQuota(virCgroupPtr group,
                           long long cfs_quota)
 {
-    /* The cfs_quota should be greater or equal than 1ms */
     if (cfs_quota >= 0 &&
-        (cfs_quota < 1000 ||
-         cfs_quota > ULLONG_MAX / 1000)) {
+        (cfs_quota < VIR_CGROUP_CPU_QUOTA_MIN ||
+         cfs_quota > VIR_CGROUP_CPU_QUOTA_MAX)) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("cfs_quota '%lld' must be in range (1000, %llu)"),
-                       cfs_quota, ULLONG_MAX / 1000);
+                       _("cfs_quota '%lld' must be in range (%llu, %llu)"),
+                       cfs_quota,
+                       VIR_CGROUP_CPU_QUOTA_MIN,
+                       VIR_CGROUP_CPU_QUOTA_MAX);
         return -1;
     }
 
@@ -2106,6 +2120,7 @@ virCgroupBackend virCgroupV1Backend = {
     .copyPlacement = virCgroupV1CopyPlacement,
     .detectMounts = virCgroupV1DetectMounts,
     .detectPlacement = virCgroupV1DetectPlacement,
+    .setPlacement = virCgroupV1SetPlacement,
     .validatePlacement = virCgroupV1ValidatePlacement,
     .stealPlacement = virCgroupV1StealPlacement,
     .detectControllers = virCgroupV1DetectControllers,

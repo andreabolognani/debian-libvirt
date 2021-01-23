@@ -2067,9 +2067,9 @@ openvzDomainMigratePrepare3Params(virConnectPtr dconn,
     const char *uri_in = NULL;
     virDomainDefPtr def = NULL;
     virDomainObjPtr vm = NULL;
-    char *my_hostname = NULL;
+    g_autofree char *my_hostname = NULL;
     const char *hostname = NULL;
-    virURIPtr uri = NULL;
+    g_autoptr(virURI) uri = NULL;
     int ret = -1;
 
     if (virTypedParamsValidate(params, nparams, OPENVZ_MIGRATION_PARAMETERS) < 0)
@@ -2113,6 +2113,8 @@ openvzDomainMigratePrepare3Params(virConnectPtr dconn,
                              " but migration requires an FQDN"));
             goto error;
         }
+
+        hostname = my_hostname;
     } else {
         uri = virURIParse(uri_in);
 
@@ -2128,9 +2130,9 @@ openvzDomainMigratePrepare3Params(virConnectPtr dconn,
                            _("missing host in migration URI: %s"),
                            uri_in);
             goto error;
-        } else {
-            hostname = uri->server;
         }
+
+        hostname = uri->server;
     }
 
     *uri_out = g_strdup_printf("ssh://%s", hostname);
@@ -2144,8 +2146,6 @@ openvzDomainMigratePrepare3Params(virConnectPtr dconn,
         virDomainObjListRemove(driver->domains, vm);
 
  done:
-    VIR_FREE(my_hostname);
-    virURIFree(uri);
     virDomainObjEndAPI(&vm);
     return ret;
 }

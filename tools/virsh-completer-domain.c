@@ -30,6 +30,7 @@
 #include "virstring.h"
 #include "virxml.h"
 #include "virperf.h"
+#include "virbitmap.h"
 
 char **
 virshDomainNameCompleter(vshControl *ctl,
@@ -41,7 +42,7 @@ virshDomainNameCompleter(vshControl *ctl,
     int ndomains = 0;
     size_t i = 0;
     char **ret = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(VIR_CONNECT_LIST_DOMAINS_ACTIVE |
                   VIR_CONNECT_LIST_DOMAINS_INACTIVE |
@@ -88,7 +89,7 @@ virshDomainUUIDCompleter(vshControl *ctl,
     int ndomains = 0;
     size_t i = 0;
     char **ret = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(VIR_CONNECT_LIST_DOMAINS_ACTIVE |
                   VIR_CONNECT_LIST_DOMAINS_INACTIVE |
@@ -141,7 +142,7 @@ virshDomainInterfaceCompleter(vshControl *ctl,
     g_autofree xmlNodePtr *interfaces = NULL;
     size_t i;
     unsigned int domainXMLFlags = 0;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(VIRSH_DOMAIN_INTERFACE_COMPLETER_MAC, NULL);
 
@@ -188,7 +189,7 @@ virshDomainDiskTargetCompleter(vshControl *ctl,
     g_autofree xmlNodePtr *disks = NULL;
     int ndisks;
     size_t i;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -220,7 +221,7 @@ virshDomainEventNameCompleter(vshControl *ctl G_GNUC_UNUSED,
                               unsigned int flags)
 {
     size_t i = 0;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -248,7 +249,7 @@ virshDomainInterfaceStateCompleter(vshControl *ctl,
     g_autofree xmlNodePtr *interfaces = NULL;
     g_autofree char *xpath = NULL;
     g_autofree char *state = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -302,7 +303,7 @@ virshDomainDeviceAliasCompleter(vshControl *ctl,
     g_autofree xmlNodePtr *aliases = NULL;
     size_t i;
     unsigned int domainXMLFlags = 0;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -391,7 +392,7 @@ virshDomainPerfEnableCompleter(vshControl *ctl,
                               unsigned int flags)
 {
     size_t i = 0;
-    VIR_AUTOSTRINGLIST events = NULL;
+    g_auto(GStrv) events = NULL;
     const char *event = NULL;
 
     virCheckFlags(0, NULL);
@@ -414,7 +415,7 @@ virshDomainPerfDisableCompleter(vshControl *ctl,
                                 unsigned int flags)
 {
     size_t i = 0;
-    VIR_AUTOSTRINGLIST events = NULL;
+    g_auto(GStrv) events = NULL;
     const char *event = NULL;
 
     virCheckFlags(0, NULL);
@@ -442,7 +443,7 @@ virshDomainIOThreadIdCompleter(vshControl *ctl,
     size_t i;
     int rc;
     char **ret = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -478,7 +479,7 @@ virshDomainVcpuCompleter(vshControl *ctl,
     int nvcpus = 0;
     unsigned int id;
     char **ret = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -518,7 +519,7 @@ virshDomainVcpulistCompleter(vshControl *ctl,
     xmlXPathContextPtr ctxt = NULL;
     int nvcpus = 0;
     unsigned int id;
-    VIR_AUTOSTRINGLIST vcpulist = NULL;
+    g_auto(GStrv) vcpulist = NULL;
     const char *vcpuid = NULL;
     char **ret = NULL;
 
@@ -563,7 +564,7 @@ virshDomainCpulistCompleter(vshControl *ctl,
     int cpunum;
     g_autofree unsigned char *cpumap = NULL;
     unsigned int online;
-    VIR_AUTOSTRINGLIST cpulist = NULL;
+    g_auto(GStrv) cpulist = NULL;
     const char *cpuid = NULL;
 
     virCheckFlags(0, NULL);
@@ -580,4 +581,200 @@ virshDomainCpulistCompleter(vshControl *ctl,
         cpulist[i] = g_strdup_printf("%zu", i);
 
     return virshCommaStringListComplete(cpuid, (const char **)cpulist);
+}
+
+
+char **
+virshDomainVcpulistViaAgentCompleter(vshControl *ctl,
+                                     const vshCmd *cmd,
+                                     unsigned int flags)
+{
+    virDomainPtr dom;
+    bool enable = vshCommandOptBool(cmd, "enable");
+    bool disable = vshCommandOptBool(cmd, "disable");
+    virTypedParameterPtr params = NULL;
+    unsigned int nparams = 0;
+    size_t i;
+    int nvcpus;
+    g_auto(GStrv) cpulist = NULL;
+    const char *vcpuid = NULL;
+    char **ret = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        return NULL;
+
+    if (vshCommandOptStringQuiet(ctl, cmd, "cpulist", &vcpuid) < 0)
+        goto cleanup;
+
+    /* retrieve vcpu count from the guest instead of the hypervisor */
+    if ((nvcpus = virDomainGetVcpusFlags(dom,
+                                         VIR_DOMAIN_VCPU_GUEST |
+                                         VIR_DOMAIN_VCPU_MAXIMUM)) < 0)
+        goto cleanup;
+
+    if (!enable && !disable) {
+        cpulist = g_new0(char *, nvcpus + 1);
+        for (i = 0; i < nvcpus; i++)
+            cpulist[i] = g_strdup_printf("%zu", i);
+    } else {
+        g_autofree char *onlineVcpuStr = NULL;
+        g_autofree unsigned char *vcpumap = NULL;
+        g_autoptr(virBitmap) vcpus = NULL;
+        size_t offset = 0;
+        int dummy;
+
+        if (virDomainGetGuestVcpus(dom, &params, &nparams, 0) < 0)
+            goto cleanup;
+
+        onlineVcpuStr = vshGetTypedParamValue(ctl, &params[1]);
+        if (virBitmapParse(onlineVcpuStr, &vcpus, nvcpus) < 0)
+            goto cleanup;
+
+        if (virBitmapToData(vcpus, &vcpumap, &dummy) < 0)
+            goto cleanup;
+
+        if (enable) {
+            cpulist = g_new0(char *, nvcpus - virBitmapCountBits(vcpus) + 1);
+            for (i = 0; i < nvcpus; i++) {
+                if (VIR_CPU_USED(vcpumap, i) != 0)
+                    continue;
+
+                cpulist[offset++] = g_strdup_printf("%zu", i);
+            }
+        } else if (disable) {
+            cpulist = g_new0(char *, virBitmapCountBits(vcpus) + 1);
+            for (i = 0; i < nvcpus; i++) {
+                if (VIR_CPU_USED(vcpumap, i) == 0)
+                    continue;
+
+                cpulist[offset++] = g_strdup_printf("%zu", i);
+            }
+        }
+    }
+
+    ret = virshCommaStringListComplete(vcpuid, (const char **)cpulist);
+
+ cleanup:
+    virTypedParamsFree(params, nparams);
+    virshDomainFree(dom);
+    return ret;
+}
+
+
+char **
+virshDomainConsoleCompleter(vshControl *ctl,
+                            const vshCmd *cmd,
+                            unsigned int flags)
+{
+    virshControlPtr priv = ctl->privData;
+    g_autoptr(xmlDoc) xmldoc = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    int nserials;
+    int nparallels;
+    g_autofree xmlNodePtr *serials = NULL;
+    g_autofree xmlNodePtr *parallels = NULL;
+    size_t i;
+    size_t offset = 0;
+    g_auto(GStrv) tmp = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (!priv->conn || virConnectIsAlive(priv->conn) <= 0)
+        return NULL;
+
+    if (virshDomainGetXML(ctl, cmd, 0, &xmldoc, &ctxt) < 0)
+        return NULL;
+
+    nserials = virXPathNodeSet("./devices/serial", ctxt, &serials);
+    if (nserials < 0)
+        return NULL;
+
+    nparallels = virXPathNodeSet("./devices/parallel", ctxt, &parallels);
+    if (nparallels < 0)
+        return NULL;
+
+    tmp = g_new0(char *, nserials + nparallels + 1);
+
+    for (i = 0; i < nserials + nparallels; i++) {
+        g_autofree char *type = NULL;
+
+
+        if (i < nserials)
+            ctxt->node = serials[i];
+        else
+            ctxt->node = parallels[i - nserials];
+
+        type = virXPathString("string(./@type)", ctxt);
+        if (STRNEQ(type, "pty"))
+            continue;
+
+        tmp[offset++] = virXPathString("string(./alias/@name)", ctxt);
+    }
+
+    return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshDomainSignalCompleter(vshControl *ctl G_GNUC_UNUSED,
+                           const vshCmd *cmd G_GNUC_UNUSED,
+                           unsigned int flags)
+{
+    g_auto(GStrv) tmp = NULL;
+    size_t i = 0;
+
+    virCheckFlags(0, NULL);
+
+    tmp = g_new0(char *, VIR_DOMAIN_PROCESS_SIGNAL_LAST + 1);
+
+    for (i = 0; i < VIR_DOMAIN_PROCESS_SIGNAL_LAST; i++) {
+        const char *name = virDomainProcessSignalTypeToString(i);
+        tmp[i] = g_strdup(name);
+    }
+
+    return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshDomainLifecycleCompleter(vshControl *ctl G_GNUC_UNUSED,
+                              const vshCmd *cmd G_GNUC_UNUSED,
+                              unsigned int flags)
+{
+    g_auto(GStrv) tmp = NULL;
+    size_t i = 0;
+
+    virCheckFlags(0, NULL);
+
+    tmp = g_new0(char *, VIR_DOMAIN_LIFECYCLE_LAST + 1);
+
+    for (i = 0; i < VIR_DOMAIN_LIFECYCLE_LAST; i++) {
+        const char *name = virDomainLifecycleTypeToString(i);
+        tmp[i] = g_strdup(name);
+    }
+
+    return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshDomainLifecycleActionCompleter(vshControl *ctl G_GNUC_UNUSED,
+                                    const vshCmd *cmd G_GNUC_UNUSED,
+                                    unsigned int flags)
+{
+    g_auto(GStrv) tmp = NULL;
+    size_t i = 0;
+
+    virCheckFlags(0, NULL);
+
+    tmp = g_new0(char *, VIR_DOMAIN_LIFECYCLE_ACTION_LAST + 1);
+
+    for (i = 0; i < VIR_DOMAIN_LIFECYCLE_ACTION_LAST; i++) {
+        const char *action = virDomainLifecycleActionTypeToString(i);
+        tmp[i] = g_strdup(action);
+    }
+
+    return g_steal_pointer(&tmp);
 }

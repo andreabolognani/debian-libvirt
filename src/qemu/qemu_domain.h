@@ -244,7 +244,7 @@ struct _qemuDomainObjPrivate {
     bool memPrealloc;
 
     /* running block jobs */
-    virHashTablePtr blockjobs;
+    GHashTable *blockjobs;
 
     bool disableSlirp;
 
@@ -613,7 +613,7 @@ int qemuDomainSnapshotWriteMetadata(virDomainObjPtr vm,
                                     const char *snapshotDir);
 
 int qemuDomainSnapshotForEachQcow2(virQEMUDriverPtr driver,
-                                   virDomainObjPtr vm,
+                                   virDomainDefPtr def,
                                    virDomainMomentObjPtr snap,
                                    const char *op,
                                    bool try_all);
@@ -780,6 +780,7 @@ bool qemuDomainIsPSeries(const virDomainDef *def);
 bool qemuDomainHasPCIRoot(const virDomainDef *def);
 bool qemuDomainHasPCIeRoot(const virDomainDef *def);
 bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
+bool qemuDomainHasBuiltinESP(const virDomainDef *def);
 bool qemuDomainNeedsFDC(const virDomainDef *def);
 bool qemuDomainSupportsPCI(virDomainDefPtr def,
                            virQEMUCapsPtr qemuCaps);
@@ -794,7 +795,6 @@ int qemuDomainAdjustMaxMemLockHostdev(virDomainObjPtr vm,
                                       virDomainHostdevDefPtr hostdev);
 
 int qemuDomainDefValidateMemoryHotplug(const virDomainDef *def,
-                                       virQEMUCapsPtr qemuCaps,
                                        const virDomainMemoryDef *mem);
 
 bool qemuDomainSupportsNewVcpuHotplug(virDomainObjPtr vm);
@@ -912,6 +912,7 @@ int qemuDomainGetHostdevPath(virDomainHostdevDefPtr dev,
                              int *perms);
 
 virDomainDiskDefPtr qemuDomainDiskLookupByNodename(virDomainDefPtr def,
+                                                   virDomainBackupDefPtr backupdef,
                                                    const char *nodename,
                                                    virStorageSourcePtr *src);
 
@@ -919,7 +920,8 @@ char *qemuDomainDiskBackingStoreGetName(virDomainDiskDefPtr disk,
                                         unsigned int idx);
 
 virStorageSourcePtr qemuDomainGetStorageSourceByDevstr(const char *devstr,
-                                                       virDomainDefPtr def);
+                                                       virDomainDefPtr def,
+                                                       virDomainBackupDefPtr backupdef);
 
 int
 qemuDomainUpdateCPU(virDomainObjPtr vm,
@@ -1050,3 +1052,8 @@ qemuDomainFileWrapperFDClose(virDomainObjPtr vm,
 int
 qemuDomainInterfaceSetDefaultQDisc(virQEMUDriverPtr driver,
                                    virDomainNetDefPtr net);
+
+int
+qemuDomainNamePathsCleanup(virQEMUDriverConfigPtr cfg,
+                           const char *name,
+                           bool bestEffort);

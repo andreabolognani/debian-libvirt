@@ -34,6 +34,7 @@
       <vendor>AMD</vendor>
       <feature policy='require' name='acpi'/>
       <feature policy='require' name='ss'/>
+      <feature policy='require' name='monitor'/>
       <feature policy='require' name='hypervisor'/>
       <feature policy='require' name='erms'/>
       <feature policy='require' name='mpx'/>
@@ -135,6 +136,7 @@
         <value>sdl</value>
         <value>vnc</value>
         <value>spice</value>
+        <value>egl-headless</value>
       </enum>
     </graphics>
     <video supported='yes'>

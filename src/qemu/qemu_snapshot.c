@@ -47,6 +47,36 @@
 VIR_LOG_INIT("qemu.qemu_snapshot");
 
 
+/**
+ * qemuSnapshotSetCurrent: Set currently active snapshot
+ *
+ * @vm: domain object
+ * @newcurrent: snapshot object to set as current/active
+ *
+ * Sets @newcurrent as the 'current' snapshot of @vm. This helper ensures that
+ * the snapshot which was 'current' previously is updated.
+ */
+static void
+qemuSnapshotSetCurrent(virDomainObjPtr vm,
+                       virDomainMomentObjPtr newcurrent)
+{
+    qemuDomainObjPrivatePtr priv = vm->privateData;
+    virQEMUDriverPtr driver = priv->driver;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    virDomainMomentObjPtr oldcurrent = virDomainSnapshotGetCurrent(vm->snapshots);
+
+    virDomainSnapshotSetCurrent(vm->snapshots, newcurrent);
+
+    /* we need to write out metadata for the old snapshot to update the
+     * 'active' property */
+    if (oldcurrent &&
+        oldcurrent != newcurrent) {
+        if (qemuDomainSnapshotWriteMetadata(vm, oldcurrent, driver->xmlopt, cfg->snapshotDir) < 0)
+            VIR_WARN("failed to update old current snapshot");
+    }
+}
+
+
 /* Looks up snapshot object from VM and name */
 virDomainMomentObjPtr
 qemuSnapObjFromName(virDomainObjPtr vm,
@@ -138,7 +168,7 @@ qemuSnapshotCreateInactiveInternal(virQEMUDriverPtr driver,
                                    virDomainObjPtr vm,
                                    virDomainMomentObjPtr snap)
 {
-    return qemuDomainSnapshotForEachQcow2(driver, vm, snap, "-c", false);
+    return qemuDomainSnapshotForEachQcow2(driver, vm->def, snap, "-c", false);
 }
 
 
@@ -383,6 +413,7 @@ qemuSnapshotPrepareDiskExternalInactive(virDomainSnapshotDiskDefPtr snapdisk,
         case VIR_STORAGE_NET_PROTOCOL_TFTP:
         case VIR_STORAGE_NET_PROTOCOL_SSH:
         case VIR_STORAGE_NET_PROTOCOL_VXHS:
+        case VIR_STORAGE_NET_PROTOCOL_NFS:
         case VIR_STORAGE_NET_PROTOCOL_LAST:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("external inactive snapshots are not supported on "
@@ -471,6 +502,7 @@ qemuSnapshotPrepareDiskExternalActive(virDomainObjPtr vm,
         case VIR_STORAGE_NET_PROTOCOL_TFTP:
         case VIR_STORAGE_NET_PROTOCOL_SSH:
         case VIR_STORAGE_NET_PROTOCOL_VXHS:
+        case VIR_STORAGE_NET_PROTOCOL_NFS:
         case VIR_STORAGE_NET_PROTOCOL_LAST:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("external active snapshots are not supported on "
@@ -601,6 +633,7 @@ qemuSnapshotPrepareDiskInternal(virDomainDiskDefPtr disk,
         case VIR_STORAGE_NET_PROTOCOL_TFTP:
         case VIR_STORAGE_NET_PROTOCOL_SSH:
         case VIR_STORAGE_NET_PROTOCOL_VXHS:
+        case VIR_STORAGE_NET_PROTOCOL_NFS:
         case VIR_STORAGE_NET_PROTOCOL_LAST:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("internal inactive snapshots are not supported on "
@@ -685,6 +718,20 @@ qemuSnapshotPrepare(virDomainObjPtr vm,
                                disk->name,
                                virStorageFileFormatTypeToString(disk->src->format));
                 return -1;
+            }
+
+            if (disk->src->metadataCacheMaxSize > 0) {
+                if (disk->src->format != VIR_STORAGE_FILE_QCOW2) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("metdata cache max size control is supported only with qcow2 images"));
+                    return -1;
+                }
+
+                if (!blockdev) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("metdata cache max size control is not supported with this QEMU binary"));
+                    return -1;
+                }
             }
 
             if (qemuSnapshotPrepareDiskExternal(vm, dom_disk, disk,
@@ -901,7 +948,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuSnapshotDiskContext, qemuSnapshotDiskContextCl
 static int
 qemuSnapshotDiskBitmapsPropagate(qemuSnapshotDiskDataPtr dd,
                                  virJSONValuePtr actions,
-                                 virHashTablePtr blockNamedNodeData)
+                                 GHashTable *blockNamedNodeData)
 {
     qemuBlockNamedNodeDataPtr entry;
     size_t i;
@@ -932,7 +979,7 @@ qemuSnapshotDiskPrepareOneBlockdev(virQEMUDriverPtr driver,
                                    qemuSnapshotDiskDataPtr dd,
                                    virQEMUDriverConfigPtr cfg,
                                    bool reuse,
-                                   virHashTablePtr blockNamedNodeData,
+                                   GHashTable *blockNamedNodeData,
                                    qemuDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
@@ -983,7 +1030,7 @@ qemuSnapshotDiskPrepareOne(virDomainObjPtr vm,
                            virDomainDiskDefPtr disk,
                            virDomainSnapshotDiskDefPtr snapdisk,
                            qemuSnapshotDiskDataPtr dd,
-                           virHashTablePtr blockNamedNodeData,
+                           GHashTable *blockNamedNodeData,
                            bool reuse,
                            bool updateConfig,
                            qemuDomainAsyncJob asyncJob,
@@ -1099,7 +1146,7 @@ qemuSnapshotDiskPrepareActiveExternal(virDomainObjPtr vm,
                                       virDomainMomentObjPtr snap,
                                       virQEMUDriverConfigPtr cfg,
                                       bool reuse,
-                                      virHashTablePtr blockNamedNodeData,
+                                      GHashTable *blockNamedNodeData,
                                       qemuDomainAsyncJob asyncJob)
 {
     g_autoptr(qemuSnapshotDiskContext) snapctxt = NULL;
@@ -1130,7 +1177,7 @@ qemuSnapshotDiskPrepareActiveExternal(virDomainObjPtr vm,
 static qemuSnapshotDiskContextPtr
 qemuSnapshotDiskPrepareDisksTransient(virDomainObjPtr vm,
                                       virQEMUDriverConfigPtr cfg,
-                                      virHashTablePtr blockNamedNodeData,
+                                      GHashTable *blockNamedNodeData,
                                       qemuDomainAsyncJob asyncJob)
 {
     g_autoptr(qemuSnapshotDiskContext) snapctxt = NULL;
@@ -1279,7 +1326,7 @@ qemuSnapshotDiskCreate(qemuSnapshotDiskContextPtr snapctxt,
 static int
 qemuSnapshotCreateActiveExternalDisks(virDomainObjPtr vm,
                                       virDomainMomentObjPtr snap,
-                                      virHashTablePtr blockNamedNodeData,
+                                      GHashTable *blockNamedNodeData,
                                       unsigned int flags,
                                       virQEMUDriverConfigPtr cfg,
                                       qemuDomainAsyncJob asyncJob)
@@ -1320,7 +1367,7 @@ qemuSnapshotCreateDisksTransient(virDomainObjPtr vm,
     virQEMUDriverPtr driver = priv->driver;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(qemuSnapshotDiskContext) snapctxt = NULL;
-    g_autoptr(virHashTable) blockNamedNodeData = NULL;
+    g_autoptr(GHashTable) blockNamedNodeData = NULL;
 
     if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV)) {
         if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
@@ -1362,7 +1409,7 @@ qemuSnapshotCreateActiveExternal(virQEMUDriverPtr driver,
     int compressed;
     g_autoptr(virCommand) compressor = NULL;
     virQEMUSaveDataPtr data = NULL;
-    g_autoptr(virHashTable) blockNamedNodeData = NULL;
+    g_autoptr(GHashTable) blockNamedNodeData = NULL;
 
     /* If quiesce was requested, then issue a freeze command, and a
      * counterpart thaw command when it is actually sent to agent.
@@ -1781,7 +1828,8 @@ qemuSnapshotCreateXML(virDomainPtr domain,
  endjob:
     if (snapshot && !(flags & VIR_DOMAIN_SNAPSHOT_CREATE_NO_METADATA)) {
         if (update_current)
-            virDomainSnapshotSetCurrent(vm->snapshots, snap);
+            qemuSnapshotSetCurrent(vm, snap);
+
         if (qemuDomainSnapshotWriteMetadata(vm, snap,
                                             driver->xmlopt,
                                             cfg->snapshotDir) < 0) {
@@ -1813,9 +1861,19 @@ qemuSnapshotRevertInactive(virQEMUDriverPtr driver,
                            virDomainObjPtr vm,
                            virDomainMomentObjPtr snap)
 {
+    /* Prefer action on the disks in use at the time the snapshot was
+     * created; but fall back to current definition if dealing with a
+     * snapshot created prior to libvirt 0.9.5.  */
+    virDomainDefPtr def = snap->def->dom;
+
+    if (!def)
+        def = vm->def;
+
     /* Try all disks, but report failure if we skipped any.  */
-    int ret = qemuDomainSnapshotForEachQcow2(driver, vm, snap, "-a", true);
-    return ret > 0 ? -1 : ret;
+    if (qemuDomainSnapshotForEachQcow2(driver, def, snap, "-a", true) != 0)
+        return -1;
+
+    return 0;
 }
 
 
@@ -1924,6 +1982,11 @@ qemuSnapshotRevert(virDomainObjPtr vm,
                                   driver->xmlopt, priv->qemuCaps, true);
         if (!config)
             goto endjob;
+
+        if (STRNEQ(config->name, vm->def->name)) {
+            VIR_FREE(config->name);
+            config->name = g_strdup(vm->def->name);
+        }
     }
 
     if (snap->def->inactiveDom) {
@@ -1931,6 +1994,11 @@ qemuSnapshotRevert(virDomainObjPtr vm,
                                           driver->xmlopt, priv->qemuCaps, true);
         if (!inactiveConfig)
             goto endjob;
+
+        if (STRNEQ(inactiveConfig->name, vm->def->name)) {
+            VIR_FREE(inactiveConfig->name);
+            inactiveConfig->name = g_strdup(vm->def->name);
+        }
     } else {
         /* Inactive domain definition is missing:
          * - either this is an old active snapshot and we need to copy the
@@ -2223,7 +2291,7 @@ qemuSnapshotRevert(virDomainObjPtr vm,
 
  cleanup:
     if (ret == 0) {
-        virDomainSnapshotSetCurrent(vm->snapshots, snap);
+        qemuSnapshotSetCurrent(vm, snap);
         if (qemuDomainSnapshotWriteMetadata(vm, snap,
                                             driver->xmlopt,
                                             cfg->snapshotDir) < 0) {
@@ -2304,7 +2372,7 @@ qemuSnapshotDelete(virDomainObjPtr vm,
                   VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN_ONLY, -1);
 
     if (qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(snap = qemuSnapObjFromSnapshot(vm, snapshot)))
         goto endjob;
@@ -2340,7 +2408,8 @@ qemuSnapshotDelete(virDomainObjPtr vm,
         if (rem.err < 0)
             goto endjob;
         if (rem.found) {
-            virDomainSnapshotSetCurrent(vm->snapshots, snap);
+            qemuSnapshotSetCurrent(vm, snap);
+
             if (flags & VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN_ONLY) {
                 if (qemuDomainSnapshotWriteMetadata(vm, snap,
                                                     driver->xmlopt,
@@ -2378,6 +2447,5 @@ qemuSnapshotDelete(virDomainObjPtr vm,
  endjob:
     qemuDomainObjEndJob(driver, vm);
 
- cleanup:
     return ret;
 }

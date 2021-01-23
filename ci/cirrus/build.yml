@@ -13,12 +13,11 @@ env:
 build_task:
   install_script:
     - @INSTALL_COMMAND@ @PKGS@
-    - @PIP@ install @PYPI_PKGS@
+    - if test -n "@PYPI_PKGS@" ; then @PIP3@ install @PYPI_PKGS@ ; fi
   clone_script:
     - git clone --depth 100 "$CI_REPOSITORY_URL" .
     - git fetch origin "$CI_COMMIT_REF_NAME"
     - git reset --hard "$CI_COMMIT_SHA"
   build_script:
     - meson build --prefix=$(pwd)/install-root
-    - if test "$(uname)" = "FreeBSD"; then ninja -C build dist; fi
-    - if test "$(uname)" = "Darwin"; then ninja -C build && ninja -C build install; fi
+    - ninja -C build dist

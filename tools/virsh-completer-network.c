@@ -36,7 +36,7 @@ virshNetworkNameCompleter(vshControl *ctl,
     int nnets = 0;
     size_t i = 0;
     char **ret = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(VIR_CONNECT_LIST_NETWORKS_INACTIVE |
                   VIR_CONNECT_LIST_NETWORKS_ACTIVE |
@@ -72,7 +72,7 @@ virshNetworkEventNameCompleter(vshControl *ctl G_GNUC_UNUSED,
                                unsigned int flags)
 {
     size_t i = 0;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -145,7 +145,7 @@ virshNetworkUUIDCompleter(vshControl *ctl,
     int nnets = 0;
     size_t i = 0;
     char **ret = NULL;
-    VIR_AUTOSTRINGLIST tmp = NULL;
+    g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -172,5 +172,49 @@ virshNetworkUUIDCompleter(vshControl *ctl,
     for (i = 0; i < nnets; i++)
         virNetworkFree(nets[i]);
     g_free(nets);
+    return ret;
+}
+
+
+char **
+virshNetworkDhcpMacCompleter(vshControl *ctl,
+                             const vshCmd *cmd,
+                             unsigned int flags)
+{
+    virshControlPtr priv = ctl->privData;
+    virNetworkDHCPLeasePtr *leases = NULL;
+    virNetworkPtr network = NULL;
+    int nleases;
+    size_t i = 0;
+    char **ret = NULL;
+    g_auto(GStrv) tmp = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (!priv->conn || virConnectIsAlive(priv->conn) <= 0)
+        return NULL;
+
+    if (!(network = virshCommandOptNetwork(ctl, cmd, NULL)))
+        return NULL;
+
+    if ((nleases = virNetworkGetDHCPLeases(network, NULL, &leases, flags)) < 0)
+        goto cleanup;
+
+    tmp = g_new0(char *, nleases + 1);
+
+    for (i = 0; i < nleases; i++) {
+        virNetworkDHCPLeasePtr lease = leases[i];
+        tmp[i] = g_strdup(lease->mac);
+    }
+
+    ret = g_steal_pointer(&tmp);
+
+ cleanup:
+    if (leases) {
+        for (i = 0; i < nleases; i++)
+            virNetworkDHCPLeaseFree(leases[i]);
+        VIR_FREE(leases);
+    }
+    virNetworkFree(network);
     return ret;
 }

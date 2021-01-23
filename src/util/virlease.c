@@ -50,11 +50,7 @@ virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
 {
     g_autofree char *lease_entries = NULL;
     g_autoptr(virJSONValue) leases_array = NULL;
-    long long expirytime;
     int custom_lease_file_len = 0;
-    virJSONValuePtr lease_tmp = NULL;
-    const char *ip_tmp = NULL;
-    const char *server_duid_tmp = NULL;
     size_t i;
 
     /* Read entire contents */
@@ -83,7 +79,11 @@ virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
 
     i = 0;
     while (i < virJSONValueArraySize(leases_array)) {
-        if (!(lease_tmp = virJSONValueArrayGet(leases_array, i))) {
+        virJSONValuePtr lease_tmp = virJSONValueArrayGet(leases_array, i);
+        long long expirytime;
+        const char *ip_tmp = NULL;
+
+        if (!lease_tmp) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("failed to parse json"));
             return -1;
@@ -103,9 +103,10 @@ virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
         }
 
         if (server_duid && strchr(ip_tmp, ':')) {
+            const char *server_duid_tmp = NULL;
+
             /* This is an ipv6 lease */
-            if ((server_duid_tmp
-                 = virJSONValueObjectGetString(lease_tmp, "server-duid"))) {
+            if ((server_duid_tmp = virJSONValueObjectGetString(lease_tmp, "server-duid"))) {
                 if (!*server_duid)
                     *server_duid = g_strdup(server_duid_tmp);
             } else {
@@ -225,16 +226,14 @@ virLeaseNew(virJSONValuePtr *lease_ret,
 
         /* Removed extraneous trailing space in DNSMASQ_LEASE_EXPIRES
          * (dnsmasq < 2.52) */
-        if (exptime[strlen(exptime) - 1] == ' ')
-            exptime[strlen(exptime) - 1] = '\0';
-    }
+        virTrimSpaces(exptime, NULL);
 
-    if (!exptime ||
-        virStrToLong_ll(exptime, NULL, 10, &expirytime) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to convert lease expiry time to long long: %s"),
-                       NULLSTR(exptime));
-        return -1;
+        if (virStrToLong_ll(exptime, NULL, 10, &expirytime) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Unable to convert lease expiry time to long long: %s"),
+                           NULLSTR(exptime));
+            return -1;
+        }
     }
 
     /* Create new lease */
@@ -252,7 +251,7 @@ virLeaseNew(virJSONValuePtr *lease_ret,
         return -1;
     if (server_duid && virJSONValueObjectAppendString(lease_new, "server-duid", server_duid) < 0)
         return -1;
-    if (expirytime && virJSONValueObjectAppendNumberLong(lease_new, "expiry-time", expirytime) < 0)
+    if (virJSONValueObjectAppendNumberLong(lease_new, "expiry-time", expirytime) < 0)
         return -1;
 
     *lease_ret = lease_new;

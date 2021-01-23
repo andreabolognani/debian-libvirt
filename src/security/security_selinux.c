@@ -58,7 +58,7 @@ struct _virSecuritySELinuxData {
     char *alt_domain_context;
     char *file_context;
     char *content_context;
-    virHashTablePtr mcs;
+    GHashTable *mcs;
     bool skipAllLabel;
     struct selabel_handle *label_handle;
 };
@@ -1209,7 +1209,7 @@ virSecuritySELinuxGetProcessLabel(virSecurityManagerPtr mgr G_GNUC_UNUSED,
         return -1;
     }
 
-    if (strlen((char *)ctx) >= VIR_SECURITY_LABEL_BUFLEN) {
+    if (virStrcpy(sec->label, ctx, VIR_SECURITY_LABEL_BUFLEN) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("security label exceeds "
                          "maximum length: %d"),
@@ -1218,7 +1218,6 @@ virSecuritySELinuxGetProcessLabel(virSecurityManagerPtr mgr G_GNUC_UNUSED,
         return -1;
     }
 
-    strcpy(sec->label, (char *)ctx);
     freecon(ctx);
 
     VIR_DEBUG("label=%s", sec->label);
@@ -1571,7 +1570,7 @@ virSecuritySELinuxSetMemoryLabel(virSecurityManagerPtr mgr,
 {
     virSecurityLabelDefPtr seclabel;
 
-    switch ((virDomainMemoryModel) mem->model) {
+    switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
         if (!seclabel || !seclabel->relabel)
@@ -1600,7 +1599,7 @@ virSecuritySELinuxRestoreMemoryLabel(virSecurityManagerPtr mgr,
     int ret = -1;
     virSecurityLabelDefPtr seclabel;
 
-    switch ((virDomainMemoryModel) mem->model) {
+    switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_SELINUX_NAME);
         if (!seclabel || !seclabel->relabel)
@@ -3464,7 +3463,7 @@ virSecuritySELinuxSetFileLabels(virSecurityManagerPtr mgr,
     int ret = 0;
     struct dirent *ent;
     char *filename = NULL;
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
 
     if ((ret = virSecuritySELinuxSetFilecon(mgr, path, seclabel->imagelabel, true)))
         return ret;
@@ -3487,8 +3486,6 @@ virSecuritySELinuxSetFileLabels(virSecurityManagerPtr mgr,
         virReportSystemError(errno, _("Unable to label files under %s"),
                              path);
 
-    virDirClose(&dir);
-
     return ret;
 }
 
@@ -3510,7 +3507,7 @@ virSecuritySELinuxRestoreFileLabels(virSecurityManagerPtr mgr,
     int ret = 0;
     struct dirent *ent;
     char *filename = NULL;
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
 
     if ((ret = virSecuritySELinuxRestoreFileLabel(mgr, path, true)))
         return ret;
@@ -3531,8 +3528,6 @@ virSecuritySELinuxRestoreFileLabels(virSecurityManagerPtr mgr,
     if (ret < 0)
         virReportSystemError(errno, _("Unable to restore file labels under %s"),
                              path);
-
-    virDirClose(&dir);
 
     return ret;
 }

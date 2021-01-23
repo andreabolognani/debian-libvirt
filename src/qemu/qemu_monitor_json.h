@@ -57,8 +57,6 @@ int qemuMonitorJSONQueryCPUs(qemuMonitorPtr mon,
                              size_t *nentries,
                              bool force,
                              bool fast);
-int qemuMonitorJSONGetVirtType(qemuMonitorPtr mon,
-                               virDomainVirtType *virtType);
 int qemuMonitorJSONUpdateVideoMemorySize(qemuMonitorPtr mon,
                                          virDomainVideoDefPtr video,
                                          char *path);
@@ -75,22 +73,22 @@ int qemuMonitorJSONSetMemoryStatsPeriod(qemuMonitorPtr mon,
                                         char *balloonpath,
                                         int period);
 int qemuMonitorJSONGetBlockInfo(qemuMonitorPtr mon,
-                                virHashTablePtr table);
+                                GHashTable *table);
 
 virJSONValuePtr qemuMonitorJSONQueryBlockstats(qemuMonitorPtr mon);
 int qemuMonitorJSONGetAllBlockStatsInfo(qemuMonitorPtr mon,
-                                        virHashTablePtr hash,
+                                        GHashTable *hash,
                                         bool backingChain);
 int qemuMonitorJSONBlockStatsUpdateCapacity(qemuMonitorPtr mon,
-                                            virHashTablePtr stats,
+                                            GHashTable *stats,
                                             bool backingChain);
 int qemuMonitorJSONBlockStatsUpdateCapacityBlockdev(qemuMonitorPtr mon,
-                                                    virHashTablePtr stats);
+                                                    GHashTable *stats);
 
-virHashTablePtr
+GHashTable *
 qemuMonitorJSONBlockGetNamedNodeDataJSON(virJSONValuePtr nodes);
 
-virHashTablePtr
+GHashTable *
 qemuMonitorJSONBlockGetNamedNodeData(qemuMonitorPtr mon,
                                      bool supports_flat);
 
@@ -142,7 +140,7 @@ int qemuMonitorJSONSetMigrationCacheSize(qemuMonitorPtr mon,
 int qemuMonitorJSONGetMigrationParams(qemuMonitorPtr mon,
                                       virJSONValuePtr *params);
 int qemuMonitorJSONSetMigrationParams(qemuMonitorPtr mon,
-                                      virJSONValuePtr params);
+                                      virJSONValuePtr *params);
 
 int qemuMonitorJSONGetMigrationStats(qemuMonitorPtr mon,
                                      qemuMonitorMigrationStatsPtr stats,
@@ -151,7 +149,7 @@ int qemuMonitorJSONGetMigrationStats(qemuMonitorPtr mon,
 int qemuMonitorJSONGetMigrationCapabilities(qemuMonitorPtr mon,
                                             char ***capabilities);
 int qemuMonitorJSONSetMigrationCapabilities(qemuMonitorPtr mon,
-                                            virJSONValuePtr caps);
+                                            virJSONValuePtr *caps);
 
 int qemuMonitorJSONGetGICCapabilities(qemuMonitorPtr mon,
                                       virGICCapability **capabilities);
@@ -231,7 +229,7 @@ int qemuMonitorJSONQueryRxFilter(qemuMonitorPtr mon, const char *alias,
                                  virNetDevRxFilterPtr *filter);
 
 int qemuMonitorJSONGetChardevInfo(qemuMonitorPtr mon,
-                                  virHashTablePtr info);
+                                  GHashTable *info);
 
 int qemuMonitorJSONAttachPCIDiskController(qemuMonitorPtr mon,
                                            const char *bus,
@@ -246,7 +244,7 @@ int qemuMonitorJSONDelDevice(qemuMonitorPtr mon,
                              const char *devalias);
 
 int qemuMonitorJSONAddObject(qemuMonitorPtr mon,
-                             virJSONValuePtr props);
+                             virJSONValuePtr *props);
 
 int qemuMonitorJSONDelObject(qemuMonitorPtr mon,
                              const char *objalias,
@@ -341,7 +339,7 @@ int qemuMonitorJSONBlockJobSetSpeed(qemuMonitorPtr mon,
                                     unsigned long long speed)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-virHashTablePtr qemuMonitorJSONGetAllBlockJobInfo(qemuMonitorPtr mon,
+GHashTable *qemuMonitorJSONGetAllBlockJobInfo(qemuMonitorPtr mon,
                                                   bool rawjobname)
     ATTRIBUTE_NONNULL(1);
 
@@ -425,11 +423,7 @@ int qemuMonitorJSONGetCommands(qemuMonitorPtr mon,
 int qemuMonitorJSONGetEvents(qemuMonitorPtr mon,
                              char ***events)
     ATTRIBUTE_NONNULL(2);
-int qemuMonitorJSONGetCommandLineOptionParameters(qemuMonitorPtr mon,
-                                                  const char *option,
-                                                  char ***params,
-                                                  bool *found)
-    ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
+GHashTable *qemuMonitorJSONGetCommandLineOptions(qemuMonitorPtr mon);
 
 int qemuMonitorJSONGetKVMState(qemuMonitorPtr mon,
                                bool *enabled,
@@ -499,7 +493,7 @@ int qemuMonitorJSONSetObjectProperty(qemuMonitorPtr mon,
                                      qemuMonitorJSONObjectPropertyPtr prop)
     ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3) ATTRIBUTE_NONNULL(4);
 
-virHashTablePtr qemuMonitorJSONGetDeviceProps(qemuMonitorPtr mon,
+GHashTable *qemuMonitorJSONGetDeviceProps(qemuMonitorPtr mon,
                                               const char *device)
     ATTRIBUTE_NONNULL(2);
 int qemuMonitorJSONGetObjectProps(qemuMonitorPtr mon,
@@ -556,7 +550,8 @@ int qemuMonitorJSONGetGuestCPU(qemuMonitorPtr mon,
 int qemuMonitorJSONRTCResetReinjection(qemuMonitorPtr mon);
 
 int qemuMonitorJSONGetIOThreads(qemuMonitorPtr mon,
-                                qemuMonitorIOThreadInfoPtr **iothreads)
+                                qemuMonitorIOThreadInfoPtr **iothreads,
+                                int *niothreads)
     ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorJSONSetIOThread(qemuMonitorPtr mon,
@@ -564,7 +559,7 @@ int qemuMonitorJSONSetIOThread(qemuMonitorPtr mon,
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorJSONGetMemoryDeviceInfo(qemuMonitorPtr mon,
-                                       virHashTablePtr info)
+                                       GHashTable *info)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorJSONFindLinkPath(qemuMonitorPtr mon,
@@ -645,7 +640,7 @@ int qemuMonitorJSONBlockdevMediumInsert(qemuMonitorPtr mon,
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 
 int qemuMonitorJSONGetPRManagerInfo(qemuMonitorPtr mon,
-                                    virHashTablePtr info)
+                                    GHashTable *info)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int

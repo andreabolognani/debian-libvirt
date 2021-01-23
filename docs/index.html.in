@@ -8,7 +8,7 @@
       // -->
     </script>
   </head>
-  <body class="index">
+  <body id="index">
     <h1>The virtualization API</h1>
 
     <div class="panel">
@@ -18,7 +18,7 @@
       </p>
       <ul>
         <li>is a toolkit to manage <a href="platforms.html">virtualization platforms</a></li>
-        <li>is accessible from C, Python, Perl, Java and more</li>
+        <li>is accessible from C, Python, Perl, Go and more</li>
         <li>is licensed under open source licenses</li>
         <li>supports <a href="drvqemu.html">KVM</a>,
           <a href="drvqemu.html">QEMU</a>, <a href="drvxen.html">Xen</a>,
@@ -64,7 +64,7 @@
         <dt><a href="https://wiki.libvirt.org">Wiki</a></dt>
         <dd>Read further community contributed content</dd>
 
-        <dt><a href="https://libvirt.org/kbase.html">Knowledge base</a></dt>
+        <dt><a href="https://libvirt.org/kbase/index.html">Knowledge base</a></dt>
         <dd>Learn more about libvirt through knowledge base</dd>
       </dl>
     </div>
