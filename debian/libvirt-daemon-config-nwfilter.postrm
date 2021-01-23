@@ -63,6 +63,14 @@ NWFILTERS="
     qemu-announce-self
     qemu-announce-self-rarp
 "
+NWFILTERS_7_0_0="
+    allow-dhcpv6
+    allow-dhcpv6-server
+    allow-incoming-ipv6
+    allow-ipv6
+    no-ipv6-multicast
+    no-ipv6-spoofing
+"
 
 case "$1" in
     remove|purge)
@@ -71,6 +79,14 @@ case "$1" in
                 "/etc/libvirt/nwfilter/$nwfilter.xml" \
                 "/usr/share/libvirt/nwfilter/$nwfilter.xml" \
                 "6.9.0-2~" \
+                -- \
+                "$@"
+        done
+        for nwfilter in $NWFILTERS_7_0_0; do
+            remove_config_from_template \
+                "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "/usr/share/libvirt/nwfilter/$nwfilter.xml" \
+                "7.0.0-1~" \
                 -- \
                 "$@"
         done
