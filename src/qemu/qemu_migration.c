@@ -408,6 +408,11 @@ qemuMigrationDstStartNBDServer(virQEMUDriverPtr driver,
         if (!uri)
             return -1;
 
+        if (!uri->scheme) {
+            virReportError(VIR_ERR_INVALID_ARG, _("No URI scheme specified: %s"), nbdURI);
+            return -1;
+        }
+
         if (STREQ(uri->scheme, "tcp")) {
             server.transport = VIR_STORAGE_NET_HOST_TRANS_TCP;
             if (!uri->server || STREQ(uri->server, "")) {
@@ -586,10 +591,10 @@ qemuMigrationSrcNBDStorageCopyReady(virDomainObjPtr vm,
             return -1;
         }
 
-        virObjectUnref(job);
-
-        if (disk->mirrorState != VIR_DOMAIN_DISK_MIRROR_STATE_READY)
+        if (job->state != VIR_DOMAIN_BLOCK_JOB_READY)
             notReady++;
+
+        virObjectUnref(job);
     }
 
     if (notReady) {
@@ -1100,6 +1105,12 @@ qemuMigrationSrcNBDStorageCopy(virQEMUDriverPtr driver,
             if (uri->port)
                 port = uri->port;
         } else if (STREQ(uri->scheme, "unix")) {
+            if (flags & VIR_MIGRATE_TLS) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("NBD migration with TLS is not supported over UNIX socket"));
+                return -1;
+            }
+
             if (!uri->path) {
                 virReportError(VIR_ERR_INVALID_ARG, "%s",
                                _("UNIX disks URI does not include path"));
@@ -1455,7 +1466,7 @@ qemuMigrationSrcIsSafe(virDomainDefPtr def,
             } else if (rc == 0) {
                 unsafe = true;
             }
-            if ((rc = virStorageFileIsClusterFS(src)) < 0)
+            if ((rc = virFileIsClusterFS(src)) < 0)
                 return false;
             else if (rc == 1)
                 continue;
@@ -2132,7 +2143,7 @@ qemuMigrationSrcCleanup(virDomainObjPtr vm,
     switch ((qemuMigrationJobPhase) priv->job.phase) {
     case QEMU_MIGRATION_PHASE_BEGIN3:
         /* just forget we were about to migrate */
-        qemuDomainObjDiscardAsyncJob(driver, vm);
+        qemuMigrationJobFinish(driver, vm);
         break;
 
     case QEMU_MIGRATION_PHASE_PERFORM3_DONE:
@@ -2142,7 +2153,7 @@ qemuMigrationSrcCleanup(virDomainObjPtr vm,
         qemuMigrationParamsReset(driver, vm, QEMU_ASYNC_JOB_MIGRATION_OUT,
                                  jobPriv->migParams, priv->job.apiFlags);
         /* clear the job and let higher levels decide what to do */
-        qemuDomainObjDiscardAsyncJob(driver, vm);
+        qemuMigrationJobFinish(driver, vm);
         break;
 
     case QEMU_MIGRATION_PHASE_PERFORM3:
@@ -2219,6 +2230,23 @@ qemuMigrationSrcBeginPhase(virQEMUDriverPtr driver,
     }
 
     if (flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC)) {
+        if (flags & VIR_MIGRATE_TUNNELLED) {
+            if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV)) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("migration of non-shared storage is not supported with tunnelled migration and this QEMU"));
+                return NULL;
+            }
+
+            if (nmigrate_disks) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("Selecting disks to migrate is not implemented for tunnelled migration"));
+                return NULL;
+            }
+        } else {
+            cookieFlags |= QEMU_MIGRATION_COOKIE_NBD;
+            priv->nbdPort = 0;
+        }
+
         if (nmigrate_disks) {
             size_t i, j;
             /* Check user requested only known disk targets. */
@@ -2235,21 +2263,6 @@ qemuMigrationSrcBeginPhase(virQEMUDriverPtr driver,
                     return NULL;
                 }
             }
-
-            if (flags & VIR_MIGRATE_TUNNELLED) {
-                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                               _("Selecting disks to migrate is not "
-                                 "implemented for tunnelled migration"));
-                return NULL;
-            }
-        }
-
-        /* TODO support NBD for TUNNELLED migration */
-        if (flags & VIR_MIGRATE_TUNNELLED) {
-            VIR_WARN("NBD in tunnelled migration is currently not supported");
-        } else {
-            cookieFlags |= QEMU_MIGRATION_COOKIE_NBD;
-            priv->nbdPort = 0;
         }
     }
 
@@ -2330,8 +2343,17 @@ qemuMigrationSrcBegin(virConnectPtr conn,
                       unsigned long flags)
 {
     virQEMUDriverPtr driver = conn->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     char *xml = NULL;
     qemuDomainAsyncJob asyncJob;
+
+    if (cfg->migrateTLSForce &&
+        !(flags & VIR_MIGRATE_TUNNELLED) &&
+        !(flags & VIR_MIGRATE_TLS)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("this libvirtd instance allows migration only with VIR_MIGRATE_TLS flag"));
+        goto cleanup;
+    }
 
     if ((flags & VIR_MIGRATE_CHANGE_PROTECTION)) {
         if (qemuMigrationJobStart(driver, vm, QEMU_ASYNC_JOB_MIGRATION_OUT,
@@ -2499,6 +2521,7 @@ qemuMigrationDstPrepareAny(virQEMUDriverPtr driver,
                            qemuMigrationParamsPtr migParams,
                            unsigned long flags)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     virDomainObjPtr vm = NULL;
     virObjectEventPtr event = NULL;
     virErrorPtr origErr;
@@ -2558,6 +2581,14 @@ qemuMigrationDstPrepareAny(virQEMUDriverPtr driver,
     if (flags & VIR_MIGRATE_POSTCOPY && flags & VIR_MIGRATE_TUNNELLED) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
                        _("post-copy is not supported with tunnelled migration"));
+        goto cleanup;
+    }
+
+    if (cfg->migrateTLSForce &&
+        !(flags & VIR_MIGRATE_TUNNELLED) &&
+        !(flags & VIR_MIGRATE_TLS)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("this libvirtd instance allows migration only with VIR_MIGRATE_TLS flag"));
         goto cleanup;
     }
 
@@ -4330,12 +4361,12 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriverPtr driver,
 
     VIR_DEBUG("driver=%p, sconn=%p, dconn=%p, dconnuri=%s, vm=%p, xmlin=%s, "
               "dname=%s, uri=%s, graphicsuri=%s, listenAddress=%s, "
-              "nmigrate_disks=%zu, migrate_disks=%p, nbdPort=%d, "
+              "nmigrate_disks=%zu, migrate_disks=%p, nbdPort=%d, nbdURI=%s, "
               "bandwidth=%llu, useParams=%d, flags=0x%lx",
               driver, sconn, dconn, NULLSTR(dconnuri), vm, NULLSTR(xmlin),
               NULLSTR(dname), NULLSTR(uri), NULLSTR(graphicsuri),
               NULLSTR(listenAddress), nmigrate_disks, migrate_disks, nbdPort,
-              bandwidth, useParams, flags);
+              NULLSTR(nbdURI), bandwidth, useParams, flags);
 
     /* Unlike the virDomainMigrateVersion3 counterpart, we don't need
      * to worry about auto-setting the VIR_MIGRATE_CHANGE_PROTECTION
@@ -4675,12 +4706,13 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriverPtr driver,
 {
     int ret = -1;
     g_autoptr(virConnect) dconn = NULL;
-    bool p2p;
+    int p2p;
     virErrorPtr orig_err = NULL;
     bool offline = !!(flags & VIR_MIGRATE_OFFLINE);
-    bool dstOffline = false;
+    int dstOffline = 0;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    bool useParams;
+    int useParams;
+    int rc;
 
     VIR_DEBUG("driver=%p, sconn=%p, vm=%p, xmlin=%s, dconnuri=%s, uri=%s, "
               "graphicsuri=%s, listenAddress=%s, nmigrate_disks=%zu, "
@@ -4740,17 +4772,27 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriverPtr driver,
     qemuDomainObjEnterRemote(vm);
     p2p = VIR_DRV_SUPPORTS_FEATURE(dconn->driver, dconn,
                                    VIR_DRV_FEATURE_MIGRATION_P2P);
-        /* v3proto reflects whether the caller used Perform3, but with
-         * p2p migrate, regardless of whether Perform2 or Perform3
-         * were used, we decide protocol based on what target supports
-         */
-    *v3proto = VIR_DRV_SUPPORTS_FEATURE(dconn->driver, dconn,
-                                        VIR_DRV_FEATURE_MIGRATION_V3);
+    if (p2p < 0)
+        goto cleanup;
+    /* v3proto reflects whether the caller used Perform3, but with
+     * p2p migrate, regardless of whether Perform2 or Perform3
+     * were used, we decide protocol based on what target supports
+     */
+    rc = VIR_DRV_SUPPORTS_FEATURE(dconn->driver, dconn,
+                                  VIR_DRV_FEATURE_MIGRATION_V3);
+    if (rc < 0)
+        goto cleanup;
+    *v3proto = !!rc;
     useParams = VIR_DRV_SUPPORTS_FEATURE(dconn->driver, dconn,
                                          VIR_DRV_FEATURE_MIGRATION_PARAMS);
-    if (offline)
+    if (useParams < 0)
+        goto cleanup;
+    if (offline) {
         dstOffline = VIR_DRV_SUPPORTS_FEATURE(dconn->driver, dconn,
                                               VIR_DRV_FEATURE_MIGRATION_OFFLINE);
+        if (dstOffline < 0)
+            goto cleanup;
+    }
     if (qemuDomainObjExitRemote(vm, !offline) < 0)
         goto cleanup;
 
@@ -4788,7 +4830,7 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriverPtr driver,
                                                 persist_xml, dname, uri, graphicsuri,
                                                 listenAddress, nmigrate_disks, migrate_disks,
                                                 nbdPort, nbdURI, migParams, resource,
-                                                useParams, flags);
+                                                !!useParams, flags);
     } else {
         ret = qemuMigrationSrcPerformPeer2Peer2(driver, sconn, dconn, vm,
                                                 dconnuri, flags, dname, resource,
@@ -5011,6 +5053,8 @@ qemuMigrationSrcPerform(virQEMUDriverPtr driver,
                         unsigned long resource,
                         bool v3proto)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
     VIR_DEBUG("driver=%p, conn=%p, vm=%p, xmlin=%s, dconnuri=%s, "
               "uri=%s, graphicsuri=%s, listenAddress=%s, "
               "nmigrate_disks=%zu, migrate_disks=%p, nbdPort=%d, "
@@ -5022,6 +5066,14 @@ qemuMigrationSrcPerform(virQEMUDriverPtr driver,
               nmigrate_disks, migrate_disks, nbdPort, NULLSTR(nbdURI),
               NULLSTR(cookiein), cookieinlen, cookieout, cookieoutlen,
               flags, NULLSTR(dname), resource, v3proto);
+
+    if (cfg->migrateTLSForce &&
+        !(flags & VIR_MIGRATE_TUNNELLED) &&
+        !(flags & VIR_MIGRATE_TLS)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("this libvirtd instance allows migration only with VIR_MIGRATE_TLS flag"));
+        return -1;
+    }
 
     if ((flags & (VIR_MIGRATE_TUNNELLED | VIR_MIGRATE_PEER2PEER))) {
         if (cookieinlen) {
@@ -5135,6 +5187,9 @@ qemuMigrationDstPersist(virQEMUDriverPtr driver,
 
     if (!(vmdef = virDomainObjGetPersistentDef(driver->xmlopt, vm,
                                                priv->qemuCaps)))
+        goto error;
+
+    if (!oldPersist && qemuDomainNamePathsCleanup(cfg, vmdef->name, false) < 0)
         goto error;
 
     if (virDomainDefSave(vmdef, driver->xmlopt, cfg->configDir) < 0 &&
@@ -5796,7 +5851,7 @@ qemuMigrationSrcFetchMirrorStats(virQEMUDriverPtr driver,
     size_t i;
     qemuDomainObjPrivatePtr priv = vm->privateData;
     bool nbd = false;
-    virHashTablePtr blockinfo = NULL;
+    GHashTable *blockinfo = NULL;
     qemuDomainMirrorStatsPtr stats = &jobInfo->mirrorStats;
 
     for (i = 0; i < vm->def->ndisks; i++) {

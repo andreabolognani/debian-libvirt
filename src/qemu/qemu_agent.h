@@ -67,9 +67,9 @@ typedef enum {
     QEMU_AGENT_SHUTDOWN_LAST,
 } qemuAgentShutdownMode;
 
-typedef struct _qemuAgentDiskInfo qemuAgentDiskInfo;
-typedef qemuAgentDiskInfo *qemuAgentDiskInfoPtr;
-struct _qemuAgentDiskInfo {
+typedef struct _qemuAgentDiskAddress qemuAgentDiskAddress;
+typedef qemuAgentDiskAddress *qemuAgentDiskAddressPtr;
+struct _qemuAgentDiskAddress {
     char *serial;
     virPCIDeviceAddress pci_controller;
     char *bus_type;
@@ -77,7 +77,21 @@ struct _qemuAgentDiskInfo {
     unsigned int target;
     unsigned int unit;
     char *devnode;
+    virDomainDeviceCCWAddressPtr ccw_addr;
 };
+void qemuAgentDiskAddressFree(qemuAgentDiskAddressPtr addr);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuAgentDiskAddress, qemuAgentDiskAddressFree);
+
+typedef struct _qemuAgentDiskInfo qemuAgentDiskInfo;
+typedef qemuAgentDiskInfo *qemuAgentDiskInfoPtr;
+struct _qemuAgentDiskInfo {
+    char *name;
+    bool partition;
+    char **dependencies;
+    qemuAgentDiskAddressPtr address;
+    char *alias;
+};
+void qemuAgentDiskInfoFree(qemuAgentDiskInfoPtr info);
 
 typedef struct _qemuAgentFSInfo qemuAgentFSInfo;
 typedef qemuAgentFSInfo *qemuAgentFSInfoPtr;
@@ -88,7 +102,7 @@ struct _qemuAgentFSInfo {
     long long total_bytes;
     long long used_bytes;
     size_t ndisks;
-    qemuAgentDiskInfoPtr *disks;
+    qemuAgentDiskAddressPtr *disks;
 };
 void qemuAgentFSInfoFree(qemuAgentFSInfoPtr info);
 
@@ -170,3 +184,22 @@ int qemuAgentGetTimezone(qemuAgentPtr mon,
 
 void qemuAgentSetResponseTimeout(qemuAgentPtr mon,
                                  int timeout);
+
+int qemuAgentSSHGetAuthorizedKeys(qemuAgentPtr agent,
+                                  const char *user,
+                                  char ***keys);
+
+int qemuAgentSSHAddAuthorizedKeys(qemuAgentPtr agent,
+                                  const char *user,
+                                  const char **keys,
+                                  size_t nkeys,
+                                  bool reset);
+
+int qemuAgentSSHRemoveAuthorizedKeys(qemuAgentPtr agent,
+                                     const char *user,
+                                     const char **keys,
+                                     size_t nkeys);
+
+int qemuAgentGetDisks(qemuAgentPtr mon,
+                      qemuAgentDiskInfoPtr **disks,
+                      bool report_unsupported);

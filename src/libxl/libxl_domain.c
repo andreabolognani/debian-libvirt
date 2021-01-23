@@ -25,6 +25,7 @@
 #include "libxl_domain.h"
 #include "libxl_capabilities.h"
 
+#include "datatypes.h"
 #include "viralloc.h"
 #include "virfile.h"
 #include "virerror.h"
@@ -35,6 +36,7 @@
 #include "locking/domain_lock.h"
 #include "xen_common.h"
 #include "driver.h"
+#include "domain_validate.h"
 
 #define VIR_FROM_THIS VIR_FROM_LIBXL
 
@@ -361,9 +363,8 @@ libxlDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
 
         /* for network-based disks, set 'qemu' as the default driver */
         if (actual_type == VIR_STORAGE_TYPE_NETWORK) {
-            if (!virDomainDiskGetDriver(disk) &&
-                virDomainDiskSetDriver(disk, "qemu") < 0)
-                return -1;
+            if (!virDomainDiskGetDriver(disk))
+                virDomainDiskSetDriver(disk, "qemu");
         }
 
         /* xl.cfg default format is raw. See xl-disk-configuration(5) */
@@ -849,7 +850,7 @@ libxlDomainCleanup(libxlDriverPrivatePtr driver,
     char *file;
     virHostdevManagerPtr hostdev_mgr = driver->hostdevMgr;
     unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
-    virConnectPtr conn = NULL;
+    g_autoptr(virConnect) conn = NULL;
 
 #ifdef LIBXL_HAVE_PVUSB
     hostdev_flags |= VIR_HOSTDEV_SP_USB;
@@ -936,7 +937,6 @@ libxlDomainCleanup(libxlDriverPrivatePtr driver,
     }
 
     virDomainObjRemoveTransientDef(vm);
-    virObjectUnref(conn);
 }
 
 /*
@@ -1050,8 +1050,7 @@ static int
 libxlNetworkPrepareDevices(virDomainDefPtr def)
 {
     size_t i;
-    virConnectPtr conn = NULL;
-    int ret = -1;
+    g_autoptr(virConnect) conn = NULL;
 
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
@@ -1063,9 +1062,9 @@ libxlNetworkPrepareDevices(virDomainDefPtr def)
          */
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             if (!conn && !(conn = virGetConnectNetwork()))
-                goto cleanup;
+                return -1;
             if (virDomainNetAllocateActualDevice(conn, def, net) < 0)
-                goto cleanup;
+                return -1;
         }
 
         /* final validation now that actual type is known */
@@ -1090,14 +1089,11 @@ libxlNetworkPrepareDevices(virDomainDefPtr def)
                 pcisrc->backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN;
 
             if (virDomainHostdevInsert(def, hostdev) < 0)
-                goto cleanup;
+                return -1;
         }
     }
 
-    ret = 0;
- cleanup:
-    virObjectUnref(conn);
-    return ret;
+    return 0;
 }
 
 static void

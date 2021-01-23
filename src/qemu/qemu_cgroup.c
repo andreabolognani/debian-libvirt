@@ -60,7 +60,7 @@ qemuSetupImagePathCgroup(virDomainObjPtr vm,
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     int perms = VIR_CGROUP_DEVICE_READ;
-    VIR_AUTOSTRINGLIST targetPaths = NULL;
+    g_auto(GStrv) targetPaths = NULL;
     size_t i;
     int rv;
 
@@ -988,7 +988,6 @@ static void
 qemuRestoreCgroupState(virDomainObjPtr vm)
 {
     g_autofree char *mem_mask = NULL;
-    int empty = -1;
     qemuDomainObjPrivatePtr priv = vm->privateData;
     size_t i = 0;
     g_autoptr(virBitmap) all_nodes = NULL;
@@ -1003,8 +1002,8 @@ qemuRestoreCgroupState(virDomainObjPtr vm)
     if (!(mem_mask = virBitmapFormat(all_nodes)))
         goto error;
 
-    if ((empty = virCgroupHasEmptyTasks(priv->cgroup,
-                                        VIR_CGROUP_CONTROLLER_CPUSET)) <= 0)
+    if (virCgroupHasEmptyTasks(priv->cgroup,
+                               VIR_CGROUP_CONTROLLER_CPUSET) <= 0)
         goto error;
 
     if (virCgroupSetCpusetMems(priv->cgroup, mem_mask) < 0)

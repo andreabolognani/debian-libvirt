@@ -2248,7 +2248,6 @@ remoteDomainGetIOThreadInfo(virDomainPtr dom,
     remote_domain_get_iothread_info_args args;
     remote_domain_get_iothread_info_ret ret;
     remote_domain_iothread_info *src;
-    virDomainIOThreadInfoPtr *info_ret = NULL;
 
     remoteDriverLock(priv);
 
@@ -2273,6 +2272,8 @@ remoteDomainGetIOThreadInfo(virDomainPtr dom,
     }
 
     if (info) {
+        virDomainIOThreadInfoPtr *info_ret = NULL;
+
         if (!ret.info.info_len) {
             *info = NULL;
             rv = ret.ret;
@@ -2293,17 +2294,11 @@ remoteDomainGetIOThreadInfo(virDomainPtr dom,
             info_ret[i]->cpumaplen = src->cpumap.cpumap_len;
         }
         *info = info_ret;
-        info_ret = NULL;
     }
 
     rv = ret.ret;
 
  cleanup:
-    if (info_ret) {
-        for (i = 0; i < ret.info.info_len; i++)
-            virDomainIOThreadInfoFree(info_ret[i]);
-        VIR_FREE(info_ret);
-    }
     xdr_free((xdrproc_t)xdr_remote_domain_get_iothread_info_ret,
              (char *) &ret);
 
@@ -2333,12 +2328,11 @@ remoteDomainGetSecurityLabel(virDomainPtr domain, virSecurityLabelPtr seclabel)
     }
 
     if (ret.label.label_val != NULL) {
-        if (strlen(ret.label.label_val) >= sizeof(seclabel->label)) {
+        if (virStrcpyStatic(seclabel->label, ret.label.label_val) < 0) {
             virReportError(VIR_ERR_RPC, _("security label exceeds maximum: %zu"),
                            sizeof(seclabel->label) - 1);
             goto cleanup;
         }
-        strcpy(seclabel->label, ret.label.label_val);
         seclabel->enforcing = ret.enforcing;
     }
 
@@ -2377,13 +2371,12 @@ remoteDomainGetSecurityLabelList(virDomainPtr domain, virSecurityLabelPtr* secla
     for (i = 0; i < ret.labels.labels_len; i++) {
         remote_domain_get_security_label_ret *cur = &ret.labels.labels_val[i];
         if (cur->label.label_val != NULL) {
-            if (strlen(cur->label.label_val) >= sizeof((*seclabels)->label)) {
+            if (virStrcpyStatic((*seclabels)[i].label, cur->label.label_val) < 0) {
                 virReportError(VIR_ERR_RPC, _("security label exceeds maximum: %zd"),
                                sizeof((*seclabels)->label) - 1);
                 VIR_FREE(*seclabels);
                 goto cleanup;
             }
-            strcpy((*seclabels)[i].label, cur->label.label_val);
             (*seclabels)[i].enforcing = cur->enforcing;
         }
     }
@@ -2449,21 +2442,19 @@ remoteNodeGetSecurityModel(virConnectPtr conn, virSecurityModelPtr secmodel)
     }
 
     if (ret.model.model_val != NULL) {
-        if (strlen(ret.model.model_val) >= sizeof(secmodel->model)) {
+        if (virStrcpyStatic(secmodel->model, ret.model.model_val) < 0) {
             virReportError(VIR_ERR_RPC, _("security model exceeds maximum: %zu"),
                            sizeof(secmodel->model) - 1);
             goto cleanup;
         }
-        strcpy(secmodel->model, ret.model.model_val);
     }
 
     if (ret.doi.doi_val != NULL) {
-        if (strlen(ret.doi.doi_val) >= sizeof(secmodel->doi)) {
+        if (virStrcpyStatic(secmodel->doi, ret.doi.doi_val) < 0) {
             virReportError(VIR_ERR_RPC, _("security doi exceeds maximum: %zu"),
                            sizeof(secmodel->doi) - 1);
             goto cleanup;
         }
-        strcpy(secmodel->doi, ret.doi.doi_val);
     }
 
     rv = 0;
@@ -7638,7 +7629,6 @@ remoteDomainGetFSInfo(virDomainPtr dom,
     remote_domain_get_fsinfo_args args;
     remote_domain_get_fsinfo_ret ret;
     remote_domain_fsinfo *src;
-    virDomainFSInfoPtr *info_ret = NULL;
 
     remoteDriverLock(priv);
 
@@ -7661,6 +7651,8 @@ remoteDomainGetFSInfo(virDomainPtr dom,
     }
 
     if (info) {
+        virDomainFSInfoPtr *info_ret = NULL;
+
         if (!ret.info.info_len) {
             *info = NULL;
             rv = ret.ret;
@@ -7690,17 +7682,11 @@ remoteDomainGetFSInfo(virDomainPtr dom,
         }
 
         *info = info_ret;
-        info_ret = NULL;
     }
 
     rv = ret.ret;
 
  cleanup:
-    if (info_ret) {
-        for (i = 0; i < ret.info.info_len; i++)
-            virDomainFSInfoFree(info_ret[i]);
-        VIR_FREE(info_ret);
-    }
     xdr_free((xdrproc_t)xdr_remote_domain_get_fsinfo_ret,
              (char *) &ret);
 
@@ -8026,6 +8012,91 @@ remoteDomainGetGuestInfo(virDomainPtr dom,
     remoteDriverUnlock(priv);
     return rv;
 }
+
+static int
+remoteDomainAuthorizedSSHKeysGet(virDomainPtr domain,
+                                 const char *user,
+                                 char ***keys,
+                                 unsigned int flags)
+{
+    int rv = -1;
+    size_t i;
+    struct private_data *priv = domain->conn->privateData;
+    remote_domain_authorized_ssh_keys_get_args args;
+    remote_domain_authorized_ssh_keys_get_ret ret;
+
+    remoteDriverLock(priv);
+
+    make_nonnull_domain(&args.dom, domain);
+    args.user = (char *) user;
+    args.flags = flags;
+    memset(&ret, 0, sizeof(ret));
+
+    if (call(domain->conn, priv, 0, REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_GET,
+             (xdrproc_t) xdr_remote_domain_authorized_ssh_keys_get_args, (char *)&args,
+             (xdrproc_t) xdr_remote_domain_authorized_ssh_keys_get_ret, (char *)&ret) == -1) {
+        goto cleanup;
+    }
+
+    if (ret.keys.keys_len > REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX) {
+        virReportError(VIR_ERR_RPC, "%s",
+                       _("remoteDomainAuthorizedSSHKeysGet: "
+                         "returned number of keys exceeds limit"));
+        goto cleanup;
+    }
+
+    *keys = g_new0(char *, ret.keys.keys_len + 1);
+    for (i = 0; i < ret.keys.keys_len; i++)
+        (*keys)[i] = g_strdup(ret.keys.keys_val[i]);
+
+    rv = ret.keys.keys_len;
+
+ cleanup:
+    remoteDriverUnlock(priv);
+    xdr_free((xdrproc_t)xdr_remote_domain_authorized_ssh_keys_get_ret,
+             (char *) &ret);
+    return rv;
+}
+
+static int
+remoteDomainAuthorizedSSHKeysSet(virDomainPtr domain,
+                                 const char *user,
+                                 const char **keys,
+                                 unsigned int nkeys,
+                                 unsigned int flags)
+{
+    int rv = -1;
+    struct private_data *priv = domain->conn->privateData;
+    remote_domain_authorized_ssh_keys_set_args args;
+
+    remoteDriverLock(priv);
+
+    if (nkeys > REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX) {
+        virReportError(VIR_ERR_RPC, "%s",
+                       _("remoteDomainAuthorizedSSHKeysSet: "
+                         "returned number of keys exceeds limit"));
+        goto cleanup;
+    }
+
+    make_nonnull_domain(&args.dom, domain);
+    args.user = (char *) user;
+    args.keys.keys_len = nkeys;
+    args.keys.keys_val = (char **) keys;
+    args.flags = flags;
+
+    if (call(domain->conn, priv, 0, REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_SET,
+             (xdrproc_t) xdr_remote_domain_authorized_ssh_keys_set_args, (char *)&args,
+             (xdrproc_t) xdr_void, (char *) NULL) == -1) {
+        goto cleanup;
+    }
+
+    rv = 0;
+
+ cleanup:
+    remoteDriverUnlock(priv);
+    return rv;
+}
+
 
 /* get_nonnull_domain and get_nonnull_network turn an on-wire
  * (name, uuid) pair into virDomainPtr or virNetworkPtr object.
@@ -8458,6 +8529,8 @@ static virHypervisorDriver hypervisor_driver = {
     .domainAgentSetResponseTimeout = remoteDomainAgentSetResponseTimeout, /* 5.10.0 */
     .domainBackupBegin = remoteDomainBackupBegin, /* 6.0.0 */
     .domainBackupGetXMLDesc = remoteDomainBackupGetXMLDesc, /* 6.0.0 */
+    .domainAuthorizedSSHKeysGet = remoteDomainAuthorizedSSHKeysGet, /* 6.10.0 */
+    .domainAuthorizedSSHKeysSet = remoteDomainAuthorizedSSHKeysSet, /* 6.10.0 */
 };
 
 static virNetworkDriver network_driver = {

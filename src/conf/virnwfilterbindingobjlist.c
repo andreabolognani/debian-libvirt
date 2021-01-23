@@ -40,7 +40,7 @@ struct _virNWFilterBindingObjList {
 
     /* port dev name -> virNWFilterBindingObj  mapping
      * for O(1), lockless lookup-by-port dev */
-    virHashTable *objs;
+    GHashTable *objs;
 };
 
 
@@ -300,7 +300,7 @@ int
 virNWFilterBindingObjListLoadAllConfigs(virNWFilterBindingObjListPtr bindings,
                                         const char *configDir)
 {
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *entry;
     int ret = -1;
     int rc;
@@ -330,7 +330,6 @@ virNWFilterBindingObjListLoadAllConfigs(virNWFilterBindingObjListPtr bindings,
             VIR_ERROR(_("Failed to load config for binding '%s'"), entry->d_name);
     }
 
-    VIR_DIR_CLOSE(dir);
     virObjectRWUnlock(bindings);
     return ret;
 }
@@ -365,7 +364,7 @@ virNWFilterBindingObjListForEach(virNWFilterBindingObjListPtr bindings,
         callback, opaque, 0,
     };
     virObjectRWLockRead(bindings);
-    virHashForEach(bindings->objs, virNWFilterBindingObjListHelper, &data);
+    virHashForEachSafe(bindings->objs, virNWFilterBindingObjListHelper, &data);
     virObjectRWUnlock(bindings);
     return data.ret;
 }

@@ -270,7 +270,6 @@ testStorageChain(const void *args)
     virStorageSourcePtr elt;
     size_t i = 0;
     g_autoptr(virStorageSource) meta = NULL;
-    g_autofree char *broken = NULL;
 
     meta = testStorageFileGetMetadata(data->start, data->format, -1, -1);
     if (!meta) {
@@ -286,11 +285,6 @@ testStorageChain(const void *args)
 
     if (virGetLastErrorCode()) {
         fprintf(stderr, "call should not have reported error\n");
-        return -1;
-    }
-
-    if (virStorageFileChainGetBroken(meta, &broken) || broken) {
-        fprintf(stderr, "chain should not be identified as broken\n");
         return -1;
     }
 
@@ -1629,6 +1623,19 @@ mymain(void)
                             "}",
                        "<source protocol='vxhs' name='c6718f6b-0401-441d-a8c3-1f0064d75ee0'>\n"
                        "  <host name='example.com' port='9999'/>\n"
+                       "</source>\n");
+    TEST_BACKING_PARSE("json:{\"file\":{\"driver\":\"nfs\","
+                                   "\"user\":2,"
+                                   "\"group\":9,"
+                                   "\"path\":\"/foo/bar/baz\","
+                                   "\"server\": {  \"host\":\"example.com\","
+                                                  "\"type\":\"inet\""
+                                               "}"
+                                      "}"
+                            "}",
+                       "<source protocol='nfs' name='/foo/bar/baz'>\n"
+                       "  <host name='example.com'/>\n"
+                       "  <identity user='+2' group='+9'/>\n"
                        "</source>\n");
     TEST_BACKING_PARSE_FULL("json:{ \"driver\": \"raw\","
                                     "\"offset\": 10752,"

@@ -560,6 +560,9 @@ VIR_ENUM_IMPL(virVMXControllerModelSCSI,
               "UNUSED lsisas1078",
               "UNUSED virtio-transitional",
               "UNUSED virtio-non-transitional",
+              "UNUSED ncr53c90",
+              "UNUSED dc390",
+              "UNUSED am53c974",
 );
 
 static int virVMXParseVNC(virConfPtr conf, virDomainGraphicsDefPtr *def);
@@ -1574,7 +1577,7 @@ virVMXParseConfig(virVMXContext *ctx,
     }
 
     if (sched_cpu_affinity != NULL && STRCASENEQ(sched_cpu_affinity, "all")) {
-        VIR_AUTOSTRINGLIST afflist = NULL;
+        g_auto(GStrv) afflist = NULL;
         char **aff;
         size_t naffs;
 
@@ -2385,7 +2388,7 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
              */
             goto ignore;
         } else if (virStringHasCaseSuffix(fileName, ".vmdk")) {
-            char *tmp;
+            char *tmp = NULL;
 
             if (deviceType != NULL) {
                 if (busType == VIR_DOMAIN_DISK_BUS_SCSI &&
@@ -2408,12 +2411,9 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
             }
 
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_FILE);
-            if (!(tmp = ctx->parseFileName(fileName, ctx->opaque)))
+            if (ctx->parseFileName(fileName, ctx->opaque, &tmp, false) < 0)
                 goto cleanup;
-            if (virDomainDiskSetSource(*def, tmp) < 0) {
-                VIR_FREE(tmp);
-                goto cleanup;
-            }
+            virDomainDiskSetSource(*def, tmp);
             VIR_FREE(tmp);
             (*def)->cachemode = writeThrough ? VIR_DOMAIN_DISK_CACHE_WRITETHRU
                                              : VIR_DOMAIN_DISK_CACHE_DEFAULT;
@@ -2438,7 +2438,7 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
              */
             goto ignore;
         } else if (fileName && virStringHasCaseSuffix(fileName, ".iso")) {
-            char *tmp;
+            char *tmp = NULL;
 
             if (deviceType && STRCASENEQ(deviceType, "cdrom-image")) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -2448,21 +2448,18 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
             }
 
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_FILE);
-            if (!(tmp = ctx->parseFileName(fileName, ctx->opaque)))
+            if (ctx->parseFileName(fileName, ctx->opaque, &tmp, true) < 0)
                 goto cleanup;
-            if (virDomainDiskSetSource(*def, tmp) < 0) {
-                VIR_FREE(tmp);
-                goto cleanup;
-            }
+            virDomainDiskSetSource(*def, tmp);
             VIR_FREE(tmp);
         } else if (deviceType && STRCASEEQ(deviceType, "atapi-cdrom")) {
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_BLOCK);
 
             if (fileName && STRCASEEQ(fileName, "auto detect")) {
-                ignore_value(virDomainDiskSetSource(*def, NULL));
+                virDomainDiskSetSource(*def, NULL);
                 (*def)->startupPolicy = VIR_DOMAIN_STARTUP_POLICY_OPTIONAL;
-            } else if (virDomainDiskSetSource(*def, fileName) < 0) {
-                goto cleanup;
+            } else {
+                virDomainDiskSetSource(*def, fileName);
             }
         } else if (deviceType && STRCASEEQ(deviceType, "cdrom-raw")) {
             /* Raw access CD-ROMs actually are device='lun' */
@@ -2470,10 +2467,10 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_BLOCK);
 
             if (fileName && STRCASEEQ(fileName, "auto detect")) {
-                ignore_value(virDomainDiskSetSource(*def, NULL));
+                virDomainDiskSetSource(*def, NULL);
                 (*def)->startupPolicy = VIR_DOMAIN_STARTUP_POLICY_OPTIONAL;
-            } else if (virDomainDiskSetSource(*def, fileName) < 0) {
-                goto cleanup;
+            } else {
+                virDomainDiskSetSource(*def, fileName);
             }
         } else if (busType == VIR_DOMAIN_DISK_BUS_SCSI &&
                    deviceType && STRCASEEQ(deviceType, "scsi-passthru")) {
@@ -2481,9 +2478,7 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
                 /* SCSI-passthru CD-ROMs actually are device='lun' */
                 (*def)->device = VIR_DOMAIN_DISK_DEVICE_LUN;
                 virDomainDiskSetType(*def, VIR_STORAGE_TYPE_BLOCK);
-
-                if (virDomainDiskSetSource(*def, fileName) < 0)
-                    goto cleanup;
+                virDomainDiskSetSource(*def, fileName);
             } else {
                 /*
                  * This function was called in order to parse a CDROM device,
@@ -2502,7 +2497,7 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
             }
 
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_FILE);
-            ignore_value(virDomainDiskSetSource(*def, NULL));
+            virDomainDiskSetSource(*def, NULL);
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Invalid or not yet handled value '%s' "
@@ -2514,18 +2509,15 @@ virVMXParseDisk(virVMXContext *ctx, virDomainXMLOptionPtr xmlopt, virConfPtr con
     } else if (device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) {
         if (fileType != NULL && STRCASEEQ(fileType, "device")) {
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_BLOCK);
-            if (virDomainDiskSetSource(*def, fileName) < 0)
-                goto cleanup;
+            virDomainDiskSetSource(*def, fileName);
         } else if (fileType != NULL && STRCASEEQ(fileType, "file")) {
             char *tmp = NULL;
 
             virDomainDiskSetType(*def, VIR_STORAGE_TYPE_FILE);
-            if (fileName && !(tmp = ctx->parseFileName(fileName, ctx->opaque)))
+            if (fileName &&
+                ctx->parseFileName(fileName, ctx->opaque, &tmp, false) < 0)
                 goto cleanup;
-            if (virDomainDiskSetSource(*def, tmp) < 0) {
-                VIR_FREE(tmp);
-                goto cleanup;
-            }
+            virDomainDiskSetSource(*def, tmp);
             VIR_FREE(tmp);
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -2983,10 +2975,10 @@ virVMXParseSerial(virVMXContext *ctx, virConfPtr conf, int port,
     } else if (STRCASEEQ(fileType, "file")) {
         (*def)->target.port = port;
         (*def)->source->type = VIR_DOMAIN_CHR_TYPE_FILE;
-        (*def)->source->data.file.path = ctx->parseFileName(fileName,
-                                                            ctx->opaque);
-
-        if ((*def)->source->data.file.path == NULL)
+        if (ctx->parseFileName(fileName,
+                              ctx->opaque,
+                              &(*def)->source->data.file.path,
+                              false) < 0)
             goto cleanup;
     } else if (STRCASEEQ(fileType, "pipe")) {
         /*
@@ -3149,10 +3141,10 @@ virVMXParseParallel(virVMXContext *ctx, virConfPtr conf, int port,
     } else if (STRCASEEQ(fileType, "file")) {
         (*def)->target.port = port;
         (*def)->source->type = VIR_DOMAIN_CHR_TYPE_FILE;
-        (*def)->source->data.file.path = ctx->parseFileName(fileName,
-                                                            ctx->opaque);
-
-        if ((*def)->source->data.file.path == NULL)
+        if (ctx->parseFileName(fileName,
+                              ctx->opaque,
+                              &(*def)->source->data.file.path,
+                              false) < 0)
             goto cleanup;
     } else {
         virReportError(VIR_ERR_INTERNAL_ERROR,

@@ -47,20 +47,8 @@ int hypervVerifyResponse(WsManClient *client, WsXmlDocH response,
 
 typedef struct _hypervObject hypervObject;
 struct _hypervObject {
-    /* Unserialized data from wsman response. The member called "common" has
-     * properties that are the same type and name for all "versions" of given
-     * WMI class. This means that calling code does not have to make any
-     * conditional checks based on which version was returned as long as it
-     * only needs to read common values. The alignment of structs is ensured
-     * by the generator.
-     */
-    union {
-        XML_TYPE_PTR common;
-        XML_TYPE_PTR v1;
-        XML_TYPE_PTR v2;
-    } data;
-    /* The info used to make wsman request */
-    hypervWmiClassInfoPtr info;
+    XML_TYPE_PTR data; /* Unserialized data from wsman response */
+    hypervWmiClassInfoPtr info; /* The info used to make wsman request */
     hypervObject *next;
 };
 
@@ -68,7 +56,7 @@ typedef struct _hypervWqlQuery hypervWqlQuery;
 typedef hypervWqlQuery *hypervWqlQueryPtr;
 struct _hypervWqlQuery {
     virBufferPtr query;
-    hypervWmiClassInfoListPtr info;
+    hypervWmiClassInfoPtr info;
 };
 
 int hypervEnumAndPull(hypervPrivate *priv, hypervWqlQueryPtr wqlQuery,
@@ -102,7 +90,7 @@ typedef struct _hypervEprParam hypervEprParam;
 
 struct _hypervEmbeddedParam {
     const char *name;
-    virHashTablePtr table;
+    GHashTable *table;
     hypervWmiClassInfoPtr info; /* info of the object this param represents */
 };
 typedef struct _hypervEmbeddedParam hypervEmbeddedParam;
@@ -131,10 +119,9 @@ typedef struct _hypervInvokeParamsList hypervInvokeParamsList;
 typedef hypervInvokeParamsList *hypervInvokeParamsListPtr;
 
 
-hypervInvokeParamsListPtr hypervCreateInvokeParamsList(hypervPrivate *priv,
-                                                       const char *method,
+hypervInvokeParamsListPtr hypervCreateInvokeParamsList(const char *method,
                                                        const char *selector,
-                                                       hypervWmiClassInfoListPtr obj);
+                                                       hypervWmiClassInfoPtr obj);
 
 void hypervFreeInvokeParams(hypervInvokeParamsListPtr params);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(hypervInvokeParamsList, hypervFreeInvokeParams);
@@ -142,24 +129,23 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(hypervInvokeParamsList, hypervFreeInvokeParams);
 int hypervAddSimpleParam(hypervInvokeParamsListPtr params, const char *name,
                          const char *value);
 
-int hypervAddEprParam(hypervInvokeParamsListPtr params, const char *name,
-                      hypervPrivate *priv, virBufferPtr query,
-                      hypervWmiClassInfoListPtr eprInfo);
+int hypervAddEprParam(hypervInvokeParamsListPtr params,
+                      const char *name,
+                      virBufferPtr query,
+                      hypervWmiClassInfoPtr eprInfo);
 
-virHashTablePtr hypervCreateEmbeddedParam(hypervPrivate *priv,
-                                          hypervWmiClassInfoListPtr info);
+GHashTable *hypervCreateEmbeddedParam(hypervWmiClassInfoPtr info);
 
-int hypervSetEmbeddedProperty(virHashTablePtr table,
+int hypervSetEmbeddedProperty(GHashTable *table,
                               const char *name,
                               const char *value);
 
 int hypervAddEmbeddedParam(hypervInvokeParamsListPtr params,
-                           hypervPrivate *priv,
                            const char *name,
-                           virHashTablePtr *table,
-                           hypervWmiClassInfoListPtr info);
+                           GHashTable **table,
+                           hypervWmiClassInfoPtr info);
 
-void hypervFreeEmbeddedParam(virHashTablePtr p);
+void hypervFreeEmbeddedParam(GHashTable *p);
 
 int hypervInvokeMethod(hypervPrivate *priv,
                        hypervInvokeParamsListPtr *paramsPtr,
@@ -201,21 +187,24 @@ const char *hypervReturnCodeToString(int returnCode);
 
 
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- * Generic "Get WMI class list" helpers
- */
-
 int hypervGetWmiClassList(hypervPrivate *priv,
-                          hypervWmiClassInfoListPtr wmiInfo, virBufferPtr query,
+                          hypervWmiClassInfoPtr wmiInfo,
+                          virBufferPtr query,
                           hypervObject **wmiClass);
 
-int hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
-                                                  const char *uuid_string,
-                                                  Msvm_VirtualSystemSettingData **list);
-
-int hypervGetMsvmMemorySettingDataFromVSSD(hypervPrivate *priv,
-                                           const char *vssd_instanceid,
-                                           Msvm_MemorySettingData **list);
+/**
+ * hypervGetWmiClass:
+ * @type: the type of the class being retrieved from WMI
+ * @class: double pointer where the class data will be stored
+ *
+ * Retrieve one or more classes from WMI.
+ *
+ * The following variables must exist in the caller:
+ *   1. hypervPrivate *priv
+ *   2. virBuffer query
+ */
+#define hypervGetWmiClass(type, class) \
+    hypervGetWmiClassList(priv, type ## _WmiInfo, &query, (hypervObject **)class)
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Msvm_ComputerSystem
@@ -233,5 +222,40 @@ int hypervMsvmComputerSystemToDomain(virConnectPtr conn,
                                      Msvm_ComputerSystem *computerSystem,
                                      virDomainPtr *domain);
 
+int hypervMsvmComputerSystemFromUUID(hypervPrivate *priv, const char *uuid,
+                                     Msvm_ComputerSystem **computerSystem);
+
 int hypervMsvmComputerSystemFromDomain(virDomainPtr domain,
                                        Msvm_ComputerSystem **computerSystem);
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Generic "Get WMI class list" helpers
+ */
+
+int hypervGetMsvmVirtualSystemSettingDataFromUUID(hypervPrivate *priv,
+                                                  const char *uuid_string,
+                                                  Msvm_VirtualSystemSettingData **list);
+
+int hypervGetResourceAllocationSD(hypervPrivate *priv,
+                                  const char *id,
+                                  Msvm_ResourceAllocationSettingData **data);
+
+int hypervGetProcessorSD(hypervPrivate *priv,
+                         const char *id,
+                         Msvm_ProcessorSettingData **data);
+
+int hypervGetMemorySD(hypervPrivate *priv,
+                      const char *vssd_instanceid,
+                      Msvm_MemorySettingData **list);
+
+int hypervGetStorageAllocationSD(hypervPrivate *priv,
+                                 const char *id,
+                                 Msvm_StorageAllocationSettingData **data);
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Msvm_VirtualSystemManagementService
+ */
+
+int hypervMsvmVSMSModifyResourceSettings(hypervPrivate *priv,
+                                         GHashTable **resourceSettingsPtr,
+                                         hypervWmiClassInfoPtr wmiInfo);

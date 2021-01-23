@@ -32,6 +32,14 @@
     </p>
 
     <p>
+      Modern hypervisors support TLS for encryption and authentication of the
+      migration connections which can be enabled using the
+      <code>VIR_MIGRATE_TLS</code> flag. The <em>qemu</em> hypervisor driver
+      allows users to force use of TLS via the <code>migrate_tls_force</code>
+      knob configured in <code>/etc/libvirt/qemu.conf</code>.
+    </p>
+
+    <p>
       <img class="diagram" src="migration-native.png" alt="Migration native path"/>
     </p>
 
@@ -47,6 +55,14 @@
       required for general libvirtd <a href="remote.html">remote access</a>, and there is only
       need for a single port to be open on the firewall to support multiple concurrent
       migration operations.
+    </p>
+
+    <p>
+      <em>Note:</em> Certain features such as migration of non-shared storage
+      (<code>VIR_MIGRATE_NON_SHARED_DISK</code>), the multi-connection migration
+      (<code>VIR_MIGRATE_PARALLEL</code>), or post-copy migration
+      (<code>VIR_MIGRATE_POSTCOPY</code>) may not be available when using
+      libvirt's tunnelling.
     </p>
 
     <p>
@@ -251,9 +267,9 @@
     <p>
       As mentioned above, libvirt will not modify configuration files during
       migration by default. The <code>virsh</code> command has two flags to
-      influence this behaviour. The  <code>--undefine-source</code> flag
+      influence this behaviour. The  <code>--undefinesource</code> flag
       will cause the configuration file to be removed on the source host
-      after a successful migration. The <code>--persist</code> flag will
+      after a successful migration. The <code>--persistent</code> flag will
       cause a configuration file to be created on the destination host
       after a successful migration. The following table summarizes the
       configuration file handling in all possible state and flag
@@ -271,8 +287,8 @@
           <th>Source type</th>
           <th>Source config</th>
           <th>Dest config</th>
-          <th>--undefine-source</th>
-          <th>--persist</th>
+          <th>--undefinesource</th>
+          <th>--persistent</th>
           <th>Dest type</th>
           <th>Source config</th>
           <th>Dest config</th>
@@ -475,7 +491,6 @@ virsh migrate web1 xen+tls://desthost/system
 eg using secondary network interface
 
 virsh migrate web1 qemu://desthost/system tcp://10.0.0.1/
-virsh migrate web1 xen+tcp://desthost/system  xenmigr:10.0.0.1/
     </pre>
 
     <p>
@@ -546,12 +561,7 @@ syntax: virsh migrate GUESTNAME HV-URI
 
 eg using same libvirt URI for all connections
 
-virsh migrate --direct web1 xenmigr://desthost/
     </pre>
-
-    <p>
-      Supported by Xen driver
-    </p>
 
     <h3><a id="nativepeer2peer">Native migration, peer2peer between two libvirtd servers</a></h3>
 
@@ -655,8 +665,20 @@ virsh migrate --p2p --tunnelled web1 qemu+ssh://desthost/system qemu+ssh://10.0.
       software):
     </p>
     <pre>
-virsh migrate web1 [--p2p] --copy-storage-all 'qemu+unix:///system?socket=/tmp/migdir/test-sock-driver' 'unix:///tmp/migdir/test-sock-qemu' --disks-uri unix:///tmp/migdir/test-sock-nbd
+virsh migrate --domain web1 [--p2p] --copy-storage-all
+  --desturi 'qemu+unix:///system?socket=/tmp/migdir/test-sock-driver'
+  --migrateuri 'unix:///tmp/migdir/test-sock-qemu'
+  --disks-uri unix:///tmp/migdir/test-sock-nbd
     </pre>
+
+    <p>
+      One caveat is that on SELinux-enabled systems all the sockets that the
+      hypervisor is going to connect to needs to have the proper context and
+      that is chosen before its creation by the process that creates it.  That
+      is usually done by using <code>setsockcreatecon{,raw}()</code> functions.
+      Generally *system_r:system_u:svirt_socket_t:s0* should do the trick, but
+      check the SELinux rules and settings of your system.
+    </p>
 
     <p>
       Supported by QEMU driver

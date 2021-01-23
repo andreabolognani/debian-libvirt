@@ -41,39 +41,33 @@ VIR_LOG_INIT("util.scsi_host");
  * Read the value of the "scsi_host" unique_id file.
  *
  * Returns the value on success or -1 on failure.
+ *
+ * No errors are reported.
  */
 int
 virSCSIHostGetUniqueId(const char *sysfs_prefix,
                        int host)
 {
-    char *sysfs_path = NULL;
+    g_autofree char *sysfs_path = NULL;
     char *p = NULL;
-    int ret = -1;
-    char *buf = NULL;
+    g_autofree char *buf = NULL;
     int unique_id;
 
     sysfs_path = g_strdup_printf("%s/host%d/unique_id",
                                  sysfs_prefix ? sysfs_prefix : SYSFS_SCSI_HOST_PATH, host);
 
-    if (virFileReadAll(sysfs_path, 1024, &buf) < 0)
-        goto cleanup;
+    if (virFileReadAllQuiet(sysfs_path, 1024, &buf) < 0)
+        return -1;
 
     if ((p = strchr(buf, '\n')))
         *p = '\0';
 
     if (virStrToLong_i(buf, NULL, 10, &unique_id) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to parse unique_id: %s"), buf);
-
-        goto cleanup;
+        VIR_DEBUG("unable to parse unique_id: '%s'", buf);
+        return -1;
     }
 
-    ret = unique_id;
-
- cleanup:
-    VIR_FREE(sysfs_path);
-    VIR_FREE(buf);
-    return ret;
+    return unique_id;
 }
 
 
@@ -100,7 +94,7 @@ virSCSIHostFindByPCI(const char *sysfs_prefix,
 {
     const char *prefix = sysfs_prefix ? sysfs_prefix : SYSFS_SCSI_HOST_PATH;
     struct dirent *entry = NULL;
-    DIR *dir = NULL;
+    g_autoptr(DIR) dir = NULL;
     char *host_link = NULL;
     char *host_path = NULL;
     char *p = NULL;
@@ -157,7 +151,6 @@ virSCSIHostFindByPCI(const char *sysfs_prefix,
     }
 
  cleanup:
-    VIR_DIR_CLOSE(dir);
     VIR_FREE(unique_path);
     VIR_FREE(host_link);
     VIR_FREE(host_path);

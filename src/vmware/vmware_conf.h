@@ -83,4 +83,12 @@ int vmwareMakePath(char *srcDir, char *srcName, char *srcExt,
 
 int vmwareExtractPid(const char * vmxPath);
 
-char *vmwareCopyVMXFileName(const char *datastorePath, void *opaque);
+int
+vmwareParseVMXFileName(const char *datastorePath,
+                       void *opaque,
+                       char **out,
+                       bool allow_missing);
+
+char *
+vmwareFormatVMXFileName(const char *datastorePath,
+                        void *opaque);

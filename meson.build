@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '6.9.0',
+  version: '7.0.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -139,20 +139,6 @@ if get_option('test_coverage')
     '-fprofile-arcs',
     '-ftest-coverage',
   ]
-endif
-
-
-# Detect when running under the clang static analyzer's scan-build driver
-# or Coverity-prevent's cov-build. Define STATIC_ANALYSIS accordingly.
-
-rc = run_command(
-  'sh', '-c',
-  'test -n "${CCC_ANALYZER_HTML}"' +
-    ' -o -n "${CCC_ANALYZER_ANALYSIS+set}"' +
-    ' -o -n "$COVERITY_BUILD_COMMAND$COVERITY_LD_PRELOAD"',
-)
-if rc.returncode() == 0
-  conf.set('STATIC_ANALYSIS', 1)
 endif
 
 
@@ -401,8 +387,8 @@ cc_flags += [
   # We do "bad" function casts all the time for event callbacks
   '-Wno-cast-function-type',
 
-  # CLang incorrectly complains about dup typedefs win gnu99 mode
-  # so use this CLang-specific arg to keep it quiet
+  # Clang incorrectly complains about dup typedefs win gnu99 mode
+  # so use this Clang-specific arg to keep it quiet
   '-Wno-typedef-redefinition',
 
   # We don't use -Wc++-compat so we have to enable it explicitly
@@ -1382,10 +1368,12 @@ libutil_dep = cc.find_library('util', required: false)
 if host_machine.system() == 'windows'
   ole32_dep = cc.find_library('ole32')
   oleaut32_dep = cc.find_library('oleaut32')
+  winsock2_dep = cc.find_library('ws2_32')
   win32_dep = declare_dependency(
     dependencies: [
       ole32_dep,
       oleaut32_dep,
+      winsock2_dep,
     ],
   )
   if get_option('default_library') == 'static'
@@ -1400,7 +1388,7 @@ else
   win32_link_flags = []
 endif
 
-wireshark_version = '2.4.0'
+wireshark_version = '2.6.0'
 wireshark_dep = dependency('wireshark', version: '>=' + wireshark_version, required: get_option('wireshark_dissector'))
 if wireshark_dep.found()
   wireshark_plugindir = get_option('wireshark_plugindir')
@@ -1408,31 +1396,22 @@ if wireshark_dep.found()
     wireshark_plugindir = wireshark_dep.get_pkgconfig_variable('plugindir')
   endif
 
-  # On some systems the plugindir variable may not be stored within pkg config.
-  # Fall back to older style of constructing the plugin dir path.
-  if wireshark_plugindir == ''
-    wireshark_modversion = wireshark_dep.version()
-    wireshark_plugindir = '@0@/wireshark/plugins/@1@'.format(
-      libdir, wireshark_modversion
-    )
-  else
-    wireshark_prefix = wireshark_dep.get_pkgconfig_variable('prefix')
-    if wireshark_prefix == ''
-      # If wireshark's prefix cannot be retrieved from pkg-config,
-      # this is our best bet.
-      wireshark_prefix = '/usr'
-    endif
-    # Replace wireshark's prefix with our own.
-    # There is no replace method in meson so we have to workaround it.
-    rc = run_command(
-      'python3', '-c',
-      'print("@0@".replace("@1@", "@2@"))'.format(
-        wireshark_plugindir, wireshark_prefix, prefix,
-      ),
-      check: true,
-    )
-    wireshark_plugindir = rc.stdout().strip()
+  wireshark_prefix = wireshark_dep.get_pkgconfig_variable('prefix')
+  if wireshark_prefix == ''
+    # If wireshark's prefix cannot be retrieved from pkg-config,
+    # this is our best bet.
+    wireshark_prefix = '/usr'
   endif
+  # Replace wireshark's prefix with our own.
+  # There is no replace method in meson so we have to workaround it.
+  rc = run_command(
+    'python3', '-c',
+    'print("@0@".replace("@1@", "@2@"))'.format(
+      wireshark_plugindir, wireshark_prefix, prefix,
+    ),
+    check: true,
+  )
+  wireshark_plugindir = rc.stdout().strip()
 
   # Since wireshark 2.5.0 plugins can't live in top level plugindir but have
   # to be under one of ["epan", "wiretap", "codecs"] subdir. The first one looks okay.
@@ -1457,25 +1436,7 @@ else
 endif
 
 yajl_version = '2.0.3'
-if not get_option('yajl').disabled()
-  yajl_dep = dependency('yajl', version: '>=' + yajl_version, required: false)
-  # 2.0.3 was the version where the pkg-config file was first added
-  # SLES 12 and openSUSE Leap 42.3 still use 2.0.1
-  # TODO: delete this in July 2020
-  if not yajl_dep.found()
-    yajl_dep = cc.find_library('yajl', required: get_option('yajl'))
-    if yajl_dep.found()
-      has_func = cc.has_function('yajl_tree_parse', dependencies: yajl_dep, prefix: '#include <yajl/yajl_common.h>')
-      if not has_func and get_option('yajl').enabled()
-        error('yajl >= @0@ was not found'.format(yajl_version))
-      elif not has_func
-        yajl_dep = dependency('', required: false)
-      endif
-    endif
-  endif
-else
-  yajl_dep = dependency('', required: false)
-endif
+yajl_dep = dependency('yajl', version: '>=' + yajl_version, required: get_option('yajl'))
 if yajl_dep.found()
   conf.set('WITH_YAJL', 1)
 endif
@@ -1829,7 +1790,7 @@ if not get_option('driver_vbox').disabled() and conf.has('WITH_LIBVIRTD')
   conf.set_quoted('VBOX_XPCOMC_DIR', get_option('vbox_xpcomc_dir'))
 endif
 
-if get_option('driver_vmware').enabled()
+if not get_option('driver_vmware').disabled()
   conf.set('WITH_VMWARE', 1)
   conf.set('WITH_VMX', 1)
 endif

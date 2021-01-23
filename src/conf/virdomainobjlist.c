@@ -47,11 +47,11 @@ struct _virDomainObjList {
 
     /* uuid string -> virDomainObj  mapping
      * for O(1), lockless lookup-by-uuid */
-    virHashTable *objs;
+    GHashTable *objs;
 
     /* name -> virDomainObj mapping for O(1),
      * lockless lookup-by-name */
-    virHashTable *objsName;
+    GHashTable *objsName;
 };
 
 
@@ -588,7 +588,7 @@ virDomainObjListLoadAllConfigs(virDomainObjListPtr doms,
                                virDomainLoadConfigNotify notify,
                                void *opaque)
 {
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *entry;
     int ret = -1;
     int rc;
@@ -633,7 +633,6 @@ virDomainObjListLoadAllConfigs(virDomainObjListPtr doms,
         }
     }
 
-    VIR_DIR_CLOSE(dir);
     virObjectRWUnlock(doms);
     return ret;
 }
@@ -838,7 +837,7 @@ virDomainObjListForEach(virDomainObjListPtr doms,
         virObjectRWLockWrite(doms);
     else
         virObjectRWLockRead(doms);
-    virHashForEach(doms->objs, virDomainObjListHelper, &data);
+    virHashForEachSafe(doms->objs, virDomainObjListHelper, &data);
     virObjectRWUnlock(doms);
     return data.ret;
 }

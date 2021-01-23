@@ -58,7 +58,7 @@ struct _virLockSpace {
     char *dir;
     virMutex lock;
 
-    virHashTablePtr resources;
+    GHashTable *resources;
 };
 
 
@@ -435,7 +435,7 @@ virJSONValuePtr virLockSpacePreExecRestart(virLockSpacePtr lockspace)
         goto error;
     }
 
-    tmp = pairs = virHashGetItems(lockspace->resources, NULL);
+    tmp = pairs = virHashGetItems(lockspace->resources, NULL, false);
     while (tmp && tmp->value) {
         virLockSpaceResourcePtr res = (virLockSpaceResourcePtr)tmp->value;
         virJSONValuePtr child = virJSONValueNewObject();
@@ -515,7 +515,7 @@ int virLockSpaceCreateResource(virLockSpacePtr lockspace,
                                const char *resname)
 {
     int ret = -1;
-    char *respath = NULL;
+    g_autofree char *respath = NULL;
 
     VIR_DEBUG("lockspace=%p resname=%s", lockspace, resname);
 
@@ -538,7 +538,6 @@ int virLockSpaceCreateResource(virLockSpacePtr lockspace,
 
  cleanup:
     virMutexUnlock(&lockspace->lock);
-    VIR_FREE(respath);
     return ret;
 }
 
@@ -547,7 +546,7 @@ int virLockSpaceDeleteResource(virLockSpacePtr lockspace,
                                const char *resname)
 {
     int ret = -1;
-    char *respath = NULL;
+    g_autofree char *respath = NULL;
 
     VIR_DEBUG("lockspace=%p resname=%s", lockspace, resname);
 
@@ -575,7 +574,6 @@ int virLockSpaceDeleteResource(virLockSpacePtr lockspace,
 
  cleanup:
     virMutexUnlock(&lockspace->lock);
-    VIR_FREE(respath);
     return ret;
 }
 

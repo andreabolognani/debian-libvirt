@@ -204,7 +204,8 @@ udevListInterfacesByStatus(virConnectPtr conn,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to get list of %s interfaces on host"),
                        virUdevStatusString(status));
-        goto error;
+        udev_unref(udev);
+        return -1;
     }
 
     /* Do the scan to load up the enumeration */
@@ -239,16 +240,6 @@ udevListInterfacesByStatus(virConnectPtr conn,
     udev_unref(udev);
 
     return count;
-
- error:
-    if (enumerate)
-        udev_enumerate_unref(enumerate);
-    udev_unref(udev);
-
-    for (names_len = 0; names_len < count; names_len++)
-        VIR_FREE(names[names_len]);
-
-    return -1;
 }
 
 static int
@@ -309,10 +300,9 @@ udevConnectListAllInterfaces(virConnectPtr conn,
     struct udev_list_entry *dev_entry;
     virInterfacePtr *ifaces_list = NULL;
     virInterfacePtr iface_obj;
-    int tmp_count;
     int count = 0;
     int status = 0;
-    int ret;
+    int ret = -1;
 
     virCheckFlags(VIR_CONNECT_LIST_INTERFACES_FILTERS_ACTIVE, -1);
 
@@ -329,7 +319,6 @@ udevConnectListAllInterfaces(virConnectPtr conn,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to get list of %s interfaces on host"),
                        virUdevStatusString(status));
-        ret = -1;
         goto cleanup;
     }
 
@@ -415,14 +404,6 @@ udevConnectListAllInterfaces(virConnectPtr conn,
     if (enumerate)
         udev_enumerate_unref(enumerate);
     udev_unref(udev);
-
-    if (ifaces) {
-        for (tmp_count = 0; tmp_count < count; tmp_count++)
-            virObjectUnref(ifaces_list[tmp_count]);
-    }
-
-    VIR_FREE(ifaces_list);
-
     return ret;
 
 }
@@ -563,7 +544,7 @@ udevBridgeScanDirFilter(const struct dirent *entry)
      * vnet%d. Improvements to this check are welcome.
      */
     if (strlen(entry->d_name) >= 5) {
-        if (STRPREFIX(entry->d_name, VIR_NET_GENERATED_TAP_PREFIX) &&
+        if (STRPREFIX(entry->d_name, VIR_NET_GENERATED_VNET_PREFIX) &&
             g_ascii_isdigit(entry->d_name[4]))
             return 0;
     }

@@ -104,7 +104,8 @@ virDomainBackupDiskDefParseXML(xmlNodePtr node,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autofree char *type = NULL;
-    g_autofree char *driver = NULL;
+    g_autofree char *format = NULL;
+    g_autofree char *idx = NULL;
     g_autofree char *backup = NULL;
     g_autofree char *state = NULL;
     g_autofree char *backupmode = NULL;
@@ -169,23 +170,19 @@ virDomainBackupDiskDefParseXML(xmlNodePtr node,
         def->state = tmp;
     }
 
-    def->store = virStorageSourceNew();
+    type = virXMLPropString(node, "type");
+    format = virXPathString("string(./driver/@type)", ctxt);
+    if (internal)
+        idx = virXMLPropString(node, "index");
 
-    if ((type = virXMLPropString(node, "type"))) {
-        if ((def->store->type = virStorageTypeFromString(type)) <= 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("unknown disk backup type '%s'"), type);
-            return -1;
-        }
+    if (!(def->store = virDomainStorageSourceParseBase(type, format, idx)))
+          return -1;
 
-        if (def->store->type != VIR_STORAGE_TYPE_FILE &&
-            def->store->type != VIR_STORAGE_TYPE_BLOCK) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("unsupported disk backup type '%s'"), type);
-            return -1;
-        }
-    } else {
-        def->store->type = VIR_STORAGE_TYPE_FILE;
+    if (def->store->type != VIR_STORAGE_TYPE_FILE &&
+        def->store->type != VIR_STORAGE_TYPE_BLOCK) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("unsupported disk backup type '%s'"), type);
+        return -1;
     }
 
     if (push)
@@ -197,20 +194,6 @@ virDomainBackupDiskDefParseXML(xmlNodePtr node,
         virDomainStorageSourceParse(srcNode, ctxt, def->store,
                                     storageSourceParseFlags, xmlopt) < 0)
         return -1;
-
-    if ((driver = virXPathString("string(./driver/@type)", ctxt))) {
-        def->store->format = virStorageFileFormatTypeFromString(driver);
-        if (def->store->format <= 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown disk backup driver '%s'"), driver);
-            return -1;
-        } else if (!push && def->store->format != VIR_STORAGE_FILE_QCOW2) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("pull mode requires qcow2 driver, not '%s'"),
-                           driver);
-            return -1;
-        }
-    }
 
     return 0;
 }
@@ -406,6 +389,9 @@ virDomainBackupDiskDefFormat(virBufferPtr buf,
         virBufferEscapeString(&attrBuf, " exportname='%s'", disk->exportname);
         virBufferEscapeString(&attrBuf, " exportbitmap='%s'", disk->exportbitmap);
 
+        if (disk->store->id != 0)
+            virBufferAsprintf(&attrBuf, " index='%u'", disk->store->id);
+
         if (disk->store->format > 0)
             virBufferEscapeString(&childBuf, "<driver type='%s'/>\n",
                                   virStorageFileFormatTypeToString(disk->store->format));
@@ -519,7 +505,7 @@ virDomainBackupAlignDisks(virDomainBackupDefPtr def,
                           virDomainDefPtr dom,
                           const char *suffix)
 {
-    g_autoptr(virHashTable) disks = virHashNew(NULL);
+    g_autoptr(GHashTable) disks = virHashNew(NULL);
     size_t i;
     int ndisks;
     bool backup_all = false;

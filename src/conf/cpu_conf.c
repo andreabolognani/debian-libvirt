@@ -743,21 +743,7 @@ virCPUDefFormatBufFull(virBufferPtr buf,
     if (virDomainNumaDefFormatXML(&childrenBuf, numa) < 0)
         return -1;
 
-    /* Put it all together */
-    if (virBufferUse(&attributeBuf) || virBufferUse(&childrenBuf)) {
-        virBufferAddLit(buf, "<cpu");
-
-        if (virBufferUse(&attributeBuf))
-            virBufferAddBuffer(buf, &attributeBuf);
-
-        if (virBufferUse(&childrenBuf)) {
-            virBufferAddLit(buf, ">\n");
-            virBufferAddBuffer(buf, &childrenBuf);
-            virBufferAddLit(buf, "</cpu>\n");
-        } else {
-            virBufferAddLit(buf, "/>\n");
-        }
-    }
+    virXMLFormatElement(buf, "cpu", &attributeBuf, &childrenBuf);
 
     return 0;
 }
@@ -871,11 +857,18 @@ virCPUDefFormatBuf(virBufferPtr buf,
     return 0;
 }
 
+
+typedef enum {
+    VIR_CPU_ADD_FEATURE_MODE_EXCLUSIVE, /* Fail if feature exists */
+    VIR_CPU_ADD_FEATURE_MODE_UPDATE,    /* Add feature or update policy */
+    VIR_CPU_ADD_FEATURE_MODE_NEW,       /* Add feature if it does not exist */
+} virCPUDefAddFeatureMode;
+
 static int
-virCPUDefUpdateFeatureInternal(virCPUDefPtr def,
-                               const char *name,
-                               int policy,
-                               bool update)
+virCPUDefAddFeatureInternal(virCPUDefPtr def,
+                            const char *name,
+                            int policy,
+                            virCPUDefAddFeatureMode mode)
 {
     virCPUFeatureDefPtr feat;
 
@@ -883,16 +876,21 @@ virCPUDefUpdateFeatureInternal(virCPUDefPtr def,
         policy = -1;
 
     if ((feat = virCPUDefFindFeature(def, name))) {
-        if (update) {
+        switch (mode) {
+        case VIR_CPU_ADD_FEATURE_MODE_NEW:
+            return 0;
+
+        case VIR_CPU_ADD_FEATURE_MODE_UPDATE:
             feat->policy = policy;
             return 0;
+
+        case VIR_CPU_ADD_FEATURE_MODE_EXCLUSIVE:
+        default:
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("CPU feature '%s' specified more than once"),
+                           name);
+            return -1;
         }
-
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("CPU feature '%s' specified more than once"),
-                       name);
-
-        return -1;
     }
 
     if (VIR_RESIZE_N(def->features, def->nfeatures_max,
@@ -912,7 +910,8 @@ virCPUDefUpdateFeature(virCPUDefPtr def,
                        const char *name,
                        int policy)
 {
-    return virCPUDefUpdateFeatureInternal(def, name, policy, true);
+    return virCPUDefAddFeatureInternal(def, name, policy,
+                                       VIR_CPU_ADD_FEATURE_MODE_UPDATE);
 }
 
 int
@@ -920,7 +919,18 @@ virCPUDefAddFeature(virCPUDefPtr def,
                     const char *name,
                     int policy)
 {
-    return virCPUDefUpdateFeatureInternal(def, name, policy, false);
+    return virCPUDefAddFeatureInternal(def, name, policy,
+                                       VIR_CPU_ADD_FEATURE_MODE_EXCLUSIVE);
+}
+
+
+int
+virCPUDefAddFeatureIfMissing(virCPUDefPtr def,
+                             const char *name,
+                             int policy)
+{
+    return virCPUDefAddFeatureInternal(def, name, policy,
+                                       VIR_CPU_ADD_FEATURE_MODE_NEW);
 }
 
 
@@ -975,7 +985,7 @@ virCPUDefCheckFeatures(virCPUDefPtr cpu,
                        void *opaque,
                        char ***features)
 {
-    VIR_AUTOSTRINGLIST list = NULL;
+    g_auto(GStrv) list = NULL;
     size_t n = 0;
     size_t i;
 

@@ -1910,12 +1910,17 @@ typedef enum {
 # endif
 } virVcpuState;
 
+typedef enum {
+    VIR_VCPU_INFO_CPU_OFFLINE     = -1, /* the vCPU is offline */
+    VIR_VCPU_INFO_CPU_UNAVAILABLE = -2, /* the hypervisor does not expose real CPU information */
+} virVcpuHostCpuState;
+
 typedef struct _virVcpuInfo virVcpuInfo;
 struct _virVcpuInfo {
     unsigned int number;        /* virtual CPU number */
     int state;                  /* value from virVcpuState */
     unsigned long long cpuTime; /* CPU time used, in nanoseconds */
-    int cpu;                    /* real CPU number, or -1 if offline */
+    int cpu;                    /* real CPU number, or one of the values from virVcpuHostCpuState */
 };
 typedef virVcpuInfo *virVcpuInfoPtr;
 
@@ -5065,6 +5070,7 @@ typedef enum {
     VIR_DOMAIN_GUEST_INFO_TIMEZONE = (1 << 2), /* return timezone information */
     VIR_DOMAIN_GUEST_INFO_HOSTNAME = (1 << 3), /* return hostname information */
     VIR_DOMAIN_GUEST_INFO_FILESYSTEM = (1 << 4), /* return filesystem information */
+    VIR_DOMAIN_GUEST_INFO_DISKS = (1 << 5), /* return disks information */
 } virDomainGuestInfoTypes;
 
 int virDomainGetGuestInfo(virDomainPtr domain,
@@ -5095,5 +5101,22 @@ int virDomainBackupBegin(virDomainPtr domain,
 
 char *virDomainBackupGetXMLDesc(virDomainPtr domain,
                                 unsigned int flags);
+
+int virDomainAuthorizedSSHKeysGet(virDomainPtr domain,
+                                  const char *user,
+                                  char ***keys,
+                                  unsigned int flags);
+
+typedef enum {
+    VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_APPEND = (1 << 0), /* don't truncate file, just append */
+    VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_REMOVE = (1 << 1), /* remove keys, instead of adding them */
+
+} virDomainAuthorizedSSHKeysSetFlags;
+
+int virDomainAuthorizedSSHKeysSet(virDomainPtr domain,
+                                  const char *user,
+                                  const char **keys,
+                                  unsigned int nkeys,
+                                  unsigned int flags);
 
 #endif /* LIBVIRT_DOMAIN_H */

@@ -87,7 +87,7 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
                           int *nparams)
 {
     const char *sysctl_name;
-    long *cpu_times;
+    g_autofree long *cpu_times = NULL;
     struct clockinfo clkinfo;
     size_t i, j, cpu_times_size, clkinfo_size;
     int cpu_times_num, offset, hz, stathz, ret = -1;
@@ -172,8 +172,6 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
     ret = 0;
 
  cleanup:
-    VIR_FREE(cpu_times);
-
     return ret;
 }
 
@@ -308,7 +306,7 @@ virHostCPUParseNode(const char *node,
 {
     int ret = -1;
     int processors = 0;
-    DIR *cpudir = NULL;
+    g_autoptr(DIR) cpudir = NULL;
     struct dirent *cpudirent = NULL;
     virBitmapPtr node_cpus_map = NULL;
     virBitmapPtr sockets_map = NULL;
@@ -443,7 +441,6 @@ virHostCPUParseNode(const char *node,
     ret = processors;
 
  cleanup:
-    VIR_DIR_CLOSE(cpudir);
     if (cores_maps)
         for (i = 0; i < sock_max; i++)
             virBitmapFree(cores_maps[i]);
@@ -611,7 +608,7 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
 {
     virBitmapPtr present_cpus_map = NULL;
     virBitmapPtr online_cpus_map = NULL;
-    DIR *nodedir = NULL;
+    g_autoptr(DIR) nodedir = NULL;
     struct dirent *nodedirent = NULL;
     int nodecpus, nodecores, nodesockets, nodethreads, offline = 0;
     int threads_per_subcore = 0;
@@ -772,7 +769,6 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
     ret = 0;
 
  cleanup:
-    VIR_DIR_CLOSE(nodedir);
     virBitmapFree(present_cpus_map);
     virBitmapFree(online_cpus_map);
     VIR_FREE(sysfs_nodedir);

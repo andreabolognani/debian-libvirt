@@ -54,7 +54,7 @@ static int
 virDevMapperGetMajor(unsigned int *major)
 {
     g_autofree char *buf = NULL;
-    VIR_AUTOSTRINGLIST lines = NULL;
+    g_auto(GStrv) lines = NULL;
     size_t i;
 
     if (!virFileExists(CONTROL_PATH))
@@ -169,9 +169,8 @@ virDMSanitizepath(const char *path)
     g_autofree char *dmDirPath = NULL;
     struct dirent *ent = NULL;
     struct stat sb[2];
-    DIR *dh = NULL;
+    g_autoptr(DIR) dh = NULL;
     const char *p;
-    char *ret = NULL;
 
     /* If a path is NOT provided then assume it's DM name */
     p = strrchr(path, '/');
@@ -205,14 +204,12 @@ virDMSanitizepath(const char *path)
         g_autofree char *tmp = g_strdup_printf(DEV_DM_DIR "/%s", ent->d_name);
 
         if (stat(tmp, &sb[1]) == 0 &&
-            sb[0].st_rdev == sb[0].st_rdev) {
-            ret = g_steal_pointer(&tmp);
-            break;
+            sb[0].st_rdev == sb[1].st_rdev) {
+            return g_steal_pointer(&tmp);
         }
     }
 
-    virDirClose(&dh);
-    return ret;
+    return NULL;
 }
 
 
@@ -226,7 +223,7 @@ virDevMapperGetTargetsImpl(int controlFD,
     g_autofree char *buf = NULL;
     struct dm_ioctl dm;
     struct dm_target_deps *deps = NULL;
-    VIR_AUTOSTRINGLIST devPaths = NULL;
+    g_auto(GStrv) devPaths = NULL;
     size_t i;
 
     memset(&dm, 0, sizeof(dm));
@@ -268,7 +265,7 @@ virDevMapperGetTargetsImpl(int controlFD,
     }
 
     for (i = 0; i < deps->count; i++) {
-        VIR_AUTOSTRINGLIST tmpPaths = NULL;
+        g_auto(GStrv) tmpPaths = NULL;
 
         if (virDevMapperGetTargetsImpl(controlFD, devPaths[i], &tmpPaths, ttl - 1) < 0)
             return -1;

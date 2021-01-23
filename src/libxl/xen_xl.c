@@ -641,8 +641,7 @@ xenParseXLDiskSrc(virDomainDiskDefPtr disk, char *srcstr)
         disk->src->protocol = VIR_STORAGE_NET_PROTOCOL_RBD;
         ret = virStorageSourceParseRBDColonString(tmpstr, disk->src);
     } else {
-        if (virDomainDiskSetSource(disk, srcstr) < 0)
-            goto cleanup;
+        virDomainDiskSetSource(disk, srcstr);
 
         ret = 0;
     }
@@ -726,8 +725,7 @@ xenParseXLDisk(virConfPtr conf, virDomainDefPtr def)
             disk->removable = libxldisk->removable;
 
             if (libxldisk->is_cdrom) {
-                if (virDomainDiskSetDriver(disk, "qemu") < 0)
-                    goto fail;
+                virDomainDiskSetDriver(disk, "qemu");
 
                 virDomainDiskSetType(disk, VIR_STORAGE_TYPE_FILE);
                 disk->device = VIR_DOMAIN_DISK_DEVICE_CDROM;
@@ -773,21 +771,18 @@ xenParseXLDisk(virConfPtr conf, virDomainDefPtr def)
                 switch (libxldisk->backend) {
                 case LIBXL_DISK_BACKEND_QDISK:
                 case LIBXL_DISK_BACKEND_UNKNOWN:
-                    if (virDomainDiskSetDriver(disk, "qemu") < 0)
-                        goto fail;
+                    virDomainDiskSetDriver(disk, "qemu");
                     if (virDomainDiskGetType(disk) == VIR_STORAGE_TYPE_NONE)
                         virDomainDiskSetType(disk, VIR_STORAGE_TYPE_FILE);
                     break;
 
                 case LIBXL_DISK_BACKEND_TAP:
-                    if (virDomainDiskSetDriver(disk, "tap") < 0)
-                        goto fail;
+                    virDomainDiskSetDriver(disk, "tap");
                     virDomainDiskSetType(disk, VIR_STORAGE_TYPE_FILE);
                     break;
 
                 case LIBXL_DISK_BACKEND_PHY:
-                    if (virDomainDiskSetDriver(disk, "phy") < 0)
-                        goto fail;
+                    virDomainDiskSetDriver(disk, "phy");
                     virDomainDiskSetType(disk, VIR_STORAGE_TYPE_BLOCK);
                     break;
                 default:
@@ -1156,7 +1151,7 @@ static int
 xenParseXLNamespaceData(virConfPtr conf, virDomainDefPtr def)
 {
     virConfValuePtr list = virConfGetValue(conf, "device_model_args");
-    VIR_AUTOSTRINGLIST args = NULL;
+    g_auto(GStrv) args = NULL;
     size_t nargs;
     libxlDomainXmlNsDefPtr nsdata = NULL;
 
@@ -1605,6 +1600,7 @@ xenFormatXLDiskSrcNet(virStorageSourcePtr src)
     case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
     case VIR_STORAGE_NET_PROTOCOL_SSH:
     case VIR_STORAGE_NET_PROTOCOL_VXHS:
+    case VIR_STORAGE_NET_PROTOCOL_NFS:
     case VIR_STORAGE_NET_PROTOCOL_LAST:
     case VIR_STORAGE_NET_PROTOCOL_NONE:
         virReportError(VIR_ERR_NO_SUPPORT,

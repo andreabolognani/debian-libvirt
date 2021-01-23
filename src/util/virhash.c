@@ -21,46 +21,19 @@
 
 #include "virerror.h"
 #include "virhash.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "virhashcode.h"
 #include "virrandom.h"
-#include "virstring.h"
 #include "virobject.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 VIR_LOG_INIT("util.hash");
 
-#define MAX_HASH_LEN 8
-
-/* #define DEBUG_GROW */
-
-/*
- * A single entry in the hash table
- */
-typedef struct _virHashEntry virHashEntry;
-typedef virHashEntry *virHashEntryPtr;
-struct _virHashEntry {
-    struct _virHashEntry *next;
-    char *name;
-    void *payload;
-};
-
-/*
- * The entire hash table
- */
-struct _virHashTable {
-    virHashEntryPtr *table;
-    uint32_t seed;
-    size_t size;
-    size_t nbElems;
-    virHashDataFree dataFree;
-};
 
 struct _virHashAtomic {
     virObjectLockable parent;
-    virHashTablePtr hash;
+    GHashTable *hash;
 };
 
 static virClassPtr virHashAtomicClass;
@@ -76,11 +49,28 @@ static int virHashAtomicOnceInit(void)
 
 VIR_ONCE_GLOBAL_INIT(virHashAtomic);
 
-static size_t
-virHashComputeKey(const virHashTable *table, const char *name)
+
+/**
+ * Our hash function uses a random seed to provide uncertainity from run to run
+ * to prevent pre-crafting of colliding hash keys.
+ */
+static uint32_t virHashTableSeed;
+
+static int virHashTableSeedOnceInit(void)
 {
-    uint32_t value = virHashCodeGen(name, strlen(name), table->seed);
-    return value % table->size;
+    virHashTableSeed = virRandomBits(32);
+    return 0;
+}
+
+VIR_ONCE_GLOBAL_INIT(virHashTableSeed);
+
+
+static unsigned int
+virHashTableStringKey(const void *vkey)
+{
+    const char *key = vkey;
+
+    return virHashCodeGen(key, strlen(key), virHashTableSeed);
 }
 
 
@@ -88,25 +78,16 @@ virHashComputeKey(const virHashTable *table, const char *name)
  * virHashNew:
  * @dataFree: callback to free data
  *
- * Create a new virHashTablePtr.
+ * Create a new GHashTable * for use with string-based keys.
  *
  * Returns the newly created object.
  */
-virHashTablePtr
+GHashTable *
 virHashNew(virHashDataFree dataFree)
 {
-    virHashTablePtr table = NULL;
+    ignore_value(virHashTableSeedInitialize());
 
-    table = g_new0(virHashTable, 1);
-
-    table->seed = virRandomBits(32);
-    table->size = 32;
-    table->nbElems = 0;
-    table->dataFree = dataFree;
-
-    table->table = g_new0(virHashEntryPtr, table->size);
-
-    return table;
+    return g_hash_table_new_full(virHashTableStringKey, g_str_equal, g_free, dataFree);
 }
 
 
@@ -139,145 +120,23 @@ virHashAtomicDispose(void *obj)
 
 
 /**
- * virHashGrow:
- * @table: the hash table
- * @size: the new size of the hash table
- *
- * resize the hash table
- *
- * Returns 0 in case of success, -1 in case of failure
- */
-static int
-virHashGrow(virHashTablePtr table, size_t size)
-{
-    size_t oldsize, i;
-    virHashEntryPtr *oldtable;
-
-#ifdef DEBUG_GROW
-    size_t nbElem = 0;
-#endif
-
-    if (table == NULL)
-        return -1;
-    if (size < 8)
-        return -1;
-    if (size > 8 * 2048)
-        return -1;
-
-    oldsize = table->size;
-    oldtable = table->table;
-    if (oldtable == NULL)
-        return -1;
-
-    table->table = g_new0(virHashEntryPtr, size);
-    table->size = size;
-
-    for (i = 0; i < oldsize; i++) {
-        virHashEntryPtr iter = oldtable[i];
-        while (iter) {
-            virHashEntryPtr next = iter->next;
-            size_t key = virHashComputeKey(table, iter->name);
-
-            iter->next = table->table[key];
-            table->table[key] = iter;
-
-#ifdef DEBUG_GROW
-            nbElem++;
-#endif
-            iter = next;
-        }
-    }
-
-    VIR_FREE(oldtable);
-
-#ifdef DEBUG_GROW
-    VIR_DEBUG("virHashGrow : from %d to %d, %ld elems", oldsize,
-              size, nbElem);
-#endif
-
-    return 0;
-}
-
-/**
  * virHashFree:
  * @table: the hash table
  *
  * Free the hash @table and its contents. The userdata is
  * deallocated with function provided at creation time.
+ *
+ * Deprecated: consider using g_hash_table_unref instead
  */
 void
-virHashFree(virHashTablePtr table)
+virHashFree(GHashTable *table)
 {
-    size_t i;
-
     if (table == NULL)
         return;
 
-    for (i = 0; i < table->size; i++) {
-        virHashEntryPtr iter = table->table[i];
-        while (iter) {
-            virHashEntryPtr next = iter->next;
-
-            if (table->dataFree)
-                table->dataFree(iter->payload);
-            g_free(iter->name);
-            VIR_FREE(iter);
-            iter = next;
-        }
-    }
-
-    VIR_FREE(table->table);
-    VIR_FREE(table);
+    g_hash_table_unref(table);
 }
 
-static int
-virHashAddOrUpdateEntry(virHashTablePtr table, const char *name,
-                        void *userdata,
-                        bool is_update)
-{
-    size_t key, len = 0;
-    virHashEntryPtr entry;
-    virHashEntryPtr last = NULL;
-
-    if ((table == NULL) || (name == NULL))
-        return -1;
-
-    key = virHashComputeKey(table, name);
-
-    /* Check for duplicate entry */
-    for (entry = table->table[key]; entry; entry = entry->next) {
-        if (STREQ(entry->name, name)) {
-            if (is_update) {
-                if (table->dataFree)
-                    table->dataFree(entry->payload);
-                entry->payload = userdata;
-                return 0;
-            } else {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Duplicate hash table key '%s'"), name);
-                return -1;
-            }
-        }
-        last = entry;
-        len++;
-    }
-
-    entry = g_new0(virHashEntry, 1);
-    entry->name = g_strdup(name);
-    entry->payload = userdata;
-
-    if (last)
-        last->next = entry;
-    else
-        table->table[key] = entry;
-
-    table->nbElems++;
-
-    if (len > MAX_HASH_LEN)
-        virHashGrow(table, MAX_HASH_LEN * table->size);
-
-    return 0;
-}
 
 /**
  * virHashAddEntry:
@@ -288,12 +147,27 @@ virHashAddOrUpdateEntry(virHashTablePtr table, const char *name,
  * Add the @userdata to the hash @table. This can later be retrieved
  * by using @name. Duplicate entries generate errors.
  *
+ * Deprecated: Consider using g_hash_table_insert insert. Note that
+ * g_hash_table_instead doesn't fail if entry exists. Also note that
+ * g_hash_table_insert doesn't copy the key.
+ *
  * Returns 0 the addition succeeded and -1 in case of error.
  */
 int
-virHashAddEntry(virHashTablePtr table, const char *name, void *userdata)
+virHashAddEntry(GHashTable *table, const char *name, void *userdata)
 {
-    return virHashAddOrUpdateEntry(table, name, userdata, false);
+    if (!table || !name)
+        return -1;
+
+    if (g_hash_table_contains(table, name)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Duplicate hash table key '%s'"), name);
+        return -1;
+    }
+
+    g_hash_table_insert(table, g_strdup(name), userdata);
+
+    return 0;
 }
 
 /**
@@ -306,13 +180,21 @@ virHashAddEntry(virHashTablePtr table, const char *name, void *userdata)
  * by using @name. Existing entry for this tuple
  * will be removed and freed with @f if found.
  *
+ * Deprecated: consider using g_hash_table_insert insert. Note that
+ * g_hash_table_insert doesn't copy the key.
+ *
  * Returns 0 the addition succeeded and -1 in case of error.
  */
 int
-virHashUpdateEntry(virHashTablePtr table, const char *name,
+virHashUpdateEntry(GHashTable *table, const char *name,
                    void *userdata)
 {
-    return virHashAddOrUpdateEntry(table, name, userdata, true);
+    if (!table || !name)
+        return -1;
+
+    g_hash_table_insert(table, g_strdup(name), userdata);
+
+    return 0;
 }
 
 int
@@ -323,30 +205,10 @@ virHashAtomicUpdate(virHashAtomicPtr table,
     int ret;
 
     virObjectLock(table);
-    ret = virHashAddOrUpdateEntry(table->hash, name, userdata, true);
+    ret = virHashUpdateEntry(table->hash, name, userdata);
     virObjectUnlock(table);
 
     return ret;
-}
-
-
-static virHashEntryPtr
-virHashGetEntry(const virHashTable *table,
-                const char *name)
-{
-    size_t key;
-    virHashEntryPtr entry;
-
-    if (!table || !name)
-        return NULL;
-
-    key = virHashComputeKey(table, name);
-    for (entry = table->table[key]; entry; entry = entry->next) {
-        if (STREQ(entry->name, name))
-            return entry;
-    }
-
-    return NULL;
 }
 
 
@@ -357,17 +219,18 @@ virHashGetEntry(const virHashTable *table,
  *
  * Find the userdata specified by @name
  *
+ * Deprecated: consider using g_hash_table_lookup instead
+ *
  * Returns a pointer to the userdata
  */
 void *
-virHashLookup(const virHashTable *table, const char *name)
+virHashLookup(GHashTable *table,
+              const char *name)
 {
-    virHashEntryPtr entry = virHashGetEntry(table, name);
-
-    if (!entry)
+    if (!table || !name)
         return NULL;
 
-    return entry->payload;
+    return g_hash_table_lookup(table, name);
 }
 
 
@@ -378,13 +241,18 @@ virHashLookup(const virHashTable *table, const char *name)
  *
  * Find whether entry specified by @name exists.
  *
+ * Deprecated: consider using g_hash_table_contains instead
+ *
  * Returns true if the entry exists and false otherwise
  */
 bool
-virHashHasEntry(const virHashTable *table,
+virHashHasEntry(GHashTable *table,
                 const char *name)
 {
-    return !!virHashGetEntry(table, name);
+    if (!table || !name)
+        return false;
+
+    return g_hash_table_contains(table, name);
 }
 
 
@@ -396,18 +264,26 @@ virHashHasEntry(const virHashTable *table,
  * Find the userdata specified by @name
  * and remove it from the hash without freeing it.
  *
+ * Deprecated: consider using g_hash_table_steal_extended once we upgrade to
+ * glib 2.58
+ *
  * Returns a pointer to the userdata
  */
-void *virHashSteal(virHashTablePtr table, const char *name)
+void *virHashSteal(GHashTable *table, const char *name)
 {
-    void *data = virHashLookup(table, name);
-    if (data) {
-        virHashDataFree dataFree = table->dataFree;
-        table->dataFree = NULL;
-        virHashRemoveEntry(table, name);
-        table->dataFree = dataFree;
-    }
-    return data;
+    g_autofree void *orig_name = NULL;
+    void *val = NULL;
+
+    if (!table || !name)
+        return NULL;
+
+    /* we can replace this by g_hash_table_steal_extended with glib 2.58 */
+    if (!(g_hash_table_lookup_extended(table, name, &orig_name, &val)))
+        return NULL;
+
+    g_hash_table_steal(table, name);
+
+    return val;
 }
 
 void *
@@ -430,15 +306,18 @@ virHashAtomicSteal(virHashAtomicPtr table,
  *
  * Query the number of elements installed in the hash @table.
  *
+ * Deprecated: consider using g_hash_table_size instead
+ *
  * Returns the number of elements in the hash table or
  * -1 in case of error
  */
 ssize_t
-virHashSize(const virHashTable *table)
+virHashSize(GHashTable *table)
 {
     if (table == NULL)
         return -1;
-    return table->nbElems;
+
+    return g_hash_table_size(table);
 }
 
 
@@ -451,126 +330,159 @@ virHashSize(const virHashTable *table)
  * it from the hash @table. Existing userdata for this tuple will be removed
  * and freed with @f.
  *
+ * Deprecated: consider using g_hash_table_remove
+ *
  * Returns 0 if the removal succeeded and -1 in case of error or not found.
  */
 int
-virHashRemoveEntry(virHashTablePtr table, const char *name)
+virHashRemoveEntry(GHashTable *table,
+                   const char *name)
 {
-    virHashEntryPtr entry;
-    virHashEntryPtr *nextptr;
-
-    if (table == NULL || name == NULL)
+    if (!table || !name)
         return -1;
 
-    nextptr = table->table + virHashComputeKey(table, name);
-    for (entry = *nextptr; entry; entry = entry->next) {
-        if (STREQ(entry->name, name)) {
-            if (table->dataFree)
-                table->dataFree(entry->payload);
-            g_free(entry->name);
-            *nextptr = entry->next;
-            VIR_FREE(entry);
-            table->nbElems--;
-            return 0;
-        }
-        nextptr = &entry->next;
-    }
+    if (g_hash_table_remove(table, name))
+        return 0;
 
     return -1;
 }
 
 
 /**
- * virHashForEach
+ * virHashForEach, virHashForEachSorted, virHashForEachSafe
  * @table: the hash table to process
  * @iter: callback to process each element
- * @data: opaque data to pass to the iterator
+ * @opaque: opaque data to pass to the iterator
  *
- * Iterates over every element in the hash table, invoking the
- * 'iter' callback. The callback is allowed to remove the current element
- * using virHashRemoveEntry but calling other virHash* functions is prohibited.
+ * Iterates over every element in the hash table, invoking the 'iter' callback.
+ *
+ * The elements are iterated in arbitrary order.
+ *
+ * virHashForEach prohibits @iter from modifying @table
+ *
+ * virHashForEachSafe allows the callback to remove the current
+ * element using virHashRemoveEntry but calling other virHash* functions is
+ * prohibited. Note that removing the entry invalidates @key and @payload in
+ * the callback.
+ *
+ * virHashForEachSorted iterates the elements in order by sorted key.
+ *
+ * virHashForEachSorted and virHashForEachSafe are more computationally
+ * expensive than virHashForEach.
+ *
  * If @iter fails and returns a negative value, the evaluation is stopped and -1
  * is returned.
+ *
+ * Deprecated: Consider using g_hash_table_foreach as replacement for
+ * virHashForEach, rewrite your code if it would require virHashForEachSafe.
  *
  * Returns 0 on success or -1 on failure.
  */
 int
-virHashForEach(virHashTablePtr table, virHashIterator iter, void *data)
+virHashForEach(GHashTable *table, virHashIterator iter, void *opaque)
 {
-    size_t i;
-    int ret = -1;
+    GHashTableIter htitr;
+    void *key;
+    void *value;
 
-    if (table == NULL || iter == NULL)
+    if (!table || !iter)
         return -1;
 
-    for (i = 0; i < table->size; i++) {
-        virHashEntryPtr entry = table->table[i];
-        while (entry) {
-            virHashEntryPtr next = entry->next;
-            ret = iter(entry->payload, entry->name, data);
+    g_hash_table_iter_init(&htitr, table);
 
-            if (ret < 0)
-                return ret;
-
-            entry = next;
-        }
+    while (g_hash_table_iter_next(&htitr, &key, &value)) {
+        if (iter(value, key, opaque) < 0)
+            return -1;
     }
 
     return 0;
 }
 
 
+int
+virHashForEachSafe(GHashTable *table,
+                   virHashIterator iter,
+                   void *opaque)
+{
+    g_autofree virHashKeyValuePairPtr items = virHashGetItems(table, NULL, false);
+    size_t i;
+
+    if (!items)
+        return -1;
+
+    for (i = 0; items[i].key; i++) {
+        if (iter((void *)items[i].value, items[i].key, opaque) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+int
+virHashForEachSorted(GHashTable *table,
+                     virHashIterator iter,
+                     void *opaque)
+{
+    g_autofree virHashKeyValuePairPtr items = virHashGetItems(table, NULL, true);
+    size_t i;
+
+    if (!items)
+        return -1;
+
+    for (i = 0; items[i].key; i++) {
+        if (iter((void *)items[i].value, items[i].key, opaque) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+struct virHashSearcherWrapFuncData {
+    virHashSearcher iter;
+    const void *opaque;
+    const char *name;
+};
+
+static gboolean
+virHashSearcherWrapFunc(gpointer key,
+                        gpointer value,
+                        gpointer opaque)
+{
+    struct virHashSearcherWrapFuncData *data = opaque;
+
+    data->name = key;
+
+    return !!(data->iter(value, key, data->opaque));
+}
+
 /**
  * virHashRemoveSet
  * @table: the hash table to process
  * @iter: callback to identify elements for removal
- * @data: opaque data to pass to the iterator
+ * @opaque: opaque data to pass to the iterator
  *
  * Iterates over all elements in the hash table, invoking the 'iter'
  * callback. If the callback returns a non-zero value, the element
  * will be removed from the hash table & its payload passed to the
  * data freer callback registered at creation.
  *
+ * Deprecated: consider using g_hash_table_foreach_remove instead
+ *
  * Returns number of items removed on success, -1 on failure
  */
 ssize_t
-virHashRemoveSet(virHashTablePtr table,
+virHashRemoveSet(GHashTable *table,
                  virHashSearcher iter,
-                 const void *data)
+                 const void *opaque)
 {
-    size_t i, count = 0;
+    struct virHashSearcherWrapFuncData data = { iter, opaque, NULL };
 
     if (table == NULL || iter == NULL)
         return -1;
 
-    for (i = 0; i < table->size; i++) {
-        virHashEntryPtr *nextptr = table->table + i;
-
-        while (*nextptr) {
-            virHashEntryPtr entry = *nextptr;
-            if (!iter(entry->payload, entry->name, data)) {
-                nextptr = &entry->next;
-            } else {
-                count++;
-                if (table->dataFree)
-                    table->dataFree(entry->payload);
-                g_free(entry->name);
-                *nextptr = entry->next;
-                VIR_FREE(entry);
-                table->nbElems--;
-            }
-        }
-    }
-
-    return count;
-}
-
-static int
-_virHashRemoveAllIter(const void *payload G_GNUC_UNUSED,
-                      const char *name G_GNUC_UNUSED,
-                      const void *data G_GNUC_UNUSED)
-{
-    return 1;
+    return g_hash_table_foreach_remove(table, virHashSearcherWrapFunc, &data);
 }
 
 /**
@@ -579,18 +491,23 @@ _virHashRemoveAllIter(const void *payload G_GNUC_UNUSED,
  *
  * Free the hash @table's contents. The userdata is
  * deallocated with the function provided at creation time.
+ *
+ * Deprecated: consider using g_hash_table_remove_all instead
  */
 void
-virHashRemoveAll(virHashTablePtr table)
+virHashRemoveAll(GHashTable *table)
 {
-    virHashRemoveSet(table, _virHashRemoveAllIter, NULL);
+    if (!table)
+        return;
+
+    g_hash_table_remove_all(table);
 }
 
 /**
  * virHashSearch:
  * @table: the hash table to search
  * @iter: an iterator to identify the desired element
- * @data: extra opaque information passed to the iter
+ * @opaque: extra opaque information passed to the iter
  * @name: the name of found user data, pass NULL to ignore
  *
  * Iterates over the hash table calling the 'iter' callback
@@ -598,88 +515,88 @@ virHashRemoveAll(virHashTablePtr table)
  * returns non-zero will be returned by this function.
  * The elements are processed in a undefined order. Caller is
  * responsible for freeing the @name.
+ *
+ * Deprecated: consider using g_hash_table_find instead
  */
-void *virHashSearch(const virHashTable *ctable,
+void *virHashSearch(GHashTable *table,
                     virHashSearcher iter,
-                    const void *data,
+                    const void *opaque,
                     char **name)
 {
-    size_t i;
+    struct virHashSearcherWrapFuncData data = { iter, opaque, NULL };
+    void *ret;
 
-    /* Cast away const for internal detection of misuse.  */
-    virHashTablePtr table = (virHashTablePtr)ctable;
-
-    if (table == NULL || iter == NULL)
+    if (!table || !iter)
         return NULL;
 
-    for (i = 0; i < table->size; i++) {
-        virHashEntryPtr entry;
-        for (entry = table->table[i]; entry; entry = entry->next) {
-            if (iter(entry->payload, entry->name, data)) {
-                if (name)
-                    *name = g_strdup(entry->name);
-                return entry->payload;
-            }
-        }
+    if (!(ret = g_hash_table_find(table, virHashSearcherWrapFunc, &data)))
+        return NULL;
+
+    if (name)
+        *name = g_strdup(data.name);
+
+    return ret;
+}
+
+
+static int
+virHashGetItemsKeySorter(const void *va,
+                         const void *vb)
+{
+    const virHashKeyValuePair *a = va;
+    const virHashKeyValuePair *b = vb;
+
+    return strcmp(a->key, b->key);
+}
+
+
+virHashKeyValuePairPtr
+virHashGetItems(GHashTable *table,
+                size_t *nitems,
+                bool sortKeys)
+{
+    virHashKeyValuePair *items;
+    size_t dummy;
+    GHashTableIter htitr;
+    void *key;
+    void *value;
+    size_t i = 0;
+
+    if (!nitems)
+        nitems = &dummy;
+
+    if (!table)
+        return NULL;
+
+    *nitems = g_hash_table_size(table);
+    items = g_new0(virHashKeyValuePair, *nitems + 1);
+
+    g_hash_table_iter_init(&htitr, table);
+
+    while (g_hash_table_iter_next(&htitr, &key, &value)) {
+        items[i].key = key;
+        items[i].value = value;
+        i++;
     }
 
-    return NULL;
+    if (sortKeys)
+        qsort(items, *nitems, sizeof(*items), virHashGetItemsKeySorter);
+
+    return items;
 }
 
-struct getKeysIter
-{
-    virHashKeyValuePair *sortArray;
-    size_t arrayIdx;
-};
-
-static int virHashGetKeysIterator(void *payload,
-                                  const char *key, void *data)
-{
-    struct getKeysIter *iter = data;
-
-    iter->sortArray[iter->arrayIdx].key = key;
-    iter->sortArray[iter->arrayIdx].value = payload;
-
-    iter->arrayIdx++;
-    return 0;
-}
-
-typedef int (*qsort_comp)(const void *, const void *);
-
-virHashKeyValuePairPtr virHashGetItems(virHashTablePtr table,
-                                       virHashKeyComparator compar)
-{
-    ssize_t numElems = virHashSize(table);
-    struct getKeysIter iter = {
-        .arrayIdx = 0,
-        .sortArray = NULL,
-    };
-
-    if (numElems < 0)
-        return NULL;
-
-    iter.sortArray = g_new0(virHashKeyValuePair, numElems + 1);
-
-    virHashForEach(table, virHashGetKeysIterator, &iter);
-
-    if (compar)
-        qsort(&iter.sortArray[0], numElems, sizeof(iter.sortArray[0]),
-              (qsort_comp)compar);
-
-    return iter.sortArray;
-}
 
 struct virHashEqualData
 {
     bool equal;
-    const virHashTable *table2;
+    GHashTable *table2;
     virHashValueComparator compar;
 };
 
 static int virHashEqualSearcher(const void *payload, const char *name,
-                                const void *data)
+                                const void *opaque)
 {
-    struct virHashEqualData *vhed = (void *)data;
+    struct virHashEqualData *vhed = (void *)opaque;
     const void *value;
 
     value = virHashLookup(vhed->table2, name);
@@ -693,8 +610,8 @@ static int virHashEqualSearcher(const void *payload, const char *name,
     return 0;
 }
 
-bool virHashEqual(const virHashTable *table1,
-                  const virHashTable *table2,
+bool virHashEqual(GHashTable *table1,
+                  GHashTable *table2,
                   virHashValueComparator compar)
 {
     struct virHashEqualData data = {

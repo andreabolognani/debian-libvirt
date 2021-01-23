@@ -337,17 +337,20 @@
           </element>
         </optional>
         <optional>
-          <element name="topology">
-            <attribute name="sockets">
+          <element name="counter">
+            <attribute name="name">
+              <text/>
+            </attribute>
+            <attribute name="frequency">
               <ref name="positiveInteger"/>
             </attribute>
-            <attribute name="cores">
-              <ref name="positiveInteger"/>
-            </attribute>
-            <attribute name="threads">
-              <ref name="positiveInteger"/>
+            <attribute name="scaling">
+              <ref name="virYesNo"/>
             </attribute>
           </element>
+        </optional>
+        <optional>
+          <ref name="cpuTopology"/>
         </optional>
         <zeroOrMore>
           <element name="feature">

@@ -131,8 +131,6 @@ int virFileClose(int *fdptr, virFileCloseFlags flags)
                 VIR_DEBUG("Failed to close fd %d: %s",
                           *fdptr, g_strerror(errno));
             }
-        } else {
-            VIR_DEBUG("Closed fd %d", *fdptr);
         }
     }
     *fdptr = -1;
@@ -559,6 +557,53 @@ virFileRewriteStr(const char *path,
 }
 
 
+/**
+ * virFileResize:
+ *
+ * Change the capacity of the raw storage file at 'path'.
+ */
+int
+virFileResize(const char *path,
+              unsigned long long capacity,
+              bool pre_allocate)
+{
+    int rc;
+    VIR_AUTOCLOSE fd = -1;
+
+    if ((fd = open(path, O_RDWR)) < 0) {
+        virReportSystemError(errno, _("Unable to open '%s'"), path);
+        return -1;
+    }
+
+    if (pre_allocate) {
+        if ((rc = virFileAllocate(fd, 0, capacity)) != 0) {
+            if (rc == -2) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("preallocate is not supported on this platform"));
+            } else {
+                virReportSystemError(errno,
+                                     _("Failed to pre-allocate space for "
+                                       "file '%s'"), path);
+            }
+            return -1;
+        }
+    }
+
+    if (ftruncate(fd, capacity) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to truncate file '%s'"), path);
+        return -1;
+    }
+
+    if (VIR_CLOSE(fd) < 0) {
+        virReportSystemError(errno, _("Unable to save '%s'"), path);
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int virFileTouch(const char *path, mode_t mode)
 {
     int fd = -1;
@@ -669,7 +714,7 @@ static int virFileLoopDeviceOpenLoopCtl(char **dev_name, int *fd)
 static int virFileLoopDeviceOpenSearch(char **dev_name)
 {
     int fd = -1;
-    DIR *dh = NULL;
+    g_autoptr(DIR) dh = NULL;
     struct dirent *de;
     char *looppath = NULL;
     struct loop_info64 lo;
@@ -726,7 +771,6 @@ static int virFileLoopDeviceOpenSearch(char **dev_name)
         VIR_DEBUG("No free loop devices available");
         VIR_FREE(looppath);
     }
-    VIR_DIR_CLOSE(dh);
     return fd;
 }
 
@@ -836,8 +880,7 @@ virFileNBDDeviceIsBusy(const char *dev_name)
 static char *
 virFileNBDDeviceFindUnused(void)
 {
-    DIR *dh;
-    char *ret = NULL;
+    g_autoptr(DIR) dh = NULL;
     struct dirent *de;
     int direrr;
 
@@ -847,22 +890,19 @@ virFileNBDDeviceFindUnused(void)
     while ((direrr = virDirRead(dh, &de, SYSFS_BLOCK_DIR)) > 0) {
         if (STRPREFIX(de->d_name, "nbd")) {
             int rv = virFileNBDDeviceIsBusy(de->d_name);
+
             if (rv < 0)
-                goto cleanup;
-            if (rv == 0) {
-                ret = g_strdup_printf("/dev/%s", de->d_name);
-                goto cleanup;
-            }
+                return NULL;
+
+            if (rv == 0)
+                return g_strdup_printf("/dev/%s", de->d_name);
         }
     }
     if (direrr < 0)
-        goto cleanup;
-    virReportSystemError(EBUSY, "%s",
-                         _("No free NBD devices"));
+        return NULL;
 
- cleanup:
-    VIR_DIR_CLOSE(dh);
-    return ret;
+    virReportSystemError(EBUSY, "%s", _("No free NBD devices"));
+    return NULL;
 }
 
 static bool
@@ -886,14 +926,13 @@ virFileNBDLoadDriver(void)
 }
 
 int virFileNBDDeviceAssociate(const char *file,
-                              virStorageFileFormat fmt,
+                              const char *fmtstr,
                               bool readonly,
                               char **dev)
 {
     g_autofree char *nbddev = NULL;
     g_autofree char *qemunbd = NULL;
     g_autoptr(virCommand) cmd = NULL;
-    const char *fmtstr = NULL;
 
     if (!virFileNBDLoadDriver())
         return -1;
@@ -906,9 +945,6 @@ int virFileNBDDeviceAssociate(const char *file,
                              _("Unable to find 'qemu-nbd' binary in $PATH"));
         return -1;
     }
-
-    if (fmt > 0)
-        fmtstr = virStorageFileFormatTypeToString(fmt);
 
     cmd = virCommandNew(qemunbd);
 
@@ -952,7 +988,7 @@ int virFileLoopDeviceAssociate(const char *file,
 }
 
 int virFileNBDDeviceAssociate(const char *file,
-                              virStorageFileFormat fmt G_GNUC_UNUSED,
+                              const char *fmtstr G_GNUC_UNUSED,
                               bool readonly G_GNUC_UNUSED,
                               char **dev G_GNUC_UNUSED)
 {
@@ -979,9 +1015,8 @@ int virFileNBDDeviceAssociate(const char *file,
  */
 int virFileDeleteTree(const char *dir)
 {
-    DIR *dh;
+    g_autoptr(DIR) dh = NULL;
     struct dirent *de;
-    int ret = -1;
     int direrr;
 
     /* Silently return 0 if passed NULL or directory doesn't exist */
@@ -1000,36 +1035,32 @@ int virFileDeleteTree(const char *dir)
         if (g_lstat(filepath, &sb) < 0) {
             virReportSystemError(errno, _("Cannot access '%s'"),
                                  filepath);
-            goto cleanup;
+            return -1;
         }
 
         if (S_ISDIR(sb.st_mode)) {
             if (virFileDeleteTree(filepath) < 0)
-                goto cleanup;
+                return -1;
         } else {
             if (unlink(filepath) < 0 && errno != ENOENT) {
                 virReportSystemError(errno,
                                      _("Cannot delete file '%s'"),
                                      filepath);
-                goto cleanup;
+                return -1;
             }
         }
     }
     if (direrr < 0)
-        goto cleanup;
+        return -1;
 
     if (rmdir(dir) < 0 && errno != ENOENT) {
         virReportSystemError(errno,
                              _("Cannot delete directory '%s'"),
                              dir);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_DIR_CLOSE(dh);
-    return ret;
+    return 0;
 }
 
 /* Like read(), but restarts after EINTR.  Doesn't play
@@ -1631,7 +1662,7 @@ char *
 virFindFileInPath(const char *file)
 {
     const char *origpath = NULL;
-    VIR_AUTOSTRINGLIST paths = NULL;
+    g_auto(GStrv) paths = NULL;
     char **pathiter;
 
     if (file == NULL)
@@ -2927,13 +2958,12 @@ int virDirRead(DIR *dirp, struct dirent **ent, const char *name)
     return !!*ent;
 }
 
-void virDirClose(DIR **dirp)
+void virDirClose(DIR *dirp)
 {
-    if (!*dirp)
+    if (!dirp)
         return;
 
-    closedir(*dirp); /* exempt from syntax-check */
-    *dirp = NULL;
+    closedir(dirp); /* exempt from syntax-check */
 }
 
 
@@ -2953,9 +2983,8 @@ int virFileChownFiles(const char *name,
                       gid_t gid)
 {
     struct dirent *ent;
-    int ret = -1;
     int direrr;
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
 
     if (virDirOpen(&dir, name) < 0)
         return -1;
@@ -2973,19 +3002,14 @@ int virFileChownFiles(const char *name,
                                  _("cannot chown '%s' to (%u, %u)"),
                                  ent->d_name, (unsigned int) uid,
                                  (unsigned int) gid);
-            goto cleanup;
+            return -1;
         }
     }
 
     if (direrr < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virDirClose(&dir);
-
-    return ret;
+    return 0;
 }
 
 #else /* WIN32 */
@@ -3682,6 +3706,19 @@ int virFileIsSharedFS(const char *path)
                                  VIR_FILE_SHFS_GPFS|
                                  VIR_FILE_SHFS_QB |
                                  VIR_FILE_SHFS_ACFS);
+}
+
+
+int
+virFileIsClusterFS(const char *path)
+{
+    /* These are coherent cluster filesystems known to be safe for
+     * migration with cache != none
+     */
+    return virFileIsSharedFSType(path,
+                                 VIR_FILE_SHFS_GFS2 |
+                                 VIR_FILE_SHFS_OCFS |
+                                 VIR_FILE_SHFS_CEPH);
 }
 
 

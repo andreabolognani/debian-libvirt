@@ -58,6 +58,7 @@
 #include "domain_cgroup.h"
 #include "domain_driver.h"
 #include "domain_nwfilter.h"
+#include "domain_validate.h"
 #include "virinitctl.h"
 #include "virnetdev.h"
 #include "virnetdevtap.h"
@@ -1470,6 +1471,7 @@ static int lxcStateInitialize(bool privileged,
 {
     virLXCDriverConfigPtr cfg = NULL;
     bool autostart = true;
+    const char *defsecmodel;
 
     if (root != NULL) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
@@ -1525,7 +1527,9 @@ static int lxcStateInitialize(bool privileged,
     if (!(lxc_driver->hostdevMgr = virHostdevManagerGetDefault()))
         goto cleanup;
 
-    if (!(lxc_driver->xmlopt = lxcDomainXMLConfInit(lxc_driver)))
+    defsecmodel = virSecurityManagerGetModel(lxc_driver->securityManager);
+
+    if (!(lxc_driver->xmlopt = lxcDomainXMLConfInit(lxc_driver, defsecmodel)))
         goto cleanup;
 
     if (!(lxc_driver->closeCallbacks = virCloseCallbacksNew()))
@@ -3045,8 +3049,7 @@ lxcDomainAttachDeviceConfig(virDomainDefPtr vmdef,
                            _("target %s already exists."), disk->dst);
             return -1;
         }
-        if (virDomainDiskInsert(vmdef, disk) < 0)
-            return -1;
+        virDomainDiskInsert(vmdef, disk);
         /* vmdef has the pointer. Generic codes for vmdef will do all jobs */
         dev->data.disk = NULL;
         ret = 0;
@@ -3460,14 +3463,9 @@ lxcDomainAttachDeviceNetLive(virLXCDriverPtr driver,
      * to the one defined in the network definition.
      */
     if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-        virConnectPtr netconn = virGetConnectNetwork();
-        if (!netconn)
+        g_autoptr(virConnect) netconn = virGetConnectNetwork();
+        if (!netconn || virDomainNetAllocateActualDevice(netconn, vm->def, net) < 0)
             return -1;
-        if (virDomainNetAllocateActualDevice(netconn, vm->def, net) < 0) {
-            virObjectUnref(netconn);
-            return -1;
-        }
-        virObjectUnref(netconn);
     }
 
     /* final validation now that actual type is known */
@@ -4025,13 +4023,11 @@ lxcDomainDetachDeviceNetLive(virDomainObjPtr vm,
     if (!ret) {
         virErrorPreserveLast(&save_err);
         if (detach->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            virConnectPtr conn = virGetConnectNetwork();
-            if (conn) {
+            g_autoptr(virConnect) conn = virGetConnectNetwork();
+            if (conn)
                 virDomainNetReleaseActualDevice(conn, vm->def, detach);
-                virObjectUnref(conn);
-            } else {
+            else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(detach->ifname));
-            }
         }
         virDomainNetRemove(vm->def, detachidx);
         virDomainNetDefFree(detach);

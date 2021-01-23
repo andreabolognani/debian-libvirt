@@ -28,7 +28,7 @@
 
 #include "internal.h"
 #include "virbitmap.h"
-#include "virstoragefile.h"
+#include "virenum.h"
 
 typedef enum {
     VIR_FILE_CLOSE_PRESERVE_ERRNO = 1 << 0,
@@ -133,6 +133,10 @@ int virFileRewriteStr(const char *path,
                       mode_t mode,
                       const char *str);
 
+int virFileResize(const char *path,
+                  unsigned long long capacity,
+                  bool pre_allocate);
+
 int virFileTouch(const char *path, mode_t mode);
 
 int virFileUpdatePerm(const char *path,
@@ -143,7 +147,7 @@ int virFileLoopDeviceAssociate(const char *file,
                                char **dev);
 
 int virFileNBDDeviceAssociate(const char *file,
-                              virStorageFileFormat fmt,
+                              const char *fmtstr,
                               bool readonly,
                               char **dev);
 
@@ -219,6 +223,7 @@ enum {
 
 int virFileIsSharedFSType(const char *path, int fstypes) ATTRIBUTE_NONNULL(1);
 int virFileIsSharedFS(const char *path) ATTRIBUTE_NONNULL(1);
+int virFileIsClusterFS(const char *path) ATTRIBUTE_NONNULL(1);
 int virFileIsMountPoint(const char *file) ATTRIBUTE_NONNULL(1);
 int virFileIsCDROM(const char *path)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
@@ -269,9 +274,8 @@ int virDirOpenQuiet(DIR **dirp, const char *dirname)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 int virDirRead(DIR *dirp, struct dirent **ent, const char *dirname)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
-void virDirClose(DIR **dirp)
-    ATTRIBUTE_NONNULL(1);
-#define VIR_DIR_CLOSE(dir)  virDirClose(&(dir))
+void virDirClose(DIR *dirp);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(DIR, virDirClose);
 
 int virFileMakePath(const char *path) G_GNUC_WARN_UNUSED_RESULT;
 int virFileMakePathWithMode(const char *path,

@@ -293,7 +293,7 @@ int virHostValidateCGroupControllers(const char *hvname,
     int ret = 0;
     size_t i;
 
-    if (virCgroupNewSelf(&group) < 0)
+    if (virCgroupNew("/", -1, &group) < 0)
         return -1;
 
     for (i = 0; i < VIR_CGROUP_CONTROLLER_LAST; i++) {
@@ -336,7 +336,6 @@ int virHostValidateIOMMU(const char *hvname,
     bool isAMD = false, isIntel = false;
     virArch arch = virArchFromHost();
     struct dirent *dent;
-    DIR *dir;
     int rc;
 
     flags = virHostValidateGetCPUFlags();
@@ -375,6 +374,8 @@ int virHostValidateIOMMU(const char *hvname,
     } else if (ARCH_IS_PPC64(arch)) {
         /* Empty Block */
     } else if (ARCH_IS_S390(arch)) {
+        g_autoptr(DIR) dir = NULL;
+
         /* On s390x, we skip the IOMMU check if there are no PCI
          * devices (which is quite usual on s390x). If there are
          * no PCI devices the directory is still there but is
@@ -382,7 +383,6 @@ int virHostValidateIOMMU(const char *hvname,
         if (!virDirOpen(&dir, "/sys/bus/pci/devices"))
             return 0;
         rc = virDirRead(dir, &dent, NULL);
-        VIR_DIR_CLOSE(dir);
         if (rc <= 0)
             return 0;
     } else {

@@ -139,12 +139,12 @@
 
     <h3><a id="MDEVCap">MDEV capability</a></h3>
     <p>
-      A PCI device capable of creating mediated devices will include a nested
+      A device capable of creating mediated devices will include a nested
       capability <code>mdev_types</code> which enumerates all supported mdev
       types on the physical device, along with the type attributes available
       through sysfs. A detailed description of the XML format for the
       <code>mdev_types</code> capability can be found
-      <a href="formatnode.html#MDEVCap">here</a>.
+      <a href="formatnode.html#MDEVTypesCap">here</a>.
     </p>
     <p>
       The following example shows how we might represent an NVIDIA GPU device

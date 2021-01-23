@@ -73,10 +73,18 @@ struct _virPCIDevice {
     char          *used_by_drvname;
     char          *used_by_domname;
 
+    /* The following 5 items are only valid after virPCIDeviceInit()
+     * has been called for the virPCIDevice object. This is *not* done
+     * in most cases (because it creates extra overhead, and parts of
+     * it can fail if libvirtd is running unprivileged)
+     */
     unsigned int  pcie_cap_pos;
     unsigned int  pci_pm_cap_pos;
     bool          has_flr;
     bool          has_pm_reset;
+    bool          is_pcie;
+    /**/
+
     bool          managed;
 
     virPCIStubDriver stubDriver;
@@ -329,16 +337,38 @@ virPCIDeviceRead(virPCIDevicePtr dev,
                  unsigned int buflen)
 {
     memset(buf, 0, buflen);
+    errno = 0;
 
     if (lseek(cfgfd, pos, SEEK_SET) != pos ||
         saferead(cfgfd, buf, buflen) != buflen) {
-        VIR_WARN("Failed to read from '%s' : %s", dev->path,
-                 g_strerror(errno));
+        VIR_DEBUG("Failed to read %u bytes at %u from '%s' : %s",
+                 buflen, pos, dev->path, g_strerror(errno));
         return -1;
     }
     return 0;
 }
 
+
+/**
+ * virPCIDeviceReadN:
+ * @dev: virPCIDevice object (used only to log name of config file)
+ * @cfgfd: open file descriptor for device config file in sysfs
+ * @pos: byte offset in the file to read from
+ *
+ * read "N" (where "N" is "8", "16", or "32", and appears at the end
+ * of the function name) bytes from a PCI device's already-opened
+ * sysfs config file and return them as the return value from the
+ * function.
+ *
+ * Returns the value at @pos in the file, or 0 if there was an
+ * error. NB: since 0 could be a valid value, occurence of an error
+ * must be determined by examining errno. errno is always reset to 0
+ * before the seek/read is attempted (see virPCIDeviceRead()), so if
+ * errno != 0 on return from one of these functions, then either the
+ * seek or the read operation failed for some reason. If errno == 0
+ * and the return value is 0, then the config file really does contain
+ * the value 0 at @pos.
+ */
 static uint8_t
 virPCIDeviceRead8(virPCIDevicePtr dev, int cfgfd, unsigned int pos)
 {
@@ -432,7 +462,7 @@ virPCIDeviceIterDevices(virPCIDeviceIterPredicate predicate,
                         virPCIDevicePtr *matched,
                         void *data)
 {
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *entry;
     int ret = 0;
     int rc;
@@ -480,23 +510,41 @@ virPCIDeviceIterDevices(virPCIDeviceIterPredicate predicate,
             break;
         }
     }
-    VIR_DIR_CLOSE(dir);
     return ret;
 }
 
-static uint8_t
+
+/**
+ * virPCIDeviceFindCapabilityOffset:
+ * @dev: virPCIDevice object (used only to log name of config file)
+ * @cfgfd: open file descriptor for device config file in sysfs
+ * @capability: PCI_CAP_ID_* being requested
+ * @offset: used to return the offset of @capability in the file
+ *
+ * Find the offset of @capability within the PCI config file @cfgfd of
+ * the device @dev. if found, the offset is returned in @offset,
+ * otherwise @offset is set to 0.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+static int
 virPCIDeviceFindCapabilityOffset(virPCIDevicePtr dev,
                                  int cfgfd,
-                                 unsigned int capability)
+                                 unsigned int capability,
+                                 unsigned int *offset)
 {
     uint16_t status;
     uint8_t pos;
 
+    *offset = 0; /* assume failure (*nothing* can be at offset 0) */
+
     status = virPCIDeviceRead16(dev, cfgfd, PCI_STATUS);
-    if (!(status & PCI_STATUS_CAP_LIST))
-        return 0;
+    if (errno != 0 || !(status & PCI_STATUS_CAP_LIST))
+        goto error;
 
     pos = virPCIDeviceRead8(dev, cfgfd, PCI_CAPABILITY_LIST);
+    if (errno != 0)
+        goto error;
 
     /* Zero indicates last capability, capabilities can't
      * be in the config space header and 0xff is returned
@@ -507,18 +555,31 @@ virPCIDeviceFindCapabilityOffset(virPCIDevicePtr dev,
      */
     while (pos >= PCI_CONF_HEADER_LEN && pos != 0xff) {
         uint8_t capid = virPCIDeviceRead8(dev, cfgfd, pos);
+        if (errno != 0)
+            goto error;
+
         if (capid == capability) {
             VIR_DEBUG("%s %s: found cap 0x%.2x at 0x%.2x",
                       dev->id, dev->name, capability, pos);
-            return pos;
+            *offset = pos;
+            return 0;
         }
 
         pos = virPCIDeviceRead8(dev, cfgfd, pos + 1);
+        if (errno != 0)
+            goto error;
     }
 
-    VIR_DEBUG("%s %s: failed to find cap 0x%.2x", dev->id, dev->name, capability);
+ error:
+    VIR_DEBUG("%s %s: failed to find cap 0x%.2x (%s)",
+              dev->id, dev->name, capability, g_strerror(errno));
 
-    return 0;
+    /* reset errno in case the failure was due to insufficient
+     * privileges to read the entire PCI config file
+     */
+    errno = 0;
+
+    return -1;
 }
 
 static unsigned int
@@ -550,11 +611,11 @@ virPCIDeviceFindExtendedCapabilityOffset(virPCIDevicePtr dev,
 /* detects whether this device has FLR.  Returns 0 if the device does
  * not have FLR, 1 if it does, and -1 on error
  */
-static int
+static bool
 virPCIDeviceDetectFunctionLevelReset(virPCIDevicePtr dev, int cfgfd)
 {
     uint32_t caps;
-    uint8_t pos;
+    unsigned int pos;
     g_autofree char *path = NULL;
     int found;
 
@@ -568,7 +629,7 @@ virPCIDeviceDetectFunctionLevelReset(virPCIDevicePtr dev, int cfgfd)
         caps = virPCIDeviceRead32(dev, cfgfd, dev->pcie_cap_pos + PCI_EXP_DEVCAP);
         if (caps & PCI_EXP_DEVCAP_FLR) {
             VIR_DEBUG("%s %s: detected PCIe FLR capability", dev->id, dev->name);
-            return 1;
+            return true;
         }
     }
 
@@ -576,12 +637,14 @@ virPCIDeviceDetectFunctionLevelReset(virPCIDevicePtr dev, int cfgfd)
      * the same thing, except for conventional PCI
      * devices. This is not common yet.
      */
-    pos = virPCIDeviceFindCapabilityOffset(dev, cfgfd, PCI_CAP_ID_AF);
+    if (virPCIDeviceFindCapabilityOffset(dev, cfgfd, PCI_CAP_ID_AF, &pos) < 0)
+        goto error;
+
     if (pos) {
         caps = virPCIDeviceRead16(dev, cfgfd, pos + PCI_AF_CAP);
         if (caps & PCI_AF_CAP_FLR) {
             VIR_DEBUG("%s %s: detected PCI FLR capability", dev->id, dev->name);
-            return 1;
+            return true;
         }
     }
 
@@ -597,19 +660,19 @@ virPCIDeviceDetectFunctionLevelReset(virPCIDevicePtr dev, int cfgfd)
     if (found) {
         VIR_DEBUG("%s %s: buggy device didn't advertise FLR, but is a VF; forcing flr on",
                   dev->id, dev->name);
-        return 1;
+        return true;
     }
 
+ error:
     VIR_DEBUG("%s %s: no FLR capability found", dev->id, dev->name);
-
-    return 0;
+    return false;
 }
 
 /* Require the device has the PCI Power Management capability
  * and that a D3hot->D0 transition will results in a full
  * internal reset, not just a soft reset.
  */
-static unsigned int
+static bool
 virPCIDeviceDetectPowerManagementReset(virPCIDevicePtr dev, int cfgfd)
 {
     if (dev->pci_pm_cap_pos) {
@@ -619,13 +682,13 @@ virPCIDeviceDetectPowerManagementReset(virPCIDevicePtr dev, int cfgfd)
         ctl = virPCIDeviceRead32(dev, cfgfd, dev->pci_pm_cap_pos + PCI_PM_CTRL);
         if (!(ctl & PCI_PM_CTRL_NO_SOFT_RESET)) {
             VIR_DEBUG("%s %s: detected PM reset capability", dev->id, dev->name);
-            return 1;
+            return true;
         }
     }
 
     VIR_DEBUG("%s %s: no PM reset capability found", dev->id, dev->name);
 
-    return 0;
+    return false;
 }
 
 /* Any active devices on the same domain/bus ? */
@@ -883,18 +946,62 @@ virPCIDeviceTryPowerManagementReset(virPCIDevicePtr dev, int cfgfd)
     return 0;
 }
 
+/**
+ * virPCIDeviceInit:
+ * @dev: virPCIDevice object needing its PCI capabilities info initialized
+ * @cfgfd: open file descriptor for device config file in sysfs
+ *
+ * Initialize the PCI capabilities attributes of a virPCIDevice object
+ * (i.e. pcie_cap_pos, pci_pm_cap_pos, has_flr, has_pm_reset, and
+ * is_pcie). This is done by walking the info in the (already-opened)
+ * device PCI config file in sysfs. This function can be called
+ * regardless of whether a process has sufficient privilege to read
+ * the entire file (unprivileged processes can only read the 1st 64
+ * bytes, while the Express Capabilities are all located beyond that
+ * boundary).
+ *
+ * In the case that we are unable to read a capability
+ * directly, we will attempt to infer its value by other means. In
+ * particular, we can determine that a device is (almost surely) PCIe
+ * by checking that the length of the config file is != 256 (since all
+ * conventional PCI config files are 256 bytes), and we know that any
+ * device that is an SR-IOV VF will have FLR available (since that is
+ * required by the SR-IOV spec.)
+ *
+ * Always returns success (0) (for now)
+ */
 static int
 virPCIDeviceInit(virPCIDevicePtr dev, int cfgfd)
 {
-    int flr;
+    dev->is_pcie = false;
+    if (virPCIDeviceFindCapabilityOffset(dev, cfgfd, PCI_CAP_ID_EXP, &dev->pcie_cap_pos) < 0) {
+        /* an unprivileged process is unable to read *all* of a
+         * device's PCI config (it can only read the first 64
+         * bytes, which isn't enough for see the Express
+         * Capabilities data). If virPCIDeviceFindCapabilityOffset
+         * returns failure (and not just a pcie_cap_pos == 0,
+         * which is *success* at determining the device is *not*
+         * PCIe) we make an educated guess based on the length of
+         * the device's config file - if it is 256 bytes, then it
+         * is definitely a legacy PCI device. If it's larger than
+         * that, then it is *probably PCIe (although it could be
+         * PCI-x, but those are extremely rare). If the config
+         * file can't be found (in which case the "length" will be
+         * -1), then we blindly assume the most likely outcome -
+         * PCIe.
+         */
+        off_t configLen = virFileLength(virPCIDeviceGetConfigPath(dev), -1);
 
-    dev->pcie_cap_pos   = virPCIDeviceFindCapabilityOffset(dev, cfgfd, PCI_CAP_ID_EXP);
-    dev->pci_pm_cap_pos = virPCIDeviceFindCapabilityOffset(dev, cfgfd, PCI_CAP_ID_PM);
-    flr = virPCIDeviceDetectFunctionLevelReset(dev, cfgfd);
-    if (flr < 0)
-        return flr;
-    dev->has_flr        = !!flr;
-    dev->has_pm_reset   = !!virPCIDeviceDetectPowerManagementReset(dev, cfgfd);
+        if (configLen != 256)
+            dev->is_pcie = true;
+
+    } else {
+        dev->is_pcie = (dev->pcie_cap_pos != 0);
+    }
+
+    virPCIDeviceFindCapabilityOffset(dev, cfgfd, PCI_CAP_ID_PM, &dev->pci_pm_cap_pos);
+    dev->has_flr = virPCIDeviceDetectFunctionLevelReset(dev, cfgfd);
+    dev->has_pm_reset = virPCIDeviceDetectPowerManagementReset(dev, cfgfd);
 
     return 0;
 }
@@ -1706,8 +1813,7 @@ int virPCIDeviceFileIterate(virPCIDevicePtr dev,
                             void *opaque)
 {
     g_autofree char *pcidir = NULL;
-    DIR *dir = NULL;
-    int ret = -1;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *ent;
     int direrr;
 
@@ -1716,7 +1822,7 @@ int virPCIDeviceFileIterate(virPCIDevicePtr dev,
                              dev->address.function);
 
     if (virDirOpen(&dir, pcidir) < 0)
-        goto cleanup;
+        return -1;
 
     while ((direrr = virDirRead(dir, &ent, pcidir)) > 0) {
         g_autofree char *file = NULL;
@@ -1732,17 +1838,13 @@ int virPCIDeviceFileIterate(virPCIDevicePtr dev,
             STREQ(ent->d_name, "reset")) {
             file = g_strdup_printf("%s/%s", pcidir, ent->d_name);
             if ((actor)(dev, file, opaque) < 0)
-                goto cleanup;
+                return -1;
         }
     }
     if (direrr < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_DIR_CLOSE(dir);
-    return ret;
+    return 0;
 }
 
 
@@ -1757,8 +1859,7 @@ virPCIDeviceAddressIOMMUGroupIterate(virPCIDeviceAddressPtr orig,
                                      void *opaque)
 {
     g_autofree char *groupPath = NULL;
-    DIR *groupDir = NULL;
-    int ret = -1;
+    g_autoptr(DIR) groupDir = NULL;
     struct dirent *ent;
     int direrr;
 
@@ -1767,8 +1868,7 @@ virPCIDeviceAddressIOMMUGroupIterate(virPCIDeviceAddressPtr orig,
 
     if (virDirOpenQuiet(&groupDir, groupPath) < 0) {
         /* just process the original device, nothing more */
-        ret = (actor)(orig, opaque);
-        goto cleanup;
+        return (actor)(orig, opaque);
     }
 
     while ((direrr = virDirRead(groupDir, &ent, groupPath)) > 0) {
@@ -1778,20 +1878,16 @@ virPCIDeviceAddressIOMMUGroupIterate(virPCIDeviceAddressPtr orig,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Found invalid device link '%s' in '%s'"),
                            ent->d_name, groupPath);
-            goto cleanup;
+            return -1;
         }
 
         if ((actor)(&newDev, opaque) < 0)
-            goto cleanup;
+            return -1;
     }
     if (direrr < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_DIR_CLOSE(groupDir);
-    return ret;
+    return 0;
 }
 
 
@@ -2387,8 +2483,7 @@ virPCIGetNetName(const char *device_link_sysfs_path,
 {
     g_autofree char *pcidev_sysfs_net_path = NULL;
     g_autofree char *firstEntryName = NULL;
-    int ret = -1;
-    DIR *dir = NULL;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *entry = NULL;
     size_t i = 0;
 
@@ -2402,8 +2497,7 @@ virPCIGetNetName(const char *device_link_sysfs_path,
 
     if (virDirOpenQuiet(&dir, pcidev_sysfs_net_path) < 0) {
         /* this *isn't* an error - caller needs to check for netname == NULL */
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
     while (virDirRead(dir, &entry, pcidev_sysfs_net_path) > 0) {
@@ -2414,7 +2508,7 @@ virPCIGetNetName(const char *device_link_sysfs_path,
             g_autofree char *thisPhysPortID = NULL;
 
             if (virNetDevGetPhysPortID(entry->d_name, &thisPhysPortID) < 0)
-                goto cleanup;
+                return -1;
 
             /* if this one doesn't match, keep looking */
             if (STRNEQ_NULLABLE(physPortID, thisPhysPortID)) {
@@ -2434,35 +2528,27 @@ virPCIGetNetName(const char *device_link_sysfs_path,
         }
 
         *netname = g_strdup(entry->d_name);
-
-        ret = 0;
-        break;
+        return 0;
     }
 
-    if (ret < 0) {
-        if (physPortID) {
-            if (firstEntryName) {
-                /* we didn't match the provided phys_port_id, but this
-                 * is probably because phys_port_id isn't implemented
-                 * for this NIC driver, so just return the first
-                 * (probably only) netname we found.
-                 */
-                *netname = firstEntryName;
-                firstEntryName = NULL;
-                ret = 0;
-            } else {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Could not find network device with "
-                                 "phys_port_id '%s' under PCI device at %s"),
-                               physPortID, device_link_sysfs_path);
-            }
-        } else {
-            ret = 0; /* no netdev at the given index is *not* an error */
-        }
+    if (!physPortID)
+        return 0;
+
+    if (firstEntryName) {
+        /* we didn't match the provided phys_port_id, but this
+         * is probably because phys_port_id isn't implemented
+         * for this NIC driver, so just return the first
+         * (probably only) netname we found.
+         */
+        *netname = g_steal_pointer(&firstEntryName);
+        return 0;
     }
- cleanup:
-    VIR_DIR_CLOSE(dir);
-    return ret;
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("Could not find network device with "
+                     "phys_port_id '%s' under PCI device at %s"),
+                   physPortID, device_link_sysfs_path);
+    return -1;
 }
 
 int
@@ -2526,57 +2612,6 @@ virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path,
     }
 
     return 0;
-}
-
-
-ssize_t
-virPCIGetMdevTypes(const char *sysfspath,
-                   virMediatedDeviceTypePtr **types)
-{
-    ssize_t ret = -1;
-    int dirret = -1;
-    DIR *dir = NULL;
-    struct dirent *entry;
-    g_autofree char *types_path = NULL;
-    g_autoptr(virMediatedDeviceType) mdev_type = NULL;
-    virMediatedDeviceTypePtr *mdev_types = NULL;
-    size_t ntypes = 0;
-    size_t i;
-
-    types_path = g_strdup_printf("%s/mdev_supported_types", sysfspath);
-
-    if ((dirret = virDirOpenIfExists(&dir, types_path)) < 0)
-        goto cleanup;
-
-    if (dirret == 0) {
-        ret = 0;
-        goto cleanup;
-    }
-
-    while ((dirret = virDirRead(dir, &entry, types_path)) > 0) {
-        g_autofree char *tmppath = NULL;
-        /* append the type id to the path and read the attributes from there */
-        tmppath = g_strdup_printf("%s/%s", types_path, entry->d_name);
-
-        if (virMediatedDeviceTypeReadAttrs(tmppath, &mdev_type) < 0)
-            goto cleanup;
-
-        if (VIR_APPEND_ELEMENT(mdev_types, ntypes, mdev_type) < 0)
-            goto cleanup;
-    }
-
-    if (dirret < 0)
-        goto cleanup;
-
-    *types = g_steal_pointer(&mdev_types);
-    ret = ntypes;
-    ntypes = 0;
- cleanup:
-    for (i = 0; i < ntypes; i++)
-        virMediatedDeviceTypeFree(mdev_types[i]);
-    VIR_FREE(mdev_types);
-    VIR_DIR_CLOSE(dir);
-    return ret;
 }
 
 #else
@@ -2653,15 +2688,6 @@ virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path G_GNUC_UNUSED,
     virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _(unsupported));
     return -1;
 }
-
-
-ssize_t
-virPCIGetMdevTypes(const char *sysfspath G_GNUC_UNUSED,
-                   virMediatedDeviceTypePtr **types G_GNUC_UNUSED)
-{
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _(unsupported));
-    return -1;
-}
 #endif /* __linux__ */
 
 int
@@ -2676,7 +2702,7 @@ virPCIDeviceIsPCIExpress(virPCIDevicePtr dev)
     if (virPCIDeviceInit(dev, fd) < 0)
         goto cleanup;
 
-    ret = dev->pcie_cap_pos != 0;
+    ret = dev->is_pcie;
 
  cleanup:
     virPCIDeviceConfigClose(dev, fd);
@@ -2695,6 +2721,11 @@ virPCIDeviceHasPCIExpressLink(virPCIDevicePtr dev)
 
     if (virPCIDeviceInit(dev, fd) < 0)
         goto cleanup;
+
+    if (dev->pcie_cap_pos == 0) {
+        ret = 0;
+        goto cleanup;
+    }
 
     cap = virPCIDeviceRead16(dev, fd, dev->pcie_cap_pos + PCI_CAP_FLAGS);
     type = (cap & PCI_EXP_FLAGS_TYPE) >> 4;

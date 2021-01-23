@@ -74,6 +74,7 @@
 #include "virhostcpu.h"
 #include "domain_audit.h"
 #include "domain_nwfilter.h"
+#include "domain_validate.h"
 #include "locking/domain_lock.h"
 #include "viruuid.h"
 #include "virprocess.h"
@@ -879,7 +880,7 @@ qemuProcessHandleIOError(qemuMonitorPtr mon G_GNUC_UNUSED,
     if (diskAlias)
         disk = qemuProcessFindDomainDiskByAliasOrQOM(vm, diskAlias, NULL);
     else if (nodename)
-        disk = qemuDomainDiskLookupByNodename(vm->def, nodename, NULL);
+        disk = qemuDomainDiskLookupByNodename(vm->def, NULL, nodename, NULL);
     else
         disk = NULL;
 
@@ -1105,24 +1106,20 @@ qemuProcessHandleGraphics(qemuMonitorPtr mon G_GNUC_UNUSED,
     return 0;
 
  error:
-    if (localAddr) {
-        VIR_FREE(localAddr->service);
-        VIR_FREE(localAddr->node);
-        VIR_FREE(localAddr);
+    VIR_FREE(localAddr->service);
+    VIR_FREE(localAddr->node);
+    VIR_FREE(localAddr);
+
+    VIR_FREE(remoteAddr->service);
+    VIR_FREE(remoteAddr->node);
+    VIR_FREE(remoteAddr);
+
+    for (i = 0; i < subject->nidentity; i++) {
+        VIR_FREE(subject->identities[i].type);
+        VIR_FREE(subject->identities[i].name);
     }
-    if (remoteAddr) {
-        VIR_FREE(remoteAddr->service);
-        VIR_FREE(remoteAddr->node);
-        VIR_FREE(remoteAddr);
-    }
-    if (subject) {
-        for (i = 0; i < subject->nidentity; i++) {
-            VIR_FREE(subject->identities[i].type);
-            VIR_FREE(subject->identities[i].name);
-        }
-        VIR_FREE(subject->identities);
-        VIR_FREE(subject);
-    }
+    VIR_FREE(subject->identities);
+    VIR_FREE(subject);
 
     return -1;
 }
@@ -1487,6 +1484,7 @@ qemuProcessHandleBlockThreshold(qemuMonitorPtr mon G_GNUC_UNUSED,
                                 unsigned long long excess,
                                 void *opaque)
 {
+    qemuDomainObjPrivatePtr priv;
     virQEMUDriverPtr driver = opaque;
     virObjectEventPtr eventSource = NULL;
     virObjectEventPtr eventDevice = NULL;
@@ -1496,11 +1494,13 @@ qemuProcessHandleBlockThreshold(qemuMonitorPtr mon G_GNUC_UNUSED,
 
     virObjectLock(vm);
 
+    priv  = vm->privateData;
+
     VIR_DEBUG("BLOCK_WRITE_THRESHOLD event for block node '%s' in domain %p %s:"
               "threshold '%llu' exceeded by '%llu'",
               nodename, vm, vm->def->name, threshold, excess);
 
-    if ((disk = qemuDomainDiskLookupByNodename(vm->def, nodename, &src))) {
+    if ((disk = qemuDomainDiskLookupByNodename(vm->def, priv->backup, nodename, &src))) {
         if (virStorageSourceIsLocalStorage(src))
             path = src->path;
 
@@ -2170,7 +2170,7 @@ qemuProcessMonitorReportLogError(qemuMonitorPtr mon G_GNUC_UNUSED,
 static int
 qemuProcessLookupPTYs(virDomainChrDefPtr *devices,
                       int count,
-                      virHashTablePtr info)
+                      GHashTable *info)
 {
     size_t i;
 
@@ -2209,7 +2209,7 @@ qemuProcessLookupPTYs(virDomainChrDefPtr *devices,
 
 static int
 qemuProcessFindCharDevicePTYsMonitor(virDomainObjPtr vm,
-                                     virHashTablePtr info)
+                                     GHashTable *info)
 {
     size_t i = 0;
 
@@ -2249,7 +2249,7 @@ qemuProcessFindCharDevicePTYsMonitor(virDomainObjPtr vm,
 static void
 qemuProcessRefreshChannelVirtioState(virQEMUDriverPtr driver,
                                      virDomainObjPtr vm,
-                                     virHashTablePtr info,
+                                     GHashTable *info,
                                      int booted)
 {
     size_t i;
@@ -2291,7 +2291,7 @@ qemuRefreshVirtioChannelState(virQEMUDriverPtr driver,
                               qemuDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    virHashTablePtr info = NULL;
+    GHashTable *info = NULL;
     int ret = -1;
 
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
@@ -2315,7 +2315,7 @@ qemuRefreshVirtioChannelState(virQEMUDriverPtr driver,
 
 static int
 qemuProcessRefreshPRManagerState(virDomainObjPtr vm,
-                                 virHashTablePtr info)
+                                 GHashTable *info)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     qemuMonitorPRManagerInfoPtr prManagerInfo;
@@ -2343,7 +2343,7 @@ qemuRefreshPRManagerState(virQEMUDriverPtr driver,
                           virDomainObjPtr vm)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
-    virHashTablePtr info = NULL;
+    GHashTable *info = NULL;
     int ret = -1;
 
     if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_PR_MANAGER_HELPER) ||
@@ -2438,7 +2438,7 @@ qemuProcessWaitForMonitor(virQEMUDriverPtr driver,
                           qemuDomainLogContextPtr logCtxt)
 {
     int ret = -1;
-    virHashTablePtr info = NULL;
+    GHashTable *info = NULL;
     qemuDomainObjPrivatePtr priv = vm->privateData;
     bool retry = true;
 
@@ -2502,10 +2502,10 @@ qemuProcessDetectIOThreadPIDs(virQEMUDriverPtr driver,
     /* Get the list of IOThreads from qemu */
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
         goto cleanup;
-    niothreads = qemuMonitorGetIOThreads(priv->mon, &iothreads);
+    ret = qemuMonitorGetIOThreads(priv->mon, &iothreads, &niothreads);
     if (qemuDomainObjExitMonitor(driver, vm) < 0)
         goto cleanup;
-    if (niothreads < 0)
+    if (ret < 0)
         goto cleanup;
 
     if (niothreads != vm->def->niothreadids) {
@@ -3391,12 +3391,12 @@ qemuProcessNotifyNets(virDomainDefPtr def)
          */
         switch (virDomainNetGetActualType(net)) {
         case VIR_DOMAIN_NET_TYPE_DIRECT:
-            virNetDevMacVLanReserveName(net->ifname);
+            virNetDevReserveName(net->ifname);
             break;
         case VIR_DOMAIN_NET_TYPE_BRIDGE:
         case VIR_DOMAIN_NET_TYPE_NETWORK:
         case VIR_DOMAIN_NET_TYPE_ETHERNET:
-            virNetDevTapReserveName(net->ifname);
+            virNetDevReserveName(net->ifname);
             break;
         case VIR_DOMAIN_NET_TYPE_USER:
         case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
@@ -3411,11 +3411,10 @@ qemuProcessNotifyNets(virDomainDefPtr def)
             break;
         }
 
-        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            if (!conn && !(conn = virGetConnectNetwork()))
-                continue;
-            virDomainNetNotifyActualDevice(conn, def, net);
-        }
+        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK && !conn)
+            conn = virGetConnectNetwork();
+
+        virDomainNetNotifyActualDevice(conn, def, net);
     }
 }
 
@@ -5358,12 +5357,18 @@ qemuProcessStartValidateDisks(virDomainObjPtr vm,
 }
 
 
+/* 250 parts per million (ppm) is a half of NTP threshold */
+#define TSC_TOLERANCE 250
+
 static int
 qemuProcessStartValidateTSC(virQEMUDriverPtr driver,
                             virDomainObjPtr vm)
 {
     size_t i;
     unsigned long long freq = 0;
+    unsigned long long tolerance;
+    unsigned long long minFreq;
+    unsigned long long maxFreq;
     virHostCPUTscInfoPtr tsc;
     g_autoptr(virCPUDef) cpu = NULL;
 
@@ -5389,23 +5394,34 @@ qemuProcessStartValidateTSC(virQEMUDriverPtr driver,
     }
 
     tsc = cpu->tsc;
-    VIR_DEBUG("Host TSC frequency %llu Hz, scaling %s",
-              tsc->frequency, virTristateBoolTypeToString(tsc->scaling));
+    tolerance = tsc->frequency * TSC_TOLERANCE / 1000000;
+    minFreq = tsc->frequency - tolerance;
+    maxFreq = tsc->frequency + tolerance;
 
-    if (freq == tsc->frequency || tsc->scaling == VIR_TRISTATE_BOOL_YES)
+    VIR_DEBUG("Host TSC frequency %llu Hz, scaling %s, tolerance +/- %llu Hz",
+              tsc->frequency, virTristateBoolTypeToString(tsc->scaling),
+              tolerance);
+
+    if (freq >= minFreq && freq <= maxFreq) {
+        VIR_DEBUG("Requested TSC frequency is within tolerance interval");
+        return 0;
+    }
+
+    if (tsc->scaling == VIR_TRISTATE_BOOL_YES)
         return 0;
 
     if (tsc->scaling == VIR_TRISTATE_BOOL_ABSENT) {
-        VIR_DEBUG("TSC frequencies do not match and scaling support is "
-                  "unknown, QEMU will try and possibly fail later");
+        VIR_DEBUG("Requested TSC frequency falls outside tolerance range and "
+                  "scaling support is unknown, QEMU will try and possibly "
+                  "fail later");
         return 0;
     }
 
     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                   _("Requested TSC frequency %llu Hz does not match "
-                     "host (%llu Hz) and TSC scaling is not supported "
-                     "by the host CPU"),
-                   freq, tsc->frequency);
+                   _("Requested TSC frequency %llu Hz is outside tolerance "
+                     "range ([%llu, %llu] Hz) around host frequency %llu Hz "
+                     "and TSC scaling is not supported by the host CPU"),
+                   freq, minFreq, maxFreq, tsc->frequency);
     return -1;
 }
 
@@ -5451,7 +5467,7 @@ qemuProcessStartValidate(virQEMUDriverPtr driver,
      * VM that was running before (migration, snapshots, save). It's more
      * important to start such VM than keep the configuration clean */
     if ((flags & VIR_QEMU_PROCESS_START_NEW) &&
-        virDomainDefValidate(vm->def, 0, driver->xmlopt) < 0)
+        virDomainDefValidate(vm->def, 0, driver->xmlopt, qemuCaps) < 0)
         return -1;
 
     if (qemuProcessStartValidateGraphics(vm) < 0)
@@ -5469,7 +5485,7 @@ qemuProcessStartValidate(virQEMUDriverPtr driver,
 
         if (ARCH_IS_X86(vm->def->os.arch) &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_UNAVAILABLE_FEATURES)) {
-            VIR_AUTOSTRINGLIST features = NULL;
+            g_auto(GStrv) features = NULL;
             int n;
 
             if ((n = virCPUDefCheckFeatures(vm->def->cpu,
@@ -6168,7 +6184,7 @@ qemuProcessUpdateGuestCPU(virDomainDefPtr def,
         return -1;
 
     if (ARCH_IS_X86(def->os.arch)) {
-        VIR_AUTOSTRINGLIST features = NULL;
+        g_auto(GStrv) features = NULL;
 
         if (virQEMUCapsGetCPUFeatures(qemuCaps, def->virtType, false, &features) < 0)
             return -1;
@@ -6184,8 +6200,7 @@ qemuProcessUpdateGuestCPU(virDomainDefPtr def,
 
 
 static int
-qemuProcessPrepareDomainNUMAPlacement(virQEMUDriverPtr driver,
-                                      virDomainObjPtr vm)
+qemuProcessPrepareDomainNUMAPlacement(virDomainObjPtr vm)
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     g_autofree char *nodeset = NULL;
@@ -6213,7 +6228,7 @@ qemuProcessPrepareDomainNUMAPlacement(virQEMUDriverPtr driver,
     if (virBitmapParse(nodeset, &numadNodeset, VIR_DOMAIN_CPUMASK_LEN) < 0)
         return -1;
 
-    if (!(caps = virQEMUDriverGetHostNUMACaps(driver)))
+    if (!(caps = virCapabilitiesHostNUMANewHost()))
         return -1;
 
     /* numad may return a nodeset that only contains cpus but cgroups don't play
@@ -6415,7 +6430,7 @@ qemuProcessPrepareDomain(virQEMUDriverPtr driver,
         }
         virDomainAuditSecurityLabel(vm, true);
 
-        if (qemuProcessPrepareDomainNUMAPlacement(driver, vm) < 0)
+        if (qemuProcessPrepareDomainNUMAPlacement(vm) < 0)
             return -1;
     }
 
@@ -6479,6 +6494,12 @@ qemuProcessPrepareDomain(virQEMUDriverPtr driver,
     VIR_DEBUG("Preparing external devices");
     if (qemuExtDevicesPrepareDomain(driver, vm) < 0)
         return -1;
+
+    if (flags & VIR_QEMU_PROCESS_START_NEW) {
+        VIR_DEBUG("Aligning guest memory");
+        if (qemuDomainAlignMemorySizes(vm->def) < 0)
+            return -1;
+    }
 
     for (i = 0; i < vm->def->nchannels; i++) {
         if (qemuDomainPrepareChannel(vm->def->channels[i],
@@ -6814,6 +6835,10 @@ qemuProcessSetupDiskThrottlingBlockdev(virQEMUDriverPtr driver,
 
         /* sd-cards are instantiated via -drive */
         if (qemuDiskBusIsSD(disk->bus))
+            continue;
+
+        /* Setting throttling for empty drives fails */
+        if (virStorageSourceIsEmpty(disk->src))
             continue;
 
         if (!qemuDiskConfigBlkdeviotuneEnabled(disk))
@@ -7423,7 +7448,10 @@ qemuProcessCreatePretendCmdPrepare(virQEMUDriverPtr driver,
                   VIR_QEMU_PROCESS_START_AUTODESTROY, -1);
 
     flags |= VIR_QEMU_PROCESS_START_PRETEND;
-    flags |= VIR_QEMU_PROCESS_START_NEW;
+
+    if (!migrateURI)
+        flags |= VIR_QEMU_PROCESS_START_NEW;
+
     if (standalone)
         flags |= VIR_QEMU_PROCESS_START_STANDALONE;
 
@@ -7638,6 +7666,8 @@ void qemuProcessStop(virQEMUDriverPtr driver,
     /* Do this before we delete the tree and remove pidfile. */
     qemuProcessKillManagedPRDaemon(vm);
 
+    qemuExtDevicesStop(driver, vm);
+
     virFileDeleteTree(priv->libDir);
     virFileDeleteTree(priv->channelTargetDir);
 
@@ -7653,8 +7683,6 @@ void qemuProcessStop(virQEMUDriverPtr driver,
                                  VIR_QEMU_PROCESS_KILL_NOCHECK));
 
     qemuDomainCleanupRun(driver, vm);
-
-    qemuExtDevicesStop(driver, vm);
 
     qemuDBusStop(driver, vm);
 
@@ -7677,8 +7705,6 @@ void qemuProcessStop(virQEMUDriverPtr driver,
     if (!(flags & VIR_QEMU_PROCESS_STOP_NO_RELABEL))
         qemuSecurityRestoreAllLabel(driver, vm,
                                     !!(flags & VIR_QEMU_PROCESS_STOP_MIGRATED));
-
-    qemuSecurityReleaseLabel(driver->securityManager, vm->def);
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDeviceDef dev;
@@ -7867,6 +7893,8 @@ void qemuProcessStop(virQEMUDriverPtr driver,
         }
     }
 
+    qemuSecurityReleaseLabel(driver->securityManager, vm->def);
+
     /* clear all private data entries which are no longer needed */
     qemuDomainObjPrivateDataClear(priv);
 
@@ -7966,7 +7994,7 @@ qemuProcessRefreshDisks(virQEMUDriverPtr driver,
 {
     qemuDomainObjPrivatePtr priv = vm->privateData;
     bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
-    virHashTablePtr table = NULL;
+    GHashTable *table = NULL;
     int ret = -1;
     size_t i;
 
@@ -8154,8 +8182,8 @@ qemuProcessRefreshLegacyBlockjob(void *payload,
         return -1;
 
     if (disk->mirror) {
-        if (info->ready == 1 ||
-            (info->ready == -1 && info->end == info->cur)) {
+        if ((!info->ready_present && info->end == info->cur) ||
+            info->ready) {
             disk->mirrorState = VIR_DOMAIN_DISK_MIRROR_STATE_READY;
             job->state = VIR_DOMAIN_BLOCK_JOB_READY;
         }
@@ -8194,7 +8222,7 @@ static int
 qemuProcessRefreshLegacyBlockjobs(virQEMUDriverPtr driver,
                                   virDomainObjPtr vm)
 {
-    virHashTablePtr blockJobs = NULL;
+    GHashTable *blockJobs = NULL;
     int ret = -1;
 
     qemuDomainObjEnterMonitor(driver, vm);

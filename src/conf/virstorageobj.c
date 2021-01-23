@@ -69,15 +69,15 @@ struct _virStorageVolObjList {
 
     /* key string -> virStorageVolObj mapping
      * for (1), lockless lookup-by-key */
-    virHashTable *objsKey;
+    GHashTable *objsKey;
 
     /* name string -> virStorageVolObj mapping
      * for (1), lockless lookup-by-name */
-    virHashTable *objsName;
+    GHashTable *objsName;
 
     /* path string -> virStorageVolObj mapping
      * for (1), lockless lookup-by-path */
-    virHashTable *objsPath;
+    GHashTable *objsPath;
 };
 
 struct _virStoragePoolObj {
@@ -101,11 +101,11 @@ struct _virStoragePoolObjList {
 
     /* uuid string -> virStoragePoolObj mapping
      * for (1), lockless lookup-by-uuid */
-    virHashTable *objs;
+    GHashTable *objs;
 
     /* name string -> virStoragePoolObj mapping
      * for (1), lockless lookup-by-name */
-    virHashTable *objsName;
+    GHashTable *objsName;
 };
 
 
@@ -465,7 +465,7 @@ virStoragePoolObjListForEach(virStoragePoolObjListPtr pools,
     struct _virStoragePoolObjListForEachData data = { .iter = iter,
                                                       .opaque = opaque };
 
-    virHashForEach(pools->objs, virStoragePoolObjListForEachCb, &data);
+    virHashForEachSafe(pools->objs, virStoragePoolObjListForEachCb, &data);
 }
 
 
@@ -753,7 +753,7 @@ virStoragePoolObjForEachVolume(virStoragePoolObjPtr obj,
         .iter = iter, .opaque = opaque };
 
     virObjectRWLockRead(obj->volumes);
-    virHashForEach(obj->volumes->objsKey, virStoragePoolObjForEachVolumeCb,
+    virHashForEachSafe(obj->volumes->objsKey, virStoragePoolObjForEachVolumeCb,
                    &data);
     virObjectRWUnlock(obj->volumes);
     return 0;
@@ -1707,7 +1707,7 @@ int
 virStoragePoolObjLoadAllState(virStoragePoolObjListPtr pools,
                               const char *stateDir)
 {
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *entry;
     int ret = -1;
     int rc;
@@ -1726,7 +1726,6 @@ virStoragePoolObjLoadAllState(virStoragePoolObjListPtr pools,
         virStoragePoolObjEndAPI(&obj);
     }
 
-    VIR_DIR_CLOSE(dir);
     return ret;
 }
 
@@ -1736,7 +1735,7 @@ virStoragePoolObjLoadAllConfigs(virStoragePoolObjListPtr pools,
                                 const char *configDir,
                                 const char *autostartDir)
 {
-    DIR *dir;
+    g_autoptr(DIR) dir = NULL;
     struct dirent *entry;
     int ret;
     int rc;
@@ -1768,7 +1767,6 @@ virStoragePoolObjLoadAllConfigs(virStoragePoolObjListPtr pools,
         VIR_FREE(autostartLink);
     }
 
-    VIR_DIR_CLOSE(dir);
     return ret;
 }
 

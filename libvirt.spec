@@ -6,7 +6,7 @@
 %define min_rhel 7
 %define min_fedora 31
 
-%if (0%{?fedora} && 0%{?fedora} >= %{min_fedora}) || (0%{?rhel} && 0%{?rhel} >= %{min_rhel})
+%if 0%{?fedora} >= %{min_fedora} || 0%{?rhel} >= %{min_rhel}
     %define supported_platform 1
 %else
     %define supported_platform 0
@@ -97,14 +97,14 @@
 %define with_numactl          0%{!?_without_numactl:1}
 
 # A few optional bits off by default, we enable later
-%define with_fuse             0%{!?_without_fuse:0}
-%define with_sanlock          0%{!?_without_sanlock:0}
-%define with_numad            0%{!?_without_numad:0}
-%define with_firewalld_zone   0%{!?_without_firewalld:0}
-%define with_libssh2          0%{!?_without_libssh2:0}
-%define with_wireshark        0%{!?_without_wireshark:0}
-%define with_libssh           0%{!?_without_libssh:0}
-%define with_dmidecode        0%{!?_without_dmidecode:0}
+%define with_fuse             0
+%define with_sanlock          0
+%define with_numad            0
+%define with_firewalld_zone   0
+%define with_libssh2          0
+%define with_wireshark        0
+%define with_libssh           0
+%define with_dmidecode        0
 
 # Finally set the OS / architecture specific special cases
 
@@ -167,8 +167,8 @@
     %define with_libssh2 0%{!?_without_libssh2:1}
 %endif
 
-# Enable wireshark plugins for all distros shipping libvirt 1.2.2 or newer
-%if 0%{?fedora}
+# Enable wireshark plugins for all distros except RHEL-7
+%if 0%{?fedora} || 0%{?rhel} > 7
     %define with_wireshark 0%{!?_without_wireshark:1}
     %define wireshark_plugindir %(pkg-config --variable plugindir wireshark)/epan
 %endif
@@ -213,7 +213,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 6.9.0
+Version: 7.0.0
 Release: 1%{?dist}
 License: LGPLv2+
 URL: https://libvirt.org/
@@ -386,7 +386,7 @@ BuildRequires: numad
 %endif
 
 %if %{with_wireshark}
-BuildRequires: wireshark-devel >= 2.4.0
+BuildRequires: wireshark-devel
 %endif
 
 %if %{with_libssh}
@@ -735,6 +735,9 @@ Requires: xz
     %if 0%{?fedora} || 0%{?rhel} > 7
 Requires: systemd-container
     %endif
+    %if 0%{?fedora} || 0%{?rhel} > 7
+Requires: swtpm-tools
+    %endif
 
 %description daemon-driver-qemu
 The qemu driver plugin for the libvirtd daemon, providing
@@ -928,7 +931,7 @@ Bash completion script stub.
 %if %{with_wireshark}
 %package wireshark
 Summary: Wireshark dissector plugin for libvirt RPC transactions
-Requires: wireshark >= 2.4.0
+Requires: wireshark
 Requires: %{name}-libs = %{version}-%{release}
 
 %description wireshark
@@ -1026,15 +1029,15 @@ exit 1
 %endif
 
 %if %{with_esx}
-    %define arg_esx -Ddriver_esx=enabled
+    %define arg_esx -Ddriver_esx=enabled -Dcurl=enabled
 %else
-    %define arg_esx -Ddriver_esx=disabled
+    %define arg_esx -Ddriver_esx=disabled -Dcurl=disabled
 %endif
 
 %if %{with_hyperv}
-    %define arg_hyperv -Ddriver_hyperv=enabled
+    %define arg_hyperv -Ddriver_hyperv=enabled -Dopenwsman=enabled
 %else
-    %define arg_hyperv -Ddriver_hyperv=disabled
+    %define arg_hyperv -Ddriver_hyperv=disabled -Dopenwsman=disabled
 %endif
 
 %if %{with_vmware}
@@ -1056,9 +1059,9 @@ exit 1
 %endif
 
 %if %{with_storage_gluster}
-    %define arg_storage_gluster -Dstorage_gluster=enabled
+    %define arg_storage_gluster -Dstorage_gluster=enabled -Dglusterfs=enabled
 %else
-    %define arg_storage_gluster -Dstorage_gluster=disabled
+    %define arg_storage_gluster -Dstorage_gluster=disabled -Dglusterfs=disabled
 %endif
 
 %if %{with_storage_zfs}
@@ -1104,9 +1107,9 @@ exit 1
 %endif
 
 %if %{with_storage_iscsi_direct}
-    %define arg_storage_iscsi_direct -Dstorage_iscsi_direct=enabled
+    %define arg_storage_iscsi_direct -Dstorage_iscsi_direct=enabled -Dlibiscsi=enabled
 %else
-    %define arg_storage_iscsi_direct -Dstorage_iscsi_direct=disabled
+    %define arg_storage_iscsi_direct -Dstorage_iscsi_direct=disabled -Dlibiscsi=disabled
 %endif
 
 %if %{with_libssh}
@@ -1240,8 +1243,6 @@ cp -a $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/nwfilter/*.xml \
 # libvirt saves these files with mode 600
 chmod 600 $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/nwfilter/*.xml
 
-# Strip auto-generated UUID - we need it generated per-install
-sed -i -e "/<uuid>/d" $RPM_BUILD_ROOT%{_datadir}/libvirt/networks/default.xml
 %if ! %{with_qemu}
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/libvirtd_qemu.aug
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
@@ -1422,9 +1423,7 @@ if test $1 -eq 1 && test ! -f %{_sysconfdir}/libvirt/qemu/networks/default.xml ;
         ;;
     esac
 
-    UUID=`/usr/bin/uuidgen`
     sed -e "s/${orig_sub}/${sub}/g" \
-        -e "s,</name>,</name>\n  <uuid>$UUID</uuid>," \
          < %{_datadir}/libvirt/networks/default.xml \
          > %{_sysconfdir}/libvirt/qemu/networks/default.xml
     ln -s ../default.xml %{_sysconfdir}/libvirt/qemu/networks/autostart/default.xml
@@ -1443,9 +1442,13 @@ fi
 rm -rf %{_localstatedir}/lib/rpm-state/libvirt || :
 
 %post daemon-config-nwfilter
-cp %{_datadir}/libvirt/nwfilter/*.xml %{_sysconfdir}/libvirt/nwfilter/
-# libvirt saves these files with mode 600
-chmod 600 %{_sysconfdir}/libvirt/nwfilter/*.xml
+for datadir_file in %{_datadir}/libvirt/nwfilter/*.xml; do
+  sysconfdir_file=%{_sysconfdir}/libvirt/nwfilter/$(basename "$datadir_file")
+  if [ ! -f "$sysconfdir_file" ]; then
+    # libvirt saves these files with mode 600
+    install -m 0600 "$datadir_file" "$sysconfdir_file"
+  fi
+done
 # Make sure libvirt picks up the new nwfilter defininitons
 mkdir -p %{_localstatedir}/lib/rpm-state/libvirt || :
 touch %{_localstatedir}/lib/rpm-state/libvirt/restart || :
@@ -1744,7 +1747,7 @@ exit 0
 %{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
 %{_libdir}/%{name}/connection-driver/libvirt_driver_qemu.so
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/swtpm/
-%dir %attr(0711, root, root) %{_localstatedir}/log/swtpm/libvirt/qemu/
+%dir %attr(0730, tss, tss) %{_localstatedir}/log/swtpm/libvirt/qemu/
 %{_bindir}/virt-qemu-run
 %{_mandir}/man1/virt-qemu-run.1*
 %endif

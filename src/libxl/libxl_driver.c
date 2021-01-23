@@ -55,6 +55,7 @@
 #include "virnetdevtap.h"
 #include "cpu/cpu.h"
 #include "virutil.h"
+#include "domain_validate.h"
 
 #define VIR_FROM_THIS VIR_FROM_LIBXL
 
@@ -354,7 +355,7 @@ static void
 libxlReconnectNotifyNets(virDomainDefPtr def)
 {
     size_t i;
-    virConnectPtr conn = NULL;
+    g_autoptr(virConnect) conn = NULL;
 
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
@@ -364,16 +365,13 @@ libxlReconnectNotifyNets(virDomainDefPtr def)
          * impolite.
          */
         if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_DIRECT)
-            virNetDevMacVLanReserveName(net->ifname);
+            virNetDevReserveName(net->ifname);
 
-        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            if (!conn && !(conn = virGetConnectNetwork()))
-                continue;
-            virDomainNetNotifyActualDevice(conn, def, net);
-        }
+        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK && !conn)
+            conn = virGetConnectNetwork();
+
+        virDomainNetNotifyActualDevice(conn, def, net);
     }
-
-    virObjectUnref(conn);
 }
 
 
@@ -3022,8 +3020,7 @@ libxlDomainChangeEjectableMedia(virDomainObjPtr vm, virDomainDiskDefPtr disk)
         goto cleanup;
     }
 
-    if (virDomainDiskSetSource(origdisk, virDomainDiskGetSource(disk)) < 0)
-        goto cleanup;
+    virDomainDiskSetSource(origdisk, virDomainDiskGetSource(disk));
     virDomainDiskSetType(origdisk, virDomainDiskGetType(disk));
 
     virDomainDiskDefFree(disk);
@@ -3404,7 +3401,7 @@ libxlDomainAttachNetDevice(libxlDriverPrivatePtr driver,
     libxl_device_nic nic;
     int ret = -1;
     char mac[VIR_MAC_STRING_BUFLEN];
-    virConnectPtr conn = NULL;
+    g_autoptr(virConnect) conn = NULL;
     virErrorPtr save_err = NULL;
 
     libxl_device_nic_init(&nic);
@@ -3479,7 +3476,6 @@ libxlDomainAttachNetDevice(libxlDriverPrivatePtr driver,
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK && conn)
             virDomainNetReleaseActualDevice(conn, vm->def, net);
     }
-    virObjectUnref(conn);
     virObjectUnref(cfg);
     virErrorRestore(&save_err);
     return ret;
@@ -3549,8 +3545,7 @@ libxlDomainAttachDeviceConfig(virDomainDefPtr vmdef, virDomainDeviceDefPtr dev)
                                _("target %s already exists."), disk->dst);
                 return -1;
             }
-            if (virDomainDiskInsert(vmdef, disk) < 0)
-                return -1;
+            virDomainDiskInsert(vmdef, disk);
             /* vmdef has the pointer. Generic codes for vmdef will do all jobs */
             dev->data.disk = NULL;
             break;
@@ -3565,8 +3560,7 @@ libxlDomainAttachDeviceConfig(virDomainDefPtr vmdef, virDomainDeviceDefPtr dev)
                 return -1;
             }
 
-            if (virDomainControllerInsert(vmdef, controller) < 0)
-                return -1;
+            virDomainControllerInsert(vmdef, controller);
             dev->data.controller = NULL;
             break;
 
@@ -3907,13 +3901,11 @@ libxlDomainDetachNetDevice(libxlDriverPrivatePtr driver,
     libxl_device_nic_dispose(&nic);
     if (!ret) {
         if (detach->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            virConnectPtr conn = virGetConnectNetwork();
-            if (conn) {
+            g_autoptr(virConnect) conn = virGetConnectNetwork();
+            if (conn)
                 virDomainNetReleaseActualDevice(conn, vm->def, detach);
-                virObjectUnref(conn);
-            } else {
+            else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(detach->ifname));
-            }
         }
         virDomainNetRemove(vm->def, detachidx);
     }
@@ -4084,12 +4076,10 @@ libxlDomainUpdateDeviceConfig(virDomainDefPtr vmdef, virDomainDeviceDefPtr dev)
                 return -1;
             }
 
-            if (virDomainDiskSetSource(orig, virDomainDiskGetSource(disk)) < 0)
-                return -1;
+            virDomainDiskSetSource(orig, virDomainDiskGetSource(disk));
             virDomainDiskSetType(orig, virDomainDiskGetType(disk));
             virDomainDiskSetFormat(orig, virDomainDiskGetFormat(disk));
-            if (virDomainDiskSetDriver(orig, virDomainDiskGetDriver(disk)) < 0)
-                return -1;
+            virDomainDiskSetDriver(orig, virDomainDiskGetDriver(disk));
             break;
         default:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",

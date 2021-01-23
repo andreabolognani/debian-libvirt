@@ -558,6 +558,16 @@ qemuDomainChangeMediaBlockdev(virQEMUDriverPtr driver,
                                                  nodename);
     }
 
+    /* set throttling for the new image */
+    if (rc == 0 &&
+        !virStorageSourceIsEmpty(newsrc) &&
+        qemuDiskConfigBlkdeviotuneEnabled(disk)) {
+        rc = qemuMonitorSetBlockIoThrottle(priv->mon, NULL,
+                                           diskPriv->qomName,
+                                           &disk->blkdeviotune,
+                                           true, true, true);
+    }
+
     if (rc == 0)
         rc = qemuMonitorBlockdevTrayClose(priv->mon, diskPriv->qomName);
 
@@ -1305,6 +1315,7 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
             goto cleanup;
 
         if (virNetDevOpenvswitchGetVhostuserIfname(net->data.vhostuser->data.nix.path,
+                                                   net->data.vhostuser->data.nix.listen,
                                                    &net->ifname) < 0)
             goto cleanup;
 
@@ -1360,6 +1371,8 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
     if (qemuInterfaceStartDevice(net) < 0)
         goto cleanup;
 
+    qemuDomainInterfaceSetDefaultQDisc(driver, net);
+
     /* Set bandwidth or warn if requested and not supported. */
     actualBandwidth = virDomainNetGetActualBandwidth(net);
     if (actualBandwidth) {
@@ -1377,8 +1390,6 @@ qemuDomainAttachNetDevice(virQEMUDriverPtr driver,
     if (net->mtu &&
         virNetDevSetMTU(net->ifname, net->mtu) < 0)
         goto cleanup;
-
-    qemuDomainInterfaceSetDefaultQDisc(driver, net);
 
     for (i = 0; i < tapfdSize; i++) {
         if (qemuSecuritySetTapFDLabel(driver->securityManager,
@@ -2398,7 +2409,7 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
     if (qemuDomainMemoryDeviceAlignSize(vm->def, mem) < 0)
         goto cleanup;
 
-    if (qemuDomainDefValidateMemoryHotplug(vm->def, priv->qemuCaps, mem) < 0)
+    if (qemuDomainDefValidateMemoryHotplug(vm->def, mem) < 0)
         goto cleanup;
 
     if (qemuDomainAssignMemoryDeviceSlot(vm->def, mem) < 0)
@@ -2411,7 +2422,7 @@ qemuDomainAttachMemory(virQEMUDriverPtr driver,
 
     objalias = g_strdup_printf("mem%s", mem->info.alias);
 
-    if (!(devstr = qemuBuildMemoryDeviceStr(mem)))
+    if (!(devstr = qemuBuildMemoryDeviceStr(vm->def, mem, priv->qemuCaps)))
         goto cleanup;
 
     if (qemuBuildMemoryBackendProps(&props, objalias, cfg,
@@ -3321,8 +3332,7 @@ qemuDomainAttachLease(virQEMUDriverPtr driver,
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
 
-    if (virDomainLeaseInsertPreAlloc(vm->def) < 0)
-        return -1;
+    virDomainLeaseInsertPreAlloc(vm->def);
 
     if (virDomainLockLeaseAttach(driver->lockManager, cfg->uri,
                                  vm, lease) < 0) {
@@ -3589,6 +3599,16 @@ qemuDomainChangeNet(virQEMUDriverPtr driver,
                        _("cannot modify virtio network device driver attributes"));
         goto cleanup;
     }
+
+    if (!!olddev->virtio != !!newdev->virtio ||
+        (olddev->virtio && newdev->virtio &&
+         (olddev->virtio->iommu != newdev->virtio->iommu ||
+          olddev->virtio->ats != newdev->virtio->ats ||
+          olddev->virtio->packed != newdev->virtio->packed))) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("cannot modify virtio network device driver options"));
+           goto cleanup;
+   }
 
     /* data: this union will be examined later, after allocating new actualdev */
     /* virtPortProfile: will be examined later, after allocating new actualdev */
@@ -3870,6 +3890,15 @@ qemuDomainChangeNet(virQEMUDriverPtr driver,
              * setting unless something new is being set.
              */
             virNetDevBandwidthClear(newdev->ifname);
+        }
+
+        /* If the old bandwidth was cleared out, restore qdisc. */
+        if (virDomainNetTypeSharesHostView(newdev)) {
+            if (!newb->out || newb->out->average == 0)
+                qemuDomainInterfaceSetDefaultQDisc(driver, newdev);
+        } else {
+            if (!newb->in || newb->in->average == 0)
+                qemuDomainInterfaceSetDefaultQDisc(driver, newdev);
         }
         needReplaceDevDef = true;
     }
@@ -5312,8 +5341,9 @@ qemuDomainDetachPrepDisk(virDomainObjPtr vm,
 }
 
 
-static bool qemuDomainDiskControllerIsBusy(virDomainObjPtr vm,
-                                           virDomainControllerDefPtr detach)
+static bool
+qemuDomainDiskControllerIsBusy(virDomainObjPtr vm,
+                               virDomainControllerDefPtr detach)
 {
     size_t i;
     virDomainDiskDefPtr disk;
@@ -5326,51 +5356,96 @@ static bool qemuDomainDiskControllerIsBusy(virDomainObjPtr vm,
             continue;
 
         /* check whether the disk uses this type controller */
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_IDE &&
-            detach->type != VIR_DOMAIN_CONTROLLER_TYPE_IDE)
+        switch ((virDomainControllerType) detach->type) {
+        case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
+            if (disk->bus != VIR_DOMAIN_DISK_BUS_IDE)
+                continue;
+            break;
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
+            if (disk->bus != VIR_DOMAIN_DISK_BUS_FDC)
+                continue;
+            break;
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
+            if (disk->bus != VIR_DOMAIN_DISK_BUS_SCSI)
+                continue;
+            break;
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
+            if (disk->bus != VIR_DOMAIN_DISK_BUS_SATA)
+                continue;
+            break;
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+            /* xenbus is not supported by the qemu driver */
             continue;
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_FDC &&
-            detach->type != VIR_DOMAIN_CONTROLLER_TYPE_FDC)
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
+            /* virtio-serial does not host any disks */
             continue;
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI &&
-            detach->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI)
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
+        case VIR_DOMAIN_CONTROLLER_TYPE_USB:
+        case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
+        case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
+            /* These buses have (also) other device types too so they need to
+             * be checked elsewhere */
             continue;
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
+        default:
+            continue;
+        }
 
         if (disk->info.addr.drive.controller == detach->idx)
             return true;
     }
 
-    for (i = 0; i < vm->def->nhostdevs; i++) {
-        hostdev = vm->def->hostdevs[i];
-        if (!virHostdevIsSCSIDevice(hostdev) ||
-            detach->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI)
-            continue;
-        if (hostdev->info->addr.drive.controller == detach->idx)
-            return true;
+    if (detach->type == VIR_DOMAIN_CONTROLLER_TYPE_SCSI) {
+        for (i = 0; i < vm->def->nhostdevs; i++) {
+            hostdev = vm->def->hostdevs[i];
+            if (!virHostdevIsSCSIDevice(hostdev))
+                continue;
+
+            if (hostdev->info->addr.drive.controller == detach->idx)
+                return true;
+        }
     }
 
     return false;
 }
 
-static bool qemuDomainControllerIsBusy(virDomainObjPtr vm,
-                                       virDomainControllerDefPtr detach)
+
+static bool
+qemuDomainControllerIsBusy(virDomainObjPtr vm,
+                           virDomainControllerDefPtr detach)
 {
-    switch (detach->type) {
+    switch ((virDomainControllerType) detach->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
+    case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
         return qemuDomainDiskControllerIsBusy(vm, detach);
 
-    case VIR_DOMAIN_CONTROLLER_TYPE_SATA:
     case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
     case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
+    case VIR_DOMAIN_CONTROLLER_TYPE_USB:
+    case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
+    case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
+        /* detach of the controller types above is not yet supported */
+        return false;
+
+    case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+        /* qemu driver doesn't support xenbus */
+        return false;
+
+    case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
     default:
-        /* libvirt does not support sata controller, and does not support to
-         * detach virtio and smart card controller.
-         */
-        return true;
+        return false;
     }
 }
+
 
 static int
 qemuDomainDetachPrepController(virDomainObjPtr vm,

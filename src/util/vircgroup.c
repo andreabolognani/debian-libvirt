@@ -212,6 +212,50 @@ virCgroupPartitionEscape(char **path)
 }
 
 
+static int
+virCgroupSetBackends(virCgroupPtr group)
+{
+    virCgroupBackendPtr *backends = virCgroupBackendGetAll();
+    bool backendAvailable = false;
+    size_t i;
+
+    if (!backends)
+        return -1;
+
+    for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
+        if (backends[i] && backends[i]->available()) {
+            group->backends[i] = backends[i];
+            backendAvailable = true;
+        }
+    }
+
+    if (!backendAvailable) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("no cgroup backend available"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+virCgroupCopyMounts(virCgroupPtr group,
+                    virCgroupPtr parent)
+{
+    size_t i;
+
+    for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
+        if (group->backends[i] &&
+            group->backends[i]->copyMounts(group, parent) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 /*
  * Process /proc/mounts figuring out what controllers are
  * mounted and where
@@ -247,6 +291,24 @@ virCgroupDetectMounts(virCgroupPtr group)
  cleanup:
     VIR_FORCE_FCLOSE(mounts);
     return ret;
+}
+
+
+static int
+virCgroupCopyPlacement(virCgroupPtr group,
+                      const char *path,
+                      virCgroupPtr parent)
+{
+    size_t i;
+
+    for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
+        if (group->backends[i] &&
+            group->backends[i]->copyPlacement(group, path, parent) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 
@@ -332,65 +394,28 @@ virCgroupDetectPlacement(virCgroupPtr group,
 
 
 static int
-virCgroupDetect(virCgroupPtr group,
-                pid_t pid,
-                int controllers,
-                const char *path,
-                virCgroupPtr parent)
+virCgroupSetPlacement(virCgroupPtr group,
+                      const char *path)
 {
     size_t i;
-    bool backendAvailable = false;
-    int controllersAvailable = 0;
-    virCgroupBackendPtr *backends = virCgroupBackendGetAll();
-
-    VIR_DEBUG("group=%p controllers=%d path=%s parent=%p",
-              group, controllers, path, parent);
-
-    if (!backends)
-        return -1;
 
     for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
-        if (backends[i] && backends[i]->available()) {
-            group->backends[i] = backends[i];
-            backendAvailable = true;
-        }
-    }
-
-    if (!backendAvailable) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("no cgroup backend available"));
-        return -1;
-    }
-
-    if (parent) {
-        for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
-            if (group->backends[i] &&
-                group->backends[i]->copyMounts(group, parent) < 0) {
-                return -1;
-            }
-        }
-    } else {
-        if (virCgroupDetectMounts(group) < 0)
+        if (group->backends[i] &&
+            group->backends[i]->setPlacement(group, path) < 0) {
             return -1;
-    }
-
-    /* In some cases we can copy part of the placement info
-     * based on the parent cgroup...
-     */
-    if (parent || path[0] == '/') {
-        for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
-            if (group->backends[i] &&
-                group->backends[i]->copyPlacement(group, path, parent) < 0) {
-                return -1;
-            }
         }
     }
 
-    /* ... but use /proc/cgroups to fill in the rest */
-    if (virCgroupDetectPlacement(group, pid, path) < 0)
-        return -1;
+    return 0;
+}
 
-    /* Check that for every mounted controller, we found our placement */
+
+static int
+virCgroupValidatePlacement(virCgroupPtr group,
+                           pid_t pid)
+{
+    size_t i;
+
     for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
         if (group->backends[i] &&
             group->backends[i]->validatePlacement(group, pid) < 0) {
@@ -398,14 +423,29 @@ virCgroupDetect(virCgroupPtr group,
         }
     }
 
+    return 0;
+}
+
+
+static int
+virCgroupDetectControllers(virCgroupPtr group,
+                           int controllers,
+                           virCgroupPtr parent)
+{
+    size_t i;
+    int controllersAvailable = 0;
+
     for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
-        if (group->backends[i]) {
-            int rc = group->backends[i]->detectControllers(group, controllers, parent,
-                                                           controllersAvailable);
-            if (rc < 0)
-                return -1;
-            controllersAvailable |= rc;
-        }
+        int rc;
+
+        if (!group->backends[i])
+            continue;
+
+        rc = group->backends[i]->detectControllers(group, controllers, parent,
+                                                   controllersAvailable);
+        if (rc < 0)
+            return -1;
+        controllersAvailable |= rc;
     }
 
     /* Check that at least 1 controller is available */
@@ -641,42 +681,43 @@ virCgroupMakeGroup(virCgroupPtr parent,
 /**
  * virCgroupNew:
  * @path: path for the new group
- * @parent: parent group, or NULL
  * @controllers: bitmask of controllers to activate
  *
  * Create a new cgroup storing it in @group.
  *
- * If @path starts with a '/' it is treated as an
- * absolute path, and @parent is ignored. Otherwise
- * it is treated as being relative to @parent. If
- * @parent is NULL, then the placement of the current
- * process is used.
- *
  * Returns 0 on success, -1 on error
  */
 int
-virCgroupNew(pid_t pid,
-             const char *path,
-             virCgroupPtr parent,
+virCgroupNew(const char *path,
              int controllers,
              virCgroupPtr *group)
 {
     g_autoptr(virCgroup) newGroup = NULL;
 
-    VIR_DEBUG("pid=%lld path=%s parent=%p controllers=%d group=%p",
-              (long long) pid, path, parent, controllers, group);
+    VIR_DEBUG("path=%s controllers=%d group=%p",
+              path, controllers, group);
 
     *group = NULL;
     newGroup = g_new0(virCgroup, 1);
 
-    if (path[0] == '/' || !parent) {
-        newGroup->path = g_strdup(path);
-    } else {
-        newGroup->path = g_strdup_printf("%s%s%s", parent->path,
-                                         STREQ(parent->path, "") ? "" : "/", path);
-    }
+    if (virCgroupSetBackends(newGroup) < 0)
+        return -1;
 
-    if (virCgroupDetect(newGroup, pid, controllers, path, parent) < 0)
+    if (virCgroupDetectMounts(newGroup) < 0)
+        return -1;
+
+    if (virCgroupSetPlacement(newGroup, path) < 0)
+        return -1;
+
+    /* ... but use /proc/cgroups to fill in the rest */
+    if (virCgroupDetectPlacement(newGroup, -1, path) < 0)
+        return -1;
+
+    /* Check that for every mounted controller, we found our placement */
+    if (virCgroupValidatePlacement(newGroup, -1) < 0)
+        return -1;
+
+    if (virCgroupDetectControllers(newGroup, controllers, NULL) < 0)
         return -1;
 
     *group = g_steal_pointer(&newGroup);
@@ -801,6 +842,40 @@ virCgroupSetPartitionSuffix(const char *path, char **res)
 }
 
 
+static int
+virCgroupNewFromParent(virCgroupPtr parent,
+                       const char *path,
+                       int controllers,
+                       virCgroupPtr *group)
+{
+    g_autoptr(virCgroup) new = g_new0(virCgroup, 1);
+
+    VIR_DEBUG("parent=%p path=%s controllers=%d group=%p",
+              parent, path, controllers, group);
+
+    if (virCgroupSetBackends(new) < 0)
+        return -1;
+
+    if (virCgroupCopyMounts(new, parent) < 0)
+        return -1;
+
+    if (virCgroupCopyPlacement(new, path, parent) < 0)
+        return -1;
+
+    if (virCgroupDetectPlacement(new, -1, path) < 0)
+        return -1;
+
+    if (virCgroupValidatePlacement(new, -1) < 0)
+        return -1;
+
+    if (virCgroupDetectControllers(new, controllers, parent) < 0)
+        return -1;
+
+    *group = g_steal_pointer(&new);
+    return 0;
+}
+
+
 /**
  * virCgroupNewPartition:
  * @path: path for the partition
@@ -818,10 +893,10 @@ virCgroupNewPartition(const char *path,
                       int controllers,
                       virCgroupPtr *group)
 {
-    g_autofree char *parentPath = NULL;
     g_autofree char *newPath = NULL;
     g_autoptr(virCgroup) parent = NULL;
     g_autoptr(virCgroup) newGroup = NULL;
+    char *partition = NULL;
 
     VIR_DEBUG("path=%s create=%d controllers=%x",
               path, create, controllers);
@@ -840,17 +915,26 @@ virCgroupNewPartition(const char *path,
 
     if (STRNEQ(newPath, "/")) {
         char *tmp;
-        parentPath = g_strdup(newPath);
+        const char *parentPath;
 
-        tmp = strrchr(parentPath, '/');
-        tmp++;
+        tmp = strrchr(newPath, '/');
         *tmp = '\0';
 
-        if (virCgroupNew(-1, parentPath, NULL, controllers, &parent) < 0)
+        if (tmp == newPath) {
+            parentPath = "/";
+        } else {
+            parentPath = newPath;
+        }
+
+        if (virCgroupNew(parentPath, controllers, &parent) < 0)
             return -1;
+
+        partition = tmp + 1;
+    } else {
+        partition = newPath;
     }
 
-    if (virCgroupNew(-1, newPath, parent, controllers, &newGroup) < 0)
+    if (virCgroupNewFromParent(parent, partition, controllers, &newGroup) < 0)
         return -1;
 
     if (parent) {
@@ -894,7 +978,6 @@ int
 virCgroupNewDomainPartition(virCgroupPtr partition,
                             const char *driver,
                             const char *name,
-                            bool create,
                             virCgroupPtr *group)
 {
     g_autofree char *grpname = NULL;
@@ -905,7 +988,7 @@ virCgroupNewDomainPartition(virCgroupPtr partition,
     if (virCgroupPartitionEscape(&grpname) < 0)
         return -1;
 
-    if (virCgroupNew(-1, grpname, partition, -1, &newGroup) < 0)
+    if (virCgroupNewFromParent(partition, grpname, -1, &newGroup) < 0)
         return -1;
 
     /*
@@ -918,7 +1001,7 @@ virCgroupNewDomainPartition(virCgroupPtr partition,
      * a group for driver, is to avoid overhead to track
      * cumulative usage that we don't need.
      */
-    if (virCgroupMakeGroup(partition, newGroup, create,
+    if (virCgroupMakeGroup(partition, newGroup, true,
                            VIR_CGROUP_MEM_HIERACHY) < 0) {
         return -1;
     }
@@ -972,7 +1055,7 @@ virCgroupNewThread(virCgroupPtr domain,
                    (1 << VIR_CGROUP_CONTROLLER_CPUACCT) |
                    (1 << VIR_CGROUP_CONTROLLER_CPUSET));
 
-    if (virCgroupNew(-1, name, domain, controllers, &newGroup) < 0)
+    if (virCgroupNewFromParent(domain, name, controllers, &newGroup) < 0)
         return -1;
 
     if (virCgroupMakeGroup(domain, newGroup, create, VIR_CGROUP_THREAD) < 0)
@@ -988,7 +1071,28 @@ virCgroupNewDetect(pid_t pid,
                    int controllers,
                    virCgroupPtr *group)
 {
-    return virCgroupNew(pid, "", NULL, controllers, group);
+    g_autoptr(virCgroup) new = g_new0(virCgroup, 1);
+
+    VIR_DEBUG("pid=%lld controllers=%d group=%p",
+              (long long) pid, controllers, group);
+
+    if (virCgroupSetBackends(new) < 0)
+        return -1;
+
+    if (virCgroupDetectMounts(new) < 0)
+        return -1;
+
+    if (virCgroupDetectPlacement(new, pid, "") < 0)
+        return -1;
+
+    if (virCgroupValidatePlacement(new, pid) < 0)
+        return -1;
+
+    if (virCgroupDetectControllers(new, controllers, NULL) < 0)
+        return -1;
+
+    *group = g_steal_pointer(&new);
+    return 0;
 }
 
 
@@ -1032,47 +1136,33 @@ virCgroupNewDetectMachine(const char *name,
 
 static int
 virCgroupEnableMissingControllers(char *path,
-                                  pid_t pidleader,
                                   int controllers,
                                   virCgroupPtr *group)
 {
     g_autoptr(virCgroup) parent = NULL;
-    char *offset = path;
+    g_auto(GStrv) tokens = virStringSplit(path, "/", 0);
+    size_t i;
 
-    if (virCgroupNew(pidleader,
-                     "/",
-                     NULL,
-                     controllers,
-                     &parent) < 0)
+    if (virCgroupNew("/", controllers, &parent) < 0)
         return -1;
 
-    for (;;) {
+    /* Skip the first token as it is empty string. */
+    for (i = 1; tokens[i]; i++) {
         g_autoptr(virCgroup) tmp = NULL;
-        char *t = strchr(offset + 1, '/');
-        if (t)
-            *t = '\0';
 
-        if (virCgroupNew(pidleader,
-                         path,
-                         parent,
-                         controllers,
-                         &tmp) < 0)
+        if (virCgroupNewFromParent(parent,
+                                   tokens[i],
+                                   controllers,
+                                   &tmp) < 0)
             return -1;
 
         if (virCgroupMakeGroup(parent, tmp, true, VIR_CGROUP_SYSTEMD) < 0)
             return -1;
 
-        if (t) {
-            *t = '/';
-            offset = t;
-            virCgroupFree(parent);
-            parent = g_steal_pointer(&tmp);
-        } else {
-            *group = g_steal_pointer(&tmp);
-            break;
-        }
+        parent = g_steal_pointer(&tmp);
     }
 
+    *group = g_steal_pointer(&parent);
     return 0;
 }
 
@@ -1135,10 +1225,8 @@ virCgroupNewMachineSystemd(const char *name,
         return -2;
     }
 
-    if (virCgroupEnableMissingControllers(path, pidleader,
-                                          controllers, &newGroup) < 0) {
+    if (virCgroupEnableMissingControllers(path, controllers, &newGroup) < 0)
         return -1;
-    }
 
     if (virCgroupAddProcess(newGroup, pidleader) < 0) {
         virErrorPtr saved;
@@ -1188,7 +1276,6 @@ virCgroupNewMachineManual(const char *name,
     if (virCgroupNewDomainPartition(parent,
                                     drivername,
                                     name,
-                                    true,
                                     &newGroup) < 0)
         return -1;
 
@@ -2303,7 +2390,7 @@ virCgroupGetCpuacctPercpuUsage(virCgroupPtr group, char **usage)
 int
 virCgroupRemoveRecursively(char *grppath)
 {
-    DIR *grpdir;
+    g_autoptr(DIR) grpdir = NULL;
     struct dirent *ent;
     int rc = 0;
     int direrr;
@@ -2333,8 +2420,6 @@ virCgroupRemoveRecursively(char *grppath)
         rc = -errno;
         VIR_ERROR(_("Failed to readdir for %s (%d)"), grppath, errno);
     }
-
-    VIR_DIR_CLOSE(grpdir);
 
     VIR_DEBUG("Removing cgroup %s", grppath);
     if (rmdir(grppath) != 0 && errno != ENOENT) {
@@ -2390,8 +2475,8 @@ virCgroupKillInternal(virCgroupPtr group,
     g_autofree char *keypath = NULL;
     bool done = false;
     FILE *fp = NULL;
-    VIR_DEBUG("group=%p path=%s signum=%d pids=%p",
-              group, group->path, signum, pids);
+    VIR_DEBUG("group=%p signum=%d pids=%p",
+              group, signum, pids);
 
     if (virCgroupPathOfController(group, controller, taskFile, &keypath) < 0)
         return -1;
@@ -2467,29 +2552,28 @@ virCgroupKillRecursiveInternal(virCgroupPtr group,
                                const char *taskFile,
                                bool dormdir)
 {
-    int ret = -1;
     int rc;
     bool killedAny = false;
     g_autofree char *keypath = NULL;
-    DIR *dp = NULL;
+    g_autoptr(DIR) dp = NULL;
     struct dirent *ent;
     int direrr;
-    VIR_DEBUG("group=%p path=%s signum=%d pids=%p",
-              group, group->path, signum, pids);
+    VIR_DEBUG("group=%p signum=%d pids=%p",
+              group, signum, pids);
 
     if (virCgroupPathOfController(group, controller, "", &keypath) < 0)
         return -1;
 
     if ((rc = virCgroupKillInternal(group, signum, pids,
                                     controller, taskFile)) < 0) {
-        goto cleanup;
+        return -1;
     }
     if (rc == 1)
         killedAny = true;
 
     VIR_DEBUG("Iterate over children of %s (killedAny=%d)", keypath, killedAny);
     if ((rc = virDirOpenIfExists(&dp, keypath)) < 0)
-        goto cleanup;
+        return -1;
 
     if (rc == 0) {
         VIR_DEBUG("Path %s does not exist, assuming done", keypath);
@@ -2505,12 +2589,12 @@ virCgroupKillRecursiveInternal(virCgroupPtr group,
 
         VIR_DEBUG("Process subdir %s", ent->d_name);
 
-        if (virCgroupNew(-1, ent->d_name, group, -1, &subgroup) < 0)
-            goto cleanup;
+        if (virCgroupNewFromParent(group, ent->d_name, -1, &subgroup) < 0)
+            return -1;
 
         if ((rc = virCgroupKillRecursiveInternal(subgroup, signum, pids,
                                                  controller, taskFile, true)) < 0)
-            goto cleanup;
+            return -1;
         if (rc == 1)
             killedAny = true;
 
@@ -2518,14 +2602,10 @@ virCgroupKillRecursiveInternal(virCgroupPtr group,
             virCgroupRemove(subgroup);
     }
     if (direrr < 0)
-        goto cleanup;
+        return -1;
 
  done:
-    ret = killedAny ? 1 : 0;
-
- cleanup:
-    VIR_DIR_CLOSE(dp);
-    return ret;
+    return killedAny ? 1 : 0;
 }
 
 
@@ -2539,7 +2619,7 @@ virCgroupKillRecursive(virCgroupPtr group, int signum)
     virCgroupBackendPtr *backends = virCgroupBackendGetAll();
     g_autoptr(GHashTable) pids = g_hash_table_new_full(g_int64_hash, g_int64_equal, g_free, NULL);
 
-    VIR_DEBUG("group=%p path=%s signum=%d", group, group->path, signum);
+    VIR_DEBUG("group=%p signum=%d", group, signum);
 
     for (i = 0; i < VIR_CGROUP_BACKEND_TYPE_LAST; i++) {
         if (backends && backends[i] && backends[i]->available()) {
@@ -2570,7 +2650,7 @@ virCgroupKillPainfully(virCgroupPtr group)
 {
     size_t i;
     int ret;
-    VIR_DEBUG("cgroup=%p path=%s", group, group->path);
+    VIR_DEBUG("cgroup=%p", group);
     for (i = 0; i < 15; i++) {
         int signum;
         if (i == 0)
@@ -2741,6 +2821,17 @@ virCgroupNewPartition(const char *path G_GNUC_UNUSED,
 
 
 int
+virCgroupNew(const char *path G_GNUC_UNUSED,
+             int controllers G_GNUC_UNUSED,
+             virCgroupPtr *group G_GNUC_UNUSED)
+{
+    virReportSystemError(ENXIO, "%s",
+                         _("Control groups not supported on this platform"));
+    return -1;
+}
+
+
+int
 virCgroupNewSelf(virCgroupPtr *group G_GNUC_UNUSED)
 {
     virReportSystemError(ENXIO, "%s",
@@ -2753,7 +2844,6 @@ int
 virCgroupNewDomainPartition(virCgroupPtr partition G_GNUC_UNUSED,
                             const char *driver G_GNUC_UNUSED,
                             const char *name G_GNUC_UNUSED,
-                            bool create G_GNUC_UNUSED,
                             virCgroupPtr *group G_GNUC_UNUSED)
 {
     virReportSystemError(ENXIO, "%s",
@@ -3498,7 +3588,6 @@ virCgroupFree(virCgroupPtr group)
     VIR_FREE(group->unified.mountPoint);
     VIR_FREE(group->unified.placement);
 
-    VIR_FREE(group->path);
     VIR_FREE(group);
 }
 

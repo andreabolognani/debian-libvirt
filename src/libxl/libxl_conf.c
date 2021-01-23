@@ -941,6 +941,7 @@ libxlMakeNetworkDiskSrcStr(virStorageSourcePtr src,
     case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
     case VIR_STORAGE_NET_PROTOCOL_SSH:
     case VIR_STORAGE_NET_PROTOCOL_VXHS:
+    case VIR_STORAGE_NET_PROTOCOL_NFS:
     case VIR_STORAGE_NET_PROTOCOL_LAST:
     case VIR_STORAGE_NET_PROTOCOL_NONE:
         virReportError(VIR_ERR_NO_SUPPORT,
@@ -1237,7 +1238,7 @@ libxlUpdateDiskDef(virDomainDiskDefPtr l_disk, libxl_device_disk *x_disk)
         break;
     }
     if (driver)
-        ignore_value(virDomainDiskSetDriver(l_disk, driver));
+        virDomainDiskSetDriver(l_disk, driver);
 }
 
 int
@@ -2127,8 +2128,7 @@ libxlMakeDefaultUSBControllers(virDomainDefPtr def,
         if (libxlMakeUSBController(l_controller, &x_controllers[i]) < 0)
             goto error;
 
-        if (virDomainControllerInsert(def, l_controller) < 0)
-            goto error;
+        virDomainControllerInsert(def, l_controller);
 
         l_controller = NULL;
     }

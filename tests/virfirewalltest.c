@@ -102,7 +102,7 @@ VIR_MOCK_WRAP_RET_ARGS(g_dbus_connection_call_sync,
     } else if (STREQ(bus_name, VIR_FIREWALL_FIREWALLD_SERVICE) &&
                STREQ(method_name, "passthrough")) {
         g_autoptr(GVariantIter) iter = NULL;
-        VIR_AUTOSTRINGLIST args = NULL;
+        g_auto(GStrv) args = NULL;
         size_t nargs = 0;
         char *type = NULL;
         char *item = NULL;
@@ -128,7 +128,7 @@ VIR_MOCK_WRAP_RET_ARGS(g_dbus_connection_call_sync,
         if (fwBuf) {
             if (STREQ(type, "ipv4"))
                 virBufferAddLit(fwBuf, IPTABLES_PATH);
-            else if (STREQ(type, "ipv4"))
+            else if (STREQ(type, "ipv6"))
                 virBufferAddLit(fwBuf, IP6TABLES_PATH);
             else
                 virBufferAddLit(fwBuf, EBTABLES_PATH);
@@ -149,15 +149,17 @@ VIR_MOCK_WRAP_RET_ARGS(g_dbus_connection_call_sync,
                 *error = g_dbus_error_new_for_dbus_error("org.firewalld.error",
                                                          "something bad happened");
         } else {
-            if (nargs == 1 &&
+            if (nargs == 2 &&
                 STREQ(type, "ipv4") &&
-                STREQ(args[0], "-L")) {
+                STREQ(args[0], "-w") &&
+                STREQ(args[1], "-L")) {
                 reply = g_variant_new("(s)", TEST_FILTER_TABLE_LIST);
-            } else if (nargs == 3 &&
+            } else if (nargs == 4 &&
                        STREQ(type, "ipv4") &&
-                       STREQ(args[0], "-t") &&
-                       STREQ(args[1], "nat") &&
-                       STREQ(args[2], "-L")) {
+                       STREQ(args[0], "-w") &&
+                       STREQ(args[1], "-t") &&
+                       STREQ(args[2], "nat") &&
+                       STREQ(args[3], "-L")) {
                 reply = g_variant_new("(s)", TEST_NAT_TABLE_LIST);
             } else {
                 reply = g_variant_new("(s)", "success");
@@ -184,15 +186,16 @@ testFirewallSingleGroup(const void *opaque)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.1' --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT)
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD)
         virCommandSetDryRun(&cmdbuf, NULL, NULL);
     else
         fwBuf = &cmdbuf;
@@ -201,12 +204,12 @@ testFirewallSingleGroup(const void *opaque)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     if (virFirewallApply(fw) < 0)
@@ -236,8 +239,8 @@ testFirewallRemoveRule(const void *opaque)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.1' --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
     virFirewallRulePtr fwrule;
 
@@ -245,7 +248,8 @@ testFirewallRemoveRule(const void *opaque)
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT)
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD)
         virCommandSetDryRun(&cmdbuf, NULL, NULL);
     else
         fwBuf = &cmdbuf;
@@ -254,17 +258,17 @@ testFirewallRemoveRule(const void *opaque)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     fwrule = virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                                 "-A", "INPUT", NULL);
-    virFirewallRuleAddArg(fw, fwrule, "--source-host");
+    virFirewallRuleAddArg(fw, fwrule, "--source");
     virFirewallRemoveRule(fw, fwrule);
 
     fwrule = virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                                 "-A", "INPUT", NULL);
-    virFirewallRuleAddArg(fw, fwrule, "--source-host");
+    virFirewallRuleAddArg(fw, fwrule, "--source");
     virFirewallRuleAddArgFormat(fw, fwrule, "%s", "!192.168.122.1");
     virFirewallRuleAddArgList(fw, fwrule, "--jump", "REJECT", NULL);
 
@@ -295,17 +299,18 @@ testFirewallManyGroups(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.1' --jump REJECT\n"
-        IPTABLES_PATH " -A OUTPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A OUTPUT --jump DROP\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n"
+        IPTABLES_PATH " -w -A OUTPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A OUTPUT --jump DROP\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT)
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD)
         virCommandSetDryRun(&cmdbuf, NULL, NULL);
     else
         fwBuf = &cmdbuf;
@@ -314,19 +319,19 @@ testFirewallManyGroups(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     virFirewallStartTransaction(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "OUTPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
@@ -382,17 +387,18 @@ testFirewallIgnoreFailGroup(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -A OUTPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A OUTPUT --jump DROP\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -A OUTPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A OUTPUT --jump DROP\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
@@ -403,19 +409,19 @@ testFirewallIgnoreFailGroup(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallStartTransaction(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "OUTPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
@@ -450,17 +456,18 @@ testFirewallIgnoreFailRule(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -A OUTPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A OUTPUT --jump DROP\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -A OUTPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A OUTPUT --jump DROP\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
@@ -471,18 +478,18 @@ testFirewallIgnoreFailRule(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRuleFull(fw, VIR_FIREWALL_LAYER_IPV4,
                            true, NULL, NULL,
                            "-A", "INPUT",
-                           "--source-host", "192.168.122.255",
+                           "--source", "192.168.122.255",
                            "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "OUTPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
@@ -517,15 +524,16 @@ testFirewallNoRollback(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.255 --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
@@ -536,17 +544,17 @@ testFirewallNoRollback(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     if (virFirewallApply(fw) == 0) {
@@ -577,18 +585,19 @@ testFirewallSingleRollback(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -D INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host '!192.168.122.1' --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -D INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
     } else {
         fwError = true;
@@ -599,34 +608,34 @@ testFirewallSingleRollback(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     virFirewallStartRollback(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     if (virFirewallApply(fw) == 0) {
@@ -657,17 +666,18 @@ testFirewallManyRollback(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host '!192.168.122.1' --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
@@ -678,38 +688,38 @@ testFirewallManyRollback(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallStartRollback(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallStartTransaction(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     virFirewallStartRollback(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     if (virFirewallApply(fw) == 0) {
@@ -740,21 +750,22 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.127 --jump REJECT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.1' --jump REJECT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host 192.168.122.127 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host '!192.168.122.1' --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host 192.168.122.255 --jump REJECT\n"
-        IPTABLES_PATH " -D INPUT --source-host '!192.168.122.1' --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.127 --jump REJECT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source 192.168.122.127 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source 192.168.122.255 --jump REJECT\n"
+        IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
@@ -765,14 +776,14 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallStartRollback(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
 
@@ -780,24 +791,24 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.127",
+                       "--source", "192.168.122.127",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     virFirewallStartRollback(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.127",
+                       "--source", "192.168.122.127",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
 
@@ -805,24 +816,24 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     virFirewallStartRollback(fw, VIR_FIREWALL_ROLLBACK_INHERIT_PREVIOUS);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "192.168.122.255",
+                       "--source", "192.168.122.255",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-D", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     if (virFirewallApply(fw) == 0) {
@@ -882,12 +893,14 @@ testFirewallQueryHook(const char *const*args,
                       void *opaque G_GNUC_UNUSED)
 {
     if (STREQ(args[0], IPTABLES_PATH) &&
-        STREQ(args[1], "-L")) {
+        STREQ(args[1], "-w") &&
+        STREQ(args[2], "-L")) {
         *output = g_strdup(TEST_FILTER_TABLE_LIST);
     } else if (STREQ(args[0], IPTABLES_PATH) &&
-               STREQ(args[1], "-t") &&
-               STREQ(args[2], "nat") &&
-               STREQ(args[3], "-L")) {
+               STREQ(args[1], "-w") &&
+               STREQ(args[2], "-t") &&
+               STREQ(args[3], "nat") &&
+               STREQ(args[4], "-L")) {
         *output = g_strdup(TEST_NAT_TABLE_LIST);
     }
 }
@@ -902,7 +915,7 @@ testFirewallQueryCallback(virFirewallPtr fw,
     size_t i;
     virFirewallAddRule(fw, layer,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.129",
+                       "--source", "!192.168.122.129",
                        "--jump", "REJECT", NULL);
 
     for (i = 0; lines[i] != NULL; i++) {
@@ -930,15 +943,15 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     const char *actual = NULL;
     const char *expected =
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.1 --jump ACCEPT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.127 --jump REJECT\n"
-        IPTABLES_PATH " -L\n"
-        IPTABLES_PATH " -t nat -L\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.130 --jump REJECT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.129' --jump REJECT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.129' --jump REJECT\n"
-        IPTABLES_PATH " -A INPUT --source-host 192.168.122.128 --jump REJECT\n"
-        IPTABLES_PATH " -A INPUT --source-host '!192.168.122.1' --jump REJECT\n";
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.127 --jump REJECT\n"
+        IPTABLES_PATH " -w -L\n"
+        IPTABLES_PATH " -w -t nat -L\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.130 --jump REJECT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.129' --jump REJECT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.129' --jump REJECT\n"
+        IPTABLES_PATH " -w -A INPUT --source 192.168.122.128 --jump REJECT\n"
+        IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
 
     expectedLineNum = 0;
@@ -947,7 +960,8 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
     if (virFirewallSetBackend(data->tryBackend) < 0)
         goto cleanup;
 
-    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT) {
+    if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
+        data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
         virCommandSetDryRun(&cmdbuf, testFirewallQueryHook, NULL);
     } else {
         fwBuf = &cmdbuf;
@@ -958,14 +972,14 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.1",
+                       "--source", "192.168.122.1",
                        "--jump", "ACCEPT", NULL);
 
     virFirewallStartTransaction(fw, 0);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.127",
+                       "--source", "192.168.122.127",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRuleFull(fw, VIR_FIREWALL_LAYER_IPV4,
@@ -981,7 +995,7 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.130",
+                       "--source", "192.168.122.130",
                        "--jump", "REJECT", NULL);
 
 
@@ -989,12 +1003,12 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "192.168.122.128",
+                       "--source", "192.168.122.128",
                        "--jump", "REJECT", NULL);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "-A", "INPUT",
-                       "--source-host", "!192.168.122.1",
+                       "--source", "!192.168.122.1",
                        "--jump", "REJECT", NULL);
 
     if (virFirewallApply(fw) < 0)
@@ -1071,8 +1085,6 @@ mymain(void)
 # define RUN_TEST(name, method) \
     RUN_TEST_DIRECT(name, method); \
     RUN_TEST_FIREWALLD(name, method)
-
-    virFirewallSetLockOverride(true);
 
     RUN_TEST("single group", testFirewallSingleGroup);
     RUN_TEST("remove rule", testFirewallRemoveRule);

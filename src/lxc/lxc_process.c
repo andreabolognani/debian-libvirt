@@ -42,6 +42,7 @@
 #include "domain_nwfilter.h"
 #include "viralloc.h"
 #include "domain_audit.h"
+#include "domain_validate.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "vircommand.h"
@@ -145,27 +146,39 @@ lxcProcessRemoveDomainStatus(virLXCDriverConfigPtr cfg,
 }
 
 
+typedef enum {
+    VIR_LXC_PROCESS_CLEANUP_RELEASE_SECLABEL = (1 << 0),
+    VIR_LXC_PROCESS_CLEANUP_RESTORE_SECLABEL = (1 << 1),
+    VIR_LXC_PROCESS_CLEANUP_REMOVE_TRANSIENT = (1 << 2),
+} virLXCProcessCleanupFlags;
+
 /**
  * virLXCProcessCleanup:
  * @driver: pointer to driver structure
  * @vm: pointer to VM to clean up
  * @reason: reason for switching the VM to shutoff state
+ * @flags: allows to run selective cleanups only
  *
- * Cleanout resources associated with the now dead VM
- *
+ * Clean out resources associated with the now dead VM.
+ * If @flags is zero then whole cleanup process is done,
+ * otherwise only selected sections are run.
  */
 static void virLXCProcessCleanup(virLXCDriverPtr driver,
                                  virDomainObjPtr vm,
-                                 virDomainShutoffReason reason)
+                                 virDomainShutoffReason reason,
+                                 unsigned int flags)
 {
     size_t i;
     virLXCDomainObjPrivatePtr priv = vm->privateData;
     const virNetDevVPortProfile *vport = NULL;
     virLXCDriverConfigPtr cfg = virLXCDriverGetConfig(driver);
-    virConnectPtr conn = NULL;
+    g_autoptr(virConnect) conn = NULL;
 
-    VIR_DEBUG("Cleanup VM name=%s pid=%d reason=%d",
-              vm->def->name, (int)vm->pid, (int)reason);
+    VIR_DEBUG("Cleanup VM name=%s pid=%d reason=%d flags=0x%x",
+              vm->def->name, (int)vm->pid, (int)reason, flags);
+
+    if (flags == 0)
+        flags = ~0;
 
     /* now that we know it's stopped call the hook if present */
     if (virHookPresent(VIR_HOOK_DRIVER_LXC)) {
@@ -177,9 +190,15 @@ static void virLXCProcessCleanup(virLXCDriverPtr driver,
                     NULL, xml, NULL);
     }
 
-    virSecurityManagerRestoreAllLabel(driver->securityManager,
-                                      vm->def, false, false);
-    virSecurityManagerReleaseLabel(driver->securityManager, vm->def);
+    if (flags & VIR_LXC_PROCESS_CLEANUP_RESTORE_SECLABEL) {
+        virSecurityManagerRestoreAllLabel(driver->securityManager,
+                                          vm->def, false, false);
+    }
+
+    if (flags & VIR_LXC_PROCESS_CLEANUP_RELEASE_SECLABEL) {
+        virSecurityManagerReleaseLabel(driver->securityManager, vm->def);
+    }
+
     /* Clear out dynamically assigned labels */
     if (vm->def->nseclabels &&
         vm->def->seclabels[0]->type == VIR_DOMAIN_SECLABEL_DYNAMIC) {
@@ -258,9 +277,10 @@ static void virLXCProcessCleanup(virLXCDriverPtr driver,
                     NULL, xml, NULL);
     }
 
-    virDomainObjRemoveTransientDef(vm);
+    if (flags & VIR_LXC_PROCESS_CLEANUP_REMOVE_TRANSIENT)
+        virDomainObjRemoveTransientDef(vm);
+
     virObjectUnref(cfg);
-    virObjectUnref(conn);
 }
 
 
@@ -281,18 +301,16 @@ virLXCProcessSetupInterfaceTap(virDomainDefPtr vm,
                                virDomainNetDefPtr net,
                                const char *brname)
 {
-    char *parentVeth;
-    char *containerVeth = NULL;
+    g_autofree char *parentVeth = NULL;
+    g_autofree char *containerVeth = NULL;
     const virNetDevVPortProfile *vport = virDomainNetGetActualVirtPortProfile(net);
 
     VIR_DEBUG("calling vethCreate()");
-    parentVeth = net->ifname;
+    parentVeth = g_strdup(net->ifname);
+
     if (virNetDevVethCreate(&parentVeth, &containerVeth) < 0)
         return NULL;
     VIR_DEBUG("parentVeth: %s, containerVeth: %s", parentVeth, containerVeth);
-
-    if (net->ifname == NULL)
-        net->ifname = parentVeth;
 
     if (virNetDevSetMAC(containerVeth, &net->mac) < 0)
         return NULL;
@@ -333,7 +351,11 @@ virLXCProcessSetupInterfaceTap(virDomainDefPtr vm,
         virDomainConfNWFilterInstantiate(vm->name, vm->uuid, net, false) < 0)
         return NULL;
 
-    return containerVeth;
+    /* success is guaranteed, so update the interface object */
+    g_free(net->ifname);
+    net->ifname = g_steal_pointer(&parentVeth);
+
+    return g_steal_pointer(&containerVeth);
 }
 
 
@@ -548,7 +570,7 @@ virLXCProcessSetupInterfaces(virLXCDriverPtr driver,
     size_t niface = 0;
     virDomainNetDefPtr net;
     virDomainNetType type;
-    virConnectPtr netconn = NULL;
+    g_autoptr(virConnect) netconn = NULL;
     virErrorPtr save_err = NULL;
 
     *veths = g_new0(char *, def->nnets + 1);
@@ -657,7 +679,6 @@ virLXCProcessSetupInterfaces(virLXCDriverPtr driver,
         }
         virErrorRestore(&save_err);
     }
-    virObjectUnref(netconn);
     return ret;
 }
 
@@ -904,7 +925,7 @@ int virLXCProcessStop(virLXCDriverPtr driver,
     }
 
  cleanup:
-    virLXCProcessCleanup(driver, vm, reason);
+    virLXCProcessCleanup(driver, vm, reason, 0);
 
     return 0;
 }
@@ -1184,7 +1205,7 @@ int virLXCProcessStart(virConnectPtr conn,
     size_t i;
     g_autofree char *logfile = NULL;
     int logfd = -1;
-    VIR_AUTOSTRINGLIST veths = NULL;
+    g_auto(GStrv) veths = NULL;
     int handshakefds[2] = { -1, -1 };
     off_t pos = -1;
     char ebuf[1024];
@@ -1198,6 +1219,7 @@ int virLXCProcessStart(virConnectPtr conn,
     g_autoptr(virCgroup) selfcgroup = NULL;
     int status;
     g_autofree char *pidfile = NULL;
+    unsigned int stopFlags = 0;
 
     if (virCgroupNewSelf(&selfcgroup) < 0)
         return -1;
@@ -1265,6 +1287,7 @@ int virLXCProcessStart(virConnectPtr conn,
     VIR_DEBUG("Setting current domain def as transient");
     if (virDomainObjSetDefTransient(driver->xmlopt, vm, NULL) < 0)
         goto cleanup;
+    stopFlags |= VIR_LXC_PROCESS_CLEANUP_REMOVE_TRANSIENT;
 
     /* Run an early hook to set-up missing devices */
     if (virHookPresent(VIR_HOOK_DRIVER_LXC)) {
@@ -1312,11 +1335,13 @@ int virLXCProcessStart(virConnectPtr conn,
         goto cleanup;
     }
     virDomainAuditSecurityLabel(vm, true);
+    stopFlags |= VIR_LXC_PROCESS_CLEANUP_RELEASE_SECLABEL;
 
     VIR_DEBUG("Setting domain security labels");
     if (virSecurityManagerSetAllLabel(driver->securityManager,
                                       vm->def, NULL, false, false) < 0)
         goto cleanup;
+    stopFlags |= VIR_LXC_PROCESS_CLEANUP_RESTORE_SECLABEL;
 
     VIR_DEBUG("Setting up consoles");
     for (i = 0; i < vm->def->nconsoles; i++) {
@@ -1525,7 +1550,13 @@ int virLXCProcessStart(virConnectPtr conn,
     }
     if (rc != 0) {
         virErrorPreserveLast(&err);
-        virLXCProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED);
+        if (virDomainObjIsActive(vm)) {
+            virLXCProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED);
+        } else {
+            /* virLXCProcessStop() is NOP if the container is not active.
+             * If there was a failure whilst creating it, cleanup manually. */
+            virLXCProcessCleanup(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED, stopFlags);
+        }
     }
     virCommandFree(cmd);
     for (i = 0; i < nttyFDs; i++)
@@ -1601,26 +1632,40 @@ static void
 virLXCProcessReconnectNotifyNets(virDomainDefPtr def)
 {
     size_t i;
-    virConnectPtr conn = NULL;
+    g_autoptr(virConnect) conn = NULL;
 
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDefPtr net = def->nets[i];
-        /* keep others from trying to use the macvtap device name, but
-         * don't return error if this happens, since that causes the
-         * domain to be unceremoniously killed, which would be *very*
-         * impolite.
+
+        /* type='bridge|network|ethernet' interfaces may be using an
+         * autogenerated netdev name, so we should update the counter
+         * for autogenerated names to skip past this one.
          */
-        if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_DIRECT)
-            virNetDevMacVLanReserveName(net->ifname);
-
-        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            if (!conn && !(conn = virGetConnectNetwork()))
-                continue;
-            virDomainNetNotifyActualDevice(conn, def, net);
+        switch (virDomainNetGetActualType(net)) {
+        case VIR_DOMAIN_NET_TYPE_BRIDGE:
+        case VIR_DOMAIN_NET_TYPE_NETWORK:
+        case VIR_DOMAIN_NET_TYPE_ETHERNET:
+            virNetDevReserveName(net->ifname);
+            break;
+        case VIR_DOMAIN_NET_TYPE_DIRECT:
+        case VIR_DOMAIN_NET_TYPE_USER:
+        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+        case VIR_DOMAIN_NET_TYPE_SERVER:
+        case VIR_DOMAIN_NET_TYPE_CLIENT:
+        case VIR_DOMAIN_NET_TYPE_MCAST:
+        case VIR_DOMAIN_NET_TYPE_INTERNAL:
+        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+        case VIR_DOMAIN_NET_TYPE_UDP:
+        case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_LAST:
+            break;
         }
-    }
 
-    virObjectUnref(conn);
+        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK && !conn)
+            conn = virGetConnectNetwork();
+
+        virDomainNetNotifyActualDevice(conn, def, net);
+    }
 }
 
 

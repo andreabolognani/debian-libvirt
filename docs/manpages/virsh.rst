@@ -621,7 +621,7 @@ list
 
    list [--inactive | --all]
         [--managed-save] [--title]
-        { [--table] | --name | --uuid }
+        { [--table] | --name | --uuid | --id }
         [--persistent] [--transient]
         [--with-managed-save] [--without-managed-save]
         [--autostart] [--no-autostart]
@@ -758,16 +758,18 @@ If *--managed-save* is specified, then domains that have managed save state
 in the listing. This flag is usable only with the default *--table* output.
 Note that this flag does not filter the list of domains.
 
-If *--name* is specified, domain names are printed instead of the table
-formatted one per line. If *--uuid* is specified domain's UUID's are printed
-instead of names. Flag *--table* specifies that the legacy table-formatted
-output should be used. This is the default.
-
-If both *--name* and *--uuid* are specified, domain UUID's and names
-are printed side by side without any header. Flag *--table* specifies
-that the legacy table-formatted output should be used. This is the
-default if neither *--name* nor *--uuid* are specified. Option
-*--table* is mutually exclusive with options *--uuid* and *--name*.
+If *--name* is specified, domain names are printed instead of the
+table formatted one per line. If *--uuid* is specified domain's UUID's
+are printed instead of names. If *--id* is specified then domain's ID's
+are printed indead of names. However, it is possible to combine
+*--name*, *--uuid* and *--id* to select only desired fields for
+printing. Flag *--table* specifies that the legacy table-formatted
+output should be used, but it is mutually exclusive with *--name*,
+*--uuid* and *--id*. This is the default and will be used if neither of
+*--name*, *--uuid* or *--id* is specified. If neither *--name* nor *--uuid* is
+specified, but *--id* is, then only active domains are listed, even with the
+*--all* parameter as otherwise the output would just contain bunch of lines
+with just *-1*.
 
 If *--title* is specified, then the short domain description (title) is
 printed in an extra column. This flag is usable only with the default
@@ -2175,7 +2177,7 @@ domrename
 Rename a domain. This command changes current domain name to the new name
 specified in the second argument.
 
-``Note``: Domain must be inactive and without snapshots or checkpoints.
+``Note``: Domain must be inactive.
 
 
 domstate
@@ -2634,6 +2636,21 @@ When *--timestamp* is used, a human-readable timestamp will be printed
 before the event.
 
 
+get-user-sshkeys
+----------------
+
+**Syntax:**
+
+::
+
+   get-user-sshkeys domain user
+
+Print SSH authorized keys for given *user* in the guest *domain*. Please note,
+that an entry in the file has internal structure as defined by *sshd(8)* and
+virsh/libvirt does handle keys as opaque strings, i.e. does not interpret
+them.
+
+
 guest-agent-timeout
 -------------------
 
@@ -2662,6 +2679,7 @@ guestinfo
 ::
 
    guestinfo domain [--user] [--os] [--timezone] [--hostname] [--filesystem]
+      [--disk]
 
 Print information about the guest from the point of view of the guest agent.
 Note that this command requires a guest agent to be configured and running in
@@ -2672,7 +2690,7 @@ are supported by the guest agent. You can limit the types of information that
 are returned by specifying one or more flags.  If a requested information
 type is not supported, the processes will provide an exit code of 1.
 Available information types flags are *--user*, *--os*,
-*--timezone*, *--hostname*, and *--filesystem*.
+*--timezone*, *--hostname*, *--filesystem* and *--disk*.
 
 Note that depending on the hypervisor type and the version of the guest agent
 running within the domain, not all of the following information may be
@@ -2728,6 +2746,16 @@ returned:
 * ``fs.<num>.disk.<num>.alias`` - the device alias of disk <num> (e.g. sda)
 * ``fs.<num>.disk.<num>.serial`` - the serial number of disk <num>
 * ``fs.<num>.disk.<num>.device`` - the device node of disk <num>
+
+*--disk* returns:
+
+* ``disk.count`` - the number of disks defined on this domain
+* ``disk.<num>.name`` - device node (Linux) or device UNC (Windows)
+* ``disk.<num>.partition`` - whether this is a partition or disk
+* ``disk.<num>.dependency.count`` - the number of device dependencies
+* ``disk.<num>.dependency.<num>.name`` - a dependency name
+* ``disk.<num>.alias`` - the device alias of the disk (e.g. sda)
+* ``disk.<num>.guest_alias`` - optional alias assigned to the disk
 
 
 guestvcpus
@@ -3318,12 +3346,17 @@ bind to for incoming disks traffic. Currently it is supported only by QEMU.
 Optional *disks-uri* can also be specified (mutually exclusive with
 *disks-port*) to specify what the remote hypervisor should bind/connect to when
 migrating disks.  This can be *tcp://address:port* to specify a listen address
-(which overrides *--listen-address* for the disk migration) and a port or
-*unix:///path/to/socket* in case you need the disk migration to happen over a
-UNIX socket with that specified path.  In this case you need to make sure the
-same socket path is accessible to both source and destination hypervisors and
-connecting to the socket on the source (after hypervisor creates it on the
-destination) will actually connect to the destination.
+(which overrides *--migrate-uri* and *--listen-address* for the disk migration)
+and a port or *unix:///path/to/socket* in case you need the disk migration to
+happen over a UNIX socket with that specified path.  In this case you need to
+make sure the same socket path is accessible to both source and destination
+hypervisors and connecting to the socket on the source (after hypervisor creates
+it on the destination) will actually connect to the destination. If you are
+using SELinux (at least on the source host) you need to make sure the socket on
+the source is accessible to libvirtd/QEMU for connection.  Libvirt cannot change
+the context of the existing socket because it is different from the file
+representation of the socket and the context is chosen by its creator (usually
+by using *setsockcreatecon{,_raw}()* functions).
 
 
 migrate-compcache
@@ -4002,6 +4035,29 @@ For QEMU/KVM, this requires the guest agent to be configured
 and running.
 
 
+set-user-sshkeys
+----------------
+
+**Syntax:**
+
+::
+
+   set-user-sshkeys domain user [--file FILE] [{--reset | --remove}]
+
+Append keys read from *FILE* into *user*'s SSH authorized keys file in the
+guest *domain*.  In the *FILE* keys must be on separate lines and each line
+must follow authorized keys format as defined by *sshd(8)*.
+
+If *--reset* is specified, then the guest authorized keys file content is
+removed before appending new keys. As a special case, if *--reset* is provided
+and no *FILE* was provided then no new keys are added and the authorized keys
+file is cleared out.
+
+If *--remove* is specified, then instead of adding any new keys then keys read
+from *FILE* are removed from the authorized keys file. It is not considered an
+error if the key does not exist in the file.
+
+
 setmaxmem
 ---------
 
@@ -4498,14 +4554,18 @@ attach-disk
       [--current]] | [--persistent]] [--targetbus bus]
       [--driver driver] [--subdriver subdriver] [--iothread iothread]
       [--cache cache] [--io io] [--type type] [--alias alias]
-      [--mode mode] [--sourcetype sourcetype] [--serial serial]
-      [--wwn wwn] [--rawio] [--address address] [--multifunction]
-      [--print-xml]
+      [--mode mode] [--sourcetype sourcetype]
+      [--source-protocol protocol] [--source-host-name hostname:port]
+      [--source-host-transport transport] [--source-host-socket socket]
+      [--serial serial] [--wwn wwn] [--rawio] [--address address]
+      [--multifunction] [--print-xml]
 
 Attach a new disk device to the domain.
-*source* is path for the files and devices. *target* controls the bus or
-device under which the disk is exposed to the guest OS. It indicates the
-"logical" device name; the optional *targetbus* attribute specifies the type
+*source* is path for the files and devices unless *--source-protocol*
+is specified, in which case *source* is the name of a network disk.
+*target* controls the bus or device under which the disk is exposed
+to the guest OS. It indicates the "logical" device name;
+the optional *targetbus* attribute specifies the type
 of disk device to emulate; possible values are driver specific, with typical
 values being *ide*, *scsi*, *virtio*, *xen*, *usb*, *sata*, or *sd*, if
 omitted, the bus type is inferred from the style of the device name (e.g.  a
@@ -4523,7 +4583,7 @@ within the existing virtual cdrom or floppy device; consider using
 ``update-device`` for this usage instead.
 *alias* can set user supplied alias.
 *mode* can specify the two specific mode *readonly* or *shareable*.
-*sourcetype* can indicate the type of source (block|file)
+*sourcetype* can indicate the type of source (block|file|network)
 *cache* can be one of "default", "none", "writethrough", "writeback",
 "directsync" or "unsafe".
 *io* controls specific policies on I/O; QEMU guests support "threads",
@@ -4538,6 +4598,19 @@ ide:controller.bus.unit, usb:bus.port, sata:controller.bus.unit or
 ccw:cssid.ssid.devno. Virtio-ccw devices must have their cssid set to 0xfe.
 *multifunction* indicates specified pci address is a multifunction pci device
 address.
+
+There is also support for using a network disk. As specified, the user can
+provide a *--source-protocol* in which case the *source* parameter will
+be interpreted as the source name. *--source-protocol* must be provided
+if the user intends to provide a network disk or host information.
+Host information can be provided using the tags
+*--source-host-name*, *--source-host-transport*, and *--source-host-socket*,
+which respectively denote the name of the host, the host's transport method,
+and the socket that the host uses. *--source-host-socket* and
+*--source-host-name* cannot both be provided, and the user must provide a
+*--source-host-transport* if they want to provide a *--source-host-socket*.
+The *--source-host-name* parameter supports host:port syntax
+if the user wants to provide a port as well.
 
 If *--print-xml* is specified, then the XML of the disk that would be attached
 is printed instead.
@@ -4970,7 +5043,7 @@ List all of the devices available on the node that are known by libvirt.
 separated by comma, e.g. --cap pci,scsi. Valid capability types include
 'system', 'pci', 'usb_device', 'usb', 'net', 'scsi_host', 'scsi_target',
 'scsi', 'storage', 'fc_host', 'vports', 'scsi_generic', 'drm', 'mdev',
-'mdev_types', 'ccw', 'css'.
+'mdev_types', 'ccw', 'css', 'ap_card', 'ap_queue', 'ap_matrix'.
 If *--tree* is used, the output is formatted in a tree representing parents of each
 node.  *cap* and *--tree* are mutually exclusive.
 
@@ -7141,7 +7214,7 @@ checkpoint-create
 
 ::
 
-   checkpoint-create domain [xmlfile] { --redefine | [--quiesce]}
+   checkpoint-create domain [xmlfile] { --redefine [--redefine-validate] | [--quiesce]}
 
 Create a checkpoint for domain *domain* with the properties specified
 in *xmlfile* describing a <domaincheckpoint> top-level element. The
@@ -7158,6 +7231,11 @@ later recreated with the same name and UUID, or to make slight
 alterations in the checkpoint metadata (such as host-specific aspects
 of the domain XML embedded in the checkpoint).  When this flag is
 supplied, the *xmlfile* argument is mandatory.
+
+If *--redefine-validate* is specified along with *--redefine* the hypervisor
+performs validation of metadata associated with the checkpoint stored in places
+besides the checkpoint XML. Note that some hypervisors may require that the
+domain is running to perform validation.
 
 If *--quiesce* is specified, libvirt will try to use guest agent
 to freeze and unfreeze domain's mounted file systems. However,
@@ -7307,11 +7385,15 @@ checkpoint-dumpxml
 Output the checkpoint XML for the domain's checkpoint named
 *checkpoint*.  Using
 *--security-info* will also include security sensitive information.
+
 Using *--size* will add XML indicating the current size in bytes of
 guest data that has changed since the checkpoint was created (although
 remember that guest activity between a size check and actually
 creating a backup can result in the backup needing slightly more
-space).  Using *--no-domain* will omit the <domain> element from the
+space). Note that some hypervisors may require that *domain* is running when
+*--size* is used.
+
+Using *--no-domain* will omit the <domain> element from the
 output for a more compact view.
 
 

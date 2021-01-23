@@ -27,63 +27,69 @@
 #include "virfile.h"
 #include "virstring.h"
 #include "virnetdev.h"
+#include "virnetlink.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 VIR_LOG_INIT("util.netdevveth");
 
-/* Functions */
 
-virMutex virNetDevVethCreateMutex = VIR_MUTEX_INITIALIZER;
-
-static int virNetDevVethExists(int devNum)
+#if defined(WITH_LIBNL)
+static int
+virNetDevVethCreateInternal(const char *veth1, const char *veth2)
 {
-    int ret;
-    g_autofree char *path = NULL;
+    int status;     /* Just ignore it */
+    virNetlinkNewLinkData data = { .veth_peer = veth2 };
 
-    path = g_strdup_printf(SYSFS_NET_DIR "vnet%d/", devNum);
-    ret = virFileExists(path) ? 1 : 0;
-    VIR_DEBUG("Checked dev vnet%d usage: %d", devNum, ret);
-    return ret;
+    return virNetlinkNewLink(veth1, "veth", &data, &status);
 }
 
-/**
- * virNetDevVethGetFreeNum:
- * @startDev: device number to start at (x in vethx)
- *
- * Looks in /sys/class/net/ to find the first available veth device
- * name.
- *
- * Returns non-negative device number on success or -1 in case of error
- */
-static int virNetDevVethGetFreeNum(int startDev)
+static int
+virNetDevVethDeleteInternal(const char *veth)
 {
-    int devNum;
+    return virNetlinkDelLink(veth, NULL);
+}
+#else
+static int
+virNetDevVethCreateInternal(const char *veth1, const char *veth2)
+{
+    g_autoptr(virCommand) cmd = virCommandNew("ip");
+    virCommandAddArgList(cmd, "link", "add", veth1, "type", "veth",
+                         "peer", "name", veth2, NULL);
 
-#define MAX_DEV_NUM 65536
+    return virCommandRun(cmd, NULL);
+}
 
-    for (devNum = startDev; devNum < MAX_DEV_NUM; devNum++) {
-        int ret = virNetDevVethExists(devNum);
-        if (ret < 0)
-            return -1;
-        if (ret == 0)
-            return devNum;
+static int
+virNetDevVethDeleteInternal(const char *veth)
+{
+    int status;
+    g_autoptr(virCommand) cmd = virCommandNewArgList("ip", "link",
+                                                     "del", veth, NULL);
+
+    if (virCommandRun(cmd, &status) < 0)
+        return -1;
+
+    if (status != 0) {
+        if (!virNetDevExists(veth)) {
+            VIR_DEBUG("Device %s already deleted (by kernel namespace cleanup)", veth);
+            return 0;
+        }
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Failed to delete veth device %s"), veth);
+        return -1;
     }
 
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("No free veth devices available"));
-    return -1;
+    return 0;
 }
+#endif /* WITH_LIBNL */
 
 /**
  * virNetDevVethCreate:
- * @veth1: pointer to name for parent end of veth pair
- * @veth2: pointer to return name for container end of veth pair
+ * @veth1: pointer to name for one end of veth pair
+ * @veth2: pointer to name for another end of veth pair
  *
- * Creates a veth device pair using the ip command:
- * ip link add veth1 type veth peer name veth2
- * If veth1 points to NULL on entry, it will be a valid interface on
- * return.  veth2 should point to NULL on entry.
+ * Creates a veth device pair.
  *
  * NOTE: If veth1 and veth2 names are not specified, ip will auto assign
  *       names.  There seems to be two problems here -
@@ -100,79 +106,31 @@ static int virNetDevVethGetFreeNum(int startDev)
  *
  * Returns 0 on success or -1 in case of error
  */
-int virNetDevVethCreate(char** veth1, char** veth2)
+int virNetDevVethCreate(char **veth1, char **veth2)
 {
-    int ret = -1;
-    int vethNum = 0;
-    size_t i;
+    const char *orig1 = *veth1;
+    const char *orig2 = *veth2;
 
-    /*
-     * We might race with other containers, but this is reasonably
-     * unlikely, so don't do too many retries for device creation
-     */
-    virMutexLock(&virNetDevVethCreateMutex);
-#define MAX_VETH_RETRIES 10
+    if (virNetDevGenerateName(veth1, VIR_NET_DEV_GEN_NAME_VNET) < 0)
+        goto cleanup;
 
-    for (i = 0; i < MAX_VETH_RETRIES; i++) {
-        g_autofree char *veth1auto = NULL;
-        g_autofree char *veth2auto = NULL;
-        g_autoptr(virCommand) cmd = NULL;
+    if (virNetDevGenerateName(veth2, VIR_NET_DEV_GEN_NAME_VNET) < 0)
+        goto cleanup;
 
-        int status;
-        if (!*veth1) {
-            int veth1num;
-            if ((veth1num = virNetDevVethGetFreeNum(vethNum)) < 0)
-                goto cleanup;
+    if (virNetDevVethCreateInternal(*veth1, *veth2) < 0)
+        goto cleanup;
 
-            veth1auto = g_strdup_printf("vnet%d", veth1num);
-            vethNum = veth1num + 1;
-        }
-        if (!*veth2) {
-            int veth2num;
-            if ((veth2num = virNetDevVethGetFreeNum(vethNum)) < 0)
-                goto cleanup;
-
-            veth2auto = g_strdup_printf("vnet%d", veth2num);
-            vethNum = veth2num + 1;
-        }
-
-        cmd = virCommandNew("ip");
-        virCommandAddArgList(cmd, "link", "add",
-                             *veth1 ? *veth1 : veth1auto,
-                             "type", "veth", "peer", "name",
-                             *veth2 ? *veth2 : veth2auto,
-                             NULL);
-
-        if (virCommandRun(cmd, &status) < 0)
-            goto cleanup;
-
-        if (status == 0) {
-            if (veth1auto) {
-                *veth1 = veth1auto;
-                veth1auto = NULL;
-            }
-            if (veth2auto) {
-                *veth2 = veth2auto;
-                veth2auto = NULL;
-            }
-            VIR_DEBUG("Create Host: %s guest: %s", *veth1, *veth2);
-            ret = 0;
-            goto cleanup;
-        }
-
-        VIR_DEBUG("Failed to create veth host: %s guest: %s: %d",
-                  *veth1 ? *veth1 : veth1auto,
-                  *veth2 ? *veth2 : veth2auto,
-                  status);
-    }
-
-    virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Failed to allocate free veth pair after %d attempts"),
-                   MAX_VETH_RETRIES);
+    VIR_DEBUG("Create Host: %s guest: %s", *veth1, *veth2);
+    return 0;
 
  cleanup:
-    virMutexUnlock(&virNetDevVethCreateMutex);
-    return ret;
+    if (orig1 == NULL)
+        VIR_FREE(*veth1);
+
+    if (orig2 == NULL)
+        VIR_FREE(*veth2);
+
+    return -1;
 }
 
 /**
@@ -188,22 +146,5 @@ int virNetDevVethCreate(char** veth1, char** veth2)
  */
 int virNetDevVethDelete(const char *veth)
 {
-    int status;
-    g_autoptr(virCommand) cmd = virCommandNewArgList("ip", "link",
-                                                       "del", veth, NULL);
-
-    if (virCommandRun(cmd, &status) < 0)
-        return -1;
-
-    if (status != 0) {
-        if (!virNetDevExists(veth)) {
-            VIR_DEBUG("Device %s already deleted (by kernel namespace cleanup)", veth);
-            return 0;
-        }
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to delete veth device %s"), veth);
-        return -1;
-    }
-
-    return 0;
+    return virNetDevVethDeleteInternal(veth);
 }

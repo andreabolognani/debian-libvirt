@@ -90,3 +90,23 @@ char ** virshDomainVcpulistCompleter(vshControl *ctl,
 char ** virshDomainCpulistCompleter(vshControl *ctl,
                                     const vshCmd *cmd,
                                     unsigned int flags);
+
+char ** virshDomainVcpulistViaAgentCompleter(vshControl *ctl,
+                                             const vshCmd *cmd,
+                                             unsigned int flags);
+
+char ** virshDomainConsoleCompleter(vshControl *ctl,
+                                    const vshCmd *cmd,
+                                    unsigned int flags);
+
+char ** virshDomainSignalCompleter(vshControl *ctl,
+                                   const vshCmd *cmd,
+                                   unsigned int flags);
+
+char ** virshDomainLifecycleCompleter(vshControl *ctl,
+                                      const vshCmd *cmd,
+                                      unsigned int flags);
+
+char ** virshDomainLifecycleActionCompleter(vshControl *ctl,
+                                            const vshCmd *cmd,
+                                            unsigned int flags);

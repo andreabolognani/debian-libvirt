@@ -24,6 +24,7 @@
 #include "configmake.h"
 #include "viralloc.h"
 #include "virenum.h"
+#include "virerror.h"
 #include "virfile.h"
 #include "virhash.h"
 #include "virlog.h"
@@ -35,12 +36,11 @@
 VIR_LOG_INIT("qemu.qemu_configs");
 
 static int
-qemuBuildFileList(virHashTablePtr files, const char *dir)
+qemuBuildFileList(GHashTable *files, const char *dir)
 {
-    DIR *dirp;
+    g_autoptr(DIR) dirp = NULL;
     struct dirent *ent = NULL;
     int rc;
-    int ret = -1;
 
     if ((rc = virDirOpenIfExists(&dirp, dir)) < 0)
         return -1;
@@ -62,32 +62,22 @@ qemuBuildFileList(virHashTablePtr files, const char *dir)
 
         if (stat(path, &sb) < 0) {
             virReportSystemError(errno, _("Unable to access %s"), path);
-            goto cleanup;
+            return -1;
         }
 
         if (!S_ISREG(sb.st_mode) && !S_ISLNK(sb.st_mode))
             continue;
 
         if (virHashUpdateEntry(files, filename, path) < 0)
-            goto cleanup;
+            return -1;
 
         path = NULL;
     }
 
     if (rc < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virDirClose(&dirp);
-    return ret;
-}
-
-static int
-qemuConfigFilesSorter(const virHashKeyValuePair *a,
-                      const virHashKeyValuePair *b)
-{
-    return strcmp(a->key, b->key);
+    return 0;
 }
 
 #define QEMU_SYSTEM_LOCATION PREFIX "/share/qemu"
@@ -98,7 +88,7 @@ qemuInteropFetchConfigs(const char *name,
                         char ***configs,
                         bool privileged)
 {
-    g_autoptr(virHashTable) files = NULL;
+    g_autoptr(GHashTable) files = NULL;
     g_autofree char *homeConfig = NULL;
     g_autofree char *xdgConfig = NULL;
     g_autofree char *sysLocation = virFileBuildPath(QEMU_SYSTEM_LOCATION, name, NULL);
@@ -145,7 +135,7 @@ qemuInteropFetchConfigs(const char *name,
     if (virHashSize(files) == 0)
         return 0;
 
-    if (!(pairs = virHashGetItems(files, qemuConfigFilesSorter)))
+    if (!(pairs = virHashGetItems(files, NULL, true)))
         return -1;
 
     for (tmp = pairs; tmp->key; tmp++) {

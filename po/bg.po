@@ -5,21 +5,22 @@
 # Translators:
 # Daniel  <veillard@redhat.com>, 2011
 # Miroslav Ivanov <kiro.kopeleto@gmail.com>, 2007
+# Nickys Music Group <nickys.music.group@gmail.com>, 2021.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2020-10-26 17:26+0000\n"
-"PO-Revision-Date: 2015-02-26 07:16+0000\n"
-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
-"Language-Team: Bulgarian (http://www.transifex.com/projects/p/fedora/"
-"language/bg/)\n"
+"POT-Creation-Date: 2021-01-08 17:11+0000\n"
+"PO-Revision-Date: 2021-01-04 08:47+0000\n"
+"Last-Translator: Nickys Music Group <nickys.music.group@gmail.com>\n"
+"Language-Team: Bulgarian <https://translate.fedoraproject.org/projects/"
+"libvirt/libvirt/bg/>\n"
 "Language: bg\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Zanata 4.6.2\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 4.4\n"
 
 msgid ""
 "\n"
@@ -39,6 +40,7 @@ msgstr ""
 "  (укажете help <команда> за помощ за тази команда)\n"
 "\n"
 
+#. Print the description only if it's not empty.
 msgid ""
 "\n"
 "  DESCRIPTION\n"
@@ -199,23 +201,23 @@ msgstr ""
 "(Време: %.3f мили секунди)\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
-"Domain %s dumped to %s\n"
-msgstr "Домейн %s дефиниран от %s\n"
+"Domain '%s' dumped to %s\n"
+msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
-"Domain %s saved to %s\n"
-msgstr "Домейн %s бе създаден от %s\n"
+"Domain '%s' saved to %s\n"
+msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
-"Domain %s state saved by libvirt\n"
-msgstr "Домейна %s бе стартиран\n"
+"Domain '%s' state saved by libvirt\n"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -289,6 +291,7 @@ msgstr ""
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
 msgstr ""
 
+#. true if 'arg' works instead of '--opt arg'
 msgid "  NAME\n"
 msgstr "  ИМЕ\n"
 
@@ -360,7 +363,11 @@ msgid "%s 3d acceleration is not supported"
 msgstr ""
 
 #, c-format
-msgid "%s array element does not contain data"
+msgid "%s array element does not contain a string"
+msgstr ""
+
+#, c-format
+msgid "%s array element is missing item %zu"
 msgstr ""
 
 #, c-format
@@ -404,6 +411,10 @@ msgid "%s forwarding requested, but no IP address provided for network '%s'"
 msgstr ""
 
 #, c-format
+msgid "%s graphics are not supported with this QEMU"
+msgstr ""
+
+#, c-format
 msgid "%s harddisk '%s' has unsupported cache mode '%s'"
 msgstr ""
 
@@ -441,6 +452,10 @@ msgstr ""
 
 #, c-format
 msgid "%s is missing 'type' property"
+msgstr ""
+
+#, c-format
+msgid "%s is missing or not an array"
 msgstr ""
 
 #, c-format
@@ -491,6 +506,10 @@ msgstr ""
 msgid "%s namespace is not available"
 msgstr ""
 
+#, c-format
+msgid "%s not available, firewall backend will not function"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "%s not found in %s"
 msgstr "Не е открит домейна: %s"
@@ -515,6 +534,16 @@ msgstr ""
 msgid "%s object has invalid dynamic type"
 msgstr ""
 
+#.
+#. * A required property must be != 0 (NULL for pointers, "undefined" == 0 for
+#. * enumeration values).
+#. *
+#. * To be used as part of ESX_VI__TEMPLATE__VALIDATE.
+#.
+#.
+#. * Macros to implement managed objects
+#.
+#. FIXME: This results in O(n^2) runtime in case of missing required, but      * unselected properties.
 #, c-format
 msgid "%s object is missing the required '%s' property"
 msgstr ""
@@ -561,6 +590,7 @@ msgstr "%s: %d: неуспешно заделяне на %d байта"
 msgid "%s: %d: failed to allocate mountpoints"
 msgstr "%s: %d: неуспешно заделяне на %d байта"
 
+#. The length of the formatting string minus two '%s'
 #, c-format
 msgid "%s: %s"
 msgstr ""
@@ -805,10 +835,6 @@ msgid "%s: must not be run setuid root\n"
 msgstr ""
 
 #, c-format
-msgid "%s: nvdimm without a path"
-msgstr ""
-
-#, c-format
 msgid "%s: passthrough input device has no source"
 msgstr ""
 
@@ -972,7 +998,7 @@ msgid "'%s' is not supported in this QEMU binary"
 msgstr ""
 
 #, c-format
-msgid "'%s' missing in guest-get-fsinfo 'disk' data"
+msgid "'%s' missing"
 msgstr ""
 
 #, c-format
@@ -1099,6 +1125,9 @@ msgstr ""
 msgid "'mountpoint' missing in reply of guest-get-fsinfo"
 msgstr ""
 
+msgid "'name' missing in reply of guest-get-disks"
+msgstr ""
+
 msgid "'name' missing in reply of guest-get-fsinfo"
 msgstr ""
 
@@ -1106,6 +1135,15 @@ msgid "'netns' namespace source can only be used with sharenet"
 msgstr ""
 
 msgid "'network' attribute is valid only for listen type 'network'"
+msgstr ""
+
+msgid "'nfs' host must use TCP protocol"
+msgstr ""
+
+msgid "'nfs' protocol is not supported with this QEMU binary"
+msgstr ""
+
+msgid "'nfs' protocol requires the usage of exactly one host"
 msgstr ""
 
 msgid "'offset' missing in reply of guest-get-timezone"
@@ -1117,7 +1155,10 @@ msgstr ""
 msgid "'parent' for vHBA not specified, and cannot find one on this host"
 msgstr ""
 
-msgid "'pci-controller' missing in guest-get-fsinfo 'disk' data"
+msgid "'partition' missing in reply of guest-get-disks"
+msgstr ""
+
+msgid "'pci-controller' missing"
 msgstr ""
 
 msgid "'peak' and 'burst' require 'average' attribute"
@@ -1251,6 +1292,7 @@ msgstr ""
 msgid "(libxl_migration_cookie)"
 msgstr ""
 
+#. parse and modify the xml from the user
 msgid "(metadata_xml)"
 msgstr ""
 
@@ -1310,6 +1352,7 @@ msgstr ""
 msgid "(volume_definition)"
 msgstr ""
 
+#. Capacity related information isn't available
 msgid "-"
 msgstr ""
 
@@ -1370,6 +1413,9 @@ msgid "--max-unauth-clients must be less than or equal to --max-clients"
 msgstr ""
 
 msgid "--min-workers must be less than or equal to --max-workers"
+msgstr ""
+
+msgid "--source-protocol option requires --sourcetype network"
 msgstr ""
 
 msgid ""
@@ -1636,6 +1682,11 @@ msgid "AnyType is missing 'type' property"
 msgstr ""
 
 msgid ""
+"Append, reset or remove specified key from the authorized keys file for "
+"given user"
+msgstr ""
+
+msgid ""
 "Argument 'cellid' in memnode element must correspond to existing guest's "
 "NUMA cell"
 msgstr ""
@@ -1789,9 +1840,6 @@ msgstr "Домейна %s бе стартиран\n"
 
 #, c-format
 msgid "Bad $%s value."
-msgstr ""
-
-msgid "Bad child elements counting."
 msgstr ""
 
 #, c-format
@@ -2042,6 +2090,10 @@ msgstr ""
 msgid "CPU model %s too long for destination"
 msgstr ""
 
+#, c-format
+msgid "CPU model '%s' not supported by hypervisor"
+msgstr ""
+
 msgid "CPU model:"
 msgstr "ЦП модел:"
 
@@ -2159,10 +2211,14 @@ msgstr ""
 msgid "Cache with id %u does not exists for level %d"
 msgstr ""
 
+#.
+#. * Macros to implement dynamic dispatched functions
+#.
 #, fuzzy, c-format
 msgid "Call to %s for unexpected type '%s'"
 msgstr "неочаквани данни '%s'"
 
+#. nothing
 #, c-format
 msgid "Call to %s for unexpected type '%s', expected '%s'"
 msgstr ""
@@ -2373,9 +2429,6 @@ msgstr ""
 
 #, c-format
 msgid "Cannot alter an existing nmem_nodes distances set for node: %zu"
-msgstr ""
-
-msgid "Cannot assign SCSI host device address"
 msgstr ""
 
 msgid "Cannot attach disk until init PID is known"
@@ -2735,9 +2788,6 @@ msgstr ""
 msgid "Cannot open %s"
 msgstr "Не е открит домейна: %s"
 
-msgid "Cannot open /dev/urandom"
-msgstr ""
-
 msgid "Cannot open /proc/cgroups"
 msgstr ""
 
@@ -2987,9 +3037,6 @@ msgstr ""
 #, fuzzy
 msgid "Cannot read cputime for domain"
 msgstr "Запис ядрото на домейн."
-
-msgid "Cannot read from /dev/urandom"
-msgstr ""
 
 msgid "Cannot recv data"
 msgstr ""
@@ -3358,6 +3405,10 @@ msgstr ""
 msgid "Checkpoint %s edited.\n"
 msgstr ""
 
+#, c-format
+msgid "Checkpoint '%s' for incremental backup of disk '%s' not found"
+msgstr ""
+
 msgid "Checkpoint Delete"
 msgstr ""
 
@@ -3579,9 +3630,9 @@ msgstr ""
 msgid "Connected since"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "Connected to domain %s\n"
-msgstr "Неуспешно стартиране на домейн %s"
+#, c-format
+msgid "Connected to domain '%s'\n"
+msgstr ""
 
 msgid "Connected to the admin server"
 msgstr ""
@@ -3648,6 +3699,9 @@ msgstr ""
 msgid "Could not add CDATA to doc root"
 msgstr ""
 
+msgid "Could not add IDE controller"
+msgstr ""
+
 msgid "Could not add attribute to XML node"
 msgstr ""
 
@@ -3662,6 +3716,12 @@ msgid "Could not add child node to methodNode"
 msgstr ""
 
 msgid "Could not add child to XML node"
+msgstr ""
+
+msgid "Could not allocate disk def"
+msgstr ""
+
+msgid "Could not allocate disk definition"
 msgstr ""
 
 #, c-format
@@ -3838,6 +3898,9 @@ msgstr ""
 msgid "Could not find HostVirtualSwitch with name '%s'"
 msgstr ""
 
+msgid "Could not find Msvm_DiskDrive object"
+msgstr ""
+
 #, c-format
 msgid ""
 "Could not find PCI controller with index %u required for device at address %s"
@@ -3869,6 +3932,9 @@ msgstr ""
 
 #, c-format
 msgid "Could not find compute resource specified in '%s'"
+msgstr ""
+
+msgid "Could not find controller for disk!"
 msgstr ""
 
 #, c-format
@@ -4228,11 +4294,6 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Could not look up memory setting data with virtual system instance ID '%s'"
-msgstr ""
-
-#, c-format
-msgid ""
 "Could not look up processor setting data with virtual system instance ID '%s'"
 msgstr ""
 
@@ -4241,7 +4302,9 @@ msgid "Could not look up processor(s) on '%s'"
 msgstr ""
 
 #, c-format
-msgid "Could not look up virtual system setting data with UUID '%s'"
+msgid ""
+"Could not look up resource allocation setting data with virtual system "
+"instance ID '%s'"
 msgstr ""
 
 #, c-format
@@ -4276,10 +4339,6 @@ msgid "Could not lookup pull response items"
 msgstr ""
 
 msgid "Could not lookup root snapshot list"
-msgstr ""
-
-#, c-format
-msgid "Could not match WMI class info for version %s"
 msgstr ""
 
 #, c-format
@@ -4344,6 +4403,9 @@ msgstr ""
 msgid "Could not parse MTU value '%s'"
 msgstr ""
 
+msgid "Could not parse SCSI controller"
+msgstr ""
+
 #, c-format
 msgid "Could not parse UUID from '%s'"
 msgstr ""
@@ -4397,10 +4459,6 @@ msgid "Could not parse version from '%s'"
 msgstr ""
 
 #, c-format
-msgid "Could not press key %d"
-msgstr ""
-
-#, c-format
 msgid "Could not produce packed version number from '%s'"
 msgstr ""
 
@@ -4449,10 +4507,6 @@ msgstr "информация за възела"
 msgid "Could not read typefile '%s'"
 msgstr ""
 
-#, c-format
-msgid "Could not release key %s"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Could not resume domain: %s"
 msgstr "Неуспешно събуждане на домейн %s"
@@ -4497,6 +4551,7 @@ msgstr ""
 msgid "Could not retrieve 'bridge/stp_state' for '%s'"
 msgstr ""
 
+#. Something went wrong retrieving pool info, cope with it
 #, fuzzy
 msgid "Could not retrieve pool information"
 msgstr "неуспешно получаване на информация за възела"
@@ -4525,9 +4580,6 @@ msgstr ""
 msgid "Could not set disk quota"
 msgstr ""
 
-msgid "Could not set disk source"
-msgstr ""
-
 #, c-format
 msgid ""
 "Could not set limit to %lld MHz, expecting positive value or -1 (unlimited)"
@@ -4536,10 +4588,6 @@ msgstr ""
 #, c-format
 msgid "Could not set max-memory to %lu kilobytes: %s"
 msgstr ""
-
-#, fuzzy
-msgid "Could not set memory"
-msgstr "свърши паметта"
 
 msgid "Could not set memory size"
 msgstr ""
@@ -5136,91 +5184,51 @@ msgid "Do not include features that block migration"
 msgstr ""
 
 #, fuzzy, c-format
-msgid "Domain %s XML configuration edited.\n"
-msgstr "грешка при четене на конфигурационния файл"
-
-#, c-format
-msgid "Domain %s XML configuration not changed.\n"
-msgstr ""
-
-#, fuzzy, c-format
-msgid "Domain %s attached to pid %u\n"
-msgstr "Домейн %s бе създаден от %s\n"
-
-#, fuzzy, c-format
-msgid "Domain %s could not be suspended"
-msgstr "Домейна %s приспан\n"
-
-#, c-format
-msgid "Domain %s could not be woken up"
-msgstr ""
-
-#, c-format
-msgid "Domain %s created from %s\n"
-msgstr "Домейн %s бе създаден от %s\n"
-
-#, c-format
-msgid "Domain %s defined from %s\n"
-msgstr "Домейн %s дефиниран от %s\n"
-
-#, c-format
-msgid "Domain %s destroyed\n"
-msgstr "Домейна %s бе унищожен\n"
-
-#, fuzzy, c-format
 msgid "Domain %s didn't show up"
 msgstr "Домейн %s се изключва\n"
 
 #, c-format
-msgid "Domain %s has been undefined\n"
-msgstr "Дефиницията на домейн %s бе премахната\n"
-
-#, c-format
-msgid "Domain %s has no manage save image; removal skipped"
-msgstr ""
-
-#, c-format
-msgid "Domain %s is being rebooted\n"
-msgstr "Домейн %s се рестартира\n"
-
-#, c-format
-msgid "Domain %s is being shutdown\n"
-msgstr "Домейн %s се изключва\n"
-
-#, c-format
-msgid "Domain %s marked as autostarted\n"
-msgstr "Домейна %s е маркиран като авто-стартиращ се\n"
-
-#, c-format
-msgid "Domain %s resumed\n"
-msgstr "Домейн %s бе събуден\n"
-
-#, c-format
-msgid "Domain %s started\n"
-msgstr "Домейна %s бе стартиран\n"
-
-#, fuzzy, c-format
-msgid "Domain %s successfully suspended"
-msgstr "Домейна %s приспан\n"
-
-#, c-format
-msgid "Domain %s successfully woken up"
-msgstr ""
-
-#, c-format
-msgid "Domain %s suspended\n"
-msgstr "Домейна %s приспан\n"
-
-#, c-format
-msgid "Domain %s unmarked as autostarted\n"
-msgstr "Домейна %s е размаркиран като авто-стартиращ се\n"
-
-#, fuzzy, c-format
-msgid "Domain %s was reset\n"
-msgstr "Домейн %s бе събуден\n"
-
-#, c-format
 msgid "Domain '%d' has to be running because libxenlight will suspend it"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' XML configuration edited.\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' XML configuration not changed.\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' attached to pid %u\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' could not be suspended"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' could not be woken up"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' created from %s\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' defined from %s\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' destroyed\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' has been undefined\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' has no manage save image; removal skipped"
 msgstr ""
 
 #, fuzzy, c-format
@@ -5228,7 +5236,47 @@ msgid "Domain '%s' is already running"
 msgstr "Домейнът вече е активен"
 
 #, c-format
+msgid "Domain '%s' is being rebooted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' is being shutdown\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' marked as autostarted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' resumed\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' started\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' successfully suspended"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' successfully woken up"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' suspended\n"
+msgstr ""
+
+#, c-format
 msgid "Domain '%s' sysinfo are not available"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' unmarked as autostarted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' was reset\n"
 msgstr ""
 
 #, fuzzy
@@ -5309,6 +5357,7 @@ msgid ""
 "Domain has %d interfaces. Please specify which one to detach using --mac"
 msgstr ""
 
+#. this is the 2nd match, so it's ambiguous
 #, c-format
 msgid ""
 "Domain has multiple interfaces matching MAC address %s. You must use detach-"
@@ -6082,10 +6131,6 @@ msgid "Failed to allocate XML buffer"
 msgstr "Неуспех при опит за създаване на XML файл"
 
 #, c-format
-msgid "Failed to allocate free veth pair after %d attempts"
-msgstr ""
-
-#, c-format
 msgid "Failed to allocate memory for checkpoint directory for domain %s"
 msgstr ""
 
@@ -6327,8 +6372,8 @@ msgid "Failed to copy XML node"
 msgstr "Неуспех при опит за създаване на XML файл"
 
 #, c-format
-msgid "Failed to core dump domain %s to %s"
-msgstr "Неуспешен запис на ядрото на домейн %s в %s"
+msgid "Failed to core dump domain '%s' to %s"
+msgstr ""
 
 #, fuzzy
 msgid "Failed to count network filters"
@@ -6504,14 +6549,21 @@ msgstr "Неуспех при опит за създаване на XML файл
 msgid "Failed to create thread for receiving migration data"
 msgstr "Неуспех при създаване на домейн от %s"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 #, fuzzy
 msgid "Failed to create thread to handle daemon restart"
 msgstr "Неуспех при създаване на домейн от %s"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 #, fuzzy
 msgid "Failed to create thread to handle domain shutdown"
 msgstr "Неуспех при създаване на домейн от %s"
 
+#. Not much else can be done
 #, fuzzy
 msgid "Failed to create thread to handle pool refresh"
 msgstr "Неуспех при създаване на домейн от %s"
@@ -6628,13 +6680,13 @@ msgstr "Неуспешно унищожаване на домейн %s"
 msgid "Failed to destroy bridge interface %s"
 msgstr "Неуспешно унищожаване на домейн %s"
 
-#, c-format
-msgid "Failed to destroy domain %s"
-msgstr "Неуспешно унищожаване на домейн %s"
-
 #, fuzzy, c-format
 msgid "Failed to destroy domain '%d'"
 msgstr "Неуспешно унищожаване на домейн %s"
+
+#, c-format
+msgid "Failed to destroy domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to destroy interface %s"
@@ -6838,10 +6890,6 @@ msgstr "неуспешно получаване на UUID на мрежата"
 #, fuzzy
 msgid "Failed to generate genid"
 msgstr "Неуспех при опит за създаване на XML файл"
-
-#, fuzzy, c-format
-msgid "Failed to generate new name for interface %s"
-msgstr "Неуспешно извличане състоянието на интерфейс %s %s"
 
 #, fuzzy
 msgid "Failed to generate uuid"
@@ -7109,6 +7157,7 @@ msgstr "Грешка при извеждане на списък с активн
 msgid "Failed to list active pools"
 msgstr "Грешка при извеждане на списък с активните домейни"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list domains"
 msgstr "Грешка при извеждане на списък с активните домейни"
@@ -7127,26 +7176,32 @@ msgstr "Грешка при извеждане на списък с неакти
 msgid "Failed to list inactive pools"
 msgstr "Грешка при извеждане на списък с неактивните домейни"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list interfaces"
 msgstr "Грешка при извеждане на списък с неактивните домейни"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list network filter bindings"
 msgstr "Грешка при извеждане на списък с неактивните домейни"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list network filters"
 msgstr "Неуспешно стартиране на мрежа %s"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list networks"
 msgstr "Грешка при извеждане на списък с активните мрежи"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list node devices"
 msgstr "Грешка при извеждане на списък с неактивните домейни"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list node secrets"
 msgstr "Грешка при извеждане на списък с неактивните мрежи"
@@ -7155,6 +7210,7 @@ msgstr "Грешка при извеждане на списък с неакти
 msgid "Failed to list persistent guests on $uri"
 msgstr "Грешка при извеждане на списък с неактивните мрежи"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list pools"
 msgstr "Грешка при извеждане на списък с активните домейни"
@@ -7179,6 +7235,7 @@ msgstr "Грешка при извеждане на списък с активн
 msgid "Failed to list vcpus for domain '%d' with libxenlight"
 msgstr ""
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list volumes"
 msgstr "Грешка при извеждане на списък с активните домейни"
@@ -7217,6 +7274,10 @@ msgstr "Неуспешно записване на домейн %s в %s"
 #, fuzzy, c-format
 msgid "Failed to load snapshot: %s"
 msgstr "Неуспешно извличане състоянието на блоковете %s %s"
+
+#, c-format
+msgid "Failed to locate parent device with ID '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to login: %s"
@@ -7267,8 +7328,8 @@ msgid "Failed to make root private"
 msgstr "неуспешно получаване на името на машината"
 
 #, c-format
-msgid "Failed to mark domain %s as autostarted"
-msgstr "Неуспешно маркиране на домейна %s като авто-стартиращ се"
+msgid "Failed to mark domain '%s' as autostarted"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to mkdir %s"
@@ -7405,10 +7466,6 @@ msgid "Failed to parse block name %s"
 msgstr "Неуспешно извличане състоянието на блоковете %s %s"
 
 #, fuzzy, c-format
-msgid "Failed to parse checkpoint XML from file '%s'"
-msgstr "грешка при разбор на конфигурационния файл %s"
-
-#, fuzzy, c-format
 msgid "Failed to parse configuration of %s"
 msgstr "грешка при разбор на конфигурационния файл %s"
 
@@ -7427,6 +7484,10 @@ msgstr "грешка при разбор на конфигурационния �
 #, fuzzy, c-format
 msgid "Failed to parse group '%s'"
 msgstr "Неуспешно събуждане на домейн %s"
+
+#, c-format
+msgid "Failed to parse int '%s' from udev property '%s' on '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to parse interface index from '%s'"
@@ -7478,6 +7539,10 @@ msgstr "Неуспешно стартиране на мрежа %s"
 #, fuzzy, c-format
 msgid "Failed to parse uid and gid from '%s'"
 msgstr "Неуспех при възстановяване на домейн от %s"
+
+#, c-format
+msgid "Failed to parse uint '%s' from udev property '%s' on '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to parse user '%s'"
@@ -7617,13 +7682,13 @@ msgstr "Неуспех при създаване на домейн от %s"
 msgid "Failed to reattach NVMe for disk target: %s"
 msgstr "Неуспешно прикачане на устройство от %s"
 
-#, c-format
-msgid "Failed to reboot domain %s"
-msgstr "Неуспешно рестартиране на домейн %s"
-
 #, fuzzy, c-format
 msgid "Failed to reboot domain '%d' with libxenlight"
 msgstr "Неуспешно рестартиране на домейн %s"
+
+#, c-format
+msgid "Failed to reboot domain '%s'"
+msgstr ""
 
 #, fuzzy
 msgid "Failed to reconnect to the admin server"
@@ -7685,9 +7750,9 @@ msgstr "Неуспешно събуждане на домейн %s"
 msgid "Failed to remove managed save file '%s'"
 msgstr "Неуспех при възстановяване на домейн от %s"
 
-#, fuzzy, c-format
-msgid "Failed to remove managed save image for domain %s"
-msgstr "Неуспешно събуждане на домейн %s"
+#, c-format
+msgid "Failed to remove managed save image for domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to remove storage volume '%s'(%s)"
@@ -7717,9 +7782,9 @@ msgstr "Неуспешно откачане на устройство от %s"
 msgid "Failed to reset device %s"
 msgstr "Неуспешно откачане на устройство от %s"
 
-#, fuzzy, c-format
-msgid "Failed to reset domain %s"
-msgstr "Неуспешно събуждане на домейн %s"
+#, c-format
+msgid "Failed to reset domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to resize block device '%s'"
@@ -7757,10 +7822,6 @@ msgstr "Неуспех при възстановяване на домейн о�
 msgid "Failed to restrict process: %s"
 msgstr "Неуспех при възстановяване на домейн от %s"
 
-#, c-format
-msgid "Failed to resume domain %s"
-msgstr "Неуспешно събуждане на домейн %s"
-
 #, fuzzy, c-format
 msgid "Failed to resume domain '%d'"
 msgstr "Неуспешно събуждане на домейн %s"
@@ -7769,6 +7830,13 @@ msgstr "Неуспешно събуждане на домейн %s"
 msgid "Failed to resume domain '%d' with libxenlight"
 msgstr "Неуспешно събуждане на домейн %s"
 
+#, c-format
+msgid "Failed to resume domain '%s'"
+msgstr ""
+
+#. Hm, we already know we are in error here.  We don't want to
+#. * overwrite the previous error, though, so we just throw something
+#. * to the logs and hope for the best
 #, fuzzy, c-format
 msgid "Failed to resume guest %s after failure"
 msgstr "Неуспешно събуждане на домейн %s"
@@ -7825,16 +7893,16 @@ msgid "Failed to save VM settings, rc=%08x"
 msgstr "Неуспешно записване на домейн %s в %s"
 
 #, fuzzy, c-format
-msgid "Failed to save domain %s state"
+msgid "Failed to save domain '%d' with libxenlight"
 msgstr "Неуспешно записване на домейн %s в %s"
 
 #, c-format
-msgid "Failed to save domain %s to %s"
-msgstr "Неуспешно записване на домейн %s в %s"
+msgid "Failed to save domain '%s' state"
+msgstr ""
 
-#, fuzzy, c-format
-msgid "Failed to save domain '%d' with libxenlight"
-msgstr "Неуспешно записване на домейн %s в %s"
+#, c-format
+msgid "Failed to save domain '%s' to %s"
+msgstr ""
 
 #, c-format
 msgid "Failed to seek to %llu bytes to the end in volume with path '%s'"
@@ -7996,13 +8064,13 @@ msgstr ""
 msgid "Failed to setup keepalive on connection\n"
 msgstr "Грешка при извеждане на списък с активните мрежи"
 
-#, c-format
-msgid "Failed to shutdown domain %s"
-msgstr "Неуспешно изключване на домейн %s"
-
 #, fuzzy, c-format
 msgid "Failed to shutdown domain '%d' with libxenlight"
 msgstr "Неуспешно изключване на домейн %s"
+
+#, c-format
+msgid "Failed to shutdown domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to soft reset VM '%s'. Destroying VM"
@@ -8021,8 +8089,8 @@ msgid "Failed to start bridge interface %s"
 msgstr "Неуспешно стартиране на домейн %s"
 
 #, c-format
-msgid "Failed to start domain %s"
-msgstr "Неуспешно стартиране на домейн %s"
+msgid "Failed to start domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to start interface %s"
@@ -8064,10 +8132,6 @@ msgstr "Неуспешно стартиране на домейн %s"
 msgid "Failed to step SASL negotiation: %d (%s)"
 msgstr "Неуспешно записване на домейн %s в %s"
 
-#, c-format
-msgid "Failed to suspend domain %s"
-msgstr "Неуспешно приспиване на домейн %s"
-
 #, fuzzy, c-format
 msgid "Failed to suspend domain '%d'"
 msgstr "Неуспешно приспиване на домейн %s"
@@ -8075,6 +8139,10 @@ msgstr "Неуспешно приспиване на домейн %s"
 #, fuzzy, c-format
 msgid "Failed to suspend domain '%d' with libxenlight"
 msgstr "Неуспешно приспиване на домейн %s"
+
+#, c-format
+msgid "Failed to suspend domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to symlink device %s to %s"
@@ -8121,8 +8189,8 @@ msgid "Failed to undefine bridge interface %s"
 msgstr "Неуспешно премахване дефиницията на домейн %s"
 
 #, c-format
-msgid "Failed to undefine domain %s"
-msgstr "Неуспешно премахване дефиницията на домейн %s"
+msgid "Failed to undefine domain '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to undefine interface %s"
@@ -8145,8 +8213,12 @@ msgid "Failed to unescape command line string"
 msgstr "Неуспешно приспиване на домейн %s"
 
 #, c-format
-msgid "Failed to unmark domain %s as autostarted"
-msgstr "Неуспешно размаркиране на домейна %s като авто-стартиращ се"
+msgid "Failed to unlink '%s'"
+msgstr ""
+
+#, c-format
+msgid "Failed to unmark domain '%s' as autostarted"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to unmarshall reply: %s"
@@ -8266,6 +8338,10 @@ msgid "Field name too long"
 msgstr ""
 
 #, c-format
+msgid "File %s contains no keys"
+msgstr ""
+
+#, c-format
 msgid ""
 "File '%s' does not contain any <cpu> element or valid domain XML, host "
 "capabilities XML, or domain capabilities XML"
@@ -8355,10 +8431,63 @@ msgid ""
 "for VMX file"
 msgstr ""
 
+#. Macros to help dealing with flag requirements.
+#. *
+#. * VIR_REQUIRE_FLAG_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @RET: Return value.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_REQUIRE_FLAG_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if required flag is not set.
+#.
 #, c-format
 msgid "Flag '%s' is required by flag '%s'"
 msgstr ""
 
+#. Macros to help dealing with mutually exclusive flags.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @RET: Return value.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "Flags '%s' and '%s' are mutually exclusive"
 msgstr ""
@@ -9143,6 +9272,10 @@ msgstr ""
 msgid "Invalid 'memAccess' attribute value '%s'"
 msgstr ""
 
+#, c-format
+msgid "Invalid 'removed' attribute for feature %s in model %s"
+msgstr ""
+
 msgid "Invalid 'target' attribute in NUMA interconnects"
 msgstr ""
 
@@ -9316,6 +9449,15 @@ msgstr ""
 msgid "Invalid append attribute value '%s'"
 msgstr ""
 
+#.
+#. * Don't check for *selectSet != NULL here because selectSet is a list
+#. * and might contain items already. This function appends to selectSet.
+#.
+#. optional
+#. optional
+#. nothing
+#. nothing
+#. nothing
 msgid "Invalid argument"
 msgstr ""
 
@@ -9478,6 +9620,9 @@ msgstr "няма валидна връзка"
 #, fuzzy, c-format
 msgid "Invalid controller id '%d'"
 msgstr "невалиден указател за връзка в %s"
+
+msgid "Invalid controller type for LUN"
+msgstr ""
 
 #, c-format
 msgid "Invalid cpuNum in %s"
@@ -9898,6 +10043,9 @@ msgstr ""
 
 #, c-format
 msgid "Invalid peer '%s' in <ip>"
+msgstr ""
+
+msgid "Invalid persistent_state value, either 'yes' or 'no'"
 msgstr ""
 
 #, c-format
@@ -10528,12 +10676,6 @@ msgstr ""
 msgid "Malformed owners array"
 msgstr ""
 
-msgid "Malformed query-command-line-options array"
-msgstr ""
-
-msgid "Malformed query-command-line-options parameters array"
-msgstr ""
-
 msgid "Malformed resources array"
 msgstr ""
 
@@ -10561,15 +10703,15 @@ msgid "Manage active block operations"
 msgstr ""
 
 #, c-format
-msgid "Managed save image of Domain %s XML configuration edited.\n"
+msgid "Managed save image of Domain '%s' XML configuration edited.\n"
 msgstr ""
 
 #, c-format
-msgid "Managed save image of domain %s XML configuration not changed.\n"
+msgid "Managed save image of domain '%s' XML configuration not changed.\n"
 msgstr ""
 
 #, c-format
-msgid "Managed save state file of domain %s updated.\n"
+msgid "Managed save state file of domain '%s' updated.\n"
 msgstr ""
 
 msgid "Managed save:"
@@ -11431,6 +11573,10 @@ msgstr ""
 msgid "Missing storage volume name for disk '%s'"
 msgstr "липсва информация за източника на устройство %s"
 
+#, c-format
+msgid "Missing udev property '%s' on '%s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Missing vendor string for CPU vendor %s"
 msgstr "липсва информация за източника на устройство %s"
@@ -11528,7 +11674,13 @@ msgstr ""
 msgid "N/A"
 msgstr ""
 
+msgid "NBD URI must be supplied when migration URI uses UNIX transport method"
+msgstr ""
+
 msgid "NBD migration with TLS is not supported"
+msgstr ""
+
+msgid "NBD migration with TLS is not supported over UNIX socket"
 msgstr ""
 
 msgid "NIC model 'e1000' is not supported by given bhyve binary"
@@ -11643,6 +11795,12 @@ msgstr ""
 msgid "NVMe namespace can't be zero"
 msgstr ""
 
+#. Output old style header
+#. We only get here if the --details option was selected.
+#. Insert the header into table
+#. The old output format
+#. We only get here if the --details option was selected.
+#. Insert the header into table
 msgid "Name"
 msgstr "Име"
 
@@ -11908,6 +12066,10 @@ msgstr ""
 msgid "No URI scheme specified"
 msgstr ""
 
+#, c-format
+msgid "No URI scheme specified: %s"
+msgstr ""
+
 #, fuzzy
 msgid "No access manager registered"
 msgstr "регистрирани са твърде много устройства"
@@ -12052,9 +12214,6 @@ msgstr ""
 msgid ""
 "No free busNr lower than current lowest busNr is available to auto-assign to "
 "bus %d. Must be manually assigned"
-msgstr ""
-
-msgid "No free veth devices available"
 msgstr ""
 
 msgid "No graphical display found"
@@ -12347,6 +12506,10 @@ msgid "Number of interfaces, %d exceeds the max limit: %d"
 msgstr ""
 
 #, c-format
+msgid "Number of keys %d, which exceeds max liit: %d"
+msgstr ""
+
+#, c-format
 msgid "Number of leases is %d, which exceeds max limit: %d"
 msgstr ""
 
@@ -12599,8 +12762,25 @@ msgid ""
 "modelName '%s'"
 msgstr ""
 
+#. Macros to help dealing with required options.
+#. VSH_REQUIRE_OPTION_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable).
+#. * @NAME2: String containing the name of required option.
+#. * @EXPR2: Expression to validate the variable (boolean variable).
+#. *
+#. * Check if required command options in virsh was set.  Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Option --%s is required by option --%s"
+msgstr ""
+
+msgid "Option --file is required"
 msgstr ""
 
 msgid "Option argument is empty"
@@ -12609,6 +12789,20 @@ msgstr ""
 msgid "Optional flags or --rawstats are not supported by the daemon"
 msgstr ""
 
+#. Macros to help dealing with mutually exclusive options.
+#. VSH_EXCLUSIVE_OPTIONS_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable)
+#. * @NAME2: String containing the name of the option.
+#. * @EXPR2: Expression to validate the variable (boolean variable)
+#. *
+#. * Reject mutually exclusive command options in virsh. Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Options --%s and --%s are mutually exclusive"
 msgstr ""
@@ -12717,15 +12911,15 @@ msgid ""
 msgstr ""
 
 #, c-format
-msgid "PCI controller busNr '%s' out of range - must be 1-254"
+msgid "PCI controller busNr '%d' out of range - must be 1-254"
 msgstr ""
 
 #, c-format
-msgid "PCI controller chassis '%s' out of range - must be 0-255"
+msgid "PCI controller chassis '%d' out of range - must be 0-255"
 msgstr ""
 
 #, c-format
-msgid "PCI controller chassisNr '%s' out of range - must be 1-255"
+msgid "PCI controller chassisNr '%d' out of range - must be 1-255"
 msgstr ""
 
 #, c-format
@@ -12736,7 +12930,7 @@ msgid "PCI controller model was not set correctly"
 msgstr ""
 
 #, c-format
-msgid "PCI controller port '%s' out of range - must be 0-255"
+msgid "PCI controller port '%d' out of range - must be 0-255"
 msgstr ""
 
 #, c-format
@@ -13386,7 +13580,7 @@ msgid "Removed"
 msgstr ""
 
 #, c-format
-msgid "Removed managedsave image for domain %s"
+msgid "Removed managedsave image for domain '%s'"
 msgstr ""
 
 msgid "Renamed"
@@ -13404,8 +13598,9 @@ msgstr "възстановяване на домейн към запазено �
 
 #, c-format
 msgid ""
-"Requested TSC frequency %llu Hz does not match host (%llu Hz) and TSC "
-"scaling is not supported by the host CPU"
+"Requested TSC frequency %llu Hz is outside tolerance range ([%llu, %llu] Hz) "
+"around host frequency %llu Hz and TSC scaling is not supported by the host "
+"CPU"
 msgstr ""
 
 #, c-format
@@ -13692,6 +13887,7 @@ msgstr ""
 msgid "S4 state is disabled for this domain"
 msgstr ""
 
+#. Denied
 #, c-format
 msgid "SASL client identity '%s' not allowed by ACL"
 msgstr ""
@@ -14173,6 +14369,9 @@ msgstr "Процесорно време:"
 msgid "Shared memory mapping is not supported with this QEMU"
 msgstr ""
 
+#. XXX: Need to sort the returned params once new parameter
+#. * fields not of shared memory are added.
+#.
 #, fuzzy
 msgid "Shared memory:\n"
 msgstr "Ползвана памет:"
@@ -14249,6 +14448,7 @@ msgstr ""
 msgid "Snapshot"
 msgstr ""
 
+#. Depending on flags, we re-edit even if XML is unchanged.
 #, c-format
 msgid "Snapshot %s XML configuration not changed.\n"
 msgstr ""
@@ -14689,6 +14889,7 @@ msgstr ""
 msgid "Table row cannot be empty"
 msgstr ""
 
+#. title
 msgid "Target"
 msgstr ""
 
@@ -14762,6 +14963,9 @@ msgstr ""
 msgid "Target NUMA node count '%zu' doesn't match source '%zu'"
 msgstr ""
 
+msgid "Target NVDIMM UUID doesn't match source NVDIMM"
+msgstr ""
+
 #, c-format
 msgid ""
 "Target NVDIMM alignment '%llu' doesn't match source NVDIMM alignment '%llu'"
@@ -14792,7 +14996,7 @@ msgid "Target TPM version doesn't match source"
 msgstr ""
 
 #, c-format
-msgid "Target TSC frequency %lu does not match source %lu"
+msgid "Target TSC frequency %llu does not match source %llu"
 msgstr ""
 
 #, c-format
@@ -15427,9 +15631,6 @@ msgstr ""
 msgid "The QEMU executable %s does not support TPM model %s"
 msgstr ""
 
-msgid "The WMI class info list is empty"
-msgstr ""
-
 msgid "The XML configuration was changed by another user."
 msgstr ""
 
@@ -15620,6 +15821,12 @@ msgstr ""
 msgid "This QEMU doesn't support target greater than 7"
 msgstr ""
 
+msgid "This QEMU doesn't support the AM53C974 (ESP) controller"
+msgstr ""
+
+msgid "This QEMU doesn't support the DC390 (ESP) controller"
+msgstr ""
+
 msgid "This QEMU doesn't support the LSI 53C895A SCSI controller"
 msgstr ""
 
@@ -15627,6 +15834,9 @@ msgid "This QEMU doesn't support the LSI SAS1068 (MPT Fusion) controller"
 msgstr ""
 
 msgid "This QEMU doesn't support the LSI SAS1078 (MegaRAID) controller"
+msgstr ""
+
+msgid "This QEMU doesn't support the NCR53C90 (ESP) controller"
 msgstr ""
 
 msgid ""
@@ -15688,12 +15898,9 @@ msgstr ""
 msgid "Time: %lld"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Time: %s"
-msgstr ""
-"\n"
-"(Време: %.3f мили секунди)\n"
-"\n"
+msgstr "(Време: %s)"
 
 #, fuzzy
 msgid "Timed out during operation"
@@ -15892,9 +16099,11 @@ msgstr ""
 msgid "Try again?"
 msgstr ""
 
+#. Better leak than crash
 msgid "Trying to free MultiCURL object that is still in use"
 msgstr ""
 
+#. Better leak than crash
 msgid "Trying to free SharedCURL object that is still in use"
 msgstr ""
 
@@ -16406,10 +16615,6 @@ msgstr "Не може да се промени MaxMemorySize"
 #, fuzzy, c-format
 msgid "Unable to create device %s"
 msgstr "Неуспех при създаване на домейн от %s"
-
-#, c-format
-msgid "Unable to create device '%s'"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "Unable to create directory %s"
@@ -18415,6 +18620,7 @@ msgstr ""
 msgid "Unknown error"
 msgstr "Непозната"
 
+#. should never happen (tm)
 msgid "Unknown error value"
 msgstr ""
 
@@ -18642,6 +18848,10 @@ msgstr ""
 #, fuzzy
 msgid "Unpaused"
 msgstr "в пауза"
+
+#, c-format
+msgid "Unrecognized controller type %d"
+msgstr ""
 
 msgid "Unrecognized disk label found, requires build"
 msgstr ""
@@ -19034,6 +19244,9 @@ msgid ""
 "'type'"
 msgstr ""
 
+msgid "Use the guest agent to query authorized SSH keys for given user"
+msgstr ""
+
 msgid ""
 "Use the guest agent to query or set cpu state from guest's point of view"
 msgstr ""
@@ -19176,10 +19389,12 @@ msgstr ""
 msgid "Vifname %s too big for destination"
 msgstr ""
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virsh command line tool of libvirt %s\n"
 msgstr ""
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virt-admin command line tool of libvirt %s\n"
 msgstr ""
@@ -19614,6 +19829,14 @@ msgstr ""
 msgid "algorithm=%d is not supported"
 msgstr ""
 
+#, c-format
+msgid "alias '%s' of command '%s' has mismatched alias type"
+msgstr ""
+
+#, c-format
+msgid "alias '%s' of command '%s' has missing alias option"
+msgstr ""
+
 msgid "all CPU models are accepted"
 msgstr ""
 
@@ -19685,6 +19908,10 @@ msgstr "Домейнът вече е активен"
 msgid "any configuration"
 msgstr "информация за домейн"
 
+#, c-format
+msgid "ap-domain value '%s' is out of range for '%s'"
+msgstr ""
+
 msgid "apparmor_parser exited with error"
 msgstr ""
 
@@ -19732,6 +19959,9 @@ msgstr ""
 
 #, c-format
 msgid "array element '%zd' of '%zd' missing in guest-get-fsinfo return data"
+msgstr ""
+
+msgid "array element missing in guest-get-disks return value"
 msgstr ""
 
 msgid "array element missing in guest-get-users return value"
@@ -20311,6 +20541,10 @@ msgid "can't keep relative backing relationship"
 msgstr ""
 
 #, c-format
+msgid "can't manipulate inactive snapshots of disk '%s'"
+msgstr ""
+
+#, c-format
 msgid "can't open session to the domain with id %d"
 msgstr ""
 
@@ -20571,9 +20805,9 @@ msgstr ""
 msgid "cannot close file: %s"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "cannot close stream on domain %s"
-msgstr "Неуспешно рестартиране на домейн %s"
+#, c-format
+msgid "cannot close stream on domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "cannot close volume %s"
@@ -21159,6 +21393,9 @@ msgstr ""
 msgid "cannot modify virtio network device driver attributes"
 msgstr ""
 
+msgid "cannot modify virtio network device driver options"
+msgstr ""
+
 msgid "cannot obtain CPU freq"
 msgstr ""
 
@@ -21195,6 +21432,7 @@ msgstr ""
 msgid "cannot open path '%s' in '%s'"
 msgstr ""
 
+#. A dangling symlink now implies a TOCTTOU race; report it.
 #, c-format
 msgid "cannot open volume '%s'"
 msgstr ""
@@ -21525,22 +21763,12 @@ msgstr ""
 msgid "cannot remove managed save file %s"
 msgstr ""
 
-#, c-format
-msgid "cannot remove old domain config file %s"
-msgstr ""
-
 msgid "cannot rename a transient domain"
 msgstr ""
 
 #, fuzzy
 msgid "cannot rename active domain"
 msgstr "име на неактивния домейн"
-
-msgid "cannot rename domain with checkpoints"
-msgstr ""
-
-msgid "cannot rename domain with snapshots"
-msgstr ""
 
 #, c-format
 msgid "cannot rename file '%s' as '%s'"
@@ -21869,11 +22097,11 @@ msgid "cfpc configuration is not supported by this QEMU binary"
 msgstr ""
 
 #, c-format
-msgid "cfs_period '%llu' must be in range (1000, 1000000)"
+msgid "cfs_period '%llu' must be in range (%llu, %llu)"
 msgstr ""
 
 #, c-format
-msgid "cfs_quota '%lld' must be in range (1000, %llu)"
+msgid "cfs_quota '%lld' must be in range (%llu, %llu)"
 msgstr ""
 
 msgid "cgroup CPU controller is not mounted"
@@ -22011,6 +22239,13 @@ msgstr ""
 msgid "checkpoint for disk %s unsupported for storage type %s"
 msgstr ""
 
+msgid "checkpoint inconsistent"
+msgstr ""
+
+#, c-format
+msgid "checkpoint inconsistent: %s"
+msgstr ""
+
 #, fuzzy
 msgid "checkpoint information"
 msgstr "информация за домейн"
@@ -22022,6 +22257,7 @@ msgstr ""
 msgid "child didn't write error (status=%d)"
 msgstr ""
 
+#. in case of EACCES, the parent will retry
 #, fuzzy, c-format
 msgid "child failed to create directory '%s'"
 msgstr "неуспешно получаване на мрежа '%s'"
@@ -22052,6 +22288,9 @@ msgid "cipher info missing 'size' attribute"
 msgstr ""
 
 msgid "classID attribute not supported on <bandwidth> in this usage context"
+msgstr ""
+
+msgid "clear out authorized keys file before adding new keys"
 msgstr ""
 
 msgid "client hooks cannot be NULL"
@@ -22102,10 +22341,6 @@ msgstr ""
 msgid "command"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "command '%s' does not list argv option last"
-msgstr "команда '%s' не поддържа опция --%s"
-
 #, c-format
 msgid "command '%s' doesn't support option --%s"
 msgstr "команда '%s' не поддържа опция --%s"
@@ -22115,31 +22350,11 @@ msgid "command '%s' has inconsistent alias"
 msgstr ""
 
 #, fuzzy, c-format
-msgid "command '%s' has incorrect alias option"
-msgstr "команда '%s' изисква опция --%s"
-
-#, c-format
-msgid "command '%s' has mismatched alias type"
-msgstr ""
-
-#, fuzzy, c-format
-msgid "command '%s' has missing alias option"
-msgstr "команда '%s' изисква опция --%s"
-
-#, c-format
-msgid "command '%s' has non-required VSH_OT_DATA"
-msgstr ""
-
-#, fuzzy, c-format
 msgid "command '%s' has too many options"
 msgstr "команда '%s' изисква опция --%s"
 
 #, c-format
 msgid "command '%s' lacks help"
-msgstr ""
-
-#, c-format
-msgid "command '%s' misused VSH_OFLAG_REQ"
 msgstr ""
 
 #, c-format
@@ -22643,7 +22858,7 @@ msgid "could not read xml file"
 msgstr ""
 
 #, c-format
-msgid "could not receive data from domain %s"
+msgid "could not receive data from domain '%s'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -23251,10 +23466,6 @@ msgstr ""
 msgid "dir"
 msgstr ""
 
-#, c-format
-msgid "direct firewall backend requested, but %s is not available"
-msgstr ""
-
 #, fuzzy
 msgid "direct migration"
 msgstr "мигриране по време на работа"
@@ -23467,7 +23678,8 @@ msgstr ""
 msgid "disk port address is not supported by tunnelled migration"
 msgstr ""
 
-msgid "disk product is more than 16 characters"
+#, c-format
+msgid "disk product is more than %d characters"
 msgstr ""
 
 msgid "disk product is not printable string"
@@ -23497,7 +23709,8 @@ msgstr ""
 msgid "disk type of '%s' does not support ejectable media"
 msgstr ""
 
-msgid "disk vendor is more than 8 characters"
+#, c-format
+msgid "disk vendor is more than %d characters"
 msgstr ""
 
 msgid "disk vendor is not printable string"
@@ -23673,7 +23886,11 @@ msgid "domain config update needs VIR_DOMAIN_AFFECT_CONFIG flag to be set"
 msgstr ""
 
 #, c-format
-msgid "domain configuration does not support '%s' value '%s'"
+msgid "domain configuration does not support rng model '%s'"
+msgstr ""
+
+#, c-format
+msgid "domain configuration does not support video model '%s'"
 msgstr ""
 
 #, fuzzy
@@ -24035,9 +24252,6 @@ msgstr "възстановяване на домейн към запазено �
 msgid "edit XML for a snapshot"
 msgstr ""
 
-msgid "egl-headless display is not supported with this QEMU binary"
-msgstr ""
-
 msgid "either --list or --event <type> is required"
 msgstr ""
 
@@ -24276,12 +24490,12 @@ msgstr ""
 msgid "ethtool ioctl error on %s"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "event '%s' for domain %s\n"
-msgstr "Неуспешно стартиране на домейн %s"
+#, c-format
+msgid "event '%s' for domain '%s'\n"
+msgstr ""
 
 #, c-format
-msgid "event '%s' for domain %s: %s for %s %s\n"
+msgid "event '%s' for domain '%s': %s for %s %s\n"
 msgstr ""
 
 #, c-format
@@ -24297,52 +24511,52 @@ msgid "event '%s' for storage pool %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'agent-lifecycle' for domain %s: state: '%s' reason: '%s'\n"
+msgid "event 'agent-lifecycle' for domain '%s': state: '%s' reason: '%s'\n"
 msgstr ""
 
 #, c-format
-msgid "event 'balloon-change' for domain %s: %lluKiB\n"
+msgid "event 'balloon-change' for domain '%s': %lluKiB\n"
 msgstr ""
 
 #, c-format
-msgid "event 'block-threshold' for domain %s: dev: %s(%s) %llu %llu\n"
+msgid "event 'block-threshold' for domain '%s': dev: %s(%s) %llu %llu\n"
 msgstr ""
 
 #, c-format
-msgid "event 'device-added' for domain %s: %s\n"
+msgid "event 'device-added' for domain '%s': %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'device-removal-failed' for domain %s: %s\n"
+msgid "event 'device-removal-failed' for domain '%s': %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'device-removed' for domain %s: %s\n"
+msgid "event 'device-removed' for domain '%s': %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'disk-change' for domain %s disk %s: %s -> %s: %s\n"
+msgid "event 'disk-change' for domain '%s' disk %s: %s -> %s: %s\n"
 msgstr ""
 
 #, c-format
 msgid ""
-"event 'graphics' for domain %s: %s local[%s %s %s] remote[%s %s %s] %s\n"
+"event 'graphics' for domain '%s': %s local[%s %s %s] remote[%s %s %s] %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'io-error' for domain %s: %s (%s) %s\n"
+msgid "event 'io-error' for domain '%s': %s (%s) %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'io-error-reason' for domain %s: %s (%s) %s due to %s\n"
+msgid "event 'io-error-reason' for domain '%s': %s (%s) %s due to %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'job-completed' for domain %s:\n"
+msgid "event 'job-completed' for domain '%s':\n"
 msgstr ""
 
 #, c-format
-msgid "event 'lifecycle' for domain %s: %s %s\n"
+msgid "event 'lifecycle' for domain '%s': %s %s\n"
 msgstr ""
 
 #, c-format
@@ -24363,33 +24577,33 @@ msgstr ""
 
 #, c-format
 msgid ""
-"event 'memory-failure' for domain %s:\n"
+"event 'memory-failure' for domain '%s':\n"
 "recipient: %s\n"
 "action: %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'metadata-change' for domain %s: %s %s\n"
+msgid "event 'metadata-change' for domain '%s': %s %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'migration-iteration' for domain %s: iteration: '%d'\n"
+msgid "event 'migration-iteration' for domain '%s': iteration: '%d'\n"
 msgstr ""
 
 #, c-format
-msgid "event 'rtc-change' for domain %s: %lld\n"
+msgid "event 'rtc-change' for domain '%s': %lld\n"
 msgstr ""
 
 #, c-format
-msgid "event 'tray-change' for domain %s disk %s: %s\n"
+msgid "event 'tray-change' for domain '%s' disk %s: %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'tunable' for domain %s:\n"
+msgid "event 'tunable' for domain '%s':\n"
 msgstr ""
 
 #, c-format
-msgid "event 'watchdog' for domain %s: %s\n"
+msgid "event 'watchdog' for domain '%s': %s\n"
 msgstr ""
 
 msgid "event callback already tracked"
@@ -25066,6 +25280,9 @@ msgstr "неуспешно получаване на домейн '%s'"
 msgid "failed to get parent pool"
 msgstr "неуспешно отваряне на файл"
 
+msgid "failed to get persistent definition object"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "failed to get pool '%s'"
 msgstr "неуспешно получаване на домейн '%s'"
@@ -25379,6 +25596,14 @@ msgid "failed to parse slirp helper list"
 msgstr "грешка при разбор на конфигурационния файл %s"
 
 msgid "failed to parse slirp-helper features"
+msgstr ""
+
+#, c-format
+msgid "failed to parse the AP Card from sysfs path: '%s'"
+msgstr ""
+
+#, c-format
+msgid "failed to parse the AP Queue from sysfs path: '%s'"
 msgstr ""
 
 #, c-format
@@ -25821,6 +26046,9 @@ msgstr ""
 msgid "fetch or set the currently defined set of logging outputs on daemon"
 msgstr ""
 
+#. parse inbound and outbound which are in the format of
+#. * 'average,peak,burst,floor', in which peak and burst are optional,
+#. * thus 'average,,burst' and 'average,peak' are also legal.
 #, c-format
 msgid "field '%s' is malformed"
 msgstr ""
@@ -26006,7 +26234,7 @@ msgstr ""
 msgid "finish step ignored that migration was cancelled"
 msgstr ""
 
-msgid "firewalld firewall backend requested, but service is not running"
+msgid "firewalld backend requested, but service is not running"
 msgstr ""
 
 msgid ""
@@ -26034,6 +26262,12 @@ msgid ""
 msgstr ""
 
 msgid "floor attribute is not supported for this config"
+msgstr ""
+
+msgid "fmode and dmode are not supported with this QEMU binary"
+msgstr ""
+
+msgid "fmode and dmode must be used with accessmode=mapped"
 msgstr ""
 
 #, c-format
@@ -26407,6 +26641,7 @@ msgstr ""
 msgid "handler failed to wait on condition"
 msgstr "грешка при запис на конфигурационния файл"
 
+#. caller's error
 msgid "hash lookup resulted in NULL pointer"
 msgstr ""
 
@@ -26470,6 +26705,9 @@ msgstr ""
 msgid "host migration TLS directory not configured"
 msgstr ""
 
+msgid "host name for source of disk device"
+msgstr ""
+
 #, fuzzy
 msgid "host pci device "
 msgstr "блоково устройство"
@@ -26488,6 +26726,12 @@ msgstr ""
 
 #, c-format
 msgid "host scsi iSCSI path %s not found"
+msgstr ""
+
+msgid "host socket for source of disk device"
+msgstr ""
+
+msgid "host transport for source of disk device"
 msgstr ""
 
 #, c-format
@@ -26757,9 +27001,6 @@ msgstr ""
 msgid "info balloon reply was missing balloon data"
 msgstr ""
 
-msgid "info kvm reply missing 'enabled' field"
-msgstr ""
-
 msgid "info migration reply was missing return status"
 msgstr ""
 
@@ -26941,6 +27182,25 @@ msgstr "име на мрежа"
 msgid "interface name %s does not fit into buffer "
 msgstr ""
 
+#.
+#. * virsh-interface.c: Commands to manage host interface
+#. *
+#. * Copyright (C) 2005, 2007-2016 Red Hat, Inc.
+#. *
+#. * This library is free software; you can redistribute it and/or
+#. * modify it under the terms of the GNU Lesser General Public
+#. * License as published by the Free Software Foundation; either
+#. * version 2.1 of the License, or (at your option) any later version.
+#. *
+#. * This library is distributed in the hope that it will be useful,
+#. * but WITHOUT ANY WARRANTY; without even the implied warranty of
+#. * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#. * Lesser General Public License for more details.
+#. *
+#. * You should have received a copy of the GNU Lesser General Public
+#. * License along with this library.  If not, see
+#. * <http://www.gnu.org/licenses/>.
+#.
 msgid "interface name or MAC address"
 msgstr ""
 
@@ -26979,10 +27239,6 @@ msgstr "вътрешна грешка"
 #, fuzzy, c-format
 msgid "internal error: %s"
 msgstr "вътрешна грешка"
-
-#, c-format
-msgid "internal error: bad options in command: '%s'"
-msgstr ""
 
 #, c-format
 msgid "internal inactive snapshots are not supported on '%s' disks"
@@ -27225,6 +27481,14 @@ msgstr ""
 msgid "invalid allowReboot value '%s'"
 msgstr ""
 
+#, c-format
+msgid "invalid ap-adapter value '%s' for '%s'"
+msgstr ""
+
+#, c-format
+msgid "invalid ap-domain value '%s' for '%s'"
+msgstr ""
+
 msgid "invalid argument"
 msgstr ""
 
@@ -27344,6 +27608,10 @@ msgstr "невалиден указател за домейн в %s"
 msgid "invalid disk target '%s', partitions can't appear in disk targets"
 msgstr ""
 
+#, c-format
+msgid "invalid dmode: '%s'"
+msgstr ""
+
 msgid "invalid domain pointer in"
 msgstr "невалиден указател за домейн в"
 
@@ -27384,6 +27652,10 @@ msgstr ""
 #, fuzzy, c-format
 msgid "invalid flag combination: (0x%x)"
 msgstr "невалиден указател за домейн в %s"
+
+#, c-format
+msgid "invalid fmode: '%s'"
+msgstr ""
 
 #, c-format
 msgid "invalid freePageReporting attribute value '%s'"
@@ -27519,7 +27791,7 @@ msgstr ""
 
 #, c-format
 msgid ""
-"invalid mac address check value: '%s'. Valid values are \"generated\" and "
+"invalid mac address type value: '%s'. Valid values are \"generated\" and "
 "\"static\"."
 msgstr ""
 
@@ -27851,7 +28123,13 @@ msgstr ""
 msgid "invalid value for 'managed': %s"
 msgstr ""
 
+msgid "invalid value for boot menu timeout"
+msgstr ""
+
 msgid "invalid value for boot menu timeout, must be in range [0,65535]"
+msgstr ""
+
+msgid "invalid value for rebootTimeout"
 msgstr ""
 
 msgid "invalid value for rebootTimeout, must be in range [-1,65535]"
@@ -28216,6 +28494,9 @@ msgstr "показване на домейните"
 msgid "list all domain virtual interfaces"
 msgstr ""
 
+msgid "list authorized SSH keys for given user (via agent)"
+msgstr ""
+
 msgid "list available servers on a daemon"
 msgstr ""
 
@@ -28231,6 +28512,9 @@ msgstr ""
 #, fuzzy
 msgid "list devices in a tree"
 msgstr "липсва информация за устройство"
+
+msgid "list domain IDs only"
+msgstr ""
 
 #, fuzzy
 msgid "list domain names only"
@@ -28805,6 +29089,9 @@ msgstr "запис състоянието на домейн във файл"
 msgid "mandatory attribute 'width' is missing or malformed"
 msgstr ""
 
+msgid "manipulate authorized SSH keys file for given user (via agent)"
+msgstr ""
+
 msgid "mark inactive domains with managed save state"
 msgstr ""
 
@@ -29024,6 +29311,12 @@ msgstr ""
 msgid "metadata title can't contain newlines"
 msgstr ""
 
+msgid "metdata cache max size control is not supported with this QEMU binary"
+msgstr ""
+
+msgid "metdata cache max size control is supported only with qcow2 images"
+msgstr ""
+
 msgid "migrate domain to another host"
 msgstr "мигриране на домейна на друга машина"
 
@@ -29079,6 +29372,11 @@ msgstr "грешка при операцията"
 #, fuzzy, c-format
 msgid "migration of disk %s failed: %s"
 msgstr "грешка при операция: %s"
+
+msgid ""
+"migration of non-shared storage is not supported with tunnelled migration "
+"and this QEMU"
+msgstr ""
 
 msgid "migration out job"
 msgstr ""
@@ -29238,11 +29536,17 @@ msgstr ""
 msgid "missing 'nvram-template' in '%s'"
 msgstr ""
 
+msgid "missing 'path' attribute in JSON backing definition for NFS volume"
+msgstr ""
+
 msgid "missing 'portal' address in iSCSI backing definition"
 msgstr ""
 
 #, c-format
 msgid "missing 'process' value in selinux lxc contexts file '%s'"
+msgstr ""
+
+msgid "missing 'server' attribute in JSON backing definition for NFS volume"
 msgstr ""
 
 #, c-format
@@ -29293,6 +29597,10 @@ msgstr ""
 msgid "missing 'usage' attribute for RAM filesystem"
 msgstr ""
 
+msgid ""
+"missing 'user' or 'group' attribute in JSON backing definition for NFS volume"
+msgstr ""
+
 msgid "missing 'value' attribute for HyperV feature 'vendor_id'"
 msgstr ""
 
@@ -29309,6 +29617,9 @@ msgstr ""
 #, fuzzy
 msgid "missing <target> element for <memory> device"
 msgstr "липсва информация за целта на устройство"
+
+msgid "missing <type> element in <capability> element"
+msgstr ""
 
 msgid "missing @managed attribute for <reservations/>"
 msgstr ""
@@ -29379,6 +29690,14 @@ msgstr "липсва информация за източника на устр�
 
 #, c-format
 msgid "missing alias or qom-type for qemu object '%s'"
+msgstr ""
+
+#, c-format
+msgid "missing ap-adapter value for '%s'"
+msgstr ""
+
+#, c-format
+msgid "missing ap-domain value for '%s'"
 msgstr ""
 
 msgid "missing arch in QEMU capabilities cache"
@@ -29511,9 +29830,6 @@ msgid "missing disk source for 'sheepdog' protocol"
 msgstr ""
 
 msgid "missing domain in checkpoint"
-msgstr ""
-
-msgid "missing domain in checkpoint redefine"
 msgstr ""
 
 #, fuzzy
@@ -30194,6 +30510,15 @@ msgstr ""
 msgid "monitor failure"
 msgstr ""
 
+#. *
+#. * QEMU_CHECK_MONITOR_FULL:
+#. * @mon: monitor pointer variable to check, evaluated multiple times, no parentheses
+#. * @exit: statement that is used to exit the function
+#. *
+#. * This macro checks that the monitor is valid for given operation and exits
+#. * the function if not. The macro also adds a debug statement regarding the
+#. * monitor.
+#.
 msgid "monitor must not be NULL"
 msgstr ""
 
@@ -30365,6 +30690,12 @@ msgstr ""
 msgid "ncpus too large"
 msgstr ""
 
+msgid "ncr53c90 SCSI controller is not a built-in for this machine"
+msgstr ""
+
+msgid "ncr53c90 can only be used as first SCSI controller"
+msgstr ""
+
 msgid "need at least one serial port to use SGA"
 msgstr ""
 
@@ -30381,6 +30712,7 @@ msgstr ""
 msgid "negative size requires --shrink"
 msgstr ""
 
+#. 56 is good for Kerberos
 #, c-format
 msgid "negotiated SSF %d was not strong enough"
 msgstr ""
@@ -31679,6 +32011,9 @@ msgstr ""
 msgid "optional file of source xml to query for pools"
 msgstr ""
 
+msgid "optional file to read keys from"
+msgstr ""
+
 msgid "optional host to query"
 msgstr ""
 
@@ -31802,6 +32137,27 @@ msgstr ""
 
 #, c-format
 msgid "parameter '%s' occurs multiple times"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' has incorrect alias option"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' misused VSH_OFLAG_REQ"
+msgstr ""
+
+#, c-format
+msgid ""
+"parameter '%s' of command '%s' must be listed before optional parameters"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' must be listed last"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' must use VSH_OFLAG_REQ flag"
 msgstr ""
 
 msgid "parameter=value"
@@ -32102,6 +32458,9 @@ msgstr ""
 msgid "port UUID"
 msgstr ""
 
+msgid "port cannot be specified in 'nfs' protocol host"
+msgstr ""
+
 msgid "port to use by target server for incoming disks migration"
 msgstr ""
 
@@ -32299,6 +32658,9 @@ msgstr ""
 msgid "protocol misses the family attribute"
 msgstr ""
 
+msgid "protocol used by disk device source"
+msgstr ""
+
 msgid "provide XML suitable for migrations"
 msgstr ""
 
@@ -32307,7 +32669,7 @@ msgid "ps2 bus does not support %s input device"
 msgstr ""
 
 #, c-format
-msgid "pull mode requires qcow2 driver, not '%s'"
+msgid "pull mode backup for disk '%s' requires qcow2 driver"
 msgstr ""
 
 #, c-format
@@ -32321,7 +32683,13 @@ msgstr ""
 msgid "qemu agent didn't provide 'name' field"
 msgstr ""
 
+msgid "qemu agent didn't return an array of disks"
+msgstr ""
+
 msgid "qemu agent didn't return an array of interfaces"
+msgstr ""
+
+msgid "qemu agent didn't return an array of keys"
 msgstr ""
 
 #, c-format
@@ -32408,15 +32776,6 @@ msgid "query or modify state of vcpu in the guest (via agent)"
 msgstr ""
 
 msgid "query-block device entry was not in expected format"
-msgstr ""
-
-msgid "query-command-line-options parameter data was missing 'name'"
-msgstr ""
-
-msgid "query-command-line-options reply data was missing 'option'"
-msgstr ""
-
-msgid "query-command-line-options reply was missing return data"
 msgstr ""
 
 msgid "query-commands reply data was missing 'name'"
@@ -32537,7 +32896,7 @@ msgstr ""
 msgid "quit this interactive terminal"
 msgstr "изход от този интерактивен терминал"
 
-msgid "ram attribute only supported for type of qxl"
+msgid "ram attribute only supported for video type qxl"
 msgstr ""
 
 #, c-format
@@ -32674,6 +33033,12 @@ msgstr ""
 msgid "refusing to generate file name for disk '%s'"
 msgstr ""
 
+msgid "remoteDomainAuthorizedSSHKeysGet: returned number of keys exceeds limit"
+msgstr ""
+
+msgid "remoteDomainAuthorizedSSHKeysSet: returned number of keys exceeds limit"
+msgstr ""
+
 msgid "remoteDomainBlockStatsFlags: returned number of stats exceeds limit"
 msgstr ""
 
@@ -32715,6 +33080,9 @@ msgstr ""
 msgid "remove domain managed state file"
 msgstr "възстановяване на домейн към запазено във файл състояние"
 
+msgid "remove keys from the authorized keys file"
+msgstr ""
+
 msgid "remove nvram file, if inactive"
 msgstr ""
 
@@ -32743,6 +33111,9 @@ msgstr ""
 msgid "reply data was missing 'name'"
 msgstr ""
 
+msgid "reply data was missing 'option' name or parameters"
+msgstr ""
+
 msgid "reply was missing return data"
 msgstr ""
 
@@ -32753,6 +33124,9 @@ msgid "report active users"
 msgstr ""
 
 msgid "report daemon version too"
+msgstr ""
+
+msgid "report disk information"
 msgstr ""
 
 #, fuzzy
@@ -33591,8 +33965,8 @@ msgstr "източник на дисковото устройство"
 msgid "source name for underlying storage"
 msgstr ""
 
-msgid "source of disk device"
-msgstr "източник на дисковото устройство"
+msgid "source of disk device or name of network disk"
+msgstr ""
 
 msgid "source of network interface"
 msgstr "източник на мрежовия интерфейс"
@@ -33656,9 +34030,6 @@ msgid "spice filetransfer missing enable"
 msgstr ""
 
 msgid "spice gl element missing enable"
-msgstr ""
-
-msgid "spice graphics are not supported with this QEMU"
 msgstr ""
 
 msgid "spice image missing compression"
@@ -34349,6 +34720,9 @@ msgstr ""
 msgid "this function is not supported by the connection driver: %s"
 msgstr ""
 
+msgid "this libvirtd instance allows migration only with VIR_MIGRATE_TLS flag"
+msgstr ""
+
 msgid "this network exists already"
 msgstr "тази мрежа вече съществува"
 
@@ -34847,7 +35221,7 @@ msgstr ""
 msgid "type mismatch in event (actual 0x%x, expected 0x%x)"
 msgstr ""
 
-msgid "type of source (block|file)"
+msgid "type of source (block|file|network)"
 msgstr ""
 
 msgid "type of storage pool sources to discover"
@@ -35032,6 +35406,7 @@ msgstr ""
 msgid "unable to find valid requested VMware backend '%s'"
 msgstr ""
 
+#. fdatasync() may fail on some special FDs, e.g. pipes
 #, c-format
 msgid "unable to fsync %s"
 msgstr ""
@@ -35193,10 +35568,6 @@ msgstr "грешка при разбор на конфигурационния �
 
 #, fuzzy, c-format
 msgid "unable to parse page size: %s"
-msgstr "грешка при разбор на конфигурационния файл %s"
-
-#, fuzzy, c-format
-msgid "unable to parse unique_id: %s"
 msgstr "грешка при разбор на конфигурационния файл %s"
 
 #, c-format
@@ -35377,10 +35748,6 @@ msgstr "неуспех при запис в дневника"
 
 #, c-format
 msgid "unable write to %s"
-msgstr ""
-
-msgid ""
-"unavailable-features in query-cpu-definitions reply data was not an array"
 msgstr ""
 
 #, fuzzy
@@ -35833,13 +36200,6 @@ msgid "unexpected value %s for on_reboot"
 msgstr ""
 
 #, fuzzy, c-format
-msgid "unexpected value in %s array"
-msgstr "неочаквани данни '%s'"
-
-msgid "unexpected value in unavailable-features array"
-msgstr ""
-
-#, fuzzy, c-format
 msgid "unexpected video model %d"
 msgstr "неочаквани данни '%s'"
 
@@ -35883,6 +36243,8 @@ msgstr ""
 msgid "unix socket for spice graphics are not supported with this QEMU"
 msgstr ""
 
+#. Something went wrong retrieving a volume path, cope with it
+#. Something went wrong retrieving volume info, cope with it
 #, fuzzy
 msgid "unknown"
 msgstr "Непозната"
@@ -36097,14 +36459,6 @@ msgstr "непознат тип ОС %s"
 #, c-format
 msgid "unknown dhcp peerdns value %s"
 msgstr ""
-
-#, c-format
-msgid "unknown disk backup driver '%s'"
-msgstr ""
-
-#, fuzzy, c-format
-msgid "unknown disk backup type '%s'"
-msgstr "непознат тип ОС %s"
 
 #, fuzzy, c-format
 msgid "unknown disk bus type '%s'"
@@ -37095,6 +37449,28 @@ msgstr ""
 msgid "unsupported filesystem type '%s'"
 msgstr ""
 
+#. *
+#. * virCheckFlags:
+#. * @supported: an OR'ed set of supported flags
+#. * @retval: return value in case unsupported flags were passed
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Exits the caller function if unsupported flags were
+#. * passed to it.
+#.
+#. *
+#. * virCheckFlagsGoto:
+#. * @supported: an OR'ed set of supported flags
+#. * @label: label to jump to on error
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "unsupported flags (0x%lx) in function %s"
 msgstr ""
@@ -37116,10 +37492,6 @@ msgid "unsupported format %s"
 msgstr ""
 
 msgid "unsupported gluster lookup"
-msgstr ""
-
-#, c-format
-msgid "unsupported graphics type '%s'"
 msgstr ""
 
 #, c-format
@@ -37345,6 +37717,12 @@ msgstr ""
 msgid "user cancelled authentication process"
 msgstr ""
 
+msgid "user to list authorized keys for"
+msgstr ""
+
+msgid "user to set authorized keys for"
+msgstr ""
+
 msgid "user:"
 msgstr ""
 
@@ -37425,6 +37803,9 @@ msgid "validate the XML against the schema"
 msgstr ""
 
 msgid "validate the XML document against schema"
+msgstr ""
+
+msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
@@ -37618,7 +37999,7 @@ msgstr ""
 msgid "version parsing error"
 msgstr "грешка при разбора"
 
-msgid "vgamem attribute only supported for type of qxl"
+msgid "vgamem attribute only supported for video type qxl"
 msgstr ""
 
 msgid "vhost-net is not supported with this QEMU binary"
@@ -37831,6 +38212,9 @@ msgstr ""
 msgid "virtio-serial controller %u not available"
 msgstr ""
 
+msgid "virtiofs does not support fmode and dmode"
+msgstr ""
+
 msgid "virtiofs does not support format"
 msgstr ""
 
@@ -37915,9 +38299,6 @@ msgstr ""
 
 msgid "vnc display"
 msgstr "vnc дисплей"
-
-msgid "vnc graphics are not supported with this QEMU"
-msgstr ""
 
 msgid "vnc port must be in range [5900,65535]"
 msgstr ""
@@ -38024,7 +38405,7 @@ msgstr ""
 msgid "vport operation '%s' is not supported for host%d"
 msgstr ""
 
-msgid "vram64 attribute only supported for type of qxl"
+msgid "vram64 attribute only supported for video type qxl"
 msgstr ""
 
 msgid "vsock device is not supported with this QEMU binary"
@@ -38245,6 +38626,176 @@ msgstr ""
 #, fuzzy, c-format
 msgid "{[--%s] <string>}..."
 msgstr "--%s <низ>"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s dumped to %s\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Домейн %s дефиниран от %s\n"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s saved to %s\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Домейн %s бе създаден от %s\n"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s state saved by libvirt\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Домейна %s бе стартиран\n"
+
+#, fuzzy
+#~ msgid "Connected to domain %s\n"
+#~ msgstr "Неуспешно стартиране на домейн %s"
+
+#, fuzzy
+#~ msgid "Domain %s XML configuration edited.\n"
+#~ msgstr "грешка при четене на конфигурационния файл"
+
+#, fuzzy
+#~ msgid "Domain %s attached to pid %u\n"
+#~ msgstr "Домейн %s бе създаден от %s\n"
+
+#, fuzzy
+#~ msgid "Domain %s could not be suspended"
+#~ msgstr "Домейна %s приспан\n"
+
+#~ msgid "Domain %s created from %s\n"
+#~ msgstr "Домейн %s бе създаден от %s\n"
+
+#~ msgid "Domain %s defined from %s\n"
+#~ msgstr "Домейн %s дефиниран от %s\n"
+
+#~ msgid "Domain %s destroyed\n"
+#~ msgstr "Домейна %s бе унищожен\n"
+
+#~ msgid "Domain %s has been undefined\n"
+#~ msgstr "Дефиницията на домейн %s бе премахната\n"
+
+#~ msgid "Domain %s is being rebooted\n"
+#~ msgstr "Домейн %s се рестартира\n"
+
+#~ msgid "Domain %s is being shutdown\n"
+#~ msgstr "Домейн %s се изключва\n"
+
+#~ msgid "Domain %s marked as autostarted\n"
+#~ msgstr "Домейна %s е маркиран като авто-стартиращ се\n"
+
+#~ msgid "Domain %s resumed\n"
+#~ msgstr "Домейн %s бе събуден\n"
+
+#~ msgid "Domain %s started\n"
+#~ msgstr "Домейна %s бе стартиран\n"
+
+#, fuzzy
+#~ msgid "Domain %s successfully suspended"
+#~ msgstr "Домейна %s приспан\n"
+
+#~ msgid "Domain %s suspended\n"
+#~ msgstr "Домейна %s приспан\n"
+
+#~ msgid "Domain %s unmarked as autostarted\n"
+#~ msgstr "Домейна %s е размаркиран като авто-стартиращ се\n"
+
+#, fuzzy
+#~ msgid "Domain %s was reset\n"
+#~ msgstr "Домейн %s бе събуден\n"
+
+#~ msgid "Failed to core dump domain %s to %s"
+#~ msgstr "Неуспешен запис на ядрото на домейн %s в %s"
+
+#~ msgid "Failed to destroy domain %s"
+#~ msgstr "Неуспешно унищожаване на домейн %s"
+
+#, fuzzy
+#~ msgid "Failed to generate new name for interface %s"
+#~ msgstr "Неуспешно извличане състоянието на интерфейс %s %s"
+
+#~ msgid "Failed to mark domain %s as autostarted"
+#~ msgstr "Неуспешно маркиране на домейна %s като авто-стартиращ се"
+
+#, fuzzy
+#~ msgid "Failed to parse checkpoint XML from file '%s'"
+#~ msgstr "грешка при разбор на конфигурационния файл %s"
+
+#~ msgid "Failed to reboot domain %s"
+#~ msgstr "Неуспешно рестартиране на домейн %s"
+
+#, fuzzy
+#~ msgid "Failed to remove managed save image for domain %s"
+#~ msgstr "Неуспешно събуждане на домейн %s"
+
+#, fuzzy
+#~ msgid "Failed to reset domain %s"
+#~ msgstr "Неуспешно събуждане на домейн %s"
+
+#~ msgid "Failed to resume domain %s"
+#~ msgstr "Неуспешно събуждане на домейн %s"
+
+#, fuzzy
+#~ msgid "Failed to save domain %s state"
+#~ msgstr "Неуспешно записване на домейн %s в %s"
+
+#~ msgid "Failed to save domain %s to %s"
+#~ msgstr "Неуспешно записване на домейн %s в %s"
+
+#~ msgid "Failed to shutdown domain %s"
+#~ msgstr "Неуспешно изключване на домейн %s"
+
+#~ msgid "Failed to start domain %s"
+#~ msgstr "Неуспешно стартиране на домейн %s"
+
+#~ msgid "Failed to suspend domain %s"
+#~ msgstr "Неуспешно приспиване на домейн %s"
+
+#~ msgid "Failed to undefine domain %s"
+#~ msgstr "Неуспешно премахване дефиницията на домейн %s"
+
+#~ msgid "Failed to unmark domain %s as autostarted"
+#~ msgstr "Неуспешно размаркиране на домейна %s като авто-стартиращ се"
+
+#, fuzzy
+#~ msgid "cannot close stream on domain %s"
+#~ msgstr "Неуспешно рестартиране на домейн %s"
+
+#, fuzzy
+#~ msgid "event '%s' for domain %s\n"
+#~ msgstr "Неуспешно стартиране на домейн %s"
+
+#, fuzzy
+#~ msgid "unexpected value in %s array"
+#~ msgstr "неочаквани данни '%s'"
+
+#, fuzzy
+#~ msgid "unknown disk backup type '%s'"
+#~ msgstr "непознат тип ОС %s"
+
+#, fuzzy
+#~ msgid "Could not set memory"
+#~ msgstr "свърши паметта"
+
+#, fuzzy
+#~ msgid "command '%s' does not list argv option last"
+#~ msgstr "команда '%s' не поддържа опция --%s"
+
+#, fuzzy
+#~ msgid "command '%s' has incorrect alias option"
+#~ msgstr "команда '%s' изисква опция --%s"
+
+#, fuzzy
+#~ msgid "command '%s' has missing alias option"
+#~ msgstr "команда '%s' изисква опция --%s"
+
+#~ msgid "source of disk device"
+#~ msgstr "източник на дисковото устройство"
+
+#, fuzzy
+#~ msgid "unable to parse unique_id: %s"
+#~ msgstr "грешка при разбор на конфигурационния файл %s"
 
 #~ msgid "%s: %d: failed to allocate %d bytes"
 #~ msgstr "%s: %d: неуспешно заделяне на %d байта"

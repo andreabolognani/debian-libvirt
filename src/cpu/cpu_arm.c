@@ -415,11 +415,12 @@ virCPUarmGetMap(void)
 
 static int
 virCPUarmUpdate(virCPUDefPtr guest,
-                const virCPUDef *host)
+                const virCPUDef *host,
+                bool relative)
 {
     g_autoptr(virCPUDef) updated = NULL;
 
-    if (guest->mode != VIR_CPU_MODE_HOST_MODEL)
+    if (!relative || guest->mode != VIR_CPU_MODE_HOST_MODEL)
         return 0;
 
     if (!host) {
@@ -549,7 +550,7 @@ virCPUarmCpuDataFromRegs(virCPUarmData *data)
 {
     unsigned long cpuid;
     unsigned long hwcaps;
-    VIR_AUTOSTRINGLIST features = NULL;
+    g_auto(GStrv) features = NULL;
     int cpu_feature_index = 0;
     size_t i;
 

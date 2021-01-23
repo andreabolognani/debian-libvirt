@@ -3832,8 +3832,7 @@ testDomainSetBlockIoTune(virDomainPtr dom,
 
 #undef TEST_BLOCK_IOTUNE_MAX_CHECK
 
-    if (virDomainDiskSetBlockIOTune(conf_disk, &info) < 0)
-        goto cleanup;
+    virDomainDiskSetBlockIOTune(conf_disk, &info);
     info.group_name = NULL;
 
     ret = 0;
@@ -8989,9 +8988,10 @@ testDomainCheckpointCreateXML(virDomainPtr domain,
         goto cleanup;
 
     if (redefine) {
-        if (virDomainCheckpointRedefinePrep(vm, &def, &chk,
-                                            privconn->xmlopt,
-                                            &update_current) < 0)
+        if (virDomainCheckpointRedefinePrep(vm, def, &update_current) < 0)
+            goto cleanup;
+
+        if (!(chk = virDomainCheckpointRedefineCommit(vm, &def)))
             goto cleanup;
     } else {
         if (!(def->parent.dom = virDomainDefCopy(vm->def,
@@ -9002,9 +9002,7 @@ testDomainCheckpointCreateXML(virDomainPtr domain,
 
         if (virDomainCheckpointAlignDisks(def) < 0)
             goto cleanup;
-    }
 
-    if (!chk) {
         if (!(chk = virDomainCheckpointAssignDef(vm->checkpoints, def)))
             goto cleanup;
 

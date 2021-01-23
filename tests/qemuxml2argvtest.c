@@ -64,7 +64,8 @@ fakeSecretLookupByUsage(virConnectPtr conn,
                            usageID);
             return NULL;
         }
-    } else if (STRNEQ(usageID, "mycluster_myname")) {
+    } else if (STRNEQ(usageID, "mycluster_myname") &&
+               STRNEQ(usageID, "client.admin secret")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "test provided incorrect usage '%s'", usageID);
         return NULL;
@@ -130,7 +131,7 @@ static virStorageVolPtr
 fakeStorageVolLookupByName(virStoragePoolPtr pool,
                            const char *name)
 {
-    VIR_AUTOSTRINGLIST volinfo = NULL;
+    g_auto(GStrv) volinfo = NULL;
     virStorageVolPtr ret = NULL;
 
     if (STREQ(pool->name, "inactive")) {
@@ -407,6 +408,17 @@ testCompareXMLToArgvCreateArgs(virQEMUDriverPtr drv,
                                            VIR_QEMU_PROCESS_START_COLD) < 0)
         return NULL;
 
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDefPtr disk = vm->def->disks[i];
+
+        /* host cdrom requires special treatment in qemu, mock it */
+        if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM &&
+            disk->src->format == VIR_STORAGE_FILE_RAW &&
+            virStorageSourceIsBlockLocal(disk->src) &&
+            STREQ(disk->src->path, "/dev/cdrom"))
+            disk->src->hostcdrom = true;
+    }
+
     for (i = 0; i < vm->def->nhostdevs; i++) {
         virDomainHostdevDefPtr hostdev = vm->def->hostdevs[i];
 
@@ -506,13 +518,15 @@ testCompareXMLToArgvValidateSchema(virQEMUDriverPtr drv,
                                    struct testQemuInfo *info,
                                    unsigned int flags)
 {
-    VIR_AUTOSTRINGLIST args = NULL;
+    g_auto(GStrv) args = NULL;
     g_autoptr(virDomainObj) vm = NULL;
+    qemuDomainObjPrivatePtr priv = NULL;
     size_t nargs = 0;
     size_t i;
-    g_autoptr(virHashTable) schema = NULL;
+    g_autoptr(GHashTable) schema = NULL;
     g_autoptr(virCommand) cmd = NULL;
     unsigned int parseFlags = info->parseFlags;
+    bool netdevQAPIfied = false;
 
     if (info->schemafile)
         schema = testQEMUSchemaLoad(info->schemafile);
@@ -534,12 +548,19 @@ testCompareXMLToArgvValidateSchema(virQEMUDriverPtr drv,
                                           NULL, parseFlags)))
         return -1;
 
+    priv = vm->privateData;
+
+    if (virBitmapParse("0-3", &priv->autoNodeset, 4) < 0)
+        return -1;
+
     if (!(cmd = testCompareXMLToArgvCreateArgs(drv, vm, migrateURI, info, flags,
                                                true)))
         return -1;
 
     if (virCommandGetArgList(cmd, &args, &nargs) < 0)
         return -1;
+
+    netdevQAPIfied = !virQEMUQAPISchemaPathExists("netdev_add/arg-type/type/!string", schema);
 
     for (i = 0; i < nargs; i++) {
         g_auto(virBuffer) debug = VIR_BUFFER_INITIALIZER;
@@ -558,12 +579,13 @@ testCompareXMLToArgvValidateSchema(virQEMUDriverPtr drv,
 
             i++;
         } else if (STREQ(args[i], "-netdev")) {
+            if (!netdevQAPIfied) {
+                i++;
+                continue;
+            }
+
             if (!(jsonargs = virJSONValueFromString(args[i + 1])))
                 return -1;
-
-            /* skip the validation for pre-QAPIfication cases */
-            if (virQEMUQAPISchemaPathExists("netdev_add/arg-type/type/!string", schema))
-                continue;
 
             if (testQEMUSchemaValidateCommand("netdev_add", jsonargs,
                                               schema, false, false, &debug) < 0) {
@@ -756,7 +778,7 @@ mymain(void)
 {
     int ret = 0;
     g_autofree char *fakerootdir = NULL;
-    g_autoptr(virHashTable) capslatest = NULL;
+    g_autoptr(GHashTable) capslatest = NULL;
 
     fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
 
@@ -995,7 +1017,8 @@ mymain(void)
     DO_TEST("boot-menu-enable-with-timeout",
             QEMU_CAPS_SPLASH_TIMEOUT);
     DO_TEST_PARSE_ERROR("boot-menu-enable-with-timeout", NONE);
-    DO_TEST_PARSE_ERROR("boot-menu-enable-with-timeout-invalid", NONE);
+    DO_TEST_PARSE_ERROR("boot-menu-enable-with-timeout-invalid",
+                        QEMU_CAPS_SPLASH_TIMEOUT);
     DO_TEST("boot-menu-disable", NONE);
     DO_TEST("boot-menu-disable-drive", NONE);
     DO_TEST_PARSE_ERROR("boot-dev+order",
@@ -1133,6 +1156,7 @@ mymain(void)
     DO_TEST_PARSE_ERROR("hugepages-memaccess3",
                         QEMU_CAPS_OBJECT_MEMORY_RAM,
                         QEMU_CAPS_OBJECT_MEMORY_FILE);
+    DO_TEST_CAPS_LATEST("hugepages-memaccess3");
     DO_TEST_CAPS_LATEST("hugepages-nvdimm");
     DO_TEST("nosharepages", QEMU_CAPS_MEM_MERGE);
     DO_TEST("disk-cdrom", NONE);
@@ -1199,6 +1223,7 @@ mymain(void)
     DO_TEST_CAPS_VER("disk-cache", "2.7.0");
     DO_TEST_CAPS_VER("disk-cache", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-cache");
+    DO_TEST_CAPS_LATEST("disk-metadata-cache");
     DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("disk-transient", "x86_64", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-transient");
     DO_TEST("disk-network-nbd", NONE);
@@ -1229,6 +1254,7 @@ mymain(void)
     DO_TEST_CAPS_VER("disk-network-source-auth", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-network-source-auth");
     DO_TEST("disk-network-vxhs", QEMU_CAPS_VXHS);
+    DO_TEST_CAPS_LATEST("disk-network-nfs");
     driver.config->vxhsTLS = 1;
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     driver.config->vxhsTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
@@ -1942,6 +1968,7 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-host-model-cmt", "4.0.0");
     DO_TEST("cpu-tsc-frequency", QEMU_CAPS_KVM);
     DO_TEST_CAPS_VER("cpu-tsc-frequency", "4.0.0");
+    DO_TEST_CAPS_LATEST("cpu-tsc-high-frequency");
     DO_TEST_CAPS_VER("cpu-translation", "4.0.0");
     DO_TEST_CAPS_LATEST("cpu-translation");
     qemuTestSetHostCPU(&driver, driver.hostarch, NULL);
@@ -2102,7 +2129,11 @@ mymain(void)
             QEMU_CAPS_OBJECT_MEMORY_RAM,
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
             QEMU_CAPS_SPAPR_PCI_HOST_BRIDGE_NUMA_NODE);
-    DO_TEST_PARSE_ERROR("pseries-default-phb-numa-node", NONE);
+    DO_TEST_PARSE_ERROR("pseries-default-phb-numa-node",
+                        QEMU_CAPS_NUMA,
+                        QEMU_CAPS_OBJECT_MEMORY_RAM,
+                        QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                        QEMU_CAPS_SPAPR_PCI_HOST_BRIDGE_NUMA_NODE);
     DO_TEST_PARSE_ERROR("pseries-phb-invalid-target-index-1", NONE);
     DO_TEST_PARSE_ERROR("pseries-phb-invalid-target-index-2", NONE);
     DO_TEST_PARSE_ERROR("pseries-phb-invalid-target-index-3", NONE);
@@ -2366,6 +2397,11 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("default-video-type-riscv64", "riscv64");
     DO_TEST_CAPS_ARCH_LATEST("default-video-type-s390x", "s390x");
 
+    DO_TEST_PARSE_ERROR("video-multiple-primaries",
+                        QEMU_CAPS_DEVICE_QXL,
+                        QEMU_CAPS_DEVICE_VGA,
+                        QEMU_CAPS_DEVICE_VIDEO_PRIMARY);
+
     DO_TEST("virtio-rng-default",
             QEMU_CAPS_DEVICE_VIRTIO_RNG,
             QEMU_CAPS_OBJECT_RNG_RANDOM);
@@ -2438,6 +2474,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tpm-emulator");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-enc");
+    DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-pstate");
     DO_TEST_CAPS_LATEST_PPC64("tpm-emulator-spapr");
 
     DO_TEST_PARSE_ERROR("pci-domain-invalid", NONE);
@@ -2993,13 +3030,29 @@ mymain(void)
     DO_TEST("memory-hotplug-ppc64-nonuma", QEMU_CAPS_KVM, QEMU_CAPS_DEVICE_PC_DIMM, QEMU_CAPS_NUMA,
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
             QEMU_CAPS_OBJECT_MEMORY_RAM, QEMU_CAPS_OBJECT_MEMORY_FILE);
+    DO_TEST_FULL("memory-hotplug-ppc64-nonuma-abi-update",
+                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
+                 ARG_QEMU_CAPS,
+                 QEMU_CAPS_KVM, QEMU_CAPS_DEVICE_PC_DIMM,
+                 QEMU_CAPS_NUMA, QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                 QEMU_CAPS_OBJECT_MEMORY_RAM,
+                 QEMU_CAPS_OBJECT_MEMORY_FILE);
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-access");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-label");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-align");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-pmem");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-readonly");
-    DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-nvdimm-ppc64", "ppc64");
+    DO_TEST("memory-hotplug-nvdimm-ppc64", QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                                           QEMU_CAPS_OBJECT_MEMORY_FILE,
+                                           QEMU_CAPS_DEVICE_NVDIMM);
+    DO_TEST_FULL("memory-hotplug-nvdimm-ppc64-abi-update",
+                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
+                 ARG_QEMU_CAPS,
+                 QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
+                 QEMU_CAPS_OBJECT_MEMORY_FILE,
+                 QEMU_CAPS_DEVICE_NVDIMM,
+                 QEMU_CAPS_LAST);
 
     DO_TEST("machine-aeskeywrap-on-caps",
             QEMU_CAPS_AES_KEY_WRAP,
@@ -3148,6 +3201,9 @@ mymain(void)
     DO_TEST("aarch64-usb-controller-nec-xhci",
             QEMU_CAPS_OBJECT_GPEX,
             QEMU_CAPS_NEC_USB_XHCI);
+
+    DO_TEST("sparc-minimal",
+            QEMU_CAPS_SCSI_NCR53C90);
 
     /* VM XML has invalid arch/ostype/virttype combo, but the SKIP flag
      * will avoid the error during parse. This will cause us to fill in
@@ -3408,6 +3464,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35-4.2", "x86_64");
 
     DO_TEST_CAPS_LATEST("virtio-9p-multidevs");
+    DO_TEST_CAPS_LATEST("virtio-9p-createmode");
 
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);

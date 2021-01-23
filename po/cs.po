@@ -13,7 +13,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2020-10-26 17:26+0000\n"
+"POT-Creation-Date: 2021-01-08 17:11+0000\n"
 "PO-Revision-Date: 2019-12-16 05:00+0000\n"
 "Last-Translator: Daniel Berrange <dan-zanata@berrange.com>\n"
 "Language-Team: Czech (http://www.transifex.com/projects/p/fedora/language/"
@@ -43,6 +43,7 @@ msgstr ""
 "skupině)\n"
 "\n"
 
+#. Print the description only if it's not empty.
 msgid ""
 "\n"
 "  DESCRIPTION\n"
@@ -294,26 +295,20 @@ msgstr ""
 #, c-format
 msgid ""
 "\n"
-"Domain %s dumped to %s\n"
+"Domain '%s' dumped to %s\n"
 msgstr ""
-"\n"
-"Doména %s vypsána do %s\n"
 
 #, c-format
 msgid ""
 "\n"
-"Domain %s saved to %s\n"
+"Domain '%s' saved to %s\n"
 msgstr ""
-"\n"
-"Doména %s uložena do %s\n"
 
 #, c-format
 msgid ""
 "\n"
-"Domain %s state saved by libvirt\n"
+"Domain '%s' state saved by libvirt\n"
 msgstr ""
-"\n"
-"Stav domény %s uložen libvirt\n"
 
 #, c-format
 msgid ""
@@ -441,6 +436,7 @@ msgstr ""
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
 msgstr "Limit propustnosti: %llu bajtů/s (%-.3lf %s/s)"
 
+#. true if 'arg' works instead of '--opt arg'
 msgid "  NAME\n"
 msgstr " NÁZEV\n"
 
@@ -520,8 +516,12 @@ msgid "%s 3d acceleration is not supported"
 msgstr "3d akcelerace %s není podporována"
 
 #, c-format
-msgid "%s array element does not contain data"
-msgstr "prvek pole %s neobsahuje data"
+msgid "%s array element does not contain a string"
+msgstr ""
+
+#, c-format
+msgid "%s array element is missing item %zu"
+msgstr ""
 
 #, c-format
 msgid "%s can't be empty"
@@ -565,6 +565,10 @@ msgstr ""
 "vyžádání přeposílání %s, ale pro síť „%s“ nebyla zadána žádná IP adresa"
 
 #, c-format
+msgid "%s graphics are not supported with this QEMU"
+msgstr ""
+
+#, c-format
 msgid "%s harddisk '%s' has unsupported cache mode '%s'"
 msgstr "%s pevný disk „%s“ má nepodporovaný režim mezipaměti „%s“"
 
@@ -603,6 +607,10 @@ msgstr "je třeba, aby %s v %s nebylo nula"
 #, c-format
 msgid "%s is missing 'type' property"
 msgstr "%s chybí vlastnost 'type'"
+
+#, c-format
+msgid "%s is missing or not an array"
+msgstr ""
 
 #, c-format
 msgid "%s is not a supported cipher name"
@@ -655,6 +663,10 @@ msgid "%s namespace is not available"
 msgstr "jmenný prostor %s není k dispozici"
 
 #, c-format
+msgid "%s not available, firewall backend will not function"
+msgstr ""
+
+#, c-format
 msgid "%s not found in %s"
 msgstr "%s nebylo nalezeno v %s"
 
@@ -678,6 +690,16 @@ msgstr "%s není v tomto sestavení QEMU podporováno"
 msgid "%s object has invalid dynamic type"
 msgstr "objekt %s nemá platný dynamický typ"
 
+#.
+#. * A required property must be != 0 (NULL for pointers, "undefined" == 0 for
+#. * enumeration values).
+#. *
+#. * To be used as part of ESX_VI__TEMPLATE__VALIDATE.
+#.
+#.
+#. * Macros to implement managed objects
+#.
+#. FIXME: This results in O(n^2) runtime in case of missing required, but      * unselected properties.
 #, c-format
 msgid "%s object is missing the required '%s' property"
 msgstr "objekt %s postrádá vyžadovanou vlastnost „%s“"
@@ -730,6 +752,7 @@ msgstr "%s: %d: nepodařilo se přidělit argv"
 msgid "%s: %d: failed to allocate mountpoints"
 msgstr "%s: %d: nepodařilo se přidělit přípojené body"
 
+#. The length of the formatting string minus two '%s'
 #, c-format
 msgid "%s: %s"
 msgstr "%s: %s"
@@ -989,10 +1012,6 @@ msgid "%s: must not be run setuid root\n"
 msgstr "je třeba, aby %s v %s nebylo nula"
 
 #, c-format
-msgid "%s: nvdimm without a path"
-msgstr "%s: nvdim bez popisu umístění"
-
-#, c-format
 msgid "%s: passthrough input device has no source"
 msgstr "%s: předávané vstupní zařízení nemá zdroj"
 
@@ -1168,8 +1187,8 @@ msgid "'%s' is not supported in this QEMU binary"
 msgstr "„%s“ není podporováno v této QEMU binárce"
 
 #, c-format
-msgid "'%s' missing in guest-get-fsinfo 'disk' data"
-msgstr "v guest-get-fsinfo datech 'disk' chybí „%s“"
+msgid "'%s' missing"
+msgstr ""
 
 #, c-format
 msgid "'%s' scheduler bitmap '%s' is empty"
@@ -1303,6 +1322,9 @@ msgstr "atribut 'model' v <hostdev> je podporováno pouze pokud type='%s'"
 msgid "'mountpoint' missing in reply of guest-get-fsinfo"
 msgstr "v odpovědi guest-get-fsinfo chybí 'mountpoint'"
 
+msgid "'name' missing in reply of guest-get-disks"
+msgstr ""
+
 msgid "'name' missing in reply of guest-get-fsinfo"
 msgstr "v odpovědi guest-get-fsinfo chybí 'name'"
 
@@ -1313,6 +1335,15 @@ msgid "'network' attribute is valid only for listen type 'network'"
 msgstr ""
 "atribut 'network' (síť) je platný pouze pro typ očekávání spojení 'network'"
 
+msgid "'nfs' host must use TCP protocol"
+msgstr ""
+
+msgid "'nfs' protocol is not supported with this QEMU binary"
+msgstr ""
+
+msgid "'nfs' protocol requires the usage of exactly one host"
+msgstr ""
+
 msgid "'offset' missing in reply of guest-get-timezone"
 msgstr "v odpovědi quest-get-osinfo chybí 'offset'"
 
@@ -1322,8 +1353,11 @@ msgstr "v odpovědi guest-get-vcpus chybí 'online'"
 msgid "'parent' for vHBA not specified, and cannot find one on this host"
 msgstr ""
 
-msgid "'pci-controller' missing in guest-get-fsinfo 'disk' data"
-msgstr "v guest-get-fsinfo datech 'disk' chybí 'pci-controller'"
+msgid "'partition' missing in reply of guest-get-disks"
+msgstr ""
+
+msgid "'pci-controller' missing"
+msgstr ""
 
 msgid "'peak' and 'burst' require 'average' attribute"
 msgstr "'peak' (špička) a 'burst' (dávka) vyžadují atribut 'average' (průměr)"
@@ -1459,6 +1493,7 @@ msgstr "(definice_rozhraní)"
 msgid "(libxl_migration_cookie)"
 msgstr "(_cookie_stehovani)"
 
+#. parse and modify the xml from the user
 msgid "(metadata_xml)"
 msgstr "(xml_metadata)"
 
@@ -1519,6 +1554,7 @@ msgstr "(testovaci ovladac)"
 msgid "(volume_definition)"
 msgstr "(definice_svazku)"
 
+#. Capacity related information isn't available
 msgid "-"
 msgstr "-"
 
@@ -1585,6 +1621,9 @@ msgstr "je třeba, aby --max-unauth-clients bylo menší nebo rovno --max-client
 
 msgid "--min-workers must be less than or equal to --max-workers"
 msgstr "je třeba, aby --min-workers bylo nižší nebo rovno --max-workers"
+
+msgid "--source-protocol option requires --sourcetype network"
+msgstr ""
 
 msgid ""
 "--verbose requires at least one of --timeout, --wait, --pivot, or --finish"
@@ -1864,6 +1903,11 @@ msgid "AnyType is missing 'type' property"
 msgstr "AnyType chybí vlastnost 'type'"
 
 msgid ""
+"Append, reset or remove specified key from the authorized keys file for "
+"given user"
+msgstr ""
+
+msgid ""
 "Argument 'cellid' in memnode element must correspond to existing guest's "
 "NUMA cell"
 msgstr ""
@@ -2034,9 +2078,6 @@ msgstr "Bloková kopie zahájena"
 #, c-format
 msgid "Bad $%s value."
 msgstr "Chybná hodnota $%s."
-
-msgid "Bad child elements counting."
-msgstr "Nesprávné počítání podřízených prvků."
 
 #, c-format
 msgid "Bad ipv4 end address '%s' in <nat> in <forward> in network '%s'"
@@ -2305,6 +2346,10 @@ msgstr "model procesoru %s není hypervizorem podporován"
 msgid "CPU model %s too long for destination"
 msgstr "Model procesoru %s je pro cíl příliš dlouhý"
 
+#, c-format
+msgid "CPU model '%s' not supported by hypervisor"
+msgstr ""
+
 msgid "CPU model:"
 msgstr "model procesoru:"
 
@@ -2424,10 +2469,14 @@ msgstr ""
 msgid "Cache with id %u does not exists for level %d"
 msgstr "Mezipaměť s identifikátorem %u neexistuje pro úroveň %d"
 
+#.
+#. * Macros to implement dynamic dispatched functions
+#.
 #, c-format
 msgid "Call to %s for unexpected type '%s'"
 msgstr "Volání do %s pro neočekávaný typ „%s“"
 
+#. nothing
 #, c-format
 msgid "Call to %s for unexpected type '%s', expected '%s'"
 msgstr "Volání do %s pro neočekávaný typ „%s“, očekáváno „%s“"
@@ -2657,9 +2706,6 @@ msgid "Cannot alter an existing nmem_nodes distances set for node: %zu"
 msgstr ""
 "Není možné pozměnit nastavení existujících nmem_nodes vzdáleností pro uzel: "
 "%zu"
-
-msgid "Cannot assign SCSI host device address"
-msgstr "Nedaří se přiřadit adresu SCSI host zařízení"
 
 msgid "Cannot attach disk until init PID is known"
 msgstr "Není možné připojit disk dokud není známo PID init"
@@ -3029,9 +3075,6 @@ msgstr "Nedaří se přepnout dostatečný počet procesorů do stavu offline"
 msgid "Cannot open %s"
 msgstr "Nedaří se otevřít %s"
 
-msgid "Cannot open /dev/urandom"
-msgstr "Nelze otevřít /dev/urandom"
-
 msgid "Cannot open /proc/cgroups"
 msgstr "Nedaří se otevřít /proc/cgroups"
 
@@ -3300,9 +3343,6 @@ msgstr "Nedaří se číst %s „%s“"
 
 msgid "Cannot read cputime for domain"
 msgstr "Nedaří se číst cputime pro doménu"
-
-msgid "Cannot read from /dev/urandom"
-msgstr "Nelze číst z /dev/urandom"
 
 msgid "Cannot recv data"
 msgstr "Nedaří se obdržet data"
@@ -3684,6 +3724,10 @@ msgstr "XML nastavení kontrolního bodu %s se nezměnilo.\n"
 msgid "Checkpoint %s edited.\n"
 msgstr "Kontrolní bod %s upraven.\n"
 
+#, c-format
+msgid "Checkpoint '%s' for incremental backup of disk '%s' not found"
+msgstr ""
+
 msgid "Checkpoint Delete"
 msgstr "Smazání kontrolního bodu"
 
@@ -3920,8 +3964,8 @@ msgid "Connected since"
 msgstr "Připojeno od"
 
 #, c-format
-msgid "Connected to domain %s\n"
-msgstr "Připojeno k doméně %s\n"
+msgid "Connected to domain '%s'\n"
+msgstr ""
 
 msgid "Connected to the admin server"
 msgstr "Připojeno ke správnímu serveru"
@@ -3985,6 +4029,9 @@ msgstr "Nedaří se nalézt svazek nazvaný: %s"
 msgid "Could not add CDATA to doc root"
 msgstr "Nedaří se přidat prvek CDATA"
 
+msgid "Could not add IDE controller"
+msgstr ""
+
 msgid "Could not add attribute to XML node"
 msgstr "Nedaří se přidat atribut do XML uzlu"
 
@@ -4000,6 +4047,12 @@ msgstr "Nedaří se přidat podřízený uzel do methodNode"
 
 msgid "Could not add child to XML node"
 msgstr "Nedaří se přidat podřízené do XML uzlu"
+
+msgid "Could not allocate disk def"
+msgstr ""
+
+msgid "Could not allocate disk definition"
+msgstr ""
 
 #, c-format
 msgid "Could not assign address to disk '%s'"
@@ -4174,6 +4227,9 @@ msgstr ""
 msgid "Could not find HostVirtualSwitch with name '%s'"
 msgstr "Nedaří se nalézt HostVirtualSwitch s názvem „%s“"
 
+msgid "Could not find Msvm_DiskDrive object"
+msgstr ""
+
 #, c-format
 msgid ""
 "Could not find PCI controller with index %u required for device at address %s"
@@ -4209,6 +4265,9 @@ msgstr "Nedaří se nalézt automaticky přidaný řadič %s s pořadovým čís
 #, c-format
 msgid "Could not find compute resource specified in '%s'"
 msgstr "Nedaří se nalézt výpočetní prostředek zadaný v „%s“"
+
+msgid "Could not find controller for disk!"
+msgstr ""
 
 #, c-format
 msgid "Could not find datacenter specified in '%s'"
@@ -4572,11 +4631,6 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Could not look up memory setting data with virtual system instance ID '%s'"
-msgstr ""
-
-#, c-format
-msgid ""
 "Could not look up processor setting data with virtual system instance ID '%s'"
 msgstr ""
 
@@ -4585,7 +4639,9 @@ msgid "Could not look up processor(s) on '%s'"
 msgstr ""
 
 #, c-format
-msgid "Could not look up virtual system setting data with UUID '%s'"
+msgid ""
+"Could not look up resource allocation setting data with virtual system "
+"instance ID '%s'"
 msgstr ""
 
 #, c-format
@@ -4621,10 +4677,6 @@ msgstr "Nedaří se vyhledat položky odpovědi pull"
 
 msgid "Could not lookup root snapshot list"
 msgstr "Nedaří se vyhledat seznam kořenového zachyceného stavu"
-
-#, c-format
-msgid "Could not match WMI class info for version %s"
-msgstr "Nepodařilo se nalézt shodu WMI třídy pro verzi %s"
 
 #, c-format
 msgid "Could not migrate domain, migration task finished with an error: %s"
@@ -4688,6 +4740,9 @@ msgstr "Nedaří se zpracovat 'bridge/stp_state' „%s“ pro „%s“"
 msgid "Could not parse MTU value '%s'"
 msgstr "Nedaří se zpracovat MTU hodnotu „%s“"
 
+msgid "Could not parse SCSI controller"
+msgstr ""
+
 #, c-format
 msgid "Could not parse UUID from '%s'"
 msgstr "Nedaří se zpracovat nikde se neopakující identifikátor z „%s“"
@@ -4742,10 +4797,6 @@ msgid "Could not parse version from '%s'"
 msgstr ""
 
 #, c-format
-msgid "Could not press key %d"
-msgstr "Nedaří se stisknout klávesu %d"
-
-#, c-format
 msgid "Could not produce packed version number from '%s'"
 msgstr ""
 
@@ -4794,10 +4845,6 @@ msgid "Could not read typefile '%s'"
 msgstr "Nedaří se číst typ souboru „%s“"
 
 #, c-format
-msgid "Could not release key %s"
-msgstr "Nedaří se uvolnit klávesu %s"
-
-#, c-format
 msgid "Could not resume domain: %s"
 msgstr "Nepodařilo se probudit doménu: %s"
 
@@ -4841,6 +4888,7 @@ msgstr "Nedaří se získat 'bridge/forward_delay' pro „%s“"
 msgid "Could not retrieve 'bridge/stp_state' for '%s'"
 msgstr "Nedaří se získat 'bridge/stp_state' pro „%s“"
 
+#. Something went wrong retrieving pool info, cope with it
 msgid "Could not retrieve pool information"
 msgstr "nepodařilo se získat informace o fondu"
 
@@ -4868,9 +4916,6 @@ msgstr "Nedaří se nastavit UUID"
 msgid "Could not set disk quota"
 msgstr "Nedaří se nastavit diskovou kvótu"
 
-msgid "Could not set disk source"
-msgstr "Nedaří se nastavit zdroj disku"
-
 #, c-format
 msgid ""
 "Could not set limit to %lld MHz, expecting positive value or -1 (unlimited)"
@@ -4881,9 +4926,6 @@ msgstr ""
 #, c-format
 msgid "Could not set max-memory to %lu kilobytes: %s"
 msgstr "Nelze nastavit maximální velikost paměti na %lu kilobajtů: %s"
-
-msgid "Could not set memory"
-msgstr "Nedaří se nastavit paměť"
 
 msgid "Could not set memory size"
 msgstr "Nedaří se nastavit velikost paměti"
@@ -5500,100 +5542,100 @@ msgid "Do not include features that block migration"
 msgstr "Nezahrnovat funkce, které blokují migraci"
 
 #, c-format
-msgid "Domain %s XML configuration edited.\n"
-msgstr "XML nastavení pro doménu %s byla upravena.\n"
-
-#, c-format
-msgid "Domain %s XML configuration not changed.\n"
-msgstr "XML nastavení pro doménu %s nebyla změněna.\n"
-
-#, c-format
-msgid "Domain %s attached to pid %u\n"
-msgstr "Doména %s připojena k procesu s identifikátorem %u\n"
-
-#, c-format
-msgid "Domain %s could not be suspended"
-msgstr "Doménu %s se nepodařilo uspat"
-
-#, c-format
-msgid "Domain %s could not be woken up"
-msgstr "Doménu %s se nepodařilo probudit"
-
-#, c-format
-msgid "Domain %s created from %s\n"
-msgstr "Doména %s vytvořena z %s\n"
-
-#, c-format
-msgid "Domain %s defined from %s\n"
-msgstr "Doména %s definována z %s\n"
-
-#, c-format
-msgid "Domain %s destroyed\n"
-msgstr "Doména %s zlikvidována\n"
-
-#, c-format
 msgid "Domain %s didn't show up"
 msgstr "Doména %s se neukázala"
-
-#, c-format
-msgid "Domain %s has been undefined\n"
-msgstr "Doména %s byla oddefinována\n"
-
-#, c-format
-msgid "Domain %s has no manage save image; removal skipped"
-msgstr "Doména %s nemá žádný obraz spravovaného stavu; odebrání přeskočeno"
-
-#, c-format
-msgid "Domain %s is being rebooted\n"
-msgstr "Doména %s se restartuje\n"
-
-#, c-format
-msgid "Domain %s is being shutdown\n"
-msgstr "Doména %s je právě vypínána\n"
-
-#, c-format
-msgid "Domain %s marked as autostarted\n"
-msgstr "Doména %s označena jako automaticky spouštěná\n"
-
-#, c-format
-msgid "Domain %s resumed\n"
-msgstr "Doména %s probuzena\n"
-
-#, c-format
-msgid "Domain %s started\n"
-msgstr "Doména %s spuštěna\n"
-
-#, c-format
-msgid "Domain %s successfully suspended"
-msgstr "Doména %s úspěšně uspána"
-
-#, c-format
-msgid "Domain %s successfully woken up"
-msgstr "Doména %s úspěšně probuzena"
-
-#, c-format
-msgid "Domain %s suspended\n"
-msgstr "Doména %s uspána\n"
-
-#, c-format
-msgid "Domain %s unmarked as autostarted\n"
-msgstr "Doména %s odoznačena jako automaticky spouštěná\n"
-
-#, c-format
-msgid "Domain %s was reset\n"
-msgstr "Doména %s byla restartována\n"
 
 #, c-format
 msgid "Domain '%d' has to be running because libxenlight will suspend it"
 msgstr "Je třeba, aby doména „%d“ byla spuštěná, protože libxenlight ji uspí"
 
 #, c-format
+msgid "Domain '%s' XML configuration edited.\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' XML configuration not changed.\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' attached to pid %u\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' could not be suspended"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' could not be woken up"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' created from %s\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' defined from %s\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' destroyed\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' has been undefined\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' has no manage save image; removal skipped"
+msgstr ""
+
+#, c-format
 msgid "Domain '%s' is already running"
 msgstr "Doména „%s“ už je spuštěná"
 
 #, c-format
+msgid "Domain '%s' is being rebooted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' is being shutdown\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' marked as autostarted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' resumed\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' started\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' successfully suspended"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' successfully woken up"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' suspended\n"
+msgstr ""
+
+#, c-format
 msgid "Domain '%s' sysinfo are not available"
 msgstr "Systémové informace o doméně „%s“ nejsou k dispozici"
+
+#, c-format
+msgid "Domain '%s' unmarked as autostarted\n"
+msgstr ""
+
+#, c-format
+msgid "Domain '%s' was reset\n"
+msgstr ""
 
 msgid "Domain Events"
 msgstr "Události domény"
@@ -5679,6 +5721,7 @@ msgid ""
 "Domain has %d interfaces. Please specify which one to detach using --mac"
 msgstr "Doména má %d rozhraní. Určete které odpojit pomocí --mac"
 
+#. this is the 2nd match, so it's ambiguous
 #, c-format
 msgid ""
 "Domain has multiple interfaces matching MAC address %s. You must use detach-"
@@ -6512,10 +6555,6 @@ msgid "Failed to allocate XML buffer"
 msgstr "nepodařilo se přidělit XML vyrovnávací paměť"
 
 #, c-format
-msgid "Failed to allocate free veth pair after %d attempts"
-msgstr "I přes %d pokusů se nepodařilo přidělit volnou veth dvojici"
-
-#, c-format
 msgid "Failed to allocate memory for checkpoint directory for domain %s"
 msgstr "Nepodařilo se přidělit paměť pro složku kontrolního bodu pro doménu %s"
 
@@ -6743,8 +6782,8 @@ msgid "Failed to copy XML node"
 msgstr "Nepodařilo se zkopírovat XML uzel"
 
 #, c-format
-msgid "Failed to core dump domain %s to %s"
-msgstr "Nepodařilo se uložit paměť domény %s do %s"
+msgid "Failed to core dump domain '%s' to %s"
+msgstr ""
 
 msgid "Failed to count network filters"
 msgstr "Nepodařilo se spočítat filtry sítě"
@@ -6913,12 +6952,19 @@ msgstr "Nepodařilo se vytvořit vlákno"
 msgid "Failed to create thread for receiving migration data"
 msgstr "Nepodařilo se vytvořit vlákno pro příjem dat migrace"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 msgid "Failed to create thread to handle daemon restart"
 msgstr "Nepodařilo se vytvořit vlákno pro obsloužení restartu procesu služby"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 msgid "Failed to create thread to handle domain shutdown"
 msgstr "Nepodařilo se vytvořit vlákno pro obsluhu vypnutí domény"
 
+#. Not much else can be done
 msgid "Failed to create thread to handle pool refresh"
 msgstr "Nepodařilo se vytvořit vlákno pro obsluhu obnovování fondu"
 
@@ -7035,12 +7081,12 @@ msgid "Failed to destroy bridge interface %s"
 msgstr "Nepodařilo se zlikvidovat rozhraní mostu %s"
 
 #, c-format
-msgid "Failed to destroy domain %s"
-msgstr "Nepodařilo se zlikvidovat doménu %s"
-
-#, c-format
 msgid "Failed to destroy domain '%d'"
 msgstr "Nepodařilo se zlikvidovat doménu „%d“"
+
+#, c-format
+msgid "Failed to destroy domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to destroy interface %s"
@@ -7231,10 +7277,6 @@ msgstr "Nepodařilo se vytvořit nikde se neopakující identifikátor (UUID)"
 
 msgid "Failed to generate genid"
 msgstr "Nepodařilo se vytvořit genid"
-
-#, c-format
-msgid "Failed to generate new name for interface %s"
-msgstr "Nepodařilo se vytvořit nový název pro rozhraní %s"
 
 msgid "Failed to generate uuid"
 msgstr "Nepodařilo se vytvořit nikde se neopakující identifikátor"
@@ -7474,6 +7516,7 @@ msgstr "Nepodařilo se vypsat aktivní sítě"
 msgid "Failed to list active pools"
 msgstr "Nepodařilo se vypsat aktivní fondy"
 
+#. there was an error during the first or second call
 msgid "Failed to list domains"
 msgstr "Nepodařilo se vypsat domény"
 
@@ -7489,21 +7532,27 @@ msgstr "Nepodařilo se vypsat neaktivní sítě"
 msgid "Failed to list inactive pools"
 msgstr "Nepodařilo se vypsat neaktivní fondy"
 
+#. there was an error during the first or second call
 msgid "Failed to list interfaces"
 msgstr "Nepodařilo se vypsat rozhraní"
 
+#. there was an error during the call
 msgid "Failed to list network filter bindings"
 msgstr "Nepodařilo se vypsat navázání pravidla brány firewall"
 
+#. there was an error during the call
 msgid "Failed to list network filters"
 msgstr "Nepodařilo se vypsat filtry sítě"
 
+#. there was an error during the first or second call
 msgid "Failed to list networks"
 msgstr "Nepodařilo se vypsat sítě"
 
+#. there was an error during the call
 msgid "Failed to list node devices"
 msgstr "Nepodařilo se vypsat zařízení uzlu"
 
+#. there was an error during the call
 msgid "Failed to list node secrets"
 msgstr "Nepodařilo se vypsat tajemství uzlu"
 
@@ -7511,6 +7560,7 @@ msgstr "Nepodařilo se vypsat tajemství uzlu"
 msgid "Failed to list persistent guests on $uri"
 msgstr "Nepodařilo se vypsat trvalé hosty na $uri"
 
+#. there was an error during the first or second call
 msgid "Failed to list pools"
 msgstr "Nepodařilo se vypsat fondy"
 
@@ -7530,6 +7580,7 @@ msgstr "Nepodařilo se vypsat přechodné hosty"
 msgid "Failed to list vcpus for domain '%d' with libxenlight"
 msgstr "Nepodařilo se vypsat vcpus pro doménu „%d“ s libxenlight"
 
+#. there was an error during the call
 msgid "Failed to list volumes"
 msgstr "Nepodařilo se vypsat svazky"
 
@@ -7566,6 +7617,10 @@ msgstr "Nepodařilo se načíst zásuvný modul %s: %s"
 #, c-format
 msgid "Failed to load snapshot: %s"
 msgstr "Zachycený stav se nepodařilo načíst: %s"
+
+#, c-format
+msgid "Failed to locate parent device with ID '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to login: %s"
@@ -7615,8 +7670,8 @@ msgid "Failed to make root private"
 msgstr "Nepodařilo se učinit kořen soukromým"
 
 #, c-format
-msgid "Failed to mark domain %s as autostarted"
-msgstr "Nepodařilo se označit doménu %s jako automaticky spouštěnou"
+msgid "Failed to mark domain '%s' as autostarted"
+msgstr ""
 
 #, c-format
 msgid "Failed to mkdir %s"
@@ -7758,10 +7813,6 @@ msgid "Failed to parse block name %s"
 msgstr "Nepodařilo se zpracovat název bloku %s"
 
 #, c-format
-msgid "Failed to parse checkpoint XML from file '%s'"
-msgstr "Nepodařilo se zpracovat XML kontrolního bodu ze souboru „%s“"
-
-#, c-format
 msgid "Failed to parse configuration of %s"
 msgstr "Nepodařilo se zpracovat nastavení %s"
 
@@ -7779,6 +7830,10 @@ msgstr "Nepodařilo se zpracovat rychlost „%s“"
 #, c-format
 msgid "Failed to parse group '%s'"
 msgstr "Nepodařilo se zpracovat skupinu „%s“"
+
+#, c-format
+msgid "Failed to parse int '%s' from udev property '%s' on '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to parse interface index from '%s'"
@@ -7826,6 +7881,10 @@ msgstr "Nepodařilo se zpracovat cíl „%s“"
 #, c-format
 msgid "Failed to parse uid and gid from '%s'"
 msgstr "Nepodařilo se zpracovat uid a gid od „%s“"
+
+#, c-format
+msgid "Failed to parse uint '%s' from udev property '%s' on '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to parse user '%s'"
@@ -7961,12 +8020,12 @@ msgid "Failed to reattach NVMe for disk target: %s"
 msgstr "Nepodařilo se vytvořit cíl navázání %s"
 
 #, c-format
-msgid "Failed to reboot domain %s"
-msgstr "Nepodařilo se restartovat doménu %s"
-
-#, c-format
 msgid "Failed to reboot domain '%d' with libxenlight"
 msgstr "Nepodařilo se restartovat doménu „%d“ s libxenlight"
+
+#, c-format
+msgid "Failed to reboot domain '%s'"
+msgstr ""
 
 msgid "Failed to reconnect to the admin server"
 msgstr "Nepodařilo se znovu připojit ke správnímu serveru"
@@ -8022,8 +8081,8 @@ msgid "Failed to remove managed save file '%s'"
 msgstr "Nepodařilo se odebrat soubor spravovaného uložení „%s“"
 
 #, c-format
-msgid "Failed to remove managed save image for domain %s"
-msgstr "Nepodařilo se odebrat obraz spravovaného uložení domény %s"
+msgid "Failed to remove managed save image for domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to remove storage volume '%s'(%s)"
@@ -8054,8 +8113,8 @@ msgid "Failed to reset device %s"
 msgstr "Nepodařilo se restartovat zařízení %s"
 
 #, c-format
-msgid "Failed to reset domain %s"
-msgstr "Nepodařilo se restartovat doménu %s"
+msgid "Failed to reset domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to resize block device '%s'"
@@ -8093,10 +8152,6 @@ msgid "Failed to restrict process: %s"
 msgstr "Nepodařilo se omezit proces: %s"
 
 #, c-format
-msgid "Failed to resume domain %s"
-msgstr "Nepodařilo se probudit doménu %s"
-
-#, c-format
 msgid "Failed to resume domain '%d'"
 msgstr "Nepodařilo se obnovit chod domény „%d“"
 
@@ -8104,6 +8159,13 @@ msgstr "Nepodařilo se obnovit chod domény „%d“"
 msgid "Failed to resume domain '%d' with libxenlight"
 msgstr "Nepodařilo se obnovit chod domény „%d“ s libxenlight"
 
+#, c-format
+msgid "Failed to resume domain '%s'"
+msgstr ""
+
+#. Hm, we already know we are in error here.  We don't want to
+#. * overwrite the previous error, though, so we just throw something
+#. * to the logs and hope for the best
 #, c-format
 msgid "Failed to resume guest %s after failure"
 msgstr "Nepodařilo se obnovit hosta %s po selhání"
@@ -8160,16 +8222,16 @@ msgid "Failed to save VM settings, rc=%08x"
 msgstr "Nepodařilo se uložit nastavení virt. stroje, rc=%08x"
 
 #, c-format
-msgid "Failed to save domain %s state"
-msgstr "Nepodařilo se uložit stav domény %s"
-
-#, c-format
-msgid "Failed to save domain %s to %s"
-msgstr "Nepodařilo se uložit doménu %s do %s"
-
-#, c-format
 msgid "Failed to save domain '%d' with libxenlight"
 msgstr "Nepodařilo se uložit doménu „%d“ prostřednictvím libxenlight"
+
+#, c-format
+msgid "Failed to save domain '%s' state"
+msgstr ""
+
+#, c-format
+msgid "Failed to save domain '%s' to %s"
+msgstr ""
 
 #, c-format
 msgid "Failed to seek to %llu bytes to the end in volume with path '%s'"
@@ -8332,12 +8394,12 @@ msgid "Failed to setup keepalive on connection\n"
 msgstr "Nepodařilo se nastavit udržování spojení\n"
 
 #, c-format
-msgid "Failed to shutdown domain %s"
-msgstr "Nepodařilo se vypnout doménu %s"
-
-#, c-format
 msgid "Failed to shutdown domain '%d' with libxenlight"
 msgstr "Nepodařilo se vypnout doménu „%d“ s libxenlight"
+
+#, c-format
+msgid "Failed to shutdown domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to soft reset VM '%s'. Destroying VM"
@@ -8358,8 +8420,8 @@ msgid "Failed to start bridge interface %s"
 msgstr "Nepodařilo se spustit rozhraní mostu %s"
 
 #, c-format
-msgid "Failed to start domain %s"
-msgstr "Nepodařilo se spustit doménu %s"
+msgid "Failed to start domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to start interface %s"
@@ -8400,16 +8462,16 @@ msgid "Failed to step SASL negotiation: %d (%s)"
 msgstr "Nepodařilo se pokročit (step) v SASL dojednávání: %d (%s)"
 
 #, c-format
-msgid "Failed to suspend domain %s"
-msgstr "Nepodařilo se uspat doménu %s"
-
-#, c-format
 msgid "Failed to suspend domain '%d'"
 msgstr "Nepodařilo se uspat doménu „%d“"
 
 #, c-format
 msgid "Failed to suspend domain '%d' with libxenlight"
 msgstr "Nepodařilo se uspat doménu „%d“ s libxenlight"
+
+#, c-format
+msgid "Failed to suspend domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to symlink device %s to %s"
@@ -8456,8 +8518,8 @@ msgid "Failed to undefine bridge interface %s"
 msgstr "Nepodařilo se zrušit definování rozhraní mostu %s"
 
 #, c-format
-msgid "Failed to undefine domain %s"
-msgstr "Nepodařilo se oddefinovat doménu %s"
+msgid "Failed to undefine domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "Failed to undefine interface %s"
@@ -8480,8 +8542,12 @@ msgstr ""
 "Nepodařilo se zrušit zrušení významu (escape) řetězce příkazového řádku"
 
 #, c-format
-msgid "Failed to unmark domain %s as autostarted"
-msgstr "Nepodařilo se odoznačit doménu %s jako automaticky spouštěnou"
+msgid "Failed to unlink '%s'"
+msgstr ""
+
+#, c-format
+msgid "Failed to unmark domain '%s' as autostarted"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to unmarshall reply: %s"
@@ -8597,6 +8663,10 @@ msgid "Field name too long"
 msgstr "Obsah kolonky název je příliš dlouhý"
 
 #, c-format
+msgid "File %s contains no keys"
+msgstr ""
+
+#, c-format
 msgid ""
 "File '%s' does not contain any <cpu> element or valid domain XML, host "
 "capabilities XML, or domain capabilities XML"
@@ -8694,10 +8764,63 @@ msgstr ""
 "První na souboru založený pevný disk nemá zdroj – není možné vyvodit datové "
 "úložiště a popis umítění VMX souboru"
 
+#. Macros to help dealing with flag requirements.
+#. *
+#. * VIR_REQUIRE_FLAG_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @RET: Return value.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_REQUIRE_FLAG_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if required flag is not set.
+#.
 #, c-format
 msgid "Flag '%s' is required by flag '%s'"
 msgstr "Příznak „%s“ je vyžadován příznakem „%s“"
 
+#. Macros to help dealing with mutually exclusive flags.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @RET: Return value.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "Flags '%s' and '%s' are mutually exclusive"
 msgstr "Příznaky „%s“ a „%s“ není možné použít dohromady"
@@ -9526,6 +9649,10 @@ msgstr ""
 msgid "Invalid 'memAccess' attribute value '%s'"
 msgstr "Neplatná hodnota atributu „memAcess“ (přístup do paměti) „%s“"
 
+#, c-format
+msgid "Invalid 'removed' attribute for feature %s in model %s"
+msgstr ""
+
 msgid "Invalid 'target' attribute in NUMA interconnects"
 msgstr ""
 
@@ -9711,6 +9838,15 @@ msgstr "neplatná povolovací (allow) hodnota – buď 'yes' (ano) nebo 'no' (ne
 msgid "Invalid append attribute value '%s'"
 msgstr "Neplatná hodnota atributu append (připojit) „%s“"
 
+#.
+#. * Don't check for *selectSet != NULL here because selectSet is a list
+#. * and might contain items already. This function appends to selectSet.
+#.
+#. optional
+#. optional
+#. nothing
+#. nothing
+#. nothing
 msgid "Invalid argument"
 msgstr "Neplatný argument"
 
@@ -9891,6 +10027,9 @@ msgstr "neplatný kontext"
 #, c-format
 msgid "Invalid controller id '%d'"
 msgstr "Neplatný identifikátoru řadiče „%d“"
+
+msgid "Invalid controller type for LUN"
+msgstr ""
 
 #, c-format
 msgid "Invalid cpuNum in %s"
@@ -10331,6 +10470,9 @@ msgstr "neplatný typ předávání PCI „%s“"
 #, c-format
 msgid "Invalid peer '%s' in <ip>"
 msgstr "Neplatný protějšek „%s“ v <ip>"
+
+msgid "Invalid persistent_state value, either 'yes' or 'no'"
+msgstr ""
 
 #, c-format
 msgid "Invalid pool type '%s'"
@@ -10977,12 +11119,6 @@ msgstr "V JSON dokumentu je nesprávně formulovaná hodnota vlastníka"
 msgid "Malformed owners array"
 msgstr "Nesprávně formulované pole vlastníků"
 
-msgid "Malformed query-command-line-options array"
-msgstr "Nesprávně formulované pole query-command-line-options"
-
-msgid "Malformed query-command-line-options parameters array"
-msgstr "Nesprávně formulované pole parametrů query-command-line-options"
-
 msgid "Malformed resources array"
 msgstr "Nesprávně formulované pole prostředků"
 
@@ -11010,16 +11146,16 @@ msgid "Manage active block operations"
 msgstr "Spravovat aktivní blokové operace"
 
 #, c-format
-msgid "Managed save image of Domain %s XML configuration edited.\n"
-msgstr "XML nastavení obrazu spravovaného uložení domény %s upraveno.\n"
+msgid "Managed save image of Domain '%s' XML configuration edited.\n"
+msgstr ""
 
 #, c-format
-msgid "Managed save image of domain %s XML configuration not changed.\n"
-msgstr "XML nastavení obrazu spravovaného uložení domény %s nezměněno.\n"
+msgid "Managed save image of domain '%s' XML configuration not changed.\n"
+msgstr ""
 
 #, c-format
-msgid "Managed save state file of domain %s updated.\n"
-msgstr "Stavový soubor spravovaného uložení domény %s aktualizován.\n"
+msgid "Managed save state file of domain '%s' updated.\n"
+msgstr ""
 
 msgid "Managed save:"
 msgstr "Spravované uložení:"
@@ -11898,6 +12034,10 @@ msgid "Missing storage volume name for disk '%s'"
 msgstr "Chybí název svazku úložiště pro „%s“"
 
 #, c-format
+msgid "Missing udev property '%s' on '%s'"
+msgstr ""
+
+#, c-format
 msgid "Missing vendor string for CPU vendor %s"
 msgstr "Chybí řetězec výrobce pro výrobce procesoru %s"
 
@@ -12000,8 +12140,14 @@ msgstr "Pro změnu %s na %s je třeba použít --rename nebo --clone"
 msgid "N/A"
 msgstr "N/A"
 
+msgid "NBD URI must be supplied when migration URI uses UNIX transport method"
+msgstr ""
+
 msgid "NBD migration with TLS is not supported"
 msgstr "NBD migrace s TLS není podporována"
+
+msgid "NBD migration with TLS is not supported over UNIX socket"
+msgstr ""
 
 msgid "NIC model 'e1000' is not supported by given bhyve binary"
 msgstr "model síťového rozhraní „e1000“ není daným sestavením bhyve podporován"
@@ -12122,6 +12268,12 @@ msgstr "SATA není touto binárkou QEMU podporováno"
 msgid "NVMe namespace can't be zero"
 msgstr "velikost hugepages nemůže být nula"
 
+#. Output old style header
+#. We only get here if the --details option was selected.
+#. Insert the header into table
+#. The old output format
+#. We only get here if the --details option was selected.
+#. Insert the header into table
 msgid "Name"
 msgstr "Název"
 
@@ -12397,6 +12549,10 @@ msgstr "Není k dispozici unixový identifikátor uživatele, který zavolal"
 msgid "No URI scheme specified"
 msgstr "Nezadáno URI schéma"
 
+#, c-format
+msgid "No URI scheme specified: %s"
+msgstr ""
+
 #, fuzzy
 msgid "No access manager registered"
 msgstr "registrováno příliš mnoho ovladačů"
@@ -12541,9 +12697,6 @@ msgid ""
 msgstr ""
 "Pro automatické přiřazení sběrnici %d není k dispozici žádné volné číslo "
 "sběrnice nižší než právě nejnižší. Je třeba přiřadit ručně"
-
-msgid "No free veth devices available"
-msgstr "Nejsou k dispozici žádná volná veth zařízení"
 
 msgid "No graphical display found"
 msgstr "Nebyl nalezen žádný grafický displej"
@@ -12847,6 +13000,10 @@ msgid "Number of interfaces, %d exceeds the max limit: %d"
 msgstr "Počet rozhraní, %d překračuje limit: %d"
 
 #, c-format
+msgid "Number of keys %d, which exceeds max liit: %d"
+msgstr ""
+
+#, c-format
 msgid "Number of leases is %d, which exceeds max limit: %d"
 msgstr "Počet zápůjček je %d, což přesahuje limit: %d"
 
@@ -13112,9 +13269,26 @@ msgstr ""
 "Volba „%s“ není platná pro PCI řadič s pořadovým číslem „%d“, modelu „%s“ a "
 "modelName „%s“"
 
+#. Macros to help dealing with required options.
+#. VSH_REQUIRE_OPTION_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable).
+#. * @NAME2: String containing the name of required option.
+#. * @EXPR2: Expression to validate the variable (boolean variable).
+#. *
+#. * Check if required command options in virsh was set.  Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Option --%s is required by option --%s"
 msgstr "Volba --%s je vyžadována volbou --%s"
+
+msgid "Option --file is required"
+msgstr ""
 
 msgid "Option argument is empty"
 msgstr "Argument volby je prázdný"
@@ -13123,6 +13297,20 @@ msgstr "Argument volby je prázdný"
 msgid "Optional flags or --rawstats are not supported by the daemon"
 msgstr "kousky typů statistiky 0x%x nejsou tímto procesem služby podporovány"
 
+#. Macros to help dealing with mutually exclusive options.
+#. VSH_EXCLUSIVE_OPTIONS_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable)
+#. * @NAME2: String containing the name of the option.
+#. * @EXPR2: Expression to validate the variable (boolean variable)
+#. *
+#. * Reject mutually exclusive command options in virsh. Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Options --%s and --%s are mutually exclusive"
 msgstr "Volby --%s a --%s není možné použít naráz"
@@ -13226,20 +13414,16 @@ msgstr ""
 "pořadové číslo bylo vyšší než to, jaké má sběrnice"
 
 #, c-format
-msgid "PCI controller busNr '%s' out of range - must be 1-254"
+msgid "PCI controller busNr '%d' out of range - must be 1-254"
 msgstr ""
-"busNr (číslo sběrnice) „%s“ PCI řadiče je mimo rozsah – je třeba, aby bylo "
-"1-254"
 
 #, c-format
-msgid "PCI controller chassis '%s' out of range - must be 0-255"
-msgstr "chassis PCI řadiče „%s“ mimo rozsah – je třeba, aby bylo 0 až 255"
+msgid "PCI controller chassis '%d' out of range - must be 0-255"
+msgstr ""
 
 #, c-format
-msgid "PCI controller chassisNr '%s' out of range - must be 1-255"
+msgid "PCI controller chassisNr '%d' out of range - must be 1-255"
 msgstr ""
-"chassisNr (číslo šasi) PCI řadiče „%s“ mimo rozsah – je třeba, aby bylo 1 až "
-"255"
 
 #, c-format
 msgid "PCI controller index %d too high, maximum is 255"
@@ -13249,8 +13433,8 @@ msgid "PCI controller model was not set correctly"
 msgstr "Model řadiče PCI sběrnice nebyl nastaven správně"
 
 #, c-format
-msgid "PCI controller port '%s' out of range - must be 0-255"
-msgstr "port PCI řadiče „%s“ mimo rozsah – je třeba, aby bylo 0 až 255"
+msgid "PCI controller port '%d' out of range - must be 0-255"
+msgstr ""
 
 #, c-format
 msgid "PCI controller target index '%d' out of range - must be 0-30"
@@ -13946,8 +14130,8 @@ msgid "Removed"
 msgstr "Odebráno"
 
 #, c-format
-msgid "Removed managedsave image for domain %s"
-msgstr "Odebrán obraz spravovaného uložení pro doménu %s"
+msgid "Removed managedsave image for domain '%s'"
+msgstr ""
 
 msgid "Renamed"
 msgstr "Přejmenováno"
@@ -13964,11 +14148,10 @@ msgstr "Nahradit XML domény související se souborem s uloženým stavem"
 
 #, c-format
 msgid ""
-"Requested TSC frequency %llu Hz does not match host (%llu Hz) and TSC "
-"scaling is not supported by the host CPU"
+"Requested TSC frequency %llu Hz is outside tolerance range ([%llu, %llu] Hz) "
+"around host frequency %llu Hz and TSC scaling is not supported by the host "
+"CPU"
 msgstr ""
-"Požadovaná frekvence TSC %llu Hz se neshoduje s hostitelem (%llu Hz) a TSC "
-"změna měřítka není podporovaná procesorem hostitele"
 
 #, c-format
 msgid "Requested data len %llu is larger than maximum %d"
@@ -14243,6 +14426,7 @@ msgstr "Stav S3 je pro tuto doménu vypnutý"
 msgid "S4 state is disabled for this domain"
 msgstr "Stav S4 je pro tuto doménu vypnutý"
 
+#. Denied
 #, c-format
 msgid "SASL client identity '%s' not allowed by ACL"
 msgstr ""
@@ -14761,6 +14945,9 @@ msgstr "Čas nastavení:"
 msgid "Shared memory mapping is not supported with this QEMU"
 msgstr "Mapování sdílené paměti není tímto QEMU podporováno"
 
+#. XXX: Need to sort the returned params once new parameter
+#. * fields not of shared memory are added.
+#.
 msgid "Shared memory:\n"
 msgstr "Sdílená paměť: \n"
 
@@ -14836,6 +15023,7 @@ msgstr "Přeskakování není s tímto proudem podporováno"
 msgid "Snapshot"
 msgstr "Zachycený stav"
 
+#. Depending on flags, we re-edit even if XML is unchanged.
 #, c-format
 msgid "Snapshot %s XML configuration not changed.\n"
 msgstr "XML nastavení zachyceného stavu %s nezměněna.\n"
@@ -15294,6 +15482,7 @@ msgstr "Popis umístění TPM zařízení %s není platný"
 msgid "Table row cannot be empty"
 msgstr "%s nemůže být prázdné"
 
+#. title
 msgid "Target"
 msgstr "Cíl"
 
@@ -15367,6 +15556,9 @@ msgstr "Cílová NUMA vzdálenost od %zu po %zu se neshoduje se zdrojovou"
 msgid "Target NUMA node count '%zu' doesn't match source '%zu'"
 msgstr "Cílový počet NUMA uzlů „%zu“ neodpovídá zdroji „%zu“"
 
+msgid "Target NVDIMM UUID doesn't match source NVDIMM"
+msgstr ""
+
 #, c-format
 msgid ""
 "Target NVDIMM alignment '%llu' doesn't match source NVDIMM alignment '%llu'"
@@ -15398,9 +15590,8 @@ msgid "Target TPM version doesn't match source"
 msgstr "Verze cílového TPM neodpovídá zdrojové"
 
 #, c-format
-msgid "Target TSC frequency %lu does not match source %lu"
+msgid "Target TSC frequency %llu does not match source %llu"
 msgstr ""
-"Frekvence čítače časového razítka (TSC) %lu se neshoduje se zdrojovou %lu"
 
 #, c-format
 msgid "Target TSC mode %s does not match source %s"
@@ -16083,9 +16274,6 @@ msgstr "Binárka QEMU %s nepodporuje podpůrnou vrstvu TPM typu %s"
 msgid "The QEMU executable %s does not support TPM model %s"
 msgstr "Spustitelný soubor QEMU %s nepodporuje TPM model %s"
 
-msgid "The WMI class info list is empty"
-msgstr "Seznam informací WMI třídy je prázdný"
-
 msgid "The XML configuration was changed by another user."
 msgstr "XML nastavení bylo změněno jiným uživatelem."
 
@@ -16294,6 +16482,12 @@ msgstr "Toto QEMU nepodporuje spice OpenGL rendernode"
 msgid "This QEMU doesn't support target greater than 7"
 msgstr "Toto QEMU nepodporuje cíl vyšší než 7"
 
+msgid "This QEMU doesn't support the AM53C974 (ESP) controller"
+msgstr ""
+
+msgid "This QEMU doesn't support the DC390 (ESP) controller"
+msgstr ""
+
 msgid "This QEMU doesn't support the LSI 53C895A SCSI controller"
 msgstr "Toto QEMU nepodporuje SCSI řadič LSI 53C895A"
 
@@ -16302,6 +16496,9 @@ msgstr "Toto QEMU nepodporuje řadič LSI SAS1068 (MPT Fusion)"
 
 msgid "This QEMU doesn't support the LSI SAS1078 (MegaRAID) controller"
 msgstr "Toto QEMU nepodporuje řadič LSI SAS1078 (MegaRAID)"
+
+msgid "This QEMU doesn't support the NCR53C90 (ESP) controller"
+msgstr ""
 
 #, fuzzy
 msgid ""
@@ -16570,9 +16767,11 @@ msgstr "Pokus o zápis do soketu ve stavu chyby"
 msgid "Try again?"
 msgstr "Zkusit znovu?"
 
+#. Better leak than crash
 msgid "Trying to free MultiCURL object that is still in use"
 msgstr "Zkouší se uvolnit MultiCURL objekt, který je stále používán"
 
+#. Better leak than crash
 msgid "Trying to free SharedCURL object that is still in use"
 msgstr "Zkouší se uvolnit SharedCURL objekt, který je stále používán"
 
@@ -17089,10 +17288,6 @@ msgstr "Nedaří se vytvořit zařízení mostu"
 #, c-format
 msgid "Unable to create device %s"
 msgstr "Nedaří se vytvořit zařízení %s"
-
-#, c-format
-msgid "Unable to create device '%s'"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "Unable to create directory %s"
@@ -19074,6 +19269,7 @@ msgstr "Neznámý typ enable %d v síti"
 msgid "Unknown error"
 msgstr "Neznámá chyba"
 
+#. should never happen (tm)
 msgid "Unknown error value"
 msgstr "Neznámá chybová hodnota"
 
@@ -19300,6 +19496,10 @@ msgstr ""
 
 msgid "Unpaused"
 msgstr "Obnoven chod"
+
+#, c-format
+msgid "Unrecognized controller type %d"
+msgstr ""
 
 msgid "Unrecognized disk label found, requires build"
 msgstr "Nalezen nerozpoznaný štítek disku, vyžaduje sestavení"
@@ -19696,6 +19896,9 @@ msgstr ""
 "Použití atributů 'wwnn', 'wwpn' a 'parent' vyžaduje použití 'type' (typu) "
 "adaptéru"
 
+msgid "Use the guest agent to query authorized SSH keys for given user"
+msgstr ""
+
 msgid ""
 "Use the guest agent to query or set cpu state from guest's point of view"
 msgstr ""
@@ -19850,10 +20053,12 @@ msgstr "Videoadaptéry nejsou v kontejnerech podporovány."
 msgid "Vifname %s too big for destination"
 msgstr "Vifname %s je příliš velké pro cíl"
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virsh command line tool of libvirt %s\n"
 msgstr "Virsh – nástroj libvirt %s pro příkazový řádek\n"
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virt-admin command line tool of libvirt %s\n"
 msgstr "Virt-admin – nástroj příkazového řádku pro libvirt %s\n"
@@ -20312,6 +20517,14 @@ msgstr "po navrácení, nastavit stav na spuštěný"
 msgid "algorithm=%d is not supported"
 msgstr "algorithm=%d není podporováno"
 
+#, c-format
+msgid "alias '%s' of command '%s' has mismatched alias type"
+msgstr ""
+
+#, c-format
+msgid "alias '%s' of command '%s' has missing alias option"
+msgstr ""
+
 msgid "all CPU models are accepted"
 msgstr "všechny modely procesorů jsou přijímány"
 
@@ -20382,6 +20595,10 @@ msgstr "rozhraní už je spuštěné"
 msgid "any configuration"
 msgstr "libovolné nastavení"
 
+#, c-format
+msgid "ap-domain value '%s' is out of range for '%s'"
+msgstr ""
+
 msgid "apparmor_parser exited with error"
 msgstr "apparmor_parser skončil s chybou"
 
@@ -20430,6 +20647,9 @@ msgstr "v guest-get-fsinfo datech 'disk' chybí prvek pole „%zd“ od „%zd�
 #, c-format
 msgid "array element '%zd' of '%zd' missing in guest-get-fsinfo return data"
 msgstr "v prvku pole „%zd“ od „%zd“ chybí návratová data z guest-get-fsinfo"
+
+msgid "array element missing in guest-get-disks return value"
+msgstr ""
 
 msgid "array element missing in guest-get-users return value"
 msgstr "v návratové hodnotě guest-get-users chybí prvek pole"
@@ -21051,6 +21271,10 @@ msgid "can't keep relative backing relationship"
 msgstr "nedaří se zachovat relativní vztah, na kterém je založeno"
 
 #, c-format
+msgid "can't manipulate inactive snapshots of disk '%s'"
+msgstr ""
+
+#, c-format
 msgid "can't open session to the domain with id %d"
 msgstr "nedaří se otevřít relaci s doménou s identifikátorem %d"
 
@@ -21323,8 +21547,8 @@ msgid "cannot close file: %s"
 msgstr "nedaří se zavřít soubor: %s"
 
 #, c-format
-msgid "cannot close stream on domain %s"
-msgstr "nedaří se zavřít proud domény %s"
+msgid "cannot close stream on domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "cannot close volume %s"
@@ -21925,6 +22149,9 @@ msgstr "není možné změnit trvalé nastavení domény"
 msgid "cannot modify virtio network device driver attributes"
 msgstr "není možné upravit atributy ovladače síťového rozhraní"
 
+msgid "cannot modify virtio network device driver options"
+msgstr ""
+
 msgid "cannot obtain CPU freq"
 msgstr "nedaří se obdržet frekvenci procesoru"
 
@@ -21961,6 +22188,7 @@ msgstr "nedaří se otevřít umístění „%s“"
 msgid "cannot open path '%s' in '%s'"
 msgstr "nedaří se otevřít umístění „%s“ v „%s“"
 
+#. A dangling symlink now implies a TOCTTOU race; report it.
 #, c-format
 msgid "cannot open volume '%s'"
 msgstr "nelze otevřít svazek '%s'"
@@ -22293,21 +22521,11 @@ msgstr "nedaří se odebrat soubor gluster svazku „%s“"
 msgid "cannot remove managed save file %s"
 msgstr "není možné odebrat soubor spravovaného uložení %s"
 
-#, c-format
-msgid "cannot remove old domain config file %s"
-msgstr "není možné odebrat původní soubor s nastavením domény %s"
-
 msgid "cannot rename a transient domain"
 msgstr "přechodovou doménu není možné přejmenovat"
 
 msgid "cannot rename active domain"
 msgstr "aktivní doménu není možné přejmenovat"
-
-msgid "cannot rename domain with checkpoints"
-msgstr "doménu, ve které existují kontrolní body, nelze přejmenovat"
-
-msgid "cannot rename domain with snapshots"
-msgstr "doménu, ve které existují zachycené stavy, nelze přejmenvoat"
 
 #, c-format
 msgid "cannot rename file '%s' as '%s'"
@@ -22645,15 +22863,13 @@ msgstr "cellNum v %s přijímá pouze %d jako zápornou hodnotu"
 msgid "cfpc configuration is not supported by this QEMU binary"
 msgstr "Nastavování HTM není touto binárkou QEMU podporováno"
 
-#, fuzzy, c-format
-msgid "cfs_period '%llu' must be in range (1000, 1000000)"
+#, c-format
+msgid "cfs_period '%llu' must be in range (%llu, %llu)"
 msgstr ""
-"Je třeba, aby hodnota cputune „%s“ byla v rozsahu 1000 až 1000000 (sto tisíc)"
 
-#, fuzzy, c-format
-msgid "cfs_quota '%lld' must be in range (1000, %llu)"
+#, c-format
+msgid "cfs_quota '%lld' must be in range (%llu, %llu)"
 msgstr ""
-"Je třeba, aby hodnota cputune „%s“ byla v rozsahu 1000 až 1000000 (sto tisíc)"
 
 msgid "cgroup CPU controller is not mounted"
 msgstr "cgroup řadič procesoru není připojen"
@@ -22792,6 +23008,13 @@ msgstr "kontrolní bod „%s“ nemá nadřazené"
 msgid "checkpoint for disk %s unsupported for storage type %s"
 msgstr "vnitřní zachycený stav pro disk %s nepodporován pro typ úložiště %s"
 
+msgid "checkpoint inconsistent"
+msgstr ""
+
+#, c-format
+msgid "checkpoint inconsistent: %s"
+msgstr ""
+
 msgid "checkpoint information"
 msgstr "informace o kontrolním bodu"
 
@@ -22802,6 +23025,7 @@ msgstr "název kontrolního bodu"
 msgid "child didn't write error (status=%d)"
 msgstr "podřízené nahlásilo (status=%d): %s"
 
+#. in case of EACCES, the parent will retry
 #, c-format
 msgid "child failed to create directory '%s'"
 msgstr "podřízenému procesu se nepodařilo vytvořit složku „%s“"
@@ -22836,6 +23060,9 @@ msgid "classID attribute not supported on <bandwidth> in this usage context"
 msgstr ""
 "atribut classID (identifikátor třídy) není v tomto kontextu použití pro "
 "<bandwidth> podporován"
+
+msgid "clear out authorized keys file before adding new keys"
+msgstr ""
 
 msgid "client hooks cannot be NULL"
 msgstr "háčky klienta nemohou být prázdné"
@@ -22885,10 +23112,6 @@ msgid "command"
 msgstr "příkaz"
 
 #, c-format
-msgid "command '%s' does not list argv option last"
-msgstr "příkaz „%s“ neuvádí seznam argv volby jako poslední"
-
-#, c-format
 msgid "command '%s' doesn't support option --%s"
 msgstr "příkaz „%s“ nepodporuje volbu --%s"
 
@@ -22897,32 +23120,12 @@ msgid "command '%s' has inconsistent alias"
 msgstr "příkaz „%s“ má nekonzistentní alias"
 
 #, c-format
-msgid "command '%s' has incorrect alias option"
-msgstr "příkaz „%s“ má nesprávnou volbu alternativní název"
-
-#, c-format
-msgid "command '%s' has mismatched alias type"
-msgstr "příkaz „%s“ má neodpovídající typ alternativního názvu"
-
-#, c-format
-msgid "command '%s' has missing alias option"
-msgstr "příkazu „%s“ chybí volba alias"
-
-#, c-format
-msgid "command '%s' has non-required VSH_OT_DATA"
-msgstr "příkaz „%s“ má nepotřebná VSH_OT_DATA"
-
-#, c-format
 msgid "command '%s' has too many options"
 msgstr "příkaz „%s“ má příliš mnoho voleb"
 
 #, c-format
 msgid "command '%s' lacks help"
 msgstr "příkaz „%s“ postrádá nápovědu"
-
-#, c-format
-msgid "command '%s' misused VSH_OFLAG_REQ"
-msgstr "příkaz „%s“ chybně použil VSH_OFLAG_REQ"
 
 #, c-format
 msgid "command '%s' requires --%s option"
@@ -23431,8 +23634,8 @@ msgid "could not read xml file"
 msgstr "nelze číst XML soubor"
 
 #, c-format
-msgid "could not receive data from domain %s"
-msgstr "nedaří se obdržet data z domény %s"
+msgid "could not receive data from domain '%s'"
+msgstr ""
 
 #, c-format
 msgid "could not remove profile for '%s'"
@@ -24055,10 +24258,6 @@ msgstr "v informacích o dimm paměti  chybí „id“ (identifikátor)"
 msgid "dir"
 msgstr "složka"
 
-#, c-format
-msgid "direct firewall backend requested, but %s is not available"
-msgstr "vyžádána přímá podpůrná vrstva brány firewall, ale %s není k dispozici"
-
 msgid "direct migration"
 msgstr "přímá migrace"
 
@@ -24275,8 +24474,9 @@ msgstr "model disku „%s“ není podporován pro sběrnici „%s“"
 msgid "disk port address is not supported by tunnelled migration"
 msgstr "adresa portu disku není tunelovanou migrací podporována"
 
-msgid "disk product is more than 16 characters"
-msgstr "produkt disku je delší než 16 znaků"
+#, c-format
+msgid "disk product is more than %d characters"
+msgstr ""
 
 msgid "disk product is not printable string"
 msgstr "produkt disku není tisknutelný znak"
@@ -24307,8 +24507,9 @@ msgstr "disk cíl %s nenalezen"
 msgid "disk type of '%s' does not support ejectable media"
 msgstr "úloha typu „%s“ nepodporuje pivot"
 
-msgid "disk vendor is more than 8 characters"
-msgstr "výrobce disku je delší než 8 znaků"
+#, c-format
+msgid "disk vendor is more than %d characters"
+msgstr ""
 
 msgid "disk vendor is not printable string"
 msgstr "výrobce disku není tisknutelný znak"
@@ -24482,8 +24683,12 @@ msgstr ""
 "VIR_DOMAIN_AFFECT_CONFIG"
 
 #, c-format
-msgid "domain configuration does not support '%s' value '%s'"
-msgstr "nastavení domény nepodporuje „%s“ hodnotu „%s“"
+msgid "domain configuration does not support rng model '%s'"
+msgstr ""
+
+#, c-format
+msgid "domain configuration does not support video model '%s'"
+msgstr ""
 
 msgid "domain control interface state"
 msgstr "stav řídícího rozhraní domény"
@@ -24833,9 +25038,6 @@ msgstr "upravit XML pro soubor uloženého stavu domény"
 msgid "edit XML for a snapshot"
 msgstr "upravit XML pro zachycený stav"
 
-msgid "egl-headless display is not supported with this QEMU binary"
-msgstr "zobrazení egl-headless není s touto binárkou QEMU podporováno"
-
 msgid "either --list or --event <type> is required"
 msgstr "je zapotřebí buď --list nebo --event <type>"
 
@@ -25070,12 +25272,12 @@ msgid "ethtool ioctl error on %s"
 msgstr ""
 
 #, c-format
-msgid "event '%s' for domain %s\n"
-msgstr "událost „%s“ pro doménu %s\n"
+msgid "event '%s' for domain '%s'\n"
+msgstr ""
 
 #, c-format
-msgid "event '%s' for domain %s: %s for %s %s\n"
-msgstr "událost „%s“ pro doménu %s: %s pro %s %s\n"
+msgid "event '%s' for domain '%s': %s for %s %s\n"
+msgstr ""
 
 #, c-format
 msgid "event '%s' for node device %s\n"
@@ -25090,61 +25292,53 @@ msgid "event '%s' for storage pool %s\n"
 msgstr "událost „%s“ pro fond úložiště %s\n"
 
 #, c-format
-msgid "event 'agent-lifecycle' for domain %s: state: '%s' reason: '%s'\n"
+msgid "event 'agent-lifecycle' for domain '%s': state: '%s' reason: '%s'\n"
 msgstr ""
-"událost 'agent-lifecycle' (životní cyklus agenta) pro doménu %s: stav: „%s“ "
-"důvod: „%s“\n"
 
 #, c-format
-msgid "event 'balloon-change' for domain %s: %lluKiB\n"
-msgstr "událost 'balloon-change' pro doménu %s: %lluKiB\n"
-
-#, c-format
-msgid "event 'block-threshold' for domain %s: dev: %s(%s) %llu %llu\n"
-msgstr "událost 'block-threshold' pro doménu %s: zař.: %s(%s) %llu %llu\n"
-
-#, c-format
-msgid "event 'device-added' for domain %s: %s\n"
-msgstr "událost 'device-added' (přidáno zařízení) pro doménu %s: %s\n"
-
-#, c-format
-msgid "event 'device-removal-failed' for domain %s: %s\n"
+msgid "event 'balloon-change' for domain '%s': %lluKiB\n"
 msgstr ""
-"událost 'device-removal-failed' (odebrání zařízení se nezdařilo) pro doménu "
-"%s: %s\n"
 
 #, c-format
-msgid "event 'device-removed' for domain %s: %s\n"
-msgstr "událost 'device-removed' (odebráno zařízení) pro doménu %s: %s\n"
-
-#, c-format
-msgid "event 'disk-change' for domain %s disk %s: %s -> %s: %s\n"
+msgid "event 'block-threshold' for domain '%s': dev: %s(%s) %llu %llu\n"
 msgstr ""
-"událost 'disk-change' (výměna disku) pro doménu %s disk %s: %s -> %s: %s\n"
+
+#, c-format
+msgid "event 'device-added' for domain '%s': %s\n"
+msgstr ""
+
+#, c-format
+msgid "event 'device-removal-failed' for domain '%s': %s\n"
+msgstr ""
+
+#, c-format
+msgid "event 'device-removed' for domain '%s': %s\n"
+msgstr ""
+
+#, c-format
+msgid "event 'disk-change' for domain '%s' disk %s: %s -> %s: %s\n"
+msgstr ""
 
 #, c-format
 msgid ""
-"event 'graphics' for domain %s: %s local[%s %s %s] remote[%s %s %s] %s\n"
+"event 'graphics' for domain '%s': %s local[%s %s %s] remote[%s %s %s] %s\n"
 msgstr ""
-"událost 'graphics' pro doménu %s: %s local[%s %s %s] remote[%s %s %s] %s\n"
 
 #, c-format
-msgid "event 'io-error' for domain %s: %s (%s) %s\n"
-msgstr "událost 'io-error' (chyba vstupu/výstupu) pro doménu %s: %s (%s) %s\n"
-
-#, c-format
-msgid "event 'io-error-reason' for domain %s: %s (%s) %s due to %s\n"
+msgid "event 'io-error' for domain '%s': %s (%s) %s\n"
 msgstr ""
-"událost 'io-error-reason' (důvod chyby vstupu/výstupu) pro doménu %s: %s "
-"(%s) %s kvůli %s\n"
 
 #, c-format
-msgid "event 'job-completed' for domain %s:\n"
-msgstr "událost 'job-completed' (úloha dokončena) pro doménu %s:\n"
+msgid "event 'io-error-reason' for domain '%s': %s (%s) %s due to %s\n"
+msgstr ""
 
 #, c-format
-msgid "event 'lifecycle' for domain %s: %s %s\n"
-msgstr "událost „lifecycle“ (životní cyklus) pro doménu %s: %s %s\n"
+msgid "event 'job-completed' for domain '%s':\n"
+msgstr ""
+
+#, c-format
+msgid "event 'lifecycle' for domain '%s': %s %s\n"
+msgstr ""
 
 #, c-format
 msgid "event 'lifecycle' for network %s: %s\n"
@@ -25164,38 +25358,34 @@ msgstr "event 'lifecycle' (životní cyklus) pro fond úložiště %s: %s\n"
 
 #, c-format
 msgid ""
-"event 'memory-failure' for domain %s:\n"
+"event 'memory-failure' for domain '%s':\n"
 "recipient: %s\n"
 "action: %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'metadata-change' for domain %s: %s %s\n"
+msgid "event 'metadata-change' for domain '%s': %s %s\n"
 msgstr ""
 
 #, c-format
-msgid "event 'migration-iteration' for domain %s: iteration: '%d'\n"
+msgid "event 'migration-iteration' for domain '%s': iteration: '%d'\n"
 msgstr ""
-"událost 'migration-iteration' (průchod stěhování) pro doménu %s: průchod: "
-"„%d“\n"
 
 #, c-format
-msgid "event 'rtc-change' for domain %s: %lld\n"
-msgstr "událost „rtc-change“ pro doménu %s: %lld\n"
-
-#, c-format
-msgid "event 'tray-change' for domain %s disk %s: %s\n"
-msgstr "událost 'tray-change' pro doménu %s disk %s: %s\n"
-
-#, c-format
-msgid "event 'tunable' for domain %s:\n"
-msgstr "událost „tunable“ pro doménu %s:\n"
-
-#, c-format
-msgid "event 'watchdog' for domain %s: %s\n"
+msgid "event 'rtc-change' for domain '%s': %lld\n"
 msgstr ""
-"událost „watchdog“ (resetátor) pro doménu %s: %s\n"
-"\n"
+
+#, c-format
+msgid "event 'tray-change' for domain '%s' disk %s: %s\n"
+msgstr ""
+
+#, c-format
+msgid "event 'tunable' for domain '%s':\n"
+msgstr ""
+
+#, c-format
+msgid "event 'watchdog' for domain '%s': %s\n"
+msgstr ""
 
 msgid "event callback already tracked"
 msgstr "zpětné volání události už sledováno"
@@ -25858,6 +26048,9 @@ msgstr "nepodařilo se získat nwfilter navázání „%s“"
 msgid "failed to get parent pool"
 msgstr "nepodařilo se zjistit nadřazený fond"
 
+msgid "failed to get persistent definition object"
+msgstr ""
+
 #, c-format
 msgid "failed to get pool '%s'"
 msgstr "nepodařilo se získat úložiště „%s“"
@@ -26154,6 +26347,14 @@ msgstr "nepodařilo se zpracovat slirp helper seznam"
 
 msgid "failed to parse slirp-helper features"
 msgstr "nepodařilo se zpracovat slirp-helper funkce"
+
+#, c-format
+msgid "failed to parse the AP Card from sysfs path: '%s'"
+msgstr ""
+
+#, c-format
+msgid "failed to parse the AP Queue from sysfs path: '%s'"
+msgstr ""
 
 #, c-format
 msgid "failed to parse the CCW address from sysfs path: '%s'"
@@ -26581,6 +26782,9 @@ msgstr ""
 "získat nebo nastavit nyní definované sady výstupů záznamu událostí procesu "
 "služby"
 
+#. parse inbound and outbound which are in the format of
+#. * 'average,peak,burst,floor', in which peak and burst are optional,
+#. * thus 'average,,burst' and 'average,peak' are also legal.
 #, c-format
 msgid "field '%s' is malformed"
 msgstr "obsah kolonky „%s“ je chybně formulován"
@@ -26763,10 +26967,8 @@ msgstr "najít potenciální zdroje fondu úložiště"
 msgid "finish step ignored that migration was cancelled"
 msgstr "krok dokončení ignoroval že migrace byla zrušena"
 
-msgid "firewalld firewall backend requested, but service is not running"
+msgid "firewalld backend requested, but service is not running"
 msgstr ""
-"je požadována podpůrná vrstva firewalld pro bránu firewall, ale služba není "
-"spuštěná"
 
 msgid ""
 "firewalld is set to use the nftables backend, but the required firewalld "
@@ -26802,6 +27004,12 @@ msgstr ""
 
 msgid "floor attribute is not supported for this config"
 msgstr "pro toto nastavení není atribut floor (dolní hodnota) podporován"
+
+msgid "fmode and dmode are not supported with this QEMU binary"
+msgstr ""
+
+msgid "fmode and dmode must be used with accessmode=mapped"
+msgstr ""
 
 #, c-format
 msgid "for %s module"
@@ -27191,6 +27399,7 @@ msgstr "po vytvoření zachyceného stavu zastavit doménu"
 msgid "handler failed to wait on condition"
 msgstr "obsluze se nezdařilo čekat na podmínku"
 
+#. caller's error
 msgid "hash lookup resulted in NULL pointer"
 msgstr "hledání otisku (hash) vedlo v prázdný ukazatel"
 
@@ -27256,6 +27465,9 @@ msgstr "hostitel neumí IPv6"
 msgid "host migration TLS directory not configured"
 msgstr "TLS složka stěhování hostitele není nastavena"
 
+msgid "host name for source of disk device"
+msgstr ""
+
 msgid "host pci device "
 msgstr "pci zařízení hostitele"
 
@@ -27275,6 +27487,12 @@ msgstr "scsi zařízení hostitele %s:%u:%u.%llu nenalezeno"
 #, c-format
 msgid "host scsi iSCSI path %s not found"
 msgstr "iSCSI popis umístění %s host scsi nenalezen"
+
+msgid "host socket for source of disk device"
+msgstr ""
+
+msgid "host transport for source of disk device"
+msgstr ""
 
 #, c-format
 msgid "host usb device %03d.%03d not found"
@@ -27559,9 +27777,6 @@ msgid "info balloon reply was missing balloon data"
 msgstr ""
 "v informační odpovědi od výplně v operační paměti (balloon) chybí její data"
 
-msgid "info kvm reply missing 'enabled' field"
-msgstr "informační odpověď od kvm postrádá kolonku 'enabled'"
-
 msgid "info migration reply was missing return status"
 msgstr "v informační odpovědi stěhování chyběl návratový stav"
 
@@ -27745,6 +27960,25 @@ msgstr "název rozhraní"
 msgid "interface name %s does not fit into buffer "
 msgstr "název rozhraní %s se nevejde do vyrovnávací paměti"
 
+#.
+#. * virsh-interface.c: Commands to manage host interface
+#. *
+#. * Copyright (C) 2005, 2007-2016 Red Hat, Inc.
+#. *
+#. * This library is free software; you can redistribute it and/or
+#. * modify it under the terms of the GNU Lesser General Public
+#. * License as published by the Free Software Foundation; either
+#. * version 2.1 of the License, or (at your option) any later version.
+#. *
+#. * This library is distributed in the hope that it will be useful,
+#. * but WITHOUT ANY WARRANTY; without even the implied warranty of
+#. * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#. * Lesser General Public License for more details.
+#. *
+#. * You should have received a copy of the GNU Lesser General Public
+#. * License along with this library.  If not, see
+#. * <http://www.gnu.org/licenses/>.
+#.
 msgid "interface name or MAC address"
 msgstr "název nebo MAC adresa rozhraní"
 
@@ -27783,10 +28017,6 @@ msgstr "vnitřní chyba"
 #, c-format
 msgid "internal error: %s"
 msgstr "vnitřní chyba: %s"
-
-#, c-format
-msgid "internal error: bad options in command: '%s'"
-msgstr "vnitřní chyba: chybné volby v příkazu: „%s“"
 
 #, c-format
 msgid "internal inactive snapshots are not supported on '%s' disks"
@@ -28036,6 +28266,14 @@ msgstr "neplatný režim přístupu „%s“"
 msgid "invalid allowReboot value '%s'"
 msgstr "neplatná allowReboot hodnota „%s“"
 
+#, c-format
+msgid "invalid ap-adapter value '%s' for '%s'"
+msgstr ""
+
+#, c-format
+msgid "invalid ap-domain value '%s' for '%s'"
+msgstr ""
+
 msgid "invalid argument"
 msgstr "neplatný argument"
 
@@ -28162,6 +28400,10 @@ msgstr "neplatný cíl disku „%s“"
 msgid "invalid disk target '%s', partitions can't appear in disk targets"
 msgstr "neplatný cíl disku „%s“, na cílech disku se nemohou objevovat oddíly"
 
+#, c-format
+msgid "invalid dmode: '%s'"
+msgstr ""
+
 msgid "invalid domain pointer in"
 msgstr "neplatný doménový ukazatel v"
 
@@ -28202,6 +28444,10 @@ msgstr "neplatný příznak"
 #, c-format
 msgid "invalid flag combination: (0x%x)"
 msgstr "neplatná kombinace příznaků: (0x%x)"
+
+#, c-format
+msgid "invalid fmode: '%s'"
+msgstr ""
 
 #, c-format
 msgid "invalid freePageReporting attribute value '%s'"
@@ -28342,7 +28588,7 @@ msgstr ""
 
 #, c-format
 msgid ""
-"invalid mac address check value: '%s'. Valid values are \"generated\" and "
+"invalid mac address type value: '%s'. Valid values are \"generated\" and "
 "\"static\"."
 msgstr ""
 
@@ -28677,10 +28923,16 @@ msgstr "neplatná hodnota „%s“ pro parametr „%s“ zařízení „%s“"
 msgid "invalid value for 'managed': %s"
 msgstr "neplatná hodnota pro „managed“: %s"
 
+msgid "invalid value for boot menu timeout"
+msgstr ""
+
 msgid "invalid value for boot menu timeout, must be in range [0,65535]"
 msgstr ""
 "neplatná hodnota pro časový limit nabídky zavádění systému – je třeba, aby "
 "bylo z rozsahu 0 až 65535"
+
+msgid "invalid value for rebootTimeout"
+msgstr ""
 
 msgid "invalid value for rebootTimeout, must be in range [-1,65535]"
 msgstr ""
@@ -29053,6 +29305,9 @@ msgstr "vypsat všechny bloky domény"
 msgid "list all domain virtual interfaces"
 msgstr "vypsat všechna virtuální rozhraní domény"
 
+msgid "list authorized SSH keys for given user (via agent)"
+msgstr ""
+
 msgid "list available servers on a daemon"
 msgstr "vypsat servery, které jsou na procesu služby k dispozici"
 
@@ -29067,6 +29322,9 @@ msgstr "seznam klientů připojených k <server>"
 
 msgid "list devices in a tree"
 msgstr "zobrazit zařízení jako stromovou strukturu"
+
+msgid "list domain IDs only"
+msgstr ""
 
 msgid "list domain names only"
 msgstr "vypsat pouze názvy domén"
@@ -29638,6 +29896,9 @@ msgstr "spravované uložení stavu domény"
 msgid "mandatory attribute 'width' is missing or malformed"
 msgstr "povinný atribut 'widht' chybí nebo není správně formulován"
 
+msgid "manipulate authorized SSH keys file for given user (via agent)"
+msgstr ""
+
 msgid "mark inactive domains with managed save state"
 msgstr "označit neaktivní domény se spravovaným stavem uložení"
 
@@ -29867,6 +30128,12 @@ msgstr "předpřidělování metadat je k dispozici pouze pro qcow2"
 msgid "metadata title can't contain newlines"
 msgstr "nadpis metadat nemůže obsahovat znaky konců řádků"
 
+msgid "metdata cache max size control is not supported with this QEMU binary"
+msgstr ""
+
+msgid "metdata cache max size control is supported only with qcow2 images"
+msgstr ""
+
 msgid "migrate domain to another host"
 msgstr "přenést doménu na jiného hostitele"
 
@@ -29918,6 +30185,11 @@ msgstr "migrace disku %s se nezdařila"
 #, c-format
 msgid "migration of disk %s failed: %s"
 msgstr "migrace disku %s se nezdařila: %s"
+
+msgid ""
+"migration of non-shared storage is not supported with tunnelled migration "
+"and this QEMU"
+msgstr ""
 
 msgid "migration out job"
 msgstr "úloha migrace pryč"
@@ -30091,6 +30363,9 @@ msgstr "chybí název zdroje disku"
 msgid "missing 'nvram-template' in '%s'"
 msgstr "chybí informace o názvu v %s"
 
+msgid "missing 'path' attribute in JSON backing definition for NFS volume"
+msgstr ""
+
 msgid "missing 'portal' address in iSCSI backing definition"
 msgstr ""
 "v definici iSCSI, na kterém je založeno, chybí adresa portálu ('portal')"
@@ -30098,6 +30373,9 @@ msgstr ""
 #, c-format
 msgid "missing 'process' value in selinux lxc contexts file '%s'"
 msgstr "v souboru „%s“ selinux lxc kontextu chybí hodnota 'process'"
+
+msgid "missing 'server' attribute in JSON backing definition for NFS volume"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -30148,6 +30426,10 @@ msgstr "V JSON definici svazku, na kterém je založeno chybí 'url'"
 msgid "missing 'usage' attribute for RAM filesystem"
 msgstr "chybí atribut „usage“ pro souborový systém v operační paměti"
 
+msgid ""
+"missing 'user' or 'group' attribute in JSON backing definition for NFS volume"
+msgstr ""
+
 msgid "missing 'value' attribute for HyperV feature 'vendor_id'"
 msgstr "chybí atribut 'value' pro HyperV funkci 'vendor_id' (identif. výrobce)"
 
@@ -30167,6 +30449,9 @@ msgstr ""
 
 msgid "missing <target> element for <memory> device"
 msgstr "zařízení <memory> (paměť) chybí prvek <target> (cíl)"
+
+msgid "missing <type> element in <capability> element"
+msgstr ""
 
 msgid "missing @managed attribute for <reservations/>"
 msgstr "chybí atribut @managed pro <reservations/>"
@@ -30230,6 +30515,14 @@ msgstr "chybí alternativní název pro síťové zařízení"
 #, c-format
 msgid "missing alias or qom-type for qemu object '%s'"
 msgstr "chybí alternativní název nebo qom-type pro objekt qemu „%s”"
+
+#, c-format
+msgid "missing ap-adapter value for '%s'"
+msgstr ""
+
+#, c-format
+msgid "missing ap-domain value for '%s'"
+msgstr ""
 
 msgid "missing arch in QEMU capabilities cache"
 msgstr "v mezipaměti schopností QEMU chybí architektura"
@@ -30353,9 +30646,6 @@ msgstr "chybí zdroj disku pro protokol „sheepdog“"
 
 msgid "missing domain in checkpoint"
 msgstr "v kontrolním bodu chybí doména"
-
-msgid "missing domain in checkpoint redefine"
-msgstr "v opětovné definici kontrolního bodu chybí doména"
 
 msgid "missing domain in snapshot"
 msgstr "v zachyceném stavu chybí doména"
@@ -31031,6 +31321,15 @@ msgstr "změnit/získat název namísto popisu"
 msgid "monitor failure"
 msgstr "selhání monitoru"
 
+#. *
+#. * QEMU_CHECK_MONITOR_FULL:
+#. * @mon: monitor pointer variable to check, evaluated multiple times, no parentheses
+#. * @exit: statement that is used to exit the function
+#. *
+#. * This macro checks that the monitor is valid for given operation and exits
+#. * the function if not. The macro also adds a debug statement regarding the
+#. * monitor.
+#.
 msgid "monitor must not be NULL"
 msgstr "monitor nemůže být prázdný"
 
@@ -31214,6 +31513,12 @@ msgstr "pokud start_cpus je -1, pak je třeba, aby ncpus bylo 1"
 msgid "ncpus too large"
 msgstr "ncpus příliš velké"
 
+msgid "ncr53c90 SCSI controller is not a built-in for this machine"
+msgstr ""
+
+msgid "ncr53c90 can only be used as first SCSI controller"
+msgstr ""
+
 msgid "need at least one serial port to use SGA"
 msgstr "pro použití SGA je zapotřebí přinejmenším jednoho sériového portu"
 
@@ -31229,6 +31534,7 @@ msgstr "potřebuje schopnost rawio"
 msgid "negative size requires --shrink"
 msgstr "záporná velikost vyžaduje --shrink"
 
+#. 56 is good for Kerberos
 #, c-format
 msgid "negotiated SSF %d was not strong enough"
 msgstr "dohodnuté SSF %d nebylo dostatečně silné"
@@ -32563,6 +32869,9 @@ msgstr "operace typu %d nepodporována"
 msgid "optional file of source xml to query for pools"
 msgstr "volitelný soubor zdrojového xml pro dotázání ohledně fondů"
 
+msgid "optional file to read keys from"
+msgstr ""
+
 msgid "optional host to query"
 msgstr "volitelný hostitel kterého se dotazovat"
 
@@ -32692,6 +33001,27 @@ msgstr "parametr „%s“ nepodporován"
 #, c-format
 msgid "parameter '%s' occurs multiple times"
 msgstr "parametr „%s“ se vyskytuje vícekrát"
+
+#, c-format
+msgid "parameter '%s' of command '%s' has incorrect alias option"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' misused VSH_OFLAG_REQ"
+msgstr ""
+
+#, c-format
+msgid ""
+"parameter '%s' of command '%s' must be listed before optional parameters"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' must be listed last"
+msgstr ""
+
+#, c-format
+msgid "parameter '%s' of command '%s' must use VSH_OFLAG_REQ flag"
+msgstr ""
 
 msgid "parameter=value"
 msgstr "parametr=hodnota"
@@ -33008,6 +33338,9 @@ msgstr "port „%s“ je mimo rozsah"
 msgid "port UUID"
 msgstr "Nikde se neopakující identifikátor portu"
 
+msgid "port cannot be specified in 'nfs' protocol host"
+msgstr ""
+
 msgid "port to use by target server for incoming disks migration"
 msgstr "port který použít cílovým serverem pro příchozí migraci disků"
 
@@ -33205,6 +33538,9 @@ msgstr "protokol 'sheepdog' přijímá nejvýše jednoho hostitele"
 msgid "protocol misses the family attribute"
 msgstr "protokolu chybí atribut family"
 
+msgid "protocol used by disk device source"
+msgstr ""
+
 msgid "provide XML suitable for migrations"
 msgstr "poskytnout XML použitelné pro migrace"
 
@@ -33213,7 +33549,7 @@ msgid "ps2 bus does not support %s input device"
 msgstr "sběrnice ps2 nepodporuje vstupní zařízení %s"
 
 #, c-format
-msgid "pull mode requires qcow2 driver, not '%s'"
+msgid "pull mode backup for disk '%s' requires qcow2 driver"
 msgstr ""
 
 #, c-format
@@ -33227,8 +33563,14 @@ msgstr "qemu agent neposkytl kolonku 'ip-address-type' pro rozhraní „%s“"
 msgid "qemu agent didn't provide 'name' field"
 msgstr "qemu agent neposkytl kolonku 'název'"
 
+msgid "qemu agent didn't return an array of disks"
+msgstr ""
+
 msgid "qemu agent didn't return an array of interfaces"
 msgstr "qemu agent nevrátil pole rozhraní"
+
+msgid "qemu agent didn't return an array of keys"
+msgstr ""
 
 #, c-format
 msgid "qemu block name '%s' doesn't match expected '%s'"
@@ -33321,16 +33663,6 @@ msgstr ""
 
 msgid "query-block device entry was not in expected format"
 msgstr "položka dotazu blokového zařízení nebyla v očekávaném formátu"
-
-msgid "query-command-line-options parameter data was missing 'name'"
-msgstr "v datech odpovědi na query-command-line-options chybělo 'name' (název)"
-
-msgid "query-command-line-options reply data was missing 'option'"
-msgstr ""
-"v datech odpovědi na query-command-line-options chybělo 'option' (volba)"
-
-msgid "query-command-line-options reply was missing return data"
-msgstr "v odpovědi na query-cpu-model-comparison chyběla návratová data"
 
 msgid "query-commands reply data was missing 'name'"
 msgstr "v datach odpovědi na query-commands chybělo 'name'"
@@ -33469,8 +33801,8 @@ msgstr ""
 msgid "quit this interactive terminal"
 msgstr "ukončit tento interaktivní terminál"
 
-msgid "ram attribute only supported for type of qxl"
-msgstr "atribut ram (paměť) je podporován pouze pro typ qxl"
+msgid "ram attribute only supported for video type qxl"
+msgstr ""
 
 #, c-format
 msgid "range %s - %s is not entirely within network %s/%d"
@@ -33611,6 +33943,12 @@ msgstr "znovunačtení ploop se nezdařilo: nedaří se smazat DiskDescriptor.xm
 msgid "refusing to generate file name for disk '%s'"
 msgstr "Chybí název svazku úložiště pro „%s“"
 
+msgid "remoteDomainAuthorizedSSHKeysGet: returned number of keys exceeds limit"
+msgstr ""
+
+msgid "remoteDomainAuthorizedSSHKeysSet: returned number of keys exceeds limit"
+msgstr ""
+
 msgid "remoteDomainBlockStatsFlags: returned number of stats exceeds limit"
 msgstr "remoteDomainBlockStatsFlags: vrácený počet statistik překračuje limit"
 
@@ -33659,6 +33997,9 @@ msgstr ""
 msgid "remove domain managed state file"
 msgstr "odebrat stavový soubor správy domény"
 
+msgid "remove keys from the authorized keys file"
+msgstr ""
+
 msgid "remove nvram file, if inactive"
 msgstr "odebrat nvram soubor, pokud neaktivní"
 
@@ -33686,6 +34027,9 @@ msgstr ""
 msgid "reply data was missing 'name'"
 msgstr "v datech odpovědi chyběl „název“"
 
+msgid "reply data was missing 'option' name or parameters"
+msgstr ""
+
 msgid "reply was missing return data"
 msgstr "v odpovědi chyběla návratová data"
 
@@ -33697,6 +34041,9 @@ msgstr "hlásit aktivní uživatele"
 
 msgid "report daemon version too"
 msgstr "hlásit také verzi procesu služby"
+
+msgid "report disk information"
+msgstr ""
 
 msgid "report domain IOThread information"
 msgstr "hlásit informace o IOThread domény"
@@ -34545,8 +34892,8 @@ msgstr "zdrojové médium je blokové zařízení"
 msgid "source name for underlying storage"
 msgstr "název zdroje pro úložiště, na kterém je založeno"
 
-msgid "source of disk device"
-msgstr "zdroj diskového zařízení"
+msgid "source of disk device or name of network disk"
+msgstr ""
 
 msgid "source of network interface"
 msgstr "zdroj síťového rozhraní"
@@ -34615,9 +34962,6 @@ msgstr "spice filetransfer (přenos souborů) chybí enable (zapnuto)"
 
 msgid "spice gl element missing enable"
 msgstr "spice gl prvku chybí enable (zapnuto)"
-
-msgid "spice graphics are not supported with this QEMU"
-msgstr "spice grafika není tímto QEMU podporována"
 
 msgid "spice image missing compression"
 msgstr "spice obrazu chybí komprese"
@@ -35344,6 +35688,9 @@ msgstr "tato funkce není ovladačem připojení podporována"
 msgid "this function is not supported by the connection driver: %s"
 msgstr "tato funkce není ovladačem spojení podporována: %s"
 
+msgid "this libvirtd instance allows migration only with VIR_MIGRATE_TLS flag"
+msgstr ""
+
 msgid "this network exists already"
 msgstr "tato síť už existuje"
 
@@ -35909,8 +36256,8 @@ msgstr "typ %s není podporován"
 msgid "type mismatch in event (actual 0x%x, expected 0x%x)"
 msgstr "neshoda typu v události (skutečná 0x%x, očekáváno 0x%x)"
 
-msgid "type of source (block|file)"
-msgstr "typ zdroje (block|soubor)"
+msgid "type of source (block|file|network)"
+msgstr ""
 
 msgid "type of storage pool sources to discover"
 msgstr "typ zdrojů fondu úložiště, který objevit"
@@ -36093,6 +36440,7 @@ msgstr "nedaří se najít qeumu-img"
 msgid "unable to find valid requested VMware backend '%s'"
 msgstr "nedaří se najít platnou požadovanou VMware podpůrnou vrstvu „%s“"
 
+#. fdatasync() may fail on some special FDs, e.g. pipes
 #, c-format
 msgid "unable to fsync %s"
 msgstr "nedaří se provést fsync %s"
@@ -36250,10 +36598,6 @@ msgstr "nedaří se zpracovat identifikátor numa uzlu: %s"
 #, c-format
 msgid "unable to parse page size: %s"
 msgstr "nedaří se zpracovat velikost stránky: %s"
-
-#, c-format
-msgid "unable to parse unique_id: %s"
-msgstr "nedaří se zpracovat unique_id (neopakující se identifikátor): %s"
 
 #, c-format
 msgid "unable to parse: %s"
@@ -36431,12 +36775,6 @@ msgstr "nedaří se zapsat do vstupu podřízeného"
 #, c-format
 msgid "unable write to %s"
 msgstr "nedaří se zapsat na %s"
-
-msgid ""
-"unavailable-features in query-cpu-definitions reply data was not an array"
-msgstr ""
-"unavailable-features (funkce, které nejsou k dispozici) v odpovědi na query-"
-"cpu-definitions (dotaz na definice procesoru) nebyla pole"
 
 msgid "unbridge a network device"
 msgstr "zrušit přemostění síťového zařízení"
@@ -36885,13 +37223,6 @@ msgid "unexpected value %s for on_reboot"
 msgstr "neočekávaná hodnota %s pro on_reboot (při restartu)"
 
 #, c-format
-msgid "unexpected value in %s array"
-msgstr "neočekávaná hodnota v poli %s"
-
-msgid "unexpected value in unavailable-features array"
-msgstr "neočekávaná hodnota v poli unavailable-features (nedostupné funkce)"
-
-#, c-format
 msgid "unexpected video model %d"
 msgstr "neočekávaný model video zařízení %d"
 
@@ -36937,6 +37268,8 @@ msgstr "unix"
 msgid "unix socket for spice graphics are not supported with this QEMU"
 msgstr "unixový soket pro spice grafiku není tímto QEMU podporován"
 
+#. Something went wrong retrieving a volume path, cope with it
+#. Something went wrong retrieving volume info, cope with it
 msgid "unknown"
 msgstr "neznámý"
 
@@ -37150,14 +37483,6 @@ msgstr "neznámý devnode typ „%s“"
 #, c-format
 msgid "unknown dhcp peerdns value %s"
 msgstr "neznámá hodnota dhcp peerdns %s"
-
-#, fuzzy, c-format
-msgid "unknown disk backup driver '%s'"
-msgstr "neznámý ovladač zachyceného stavu disku „%s“"
-
-#, fuzzy, c-format
-msgid "unknown disk backup type '%s'"
-msgstr "neznámý typ sběrnice disku „%s“"
 
 #, c-format
 msgid "unknown disk bus type '%s'"
@@ -38145,6 +38470,28 @@ msgstr ""
 msgid "unsupported filesystem type '%s'"
 msgstr ""
 
+#. *
+#. * virCheckFlags:
+#. * @supported: an OR'ed set of supported flags
+#. * @retval: return value in case unsupported flags were passed
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Exits the caller function if unsupported flags were
+#. * passed to it.
+#.
+#. *
+#. * virCheckFlagsGoto:
+#. * @supported: an OR'ed set of supported flags
+#. * @label: label to jump to on error
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "unsupported flags (0x%lx) in function %s"
 msgstr "nepodporované příznaky (0x%lx) ve funkci %s"
@@ -38167,10 +38514,6 @@ msgstr "nepodporovaný formát %s"
 
 msgid "unsupported gluster lookup"
 msgstr "nepodporované hledání gluster"
-
-#, c-format
-msgid "unsupported graphics type '%s'"
-msgstr "nepodporovaný typ grafiky „%s“"
 
 #, fuzzy, c-format
 msgid "unsupported guest information types '0x%x'"
@@ -38396,6 +38739,12 @@ msgstr "uživatel"
 msgid "user cancelled authentication process"
 msgstr "uživatel zrušil proces ověření se"
 
+msgid "user to list authorized keys for"
+msgstr ""
+
+msgid "user to set authorized keys for"
+msgstr ""
+
 msgid "user:"
 msgstr "uživatelské:"
 
@@ -38487,6 +38836,9 @@ msgid "validate the XML against the schema"
 msgstr "ověřit XML vůči schématu"
 
 msgid "validate the XML document against schema"
+msgstr ""
+
+msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
@@ -38695,8 +39047,8 @@ msgstr "neshoda verze v události (skutečná 0x%x, očekáváno 0x%x)"
 msgid "version parsing error"
 msgstr "chyba při vyhodnocování verze"
 
-msgid "vgamem attribute only supported for type of qxl"
-msgstr "atribut vgamem je podporován pouze pro typ qxl"
+msgid "vgamem attribute only supported for video type qxl"
+msgstr ""
 
 msgid "vhost-net is not supported with this QEMU binary"
 msgstr "vhost-net není touto binárkou QEMU podporováno"
@@ -38917,6 +39269,9 @@ msgstr ""
 msgid "virtio-serial controller %u not available"
 msgstr "řadič virtio-serial %u není k dispozici"
 
+msgid "virtiofs does not support fmode and dmode"
+msgstr ""
+
 #, fuzzy
 msgid "virtiofs does not support format"
 msgstr "Daná verze Bhyve nepodporuje typ zobrazení framebuffer"
@@ -39019,9 +39374,6 @@ msgstr "chybí nástroj vmrun"
 
 msgid "vnc display"
 msgstr "vnc displej"
-
-msgid "vnc graphics are not supported with this QEMU"
-msgstr "vnc grafiky nejsou tímto QEMU podporovány"
 
 msgid "vnc port must be in range [5900,65535]"
 msgstr "je třeba, aby vnc port byl z rozsahu 5900 až 65535"
@@ -39129,8 +39481,8 @@ msgstr "zadáno využití svazku, ale chybí popis jeho umístění"
 msgid "vport operation '%s' is not supported for host%d"
 msgstr "vport operace „%s“ není podporovaná pro hostitele %d"
 
-msgid "vram64 attribute only supported for type of qxl"
-msgstr "atribut vram64 je podporován pouze pro typ qxl"
+msgid "vram64 attribute only supported for video type qxl"
+msgstr ""
 
 msgid "vsock device is not supported with this QEMU binary"
 msgstr "vsock zařízení není s touto binárkou QEMU podporováno"
@@ -39355,6 +39707,435 @@ msgstr "zóna %s vyžadována pro sít %s, ale firewalld není aktivní"
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <řetězec>}…"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s dumped to %s\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Doména %s vypsána do %s\n"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s saved to %s\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Doména %s uložena do %s\n"
+
+#~ msgid ""
+#~ "\n"
+#~ "Domain %s state saved by libvirt\n"
+#~ msgstr ""
+#~ "\n"
+#~ "Stav domény %s uložen libvirt\n"
+
+#~ msgid "%s array element does not contain data"
+#~ msgstr "prvek pole %s neobsahuje data"
+
+#~ msgid "%s: nvdimm without a path"
+#~ msgstr "%s: nvdim bez popisu umístění"
+
+#~ msgid "'%s' missing in guest-get-fsinfo 'disk' data"
+#~ msgstr "v guest-get-fsinfo datech 'disk' chybí „%s“"
+
+#~ msgid "'pci-controller' missing in guest-get-fsinfo 'disk' data"
+#~ msgstr "v guest-get-fsinfo datech 'disk' chybí 'pci-controller'"
+
+#~ msgid "Cannot open /dev/urandom"
+#~ msgstr "Nelze otevřít /dev/urandom"
+
+#~ msgid "Cannot read from /dev/urandom"
+#~ msgstr "Nelze číst z /dev/urandom"
+
+#~ msgid "Connected to domain %s\n"
+#~ msgstr "Připojeno k doméně %s\n"
+
+#~ msgid "Domain %s XML configuration edited.\n"
+#~ msgstr "XML nastavení pro doménu %s byla upravena.\n"
+
+#~ msgid "Domain %s XML configuration not changed.\n"
+#~ msgstr "XML nastavení pro doménu %s nebyla změněna.\n"
+
+#~ msgid "Domain %s attached to pid %u\n"
+#~ msgstr "Doména %s připojena k procesu s identifikátorem %u\n"
+
+#~ msgid "Domain %s could not be suspended"
+#~ msgstr "Doménu %s se nepodařilo uspat"
+
+#~ msgid "Domain %s could not be woken up"
+#~ msgstr "Doménu %s se nepodařilo probudit"
+
+#~ msgid "Domain %s created from %s\n"
+#~ msgstr "Doména %s vytvořena z %s\n"
+
+#~ msgid "Domain %s defined from %s\n"
+#~ msgstr "Doména %s definována z %s\n"
+
+#~ msgid "Domain %s destroyed\n"
+#~ msgstr "Doména %s zlikvidována\n"
+
+#~ msgid "Domain %s has been undefined\n"
+#~ msgstr "Doména %s byla oddefinována\n"
+
+#~ msgid "Domain %s has no manage save image; removal skipped"
+#~ msgstr "Doména %s nemá žádný obraz spravovaného stavu; odebrání přeskočeno"
+
+#~ msgid "Domain %s is being rebooted\n"
+#~ msgstr "Doména %s se restartuje\n"
+
+#~ msgid "Domain %s is being shutdown\n"
+#~ msgstr "Doména %s je právě vypínána\n"
+
+#~ msgid "Domain %s marked as autostarted\n"
+#~ msgstr "Doména %s označena jako automaticky spouštěná\n"
+
+#~ msgid "Domain %s resumed\n"
+#~ msgstr "Doména %s probuzena\n"
+
+#~ msgid "Domain %s started\n"
+#~ msgstr "Doména %s spuštěna\n"
+
+#~ msgid "Domain %s successfully suspended"
+#~ msgstr "Doména %s úspěšně uspána"
+
+#~ msgid "Domain %s successfully woken up"
+#~ msgstr "Doména %s úspěšně probuzena"
+
+#~ msgid "Domain %s suspended\n"
+#~ msgstr "Doména %s uspána\n"
+
+#~ msgid "Domain %s unmarked as autostarted\n"
+#~ msgstr "Doména %s odoznačena jako automaticky spouštěná\n"
+
+#~ msgid "Domain %s was reset\n"
+#~ msgstr "Doména %s byla restartována\n"
+
+#~ msgid "Failed to allocate free veth pair after %d attempts"
+#~ msgstr "I přes %d pokusů se nepodařilo přidělit volnou veth dvojici"
+
+#~ msgid "Failed to core dump domain %s to %s"
+#~ msgstr "Nepodařilo se uložit paměť domény %s do %s"
+
+#~ msgid "Failed to destroy domain %s"
+#~ msgstr "Nepodařilo se zlikvidovat doménu %s"
+
+#~ msgid "Failed to generate new name for interface %s"
+#~ msgstr "Nepodařilo se vytvořit nový název pro rozhraní %s"
+
+#~ msgid "Failed to mark domain %s as autostarted"
+#~ msgstr "Nepodařilo se označit doménu %s jako automaticky spouštěnou"
+
+#~ msgid "Failed to parse checkpoint XML from file '%s'"
+#~ msgstr "Nepodařilo se zpracovat XML kontrolního bodu ze souboru „%s“"
+
+#~ msgid "Failed to reboot domain %s"
+#~ msgstr "Nepodařilo se restartovat doménu %s"
+
+#~ msgid "Failed to remove managed save image for domain %s"
+#~ msgstr "Nepodařilo se odebrat obraz spravovaného uložení domény %s"
+
+#~ msgid "Failed to reset domain %s"
+#~ msgstr "Nepodařilo se restartovat doménu %s"
+
+#~ msgid "Failed to resume domain %s"
+#~ msgstr "Nepodařilo se probudit doménu %s"
+
+#~ msgid "Failed to save domain %s state"
+#~ msgstr "Nepodařilo se uložit stav domény %s"
+
+#~ msgid "Failed to save domain %s to %s"
+#~ msgstr "Nepodařilo se uložit doménu %s do %s"
+
+#~ msgid "Failed to shutdown domain %s"
+#~ msgstr "Nepodařilo se vypnout doménu %s"
+
+#~ msgid "Failed to start domain %s"
+#~ msgstr "Nepodařilo se spustit doménu %s"
+
+#~ msgid "Failed to suspend domain %s"
+#~ msgstr "Nepodařilo se uspat doménu %s"
+
+#~ msgid "Failed to undefine domain %s"
+#~ msgstr "Nepodařilo se oddefinovat doménu %s"
+
+#~ msgid "Failed to unmark domain %s as autostarted"
+#~ msgstr "Nepodařilo se odoznačit doménu %s jako automaticky spouštěnou"
+
+#~ msgid "Malformed query-command-line-options array"
+#~ msgstr "Nesprávně formulované pole query-command-line-options"
+
+#~ msgid "Malformed query-command-line-options parameters array"
+#~ msgstr "Nesprávně formulované pole parametrů query-command-line-options"
+
+#~ msgid "Managed save image of Domain %s XML configuration edited.\n"
+#~ msgstr "XML nastavení obrazu spravovaného uložení domény %s upraveno.\n"
+
+#~ msgid "Managed save image of domain %s XML configuration not changed.\n"
+#~ msgstr "XML nastavení obrazu spravovaného uložení domény %s nezměněno.\n"
+
+#~ msgid "Managed save state file of domain %s updated.\n"
+#~ msgstr "Stavový soubor spravovaného uložení domény %s aktualizován.\n"
+
+#~ msgid "No free veth devices available"
+#~ msgstr "Nejsou k dispozici žádná volná veth zařízení"
+
+#~ msgid "PCI controller busNr '%s' out of range - must be 1-254"
+#~ msgstr ""
+#~ "busNr (číslo sběrnice) „%s“ PCI řadiče je mimo rozsah – je třeba, aby "
+#~ "bylo 1-254"
+
+#~ msgid "PCI controller chassis '%s' out of range - must be 0-255"
+#~ msgstr "chassis PCI řadiče „%s“ mimo rozsah – je třeba, aby bylo 0 až 255"
+
+#~ msgid "PCI controller chassisNr '%s' out of range - must be 1-255"
+#~ msgstr ""
+#~ "chassisNr (číslo šasi) PCI řadiče „%s“ mimo rozsah – je třeba, aby bylo 1 "
+#~ "až 255"
+
+#~ msgid "PCI controller port '%s' out of range - must be 0-255"
+#~ msgstr "port PCI řadiče „%s“ mimo rozsah – je třeba, aby bylo 0 až 255"
+
+#~ msgid "Removed managedsave image for domain %s"
+#~ msgstr "Odebrán obraz spravovaného uložení pro doménu %s"
+
+#~ msgid "cannot close stream on domain %s"
+#~ msgstr "nedaří se zavřít proud domény %s"
+
+#, fuzzy
+#~ msgid "cfs_period '%llu' must be in range (1000, 1000000)"
+#~ msgstr ""
+#~ "Je třeba, aby hodnota cputune „%s“ byla v rozsahu 1000 až 1000000 (sto "
+#~ "tisíc)"
+
+#, fuzzy
+#~ msgid "cfs_quota '%lld' must be in range (1000, %llu)"
+#~ msgstr ""
+#~ "Je třeba, aby hodnota cputune „%s“ byla v rozsahu 1000 až 1000000 (sto "
+#~ "tisíc)"
+
+#~ msgid "could not receive data from domain %s"
+#~ msgstr "nedaří se obdržet data z domény %s"
+
+#~ msgid "disk product is more than 16 characters"
+#~ msgstr "produkt disku je delší než 16 znaků"
+
+#~ msgid "disk vendor is more than 8 characters"
+#~ msgstr "výrobce disku je delší než 8 znaků"
+
+#~ msgid "event '%s' for domain %s\n"
+#~ msgstr "událost „%s“ pro doménu %s\n"
+
+#~ msgid "event '%s' for domain %s: %s for %s %s\n"
+#~ msgstr "událost „%s“ pro doménu %s: %s pro %s %s\n"
+
+#~ msgid "event 'agent-lifecycle' for domain %s: state: '%s' reason: '%s'\n"
+#~ msgstr ""
+#~ "událost 'agent-lifecycle' (životní cyklus agenta) pro doménu %s: stav: "
+#~ "„%s“ důvod: „%s“\n"
+
+#~ msgid "event 'balloon-change' for domain %s: %lluKiB\n"
+#~ msgstr "událost 'balloon-change' pro doménu %s: %lluKiB\n"
+
+#~ msgid "event 'block-threshold' for domain %s: dev: %s(%s) %llu %llu\n"
+#~ msgstr "událost 'block-threshold' pro doménu %s: zař.: %s(%s) %llu %llu\n"
+
+#~ msgid "event 'device-added' for domain %s: %s\n"
+#~ msgstr "událost 'device-added' (přidáno zařízení) pro doménu %s: %s\n"
+
+#~ msgid "event 'device-removal-failed' for domain %s: %s\n"
+#~ msgstr ""
+#~ "událost 'device-removal-failed' (odebrání zařízení se nezdařilo) pro "
+#~ "doménu %s: %s\n"
+
+#~ msgid "event 'device-removed' for domain %s: %s\n"
+#~ msgstr "událost 'device-removed' (odebráno zařízení) pro doménu %s: %s\n"
+
+#~ msgid "event 'disk-change' for domain %s disk %s: %s -> %s: %s\n"
+#~ msgstr ""
+#~ "událost 'disk-change' (výměna disku) pro doménu %s disk %s: %s -> %s: %s\n"
+
+#~ msgid ""
+#~ "event 'graphics' for domain %s: %s local[%s %s %s] remote[%s %s %s] %s\n"
+#~ msgstr ""
+#~ "událost 'graphics' pro doménu %s: %s local[%s %s %s] remote[%s %s %s] %s\n"
+
+#~ msgid "event 'io-error' for domain %s: %s (%s) %s\n"
+#~ msgstr ""
+#~ "událost 'io-error' (chyba vstupu/výstupu) pro doménu %s: %s (%s) %s\n"
+
+#~ msgid "event 'io-error-reason' for domain %s: %s (%s) %s due to %s\n"
+#~ msgstr ""
+#~ "událost 'io-error-reason' (důvod chyby vstupu/výstupu) pro doménu %s: %s "
+#~ "(%s) %s kvůli %s\n"
+
+#~ msgid "event 'job-completed' for domain %s:\n"
+#~ msgstr "událost 'job-completed' (úloha dokončena) pro doménu %s:\n"
+
+#~ msgid "event 'lifecycle' for domain %s: %s %s\n"
+#~ msgstr "událost „lifecycle“ (životní cyklus) pro doménu %s: %s %s\n"
+
+#~ msgid "event 'migration-iteration' for domain %s: iteration: '%d'\n"
+#~ msgstr ""
+#~ "událost 'migration-iteration' (průchod stěhování) pro doménu %s: průchod: "
+#~ "„%d“\n"
+
+#~ msgid "event 'rtc-change' for domain %s: %lld\n"
+#~ msgstr "událost „rtc-change“ pro doménu %s: %lld\n"
+
+#~ msgid "event 'tray-change' for domain %s disk %s: %s\n"
+#~ msgstr "událost 'tray-change' pro doménu %s disk %s: %s\n"
+
+#~ msgid "event 'tunable' for domain %s:\n"
+#~ msgstr "událost „tunable“ pro doménu %s:\n"
+
+#~ msgid "event 'watchdog' for domain %s: %s\n"
+#~ msgstr ""
+#~ "událost „watchdog“ (resetátor) pro doménu %s: %s\n"
+#~ "\n"
+
+#~ msgid "info kvm reply missing 'enabled' field"
+#~ msgstr "informační odpověď od kvm postrádá kolonku 'enabled'"
+
+#~ msgid "missing domain in checkpoint redefine"
+#~ msgstr "v opětovné definici kontrolního bodu chybí doména"
+
+#~ msgid "query-command-line-options parameter data was missing 'name'"
+#~ msgstr ""
+#~ "v datech odpovědi na query-command-line-options chybělo 'name' (název)"
+
+#~ msgid "query-command-line-options reply data was missing 'option'"
+#~ msgstr ""
+#~ "v datech odpovědi na query-command-line-options chybělo 'option' (volba)"
+
+#~ msgid "query-command-line-options reply was missing return data"
+#~ msgstr "v odpovědi na query-cpu-model-comparison chyběla návratová data"
+
+#~ msgid "ram attribute only supported for type of qxl"
+#~ msgstr "atribut ram (paměť) je podporován pouze pro typ qxl"
+
+#~ msgid ""
+#~ "unavailable-features in query-cpu-definitions reply data was not an array"
+#~ msgstr ""
+#~ "unavailable-features (funkce, které nejsou k dispozici) v odpovědi na "
+#~ "query-cpu-definitions (dotaz na definice procesoru) nebyla pole"
+
+#~ msgid "unexpected value in %s array"
+#~ msgstr "neočekávaná hodnota v poli %s"
+
+#~ msgid "unexpected value in unavailable-features array"
+#~ msgstr "neočekávaná hodnota v poli unavailable-features (nedostupné funkce)"
+
+#, fuzzy
+#~ msgid "unknown disk backup driver '%s'"
+#~ msgstr "neznámý ovladač zachyceného stavu disku „%s“"
+
+#, fuzzy
+#~ msgid "unknown disk backup type '%s'"
+#~ msgstr "neznámý typ sběrnice disku „%s“"
+
+#~ msgid "vgamem attribute only supported for type of qxl"
+#~ msgstr "atribut vgamem je podporován pouze pro typ qxl"
+
+#~ msgid "vram64 attribute only supported for type of qxl"
+#~ msgstr "atribut vram64 je podporován pouze pro typ qxl"
+
+#~ msgid "Bad child elements counting."
+#~ msgstr "Nesprávné počítání podřízených prvků."
+
+#~ msgid "Cannot assign SCSI host device address"
+#~ msgstr "Nedaří se přiřadit adresu SCSI host zařízení"
+
+#~ msgid "Could not match WMI class info for version %s"
+#~ msgstr "Nepodařilo se nalézt shodu WMI třídy pro verzi %s"
+
+#~ msgid "Could not press key %d"
+#~ msgstr "Nedaří se stisknout klávesu %d"
+
+#~ msgid "Could not release key %s"
+#~ msgstr "Nedaří se uvolnit klávesu %s"
+
+#~ msgid "Could not set disk source"
+#~ msgstr "Nedaří se nastavit zdroj disku"
+
+#~ msgid "Could not set memory"
+#~ msgstr "Nedaří se nastavit paměť"
+
+#~ msgid ""
+#~ "Requested TSC frequency %llu Hz does not match host (%llu Hz) and TSC "
+#~ "scaling is not supported by the host CPU"
+#~ msgstr ""
+#~ "Požadovaná frekvence TSC %llu Hz se neshoduje s hostitelem (%llu Hz) a "
+#~ "TSC změna měřítka není podporovaná procesorem hostitele"
+
+#~ msgid "Target TSC frequency %lu does not match source %lu"
+#~ msgstr ""
+#~ "Frekvence čítače časového razítka (TSC) %lu se neshoduje se zdrojovou %lu"
+
+#~ msgid "The WMI class info list is empty"
+#~ msgstr "Seznam informací WMI třídy je prázdný"
+
+#~ msgid "cannot remove old domain config file %s"
+#~ msgstr "není možné odebrat původní soubor s nastavením domény %s"
+
+#~ msgid "cannot rename domain with checkpoints"
+#~ msgstr "doménu, ve které existují kontrolní body, nelze přejmenovat"
+
+#~ msgid "cannot rename domain with snapshots"
+#~ msgstr "doménu, ve které existují zachycené stavy, nelze přejmenvoat"
+
+#~ msgid "command '%s' does not list argv option last"
+#~ msgstr "příkaz „%s“ neuvádí seznam argv volby jako poslední"
+
+#~ msgid "command '%s' has incorrect alias option"
+#~ msgstr "příkaz „%s“ má nesprávnou volbu alternativní název"
+
+#~ msgid "command '%s' has mismatched alias type"
+#~ msgstr "příkaz „%s“ má neodpovídající typ alternativního názvu"
+
+#~ msgid "command '%s' has missing alias option"
+#~ msgstr "příkazu „%s“ chybí volba alias"
+
+#~ msgid "command '%s' has non-required VSH_OT_DATA"
+#~ msgstr "příkaz „%s“ má nepotřebná VSH_OT_DATA"
+
+#~ msgid "command '%s' misused VSH_OFLAG_REQ"
+#~ msgstr "příkaz „%s“ chybně použil VSH_OFLAG_REQ"
+
+#~ msgid "direct firewall backend requested, but %s is not available"
+#~ msgstr ""
+#~ "vyžádána přímá podpůrná vrstva brány firewall, ale %s není k dispozici"
+
+#~ msgid "domain configuration does not support '%s' value '%s'"
+#~ msgstr "nastavení domény nepodporuje „%s“ hodnotu „%s“"
+
+#~ msgid "egl-headless display is not supported with this QEMU binary"
+#~ msgstr "zobrazení egl-headless není s touto binárkou QEMU podporováno"
+
+#~ msgid "firewalld firewall backend requested, but service is not running"
+#~ msgstr ""
+#~ "je požadována podpůrná vrstva firewalld pro bránu firewall, ale služba "
+#~ "není spuštěná"
+
+#~ msgid "internal error: bad options in command: '%s'"
+#~ msgstr "vnitřní chyba: chybné volby v příkazu: „%s“"
+
+#~ msgid "source of disk device"
+#~ msgstr "zdroj diskového zařízení"
+
+#~ msgid "spice graphics are not supported with this QEMU"
+#~ msgstr "spice grafika není tímto QEMU podporována"
+
+#~ msgid "type of source (block|file)"
+#~ msgstr "typ zdroje (block|soubor)"
+
+#~ msgid "unable to parse unique_id: %s"
+#~ msgstr "nedaří se zpracovat unique_id (neopakující se identifikátor): %s"
+
+#~ msgid "unsupported graphics type '%s'"
+#~ msgstr "nepodporovaný typ grafiky „%s“"
+
+#~ msgid "vnc graphics are not supported with this QEMU"
+#~ msgstr "vnc grafiky nejsou tímto QEMU podporovány"
 
 #~ msgid "%s: %d: failed to allocate %d bytes"
 #~ msgstr "%s: %d: nepodařilo se přidělit %d bajtů"
