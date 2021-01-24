@@ -4,13 +4,22 @@ Source: https://libvirt.org/git/?p=libvirt.git
 Comment: in addition see the upstream maintainer AUTHORS file
 
 Files: *
-Copyright: 2005-2020 Red Hat, Inc
+Copyright: 2005-2021 Red Hat, Inc
 License: LGPL-2.1+
 Comment: Among many source files this also includes many generated, test-data or binary files
 
 Files: src/conf/*
 Copyright: 2005-2019 Red Hat, Inc
            2015 SUSE LINUX Products GmbH, Nuernberg, Germany.
+License: LGPL-2.1+
+
+Files: src/conf/domain_validate.*
+Copyright: 2020 IBM Corp.
+License: LGPL-2.1+
+
+Files: src/util/virsocket.c
+Copyright: 2020 Red Hat, Inc.
+           2011-2020 Free Software Foundation, Inc.
 License: LGPL-2.1+
 
 Files: src/util/virhash.c
