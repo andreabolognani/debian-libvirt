@@ -47,12 +47,12 @@ abort_conffile_transfer() {
 
 NWFILTERS="
     allow-arp
-    allow-dhcp-server
     allow-dhcp
+    allow-dhcp-server
     allow-incoming-ipv4
     allow-ipv4
-    clean-traffic-gateway
     clean-traffic
+    clean-traffic-gateway
     no-arp-ip-spoofing
     no-arp-mac-spoofing
     no-arp-spoofing
@@ -62,8 +62,8 @@ NWFILTERS="
     no-mac-spoofing
     no-other-l2-traffic
     no-other-rarp-traffic
-    qemu-announce-self-rarp
     qemu-announce-self
+    qemu-announce-self-rarp
 "
 
 case "$1" in
