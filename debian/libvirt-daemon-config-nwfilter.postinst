@@ -17,26 +17,33 @@ set -e
 create_config_from_template() {
     local config="$1"
     local template="$2"
+    local lastver="$3"
 
-    if [ "$3" != "--" ]; then
+    if [ "$4" != "--" ]; then
         echo "create_config_from_template called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 3); do
+    for _ in $(seq 1 4); do
         shift
     done
 
-    if [ -n "$2" ] && [ -e "$config.dpkg-backup" ]; then
-        # If the package has been configured in the past and a backup config
-        # is available use it, so that uninstalling the package and
-        # subsequently reinstalling it results in the very same configuration
-        mv -f "$config.dpkg-backup" "$config"
-        return 0
-    fi
-
-    if [ -z "$2" ]; then
-        # If we're installing from scratch, make a copy of the template in
-        # the appropriate location and with the expected permissions
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
+        # The package is already configured, and the version that's been
+        # configured is new enough to contain the config file
+        if [ -e "$config.dpkg-backup" ]; then
+            # The package had been configured in the past and has
+            # subsequently been removed without purging, so a backup of
+            # the config file is still present on the disk. Restore it
+            mv -f "$config.dpkg-backup" "$config"
+            return 0
+        else
+            # We're doing a regular upgrade. Don't change anything
+            return 0
+        fi
+    else
+        # We're either installing from scratch, or upgrading from a version
+        # that didn't have the config file yet. Make a copy of the template
+        # in the appropriate location and with the expected permissions
         install -o root -g root -m 0600 "$template" "$config"
         return 0
     fi
@@ -105,6 +112,7 @@ case "$1" in
             create_config_from_template \
                 "/etc/libvirt/nwfilter/$nwfilter.xml" \
                 "/usr/share/libvirt/nwfilter/$nwfilter.xml" \
+                "6.9.0-2~" \
                 -- \
                 "$@"
             finish_conffile_transfer \

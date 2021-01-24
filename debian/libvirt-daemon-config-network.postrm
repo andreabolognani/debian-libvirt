@@ -18,12 +18,13 @@ set -e
 remove_config_from_template() {
     local config="$1"
     local template="$2"
+    local lastver="$3"
 
-    if [ "$3" != "--" ]; then
+    if [ "$4" != "--" ]; then
         echo "remove_config_from_template called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 3); do
+    for _ in $(seq 1 4); do
         shift
     done
 
@@ -47,6 +48,7 @@ case "$1" in
         remove_config_from_template \
             "/etc/libvirt/qemu/networks/default.xml" \
             "/usr/share/libvirt/networks/default.xml" \
+            "6.9.0-2~" \
             -- \
             "$@"
 
