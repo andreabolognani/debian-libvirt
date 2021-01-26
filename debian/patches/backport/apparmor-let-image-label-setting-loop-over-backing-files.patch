@@ -19,10 +19,10 @@ Signed-off-by: Christian Ehrhardt <christian.ehrhardt@canonical.com>
  1 file changed, 27 insertions(+), 12 deletions(-)
 
 diff --git a/src/security/security_apparmor.c b/src/security/security_apparmor.c
-index c2d86c6..a840d36 100644
+index 1b035cc..f547601 100644
 --- a/src/security/security_apparmor.c
 +++ b/src/security/security_apparmor.c
-@@ -764,22 +764,13 @@ AppArmorRestoreInputLabel(virSecurityManagerPtr mgr,
+@@ -755,22 +755,13 @@ AppArmorRestoreInputLabel(virSecurityManagerPtr mgr,
  
  /* Called when hotplugging */
  static int
@@ -48,7 +48,7 @@ index c2d86c6..a840d36 100644
      if (src->type == VIR_STORAGE_TYPE_NVME) {
          const virStorageSourceNVMeDef *nvme = src->nvme;
  
-@@ -805,6 +796,30 @@ AppArmorSetSecurityImageLabel(virSecurityManagerPtr mgr,
+@@ -796,6 +787,30 @@ AppArmorSetSecurityImageLabel(virSecurityManagerPtr mgr,
      return reload_profile(mgr, def, path, true);
  }
  
