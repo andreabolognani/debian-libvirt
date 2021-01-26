@@ -37,7 +37,7 @@ this revert and follow upstream as 2.32 dropped the option to enable
  1 file changed, 2 deletions(-)
 
 diff --git a/meson.build b/meson.build
-index 899404b..81d617b 100644
+index da0157b..9121ea5 100644
 --- a/meson.build
 +++ b/meson.build
 @@ -1429,8 +1429,6 @@ endif
