@@ -146,7 +146,7 @@ LIBVIRT_SYSTEM_SERVICES = \
     libvirt-guests.service \
     $(NULL)
 
-LIBVIRT_NOSTART_UNITS = \
+LIBVIRT_SOCKETS = \
     libvirtd.socket \
     libvirtd-ro.socket \
     libvirtd-admin.socket \
@@ -270,7 +270,7 @@ override_dh_installinit:
 override_dh_installsystemd:
 	dh_installsystemd -p libvirt-daemon-system --no-also --restart-after-upgrade libvirtd.service
 	dh_installsystemd -p libvirt-daemon-system --no-also --no-stop-on-upgrade $(LIBVIRT_SYSTEM_SERVICES)
-	dh_installsystemd -p libvirt-daemon-system --no-also --no-restart-after-upgrade --no-start $(LIBVIRT_NOSTART_UNITS)
+	dh_installsystemd -p libvirt-daemon-system --no-also --no-stop-on-upgrade $(LIBVIRT_SOCKETS)
 
 override_dh_installdocs:
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
