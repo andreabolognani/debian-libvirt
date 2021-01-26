@@ -139,13 +139,14 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dwireshark_dissector=enabled \
     $(NULL)
 
+# Those have to stay up through upgrades to avoid interruptions
 LIBVIRT_SYSTEM_SERVICES = \
     virtlogd.service \
     virtlockd.service \
+    libvirt-guests.service \
     $(NULL)
 
 LIBVIRT_NOSTART_UNITS = \
-    libvirt-guests.service \
     libvirtd.socket \
     libvirtd-ro.socket \
     libvirtd-admin.socket \
