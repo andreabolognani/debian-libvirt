@@ -104,6 +104,7 @@ case "$1" in
         # Since we might have changed the on-disk configuration for some
         # services, restart them so that they can pick up the new settings
         if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload >/dev/null || true
             if systemctl is-active -q virtnetworkd; then
                 systemctl restart virtnetworkd
             fi
