@@ -1,0 +1,19 @@
+From: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Date: Wed, 27 Jan 2021 07:59:37 +0100
+Subject: systemd: Revert "remote: Add libvirtd dependency to
+ virt-guest-shutdown.target" as it would reintroduce bug 955216
+
+This reverts commit f035f53baa2e5dc00b8e866e594672a90b4cea78.
+---
+ src/remote/virt-guest-shutdown.target | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/remote/virt-guest-shutdown.target b/src/remote/virt-guest-shutdown.target
+index e2efa3e..25d4aaa 100644
+--- a/src/remote/virt-guest-shutdown.target
++++ b/src/remote/virt-guest-shutdown.target
+@@ -1,4 +1,3 @@
+ [Unit]
+ Description=Libvirt guests shutdown
+-Requires=libvirtd.service
+ Documentation=https://libvirt.org
