@@ -264,6 +264,8 @@ Depends:
  libvirt-daemon (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
+Recommends:
+ qemu-block-extra,
 Description: Virtualization daemon iSCSI (libiscsi) storage driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
