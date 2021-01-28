@@ -1,8 +1,20 @@
-libvirt (7.0.0-1) UNRELEASED; urgency=medium
+libvirt (7.0.0-1) unstable; urgency=medium
 
   * Team upload
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 23 Jan 2021 15:14:51 +0100
+  [ Andrea Bolognani ]
+  * [561e347] libvirt-daemon-config-nwfilter: Install new nwfilters
+  * [56231e3] patches: Add backport/meson-Fix-cross-building-[...].patch
+    - Closes: #980334
+
+  [ Christian Ehrhardt ]
+  * [6568c68] apparmor: allow hot-plug for qcow backing chains
+    - Closes: #981001
+  * [8173ce4] libvirt-daemon-config-*: reload libvirtd before restart
+  * [dc21d88] systemd: Drop libvirtd dep from virt-guest-shutdown.target
+    - Avoids reintroducing: #955216
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 28 Jan 2021 22:06:43 +0100
 
 libvirt (6.9.0-4) unstable; urgency=medium
 
