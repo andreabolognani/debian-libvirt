@@ -81,10 +81,9 @@ Depends:
  sensible-utils,
  ${misc:Depends},
  ${shlibs:Depends},
-Recommends:
- libvirt-login-shell (= ${binary:Version}),
 Suggests:
  libvirt-daemon (= ${binary:Version}),
+ libvirt-login-shell (= ${binary:Version}),
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
