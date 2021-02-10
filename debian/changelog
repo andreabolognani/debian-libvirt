@@ -1,3 +1,24 @@
+libvirt (7.0.0-2) unstable; urgency=medium
+
+  * Team upload
+
+  [ Matthew Gabeler-Lee ]
+  * [7391555] control: recommend qemu support for iscsi-direct
+    - Closes: #981284
+
+  [ Andrea Bolognani ]
+  * [8048eef] control: Always use versioned deps for libvirt components
+    - Closes: #981435
+  * [effe0cd] control: Always explicitly depend on libvirt0
+  * [d3c8ec2] control: Bump Standards-Version to 4.5.1
+
+  [ Christian Ehrhardt ]
+  * [3cbe8f9] d/control: avoid libvirt-clients to pull in libvirt-daemon
+  * [295944d] systemd: start, but do not restart libvirt-guests.service
+  * [ddbad4b] systemd: do not restart sockets
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 10 Feb 2021 23:23:32 +0100
+
 libvirt (7.0.0-1) unstable; urgency=medium
 
   * Team upload
