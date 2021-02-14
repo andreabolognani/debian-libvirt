@@ -4,40 +4,31 @@ Subject: Debianize libvirt-guests
 
 Origin: vendor
 ---
- tools/libvirt-guests.sh.in   | 31 +++++++++++++++----------------
+ tools/libvirt-guests.sh.in   | 21 ++++++++++-----------
  tools/libvirt-guests.sysconf |  4 ++--
- 2 files changed, 17 insertions(+), 18 deletions(-)
+ 2 files changed, 12 insertions(+), 13 deletions(-)
 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 87f96af..0ae07ad 100644
+index 87f96af..9fe1c4c 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
-@@ -16,34 +16,34 @@
- # License along with this library.  If not, see
- # <http://www.gnu.org/licenses/>.
+@@ -20,30 +20,30 @@ sysconfdir="@sysconfdir@"
+ localstatedir="@localstatedir@"
+ libvirtd="@sbindir@"/libvirtd
  
--sysconfdir="@sysconfdir@"
--localstatedir="@localstatedir@"
--libvirtd="@sbindir@"/libvirtd
--
 -# Source function library.
 -test ! -r "$sysconfdir"/rc.d/init.d/functions ||
 -    . "$sysconfdir"/rc.d/init.d/functions
-+sysconfdir=/etc
-+localstatedir=/var
-+libvirtd=/usr/sbin/libvirtd
- 
+-
  # Source gettext library.
  # Make sure this file is recognized as having translations: _("dummy")
--. "@bindir@"/gettext.sh
-+. /usr/bin/gettext.sh
-+
+ . "@bindir@"/gettext.sh
+ 
 +# Make sure calls to this script get redirected to systemctl when
 +# using systemd
 +. /lib/lsb/init-functions
- 
--export TEXTDOMAIN="@PACKAGE@" TEXTDOMAINDIR="@localedir@"
-+export TEXTDOMAIN="libvirt" TEXTDOMAINDIR="/usr/share/locale"
++
+ export TEXTDOMAIN="@PACKAGE@" TEXTDOMAINDIR="@localedir@"
  
  URIS="default"
 -ON_BOOT="start"
