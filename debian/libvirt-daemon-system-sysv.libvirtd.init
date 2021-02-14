@@ -26,6 +26,7 @@ INITSCRIPT=/etc/init.d/$NAME
 DEFAULTFILE=/etc/default/$NAME
 PIDFILE=/var/run/$NAME.pid
 
+start_libvirtd=yes
 cgroups="cpuset cpu cpuacct devices freezer net_cls blkio perf_event"
 ! grep -qs cgroup_enable=memory /proc/cmdline || cgroups="$cgroups memory"
 
