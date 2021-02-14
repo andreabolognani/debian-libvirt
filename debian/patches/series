@@ -6,8 +6,6 @@ forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
 debian/Debianize-libvirt-guests.patch
 debian/Debianize-systemd-service-files.patch
-debian/Debianize-virtlockd.patch
-debian/Debianize-virtlogd.patch
 debian/apparmor_profiles_local_include.patch
 debian/Set-defaults-for-zfs-tools.patch
 debian/Revert-m4-virt-xdr-rewrite-XDR-check.patch
