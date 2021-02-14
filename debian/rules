@@ -188,8 +188,6 @@ override_dh_auto_install:
 	dh_auto_install
 
 	# Copy upstream files to debian/ so dh_* can find them
-	cp $(DEB_DESTDIR)/usr/lib/libvirt/libvirt-guests.sh \
-	   debian/libvirt-daemon-system-sysv.libvirt-guests.init
 	cp tools/libvirt-guests.sysconf \
 	   debian/libvirt-daemon-system.libvirt-guests.default
 	cp src/logging/virtlogd.sysconf \

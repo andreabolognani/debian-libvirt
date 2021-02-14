@@ -4,34 +4,15 @@ Subject: Debianize libvirt-guests
 
 Origin: vendor
 ---
- tools/libvirt-guests.sh.in   | 45 +++++++++++++++++++++++++++-----------------
+ tools/libvirt-guests.sh.in   | 31 +++++++++++++++----------------
  tools/libvirt-guests.sysconf |  4 ++--
- 2 files changed, 30 insertions(+), 19 deletions(-)
+ 2 files changed, 17 insertions(+), 18 deletions(-)
 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 87f96af..38cdfbb 100644
+index 87f96af..0ae07ad 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
-@@ -1,5 +1,17 @@
- #!/bin/sh
--
-+#
-+### BEGIN INIT INFO
-+# Provides: libvirt-guests
-+# Required-Start: $remote_fs libvirtd
-+# Required-Stop: $remote_fs libvirtd
-+# Default-Start: 2 3 4 5
-+# Default-Stop: 0 1 6
-+# Short-Description: suspend/resume libvirt guests on shutdown/boot
-+# Description: This is a script for suspending active libvirt guests
-+#              on shutdown and resuming them on next boot
-+#              See https://libvirt.org/
-+### END INIT INFO
-+#
- # Copyright (C) 2011-2014 Red Hat, Inc.
- #
- # This library is free software; you can redistribute it and/or
-@@ -16,34 +28,34 @@
+@@ -16,34 +16,34 @@
  # License along with this library.  If not, see
  # <http://www.gnu.org/licenses/>.
  
@@ -80,7 +61,7 @@ index 87f96af..38cdfbb 100644
  
  RETVAL=0
  
-@@ -562,8 +574,7 @@ gueststatus() {
+@@ -562,8 +562,7 @@ gueststatus() {
  
  # rh_status
  # Display current status: whether saved state exists, and whether start
