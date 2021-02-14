@@ -120,7 +120,7 @@ case "$1" in
                           /var/run/$NAME.pid --exec $DAEMON
         [ -n "$DODTIME" ] && sleep $DODTIME
         start-stop-daemon --start --quiet --pidfile \
-                          /var/run/$NAME.pid --exec $DAEMON -- -d $libvirtd_opts
+                          /var/run/$NAME.pid --exec $DAEMON -- -d $VIRTLOGD_ARGS
         if running; then
             log_end_msg 0
         else
@@ -134,7 +134,7 @@ case "$1" in
                               /var/run/$NAME.pid --exec $DAEMON
             log_end_msg 0
         else
-            log_warning_msg "libvirtd not running, doing nothing."
+            log_warning_msg "virtlogd not running, doing nothing."
         fi
         ;;
     status)
@@ -153,7 +153,7 @@ case "$1" in
         fi
         ;;
     *)
-        N=/etc/init.d/libvirtd
+        N=/etc/init.d/virtlogd
         echo "Usage: $N {start|stop|restart|reload|force-reload|status|force-stop}" >&2
         exit 1
         ;;
