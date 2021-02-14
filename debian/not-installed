@@ -1,5 +1,4 @@
 # Drop these once we start shipping split daemons
-etc/default/libvirtd
 etc/default/virtinterfaced
 etc/default/virtlxcd
 etc/default/virtnetworkd
