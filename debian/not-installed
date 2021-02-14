@@ -1,5 +1,16 @@
-# debianized versions are in /etc/default
-etc/sysconfig/*
+# Drop these once we start shipping split daemons
+etc/default/libvirtd
+etc/default/virtinterfaced
+etc/default/virtlxcd
+etc/default/virtnetworkd
+etc/default/virtnodedevd
+etc/default/virtnwfilterd
+etc/default/virtproxyd
+etc/default/virtqemud
+etc/default/virtsecretd
+etc/default/virtstoraged
+etc/default/virtvboxd
+etc/default/virtxend
 # Installed in examples already
 usr/lib/sysctl.d/60-libvirtd.conf
 # Drop these once we start shipping split daemons
