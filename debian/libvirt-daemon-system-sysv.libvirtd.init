@@ -151,7 +151,7 @@ case "$1" in
                 fi
             fi
             start-stop-daemon --start --quiet --pidfile $PIDFILE \
-                              --exec $DAEMON -- -d $libvirtd_opts
+                              --exec $DAEMON -- -d $LIBVIRTD_ARGS
             if running; then
                 log_end_msg 0
             else
@@ -189,7 +189,7 @@ case "$1" in
                               /var/run/$NAME.pid --exec $DAEMON
             [ -n "$DODTIME" ] && sleep $DODTIME
             start-stop-daemon --start --quiet --pidfile \
-                              /var/run/$NAME.pid --exec $DAEMON -- -d $libvirtd_opts
+                              /var/run/$NAME.pid --exec $DAEMON -- -d $LIBVIRTD_ARGS
             if running; then
                 log_end_msg 0
             else

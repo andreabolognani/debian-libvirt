@@ -1,3 +1,15 @@
+libvirt (7.0.0-3) unstable; urgency=medium
+
+  The $libvirtd_opts variable in /etc/default/libvirtd has been
+  renamed to $LIBVIRTD_ARGS to match upstream and other daemons
+  that are part of libvirt.
+
+  Other changes have been made to the file as well, so it's
+  recommended to pay extra attention if prompted by dpkg about
+  it during an upgrade.
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 15 Feb 2021 00:45:40 +0100
+
 libvirt (6.9.0-4) unstable; urgency=medium
 
   The configuration for the default network and the default set
