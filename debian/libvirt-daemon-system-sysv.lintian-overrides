@@ -1,1 +1,7 @@
+libvirt-daemon-system-sysv: init.d-script-does-not-implement-required-option etc/init.d/libvirt-guests force-reload
+libvirt-daemon-system-sysv: init.d-script-does-not-implement-required-option etc/init.d/libvirt-guests restart
+libvirt-daemon-system-sysv: init.d-script-does-not-implement-required-option etc/init.d/libvirt-guests start
+libvirt-daemon-system-sysv: init.d-script-does-not-implement-required-option etc/init.d/libvirt-guests stop
+libvirt-daemon-system-sysv: init.d-script-does-not-implement-status-option etc/init.d/libvirt-guests
+libvirt-daemon-system-sysv: init.d-script-does-not-source-init-functions etc/init.d/libvirt-guests
 libvirt-daemon-system-sysv: missing-systemd-service-for-init.d-script
