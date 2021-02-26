@@ -1,5 +1,7 @@
 libvirt (7.0.0-3) unstable; urgency=medium
 
+  * Team upload
+
   * [5ae74e0] libvirtd: Improve default file
   * [b11d3c3] virtlogd: Fix some bugs in the sysv init script
 
