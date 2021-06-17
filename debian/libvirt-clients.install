@@ -7,7 +7,6 @@ usr/bin/virt-pki-validate
 usr/bin/virt-xml-validate
 usr/share/bash-completion/completions/virsh
 usr/share/bash-completion/completions/virt-admin
-usr/share/bash-completion/completions/vsh
 usr/share/man/man1/virsh.1
 usr/share/man/man1/virt-admin.1
 usr/share/man/man1/virt-host-validate.1
