@@ -103,3 +103,14 @@ usr/share/augeas/lenses/virtsecretd.aug
 usr/share/augeas/lenses/virtstoraged.aug
 usr/share/augeas/lenses/virtvboxd.aug
 usr/share/augeas/lenses/virtxend.aug
+usr/share/man/man8/virtinterfaced.8
+usr/share/man/man8/virtlxcd.8
+usr/share/man/man8/virtnetworkd.8
+usr/share/man/man8/virtnodedevd.8
+usr/share/man/man8/virtnwfilterd.8
+usr/share/man/man8/virtproxyd.8
+usr/share/man/man8/virtqemud.8
+usr/share/man/man8/virtsecretd.8
+usr/share/man/man8/virtstoraged.8
+usr/share/man/man8/virtvboxd.8
+usr/share/man/man8/virtxend.8
