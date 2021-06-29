@@ -1,3 +1,9 @@
+libvirt (7.5.0-1) UNRELEASED; urgency=medium
+
+  * Team upload
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 29 Jun 2021 08:48:53 +0200
+
 libvirt (7.0.0-3) unstable; urgency=medium
 
   * Team upload
