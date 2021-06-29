@@ -117,6 +117,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dstorage_sheepdog=disabled \
     $(WITH_STORAGE_RBD) \
     $(WITH_STORAGE_GLUSTER) \
+    -Dstorage_vstorage=disabled \
     -Dstorage_zfs=enabled \
     $(WITH_INIT_SCRIPT) \
     $(WITH_NUMA) \
