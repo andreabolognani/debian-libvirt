@@ -47,24 +47,21 @@ struct virMacMap {
 };
 
 
-static virClassPtr virMacMapClass;
-
-
-static int
-virMacMapHashFree(void *payload,
-                  const char *name G_GNUC_UNUSED,
-                  void *opaque G_GNUC_UNUSED)
-{
-    g_strfreev(payload);
-    return 0;
-}
+static virClass *virMacMapClass;
 
 
 static void
 virMacMapDispose(void *obj)
 {
-    virMacMapPtr mgr = obj;
-    virHashForEach(mgr->macs, virMacMapHashFree, NULL);
+    virMacMap *mgr = obj;
+    GHashTableIter htitr;
+    void *value;
+
+    g_hash_table_iter_init(&htitr,  mgr->macs);
+
+    while (g_hash_table_iter_next(&htitr, NULL, &value))
+        g_slist_free_full(value, g_free);
+
     virHashFree(mgr->macs);
 }
 
@@ -80,117 +77,129 @@ static int virMacMapOnceInit(void)
 VIR_ONCE_GLOBAL_INIT(virMacMap);
 
 
-static int
-virMacMapAddLocked(virMacMapPtr mgr,
+static void
+virMacMapAddLocked(virMacMap *mgr,
                    const char *domain,
                    const char *mac)
 {
-    char **macsList = NULL;
+    GSList *orig_list;
+    GSList *list;
+    GSList *next;
 
-    if ((macsList = virHashLookup(mgr->macs, domain)) &&
-        virStringListHasString((const char**) macsList, mac)) {
-        return 0;
+    list = orig_list = g_hash_table_lookup(mgr->macs, domain);
+
+    for (next = list; next; next = next->next) {
+        if (STREQ((const char *) next->data, mac))
+            return;
     }
 
-    if (virStringListAdd(&macsList, mac) < 0 ||
-        virHashUpdateEntry(mgr->macs, domain, macsList) < 0)
-        return -1;
+    list = g_slist_append(list, g_strdup(mac));
 
-    return 0;
+    if (list != orig_list)
+        g_hash_table_insert(mgr->macs, g_strdup(domain), list);
 }
 
 
-static int
-virMacMapRemoveLocked(virMacMapPtr mgr,
+static void
+virMacMapRemoveLocked(virMacMap *mgr,
                       const char *domain,
                       const char *mac)
 {
-    char **macsList = NULL;
-    char **newMacsList = NULL;
+    GSList *orig_list;
+    GSList *list;
+    GSList *next;
 
-    if (!(macsList = virHashLookup(mgr->macs, domain)))
-        return 0;
+    list = orig_list = g_hash_table_lookup(mgr->macs, domain);
 
-    newMacsList = macsList;
-    virStringListRemove(&newMacsList, mac);
-    if (!newMacsList) {
-        virHashSteal(mgr->macs, domain);
-    } else {
-        if (macsList != newMacsList &&
-            virHashUpdateEntry(mgr->macs, domain, newMacsList) < 0)
-            return -1;
+    if (!orig_list)
+        return;
+
+    for (next = list; next; next = next->next) {
+        if (STREQ((const char *) next->data, mac)) {
+            list = g_slist_remove_link(list, next);
+            g_slist_free_full(next, g_free);
+            break;
+        }
     }
 
-    return 0;
+    if (list != orig_list) {
+        if (list)
+            g_hash_table_insert(mgr->macs, g_strdup(domain), list);
+        else
+            g_hash_table_remove(mgr->macs, domain);
+    }
 }
 
 
 static int
-virMacMapLoadFile(virMacMapPtr mgr,
+virMacMapLoadFile(virMacMap *mgr,
                   const char *file)
 {
     g_autofree char *map_str = NULL;
-    virJSONValuePtr map = NULL;
+    g_autoptr(virJSONValue) map = NULL;
     int map_str_len = 0;
     size_t i;
-    int ret = -1;
 
     if (virFileExists(file) &&
         (map_str_len = virFileReadAll(file,
                                       VIR_MAC_MAP_FILE_SIZE_MAX,
                                       &map_str)) < 0)
-        goto cleanup;
+        return -1;
 
-    if (map_str_len == 0) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (map_str_len == 0)
+        return 0;
 
     if (!(map = virJSONValueFromString(map_str))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("invalid json in file: %s"),
                        file);
-        goto cleanup;
+        return -1;
     }
 
     if (!virJSONValueIsArray(map)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Malformed file structure: %s"),
                        file);
-        goto cleanup;
+        return -1;
     }
 
     for (i = 0; i < virJSONValueArraySize(map); i++) {
-        virJSONValuePtr tmp = virJSONValueArrayGet(map, i);
-        virJSONValuePtr macs;
+        virJSONValue *tmp = virJSONValueArrayGet(map, i);
+        virJSONValue *macs;
         const char *domain;
         size_t j;
+        GSList *vals = NULL;
 
         if (!(domain = virJSONValueObjectGetString(tmp, "domain"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Missing domain"));
-            goto cleanup;
+            return -1;
         }
 
         if (!(macs = virJSONValueObjectGetArray(tmp, "macs"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Missing macs"));
-            goto cleanup;
+            return -1;
+        }
+
+        if (g_hash_table_contains(mgr->macs, domain)) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("duplicate domain '%s'"), domain);
+            return -1;
+
         }
 
         for (j = 0; j < virJSONValueArraySize(macs); j++) {
-            virJSONValuePtr macJSON = virJSONValueArrayGet(macs, j);
-            const char *mac = virJSONValueGetString(macJSON);
+            virJSONValue *macJSON = virJSONValueArrayGet(macs, j);
 
-            if (virMacMapAddLocked(mgr, domain, mac) < 0)
-                goto cleanup;
+            vals = g_slist_prepend(vals, g_strdup(virJSONValueGetString(macJSON)));
         }
+
+        vals = g_slist_reverse(vals);
+        g_hash_table_insert(mgr->macs, g_strdup(domain), vals);
     }
 
-    ret = 0;
- cleanup:
-    virJSONValueFree(map);
-    return ret;
+    return 0;
 }
 
 
@@ -199,65 +208,47 @@ virMACMapHashDumper(void *payload,
                     const char *name,
                     void *data)
 {
-    virJSONValuePtr obj = virJSONValueNewObject();
-    virJSONValuePtr arr = NULL;
-    const char **macs = payload;
-    size_t i;
-    int ret = -1;
+    g_autoptr(virJSONValue) obj = virJSONValueNewObject();
+    g_autoptr(virJSONValue) arr = virJSONValueNewArray();
+    GSList *macs = payload;
+    GSList *next;
 
-    arr = virJSONValueNewArray();
+    for (next = macs; next; next = next->next) {
+        g_autoptr(virJSONValue) m = virJSONValueNewString((const char *) next->data);
 
-    for (i = 0; macs[i]; i++) {
-        virJSONValuePtr m = virJSONValueNewString(macs[i]);
-
-        if (!m ||
-            virJSONValueArrayAppend(arr, m) < 0) {
-            virJSONValueFree(m);
-            goto cleanup;
-        }
+        if (virJSONValueArrayAppend(arr, &m) < 0)
+            return -1;
     }
 
     if (virJSONValueObjectAppendString(obj, "domain", name) < 0 ||
-        virJSONValueObjectAppend(obj, "macs", arr) < 0)
-        goto cleanup;
-    arr = NULL;
+        virJSONValueObjectAppend(obj, "macs", &arr) < 0)
+        return -1;
 
-    if (virJSONValueArrayAppend(data, obj) < 0)
-        goto cleanup;
-    obj = NULL;
+    if (virJSONValueArrayAppend(data, &obj) < 0)
+        return -1;
 
-    ret = 0;
- cleanup:
-    virJSONValueFree(obj);
-    virJSONValueFree(arr);
-    return ret;
+    return 0;
 }
 
 
 static int
-virMacMapDumpStrLocked(virMacMapPtr mgr,
+virMacMapDumpStrLocked(virMacMap *mgr,
                        char **str)
 {
-    virJSONValuePtr arr;
-    int ret = -1;
-
-    arr = virJSONValueNewArray();
+    g_autoptr(virJSONValue) arr = virJSONValueNewArray();
 
     if (virHashForEachSorted(mgr->macs, virMACMapHashDumper, arr) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(*str = virJSONValueToString(arr, true)))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virJSONValueFree(arr);
-    return ret;
+    return 0;
 }
 
 
 static int
-virMacMapWriteFileLocked(virMacMapPtr mgr,
+virMacMapWriteFileLocked(virMacMap *mgr,
                          const char *file)
 {
     g_autofree char *str = NULL;
@@ -286,10 +277,10 @@ virMacMapFileName(const char *dnsmasqStateDir,
 
 #define VIR_MAC_HASH_TABLE_SIZE 10
 
-virMacMapPtr
+virMacMap *
 virMacMapNew(const char *file)
 {
-    virMacMapPtr mgr;
+    virMacMap *mgr;
 
     if (virMacMapInitialize() < 0)
         return NULL;
@@ -298,8 +289,8 @@ virMacMapNew(const char *file)
         return NULL;
 
     virObjectLock(mgr);
-    if (!(mgr->macs = virHashNew(NULL)))
-        goto error;
+
+    mgr->macs = virHashNew(NULL);
 
     if (file &&
         virMacMapLoadFile(mgr, file) < 0)
@@ -316,38 +307,35 @@ virMacMapNew(const char *file)
 
 
 int
-virMacMapAdd(virMacMapPtr mgr,
+virMacMapAdd(virMacMap *mgr,
              const char *domain,
              const char *mac)
 {
-    int ret;
-
     virObjectLock(mgr);
-    ret = virMacMapAddLocked(mgr, domain, mac);
+    virMacMapAddLocked(mgr, domain, mac);
     virObjectUnlock(mgr);
-    return ret;
+    return 0;
 }
 
 
 int
-virMacMapRemove(virMacMapPtr mgr,
+virMacMapRemove(virMacMap *mgr,
                 const char *domain,
                 const char *mac)
 {
-    int ret;
-
     virObjectLock(mgr);
-    ret = virMacMapRemoveLocked(mgr, domain, mac);
+    virMacMapRemoveLocked(mgr, domain, mac);
     virObjectUnlock(mgr);
-    return ret;
+    return 0;
 }
 
 
-const char *const *
-virMacMapLookup(virMacMapPtr mgr,
+/* note that the returned pointer may be invalidated by other APIs in this module */
+GSList *
+virMacMapLookup(virMacMap *mgr,
                 const char *domain)
 {
-    const char *const *ret;
+    GSList *ret;
 
     virObjectLock(mgr);
     ret = virHashLookup(mgr->macs, domain);
@@ -357,7 +345,7 @@ virMacMapLookup(virMacMapPtr mgr,
 
 
 int
-virMacMapWriteFile(virMacMapPtr mgr,
+virMacMapWriteFile(virMacMap *mgr,
                    const char *filename)
 {
     int ret;
@@ -370,7 +358,7 @@ virMacMapWriteFile(virMacMapPtr mgr,
 
 
 int
-virMacMapDumpStr(virMacMapPtr mgr,
+virMacMapDumpStr(virMacMap *mgr,
                  char **str)
 {
     int ret;

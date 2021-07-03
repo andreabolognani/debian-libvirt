@@ -879,4 +879,21 @@ LIBVIRT_6.10.0 {
         virDomainAuthorizedSSHKeysSet;
 } LIBVIRT_6.0.0;
 
+LIBVIRT_7.1.0 {
+    global:
+        virDomainGetMessages;
+} LIBVIRT_6.10.0;
+
+LIBVIRT_7.2.0 {
+    global:
+        virDomainStartDirtyRateCalc;
+} LIBVIRT_7.1.0;
+
+LIBVIRT_7.3.0 {
+    global:
+        virNodeDeviceDefineXML;
+        virNodeDeviceUndefine;
+        virNodeDeviceCreate;
+} LIBVIRT_7.2.0;
+
 # .... define new API here using predicted next version number ....

@@ -73,8 +73,8 @@ typedef char lxc_message_t;
 
 typedef struct __lxc_child_argv lxc_child_argv_t;
 struct __lxc_child_argv {
-    virDomainDefPtr config;
-    virSecurityManagerPtr securityDriver;
+    virDomainDef *config;
+    virSecurityManager *securityDriver;
     size_t nveths;
     char **veths;
     int monitor;
@@ -86,7 +86,7 @@ struct __lxc_child_argv {
     int *nsInheritFDs;
 };
 
-static int lxcContainerMountFSBlock(virDomainFSDefPtr fs,
+static int lxcContainerMountFSBlock(virDomainFSDef *fs,
                                     const char *srcprefix,
                                     const char *sec_mount_options);
 
@@ -164,16 +164,16 @@ int lxcContainerHasReboot(void)
  * lxcContainerBuildInitCmd:
  * @vmDef: pointer to vm definition structure
  *
- * Build a virCommandPtr for launching the container 'init' process
+ * Build a virCommand *for launching the container 'init' process
  *
- * Returns a virCommandPtr
+ * Returns a virCommand *
  */
-static virCommandPtr lxcContainerBuildInitCmd(virDomainDefPtr vmDef,
+static virCommand *lxcContainerBuildInitCmd(virDomainDef *vmDef,
                                               char **ttyPaths,
                                               size_t nttyPaths)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virCommandPtr cmd;
+    virCommand *cmd;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     size_t i;
 
@@ -407,7 +407,7 @@ int lxcContainerWaitForContinue(int control)
  *
  * Returns 0 on success or -1 in case of error
  */
-static int lxcContainerSetID(virDomainDefPtr def)
+static int lxcContainerSetID(virDomainDef *def)
 {
     /* Only call virSetUIDGID when user namespace is enabled
      * for this container. And user namespace is only enabled
@@ -427,11 +427,11 @@ static int lxcContainerSetID(virDomainDefPtr def)
 }
 
 
-static virDomainNetDefPtr
-lxcContainerGetNetDef(virDomainDefPtr vmDef, const char *devName)
+static virDomainNetDef *
+lxcContainerGetNetDef(virDomainDef *vmDef, const char *devName)
 {
     size_t i;
-    virDomainNetDefPtr netDef;
+    virDomainNetDef *netDef;
 
     for (i = 0; i < vmDef->nnets; i++) {
         netDef = vmDef->nets[i];
@@ -454,13 +454,13 @@ lxcContainerGetNetDef(virDomainDefPtr vmDef, const char *devName)
  * Returns 0 on success or nonzero in case of error
  */
 static int
-lxcContainerRenameAndEnableInterfaces(virDomainDefPtr vmDef,
+lxcContainerRenameAndEnableInterfaces(virDomainDef *vmDef,
                                       size_t nveths,
                                       char **veths)
 {
     size_t i;
     const char *newname;
-    virDomainNetDefPtr netDef;
+    virDomainNetDef *netDef;
     bool privNet = vmDef->features[VIR_DOMAIN_FEATURE_PRIVNET] ==
                    VIR_TRISTATE_SWITCH_ON;
 
@@ -560,7 +560,7 @@ static int lxcContainerUnmountSubtree(const char *prefix,
     return ret;
 }
 
-static int lxcContainerResolveSymlinks(virDomainFSDefPtr fs, bool gentle)
+static int lxcContainerResolveSymlinks(virDomainFSDef *fs, bool gentle)
 {
     char *newroot;
 
@@ -603,8 +603,8 @@ static int lxcContainerResolveSymlinks(virDomainFSDefPtr fs, bool gentle)
     return 0;
 }
 
-static int lxcContainerPrepareRoot(virDomainDefPtr def,
-                                   virDomainFSDefPtr root,
+static int lxcContainerPrepareRoot(virDomainDef *def,
+                                   virDomainFSDef *root,
                                    const char *sec_mount_options)
 {
     g_autofree char *dst = NULL;
@@ -649,7 +649,7 @@ static int lxcContainerPrepareRoot(virDomainDefPtr def,
     return 0;
 }
 
-static int lxcContainerPivotRoot(virDomainFSDefPtr root)
+static int lxcContainerPivotRoot(virDomainFSDef *root)
 {
     g_autofree char *oldroot = NULL;
     g_autofree char *newroot = NULL;
@@ -665,7 +665,7 @@ static int lxcContainerPivotRoot(virDomainFSDefPtr root)
 
     oldroot = g_strdup_printf("%s/.oldroot", root->src->path);
 
-    if (virFileMakePath(oldroot) < 0) {
+    if (g_mkdir_with_parents(oldroot, 0777) < 0) {
         virReportSystemError(errno,
                              _("Failed to create %s"),
                              oldroot);
@@ -684,7 +684,7 @@ static int lxcContainerPivotRoot(virDomainFSDefPtr root)
     /* Create a directory called 'new' in tmpfs */
     newroot = g_strdup_printf("%s/new", oldroot);
 
-    if (virFileMakePath(newroot) < 0) {
+    if (g_mkdir_with_parents(newroot, 0777) < 0) {
         virReportSystemError(errno,
                              _("Failed to create %s"),
                              newroot);
@@ -889,7 +889,7 @@ static int lxcContainerMountBasicFS(bool userns_enabled,
             continue;
         }
 
-        if (virFileMakePath(mnt->dst) < 0) {
+        if (g_mkdir_with_parents(mnt->dst, 0777) < 0) {
             virReportSystemError(errno,
                                  _("Failed to mkdir %s"),
                                  mnt->dst);
@@ -930,7 +930,7 @@ static int lxcContainerMountBasicFS(bool userns_enabled,
 }
 
 #if WITH_FUSE
-static int lxcContainerMountProcFuse(virDomainDefPtr def,
+static int lxcContainerMountProcFuse(virDomainDef *def,
                                      const char *stateDir)
 {
     g_autofree char *meminfo_path = NULL;
@@ -952,14 +952,14 @@ static int lxcContainerMountProcFuse(virDomainDefPtr def,
     return 0;
 }
 #else
-static int lxcContainerMountProcFuse(virDomainDefPtr def G_GNUC_UNUSED,
+static int lxcContainerMountProcFuse(virDomainDef *def G_GNUC_UNUSED,
                                      const char *stateDir G_GNUC_UNUSED)
 {
     return 0;
 }
 #endif
 
-static int lxcContainerMountFSDev(virDomainDefPtr def,
+static int lxcContainerMountFSDev(virDomainDef *def,
                                   const char *stateDir)
 {
     g_autofree char *path = NULL;
@@ -969,7 +969,7 @@ static int lxcContainerMountFSDev(virDomainDefPtr def,
 
     path = g_strdup_printf("/.oldroot/%s/%s.dev", stateDir, def->name);
 
-    if (virFileMakePath("/dev") < 0) {
+    if (g_mkdir_with_parents("/dev", 0777) < 0) {
         virReportSystemError(errno, "%s",
                              _("Cannot create /dev"));
         return -1;
@@ -988,7 +988,7 @@ static int lxcContainerMountFSDev(virDomainDefPtr def,
     return 0;
 }
 
-static int lxcContainerMountFSDevPTS(virDomainDefPtr def,
+static int lxcContainerMountFSDevPTS(virDomainDef *def,
                                      const char *stateDir)
 {
     g_autofree char *path = NULL;
@@ -998,7 +998,7 @@ static int lxcContainerMountFSDevPTS(virDomainDefPtr def,
 
     path = g_strdup_printf("/.oldroot/%s/%s.devpts", stateDir, def->name);
 
-    if (virFileMakePath("/dev/pts") < 0) {
+    if (g_mkdir_with_parents("/dev/pts", 0777) < 0) {
         virReportSystemError(errno, "%s",
                              _("Cannot create /dev/pts"));
         return -1;
@@ -1057,7 +1057,7 @@ static int lxcContainerSetupDevices(char **ttyPaths, size_t nttyPaths)
 }
 
 
-static int lxcContainerMountFSBind(virDomainFSDefPtr fs,
+static int lxcContainerMountFSBind(virDomainFSDef *fs,
                                    const char *srcprefix)
 {
     g_autofree char *src = NULL;
@@ -1080,7 +1080,7 @@ static int lxcContainerMountFSBind(virDomainFSDefPtr fs,
             return -1;
         }
         if (S_ISDIR(st.st_mode)) {
-            if (virFileMakePath(fs->dst) < 0) {
+            if (g_mkdir_with_parents(fs->dst, 0777) < 0) {
                 virReportSystemError(errno,
                                      _("Failed to create %s"),
                                      fs->dst);
@@ -1213,7 +1213,7 @@ lxcContainerMountDetectFilesystem(const char *src G_GNUC_UNUSED,
  * libblkid to detect the format first. We go straight to using
  * /etc/filesystems, and then /proc/filesystems
  */
-static int lxcContainerMountFSBlockAuto(virDomainFSDefPtr fs,
+static int lxcContainerMountFSBlockAuto(virDomainFSDef *fs,
                                         int fsflags,
                                         const char *src,
                                         const char *srcprefix,
@@ -1338,7 +1338,7 @@ static int lxcContainerMountFSBlockAuto(virDomainFSDefPtr fs,
  * Mount a block device 'src' on fs->dst, automatically
  * probing for filesystem type
  */
-static int lxcContainerMountFSBlockHelper(virDomainFSDefPtr fs,
+static int lxcContainerMountFSBlockHelper(virDomainFSDef *fs,
                                           const char *src,
                                           const char *srcprefix,
                                           const char *sec_mount_options)
@@ -1349,7 +1349,7 @@ static int lxcContainerMountFSBlockHelper(virDomainFSDefPtr fs,
     if (fs->readonly)
         fsflags |= MS_RDONLY;
 
-    if (virFileMakePath(fs->dst) < 0) {
+    if (g_mkdir_with_parents(fs->dst, 0777) < 0) {
         virReportSystemError(errno,
                              _("Failed to create %s"),
                              fs->dst);
@@ -1375,7 +1375,7 @@ static int lxcContainerMountFSBlockHelper(virDomainFSDefPtr fs,
 }
 
 
-static int lxcContainerMountFSBlock(virDomainFSDefPtr fs,
+static int lxcContainerMountFSBlock(virDomainFSDef *fs,
                                     const char *srcprefix,
                                     const char *sec_mount_options)
 {
@@ -1394,7 +1394,7 @@ static int lxcContainerMountFSBlock(virDomainFSDefPtr fs,
 }
 
 
-static int lxcContainerMountFSTmpfs(virDomainFSDefPtr fs,
+static int lxcContainerMountFSTmpfs(virDomainFSDef *fs,
                                     char *sec_mount_options)
 {
     g_autofree char *data = NULL;
@@ -1403,7 +1403,7 @@ static int lxcContainerMountFSTmpfs(virDomainFSDefPtr fs,
 
     data = g_strdup_printf("size=%lld%s", fs->usage, sec_mount_options);
 
-    if (virFileMakePath(fs->dst) < 0) {
+    if (g_mkdir_with_parents(fs->dst, 0777) < 0) {
         virReportSystemError(errno,
                              _("Failed to create %s"),
                              fs->dst);
@@ -1431,7 +1431,7 @@ static int lxcContainerMountFSTmpfs(virDomainFSDefPtr fs,
 }
 
 
-static int lxcContainerMountFS(virDomainFSDefPtr fs,
+static int lxcContainerMountFS(virDomainFSDef *fs,
                                char *sec_mount_options)
 {
     switch (fs->type) {
@@ -1469,7 +1469,7 @@ static int lxcContainerMountFS(virDomainFSDefPtr fs,
 }
 
 
-static int lxcContainerMountAllFS(virDomainDefPtr vmDef,
+static int lxcContainerMountAllFS(virDomainDef *vmDef,
                                   char *sec_mount_options)
 {
     size_t i;
@@ -1508,7 +1508,7 @@ int lxcContainerSetupHostdevCapsMakePath(const char *dev)
 
     if ((tmp = strrchr(dir, '/'))) {
         *tmp = '\0';
-        if (virFileMakePath(dir) < 0) {
+        if (g_mkdir_with_parents(dir, 0777) < 0) {
             virReportSystemError(errno,
                                  _("Failed to create directory for '%s' dev '%s'"),
                                  dir, dev);
@@ -1568,7 +1568,7 @@ static int lxcContainerUnmountForSharedRoot(const char *stateDir,
 
 
 static bool
-lxcNeedNetworkNamespace(virDomainDefPtr def)
+lxcNeedNetworkNamespace(virDomainDef *def)
 {
     size_t i;
     if (def->nets != NULL)
@@ -1588,11 +1588,11 @@ lxcNeedNetworkNamespace(virDomainDefPtr def)
  * approach to do a better-chroot-than-chroot
  * this is based on this thread https://lkml.org/lkml/2008/3/5/29
  */
-static int lxcContainerSetupPivotRoot(virDomainDefPtr vmDef,
-                                      virDomainFSDefPtr root,
+static int lxcContainerSetupPivotRoot(virDomainDef *vmDef,
+                                      virDomainFSDef *root,
                                       char **ttyPaths,
                                       size_t nttyPaths,
-                                      virSecurityManagerPtr securityDriver)
+                                      virSecurityManager *securityDriver)
 {
     g_autoptr(virCgroup) cgroup = NULL;
     g_autofree char *sec_mount_options = NULL;
@@ -1667,14 +1667,14 @@ static int lxcContainerSetupPivotRoot(virDomainDefPtr vmDef,
     return 0;
 }
 
-static int lxcContainerResolveAllSymlinks(virDomainDefPtr vmDef)
+static int lxcContainerResolveAllSymlinks(virDomainDef *vmDef)
 {
     size_t i;
 
     VIR_DEBUG("Resolving symlinks");
 
     for (i = 0; i < vmDef->nfss; i++) {
-        virDomainFSDefPtr fs = vmDef->fss[i];
+        virDomainFSDef *fs = vmDef->fss[i];
         /* In the first pass, be gentle as some files may
            depend on other filesystems to be mounted */
         if (lxcContainerResolveSymlinks(fs, true) < 0)
@@ -1692,7 +1692,7 @@ static int lxcContainerResolveAllSymlinks(virDomainDefPtr vmDef)
  */
 #if WITH_CAPNG
 
-static int lxcContainerDropCapabilities(virDomainDefPtr def,
+static int lxcContainerDropCapabilities(virDomainDef *def,
                                         bool keepReboot)
 {
     int ret;
@@ -1821,7 +1821,7 @@ static int lxcContainerDropCapabilities(virDomainDefPtr def,
     return 0;
 }
 #else
-static int lxcContainerDropCapabilities(virDomainDefPtr def G_GNUC_UNUSED,
+static int lxcContainerDropCapabilities(virDomainDef *def G_GNUC_UNUSED,
                                         bool keepReboot G_GNUC_UNUSED)
 {
     VIR_WARN("libcap-ng support not compiled in, unable to clear capabilities");
@@ -1855,8 +1855,8 @@ static int lxcAttachNS(int *ns_fd)
  *
  * The owner of the tty is also changed to the given user.
  */
-static int lxcContainerSetUserGroup(virCommandPtr cmd,
-                                    virDomainDefPtr vmDef,
+static int lxcContainerSetUserGroup(virCommand *cmd,
+                                    virDomainDef *vmDef,
                                     const char *ttyPath)
 {
     uid_t uid;
@@ -1897,7 +1897,7 @@ static const char hostname_validchars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "0123456789-";
 
-static int lxcContainerSetHostname(virDomainDefPtr def)
+static int lxcContainerSetHostname(virDomainDef *def)
 {
     g_autofree char *name = NULL;
     const char *hostname = NULL;
@@ -1934,12 +1934,12 @@ static int lxcContainerSetHostname(virDomainDefPtr def)
 static int lxcContainerChild(void *data)
 {
     lxc_child_argv_t *argv = data;
-    virDomainDefPtr vmDef = argv->config;
+    virDomainDef *vmDef = argv->config;
     int ttyfd = -1;
     int ret = -1;
     g_autofree char *ttyPath = NULL;
-    virDomainFSDefPtr root;
-    virCommandPtr cmd = NULL;
+    virDomainFSDef *root;
+    virCommand *cmd = NULL;
     int hasReboot;
     g_autofree gid_t *groups = NULL;
     int ngroups;
@@ -2091,7 +2091,7 @@ static int lxcContainerChild(void *data)
     return ret;
 }
 
-static int userns_required(virDomainDefPtr def)
+static int userns_required(virDomainDef *def)
 {
     return def->idmap.uidmap && def->idmap.gidmap;
 }
@@ -2133,8 +2133,8 @@ virArch lxcContainerGetAlt32bitArch(virArch arch)
  *
  * Returns PID of container on success or -1 in case of error
  */
-int lxcContainerStart(virDomainDefPtr def,
-                      virSecurityManagerPtr securityDriver,
+int lxcContainerStart(virDomainDef *def,
+                      virSecurityManager *securityDriver,
                       size_t nveths,
                       char **veths,
                       size_t npassFDs,
@@ -2220,7 +2220,7 @@ int lxcContainerStart(virDomainDefPtr def,
     return pid;
 }
 
-int lxcContainerChown(virDomainDefPtr def, const char *path)
+int lxcContainerChown(virDomainDef *def, const char *path)
 {
     uid_t uid;
     gid_t gid;

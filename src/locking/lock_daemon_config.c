@@ -52,10 +52,10 @@ virLockDaemonConfigFilePath(bool privileged, char **configfile)
 }
 
 
-virLockDaemonConfigPtr
+virLockDaemonConfig *
 virLockDaemonConfigNew(bool privileged G_GNUC_UNUSED)
 {
-    virLockDaemonConfigPtr data;
+    virLockDaemonConfig *data;
 
     data = g_new0(virLockDaemonConfig, 1);
 
@@ -66,20 +66,20 @@ virLockDaemonConfigNew(bool privileged G_GNUC_UNUSED)
 }
 
 void
-virLockDaemonConfigFree(virLockDaemonConfigPtr data)
+virLockDaemonConfigFree(virLockDaemonConfig *data)
 {
     if (!data)
         return;
 
-    VIR_FREE(data->log_filters);
-    VIR_FREE(data->log_outputs);
+    g_free(data->log_filters);
+    g_free(data->log_outputs);
 
-    VIR_FREE(data);
+    g_free(data);
 }
 
 static int
-virLockDaemonConfigLoadOptions(virLockDaemonConfigPtr data,
-                               virConfPtr conf)
+virLockDaemonConfigLoadOptions(virLockDaemonConfig *data,
+                               virConf *conf)
 {
     if (virConfGetValueUInt(conf, "log_level", &data->log_level) < 0)
         return -1;
@@ -100,7 +100,7 @@ virLockDaemonConfigLoadOptions(virLockDaemonConfigPtr data,
  * Only used in the remote case, hence the name.
  */
 int
-virLockDaemonConfigLoadFile(virLockDaemonConfigPtr data,
+virLockDaemonConfigLoadFile(virLockDaemonConfig *data,
                             const char *filename,
                             bool allow_missing)
 {

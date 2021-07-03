@@ -44,7 +44,7 @@ VIR_LOG_INIT("tests.securityselinuxlabeltest");
 
 static virQEMUDriver driver;
 
-static virSecurityManagerPtr mgr;
+static virSecurityManager *mgr;
 
 typedef struct testSELinuxFile testSELinuxFile;
 
@@ -62,7 +62,7 @@ testUserXattrEnabled(void)
     char *path = NULL;
     path = g_strdup_printf("%s/securityselinuxlabeldata/testxattr", abs_builddir);
 
-    if (virFileMakePath(abs_builddir "/securityselinuxlabeldata") < 0 ||
+    if (g_mkdir_with_parents(abs_builddir "/securityselinuxlabeldata", 0777) < 0 ||
         virFileTouch(path, 0600) < 0)
         goto cleanup;
 
@@ -144,12 +144,7 @@ testSELinuxLoadFileList(const char *testname,
                 *tmp = '\0';
         }
 
-        if (VIR_EXPAND_N(*files, *nfiles, 1) < 0) {
-            VIR_FREE(file);
-            VIR_FREE(context);
-            goto cleanup;
-        }
-
+        VIR_EXPAND_N(*files, *nfiles, 1);
         (*files)[(*nfiles)-1].file = file;
         (*files)[(*nfiles)-1].context = context;
     }
@@ -164,11 +159,11 @@ testSELinuxLoadFileList(const char *testname,
 }
 
 
-static virDomainDefPtr
+static virDomainDef *
 testSELinuxLoadDef(const char *testname)
 {
     char *xmlfile = NULL;
-    virDomainDefPtr def = NULL;
+    virDomainDef *def = NULL;
     size_t i;
 
     xmlfile = g_strdup_printf("%s/securityselinuxlabeldata/%s.xml", abs_srcdir,
@@ -221,7 +216,7 @@ testSELinuxCreateDisks(testSELinuxFile *files, size_t nfiles)
 {
     size_t i;
 
-    if (virFileMakePath(abs_builddir "/securityselinuxlabeldata/nfs") < 0)
+    if (g_mkdir_with_parents(abs_builddir "/securityselinuxlabeldata/nfs", 0777) < 0)
         return -1;
 
     for (i = 0; i < nfiles; i++) {
@@ -287,7 +282,7 @@ testSELinuxLabeling(const void *opaque)
     testSELinuxFile *files = NULL;
     size_t nfiles = 0;
     size_t i;
-    virDomainDefPtr def = NULL;
+    virDomainDef *def = NULL;
 
     if (testSELinuxLoadFileList(testname, &files, &nfiles) < 0)
         goto cleanup;

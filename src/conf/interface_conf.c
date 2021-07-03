@@ -37,25 +37,25 @@ VIR_ENUM_IMPL(virInterface,
               "ethernet", "bridge", "bond", "vlan",
 );
 
-static virInterfaceDefPtr
+static virInterfaceDef *
 virInterfaceDefParseXML(xmlXPathContextPtr ctxt, int parentIfType);
 
 static int
-virInterfaceDefDevFormat(virBufferPtr buf, const virInterfaceDef *def,
+virInterfaceDefDevFormat(virBuffer *buf, const virInterfaceDef *def,
                          virInterfaceType parentIfType);
 
 static void
-virInterfaceIPDefFree(virInterfaceIPDefPtr def)
+virInterfaceIPDefFree(virInterfaceIPDef *def)
 {
     if (def == NULL)
         return;
-    VIR_FREE(def->address);
-    VIR_FREE(def);
+    g_free(def->address);
+    g_free(def);
 }
 
 
 static void
-virInterfaceProtocolDefFree(virInterfaceProtocolDefPtr def)
+virInterfaceProtocolDefFree(virInterfaceProtocolDef *def)
 {
     size_t i;
 
@@ -63,15 +63,15 @@ virInterfaceProtocolDefFree(virInterfaceProtocolDefPtr def)
         return;
     for (i = 0; i < def->nips; i++)
         virInterfaceIPDefFree(def->ips[i]);
-    VIR_FREE(def->ips);
-    VIR_FREE(def->family);
-    VIR_FREE(def->gateway);
-    VIR_FREE(def);
+    g_free(def->ips);
+    g_free(def->family);
+    g_free(def->gateway);
+    g_free(def);
 }
 
 
 void
-virInterfaceDefFree(virInterfaceDefPtr def)
+virInterfaceDefFree(virInterfaceDef *def)
 {
     size_t i;
     int pp;
@@ -79,44 +79,44 @@ virInterfaceDefFree(virInterfaceDefPtr def)
     if (def == NULL)
         return;
 
-    VIR_FREE(def->name);
-    VIR_FREE(def->mac);
+    g_free(def->name);
+    g_free(def->mac);
 
     switch (def->type) {
         case VIR_INTERFACE_TYPE_BRIDGE:
-            VIR_FREE(def->data.bridge.delay);
+            g_free(def->data.bridge.delay);
             for (i = 0; i < def->data.bridge.nbItf; i++) {
                 if (def->data.bridge.itf[i] == NULL)
                     break; /* to cope with half parsed data on errors */
                 virInterfaceDefFree(def->data.bridge.itf[i]);
             }
-            VIR_FREE(def->data.bridge.itf);
+            g_free(def->data.bridge.itf);
             break;
         case VIR_INTERFACE_TYPE_BOND:
-            VIR_FREE(def->data.bond.target);
+            g_free(def->data.bond.target);
             for (i = 0; i < def->data.bond.nbItf; i++) {
                 if (def->data.bond.itf[i] == NULL)
                     break; /* to cope with half parsed data on errors */
                 virInterfaceDefFree(def->data.bond.itf[i]);
             }
-            VIR_FREE(def->data.bond.itf);
+            g_free(def->data.bond.itf);
             break;
         case VIR_INTERFACE_TYPE_VLAN:
-            VIR_FREE(def->data.vlan.tag);
-            VIR_FREE(def->data.vlan.dev_name);
+            g_free(def->data.vlan.tag);
+            g_free(def->data.vlan.dev_name);
             break;
     }
 
     /* free all protos */
     for (pp = 0; pp < def->nprotos; pp++)
         virInterfaceProtocolDefFree(def->protos[pp]);
-    VIR_FREE(def->protos);
-    VIR_FREE(def);
+    g_free(def->protos);
+    g_free(def);
 }
 
 
 static int
-virInterfaceDefParseName(virInterfaceDefPtr def,
+virInterfaceDefParseName(virInterfaceDef *def,
                          xmlXPathContextPtr ctxt)
 {
     char *tmp;
@@ -133,7 +133,7 @@ virInterfaceDefParseName(virInterfaceDefPtr def,
 
 
 static int
-virInterfaceDefParseMtu(virInterfaceDefPtr def,
+virInterfaceDefParseMtu(virInterfaceDef *def,
                         xmlXPathContextPtr ctxt)
 {
     unsigned long mtu;
@@ -152,7 +152,7 @@ virInterfaceDefParseMtu(virInterfaceDefPtr def,
 
 
 static int
-virInterfaceDefParseStartMode(virInterfaceDefPtr def,
+virInterfaceDefParseStartMode(virInterfaceDef *def,
                               xmlXPathContextPtr ctxt)
 {
     char *tmp;
@@ -259,7 +259,7 @@ virInterfaceDefParseBondArpValid(xmlXPathContextPtr ctxt)
 
 
 static int
-virInterfaceDefParseDhcp(virInterfaceProtocolDefPtr def,
+virInterfaceDefParseDhcp(virInterfaceProtocolDef *def,
                          xmlNodePtr dhcp, xmlXPathContextPtr ctxt)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -288,7 +288,7 @@ virInterfaceDefParseDhcp(virInterfaceProtocolDefPtr def,
 
 
 static int
-virInterfaceDefParseIP(virInterfaceIPDefPtr def,
+virInterfaceDefParseIP(virInterfaceIPDef *def,
                        xmlXPathContextPtr ctxt)
 {
     int ret = 0;
@@ -313,7 +313,7 @@ virInterfaceDefParseIP(virInterfaceIPDefPtr def,
 
 
 static int
-virInterfaceDefParseProtoIPv4(virInterfaceProtocolDefPtr def,
+virInterfaceDefParseProtoIPv4(virInterfaceProtocolDef *def,
                               xmlXPathContextPtr ctxt)
 {
     xmlNodePtr dhcp;
@@ -337,12 +337,12 @@ virInterfaceDefParseProtoIPv4(virInterfaceProtocolDefPtr def,
     if (ipNodes == NULL)
         return 0;
 
-    def->ips = g_new0(virInterfaceIPDefPtr, nipNodes);
+    def->ips = g_new0(virInterfaceIPDef *, nipNodes);
 
     def->nips = 0;
     for (i = 0; i < nipNodes; i++) {
 
-        virInterfaceIPDefPtr ip;
+        virInterfaceIPDef *ip;
 
         ip = g_new0(virInterfaceIPDef, 1);
 
@@ -363,7 +363,7 @@ virInterfaceDefParseProtoIPv4(virInterfaceProtocolDefPtr def,
 
 
 static int
-virInterfaceDefParseProtoIPv6(virInterfaceProtocolDefPtr def,
+virInterfaceDefParseProtoIPv6(virInterfaceProtocolDef *def,
                               xmlXPathContextPtr ctxt)
 {
     xmlNodePtr dhcp, autoconf;
@@ -391,12 +391,12 @@ virInterfaceDefParseProtoIPv6(virInterfaceProtocolDefPtr def,
     if (ipNodes == NULL)
         return 0;
 
-    def->ips = g_new0(virInterfaceIPDefPtr, nipNodes);
+    def->ips = g_new0(virInterfaceIPDef *, nipNodes);
 
     def->nips = 0;
     for (i = 0; i < nipNodes; i++) {
 
-        virInterfaceIPDefPtr ip;
+        virInterfaceIPDef *ip;
 
         ip = g_new0(virInterfaceIPDef, 1);
 
@@ -417,7 +417,7 @@ virInterfaceDefParseProtoIPv6(virInterfaceProtocolDefPtr def,
 
 
 static int
-virInterfaceDefParseIfAdressing(virInterfaceDefPtr def,
+virInterfaceDefParseIfAdressing(virInterfaceDef *def,
                                 xmlXPathContextPtr ctxt)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -434,12 +434,12 @@ virInterfaceDefParseIfAdressing(virInterfaceDefPtr def,
         return 0;
     }
 
-    def->protos = g_new0(virInterfaceProtocolDefPtr, nProtoNodes);
+    def->protos = g_new0(virInterfaceProtocolDef *, nProtoNodes);
 
     def->nprotos = 0;
     for (pp = 0; pp < nProtoNodes; pp++) {
 
-        virInterfaceProtocolDefPtr proto;
+        virInterfaceProtocolDef *proto;
 
         proto = g_new0(virInterfaceProtocolDef, 1);
 
@@ -483,12 +483,12 @@ virInterfaceDefParseIfAdressing(virInterfaceDefPtr def,
 
 
 static int
-virInterfaceDefParseBridge(virInterfaceDefPtr def,
+virInterfaceDefParseBridge(virInterfaceDef *def,
                            xmlXPathContextPtr ctxt)
 {
     xmlNodePtr *interfaces = NULL;
     xmlNodePtr bridge;
-    virInterfaceDefPtr itf;
+    virInterfaceDef *itf;
     char *tmp = NULL;
     int nbItf;
     size_t i;
@@ -540,12 +540,12 @@ virInterfaceDefParseBridge(virInterfaceDefPtr def,
 
 
 static int
-virInterfaceDefParseBondItfs(virInterfaceDefPtr def,
+virInterfaceDefParseBondItfs(virInterfaceDef *def,
                              xmlXPathContextPtr ctxt)
 {
     xmlNodePtr *interfaces = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    virInterfaceDefPtr itf;
+    virInterfaceDef *itf;
     int nbItf;
     size_t i;
     int ret = -1;
@@ -581,7 +581,7 @@ virInterfaceDefParseBondItfs(virInterfaceDefPtr def,
 
 
 static int
-virInterfaceDefParseBond(virInterfaceDefPtr def,
+virInterfaceDefParseBond(virInterfaceDef *def,
                          xmlXPathContextPtr ctxt)
 {
     int res;
@@ -654,7 +654,7 @@ virInterfaceDefParseBond(virInterfaceDefPtr def,
 
 
 static int
-virInterfaceDefParseVlan(virInterfaceDefPtr def,
+virInterfaceDefParseVlan(virInterfaceDef *def,
                          xmlXPathContextPtr ctxt)
 {
     def->data.vlan.tag = virXPathString("string(./@tag)", ctxt);
@@ -675,11 +675,11 @@ virInterfaceDefParseVlan(virInterfaceDefPtr def,
 }
 
 
-static virInterfaceDefPtr
+static virInterfaceDef *
 virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
                         int parentIfType)
 {
-    virInterfaceDefPtr def;
+    virInterfaceDef *def;
     int type;
     char *tmp;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -795,7 +795,7 @@ virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
 }
 
 
-virInterfaceDefPtr
+virInterfaceDef *
 virInterfaceDefParseNode(xmlDocPtr xml,
                          xmlNodePtr root)
 {
@@ -817,12 +817,12 @@ virInterfaceDefParseNode(xmlDocPtr xml,
 }
 
 
-static virInterfaceDefPtr
+static virInterfaceDef *
 virInterfaceDefParse(const char *xmlStr,
                      const char *filename)
 {
     xmlDocPtr xml;
-    virInterfaceDefPtr def = NULL;
+    virInterfaceDef *def = NULL;
 
     if ((xml = virXMLParse(filename, xmlStr, _("(interface_definition)")))) {
         def = virInterfaceDefParseNode(xml, xmlDocGetRootElement(xml));
@@ -833,14 +833,14 @@ virInterfaceDefParse(const char *xmlStr,
 }
 
 
-virInterfaceDefPtr
+virInterfaceDef *
 virInterfaceDefParseString(const char *xmlStr)
 {
     return virInterfaceDefParse(xmlStr, NULL);
 }
 
 
-virInterfaceDefPtr
+virInterfaceDef *
 virInterfaceDefParseFile(const char *filename)
 {
     return virInterfaceDefParse(NULL, filename);
@@ -848,7 +848,7 @@ virInterfaceDefParseFile(const char *filename)
 
 
 static int
-virInterfaceBridgeDefFormat(virBufferPtr buf,
+virInterfaceBridgeDefFormat(virBuffer *buf,
                             const virInterfaceDef *def)
 {
     size_t i;
@@ -877,7 +877,7 @@ virInterfaceBridgeDefFormat(virBufferPtr buf,
 
 
 static int
-virInterfaceBondDefFormat(virBufferPtr buf,
+virInterfaceBondDefFormat(virBuffer *buf,
                           const virInterfaceDef *def)
 {
     size_t i;
@@ -942,7 +942,7 @@ virInterfaceBondDefFormat(virBufferPtr buf,
 
 
 static int
-virInterfaceVlanDefFormat(virBufferPtr buf,
+virInterfaceVlanDefFormat(virBuffer *buf,
                           const virInterfaceDef *def)
 {
     if (def->data.vlan.tag == NULL) {
@@ -967,7 +967,7 @@ virInterfaceVlanDefFormat(virBufferPtr buf,
 
 
 static int
-virInterfaceProtocolDefFormat(virBufferPtr buf,
+virInterfaceProtocolDefFormat(virBuffer *buf,
                               const virInterfaceDef *def)
 {
     size_t i, j;
@@ -1014,7 +1014,7 @@ virInterfaceProtocolDefFormat(virBufferPtr buf,
 
 
 static int
-virInterfaceStartmodeDefFormat(virBufferPtr buf,
+virInterfaceStartmodeDefFormat(virBuffer *buf,
                                virInterfaceStartMode startmode)
 {
     const char *mode;
@@ -1041,7 +1041,7 @@ virInterfaceStartmodeDefFormat(virBufferPtr buf,
 
 
 static int
-virInterfaceDefDevFormat(virBufferPtr buf,
+virInterfaceDefDevFormat(virBuffer *buf,
                          const virInterfaceDef *def,
                          virInterfaceType parentIfType)
 {

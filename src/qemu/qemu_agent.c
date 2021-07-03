@@ -66,14 +66,12 @@ VIR_LOG_INIT("qemu.qemu_agent");
  *
 static struct {
     const char *type;
-    void (*handler)(qemuAgentPtr agent, virJSONValuePtr data);
+    void (*handler)(qemuAgent *agent, virJSONValue *data);
 } eventHandlers[] = {
 };
 */
 
 typedef struct _qemuAgentMessage qemuAgentMessage;
-typedef qemuAgentMessage *qemuAgentMessagePtr;
-
 struct _qemuAgentMessage {
     char *txBuffer;
     int txOffset;
@@ -111,13 +109,13 @@ struct _qemuAgent {
     bool singleSync;
     bool inSync;
 
-    virDomainObjPtr vm;
+    virDomainObj *vm;
 
-    qemuAgentCallbacksPtr cb;
+    qemuAgentCallbacks *cb;
 
     /* If there's a command being processed this will be
      * non-NULL */
-    qemuAgentMessagePtr msg;
+    qemuAgentMessage *msg;
 
     /* Buffer incoming data ready for agent
      * code to process & find message boundaries */
@@ -136,7 +134,7 @@ struct _qemuAgent {
     int timeout;
 };
 
-static virClassPtr qemuAgentClass;
+static virClass *qemuAgentClass;
 static void qemuAgentDispose(void *obj);
 
 static int qemuAgentOnceInit(void)
@@ -172,12 +170,12 @@ qemuAgentEscapeNonPrintable(const char *text)
 
 static void qemuAgentDispose(void *obj)
 {
-    qemuAgentPtr agent = obj;
+    qemuAgent *agent = obj;
     VIR_DEBUG("agent=%p", agent);
     if (agent->cb && agent->cb->destroy)
         (agent->cb->destroy)(agent, agent->vm);
     virCondDestroy(&agent->notify);
-    VIR_FREE(agent->buffer);
+    g_free(agent->buffer);
     g_main_context_unref(agent->context);
     virResetError(&agent->lastError);
 }
@@ -226,8 +224,8 @@ qemuAgentOpenUnix(const char *socketpath)
 
 
 static int
-qemuAgentIOProcessEvent(qemuAgentPtr agent,
-                        virJSONValuePtr obj)
+qemuAgentIOProcessEvent(qemuAgent *agent,
+                        virJSONValue *obj)
 {
     const char *type;
     VIR_DEBUG("agent=%p obj=%p", agent, obj);
@@ -242,7 +240,7 @@ qemuAgentIOProcessEvent(qemuAgentPtr agent,
 /*
     for (i = 0; i < G_N_ELEMENTS(eventHandlers); i++) {
         if (STREQ(eventHandlers[i].type, type)) {
-            virJSONValuePtr data = virJSONValueObjectGet(obj, "data");
+            virJSONValue *data = virJSONValueObjectGet(obj, "data");
             VIR_DEBUG("handle %s handler=%p data=%p", type,
                       eventHandlers[i].handler, data);
             (eventHandlers[i].handler)(agent, data);
@@ -254,11 +252,11 @@ qemuAgentIOProcessEvent(qemuAgentPtr agent,
 }
 
 static int
-qemuAgentIOProcessLine(qemuAgentPtr agent,
+qemuAgentIOProcessLine(qemuAgent *agent,
                        const char *line,
-                       qemuAgentMessagePtr msg)
+                       qemuAgentMessage *msg)
 {
-    virJSONValuePtr obj = NULL;
+    virJSONValue *obj = NULL;
     int ret = -1;
 
     VIR_DEBUG("Line [%s]", line);
@@ -305,9 +303,8 @@ qemuAgentIOProcessLine(qemuAgentPtr agent,
                     goto cleanup;
                 }
             }
-            msg->rxObject = obj;
+            msg->rxObject = g_steal_pointer(&obj);
             msg->finished = true;
-            obj = NULL;
         } else {
             /* we are out of sync */
             VIR_DEBUG("Ignoring delayed reply");
@@ -323,10 +320,10 @@ qemuAgentIOProcessLine(qemuAgentPtr agent,
     return ret;
 }
 
-static int qemuAgentIOProcessData(qemuAgentPtr agent,
+static int qemuAgentIOProcessData(qemuAgent *agent,
                                   char *data,
                                   size_t len,
-                                  qemuAgentMessagePtr msg)
+                                  qemuAgentMessage *msg)
 {
     int used = 0;
     size_t i = 0;
@@ -363,10 +360,10 @@ static int qemuAgentIOProcessData(qemuAgentPtr agent,
  * replies/errors.
  */
 static int
-qemuAgentIOProcess(qemuAgentPtr agent)
+qemuAgentIOProcess(qemuAgent *agent)
 {
     int len;
-    qemuAgentMessagePtr msg = NULL;
+    qemuAgentMessage *msg = NULL;
 
     /* See if there's a message ready for reply; that is,
      * one that has completed writing all its data.
@@ -413,7 +410,7 @@ qemuAgentIOProcess(qemuAgentPtr agent)
  * Call this function while holding the agent lock.
  */
 static int
-qemuAgentIOWrite(qemuAgentPtr agent)
+qemuAgentIOWrite(qemuAgent *agent)
 {
     int done;
 
@@ -444,7 +441,7 @@ qemuAgentIOWrite(qemuAgentPtr agent)
  * Returns -1 on error, or number of bytes read
  */
 static int
-qemuAgentIORead(qemuAgentPtr agent)
+qemuAgentIORead(qemuAgent *agent)
 {
     size_t avail = agent->bufferLength - agent->bufferOffset;
     int ret = 0;
@@ -456,9 +453,7 @@ qemuAgentIORead(qemuAgentPtr agent)
                                  QEMU_AGENT_MAX_RESPONSE);
             return -1;
         }
-        if (VIR_REALLOC_N(agent->buffer,
-                          agent->bufferLength + 1024) < 0)
-            return -1;
+        VIR_REALLOC_N(agent->buffer, agent->bufferLength + 1024);
         agent->bufferLength += 1024;
         avail += 1024;
     }
@@ -502,7 +497,7 @@ qemuAgentIO(GSocket *socket,
 
 
 static void
-qemuAgentRegister(qemuAgentPtr agent)
+qemuAgentRegister(qemuAgent *agent)
 {
     GIOCondition cond = 0;
 
@@ -529,17 +524,17 @@ qemuAgentRegister(qemuAgentPtr agent)
 
 
 static void
-qemuAgentUnregister(qemuAgentPtr agent)
+qemuAgentUnregister(qemuAgent *agent)
 {
     if (agent->watch) {
         g_source_destroy(agent->watch);
-        g_source_unref(agent->watch);
+        vir_g_source_unref(agent->watch, agent->context);
         agent->watch = NULL;
     }
 }
 
 
-static void qemuAgentUpdateWatch(qemuAgentPtr agent)
+static void qemuAgentUpdateWatch(qemuAgent *agent)
 {
     qemuAgentUnregister(agent);
     if (agent->socket)
@@ -552,7 +547,7 @@ qemuAgentIO(GSocket *socket G_GNUC_UNUSED,
             GIOCondition cond,
             gpointer opaque)
 {
-    qemuAgentPtr agent = opaque;
+    qemuAgent *agent = opaque;
     bool error = false;
     bool eof = false;
 
@@ -636,11 +631,11 @@ qemuAgentIO(GSocket *socket G_GNUC_UNUSED,
 
     /* We have to unlock to avoid deadlock against command thread,
      * but is this safe ?  I think it is, because the callback
-     * will try to acquire the virDomainObjPtr mutex next */
+     * will try to acquire the virDomainObj *mutex next */
     if (eof) {
-        void (*eofNotify)(qemuAgentPtr, virDomainObjPtr)
+        void (*eofNotify)(qemuAgent *, virDomainObj *)
             = agent->cb->eofNotify;
-        virDomainObjPtr vm = agent->vm;
+        virDomainObj *vm = agent->vm;
 
         /* Make sure anyone waiting wakes up now */
         virCondSignal(&agent->notify);
@@ -649,9 +644,9 @@ qemuAgentIO(GSocket *socket G_GNUC_UNUSED,
         VIR_DEBUG("Triggering EOF callback");
         (eofNotify)(agent, vm);
     } else if (error) {
-        void (*errorNotify)(qemuAgentPtr, virDomainObjPtr)
+        void (*errorNotify)(qemuAgent *, virDomainObj *)
             = agent->cb->errorNotify;
-        virDomainObjPtr vm = agent->vm;
+        virDomainObj *vm = agent->vm;
 
         /* Make sure anyone waiting wakes up now */
         virCondSignal(&agent->notify);
@@ -668,14 +663,14 @@ qemuAgentIO(GSocket *socket G_GNUC_UNUSED,
 }
 
 
-qemuAgentPtr
-qemuAgentOpen(virDomainObjPtr vm,
+qemuAgent *
+qemuAgentOpen(virDomainObj *vm,
               const virDomainChrSourceDef *config,
               GMainContext *context,
-              qemuAgentCallbacksPtr cb,
+              qemuAgentCallbacks *cb,
               bool singleSync)
 {
-    qemuAgentPtr agent;
+    qemuAgent *agent;
     g_autoptr(GError) gerr = NULL;
 
     if (!cb || !cb->eofNotify) {
@@ -733,7 +728,7 @@ qemuAgentOpen(virDomainObjPtr vm,
  cleanup:
     /* We don't want the 'destroy' callback invoked during
      * cleanup from construction failure, because that can
-     * give a double-unref on virDomainObjPtr in the caller,
+     * give a double-unref on virDomainObj *in the caller,
      * so kill the callbacks now.
      */
     agent->cb = NULL;
@@ -743,7 +738,7 @@ qemuAgentOpen(virDomainObjPtr vm,
 
 
 static void
-qemuAgentNotifyCloseLocked(qemuAgentPtr agent)
+qemuAgentNotifyCloseLocked(qemuAgent *agent)
 {
     if (agent) {
         agent->running = false;
@@ -759,7 +754,7 @@ qemuAgentNotifyCloseLocked(qemuAgentPtr agent)
 
 
 void
-qemuAgentNotifyClose(qemuAgentPtr agent)
+qemuAgentNotifyClose(qemuAgent *agent)
 {
     if (!agent)
         return;
@@ -772,7 +767,7 @@ qemuAgentNotifyClose(qemuAgentPtr agent)
 }
 
 
-void qemuAgentClose(qemuAgentPtr agent)
+void qemuAgentClose(qemuAgent *agent)
 {
     if (!agent)
         return;
@@ -815,8 +810,8 @@ void qemuAgentClose(qemuAgentPtr agent)
  *          -2 on timeout,
  *          -1 otherwise
  */
-static int qemuAgentSend(qemuAgentPtr agent,
-                         qemuAgentMessagePtr msg,
+static int qemuAgentSend(qemuAgent *agent,
+                         qemuAgentMessage *msg,
                          int seconds)
 {
     int ret = -1;
@@ -888,7 +883,7 @@ static int qemuAgentSend(qemuAgentPtr agent,
  *          -1 otherwise
  */
 static int
-qemuAgentGuestSync(qemuAgentPtr agent)
+qemuAgentGuestSync(qemuAgent *agent)
 {
     int ret = -1;
     int send_ret;
@@ -996,7 +991,7 @@ qemuAgentStringifyErrorClass(const char *klass)
  * XXX see qerror.h for different klasses & fill out useful params
  */
 static const char *
-qemuAgentStringifyError(virJSONValuePtr error)
+qemuAgentStringifyError(virJSONValue *error)
 {
     const char *klass = virJSONValueObjectGetString(error, "class");
     const char *detail = virJSONValueObjectGetString(error, "desc");
@@ -1012,7 +1007,7 @@ qemuAgentStringifyError(virJSONValuePtr error)
 }
 
 static const char *
-qemuAgentCommandName(virJSONValuePtr cmd)
+qemuAgentCommandName(virJSONValue *cmd)
 {
     const char *name = virJSONValueObjectGetString(cmd, "execute");
     if (name)
@@ -1022,12 +1017,12 @@ qemuAgentCommandName(virJSONValuePtr cmd)
 }
 
 static int
-qemuAgentCheckError(virJSONValuePtr cmd,
-                    virJSONValuePtr reply,
+qemuAgentCheckError(virJSONValue *cmd,
+                    virJSONValue *reply,
                     bool report_unsupported)
 {
     if (virJSONValueObjectHasKey(reply, "error")) {
-        virJSONValuePtr error = virJSONValueObjectGet(reply, "error");
+        virJSONValue *error = virJSONValueObjectGet(reply, "error");
         g_autofree char *cmdstr = virJSONValueToString(cmd, false);
         g_autofree char *replystr = virJSONValueToString(reply, false);
 
@@ -1072,9 +1067,9 @@ qemuAgentCheckError(virJSONValuePtr cmd,
 }
 
 static int
-qemuAgentCommandFull(qemuAgentPtr agent,
-                     virJSONValuePtr cmd,
-                     virJSONValuePtr *reply,
+qemuAgentCommandFull(qemuAgent *agent,
+                     virJSONValue *cmd,
+                     virJSONValue **reply,
                      int seconds,
                      bool report_unsupported)
 {
@@ -1137,69 +1132,57 @@ qemuAgentCommandFull(qemuAgentPtr agent,
 }
 
 static int
-qemuAgentCommand(qemuAgentPtr agent,
-                 virJSONValuePtr cmd,
-                 virJSONValuePtr *reply,
+qemuAgentCommand(qemuAgent *agent,
+                 virJSONValue *cmd,
+                 virJSONValue **reply,
                  int seconds)
 {
     return qemuAgentCommandFull(agent, cmd, reply, seconds, true);
 }
 
-static virJSONValuePtr G_GNUC_NULL_TERMINATED
+static virJSONValue *G_GNUC_NULL_TERMINATED
 qemuAgentMakeCommand(const char *cmdname,
                      ...)
 {
-    virJSONValuePtr obj = virJSONValueNewObject();
-    virJSONValuePtr jargs = NULL;
+    g_autoptr(virJSONValue) obj = NULL;
+    g_autoptr(virJSONValue) jargs = NULL;
     va_list args;
 
     va_start(args, cmdname);
 
-    if (virJSONValueObjectAppendString(obj, "execute", cmdname) < 0)
-        goto error;
-
-    if (virJSONValueObjectCreateVArgs(&jargs, args) < 0)
-        goto error;
-
-    if (jargs &&
-        virJSONValueObjectAppend(obj, "arguments", jargs) < 0)
-        goto error;
+    if (virJSONValueObjectCreateVArgs(&jargs, args) < 0) {
+        va_end(args);
+        return NULL;
+    }
 
     va_end(args);
 
-    return obj;
+    if (virJSONValueObjectCreate(&obj,
+                                 "s:execute", cmdname,
+                                 "A:arguments", &jargs,
+                                 NULL) < 0)
+        return NULL;
 
- error:
-    virJSONValueFree(obj);
-    virJSONValueFree(jargs);
-    va_end(args);
-    return NULL;
+    return g_steal_pointer(&obj);
 }
 
-static virJSONValuePtr
+static virJSONValue *
 qemuAgentMakeStringsArray(const char **strings, unsigned int len)
 {
     size_t i;
-    virJSONValuePtr ret = virJSONValueNewArray(), str;
+    g_autoptr(virJSONValue) ret = virJSONValueNewArray();
 
     for (i = 0; i < len; i++) {
-        str = virJSONValueNewString(strings[i]);
-        if (!str)
-            goto error;
+        g_autoptr(virJSONValue) str = virJSONValueNewString(strings[i]);
 
-        if (virJSONValueArrayAppend(ret, str) < 0) {
-            virJSONValueFree(str);
-            goto error;
-        }
+        if (virJSONValueArrayAppend(ret, &str) < 0)
+            return NULL;
     }
-    return ret;
 
- error:
-    virJSONValueFree(ret);
-    return NULL;
+    return g_steal_pointer(&ret);
 }
 
-void qemuAgentNotifyEvent(qemuAgentPtr agent,
+void qemuAgentNotifyEvent(qemuAgent *agent,
                           qemuAgentEvent event)
 {
     virObjectLock(agent);
@@ -1224,12 +1207,12 @@ VIR_ENUM_IMPL(qemuAgentShutdownMode,
               "powerdown", "reboot", "halt",
 );
 
-int qemuAgentShutdown(qemuAgentPtr agent,
+int qemuAgentShutdown(qemuAgent *agent,
                       qemuAgentShutdownMode mode)
 {
     int ret = -1;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
 
     cmd = qemuAgentMakeCommand("guest-shutdown",
                                "s:mode", qemuAgentShutdownModeTypeToString(mode),
@@ -1263,12 +1246,13 @@ int qemuAgentShutdown(qemuAgentPtr agent,
  * Returns: number of file system frozen on success,
  *          -1 on error.
  */
-int qemuAgentFSFreeze(qemuAgentPtr agent, const char **mountpoints,
+int qemuAgentFSFreeze(qemuAgent *agent, const char **mountpoints,
                       unsigned int nmountpoints)
 {
     int ret = -1;
-    virJSONValuePtr cmd, arg = NULL;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *arg = NULL;
+    virJSONValue *reply = NULL;
 
     if (mountpoints && nmountpoints) {
         arg = qemuAgentMakeStringsArray(mountpoints, nmountpoints);
@@ -1310,11 +1294,11 @@ int qemuAgentFSFreeze(qemuAgentPtr agent, const char **mountpoints,
  * Returns: number of file system thawed on success,
  *          -1 on error.
  */
-int qemuAgentFSThaw(qemuAgentPtr agent)
+int qemuAgentFSThaw(qemuAgent *agent)
 {
     int ret = -1;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
 
     cmd = qemuAgentMakeCommand("guest-fsfreeze-thaw", NULL);
 
@@ -1345,12 +1329,12 @@ VIR_ENUM_IMPL(qemuAgentSuspendMode,
 );
 
 int
-qemuAgentSuspend(qemuAgentPtr agent,
+qemuAgentSuspend(qemuAgent *agent,
                  unsigned int target)
 {
     int ret = -1;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
 
     cmd = qemuAgentMakeCommand(qemuAgentSuspendModeTypeToString(target),
                                NULL);
@@ -1366,14 +1350,14 @@ qemuAgentSuspend(qemuAgentPtr agent,
 }
 
 int
-qemuAgentArbitraryCommand(qemuAgentPtr agent,
+qemuAgentArbitraryCommand(qemuAgent *agent,
                           const char *cmd_str,
                           char **result,
                           int timeout)
 {
     int ret = -1;
-    virJSONValuePtr cmd = NULL;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd = NULL;
+    virJSONValue *reply = NULL;
 
     *result = NULL;
     if (timeout < VIR_DOMAIN_QEMU_AGENT_COMMAND_MIN) {
@@ -1401,12 +1385,12 @@ qemuAgentArbitraryCommand(qemuAgentPtr agent,
 }
 
 int
-qemuAgentFSTrim(qemuAgentPtr agent,
+qemuAgentFSTrim(qemuAgent *agent,
                 unsigned long long minimum)
 {
     int ret = -1;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
 
     cmd = qemuAgentMakeCommand("guest-fstrim",
                                "U:minimum", minimum,
@@ -1422,14 +1406,14 @@ qemuAgentFSTrim(qemuAgentPtr agent,
 }
 
 int
-qemuAgentGetVCPUs(qemuAgentPtr agent,
-                  qemuAgentCPUInfoPtr *info)
+qemuAgentGetVCPUs(qemuAgent *agent,
+                  qemuAgentCPUInfo **info)
 {
     int ret = -1;
     size_t i;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
+    virJSONValue *data = NULL;
     size_t ndata;
 
     if (!(cmd = qemuAgentMakeCommand("guest-get-vcpus", NULL)))
@@ -1449,8 +1433,8 @@ qemuAgentGetVCPUs(qemuAgentPtr agent,
     *info = g_new0(qemuAgentCPUInfo, ndata);
 
     for (i = 0; i < ndata; i++) {
-        virJSONValuePtr entry = virJSONValueArrayGet(data, i);
-        qemuAgentCPUInfoPtr in = *info + i;
+        virJSONValue *entry = virJSONValueArrayGet(data, i);
+        qemuAgentCPUInfo *in = *info + i;
 
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1490,25 +1474,22 @@ qemuAgentGetVCPUs(qemuAgentPtr agent,
 
 /* returns the value provided by the guest agent or -1 on internal error */
 static int
-qemuAgentSetVCPUsCommand(qemuAgentPtr agent,
-                         qemuAgentCPUInfoPtr info,
+qemuAgentSetVCPUsCommand(qemuAgent *agent,
+                         qemuAgentCPUInfo *info,
                          size_t ninfo,
                          int *nmodified)
 {
-    int ret = -1;
-    virJSONValuePtr cmd = NULL;
-    virJSONValuePtr reply = NULL;
-    virJSONValuePtr cpus = NULL;
-    virJSONValuePtr cpu = NULL;
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    g_autoptr(virJSONValue) cpus = virJSONValueNewArray();
     size_t i;
+    int ret;
 
     *nmodified = 0;
 
-    /* create the key data array */
-    cpus = virJSONValueNewArray();
-
     for (i = 0; i < ninfo; i++) {
-        qemuAgentCPUInfoPtr in = &info[i];
+        qemuAgentCPUInfo *in = &info[i];
+        g_autoptr(virJSONValue) cpu = virJSONValueNewObject();
 
         /* don't set state for cpus that were not touched */
         if (!in->modified)
@@ -1516,33 +1497,26 @@ qemuAgentSetVCPUsCommand(qemuAgentPtr agent,
 
         (*nmodified)++;
 
-        /* create single cpu object */
-        cpu = virJSONValueNewObject();
-
         if (virJSONValueObjectAppendNumberInt(cpu, "logical-id", in->id) < 0)
-            goto cleanup;
+            return -1;
 
         if (virJSONValueObjectAppendBoolean(cpu, "online", in->online) < 0)
-            goto cleanup;
+            return -1;
 
-        if (virJSONValueArrayAppend(cpus, cpu) < 0)
-            goto cleanup;
-
-        cpu = NULL;
+        if (virJSONValueArrayAppend(cpus, &cpu) < 0)
+            return -1;
     }
 
-    if (*nmodified == 0) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (*nmodified == 0)
+        return 0;
 
     if (!(cmd = qemuAgentMakeCommand("guest-set-vcpus",
                                      "a:vcpus", &cpus,
                                      NULL)))
-        goto cleanup;
+        return -1;
 
     if (qemuAgentCommand(agent, cmd, &reply, agent->timeout) < 0)
-        goto cleanup;
+        return -1;
 
     /* All negative values are invalid. Return of 0 is bogus since we wouldn't
      * call the guest agent so that 0 cpus would be set successfully. Reporting
@@ -1551,14 +1525,9 @@ qemuAgentSetVCPUsCommand(qemuAgentPtr agent,
         ret <= 0 || ret > *nmodified) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("guest agent returned malformed or invalid return value"));
-        ret = -1;
+        return -1;
     }
 
- cleanup:
-    virJSONValueFree(cmd);
-    virJSONValueFree(reply);
-    virJSONValueFree(cpu);
-    virJSONValueFree(cpus);
     return ret;
 }
 
@@ -1572,8 +1541,8 @@ qemuAgentSetVCPUsCommand(qemuAgentPtr agent,
  * Returns -1 on error, 0 on success.
  */
 int
-qemuAgentSetVCPUs(qemuAgentPtr agent,
-                  qemuAgentCPUInfoPtr info,
+qemuAgentSetVCPUs(qemuAgent *agent,
+                  qemuAgentCPUInfo *info,
                   size_t ninfo)
 {
     int rv;
@@ -1605,7 +1574,7 @@ qemuAgentSetVCPUs(qemuAgentPtr agent,
 /* modify the cpu info structure to set the correct amount of cpus */
 int
 qemuAgentUpdateCPUInfo(unsigned int nvcpus,
-                       qemuAgentCPUInfoPtr cpuinfo,
+                       qemuAgentCPUInfo *cpuinfo,
                        int ncpuinfo)
 {
     size_t i;
@@ -1690,13 +1659,13 @@ qemuAgentUpdateCPUInfo(unsigned int nvcpus,
  * guest agent does not support the command without reporting an error
  */
 int
-qemuAgentGetHostname(qemuAgentPtr agent,
+qemuAgentGetHostname(qemuAgent *agent,
                      char **hostname,
                      bool report_unsupported)
 {
     g_autoptr(virJSONValue) cmd = qemuAgentMakeCommand("guest-get-host-name", NULL);
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *data = NULL;
     const char *result = NULL;
     int rc;
 
@@ -1726,14 +1695,14 @@ qemuAgentGetHostname(qemuAgentPtr agent,
 
 
 int
-qemuAgentGetTime(qemuAgentPtr agent,
+qemuAgentGetTime(qemuAgent *agent,
                  long long *seconds,
                  unsigned int *nseconds)
 {
     int ret = -1;
     unsigned long long json_time;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
 
     cmd = qemuAgentMakeCommand("guest-get-time",
                                NULL);
@@ -1768,14 +1737,14 @@ qemuAgentGetTime(qemuAgentPtr agent,
  * @sync: let guest agent to read domain's RTC (@setTime is ignored)
  */
 int
-qemuAgentSetTime(qemuAgentPtr agent,
+qemuAgentSetTime(qemuAgent *agent,
                 long long seconds,
                 unsigned int nseconds,
                 bool rtcSync)
 {
     int ret = -1;
-    virJSONValuePtr cmd;
-    virJSONValuePtr reply = NULL;
+    virJSONValue *cmd;
+    virJSONValue *reply = NULL;
 
     if (rtcSync) {
         cmd = qemuAgentMakeCommand("guest-set-time", NULL);
@@ -1816,7 +1785,7 @@ qemuAgentSetTime(qemuAgentPtr agent,
 }
 
 void
-qemuAgentDiskAddressFree(qemuAgentDiskAddressPtr info)
+qemuAgentDiskAddressFree(qemuAgentDiskAddress *info)
 {
     if (!info)
         return;
@@ -1830,7 +1799,7 @@ qemuAgentDiskAddressFree(qemuAgentDiskAddressPtr info)
 
 
 void
-qemuAgentDiskInfoFree(qemuAgentDiskInfoPtr info)
+qemuAgentDiskInfoFree(qemuAgentDiskInfo *info)
 {
     if (!info)
         return;
@@ -1844,7 +1813,7 @@ qemuAgentDiskInfoFree(qemuAgentDiskInfoPtr info)
 
 
 void
-qemuAgentFSInfoFree(qemuAgentFSInfoPtr info)
+qemuAgentFSInfoFree(qemuAgentFSInfo *info)
 {
     size_t i;
 
@@ -1863,11 +1832,11 @@ qemuAgentFSInfoFree(qemuAgentFSInfoPtr info)
 }
 
 
-static qemuAgentDiskAddressPtr
-qemuAgentGetDiskAddress(virJSONValuePtr json)
+static qemuAgentDiskAddress *
+qemuAgentGetDiskAddress(virJSONValue *json)
 {
-    virJSONValuePtr pci;
-    virJSONValuePtr ccw;
+    virJSONValue *pci;
+    virJSONValue *ccw;
     g_autoptr(qemuAgentDiskAddress) addr = NULL;
 
     addr = g_new0(qemuAgentDiskAddress, 1);
@@ -1900,7 +1869,7 @@ qemuAgentGetDiskAddress(virJSONValuePtr json)
     GET_DISK_ADDR(pci, &addr->pci_controller.function, "function");
 
     if ((ccw = virJSONValueObjectGet(json, "ccw-address"))) {
-        g_autofree virDomainDeviceCCWAddressPtr ccw_addr = NULL;
+        g_autofree virDomainDeviceCCWAddress *ccw_addr = NULL;
 
         ccw_addr = g_new0(virDomainDeviceCCWAddress, 1);
 
@@ -1919,8 +1888,8 @@ qemuAgentGetDiskAddress(virJSONValuePtr json)
 
 
 static int
-qemuAgentGetFSInfoFillDisks(virJSONValuePtr jsondisks,
-                            qemuAgentFSInfoPtr fsinfo)
+qemuAgentGetFSInfoFillDisks(virJSONValue *jsondisks,
+                            qemuAgentFSInfo *fsinfo)
 {
     size_t ndisks;
     size_t i;
@@ -1934,11 +1903,11 @@ qemuAgentGetFSInfoFillDisks(virJSONValuePtr jsondisks,
     ndisks = virJSONValueArraySize(jsondisks);
 
     if (ndisks)
-        fsinfo->disks = g_new0(qemuAgentDiskAddressPtr, ndisks);
+        fsinfo->disks = g_new0(qemuAgentDiskAddress *, ndisks);
     fsinfo->ndisks = ndisks;
 
     for (i = 0; i < fsinfo->ndisks; i++) {
-        virJSONValuePtr jsondisk = virJSONValueArrayGet(jsondisks, i);
+        virJSONValue *jsondisk = virJSONValueArrayGet(jsondisks, i);
 
         if (!jsondisk) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1961,17 +1930,17 @@ qemuAgentGetFSInfoFillDisks(virJSONValuePtr jsondisks,
  *          -1 otherwise (libvirt error is reported)
  */
 int
-qemuAgentGetFSInfo(qemuAgentPtr agent,
-                   qemuAgentFSInfoPtr **info,
+qemuAgentGetFSInfo(qemuAgent *agent,
+                   qemuAgentFSInfo ***info,
                    bool report_unsupported)
 {
     size_t i;
     int ret = -1;
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data;
+    virJSONValue *data;
     size_t ndata = 0;
-    qemuAgentFSInfoPtr *info_ret = NULL;
+    qemuAgentFSInfo **info_ret = NULL;
     int rc;
 
     cmd = qemuAgentMakeCommand("guest-get-fsinfo", NULL);
@@ -2000,12 +1969,12 @@ qemuAgentGetFSInfo(qemuAgentPtr agent,
         *info = NULL;
         goto cleanup;
     }
-    info_ret = g_new0(qemuAgentFSInfoPtr, ndata);
+    info_ret = g_new0(qemuAgentFSInfo *, ndata);
 
     for (i = 0; i < ndata; i++) {
         /* Reverse the order to arrange in mount order */
-        virJSONValuePtr entry = virJSONValueArrayGet(data, ndata - 1 - i);
-        virJSONValuePtr disk;
+        virJSONValue *entry = virJSONValueArrayGet(data, ndata - 1 - i);
+        virJSONValue *disk;
         unsigned long long bytes_val;
         const char *result = NULL;
 
@@ -2095,7 +2064,7 @@ qemuAgentGetFSInfo(qemuAgentPtr agent,
 
 static int
 qemuAgentGetInterfaceOneAddress(virDomainIPAddressPtr ip_addr,
-                                virJSONValuePtr ip_addr_obj,
+                                virJSONValue *ip_addr_obj,
                                 const char *name)
 {
     const char *type, *addr;
@@ -2162,9 +2131,9 @@ static int
 qemuAgentGetInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
                                size_t *ifaces_count,
                                GHashTable *ifaces_store,
-                               virJSONValuePtr iface_obj)
+                               virJSONValue *iface_obj)
 {
-    virJSONValuePtr ip_addr_arr = NULL;
+    virJSONValue *ip_addr_arr = NULL;
     const char *hwaddr, *name = NULL;
     virDomainInterfacePtr iface = NULL;
     g_autofree char *ifname = NULL;
@@ -2186,8 +2155,7 @@ qemuAgentGetInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
 
     /* If the hash table doesn't contain this iface, add it */
     if (!iface) {
-        if (VIR_EXPAND_N(*ifaces_ret, *ifaces_count, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(*ifaces_ret, *ifaces_count, 1);
 
         iface = g_new0(virDomainInterface, 1);
         (*ifaces_ret)[*ifaces_count - 1] = iface;
@@ -2217,12 +2185,10 @@ qemuAgentGetInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
     /* If current iface already exists, continue with the count */
     addrs_count = iface->naddrs;
 
-    if (VIR_EXPAND_N(iface->addrs, addrs_count,
-                     virJSONValueArraySize(ip_addr_arr))  < 0)
-        return -1;
+    VIR_EXPAND_N(iface->addrs, addrs_count, virJSONValueArraySize(ip_addr_arr));
 
     for (j = 0; j < virJSONValueArraySize(ip_addr_arr); j++) {
-        virJSONValuePtr ip_addr_obj = virJSONValueArrayGet(ip_addr_arr, j);
+        virJSONValue *ip_addr_obj = virJSONValueArrayGet(ip_addr_arr, j);
         virDomainIPAddressPtr ip_addr = iface->addrs + iface->naddrs;
         iface->naddrs++;
 
@@ -2236,7 +2202,7 @@ qemuAgentGetInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
 
 static int
 qemuAgentGetAllInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
-                                  virJSONValuePtr ret_array)
+                                  virJSONValue *ret_array)
 {
     g_autoptr(GHashTable) ifaces_store = NULL;
     size_t ifaces_count = 0;
@@ -2247,7 +2213,7 @@ qemuAgentGetAllInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
     ifaces_store = virHashNew(NULL);
 
     for (i = 0; i < virJSONValueArraySize(ret_array); i++) {
-        virJSONValuePtr iface_obj = virJSONValueArrayGet(ret_array, i);
+        virJSONValue *iface_obj = virJSONValueArrayGet(ret_array, i);
 
         if (qemuAgentGetInterfaceAddresses(ifaces_ret, &ifaces_count,
                                            ifaces_store, iface_obj) < 0)
@@ -2278,12 +2244,12 @@ qemuAgentGetAllInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
  * Returns: number of interfaces on success, -1 on error.
  */
 int
-qemuAgentGetInterfaces(qemuAgentPtr agent,
+qemuAgentGetInterfaces(qemuAgent *agent,
                        virDomainInterfacePtr **ifaces)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr ret_array = NULL;
+    virJSONValue *ret_array = NULL;
 
     if (!(cmd = qemuAgentMakeCommand("guest-network-get-interfaces", NULL)))
         return -1;
@@ -2302,7 +2268,7 @@ qemuAgentGetInterfaces(qemuAgentPtr agent,
 
 
 int
-qemuAgentSetUserPassword(qemuAgentPtr agent,
+qemuAgentSetUserPassword(qemuAgent *agent,
                          const char *user,
                          const char *password,
                          bool crypted)
@@ -2333,7 +2299,7 @@ qemuAgentSetUserPassword(qemuAgentPtr agent,
  *          -1 otherwise (libvirt error is reported)
  */
 int
-qemuAgentGetUsers(qemuAgentPtr agent,
+qemuAgentGetUsers(qemuAgent *agent,
                   virTypedParameterPtr *params,
                   int *nparams,
                   int *maxparams,
@@ -2341,7 +2307,7 @@ qemuAgentGetUsers(qemuAgentPtr agent,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *data = NULL;
     size_t ndata;
     size_t i;
     int rc;
@@ -2366,7 +2332,7 @@ qemuAgentGetUsers(qemuAgentPtr agent,
         return -1;
 
     for (i = 0; i < ndata; i++) {
-        virJSONValuePtr entry = virJSONValueArrayGet(data, i);
+        virJSONValue *entry = virJSONValueArrayGet(data, i);
         char param_name[VIR_TYPED_PARAM_FIELD_LENGTH];
         const char *strvalue;
         double logintime;
@@ -2419,7 +2385,7 @@ qemuAgentGetUsers(qemuAgentPtr agent,
  *          -1 otherwise (libvirt error is reported)
  */
 int
-qemuAgentGetOSInfo(qemuAgentPtr agent,
+qemuAgentGetOSInfo(qemuAgent *agent,
                    virTypedParameterPtr *params,
                    int *nparams,
                    int *maxparams,
@@ -2427,7 +2393,7 @@ qemuAgentGetOSInfo(qemuAgentPtr agent,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *data = NULL;
     int rc;
 
     if (!(cmd = qemuAgentMakeCommand("guest-get-osinfo", NULL)))
@@ -2473,7 +2439,7 @@ qemuAgentGetOSInfo(qemuAgentPtr agent,
  *          -1 otherwise (libvirt error is reported)
  */
 int
-qemuAgentGetTimezone(qemuAgentPtr agent,
+qemuAgentGetTimezone(qemuAgent *agent,
                      virTypedParameterPtr *params,
                      int *nparams,
                      int *maxparams,
@@ -2481,7 +2447,7 @@ qemuAgentGetTimezone(qemuAgentPtr agent,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *data = NULL;
     const char *name;
     int offset;
     int rc;
@@ -2524,7 +2490,7 @@ qemuAgentGetTimezone(qemuAgentPtr agent,
  * The agent object must be locked prior to calling this function.
  */
 void
-qemuAgentSetResponseTimeout(qemuAgentPtr agent,
+qemuAgentSetResponseTimeout(qemuAgent *agent,
                             int timeout)
 {
     agent->timeout = timeout;
@@ -2542,13 +2508,13 @@ qemuAgentSetResponseTimeout(qemuAgentPtr agent,
  *          -1 otherwise (error is reported)
  */
 int
-qemuAgentSSHGetAuthorizedKeys(qemuAgentPtr agent,
+qemuAgentSSHGetAuthorizedKeys(qemuAgent *agent,
                               const char *user,
                               char ***keys)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *data = NULL;
 
     if (!(cmd = qemuAgentMakeCommand("guest-ssh-get-authorized-keys",
                                      "s:username", user,
@@ -2587,7 +2553,7 @@ qemuAgentSSHGetAuthorizedKeys(qemuAgentPtr agent,
  *          -1 otherwise (error is reported)
  */
 int
-qemuAgentSSHAddAuthorizedKeys(qemuAgentPtr agent,
+qemuAgentSSHAddAuthorizedKeys(qemuAgent *agent,
                               const char *user,
                               const char **keys,
                               size_t nkeys,
@@ -2627,7 +2593,7 @@ qemuAgentSSHAddAuthorizedKeys(qemuAgentPtr agent,
  *          -1 otherwise (error is reported)
  */
 int
-qemuAgentSSHRemoveAuthorizedKeys(qemuAgentPtr agent,
+qemuAgentSSHRemoveAuthorizedKeys(qemuAgent *agent,
                                  const char *user,
                                  const char **keys,
                                  size_t nkeys)
@@ -2650,13 +2616,13 @@ qemuAgentSSHRemoveAuthorizedKeys(qemuAgentPtr agent,
 }
 
 
-int qemuAgentGetDisks(qemuAgentPtr agent,
-                      qemuAgentDiskInfoPtr **disks,
+int qemuAgentGetDisks(qemuAgent *agent,
+                      qemuAgentDiskInfo ***disks,
                       bool report_unsupported)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValuePtr data = NULL;
+    virJSONValue *data = NULL;
     size_t ndata;
     size_t i;
     int rc;
@@ -2676,12 +2642,12 @@ int qemuAgentGetDisks(qemuAgentPtr agent,
 
     ndata = virJSONValueArraySize(data);
 
-    *disks = g_new0(qemuAgentDiskInfoPtr, ndata);
+    *disks = g_new0(qemuAgentDiskInfo *, ndata);
 
     for (i = 0; i < ndata; i++) {
-        virJSONValuePtr addr;
-        virJSONValuePtr entry = virJSONValueArrayGet(data, i);
-        qemuAgentDiskInfoPtr disk;
+        virJSONValue *addr;
+        virJSONValue *entry = virJSONValueArrayGet(data, i);
+        qemuAgentDiskInfo *disk;
 
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",

@@ -20,9 +20,6 @@ CI_HOST_SRCDIR = $(CI_SCRATCHDIR)/src
 # the $(CI_HOST_SRCDIR) directory from the host
 CI_CONT_SRCDIR = $(CI_USER_HOME)/libvirt
 
-# Script containing environment preparation steps
-CI_PREPARE_SCRIPT = $(CI_ROOTDIR)/prepare.sh
-
 # Script containing build instructions
 CI_BUILD_SCRIPT = $(CI_ROOTDIR)/build.sh
 
@@ -45,15 +42,15 @@ CI_CLEAN = 1
 # preserved env
 CI_REUSE = 0
 
-# We need the container process to run with current host IDs
-# so that it can access the passed in build directory
-CI_UID = $(shell id -u)
-CI_GID = $(shell id -g)
-
-# We also need the user's login and home directory to prepare the
+# We need the user's login and home directory to prepare the
 # environment the way some programs expect it
-CI_USER_LOGIN = $(shell echo "$$USER")
-CI_USER_HOME = $(shell echo "$$HOME")
+CI_USER_LOGIN = $(shell whoami)
+CI_USER_HOME = $(shell eval echo "~$(CI_USER_LOGIN)")
+
+# We also need the container process to run with current host IDs
+# so that it can access the passed in build directory
+CI_UID = $(shell id -u "$(CI_USER_LOGIN)")
+CI_GID = $(shell id -g "$(CI_USER_LOGIN)")
 
 CI_ENGINE = auto
 # Container engine we are going to use, can be overridden per make
@@ -82,7 +79,6 @@ CI_HOME_MOUNTS = \
 	$(NULL)
 
 CI_SCRIPT_MOUNTS = \
-	--volume $(CI_SCRATCHDIR)/prepare:$(CI_USER_HOME)/prepare:z \
 	--volume $(CI_SCRATCHDIR)/build:$(CI_USER_HOME)/build:z \
 	$(NULL)
 
@@ -125,14 +121,16 @@ ifeq ($(CI_ENGINE),podman)
 	CI_UID_OTHER_RANGE = $(shell echo $$(($(CI_MAX_UID)-$(CI_UID))))
 	CI_GID_OTHER_RANGE = $(shell echo $$(($(CI_MAX_GID)-$(CI_GID))))
 
-	CI_PODMAN_ARGS = \
-		--uidmap 0:1:$(CI_UID) \
-		--uidmap $(CI_UID):0:1 \
-		--uidmap $(CI_UID_OTHER):$(CI_UID_OTHER):$(CI_UID_OTHER_RANGE) \
-		--gidmap 0:1:$(CI_GID) \
-		--gidmap $(CI_GID):0:1 \
-		--gidmap $(CI_GID_OTHER):$(CI_GID_OTHER):$(CI_GID_OTHER_RANGE) \
-		$(NULL)
+	ifneq ($(CI_UID), 0)
+		CI_PODMAN_ARGS = \
+			--uidmap 0:1:$(CI_UID) \
+			--uidmap $(CI_UID):0:1 \
+			--uidmap $(CI_UID_OTHER):$(CI_UID_OTHER):$(CI_UID_OTHER_RANGE) \
+			--gidmap 0:1:$(CI_GID) \
+			--gidmap $(CI_GID):0:1 \
+			--gidmap $(CI_GID_OTHER):$(CI_GID_OTHER):$(CI_GID_OTHER_RANGE) \
+			$(NULL)
+	endif
 endif
 
 # Args to use when cloning a git repo.
@@ -150,6 +148,8 @@ CI_GIT_ARGS = \
 #   --user    we execute as the same user & group account
 #             as dev so that file ownership matches host
 #             instead of root:root
+#   --workdir we change to user's home dir in the container
+#             before running the workload
 #   --volume  to pass in the cloned git repo & config
 #   --ulimit  lower files limit for performance reasons
 #   --interactive
@@ -158,6 +158,11 @@ CI_ENGINE_ARGS = \
 	--rm \
 	--interactive \
 	--tty \
+	--user "$(CI_UID)":"$(CI_GID)" \
+	--workdir "$(CI_USER_HOME)" \
+	--env CI_CONT_SRCDIR="$(CI_CONT_SRCDIR)" \
+	--env CI_MESON_ARGS="$(CI_MESON_ARGS)" \
+	--env CI_NINJA_ARGS="$(CI_NINJA_ARGS)" \
 	$(CI_PODMAN_ARGS) \
 	$(CI_PWDB_MOUNTS) \
 	$(CI_HOME_MOUNTS) \
@@ -178,9 +183,8 @@ ci-prepare-tree: ci-check-engine
 		cp /etc/passwd $(CI_SCRATCHDIR); \
 		cp /etc/group $(CI_SCRATCHDIR); \
 		mkdir -p $(CI_SCRATCHDIR)/home; \
-		cp "$(CI_PREPARE_SCRIPT)" $(CI_SCRATCHDIR)/prepare; \
 		cp "$(CI_BUILD_SCRIPT)" $(CI_SCRATCHDIR)/build; \
-		chmod +x "$(CI_SCRATCHDIR)/prepare" "$(CI_SCRATCHDIR)/build"; \
+		chmod +x "$(CI_SCRATCHDIR)/build"; \
 		echo "Cloning $(CI_GIT_ROOT) to $(CI_HOST_SRCDIR)"; \
 		git clone $(CI_GIT_ARGS) $(CI_GIT_ROOT) $(CI_HOST_SRCDIR) || exit 1; \
 		for mod in $$(git submodule | awk '{ print $$2 }' | sed -E 's,^../,,g') ; \
@@ -192,18 +196,10 @@ ci-prepare-tree: ci-check-engine
 	fi
 
 ci-run-command@%: ci-prepare-tree
-	$(CI_ENGINE) run $(CI_ENGINE_ARGS) $(CI_IMAGE_PREFIX)$*$(CI_IMAGE_TAG) \
-		/bin/bash -c ' \
-		$(CI_USER_HOME)/prepare || exit 1; \
-		sudo \
-		  --login \
-		  --user="#$(CI_UID)" \
-		  --group="#$(CI_GID)" \
-		  MESON_OPTS="$$MESON_OPTS" \
-		  CI_CONT_SRCDIR="$(CI_CONT_SRCDIR)" \
-		  CI_MESON_ARGS="$(CI_MESON_ARGS)" \
-		  CI_NINJA_ARGS="$(CI_NINJA_ARGS)" \
-		  $(CI_COMMAND) || exit 1'
+	$(CI_ENGINE) run \
+		$(CI_ENGINE_ARGS) \
+		$(CI_IMAGE_PREFIX)$*$(CI_IMAGE_TAG) \
+		$(CI_COMMAND)
 	@test "$(CI_CLEAN)" = "1" && rm -rf $(CI_SCRATCHDIR) || :
 
 ci-shell@%:
@@ -215,33 +211,35 @@ ci-build@%:
 ci-test@%:
 	$(MAKE) -C $(CI_ROOTDIR) ci-build@$* CI_NINJA_ARGS=test
 
-ci-list-images:
-	@echo
-	@echo "Available x86 container images:"
-	@echo
-	@sh list-images.sh "$(CI_IMAGE_PREFIX)" | grep -v cross
-	@echo
-	@echo "Available cross-compiler container images:"
-	@echo
-	@sh list-images.sh "$(CI_IMAGE_PREFIX)" | grep cross
-	@echo
-
 ci-help:
+	@echo
+	@echo
+	@echo
+	@echo "      !!!  PLEASE DON'T USE THIS DIRECTLY  !!!"
+	@echo
+	@echo "          Use the ci/helper script instead"
+	@echo
+	@echo "      !!!  PLEASE DON'T USE THIS DIRECTLY  !!!"
+	@echo
+	@echo
+	@echo
 	@echo "Build libvirt inside containers used for CI"
 	@echo
 	@echo "Available targets:"
 	@echo
 	@echo "    ci-build@\$$IMAGE - run a default 'ninja' build"
-	@echo "    ci-check@\$$IMAGE - run a 'ninja test'"
+	@echo "    ci-test@\$$IMAGE  - run a 'ninja test'"
 	@echo "    ci-shell@\$$IMAGE - run an interactive shell"
-	@echo "    ci-list-images  - list available images"
 	@echo "    ci-help         - show this help message"
 	@echo
 	@echo "Available make variables:"
 	@echo
-	@echo "    CI_CLEAN=0          - do not delete '$(CI_SCRATCHDIR)' after completion"
-	@echo "    CI_REUSE=1          - re-use existing '$(CI_SCRATCHDIR)' content"
-	@echo "    CI_ENGINE=auto      - container engine to use (podman, docker)"
-	@echo "    CI_MESON_ARGS=      - extra arguments passed to meson"
-	@echo "    CI_NINJA_ARGS=      - extra arguments passed to ninja"
+	@echo "    CI_CLEAN=0              - do not delete '$(CI_SCRATCHDIR)' after completion"
+	@echo "    CI_REUSE=1              - re-use existing '$(CI_SCRATCHDIR)' content"
+	@echo "    CI_ENGINE=auto          - container engine to use (podman, docker)"
+	@echo "    CI_USER_LOGIN=          - which user should run in the container (default is $$USER)"
+	@echo "    CI_IMAGE_PREFIX=        - override to prefer a locally built image, (default is $(CI_IMAGE_PREFIX))"
+	@echo "    CI_IMAGE_TAG=:latest    - optionally use in conjunction with 'CI_IMAGE_PREFIX'"
+	@echo "    CI_MESON_ARGS=          - extra arguments passed to meson"
+	@echo "    CI_NINJA_ARGS=          - extra arguments passed to ninja"
 	@echo

@@ -66,10 +66,9 @@ testCompareXMLToXMLFiles(const char *inxml,
         def->parent.parent_name = g_strdup("1525111885");
     }
     if (flags & TEST_VDA_BITMAP) {
-        virDomainCheckpointDiskDefPtr disk;
+        virDomainCheckpointDiskDef *disk;
 
-        if (VIR_EXPAND_N(def->disks, def->ndisks, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(def->disks, def->ndisks, 1);
         disk = &def->disks[0];
         if (disk->bitmap)
             return -1;
@@ -109,7 +108,7 @@ struct testInfo {
 static long long mocktime;
 
 static int
-testCheckpointPostParse(virDomainMomentDefPtr def)
+testCheckpointPostParse(virDomainMomentDef *def)
 {
     if (!mocktime)
         return 0;

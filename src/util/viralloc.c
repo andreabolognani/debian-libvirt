@@ -45,12 +45,11 @@ VIR_LOG_INIT("util.alloc");
  *
  * Returns zero on success, aborts on OOM
  */
-int virReallocN(void *ptrptr,
-                size_t size,
-                size_t count)
+void virReallocN(void *ptrptr,
+                 size_t size,
+                 size_t count)
 {
     *(void **)ptrptr = g_realloc_n(*(void**)ptrptr, size, count);
-    return 0;
 }
 
 /**
@@ -66,21 +65,19 @@ int virReallocN(void *ptrptr,
  * allocated memory. On failure, 'ptrptr' and 'countptr' are not
  * changed. Any newly allocated memory in 'ptrptr' is zero-filled.
  *
- * Returns zero on success, aborts on OOM
+ * Aborts on OOM
  */
-int virExpandN(void *ptrptr,
-               size_t size,
-               size_t *countptr,
-               size_t add)
+void virExpandN(void *ptrptr,
+                size_t size,
+                size_t *countptr,
+                size_t add)
 {
     if (*countptr + add < *countptr)
         abort();
 
-    if (virReallocN(ptrptr, size, *countptr + add) < 0)
-        abort();
+    virReallocN(ptrptr, size, *countptr + add);
     memset(*(char **)ptrptr + (size * *countptr), 0, size * add);
     *countptr += add;
-    return 0;
 }
 
 /**
@@ -98,13 +95,13 @@ int virExpandN(void *ptrptr,
  * failure, 'ptrptr' and 'allocptr' are not changed. Any newly
  * allocated memory in 'ptrptr' is zero-filled.
  *
- * Returns zero on success, aborts on OOM
+ * Aborts on OOM
  */
-int virResizeN(void *ptrptr,
-               size_t size,
-               size_t *allocptr,
-               size_t count,
-               size_t add)
+void virResizeN(void *ptrptr,
+                size_t size,
+                size_t *allocptr,
+                size_t count,
+                size_t add)
 {
     size_t delta;
 
@@ -112,12 +109,13 @@ int virResizeN(void *ptrptr,
         abort();
 
     if (count + add <= *allocptr)
-        return 0;
+        return;
 
     delta = count + add - *allocptr;
     if (delta < *allocptr / 2)
         delta = *allocptr / 2;
-    return virExpandN(ptrptr, size, allocptr, delta);
+
+    virExpandN(ptrptr, size, allocptr, delta);
 }
 
 /**
@@ -136,8 +134,7 @@ int virResizeN(void *ptrptr,
 void virShrinkN(void *ptrptr, size_t size, size_t *countptr, size_t toremove)
 {
     if (toremove < *countptr) {
-        if (virReallocN(ptrptr, size, *countptr -= toremove) < 0)
-            abort();
+        virReallocN(ptrptr, size, *countptr -= toremove);
     } else {
         g_free(*((void **)ptrptr));
         *((void **)ptrptr) = NULL;
@@ -191,8 +188,7 @@ virInsertElementsN(void *ptrptr, size_t size, size_t at,
     if (inPlace) {
         *countptr += add;
     } else {
-        if (virExpandN(ptrptr, size, countptr, add) < 0)
-            abort();
+        virExpandN(ptrptr, size, countptr, add);
     }
 
     /* memory was successfully re-allocated. Move up all elements from
@@ -259,89 +255,4 @@ virDeleteElementsN(void *ptrptr, size_t size, size_t at,
     else
         virShrinkN(ptrptr, size, countptr, toremove);
     return 0;
-}
-
-/**
- * virAllocVar:
- * @ptrptr: pointer to hold address of allocated memory
- * @struct_size: size of initial struct
- * @element_size: size of array elements
- * @count: number of array elements to allocate
- *
- * Allocate struct_size bytes plus an array of 'count' elements, each
- * of size element_size.  This sort of allocation is useful for
- * receiving the data of certain ioctls and other APIs which return a
- * struct in which the last element is an array of undefined length.
- * The caller of this type of API is expected to know the length of
- * the array that will be returned and allocate a suitable buffer to
- * contain the returned data.  C99 refers to these variable length
- * objects as structs containing flexible array members.
- *
- * Returns -1 on failure, 0 on success
- */
-int virAllocVar(void *ptrptr,
-                size_t struct_size,
-                size_t element_size,
-                size_t count)
-{
-    size_t alloc_size = 0;
-
-    if (VIR_ALLOC_VAR_OVERSIZED(struct_size, count, element_size))
-        abort();
-
-    alloc_size = struct_size + (element_size * count);
-    *(void **)ptrptr = g_malloc0(alloc_size);
-    return 0;
-}
-
-
-/**
- * virDispose:
- * @ptrptr: pointer to pointer for address of memory to be sanitized and freed
- * @count: count of elements in the array to dispose
- * @element_size: size of one element
- * @countptr: pointer to the count variable to clear (may be NULL)
- *
- * Clear and release the chunk of memory in the pointer pointed to by 'prtptr'.
- *
- * If @countptr is provided, it's value is used instead of @count and it's set
- * to 0 after clearing and freeing the memory.
- *
- * After release, 'ptrptr' will be updated to point to NULL.
- */
-void virDispose(void *ptrptr,
-                size_t count,
-                size_t element_size,
-                size_t *countptr)
-{
-    int save_errno = errno;
-
-    if (countptr)
-        count = *countptr;
-
-    if (*(void**)ptrptr && count > 0)
-        memset(*(void **)ptrptr, 0, count * element_size);
-
-    g_free(*(void**)ptrptr);
-    *(void**)ptrptr = NULL;
-
-    if (countptr)
-        *countptr = 0;
-    errno = save_errno;
-}
-
-
-/**
- * virDisposeString:
- * @ptrptr: pointer to pointer for a string which should be sanitized and cleared
- *
- * See virDispose.
- */
-void
-virDisposeString(char **strptr)
-{
-    if (!*strptr)
-        return;
-
-    virDispose(strptr, strlen(*strptr), sizeof(char), NULL);
 }

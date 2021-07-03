@@ -41,13 +41,13 @@ if conf.has('WITH_LIBVIRTD') and conf.has('WITH_APPARMOR')
     'name': 'virt-aa-helper',
     'sources': [
       apparmor_helper_sources,
-      datatypes_sources,
       dtrace_gen_objects,
     ],
     'include': [
       conf_inc_dir,
       hypervisor_inc_dir,
       include_directories('.'),
+      include_directories('../storage_file'),
     ],
   }
 endif

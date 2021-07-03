@@ -35,14 +35,14 @@
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
-static int virStorageBackendSheepdogRefreshVol(virStoragePoolObjPtr pool,
-                                               virStorageVolDefPtr vol);
+static int virStorageBackendSheepdogRefreshVol(virStoragePoolObj *pool,
+                                               virStorageVolDef *vol);
 
-void virStorageBackendSheepdogAddHostArg(virCommandPtr cmd,
-                                         virStoragePoolObjPtr pool);
+void virStorageBackendSheepdogAddHostArg(virCommand *cmd,
+                                         virStoragePoolObj *pool);
 
 int
-virStorageBackendSheepdogParseNodeInfo(virStoragePoolDefPtr pool,
+virStorageBackendSheepdogParseNodeInfo(virStoragePoolDef *pool,
                                        char *output)
 {
     /* fields:
@@ -89,10 +89,10 @@ virStorageBackendSheepdogParseNodeInfo(virStoragePoolDefPtr pool,
 }
 
 void
-virStorageBackendSheepdogAddHostArg(virCommandPtr cmd,
-                                    virStoragePoolObjPtr pool)
+virStorageBackendSheepdogAddHostArg(virCommand *cmd,
+                                    virStoragePoolObj *pool)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     const char *address = "localhost";
     int port = 7000;
     if (def->source.nhost > 0) {
@@ -108,7 +108,7 @@ virStorageBackendSheepdogAddHostArg(virCommandPtr cmd,
 }
 
 static int
-virStorageBackendSheepdogAddVolume(virStoragePoolObjPtr pool, const char *diskInfo)
+virStorageBackendSheepdogAddVolume(virStoragePoolObj *pool, const char *diskInfo)
 {
     g_autoptr(virStorageVolDef) vol = NULL;
 
@@ -135,12 +135,11 @@ virStorageBackendSheepdogAddVolume(virStoragePoolObjPtr pool, const char *diskIn
 }
 
 static int
-virStorageBackendSheepdogRefreshAllVol(virStoragePoolObjPtr pool)
+virStorageBackendSheepdogRefreshAllVol(virStoragePoolObj *pool)
 {
     size_t i;
     g_autofree char *output = NULL;
     g_auto(GStrv) lines = NULL;
-    g_auto(GStrv) cells = NULL;
     g_autoptr(virCommand) cmd = NULL;
 
     cmd = virCommandNewArgList(SHEEPDOGCLI, "vdi", "list", "-r", NULL);
@@ -149,25 +148,19 @@ virStorageBackendSheepdogRefreshAllVol(virStoragePoolObjPtr pool)
     if (virCommandRun(cmd, NULL) < 0)
         return -1;
 
-    lines = virStringSplit(output, "\n", 0);
+    lines = g_strsplit(output, "\n", 0);
     if (lines == NULL)
         return -1;
 
     for (i = 0; lines[i]; i++) {
-        const char *line = lines[i];
-        if (line == NULL)
-            break;
+        g_auto(GStrv) cells = NULL;
 
-        cells = virStringSplit(line, " ", 0);
+        cells = g_strsplit(lines[i], " ", 0);
 
-        if (cells != NULL &&
-            virStringListLength((const char * const *)cells) > 2) {
+        if (cells != NULL && cells[0] && cells[1]) {
             if (virStorageBackendSheepdogAddVolume(pool, cells[1]) < 0)
                 return -1;
         }
-
-        g_strfreev(cells);
-        cells = NULL;
     }
 
     return 0;
@@ -175,7 +168,7 @@ virStorageBackendSheepdogRefreshAllVol(virStoragePoolObjPtr pool)
 
 
 static int
-virStorageBackendSheepdogRefreshPool(virStoragePoolObjPtr pool)
+virStorageBackendSheepdogRefreshPool(virStoragePoolObj *pool)
 {
     g_autofree char *output = NULL;
     g_autoptr(virCommand) cmd = NULL;
@@ -195,8 +188,8 @@ virStorageBackendSheepdogRefreshPool(virStoragePoolObjPtr pool)
 
 
 static int
-virStorageBackendSheepdogDeleteVol(virStoragePoolObjPtr pool,
-                                   virStorageVolDefPtr vol,
+virStorageBackendSheepdogDeleteVol(virStoragePoolObj *pool,
+                                   virStorageVolDef *vol,
                                    unsigned int flags)
 {
     g_autoptr(virCommand) cmd = NULL;
@@ -210,10 +203,10 @@ virStorageBackendSheepdogDeleteVol(virStoragePoolObjPtr pool,
 
 
 static int
-virStorageBackendSheepdogCreateVol(virStoragePoolObjPtr pool,
-                                   virStorageVolDefPtr vol)
+virStorageBackendSheepdogCreateVol(virStoragePoolObj *pool,
+                                   virStorageVolDef *vol)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
 
     if (vol->target.encryption != NULL) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -235,8 +228,8 @@ virStorageBackendSheepdogCreateVol(virStoragePoolObjPtr pool,
 
 
 static int
-virStorageBackendSheepdogBuildVol(virStoragePoolObjPtr pool,
-                                  virStorageVolDefPtr vol,
+virStorageBackendSheepdogBuildVol(virStoragePoolObj *pool,
+                                  virStorageVolDef *vol,
                                   unsigned int flags)
 {
     g_autoptr(virCommand) cmd = NULL;
@@ -257,7 +250,7 @@ virStorageBackendSheepdogBuildVol(virStoragePoolObjPtr pool,
 
 
 int
-virStorageBackendSheepdogParseVdiList(virStorageVolDefPtr vol,
+virStorageBackendSheepdogParseVdiList(virStorageVolDef *vol,
                                       char *output)
 {
     /* fields:
@@ -318,11 +311,11 @@ virStorageBackendSheepdogParseVdiList(virStorageVolDefPtr vol,
 }
 
 static int
-virStorageBackendSheepdogRefreshVol(virStoragePoolObjPtr pool,
-                                    virStorageVolDefPtr vol)
+virStorageBackendSheepdogRefreshVol(virStoragePoolObj *pool,
+                                    virStorageVolDef *vol)
 {
     char *output = NULL;
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     g_autoptr(virCommand) cmd = NULL;
 
     cmd = virCommandNewArgList(SHEEPDOGCLI, "vdi", "list", vol->name, "-r", NULL);
@@ -347,8 +340,8 @@ virStorageBackendSheepdogRefreshVol(virStoragePoolObjPtr pool,
 
 
 static int
-virStorageBackendSheepdogResizeVol(virStoragePoolObjPtr pool,
-                                   virStorageVolDefPtr vol,
+virStorageBackendSheepdogResizeVol(virStoragePoolObj *pool,
+                                   virStorageVolDef *vol,
                                    unsigned long long capacity,
                                    unsigned int flags)
 {

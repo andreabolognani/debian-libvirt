@@ -153,10 +153,7 @@ bhyveCommandLineToArgv(const char *nativeConfig,
         else
             line = g_strdup(curr);
 
-        if (VIR_RESIZE_N(lines, lines_alloc, line_count, 2) < 0) {
-            VIR_FREE(line);
-            goto error;
-        }
+        VIR_RESIZE_N(lines, lines_alloc, line_count, 2);
 
         if (*line)
             lines[line_count++] = line;
@@ -203,11 +200,7 @@ bhyveCommandLineToArgv(const char *nativeConfig,
             if (next && (*next == '\'' || *next == '"'))
                 next++;
 
-            if (VIR_RESIZE_N(arglist, args_alloc, args_count, 2) < 0) {
-                VIR_FREE(arg);
-                goto error;
-            }
-
+            VIR_RESIZE_N(arglist, args_alloc, args_count, 2);
             arglist[args_count++] = arg;
             arglist[args_count] = NULL;
 
@@ -226,8 +219,8 @@ bhyveCommandLineToArgv(const char *nativeConfig,
          * Otherwise, later argument lists may be assigned to _argv without
          * freeing the earlier ones. */
         if (!_bhyve_argv && STREQ(arglist[0], "/usr/sbin/bhyve")) {
-            if ((VIR_REALLOC_N(_bhyve_argv, args_count + 1) < 0)
-                || (!bhyve_argc))
+            VIR_REALLOC_N(_bhyve_argv, args_count + 1);
+            if (!bhyve_argc)
                 goto error;
             for (j = 0; j < args_count; j++)
                 _bhyve_argv[j] = arglist[j];
@@ -235,8 +228,8 @@ bhyveCommandLineToArgv(const char *nativeConfig,
             *bhyve_argc = args_count-1;
             VIR_FREE(arglist);
         } else if (!_loader_argv) {
-            if ((VIR_REALLOC_N(_loader_argv, args_count + 1) < 0)
-                || (!loader_argc))
+            VIR_REALLOC_N(_loader_argv, args_count + 1);
+            if (!loader_argc)
                 goto error;
             for (j = 0; j < args_count; j++)
                 _loader_argv[j] = arglist[j];
@@ -265,7 +258,7 @@ bhyveCommandLineToArgv(const char *nativeConfig,
 }
 
 static int
-bhyveParseBhyveLPCArg(virDomainDefPtr def,
+bhyveParseBhyveLPCArg(virDomainDef *def,
                       unsigned caps G_GNUC_UNUSED,
                       const char *arg)
 {
@@ -273,7 +266,7 @@ bhyveParseBhyveLPCArg(virDomainDefPtr def,
     const char *separator = NULL;
     const char *param = NULL;
     size_t last = 0;
-    virDomainChrDefPtr chr = NULL;
+    virDomainChrDef *chr = NULL;
     char *type = NULL;
 
     separator = strchr(arg, ',');
@@ -407,7 +400,7 @@ bhyveParsePCISlot(const char *slotdef,
 }
 
 static int
-bhyveParsePCIDisk(virDomainDefPtr def,
+bhyveParsePCIDisk(virDomainDef *def,
                   unsigned caps G_GNUC_UNUSED,
                   unsigned pcibus,
                   unsigned pcislot,
@@ -421,7 +414,7 @@ bhyveParsePCIDisk(virDomainDefPtr def,
     /* -s slot,virtio-blk|ahci-cd|ahci-hd,/path/to/file */
     const char *separator = NULL;
     int idx = -1;
-    virDomainDiskDefPtr disk = NULL;
+    virDomainDiskDef *disk = NULL;
 
     if (!(disk = virDomainDiskDefNew(NULL)))
         return 0;
@@ -477,8 +470,8 @@ bhyveParsePCIDisk(virDomainDefPtr def,
 }
 
 static int
-bhyveParsePCINet(virDomainDefPtr def,
-                 virDomainXMLOptionPtr xmlopt,
+bhyveParsePCINet(virDomainDef *def,
+                 virDomainXMLOption *xmlopt,
                  unsigned caps G_GNUC_UNUSED,
                  unsigned bus,
                  unsigned slot,
@@ -488,7 +481,7 @@ bhyveParsePCINet(virDomainDefPtr def,
 {
     /* -s slot,virtio-net,tapN[,mac=xx:xx:xx:xx:xx:xx] */
 
-    virDomainNetDefPtr net = NULL;
+    virDomainNetDef *net = NULL;
     const char *separator = NULL;
     const char *mac = NULL;
 
@@ -553,8 +546,8 @@ bhyveParsePCINet(virDomainDefPtr def,
 }
 
 static int
-bhyveParsePCIFbuf(virDomainDefPtr def,
-                  virDomainXMLOptionPtr xmlopt,
+bhyveParsePCIFbuf(virDomainDef *def,
+                  virDomainXMLOption *xmlopt,
                   unsigned caps G_GNUC_UNUSED,
                   unsigned bus,
                   unsigned slot,
@@ -563,12 +556,10 @@ bhyveParsePCIFbuf(virDomainDefPtr def,
 {
     /* -s slot,fbuf,wait,vga=on|io|off,rfb=<ip>:port,w=width,h=height */
 
-    virDomainVideoDefPtr video = NULL;
-    virDomainGraphicsDefPtr graphics = NULL;
-    char **params = NULL;
-    char *param = NULL, *separator = NULL;
-    size_t nparams = 0;
-    size_t i = 0;
+    virDomainVideoDef *video = NULL;
+    virDomainGraphicsDef *graphics = NULL;
+    g_auto(GStrv) params = NULL;
+    GStrv next;
 
     if (!(video = virDomainVideoDefNew(xmlopt)))
         goto cleanup;
@@ -586,11 +577,12 @@ bhyveParsePCIFbuf(virDomainDefPtr def,
     if (!config)
         goto error;
 
-    if (!(params = virStringSplitCount(config, ",", 0, &nparams)))
+    if (!(params = g_strsplit(config, ",", 0)))
         goto error;
 
-    for (i = 0; i < nparams; i++) {
-        param = params[i];
+    for (next = params; *next; next++) {
+        char *param = *next;
+        char *separator;
         if (!video->driver)
             video->driver = g_new0(virDomainVideoDriverDef, 1);
 
@@ -656,19 +648,17 @@ bhyveParsePCIFbuf(virDomainDefPtr def,
     if (VIR_APPEND_ELEMENT(def->graphics, def->ngraphics, graphics) < 0)
         goto error;
 
-    g_strfreev(params);
     return 0;
 
  error:
     virDomainVideoDefFree(video);
     virDomainGraphicsDefFree(graphics);
-    g_strfreev(params);
     return -1;
 }
 
 static int
-bhyveParseBhyvePCIArg(virDomainDefPtr def,
-                      virDomainXMLOptionPtr xmlopt,
+bhyveParseBhyvePCIArg(virDomainDef *def,
+                      virDomainXMLOption *xmlopt,
                       unsigned caps,
                       unsigned *nvirtiodisk,
                       unsigned *nahcidisk,
@@ -752,8 +742,8 @@ bhyveParseBhyvePCIArg(virDomainDefPtr def,
  * Parse the /usr/sbin/bhyve command line.
  */
 static int
-bhyveParseBhyveCommandLine(virDomainDefPtr def,
-                           virDomainXMLOptionPtr xmlopt,
+bhyveParseBhyveCommandLine(virDomainDef *def,
+                           virDomainXMLOption *xmlopt,
                            unsigned caps,
                            int argc, char **argv)
 {
@@ -862,7 +852,7 @@ bhyveParseBhyveCommandLine(virDomainDefPtr def,
  * Parse the /usr/sbin/bhyveload command line.
  */
 static int
-bhyveParseBhyveLoadCommandLine(virDomainDefPtr def,
+bhyveParseBhyveLoadCommandLine(virDomainDef *def,
                                int argc, char **argv)
 {
     /* bhyveload called with default arguments when only -m and -d are given.
@@ -923,7 +913,7 @@ bhyveParseBhyveLoadCommandLine(virDomainDefPtr def,
         /* Set os.bootloader since virDomainDefFormatInternal will only format
          * the bootloader arguments if os->bootloader is set. */
         def->os.bootloader = g_strdup(argv[0]);
-        def->os.bootloaderArgs = virStringListJoin((const char**) &argv[1], " ");
+        def->os.bootloaderArgs = g_strjoinv(" ", &argv[1]);
     }
 
     if (def->name == NULL) {
@@ -942,7 +932,7 @@ bhyveParseBhyveLoadCommandLine(virDomainDefPtr def,
 #undef CONSUME_ARG
 
 static int
-bhyveParseCustomLoaderCommandLine(virDomainDefPtr def,
+bhyveParseCustomLoaderCommandLine(virDomainDef *def,
                                   int argc G_GNUC_UNUSED,
                                   char **argv)
 {
@@ -950,17 +940,17 @@ bhyveParseCustomLoaderCommandLine(virDomainDefPtr def,
         return -1;
 
     def->os.bootloader = g_strdup(argv[0]);
-    def->os.bootloaderArgs = virStringListJoin((const char**) &argv[1], " ");
+    def->os.bootloaderArgs = g_strjoinv(" ", &argv[1]);
 
     return 0;
 }
 
-virDomainDefPtr
+virDomainDef *
 bhyveParseCommandLineString(const char* nativeConfig,
                             unsigned caps,
-                            virDomainXMLOptionPtr xmlopt)
+                            virDomainXMLOption *xmlopt)
 {
-    virDomainDefPtr def = NULL;
+    virDomainDef *def = NULL;
     int bhyve_argc = 0;
     char **bhyve_argv = NULL;
     int loader_argc = 0;

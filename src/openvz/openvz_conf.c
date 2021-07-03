@@ -70,7 +70,7 @@ openvzExtractVersionInfo(const char *cmdstr, int *retversion)
     unsigned long version;
     char *help = NULL;
     char *tmp;
-    virCommandPtr cmd = virCommandNewArgList(cmdstr, "--help", NULL);
+    virCommand *cmd = virCommandNewArgList(cmdstr, "--help", NULL);
 
     if (retversion)
         *retversion = 0;
@@ -123,33 +123,28 @@ openvzParseBarrierLimit(const char* value,
                         unsigned long long *barrier,
                         unsigned long long *limit)
 {
-    char **tmp = NULL;
-    size_t ntmp = 0;
-    int ret = -1;
+    g_auto(GStrv) tmp = NULL;
 
-    if (!(tmp = virStringSplitCount(value, ":", 0, &ntmp)))
-        goto error;
+    if (!(tmp = g_strsplit(value, ":", 0)))
+        return -1;
 
-    if (ntmp != 2)
-        goto error;
+    if (g_strv_length(tmp) != 2)
+        return -1;
 
     if (barrier && virStrToLong_ull(tmp[0], NULL, 10, barrier) < 0)
-        goto error;
+        return -1;
 
     if (limit && virStrToLong_ull(tmp[1], NULL, 10, limit) < 0)
-        goto error;
+        return -1;
 
-    ret = 0;
- error:
-    virStringListFreeCount(tmp, ntmp);
-    return ret;
+    return 0;
 }
 
 
-virCapsPtr openvzCapsInit(void)
+virCaps *openvzCapsInit(void)
 {
     g_autoptr(virCaps) caps = NULL;
-    virCapsGuestPtr guest;
+    virCapsGuest *guest;
 
     if ((caps = virCapabilitiesNew(virArchFromHost(),
                                    false, false)) == NULL)
@@ -183,11 +178,11 @@ virCapsPtr openvzCapsInit(void)
 
 
 int
-openvzReadNetworkConf(virDomainDefPtr def,
+openvzReadNetworkConf(virDomainDef *def,
                       int veid)
 {
     int ret;
-    virDomainNetDefPtr net = NULL;
+    virDomainNetDef *net = NULL;
     char *temp = NULL;
     char *token, *saveptr = NULL;
 
@@ -230,82 +225,57 @@ openvzReadNetworkConf(virDomainDefPtr def,
                        veid);
         goto error;
     } else if (ret > 0) {
-        token = strtok_r(temp, ";", &saveptr);
-        while (token != NULL) {
-            char *p = token;
-            char cpy_temp[32];
-            int len;
+        g_auto(GStrv) devices = g_strsplit(temp, ";", 0);
+        GStrv device;
 
-            /* add new device to list */
+        for (device = devices; device && *device; device++) {
+            g_auto(GStrv) keyvals = g_strsplit(*device, ",", 0);
+            GStrv keyval;
+
             net = g_new0(virDomainNetDef, 1);
-
             net->type = VIR_DOMAIN_NET_TYPE_BRIDGE;
 
-            /* parse string */
-            do {
-                char *next = strchr(p, ',');
-                if (!next)
-                    next = strchr(p, '\0');
-                if (STRPREFIX(p, "ifname=")) {
+            for (keyval = keyvals; keyval && *keyval; keyval++) {
+                char *val = strchr(*keyval, '=');
+
+                if (!val)
+                    continue;
+
+                val++;
+
+                if (STRPREFIX(*keyval, "ifname=")) {
                     /* skip in libvirt */
-                } else if (STRPREFIX(p, "host_ifname=")) {
-                    p += 12;
-                    len = next - p;
-                    if (len > 16) {
+                } else if (STRPREFIX(*keyval, "host_ifname=")) {
+                    if (strlen(val) > 16) {
                         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                        _("Too long network device name"));
                         goto error;
                     }
 
-                    net->ifname = g_new0(char, len+1);
-
-                    if (virStrncpy(net->ifname, p, len, len+1) < 0) {
-                        virReportError(VIR_ERR_INTERNAL_ERROR,
-                                       _("Network ifname %s too long for destination"), p);
-                        goto error;
-                    }
-                } else if (STRPREFIX(p, "bridge=")) {
-                    p += 7;
-                    len = next - p;
-                    if (len > 16) {
+                    net->ifname = g_strdup(val);
+                } else if (STRPREFIX(*keyval, "bridge=")) {
+                    if (strlen(val) > 16) {
                         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                        _("Too long bridge device name"));
                         goto error;
                     }
 
-                    net->data.bridge.brname = g_new0(char, len+1);
-
-                    if (virStrncpy(net->data.bridge.brname, p, len, len+1) < 0) {
-                        virReportError(VIR_ERR_INTERNAL_ERROR,
-                                       _("Bridge name %s too long for destination"), p);
-                        goto error;
-                    }
-                } else if (STRPREFIX(p, "mac=")) {
-                    p += 4;
-                    len = next - p;
-                    if (len != 17) { /* should be 17 */
+                    net->data.bridge.brname = g_strdup(val);
+                } else if (STRPREFIX(*keyval, "mac=")) {
+                    if (strlen(val) != 17) { /* should be 17 */
                         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                        _("Wrong length MAC address"));
                         goto error;
                     }
-                    if (virStrncpy(cpy_temp, p, len, sizeof(cpy_temp)) < 0) {
-                        virReportError(VIR_ERR_INTERNAL_ERROR,
-                                       _("MAC address %s too long for destination"), p);
-                        goto error;
-                    }
-                    if (virMacAddrParse(cpy_temp, &net->mac) < 0) {
+                    if (virMacAddrParse(val, &net->mac) < 0) {
                         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                        _("Wrong MAC address"));
                         goto error;
                     }
                 }
-                p = ++next;
-            } while (p < token + strlen(token));
+            }
 
-            if (VIR_APPEND_ELEMENT_COPY(def->nets, def->nnets, net) < 0)
-                goto error;
-
-            token = strtok_r(NULL, ";", &saveptr);
+            ignore_value(VIR_APPEND_ELEMENT_COPY(def->nets, def->nnets, net));
         }
     }
 
@@ -321,11 +291,11 @@ openvzReadNetworkConf(virDomainDefPtr def,
 
 
 static int
-openvzReadFSConf(virDomainDefPtr def,
+openvzReadFSConf(virDomainDef *def,
                  int veid)
 {
     int ret;
-    virDomainFSDefPtr fs = NULL;
+    virDomainFSDef *fs = NULL;
     g_autofree char *veid_str = NULL;
     char *temp = NULL;
     const char *param;
@@ -400,7 +370,7 @@ openvzReadFSConf(virDomainDefPtr def,
 
 
 static int
-openvzReadMemConf(virDomainDefPtr def, int veid)
+openvzReadMemConf(virDomainDef *def, int veid)
 {
     int ret = -1;
     char *temp = NULL;
@@ -478,7 +448,7 @@ openvzFreeDriver(struct openvz_driver *driver)
     virObjectUnref(driver->xmlopt);
     virObjectUnref(driver->domains);
     virObjectUnref(driver->caps);
-    VIR_FREE(driver);
+    g_free(driver);
 }
 
 
@@ -488,12 +458,12 @@ int openvzLoadDomains(struct openvz_driver *driver)
     int veid, ret;
     char *status;
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDomainObjPtr dom = NULL;
-    virDomainDefPtr def = NULL;
+    virDomainObj *dom = NULL;
+    virDomainDef *def = NULL;
     char *temp = NULL;
     char *outbuf = NULL;
     char *line;
-    virCommandPtr cmd = NULL;
+    virCommand *cmd = NULL;
     unsigned int vcpus = 0;
 
     if (openvzAssignUUIDs() < 0)
@@ -1040,7 +1010,7 @@ static int openvzAssignUUIDs(void)
 
 int openvzGetVEID(const char *name)
 {
-    virCommandPtr cmd;
+    virCommand *cmd;
     char *outbuf;
     char *temp;
     int veid;
@@ -1068,7 +1038,7 @@ int openvzGetVEID(const char *name)
 
 
 static int
-openvzDomainDefPostParse(virDomainDefPtr def,
+openvzDomainDefPostParse(virDomainDef *def,
                          unsigned int parseFlags G_GNUC_UNUSED,
                          void *opaque,
                          void *parseOpaque G_GNUC_UNUSED)
@@ -1088,7 +1058,7 @@ openvzDomainDefPostParse(virDomainDefPtr def,
 
 
 static int
-openvzDomainDeviceDefPostParse(virDomainDeviceDefPtr dev,
+openvzDomainDeviceDefPostParse(virDomainDeviceDef *dev,
                                const virDomainDef *def G_GNUC_UNUSED,
                                unsigned int parseFlags G_GNUC_UNUSED,
                                void *opaque G_GNUC_UNUSED,
@@ -1127,7 +1097,7 @@ virDomainDefParserConfig openvzDomainDefParserConfig = {
     .features = VIR_DOMAIN_DEF_FEATURE_NAME_SLASH,
 };
 
-virDomainXMLOptionPtr openvzXMLOption(struct openvz_driver *driver)
+virDomainXMLOption *openvzXMLOption(struct openvz_driver *driver)
 {
     openvzDomainDefParserConfig.priv = driver;
     return virDomainXMLOptionNew(&openvzDomainDefParserConfig,

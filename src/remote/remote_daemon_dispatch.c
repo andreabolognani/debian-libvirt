@@ -24,6 +24,7 @@
 
 #include "remote_daemon_dispatch.h"
 #include "remote_daemon.h"
+#include "remote_sockets.h"
 #include "libvirt_internal.h"
 #include "datatypes.h"
 #include "viralloc.h"
@@ -74,8 +75,8 @@ VIR_LOG_INIT("daemon.remote");
 #endif
 
 struct daemonClientEventCallback {
-    virNetServerClientPtr client;
-    virNetServerProgramPtr program;
+    virNetServerClient *client;
+    virNetServerProgram *program;
     int eventID;
     int callbackID;
     bool legacy;
@@ -114,19 +115,19 @@ remoteSerializeDomainDiskErrors(virDomainDiskErrorPtr errors,
                                 u_int *ret_errors_len);
 
 static virConnectPtr
-remoteGetHypervisorConn(virNetServerClientPtr client);
+remoteGetHypervisorConn(virNetServerClient *client);
 static virConnectPtr
-remoteGetInterfaceConn(virNetServerClientPtr client);
+remoteGetInterfaceConn(virNetServerClient *client);
 static virConnectPtr
-remoteGetNetworkConn(virNetServerClientPtr client);
+remoteGetNetworkConn(virNetServerClient *client);
 static virConnectPtr
-remoteGetNodeDevConn(virNetServerClientPtr client);
+remoteGetNodeDevConn(virNetServerClient *client);
 static virConnectPtr
-remoteGetNWFilterConn(virNetServerClientPtr client);
+remoteGetNWFilterConn(virNetServerClient *client);
 static virConnectPtr
-remoteGetSecretConn(virNetServerClientPtr client);
+remoteGetSecretConn(virNetServerClient *client);
 static virConnectPtr
-remoteGetStorageConn(virNetServerClientPtr client);
+remoteGetStorageConn(virNetServerClient *client);
 
 
 #include "remote_daemon_dispatch_stubs.h"
@@ -136,8 +137,8 @@ remoteGetStorageConn(virNetServerClientPtr client);
 
 /* Prototypes */
 static void
-remoteDispatchObjectEventSend(virNetServerClientPtr client,
-                              virNetServerProgramPtr program,
+remoteDispatchObjectEventSend(virNetServerClient *client,
+                              virNetServerProgram *program,
                               int procnr,
                               xdrproc_t proc,
                               void *data);
@@ -145,17 +146,17 @@ remoteDispatchObjectEventSend(virNetServerClientPtr client,
 static void
 remoteEventCallbackFree(void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     if (!callback)
         return;
     virObjectUnref(callback->program);
     virObjectUnref(callback->client);
-    VIR_FREE(callback);
+    g_free(callback);
 }
 
 
 static bool
-remoteRelayDomainEventCheckACL(virNetServerClientPtr client,
+remoteRelayDomainEventCheckACL(virNetServerClient *client,
                                virConnectPtr conn, virDomainPtr dom)
 {
     virDomainDef def;
@@ -182,7 +183,7 @@ remoteRelayDomainEventCheckACL(virNetServerClientPtr client,
 
 
 static bool
-remoteRelayNetworkEventCheckACL(virNetServerClientPtr client,
+remoteRelayNetworkEventCheckACL(virNetServerClient *client,
                                 virConnectPtr conn, virNetworkPtr net)
 {
     virNetworkDef def;
@@ -207,7 +208,7 @@ remoteRelayNetworkEventCheckACL(virNetServerClientPtr client,
 }
 
 static bool
-remoteRelayStoragePoolEventCheckACL(virNetServerClientPtr client,
+remoteRelayStoragePoolEventCheckACL(virNetServerClient *client,
                                     virConnectPtr conn,
                                     virStoragePoolPtr pool)
 {
@@ -233,7 +234,7 @@ remoteRelayStoragePoolEventCheckACL(virNetServerClientPtr client,
 }
 
 static bool
-remoteRelayNodeDeviceEventCheckACL(virNetServerClientPtr client,
+remoteRelayNodeDeviceEventCheckACL(virNetServerClient *client,
                                    virConnectPtr conn,
                                    virNodeDevicePtr dev)
 {
@@ -258,7 +259,7 @@ remoteRelayNodeDeviceEventCheckACL(virNetServerClientPtr client,
 }
 
 static bool
-remoteRelaySecretEventCheckACL(virNetServerClientPtr client,
+remoteRelaySecretEventCheckACL(virNetServerClient *client,
                                virConnectPtr conn,
                                virSecretPtr secret)
 {
@@ -285,7 +286,7 @@ remoteRelaySecretEventCheckACL(virNetServerClientPtr client,
 }
 
 static bool
-remoteRelayDomainQemuMonitorEventCheckACL(virNetServerClientPtr client,
+remoteRelayDomainQemuMonitorEventCheckACL(virNetServerClient *client,
                                           virConnectPtr conn, virDomainPtr dom)
 {
     virDomainDef def;
@@ -317,7 +318,7 @@ remoteRelayDomainEventLifecycle(virConnectPtr conn,
                                 int detail,
                                 void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_lifecycle_msg data;
 
     if (callback->callbackID < 0 ||
@@ -356,7 +357,7 @@ remoteRelayDomainEventReboot(virConnectPtr conn,
                              virDomainPtr dom,
                              void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_reboot_msg data;
 
     if (callback->callbackID < 0 ||
@@ -393,7 +394,7 @@ remoteRelayDomainEventRTCChange(virConnectPtr conn,
                                 long long offset,
                                 void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_rtc_change_msg data;
 
     if (callback->callbackID < 0 ||
@@ -432,7 +433,7 @@ remoteRelayDomainEventWatchdog(virConnectPtr conn,
                                int action,
                                void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_watchdog_msg data;
 
     if (callback->callbackID < 0 ||
@@ -472,7 +473,7 @@ remoteRelayDomainEventIOError(virConnectPtr conn,
                               int action,
                               void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_io_error_msg data;
 
     if (callback->callbackID < 0 ||
@@ -516,7 +517,7 @@ remoteRelayDomainEventIOErrorReason(virConnectPtr conn,
                                     const char *reason,
                                     void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_io_error_reason_msg data;
 
     if (callback->callbackID < 0 ||
@@ -562,7 +563,7 @@ remoteRelayDomainEventGraphics(virConnectPtr conn,
                                virDomainEventGraphicsSubjectPtr subject,
                                void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_graphics_msg data;
     size_t i;
 
@@ -629,7 +630,7 @@ remoteRelayDomainEventBlockJob(virConnectPtr conn,
                                int status,
                                void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_block_job_msg data;
 
     if (callback->callbackID < 0 ||
@@ -668,7 +669,7 @@ remoteRelayDomainEventControlError(virConnectPtr conn,
                                    virDomainPtr dom,
                                    void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_control_error_msg data;
 
     if (callback->callbackID < 0 ||
@@ -708,7 +709,7 @@ remoteRelayDomainEventDiskChange(virConnectPtr conn,
                                  int reason,
                                  void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_disk_change_msg data;
 
     if (callback->callbackID < 0 ||
@@ -759,7 +760,7 @@ remoteRelayDomainEventTrayChange(virConnectPtr conn,
                                  int reason,
                                  void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_tray_change_msg data;
 
     if (callback->callbackID < 0 ||
@@ -798,7 +799,7 @@ remoteRelayDomainEventPMWakeup(virConnectPtr conn,
                                int reason,
                                void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_pmwakeup_msg data;
 
     if (callback->callbackID < 0 ||
@@ -834,7 +835,7 @@ remoteRelayDomainEventPMSuspend(virConnectPtr conn,
                                 int reason,
                                 void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_pmsuspend_msg data;
 
     if (callback->callbackID < 0 ||
@@ -870,7 +871,7 @@ remoteRelayDomainEventBalloonChange(virConnectPtr conn,
                                     unsigned long long actual,
                                     void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_balloon_change_msg data;
 
     if (callback->callbackID < 0 ||
@@ -908,7 +909,7 @@ remoteRelayDomainEventPMSuspendDisk(virConnectPtr conn,
                                     int reason,
                                     void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_pmsuspend_disk_msg data;
 
     if (callback->callbackID < 0 ||
@@ -944,7 +945,7 @@ remoteRelayDomainEventDeviceRemoved(virConnectPtr conn,
                                     const char *devAlias,
                                     void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_device_removed_msg data;
 
     if (callback->callbackID < 0 ||
@@ -988,7 +989,7 @@ remoteRelayDomainEventBlockJob2(virConnectPtr conn,
                                 int status,
                                 void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_block_job_2_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1021,7 +1022,7 @@ remoteRelayDomainEventTunable(virConnectPtr conn,
                               int nparams,
                               void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_tunable_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1036,7 +1037,7 @@ remoteRelayDomainEventTunable(virConnectPtr conn,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_EVENT_TUNABLE_MAX,
-                                (virTypedParameterRemotePtr *) &data.params.params_val,
+                                (struct _virTypedParameterRemote **) &data.params.params_val,
                                 &data.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0)
         return -1;
@@ -1061,7 +1062,7 @@ remoteRelayDomainEventAgentLifecycle(virConnectPtr conn,
                                      int reason,
                                      void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_agent_lifecycle_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1094,7 +1095,7 @@ remoteRelayDomainEventDeviceAdded(virConnectPtr conn,
                                   const char *devAlias,
                                   void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_device_added_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1126,7 +1127,7 @@ remoteRelayDomainEventMigrationIteration(virConnectPtr conn,
                                          int iteration,
                                          void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_migration_iteration_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1160,7 +1161,7 @@ remoteRelayDomainEventJobCompleted(virConnectPtr conn,
                                    int nparams,
                                    void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_job_completed_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1176,7 +1177,7 @@ remoteRelayDomainEventJobCompleted(virConnectPtr conn,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_JOB_STATS_MAX,
-                                (virTypedParameterRemotePtr *) &data.params.params_val,
+                                (struct _virTypedParameterRemote **) &data.params.params_val,
                                 &data.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0)
         return -1;
@@ -1198,7 +1199,7 @@ remoteRelayDomainEventDeviceRemovalFailed(virConnectPtr conn,
                                           const char *devAlias,
                                           void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_device_removal_failed_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1232,7 +1233,7 @@ remoteRelayDomainEventMetadataChange(virConnectPtr conn,
                                      const char *nsuri,
                                      void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_callback_metadata_change_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1272,7 +1273,7 @@ remoteRelayDomainEventBlockThreshold(virConnectPtr conn,
                                      unsigned long long excess,
                                      void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_block_threshold_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1310,7 +1311,7 @@ remoteRelayDomainEventMemoryFailure(virConnectPtr conn,
                                     unsigned int flags,
                                     void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_domain_event_memory_failure_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1371,7 +1372,7 @@ remoteRelayNetworkEventLifecycle(virConnectPtr conn,
                                  int detail,
                                  void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_network_event_lifecycle_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1408,7 +1409,7 @@ remoteRelayStoragePoolEventLifecycle(virConnectPtr conn,
                                      int detail,
                                      void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_storage_pool_event_lifecycle_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1438,7 +1439,7 @@ remoteRelayStoragePoolEventRefresh(virConnectPtr conn,
                                    virStoragePoolPtr pool,
                                    void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_storage_pool_event_refresh_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1475,7 +1476,7 @@ remoteRelayNodeDeviceEventLifecycle(virConnectPtr conn,
                                     int detail,
                                     void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_node_device_event_lifecycle_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1505,7 +1506,7 @@ remoteRelayNodeDeviceEventUpdate(virConnectPtr conn,
                                  virNodeDevicePtr dev,
                                  void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_node_device_event_update_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1542,7 +1543,7 @@ remoteRelaySecretEventLifecycle(virConnectPtr conn,
                                 int detail,
                                 void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_secret_event_lifecycle_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1572,7 +1573,7 @@ remoteRelaySecretEventValueChanged(virConnectPtr conn,
                                    virSecretPtr secret,
                                    void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     remote_secret_event_value_changed_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1611,7 +1612,7 @@ remoteRelayDomainQemuMonitorEvent(virConnectPtr conn,
                                   const char *details,
                                   void *opaque)
 {
-    daemonClientEventCallbackPtr callback = opaque;
+    daemonClientEventCallback *callback = opaque;
     qemu_domain_monitor_event_msg data;
 
     if (callback->callbackID < 0 ||
@@ -1644,7 +1645,7 @@ remoteRelayDomainQemuMonitorEvent(virConnectPtr conn,
 static
 void remoteRelayConnectionClosedEvent(virConnectPtr conn G_GNUC_UNUSED, int reason, void *opaque)
 {
-    virNetServerClientPtr client = opaque;
+    virNetServerClient *client = opaque;
     remote_connect_event_connection_closed_msg msg = { reason };
 
     VIR_DEBUG("Relaying connection closed event, reason %d", reason);
@@ -1742,11 +1743,11 @@ void remoteClientFree(void *data)
     if (priv->storageConn)
         virConnectClose(priv->storageConn);
 
-    VIR_FREE(priv);
+    g_free(priv);
 }
 
 
-static void remoteClientCloseFunc(virNetServerClientPtr client)
+static void remoteClientCloseFunc(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv = virNetServerClientGetPrivateData(client);
 
@@ -1818,7 +1819,7 @@ remoteOpenConn(const char *uri,
 
 
 static virConnectPtr
-remoteGetHypervisorConn(virNetServerClientPtr client)
+remoteGetHypervisorConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1833,7 +1834,7 @@ remoteGetHypervisorConn(virNetServerClientPtr client)
 
 
 static virConnectPtr
-remoteGetInterfaceConn(virNetServerClientPtr client)
+remoteGetInterfaceConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1849,7 +1850,7 @@ remoteGetInterfaceConn(virNetServerClientPtr client)
 
 
 static virConnectPtr
-remoteGetNetworkConn(virNetServerClientPtr client)
+remoteGetNetworkConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1865,7 +1866,7 @@ remoteGetNetworkConn(virNetServerClientPtr client)
 
 
 static virConnectPtr
-remoteGetNodeDevConn(virNetServerClientPtr client)
+remoteGetNodeDevConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1881,7 +1882,7 @@ remoteGetNodeDevConn(virNetServerClientPtr client)
 
 
 static virConnectPtr
-remoteGetNWFilterConn(virNetServerClientPtr client)
+remoteGetNWFilterConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1897,7 +1898,7 @@ remoteGetNWFilterConn(virNetServerClientPtr client)
 
 
 static virConnectPtr
-remoteGetSecretConn(virNetServerClientPtr client)
+remoteGetSecretConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1913,7 +1914,7 @@ remoteGetSecretConn(virNetServerClientPtr client)
 
 
 static virConnectPtr
-remoteGetStorageConn(virNetServerClientPtr client)
+remoteGetStorageConn(virNetServerClient *client)
 {
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -1928,7 +1929,7 @@ remoteGetStorageConn(virNetServerClientPtr client)
 }
 
 
-void *remoteClientNew(virNetServerClientPtr client,
+void *remoteClientNew(virNetServerClient *client,
                       void *opaque G_GNUC_UNUSED)
 {
     struct daemonClientPrivate *priv;
@@ -1947,137 +1948,14 @@ void *remoteClientNew(virNetServerClientPtr client,
 
 /*----- Functions. -----*/
 
-#ifdef VIRTPROXYD
-/*
- * When running in virtproxyd regular auto-probing of drivers
- * does not work as we don't have any drivers present (except
- * stateless ones inside libvirt.so). All the interesting
- * drivers are in separate daemons. Thus when we get a NULL
- * URI we need to simulate probing that virConnectOpen would
- * previously do. We use the existence of the UNIX domain
- * socket as our hook for probing.
- *
- * This assumes no stale sockets left over from a now dead
- * daemon, but that's reasonable since libvirtd unlinks
- * sockets it creates on shutdown, or uses systemd activation
- *
- * We only try to probe for primary hypervisor drivers,
- * not the secondary drivers.
- */
 static int
-remoteDispatchProbeURI(bool readonly,
-                       char **probeduri)
-{
-    *probeduri = NULL;
-    VIR_DEBUG("Probing for driver daemon sockets");
-
-    /*
-     * If running root, either the daemon is running and the socket
-     * exists, or we're using socket activation so the socket exists
-     * too.
-     *
-     * If running non-root, chances are that the daemon won't be
-     * running, nor any socket activation is used. We need to
-     * be able to auto-spawn the daemon. We thus just check to
-     * see what daemons are installed. This is not a big deal as
-     * only QEMU & VBox run as non-root, anyway.
-     */
-    if (geteuid() != 0) {
-        /* Order these the same as virDriverLoadModule
-         * calls in daemonInitialize */
-        const char *drivers[] = {
-# ifdef WITH_QEMU
-            "qemu",
-# endif
-# ifdef WITH_VBOX
-            "vbox",
-# endif
-        };
-        ssize_t i;
-
-        for (i = 0; i < (ssize_t) G_N_ELEMENTS(drivers) && !*probeduri; i++) {
-            g_autofree char *daemonname = NULL;
-            g_autofree char *daemonpath = NULL;
-
-            daemonname = g_strdup_printf("virt%sd", drivers[i]);
-
-            if (!(daemonpath = virFileFindResource(daemonname, "src", SBINDIR)))
-                return -1;
-
-            if (!virFileExists(daemonpath)) {
-                VIR_DEBUG("Missing daemon %s for driver %s", daemonpath, drivers[i]);
-                continue;
-            }
-
-            *probeduri = g_strdup_printf("%s:///session", drivers[i]);
-
-            VIR_DEBUG("Probed URI %s via daemon %s", *probeduri, daemonpath);
-            return 0;
-        }
-    } else {
-        /* Order these the same as virDriverLoadModule
-         * calls in daemonInitialize */
-        const char *drivers[] = {
-# ifdef WITH_LIBXL
-            "libxl",
-# endif
-# ifdef WITH_QEMU
-            "qemu",
-# endif
-# ifdef WITH_LXC
-            "lxc",
-# endif
-# ifdef WITH_VBOX
-            "vbox",
-# endif
-# ifdef WITH_BHYVE
-            "bhyve",
-# endif
-# ifdef WITH_VZ
-            "vz",
-# endif
-        };
-        ssize_t i;
-
-        for (i = 0; i < (ssize_t) G_N_ELEMENTS(drivers) && !*probeduri; i++) {
-            g_autofree char *sockname = NULL;
-
-            sockname = g_strdup_printf("%s/libvirt/virt%sd-%s", RUNSTATEDIR,
-                                       drivers[i], readonly ? "sock-ro" : "sock");
-
-            if (!virFileExists(sockname)) {
-                VIR_DEBUG("Missing sock %s for driver %s", sockname, drivers[i]);
-                continue;
-            }
-
-            *probeduri = g_strdup_printf("%s:///system", drivers[i]);
-
-            VIR_DEBUG("Probed URI %s via sock %s", *probeduri, sockname);
-            return 0;
-        }
-    }
-
-    /* Even if we didn't probe any socket, we won't
-     * return error. Just let virConnectOpen's normal
-     * logic run which will likely return an error anyway
-     */
-    VIR_DEBUG("No driver sock exists");
-    return 0;
-}
-#endif /* VIRTPROXYD */
-
-
-static int
-remoteDispatchConnectOpen(virNetServerPtr server G_GNUC_UNUSED,
-                          virNetServerClientPtr client,
-                          virNetMessagePtr msg G_GNUC_UNUSED,
-                          virNetMessageErrorPtr rerr,
+remoteDispatchConnectOpen(virNetServer *server G_GNUC_UNUSED,
+                          virNetServerClient *client,
+                          virNetMessage *msg G_GNUC_UNUSED,
+                          struct virNetMessageError *rerr,
                           struct remote_connect_open_args *args)
 {
     const char *name;
-#ifdef VIRTPROXYD
-    g_autofree char *probeduri = NULL;
-#endif
     unsigned int flags;
     struct daemonClientPrivate *priv = virNetServerClientGetPrivateData(client);
     int rv = -1;
@@ -2106,13 +1984,6 @@ remoteDispatchConnectOpen(virNetServerPtr server G_GNUC_UNUSED,
     priv->readonly = flags & VIR_CONNECT_RO;
 
 #ifdef VIRTPROXYD
-    if (!name || STREQ(name, "")) {
-        if (remoteDispatchProbeURI(priv->readonly, &probeduri) < 0)
-            goto cleanup;
-
-        name = probeduri;
-    }
-
     preserveIdentity = true;
 #endif /* VIRTPROXYD */
 
@@ -2139,7 +2010,8 @@ remoteDispatchConnectOpen(virNetServerPtr server G_GNUC_UNUSED,
         STREQ(type, "VBOX") ||
         STREQ(type, "bhyve") ||
         STREQ(type, "vz") ||
-        STREQ(type, "Parallels")) {
+        STREQ(type, "Parallels") ||
+        STREQ(type, "CH")) {
         VIR_DEBUG("Hypervisor driver found, setting URIs for secondary drivers");
         if (getuid() == 0) {
             priv->interfaceURI = "interface:///system";
@@ -2222,10 +2094,10 @@ remoteDispatchConnectOpen(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchConnectClose(virNetServerPtr server G_GNUC_UNUSED,
-                           virNetServerClientPtr client,
-                           virNetMessagePtr msg G_GNUC_UNUSED,
-                           virNetMessageErrorPtr rerr G_GNUC_UNUSED)
+remoteDispatchConnectClose(virNetServer *server G_GNUC_UNUSED,
+                           virNetServerClient *client,
+                           virNetMessage *msg G_GNUC_UNUSED,
+                           struct virNetMessageError *rerr G_GNUC_UNUSED)
 {
     virNetServerClientDelayedClose(client);
     return 0;
@@ -2233,10 +2105,10 @@ remoteDispatchConnectClose(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchConnectSetIdentity(virNetServerPtr server G_GNUC_UNUSED,
-                                 virNetServerClientPtr client,
-                                 virNetMessagePtr msg G_GNUC_UNUSED,
-                                 virNetMessageErrorPtr rerr,
+remoteDispatchConnectSetIdentity(virNetServer *server G_GNUC_UNUSED,
+                                 virNetServerClient *client,
+                                 virNetMessage *msg G_GNUC_UNUSED,
+                                 struct virNetMessageError *rerr,
                                  remote_connect_set_identity_args *args)
 {
     virTypedParameterPtr params = NULL;
@@ -2248,7 +2120,7 @@ remoteDispatchConnectSetIdentity(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     VIR_DEBUG("Received forwarded identity");
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   REMOTE_CONNECT_IDENTITY_PARAMS_MAX,
                                   &params,
@@ -2280,10 +2152,10 @@ remoteDispatchConnectSetIdentity(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainGetSchedulerType(virNetServerPtr server G_GNUC_UNUSED,
-                                     virNetServerClientPtr client,
-                                     virNetMessagePtr msg G_GNUC_UNUSED,
-                                     virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetSchedulerType(virNetServer *server G_GNUC_UNUSED,
+                                     virNetServerClient *client,
+                                     virNetMessage *msg G_GNUC_UNUSED,
+                                     struct virNetMessageError *rerr,
                                      remote_domain_get_scheduler_type_args *args,
                                      remote_domain_get_scheduler_type_ret *ret)
 {
@@ -2314,10 +2186,10 @@ remoteDispatchDomainGetSchedulerType(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetSchedulerParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                           virNetServerClientPtr client,
-                                           virNetMessagePtr msg G_GNUC_UNUSED,
-                                           virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetSchedulerParameters(virNetServer *server G_GNUC_UNUSED,
+                                           virNetServerClient *client,
+                                           virNetMessage *msg G_GNUC_UNUSED,
+                                           struct virNetMessageError *rerr,
                                            remote_domain_get_scheduler_parameters_args *args,
                                            remote_domain_get_scheduler_parameters_ret *ret)
 {
@@ -2346,7 +2218,7 @@ remoteDispatchDomainGetSchedulerParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_SCHEDULER_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 0) < 0)
         goto cleanup;
@@ -2362,10 +2234,10 @@ remoteDispatchDomainGetSchedulerParameters(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetSchedulerParametersFlags(virNetServerPtr server G_GNUC_UNUSED,
-                                                virNetServerClientPtr client,
-                                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                                virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetSchedulerParametersFlags(virNetServer *server G_GNUC_UNUSED,
+                                                virNetServerClient *client,
+                                                virNetMessage *msg G_GNUC_UNUSED,
+                                                struct virNetMessageError *rerr,
                                                 remote_domain_get_scheduler_parameters_flags_args *args,
                                                 remote_domain_get_scheduler_parameters_flags_ret *ret)
 {
@@ -2395,7 +2267,7 @@ remoteDispatchDomainGetSchedulerParametersFlags(virNetServerPtr server G_GNUC_UN
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_SCHEDULER_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -2411,10 +2283,10 @@ remoteDispatchDomainGetSchedulerParametersFlags(virNetServerPtr server G_GNUC_UN
 }
 
 static int
-remoteDispatchDomainMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
-                                virNetServerClientPtr client,
-                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                virNetMessageErrorPtr rerr,
+remoteDispatchDomainMemoryStats(virNetServer *server G_GNUC_UNUSED,
+                                virNetServerClient *client,
+                                virNetMessage *msg G_GNUC_UNUSED,
+                                struct virNetMessageError *rerr,
                                 remote_domain_memory_stats_args *args,
                                 remote_domain_memory_stats_ret *ret)
 {
@@ -2464,10 +2336,10 @@ remoteDispatchDomainMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainBlockPeek(virNetServerPtr server G_GNUC_UNUSED,
-                              virNetServerClientPtr client,
-                              virNetMessagePtr msg G_GNUC_UNUSED,
-                              virNetMessageErrorPtr rerr,
+remoteDispatchDomainBlockPeek(virNetServer *server G_GNUC_UNUSED,
+                              virNetServerClient *client,
+                              virNetMessage *msg G_GNUC_UNUSED,
+                              struct virNetMessageError *rerr,
                               remote_domain_block_peek_args *args,
                               remote_domain_block_peek_ret *ret)
 {
@@ -2514,10 +2386,10 @@ remoteDispatchDomainBlockPeek(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainBlockStatsFlags(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainBlockStatsFlags(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_block_stats_flags_args *args,
                                     remote_domain_block_stats_flags_ret *ret)
 {
@@ -2558,7 +2430,7 @@ remoteDispatchDomainBlockStatsFlags(virNetServerPtr server G_GNUC_UNUSED,
     /* Serialize the block stats. */
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_BLOCK_STATS_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -2575,10 +2447,10 @@ remoteDispatchDomainBlockStatsFlags(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainMemoryPeek(virNetServerPtr server G_GNUC_UNUSED,
-                               virNetServerClientPtr client,
-                               virNetMessagePtr msg G_GNUC_UNUSED,
-                               virNetMessageErrorPtr rerr,
+remoteDispatchDomainMemoryPeek(virNetServer *server G_GNUC_UNUSED,
+                               virNetServerClient *client,
+                               virNetMessage *msg G_GNUC_UNUSED,
+                               struct virNetMessageError *rerr,
                                remote_domain_memory_peek_args *args,
                                remote_domain_memory_peek_ret *ret)
 {
@@ -2623,10 +2495,10 @@ remoteDispatchDomainMemoryPeek(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetSecurityLabel(virNetServerPtr server G_GNUC_UNUSED,
-                                     virNetServerClientPtr client,
-                                     virNetMessagePtr msg G_GNUC_UNUSED,
-                                     virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetSecurityLabel(virNetServer *server G_GNUC_UNUSED,
+                                     virNetServerClient *client,
+                                     virNetMessage *msg G_GNUC_UNUSED,
+                                     struct virNetMessageError *rerr,
                                      remote_domain_get_security_label_args *args,
                                      remote_domain_get_security_label_ret *ret)
 {
@@ -2647,8 +2519,7 @@ remoteDispatchDomainGetSecurityLabel(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     ret->label.label_len = strlen(seclabel->label) + 1;
-    ret->label.label_val = g_new0(char, ret->label.label_len);
-    strcpy(ret->label.label_val, seclabel->label);
+    ret->label.label_val = g_strdup(seclabel->label);
     ret->enforcing = seclabel->enforcing;
 
     rv = 0;
@@ -2662,10 +2533,10 @@ remoteDispatchDomainGetSecurityLabel(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetSecurityLabelList(virNetServerPtr server G_GNUC_UNUSED,
-                                         virNetServerClientPtr client,
-                                         virNetMessagePtr msg G_GNUC_UNUSED,
-                                         virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetSecurityLabelList(virNetServer *server G_GNUC_UNUSED,
+                                         virNetServerClient *client,
+                                         virNetMessage *msg G_GNUC_UNUSED,
+                                         struct virNetMessageError *rerr,
                                          remote_domain_get_security_label_list_args *args,
                                          remote_domain_get_security_label_list_ret *ret)
 {
@@ -2711,10 +2582,10 @@ remoteDispatchDomainGetSecurityLabelList(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchNodeGetSecurityModel(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr msg G_GNUC_UNUSED,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetSecurityModel(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *msg G_GNUC_UNUSED,
+                                   struct virNetMessageError *rerr,
                                    remote_node_get_security_model_ret *ret)
 {
     virSecurityModel secmodel;
@@ -2729,12 +2600,10 @@ remoteDispatchNodeGetSecurityModel(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
 
     ret->model.model_len = strlen(secmodel.model) + 1;
-    ret->model.model_val = g_new0(char, ret->model.model_len);
-    strcpy(ret->model.model_val, secmodel.model);
+    ret->model.model_val = g_strdup(secmodel.model);
 
     ret->doi.doi_len = strlen(secmodel.doi) + 1;
-    ret->doi.doi_val = g_new0(char, ret->doi.doi_len);
-    strcpy(ret->doi.doi_val, secmodel.doi);
+    ret->doi.doi_val = g_strdup(secmodel.doi);
 
     rv = 0;
 
@@ -2745,10 +2614,10 @@ remoteDispatchNodeGetSecurityModel(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetVcpuPinInfo(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr msg G_GNUC_UNUSED,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetVcpuPinInfo(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *msg G_GNUC_UNUSED,
+                                   struct virNetMessageError *rerr,
                                    remote_domain_get_vcpu_pin_info_args *args,
                                    remote_domain_get_vcpu_pin_info_ret *ret)
 {
@@ -2806,10 +2675,10 @@ remoteDispatchDomainGetVcpuPinInfo(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainPinEmulator(virNetServerPtr server G_GNUC_UNUSED,
-                                virNetServerClientPtr client,
-                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                virNetMessageErrorPtr rerr,
+remoteDispatchDomainPinEmulator(virNetServer *server G_GNUC_UNUSED,
+                                virNetServerClient *client,
+                                virNetMessage *msg G_GNUC_UNUSED,
+                                struct virNetMessageError *rerr,
                                 remote_domain_pin_emulator_args *args)
 {
     int rv = -1;
@@ -2839,10 +2708,10 @@ remoteDispatchDomainPinEmulator(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainGetEmulatorPinInfo(virNetServerPtr server G_GNUC_UNUSED,
-                                       virNetServerClientPtr client,
-                                       virNetMessagePtr msg G_GNUC_UNUSED,
-                                       virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetEmulatorPinInfo(virNetServer *server G_GNUC_UNUSED,
+                                       virNetServerClient *client,
+                                       virNetMessage *msg G_GNUC_UNUSED,
+                                       struct virNetMessageError *rerr,
                                        remote_domain_get_emulator_pin_info_args *args,
                                        remote_domain_get_emulator_pin_info_ret *ret)
 {
@@ -2884,10 +2753,10 @@ remoteDispatchDomainGetEmulatorPinInfo(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetVcpus(virNetServerPtr server G_GNUC_UNUSED,
-                             virNetServerClientPtr client,
-                             virNetMessagePtr msg G_GNUC_UNUSED,
-                             virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetVcpus(virNetServer *server G_GNUC_UNUSED,
+                             virNetServerClient *client,
+                             virNetMessage *msg G_GNUC_UNUSED,
+                             struct virNetMessageError *rerr,
                              remote_domain_get_vcpus_args *args,
                              remote_domain_get_vcpus_ret *ret)
 {
@@ -2959,10 +2828,10 @@ remoteDispatchDomainGetVcpus(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetIOThreadInfo(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetIOThreadInfo(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_get_iothread_info_args *args,
                                     remote_domain_get_iothread_info_ret *ret)
 {
@@ -3027,10 +2896,10 @@ remoteDispatchDomainGetIOThreadInfo(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainMigratePrepare(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr msg G_GNUC_UNUSED,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePrepare(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *msg G_GNUC_UNUSED,
+                                   struct virNetMessageError *rerr,
                                    remote_domain_migrate_prepare_args *args,
                                    remote_domain_migrate_prepare_ret *ret)
 {
@@ -3064,8 +2933,7 @@ remoteDispatchDomainMigratePrepare(virNetServerPtr server G_GNUC_UNUSED,
     if (*uri_out == NULL) {
         ret->uri_out = NULL;
     } else {
-        ret->uri_out = uri_out;
-        uri_out = NULL;
+        ret->uri_out = g_steal_pointer(&uri_out);
     }
 
     rv = 0;
@@ -3078,10 +2946,10 @@ remoteDispatchDomainMigratePrepare(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainMigratePrepare2(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePrepare2(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_migrate_prepare2_args *args,
                                     remote_domain_migrate_prepare2_ret *ret)
 {
@@ -3126,10 +2994,10 @@ remoteDispatchDomainMigratePrepare2(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                        virNetServerClientPtr client,
-                                        virNetMessagePtr msg G_GNUC_UNUSED,
-                                        virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetMemoryParameters(virNetServer *server G_GNUC_UNUSED,
+                                        virNetServerClient *client,
+                                        virNetMessage *msg G_GNUC_UNUSED,
+                                        struct virNetMessageError *rerr,
                                         remote_domain_get_memory_parameters_args *args,
                                         remote_domain_get_memory_parameters_ret *ret)
 {
@@ -3169,7 +3037,7 @@ remoteDispatchDomainGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_MEMORY_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -3186,10 +3054,10 @@ remoteDispatchDomainGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetNumaParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                      virNetServerClientPtr client,
-                                      virNetMessagePtr msg G_GNUC_UNUSED,
-                                      virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetNumaParameters(virNetServer *server G_GNUC_UNUSED,
+                                      virNetServerClient *client,
+                                      virNetMessage *msg G_GNUC_UNUSED,
+                                      struct virNetMessageError *rerr,
                                       remote_domain_get_numa_parameters_args *args,
                                       remote_domain_get_numa_parameters_ret *ret)
 {
@@ -3229,7 +3097,7 @@ remoteDispatchDomainGetNumaParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_NUMA_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 flags) < 0)
         goto cleanup;
@@ -3246,10 +3114,10 @@ remoteDispatchDomainGetNumaParameters(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetBlkioParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                       virNetServerClientPtr client,
-                                       virNetMessagePtr msg G_GNUC_UNUSED,
-                                       virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetBlkioParameters(virNetServer *server G_GNUC_UNUSED,
+                                       virNetServerClient *client,
+                                       virNetMessage *msg G_GNUC_UNUSED,
+                                       struct virNetMessageError *rerr,
                                        remote_domain_get_blkio_parameters_args *args,
                                        remote_domain_get_blkio_parameters_ret *ret)
 {
@@ -3289,7 +3157,7 @@ remoteDispatchDomainGetBlkioParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_BLKIO_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -3306,10 +3174,10 @@ remoteDispatchDomainGetBlkioParameters(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchNodeGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
-                              virNetServerClientPtr client,
-                              virNetMessagePtr msg G_GNUC_UNUSED,
-                              virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetCPUStats(virNetServer *server G_GNUC_UNUSED,
+                              virNetServerClient *client,
+                              virNetMessage *msg G_GNUC_UNUSED,
+                              struct virNetMessageError *rerr,
                               remote_node_get_cpu_stats_args *args,
                               remote_node_get_cpu_stats_ret *ret)
 {
@@ -3373,10 +3241,10 @@ remoteDispatchNodeGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchNodeGetMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
-                                 virNetServerClientPtr client,
-                                 virNetMessagePtr msg G_GNUC_UNUSED,
-                                 virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetMemoryStats(virNetServer *server G_GNUC_UNUSED,
+                                 virNetServerClient *client,
+                                 virNetMessage *msg G_GNUC_UNUSED,
+                                 struct virNetMessageError *rerr,
                                  remote_node_get_memory_stats_args *args,
                                  remote_node_get_memory_stats_ret *ret)
 {
@@ -3440,10 +3308,10 @@ remoteDispatchNodeGetMemoryStats(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetLaunchSecurityInfo(virNetServerPtr server G_GNUC_UNUSED,
-                                          virNetServerClientPtr client,
-                                          virNetMessagePtr msg G_GNUC_UNUSED,
-                                          virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetLaunchSecurityInfo(virNetServer *server G_GNUC_UNUSED,
+                                          virNetServerClient *client,
+                                          virNetMessage *msg G_GNUC_UNUSED,
+                                          struct virNetMessageError *rerr,
                                           remote_domain_get_launch_security_info_args *args,
                                           remote_domain_get_launch_security_info_ret *ret)
 {
@@ -3464,7 +3332,7 @@ remoteDispatchDomainGetLaunchSecurityInfo(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_LAUNCH_SECURITY_INFO_PARAMS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -3480,10 +3348,10 @@ remoteDispatchDomainGetLaunchSecurityInfo(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetPerfEvents(virNetServerPtr server G_GNUC_UNUSED,
-                                  virNetServerClientPtr client,
-                                  virNetMessagePtr msg G_GNUC_UNUSED,
-                                  virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetPerfEvents(virNetServer *server G_GNUC_UNUSED,
+                                  virNetServerClient *client,
+                                  virNetMessage *msg G_GNUC_UNUSED,
+                                  struct virNetMessageError *rerr,
                                   remote_domain_get_perf_events_args *args,
                                   remote_domain_get_perf_events_ret *ret)
 {
@@ -3504,7 +3372,7 @@ remoteDispatchDomainGetPerfEvents(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_PERF_EVENTS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 0) < 0)
         goto cleanup;
@@ -3520,10 +3388,10 @@ remoteDispatchDomainGetPerfEvents(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetBlockJobInfo(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetBlockJobInfo(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_get_block_job_info_args *args,
                                     remote_domain_get_block_job_info_ret *ret)
 {
@@ -3557,10 +3425,10 @@ remoteDispatchDomainGetBlockJobInfo(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetBlockIoTune(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr hdr G_GNUC_UNUSED,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetBlockIoTune(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *hdr G_GNUC_UNUSED,
+                                   struct virNetMessageError *rerr,
                                    remote_domain_get_block_io_tune_args *args,
                                    remote_domain_get_block_io_tune_ret *ret)
 {
@@ -3600,7 +3468,7 @@ remoteDispatchDomainGetBlockIoTune(virNetServerPtr server G_GNUC_UNUSED,
     /* Serialize the block I/O tuning parameters. */
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_BLOCK_IO_TUNE_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -3619,10 +3487,10 @@ remoteDispatchDomainGetBlockIoTune(virNetServerPtr server G_GNUC_UNUSED,
 /*-------------------------------------------------------------*/
 
 static int
-remoteDispatchAuthList(virNetServerPtr server,
-                       virNetServerClientPtr client,
-                       virNetMessagePtr msg G_GNUC_UNUSED,
-                       virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchAuthList(virNetServer *server,
+                       virNetServerClient *client,
+                       virNetMessage *msg G_GNUC_UNUSED,
+                       struct virNetMessageError *rerr G_GNUC_UNUSED,
                        remote_auth_list_ret *ret)
 {
     int auth = virNetServerClientGetAuth(client);
@@ -3677,13 +3545,13 @@ remoteDispatchAuthList(virNetServerPtr server,
  * and gives the client a list of allowed mechanisms to choose
  */
 static int
-remoteDispatchAuthSaslInit(virNetServerPtr server G_GNUC_UNUSED,
-                           virNetServerClientPtr client,
-                           virNetMessagePtr msg G_GNUC_UNUSED,
-                           virNetMessageErrorPtr rerr,
+remoteDispatchAuthSaslInit(virNetServer *server G_GNUC_UNUSED,
+                           virNetServerClient *client,
+                           virNetMessage *msg G_GNUC_UNUSED,
+                           struct virNetMessageError *rerr,
                            remote_auth_sasl_init_ret *ret)
 {
-    virNetSASLSessionPtr sasl = NULL;
+    virNetSASLSession *sasl = NULL;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
 
@@ -3752,8 +3620,8 @@ remoteDispatchAuthSaslInit(virNetServerPtr server G_GNUC_UNUSED,
  * Returns 0 if ok, -1 on error, -2 if rejected
  */
 static int
-remoteSASLFinish(virNetServerPtr server,
-                 virNetServerClientPtr client)
+remoteSASLFinish(virNetServer *server,
+                 virNetServerClient *client)
 {
     g_autoptr(virIdentity) clnt_identity = NULL;
     const char *identity;
@@ -3801,10 +3669,10 @@ remoteSASLFinish(virNetServerPtr server,
  * This starts the SASL authentication negotiation.
  */
 static int
-remoteDispatchAuthSaslStart(virNetServerPtr server,
-                            virNetServerClientPtr client,
-                            virNetMessagePtr msg G_GNUC_UNUSED,
-                            virNetMessageErrorPtr rerr,
+remoteDispatchAuthSaslStart(virNetServer *server,
+                            virNetServerClient *client,
+                            virNetMessage *msg G_GNUC_UNUSED,
+                            struct virNetMessageError *rerr,
                             remote_auth_sasl_start_args *args,
                             remote_auth_sasl_start_ret *ret)
 {
@@ -3896,10 +3764,10 @@ remoteDispatchAuthSaslStart(virNetServerPtr server,
 
 
 static int
-remoteDispatchAuthSaslStep(virNetServerPtr server,
-                           virNetServerClientPtr client,
-                           virNetMessagePtr msg G_GNUC_UNUSED,
-                           virNetMessageErrorPtr rerr,
+remoteDispatchAuthSaslStep(virNetServer *server,
+                           virNetServerClient *client,
+                           virNetMessage *msg G_GNUC_UNUSED,
+                           struct virNetMessageError *rerr,
                            remote_auth_sasl_step_args *args,
                            remote_auth_sasl_step_ret *ret)
 {
@@ -3990,10 +3858,10 @@ remoteDispatchAuthSaslStep(virNetServerPtr server,
 }
 #else
 static int
-remoteDispatchAuthSaslInit(virNetServerPtr server G_GNUC_UNUSED,
-                           virNetServerClientPtr client G_GNUC_UNUSED,
-                           virNetMessagePtr msg G_GNUC_UNUSED,
-                           virNetMessageErrorPtr rerr,
+remoteDispatchAuthSaslInit(virNetServer *server G_GNUC_UNUSED,
+                           virNetServerClient *client G_GNUC_UNUSED,
+                           virNetMessage *msg G_GNUC_UNUSED,
+                           struct virNetMessageError *rerr,
                            remote_auth_sasl_init_ret *ret G_GNUC_UNUSED)
 {
     VIR_WARN("Client tried unsupported SASL auth");
@@ -4003,10 +3871,10 @@ remoteDispatchAuthSaslInit(virNetServerPtr server G_GNUC_UNUSED,
     return -1;
 }
 static int
-remoteDispatchAuthSaslStart(virNetServerPtr server G_GNUC_UNUSED,
-                            virNetServerClientPtr client G_GNUC_UNUSED,
-                            virNetMessagePtr msg G_GNUC_UNUSED,
-                            virNetMessageErrorPtr rerr,
+remoteDispatchAuthSaslStart(virNetServer *server G_GNUC_UNUSED,
+                            virNetServerClient *client G_GNUC_UNUSED,
+                            virNetMessage *msg G_GNUC_UNUSED,
+                            struct virNetMessageError *rerr,
                             remote_auth_sasl_start_args *args G_GNUC_UNUSED,
                             remote_auth_sasl_start_ret *ret G_GNUC_UNUSED)
 {
@@ -4017,10 +3885,10 @@ remoteDispatchAuthSaslStart(virNetServerPtr server G_GNUC_UNUSED,
     return -1;
 }
 static int
-remoteDispatchAuthSaslStep(virNetServerPtr server G_GNUC_UNUSED,
-                           virNetServerClientPtr client G_GNUC_UNUSED,
-                           virNetMessagePtr msg G_GNUC_UNUSED,
-                           virNetMessageErrorPtr rerr,
+remoteDispatchAuthSaslStep(virNetServer *server G_GNUC_UNUSED,
+                           virNetServerClient *client G_GNUC_UNUSED,
+                           virNetMessage *msg G_GNUC_UNUSED,
+                           struct virNetMessageError *rerr,
                            remote_auth_sasl_step_args *args G_GNUC_UNUSED,
                            remote_auth_sasl_step_ret *ret G_GNUC_UNUSED)
 {
@@ -4035,10 +3903,10 @@ remoteDispatchAuthSaslStep(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchAuthPolkit(virNetServerPtr server,
-                         virNetServerClientPtr client,
-                         virNetMessagePtr msg G_GNUC_UNUSED,
-                         virNetMessageErrorPtr rerr,
+remoteDispatchAuthPolkit(virNetServer *server,
+                         virNetServerClient *client,
+                         virNetMessage *msg G_GNUC_UNUSED,
+                         struct virNetMessageError *rerr,
                          remote_auth_polkit_ret *ret)
 {
     pid_t callerPid = -1;
@@ -4119,10 +3987,10 @@ remoteDispatchAuthPolkit(virNetServerPtr server,
 
 
 static int
-remoteDispatchNodeDeviceGetParent(virNetServerPtr server G_GNUC_UNUSED,
-                                  virNetServerClientPtr client,
-                                  virNetMessagePtr msg G_GNUC_UNUSED,
-                                  virNetMessageErrorPtr rerr,
+remoteDispatchNodeDeviceGetParent(virNetServer *server G_GNUC_UNUSED,
+                                  virNetServerClient *client,
+                                  virNetMessage *msg G_GNUC_UNUSED,
+                                  struct virNetMessageError *rerr,
                                   remote_node_device_get_parent_args *args,
                                   remote_node_device_get_parent_ret *ret)
 {
@@ -4157,10 +4025,10 @@ remoteDispatchNodeDeviceGetParent(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchConnectRegisterCloseCallback(virNetServerPtr server G_GNUC_UNUSED,
-                                           virNetServerClientPtr client,
-                                           virNetMessagePtr msg G_GNUC_UNUSED,
-                                           virNetMessageErrorPtr rerr)
+remoteDispatchConnectRegisterCloseCallback(virNetServer *server G_GNUC_UNUSED,
+                                           virNetServerClient *client,
+                                           virNetMessage *msg G_GNUC_UNUSED,
+                                           struct virNetMessageError *rerr)
 {
     int rv = -1;
     struct daemonClientPrivate *priv =
@@ -4188,10 +4056,10 @@ remoteDispatchConnectRegisterCloseCallback(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchConnectUnregisterCloseCallback(virNetServerPtr server G_GNUC_UNUSED,
-                                             virNetServerClientPtr client,
-                                             virNetMessagePtr msg G_GNUC_UNUSED,
-                                             virNetMessageErrorPtr rerr)
+remoteDispatchConnectUnregisterCloseCallback(virNetServer *server G_GNUC_UNUSED,
+                                             virNetServerClient *client,
+                                             virNetMessage *msg G_GNUC_UNUSED,
+                                             struct virNetMessageError *rerr)
 {
     int rv = -1;
     struct daemonClientPrivate *priv =
@@ -4218,16 +4086,16 @@ remoteDispatchConnectUnregisterCloseCallback(virNetServerPtr server G_GNUC_UNUSE
 }
 
 static int
-remoteDispatchConnectDomainEventRegister(virNetServerPtr server G_GNUC_UNUSED,
-                                         virNetServerClientPtr client,
-                                         virNetMessagePtr msg G_GNUC_UNUSED,
-                                         virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectDomainEventRegister(virNetServer *server G_GNUC_UNUSED,
+                                         virNetServerClient *client,
+                                         virNetMessage *msg G_GNUC_UNUSED,
+                                         struct virNetMessageError *rerr G_GNUC_UNUSED,
                                          remote_connect_domain_event_register_ret *ret G_GNUC_UNUSED)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virConnectPtr conn = remoteGetHypervisorConn(client);
@@ -4282,10 +4150,10 @@ remoteDispatchConnectDomainEventRegister(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchConnectDomainEventDeregister(virNetServerPtr server G_GNUC_UNUSED,
-                                           virNetServerClientPtr client,
-                                           virNetMessagePtr msg G_GNUC_UNUSED,
-                                           virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectDomainEventDeregister(virNetServer *server G_GNUC_UNUSED,
+                                           virNetServerClient *client,
+                                           virNetMessage *msg G_GNUC_UNUSED,
+                                           struct virNetMessageError *rerr G_GNUC_UNUSED,
                                            remote_connect_domain_event_deregister_ret *ret G_GNUC_UNUSED)
 {
     int callbackID = -1;
@@ -4330,13 +4198,13 @@ remoteDispatchConnectDomainEventDeregister(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static void
-remoteDispatchObjectEventSend(virNetServerClientPtr client,
-                              virNetServerProgramPtr program,
+remoteDispatchObjectEventSend(virNetServerClient *client,
+                              virNetServerProgram *program,
                               int procnr,
                               xdrproc_t proc,
                               void *data)
 {
-    virNetMessagePtr msg;
+    virNetMessage *msg;
 
     if (!(msg = virNetMessageNew(false)))
         goto cleanup;
@@ -4367,10 +4235,10 @@ remoteDispatchObjectEventSend(virNetServerClientPtr client,
 }
 
 static int
-remoteDispatchSecretGetValue(virNetServerPtr server G_GNUC_UNUSED,
-                             virNetServerClientPtr client,
-                             virNetMessagePtr msg G_GNUC_UNUSED,
-                             virNetMessageErrorPtr rerr,
+remoteDispatchSecretGetValue(virNetServer *server G_GNUC_UNUSED,
+                             virNetServerClient *client,
+                             virNetMessage *msg G_GNUC_UNUSED,
+                             struct virNetMessageError *rerr,
                              remote_secret_get_value_args *args,
                              remote_secret_get_value_ret *ret)
 {
@@ -4402,10 +4270,10 @@ remoteDispatchSecretGetValue(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetState(virNetServerPtr server G_GNUC_UNUSED,
-                             virNetServerClientPtr client,
-                             virNetMessagePtr msg G_GNUC_UNUSED,
-                             virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetState(virNetServer *server G_GNUC_UNUSED,
+                             virNetServerClient *client,
+                             virNetMessage *msg G_GNUC_UNUSED,
+                             struct virNetMessageError *rerr,
                              remote_domain_get_state_args *args,
                              remote_domain_get_state_ret *ret)
 {
@@ -4438,16 +4306,16 @@ remoteDispatchDomainGetState(virNetServerPtr server G_GNUC_UNUSED,
  * VIR_DRV_SUPPORTS_FEATURE(VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK),
  * and must not mix the two styles.  */
 static int
-remoteDispatchConnectDomainEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                            virNetServerClientPtr client,
-                                            virNetMessagePtr msg G_GNUC_UNUSED,
-                                            virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectDomainEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
+                                            virNetServerClient *client,
+                                            virNetMessage *msg G_GNUC_UNUSED,
+                                            struct virNetMessageError *rerr G_GNUC_UNUSED,
                                             remote_connect_domain_event_register_any_args *args)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virConnectPtr conn = remoteGetHypervisorConn(client);
@@ -4511,17 +4379,17 @@ remoteDispatchConnectDomainEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED
 
 
 static int
-remoteDispatchConnectDomainEventCallbackRegisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                                    virNetServerClientPtr client,
-                                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                                    virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectDomainEventCallbackRegisterAny(virNetServer *server G_GNUC_UNUSED,
+                                                    virNetServerClient *client,
+                                                    virNetMessage *msg G_GNUC_UNUSED,
+                                                    struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                     remote_connect_domain_event_callback_register_any_args *args,
                                                     remote_connect_domain_event_callback_register_any_ret *ret)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virDomainPtr dom = NULL;
@@ -4587,10 +4455,10 @@ remoteDispatchConnectDomainEventCallbackRegisterAny(virNetServerPtr server G_GNU
 
 
 static int
-remoteDispatchConnectDomainEventDeregisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                              virNetServerClientPtr client,
-                                              virNetMessagePtr msg G_GNUC_UNUSED,
-                                              virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectDomainEventDeregisterAny(virNetServer *server G_GNUC_UNUSED,
+                                              virNetServerClient *client,
+                                              virNetMessage *msg G_GNUC_UNUSED,
+                                              struct virNetMessageError *rerr G_GNUC_UNUSED,
                                               remote_connect_domain_event_deregister_any_args *args)
 {
     int callbackID = -1;
@@ -4644,10 +4512,10 @@ remoteDispatchConnectDomainEventDeregisterAny(virNetServerPtr server G_GNUC_UNUS
 
 
 static int
-remoteDispatchConnectDomainEventCallbackDeregisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                                      virNetServerClientPtr client,
-                                                      virNetMessagePtr msg G_GNUC_UNUSED,
-                                                      virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectDomainEventCallbackDeregisterAny(virNetServer *server G_GNUC_UNUSED,
+                                                      virNetServerClient *client,
+                                                      virNetMessage *msg G_GNUC_UNUSED,
+                                                      struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                       remote_connect_domain_event_callback_deregister_any_args *args)
 {
     int rv = -1;
@@ -4689,10 +4557,10 @@ remoteDispatchConnectDomainEventCallbackDeregisterAny(virNetServerPtr server G_G
 
 
 static int
-qemuDispatchDomainMonitorCommand(virNetServerPtr server G_GNUC_UNUSED,
-                                 virNetServerClientPtr client,
-                                 virNetMessagePtr msg G_GNUC_UNUSED,
-                                 virNetMessageErrorPtr rerr,
+qemuDispatchDomainMonitorCommand(virNetServer *server G_GNUC_UNUSED,
+                                 virNetServerClient *client,
+                                 virNetMessage *msg G_GNUC_UNUSED,
+                                 struct virNetMessageError *rerr,
                                  qemu_domain_monitor_command_args *args,
                                  qemu_domain_monitor_command_ret *ret)
 {
@@ -4721,10 +4589,10 @@ qemuDispatchDomainMonitorCommand(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigrateBegin3(virNetServerPtr server G_GNUC_UNUSED,
-                                  virNetServerClientPtr client,
-                                  virNetMessagePtr msg G_GNUC_UNUSED,
-                                  virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigrateBegin3(virNetServer *server G_GNUC_UNUSED,
+                                  virNetServerClient *client,
+                                  virNetMessage *msg G_GNUC_UNUSED,
+                                  struct virNetMessageError *rerr,
                                   remote_domain_migrate_begin3_args *args,
                                   remote_domain_migrate_begin3_ret *ret)
 {
@@ -4769,10 +4637,10 @@ remoteDispatchDomainMigrateBegin3(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigratePrepare3(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePrepare3(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_migrate_prepare3_args *args,
                                     remote_domain_migrate_prepare3_ret *ret)
 {
@@ -4821,10 +4689,10 @@ remoteDispatchDomainMigratePrepare3(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigratePerform3(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePerform3(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_migrate_perform3_args *args,
                                     remote_domain_migrate_perform3_ret *ret)
 {
@@ -4873,10 +4741,10 @@ remoteDispatchDomainMigratePerform3(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigrateFinish3(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr msg G_GNUC_UNUSED,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigrateFinish3(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *msg G_GNUC_UNUSED,
+                                   struct virNetMessageError *rerr,
                                    remote_domain_migrate_finish3_args *args,
                                    remote_domain_migrate_finish3_ret *ret)
 {
@@ -4923,10 +4791,10 @@ remoteDispatchDomainMigrateFinish3(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigrateConfirm3(virNetServerPtr server G_GNUC_UNUSED,
-                                    virNetServerClientPtr client,
-                                    virNetMessagePtr msg G_GNUC_UNUSED,
-                                    virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigrateConfirm3(virNetServer *server G_GNUC_UNUSED,
+                                    virNetServerClient *client,
+                                    virNetMessage *msg G_GNUC_UNUSED,
+                                    struct virNetMessageError *rerr,
                                     remote_domain_migrate_confirm3_args *args)
 {
     virDomainPtr dom = NULL;
@@ -4955,10 +4823,10 @@ remoteDispatchDomainMigrateConfirm3(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 
-static int remoteDispatchConnectSupportsFeature(virNetServerPtr server G_GNUC_UNUSED,
-                                                virNetServerClientPtr client,
-                                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                                virNetMessageErrorPtr rerr,
+static int remoteDispatchConnectSupportsFeature(virNetServer *server G_GNUC_UNUSED,
+                                                virNetServerClient *client,
+                                                virNetMessage *msg G_GNUC_UNUSED,
+                                                struct virNetMessageError *rerr,
                                                 remote_connect_supports_feature_args *args,
                                                 remote_connect_supports_feature_ret *ret)
 {
@@ -4998,6 +4866,7 @@ static int remoteDispatchConnectSupportsFeature(virNetServerPtr server G_GNUC_UN
     case VIR_DRV_FEATURE_XML_MIGRATABLE:
     case VIR_DRV_FEATURE_MIGRATION_OFFLINE:
     case VIR_DRV_FEATURE_MIGRATION_PARAMS:
+    case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
     default:
         if ((supported = virConnectSupportsFeature(conn, args->feature)) < 0)
             goto cleanup;
@@ -5019,10 +4888,10 @@ static int remoteDispatchConnectSupportsFeature(virNetServerPtr server G_GNUC_UN
 
 
 static int
-remoteDispatchDomainOpenGraphics(virNetServerPtr server G_GNUC_UNUSED,
-                                 virNetServerClientPtr client,
-                                 virNetMessagePtr msg,
-                                 virNetMessageErrorPtr rerr,
+remoteDispatchDomainOpenGraphics(virNetServer *server G_GNUC_UNUSED,
+                                 virNetServerClient *client,
+                                 virNetMessage *msg,
+                                 struct virNetMessageError *rerr,
                                  remote_domain_open_graphics_args *args)
 {
     virDomainPtr dom = NULL;
@@ -5057,10 +4926,10 @@ remoteDispatchDomainOpenGraphics(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainOpenGraphicsFd(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr msg,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchDomainOpenGraphicsFd(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *msg,
+                                   struct virNetMessageError *rerr,
                                    remote_domain_open_graphics_fd_args *args)
 {
     virDomainPtr dom = NULL;
@@ -5097,10 +4966,10 @@ remoteDispatchDomainOpenGraphicsFd(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainGetInterfaceParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                           virNetServerClientPtr client,
-                                           virNetMessagePtr msg G_GNUC_UNUSED,
-                                           virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetInterfaceParameters(virNetServer *server G_GNUC_UNUSED,
+                                           virNetServerClient *client,
+                                           virNetMessage *msg G_GNUC_UNUSED,
+                                           struct virNetMessageError *rerr,
                                            remote_domain_get_interface_parameters_args *args,
                                            remote_domain_get_interface_parameters_ret *ret)
 {
@@ -5141,7 +5010,7 @@ remoteDispatchDomainGetInterfaceParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_INTERFACE_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 flags) < 0)
         goto cleanup;
@@ -5158,10 +5027,10 @@ remoteDispatchDomainGetInterfaceParameters(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
-                                virNetServerClientPtr client,
-                                virNetMessagePtr hdr G_GNUC_UNUSED,
-                                virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetCPUStats(virNetServer *server G_GNUC_UNUSED,
+                                virNetServerClient *client,
+                                virNetMessage *hdr G_GNUC_UNUSED,
+                                struct virNetMessageError *rerr,
                                 remote_domain_get_cpu_stats_args *args,
                                 remote_domain_get_cpu_stats_ret *ret)
 {
@@ -5200,7 +5069,7 @@ remoteDispatchDomainGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, args->nparams * args->ncpus,
                                 REMOTE_DOMAIN_GET_CPU_STATS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -5226,10 +5095,10 @@ remoteDispatchDomainGetCPUStats(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetDiskErrors(virNetServerPtr server G_GNUC_UNUSED,
-                                  virNetServerClientPtr client,
-                                  virNetMessagePtr msg G_GNUC_UNUSED,
-                                  virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetDiskErrors(virNetServer *server G_GNUC_UNUSED,
+                                  virNetServerClient *client,
+                                  virNetMessage *msg G_GNUC_UNUSED,
+                                  struct virNetMessageError *rerr,
                                   remote_domain_get_disk_errors_args *args,
                                   remote_domain_get_disk_errors_ret *ret)
 {
@@ -5283,10 +5152,10 @@ remoteDispatchDomainGetDiskErrors(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchNodeGetSevInfo(virNetServerPtr server G_GNUC_UNUSED,
-                             virNetServerClientPtr client,
-                             virNetMessagePtr msg G_GNUC_UNUSED,
-                             virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetSevInfo(virNetServer *server G_GNUC_UNUSED,
+                             virNetServerClient *client,
+                             virNetMessage *msg G_GNUC_UNUSED,
+                             struct virNetMessageError *rerr,
                              remote_node_get_sev_info_args *args,
                              remote_node_get_sev_info_ret *ret)
 {
@@ -5303,7 +5172,7 @@ remoteDispatchNodeGetSevInfo(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_NODE_SEV_INFO_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -5319,10 +5188,10 @@ remoteDispatchNodeGetSevInfo(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchNodeGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                      virNetServerClientPtr client,
-                                      virNetMessagePtr msg G_GNUC_UNUSED,
-                                      virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetMemoryParameters(virNetServer *server G_GNUC_UNUSED,
+                                      virNetServerClient *client,
+                                      virNetMessage *msg G_GNUC_UNUSED,
+                                      struct virNetMessageError *rerr,
                                       remote_node_get_memory_parameters_args *args,
                                       remote_node_get_memory_parameters_ret *ret)
 {
@@ -5358,7 +5227,7 @@ remoteDispatchNodeGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_NODE_MEMORY_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -5374,10 +5243,10 @@ remoteDispatchNodeGetMemoryParameters(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchNodeGetCPUMap(virNetServerPtr server G_GNUC_UNUSED,
-                            virNetServerClientPtr client,
-                            virNetMessagePtr msg G_GNUC_UNUSED,
-                            virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetCPUMap(virNetServer *server G_GNUC_UNUSED,
+                            virNetServerClient *client,
+                            virNetMessage *msg G_GNUC_UNUSED,
+                            struct virNetMessageError *rerr,
                             remote_node_get_cpu_map_args *args,
                             remote_node_get_cpu_map_ret *ret)
 {
@@ -5418,10 +5287,10 @@ remoteDispatchNodeGetCPUMap(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-lxcDispatchDomainOpenNamespace(virNetServerPtr server G_GNUC_UNUSED,
-                               virNetServerClientPtr client,
-                               virNetMessagePtr msg G_GNUC_UNUSED,
-                               virNetMessageErrorPtr rerr,
+lxcDispatchDomainOpenNamespace(virNetServer *server G_GNUC_UNUSED,
+                               virNetServerClient *client,
+                               virNetMessage *msg G_GNUC_UNUSED,
+                               struct virNetMessageError *rerr,
                                lxc_domain_open_namespace_args *args)
 {
     int rv = -1;
@@ -5465,10 +5334,10 @@ lxcDispatchDomainOpenNamespace(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainGetJobStats(virNetServerPtr server G_GNUC_UNUSED,
-                                virNetServerClientPtr client,
-                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetJobStats(virNetServer *server G_GNUC_UNUSED,
+                                virNetServerClient *client,
+                                virNetMessage *msg G_GNUC_UNUSED,
+                                struct virNetMessageError *rerr,
                                 remote_domain_get_job_stats_args *args,
                                 remote_domain_get_job_stats_ret *ret)
 {
@@ -5490,7 +5359,7 @@ remoteDispatchDomainGetJobStats(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_JOB_STATS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0)
         goto cleanup;
@@ -5506,10 +5375,10 @@ remoteDispatchDomainGetJobStats(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainMigrateBegin3Params(virNetServerPtr server G_GNUC_UNUSED,
-                                        virNetServerClientPtr client,
-                                        virNetMessagePtr msg G_GNUC_UNUSED,
-                                        virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigrateBegin3Params(virNetServer *server G_GNUC_UNUSED,
+                                        virNetServerClient *client,
+                                        virNetMessage *msg G_GNUC_UNUSED,
+                                        struct virNetMessageError *rerr,
                                         remote_domain_migrate_begin3_params_args *args,
                                         remote_domain_migrate_begin3_params_ret *ret)
 {
@@ -5535,7 +5404,7 @@ remoteDispatchDomainMigrateBegin3Params(virNetServerPtr server G_GNUC_UNUSED,
     if (!(dom = get_nonnull_domain(conn, args->dom)))
         goto cleanup;
 
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   0, &params, &nparams) < 0)
         goto cleanup;
@@ -5560,10 +5429,10 @@ remoteDispatchDomainMigrateBegin3Params(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainMigratePrepare3Params(virNetServerPtr server G_GNUC_UNUSED,
-                                          virNetServerClientPtr client,
-                                          virNetMessagePtr msg G_GNUC_UNUSED,
-                                          virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePrepare3Params(virNetServer *server G_GNUC_UNUSED,
+                                          virNetServerClient *client,
+                                          virNetMessage *msg G_GNUC_UNUSED,
+                                          struct virNetMessageError *rerr,
                                           remote_domain_migrate_prepare3_params_args *args,
                                           remote_domain_migrate_prepare3_params_ret *ret)
 {
@@ -5585,7 +5454,7 @@ remoteDispatchDomainMigratePrepare3Params(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   0, &params, &nparams) < 0)
         goto cleanup;
@@ -5616,10 +5485,10 @@ remoteDispatchDomainMigratePrepare3Params(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainMigratePrepareTunnel3Params(virNetServerPtr server G_GNUC_UNUSED,
-                                                virNetServerClientPtr client,
-                                                virNetMessagePtr msg,
-                                                virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePrepareTunnel3Params(virNetServer *server G_GNUC_UNUSED,
+                                                virNetServerClient *client,
+                                                virNetMessage *msg,
+                                                struct virNetMessageError *rerr,
                                                 remote_domain_migrate_prepare_tunnel3_params_args *args,
                                                 remote_domain_migrate_prepare_tunnel3_params_ret *ret)
 {
@@ -5629,7 +5498,7 @@ remoteDispatchDomainMigratePrepareTunnel3Params(virNetServerPtr server G_GNUC_UN
     int cookieoutlen = 0;
     int rv = -1;
     virStreamPtr st = NULL;
-    daemonClientStreamPtr stream = NULL;
+    daemonClientStream *stream = NULL;
     virConnectPtr conn = remoteGetHypervisorConn(client);
 
     if (!conn)
@@ -5642,7 +5511,7 @@ remoteDispatchDomainMigratePrepareTunnel3Params(virNetServerPtr server G_GNUC_UN
         goto cleanup;
     }
 
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   0, &params, &nparams) < 0)
         goto cleanup;
@@ -5683,10 +5552,10 @@ remoteDispatchDomainMigratePrepareTunnel3Params(virNetServerPtr server G_GNUC_UN
 
 
 static int
-remoteDispatchDomainMigratePerform3Params(virNetServerPtr server G_GNUC_UNUSED,
-                                          virNetServerClientPtr client,
-                                          virNetMessagePtr msg G_GNUC_UNUSED,
-                                          virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigratePerform3Params(virNetServer *server G_GNUC_UNUSED,
+                                          virNetServerClient *client,
+                                          virNetMessage *msg G_GNUC_UNUSED,
+                                          struct virNetMessageError *rerr,
                                           remote_domain_migrate_perform3_params_args *args,
                                           remote_domain_migrate_perform3_params_ret *ret)
 {
@@ -5712,7 +5581,7 @@ remoteDispatchDomainMigratePerform3Params(virNetServerPtr server G_GNUC_UNUSED,
     if (!(dom = get_nonnull_domain(conn, args->dom)))
         goto cleanup;
 
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   0, &params, &nparams) < 0)
         goto cleanup;
@@ -5741,10 +5610,10 @@ remoteDispatchDomainMigratePerform3Params(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigrateFinish3Params(virNetServerPtr server G_GNUC_UNUSED,
-                                         virNetServerClientPtr client,
-                                         virNetMessagePtr msg G_GNUC_UNUSED,
-                                         virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigrateFinish3Params(virNetServer *server G_GNUC_UNUSED,
+                                         virNetServerClient *client,
+                                         virNetMessage *msg G_GNUC_UNUSED,
+                                         struct virNetMessageError *rerr,
                                          remote_domain_migrate_finish3_params_args *args,
                                          remote_domain_migrate_finish3_params_ret *ret)
 {
@@ -5766,7 +5635,7 @@ remoteDispatchDomainMigrateFinish3Params(virNetServerPtr server G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   0, &params, &nparams) < 0)
         goto cleanup;
@@ -5798,10 +5667,10 @@ remoteDispatchDomainMigrateFinish3Params(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainMigrateConfirm3Params(virNetServerPtr server G_GNUC_UNUSED,
-                                          virNetServerClientPtr client,
-                                          virNetMessagePtr msg G_GNUC_UNUSED,
-                                          virNetMessageErrorPtr rerr,
+remoteDispatchDomainMigrateConfirm3Params(virNetServer *server G_GNUC_UNUSED,
+                                          virNetServerClient *client,
+                                          virNetMessage *msg G_GNUC_UNUSED,
+                                          struct virNetMessageError *rerr,
                                           remote_domain_migrate_confirm3_params_args *args)
 {
     virTypedParameterPtr params = NULL;
@@ -5823,7 +5692,7 @@ remoteDispatchDomainMigrateConfirm3Params(virNetServerPtr server G_GNUC_UNUSED,
     if (!(dom = get_nonnull_domain(conn, args->dom)))
         goto cleanup;
 
-    if (virTypedParamsDeserialize((virTypedParameterRemotePtr) args->params.params_val,
+    if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) args->params.params_val,
                                   args->params.params_len,
                                   0, &params, &nparams) < 0)
         goto cleanup;
@@ -5846,10 +5715,10 @@ remoteDispatchDomainMigrateConfirm3Params(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchConnectGetCPUModelNames(virNetServerPtr server G_GNUC_UNUSED,
-                                      virNetServerClientPtr client,
-                                      virNetMessagePtr msg G_GNUC_UNUSED,
-                                      virNetMessageErrorPtr rerr,
+remoteDispatchConnectGetCPUModelNames(virNetServer *server G_GNUC_UNUSED,
+                                      virNetServerClient *client,
+                                      virNetMessage *msg G_GNUC_UNUSED,
+                                      struct virNetMessageError *rerr,
                                       remote_connect_get_cpu_model_names_args *args,
                                       remote_connect_get_cpu_model_names_ret *ret)
 {
@@ -5874,9 +5743,8 @@ remoteDispatchConnectGetCPUModelNames(virNetServerPtr server G_GNUC_UNUSED,
     }
 
     if (len && models) {
-        ret->models.models_val = models;
+        ret->models.models_val = g_steal_pointer(&models);
         ret->models.models_len = len;
-        models = NULL;
     } else {
         ret->models.models_val = NULL;
         ret->models.models_len = 0;
@@ -5895,10 +5763,10 @@ remoteDispatchConnectGetCPUModelNames(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainCreateXMLWithFiles(virNetServerPtr server G_GNUC_UNUSED,
-                                       virNetServerClientPtr client,
-                                       virNetMessagePtr msg G_GNUC_UNUSED,
-                                       virNetMessageErrorPtr rerr,
+remoteDispatchDomainCreateXMLWithFiles(virNetServer *server G_GNUC_UNUSED,
+                                       virNetServerClient *client,
+                                       virNetMessage *msg G_GNUC_UNUSED,
+                                       struct virNetMessageError *rerr,
                                        remote_domain_create_xml_with_files_args *args,
                                        remote_domain_create_xml_with_files_ret *ret)
 {
@@ -5939,10 +5807,10 @@ remoteDispatchDomainCreateXMLWithFiles(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 
-static int remoteDispatchDomainCreateWithFiles(virNetServerPtr server G_GNUC_UNUSED,
-                                               virNetServerClientPtr client,
-                                               virNetMessagePtr msg G_GNUC_UNUSED,
-                                               virNetMessageErrorPtr rerr,
+static int remoteDispatchDomainCreateWithFiles(virNetServer *server G_GNUC_UNUSED,
+                                               virNetServerClient *client,
+                                               virNetMessage *msg G_GNUC_UNUSED,
+                                               struct virNetMessageError *rerr,
                                                remote_domain_create_with_files_args *args,
                                                remote_domain_create_with_files_ret *ret)
 {
@@ -5987,17 +5855,17 @@ static int remoteDispatchDomainCreateWithFiles(virNetServerPtr server G_GNUC_UNU
 
 
 static int
-remoteDispatchConnectNetworkEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                             virNetServerClientPtr client,
-                                             virNetMessagePtr msg G_GNUC_UNUSED,
-                                             virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectNetworkEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
+                                             virNetServerClient *client,
+                                             virNetMessage *msg G_GNUC_UNUSED,
+                                             struct virNetMessageError *rerr G_GNUC_UNUSED,
                                              remote_connect_network_event_register_any_args *args,
                                              remote_connect_network_event_register_any_ret *ret)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     virNetworkPtr net = NULL;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
@@ -6063,10 +5931,10 @@ remoteDispatchConnectNetworkEventRegisterAny(virNetServerPtr server G_GNUC_UNUSE
 
 
 static int
-remoteDispatchConnectNetworkEventDeregisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                               virNetServerClientPtr client,
-                                               virNetMessagePtr msg G_GNUC_UNUSED,
-                                               virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectNetworkEventDeregisterAny(virNetServer *server G_GNUC_UNUSED,
+                                               virNetServerClient *client,
+                                               virNetMessage *msg G_GNUC_UNUSED,
+                                               struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                remote_connect_network_event_deregister_any_args *args)
 {
     int rv = -1;
@@ -6107,17 +5975,17 @@ remoteDispatchConnectNetworkEventDeregisterAny(virNetServerPtr server G_GNUC_UNU
 }
 
 static int
-remoteDispatchConnectStoragePoolEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                                 virNetServerClientPtr client,
-                                                 virNetMessagePtr msg G_GNUC_UNUSED,
-                                                 virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectStoragePoolEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
+                                                 virNetServerClient *client,
+                                                 virNetMessage *msg G_GNUC_UNUSED,
+                                                 struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                  remote_connect_storage_pool_event_register_any_args *args,
                                                  remote_connect_storage_pool_event_register_any_ret *ret)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virStoragePoolPtr  pool = NULL;
@@ -6182,10 +6050,10 @@ remoteDispatchConnectStoragePoolEventRegisterAny(virNetServerPtr server G_GNUC_U
 }
 
 static int
-remoteDispatchConnectStoragePoolEventDeregisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                               virNetServerClientPtr client,
-                                               virNetMessagePtr msg G_GNUC_UNUSED,
-                                               virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectStoragePoolEventDeregisterAny(virNetServer *server G_GNUC_UNUSED,
+                                               virNetServerClient *client,
+                                               virNetMessage *msg G_GNUC_UNUSED,
+                                               struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                remote_connect_storage_pool_event_deregister_any_args *args)
 {
     int rv = -1;
@@ -6226,17 +6094,17 @@ remoteDispatchConnectStoragePoolEventDeregisterAny(virNetServerPtr server G_GNUC
 }
 
 static int
-remoteDispatchConnectNodeDeviceEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                                virNetServerClientPtr client,
-                                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                                virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectNodeDeviceEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
+                                                virNetServerClient *client,
+                                                virNetMessage *msg G_GNUC_UNUSED,
+                                                struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                 remote_connect_node_device_event_register_any_args *args,
                                                 remote_connect_node_device_event_register_any_ret *ret)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virNodeDevicePtr  dev = NULL;
@@ -6301,10 +6169,10 @@ remoteDispatchConnectNodeDeviceEventRegisterAny(virNetServerPtr server G_GNUC_UN
 }
 
 static int
-remoteDispatchConnectNodeDeviceEventDeregisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                                  virNetServerClientPtr client,
-                                                  virNetMessagePtr msg G_GNUC_UNUSED,
-                                                  virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectNodeDeviceEventDeregisterAny(virNetServer *server G_GNUC_UNUSED,
+                                                  virNetServerClient *client,
+                                                  virNetMessage *msg G_GNUC_UNUSED,
+                                                  struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                   remote_connect_node_device_event_deregister_any_args *args)
 {
     int rv = -1;
@@ -6345,17 +6213,17 @@ remoteDispatchConnectNodeDeviceEventDeregisterAny(virNetServerPtr server G_GNUC_
 }
 
 static int
-remoteDispatchConnectSecretEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                            virNetServerClientPtr client,
-                                            virNetMessagePtr msg G_GNUC_UNUSED,
-                                            virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectSecretEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
+                                            virNetServerClient *client,
+                                            virNetMessage *msg G_GNUC_UNUSED,
+                                            struct virNetMessageError *rerr G_GNUC_UNUSED,
                                             remote_connect_secret_event_register_any_args *args,
                                             remote_connect_secret_event_register_any_ret *ret)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virSecretPtr secret = NULL;
@@ -6420,10 +6288,10 @@ remoteDispatchConnectSecretEventRegisterAny(virNetServerPtr server G_GNUC_UNUSED
 }
 
 static int
-remoteDispatchConnectSecretEventDeregisterAny(virNetServerPtr server G_GNUC_UNUSED,
-                                                  virNetServerClientPtr client,
-                                                  virNetMessagePtr msg G_GNUC_UNUSED,
-                                                  virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+remoteDispatchConnectSecretEventDeregisterAny(virNetServer *server G_GNUC_UNUSED,
+                                                  virNetServerClient *client,
+                                                  virNetMessage *msg G_GNUC_UNUSED,
+                                                  struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                   remote_connect_secret_event_deregister_any_args *args)
 {
     int rv = -1;
@@ -6464,17 +6332,17 @@ remoteDispatchConnectSecretEventDeregisterAny(virNetServerPtr server G_GNUC_UNUS
 }
 
 static int
-qemuDispatchConnectDomainMonitorEventRegister(virNetServerPtr server G_GNUC_UNUSED,
-                                              virNetServerClientPtr client,
-                                              virNetMessagePtr msg G_GNUC_UNUSED,
-                                              virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+qemuDispatchConnectDomainMonitorEventRegister(virNetServer *server G_GNUC_UNUSED,
+                                              virNetServerClient *client,
+                                              virNetMessage *msg G_GNUC_UNUSED,
+                                              struct virNetMessageError *rerr G_GNUC_UNUSED,
                                               qemu_connect_domain_monitor_event_register_args *args,
                                               qemu_connect_domain_monitor_event_register_ret *ret)
 {
     int callbackID;
     int rv = -1;
-    daemonClientEventCallbackPtr callback = NULL;
-    daemonClientEventCallbackPtr ref;
+    daemonClientEventCallback *callback = NULL;
+    daemonClientEventCallback *ref;
     struct daemonClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     virDomainPtr dom = NULL;
@@ -6536,10 +6404,10 @@ qemuDispatchConnectDomainMonitorEventRegister(virNetServerPtr server G_GNUC_UNUS
 
 
 static int
-qemuDispatchConnectDomainMonitorEventDeregister(virNetServerPtr server G_GNUC_UNUSED,
-                                                virNetServerClientPtr client,
-                                                virNetMessagePtr msg G_GNUC_UNUSED,
-                                                virNetMessageErrorPtr rerr G_GNUC_UNUSED,
+qemuDispatchConnectDomainMonitorEventDeregister(virNetServer *server G_GNUC_UNUSED,
+                                                virNetServerClient *client,
+                                                virNetMessage *msg G_GNUC_UNUSED,
+                                                struct virNetMessageError *rerr G_GNUC_UNUSED,
                                                 qemu_connect_domain_monitor_event_deregister_args *args)
 {
     int rv = -1;
@@ -6581,10 +6449,10 @@ qemuDispatchConnectDomainMonitorEventDeregister(virNetServerPtr server G_GNUC_UN
 }
 
 static int
-remoteDispatchDomainGetTime(virNetServerPtr server G_GNUC_UNUSED,
-                            virNetServerClientPtr client,
-                            virNetMessagePtr msg G_GNUC_UNUSED,
-                            virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetTime(virNetServer *server G_GNUC_UNUSED,
+                            virNetServerClient *client,
+                            virNetMessage *msg G_GNUC_UNUSED,
+                            struct virNetMessageError *rerr,
                             remote_domain_get_time_args *args,
                             remote_domain_get_time_ret *ret)
 {
@@ -6616,10 +6484,10 @@ remoteDispatchDomainGetTime(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchNodeGetFreePages(virNetServerPtr server G_GNUC_UNUSED,
-                               virNetServerClientPtr client,
-                               virNetMessagePtr msg G_GNUC_UNUSED,
-                               virNetMessageErrorPtr rerr,
+remoteDispatchNodeGetFreePages(virNetServer *server G_GNUC_UNUSED,
+                               virNetServerClient *client,
+                               virNetMessage *msg G_GNUC_UNUSED,
+                               struct virNetMessageError *rerr,
                                remote_node_get_free_pages_args *args,
                                remote_node_get_free_pages_ret *ret)
 {
@@ -6693,10 +6561,10 @@ remoteSerializeDHCPLease(remote_network_dhcp_lease *lease_dst, virNetworkDHCPLea
 
 
 static int
-remoteDispatchNetworkGetDHCPLeases(virNetServerPtr server G_GNUC_UNUSED,
-                                   virNetServerClientPtr client,
-                                   virNetMessagePtr msg G_GNUC_UNUSED,
-                                   virNetMessageErrorPtr rerr,
+remoteDispatchNetworkGetDHCPLeases(virNetServer *server G_GNUC_UNUSED,
+                                   virNetServerClient *client,
+                                   virNetMessage *msg G_GNUC_UNUSED,
+                                   struct virNetMessageError *rerr,
                                    remote_network_get_dhcp_leases_args *args,
                                    remote_network_get_dhcp_leases_ret *ret)
 {
@@ -6757,10 +6625,10 @@ remoteDispatchNetworkGetDHCPLeases(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchConnectGetAllDomainStats(virNetServerPtr server G_GNUC_UNUSED,
-                                       virNetServerClientPtr client,
-                                       virNetMessagePtr msg G_GNUC_UNUSED,
-                                       virNetMessageErrorPtr rerr,
+remoteDispatchConnectGetAllDomainStats(virNetServer *server G_GNUC_UNUSED,
+                                       virNetServerClient *client,
+                                       virNetMessage *msg G_GNUC_UNUSED,
+                                       struct virNetMessageError *rerr,
                                        remote_connect_get_all_domain_stats_args *args,
                                        remote_connect_get_all_domain_stats_ret *ret)
 {
@@ -6815,7 +6683,7 @@ remoteDispatchConnectGetAllDomainStats(virNetServerPtr server G_GNUC_UNUSED,
             if (virTypedParamsSerialize(retStats[i]->params,
                                         retStats[i]->nparams,
                                         REMOTE_CONNECT_GET_ALL_DOMAIN_STATS_MAX,
-                                        (virTypedParameterRemotePtr *) &dst->params.params_val,
+                                        (struct _virTypedParameterRemote **) &dst->params.params_val,
                                         &dst->params.params_len,
                                         VIR_TYPED_PARAM_STRING_OKAY) < 0)
                 goto cleanup;
@@ -6842,10 +6710,10 @@ remoteDispatchConnectGetAllDomainStats(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchNodeAllocPages(virNetServerPtr server G_GNUC_UNUSED,
-                             virNetServerClientPtr client,
-                             virNetMessagePtr msg G_GNUC_UNUSED,
-                             virNetMessageErrorPtr rerr,
+remoteDispatchNodeAllocPages(virNetServer *server G_GNUC_UNUSED,
+                             virNetServerClient *client,
+                             virNetMessage *msg G_GNUC_UNUSED,
+                             struct virNetMessageError *rerr,
                              remote_node_alloc_pages_args *args,
                              remote_node_alloc_pages_ret *ret)
 {
@@ -6876,10 +6744,10 @@ remoteDispatchNodeAllocPages(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchDomainGetFSInfo(virNetServerPtr server G_GNUC_UNUSED,
-                              virNetServerClientPtr client,
-                              virNetMessagePtr msg G_GNUC_UNUSED,
-                              virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetFSInfo(virNetServer *server G_GNUC_UNUSED,
+                              virNetServerClient *client,
+                              virNetMessage *msg G_GNUC_UNUSED,
+                              struct virNetMessageError *rerr,
                               remote_domain_get_fsinfo_args *args,
                               remote_domain_get_fsinfo_ret *ret)
 {
@@ -7052,10 +6920,10 @@ remoteSerializeDomainInterface(virDomainInterfacePtr *ifaces,
 
 
 static int
-remoteDispatchDomainInterfaceAddresses(virNetServerPtr server G_GNUC_UNUSED,
-                                       virNetServerClientPtr client,
-                                       virNetMessagePtr msg G_GNUC_UNUSED,
-                                       virNetMessageErrorPtr rerr,
+remoteDispatchDomainInterfaceAddresses(virNetServer *server G_GNUC_UNUSED,
+                                       virNetServerClient *client,
+                                       virNetMessage *msg G_GNUC_UNUSED,
+                                       struct virNetMessageError *rerr,
                                        remote_domain_interface_addresses_args *args,
                                        remote_domain_interface_addresses_ret *ret)
 {
@@ -7097,10 +6965,10 @@ remoteDispatchDomainInterfaceAddresses(virNetServerPtr server G_GNUC_UNUSED,
 
 
 static int
-remoteDispatchNetworkPortGetParameters(virNetServerPtr server G_GNUC_UNUSED,
-                                       virNetServerClientPtr client,
-                                       virNetMessagePtr msg G_GNUC_UNUSED,
-                                       virNetMessageErrorPtr rerr,
+remoteDispatchNetworkPortGetParameters(virNetServer *server G_GNUC_UNUSED,
+                                       virNetServerClient *client,
+                                       virNetMessage *msg G_GNUC_UNUSED,
+                                       struct virNetMessageError *rerr,
                                        remote_network_port_get_parameters_args *args,
                                        remote_network_port_get_parameters_ret *ret)
 {
@@ -7121,7 +6989,7 @@ remoteDispatchNetworkPortGetParameters(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_NETWORK_PORT_PARAMETERS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 args->flags) < 0)
         goto cleanup;
@@ -7342,10 +7210,10 @@ remoteSerializeDomainDiskErrors(virDomainDiskErrorPtr errors,
 }
 
 static int
-remoteDispatchDomainGetGuestInfo(virNetServerPtr server G_GNUC_UNUSED,
-                                 virNetServerClientPtr client,
-                                 virNetMessagePtr msg G_GNUC_UNUSED,
-                                 virNetMessageErrorPtr rerr,
+remoteDispatchDomainGetGuestInfo(virNetServer *server G_GNUC_UNUSED,
+                                 virNetServerClient *client,
+                                 virNetMessage *msg G_GNUC_UNUSED,
+                                 struct virNetMessageError *rerr,
                                  remote_domain_get_guest_info_args *args,
                                  remote_domain_get_guest_info_ret *ret)
 {
@@ -7366,7 +7234,7 @@ remoteDispatchDomainGetGuestInfo(virNetServerPtr server G_GNUC_UNUSED,
 
     if (virTypedParamsSerialize(params, nparams,
                                 REMOTE_DOMAIN_GUEST_INFO_PARAMS_MAX,
-                                (virTypedParameterRemotePtr *) &ret->params.params_val,
+                                (struct _virTypedParameterRemote **) &ret->params.params_val,
                                 &ret->params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0)
         goto cleanup;
@@ -7383,10 +7251,10 @@ remoteDispatchDomainGetGuestInfo(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainAuthorizedSshKeysGet(virNetServerPtr server G_GNUC_UNUSED,
-                                         virNetServerClientPtr client,
-                                         virNetMessagePtr msg G_GNUC_UNUSED,
-                                         virNetMessageErrorPtr rerr,
+remoteDispatchDomainAuthorizedSshKeysGet(virNetServer *server G_GNUC_UNUSED,
+                                         virNetServerClient *client,
+                                         virNetMessage *msg G_GNUC_UNUSED,
+                                         struct virNetMessageError *rerr,
                                          remote_domain_authorized_ssh_keys_get_args *args,
                                          remote_domain_authorized_ssh_keys_get_ret *ret)
 {
@@ -7429,10 +7297,10 @@ remoteDispatchDomainAuthorizedSshKeysGet(virNetServerPtr server G_GNUC_UNUSED,
 }
 
 static int
-remoteDispatchDomainAuthorizedSshKeysSet(virNetServerPtr server G_GNUC_UNUSED,
-                                         virNetServerClientPtr client,
-                                         virNetMessagePtr msg G_GNUC_UNUSED,
-                                         virNetMessageErrorPtr rerr,
+remoteDispatchDomainAuthorizedSshKeysSet(virNetServer *server G_GNUC_UNUSED,
+                                         virNetServerClient *client,
+                                         virNetMessage *msg G_GNUC_UNUSED,
+                                         struct virNetMessageError *rerr,
                                          remote_domain_authorized_ssh_keys_set_args *args)
 {
     int rv = -1;
@@ -7459,6 +7327,51 @@ remoteDispatchDomainAuthorizedSshKeysSet(virNetServerPtr server G_GNUC_UNUSED,
  cleanup:
     if (rv < 0)
         virNetMessageSaveError(rerr);
+    virObjectUnref(dom);
+
+    return rv;
+}
+
+static int
+remoteDispatchDomainGetMessages(virNetServer *server G_GNUC_UNUSED,
+                                virNetServerClient *client,
+                                virNetMessage *msg G_GNUC_UNUSED,
+                                struct virNetMessageError *rerr,
+                                remote_domain_get_messages_args *args,
+                                remote_domain_get_messages_ret *ret)
+{
+    int rv = -1;
+    virConnectPtr conn = remoteGetHypervisorConn(client);
+    int nmsgs = 0;
+    char **msgs = NULL;
+    virDomainPtr dom = NULL;
+
+    if (!conn)
+        goto cleanup;
+
+    if (!(dom = get_nonnull_domain(conn, args->dom)))
+        goto cleanup;
+
+    if ((nmsgs = virDomainGetMessages(dom, &msgs, args->flags)) < 0)
+        goto cleanup;
+
+    if (nmsgs > REMOTE_DOMAIN_MESSAGES_MAX) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Number of msgs %d, which exceeds max limit: %d"),
+                       nmsgs, REMOTE_DOMAIN_MESSAGES_MAX);
+        goto cleanup;
+    }
+
+    ret->msgs.msgs_val = g_steal_pointer(&msgs);
+    ret->msgs.msgs_len = nmsgs;
+
+    rv = nmsgs;
+
+ cleanup:
+    if (rv < 0)
+        virNetMessageSaveError(rerr);
+    if (nmsgs > 0)
+        virStringListFreeCount(msgs, nmsgs);
     virObjectUnref(dom);
 
     return rv;

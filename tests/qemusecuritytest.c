@@ -30,17 +30,17 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 struct testData {
-    virQEMUDriverPtr driver;
+    virQEMUDriver *driver;
     const char *file; /* file name to load VM def XML from; qemuxml2argvdata/ */
 };
 
 
 static int
-prepareObjects(virQEMUDriverPtr driver,
+prepareObjects(virQEMUDriver *driver,
                const char *xmlname,
-               virDomainObjPtr *vm_ret)
+               virDomainObj **vm_ret)
 {
-    qemuDomainObjPrivatePtr priv;
+    qemuDomainObjPrivate *priv;
     g_autoptr(virDomainObj) vm = NULL;
     g_autofree char *filename = NULL;
     g_autofree char *domxml = NULL;
@@ -87,7 +87,7 @@ testDomain(const void *opaque)
 {
     const struct testData *data = opaque;
     g_autoptr(virDomainObj) vm = NULL;
-    g_auto(GStrv) notRestored = NULL;
+    g_autoptr(GHashTable) notRestored = virHashNew(NULL);
     size_t i;
     int ret = -1;
 
@@ -95,21 +95,19 @@ testDomain(const void *opaque)
         return -1;
 
     for (i = 0; i < vm->def->ndisks; i++) {
-        virStorageSourcePtr src = vm->def->disks[i]->src;
-        virStorageSourcePtr n;
+        virStorageSource *src = vm->def->disks[i]->src;
+        virStorageSource *n;
 
         if (!src)
             continue;
 
         if (virStorageSourceIsLocalStorage(src) && src->path &&
-            (src->shared || src->readonly) &&
-            virStringListAdd(&notRestored, src->path) < 0)
-            return -1;
+            (src->shared || src->readonly))
+            g_hash_table_insert(notRestored, g_strdup(src->path), NULL);
 
         for (n = src->backingStore; virStorageSourceIsBacking(n); n = n->backingStore) {
-            if (virStorageSourceIsLocalStorage(n) && n->path &&
-                virStringListAdd(&notRestored, n->path) < 0)
-                return -1;
+            if (virStorageSourceIsLocalStorage(n) && n->path)
+                g_hash_table_insert(notRestored, g_strdup(n->path), NULL);
         }
     }
 
@@ -123,7 +121,7 @@ testDomain(const void *opaque)
 
     qemuSecurityRestoreAllLabel(data->driver, vm, false);
 
-    if (checkPaths((const char **) notRestored) < 0)
+    if (checkPaths(notRestored) < 0)
         goto cleanup;
 
     ret = 0;
@@ -138,21 +136,19 @@ static int
 mymain(void)
 {
     virQEMUDriver driver;
-    virSecurityManagerPtr stack = NULL;
-    virSecurityManagerPtr dac = NULL;
+    virSecurityManager *stack = NULL;
+    virSecurityManager *dac = NULL;
 #ifdef WITH_SELINUX
-    virSecurityManagerPtr selinux = NULL;
+    virSecurityManager *selinux = NULL;
 #endif
     int ret = 0;
+
+    if (!virSecurityXATTRNamespaceDefined())
+        return EXIT_AM_SKIP;
 
     if (virInitialize() < 0 ||
         qemuTestDriverInit(&driver) < 0)
         return -1;
-
-    if (!virSecurityXATTRNamespaceDefined()) {
-        ret = EXIT_AM_SKIP;
-        goto cleanup;
-    }
 
     /* Now fix the secdriver */
     virObjectUnref(driver.securityManager);
@@ -263,7 +259,7 @@ mymain(void)
 #endif
     virObjectUnref(dac);
     virObjectUnref(stack);
-    return ret;
+    return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 VIR_TEST_MAIN_PRELOAD(mymain,

@@ -29,7 +29,7 @@
 
 
 int
-virDomainCgroupSetupBlkio(virCgroupPtr cgroup, virDomainBlkiotune blkio)
+virDomainCgroupSetupBlkio(virCgroup *cgroup, virDomainBlkiotune blkio)
 {
     size_t i;
 
@@ -39,7 +39,7 @@ virDomainCgroupSetupBlkio(virCgroupPtr cgroup, virDomainBlkiotune blkio)
 
     if (blkio.ndevices) {
         for (i = 0; i < blkio.ndevices; i++) {
-            virBlkioDevicePtr dev = &blkio.devices[i];
+            virBlkioDevice *dev = &blkio.devices[i];
 
             if (dev->weight &&
                 virCgroupSetupBlkioDeviceWeight(cgroup, dev->path,
@@ -73,7 +73,7 @@ virDomainCgroupSetupBlkio(virCgroupPtr cgroup, virDomainBlkiotune blkio)
 
 
 int
-virDomainCgroupSetupMemtune(virCgroupPtr cgroup, virDomainMemtune mem)
+virDomainCgroupSetupMemtune(virCgroup *cgroup, virDomainMemtune mem)
 {
     if (virMemoryLimitIsSet(mem.hard_limit))
         if (virCgroupSetMemoryHardLimit(cgroup, mem.hard_limit) < 0)
@@ -92,8 +92,8 @@ virDomainCgroupSetupMemtune(virCgroupPtr cgroup, virDomainMemtune mem)
 
 
 int
-virDomainCgroupSetupDomainBlkioParameters(virCgroupPtr cgroup,
-                                          virDomainDefPtr def,
+virDomainCgroupSetupDomainBlkioParameters(virCgroup *cgroup,
+                                          virDomainDef *def,
                                           virTypedParameterPtr params,
                                           int nparams)
 {
@@ -104,7 +104,8 @@ virDomainCgroupSetupDomainBlkioParameters(virCgroupPtr cgroup,
         virTypedParameterPtr param = &params[i];
 
         if (STREQ(param->field, VIR_DOMAIN_BLKIO_WEIGHT)) {
-            if (virCgroupSetBlkioWeight(cgroup, params[i].value.ui) < 0)
+            if (virCgroupSetBlkioWeight(cgroup, params[i].value.ui) < 0 ||
+                virCgroupGetBlkioWeight(cgroup, &def->blkio.weight) < 0)
                 ret = -1;
         } else if (STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT) ||
                    STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_IOPS) ||
@@ -112,7 +113,7 @@ virDomainCgroupSetupDomainBlkioParameters(virCgroupPtr cgroup,
                    STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS) ||
                    STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
             size_t ndevices;
-            virBlkioDevicePtr devices = NULL;
+            virBlkioDevice *devices = NULL;
             size_t j;
 
             if (virDomainDriverParseBlkioDeviceStr(params[i].value.s,
@@ -190,10 +191,10 @@ virDomainCgroupSetupDomainBlkioParameters(virCgroupPtr cgroup,
 
 
 int
-virDomainCgroupSetMemoryLimitParameters(virCgroupPtr cgroup,
-                                        virDomainObjPtr vm,
-                                        virDomainDefPtr liveDef,
-                                        virDomainDefPtr persistentDef,
+virDomainCgroupSetMemoryLimitParameters(virCgroup *cgroup,
+                                        virDomainObj *vm,
+                                        virDomainDef *liveDef,
+                                        virDomainDef *persistentDef,
                                         virTypedParameterPtr params,
                                         int nparams)
 {

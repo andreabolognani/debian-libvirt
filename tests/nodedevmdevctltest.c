@@ -10,10 +10,11 @@
 
 #define VIR_FROM_THIS VIR_FROM_NODEDEV
 
-struct startTestInfo {
-    const char *virt_type;
-    int create;
+#define VIRT_TYPE "QEMU"
+
+struct TestInfo {
     const char *filename;
+    virMdevctlCommand command;
 };
 
 /* capture stdin passed to command */
@@ -31,120 +32,176 @@ testCommandDryRunCallback(const char *const*args G_GNUC_UNUSED,
     *stdinbuf = g_strdup(input);
 }
 
-/* We don't want the result of the test to depend on the path to the mdevctl
- * binary on the developer's machine, so replace the path to mdevctl with a
- * placeholder string before comparing to the expected output */
-static int
-nodedevCompareToFile(const char *actual,
-                     const char *filename)
-{
-    g_autofree char *replacedCmdline = NULL;
+typedef virCommand * (*MdevctlCmdFunc)(virNodeDeviceDef *, char **, char **);
 
-    replacedCmdline = virStringReplace(actual, MDEVCTL, "$MDEVCTL_BINARY$");
-
-    return virTestCompareToFile(replacedCmdline, filename);
-}
 
 static int
-testMdevctlStart(const char *virt_type,
-                 int create,
-                 const char *mdevxml,
-                 const char *startcmdfile,
-                 const char *startjsonfile)
+testMdevctlCmd(virMdevctlCommand cmd_type,
+               const char *mdevxml,
+               const char *cmdfile,
+               const char *jsonfile)
 {
     g_autoptr(virNodeDeviceDef) def = NULL;
-    virNodeDeviceObjPtr obj = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     const char *actualCmdline = NULL;
-    int ret = -1;
-    g_autofree char *uuid = NULL;
+    g_autofree char *outbuf = NULL;
+    g_autofree char *errbuf = NULL;
     g_autofree char *stdinbuf = NULL;
     g_autoptr(virCommand) cmd = NULL;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
+    int create;
 
-    if (!(def = virNodeDeviceDefParseFile(mdevxml, create, virt_type)))
-        goto cleanup;
+    switch (cmd_type) {
+        case MDEVCTL_CMD_CREATE:
+        case MDEVCTL_CMD_DEFINE:
+            create = CREATE_DEVICE;
+            break;
+        case MDEVCTL_CMD_START:
+        case MDEVCTL_CMD_STOP:
+        case MDEVCTL_CMD_UNDEFINE:
+            create = EXISTING_DEVICE;
+            break;
+        case MDEVCTL_CMD_LAST:
+        default:
+            return -1;
+    }
+
+    if (!(def = virNodeDeviceDefParseFile(mdevxml, create, VIRT_TYPE)))
+        return -1;
 
     /* this function will set a stdin buffer containing the json configuration
      * of the device. The json value is captured in the callback above */
-    cmd = nodeDeviceGetMdevctlStartCommand(def, &uuid);
+    cmd = nodeDeviceGetMdevctlCommand(def, cmd_type, &outbuf, &errbuf);
+
+    if (!cmd)
+        return -1;
+
+    if (create)
+        virCommandSetDryRun(dryRunToken, &buf, true, true,
+                            testCommandDryRunCallback, &stdinbuf);
+    else
+        virCommandSetDryRun(dryRunToken, &buf, true, true, NULL, NULL);
+
+    if (virCommandRun(cmd, NULL) < 0)
+        return -1;
+
+    if (!(actualCmdline = virBufferCurrentContent(&buf)))
+        return -1;
+
+    if (virTestCompareToFileFull(actualCmdline, cmdfile, false) < 0)
+        return -1;
+
+    if (create && virTestCompareToFile(stdinbuf, jsonfile) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+testMdevctlHelper(const void *data)
+{
+    const struct TestInfo *info = data;
+    const char *cmd = virMdevctlCommandTypeToString(info->command);
+    g_autofree char *mdevxml = NULL;
+    g_autofree char *cmdlinefile = NULL;
+    g_autofree char *jsonfile = NULL;
+
+    mdevxml = g_strdup_printf("%s/nodedevschemadata/%s.xml", abs_srcdir,
+                              info->filename);
+    cmdlinefile = g_strdup_printf("%s/nodedevmdevctldata/%s-%s.argv",
+                                  abs_srcdir, info->filename, cmd);
+    jsonfile = g_strdup_printf("%s/nodedevmdevctldata/%s-%s.json", abs_srcdir,
+                               info->filename, cmd);
+
+    return testMdevctlCmd(info->command, mdevxml, cmdlinefile, jsonfile);
+}
+
+
+static int
+testMdevctlListDefined(const void *data G_GNUC_UNUSED)
+{
+    virBuffer buf = VIR_BUFFER_INITIALIZER;
+    const char *actualCmdline = NULL;
+    int ret = -1;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *output = NULL;
+    g_autofree char *errmsg = NULL;
+    g_autofree char *cmdlinefile =
+        g_strdup_printf("%s/nodedevmdevctldata/mdevctl-list-defined.argv",
+                        abs_srcdir);
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
+
+    cmd = nodeDeviceGetMdevctlListCommand(true, &output, &errmsg);
 
     if (!cmd)
         goto cleanup;
 
-    virCommandSetDryRun(&buf, testCommandDryRunCallback, &stdinbuf);
+    virCommandSetDryRun(dryRunToken, &buf, true, true, NULL, NULL);
     if (virCommandRun(cmd, NULL) < 0)
         goto cleanup;
 
     if (!(actualCmdline = virBufferCurrentContent(&buf)))
         goto cleanup;
 
-    if (nodedevCompareToFile(actualCmdline, startcmdfile) < 0)
-        goto cleanup;
-
-    if (virTestCompareToFile(stdinbuf, startjsonfile) < 0)
+    if (virTestCompareToFileFull(actualCmdline, cmdlinefile, false) < 0)
         goto cleanup;
 
     ret = 0;
 
  cleanup:
-    virCommandSetDryRun(NULL, NULL, NULL);
-    virNodeDeviceObjEndAPI(&obj);
+    virBufferFreeAndReset(&buf);
     return ret;
 }
 
 static int
-testMdevctlStartHelper(const void *data)
+testMdevctlParse(const void *data)
 {
-    const struct startTestInfo *info = data;
-
-    g_autofree char *mdevxml = g_strdup_printf("%s/nodedevschemadata/%s.xml",
-                                               abs_srcdir, info->filename);
-    g_autofree char *cmdlinefile = g_strdup_printf("%s/nodedevmdevctldata/%s-start.argv",
-                                                   abs_srcdir, info->filename);
-    g_autofree char *jsonfile = g_strdup_printf("%s/nodedevmdevctldata/%s-start.json",
-                                                   abs_srcdir, info->filename);
-
-    return testMdevctlStart(info->virt_type,
-                            info->create, mdevxml, cmdlinefile,
-                            jsonfile);
-}
-
-static int
-testMdevctlStop(const void *data)
-{
-    const char *uuid = data;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    const char *actualCmdline = NULL;
+    g_autofree char *buf = NULL;
+    const char *filename = data;
+    g_autofree char *jsonfile = g_strdup_printf("%s/nodedevmdevctldata/%s.json",
+                                                abs_srcdir, filename);
+    g_autofree char *xmloutfile = g_strdup_printf("%s/nodedevmdevctldata/%s.out.xml",
+                                                  abs_srcdir, filename);
     int ret = -1;
-    g_autoptr(virCommand) cmd = NULL;
-    g_autofree char *cmdlinefile =
-        g_strdup_printf("%s/nodedevmdevctldata/mdevctl-stop.argv",
-                        abs_srcdir);
+    int nmdevs = 0;
+    virNodeDeviceDef **mdevs = NULL;
+    virBuffer xmloutbuf = VIR_BUFFER_INITIALIZER;
+    size_t i;
 
-    cmd = nodeDeviceGetMdevctlStopCommand(uuid);
+    if (virFileReadAll(jsonfile, 1024*1024, &buf) < 0) {
+        VIR_TEST_DEBUG("Unable to read file %s", jsonfile);
+        return -1;
+    }
 
-    if (!cmd)
-        goto cleanup;
+    if ((nmdevs = nodeDeviceParseMdevctlJSON(buf, &mdevs)) < 0) {
+        VIR_TEST_DEBUG("Unable to parse json for %s", filename);
+        return -1;
+    }
 
-    virCommandSetDryRun(&buf, NULL, NULL);
-    if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
+    for (i = 0; i < nmdevs; i++) {
+        g_autofree char *devxml = virNodeDeviceDefFormat(mdevs[i]);
+        if (!devxml)
+            goto cleanup;
+        virBufferAddStr(&xmloutbuf, devxml);
+    }
 
-    if (!(actualCmdline = virBufferCurrentContent(&buf)))
-        goto cleanup;
-
-    if (nodedevCompareToFile(actualCmdline, cmdlinefile) < 0)
+    if (virTestCompareToFileFull(virBufferCurrentContent(&xmloutbuf), xmloutfile, false) < 0)
         goto cleanup;
 
     ret = 0;
 
  cleanup:
-    virCommandSetDryRun(NULL, NULL, NULL);
+    virBufferFreeAndReset(&xmloutbuf);
+    for (i = 0; i < nmdevs; i++)
+        virNodeDeviceDefFree(mdevs[i]);
+    g_free(mdevs);
+
     return ret;
 }
 
 static void
-nodedevTestDriverFree(virNodeDeviceDriverStatePtr drv)
+nodedevTestDriverFree(virNodeDeviceDriverState *drv)
 {
     if (!drv)
         return;
@@ -152,15 +209,15 @@ nodedevTestDriverFree(virNodeDeviceDriverStatePtr drv)
     virNodeDeviceObjListFree(drv->devs);
     virCondDestroy(&drv->initCond);
     virMutexDestroy(&drv->lock);
-    VIR_FREE(drv->stateDir);
-    VIR_FREE(drv);
+    g_free(drv->stateDir);
+    g_free(drv);
 }
 
 /* Add a fake root 'computer' device */
-static virNodeDeviceDefPtr
+static virNodeDeviceDef *
 fakeRootDevice(void)
 {
-    virNodeDeviceDefPtr def = NULL;
+    virNodeDeviceDef *def = NULL;
 
     def = g_new0(virNodeDeviceDef, 1);
     def->caps = g_new0(virNodeDevCapsDef, 1);
@@ -173,11 +230,11 @@ fakeRootDevice(void)
  * devices. For our purposes, it only needs to have a name that matches the
  * parent of the mdev, and it needs a PCI address
  */
-static virNodeDeviceDefPtr
+static virNodeDeviceDef *
 fakeParentDevice(void)
 {
-    virNodeDeviceDefPtr def = NULL;
-    virNodeDevCapPCIDevPtr pci_dev;
+    virNodeDeviceDef *def = NULL;
+    virNodeDevCapPCIDev *pci_dev;
 
     def = g_new0(virNodeDeviceDef, 1);
     def->caps = g_new0(virNodeDevCapsDef, 1);
@@ -196,9 +253,9 @@ fakeParentDevice(void)
 }
 
 static int
-addDevice(virNodeDeviceDefPtr def)
+addDevice(virNodeDeviceDef *def)
 {
-    virNodeDeviceObjPtr obj;
+    virNodeDeviceObj *obj;
     if (!def)
         return -1;
 
@@ -263,29 +320,55 @@ mymain(void)
     }
 
 #define DO_TEST_FULL(desc, func, info) \
-    if (virTestRun(desc, func, &info) < 0) \
+    if (virTestRun(desc, func, info) < 0) \
         ret = -1;
 
-#define DO_TEST_START_FULL(virt_type, create, filename) \
+#define DO_TEST_CMD(desc, filename, command) \
     do { \
-        struct startTestInfo info = { virt_type, create, filename }; \
-        DO_TEST_FULL("mdevctl start " filename, testMdevctlStartHelper, info); \
+        struct TestInfo info = { filename, command }; \
+        DO_TEST_FULL(desc, testMdevctlHelper, &info); \
        } \
-    while (0);
+    while (0)
+
+#define DO_TEST_CREATE(filename) \
+    DO_TEST_CMD("create mdev " filename, filename, MDEVCTL_CMD_CREATE)
+
+#define DO_TEST_DEFINE(filename) \
+    DO_TEST_CMD("define mdev " filename, filename, MDEVCTL_CMD_DEFINE)
+
+#define DO_TEST_STOP(filename) \
+    DO_TEST_CMD("stop mdev " filename, filename, MDEVCTL_CMD_STOP)
+
+#define DO_TEST_UNDEFINE(filename) \
+    DO_TEST_CMD("undefine mdev" filename, filename, MDEVCTL_CMD_UNDEFINE)
 
 #define DO_TEST_START(filename) \
-    DO_TEST_START_FULL("QEMU", CREATE_DEVICE, filename)
+    DO_TEST_CMD("start mdev " filename, filename, MDEVCTL_CMD_START)
 
-#define DO_TEST_STOP(uuid) \
-    DO_TEST_FULL("mdevctl stop " uuid, testMdevctlStop, uuid)
+#define DO_TEST_LIST_DEFINED() \
+    DO_TEST_FULL("list defined mdevs", testMdevctlListDefined, NULL)
 
-    /* Test mdevctl start commands */
-    DO_TEST_START("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
-    DO_TEST_START("mdev_fedc4916_1ca8_49ac_b176_871d16c13076");
-    DO_TEST_START("mdev_d2441d39_495e_4243_ad9f_beb3f14c23d9");
+#define DO_TEST_PARSE_JSON(filename) \
+    DO_TEST_FULL("parse mdevctl json " filename, testMdevctlParse, filename)
+
+    DO_TEST_CREATE("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
+    DO_TEST_CREATE("mdev_fedc4916_1ca8_49ac_b176_871d16c13076");
+    DO_TEST_CREATE("mdev_d2441d39_495e_4243_ad9f_beb3f14c23d9");
 
     /* Test mdevctl stop command, pass an arbitrary uuid */
-    DO_TEST_STOP("e2451f73-c95b-4124-b900-e008af37c576");
+    DO_TEST_STOP("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
+
+    DO_TEST_LIST_DEFINED();
+
+    DO_TEST_PARSE_JSON("mdevctl-list-multiple");
+
+    DO_TEST_DEFINE("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
+    DO_TEST_DEFINE("mdev_fedc4916_1ca8_49ac_b176_871d16c13076");
+    DO_TEST_DEFINE("mdev_d2441d39_495e_4243_ad9f_beb3f14c23d9");
+
+    DO_TEST_UNDEFINE("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
+
+    DO_TEST_START("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
 
  done:
     nodedevTestDriverFree(driver);

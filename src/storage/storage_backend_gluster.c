@@ -30,7 +30,9 @@
 #include "virlog.h"
 #include "virstring.h"
 #include "viruri.h"
+#include "storage_file_probe.h"
 #include "storage_util.h"
+#include "storage_source.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -48,10 +50,9 @@ struct _virStorageBackendGlusterState {
 };
 
 typedef struct _virStorageBackendGlusterState virStorageBackendGlusterState;
-typedef virStorageBackendGlusterState *virStorageBackendGlusterStatePtr;
 
 static void
-virStorageBackendGlusterClose(virStorageBackendGlusterStatePtr state)
+virStorageBackendGlusterClose(virStorageBackendGlusterState *state)
 {
     if (!state)
         return;
@@ -69,11 +70,11 @@ virStorageBackendGlusterClose(virStorageBackendGlusterStatePtr state)
     VIR_FREE(state);
 }
 
-static virStorageBackendGlusterStatePtr
-virStorageBackendGlusterOpen(virStoragePoolObjPtr pool)
+static virStorageBackendGlusterState *
+virStorageBackendGlusterOpen(virStoragePoolObj *pool)
 {
-    virStorageBackendGlusterStatePtr ret = NULL;
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStorageBackendGlusterState *ret = NULL;
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     const char *name = def->source.name;
     const char *dir = def->source.dir;
     bool trailing_slash = true;
@@ -112,7 +113,8 @@ virStorageBackendGlusterOpen(virStoragePoolObjPtr pool)
 
     /* Actually connect to glfs */
     if (!(ret->vol = glfs_new(ret->volname))) {
-        virReportOOMError();
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("failed to create glfs object for '%s'"), ret->volname);
         goto error;
     }
 
@@ -172,8 +174,8 @@ virStorageBackendGlusterRead(glfs_fd_t *fd,
 
 
 static int
-virStorageBackendGlusterSetMetadata(virStorageBackendGlusterStatePtr state,
-                                    virStorageVolDefPtr vol,
+virStorageBackendGlusterSetMetadata(virStorageBackendGlusterState *state,
+                                    virStorageVolDef *vol,
                                     const char *name)
 {
     char *tmp;
@@ -213,10 +215,10 @@ virStorageBackendGlusterSetMetadata(virStorageBackendGlusterStatePtr state,
  * it NULL if the entry should be skipped (such as ".").  Return 0 on
  * success, -1 on failure. */
 static int
-virStorageBackendGlusterRefreshVol(virStorageBackendGlusterStatePtr state,
+virStorageBackendGlusterRefreshVol(virStorageBackendGlusterState *state,
                                    const char *name,
                                    struct stat *st,
-                                   virStorageVolDefPtr *volptr)
+                                   virStorageVolDef **volptr)
 {
     int ret = -1;
     glfs_fd_t *fd = NULL;
@@ -270,8 +272,8 @@ virStorageBackendGlusterRefreshVol(virStorageBackendGlusterStatePtr state,
                                             &header)) < 0)
         goto cleanup;
 
-    if (!(meta = virStorageFileGetMetadataFromBuf(name, header, len,
-                                                  VIR_STORAGE_FILE_AUTO)))
+    if (!(meta = virStorageSourceGetMetadataFromBuf(name, header, len,
+                                                    VIR_STORAGE_FILE_AUTO)))
         goto cleanup;
 
     if (meta->backingStoreRaw) {
@@ -305,11 +307,11 @@ virStorageBackendGlusterRefreshVol(virStorageBackendGlusterStatePtr state,
 }
 
 static int
-virStorageBackendGlusterRefreshPool(virStoragePoolObjPtr pool)
+virStorageBackendGlusterRefreshPool(virStoragePoolObj *pool)
 {
     int ret = -1;
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
-    virStorageBackendGlusterStatePtr state = NULL;
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
+    virStorageBackendGlusterState *state = NULL;
     struct {
         struct dirent ent;
         /* See comment below about readdir_r needing padding */
@@ -345,7 +347,7 @@ virStorageBackendGlusterRefreshPool(virStoragePoolObjPtr pool)
         goto cleanup;
     }
     while (!(errno = glfs_readdirplus_r(dir, &st, &de.ent, &ent)) && ent) {
-        virStorageVolDefPtr vol;
+        virStorageVolDef *vol;
         int okay = virStorageBackendGlusterRefreshVol(state,
                                                       ent->d_name, &st,
                                                       &vol);
@@ -383,11 +385,11 @@ virStorageBackendGlusterRefreshPool(virStoragePoolObjPtr pool)
 
 
 static int
-virStorageBackendGlusterVolDelete(virStoragePoolObjPtr pool,
-                                  virStorageVolDefPtr vol,
+virStorageBackendGlusterVolDelete(virStoragePoolObj *pool,
+                                  virStorageVolDef *vol,
                                   unsigned int flags)
 {
-    virStorageBackendGlusterStatePtr state = NULL;
+    virStorageBackendGlusterState *state = NULL;
     int ret = -1;
 
     virCheckFlags(0, -1);
@@ -499,7 +501,7 @@ virStorageBackendGlusterFindPoolSources(const char *srcSpec,
 
 
 static int
-virStorageBackendGlusterCheckPool(virStoragePoolObjPtr pool,
+virStorageBackendGlusterCheckPool(virStoragePoolObj *pool,
                                   bool *active)
 {
     /* Return previous state remembered by the status XML. If the pool is not

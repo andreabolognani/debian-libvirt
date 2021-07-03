@@ -827,7 +827,7 @@ virDomainSave(virDomainPtr domain, const char *to)
         char *absolute_to;
 
         /* We must absolutize the file path as the save is done out of process */
-        if (virFileAbsPath(to, &absolute_to) < 0) {
+        if (!(absolute_to = g_canonicalize_filename(to, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute output file path"));
             goto error;
@@ -915,7 +915,7 @@ virDomainSaveFlags(virDomainPtr domain, const char *to,
         char *absolute_to;
 
         /* We must absolutize the file path as the save is done out of process */
-        if (virFileAbsPath(to, &absolute_to) < 0) {
+        if (!(absolute_to = g_canonicalize_filename(to, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute output file path"));
             goto error;
@@ -965,7 +965,7 @@ virDomainRestore(virConnectPtr conn, const char *from)
         char *absolute_from;
 
         /* We must absolutize the file path as the restore is done out of process */
-        if (virFileAbsPath(from, &absolute_from) < 0) {
+        if (!(absolute_from = g_canonicalize_filename(from, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute input file path"));
             goto error;
@@ -1039,7 +1039,7 @@ virDomainRestoreFlags(virConnectPtr conn, const char *from, const char *dxml,
         char *absolute_from;
 
         /* We must absolutize the file path as the restore is done out of process */
-        if (virFileAbsPath(from, &absolute_from) < 0) {
+        if (!(absolute_from = g_canonicalize_filename(from, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute input file path"));
             goto error;
@@ -1097,7 +1097,7 @@ virDomainSaveImageGetXMLDesc(virConnectPtr conn, const char *file,
         char *absolute_file;
 
         /* We must absolutize the file path as the read is done out of process */
-        if (virFileAbsPath(file, &absolute_file) < 0) {
+        if (!(absolute_file = g_canonicalize_filename(file, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute input file path"));
             goto error;
@@ -1170,7 +1170,7 @@ virDomainSaveImageDefineXML(virConnectPtr conn, const char *file,
         char *absolute_file;
 
         /* We must absolutize the file path as the read is done out of process */
-        if (virFileAbsPath(file, &absolute_file) < 0) {
+        if (!(absolute_file = g_canonicalize_filename(file, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute input file path"));
             goto error;
@@ -1245,7 +1245,7 @@ virDomainCoreDump(virDomainPtr domain, const char *to, unsigned int flags)
         char *absolute_to;
 
         /* We must absolutize the file path as the save is done out of process */
-        if (virFileAbsPath(to, &absolute_to) < 0) {
+        if (!(absolute_to = g_canonicalize_filename(to, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute core file path"));
             goto error;
@@ -1329,7 +1329,7 @@ virDomainCoreDumpWithFormat(virDomainPtr domain, const char *to,
         char *absolute_to;
 
         /* We must absolutize the file path as the save is done out of process */
-        if (virFileAbsPath(to, &absolute_to) < 0) {
+        if (!(absolute_to = g_canonicalize_filename(to, NULL))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not build absolute core file path"));
             goto error;
@@ -3089,7 +3089,6 @@ virDomainMigrateVersion3Full(virDomainPtr domain,
             virTypedParamsReplaceString(&params, &nparams,
                                         VIR_MIGRATE_PARAM_URI,
                                         uri_out) < 0) {
-            cancelled = 1;
             virErrorPreserveLast(&orig_err);
             goto finish;
         }
@@ -3098,7 +3097,6 @@ virDomainMigrateVersion3Full(virDomainPtr domain,
                                        VIR_MIGRATE_PARAM_URI, &uri) <= 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("domainMigratePrepare3 did not set uri"));
-        cancelled = 1;
         virErrorPreserveLast(&orig_err);
         goto finish;
     }
@@ -7789,8 +7787,8 @@ virDomainIOThreadInfoFree(virDomainIOThreadInfoPtr info)
     if (!info)
         return;
 
-    VIR_FREE(info->cpumap);
-    VIR_FREE(info);
+    g_free(info->cpumap);
+    g_free(info);
 }
 
 
@@ -11695,6 +11693,10 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *     "vcpu.<num>.halted" - virtual CPU <num> is halted, may indicate the
  *                           processor is idle or even disabled, depending
  *                           on the architecture)
+ *     "vcpu.<num>.delay" - time the vCPU <num> thread was enqueued by the
+ *                          host scheduler, but was waiting in the queue
+ *                          instead of running. Exposed to the VM as a steal
+ *                          time.
  *
  * VIR_DOMAIN_STATS_INTERFACE:
  *     Return network interface statistics (from domain point of view).
@@ -11884,6 +11886,21 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *     "memory.bandwidth.monitor.<num>.node.<index>.bytes.total" - the total
  *                       bytes consumed by @vcpus that passing through all
  *                       memory controllers, either local or remote controller.
+ *
+ * VIR_DOMAIN_STATS_DIRTYRATE:
+ *     Return memory dirty rate information. The typed parameter keys are in
+ *     this format:
+ *
+ *     "dirtyrate.calc_status" - the status of last memory dirty rate calculation,
+ *                               returned as int from virDomainDirtyRateStatus
+ *                               enum.
+ *     "dirtyrate.calc_start_time" - the start time of last memory dirty rate
+ *                                   calculation as long long.
+ *     "dirtyrate.calc_period" - the period of last memory dirty rate calculation
+ *                               as int.
+ *     "dirtyrate.megabytes_per_second" - the calculated memory dirty rate in
+ *                                        MiB/s as long long. It is produced
+ *                                        only if the calc_status is measured.
  *
  * Note that entire stats groups or individual stat fields may be missing from
  * the output in case they are not supported by the given hypervisor, are not
@@ -12084,10 +12101,10 @@ virDomainStatsRecordListFree(virDomainStatsRecordPtr *stats)
     for (next = stats; *next; next++) {
         virTypedParamsFree((*next)->params, (*next)->nparams);
         virDomainFree((*next)->dom);
-        VIR_FREE(*next);
+        g_free(*next);
     }
 
-    VIR_FREE(stats);
+    g_free(stats);
 }
 
 
@@ -12281,14 +12298,14 @@ virDomainInterfaceFree(virDomainInterfacePtr iface)
     if (!iface)
         return;
 
-    VIR_FREE(iface->name);
-    VIR_FREE(iface->hwaddr);
+    g_free(iface->name);
+    g_free(iface->hwaddr);
 
     for (i = 0; i < iface->naddrs; i++)
-        VIR_FREE(iface->addrs[i].addr);
-    VIR_FREE(iface->addrs);
+        g_free(iface->addrs[i].addr);
+    g_free(iface->addrs);
 
-    VIR_FREE(iface);
+    g_free(iface);
 }
 
 
@@ -12544,6 +12561,7 @@ virDomainSetVcpu(virDomainPtr domain,
  *                      hold the list of PVs, for LUKS encrypted volume this will
  *                      contain the disk where the volume is placed. (Linux)
  *      "disk.<num>.dependency.<num>.name" - a dependency
+ *      "disk.<num>.serial" - optional disk serial number (as string)
  *      "disk.<num>.alias" - the device alias of the disk (e.g. sda)
  *      "disk.<num>.guest_alias" - optional alias assigned to the disk, on Linux
  *                      this is a name assigned by device mapper
@@ -13098,6 +13116,104 @@ virDomainAuthorizedSSHKeysSet(virDomainPtr domain,
     }
 
     virReportUnsupportedError();
+ error:
+    virDispatchError(conn);
+    return -1;
+}
+
+
+/**
+ * virDomainGetMessages:
+ * @domain: a domain object
+ * @msgs: pointer to a variable to store messages
+ * @flags: zero or more virDomainMessageType flags
+ *
+ * Fetch a list of all messages recorded against the VM and
+ * store them into @msgs array which is allocated upon
+ * successful return and is NULL terminated. The caller is
+ * responsible for freeing @msgs when no longer needed.
+ *
+ * If @flags is zero then all messages are reported. The
+ * virDomainMessageType constants can be used to restrict
+ * results to certain types of message.
+ *
+ * Note it is hypervisor dependent whether messages are
+ * available for shutoff guests, or running guests, or
+ * both. Thus a client should be prepared to re-fetch
+ * messages when a guest transitions between running
+ * and shutoff states.
+ *
+ * Returns: number of messages stored in @msgs,
+ *          -1 otherwise.
+ */
+int
+virDomainGetMessages(virDomainPtr domain,
+                     char ***msgs,
+                     unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain, "msgs=%p, flags=0x%x", msgs, flags);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    conn = domain->conn;
+    virCheckNonNullArgGoto(msgs, error);
+
+    if (conn->driver->domainGetMessages) {
+        int ret;
+        ret = conn->driver->domainGetMessages(domain, msgs, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+ error:
+    virDispatchError(conn);
+    return -1;
+}
+
+
+/**
+ * virDomainStartDirtyRateCalc:
+ * @domain: a domain object
+ * @seconds: specified calculating time in seconds
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Calculate the current domain's memory dirty rate in next @seconds.
+ * The calculated dirty rate information is available by calling
+ * virConnectGetAllDomainStats.
+ *
+ * Returns 0 in case of success, -1 otherwise.
+ */
+int
+virDomainStartDirtyRateCalc(virDomainPtr domain,
+                            int seconds,
+                            unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain, "seconds=%d, flags=0x%x", seconds, flags);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    conn = domain->conn;
+
+    virCheckReadOnlyGoto(conn->flags, error);
+
+    if (conn->driver->domainStartDirtyRateCalc) {
+        int ret;
+        ret = conn->driver->domainStartDirtyRateCalc(domain, seconds, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
  error:
     virDispatchError(conn);
     return -1;

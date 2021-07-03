@@ -138,6 +138,9 @@
           <ref name="cell"/>
         </oneOrMore>
       </element>
+      <optional>
+        <ref name="numaInterconnects"/>
+      </optional>
     </element>
   </define>
 
@@ -157,27 +160,24 @@
 
       <optional>
         <element name="distances">
-          <zeroOrMore>
-            <element name="sibling">
-              <attribute name="id">
-                <ref name="unsignedInt"/>
-              </attribute>
-              <attribute name="value">
-                <ref name="unsignedInt"/>
-              </attribute>
-            </element>
-          </zeroOrMore>
+          <oneOrMore>
+            <ref name="numaDistance"/>
+          </oneOrMore>
         </element>
       </optional>
+
+      <zeroOrMore>
+        <ref name="numaCache"/>
+      </zeroOrMore>
 
       <optional>
         <element name="cpus">
           <attribute name="num">
             <ref name="unsignedInt"/>
           </attribute>
-          <oneOrMore>
+          <zeroOrMore>
             <ref name="cpu"/>
-          </oneOrMore>
+          </zeroOrMore>
         </element>
       </optional>
     </element>
@@ -405,6 +405,14 @@
       <optional>
         <attribute name="maxCpus">
           <ref name="unsignedInt"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="deprecated">
+          <choice>
+            <value>yes</value>
+            <value>no</value>
+          </choice>
         </attribute>
       </optional>
       <text/>

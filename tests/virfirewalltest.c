@@ -36,7 +36,7 @@
 # define VIR_FROM_THIS VIR_FROM_FIREWALL
 
 static bool fwDisabled = true;
-static virBufferPtr fwBuf;
+static virBuffer *fwBuf;
 static bool fwError;
 
 # define TEST_FILTER_TABLE_LIST \
@@ -102,28 +102,17 @@ VIR_MOCK_WRAP_RET_ARGS(g_dbus_connection_call_sync,
     } else if (STREQ(bus_name, VIR_FIREWALL_FIREWALLD_SERVICE) &&
                STREQ(method_name, "passthrough")) {
         g_autoptr(GVariantIter) iter = NULL;
+        static const size_t maxargs = 5;
         g_auto(GStrv) args = NULL;
         size_t nargs = 0;
         char *type = NULL;
         char *item = NULL;
         bool isAdd = false;
         bool doError = false;
-        size_t i;
 
         g_variant_get(params, "(&sas)", &type, &iter);
 
-        nargs = g_variant_iter_n_children(iter);
-
-        while (g_variant_iter_loop(iter, "s", &item)) {
-            /* Fake failure on the command with this IP addr */
-            if (STREQ(item, "-A")) {
-                isAdd = true;
-            } else if (isAdd && STREQ(item, "192.168.122.255")) {
-                doError = true;
-            }
-
-            virStringListAdd(&args, item);
-        }
+        args = g_new0(char *, maxargs);
 
         if (fwBuf) {
             if (STREQ(type, "ipv4"))
@@ -134,10 +123,21 @@ VIR_MOCK_WRAP_RET_ARGS(g_dbus_connection_call_sync,
                 virBufferAddLit(fwBuf, EBTABLES_PATH);
         }
 
-        for (i = 0; i < nargs; i++) {
+        while (g_variant_iter_loop(iter, "s", &item)) {
+            /* Fake failure on the command with this IP addr */
+            if (STREQ(item, "-A")) {
+                isAdd = true;
+            } else if (isAdd && STREQ(item, "192.168.122.255")) {
+                doError = true;
+            }
+
+            if (nargs < maxargs)
+                args[nargs] = g_strdup(item);
+            nargs++;
+
             if (fwBuf) {
                 virBufferAddLit(fwBuf, " ");
-                virBufferEscapeShell(fwBuf, args[i]);
+                virBufferEscapeShell(fwBuf, item);
             }
         }
 
@@ -189,6 +189,7 @@ testFirewallSingleGroup(const void *opaque)
         IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
         IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -196,7 +197,7 @@ testFirewallSingleGroup(const void *opaque)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD)
-        virCommandSetDryRun(&cmdbuf, NULL, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, NULL, NULL);
     else
         fwBuf = &cmdbuf;
 
@@ -226,7 +227,6 @@ testFirewallSingleGroup(const void *opaque)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -242,7 +242,8 @@ testFirewallRemoveRule(const void *opaque)
         IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
         IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
-    virFirewallRulePtr fwrule;
+    virFirewallRule *fwrule;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -250,7 +251,7 @@ testFirewallRemoveRule(const void *opaque)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD)
-        virCommandSetDryRun(&cmdbuf, NULL, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, NULL, NULL);
     else
         fwBuf = &cmdbuf;
 
@@ -286,7 +287,6 @@ testFirewallRemoveRule(const void *opaque)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -304,6 +304,7 @@ testFirewallManyGroups(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -A OUTPUT --source 192.168.122.1 --jump ACCEPT\n"
         IPTABLES_PATH " -w -A OUTPUT --jump DROP\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -311,7 +312,7 @@ testFirewallManyGroups(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD)
-        virCommandSetDryRun(&cmdbuf, NULL, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, NULL, NULL);
     else
         fwBuf = &cmdbuf;
 
@@ -353,7 +354,6 @@ testFirewallManyGroups(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -392,6 +392,7 @@ testFirewallIgnoreFailGroup(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -A OUTPUT --source 192.168.122.1 --jump ACCEPT\n"
         IPTABLES_PATH " -w -A OUTPUT --jump DROP\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -399,7 +400,7 @@ testFirewallIgnoreFailGroup(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
         fwError = true;
@@ -443,7 +444,6 @@ testFirewallIgnoreFailGroup(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -461,6 +461,7 @@ testFirewallIgnoreFailRule(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -A OUTPUT --source 192.168.122.1 --jump ACCEPT\n"
         IPTABLES_PATH " -w -A OUTPUT --jump DROP\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -468,7 +469,7 @@ testFirewallIgnoreFailRule(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
         fwError = true;
@@ -511,7 +512,6 @@ testFirewallIgnoreFailRule(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -527,6 +527,7 @@ testFirewallNoRollback(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -A INPUT --source 192.168.122.1 --jump ACCEPT\n"
         IPTABLES_PATH " -w -A INPUT --source 192.168.122.255 --jump REJECT\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -534,7 +535,7 @@ testFirewallNoRollback(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
         fwError = true;
@@ -573,7 +574,6 @@ testFirewallNoRollback(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -591,6 +591,7 @@ testFirewallSingleRollback(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -D INPUT --source 192.168.122.255 --jump REJECT\n"
         IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -598,7 +599,7 @@ testFirewallSingleRollback(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallRollbackHook, NULL);
     } else {
         fwError = true;
         fwBuf = &cmdbuf;
@@ -654,7 +655,6 @@ testFirewallSingleRollback(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -671,6 +671,7 @@ testFirewallManyRollback(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -D INPUT --source 192.168.122.255 --jump REJECT\n"
         IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -678,7 +679,7 @@ testFirewallManyRollback(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
         fwError = true;
@@ -738,7 +739,6 @@ testFirewallManyRollback(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -759,6 +759,7 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -D INPUT --source 192.168.122.255 --jump REJECT\n"
         IPTABLES_PATH " -w -D INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     fwDisabled = data->fwDisabled;
     if (virFirewallSetBackend(data->tryBackend) < 0)
@@ -766,7 +767,7 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallRollbackHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallRollbackHook, NULL);
     } else {
         fwBuf = &cmdbuf;
         fwError = true;
@@ -852,7 +853,6 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
@@ -907,7 +907,7 @@ testFirewallQueryHook(const char *const*args,
 
 
 static int
-testFirewallQueryCallback(virFirewallPtr fw,
+testFirewallQueryCallback(virFirewall *fw,
                           virFirewallLayer layer,
                           const char *const *lines,
                           void *opaque G_GNUC_UNUSED)
@@ -953,6 +953,7 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
         IPTABLES_PATH " -w -A INPUT --source 192.168.122.128 --jump REJECT\n"
         IPTABLES_PATH " -w -A INPUT --source '!192.168.122.1' --jump REJECT\n";
     const struct testFirewallData *data = opaque;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     expectedLineNum = 0;
     expectedLineError = false;
@@ -962,7 +963,7 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
 
     if (data->expectBackend == VIR_FIREWALL_BACKEND_DIRECT ||
         data->expectBackend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        virCommandSetDryRun(&cmdbuf, testFirewallQueryHook, NULL);
+        virCommandSetDryRun(dryRunToken, &cmdbuf, false, false, testFirewallQueryHook, NULL);
     } else {
         fwBuf = &cmdbuf;
         fwError = true;
@@ -1030,27 +1031,14 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
     ret = 0;
  cleanup:
     fwBuf = NULL;
-    virCommandSetDryRun(NULL, NULL, NULL);
     return ret;
 }
 
-static bool
-hasNetfilterTools(void)
-{
-    return virFileIsExecutable(IPTABLES_PATH) &&
-        virFileIsExecutable(IP6TABLES_PATH) &&
-        virFileIsExecutable(EBTABLES_PATH);
-}
 
 static int
 mymain(void)
 {
     int ret = 0;
-
-    if (!hasNetfilterTools()) {
-        fprintf(stderr, "iptables/ip6tables/ebtables tools not present");
-        return EXIT_AM_SKIP;
-    }
 
 # define RUN_TEST_DIRECT(name, method) \
     do { \
@@ -1100,7 +1088,8 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"))
+VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"),
+                      VIR_TEST_MOCK("virfirewall"))
 
 #else /* ! defined (__linux__) */
 

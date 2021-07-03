@@ -3,6 +3,7 @@
   <qemuctime>0</qemuctime>
   <selfctime>0</selfctime>
   <selfvers>0</selfvers>
+  <flag name='sdl'/>
   <flag name='spice'/>
   <flag name='usb-redir'/>
   <flag name='scsi-disk.channel'/>
@@ -13,7 +14,6 @@
   <flag name='seccomp-sandbox'/>
   <flag name='reboot-timeout'/>
   <flag name='vnc'/>
-  <flag name='device-video-primary'/>
   <flag name='nbd-server'/>
   <flag name='rng-random'/>
   <flag name='rng-egd'/>
@@ -32,12 +32,9 @@
   <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='drive-iotune-max'/>
-  <flag name='machine-vmport-opt'/>
   <flag name='aes-key-wrap'/>
   <flag name='dea-key-wrap'/>
-  <flag name='vhost-user-multiqueue'/>
   <flag name='migration-event'/>
-  <flag name='gic-version'/>
   <flag name='incoming-defer'/>
   <flag name='chardev-file-append'/>
   <flag name='vserport-change-event'/>
@@ -49,21 +46,17 @@
   <flag name='spice-unix'/>
   <flag name='drive-detect-zeroes'/>
   <flag name='tls-creds-x509'/>
-  <flag name='smm'/>
   <flag name='query-hotpluggable-cpus'/>
   <flag name='drive-iotune-max-length'/>
-  <flag name='query-qmp-schema'/>
   <flag name='gluster.debug_level'/>
   <flag name='drive-iotune-group'/>
   <flag name='spice-rendernode'/>
   <flag name='block-write-threshold'/>
   <flag name='query-named-block-nodes'/>
   <flag name='kernel-irqchip'/>
-  <flag name='kernel-irqchip.split'/>
   <flag name='loadparm'/>
   <flag name='vnc-multi-servers'/>
   <flag name='chardev-reconnect'/>
-  <flag name='numa.dist'/>
   <flag name='disk-share-rw'/>
   <flag name='iscsi.password-secret'/>
   <flag name='isa-serial'/>
@@ -76,7 +69,6 @@
   <flag name='pr-manager-helper'/>
   <flag name='qom-list-properties'/>
   <flag name='memory-backend-file.discard-data'/>
-  <flag name='sdl-gl'/>
   <flag name='screendump_device'/>
   <flag name='blockdev-del'/>
   <flag name='chardev-fd-pass'/>
@@ -115,6 +107,13 @@
   <flag name='netdev.vhost-vdpa'/>
   <flag name='fsdev.createmode'/>
   <flag name='ncr53c90'/>
+  <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
+  <flag name='vnc-opts'/>
+  <flag name='audiodev'/>
+  <flag name='blockdev-backup'/>
+  <flag name='rotation-rate'/>
+  <flag name='input-linux'/>
+  <flag name='query-display-options'/>
   <version>5001000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>0</microcodeVersion>

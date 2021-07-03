@@ -48,23 +48,35 @@ typedef enum {
     REMOTE_DRIVER_MODE_LAST
 } remoteDriverMode;
 
+typedef enum {
+    REMOTE_DRIVER_OPEN_RO = (1 << 0), /* Use the read-only socket path */
+    REMOTE_DRIVER_OPEN_USER = (1 << 1), /* Use the per-user socket path */
+    REMOTE_DRIVER_OPEN_AUTOSTART = (1 << 2), /* Autostart a per-user daemon */
+} remoteDriverOpenFlags;
+
+
 VIR_ENUM_DECL(remoteDriverMode);
 
 int
-remoteSplitURIScheme(virURIPtr uri,
+remoteSplitURIScheme(virURI *uri,
                      char **driver,
                      remoteDriverTransport *transport);
+
+int
+remoteProbeSessionDriverFromBinary(char **driver);
+int
+remoteProbeSystemDriverFromSocket(bool readonly, char **driver);
+int
+remoteProbeSessionDriverFromSocket(bool readonly, char **driver);
 
 char *
 remoteGetUNIXSocket(remoteDriverTransport transport,
                     remoteDriverMode mode,
                     const char *driver,
-                    bool ro,
-                    bool session,
-                    char **daemon);
+                    unsigned int flags, /* remoteDriverOpenFlags */
+                    char **daemon_path);
 
 void
-remoteGetURIDaemonInfo(virURIPtr uri,
+remoteGetURIDaemonInfo(virURI *uri,
                        remoteDriverTransport transport,
-                       bool *session,
-                       bool *autostart);
+                       unsigned int *flags); /* remoteDriverOpenFlags */

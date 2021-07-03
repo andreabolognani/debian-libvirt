@@ -30,7 +30,7 @@ typedef int
 typedef virDrvOpenStatus
 (*virDrvConnectOpen)(virConnectPtr conn,
                      virConnectAuthPtr auth,
-                     virConfPtr conf,
+                     virConf *conf,
                      unsigned int flags);
 
 typedef int
@@ -1400,8 +1400,17 @@ typedef int
                                     unsigned int nkeys,
                                     unsigned int flags);
 
+typedef int
+(*virDrvDomainGetMessages)(virDomainPtr domain,
+                           char ***msgs,
+                           unsigned int flags);
+
+typedef int
+(*virDrvDomainStartDirtyRateCalc)(virDomainPtr domain,
+                                  int seconds,
+                                  unsigned int flags);
+
 typedef struct _virHypervisorDriver virHypervisorDriver;
-typedef virHypervisorDriver *virHypervisorDriverPtr;
 
 /**
  * _virHypervisorDriver:
@@ -1665,4 +1674,6 @@ struct _virHypervisorDriver {
     virDrvDomainBackupGetXMLDesc domainBackupGetXMLDesc;
     virDrvDomainAuthorizedSSHKeysGet domainAuthorizedSSHKeysGet;
     virDrvDomainAuthorizedSSHKeysSet domainAuthorizedSSHKeysSet;
+    virDrvDomainGetMessages domainGetMessages;
+    virDrvDomainStartDirtyRateCalc domainStartDirtyRateCalc;
 };

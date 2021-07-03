@@ -66,7 +66,7 @@ int
 virNumaGetMaxNode(void)
 {
     int ret = -1;
-    virBitmapPtr map = NULL;
+    virBitmap *map = NULL;
 
     if (virFileReadValueBitmap(&map, "%s/node/online", SYSFS_SYSTEM_PATH) < 0)
         return -1;
@@ -80,7 +80,7 @@ bool
 virNumaNodeIsAvailable(int node)
 {
     bool ret = false;
-    virBitmapPtr map = NULL;
+    virBitmap *map = NULL;
 
     if (virFileReadValueBitmap(&map, "%s/node/online", SYSFS_SYSTEM_PATH) < 0)
         return false;
@@ -162,7 +162,7 @@ virNumaGetPages(int node,
 }
 
 int
-virNumaGetNodeCPUs(int node, virBitmapPtr *cpus)
+virNumaGetNodeCPUs(int node, virBitmap **cpus)
 {
     int ret = -1;
     char *cpulist = NULL;
@@ -172,7 +172,12 @@ virNumaGetNodeCPUs(int node, virBitmapPtr *cpus)
                                SYSFS_SYSTEM_PATH, node) < 0)
         return -1;
 
-    *cpus = virBitmapParseUnlimited(cpulist);
+    if (STREQ(cpulist, "")) {
+        unsigned int max_n_cpus = virNumaGetMaxCPUs();
+        *cpus = virBitmapNew(max_n_cpus);
+    } else {
+        *cpus = virBitmapParseUnlimited(cpulist);
+    }
     if (!*cpus)
         goto cleanup;
 

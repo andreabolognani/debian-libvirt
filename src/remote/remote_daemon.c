@@ -72,10 +72,10 @@ VIR_LOG_INIT("daemon." DAEMON_NAME);
 #endif
 
 #if WITH_SASL
-virNetSASLContextPtr saslCtxt = NULL;
+virNetSASLContext *saslCtxt = NULL;
 #endif
-virNetServerProgramPtr remoteProgram = NULL;
-virNetServerProgramPtr qemuProgram = NULL;
+virNetServerProgram *remoteProgram = NULL;
+virNetServerProgram *qemuProgram = NULL;
 
 volatile bool driversInitialized = false;
 
@@ -169,6 +169,10 @@ static int daemonInitialize(void)
     if (virDriverLoadModule("qemu", "qemuRegister", false) < 0)
         return -1;
 # endif
+# ifdef WITH_CH
+    if (virDriverLoadModule("ch", "chRegister", false) < 0)
+        return -1;
+# endif
 # ifdef WITH_LXC
     if (virDriverLoadModule("lxc", "lxcRegister", false) < 0)
         return -1;
@@ -191,8 +195,8 @@ static int daemonInitialize(void)
 
 
 static int ATTRIBUTE_NONNULL(3)
-daemonSetupNetworking(virNetServerPtr srv,
-                      virNetServerPtr srvAdm,
+daemonSetupNetworking(virNetServer *srv,
+                      virNetServer *srvAdm,
                       struct daemonConfig *config,
 #ifdef WITH_IP
                       bool ipsock,
@@ -333,7 +337,7 @@ daemonSetupNetworking(virNetServerPtr srv,
         return -1;
 
     if (((ipsock && config->listen_tls) || (act && virSystemdActivationHasName(act, DAEMON_NAME "-tls.socket")))) {
-        virNetTLSContextPtr ctxt = NULL;
+        virNetTLSContext *ctxt = NULL;
 
         if (config->ca_file ||
             config->cert_file ||
@@ -422,7 +426,7 @@ daemonSetupNetDevOpenvswitch(struct daemonConfig *config)
 static int
 daemonSetupAccessManager(struct daemonConfig *config)
 {
-    virAccessManagerPtr mgr;
+    virAccessManager *mgr;
     const char *none[] = { "none", NULL };
     const char **drv = (const char **)config->access_drivers;
 
@@ -447,7 +451,7 @@ daemonVersion(const char *argv0)
 }
 
 
-static void daemonShutdownHandler(virNetDaemonPtr dmn,
+static void daemonShutdownHandler(virNetDaemon *dmn,
                                   siginfo_t *sig G_GNUC_UNUSED,
                                   void *opaque G_GNUC_UNUSED)
 {
@@ -463,7 +467,7 @@ static void daemonReloadHandlerThread(void *opaque G_GNUC_UNUSED)
         VIR_WARN("Error while reloading drivers");
 }
 
-static void daemonReloadHandler(virNetDaemonPtr dmn G_GNUC_UNUSED,
+static void daemonReloadHandler(virNetDaemon *dmn G_GNUC_UNUSED,
                                 siginfo_t *sig G_GNUC_UNUSED,
                                 void *opaque G_GNUC_UNUSED)
 {
@@ -483,7 +487,7 @@ static void daemonReloadHandler(virNetDaemonPtr dmn G_GNUC_UNUSED,
     }
 }
 
-static int daemonSetupSignals(virNetDaemonPtr dmn)
+static int daemonSetupSignals(virNetDaemon *dmn)
 {
     if (virNetDaemonAddSignalHandler(dmn, SIGINT, daemonShutdownHandler, NULL) < 0)
         return -1;
@@ -499,7 +503,7 @@ static int daemonSetupSignals(virNetDaemonPtr dmn)
 
 static void daemonInhibitCallback(bool inhibit, void *opaque)
 {
-    virNetDaemonPtr dmn = opaque;
+    virNetDaemon *dmn = opaque;
 
     if (inhibit)
         virNetDaemonAddShutdownInhibition(dmn);
@@ -513,7 +517,7 @@ static GDBusConnection *systemBus;
 
 static void daemonStopWorker(void *opaque)
 {
-    virNetDaemonPtr dmn = opaque;
+    virNetDaemon *dmn = opaque;
 
     VIR_DEBUG("Begin stop dmn=%p", dmn);
 
@@ -527,9 +531,9 @@ static void daemonStopWorker(void *opaque)
 
 
 /* We do this in a thread to not block the main loop */
-static void daemonStop(virNetDaemonPtr dmn)
+static void daemonStop(virNetDaemon *dmn)
 {
-    virThreadPtr thr;
+    virThread *thr;
     virObjectRef(dmn);
 
     thr = g_new0(virThread, 1);
@@ -552,7 +556,7 @@ handleSessionMessageFunc(GDBusConnection *connection G_GNUC_UNUSED,
                          gboolean incoming G_GNUC_UNUSED,
                          gpointer opaque)
 {
-    virNetDaemonPtr dmn = opaque;
+    virNetDaemon *dmn = opaque;
 
     VIR_DEBUG("dmn=%p", dmn);
 
@@ -574,7 +578,7 @@ handleSystemMessageFunc(GDBusConnection *connection G_GNUC_UNUSED,
                         GVariant *parameters G_GNUC_UNUSED,
                         gpointer opaque)
 {
-    virNetDaemonPtr dmn = opaque;
+    virNetDaemon *dmn = opaque;
 
     VIR_DEBUG("dmn=%p", dmn);
 
@@ -584,7 +588,7 @@ handleSystemMessageFunc(GDBusConnection *connection G_GNUC_UNUSED,
 
 static void daemonRunStateInit(void *opaque)
 {
-    virNetDaemonPtr dmn = opaque;
+    virNetDaemon *dmn = opaque;
     g_autoptr(virIdentity) sysident = virIdentityGetSystem();
 #ifdef MODULE_NAME
     bool mandatory = true;
@@ -645,7 +649,7 @@ static void daemonRunStateInit(void *opaque)
     virIdentitySetCurrent(NULL);
 }
 
-static int daemonStateInit(virNetDaemonPtr dmn)
+static int daemonStateInit(virNetDaemon *dmn)
 {
     virThread thr;
     virObjectRef(dmn);
@@ -767,11 +771,11 @@ daemonUsage(const char *argv0, bool privileged)
 }
 
 int main(int argc, char **argv) {
-    virNetDaemonPtr dmn = NULL;
-    virNetServerPtr srv = NULL;
-    virNetServerPtr srvAdm = NULL;
-    virNetServerProgramPtr adminProgram = NULL;
-    virNetServerProgramPtr lxcProgram = NULL;
+    virNetDaemon *dmn = NULL;
+    virNetServer *srv = NULL;
+    virNetServer *srvAdm = NULL;
+    virNetServerProgram *adminProgram = NULL;
+    virNetServerProgram *lxcProgram = NULL;
     char *remote_config_file = NULL;
     int statuswrite = -1;
     int ret = 1;
@@ -999,7 +1003,7 @@ int main(int argc, char **argv) {
     else
         old_umask = umask(077);
     VIR_DEBUG("Ensuring run dir '%s' exists", run_dir);
-    if (virFileMakePath(run_dir) < 0) {
+    if (g_mkdir_with_parents(run_dir, 0777) < 0) {
         VIR_ERROR(_("unable to create rundir %s: %s"), run_dir,
                   g_strerror(errno));
         ret = VIR_DAEMON_ERR_RUNDIR;

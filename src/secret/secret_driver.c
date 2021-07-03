@@ -36,6 +36,7 @@
 #include "viruuid.h"
 #include "virerror.h"
 #include "virfile.h"
+#include "viridentity.h"
 #include "virpidfile.h"
 #include "configmake.h"
 #include "virstring.h"
@@ -52,13 +53,12 @@ enum { SECRET_MAX_XML_FILE = 10*1024*1024 };
 /* Internal driver state */
 
 typedef struct _virSecretDriverState virSecretDriverState;
-typedef virSecretDriverState *virSecretDriverStatePtr;
 struct _virSecretDriverState {
     virMutex lock;
     bool privileged; /* readonly */
     char *embeddedRoot; /* readonly */
     int embeddedRefs;
-    virSecretObjListPtr secrets;
+    virSecretObjList *secrets;
     char *stateDir;
     char *configDir;
 
@@ -66,10 +66,10 @@ struct _virSecretDriverState {
     int lockFD;
 
     /* Immutable pointer, self-locking APIs */
-    virObjectEventStatePtr secretEventState;
+    virObjectEventState *secretEventState;
 };
 
-static virSecretDriverStatePtr driver;
+static virSecretDriverState *driver;
 
 static void
 secretDriverLock(void)
@@ -85,10 +85,10 @@ secretDriverUnlock(void)
 }
 
 
-static virSecretObjPtr
+static virSecretObj *
 secretObjFromSecret(virSecretPtr secret)
 {
-    virSecretObjPtr obj;
+    virSecretObj *obj;
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
     virUUIDFormat(secret->uuid, uuidstr);
@@ -151,8 +151,8 @@ secretLookupByUUID(virConnectPtr conn,
                    const unsigned char *uuid)
 {
     virSecretPtr ret = NULL;
-    virSecretObjPtr obj;
-    virSecretDefPtr def;
+    virSecretObj *obj;
+    virSecretDef *def;
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
     virUUIDFormat(uuid, uuidstr);
@@ -183,8 +183,8 @@ secretLookupByUsage(virConnectPtr conn,
                     const char *usageID)
 {
     virSecretPtr ret = NULL;
-    virSecretObjPtr obj;
-    virSecretDefPtr def;
+    virSecretObj *obj;
+    virSecretDef *def;
 
     if (!(obj = virSecretObjListFindByUsage(driver->secrets,
                                             usageType, usageID))) {
@@ -214,11 +214,11 @@ secretDefineXML(virConnectPtr conn,
                 unsigned int flags)
 {
     virSecretPtr ret = NULL;
-    virSecretObjPtr obj = NULL;
-    virSecretDefPtr objDef;
-    virSecretDefPtr backup = NULL;
-    virSecretDefPtr def;
-    virObjectEventPtr event = NULL;
+    virSecretObj *obj = NULL;
+    virSecretDef *objDef;
+    virSecretDef *backup = NULL;
+    virSecretDef *def;
+    virObjectEvent *event = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -293,8 +293,8 @@ secretGetXMLDesc(virSecretPtr secret,
                  unsigned int flags)
 {
     char *ret = NULL;
-    virSecretObjPtr obj;
-    virSecretDefPtr def;
+    virSecretObj *obj;
+    virSecretDef *def;
 
     virCheckFlags(0, NULL);
 
@@ -321,9 +321,9 @@ secretSetValue(virSecretPtr secret,
                unsigned int flags)
 {
     int ret = -1;
-    virSecretObjPtr obj;
-    virSecretDefPtr def;
-    virObjectEventPtr event = NULL;
+    virSecretObj *obj;
+    virSecretDef *def;
+    virObjectEvent *event = NULL;
 
     virCheckFlags(0, -1);
 
@@ -353,12 +353,11 @@ secretSetValue(virSecretPtr secret,
 static unsigned char *
 secretGetValue(virSecretPtr secret,
                size_t *value_size,
-               unsigned int flags,
-               unsigned int internalFlags)
+               unsigned int flags)
 {
     unsigned char *ret = NULL;
-    virSecretObjPtr obj;
-    virSecretDefPtr def;
+    virSecretObj *obj;
+    virSecretDef *def;
 
     virCheckFlags(0, NULL);
 
@@ -369,11 +368,31 @@ secretGetValue(virSecretPtr secret,
     if (virSecretGetValueEnsureACL(secret->conn, def) < 0)
         goto cleanup;
 
-    if ((internalFlags & VIR_SECRET_GET_VALUE_INTERNAL_CALL) == 0 &&
-        def->isprivate) {
-        virReportError(VIR_ERR_INVALID_SECRET, "%s",
-                       _("secret is private"));
-        goto cleanup;
+    /*
+     * For historical compat we want to deny access to
+     * private secrets, even if no ACL driver is
+     * present.
+     *
+     * We need to validate the identity requesting
+     * the secret value is running as the same user
+     * credentials as this driver.
+     *
+     * ie a non-root libvirt client should not be
+     * able to request the value from privileged
+     * libvirt driver.
+     *
+     * To apply restrictions to processes running under
+     * the same user account is out of scope.
+     */
+    if (def->isprivate) {
+        int rv = virIdentityIsCurrentElevated();
+        if (rv < 0)
+            goto cleanup;
+        if (rv == 0) {
+            virReportError(VIR_ERR_INVALID_SECRET, "%s",
+                           _("secret is private"));
+            goto cleanup;
+        }
     }
 
     if (!(ret = virSecretObjGetValue(obj)))
@@ -392,9 +411,9 @@ static int
 secretUndefine(virSecretPtr secret)
 {
     int ret = -1;
-    virSecretObjPtr obj;
-    virSecretDefPtr def;
-    virObjectEventPtr event = NULL;
+    virSecretObj *obj;
+    virSecretDef *def;
+    virObjectEvent *event = NULL;
 
     if (!(obj = secretObjFromSecret(secret)))
         goto cleanup;
@@ -489,13 +508,13 @@ secretStateInitialize(bool privileged,
         driver->stateDir = g_strdup_printf("%s/secrets/run", rundir);
     }
 
-    if (virFileMakePathWithMode(driver->configDir, S_IRWXU) < 0) {
+    if (g_mkdir_with_parents(driver->configDir, S_IRWXU) < 0) {
         virReportSystemError(errno, _("cannot create config directory '%s'"),
                              driver->configDir);
         goto error;
     }
 
-    if (virFileMakePathWithMode(driver->stateDir, S_IRWXU) < 0) {
+    if (g_mkdir_with_parents(driver->stateDir, S_IRWXU) < 0) {
         virReportSystemError(errno, _("cannot create state directory '%s'"),
                              driver->stateDir);
         goto error;
@@ -539,7 +558,7 @@ secretStateReload(void)
 static virDrvOpenStatus
 secretConnectOpen(virConnectPtr conn,
                   virConnectAuthPtr auth G_GNUC_UNUSED,
-                  virConfPtr conf G_GNUC_UNUSED,
+                  virConf *conf G_GNUC_UNUSED,
                   unsigned int flags)
 {
     virCheckFlags(VIR_CONNECT_RO, VIR_DRV_OPEN_ERROR);

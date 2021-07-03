@@ -60,11 +60,9 @@ int                     virNodeListDevices      (virConnectPtr conn,
 /*
  * virConnectListAllNodeDevices:
  *
- * Flags used to filter the returned node devices. Flags in each group
- * are exclusive. Currently only one group to filter the devices by cap
- * type.
- */
+ * Flags used to filter the returned node devices.  */
 typedef enum {
+    /* filter the devices by cap type */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_SYSTEM        = 1 << 0,  /* System capability */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_PCI_DEV       = 1 << 1,  /* PCI device */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_USB_DEV       = 1 << 2,  /* USB device */
@@ -86,6 +84,10 @@ typedef enum {
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_CARD       = 1 << 18, /* s390 AP Card device */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_QUEUE      = 1 << 19, /* s390 AP Queue */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_MATRIX     = 1 << 20, /* s390 AP Matrix */
+
+    /* filter the devices by active state */
+    VIR_CONNECT_LIST_NODE_DEVICES_INACTIVE          = 1 << 30, /* Inactive devices */
+    VIR_CONNECT_LIST_NODE_DEVICES_ACTIVE            = 1U << 31, /* Active devices */
 } virConnectListAllNodeDeviceFlags;
 
 int                     virConnectListAllNodeDevices (virConnectPtr conn,
@@ -128,6 +130,16 @@ virNodeDevicePtr        virNodeDeviceCreateXML  (virConnectPtr conn,
                                                  unsigned int flags);
 
 int                     virNodeDeviceDestroy    (virNodeDevicePtr dev);
+
+virNodeDevicePtr virNodeDeviceDefineXML(virConnectPtr conn,
+                                        const char *xmlDesc,
+                                        unsigned int flags);
+
+int virNodeDeviceUndefine(virNodeDevicePtr dev,
+                          unsigned int flags);
+
+int virNodeDeviceCreate(virNodeDevicePtr dev,
+                        unsigned int flags);
 
 /**
  * VIR_NODE_DEVICE_EVENT_CALLBACK:
@@ -194,6 +206,8 @@ int virConnectNodeDeviceEventDeregisterAny(virConnectPtr conn,
 typedef enum {
     VIR_NODE_DEVICE_EVENT_CREATED = 0,
     VIR_NODE_DEVICE_EVENT_DELETED = 1,
+    VIR_NODE_DEVICE_EVENT_DEFINED = 2,
+    VIR_NODE_DEVICE_EVENT_UNDEFINED = 3,
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_NODE_DEVICE_EVENT_LAST

@@ -27,16 +27,6 @@ ME := build-aux/syntax-check.mk
 # of the module description. But some packages import this file directly,
 # ignoring the module description.
 AWK ?= awk
-GREP ?= grep
-# FreeBSD (and probably some other OSes too) ships own version of sed(1), not
-# compatible with the GNU sed. GNU sed is available as gsed(1), so use this
-# instead
-UNAME := $(shell uname)
-ifeq ($(UNAME),FreeBSD)
-SED ?= gsed
-else
-SED ?= sed
-endif
 
 # Helper variables.
 _empty =
@@ -490,11 +480,6 @@ sc_prohibit_gettext_noop:
 	halt='use N_, not gettext_noop' \
 	  $(_sc_search_regexp)
 
-sc_prohibit_VIR_ERR_NO_MEMORY:
-	@prohibit='\<VIR_ERR_NO_MEMORY\>' \
-	halt='use virReportOOMError, not VIR_ERR_NO_MEMORY' \
-	  $(_sc_search_regexp)
-
 sc_prohibit_PATH_MAX:
 	@prohibit='\<PATH_MAX\>' \
 	halt='dynamically allocate paths, do not use PATH_MAX' \
@@ -503,6 +488,7 @@ sc_prohibit_PATH_MAX:
 include $(top_srcdir)/build-aux/Makefile.nonreentrant
 sc_prohibit_nonreentrant:
 	@prohibit="\\<(${NON_REENTRANT_RE}) *\\(" \
+	exclude='exempt from syntax-check' \
 	halt="use re-entrant functions (usually ending with _r)" \
 	  $(_sc_search_regexp)
 
@@ -789,26 +775,6 @@ sc_spec_indentation:
 	  echo '$(ME): skipping test $@: cppi not installed' 1>&2; \
 	fi
 
-# Long lines can be harder to diff; too long, and git send-email chokes.
-# For now, only enforce line length on files where we have intentionally
-# fixed things and don't want to regress.
-sc_prohibit_long_lines:
-	@prohibit='.{90}' \
-	in_vc_files='\.arg[sv]' \
-	halt='Wrap long lines in expected output files' \
-	  $(_sc_search_regexp)
-
-sc_copyright_format:
-	@require='Copyright .*Red 'Hat', Inc\.' \
-	containing='Copyright .*Red 'Hat \
-	halt='Red Hat copyright is missing Inc.' \
-	  $(_sc_search_regexp)
-	@prohibit='Copyright [^(].*Red 'Hat \
-	halt='consistently use (C) in Red Hat copyright' \
-	  $(_sc_search_regexp)
-	@prohibit='\<RedHat\>' \
-	halt='spell Red Hat as two words' \
-	  $(_sc_search_regexp)
 
 # Prefer the new URL listing over the old street address listing when
 # calling out where to get a copy of the [L]GPL.  Also, while we have
@@ -882,8 +848,10 @@ FLAKE8_IGNORE = E501,W504
 
 sc_flake8:
 	@if [ -n "$(FLAKE8)" ]; then \
-		$(VC_LIST_EXCEPT) | $(GREP) '\.py$$' | xargs \
-			$(FLAKE8) --ignore $(FLAKE8_IGNORE) --show-source; \
+		DOT_PY=$$($(VC_LIST_EXCEPT) | $(GREP) '\.py$$'); \
+		BANG_PY=$$($(VC_LIST_EXCEPT) | xargs grep -l '^#!/usr/bin/env python3$$'); \
+		ALL_PY=$$(printf "%s\n%s" "$$DOT_PY" "$$BANG_PY" | sort -u); \
+		echo "$$ALL_PY" | xargs $(FLAKE8) --ignore $(FLAKE8_IGNORE) --show-source; \
 	else \
 		echo '$(ME): skipping test $@: flake8 not installed' 1>&2; \
 	fi
@@ -1010,7 +978,8 @@ sc_require_locale_h:
 
 sc_prohibit_empty_first_line:
 	@$(VC_LIST_EXCEPT) | xargs awk 'BEGIN { fail=0; } \
-	FNR == 1 { if ($$0 == "") { print FILENAME ":1:"; fail=1; } } \
+	FNR == 1 { maybe_fail = $$0 == ""; } \
+	FNR == 2 { if (maybe_fail == 1) { print FILENAME ":1:"; fail=1; } } \
 	END { if (fail == 1) { \
 	  print "$(ME): Prohibited empty first line" > "/dev/stderr"; \
 	} exit fail; }'
@@ -1055,10 +1024,10 @@ sc_prohibit_sysconf_pagesize:
 	halt='use virGetSystemPageSize[KB] instead of sysconf(_SC_PAGESIZE)' \
 	  $(_sc_search_regexp)
 
-sc_prohibit_virSecurity:
+sc_prohibit_virSecurityManager:
 	@$(VC_LIST_EXCEPT) | $(GREP) 'src/qemu/' | \
 		$(GREP) -v 'src/qemu/qemu_security' | \
-		xargs $(GREP) -Pn 'virSecurityManager(?!Ptr)' /dev/null && \
+		xargs $(GREP) -Pn 'virSecurityManager\S*\(' /dev/null && \
 		{ echo '$(ME): prefer qemuSecurity wrappers' 1>&2; exit 1; } || :
 
 sc_prohibit_pthread_create:
@@ -1130,7 +1099,7 @@ sc_prohibit_backslash_alignment:
 # Rule to ensure that variables declared using a cleanup macro are
 # always initialized.
 sc_require_attribute_cleanup_initialization:
-	@prohibit='((g_auto(ptr|free)?)|(VIR_AUTO((FREE|PTR|UNREF|CLEAN)\(.+\)|CLOSE|STRINGLIST))) *[^=]+;' \
+	@prohibit='((g_auto(ptr|free|slist)?)|VIR_AUTOCLOSE)) *[^=]+;' \
 	in_vc_files='\.[chx]$$' \
 	halt='variable declared with a cleanup macro must be initialized' \
 	  $(_sc_search_regexp)
@@ -1405,11 +1374,6 @@ sc_require_config_h_first:
 	else :;								\
 	fi
 
-sc_prohibit_WITH_MBRTOWC:
-	@prohibit='\bWITH_MBRTOWC\b'					\
-	halt="do not use $$prohibit; it is always defined"		\
-	  $(_sc_search_regexp)
-
 # To use this "command" macro, you must first define two shell variables:
 # h: the header name, with no enclosing <> or ""
 # re: a regular expression that matches IFF something provided by $h is used.
@@ -1430,96 +1394,9 @@ endef
 sc_prohibit_assert_without_use:
 	@h='assert.h' re='\<assert *\(' $(_sc_header_without_use)
 
-# Prohibit the inclusion of close-stream.h without an actual use.
-sc_prohibit_close_stream_without_use:
-	@h='close-stream.h' re='\<close_stream *\(' $(_sc_header_without_use)
-
 # Prohibit the inclusion of getopt.h without an actual use.
 sc_prohibit_getopt_without_use:
 	@h='getopt.h' re='\<getopt(_long)? *\(' $(_sc_header_without_use)
-
-# Don't include this header unless you use one of its functions.
-sc_prohibit_long_options_without_use:
-	@h='long-options.h' re='\<parse_(long_options|gnu_standard_options_only) *\(' \
-	  $(_sc_header_without_use)
-
-# Don't include this header unless you use one of its functions.
-sc_prohibit_inttostr_without_use:
-	@h='inttostr.h' re='\<(off|[iu]max|uint)tostr *\(' \
-	  $(_sc_header_without_use)
-
-# Don't include this header unless you use one of its functions.
-sc_prohibit_ignore_value_without_use:
-	@h='ignore-value.h' re='\<ignore_(value|ptr) *\(' \
-	  $(_sc_header_without_use)
-
-# Don't include this header unless you use one of its functions.
-sc_prohibit_error_without_use:
-	@h='error.h' \
-	re='\<error(_at_line|_print_progname|_one_per_line|_message_count)? *\('\
-	  $(_sc_header_without_use)
-
-# Don't include xalloc.h unless you use one of its functions.
-# Consider these symbols:
-# perl -lne '/^# *define (\w+)\(/ and print $1' lib/xalloc.h|grep -v '^__';
-# perl -lne '/^(?:extern )?(?:void|char) \*?(\w+) *\(/ and print $1' lib/xalloc.h
-# Divide into two sets on case, and filter each through this:
-# | sort | perl -MRegexp::Assemble -le \
-#  'print Regexp::Assemble->new(file => "/dev/stdin")->as_string'|sed 's/\?://g'
-# Note this was produced by the above:
-# _xa1 = \
-#x(((2n?)?re|c(har)?|n(re|m)|z)alloc|alloc_(oversized|die)|m(alloc|emdup)|strdup)
-# But we can do better, in at least two ways:
-# 1) take advantage of two "dup"-suffixed strings:
-# x(((2n?)?re|c(har)?|n(re|m)|[mz])alloc|alloc_(oversized|die)|(mem|str)dup)
-# 2) notice that "c(har)?|[mz]" is equivalent to the shorter and more readable
-# "char|[cmz]"
-# x(((2n?)?re|char|n(re|m)|[cmz])alloc|alloc_(oversized|die)|(mem|str)dup)
-_xa1 = x(((2n?)?re|char|n(re|m)|[cmz])alloc|alloc_(oversized|die)|(mem|str)dup)
-_xa2 = X([CZ]|N?M)ALLOC
-sc_prohibit_xalloc_without_use:
-	@h='xalloc.h' \
-	re='\<($(_xa1)|$(_xa2)) *\('\
-	  $(_sc_header_without_use)
-
-sc_prohibit_cloexec_without_use:
-	@h='cloexec.h' re='\<(set_cloexec_flag|dup_cloexec) *\(' \
-	  $(_sc_header_without_use)
-
-sc_prohibit_posixver_without_use:
-	@h='posixver.h' re='\<posix2_version *\(' $(_sc_header_without_use)
-
-sc_prohibit_same_without_use:
-	@h='same.h' re='\<same_name(at)? *\(' $(_sc_header_without_use)
-
-sc_prohibit_hash_pjw_without_use:
-	@h='hash-pjw.h' \
-	re='\<hash_pjw\>' \
-	  $(_sc_header_without_use)
-
-sc_prohibit_safe_read_without_use:
-	@h='safe-read.h' re='(\<SAFE_READ_ERROR\>|\<safe_read *\()' \
-	  $(_sc_header_without_use)
-
-sc_prohibit_argmatch_without_use:
-	@h='argmatch.h' \
-	re='(\<(ARRAY_CARDINALITY|X?ARGMATCH(|_TO_ARGUMENT|_VERIFY))\>|\<(invalid_arg|argmatch(_exit_fn|_(in)?valid)?) *\()' \
-	  $(_sc_header_without_use)
-
-sc_prohibit_canonicalize_without_use:
-	@h='canonicalize.h' \
-	re='CAN_(EXISTING|ALL_BUT_LAST|MISSING)|canonicalize_(mode_t|filename_mode|file_name)' \
-	  $(_sc_header_without_use)
-
-sc_prohibit_root_dev_ino_without_use:
-	@h='root-dev-ino.h' \
-	re='(\<ROOT_DEV_INO_(CHECK|WARN)\>|\<get_root_dev_ino *\()' \
-	  $(_sc_header_without_use)
-
-sc_prohibit_openat_without_use:
-	@h='openat.h' \
-	re='\<(openat_(permissive|needs_fchdir|(save|restore)_fail)|l?(stat|ch(own|mod))at|(euid)?accessat|(FCHMOD|FCHOWN|STAT)AT_INLINE)\>' \
-	  $(_sc_header_without_use)
 
 # The following list was generated by running:
 # man signal.h|col -b|perl -ne '/bsd_signal.*;/.../sigwaitinfo.*;/ and print' \
@@ -1561,19 +1438,6 @@ sc_prohibit_stdio--_without_use:
 	@h='stdio--.h' re='\<((f(re)?|p)open|tmpfile) *\('		\
 	  $(_sc_header_without_use)
 
-# Don't include stdio-safer.h unless you use one of its functions.
-sc_prohibit_stdio-safer_without_use:
-	@h='stdio-safer.h' re='\<((f(re)?|p)open|tmpfile)_safer *\('	\
-	  $(_sc_header_without_use)
-
-# Prohibit the inclusion of strings.h without a sensible use.
-# Using the likes of bcmp, bcopy, bzero, index or rindex is not sensible.
-sc_prohibit_strings_without_use:
-	@h='strings.h'							\
-	re='\<(strn?casecmp|ffs(ll)?)\>'				\
-	  $(_sc_header_without_use)
-
-
 _stddef_syms_re = NULL|offsetof|ptrdiff_t|size_t|wchar_t
 # Prohibit the inclusion of stddef.h without an actual use.
 sc_prohibit_stddef_without_use:
@@ -1590,10 +1454,6 @@ sc_prohibit_dirent_without_use:
 	@h='dirent.h'							\
 	re='\<($(_dirent_syms_re))\>'					\
 	  $(_sc_header_without_use)
-
-# Don't include xfreopen.h unless you use one of its functions.
-sc_prohibit_xfreopen_without_use:
-	@h='xfreopen.h' re='\<xfreopen *\(' $(_sc_header_without_use)
 
 # Ensure that each .c file containing a "main" function also
 # calls bindtextdomain.
@@ -1636,14 +1496,6 @@ sc_prohibit_backup_files:
 	@$(VC_LIST) | $(GREP) '~$$' &&					\
 	  { echo '$(ME): found version controlled backup file' 1>&2;	\
 	    exit 1; } || :
-
-# Require the latest GFDL.  Two regexp, since some .texi files end up
-# line wrapping between 'Free Documentation License,' and 'Version'.
-_GFDL_regexp = (Free ''Documentation.*Version 1\.[^3]|Version 1\.[^3] or any)
-sc_GFDL_version:
-	@prohibit='$(_GFDL_regexp)'					\
-	halt='GFDL vN, N!=3'						\
-	  $(_sc_search_regexp)
 
 # This Perl code is slightly obfuscated.  Not only is each "$" doubled
 # because it's in a Makefile, but the $$c's are comments;  we cannot
@@ -1828,7 +1680,7 @@ sc_prohibit_path_max_allocation:
 	  $(_sc_search_regexp)
 
 ifneq ($(_gl-Makefile),)
-syntax-check: sc_spacing-check sc_test-wrap-argv \
+syntax-check: sc_spacing-check \
 	sc_prohibit-duplicate-header sc_mock-noinline sc_group-qemu-caps \
         sc_header-ifdef
 	@if ! cppi --version >/dev/null 2>&1; then \
@@ -1861,10 +1713,6 @@ sc_header-ifdef:
 	$(AM_V_GEN)$(VC_LIST) | $(GREP) '\.[h]$$' | $(RUNUTF8) xargs \
 	$(PYTHON) $(top_srcdir)/scripts/header-ifdef.py
 
-sc_test-wrap-argv:
-	$(AM_V_GEN)$(VC_LIST) | $(GREP) -E '\.(ldargs|args)' | $(RUNUTF8) xargs \
-	$(PYTHON) $(top_srcdir)/scripts/test-wrap-argv.py --check
-
 sc_group-qemu-caps:
 	$(AM_V_GEN)$(RUNUTF8) $(PYTHON) $(top_srcdir)/scripts/group-qemu-caps.py \
 		--check --prefix $(top_srcdir)/
@@ -1881,9 +1729,6 @@ exclude_file_name_regexp--sc_bindtextdomain = .*
 
 exclude_file_name_regexp--sc_gettext_init = ^((tests|examples)/|tools/virt-login-shell.c|src/util/vireventglib\.c)
 
-exclude_file_name_regexp--sc_copyright_format = \
-	^build-aux/syntax-check\.mk$$
-
 exclude_file_name_regexp--sc_copyright_usage = \
   ^COPYING(|\.LESSER)|build-aux/syntax-check.mk$$
 
@@ -1895,11 +1740,8 @@ exclude_file_name_regexp--sc_libvirt_unmarked_diagnostics = \
 
 exclude_file_name_regexp--sc_po_check = ^(docs/|src/rpc/gendispatch\.pl$$|tests/commandtest.c$$)
 
-exclude_file_name_regexp--sc_prohibit_VIR_ERR_NO_MEMORY = \
-  ^(build-aux/syntax-check\.mk|include/libvirt/virterror\.h|src/remote/remote_daemon_dispatch\.c|src/util/virerror\.c|docs/internals/oomtesting\.html\.in)$$
-
 exclude_file_name_regexp--sc_prohibit_PATH_MAX = \
-	^build-aux/syntax-check\.mk$$
+	^(build-aux/syntax-check\.mk|tests/virfilemock.c)$$
 
 exclude_file_name_regexp--sc_prohibit_access_xok = \
 	^(src/util/virutil\.c)$$
@@ -1919,7 +1761,7 @@ exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
 
-exclude_file_name_regexp--sc_prohibit_gethostname = ^src/util/vir(util|log)\.c$$
+exclude_file_name_regexp--sc_prohibit_gethostname = ^src/util/virutil\.c$$
 
 exclude_file_name_regexp--sc_prohibit_internal_functions = \
   ^src/(util/(viralloc|virutil|virfile)\.[hc]|esx/esx_vi\.c)$$
@@ -1994,7 +1836,7 @@ exclude_file_name_regexp--sc_prohibit_mixed_case_abbreviations = \
   ^src/(vbox/vbox_CAPI.*.h|esx/esx_vi.(c|h)|esx/esx_storage_backend_iscsi.c)$$
 
 exclude_file_name_regexp--sc_prohibit_empty_first_line = \
-  ^(src/esx/README|tests/(vmwarever|virhostcpu)data/.*)$$
+  ^tests/vmwareverdata/fusion-5.0.3.txt$$
 
 exclude_file_name_regexp--sc_prohibit_useless_translation = \
   ^tests/virpolkittest.c

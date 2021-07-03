@@ -56,7 +56,7 @@ static void init_syms(void)
     VIR_MOCK_REAL_INIT(access);
     VIR_MOCK_REAL_INIT(mkdir);
     VIR_MOCK_REAL_INIT(open);
-# ifdef __APPLE__
+# if defined(__APPLE__) && defined(__x86_64__)
     VIR_MOCK_REAL_INIT_ALIASED(opendir, "opendir$INODE64");
 # else
     VIR_MOCK_REAL_INIT(opendir);
@@ -163,12 +163,7 @@ int access(const char *path, int mode)
     return real_access(newpath ? newpath : path, mode);
 }
 
-# ifdef __APPLE__
-int _open(const char *path, int flags, ...) __asm("_open");
-int _open(const char *path, int flags, ...)
-# else
 int open(const char *path, int flags, ...)
-# endif
 {
     g_autofree char *newpath = NULL;
     va_list ap;

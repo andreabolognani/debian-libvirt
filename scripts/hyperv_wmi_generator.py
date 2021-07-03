@@ -54,7 +54,7 @@ class WmiClass:
         header += "#define %s_WQL_SELECT \\\n" % name_upper
         header += "    \"SELECT * FROM %s \"\n" % self.name
         header += "\n"
-        header += "extern hypervWmiClassInfoPtr %s_WmiInfo;\n\n" % self.name
+        header += "extern hypervWmiClassInfo *%s_WmiInfo;\n\n" % self.name
 
         header += self._declare_data_structs()
         header += self._declare_hypervObject_struct()
@@ -98,6 +98,8 @@ class WmiClass:
 
         typedef = "typedef struct _%s %s;\n" % (self.name, self.name)
         typedef += "typedef struct _%s_Data %s_Data;\n" % (self.name, self.name)
+        typedef += "G_DEFINE_AUTOPTR_CLEANUP_FUNC(%s, hypervFreeObject);\n" % self.name
+        typedef += "\n"
 
         return typedef
 
@@ -126,7 +128,7 @@ class WmiClass:
         header = "\n/* must match hypervObject */\n"
         header += "struct _%s {\n" % self.name
         header += "    %s_Data *data;\n" % self.name
-        header += "    hypervWmiClassInfoPtr info;\n"
+        header += "    hypervWmiClassInfo *info;\n"
         header += "    %s *next;\n" % self.name
         header += "};\n"
 
@@ -140,7 +142,7 @@ class WmiClass:
         This struct holds info with meta-data needed to make wsman requests for the WMI class.
         """
 
-        source = "hypervWmiClassInfoPtr %s_WmiInfo = &(hypervWmiClassInfo) {\n" % self.name
+        source = "hypervWmiClassInfo *%s_WmiInfo = &(hypervWmiClassInfo) {\n" % self.name
         source += "    .name = \"%s\",\n" % self.name
         source += "    .rootUri = %s,\n" % self.uri_info.rootUri
         source += "    .resourceUri = %s_RESOURCE_URI,\n" % self.name.upper()
@@ -221,10 +223,10 @@ def report_error(message):
 
 
 def parse_class(block, number):
-    # expected format: class <name>
+    # expected format: class <name> : <optional parent>
     header_items = block[0][1].split()
 
-    if len(header_items) != 2:
+    if len(header_items) not in [2, 4]:
         report_error("line %d: invalid block header" % (number))
 
     assert header_items[0] == "class"
@@ -234,7 +236,13 @@ def parse_class(block, number):
     if name in wmi_classes_by_name:
         report_error("class '%s' has already been defined" % name)
 
-    properties = []
+    if len(header_items) == 4:
+        parent_class = header_items[3]
+        if parent_class not in wmi_classes_by_name:
+            report_error("nonexistent parent class specified: %s" % parent_class)
+        properties = wmi_classes_by_name[parent_class].properties.copy()
+    else:
+        properties = []
 
     for line in block[1:]:
         # expected format: <type> <name>
@@ -301,6 +309,8 @@ def main():
     classes_typedef.write(notice)
     classes_header.write(notice)
     classes_source.write(notice)
+
+    classes_typedef.write("void hypervFreeObject(void *object);\n\n\n")
 
     names = sorted(wmi_classes_by_name.keys())
 

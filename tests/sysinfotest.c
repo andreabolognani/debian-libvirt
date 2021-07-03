@@ -41,7 +41,7 @@
 
 struct testSysinfoData {
     const char *name; /* test name, also base name for result files */
-    virSysinfoDefPtr (*func)(void); /* sysinfo gathering function */
+    virSysinfoDef *(*func)(void); /* sysinfo gathering function */
 };
 
 
@@ -91,22 +91,22 @@ testSysinfo(const void *data)
 {
     const struct testSysinfoData *testdata = data;
     const char *sysfsActualData;
-    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_autoptr(virSysinfoDef) ret = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_autofree char *sysinfo = NULL;
     g_autofree char *cpuinfo = NULL;
     g_autofree char *expected = NULL;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     sysinfo = g_strdup_printf("%s/sysinfodata/%ssysinfo.data", abs_srcdir, testdata->name);
     cpuinfo = g_strdup_printf("%s/sysinfodata/%scpuinfo.data", abs_srcdir, testdata->name);
     expected = g_strdup_printf("%s/sysinfodata/%ssysinfo.expect", abs_srcdir, testdata->name);
 
-    virCommandSetDryRun(NULL, testDMIDecodeDryRun, sysinfo);
+    virCommandSetDryRun(dryRunToken, NULL, false, false, testDMIDecodeDryRun, sysinfo);
 
     virSysinfoSetup(sysinfo, cpuinfo);
 
     ret = testdata->func();
-    virCommandSetDryRun(NULL, NULL, NULL);
 
     if (!ret)
         return -1;

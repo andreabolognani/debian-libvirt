@@ -23,24 +23,27 @@
 #include "vircommand.h"
 #include "viralloc.h"
 #include "virerror.h"
+#include "virlog.h"
 #include "virstring.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
+VIR_LOG_INIT("util.netdevbandwidth");
+
 void
-virNetDevBandwidthFree(virNetDevBandwidthPtr def)
+virNetDevBandwidthFree(virNetDevBandwidth *def)
 {
     if (!def)
         return;
 
-    VIR_FREE(def->in);
-    VIR_FREE(def->out);
-    VIR_FREE(def);
+    g_free(def->in);
+    g_free(def->out);
+    g_free(def);
 }
 
 static void
-virNetDevBandwidthCmdAddOptimalQuantum(virCommandPtr cmd,
+virNetDevBandwidthCmdAddOptimalQuantum(virCommand *cmd,
                                        const virNetDevBandwidthRate *rate)
 {
     const unsigned long long mtu = 1500;
@@ -103,7 +106,7 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
 {
     int ret = -1;
     char *filter_id = NULL;
-    virCommandPtr cmd = NULL;
+    virCommand *cmd = NULL;
     unsigned char ifmac[VIR_MAC_BUFLEN];
     char *mac[2] = {NULL, NULL};
 
@@ -193,8 +196,9 @@ virNetDevBandwidthSet(const char *ifname,
                       bool swapped)
 {
     int ret = -1;
-    virNetDevBandwidthRatePtr rx = NULL, tx = NULL; /* From domain POV */
-    virCommandPtr cmd = NULL;
+    virNetDevBandwidthRate *rx = NULL; /* From domain POV */
+    virNetDevBandwidthRate *tx = NULL; /* From domain POV */
+    virCommand *cmd = NULL;
     char *average = NULL;
     char *peak = NULL;
     char *burst = NULL;
@@ -358,7 +362,17 @@ virNetDevBandwidthSet(const char *ifname,
 
     if (rx) {
         average = g_strdup_printf("%llukbps", rx->average);
-        burst = g_strdup_printf("%llukb", rx->burst ? rx->burst : rx->average);
+
+        if (rx->burst) {
+            burst = g_strdup_printf("%llukb", rx->burst);
+        } else {
+            /* Internally, tc uses uint to store burst size (in bytes).
+             * Therefore, the largest value we can set is UINT_MAX bytes.
+             * We're outputting the vale in KiB though. */
+            unsigned long long avg = MIN(rx->average, UINT_MAX / 1024);
+
+            burst = g_strdup_printf("%llukb", avg);
+        }
 
         virCommandFree(cmd);
         cmd = virCommandNew(TC);
@@ -406,7 +420,7 @@ virNetDevBandwidthClear(const char *ifname)
 {
     int ret = 0;
     int dummy; /* for ignoring the exit status */
-    virCommandPtr cmd = NULL;
+    virCommand *cmd = NULL;
 
     if (!ifname)
        return 0;
@@ -439,7 +453,7 @@ virNetDevBandwidthClear(const char *ifname)
  * 0 otherwise.
  */
 int
-virNetDevBandwidthCopy(virNetDevBandwidthPtr *dest,
+virNetDevBandwidthCopy(virNetDevBandwidth **dest,
                        const virNetDevBandwidth *src)
 {
     *dest = NULL;
@@ -526,13 +540,13 @@ virNetDevBandwidthEqual(const virNetDevBandwidth *a,
  */
 int
 virNetDevBandwidthPlug(const char *brname,
-                       virNetDevBandwidthPtr net_bandwidth,
+                       virNetDevBandwidth *net_bandwidth,
                        const virMacAddr *ifmac_ptr,
-                       virNetDevBandwidthPtr bandwidth,
+                       virNetDevBandwidth *bandwidth,
                        unsigned int id)
 {
     int ret = -1;
-    virCommandPtr cmd = NULL;
+    virCommand *cmd = NULL;
     char *class_id = NULL;
     char *qdisc_id = NULL;
     char *floor = NULL;
@@ -609,7 +623,7 @@ virNetDevBandwidthUnplug(const char *brname,
 {
     int ret = -1;
     int cmd_ret = 0;
-    virCommandPtr cmd = NULL;
+    virCommand *cmd = NULL;
     char *class_id = NULL;
     char *qdisc_id = NULL;
 
@@ -668,11 +682,11 @@ virNetDevBandwidthUnplug(const char *brname,
 int
 virNetDevBandwidthUpdateRate(const char *ifname,
                              unsigned int id,
-                             virNetDevBandwidthPtr bandwidth,
+                             virNetDevBandwidth *bandwidth,
                              unsigned long long new_rate)
 {
     int ret = -1;
-    virCommandPtr cmd = NULL;
+    virCommand *cmd = NULL;
     char *class_id = NULL;
     char *rate = NULL;
     char *ceil = NULL;
@@ -737,4 +751,51 @@ virNetDevBandwidthUpdateFilter(const char *ifname,
  cleanup:
     VIR_FREE(class_id);
     return ret;
+}
+
+
+
+/**
+ * virNetDevBandwidthSetRootQDisc:
+ * @ifname: the interface name
+ * @qdisc: queueing discipline to set
+ *
+ * For given interface @ifname set its root queueing discipline
+ * to @qdisc. This can be used to replace the default qdisc
+ * (usually pfifo_fast or whatever is set in
+ * /proc/sys/net/core/default_qdisc) with different qdisc.
+ *
+ * Returns: 0 on success,
+ *         -1 if failed to exec tc (with error reported)
+ *         -2 if tc failed (with no error reported)
+ */
+int
+virNetDevBandwidthSetRootQDisc(const char *ifname,
+                               const char *qdisc)
+{
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *outbuf = NULL;
+    g_autofree char *errbuf = NULL;
+    int status;
+
+    /* Ideally, we would have a netlink implementation and just
+     * call it here.  But honestly, I tried and failed miserably.
+     * Fallback to spawning tc. */
+    cmd = virCommandNewArgList(TC, "qdisc", "add", "dev", ifname,
+                               "root", "handle", "0:", qdisc,
+                               NULL);
+
+    virCommandAddEnvString(cmd, "LC_ALL=C");
+    virCommandSetOutputBuffer(cmd, &outbuf);
+    virCommandSetErrorBuffer(cmd, &errbuf);
+
+    if (virCommandRun(cmd, &status) < 0)
+        return -1;
+
+    if (status != 0) {
+        VIR_DEBUG("Setting qdisc failed: output='%s' err='%s'", outbuf, errbuf);
+        return -2;
+    }
+
+    return 0;
 }

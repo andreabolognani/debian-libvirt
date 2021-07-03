@@ -9,9 +9,13 @@ env:
   PKG_CONFIG_PATH: "@PKG_CONFIG_PATH@"
   PYTHON: "@PYTHON@"
   MAKE: "@MAKE@"
+  VIR_TEST_VERBOSE: "1"
+  VIR_TEST_DEBUG: "1"
 
 build_task:
   install_script:
+    - @UPDATE_COMMAND@
+    - @UPGRADE_COMMAND@
     - @INSTALL_COMMAND@ @PKGS@
     - if test -n "@PYPI_PKGS@" ; then @PIP3@ install @PYPI_PKGS@ ; fi
   clone_script:
@@ -19,5 +23,7 @@ build_task:
     - git fetch origin "$CI_COMMIT_REF_NAME"
     - git reset --hard "$CI_COMMIT_SHA"
   build_script:
-    - meson build --prefix=$(pwd)/install-root
-    - ninja -C build dist
+    - meson setup build
+    - meson dist -C build --no-tests
+    - meson compile -C build
+    - meson test -C build --no-suite syntax-check

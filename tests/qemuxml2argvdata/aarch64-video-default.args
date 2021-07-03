@@ -10,7 +10,7 @@ QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-aarch64 \
 -name aarch64-vgpu \
 -S \
--machine virt,accel=tcg,usb=off,dump-guest-core=off \
+-machine virt,accel=tcg,usb=off,dump-guest-core=off,gic-version=2 \
 -cpu cortex-a57 \
 -m 1024 \
 -realtime mlock=off \
@@ -18,8 +18,7 @@ QEMU_AUDIO_DRV=none \
 -uuid f3197c89-6457-44fe-b26d-897090ba6541 \
 -no-user-config \
 -nodefaults \
--chardev socket,id=charmonitor,\
-path=/tmp/lib/domain--1-aarch64-vgpu/monitor.sock,server,nowait \
+-chardev socket,id=charmonitor,path=/tmp/lib/domain--1-aarch64-vgpu/monitor.sock,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \

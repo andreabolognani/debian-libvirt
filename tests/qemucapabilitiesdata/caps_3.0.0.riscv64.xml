@@ -3,6 +3,7 @@
   <qemuctime>0</qemuctime>
   <selfctime>0</selfctime>
   <selfvers>0</selfvers>
+  <flag name='sdl'/>
   <flag name='scsi-disk.channel'/>
   <flag name='scsi-block'/>
   <flag name='dump-guest-memory'/>
@@ -11,7 +12,6 @@
   <flag name='seccomp-sandbox'/>
   <flag name='reboot-timeout'/>
   <flag name='vnc'/>
-  <flag name='device-video-primary'/>
   <flag name='nbd-server'/>
   <flag name='virtio-rng'/>
   <flag name='rng-random'/>
@@ -32,13 +32,10 @@
   <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='drive-iotune-max'/>
-  <flag name='machine-vmport-opt'/>
   <flag name='aes-key-wrap'/>
   <flag name='dea-key-wrap'/>
-  <flag name='vhost-user-multiqueue'/>
   <flag name='migration-event'/>
   <flag name='virtio-net'/>
-  <flag name='gic-version'/>
   <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-keyboard'/>
@@ -54,24 +51,20 @@
   <flag name='name-guest'/>
   <flag name='drive-detect-zeroes'/>
   <flag name='tls-creds-x509'/>
-  <flag name='smm'/>
   <flag name='query-hotpluggable-cpus'/>
   <flag name='drive-iotune-max-length'/>
-  <flag name='query-qmp-schema'/>
   <flag name='gluster.debug_level'/>
   <flag name='vhost-scsi'/>
   <flag name='drive-iotune-group'/>
   <flag name='block-write-threshold'/>
   <flag name='query-named-block-nodes'/>
   <flag name='kernel-irqchip'/>
-  <flag name='kernel-irqchip.split'/>
   <flag name='virtio.iommu_platform'/>
   <flag name='loadparm'/>
   <flag name='vnc-multi-servers'/>
   <flag name='chardev-reconnect'/>
   <flag name='virtio-gpu.max_outputs'/>
   <flag name='vxhs'/>
-  <flag name='numa.dist'/>
   <flag name='disk-share-rw'/>
   <flag name='iscsi.password-secret'/>
   <flag name='dump-completed'/>
@@ -83,7 +76,6 @@
   <flag name='pr-manager-helper'/>
   <flag name='qom-list-properties'/>
   <flag name='memory-backend-file.discard-data'/>
-  <flag name='sdl-gl'/>
   <flag name='screendump_device'/>
   <flag name='blockdev-del'/>
   <flag name='vhost-vsock'/>
@@ -103,6 +95,9 @@
   <flag name='migration-param.downtime'/>
   <flag name='migration-param.xbzrle-cache-size'/>
   <flag name='fsdev.createmode'/>
+  <flag name='vhost-user-blk'/>
+  <flag name='vnc-opts'/>
+  <flag name='input-linux'/>
   <version>3000000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>0</microcodeVersion>

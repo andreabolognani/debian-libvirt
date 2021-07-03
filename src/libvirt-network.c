@@ -530,8 +530,8 @@ virNetworkUpdate(virNetworkPtr network,
                  unsigned int flags)
 {
     virConnectPtr conn;
-    VIR_DEBUG("network=%p, section=%d, parentIndex=%d, xml=%s, flags=0x%x",
-              network, section, parentIndex, xml, flags);
+    VIR_DEBUG("network=%p, command=%d, section=%d, parentIndex=%d, xml=%s, flags=0x%x",
+              network, command, section, parentIndex, xml, flags);
 
     virResetLastError();
 
@@ -543,8 +543,28 @@ virNetworkUpdate(virNetworkPtr network,
 
     if (conn->networkDriver && conn->networkDriver->networkUpdate) {
         int ret;
-        ret = conn->networkDriver->networkUpdate(network, section, command,
-                                                 parentIndex, xml, flags);
+        int rc;
+
+        /* Since its introduction in v0.10.2-rc1~9 the @section and @command
+         * arguments were mistakenly swapped when passed to driver's callback.
+         * Detect if the other side is fixed already or not. */
+        rc = VIR_DRV_SUPPORTS_FEATURE(conn->driver, conn,
+                                      VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER);
+
+        VIR_DEBUG("Argument order feature detection returned: %d", rc);
+        if (rc < 0)
+            goto error;
+
+        if (rc == 0) {
+            /* Feature not supported, preserve swapped order */
+            ret = conn->networkDriver->networkUpdate(network, section, command,
+                                                     parentIndex, xml, flags);
+        } else {
+            /* Feature supported, correct order can be used */
+            ret = conn->networkDriver->networkUpdate(network, command, section,
+                                                     parentIndex, xml, flags);
+        }
+
         if (ret < 0)
             goto error;
         return ret;
@@ -1240,13 +1260,13 @@ virNetworkDHCPLeaseFree(virNetworkDHCPLeasePtr lease)
 {
     if (!lease)
         return;
-    VIR_FREE(lease->iface);
-    VIR_FREE(lease->mac);
-    VIR_FREE(lease->iaid);
-    VIR_FREE(lease->ipaddr);
-    VIR_FREE(lease->hostname);
-    VIR_FREE(lease->clientid);
-    VIR_FREE(lease);
+    g_free(lease->iface);
+    g_free(lease->mac);
+    g_free(lease->iaid);
+    g_free(lease->ipaddr);
+    g_free(lease->hostname);
+    g_free(lease->clientid);
+    g_free(lease);
 }
 
 

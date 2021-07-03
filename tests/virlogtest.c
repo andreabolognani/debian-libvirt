@@ -48,7 +48,7 @@ testLogParseOutputs(const void *opaque)
 {
     int ret = -1;
     int noutputs;
-    virLogOutputPtr *outputs = NULL;
+    virLogOutput **outputs = NULL;
     const struct testLogData *data = opaque;
 
     noutputs = virLogParseOutputs(data->str, &outputs);
@@ -80,7 +80,7 @@ testLogParseFilters(const void *opaque)
 {
     int ret = -1;
     int nfilters;
-    virLogFilterPtr *filters = NULL;
+    virLogFilter **filters = NULL;
     const struct testLogData *data = opaque;
 
     nfilters = virLogParseFilters(data->str, &filters);
@@ -151,7 +151,7 @@ mymain(void)
     TEST_PARSE_FILTERS_FAIL(":foo", 1);
     TEST_PARSE_FILTERS_FAIL("1:+", 1);
 
-    return ret;
+    return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 VIR_TEST_MAIN(mymain)

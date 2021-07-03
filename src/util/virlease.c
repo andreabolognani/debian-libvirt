@@ -43,7 +43,7 @@
 
 
 int
-virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
+virLeaseReadCustomLeaseFile(virJSONValue *leases_array_new,
                             const char *custom_lease_file,
                             const char *ip_to_delete,
                             char **server_duid)
@@ -79,7 +79,7 @@ virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
 
     i = 0;
     while (i < virJSONValueArraySize(leases_array)) {
-        virJSONValuePtr lease_tmp = virJSONValueArrayGet(leases_array, i);
+        virJSONValue *lease_tmp = virJSONValueArrayGet(leases_array, i);
         long long expirytime;
         const char *ip_tmp = NULL;
 
@@ -119,7 +119,7 @@ virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
         }
 
         /* Move old lease to new array */
-        if (virJSONValueArrayAppend(leases_array_new, lease_tmp) < 0) {
+        if (virJSONValueArrayAppend(leases_array_new, &lease_tmp) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("failed to create json"));
             return -1;
@@ -133,10 +133,10 @@ virLeaseReadCustomLeaseFile(virJSONValuePtr leases_array_new,
 
 
 int
-virLeasePrintLeases(virJSONValuePtr leases_array_new,
+virLeasePrintLeases(virJSONValue *leases_array_new,
                     const char *server_duid)
 {
-    virJSONValuePtr lease_tmp = NULL;
+    virJSONValue *lease_tmp = NULL;
     const char *ip_tmp = NULL;
     long long expirytime = 0;
     size_t i;
@@ -201,7 +201,7 @@ virLeasePrintLeases(virJSONValuePtr leases_array_new,
 
 
 int
-virLeaseNew(virJSONValuePtr *lease_ret,
+virLeaseNew(virJSONValue **lease_ret,
             const char *mac,
             const char *clientid,
             const char *ip,

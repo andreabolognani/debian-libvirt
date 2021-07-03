@@ -30,7 +30,7 @@
 # define VIR_FROM_THIS VIR_FROM_NONE
 
 static int
-testVirPCIDeviceCheckDriver(virPCIDevicePtr dev, const char *expected)
+testVirPCIDeviceCheckDriver(virPCIDevice *dev, const char *expected)
 {
     char *path = NULL;
     char *driver = NULL;
@@ -58,10 +58,11 @@ static int
 testVirPCIDeviceNew(const void *opaque G_GNUC_UNUSED)
 {
     int ret = -1;
-    virPCIDevicePtr dev;
+    virPCIDevice *dev;
     const char *devName;
+    virPCIDeviceAddress devAddr = {.domain = 0, .bus = 0, .slot = 0, .function = 0};
 
-    if (!(dev = virPCIDeviceNew(0, 0, 0, 0)))
+    if (!(dev = virPCIDeviceNew(&devAddr)))
         goto cleanup;
 
     devName = virPCIDeviceGetName(dev);
@@ -90,9 +91,10 @@ static int
 testVirPCIDeviceDetach(const void *opaque G_GNUC_UNUSED)
 {
     int ret = -1;
-    virPCIDevicePtr dev[] = {NULL, NULL, NULL};
+    virPCIDevice *dev[] = {NULL, NULL, NULL};
     size_t i, nDev = G_N_ELEMENTS(dev);
-    virPCIDeviceListPtr activeDevs = NULL, inactiveDevs = NULL;
+    virPCIDeviceList *activeDevs = NULL;
+    virPCIDeviceList *inactiveDevs = NULL;
     int count;
 
     if (!(activeDevs = virPCIDeviceListNew()) ||
@@ -103,7 +105,9 @@ testVirPCIDeviceDetach(const void *opaque G_GNUC_UNUSED)
     CHECK_LIST_COUNT(inactiveDevs, 0);
 
     for (i = 0; i < nDev; i++) {
-        if (!(dev[i] = virPCIDeviceNew(0, 0, i + 1, 0)))
+        virPCIDeviceAddress devAddr = {.domain = 0, .bus = 0,
+                                       .slot = i + 1, .function = 0};
+        if (!(dev[i] = virPCIDeviceNew(&devAddr)))
             goto cleanup;
 
         virPCIDeviceSetStubDriver(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
@@ -131,9 +135,10 @@ static int
 testVirPCIDeviceReset(const void *opaque G_GNUC_UNUSED)
 {
     int ret = -1;
-    virPCIDevicePtr dev[] = {NULL, NULL, NULL};
+    virPCIDevice *dev[] = {NULL, NULL, NULL};
     size_t i, nDev = G_N_ELEMENTS(dev);
-    virPCIDeviceListPtr activeDevs = NULL, inactiveDevs = NULL;
+    virPCIDeviceList *activeDevs = NULL;
+    virPCIDeviceList *inactiveDevs = NULL;
     int count;
 
     if (!(activeDevs = virPCIDeviceListNew()) ||
@@ -144,7 +149,9 @@ testVirPCIDeviceReset(const void *opaque G_GNUC_UNUSED)
     CHECK_LIST_COUNT(inactiveDevs, 0);
 
     for (i = 0; i < nDev; i++) {
-        if (!(dev[i] = virPCIDeviceNew(0, 0, i + 1, 0)))
+        virPCIDeviceAddress devAddr = {.domain = 0, .bus = 0,
+                                       .slot = i + 1, .function = 0};
+        if (!(dev[i] = virPCIDeviceNew(&devAddr)))
             goto cleanup;
 
         virPCIDeviceSetStubDriver(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
@@ -166,9 +173,10 @@ static int
 testVirPCIDeviceReattach(const void *opaque G_GNUC_UNUSED)
 {
     int ret = -1;
-    virPCIDevicePtr dev[] = {NULL, NULL, NULL};
+    virPCIDevice *dev[] = {NULL, NULL, NULL};
     size_t i, nDev = G_N_ELEMENTS(dev);
-    virPCIDeviceListPtr activeDevs = NULL, inactiveDevs = NULL;
+    virPCIDeviceList *activeDevs = NULL;
+    virPCIDeviceList *inactiveDevs = NULL;
     int count;
 
     if (!(activeDevs = virPCIDeviceListNew()) ||
@@ -176,7 +184,9 @@ testVirPCIDeviceReattach(const void *opaque G_GNUC_UNUSED)
         goto cleanup;
 
     for (i = 0; i < nDev; i++) {
-        if (!(dev[i] = virPCIDeviceNew(0, 0, i + 1, 0)))
+        virPCIDeviceAddress devAddr = {.domain = 0, .bus = 0,
+                                       .slot = i + 1, .function = 0};
+        if (!(dev[i] = virPCIDeviceNew(&devAddr)))
             goto cleanup;
 
         if (virPCIDeviceListAdd(inactiveDevs, dev[i]) < 0) {
@@ -221,9 +231,11 @@ testVirPCIDeviceIsAssignable(const void *opaque)
 {
     const struct testPCIDevData *data = opaque;
     int ret = -1;
-    virPCIDevicePtr dev;
+    virPCIDevice *dev;
+    virPCIDeviceAddress devAddr = {.domain = data->domain, .bus = data->bus,
+                                   .slot = data->slot, .function = data->function};
 
-    if (!(dev = virPCIDeviceNew(data->domain, data->bus, data->slot, data->function)))
+    if (!(dev = virPCIDeviceNew(&devAddr)))
         return -1;
 
     if (virPCIDeviceIsAssignable(dev, true))
@@ -238,9 +250,11 @@ testVirPCIDeviceDetachSingle(const void *opaque)
 {
     const struct testPCIDevData *data = opaque;
     int ret = -1;
-    virPCIDevicePtr dev;
+    virPCIDevice *dev;
+    virPCIDeviceAddress devAddr = {.domain = data->domain, .bus = data->bus,
+                                   .slot = data->slot, .function = data->function};
 
-    dev = virPCIDeviceNew(data->domain, data->bus, data->slot, data->function);
+    dev = virPCIDeviceNew(&devAddr);
     if (!dev)
         goto cleanup;
 
@@ -260,9 +274,11 @@ testVirPCIDeviceReattachSingle(const void *opaque)
 {
     const struct testPCIDevData *data = opaque;
     int ret = -1;
-    virPCIDevicePtr dev;
+    virPCIDevice *dev;
+    virPCIDeviceAddress devAddr = {.domain = data->domain, .bus = data->bus,
+                                   .slot = data->slot, .function = data->function};
 
-    dev = virPCIDeviceNew(data->domain, data->bus, data->slot, data->function);
+    dev = virPCIDeviceNew(&devAddr);
     if (!dev)
         goto cleanup;
 
@@ -284,9 +300,11 @@ testVirPCIDeviceCheckDriverTest(const void *opaque)
 {
     const struct testPCIDevData *data = opaque;
     int ret = -1;
-    virPCIDevicePtr dev;
+    virPCIDevice *dev;
+    virPCIDeviceAddress devAddr = {.domain = data->domain, .bus = data->bus,
+                                   .slot = data->slot, .function = data->function};
 
-    dev = virPCIDeviceNew(data->domain, data->bus, data->slot, data->function);
+    dev = virPCIDeviceNew(&devAddr);
     if (!dev)
         goto cleanup;
 
@@ -304,9 +322,11 @@ testVirPCIDeviceUnbind(const void *opaque)
 {
     const struct testPCIDevData *data = opaque;
     int ret = -1;
-    virPCIDevicePtr dev;
+    virPCIDevice *dev;
+    virPCIDeviceAddress devAddr = {.domain = data->domain, .bus = data->bus,
+                                   .slot = data->slot, .function = data->function};
 
-    dev = virPCIDeviceNew(data->domain, data->bus, data->slot, data->function);
+    dev = virPCIDeviceNew(&devAddr);
     if (!dev)
         goto cleanup;
 

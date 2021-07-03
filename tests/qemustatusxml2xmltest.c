@@ -19,7 +19,7 @@ static int
 testCompareStatusXMLToXMLFiles(const void *opaque)
 {
     const struct testQemuInfo *data = opaque;
-    virDomainObjPtr obj = NULL;
+    virDomainObj *obj = NULL;
     g_autofree char *actual = NULL;
     int ret = -1;
 
@@ -73,6 +73,7 @@ mymain(void)
     g_autofree char *fakerootdir = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     g_autoptr(GHashTable) capslatest = NULL;
+    g_autoptr(GHashTable) capscache = virHashNew(virObjectFreeHashData);
     g_autoptr(virConnect) conn = NULL;
 
     capslatest = testQemuGetLatestCaps();
@@ -109,7 +110,7 @@ mymain(void)
         static struct testQemuInfo info = { \
             .name = _name, \
         }; \
-        if (testQemuInfoSetArgs(&info, capslatest, \
+        if (testQemuInfoSetArgs(&info, capscache, capslatest, \
                                 ARG_QEMU_CAPS, QEMU_CAPS_LAST, \
                                 ARG_END) < 0 || \
             qemuTestCapsCacheInsert(driver.qemuCapsCache, info.qemuCaps) < 0) { \
@@ -133,6 +134,7 @@ mymain(void)
     DO_TEST_STATUS("migration-in-params");
     DO_TEST_STATUS("migration-out-params");
     DO_TEST_STATUS("migration-out-nbd-tls");
+    DO_TEST_STATUS("migration-out-nbd-bitmaps");
     DO_TEST_STATUS("upgrade");
 
     DO_TEST_STATUS("blockjob-blockdev");

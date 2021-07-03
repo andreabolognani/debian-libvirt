@@ -67,7 +67,7 @@ VIR_LOG_INIT("esx.esx_vi_types");
  \
         _body \
  \
-        VIR_FREE(*ptrptr); \
+        g_clear_pointer(ptrptr, g_free); \
     }
 
 
@@ -157,7 +157,7 @@ VIR_LOG_INIT("esx.esx_vi_types");
 #define ESX_VI__TEMPLATE__LIST__SERIALIZE(_type) \
     int \
     esxVI_##_type##_SerializeList(esxVI_##_type *list, const char *element, \
-                                  virBufferPtr output) \
+                                  virBuffer *output) \
     { \
         return esxVI_List_Serialize((esxVI_List *)list, element, output, \
                                     (esxVI_List_SerializeFunc) \
@@ -235,7 +235,7 @@ VIR_LOG_INIT("esx.esx_vi_types");
 #define ESX_VI__TEMPLATE__SERIALIZE_EXTRA(_type, _extra, _serialize) \
     int \
     esxVI_##_type##_Serialize(esxVI_##_type *item, \
-                              const char *element, virBufferPtr output) \
+                              const char *element, virBuffer *output) \
     { \
         if (!element || !output) { \
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s", \
@@ -330,7 +330,7 @@ VIR_LOG_INIT("esx.esx_vi_types");
     esxVI_##_type##_Deserialize(xmlNodePtr node, esxVI_##_type **number) \
     { \
         int result = -1; \
-        char *string; \
+        g_autofree char *string = NULL; \
         long long value; \
  \
         if (!number || *number) { \
@@ -374,8 +374,6 @@ VIR_LOG_INIT("esx.esx_vi_types");
         if (result < 0) { \
             esxVI_##_type##_Free(number); \
         } \
- \
-        VIR_FREE(string); \
  \
         return result; \
     }
@@ -511,7 +509,7 @@ VIR_LOG_INIT("esx.esx_vi_types");
 #define ESX_VI__TEMPLATE__ENUMERATION__SERIALIZE(_type) \
     int \
     esxVI_##_type##_Serialize(esxVI_##_type value, const char *element, \
-                              virBufferPtr output) \
+                              virBuffer *output) \
     { \
         return esxVI_Enumeration_Serialize(&_esxVI_##_type##_Enumeration, \
                                            value, element, output); \
@@ -702,8 +700,7 @@ static int
 esxVI_GetActualObjectType(xmlNodePtr node, esxVI_Type baseType,
                           esxVI_Type *actualType)
 {
-    int result = -1;
-    char *type = NULL;
+    g_autofree char *type = NULL;
 
     if (!actualType || *actualType != esxVI_Type_Undefined) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid argument"));
@@ -726,15 +723,10 @@ esxVI_GetActualObjectType(xmlNodePtr node, esxVI_Type baseType,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unknown value '%s' for %s 'type' property"),
                        type, esxVI_Type_ToString(baseType));
-        goto cleanup;
+        return -1;
     }
 
-    result = 0;
-
- cleanup:
-    VIR_FREE(type);
-
-    return result;
+    return 0;
 }
 
 
@@ -900,8 +892,8 @@ ESX_VI__TEMPLATE__ALLOC(AnyType)
 ESX_VI__TEMPLATE__FREE(AnyType,
 {
     xmlFreeNode(item->node);
-    VIR_FREE(item->other);
-    VIR_FREE(item->value);
+    g_free(item->other);
+    g_free(item->value);
 })
 
 const char *
@@ -1117,7 +1109,7 @@ ESX_VI__TEMPLATE__FREE(String,
 {
     esxVI_String_Free(&item->_next);
 
-    VIR_FREE(item->value);
+    g_free(item->value);
 })
 
 /* esxVI_String_Validate */
@@ -1214,7 +1206,7 @@ ESX_VI__TEMPLATE__CAST_VALUE_FROM_ANY_TYPE(String, char)
 
 int
 esxVI_String_Serialize(esxVI_String *string, const char *element,
-                       virBufferPtr output)
+                       virBuffer *output)
 {
     return esxVI_String_SerializeValue(string ? string->value : NULL,
                                        element, output);
@@ -1225,7 +1217,7 @@ ESX_VI__TEMPLATE__LIST__SERIALIZE(String)
 
 int
 esxVI_String_SerializeValue(const char *value, const char *element,
-                            virBufferPtr output)
+                            virBuffer *output)
 {
     if (!element || !output) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid argument"));
@@ -1421,7 +1413,7 @@ ESX_VI__TEMPLATE__ALLOC(DateTime)
 /* esxVI_DateTime_Free */
 ESX_VI__TEMPLATE__FREE(DateTime,
 {
-    VIR_FREE(item->value);
+    g_free(item->value);
 })
 
 /* esxVI_DateTime_Validate */
@@ -1564,8 +1556,8 @@ ESX_VI__TEMPLATE__ALLOC(Fault);
 /* esxVI_Fault_Free */
 ESX_VI__TEMPLATE__FREE(Fault,
 {
-    VIR_FREE(item->faultcode);
-    VIR_FREE(item->faultstring);
+    g_free(item->faultcode);
+    g_free(item->faultstring);
 })
 
 /* esxVI_Fault_Validate */
@@ -1595,7 +1587,7 @@ ESX_VI__TEMPLATE__ALLOC(MethodFault);
 /* esxVI_MethodFault_Free */
 ESX_VI__TEMPLATE__FREE(MethodFault,
 {
-    VIR_FREE(item->_actualType);
+    g_free(item->_actualType);
 })
 
 int
@@ -1638,8 +1630,8 @@ ESX_VI__TEMPLATE__FREE(ManagedObjectReference,
 {
     esxVI_ManagedObjectReference_Free(&item->_next);
 
-    VIR_FREE(item->type);
-    VIR_FREE(item->value);
+    g_free(item->type);
+    g_free(item->value);
 })
 
 /* esxVI_ManagedObjectReference_DeepCopy */
@@ -1661,7 +1653,7 @@ ESX_VI__TEMPLATE__LIST__CAST_FROM_ANY_TYPE(ManagedObjectReference)
 int
 esxVI_ManagedObjectReference_Serialize
   (esxVI_ManagedObjectReference *managedObjectReference,
-   const char *element, virBufferPtr output)
+   const char *element, virBuffer *output)
 {
     if (!element || !output) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid argument"));
@@ -1732,17 +1724,17 @@ ESX_VI__TEMPLATE__ALLOC(Event)
 ESX_VI__TEMPLATE__FREE(Event,
 {
     esxVI_Event_Free(&item->_next);
-    VIR_FREE(item->_actualType);
+    g_free(item->_actualType);
 
     esxVI_Int_Free(&item->key);
     esxVI_Int_Free(&item->chainId);
     esxVI_DateTime_Free(&item->createdTime);
-    VIR_FREE(item->userName);
+    g_free(item->userName);
     /* FIXME: datacenter is currently ignored */
     /* FIXME: computeResource is currently ignored */
     /* FIXME: host is currently ignored */
     esxVI_VmEventArgument_Free(&item->vm);
-    VIR_FREE(item->fullFormattedMessage);
+    g_free(item->fullFormattedMessage);
 })
 
 /* esxVI_Event_Validate */

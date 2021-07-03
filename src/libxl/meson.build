@@ -27,6 +27,7 @@ if conf.has('WITH_LIBXL')
     include_directories: [
       conf_inc_dir,
       hypervisor_inc_dir,
+      storage_file_inc_dir,
     ],
   )
 
@@ -70,7 +71,6 @@ if conf.has('WITH_LIBXL')
     'sockprefix': 'virtxend',
     'sockets': [ 'main', 'ro', 'admin' ],
     'deps': 'ConditionPathExists=/proc/xen/capabilities',
-    'conflicts': true,
   }
 
   openrc_init_files += {

@@ -31,13 +31,18 @@
 #include "virxml.h"
 #include "virperf.h"
 #include "virbitmap.h"
+#include "virkeycode.h"
+#include "virkeynametable_linux.h"
+#include "virkeynametable_osx.h"
+#include "virkeynametable_win32.h"
+#include "conf/storage_conf.h"
 
 char **
 virshDomainNameCompleter(vshControl *ctl,
                          const vshCmd *cmd G_GNUC_UNUSED,
                          unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     virDomainPtr *domains = NULL;
     int ndomains = 0;
     size_t i = 0;
@@ -84,7 +89,7 @@ virshDomainUUIDCompleter(vshControl *ctl,
                          const vshCmd *cmd G_GNUC_UNUSED,
                          unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     virDomainPtr *domains = NULL;
     int ndomains = 0;
     size_t i = 0;
@@ -135,7 +140,7 @@ virshDomainInterfaceCompleter(vshControl *ctl,
                               const vshCmd *cmd,
                               unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     g_autoptr(xmlDoc) xmldoc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     int ninterfaces;
@@ -183,7 +188,7 @@ virshDomainDiskTargetCompleter(vshControl *ctl,
                                const vshCmd *cmd,
                                unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     g_autoptr(xmlDoc) xmldoc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     g_autofree xmlNodePtr *disks = NULL;
@@ -239,7 +244,7 @@ virshDomainInterfaceStateCompleter(vshControl *ctl,
                                    const vshCmd *cmd,
                                    unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     const char *iface = NULL;
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
@@ -296,7 +301,7 @@ virshDomainDeviceAliasCompleter(vshControl *ctl,
                                 const vshCmd *cmd,
                                 unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     g_autoptr(xmlDoc) xmldoc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     int naliases;
@@ -316,14 +321,14 @@ virshDomainDeviceAliasCompleter(vshControl *ctl,
     if (virshDomainGetXML(ctl, cmd, domainXMLFlags, &xmldoc, &ctxt) < 0)
         return NULL;
 
-    naliases = virXPathNodeSet("./devices//alias/@name", ctxt, &aliases);
+    naliases = virXPathNodeSet("/domain/devices//alias[@name]", ctxt, &aliases);
     if (naliases < 0)
         return NULL;
 
     tmp = g_new0(char *, naliases + 1);
 
     for (i = 0; i < naliases; i++) {
-        if (!(tmp[i] = virXMLNodeContentString(aliases[i])))
+        if (!(tmp[i] = virXMLPropString(aliases[i], "name")))
             return NULL;
     }
 
@@ -559,7 +564,7 @@ virshDomainCpulistCompleter(vshControl *ctl,
                             const vshCmd *cmd,
                             unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     size_t i;
     int cpunum;
     g_autofree unsigned char *cpumap = NULL;
@@ -620,36 +625,63 @@ virshDomainVcpulistViaAgentCompleter(vshControl *ctl,
             cpulist[i] = g_strdup_printf("%zu", i);
     } else {
         g_autofree char *onlineVcpuStr = NULL;
-        g_autofree unsigned char *vcpumap = NULL;
-        g_autoptr(virBitmap) vcpus = NULL;
-        size_t offset = 0;
+        g_autofree char *offlinableVcpuStr = NULL;
+        g_autofree unsigned char *onlineVcpumap = NULL;
+        g_autofree unsigned char *offlinableVcpumap = NULL;
+        g_autoptr(virBitmap) onlineVcpus = NULL;
+        g_autoptr(virBitmap) offlinableVcpus = NULL;
+        size_t j = 0;
+        int lastcpu;
         int dummy;
 
         if (virDomainGetGuestVcpus(dom, &params, &nparams, 0) < 0)
             goto cleanup;
 
         onlineVcpuStr = vshGetTypedParamValue(ctl, &params[1]);
-        if (virBitmapParse(onlineVcpuStr, &vcpus, nvcpus) < 0)
+        if (!(onlineVcpus = virBitmapParseUnlimited(onlineVcpuStr)))
             goto cleanup;
 
-        if (virBitmapToData(vcpus, &vcpumap, &dummy) < 0)
+        if (virBitmapToData(onlineVcpus, &onlineVcpumap, &dummy) < 0)
             goto cleanup;
 
         if (enable) {
-            cpulist = g_new0(char *, nvcpus - virBitmapCountBits(vcpus) + 1);
-            for (i = 0; i < nvcpus; i++) {
-                if (VIR_CPU_USED(vcpumap, i) != 0)
-                    continue;
+            offlinableVcpuStr = vshGetTypedParamValue(ctl, &params[2]);
 
-                cpulist[offset++] = g_strdup_printf("%zu", i);
+            if (!(offlinableVcpus = virBitmapParseUnlimited(offlinableVcpuStr)))
+                goto cleanup;
+
+            if (virBitmapToData(offlinableVcpus, &offlinableVcpumap, &dummy) < 0)
+                goto cleanup;
+
+            lastcpu = virBitmapLastSetBit(offlinableVcpus);
+            cpulist = g_new0(char *, nvcpus - virBitmapCountBits(onlineVcpus) + 1);
+            for (i = 0; i < nvcpus - virBitmapCountBits(onlineVcpus); i++) {
+                while (j <= lastcpu) {
+                    if (VIR_CPU_USED(onlineVcpumap, j) != 0 ||
+                        VIR_CPU_USED(offlinableVcpumap, j) == 0) {
+                        j += 1;
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+
+                cpulist[i] = g_strdup_printf("%zu", j++);
             }
         } else if (disable) {
-            cpulist = g_new0(char *, virBitmapCountBits(vcpus) + 1);
-            for (i = 0; i < nvcpus; i++) {
-                if (VIR_CPU_USED(vcpumap, i) == 0)
-                    continue;
+            lastcpu = virBitmapLastSetBit(onlineVcpus);
+            cpulist = g_new0(char *, virBitmapCountBits(onlineVcpus) + 1);
+            for (i = 0; i < virBitmapCountBits(onlineVcpus); i++) {
+                while (j <= lastcpu) {
+                    if (VIR_CPU_USED(onlineVcpumap, j) == 0) {
+                        j += 1;
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
 
-                cpulist[offset++] = g_strdup_printf("%zu", i);
+                cpulist[i] = g_strdup_printf("%zu", j++);
             }
         }
     }
@@ -668,7 +700,7 @@ virshDomainConsoleCompleter(vshControl *ctl,
                             const vshCmd *cmd,
                             unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     g_autoptr(xmlDoc) xmldoc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     int nserials;
@@ -777,4 +809,190 @@ virshDomainLifecycleActionCompleter(vshControl *ctl G_GNUC_UNUSED,
     }
 
     return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshCodesetNameCompleter(vshControl *ctl G_GNUC_UNUSED,
+                          const vshCmd *cmd G_GNUC_UNUSED,
+                          unsigned int flags)
+{
+    g_auto(GStrv) tmp = NULL;
+    size_t i = 0;
+
+    virCheckFlags(0, NULL);
+
+    tmp = g_new0(char *, VIR_KEYCODE_SET_LAST + 1);
+
+    for (i = 0; i < VIR_KEYCODE_SET_LAST; i++) {
+        const char *name = virKeycodeSetTypeToString(i);
+        tmp[i] = g_strdup(name);
+    }
+
+    return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshKeycodeNameCompleter(vshControl *ctl,
+                          const vshCmd *cmd,
+                          unsigned int flags)
+{
+    g_auto(GStrv) tmp = NULL;
+    size_t i = 0;
+    size_t j = 0;
+    const char *codeset_option;
+    int codeset;
+    const char **names = NULL;
+    size_t len;
+
+    virCheckFlags(0, NULL);
+
+    if (vshCommandOptStringQuiet(ctl, cmd, "codeset", &codeset_option) <= 0)
+        codeset_option = "linux";
+
+    if (STREQ(codeset_option, "rfb"))
+        codeset_option = "qnum";
+
+    codeset = virKeycodeSetTypeFromString(codeset_option);
+
+    if (codeset < 0)
+        return NULL;
+
+    switch ((virKeycodeSet) codeset) {
+    case VIR_KEYCODE_SET_LINUX:
+        names = virKeyNameTable_linux;
+        len = virKeyNameTable_linux_len;
+        break;
+    case VIR_KEYCODE_SET_OSX:
+        names = virKeyNameTable_osx;
+        len = virKeyNameTable_osx_len;
+        break;
+    case VIR_KEYCODE_SET_WIN32:
+        names = virKeyNameTable_win32;
+        len = virKeyNameTable_win32_len;
+        break;
+    case VIR_KEYCODE_SET_XT:
+    case VIR_KEYCODE_SET_ATSET1:
+    case VIR_KEYCODE_SET_ATSET2:
+    case VIR_KEYCODE_SET_ATSET3:
+    case VIR_KEYCODE_SET_XT_KBD:
+    case VIR_KEYCODE_SET_USB:
+    case VIR_KEYCODE_SET_QNUM:
+    case VIR_KEYCODE_SET_LAST:
+        break;
+    }
+
+    if (!names)
+        return NULL;
+
+    tmp = g_new0(char *, len + 1);
+
+    for (i = 0; i < len; i++) {
+        if (!names[i])
+            continue;
+
+        tmp[j] = g_strdup(names[i]);
+        j++;
+    }
+
+    tmp = g_renew(char *, tmp, j + 1);
+
+    return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshDomainFSMountpointsCompleter(vshControl *ctl,
+                                  const vshCmd *cmd,
+                                  unsigned int flags)
+{
+    g_auto(GStrv) tmp = NULL;
+    virDomainPtr dom = NULL;
+    int rc = -1;
+    size_t i;
+    virDomainFSInfoPtr *info = NULL;
+    size_t ninfos = 0;
+    char **ret = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        return NULL;
+
+    rc = virDomainGetFSInfo(dom, &info, 0);
+    if (rc <= 0) {
+        goto cleanup;
+    }
+    ninfos = rc;
+
+    tmp = g_new0(char *, ninfos + 1);
+    for (i = 0; i < ninfos; i++) {
+        tmp[i] = g_strdup(info[i]->mountpoint);
+    }
+    ret = g_steal_pointer(&tmp);
+
+ cleanup:
+    if (info) {
+        for (i = 0; i < ninfos; i++)
+            virDomainFSInfoFree(info[i]);
+        VIR_FREE(info);
+    }
+    virshDomainFree(dom);
+    return ret;
+}
+
+
+char **
+virshDomainCoreDumpFormatCompleter(vshControl *ctl G_GNUC_UNUSED,
+                                   const vshCmd *cmd G_GNUC_UNUSED,
+                                   unsigned int flags)
+{
+    char **ret = NULL;
+    size_t i;
+
+    virCheckFlags(0, NULL);
+
+    ret = g_new0(char *, VIR_DOMAIN_CORE_DUMP_FORMAT_LAST + 1);
+
+    for (i = 0; i < VIR_DOMAIN_CORE_DUMP_FORMAT_LAST; i++)
+        ret[i] = g_strdup(virDomainCoreDumpFormatTypeToString(i));
+
+    return ret;
+}
+
+
+char **
+virshDomainMigrateCompMethodsCompleter(vshControl *ctl,
+                                       const vshCmd *cmd,
+                                       unsigned int flags)
+{
+    const char *methods[] = {"xbzrle", "mt",  NULL};
+    const char *method = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (vshCommandOptStringQuiet(ctl, cmd, "comp-methods", &method) < 0)
+        return NULL;
+
+    return virshCommaStringListComplete(method, methods);
+}
+
+
+char **
+virshDomainStorageFileFormatCompleter(vshControl *ctl G_GNUC_UNUSED,
+                                      const vshCmd *cmd G_GNUC_UNUSED,
+                                      unsigned int flags)
+{
+    char **ret = NULL;
+    size_t i;
+
+    virCheckFlags(0, NULL);
+
+    ret = g_new0(char *, VIR_STORAGE_FILE_LAST + 1);
+
+    for (i = 0; i < VIR_STORAGE_FILE_LAST; i++)
+        ret[i] = g_strdup(virStorageFileFormatTypeToString(i));
+
+    return ret;
 }

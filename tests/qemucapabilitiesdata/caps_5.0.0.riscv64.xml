@@ -3,6 +3,7 @@
   <qemuctime>0</qemuctime>
   <selfctime>0</selfctime>
   <selfvers>0</selfvers>
+  <flag name='sdl'/>
   <flag name='spice'/>
   <flag name='hda-duplex'/>
   <flag name='ccid-emulated'/>
@@ -38,7 +39,6 @@
   <flag name='VGA'/>
   <flag name='cirrus-vga'/>
   <flag name='vmware-svga'/>
-  <flag name='device-video-primary'/>
   <flag name='usb-serial'/>
   <flag name='nbd-server'/>
   <flag name='virtio-rng'/>
@@ -71,11 +71,9 @@
   <flag name='drive-iotune-max'/>
   <flag name='VGA.vgamem_mb'/>
   <flag name='vmware-svga.vgamem_mb'/>
-  <flag name='machine-vmport-opt'/>
   <flag name='aes-key-wrap'/>
   <flag name='dea-key-wrap'/>
   <flag name='pci-serial'/>
-  <flag name='vhost-user-multiqueue'/>
   <flag name='migration-event'/>
   <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
@@ -84,7 +82,6 @@
   <flag name='rtl8139'/>
   <flag name='e1000'/>
   <flag name='virtio-net'/>
-  <flag name='gic-version'/>
   <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-gpu.virgl'/>
@@ -106,14 +103,12 @@
   <flag name='spice-unix'/>
   <flag name='drive-detect-zeroes'/>
   <flag name='tls-creds-x509'/>
-  <flag name='smm'/>
   <flag name='virtio-pci-disable-legacy'/>
   <flag name='query-hotpluggable-cpus'/>
   <flag name='virtio-net.rx_queue_size'/>
   <flag name='drive-iotune-max-length'/>
   <flag name='ivshmem-plain'/>
   <flag name='ivshmem-doorbell'/>
-  <flag name='query-qmp-schema'/>
   <flag name='gluster.debug_level'/>
   <flag name='vhost-scsi'/>
   <flag name='drive-iotune-group'/>
@@ -124,7 +119,6 @@
   <flag name='query-named-block-nodes'/>
   <flag name='qemu-xhci'/>
   <flag name='kernel-irqchip'/>
-  <flag name='kernel-irqchip.split'/>
   <flag name='virtio.iommu_platform'/>
   <flag name='virtio.ats'/>
   <flag name='loadparm'/>
@@ -134,7 +128,6 @@
   <flag name='virtio-gpu.max_outputs'/>
   <flag name='vxhs'/>
   <flag name='virtio-blk.num-queues'/>
-  <flag name='numa.dist'/>
   <flag name='disk-share-rw'/>
   <flag name='iscsi.password-secret'/>
   <flag name='dump-completed'/>
@@ -147,7 +140,6 @@
   <flag name='pr-manager-helper'/>
   <flag name='qom-list-properties'/>
   <flag name='memory-backend-file.discard-data'/>
-  <flag name='sdl-gl'/>
   <flag name='screendump_device'/>
   <flag name='hda-output'/>
   <flag name='blockdev-del'/>
@@ -199,6 +191,14 @@
   <flag name='fsdev.createmode'/>
   <flag name='dc390'/>
   <flag name='am53c974'/>
+  <flag name='vhost-user-blk'/>
+  <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
+  <flag name='vnc-opts'/>
+  <flag name='audiodev'/>
+  <flag name='blockdev-backup'/>
+  <flag name='rotation-rate'/>
+  <flag name='input-linux'/>
+  <flag name='query-display-options'/>
   <version>5000000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>0</microcodeVersion>

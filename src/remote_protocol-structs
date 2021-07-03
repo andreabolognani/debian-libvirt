@@ -1600,6 +1600,21 @@ struct remote_node_device_create_xml_ret {
 struct remote_node_device_destroy_args {
         remote_nonnull_string      name;
 };
+struct remote_node_device_define_xml_args {
+        remote_nonnull_string      xml_desc;
+        u_int                      flags;
+};
+struct remote_node_device_define_xml_ret {
+        remote_nonnull_node_device dev;
+};
+struct remote_node_device_undefine_args {
+        remote_nonnull_string      name;
+        u_int                      flags;
+};
+struct remote_node_device_create_args {
+        remote_nonnull_string      name;
+        u_int                      flags;
+};
 struct remote_connect_domain_event_register_ret {
         int                        cb_registered;
 };
@@ -3162,6 +3177,21 @@ struct remote_domain_authorized_ssh_keys_set_args {
         } keys;
         u_int                      flags;
 };
+struct remote_domain_get_messages_args {
+        remote_nonnull_domain      dom;
+        u_int                      flags;
+};
+struct remote_domain_get_messages_ret {
+        struct {
+                u_int              msgs_len;
+                remote_nonnull_string * msgs_val;
+        } msgs;
+};
+struct remote_domain_start_dirty_rate_calc_args {
+        remote_nonnull_domain      dom;
+        int                        seconds;
+        u_int                      flags;
+};
 enum remote_procedure {
         REMOTE_PROC_CONNECT_OPEN = 1,
         REMOTE_PROC_CONNECT_CLOSE = 2,
@@ -3588,4 +3618,9 @@ enum remote_procedure {
         REMOTE_PROC_DOMAIN_EVENT_MEMORY_FAILURE = 423,
         REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_GET = 424,
         REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_SET = 425,
+        REMOTE_PROC_DOMAIN_GET_MESSAGES = 426,
+        REMOTE_PROC_DOMAIN_START_DIRTY_RATE_CALC = 427,
+        REMOTE_PROC_NODE_DEVICE_DEFINE_XML = 428,
+        REMOTE_PROC_NODE_DEVICE_UNDEFINE = 429,
+        REMOTE_PROC_NODE_DEVICE_CREATE = 430,
 };

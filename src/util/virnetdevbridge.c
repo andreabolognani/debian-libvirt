@@ -37,26 +37,8 @@
 # endif
 # include <linux/sockios.h>
 # include <linux/param.h>     /* HZ                 */
-# if NETINET_LINUX_WORKAROUND
-/* Depending on the version of kernel vs. glibc, there may be a collision
- * between <net/in.h> and kernel IPv6 structures.  The different types
- * are ABI compatible, but choke the C type system; work around it by
- * using temporary redefinitions.  */
-#  define in6_addr in6_addr_
-#  define sockaddr_in6 sockaddr_in6_
-#  define ipv6_mreq ipv6_mreq_
-#  define in6addr_any in6addr_any_
-#  define in6addr_loopback in6addr_loopback_
-# endif
 # include <linux/in6.h>
 # include <linux/if_bridge.h> /* SYSFS_BRIDGE_ATTR  */
-# if NETINET_LINUX_WORKAROUND
-#  undef in6_addr
-#  undef sockaddr_in6
-#  undef ipv6_mreq
-#  undef in6addr_any
-#  undef in6addr_loopback
-# endif
 
 # define JIFFIES_TO_MS(j) (((j)*1000)/HZ)
 # define MS_TO_JIFFIES(ms) (((ms)*HZ)/1000)
@@ -1036,13 +1018,9 @@ virNetDevBridgeFDBAddDel(const virMacAddr *mac, const char *ifname,
     if (!(ndm.ndm_state & (NUD_PERMANENT | NUD_REACHABLE)))
         ndm.ndm_state |= NUD_PERMANENT;
 
-    nl_msg = nlmsg_alloc_simple(isAdd ? RTM_NEWNEIGH : RTM_DELNEIGH,
-                                NLM_F_REQUEST |
-                                (isAdd ? (NLM_F_CREATE | NLM_F_EXCL) : 0));
-    if (!nl_msg) {
-        virReportOOMError();
-        return -1;
-    }
+    nl_msg = virNetlinkMsgNew(isAdd ? RTM_NEWNEIGH : RTM_DELNEIGH,
+                              NLM_F_REQUEST |
+                              (isAdd ? (NLM_F_CREATE | NLM_F_EXCL) : 0));
 
     if (nlmsg_append(nl_msg, &ndm, sizeof(ndm), NLMSG_ALIGNTO) < 0)
         goto buffer_too_small;
@@ -1067,9 +1045,13 @@ virNetDevBridgeFDBAddDel(const virMacAddr *mac, const char *ifname,
         if (resp->nlmsg_len < NLMSG_LENGTH(sizeof(*err)))
             goto malformed_resp;
         if (err->error) {
-            virReportSystemError(-err->error,
-                                 _("error adding fdb entry for %s"), ifname);
-            return -1;
+            if (isAdd && -err->error == EEXIST) {
+                VIR_DEBUG("fdb entry for %s already exists", ifname);
+            } else {
+                virReportSystemError(-err->error,
+                                     _("error adding fdb entry for %s"), ifname);
+                return -1;
+            }
         }
         break;
     case NLMSG_DONE:

@@ -53,13 +53,10 @@ Struct type names
    All structs should have a 'vir' prefix in their typedef name,
    and each following word should have its first letter in
    uppercase. The struct name should be the same as the typedef
-   name with a leading underscore. A second typedef should be
-   given for a pointer to the struct with a 'Ptr' suffix.
-
+   name with a leading underscore.
    ::
 
      typedef struct _virHashTable virHashTable;
-     typedef virHashTable *virHashTablePtr;
      struct _virHashTable {
          ...
      };
@@ -426,11 +423,11 @@ Conditional expressions
 
 For readability reasons new code should avoid shortening
 comparisons to 0 for numeric types. Boolean and pointer
-comparisions may be shortened. All long forms are okay:
+comparisons may be shortened. All long forms are okay:
 
 ::
 
-  virFooPtr foos = NULL;
+  virFoo *foos = NULL;
   size nfoos = 0;
   bool hasFoos = false;
 
@@ -716,19 +713,6 @@ functions provided by libvirt:
 
 ::
 
-  virStrncpy(char *dest, const char *src, size_t n, size_t destbytes)
-
-The first two arguments have the same meaning as for strncpy,
-namely the destination and source of the copy operation. Unlike
-strncpy, the function will always copy exactly the number of bytes
-requested and make sure the destination is NULL-terminated, as the
-source is required to be; sanity checks are performed to ensure
-the size of the destination, as specified by the last argument, is
-sufficient for the operation to succeed. On success, 0 is
-returned; on failure, a value <0 is returned instead.
-
-::
-
   virStrcpy(char *dest, const char *src, size_t destbytes)
 
 Use this variant if you know you want to copy the entire src
@@ -852,7 +836,7 @@ vircommand.h:
 
 ::
 
-  void virCommandAddEnvFormat(virCommandPtr cmd, const char *format, ...)
+  void virCommandAddEnvFormat(virCommand *cmd, const char *format, ...)
       G_GNUC_PRINTF(2, 3);
 
 This makes it so gcc's -Wformat and -Wformat-security options can

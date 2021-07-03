@@ -283,6 +283,9 @@ const REMOTE_NETWORK_PORT_PARAMETERS_MAX = 16;
 /* Upper limit on number of SSH keys */
 const REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX = 2048;
 
+/* Upper limit on number of messages */
+const REMOTE_DOMAIN_MESSAGES_MAX = 2048;
+
 
 /* UUID.  VIR_UUID_BUFLEN definition comes from libvirt.h */
 typedef opaque remote_uuid[VIR_UUID_BUFLEN];
@@ -2142,6 +2145,25 @@ struct remote_node_device_destroy_args {
     remote_nonnull_string name;
 };
 
+struct remote_node_device_define_xml_args {
+    remote_nonnull_string xml_desc;
+    unsigned int flags;
+};
+
+struct remote_node_device_define_xml_ret {
+    remote_nonnull_node_device dev;
+};
+
+struct remote_node_device_undefine_args {
+    remote_nonnull_string name;
+    unsigned int flags;
+};
+
+struct remote_node_device_create_args {
+    remote_nonnull_string name;
+    unsigned int flags;
+};
+
 
 /*
  * Events Register/Deregister:
@@ -3798,6 +3820,22 @@ struct remote_domain_authorized_ssh_keys_set_args {
     remote_nonnull_string keys<REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX>;
     unsigned int flags;
 };
+
+struct remote_domain_get_messages_args {
+    remote_nonnull_domain dom;
+    unsigned int flags;
+};
+
+struct remote_domain_get_messages_ret {
+    remote_nonnull_string msgs<REMOTE_DOMAIN_MESSAGES_MAX>;
+};
+
+struct remote_domain_start_dirty_rate_calc_args {
+    remote_nonnull_domain dom;
+    int seconds;
+    unsigned int flags;
+};
+
 
 /*----- Protocol. -----*/
 
@@ -6714,5 +6752,38 @@ enum remote_procedure {
      * @generate: none
      * @acl: domain:write
      */
-    REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_SET = 425
+    REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_SET = 425,
+
+    /**
+     * @generate: none
+     * @acl: domain:read
+     */
+    REMOTE_PROC_DOMAIN_GET_MESSAGES = 426,
+
+    /**
+     * @generate: both
+     * @acl: domain:write
+     */
+    REMOTE_PROC_DOMAIN_START_DIRTY_RATE_CALC = 427,
+
+    /**
+     * @generate: both
+     * @acl: node_device:write
+     */
+    REMOTE_PROC_NODE_DEVICE_DEFINE_XML = 428,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:delete
+     */
+    REMOTE_PROC_NODE_DEVICE_UNDEFINE = 429,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:start
+     */
+    REMOTE_PROC_NODE_DEVICE_CREATE = 430
+
 };

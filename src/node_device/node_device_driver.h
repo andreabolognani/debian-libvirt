@@ -33,20 +33,39 @@ int
 udevNodeRegister(void);
 #endif
 
+
+typedef enum {
+    MDEVCTL_CMD_START,
+    MDEVCTL_CMD_STOP,
+    MDEVCTL_CMD_DEFINE,
+    MDEVCTL_CMD_UNDEFINE,
+
+    /* mdevctl actually doesn't have a 'create' command, it will be replaced
+     * with 'start' eventually in nodeDeviceGetMdevctlCommand, but this clear
+     * separation makes our code more readable in terms of knowing when we're
+     * starting a defined device and when we're creating a transient one */
+    MDEVCTL_CMD_CREATE,
+
+    MDEVCTL_CMD_LAST,
+} virMdevctlCommand;
+
+VIR_ENUM_DECL(virMdevctlCommand);
+
+
 void
 nodeDeviceLock(void);
 
 void
 nodeDeviceUnlock(void);
 
-extern virNodeDeviceDriverStatePtr driver;
+extern virNodeDeviceDriverState *driver;
 
 int
 nodedevRegister(void);
 
 virDrvOpenStatus nodeConnectOpen(virConnectPtr conn,
                                  virConnectAuthPtr auth,
-                                 virConfPtr conf,
+                                 virConf *conf,
                                  unsigned int flags);
 int nodeConnectClose(virConnectPtr conn);
 int nodeConnectIsSecure(virConnectPtr conn);
@@ -102,6 +121,15 @@ nodeDeviceCreateXML(virConnectPtr conn,
 int
 nodeDeviceDestroy(virNodeDevicePtr dev);
 
+virNodeDevice*
+nodeDeviceDefineXML(virConnect *conn,
+                    const char *xmlDesc,
+                    unsigned int flags);
+
+int
+nodeDeviceUndefine(virNodeDevice *dev,
+                   unsigned int flags);
+
 int
 nodeConnectNodeDeviceEventRegisterAny(virConnectPtr conn,
                                       virNodeDevicePtr dev,
@@ -113,8 +141,33 @@ int
 nodeConnectNodeDeviceEventDeregisterAny(virConnectPtr conn,
                                         int callbackID);
 
-virCommandPtr
-nodeDeviceGetMdevctlStartCommand(virNodeDeviceDefPtr def,
-                                 char **uuid_out);
-virCommandPtr
-nodeDeviceGetMdevctlStopCommand(const char *uuid);
+virCommand *
+nodeDeviceGetMdevctlCommand(virNodeDeviceDef *def,
+                            virMdevctlCommand cmd_type,
+                            char **outbuf,
+                            char **errbuf);
+
+virCommand *
+nodeDeviceGetMdevctlListCommand(bool defined,
+                                char **output,
+                                char **errmsg);
+
+int
+nodeDeviceParseMdevctlJSON(const char *jsonstring,
+                           virNodeDeviceDef ***devs);
+
+int
+nodeDeviceUpdateMediatedDevices(void);
+
+void
+nodeDeviceGenerateName(virNodeDeviceDef *def,
+                       const char *subsystem,
+                       const char *sysname,
+                       const char *s);
+
+bool nodeDeviceDefCopyFromMdevctl(virNodeDeviceDef *dst,
+                                  virNodeDeviceDef *src);
+
+int
+nodeDeviceCreate(virNodeDevice *dev,
+                 unsigned int flags);

@@ -60,14 +60,14 @@ if conf.has('WITH_DTRACE_PROBES')
     out_h,
     input: infile,
     output: out_h,
-    command: [ dtrace_prog, '-o', '@OUTPUT@', '-h', '-s', '@INPUT@' ],
+    command: dtrace_command + [ '-o', '@OUTPUT@', '-h', '-s', '@INPUT@' ],
   )
 
   dtrace_gen_objects += custom_target(
     out_o,
     input: infile,
     output: out_o,
-    command: [ dtrace_prog, '-o', '@OUTPUT@', '-G', '-s', '@INPUT@' ],
+    command: dtrace_command + [ '-o', '@OUTPUT@', '-G', '-s', '@INPUT@' ],
   )
 
   custom_target(
@@ -123,7 +123,6 @@ if conf.has('WITH_SSH2')
 else
   sym_files += 'libvirt_libssh2.syms'
 endif
-
 
 # variables filled by subdirectories
 
@@ -201,7 +200,6 @@ guest_unit_files = []
 #   * sockets - array of additional sockets (optional, default [ 'main', 'ro', 'admin' ])
 #   * socket_$name_in - additional socket source files (optional, default remote/libvirtd.socket.in )
 #   * deps - socket dependencies (optional, default '')
-#   * conflicts - if the service conflicts with libvirtd (optional, true)
 virt_daemon_units = []
 
 # openrc_init_files
@@ -266,12 +264,14 @@ subdir('nwfilter')
 subdir('secret')
 subdir('security')
 subdir('storage')
+subdir('storage_file')
 
 subdir('bhyve')
 subdir('esx')
 subdir('hyperv')
 subdir('libxl')
 subdir('lxc')
+subdir('ch')
 subdir('openvz')
 subdir('qemu')
 subdir('test')

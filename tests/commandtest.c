@@ -429,7 +429,7 @@ static int test12(const void *unused G_GNUC_UNUSED)
  */
 static int test13(const void *unused G_GNUC_UNUSED)
 {
-    virCommandPtr cmd = virCommandNew(abs_builddir "/commandhelper");
+    virCommand *cmd = virCommandNew(abs_builddir "/commandhelper");
     g_autofree char *outactual = NULL;
     const char *outexpect = "BEGIN STDOUT\n"
         "Hello World\n"
@@ -467,7 +467,7 @@ static int test13(const void *unused G_GNUC_UNUSED)
  */
 static int test14(const void *unused G_GNUC_UNUSED)
 {
-    virCommandPtr cmd = virCommandNew(abs_builddir "/commandhelper");
+    virCommand *cmd = virCommandNew(abs_builddir "/commandhelper");
     g_autofree char *outactual = NULL;
     const char *outexpect = "BEGIN STDOUT\n"
         "Hello World\n"
@@ -611,7 +611,6 @@ static int test17(const void *unused G_GNUC_UNUSED)
         goto cleanup;
     }
 
-    sa_assert(outbuf);
     if (*outbuf) {
         puts("output buffer is not an allocated empty string");
         goto cleanup;
@@ -646,7 +645,7 @@ static int test17(const void *unused G_GNUC_UNUSED)
  */
 static int test18(const void *unused G_GNUC_UNUSED)
 {
-    virCommandPtr cmd = virCommandNewArgList("sleep", "100", NULL);
+    virCommand *cmd = virCommandNewArgList("sleep", "100", NULL);
     g_autofree char *pidfile = virPidFileBuildPath(abs_builddir, "commandhelper");
     pid_t pid;
     int ret = -1;
@@ -806,7 +805,7 @@ static int
 test22(const void *unused G_GNUC_UNUSED)
 {
     int ret = -1;
-    virCommandPtr cmd;
+    virCommand *cmd;
     int status = -1;
 
     cmd = virCommandNewArgList("/bin/sh", "-c", "exit 3", NULL);
@@ -997,6 +996,7 @@ static int test26(const void *unused G_GNUC_UNUSED)
         "--oooh \\\n"
         "-f \\\n"
         "--wizz 'eek eek' \\\n"
+        "--m-m-m-multiarg arg arg2 \\\n"
         "-w \\\n"
         "-z \\\n"
         "-l \\\n"
@@ -1009,7 +1009,9 @@ static int test26(const void *unused G_GNUC_UNUSED)
     virCommandAddEnvPair(cmd, "A", "B");
     virCommandAddEnvPair(cmd, "C", "D  E");
     virCommandAddArgList(cmd, "--foo", "bar", "--oooh", "-f",
-                         "--wizz", "eek eek", "-w", "-z", "-l",
+                         "--wizz", "eek eek",
+                         "--m-m-m-multiarg", "arg", "arg2",
+                         "-w", "-z", "-l",
                          "--mmm", "flash", "bang", "wallop",
                          NULL);
 
@@ -1039,9 +1041,8 @@ static int test26(const void *unused G_GNUC_UNUSED)
 static int test27(const void *unused G_GNUC_UNUSED)
 {
     g_autoptr(virCommand) cmd = virCommandNew(abs_builddir "/commandhelper");
-    int pipe1[2];
-    int pipe2[2];
-    int ret = -1;
+    int buf1fd;
+    int buf2fd;
     size_t buflen = 1024 * 128;
     g_autofree char *buffer0 = NULL;
     g_autofree char *buffer1 = NULL;
@@ -1078,30 +1079,14 @@ static int test27(const void *unused G_GNUC_UNUSED)
     errexpect = g_strdup_printf(TEST27_ERREXPECT_TEMP,
                                 buffer0, buffer1, buffer2);
 
-    if (virPipeQuiet(pipe1) < 0 || virPipeQuiet(pipe2) < 0) {
-        printf("Could not create pipe: %s\n", g_strerror(errno));
-        goto cleanup;
-    }
-
-    if (virCommandSetSendBuffer(cmd, pipe1[1],
-            (unsigned char *)buffer1, buflen - 1)  < 0 ||
-        virCommandSetSendBuffer(cmd, pipe2[1],
-            (unsigned char *)buffer2, buflen - 1) < 0) {
-        printf("Could not set send buffers\n");
-        goto cleanup;
-    }
-    pipe1[1] = -1;
-    pipe2[1] = -1;
-    buffer1 = NULL;
-    buffer2 = NULL;
+    buf1fd = virCommandSetSendBuffer(cmd, (unsigned char *) g_steal_pointer(&buffer1), buflen - 1);
+    buf2fd = virCommandSetSendBuffer(cmd, (unsigned char *) g_steal_pointer(&buffer2), buflen - 1);
 
     virCommandAddArg(cmd, "--readfd");
-    virCommandAddArgFormat(cmd, "%d", pipe1[0]);
-    virCommandPassFD(cmd, pipe1[0], 0);
+    virCommandAddArgFormat(cmd, "%d", buf1fd);
 
     virCommandAddArg(cmd, "--readfd");
-    virCommandAddArgFormat(cmd, "%d", pipe2[0]);
-    virCommandPassFD(cmd, pipe2[0], 0);
+    virCommandAddArgFormat(cmd, "%d", buf2fd);
 
     virCommandSetInputBuffer(cmd, buffer0);
     virCommandSetOutputBuffer(cmd, &outactual);
@@ -1109,33 +1094,25 @@ static int test27(const void *unused G_GNUC_UNUSED)
 
     if (virCommandRun(cmd, NULL) < 0) {
         printf("Cannot run child %s\n", virGetLastErrorMessage());
-        goto cleanup;
+        return -1;
     }
 
     if (!outactual || !erractual)
-        goto cleanup;
+        return -1;
 
     if (STRNEQ(outactual, outexpect)) {
         virTestDifference(stderr, outexpect, outactual);
-        goto cleanup;
+        return -1;
     }
     if (STRNEQ(erractual, errexpect)) {
         virTestDifference(stderr, errexpect, erractual);
-        goto cleanup;
+        return -1;
     }
 
     if (checkoutput("test27") < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_FORCE_CLOSE(pipe1[0]);
-    VIR_FORCE_CLOSE(pipe2[0]);
-    VIR_FORCE_CLOSE(pipe1[1]);
-    VIR_FORCE_CLOSE(pipe2[1]);
-
-    return ret;
+    return 0;
 }
 
 
@@ -1228,7 +1205,6 @@ mymain(void)
     virinitret = virInitialize();
 
     /* Phase two of killing interfering fds; see above.  */
-    /* coverity[overwrite_var] - silence the obvious */
     fd = 3;
     VIR_FORCE_CLOSE(fd);
     fd = 4;

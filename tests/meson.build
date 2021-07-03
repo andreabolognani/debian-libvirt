@@ -26,7 +26,10 @@ tests_dep = declare_dependency(
     top_inc_dir,
     util_inc_dir,
   ],
-  link_args: libvirt_export_dynamic,
+  link_args: (
+    libvirt_export_dynamic
+    + coverage_flags
+  ),
 )
 
 tests_env = [
@@ -57,6 +60,7 @@ mock_libs = [
   { 'name': 'shunload', 'sources': [ 'shunloadhelper.c' ] },
   { 'name': 'vircgroupmock' },
   { 'name': 'virfilecachemock' },
+  { 'name': 'virfirewallmock' },
   { 'name': 'virgdbusmock' },
   { 'name': 'virhostcpumock' },
   { 'name': 'virhostdevmock' },
@@ -227,9 +231,6 @@ executable(
   [ 'ssh.c' ],
   dependencies: [
     tests_dep,
-  ],
-  link_args: [
-    coverage_flags,
   ],
 )
 
@@ -429,7 +430,7 @@ endif
 
 if conf.has('WITH_OPENVZ')
   tests += [
-    { 'name': 'openvzutilstest', 'link_with': [ openvz_lib ] },
+    { 'name': 'openvzutilstest' },
   ]
 endif
 
@@ -442,7 +443,7 @@ endif
 if conf.has('WITH_QEMU')
   tests += [
     { 'name': 'qemuagenttest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
-    { 'name': 'qemublocktest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
+    { 'name': 'qemublocktest', 'include': [ storage_file_inc_dir ], 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemucapabilitiestest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemucaps2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemucommandutiltest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
@@ -452,7 +453,7 @@ if conf.has('WITH_QEMU')
     { 'name': 'qemuhotplugtest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemumemlocktest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemumigparamstest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
-    { 'name': 'qemumigrationcookiexmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
+    { 'name': 'qemumigrationcookiexmltest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
     { 'name': 'qemumonitorjsontest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemusecuritytest', 'sources': [ 'qemusecuritytest.c', 'qemusecuritymock.c' ], 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemustatusxml2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
@@ -509,7 +510,7 @@ endif
 
 if conf.has('WITH_STORAGE_FS')
   tests += [
-    { 'name': 'virstoragetest', 'link_with': [ storage_driver_impl_lib ] },
+    { 'name': 'virstoragetest', 'include': [ storage_file_inc_dir ],'link_with': [ storage_driver_impl_lib ] },
   ]
 endif
 
@@ -599,7 +600,7 @@ helpers = []
 
 if conf.has('WITH_NSS')
   helpers += [
-    # Intentionaly not linking with anything else.
+    # Intentionally not linking with anything else.
     # See the test source for more detailed explanation.
     {
       'name': 'nsslinktest',
@@ -686,12 +687,12 @@ foreach name : test_scripts
   test(name, script, env: tests_env)
 endforeach
 
+testenv = runutf8
+testenv += 'VIR_TEST_FILE_ACCESS=1'
+
 add_test_setup(
   'access',
-  env: [
-    'VIR_TEST_FILE_ACCESS=1',
-    runutf8,
-  ],
+  env: testenv,
   exe_wrapper: [ python3_prog, check_file_access_prog.path() ],
 )
 

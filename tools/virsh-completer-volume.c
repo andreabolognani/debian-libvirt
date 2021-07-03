@@ -31,7 +31,7 @@ virshStorageVolNameCompleter(vshControl *ctl,
                              const vshCmd *cmd,
                              unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     virStoragePoolPtr pool = NULL;
     virStorageVolPtr *vols = NULL;
     int rc;
@@ -67,5 +67,52 @@ virshStorageVolNameCompleter(vshControl *ctl,
     for (i = 0; i < nvols; i++)
         virStorageVolFree(vols[i]);
     g_free(vols);
+    return ret;
+}
+
+char **
+virshStorageVolKeyCompleter(vshControl *ctl,
+                            const vshCmd *cmd G_GNUC_UNUSED,
+                            unsigned int flags)
+{
+    virshControl *priv = ctl->privData;
+    struct virshStoragePoolList *list = NULL;
+    virStorageVolPtr *vols = NULL;
+    int rc;
+    int nvols = 0;
+    size_t i = 0, j = 0;
+    char **ret = NULL;
+    g_auto(GStrv) tmp = NULL;
+
+    virCheckFlags(0, NULL);
+
+    if (!priv->conn || virConnectIsAlive(priv->conn) <= 0)
+        return NULL;
+
+    list = virshStoragePoolListCollect(ctl, VIR_CONNECT_LIST_STORAGE_POOLS_ACTIVE);
+    if (!list)
+        goto cleanup;
+
+    for (i = 0; i < list->npools; i++) {
+        if ((rc = virStoragePoolListAllVolumes(list->pools[i], &vols, 0)) < 0)
+            goto cleanup;
+
+        tmp = g_renew(char *, tmp, nvols + rc + 1);
+        memset(&tmp[nvols], 0, sizeof(*tmp) * (rc + 1));
+
+        for (j = 0; j < rc; j++) {
+            const char *key = virStorageVolGetKey(vols[j]);
+            tmp[nvols] = g_strdup(key);
+            nvols++;
+            virStorageVolFree(vols[j]);
+        }
+
+        g_free(vols);
+    }
+
+    ret = g_steal_pointer(&tmp);
+
+ cleanup:
+    virshStoragePoolListFree(list);
     return ret;
 }

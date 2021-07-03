@@ -23,38 +23,61 @@
 #include "qemu_conf.h"
 #include "qemu_domainjob.h"
 
-virDomainMomentObjPtr
-qemuSnapObjFromName(virDomainObjPtr vm,
+virDomainMomentObj *
+qemuSnapObjFromName(virDomainObj *vm,
                     const char *name);
 
-virDomainMomentObjPtr
-qemuSnapObjFromSnapshot(virDomainObjPtr vm,
+virDomainMomentObj *
+qemuSnapObjFromSnapshot(virDomainObj *vm,
                         virDomainSnapshotPtr snapshot);
 
 int
-qemuSnapshotFSFreeze(virDomainObjPtr vm,
+qemuSnapshotFSFreeze(virDomainObj *vm,
                      const char **mountpoints,
                      unsigned int nmountpoints);
 int
-qemuSnapshotFSThaw(virDomainObjPtr vm,
+qemuSnapshotFSThaw(virDomainObj *vm,
                    bool report);
 
 virDomainSnapshotPtr
 qemuSnapshotCreateXML(virDomainPtr domain,
-                      virDomainObjPtr vm,
+                      virDomainObj *vm,
                       const char *xmlDesc,
                       unsigned int flags);
 
 int
-qemuSnapshotRevert(virDomainObjPtr vm,
+qemuSnapshotRevert(virDomainObj *vm,
                    virDomainSnapshotPtr snapshot,
                    unsigned int flags);
 
 int
-qemuSnapshotDelete(virDomainObjPtr vm,
+qemuSnapshotDelete(virDomainObj *vm,
                    virDomainSnapshotPtr snapshot,
                    unsigned int flags);
 
+
+typedef struct _qemuSnapshotDiskContext qemuSnapshotDiskContext;
+
+qemuSnapshotDiskContext *
+qemuSnapshotDiskContextNew(size_t ndisks,
+                           virDomainObj *vm,
+                           qemuDomainAsyncJob asyncJob);
+
+void
+qemuSnapshotDiskContextCleanup(qemuSnapshotDiskContext *snapctxt);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuSnapshotDiskContext, qemuSnapshotDiskContextCleanup);
+
 int
-qemuSnapshotCreateDisksTransient(virDomainObjPtr vm,
-                                 qemuDomainAsyncJob asyncJob);
+qemuSnapshotDiskPrepareOne(qemuSnapshotDiskContext *snapctxt,
+                           virDomainDiskDef *disk,
+                           virDomainSnapshotDiskDef *snapdisk,
+                           GHashTable *blockNamedNodeData,
+                           bool reuse,
+                           bool updateConfig);
+int
+qemuSnapshotDiskCreate(qemuSnapshotDiskContext *snapctxt);
+
+virDomainSnapshotDiskDef *
+qemuSnapshotGetTransientDiskDef(virDomainDiskDef *domdisk,
+                                const char *suffix);

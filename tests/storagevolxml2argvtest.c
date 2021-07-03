@@ -13,8 +13,8 @@ const char create_tool[] = "qemu-img";
 
 /* createVol sets this on volume creation */
 static void
-testSetVolumeType(virStorageVolDefPtr vol,
-                  virStoragePoolDefPtr pool)
+testSetVolumeType(virStorageVolDef *vol,
+                  virStoragePoolDef *pool)
 {
     if (!vol || !pool)
         return;
@@ -44,8 +44,8 @@ testCompareXMLToArgvFiles(bool shouldFail,
 {
     virStorageVolEncryptConvertStep convertStep = VIR_STORAGE_VOL_ENCRYPT_NONE;
     int ret = -1;
-    virStoragePoolDefPtr def = NULL;
-    virStoragePoolObjPtr obj = NULL;
+    virStoragePoolDef *def = NULL;
+    virStoragePoolObj *obj = NULL;
     g_autofree char *actualCmdline = NULL;
     g_autoptr(virStorageVolDef) vol = NULL;
     g_autoptr(virStorageVolDef) inputvol = NULL;
@@ -104,13 +104,13 @@ testCompareXMLToArgvFiles(bool shouldFail,
         }
 
         if (convertStep != VIR_STORAGE_VOL_ENCRYPT_CONVERT) {
-            if (!(actualCmdline = virCommandToString(cmd, false)))
+            if (!(actualCmdline = virCommandToString(cmd, true)))
                 goto cleanup;
         } else {
             char *createCmdline = actualCmdline;
             g_autofree char *cvtCmdline = NULL;
 
-            if (!(cvtCmdline = virCommandToString(cmd, false)))
+            if (!(cvtCmdline = virCommandToString(cmd, true)))
                 goto cleanup;
 
             actualCmdline = g_strdup_printf("%s\n%s", createCmdline, cvtCmdline);
@@ -127,7 +127,7 @@ testCompareXMLToArgvFiles(bool shouldFail,
 
     } while (convertStep != VIR_STORAGE_VOL_ENCRYPT_DONE);
 
-    if (virTestCompareToFile(actualCmdline, cmdline) < 0)
+    if (virTestCompareToFileFull(actualCmdline, cmdline, false) < 0)
         goto cleanup;
 
     ret = 0;
@@ -237,6 +237,10 @@ mymain(void)
     DO_TEST_FULL(false, VIR_VOL_XML_PARSE_OPT_CAPACITY,
                  "pool-dir", "vol-qcow2-nocapacity-backing", NULL, NULL,
                  "qcow2-nocapacity", 0);
+
+    DO_TEST("pool-dir", "vol-qcow2-clusterSize",
+            NULL, NULL,
+            "qcow2-clusterSize", 0);
 
     DO_TEST("pool-dir", "vol-file-iso",
             NULL, NULL,

@@ -47,9 +47,25 @@ VIR_ENUM_IMPL(remoteDriverMode,
               "legacy",
               "direct");
 
+#ifndef WIN32
+static const char *
+remoteGetDaemonPathEnv(void)
+{
+    /* We prefer a VIRTD_PATH env var to use for all daemons,
+     * but if it is not set we will fallback to LIBVIRTD_PATH
+     * for previous behaviour
+     */
+    if (getenv("VIRTD_PATH") != NULL) {
+        return "VIRTD_PATH";
+    } else {
+        return "LIBVIRTD_PATH";
+    }
+}
+#endif /* WIN32 */
+
 
 int
-remoteSplitURIScheme(virURIPtr uri,
+remoteSplitURIScheme(virURI *uri,
                      char **driver,
                      remoteDriverTransport *transport)
 {
@@ -101,13 +117,12 @@ remoteSplitURIScheme(virURIPtr uri,
 static char *
 remoteGetUNIXSocketHelper(remoteDriverTransport transport,
                           const char *sock_prefix,
-                          bool ro,
-                          bool session)
+                          unsigned int flags)
 {
     char *sockname = NULL;
     g_autofree char *userdir = NULL;
 
-    if (session) {
+    if (flags & REMOTE_DRIVER_OPEN_USER) {
         userdir = virGetUserRuntimeDirectory();
 
         sockname = g_strdup_printf("%s/%s-sock", userdir, sock_prefix);
@@ -120,64 +135,243 @@ remoteGetUNIXSocketHelper(remoteDriverTransport transport,
          */
         sockname = g_strdup_printf("%s/run/libvirt/%s-%s", LOCALSTATEDIR,
                                    sock_prefix,
-                                   ro ? "sock-ro" : "sock");
+                                   flags & REMOTE_DRIVER_OPEN_RO ?
+                                   "sock-ro" : "sock");
     }
 
     VIR_DEBUG("Built UNIX sockname=%s for transport=%s "
-              "prefix=%s ro=%d session=%d",
+              "prefix=%s flags=0x%x",
               sockname, remoteDriverTransportTypeToString(transport),
-              sock_prefix, ro, session);
+              sock_prefix, flags);
     return sockname;
 }
 
+/*
+ * Determine which driver is probably usable based on
+ * which modular daemon binaries are installed.
+ */
+int
+remoteProbeSessionDriverFromBinary(char **driver)
+{
+    /* Order these the same as virDriverLoadModule
+     * calls in daemonInitialize, so we replicate
+     * probing order that virConnectOpen would use
+     * if running inside libvirtd */
+    const char *drivers[] = {
+#ifdef WITH_QEMU
+        "qemu",
+#endif
+#ifdef WITH_VBOX
+        "vbox",
+#endif
+    };
+    ssize_t i;
+
+    VIR_DEBUG("Probing for driver from daemon binaries");
+
+    *driver = NULL;
+
+    for (i = 0; i < (ssize_t) G_N_ELEMENTS(drivers); i++) {
+        g_autofree char *daemonname = NULL;
+        g_autofree char *daemonpath = NULL;
+
+        daemonname = g_strdup_printf("virt%sd", drivers[i]);
+        VIR_DEBUG("Probing driver '%s' via daemon %s", drivers[i], daemonpath);
+
+        if (!(daemonpath = virFileFindResource(daemonname,
+                                               abs_top_builddir "/src",
+                                               SBINDIR)))
+            return -1;
+
+        if (virFileExists(daemonpath)) {
+            VIR_DEBUG("Found driver '%s' via daemon %s", drivers[i], daemonpath);
+            *driver = g_strdup(drivers[i]);
+            return 0;
+        }
+
+        VIR_DEBUG("Missing daemon %s for driver %s", daemonpath, drivers[i]);
+    }
+
+    VIR_DEBUG("No more drivers to probe for");
+    return 0;
+}
+
+
+int
+remoteProbeSystemDriverFromSocket(bool readonly, char **driver)
+{
+    /* Order these the same as virDriverLoadModule
+     * calls in daemonInitialize, so we replicate
+     * probing order that virConnectOpen would use
+     * if running inside libvirtd */
+    const char *drivers[] = {
+#ifdef WITH_LIBXL
+        "xen",
+#endif
+#ifdef WITH_QEMU
+        "qemu",
+#endif
+#ifdef WITH_LXC
+        "lxc",
+#endif
+#ifdef WITH_VBOX
+        "vbox",
+#endif
+#ifdef WITH_BHYVE
+        "bhyve",
+#endif
+#ifdef WITH_VZ
+        "vz",
+#endif
+    };
+    ssize_t i;
+
+    for (i = 0; i < (ssize_t) G_N_ELEMENTS(drivers); i++) {
+        g_autofree char *sockname =
+            g_strdup_printf("%s/libvirt/virt%sd-%s", RUNSTATEDIR,
+                            drivers[i], readonly ? "sock-ro" : "sock");
+
+        if (virFileExists(sockname)) {
+            VIR_DEBUG("Probed driver '%s' via sock '%s'", drivers[i], sockname);
+            *driver = g_strdup(drivers[i]);
+            return 0;
+        }
+
+        VIR_DEBUG("Missing sock %s for driver %s", sockname, drivers[i]);
+    }
+
+    /* Even if we didn't probe any socket, we won't
+     * return error. Just let virConnectOpen's normal
+     * logic run which will likely return an error anyway
+     */
+    VIR_DEBUG("No more drivers to probe for");
+    return 0;
+}
+
+int
+remoteProbeSessionDriverFromSocket(bool readonly, char **driver)
+{
+    /* Order these the same as virDriverLoadModule
+     * calls in daemonInitialize */
+    const char *drivers[] = {
+#ifdef WITH_QEMU
+        "qemu",
+#endif
+#ifdef WITH_VBOX
+        "vbox",
+#endif
+    };
+    ssize_t i;
+
+    for (i = 0; i < (ssize_t) G_N_ELEMENTS(drivers); i++) {
+        g_autofree char *userdir = virGetUserRuntimeDirectory();
+        g_autofree char *sockname =
+            g_strdup_printf("%s/virt%sd-%s",
+                            userdir, drivers[i], readonly ? "sock-ro" : "sock");
+
+        if (virFileExists(sockname)) {
+            VIR_DEBUG("Probed driver '%s' via sock '%s'", drivers[i], sockname);
+            *driver = g_strdup(drivers[i]);
+            return 0;
+        }
+
+        VIR_DEBUG("Missing sock %s for driver %s", sockname, drivers[i]);
+    }
+
+    /* Even if we didn't probe any socket, we won't
+     * return error. Just let virConnectOpen's normal
+     * logic run which will likely return an error anyway
+     */
+    VIR_DEBUG("No more drivers to probe for");
+    return 0;
+}
 
 char *
 remoteGetUNIXSocket(remoteDriverTransport transport,
                     remoteDriverMode mode,
                     const char *driver,
-                    bool ro,
-                    bool session,
-                    char **daemon)
+                    unsigned int flags,
+                    char **daemon_path)
 {
     char *sock_name = NULL;
     g_autofree char *direct_daemon = NULL;
     g_autofree char *legacy_daemon = NULL;
+    g_autofree char *daemon_name = NULL;
     g_autofree char *direct_sock_name = NULL;
     g_autofree char *legacy_sock_name = NULL;
+#ifdef REMOTE_DRIVER_AUTOSTART_DIRECT
+    g_autofree char *guessdriver = NULL;
+#endif
+#ifndef WIN32
+    const char *env_name = remoteGetDaemonPathEnv();
+#else
+    const char *env_name = NULL;
+#endif
 
-    VIR_DEBUG("Choosing remote socket for transport=%s mode=%s driver=%s ro=%d session=%d",
+    VIR_DEBUG("Choosing remote socket for transport=%s mode=%s driver=%s flags=0x%x",
               remoteDriverTransportTypeToString(transport),
               remoteDriverModeTypeToString(mode),
-              driver, ro, session);
+              driver, flags);
 
-    if (driver)
+#ifdef REMOTE_DRIVER_AUTOSTART_DIRECT
+    if (!driver && mode != REMOTE_DRIVER_MODE_LEGACY) {
+        VIR_DEBUG("Client side modular daemon probe");
+        /*
+         * If we don't have a driver (because URI is empty)
+         * in the direct case, we don't know which daemon
+         * to connect to. This logic attempts to be a rough
+         * equivalent of auto-probing from virConnectOpen
+         * in the libvirtd days.
+         */
+        if (geteuid() != 0) {
+            if (remoteProbeSessionDriverFromSocket(false, &guessdriver) < 0)
+                return NULL;
+
+            if (guessdriver == NULL &&
+                remoteProbeSessionDriverFromBinary(&guessdriver) < 0)
+                return NULL;
+        } else {
+            if (remoteProbeSystemDriverFromSocket(flags & REMOTE_DRIVER_OPEN_RO,
+                                                  &guessdriver) < 0)
+                return NULL;
+        }
+        driver = guessdriver;
+    }
+#endif
+
+    if (driver) {
         direct_daemon = g_strdup_printf("virt%sd", driver);
+        direct_sock_name = remoteGetUNIXSocketHelper(transport, direct_daemon, flags);
+    }
 
     legacy_daemon = g_strdup("libvirtd");
-
-    if (driver &&
-        !(direct_sock_name = remoteGetUNIXSocketHelper(transport, direct_daemon, ro, session)))
-        return NULL;
-
-    if (!(legacy_sock_name = remoteGetUNIXSocketHelper(transport, "libvirt", ro, session)))
-        return NULL;
+    legacy_sock_name = remoteGetUNIXSocketHelper(transport, "libvirt", flags);
 
     if (mode == REMOTE_DRIVER_MODE_AUTO) {
         if (transport == REMOTE_DRIVER_TRANSPORT_UNIX) {
+            /*
+             * When locally accessing libvirtd, we pick legacy or
+             * modular daemons depending on which sockets we see
+             * existing.
+             */
             if (direct_sock_name && virFileExists(direct_sock_name)) {
                 mode = REMOTE_DRIVER_MODE_DIRECT;
             } else if (virFileExists(legacy_sock_name)) {
                 mode = REMOTE_DRIVER_MODE_LEGACY;
-            } else if (driver) {
-                /*
-                 * This constant comes from the configure script and
-                 * maps to either the direct or legacy mode constant
-                 */
-                mode = REMOTE_DRIVER_MODE_DEFAULT;
             } else {
+#ifdef REMOTE_DRIVER_AUTOSTART_DIRECT
+                mode = REMOTE_DRIVER_MODE_DIRECT;
+#else
                 mode = REMOTE_DRIVER_MODE_LEGACY;
+#endif
             }
         } else {
+            /*
+             * When remotely accessing libvirtd, we always default to a legacy socket
+             * path, as there's no way for us to probe what's configured. This does
+             * not matter, since 'virt-ssh-helper' will be used if it is available
+             * and thus probe from context of the remote host
+             */
             mode = REMOTE_DRIVER_MODE_LEGACY;
         }
     }
@@ -185,7 +379,7 @@ remoteGetUNIXSocket(remoteDriverTransport transport,
     switch ((remoteDriverMode)mode) {
     case REMOTE_DRIVER_MODE_LEGACY:
         sock_name = g_steal_pointer(&legacy_sock_name);
-        *daemon = g_steal_pointer(&legacy_daemon);
+        daemon_name = g_steal_pointer(&legacy_daemon);
         break;
 
     case REMOTE_DRIVER_MODE_DIRECT:
@@ -203,7 +397,7 @@ remoteGetUNIXSocket(remoteDriverTransport transport,
         }
 
         sock_name = g_steal_pointer(&direct_sock_name);
-        *daemon = g_steal_pointer(&direct_daemon);
+        daemon_name = g_steal_pointer(&direct_daemon);
         break;
 
     case REMOTE_DRIVER_MODE_AUTO:
@@ -213,23 +407,32 @@ remoteGetUNIXSocket(remoteDriverTransport transport,
         return NULL;
     }
 
-    VIR_DEBUG("Chosen UNIX sockname=%s daemon=%s with mode=%s",
-              sock_name, NULLSTR(*daemon),
+    if (flags & REMOTE_DRIVER_OPEN_AUTOSTART) {
+        if (!(*daemon_path = virFileFindResourceFull(daemon_name,
+                                                     NULL, NULL,
+                                                     abs_top_builddir "/src",
+                                                     SBINDIR,
+                                                     env_name)))
+            return NULL;
+    } else {
+        *daemon_path = NULL;
+    }
+
+    VIR_DEBUG("Chosen UNIX sockname=%s daemon_path=%s with mode=%s",
+              sock_name, NULLSTR(*daemon_path),
               remoteDriverModeTypeToString(mode));
     return sock_name;
 }
 
 
 void
-remoteGetURIDaemonInfo(virURIPtr uri,
+remoteGetURIDaemonInfo(virURI *uri,
                        remoteDriverTransport transport,
-                       bool *session,
-                       bool *autostart)
+                       unsigned int *flags)
 {
     const char *autostart_str = getenv("LIBVIRT_AUTOSTART");
 
-    *session = false;
-    *autostart = false;
+    *flags = 0;
 
     /*
      * User session daemon is used for
@@ -246,7 +449,7 @@ remoteGetURIDaemonInfo(virURIPtr uri,
          STRPREFIX(uri->scheme, "test+")) &&
         geteuid() > 0) {
         VIR_DEBUG("User session daemon required");
-        *session = true;
+        *flags |= REMOTE_DRIVER_OPEN_USER;
 
         /*
          * Furthermore if no servername is given,
@@ -258,7 +461,7 @@ remoteGetURIDaemonInfo(virURIPtr uri,
             (!autostart_str ||
              STRNEQ(autostart_str, "0"))) {
             VIR_DEBUG("Try daemon autostart");
-            *autostart = true;
+            *flags |= REMOTE_DRIVER_OPEN_AUTOSTART;
         }
     }
 
@@ -270,10 +473,10 @@ remoteGetURIDaemonInfo(virURIPtr uri,
         VIR_DEBUG("Auto-probe remote URI");
         if (geteuid() > 0) {
             VIR_DEBUG("Auto-spawn user daemon instance");
-            *session = true;
+            *flags |= REMOTE_DRIVER_OPEN_USER;
             if (!autostart_str ||
                 STRNEQ(autostart_str, "0"))
-                *autostart = true;
+                *flags |= REMOTE_DRIVER_OPEN_AUTOSTART;
         }
     }
 }

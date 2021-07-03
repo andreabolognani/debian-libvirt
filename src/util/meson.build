@@ -35,6 +35,7 @@ util_sources = [
   'virgdbus.c',
   'virgettext.c',
   'virgic.c',
+  'virglibutil.c',
   'virhash.c',
   'virhashcode.c',
   'virhook.c',
@@ -86,11 +87,10 @@ util_sources = [
   'virscsivhost.c',
   'virseclabel.c',
   'virsecret.c',
+  'virsecureerase.c',
   'virsocket.c',
   'virsocketaddr.c',
-  'virstorageencryption.c',
   'virstoragefile.c',
-  'virstoragefilebackend.c',
   'virstring.c',
   'virsysinfo.c',
   'virsystemd.c',
@@ -167,6 +167,10 @@ foreach name : keyname_list
     capture: true,
   )
 endforeach
+
+keycode_dep = declare_dependency(
+  sources: keycode_gen_sources,
+)
 
 io_helper_sources = [
   'iohelper.c',

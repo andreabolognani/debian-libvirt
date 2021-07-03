@@ -136,8 +136,7 @@ esxVI_CURL_WriteStream(char *input, size_t size, size_t nmemb, void *userdata)
         } else if (input_remaining > backlog_remaining) {
             priv->backlog_size += input_remaining - backlog_remaining;
 
-            if (VIR_REALLOC_N(priv->backlog, priv->backlog_size) < 0)
-                return 0;
+            VIR_REALLOC_N(priv->backlog, priv->backlog_size);
         }
 
         memcpy(priv->backlog + priv->backlog_used, input + input_used,
@@ -336,8 +335,8 @@ esxFreeStreamPrivate(esxStreamPrivate **priv)
         return;
 
     esxVI_CURL_Free(&(*priv)->curl);
-    VIR_FREE((*priv)->backlog);
-    VIR_FREE(*priv);
+    g_free((*priv)->backlog);
+    g_free(*priv);
 }
 
 static int
@@ -395,8 +394,7 @@ esxStreamOpen(virStreamPtr stream, esxPrivate *priv, const char *url,
 {
     int result = -1;
     esxStreamPrivate *streamPriv;
-    char *range = NULL;
-    char *userpwd = NULL;
+    g_autofree char *range = NULL;
     esxVI_MultiCURL *multi = NULL;
 
     /* FIXME: Although there is already some code in place to deal with
@@ -438,17 +436,10 @@ esxStreamOpen(virStreamPtr stream, esxPrivate *priv, const char *url,
     curl_easy_setopt(streamPriv->curl->handle, CURLOPT_URL, url);
     curl_easy_setopt(streamPriv->curl->handle, CURLOPT_RANGE, range);
 
-#if LIBCURL_VERSION_NUM >= 0x071301 /* 7.19.1 */
     curl_easy_setopt(streamPriv->curl->handle, CURLOPT_USERNAME,
                      priv->primary->username);
     curl_easy_setopt(streamPriv->curl->handle, CURLOPT_PASSWORD,
                      priv->primary->password);
-#else
-    userpwd = g_strdup_printf("%s:%s", priv->primary->username,
-                              priv->primary->password);
-
-    curl_easy_setopt(streamPriv->curl->handle, CURLOPT_USERPWD, userpwd);
-#endif
 
     if (esxVI_MultiCURL_Alloc(&multi) < 0 ||
         esxVI_MultiCURL_Add(multi, streamPriv->curl) < 0)
@@ -466,9 +457,6 @@ esxStreamOpen(virStreamPtr stream, esxPrivate *priv, const char *url,
 
         esxFreeStreamPrivate(&streamPriv);
     }
-
-    VIR_FREE(range);
-    VIR_FREE(userpwd);
 
     return result;
 }

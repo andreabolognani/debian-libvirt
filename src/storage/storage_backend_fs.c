@@ -193,9 +193,9 @@ virStorageBackendFileSystemNetFindPoolSources(const char *srcSpec,
  * Return 0 if everything's OK, -1 on error
  */
 static int
-virStorageBackendFileSystemIsValid(virStoragePoolObjPtr pool)
+virStorageBackendFileSystemIsValid(virStoragePoolObj *pool)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
 
     if (def->type == VIR_STORAGE_POOL_NETFS) {
         if (def->source.nhost != 1) {
@@ -237,10 +237,10 @@ virStorageBackendFileSystemIsValid(virStoragePoolObjPtr pool)
  * Return 0 if not mounted, 1 if mounted, -1 on error
  */
 static int
-virStorageBackendFileSystemIsMounted(virStoragePoolObjPtr pool)
+virStorageBackendFileSystemIsMounted(virStoragePoolObj *pool)
 {
     int ret = -1;
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     FILE *mtab;
     struct mntent ent;
     char buf[1024];
@@ -284,9 +284,9 @@ virStorageBackendFileSystemIsMounted(virStoragePoolObjPtr pool)
  * Returns 0 if successfully mounted, -1 on error
  */
 static int
-virStorageBackendFileSystemMount(virStoragePoolObjPtr pool)
+virStorageBackendFileSystemMount(virStoragePoolObj *pool)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     int rc;
     g_autofree char *src = NULL;
     g_autoptr(virCommand) cmd = NULL;
@@ -327,9 +327,9 @@ virStorageBackendFileSystemMount(virStoragePoolObjPtr pool)
  * Returns 0 on success, -1 on error
  */
 static int
-virStorageBackendFileSystemStart(virStoragePoolObjPtr pool)
+virStorageBackendFileSystemStart(virStoragePoolObj *pool)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
 
     if (def->type != VIR_STORAGE_POOL_DIR &&
         virStorageBackendFileSystemMount(pool) < 0)
@@ -351,9 +351,9 @@ virStorageBackendFileSystemStart(virStoragePoolObjPtr pool)
  * Returns 0 if successfully unmounted, -1 on error
  */
 static int
-virStorageBackendFileSystemStop(virStoragePoolObjPtr pool)
+virStorageBackendFileSystemStop(virStoragePoolObj *pool)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     int rc;
     g_autoptr(virCommand) cmd = NULL;
 
@@ -371,10 +371,10 @@ virStorageBackendFileSystemStop(virStoragePoolObjPtr pool)
 
 
 static int
-virStorageBackendFileSystemCheck(virStoragePoolObjPtr pool,
+virStorageBackendFileSystemCheck(virStoragePoolObj *pool,
                                  bool *isActive)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
 
     if (def->type == VIR_STORAGE_POOL_DIR) {
         *isActive = virFileExists(def->target.path);
@@ -397,15 +397,26 @@ virStorageBackendFileSystemCheck(virStoragePoolObjPtr pool,
     return 0;
 }
 
-/* some platforms don't support mkfs */
-#ifdef MKFS
 static int
 virStorageBackendExecuteMKFS(const char *device,
                              const char *format)
 {
     g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *mkfs = NULL;
 
-    cmd = virCommandNewArgList(MKFS, "-t", format, NULL);
+#if WITH_STORAGE_FS
+    mkfs = virFindFileInPath(MKFS);
+#endif /* WITH_STORAGE_FS */
+
+    if (!mkfs) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("mkfs is not available on this platform: "
+                         "Failed to make filesystem of type '%s' on device '%s'"),
+                       format, device);
+        return -1;
+    }
+
+    cmd = virCommandNewArgList(mkfs, "-t", format, NULL);
 
     /* use the force, otherwise mkfs.xfs won't overwrite existing fs.
      * Similarly mkfs.ext2, mkfs.ext3, and mkfs.ext4 require supplying -F
@@ -426,25 +437,12 @@ virStorageBackendExecuteMKFS(const char *device,
 
     return 0;
 }
-#else /* #ifdef MKFS */
-static int
-virStorageBackendExecuteMKFS(const char *device G_GNUC_UNUSED,
-                             const char *format G_GNUC_UNUSED)
-{
-    virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("mkfs is not supported on this platform: "
-                     "Failed to make filesystem of "
-                     "type '%s' on device '%s'"),
-                   format, device);
-    return -1;
-}
-#endif /* #ifdef MKFS */
 
 static int
-virStorageBackendMakeFileSystem(virStoragePoolObjPtr pool,
+virStorageBackendMakeFileSystem(virStoragePoolObj *pool,
                                 unsigned int flags)
 {
-    virStoragePoolDefPtr def = virStoragePoolObjGetDef(pool);
+    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     const char *device = NULL, *format = NULL;
     bool ok_to_mkfs = false;
     int ret = -1;
@@ -505,7 +503,7 @@ virStorageBackendMakeFileSystem(virStoragePoolObjPtr pool,
  * Returns 0 on success, -1 on error
  */
 static int
-virStorageBackendFileSystemBuild(virStoragePoolObjPtr pool,
+virStorageBackendFileSystemBuild(virStoragePoolObj *pool,
                                  unsigned int flags)
 {
     virCheckFlags(VIR_STORAGE_POOL_BUILD_OVERWRITE |
@@ -544,17 +542,17 @@ virStorageBackendFileSystemBuild(virStoragePoolObjPtr pool,
 static void
 virStoragePoolDefFSNamespaceFree(void *nsdata)
 {
-    virStoragePoolFSMountOptionsDefPtr cmdopts = nsdata;
+    virStoragePoolFSMountOptionsDef *cmdopts = nsdata;
     size_t i;
 
     if (!cmdopts)
         return;
 
     for (i = 0; i < cmdopts->noptions; i++)
-        VIR_FREE(cmdopts->options[i]);
-    VIR_FREE(cmdopts->options);
+        g_free(cmdopts->options[i]);
+    g_free(cmdopts->options);
 
-    VIR_FREE(cmdopts);
+    g_free(cmdopts);
 }
 
 
@@ -562,7 +560,7 @@ static int
 virStoragePoolDefFSNamespaceParse(xmlXPathContextPtr ctxt,
                                   void **data)
 {
-    virStoragePoolFSMountOptionsDefPtr cmdopts = NULL;
+    virStoragePoolFSMountOptionsDef *cmdopts = NULL;
     int nnodes;
     size_t i;
     int ret = -1;
@@ -598,11 +596,11 @@ virStoragePoolDefFSNamespaceParse(xmlXPathContextPtr ctxt,
 
 
 static int
-virStoragePoolDefFSNamespaceFormatXML(virBufferPtr buf,
+virStoragePoolDefFSNamespaceFormatXML(virBuffer *buf,
                                       void *nsdata)
 {
     size_t i;
-    virStoragePoolFSMountOptionsDefPtr def = nsdata;
+    virStoragePoolFSMountOptionsDef *def = nsdata;
 
     if (!def)
         return 0;

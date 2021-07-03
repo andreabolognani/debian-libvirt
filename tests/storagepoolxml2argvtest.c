@@ -23,8 +23,8 @@ testCompareXMLToArgvFiles(bool shouldFail,
                           const char *cmdline)
 {
     int ret = -1;
-    virStoragePoolDefPtr def = NULL;
-    virStoragePoolObjPtr pool = NULL;
+    virStoragePoolDef *def = NULL;
+    virStoragePoolObj *pool = NULL;
     const char *defTypeStr;
     g_autofree char *actualCmdline = NULL;
     g_autofree char *src = NULL;
@@ -74,13 +74,12 @@ testCompareXMLToArgvFiles(bool shouldFail,
         goto cleanup;
     };
 
-    if (!(actualCmdline = virCommandToString(cmd, false))) {
+    if (!(actualCmdline = virCommandToStringFull(cmd, true, true))) {
         VIR_TEST_DEBUG("pool type '%s' failed to get commandline", defTypeStr);
         goto cleanup;
     }
 
-    virTestClearCommandPath(actualCmdline);
-    if (virTestCompareToFile(actualCmdline, cmdline) < 0)
+    if (virTestCompareToFileFull(actualCmdline, cmdline, false) < 0)
         goto cleanup;
 
     ret = 0;

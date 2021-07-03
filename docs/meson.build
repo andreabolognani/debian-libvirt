@@ -7,7 +7,6 @@ docs_assets = [
   'android-chrome-192x192.png',
   'android-chrome-256x256.png',
   'apple-touch-icon.png',
-  'architecture.gif',
   'browserconfig.xml',
   'favicon.ico',
   'favicon-16x16.png',
@@ -32,17 +31,8 @@ docs_assets = [
 
 docs_html_in_files = [
   '404',
-  'aclpolkit',
-  'api_extension',
-  'api',
-  'apps',
-  'architecture',
-  'auditlog',
-  'auth',
-  'bindings',
   'bugs',
   'cgroups',
-  'compiling',
   'contact',
   'contribute',
   'csharp',
@@ -57,7 +47,6 @@ docs_html_in_files = [
   'drvlxc',
   'drvnodedev',
   'drvopenvz',
-  'drvqemu',
   'drvremote',
   'drvsecret',
   'drvtest',
@@ -106,13 +95,23 @@ docs_html_in_files = [
 ]
 
 docs_rst_files = [
+  'aclpolkit',
   'advanced-tests',
+  'api_extension',
+  'api',
+  'apps',
+  'auditlog',
+  'auth',
+  'bindings',
   'best-practices',
   'ci',
   'coding-style',
   'committer-guidelines',
+  'compiling',
   'daemons',
   'developer-tooling',
+  'drvqemu',
+  'drvch',
   'formatbackup',
   'formatcheckpoint',
   'formatdomain',
@@ -298,6 +297,7 @@ html_xslt_gen = []
 # --- end of XSLT processing ---
 
 subdir('fonts')
+subdir('go')
 subdir('html')
 subdir('internals')
 subdir('js')

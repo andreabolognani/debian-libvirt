@@ -51,11 +51,12 @@ VIR_ENUM_IMPL(qemuMigrationCookieFlag,
               "cpu",
               "allowReboot",
               "capabilities",
+              "block-dirty-bitmaps",
 );
 
 
 static void
-qemuMigrationCookieGraphicsFree(qemuMigrationCookieGraphicsPtr grap)
+qemuMigrationCookieGraphicsFree(qemuMigrationCookieGraphics *grap)
 {
     if (!grap)
         return;
@@ -69,7 +70,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationCookieGraphics,
 
 
 static void
-qemuMigrationCookieNetworkFree(qemuMigrationCookieNetworkPtr network)
+qemuMigrationCookieNetworkFree(qemuMigrationCookieNetwork *network)
 {
     size_t i;
 
@@ -88,7 +89,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationCookieNetwork,
                               qemuMigrationCookieNetworkFree);
 
 static void
-qemuMigrationCookieNBDFree(qemuMigrationCookieNBDPtr nbd)
+qemuMigrationCookieNBDFree(qemuMigrationCookieNBD *nbd)
 {
     if (!nbd)
         return;
@@ -103,7 +104,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationCookieNBD,
                               qemuMigrationCookieNBDFree);
 
 static void
-qemuMigrationCookieCapsFree(qemuMigrationCookieCapsPtr caps)
+qemuMigrationCookieCapsFree(qemuMigrationCookieCaps *caps)
 {
     if (!caps)
         return;
@@ -116,8 +117,41 @@ qemuMigrationCookieCapsFree(qemuMigrationCookieCapsPtr caps)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationCookieCaps,
                               qemuMigrationCookieCapsFree);
 
+static void
+qemuMigrationBlockDirtyBitmapsDiskBitmapFree(qemuMigrationBlockDirtyBitmapsDiskBitmap *bmp)
+{
+    if (!bmp)
+        return;
+
+    g_free(bmp->bitmapname);
+    g_free(bmp->alias);
+    g_free(bmp->sourcebitmap);
+    g_free(bmp);
+}
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationBlockDirtyBitmapsDiskBitmap,
+                              qemuMigrationBlockDirtyBitmapsDiskBitmapFree);
+
+
+static void
+qemuMigrationBlockDirtyBitmapsDiskFree(qemuMigrationBlockDirtyBitmapsDisk *dsk)
+{
+    if (!dsk)
+        return;
+
+    g_free(dsk->target);
+    if (dsk->bitmaps)
+        g_slist_free_full(dsk->bitmaps,
+                          (GDestroyNotify) qemuMigrationBlockDirtyBitmapsDiskBitmapFree);
+    g_free(dsk);
+}
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationBlockDirtyBitmapsDisk,
+                              qemuMigrationBlockDirtyBitmapsDiskFree);
+
+
 void
-qemuMigrationCookieFree(qemuMigrationCookiePtr mig)
+qemuMigrationCookieFree(qemuMigrationCookie *mig)
 {
     if (!mig)
         return;
@@ -135,6 +169,9 @@ qemuMigrationCookieFree(qemuMigrationCookiePtr mig)
     g_clear_pointer(&mig->jobInfo, qemuDomainJobInfoFree);
     virCPUDefFree(mig->cpu);
     qemuMigrationCookieCapsFree(mig->caps);
+    if (mig->blockDirtyBitmaps)
+        g_slist_free_full(mig->blockDirtyBitmaps,
+                          (GDestroyNotify) qemuMigrationBlockDirtyBitmapsDiskFree);
     g_free(mig);
 }
 
@@ -187,10 +224,10 @@ qemuDomainExtractTLSSubject(const char *certdir)
 }
 
 
-static qemuMigrationCookieGraphicsPtr
-qemuMigrationCookieGraphicsSpiceAlloc(virQEMUDriverPtr driver,
-                                      virDomainGraphicsDefPtr def,
-                                      virDomainGraphicsListenDefPtr glisten)
+static qemuMigrationCookieGraphics *
+qemuMigrationCookieGraphicsSpiceAlloc(virQEMUDriver *driver,
+                                      virDomainGraphicsDef *def,
+                                      virDomainGraphicsListenDef *glisten)
 {
     g_autoptr(qemuMigrationCookieGraphics) mig = g_new0(qemuMigrationCookieGraphics, 1);
     const char *listenAddr;
@@ -216,9 +253,9 @@ qemuMigrationCookieGraphicsSpiceAlloc(virQEMUDriverPtr driver,
 }
 
 
-static qemuMigrationCookieNetworkPtr
-qemuMigrationCookieNetworkAlloc(virQEMUDriverPtr driver G_GNUC_UNUSED,
-                                virDomainDefPtr def)
+static qemuMigrationCookieNetwork *
+qemuMigrationCookieNetworkAlloc(virQEMUDriver *driver G_GNUC_UNUSED,
+                                virDomainDef *def)
 {
     g_autoptr(qemuMigrationCookieNetwork) mig = g_new0(qemuMigrationCookieNetwork, 1);
     size_t i;
@@ -227,7 +264,7 @@ qemuMigrationCookieNetworkAlloc(virQEMUDriverPtr driver G_GNUC_UNUSED,
     mig->net = g_new0(qemuMigrationCookieNetData, def->nnets);
 
     for (i = 0; i < def->nnets; i++) {
-        virDomainNetDefPtr netptr;
+        virDomainNetDef *netptr;
         const virNetDevVPortProfile *vport;
 
         netptr = def->nets[i];
@@ -259,11 +296,11 @@ qemuMigrationCookieNetworkAlloc(virQEMUDriverPtr driver G_GNUC_UNUSED,
 }
 
 
-qemuMigrationCookiePtr
+qemuMigrationCookie *
 qemuMigrationCookieNew(const virDomainDef *def,
                        const char *origname)
 {
-    qemuMigrationCookiePtr mig = NULL;
+    qemuMigrationCookie *mig = NULL;
     unsigned char localHostUUID[VIR_UUID_BUFLEN];
     g_autofree char *localHostname = NULL;
 
@@ -292,9 +329,9 @@ qemuMigrationCookieNew(const virDomainDef *def,
 
 
 static int
-qemuMigrationCookieAddGraphics(qemuMigrationCookiePtr mig,
-                               virQEMUDriverPtr driver,
-                               virDomainObjPtr dom)
+qemuMigrationCookieAddGraphics(qemuMigrationCookie *mig,
+                               virQEMUDriver *driver,
+                               virDomainObj *dom)
 {
     size_t i = 0;
 
@@ -306,7 +343,7 @@ qemuMigrationCookieAddGraphics(qemuMigrationCookiePtr mig,
 
     for (i = 0; i < dom->def->ngraphics; i++) {
         if (dom->def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
-            virDomainGraphicsListenDefPtr glisten =
+            virDomainGraphicsListenDef *glisten =
                 virDomainGraphicsGetListen(dom->def->graphics[i], 0);
 
             if (!glisten) {
@@ -345,11 +382,11 @@ qemuMigrationCookieAddGraphics(qemuMigrationCookiePtr mig,
 
 
 static int
-qemuMigrationCookieAddLockstate(qemuMigrationCookiePtr mig,
-                                virQEMUDriverPtr driver,
-                                virDomainObjPtr dom)
+qemuMigrationCookieAddLockstate(qemuMigrationCookie *mig,
+                                virQEMUDriver *driver,
+                                virDomainObj *dom)
 {
-    qemuDomainObjPrivatePtr priv = dom->privateData;
+    qemuDomainObjPrivate *priv = dom->privateData;
 
     if (mig->flags & QEMU_MIGRATION_COOKIE_LOCKSTATE) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -374,8 +411,8 @@ qemuMigrationCookieAddLockstate(qemuMigrationCookiePtr mig,
 
 
 int
-qemuMigrationCookieAddPersistent(qemuMigrationCookiePtr mig,
-                                 virDomainDefPtr *def)
+qemuMigrationCookieAddPersistent(qemuMigrationCookie *mig,
+                                 virDomainDef **def)
 {
     if (mig->flags & QEMU_MIGRATION_COOKIE_PERSISTENT) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -386,18 +423,17 @@ qemuMigrationCookieAddPersistent(qemuMigrationCookiePtr mig,
     if (!def || !*def)
         return 0;
 
-    mig->persistent = *def;
-    *def = NULL;
+    mig->persistent = g_steal_pointer(&*def);
     mig->flags |= QEMU_MIGRATION_COOKIE_PERSISTENT;
     mig->flagsMandatory |= QEMU_MIGRATION_COOKIE_PERSISTENT;
     return 0;
 }
 
 
-virDomainDefPtr
-qemuMigrationCookieGetPersistent(qemuMigrationCookiePtr mig)
+virDomainDef *
+qemuMigrationCookieGetPersistent(qemuMigrationCookie *mig)
 {
-    virDomainDefPtr def = mig->persistent;
+    virDomainDef *def = mig->persistent;
 
     mig->persistent = NULL;
     mig->flags &= ~QEMU_MIGRATION_COOKIE_PERSISTENT;
@@ -408,9 +444,9 @@ qemuMigrationCookieGetPersistent(qemuMigrationCookiePtr mig)
 
 
 static int
-qemuMigrationCookieAddNetwork(qemuMigrationCookiePtr mig,
-                              virQEMUDriverPtr driver,
-                              virDomainObjPtr dom)
+qemuMigrationCookieAddNetwork(qemuMigrationCookie *mig,
+                              virQEMUDriver *driver,
+                              virDomainObj *dom)
 {
     if (mig->flags & QEMU_MIGRATION_COOKIE_NETWORK) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -430,11 +466,11 @@ qemuMigrationCookieAddNetwork(qemuMigrationCookiePtr mig,
 
 
 static int
-qemuMigrationCookieAddNBD(qemuMigrationCookiePtr mig,
-                          virQEMUDriverPtr driver,
-                          virDomainObjPtr vm)
+qemuMigrationCookieAddNBD(qemuMigrationCookie *mig,
+                          virQEMUDriver *driver,
+                          virDomainObj *vm)
 {
-    qemuDomainObjPrivatePtr priv = vm->privateData;
+    qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(GHashTable) stats = virHashNew(g_free);
     bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
     size_t i;
@@ -464,7 +500,7 @@ qemuMigrationCookieAddNBD(qemuMigrationCookiePtr mig,
         return -1;
 
     for (i = 0; i < vm->def->ndisks; i++) {
-        virDomainDiskDefPtr disk = vm->def->disks[i];
+        virDomainDiskDef *disk = vm->def->disks[i];
         qemuBlockStats *entry;
 
         if (blockdev) {
@@ -486,10 +522,10 @@ qemuMigrationCookieAddNBD(qemuMigrationCookiePtr mig,
 
 
 static int
-qemuMigrationCookieAddStatistics(qemuMigrationCookiePtr mig,
-                                 virDomainObjPtr vm)
+qemuMigrationCookieAddStatistics(qemuMigrationCookie *mig,
+                                 virDomainObj *vm)
 {
-    qemuDomainObjPrivatePtr priv = vm->privateData;
+    qemuDomainObjPrivate *priv = vm->privateData;
 
     if (!priv->job.completed)
         return 0;
@@ -504,8 +540,8 @@ qemuMigrationCookieAddStatistics(qemuMigrationCookiePtr mig,
 
 
 static int
-qemuMigrationCookieAddCPU(qemuMigrationCookiePtr mig,
-                          virDomainObjPtr vm)
+qemuMigrationCookieAddCPU(qemuMigrationCookie *mig,
+                          virDomainObj *vm)
 {
     if (mig->cpu)
         return 0;
@@ -523,10 +559,10 @@ qemuMigrationCookieAddCPU(qemuMigrationCookiePtr mig,
 
 
 static void
-qemuMigrationCookieAddAllowReboot(qemuMigrationCookiePtr mig,
-                                  virDomainObjPtr vm)
+qemuMigrationCookieAddAllowReboot(qemuMigrationCookie *mig,
+                                  virDomainObj *vm)
 {
-    qemuDomainObjPrivatePtr priv = vm->privateData;
+    qemuDomainObjPrivate *priv = vm->privateData;
 
     mig->allowReboot = priv->allowReboot;
 
@@ -535,11 +571,11 @@ qemuMigrationCookieAddAllowReboot(qemuMigrationCookiePtr mig,
 
 
 static int
-qemuMigrationCookieAddCaps(qemuMigrationCookiePtr mig,
-                           virDomainObjPtr vm,
+qemuMigrationCookieAddCaps(qemuMigrationCookie *mig,
+                           virDomainObj *vm,
                            qemuMigrationParty party)
 {
-    qemuDomainObjPrivatePtr priv = vm->privateData;
+    qemuDomainObjPrivate *priv = vm->privateData;
 
     qemuMigrationCookieCapsFree(mig->caps);
     mig->caps = g_new0(qemuMigrationCookieCaps, 1);
@@ -558,8 +594,8 @@ qemuMigrationCookieAddCaps(qemuMigrationCookiePtr mig,
 
 
 static void
-qemuMigrationCookieGraphicsXMLFormat(virBufferPtr buf,
-                                     qemuMigrationCookieGraphicsPtr grap)
+qemuMigrationCookieGraphicsXMLFormat(virBuffer *buf,
+                                     qemuMigrationCookieGraphics *grap)
 {
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
@@ -578,8 +614,8 @@ qemuMigrationCookieGraphicsXMLFormat(virBufferPtr buf,
 
 
 static void
-qemuMigrationCookieNetworkXMLFormat(virBufferPtr buf,
-                                    qemuMigrationCookieNetworkPtr optr)
+qemuMigrationCookieNetworkXMLFormat(virBuffer *buf,
+                                    qemuMigrationCookieNetwork *optr)
 {
     g_auto(virBuffer) interfaceBuf = VIR_BUFFER_INIT_CHILD(buf);
     size_t i;
@@ -606,8 +642,8 @@ qemuMigrationCookieNetworkXMLFormat(virBufferPtr buf,
 
 
 static void
-qemuMigrationCookieStatisticsXMLFormat(virBufferPtr buf,
-                                       qemuDomainJobInfoPtr jobInfo)
+qemuMigrationCookieStatisticsXMLFormat(virBuffer *buf,
+                                       qemuDomainJobInfo *jobInfo)
 {
     qemuMonitorMigrationStats *stats = &jobInfo->stats.mig;
 
@@ -712,8 +748,8 @@ qemuMigrationCookieStatisticsXMLFormat(virBufferPtr buf,
 
 
 static void
-qemuMigrationCookieCapsXMLFormat(virBufferPtr buf,
-                                 qemuMigrationCookieCapsPtr caps)
+qemuMigrationCookieCapsXMLFormat(virBuffer *buf,
+                                 qemuMigrationCookieCaps *caps)
 {
     qemuMigrationCapability cap;
 
@@ -739,8 +775,8 @@ qemuMigrationCookieCapsXMLFormat(virBufferPtr buf,
 
 
 static void
-qemuMigrationCookieNBDXMLFormat(qemuMigrationCookieNBDPtr nbd,
-                                virBufferPtr buf)
+qemuMigrationCookieNBDXMLFormat(qemuMigrationCookieNBD *nbd,
+                                virBuffer *buf)
 {
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
@@ -754,15 +790,57 @@ qemuMigrationCookieNBDXMLFormat(qemuMigrationCookieNBDPtr nbd,
         virBufferAsprintf(&childBuf, " capacity='%llu'/>\n", nbd->disks[i].capacity);
     }
 
-    virXMLFormatElement(buf, "nbd", &attrBuf, &childBuf);
+    virXMLFormatElementEmpty(buf, "nbd", &attrBuf, &childBuf);
+}
+
+
+static void
+qemuMigrationCookieBlockDirtyBitmapsFormat(virBuffer *buf,
+                                           GSList *bitmaps)
+{
+    g_auto(virBuffer) disksBuf = VIR_BUFFER_INIT_CHILD(buf);
+    GSList *nextdisk;
+
+    for (nextdisk = bitmaps; nextdisk; nextdisk = nextdisk->next) {
+        qemuMigrationBlockDirtyBitmapsDisk *disk = nextdisk->data;
+        g_auto(virBuffer) diskAttrBuf = VIR_BUFFER_INITIALIZER;
+        g_auto(virBuffer) diskChildBuf = VIR_BUFFER_INIT_CHILD(&disksBuf);
+        bool hasBitmaps = false;
+        GSList *nextbitmap;
+
+        if (disk->skip || !disk->bitmaps)
+            continue;
+
+        for (nextbitmap = disk->bitmaps; nextbitmap; nextbitmap = nextbitmap->next) {
+            qemuMigrationBlockDirtyBitmapsDiskBitmap *bitmap = nextbitmap->data;
+
+            if (bitmap->skip)
+                continue;
+
+            virBufferAsprintf(&diskChildBuf,
+                              "<bitmap name='%s' alias='%s'/>\n",
+                              bitmap->bitmapname, bitmap->alias);
+
+            hasBitmaps = true;
+        }
+
+        if (!hasBitmaps)
+            continue;
+
+        virBufferAsprintf(&diskAttrBuf, " target='%s'", disk->target);
+        virXMLFormatElement(&disksBuf, "disk", &diskAttrBuf, &diskChildBuf);
+    }
+
+
+    virXMLFormatElement(buf, "blockDirtyBitmaps", NULL, &disksBuf);
 }
 
 
 int
-qemuMigrationCookieXMLFormat(virQEMUDriverPtr driver,
-                             virQEMUCapsPtr qemuCaps,
-                             virBufferPtr buf,
-                             qemuMigrationCookiePtr mig)
+qemuMigrationCookieXMLFormat(virQEMUDriver *driver,
+                             virQEMUCaps *qemuCaps,
+                             virBuffer *buf,
+                             qemuMigrationCookie *mig)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
     char hostuuidstr[VIR_UUID_STRING_BUFLEN];
@@ -829,13 +907,16 @@ qemuMigrationCookieXMLFormat(virQEMUDriverPtr driver,
     if (mig->flags & QEMU_MIGRATION_COOKIE_CAPS)
         qemuMigrationCookieCapsXMLFormat(buf, mig->caps);
 
+    if (mig->flags & QEMU_MIGRATION_COOKIE_BLOCK_DIRTY_BITMAPS)
+        qemuMigrationCookieBlockDirtyBitmapsFormat(buf, mig->blockDirtyBitmaps);
+
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</qemu-migration>\n");
     return 0;
 }
 
 
-static qemuMigrationCookieGraphicsPtr
+static qemuMigrationCookieGraphics *
 qemuMigrationCookieGraphicsXMLParse(xmlXPathContextPtr ctxt)
 {
     g_autoptr(qemuMigrationCookieGraphics) grap = g_new0(qemuMigrationCookieGraphics, 1);
@@ -875,7 +956,7 @@ qemuMigrationCookieGraphicsXMLParse(xmlXPathContextPtr ctxt)
 }
 
 
-static qemuMigrationCookieNetworkPtr
+static qemuMigrationCookieNetwork *
 qemuMigrationCookieNetworkXMLParse(xmlXPathContextPtr ctxt)
 {
     g_autoptr(qemuMigrationCookieNetwork) optr = g_new0(qemuMigrationCookieNetwork, 1);
@@ -912,7 +993,7 @@ qemuMigrationCookieNetworkXMLParse(xmlXPathContextPtr ctxt)
 }
 
 
-static qemuMigrationCookieNBDPtr
+static qemuMigrationCookieNBD *
 qemuMigrationCookieNBDXMLParse(xmlXPathContextPtr ctxt)
 {
     g_autoptr(qemuMigrationCookieNBD) ret = g_new0(qemuMigrationCookieNBD, 1);
@@ -964,10 +1045,10 @@ qemuMigrationCookieNBDXMLParse(xmlXPathContextPtr ctxt)
 }
 
 
-static qemuDomainJobInfoPtr
+static qemuDomainJobInfo *
 qemuMigrationCookieStatisticsXMLParse(xmlXPathContextPtr ctxt)
 {
-    qemuDomainJobInfoPtr jobInfo = NULL;
+    qemuDomainJobInfo *jobInfo = NULL;
     qemuMonitorMigrationStats *stats;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
@@ -1050,7 +1131,7 @@ qemuMigrationCookieStatisticsXMLParse(xmlXPathContextPtr ctxt)
 }
 
 
-static qemuMigrationCookieCapsPtr
+static qemuMigrationCookieCaps *
 qemuMigrationCookieCapsXMLParse(xmlXPathContextPtr ctxt)
 {
     g_autoptr(qemuMigrationCookieCaps) caps = g_new0(qemuMigrationCookieCaps, 1);
@@ -1133,9 +1214,68 @@ qemuMigrationCookieXMLParseMandatoryFeatures(xmlXPathContextPtr ctxt,
 
 
 static int
-qemuMigrationCookieXMLParse(qemuMigrationCookiePtr mig,
-                            virQEMUDriverPtr driver,
-                            virQEMUCapsPtr qemuCaps,
+qemuMigrationCookieBlockDirtyBitmapsParse(xmlXPathContextPtr ctxt,
+                                          qemuMigrationCookie *mig)
+{
+    g_autoslist(qemuMigrationBlockDirtyBitmapsDisk) disks = NULL;
+    g_autofree xmlNodePtr *disknodes = NULL;
+    int ndisknodes;
+    size_t i;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+
+    if ((ndisknodes = virXPathNodeSet("./blockDirtyBitmaps/disk", ctxt, &disknodes)) < 0)
+        return -1;
+
+    for (i = 0; i < ndisknodes; i++) {
+        g_autoslist(qemuMigrationBlockDirtyBitmapsDiskBitmap) bitmaps = NULL;
+        qemuMigrationBlockDirtyBitmapsDisk *disk;
+        g_autofree xmlNodePtr *bitmapnodes = NULL;
+        int nbitmapnodes;
+        size_t j;
+
+        ctxt->node = disknodes[i];
+
+        if ((nbitmapnodes = virXPathNodeSet("./bitmap", ctxt, &bitmapnodes)) < 0)
+            return -1;
+
+        for (j = 0; j < nbitmapnodes; j++) {
+            qemuMigrationBlockDirtyBitmapsDiskBitmap *bitmap;
+
+            bitmap = g_new0(qemuMigrationBlockDirtyBitmapsDiskBitmap, 1);
+            bitmap->bitmapname = virXMLPropString(bitmapnodes[j], "name");
+            bitmap->alias = virXMLPropString(bitmapnodes[j], "alias");
+            bitmaps = g_slist_prepend(bitmaps, bitmap);
+
+            if (!bitmap->bitmapname || !bitmap->alias) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("malformed <blockDirtyBitmaps> in migration cookie"));
+                return -1;
+            }
+        }
+
+        disk = g_new0(qemuMigrationBlockDirtyBitmapsDisk, 1);
+        disk->target = virXMLPropString(disknodes[i], "target");
+        disk->bitmaps = g_slist_reverse(g_steal_pointer(&bitmaps));
+
+        disks = g_slist_prepend(disks, disk);
+
+        if (!disk->target) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("malformed <blockDirtyBitmaps> in migration cookie"));
+            return -1;
+        }
+    }
+
+    mig->blockDirtyBitmaps = g_slist_reverse(g_steal_pointer(&disks));
+
+    return 0;
+}
+
+
+static int
+qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
+                            virQEMUDriver *driver,
+                            virQEMUCaps *qemuCaps,
                             xmlDocPtr doc,
                             xmlXPathContextPtr ctxt,
                             unsigned int flags)
@@ -1275,14 +1415,19 @@ qemuMigrationCookieXMLParse(qemuMigrationCookiePtr mig,
         !(mig->caps = qemuMigrationCookieCapsXMLParse(ctxt)))
         return -1;
 
+    if (flags & QEMU_MIGRATION_COOKIE_BLOCK_DIRTY_BITMAPS &&
+        virXPathBoolean("boolean(./blockDirtyBitmaps)", ctxt) &&
+        qemuMigrationCookieBlockDirtyBitmapsParse(ctxt, mig) < 0)
+        return -1;
+
     return 0;
 }
 
 
 static int
-qemuMigrationCookieXMLParseStr(qemuMigrationCookiePtr mig,
-                               virQEMUDriverPtr driver,
-                               virQEMUCapsPtr qemuCaps,
+qemuMigrationCookieXMLParseStr(qemuMigrationCookie *mig,
+                               virQEMUDriver *driver,
+                               virQEMUCaps *qemuCaps,
                                const char *xml,
                                unsigned int flags)
 {
@@ -1306,15 +1451,15 @@ qemuMigrationCookieXMLParseStr(qemuMigrationCookiePtr mig,
 
 
 int
-qemuMigrationCookieFormat(qemuMigrationCookiePtr mig,
-                          virQEMUDriverPtr driver,
-                          virDomainObjPtr dom,
+qemuMigrationCookieFormat(qemuMigrationCookie *mig,
+                          virQEMUDriver *driver,
+                          virDomainObj *dom,
                           qemuMigrationParty party,
                           char **cookieout,
                           int *cookieoutlen,
                           unsigned int flags)
 {
-    qemuDomainObjPrivatePtr priv = dom->privateData;
+    qemuDomainObjPrivate *priv = dom->privateData;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
     if (!cookieout || !cookieoutlen)
@@ -1372,11 +1517,11 @@ qemuMigrationCookieFormat(qemuMigrationCookiePtr mig,
 }
 
 
-qemuMigrationCookiePtr
-qemuMigrationCookieParse(virQEMUDriverPtr driver,
+qemuMigrationCookie *
+qemuMigrationCookieParse(virQEMUDriver *driver,
                          const virDomainDef *def,
                          const char *origname,
-                         qemuDomainObjPrivatePtr priv,
+                         qemuDomainObjPrivate *priv,
                          const char *cookiein,
                          int cookieinlen,
                          unsigned int flags)
@@ -1433,4 +1578,117 @@ qemuMigrationCookieParse(virQEMUDriverPtr driver,
         mig->jobInfo->operation = priv->job.current->operation;
 
     return g_steal_pointer(&mig);
+}
+
+
+/**
+ * qemuMigrationCookieBlockDirtyBitmapsMatchDisks:
+ * @def: domain definition
+ * @disks: list of qemuMigrationBlockDirtyBitmapsDisk *
+ *
+ * Matches all of the @disks to the actual domain disk definition objects
+ * by looking up the target.
+ */
+int
+qemuMigrationCookieBlockDirtyBitmapsMatchDisks(virDomainDef *def,
+                                               GSList *disks)
+{
+    GSList *next;
+
+    for (next = disks; next; next = next->next) {
+        qemuMigrationBlockDirtyBitmapsDisk *disk = next->data;
+
+        if (!(disk->disk = virDomainDiskByTarget(def, disk->target))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Can't find disk '%s' in domain definition"),
+                           disk->target);
+            return -1;
+        }
+
+        disk->nodename = disk->disk->src->nodeformat;
+    }
+
+    return 0;
+}
+
+
+/**
+ * qemuMigrationCookieBlockDirtyBitmapsToParams:
+ * @disks: list of qemuMigrationBlockDirtyBitmapsDisk
+ * @mapping: filled with resulting mapping
+ *
+ * Converts @disks into the arguments for 'block-bitmap-mapping' migration
+ * parameter.
+ */
+int
+qemuMigrationCookieBlockDirtyBitmapsToParams(GSList *disks,
+                                             virJSONValue **mapping)
+{
+    g_autoptr(virJSONValue) map = virJSONValueNewArray();
+    bool hasDisks = false;
+    GSList *nextdisk;
+
+    for (nextdisk = disks; nextdisk; nextdisk = nextdisk->next) {
+        qemuMigrationBlockDirtyBitmapsDisk *disk = nextdisk->data;
+        g_autoptr(virJSONValue) jsondisk = NULL;
+        g_autoptr(virJSONValue) jsonbitmaps = virJSONValueNewArray();
+        bool hasBitmaps = false;
+        GSList *nextbitmap;
+
+        if (disk->skip || !disk->bitmaps)
+            continue;
+
+        for (nextbitmap = disk->bitmaps; nextbitmap; nextbitmap = nextbitmap->next) {
+            qemuMigrationBlockDirtyBitmapsDiskBitmap *bitmap = nextbitmap->data;
+            g_autoptr(virJSONValue) jsonbitmap = NULL;
+            g_autoptr(virJSONValue) transform = NULL;
+            const char *bitmapname = bitmap->sourcebitmap;
+
+            if (bitmap->skip)
+                continue;
+
+            /* if there isn't an override, use the real name */
+            if (!bitmapname)
+                bitmapname = bitmap->bitmapname;
+
+            if (bitmap->persistent == VIR_TRISTATE_BOOL_YES) {
+                if (virJSONValueObjectCreate(&transform,
+                                             "b:persistent", true, NULL) < 0)
+                    return -1;
+            }
+
+            if (virJSONValueObjectCreate(&jsonbitmap,
+                                         "s:name", bitmapname,
+                                         "s:alias", bitmap->alias,
+                                         "A:transform", &transform,
+                                         NULL) < 0)
+                return -1;
+
+            if (virJSONValueArrayAppend(jsonbitmaps, &jsonbitmap) < 0)
+                return -1;
+
+            hasBitmaps = true;
+        }
+
+        if (!hasBitmaps)
+            continue;
+
+        if (virJSONValueObjectCreate(&jsondisk,
+                                     "s:node-name", disk->nodename,
+                                     "s:alias", disk->target,
+                                     "a:bitmaps", &jsonbitmaps,
+                                     NULL) < 0)
+            return -1;
+
+        if (virJSONValueArrayAppend(map, &jsondisk) < 0)
+            return -1;
+
+        hasDisks = true;
+    }
+
+    if (!hasDisks)
+        return 0;
+
+    *mapping = g_steal_pointer(&map);
+    return 0;
 }

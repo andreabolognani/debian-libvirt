@@ -8,7 +8,7 @@
 static int
 mymain(void)
 {
-    virSecurityManagerPtr mgr;
+    virSecurityManager *mgr;
     const char *doi, *model;
 
     mgr = virSecurityManagerNew(NULL, "QEMU", VIR_SECURITY_MANAGER_DEFAULT_CONFINED);
@@ -33,7 +33,7 @@ mymain(void)
 
     virObjectUnref(mgr);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 VIR_TEST_MAIN(mymain)

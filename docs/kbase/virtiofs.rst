@@ -29,7 +29,11 @@ NUMA. As of QEMU 5.0.0 and libvirt 6.9.0, it is possible to
 specify the memory backend without NUMA (using the so called
 memobject interface).
 
-Either of the following:
+One of the following:
+
+* Use memfd memory
+
+  No host setup is required when using the Linux memfd memory backend.
 
 * Use file-backed memory
 
@@ -75,7 +79,20 @@ Guest setup
 
 #. Specify the memory backend
 
-   Either of the following:
+   One of the following:
+
+   * memfd memory
+
+     ::
+
+        <domain>
+          ...
+          <memoryBacking>
+            <source type='memfd'/>
+            <access mode='shared'/>
+          </memoryBacking>
+          ...
+        </domain>
 
    * File-backed memory
 
@@ -149,3 +166,19 @@ More optional elements can be specified
     <cache mode='always'/>
     <lock posix='on' flock='on'/>
   </binary>
+
+Externally-launched virtiofsd
+=============================
+
+Libvirtd can also connect the ``vhost-user-fs`` device to a ``virtiofsd``
+daemon launched outside of libvirtd. In that case socket permissions,
+the mount tag and all the virtiofsd options are out of libvirtd's
+control and need to be set by the application running virtiofsd.
+
+::
+
+  <filesystem type='mount'/>
+    <driver type='virtiofs' queue='1024'/>
+    <source socket='/var/virtiofsd.sock'/>
+    <target dir='tag'/>
+  </filesystem>

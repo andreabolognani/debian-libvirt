@@ -1704,6 +1704,23 @@ states other than "ok" or "error" the command also prints number of
 seconds elapsed since the control interface entered its current state.
 
 
+domdirtyrate-calc
+-----------------
+
+**Syntax:**
+
+::
+
+   domdirtyrate-calc <domain> [--seconds <sec>]
+
+Calculate an active domain's memory dirty rate which may be expected by
+user in order to decide whether it's proper to be migrated out or not.
+The ``seconds`` parameter can be used to calculate dirty rate in a
+specific time which allows 60s at most now and would be default to 1s
+if missing. The calculated dirty rate information is available by calling
+'domstats --dirtyrate'.
+
+
 domdisplay
 ----------
 
@@ -2202,7 +2219,7 @@ domstats
 
    domstats [--raw] [--enforce] [--backing] [--nowait] [--state]
       [--cpu-total] [--balloon] [--vcpu] [--interface]
-      [--block] [--perf] [--iothread] [--memory]
+      [--block] [--perf] [--iothread] [--memory] [--dirtyrate]
       [[--list-active] [--list-inactive]
        [--list-persistent] [--list-transient] [--list-running]y
        [--list-paused] [--list-shutoff] [--list-other]] | [domain ...]
@@ -2221,7 +2238,8 @@ behavior use the *--raw* flag.
 The individual statistics groups are selectable via specific flags. By
 default all supported statistics groups are returned. Supported
 statistics groups flags are: *--state*, *--cpu-total*, *--balloon*,
-*--vcpu*, *--interface*, *--block*, *--perf*, *--iothread*, *--memory*.
+*--vcpu*, *--interface*, *--block*, *--perf*, *--iothread*, *--memory*,
+*--dirtyrate*.
 
 Note that - depending on the hypervisor type and version or the domain state
 - not all of the following statistics may be returned.
@@ -2295,6 +2313,10 @@ When selecting the *--state* group the following fields are returned:
 * ``vcpu.<num>.halted`` - virtual CPU <num> is halted: yes or
   no (may indicate the processor is idle or even disabled,
   depending on the architecture)
+* ``vcpu.<num>.delay`` - time the vCPU <num> thread was enqueued by the
+  host scheduler, but was waiting in the queue instead of running.
+  Exposed to the VM as a steal time.
+
 
 
 *--interface* returns:
@@ -2414,6 +2436,17 @@ not available for statistical purposes.
   bytes consumed by @vcpus that passing through all memory controllers, either
   local or remote controller.
 
+*--dirtyrate* returns:
+
+* ``dirtyrate.calc_status`` - the status of last memory dirty rate
+  calculation, returned as number from virDomainDirtyRateStatus enum.
+* ``dirtyrate.calc_start_time`` - the start time of last memory dirty
+  rate calculation.
+* ``dirtyrate.calc_period`` - the period of last memory dirty rate
+  calculation.
+* ``dirtyrate.megabytes_per_second`` - the calculated memory dirty
+  rate in MiB/s.
+
 
 Selecting a specific statistics groups doesn't guarantee that the
 daemon supports the selected group of stats. Flag *--enforce*
@@ -2521,9 +2554,10 @@ If *--memory-only* is specified, the file is elf file, and will only
 include domain's memory and cpu common register value. It is very
 useful if the domain uses host devices directly.
 *--format* *string* is used to specify the format of 'memory-only'
-dump, and *string* can be one of them: elf, kdump-zlib(kdump-compressed
+dump, and *string* can be one of: elf, kdump-zlib(kdump-compressed
 format with zlib-compressed), kdump-lzo(kdump-compressed format with
-lzo-compressed), kdump-snappy(kdump-compressed format with snappy-compressed).
+lzo-compressed), kdump-snappy(kdump-compressed format with snappy-compressed),
+win-dmp(Windows full crashdump format).
 
 The progress may be monitored using ``domjobinfo`` virsh command and canceled
 with ``domjobabort`` command (sent by another virsh instance). Another option
@@ -2754,6 +2788,7 @@ returned:
 * ``disk.<num>.partition`` - whether this is a partition or disk
 * ``disk.<num>.dependency.count`` - the number of device dependencies
 * ``disk.<num>.dependency.<num>.name`` - a dependency name
+* ``disk.<num>.serial`` -  optional disk serial number
 * ``disk.<num>.alias`` - the device alias of the disk (e.g. sda)
 * ``disk.<num>.guest_alias`` - optional alias assigned to the disk
 
@@ -3807,10 +3842,7 @@ If *--config* is specified, affect the next start of a persistent guest.
 If *--current* is specified, it is equivalent to either *--live* or
 *--config*, depending on the current state of the guest.
 
-``Note``: The cpu_shares parameter has a valid value range of 0-262144; Negative
-values are wrapped to positive, and larger values are capped at the maximum.
-Therefore, -1 is a useful shorthand for 262144. On the Linux kernel, the
-values 0 and 1 are automatically converted to a minimal value of 2.
+``Note``: The cpu_shares parameter has a valid value range of 2-262144.
 
 ``Note``: The weight and cap parameters are defined only for the
 XEN_CREDIT scheduler.
@@ -3818,7 +3850,7 @@ XEN_CREDIT scheduler.
 ``Note``: The vcpu_period, emulator_period, and iothread_period parameters
 have a valid value range of 1000-1000000 or 0, and the vcpu_quota,
 emulator_quota, and iothread_quota parameters have a valid value range of
-1000-18446744073709551 or less than 0. The value 0 for
+1000-17592186044415 or less than 0. The value 0 for
 either parameter is the same as not specifying that parameter.
 
 
@@ -6885,7 +6917,7 @@ snapshot-create-as
 
    snapshot-create-as domain {[--print-xml] [--no-metadata]
       [--halt] [--reuse-external]} [name]
-      [description] [--disk-only [--quiesce]] [--atomic]
+      [description] [--disk-only [--quiesce]] [--atomic] [--validate]
       [[--live] [--memspec memspec]] [--diskspec] diskspec]...
 
 Create a snapshot for domain *domain* with the given <name> and
@@ -6957,6 +6989,8 @@ For now, it is not possible to create snapshots in a domain that has
 checkpoints, although this restriction will be lifted in a future
 release.
 
+Optionally, the *--validate* option can be passed to validate XML document
+which is internally generated by this command against the internal RNG schema.
 
 snapshot-current
 ----------------

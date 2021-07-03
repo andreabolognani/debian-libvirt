@@ -20,6 +20,7 @@
 
 #include <unistd.h>
 
+#include "storage_source.h"
 #include "testutils.h"
 #include "vircommand.h"
 #include "virerror.h"
@@ -79,7 +80,7 @@ testCleanupImages(void)
 }
 
 
-static virStorageSourcePtr
+static virStorageSource *
 testStorageFileGetMetadata(const char *path,
                            int format,
                            uid_t uid, gid_t gid)
@@ -100,7 +101,8 @@ testStorageFileGetMetadata(const char *path,
 
     def->path = g_strdup(path);
 
-    if (virStorageFileGetMetadata(def, uid, gid, true) < 0)
+    /* 20 is picked as an arbitrary depth, since the chains used here don't exceed it */
+    if (virStorageSourceGetMetadata(def, uid, gid, 20, true) < 0)
         return NULL;
 
     return g_steal_pointer(&def);
@@ -140,11 +142,11 @@ testPrepImages(void)
     absdir = g_strdup_printf("%s/dir", datadir);
     abslink2 = g_strdup_printf("%s/sub/link2", datadir);
 
-    if (virFileMakePath(datadir "/sub") < 0) {
+    if (g_mkdir_with_parents(datadir "/sub", 0777) < 0) {
         fprintf(stderr, "unable to create directory %s\n", datadir "/sub");
         goto cleanup;
     }
-    if (virFileMakePath(datadir "/dir") < 0) {
+    if (g_mkdir_with_parents(datadir "/dir", 0777) < 0) {
         fprintf(stderr, "unable to create directory %s\n", datadir "/dir");
         goto cleanup;
     }
@@ -267,7 +269,7 @@ static int
 testStorageChain(const void *args)
 {
     const struct testChainData *data = args;
-    virStorageSourcePtr elt;
+    virStorageSource *elt;
     size_t i = 0;
     g_autoptr(virStorageSource) meta = NULL;
 
@@ -335,14 +337,14 @@ testStorageChain(const void *args)
 
 struct testLookupData
 {
-    virStorageSourcePtr chain;
+    virStorageSource *chain;
     const char *target;
-    virStorageSourcePtr from;
+    virStorageSource *from;
     const char *name;
     unsigned int expIndex;
     const char *expResult;
-    virStorageSourcePtr expMeta;
-    virStorageSourcePtr expParent;
+    virStorageSource *expMeta;
+    virStorageSource *expParent;
 };
 
 static int
@@ -350,63 +352,22 @@ testStorageLookup(const void *args)
 {
     const struct testLookupData *data = args;
     int ret = 0;
-    virStorageSourcePtr result;
-    virStorageSourcePtr actualParent;
-    unsigned int idx;
+    virStorageSource *result;
+    virStorageSource *actualParent;
 
-    if (virStorageFileParseChainIndex(data->target, data->name, &idx) < 0 &&
-        data->expIndex) {
-        fprintf(stderr, "call should not have failed\n");
-        ret = -1;
-    }
-    if (idx != data->expIndex) {
-        fprintf(stderr, "index: expected %u, got %u\n", data->expIndex, idx);
-        ret = -1;
-    }
-
-     /* Test twice to ensure optional parameter doesn't cause NULL deref. */
-    result = virStorageFileChainLookup(data->chain, data->from,
-                                       idx ? NULL : data->name,
-                                       idx, NULL);
-
-    if (!data->expResult) {
-        if (virGetLastErrorCode() == VIR_ERR_OK) {
-            fprintf(stderr, "call should have failed\n");
-            ret = -1;
-        }
-        virResetLastError();
-    } else {
-        if (virGetLastErrorCode()) {
-            fprintf(stderr, "call should not have warned\n");
-            ret = -1;
-        }
-    }
-
-    if (!result) {
-        if (data->expResult) {
-            fprintf(stderr, "result 1: expected %s, got NULL\n",
-                    data->expResult);
-            ret = -1;
-        }
-    } else if (STRNEQ_NULLABLE(data->expResult, result->path)) {
-        fprintf(stderr, "result 1: expected %s, got %s\n",
-                NULLSTR(data->expResult), NULLSTR(result->path));
-        ret = -1;
-    }
-
-    result = virStorageFileChainLookup(data->chain, data->from,
-                                       data->name, idx, &actualParent);
+    result = virStorageSourceChainLookup(data->chain, data->from,
+                                         data->name, data->target, &actualParent);
     if (!data->expResult)
         virResetLastError();
 
     if (!result) {
         if (data->expResult) {
-            fprintf(stderr, "result 2: expected %s, got NULL\n",
+            fprintf(stderr, "result: expected %s, got NULL\n",
                     data->expResult);
             ret = -1;
         }
     } else if (STRNEQ_NULLABLE(data->expResult, result->path)) {
-        fprintf(stderr, "result 2: expected %s, got %s\n",
+        fprintf(stderr, "result: expected %s, got %s\n",
                 NULLSTR(data->expResult), NULLSTR(result->path));
         ret = -1;
     }
@@ -414,6 +375,17 @@ testStorageLookup(const void *args)
         fprintf(stderr, "meta: expected %p, got %p\n",
                 data->expMeta, result);
         ret = -1;
+    }
+    if (data->expIndex > 0) {
+        if (!result) {
+            fprintf(stderr, "index: resulting lookup is empty, can't match index\n");
+            ret = -1;
+        } else {
+            if (result->id != data->expIndex) {
+                fprintf(stderr, "index: expected %u, got %u\n", data->expIndex, result->id);
+                ret = -1;
+            }
+        }
     }
     if (data->expParent != actualParent) {
         fprintf(stderr, "parent: expected %s, got %s\n",
@@ -425,62 +397,6 @@ testStorageLookup(const void *args)
     return ret;
 }
 
-
-struct testPathCanonicalizeData
-{
-    const char *path;
-    const char *expect;
-};
-
-static const char *testPathCanonicalizeSymlinks[][2] =
-{
-    {"/path/blah", "/other/path/huzah"},
-    {"/path/to/relative/symlink", "../../actual/file"},
-    {"/cycle", "/cycle"},
-    {"/cycle2/link", "./link"},
-};
-
-static int
-testPathCanonicalizeReadlink(const char *path,
-                             char **linkpath,
-                             void *data G_GNUC_UNUSED)
-{
-    size_t i;
-
-    *linkpath = NULL;
-
-    for (i = 0; i < G_N_ELEMENTS(testPathCanonicalizeSymlinks); i++) {
-        if (STREQ(path, testPathCanonicalizeSymlinks[i][0])) {
-            *linkpath = g_strdup(testPathCanonicalizeSymlinks[i][1]);
-
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
-
-static int
-testPathCanonicalize(const void *args)
-{
-    const struct testPathCanonicalizeData *data = args;
-    g_autofree char *canon = NULL;
-
-    canon = virStorageFileCanonicalizePath(data->path,
-                                           testPathCanonicalizeReadlink,
-                                           NULL);
-
-    if (STRNEQ_NULLABLE(data->expect, canon)) {
-        fprintf(stderr,
-                "path canonicalization of '%s' failed: expected '%s' got '%s'\n",
-                data->path, NULLSTR(data->expect), NULLSTR(canon));
-
-        return -1;
-    }
-
-    return 0;
-}
 
 static virStorageSource backingchain[12];
 
@@ -539,8 +455,8 @@ testPathRelativePrepare(void)
 
 struct testPathRelativeBacking
 {
-    virStorageSourcePtr top;
-    virStorageSourcePtr base;
+    virStorageSource *top;
+    virStorageSource *base;
 
     const char *expect;
 };
@@ -551,9 +467,9 @@ testPathRelative(const void *args)
     const struct testPathRelativeBacking *data = args;
     g_autofree char *actual = NULL;
 
-    if (virStorageFileGetRelativeBackingPath(data->top,
-                                             data->base,
-                                             &actual) < 0) {
+    if (virStorageSourceGetRelativeBackingPath(data->top,
+                                               data->base,
+                                               &actual) < 0) {
         fprintf(stderr, "relative backing path resolution failed\n");
         return -1;
     }
@@ -630,11 +546,10 @@ mymain(void)
     int ret;
     struct testChainData data;
     struct testLookupData data2;
-    struct testPathCanonicalizeData data3;
     struct testPathRelativeBacking data4;
     struct testBackingParseData data5;
-    virStorageSourcePtr chain2; /* short for chain->backingStore */
-    virStorageSourcePtr chain3; /* short for chain2->backingStore */
+    virStorageSource *chain2; /* short for chain->backingStore */
+    virStorageSource *chain3; /* short for chain2->backingStore */
     g_autoptr(virCommand) cmd = NULL;
     g_autoptr(virStorageSource) chain = NULL;
 
@@ -1106,56 +1021,13 @@ mymain(void)
     TEST_LOOKUP_TARGET(72, "vda", NULL, "vda[0]", 0, NULL, NULL, NULL);
     TEST_LOOKUP_TARGET(73, "vda", NULL, "vda[1]", 1, chain2->path, chain2, chain);
     TEST_LOOKUP_TARGET(74, "vda", chain, "vda[1]", 1, chain2->path, chain2, chain);
-    TEST_LOOKUP_TARGET(75, "vda", chain2, "vda[1]", 1, NULL, NULL, NULL);
-    TEST_LOOKUP_TARGET(76, "vda", chain3, "vda[1]", 1, NULL, NULL, NULL);
+    TEST_LOOKUP_TARGET(75, "vda", chain2, "vda[1]", 0, NULL, NULL, NULL);
+    TEST_LOOKUP_TARGET(76, "vda", chain3, "vda[1]", 0, NULL, NULL, NULL);
     TEST_LOOKUP_TARGET(77, "vda", NULL, "vda[2]", 2, chain3->path, chain3, chain2);
     TEST_LOOKUP_TARGET(78, "vda", chain, "vda[2]", 2, chain3->path, chain3, chain2);
     TEST_LOOKUP_TARGET(79, "vda", chain2, "vda[2]", 2, chain3->path, chain3, chain2);
-    TEST_LOOKUP_TARGET(80, "vda", chain3, "vda[2]", 2, NULL, NULL, NULL);
-    TEST_LOOKUP_TARGET(81, "vda", NULL, "vda[3]", 3, NULL, NULL, NULL);
-
-#define TEST_PATH_CANONICALIZE(id, PATH, EXPECT) \
-    do { \
-        data3.path = PATH; \
-        data3.expect = EXPECT; \
-        if (virTestRun("Path canonicalize " #id, \
-                       testPathCanonicalize, &data3) < 0) \
-            ret = -1; \
-    } while (0)
-
-    TEST_PATH_CANONICALIZE(1, "/", "/");
-    TEST_PATH_CANONICALIZE(2, "/path", "/path");
-    TEST_PATH_CANONICALIZE(3, "/path/to/blah", "/path/to/blah");
-    TEST_PATH_CANONICALIZE(4, "/path/", "/path");
-    TEST_PATH_CANONICALIZE(5, "///////", "/");
-    TEST_PATH_CANONICALIZE(6, "//", "//");
-    TEST_PATH_CANONICALIZE(7, "", "");
-    TEST_PATH_CANONICALIZE(8, ".", ".");
-    TEST_PATH_CANONICALIZE(9, "../", "..");
-    TEST_PATH_CANONICALIZE(10, "../../", "../..");
-    TEST_PATH_CANONICALIZE(11, "../../blah", "../../blah");
-    TEST_PATH_CANONICALIZE(12, "/./././blah", "/blah");
-    TEST_PATH_CANONICALIZE(13, ".././../././../blah", "../../../blah");
-    TEST_PATH_CANONICALIZE(14, "/././", "/");
-    TEST_PATH_CANONICALIZE(15, "./././", ".");
-    TEST_PATH_CANONICALIZE(16, "blah/../foo", "foo");
-    TEST_PATH_CANONICALIZE(17, "foo/bar/../blah", "foo/blah");
-    TEST_PATH_CANONICALIZE(18, "foo/bar/.././blah", "foo/blah");
-    TEST_PATH_CANONICALIZE(19, "/path/to/foo/bar/../../../../../../../../baz", "/baz");
-    TEST_PATH_CANONICALIZE(20, "path/to/foo/bar/../../../../../../../../baz", "../../../../baz");
-    TEST_PATH_CANONICALIZE(21, "path/to/foo/bar", "path/to/foo/bar");
-    TEST_PATH_CANONICALIZE(22, "//foo//bar", "//foo/bar");
-    TEST_PATH_CANONICALIZE(23, "/bar//foo", "/bar/foo");
-    TEST_PATH_CANONICALIZE(24, "//../blah", "//blah");
-
-    /* test paths with symlinks */
-    TEST_PATH_CANONICALIZE(25, "/path/blah", "/other/path/huzah");
-    TEST_PATH_CANONICALIZE(26, "/path/to/relative/symlink", "/path/actual/file");
-    TEST_PATH_CANONICALIZE(27, "/path/to/relative/symlink/blah", "/path/actual/file/blah");
-    TEST_PATH_CANONICALIZE(28, "/path/blah/yippee", "/other/path/huzah/yippee");
-    TEST_PATH_CANONICALIZE(29, "/cycle", NULL);
-    TEST_PATH_CANONICALIZE(30, "/cycle2/link", NULL);
-    TEST_PATH_CANONICALIZE(31, "///", "/");
+    TEST_LOOKUP_TARGET(80, "vda", chain3, "vda[2]", 0, NULL, NULL, NULL);
+    TEST_LOOKUP_TARGET(81, "vda", NULL, "vda[3]", 0, NULL, NULL, NULL);
 
 #define TEST_RELATIVE_BACKING(id, TOP, BASE, EXPECT) \
     do { \

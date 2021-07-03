@@ -23,7 +23,7 @@ testFilterXML(char *xml)
     char **xmlLine;
     char *ret = NULL;
 
-    if (!(xmlLines = virStringSplit(xml, "\n", 0))) {
+    if (!(xmlLines = g_strsplit(xml, "\n", 0))) {
         VIR_FREE(xml);
         goto cleanup;
     }
@@ -50,11 +50,11 @@ testCompareXMLtoXMLFiles(const char *xml)
     char *actual = NULL;
     char *pathResult = NULL;
     int ret = -1;
-    virVBoxSnapshotConfMachinePtr machine = NULL;
+    virVBoxSnapshotConfMachine *machine = NULL;
 
     pathResult = g_strdup(abs_builddir "/vboxsnapshotxmldata/testResult.vbox");
 
-    if (virFileMakePath(abs_builddir "/vboxsnapshotxmldata") < 0)
+    if (g_mkdir_with_parents(abs_builddir "/vboxsnapshotxmldata", 0777) < 0)
         goto cleanup;
 
     if (virTestLoadFile(xml, &xmlData) < 0)

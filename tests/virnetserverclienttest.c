@@ -27,7 +27,7 @@
 #ifndef WIN32
 
 static void *
-testClientNew(virNetServerClientPtr client G_GNUC_UNUSED,
+testClientNew(virNetServerClient *client G_GNUC_UNUSED,
               void *opaque G_GNUC_UNUSED)
 {
     char *dummy;
@@ -41,15 +41,15 @@ testClientNew(virNetServerClientPtr client G_GNUC_UNUSED,
 static void
 testClientFree(void *opaque)
 {
-    VIR_FREE(opaque);
+    g_free(opaque);
 }
 
 static int testIdentity(const void *opaque G_GNUC_UNUSED)
 {
     int sv[2];
     int ret = -1;
-    virNetSocketPtr sock = NULL;
-    virNetServerClientPtr client = NULL;
+    virNetSocket *sock = NULL;
+    virNetServerClient *client = NULL;
     g_autoptr(virIdentity) ident = NULL;
     const char *gotUsername = NULL;
     uid_t gotUserID;

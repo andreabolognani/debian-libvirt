@@ -101,38 +101,38 @@ virNodeDevCapsDefParseString(const char *xpath,
 
 
 void
-virNodeDeviceDefFree(virNodeDeviceDefPtr def)
+virNodeDeviceDefFree(virNodeDeviceDef *def)
 {
-    virNodeDevCapsDefPtr caps;
+    virNodeDevCapsDef *caps;
 
     if (!def)
         return;
 
-    VIR_FREE(def->name);
-    VIR_FREE(def->parent);
-    VIR_FREE(def->parent_wwnn);
-    VIR_FREE(def->parent_wwpn);
-    VIR_FREE(def->parent_fabric_wwn);
-    VIR_FREE(def->driver);
-    VIR_FREE(def->sysfs_path);
-    VIR_FREE(def->parent_sysfs_path);
-    VIR_FREE(def->devnode);
+    g_free(def->name);
+    g_free(def->parent);
+    g_free(def->parent_wwnn);
+    g_free(def->parent_wwpn);
+    g_free(def->parent_fabric_wwn);
+    g_free(def->driver);
+    g_free(def->sysfs_path);
+    g_free(def->parent_sysfs_path);
+    g_free(def->devnode);
     g_strfreev(def->devlinks);
 
     caps = def->caps;
     while (caps) {
-        virNodeDevCapsDefPtr next = caps->next;
+        virNodeDevCapsDef *next = caps->next;
         virNodeDevCapsDefFree(caps);
         caps = next;
     }
 
-    VIR_FREE(def);
+    g_free(def);
 }
 
 
 static void
-virPCIELinkFormat(virBufferPtr buf,
-                  virPCIELinkPtr lnk,
+virPCIELinkFormat(virBuffer *buf,
+                  virPCIELink *lnk,
                   const char *attrib)
 {
     if (!lnk)
@@ -150,8 +150,8 @@ virPCIELinkFormat(virBufferPtr buf,
 
 
 static void
-virPCIEDeviceInfoFormat(virBufferPtr buf,
-                        virPCIEDeviceInfoPtr info)
+virPCIEDeviceInfoFormat(virBuffer *buf,
+                        virPCIEDeviceInfo *info)
 {
     if (!info->link_cap && !info->link_sta) {
         virBufferAddLit(buf, "<pci-express/>\n");
@@ -170,7 +170,7 @@ virPCIEDeviceInfoFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapSystemDefFormat(virBufferPtr buf,
+virNodeDeviceCapSystemDefFormat(virBuffer *buf,
                                 const virNodeDevCapData *data)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
@@ -211,8 +211,8 @@ virNodeDeviceCapSystemDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapMdevTypesFormat(virBufferPtr buf,
-                                virMediatedDeviceTypePtr *mdev_types,
+virNodeDeviceCapMdevTypesFormat(virBuffer *buf,
+                                virMediatedDeviceType **mdev_types,
                                 const size_t nmdev_types)
 {
     size_t i;
@@ -221,7 +221,7 @@ virNodeDeviceCapMdevTypesFormat(virBufferPtr buf,
         virBufferAddLit(buf, "<capability type='mdev_types'>\n");
         virBufferAdjustIndent(buf, 2);
         for (i = 0; i < nmdev_types; i++) {
-            virMediatedDeviceTypePtr type = mdev_types[i];
+            virMediatedDeviceType *type = mdev_types[i];
             virBufferEscapeString(buf, "<type id='%s'>\n", type->id);
             virBufferAdjustIndent(buf, 2);
             if (type->name)
@@ -242,7 +242,7 @@ virNodeDeviceCapMdevTypesFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapPCIDefFormat(virBufferPtr buf,
+virNodeDeviceCapPCIDefFormat(virBuffer *buf,
                              const virNodeDevCapData *data)
 {
     size_t i;
@@ -341,7 +341,7 @@ virNodeDeviceCapPCIDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapUSBDevDefFormat(virBufferPtr buf,
+virNodeDeviceCapUSBDevDefFormat(virBuffer *buf,
                                 const virNodeDevCapData *data)
 {
     virBufferAsprintf(buf, "<bus>%d</bus>\n", data->usb_dev.bus);
@@ -365,7 +365,7 @@ virNodeDeviceCapUSBDevDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapUSBInterfaceDefFormat(virBufferPtr buf,
+virNodeDeviceCapUSBInterfaceDefFormat(virBuffer *buf,
                                       const virNodeDevCapData *data)
 {
     virBufferAsprintf(buf, "<number>%d</number>\n",
@@ -384,7 +384,7 @@ virNodeDeviceCapUSBInterfaceDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapNetDefFormat(virBufferPtr buf,
+virNodeDeviceCapNetDefFormat(virBuffer *buf,
                              const virNodeDevCapData *data)
 {
     size_t i;
@@ -413,7 +413,7 @@ virNodeDeviceCapNetDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapSCSIHostDefFormat(virBufferPtr buf,
+virNodeDeviceCapSCSIHostDefFormat(virBuffer *buf,
                                   const virNodeDevCapData *data)
 {
     virBufferAsprintf(buf, "<host>%d</host>\n",
@@ -447,7 +447,7 @@ virNodeDeviceCapSCSIHostDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapSCSIDefFormat(virBufferPtr buf,
+virNodeDeviceCapSCSIDefFormat(virBuffer *buf,
                               const virNodeDevCapData *data)
 {
     virBufferAsprintf(buf, "<host>%d</host>\n", data->scsi.host);
@@ -462,7 +462,7 @@ virNodeDeviceCapSCSIDefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapStorageDefFormat(virBufferPtr buf,
+virNodeDeviceCapStorageDefFormat(virBuffer *buf,
                                  const virNodeDevCapData *data)
 {
     virBufferEscapeString(buf, "<block>%s</block>\n",
@@ -521,24 +521,25 @@ virNodeDeviceCapStorageDefFormat(virBufferPtr buf,
 }
 
 static void
-virNodeDeviceCapMdevDefFormat(virBufferPtr buf,
+virNodeDeviceCapMdevDefFormat(virBuffer *buf,
                               const virNodeDevCapData *data)
 {
     size_t i;
 
     virBufferEscapeString(buf, "<type id='%s'/>\n", data->mdev.type);
+    virBufferEscapeString(buf, "<uuid>%s</uuid>\n", data->mdev.uuid);
     virBufferAsprintf(buf, "<iommuGroup number='%u'/>\n",
                       data->mdev.iommuGroupNumber);
 
     for (i = 0; i < data->mdev.nattributes; i++) {
-        virMediatedDeviceAttrPtr attr = data->mdev.attributes[i];
+        virMediatedDeviceAttr *attr = data->mdev.attributes[i];
         virBufferAsprintf(buf, "<attr name='%s' value='%s'/>\n",
                           attr->name, attr->value);
     }
 }
 
 static void
-virNodeDeviceCapVDPADefFormat(virBufferPtr buf,
+virNodeDeviceCapVDPADefFormat(virBuffer *buf,
                               const virNodeDevCapData *data)
 {
     virBufferEscapeString(buf, "<chardev>%s</chardev>\n", data->vdpa.chardev);
@@ -546,7 +547,7 @@ virNodeDeviceCapVDPADefFormat(virBufferPtr buf,
 
 
 static void
-virNodeDeviceCapCCWDefFormat(virBufferPtr buf,
+virNodeDeviceCapCCWDefFormat(virBuffer *buf,
                              const virNodeDevCapData *data)
 {
     virBufferAsprintf(buf, "<cssid>0x%x</cssid>\n",
@@ -566,7 +567,7 @@ char *
 virNodeDeviceDefFormat(const virNodeDeviceDef *def)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    virNodeDevCapsDefPtr caps;
+    virNodeDevCapsDef *caps;
     size_t i = 0;
 
     virBufferAddLit(&buf, "<device>\n");
@@ -592,7 +593,7 @@ virNodeDeviceDefFormat(const virNodeDeviceDef *def)
     }
 
     for (caps = def->caps; caps; caps = caps->next) {
-        virNodeDevCapDataPtr data = &caps->data;
+        virNodeDevCapData *data = &caps->data;
 
         virBufferAsprintf(&buf, "<capability type='%s'>\n",
                           virNodeDevCapTypeToString(caps->data.type));
@@ -703,7 +704,7 @@ static int
 virNodeDevCapsDefParseIntOptional(const char *xpath,
                                   xmlXPathContextPtr ctxt,
                                   int *value,
-                                  virNodeDeviceDefPtr def,
+                                  virNodeDeviceDef *def,
                                   const char *invalid_error_fmt)
 {
     int ret;
@@ -727,7 +728,7 @@ static int
 virNodeDevCapsDefParseULong(const char *xpath,
                             xmlXPathContextPtr ctxt,
                             unsigned *value,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             const char *missing_error_fmt,
                             const char *invalid_error_fmt)
 {
@@ -751,7 +752,7 @@ static int
 virNodeDevCapsDefParseULongLong(const char *xpath,
                                 xmlXPathContextPtr ctxt,
                                 unsigned long long *value,
-                                virNodeDeviceDefPtr def,
+                                virNodeDeviceDef *def,
                                 const char *missing_error_fmt,
                                 const char *invalid_error_fmt)
 {
@@ -773,13 +774,13 @@ virNodeDevCapsDefParseULongLong(const char *xpath,
 
 static int
 virNodeDevCapDRMParseXML(xmlXPathContextPtr ctxt,
-                         virNodeDeviceDefPtr def,
+                         virNodeDeviceDef *def,
                          xmlNodePtr node,
-                         virNodeDevCapDRMPtr drm)
+                         virNodeDevCapDRM *drm)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1, val;
-    char *type = NULL;
+    int val;
+    g_autofree char *type = NULL;
 
     ctxt->node = node;
 
@@ -788,28 +789,24 @@ virNodeDevCapDRMParseXML(xmlXPathContextPtr ctxt,
     if ((val = virNodeDevDRMTypeFromString(type)) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unknown drm type '%s' for '%s'"), type, def->name);
-        goto out;
+        return -1;
     }
     drm->type = val;
 
-    ret = 0;
-
- out:
-    VIR_FREE(type);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapMdevTypesParseXML(xmlXPathContextPtr ctxt,
-                               virMediatedDeviceTypePtr **mdev_types,
+                               virMediatedDeviceType ***mdev_types,
                                size_t *nmdev_types)
 {
     int ret = -1;
     xmlNodePtr orignode = NULL;
-    xmlNodePtr *nodes = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
     int ntypes = -1;
-    virMediatedDeviceTypePtr type = NULL;
+    virMediatedDeviceType *type = NULL;
     size_t i;
 
     if ((ntypes = virXPathNodeSet("./type", ctxt, &nodes)) < 0)
@@ -859,7 +856,6 @@ virNodeDevCapMdevTypesParseXML(xmlXPathContextPtr ctxt,
 
     ret = 0;
  cleanup:
-    VIR_FREE(nodes);
     virMediatedDeviceTypeFree(type);
     ctxt->node = orignode;
     return ret;
@@ -869,7 +865,7 @@ virNodeDevCapMdevTypesParseXML(xmlXPathContextPtr ctxt,
 static int
 virNodeDevAPMatrixCapabilityParseXML(xmlXPathContextPtr ctxt,
                                      xmlNodePtr node,
-                                     virNodeDevCapAPMatrixPtr apm_dev)
+                                     virNodeDevCapAPMatrix *apm_dev)
 {
     g_autofree char *type = virXMLPropString(node, "type");
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -896,7 +892,7 @@ virNodeDevAPMatrixCapabilityParseXML(xmlXPathContextPtr ctxt,
 static int
 virNodeDevCSSCapabilityParseXML(xmlXPathContextPtr ctxt,
                                 xmlNodePtr node,
-                                virNodeDevCapCCWPtr ccw_dev)
+                                virNodeDevCapCCW *ccw_dev)
 {
     g_autofree char *type = virXMLPropString(node, "type");
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -922,9 +918,9 @@ virNodeDevCSSCapabilityParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
-                         virNodeDeviceDefPtr def,
+                         virNodeDeviceDef *def,
                          xmlNodePtr node,
-                         virNodeDevCapCCWPtr ccw_dev)
+                         virNodeDevCapCCW *ccw_dev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autofree xmlNodePtr *nodes = NULL;
@@ -989,7 +985,7 @@ virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapAPAdapterParseXML(xmlXPathContextPtr ctxt,
-                               virNodeDeviceDefPtr def,
+                               virNodeDeviceDef *def,
                                unsigned int *ap_adapter)
 {
     g_autofree char *adapter = NULL;
@@ -1013,9 +1009,9 @@ virNodeDevCapAPAdapterParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapAPCardParseXML(xmlXPathContextPtr ctxt,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             xmlNodePtr node,
-                            virNodeDevCapAPCardPtr ap_card)
+                            virNodeDevCapAPCard *ap_card)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     ctxt->node = node;
@@ -1026,9 +1022,9 @@ virNodeDevCapAPCardParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapAPQueueParseXML(xmlXPathContextPtr ctxt,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             xmlNodePtr node,
-                            virNodeDevCapAPQueuePtr ap_queue)
+                            virNodeDevCapAPQueue *ap_queue)
 {
     int ret = -1;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -1067,9 +1063,9 @@ virNodeDevCapAPQueueParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapAPMatrixParseXML(xmlXPathContextPtr ctxt,
-                              virNodeDeviceDefPtr def G_GNUC_UNUSED,
+                              virNodeDeviceDef *def G_GNUC_UNUSED,
                               xmlNodePtr node,
-                              virNodeDevCapAPMatrixPtr ap_matrix)
+                              virNodeDevCapAPMatrix *ap_matrix)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autofree xmlNodePtr *nodes = NULL;
@@ -1092,14 +1088,14 @@ virNodeDevCapAPMatrixParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapStorageParseXML(xmlXPathContextPtr ctxt,
-                             virNodeDeviceDefPtr def,
+                             virNodeDeviceDef *def,
                              xmlNodePtr node,
-                             virNodeDevCapStoragePtr storage)
+                             virNodeDevCapStorage *storage)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    xmlNodePtr *nodes = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
     size_t i;
-    int n, ret = -1;
+    int n;
     unsigned long long val;
 
     ctxt->node = node;
@@ -1109,7 +1105,7 @@ virNodeDevCapStorageParseXML(xmlXPathContextPtr ctxt,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("no block device path supplied for '%s'"),
                        def->name);
-        goto out;
+        return -1;
     }
 
     storage->bus        = virXPathString("string(./bus[1])", ctxt);
@@ -1119,16 +1115,16 @@ virNodeDevCapStorageParseXML(xmlXPathContextPtr ctxt,
     storage->serial     = virXPathString("string(./serial[1])", ctxt);
 
     if ((n = virXPathNodeSet("./capability", ctxt, &nodes)) < 0)
-        goto out;
+        return -1;
 
     for (i = 0; i < n; i++) {
-        char *type = virXMLPropString(nodes[i], "type");
+        g_autofree char *type = virXMLPropString(nodes[i], "type");
 
         if (!type) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("missing storage capability type for '%s'"),
                            def->name);
-            goto out;
+            return -1;
         }
 
         if (STREQ(type, "hotpluggable")) {
@@ -1150,8 +1146,7 @@ virNodeDevCapStorageParseXML(xmlXPathContextPtr ctxt,
             if (virNodeDevCapsDefParseULongLong("number(./media_size[1])", ctxt, &val, def,
                                                 _("no removable media size supplied for '%s'"),
                                                 _("invalid removable media size supplied for '%s'")) < 0) {
-                VIR_FREE(type);
-                goto out;
+                return -1;
             }
             storage->removable_media_size = val;
 
@@ -1160,11 +1155,8 @@ virNodeDevCapStorageParseXML(xmlXPathContextPtr ctxt,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unknown storage capability type '%s' for '%s'"),
                            type, def->name);
-            VIR_FREE(type);
-            goto out;
+            return -1;
         }
-
-        VIR_FREE(type);
     }
 
     if (!(storage->flags & VIR_NODE_DEV_CAP_STORAGE_REMOVABLE)) {
@@ -1172,25 +1164,21 @@ virNodeDevCapStorageParseXML(xmlXPathContextPtr ctxt,
         if (virNodeDevCapsDefParseULongLong("number(./size[1])", ctxt, &val, def,
                                             _("no size supplied for '%s'"),
                                             _("invalid size supplied for '%s'")) < 0)
-            goto out;
+            return -1;
         storage->size = val;
     }
 
-    ret = 0;
- out:
-    VIR_FREE(nodes);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapSCSIParseXML(xmlXPathContextPtr ctxt,
-                          virNodeDeviceDefPtr def,
+                          virNodeDeviceDef *def,
                           xmlNodePtr node,
-                          virNodeDevCapSCSIPtr scsi)
+                          virNodeDevCapSCSI *scsi)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
 
     ctxt->node = node;
 
@@ -1198,45 +1186,42 @@ virNodeDevCapSCSIParseXML(xmlXPathContextPtr ctxt,
                                     &scsi->host, def,
                                     _("no SCSI host ID supplied for '%s'"),
                                     _("invalid SCSI host ID supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./bus[1])", ctxt,
                                     &scsi->bus, def,
                                     _("no SCSI bus ID supplied for '%s'"),
                                     _("invalid SCSI bus ID supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./target[1])", ctxt,
                                     &scsi->target, def,
                                     _("no SCSI target ID supplied for '%s'"),
                                     _("invalid SCSI target ID supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./lun[1])", ctxt,
                                     &scsi->lun, def,
                                     _("no SCSI LUN ID supplied for '%s'"),
                                     _("invalid SCSI LUN ID supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     scsi->type = virXPathString("string(./type[1])", ctxt);
 
-    ret = 0;
- out:
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapSCSITargetParseXML(xmlXPathContextPtr ctxt,
-                                virNodeDeviceDefPtr def,
+                                virNodeDeviceDef *def,
                                 xmlNodePtr node,
-                                virNodeDevCapSCSITargetPtr scsi_target)
+                                virNodeDevCapSCSITarget *scsi_target)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    xmlNodePtr *nodes = NULL;
-    int ret = -1, n = 0;
+    g_autofree xmlNodePtr *nodes = NULL;
+    int n = 0;
     size_t i;
-    char *type = NULL;
 
     ctxt->node = node;
 
@@ -1245,20 +1230,21 @@ virNodeDevCapSCSITargetParseXML(xmlXPathContextPtr ctxt,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("no target name supplied for '%s'"),
                        def->name);
-        goto out;
+        return -1;
     }
 
     if ((n = virXPathNodeSet("./capability", ctxt, &nodes)) < 0)
-        goto out;
+        return -1;
 
     for (i = 0; i < n; ++i) {
+        g_autofree char *type = NULL;
         type = virXMLPropString(nodes[i], "type");
 
         if (!type) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("missing type for SCSI target capability for '%s'"),
                            def->name);
-            goto out;
+            return -1;
         }
 
         if (STREQ(type, "fc_remote_port")) {
@@ -1271,7 +1257,7 @@ virNodeDevCapSCSITargetParseXML(xmlXPathContextPtr ctxt,
                                              &scsi_target->rport) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("missing rport name for '%s'"), def->name);
-                goto out;
+                return -1;
             }
 
             if (virNodeDevCapsDefParseString("string(./wwpn[1])",
@@ -1279,40 +1265,32 @@ virNodeDevCapSCSITargetParseXML(xmlXPathContextPtr ctxt,
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("missing wwpn identifier for '%s'"),
                                def->name);
-                goto out;
+                return -1;
             }
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unknown SCSI target capability type '%s' for '%s'"),
                            type, def->name);
-            goto out;
+            return -1;
         }
-
-        VIR_FREE(type);
     }
 
-    ret = 0;
-
- out:
-    VIR_FREE(type);
-    VIR_FREE(nodes);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapSCSIHostParseXML(xmlXPathContextPtr ctxt,
-                              virNodeDeviceDefPtr def,
+                              virNodeDeviceDef *def,
                               xmlNodePtr node,
-                              virNodeDevCapSCSIHostPtr scsi_host,
+                              virNodeDevCapSCSIHost *scsi_host,
                               int create,
                               const char *virt_type)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    xmlNodePtr *nodes = NULL;
-    int ret = -1, n = 0;
+    g_autofree xmlNodePtr *nodes = NULL;
+    int n = 0;
     size_t i;
-    char *type = NULL;
 
     ctxt->node = node;
 
@@ -1321,28 +1299,29 @@ virNodeDevCapSCSIHostParseXML(xmlXPathContextPtr ctxt,
                                         &scsi_host->host, def,
                                         _("no SCSI host ID supplied for '%s'"),
                                         _("invalid SCSI host ID supplied for '%s'")) < 0) {
-            goto out;
+            return -1;
         }
         /* Optional unique_id value */
         scsi_host->unique_id = -1;
         if (virNodeDevCapsDefParseIntOptional("number(./unique_id[1])", ctxt,
                                               &scsi_host->unique_id, def,
                                               _("invalid unique_id supplied for '%s'")) < 0) {
-            goto out;
+            return -1;
         }
     }
 
     if ((n = virXPathNodeSet("./capability", ctxt, &nodes)) < 0)
-        goto out;
+        return -1;
 
     for (i = 0; i < n; i++) {
+        g_autofree char *type = NULL;
         type = virXMLPropString(nodes[i], "type");
 
         if (!type) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("missing SCSI host capability type for '%s'"),
                            def->name);
-            goto out;
+            return -1;
         }
 
         if (STREQ(type, "vport_ops")) {
@@ -1362,7 +1341,7 @@ virNodeDevCapSCSIHostParseXML(xmlXPathContextPtr ctxt,
                                    _("no WWNN supplied for '%s', and "
                                      "auto-generation failed"),
                                    def->name);
-                    goto out;
+                    return -1;
                 }
             }
 
@@ -1374,7 +1353,7 @@ virNodeDevCapSCSIHostParseXML(xmlXPathContextPtr ctxt,
                                    _("no WWPN supplied for '%s', and "
                                      "auto-generation failed"),
                                    def->name);
-                    goto out;
+                    return -1;
                 }
             }
 
@@ -1387,33 +1366,26 @@ virNodeDevCapSCSIHostParseXML(xmlXPathContextPtr ctxt,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unknown SCSI host capability type '%s' for '%s'"),
                            type, def->name);
-            goto out;
+            return -1;
         }
-
-        VIR_FREE(type);
     }
 
-    ret = 0;
-
- out:
-    VIR_FREE(type);
-    VIR_FREE(nodes);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapNetParseXML(xmlXPathContextPtr ctxt,
-                         virNodeDeviceDefPtr def,
+                         virNodeDeviceDef *def,
                          xmlNodePtr node,
-                         virNodeDevCapNetPtr net)
+                         virNodeDevCapNet *net)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr lnk;
     size_t i = -1;
-    int ret = -1, n = -1;
-    char *tmp = NULL;
-    xmlNodePtr *nodes = NULL;
+    int n = -1;
+    g_autofree char *type = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
 
     ctxt->node = node;
 
@@ -1422,70 +1394,64 @@ virNodeDevCapNetParseXML(xmlXPathContextPtr ctxt,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("no network interface supplied for '%s'"),
                        def->name);
-        goto out;
+        return -1;
     }
 
     net->address = virXPathString("string(./address[1])", ctxt);
 
     if ((n = virXPathNodeSet("./feature", ctxt, &nodes)) < 0)
-        goto out;
+        return -1;
 
     if (n > 0)
         net->features = virBitmapNew(VIR_NET_DEV_FEAT_LAST);
 
     for (i = 0; i < n; i++) {
+        g_autofree char *tmp = NULL;
         int val;
         if (!(tmp = virXMLPropString(nodes[i], "name"))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("missing network device feature name"));
-            goto out;
+            return -1;
         }
 
         if ((val = virNetDevFeatureTypeFromString(tmp)) < 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("unknown network device feature '%s'"),
                            tmp);
-            goto out;
+            return -1;
         }
         ignore_value(virBitmapSetBit(net->features, val));
-        VIR_FREE(tmp);
     }
 
     net->subtype = VIR_NODE_DEV_CAP_NET_LAST;
 
-    tmp = virXPathString("string(./capability/@type)", ctxt);
-    if (tmp) {
-        int val = virNodeDevNetCapTypeFromString(tmp);
-        VIR_FREE(tmp);
+    type = virXPathString("string(./capability/@type)", ctxt);
+    if (type) {
+        int val = virNodeDevNetCapTypeFromString(type);
         if (val < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("invalid network type supplied for '%s'"),
                            def->name);
-            goto out;
+            return -1;
         }
         net->subtype = val;
     }
 
     lnk = virXPathNode("./link", ctxt);
     if (lnk && virInterfaceLinkParseXML(lnk, &net->lnk) < 0)
-        goto out;
+        return -1;
 
-    ret = 0;
- out:
-    VIR_FREE(nodes);
-    VIR_FREE(tmp);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapUSBInterfaceParseXML(xmlXPathContextPtr ctxt,
-                                  virNodeDeviceDefPtr def,
+                                  virNodeDeviceDef *def,
                                   xmlNodePtr node,
-                                  virNodeDevCapUSBIfPtr usb_if)
+                                  virNodeDevCapUSBIf *usb_if)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
 
     ctxt->node = node;
 
@@ -1493,31 +1459,29 @@ virNodeDevCapUSBInterfaceParseXML(xmlXPathContextPtr ctxt,
                                     &usb_if->number, def,
                                     _("no USB interface number supplied for '%s'"),
                                     _("invalid USB interface number supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./class[1])", ctxt,
                                     &usb_if->klass, def,
                                     _("no USB interface class supplied for '%s'"),
                                     _("invalid USB interface class supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./subclass[1])", ctxt,
                                     &usb_if->subclass, def,
                                     _("no USB interface subclass supplied for '%s'"),
                                     _("invalid USB interface subclass supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./protocol[1])", ctxt,
                                     &usb_if->protocol, def,
                                     _("no USB interface protocol supplied for '%s'"),
                                     _("invalid USB interface protocol supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     usb_if->description = virXPathString("string(./description[1])", ctxt);
 
-    ret = 0;
- out:
-    return ret;
+    return 0;
 }
 
 
@@ -1525,7 +1489,7 @@ static int
 virNodeDevCapsDefParseHexId(const char *xpath,
                             xmlXPathContextPtr ctxt,
                             unsigned *value,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             const char *missing_error_fmt,
                             const char *invalid_error_fmt)
 {
@@ -1547,12 +1511,11 @@ virNodeDevCapsDefParseHexId(const char *xpath,
 
 static int
 virNodeDevCapUSBDevParseXML(xmlXPathContextPtr ctxt,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             xmlNodePtr node,
-                            virNodeDevCapUSBDevPtr usb_dev)
+                            virNodeDevCapUSBDev *usb_dev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
 
     ctxt->node = node;
 
@@ -1560,172 +1523,116 @@ virNodeDevCapUSBDevParseXML(xmlXPathContextPtr ctxt,
                                     &usb_dev->bus, def,
                                     _("no USB bus number supplied for '%s'"),
                                     _("invalid USB bus number supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseULong("number(./device[1])", ctxt,
                                     &usb_dev->device, def,
                                     _("no USB device number supplied for '%s'"),
                                     _("invalid USB device number supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseHexId("string(./vendor[1]/@id)", ctxt,
                                     &usb_dev->vendor, def,
                                     _("no USB vendor ID supplied for '%s'"),
                                     _("invalid USB vendor ID supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     if (virNodeDevCapsDefParseHexId("string(./product[1]/@id)", ctxt,
                                     &usb_dev->product, def,
                                     _("no USB product ID supplied for '%s'"),
                                     _("invalid USB product ID supplied for '%s'")) < 0)
-        goto out;
+        return -1;
 
     usb_dev->vendor_name  = virXPathString("string(./vendor[1])", ctxt);
     usb_dev->product_name = virXPathString("string(./product[1])", ctxt);
 
-    ret = 0;
- out:
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapPCIDevIommuGroupParseXML(xmlXPathContextPtr ctxt,
                                       xmlNodePtr iommuGroupNode,
-                                      virNodeDevCapPCIDevPtr pci_dev)
+                                      virNodeDevCapPCIDev *pci_dev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    xmlNodePtr *addrNodes = NULL;
-    char *numberStr = NULL;
-    int nAddrNodes, ret = -1;
+    g_autofree xmlNodePtr *addrNodes = NULL;
+    int nAddrNodes;
     size_t i;
-    virPCIDeviceAddressPtr pciAddr = NULL;
 
     ctxt->node = iommuGroupNode;
 
-    numberStr = virXMLPropString(iommuGroupNode, "number");
-    if (!numberStr) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s", _("missing iommuGroup number attribute"));
-        goto cleanup;
-    }
-    if (virStrToLong_ui(numberStr, NULL, 10,
-                        &pci_dev->iommuGroupNumber) < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid iommuGroup number attribute '%s'"),
-                       numberStr);
-        goto cleanup;
-    }
+    if (virXMLPropUInt(iommuGroupNode, "number", 10, VIR_XML_PROP_REQUIRED,
+                       &pci_dev->iommuGroupNumber) < 0)
+        return -1;
 
     if ((nAddrNodes = virXPathNodeSet("./address", ctxt, &addrNodes)) < 0)
-        goto cleanup;
+        return -1;
 
     for (i = 0; i < nAddrNodes; i++) {
-        virPCIDeviceAddress addr = {0};
-        if (virPCIDeviceAddressParseXML(addrNodes[i], &addr) < 0)
-            goto cleanup;
-        pciAddr = g_new0(virPCIDeviceAddress, 1);
-        pciAddr->domain = addr.domain;
-        pciAddr->bus = addr.bus;
-        pciAddr->slot = addr.slot;
-        pciAddr->function = addr.function;
+        g_autoptr(virPCIDeviceAddress) pciAddr = g_new0(virPCIDeviceAddress, 1);
+
+        if (virPCIDeviceAddressParseXML(addrNodes[i], pciAddr) < 0)
+            return -1;
         if (VIR_APPEND_ELEMENT(pci_dev->iommuGroupDevices,
                                pci_dev->nIommuGroupDevices,
                                pciAddr) < 0)
-            goto cleanup;
+            return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(numberStr);
-    VIR_FREE(addrNodes);
-    VIR_FREE(pciAddr);
-    return ret;
+    return 0;
 }
 
 
 static int
-virPCIEDeviceInfoLinkParseXML(xmlXPathContextPtr ctxt,
-                              xmlNodePtr linkNode,
-                              virPCIELinkPtr lnk)
+virPCIEDeviceInfoLinkParseXML(xmlNodePtr linkNode,
+                              virPCIELink *lnk)
 {
-    VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1, speed;
-    char *speedStr = NULL, *portStr = NULL;
+    if (virXMLPropUInt(linkNode, "width", 0, VIR_XML_PROP_REQUIRED, &lnk->width) < 0)
+        return -1;
 
-    ctxt->node = linkNode;
+    if (virXMLPropEnum(linkNode, "speed", virPCIELinkSpeedTypeFromString,
+                       VIR_XML_PROP_NONE, &lnk->speed) < 0)
+        return -1;
 
-    if (virXPathUInt("number(./@width)", ctxt, &lnk->width) < 0) {
-        virReportError(VIR_ERR_XML_DETAIL, "%s",
-                       _("mandatory attribute 'width' is missing or malformed"));
-        goto cleanup;
-    }
+    if (virXMLPropInt(linkNode, "port", 10, VIR_XML_PROP_NONE, &lnk->port, -1) < 0)
+        return -1;
 
-    if ((speedStr = virXPathString("string(./@speed)", ctxt))) {
-        if ((speed = virPCIELinkSpeedTypeFromString(speedStr)) < 0) {
-            virReportError(VIR_ERR_XML_DETAIL,
-                           _("malformed 'speed' attribute: %s"),
-                           speedStr);
-            goto cleanup;
-        }
-        lnk->speed = speed;
-    }
-
-    if ((portStr = virXPathString("string(./@port)", ctxt))) {
-        if (virStrToLong_i(portStr, NULL, 10, &lnk->port) < 0) {
-            virReportError(VIR_ERR_XML_DETAIL,
-                           _("malformed 'port' attribute: %s"),
-                           portStr);
-            goto cleanup;
-        }
-    } else {
-        lnk->port = -1;
-    }
-
-    ret = 0;
- cleanup:
-    VIR_FREE(portStr);
-    VIR_FREE(speedStr);
-    return ret;
+    return 0;
 }
 
 
 static int
 virPCIEDeviceInfoParseXML(xmlXPathContextPtr ctxt,
                           xmlNodePtr pciExpressNode,
-                          virPCIEDeviceInfoPtr pci_express)
+                          virPCIEDeviceInfo *pci_express)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr lnk;
-    int ret = -1;
 
     ctxt->node = pciExpressNode;
 
     if ((lnk = virXPathNode("./link[@validity='cap']", ctxt))) {
         pci_express->link_cap = g_new0(virPCIELink, 1);
 
-        if (virPCIEDeviceInfoLinkParseXML(ctxt, lnk,
-                                          pci_express->link_cap) < 0)
-            goto cleanup;
+        if (virPCIEDeviceInfoLinkParseXML(lnk, pci_express->link_cap) < 0)
+            return -1;
     }
 
     if ((lnk = virXPathNode("./link[@validity='sta']", ctxt))) {
         pci_express->link_sta = g_new0(virPCIELink, 1);
 
-        if (virPCIEDeviceInfoLinkParseXML(ctxt, lnk,
-                                          pci_express->link_sta) < 0)
-            goto cleanup;
+        if (virPCIEDeviceInfoLinkParseXML(lnk, pci_express->link_sta) < 0)
+            return -1;
     }
 
-    ret = 0;
- cleanup:
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevPCICapSRIOVPhysicalParseXML(xmlXPathContextPtr ctxt,
-                                      virNodeDevCapPCIDevPtr pci_dev)
+                                      virNodeDevCapPCIDev *pci_dev)
 {
     xmlNodePtr address = virXPathNode("./address[1]", ctxt);
 
@@ -1749,26 +1656,25 @@ virNodeDevPCICapSRIOVPhysicalParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevPCICapSRIOVVirtualParseXML(xmlXPathContextPtr ctxt,
-                                     virNodeDevCapPCIDevPtr pci_dev)
+                                     virNodeDevCapPCIDev *pci_dev)
 {
-    int ret = -1;
-    xmlNodePtr *addresses = NULL;
+    g_autofree xmlNodePtr *addresses = NULL;
     int naddresses = virXPathNodeSet("./address", ctxt, &addresses);
-    char *maxFuncsStr = virXPathString("string(./@maxCount)", ctxt);
+    g_autofree char *maxFuncsStr = virXPathString("string(./@maxCount)", ctxt);
     size_t i;
 
     if (naddresses < 0)
-        goto cleanup;
+        return -1;
 
     if (maxFuncsStr &&
         virStrToLong_uip(maxFuncsStr, NULL, 10,
                          &pci_dev->max_virtual_functions) < 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("Malformed 'maxCount' parameter"));
-        goto cleanup;
+        return -1;
     }
 
-    pci_dev->virtual_functions = g_new0(virPCIDeviceAddressPtr, naddresses);
+    pci_dev->virtual_functions = g_new0(virPCIDeviceAddress *, naddresses);
 
     for (i = 0; i < naddresses; i++) {
         g_autoptr(virPCIDeviceAddress) addr = NULL;
@@ -1776,50 +1682,45 @@ virNodeDevPCICapSRIOVVirtualParseXML(xmlXPathContextPtr ctxt,
         addr = g_new0(virPCIDeviceAddress, 1);
 
         if (virPCIDeviceAddressParseXML(addresses[i], addr) < 0)
-            goto cleanup;
+            return -1;
 
         if (VIR_APPEND_ELEMENT(pci_dev->virtual_functions,
                                pci_dev->num_virtual_functions,
                                addr) < 0)
-            goto cleanup;
+            return -1;
     }
 
     pci_dev->flags |= VIR_NODE_DEV_CAP_FLAG_PCI_VIRTUAL_FUNCTION;
-    ret = 0;
- cleanup:
-    VIR_FREE(addresses);
-    VIR_FREE(maxFuncsStr);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevPCICapabilityParseXML(xmlXPathContextPtr ctxt,
                                 xmlNodePtr node,
-                                virNodeDevCapPCIDevPtr pci_dev)
+                                virNodeDevCapPCIDev *pci_dev)
 {
-    char *type = virXMLPropString(node, "type");
+    g_autofree char *type = virXMLPropString(node, "type");
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
 
     ctxt->node = node;
 
     if (!type) {
         virReportError(VIR_ERR_XML_ERROR, "%s", _("Missing capability type"));
-        goto cleanup;
+        return -1;
     }
 
     if (STREQ(type, "phys_function") &&
         virNodeDevPCICapSRIOVPhysicalParseXML(ctxt, pci_dev) < 0) {
-        goto cleanup;
+        return -1;
     } else if (STREQ(type, "virt_functions") &&
                virNodeDevPCICapSRIOVVirtualParseXML(ctxt, pci_dev) < 0) {
-        goto cleanup;
+        return -1;
     } else if (STREQ(type, "mdev_types")) {
         if (virNodeDevCapMdevTypesParseXML(ctxt,
                                            &pci_dev->mdev_types,
                                            &pci_dev->nmdev_types) < 0)
-            goto cleanup;
+            return -1;
         pci_dev->flags |= VIR_NODE_DEV_CAP_FLAG_PCI_MDEV;
     } else {
         int hdrType = virPCIHeaderTypeFromString(type);
@@ -1828,27 +1729,24 @@ virNodeDevPCICapabilityParseXML(xmlXPathContextPtr ctxt,
             pci_dev->hdrType = hdrType;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(type);
-    return ret;
+    return 0;
 }
 
 
 static int
 virNodeDevCapPCIDevParseXML(xmlXPathContextPtr ctxt,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             xmlNodePtr node,
-                            virNodeDevCapPCIDevPtr pci_dev)
+                            virNodeDevCapPCIDev *pci_dev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr iommuGroupNode;
     xmlNodePtr pciExpress;
-    xmlNodePtr *nodes = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
     int n = 0;
     int ret = -1;
-    virPCIEDeviceInfoPtr pci_express = NULL;
-    char *tmp = NULL;
+    virPCIEDeviceInfo *pci_express = NULL;
+    g_autofree char *tmp = NULL;
     size_t i = 0;
 
     ctxt->node = node;
@@ -1860,7 +1758,6 @@ virNodeDevCapPCIDevParseXML(xmlXPathContextPtr ctxt,
                            _("invalid PCI class supplied for '%s'"), def->name);
             goto out;
         }
-        VIR_FREE(tmp);
     } else {
         pci_dev->klass = -1;
     }
@@ -1911,7 +1808,6 @@ virNodeDevCapPCIDevParseXML(xmlXPathContextPtr ctxt,
         if (virNodeDevPCICapabilityParseXML(ctxt, nodes[i], pci_dev) < 0)
             goto out;
     }
-    VIR_FREE(nodes);
 
     if ((iommuGroupNode = virXPathNode("./iommuGroup[1]", ctxt))) {
         if (virNodeDevCapPCIDevIommuGroupParseXML(ctxt, iommuGroupNode,
@@ -1933,15 +1829,12 @@ virNodeDevCapPCIDevParseXML(xmlXPathContextPtr ctxt,
         if (virPCIEDeviceInfoParseXML(ctxt, pciExpress, pci_express) < 0)
             goto out;
 
-        pci_dev->pci_express = pci_express;
-        pci_express = NULL;
+        pci_dev->pci_express = g_steal_pointer(&pci_express);
         pci_dev->flags |= VIR_NODE_DEV_CAP_FLAG_PCIE;
     }
 
     ret = 0;
  out:
-    VIR_FREE(nodes);
-    VIR_FREE(tmp);
     virPCIEDeviceInfoFree(pci_express);
     return ret;
 }
@@ -1949,15 +1842,14 @@ virNodeDevCapPCIDevParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapSystemParseXML(xmlXPathContextPtr ctxt,
-                            virNodeDeviceDefPtr def,
+                            virNodeDeviceDef *def,
                             xmlNodePtr node,
-                            virNodeDevCapSystemPtr syscap)
+                            virNodeDevCapSystem *syscap)
 {
-    virNodeDevCapSystemHardwarePtr hardware = &syscap->hardware;
-    virNodeDevCapSystemFirmwarePtr firmware = &syscap->firmware;
+    virNodeDevCapSystemHardware *hardware = &syscap->hardware;
+    virNodeDevCapSystemFirmware *firmware = &syscap->firmware;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
-    char *tmp;
+    g_autofree char *tmp = NULL;
 
     ctxt->node = node;
 
@@ -1971,30 +1863,26 @@ virNodeDevCapSystemParseXML(xmlXPathContextPtr ctxt,
     if (!tmp) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("no system UUID supplied for '%s'"), def->name);
-        goto out;
+        return -1;
     }
 
     if (virUUIDParse(tmp, hardware->uuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("malformed uuid element for '%s'"), def->name);
-        VIR_FREE(tmp);
-        goto out;
+        return -1;
     }
-    VIR_FREE(tmp);
 
     firmware->vendor_name  = virXPathString("string(./firmware/vendor[1])", ctxt);
     firmware->version      = virXPathString("string(./firmware/version[1])", ctxt);
     firmware->release_date = virXPathString("string(./firmware/release_date[1])", ctxt);
 
-    ret = 0;
- out:
-    return ret;
+    return 0;
 }
 
 static int
 virNodeDevCapMdevAttributeParseXML(xmlXPathContextPtr ctxt,
                                    xmlNodePtr node,
-                                   virNodeDevCapMdevPtr mdev)
+                                   virNodeDevCapMdev *mdev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autoptr(virMediatedDeviceAttr) attr = virMediatedDeviceAttrNew();
@@ -2015,22 +1903,34 @@ virNodeDevCapMdevAttributeParseXML(xmlXPathContextPtr ctxt,
 
 static int
 virNodeDevCapMdevParseXML(xmlXPathContextPtr ctxt,
-                          virNodeDeviceDefPtr def,
+                          virNodeDeviceDef *def,
                           xmlNodePtr node,
-                          virNodeDevCapMdevPtr mdev)
+                          virNodeDevCapMdev *mdev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
     int nattrs = 0;
     g_autofree xmlNodePtr *attrs = NULL;
     size_t i;
+    g_autofree char *uuidstr = NULL;
 
     ctxt->node = node;
 
     if (!(mdev->type = virXPathString("string(./type[1]/@id)", ctxt))) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("missing type id attribute for '%s'"), def->name);
-        goto out;
+        return -1;
+    }
+
+    if ((uuidstr = virXPathString("string(./uuid[1])", ctxt))) {
+        unsigned char uuidbuf[VIR_UUID_BUFLEN];
+        /* make sure that the provided uuid is valid */
+        if (virUUIDParse(uuidstr, uuidbuf) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Invalid uuid '%s' for new mdev device"), uuidstr);
+            return -1;
+        }
+        mdev->uuid = g_new0(char, VIR_UUID_STRING_BUFLEN);
+        virUUIDFormat(uuidbuf, mdev->uuid);
     }
 
     /* 'iommuGroup' is optional, only report an error if the supplied value is
@@ -2040,49 +1940,32 @@ virNodeDevCapMdevParseXML(xmlXPathContextPtr ctxt,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("invalid iommuGroup number attribute for '%s'"),
                        def->name);
-        goto out;
+        return -1;
     }
 
     if ((nattrs = virXPathNodeSet("./attr", ctxt, &attrs)) < 0)
-        goto out;
+        return -1;
 
     for (i = 0; i < nattrs; i++)
         virNodeDevCapMdevAttributeParseXML(ctxt, attrs[i], mdev);
 
-    ret = 0;
- out:
-    return ret;
+    return 0;
 }
 
 
-static virNodeDevCapsDefPtr
+static virNodeDevCapsDef *
 virNodeDevCapsDefParseXML(xmlXPathContextPtr ctxt,
-                          virNodeDeviceDefPtr def,
+                          virNodeDeviceDef *def,
                           xmlNodePtr node,
                           int create,
                           const char *virt_type)
 {
-    virNodeDevCapsDefPtr caps;
-    char *tmp;
-    int val, ret = -1;
+    g_autoptr(virNodeDevCapsDef) caps = g_new0(virNodeDevCapsDef, 1);
+    int ret = -1;
 
-    caps = g_new0(virNodeDevCapsDef, 1);
-
-    tmp = virXMLPropString(node, "type");
-    if (!tmp) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("missing capability type"));
-        goto error;
-    }
-
-    if ((val = virNodeDevCapTypeFromString(tmp)) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown capability type '%s'"), tmp);
-        VIR_FREE(tmp);
-        goto error;
-    }
-    caps->data.type = val;
-    VIR_FREE(tmp);
+    if (virXMLPropEnum(node, "type", virNodeDevCapTypeFromString,
+                       VIR_XML_PROP_REQUIRED, &caps->data.type) < 0)
+        return NULL;
 
     switch (caps->data.type) {
     case VIR_NODE_DEV_CAP_SYSTEM:
@@ -2154,27 +2037,23 @@ virNodeDevCapsDefParseXML(xmlXPathContextPtr ctxt,
     }
 
     if (ret < 0)
-        goto error;
-    return caps;
+        return NULL;
 
- error:
-    virNodeDevCapsDefFree(caps);
-    return NULL;
+    return g_steal_pointer(&caps);
 }
 
 
-static virNodeDeviceDefPtr
+static virNodeDeviceDef *
 virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
                          int create,
                          const char *virt_type)
 {
-    virNodeDeviceDefPtr def;
-    virNodeDevCapsDefPtr *next_cap;
-    xmlNodePtr *nodes = NULL;
+    g_autoptr(virNodeDeviceDef) def = g_new0(virNodeDeviceDef, 1);
+    virNodeDevCapsDef **next_cap;
+    g_autofree xmlNodePtr *devnode = NULL;
+    g_autofree xmlNodePtr *capability = NULL;
     int n, m;
     size_t i;
-
-    def = g_new0(virNodeDeviceDef, 1);
 
     /* Extract device name */
     if (create == EXISTING_DEVICE) {
@@ -2182,7 +2061,7 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
 
         if (!def->name) {
             virReportError(VIR_ERR_NO_NAME, NULL);
-            goto error;
+            return NULL;
         }
     } else {
         def->name = g_strdup("new device");
@@ -2191,40 +2070,27 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
     def->sysfs_path = virXPathString("string(./path[1])", ctxt);
 
     /* Parse devnodes */
-    if ((n = virXPathNodeSet("./devnode", ctxt, &nodes)) < 0)
-        goto error;
+    if ((n = virXPathNodeSet("./devnode", ctxt, &devnode)) < 0)
+        return NULL;
 
     def->devlinks = g_new0(char *, n + 1);
 
     for (i = 0, m = 0; i < n; i++) {
-        xmlNodePtr node = nodes[i];
-        char *tmp = virXMLPropString(node, "type");
-        int val;
+        xmlNodePtr node = devnode[i];
+        virNodeDevDevnodeType val;
 
-        if (!tmp) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           "%s", _("missing devnode type"));
-            goto error;
-        }
+        if (virXMLPropEnum(node, "type", virNodeDevDevnodeTypeFromString,
+                           VIR_XML_PROP_REQUIRED, &val) < 0)
+            return NULL;
 
-        val = virNodeDevDevnodeTypeFromString(tmp);
-
-        if (val < 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown devnode type '%s'"), tmp);
-            VIR_FREE(tmp);
-            goto error;
-        }
-        VIR_FREE(tmp);
-
-        switch ((virNodeDevDevnodeType)val) {
+        switch (val) {
         case VIR_NODE_DEV_DEVNODE_DEV:
             if (!(def->devnode = virXMLNodeContentString(node)))
-                goto error;
+                return NULL;
             break;
         case VIR_NODE_DEV_DEVNODE_LINK:
             if (!(def->devlinks[m++] = virXMLNodeContentString(node)))
-                goto error;
+                return NULL;
             break;
         case VIR_NODE_DEV_DEVNODE_LAST:
             break;
@@ -2240,7 +2106,7 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
                        _("when providing parent wwnn='%s', the "
                          "wwpn must also be provided"),
                        def->parent_wwnn);
-        goto error;
+        return NULL;
     }
 
     if (!def->parent_wwnn && def->parent_wwpn) {
@@ -2248,46 +2114,39 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
                        _("when providing parent wwpn='%s', the "
                          "wwnn must also be provided"),
                        def->parent_wwpn);
-        goto error;
+        return NULL;
     }
     def->parent_fabric_wwn = virXPathString("string(./parent[1]/@fabric_wwn)",
                                             ctxt);
 
     /* Parse device capabilities */
-    VIR_FREE(nodes);
-    if ((n = virXPathNodeSet("./capability", ctxt, &nodes)) < 0)
-        goto error;
+    if ((n = virXPathNodeSet("./capability", ctxt, &capability)) < 0)
+        return NULL;
 
     if (n == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("no device capabilities for '%s'"),
                        def->name);
-        goto error;
+        return NULL;
     }
 
     next_cap = &def->caps;
     for (i = 0; i < n; i++) {
         *next_cap = virNodeDevCapsDefParseXML(ctxt, def,
-                                              nodes[i],
+                                              capability[i],
                                               create,
                                               virt_type);
         if (!*next_cap)
-            goto error;
+            return NULL;
 
         next_cap = &(*next_cap)->next;
     }
-    VIR_FREE(nodes);
 
-    return def;
-
- error:
-    virNodeDeviceDefFree(def);
-    VIR_FREE(nodes);
-    return NULL;
+    return g_steal_pointer(&def);
 }
 
 
-virNodeDeviceDefPtr
+virNodeDeviceDef *
 virNodeDeviceDefParseNode(xmlDocPtr xml,
                           xmlNodePtr root,
                           int create,
@@ -2311,14 +2170,14 @@ virNodeDeviceDefParseNode(xmlDocPtr xml,
 }
 
 
-static virNodeDeviceDefPtr
+static virNodeDeviceDef *
 virNodeDeviceDefParse(const char *str,
                       const char *filename,
                       int create,
                       const char *virt_type)
 {
     xmlDocPtr xml;
-    virNodeDeviceDefPtr def = NULL;
+    virNodeDeviceDef *def = NULL;
 
     if ((xml = virXMLParse(filename, str, _("(node_device_definition)")))) {
         def = virNodeDeviceDefParseNode(xml, xmlDocGetRootElement(xml),
@@ -2330,7 +2189,7 @@ virNodeDeviceDefParse(const char *str,
 }
 
 
-virNodeDeviceDefPtr
+virNodeDeviceDef *
 virNodeDeviceDefParseString(const char *str,
                             int create,
                             const char *virt_type)
@@ -2339,7 +2198,7 @@ virNodeDeviceDefParseString(const char *str,
 }
 
 
-virNodeDeviceDefPtr
+virNodeDeviceDef *
 virNodeDeviceDefParseFile(const char *filename,
                           int create,
                           const char *virt_type)
@@ -2352,11 +2211,11 @@ virNodeDeviceDefParseFile(const char *filename,
  * Return fc_host dev's WWNN and WWPN
  */
 int
-virNodeDeviceGetWWNs(virNodeDeviceDefPtr def,
+virNodeDeviceGetWWNs(virNodeDeviceDef *def,
                      char **wwnn,
                      char **wwpn)
 {
-    virNodeDevCapsDefPtr cap = NULL;
+    virNodeDevCapsDef *cap = NULL;
 
     cap = def->caps;
     while (cap != NULL) {
@@ -2381,91 +2240,90 @@ virNodeDeviceGetWWNs(virNodeDeviceDefPtr def,
 
 
 void
-virNodeDevCapsDefFree(virNodeDevCapsDefPtr caps)
+virNodeDevCapsDefFree(virNodeDevCapsDef *caps)
 {
     size_t i = 0;
-    virNodeDevCapDataPtr data = &caps->data;
+    virNodeDevCapData *data = &caps->data;
 
     switch (caps->data.type) {
     case VIR_NODE_DEV_CAP_SYSTEM:
-        VIR_FREE(data->system.product_name);
-        VIR_FREE(data->system.hardware.vendor_name);
-        VIR_FREE(data->system.hardware.version);
-        VIR_FREE(data->system.hardware.serial);
-        VIR_FREE(data->system.firmware.vendor_name);
-        VIR_FREE(data->system.firmware.version);
-        VIR_FREE(data->system.firmware.release_date);
+        g_free(data->system.product_name);
+        g_free(data->system.hardware.vendor_name);
+        g_free(data->system.hardware.version);
+        g_free(data->system.hardware.serial);
+        g_free(data->system.firmware.vendor_name);
+        g_free(data->system.firmware.version);
+        g_free(data->system.firmware.release_date);
         break;
     case VIR_NODE_DEV_CAP_PCI_DEV:
-        VIR_FREE(data->pci_dev.product_name);
-        VIR_FREE(data->pci_dev.vendor_name);
-        VIR_FREE(data->pci_dev.physical_function);
+        g_free(data->pci_dev.product_name);
+        g_free(data->pci_dev.vendor_name);
+        g_free(data->pci_dev.physical_function);
         for (i = 0; i < data->pci_dev.num_virtual_functions; i++)
-            VIR_FREE(data->pci_dev.virtual_functions[i]);
-        VIR_FREE(data->pci_dev.virtual_functions);
+            g_free(data->pci_dev.virtual_functions[i]);
+        g_free(data->pci_dev.virtual_functions);
         for (i = 0; i < data->pci_dev.nIommuGroupDevices; i++)
-            VIR_FREE(data->pci_dev.iommuGroupDevices[i]);
-        VIR_FREE(data->pci_dev.iommuGroupDevices);
+            g_free(data->pci_dev.iommuGroupDevices[i]);
+        g_free(data->pci_dev.iommuGroupDevices);
         virPCIEDeviceInfoFree(data->pci_dev.pci_express);
         for (i = 0; i < data->pci_dev.nmdev_types; i++)
             virMediatedDeviceTypeFree(data->pci_dev.mdev_types[i]);
-        VIR_FREE(data->pci_dev.mdev_types);
+        g_free(data->pci_dev.mdev_types);
         break;
     case VIR_NODE_DEV_CAP_USB_DEV:
-        VIR_FREE(data->usb_dev.product_name);
-        VIR_FREE(data->usb_dev.vendor_name);
+        g_free(data->usb_dev.product_name);
+        g_free(data->usb_dev.vendor_name);
         break;
     case VIR_NODE_DEV_CAP_USB_INTERFACE:
-        VIR_FREE(data->usb_if.description);
+        g_free(data->usb_if.description);
         break;
     case VIR_NODE_DEV_CAP_NET:
-        VIR_FREE(data->net.ifname);
-        VIR_FREE(data->net.address);
+        g_free(data->net.ifname);
+        g_free(data->net.address);
         virBitmapFree(data->net.features);
-        data->net.features = NULL;
         break;
     case VIR_NODE_DEV_CAP_SCSI_HOST:
-        VIR_FREE(data->scsi_host.wwnn);
-        VIR_FREE(data->scsi_host.wwpn);
-        VIR_FREE(data->scsi_host.fabric_wwn);
+        g_free(data->scsi_host.wwnn);
+        g_free(data->scsi_host.wwpn);
+        g_free(data->scsi_host.fabric_wwn);
         break;
     case VIR_NODE_DEV_CAP_SCSI_TARGET:
-        VIR_FREE(data->scsi_target.name);
-        VIR_FREE(data->scsi_target.rport);
-        VIR_FREE(data->scsi_target.wwpn);
+        g_free(data->scsi_target.name);
+        g_free(data->scsi_target.rport);
+        g_free(data->scsi_target.wwpn);
         break;
     case VIR_NODE_DEV_CAP_SCSI:
-        VIR_FREE(data->scsi.type);
+        g_free(data->scsi.type);
         break;
     case VIR_NODE_DEV_CAP_STORAGE:
-        VIR_FREE(data->storage.block);
-        VIR_FREE(data->storage.bus);
-        VIR_FREE(data->storage.drive_type);
-        VIR_FREE(data->storage.model);
-        VIR_FREE(data->storage.vendor);
-        VIR_FREE(data->storage.serial);
-        VIR_FREE(data->storage.media_label);
+        g_free(data->storage.block);
+        g_free(data->storage.bus);
+        g_free(data->storage.drive_type);
+        g_free(data->storage.model);
+        g_free(data->storage.vendor);
+        g_free(data->storage.serial);
+        g_free(data->storage.media_label);
         break;
     case VIR_NODE_DEV_CAP_SCSI_GENERIC:
-        VIR_FREE(data->sg.path);
+        g_free(data->sg.path);
         break;
     case VIR_NODE_DEV_CAP_MDEV:
-        VIR_FREE(data->mdev.type);
-        VIR_FREE(data->mdev.uuid);
+        g_free(data->mdev.type);
+        g_free(data->mdev.uuid);
         for (i = 0; i < data->mdev.nattributes; i++)
             virMediatedDeviceAttrFree(data->mdev.attributes[i]);
-        VIR_FREE(data->mdev.attributes);
+        g_free(data->mdev.attributes);
         break;
     case VIR_NODE_DEV_CAP_CSS_DEV:
         for (i = 0; i < data->ccw_dev.nmdev_types; i++)
             virMediatedDeviceTypeFree(data->ccw_dev.mdev_types[i]);
-        VIR_FREE(data->ccw_dev.mdev_types);
+        g_free(data->ccw_dev.mdev_types);
         break;
     case VIR_NODE_DEV_CAP_AP_MATRIX:
-        VIR_FREE(data->ap_matrix.addr);
+        g_free(data->ap_matrix.addr);
         for (i = 0; i < data->ap_matrix.nmdev_types; i++)
             virMediatedDeviceTypeFree(data->ap_matrix.mdev_types[i]);
-        VIR_FREE(data->ap_matrix.mdev_types);
+        g_free(data->ap_matrix.mdev_types);
         break;
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
     case VIR_NODE_DEV_CAP_DRM:
@@ -2480,14 +2338,14 @@ virNodeDevCapsDefFree(virNodeDevCapsDefPtr caps)
         break;
     }
 
-    VIR_FREE(caps);
+    g_free(caps);
 }
 
 
 int
-virNodeDeviceUpdateCaps(virNodeDeviceDefPtr def)
+virNodeDeviceUpdateCaps(virNodeDeviceDef *def)
 {
-    virNodeDevCapsDefPtr cap = def->caps;
+    virNodeDevCapsDef *cap = def->caps;
 
     while (cap) {
         switch (cap->data.type) {
@@ -2564,14 +2422,13 @@ virNodeDeviceUpdateCaps(virNodeDeviceDefPtr def)
  * Returns the number of capabilities the device supports, -1 on error.
  */
 int
-virNodeDeviceCapsListExport(virNodeDeviceDefPtr def,
+virNodeDeviceCapsListExport(virNodeDeviceDef *def,
                             virNodeDevCapType **list)
 {
-    virNodeDevCapsDefPtr caps = NULL;
-    virNodeDevCapType *tmp = NULL;
+    virNodeDevCapsDef *caps = NULL;
+    g_autofree virNodeDevCapType *tmp = NULL;
     bool want_list = !!list;
     int ncaps = 0;
-    int ret = -1;
 
 #define MAYBE_ADD_CAP(cap) \
     do { \
@@ -2580,7 +2437,7 @@ virNodeDeviceCapsListExport(virNodeDeviceDefPtr def,
     } while (0)
 
     if (virNodeDeviceUpdateCaps(def) < 0)
-        goto cleanup;
+        return -1;
 
     if (want_list)
         tmp = g_new0(virNodeDevCapType, VIR_NODE_DEV_CAP_LAST - 1);
@@ -2638,19 +2495,17 @@ virNodeDeviceCapsListExport(virNodeDeviceDefPtr def,
 
     if (want_list)
         *list = g_steal_pointer(&tmp);
-    ret = ncaps;
- cleanup:
-    VIR_FREE(tmp);
-    return ret;
+
+    return ncaps;
 }
 
 
 #ifdef __linux__
 
 int
-virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHostPtr scsi_host)
+virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHost *scsi_host)
 {
-    char *tmp = NULL;
+    g_autofree char *tmp = NULL;
     int ret = -1;
 
     if ((scsi_host->unique_id =
@@ -2699,7 +2554,6 @@ virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHostPtr scsi_host)
             goto cleanup;
         }
 
-        VIR_FREE(tmp);
         if (!(tmp = virVHBAGetConfig(NULL, scsi_host->host,
                                       "npiv_vports_inuse"))) {
             VIR_WARN("Failed to read npiv_vports_inuse for host%d",
@@ -2724,17 +2578,17 @@ virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHostPtr scsi_host)
         VIR_FREE(scsi_host->wwpn);
         VIR_FREE(scsi_host->fabric_wwn);
     }
-    VIR_FREE(tmp);
     return ret;
 }
 
 
 int
 virNodeDeviceGetSCSITargetCaps(const char *sysfsPath,
-                               virNodeDevCapSCSITargetPtr scsi_target)
+                               virNodeDevCapSCSITarget *scsi_target)
 {
     int ret = -1;
-    char *dir = NULL, *rport = NULL;
+    g_autofree char *dir = NULL;
+    g_autofree char *rport = NULL;
 
     VIR_DEBUG("Checking if '%s' is an FC remote port", scsi_target->name);
 
@@ -2764,8 +2618,6 @@ virNodeDeviceGetSCSITargetCaps(const char *sysfsPath,
         VIR_FREE(scsi_target->wwpn);
         scsi_target->flags &= ~VIR_NODE_DEV_CAP_FLAG_FC_RPORT;
     }
-    VIR_FREE(rport);
-    VIR_FREE(dir);
 
     return ret;
 }
@@ -2773,7 +2625,7 @@ virNodeDeviceGetSCSITargetCaps(const char *sysfsPath,
 
 static int
 virNodeDeviceGetPCISRIOVCaps(const char *sysfsPath,
-                             virNodeDevCapPCIDevPtr pci_dev)
+                             virNodeDevCapPCIDev *pci_dev)
 {
     size_t i;
     int ret;
@@ -2811,7 +2663,7 @@ virNodeDeviceGetPCISRIOVCaps(const char *sysfsPath,
 
 
 static int
-virNodeDeviceGetPCIIOMMUGroupCaps(virNodeDevCapPCIDevPtr pci_dev)
+virNodeDeviceGetPCIIOMMUGroupCaps(virNodeDevCapPCIDev *pci_dev)
 {
     size_t i;
     int tmpGroup;
@@ -2849,10 +2701,10 @@ virNodeDeviceGetPCIIOMMUGroupCaps(virNodeDevCapPCIDevPtr pci_dev)
 
 static int
 virNodeDeviceGetMdevTypesCaps(const char *sysfspath,
-                              virMediatedDeviceTypePtr **mdev_types,
+                              virMediatedDeviceType ***mdev_types,
                               size_t *nmdev_types)
 {
-    virMediatedDeviceTypePtr *types = NULL;
+    virMediatedDeviceType **types = NULL;
     size_t ntypes = 0;
     size_t i;
 
@@ -2880,7 +2732,7 @@ virNodeDeviceGetMdevTypesCaps(const char *sysfspath,
  */
 int
 virNodeDeviceGetPCIDynamicCaps(const char *sysfsPath,
-                               virNodeDevCapPCIDevPtr pci_dev)
+                               virNodeDevCapPCIDev *pci_dev)
 {
     if (virNodeDeviceGetPCISRIOVCaps(sysfsPath, pci_dev) < 0 ||
         virNodeDeviceGetPCIIOMMUGroupCaps(pci_dev) < 0)
@@ -2906,7 +2758,7 @@ virNodeDeviceGetPCIDynamicCaps(const char *sysfsPath,
  */
 int
 virNodeDeviceGetCSSDynamicCaps(const char *sysfsPath,
-                               virNodeDevCapCCWPtr ccw_dev)
+                               virNodeDevCapCCW *ccw_dev)
 {
     ccw_dev->flags &= ~VIR_NODE_DEV_CAP_FLAG_CSS_MDEV;
     if (virNodeDeviceGetMdevTypesCaps(sysfsPath,
@@ -2927,7 +2779,7 @@ virNodeDeviceGetCSSDynamicCaps(const char *sysfsPath,
  */
 int
 virNodeDeviceGetAPMatrixDynamicCaps(const char *sysfsPath,
-                                    virNodeDevCapAPMatrixPtr ap_matrix)
+                                    virNodeDevCapAPMatrix *ap_matrix)
 {
     ap_matrix->flags &= ~VIR_NODE_DEV_CAP_FLAG_AP_MATRIX_MDEV;
     if (virNodeDeviceGetMdevTypesCaps(sysfsPath,
@@ -2943,35 +2795,35 @@ virNodeDeviceGetAPMatrixDynamicCaps(const char *sysfsPath,
 #else
 
 int
-virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHostPtr scsi_host G_GNUC_UNUSED)
+virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHost *scsi_host G_GNUC_UNUSED)
 {
     return -1;
 }
 
 int
 virNodeDeviceGetPCIDynamicCaps(const char *sysfsPath G_GNUC_UNUSED,
-                               virNodeDevCapPCIDevPtr pci_dev G_GNUC_UNUSED)
+                               virNodeDevCapPCIDev *pci_dev G_GNUC_UNUSED)
 {
     return -1;
 }
 
 
 int virNodeDeviceGetSCSITargetCaps(const char *sysfsPath G_GNUC_UNUSED,
-                                   virNodeDevCapSCSITargetPtr scsi_target G_GNUC_UNUSED)
+                                   virNodeDevCapSCSITarget *scsi_target G_GNUC_UNUSED)
 {
     return -1;
 }
 
 int
 virNodeDeviceGetCSSDynamicCaps(const char *sysfsPath G_GNUC_UNUSED,
-                               virNodeDevCapCCWPtr ccw_dev G_GNUC_UNUSED)
+                               virNodeDevCapCCW *ccw_dev G_GNUC_UNUSED)
 {
     return -1;
 }
 
 int
 virNodeDeviceGetAPMatrixDynamicCaps(const char *sysfsPath G_GNUC_UNUSED,
-                                    virNodeDevCapAPMatrixPtr ap_matrix G_GNUC_UNUSED)
+                                    virNodeDevCapAPMatrix *ap_matrix G_GNUC_UNUSED)
 {
     return -1;
 }
