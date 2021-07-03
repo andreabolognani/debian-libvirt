@@ -96,7 +96,6 @@ virshCatchDisconnect(virConnectPtr conn,
         case VIR_CONNECT_CLOSE_REASON_KEEPALIVE:
             str = N_("Disconnected from %s due to keepalive timeout");
             break;
-        /* coverity[dead_error_condition] */
         case VIR_CONNECT_CLOSE_REASON_CLIENT:
         case VIR_CONNECT_CLOSE_REASON_LAST:
             break;
@@ -119,7 +118,7 @@ virshConnect(vshControl *ctl, const char *uri, bool readonly)
     int interval = 5; /* Default */
     int count = 6;    /* Default */
     bool keepalive_forced = false;
-    virPolkitAgentPtr pkagent = NULL;
+    virPolkitAgent *pkagent = NULL;
     int authfail = 0;
     bool agentCreated = false;
 
@@ -194,7 +193,7 @@ static int
 virshReconnect(vshControl *ctl, const char *name, bool readonly, bool force)
 {
     bool connected = false;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     /* If the flag was not specified, then it depends on whether we are
      * reconnecting to the current URI (in which case we want to keep the
@@ -314,7 +313,7 @@ virshConnectionUsability(vshControl *ctl, virConnectPtr conn)
 static void *
 virshConnectionHandler(vshControl *ctl)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     if ((!priv->conn || disconnected) &&
         virshReconnect(ctl, NULL, false, false) < 0)
@@ -333,7 +332,7 @@ virshConnectionHandler(vshControl *ctl)
 static bool
 virshInit(vshControl *ctl)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     /* Since we have the commandline arguments parsed, we need to
      * reload our initial settings to make debugging and readline
@@ -391,7 +390,7 @@ virshDeinitTimer(int timer G_GNUC_UNUSED, void *opaque G_GNUC_UNUSED)
 static bool
 virshDeinit(vshControl *ctl)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     vshDeinit(ctl);
     VIR_FREE(ctl->connname);
@@ -505,6 +504,9 @@ virshShowVersion(vshControl *ctl G_GNUC_UNUSED)
 #endif
 #ifdef WITH_OPENVZ
     vshPrint(ctl, " OpenVZ");
+#endif
+#ifdef WITH_CH
+    vshPrint(ctl, " Cloud-Hypervisor");
 #endif
 #ifdef WITH_VZ
     vshPrint(ctl, " Virtuozzo");
@@ -637,7 +639,7 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
     int arg, len, debug, keepalive;
     size_t i;
     int longindex = -1;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     struct option opt[] = {
         {"connect", required_argument, NULL, 'c'},
         {"debug", required_argument, NULL, 'd'},
@@ -777,7 +779,7 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
         ctl->imode = false;
         if (argc - optind == 1) {
             vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
-            return vshCommandStringParse(ctl, argv[optind], NULL);
+            return vshCommandStringParse(ctl, argv[optind], NULL, 0);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);
         }
@@ -915,7 +917,7 @@ main(int argc, char **argv)
             if (*ctl->cmdstr) {
                 vshReadlineHistoryAdd(ctl->cmdstr);
 
-                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL))
+                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL, 0))
                     vshCommandRun(ctl, ctl->cmd);
             }
             VIR_FREE(ctl->cmdstr);

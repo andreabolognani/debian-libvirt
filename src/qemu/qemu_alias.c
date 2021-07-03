@@ -52,8 +52,8 @@ qemuDomainDeviceAliasIndex(const virDomainDeviceInfo *info,
 
 
 static ssize_t
-qemuGetNextChrDevIndex(virDomainDefPtr def,
-                       virDomainChrDefPtr chr,
+qemuGetNextChrDevIndex(virDomainDef *def,
+                       virDomainChrDef *chr,
                        const char *prefix)
 {
     const virDomainChrDef **arrPtr;
@@ -82,8 +82,8 @@ qemuGetNextChrDevIndex(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceChrAlias(virDomainDefPtr def,
-                         virDomainChrDefPtr chr,
+qemuAssignDeviceChrAlias(virDomainDef *def,
+                         virDomainChrDef *chr,
                          ssize_t idx)
 {
     const char *prefix = NULL;
@@ -121,9 +121,8 @@ qemuAssignDeviceChrAlias(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceControllerAlias(virDomainDefPtr domainDef,
-                                virQEMUCapsPtr qemuCaps,
-                                virDomainControllerDefPtr controller)
+qemuAssignDeviceControllerAlias(virDomainDef *domainDef,
+                                virDomainControllerDef *controller)
 {
     const char *prefix = virDomainControllerTypeToString(controller->type);
 
@@ -131,7 +130,7 @@ qemuAssignDeviceControllerAlias(virDomainDefPtr domainDef,
         return 0;
 
     if (controller->type == VIR_DOMAIN_CONTROLLER_TYPE_PCI) {
-        if (!virQEMUCapsHasPCIMultiBus(qemuCaps, domainDef)) {
+        if (!virQEMUCapsHasPCIMultiBus(domainDef)) {
             /* qemus that don't support multiple PCI buses have
              * hardcoded the name of their single PCI controller as
              * "pci".
@@ -192,11 +191,11 @@ qemuAssignDeviceControllerAlias(virDomainDefPtr domainDef,
 
 
 int
-qemuAssignDeviceDiskAlias(virDomainDefPtr def,
-                          virDomainDiskDefPtr disk,
-                          virQEMUCapsPtr qemuCaps)
+qemuAssignDeviceDiskAlias(virDomainDef *def,
+                          virDomainDiskDef *disk,
+                          virQEMUCaps *qemuCaps)
 {
-    qemuDomainDiskPrivatePtr diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
+    qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
     const char *prefix = virDomainDiskBusTypeToString(disk->bus);
     int controllerModel = -1;
 
@@ -255,6 +254,7 @@ qemuAssignDeviceDiskAlias(virDomainDefPtr def,
         case VIR_DOMAIN_DISK_BUS_XEN:
         case VIR_DOMAIN_DISK_BUS_UML:
         case VIR_DOMAIN_DISK_BUS_SD:
+        case VIR_DOMAIN_DISK_BUS_NONE:
         case VIR_DOMAIN_DISK_BUS_LAST:
             break;
         }
@@ -265,7 +265,7 @@ qemuAssignDeviceDiskAlias(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceHostdevAlias(virDomainDefPtr def,
+qemuAssignDeviceHostdevAlias(virDomainDef *def,
                              char **alias,
                              int idx)
 {
@@ -302,8 +302,8 @@ qemuAssignDeviceHostdevAlias(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceNetAlias(virDomainDefPtr def,
-                         virDomainNetDefPtr net,
+qemuAssignDeviceNetAlias(virDomainDef *def,
+                         virDomainNetDef *net,
                          int idx)
 {
     if (net->info.alias)
@@ -336,7 +336,7 @@ qemuAssignDeviceNetAlias(virDomainDefPtr def,
 
 
 static int
-qemuAssignDeviceFSAlias(virDomainFSDefPtr fss,
+qemuAssignDeviceFSAlias(virDomainFSDef *fss,
                         int idx)
 {
     if (fss->info.alias)
@@ -348,7 +348,7 @@ qemuAssignDeviceFSAlias(virDomainFSDefPtr fss,
 
 
 static int
-qemuAssignDeviceSoundAlias(virDomainSoundDefPtr sound,
+qemuAssignDeviceSoundAlias(virDomainSoundDef *sound,
                            int idx)
 {
     if (sound->info.alias)
@@ -360,7 +360,7 @@ qemuAssignDeviceSoundAlias(virDomainSoundDefPtr sound,
 
 
 static int
-qemuAssignDeviceVideoAlias(virDomainVideoDefPtr video,
+qemuAssignDeviceVideoAlias(virDomainVideoDef *video,
                            int idx)
 {
     if (video->info.alias)
@@ -372,7 +372,7 @@ qemuAssignDeviceVideoAlias(virDomainVideoDefPtr video,
 
 
 static int
-qemuAssignDeviceHubAlias(virDomainHubDefPtr hub,
+qemuAssignDeviceHubAlias(virDomainHubDef *hub,
                          int idx)
 {
     if (hub->info.alias)
@@ -384,7 +384,7 @@ qemuAssignDeviceHubAlias(virDomainHubDefPtr hub,
 
 
 static int
-qemuAssignDeviceSmartcardAlias(virDomainSmartcardDefPtr smartcard,
+qemuAssignDeviceSmartcardAlias(virDomainSmartcardDef *smartcard,
                                int idx)
 {
     if (smartcard->info.alias)
@@ -396,7 +396,7 @@ qemuAssignDeviceSmartcardAlias(virDomainSmartcardDefPtr smartcard,
 
 
 static int
-qemuAssignDeviceMemballoonAlias(virDomainMemballoonDefPtr memballoon,
+qemuAssignDeviceMemballoonAlias(virDomainMemballoonDef *memballoon,
                                 int idx)
 {
     if (memballoon->info.alias)
@@ -408,7 +408,7 @@ qemuAssignDeviceMemballoonAlias(virDomainMemballoonDefPtr memballoon,
 
 
 static int
-qemuAssignDeviceTPMAlias(virDomainTPMDefPtr tpm,
+qemuAssignDeviceTPMAlias(virDomainTPMDef *tpm,
                          int idx)
 {
     if (tpm->info.alias)
@@ -420,8 +420,8 @@ qemuAssignDeviceTPMAlias(virDomainTPMDefPtr tpm,
 
 
 int
-qemuAssignDeviceRedirdevAlias(virDomainDefPtr def,
-                              virDomainRedirdevDefPtr redirdev,
+qemuAssignDeviceRedirdevAlias(virDomainDef *def,
+                              virDomainRedirdevDef *redirdev,
                               int idx)
 {
     if (redirdev->info.alias)
@@ -445,8 +445,8 @@ qemuAssignDeviceRedirdevAlias(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceRNGAlias(virDomainDefPtr def,
-                         virDomainRNGDefPtr rng)
+qemuAssignDeviceRNGAlias(virDomainDef *def,
+                         virDomainRNGDef *rng)
 {
     size_t i;
     int maxidx = 0;
@@ -466,6 +466,29 @@ qemuAssignDeviceRNGAlias(virDomainDefPtr def,
 }
 
 
+static int
+qemuDeviceMemoryGetAliasID(virDomainDef *def,
+                           virDomainMemoryDef *mem,
+                           bool oldAlias,
+                           const char *prefix)
+{
+    size_t i;
+    int maxidx = 0;
+
+    /* virtio-pmem goes onto PCI bus and thus DIMM address is not valid */
+    if (!oldAlias && mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM)
+        return mem->info.addr.dimm.slot;
+
+    for (i = 0; i < def->nmems; i++) {
+        int idx;
+        if ((idx = qemuDomainDeviceAliasIndex(&def->mems[i]->info, prefix)) >= maxidx)
+            maxidx = idx + 1;
+    }
+
+    return maxidx;
+}
+
+
 /**
  * qemuAssignDeviceMemoryAlias:
  * @def: domain definition. Necessary only if @oldAlias is true.
@@ -479,41 +502,44 @@ qemuAssignDeviceRNGAlias(virDomainDefPtr def,
  * Returns 0 on success, -1 on error.
  */
 int
-qemuAssignDeviceMemoryAlias(virDomainDefPtr def,
-                            virDomainMemoryDefPtr mem,
+qemuAssignDeviceMemoryAlias(virDomainDef *def,
+                            virDomainMemoryDef *mem,
                             bool oldAlias)
 {
-    size_t i;
-    int maxidx = 0;
-    int idx;
-    const char *prefix;
+    const char *prefix = NULL;
+    int idx = 0;
 
     if (mem->info.alias)
         return 0;
 
-    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_DIMM)
+    switch (mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
         prefix = "dimm";
-    else
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         prefix = "nvdimm";
-
-    if (oldAlias) {
-        for (i = 0; i < def->nmems; i++) {
-            if ((idx = qemuDomainDeviceAliasIndex(&def->mems[i]->info, prefix)) >= maxidx)
-                maxidx = idx + 1;
-        }
-    } else {
-        maxidx = mem->info.addr.dimm.slot;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        prefix = "virtiopmem";
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+    default:
+        virReportEnumRangeError(virDomainMemoryModel, mem->model);
+        return -1;
+        break;
     }
 
-    mem->info.alias = g_strdup_printf("%s%d", prefix, maxidx);
+    idx = qemuDeviceMemoryGetAliasID(def, mem, oldAlias, prefix);
+    mem->info.alias = g_strdup_printf("%s%d", prefix, idx);
 
     return 0;
 }
 
 
 int
-qemuAssignDeviceShmemAlias(virDomainDefPtr def,
-                           virDomainShmemDefPtr shmem,
+qemuAssignDeviceShmemAlias(virDomainDef *def,
+                           virDomainShmemDef *shmem,
                            int idx)
 {
     if (shmem->info.alias)
@@ -540,7 +566,7 @@ qemuAssignDeviceShmemAlias(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceWatchdogAlias(virDomainWatchdogDefPtr watchdog)
+qemuAssignDeviceWatchdogAlias(virDomainWatchdogDef *watchdog)
 {
     /* Currently, there's just one watchdog per domain */
 
@@ -553,8 +579,8 @@ qemuAssignDeviceWatchdogAlias(virDomainWatchdogDefPtr watchdog)
 }
 
 int
-qemuAssignDeviceInputAlias(virDomainDefPtr def,
-                           virDomainInputDefPtr input,
+qemuAssignDeviceInputAlias(virDomainDef *def,
+                           virDomainInputDef *input,
                            int idx)
 {
     if (input->info.alias)
@@ -577,7 +603,7 @@ qemuAssignDeviceInputAlias(virDomainDefPtr def,
 
 
 int
-qemuAssignDeviceVsockAlias(virDomainVsockDefPtr vsock)
+qemuAssignDeviceVsockAlias(virDomainVsockDef *vsock)
 {
     if (vsock->info.alias)
         return 0;
@@ -588,7 +614,7 @@ qemuAssignDeviceVsockAlias(virDomainVsockDefPtr vsock)
 
 
 int
-qemuAssignDeviceAliases(virDomainDefPtr def, virQEMUCapsPtr qemuCaps)
+qemuAssignDeviceAliases(virDomainDef *def, virQEMUCaps *qemuCaps)
 {
     size_t i;
 
@@ -627,7 +653,7 @@ qemuAssignDeviceAliases(virDomainDefPtr def, virQEMUCapsPtr qemuCaps)
             return -1;
     }
     for (i = 0; i < def->ncontrollers; i++) {
-        if (qemuAssignDeviceControllerAlias(def, qemuCaps, def->controllers[i]) < 0)
+        if (qemuAssignDeviceControllerAlias(def, def->controllers[i]) < 0)
             return -1;
     }
     for (i = 0; i < def->ninputs; i++) {
@@ -680,7 +706,7 @@ qemuAssignDeviceAliases(virDomainDefPtr def, virQEMUCapsPtr qemuCaps)
             return -1;
     }
     for (i = 0; i < def->nmems; i++) {
-        if (qemuAssignDeviceMemoryAlias(NULL, def->mems[i], false) < 0)
+        if (qemuAssignDeviceMemoryAlias(def, def->mems[i], false) < 0)
             return -1;
     }
     if (def->vsock) {
@@ -841,4 +867,10 @@ const char *
 qemuDomainGetDBusVMStateAlias(void)
 {
     return "dbus-vmstate0";
+}
+
+char *
+qemuDomainGetVhostUserChrAlias(const char *devalias)
+{
+    return g_strdup_printf("chr-vu-%s", devalias);
 }

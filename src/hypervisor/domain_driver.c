@@ -25,6 +25,10 @@
 #include "virstring.h"
 #include "vircrypto.h"
 #include "virutil.h"
+#include "virhostdev.h"
+#include "viraccessapicheck.h"
+#include "datatypes.h"
+#include "driver.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
 
@@ -49,7 +53,7 @@ virDomainDriverGenerateRootHash(const char *drivername,
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
 
 static void
-virDomainMachineNameAppendValid(virBufferPtr buf,
+virDomainMachineNameAppendValid(virBuffer *buf,
                                 const char *name)
 {
     bool skip = true;
@@ -117,14 +121,15 @@ virDomainDriverGenerateMachineName(const char *drivername,
 /* Modify dest_array to reflect all blkio device changes described in
  * src_array.  */
 int
-virDomainDriverMergeBlkioDevice(virBlkioDevicePtr *dest_array,
+virDomainDriverMergeBlkioDevice(virBlkioDevice **dest_array,
                                 size_t *dest_size,
-                                virBlkioDevicePtr src_array,
+                                virBlkioDevice *src_array,
                                 size_t src_size,
                                 const char *type)
 {
     size_t i, j;
-    virBlkioDevicePtr dest, src;
+    virBlkioDevice *dest;
+    virBlkioDevice *src;
 
     for (i = 0; i < src_size; i++) {
         bool found = false;
@@ -156,8 +161,7 @@ virDomainDriverMergeBlkioDevice(virBlkioDevicePtr *dest_array,
         if (!found) {
             if (!src->weight && !src->riops && !src->wiops && !src->rbps && !src->wbps)
                 continue;
-            if (VIR_EXPAND_N(*dest_array, *dest_size, 1) < 0)
-                return -1;
+            VIR_EXPAND_N(*dest_array, *dest_size, 1);
             dest = &(*dest_array)[*dest_size - 1];
 
             if (STREQ(type, VIR_DOMAIN_BLKIO_DEVICE_WEIGHT)) {
@@ -175,8 +179,7 @@ virDomainDriverMergeBlkioDevice(virBlkioDevicePtr *dest_array,
                 return -1;
             }
 
-            dest->path = src->path;
-            src->path = NULL;
+            dest->path = g_steal_pointer(&src->path);
         }
     }
 
@@ -189,13 +192,13 @@ virDomainDriverMergeBlkioDevice(virBlkioDevicePtr *dest_array,
  */
 int
 virDomainDriverParseBlkioDeviceStr(char *blkioDeviceStr, const char *type,
-                                   virBlkioDevicePtr *dev, size_t *size)
+                                   virBlkioDevice **dev, size_t *size)
 {
     char *temp;
     int ndevices = 0;
     int nsep = 0;
     size_t i;
-    virBlkioDevicePtr result = NULL;
+    virBlkioDevice *result = NULL;
 
     *dev = NULL;
     *size = 0;
@@ -295,7 +298,7 @@ virDomainDriverParseBlkioDeviceStr(char *blkioDeviceStr, const char *type,
 
 
 int
-virDomainDriverSetupPersistentDefBlkioParams(virDomainDefPtr persistentDef,
+virDomainDriverSetupPersistentDefBlkioParams(virDomainDef *persistentDef,
                                              virTypedParameterPtr params,
                                              int nparams)
 {
@@ -312,7 +315,7 @@ virDomainDriverSetupPersistentDefBlkioParams(virDomainDefPtr persistentDef,
                    STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_IOPS) ||
                    STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_READ_BPS) ||
                    STREQ(param->field, VIR_DOMAIN_BLKIO_DEVICE_WRITE_BPS)) {
-            virBlkioDevicePtr devices = NULL;
+            virBlkioDevice *devices = NULL;
             size_t ndevices;
 
             if (virDomainDriverParseBlkioDeviceStr(param->value.s,
@@ -335,4 +338,176 @@ virDomainDriverSetupPersistentDefBlkioParams(virDomainDefPtr persistentDef,
     }
 
     return ret;
+}
+
+
+int
+virDomainDriverNodeDeviceGetPCIInfo(virNodeDeviceDef *def,
+                                    virPCIDeviceAddress *devAddr)
+{
+    virNodeDevCapsDef *cap;
+
+    cap = def->caps;
+    while (cap) {
+        if (cap->data.type == VIR_NODE_DEV_CAP_PCI_DEV) {
+            devAddr->domain = cap->data.pci_dev.domain;
+            devAddr->bus = cap->data.pci_dev.bus;
+            devAddr->slot = cap->data.pci_dev.slot;
+            devAddr->function = cap->data.pci_dev.function;
+            break;
+        }
+
+        cap = cap->next;
+    }
+
+    if (!cap) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("device %s is not a PCI device"), def->name);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int
+virDomainDriverNodeDeviceReset(virNodeDevicePtr dev,
+                               virHostdevManager *hostdevMgr)
+{
+    g_autoptr(virPCIDevice) pci = NULL;
+    virPCIDeviceAddress devAddr;
+    g_autoptr(virNodeDeviceDef) def = NULL;
+    g_autofree char *xml = NULL;
+    g_autoptr(virConnect) nodeconn = NULL;
+    g_autoptr(virNodeDevice) nodedev = NULL;
+
+    if (!(nodeconn = virGetConnectNodeDev()))
+        return -1;
+
+    /* 'dev' is associated with virConnectPtr, so for split
+     * daemons, we need to get a copy that is associated with
+     * the virnodedevd daemon. */
+    if (!(nodedev = virNodeDeviceLookupByName(
+              nodeconn, virNodeDeviceGetName(dev))))
+        return -1;
+
+    xml = virNodeDeviceGetXMLDesc(nodedev, 0);
+    if (!xml)
+        return -1;
+
+    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL);
+    if (!def)
+        return -1;
+
+    /* ACL check must happen against original 'dev',
+     * not the new 'nodedev' we acquired */
+    if (virNodeDeviceResetEnsureACL(dev->conn, def) < 0)
+        return -1;
+
+    if (virDomainDriverNodeDeviceGetPCIInfo(def, &devAddr) < 0)
+        return -1;
+
+    pci = virPCIDeviceNew(&devAddr);
+    if (!pci)
+        return -1;
+
+    return virHostdevPCINodeDeviceReset(hostdevMgr, pci);
+}
+
+
+int
+virDomainDriverNodeDeviceReAttach(virNodeDevicePtr dev,
+                                  virHostdevManager *hostdevMgr)
+{
+    g_autoptr(virPCIDevice) pci = NULL;
+    virPCIDeviceAddress devAddr;
+    g_autoptr(virNodeDeviceDef) def = NULL;
+    g_autofree char *xml = NULL;
+    g_autoptr(virConnect) nodeconn = NULL;
+    g_autoptr(virNodeDevice) nodedev = NULL;
+
+    if (!(nodeconn = virGetConnectNodeDev()))
+        return -1;
+
+    /* 'dev' is associated with virConnectPtr, so for split
+     * daemons, we need to get a copy that is associated with
+     * the virnodedevd daemon. */
+    if (!(nodedev = virNodeDeviceLookupByName(
+              nodeconn, virNodeDeviceGetName(dev))))
+        return -1;
+
+    xml = virNodeDeviceGetXMLDesc(nodedev, 0);
+    if (!xml)
+        return -1;
+
+    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL);
+    if (!def)
+        return -1;
+
+    /* ACL check must happen against original 'dev',
+     * not the new 'nodedev' we acquired */
+    if (virNodeDeviceReAttachEnsureACL(dev->conn, def) < 0)
+        return -1;
+
+    if (virDomainDriverNodeDeviceGetPCIInfo(def, &devAddr) < 0)
+        return -1;
+
+    pci = virPCIDeviceNew(&devAddr);
+    if (!pci)
+        return -1;
+
+    return virHostdevPCINodeDeviceReAttach(hostdevMgr, pci);
+}
+
+int
+virDomainDriverNodeDeviceDetachFlags(virNodeDevicePtr dev,
+                                     virHostdevManager *hostdevMgr,
+                                     const char *driverName)
+{
+    g_autoptr(virPCIDevice) pci = NULL;
+    virPCIDeviceAddress devAddr;
+    g_autoptr(virNodeDeviceDef) def = NULL;
+    g_autofree char *xml = NULL;
+    g_autoptr(virConnect) nodeconn = NULL;
+    g_autoptr(virNodeDevice) nodedev = NULL;
+
+    if (!driverName)
+        return -1;
+
+    if (!(nodeconn = virGetConnectNodeDev()))
+        return -1;
+
+    /* 'dev' is associated with virConnectPtr, so for split
+     * daemons, we need to get a copy that is associated with
+     * the virnodedevd daemon. */
+    if (!(nodedev = virNodeDeviceLookupByName(nodeconn,
+                                              virNodeDeviceGetName(dev))))
+        return -1;
+
+    xml = virNodeDeviceGetXMLDesc(nodedev, 0);
+    if (!xml)
+        return -1;
+
+    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL);
+    if (!def)
+        return -1;
+
+    /* ACL check must happen against original 'dev',
+     * not the new 'nodedev' we acquired */
+    if (virNodeDeviceDetachFlagsEnsureACL(dev->conn, def) < 0)
+        return -1;
+
+    if (virDomainDriverNodeDeviceGetPCIInfo(def, &devAddr) < 0)
+        return -1;
+
+    pci = virPCIDeviceNew(&devAddr);
+    if (!pci)
+        return -1;
+
+    if (STREQ(driverName, "vfio"))
+        virPCIDeviceSetStubDriver(pci, VIR_PCI_STUB_DRIVER_VFIO);
+    else if (STREQ(driverName, "xen"))
+        virPCIDeviceSetStubDriver(pci, VIR_PCI_STUB_DRIVER_XEN);
+
+    return virHostdevPCINodeDeviceDetach(hostdevMgr, pci);
 }

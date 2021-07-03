@@ -58,9 +58,9 @@ int virProcessKillPainfullyDelay(pid_t pid,
                                  bool force,
                                  unsigned int extradelay);
 
-int virProcessSetAffinity(pid_t pid, virBitmapPtr map, bool quiet);
+int virProcessSetAffinity(pid_t pid, virBitmap *map, bool quiet);
 
-virBitmapPtr virProcessGetAffinity(pid_t pid);
+virBitmap *virProcessGetAffinity(pid_t pid);
 
 int virProcessGetPids(pid_t pid, size_t *npids, pid_t **pids);
 
@@ -79,7 +79,7 @@ int virProcessSetMaxProcesses(pid_t pid, unsigned int procs);
 int virProcessSetMaxFiles(pid_t pid, unsigned int files);
 int virProcessSetMaxCoreSize(pid_t pid, unsigned long long bytes);
 
-int virProcessGetMaxMemLock(pid_t pid, unsigned long long *bytes);
+int virProcessGetMaxMemLock(pid_t pid, unsigned long long *bytes) G_GNUC_NO_INLINE;
 
 /* Callback to run code within the mount namespace tied to the given
  * pid.  This function must use only async-signal-safe functions, as

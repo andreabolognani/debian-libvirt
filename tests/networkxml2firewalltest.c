@@ -93,11 +93,12 @@ static int testCompareXMLToArgvFiles(const char *xml,
 {
     char *actualargv = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    virNetworkDefPtr def = NULL;
+    virNetworkDef *def = NULL;
     int ret = -1;
     char *actual;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
-    virCommandSetDryRun(&buf, testCommandDryRun, NULL);
+    virCommandSetDryRun(dryRunToken, &buf, true, true, testCommandDryRun, NULL);
 
     if (!(def = virNetworkDefParseFile(xml, NULL)))
         goto cleanup;
@@ -106,8 +107,6 @@ static int testCompareXMLToArgvFiles(const char *xml,
         goto cleanup;
 
     actual = actualargv = virBufferContentAndReset(&buf);
-    virTestClearCommandPath(actualargv);
-    virCommandSetDryRun(NULL, NULL, NULL);
 
     /* The first network to be created populates the
      * libvirt global chains. We must skip args for
@@ -116,7 +115,7 @@ static int testCompareXMLToArgvFiles(const char *xml,
     if (STRPREFIX(actual, baseargs))
         actual += strlen(baseargs);
 
-    if (virTestCompareToFile(actual, cmdline) < 0)
+    if (virTestCompareToFileFull(actual, cmdline, false) < 0)
         goto cleanup;
 
     ret = 0;
@@ -153,14 +152,6 @@ testCompareXMLToIPTablesHelper(const void *data)
     return result;
 }
 
-static bool
-hasNetfilterTools(void)
-{
-    return virFileIsExecutable(IPTABLES_PATH) &&
-        virFileIsExecutable(IP6TABLES_PATH) &&
-        virFileIsExecutable(EBTABLES_PATH);
-}
-
 
 static int
 mymain(void)
@@ -180,17 +171,12 @@ mymain(void)
     } while (0)
 
     if (virFirewallSetBackend(VIR_FIREWALL_BACKEND_DIRECT) < 0) {
-        if (!hasNetfilterTools()) {
-            fprintf(stderr, "iptables/ip6tables/ebtables tools not present");
-            return EXIT_AM_SKIP;
-        }
-
         return EXIT_FAILURE;
     }
 
     basefile = g_strdup_printf("%s/networkxml2firewalldata/base.args", abs_srcdir);
 
-    if (virTestLoadFile(basefile, &baseargs) < 0)
+    if (virFileReadAll(basefile, INT_MAX, &baseargs) < 0)
         return EXIT_FAILURE;
 
     DO_TEST("nat-default");
@@ -204,7 +190,8 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"))
+VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"),
+                      VIR_TEST_MOCK("virfirewall"))
 
 #else /* ! defined (__linux__) */
 

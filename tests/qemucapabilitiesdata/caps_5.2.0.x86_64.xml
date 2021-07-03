@@ -4,6 +4,7 @@
   <selfctime>0</selfctime>
   <selfvers>0</selfvers>
   <flag name='kvm'/>
+  <flag name='sdl'/>
   <flag name='no-hpet'/>
   <flag name='spice'/>
   <flag name='hda-duplex'/>
@@ -45,7 +46,6 @@
   <flag name='VGA'/>
   <flag name='cirrus-vga'/>
   <flag name='vmware-svga'/>
-  <flag name='device-video-primary'/>
   <flag name='usb-serial'/>
   <flag name='nbd-server'/>
   <flag name='virtio-rng'/>
@@ -90,7 +90,6 @@
   <flag name='aes-key-wrap'/>
   <flag name='dea-key-wrap'/>
   <flag name='pci-serial'/>
-  <flag name='vhost-user-multiqueue'/>
   <flag name='migration-event'/>
   <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
@@ -99,7 +98,6 @@
   <flag name='rtl8139'/>
   <flag name='e1000'/>
   <flag name='virtio-net'/>
-  <flag name='gic-version'/>
   <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-gpu.virgl'/>
@@ -128,7 +126,6 @@
   <flag name='drive-detect-zeroes'/>
   <flag name='tls-creds-x509'/>
   <flag name='intel-iommu'/>
-  <flag name='smm'/>
   <flag name='virtio-pci-disable-legacy'/>
   <flag name='query-hotpluggable-cpus'/>
   <flag name='virtio-net.rx_queue_size'/>
@@ -136,7 +133,6 @@
   <flag name='drive-iotune-max-length'/>
   <flag name='ivshmem-plain'/>
   <flag name='ivshmem-doorbell'/>
-  <flag name='query-qmp-schema'/>
   <flag name='gluster.debug_level'/>
   <flag name='vhost-scsi'/>
   <flag name='drive-iotune-group'/>
@@ -151,7 +147,6 @@
   <flag name='cpu-cache'/>
   <flag name='qemu-xhci'/>
   <flag name='kernel-irqchip'/>
-  <flag name='kernel-irqchip.split'/>
   <flag name='intel-iommu.intremap'/>
   <flag name='intel-iommu.caching-mode'/>
   <flag name='intel-iommu.eim'/>
@@ -165,7 +160,6 @@
   <flag name='virtio-gpu.max_outputs'/>
   <flag name='virtio-blk.num-queues'/>
   <flag name='vmcoreinfo'/>
-  <flag name='numa.dist'/>
   <flag name='disk-share-rw'/>
   <flag name='iscsi.password-secret'/>
   <flag name='isa-serial'/>
@@ -180,7 +174,6 @@
   <flag name='pr-manager-helper'/>
   <flag name='qom-list-properties'/>
   <flag name='memory-backend-file.discard-data'/>
-  <flag name='sdl-gl'/>
   <flag name='screendump_device'/>
   <flag name='hda-output'/>
   <flag name='blockdev-del'/>
@@ -250,6 +243,16 @@
   <flag name='fsdev.createmode'/>
   <flag name='dc390'/>
   <flag name='am53c974'/>
+  <flag name='virtio-pmem-pci'/>
+  <flag name='vhost-user-blk'/>
+  <flag name='cpu-max'/>
+  <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
+  <flag name='vnc-opts'/>
+  <flag name='audiodev'/>
+  <flag name='blockdev-backup'/>
+  <flag name='rotation-rate'/>
+  <flag name='input-linux'/>
+  <flag name='query-display-options'/>
   <version>5002000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>43100243</microcodeVersion>
@@ -1054,7 +1057,7 @@
     <blocker name='avx512f'/>
     <blocker name='pku'/>
   </cpu>
-  <cpu type='kvm' name='Icelake-Client-v2' typename='Icelake-Client-v2-x86_64-cpu' usable='no'>
+  <cpu type='kvm' name='Icelake-Client-v2' typename='Icelake-Client-v2-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='pcid'/>
     <blocker name='erms'/>
     <blocker name='invpcid'/>
@@ -1070,7 +1073,7 @@
     <blocker name='spec-ctrl'/>
     <blocker name='pku'/>
   </cpu>
-  <cpu type='kvm' name='Icelake-Client-v1' typename='Icelake-Client-v1-x86_64-cpu' usable='no'>
+  <cpu type='kvm' name='Icelake-Client-v1' typename='Icelake-Client-v1-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='pcid'/>
     <blocker name='hle'/>
     <blocker name='erms'/>
@@ -1088,7 +1091,7 @@
     <blocker name='spec-ctrl'/>
     <blocker name='pku'/>
   </cpu>
-  <cpu type='kvm' name='Icelake-Client-noTSX' typename='Icelake-Client-noTSX-x86_64-cpu' usable='no'>
+  <cpu type='kvm' name='Icelake-Client-noTSX' typename='Icelake-Client-noTSX-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='pcid'/>
     <blocker name='erms'/>
     <blocker name='invpcid'/>
@@ -1104,7 +1107,7 @@
     <blocker name='spec-ctrl'/>
     <blocker name='pku'/>
   </cpu>
-  <cpu type='kvm' name='Icelake-Client' typename='Icelake-Client-x86_64-cpu' usable='no'>
+  <cpu type='kvm' name='Icelake-Client' typename='Icelake-Client-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='pcid'/>
     <blocker name='hle'/>
     <blocker name='erms'/>
@@ -1423,7 +1426,7 @@
   <machine type='kvm' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='kvm' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='kvm' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='kvm' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -1434,7 +1437,7 @@
   <machine type='kvm' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-q35-4.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='kvm' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='kvm' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='kvm' name='pc-i440fx-4.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-5.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-2.9' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -1444,7 +1447,7 @@
   <machine type='kvm' name='pc-i440fx-3.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-q35-2.12' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-2.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='kvm' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='kvm' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='kvm' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -1455,7 +1458,7 @@
   <machine type='kvm' name='pc-q35-4.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='microvm' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' defaultRAMid='microvm.ram'/>
   <machine type='kvm' name='pc-i440fx-2.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='kvm' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='kvm' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='kvm' name='pc-i440fx-4.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-5.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='kvm' name='pc-i440fx-2.8' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -2428,7 +2431,7 @@
     <blocker name='wbnoinvd'/>
     <blocker name='xsavec'/>
   </cpu>
-  <cpu type='tcg' name='Icelake-Client-v2' typename='Icelake-Client-v2-x86_64-cpu' usable='no'>
+  <cpu type='tcg' name='Icelake-Client-v2' typename='Icelake-Client-v2-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='fma'/>
     <blocker name='pcid'/>
     <blocker name='x2apic'/>
@@ -2453,7 +2456,7 @@
     <blocker name='wbnoinvd'/>
     <blocker name='xsavec'/>
   </cpu>
-  <cpu type='tcg' name='Icelake-Client-v1' typename='Icelake-Client-v1-x86_64-cpu' usable='no'>
+  <cpu type='tcg' name='Icelake-Client-v1' typename='Icelake-Client-v1-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='fma'/>
     <blocker name='pcid'/>
     <blocker name='x2apic'/>
@@ -2480,7 +2483,7 @@
     <blocker name='wbnoinvd'/>
     <blocker name='xsavec'/>
   </cpu>
-  <cpu type='tcg' name='Icelake-Client-noTSX' typename='Icelake-Client-noTSX-x86_64-cpu' usable='no'>
+  <cpu type='tcg' name='Icelake-Client-noTSX' typename='Icelake-Client-noTSX-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='fma'/>
     <blocker name='pcid'/>
     <blocker name='x2apic'/>
@@ -2505,7 +2508,7 @@
     <blocker name='wbnoinvd'/>
     <blocker name='xsavec'/>
   </cpu>
-  <cpu type='tcg' name='Icelake-Client' typename='Icelake-Client-x86_64-cpu' usable='no'>
+  <cpu type='tcg' name='Icelake-Client' typename='Icelake-Client-x86_64-cpu' usable='no' deprecated='yes'>
     <blocker name='fma'/>
     <blocker name='pcid'/>
     <blocker name='x2apic'/>
@@ -3161,7 +3164,7 @@
   <machine type='tcg' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='tcg' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='tcg' name='pc-1.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='tcg' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -3172,7 +3175,7 @@
   <machine type='tcg' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-q35-4.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-2.4' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='tcg' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='tcg' name='pc-1.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='tcg' name='pc-i440fx-4.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-5.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-2.9' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -3182,7 +3185,7 @@
   <machine type='tcg' name='pc-i440fx-3.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-q35-2.12' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-2.1' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='tcg' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='tcg' name='pc-1.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='tcg' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
@@ -3193,7 +3196,7 @@
   <machine type='tcg' name='pc-q35-4.0' hotplugCpus='yes' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='microvm' maxCpus='288' defaultCPU='qemu64-x86_64-cpu' defaultRAMid='microvm.ram'/>
   <machine type='tcg' name='pc-i440fx-2.3' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
-  <machine type='tcg' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
+  <machine type='tcg' name='pc-1.2' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram' deprecated='yes'/>
   <machine type='tcg' name='pc-i440fx-4.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-5.0' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>
   <machine type='tcg' name='pc-i440fx-2.8' hotplugCpus='yes' maxCpus='255' defaultCPU='qemu64-x86_64-cpu' numaMemSupported='yes' defaultRAMid='pc.ram'/>

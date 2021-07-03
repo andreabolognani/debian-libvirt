@@ -78,33 +78,7 @@ virNodeNumOfDevices(virConnectPtr conn, const char *cap, unsigned int flags)
  * objects.
  *
  * Normally, all node devices are returned; however, @flags can be used to
- * filter the results for a smaller list of targeted node devices.  The valid
- * flags are divided into groups, where each group contains bits that
- * describe mutually exclusive attributes of a node device, and where all bits
- * within a group describe all possible node devices.
- *
- * Only one group of the @flags is provided to filter the node devices by
- * capability type, flags include:
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_SYSTEM
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_PCI_DEV
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_USB_DEV
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_USB_INTERFACE
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_NET
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI_HOST
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI_TARGET
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_STORAGE
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_FC_HOST
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_VPORTS
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_SCSI_GENERIC
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_DRM
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV_TYPES
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_MDEV
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_CCW_DEV
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_CSS_DEV
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_CARD
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_QUEUE
- *   VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_MATRIX
+ * filter the results for a smaller list of targeted node devices.
  *
  * Returns the number of node devices found or -1 and sets @devices to NULL in
  * case of error.  On success, the array stored into @devices is guaranteed to
@@ -749,6 +723,123 @@ virNodeDeviceDestroy(virNodeDevicePtr dev)
     if (dev->conn->nodeDeviceDriver &&
         dev->conn->nodeDeviceDriver->nodeDeviceDestroy) {
         int retval = dev->conn->nodeDeviceDriver->nodeDeviceDestroy(dev);
+        if (retval < 0)
+            goto error;
+
+        return 0;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(dev->conn);
+    return -1;
+}
+
+
+/**
+ * virNodeDeviceDefineXML:
+ * @conn: pointer to the hypervisor connection
+ * @xmlDesc: string containing an XML description of the device to be defined
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Define a new device on the VM host machine, for example, a mediated device
+ *
+ * virNodeDeviceFree should be used to free the resources after the
+ * node device object is no longer needed.
+ *
+ * Returns a node device object if successful, NULL in case of failure
+ */
+virNodeDevicePtr
+virNodeDeviceDefineXML(virConnectPtr conn,
+                       const char *xmlDesc,
+                       unsigned int flags)
+{
+    VIR_DEBUG("conn=%p, xmlDesc=%s, flags=0x%x", conn, NULLSTR(xmlDesc), flags);
+
+    virResetLastError();
+
+    virCheckConnectReturn(conn, NULL);
+    virCheckReadOnlyGoto(conn->flags, error);
+    virCheckNonNullArgGoto(xmlDesc, error);
+
+    if (conn->nodeDeviceDriver &&
+        conn->nodeDeviceDriver->nodeDeviceDefineXML) {
+        virNodeDevice *dev = conn->nodeDeviceDriver->nodeDeviceDefineXML(conn, xmlDesc, flags);
+        if (!dev)
+            goto error;
+        return dev;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(conn);
+    return NULL;
+}
+
+
+/**
+ * virNodeDeviceUndefine:
+ * @dev: a device object
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Undefine the device object. The virtual device  is removed from the host
+ * operating system.  This function may require privileged access.
+ *
+ * Returns 0 in case of success and -1 in case of failure.
+ */
+int
+virNodeDeviceUndefine(virNodeDevicePtr dev,
+                      unsigned int flags)
+{
+    VIR_DEBUG("dev=%p, flags=0x%x", dev, flags);
+
+    virResetLastError();
+
+    virCheckNodeDeviceReturn(dev, -1);
+    virCheckReadOnlyGoto(dev->conn->flags, error);
+
+    if (dev->conn->nodeDeviceDriver &&
+        dev->conn->nodeDeviceDriver->nodeDeviceUndefine) {
+        int retval = dev->conn->nodeDeviceDriver->nodeDeviceUndefine(dev, flags);
+        if (retval < 0)
+            goto error;
+
+        return 0;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(dev->conn);
+    return -1;
+}
+
+
+/**
+ * virNodeDeviceCreate:
+ * @dev: a device object
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Start a defined node device:
+ *
+ * Returns 0 in case of success and -1 in case of failure.
+ */
+int
+virNodeDeviceCreate(virNodeDevicePtr dev,
+                    unsigned int flags)
+{
+    VIR_DEBUG("dev=%p, flags=0x%x", dev, flags);
+
+    virResetLastError();
+
+    virCheckNodeDeviceReturn(dev, -1);
+    virCheckReadOnlyGoto(dev->conn->flags, error);
+
+    if (dev->conn->nodeDeviceDriver &&
+        dev->conn->nodeDeviceDriver->nodeDeviceCreate) {
+        int retval = dev->conn->nodeDeviceDriver->nodeDeviceCreate(dev, flags);
         if (retval < 0)
             goto error;
 

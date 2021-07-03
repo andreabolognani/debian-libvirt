@@ -63,34 +63,34 @@ virSysinfoSetup(const char *sysinfo,
     sysinfoCpuinfo = cpuinfo;
 }
 
-void virSysinfoBIOSDefFree(virSysinfoBIOSDefPtr def)
+void virSysinfoBIOSDefFree(virSysinfoBIOSDef *def)
 {
     if (def == NULL)
         return;
 
-    VIR_FREE(def->vendor);
-    VIR_FREE(def->version);
-    VIR_FREE(def->date);
-    VIR_FREE(def->release);
-    VIR_FREE(def);
+    g_free(def->vendor);
+    g_free(def->version);
+    g_free(def->date);
+    g_free(def->release);
+    g_free(def);
 }
 
-void virSysinfoSystemDefFree(virSysinfoSystemDefPtr def)
+void virSysinfoSystemDefFree(virSysinfoSystemDef *def)
 {
     if (def == NULL)
         return;
 
-    VIR_FREE(def->manufacturer);
-    VIR_FREE(def->product);
-    VIR_FREE(def->version);
-    VIR_FREE(def->serial);
-    VIR_FREE(def->uuid);
-    VIR_FREE(def->sku);
-    VIR_FREE(def->family);
-    VIR_FREE(def);
+    g_free(def->manufacturer);
+    g_free(def->product);
+    g_free(def->version);
+    g_free(def->serial);
+    g_free(def->uuid);
+    g_free(def->sku);
+    g_free(def->family);
+    g_free(def);
 }
 
-void virSysinfoBaseBoardDefClear(virSysinfoBaseBoardDefPtr def)
+void virSysinfoBaseBoardDefClear(virSysinfoBaseBoardDef *def)
 {
     if (def == NULL)
         return;
@@ -104,21 +104,21 @@ void virSysinfoBaseBoardDefClear(virSysinfoBaseBoardDefPtr def)
 }
 
 
-void virSysinfoChassisDefFree(virSysinfoChassisDefPtr def)
+void virSysinfoChassisDefFree(virSysinfoChassisDef *def)
 {
     if (def == NULL)
         return;
 
-    VIR_FREE(def->manufacturer);
-    VIR_FREE(def->version);
-    VIR_FREE(def->serial);
-    VIR_FREE(def->asset);
-    VIR_FREE(def->sku);
-    VIR_FREE(def);
+    g_free(def->manufacturer);
+    g_free(def->version);
+    g_free(def->serial);
+    g_free(def->asset);
+    g_free(def->sku);
+    g_free(def);
 }
 
 
-void virSysinfoOEMStringsDefFree(virSysinfoOEMStringsDefPtr def)
+void virSysinfoOEMStringsDefFree(virSysinfoOEMStringsDef *def)
 {
     size_t i;
 
@@ -126,15 +126,15 @@ void virSysinfoOEMStringsDefFree(virSysinfoOEMStringsDefPtr def)
         return;
 
     for (i = 0; i < def->nvalues; i++)
-        VIR_FREE(def->values[i]);
-    VIR_FREE(def->values);
+        g_free(def->values[i]);
+    g_free(def->values);
 
-    VIR_FREE(def);
+    g_free(def);
 }
 
 
 static void
-virSysinfoFWCfgDefClear(virSysinfoFWCfgDefPtr def)
+virSysinfoFWCfgDefClear(virSysinfoFWCfgDef *def)
 {
     if (!def)
         return;
@@ -152,7 +152,7 @@ virSysinfoFWCfgDefClear(virSysinfoFWCfgDefPtr def)
  * Free up the sysinfo structure
  */
 
-void virSysinfoDefFree(virSysinfoDefPtr def)
+void virSysinfoDefFree(virSysinfoDef *def)
 {
     size_t i;
 
@@ -164,45 +164,45 @@ void virSysinfoDefFree(virSysinfoDefPtr def)
 
     for (i = 0; i < def->nbaseBoard; i++)
         virSysinfoBaseBoardDefClear(def->baseBoard + i);
-    VIR_FREE(def->baseBoard);
+    g_free(def->baseBoard);
 
     virSysinfoChassisDefFree(def->chassis);
 
     for (i = 0; i < def->nprocessor; i++) {
-        VIR_FREE(def->processor[i].processor_socket_destination);
-        VIR_FREE(def->processor[i].processor_type);
-        VIR_FREE(def->processor[i].processor_family);
-        VIR_FREE(def->processor[i].processor_manufacturer);
-        VIR_FREE(def->processor[i].processor_signature);
-        VIR_FREE(def->processor[i].processor_version);
-        VIR_FREE(def->processor[i].processor_external_clock);
-        VIR_FREE(def->processor[i].processor_max_speed);
-        VIR_FREE(def->processor[i].processor_status);
-        VIR_FREE(def->processor[i].processor_serial_number);
-        VIR_FREE(def->processor[i].processor_part_number);
+        g_free(def->processor[i].processor_socket_destination);
+        g_free(def->processor[i].processor_type);
+        g_free(def->processor[i].processor_family);
+        g_free(def->processor[i].processor_manufacturer);
+        g_free(def->processor[i].processor_signature);
+        g_free(def->processor[i].processor_version);
+        g_free(def->processor[i].processor_external_clock);
+        g_free(def->processor[i].processor_max_speed);
+        g_free(def->processor[i].processor_status);
+        g_free(def->processor[i].processor_serial_number);
+        g_free(def->processor[i].processor_part_number);
     }
-    VIR_FREE(def->processor);
+    g_free(def->processor);
     for (i = 0; i < def->nmemory; i++) {
-        VIR_FREE(def->memory[i].memory_size);
-        VIR_FREE(def->memory[i].memory_form_factor);
-        VIR_FREE(def->memory[i].memory_locator);
-        VIR_FREE(def->memory[i].memory_bank_locator);
-        VIR_FREE(def->memory[i].memory_type);
-        VIR_FREE(def->memory[i].memory_type_detail);
-        VIR_FREE(def->memory[i].memory_speed);
-        VIR_FREE(def->memory[i].memory_manufacturer);
-        VIR_FREE(def->memory[i].memory_serial_number);
-        VIR_FREE(def->memory[i].memory_part_number);
+        g_free(def->memory[i].memory_size);
+        g_free(def->memory[i].memory_form_factor);
+        g_free(def->memory[i].memory_locator);
+        g_free(def->memory[i].memory_bank_locator);
+        g_free(def->memory[i].memory_type);
+        g_free(def->memory[i].memory_type_detail);
+        g_free(def->memory[i].memory_speed);
+        g_free(def->memory[i].memory_manufacturer);
+        g_free(def->memory[i].memory_serial_number);
+        g_free(def->memory[i].memory_part_number);
     }
-    VIR_FREE(def->memory);
+    g_free(def->memory);
 
     virSysinfoOEMStringsDefFree(def->oemStrings);
 
     for (i = 0; i < def->nfw_cfgs; i++)
         virSysinfoFWCfgDefClear(&def->fw_cfgs[i]);
-    VIR_FREE(def->fw_cfgs);
+    g_free(def->fw_cfgs);
 
-    VIR_FREE(def);
+    g_free(def);
 }
 
 
@@ -216,12 +216,12 @@ virSysinfoDefIsEmpty(const virSysinfoDef *def)
 
 
 static int
-virSysinfoParsePPCSystem(const char *base, virSysinfoSystemDefPtr *sysdef)
+virSysinfoParsePPCSystem(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
     char *eol = NULL;
     const char *cur;
-    virSysinfoSystemDefPtr def;
+    virSysinfoSystemDef *def;
 
     if ((cur = strstr(base, "platform")) == NULL)
         return 0;
@@ -258,27 +258,25 @@ virSysinfoParsePPCSystem(const char *base, virSysinfoSystemDefPtr *sysdef)
         def = NULL;
     }
 
-    *sysdef = def;
-    def = NULL;
+    *sysdef = g_steal_pointer(&def);
     ret = 0;
     virSysinfoSystemDefFree(def);
     return ret;
 }
 
 static int
-virSysinfoParsePPCProcessor(const char *base, virSysinfoDefPtr ret)
+virSysinfoParsePPCProcessor(const char *base, virSysinfoDef *ret)
 {
     const char *cur;
     char *eol, *tmp_base;
-    virSysinfoProcessorDefPtr processor;
+    virSysinfoProcessorDef *processor;
 
     while ((tmp_base = strstr(base, "processor")) != NULL) {
         base = tmp_base;
         eol = strchr(base, '\n');
         cur = strchr(base, ':') + 1;
 
-        if (VIR_EXPAND_N(ret->processor, ret->nprocessor, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(ret->processor, ret->nprocessor, 1);
         processor = &ret->processor[ret->nprocessor - 1];
 
         virSkipSpaces(&cur);
@@ -312,10 +310,10 @@ virSysinfoParsePPCProcessor(const char *base, virSysinfoDefPtr ret)
 
 /* virSysinfoRead for PowerPC
  * Gathers sysinfo data from /proc/cpuinfo */
-virSysinfoDefPtr
+virSysinfoDef *
 virSysinfoReadPPC(void)
 {
-    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_autoptr(virSysinfoDef) ret = NULL;
     g_autofree char *outbuf = NULL;
 
     ret = g_new0(virSysinfoDef, 1);
@@ -339,12 +337,12 @@ virSysinfoReadPPC(void)
 
 
 static int
-virSysinfoParseARMSystem(const char *base, virSysinfoSystemDefPtr *sysdef)
+virSysinfoParseARMSystem(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
     char *eol = NULL;
     const char *cur;
-    virSysinfoSystemDefPtr def;
+    virSysinfoSystemDef *def;
 
     if ((cur = strstr(base, "platform")) == NULL)
         return 0;
@@ -381,19 +379,18 @@ virSysinfoParseARMSystem(const char *base, virSysinfoSystemDefPtr *sysdef)
         def = NULL;
     }
 
-    *sysdef = def;
-    def = NULL;
+    *sysdef = g_steal_pointer(&def);
     ret = 0;
     virSysinfoSystemDefFree(def);
     return ret;
 }
 
 static int
-virSysinfoParseARMProcessor(const char *base, virSysinfoDefPtr ret)
+virSysinfoParseARMProcessor(const char *base, virSysinfoDef *ret)
 {
     const char *cur;
     char *eol, *tmp_base;
-    virSysinfoProcessorDefPtr processor;
+    virSysinfoProcessorDef *processor;
     char *processor_type = NULL;
 
     if (!(tmp_base = strstr(base, "model name")) &&
@@ -411,8 +408,7 @@ virSysinfoParseARMProcessor(const char *base, virSysinfoDefPtr ret)
         eol = strchr(base, '\n');
         cur = strchr(base, ':') + 1;
 
-        if (VIR_EXPAND_N(ret->processor, ret->nprocessor, 1) < 0)
-            goto error;
+        VIR_EXPAND_N(ret->processor, ret->nprocessor, 1);
         processor = &ret->processor[ret->nprocessor - 1];
 
         virSkipSpaces(&cur);
@@ -427,18 +423,14 @@ virSysinfoParseARMProcessor(const char *base, virSysinfoDefPtr ret)
 
     VIR_FREE(processor_type);
     return 0;
-
- error:
-    VIR_FREE(processor_type);
-    return -1;
 }
 
 /* virSysinfoRead for ARMv7
  * Gathers sysinfo data from /proc/cpuinfo */
-virSysinfoDefPtr
+virSysinfoDef *
 virSysinfoReadARM(void)
 {
-    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_autoptr(virSysinfoDef) ret = NULL;
     g_autofree char *outbuf = NULL;
 
     /* Some ARM systems have DMI tables available. */
@@ -499,10 +491,10 @@ virSysinfoParseS390Line(const char *base, const char *name, char **value)
 }
 
 static int
-virSysinfoParseS390System(const char *base, virSysinfoSystemDefPtr *sysdef)
+virSysinfoParseS390System(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
-    virSysinfoSystemDefPtr def;
+    virSysinfoSystemDef *def;
 
     def = g_new0(virSysinfoSystemDef, 1);
 
@@ -521,8 +513,7 @@ virSysinfoParseS390System(const char *base, virSysinfoSystemDefPtr *sysdef)
         def = NULL;
     }
 
-    *sysdef = def;
-    def = NULL;
+    *sysdef = g_steal_pointer(&def);
     ret = 0;
  cleanup:
     virSysinfoSystemDefFree(def);
@@ -530,14 +521,14 @@ virSysinfoParseS390System(const char *base, virSysinfoSystemDefPtr *sysdef)
 }
 
 static int
-virSysinfoParseS390Processor(const char *base, virSysinfoDefPtr ret)
+virSysinfoParseS390Processor(const char *base, virSysinfoDef *ret)
 {
     const char *tmp_base;
     char *manufacturer = NULL;
     char *procline = NULL;
     char *ncpu = NULL;
     int result = -1;
-    virSysinfoProcessorDefPtr processor;
+    virSysinfoProcessorDef *processor;
 
     if (!(tmp_base = virSysinfoParseS390Line(base, "vendor_id", &manufacturer)))
         goto error;
@@ -547,8 +538,7 @@ virSysinfoParseS390Processor(const char *base, virSysinfoDefPtr ret)
     while ((tmp_base = strstr(tmp_base, "processor "))
            && (tmp_base = virSysinfoParseS390Line(tmp_base, "processor ",
                                                   &procline))) {
-        if (VIR_EXPAND_N(ret->processor, ret->nprocessor, 1) < 0)
-            goto error;
+        VIR_EXPAND_N(ret->processor, ret->nprocessor, 1);
         processor = &ret->processor[ret->nprocessor - 1];
         processor->processor_manufacturer = g_strdup(manufacturer);
         if (!virSysinfoParseS390Delimited(procline, "version",
@@ -602,10 +592,10 @@ virSysinfoParseS390Processor(const char *base, virSysinfoDefPtr ret)
 
 /* virSysinfoRead for s390x
  * Gathers sysinfo data from /proc/sysinfo and /proc/cpuinfo */
-virSysinfoDefPtr
+virSysinfoDef *
 virSysinfoReadS390(void)
 {
-    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_autoptr(virSysinfoDef) ret = NULL;
     g_autofree char *outbuf = NULL;
 
     ret = g_new0(virSysinfoDef, 1);
@@ -638,12 +628,12 @@ virSysinfoReadS390(void)
 
 
 static int
-virSysinfoParseBIOS(const char *base, virSysinfoBIOSDefPtr *bios)
+virSysinfoParseBIOS(const char *base, virSysinfoBIOSDef **bios)
 {
     int ret = -1;
     const char *cur;
     char *eol = NULL;
-    virSysinfoBIOSDefPtr def;
+    virSysinfoBIOSDef *def;
 
     if ((cur = strstr(base, "BIOS Information")) == NULL)
         return 0;
@@ -686,20 +676,19 @@ virSysinfoParseBIOS(const char *base, virSysinfoBIOSDefPtr *bios)
         def = NULL;
     }
 
-    *bios = def;
-    def = NULL;
+    *bios = g_steal_pointer(&def);
     ret = 0;
     virSysinfoBIOSDefFree(def);
     return ret;
 }
 
 static int
-virSysinfoParseX86System(const char *base, virSysinfoSystemDefPtr *sysdef)
+virSysinfoParseX86System(const char *base, virSysinfoSystemDef **sysdef)
 {
     int ret = -1;
     const char *cur;
     char *eol = NULL;
-    virSysinfoSystemDefPtr def;
+    virSysinfoSystemDef *def;
 
     if ((cur = strstr(base, "System Information")) == NULL)
         return 0;
@@ -763,8 +752,7 @@ virSysinfoParseX86System(const char *base, virSysinfoSystemDefPtr *sysdef)
         def = NULL;
     }
 
-    *sysdef = def;
-    def = NULL;
+    *sysdef = g_steal_pointer(&def);
     ret = 0;
     virSysinfoSystemDefFree(def);
     return ret;
@@ -772,20 +760,18 @@ virSysinfoParseX86System(const char *base, virSysinfoSystemDefPtr *sysdef)
 
 static int
 virSysinfoParseX86BaseBoard(const char *base,
-                            virSysinfoBaseBoardDefPtr *baseBoard,
+                            virSysinfoBaseBoardDef **baseBoard,
                             size_t *nbaseBoard)
 {
-    int ret = -1;
     const char *cur;
     char *eol = NULL;
-    virSysinfoBaseBoardDefPtr boards = NULL;
+    virSysinfoBaseBoardDef *boards = NULL;
     size_t nboards = 0;
 
     while (base && (cur = strstr(base, "Base Board Information"))) {
-        virSysinfoBaseBoardDefPtr def;
+        virSysinfoBaseBoardDef *def;
 
-        if (VIR_EXPAND_N(boards, nboards, 1) < 0)
-            goto cleanup;
+        VIR_EXPAND_N(boards, nboards, 1);
 
         def = &boards[nboards - 1];
 
@@ -841,31 +827,23 @@ virSysinfoParseX86BaseBoard(const char *base,
     if (nboards == 0) {
         VIR_FREE(boards);
     } else {
-        /* This is safe, as we can be only shrinking the memory */
-        ignore_value(VIR_REALLOC_N(boards, nboards));
+        VIR_REALLOC_N(boards, nboards);
     }
 
-    *baseBoard = boards;
     *nbaseBoard = nboards;
-    boards = NULL;
-    nboards = 0;
-    ret = 0;
- cleanup:
-    while (nboards--)
-        virSysinfoBaseBoardDefClear(&boards[nboards]);
-    VIR_FREE(boards);
-    return ret;
+    *baseBoard = g_steal_pointer(&boards);
+    return 0;
 }
 
 
 static int
 virSysinfoParseX86Chassis(const char *base,
-                          virSysinfoChassisDefPtr *chassisdef)
+                          virSysinfoChassisDef **chassisdef)
 {
     int ret = -1;
     const char *cur;
     char *eol = NULL;
-    virSysinfoChassisDefPtr def;
+    virSysinfoChassisDef *def;
 
     if ((cur = strstr(base, "Chassis Information")) == NULL)
         return 0;
@@ -915,8 +893,7 @@ virSysinfoParseX86Chassis(const char *base,
         def = NULL;
     }
 
-    *chassisdef = def;
-    def = NULL;
+    *chassisdef = g_steal_pointer(&def);
     ret = 0;
     virSysinfoChassisDefFree(def);
     return ret;
@@ -950,9 +927,9 @@ virSysinfoDMIDecodeOEMString(size_t i,
 
 static int
 virSysinfoParseOEMStrings(const char *base,
-                          virSysinfoOEMStringsDefPtr *stringsRet)
+                          virSysinfoOEMStringsDef **stringsRet)
 {
-    virSysinfoOEMStringsDefPtr strings = NULL;
+    virSysinfoOEMStringsDef *strings = NULL;
     size_t i = 1;
     int ret = -1;
     const char *cur;
@@ -988,8 +965,7 @@ virSysinfoParseOEMStrings(const char *base,
         if (!eol)
             continue;
 
-        if (VIR_EXPAND_N(strings->values, strings->nvalues, 1) < 0)
-            goto cleanup;
+        VIR_EXPAND_N(strings->values, strings->nvalues, 1);
 
         /* If OEM String contains newline, dmidecode escapes it as a dot.
          * If this is the case then run dmidecode again to get raw string.
@@ -1020,18 +996,17 @@ virSysinfoParseOEMStrings(const char *base,
 
 
 static int
-virSysinfoParseX86Processor(const char *base, virSysinfoDefPtr ret)
+virSysinfoParseX86Processor(const char *base, virSysinfoDef *ret)
 {
     const char *cur, *tmp_base;
     char *eol;
-    virSysinfoProcessorDefPtr processor;
+    virSysinfoProcessorDef *processor;
 
     while ((tmp_base = strstr(base, "Processor Information")) != NULL) {
         base = tmp_base;
         eol = NULL;
 
-        if (VIR_EXPAND_N(ret->processor, ret->nprocessor, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(ret->processor, ret->nprocessor, 1);
         processor = &ret->processor[ret->nprocessor - 1];
 
         if ((cur = strstr(base, "Socket Designation: ")) != NULL) {
@@ -1121,18 +1096,17 @@ virSysinfoParseX86Processor(const char *base, virSysinfoDefPtr ret)
 }
 
 static int
-virSysinfoParseX86Memory(const char *base, virSysinfoDefPtr ret)
+virSysinfoParseX86Memory(const char *base, virSysinfoDef *ret)
 {
     const char *cur, *tmp_base;
     char *eol;
-    virSysinfoMemoryDefPtr memory;
+    virSysinfoMemoryDef *memory;
 
     while ((tmp_base = strstr(base, "Memory Device")) != NULL) {
         base = tmp_base;
         eol = NULL;
 
-        if (VIR_EXPAND_N(ret->memory, ret->nmemory, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(ret->memory, ret->nmemory, 1);
         memory = &ret->memory[ret->nmemory - 1];
 
         if ((cur = strstr(base, "Size: ")) != NULL) {
@@ -1216,10 +1190,10 @@ virSysinfoParseX86Memory(const char *base, virSysinfoDefPtr ret)
     return 0;
 }
 
-virSysinfoDefPtr
+virSysinfoDef *
 virSysinfoReadDMI(void)
 {
-    g_auto(virSysinfoDefPtr) ret = NULL;
+    g_autoptr(virSysinfoDef) ret = NULL;
     g_autofree char *outbuf = NULL;
     g_autoptr(virCommand) cmd = NULL;
 
@@ -1268,7 +1242,7 @@ virSysinfoReadDMI(void)
  *
  * Returns: a filled up sysinfo structure or NULL in case of error
  */
-virSysinfoDefPtr
+virSysinfoDef *
 virSysinfoRead(void)
 {
 #if defined(__powerpc__)
@@ -1295,7 +1269,7 @@ virSysinfoRead(void)
 
 
 static void
-virSysinfoBIOSFormat(virBufferPtr buf, virSysinfoBIOSDefPtr def)
+virSysinfoBIOSFormat(virBuffer *buf, virSysinfoBIOSDef *def)
 {
     if (!def)
         return;
@@ -1315,7 +1289,7 @@ virSysinfoBIOSFormat(virBufferPtr buf, virSysinfoBIOSDefPtr def)
 }
 
 static void
-virSysinfoSystemFormat(virBufferPtr buf, virSysinfoSystemDefPtr def)
+virSysinfoSystemFormat(virBuffer *buf, virSysinfoSystemDef *def)
 {
     if (!def)
         return;
@@ -1341,11 +1315,11 @@ virSysinfoSystemFormat(virBufferPtr buf, virSysinfoSystemDefPtr def)
 }
 
 static void
-virSysinfoBaseBoardFormat(virBufferPtr buf,
-                          virSysinfoBaseBoardDefPtr baseBoard,
+virSysinfoBaseBoardFormat(virBuffer *buf,
+                          virSysinfoBaseBoardDef *baseBoard,
                           size_t nbaseBoard)
 {
-    virSysinfoBaseBoardDefPtr def;
+    virSysinfoBaseBoardDef *def;
     size_t i;
 
     for (i = 0; i < nbaseBoard; i++) {
@@ -1372,8 +1346,8 @@ virSysinfoBaseBoardFormat(virBufferPtr buf,
 
 
 static void
-virSysinfoChassisFormat(virBufferPtr buf,
-                        virSysinfoChassisDefPtr def)
+virSysinfoChassisFormat(virBuffer *buf,
+                        virSysinfoChassisDef *def)
 {
     if (!def)
         return;
@@ -1396,10 +1370,10 @@ virSysinfoChassisFormat(virBufferPtr buf,
 
 
 static void
-virSysinfoProcessorFormat(virBufferPtr buf, virSysinfoDefPtr def)
+virSysinfoProcessorFormat(virBuffer *buf, virSysinfoDef *def)
 {
     size_t i;
-    virSysinfoProcessorDefPtr processor;
+    virSysinfoProcessorDef *processor;
 
     for (i = 0; i < def->nprocessor; i++) {
         processor = &def->processor[i];
@@ -1448,10 +1422,10 @@ virSysinfoProcessorFormat(virBufferPtr buf, virSysinfoDefPtr def)
 }
 
 static void
-virSysinfoMemoryFormat(virBufferPtr buf, virSysinfoDefPtr def)
+virSysinfoMemoryFormat(virBuffer *buf, virSysinfoDef *def)
 {
     size_t i;
-    virSysinfoMemoryDefPtr memory;
+    virSysinfoMemoryDef *memory;
 
     for (i = 0; i < def->nmemory; i++) {
         memory = &def->memory[i];
@@ -1502,7 +1476,7 @@ virSysinfoMemoryFormat(virBufferPtr buf, virSysinfoDefPtr def)
 }
 
 static void
-virSysinfoOEMStringsFormat(virBufferPtr buf, virSysinfoOEMStringsDefPtr def)
+virSysinfoOEMStringsFormat(virBuffer *buf, virSysinfoOEMStringsDef *def)
 {
     size_t i;
 
@@ -1521,8 +1495,8 @@ virSysinfoOEMStringsFormat(virBufferPtr buf, virSysinfoOEMStringsDefPtr def)
 
 
 static void
-virSysinfoFormatSMBIOS(virBufferPtr buf,
-                       virSysinfoDefPtr def)
+virSysinfoFormatSMBIOS(virBuffer *buf,
+                       virSysinfoDef *def)
 {
     virSysinfoBIOSFormat(buf, def->bios);
     virSysinfoSystemFormat(buf, def->system);
@@ -1535,8 +1509,8 @@ virSysinfoFormatSMBIOS(virBufferPtr buf,
 
 
 static void
-virSysinfoFormatFWCfg(virBufferPtr buf,
-                      virSysinfoDefPtr def)
+virSysinfoFormatFWCfg(virBuffer *buf,
+                      virSysinfoDef *def)
 {
     size_t i;
 
@@ -1561,7 +1535,7 @@ virSysinfoFormatFWCfg(virBufferPtr buf,
  * Returns 0 on success, -1 on failure after generating an error message.
  */
 int
-virSysinfoFormat(virBufferPtr buf, virSysinfoDefPtr def)
+virSysinfoFormat(virBuffer *buf, virSysinfoDef *def)
 {
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) childrenBuf = VIR_BUFFER_INIT_CHILD(buf);
@@ -1603,8 +1577,8 @@ virSysinfoFormat(virBufferPtr buf, virSysinfoDefPtr def)
     } while (0)
 
 static bool
-virSysinfoBIOSIsEqual(virSysinfoBIOSDefPtr src,
-                      virSysinfoBIOSDefPtr dst)
+virSysinfoBIOSIsEqual(virSysinfoBIOSDef *src,
+                      virSysinfoBIOSDef *dst)
 {
     if (!src && !dst)
         return true;
@@ -1624,8 +1598,8 @@ virSysinfoBIOSIsEqual(virSysinfoBIOSDefPtr src,
 }
 
 static bool
-virSysinfoSystemIsEqual(virSysinfoSystemDefPtr src,
-                        virSysinfoSystemDefPtr dst)
+virSysinfoSystemIsEqual(virSysinfoSystemDef *src,
+                        virSysinfoSystemDef *dst)
 {
     if (!src && !dst)
         return true;
@@ -1648,8 +1622,8 @@ virSysinfoSystemIsEqual(virSysinfoSystemDefPtr src,
 }
 
 static bool
-virSysinfoBaseBoardIsEqual(virSysinfoBaseBoardDefPtr src,
-                           virSysinfoBaseBoardDefPtr dst)
+virSysinfoBaseBoardIsEqual(virSysinfoBaseBoardDef *src,
+                           virSysinfoBaseBoardDef *dst)
 {
     if (!src && !dst)
         return true;
@@ -1672,8 +1646,8 @@ virSysinfoBaseBoardIsEqual(virSysinfoBaseBoardDefPtr src,
 
 
 static bool
-virSysinfoChassisIsEqual(virSysinfoChassisDefPtr src,
-                         virSysinfoChassisDefPtr dst)
+virSysinfoChassisIsEqual(virSysinfoChassisDef *src,
+                         virSysinfoChassisDef *dst)
 {
     if (!src && !dst)
         return true;
@@ -1696,8 +1670,8 @@ virSysinfoChassisIsEqual(virSysinfoChassisDefPtr src,
 
 #undef CHECK_FIELD
 
-bool virSysinfoIsEqual(virSysinfoDefPtr src,
-                       virSysinfoDefPtr dst)
+bool virSysinfoIsEqual(virSysinfoDef *src,
+                       virSysinfoDef *dst)
 {
     size_t i;
 

@@ -84,3 +84,5 @@ char *vir_g_strdup_vprintf(const char *msg, va_list args)
 #define g_canonicalize_filename vir_g_canonicalize_filename
 #undef g_fsync
 #define g_fsync vir_g_fsync
+
+void vir_g_source_unref(GSource *src, GMainContext *ctx);

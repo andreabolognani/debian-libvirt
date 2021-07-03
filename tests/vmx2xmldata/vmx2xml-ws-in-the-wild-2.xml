@@ -20,13 +20,14 @@
     <disk type='file' device='cdrom'>
       <source file='/usr/lib/vmware/isoimages/linux.iso'/>
       <target dev='hdc' bus='ide'/>
+      <readonly/>
       <address type='drive' controller='0' bus='1' target='0' unit='0'/>
     </disk>
     <controller type='scsi' index='0' model='lsilogic'/>
     <controller type='ide' index='0'/>
     <interface type='bridge'>
       <mac address='00:50:56:2f:d3:46' type='static'/>
-      <source bridge=''/>
+      <source bridge='VMnet0'/>
       <model type='e1000'/>
     </interface>
     <video>

@@ -34,7 +34,6 @@ typedef enum {
 VIR_ENUM_DECL(virStorageAdapter);
 
 typedef struct _virStorageAdapterSCSIHost virStorageAdapterSCSIHost;
-typedef virStorageAdapterSCSIHost *virStorageAdapterSCSIHostPtr;
 struct _virStorageAdapterSCSIHost {
     char *name;
     virPCIDeviceAddress parentaddr; /* host address */
@@ -43,7 +42,6 @@ struct _virStorageAdapterSCSIHost {
 };
 
 typedef struct _virStorageAdapterFCHost virStorageAdapterFCHost;
-typedef virStorageAdapterFCHost *virStorageAdapterFCHostPtr;
 struct _virStorageAdapterFCHost {
     char *parent;
     char *parent_wwnn;
@@ -51,13 +49,12 @@ struct _virStorageAdapterFCHost {
     char *parent_fabric_wwn;
     char *wwnn;
     char *wwpn;
-    int managed;        /* enum virTristateSwitch */
+    virTristateBool managed;
 };
 
 typedef struct _virStorageAdapter virStorageAdapter;
-typedef virStorageAdapter *virStorageAdapterPtr;
 struct _virStorageAdapter {
-    int type; /* virStorageAdapterType */
+    virStorageAdapterType type;
 
     union {
         virStorageAdapterSCSIHost scsi_host;
@@ -67,16 +64,16 @@ struct _virStorageAdapter {
 
 
 void
-virStorageAdapterClear(virStorageAdapterPtr adapter);
+virStorageAdapterClear(virStorageAdapter *adapter);
 
 int
-virStorageAdapterParseXML(virStorageAdapterPtr adapter,
+virStorageAdapterParseXML(virStorageAdapter *adapter,
                           xmlNodePtr node,
                           xmlXPathContextPtr ctxt);
 
 int
-virStorageAdapterValidate(virStorageAdapterPtr adapter);
+virStorageAdapterValidate(virStorageAdapter *adapter);
 
 void
-virStorageAdapterFormat(virBufferPtr buf,
-                        virStorageAdapterPtr adapter);
+virStorageAdapterFormat(virBuffer *buf,
+                        virStorageAdapter *adapter);

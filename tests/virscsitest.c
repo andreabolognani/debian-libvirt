@@ -60,12 +60,12 @@ test1(const void *data G_GNUC_UNUSED)
 static int
 test2(const void *data G_GNUC_UNUSED)
 {
-    virSCSIDeviceListPtr list = NULL;
-    virSCSIDevicePtr dev = NULL;
-    virSCSIDevicePtr dev1 = NULL;
+    virSCSIDeviceList *list = NULL;
+    virSCSIDevice *dev = NULL;
+    virSCSIDevice *dev1 = NULL;
     bool free_dev = true;
     bool free_dev1 = true;
-    virSCSIDevicePtr tmp = NULL;
+    virSCSIDevice *tmp = NULL;
     char *sgname = NULL;
     int ret = -1;
 
@@ -229,7 +229,7 @@ mymain(void)
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(tmpdir);
     VIR_FREE(virscsi_prefix);
-    return ret;
+    return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 VIR_TEST_MAIN(mymain)

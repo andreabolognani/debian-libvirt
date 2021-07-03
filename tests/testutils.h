@@ -30,9 +30,9 @@
 #define EXIT_AM_SKIP 77 /* tell Automake we're skipping a test */
 #define EXIT_AM_HARDFAIL 99 /* tell Automake that the framework is broken */
 
-/* Makefile.am provides these two definitions */
+/* Meson provides these two definitions */
 #if !defined(abs_srcdir) || !defined(abs_builddir)
-# error Fix Makefile.am
+# error Fix build system
 #endif
 
 extern virArch virTestHostArch;
@@ -43,10 +43,8 @@ int virTestRun(const char *title,
 int virTestLoadFile(const char *file, char **buf);
 char *virTestLoadFilePath(const char *p, ...)
     G_GNUC_NULL_TERMINATED;
-virJSONValuePtr virTestLoadFileJSON(const char *p, ...)
+virJSONValue *virTestLoadFileJSON(const char *p, ...)
     G_GNUC_NULL_TERMINATED;
-
-void virTestClearCommandPath(char *cmdset);
 
 int virTestDifference(FILE *stream,
                       const char *expect,
@@ -65,6 +63,9 @@ int virTestDifferenceBin(FILE *stream,
                          const char *expect,
                          const char *actual,
                          size_t length);
+int virTestCompareToFileFull(const char *actual,
+                             const char *filename,
+                             bool unwrap);
 int virTestCompareToFile(const char *actual,
                          const char *filename);
 int virTestCompareToString(const char *expect,
@@ -97,6 +98,10 @@ void virTestQuiesceLibvirtErrors(bool always);
 void virTestCounterReset(const char *prefix);
 const char *virTestCounterNext(void);
 
+/**
+ * The @func shall return  EXIT_FAILURE or EXIT_SUCCESS or
+ * EXIT_AM_SKIP or EXIT_AM_HARDFAIL.
+ */
 int virTestMain(int argc,
                 char **argv,
                 int (*func)(void),
@@ -142,9 +147,9 @@ int virTestMain(int argc,
 
 #define VIR_TEST_MOCK(mock) (abs_builddir "/lib" mock "mock" MOCK_EXT)
 
-virCapsPtr virTestGenericCapsInit(void);
-virCapsHostNUMAPtr virTestCapsBuildNUMATopology(int seq);
-virDomainXMLOptionPtr virTestGenericDomainXMLConfInit(void);
+virCaps *virTestGenericCapsInit(void);
+virCapsHostNUMA *virTestCapsBuildNUMATopology(int seq);
+virDomainXMLOption *virTestGenericDomainXMLConfInit(void);
 
 typedef enum {
     TEST_COMPARE_DOM_XML2XML_RESULT_SUCCESS,
@@ -154,8 +159,8 @@ typedef enum {
     TEST_COMPARE_DOM_XML2XML_RESULT_FAIL_COMPARE,
 } testCompareDomXML2XMLResult;
 
-int testCompareDomXML2XMLFiles(virCapsPtr caps,
-                               virDomainXMLOptionPtr xmlopt,
+int testCompareDomXML2XMLFiles(virCaps *caps,
+                               virDomainXMLOption *xmlopt,
                                const char *inxml,
                                const char *outfile,
                                bool live,

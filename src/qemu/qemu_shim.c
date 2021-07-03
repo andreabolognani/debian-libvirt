@@ -45,9 +45,9 @@ qemuShimEventLoop(void *opaque G_GNUC_UNUSED)
     while (!quit) {
         g_mutex_lock(&eventLock);
         if (eventQuitFlag && !eventPreventQuitFlag) {
+            quit = true;
             if (dom) {
                 virDomainDestroy(dom);
-                quit = true;
             }
         }
         g_mutex_unlock(&eventLock);
@@ -140,7 +140,8 @@ int main(int argc, char **argv)
     g_autofree char *xml = NULL;
     g_autofree char *uri = NULL;
     g_autofree char *suri = NULL;
-    char *root = NULL;
+    const char *root = NULL;
+    g_autofree char *escaped = NULL;
     bool tmproot = false;
     int ret = 1;
     g_autoptr(GError) error = NULL;
@@ -209,12 +210,19 @@ int main(int argc, char **argv)
         }
         tmproot = true;
 
-        if (chmod(root, 0755) < 0) {
-            g_printerr("%s: cannot chown temporary dir: %s\n",
-                       argv[0], g_strerror(errno));
-            goto cleanup;
-        }
+    } else if (g_mkdir_with_parents(root, 0755) < 0) {
+        g_printerr("%s: cannot create dir: %s\n",
+                   argv[0], g_strerror(errno));
+        goto cleanup;
     }
+
+    if (chmod(root, 0755) < 0) {
+        g_printerr("%s: cannot chmod temporary dir: %s\n",
+                   argv[0], g_strerror(errno));
+        goto cleanup;
+    }
+
+    escaped = g_uri_escape_string(root, NULL, true);
 
     virFileActivateDirOverrideForProg(argv[0]);
 
@@ -242,7 +250,7 @@ int main(int argc, char **argv)
     eventLoopThread = g_thread_new("event-loop", qemuShimEventLoop, NULL);
 
     if (secrets && *secrets) {
-        suri = g_strdup_printf("secret:///embed?root=%s", root);
+        suri = g_strdup_printf("secret:///embed?root=%s", escaped);
 
         if (verbose)
             g_printerr("%s: %lld: opening %s\n",
@@ -303,7 +311,7 @@ int main(int argc, char **argv)
         }
     }
 
-    uri = g_strdup_printf("qemu:///embed?root=%s", root);
+    uri = g_strdup_printf("qemu:///embed?root=%s", escaped);
 
     if (verbose)
         g_printerr("%s: %lld: opening %s\n",

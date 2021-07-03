@@ -467,7 +467,7 @@ cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
     char *cap = NULL;
     char *alloc = NULL;
     char *phy = NULL;
-    vshTablePtr table = NULL;
+    vshTable *table = NULL;
 
     VSH_EXCLUSIVE_OPTIONS("all", "device");
 
@@ -605,7 +605,7 @@ cmdDomblklist(vshControl *ctl, const vshCmd *cmd)
     char *device = NULL;
     char *target = NULL;
     char *source = NULL;
-    vshTablePtr table = NULL;
+    vshTable *table = NULL;
 
     if (vshCommandOptBool(cmd, "inactive"))
         flags |= VIR_DOMAIN_XML_INACTIVE;
@@ -728,7 +728,7 @@ cmdDomiflist(vshControl *ctl, const vshCmd *cmd)
     int ninterfaces;
     xmlNodePtr *interfaces = NULL;
     size_t i;
-    vshTablePtr table = NULL;
+    vshTable *table = NULL;
 
     if (vshCommandOptBool(cmd, "inactive"))
         flags |= VIR_DOMAIN_XML_INACTIVE;
@@ -1220,7 +1220,7 @@ cmdDomBlkError(vshControl *ctl, const vshCmd *cmd)
 {
     virDomainPtr dom;
     virDomainDiskErrorPtr disks = NULL;
-    unsigned int ndisks;
+    unsigned int ndisks = 0;
     size_t i;
     int count;
     bool ret = false;
@@ -1230,10 +1230,10 @@ cmdDomBlkError(vshControl *ctl, const vshCmd *cmd)
 
     if ((count = virDomainGetDiskErrors(dom, NULL, 0, 0)) < 0)
         goto cleanup;
-    ndisks = count;
 
-    if (ndisks) {
-        disks = g_new0(virDomainDiskError, ndisks);
+    if (count > 0) {
+        disks = g_new0(virDomainDiskError, count);
+        ndisks = count;
 
         if ((count = virDomainGetDiskErrors(dom, disks, ndisks, 0)) == -1)
             goto cleanup;
@@ -1252,7 +1252,7 @@ cmdDomBlkError(vshControl *ctl, const vshCmd *cmd)
     ret = true;
 
  cleanup:
-    for (i = 0; i < count; i++)
+    for (i = 0; i < ndisks; i++)
         VIR_FREE(disks[i].disk);
     VIR_FREE(disks);
     virshDomainFree(dom);
@@ -1290,7 +1290,8 @@ cmdDominfo(vshControl *ctl, const vshCmd *cmd)
     unsigned int id;
     char *str, uuid[VIR_UUID_STRING_BUFLEN];
     int has_managed_save = 0;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
+    g_auto(GStrv) messages = NULL;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -1391,6 +1392,15 @@ cmdDominfo(vshControl *ctl, const vshCmd *cmd)
             VIR_FREE(seclabel);
         }
     }
+
+    if (virDomainGetMessages(dom, &messages, 0) > 0) {
+        size_t i;
+        for (i = 0; messages[i] != NULL; i++) {
+            vshPrint(ctl, "%-15s %s\n",
+                     i == 0 ? _("Messages:") : "", messages[i]);
+        }
+    }
+
     virshDomainFree(dom);
     return ret;
 }
@@ -1599,25 +1609,24 @@ struct virshDomainList {
     virDomainPtr *domains;
     size_t ndomains;
 };
-typedef struct virshDomainList *virshDomainListPtr;
 
 static void
-virshDomainListFree(virshDomainListPtr domlist)
+virshDomainListFree(struct virshDomainList *domlist)
 {
     size_t i;
 
     if (domlist && domlist->domains) {
         for (i = 0; i < domlist->ndomains; i++)
             virshDomainFree(domlist->domains[i]);
-        VIR_FREE(domlist->domains);
+        g_free(domlist->domains);
     }
-    VIR_FREE(domlist);
+    g_free(domlist);
 }
 
-static virshDomainListPtr
+static struct virshDomainList *
 virshDomainListCollect(vshControl *ctl, unsigned int flags)
 {
-    virshDomainListPtr list = g_new0(struct virshDomainList, 1);
+    struct virshDomainList *list = g_new0(struct virshDomainList, 1);
     size_t i;
     int ret;
     int *ids = NULL;
@@ -1633,7 +1642,7 @@ virshDomainListCollect(vshControl *ctl, unsigned int flags)
     int nsnap;
     int nchk;
     int mansave;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     /* try the list with flags support (0.9.13 and later) */
     if ((ret = virConnectListAllDomains(priv->conn, &list->domains,
@@ -1955,12 +1964,12 @@ cmdList(vshControl *ctl, const vshCmd *cmd)
     char uuid[VIR_UUID_STRING_BUFLEN];
     int state;
     bool ret = false;
-    virshDomainListPtr list = NULL;
+    struct virshDomainList *list = NULL;
     virDomainPtr dom;
     char id_buf[VIR_INT64_STR_BUFLEN];
     unsigned int id;
     unsigned int flags = VIR_CONNECT_LIST_DOMAINS_ACTIVE;
-    vshTablePtr table = NULL;
+    vshTable *table = NULL;
 
     /* construct filter flags */
     if (vshCommandOptBool(cmd, "inactive") ||
@@ -2138,6 +2147,10 @@ static const vshCmdOptDef opts_domstats[] = {
      .type = VSH_OT_BOOL,
      .help = N_("report domain memory usage"),
     },
+    {.name = "dirtyrate",
+     .type = VSH_OT_BOOL,
+     .help = N_("report domain dirty rate information"),
+    },
     {.name = "list-active",
      .type = VSH_OT_BOOL,
      .help = N_("list only active domains"),
@@ -2228,7 +2241,7 @@ cmdDomstats(vshControl *ctl, const vshCmd *cmd)
     int flags = 0;
     const vshCmdOpt *opt = NULL;
     bool ret = false;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     if (vshCommandOptBool(cmd, "state"))
         stats |= VIR_DOMAIN_STATS_STATE;
@@ -2256,6 +2269,9 @@ cmdDomstats(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptBool(cmd, "memory"))
         stats |= VIR_DOMAIN_STATS_MEMORY;
+
+    if (vshCommandOptBool(cmd, "dirtyrate"))
+        stats |= VIR_DOMAIN_STATS_DIRTYRATE;
 
     if (vshCommandOptBool(cmd, "list-active"))
         flags |= VIR_CONNECT_GET_ALL_DOMAINS_STATS_ACTIVE;

@@ -29,6 +29,7 @@
         <value>off</value>
       </enum>
     </mode>
+    <mode name='maximum' supported='no'/>
     <mode name='host-model' supported='no'/>
     <mode name='custom' supported='no'/>
   </cpu>
@@ -90,6 +91,12 @@
         <value>builtin</value>
       </enum>
     </rng>
+    <filesystem supported='yes'>
+      <enum name='driverType'>
+        <value>path</value>
+        <value>handle</value>
+      </enum>
+    </filesystem>
   </devices>
   <features>
     <gic supported='no'/>

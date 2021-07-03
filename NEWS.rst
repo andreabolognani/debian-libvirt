@@ -8,6 +8,366 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v7.5.0 (2021-07-01)
+===================
+
+* **Security**
+
+  * svirt: fix MCS label generation (CVE-2021-3631)
+
+    A flaw in the way MCS labels were generated could result in a VM's
+    resource not being fully protected from access by another VM were
+    it to be compromised. https://gitlab.com/libvirt/libvirt/-/issues/153
+
+* **Removed features**
+
+  * xen: Remove support for Xen < 4.9
+
+    In accordance with our platform support policy, the oldest supported Xen
+    version is now bumped from 4.6 to 4.9.
+
+* **Improvements**
+
+  * docs: Document disk serial truncation status quo
+
+    Disk ``<serial>`` is being truncated by QEMU before passed to the guest.
+    Since it's impossible to fix it without running into further regressions
+    the documentation was improved to document the intricacies.
+
+* **Bug fixes**
+
+  * qemu: Fixed validation of disk ``iothread`` configuration
+
+    The validation of ``iothread`` config was previously moved to a place where
+    it caused bogus errors when address wasn't allocated when hotplugging a
+    disk. The check is now removed as it wasn't actually necessary at all.
+
+
+v7.4.0 (2021-06-01)
+===================
+
+* **Removed features**
+
+  * qemu: Remove support for QEMU < 2.11
+
+    In accordance with our platform support policy, the oldest supported QEMU
+    version is now bumped from 1.5 to 2.11.
+
+* **New features**
+
+  * qemu: Add support for hotplugging ``<transient/>`` disks
+
+    The disk hotplug code in the qemu driver now can handle hotplug of disks
+    with automatically added overlay.
+
+  * qemu: Add support for sharing base image of ``<transient/>`` disks
+
+    Users can use ``<transient shareBacking='yes'/>`` to tell the qemu driver to
+    never open the base image in write mode thus multiple VMs can share the
+    same image. Note that the disk will be hotplugged during startup.
+
+* **Improvements**
+
+  * Add win-dmp crashdump format
+
+    New ``win-dmp`` format for ``virDomainCoreDumpWithFormat`` API and/or virsh
+    ``dump --format`` was introduced.
+
+* **Bug fixes**
+
+  * Allow 0 offset in XML schema for ``<slice type='storage' offset='0' size='321'/>``
+
+    Having a 0 offset so that the size of the image can be limited is a
+    valid configuration so it was allowed in the XML schema.
+
+v7.3.0 (2021-05-03)
+===================
+
+* **New features**
+
+  * xen: Support domains with more than 4TB
+
+    The xen driver now supports domains with more than 4TB of memory with
+    xen >= 4.13.
+
+  * qemu: add socket for virtiofs filesystems
+
+    Libvirt now supports ``filesystem`` devices that connect to
+    a ``virtiofsd`` daemon launched outside of libvirtd, via the
+    ``socket`` attribute of the ``source`` element.
+
+  * nodedev: Add ability to manage persistent mediated devices
+
+    Persistent mediated devices can now be managed with libvirt.
+    ``virNodeDeviceDefineXML()`` defines a new device,
+    ``virNodeDeviceUndefine()`` removes an existing definition, and
+    ``virNodeDeviceCreate()`` starts a device definition that is currently
+    inactive. Corresponding virsh commands ``nodedev-define``,
+    ``nodedev-undefine``, and ``nodedev-start`` were also added.
+    ``nodedev-list`` only lists active devices by default. Inactive device
+    definitions can be shown with the new ``--inactive`` and ``--all`` flags.
+
+  * qemu: Allow use of qemu's ``-compat`` option
+
+    Curious developers or testers now can enable certain ``-compat`` modes which
+    allow to notice use of deprecated commands and options as qemu will use the
+    selected method to notify the user. The new behaviour can be requested using
+    either the ``deprecation_behavior`` option in ``qemu.conf`` for all VMs or
+    using ``<qemu:deprecation behavior='...'/>`` in the VM XML.
+
+* **Improvements**
+
+  * virsh: Improve errors with ``virsh snapshot-create-as``
+
+    The XML document constructed by virsh was forced through XML schema
+    validation which yielded unintelligible error messages in cases such as
+    when the path to the new image did not start with a slash. XML documents
+    are no longer validated as the XML parser actually has better error
+    messages which allow users to figure the problem out quickly.
+
+  * qemu: Terminate backing store when doing a full-chain block pull
+
+    When pulling everything into the overlay image the chain can be terminated
+    since we know that it won't depend on any backing image and thus can prevent
+    attempts to probe the backing chain.
+
+  * qemu: Expose disk serial in virDomainGetGuestInfo()
+
+    The ``virDomainGetGuestInfo()`` reports disk serial number among with other
+    disk information.
+
+* **Bug fixes**
+
+  * qemu: Fix crash of libvirt on full block pull of a disk
+
+    When the persistent definition contains a compatible disk (meaning the
+    definition of the running and persistent config match) a block pull job
+    would leave a dangling pointer in the config definition which resulted
+    in a crash.
+
+  * qemu: Use proper job cancelling command
+
+    Libvirt's API contract for aborting a block copy job in 'ready' state
+    declares that the destination image of the copy will contain a consistent
+    image of the disk from the time when the block job was aborted. This
+    requires that libvirt uses the proper cancelling qemu command to ensure
+    that the data is consistent which was not the case.
+
+  * qemu: Don't attempt storage migration when there are no migratable disks
+
+    Due to a logic bug introduced in the previous release libvirt would attempt
+    to migrate disks in case when no disks are selected/eligible for migration.
+
+  * qemu: Fix very rare race when two block job 'ready' events are delivered
+
+    In certain high-load scenarios, qemu might deliver the 'ready' event twice
+    and if it's delivered when pivoting to the destination during a block copy
+    job, libvirt would get confused and execute the code as if the job were
+    aborted.
+
+  * lxc: Fix container destroy with CGroupsV2
+
+    When an LXC container was started and the host used CGroupsV2 it might have
+    had created nested controllers under the container's scope. Libvirt was
+    unaware and thus destroying the container failed with a cryptic error:
+    ``failed to get cgroup backend for 'pathOfController'``. The CGroup removal
+    code was reworked and is now capable of dealing with such scenario.
+
+  * bash-completion: Fix argument passing to $1
+
+    Due to a bug in bash completion script, the auto completion did not work
+    properly when a connection URI or read only flag were specified on
+    ``virsh`` or ``virt-admin`` command line.
+
+v7.2.0 (2021-04-01)
+===================
+
+* **New features**
+
+  * qemu: Implement domain memory dirty rate calculation API
+
+    New API ``virDomainStartDirtyRateCalc()`` and virsh command
+    ``domdirtyrate-calc`` are added to start calculating a live domain's
+    memory dirty rate.
+
+  * qemu: Support reporting memory dirty rate stats
+
+    The memory dirty rate stats can be obtained through ``virsh domstats
+    --dirtyrate`` via the virConnectGetAllDomainStats API.
+
+  * qemu: Full disk backups via ``virDomainBackupBegin``
+
+    The qemu hypervisor driver now allows taking full disk backups via the
+    ``virDomainBackupBegin`` API and the corresponding virsh wrapper.
+
+    In future releases the feature will be extended to also support incremental
+    backups (where only the difference since the last backup is copied) when
+    qemu adds the required functionality.
+
+  * Add support for audio backend specific settings
+
+    With this release a new ``<audio/>`` element is introduced that allows
+    users to configure audio output for their guests.
+
+* **Improvements**
+
+  * qemu: Compatibility with QEMU 6.0 for certain hot-(un)-plug operations
+
+    Libvirt 7.2.0 is required for compatibility with the upcoming QEMU 6.0
+    release for hotplug and hotunplug of certain devices and helpers, such as
+    iothreads, chardevs, RNG devices, disks with secret, ...
+
+  * qemu: Various improvements to embedded mode
+
+    Embedded mode for the QEMU driver, as well as the ``virt-qemu-run`` tool
+    saw improvements in handling of domain life cycle, temporary directories
+    creation (important when using disk secrets) and other minor fixes.
+
+  * Documentation of split daemon related config files
+
+    Split daemons read configuration files upon their start. These were never
+    documented though.
+
+* **Bug fixes**
+
+  * Check host CPU for forbidden features
+
+    CPU feature policy did not work as expected with ``host-passthrough`` and
+    features supported by physical host. CPU features were not filtered out
+    when ``@check`` was set to ``full``.
+
+  * Fix virNetworkUpdate() to work with split daemons
+
+    Due to a bug in our code, virNetworkUpdate() did not work with split daemon
+    unless management application connected to virtnetworkd directly.
+
+  * qemu: increase locked memory limit when a vDPA device is present
+
+    Just like VFIO devices, vDPA devices may need to have all guest memory
+    pages locked/pinned in order to operate properly. These devices are now
+    included when calculating the limit for memory lock.
+
+  * Don't log error if SRIOV PF has no associated netdev
+
+    Some SRIOV PFs don't have a netdev associated with them in which case
+    libvirtd reported an error and refused to start. This is now fixed.
+
+  * qemu: Only raise memlock limit if necessary
+
+    Attempting to set the memlock limit might fail if we're running
+    in a containerized environment where ``CAP_SYS_RESOURCE`` is not
+    available, and if the limit is already high enough there's no
+    point in trying to raise it anyway.
+
+  * Restore security context of swtpm.log
+
+    If a guest with emulated TPM was started and the daemon was restarted
+    afterwards, the security context of the per-domain ``swtpm.log`` file was
+    not restored on domain shutdown leaving it unable to be started again.
+
+  * virtlogd|virtlockd: Fixed crash when upgrading the daemons in-place
+
+    A bug preventing the in-place upgrade of ``virtlogd`` and ``virtlockd``
+    daemons was fixed, so they can again be upgraded without dropping the log
+    file descriptors or locks on files.
+
+
+v7.1.0 (2021-03-01)
+===================
+
+* **Portability**
+
+  * Implement Apple Silicon support
+
+    libvirt now runs on the ARM-based Apple Silicon Macs.
+
+* **New features**
+
+  * Introduce virtio-pmem ``<memory/>`` model
+
+    The virtio-pmem is a virtio variant of NVDIMM and just like NVDIMM
+    virtio-pmem also allows accessing host pages bypassing guest page cache.
+
+  * Introduce ``<boot order/>`` for ``<filesystem>``
+
+    Booting is possible from virtiofs filesystems. Introduce an option
+    to control the boot order, like we do for other bootable devices.
+
+  * hyperv: implement new APIs
+
+    The ``virDomainUndefine()``, ``virDomainUndefineFlags()``,
+    ``virDomainDefineXML()``, ``virDomainAttachDevice()``, and
+    ``virDomainAttachDeviceFlags()``, ``virConnectListAllNetworks()``,
+    ``virConnectNumOfNetworks()``, ``virNetworkLookupByName()``,
+    ``virNetworkLookupByUUID()``, ``virConnectNumOfDefinedNetworks()``,
+    ``virConnectListDefinedNetworks()``, ``virNetworkGetAutostart()``,
+    ``virNetworkIsActive()``, ``virNetworkIsPersistent()``,
+    ``virNetworkGetXMLDesc()``, and ``virDomainScreenshot()``, APIs have been
+    implemented in the Hyper-V driver.
+
+  * Support <teaming> element in plain <hostdev> devices
+
+    This is useful when libvirt doesn't have the privileges necessary
+    to set the hostdev device's MAC address (which is a necessary
+    part of the alternate <interface type='hostdev'>).
+
+  * Introduce ``<disk type='vhostuser'>`` support
+
+    Introduces support for QEMU vhost-user-blk device that can be used
+    to access storage exported via the vhost-user protocol by daemons such
+    as the ``qemu-storage-daemon``.
+
+* **Bug fixes**
+
+  * qemu: Fix disk quiescing rollback when creating external snapshots
+
+   If the qemu guest agent call to freeze filesystems failed when creating
+   an external snapshot with ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` flag the
+   filesystems would be unconditionally thawed. This could cause problems when
+   the filesystems were frozen by an explicit call to ``virDomainFSFreeze``
+   since the guest agent then rejects any further freeze attempts once are
+   filesystems frozen, an explicit freeze followed by a quiesced snapshot
+   would fail and thaw filesystems.
+
+   Users are also encouraged to use ``virDomainFSFreeze/Thaw`` manually instead
+   of relying on ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` if they need finer
+   grained control.
+
+  * cgroups: Fix how we setup and configure cgroups on hosts with systemd
+
+    When libvirt is running on host with systemd we register every VM with
+    machined which creates the VM root cgroup for us as well. Before this fix
+    we were directly modifying files in the VM root cgroup which was incorrect
+    because all the files are managed by systemd. The implication was that any
+    change done by libvirt to cgroup attributes supported by systemd could be
+    removed which happens for example by running ``systemctl daemon-reload``.
+
+    To fix the issue libvirt now uses DBus calls for some of the cgroup
+    attributes that distribute the resources proportionally to the cgroup
+    siblings and for the rest we have a new sub-cgroup that libvirt can
+    managed directly.
+
+    For more details why this is necessary see
+    `systemd cgroup <https://systemd.io/CGROUP_DELEGATION/>`_ documentation.
+
+  * qemu: Fix swtpm device with aarch64
+
+    The TPM TIS device name for x86 is ``tpm-tis``, whereas for aarch64 it is
+    ``tpm-tis-device``. Fix the use of TPM TIS device with aarch64 by using
+    the proper device name when building the QEMU command line.
+
+  * libxl: Fix domain shutdown
+
+    Commit fa30ee04a2 introduced the possibility of a race between the
+    shutdown and death threads used to process domain shutdown and death
+    events from libxl. On normal domain shutdown the shutdown thread handles
+    all aspects of shutting down and cleaning up the domain. The death
+    thread is only used to handle out-of-band domain destruction and is
+    inhibited when domain shutdown is under libvirt's control. The race is
+    avoided by also inhibiting the death thread when libvirt starts the
+    shutdown thread.
+
+
 v7.0.0 (2021-01-15)
 ===================
 
@@ -17,7 +377,7 @@ v7.0.0 (2021-01-15)
 
     Starting from libvirt-6.6 the release tarballs are signed by Jiří Denemark.
     Releases starting with 7.0 contain a note from the previous maintainer
-    Daniel Veillard offically handing over the signing of packages so that the
+    Daniel Veillard officially handing over the signing of packages so that the
     transition can be verified.
 
 * **New features**
@@ -64,7 +424,7 @@ v7.0.0 (2021-01-15)
     interface name was adapted to new versions of OpenVSwitch and thus can
     detect name more reliably.
 
-  * qemu: Report guest disks informations in ``virDomainGetGuestInfo``
+  * qemu: Report guest disks information in ``virDomainGetGuestInfo``
 
     Libvirt is now able to report disks and filesystems from the guest's
     perspective (using guest agent). And with sufficiently new guest agent
@@ -309,7 +669,7 @@ v6.8.0 (2020-10-01)
   * qemu: Preserve qcow2 cluster size after external snapshots
 
     The new overlay image which is installed on top of the current chain when
-    taking an external snapshot now preserves the cluser size of the original
+    taking an external snapshot now preserves the cluster size of the original
     top image to preserve any performance tuning done on the original image.
 
 * **Bug fixes**
@@ -2283,8 +2643,8 @@ v4.6.0 (2018-08-06)
 
   * qemu: Enable VNC console for mediated devices
 
-    Host devices now support a new atribute 'display' which can be used to turn
-    on frame buffer rendering on a vgpu mediated device instead of on an
+    Host devices now support a new attribute 'display' which can be used to
+    turn on frame buffer rendering on a vgpu mediated device instead of on an
     emulated GPU, like QXL.
 
 * **Improvements**

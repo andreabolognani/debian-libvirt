@@ -34,7 +34,6 @@ distros listed below.
 
 * `libvirt on Repology`_
 * `qemu on Repology`_
-* `qemu-kvm on Repology`_
 
 Linux, FreeBSD and macOS
 ------------------------
@@ -44,6 +43,7 @@ for the previous major version will be dropped 2 years after the new major
 version is released or when the vendor itself drops support, whichever comes
 first. In this context, third-party efforts to extend the lifetime of a distro
 are not considered, even when they are endorsed by the vendor (eg. Debian LTS).
+Within each major release, only the most recent minor release is considered.
 
 For the purposes of identifying supported software versions available on Linux,
 the project will look at CentOS, Debian, Fedora, openSUSE, RHEL, SLES and
@@ -82,4 +82,3 @@ or until the vendor discontinues support, whichever comes first.
 .. _hypervisor drivers: drivers.html
 .. _libvirt on Repology: https://repology.org/metapackage/libvirt/versions
 .. _qemu on Repology: https://repology.org/metapackage/qemu/versions
-.. _qemu-kvm on Repology: https://repology.org/metapackage/qemu-kvm/versions

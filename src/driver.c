@@ -33,6 +33,8 @@
 #include "virstring.h"
 #include "virthread.h"
 #include "virutil.h"
+#include "viridentity.h"
+#include "datatypes.h"
 #include "configmake.h"
 
 VIR_LOG_INIT("driver");
@@ -116,27 +118,27 @@ virThreadLocal connectStorage;
 static int
 virConnectCacheOnceInit(void)
 {
-    if (virThreadLocalInit(&connectInterface, NULL) < 0)
+    if (virThreadLocalInit(&connectInterface, NULL) < 0 ||
+        virThreadLocalInit(&connectNetwork, NULL) < 0 ||
+        virThreadLocalInit(&connectNWFilter, NULL) < 0 ||
+        virThreadLocalInit(&connectNodeDev, NULL) < 0 ||
+        virThreadLocalInit(&connectSecret, NULL) < 0 ||
+        virThreadLocalInit(&connectStorage, NULL) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to initialize thread local variable"));
         return -1;
-    if (virThreadLocalInit(&connectNetwork, NULL) < 0)
-        return -1;
-    if (virThreadLocalInit(&connectNWFilter, NULL) < 0)
-        return -1;
-    if (virThreadLocalInit(&connectNodeDev, NULL) < 0)
-        return -1;
-    if (virThreadLocalInit(&connectSecret, NULL) < 0)
-        return -1;
-    if (virThreadLocalInit(&connectStorage, NULL) < 0)
-        return -1;
+    }
+
     return 0;
 }
 
 VIR_ONCE_GLOBAL_INIT(virConnectCache);
 
 static virConnectPtr
-virGetConnectGeneric(virThreadLocalPtr threadPtr, const char *name)
+virGetConnectGeneric(virThreadLocal *threadPtr, const char *name)
 {
     virConnectPtr conn;
+    virErrorPtr orig_err;
 
     if (virConnectCacheInitialize() < 0)
         return NULL;
@@ -154,8 +156,32 @@ virGetConnectGeneric(virThreadLocalPtr threadPtr, const char *name)
 
         conn = virConnectOpen(uri);
         VIR_DEBUG("Opened new %s connection %p", name, conn);
+        if (!conn)
+            return NULL;
+
+        if (conn->driver->connectSetIdentity != NULL) {
+            g_autoptr(virIdentity) ident = NULL;
+            virTypedParameterPtr identparams = NULL;
+            int nidentparams = 0;
+
+            VIR_DEBUG("Attempting to delegate current identity");
+            if (!(ident = virIdentityGetCurrent()))
+                goto error;
+
+            if (virIdentityGetParameters(ident, &identparams, &nidentparams) < 0)
+                goto error;
+
+            if (virConnectSetIdentity(conn, identparams, nidentparams, 0) < 0)
+                goto error;
+        }
     }
     return conn;
+
+ error:
+    virErrorPreserveLast(&orig_err);
+    virConnectClose(conn);
+    virErrorRestore(&orig_err);
+    return NULL;
 }
 
 

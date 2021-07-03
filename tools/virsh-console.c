@@ -58,7 +58,6 @@ struct virConsoleBuffer {
 
 
 typedef struct virConsole virConsole;
-typedef virConsole *virConsolePtr;
 struct virConsole {
     virObjectLockable parent;
 
@@ -76,7 +75,7 @@ struct virConsole {
     virError error;
 };
 
-static virClassPtr virConsoleClass;
+static virClass *virConsoleClass;
 static void virConsoleDispose(void *obj);
 
 static int
@@ -97,7 +96,7 @@ virConsoleHandleSignal(int sig G_GNUC_UNUSED)
 
 
 static void
-virConsoleShutdown(virConsolePtr con,
+virConsoleShutdown(virConsole *con,
                    bool graceful)
 {
     virErrorPtr err = virGetLastError();
@@ -139,7 +138,7 @@ virConsoleShutdown(virConsolePtr con,
 static void
 virConsoleDispose(void *obj)
 {
-    virConsolePtr con = obj;
+    virConsole *con = obj;
 
     if (con->st)
         virStreamFree(con->st);
@@ -153,7 +152,7 @@ static void
 virConsoleEventOnStream(virStreamPtr st,
                         int events, void *opaque)
 {
-    virConsolePtr con = opaque;
+    virConsole *con = opaque;
 
     virObjectLock(con);
 
@@ -167,11 +166,8 @@ virConsoleEventOnStream(virStreamPtr st,
         int got;
 
         if (avail < 1024) {
-            if (VIR_REALLOC_N(con->streamToTerminal.data,
-                              con->streamToTerminal.length + 1024) < 0) {
-                virConsoleShutdown(con, false);
-                goto cleanup;
-            }
+            VIR_REALLOC_N(con->streamToTerminal.data,
+                          con->streamToTerminal.length + 1024);
             con->streamToTerminal.length += 1024;
             avail += 1024;
         }
@@ -212,8 +208,8 @@ virConsoleEventOnStream(virStreamPtr st,
 
         avail = con->terminalToStream.length - con->terminalToStream.offset;
         if (avail > 1024) {
-            ignore_value(VIR_REALLOC_N(con->terminalToStream.data,
-                                       con->terminalToStream.offset + 1024));
+            VIR_REALLOC_N(con->terminalToStream.data,
+                          con->terminalToStream.offset + 1024);
             con->terminalToStream.length = con->terminalToStream.offset + 1024;
         }
     }
@@ -237,7 +233,7 @@ virConsoleEventOnStdin(int watch G_GNUC_UNUSED,
                        int events,
                        void *opaque)
 {
-    virConsolePtr con = opaque;
+    virConsole *con = opaque;
 
     virObjectLock(con);
 
@@ -251,11 +247,8 @@ virConsoleEventOnStdin(int watch G_GNUC_UNUSED,
         int got;
 
         if (avail < 1024) {
-            if (VIR_REALLOC_N(con->terminalToStream.data,
-                              con->terminalToStream.length + 1024) < 0) {
-                virConsoleShutdown(con, false);
-                goto cleanup;
-            }
+            VIR_REALLOC_N(con->terminalToStream.data,
+                          con->terminalToStream.length + 1024);
             con->terminalToStream.length += 1024;
             avail += 1024;
         }
@@ -311,7 +304,7 @@ virConsoleEventOnStdout(int watch G_GNUC_UNUSED,
                         int events,
                         void *opaque)
 {
-    virConsolePtr con = opaque;
+    virConsole *con = opaque;
 
     virObjectLock(con);
 
@@ -340,8 +333,8 @@ virConsoleEventOnStdout(int watch G_GNUC_UNUSED,
 
         avail = con->streamToTerminal.length - con->streamToTerminal.offset;
         if (avail > 1024) {
-            ignore_value(VIR_REALLOC_N(con->streamToTerminal.data,
-                                       con->streamToTerminal.offset + 1024));
+            VIR_REALLOC_N(con->streamToTerminal.data,
+                          con->streamToTerminal.offset + 1024);
             con->streamToTerminal.length = con->streamToTerminal.offset + 1024;
         }
     }
@@ -366,10 +359,10 @@ virConsoleEventOnStdout(int watch G_GNUC_UNUSED,
 }
 
 
-static virConsolePtr
+static virConsole *
 virConsoleNew(void)
 {
-    virConsolePtr con;
+    virConsole *con;
 
     if (virConsoleInitialize() < 0)
         return NULL;
@@ -411,8 +404,8 @@ virshRunConsole(vshControl *ctl,
                 const char *dev_name,
                 unsigned int flags)
 {
-    virConsolePtr con = NULL;
-    virshControlPtr priv = ctl->privData;
+    virConsole *con = NULL;
+    virshControl *priv = ctl->privData;
     int ret = -1;
 
     struct sigaction old_sigquit;

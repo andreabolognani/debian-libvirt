@@ -35,7 +35,7 @@
 #define VIR_FROM_THIS VIR_FROM_XENXM
 
 static int
-xenParseXMOS(virConfPtr conf, virDomainDefPtr def)
+xenParseXMOS(virConf *conf, virDomainDef *def)
 {
     size_t i;
 
@@ -102,10 +102,10 @@ xenParseXMOS(virConfPtr conf, virDomainDefPtr def)
 }
 
 
-static virDomainDiskDefPtr
+static virDomainDiskDef *
 xenParseXMDisk(char *entry, int hvm)
 {
-    virDomainDiskDefPtr disk = NULL;
+    virDomainDiskDef *disk = NULL;
     char *head;
     char *offset;
     char *tmp;
@@ -146,14 +146,7 @@ xenParseXMDisk(char *entry, int hvm)
     if (!(offset = strchr(head, ',')))
         goto error;
 
-    disk->dst = g_new0(char, (offset - head) + 1);
-
-    if (virStrncpy(disk->dst, head, offset - head,
-                   (offset - head) + 1) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Dest file %s too big for destination"), head);
-        goto error;
-    }
+    disk->dst = g_strndup(head, offset - head);
 
     head = offset + 1;
     /* Extract source driver type */
@@ -243,7 +236,7 @@ xenParseXMDisk(char *entry, int hvm)
 
 
 static int
-xenParseXMDiskList(virConfPtr conf, virDomainDefPtr def)
+xenParseXMDiskList(virConf *conf, virDomainDef *def)
 {
     char **disks = NULL, **entries;
     int hvm = def->os.type == VIR_DOMAIN_OSTYPE_HVM;
@@ -255,7 +248,7 @@ xenParseXMDiskList(virConfPtr conf, virDomainDefPtr def)
         return rc;
 
     for (entries = disks; *entries; entries++) {
-        virDomainDiskDefPtr disk;
+        virDomainDiskDef *disk;
         char *entry = *entries;
 
         if (!(disk = xenParseXMDisk(entry, hvm)))
@@ -278,11 +271,12 @@ xenParseXMDiskList(virConfPtr conf, virDomainDefPtr def)
 
 
 static int
-xenFormatXMDisk(virConfValuePtr list,
-                virDomainDiskDefPtr disk)
+xenFormatXMDisk(virConfValue *list,
+                virDomainDiskDef *disk)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    virConfValuePtr val, tmp;
+    virConfValue *val;
+    virConfValue *tmp;
     const char *src = virDomainDiskGetSource(disk);
     int format = virDomainDiskGetFormat(disk);
     const char *driver = virDomainDiskGetDriver(disk);
@@ -352,9 +346,9 @@ xenFormatXMDisk(virConfValuePtr list,
 
 
 static int
-xenFormatXMDisks(virConfPtr conf, virDomainDefPtr def)
+xenFormatXMDisks(virConf *conf, virDomainDef *def)
 {
-    virConfValuePtr diskVal = NULL;
+    virConfValue *diskVal = NULL;
     size_t i = 0;
 
     diskVal = g_new0(virConfValue, 1);
@@ -387,7 +381,7 @@ xenFormatXMDisks(virConfPtr conf, virDomainDefPtr def)
 
 
 static int
-xenParseXMInputDevs(virConfPtr conf, virDomainDefPtr def)
+xenParseXMInputDevs(virConf *conf, virDomainDef *def)
 {
     g_autofree char *str = NULL;
 
@@ -398,7 +392,7 @@ xenParseXMInputDevs(virConfPtr conf, virDomainDefPtr def)
                 (STREQ(str, "tablet") ||
                  STREQ(str, "mouse") ||
                  STREQ(str, "keyboard"))) {
-            virDomainInputDefPtr input;
+            virDomainInputDef *input;
             input = g_new0(virDomainInputDef, 1);
 
             input->bus = VIR_DOMAIN_INPUT_BUS_USB;
@@ -420,12 +414,12 @@ xenParseXMInputDevs(virConfPtr conf, virDomainDefPtr def)
 /*
  * Convert an XM config record into a virDomainDef object.
  */
-virDomainDefPtr
-xenParseXM(virConfPtr conf,
-           virCapsPtr caps,
-           virDomainXMLOptionPtr xmlopt)
+virDomainDef *
+xenParseXM(virConf *conf,
+           virCaps *caps,
+           virDomainXMLOption *xmlopt)
 {
-    virDomainDefPtr def = NULL;
+    virDomainDef *def = NULL;
 
     if (!(def = virDomainDefNew()))
         return NULL;
@@ -458,7 +452,7 @@ xenParseXM(virConfPtr conf,
 }
 
 static int
-xenFormatXMOS(virConfPtr conf, virDomainDefPtr def)
+xenFormatXMOS(virConf *conf, virDomainDef *def)
 {
     size_t i;
 
@@ -527,7 +521,7 @@ xenFormatXMOS(virConfPtr conf, virDomainDefPtr def)
 
 
 static int
-xenFormatXMInputDevs(virConfPtr conf, virDomainDefPtr def)
+xenFormatXMInputDevs(virConf *conf, virDomainDef *def)
 {
     size_t i;
     const char *devtype;
@@ -568,9 +562,9 @@ G_STATIC_ASSERT(MAX_VIRT_CPUS <= sizeof(1UL) * CHAR_BIT);
 /*
  * Convert a virDomainDef object into an XM config record.
  */
-virConfPtr
+virConf *
 xenFormatXM(virConnectPtr conn,
-            virDomainDefPtr def)
+            virDomainDef *def)
 {
     g_autoptr(virConf) conf = NULL;
 

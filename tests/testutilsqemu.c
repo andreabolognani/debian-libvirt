@@ -16,10 +16,10 @@
 
 # define VIR_FROM_THIS VIR_FROM_QEMU
 
-virCPUDefPtr cpuDefault;
-virCPUDefPtr cpuHaswell;
-virCPUDefPtr cpuPower8;
-virCPUDefPtr cpuPower9;
+virCPUDef *cpuDefault;
+virCPUDef *cpuHaswell;
+virCPUDef *cpuPower8;
+virCPUDef *cpuPower9;
 
 
 static const char *qemu_emulators[VIR_ARCH_LAST] = {
@@ -44,7 +44,7 @@ static const char *const i386_machines[] = {
     "pc", "isapc", NULL
 };
 /**
- * Oldest supported qemu-1.5 supports machine types back to pc-0.10.
+ * Oldest supported qemu-2.11 supports machine types back to pc-0.10.
  */
 static const char *const x86_64_machines[] = {
     "pc", "isapc", "q35",
@@ -73,7 +73,7 @@ static const char *const riscv64_machines[] = {
     "spike_v1.10", "spike_v1.9.1", "sifive_e", "virt", "sifive_u", NULL
 };
 static const char *const s390x_machines[] = {
-    "s390-virtio", "s390-ccw-virtio", "s390-ccw", NULL
+    "s390-ccw-virtio", "s390-ccw", NULL
 };
 static const char *const sparc_machines[] = {
     "SS-5", "LX", "SPARCClassic", "SPARCbook",
@@ -133,7 +133,7 @@ virFindFileInPath(const char *file)
 }
 
 
-virCapsHostNUMAPtr
+virCapsHostNUMA *
 virCapabilitiesHostNUMANewHost(void)
 {
     /*
@@ -145,12 +145,12 @@ virCapabilitiesHostNUMANewHost(void)
 
 
 static int
-testQemuAddGuest(virCapsPtr caps,
+testQemuAddGuest(virCaps *caps,
                  virArch arch)
 {
     size_t nmachines;
-    virCapsGuestMachinePtr *machines = NULL;
-    virCapsGuestPtr guest;
+    virCapsGuestMachine **machines = NULL;
+    virCapsGuest *guest;
     virArch emu_arch = arch;
 
     if (arch_alias[arch] != VIR_ARCH_NONE)
@@ -213,9 +213,9 @@ testQemuAddGuest(virCapsPtr caps,
 }
 
 
-virCapsPtr testQemuCapsInit(void)
+virCaps *testQemuCapsInit(void)
 {
-    virCapsPtr caps;
+    virCaps *caps;
     size_t i;
 
     if (!(caps = virCapabilitiesNew(VIR_ARCH_X86_64, false, false)))
@@ -257,7 +257,7 @@ virCapsPtr testQemuCapsInit(void)
 
 
 void
-qemuTestSetHostArch(virQEMUDriverPtr driver,
+qemuTestSetHostArch(virQEMUDriver *driver,
                     virArch arch)
 {
     if (arch == VIR_ARCH_NONE)
@@ -271,9 +271,9 @@ qemuTestSetHostArch(virQEMUDriverPtr driver,
 
 
 void
-qemuTestSetHostCPU(virQEMUDriverPtr driver,
+qemuTestSetHostCPU(virQEMUDriver *driver,
                    virArch arch,
-                   virCPUDefPtr cpu)
+                   virCPUDef *cpu)
 {
     if (!cpu) {
         if (ARCH_IS_X86(arch))
@@ -300,11 +300,11 @@ qemuTestSetHostCPU(virQEMUDriverPtr driver,
 }
 
 
-virQEMUCapsPtr
+virQEMUCaps *
 qemuTestParseCapabilitiesArch(virArch arch,
                               const char *capsFile)
 {
-    virQEMUCapsPtr qemuCaps = NULL;
+    virQEMUCaps *qemuCaps = NULL;
     g_autofree char *binary = g_strdup_printf("/usr/bin/qemu-system-%s",
                                               virArchToString(arch));
 
@@ -334,13 +334,13 @@ void qemuTestDriverFree(virQEMUDriver *driver)
     virObjectUnref(driver->securityManager);
 }
 
-int qemuTestCapsCacheInsert(virFileCachePtr cache,
-                            virQEMUCapsPtr caps)
+int qemuTestCapsCacheInsert(virFileCache *cache,
+                            virQEMUCaps *caps)
 {
     size_t i, j;
 
     for (i = 0; i < G_N_ELEMENTS(qemu_emulators); i++) {
-        virQEMUCapsPtr tmpCaps;
+        virQEMUCaps *tmpCaps;
         if (qemu_emulators[i] == NULL)
             continue;
         if (caps) {
@@ -373,7 +373,8 @@ int qemuTestCapsCacheInsert(virFileCachePtr cache,
                                       false,
                                       false,
                                       true,
-                                      defaultRAMid);
+                                      defaultRAMid,
+                                      false);
                 virQEMUCapsSet(tmpCaps, QEMU_CAPS_TCG);
             }
             if (kvm_machines[i] != NULL) {
@@ -385,9 +386,10 @@ int qemuTestCapsCacheInsert(virFileCachePtr cache,
                                           NULL,
                                           0,
                                           false,
-                                      false,
+                                          false,
                                           true,
-                                          defaultRAMid);
+                                          defaultRAMid,
+                                          false);
                     virQEMUCapsSet(tmpCaps, QEMU_CAPS_KVM);
                 }
             }
@@ -408,7 +410,7 @@ int qemuTestCapsCacheInsert(virFileCachePtr cache,
 
 int qemuTestDriverInit(virQEMUDriver *driver)
 {
-    virSecurityManagerPtr mgr = NULL;
+    virSecurityManager *mgr = NULL;
     char statedir[] = STATEDIRTEMPLATE;
     char configdir[] = CONFIGDIRTEMPLATE;
 
@@ -487,7 +489,7 @@ int qemuTestDriverInit(virQEMUDriver *driver)
 }
 
 int
-testQemuCapsSetGIC(virQEMUCapsPtr qemuCaps,
+testQemuCapsSetGIC(virQEMUCaps *qemuCaps,
                    int gic)
 {
     virGICCapability *gicCapabilities = NULL;
@@ -679,11 +681,12 @@ testQemuCapsIterate(const char *suffix,
 
 int
 testQemuInfoSetArgs(struct testQemuInfo *info,
+                    GHashTable *capscache,
                     GHashTable *capslatest, ...)
 {
     va_list argptr;
     testQemuInfoArgName argname;
-    virQEMUCapsPtr qemuCaps = NULL;
+    virQEMUCaps *qemuCaps = NULL;
     int gic = GIC_NONE;
     char *capsarch = NULL;
     char *capsver = NULL;
@@ -771,20 +774,33 @@ testQemuInfoSetArgs(struct testQemuInfo *info,
 
     if (!qemuCaps && capsarch && capsver) {
         bool stripmachinealiases = false;
+        virQEMUCaps *cachedcaps = NULL;
 
         info->arch = virArchFromString(capsarch);
 
         if (STREQ(capsver, "latest")) {
             capsfile = g_strdup(virHashLookup(capslatest, capsarch));
             stripmachinealiases = true;
-        } else capsfile = g_strdup_printf("%s/caps_%s.%s.xml",
-                                          TEST_QEMU_CAPS_PATH, capsver, capsarch);
+        } else {
+            capsfile = g_strdup_printf("%s/caps_%s.%s.xml",
+                                       TEST_QEMU_CAPS_PATH, capsver, capsarch);
+        }
 
-        if (!(qemuCaps = qemuTestParseCapabilitiesArch(info->arch, capsfile)))
+        if (!g_hash_table_lookup_extended(capscache, capsfile, NULL, (void **) &cachedcaps)) {
+            if (!(qemuCaps = qemuTestParseCapabilitiesArch(info->arch, capsfile)))
+                goto cleanup;
+
+            cachedcaps = qemuCaps;
+
+            g_hash_table_insert(capscache, g_strdup(capsfile), g_steal_pointer(&qemuCaps));
+        }
+
+        if (!(qemuCaps = virQEMUCapsNewCopy(cachedcaps)))
             goto cleanup;
 
         if (stripmachinealiases)
             virQEMUCapsStripMachineAliases(qemuCaps);
+
         info->flags |= FLAG_REAL_CAPS;
 
         /* provide path to the replies file for schema testing */

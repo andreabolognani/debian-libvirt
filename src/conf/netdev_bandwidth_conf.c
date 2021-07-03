@@ -26,13 +26,12 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 static int
-virNetDevBandwidthParseRate(xmlNodePtr node, virNetDevBandwidthRatePtr rate)
+virNetDevBandwidthParseRate(xmlNodePtr node, virNetDevBandwidthRate *rate)
 {
-    int ret = -1;
-    char *average = NULL;
-    char *peak = NULL;
-    char *burst = NULL;
-    char *floor = NULL;
+    g_autofree char *average = NULL;
+    g_autofree char *peak = NULL;
+    g_autofree char *burst = NULL;
+    g_autofree char *floor = NULL;
 
     if (!node || !rate) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
@@ -50,50 +49,42 @@ virNetDevBandwidthParseRate(xmlNodePtr node, virNetDevBandwidthRatePtr rate)
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("could not convert bandwidth average value '%s'"),
                            average);
-            goto cleanup;
+            return -1;
         }
     } else if (!floor) {
         virReportError(VIR_ERR_XML_DETAIL, "%s",
                        _("Missing mandatory average or floor attributes"));
-        goto cleanup;
+        return -1;
     }
 
     if ((peak || burst) && !average) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("'peak' and 'burst' require 'average' attribute"));
-        goto cleanup;
+        return -1;
     }
 
     if (peak && virStrToLong_ullp(peak, NULL, 10, &rate->peak) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("could not convert bandwidth peak value '%s'"),
                        peak);
-        goto cleanup;
+        return -1;
     }
 
     if (burst && virStrToLong_ullp(burst, NULL, 10, &rate->burst) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("could not convert bandwidth burst value '%s'"),
                        burst);
-        goto cleanup;
+        return -1;
     }
 
     if (floor && virStrToLong_ullp(floor, NULL, 10, &rate->floor) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("could not convert bandwidth floor value '%s'"),
                        floor);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(average);
-    VIR_FREE(peak);
-    VIR_FREE(burst);
-    VIR_FREE(floor);
-
-    return ret;
+    return 0;
 }
 
 /**
@@ -110,23 +101,22 @@ virNetDevBandwidthParseRate(xmlNodePtr node, virNetDevBandwidthRatePtr rate)
  * Returns !NULL on success, NULL on error.
  */
 int
-virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
+virNetDevBandwidthParse(virNetDevBandwidth **bandwidth,
                         unsigned int *class_id,
                         xmlNodePtr node,
                         bool allowFloor)
 {
-    int ret = -1;
-    virNetDevBandwidthPtr def = NULL;
+    g_autoptr(virNetDevBandwidth) def = NULL;
     xmlNodePtr cur;
     xmlNodePtr in = NULL, out = NULL;
-    char *class_id_prop = NULL;
+    g_autofree char *class_id_prop = NULL;
 
     def = g_new0(virNetDevBandwidth, 1);
 
     if (!node || !virXMLNodeNameEqual(node, "bandwidth")) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
                        _("invalid argument supplied"));
-        goto cleanup;
+        return -1;
     }
 
     class_id_prop = virXMLPropString(node, "classID");
@@ -135,13 +125,13 @@ virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("classID attribute not supported on <bandwidth> "
                              "in this usage context"));
-            goto cleanup;
+            return -1;
         }
         if (virStrToLong_ui(class_id_prop, NULL, 10, class_id) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Unable to parse class id '%s'"),
                            class_id_prop);
-            goto cleanup;
+            return -1;
         }
     }
 
@@ -154,7 +144,7 @@ virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
                     virReportError(VIR_ERR_XML_DETAIL, "%s",
                                    _("Only one child <inbound> "
                                      "element allowed"));
-                    goto cleanup;
+                    return -1;
                 }
                 in = cur;
             } else if (virXMLNodeNameEqual(cur, "outbound")) {
@@ -162,7 +152,7 @@ virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
                     virReportError(VIR_ERR_XML_DETAIL, "%s",
                                    _("Only one child <outbound> "
                                      "element allowed"));
-                    goto cleanup;
+                    return -1;
                 }
                 out = cur;
             }
@@ -176,13 +166,13 @@ virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
 
         if (virNetDevBandwidthParseRate(in, def->in) < 0) {
             /* helper reported error for us */
-            goto cleanup;
+            return -1;
         }
 
         if (def->in->floor && !allowFloor) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("floor attribute is not supported for this config"));
-            goto cleanup;
+            return -1;
         }
     }
 
@@ -191,33 +181,26 @@ virNetDevBandwidthParse(virNetDevBandwidthPtr *bandwidth,
 
         if (virNetDevBandwidthParseRate(out, def->out) < 0) {
             /* helper reported error for us */
-            goto cleanup;
+            return -1;
         }
 
         if (def->out->floor) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("'floor' attribute allowed "
                              "only in <inbound> element"));
-            goto cleanup;
+            return -1;
         }
     }
 
-    if (!def->in && !def->out)
-        VIR_FREE(def);
+    if (def->in || def->out)
+        *bandwidth = g_steal_pointer(&def);
 
-    *bandwidth = def;
-    def = NULL;
-    ret = 0;
-
- cleanup:
-    VIR_FREE(class_id_prop);
-    virNetDevBandwidthFree(def);
-    return ret;
+    return 0;
 }
 
 static int
-virNetDevBandwidthRateFormat(virNetDevBandwidthRatePtr def,
-                             virBufferPtr buf,
+virNetDevBandwidthRateFormat(virNetDevBandwidthRate *def,
+                             virBuffer *buf,
                              const char *elem_name)
 {
     if (!buf || !elem_name)
@@ -259,7 +242,7 @@ virNetDevBandwidthRateFormat(virNetDevBandwidthRatePtr def,
 int
 virNetDevBandwidthFormat(const virNetDevBandwidth *def,
                          unsigned int class_id,
-                         virBufferPtr buf)
+                         virBuffer *buf)
 {
     if (!buf)
         return -1;
@@ -282,7 +265,7 @@ virNetDevBandwidthFormat(const virNetDevBandwidth *def,
 }
 
 void
-virDomainClearNetBandwidth(virDomainDefPtr def)
+virDomainClearNetBandwidth(virDomainDef *def)
 {
     size_t i;
     virDomainNetType type;

@@ -28,7 +28,7 @@
 
 
 static int
-checkBitmap(virBitmapPtr map,
+checkBitmap(virBitmap *map,
             const char *expect,
             ssize_t expectedSize)
 {
@@ -82,7 +82,7 @@ test1(const void *data G_GNUC_UNUSED)
 }
 
 static int
-testBit(virBitmapPtr bitmap,
+testBit(virBitmap *bitmap,
         unsigned int start,
         unsigned int end,
         bool expected)
@@ -784,7 +784,7 @@ mymain(void)
     if (virTestRun("test16", test16, NULL) < 0)
         ret = -1;
 
-    return ret;
+    return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 VIR_TEST_MAIN(mymain)

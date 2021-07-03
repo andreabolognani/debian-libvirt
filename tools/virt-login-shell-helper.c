@@ -39,7 +39,7 @@
 
 static const char *conf_file = SYSCONFDIR "/libvirt/virt-login-shell.conf";
 
-static int virLoginShellAllowedUser(virConfPtr conf,
+static int virLoginShellAllowedUser(virConf *conf,
                                     const char *name,
                                     gid_t *groups,
                                     size_t ngroups)
@@ -89,7 +89,7 @@ static int virLoginShellAllowedUser(virConfPtr conf,
 }
 
 
-static int virLoginShellGetShellArgv(virConfPtr conf,
+static int virLoginShellGetShellArgv(virConf *conf,
                                      char ***shargv,
                                      size_t *shargvlen)
 {
@@ -103,7 +103,7 @@ static int virLoginShellGetShellArgv(virConfPtr conf,
         (*shargv)[0] = g_strdup("/bin/sh");
         *shargvlen = 1;
     } else {
-        *shargvlen = virStringListLength((const char *const *)*shargv);
+        *shargvlen = g_strv_length(*shargv);
     }
     return 0;
 }
@@ -335,8 +335,7 @@ main(int argc, char **argv)
     }
 
     if (cmdstr) {
-        if (VIR_REALLOC_N(shargv, shargvlen + 3) < 0)
-            goto cleanup;
+        VIR_REALLOC_N(shargv, shargvlen + 3);
         shargv[shargvlen++] = g_strdup("-c");
         shargv[shargvlen++] = g_strdup(cmdstr);
         shargv[shargvlen] = NULL;
@@ -347,7 +346,7 @@ main(int argc, char **argv)
      * a leading '-' to indicate it is a login shell
      */
     shcmd = shargv[0];
-    if (shcmd[0] != '/') {
+    if (!g_path_is_absolute(shcmd)) {
         virReportSystemError(errno,
                              _("Shell '%s' should have absolute path"),
                              shcmd);

@@ -49,14 +49,12 @@ struct _virSystemdActivation {
 };
 
 typedef struct _virSystemdActivationEntry virSystemdActivationEntry;
-typedef virSystemdActivationEntry *virSystemdActivationEntryPtr;
-
 struct _virSystemdActivationEntry {
     int *fds;
     size_t nfds;
 };
 
-static void virSystemdEscapeName(virBufferPtr buf,
+static void virSystemdEscapeName(virBuffer *buf,
                                  const char *name)
 {
     static const char hextable[16] = "0123456789abcdef";
@@ -147,7 +145,7 @@ void virSystemdHasLogindResetCachedValue(void)
  * -1 = error
  *  0 = machine1 is available
  */
-static int
+int
 virSystemdHasMachined(void)
 {
     int ret;
@@ -194,21 +192,21 @@ virSystemdHasLogind(void)
 }
 
 
-char *
-virSystemdGetMachineNameByPID(pid_t pid)
+/**
+ * virSystemdGetMachineByPID:
+ * @conn: dbus connection
+ * @pid: pid of running VM
+ *
+ * Returns dbus object path to VM registered with machined.
+ * On error returns NULL.
+ */
+static char *
+virSystemdGetMachineByPID(GDBusConnection *conn,
+                          pid_t pid)
 {
-    GDBusConnection *conn;
     g_autoptr(GVariant) message = NULL;
     g_autoptr(GVariant) reply = NULL;
-    g_autoptr(GVariant) gvar = NULL;
-    g_autofree char *object = NULL;
-    char *name = NULL;
-
-    if (virSystemdHasMachined() < 0)
-        return NULL;
-
-    if (!(conn = virGDBusGetSystemBus()))
-        return NULL;
+    char *object = NULL;
 
     message = g_variant_new("(u)", pid);
 
@@ -225,13 +223,33 @@ virSystemdGetMachineNameByPID(pid_t pid)
 
     g_variant_get(reply, "(o)", &object);
 
-    g_variant_unref(reply);
-    reply = NULL;
-
     VIR_DEBUG("Domain with pid %lld has object path '%s'",
               (long long) pid, object);
 
-    g_variant_unref(message);
+    return object;
+}
+
+
+char *
+virSystemdGetMachineNameByPID(pid_t pid)
+{
+    GDBusConnection *conn;
+    g_autoptr(GVariant) message = NULL;
+    g_autoptr(GVariant) reply = NULL;
+    g_autoptr(GVariant) gvar = NULL;
+    g_autofree char *object = NULL;
+    char *name = NULL;
+
+    if (virSystemdHasMachined() < 0)
+        return NULL;
+
+    if (!(conn = virGDBusGetSystemBus()))
+        return NULL;
+
+    object = virSystemdGetMachineByPID(conn, pid);
+    if (!object)
+        return NULL;
+
     message = g_variant_new("(ss)",
                             "org.freedesktop.machine1.Machine", "Name");
 
@@ -253,6 +271,57 @@ virSystemdGetMachineNameByPID(pid_t pid)
               (long long) pid, name);
 
     return name;
+}
+
+
+/**
+ * virSystemdGetMachineUnitByPID:
+ * @pid: pid of running VM
+ *
+ * Returns systemd Unit name of a running VM registered with machined.
+ * On error returns NULL.
+ */
+char *
+virSystemdGetMachineUnitByPID(pid_t pid)
+{
+    GDBusConnection *conn;
+    g_autoptr(GVariant) message = NULL;
+    g_autoptr(GVariant) reply = NULL;
+    g_autoptr(GVariant) gvar = NULL;
+    g_autofree char *object = NULL;
+    char *unit = NULL;
+
+    if (virSystemdHasMachined() < 0)
+        return NULL;
+
+    if (!(conn = virGDBusGetSystemBus()))
+        return NULL;
+
+    object = virSystemdGetMachineByPID(conn, pid);
+    if (!object)
+        return NULL;
+
+    message = g_variant_new("(ss)",
+                            "org.freedesktop.machine1.Machine", "Unit");
+
+    if (virGDBusCallMethod(conn,
+                           &reply,
+                           G_VARIANT_TYPE("(v)"),
+                           NULL,
+                           "org.freedesktop.machine1",
+                           object,
+                           "org.freedesktop.DBus.Properties",
+                           "Get",
+                           message) < 0)
+        return NULL;
+
+    g_variant_get(reply, "(v)", &gvar);
+    g_variant_get(gvar, "s", &unit);
+
+    VIR_DEBUG("Domain with pid %lld has unit name '%s'",
+              (long long) pid, unit);
+
+    return unit;
 }
 
 
@@ -448,11 +517,12 @@ int virSystemdCreateMachine(const char *name,
     }
 
     if (maxthreads > 0) {
+        uint64_t max = maxthreads;
+
         if (!(scopename = virSystemdMakeScopeName(name, drivername, false)))
             return -1;
 
-        gprops = g_variant_new_parsed("[('TasksMax', <%llu>)]",
-                                      (uint64_t)maxthreads);
+        gprops = g_variant_new_parsed("[('TasksMax', <%t>)]", max);
 
         message = g_variant_new("(sb@a(sv))",
                                 scopename,
@@ -631,7 +701,7 @@ int virSystemdCanHybridSleep(bool *result)
 static void
 virSystemdActivationEntryFree(void *data)
 {
-    virSystemdActivationEntryPtr ent = data;
+    virSystemdActivationEntry *ent = data;
     size_t i;
 
     VIR_DEBUG("Closing activation FDs");
@@ -640,17 +710,17 @@ virSystemdActivationEntryFree(void *data)
         VIR_FORCE_CLOSE(ent->fds[i]);
     }
 
-    VIR_FREE(ent->fds);
-    VIR_FREE(ent);
+    g_free(ent->fds);
+    g_free(ent);
 }
 
 
 static int
-virSystemdActivationAddFD(virSystemdActivationPtr act,
+virSystemdActivationAddFD(virSystemdActivation *act,
                           const char *name,
                           int fd)
 {
-    virSystemdActivationEntryPtr ent = virHashLookup(act->fds, name);
+    virSystemdActivationEntry *ent = virHashLookup(act->fds, name);
 
     if (!ent) {
         ent = g_new0(virSystemdActivationEntry, 1);
@@ -666,8 +736,7 @@ virSystemdActivationAddFD(virSystemdActivationPtr act,
         return 0;
     }
 
-    if (VIR_EXPAND_N(ent->fds, ent->nfds, 1) < 0)
-        return -1;
+    VIR_EXPAND_N(ent->fds, ent->nfds, 1);
 
     VIR_DEBUG("Record extra FD %d with name %s", fd, name);
     ent->fds[ent->nfds - 1] = fd;
@@ -677,25 +746,24 @@ virSystemdActivationAddFD(virSystemdActivationPtr act,
 
 
 static int
-virSystemdActivationInitFromNames(virSystemdActivationPtr act,
+virSystemdActivationInitFromNames(virSystemdActivation *act,
                                   int nfds,
                                   const char *fdnames)
 {
     g_auto(GStrv) fdnamelistptr = NULL;
     char **fdnamelist;
-    size_t nfdnames;
     size_t i;
     int nextfd = STDERR_FILENO + 1;
 
     VIR_DEBUG("FD names %s", fdnames);
 
-    if (!(fdnamelistptr = virStringSplitCount(fdnames, ":", 0, &nfdnames)))
+    if (!(fdnamelistptr = g_strsplit(fdnames, ":", 0)))
         goto error;
 
-    if (nfdnames != nfds) {
+    if (g_strv_length(fdnamelistptr) != nfds) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expecting %d FD names but got %zu"),
-                       nfds, nfdnames);
+                       _("Expecting %d FD names but got %u"),
+                       nfds, g_strv_length(fdnamelistptr));
         goto error;
     }
 
@@ -725,7 +793,7 @@ virSystemdActivationInitFromNames(virSystemdActivationPtr act,
  * Delete when min systemd is increased ie RHEL7 dropped
  */
 static int
-virSystemdActivationInitFromMap(virSystemdActivationPtr act,
+virSystemdActivationInitFromMap(virSystemdActivation *act,
                                 int nfds,
                                 virSystemdActivationMap *map,
                                 size_t nmap)
@@ -885,12 +953,12 @@ virSystemdGetListenFDs(void)
 
 #endif /* WIN32 */
 
-static virSystemdActivationPtr
+static virSystemdActivation *
 virSystemdActivationNew(virSystemdActivationMap *map,
                         size_t nmap,
                         int nfds)
 {
-    virSystemdActivationPtr act;
+    virSystemdActivation *act;
     const char *fdnames;
 
     VIR_DEBUG("Activated with %d FDs", nfds);
@@ -935,7 +1003,7 @@ virSystemdActivationNew(virSystemdActivationMap *map,
 int
 virSystemdGetActivation(virSystemdActivationMap *map,
                         size_t nmap,
-                        virSystemdActivationPtr *act)
+                        virSystemdActivation **act)
 {
     int nfds = 0;
 
@@ -964,7 +1032,7 @@ virSystemdGetActivation(virSystemdActivationMap *map,
  * Returns: true if a FD is present, false otherwise
  */
 bool
-virSystemdActivationHasName(virSystemdActivationPtr act,
+virSystemdActivationHasName(virSystemdActivation *act,
                             const char *name)
 {
     return virHashLookup(act->fds, name) != NULL;
@@ -983,7 +1051,7 @@ virSystemdActivationHasName(virSystemdActivationPtr act,
  * Returns: 0 on success, -1 if some FDs are unclaimed
  */
 int
-virSystemdActivationComplete(virSystemdActivationPtr act)
+virSystemdActivationComplete(virSystemdActivation *act)
 {
     if (virHashSize(act->fds) != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1011,12 +1079,12 @@ virSystemdActivationComplete(virSystemdActivationPtr act)
  * the array memory in @fds.
  */
 void
-virSystemdActivationClaimFDs(virSystemdActivationPtr act,
+virSystemdActivationClaimFDs(virSystemdActivation *act,
                              const char *name,
                              int **fds,
                              size_t *nfds)
 {
-    virSystemdActivationEntryPtr ent = virHashSteal(act->fds, name);
+    virSystemdActivationEntry *ent = virHashSteal(act->fds, name);
 
     if (!ent) {
         *fds = NULL;
@@ -1041,12 +1109,12 @@ virSystemdActivationClaimFDs(virSystemdActivationPtr act,
  * associated with the activation object
  */
 void
-virSystemdActivationFree(virSystemdActivationPtr act)
+virSystemdActivationFree(virSystemdActivation *act)
 {
     if (!act)
         return;
 
     virHashFree(act->fds);
 
-    VIR_FREE(act);
+    g_free(act);
 }

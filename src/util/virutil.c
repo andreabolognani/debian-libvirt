@@ -430,32 +430,17 @@ int virDiskNameToIndex(const char *name)
     return idx;
 }
 
-char *virIndexToDiskName(int idx, const char *prefix)
+char *virIndexToDiskName(unsigned int idx, const char *prefix)
 {
-    char *name = NULL;
-    size_t i;
-    int ctr;
-    int offset;
+    GString *str = g_string_new(NULL);
+    long long ctr;
 
-    if (idx < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Disk index %d is negative"), idx);
-        return NULL;
-    }
+    for (ctr = idx; ctr >= 0; ctr = ctr / 26 - 1)
+        g_string_prepend_c(str, 'a' + (ctr % 26));
 
-    for (i = 0, ctr = idx; ctr >= 0; ++i, ctr = ctr / 26 - 1) { }
+    g_string_prepend(str, prefix);
 
-    offset = strlen(prefix);
-
-    name = g_new0(char, offset + i + 1);
-
-    strcpy(name, prefix);
-    name[offset + i] = '\0';
-
-    for (i = i - 1, ctr = idx; ctr >= 0; --i, ctr = ctr / 26 - 1)
-        name[offset + i] = 'a' + (ctr % 26);
-
-    return name;
+    return g_string_free(str, false);
 }
 
 #ifndef AI_CANONIDN
@@ -490,11 +475,17 @@ static char *
 virGetHostnameImpl(bool quiet)
 {
     int r;
-    const char *hostname;
-    char *result = NULL;
+    char hostname[HOST_NAME_MAX+1], *result = NULL;
     struct addrinfo hints, *info;
 
-    hostname = g_get_host_name();
+    r = gethostname(hostname, sizeof(hostname));
+    if (r == -1) {
+        if (!quiet)
+            virReportSystemError(errno,
+                                 "%s", _("failed to determine host name"));
+        return NULL;
+    }
+    NUL_TERMINATE(hostname);
 
     if (STRPREFIX(hostname, "localhost") || strchr(hostname, '.')) {
         /* in this case, gethostname returned localhost (meaning we can't
@@ -520,9 +511,6 @@ virGetHostnameImpl(bool quiet)
                      hostname, gai_strerror(r));
         return g_strdup(hostname);
     }
-
-    /* Tell static analyzers about getaddrinfo semantics.  */
-    sa_assert(info);
 
     if (info->ai_canonname == NULL ||
         STRPREFIX(info->ai_canonname, "localhost"))
@@ -627,8 +615,7 @@ virGetUserEnt(uid_t uid, char **name, gid_t *group, char **dir, char **shell, bo
      *        The given name or uid was not found.
      */
     while ((rc = getpwuid_r(uid, &pwbuf, strbuf, strbuflen, &pw)) == ERANGE) {
-        if (VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen) < 0)
-            goto cleanup;
+        VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen);
     }
 
     if (rc != 0) {
@@ -696,10 +683,7 @@ static char *virGetGroupEnt(gid_t gid)
      *        The given name or gid was not found.
      */
     while ((rc = getgrgid_r(gid, &grbuf, strbuf, strbuflen, &gr)) == ERANGE) {
-        if (VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen) < 0) {
-            VIR_FREE(strbuf);
-            return NULL;
-        }
+        VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen);
     }
     if (rc != 0 || gr == NULL) {
         if (rc != 0) {
@@ -774,8 +758,7 @@ virGetUserIDByName(const char *name, uid_t *uid, bool missing_ok)
     strbuf = g_new0(char, strbuflen);
 
     while ((rc = getpwnam_r(name, &pwbuf, strbuf, strbuflen, &pw)) == ERANGE) {
-        if (VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen) < 0)
-            goto cleanup;
+        VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen);
     }
 
     if (!pw) {
@@ -855,8 +838,7 @@ virGetGroupIDByName(const char *name, gid_t *gid, bool missing_ok)
     strbuf = g_new0(char, strbuflen);
 
     while ((rc = getgrnam_r(name, &grbuf, strbuf, strbuflen, &gr)) == ERANGE) {
-        if (VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen) < 0)
-            goto cleanup;
+        VIR_RESIZE_N(strbuf, strbuflen, strbuflen, strbuflen);
     }
 
     if (!gr) {
@@ -1202,12 +1184,10 @@ virSetUIDGIDWithCaps(uid_t uid, gid_t gid, gid_t *groups, int ngroups,
     }
 # ifdef PR_CAPBSET_DROP
     /* If newer kernel, we need also need setpcap to change the bounding set */
-    if ((capBits || need_setgid || need_setuid) &&
-        !capng_have_capability(CAPNG_EFFECTIVE, CAP_SETPCAP)) {
+    if (!capng_have_capability(CAPNG_EFFECTIVE, CAP_SETPCAP)) {
         need_setpcap = true;
-    }
-    if (need_setpcap)
         capng_update(CAPNG_ADD, CAPNG_EFFECTIVE|CAPNG_PERMITTED, CAP_SETPCAP);
+    }
 # endif
 
     /* Tell system we want to keep caps across uid change */
@@ -1924,8 +1904,6 @@ virPipeImpl(int fds[2], bool nonblock, bool errreport)
             if (errreport)
                 virReportSystemError(errno, "%s",
                                      _("Unable to set pipes to non-blocking"));
-            virReportSystemError(errno, "%s",
-                                 _("Unable to create pipes"));
             VIR_FORCE_CLOSE(fds[0]);
             VIR_FORCE_CLOSE(fds[1]);
             return -1;

@@ -34,12 +34,12 @@
  */
 
 /* Don't call these directly - use the macros below */
-int virReallocN(void *ptrptr, size_t size, size_t count)
-    G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1);
-int virExpandN(void *ptrptr, size_t size, size_t *count, size_t add)
-    G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
-int virResizeN(void *ptrptr, size_t size, size_t *alloc, size_t count, size_t desired)
-    G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
+void virReallocN(void *ptrptr, size_t size, size_t count)
+    ATTRIBUTE_NONNULL(1);
+void virExpandN(void *ptrptr, size_t size, size_t *count, size_t add)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
+void virResizeN(void *ptrptr, size_t size, size_t *alloc, size_t count, size_t desired)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
 void virShrinkN(void *ptrptr, size_t size, size_t *count, size_t toremove)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
 int virInsertElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
@@ -49,13 +49,6 @@ int virInsertElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
 int virDeleteElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
                        size_t toremove, bool inPlace)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4);
-int virAllocVar(void *ptrptr, size_t struct_size, size_t element_size, size_t count)
-    G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1);
-
-void virDispose(void *ptrptr, size_t count, size_t element_size, size_t *countptr)
-    ATTRIBUTE_NONNULL(1);
-void virDisposeString(char **strptr)
-    ATTRIBUTE_NONNULL(1);
 
 /**
  * VIR_REALLOC_N:
@@ -68,7 +61,7 @@ void virDisposeString(char **strptr)
  *
  * This macro is safe to use on arguments with side effects.
  *
- * Returns 0 on success, aborts on OOM
+ * Aborts on OOM
  */
 #define VIR_REALLOC_N(ptr, count) virReallocN(&(ptr), sizeof(*(ptr)), (count))
 
@@ -85,7 +78,7 @@ void virDisposeString(char **strptr)
  *
  * This macro is safe to use on arguments with side effects.
  *
- * Returns 0 on success, aborts on OOM
+ * Aborts on OOM
  */
 #define VIR_EXPAND_N(ptr, count, add) virExpandN(&(ptr), sizeof(*(ptr)), &(count), add)
 
@@ -109,7 +102,7 @@ void virDisposeString(char **strptr)
  *
  * This macro is safe to use on arguments with side effects.
  *
- * Returns 0 on success, aborts on OOM
+ * Aborts on OOM
  */
 #define VIR_RESIZE_N(ptr, alloc, count, add) \
     virResizeN(&(ptr), sizeof(*(ptr)), &(alloc), count, add)
@@ -298,39 +291,6 @@ void virDisposeString(char **strptr)
     virDeleteElementsN(&(ptr), sizeof(*(ptr)), at, &(count), 1, true)
 
 /**
- * VIR_ALLOC_VAR_OVERSIZED:
- * @M: size of base structure
- * @N: number of array elements in trailing array
- * @S: size of trailing array elements
- *
- * Check to make sure that the requested allocation will not cause
- * arithmetic overflow in the allocation size.
- */
-#define VIR_ALLOC_VAR_OVERSIZED(M, N, S) ((((size_t)-1) - (M)) / (S) < (N))
-
-/**
- * VIR_ALLOC_VAR:
- * @ptr: pointer to hold address of allocated memory
- * @type: element type of trailing array
- * @count: number of array elements to allocate
- *
- * Allocate sizeof(*ptr) bytes plus an array of 'count' elements, each
- * sizeof('type').  This sort of allocation is useful for receiving
- * the data of certain ioctls and other APIs which return a struct in
- * which the last element is an array of undefined length.  The caller
- * of this type of API is expected to know the length of the array
- * that will be returned and allocate a suitable buffer to contain the
- * returned data.  C99 refers to these variable length objects as
- * structs containing flexible array members.
- *
- * This macro is safe to use on arguments with side effects.
- *
- * Returns 0 on success, aborts on OOM
- */
-#define VIR_ALLOC_VAR(ptr, type, count) \
-    virAllocVar(&(ptr), sizeof(*(ptr)), sizeof(type), (count))
-
-/**
  * VIR_FREE:
  * @ptr: pointer holding address to be freed
  *
@@ -340,49 +300,3 @@ void virDisposeString(char **strptr)
  * This macro is safe to use on arguments with side effects.
  */
 #define VIR_FREE(ptr) g_clear_pointer(&(ptr), g_free)
-
-
-/**
- * VIR_DISPOSE_N:
- * @ptr: pointer holding address to be cleared and freed
- * @count: count of elements in @ptr
- *
- * Clear the memory of the array of elements pointed to by 'ptr' of 'count'
- * elements and free it. Update the pointer/count to NULL/0.
- *
- * This macro is safe to use on arguments with side effects.
- */
-#define VIR_DISPOSE_N(ptr, count) virDispose(1 ? (void *) &(ptr) : (ptr), 0, \
-                                             sizeof(*(ptr)), &(count))
-
-
-/**
- * VIR_DISPOSE_STRING:
- * @ptr: pointer to a string to be cleared and freed
- *
- * Clears the string and frees the corresponding memory.
- *
- * This macro is not safe to be used on arguments with side effects.
- */
-#define VIR_DISPOSE_STRING(ptr) virDisposeString(&(ptr))
-
-/**
- * VIR_AUTODISPOSE_STR:
- *
- * Macro to automatically free and clear the memory allocated to
- * the string variable declared with it by calling virDisposeString
- * when the variable goes out of scope.
- */
-#define VIR_AUTODISPOSE_STR \
-    __attribute__((cleanup(virDisposeString))) char *
-
-/**
- * VIR_DISPOSE:
- * @ptr: pointer to memory to be cleared and freed
- *
- * Clears and frees the corresponding memory.
- *
- * This macro is safe to be used on arguments with side effects.
- */
-#define VIR_DISPOSE(ptr) virDispose(1 ? (void *) &(ptr) : (ptr), 1, \
-                                    sizeof(*(ptr)), NULL)

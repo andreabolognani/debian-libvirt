@@ -3,13 +3,7 @@
 # This spec file assumes you are building on a Fedora version
 # that's still supported by the vendor. It may work on other distros
 # or versions, but no effort will be made to ensure that going forward.
-%define min_fedora 31
-
-%if 0%{?fedora} && 0%{?fedora} >= %{min_fedora}
-    %define supported_platform 1
-%else
-    %define supported_platform 0
-%endif
+%define min_fedora 33
 
 Name:           mingw-libvirt
 Version:        @VERSION@
@@ -54,7 +48,6 @@ BuildRequires:  libxslt
 BuildRequires:  python3
 BuildRequires:  perl-interpreter
 BuildRequires:  perl(Getopt::Long)
-BuildRequires:  make
 BuildRequires:  meson
 BuildRequires:  ninja-build
 BuildRequires: python3-docutils
@@ -96,6 +89,12 @@ MinGW Windows libvirt virtualization library.
 %setup -q -n libvirt-%{version}
 
 %build
+%if 0%{?fedora} >= %{min_fedora}
+    %define supported_platform 1
+%else
+    %define supported_platform 0
+%endif
+
 %if ! %{supported_platform}
 echo "This RPM requires Fedora >= %{min_fedora}"
 exit 1
@@ -104,10 +103,12 @@ exit 1
 %mingw_meson \
   --auto-features=enabled \
   -Ddriver_remote=enabled \
+  -Ddriver_test=enabled \
   -Ddriver_esx=enabled \
   -Dcurl=enabled \
   -Ddocs=enabled \
   -Dapparmor=disabled \
+  -Dapparmor_profiles=disabled \
   -Dattr=disabled \
   -Daudit=disabled \
   -Dbash_completion=disabled \

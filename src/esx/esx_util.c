@@ -39,7 +39,7 @@
 VIR_LOG_INIT("esx.esx_util");
 
 int
-esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURIPtr uri)
+esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
 {
     int result = -1;
     size_t i;
@@ -52,10 +52,10 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURIPtr uri)
     *parsedUri = g_new0(esxUtil_ParsedUri, 1);
 
     for (i = 0; i < uri->paramsCount; i++) {
-        virURIParamPtr queryParam = &uri->params[i];
+        virURIParam *queryParam = &uri->params[i];
 
         if (STRCASEEQ(queryParam->name, "transport")) {
-            VIR_FREE((*parsedUri)->transport);
+            g_free((*parsedUri)->transport);
 
             (*parsedUri)->transport = g_strdup(queryParam->value);
 
@@ -68,7 +68,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURIPtr uri)
                 goto cleanup;
             }
         } else if (STRCASEEQ(queryParam->name, "vcenter")) {
-            VIR_FREE((*parsedUri)->vCenter);
+            g_free((*parsedUri)->vCenter);
 
             (*parsedUri)->vCenter = g_strdup(queryParam->value);
         } else if (STRCASEEQ(queryParam->name, "no_verify")) {
@@ -95,7 +95,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURIPtr uri)
             /* Expected format: [<type>://]<hostname>[:<port>] */
             (*parsedUri)->proxy = true;
             (*parsedUri)->proxy_type = CURLPROXY_HTTP;
-            VIR_FREE((*parsedUri)->proxy_hostname);
+            g_clear_pointer(&(*parsedUri)->proxy_hostname, g_free);
             (*parsedUri)->proxy_port = 1080;
 
             if ((tmp = STRSKIP(queryParam->value, "http://"))) {
@@ -171,12 +171,12 @@ esxUtil_FreeParsedUri(esxUtil_ParsedUri **parsedUri)
     if (!parsedUri || !(*parsedUri))
         return;
 
-    VIR_FREE((*parsedUri)->transport);
-    VIR_FREE((*parsedUri)->vCenter);
-    VIR_FREE((*parsedUri)->proxy_hostname);
-    VIR_FREE((*parsedUri)->path);
+    g_free((*parsedUri)->transport);
+    g_free((*parsedUri)->vCenter);
+    g_free((*parsedUri)->proxy_hostname);
+    g_free((*parsedUri)->path);
 
-    VIR_FREE(*parsedUri);
+    g_free(*parsedUri);
 }
 
 
@@ -207,7 +207,7 @@ esxUtil_ParseDatastorePath(const char *datastorePath, char **datastoreName,
                            char **directoryName, char **directoryAndFileName)
 {
     int result = -1;
-    char *copyOfDatastorePath = NULL;
+    g_autofree char *copyOfDatastorePath = NULL;
     char *tmp = NULL;
     char *saveptr = NULL;
     char *preliminaryDatastoreName = NULL;
@@ -261,16 +261,14 @@ esxUtil_ParseDatastorePath(const char *datastorePath, char **datastoreName,
  cleanup:
     if (result < 0) {
         if (datastoreName)
-            VIR_FREE(*datastoreName);
+            g_clear_pointer(datastoreName, g_free);
 
         if (directoryName)
-            VIR_FREE(*directoryName);
+            g_clear_pointer(directoryName, g_free);
 
         if (directoryAndFileName)
-            VIR_FREE(*directoryAndFileName);
+            g_clear_pointer(directoryAndFileName, g_free);
     }
-
-    VIR_FREE(copyOfDatastorePath);
 
     return result;
 }
@@ -429,9 +427,8 @@ esxUtil_ReplaceSpecialWindowsPathChars(char *string)
 char *
 esxUtil_EscapeDatastoreItem(const char *string)
 {
-    char *replaced;
-    char *escaped1;
-    char *escaped2 = NULL;
+    g_autofree char *replaced = NULL;
+    g_autofree char *escaped1 = NULL;
 
     replaced = g_strdup(string);
 
@@ -440,15 +437,9 @@ esxUtil_EscapeDatastoreItem(const char *string)
     escaped1 = virVMXEscapeHexPercent(replaced);
 
     if (!escaped1)
-        goto cleanup;
+        return NULL;
 
-    escaped2 = esxUtil_EscapeBase64(escaped1);
-
- cleanup:
-    VIR_FREE(replaced);
-    VIR_FREE(escaped1);
-
-    return escaped2;
+    return esxUtil_EscapeBase64(escaped1);
 }
 
 

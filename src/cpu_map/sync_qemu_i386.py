@@ -73,8 +73,11 @@ def translate_feature(name):
         "CPUID_7_0_EDX_SPEC_CTRL_SSBD": "ssbd",
         "CPUID_7_0_EDX_STIBP": "stibp",
         "CPUID_7_1_EAX_AVX512_BF16": "avx512-bf16",
+        "CPUID_7_1_EAX_AVX_VNNI": "avx-vnni",
+        "CPUID_8000_0008_EBX_AMD_SSBD": "amd-ssbd",
         "CPUID_8000_0008_EBX_CLZERO": "clzero",
         "CPUID_8000_0008_EBX_IBPB": "ibpb",
+        "CPUID_8000_0008_EBX_IBRS": "ibrs",
         "CPUID_8000_0008_EBX_STIBP": "amd-stibp",
         "CPUID_8000_0008_EBX_WBNOINVD": "wbnoinvd",
         "CPUID_8000_0008_EBX_XSAVEERPTR": "xsaveerptr",
@@ -140,6 +143,7 @@ def translate_feature(name):
         "CPUID_SS": "ss",
         "CPUID_SVM_NPT": "npt",
         "CPUID_SVM_NRIPSAVE": "nrip-save",
+        "CPUID_SVM_SVME_ADDR_CHK": "svme-addr-chk",
         "CPUID_TSC": "tsc",
         "CPUID_VME": "vme",
         "CPUID_XSAVE_XGETBV1": "xgetbv1",
@@ -193,7 +197,7 @@ def read_builtin_x86_defs(filename):
     """Extract content between begin_mark and end_mark from file `filename` as
     string, while expanding shorthand macros like "I486_FEATURES"."""
 
-    begin_mark = "static X86CPUDefinition builtin_x86_defs[] = {\n"
+    begin_mark = re.compile("^static( const)? X86CPUDefinition builtin_x86_defs\\[\\] = {$")
     end_mark = "};\n"
     shorthand = re.compile("^#define ([A-Z0-9_]+_FEATURES) (.*)$")
     lines = list()
@@ -202,10 +206,11 @@ def read_builtin_x86_defs(filename):
     with open(filename, "rt") as f:
         while True:
             line = readline_cont(f)
-            if line == begin_mark:
-                break
             if not line:
                 raise RuntimeError("begin mark not found")
+            match = begin_mark.match(line)
+            if match:
+                break
             match = shorthand.match(line)
             if match:
                 # TCG definitions are irrelevant for cpu models

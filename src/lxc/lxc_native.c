@@ -53,14 +53,14 @@ VIR_ENUM_IMPL(virLXCNetworkConfigEntry,
               "ipv6.address"
 );
 
-static virDomainFSDefPtr
+static virDomainFSDef *
 lxcCreateFSDef(int type,
                const char *src,
                const char* dst,
                bool readonly,
                unsigned long long usage)
 {
-    virDomainFSDefPtr def;
+    virDomainFSDef *def;
 
     if (!(def = virDomainFSDefNew(NULL)))
         return NULL;
@@ -77,9 +77,8 @@ lxcCreateFSDef(int type,
 }
 
 typedef struct _lxcFstab lxcFstab;
-typedef lxcFstab *lxcFstabPtr;
 struct _lxcFstab {
-    lxcFstabPtr next;
+    lxcFstab *next;
     char *src;
     char *dst;
     char *type;
@@ -87,10 +86,10 @@ struct _lxcFstab {
 };
 
 static void
-lxcFstabFree(lxcFstabPtr fstab)
+lxcFstabFree(lxcFstab *fstab)
 {
     while (fstab) {
-        lxcFstabPtr next = NULL;
+        lxcFstab *next = NULL;
         next = fstab->next;
 
         g_free(fstab->src);
@@ -119,20 +118,17 @@ static char ** lxcStringSplit(const char *string)
             tmp[i] = ' ';
     }
 
-    if (!(parts = virStringSplit(tmp, " ", 0)))
+    if (!(parts = g_strsplit(tmp, " ", 0)))
         goto error;
 
     /* Append NULL element */
-    if (VIR_EXPAND_N(result, ntokens, 1) < 0)
-        goto error;
+    VIR_EXPAND_N(result, ntokens, 1);
 
     for (i = 0; parts[i]; i++) {
         if (STREQ(parts[i], ""))
             continue;
 
-        if (VIR_EXPAND_N(result, ntokens, 1) < 0)
-            goto error;
-
+        VIR_EXPAND_N(result, ntokens, 1);
         result[ntokens - 2] = g_strdup(parts[i]);
     }
 
@@ -145,10 +141,10 @@ static char ** lxcStringSplit(const char *string)
     return NULL;
 }
 
-static lxcFstabPtr
+static lxcFstab *
 lxcParseFstabLine(char *fstabLine)
 {
-    lxcFstabPtr fstab = NULL;
+    lxcFstab *fstab = NULL;
     char **parts;
 
     if (!fstabLine)
@@ -177,20 +173,19 @@ lxcParseFstabLine(char *fstabLine)
 }
 
 static int
-lxcAddFSDef(virDomainDefPtr def,
+lxcAddFSDef(virDomainDef *def,
             int type,
             const char *src,
             const char *dst,
             bool readonly,
             unsigned long long usage)
 {
-    virDomainFSDefPtr fsDef = NULL;
+    virDomainFSDef *fsDef = NULL;
 
     if (!(fsDef = lxcCreateFSDef(type, src, dst, readonly, usage)))
         goto error;
 
-    if (VIR_EXPAND_N(def->fss, def->nfss, 1) < 0)
-        goto error;
+    VIR_EXPAND_N(def->fss, def->nfss, 1);
     def->fss[def->nfss - 1] = fsDef;
 
     return 0;
@@ -201,8 +196,8 @@ lxcAddFSDef(virDomainDefPtr def,
 }
 
 static int
-lxcSetRootfs(virDomainDefPtr def,
-             virConfPtr properties)
+lxcSetRootfs(virDomainDef *def,
+             virConf *properties)
 {
     int type = VIR_DOMAIN_FS_TYPE_MOUNT;
     g_autofree char *value = NULL;
@@ -253,11 +248,11 @@ lxcConvertSize(const char *size, unsigned long long *value)
 }
 
 static int
-lxcAddFstabLine(virDomainDefPtr def, lxcFstabPtr fstab)
+lxcAddFstabLine(virDomainDef *def, lxcFstab *fstab)
 {
     const char *src = NULL;
     g_autofree char *dst = NULL;
-    char **options = virStringSplit(fstab->options, ",", 0);
+    char **options = g_strsplit(fstab->options, ",", 0);
     bool readonly;
     int type = VIR_DOMAIN_FS_TYPE_MOUNT;
     unsigned long long usage = 0;
@@ -266,7 +261,7 @@ lxcAddFstabLine(virDomainDefPtr def, lxcFstabPtr fstab)
     if (!options)
         return -1;
 
-    if (fstab->dst[0] != '/') {
+    if (!g_path_is_absolute(fstab->dst)) {
         dst = g_strdup_printf("/%s", fstab->dst);
     } else {
         dst = g_strdup(fstab->dst);
@@ -304,7 +299,7 @@ lxcAddFstabLine(virDomainDefPtr def, lxcFstabPtr fstab)
         type = VIR_DOMAIN_FS_TYPE_BLOCK;
 
     /* Do we have ro in options? */
-    readonly = virStringListHasString((const char **)options, "ro");
+    readonly = g_strv_contains((const char **)options, "ro");
 
     if (lxcAddFSDef(def, type, src, dst, readonly, usage) < 0)
         goto cleanup;
@@ -317,11 +312,11 @@ lxcAddFstabLine(virDomainDefPtr def, lxcFstabPtr fstab)
 }
 
 static int
-lxcFstabWalkCallback(const char* name, virConfValuePtr value, void * data)
+lxcFstabWalkCallback(const char* name, virConfValue *value, void * data)
 {
     int ret = 0;
-    lxcFstabPtr fstabLine;
-    virDomainDefPtr def = data;
+    lxcFstab *fstabLine;
+    virDomainDef *def = data;
 
     /* We only care about lxc.mount.entry lines */
     if (STRNEQ(name, "lxc.mount.entry"))
@@ -339,7 +334,7 @@ lxcFstabWalkCallback(const char* name, virConfValuePtr value, void * data)
     return ret;
 }
 
-static virDomainNetDefPtr
+static virDomainNetDef *
 lxcCreateNetDef(const char *type,
                 const char *linkdev,
                 const char *mac,
@@ -347,7 +342,7 @@ lxcCreateNetDef(const char *type,
                 const char *macvlanmode,
                 const char *name)
 {
-    virDomainNetDefPtr net = NULL;
+    virDomainNetDef *net = NULL;
     virMacAddr macAddr;
 
     if (!(net = virDomainNetDefNew(NULL)))
@@ -395,10 +390,10 @@ lxcCreateNetDef(const char *type,
     return NULL;
 }
 
-static virDomainHostdevDefPtr
+static virDomainHostdevDef *
 lxcCreateHostdevDef(int mode, int type, const char *data)
 {
-    virDomainHostdevDefPtr hostdev = virDomainHostdevDefNew();
+    virDomainHostdevDef *hostdev = virDomainHostdevDefNew();
 
     if (!hostdev)
         return NULL;
@@ -413,7 +408,6 @@ lxcCreateHostdevDef(int mode, int type, const char *data)
 }
 
 typedef struct _lxcNetworkParseData lxcNetworkParseData;
-typedef lxcNetworkParseData *lxcNetworkParseDataPtr;
 struct _lxcNetworkParseData {
     char *type;
     char *link;
@@ -422,7 +416,7 @@ struct _lxcNetworkParseData {
     char *macvlanmode;
     char *vlanid;
     char *name;
-    virNetDevIPAddrPtr *ips;
+    virNetDevIPAddr **ips;
     size_t nips;
     char *gateway_ipv4;
     char *gateway_ipv6;
@@ -431,17 +425,17 @@ struct _lxcNetworkParseData {
 
 typedef struct {
     size_t ndata;
-    lxcNetworkParseDataPtr *parseData;
+    lxcNetworkParseData **parseData;
 } lxcNetworkParseDataArray;
 
 
 static int
 lxcAddNetworkRouteDefinition(const char *address,
                              int family,
-                             virNetDevIPRoutePtr **routes,
+                             virNetDevIPRoute ***routes,
                              size_t *nroutes)
 {
-    virNetDevIPRoutePtr route = NULL;
+    g_autoptr(virNetDevIPRoute) route = NULL;
     g_autofree char *familyStr = NULL;
     g_autofree char *zero = NULL;
 
@@ -452,23 +446,19 @@ lxcAddNetworkRouteDefinition(const char *address,
     if (!(route = virNetDevIPRouteCreate(_("Domain interface"), familyStr,
                                          zero, NULL, address, 0, false,
                                          0, false)))
-        goto error;
+        return -1;
 
     if (VIR_APPEND_ELEMENT(*routes, *nroutes, route) < 0)
-        goto error;
+        return -1;
 
     return 0;
-
- error:
-    virNetDevIPRouteFree(route);
-    return -1;
 }
 
 static int
-lxcAddNetworkDefinition(virDomainDefPtr def, lxcNetworkParseData *data)
+lxcAddNetworkDefinition(virDomainDef *def, lxcNetworkParseData *data)
 {
-    virDomainNetDefPtr net = NULL;
-    virDomainHostdevDefPtr hostdev = NULL;
+    virDomainNetDef *net = NULL;
+    virDomainHostdevDef *hostdev = NULL;
     bool isPhys, isVlan = false;
     size_t i;
 
@@ -513,8 +503,7 @@ lxcAddNetworkDefinition(virDomainDefPtr def, lxcNetworkParseData *data)
                                          &hostdev->source.caps.u.net.ip.nroutes) < 0)
                 goto error;
 
-        if (VIR_EXPAND_N(def->hostdevs, def->nhostdevs, 1) < 0)
-            goto error;
+        VIR_EXPAND_N(def->hostdevs, def->nhostdevs, 1);
         def->hostdevs[def->nhostdevs - 1] = hostdev;
     } else {
         if (!(net = lxcCreateNetDef(data->type, data->link, data->mac,
@@ -537,8 +526,7 @@ lxcAddNetworkDefinition(virDomainDefPtr def, lxcNetworkParseData *data)
                                          &net->guestIP.nroutes) < 0)
                 goto error;
 
-        if (VIR_EXPAND_N(def->nets, def->nnets, 1) < 0)
-            goto error;
+        VIR_EXPAND_N(def->nets, def->nnets, 1);
         def->nets[def->nnets - 1] = net;
     }
 
@@ -557,18 +545,18 @@ lxcAddNetworkDefinition(virDomainDefPtr def, lxcNetworkParseData *data)
 
 static int
 lxcNetworkParseDataIPs(const char *name,
-                       virConfValuePtr value,
+                       virConfValue *value,
                        lxcNetworkParseData *parseData)
 {
     int family = AF_INET;
     char **ipparts = NULL;
-    g_autofree virNetDevIPAddrPtr ip = g_new0(virNetDevIPAddr, 1);
+    g_autofree virNetDevIPAddr *ip = g_new0(virNetDevIPAddr, 1);
 
     if (STREQ(name, "ipv6") || STREQ(name, "ipv6.address"))
         family = AF_INET6;
 
-    ipparts = virStringSplit(value->str, "/", 2);
-    if (virStringListLength((const char * const *)ipparts) != 2 ||
+    ipparts = g_strsplit(value->str, "/", 2);
+    if (!ipparts || !ipparts[0] || !ipparts[1] ||
         virSocketAddrParse(&ip->address, ipparts[0], family) < 0 ||
         virStrToLong_ui(ipparts[1], NULL, 10, &ip->prefix) < 0) {
 
@@ -590,7 +578,7 @@ lxcNetworkParseDataIPs(const char *name,
 
 static int
 lxcNetworkParseDataSuffix(const char *entry,
-                          virConfValuePtr value,
+                          virConfValue *value,
                           lxcNetworkParseData *parseData)
 {
     int elem = virLXCNetworkConfigEntryTypeFromString(entry);
@@ -641,7 +629,7 @@ lxcNetworkParseDataSuffix(const char *entry,
 }
 
 
-static lxcNetworkParseDataPtr
+static lxcNetworkParseData *
 lxcNetworkGetParseDataByIndex(lxcNetworkParseDataArray *networks,
                               unsigned int index)
 {
@@ -655,9 +643,7 @@ lxcNetworkGetParseDataByIndex(lxcNetworkParseDataArray *networks,
 
     /* Index was not found. So, it is time to add new *
      * interface and return this last position.       */
-    if (VIR_EXPAND_N(networks->parseData, networks->ndata, 1) < 0)
-        return NULL;
-
+    VIR_EXPAND_N(networks->parseData, networks->ndata, 1);
     networks->parseData[ndata] = g_new0(lxcNetworkParseData, 1);
     networks->parseData[ndata]->index = index;
 
@@ -667,7 +653,7 @@ lxcNetworkGetParseDataByIndex(lxcNetworkParseDataArray *networks,
 
 static int
 lxcNetworkParseDataEntry(const char *name,
-                         virConfValuePtr value,
+                         virConfValue *value,
                          lxcNetworkParseDataArray *networks)
 {
     lxcNetworkParseData *parseData;
@@ -690,7 +676,7 @@ lxcNetworkParseDataEntry(const char *name,
 }
 
 
-static lxcNetworkParseDataPtr
+static lxcNetworkParseData *
 lxcNetworkGetParseDataByIndexLegacy(lxcNetworkParseDataArray *networks,
                                     const char *entry)
 {
@@ -700,9 +686,7 @@ lxcNetworkGetParseDataByIndexLegacy(lxcNetworkParseDataArray *networks,
     if (elem == VIR_LXC_NETWORK_CONFIG_TYPE) {
         /* Index was not found. So, it is time to add new *
          * interface and return this last position.       */
-        if (VIR_EXPAND_N(networks->parseData, networks->ndata, 1) < 0)
-            return NULL;
-
+        VIR_EXPAND_N(networks->parseData, networks->ndata, 1);
         networks->parseData[ndata] = g_new0(lxcNetworkParseData, 1);
         networks->parseData[ndata]->index = networks->ndata;
 
@@ -720,7 +704,7 @@ lxcNetworkGetParseDataByIndexLegacy(lxcNetworkParseDataArray *networks,
 
 static int
 lxcNetworkParseDataEntryLegacy(const char *name,
-                               virConfValuePtr value,
+                               virConfValue *value,
                                lxcNetworkParseDataArray *networks)
 {
     const char *suffix = STRSKIP(name, "lxc.network.");
@@ -734,7 +718,7 @@ lxcNetworkParseDataEntryLegacy(const char *name,
 
 
 static int
-lxcNetworkWalkCallback(const char *name, virConfValuePtr value, void *data)
+lxcNetworkWalkCallback(const char *name, virConfValue *value, void *data)
 {
     lxcNetworkParseDataArray *networks = data;
 
@@ -747,7 +731,7 @@ lxcNetworkWalkCallback(const char *name, virConfValuePtr value, void *data)
 }
 
 static int
-lxcConvertNetworkSettings(virDomainDefPtr def, virConfPtr properties)
+lxcConvertNetworkSettings(virDomainDef *def, virConf *properties)
 {
     int status;
     bool privnet = true;
@@ -755,13 +739,13 @@ lxcConvertNetworkSettings(virDomainDefPtr def, virConfPtr properties)
     lxcNetworkParseDataArray networks = {0, NULL};
     int ret = -1;
 
-    networks.parseData = g_new0(lxcNetworkParseDataPtr, 1);
+    networks.parseData = g_new0(lxcNetworkParseData *, 1);
 
     if (virConfWalk(properties, lxcNetworkWalkCallback, &networks) < 0)
         goto error;
 
     for (i = 0; i < networks.ndata; i++) {
-        lxcNetworkParseDataPtr data = networks.parseData[i];
+        lxcNetworkParseData *data = networks.parseData[i];
 
         status = lxcAddNetworkDefinition(def, data);
 
@@ -787,7 +771,7 @@ lxcConvertNetworkSettings(virDomainDefPtr def, virConfPtr properties)
 
  error:
     for (i = 0; i < networks.ndata; i++) {
-        lxcNetworkParseDataPtr data = networks.parseData[i];
+        lxcNetworkParseData *data = networks.parseData[i];
         for (j = 0; j < data->nips; j++)
             g_free(data->ips[j]);
         g_free(data->ips);
@@ -797,11 +781,11 @@ lxcConvertNetworkSettings(virDomainDefPtr def, virConfPtr properties)
 }
 
 static int
-lxcCreateConsoles(virDomainDefPtr def, virConfPtr properties)
+lxcCreateConsoles(virDomainDef *def, virConf *properties)
 {
     g_autofree char *value = NULL;
     int nbttys = 0;
-    virDomainChrDefPtr console;
+    virDomainChrDef *console;
     size_t i;
 
     if (virConfGetValueString(properties, "lxc.tty.max", &value) <= 0) {
@@ -818,7 +802,7 @@ lxcCreateConsoles(virDomainDefPtr def, virConfPtr properties)
         return -1;
     }
 
-    def->consoles = g_new0(virDomainChrDefPtr, nbttys);
+    def->consoles = g_new0(virDomainChrDef *, nbttys);
 
     def->nconsoles = nbttys;
     for (i = 0; i < nbttys; i++) {
@@ -841,10 +825,10 @@ lxcCreateConsoles(virDomainDefPtr def, virConfPtr properties)
 }
 
 static int
-lxcIdmapWalkCallback(const char *name, virConfValuePtr value, void *data)
+lxcIdmapWalkCallback(const char *name, virConfValue *value, void *data)
 {
-    virDomainDefPtr def = data;
-    virDomainIdMapEntryPtr idmap = NULL;
+    virDomainDef *def = data;
+    virDomainIdMapEntry *idmap = NULL;
     char type;
     unsigned long start, target, count;
 
@@ -862,12 +846,10 @@ lxcIdmapWalkCallback(const char *name, virConfValuePtr value, void *data)
     }
 
     if (type == 'u') {
-        if (VIR_EXPAND_N(def->idmap.uidmap, def->idmap.nuidmap, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(def->idmap.uidmap, def->idmap.nuidmap, 1);
         idmap = &def->idmap.uidmap[def->idmap.nuidmap - 1];
     } else if (type == 'g') {
-        if (VIR_EXPAND_N(def->idmap.gidmap, def->idmap.ngidmap, 1) < 0)
-            return -1;
+        VIR_EXPAND_N(def->idmap.gidmap, def->idmap.ngidmap, 1);
         idmap = &def->idmap.gidmap[def->idmap.ngidmap - 1];
     } else {
         return -1;
@@ -881,7 +863,7 @@ lxcIdmapWalkCallback(const char *name, virConfValuePtr value, void *data)
 }
 
 static int
-lxcSetMemTune(virDomainDefPtr def, virConfPtr properties)
+lxcSetMemTune(virDomainDef *def, virConf *properties)
 {
     g_autofree char *value = NULL;
     unsigned long long size = 0;
@@ -919,7 +901,7 @@ lxcSetMemTune(virDomainDefPtr def, virConfPtr properties)
 }
 
 static int
-lxcSetCpuTune(virDomainDefPtr def, virConfPtr properties)
+lxcSetCpuTune(virDomainDef *def, virConf *properties)
 {
     g_autofree char *value = NULL;
 
@@ -955,10 +937,10 @@ lxcSetCpuTune(virDomainDefPtr def, virConfPtr properties)
 }
 
 static int
-lxcSetCpusetTune(virDomainDefPtr def, virConfPtr properties)
+lxcSetCpusetTune(virDomainDef *def, virConf *properties)
 {
     g_autofree char *value = NULL;
-    virBitmapPtr nodeset = NULL;
+    virBitmap *nodeset = NULL;
 
     if (virConfGetValueString(properties, "lxc.cgroup.cpuset.cpus",
                               &value) > 0) {
@@ -989,11 +971,11 @@ lxcSetCpusetTune(virDomainDefPtr def, virConfPtr properties)
 }
 
 static int
-lxcBlkioDeviceWalkCallback(const char *name, virConfValuePtr value, void *data)
+lxcBlkioDeviceWalkCallback(const char *name, virConfValue *value, void *data)
 {
     char **parts = NULL;
-    virBlkioDevicePtr device = NULL;
-    virDomainDefPtr def = data;
+    virBlkioDevice *device = NULL;
+    virDomainDef *def = data;
     size_t i = 0;
     g_autofree char *path = NULL;
     int ret = -1;
@@ -1021,11 +1003,9 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValuePtr value, void *data)
             device = &def->blkio.devices[i];
     }
     if (!device) {
-        if (VIR_EXPAND_N(def->blkio.devices, def->blkio.ndevices, 1) < 0)
-            goto cleanup;
+        VIR_EXPAND_N(def->blkio.devices, def->blkio.ndevices, 1);
         device = &def->blkio.devices[def->blkio.ndevices - 1];
-        device->path = path;
-        path = NULL;
+        device->path = g_steal_pointer(&path);
     }
 
     /* Set the value */
@@ -1075,7 +1055,7 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValuePtr value, void *data)
 }
 
 static int
-lxcSetBlkioTune(virDomainDefPtr def, virConfPtr properties)
+lxcSetBlkioTune(virDomainDef *def, virConf *properties)
 {
     g_autofree char *value = NULL;
 
@@ -1095,7 +1075,7 @@ lxcSetBlkioTune(virDomainDefPtr def, virConfPtr properties)
 }
 
 static void
-lxcSetCapDrop(virDomainDefPtr def, virConfPtr properties)
+lxcSetCapDrop(virDomainDef *def, virConf *properties)
 {
     g_autofree char *value = NULL;
     char **toDrop = NULL;
@@ -1103,12 +1083,12 @@ lxcSetCapDrop(virDomainDefPtr def, virConfPtr properties)
     size_t i;
 
     if (virConfGetValueString(properties, "lxc.cap.drop", &value) > 0)
-        toDrop = virStringSplit(value, " ", 0);
+        toDrop = g_strsplit(value, " ", 0);
 
     for (i = 0; i < VIR_DOMAIN_PROCES_CAPS_FEATURE_LAST; i++) {
         capString = virDomainProcessCapsFeatureTypeToString(i);
         if (toDrop != NULL &&
-            virStringListHasString((const char **)toDrop, capString))
+            g_strv_contains((const char **)toDrop, capString))
             def->caps_features[i] = VIR_TRISTATE_SWITCH_OFF;
     }
 
@@ -1117,12 +1097,12 @@ lxcSetCapDrop(virDomainDefPtr def, virConfPtr properties)
     g_strfreev(toDrop);
 }
 
-virDomainDefPtr
+virDomainDef *
 lxcParseConfigString(const char *config,
-                     virCapsPtr caps G_GNUC_UNUSED,
-                     virDomainXMLOptionPtr xmlopt)
+                     virCaps *caps G_GNUC_UNUSED,
+                     virDomainXMLOption *xmlopt)
 {
-    virDomainDefPtr vmdef = NULL;
+    virDomainDef *vmdef = NULL;
     g_autoptr(virConf) properties = NULL;
     g_autofree char *value = NULL;
 

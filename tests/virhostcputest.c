@@ -74,7 +74,7 @@ linuxTestCompareFiles(const char *cpuinfofile,
 
 
 static int
-linuxCPUStatsToBuf(virBufferPtr buf,
+linuxCPUStatsToBuf(virBuffer *buf,
                    int cpu,
                    virNodeCPUStatsPtr param,
                    size_t nparams)
@@ -141,10 +141,7 @@ linuxCPUStatsCompareFiles(const char *cpustatfile,
             goto fail;
     }
 
-    if (!(actualData = virBufferContentAndReset(&buf))) {
-        virReportOOMError();
-        goto fail;
-    }
+    actualData = virBufferContentAndReset(&buf);
 
     if (virTestCompareToFile(actualData, outfile) < 0)
         goto fail;

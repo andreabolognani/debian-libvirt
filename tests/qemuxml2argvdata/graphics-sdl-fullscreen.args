@@ -18,8 +18,7 @@ DISPLAY=:0.1 \
 -uuid c7a5fdbd-edaf-9455-926a-d65c16db1809 \
 -no-user-config \
 -nodefaults \
--chardev socket,id=charmonitor,path=/tmp/lib/domain--1-QEMUGuest1/monitor.sock,\
-server,nowait \
+-chardev socket,id=charmonitor,path=/tmp/lib/domain--1-QEMUGuest1/monitor.sock,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \
@@ -29,4 +28,4 @@ server,nowait \
 -device ide-hd,bus=ide.0,unit=0,drive=drive-ide0-0-0,id=ide0-0-0,bootindex=1 \
 -full-screen \
 -display sdl \
--vga cirrus
+-device cirrus-vga,id=video0,bus=pci.0,addr=0x2

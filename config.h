@@ -25,10 +25,6 @@
 # define _FORTIFY_SOURCE 2
 #endif
 
-#ifndef __GNUC__
-# error "Libvirt requires GCC >= 4.8, or Clang"
-#endif
-
 /*
  * Define __GNUC_PREREQ to a sane default if it isn't yet defined.
  * This is done here so that it's included as early as possible;
@@ -41,27 +37,17 @@
 #if defined(__clang_major__) && defined(__clang_minor__)
 # ifdef __apple_build_version__
 #  if __clang_major__ < 5 || (__clang_major__ == 5 && __clang_minor__ < 1)
-#   error You need at least XCode Clang v5.1 to compile QEMU
+#   error You need at least XCode Clang v5.1 to compile libvirt
 #  endif
 # else
 #  if __clang_major__ < 3 || (__clang_major__ == 3 && __clang_minor__ < 4)
-#   error You need at least Clang v3.4 to compile QEMU
+#   error You need at least Clang v3.4 to compile libvirt
 #  endif
 # endif
 #elif defined(__GNUC__) && defined(__GNUC_MINOR__)
 # if __GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 8)
-#  error You need at least GCC v4.8 to compile QEMU
+#  error You need at least GCC v4.8 to compile libvirt
 # endif
 #else
 # error You either need at least GCC 4.8 or Clang 3.4 or XCode Clang 5.1 to compile libvirt
 #endif
-
-/* Ask for warnings for anything that was marked deprecated in
- * the defined version, or before. It is a candidate for rewrite.
- */
-#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_48
-
-/* Ask for warnings if code tries to use function that did not
- * exist in the defined version. These risk breaking builds
- */
-#define GLIB_VERSION_MAX_ALLOWED GLIB_VERSION_2_48

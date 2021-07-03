@@ -52,8 +52,8 @@ static unsigned int testRegenerate = -1;
 
 
 static size_t testCounter;
-static virBitmapPtr testBitmap;
-static virBitmapPtr failedTests;
+static virBitmap *testBitmap;
+static virBitmap *failedTests;
 
 virArch virTestHostArch = VIR_ARCH_X86_64;
 
@@ -300,10 +300,10 @@ virTestLoadFilePath(const char *p, ...)
  * Constructs the test file path from variable arguments and loads and parses
  * the JSON file. 'abs_srcdir' is automatically prepended to the path.
  */
-virJSONValuePtr
+virJSONValue *
 virTestLoadFileJSON(const char *p, ...)
 {
-    virJSONValuePtr ret = NULL;
+    virJSONValue *ret = NULL;
     g_autofree char *jsonstr = NULL;
     g_autofree char *path = NULL;
     va_list ap;
@@ -313,7 +313,7 @@ virTestLoadFileJSON(const char *p, ...)
     if (!(path = virTestLoadFileGetPath(p, ap)))
         goto cleanup;
 
-    if (virTestLoadFile(path, &jsonstr) < 0)
+    if (virFileReadAll(path, INT_MAX, &jsonstr) < 0)
         goto cleanup;
 
     if (!(ret = virJSONValueFromString(jsonstr)))
@@ -325,25 +325,6 @@ virTestLoadFileJSON(const char *p, ...)
 }
 
 
-static int
-virTestRewrapFile(const char *filename)
-{
-    g_autofree char *script = NULL;
-    g_autoptr(virCommand) cmd = NULL;
-
-    if (!(virStringHasSuffix(filename, ".args") ||
-          virStringHasSuffix(filename, ".ldargs")))
-        return 0;
-
-    script = g_strdup_printf("%s/scripts/test-wrap-argv.py", abs_top_srcdir);
-
-    cmd = virCommandNewArgList(PYTHON3, script, "--in-place", filename, NULL);
-    if (virCommandRun(cmd, NULL) < 0)
-        return -1;
-
-    return 0;
-}
-
 /**
  * @param stream: output stream to write differences to
  * @param expect: expected output text
@@ -351,6 +332,7 @@ virTestRewrapFile(const char *filename)
  * @param actual: actual output text
  * @param actualName: name designator of the actual text
  * @param regenerate: enable or disable regenerate functionality
+ * @param rewrap: enable or disable rewrapping when regenerating
  *
  * Display expected and actual output text, trimmed to first and last
  * characters at which differences occur. Displays names of the text strings if
@@ -381,11 +363,6 @@ virTestDifferenceFullInternal(FILE *stream,
 
     if (expectName && regenerate && (virTestGetRegenerate() > 0)) {
         if (virFileWriteStr(expectName, actual, 0666) < 0) {
-            virDispatchError(NULL);
-            return -1;
-        }
-
-        if (virTestRewrapFile(expectName) < 0) {
             virDispatchError(NULL);
             return -1;
         }
@@ -565,12 +542,14 @@ int virTestDifferenceBin(FILE *stream,
 /*
  * @param actual: String input content
  * @param filename: File to compare @actual against
+ * @param unwrap: Remove '\\\n' sequences from file content before comparison
  *
  * If @actual is NULL, it's treated as an empty string.
  */
 int
-virTestCompareToFile(const char *actual,
-                     const char *filename)
+virTestCompareToFileFull(const char *actual,
+                         const char *filename,
+                         bool unwrap)
 {
     g_autofree char *filecontent = NULL;
     g_autofree char *fixedcontent = NULL;
@@ -579,8 +558,13 @@ virTestCompareToFile(const char *actual,
     if (!cmpcontent)
         cmpcontent = "";
 
-    if (virTestLoadFile(filename, &filecontent) < 0 && !virTestGetRegenerate())
-        return -1;
+    if (unwrap) {
+        if (virTestLoadFile(filename, &filecontent) < 0 && !virTestGetRegenerate())
+            return -1;
+    } else {
+        if (virFileReadAll(filename, INT_MAX, &filecontent) < 0 && !virTestGetRegenerate())
+            return -1;
+    }
 
     if (filecontent) {
         size_t filecontentLen = strlen(filecontent);
@@ -595,14 +579,28 @@ virTestCompareToFile(const char *actual,
     }
 
     if (STRNEQ_NULLABLE(cmpcontent, filecontent)) {
-        virTestDifferenceFull(stderr,
-                              filecontent, filename,
-                              cmpcontent, NULL);
+        virTestDifferenceFullInternal(stderr, filecontent, filename,
+                                      cmpcontent, NULL, true);
         return -1;
     }
 
     return 0;
 }
+
+
+/*
+ * @param actual: String input content
+ * @param filename: File to compare @actual against
+ *
+ * If @actual is NULL, it's treated as an empty string.
+ */
+int
+virTestCompareToFile(const char *actual,
+                     const char *filename)
+{
+    return virTestCompareToFileFull(actual, filename, true);
+}
+
 
 int
 virTestCompareToULL(unsigned long long expect,
@@ -651,13 +649,13 @@ struct virtTestLogData {
 static struct virtTestLogData testLog = { VIR_BUFFER_INITIALIZER };
 
 static void
-virtTestLogOutput(virLogSourcePtr source G_GNUC_UNUSED,
+virtTestLogOutput(virLogSource *source G_GNUC_UNUSED,
                   virLogPriority priority G_GNUC_UNUSED,
                   const char *filename G_GNUC_UNUSED,
                   int lineno G_GNUC_UNUSED,
                   const char *funcname G_GNUC_UNUSED,
                   const char *timestamp,
-                  virLogMetadataPtr metadata G_GNUC_UNUSED,
+                  struct _virLogMetadata *metadata G_GNUC_UNUSED,
                   const char *rawstr G_GNUC_UNUSED,
                   const char *str,
                   void *data)
@@ -750,10 +748,9 @@ int virTestMain(int argc,
     int ret;
     char *testRange = NULL;
     size_t noutputs = 0;
-    virLogOutputPtr output = NULL;
-    virLogOutputPtr *outputs = NULL;
-    g_autofree char *baseprogname = NULL;
-    const char *progname;
+    virLogOutput *output = NULL;
+    virLogOutput **outputs = NULL;
+    g_autofree char *progname = NULL;
     g_autofree const char **preloads = NULL;
     size_t npreloads = 0;
     g_autofree char *mock = NULL;
@@ -786,9 +783,7 @@ int virTestMain(int argc,
         VIR_TEST_PRELOAD(mock);
     }
 
-    progname = baseprogname = g_path_get_basename(argv[0]);
-    if (STRPREFIX(progname, "lt-"))
-        progname += 3;
+    progname = g_path_get_basename(argv[0]);
 
     g_setenv("VIR_TEST_MOCK_PROGNAME", progname, TRUE);
 
@@ -843,6 +838,19 @@ int virTestMain(int argc,
             fprintf(stderr, "%*s", 40 - (int)(testCounter % 40), "");
         fprintf(stderr, " %-3zu %s\n", testCounter, ret == 0 ? "OK" : "FAIL");
     }
+
+    switch (ret) {
+    case EXIT_FAILURE:
+    case EXIT_SUCCESS:
+    case EXIT_AM_SKIP:
+    case EXIT_AM_HARDFAIL:
+        break;
+    default:
+        fprintf(stderr, "Test callback returned invalid value: %d\n", ret);
+        ret = EXIT_AM_HARDFAIL;
+        break;
+    }
+
     if (ret == EXIT_FAILURE && !virBitmapIsAllClear(failedTests)) {
         g_autofree char *failed = virBitmapFormat(failedTests);
         fprintf(stderr, "Some tests failed. Run them using:\n");
@@ -853,61 +861,11 @@ int virTestMain(int argc,
 }
 
 
-/*
- * @cmdset contains a list of command line args, eg
- *
- * "/usr/sbin/iptables --table filter --insert INPUT --in-interface virbr0 --protocol tcp --destination-port 53 --jump ACCEPT
- *  /usr/sbin/iptables --table filter --insert INPUT --in-interface virbr0 --protocol udp --destination-port 53 --jump ACCEPT
- *  /usr/sbin/iptables --table filter --insert FORWARD --in-interface virbr0 --jump REJECT
- *  /usr/sbin/iptables --table filter --insert FORWARD --out-interface virbr0 --jump REJECT
- *  /usr/sbin/iptables --table filter --insert FORWARD --in-interface virbr0 --out-interface virbr0 --jump ACCEPT"
- *
- * And we're munging it in-place to strip the path component
- * of the command line, to produce
- *
- * "iptables --table filter --insert INPUT --in-interface virbr0 --protocol tcp --destination-port 53 --jump ACCEPT
- *  iptables --table filter --insert INPUT --in-interface virbr0 --protocol udp --destination-port 53 --jump ACCEPT
- *  iptables --table filter --insert FORWARD --in-interface virbr0 --jump REJECT
- *  iptables --table filter --insert FORWARD --out-interface virbr0 --jump REJECT
- *  iptables --table filter --insert FORWARD --in-interface virbr0 --out-interface virbr0 --jump ACCEPT"
- */
-void virTestClearCommandPath(char *cmdset)
-{
-    size_t offset = 0;
-    char *lineStart = cmdset;
-    char *lineEnd = strchr(lineStart, '\n');
-
-    while (lineStart) {
-        char *dirsep;
-        char *movestart;
-        size_t movelen;
-        dirsep = strchr(lineStart, ' ');
-        if (dirsep) {
-            while (dirsep > lineStart && *dirsep != '/')
-                dirsep--;
-            if (*dirsep == '/')
-                dirsep++;
-            movestart = dirsep;
-        } else {
-            movestart = lineStart;
-        }
-        movelen = lineEnd ? lineEnd - movestart : strlen(movestart);
-
-        if (movelen) {
-            memmove(cmdset + offset, movestart, movelen + 1);
-            offset += movelen + 1;
-        }
-        lineStart = lineEnd ? lineEnd + 1 : NULL;
-        lineEnd = lineStart ? strchr(lineStart, '\n') : NULL;
-    }
-    cmdset[offset] = '\0';
-}
-
-
-virCapsPtr virTestGenericCapsInit(void)
+virCaps *
+virTestGenericCapsInit(void)
 {
     g_autoptr(virCaps) caps = NULL;
-    virCapsGuestPtr guest;
+    virCapsGuest *guest;
 
     if ((caps = virCapabilitiesNew(VIR_ARCH_X86_64,
                                    false, false)) == NULL)
@@ -964,11 +922,11 @@ virCapsPtr virTestGenericCapsInit(void)
  * Build NUMA topology with cell id starting from (0 + seq)
  * for testing
  */
-virCapsHostNUMAPtr
+virCapsHostNUMA *
 virTestCapsBuildNUMATopology(int seq)
 {
     g_autoptr(virCapsHostNUMA) caps = virCapabilitiesHostNUMANew();
-    virCapsHostNUMACellCPUPtr cell_cpus = NULL;
+    virCapsHostNUMACellCPU *cell_cpus = NULL;
     int core_id, cell_id;
     int id;
 
@@ -987,9 +945,10 @@ virTestCapsBuildNUMATopology(int seq)
 
         virCapabilitiesHostNUMAAddCell(caps, cell_id + seq,
                                        MAX_MEM_IN_CELL,
-                                       MAX_CPUS_IN_CELL, cell_cpus,
-                                       VIR_ARCH_NONE, NULL,
-                                       VIR_ARCH_NONE, NULL);
+                                       MAX_CPUS_IN_CELL, &cell_cpus,
+                                       0, NULL,
+                                       0, NULL,
+                                       NULL);
 
         cell_cpus = NULL;
     }
@@ -1001,7 +960,7 @@ static virDomainDefParserConfig virTestGenericDomainDefParserConfig = {
     .features = VIR_DOMAIN_DEF_FEATURE_INDIVIDUAL_VCPUS,
 };
 
-virDomainXMLOptionPtr virTestGenericDomainXMLConfInit(void)
+virDomainXMLOption *virTestGenericDomainXMLConfInit(void)
 {
     return virDomainXMLOptionNew(&virTestGenericDomainDefParserConfig,
                                  NULL, NULL, NULL, NULL);
@@ -1009,8 +968,8 @@ virDomainXMLOptionPtr virTestGenericDomainXMLConfInit(void)
 
 
 int
-testCompareDomXML2XMLFiles(virCapsPtr caps G_GNUC_UNUSED,
-                           virDomainXMLOptionPtr xmlopt,
+testCompareDomXML2XMLFiles(virCaps *caps G_GNUC_UNUSED,
+                           virDomainXMLOption *xmlopt,
                            const char *infile, const char *outfile, bool live,
                            unsigned int parseFlags,
                            testCompareDomXML2XMLResult expectResult)
@@ -1018,7 +977,7 @@ testCompareDomXML2XMLFiles(virCapsPtr caps G_GNUC_UNUSED,
     g_autofree char *actual = NULL;
     int ret = -1;
     testCompareDomXML2XMLResult result;
-    virDomainDefPtr def = NULL;
+    virDomainDef *def = NULL;
     unsigned int parse_flags = live ? 0 : VIR_DOMAIN_DEF_PARSE_INACTIVE;
     unsigned int format_flags = VIR_DOMAIN_DEF_FORMAT_SECURE;
 

@@ -37,7 +37,7 @@ static int
 testQemuCommandBuildFromJSON(const void *opaque)
 {
     const testQemuCommandBuildObjectFromJSONData *data = opaque;
-    virJSONValuePtr val = NULL;
+    virJSONValue *val = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     char *result = NULL;
     int ret = -1;
@@ -47,7 +47,7 @@ testQemuCommandBuildFromJSON(const void *opaque)
         return -1;
     }
 
-    if (virQEMUBuildCommandLineJSON(val, &buf, NULL, false, data->arrayfunc) < 0) {
+    if (virQEMUBuildCommandLineJSON(val, &buf, NULL, data->arrayfunc) < 0) {
         fprintf(stderr,
                 "\nvirQEMUBuildCommandlineJSON failed process JSON:\n%s\n",
                 data->props);
@@ -99,8 +99,8 @@ mymain(void)
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"string\":\"qwer\"}", "string=qwer");
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"string\":\"qw,e,r\"}", "string=qw,,e,,r");
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"number\":1234}", "number=1234");
-    DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"boolean\":true}", "boolean=yes");
-    DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"boolean\":false}", "boolean=no");
+    DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"boolean\":true}", "boolean=on");
+    DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"boolean\":false}", "boolean=off");
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"bitmap\":[]}", NULL);
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"bitmap\":[0]}", "bitmap=0");
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"bitmap\":[1,3,5]}",
@@ -113,14 +113,14 @@ mymain(void)
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"array\":[\"bleah\",\"qwerty\",1]}",
                                      "array=bleah,array=qwerty,array=1");
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"boolean\":true,\"hyphen-name\":1234,\"some_string\":\"bleah\"}",
-                                     "boolean=yes,hyphen-name=1234,some_string=bleah");
+                                     "boolean=on,hyphen-name=1234,some_string=bleah");
     DO_TEST_COMMAND_OBJECT_FROM_JSON("{\"nest\": {\"boolean\":true,"
                                                  "\"hyphen-name\":1234,"
                                                  "\"some_string\":\"bleah\","
                                                  "\"bleah\":\"bl,eah\""
                                                  "}"
                                      "}",
-                                     "nest.boolean=yes,nest.hyphen-name=1234,"
+                                     "nest.boolean=on,nest.hyphen-name=1234,"
                                      "nest.some_string=bleah,nest.bleah=bl,,eah");
     DO_TEST_COMMAND_DRIVE_FROM_JSON("{\"driver\":\"gluster\","
                                      "\"volume\":\"test\","
@@ -146,8 +146,7 @@ mymain(void)
                                      "server.2.type=tcp,"
                                      "server.2.host=example.com");
 
-    return ret;
-
+    return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 VIR_TEST_MAIN(mymain)

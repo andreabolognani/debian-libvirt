@@ -35,194 +35,6 @@
 
 VIR_LOG_INIT("util.string");
 
-/*
- * The following virStringSplit & virStringListJoin methods
- * are derived from g_strsplit / g_strjoin in glib2,
- * also available under the LGPLv2+ license terms
- */
-
-/**
- * virStringSplitCount:
- * @string: a string to split
- * @delim: a string which specifies the places at which to split
- *     the string. The delimiter is not included in any of the resulting
- *     strings, unless @max_tokens is reached.
- * @max_tokens: the maximum number of pieces to split @string into.
- *     If this is 0, the string is split completely.
- * @tokcount: If provided, the value is set to the count of pieces the string
- *            was split to excluding the terminating NULL element.
- *
- * Splits a string into a maximum of @max_tokens pieces, using the given
- * @delim. If @max_tokens is reached, the remainder of @string is
- * appended to the last token.
- *
- * As a special case, the result of splitting the empty string "" is an empty
- * vector, not a vector containing a single string. The reason for this
- * special case is that being able to represent an empty vector is typically
- * more useful than consistent handling of empty elements. If you do need
- * to represent empty elements, you'll need to check for the empty string
- * before calling virStringSplit().
- *
- * Return value: a newly-allocated NULL-terminated array of strings. Use
- *    g_strfreev() to free it.
- */
-char **
-virStringSplitCount(const char *string,
-                    const char *delim,
-                    size_t max_tokens,
-                    size_t *tokcount)
-{
-    char **tokens = NULL;
-    size_t ntokens = 0;
-    size_t maxtokens = 0;
-    const char *remainder = string;
-    char *tmp;
-    size_t i;
-
-    if (max_tokens == 0)
-        max_tokens = INT_MAX;
-
-    tmp = strstr(remainder, delim);
-    if (tmp) {
-        size_t delimlen = strlen(delim);
-
-        while (--max_tokens && tmp) {
-            size_t len = tmp - remainder;
-
-            if (VIR_RESIZE_N(tokens, maxtokens, ntokens, 1) < 0)
-                goto error;
-
-            tokens[ntokens] = g_strndup(remainder, len);
-            ntokens++;
-            remainder = tmp + delimlen;
-            tmp = strstr(remainder, delim);
-        }
-    }
-    if (*string) {
-        if (VIR_RESIZE_N(tokens, maxtokens, ntokens, 1) < 0)
-            goto error;
-
-        tokens[ntokens] = g_strdup(remainder);
-        ntokens++;
-    }
-
-    if (VIR_RESIZE_N(tokens, maxtokens, ntokens, 1) < 0)
-        goto error;
-    tokens[ntokens++] = NULL;
-
-    if (tokcount)
-        *tokcount = ntokens - 1;
-
-    return tokens;
-
- error:
-    for (i = 0; i < ntokens; i++)
-        VIR_FREE(tokens[i]);
-    VIR_FREE(tokens);
-    return NULL;
-}
-
-
-char **
-virStringSplit(const char *string,
-               const char *delim,
-               size_t max_tokens)
-{
-    return virStringSplitCount(string, delim, max_tokens, NULL);
-}
-
-
-/**
- * virStringListJoin:
- * @strings: a NULL-terminated array of strings to join
- * @delim: a string to insert between each of the strings
- *
- * Joins a number of strings together to form one long string, with the
- * @delim inserted between each of them. The returned string
- * should be freed with VIR_FREE().
- *
- * Returns: a newly-allocated string containing all of the strings joined
- *     together, with @delim between them
- */
-char *virStringListJoin(const char **strings,
-                        const char *delim)
-{
-    char *ret;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    while (*strings) {
-        virBufferAdd(&buf, *strings, -1);
-        if (*(strings+1))
-            virBufferAdd(&buf, delim, -1);
-        strings++;
-    }
-    ret = virBufferContentAndReset(&buf);
-    if (!ret)
-        ret = g_strdup("");
-    return ret;
-}
-
-
-/**
- * virStringListAdd:
- * @strings: a NULL-terminated array of strings
- * @item: string to add
- *
- * Appends @item into string list @strings. If *@strings is not
- * allocated yet new string list is created.
- *
- * Returns: 0 on success,
- *         -1 otherwise
- */
-int
-virStringListAdd(char ***strings,
-                 const char *item)
-{
-    size_t i = virStringListLength((const char **) *strings);
-
-    if (VIR_EXPAND_N(*strings, i, 2) < 0)
-        return -1;
-
-    (*strings)[i - 2] = g_strdup(item);
-
-    return 0;
-}
-
-
-/**
- * virStringListRemove:
- * @strings: a NULL-terminated array of strings
- * @item: string to remove
- *
- * Remove every occurrence of @item in list of @strings.
- */
-void
-virStringListRemove(char ***strings,
-                    const char *item)
-{
-    size_t r, w = 0;
-
-    if (!strings || !*strings)
-        return;
-
-    for (r = 0; (*strings)[r]; r++) {
-        if (STREQ((*strings)[r], item)) {
-            VIR_FREE((*strings)[r]);
-            continue;
-        }
-        if (r != w)
-            (*strings)[w] = (*strings)[r];
-        w++;
-    }
-
-    if (w == 0) {
-        VIR_FREE(*strings);
-    } else {
-        (*strings)[w] = NULL;
-        ignore_value(VIR_REALLOC_N(*strings, w + 1));
-    }
-}
-
-
 /**
  * virStringListMerge:
  * @dst: a NULL-terminated array of strings to expand
@@ -243,11 +55,10 @@ virStringListMerge(char ***dst,
     if (!src || !*src)
         return 0;
 
-    dst_len = virStringListLength((const char **) *dst);
-    src_len = virStringListLength((const char **) *src);
+    dst_len = g_strv_length(*dst);
+    src_len = g_strv_length(*src);
 
-    if (VIR_REALLOC_N(*dst, dst_len + src_len + 1) < 0)
-        return -1;
+    VIR_REALLOC_N(*dst, dst_len + src_len + 1);
 
     for (i = 0; i <= src_len; i++)
         (*dst)[i + dst_len] = (*src)[i];
@@ -276,46 +87,11 @@ virStringListFreeCount(char **strings,
         return;
 
     for (i = 0; i < count; i++)
-        VIR_FREE(strings[i]);
+        g_free(strings[i]);
 
-    VIR_FREE(strings);
+    g_free(strings);
 }
 
-
-bool
-virStringListHasString(const char **strings,
-                       const char *needle)
-{
-    size_t i = 0;
-
-    if (!strings)
-        return false;
-
-    while (strings[i]) {
-        if (STREQ(strings[i++], needle))
-            return true;
-    }
-
-    return false;
-}
-
-char *
-virStringListGetFirstWithPrefix(char **strings,
-                                const char *prefix)
-{
-    size_t i = 0;
-
-    if (!strings)
-        return NULL;
-
-    while (strings[i]) {
-        if (STRPREFIX(strings[i], prefix))
-            return strings[i] + strlen(prefix);
-        i++;
-    }
-
-    return NULL;
-}
 
 /* Like strtol, but produce an "int" result, and check more carefully.
    Return 0 upon success;  return -1 to indicate failure.
@@ -656,66 +432,24 @@ virDoubleToStr(char **strp, double number)
 
 
 /**
- * virStrncpy:
- *
- * @dest: destination buffer
- * @src: source buffer
- * @n: number of bytes to copy
- * @destbytes: number of bytes the destination can accommodate
- *
- * Copies the first @n bytes of @src to @dest.
- *
- * @src must be NULL-terminated; if successful, @dest is guaranteed to
- * be NULL-terminated as well.
- *
- * @n must be a reasonable value, that is, it must not exceed either
- * the length of @src or the size of @dest. For the latter constraint,
- * the fact that @dest needs to accommodate a NULL byte in addition to
- * the bytes copied from @src must be taken into account.
- *
- * If you want to copy *all* of @src to @dest, use virStrcpy() or
- * virStrcpyStatic() instead.
- *
- * Returns: 0 on success, <0 on failure.
- */
-int
-virStrncpy(char *dest, const char *src, size_t n, size_t destbytes)
-{
-    size_t src_len = strlen(src);
-
-    /* As a special case, -1 means "copy the entire string".
-     *
-     * This is to avoid calling strlen() twice, once in the virStrcpy()
-     * wrapper and once here for bound checking purposes. */
-    if (n == -1)
-        n = src_len;
-
-    if (n > src_len || n > (destbytes - 1))
-        return -1;
-
-    memcpy(dest, src, n);
-    dest[n] = '\0';
-
-    return 0;
-}
-
-/**
  * virStrcpy:
  *
  * @dest: destination buffer
  * @src: source buffer
  * @destbytes: number of bytes the destination can accommodate
  *
- * Copies @src to @dest.
+ * Copies @src to @dest. @dest is guaranteed to be 'nul' terminated if
+ * destbytes is 1 or more.
  *
- * See virStrncpy() for more information.
- *
- * Returns: 0 on success, <0 on failure.
+ * Returns: 0 on success, -1 if @src doesn't fit into @dest and was truncated.
  */
 int
 virStrcpy(char *dest, const char *src, size_t destbytes)
 {
-    return virStrncpy(dest, src, -1, destbytes);
+    if (g_strlcpy(dest, src, destbytes) >= destbytes)
+        return -1;
+
+    return 0;
 }
 
 /**
@@ -843,17 +577,6 @@ virStringIsEmpty(const char *str)
 }
 
 
-size_t virStringListLength(const char * const *strings)
-{
-    size_t i = 0;
-
-    while (strings && strings[i])
-        i++;
-
-    return i;
-}
-
-
 /**
  * virStringSortCompare:
  *
@@ -947,8 +670,7 @@ virStringSearch(const char *str,
     /* '*matches' must always be NULL terminated in every iteration
      * of the loop, so start by allocating 1 element
      */
-    if (VIR_EXPAND_N(*matches, nmatches, 1) < 0)
-        goto cleanup;
+    VIR_EXPAND_N(*matches, nmatches, 1);
 
     while ((nmatches - 1) < max_matches) {
         g_autoptr(GMatchInfo) info = NULL;
@@ -958,8 +680,7 @@ virStringSearch(const char *str,
         if (!g_regex_match(regex, str, 0, &info))
             break;
 
-        if (VIR_EXPAND_N(*matches, nmatches, 1) < 0)
-            goto cleanup;
+        VIR_EXPAND_N(*matches, nmatches, 1);
 
         match = g_match_info_fetch(info, 1);
 

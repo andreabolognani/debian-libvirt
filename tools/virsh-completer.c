@@ -87,7 +87,7 @@ char **
 virshCommaStringListComplete(const char *input,
                              const char **options)
 {
-    const size_t optionsLen = virStringListLength(options);
+    const size_t optionsLen = g_strv_length((char **) options);
     g_autofree char *inputCopy = NULL;
     g_auto(GStrv) inputList = NULL;
     g_auto(GStrv) ret = NULL;
@@ -108,13 +108,14 @@ virshCommaStringListComplete(const char *input,
             g_clear_pointer(&inputCopy, g_free);
     }
 
-    if (inputCopy && !(inputList = virStringSplit(inputCopy, ",", 0)))
+    if (inputCopy && !(inputList = g_strsplit(inputCopy, ",", 0)))
         return NULL;
 
     ret = g_new0(char *, optionsLen + 1);
 
     for (i = 0; i < optionsLen; i++) {
-        if (virStringListHasString((const char **)inputList, options[i]))
+        if (inputList &&
+            g_strv_contains((const char **)inputList, options[i]))
             continue;
 
         if (inputCopy)

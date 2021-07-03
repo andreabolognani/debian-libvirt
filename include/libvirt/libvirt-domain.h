@@ -691,10 +691,11 @@ typedef enum {
                                                * lzo compression */
     VIR_DOMAIN_CORE_DUMP_FORMAT_KDUMP_SNAPPY, /* kdump-compressed format, with
                                                * snappy compression */
+    VIR_DOMAIN_CORE_DUMP_FORMAT_WIN_DMP,      /* Windows full crashdump format */
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_CORE_DUMP_FORMAT_LAST
     /*
-     * NB: this enum value will increase over time as new events are
+     * NB: this enum value will increase over time as new formats are
      * added to the libvirt API. It reflects the last state supported
      * by this version of the libvirt API.
      */
@@ -1527,6 +1528,7 @@ typedef enum {
     VIR_DOMAIN_NUMATUNE_MEM_STRICT      = 0,
     VIR_DOMAIN_NUMATUNE_MEM_PREFERRED   = 1,
     VIR_DOMAIN_NUMATUNE_MEM_INTERLEAVE  = 2,
+    VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE = 3,
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_NUMATUNE_MEM_LAST /* This constant is subject to change */
@@ -2185,6 +2187,7 @@ typedef enum {
     VIR_DOMAIN_STATS_PERF = (1 << 6), /* return domain perf event info */
     VIR_DOMAIN_STATS_IOTHREAD = (1 << 7), /* return iothread poll info */
     VIR_DOMAIN_STATS_MEMORY = (1 << 8), /* return domain memory info */
+    VIR_DOMAIN_STATS_DIRTYRATE = (1 << 9), /* return domain dirty rate info */
 } virDomainStatsTypes;
 
 typedef enum {
@@ -5118,5 +5121,36 @@ int virDomainAuthorizedSSHKeysSet(virDomainPtr domain,
                                   const char **keys,
                                   unsigned int nkeys,
                                   unsigned int flags);
+
+typedef enum {
+    VIR_DOMAIN_MESSAGE_DEPRECATION = (1 << 0),
+    VIR_DOMAIN_MESSAGE_TAINTING = (1 << 1),
+} virDomainMessageType;
+
+int virDomainGetMessages(virDomainPtr domain,
+                         char ***msgs,
+                         unsigned int flags);
+
+/**
+ * virDomainDirtyRateStatus:
+ *
+ * Details on the cause of a dirty rate calculation status.
+ */
+typedef enum {
+    VIR_DOMAIN_DIRTYRATE_UNSTARTED = 0, /* the dirtyrate calculation has
+                                           not been started */
+    VIR_DOMAIN_DIRTYRATE_MEASURING = 1, /* the dirtyrate calculation is
+                                           measuring */
+    VIR_DOMAIN_DIRTYRATE_MEASURED  = 2, /* the dirtyrate calculation is
+                                           completed */
+
+# ifdef VIR_ENUM_SENTINELS
+    VIR_DOMAIN_DIRTYRATE_LAST
+# endif
+} virDomainDirtyRateStatus;
+
+int virDomainStartDirtyRateCalc(virDomainPtr domain,
+                                int seconds,
+                                unsigned int flags);
 
 #endif /* LIBVIRT_DOMAIN_H */

@@ -6,14 +6,11 @@ LOGNAME=test \
 XDG_DATA_HOME=/tmp/lib/domain--1-QEMUGuest1/.local/share \
 XDG_CACHE_HOME=/tmp/lib/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
-QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-ppc64 \
 -name guest=QEMUGuest1,debug-threads=on \
 -S \
--object secret,id=masterKey0,format=raw,\
-file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
--machine pseries,accel=tcg,usb=off,dump-guest-core=off,\
-memory-backend=ppc_spapr.ram \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
+-machine pseries,accel=tcg,usb=off,dump-guest-core=off,memory-backend=ppc_spapr.ram \
 -cpu POWER9 \
 -m 256 \
 -object memory-backend-ram,id=ppc_spapr.ram,size=268435456 \
@@ -23,7 +20,7 @@ memory-backend=ppc_spapr.ram \
 -display none \
 -no-user-config \
 -nodefaults \
--chardev socket,id=charmonitor,fd=1729,server,nowait \
+-chardev socket,id=charmonitor,fd=1729,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \
@@ -33,7 +30,7 @@ memory-backend=ppc_spapr.ram \
 -tpmdev emulator,id=tpm-tpm1,chardev=chrtpm \
 -chardev socket,id=chrtpm,path=/dev/test \
 -device tpm-spapr,tpmdev=tpm-tpm1,id=tpm1,reg=0x00004000 \
+-audiodev id=audio1,driver=none \
 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x6 \
--sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,\
-resourcecontrol=deny \
+-sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
 -msg timestamp=on

@@ -34,9 +34,9 @@
 
 VIR_LOG_INIT("rpc.netmessage");
 
-virNetMessagePtr virNetMessageNew(bool tracked)
+virNetMessage *virNetMessageNew(bool tracked)
 {
-    virNetMessagePtr msg;
+    virNetMessage *msg;
 
     msg = g_new0(virNetMessage, 1);
 
@@ -48,7 +48,7 @@ virNetMessagePtr virNetMessageNew(bool tracked)
 
 
 void
-virNetMessageClearPayload(virNetMessagePtr msg)
+virNetMessageClearPayload(virNetMessage *msg)
 {
     size_t i;
 
@@ -65,7 +65,7 @@ virNetMessageClearPayload(virNetMessagePtr msg)
 }
 
 
-void virNetMessageClear(virNetMessagePtr msg)
+void virNetMessageClear(virNetMessage *msg)
 {
     bool tracked = msg->tracked;
 
@@ -77,7 +77,7 @@ void virNetMessageClear(virNetMessagePtr msg)
 }
 
 
-void virNetMessageFree(virNetMessagePtr msg)
+void virNetMessageFree(virNetMessage *msg)
 {
     if (!msg)
         return;
@@ -88,12 +88,12 @@ void virNetMessageFree(virNetMessagePtr msg)
         msg->cb(msg, msg->opaque);
 
     virNetMessageClearPayload(msg);
-    VIR_FREE(msg);
+    g_free(msg);
 }
 
-void virNetMessageQueuePush(virNetMessagePtr *queue, virNetMessagePtr msg)
+void virNetMessageQueuePush(virNetMessage **queue, virNetMessage *msg)
 {
-    virNetMessagePtr tmp = *queue;
+    virNetMessage *tmp = *queue;
 
     if (tmp) {
         while (tmp->next)
@@ -105,20 +105,19 @@ void virNetMessageQueuePush(virNetMessagePtr *queue, virNetMessagePtr msg)
 }
 
 
-virNetMessagePtr virNetMessageQueueServe(virNetMessagePtr *queue)
+virNetMessage *virNetMessageQueueServe(virNetMessage **queue)
 {
-    virNetMessagePtr tmp = *queue;
+    virNetMessage *tmp = *queue;
 
     if (tmp) {
-        *queue = tmp->next;
-        tmp->next = NULL;
+        *queue = g_steal_pointer(&tmp->next);
     }
 
     return tmp;
 }
 
 
-int virNetMessageDecodeLength(virNetMessagePtr msg)
+int virNetMessageDecodeLength(virNetMessage *msg)
 {
     XDR xdr;
     unsigned int len;
@@ -152,8 +151,7 @@ int virNetMessageDecodeLength(virNetMessagePtr msg)
     /* Extend our declared buffer length and carry
        on reading the header + payload */
     msg->bufferLength += len;
-    if (VIR_REALLOC_N(msg->buffer, msg->bufferLength) < 0)
-        goto cleanup;
+    VIR_REALLOC_N(msg->buffer, msg->bufferLength);
 
     VIR_DEBUG("Got length, now need %zu total (%u more)",
               msg->bufferLength, len);
@@ -177,7 +175,7 @@ int virNetMessageDecodeLength(virNetMessagePtr msg)
  *
  * returns 0 if successfully decoded, -1 upon fatal error
  */
-int virNetMessageDecodeHeader(virNetMessagePtr msg)
+int virNetMessageDecodeHeader(virNetMessage *msg)
 {
     XDR xdr;
     int ret = -1;
@@ -222,15 +220,14 @@ int virNetMessageDecodeHeader(virNetMessagePtr msg)
  *
  * returns 0 if successfully encoded, -1 upon fatal error
  */
-int virNetMessageEncodeHeader(virNetMessagePtr msg)
+int virNetMessageEncodeHeader(virNetMessage *msg)
 {
     XDR xdr;
     int ret = -1;
     unsigned int len = 0;
 
     msg->bufferLength = VIR_NET_MESSAGE_INITIAL + VIR_NET_MESSAGE_LEN_MAX;
-    if (VIR_REALLOC_N(msg->buffer, msg->bufferLength) < 0)
-        return ret;
+    VIR_REALLOC_N(msg->buffer, msg->bufferLength);
     msg->bufferOffset = 0;
 
     /* Format the header. */
@@ -271,7 +268,7 @@ int virNetMessageEncodeHeader(virNetMessagePtr msg)
 }
 
 
-int virNetMessageEncodeNumFDs(virNetMessagePtr msg)
+int virNetMessageEncodeNumFDs(virNetMessage *msg)
 {
     XDR xdr;
     unsigned int numFDs = msg->nfds;
@@ -303,7 +300,7 @@ int virNetMessageEncodeNumFDs(virNetMessagePtr msg)
 }
 
 
-int virNetMessageDecodeNumFDs(virNetMessagePtr msg)
+int virNetMessageDecodeNumFDs(virNetMessage *msg)
 {
     XDR xdr;
     unsigned int numFDs;
@@ -343,7 +340,7 @@ int virNetMessageDecodeNumFDs(virNetMessagePtr msg)
 }
 
 
-int virNetMessageEncodePayload(virNetMessagePtr msg,
+int virNetMessageEncodePayload(virNetMessage *msg,
                                xdrproc_t filter,
                                void *data)
 {
@@ -370,8 +367,7 @@ int virNetMessageEncodePayload(virNetMessagePtr msg,
 
         msg->bufferLength = newlen + VIR_NET_MESSAGE_LEN_MAX;
 
-        if (VIR_REALLOC_N(msg->buffer, msg->bufferLength) < 0)
-            goto error;
+        VIR_REALLOC_N(msg->buffer, msg->bufferLength);
 
         xdrmem_create(&xdr, msg->buffer + msg->bufferOffset,
                       msg->bufferLength - msg->bufferOffset, XDR_ENCODE);
@@ -403,7 +399,7 @@ int virNetMessageEncodePayload(virNetMessagePtr msg,
 }
 
 
-int virNetMessageDecodePayload(virNetMessagePtr msg,
+int virNetMessageDecodePayload(virNetMessage *msg,
                                xdrproc_t filter,
                                void *data)
 {
@@ -431,7 +427,7 @@ int virNetMessageDecodePayload(virNetMessagePtr msg,
 }
 
 
-int virNetMessageEncodePayloadRaw(virNetMessagePtr msg,
+int virNetMessageEncodePayloadRaw(virNetMessage *msg,
                                   const char *data,
                                   size_t len)
 {
@@ -454,8 +450,7 @@ int virNetMessageEncodePayloadRaw(virNetMessagePtr msg,
 
         msg->bufferLength = msg->bufferOffset + len;
 
-        if (VIR_REALLOC_N(msg->buffer, msg->bufferLength) < 0)
-            return -1;
+        VIR_REALLOC_N(msg->buffer, msg->bufferLength);
 
         VIR_DEBUG("Increased message buffer length = %zu", msg->bufferLength);
     }
@@ -483,7 +478,7 @@ int virNetMessageEncodePayloadRaw(virNetMessagePtr msg,
 }
 
 
-int virNetMessageEncodePayloadEmpty(virNetMessagePtr msg)
+int virNetMessageEncodePayloadEmpty(virNetMessage *msg)
 {
     XDR xdr;
     unsigned int msglen;
@@ -508,7 +503,7 @@ int virNetMessageEncodePayloadEmpty(virNetMessagePtr msg)
 }
 
 
-void virNetMessageSaveError(virNetMessageErrorPtr rerr)
+void virNetMessageSaveError(struct virNetMessageError *rerr)
 {
     virErrorPtr verr;
 
@@ -553,7 +548,7 @@ void virNetMessageSaveError(virNetMessageErrorPtr rerr)
 }
 
 
-int virNetMessageDupFD(virNetMessagePtr msg,
+int virNetMessageDupFD(virNetMessage *msg,
                        size_t slot)
 {
     int fd;
@@ -580,7 +575,7 @@ int virNetMessageDupFD(virNetMessagePtr msg,
     return fd;
 }
 
-int virNetMessageAddFD(virNetMessagePtr msg,
+int virNetMessageAddFD(virNetMessage *msg,
                        int fd)
 {
     int newfd = -1;

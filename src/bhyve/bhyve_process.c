@@ -33,6 +33,7 @@
 #include "bhyve_device.h"
 #include "bhyve_driver.h"
 #include "bhyve_command.h"
+#include "bhyve_firmware.h"
 #include "bhyve_monitor.h"
 #include "bhyve_process.h"
 #include "datatypes.h"
@@ -54,11 +55,11 @@
 VIR_LOG_INIT("bhyve.bhyve_process");
 
 static void
-bhyveProcessAutoDestroy(virDomainObjPtr vm,
+bhyveProcessAutoDestroy(virDomainObj *vm,
                         virConnectPtr conn G_GNUC_UNUSED,
                         void *opaque)
 {
-    bhyveConnPtr driver = opaque;
+    struct _bhyveConn *driver = opaque;
 
     virBhyveProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_DESTROYED);
 
@@ -67,12 +68,12 @@ bhyveProcessAutoDestroy(virDomainObjPtr vm,
 }
 
 static void
-bhyveNetCleanup(virDomainObjPtr vm)
+bhyveNetCleanup(virDomainObj *vm)
 {
     size_t i;
 
     for (i = 0; i < vm->def->nnets; i++) {
-        virDomainNetDefPtr net = vm->def->nets[i];
+        virDomainNetDef *net = vm->def->nets[i];
         virDomainNetType actualType = virDomainNetGetActualType(net);
 
         if (actualType == VIR_DOMAIN_NET_TYPE_BRIDGE) {
@@ -93,7 +94,7 @@ virBhyveFormatDevMapFile(const char *vm_name, char **fn_out)
 }
 
 static int
-bhyveProcessStartHook(virDomainObjPtr vm, virHookBhyveOpType op)
+bhyveProcessStartHook(virDomainObj *vm, virHookBhyveOpType op)
 {
     if (!virHookPresent(VIR_HOOK_DRIVER_BHYVE))
         return 0;
@@ -103,7 +104,7 @@ bhyveProcessStartHook(virDomainObjPtr vm, virHookBhyveOpType op)
 }
 
 static void
-bhyveProcessStopHook(virDomainObjPtr vm, virHookBhyveOpType op)
+bhyveProcessStopHook(virDomainObj *vm, virHookBhyveOpType op)
 {
     if (virHookPresent(VIR_HOOK_DRIVER_BHYVE))
         virHookCall(VIR_HOOK_DRIVER_BHYVE, vm->def->name, op,
@@ -111,17 +112,17 @@ bhyveProcessStopHook(virDomainObjPtr vm, virHookBhyveOpType op)
 }
 
 static int
-virBhyveProcessStartImpl(bhyveConnPtr driver,
-                         virDomainObjPtr vm,
+virBhyveProcessStartImpl(struct _bhyveConn *driver,
+                         virDomainObj *vm,
                          virDomainRunningReason reason)
 {
     char *devmap_file = NULL;
     char *devicemap = NULL;
     char *logfile = NULL;
     int logfd = -1;
-    virCommandPtr cmd = NULL;
-    virCommandPtr load_cmd = NULL;
-    bhyveDomainObjPrivatePtr priv = vm->privateData;
+    virCommand *cmd = NULL;
+    virCommand *load_cmd = NULL;
+    bhyveDomainObjPrivate *priv = vm->privateData;
     int ret = -1, rc;
 
     logfile = g_strdup_printf("%s/%s.log", BHYVE_LOG_DIR, vm->def->name);
@@ -232,7 +233,7 @@ virBhyveProcessStartImpl(bhyveConnPtr driver,
 
     if (ret < 0) {
         int exitstatus; /* Needed to avoid logging non-zero status */
-        virCommandPtr destroy_cmd;
+        virCommand *destroy_cmd;
         if ((destroy_cmd = virBhyveProcessBuildDestroyCmd(driver,
                                                           vm->def)) != NULL) {
             virCommandSetOutputFD(load_cmd, &logfd);
@@ -252,12 +253,23 @@ virBhyveProcessStartImpl(bhyveConnPtr driver,
 }
 
 int
+bhyveProcessPrepareDomain(bhyveConn *driver,
+                          virDomainObj *vm,
+                          unsigned int flags)
+{
+    if (bhyveFirmwareFillDomain(driver, vm->def, flags) < 0)
+        return -1;
+
+    return 0;
+}
+
+int
 virBhyveProcessStart(virConnectPtr conn,
-                     virDomainObjPtr vm,
+                     virDomainObj *vm,
                      virDomainRunningReason reason,
                      unsigned int flags)
 {
-    bhyveConnPtr driver = conn->privateData;
+    struct _bhyveConn *driver = conn->privateData;
 
     /* Run an early hook to setup missing devices. */
     if (bhyveProcessStartHook(vm, VIR_HOOK_BHYVE_OP_PREPARE) < 0)
@@ -268,17 +280,20 @@ virBhyveProcessStart(virConnectPtr conn,
                              conn, bhyveProcessAutoDestroy) < 0)
         return -1;
 
+    if (bhyveProcessPrepareDomain(driver, vm, flags) < 0)
+        return -1;
+
     return virBhyveProcessStartImpl(driver, vm, reason);
 }
 
 int
-virBhyveProcessStop(bhyveConnPtr driver,
-                    virDomainObjPtr vm,
+virBhyveProcessStop(struct _bhyveConn *driver,
+                    virDomainObj *vm,
                     virDomainShutoffReason reason)
 {
     int ret = -1;
-    virCommandPtr cmd = NULL;
-    bhyveDomainObjPrivatePtr priv = vm->privateData;
+    virCommand *cmd = NULL;
+    bhyveDomainObjPrivate *priv = vm->privateData;
 
     if (!virDomainObjIsActive(vm)) {
         VIR_DEBUG("VM '%s' not active", vm->def->name);
@@ -336,7 +351,7 @@ virBhyveProcessStop(bhyveConnPtr driver,
 }
 
 int
-virBhyveProcessShutdown(virDomainObjPtr vm)
+virBhyveProcessShutdown(virDomainObj *vm)
 {
     if (vm->pid <= 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -359,8 +374,8 @@ virBhyveProcessShutdown(virDomainObjPtr vm)
 }
 
 int
-virBhyveProcessRestart(bhyveConnPtr driver,
-                       virDomainObjPtr vm)
+virBhyveProcessRestart(struct _bhyveConn *driver,
+                       virDomainObj *vm)
 {
     if (virBhyveProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_SHUTDOWN) < 0)
         return -1;
@@ -372,7 +387,7 @@ virBhyveProcessRestart(bhyveConnPtr driver,
 }
 
 int
-virBhyveGetDomainTotalCpuStats(virDomainObjPtr vm,
+virBhyveGetDomainTotalCpuStats(virDomainObj *vm,
                                unsigned long long *cpustats)
 {
     struct kinfo_proc *kp;
@@ -408,12 +423,12 @@ virBhyveGetDomainTotalCpuStats(virDomainObjPtr vm,
 }
 
 struct bhyveProcessReconnectData {
-    bhyveConnPtr driver;
+    struct _bhyveConn *driver;
     kvm_t *kd;
 };
 
 static int
-virBhyveProcessReconnect(virDomainObjPtr vm,
+virBhyveProcessReconnect(virDomainObj *vm,
                          void *opaque)
 {
     struct bhyveProcessReconnectData *data = opaque;
@@ -421,7 +436,7 @@ virBhyveProcessReconnect(virDomainObjPtr vm,
     int nprocs;
     char **proc_argv;
     char *expected_proctitle = NULL;
-    bhyveDomainObjPrivatePtr priv = vm->privateData;
+    bhyveDomainObjPrivate *priv = vm->privateData;
     int ret = -1;
 
     if (!virDomainObjIsActive(vm))
@@ -474,7 +489,7 @@ virBhyveProcessReconnect(virDomainObjPtr vm,
 }
 
 void
-virBhyveProcessReconnectAll(bhyveConnPtr driver)
+virBhyveProcessReconnectAll(struct _bhyveConn *driver)
 {
     kvm_t *kd;
     struct bhyveProcessReconnectData data;

@@ -216,7 +216,7 @@ cmdSnapshotCreate(vshControl *ctl, const vshCmd *cmd)
  * "snapshot-create-as" command
  */
 static int
-virshParseSnapshotMemspec(vshControl *ctl, virBufferPtr buf, const char *str)
+virshParseSnapshotMemspec(vshControl *ctl, virBuffer *buf, const char *str)
 {
     int ret = -1;
     const char *snapshot = NULL;
@@ -256,7 +256,7 @@ virshParseSnapshotMemspec(vshControl *ctl, virBufferPtr buf, const char *str)
 }
 
 static int
-virshParseSnapshotDiskspec(vshControl *ctl, virBufferPtr buf, const char *str)
+virshParseSnapshotDiskspec(vshControl *ctl, virBuffer *buf, const char *str)
 {
     int ret = -1;
     const char *name = NULL;
@@ -372,6 +372,10 @@ static const vshCmdOptDef opts_snapshot_create_as[] = {
      .help = N_("require atomic operation")
     },
     VIRSH_COMMON_OPT_LIVE(N_("take a live snapshot")),
+    {.name = "validate",
+     .type = VSH_OT_BOOL,
+     .help = N_("validate the XML against the schema"),
+    },
     {.name = "memspec",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_REQ_OPT,
@@ -394,7 +398,7 @@ cmdSnapshotCreateAs(vshControl *ctl, const vshCmd *cmd)
     const char *desc = NULL;
     const char *memspec = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    unsigned int flags = VIR_DOMAIN_SNAPSHOT_CREATE_VALIDATE;
+    unsigned int flags = 0;
     const vshCmdOpt *opt = NULL;
 
     if (vshCommandOptBool(cmd, "no-metadata"))
@@ -411,6 +415,8 @@ cmdSnapshotCreateAs(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC;
     if (vshCommandOptBool(cmd, "live"))
         flags |= VIR_DOMAIN_SNAPSHOT_CREATE_LIVE;
+    if (vshCommandOptBool(cmd, "validate"))
+        flags |= VIR_DOMAIN_SNAPSHOT_CREATE_VALIDATE;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -738,7 +744,7 @@ virshGetSnapshotParent(vshControl *ctl, virDomainSnapshotPtr snapshot,
     xmlDocPtr xmldoc = NULL;
     xmlXPathContextPtr ctxt = NULL;
     int ret = -1;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     *parent_name = NULL;
 
@@ -883,7 +889,7 @@ cmdSnapshotInfo(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags;
     int current;
     int metadata;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     dom = virshCommandOptDomain(ctl, cmd, NULL);
     if (dom == NULL)
@@ -1020,10 +1026,9 @@ struct virshSnapshotList {
     struct virshSnap *snaps;
     int nsnaps;
 };
-typedef struct virshSnapshotList *virshSnapshotListPtr;
 
 static void
-virshSnapshotListFree(virshSnapshotListPtr snaplist)
+virshSnapshotListFree(struct virshSnapshotList *snaplist)
 {
     size_t i;
 
@@ -1032,11 +1037,11 @@ virshSnapshotListFree(virshSnapshotListPtr snaplist)
     if (snaplist->snaps) {
         for (i = 0; i < snaplist->nsnaps; i++) {
             virshDomainSnapshotFree(snaplist->snaps[i].snap);
-            VIR_FREE(snaplist->snaps[i].parent);
+            g_free(snaplist->snaps[i].parent);
         }
-        VIR_FREE(snaplist->snaps);
+        g_free(snaplist->snaps);
     }
-    VIR_FREE(snaplist);
+    g_free(snaplist);
 }
 
 static int
@@ -1058,7 +1063,7 @@ virshSnapSorter(const void *a, const void *b)
  * list is limited to descendants of the given snapshot.  If FLAGS is
  * given, the list is filtered.  If TREE is specified, then all but
  * FROM or the roots will also have parent information.  */
-static virshSnapshotListPtr
+static struct virshSnapshotList *
 virshSnapshotListCollect(vshControl *ctl, virDomainPtr dom,
                          virDomainSnapshotPtr from,
                          unsigned int orig_flags, bool tree)
@@ -1069,14 +1074,14 @@ virshSnapshotListCollect(vshControl *ctl, virDomainPtr dom,
     bool descendants = false;
     bool roots = false;
     virDomainSnapshotPtr *snaps;
-    virshSnapshotListPtr snaplist = g_new0(struct virshSnapshotList, 1);
-    virshSnapshotListPtr ret = NULL;
+    struct virshSnapshotList *snaplist = g_new0(struct virshSnapshotList, 1);
+    struct virshSnapshotList *ret = NULL;
     const char *fromname = NULL;
     int start_index = -1;
     int deleted = 0;
     bool filter_fallback = false;
     unsigned int flags = orig_flags;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     /* Try the interface available in 0.9.13 and newer.  */
     if (!priv->useSnapshotOld) {
@@ -1388,7 +1393,7 @@ virshSnapshotListCollect(vshControl *ctl, virDomainPtr dom,
 static const char *
 virshSnapshotListLookup(int id, bool parent, void *opaque)
 {
-    virshSnapshotListPtr snaplist = opaque;
+    struct virshSnapshotList *snaplist = opaque;
     if (parent)
         return snaplist->snaps[id].parent;
     return virDomainSnapshotGetName(snaplist->snaps[id].snap);
@@ -1492,7 +1497,6 @@ cmdSnapshotList(vshControl *ctl, const vshCmd *cmd)
     char *state = NULL;
     long long creation_longlong;
     g_autoptr(GDateTime) then = NULL;
-    g_autofree gchar *thenstr = NULL;
     bool tree = vshCommandOptBool(cmd, "tree");
     bool name = vshCommandOptBool(cmd, "name");
     bool from = vshCommandOptBool(cmd, "from");
@@ -1502,8 +1506,8 @@ cmdSnapshotList(vshControl *ctl, const vshCmd *cmd)
     const char *from_snap = NULL;
     char *parent_snap = NULL;
     virDomainSnapshotPtr start = NULL;
-    virshSnapshotListPtr snaplist = NULL;
-    vshTablePtr table = NULL;
+    struct virshSnapshotList *snaplist = NULL;
+    vshTable *table = NULL;
 
     VSH_EXCLUSIVE_OPTIONS_VAR(tree, name);
     VSH_EXCLUSIVE_OPTIONS_VAR(parent, roots);
@@ -1587,6 +1591,7 @@ cmdSnapshotList(vshControl *ctl, const vshCmd *cmd)
     }
 
     for (i = 0; i < snaplist->nsnaps; i++) {
+        g_autofree gchar *thenstr = NULL;
         const char *snap_name;
 
         /* free up memory from previous iterations of the loop */

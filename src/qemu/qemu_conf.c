@@ -71,7 +71,7 @@ VIR_LOG_INIT("qemu.qemu_conf");
 #define QEMU_MIGRATION_PORT_MIN 49152
 #define QEMU_MIGRATION_PORT_MAX 49215
 
-static virClassPtr virQEMUDriverConfigClass;
+static virClass *virQEMUDriverConfigClass;
 static void virQEMUDriverConfigDispose(void *obj);
 
 static int virQEMUConfigOnceInit(void)
@@ -86,12 +86,12 @@ VIR_ONCE_GLOBAL_INIT(virQEMUConfig);
 
 
 static void
-qemuDriverLock(virQEMUDriverPtr driver)
+qemuDriverLock(virQEMUDriver *driver)
 {
     virMutexLock(&driver->lock);
 }
 static void
-qemuDriverUnlock(virQEMUDriverPtr driver)
+qemuDriverUnlock(virQEMUDriver *driver)
 {
     virMutexUnlock(&driver->lock);
 }
@@ -105,7 +105,7 @@ qemuDriverUnlock(virQEMUDriverPtr driver)
 #endif
 
 
-virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged,
+virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
                                               const char *root)
 {
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
@@ -295,96 +295,100 @@ virQEMUDriverConfigPtr virQEMUDriverConfigNew(bool privileged,
                              &cfg->nfirmwares) < 0)
         return NULL;
 
+    cfg->deprecationBehavior = g_strdup("none");
+
     return g_steal_pointer(&cfg);
 }
 
 
 static void virQEMUDriverConfigDispose(void *obj)
 {
-    virQEMUDriverConfigPtr cfg = obj;
+    virQEMUDriverConfig *cfg = obj;
 
     virBitmapFree(cfg->namespaces);
 
     g_strfreev(cfg->cgroupDeviceACL);
-    VIR_FREE(cfg->uri);
+    g_free(cfg->uri);
 
-    VIR_FREE(cfg->configBaseDir);
-    VIR_FREE(cfg->configDir);
-    VIR_FREE(cfg->autostartDir);
-    VIR_FREE(cfg->logDir);
-    VIR_FREE(cfg->swtpmLogDir);
-    VIR_FREE(cfg->stateDir);
-    VIR_FREE(cfg->swtpmStateDir);
-    VIR_FREE(cfg->slirpStateDir);
-    VIR_FREE(cfg->dbusStateDir);
+    g_free(cfg->configBaseDir);
+    g_free(cfg->configDir);
+    g_free(cfg->autostartDir);
+    g_free(cfg->logDir);
+    g_free(cfg->swtpmLogDir);
+    g_free(cfg->stateDir);
+    g_free(cfg->swtpmStateDir);
+    g_free(cfg->slirpStateDir);
+    g_free(cfg->dbusStateDir);
 
-    VIR_FREE(cfg->libDir);
-    VIR_FREE(cfg->cacheDir);
-    VIR_FREE(cfg->saveDir);
-    VIR_FREE(cfg->snapshotDir);
-    VIR_FREE(cfg->checkpointDir);
-    VIR_FREE(cfg->channelTargetDir);
-    VIR_FREE(cfg->nvramDir);
+    g_free(cfg->libDir);
+    g_free(cfg->cacheDir);
+    g_free(cfg->saveDir);
+    g_free(cfg->snapshotDir);
+    g_free(cfg->checkpointDir);
+    g_free(cfg->channelTargetDir);
+    g_free(cfg->nvramDir);
 
-    VIR_FREE(cfg->defaultTLSx509certdir);
-    VIR_FREE(cfg->defaultTLSx509secretUUID);
+    g_free(cfg->defaultTLSx509certdir);
+    g_free(cfg->defaultTLSx509secretUUID);
 
-    VIR_FREE(cfg->vncTLSx509certdir);
-    VIR_FREE(cfg->vncTLSx509secretUUID);
-    VIR_FREE(cfg->vncListen);
-    VIR_FREE(cfg->vncPassword);
-    VIR_FREE(cfg->vncSASLdir);
+    g_free(cfg->vncTLSx509certdir);
+    g_free(cfg->vncTLSx509secretUUID);
+    g_free(cfg->vncListen);
+    g_free(cfg->vncPassword);
+    g_free(cfg->vncSASLdir);
 
-    VIR_FREE(cfg->spiceTLSx509certdir);
-    VIR_FREE(cfg->spiceListen);
-    VIR_FREE(cfg->spicePassword);
-    VIR_FREE(cfg->spiceSASLdir);
+    g_free(cfg->spiceTLSx509certdir);
+    g_free(cfg->spiceListen);
+    g_free(cfg->spicePassword);
+    g_free(cfg->spiceSASLdir);
 
-    VIR_FREE(cfg->chardevTLSx509certdir);
-    VIR_FREE(cfg->chardevTLSx509secretUUID);
+    g_free(cfg->chardevTLSx509certdir);
+    g_free(cfg->chardevTLSx509secretUUID);
 
-    VIR_FREE(cfg->vxhsTLSx509certdir);
-    VIR_FREE(cfg->vxhsTLSx509secretUUID);
+    g_free(cfg->vxhsTLSx509certdir);
+    g_free(cfg->vxhsTLSx509secretUUID);
 
-    VIR_FREE(cfg->nbdTLSx509certdir);
-    VIR_FREE(cfg->nbdTLSx509secretUUID);
+    g_free(cfg->nbdTLSx509certdir);
+    g_free(cfg->nbdTLSx509secretUUID);
 
-    VIR_FREE(cfg->migrateTLSx509certdir);
-    VIR_FREE(cfg->migrateTLSx509secretUUID);
+    g_free(cfg->migrateTLSx509certdir);
+    g_free(cfg->migrateTLSx509secretUUID);
 
-    VIR_FREE(cfg->backupTLSx509certdir);
-    VIR_FREE(cfg->backupTLSx509secretUUID);
+    g_free(cfg->backupTLSx509certdir);
+    g_free(cfg->backupTLSx509secretUUID);
 
     while (cfg->nhugetlbfs) {
         cfg->nhugetlbfs--;
-        VIR_FREE(cfg->hugetlbfs[cfg->nhugetlbfs].mnt_dir);
+        g_free(cfg->hugetlbfs[cfg->nhugetlbfs].mnt_dir);
     }
-    VIR_FREE(cfg->hugetlbfs);
-    VIR_FREE(cfg->bridgeHelperName);
-    VIR_FREE(cfg->prHelperName);
-    VIR_FREE(cfg->slirpHelperName);
-    VIR_FREE(cfg->dbusDaemonName);
+    g_free(cfg->hugetlbfs);
+    g_free(cfg->bridgeHelperName);
+    g_free(cfg->prHelperName);
+    g_free(cfg->slirpHelperName);
+    g_free(cfg->dbusDaemonName);
 
-    VIR_FREE(cfg->saveImageFormat);
-    VIR_FREE(cfg->dumpImageFormat);
-    VIR_FREE(cfg->snapshotImageFormat);
-    VIR_FREE(cfg->autoDumpPath);
+    g_free(cfg->saveImageFormat);
+    g_free(cfg->dumpImageFormat);
+    g_free(cfg->snapshotImageFormat);
+    g_free(cfg->autoDumpPath);
 
     g_strfreev(cfg->securityDriverNames);
 
-    VIR_FREE(cfg->lockManagerName);
+    g_free(cfg->lockManagerName);
 
     virFirmwareFreeList(cfg->firmwares, cfg->nfirmwares);
 
-    VIR_FREE(cfg->memoryBackingDir);
-    VIR_FREE(cfg->swtpmStorageDir);
+    g_free(cfg->memoryBackingDir);
+    g_free(cfg->swtpmStorageDir);
 
     g_strfreev(cfg->capabilityfilters);
+
+    g_free(cfg->deprecationBehavior);
 }
 
 
 static int
-virQEMUDriverConfigHugeTLBFSInit(virHugeTLBFSPtr hugetlbfs,
+virQEMUDriverConfigHugeTLBFSInit(virHugeTLBFS *hugetlbfs,
                                  const char *path,
                                  bool deflt)
 {
@@ -398,8 +402,8 @@ virQEMUDriverConfigHugeTLBFSInit(virHugeTLBFSPtr hugetlbfs,
 
 
 static int
-virQEMUDriverConfigLoadDefaultTLSEntry(virQEMUDriverConfigPtr cfg,
-                                       virConfPtr conf)
+virQEMUDriverConfigLoadDefaultTLSEntry(virQEMUDriverConfig *cfg,
+                                       virConf *conf)
 {
     int rv;
 
@@ -419,8 +423,8 @@ virQEMUDriverConfigLoadDefaultTLSEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadVNCEntry(virQEMUDriverConfigPtr cfg,
-                                virConfPtr conf)
+virQEMUDriverConfigLoadVNCEntry(virQEMUDriverConfig *cfg,
+                                virConf *conf)
 {
     int rv;
 
@@ -452,16 +456,16 @@ virQEMUDriverConfigLoadVNCEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadNographicsEntry(virQEMUDriverConfigPtr cfg,
-                                       virConfPtr conf)
+virQEMUDriverConfigLoadNographicsEntry(virQEMUDriverConfig *cfg,
+                                       virConf *conf)
 {
     return virConfGetValueBool(conf, "nographics_allow_host_audio", &cfg->nogfxAllowHostAudio);
 }
 
 
 static int
-virQEMUDriverConfigLoadSPICEEntry(virQEMUDriverConfigPtr cfg,
-                                  virConfPtr conf)
+virQEMUDriverConfigLoadSPICEEntry(virQEMUDriverConfig *cfg,
+                                  virConf *conf)
 {
     if (virConfGetValueBool(conf, "spice_tls", &cfg->spiceTLS) < 0)
         return -1;
@@ -483,8 +487,8 @@ virQEMUDriverConfigLoadSPICEEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadSpecificTLSEntry(virQEMUDriverConfigPtr cfg,
-                                        virConfPtr conf)
+virQEMUDriverConfigLoadSpecificTLSEntry(virQEMUDriverConfig *cfg,
+                                        virConf *conf)
 {
     int rv;
 
@@ -537,8 +541,8 @@ virQEMUDriverConfigLoadSpecificTLSEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfigPtr cfg,
-                                          virConfPtr conf,
+virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfig *cfg,
+                                          virConf *conf,
                                           const char *filename)
 {
     if (virConfGetValueUInt(conf, "remote_websocket_port_min", &cfg->webSocketPortMin) < 0)
@@ -608,8 +612,8 @@ virQEMUDriverConfigLoadRemoteDisplayEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfigPtr cfg,
-                                 virConfPtr conf)
+virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfig *cfg,
+                                 virConf *conf)
 {
     if (virConfGetValueString(conf, "save_image_format", &cfg->saveImageFormat) < 0)
         return -1;
@@ -629,8 +633,8 @@ virQEMUDriverConfigLoadSaveEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfigPtr cfg,
-                                    virConfPtr conf)
+virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfig *cfg,
+                                    virConf *conf)
 {
     g_auto(GStrv) hugetlbfs = NULL;
     g_autofree char *stdioHandler = NULL;
@@ -648,7 +652,7 @@ virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfigPtr cfg,
         }
         VIR_FREE(cfg->hugetlbfs);
 
-        cfg->nhugetlbfs = virStringListLength((const char *const *)hugetlbfs);
+        cfg->nhugetlbfs = g_strv_length(hugetlbfs);
         if (hugetlbfs[0])
             cfg->hugetlbfs = g_new0(virHugeTLBFS, cfg->nhugetlbfs);
 
@@ -717,8 +721,8 @@ virQEMUDriverConfigLoadProcessEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadDeviceEntry(virQEMUDriverConfigPtr cfg,
-                                   virConfPtr conf)
+virQEMUDriverConfigLoadDeviceEntry(virQEMUDriverConfig *cfg,
+                                   virConf *conf)
 {
     bool tmp;
     int rv;
@@ -743,8 +747,8 @@ virQEMUDriverConfigLoadDeviceEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadRPCEntry(virQEMUDriverConfigPtr cfg,
-                                virConfPtr conf)
+virQEMUDriverConfigLoadRPCEntry(virQEMUDriverConfig *cfg,
+                                virConf *conf)
 {
     if (virConfGetValueUInt(conf, "max_queued", &cfg->maxQueuedJobs) < 0)
         return -1;
@@ -758,8 +762,8 @@ virQEMUDriverConfigLoadRPCEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadNetworkEntry(virQEMUDriverConfigPtr cfg,
-                                    virConfPtr conf,
+virQEMUDriverConfigLoadNetworkEntry(virQEMUDriverConfig *cfg,
+                                    virConf *conf,
                                     const char *filename)
 {
     if (virConfGetValueUInt(conf, "migration_port_min", &cfg->migrationPortMin) < 0)
@@ -813,16 +817,16 @@ virQEMUDriverConfigLoadNetworkEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadLogEntry(virQEMUDriverConfigPtr cfg,
-                                virConfPtr conf)
+virQEMUDriverConfigLoadLogEntry(virQEMUDriverConfig *cfg,
+                                virConf *conf)
 {
     return virConfGetValueBool(conf, "log_timestamp", &cfg->logTimestamp);
 }
 
 
 static int
-virQEMUDriverConfigLoadNVRAMEntry(virQEMUDriverConfigPtr cfg,
-                                  virConfPtr conf,
+virQEMUDriverConfigLoadNVRAMEntry(virQEMUDriverConfig *cfg,
+                                  virConf *conf,
                                   bool privileged)
 {
     g_auto(GStrv) nvram = NULL;
@@ -847,8 +851,8 @@ virQEMUDriverConfigLoadNVRAMEntry(virQEMUDriverConfigPtr cfg,
             return 0;
         }
 
-        cfg->nfirmwares = virStringListLength((const char *const *)nvram);
-        cfg->firmwares = g_new0(virFirmwarePtr, cfg->nfirmwares);
+        cfg->nfirmwares = g_strv_length(nvram);
+        cfg->firmwares = g_new0(virFirmware *, cfg->nfirmwares);
 
         for (i = 0; nvram[i] != NULL; i++) {
             cfg->firmwares[i] = g_new0(virFirmware, 1);
@@ -862,12 +866,14 @@ virQEMUDriverConfigLoadNVRAMEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadDebugEntry(virQEMUDriverConfigPtr cfg,
-                                  virConfPtr conf)
+virQEMUDriverConfigLoadDebugEntry(virQEMUDriverConfig *cfg,
+                                  virConf *conf)
 {
     if (virConfGetValueUInt(conf, "gluster_debug_level", &cfg->glusterDebugLevel) < 0)
         return -1;
     if (virConfGetValueBool(conf, "virtiofsd_debug", &cfg->virtiofsdDebug) < 0)
+        return -1;
+    if (virConfGetValueString(conf, "deprecation_behavior", &cfg->deprecationBehavior) < 0)
         return -1;
 
     return 0;
@@ -875,8 +881,8 @@ virQEMUDriverConfigLoadDebugEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadSecurityEntry(virQEMUDriverConfigPtr cfg,
-                                     virConfPtr conf,
+virQEMUDriverConfigLoadSecurityEntry(virQEMUDriverConfig *cfg,
+                                     virConf *conf,
                                      bool privileged)
 {
     g_auto(GStrv) controllers = NULL;
@@ -989,8 +995,8 @@ virQEMUDriverConfigLoadSecurityEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadMemoryEntry(virQEMUDriverConfigPtr cfg,
-                                   virConfPtr conf)
+virQEMUDriverConfigLoadMemoryEntry(virQEMUDriverConfig *cfg,
+                                   virConf *conf)
 {
     g_autofree char *dir = NULL;
     int rc;
@@ -1008,8 +1014,8 @@ virQEMUDriverConfigLoadMemoryEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadSWTPMEntry(virQEMUDriverConfigPtr cfg,
-                                  virConfPtr conf)
+virQEMUDriverConfigLoadSWTPMEntry(virQEMUDriverConfig *cfg,
+                                  virConf *conf)
 {
     g_autofree char *swtpm_user = NULL;
     g_autofree char *swtpm_group = NULL;
@@ -1029,8 +1035,8 @@ virQEMUDriverConfigLoadSWTPMEntry(virQEMUDriverConfigPtr cfg,
 
 
 static int
-virQEMUDriverConfigLoadCapsFiltersEntry(virQEMUDriverConfigPtr cfg,
-                                        virConfPtr conf)
+virQEMUDriverConfigLoadCapsFiltersEntry(virQEMUDriverConfig *cfg,
+                                        virConf *conf)
 {
     if (virConfGetValueStringList(conf, "capability_filters", false,
                                   &cfg->capabilityfilters) < 0)
@@ -1040,7 +1046,7 @@ virQEMUDriverConfigLoadCapsFiltersEntry(virQEMUDriverConfigPtr cfg,
 }
 
 
-int virQEMUDriverConfigLoadFile(virQEMUDriverConfigPtr cfg,
+int virQEMUDriverConfigLoadFile(virQEMUDriverConfig *cfg,
                                 const char *filename,
                                 bool privileged)
 {
@@ -1123,7 +1129,7 @@ int virQEMUDriverConfigLoadFile(virQEMUDriverConfigPtr cfg,
  * Returns 0 on success, -1 on failure
  */
 int
-virQEMUDriverConfigValidate(virQEMUDriverConfigPtr cfg)
+virQEMUDriverConfigValidate(virQEMUDriverConfig *cfg)
 {
     if (cfg->defaultTLSx509certdirPresent) {
         if (!virFileExists(cfg->defaultTLSx509certdir)) {
@@ -1196,7 +1202,7 @@ virQEMUDriverConfigValidate(virQEMUDriverConfigPtr cfg)
 
 
 int
-virQEMUDriverConfigSetDefaults(virQEMUDriverConfigPtr cfg)
+virQEMUDriverConfigSetDefaults(virQEMUDriverConfig *cfg)
 {
 #define SET_TLS_SECRET_UUID_DEFAULT(val) \
     do { \
@@ -1265,17 +1271,17 @@ virQEMUDriverConfigSetDefaults(virQEMUDriverConfigPtr cfg)
 }
 
 
-virQEMUDriverConfigPtr virQEMUDriverGetConfig(virQEMUDriverPtr driver)
+virQEMUDriverConfig *virQEMUDriverGetConfig(virQEMUDriver *driver)
 {
-    virQEMUDriverConfigPtr conf;
+    virQEMUDriverConfig *conf;
     qemuDriverLock(driver);
     conf = virObjectRef(driver->config);
     qemuDriverUnlock(driver);
     return conf;
 }
 
-virDomainXMLOptionPtr
-virQEMUDriverCreateXMLConf(virQEMUDriverPtr driver,
+virDomainXMLOption *
+virQEMUDriverCreateXMLConf(virQEMUDriver *driver,
                            const char *defsecmodel)
 {
     virQEMUDriverDomainDefParserConfig.priv = driver;
@@ -1288,10 +1294,10 @@ virQEMUDriverCreateXMLConf(virQEMUDriverPtr driver,
 }
 
 
-virCPUDefPtr
-virQEMUDriverGetHostCPU(virQEMUDriverPtr driver)
+virCPUDef *
+virQEMUDriverGetHostCPU(virQEMUDriver *driver)
 {
-    virCPUDefPtr hostcpu;
+    virCPUDef *hostcpu;
 
     qemuDriverLock(driver);
 
@@ -1309,11 +1315,11 @@ virQEMUDriverGetHostCPU(virQEMUDriverPtr driver)
 }
 
 
-virCapsPtr virQEMUDriverCreateCapabilities(virQEMUDriverPtr driver)
+virCaps *virQEMUDriverCreateCapabilities(virQEMUDriver *driver)
 {
     size_t i, j;
     g_autoptr(virCaps) caps = NULL;
-    g_autofree virSecurityManagerPtr *sec_managers = NULL;
+    g_autofree virSecurityManager **sec_managers = NULL;
     /* Security driver data */
     const char *doi, *model, *lbl, *type;
     const int virtTypes[] = {VIR_DOMAIN_VIRT_KVM,
@@ -1341,7 +1347,7 @@ virCapsPtr virQEMUDriverCreateCapabilities(virQEMUDriverPtr driver)
     caps->host.secModels = g_new0(virCapsHostSecModel, caps->host.nsecModels);
 
     for (i = 0; sec_managers[i]; i++) {
-        virCapsHostSecModelPtr sm = &caps->host.secModels[i];
+        virCapsHostSecModel *sm = &caps->host.secModels[i];
         doi = qemuSecurityGetDOI(sec_managers[i]);
         model = qemuSecurityGetModel(sec_managers[i]);
         sm->model = g_strdup(model);
@@ -1368,20 +1374,20 @@ virCapsPtr virQEMUDriverCreateCapabilities(virQEMUDriverPtr driver)
 /**
  * virQEMUDriverGetCapabilities:
  *
- * Get a reference to the virCapsPtr instance for the
+ * Get a reference to the virCaps *instance for the
  * driver. If @refresh is true, the capabilities will be
  * rebuilt first
  *
  * The caller must release the reference with virObjectUnref
  *
- * Returns: a reference to a virCapsPtr instance or NULL
+ * Returns: a reference to a virCaps *instance or NULL
  */
-virCapsPtr virQEMUDriverGetCapabilities(virQEMUDriverPtr driver,
+virCaps *virQEMUDriverGetCapabilities(virQEMUDriver *driver,
                                         bool refresh)
 {
-    virCapsPtr ret = NULL;
+    virCaps *ret = NULL;
     if (refresh) {
-        virCapsPtr caps = NULL;
+        virCaps *caps = NULL;
         if ((caps = virQEMUDriverCreateCapabilities(driver)) == NULL)
             return NULL;
 
@@ -1409,14 +1415,14 @@ virCapsPtr virQEMUDriverGetCapabilities(virQEMUDriverPtr driver,
 /**
  * virQEMUDriverGetDomainCapabilities:
  *
- * Get a reference to the virDomainCapsPtr instance. The caller
+ * Get a reference to the virDomainCaps *instance. The caller
  * must release the reference with virObjetUnref().
  *
- * Returns: a reference to a virDomainCapsPtr instance or NULL
+ * Returns: a reference to a virDomainCaps *instance or NULL
  */
-virDomainCapsPtr
-virQEMUDriverGetDomainCapabilities(virQEMUDriverPtr driver,
-                                   virQEMUCapsPtr qemuCaps,
+virDomainCaps *
+virQEMUDriverGetDomainCapabilities(virQEMUDriver *driver,
+                                   virQEMUCaps *qemuCaps,
                                    const char *machine,
                                    virArch arch,
                                    virDomainVirtType virttype)
@@ -1521,7 +1527,7 @@ qemuCheckUnprivSGIO(GHashTable *sharedDevices,
  */
 static int
 qemuCheckSharedDisk(GHashTable *sharedDevices,
-                    virDomainDiskDefPtr disk)
+                    virDomainDiskDef *disk)
 {
     int ret;
 
@@ -1552,7 +1558,7 @@ qemuCheckSharedDisk(GHashTable *sharedDevices,
 
 
 bool
-qemuSharedDeviceEntryDomainExists(qemuSharedDeviceEntryPtr entry,
+qemuSharedDeviceEntryDomainExists(qemuSharedDeviceEntry *entry,
                                   const char *name,
                                   int *idx)
 {
@@ -1572,21 +1578,21 @@ qemuSharedDeviceEntryDomainExists(qemuSharedDeviceEntryPtr entry,
 void
 qemuSharedDeviceEntryFree(void *payload)
 {
-    qemuSharedDeviceEntryPtr entry = payload;
+    qemuSharedDeviceEntry *entry = payload;
     size_t i;
 
     if (!entry)
         return;
 
     for (i = 0; i < entry->ref; i++)
-        VIR_FREE(entry->domains[i]);
-    VIR_FREE(entry->domains);
-    VIR_FREE(entry);
+        g_free(entry->domains[i]);
+    g_free(entry->domains);
+    g_free(entry);
 }
 
 
 static int
-qemuSharedDeviceEntryInsert(virQEMUDriverPtr driver,
+qemuSharedDeviceEntryInsert(virQEMUDriver *driver,
                             const char *key,
                             const char *name)
 {
@@ -1597,11 +1603,7 @@ qemuSharedDeviceEntryInsert(virQEMUDriverPtr driver,
          * recorded in the table.
          */
         if (!qemuSharedDeviceEntryDomainExists(entry, name, NULL)) {
-            if (VIR_EXPAND_N(entry->domains, entry->ref, 1) < 0) {
-                /* entry is owned by the hash table here */
-                entry = NULL;
-                goto error;
-            }
+            VIR_EXPAND_N(entry->domains, entry->ref, 1);
             entry->domains[entry->ref - 1] = g_strdup(name);
         }
     } else {
@@ -1625,11 +1627,11 @@ qemuSharedDeviceEntryInsert(virQEMUDriverPtr driver,
 
 
 static int
-qemuSharedDeviceEntryRemove(virQEMUDriverPtr driver,
+qemuSharedDeviceEntryRemove(virQEMUDriver *driver,
                             const char *key,
                             const char *name)
 {
-    qemuSharedDeviceEntryPtr entry = NULL;
+    qemuSharedDeviceEntry *entry = NULL;
     int idx;
 
     if (!(entry = virHashLookup(driver->sharedDevices, key)))
@@ -1651,8 +1653,8 @@ qemuSharedDeviceEntryRemove(virQEMUDriverPtr driver,
 
 
 static int
-qemuSharedDiskAddRemoveInternal(virQEMUDriverPtr driver,
-                                virDomainDiskDefPtr disk,
+qemuSharedDiskAddRemoveInternal(virQEMUDriver *driver,
+                                virDomainDiskDef *disk,
                                 const char *name,
                                 bool addDisk)
 {
@@ -1697,8 +1699,8 @@ qemuSharedDiskAddRemoveInternal(virQEMUDriverPtr driver,
  * already exists, otherwise add a new entry.
  */
 int
-qemuAddSharedDisk(virQEMUDriverPtr driver,
-                  virDomainDiskDefPtr disk,
+qemuAddSharedDisk(virQEMUDriver *driver,
+                  virDomainDiskDef *disk,
                   const char *name)
 {
     return qemuSharedDiskAddRemoveInternal(driver, disk, name, true);
@@ -1706,7 +1708,7 @@ qemuAddSharedDisk(virQEMUDriverPtr driver,
 
 
 static bool
-qemuIsSharedHostdev(virDomainHostdevDefPtr hostdev)
+qemuIsSharedHostdev(virDomainHostdevDef *hostdev)
 {
     return (hostdev->shareable &&
             (virHostdevIsSCSIDevice(hostdev) &&
@@ -1716,10 +1718,10 @@ qemuIsSharedHostdev(virDomainHostdevDefPtr hostdev)
 
 
 static char *
-qemuGetHostdevPath(virDomainHostdevDefPtr hostdev)
+qemuGetHostdevPath(virDomainHostdevDef *hostdev)
 {
-    virDomainHostdevSubsysSCSIPtr scsisrc = &hostdev->source.subsys.u.scsi;
-    virDomainHostdevSubsysSCSIHostPtr scsihostsrc = &scsisrc->u.host;
+    virDomainHostdevSubsysSCSI *scsisrc = &hostdev->source.subsys.u.scsi;
+    virDomainHostdevSubsysSCSIHost *scsihostsrc = &scsisrc->u.host;
     g_autofree char *dev_name = NULL;
 
     if (!(dev_name = virSCSIDeviceGetDevName(NULL,
@@ -1734,8 +1736,8 @@ qemuGetHostdevPath(virDomainHostdevDefPtr hostdev)
 
 
 static int
-qemuSharedHostdevAddRemoveInternal(virQEMUDriverPtr driver,
-                                   virDomainHostdevDefPtr hostdev,
+qemuSharedHostdevAddRemoveInternal(virQEMUDriver *driver,
+                                   virDomainHostdevDef *hostdev,
                                    const char *name,
                                    bool addDevice)
 {
@@ -1763,8 +1765,8 @@ qemuSharedHostdevAddRemoveInternal(virQEMUDriverPtr driver,
 }
 
 static int
-qemuSharedDeviceAddRemoveInternal(virQEMUDriverPtr driver,
-                                  virDomainDeviceDefPtr dev,
+qemuSharedDeviceAddRemoveInternal(virQEMUDriver *driver,
+                                  virDomainDeviceDef *dev,
                                   const char *name,
                                   bool addDevice)
 {
@@ -1793,8 +1795,8 @@ qemuSharedDeviceAddRemoveInternal(virQEMUDriverPtr driver,
  * already exists, otherwise add a new entry.
  */
 int
-qemuAddSharedDevice(virQEMUDriverPtr driver,
-                    virDomainDeviceDefPtr dev,
+qemuAddSharedDevice(virQEMUDriver *driver,
+                    virDomainDeviceDef *dev,
                     const char *name)
 {
     return qemuSharedDeviceAddRemoveInternal(driver, dev, name, true);
@@ -1802,8 +1804,8 @@ qemuAddSharedDevice(virQEMUDriverPtr driver,
 
 
 int
-qemuRemoveSharedDisk(virQEMUDriverPtr driver,
-                     virDomainDiskDefPtr disk,
+qemuRemoveSharedDisk(virQEMUDriver *driver,
+                     virDomainDiskDef *disk,
                      const char *name)
 {
     return qemuSharedDiskAddRemoveInternal(driver, disk, name, false);
@@ -1820,8 +1822,8 @@ qemuRemoveSharedDisk(virQEMUDriverPtr driver,
  * 1, otherwise remove the entry.
  */
 int
-qemuRemoveSharedDevice(virQEMUDriverPtr driver,
-                       virDomainDeviceDefPtr dev,
+qemuRemoveSharedDevice(virQEMUDriver *driver,
+                       virDomainDeviceDef *dev,
                        const char *name)
 {
     return qemuSharedDeviceAddRemoveInternal(driver, dev, name, false);
@@ -1829,10 +1831,10 @@ qemuRemoveSharedDevice(virQEMUDriverPtr driver,
 
 
 int
-qemuSetUnprivSGIO(virDomainDeviceDefPtr dev)
+qemuSetUnprivSGIO(virDomainDeviceDef *dev)
 {
-    virDomainDiskDefPtr disk = NULL;
-    virDomainHostdevDefPtr hostdev = NULL;
+    virDomainDiskDef *disk = NULL;
+    virDomainHostdevDef *hostdev = NULL;
     g_autofree char *sysfs_path = NULL;
     const char *path = NULL;
     int val = -1;
@@ -1883,14 +1885,14 @@ qemuSetUnprivSGIO(virDomainDeviceDefPtr dev)
     return 0;
 }
 
-int qemuDriverAllocateID(virQEMUDriverPtr driver)
+int qemuDriverAllocateID(virQEMUDriver *driver)
 {
     return g_atomic_int_add(&driver->lastvmid, 1) + 1;
 }
 
 
 int
-qemuTranslateSnapshotDiskSourcePool(virDomainSnapshotDiskDefPtr def)
+qemuTranslateSnapshotDiskSourcePool(virDomainSnapshotDiskDef *def)
 {
     if (def->src->type != VIR_STORAGE_TYPE_VOLUME)
         return 0;
@@ -1901,8 +1903,8 @@ qemuTranslateSnapshotDiskSourcePool(virDomainSnapshotDiskDefPtr def)
 }
 
 char *
-qemuGetBaseHugepagePath(virQEMUDriverPtr driver,
-                        virHugeTLBFSPtr hugepage)
+qemuGetBaseHugepagePath(virQEMUDriver *driver,
+                        virHugeTLBFS *hugepage)
 {
     const char *root = driver->embeddedRoot;
     char *ret;
@@ -1919,9 +1921,9 @@ qemuGetBaseHugepagePath(virQEMUDriverPtr driver,
 
 
 char *
-qemuGetDomainHugepagePath(virQEMUDriverPtr driver,
+qemuGetDomainHugepagePath(virQEMUDriver *driver,
                           const virDomainDef *def,
-                          virHugeTLBFSPtr hugepage)
+                          virHugeTLBFS *hugepage)
 {
     g_autofree char *base = qemuGetBaseHugepagePath(driver, hugepage);
     g_autofree char *domPath = virDomainDefGetShortName(def);
@@ -1942,7 +1944,7 @@ qemuGetDomainHugepagePath(virQEMUDriverPtr driver,
  *        -1 otherwise.
  */
 int
-qemuGetDomainHupageMemPath(virQEMUDriverPtr driver,
+qemuGetDomainHupageMemPath(virQEMUDriver *driver,
                            const virDomainDef *def,
                            unsigned long long pagesize,
                            char **memPath)
@@ -1978,7 +1980,7 @@ qemuGetDomainHupageMemPath(virQEMUDriverPtr driver,
 
 
 int
-qemuGetMemoryBackingDomainPath(virQEMUDriverPtr driver,
+qemuGetMemoryBackingDomainPath(virQEMUDriver *driver,
                                const virDomainDef *def,
                                char **path)
 {
@@ -2013,7 +2015,7 @@ qemuGetMemoryBackingDomainPath(virQEMUDriverPtr driver,
  *          -1 otherwise (with error reported).
  */
 int
-qemuGetMemoryBackingPath(virQEMUDriverPtr driver,
+qemuGetMemoryBackingPath(virQEMUDriver *driver,
                          const virDomainDef *def,
                          const char *alias,
                          char **memPath)

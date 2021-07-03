@@ -74,162 +74,6 @@ static int testStreq(const void *args)
     return 0;
 }
 
-struct testSplitData {
-    const char *string;
-    const char *delim;
-    size_t max_tokens;
-    const char **tokens;
-};
-
-
-struct testJoinData {
-    const char *string;
-    const char *delim;
-    const char **tokens;
-};
-
-static int testSplit(const void *args)
-{
-    const struct testSplitData *data = args;
-    char **got;
-    size_t ntokens;
-    size_t exptokens = 0;
-    char **tmp1;
-    const char **tmp2;
-    int ret = -1;
-
-    if (!(got = virStringSplitCount(data->string, data->delim,
-                                    data->max_tokens, &ntokens))) {
-        VIR_DEBUG("Got no tokens at all");
-        return -1;
-    }
-
-    tmp1 = got;
-    tmp2 = data->tokens;
-    while (*tmp1 && *tmp2) {
-        if (STRNEQ(*tmp1, *tmp2)) {
-            fprintf(stderr, "Mismatch '%s' vs '%s'\n", *tmp1, *tmp2);
-            goto cleanup;
-        }
-        tmp1++;
-        tmp2++;
-        exptokens++;
-    }
-    if (*tmp1) {
-        fprintf(stderr, "Too many pieces returned\n");
-        goto cleanup;
-    }
-    if (*tmp2) {
-        fprintf(stderr, "Too few pieces returned\n");
-        goto cleanup;
-    }
-
-    if (ntokens != exptokens) {
-        fprintf(stderr,
-                "Returned token count (%zu) doesn't match "
-                "expected count (%zu)",
-                ntokens, exptokens);
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    g_strfreev(got);
-
-    return ret;
-}
-
-
-static int testJoin(const void *args)
-{
-    const struct testJoinData *data = args;
-    char *got;
-    int ret = -1;
-
-    if (!(got = virStringListJoin(data->tokens, data->delim))) {
-        VIR_DEBUG("Got no result");
-        return -1;
-    }
-    if (STRNEQ(got, data->string)) {
-        fprintf(stderr, "Mismatch '%s' vs '%s'\n", got, data->string);
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    VIR_FREE(got);
-
-    return ret;
-}
-
-
-static int testAdd(const void *args)
-{
-    const struct testJoinData *data = args;
-    char **list = NULL;
-    char *got = NULL;
-    int ret = -1;
-    size_t i;
-
-    for (i = 0; data->tokens[i]; i++) {
-        if (virStringListAdd(&list, data->tokens[i]) < 0)
-            goto cleanup;
-    }
-
-    if (!list)
-        list = g_new0(char *, 1);
-
-    if (!(got = virStringListJoin((const char **)list, data->delim))) {
-        VIR_DEBUG("Got no result");
-        goto cleanup;
-    }
-
-    if (STRNEQ(got, data->string)) {
-        fprintf(stderr, "Mismatch '%s' vs '%s'\n", got, data->string);
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    g_strfreev(list);
-    VIR_FREE(got);
-    return ret;
-}
-
-
-static int testRemove(const void *args)
-{
-    const struct testSplitData *data = args;
-    char **list = NULL;
-    size_t ntokens;
-    size_t i;
-    int ret = -1;
-
-    if (!(list = virStringSplitCount(data->string, data->delim,
-                                     data->max_tokens, &ntokens))) {
-        VIR_DEBUG("Got no tokens at all");
-        return -1;
-    }
-
-    for (i = 0; data->tokens[i]; i++) {
-        virStringListRemove(&list, data->tokens[i]);
-        if (virStringListHasString((const char **) list, data->tokens[i])) {
-            fprintf(stderr, "Not removed %s", data->tokens[i]);
-            goto cleanup;
-        }
-    }
-
-    if (list && list[0]) {
-        fprintf(stderr, "Not removed all tokens: %s", list[0]);
-        goto cleanup;
-    }
-
-    ret = 0;
- cleanup:
-    g_strfreev(list);
-    return ret;
-}
-
 
 static int
 testStringSortCompare(const void *opaque G_GNUC_UNUSED)
@@ -311,10 +155,10 @@ testStringSearch(const void *opaque)
             goto cleanup;
         }
 
-        if (virStringListLength((const char * const *)matches) != nmatches) {
-            fprintf(stderr, "expected %zu matches on %s but got %zd matches\n",
+        if (g_strv_length(matches) != nmatches) {
+            fprintf(stderr, "expected %zu matches on %s but got %u matches\n",
                     data->expectNMatches, data->str,
-                    virStringListLength((const char * const *)matches));
+                    g_strv_length(matches));
             goto cleanup;
         }
 
@@ -548,24 +392,6 @@ testStringToDouble(const void *opaque)
     return ret;
 }
 
-/* The point of this test is to check whether all members of the array are
- * freed. The test has to be checked using valgrind. */
-static int
-testVirStringListFreeCount(const void *opaque G_GNUC_UNUSED)
-{
-    char **list;
-
-    list = g_new0(char *, 4);
-
-    list[0] = g_strdup("test1");
-    list[2] = g_strdup("test2");
-    list[3] = g_strdup("test3");
-
-    virStringListFreeCount(list, 4);
-
-    return 0;
-}
-
 
 struct testStripData {
     const char *string;
@@ -665,55 +491,6 @@ mymain(void)
     TEST_STREQ("", NULL);
     TEST_STREQ("", "");
     TEST_STREQ("hello", "hello");
-
-#define TEST_SPLIT(str, del, max, toks) \
-    do { \
-        struct testSplitData splitData = { \
-            .string = str, \
-            .delim = del, \
-            .max_tokens = max, \
-            .tokens = toks, \
-        }; \
-        struct testJoinData joinData = { \
-            .string = str, \
-            .delim = del, \
-            .tokens = toks, \
-        }; \
-        if (virTestRun("Split " #str, testSplit, &splitData) < 0) \
-            ret = -1; \
-        if (virTestRun("Join " #str, testJoin, &joinData) < 0) \
-            ret = -1; \
-        if (virTestRun("Add " #str, testAdd, &joinData) < 0) \
-            ret = -1; \
-        if (virTestRun("Remove " #str, testRemove, &splitData) < 0) \
-            ret = -1; \
-    } while (0)
-
-    VIR_WARNINGS_NO_DECLARATION_AFTER_STATEMENT
-    const char *tokens1[] = { NULL };
-    TEST_SPLIT("", " ", 0, tokens1);
-
-    const char *tokens2[] = { "", "", NULL };
-    TEST_SPLIT(" ", " ", 0, tokens2);
-
-    const char *tokens3[] = { "", "", "", NULL };
-    TEST_SPLIT("  ", " ", 0, tokens3);
-
-    const char *tokens4[] = { "The", "quick", "brown", "fox", NULL };
-    TEST_SPLIT("The quick brown fox", " ", 0, tokens4);
-
-    const char *tokens5[] = { "The quick ", " fox", NULL };
-    TEST_SPLIT("The quick brown fox", "brown", 0, tokens5);
-
-    const char *tokens6[] = { "", "The", "quick", "brown", "fox", NULL };
-    TEST_SPLIT(" The quick brown fox", " ", 0, tokens6);
-
-    const char *tokens7[] = { "The", "quick", "brown", "fox", "", NULL };
-    TEST_SPLIT("The quick brown fox ", " ", 0, tokens7);
-
-    const char *tokens8[] = { "gluster", "rdma", NULL };
-    TEST_SPLIT("gluster+rdma", "+", 2, tokens8);
-    VIR_WARNINGS_RESET
 
     if (virTestRun("virStringSortCompare", testStringSortCompare, NULL) < 0)
         ret = -1;
@@ -922,11 +699,6 @@ mymain(void)
     TEST_STRTOD("3.141592653589793238462643383279502884197169399375105",
                 NULL,
                 3.141592653589793238462643383279502884197169399375105);
-
-    /* test virStringListFreeCount */
-    if (virTestRun("virStringListFreeCount", testVirStringListFreeCount,
-                   NULL) < 0)
-        ret = -1;
 
 #define TEST_STRIP_IPV6_BRACKETS(str, res) \
     do { \

@@ -22,37 +22,11 @@
 
 #define VIR_INT64_STR_BUFLEN 21
 
-char **virStringSplitCount(const char *string,
-                           const char *delim,
-                           size_t max_tokens,
-                           size_t *tokcount)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-
-char **virStringSplit(const char *string,
-                      const char *delim,
-                      size_t max_tokens)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-
-char *virStringListJoin(const char **strings,
-                        const char *delim)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-
-int virStringListAdd(char ***strings,
-                     const char *item);
-void virStringListRemove(char ***strings,
-                         const char *item);
-
 int virStringListMerge(char ***dst,
                        char ***src);
 
 void virStringListFreeCount(char **strings,
                             size_t count);
-
-bool virStringListHasString(const char **strings,
-                            const char *needle);
-char *virStringListGetFirstWithPrefix(char **strings,
-                                      const char *prefix)
-    ATTRIBUTE_NONNULL(2);
 
 int virStrToLong_i(char const *s,
                    char **end_ptr,
@@ -117,20 +91,8 @@ void virSkipSpacesBackwards(const char *str, char **endp)
 
 bool virStringIsEmpty(const char *str);
 
-int virStrncpy(char *dest, const char *src, size_t n, size_t destbytes)
-    G_GNUC_WARN_UNUSED_RESULT;
-int virStrcpy(char *dest, const char *src, size_t destbytes)
-    G_GNUC_WARN_UNUSED_RESULT;
+int virStrcpy(char *dest, const char *src, size_t destbytes);
 #define virStrcpyStatic(dest, src) virStrcpy((dest), (src), sizeof(dest))
-
-/* Don't call these directly - use the macros below */
-int virStrdup(char **dest, const char *src)
-    G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1);
-
-int virStrndup(char **dest, const char *src, ssize_t n)
-    G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1);
-
-size_t virStringListLength(const char * const *strings);
 
 int virStringSortCompare(const void *a, const void *b);
 int virStringSortRevCompare(const void *a, const void *b);

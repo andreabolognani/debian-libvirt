@@ -35,7 +35,7 @@
 VIR_LOG_INIT("util.uri");
 
 static int
-virURIParamAppend(virURIPtr uri,
+virURIParamAppend(virURI *uri,
                   const char *name,
                   const char *value)
 {
@@ -45,8 +45,7 @@ virURIParamAppend(virURIPtr uri,
     pname = g_strdup(name);
     pvalue = g_strdup(value);
 
-    if (VIR_RESIZE_N(uri->params, uri->paramsAlloc, uri->paramsCount, 1) < 0)
-        goto error;
+    VIR_RESIZE_N(uri->params, uri->paramsAlloc, uri->paramsCount, 1);
 
     uri->params[uri->paramsCount].name = pname;
     uri->params[uri->paramsCount].value = pvalue;
@@ -54,16 +53,11 @@ virURIParamAppend(virURIPtr uri,
     uri->paramsCount++;
 
     return 0;
-
- error:
-    VIR_FREE(pname);
-    VIR_FREE(pvalue);
-    return -1;
 }
 
 
 static int
-virURIParseParams(virURIPtr uri)
+virURIParseParams(virURI *uri)
 {
     const char *end, *eq;
     const char *query = uri->query;
@@ -142,11 +136,11 @@ virURIParseParams(virURIPtr uri)
  *
  * @returns the parsed uri object with some fixes
  */
-virURIPtr
+virURI *
 virURIParse(const char *uri)
 {
     xmlURIPtr xmluri;
-    virURIPtr ret = NULL;
+    virURI *ret = NULL;
 
     xmluri = xmlParseURI(uri);
 
@@ -206,7 +200,7 @@ virURIParse(const char *uri)
  * @returns the constructed uri as a string
  */
 char *
-virURIFormat(virURIPtr uri)
+virURIFormat(virURI *uri)
 {
     xmlURI xmluri;
     g_autofree char *tmpserver = NULL;
@@ -238,17 +232,15 @@ virURIFormat(virURIPtr uri)
     if (!xmluri.server && !xmluri.port)
         xmluri.port = -1;
 
-    ret = (char *)xmlSaveUri(&xmluri);
-    if (!ret) {
-        virReportOOMError();
-        return NULL;
-    }
+    /* xmlSaveUri can fail only on OOM condition if argument is non-NULL */
+    if (!(ret = (char *)xmlSaveUri(&xmluri)))
+        abort();
 
     return ret;
 }
 
 
-char *virURIFormatParams(virURIPtr uri)
+char *virURIFormatParams(virURI *uri)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     size_t i;
@@ -272,27 +264,27 @@ char *virURIFormatParams(virURIPtr uri)
  *
  * Frees the URI
  */
-void virURIFree(virURIPtr uri)
+void virURIFree(virURI *uri)
 {
     size_t i;
 
     if (!uri)
         return;
 
-    VIR_FREE(uri->scheme);
-    VIR_FREE(uri->server);
-    VIR_FREE(uri->user);
-    VIR_FREE(uri->path);
-    VIR_FREE(uri->query);
-    VIR_FREE(uri->fragment);
+    g_free(uri->scheme);
+    g_free(uri->server);
+    g_free(uri->user);
+    g_free(uri->path);
+    g_free(uri->query);
+    g_free(uri->fragment);
 
     for (i = 0; i < uri->paramsCount; i++) {
-        VIR_FREE(uri->params[i].name);
-        VIR_FREE(uri->params[i].value);
+        g_free(uri->params[i].name);
+        g_free(uri->params[i].value);
     }
-    VIR_FREE(uri->params);
+    g_free(uri->params);
 
-    VIR_FREE(uri);
+    g_free(uri);
 }
 
 
@@ -354,7 +346,7 @@ virURIFindAliasMatch(char *const*aliases, const char *alias,
  * Returns 0 on success, -1 on error.
  */
 int
-virURIResolveAlias(virConfPtr conf, const char *alias, char **uri)
+virURIResolveAlias(virConf *conf, const char *alias, char **uri)
 {
     int ret = -1;
     char **aliases = NULL;
@@ -376,7 +368,7 @@ virURIResolveAlias(virConfPtr conf, const char *alias, char **uri)
 
 
 const char *
-virURIGetParam(virURIPtr uri, const char *name)
+virURIGetParam(virURI *uri, const char *name)
 {
     size_t i;
 
@@ -402,7 +394,7 @@ virURIGetParam(virURIPtr uri, const char *name)
  * Returns: true if the URI might be proxied to a remote server
  */
 bool
-virURICheckUnixSocket(virURIPtr uri)
+virURICheckUnixSocket(virURI *uri)
 {
     size_t i = 0;
 

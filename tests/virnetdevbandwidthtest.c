@@ -69,16 +69,17 @@ testVirNetDevBandwidthSet(const void *data)
     int ret = -1;
     const struct testSetStruct *info = data;
     const char *iface = info->iface;
-    virNetDevBandwidthPtr band = NULL;
+    g_autoptr(virNetDevBandwidth) band = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     char *actual_cmd = NULL;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     PARSE(info->band, band);
 
     if (!iface)
         iface = "eth0";
 
-    virCommandSetDryRun(&buf, NULL, NULL);
+    virCommandSetDryRun(dryRunToken, &buf, false, false, NULL, NULL);
 
     if (virNetDevBandwidthSet(iface, band, info->hierarchical_class, true) < 0)
         goto cleanup;
@@ -97,8 +98,6 @@ testVirNetDevBandwidthSet(const void *data)
 
     ret = 0;
  cleanup:
-    virCommandSetDryRun(NULL, NULL, NULL);
-    virNetDevBandwidthFree(band);
     VIR_FREE(actual_cmd);
     return ret;
 }
@@ -157,7 +156,22 @@ mymain(void)
                  TC " filter add dev eth0 parent ffff: protocol all u32 match u32 0 0 "
                  "police rate 5kbps burst 7kb mtu 64kb drop flowid :1\n"));
 
-    return ret;
+    DO_TEST_SET(("<bandwidth>"
+                 "  <inbound average='4294967295'/>"
+                 "  <outbound average='4294967295'/>"
+                 "</bandwidth>"),
+                (TC " qdisc del dev eth0 root\n"
+                 TC " qdisc del dev eth0 ingress\n"
+                 TC " qdisc add dev eth0 root handle 1: htb default 1\n"
+                 TC " class add dev eth0 parent 1: classid 1:1 htb rate 4294967295kbps quantum 366503875\n"
+                 TC " qdisc add dev eth0 parent 1:1 handle 2: sfq perturb 10\n"
+                 TC " filter add dev eth0 parent 1:0 protocol all prio 1 handle 1 fw flowid 1\n"
+                 TC " qdisc add dev eth0 ingress\n"
+                 TC " filter add dev eth0 parent ffff: protocol all u32 match "
+                 "u32 0 0 police rate 4294967295kbps burst 4194303kb mtu 64kb "
+                 "drop flowid :1\n"));
+
+    return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virnetdevbandwidth"))

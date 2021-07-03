@@ -136,6 +136,7 @@ typedef enum {
 
     VIR_FROM_TPM = 70,          /* Error from TPM */
     VIR_FROM_BPF = 71,          /* Error from BPF code */
+    VIR_FROM_CH = 72,           /* Error from Cloud-Hypervisor driver */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_ERR_DOMAIN_LAST
@@ -333,6 +334,7 @@ typedef enum {
     VIR_ERR_NO_NETWORK_PORT = 107,      /* network port not found */
     VIR_ERR_NO_HOSTNAME = 108,          /* no domain's hostname found */
     VIR_ERR_CHECKPOINT_INCONSISTENT = 109, /* checkpoint can't be used */
+    VIR_ERR_MULTIPLE_DOMAINS = 110,     /* more than one matching domain found */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_ERR_NUMBER_LAST

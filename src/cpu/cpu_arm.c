@@ -25,7 +25,9 @@
 # if defined(WITH_ASM_HWCAP_H)
 #  include <asm/hwcap.h>
 # endif
-# include <sys/auxv.h>
+# if defined(WITH_SYS_AUXV_H)
+#  include <sys/auxv.h>
+# endif
 #endif
 
 #include "viralloc.h"
@@ -55,34 +57,31 @@ static const virArch archs[] = {
 };
 
 typedef struct _virCPUarmVendor virCPUarmVendor;
-typedef virCPUarmVendor *virCPUarmVendorPtr;
 struct _virCPUarmVendor {
     char *name;
     unsigned long value;
 };
 
 typedef struct _virCPUarmModel virCPUarmModel;
-typedef virCPUarmModel *virCPUarmModelPtr;
 struct _virCPUarmModel {
     char *name;
-    virCPUarmVendorPtr vendor;
+    virCPUarmVendor *vendor;
     virCPUarmData data;
 };
 
 typedef struct _virCPUarmFeature virCPUarmFeature;
-typedef virCPUarmFeature *virCPUarmFeaturePtr;
 struct _virCPUarmFeature {
     char *name;
 };
 
-static virCPUarmFeaturePtr
+static virCPUarmFeature *
 virCPUarmFeatureNew(void)
 {
     return g_new0(virCPUarmFeature, 1);
 }
 
 static void
-virCPUarmFeatureFree(virCPUarmFeaturePtr feature)
+virCPUarmFeatureFree(virCPUarmFeature *feature)
 {
     if (!feature)
         return;
@@ -95,19 +94,18 @@ virCPUarmFeatureFree(virCPUarmFeaturePtr feature)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCPUarmFeature, virCPUarmFeatureFree);
 
 typedef struct _virCPUarmMap virCPUarmMap;
-typedef virCPUarmMap *virCPUarmMapPtr;
 struct _virCPUarmMap {
     size_t nvendors;
-    virCPUarmVendorPtr *vendors;
+    virCPUarmVendor **vendors;
     size_t nmodels;
-    virCPUarmModelPtr *models;
+    virCPUarmModel **models;
     GPtrArray *features;
 };
 
-static virCPUarmMapPtr
+static virCPUarmMap *
 virCPUarmMapNew(void)
 {
-    virCPUarmMapPtr map;
+    virCPUarmMap *map;
 
     map = g_new0(virCPUarmMap, 1);
 
@@ -128,7 +126,7 @@ virCPUarmDataClear(virCPUarmData *data)
 }
 
 static void
-virCPUarmDataFree(virCPUDataPtr cpuData)
+virCPUarmDataFree(virCPUData *cpuData)
 {
     if (!cpuData)
         return;
@@ -138,7 +136,7 @@ virCPUarmDataFree(virCPUDataPtr cpuData)
 }
 
 static void
-virCPUarmModelFree(virCPUarmModelPtr model)
+virCPUarmModelFree(virCPUarmModel *model)
 {
     if (!model)
         return;
@@ -151,7 +149,7 @@ virCPUarmModelFree(virCPUarmModelPtr model)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCPUarmModel, virCPUarmModelFree);
 
 static void
-virCPUarmVendorFree(virCPUarmVendorPtr vendor)
+virCPUarmVendorFree(virCPUarmVendor *vendor)
 {
     if (!vendor)
         return;
@@ -163,7 +161,7 @@ virCPUarmVendorFree(virCPUarmVendorPtr vendor)
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCPUarmVendor, virCPUarmVendorFree);
 
 static void
-virCPUarmMapFree(virCPUarmMapPtr map)
+virCPUarmMapFree(virCPUarmMap *map)
 {
     size_t i;
 
@@ -185,14 +183,14 @@ virCPUarmMapFree(virCPUarmMapPtr map)
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCPUarmMap, virCPUarmMapFree);
 
-static virCPUarmFeaturePtr
-virCPUarmMapFeatureFind(virCPUarmMapPtr map,
+static virCPUarmFeature *
+virCPUarmMapFeatureFind(virCPUarmMap *map,
                         const char *name)
 {
     size_t i;
 
     for (i = 0; i < map->features->len; i++) {
-        virCPUarmFeaturePtr feature = g_ptr_array_index(map->features, i);
+        virCPUarmFeature *feature = g_ptr_array_index(map->features, i);
 
         if (STREQ(feature->name, name))
             return feature;
@@ -207,7 +205,7 @@ virCPUarmMapFeatureParse(xmlXPathContextPtr ctxt G_GNUC_UNUSED,
                          void *data)
 {
     g_autoptr(virCPUarmFeature) feature = NULL;
-    virCPUarmMapPtr map = data;
+    virCPUarmMap *map = data;
 
     if (virCPUarmMapFeatureFind(map, name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -223,8 +221,8 @@ virCPUarmMapFeatureParse(xmlXPathContextPtr ctxt G_GNUC_UNUSED,
     return 0;
 }
 
-static virCPUarmVendorPtr
-virCPUarmVendorFindByID(virCPUarmMapPtr map,
+static virCPUarmVendor *
+virCPUarmVendorFindByID(virCPUarmMap *map,
                         unsigned long vendor_id)
 {
     size_t i;
@@ -238,8 +236,8 @@ virCPUarmVendorFindByID(virCPUarmMapPtr map,
 }
 
 
-static virCPUarmVendorPtr
-virCPUarmVendorFindByName(virCPUarmMapPtr map,
+static virCPUarmVendor *
+virCPUarmVendorFindByName(virCPUarmMap *map,
                           const char *name)
 {
     size_t i;
@@ -258,7 +256,7 @@ virCPUarmVendorParse(xmlXPathContextPtr ctxt,
                      const char *name,
                      void *data)
 {
-    virCPUarmMapPtr map = data;
+    virCPUarmMap *map = data;
     g_autoptr(virCPUarmVendor) vendor = NULL;
 
     vendor = g_new0(virCPUarmVendor, 1);
@@ -290,8 +288,8 @@ virCPUarmVendorParse(xmlXPathContextPtr ctxt,
     return 0;
 }
 
-static virCPUarmModelPtr
-virCPUarmModelFind(virCPUarmMapPtr map,
+static virCPUarmModel *
+virCPUarmModelFind(virCPUarmMap *map,
                    const char *name)
 {
     size_t i;
@@ -305,8 +303,8 @@ virCPUarmModelFind(virCPUarmMapPtr map,
 }
 
 #if defined(__aarch64__)
-static virCPUarmModelPtr
-virCPUarmModelFindByPVR(virCPUarmMapPtr map,
+static virCPUarmModel *
+virCPUarmModelFindByPVR(virCPUarmMap *map,
                         unsigned long pvr)
 {
     size_t i;
@@ -325,7 +323,7 @@ virCPUarmModelParse(xmlXPathContextPtr ctxt,
                     const char *name,
                     void *data)
 {
-    virCPUarmMapPtr map = data;
+    virCPUarmMap *map = data;
     g_autoptr(virCPUarmModel) model = NULL;
     g_autofree char *vendor = NULL;
 
@@ -376,7 +374,7 @@ virCPUarmModelParse(xmlXPathContextPtr ctxt,
     return 0;
 }
 
-static virCPUarmMapPtr
+static virCPUarmMap *
 virCPUarmLoadMap(void)
 {
     g_autoptr(virCPUarmMap) map = NULL;
@@ -390,7 +388,7 @@ virCPUarmLoadMap(void)
     return g_steal_pointer(&map);
 }
 
-static virCPUarmMapPtr cpuMap;
+static virCPUarmMap *cpuMap;
 
 int virCPUarmDriverOnceInit(void);
 VIR_ONCE_GLOBAL_INIT(virCPUarmDriver);
@@ -404,7 +402,7 @@ virCPUarmDriverOnceInit(void)
     return 0;
 }
 
-static virCPUarmMapPtr
+static virCPUarmMap *
 virCPUarmGetMap(void)
 {
     if (virCPUarmDriverInitialize() < 0)
@@ -414,7 +412,7 @@ virCPUarmGetMap(void)
 }
 
 static int
-virCPUarmUpdate(virCPUDefPtr guest,
+virCPUarmUpdate(virCPUDef *guest,
                 const virCPUDef *host,
                 bool relative)
 {
@@ -444,14 +442,14 @@ virCPUarmUpdate(virCPUDefPtr guest,
 }
 
 
-static virCPUDefPtr
-virCPUarmBaseline(virCPUDefPtr *cpus,
+static virCPUDef *
+virCPUarmBaseline(virCPUDef **cpus,
                   unsigned int ncpus G_GNUC_UNUSED,
-                  virDomainCapsCPUModelsPtr models G_GNUC_UNUSED,
+                  virDomainCapsCPUModels *models G_GNUC_UNUSED,
                   const char **features G_GNUC_UNUSED,
                   bool migratable G_GNUC_UNUSED)
 {
-    virCPUDefPtr cpu = NULL;
+    virCPUDef *cpu = NULL;
 
     cpu = virCPUDefNew();
 
@@ -464,8 +462,8 @@ virCPUarmBaseline(virCPUDefPtr *cpus,
 }
 
 static virCPUCompareResult
-virCPUarmCompare(virCPUDefPtr host,
-                 virCPUDefPtr cpu,
+virCPUarmCompare(virCPUDef *host,
+                 virCPUDef *cpu,
                  bool failIncompatible)
 {
     /* Only support host to host CPU compare for ARM */
@@ -505,16 +503,16 @@ virCPUarmCompare(virCPUDefPtr host,
 }
 
 static int
-virCPUarmValidateFeatures(virCPUDefPtr cpu)
+virCPUarmValidateFeatures(virCPUDef *cpu)
 {
-    virCPUarmMapPtr map;
+    virCPUarmMap *map;
     size_t i;
 
     if (!(map = virCPUarmGetMap()))
         return -1;
 
     for (i = 0; i < cpu->nfeatures; i++) {
-        virCPUFeatureDefPtr feature = &cpu->features[i];
+        virCPUFeatureDef *feature = &cpu->features[i];
 
         if (!virCPUarmMapFeatureFind(map, feature->name)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -527,7 +525,7 @@ virCPUarmValidateFeatures(virCPUDefPtr cpu)
     return 0;
 }
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) && (defined(WITH_GETAUXVAL) || defined(WITH_ELF_AUX_INFO))
 /* Generate human readable flag list according to the order of */
 /* AT_HWCAP bit map */
 const char *aarch64_cpu_flags[MAX_CPU_FLAGS] = {
@@ -555,12 +553,17 @@ virCPUarmCpuDataFromRegs(virCPUarmData *data)
     size_t i;
 
 # if defined(WITH_GETAUXVAL)
-    if (!(getauxval(AT_HWCAP) & HWCAP_CPUID)) {
+    hwcaps = getauxval(AT_HWCAP);
+# elif defined(WITH_ELF_AUX_INFO)
+    elf_aux_info(AT_HWCAP, &hwcaps, sizeof(u_long));
+# endif
+    VIR_DEBUG("CPU flags read from register:  0x%016lx", hwcaps);
+
+    if (!(hwcaps & HWCAP_CPUID)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("CPUID registers unavailable"));
             return -1;
     }
-# endif
 
     /* read the cpuid data from MIDR_EL1 register */
     asm("mrs %0, MIDR_EL1" : "=r" (cpuid));
@@ -570,15 +573,6 @@ virCPUarmCpuDataFromRegs(virCPUarmData *data)
     data->pvr = (cpuid >> 4) & 0xfff;
     /* parse the corresponding vendor_id bits */
     data->vendor_id = (cpuid >> 24) & 0xff;
-
-# if defined(WITH_GETAUXVAL)
-    hwcaps = getauxval(AT_HWCAP);
-# elif defined(WITH_ELF_AUX_INFO)
-    elf_aux_info(AT_HWCAP, &hwcaps, sizeof(u_long));
-# else
-#  error No routines to retrieve a value from the auxiliary vector
-# endif
-    VIR_DEBUG("CPU flags read from register:  0x%016lx", hwcaps);
 
     features = g_new0(char *, MAX_CPU_FLAGS + 1);
 
@@ -597,14 +591,14 @@ virCPUarmCpuDataFromRegs(virCPUarmData *data)
 }
 
 static int
-virCPUarmDecode(virCPUDefPtr cpu,
+virCPUarmDecode(virCPUDef *cpu,
                 const virCPUarmData *cpuData,
-                virDomainCapsCPUModelsPtr models)
+                virDomainCapsCPUModels *models)
 {
     size_t i;
-    virCPUarmMapPtr map;
-    virCPUarmModelPtr model;
-    virCPUarmVendorPtr vendor = NULL;
+    virCPUarmMap *map;
+    virCPUarmModel *model;
+    virCPUarmVendor *vendor = NULL;
 
     if (!cpuData || !(map = virCPUarmGetMap()))
         return -1;
@@ -637,7 +631,7 @@ virCPUarmDecode(virCPUDefPtr cpu,
         cpu->vendor = g_strdup(vendor->name);
 
     if (cpuData->features) {
-        cpu->nfeatures = virStringListLength((const char **)cpuData->features);
+        cpu->nfeatures = g_strv_length(cpuData->features);
         cpu->features = g_new0(virCPUFeatureDef, cpu->nfeatures);
 
         for (i = 0; i < cpu->nfeatures; i++) {
@@ -650,8 +644,8 @@ virCPUarmDecode(virCPUDefPtr cpu,
 }
 
 static int
-virCPUarmGetHost(virCPUDefPtr cpu,
-                 virDomainCapsCPUModelsPtr models)
+virCPUarmGetHost(virCPUDef *cpu,
+                 virDomainCapsCPUModels *models)
 {
     g_autoptr(virCPUData) cpuData = NULL;
 
@@ -674,7 +668,7 @@ struct cpuArchDriver cpuDriverArm = {
     .arch = archs,
     .narch = G_N_ELEMENTS(archs),
     .compare = virCPUarmCompare,
-#if defined(__aarch64__)
+#if defined(__aarch64__) && (defined(WITH_GETAUXVAL) || defined(WITH_ELF_AUX_INFO))
     .getHost = virCPUarmGetHost,
 #endif
     .decode = NULL,

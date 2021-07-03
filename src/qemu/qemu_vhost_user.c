@@ -92,7 +92,6 @@ VIR_ENUM_IMPL(qemuVhostUserGPUFeature,
 );
 
 typedef struct _qemuVhostUserGPU qemuVhostUserGPU;
-typedef qemuVhostUserGPU *qemuVhostUserGPUPtr;
 struct _qemuVhostUserGPU {
     size_t nfeatures;
     qemuVhostUserGPUFeature *features;
@@ -113,7 +112,7 @@ struct _qemuVhostUser {
 static void
 qemuVhostUserGPUFeatureFree(qemuVhostUserGPUFeature *features)
 {
-    VIR_FREE(features);
+    g_free(features);
 }
 
 
@@ -121,17 +120,17 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuVhostUserGPUFeature, qemuVhostUserGPUFeatureFr
 
 
 void
-qemuVhostUserFree(qemuVhostUserPtr vu)
+qemuVhostUserFree(qemuVhostUser *vu)
 {
     if (!vu)
         return;
 
     if (vu->type == QEMU_VHOST_USER_TYPE_GPU)
-        VIR_FREE(vu->capabilities.gpu.features);
+        g_free(vu->capabilities.gpu.features);
 
-    VIR_FREE(vu->binary);
+    g_free(vu->binary);
 
-    VIR_FREE(vu);
+    g_free(vu);
 }
 
 
@@ -141,8 +140,8 @@ qemuVhostUserFree(qemuVhostUserPtr vu)
 
 static int
 qemuVhostUserTypeParse(const char *path,
-                       virJSONValuePtr doc,
-                       qemuVhostUserPtr vu)
+                       virJSONValue *doc,
+                       qemuVhostUser *vu)
 {
     const char *type = virJSONValueObjectGetString(doc, "type");
     int tmp;
@@ -165,8 +164,8 @@ qemuVhostUserTypeParse(const char *path,
 
 static int
 qemuVhostUserBinaryParse(const char *path,
-                         virJSONValuePtr doc,
-                         qemuVhostUserPtr vu)
+                         virJSONValue *doc,
+                         qemuVhostUser *vu)
 {
     const char *binary = virJSONValueObjectGetString(doc, "binary");
 
@@ -179,7 +178,7 @@ qemuVhostUserBinaryParse(const char *path,
 }
 
 
-qemuVhostUserPtr
+qemuVhostUser *
 qemuVhostUserParse(const char *path)
 {
     g_autofree char *cont = NULL;
@@ -209,7 +208,7 @@ qemuVhostUserParse(const char *path)
 
 
 char *
-qemuVhostUserFormat(qemuVhostUserPtr vu)
+qemuVhostUserFormat(qemuVhostUser *vu)
 {
     g_autoptr(virJSONValue) doc = NULL;
 
@@ -239,20 +238,22 @@ qemuVhostUserFetchConfigs(char ***configs,
 
 static ssize_t
 qemuVhostUserFetchParsedConfigs(bool privileged,
-                                qemuVhostUserPtr **vhostuserRet,
+                                qemuVhostUser ***vhostuserRet,
                                 char ***pathsRet)
 {
     g_auto(GStrv) paths = NULL;
     size_t npaths;
-    qemuVhostUserPtr *vus = NULL;
+    qemuVhostUser **vus = NULL;
     size_t i;
 
     if (qemuVhostUserFetchConfigs(&paths, privileged) < 0)
         return -1;
 
-    npaths = virStringListLength((const char **)paths);
+    if (!paths)
+        return 0;
 
-    vus = g_new0(qemuVhostUserPtr, npaths);
+    npaths = g_strv_length(paths);
+    vus = g_new0(qemuVhostUser *, npaths);
 
     for (i = 0; i < npaths; i++) {
         if (!(vus[i] = qemuVhostUserParse(paths[i])))
@@ -273,11 +274,11 @@ qemuVhostUserFetchParsedConfigs(bool privileged,
 
 
 static int
-qemuVhostUserGPUFillCapabilities(qemuVhostUserPtr vu,
-                                 virJSONValuePtr doc)
+qemuVhostUserGPUFillCapabilities(qemuVhostUser *vu,
+                                 virJSONValue *doc)
 {
-    qemuVhostUserGPUPtr gpu = &vu->capabilities.gpu;
-    virJSONValuePtr featuresJSON;
+    qemuVhostUserGPU *gpu = &vu->capabilities.gpu;
+    virJSONValue *featuresJSON;
     size_t nfeatures;
     size_t i;
     g_autoptr(qemuVhostUserGPUFeature) features = NULL;
@@ -293,7 +294,7 @@ qemuVhostUserGPUFillCapabilities(qemuVhostUserPtr vu,
     features = g_new0(qemuVhostUserGPUFeature, nfeatures);
 
     for (i = 0; i < nfeatures; i++) {
-        virJSONValuePtr item = virJSONValueArrayGet(featuresJSON, i);
+        virJSONValue *item = virJSONValueArrayGet(featuresJSON, i);
         const char *tmpStr = virJSONValueGetString(item);
         int tmp;
 
@@ -315,7 +316,7 @@ qemuVhostUserGPUFillCapabilities(qemuVhostUserPtr vu,
 
 
 static bool
-qemuVhostUserGPUHasFeature(qemuVhostUserGPUPtr gpu,
+qemuVhostUserGPUHasFeature(qemuVhostUserGPU *gpu,
                            qemuVhostUserGPUFeature feature)
 {
     size_t i;
@@ -330,11 +331,11 @@ qemuVhostUserGPUHasFeature(qemuVhostUserGPUPtr gpu,
 
 
 int
-qemuVhostUserFillDomainGPU(virQEMUDriverPtr driver,
-                           virDomainVideoDefPtr video)
+qemuVhostUserFillDomainGPU(virQEMUDriver *driver,
+                           virDomainVideoDef *video)
 {
-    qemuVhostUserPtr *vus = NULL;
-    qemuVhostUserPtr vu = NULL;
+    qemuVhostUser **vus = NULL;
+    qemuVhostUser *vu = NULL;
     ssize_t nvus = 0;
     ssize_t i;
     int ret = -1;
@@ -416,10 +417,10 @@ qemuVhostUserFillDomainGPU(virQEMUDriverPtr driver,
 
 
 int
-qemuVhostUserFillDomainFS(virQEMUDriverPtr driver,
-                          virDomainFSDefPtr fs)
+qemuVhostUserFillDomainFS(virQEMUDriver *driver,
+                          virDomainFSDef *fs)
 {
-    qemuVhostUserPtr *vus = NULL;
+    qemuVhostUser **vus = NULL;
     ssize_t nvus = 0;
     ssize_t i;
     int ret = -1;
@@ -429,7 +430,7 @@ qemuVhostUserFillDomainFS(virQEMUDriverPtr driver,
         goto end;
 
     for (i = 0; i < nvus; i++) {
-        qemuVhostUserPtr vu = vus[i];
+        qemuVhostUser *vu = vus[i];
 
         if (vu->type != QEMU_VHOST_USER_TYPE_FS)
             continue;

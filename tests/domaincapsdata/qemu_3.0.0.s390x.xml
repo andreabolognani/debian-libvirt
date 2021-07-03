@@ -30,6 +30,7 @@
         <value>off</value>
       </enum>
     </mode>
+    <mode name='maximum' supported='no'/>
     <mode name='host-model' supported='yes'>
       <model fallback='forbid'>z14-base</model>
       <feature policy='require' name='aen'/>
@@ -198,6 +199,12 @@
         <value>egd</value>
       </enum>
     </rng>
+    <filesystem supported='yes'>
+      <enum name='driverType'>
+        <value>path</value>
+        <value>handle</value>
+      </enum>
+    </filesystem>
   </devices>
   <features>
     <gic supported='no'/>

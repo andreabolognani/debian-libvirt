@@ -107,11 +107,8 @@ virNetDevCreateNetlinkAddressMessage(int messageType,
     if ((ifindex = if_nametoindex(ifname)) == 0)
         return NULL;
 
-    if (!(nlmsg = nlmsg_alloc_simple(messageType,
-                                     NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL))) {
-        virReportOOMError();
-        return NULL;
-    }
+    nlmsg = virNetlinkMsgNew(messageType,
+                             NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL);
 
     memset(&ifa, 0, sizeof(ifa));
 
@@ -273,9 +270,9 @@ virNetDevIPAddrDel(const char *ifname,
  */
 int
 virNetDevIPRouteAdd(const char *ifname,
-                    virSocketAddrPtr addr,
+                    virSocketAddr *addr,
                     unsigned int prefix,
-                    virSocketAddrPtr gateway,
+                    virSocketAddr *gateway,
                     unsigned int metric)
 {
     unsigned int recvbuflen;
@@ -286,7 +283,7 @@ virNetDevIPRouteAdd(const char *ifname,
     size_t addrDataLen;
     int errCode;
     virSocketAddr defaultAddr;
-    virSocketAddrPtr actualAddr;
+    virSocketAddr *actualAddr;
     g_autoptr(virNetlinkMsg) nlmsg = NULL;
     g_autofree char *toStr = NULL;
     g_autofree char *viaStr = NULL;
@@ -323,12 +320,8 @@ virNetDevIPRouteAdd(const char *ifname,
     if ((ifindex = if_nametoindex(ifname)) == 0)
         return -1;
 
-    if (!(nlmsg = nlmsg_alloc_simple(RTM_NEWROUTE,
-                                     NLM_F_REQUEST | NLM_F_CREATE |
-                                     NLM_F_EXCL))) {
-        virReportOOMError();
-        return -1;
-    }
+    nlmsg = virNetlinkMsgNew(RTM_NEWROUTE,
+                             NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL);
 
     memset(&rtmsg, 0, sizeof(rtmsg));
 
@@ -467,9 +460,9 @@ virNetDevIPAddrDel(const char *ifname,
 
 int
 virNetDevIPRouteAdd(const char *ifname,
-                    virSocketAddrPtr addr,
+                    virSocketAddr *addr,
                     unsigned int prefix,
-                    virSocketAddrPtr gateway,
+                    virSocketAddr *gateway,
                     unsigned int metric)
 {
     g_autoptr(virCommand) cmd = NULL;
@@ -634,7 +627,7 @@ virNetDevIPCheckIPv6Forwarding(void)
 #if defined(SIOCGIFADDR) && defined(WITH_STRUCT_IFREQ)
 static int
 virNetDevGetIPv4AddressIoctl(const char *ifname,
-                             virSocketAddrPtr addr)
+                             virSocketAddr *addr)
 {
     int fd = -1;
     int ret = -1;
@@ -664,7 +657,7 @@ virNetDevGetIPv4AddressIoctl(const char *ifname,
 
 static int
 virNetDevGetIPv4AddressIoctl(const char *ifname G_GNUC_UNUSED,
-                             virSocketAddrPtr addr G_GNUC_UNUSED)
+                             virSocketAddr *addr G_GNUC_UNUSED)
 {
     return -2;
 }
@@ -684,7 +677,7 @@ virNetDevGetIPv4AddressIoctl(const char *ifname G_GNUC_UNUSED,
 #if WITH_GETIFADDRS
 static int
 virNetDevGetifaddrsAddress(const char *ifname,
-                           virSocketAddrPtr addr)
+                           virSocketAddr *addr)
 {
     struct ifaddrs *ifap, *ifa;
     int ret = -1;
@@ -732,7 +725,7 @@ virNetDevGetifaddrsAddress(const char *ifname,
 
 static int
 virNetDevGetifaddrsAddress(const char *ifname G_GNUC_UNUSED,
-                           virSocketAddrPtr addr G_GNUC_UNUSED)
+                           virSocketAddr *addr G_GNUC_UNUSED)
 {
     return -2;
 }
@@ -751,7 +744,7 @@ virNetDevGetifaddrsAddress(const char *ifname G_GNUC_UNUSED,
  */
 int
 virNetDevIPAddrGet(const char *ifname,
-                   virSocketAddrPtr addr)
+                   virSocketAddr *addr)
 {
     int ret;
 
@@ -771,16 +764,16 @@ virNetDevIPAddrGet(const char *ifname,
 
 /* manipulating the virNetDevIPRoute object */
 void
-virNetDevIPRouteFree(virNetDevIPRoutePtr def)
+virNetDevIPRouteFree(virNetDevIPRoute *def)
 {
     if (!def)
         return;
-    VIR_FREE(def->family);
-    VIR_FREE(def);
+    g_free(def->family);
+    g_free(def);
 }
 
-virSocketAddrPtr
-virNetDevIPRouteGetAddress(virNetDevIPRoutePtr def)
+virSocketAddr *
+virNetDevIPRouteGetAddress(virNetDevIPRoute *def)
 {
     if (def)
         return &def->address;
@@ -789,7 +782,7 @@ virNetDevIPRouteGetAddress(virNetDevIPRoutePtr def)
 }
 
 int
-virNetDevIPRouteGetPrefix(virNetDevIPRoutePtr def)
+virNetDevIPRouteGetPrefix(virNetDevIPRoute *def)
 {
     int prefix = 0;
     virSocketAddr zero;
@@ -822,7 +815,7 @@ virNetDevIPRouteGetPrefix(virNetDevIPRoutePtr def)
 }
 
 unsigned int
-virNetDevIPRouteGetMetric(virNetDevIPRoutePtr def)
+virNetDevIPRouteGetMetric(virNetDevIPRoute *def)
 {
     if (def && def->has_metric && def->metric > 0)
         return def->metric;
@@ -830,8 +823,8 @@ virNetDevIPRouteGetMetric(virNetDevIPRoutePtr def)
     return 1;
 }
 
-virSocketAddrPtr
-virNetDevIPRouteGetGateway(virNetDevIPRoutePtr def)
+virSocketAddr *
+virNetDevIPRouteGetGateway(virNetDevIPRoute *def)
 {
     if (def)
         return &def->gateway;
@@ -841,7 +834,7 @@ virNetDevIPRouteGetGateway(virNetDevIPRoutePtr def)
 /* manipulating the virNetDevIPInfo object */
 
 void
-virNetDevIPInfoClear(virNetDevIPInfoPtr ip)
+virNetDevIPInfoClear(virNetDevIPInfo *ip)
 {
     size_t i;
 
@@ -876,7 +869,7 @@ virNetDevIPInfoAddToDev(const char *ifname,
 
     /* add all IP addresses */
     for (i = 0; i < ipInfo->nips; i++) {
-        virNetDevIPAddrPtr ip = ipInfo->ips[i];
+        virNetDevIPAddr *ip = ipInfo->ips[i];
 
         if ((prefix = virSocketAddrGetIPPrefix(&ip->address,
                                                NULL, ip->prefix)) < 0) {
@@ -892,7 +885,7 @@ virNetDevIPInfoAddToDev(const char *ifname,
 
     /* add all routes */
     for (i = 0; i < ipInfo->nroutes; i++) {
-        virNetDevIPRoutePtr route = ipInfo->routes[i];
+        virNetDevIPRoute *route = ipInfo->routes[i];
 
         if ((prefix = virNetDevIPRouteGetPrefix(route)) < 0) {
             ipStr = virSocketAddrFormat(&route->address);
@@ -911,7 +904,7 @@ virNetDevIPInfoAddToDev(const char *ifname,
 }
 
 void
-virNetDevIPAddrFree(virNetDevIPAddrPtr ip)
+virNetDevIPAddrFree(virNetDevIPAddr *ip)
 {
-    VIR_FREE(ip);
+    g_free(ip);
 }

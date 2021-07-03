@@ -30,33 +30,33 @@
 
 
 void
-virSecurityLabelDefFree(virSecurityLabelDefPtr def)
+virSecurityLabelDefFree(virSecurityLabelDef *def)
 {
     if (!def)
         return;
-    VIR_FREE(def->model);
-    VIR_FREE(def->label);
-    VIR_FREE(def->imagelabel);
-    VIR_FREE(def->baselabel);
-    VIR_FREE(def);
+    g_free(def->model);
+    g_free(def->label);
+    g_free(def->imagelabel);
+    g_free(def->baselabel);
+    g_free(def);
 }
 
 
 void
-virSecurityDeviceLabelDefFree(virSecurityDeviceLabelDefPtr def)
+virSecurityDeviceLabelDefFree(virSecurityDeviceLabelDef *def)
 {
     if (!def)
         return;
-    VIR_FREE(def->model);
-    VIR_FREE(def->label);
-    VIR_FREE(def);
+    g_free(def->model);
+    g_free(def->label);
+    g_free(def);
 }
 
 
-virSecurityLabelDefPtr
+virSecurityLabelDef *
 virSecurityLabelDefNew(const char *model)
 {
-    virSecurityLabelDefPtr seclabel = NULL;
+    virSecurityLabelDef *seclabel = NULL;
 
     seclabel = g_new0(virSecurityLabelDef, 1);
 
@@ -67,10 +67,10 @@ virSecurityLabelDefNew(const char *model)
     return seclabel;
 }
 
-virSecurityDeviceLabelDefPtr
+virSecurityDeviceLabelDef *
 virSecurityDeviceLabelDefNew(const char *model)
 {
-    virSecurityDeviceLabelDefPtr seclabel = NULL;
+    virSecurityDeviceLabelDef *seclabel = NULL;
 
     seclabel = g_new0(virSecurityDeviceLabelDef, 1);
 
@@ -80,10 +80,10 @@ virSecurityDeviceLabelDefNew(const char *model)
 }
 
 
-virSecurityDeviceLabelDefPtr
+virSecurityDeviceLabelDef *
 virSecurityDeviceLabelDefCopy(const virSecurityDeviceLabelDef *src)
 {
-    virSecurityDeviceLabelDefPtr ret;
+    virSecurityDeviceLabelDef *ret;
 
     ret = g_new0(virSecurityDeviceLabelDef, 1);
 

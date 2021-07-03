@@ -22,8 +22,21 @@ docs_man_files = [
 
   { 'name': 'libvirtd', 'section': '8', 'install': conf.has('WITH_LIBVIRTD') },
   { 'name': 'virt-sanlock-cleanup', 'section': '8', 'install': conf.has('WITH_SANLOCK') },
+  { 'name': 'virtbhyved', 'section': '8', 'install': conf.has('WITH_BHYVE') },
+  { 'name': 'virtinterfaced', 'section': '8', 'install': conf.has('WITH_INTERFACE') },
   { 'name': 'virtlockd', 'section': '8', 'install': conf.has('WITH_LIBVIRTD') },
   { 'name': 'virtlogd', 'section': '8', 'install': conf.has('WITH_LIBVIRTD') },
+  { 'name': 'virtlxcd', 'section': '8', 'install': conf.has('WITH_LXC') },
+  { 'name': 'virtnetworkd', 'section': '8', 'install': conf.has('WITH_NETWORK') },
+  { 'name': 'virtnodedevd', 'section': '8', 'install': conf.has('WITH_NODE_DEVICES') },
+  { 'name': 'virtnwfilterd', 'section': '8', 'install': conf.has('WITH_NWFILTER') },
+  { 'name': 'virtproxyd', 'section': '8', 'install': conf.has('WITH_LIBVIRTD') },
+  { 'name': 'virtqemud', 'section': '8', 'install': conf.has('WITH_QEMU') },
+  { 'name': 'virtsecretd', 'section': '8', 'install': conf.has('WITH_SECRETS') },
+  { 'name': 'virtstoraged', 'section': '8', 'install': conf.has('WITH_STORAGE') },
+  { 'name': 'virtvboxd', 'section': '8', 'install': conf.has('WITH_VBOX') },
+  { 'name': 'virtvzd', 'section': '8', 'install': conf.has('WITH_VZ') },
+  { 'name': 'virtxend', 'section': '8', 'install': conf.has('WITH_LIBXL') },
 ]
 
 foreach name : keycode_list
@@ -71,6 +84,7 @@ endforeach
 docs_man_conf = configuration_data()
 docs_man_conf.set('SYSCONFDIR', sysconfdir)
 docs_man_conf.set('RUNSTATEDIR', runstatedir)
+docs_man_conf.set('VERSION', meson.project_version())
 
 foreach data : docs_man_files
   rst_in_file = '@0@.rst'.format(data['name'])

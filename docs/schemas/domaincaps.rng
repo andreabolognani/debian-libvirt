@@ -88,6 +88,7 @@
   <define name="cpu">
     <element name="cpu">
       <ref name="cpuHost"/>
+      <ref name="cpuMax"/>
       <ref name="cpuHostModel"/>
       <ref name="cpuCustom"/>
     </element>
@@ -97,6 +98,18 @@
     <element name="mode">
       <attribute name="name">
         <value>host-passthrough</value>
+      </attribute>
+      <ref name="supported"/>
+      <optional>
+        <ref name="enum"/>
+      </optional>
+    </element>
+  </define>
+
+  <define name="cpuMax">
+    <element name="mode">
+      <attribute name="name">
+        <value>maximum</value>
       </attribute>
       <ref name="supported"/>
       <optional>
@@ -138,6 +151,14 @@
               <value>unknown</value>
             </choice>
           </attribute>
+          <optional>
+            <attribute name="deprecated">
+              <choice>
+                <value>yes</value>
+                <value>no</value>
+              </choice>
+            </attribute>
+          </optional>
           <text/>
         </element>
       </zeroOrMore>
@@ -160,6 +181,9 @@
       </optional>
       <optional>
         <ref name="rng"/>
+      </optional>
+      <optional>
+        <ref name="filesystem"/>
       </optional>
     </element>
   </define>
@@ -194,6 +218,13 @@
 
   <define name="rng">
     <element name="rng">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
+  <define name="filesystem">
+    <element name="filesystem">
       <ref name="supported"/>
       <ref name="enum"/>
     </element>

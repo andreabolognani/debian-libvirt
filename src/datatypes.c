@@ -33,21 +33,21 @@
 
 VIR_LOG_INIT("datatypes");
 
-virClassPtr virConnectClass;
-virClassPtr virConnectCloseCallbackDataClass;
-virClassPtr virDomainClass;
-virClassPtr virDomainCheckpointClass;
-virClassPtr virDomainSnapshotClass;
-virClassPtr virInterfaceClass;
-virClassPtr virNetworkClass;
-virClassPtr virNetworkPortClass;
-virClassPtr virNodeDeviceClass;
-virClassPtr virNWFilterClass;
-virClassPtr virNWFilterBindingClass;
-virClassPtr virSecretClass;
-virClassPtr virStreamClass;
-virClassPtr virStorageVolClass;
-virClassPtr virStoragePoolClass;
+virClass *virConnectClass;
+virClass *virConnectCloseCallbackDataClass;
+virClass *virDomainClass;
+virClass *virDomainCheckpointClass;
+virClass *virDomainSnapshotClass;
+virClass *virInterfaceClass;
+virClass *virNetworkClass;
+virClass *virNetworkPortClass;
+virClass *virNodeDeviceClass;
+virClass *virNWFilterClass;
+virClass *virNWFilterBindingClass;
+virClass *virSecretClass;
+virClass *virStreamClass;
+virClass *virStorageVolClass;
+virClass *virStoragePoolClass;
 
 static void virConnectDispose(void *obj);
 static void virConnectCloseCallbackDataDispose(void *obj);
@@ -65,14 +65,14 @@ static void virStreamDispose(void *obj);
 static void virStorageVolDispose(void *obj);
 static void virStoragePoolDispose(void *obj);
 
-virClassPtr virAdmConnectClass;
-virClassPtr virAdmConnectCloseCallbackDataClass;
+virClass *virAdmConnectClass;
+virClass *virAdmConnectCloseCallbackDataClass;
 
 static void virAdmConnectDispose(void *obj);
 static void virAdmConnectCloseCallbackDataDispose(void *obj);
 
-virClassPtr virAdmServerClass;
-virClassPtr virAdmClientClass;
+virClass *virAdmServerClass;
+virClass *virAdmClientClass;
 static void virAdmServerDispose(void *obj);
 static void virAdmClientDispose(void *obj);
 
@@ -180,7 +180,7 @@ virConnectDispose(void *obj)
 
 
 static void
-virConnectCloseCallbackDataReset(virConnectCloseCallbackDataPtr closeData)
+virConnectCloseCallbackDataReset(virConnectCloseCallbackData *closeData)
 {
     if (closeData->freeCallback)
         closeData->freeCallback(closeData->opaque);
@@ -203,7 +203,7 @@ virConnectCloseCallbackDataDispose(void *obj)
     virConnectCloseCallbackDataReset(obj);
 }
 
-virConnectCloseCallbackDataPtr
+virConnectCloseCallbackData *
 virNewConnectCloseCallbackData(void)
 {
     if (virDataTypesInitialize() < 0)
@@ -212,7 +212,7 @@ virNewConnectCloseCallbackData(void)
     return virObjectLockableNew(virConnectCloseCallbackDataClass);
 }
 
-void virConnectCloseCallbackDataRegister(virConnectCloseCallbackDataPtr closeData,
+void virConnectCloseCallbackDataRegister(virConnectCloseCallbackData *closeData,
                                          virConnectPtr conn,
                                          virConnectCloseFunc cb,
                                          void *opaque,
@@ -236,7 +236,7 @@ void virConnectCloseCallbackDataRegister(virConnectCloseCallbackDataPtr closeDat
     virObjectUnlock(closeData);
 }
 
-void virConnectCloseCallbackDataUnregister(virConnectCloseCallbackDataPtr closeData,
+void virConnectCloseCallbackDataUnregister(virConnectCloseCallbackData *closeData,
                                            virConnectCloseFunc cb)
 {
     virObjectLock(closeData);
@@ -255,7 +255,7 @@ void virConnectCloseCallbackDataUnregister(virConnectCloseCallbackDataPtr closeD
     virObjectUnlock(closeData);
 }
 
-void virConnectCloseCallbackDataCall(virConnectCloseCallbackDataPtr closeData,
+void virConnectCloseCallbackDataCall(virConnectCloseCallbackData *closeData,
                                      int reason)
 {
     virObjectLock(closeData);
@@ -274,7 +274,7 @@ void virConnectCloseCallbackDataCall(virConnectCloseCallbackDataPtr closeData,
 }
 
 virConnectCloseFunc
-virConnectCloseCallbackDataGetCallback(virConnectCloseCallbackDataPtr closeData)
+virConnectCloseCallbackDataGetCallback(virConnectCloseCallbackData *closeData)
 {
     virConnectCloseFunc cb;
 
@@ -347,7 +347,7 @@ virDomainDispose(void *obj)
     virUUIDFormat(domain->uuid, uuidstr);
     VIR_DEBUG("release domain %p %s %s", domain, domain->name, uuidstr);
 
-    VIR_FREE(domain->name);
+    g_free(domain->name);
     virObjectUnref(domain->conn);
 }
 
@@ -409,7 +409,7 @@ virNetworkDispose(void *obj)
     virUUIDFormat(network->uuid, uuidstr);
     VIR_DEBUG("release network %p %s %s", network, network->name, uuidstr);
 
-    VIR_FREE(network->name);
+    g_free(network->name);
     virObjectUnref(network->conn);
 }
 
@@ -528,8 +528,8 @@ virInterfaceDispose(void *obj)
     virInterfacePtr iface = obj;
     VIR_DEBUG("release interface %p %s", iface, iface->name);
 
-    VIR_FREE(iface->name);
-    VIR_FREE(iface->mac);
+    g_free(iface->name);
+    g_free(iface->mac);
     virObjectUnref(iface->conn);
 }
 
@@ -603,7 +603,7 @@ virStoragePoolDispose(void *obj)
     if (pool->privateDataFreeFunc)
         pool->privateDataFreeFunc(pool->privateData);
 
-    VIR_FREE(pool->name);
+    g_free(pool->name);
     virObjectUnref(pool->conn);
 }
 
@@ -676,9 +676,9 @@ virStorageVolDispose(void *obj)
     if (vol->privateDataFreeFunc)
         vol->privateDataFreeFunc(vol->privateData);
 
-    VIR_FREE(vol->key);
-    VIR_FREE(vol->name);
-    VIR_FREE(vol->pool);
+    g_free(vol->key);
+    g_free(vol->name);
+    g_free(vol->pool);
     virObjectUnref(vol->conn);
 }
 
@@ -734,8 +734,8 @@ virNodeDeviceDispose(void *obj)
     virNodeDevicePtr dev = obj;
     VIR_DEBUG("release dev %p %s", dev, dev->name);
 
-    VIR_FREE(dev->name);
-    VIR_FREE(dev->parentName);
+    g_free(dev->name);
+    g_free(dev->parentName);
 
     virObjectUnref(dev->conn);
 }
@@ -798,7 +798,7 @@ virSecretDispose(void *obj)
     virUUIDFormat(secret->uuid, uuidstr);
     VIR_DEBUG("release secret %p %s", secret, uuidstr);
 
-    VIR_FREE(secret->usageID);
+    g_free(secret->usageID);
     virObjectUnref(secret->conn);
 }
 
@@ -910,7 +910,7 @@ virNWFilterDispose(void *obj)
     virUUIDFormat(nwfilter->uuid, uuidstr);
     VIR_DEBUG("release nwfilter %p %s %s", nwfilter, nwfilter->name, uuidstr);
 
-    VIR_FREE(nwfilter->name);
+    g_free(nwfilter->name);
     virObjectUnref(nwfilter->conn);
 }
 
@@ -972,8 +972,8 @@ virNWFilterBindingDispose(void *obj)
 
     VIR_DEBUG("release binding %p %s", binding, binding->portdev);
 
-    VIR_FREE(binding->portdev);
-    VIR_FREE(binding->filtername);
+    g_free(binding->portdev);
+    g_free(binding->filtername);
     virObjectUnref(binding->conn);
 }
 
@@ -1030,7 +1030,7 @@ virDomainCheckpointDispose(void *obj)
     virDomainCheckpointPtr checkpoint = obj;
     VIR_DEBUG("release checkpoint %p %s", checkpoint, checkpoint->name);
 
-    VIR_FREE(checkpoint->name);
+    g_free(checkpoint->name);
     virObjectUnref(checkpoint->domain);
 }
 
@@ -1086,7 +1086,7 @@ virDomainSnapshotDispose(void *obj)
     virDomainSnapshotPtr snapshot = obj;
     VIR_DEBUG("release snapshot %p %s", snapshot, snapshot->name);
 
-    VIR_FREE(snapshot->name);
+    g_free(snapshot->name);
     virObjectUnref(snapshot->domain);
 }
 
@@ -1128,7 +1128,7 @@ virAdmConnectDispose(void *obj)
 static void
 virAdmConnectCloseCallbackDataDispose(void *obj)
 {
-    virAdmConnectCloseCallbackDataPtr cb_data = obj;
+    virAdmConnectCloseCallbackData *cb_data = obj;
 
     virObjectLock(cb_data);
     virAdmConnectCloseCallbackDataReset(cb_data);
@@ -1136,7 +1136,7 @@ virAdmConnectCloseCallbackDataDispose(void *obj)
 }
 
 void
-virAdmConnectCloseCallbackDataReset(virAdmConnectCloseCallbackDataPtr cbdata)
+virAdmConnectCloseCallbackDataReset(virAdmConnectCloseCallbackData *cbdata)
 {
     if (cbdata->freeCallback)
         cbdata->freeCallback(cbdata->opaque);
@@ -1149,7 +1149,7 @@ virAdmConnectCloseCallbackDataReset(virAdmConnectCloseCallbackDataPtr cbdata)
 }
 
 int
-virAdmConnectCloseCallbackDataUnregister(virAdmConnectCloseCallbackDataPtr cbdata,
+virAdmConnectCloseCallbackDataUnregister(virAdmConnectCloseCallbackData *cbdata,
                                          virAdmConnectCloseFunc cb)
 {
     int ret = -1;
@@ -1169,7 +1169,7 @@ virAdmConnectCloseCallbackDataUnregister(virAdmConnectCloseCallbackDataPtr cbdat
 }
 
 int
-virAdmConnectCloseCallbackDataRegister(virAdmConnectCloseCallbackDataPtr cbdata,
+virAdmConnectCloseCallbackDataRegister(virAdmConnectCloseCallbackData *cbdata,
                                        virAdmConnectPtr conn,
                                        virAdmConnectCloseFunc cb,
                                        void *opaque,
@@ -1222,7 +1222,7 @@ virAdmServerDispose(void *obj)
     virAdmServerPtr srv = obj;
     VIR_DEBUG("release server srv=%p name=%s", srv, srv->name);
 
-    VIR_FREE(srv->name);
+    g_free(srv->name);
     virObjectUnref(srv->conn);
 }
 

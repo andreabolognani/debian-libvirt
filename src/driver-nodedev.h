@@ -74,6 +74,19 @@ typedef virNodeDevicePtr
 typedef int
 (*virDrvNodeDeviceDestroy)(virNodeDevicePtr dev);
 
+typedef virNodeDevicePtr
+(*virDrvNodeDeviceDefineXML)(virConnectPtr conn,
+                             const char *xmlDesc,
+                             unsigned int flags);
+
+typedef int
+(*virDrvNodeDeviceUndefine)(virNodeDevicePtr dev,
+                            unsigned int flags);
+
+typedef int
+(*virDrvNodeDeviceCreate)(virNodeDevicePtr dev,
+                          unsigned int flags);
+
 typedef int
 (*virDrvConnectNodeDeviceEventRegisterAny)(virConnectPtr conn,
                                            virNodeDevicePtr dev,
@@ -89,7 +102,6 @@ typedef int
 
 
 typedef struct _virNodeDeviceDriver virNodeDeviceDriver;
-typedef virNodeDeviceDriver *virNodeDeviceDriverPtr;
 
 /**
  * _virNodeDeviceDriver:
@@ -113,4 +125,7 @@ struct _virNodeDeviceDriver {
     virDrvNodeDeviceListCaps nodeDeviceListCaps;
     virDrvNodeDeviceCreateXML nodeDeviceCreateXML;
     virDrvNodeDeviceDestroy nodeDeviceDestroy;
+    virDrvNodeDeviceDefineXML nodeDeviceDefineXML;
+    virDrvNodeDeviceUndefine nodeDeviceUndefine;
+    virDrvNodeDeviceCreate nodeDeviceCreate;
 };

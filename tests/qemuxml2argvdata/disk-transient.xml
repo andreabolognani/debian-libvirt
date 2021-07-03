@@ -16,6 +16,12 @@
     <emulator>/usr/bin/qemu-system-i386</emulator>
     <disk type='file' device='disk'>
       <driver name='qemu' type='qcow2' cache='none'/>
+      <source file='/tmp/QEMUGuest2.img'/>
+      <target dev='vda' bus='virtio'/>
+      <transient shareBacking='yes'/>
+    </disk>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' cache='none'/>
       <source file='/tmp/QEMUGuest1.img'/>
       <target dev='hda' bus='ide'/>
       <transient/>

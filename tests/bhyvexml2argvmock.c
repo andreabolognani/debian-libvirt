@@ -1,15 +1,48 @@
 #include <config.h>
 
+#include <dirent.h>
+
 #include "viralloc.h"
 #include "virstring.h"
 #include "virnetdev.h"
 #include "virnetdevtap.h"
+#include "virmock.h"
 #include "internal.h"
 
 #define VIR_FROM_THIS VIR_FROM_BHYVE
 
+static DIR * (*real_opendir)(const char *name);
+
+static void
+init_syms(void)
+{
+    VIR_MOCK_REAL_INIT(opendir);
+}
+
+#define FAKEFIRMWAREDIR abs_srcdir "/bhyvefirmwaredata/three_firmwares"
+#define FAKEFIRMWAREEMPTYDIR abs_srcdir "/bhyvefirmwaredata/empty"
+
+DIR *
+opendir(const char *path)
+{
+    init_syms();
+
+    g_autofree char *path_override = NULL;
+
+    if (STREQ(path, "fakefirmwaredir")) {
+        path_override = g_strdup(FAKEFIRMWAREDIR);
+    } else if (STREQ(path, "fakefirmwareemptydir")) {
+        path_override = g_strdup(FAKEFIRMWAREEMPTYDIR);
+    }
+
+    if (!path_override)
+        path_override = g_strdup(path);
+
+    return real_opendir(path_override);
+}
+
 void virMacAddrGenerate(const unsigned char prefix[VIR_MAC_PREFIX_BUFLEN],
-                        virMacAddrPtr addr)
+                        virMacAddr *addr)
 {
     addr->addr[0] = prefix[0];
     addr->addr[1] = prefix[1];
@@ -29,7 +62,7 @@ int virNetDevTapCreateInBridgePort(const char *brname G_GNUC_UNUSED,
                                    const virNetDevVPortProfile *virtPortProfile G_GNUC_UNUSED,
                                    const virNetDevVlan *virtVlan G_GNUC_UNUSED,
                                    virTristateBool isolatedPort G_GNUC_UNUSED,
-                                   virNetDevCoalescePtr coalesce G_GNUC_UNUSED,
+                                   virNetDevCoalesce *coalesce G_GNUC_UNUSED,
                                    unsigned int mtu G_GNUC_UNUSED,
                                    unsigned int *actualMTU G_GNUC_UNUSED,
                                    unsigned int fakeflags G_GNUC_UNUSED)

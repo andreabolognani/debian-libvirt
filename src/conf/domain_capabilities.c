@@ -44,8 +44,8 @@ VIR_ENUM_IMPL(virDomainCapsFeature,
               "backup",
 );
 
-static virClassPtr virDomainCapsClass;
-static virClassPtr virDomainCapsCPUModelsClass;
+static virClass *virDomainCapsClass;
+static virClass *virDomainCapsCPUModelsClass;
 
 static void virDomainCapsDispose(void *obj);
 static void virDomainCapsCPUModelsDispose(void *obj);
@@ -65,69 +65,60 @@ static int virDomainCapsOnceInit(void)
 VIR_ONCE_GLOBAL_INIT(virDomainCaps);
 
 
-static void
-virDomainCapsStringValuesFree(virDomainCapsStringValuesPtr values)
-{
-    size_t i;
-
-    if (!values || !values->values)
-        return;
-
-    for (i = 0; i < values->nvalues; i++)
-        VIR_FREE(values->values[i]);
-    VIR_FREE(values->values);
-}
-
-
 void
 virSEVCapabilitiesFree(virSEVCapability *cap)
 {
     if (!cap)
         return;
 
-    VIR_FREE(cap->pdh);
-    VIR_FREE(cap->cert_chain);
-    VIR_FREE(cap);
+    g_free(cap->pdh);
+    g_free(cap->cert_chain);
+    g_free(cap);
 }
 
 
 static void
 virDomainCapsDispose(void *obj)
 {
-    virDomainCapsPtr caps = obj;
+    virDomainCaps *caps = obj;
+    virDomainCapsStringValues *values;
+    size_t i;
 
-    VIR_FREE(caps->path);
-    VIR_FREE(caps->machine);
+    g_free(caps->path);
+    g_free(caps->machine);
     virObjectUnref(caps->cpu.custom);
     virCPUDefFree(caps->cpu.hostModel);
     virSEVCapabilitiesFree(caps->sev);
 
-    virDomainCapsStringValuesFree(&caps->os.loader.values);
+    values = &caps->os.loader.values;
+    for (i = 0; i < values->nvalues; i++)
+        g_free(values->values[i]);
+    g_free(values->values);
 }
 
 
 static void
 virDomainCapsCPUModelsDispose(void *obj)
 {
-    virDomainCapsCPUModelsPtr cpuModels = obj;
+    virDomainCapsCPUModels *cpuModels = obj;
     size_t i;
 
     for (i = 0; i < cpuModels->nmodels; i++) {
-        VIR_FREE(cpuModels->models[i].name);
+        g_free(cpuModels->models[i].name);
         g_strfreev(cpuModels->models[i].blockers);
     }
 
-    VIR_FREE(cpuModels->models);
+    g_free(cpuModels->models);
 }
 
 
-virDomainCapsPtr
+virDomainCaps *
 virDomainCapsNew(const char *path,
                  const char *machine,
                  virArch arch,
                  virDomainVirtType virttype)
 {
-    virDomainCapsPtr caps = NULL;
+    virDomainCaps *caps = NULL;
 
     if (virDomainCapsInitialize() < 0)
         return NULL;
@@ -144,10 +135,10 @@ virDomainCapsNew(const char *path,
 }
 
 
-virDomainCapsCPUModelsPtr
+virDomainCapsCPUModels *
 virDomainCapsCPUModelsNew(size_t nmodels)
 {
-    virDomainCapsCPUModelsPtr cpuModels = NULL;
+    virDomainCapsCPUModels *cpuModels = NULL;
 
     if (virDomainCapsInitialize() < 0)
         return NULL;
@@ -162,10 +153,10 @@ virDomainCapsCPUModelsNew(size_t nmodels)
 }
 
 
-virDomainCapsCPUModelsPtr
-virDomainCapsCPUModelsCopy(virDomainCapsCPUModelsPtr old)
+virDomainCapsCPUModels *
+virDomainCapsCPUModelsCopy(virDomainCapsCPUModels *old)
 {
-    virDomainCapsCPUModelsPtr cpuModels;
+    virDomainCapsCPUModels *cpuModels;
     size_t i;
 
     if (!(cpuModels = virDomainCapsCPUModelsNew(old->nmodels)))
@@ -175,7 +166,8 @@ virDomainCapsCPUModelsCopy(virDomainCapsCPUModelsPtr old)
         if (virDomainCapsCPUModelsAdd(cpuModels,
                                       old->models[i].name,
                                       old->models[i].usable,
-                                      old->models[i].blockers) < 0)
+                                      old->models[i].blockers,
+                                      old->models[i].deprecated) < 0)
             goto error;
     }
 
@@ -188,19 +180,19 @@ virDomainCapsCPUModelsCopy(virDomainCapsCPUModelsPtr old)
 
 
 int
-virDomainCapsCPUModelsAdd(virDomainCapsCPUModelsPtr cpuModels,
+virDomainCapsCPUModelsAdd(virDomainCapsCPUModels *cpuModels,
                           const char *name,
                           virDomainCapsCPUUsable usable,
-                          char **blockers)
+                          char **blockers,
+                          bool deprecated)
 {
     g_autofree char * nameCopy = NULL;
-    virDomainCapsCPUModelPtr cpu;
+    virDomainCapsCPUModel *cpu;
 
     nameCopy = g_strdup(name);
 
-    if (VIR_RESIZE_N(cpuModels->models, cpuModels->nmodels_max,
-                     cpuModels->nmodels, 1) < 0)
-        return -1;
+    VIR_RESIZE_N(cpuModels->models, cpuModels->nmodels_max,
+                 cpuModels->nmodels, 1);
 
     cpu = cpuModels->models + cpuModels->nmodels;
     cpuModels->nmodels++;
@@ -208,13 +200,14 @@ virDomainCapsCPUModelsAdd(virDomainCapsCPUModelsPtr cpuModels,
     cpu->usable = usable;
     cpu->name = g_steal_pointer(&nameCopy);
     cpu->blockers = g_strdupv(blockers);
+    cpu->deprecated = deprecated;
 
     return 0;
 }
 
 
-virDomainCapsCPUModelPtr
-virDomainCapsCPUModelsGet(virDomainCapsCPUModelsPtr cpuModels,
+virDomainCapsCPUModel *
+virDomainCapsCPUModelsGet(virDomainCapsCPUModels *cpuModels,
                           const char *name)
 {
     size_t i;
@@ -232,7 +225,7 @@ virDomainCapsCPUModelsGet(virDomainCapsCPUModelsPtr cpuModels,
 
 
 int
-virDomainCapsEnumSet(virDomainCapsEnumPtr capsEnum,
+virDomainCapsEnumSet(virDomainCapsEnum *capsEnum,
                      const char *capsEnumName,
                      size_t nvalues,
                      unsigned int *values)
@@ -259,14 +252,14 @@ virDomainCapsEnumSet(virDomainCapsEnumPtr capsEnum,
 
 
 void
-virDomainCapsEnumClear(virDomainCapsEnumPtr capsEnum)
+virDomainCapsEnumClear(virDomainCapsEnum *capsEnum)
 {
     capsEnum->values = 0;
 }
 
 
 static int
-virDomainCapsEnumFormat(virBufferPtr buf,
+virDomainCapsEnumFormat(virBuffer *buf,
                         const virDomainCapsEnum *capsEnum,
                         const char *capsEnumName,
                         virDomainCapsValToStr valToStr)
@@ -301,7 +294,7 @@ virDomainCapsEnumFormat(virBufferPtr buf,
 
 
 static void
-virDomainCapsStringValuesFormat(virBufferPtr buf,
+virDomainCapsStringValuesFormat(virBuffer *buf,
                                 const virDomainCapsStringValues *values)
 {
     size_t i;
@@ -337,7 +330,7 @@ virDomainCapsStringValuesFormat(virBufferPtr buf,
 
 
 static void
-qemuDomainCapsFeatureFormatSimple(virBufferPtr buf,
+qemuDomainCapsFeatureFormatSimple(virBuffer *buf,
                                   const char *featurename,
                                   virTristateBool supported)
 {
@@ -350,7 +343,7 @@ qemuDomainCapsFeatureFormatSimple(virBufferPtr buf,
 
 
 static void
-virDomainCapsLoaderFormat(virBufferPtr buf,
+virDomainCapsLoaderFormat(virBuffer *buf,
                           const virDomainCapsLoader *loader)
 {
     FORMAT_PROLOGUE(loader);
@@ -364,7 +357,7 @@ virDomainCapsLoaderFormat(virBufferPtr buf,
 }
 
 static void
-virDomainCapsOSFormat(virBufferPtr buf,
+virDomainCapsOSFormat(virBuffer *buf,
                       const virDomainCapsOS *os)
 {
     const virDomainCapsLoader *loader = &os->loader;
@@ -379,17 +372,20 @@ virDomainCapsOSFormat(virBufferPtr buf,
 }
 
 static void
-virDomainCapsCPUCustomFormat(virBufferPtr buf,
-                             virDomainCapsCPUModelsPtr custom)
+virDomainCapsCPUCustomFormat(virBuffer *buf,
+                             virDomainCapsCPUModels *custom)
 {
     size_t i;
 
     virBufferAdjustIndent(buf, 2);
 
     for (i = 0; i < custom->nmodels; i++) {
-        virDomainCapsCPUModelPtr model = custom->models + i;
-        virBufferAsprintf(buf, "<model usable='%s'>%s</model>\n",
-                          virDomainCapsCPUUsableTypeToString(model->usable),
+        virDomainCapsCPUModel *model = custom->models + i;
+        virBufferAsprintf(buf, "<model usable='%s'",
+                          virDomainCapsCPUUsableTypeToString(model->usable));
+        if (model->deprecated)
+            virBufferAddLit(buf, " deprecated='yes'");
+        virBufferAsprintf(buf, ">%s</model>\n",
                           model->name);
     }
 
@@ -397,7 +393,7 @@ virDomainCapsCPUCustomFormat(virBufferPtr buf,
 }
 
 static void
-virDomainCapsCPUFormat(virBufferPtr buf,
+virDomainCapsCPUFormat(virBuffer *buf,
                        const virDomainCapsCPU *cpu)
 {
     virBufferAddLit(buf, "<cpu>\n");
@@ -411,6 +407,21 @@ virDomainCapsCPUFormat(virBufferPtr buf,
         virBufferAddLit(buf, ">\n");
         virBufferAdjustIndent(buf, 2);
         ENUM_PROCESS(cpu, hostPassthroughMigratable,
+                     virTristateSwitchTypeToString);
+        virBufferAdjustIndent(buf, -2);
+        virBufferAddLit(buf, "</mode>\n");
+    } else {
+        virBufferAddLit(buf, "/>\n");
+    }
+
+    virBufferAsprintf(buf, "<mode name='%s' supported='%s'",
+                      virCPUModeTypeToString(VIR_CPU_MODE_MAXIMUM),
+                      cpu->maximum ? "yes" : "no");
+
+    if (cpu->maximum && cpu->maximumMigratable.report) {
+        virBufferAddLit(buf, ">\n");
+        virBufferAdjustIndent(buf, 2);
+        ENUM_PROCESS(cpu, maximumMigratable,
                      virTristateSwitchTypeToString);
         virBufferAdjustIndent(buf, -2);
         virBufferAddLit(buf, "</mode>\n");
@@ -447,7 +458,7 @@ virDomainCapsCPUFormat(virBufferPtr buf,
 }
 
 static void
-virDomainCapsDeviceDiskFormat(virBufferPtr buf,
+virDomainCapsDeviceDiskFormat(virBuffer *buf,
                               const virDomainCapsDeviceDisk *disk)
 {
     FORMAT_PROLOGUE(disk);
@@ -461,7 +472,7 @@ virDomainCapsDeviceDiskFormat(virBufferPtr buf,
 
 
 static void
-virDomainCapsDeviceGraphicsFormat(virBufferPtr buf,
+virDomainCapsDeviceGraphicsFormat(virBuffer *buf,
                                   const virDomainCapsDeviceGraphics *graphics)
 {
     FORMAT_PROLOGUE(graphics);
@@ -473,7 +484,7 @@ virDomainCapsDeviceGraphicsFormat(virBufferPtr buf,
 
 
 static void
-virDomainCapsDeviceVideoFormat(virBufferPtr buf,
+virDomainCapsDeviceVideoFormat(virBuffer *buf,
                                const virDomainCapsDeviceVideo *video)
 {
     FORMAT_PROLOGUE(video);
@@ -485,7 +496,7 @@ virDomainCapsDeviceVideoFormat(virBufferPtr buf,
 
 
 static void
-virDomainCapsDeviceHostdevFormat(virBufferPtr buf,
+virDomainCapsDeviceHostdevFormat(virBuffer *buf,
                                  const virDomainCapsDeviceHostdev *hostdev)
 {
     FORMAT_PROLOGUE(hostdev);
@@ -501,7 +512,7 @@ virDomainCapsDeviceHostdevFormat(virBufferPtr buf,
 
 
 static void
-virDomainCapsDeviceRNGFormat(virBufferPtr buf,
+virDomainCapsDeviceRNGFormat(virBuffer *buf,
                              const virDomainCapsDeviceRNG *rng)
 {
     FORMAT_PROLOGUE(rng);
@@ -510,6 +521,18 @@ virDomainCapsDeviceRNGFormat(virBufferPtr buf,
     ENUM_PROCESS(rng, backendModel, virDomainRNGBackendTypeToString);
 
     FORMAT_EPILOGUE(rng);
+}
+
+
+static void
+virDomainCapsDeviceFilesystemFormat(virBuffer *buf,
+                                    const virDomainCapsDeviceFilesystem *filesystem)
+{
+    FORMAT_PROLOGUE(filesystem);
+
+    ENUM_PROCESS(filesystem, driverType, virDomainFSDriverTypeToString);
+
+    FORMAT_EPILOGUE(filesystem);
 }
 
 
@@ -530,7 +553,7 @@ virDomainCapsDeviceRNGFormat(virBufferPtr buf,
  *   </gic>
  */
 static void
-virDomainCapsFeatureGICFormat(virBufferPtr buf,
+virDomainCapsFeatureGICFormat(virBuffer *buf,
                               const virDomainCapsFeatureGIC *gic)
 {
     FORMAT_PROLOGUE(gic);
@@ -541,7 +564,7 @@ virDomainCapsFeatureGICFormat(virBufferPtr buf,
 }
 
 static void
-virDomainCapsFeatureSEVFormat(virBufferPtr buf,
+virDomainCapsFeatureSEVFormat(virBuffer *buf,
                               const virSEVCapability *sev)
 {
     if (!sev) {
@@ -562,7 +585,7 @@ virDomainCapsFeatureSEVFormat(virBufferPtr buf,
 
 static void
 virDomainCapsFormatFeatures(const virDomainCaps *caps,
-                            virBufferPtr buf)
+                            virBuffer *buf)
 {
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
     size_t i;
@@ -617,6 +640,7 @@ virDomainCapsFormat(const virDomainCaps *caps)
     virDomainCapsDeviceVideoFormat(&buf, &caps->video);
     virDomainCapsDeviceHostdevFormat(&buf, &caps->hostdev);
     virDomainCapsDeviceRNGFormat(&buf, &caps->rng);
+    virDomainCapsDeviceFilesystemFormat(&buf, &caps->filesystem);
 
     virBufferAdjustIndent(&buf, -2);
     virBufferAddLit(&buf, "</devices>\n");

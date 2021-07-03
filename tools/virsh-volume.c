@@ -54,13 +54,27 @@
      .completer_flags = VIR_CONNECT_LIST_STORAGE_POOLS_ACTIVE, \
     }
 
-#define VIRSH_COMMON_OPT_VOLUME_VOL \
+#define VIRSH_COMMON_OPT_VOL_NAME(_helpstr) \
     {.name = "vol", \
      .type = VSH_OT_DATA, \
      .flags = VSH_OFLAG_REQ, \
-     .help = N_("vol name, key or path"), \
+     .help = _helpstr, \
      .completer = virshStorageVolNameCompleter, \
     }
+
+#define VIRSH_COMMON_OPT_VOL_KEY(_helpstr) \
+    {.name = "vol", \
+     .type = VSH_OT_DATA, \
+     .flags = VSH_OFLAG_REQ, \
+     .help = _helpstr, \
+     .completer = virshStorageVolKeyCompleter, \
+    }
+
+#define VIRSH_COMMON_OPT_VOL_FULL \
+    VIRSH_COMMON_OPT_VOL_NAME(N_("vol name, key or path"))
+
+#define VIRSH_COMMON_OPT_VOL_BY_KEY \
+    VIRSH_COMMON_OPT_VOL_KEY(N_("volume key or path"))
 
 virStorageVolPtr
 virshCommandOptVolBy(vshControl *ctl, const vshCmd *cmd,
@@ -71,7 +85,7 @@ virshCommandOptVolBy(vshControl *ctl, const vshCmd *cmd,
     virStorageVolPtr vol = NULL;
     virStoragePoolPtr pool = NULL;
     const char *n = NULL, *p = NULL;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
 
     virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
@@ -226,7 +240,7 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
     unsigned long long capacity, allocation = 0;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     unsigned long flags = 0;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     bool ret = false;
 
     if (vshCommandOptBool(cmd, "prealloc-metadata"))
@@ -440,7 +454,7 @@ static const vshCmdInfo info_vol_create_from[] = {
 static const vshCmdOptDef opts_vol_create_from[] = {
     VIRSH_COMMON_OPT_POOL_FULL,
     VIRSH_COMMON_OPT_FILE(N_("file containing an XML vol description")),
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     {.name = "inputpool",
      .type = VSH_OT_STRING,
      .help = N_("pool name or uuid of the input volume's pool")
@@ -550,7 +564,7 @@ static const vshCmdInfo info_vol_clone[] = {
 };
 
 static const vshCmdOptDef opts_vol_clone[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     {.name = "newname",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
@@ -646,7 +660,7 @@ static const vshCmdInfo info_vol_upload[] = {
 };
 
 static const vshCmdOptDef opts_vol_upload[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     VIRSH_COMMON_OPT_FILE(N_("file")),
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "offset",
@@ -674,7 +688,7 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
     virStreamPtr st = NULL;
     const char *name = NULL;
     unsigned long long offset = 0, length = 0;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     unsigned int flags = 0;
     virshStreamCallbackData cbData;
     struct stat sb;
@@ -768,7 +782,7 @@ static const vshCmdInfo info_vol_download[] = {
 };
 
 static const vshCmdOptDef opts_vol_download[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     VIRSH_COMMON_OPT_FILE(N_("file")),
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "offset",
@@ -797,7 +811,7 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
     const char *name = NULL;
     unsigned long long offset = 0, length = 0;
     bool created = false;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     virshStreamCallbackData cbData;
     unsigned int flags = 0;
     struct stat sb;
@@ -889,7 +903,7 @@ static const vshCmdInfo info_vol_delete[] = {
 };
 
 static const vshCmdOptDef opts_vol_delete[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "delete-snapshots",
      .type = VSH_OT_BOOL,
@@ -939,7 +953,7 @@ static const vshCmdInfo info_vol_wipe[] = {
 };
 
 static const vshCmdOptDef opts_vol_wipe[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "algorithm",
      .type = VSH_OT_STRING,
@@ -1027,7 +1041,7 @@ static const vshCmdInfo info_vol_info[] = {
 };
 
 static const vshCmdOptDef opts_vol_info[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "bytes",
      .type = VSH_OT_BOOL,
@@ -1117,7 +1131,7 @@ static const vshCmdInfo info_vol_resize[] = {
 };
 
 static const vshCmdOptDef opts_vol_resize[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     {.name = "capacity",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
@@ -1214,7 +1228,7 @@ static const vshCmdInfo info_vol_dumpxml[] = {
 };
 
 static const vshCmdOptDef opts_vol_dumpxml[] = {
-    VIRSH_COMMON_OPT_VOLUME_VOL,
+    VIRSH_COMMON_OPT_VOL_FULL,
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = NULL}
 };
@@ -1261,10 +1275,9 @@ struct virshStorageVolList {
     virStorageVolPtr *vols;
     size_t nvols;
 };
-typedef struct virshStorageVolList *virshStorageVolListPtr;
 
 static void
-virshStorageVolListFree(virshStorageVolListPtr list)
+virshStorageVolListFree(struct virshStorageVolList *list)
 {
     size_t i;
 
@@ -1273,17 +1286,17 @@ virshStorageVolListFree(virshStorageVolListPtr list)
             if (list->vols[i])
                 virStorageVolFree(list->vols[i]);
         }
-        VIR_FREE(list->vols);
+        g_free(list->vols);
     }
-    VIR_FREE(list);
+    g_free(list);
 }
 
-static virshStorageVolListPtr
+static struct virshStorageVolList *
 virshStorageVolListCollect(vshControl *ctl,
                            virStoragePoolPtr pool,
                            unsigned int flags)
 {
-    virshStorageVolListPtr list = g_new0(struct virshStorageVolList, 1);
+    struct virshStorageVolList *list = g_new0(struct virshStorageVolList, 1);
     size_t i;
     char **names = NULL;
     virStorageVolPtr vol = NULL;
@@ -1404,8 +1417,8 @@ cmdVolList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
         char *type;
     };
     struct volInfoText *volInfoTexts = NULL;
-    virshStorageVolListPtr list = NULL;
-    vshTablePtr table = NULL;
+    struct virshStorageVolList *list = NULL;
+    vshTable *table = NULL;
 
     /* Look up the pool information given to us by the user */
     if (!(pool = virshCommandOptPool(ctl, cmd, "pool", NULL)))
@@ -1539,11 +1552,7 @@ static const vshCmdInfo info_vol_name[] = {
 };
 
 static const vshCmdOptDef opts_vol_name[] = {
-    {.name = "vol",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
-     .help = N_("volume key or path")
-    },
+    VIRSH_COMMON_OPT_VOL_BY_KEY,
     {.name = NULL}
 };
 
@@ -1575,11 +1584,7 @@ static const vshCmdInfo info_vol_pool[] = {
 };
 
 static const vshCmdOptDef opts_vol_pool[] = {
-    {.name = "vol",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
-     .help = N_("volume key or path")
-    },
+    VIRSH_COMMON_OPT_VOL_BY_KEY,
     {.name = "uuid",
      .type = VSH_OT_BOOL,
      .help = N_("return the pool uuid rather than pool name")
@@ -1638,11 +1643,7 @@ static const vshCmdInfo info_vol_key[] = {
 };
 
 static const vshCmdOptDef opts_vol_key[] = {
-    {.name = "vol",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
-     .help = N_("volume name or path")
-    },
+    VIRSH_COMMON_OPT_VOL_NAME(N_("volume name or path")),
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = NULL}
 };
@@ -1674,11 +1675,7 @@ static const vshCmdInfo info_vol_path[] = {
 };
 
 static const vshCmdOptDef opts_vol_path[] = {
-    {.name = "vol",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
-     .help = N_("volume name or key")
-    },
+    VIRSH_COMMON_OPT_VOL_NAME(N_("volume name or key")),
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = NULL}
 };

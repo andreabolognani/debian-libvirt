@@ -207,6 +207,12 @@
         &lt;value&gt;off&lt;/value&gt;
       &lt;/enum&gt;
     &lt;/mode&gt;
+    &lt;mode name='maximum' supported='yes'&gt;
+      &lt;enum name='maximumMigratable'&gt;
+        &lt;value&gt;on&lt;/value&gt;
+        &lt;value&gt;off&lt;/value&gt;
+      &lt;/enum&gt;
+    &lt;/mode&gt;
     &lt;mode name='host-model' supported='yes'&gt;
       &lt;model fallback='allow'&gt;Broadwell&lt;/model&gt;
       &lt;vendor&gt;Intel&lt;/vendor&gt;
@@ -214,9 +220,9 @@
       &lt;feature policy='require' name='vmx'/&gt;
     &lt;/mode&gt;
     &lt;mode name='custom' supported='yes'&gt;
-      &lt;model usable='no'&gt;Broadwell&lt;/model&gt;
-      &lt;model usable='yes'&gt;Broadwell-noTSX&lt;/model&gt;
-      &lt;model usable='no'&gt;Haswell&lt;/model&gt;
+      &lt;model usable='no' deprecated='no'&gt;Broadwell&lt;/model&gt;
+      &lt;model usable='yes' deprecated='no'&gt;Broadwell-noTSX&lt;/model&gt;
+      &lt;model usable='no' deprecated='yes'&gt;Haswell&lt;/model&gt;
       ...
     &lt;/mode&gt;
   &lt;/cpu&gt;
@@ -262,7 +268,9 @@
         cannot be used without disabling some features that the CPU of such
         model is expected to have. A special value <code>unknown</code>
         indicates libvirt does not have enough information to provide the
-        usability data.
+        usability data. The <code>deprecated</code> attribute reflects
+        the hypervisor's policy on usage of this model
+        <span class="since">(since 7.1.0)</span>.
       </dd>
     </dl>
 
@@ -507,6 +515,34 @@
       <dt><code>backendModel</code></dt>
       <dd>Options for the <code>model</code> attribute of the
       &lt;rng&gt;&lt;backend&gt; element.</dd>
+    </dl>
+
+
+    <h4><a id="elementsFilesystem">Filesystem device</a></h4>
+    <p>Filesystem device capabilities are exposed under the
+    <code>filesystem</code> element. For instance:</p>
+
+<pre>
+&lt;domainCapabilities&gt;
+  ...
+  &lt;devices&gt;
+    &lt;filesystem supported='yes'&gt;
+      &lt;enum name='driverType'&gt;
+        &lt;value&gt;default&lt;/value&gt;
+        &lt;value&gt;path&lt;/value&gt;
+        &lt;value&gt;handle&lt;/value&gt;
+        &lt;value&gt;virtiofs&lt;/value&gt;
+      &lt;/enum&gt;
+    &lt;/filesystem&gt;
+    ...
+  &lt;/devices&gt;
+&lt;/domainCapabilities&gt;
+</pre>
+
+    <dl>
+      <dt><code>driverType</code></dt>
+      <dd>Options for the <code>type</code> attribute of the
+      &lt;filesystem&gt;&lt;driver&gt; element.</dd>
     </dl>
 
 

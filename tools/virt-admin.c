@@ -92,7 +92,6 @@ vshAdmCatchDisconnect(virAdmConnectPtr conn G_GNUC_UNUSED,
     case VIR_CONNECT_CLOSE_REASON_KEEPALIVE:
         str = N_("Disconnected from %s due to keepalive timeout");
         break;
-        /* coverity[dead_error_condition] */
     case VIR_CONNECT_CLOSE_REASON_CLIENT:
     case VIR_CONNECT_CLOSE_REASON_LAST:
         break;
@@ -107,7 +106,7 @@ vshAdmCatchDisconnect(virAdmConnectPtr conn G_GNUC_UNUSED,
 static int
 vshAdmConnect(vshControl *ctl, unsigned int flags)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     priv->conn = virAdmConnectOpen(ctl->connname, flags);
 
@@ -133,7 +132,7 @@ static int
 vshAdmDisconnect(vshControl *ctl)
 {
     int ret = 0;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (!priv->conn)
         return ret;
@@ -158,7 +157,7 @@ vshAdmDisconnect(vshControl *ctl)
 static void
 vshAdmReconnect(vshControl *ctl)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
     if (priv->conn)
         priv->wantReconnect = true;
 
@@ -186,7 +185,7 @@ static bool
 cmdURI(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 {
     char *uri;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     uri = virAdmConnectGetURI(priv->conn);
     if (!uri) {
@@ -224,7 +223,7 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     unsigned int major;
     unsigned int minor;
     unsigned int rel;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     includeVersion = LIBVIR_VERSION_NUMBER;
     major = includeVersion / 1000000;
@@ -290,7 +289,7 @@ static bool
 cmdConnect(vshControl *ctl, const vshCmd *cmd)
 {
     const char *name = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
     bool connected = priv->conn;
 
     if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
@@ -332,8 +331,8 @@ cmdSrvList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     bool ret = false;
     char *uri = NULL;
     virAdmServerPtr *srvs = NULL;
-    vshAdmControlPtr priv = ctl->privData;
-    vshTablePtr table = NULL;
+    vshAdmControl *priv = ctl->privData;
+    vshTable *table = NULL;
 
     /* Obtain a list of available servers on the daemon */
     if ((nsrvs = virAdmConnectListServers(priv->conn, &srvs, 0)) < 0) {
@@ -408,7 +407,7 @@ cmdSrvThreadpoolInfo(vshControl *ctl, const vshCmd *cmd)
     size_t i;
     const char *srvname = NULL;
     virAdmServerPtr srv = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -484,7 +483,7 @@ cmdSrvThreadpoolSet(vshControl *ctl, const vshCmd *cmd)
     const char *srvname = NULL;
     virTypedParameterPtr params = NULL;
     virAdmServerPtr srv = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -580,8 +579,8 @@ cmdSrvClientsList(vshControl *ctl, const vshCmd *cmd)
     virClientTransport transport;
     virAdmServerPtr srv = NULL;
     virAdmClientPtr *clts = NULL;
-    vshAdmControlPtr priv = ctl->privData;
-    vshTablePtr table = NULL;
+    vshAdmControl *priv = ctl->privData;
+    vshTable *table = NULL;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -675,7 +674,7 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
     virAdmClientPtr clnt = NULL;
     virTypedParameterPtr params = NULL;
     int nparams = 0;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptULongLong(ctl, cmd, "client", &id) < 0)
         return false;
@@ -759,7 +758,7 @@ cmdClientDisconnect(vshControl *ctl, const vshCmd *cmd)
     unsigned long long id = 0;
     virAdmServerPtr srv = NULL;
     virAdmClientPtr client = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -821,7 +820,7 @@ cmdSrvClientsInfo(vshControl *ctl, const vshCmd *cmd)
     size_t i;
     const char *srvname = NULL;
     virAdmServerPtr srv = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -893,7 +892,7 @@ cmdSrvClientsSet(vshControl *ctl, const vshCmd *cmd)
     const char *srvname = NULL;
     virAdmServerPtr srv = NULL;
     virTypedParameterPtr params = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -984,7 +983,7 @@ cmdSrvUpdateTlsFiles(vshControl *ctl, const vshCmd *cmd)
     const char *srvname = NULL;
 
     virAdmServerPtr srv = NULL;
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
         return false;
@@ -1034,7 +1033,7 @@ static const vshCmdOptDef opts_daemon_log_filters[] = {
 static bool
 cmdDaemonLogFilters(vshControl *ctl, const vshCmd *cmd)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptBool(cmd, "filters")) {
         const char *filters = NULL;
@@ -1087,7 +1086,7 @@ static const vshCmdOptDef opts_daemon_log_outputs[] = {
 static bool
 cmdDaemonLogOutputs(vshControl *ctl, const vshCmd *cmd)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (vshCommandOptBool(cmd, "outputs")) {
         const char *outputs = NULL;
@@ -1113,7 +1112,7 @@ cmdDaemonLogOutputs(vshControl *ctl, const vshCmd *cmd)
 static void *
 vshAdmConnectionHandler(vshControl *ctl)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     if (!virAdmConnectIsAlive(priv->conn))
         vshAdmReconnect(ctl);
@@ -1132,7 +1131,7 @@ vshAdmConnectionHandler(vshControl *ctl)
 static bool
 vshAdmInit(vshControl *ctl)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     /* Since we have the commandline arguments parsed, we need to
      * reload our initial settings to make debugging and readline
@@ -1181,7 +1180,7 @@ vshAdmDeinitTimer(int timer G_GNUC_UNUSED, void *opaque G_GNUC_UNUSED)
 static void
 vshAdmDeinit(vshControl *ctl)
 {
-    vshAdmControlPtr priv = ctl->privData;
+    vshAdmControl *priv = ctl->privData;
 
     vshDeinit(ctl);
     VIR_FREE(ctl->connname);
@@ -1364,7 +1363,7 @@ vshAdmParseArgv(vshControl *ctl, int argc, char **argv)
         ctl->imode = false;
         if (argc - optind == 1) {
             vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
-            return vshCommandStringParse(ctl, argv[optind], NULL);
+            return vshCommandStringParse(ctl, argv[optind], NULL, 0);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);
         }
@@ -1594,7 +1593,7 @@ main(int argc, char **argv)
             if (*ctl->cmdstr) {
                 vshReadlineHistoryAdd(ctl->cmdstr);
 
-                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL))
+                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL, 0))
                     vshCommandRun(ctl, ctl->cmd);
             }
             VIR_FREE(ctl->cmdstr);

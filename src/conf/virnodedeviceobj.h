@@ -27,13 +27,10 @@
 
 
 typedef struct _virNodeDeviceObj virNodeDeviceObj;
-typedef virNodeDeviceObj *virNodeDeviceObjPtr;
 
 typedef struct _virNodeDeviceObjList virNodeDeviceObjList;
-typedef virNodeDeviceObjList *virNodeDeviceObjListPtr;
 
 typedef struct _virNodeDeviceDriverState virNodeDeviceDriverState;
-typedef virNodeDeviceDriverState *virNodeDeviceDriverStatePtr;
 struct _virNodeDeviceDriverState {
     virMutex lock;
     virCond initCond;
@@ -44,64 +41,68 @@ struct _virNodeDeviceDriverState {
 
     char *stateDir;
 
-    virNodeDeviceObjListPtr devs;       /* currently-known devices */
+    virNodeDeviceObjList *devs;       /* currently-known devices */
     void *privateData;                  /* driver-specific private data */
     bool privileged;                    /* whether we run in privileged mode */
 
     /* Immutable pointer, self-locking APIs */
-    virObjectEventStatePtr nodeDeviceEventState;
+    virObjectEventState *nodeDeviceEventState;
 };
 
 void
-virNodeDeviceObjEndAPI(virNodeDeviceObjPtr *obj);
+virNodeDeviceObjEndAPI(virNodeDeviceObj **obj);
 
-virNodeDeviceDefPtr
-virNodeDeviceObjGetDef(virNodeDeviceObjPtr obj);
+virNodeDeviceDef *
+virNodeDeviceObjGetDef(virNodeDeviceObj *obj);
 
-virNodeDeviceObjPtr
-virNodeDeviceObjListFindByName(virNodeDeviceObjListPtr devs,
+virNodeDeviceObj *
+virNodeDeviceObjListFindByName(virNodeDeviceObjList *devs,
                                const char *name);
 
-virNodeDeviceObjPtr
-virNodeDeviceObjListFindBySysfsPath(virNodeDeviceObjListPtr devs,
+virNodeDeviceObj *
+virNodeDeviceObjListFindBySysfsPath(virNodeDeviceObjList *devs,
                                     const char *sysfs_path)
     ATTRIBUTE_NONNULL(2);
 
-virNodeDeviceObjPtr
-virNodeDeviceObjListFindSCSIHostByWWNs(virNodeDeviceObjListPtr devs,
+virNodeDeviceObj *
+virNodeDeviceObjListFindSCSIHostByWWNs(virNodeDeviceObjList *devs,
                                        const char *wwnn,
                                        const char *wwpn);
 
-virNodeDeviceObjPtr
-virNodeDeviceObjListAssignDef(virNodeDeviceObjListPtr devs,
-                              virNodeDeviceDefPtr def);
+virNodeDeviceObj *
+virNodeDeviceObjListAssignDef(virNodeDeviceObjList *devs,
+                              virNodeDeviceDef *def);
 
 void
-virNodeDeviceObjListRemove(virNodeDeviceObjListPtr devs,
-                           virNodeDeviceObjPtr dev);
+virNodeDeviceObjListRemove(virNodeDeviceObjList *devs,
+                           virNodeDeviceObj *dev);
+
+void
+virNodeDeviceObjListRemoveLocked(virNodeDeviceObjList *devs,
+                                 virNodeDeviceObj *dev);
 
 int
-virNodeDeviceObjListGetParentHost(virNodeDeviceObjListPtr devs,
-                                  virNodeDeviceDefPtr def);
+virNodeDeviceObjListGetParentHost(virNodeDeviceObjList *devs,
+                                  virNodeDeviceDef *def);
 
-virNodeDeviceObjListPtr
+virNodeDeviceObjList *
 virNodeDeviceObjListNew(void);
 
 void
-virNodeDeviceObjListFree(virNodeDeviceObjListPtr devs);
+virNodeDeviceObjListFree(virNodeDeviceObjList *devs);
 
 typedef bool
 (*virNodeDeviceObjListFilter)(virConnectPtr conn,
-                              virNodeDeviceDefPtr def);
+                              virNodeDeviceDef *def);
 
 int
-virNodeDeviceObjListNumOfDevices(virNodeDeviceObjListPtr devs,
+virNodeDeviceObjListNumOfDevices(virNodeDeviceObjList *devs,
                                  virConnectPtr conn,
                                  const char *cap,
                                  virNodeDeviceObjListFilter filter);
 
 int
-virNodeDeviceObjListGetNames(virNodeDeviceObjListPtr devs,
+virNodeDeviceObjListGetNames(virNodeDeviceObjList *devs,
                              virConnectPtr conn,
                              virNodeDeviceObjListFilter filter,
                              const char *cap,
@@ -110,14 +111,34 @@ virNodeDeviceObjListGetNames(virNodeDeviceObjListPtr devs,
 
 int
 virNodeDeviceObjListExport(virConnectPtr conn,
-                           virNodeDeviceObjListPtr devobjs,
+                           virNodeDeviceObjList *devobjs,
                            virNodeDevicePtr **devices,
                            virNodeDeviceObjListFilter filter,
                            unsigned int flags);
 
 void
-virNodeDeviceObjSetSkipUpdateCaps(virNodeDeviceObjPtr obj,
+virNodeDeviceObjSetSkipUpdateCaps(virNodeDeviceObj *obj,
                                   bool skipUpdateCaps);
-virNodeDeviceObjPtr
-virNodeDeviceObjListFindMediatedDeviceByUUID(virNodeDeviceObjListPtr devs,
+virNodeDeviceObj *
+virNodeDeviceObjListFindMediatedDeviceByUUID(virNodeDeviceObjList *devs,
                                              const char *uuid);
+
+bool
+virNodeDeviceObjIsActive(virNodeDeviceObj *obj);
+
+void
+virNodeDeviceObjSetActive(virNodeDeviceObj *obj,
+                          bool active);
+bool
+virNodeDeviceObjIsPersistent(virNodeDeviceObj *obj);
+
+void
+virNodeDeviceObjSetPersistent(virNodeDeviceObj *obj,
+                              bool persistent);
+
+typedef bool (*virNodeDeviceObjListRemoveIterator)(virNodeDeviceObj *obj,
+                                                   const void *opaque);
+
+void virNodeDeviceObjListForEachRemove(virNodeDeviceObjList *devs,
+                                       virNodeDeviceObjListRemoveIterator callback,
+                                       void *opaque);

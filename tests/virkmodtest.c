@@ -32,7 +32,7 @@
 # define VIR_FROM_THIS VIR_FROM_NONE
 
 static int
-checkOutput(virBufferPtr buf, const char *exp_cmd)
+checkOutput(virBuffer *buf, const char *exp_cmd)
 {
     int ret = -1;
     char *actual_cmd = NULL;
@@ -61,8 +61,9 @@ testKModLoad(const void *args G_GNUC_UNUSED)
     int ret = -1;
     char *errbuf = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
-    virCommandSetDryRun(&buf, NULL, NULL);
+    virCommandSetDryRun(dryRunToken, &buf, false, false, NULL, NULL);
 
     errbuf = virKModLoad(MODNAME);
     if (errbuf) {
@@ -76,7 +77,6 @@ testKModLoad(const void *args G_GNUC_UNUSED)
     ret = 0;
 
  cleanup:
-    virCommandSetDryRun(NULL, NULL, NULL);
     VIR_FREE(errbuf);
     return ret;
 }
@@ -88,8 +88,9 @@ testKModUnload(const void *args G_GNUC_UNUSED)
     int ret = -1;
     char *errbuf = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
-    virCommandSetDryRun(&buf, NULL, NULL);
+    virCommandSetDryRun(dryRunToken, &buf, false, false, NULL, NULL);
 
     errbuf = virKModUnload(MODNAME);
     if (errbuf) {
@@ -103,7 +104,6 @@ testKModUnload(const void *args G_GNUC_UNUSED)
     ret = 0;
 
  cleanup:
-    virCommandSetDryRun(NULL, NULL, NULL);
     VIR_FREE(errbuf);
     return ret;
 }

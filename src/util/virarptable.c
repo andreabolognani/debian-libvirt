@@ -61,13 +61,13 @@ parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, int len)
 }
 
 
-virArpTablePtr
+virArpTable *
 virArpTableGet(void)
 {
     int num = 0;
     int msglen;
     g_autofree void *nlData = NULL;
-    virArpTablePtr table = NULL;
+    virArpTable *table = NULL;
     struct nlmsghdr* nh;
     struct rtattr * tb[NDA_MAX+1];
 
@@ -114,13 +114,12 @@ virArpTableGet(void)
         if (tb[NDA_DST]) {
             g_autofree char *ipstr = NULL;
             virSocketAddr virAddr;
-            if (VIR_REALLOC_N(table->t, num + 1) < 0)
-                goto cleanup;
 
+            VIR_REALLOC_N(table->t, num + 1);
             table->n = num + 1;
 
             addr = RTA_DATA(tb[NDA_DST]);
-            bzero(&virAddr, sizeof(virAddr));
+            memset(&virAddr, 0, sizeof(virAddr));
             virAddr.len = sizeof(virAddr.data.inet4);
             virAddr.data.inet4.sin_family = AF_INET;
             virAddr.data.inet4.sin_addr = *(struct in_addr *)addr;
@@ -153,7 +152,7 @@ virArpTableGet(void)
 
 #else
 
-virArpTablePtr
+virArpTable *
 virArpTableGet(void)
 {
     virReportError(VIR_ERR_NO_SUPPORT, "%s",
@@ -164,7 +163,7 @@ virArpTableGet(void)
 #endif /* __linux__ */
 
 void
-virArpTableFree(virArpTablePtr table)
+virArpTableFree(virArpTable *table)
 {
     size_t i;
 
@@ -172,9 +171,9 @@ virArpTableFree(virArpTablePtr table)
         return;
 
     for (i = 0; i < table->n; i++) {
-        VIR_FREE(table->t[i].ipaddr);
-        VIR_FREE(table->t[i].mac);
+        g_free(table->t[i].ipaddr);
+        g_free(table->t[i].mac);
     }
-    VIR_FREE(table->t);
-    VIR_FREE(table);
+    g_free(table->t);
+    g_free(table);
 }

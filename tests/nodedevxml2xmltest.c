@@ -14,13 +14,13 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 static int
-testCompareXMLToXMLFiles(const char *xml)
+testCompareXMLToXMLFiles(const char *xml, const char *outfile)
 {
     char *xmlData = NULL;
     char *actual = NULL;
     int ret = -1;
-    virNodeDeviceDefPtr dev = NULL;
-    virNodeDevCapsDefPtr caps;
+    virNodeDeviceDef *dev = NULL;
+    virNodeDevCapsDef *caps;
 
     if (virTestLoadFile(xml, &xmlData) < 0)
         goto fail;
@@ -30,7 +30,7 @@ testCompareXMLToXMLFiles(const char *xml)
 
     /* Calculate some things that are not read in */
     for (caps = dev->caps; caps; caps = caps->next) {
-        virNodeDevCapDataPtr data = &caps->data;
+        virNodeDevCapData *data = &caps->data;
 
         if (caps->data.type == VIR_NODE_DEV_CAP_STORAGE) {
             if (data->storage.flags & VIR_NODE_DEV_CAP_STORAGE_REMOVABLE) {
@@ -52,10 +52,8 @@ testCompareXMLToXMLFiles(const char *xml)
     if (!(actual = virNodeDeviceDefFormat(dev)))
         goto fail;
 
-    if (STRNEQ(xmlData, actual)) {
-        virTestDifferenceFull(stderr, xmlData, xml, actual, NULL);
+    if (virTestCompareToFile(actual, outfile) < 0)
         goto fail;
-    }
 
     ret = 0;
 
@@ -71,11 +69,15 @@ testCompareXMLToXMLHelper(const void *data)
 {
     int result = -1;
     char *xml = NULL;
+    g_autofree char *outfile = NULL;
 
     xml = g_strdup_printf("%s/nodedevschemadata/%s.xml", abs_srcdir,
                           (const char *)data);
 
-    result = testCompareXMLToXMLFiles(xml);
+    outfile = g_strdup_printf("%s/nodedevxml2xmlout/%s.xml", abs_srcdir,
+                              (const char *)data);
+
+    result = testCompareXMLToXMLFiles(xml, outfile);
 
     VIR_FREE(xml);
     return result;
@@ -130,6 +132,9 @@ mymain(void)
     DO_TEST("ap_matrix");
     DO_TEST("ap_matrix_mdev_types");
     DO_TEST("mdev_ee0b88c4_f554_4dc1_809d_b2a01e8e48ad");
+    DO_TEST("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
+    DO_TEST("mdev_d2441d39_495e_4243_ad9f_beb3f14c23d9");
+    DO_TEST("mdev_fedc4916_1ca8_49ac_b176_871d16c13076");
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

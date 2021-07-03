@@ -26,7 +26,7 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 void
-virNetDevVlanClear(virNetDevVlanPtr vlan)
+virNetDevVlanClear(virNetDevVlan *vlan)
 {
     VIR_FREE(vlan->tag);
     vlan->nTags = 0;
@@ -35,11 +35,11 @@ virNetDevVlanClear(virNetDevVlanPtr vlan)
 }
 
 void
-virNetDevVlanFree(virNetDevVlanPtr vlan)
+virNetDevVlanFree(virNetDevVlan *vlan)
 {
     if (vlan)
         virNetDevVlanClear(vlan);
-    VIR_FREE(vlan);
+    g_free(vlan);
 }
 
 int
@@ -78,7 +78,7 @@ virNetDevVlanEqual(const virNetDevVlan *a, const virNetDevVlan *b)
  *                     dst is assumed to be empty on entry.
  */
 int
-virNetDevVlanCopy(virNetDevVlanPtr dst, const virNetDevVlan *src)
+virNetDevVlanCopy(virNetDevVlan *dst, const virNetDevVlan *src)
 {
     if (!src || src->nTags == 0)
         return 0;

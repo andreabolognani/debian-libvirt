@@ -108,11 +108,48 @@ enum _Msvm_ResourceAllocationSettingData_ResourceType {
     MSVM_RASD_RESOURCETYPE_OTHER = 1,
     MSVM_RASD_RESOURCETYPE_IDE_CONTROLLER = 5,
     MSVM_RASD_RESOURCETYPE_PARALLEL_SCSI_HBA = 6,
+    MSVM_RASD_RESOURCETYPE_ETHERNET_ADAPTER = 10,
     MSVM_RASD_RESOURCETYPE_DISKETTE_DRIVE = 14,
     MSVM_RASD_RESOURCETYPE_CD_DRIVE = 15,
     MSVM_RASD_RESOURCETYPE_DVD_DRIVE = 16,
     MSVM_RASD_RESOURCETYPE_DISK_DRIVE = 17,
     MSVM_RASD_RESOURCETYPE_STORAGE_EXTENT = 19,
+    MSVM_RASD_RESOURCETYPE_SERIAL_PORT = 21,
+    MSVM_RASD_RESOURCETYPE_LOGICAL_DISK = 31,
+    MSVM_RASD_RESOURCETYPE_ETHERNET_CONNECTION = 33,
+};
+
+
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Msvm_EthernetPortAllocationSettingData
+ */
+
+/* https://docs.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-ethernetportallocationsettingdata#enabled */
+enum _Msvm_EthernetPortAllocationSettingData_EnabledState {
+    MSVM_ETHERNETPORTALLOCATIONSETTINGDATA_ENABLEDSTATE_ENABLED = 2,
+    MSVM_ETHERNETPORTALLOCATIONSETTINGDATA_ENABLEDSTATE_DISABLED = 3,
+};
+
+
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * CIM_EnabledLogicalElement
+ */
+
+/* https://docs.microsoft.com/en-us/windows/win32/hyperv_v2/cim-enabledlogicalelement#Unknown */
+enum _CIM_EnabledLogicalElement_EnabledState {
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_UNKNOWN = 0,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_OTHER = 1,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_ENABLED = 2,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_DISABLED = 3,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_SHUTTING_DOWN = 4,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_NOT_APPLICABLE = 5,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_ENABLED_BUT_OFFLINE = 6,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_IN_TEST = 7,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_DEFERRED = 8,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_QUIESCE = 9,
+    CIM_ENABLEDLOGICALELEMENT_ENABLEDSTATE_STARTING = 10,
 };
 
 
@@ -122,7 +159,6 @@ enum _Msvm_ResourceAllocationSettingData_ResourceType {
  */
 
 typedef struct _hypervCimType hypervCimType;
-typedef hypervCimType *hypervCimTypePtr;
 struct _hypervCimType {
     /* Parameter name */
     const char *name;
@@ -133,7 +169,6 @@ struct _hypervCimType {
 };
 
 typedef struct _hypervWmiClassInfo hypervWmiClassInfo;
-typedef hypervWmiClassInfo *hypervWmiClassInfoPtr;
 struct _hypervWmiClassInfo {
     /* The WMI class name */
     const char *name;
@@ -144,7 +179,7 @@ struct _hypervWmiClassInfo {
     /* The wsman serializer info - one of the *_TypeInfo structs */
     XmlSerializerInfo *serializerInfo;
     /* Property type information */
-    hypervCimTypePtr propertyInfo;
+    hypervCimType *propertyInfo;
 };
 
 #include "hyperv_wmi_classes.generated.h"

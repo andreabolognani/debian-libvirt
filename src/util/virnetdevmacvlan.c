@@ -278,7 +278,7 @@ static const uint32_t modeMap[VIR_NETDEV_MACVLAN_MODE_LAST] = {
 /* Struct to hold the state and configuration of a 802.1qbg port */
 struct virNetlinkCallbackData {
     char *cr_ifname;
-    virNetDevVPortProfilePtr virtPortProfile;
+    virNetDevVPortProfile *virtPortProfile;
     virMacAddr macaddress;
     char *linkdev;
     int vf;
@@ -286,8 +286,6 @@ struct virNetlinkCallbackData {
     virNetDevVPortProfileOp vmOp;
     unsigned int linkState;
 };
-
-typedef struct virNetlinkCallbackData *virNetlinkCallbackDataPtr;
 
 # define INSTANCE_STRLEN 36
 
@@ -347,7 +345,7 @@ virNetDevMacVLanVPortProfileCallback(struct nlmsghdr *hdr,
     int rem;
     char *ifname;
     bool indicate = false;
-    virNetlinkCallbackDataPtr calld = opaque;
+    struct virNetlinkCallbackData *calld = opaque;
     pid_t lldpad_pid = 0;
     pid_t virip_pid = 0;
     char macaddr[VIR_MAC_STRING_BUFLEN];
@@ -560,14 +558,14 @@ virNetDevMacVLanVPortProfileCallback(struct nlmsghdr *hdr,
  * Returns nothing.
  */
 static void
-virNetlinkCallbackDataFree(virNetlinkCallbackDataPtr calld)
+virNetlinkCallbackDataFree(struct virNetlinkCallbackData *calld)
 {
     if (calld) {
-        VIR_FREE(calld->cr_ifname);
-        VIR_FREE(calld->virtPortProfile);
-        VIR_FREE(calld->linkdev);
+        g_free(calld->cr_ifname);
+        g_free(calld->virtPortProfile);
+        g_free(calld->linkdev);
     }
-    VIR_FREE(calld);
+    g_free(calld);
 }
 
 /**
@@ -586,7 +584,7 @@ virNetDevMacVLanVPortProfileDestroyCallback(int watch G_GNUC_UNUSED,
                                             const virMacAddr *macaddr G_GNUC_UNUSED,
                                             void *opaque)
 {
-    virNetlinkCallbackDataFree((virNetlinkCallbackDataPtr)opaque);
+    virNetlinkCallbackDataFree((struct virNetlinkCallbackData *)opaque);
 }
 
 int
@@ -597,7 +595,7 @@ virNetDevMacVLanVPortProfileRegisterCallback(const char *ifname,
                                              const virNetDevVPortProfile *virtPortProfile,
                                              virNetDevVPortProfileOp vmOp)
 {
-    virNetlinkCallbackDataPtr calld = NULL;
+    struct virNetlinkCallbackData *calld = NULL;
 
     if (virtPortProfile && virNetlinkEventServiceIsRunning(NETLINK_ROUTE)) {
         calld = g_new0(struct virNetlinkCallbackData, 1);

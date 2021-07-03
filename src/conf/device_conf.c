@@ -50,40 +50,30 @@ VIR_ENUM_IMPL(virDomainDeviceAddress,
 
 static int
 virZPCIDeviceAddressParseXML(xmlNodePtr node,
-                             virPCIDeviceAddressPtr addr)
+                             virPCIDeviceAddress *addr)
 {
-    virZPCIDeviceAddress def = { .uid = { 0 }, .fid = { 0 } };
-    g_autofree char *uid = NULL;
-    g_autofree char *fid = NULL;
+    int retUid;
+    int retFid;
 
-    uid = virXMLPropString(node, "uid");
-    fid = virXMLPropString(node, "fid");
+    if ((retUid = virXMLPropUInt(node, "uid", 0, VIR_XML_PROP_NONE,
+                                 &addr->zpci.uid.value)) < 0)
+        return -1;
 
-    if (uid) {
-        if (virStrToLong_uip(uid, NULL, 0, &def.uid.value) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot parse <address> 'uid' attribute"));
-            return -1;
-        }
-        def.uid.isSet = true;
-    }
+    if (retUid > 0)
+        addr->zpci.uid.isSet = true;
 
-    if (fid) {
-        if (virStrToLong_uip(fid, NULL, 0, &def.fid.value) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot parse <address> 'fid' attribute"));
-            return -1;
-        }
-        def.fid.isSet = true;
-    }
+    if ((retFid = virXMLPropUInt(node, "fid", 0, VIR_XML_PROP_NONE,
+                                 &addr->zpci.fid.value)) < 0)
+        return -1;
 
-    addr->zpci = def;
+    if (retFid > 0)
+        addr->zpci.fid.isSet = true;
 
     return 0;
 }
 
 void
-virDomainDeviceInfoClear(virDomainDeviceInfoPtr info)
+virDomainDeviceInfoClear(virDomainDeviceInfo *info)
 {
     VIR_FREE(info->alias);
     memset(&info->addr, 0, sizeof(info->addr));
@@ -95,11 +85,11 @@ virDomainDeviceInfoClear(virDomainDeviceInfoPtr info)
 }
 
 void
-virDomainDeviceInfoFree(virDomainDeviceInfoPtr info)
+virDomainDeviceInfoFree(virDomainDeviceInfo *info)
 {
     if (info) {
         virDomainDeviceInfoClear(info);
-        VIR_FREE(info);
+        g_free(info);
     }
 }
 
@@ -206,54 +196,33 @@ virDeviceInfoPCIAddressExtensionIsPresent(const virDomainDeviceInfo *info)
 
 int
 virPCIDeviceAddressParseXML(xmlNodePtr node,
-                            virPCIDeviceAddressPtr addr)
+                            virPCIDeviceAddress *addr)
 {
     xmlNodePtr cur;
     xmlNodePtr zpci = NULL;
-    g_autofree char *domain   = virXMLPropString(node, "domain");
-    g_autofree char *bus      = virXMLPropString(node, "bus");
-    g_autofree char *slot     = virXMLPropString(node, "slot");
-    g_autofree char *function = virXMLPropString(node, "function");
-    g_autofree char *multi    = virXMLPropString(node, "multifunction");
 
     memset(addr, 0, sizeof(*addr));
 
-    if (domain &&
-        virStrToLong_uip(domain, NULL, 0, &addr->domain) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'domain' attribute"));
-        return -1;
-    }
-
-    if (bus &&
-        virStrToLong_uip(bus, NULL, 0, &addr->bus) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'bus' attribute"));
-        return -1;
-    }
-
-    if (slot &&
-        virStrToLong_uip(slot, NULL, 0, &addr->slot) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'slot' attribute"));
-        return -1;
-    }
-
-    if (function &&
-        virStrToLong_uip(function, NULL, 0, &addr->function) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'function' attribute"));
-        return -1;
-    }
-
-    if (multi &&
-        ((addr->multi = virTristateSwitchTypeFromString(multi)) <= 0)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Unknown value '%s' for <address> 'multifunction' attribute"),
-                       multi);
+    if (virXMLPropUInt(node, "domain", 0, VIR_XML_PROP_NONE,
+                       &addr->domain) < 0)
         return -1;
 
-    }
+    if (virXMLPropUInt(node, "bus", 0, VIR_XML_PROP_NONE,
+                       &addr->bus) < 0)
+        return -1;
+
+    if (virXMLPropUInt(node, "slot", 0, VIR_XML_PROP_NONE,
+                       &addr->slot) < 0)
+        return -1;
+
+    if (virXMLPropUInt(node, "function", 0, VIR_XML_PROP_NONE,
+                       &addr->function) < 0)
+        return -1;
+
+    if (virXMLPropTristateSwitch(node, "multifunction", VIR_XML_PROP_NONE,
+                                 &addr->multi) < 0)
+        return -1;
+
     if (!virPCIDeviceAddressIsEmpty(addr) && !virPCIDeviceAddressIsValid(addr, true))
         return -1;
 
@@ -273,7 +242,7 @@ virPCIDeviceAddressParseXML(xmlNodePtr node,
 }
 
 void
-virPCIDeviceAddressFormat(virBufferPtr buf,
+virPCIDeviceAddressFormat(virBuffer *buf,
                           virPCIDeviceAddress addr,
                           bool includeTypeInAddr)
 {
@@ -287,7 +256,7 @@ virPCIDeviceAddressFormat(virBufferPtr buf,
 }
 
 bool
-virDomainDeviceCCWAddressIsValid(virDomainDeviceCCWAddressPtr addr)
+virDomainDeviceCCWAddressIsValid(virDomainDeviceCCWAddress *addr)
 {
     return addr->cssid <= VIR_DOMAIN_DEVICE_CCW_MAX_CSSID &&
            addr->ssid <= VIR_DOMAIN_DEVICE_CCW_MAX_SSID &&
@@ -296,45 +265,38 @@ virDomainDeviceCCWAddressIsValid(virDomainDeviceCCWAddressPtr addr)
 
 int
 virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
-                                  virDomainDeviceCCWAddressPtr addr)
+                                  virDomainDeviceCCWAddress *addr)
 {
-    g_autofree char *cssid = virXMLPropString(node, "cssid");
-    g_autofree char *ssid = virXMLPropString(node, "ssid");
-    g_autofree char *devno = virXMLPropString(node, "devno");
+    int cssid;
+    int ssid;
+    int devno;
 
     memset(addr, 0, sizeof(*addr));
 
+    if ((cssid = virXMLPropUInt(node, "cssid", 0, VIR_XML_PROP_NONE,
+                                &addr->cssid)) < 0)
+        return -1;
+
+    if ((ssid = virXMLPropUInt(node, "ssid", 0, VIR_XML_PROP_NONE,
+                               &addr->ssid)) < 0)
+        return -1;
+
+    if ((devno = virXMLPropUInt(node, "devno", 0, VIR_XML_PROP_NONE,
+                                &addr->devno)) < 0)
+        return -1;
+
+    if (!virDomainDeviceCCWAddressIsValid(addr)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Invalid specification for virtio ccw address: cssid='0x%x' ssid='0x%x' devno='0x%04x'"),
+                       addr->cssid, addr->ssid, addr->devno);
+        return -1;
+    }
+
     if (cssid && ssid && devno) {
-        if (cssid &&
-            virStrToLong_uip(cssid, NULL, 0, &addr->cssid) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot parse <address> 'cssid' attribute"));
-            return -1;
-        }
-        if (ssid &&
-            virStrToLong_uip(ssid, NULL, 0, &addr->ssid) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot parse <address> 'ssid' attribute"));
-            return -1;
-        }
-        if (devno &&
-            virStrToLong_uip(devno, NULL, 0, &addr->devno) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot parse <address> 'devno' attribute"));
-            return -1;
-        }
-        if (!virDomainDeviceCCWAddressIsValid(addr)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Invalid specification for virtio ccw"
-                             " address: cssid='%s' ssid='%s' devno='%s'"),
-                           cssid, ssid, devno);
-            return -1;
-        }
         addr->assigned = true;
     } else if (cssid || ssid || devno) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Invalid partial specification for virtio ccw"
-                         " address"));
+                       _("Invalid partial specification for virtio ccw address"));
         return -1;
     }
 
@@ -342,8 +304,8 @@ virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
 }
 
 bool
-virDomainDeviceCCWAddressEqual(virDomainDeviceCCWAddressPtr addr1,
-                               virDomainDeviceCCWAddressPtr addr2)
+virDomainDeviceCCWAddressEqual(virDomainDeviceCCWAddress *addr1,
+                               virDomainDeviceCCWAddress *addr2)
 {
     if (addr1->cssid == addr2->cssid &&
         addr1->ssid == addr2->ssid &&
@@ -355,108 +317,64 @@ virDomainDeviceCCWAddressEqual(virDomainDeviceCCWAddressPtr addr1,
 
 int
 virDomainDeviceDriveAddressParseXML(xmlNodePtr node,
-                                    virDomainDeviceDriveAddressPtr addr)
+                                    virDomainDeviceDriveAddress *addr)
 {
-    g_autofree char *controller = virXMLPropString(node, "controller");
-    g_autofree char *bus = virXMLPropString(node, "bus");
-    g_autofree char *target = virXMLPropString(node, "target");
-    g_autofree char *unit = virXMLPropString(node, "unit");
-
     memset(addr, 0, sizeof(*addr));
 
-    if (controller &&
-        virStrToLong_uip(controller, NULL, 10, &addr->controller) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'controller' attribute"));
+    if (virXMLPropUInt(node, "controller", 10, VIR_XML_PROP_NONE,
+                       &addr->controller) < 0)
         return -1;
-    }
 
-    if (bus &&
-        virStrToLong_uip(bus, NULL, 10, &addr->bus) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'bus' attribute"));
+    if (virXMLPropUInt(node, "bus", 10, VIR_XML_PROP_NONE, &addr->bus) < 0)
         return -1;
-    }
 
-    if (target &&
-        virStrToLong_uip(target, NULL, 10, &addr->target) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'target' attribute"));
+    if (virXMLPropUInt(node, "target", 10, VIR_XML_PROP_NONE,
+                       &addr->target) < 0)
         return -1;
-    }
 
-    if (unit &&
-        virStrToLong_uip(unit, NULL, 10, &addr->unit) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'unit' attribute"));
+    if (virXMLPropUInt(node, "unit", 10, VIR_XML_PROP_NONE, &addr->unit) < 0)
         return -1;
-    }
 
     return 0;
 }
 
 int
 virDomainDeviceVirtioSerialAddressParseXML(xmlNodePtr node,
-                                           virDomainDeviceVirtioSerialAddressPtr addr)
+                                           virDomainDeviceVirtioSerialAddress *addr)
 {
-    g_autofree char *controller = virXMLPropString(node, "controller");
-    g_autofree char *bus = virXMLPropString(node, "bus");
-    g_autofree char *port = virXMLPropString(node, "port");
-
     memset(addr, 0, sizeof(*addr));
 
-    if (controller &&
-        virStrToLong_uip(controller, NULL, 10, &addr->controller) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'controller' attribute"));
+    if (virXMLPropUInt(node, "controller", 10, VIR_XML_PROP_NONE,
+                       &addr->controller) < 0)
         return -1;
-    }
 
-    if (bus &&
-        virStrToLong_uip(bus, NULL, 10, &addr->bus) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'bus' attribute"));
+    if (virXMLPropUInt(node, "bus", 10, VIR_XML_PROP_NONE, &addr->bus) < 0)
         return -1;
-    }
 
-    if (port &&
-        virStrToLong_uip(port, NULL, 10, &addr->port) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'port' attribute"));
+    if (virXMLPropUInt(node, "port", 10, VIR_XML_PROP_NONE, &addr->port) < 0)
         return -1;
-    }
 
     return 0;
 }
 
 int
 virDomainDeviceCcidAddressParseXML(xmlNodePtr node,
-                                   virDomainDeviceCcidAddressPtr addr)
+                                   virDomainDeviceCcidAddress *addr)
 {
-    g_autofree char *controller = virXMLPropString(node, "controller");
-    g_autofree char *slot = virXMLPropString(node, "slot");
-
     memset(addr, 0, sizeof(*addr));
 
-    if (controller &&
-        virStrToLong_uip(controller, NULL, 10, &addr->controller) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'controller' attribute"));
+    if (virXMLPropUInt(node, "controller", 10, VIR_XML_PROP_NONE,
+                       &addr->controller) < 0)
         return -1;
-    }
 
-    if (slot &&
-        virStrToLong_uip(slot, NULL, 10, &addr->slot) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'slot' attribute"));
+    if (virXMLPropUInt(node, "slot", 10, VIR_XML_PROP_NONE, &addr->slot) < 0)
         return -1;
-    }
 
     return 0;
 }
 
 static int
-virDomainDeviceUSBAddressParsePort(virDomainDeviceUSBAddressPtr addr,
+virDomainDeviceUSBAddressParsePort(virDomainDeviceUSBAddress *addr,
                                    char *port)
 {
     char *tmp = port;
@@ -480,47 +398,41 @@ virDomainDeviceUSBAddressParsePort(virDomainDeviceUSBAddressPtr addr,
 
 int
 virDomainDeviceUSBAddressParseXML(xmlNodePtr node,
-                                  virDomainDeviceUSBAddressPtr addr)
+                                  virDomainDeviceUSBAddress *addr)
 {
     g_autofree char *port = virXMLPropString(node, "port");
-    g_autofree char *bus = virXMLPropString(node, "bus");
 
     memset(addr, 0, sizeof(*addr));
 
     if (port && virDomainDeviceUSBAddressParsePort(addr, port) < 0)
         return -1;
 
-    if (bus &&
-        virStrToLong_uip(bus, NULL, 10, &addr->bus) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot parse <address> 'bus' attribute"));
+    if (virXMLPropUInt(node, "bus", 10, VIR_XML_PROP_NONE, &addr->bus) < 0)
         return -1;
-    }
+
     return 0;
 }
 
 int
 virDomainDeviceSpaprVioAddressParseXML(xmlNodePtr node,
-                                      virDomainDeviceSpaprVioAddressPtr addr)
+                                      virDomainDeviceSpaprVioAddress *addr)
 {
-    g_autofree char *reg = virXMLPropString(node, "reg");
+    int reg;
 
     memset(addr, 0, sizeof(*addr));
 
-    if (reg) {
-        if (virStrToLong_ull(reg, NULL, 16, &addr->reg) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Cannot parse <address> 'reg' attribute"));
-            return -1;
-        }
+    if ((reg = virXMLPropULongLong(node, "reg", 16, VIR_XML_PROP_NONE,
+                                   &addr->reg)) < 0)
+        return -1;
 
+    if (reg != 0)
         addr->has_reg = true;
-    }
+
     return 0;
 }
 
 bool
-virDomainDeviceAddressIsValid(virDomainDeviceInfoPtr info,
+virDomainDeviceAddressIsValid(virDomainDeviceInfo *info,
                               int type)
 {
     if (info->type != type)
@@ -549,35 +461,20 @@ virDomainDeviceAddressIsValid(virDomainDeviceInfoPtr info,
 
 int
 virInterfaceLinkParseXML(xmlNodePtr node,
-                         virNetDevIfLinkPtr lnk)
+                         virNetDevIfLink *lnk)
 {
-    int state;
-
-    g_autofree char *stateStr = virXMLPropString(node, "state");
-    g_autofree char *speedStr = virXMLPropString(node, "speed");
-
-    if (stateStr) {
-        if ((state = virNetDevIfStateTypeFromString(stateStr)) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("unknown link state: %s"),
-                           stateStr);
-            return -1;
-        }
-        lnk->state = state;
-    }
-
-    if (speedStr &&
-        virStrToLong_ui(speedStr, NULL, 10, &lnk->speed) < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("Unable to parse link speed: %s"),
-                       speedStr);
+    if (virXMLPropEnum(node, "state", virNetDevIfStateTypeFromString,
+                       VIR_XML_PROP_NONE, &lnk->state) < 0)
         return -1;
-    }
+
+    if (virXMLPropUInt(node, "speed", 10, VIR_XML_PROP_NONE, &lnk->speed) < 0)
+        return -1;
+
     return 0;
 }
 
 int
-virInterfaceLinkFormat(virBufferPtr buf,
+virInterfaceLinkFormat(virBuffer *buf,
                        const virNetDevIfLink *lnk)
 {
     if (!lnk->speed && !lnk->state) {

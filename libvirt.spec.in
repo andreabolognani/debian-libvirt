@@ -3,23 +3,16 @@
 # This spec file assumes you are building on a Fedora or RHEL version
 # that's still supported by the vendor. It may work on other distros
 # or versions, but no effort will be made to ensure that going forward.
-%define min_rhel 7
-%define min_fedora 31
-
-%if 0%{?fedora} >= %{min_fedora} || 0%{?rhel} >= %{min_rhel}
-    %define supported_platform 1
-%else
-    %define supported_platform 0
-%endif
-
-# On RHEL 7 and older macro _vpath_builddir is not defined.
-%if 0%{?rhel} && 0%{?rhel} <= 7
-    %define _vpath_builddir %{_target_platform}
-%endif
+%define min_rhel 8
+%define min_fedora 33
 
 %define arches_qemu_kvm         %{ix86} x86_64 %{power64} %{arm} aarch64 s390x
 %if 0%{?rhel}
-    %define arches_qemu_kvm     x86_64 %{power64} aarch64 s390x
+    %if 0%{?rhel} > 8
+        %define arches_qemu_kvm     x86_64 aarch64 s390x
+    %else
+        %define arches_qemu_kvm     x86_64 %{power64} aarch64 s390x
+    %endif
 %endif
 
 %define arches_64bit            x86_64 %{power64} aarch64 s390x riscv64
@@ -72,24 +65,28 @@
 %endif
 
 %define with_storage_gluster 0%{!?_without_storage_gluster:1}
-%ifnarch %{arches_qemu_kvm}
-    # gluster is only built where qemu driver is enabled on RHEL 8
-    %if 0%{?rhel} >= 8
+%if 0%{?rhel}
+    # Glusterfs has been dropped in RHEL-9, and before that
+    # was only enabled on arches where KVM exists
+    %if 0%{?rhel} > 8
         %define with_storage_gluster 0
+    %else
+        %ifnarch %{arches_qemu_kvm}
+            %define with_storage_gluster 0
+        %endif
     %endif
 %endif
 
-# F25+ has zfs-fuse
+# Fedora has zfs-fuse
 %if 0%{?fedora}
     %define with_storage_zfs      0%{!?_without_storage_zfs:1}
 %else
     %define with_storage_zfs      0
 %endif
 
-# We need a recent enough libiscsi (>= 1.18.0)
-%if 0%{?fedora} || 0%{?rhel} > 7
-    %define with_storage_iscsi_direct 0%{!?_without_storage_iscsi_direct:1}
-%else
+%define with_storage_iscsi_direct 0%{!?_without_storage_iscsi_direct:1}
+# libiscsi has been dropped in RHEL-9
+%if 0%{?rhel} > 8
     %define with_storage_iscsi_direct 0
 %endif
 
@@ -101,6 +98,7 @@
 %define with_sanlock          0
 %define with_numad            0
 %define with_firewalld_zone   0
+%define with_netcf            0
 %define with_libssh2          0
 %define with_wireshark        0
 %define with_libssh           0
@@ -125,9 +123,7 @@
     %define with_storage_rbd 0
 %endif
 
-# RHEL doesn't ship OpenVZ, VBox, PowerHypervisor,
-# VMware, libxenlight (Xen 4.1 and newer),
-# or HyperV.
+# RHEL doesn't ship many hypervisor drivers
 %if 0%{?rhel}
     %define with_openvz 0
     %define with_vbox 0
@@ -135,14 +131,13 @@
     %define with_libxl 0
     %define with_hyperv 0
     %define with_vz 0
-
-    %if 0%{?rhel} > 7
-        %define with_lxc 0
-    %endif
+    %define with_lxc 0
 %endif
 
-%if 0%{?fedora} || 0%{?rhel} > 7
-    %define with_firewalld_zone 0%{!?_without_firewalld_zone:1}
+%define with_firewalld_zone 0%{!?_without_firewalld_zone:1}
+
+%if (0%{?fedora} && 0%{?fedora} < 34) || (0%{?rhel} && 0%{?rhel} < 9)
+    %define with_netcf 0%{!?_without_netcf:1}
 %endif
 
 
@@ -167,16 +162,12 @@
     %define with_libssh2 0%{!?_without_libssh2:1}
 %endif
 
-# Enable wireshark plugins for all distros except RHEL-7
-%if 0%{?fedora} || 0%{?rhel} > 7
-    %define with_wireshark 0%{!?_without_wireshark:1}
-    %define wireshark_plugindir %(pkg-config --variable plugindir wireshark)/epan
-%endif
+# Enable wireshark plugins for all distros
+%define with_wireshark 0%{!?_without_wireshark:1}
+%define wireshark_plugindir %(pkg-config --variable plugindir wireshark)/epan
 
-# Enable libssh transport for new enough distros
-%if 0%{?fedora} || 0%{?rhel} > 7
-    %define with_libssh 0%{!?_without_libssh:1}
-%endif
+# Enable libssh transport for all distros
+%define with_libssh 0%{!?_without_libssh:1}
 
 %if %{with_qemu} || %{with_lxc}
 # numad is used to manage the CPU and memory placement dynamically,
@@ -204,11 +195,7 @@
     %define enable_werror -Dwerror=false
 %endif
 
-%if 0%{?rhel} == 7
-    %define tls_priority "NORMAL"
-%else
-    %define tls_priority "@LIBVIRT,SYSTEM"
-%endif
+%define tls_priority "@LIBVIRT,SYSTEM"
 
 
 Summary: Library providing a simple virtualization API
@@ -253,28 +240,17 @@ Requires: libvirt-libs = %{version}-%{release}
 
 # All build-time requirements. Run-time requirements are
 # listed against each sub-RPM
-BuildRequires: gettext-devel
-%if 0%{?rhel} == 7
-BuildRequires: python36-docutils
-%else
 BuildRequires: python3-docutils
-%endif
 BuildRequires: gcc
 BuildRequires: meson >= 0.54.0
 BuildRequires: ninja-build
-BuildRequires: make
 BuildRequires: git
-%if 0%{?fedora} || 0%{?rhel} > 7
 BuildRequires: perl-interpreter
-%else
-BuildRequires: perl
-%endif
 BuildRequires: python3
-BuildRequires: systemd-units
 %if %{with_libxl}
 BuildRequires: xen-devel
 %endif
-BuildRequires: glib2-devel >= 2.48
+BuildRequires: glib2-devel >= 2.56
 BuildRequires: libxml2-devel
 BuildRequires: libxslt
 BuildRequires: readline-devel
@@ -326,13 +302,8 @@ BuildRequires: device-mapper-devel
 # For XFS reflink clone support
 BuildRequires: xfsprogs-devel
 %if %{with_storage_rbd}
-    %if 0%{?fedora} || 0%{?rhel} > 7
 BuildRequires: librados-devel
 BuildRequires: librbd-devel
-    %else
-BuildRequires: librados2-devel
-BuildRequires: librbd1-devel
-    %endif
 %endif
 %if %{with_storage_gluster}
 BuildRequires: glusterfs-api-devel >= 3.4.1
@@ -358,8 +329,9 @@ BuildRequires: fuse-devel >= 2.8.6
 %if %{with_libssh2}
 BuildRequires: libssh2-devel >= 1.3.0
 %endif
-
+%if %{with_netcf}
 BuildRequires: netcf-devel >= 0.2.2
+%endif
 %if %{with_esx}
 BuildRequires: libcurl-devel
 %endif
@@ -393,11 +365,7 @@ BuildRequires: wireshark-devel
 BuildRequires: libssh-devel >= 0.7.0
 %endif
 
-# On RHEL-7 rpcgen is still part of glibc-common package
-%if 0%{?fedora} || 0%{?rhel} > 7
 BuildRequires: rpcgen
-%endif
-
 BuildRequires: libtirpc-devel
 
 # Needed for the firewalld_reload macro
@@ -432,12 +400,10 @@ Requires: /usr/bin/nc
 # for modprobe of pci devices
 Requires: module-init-tools
 
-# for /sbin/ip & /sbin/tc
+# for /sbin/ip
 Requires: iproute
-# tc is provided by iproute-tc since at least Fedora 26
-%if 0%{?fedora} || 0%{?rhel} > 7
+# for /sbin/tc
 Requires: iproute-tc
-%endif
 
 Requires: polkit >= 0.112
 %if %{with_dmidecode}
@@ -445,10 +411,7 @@ Requires: polkit >= 0.112
 Requires: dmidecode
 %endif
 # For service management
-Requires(post): systemd-units
-Requires(post): systemd-sysv
-Requires(preun): systemd-units
-Requires(postun): systemd-units
+Requires(post): /usr/bin/systemctl
 %if %{with_numad}
 Requires: numad
 %endif
@@ -456,6 +419,13 @@ Requires: numad
 Requires: dbus
 # For uid creation during pre
 Requires(pre): shadow-utils
+# Needed by /usr/libexec/libvirt-guests.sh script.
+Requires: gettext
+
+# Ensure smooth upgrades
+Obsoletes: libvirt-admin < 7.3.0
+Provides: libvirt-admin = %{version}-%{release}
+Obsoletes: libvirt-bash-completion < 7.3.0
 
 %description daemon
 Server side daemon required to manage the virtualization capabilities
@@ -514,9 +484,7 @@ Requires: libvirt-libs = %{version}-%{release}
 # needed for device enumeration
 Requires: systemd >= 185
 # For managing persistent mediated devices
-%if 0%{?fedora} || 0%{?rhel} > 7
 Requires: mdevctl
-%endif
 
 %description daemon-driver-nodedev
 The nodedev driver plugin for the libvirtd daemon, providing
@@ -528,13 +496,13 @@ capabilities.
 Summary: Interface driver plugin for the libvirtd daemon
 Requires: libvirt-daemon = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
+%if %{with_netcf}
 Requires: netcf-libs >= 0.2.2
+%endif
 
 %description daemon-driver-interface
 The interface driver plugin for the libvirtd daemon, providing
-an implementation of the network interface APIs using the
-netcf library
-
+an implementation of the host network interface APIs.
 
 %package daemon-driver-secret
 Summary: Secret driver plugin for the libvirtd daemon
@@ -614,7 +582,6 @@ volumes using the host iscsi stack.
 Summary: Storage driver plugin for iscsi-direct
 Requires: libvirt-daemon-driver-storage-core = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
-Requires: libiscsi
 
 %description daemon-driver-storage-iscsi-direct
 The storage driver backend adding implementation of the storage APIs for iscsi
@@ -732,12 +699,8 @@ Requires: gzip
 Requires: bzip2
 Requires: lzop
 Requires: xz
-    %if 0%{?fedora} || 0%{?rhel} > 7
 Requires: systemd-container
-    %endif
-    %if 0%{?fedora} || 0%{?rhel} > 7
 Requires: swtpm-tools
-    %endif
 
 %description daemon-driver-qemu
 The qemu driver plugin for the libvirtd daemon, providing
@@ -753,9 +716,7 @@ Requires: libvirt-daemon = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
 # There really is a hard cross-driver dependency here
 Requires: libvirt-daemon-driver-network = %{version}-%{release}
-    %if 0%{?fedora} || 0%{?rhel} > 7
 Requires: systemd-container
-    %endif
 
 %description daemon-driver-lxc
 The LXC driver plugin for the libvirtd daemon, providing
@@ -893,11 +854,11 @@ capabilities of VirtualBox
 %package client
 Summary: Client side utilities of the libvirt library
 Requires: %{name}-libs = %{version}-%{release}
-# Needed by /usr/libexec/libvirt-guests.sh script.
-Requires: gettext
 # Needed by virt-pki-validate script.
 Requires: gnutls-utils
-Requires: %{name}-bash-completion = %{version}-%{release}
+
+# Ensure smooth upgrades
+Obsoletes: libvirt-bash-completion < 7.3.0
 
 %description client
 The client binaries needed to access the virtualization
@@ -913,20 +874,6 @@ Requires: cyrus-sasl-gssapi
 
 %description libs
 Shared libraries for accessing the libvirt daemon.
-
-%package admin
-Summary: Set of tools to control libvirt daemon
-Requires: %{name}-libs = %{version}-%{release}
-Requires: %{name}-bash-completion = %{version}-%{release}
-
-%description admin
-The client side utilities to control the libvirt daemon.
-
-%package bash-completion
-Summary: Bash completion script
-
-%description bash-completion
-Bash completion script stub.
 
 %if %{with_wireshark}
 %package wireshark
@@ -984,11 +931,10 @@ Libvirt plugin for NSS for translating domain names into IP addresses.
 %autosetup -S git_am
 
 %build
-
-%if 0%{?fedora} == 34
-    # binutils change in F34 broke linking of tests
-    # https://bugzilla.redhat.com/show_bug.cgi?id=1889763
-    %define _lto_cflags %{nil}
+%if 0%{?fedora} >= %{min_fedora} || 0%{?rhel} >= %{min_rhel}
+    %define supported_platform 1
+%else
+    %define supported_platform 0
 %endif
 
 %if ! %{supported_platform}
@@ -1100,6 +1046,12 @@ exit 1
     %define arg_firewalld_zone -Dfirewalld_zone=disabled
 %endif
 
+%if %{with_netcf}
+    %define arg_netcf -Dnetcf=enabled
+%else
+    %define arg_netcf -Dnetcf=disabled
+%endif
+
 %if %{with_wireshark}
     %define arg_wireshark -Dwireshark_dissector=enabled
 %else
@@ -1146,11 +1098,14 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/%{name}.spec)
            -Dsasl=enabled \
            -Dpolkit=enabled \
            -Ddriver_libvirtd=enabled \
+           -Ddriver_remote=enabled \
+           -Ddriver_test=enabled \
            %{?arg_esx} \
            %{?arg_hyperv} \
            %{?arg_vmware} \
            -Ddriver_vz=disabled \
            -Ddriver_bhyve=disabled \
+           -Ddriver_ch=disabled \
            -Dremote_default_mode=legacy \
            -Ddriver_interface=enabled \
            -Ddriver_network=enabled \
@@ -1170,10 +1125,11 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/%{name}.spec)
            %{?arg_numad} \
            -Dcapng=enabled \
            %{?arg_fuse} \
-           -Dnetcf=enabled \
+           %{?arg_netcf} \
            -Dselinux=enabled \
            %{?arg_selinux_mount} \
            -Dapparmor=disabled \
+           -Dapparmor_profiles=disabled \
            -Dsecdriver_apparmor=disabled \
            -Dudev=enabled \
            -Dyajl=enabled \
@@ -1226,7 +1182,7 @@ rm -f $RPM_BUILD_ROOT%{wireshark_plugindir}/libvirt.la
 %endif
 
 install -d -m 0755 $RPM_BUILD_ROOT%{_datadir}/lib/libvirt/dnsmasq/
-# We don't want to install /etc/libvirt/qemu/networks in the main %files list
+# We don't want to install /etc/libvirt/qemu/networks in the main %%files list
 # because if the admin wants to delete the default network completely, we don't
 # want to end up re-incarnating it on every RPM upgrade.
 install -d -m 0755 $RPM_BUILD_ROOT%{_datadir}/libvirt/networks/
@@ -1235,7 +1191,7 @@ cp $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/default.xml \
 # libvirt saves this file with mode 0600
 chmod 0600 $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/qemu/networks/default.xml
 
-# nwfilter files are installed in /usr/share/libvirt and copied to /etc in %post
+# nwfilter files are installed in /usr/share/libvirt and copied to /etc in %%post
 # to avoid verification errors on changed files in /etc
 install -d -m 0755 $RPM_BUILD_ROOT%{_datadir}/libvirt/nwfilter/
 cp -a $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/nwfilter/*.xml \
@@ -1288,17 +1244,9 @@ mv $RPM_BUILD_ROOT%{_datadir}/systemtap/tapset/libvirt_qemu_probes.stp \
 %endif
 
 %check
-VIR_TEST_DEBUG=1 %meson_test --no-suite syntax-check
-
-%post libs
-%if 0%{?rhel} == 7
-/sbin/ldconfig
-%endif
-
-%postun libs
-%if 0%{?rhel} == 7
-/sbin/ldconfig
-%endif
+# Building on slow archs, like emulated s390x in Fedora copr, requires
+# raising the test timeout
+VIR_TEST_DEBUG=1 %meson_test --no-suite syntax-check --timeout-multiplier 10
 
 %pre daemon
 # 'libvirt' group is just to allow password-less polkit access to
@@ -1309,30 +1257,37 @@ getent group libvirt >/dev/null || groupadd -r libvirt
 exit 0
 
 %post daemon
+%global post_units \\\
+        virtlockd.socket virtlockd-admin.socket \\\
+        virtlogd.socket virtlogd-admin.socket \\\
+        libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket \\\
+        libvirtd-tcp.socket libvirtd-tls.socket \\\
+        libvirtd.service \\\
+        libvirt-guests.service
 
-%systemd_post virtlockd.socket virtlockd-admin.socket
-%systemd_post virtlogd.socket virtlogd-admin.socket
-%systemd_post libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket
-%systemd_post libvirtd-tcp.socket libvirtd-tls.socket
-%systemd_post libvirtd.service
+%systemd_post %post_units
 
 # request daemon restart in posttrans
 mkdir -p %{_localstatedir}/lib/rpm-state/libvirt || :
 touch %{_localstatedir}/lib/rpm-state/libvirt/restart || :
 
 %preun daemon
-%systemd_preun libvirtd.service
-%systemd_preun libvirtd-tcp.socket libvirtd-tls.socket
-%systemd_preun libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket
-%systemd_preun virtlogd.socket virtlogd-admin.socket virtlogd.service
-%systemd_preun virtlockd.socket virtlockd-admin.socket virtlockd.service
+%global preun_units \\\
+        libvirtd.service \\\
+        libvirtd-tcp.socket libvirtd-tls.socket \\\
+        libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket \\\
+        virtlogd.socket virtlogd-admin.socket virtlogd.service \\\
+        virtlockd.socket virtlockd-admin.socket virtlockd.service \\\
+        libvirt-guests.service
+
+%systemd_preun %preun_units
 
 %postun daemon
 /bin/systemctl daemon-reload >/dev/null 2>&1 || :
 if [ $1 -ge 1 ] ; then
-    /bin/systemctl reload-or-try-restart virtlockd.service >/dev/null 2>&1 || :
-    /bin/systemctl reload-or-try-restart virtlogd.service >/dev/null 2>&1 || :
+    /bin/systemctl reload-or-try-restart virtlockd.service virtlogd.service >/dev/null 2>&1 || :
 fi
+%systemd_postun libvirt-guests.service
 
 # In upgrade scenario we must explicitly enable virtlockd/virtlogd
 # sockets, if libvirtd is already enabled and start them if
@@ -1357,11 +1312,12 @@ if [ -f %{_localstatedir}/lib/rpm-state/libvirt/restart ]; then
         # systemd socket activation, because switching things
         # might confuse mgmt tool like puppet/ansible that
         # expect the old style libvirtd
-        /bin/systemctl mask libvirtd.socket >/dev/null 2>&1 || :
-        /bin/systemctl mask libvirtd-ro.socket >/dev/null 2>&1 || :
-        /bin/systemctl mask libvirtd-admin.socket >/dev/null 2>&1 || :
-        /bin/systemctl mask libvirtd-tls.socket >/dev/null 2>&1 || :
-        /bin/systemctl mask libvirtd-tcp.socket >/dev/null 2>&1 || :
+        /bin/systemctl mask \
+                libvirtd.socket \
+                libvirtd-ro.socket \
+                libvirtd-admin.socket \
+                libvirtd-tls.socket \
+                libvirtd-tcp.socket >/dev/null 2>&1 || :
     else
         # Old libvirtd owns the sockets and will delete them on
         # shutdown. Can't use a try-restart as libvirtd will simply
@@ -1373,9 +1329,10 @@ if [ -f %{_localstatedir}/lib/rpm-state/libvirt/restart ]; then
         then
             /bin/systemctl stop libvirtd.service >/dev/null 2>&1 || :
 
-            /bin/systemctl try-restart libvirtd.socket >/dev/null 2>&1 || :
-            /bin/systemctl try-restart libvirtd-ro.socket >/dev/null 2>&1 || :
-            /bin/systemctl try-restart libvirtd-admin.socket >/dev/null 2>&1 || :
+            /bin/systemctl try-restart \
+                    libvirtd.socket \
+                    libvirtd-ro.socket \
+                    libvirtd-admin.socket >/dev/null 2>&1 || :
 
             /bin/systemctl start libvirtd.service >/dev/null 2>&1 || :
         fi
@@ -1477,16 +1434,6 @@ fi
 exit 0
 %endif
 
-%preun client
-
-%systemd_preun libvirt-guests.service
-
-%post client
-%systemd_post libvirt-guests.service
-
-%postun client
-%systemd_postun libvirt-guests.service
-
 %if %{with_lxc}
 %pre login-shell
 getent group virtlogin >/dev/null || groupadd -r virtlogin
@@ -1522,6 +1469,7 @@ exit 0
 %{_unitdir}/virtlockd.service
 %{_unitdir}/virtlockd.socket
 %{_unitdir}/virtlockd-admin.socket
+%{_unitdir}/libvirt-guests.service
 %config(noreplace) %{_sysconfdir}/sysconfig/libvirtd
 %config(noreplace) %{_sysconfdir}/sysconfig/virtproxyd
 %config(noreplace) %{_sysconfdir}/sysconfig/virtlogd
@@ -1531,6 +1479,7 @@ exit 0
 %config(noreplace) %{_sysconfdir}/libvirt/virtlogd.conf
 %config(noreplace) %{_sysconfdir}/libvirt/virtlockd.conf
 %config(noreplace) %{_sysconfdir}/sasl2/libvirt.conf
+%config(noreplace) %{_sysconfdir}/sysconfig/libvirt-guests
 %config(noreplace) %{_prefix}/lib/sysctl.d/60-libvirtd.conf
 
 %config(noreplace) %{_sysconfdir}/logrotate.d/libvirtd
@@ -1576,11 +1525,19 @@ exit 0
 %attr(0755, root, root) %{_sbindir}/virtproxyd
 %attr(0755, root, root) %{_sbindir}/virtlogd
 %attr(0755, root, root) %{_sbindir}/virtlockd
+%attr(0755, root, root) %{_libexecdir}/libvirt-guests.sh
 
+%{_mandir}/man1/virt-admin.1*
+%{_mandir}/man1/virt-host-validate.1*
 %{_mandir}/man8/libvirtd.8*
 %{_mandir}/man8/virtlogd.8*
 %{_mandir}/man8/virtlockd.8*
+%{_mandir}/man8/virtproxyd.8*
 %{_mandir}/man7/virkey*.7*
+
+%{_bindir}/virt-host-validate
+%{_bindir}/virt-admin
+%{_datadir}/bash-completion/completions/virt-admin
 
 %files daemon-config-network
 %dir %{_datadir}/libvirt/networks/
@@ -1604,6 +1561,7 @@ exit 0
 %{_unitdir}/virtinterfaced-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtinterfaced
 %{_libdir}/%{name}/connection-driver/libvirt_driver_interface.so
+%{_mandir}/man8/virtinterfaced.8*
 
 %files daemon-driver-network
 %config(noreplace) %{_sysconfdir}/sysconfig/virtnetworkd
@@ -1623,6 +1581,7 @@ exit 0
 %dir %attr(0755, root, root) %{_localstatedir}/lib/libvirt/dnsmasq/
 %attr(0755, root, root) %{_libexecdir}/libvirt_leaseshelper
 %{_libdir}/%{name}/connection-driver/libvirt_driver_network.so
+%{_mandir}/man8/virtnetworkd.8*
 
 %if %{with_firewalld_zone}
 %{_prefix}/lib/firewalld/zones/libvirt.xml
@@ -1639,6 +1598,7 @@ exit 0
 %{_unitdir}/virtnodedevd-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtnodedevd
 %{_libdir}/%{name}/connection-driver/libvirt_driver_nodedev.so
+%{_mandir}/man8/virtnodedevd.8*
 
 %files daemon-driver-nwfilter
 %config(noreplace) %{_sysconfdir}/sysconfig/virtnwfilterd
@@ -1653,6 +1613,7 @@ exit 0
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/nwfilter/
 %ghost %dir %{_rundir}/libvirt/network/
 %{_libdir}/%{name}/connection-driver/libvirt_driver_nwfilter.so
+%{_mandir}/man8/virtnwfilterd.8*
 
 %files daemon-driver-secret
 %config(noreplace) %{_sysconfdir}/sysconfig/virtsecretd
@@ -1665,6 +1626,7 @@ exit 0
 %{_unitdir}/virtsecretd-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtsecretd
 %{_libdir}/%{name}/connection-driver/libvirt_driver_secret.so
+%{_mandir}/man8/virtsecretd.8*
 
 %files daemon-driver-storage
 
@@ -1682,6 +1644,7 @@ exit 0
 %{_libdir}/%{name}/connection-driver/libvirt_driver_storage.so
 %{_libdir}/%{name}/storage-backend/libvirt_storage_backend_fs.so
 %{_libdir}/%{name}/storage-file/libvirt_storage_file_fs.so
+%{_mandir}/man8/virtstoraged.8*
 
 %files daemon-driver-storage-disk
 %{_libdir}/%{name}/storage-backend/libvirt_storage_backend_disk.so
@@ -1750,6 +1713,7 @@ exit 0
 %dir %attr(0730, tss, tss) %{_localstatedir}/log/swtpm/libvirt/qemu/
 %{_bindir}/virt-qemu-run
 %{_mandir}/man1/virt-qemu-run.1*
+%{_mandir}/man8/virtqemud.8*
 %endif
 
 %if %{with_lxc}
@@ -1772,6 +1736,7 @@ exit 0
 %{_datadir}/augeas/lenses/tests/test_libvirtd_lxc.aug
 %attr(0755, root, root) %{_libexecdir}/libvirt_lxc
 %{_libdir}/%{name}/connection-driver/libvirt_driver_lxc.so
+%{_mandir}/man8/virtlxcd.8*
 %endif
 
 %if %{with_libxl}
@@ -1794,6 +1759,7 @@ exit 0
 %ghost %dir %{_rundir}/libvirt/libxl/
 %dir %attr(0700, root, root) %{_localstatedir}/lib/libvirt/libxl/
 %{_libdir}/%{name}/connection-driver/libvirt_driver_libxl.so
+%{_mandir}/man8/virtxend.8*
 %endif
 
 %if %{with_vbox}
@@ -1808,6 +1774,7 @@ exit 0
 %{_unitdir}/virtvboxd-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtvboxd
 %{_libdir}/%{name}/connection-driver/libvirt_driver_vbox.so
+%{_mandir}/man8/virtvboxd.8*
 %endif
 
 %if %{with_qemu_tcg}
@@ -1851,24 +1818,11 @@ exit 0
 %{_mandir}/man1/virsh.1*
 %{_mandir}/man1/virt-xml-validate.1*
 %{_mandir}/man1/virt-pki-validate.1*
-%{_mandir}/man1/virt-host-validate.1*
 %{_bindir}/virsh
 %{_bindir}/virt-xml-validate
 %{_bindir}/virt-pki-validate
-%{_bindir}/virt-host-validate
-
-%{_datadir}/systemtap/tapset/libvirt_probes*.stp
-%{_datadir}/systemtap/tapset/libvirt_functions.stp
-%if %{with_qemu}
-%{_datadir}/systemtap/tapset/libvirt_qemu_probes*.stp
-%endif
 
 %{_datadir}/bash-completion/completions/virsh
-
-
-%{_unitdir}/libvirt-guests.service
-%config(noreplace) %{_sysconfdir}/sysconfig/libvirt-guests
-%attr(0755, root, root) %{_libexecdir}/libvirt-guests.sh
 
 %files libs -f %{name}.lang
 %license COPYING COPYING.LESSER
@@ -1882,19 +1836,17 @@ exit 0
 %dir %{_datadir}/libvirt/schemas/
 %dir %attr(0755, root, root) %{_localstatedir}/lib/libvirt/
 
+%{_datadir}/systemtap/tapset/libvirt_probes*.stp
+%{_datadir}/systemtap/tapset/libvirt_functions.stp
+%if %{with_qemu}
+%{_datadir}/systemtap/tapset/libvirt_qemu_probes*.stp
+%endif
+
 %{_datadir}/libvirt/schemas/*.rng
 
 %{_datadir}/libvirt/cpu_map/*.xml
 
 %{_datadir}/libvirt/test-screenshot.png
-
-%files admin
-%{_mandir}/man1/virt-admin.1*
-%{_bindir}/virt-admin
-%{_datadir}/bash-completion/completions/virt-admin
-
-%files bash-completion
-%{_datadir}/bash-completion/completions/vsh
 
 %if %{with_wireshark}
 %files wireshark

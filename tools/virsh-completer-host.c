@@ -26,6 +26,7 @@
 #include "virstring.h"
 #include "virxml.h"
 #include "virutil.h"
+#include "virsh-host.h"
 
 static char *
 virshPagesizeNodeToString(xmlNodePtr node)
@@ -54,7 +55,7 @@ virshAllocpagesPagesizeCompleter(vshControl *ctl,
                                  unsigned int flags)
 {
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     int npages = 0;
     g_autofree xmlNodePtr *pages = NULL;
     g_autoptr(xmlDoc) doc = NULL;
@@ -104,7 +105,7 @@ virshCellnoCompleter(vshControl *ctl,
                      unsigned int flags)
 {
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     int ncells = 0;
     g_autofree xmlNodePtr *cells = NULL;
     g_autoptr(xmlDoc) doc = NULL;
@@ -143,7 +144,7 @@ virshNodeCpuCompleter(vshControl *ctl,
                       const vshCmd *cmd G_GNUC_UNUSED,
                       unsigned int flags)
 {
-    virshControlPtr priv = ctl->privData;
+    virshControl *priv = ctl->privData;
     g_auto(GStrv) tmp = NULL;
     size_t i;
     int cpunum;
@@ -166,4 +167,23 @@ virshNodeCpuCompleter(vshControl *ctl,
     }
 
     return g_steal_pointer(&tmp);
+}
+
+
+char **
+virshNodeSuspendTargetCompleter(vshControl *ctl G_GNUC_UNUSED,
+                                const vshCmd *cmd G_GNUC_UNUSED,
+                                unsigned int flags)
+{
+    char **ret = NULL;
+    size_t i;
+
+    virCheckFlags(0, NULL);
+
+    ret = g_new0(char *, VIR_NODE_SUSPEND_TARGET_LAST + 1);
+
+    for (i = 0; i < VIR_NODE_SUSPEND_TARGET_LAST; i++)
+        ret[i] = g_strdup(virNodeSuspendTargetTypeToString(i));
+
+    return ret;
 }

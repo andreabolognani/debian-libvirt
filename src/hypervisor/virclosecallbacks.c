@@ -30,7 +30,6 @@
 VIR_LOG_INIT("util.closecallbacks");
 
 typedef struct _virDriverCloseDef virDriverCloseDef;
-typedef virDriverCloseDef *virDriverCloseDefPtr;
 struct _virDriverCloseDef {
     virConnectPtr conn;
     virCloseCallback cb;
@@ -44,7 +43,7 @@ struct _virCloseCallbacks {
 };
 
 
-static virClassPtr virCloseCallbacksClass;
+static virClass *virCloseCallbacksClass;
 static void virCloseCallbacksDispose(void *obj);
 
 static int virCloseCallbacksOnceInit(void)
@@ -58,10 +57,10 @@ static int virCloseCallbacksOnceInit(void)
 VIR_ONCE_GLOBAL_INIT(virCloseCallbacks);
 
 
-virCloseCallbacksPtr
+virCloseCallbacks *
 virCloseCallbacksNew(void)
 {
-    virCloseCallbacksPtr closeCallbacks;
+    virCloseCallbacks *closeCallbacks;
 
     if (virCloseCallbacksInitialize() < 0)
         return NULL;
@@ -81,19 +80,19 @@ virCloseCallbacksNew(void)
 static void
 virCloseCallbacksDispose(void *obj)
 {
-    virCloseCallbacksPtr closeCallbacks = obj;
+    virCloseCallbacks *closeCallbacks = obj;
 
     virHashFree(closeCallbacks->list);
 }
 
 int
-virCloseCallbacksSet(virCloseCallbacksPtr closeCallbacks,
-                     virDomainObjPtr vm,
+virCloseCallbacksSet(virCloseCallbacks *closeCallbacks,
+                     virDomainObj *vm,
                      virConnectPtr conn,
                      virCloseCallback cb)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDefPtr closeDef;
+    virDriverCloseDef *closeDef;
     int ret = -1;
 
     virUUIDFormat(vm->def->uuid, uuidstr);
@@ -138,12 +137,12 @@ virCloseCallbacksSet(virCloseCallbacksPtr closeCallbacks,
 }
 
 int
-virCloseCallbacksUnset(virCloseCallbacksPtr closeCallbacks,
-                       virDomainObjPtr vm,
+virCloseCallbacksUnset(virCloseCallbacks *closeCallbacks,
+                       virDomainObj *vm,
                        virCloseCallback cb)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDefPtr closeDef;
+    virDriverCloseDef *closeDef;
     int ret = -1;
 
     virUUIDFormat(vm->def->uuid, uuidstr);
@@ -176,12 +175,12 @@ virCloseCallbacksUnset(virCloseCallbacksPtr closeCallbacks,
 }
 
 virCloseCallback
-virCloseCallbacksGet(virCloseCallbacksPtr closeCallbacks,
-                     virDomainObjPtr vm,
+virCloseCallbacksGet(virCloseCallbacks *closeCallbacks,
+                     virDomainObj *vm,
                      virConnectPtr conn)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDefPtr closeDef;
+    virDriverCloseDef *closeDef;
     virCloseCallback cb = NULL;
 
     virUUIDFormat(vm->def->uuid, uuidstr);
@@ -201,11 +200,11 @@ virCloseCallbacksGet(virCloseCallbacksPtr closeCallbacks,
 }
 
 virConnectPtr
-virCloseCallbacksGetConn(virCloseCallbacksPtr closeCallbacks,
-                         virDomainObjPtr vm)
+virCloseCallbacksGetConn(virCloseCallbacks *closeCallbacks,
+                         virDomainObj *vm)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDefPtr closeDef;
+    virDriverCloseDef *closeDef;
     virConnectPtr conn = NULL;
 
     virUUIDFormat(vm->def->uuid, uuidstr);
@@ -225,23 +224,20 @@ virCloseCallbacksGetConn(virCloseCallbacksPtr closeCallbacks,
 
 
 typedef struct _virCloseCallbacksListEntry virCloseCallbacksListEntry;
-typedef virCloseCallbacksListEntry *virCloseCallbacksListEntryPtr;
 struct _virCloseCallbacksListEntry {
     unsigned char uuid[VIR_UUID_BUFLEN];
     virCloseCallback callback;
 };
 
 typedef struct _virCloseCallbacksList virCloseCallbacksList;
-typedef virCloseCallbacksList *virCloseCallbacksListPtr;
 struct _virCloseCallbacksList {
     size_t nentries;
-    virCloseCallbacksListEntryPtr entries;
+    virCloseCallbacksListEntry *entries;
 };
 
 struct virCloseCallbacksData {
     virConnectPtr conn;
-    virCloseCallbacksListPtr list;
-    bool oom;
+    virCloseCallbacksList *list;
 };
 
 static int
@@ -250,7 +246,7 @@ virCloseCallbacksGetOne(void *payload,
                         void *opaque)
 {
     struct virCloseCallbacksData *data = opaque;
-    virDriverCloseDefPtr closeDef = payload;
+    virDriverCloseDef *closeDef = payload;
     const char *uuidstr = key;
     unsigned char uuid[VIR_UUID_BUFLEN];
 
@@ -263,11 +259,7 @@ virCloseCallbacksGetOne(void *payload,
     if (data->conn != closeDef->conn || !closeDef->cb)
         return 0;
 
-    if (VIR_EXPAND_N(data->list->entries,
-                     data->list->nentries, 1) < 0) {
-        data->oom = true;
-        return 0;
-    }
+    VIR_EXPAND_N(data->list->entries, data->list->nentries, 1);
 
     memcpy(data->list->entries[data->list->nentries - 1].uuid,
            uuid, VIR_UUID_BUFLEN);
@@ -275,39 +267,31 @@ virCloseCallbacksGetOne(void *payload,
     return 0;
 }
 
-static virCloseCallbacksListPtr
-virCloseCallbacksGetForConn(virCloseCallbacksPtr closeCallbacks,
+static virCloseCallbacksList *
+virCloseCallbacksGetForConn(virCloseCallbacks *closeCallbacks,
                             virConnectPtr conn)
 {
-    virCloseCallbacksListPtr list = NULL;
+    virCloseCallbacksList *list = NULL;
     struct virCloseCallbacksData data;
 
     list = g_new0(virCloseCallbacksList, 1);
 
     data.conn = conn;
     data.list = list;
-    data.oom = false;
 
     virHashForEach(closeCallbacks->list, virCloseCallbacksGetOne, &data);
-
-    if (data.oom) {
-        VIR_FREE(list->entries);
-        VIR_FREE(list);
-        virReportOOMError();
-        return NULL;
-    }
 
     return list;
 }
 
 
 void
-virCloseCallbacksRun(virCloseCallbacksPtr closeCallbacks,
+virCloseCallbacksRun(virCloseCallbacks *closeCallbacks,
                      virConnectPtr conn,
-                     virDomainObjListPtr domains,
+                     virDomainObjList *domains,
                      void *opaque)
 {
-    virCloseCallbacksListPtr list;
+    virCloseCallbacksList *list;
     size_t i;
 
     VIR_DEBUG("conn=%p", conn);
@@ -332,7 +316,7 @@ virCloseCallbacksRun(virCloseCallbacksPtr closeCallbacks,
     virObjectUnlock(closeCallbacks);
 
     for (i = 0; i < list->nentries; i++) {
-        virDomainObjPtr vm;
+        virDomainObj *vm;
 
         /* Grab a ref and lock to the vm */
         if (!(vm = virDomainObjListFindByUUID(domains,

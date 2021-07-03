@@ -4,6 +4,7 @@
   <selfctime>0</selfctime>
   <selfvers>0</selfvers>
   <flag name='kvm'/>
+  <flag name='sdl'/>
   <flag name='no-hpet'/>
   <flag name='spice'/>
   <flag name='hda-duplex'/>
@@ -45,7 +46,6 @@
   <flag name='VGA'/>
   <flag name='cirrus-vga'/>
   <flag name='vmware-svga'/>
-  <flag name='device-video-primary'/>
   <flag name='usb-serial'/>
   <flag name='nbd-server'/>
   <flag name='virtio-rng'/>
@@ -90,7 +90,6 @@
   <flag name='aes-key-wrap'/>
   <flag name='dea-key-wrap'/>
   <flag name='pci-serial'/>
-  <flag name='vhost-user-multiqueue'/>
   <flag name='migration-event'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
@@ -98,7 +97,6 @@
   <flag name='rtl8139'/>
   <flag name='e1000'/>
   <flag name='virtio-net'/>
-  <flag name='gic-version'/>
   <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-gpu.virgl'/>
@@ -127,7 +125,6 @@
   <flag name='drive-detect-zeroes'/>
   <flag name='tls-creds-x509'/>
   <flag name='intel-iommu'/>
-  <flag name='smm'/>
   <flag name='virtio-pci-disable-legacy'/>
   <flag name='query-hotpluggable-cpus'/>
   <flag name='virtio-net.rx_queue_size'/>
@@ -135,7 +132,6 @@
   <flag name='drive-iotune-max-length'/>
   <flag name='ivshmem-plain'/>
   <flag name='ivshmem-doorbell'/>
-  <flag name='query-qmp-schema'/>
   <flag name='gluster.debug_level'/>
   <flag name='vhost-scsi'/>
   <flag name='drive-iotune-group'/>
@@ -150,7 +146,6 @@
   <flag name='cpu-cache'/>
   <flag name='qemu-xhci'/>
   <flag name='kernel-irqchip'/>
-  <flag name='kernel-irqchip.split'/>
   <flag name='intel-iommu.intremap'/>
   <flag name='intel-iommu.caching-mode'/>
   <flag name='intel-iommu.eim'/>
@@ -165,7 +160,6 @@
   <flag name='vxhs'/>
   <flag name='virtio-blk.num-queues'/>
   <flag name='vmcoreinfo'/>
-  <flag name='numa.dist'/>
   <flag name='disk-share-rw'/>
   <flag name='iscsi.password-secret'/>
   <flag name='isa-serial'/>
@@ -180,7 +174,6 @@
   <flag name='pr-manager-helper'/>
   <flag name='qom-list-properties'/>
   <flag name='memory-backend-file.discard-data'/>
-  <flag name='sdl-gl'/>
   <flag name='screendump_device'/>
   <flag name='hda-output'/>
   <flag name='blockdev-del'/>
@@ -231,6 +224,14 @@
   <flag name='fsdev.createmode'/>
   <flag name='dc390'/>
   <flag name='am53c974'/>
+  <flag name='virtio-pmem-pci'/>
+  <flag name='vhost-user-blk'/>
+  <flag name='cpu-max'/>
+  <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
+  <flag name='vnc-opts'/>
+  <flag name='rotation-rate'/>
+  <flag name='input-linux'/>
+  <flag name='query-display-options'/>
   <version>4001000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>43100241</microcodeVersion>
@@ -858,20 +859,20 @@
   <cpu type='kvm' name='486-v1' typename='486-v1-x86_64-cpu' usable='yes'/>
   <cpu type='kvm' name='486' typename='486-x86_64-cpu' usable='yes'/>
   <machine type='kvm' name='pc-i440fx-4.1' alias='pc' hotplugCpus='yes' maxCpus='255' default='yes' numaMemSupported='yes'/>
-  <machine type='kvm' name='pc-0.15' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-0.15' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='kvm' name='pc-i440fx-2.12' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-2.0' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-2.5' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
-  <machine type='kvm' name='pc-0.12' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-0.12' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='kvm' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-1.1' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-1.7' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
-  <machine type='kvm' name='pc-0.14' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-0.14' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='kvm' name='pc-q35-2.9' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-2.11' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
@@ -889,7 +890,7 @@
   <machine type='kvm' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
-  <machine type='kvm' name='pc-0.13' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='kvm' name='pc-0.13' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='kvm' name='pc-q35-2.8' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-i440fx-2.10' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='kvm' name='pc-q35-3.0' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
@@ -1962,20 +1963,20 @@
   <cpu type='tcg' name='486-v1' typename='486-v1-x86_64-cpu' usable='yes'/>
   <cpu type='tcg' name='486' typename='486-x86_64-cpu' usable='yes'/>
   <machine type='tcg' name='pc-i440fx-4.1' alias='pc' hotplugCpus='yes' maxCpus='255' default='yes' numaMemSupported='yes'/>
-  <machine type='tcg' name='pc-0.15' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-0.15' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='tcg' name='pc-i440fx-2.12' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-2.0' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-2.5' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-1.5' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-q35-2.7' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
-  <machine type='tcg' name='pc-0.12' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-0.12' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='tcg' name='pc-i440fx-2.2' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-1.1' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-2.7' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-q35-2.4' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-q35-2.10' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-1.7' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
-  <machine type='tcg' name='pc-0.14' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-0.14' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='tcg' name='pc-q35-2.9' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-2.11' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-q35-3.1' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
@@ -1993,7 +1994,7 @@
   <machine type='tcg' name='pc-i440fx-2.6' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-q35-4.0.1' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-1.6' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
-  <machine type='tcg' name='pc-0.13' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
+  <machine type='tcg' name='pc-0.13' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes' deprecated='yes'/>
   <machine type='tcg' name='pc-q35-2.8' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-i440fx-2.10' hotplugCpus='yes' maxCpus='255' numaMemSupported='yes'/>
   <machine type='tcg' name='pc-q35-3.0' hotplugCpus='yes' maxCpus='288' numaMemSupported='yes'/>

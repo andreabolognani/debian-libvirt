@@ -155,6 +155,29 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    the host native arch will be chosen. For the ``test``, ``ESX`` and ``VMWare``
    hypervisor drivers, however, the ``i686`` arch will always be chosen even on
    an ``x86_64`` host. :since:`Since 0.0.1`
+``firmware``
+   :since:`Since 7.2.0 QEMU/KVM only`
+
+   When using firmware auto-selection there are different features enabled in
+   the firmwares. The list of features can be used to limit what firmware should
+   be automatically selected for the VM. The list of features can be specified
+   using zero or more ``feature`` elements. Libvirt will take into consideration
+   only the listed features and ignore the rest when selecting the firmware.
+
+   ``feature``
+      The list of mandatory attributes:
+
+      - ``enabled`` (accepted values are ``yes`` and ``no``) is used to tell libvirt
+        if the feature must be enabled or not in the automatically selected firmware
+
+      - ``name`` the name of the feature, the list of the features:
+
+        - ``enrolled-keys`` whether the selected nvram template has default
+          certificate enrolled. Firmware with Secure Boot feature but without
+          enrolled keys will successfully boot non-signed binaries as well.
+          Valid only for firmwares with Secure Boot feature.
+
+        - ``secure-boot`` whether the firmware implements UEFI Secure boot feature.
 ``loader``
    The optional ``loader`` tag refers to a firmware blob, which is specified by
    absolute path, used to assist the domain creation process. It is used by Xen
@@ -167,7 +190,9 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    in the guest memory the file should be mapped. For instance, if the loader
    path points to an UEFI image, ``type`` should be ``pflash``. Moreover, some
    firmwares may implement the Secure boot feature. Attribute ``secure`` can be
-   used then to control it. :since:`Since 2.1.0`
+   used to tell the hypervisor that the firmware is capable of Secure Boot feature.
+   It cannot be used to enable or disable the feature itself in the firmware.
+   :since:`Since 2.1.0`
 ``nvram``
    Some UEFI firmwares may want to use a non-volatile memory to store some
    variables. In the host, this is represented as a file and the absolute path
@@ -719,8 +744,8 @@ CPU Tuning
    of element ``vcpu`` is not specified, the vCPU is pinned to all the physical
    CPUs by default. It contains two required attributes, the attribute ``vcpu``
    specifies vCPU id, and the attribute ``cpuset`` is same as attribute
-   ``cpuset`` of element ``vcpu``. (NB: Only qemu driver support) :since:`Since
-   0.9.0`
+   ``cpuset`` of element ``vcpu``.
+   :since:`QEMU driver support since 0.9.0, Xen driver support since 0.9.1`
 ``emulatorpin``
    The optional ``emulatorpin`` element specifies which of host physical CPUs
    the "emulator", a subset of a domain not including vCPU or iothreads will be
@@ -742,7 +767,8 @@ CPU Tuning
    the domain. If this is omitted, it defaults to the OS provided defaults. NB,
    There is no unit for the value, it's a relative measure based on the setting
    of other VM, e.g. A VM configured with value 2048 will get twice as much CPU
-   time as a VM configured with value 1024. :since:`Since 0.9.0`
+   time as a VM configured with value 1024. The value should be in range
+   [2, 262144]. :since:`Since 0.9.0`
 ``period``
    The optional ``period`` element specifies the enforcement interval (unit:
    microseconds). Within ``period``, each vCPU of the domain will not be allowed
@@ -754,7 +780,7 @@ CPU Tuning
    microseconds). A domain with ``quota`` as any negative value indicates that
    the domain has infinite bandwidth for vCPU threads, which means that it is
    not bandwidth controlled. The value should be in range [1000,
-   18446744073709551] or less than 0. A quota with value 0 means no value. You
+   17592186044415] or less than 0. A quota with value 0 means no value. You
    can use this feature to ensure that all vCPUs run at the same speed.
    :since:`Only QEMU driver support since 0.9.4, LXC since 0.9.10`
 ``global_period``
@@ -768,7 +794,7 @@ CPU Tuning
    (unit: microseconds) within a period for the whole domain. A domain with
    ``global_quota`` as any negative value indicates that the domain has infinite
    bandwidth, which means that it is not bandwidth controlled. The value should
-   be in range [1000, 18446744073709551] or less than 0. A ``global_quota`` with
+   be in range [1000, 17592186044415] or less than 0. A ``global_quota`` with
    value 0 means no value. :since:`Only QEMU driver support since 1.3.3`
 ``emulator_period``
    The optional ``emulator_period`` element specifies the enforcement interval
@@ -783,7 +809,7 @@ CPU Tuning
    vCPUs). A domain with ``emulator_quota`` as any negative value indicates that
    the domain has infinite bandwidth for emulator threads (those excluding
    vCPUs), which means that it is not bandwidth controlled. The value should be
-   in range [1000, 18446744073709551] or less than 0. A quota with value 0 means
+   in range [1000, 17592186044415] or less than 0. A quota with value 0 means
    no value. :since:`Only QEMU driver support since 0.10.0`
 ``iothread_period``
    The optional ``iothread_period`` element specifies the enforcement interval
@@ -797,7 +823,7 @@ CPU Tuning
    bandwidth (unit: microseconds) for IOThreads. A domain with
    ``iothread_quota`` as any negative value indicates that the domain IOThreads
    have infinite bandwidth, which means that it is not bandwidth controlled. The
-   value should be in range [1000, 18446744073709551] or less than 0. An
+   value should be in range [1000, 17592186044415] or less than 0. An
    ``iothread_quota`` with value 0 means no value. You can use this feature to
    ensure that all IOThreads run at the same speed. :since:`Only QEMU driver
    support since 2.1.0`
@@ -1086,8 +1112,11 @@ NUMA Node Tuning
 ``memory``
    The optional ``memory`` element specifies how to allocate memory for the
    domain process on a NUMA host. It contains several optional attributes.
-   Attribute ``mode`` is either 'interleave', 'strict', or 'preferred', defaults
-   to 'strict'. Attribute ``nodeset`` specifies the NUMA nodes, using the same
+   Attribute ``mode`` is either 'interleave', 'strict', 'preferred', or
+   'restrictive', defaults to 'strict'. The value 'restrictive' specifies
+   using system default policy and only cgroups is used to restrict the
+   memory nodes, and it requires setting mode to 'restrictive' in ``memnode``
+   elements. Attribute ``nodeset`` specifies the NUMA nodes, using the same
    syntax as attribute ``cpuset`` of element ``vcpu``. Attribute ``placement`` (
    :since:`since 0.9.12` ) can be used to indicate the memory placement mode for
    domain process, its value can be either "static" or "auto", defaults to
@@ -1226,6 +1255,13 @@ following collection of elements. :since:`Since 0.7.5`
      <feature policy='disable' name='lahf_lm'/>
    ...
 
+::
+
+   <cpu mode='maximum' migratable='off'>
+     <cache mode='passthrough'/>
+     <feature policy='disable' name='lahf_lm'/>
+   ...
+
 In case no restrictions need to be put on CPU model and its features, a simpler
 ``cpu`` element can be used. :since:`Since 0.7.6`
 
@@ -1351,6 +1387,18 @@ In case no restrictions need to be put on CPU model and its features, a simpler
       another host safer: even with ``migratable='on'`` migration will be
       dangerous unless both hosts are identical as described above.
 
+   ``maximum``
+      When running a guest with hardware virtualization this CPU model is
+      functionally identical to ``host-passthrough``, so refer to the docs
+      above.
+
+      When running a guest with CPU emulation, this CPU model will enable
+      the maximum set of features that the emulation engine is able to support.
+      Note that even with ``migratable='on'`` migration will be dangerous
+      unless both hosts are running identical versions of the emulation code.
+
+      :since:`Since 7.1.0` with the QEMU driver.
+
    Both ``host-model`` and ``host-passthrough`` modes make sense when a domain
    can run directly on the host CPUs (for example, domains with type ``kvm``).
    The actual host CPU is irrelevant for domains with emulated virtual CPUs
@@ -1358,6 +1406,11 @@ In case no restrictions need to be put on CPU model and its features, a simpler
    ``host-model`` may be implemented even for domains running on emulated CPUs
    in which case the best CPU the hypervisor is able to emulate may be used
    rather then trying to mimic the host CPU model.
+
+   If an application does not care about a specific CPU, just wants the
+   best featureset without a need for migration compatibility, the
+   ``maximum`` model is a good choice on hypervisors where it is available.
+
 ``model``
    The content of the ``model`` element specifies CPU model requested by the
    guest. The list of available CPU models and their definition can be found in
@@ -1766,7 +1819,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      <kvm>
        <hidden state='on'/>
        <hint-dedicated state='on'/>
-       <poll-control='on'/>
+       <poll-control state='on'/>
      </kvm>
      <xen>
        <e820_host state='on'/>
@@ -2059,7 +2112,7 @@ Windows, however, expects it to be in so called 'localtime'.
       feature for guests running the Microsoft Windows operating system.
    ``track``
       The ``track`` attribute specifies what the timer tracks, and can be
-      "boot", "guest", or "wall". Only valid for ``name="rtc"`` or
+      "boot", "guest", or "wall", or "realtime". Only valid for ``name="rtc"`` or
       ``name="platform"``.
    ``tickpolicy``
       The ``tickpolicy`` attribute determines what happens when QEMU misses a
@@ -2322,7 +2375,7 @@ paravirtualized driver is specified via the ``disk`` element.
        <source protocol="tftp" name="url_path">
          <host name="hostname" port="69"/>
        </source>
-       <target dev='hdi' bus='ide' tray='open'/>
+       <target dev='hdi' bus='ide' tray='open' rotation_rate='7200'/>
        <readonly/>
      </disk>
      <disk type='block' device='lun'>
@@ -2335,7 +2388,7 @@ paravirtualized driver is specified via the ``disk`` element.
            <source type='unix' path='/path/to/qemu-pr-helper' mode='client'/>
          </reservations>
        </source>
-       <target dev='sda' bus='scsi'/>
+       <target dev='sda' bus='scsi' rotation_rate='1'/>
        <address type='drive' controller='0' bus='0' target='3' unit='0'/>
      </disk>
      <disk type='block' device='disk'>
@@ -2419,6 +2472,13 @@ paravirtualized driver is specified via the ``disk`` element.
        </source>
        <target dev='vde' bus='virtio'/>
      </disk>
+     <disk type='vhostuser' device='disk'>
+       <driver name='qemu' type='raw'/>
+       <source type='unix' path='/tmp/vhost-blk.sock'>
+         <reconnect enabled='yes' timeout='10'/>
+       </source>
+       <target dev='vdf' bus='virtio'/>
+     </disk>
    </devices>
    ...
 
@@ -2429,8 +2489,8 @@ paravirtualized driver is specified via the ``disk`` element.
    ``type``
       Valid values are "file", "block", "dir" ( :since:`since 0.7.5` ),
       "network" ( :since:`since 0.8.7` ), or "volume" ( :since:`since 1.0.5` ),
-      or "nvme" ( :since:`since 6.0.0` ) and refer to the underlying source for
-      the disk. :since:`Since 0.0.3`
+      or "nvme" ( :since:`since 6.0.0` ), or "vhostuser" ( :since:`since 7.1.0` )
+      and refer to the underlying source for the disk. :since:`Since 0.0.3`
    ``device``
       Indicates how the disk is to be exposed to the guest OS. Possible values
       for this attribute are "floppy", "disk", "cdrom", and "lun", defaulting to
@@ -2581,6 +2641,23 @@ paravirtualized driver is specified via the ``disk`` element.
       is not involved (compared to passing say ``/dev/nvme0n1`` via
       ``<disk type='block'>`` and therefore lower latencies can be achieved.
 
+   ``vhostuser``
+      Enables the hypervisor to connect to another process using vhost-user
+      protocol. Requires shared memory configured for the VM, for more details
+      see ``access`` mode for `memoryBacking <#elementsMemoryBacking>`__ element.
+
+      The ``source`` element has following mandatory attributes:
+
+      ``type``
+         The type of char device. Currently only ``unix`` type is supported.
+      ``path``
+         Path to the unix socket to be used as disk source.
+
+      Note that the vhost server replaces both the disk frontend and backend
+      thus almost all of the disk properties can't be configured via the
+      ``<disk>`` XML for this disk type. Additionally features such as blockjobs,
+      incremental backups and snapshots are not supported for this disk type.
+
    With "file", "block", and "volume", one or more optional sub-elements
    ``seclabel``, `described below <#seclabel>`__ (and :since:`since 0.9.9` ),
    can be used to override the domain security labeling policy for just that
@@ -2703,6 +2780,15 @@ paravirtualized driver is specified via the ``disk`` element.
       of these attributes is omitted, then that field is assumed to be the
       default value for the current system. If both ``user`` and ``group``
       are intended to be default, then the entire element may be omitted.
+   ``reconnect``
+      For disk type ``vhostuser`` configures reconnect timeout if the connection
+      is lost. It has two mandatory attributes:
+
+      ``enabled``
+         If the reconnect feature is enabled, accepts ``yes`` and ``no``
+      ``timeout``
+         The amount of seconds after which hypervisor tries to reconnect.
+
 
    For a "file" or "volume" disk type which represents a cdrom or floppy (the
    ``device`` attribute), it is possible to define policy what to do with the
@@ -2802,10 +2888,17 @@ paravirtualized driver is specified via the ``disk`` element.
    to "closed". NB, the value of ``tray`` could be updated while the domain is
    running. The optional attribute ``removable`` sets the removable flag for USB
    disks, and its value can be either "on" or "off", defaulting to "off".
+   The optional attribute ``rotation_rate`` sets the rotation rate of the
+   storage for disks on a SCSI, IDE, or SATA bus. Values in the range 1025 to
+   65534 are used to indicate rotational media speed in revolutions per minute.
+   A value of one is used to indicate solid state, or otherwise non-rotational,
+   storage. These values are not required to match the values of the underlying
+   host storage.
    :since:`Since 0.0.3`; ``bus`` attribute :since:`since 0.4.3`; ``tray``
    attribute :since:`since 0.9.11`; "usb" attribute value
    :since:`since after 0.4.4`; "sata" attribute value :since:`since 0.9.7`;
-   "removable" attribute value :since:`since 1.1.3`
+   "removable" attribute value :since:`since 1.1.3`;
+   "rotation_rate" attribute value :since:`since 7.3.0`
 ``iotune``
    The optional ``iotune`` element provides the ability to provide additional
    per-device I/O tuning, with values that can vary for each device (contrast
@@ -3042,11 +3135,27 @@ paravirtualized driver is specified via the ``disk`` element.
    disk transient prevents the domain from participating in migration,
    snapshots, or blockjobs. Only supported in vmx hypervisor
    (:since:`Since 0.9.5`) and ``qemu`` hypervisor (:since:`Since 6.9.0`).
+
+   In cases where the source image of the ``<transient/>`` disk is supposed to
+   be shared between multiple concurrently running VMs the optional
+   ``shareBacking`` attribute should be set to ``yes``. Note that hypervisor
+   drivers may need to hotplug such disk and thus it works only with
+   configurations supporting hotplug. :since:`Since 7.4.0`
 ``serial``
    If present, this specify serial number of virtual hard drive. For example, it
    may look like ``<serial>WD-WMAP9A966149</serial>``. Not supported for
    scsi-block devices, that is those using disk ``type`` 'block' using
    ``device`` 'lun' on ``bus`` 'scsi'. :since:`Since 0.7.1`
+
+   Note that depending on hypervisor and device type the serial number may be
+   truncated silently. IDE/SATA devices are commonly limited to 20 characters.
+   SCSI devices depending on hypervisor version are limited to 20, 36 or 247
+   characters.
+
+   Hypervisors may also start rejecting overly long serials instead of
+   truncating them in the future so it's advised to avoid the implicit
+   truncation by testing the desired serial length range with the desired device
+   and hypervisor combination.
 ``wwn``
    If present, this element specifies the WWN (World Wide Name) of a virtual
    hard disk or CD-ROM drive. It must be composed of 16 hexadecimal digits.
@@ -3143,10 +3252,16 @@ A directory on the host that can be accessed directly from the guest.
          <driver type='virtiofs' queue='1024'/>
          <binary path='/usr/libexec/virtiofsd' xattr='on'>
             <cache mode='always'/>
+            <sandbox mode='namespace'/>
             <lock posix='on' flock='on'/>
          </binary>
          <source dir='/path'/>
          <target dir='mount_tag'/>
+     </filesystem>
+     <filesystem type='mount'>
+         <driver type='virtiofs' queue='1024'/>
+         <source socket='/tmp/sock'/>
+         <target dir='tag'/>
      </filesystem>
      ...
    </devices>
@@ -3267,10 +3382,19 @@ A directory on the host that can be accessed directly from the guest.
    ``cache`` element, possible ``mode`` values being ``none`` and ``always``.
    Locking can be controlled via the ``lock`` element - attributes ``posix`` and
    ``flock`` both accepting values ``on`` or ``off``. ( :since:`Since 6.2.0` )
+   The sandboxing method used by virtiofsd can be configured with the ``sandbox``
+   element, possible ``mode`` values being ``namespace`` and
+   ``chroot``, see the
+   `virtiofsd documentation <https://qemu.readthedocs.io/en/latest/tools/virtiofsd.html>`__
+   for more details. ( :since:`Since 7.2.0` )
 ``source``
    The resource on the host that is being accessed in the guest. The ``name``
    attribute must be used with ``type='template'``, and the ``dir`` attribute
-   must be used with ``type='mount'``. The ``usage`` attribute is used with
+   must be used with ``type='mount'``. For ``virtiofs``, the ``socket`` attribute
+   can be used to connect to a virtiofsd daemon launched outside of libvirt.
+   In that case, the ``target`` element does not apply and neither do most
+   virtiofs-related options, since they are controlled by virtiofsd, not libvirtd.
+   The ``usage`` attribute is used with
    ``type='ram'`` to set the memory limit in KiB, unless units are specified by
    the ``units`` attribute.
 ``target``
@@ -3428,8 +3552,10 @@ machine types, accept the following ``model`` values:
 While the information outlined above applies to most virtio devices, there are a
 few exceptions:
 
--  for SCSI controllers, ``virtio-scsi`` must be used instead of ``virtio`` for
-   backwards compatibility reasons;
+-  for SCSI controllers, there is no ``virtio`` model available due to
+   historical reasons: use ``virtio-scsi`` instead, which behaves the same as
+   ``virtio`` does for other devices. Both ``virtio-transitional`` and
+   ``virtio-non-transitional`` work with SCSI controllers;
 -  some devices, such as GPUs and input devices (keyboard, tablet and mouse),
    are only defined in the virtio 1.0 spec and as such don't have a transitional
    variant: the only accepted model is ``virtio``, which will result in a
@@ -4271,6 +4397,7 @@ Network interfaces
        <mac address='52:54:00:5d:c7:9e'/>
        <boot order='1'/>
        <rom bar='off'/>
+       <acpi index='4'/>
      </interface>
    </devices>
    ...
@@ -4296,6 +4423,12 @@ tie the interface to a particular pci slot, with attribute ``type='pci'`` as
 when it's in the reserved VMware range by adding a ``type="static"`` attribute
 to the ``<mac/>`` element. Note that this attribute is useless if the provided
 MAC address is outside of the reserved VMWare ranges.
+
+:since:`Since 7.3.0`, one can set the ACPI index against network interfaces.
+With some operating systems (eg Linux with systemd), the ACPI index is used
+to provide network interface device naming, that is stable across changes
+in PCI addresses assigned to the device. This value is required to be unique
+across all devices and be between 1 and (16*1024-1).
 
 :anchor:`<a id="elementsNICSVirtual"/>`
 
@@ -4754,7 +4887,7 @@ Teaming a virtio/hostdev NIC pair
 
 :since:`Since 6.1.0 (QEMU and KVM only, requires QEMU 4.2.0 or newer and a guest
 virtio-net driver supporting the "failover" feature, such as the one included in
-Linux kernel 4.18 and newer) ` The ``<teaming>`` element of two interfaces can
+Linux kernel 4.18 and newer)` The ``<teaming>`` element of two interfaces can
 be used to connect them as a team/bond device in the guest (assuming proper
 support in the hypervisor and the guest network driver).
 
@@ -4778,6 +4911,22 @@ support in the hypervisor and the guest network driver).
    </devices>
    ...
 
+The second interface in this example is referencing a network that is
+a pool of SRIOV VFs (i.e. a "hostdev network"). You could instead
+directly reference an SRIOV VF device:
+
+::
+
+   ...
+     <interface type='hostdev'>
+       <source>
+         <address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
+       </source>
+       <mac address='00:11:22:33:44:55:66'/>
+       <teaming type='transient' persistent='ua-backup0'/>
+     </interface>
+   ...
+
 The ``<teaming>`` element required attribute ``type`` will be set to either
 ``"persistent"`` to indicate a device that should always be present in the
 domain, or ``"transient"`` to indicate a device that may periodically be
@@ -4798,6 +4947,40 @@ automatically unplug the VF from the guest, and then hotplug a similar device
 once migration is completed; while migration is taking place, network traffic
 will use the virtio NIC. (Of course the emulated virtio NIC and the hostdev NIC
 must be connected to the same subnet for bonding to work properly).
+
+:since:`Since 7.1.0` The ``<teaming>`` element can also be added to a
+plain ``<hostdev>`` device.
+
+::
+
+   ...
+     <hostdev mode='subsystem' type='pci' managed='no'>
+       <source>
+         <address domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
+       </source>
+       <teaming type='transient' persistent='ua-backup0'/>
+     </hostdev>
+   ...
+
+This device must be a network device, but not necessarily an SRIOV
+VF. Using plain ``<hostdev>`` rather than ``<interface
+type='hostdev'>`` or ``<interface type='network'>`` is useful if the
+device that will be assigned with VFIO is a standard NIC (not a VF) or
+if libvirt doesn't have the necessary resources and privileges to set
+the VF's MAC address (e.g. if libvirt is running unprivileged, or in a
+container). This of course means that the user (or another
+application) is responsible for setting the MAC address of the device
+in a way such that it will survive guest driver initialization. For
+standard NICs (i.e. not an SRIOV VF) this probably means that the
+NIC's factory-programmed MAC address will need to be used for the
+teaming pair (since any driver init in the guest will reset the MAC
+back to factory). If it is an SRIOV VF, then its MAC address will need
+to be set via the VF's PF, e.g. if you are going to use VF 2 of the PF
+enp2s0f1, you would use something like this command:
+
+::
+
+  ip link set enp2s0f1 vf 2 mac 52:54:00:11:22:33
 
 NB1: Since you must know the alias name of the virtio NIC when configuring the
 hostdev NIC, it will need to be manually set in the virtio NIC's configuration
@@ -5562,26 +5745,37 @@ to provide a graphics tablet for absolute cursor movement.
      <input type='passthrough' bus='virtio'>
        <source evdev='/dev/input/event1'/>
      </input>
+     <input type='evdev'>
+       <source dev='/dev/input/event1234' grab='all' repeat='on'/>
+     </input>
    </devices>
    ...
 
 ``input``
    The ``input`` element has one mandatory attribute, the ``type`` whose value
-   can be 'mouse', 'tablet', ( :since:`since 1.2.2` ) 'keyboard' or (
-   :since:`since 1.3.0` ) 'passthrough'. The tablet provides absolute cursor
-   movement, while the mouse uses relative movement. The optional ``bus``
-   attribute can be used to refine the exact device type. It takes values "xen"
-   (paravirtualized), "ps2" and "usb" or ( :since:`since 1.3.0` ) "virtio".
+   can be 'mouse', 'tablet', ( :since:`since 1.2.2` ) 'keyboard', (
+   :since:`since 1.3.0` ) 'passthrough' or ( :since:`since 7.4.0` ) 'evdev'.
+   The tablet provides absolute cursor movement, while the mouse uses relative
+   movement. The optional ``bus`` attribute can be used to refine the exact
+   device type. It takes values "xen" (paravirtualized), "ps2" and "usb" or (
+   :since:`since 1.3.0` ) "virtio".
 
 The ``input`` element has an optional sub-element ``<address>`` which can tie
-the device to a particular PCI slot, `documented above <#elementsAddress>`__. On
-S390, ``address`` can be used to provide a CCW address for an input device (
-:since:`since 4.2.0` ). For type ``passthrough``, the mandatory sub-element
-``source`` must have an ``evdev`` attribute containing the absolute path to the
-event device passed through to guests. (KVM only) :since:`Since 5.2.0` , the
-``input`` element accepts a ``model`` attribute which has the values 'virtio',
-'virtio-transitional' and 'virtio-non-transitional'. See `Virtio transitional
-devices <#elementsVirtioTransitional>`__ for more details.
+the device to a particular PCI slot, `documented above <#elementsAddress>`__.
+On S390, ``address`` can be used to provide a CCW address for an input device (
+:since:`since 4.2.0` ). For types ``passthrough`` and ``evdev``, the mandatory
+sub-element ``source`` must have an ``evdev`` (for ``passthrough``) or ``dev``
+(for ``evdev``) attribute containing the absolute path to the event device
+passed through to guests.
+For type ``evdev``, ``source`` can have two optional attributes ``grab`` with
+value 'all' which when enabled grabs all input devices instead of just one and
+``repeat`` with value 'on'/'off' to enable/disable auto-repeat events (
+:since:`Since 7.4.0`).
+``input`` type ``evdev`` is currently supported only on linux devices.
+(KVM only) :since:`Since 5.2.0` , the ``input`` element accepts a
+``model`` attribute which has the values 'virtio', 'virtio-transitional' and
+'virtio-non-transitional'. See `Virtio transitional devices
+<#elementsVirtioTransitional>`__ for more details.
 
 The subelement ``driver`` can be used to tune the virtio options of the device:
 `Virtio-specific options <#elementsVirtio>`__ can also be set. ( :since:`Since
@@ -5681,9 +5875,27 @@ interaction with the admin.
       ``autoport`` having no effect due to security reasons) :since:`Since
       1.0.6` .
 
+      For VNC, the ``powerControl`` attribute can be used to enable VM shutdown,
+      reboot and reset power control features for the VNC client. This is
+      appropriate if the authenticated VNC client user already has administrator
+      privileges in the guest :since:`Since 7.1.0`.
+
       Although VNC doesn't support OpenGL natively, it can be paired with
       graphics type ``egl-headless`` (see below) which will instruct QEMU to
       open and use drm nodes for OpenGL rendering.
+
+      A VNC server could be optionally mapped to the specific host audio
+      backend using the ``<audio>`` sub-element:
+
+      ::
+
+         <graphics type='vnc' ...>
+           <audio id='1'>
+         </graphics>
+
+      Where ``1`` is an id of the `audio device <#elementsAudio>`__. If no
+      ID is specified, then the default audio backend will be used.
+      :since:`Since 7.2.0, qemu`.
 
    ``spice`` :since:`Since 0.8.6`
       Starts a SPICE server. The ``port`` attribute specifies the TCP port
@@ -6318,11 +6530,10 @@ types have different ``target`` attributes.
 ``xen``
    Paravirtualized Xen channel. Channel is exposed in the guest as a Xen console
    but identified with a name. Setup and consumption of a Xen channel depends on
-   software and configuration in the guest (for more info, please see
-   http://xenbits.xen.org/docs/unstable/misc/channel.txt). Channel source path
-   semantics are the same as the virtio target type. The ``state`` attribute is
-   not supported since Xen channels lack the necessary probing mechanism.
-   :since:`Since 2.3.0`
+   software and configuration in the guest. See the xen-pv-channel(7) man page
+   for more information. Channel source path semantics are the same as the virtio
+   target type. The ``state`` attribute is not supported since Xen channels lack
+   the necessary probing mechanism. :since:`Since 2.3.0`
 ``spicevmc``
    Paravirtualized SPICE channel. The domain must also have a SPICE server as a
    `graphics device <#elementsGraphics>`__, at which point the host piggy-backs
@@ -6664,13 +6875,15 @@ A virtual sound card can be attached to the host via the ``sound`` element.
 ``sound``
    The ``sound`` element has one mandatory attribute, ``model``, which specifies
    what real sound device is emulated. Valid values are specific to the
-   underlying hypervisor, though typical choices are 'es1370', 'sb16', 'ac97',
-   'ich6' and 'usb'. ( :since:`'ac97' only since 0.6.0, 'ich6' only since
-   0.8.8, 'usb' only since 1.2.7` )
+   underlying hypervisor, though typical choices are 'sb16', 'es1370', 'pcspk',
+   'ac97' (:since:`Since 0.6.0`), 'ich6' (:since:`Since 0.8.8`), 'ich9'
+   (:since:`Since 1.1.3`), 'usb' (:since:`Since 1.2.8`) and 'ich7'
+   (:since:`Since 6.7.0`, bhyve only).
 
-:since:`Since 0.9.13` , a sound element with ``ich6`` model can have optional
-sub-elements ``<codec>`` to attach various audio codecs to the audio device. If
-not specified, a default codec will be attached to allow playback and recording.
+:since:`Since 0.9.13` , a sound element with ``ich6`` or ``ich9`` models can have
+optional sub-elements ``<codec>`` to attach various audio codecs to the audio
+device. If not specified, a default codec will be attached to allow playback
+and recording.
 
 Valid values are:
 
@@ -6691,8 +6904,8 @@ Valid values are:
 Each ``sound`` element has an optional sub-element ``<address>`` which can tie
 the device to a particular PCI slot, `documented above <#elementsAddress>`__.
 
-:since:`Since 6.7.0`, a sound device could be optionally mapped to the specific
-host audio backend using the ``<audio>`` sub-element:
+A sound device could be optionally mapped to the specific host audio
+backend using the ``<audio>`` sub-element:
 
 ::
 
@@ -6704,41 +6917,326 @@ host audio backend using the ``<audio>`` sub-element:
    </devices>
    ...
 
-Where ``1`` is an id of the `audio device <#elementsAudio>`__.
-This is supported for bhyve only.
+Where ``1`` is an id of the `audio device <#elementsAudio>`__. If no
+ID is specified, then the default audio backend will be used.
+:since:`Since 6.7.0, bhyve; Since 7.2.0, qemu`.
 
 :anchor:`<a id="elementsAudio"/>`
 
-Audio devices
-~~~~~~~~~~~~~
+Audio backends
+~~~~~~~~~~~~~~
 
 A virtual audio device corresponds to a host audio backend that is mapped
-to the guest sound device. :since:`Since 6.7.0, bhyve only`
+to the guest sound device.
 
 ``type``
    The required ``type`` attribute specifies audio backend type.
-   Currently, the only supported value is 'oss'.
+   Currently, the supported values are 'none', 'alsa', 'coreaudio',
+   'jack', 'oss', 'pulseaudio', 'sdl', 'spice', 'file'.
 
 ``id``
    Integer id of the audio device. Must be greater than 0.
 
-The 'oss' audio type supports additional configuration:
+``timerPeriod``
+   Timer period in microseconds. Must be greater than 0. If omitted,
+   the lowest possible period is used.
+
+All the backends support child element for configuring input and
+output properties
 
 ::
 
    ...
    <devices>
-     <audio type='oss' id='1'>
-       <input dev='/dev/dsp0'/>
-       <output dev='/dev/dsp0'/>
+     <audio id='1' type='pulseaudio' timerPeriod='40'>
+       <input mixingEngine='yes' fixedSettings='yes' voices='1' bufferLength='100'>
+         <settings frequency='44100' channels='2' format='s16'/>
+       </input>
+       <output mixingEngine='yes' fixedSettings='yes' voices='2' bufferLength='100'>
+         <settings frequency='22050' channels='4' format='f32'/>
+       </output>
      </audio>
    </devices>
+   ...
 
-``input``
-   Input device. The required ``dev`` attribute specifies device path.
+The input and output elements support the same set of attributes and
+elements
 
-``output``
-   Output device. The required ``dev`` attribute specifies device path.
+* ``mixingEngine``
+
+  Control whether the host mixing engine is used to convert between
+  different audio formats and sampling rates. When the mixing engine
+  is disabled it is possible to make use of improved audio formats
+  such as 5.1/7.1. If not specified, a hypervisor default applies.
+
+* ``fixedSettings``
+
+  Control whether the mixing engine can dynamically choose settings
+  to minimize format conversion. This is only valid when the
+  mixing engine is explicitly enabled.
+
+* ``voices``
+
+  The number of voices voices to use, usually defaults to 1
+
+* ``bufferLength``
+
+  The length of the audio buffer in microseconds. Default is
+  backend specific.
+
+The ``<input>`` and ``<output>`` elements may also permit backend
+specific options.
+
+When fixed settings are enabled, the ``<settings>`` child element
+is permitted with the following attributes.
+
+* ``frequency``
+
+  The frequency in HZ, usually defaulting to 44100
+
+* ``channels``
+
+  The number of channels, usually defaulting to 2. The permitted
+  max number of channels is hypervisor specific.
+
+* ``format``
+
+  The audio format, one of ``s8``, ``u8``, ``s16``, ``u16``,
+  ``s32``, ``u32``, ``f32``. The default is hypervisor specific.
+
+None audio backend
+^^^^^^^^^^^^^^^^^^
+
+The 'none' audio backend is a dummy backend that does not connect to
+any host audio framework. It still allows a remote desktop server
+like VNC to send and receive audio though. This is the default backend
+when VNC graphics are enabled in QEMU.
+
+:since:`Since 7.2.0, qemu`
+
+ALSA audio backend
+^^^^^^^^^^^^^^^^^^
+
+The 'alsa' audio type uses the ALSA host audio device framework.
+
+The following additional attributes are permitted on the ``<input>``
+and ``<output>`` elements
+
+* ``dev``
+
+  Path to the host device node to connect the backend to. A hypervisor
+  specific default applies if not specified.
+
+::
+
+   <audio id="1" type="alsa">
+     <input dev="/dev/dsp0"/>
+     <output dev="/dev/dsp1"/>
+   </audio>
+
+:since:`Since 7.2.0, qemu`
+
+Coreaudio audio backend
+^^^^^^^^^^^^^^^^^^^^^^^
+
+The 'coreaudio' audio backend delegates to a CoreAudio host audio framework
+for input and output on macOS.
+
+The following additional attributes are permitted on the ``<input>``
+and ``<output>`` elements
+
+* ``bufferCount``
+
+  The number of buffers. It is recommended to set the ``bufferLength``
+  attribute at the same time.
+
+::
+
+   <audio id="1" type="coreaudio">
+     <input bufferCount="50"/>
+     <output bufferCount="42"/>
+   </audio>
+
+:since:`Since 7.2.0, qemu`
+
+Jack audio backend
+^^^^^^^^^^^^^^^^^^
+
+The 'jack' audio backend delegates to a Jack daemon for audio input
+and output.
+
+The following additional attributes are permitted on the ``<input>``
+and ``<output>`` elements
+
+* ``serverName``
+
+  Select the Jack server instance to connect to.
+
+* ``clientName``
+
+  The client name to identify as. The server may modify this to
+  ensure uniqueness unless ``exactName`` is enabled
+
+* ``connectPorts``
+
+  A regular expression of Jack client port names to monitor and
+  connect to.
+
+* ``exactName``
+
+  Use the exact ``clientName`` requested
+
+::
+
+   <audio id="1" type="jack">
+     <input serverName="fish" clientName="food" connectPorts="system:capture_[13]" exactName="yes"/>
+     <output serverName="fish" clientName="food" connectPorts="system:playback_[13]" exactName="yes"/>
+   </audio>
+
+:since:`Since 7.2.0, qemu`
+
+OSS audio backend
+^^^^^^^^^^^^^^^^^
+
+The 'oss' audio type uses the OSS host audio device framework.
+
+The following additional attributes are permitted on the ``<audio>``
+element
+
+* ``tryMMap``
+
+  Attempt to use mmap for data transfer
+
+* ``exclusive``
+
+  Enforce exclusive access to the host device
+
+* ``dspPolicy``
+
+  Set the timing policy of the device, values between -1 and 10.
+  Smaller numbers result in lower latency but higher CPU usage.
+  A negative value requests use of fragment mode.
+
+The following additional attributes are permitted on the ``<input>``
+and ``<output>`` elements
+
+* ``dev``
+
+  Path to the host device node to connect the backend to. A hypervisor
+  specific default applies if not specified.
+
+* ``bufferCount``
+
+  The number of buffers. It is recommended to set the ``bufferLength``
+  attribute at the same time.
+
+* ``tryPoll``
+
+  Attempt to use polling mode
+
+::
+
+   <audio type='oss' id='1' tryMMap='yes' exclusive='yes' dspPolicy='4'>
+     <input dev='/dev/dsp0' bufferCount='40' tryPoll='yes'/>
+     <output dev='/dev/dsp0' bufferCount='40' tryPoll='yes'/>
+   </audio>
+
+:since:`Since 6.7.0, bhyve; Since 7.2.0, qemu`
+
+PulseAudio audio backend
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The 'pulseaudio' audio backend delegates to a PulseAudio daemon audio input
+and output.
+
+The following additional attributes are permitted on the ``<audio>``
+element
+
+* ``serverName``
+
+  Hostname of the PulseAudio server
+
+The following additional attributes are permitted on the ``<input>``
+and ``<output>`` elements
+
+* ``name``
+
+  The sink/source name to use
+
+* ``streamName``
+
+  The name to identify the stream associated with the VM
+
+* ``latency``
+
+  Desired latency for the server to target in microseconds
+
+::
+
+   <audio id="1" type="pulseaudio" serverName="acme.example.org">
+     <input name="fish" streamName="food" latency="100"/>
+     <output name="fish" streamName="food" latency="200"/>
+   </audio>
+
+:since:`Since 7.2.0, qemu`
+
+SDL audio backend
+^^^^^^^^^^^^^^^^^
+
+The 'sdl' audio backend delegates to the SDL library for audio input
+and output.
+
+The following additional attributes are permitted on the ``<audio>``
+element
+
+* ``driver``
+
+  SDL audio driver. The ``name`` attribute specifies SDL driver name,
+  one of 'esd', 'alsa', 'arts', 'pulseaudio'.
+
+The following additional attributes are permitted on the ``<input>``
+and ``<output>`` elements
+
+* ``bufferCount``
+
+  The number of buffers. It is recommended to set the ``bufferLength``
+  attribute at the same time.
+
+::
+
+   <audio type='sdl' id='1' driver='pulseaudio'>
+     <input bufferCount='40'/>
+     <output bufferCount='40'/>
+   </audio>
+
+:since:`Since 7.2.0, qemu`
+
+Spice audio backend
+^^^^^^^^^^^^^^^^^^^
+
+The 'spice' audio backend is similar to the 'none' backend in that
+it does not connect to any host audio framework. It exclusively
+allows a SPICE server to send and receive audio. This is the default
+backend when SPICE graphics are enabled in QEMU.
+
+::
+
+   <audio type='spice' id='1'/>
+
+:since:`Since 7.2.0, qemu`
+
+File audio backend
+^^^^^^^^^^^^^^^^^^
+
+The 'file' audio backend is an output only driver which records
+audio to a file. The file format is implementation defined, and
+defaults to 'WAV' with QEMU.
+
+::
+
+   <audio id="1" type="file" path="audio.wav"/>
+
+:since:`Since 7.2.0, qemu`
 
 :anchor:`<a id="elementsWatchdog"/>`
 
@@ -7257,20 +7755,30 @@ Example: usage of the memory devices
          </label>
        </target>
      </memory>
+     <memory model='virtio-pmem' access='shared'>
+       <source>
+         <path>/tmp/virtio_pmem</path>
+       </source>
+       <target>
+         <size unit='KiB'>524288</size>
+       </target>
+     </memory>
    </devices>
    ...
 
 ``model``
    Provide ``dimm`` to add a virtual DIMM module to the guest. :since:`Since
-   1.2.14` Provide ``nvdimm`` model adds a Non-Volatile DIMM module.
-   :since:`Since 3.2.0`
+   1.2.14` Provide ``nvdimm`` model that adds a Non-Volatile DIMM module.
+   :since:`Since 3.2.0` Provide ``virtio-pmem`` model to add a paravirtualized
+   persistent memory device. :since:`Since 7.1.0`
 
 ``access``
    An optional attribute ``access`` ( :since:`since 3.2.0` ) that provides
    capability to fine tune mapping of the memory on per module basis. Values are
    the same as `Memory Backing <#elementsMemoryBacking>`__: ``shared`` and
    ``private``. For ``nvdimm`` model, if using real NVDIMM DAX device as
-   backend, ``shared`` is required.
+   backend, ``shared`` is required. For ``virtio-pmem`` model ``shared`` is
+   required.
 
 ``discard``
    An optional attribute ``discard`` ( :since:`since 4.4.0` ) that provides
@@ -7299,9 +7807,9 @@ Example: usage of the memory devices
       This element can be used to override the default set of NUMA nodes where
       the memory would be allocated.
 
-   For model ``nvdimm`` this element is mandatory. The mandatory child element
-   ``path`` represents a path in the host that backs the nvdimm module in the
-   guest. The following optional elements may be used:
+   For model ``nvdimm`` the ``source`` element is mandatory. The mandatory
+   child element ``path`` represents a path in the host that backs the nvdimm
+   module in the guest. The following optional elements may be used:
 
    ``alignsize``
       The ``alignsize`` element defines the page size alignment used to mmap the
@@ -7314,6 +7822,13 @@ Example: usage of the memory devices
       If persistent memory is supported and enabled by the hypervisor in order
       to guarantee the persistence of writes to the vNVDIMM backend, then use
       the ``pmem`` element in order to utilize the feature. :since:`Since 5.0.0`
+
+   For model ``virtio-pmem`` the ``source`` element is mandatory. The following
+   optional elements may be used:
+
+   ``path``
+     Represents a path in the host that backs the virtio memory module in the
+     guest. It is mandatory.
 
 ``target``
    The mandatory ``target`` element configures the placement and sizing of the
@@ -7414,6 +7929,8 @@ devices <#elementsVirtioTransitional>`__ for more details. The optional
 attribute ``address`` of the ``cid`` element specifies the CID assigned to the
 guest. If the attribute ``auto`` is set to ``yes``, libvirt will assign a free
 CID automatically on domain startup. :since:`Since 4.4.0`
+The optional ``driver`` element allows to specify virtio options, see
+`Virtio-specific options <#elementsVirtio>`__  for more details. :since:`Since 7.1.0`
 
 ::
 
@@ -7640,4 +8157,4 @@ Example configurations for each driver are provide on the driver specific pages
 listed below
 
 -  `Xen examples <drvxen.html#xmlconfig>`__
--  `QEMU/KVM examples <drvqemu.html#xmlconfig>`__
+-  `QEMU/KVM examples <drvqemu.html#example-domain-xml-config>`__
