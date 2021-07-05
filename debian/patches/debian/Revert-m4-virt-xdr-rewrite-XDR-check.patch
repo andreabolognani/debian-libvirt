@@ -36,16 +36,14 @@ this revert and follow upstream as 2.32 dropped the option to enable
  meson.build | 2 --
  1 file changed, 2 deletions(-)
 
-diff --git a/meson.build b/meson.build
-index da0157b..9121ea5 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1429,8 +1429,6 @@ endif
- # use extra library as it's provided by libc directly.
+@@ -1286,7 +1286,7 @@ endif
  if host_machine.system() == 'windows'
    xdr_dep = cc.find_library('portablexdr', required: false)
--elif host_machine.system() == 'linux'
+ elif host_machine.system() == 'linux'
 -  xdr_dep = dependency('libtirpc', required: false)
++  xdr_dep = cc.find_library('c', required: false)
+ elif host_machine.system() in [ 'freebsd', 'darwin' ]
+   xdr_dep = cc.find_library('c', required: false)
  else
-   xdr_dep = declare_dependency()
- endif
