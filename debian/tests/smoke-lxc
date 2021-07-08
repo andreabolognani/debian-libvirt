@@ -24,6 +24,18 @@ check_domain()
 
 trap cleanup EXIT
 
+# This is an upstream bug due to combined cgroup v1/v2 handling
+# https://bugs.archlinux.org/task/70174
+# https://bugzilla.opensuse.org/show_bug.cgi?id=1183247
+# https://gitlab.com/libvirt/libvirt/-/issues/182
+# https://bugs.launchpad.net/ubuntu/+source/libvirt/+bug/1934966
+# Skip this test (until the upstream issue is resolved) in case v1&v2
+# cgroup are present in the test environment.
+if [ -n "$(findmnt -lnt cgroup)" ] && [ -n "$(findmnt -lnt cgroup2)" ]; then
+    echo "Libvirt >=7.1.0 is known to fail LXC handling (issue 182) - skipping".
+    exit 77
+fi
+
 set -x
 virt-host-validate lxc || exit 0
 virsh capabilities
