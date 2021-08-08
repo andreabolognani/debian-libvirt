@@ -33,12 +33,14 @@ As soon as we rebuild agains 2.32 which is about to arrive we can drop
 this revert and follow upstream as 2.32 dropped the option to enable
 --enable-obsolete-rpc.
 ---
- meson.build | 2 --
- 1 file changed, 2 deletions(-)
+ meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
+diff --git a/meson.build b/meson.build
+index b8d2d46..35109d3 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -1286,7 +1286,7 @@ endif
+@@ -861,7 +861,7 @@ endforeach
  if host_machine.system() == 'windows'
    xdr_dep = cc.find_library('portablexdr', required: false)
  elif host_machine.system() == 'linux'
