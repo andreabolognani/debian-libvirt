@@ -162,6 +162,21 @@ LIBVIRT_SOCKETS = \
     virtlockd-admin.socket \
     $(NULL)
 
+APPARMOR_ABSTRACTIONS = \
+    libvirt-lxc \
+    libvirt-qemu \
+    $(NULL)
+
+APPARMOR_TEMPLATES = \
+    TEMPLATE.lxc \
+    TEMPLATE.qemu \
+    $(NULL)
+
+APPARMOR_SERVICES = \
+    usr.lib.libvirt.virt-aa-helper \
+    usr.sbin.libvirtd \
+    $(NULL)
+
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
 SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirtd-tls virt-guest-shutdown
@@ -238,9 +253,16 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	               lib/systemd/system/; \
 	done
 	dh_install -p libvirt-daemon usr/lib/libvirt/virt-aa-helper
-	dh_install -p libvirt-daemon-system etc/apparmor.d
-	dh_apparmor -p libvirt-daemon-system --profile-name=usr.lib.libvirt.virt-aa-helper
-	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
+	for f in $(APPARMOR_ABSTRACTIONS); do \
+	    dh_install -p libvirt-daemon-system etc/apparmor.d/abstractions/$${f}; \
+	done
+	for f in $(APPARMOR_TEMPLATES); do \
+	    dh_install -p libvirt-daemon-system etc/apparmor.d/libvirt/$${f}; \
+	done
+	for f in $(APPARMOR_SERVICES); do \
+	    dh_install -p libvirt-daemon-system etc/apparmor.d/$${f}; \
+	    dh_apparmor -p libvirt-daemon-system --profile-name=$${f}; \
+	done
 	# Not all linux arches have systemtap yet
 	mkdir -p $(DEB_DESTDIR)/usr/share/systemtap
 	dh_install -p libvirt-daemon-system usr/share/systemtap

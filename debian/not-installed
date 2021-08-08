@@ -1,4 +1,6 @@
 # Drop these once we start shipping split daemons
+etc/apparmor.d/usr.sbin.virtqemud
+etc/apparmor.d/usr.sbin.virtxend
 etc/default/virtinterfaced
 etc/default/virtlxcd
 etc/default/virtnetworkd
