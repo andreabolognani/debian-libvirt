@@ -764,7 +764,6 @@ libxlDomainManagedSavePath(libxlDriverPrivate *driver, virDomainObj *vm)
  */
 int
 libxlDomainSaveImageOpen(libxlDriverPrivate *driver,
-                         libxlDriverConfig *cfg G_GNUC_UNUSED,
                          const char *from,
                          virDomainDef **ret_def,
                          libxlSavefileHeader *ret_hdr)
@@ -827,6 +826,52 @@ libxlDomainSaveImageOpen(libxlDriverPrivate *driver,
     return -1;
 }
 
+static void
+libxlNetworkUnwindDevices(virDomainDef *def)
+{
+    if (def->nnets) {
+        size_t i;
+
+        for (i = 0; i < def->nnets; i++) {
+            virDomainNetDef *net = def->nets[i];
+
+            if (net->ifname &&
+                STRPREFIX(net->ifname, LIBXL_GENERATED_PREFIX_XEN))
+                VIR_FREE(net->ifname);
+
+            /* cleanup actual device */
+            virDomainNetRemoveHostdev(def, net);
+            if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
+                g_autoptr(virConnect) conn = virGetConnectNetwork();
+
+                if (conn)
+                    virDomainNetReleaseActualDevice(conn, def, net);
+                else
+                    VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
+            }
+        }
+    }
+}
+
+int
+libxlDomainHookRun(libxlDriverPrivate *driver,
+                   virDomainDef *def,
+                   unsigned int def_fmtflags,
+                   int hookop,
+                   int hooksubop,
+                   char **output)
+{
+    g_autofree char *xml = NULL;
+
+    if (!virHookPresent(VIR_HOOK_DRIVER_LIBXL))
+        return 0;
+
+    xml = virDomainDefFormat(def, driver->xmlopt, def_fmtflags);
+    return virHookCall(VIR_HOOK_DRIVER_LIBXL, def->name,
+                       hookop, hooksubop,
+                       NULL, xml, output);
+}
+
 /*
  * Internal domain destroy function.
  *
@@ -871,23 +916,16 @@ libxlDomainCleanup(libxlDriverPrivate *driver,
     char *file;
     virHostdevManager *hostdev_mgr = driver->hostdevMgr;
     unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
-    g_autoptr(virConnect) conn = NULL;
 
     VIR_DEBUG("Cleaning up domain with id '%d' and name '%s'",
               vm->def->id, vm->def->name);
 
     hostdev_flags |= VIR_HOSTDEV_SP_USB;
 
-    /* now that we know it's stopped call the hook if present */
-    if (virHookPresent(VIR_HOOK_DRIVER_LIBXL)) {
-        char *xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
-
-        /* we can't stop the operation even if the script raised an error */
-        ignore_value(virHookCall(VIR_HOOK_DRIVER_LIBXL, vm->def->name,
-                                 VIR_HOOK_LIBXL_OP_STOPPED, VIR_HOOK_SUBOP_END,
-                                 NULL, xml, NULL));
-        VIR_FREE(xml);
-    }
+    /* Call hook with stopped operation. Ignore error and continue with cleanup */
+    ignore_value(libxlDomainHookRun(driver, vm->def, 0,
+                                    VIR_HOOK_LIBXL_OP_STOPPED,
+                                    VIR_HOOK_SUBOP_END, NULL));
 
     virHostdevReAttachDomainDevices(hostdev_mgr, LIBXL_DRIVER_INTERNAL_NAME,
                                     vm->def, hostdev_flags);
@@ -924,43 +962,17 @@ libxlDomainCleanup(libxlDriverPrivate *driver,
         }
     }
 
-    if ((vm->def->nnets)) {
-        size_t i;
-
-        for (i = 0; i < vm->def->nnets; i++) {
-            virDomainNetDef *net = vm->def->nets[i];
-
-            if (net->ifname &&
-                STRPREFIX(net->ifname, LIBXL_GENERATED_PREFIX_XEN))
-                VIR_FREE(net->ifname);
-
-            /* cleanup actual device */
-            virDomainNetRemoveHostdev(vm->def, net);
-            if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-                if (conn || (conn = virGetConnectNetwork()))
-                    virDomainNetReleaseActualDevice(conn, vm->def, net);
-                else
-                    VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
-            }
-        }
-    }
+    libxlNetworkUnwindDevices(vm->def);
 
     file = g_strdup_printf("%s/%s.xml", cfg->stateDir, vm->def->name);
-
     if (unlink(file) < 0 && errno != ENOENT && errno != ENOTDIR)
         VIR_DEBUG("Failed to remove domain XML for %s", vm->def->name);
     VIR_FREE(file);
 
-    /* The "release" hook cleans up additional resources */
-    if (virHookPresent(VIR_HOOK_DRIVER_LIBXL)) {
-        char *xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
-
-        /* we can't stop the operation even if the script raised an error */
-        ignore_value(virHookCall(VIR_HOOK_DRIVER_LIBXL, vm->def->name,
-                                 VIR_HOOK_LIBXL_OP_RELEASE, VIR_HOOK_SUBOP_END,
-                                 NULL, xml, NULL));
-        VIR_FREE(xml);
-    }
+    /* Call hook with release operation. Ignore error and continue with cleanup */
+    ignore_value(libxlDomainHookRun(driver, vm->def, 0,
+                                    VIR_HOOK_LIBXL_OP_RELEASE,
+                                    VIR_HOOK_SUBOP_END, NULL));
 
     virDomainObjRemoveTransientDef(vm);
 }
@@ -1218,138 +1230,78 @@ libxlDomainCreateChannelPTY(virDomainDef *def, libxl_ctx *ctx)
         libxl_device_channel_dispose(&x_channels[i]);
 }
 
-/*
- * Start a domain through libxenlight.
- *
- * virDomainObj *must be locked and a job acquired on invocation
- */
 static int
-libxlDomainStart(libxlDriverPrivate *driver,
-                 virDomainObj *vm,
-                 bool start_paused,
-                 int restore_fd,
-                 uint32_t restore_ver)
+libxlDomainStartPrepare(libxlDriverPrivate *driver,
+                        virDomainObj *vm)
 {
-    libxl_domain_config d_config;
-    virDomainDef *def = NULL;
-    virObjectEvent *event = NULL;
-    libxlSavefileHeader hdr;
-    int ret = -1;
-    uint32_t domid = 0;
-    g_autofree char *dom_xml = NULL;
-    g_autofree char *managed_save_path = NULL;
-    int managed_save_fd = -1;
-    libxlDomainObjPrivate *priv = vm->privateData;
-    g_autoptr(libxlDriverConfig) cfg = libxlDriverConfigGet(driver);
     virHostdevManager *hostdev_mgr = driver->hostdevMgr;
-    libxl_asyncprogress_how aop_console_how;
-    libxl_domain_restore_params params;
-    unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
-    g_autofree char *config_json = NULL;
-
-    hostdev_flags |= VIR_HOSTDEV_SP_USB;
-
-    libxl_domain_config_init(&d_config);
-
-    /* If there is a managed saved state restore it instead of starting
-     * from scratch. The old state is removed once the restoring succeeded. */
-    if (restore_fd < 0) {
-        managed_save_path = libxlDomainManagedSavePath(driver, vm);
-        if (managed_save_path == NULL)
-            goto cleanup;
-
-        if (virFileExists(managed_save_path)) {
-
-            managed_save_fd = libxlDomainSaveImageOpen(driver, cfg,
-                                                       managed_save_path,
-                                                       &def, &hdr);
-            if (managed_save_fd < 0)
-                goto cleanup;
-
-            restore_fd = managed_save_fd;
-            restore_ver = hdr.version;
-
-            if (STRNEQ(vm->def->name, def->name) ||
-                memcmp(vm->def->uuid, def->uuid, VIR_UUID_BUFLEN)) {
-                char vm_uuidstr[VIR_UUID_STRING_BUFLEN];
-                char def_uuidstr[VIR_UUID_STRING_BUFLEN];
-                virUUIDFormat(vm->def->uuid, vm_uuidstr);
-                virUUIDFormat(def->uuid, def_uuidstr);
-                virReportError(VIR_ERR_OPERATION_FAILED,
-                               _("cannot restore domain '%s' uuid %s from a file"
-                                 " which belongs to domain '%s' uuid %s"),
-                               vm->def->name, vm_uuidstr, def->name, def_uuidstr);
-                goto cleanup;
-            }
-
-            virDomainObjAssignDef(vm, def, true, NULL);
-            def = NULL;
-
-            if (unlink(managed_save_path) < 0)
-                VIR_WARN("Failed to remove the managed state %s",
-                         managed_save_path);
-
-            vm->hasManagedSave = false;
-        }
-    }
+    unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI | VIR_HOSTDEV_SP_USB;
 
     if (virDomainObjSetDefTransient(driver->xmlopt, vm, NULL) < 0)
-        goto cleanup;
+        return -1;
 
     /* Run an early hook to set-up missing devices */
-    if (virHookPresent(VIR_HOOK_DRIVER_LIBXL)) {
-        char *xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
-        int hookret;
-
-        hookret = virHookCall(VIR_HOOK_DRIVER_LIBXL, vm->def->name,
-                              VIR_HOOK_LIBXL_OP_PREPARE, VIR_HOOK_SUBOP_BEGIN,
-                              NULL, xml, NULL);
-        VIR_FREE(xml);
-
-        /*
-         * If the script raised an error abort the launch
-         */
-        if (hookret < 0)
-            goto cleanup_dom;
-    }
+    if (libxlDomainHookRun(driver, vm->def, 0,
+                           VIR_HOOK_LIBXL_OP_PREPARE,
+                           VIR_HOOK_SUBOP_BEGIN, NULL) < 0)
+        goto error;
 
     if (virDomainLockProcessStart(driver->lockManager,
                                   "xen:///system",
                                   vm,
                                   true,
                                   NULL) < 0)
-        goto cleanup;
+        goto error;
 
     if (libxlNetworkPrepareDevices(vm->def) < 0)
-        goto cleanup_dom;
-
-    if (libxlBuildDomainConfig(driver->reservedGraphicsPorts, vm->def,
-                               cfg, &d_config) < 0)
-        goto cleanup_dom;
-
-    if (cfg->autoballoon && libxlDomainFreeMem(cfg->ctx, &d_config) < 0)
-        goto cleanup_dom;
+        goto error;
 
     if (virHostdevPrepareDomainDevices(hostdev_mgr, LIBXL_DRIVER_INTERNAL_NAME,
                                        vm->def, hostdev_flags) < 0)
-        goto cleanup_dom;
+        goto error;
+
+    return 0;
+
+ error:
+    libxlNetworkUnwindDevices(vm->def);
+    virHostdevReAttachDomainDevices(hostdev_mgr, LIBXL_DRIVER_INTERNAL_NAME,
+                                    vm->def, hostdev_flags);
+    virDomainObjRemoveTransientDef(vm);
+    return -1;
+}
+
+static int
+libxlDomainStartPerform(libxlDriverPrivate *driver,
+                        virDomainObj *vm,
+                        bool start_paused,
+                        int restore_fd,
+                        uint32_t restore_ver)
+{
+    libxl_domain_config d_config;
+    int ret = -1;
+    int libxlret = -1;
+    uint32_t domid = 0;
+    g_autofree char *dom_xml = NULL;
+    libxlDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(libxlDriverConfig) cfg = libxlDriverConfigGet(driver);
+    libxl_asyncprogress_how aop_console_how;
+    libxl_domain_restore_params params;
+    g_autofree char *config_json = NULL;
+
+    libxl_domain_config_init(&d_config);
+
+    if (libxlBuildDomainConfig(driver->reservedGraphicsPorts, vm->def,
+                               cfg, &d_config) < 0)
+        goto cleanup;
+
+    if (cfg->autoballoon && libxlDomainFreeMem(cfg->ctx, &d_config) < 0)
+        goto cleanup;
 
     /* now that we know it is about to start call the hook if present */
-    if (virHookPresent(VIR_HOOK_DRIVER_LIBXL)) {
-        char *xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
-        int hookret;
-
-        hookret = virHookCall(VIR_HOOK_DRIVER_LIBXL, vm->def->name,
-                              VIR_HOOK_LIBXL_OP_START, VIR_HOOK_SUBOP_BEGIN,
-                              NULL, xml, NULL);
-        VIR_FREE(xml);
-
-        /*
-         * If the script raised an error abort the launch
-         */
-        if (hookret < 0)
-            goto cleanup_dom;
-    }
+    if (libxlDomainHookRun(driver, vm->def, 0,
+                           VIR_HOOK_LIBXL_OP_START,
+                           VIR_HOOK_SUBOP_BEGIN, NULL) < 0)
+        goto cleanup;
 
     if (priv->hookRun) {
         char uuidstr[VIR_UUID_STRING_BUFLEN];
@@ -1367,19 +1319,19 @@ libxlDomainStart(libxlDriverPrivate *driver,
     aop_console_how.for_callback = vm;
     aop_console_how.callback = libxlConsoleCallback;
     if (restore_fd < 0) {
-        ret = libxl_domain_create_new(cfg->ctx, &d_config,
+        libxlret = libxl_domain_create_new(cfg->ctx, &d_config,
                                       &domid, NULL, &aop_console_how);
     } else {
         libxl_domain_restore_params_init(&params);
         params.stream_version = restore_ver;
-        ret = libxlDomainCreateRestoreWrapper(cfg->ctx, &d_config, &domid,
+        libxlret = libxlDomainCreateRestoreWrapper(cfg->ctx, &d_config, &domid,
                                               restore_fd, &params,
                                           &aop_console_how);
         libxl_domain_restore_params_dispose(&params);
     }
     virObjectLock(vm);
 
-    if (ret) {
+    if (libxlret) {
         if (restore_fd < 0)
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("libxenlight failed to create new domain '%s'"),
@@ -1388,7 +1340,7 @@ libxlDomainStart(libxlDriverPrivate *driver,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("libxenlight failed to restore domain '%s'"),
                            d_config.c_info.name);
-        goto cleanup_dom;
+        goto cleanup;
     }
 
     /*
@@ -1438,49 +1390,58 @@ libxlDomainStart(libxlDriverPrivate *driver,
     if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
         goto destroy_dom;
 
-    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
-        driver->inhibitCallback(true, driver->inhibitOpaque);
-
     /* finally we can call the 'started' hook script if any */
-    if (virHookPresent(VIR_HOOK_DRIVER_LIBXL)) {
-        char *xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
-        int hookret;
-
-        hookret = virHookCall(VIR_HOOK_DRIVER_LIBXL, vm->def->name,
-                              VIR_HOOK_LIBXL_OP_STARTED, VIR_HOOK_SUBOP_BEGIN,
-                              NULL, xml, NULL);
-        VIR_FREE(xml);
-
-        /*
-         * If the script raised an error abort the launch
-         */
-        if (hookret < 0)
-            goto cleanup_dom;
-    }
-
-    event = virDomainEventLifecycleNewFromObj(vm, VIR_DOMAIN_EVENT_STARTED,
-                                     restore_fd < 0 ?
-                                         VIR_DOMAIN_EVENT_STARTED_BOOTED :
-                                         VIR_DOMAIN_EVENT_STARTED_RESTORED);
-    virObjectEventStateQueue(driver->domainEventState, event);
+    if (libxlDomainHookRun(driver, vm->def, 0,
+                           VIR_HOOK_LIBXL_OP_STARTED,
+                           VIR_HOOK_SUBOP_BEGIN, NULL) < 0)
+        goto destroy_dom;
 
     ret = 0;
     goto cleanup;
 
  destroy_dom:
-    ret = -1;
     libxlDomainDestroyInternal(driver, vm);
     vm->def->id = -1;
     virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, VIR_DOMAIN_SHUTOFF_FAILED);
 
- cleanup_dom:
-    libxlDomainCleanup(driver, vm);
-
  cleanup:
     libxl_domain_config_dispose(&d_config);
-    virDomainDefFree(def);
-    VIR_FORCE_CLOSE(managed_save_fd);
     return ret;
+}
+
+/*
+ * Start a domain through libxenlight.
+ *
+ * virDomainObj must be locked and a job acquired on invocation
+ */
+static int
+libxlDomainStart(libxlDriverPrivate *driver,
+                 virDomainObj *vm,
+                 bool start_paused,
+                 int restore_fd,
+                 uint32_t restore_ver)
+{
+    virObjectEvent *event = NULL;
+
+    if (libxlDomainStartPrepare(driver, vm) < 0)
+        return -1;
+
+    if (libxlDomainStartPerform(driver, vm, start_paused,
+                                restore_fd, restore_ver) < 0) {
+        libxlDomainCleanup(driver, vm);
+        return -1;
+    }
+
+    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
+        driver->inhibitCallback(true, driver->inhibitOpaque);
+
+    event = virDomainEventLifecycleNewFromObj(vm, VIR_DOMAIN_EVENT_STARTED,
+                                              restore_fd < 0 ?
+                                              VIR_DOMAIN_EVENT_STARTED_BOOTED :
+                                              VIR_DOMAIN_EVENT_STARTED_RESTORED);
+    virObjectEventStateQueue(driver->domainEventState, event);
+
+    return 0;
 }
 
 int
@@ -1488,7 +1449,55 @@ libxlDomainStartNew(libxlDriverPrivate *driver,
             virDomainObj *vm,
             bool start_paused)
 {
-    return libxlDomainStart(driver, vm, start_paused, -1, LIBXL_SAVE_VERSION);
+    g_autofree char *managed_save_path = NULL;
+    int restore_fd = -1;
+    virDomainDef *def = NULL;
+    libxlSavefileHeader hdr;
+    uint32_t restore_ver = LIBXL_SAVE_VERSION;
+    int ret = -1;
+
+    /* If there is a managed saved state restore it instead of starting
+     * from scratch. The old state is removed once the restoring succeeded. */
+    managed_save_path = libxlDomainManagedSavePath(driver, vm);
+    if (managed_save_path == NULL)
+        return -1;
+
+    if (virFileExists(managed_save_path)) {
+        restore_fd = libxlDomainSaveImageOpen(driver, managed_save_path,
+                                              &def, &hdr);
+        if (restore_fd < 0)
+            goto cleanup;
+
+        restore_ver = hdr.version;
+
+        if (STRNEQ(vm->def->name, def->name) ||
+            memcmp(vm->def->uuid, def->uuid, VIR_UUID_BUFLEN)) {
+            char vm_uuidstr[VIR_UUID_STRING_BUFLEN];
+            char def_uuidstr[VIR_UUID_STRING_BUFLEN];
+            virUUIDFormat(vm->def->uuid, vm_uuidstr);
+            virUUIDFormat(def->uuid, def_uuidstr);
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("cannot restore domain '%s' uuid %s from a file which belongs to domain '%s' uuid %s"),
+                           vm->def->name, vm_uuidstr, def->name, def_uuidstr);
+            goto cleanup;
+        }
+
+        virDomainObjAssignDef(vm, def, true, NULL);
+        def = NULL;
+
+        if (unlink(managed_save_path) < 0)
+            VIR_WARN("Failed to remove the managed state %s",
+                     managed_save_path);
+
+        vm->hasManagedSave = false;
+    }
+
+    ret = libxlDomainStart(driver, vm, start_paused, restore_fd, restore_ver);
+
+ cleanup:
+    virDomainDefFree(def);
+    VIR_FORCE_CLOSE(restore_fd);
+    return ret;
 }
 
 int

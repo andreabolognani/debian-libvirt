@@ -3968,11 +3968,10 @@ qemuMigrationSrcRunPrepareBlockDirtyBitmaps(virDomainObj *vm,
     if (qemuMigrationCookieBlockDirtyBitmapsMatchDisks(vm->def, mig->blockDirtyBitmaps) < 0)
         return -1;
 
-    /* For QEMU_MONITOR_MIGRATE_NON_SHARED_INC we can migrate the bitmaps
-     * directly, otherwise we must create merged bitmaps from the whole
-     * chain */
+    /* For VIR_MIGRATE_NON_SHARED_INC we can migrate the bitmaps directly,
+     * otherwise we must create merged bitmaps from the whole chain */
 
-    if (!(flags & QEMU_MONITOR_MIGRATE_NON_SHARED_INC) &&
+    if (!(flags & VIR_MIGRATE_NON_SHARED_INC) &&
         qemuMigrationSrcRunPrepareBlockDirtyBitmapsMerge(vm, mig) < 0)
         return -1;
 
@@ -4016,7 +4015,7 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
     bool abort_on_error = !!(flags & VIR_MIGRATE_ABORT_ON_ERROR);
     bool events = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT);
     bool bwParam = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH);
-    bool storageMigration = flags & (VIR_MIGRATE_NON_SHARED_DISK | QEMU_MONITOR_MIGRATE_NON_SHARED_INC);
+    bool storageMigration = flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC);
     bool cancel = false;
     unsigned int waitFlags;
     g_autoptr(virDomainDef) persistDef = NULL;
@@ -5215,9 +5214,11 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriver *driver,
 
  cleanup:
     virErrorPreserveLast(&orig_err);
-    qemuDomainObjEnterRemote(vm);
-    virConnectUnregisterCloseCallback(dconn, qemuMigrationSrcConnectionClosed);
-    ignore_value(qemuDomainObjExitRemote(vm, false));
+    if (dconn && virConnectIsAlive(dconn) == 1) {
+        qemuDomainObjEnterRemote(vm);
+        virConnectUnregisterCloseCallback(dconn, qemuMigrationSrcConnectionClosed);
+        ignore_value(qemuDomainObjExitRemote(vm, false));
+    }
     virErrorRestore(&orig_err);
     return ret;
 }

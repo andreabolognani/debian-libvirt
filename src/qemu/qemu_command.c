@@ -3052,7 +3052,8 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
 
     props = virJSONValueNewObject();
 
-    if (def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_MEMFD) {
+    if (!mem->nvdimmPath &&
+        def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_MEMFD) {
         backendType = "memory-backend-memfd";
 
         if (useHugepage) {
@@ -3945,6 +3946,11 @@ qemuBuildObjectInputDevStr(virDomainInputDef *dev,
 
     if (dev->source.grab == VIR_DOMAIN_INPUT_SOURCE_GRAB_ALL)
         virJSONValueObjectAdd(props, "b:grab_all", true, NULL);
+
+    if (dev->source.grabToggle != VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_DEFAULT)
+        virJSONValueObjectAdd(props, "s:grab-toggle",
+                              virDomainInputSourceGrabToggleTypeToString(dev->source.grabToggle),
+                              NULL);
 
     if (qemuBuildObjectCommandlineFromJSON(&buf, props, qemuCaps) < 0)
         return NULL;
@@ -6966,11 +6972,22 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_LOADPARM))
         qemuAppendLoadparmMachineParm(&buf, def);
 
-    if (def->sev) {
-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT)) {
-            virBufferAddLit(&buf, ",confidential-guest-support=sev0");
-        } else {
-            virBufferAddLit(&buf, ",memory-encryption=sev0");
+    if (def->sec) {
+        switch ((virDomainLaunchSecurity) def->sec->sectype) {
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT)) {
+                virBufferAddLit(&buf, ",confidential-guest-support=lsec0");
+            } else {
+                virBufferAddLit(&buf, ",memory-encryption=lsec0");
+            }
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+            virBufferAddLit(&buf, ",confidential-guest-support=lsec0");
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+        case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+            virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
+            return -1;
         }
     }
 
@@ -8610,9 +8627,15 @@ qemuBuildInterfaceCommandLine(virQEMUDriver *driver,
     actualBandwidth = virDomainNetGetActualBandwidth(net);
     if (actualBandwidth) {
         if (virNetDevSupportsBandwidth(actualType)) {
-            if (virNetDevBandwidthSet(net->ifname, actualBandwidth, false,
-                                      !virDomainNetTypeSharesHostView(net)) < 0)
+            if (virDomainNetDefIsOvsport(net)) {
+                if (virNetDevOpenvswitchInterfaceSetQos(net->ifname, actualBandwidth,
+                                                        def->uuid,
+                                                        !virDomainNetTypeSharesHostView(net)) < 0)
+                    goto cleanup;
+            } else if (virNetDevBandwidthSet(net->ifname, actualBandwidth, false,
+                                             !virDomainNetTypeSharesHostView(net)) < 0) {
                 goto cleanup;
+            }
         } else {
             VIR_WARN("setting bandwidth on interfaces of "
                      "type '%s' is not implemented yet",
@@ -9831,9 +9854,6 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
     g_autofree char *dhpath = NULL;
     g_autofree char *sessionpath = NULL;
 
-    if (!sev)
-        return 0;
-
     VIR_DEBUG("policy=0x%x cbitpos=%d reduced_phys_bits=%d",
               sev->policy, sev->cbitpos, sev->reduced_phys_bits);
 
@@ -9843,7 +9863,7 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
     if (sev->session)
         sessionpath = g_strdup_printf("%s/session.base64", priv->libDir);
 
-    if (qemuMonitorCreateObjectProps(&props, "sev-guest", "sev0",
+    if (qemuMonitorCreateObjectProps(&props, "sev-guest", "lsec0",
                                      "u:cbitpos", sev->cbitpos,
                                      "u:reduced-phys-bits", sev->reduced_phys_bits,
                                      "u:policy", sev->policy,
@@ -9859,6 +9879,51 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
     virCommandAddArgBuffer(cmd, &buf);
     return 0;
 }
+
+
+static int
+qemuBuildPVCommandLine(virDomainObj *vm, virCommand *cmd)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    qemuDomainObjPrivate *priv = vm->privateData;
+
+    if (qemuMonitorCreateObjectProps(&props, "s390-pv-guest", "lsec0",
+                                     NULL) < 0)
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(&buf, props, priv->qemuCaps) < 0)
+        return -1;
+
+    virCommandAddArg(cmd, "-object");
+    virCommandAddArgBuffer(cmd, &buf);
+    return 0;
+}
+
+
+static int
+qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
+                        virDomainSecDef *sec)
+{
+    if (!sec)
+        return 0;
+
+    switch ((virDomainLaunchSecurity) sec->sectype) {
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+        return qemuBuildSEVCommandLine(vm, cmd, &sec->data.sev);
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+        return qemuBuildPVCommandLine(vm, cmd);
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+    case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+        virReportEnumRangeError(virDomainLaunchSecurity, sec->sectype);
+        return -1;
+    }
+
+    return 0;
+}
+
 
 static int
 qemuBuildVMCoreInfoCommandLine(virCommand *cmd,
@@ -10559,7 +10624,7 @@ qemuBuildCommandLine(virQEMUDriver *driver,
     if (qemuBuildVMCoreInfoCommandLine(cmd, def) < 0)
         return NULL;
 
-    if (qemuBuildSEVCommandLine(vm, cmd, def->sev) < 0)
+    if (qemuBuildSecCommandLine(vm, cmd, def->sec) < 0)
         return NULL;
 
     if (snapshot)

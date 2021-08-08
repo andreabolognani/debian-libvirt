@@ -31,6 +31,7 @@ The primary maintainers and people with commit access rights:
 * Pino Toscano <ptoscano@redhat.com>
 * Richard W.M. Jones <rjones@redhat.com>
 * Roman Bogorodskiy <bogorodskiy@gmail.com>
+* Tim Wiederhake <twiederh@redhat.com>
 
 Previous maintainers:
 
@@ -195,6 +196,7 @@ Patches have also been contributed by:
 * Christian Benvenuti <benve@cisco.com>
 * Christian Ehrhardt <christian.ehrhardt@canonical.com>
 * Christian Franke <nobody@nowhere.ws>
+* Christian Kirbach <christian.kirbach@gmail.com>
 * Christian Loehle <cloehle@linutronix.de>
 * Christian Schoenebeck <qemu_oss@crudebyte.com>
 * Christoffer Dall <cdall@linaro.org>
@@ -251,6 +253,7 @@ Patches have also been contributed by:
 * Denis Kondratenko <denis.kondratenko@gmail.com>
 * Dennis Chen <xschen@tnsoft.com.cn>
 * Derbyshev Dmitry <dderbyshev@virtuozzo.com>
+* Didik Supriadi <didiksupriadi41@gmail.com>
 * Diego Elio Pettenò <flameeyes@gmail.com>
 * Diego Michelotto <diego.michelotto@cnaf.infn.it>
 * Diego Woitasen <diego.woitasen@vhgroup.net>
@@ -384,6 +387,7 @@ Patches have also been contributed by:
 * Jeremy Fitzhardinge <jeremy@goop.org>
 * Jesse Cook <code.crashenx@gmail.com>
 * Jesse J. Cook <jesse.j.cook@member.fsf.org>
+* Jia Zhou <zhou.jia2@zte.com.cn>
 * Jianan Gao <jgao@redhat.com>
 * Jiang Kun <jiang.kun2@zte.com.cn>
 * Jianwei Hu <jiahu@redhat.com>
@@ -419,6 +423,7 @@ Patches have also been contributed by:
 * Julio Faracco <jcfaracco@gmail.com>
 * Jun Koi <junkoi2004@gmail.com>
 * Justin Clift <jclift@redhat.com>
+* Justin Gatzen <justin.gatzen@gmail.com>
 * Ján Tomko <jtomko@redhat.com>
 * KAMEZAWA Hiroyuki <kamezawa.hiroyu@jp.fujitsu.com>
 * Kai Kang <kai.kang@windriver.com>
@@ -492,6 +497,7 @@ Patches have also been contributed by:
 * Martin Pietsch <martin.pietsch@tu-dresden.de>
 * Martin Wilck <mwilck@suse.de>
 * Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
+* Matej Cepl <mcepl@cepl.eu>
 * Matt Coleman <matt@datto.com>
 * Matthew Booth <mbooth@redhat.com>
 * Matthew Rosato <mjrosato@linux.vnet.ibm.com>
@@ -749,6 +755,7 @@ Patches have also been contributed by:
 * Viktor Mihajlovski <mihajlov@linux.ibm.com>
 * Viktor Mihajlovski <mihajlov@linux.vnet.ibm.com>
 * Ville Skyttä <ville.skytta@iki.fi>
+* Vinayak Kale <vkale@nvidia.com>
 * Vincent Bernat <vincent@bernat.im>
 * Vitaly Kuznetsov <vkuznets@redhat.com>
 * Vitor de Lima <vitor.lima@eldorado.org.br>
@@ -792,6 +799,7 @@ Patches have also been contributed by:
 * Yan Wang <wangyan122@huawei.com>
 * Yanbing Du <ydu@redhat.com>
 * Yanbing Du <ydu@ydu-0.nay.redhat.com>
+* Yang Fei <yangfei85@huawei.com>
 * Yaniv Kaul <ykaul@redhat.com>
 * Yanqiu Zhang <yanqzhan@redhat.com>
 * Yaroslav Kargin <ykargin@virtuozzo.com>
@@ -821,6 +829,7 @@ Patches have also been contributed by:
 * Zhangzijian <zhang.zijian@h3c.com>
 * Zheng Chuan <zhengchuan@huawei.com>
 * Zhenyu Zheng <zheng.zhenyu@outlook.com>
+* Zhenzhong Duan <zhenzhong.duan@intel.com>
 * ZhiPeng Lu <lu.zhipeng@zte.com.cn>
 * ZhiPeng Lu <luzhipeng@uniudc.com>
 * Zhimin Feng <fengzhimin1@huawei.com>
@@ -853,6 +862,7 @@ Patches have also been contributed by:
 * yangdongsheng <yangds.fnst@cn.fujitsu.com>
 * yuelongguang <yuelongguang@le.com>
 * zhang bo <oscar.zhangbo@huawei.com>
+* zhangjl02 <zhangjl02@inspur.com>
 * zhenwei pi <pizhenwei@bytedance.com>
 * Марк Коренберг <socketpair@gmail.com>
 

@@ -1460,25 +1460,20 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    int ret = -1;
-    GHashTable *blockDevices = NULL;
-    GHashTable *expectedBlockDevices = NULL;
+    g_autoptr(GHashTable) blockDevices = virHashNew(g_free);
+    g_autoptr(GHashTable) expectedBlockDevices = virHashNew(g_free);
     struct qemuDomainDiskInfo *info;
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (!(blockDevices = virHashNew(g_free)) ||
-        !(expectedBlockDevices = virHashNew(g_free)))
-        goto cleanup;
-
     info = g_new0(struct qemuDomainDiskInfo, 1);
 
     if (virHashAddEntry(expectedBlockDevices, "virtio-disk0", info) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Unable to create expectedBlockDevices hash table");
-        goto cleanup;
+        return -1;
     }
 
     info = g_new0(struct qemuDomainDiskInfo, 1);
@@ -1486,7 +1481,7 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
     if (virHashAddEntry(expectedBlockDevices, "virtio-disk1", info) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Unable to create expectedBlockDevices hash table");
-        goto cleanup;
+        return -1;
     }
 
     info = g_new0(struct qemuDomainDiskInfo, 1);
@@ -1497,7 +1492,7 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
     if (virHashAddEntry(expectedBlockDevices, "ide0-1-0", info) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Unable to create expectedBlockDevices hash table");
-        goto cleanup;
+        return -1;
     }
 
     info = g_new0(struct qemuDomainDiskInfo, 1);
@@ -1509,26 +1504,22 @@ testQemuMonitorJSONqemuMonitorJSONGetBlockInfo(const void *opaque)
     if (virHashAddEntry(expectedBlockDevices, "ide0-1-1", info) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Unable to create expectedBlockDevices hash table");
-        goto cleanup;
+        return -1;
     }
 
     if (qemuMonitorTestAddItem(test, "query-block", queryBlockReply) < 0)
-        goto cleanup;
+        return -1;
 
     if (qemuMonitorJSONGetBlockInfo(qemuMonitorTestGetMonitor(test), blockDevices) < 0)
-        goto cleanup;
+        return -1;
 
     if (!virHashEqual(blockDevices, expectedBlockDevices, testHashEqualQemuDomainDiskInfo)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Hashtable is different to the expected one");
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    virHashFree(blockDevices);
-    virHashFree(expectedBlockDevices);
-    return ret;
+    return 0;
 }
 
 static int
@@ -1536,9 +1527,8 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    GHashTable *blockstats = NULL;
+    g_autoptr(GHashTable) blockstats = virHashNew(g_free);
     qemuBlockStats *stats;
-    int ret = -1;
     g_autoptr(qemuMonitorTest) test = NULL;
 
     const char *reply =
@@ -1631,11 +1621,8 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (!(blockstats = virHashNew(g_free)))
-        goto cleanup;
-
     if (qemuMonitorTestAddItem(test, "query-blockstats", reply) < 0)
-        goto cleanup;
+        return -1;
 
 #define CHECK0FULL(var, value, varformat, valformat) \
     if (stats->var != value) { \
@@ -1643,7 +1630,7 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
                        "Invalid " #var " value: " varformat \
                        ", expected " valformat, \
                        stats->var, value); \
-        goto cleanup; \
+        return -1; \
     }
 
 #define CHECK0(var, value) CHECK0FULL(var, value, "%lld", "%d")
@@ -1654,7 +1641,7 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
     if (!(stats = virHashLookup(blockstats, NAME))) { \
         virReportError(VIR_ERR_INTERNAL_ERROR, \
                        "block stats for device '%s' is missing", NAME); \
-        goto cleanup; \
+        return -1; \
     } \
     CHECK0(rd_req, RD_REQ) \
     CHECK0(rd_bytes, RD_BYTES) \
@@ -1669,27 +1656,24 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
 
     if (qemuMonitorJSONGetAllBlockStatsInfo(qemuMonitorTestGetMonitor(test),
                                             blockstats, false) < 0)
-        goto cleanup;
+        return -1;
 
     if (!blockstats) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "qemuMonitorJSONGetAllBlockStatsInfo didn't return stats");
-        goto cleanup;
+        return -1;
     }
 
     CHECK("virtio-disk0", 1279, 28505088, 640616474, 174, 2845696, 530699221, 0, 0, 5256018944ULL, true)
     CHECK("virtio-disk1", 85, 348160, 8232156, 0, 0, 0, 0, 0, 0ULL, true)
     CHECK("ide0-1-0", 16, 49250, 1004952, 0, 0, 0, 0, 0, 0ULL, false)
 
-    ret = 0;
+    return 0;
 
 #undef CHECK
 #undef CHECK0
 #undef CHECK0FULL
 
- cleanup:
-    virHashFree(blockstats);
-    return ret;
 }
 
 
@@ -1827,9 +1811,8 @@ testQemuMonitorJSONqemuMonitorJSONGetChardevInfo(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    int ret = -1;
-    GHashTable *info = NULL;
-    GHashTable *expectedInfo = NULL;
+    g_autoptr(GHashTable) info = virHashNew(qemuMonitorChardevInfoFree);
+    g_autoptr(GHashTable) expectedInfo = virHashNew(NULL);
     qemuMonitorChardevInfo info0 = { NULL, VIR_DOMAIN_CHR_DEVICE_STATE_DEFAULT };
     qemuMonitorChardevInfo info1 = { (char *) "/dev/pts/21", VIR_DOMAIN_CHR_DEVICE_STATE_CONNECTED };
     qemuMonitorChardevInfo info2 = { (char *) "/dev/pts/20", VIR_DOMAIN_CHR_DEVICE_STATE_DEFAULT };
@@ -1839,17 +1822,13 @@ testQemuMonitorJSONqemuMonitorJSONGetChardevInfo(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (!(info = virHashNew(qemuMonitorChardevInfoFree)) ||
-        !(expectedInfo = virHashNew(NULL)))
-        goto cleanup;
-
     if (virHashAddEntry(expectedInfo, "charserial1", &info1) < 0 ||
         virHashAddEntry(expectedInfo, "charserial0", &info2) < 0 ||
         virHashAddEntry(expectedInfo, "charmonitor", &info0) < 0 ||
         virHashAddEntry(expectedInfo, "charserial2", &info3) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Unable to create expectedInfo hash table");
-        goto cleanup;
+        return -1;
     }
 
     if (qemuMonitorTestAddItem(test, "query-chardev",
@@ -1876,23 +1855,19 @@ testQemuMonitorJSONqemuMonitorJSONGetChardevInfo(const void *opaque)
                                "    ],"
                                "    \"id\": \"libvirt-15\""
                                "}") < 0)
-        goto cleanup;
+        return -1;
 
     if (qemuMonitorJSONGetChardevInfo(qemuMonitorTestGetMonitor(test),
                                       info) < 0)
-        goto cleanup;
+        return -1;
 
     if (!virHashEqual(info, expectedInfo, testHashEqualChardevInfo)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Hashtable is different to the expected one");
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    virHashFree(info);
-    virHashFree(expectedInfo);
-    return ret;
+    return 0;
 }
 
 
@@ -2825,6 +2800,33 @@ testQemuMonitorJSONBlockExportAdd(const void *opaque)
     return 0;
 }
 
+
+static int
+testQemuMonitorJSONBlockdevReopen(const void *opaque)
+{
+    const testGenericData *data = opaque;
+    g_autoptr(qemuMonitorTest) test = NULL;
+    g_autoptr(virStorageSource) src = virStorageSourceNew();
+
+    if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
+        return -1;
+
+    src->format = VIR_STORAGE_FILE_QCOW2;
+    src->readonly = true;
+    src->nodeformat = g_strdup("test node");
+    src->nodestorage = g_strdup("backing nodename");
+    src->backingStore = virStorageSourceNew();
+
+    if (qemuMonitorTestAddItem(test, "blockdev-reopen", "{\"return\":{}}") < 0)
+        return -1;
+
+    if (qemuBlockReopenFormatMon(qemuMonitorTestGetMonitor(test), src) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 static int
 testQemuMonitorJSONqemuMonitorJSONGetCPUModelComparison(const void *opaque)
 {
@@ -3022,6 +3024,7 @@ mymain(void)
     DO_TEST(GetIOThreads);
     DO_TEST(Transaction);
     DO_TEST(BlockExportAdd);
+    DO_TEST(BlockdevReopen);
     DO_TEST_SIMPLE("qmp_capabilities", qemuMonitorJSONSetCapabilities);
     DO_TEST_SIMPLE("system_powerdown", qemuMonitorJSONSystemPowerdown);
     DO_TEST_SIMPLE("system_reset", qemuMonitorJSONSystemReset);

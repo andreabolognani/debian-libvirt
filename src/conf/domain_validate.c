@@ -1068,7 +1068,25 @@ virDomainDefDuplicateDiskInfoValidate(const virDomainDef *def)
     return 0;
 }
 
+static int
+virDomainDefDuplicateHostdevInfoValidate(const virDomainDef *def)
+{
+    size_t i;
+    size_t j;
 
+    for (i = 0; i < def->nhostdevs; i++) {
+        for (j = i + 1; j < def->nhostdevs; j++) {
+            if (virDomainHostdevMatch(def->hostdevs[i],
+                                      def->hostdevs[j])) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                    _("Hostdev already exists in the domain configuration"));
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
 
 /**
  * virDomainDefDuplicateDriveAddressesValidate:
@@ -1239,26 +1257,20 @@ static int
 virDomainDefValidateAliases(const virDomainDef *def,
                             GHashTable **aliases)
 {
-    struct virDomainDefValidateAliasesData data;
-    int ret = -1;
-
     /* We are not storing copies of aliases. Don't free them. */
-    if (!(data.aliases = virHashNew(NULL)))
-        goto cleanup;
+    g_autoptr(GHashTable) tmpaliases = virHashNew(NULL);
+    struct virDomainDefValidateAliasesData data = { .aliases = tmpaliases };
 
     if (virDomainDeviceInfoIterateFlags((virDomainDef *) def,
                                         virDomainDeviceDefValidateAliasesIterator,
                                         DOMAIN_DEVICE_ITERATE_ALL_CONSOLES,
                                         &data) < 0)
-        goto cleanup;
+        return -1;
 
     if (aliases)
-        *aliases = g_steal_pointer(&data.aliases);
+        *aliases = g_steal_pointer(&tmpaliases);
 
-    ret = 0;
- cleanup:
-    virHashFree(data.aliases);
-    return ret;
+    return 0;
 }
 
 
@@ -1527,6 +1539,9 @@ virDomainDefValidateInternal(const virDomainDef *def,
                              virDomainXMLOption *xmlopt)
 {
     if (virDomainDefDuplicateDiskInfoValidate(def) < 0)
+        return -1;
+
+    if (virDomainDefDuplicateHostdevInfoValidate(def) < 0)
         return -1;
 
     if (virDomainDefDuplicateDriveAddressesValidate(def) < 0)

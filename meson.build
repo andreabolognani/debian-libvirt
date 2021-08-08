@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '7.5.0',
+  version: '7.6.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -227,6 +227,11 @@ alloc_max = run_command(
 # sanitizer instrumentation may enlarge stack frames
 stack_frame_size = get_option('b_sanitize') == 'none' ? 4096 : 8192
 
+# array_bounds=2 check triggers false positive on some GCC
+# versions when using sanitizers. Seen on Fedora 34 with
+# GCC 11.1.1
+array_bounds = get_option('b_sanitize') == 'none' ? 2 : 1
+
 cc_flags += [
   '-fasynchronous-unwind-tables',
   '-fexceptions',
@@ -238,7 +243,7 @@ cc_flags += [
   '-Waggressive-loop-optimizations',
   '-Walloc-size-larger-than=@0@'.format(alloc_max.stdout().strip()),
   '-Walloca',
-  '-Warray-bounds=2',
+  '-Warray-bounds=@0@'.format(array_bounds),
   '-Wattribute-alias=2',
   '-Wattribute-warning',
   '-Wattributes',
@@ -848,6 +853,37 @@ foreach name : optional_programs
 endforeach
 
 
+# early checks where lot of other packages depend on the result
+
+# On MinGW portablexdr provides XDR functions, on linux they are
+# provided by libtirpc and on FreeBSD/macOS there is no need to
+# use extra library as it's provided by libc directly.
+if host_machine.system() == 'windows'
+  xdr_dep = cc.find_library('portablexdr', required: false)
+elif host_machine.system() == 'linux'
+  xdr_dep = dependency('libtirpc', required: false)
+elif host_machine.system() in [ 'freebsd', 'darwin' ]
+  xdr_dep = cc.find_library('c', required: false)
+else
+  xdr_dep = dependency('', required: false)
+endif
+
+if not get_option('driver_remote').disabled()
+  use_remote = true
+
+  if not xdr_dep.found()
+    use_remote = false
+    if get_option('driver_remote').enabled()
+      error('XDR is required for remote driver')
+    endif
+  endif
+
+  if use_remote
+    conf.set('WITH_REMOTE', 1)
+  endif
+endif
+
+
 # generic build dependencies
 
 # FIXME rewrite to use dependency()
@@ -1005,7 +1041,7 @@ else
 endif
 
 libssh_version = '0.7'
-if not get_option('driver_remote').disabled()
+if conf.has('WITH_REMOTE')
   libssh_dep = dependency('libssh', version: '>=' + libssh_version, required: get_option('libssh'))
   if libssh_dep.found()
     conf.set('WITH_LIBSSH', 1)
@@ -1028,7 +1064,7 @@ else
 endif
 
 libssh2_version = '1.3'
-if not get_option('driver_remote').disabled()
+if conf.has('WITH_REMOTE')
   libssh2_dep = dependency('libssh2', version: '>=' + libssh2_version, required: get_option('libssh2'))
   if libssh2_dep.found()
     conf.set('WITH_SSH2', 1)
@@ -1172,7 +1208,7 @@ if not get_option('sanlock').disabled()
 endif
 
 sasl_version = '2.1.26'
-if get_option('driver_remote').enabled()
+if conf.has('WITH_REMOTE')
   sasl_dep = dependency('libsasl2', version: '>=' + sasl_version, required: get_option('sasl'))
   if sasl_dep.found()
     conf.set('WITH_SASL', 1)
@@ -1278,19 +1314,6 @@ if wireshark_dep.found()
   if cc.has_header('wireshark/ws_version.h')
     conf.set('WITH_WS_VERSION', 1)
   endif
-endif
-
-# On MinGW portablexdr provides XDR functions, on linux they are
-# provided by libtirpc and on FreeBSD/macOS there is no need to
-# use extra library as it's provided by libc directly.
-if host_machine.system() == 'windows'
-  xdr_dep = cc.find_library('portablexdr', required: false)
-elif host_machine.system() == 'linux'
-  xdr_dep = dependency('libtirpc', required: false)
-elif host_machine.system() in [ 'freebsd', 'darwin' ]
-  xdr_dep = cc.find_library('c', required: false)
-else
-  xdr_dep = dependency('', required: false)
 endif
 
 yajl_version = '2.0.3'
@@ -1405,21 +1428,6 @@ endif
 
 
 # build driver options
-
-if not get_option('driver_remote').disabled()
-  use_remote = true
-
-  if not xdr_dep.found()
-    use_remote = false
-    if get_option('driver_remote').enabled()
-      error('XDR is required for remote driver')
-    endif
-  endif
-
-  if use_remote
-    conf.set('WITH_REMOTE', 1)
-  endif
-endif
 
 remote_default_mode = get_option('remote_default_mode')
 if remote_default_mode == 'direct'

@@ -8,6 +8,63 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v7.6.0 (2021-08-02)
+===================
+
+* **Security**
+
+  * storage: Unlock pool objects on ACL check failures in ``storagePoolLookupByTargetPath`` (CVE-2021-3667)
+
+    A logic bug in ``storagePoolLookupByTargetPath`` where the storage pool
+    object was left locked after a failure of the ACL check could potentially
+    deprive legitimate users access to a storage pool object by users who don't
+    have access.
+
+* **New features**
+
+  * qemu: Incremental backup support via ``virDomainBackupBegin``
+
+    libvirt-7.6 along with the unreleased qemu-6.1 will fully support the change
+    block tracking features (block-dirty-bitmaps) to be able to do incremental
+    backups and management of the checkpoint states via the appropriate APIs.
+
+  * qemu: Add support for launch security type s390-pv
+
+    Specifying s390-pv as launch security type in an s390 domain prepares for
+    running the guest in protected virtualization secure mode, also known as
+    IBM Secure Execution. This simplifies the definition and reduces the risk
+    of an incorrect definition, e.g. by forgetting to specify ``iommu=on`` on
+    all virtio devices.
+
+  * domstats: Add haltpolling time statistic interface
+
+    Domstats now provide the data of cpu haltpolling time. This feature relies
+    on statistics available after kernel version 5.8. This will allow the user
+    to get more accurate CPU usage information if needed.
+
+* **Bug fixes**
+
+  * qemu: Fix migration with ``VIR_MIGRATE_NON_SHARED_INC``
+
+    libvirt 7.3.0 introduced a bug where ``VIR_MIGRATE_NON_SHARED_INC`` would
+    not actually migrate the contents of the disk due to broken logic and at
+    the same time could trigger migration of storage when
+    ``VIR_MIGRATE_TUNNELLED`` is requested. This release fixes the bug.
+
+  * qemu: Don't emit ``VIR_DOMAIN_EVENT_ID_BLOCK_THRESHOLD`` twice when registered with index
+
+    When registering the threshold event with the index notation (e.g.
+    ``vda[3]``) libvirt would emit the event also for ``vda`` if the image is
+    in the top layer. The intention was to emit two events only when the
+    original registration was done without the index.
+
+  * qemu: Pass discard requests for disks with ``copy_on_read='on'``
+
+    When a disk using the ``copy_on_read='on'`` option is configured also with
+    ``discard='unmap'`` the discard requests will now be passed to the
+    underlying image freeing up the space.
+
+
 v7.5.0 (2021-07-01)
 ===================
 
@@ -79,6 +136,7 @@ v7.4.0 (2021-06-01)
 
     Having a 0 offset so that the size of the image can be limited is a
     valid configuration so it was allowed in the XML schema.
+
 
 v7.3.0 (2021-05-03)
 ===================
@@ -178,6 +236,7 @@ v7.3.0 (2021-05-03)
     Due to a bug in bash completion script, the auto completion did not work
     properly when a connection URI or read only flag were specified on
     ``virsh`` or ``virt-admin`` command line.
+
 
 v7.2.0 (2021-04-01)
 ===================

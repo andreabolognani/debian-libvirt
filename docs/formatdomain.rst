@@ -850,6 +850,7 @@ CPU Tuning
    to which vCPUs this allocation applies. A vCPU can only be member of one
    ``cachetune`` element allocation. The vCPUs specified by cachetune can be
    identical with those in memorytune, however they are not allowed to overlap.
+   The optional, output only ``id`` attribute identifies cache uniquely.
    Supported subelements are:
 
    ``cache``
@@ -5746,7 +5747,7 @@ to provide a graphics tablet for absolute cursor movement.
        <source evdev='/dev/input/event1'/>
      </input>
      <input type='evdev'>
-       <source dev='/dev/input/event1234' grab='all' repeat='on'/>
+       <source dev='/dev/input/event1234' grab='all' repeat='on' grabToggle='ctrl-ctrl'/>
      </input>
    </devices>
    ...
@@ -5767,10 +5768,12 @@ On S390, ``address`` can be used to provide a CCW address for an input device (
 sub-element ``source`` must have an ``evdev`` (for ``passthrough``) or ``dev``
 (for ``evdev``) attribute containing the absolute path to the event device
 passed through to guests.
-For type ``evdev``, ``source`` can have two optional attributes ``grab`` with
-value 'all' which when enabled grabs all input devices instead of just one and
-``repeat`` with value 'on'/'off' to enable/disable auto-repeat events (
-:since:`Since 7.4.0`).
+For type ``evdev``, ``source`` has three optional attributes ``grab`` with
+value 'all' which when enabled grabs all input devices instead of just one,
+``repeat`` with value 'on'/'off' to enable/disable auto-repeat events and
+``grabToggle`` (:since:`since 7.6.0`) with values ``ctrl-ctrl``, ``alt-alt``,
+``shift-shift``, ``meta-meta``, ``scrolllock`` or ``ctrl-scrolllock`` to
+change the grab key combination.
 ``input`` type ``evdev`` is currently supported only on linux devices.
 (KVM only) :since:`Since 5.2.0` , the ``input`` element accepts a
 ``model`` attribute which has the values 'virtio', 'virtio-transitional' and
@@ -7540,12 +7543,15 @@ Example: usage of the TPM Emulator
       each QEMU guest requesting access to it.
 
 ``version``
-   The ``version`` attribute indicates the version of the TPM. By default a TPM
-   1.2 is created. This attribute only works with the ``emulator`` backend. The
-   following versions are supported:
+   The ``version`` attribute indicates the version of the TPM. This attribute
+   only works with the ``emulator`` backend. The following versions are
+   supported:
 
    -  '1.2' : creates a TPM 1.2
    -  '2.0' : creates a TPM 2.0
+
+   The default version used depends on the combination of hypervisor, guest
+   architecture, TPM model and backend.
 
 ``persistent_state``
    The ``persistent_state`` attribute indicates whether 'swtpm' TPM state is
@@ -8077,6 +8083,13 @@ Note: DEA/TDEA is synonymous with DES/TDES.
 
 Launch Security
 ---------------
+
+Specifying ``<launchSecurity type='s390-pv'\>`` in a s390 domain prepares
+the guest to run in protected virtualization secure mode, also known as
+IBM Secure Execution. For more required host and guest preparation steps, see
+`Protected Virtualization on s390 <kbase/s390_protected_virt.html>`__
+:since:`Since 7.6.0`
+
 
 The contents of the ``<launchSecurity type='sev'>`` element is used to provide
 the guest owners input used for creating an encrypted VM using the AMD SEV

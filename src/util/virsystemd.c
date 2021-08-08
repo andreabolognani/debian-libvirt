@@ -958,30 +958,24 @@ virSystemdActivationNew(virSystemdActivationMap *map,
                         size_t nmap,
                         int nfds)
 {
-    virSystemdActivation *act;
+    g_autoptr(virSystemdActivation) act = g_new0(virSystemdActivation, 1);
     const char *fdnames;
 
     VIR_DEBUG("Activated with %d FDs", nfds);
-    act = g_new0(virSystemdActivation, 1);
 
-    if (!(act->fds = virHashNew(virSystemdActivationEntryFree)))
-        goto error;
+    act->fds = virHashNew(virSystemdActivationEntryFree);
 
     fdnames = getenv("LISTEN_FDNAMES");
     if (fdnames) {
         if (virSystemdActivationInitFromNames(act, nfds, fdnames) < 0)
-            goto error;
+            return NULL;
     } else {
         if (virSystemdActivationInitFromMap(act, nfds, map, nmap) < 0)
-            goto error;
+            return NULL;
     }
 
     VIR_DEBUG("Created activation object for %d FDs", nfds);
-    return act;
-
- error:
-    virSystemdActivationFree(act);
-    return NULL;
+    return g_steal_pointer(&act);
 }
 
 

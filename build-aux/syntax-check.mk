@@ -472,7 +472,7 @@ sc_prohibit_gethostname:
 sc_prohibit_readdir:
 	@prohibit='\b(read|close|open)dir *\(' \
 	exclude='exempt from syntax-check' \
-	halt='use virDirOpen, virDirRead and VIR_DIR_CLOSE' \
+	halt='use virDirOpen, virDirRead and g_autoptr(DIR)' \
 	  $(_sc_search_regexp)
 
 sc_prohibit_gettext_noop:
@@ -1716,6 +1716,13 @@ sc_header-ifdef:
 sc_group-qemu-caps:
 	$(AM_V_GEN)$(RUNUTF8) $(PYTHON) $(top_srcdir)/scripts/group-qemu-caps.py \
 		--check --prefix $(top_srcdir)/
+
+sc_prohibit_enum_impl_with_vir_prefix_in_virsh:
+	@prohibit='VIR_ENUM_(IMPL|DECL)\(vir[^s]'			\
+	in_vc_files='tools/virsh.*\.[ch]$$'					\
+	halt='avoid "vir" prefix for enums in virsh'				\
+	  $(_sc_search_regexp)
+
 
 # List all syntax-check exemptions:
 exclude_file_name_regexp--sc_avoid_strcase = ^tools/vsh\.h$$

@@ -450,26 +450,12 @@ libxlReconnectDomain(virDomainObj *vm,
     if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
         VIR_WARN("Cannot update XML for running Xen guest %s", vm->def->name);
 
-    /* now that we know it's reconnected call the hook if present */
-    if (virHookPresent(VIR_HOOK_DRIVER_LIBXL) &&
-        STRNEQ("Domain-0", vm->def->name)) {
-        char *xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
-        int hookret;
-
-        /* we can't stop the operation even if the script raised an error */
-        hookret = virHookCall(VIR_HOOK_DRIVER_LIBXL, vm->def->name,
-                              VIR_HOOK_LIBXL_OP_RECONNECT, VIR_HOOK_SUBOP_BEGIN,
-                              NULL, xml, NULL);
-        VIR_FREE(xml);
-        if (hookret < 0) {
-            /* Stop the domain if the hook failed */
-            if (virDomainObjIsActive(vm)) {
-                libxlDomainDestroyInternal(driver, vm);
-                virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, VIR_DOMAIN_SHUTOFF_FAILED);
-            }
-            goto error;
-        }
-    }
+    /* now that we know it's reconnected call the hook */
+    if (STRNEQ("Domain-0", vm->def->name) &&
+        (libxlDomainHookRun(driver, vm->def, 0,
+                            VIR_HOOK_LIBXL_OP_RECONNECT,
+                            VIR_HOOK_SUBOP_BEGIN, NULL) < 0))
+        goto error;
 
     ret = 0;
 
@@ -1942,7 +1928,6 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
                         const char *dxml, unsigned int flags)
 {
     libxlDriverPrivate *driver = conn->privateData;
-    libxlDriverConfig *cfg = libxlDriverConfigGet(driver);
     virDomainObj *vm = NULL;
     virDomainDef *def = NULL;
     libxlSavefileHeader hdr;
@@ -1961,7 +1946,7 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
         return -1;
     }
 
-    fd = libxlDomainSaveImageOpen(driver, cfg, from, &def, &hdr);
+    fd = libxlDomainSaveImageOpen(driver, from, &def, &hdr);
     if (fd < 0)
         goto cleanup;
 
@@ -1995,7 +1980,6 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
         virReportSystemError(errno, "%s", _("cannot close file"));
     virDomainDefFree(def);
     virDomainObjEndAPI(&vm);
-    virObjectUnref(cfg);
     return ret;
 }
 

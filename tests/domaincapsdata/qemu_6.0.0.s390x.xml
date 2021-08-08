@@ -162,6 +162,13 @@
       <model usable='yes'>qemu</model>
     </mode>
   </cpu>
+  <memoryBacking supported='yes'>
+    <enum name='sourceType'>
+      <value>file</value>
+      <value>anonymous</value>
+      <value>memfd</value>
+    </enum>
+  </memoryBacking>
   <devices>
     <disk supported='yes'>
       <enum name='diskDevice'>
@@ -240,6 +247,7 @@
     <genid supported='no'/>
     <backingStoreInput supported='yes'/>
     <backup supported='no'/>
+    <s390-pv supported='yes'/>
     <sev supported='no'/>
   </features>
 </domainCapabilities>

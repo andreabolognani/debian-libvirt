@@ -753,8 +753,7 @@ qemuStateInitialize(bool privileged,
     if (!(qemu_driver->hostdevMgr = virHostdevManagerGetDefault()))
         goto error;
 
-    if (!(qemu_driver->sharedDevices = virHashNew(qemuSharedDeviceEntryFree)))
-        goto error;
+    qemu_driver->sharedDevices = virHashNew(qemuSharedDeviceEntryFree);
 
     if (qemuMigrationDstErrorInit(qemu_driver) < 0)
         goto error;
@@ -10231,6 +10230,7 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
     bool inboundSpecified = false, outboundSpecified = false;
     int actualType;
     bool qosSupported = true;
+    bool ovsType = false;
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
                   VIR_DOMAIN_AFFECT_CONFIG, -1);
@@ -10277,6 +10277,7 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
     if (net) {
         actualType = virDomainNetGetActualType(net);
         qosSupported = virNetDevSupportsBandwidth(actualType);
+        ovsType = virDomainNetDefIsOvsport(net);
     }
 
     if (qosSupported && persistentNet) {
@@ -10366,8 +10367,25 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
             }
         }
 
-        if (virNetDevBandwidthSet(net->ifname, newBandwidth, false,
-                                  !virDomainNetTypeSharesHostView(net)) < 0) {
+        if (ovsType) {
+            if (virNetDevOpenvswitchInterfaceSetQos(net->ifname, newBandwidth,
+                                                    vm->def->uuid,
+                                                    !virDomainNetTypeSharesHostView(net)) < 0) {
+                virErrorPtr orig_err;
+
+                virErrorPreserveLast(&orig_err);
+                ignore_value(virNetDevOpenvswitchInterfaceSetQos(net->ifname, newBandwidth,
+                                                                 vm->def->uuid,
+                                                                 !virDomainNetTypeSharesHostView(net)));
+                if (net->bandwidth) {
+                    ignore_value(virDomainNetBandwidthUpdate(net,
+                                                             net->bandwidth));
+                }
+                virErrorRestore(&orig_err);
+                goto endjob;
+            }
+        } else if (virNetDevBandwidthSet(net->ifname, newBandwidth, false,
+                                         !virDomainNetTypeSharesHostView(net)) < 0) {
             virErrorPtr orig_err;
 
             virErrorPreserveLast(&orig_err);
@@ -17839,6 +17857,23 @@ qemuDomainGetStatsCpuCgroup(virDomainObj *dom,
     return 0;
 }
 
+static int
+qemuDomainGetStatsCpuHaltPollTime(virDomainObj *dom,
+                                  virTypedParamList *params)
+{
+    unsigned long long haltPollSuccess = 0;
+    unsigned long long haltPollFail = 0;
+    pid_t pid = dom->pid;
+
+    if (virHostCPUGetHaltPollTime(pid, &haltPollSuccess, &haltPollFail) < 0)
+        return 0;
+
+    if (virTypedParamListAddULLong(params, haltPollSuccess, "cpu.haltpoll.success.time") < 0 ||
+        virTypedParamListAddULLong(params, haltPollFail, "cpu.haltpoll.fail.time") < 0)
+        return -1;
+
+    return 0;
+}
 
 static int
 qemuDomainGetStatsCpu(virQEMUDriver *driver,
@@ -17850,6 +17885,9 @@ qemuDomainGetStatsCpu(virQEMUDriver *driver,
         return -1;
 
     if (qemuDomainGetStatsCpuCache(driver, dom, params) < 0)
+        return -1;
+
+    if (qemuDomainGetStatsCpuHaltPollTime(dom, params) < 0)
         return -1;
 
     return 0;
@@ -19604,6 +19642,10 @@ qemuDomainSetBlockThreshold(virDomainPtr dom,
     if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
         goto endjob;
 
+    /* we need to remember whether the threshold was registered with an explicit
+     * index to fire the correct event */
+    src->thresholdEventWithIndex = !!strchr(dev, '[');
+
     ret = 0;
 
  endjob:
@@ -19830,7 +19872,8 @@ qemuDomainGetLaunchSecurityInfo(virDomainPtr domain,
     if (virDomainGetLaunchSecurityInfoEnsureACL(domain->conn, vm->def) < 0)
         goto cleanup;
 
-    if (vm->def->sev) {
+    if (vm->def->sec &&
+        vm->def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
         if (qemuDomainGetSEVMeasurement(driver, vm, params, nparams, flags) < 0)
             goto cleanup;
     }

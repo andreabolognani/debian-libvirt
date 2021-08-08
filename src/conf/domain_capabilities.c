@@ -42,6 +42,7 @@ VIR_ENUM_IMPL(virDomainCapsFeature,
               "genid",
               "backingStoreInput",
               "backup",
+              "s390-pv",
 );
 
 static virClass *virDomainCapsClass;
@@ -458,6 +459,18 @@ virDomainCapsCPUFormat(virBuffer *buf,
 }
 
 static void
+virDomainCapsMemoryBackingFormat(virBuffer *buf,
+                                 const virDomainCapsMemoryBacking *memoryBacking)
+{
+    FORMAT_PROLOGUE(memoryBacking);
+
+    ENUM_PROCESS(memoryBacking, sourceType, virDomainMemorySourceTypeToString);
+
+    FORMAT_EPILOGUE(memoryBacking);
+}
+
+
+static void
 virDomainCapsDeviceDiskFormat(virBuffer *buf,
                               const virDomainCapsDeviceDisk *disk)
 {
@@ -631,6 +644,8 @@ virDomainCapsFormat(const virDomainCaps *caps)
 
     virDomainCapsOSFormat(&buf, &caps->os);
     virDomainCapsCPUFormat(&buf, &caps->cpu);
+
+    virDomainCapsMemoryBackingFormat(&buf, &caps->memoryBacking);
 
     virBufferAddLit(&buf, "<devices>\n");
     virBufferAdjustIndent(&buf, 2);

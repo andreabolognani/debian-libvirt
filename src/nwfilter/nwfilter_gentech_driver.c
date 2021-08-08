@@ -199,21 +199,15 @@ static GHashTable *
 virNWFilterCreateVarsFrom(GHashTable *vars1,
                           GHashTable *vars2)
 {
-    GHashTable *res = virHashNew(virNWFilterVarValueHashFree);
-    if (!res)
-        return NULL;
+    g_autoptr(GHashTable) res = virHashNew(virNWFilterVarValueHashFree);
 
     if (virNWFilterHashTablePutAll(vars1, res) < 0)
-        goto error;
+        return NULL;
 
     if (virNWFilterHashTablePutAll(vars2, res) < 0)
-        goto error;
+        return NULL;
 
-    return res;
-
- error:
-    virHashFree(res);
-    return NULL;
+    return g_steal_pointer(&res);
 }
 
 
@@ -267,8 +261,8 @@ virNWFilterRuleDefToRuleInst(virNWFilterDef *def,
     ruleinst->chainPriority = def->chainPriority;
     ruleinst->def = rule;
     ruleinst->priority = rule->priority;
-    if (!(ruleinst->vars = virHashNew(virNWFilterVarValueHashFree)))
-        goto cleanup;
+    ruleinst->vars = virHashNew(virNWFilterVarValueHashFree);
+
     if (virNWFilterHashTablePutAll(vars, ruleinst->vars) < 0)
         goto cleanup;
 
@@ -518,11 +512,6 @@ virNWFilterDoInstantiate(virNWFilterTechDriver *techdriver,
     GHashTable *missing_vars = virHashNew(virNWFilterVarValueHashFree);
 
     memset(&inst, 0, sizeof(inst));
-
-    if (!missing_vars) {
-        rc = -1;
-        goto error;
-    }
 
     rc = virNWFilterDetermineMissingVarsRec(filter,
                                             binding->filterparams,
@@ -1007,8 +996,7 @@ virNWFilterBuildAll(virNWFilterDriverState *driver,
     VIR_DEBUG("Build all filters newFilters=%d", newFilters);
 
     if (newFilters) {
-        if (!(data.skipInterfaces = virHashNew(NULL)))
-            return -1;
+        data.skipInterfaces = virHashNew(NULL);
 
         data.step = STEP_APPLY_NEW;
         if (virNWFilterBindingObjListForEach(driver->bindings,

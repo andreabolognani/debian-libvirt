@@ -148,21 +148,15 @@ static GHashTable *
 virNWFilterCreateVarsFrom(GHashTable *vars1,
                           GHashTable *vars2)
 {
-    GHashTable *res = virHashNew(virNWFilterVarValueHashFree);
-    if (!res)
-        return NULL;
+    g_autoptr(GHashTable) res = virHashNew(virNWFilterVarValueHashFree);
 
     if (virNWFilterHashTablePutAll(vars1, res) < 0)
-        goto err_exit;
+        return NULL;
 
     if (virNWFilterHashTablePutAll(vars2, res) < 0)
-        goto err_exit;
+        return NULL;
 
-    return res;
-
- err_exit:
-    virHashFree(res);
-    return NULL;
+    return g_steal_pointer(&res);
 }
 
 
@@ -214,8 +208,8 @@ virNWFilterRuleDefToRuleInst(virNWFilterDef *def,
     ruleinst->chainPriority = def->chainPriority;
     ruleinst->def = rule;
     ruleinst->priority = rule->priority;
-    if (!(ruleinst->vars = virHashNew(virNWFilterVarValueHashFree)))
-        goto cleanup;
+    ruleinst->vars = virHashNew(virNWFilterVarValueHashFree);
+
     if (virNWFilterHashTablePutAll(vars, ruleinst->vars) < 0)
         goto cleanup;
 
@@ -375,9 +369,6 @@ static int testCompareXMLToArgvFiles(const char *xml,
     memset(&inst, 0, sizeof(inst));
 
     virCommandSetDryRun(dryRunToken, &buf, true, true, NULL, NULL);
-
-    if (!vars)
-        goto cleanup;
 
     if (testSetDefaultParameters(vars) < 0)
         goto cleanup;

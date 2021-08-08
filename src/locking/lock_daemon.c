@@ -153,8 +153,7 @@ virLockDaemonNew(virLockDaemonConfig *config, bool privileged)
     virObjectUnref(srv);
     srv = NULL;
 
-    if (!(lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree)))
-        goto error;
+    lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree);
 
     if (!(lockd->defaultLockspace = virLockSpaceNew(NULL)))
         goto error;
@@ -212,8 +211,7 @@ virLockDaemonNewPostExecRestart(virJSONValue *object, bool privileged)
 
     g_mutex_init(&lockd->lock);
 
-    if (!(lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree)))
-        goto error;
+    lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree);
 
     if (!(child = virJSONValueObjectGet(object, "defaultLockspace"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
