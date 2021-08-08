@@ -616,6 +616,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 405 */
     QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT, /* -machine confidential-guest-support */
     QEMU_CAPS_QUERY_DISPLAY_OPTIONS, /* 'query-display-options' qmp command present */
+    QEMU_CAPS_S390_PV_GUEST, /* -object s390-pv-guest,... */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -775,6 +776,9 @@ int virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
                               virFirmware **firmwares,
                               size_t nfirmwares);
 
+void virQEMUCapsFillDomainMemoryBackingCaps(virQEMUCaps *qemuCaps,
+                                            virDomainCapsMemoryBacking *memoryBacking);
+
 void virQEMUCapsFillDomainDeviceGraphicsCaps(virQEMUCaps *qemuCaps,
                                              virDomainCapsDeviceGraphics *dev);
 
@@ -804,6 +808,9 @@ virQEMUCapsCPUFeatureFromQEMU(virQEMUCaps *qemuCaps,
 
 virSEVCapability *
 virQEMUCapsGetSEVCapabilities(virQEMUCaps *qemuCaps);
+
+bool
+virQEMUCapsGetKVMSupportsSecureGuest(virQEMUCaps *qemuCaps) G_GNUC_NO_INLINE;
 
 virArch virQEMUCapsArchFromString(const char *arch);
 const char *virQEMUCapsArchToString(virArch arch);

@@ -1182,13 +1182,12 @@ virSetUIDGIDWithCaps(uid_t uid, gid_t gid, gid_t *groups, int ngroups,
         need_setuid = true;
         capng_update(CAPNG_ADD, CAPNG_EFFECTIVE|CAPNG_PERMITTED, CAP_SETUID);
     }
-# ifdef PR_CAPBSET_DROP
-    /* If newer kernel, we need also need setpcap to change the bounding set */
+
+    /* We need also need setpcap to change the bounding set */
     if (!capng_have_capability(CAPNG_EFFECTIVE, CAP_SETPCAP)) {
         need_setpcap = true;
         capng_update(CAPNG_ADD, CAPNG_EFFECTIVE|CAPNG_PERMITTED, CAP_SETPCAP);
     }
-# endif
 
     /* Tell system we want to keep caps across uid change */
     if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0)) {
@@ -1251,7 +1250,8 @@ virSetUIDGIDWithCaps(uid_t uid, gid_t gid, gid_t *groups, int ngroups,
      * do this if we failed to get the capability above, so ignore the
      * return value.
      */
-    capng_apply(CAPNG_SELECT_BOUNDS);
+    if (!need_setpcap)
+        capng_apply(CAPNG_SELECT_BOUNDS);
 
     /* Drop the caps that allow setuid/gid (unless they were requested) */
     if (need_setgid)
@@ -1262,7 +1262,7 @@ virSetUIDGIDWithCaps(uid_t uid, gid_t gid, gid_t *groups, int ngroups,
     if (need_setpcap)
         capng_update(CAPNG_DROP, CAPNG_EFFECTIVE|CAPNG_PERMITTED, CAP_SETPCAP);
 
-    if (((capng_ret = capng_apply(CAPNG_SELECT_CAPS)) < 0)) {
+    if ((capng_ret = capng_apply(CAPNG_SELECT_CAPS)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("cannot apply process capabilities %d"), capng_ret);
         return -1;

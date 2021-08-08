@@ -38,6 +38,9 @@
           <ref name="cpu"/>
         </optional>
         <optional>
+          <ref name="memoryBacking"/>
+        </optional>
+        <optional>
           <ref name="devices"/>
         </optional>
         <optional>
@@ -165,6 +168,13 @@
     </element>
   </define>
 
+  <define name="memoryBacking">
+    <element name="memoryBacking">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
   <define name="devices">
     <element name="devices">
       <optional>
@@ -248,6 +258,9 @@
         <ref name="backup"/>
       </optional>
       <optional>
+        <ref name="s390-pv"/>
+      </optional>
+      <optional>
         <ref name="sev"/>
       </optional>
     </element>
@@ -280,6 +293,12 @@
 
   <define name="backup">
     <element name="backup">
+      <ref name="supported"/>
+    </element>
+  </define>
+
+  <define name="s390-pv">
+    <element name="s390-pv">
       <ref name="supported"/>
     </element>
   </define>

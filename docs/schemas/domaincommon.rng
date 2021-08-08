@@ -482,40 +482,53 @@
 
   <define name="launchSecurity">
     <element name="launchSecurity">
-      <attribute name="type">
-        <value>sev</value>
-      </attribute>
-      <interleave>
-        <optional>
-          <element name="cbitpos">
-            <data type="unsignedInt"/>
-          </element>
-        </optional>
-        <optional>
-          <element name="reducedPhysBits">
-            <data type="unsignedInt"/>
-          </element>
-        </optional>
-        <element name="policy">
-          <ref name="hexuint"/>
-        </element>
-        <optional>
-          <element name="handle">
-            <ref name="unsignedInt"/>
-          </element>
-        </optional>
-        <optional>
-          <element name="dhCert">
-            <data type="string"/>
-          </element>
-        </optional>
-        <optional>
-          <element name="session">
-            <data type="string"/>
-          </element>
-        </optional>
-      </interleave>
+      <choice>
+        <group>
+          <ref name="launchSecuritySEV"/>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>s390-pv</value>
+          </attribute>
+        </group>
+      </choice>
     </element>
+  </define>
+
+  <define name="launchSecuritySEV">
+    <attribute name="type">
+      <value>sev</value>
+    </attribute>
+    <interleave>
+      <optional>
+        <element name="cbitpos">
+          <data type="unsignedInt"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="reducedPhysBits">
+          <data type="unsignedInt"/>
+        </element>
+      </optional>
+      <element name="policy">
+        <ref name="hexuint"/>
+      </element>
+      <optional>
+        <element name="handle">
+          <ref name="unsignedInt"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="dhCert">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="session">
+          <data type="string"/>
+        </element>
+      </optional>
+    </interleave>
   </define>
 
   <!--
@@ -1006,6 +1019,11 @@
             <attribute name="vcpus">
               <ref name="cpuset"/>
             </attribute>
+            <optional>
+              <attribute name="id">
+                <data type="string"/>
+              </attribute>
+            </optional>
             <oneOrMore>
               <choice>
                 <element name="cache">
@@ -2841,12 +2859,10 @@
           </group>
         </choice>
         <interleave>
-          <optional>
-            <element name="target">
-              <attribute name="dir"/>
-              <empty/>
-            </element>
-          </optional>
+          <element name="target">
+            <attribute name="dir"/>
+            <empty/>
+          </element>
           <optional>
             <attribute name="accessmode">
               <choice>
@@ -5464,6 +5480,18 @@
               <optional>
                 <attribute name="grab">
                   <value>all</value>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="grabToggle">
+                  <choice>
+                    <value>ctrl-ctrl</value>
+                    <value>alt-alt</value>
+                    <value>shift-shift</value>
+                    <value>meta-meta</value>
+                    <value>scrolllock</value>
+                    <value>ctrl-scrolllock</value>
+                  </choice>
                 </attribute>
               </optional>
               <optional>

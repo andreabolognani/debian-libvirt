@@ -585,11 +585,8 @@ testQemuGetLatestCaps(void)
         "s390x",
         "x86_64",
     };
-    GHashTable *capslatest;
+    g_autoptr(GHashTable) capslatest = virHashNew(g_free);
     size_t i;
-
-    if (!(capslatest = virHashNew(g_free)))
-        goto error;
 
     VIR_TEST_VERBOSE("");
 
@@ -597,18 +594,14 @@ testQemuGetLatestCaps(void)
         char *cap = testQemuGetLatestCapsForArch(archs[i], "xml");
 
         if (!cap || virHashAddEntry(capslatest, archs[i], cap) < 0)
-            goto error;
+            return NULL;
 
         VIR_TEST_VERBOSE("latest caps for %s: %s", archs[i], cap);
     }
 
     VIR_TEST_VERBOSE("");
 
-    return capslatest;
-
- error:
-    virHashFree(capslatest);
-    return NULL;
+    return g_steal_pointer(&capslatest);
 }
 
 

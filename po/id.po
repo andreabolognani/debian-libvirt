@@ -7,13 +7,14 @@
 # Muhammad Radifar <m_radifar05@yahoo.com>, 2011
 # Teguh DC <dheche@songolimo.net>, 2007
 # Andika Triwidada <andika@gmail.com>, 2020.
+# Didik Supriadi <didiksupriadi41@gmail.com>, 2021.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2021-06-25 08:08+0000\n"
-"PO-Revision-Date: 2020-09-07 08:49+0000\n"
-"Last-Translator: Andika Triwidada <andika@gmail.com>\n"
+"POT-Creation-Date: 2021-07-27 13:35+0000\n"
+"PO-Revision-Date: 2021-07-06 16:04+0000\n"
+"Last-Translator: Didik Supriadi <didiksupriadi41@gmail.com>\n"
 "Language-Team: Indonesian <https://translate.fedoraproject.org/projects/"
 "libvirt/libvirt/id/>\n"
 "Language: id\n"
@@ -21,25 +22,31 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.2.2\n"
+"X-Generator: Weblate 4.7.1\n"
 
 msgid ""
 "\n"
 "  (specify help <command> for details about the command)\n"
 "\n"
 msgstr ""
+"\n"
+"  (spesifikasikan help <perintah> untuk detail tentang perintah)\n"
+"\n"
 
 msgid ""
 "\n"
 "  (specify help <group> for details about the commands in the group)\n"
 msgstr ""
+"\n"
+"  (spesifikasikan help <grup> untuk detail tentang perintah dalam grup)\n"
 
+#. Print the description only if it's not empty.
 msgid ""
 "\n"
 "  DESCRIPTION\n"
 msgstr ""
 "\n"
-"  KETERANGAN\n"
+"  DESKRIPSI\n"
 
 msgid ""
 "\n"
@@ -55,6 +62,18 @@ msgid ""
 "      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
 "\n"
 msgstr ""
+"\n"
+"  Path bawaan:\n"
+"\n"
+"    Berkas konfigurasi (kecuali diganti oleh -f):\n"
+"      $XDG_CONFIG_HOME/libvirt/virtlockd.conf\n"
+"\n"
+"    Socket:\n"
+"      $XDG_RUNTIME_DIR/libvirt/virtlockd-sock\n"
+"\n"
+"    Berkas PID:\n"
+"      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
+"\n"
 
 msgid ""
 "\n"
@@ -70,6 +89,18 @@ msgid ""
 "      $XDG_RUNTIME_DIR/libvirt/virtlogd.pid\n"
 "\n"
 msgstr ""
+"\n"
+"  Path bawaan:\n"
+"\n"
+"    Berkas konfigurasi (kecuali diganti dengan -f):\n"
+"      $XDG_CONFIG_HOME/libvirt/virtlogd.conf\n"
+"\n"
+"    Socket:\n"
+"      $XDG_RUNTIME_DIR/libvirt/virtlogd-sock\n"
+"\n"
+"    Berkas PID:\n"
+"      $XDG_RUNTIME_DIR/libvirt/virtlogd.pid\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -86,6 +117,18 @@ msgid ""
 "      %s/virtlockd.pid\n"
 "\n"
 msgstr ""
+"\n"
+"  Path bawaan:\n"
+"\n"
+"    Berkas konfigurasi (kecuali diganti dengan -f):\n"
+"      %s/libvirt/virtlockd.conf\n"
+"\n"
+"    Socket:\n"
+"      %s/libvirt/virtlockd-sock\n"
+"\n"
+"    Berkas PID (kecuali diganti dengan -p):\n"
+"      %s/virtlockd.pid\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -102,6 +145,18 @@ msgid ""
 "      %s/virtlogd.pid\n"
 "\n"
 msgstr ""
+"\n"
+"  Path bawaan:\n"
+"\n"
+"    Berkas konfigurasi (kecuali diganti dengan -f):\n"
+"      %s/libvirt/virtlogd.conf\n"
+"\n"
+"    Socket:\n"
+"      %s/libvirt/virtlogd-sock\n"
+"\n"
+"    Berkas PID (kecuali diganti dengan -p):\n"
+"      %s/virtlogd.pid\n"
+"\n"
 
 msgid ""
 "\n"
@@ -115,7 +170,7 @@ msgid ""
 "  SYNOPSIS\n"
 msgstr ""
 "\n"
-"  Ringkasan\n"
+"  RINGKASAN\n"
 
 #, c-format
 msgid ""
@@ -135,6 +190,22 @@ msgid ""
 "  commands (non interactive mode):\n"
 "\n"
 msgstr ""
+"\n"
+"%s [opsi]... [<string_perintah>]\n"
+"%s [opsi]... <perintah> [args...]\n"
+"\n"
+"  opsi:\n"
+"    -c | --connect=URI      koneksi admin daemon URI\n"
+"    -d | --debug=NUM        level debug [0-4]\n"
+"    -h | --help             bantuan ini\n"
+"    -l | --log=FILE         keluarkan logging ke berkas\n"
+"    -q | --quiet            mode diam\n"
+"    -v                      versi pendek\n"
+"    -V                      versi panjang\n"
+"         --version[=TYPE]   versi, TYPE adalah \"short\" (pendek) atau \"long"
+"\" (panjang) (bawaan \"short\")\n"
+"  perintah (mode non-interaktif):\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -161,6 +232,31 @@ msgid ""
 "  commands (non interactive mode):\n"
 "\n"
 msgstr ""
+"\n"
+"%s [opsi]... [<string_perintah>]\n"
+"%s [opsi]... <perintah> [args...]\n"
+"\n"
+"  opsi:\n"
+"    -c | --connect=URI      koneksi hypervisor URI\n"
+"    -d | --debug=NUM        level debug [0-4]\n"
+"    -e | --escape <char>    atur escape sequence untuk konsol\n"
+"    -h | --help             bantuan ini\n"
+"    -k | --keepalive-interval=NUM\n"
+"                            interval keepalive dalam hitungan detik, 0 untuk "
+"menonaktifkan\n"
+"    -K | --keepalive-count=NUM\n"
+"                            jumlah kemungkinan pesan keepalive yang "
+"terlewat\n"
+"    -l | --log=FILE         keluarkan logging ke berkas\n"
+"    -q | --quiet            mode diam\n"
+"    -r | --readonly         menghubungkan mode readonly\n"
+"    -t | --timing           cetak informasi waktu\n"
+"    -v                      versi pendek\n"
+"    -V                      versi panjang\n"
+"         --version[=TYPE]   versi, TYPE adalah \"short\" (pendek) atau \"long"
+"\" (panjang) (bawaan \"short\")\n"
+"  perintah (mode non-interaktif):\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -183,6 +279,25 @@ msgid ""
 "    -F | --append-file <file>      append file to an existing profile\n"
 "\n"
 msgstr ""
+"\n"
+"%s mode [opsi] [berkas tambahan] [< def.xml]\n"
+"\n"
+"  Mode:\n"
+"    -a | --add                     memuat profil\n"
+"    -c | --create                  buat profil dari template\n"
+"    -D | --delete                  bongkar profil dan hapus aturan yang "
+"dihasilkan\n"
+"    -r | --replace                 memuat profil\n"
+"    -R | --remove                  bongkar profil\n"
+"  Options:\n"
+"    -d | --dryrun                  dry run\n"
+"    -u | --uuid <uuid>             uuid (nama profil)\n"
+"    -h | --help                    bantuan ini\n"
+"  Extra File:\n"
+"    -f | --add-file <file>         tambahkan berkas ke profil yang "
+"dihasilkan dari XML\n"
+"    -F | --append-file <file>      tambahkan berkas ke profil yang ada\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -199,18 +314,24 @@ msgid ""
 "\n"
 "Domain '%s' dumped to %s\n"
 msgstr ""
+"\n"
+"Domain '%s' didump ke %s\n"
 
 #, c-format
 msgid ""
 "\n"
 "Domain '%s' saved to %s\n"
 msgstr ""
+"\n"
+"Domain '%s' disimpan ke %s\n"
 
 #, c-format
 msgid ""
 "\n"
 "Domain '%s' state saved by libvirt\n"
 msgstr ""
+"\n"
+"Status domain '%s' disimpan oleh libvirt\n"
 
 #, c-format
 msgid ""
@@ -225,6 +346,16 @@ msgid ""
 "\n"
 "libvirt login shell\n"
 msgstr ""
+"\n"
+"Penggunaan:\n"
+"  %s [opsi]\n"
+"\n"
+"Opsi:\n"
+"  -h | --help            Tampilkan bantuan program\n"
+"  -V | --version         Tampilkan versi program\n"
+"  -c CMD                 Jalankan CMD melalui shell\n"
+"\n"
+"libvirt login shell\n"
 
 #, c-format
 msgid ""
@@ -243,6 +374,20 @@ msgid ""
 "\n"
 "libvirt lock management daemon:\n"
 msgstr ""
+"\n"
+"Penggunaan:\n"
+"  %s [opsi]\n"
+"\n"
+"Opsi:\n"
+"  -h | --help            Tampilkan bantuan program:\n"
+"  -v | --verbose         Pesan verbose.\n"
+"  -d | --daemon          Jalankan sebagai daemon & tulis berkas PID.\n"
+"  -t | --timeout <secs>  Keluar setelah periode waktu habis.\n"
+"  -f | --config <file>   Berkas konfigurasi.\n"
+"  -V | --version         Tampilkan informasi versi.\n"
+"  -p | --pid-file <file> Ubah nama berkas PID.\n"
+"\n"
+"libvirt lock management daemon:\n"
 
 #, c-format
 msgid ""
@@ -284,6 +429,7 @@ msgstr ""
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
 msgstr ""
 
+#. true if 'arg' works instead of '--opt arg'
 msgid "  NAME\n"
 msgstr "  NAMA\n"
 
@@ -518,6 +664,16 @@ msgstr ""
 msgid "%s object has invalid dynamic type"
 msgstr ""
 
+#.
+#. * A required property must be != 0 (NULL for pointers, "undefined" == 0 for
+#. * enumeration values).
+#. *
+#. * To be used as part of ESX_VI__TEMPLATE__VALIDATE.
+#.
+#.
+#. * Macros to implement managed objects
+#.
+#. FIXME: This results in O(n^2) runtime in case of missing required, but      * unselected properties.
 #, c-format
 msgid "%s object is missing the required '%s' property"
 msgstr ""
@@ -679,9 +835,9 @@ msgstr ""
 msgid "%s: could not proxy traffic: %s\n"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "%s: error: %s%c"
-msgstr "kesalahan: "
+msgstr "%s: kesalahan: %s%c"
 
 #, c-format
 msgid ""
@@ -856,9 +1012,9 @@ msgstr ""
 msgid "%s: unexpected URI transport '%s'\n"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "%s: unsupported hypervisor name %s\n"
-msgstr "cetak nama-host hypervisor"
+msgstr "%s: nama hypervisor tidak didukung %s\n"
 
 #, c-format
 msgid "%s: value for '%s' parameter must be 0 or 1"
@@ -1250,6 +1406,7 @@ msgstr ""
 msgid "(libxl_migration_cookie)"
 msgstr ""
 
+#. parse and modify the xml from the user
 msgid "(metadata_xml)"
 msgstr ""
 
@@ -1310,6 +1467,7 @@ msgstr ""
 msgid "(volume_definition)"
 msgstr ""
 
+#. Capacity related information isn't available
 msgid "-"
 msgstr ""
 
@@ -1570,9 +1728,8 @@ msgstr ""
 msgid "Active console session exists for this domain"
 msgstr ""
 
-#, fuzzy
 msgid "Active:"
-msgstr "aktif"
+msgstr "Aktif:"
 
 #, c-format
 msgid "Actual interface '%s' hostdev was not a PCI device"
@@ -1698,14 +1855,13 @@ msgid "At least one tty is required"
 msgstr ""
 
 msgid "Attach device from an XML <file>."
-msgstr "Pasang perangkat dari <berkas> XML"
+msgstr "Pasang perangkat dari <berkas> XML."
 
-#, fuzzy
 msgid "Attach new disk device."
-msgstr "Pasang antarmuka jaringan baru"
+msgstr "Pasang perangkat disk baru."
 
 msgid "Attach new network interface."
-msgstr "Pasang antarmuka jaringan baru"
+msgstr "Pasang antarmuka jaringan baru."
 
 #, fuzzy, c-format
 msgid "Attached device %s has no type"
@@ -1778,9 +1934,8 @@ msgstr ""
 msgid "Autostart"
 msgstr "Tidak otomatis mulai"
 
-#, fuzzy
 msgid "Autostart:"
-msgstr "Tidak otomatis mulai"
+msgstr "Otomatis mulai:"
 
 msgid "Available"
 msgstr ""
@@ -1890,9 +2045,9 @@ msgstr ""
 msgid "Bridge generation exceeded max id %d"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Bridge interface %s started\n"
-msgstr "Gagal mendapatkan statistik antarmuka %s %s"
+msgstr "Antarmuka bridge %s dimulai\n"
 
 msgid "Bridge:"
 msgstr ""
@@ -2056,9 +2211,8 @@ msgstr ""
 msgid "CPU model:"
 msgstr "Model CPU:"
 
-#, fuzzy
 msgid "CPU models"
-msgstr "Model CPU:"
+msgstr "Model CPU"
 
 msgid "CPU socket topology has changed"
 msgstr ""
@@ -2069,9 +2223,8 @@ msgstr "Soket CPU:"
 msgid "CPU throttling rate increment for auto-convergence"
 msgstr ""
 
-#, fuzzy
 msgid "CPU time"
-msgstr "Model CPU:"
+msgstr "Waktu CPU"
 
 #, fuzzy
 msgid "CPU time:"
@@ -2181,10 +2334,14 @@ msgid ""
 "dirtyrate'."
 msgstr ""
 
+#.
+#. * Macros to implement dynamic dispatched functions
+#.
 #, fuzzy, c-format
 msgid "Call to %s for unexpected type '%s'"
 msgstr "data yang tidak diharapkan '%s'"
 
+#. nothing
 #, c-format
 msgid "Call to %s for unexpected type '%s', expected '%s'"
 msgstr ""
@@ -2231,9 +2388,8 @@ msgstr ""
 msgid "Can't change domain configuration in managed save state"
 msgstr ""
 
-#, fuzzy
 msgid "Can't change domain state."
-msgstr "status domain"
+msgstr "Tidak dapat mengubah status domain."
 
 #, sh-format
 msgid "Can't connect to $uri. Skipping."
@@ -2571,9 +2727,9 @@ msgstr ""
 msgid "Cannot extract monitor nodes"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cannot extract running %s hypervisor version\n"
-msgstr "gagal mendapatkan versi hypervisor"
+msgstr "Tidak dapat mengekstrak versi hypervisor %s yang sedang berjalan\n"
 
 #, c-format
 msgid "Cannot find %s - Possibly the package isn't installed"
@@ -2954,9 +3110,8 @@ msgstr ""
 msgid "Cannot read %s '%s'"
 msgstr ""
 
-#, fuzzy
 msgid "Cannot read cputime for domain"
-msgstr "Buat sebuah domain."
+msgstr "Tidak dapat membaca cputime untuk domain"
 
 msgid "Cannot recv data"
 msgstr ""
@@ -2988,9 +3143,8 @@ msgstr ""
 msgid "Cannot rename interface '%s' to '%s' on this platform"
 msgstr ""
 
-#, fuzzy
 msgid "Cannot resize the max memory on an active domain"
-msgstr "Ubah batas alokasi memori maksimum di domain tamu."
+msgstr "Tidak dapat mengubah ukuran memori maksimal pada domain aktif"
 
 #, c-format
 msgid "Cannot resolve %s address: %s"
@@ -3232,9 +3386,8 @@ msgstr ""
 msgid "Change the current memory allocation in the guest domain."
 msgstr "Ubah alokasi memori domain tamu saat ini."
 
-#, fuzzy
 msgid "Change the current number of priority workers"
-msgstr "Ubah alokasi memori domain tamu saat ini."
+msgstr "Ubah jumlah priority worker saat ini"
 
 msgid "Change the maximum memory allocation limit in the guest domain."
 msgstr "Ubah batas alokasi memori maksimum di domain tamu."
@@ -3491,9 +3644,8 @@ msgstr ""
 msgid "Configuration file"
 msgstr "operasi gagal"
 
-#, fuzzy
 msgid "Configuration file (unless overridden by -f):"
-msgstr "kesalahan sintak berkas konfigurasi"
+msgstr "Berkas konfigurasi (kecuali diganti dengan -f):"
 
 msgid "Configure a domain to be automatically started at boot."
 msgstr ""
@@ -4474,6 +4626,7 @@ msgstr ""
 msgid "Could not retrieve default Msvm_DiskDrive object"
 msgstr ""
 
+#. Something went wrong retrieving pool info, cope with it
 #, fuzzy
 msgid "Could not retrieve pool information"
 msgstr "gagal mendapatkan informasi node"
@@ -4680,21 +4833,19 @@ msgstr "buat jaringan dari berkas XML"
 msgid "Create a snapshot from a set of args"
 msgstr ""
 
-#, fuzzy
 msgid "Create a vol from an existing volume."
-msgstr "buat domain dari berkas XML"
+msgstr "Buat vol dari volume yang ada."
 
 #, fuzzy
 msgid "Create a vol."
 msgstr "Buat sebuah domain."
 
-#, fuzzy
 msgid "Created"
-msgstr "Buat sebuah domain."
+msgstr "Dibuat"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Created bridge %s with attached device %s\n"
-msgstr "Gagal memasang perangkat dari %s"
+msgstr "Membuat bridge %s dengan perangkat terpasang %s\n"
 
 msgid "Creating non-file volumes is not supported"
 msgstr ""
@@ -4806,9 +4957,8 @@ msgstr ""
 msgid "Define or modify a secret."
 msgstr ""
 
-#, fuzzy
 msgid "Defined"
-msgstr "Definisikan domain."
+msgstr "Didefinisikan"
 
 msgid ""
 "Defines a persistent device on the node that can be assigned to a domain. "
@@ -4818,9 +4968,8 @@ msgstr ""
 msgid "Delete a domain checkpoint"
 msgstr ""
 
-#, fuzzy
 msgid "Delete a domain snapshot"
-msgstr "Buat sebuah domain."
+msgstr "Hapus sebuan cuplikan domain"
 
 msgid "Delete a given network filter binding."
 msgstr ""
@@ -4932,6 +5081,10 @@ msgstr ""
 
 #, c-format
 msgid "Device '%s' already formatted using '%s'"
+msgstr ""
+
+#, c-format
+msgid "Device '%s' is not active"
 msgstr ""
 
 #, c-format
@@ -5091,9 +5244,8 @@ msgstr "Tampilkan informasi versi sistem."
 msgid "Display the system version information."
 msgstr "Tampilkan informasi versi sistem."
 
-#, fuzzy
 msgid "Display version information"
-msgstr "Tampilkan informasi versi sistem."
+msgstr "Tampilkan informasi versi"
 
 msgid ""
 "Displays the node's total number of CPUs, the number of online CPUs and the "
@@ -5263,9 +5415,9 @@ msgstr ""
 msgid "Domain checkpoint %s created"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Domain checkpoint %s created from '%s'"
-msgstr "Jaringan %s dibuat dari %s\n"
+msgstr "Checkpoint domain %s dibuat dari '%s'"
 
 #, c-format
 msgid "Domain checkpoint %s deleted\n"
@@ -5293,6 +5445,7 @@ msgid ""
 "Domain has %d interfaces. Please specify which one to detach using --mac"
 msgstr ""
 
+#. this is the 2nd match, so it's ambiguous
 #, c-format
 msgid ""
 "Domain has multiple interfaces matching MAC address %s. You must use detach-"
@@ -5378,9 +5531,9 @@ msgstr ""
 msgid "Domain requires at least 1 vCPU"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Domain restored from %s\n"
-msgstr "Domain tidak ditemukan: %s"
+msgstr "Domain dipulihkan dari %s\n"
 
 msgid "Domain should have at least one disk defined"
 msgstr ""
@@ -5393,9 +5546,9 @@ msgstr ""
 msgid "Domain snapshot %s created"
 msgstr "domain %s sudah ada"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Domain snapshot %s created from '%s'"
-msgstr "Jaringan %s dibuat dari %s\n"
+msgstr "Cuplikan domain %s dibuat dari '%s'"
 
 #, c-format
 msgid "Domain snapshot %s deleted\n"
@@ -5412,9 +5565,8 @@ msgstr "Domain tidak ditemukan: %s"
 msgid "Domain title can't contain newlines"
 msgstr ""
 
-#, fuzzy
 msgid "Domain title not changed\n"
-msgstr "Domain tidak ditemukan"
+msgstr "Judul domain tidak berubah\n"
 
 msgid "Domain title updated successfully"
 msgstr ""
@@ -5658,9 +5810,8 @@ msgstr ""
 msgid "Error in xmlNewProp"
 msgstr ""
 
-#, fuzzy
 msgid "Error message:"
-msgstr "Tidak ada pesan kesalahan yang tersedia"
+msgstr "Pesan error:"
 
 msgid "Error notify callback must be supplied"
 msgstr ""
@@ -6470,14 +6621,21 @@ msgstr "Gagal membuat XML"
 msgid "Failed to create thread for receiving migration data"
 msgstr "Gagal membuat domain dari %s"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 #, fuzzy
 msgid "Failed to create thread to handle daemon restart"
 msgstr "Gagal membuat domain dari %s"
 
+#.
+#. * Not much we can do on error here except log it.
+#.
 #, fuzzy
 msgid "Failed to create thread to handle domain shutdown"
 msgstr "Gagal membuat domain dari %s"
 
+#. Not much else can be done
 #, fuzzy
 msgid "Failed to create thread to handle pool refresh"
 msgstr "Gagal membuat domain dari %s"
@@ -6498,9 +6656,8 @@ msgstr "Gagal membuat jaringan dari %s"
 msgid "Failed to create v2 cgroup '%s'"
 msgstr "Gagal membuat domain dari %s"
 
-#, fuzzy
 msgid "Failed to create vbox driver object."
-msgstr "Gagal membuat domain dari %s"
+msgstr "Gagal membuat objek driver vbox."
 
 #, fuzzy, c-format
 msgid "Failed to create vol %s"
@@ -6962,9 +7119,8 @@ msgstr ""
 msgid "Failed to get the number of active networks"
 msgstr "Gagal menampilkan jaringan yang tidak aktif"
 
-#, fuzzy
 msgid "Failed to get the number of active pools "
-msgstr "Gagal memperoleh informasi antarmuka"
+msgstr "Gagal mendapatkan jumlah pool yang aktif "
 
 #, fuzzy
 msgid "Failed to get the number of inactive networks"
@@ -7075,6 +7231,7 @@ msgstr "Gagal menampilkan jaringan aktif"
 msgid "Failed to list active pools"
 msgstr "Gagal menampilkan domain aktif"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list domains"
 msgstr "Gagal menampilkan domain aktif"
@@ -7093,26 +7250,32 @@ msgstr "Gagal menampilkan jaringan yang tidak aktif"
 msgid "Failed to list inactive pools"
 msgstr "Gagal menampilkan domain nonaktif"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list interfaces"
 msgstr "Gagal menampilkan domain nonaktif"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list network filter bindings"
 msgstr "Gagal menampilkan domain nonaktif"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list network filters"
 msgstr "Gagal memulai jaringan %s"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list networks"
 msgstr "Gagal menampilkan jaringan aktif"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list node devices"
 msgstr "Gagal menampilkan domain nonaktif"
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list node secrets"
 msgstr "Gagal menampilkan jaringan yang tidak aktif"
@@ -7121,6 +7284,7 @@ msgstr "Gagal menampilkan jaringan yang tidak aktif"
 msgid "Failed to list persistent guests on $uri"
 msgstr "Gagal menampilkan jaringan yang tidak aktif"
 
+#. there was an error during the first or second call
 #, fuzzy
 msgid "Failed to list pools"
 msgstr "Gagal menampilkan domain aktif"
@@ -7145,6 +7309,7 @@ msgstr "Gagal menampilkan jaringan aktif"
 msgid "Failed to list vcpus for domain '%d' with libxenlight"
 msgstr ""
 
+#. there was an error during the call
 #, fuzzy
 msgid "Failed to list volumes"
 msgstr "Gagal menampilkan domain aktif"
@@ -7579,6 +7744,10 @@ msgstr "Gagal membuat XML"
 msgid "Failed to read snapshot file %s"
 msgstr "gagal membaca berkas konfigurasi %s"
 
+#, c-format
+msgid "Failed to read system token '%s'"
+msgstr ""
+
 #, fuzzy
 msgid "Failed to read the container continue message"
 msgstr "Gagal membuat domain dari %s"
@@ -7738,6 +7907,9 @@ msgstr "Gagal menyimpan domain %s ke %s"
 msgid "Failed to resume domain '%s'"
 msgstr ""
 
+#. Hm, we already know we are in error here.  We don't want to
+#. * overwrite the previous error, though, so we just throw something
+#. * to the logs and hope for the best
 #, c-format
 msgid "Failed to resume guest %s after failure"
 msgstr ""
@@ -7963,9 +8135,8 @@ msgstr "Gagal memulai jaringan %s"
 msgid "Failed to set vcpus for domain '%d' with libxenlight"
 msgstr ""
 
-#, fuzzy
 msgid "Failed to setup keepalive on connection\n"
-msgstr "Gagal menampilkan jaringan aktif"
+msgstr "Gagal mengatur keepalive pada koneksi\n"
 
 #, fuzzy, c-format
 msgid "Failed to shutdown domain '%d' with libxenlight"
@@ -8357,10 +8528,63 @@ msgid ""
 "for VMX file"
 msgstr ""
 
+#. Macros to help dealing with flag requirements.
+#. *
+#. * VIR_REQUIRE_FLAG_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @RET: Return value.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_REQUIRE_FLAG_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag that is required by first flag.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Check whether required flag is set.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if required flag is not set.
+#.
 #, c-format
 msgid "Flag '%s' is required by flag '%s'"
 msgstr ""
 
+#. Macros to help dealing with mutually exclusive flags.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_RET:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @RET: Return value.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
+#. *
+#. * VIR_EXCLUSIVE_FLAGS_GOTO:
+#. *
+#. * @FLAG1: First flag to be checked.
+#. * @FLAG2: Second flag to be checked.
+#. * @LABEL: Label to jump to.
+#. *
+#. * Reject mutually exclusive API flags.  The checked flags are compared
+#. * with flags variable.
+#. *
+#. * Returns nothing.  Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "Flags '%s' and '%s' are mutually exclusive"
 msgstr ""
@@ -8716,6 +8940,9 @@ msgid ""
 "HostVirtualSwitch already exists, editing existing ones is not supported yet"
 msgstr ""
 
+msgid "Hostdev already exists in the domain configuration"
+msgstr ""
+
 #, c-format
 msgid "Hostdev source %s must be a block device"
 msgstr ""
@@ -8991,9 +9218,8 @@ msgstr ""
 msgid "Inject NMI to the guest"
 msgstr "sambungkan ke konsol tamu"
 
-#, fuzzy
 msgid "Inject NMI to the guest domain."
-msgstr "sambungkan ke konsol tamu"
+msgstr "Inject NMI ke domain tamu."
 
 msgid "Input devices are not supported by this virtualization driver."
 msgstr ""
@@ -9023,9 +9249,9 @@ msgstr ""
 msgid "Interface"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Interface %s XML configuration edited.\n"
-msgstr "gagal membaca berkas konfigurasi"
+msgstr "Konfigurasi XML antarmuka %s diedit.\n"
 
 #, c-format
 msgid "Interface %s XML configuration not changed.\n"
@@ -9223,9 +9449,8 @@ msgstr ""
 msgid "Invalid STP state value %d received for '%s'. Must be -1, 0, or 1."
 msgstr ""
 
-#, fuzzy
 msgid "Invalid TSC frequency"
-msgstr "Frekuensi CPU:"
+msgstr "Frekuensi TSC tidak valid"
 
 msgid "Invalid TSC scaling attribute"
 msgstr ""
@@ -9270,6 +9495,15 @@ msgstr ""
 msgid "Invalid address."
 msgstr ""
 
+#.
+#. * Don't check for *selectSet != NULL here because selectSet is a list
+#. * and might contain items already. This function appends to selectSet.
+#.
+#. optional
+#. optional
+#. nothing
+#. nothing
+#. nothing
 msgid "Invalid argument"
 msgstr ""
 
@@ -10475,9 +10709,8 @@ msgstr ""
 msgid "Mediated host device assignment requires VFIO support"
 msgstr ""
 
-#, fuzzy
 msgid "Memory"
-msgstr "Memori maks:"
+msgstr "Memori"
 
 #, c-format
 msgid "Memory '%llu' must be less than %llu"
@@ -10567,9 +10800,9 @@ msgid ""
 "binary"
 msgstr ""
 
-#, fuzzy
 msgid "Migrate domain to another host.  Add --live for live migration."
-msgstr "migrasi domain ke host lainnya"
+msgstr ""
+"Migrasikan domain ke host lain. Tambahkan --live untuk migrasi langsung."
 
 msgid "Migrated"
 msgstr ""
@@ -11383,9 +11616,8 @@ msgstr ""
 msgid "NULL value for field '%s'"
 msgstr ""
 
-#, fuzzy
 msgid "NUMA cell number"
-msgstr "Sel NUMA:"
+msgstr "Nomor sel NUMA"
 
 msgid "NUMA cell(s):"
 msgstr "Sel NUMA:"
@@ -11397,9 +11629,8 @@ msgstr ""
 msgid "NUMA distances defined without siblings"
 msgstr ""
 
-#, fuzzy
 msgid "NUMA free memory"
-msgstr "Memory terpakai:"
+msgstr "Memori luang NUMA"
 
 msgid "NUMA free pages"
 msgstr ""
@@ -11468,6 +11699,12 @@ msgstr ""
 msgid "NVMe namespace can't be zero"
 msgstr ""
 
+#. Output old style header
+#. We only get here if the --details option was selected.
+#. Insert the header into table
+#. The old output format
+#. We only get here if the --details option was selected.
+#. Insert the header into table
 msgid "Name"
 msgstr "Nama"
 
@@ -11487,9 +11724,9 @@ msgstr ""
 msgid "Nested HV configuration is not supported by this QEMU binary"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Network %s XML configuration edited.\n"
-msgstr "gagal membaca berkas konfigurasi"
+msgstr "Konfigurasi XML jaringan %s diedit.\n"
 
 #, c-format
 msgid "Network %s XML configuration not changed.\n"
@@ -11503,25 +11740,25 @@ msgstr "Jaringan %s dibuat dari %s\n"
 msgid "Network %s defined from %s\n"
 msgstr "Jaringan %s dibuat dari %s\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Network %s destroyed\n"
-msgstr "jaringan %s sudah ada"
+msgstr "jaringan %s dihancurkan\n"
 
 #, c-format
 msgid "Network %s has been undefined\n"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Network %s marked as autostarted\n"
-msgstr "jaringan %s sudah ada"
+msgstr "Jaringan %s ditandai sebagai mulai otomatis\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Network %s started\n"
-msgstr "jaringan %s sudah ada"
+msgstr "Jaringan %s dimulai\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Network %s unmarked as autostarted\n"
-msgstr "jaringan %s sudah ada"
+msgstr "Jaringan %s tidak ditandai sebagai mulai otomatis\n"
 
 #, c-format
 msgid "Network '%s' IP address cannot have both a prefix and a netmask"
@@ -11565,9 +11802,9 @@ msgstr ""
 msgid "Network device type is not supported"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Network filter %s XML configuration edited.\n"
-msgstr "gagal menulis berkas konfigurasi"
+msgstr "Konfigurasi XML filter jaringan %s diedit.\n"
 
 #, c-format
 msgid "Network filter %s XML configuration not changed.\n"
@@ -11865,9 +12102,8 @@ msgstr "Tidak ada pesan kesalahan yang tersedia"
 msgid "No error message provided"
 msgstr "Tidak ada pesan kesalahan yang tersedia"
 
-#, fuzzy
 msgid "No errors found\n"
-msgstr "Jaringan tidak ditemukan"
+msgstr "Tidak ada kesalahan yang ditemukan\n"
 
 #, c-format
 msgid "No event expected with procedure 0x%x"
@@ -12428,9 +12664,8 @@ msgstr ""
 msgid "Operation not supported: %s"
 msgstr "operasi gagal: %s"
 
-#, fuzzy
 msgid "Operation:"
-msgstr "operasi gagal"
+msgstr "Operasi:"
 
 #, c-format
 msgid ""
@@ -12448,6 +12683,20 @@ msgid ""
 "modelName '%s'"
 msgstr ""
 
+#. Macros to help dealing with required options.
+#. VSH_REQUIRE_OPTION_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable).
+#. * @NAME2: String containing the name of required option.
+#. * @EXPR2: Expression to validate the variable (boolean variable).
+#. *
+#. * Check if required command options in virsh was set.  Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Option --%s is required by option --%s"
 msgstr ""
@@ -12458,7 +12707,7 @@ msgstr ""
 msgid "Option --file is required"
 msgstr ""
 
-msgid "Option --tree is incompatible with other options"
+msgid "Option --tree is incompatible with --cap and --inactive"
 msgstr ""
 
 msgid "Option argument is empty"
@@ -12467,6 +12716,20 @@ msgstr ""
 msgid "Optional flags or --rawstats are not supported by the daemon"
 msgstr ""
 
+#. Macros to help dealing with mutually exclusive options.
+#. VSH_EXCLUSIVE_OPTIONS_EXPR:
+#. *
+#. * @NAME1: String containing the name of the option.
+#. * @EXPR1: Expression to validate the variable (boolean variable)
+#. * @NAME2: String containing the name of the option.
+#. * @EXPR2: Expression to validate the variable (boolean variable)
+#. *
+#. * Reject mutually exclusive command options in virsh. Use the
+#. * provided expression to check the variables.
+#. *
+#. * This helper does an early return and therefore it has to be called
+#. * before anything that would require cleanup.
+#.
 #, c-format
 msgid "Options --%s and --%s are mutually exclusive"
 msgstr ""
@@ -12516,16 +12779,14 @@ msgstr ""
 msgid "Output the device for the TTY console."
 msgstr ""
 
-#, fuzzy
 msgid "Output the domain information as an XML dump to stdout."
-msgstr "informasi domain di XML"
+msgstr "Keluarkan informasi domain sebagai dump XML ke stdout."
 
 msgid "Output the network filter information as an XML dump to stdout."
 msgstr ""
 
-#, fuzzy
 msgid "Output the network information as an XML dump to stdout."
-msgstr "informasi jaringan dalam XML"
+msgstr "Keluarkan informasi jaringan sebagai dump XML ke stdout."
 
 msgid "Output the network port information as an XML dump to stdout."
 msgstr ""
@@ -12687,9 +12948,6 @@ msgstr ""
 msgid "Parent device %s is not capable of vport operations"
 msgstr ""
 
-msgid "Parent device is not an object"
-msgstr ""
-
 msgid "Parent device's JSON object data is not an array"
 msgstr ""
 
@@ -12704,6 +12962,7 @@ msgstr ""
 msgid "Partition path '%s' must start with '/'"
 msgstr ""
 
+#. warn users that the --base64 option passed from command line is wrong
 msgid "Passing secret value as command-line argument is insecure!"
 msgstr ""
 
@@ -13302,9 +13561,8 @@ msgstr ""
 msgid "Reset the target domain as if by power button"
 msgstr ""
 
-#, fuzzy
 msgid "Resize block device of domain."
-msgstr "Kembalikan daftar domain"
+msgstr "Ubah ukuran perangkat blok domain."
 
 msgid ""
 "Resizes a storage volume. This is safe only for storage volumes not in use "
@@ -13336,9 +13594,8 @@ msgstr ""
 msgid "Restore a domain."
 msgstr "Kembalikan domain."
 
-#, fuzzy
 msgid "Restored"
-msgstr "Kembalikan domain."
+msgstr "Dipulihkan"
 
 #, c-format
 msgid "Restoring of leases failed on interface '%s'"
@@ -13380,9 +13637,8 @@ msgstr ""
 msgid "Returns XML <sources> document."
 msgstr ""
 
-#, fuzzy
 msgid "Returns a list of secrets"
-msgstr "Mengembalikan daftar jaringan."
+msgstr "Mengembalikan daftar secret"
 
 #, fuzzy
 msgid "Returns basic information about a checkpoint."
@@ -13397,14 +13653,13 @@ msgid "Returns basic information about the domain IOThreads."
 msgstr "Kembalikan informasi dasar tentang domain."
 
 msgid "Returns basic information about the domain virtual CPUs."
-msgstr "Kembalikan informasi dasar tentang domain CPU virtual"
+msgstr "Kembalikan informasi dasar tentang domain CPU virtual."
 
 msgid "Returns basic information about the domain."
 msgstr "Kembalikan informasi dasar tentang domain."
 
-#, fuzzy
 msgid "Returns basic information about the network"
-msgstr "Kembalikan informasi dasar tentang node."
+msgstr "Mengembalikan informasi dasar tentang jaringan"
 
 msgid "Returns basic information about the node."
 msgstr "Kembalikan informasi dasar tentang node."
@@ -13434,7 +13689,7 @@ msgid "Returns information about jobs running on a domain."
 msgstr "Kembalikan informasi dasar tentang domain."
 
 msgid "Returns list of domains."
-msgstr "Kembalikan daftar domain"
+msgstr "Kembalikan daftar domain."
 
 #, fuzzy
 msgid "Returns list of network filter bindings."
@@ -13451,32 +13706,27 @@ msgstr "Mengembalikan daftar jaringan."
 msgid "Returns list of networks."
 msgstr "Mengembalikan daftar jaringan."
 
-#, fuzzy
 msgid "Returns list of physical host interfaces."
-msgstr "Kembalikan daftar domain"
+msgstr "Mengembalikan daftar antarmuka host fisik."
 
-#, fuzzy
 msgid "Returns list of pools."
-msgstr "Kembalikan daftar domain"
+msgstr "Mengembalikan daftar pool."
 
-#, fuzzy
 msgid "Returns list of vols by pool."
-msgstr "Kembalikan daftar domain"
+msgstr "Mengembalikan daftar vol berdasarkan pool."
 
 msgid "Returns memory stats of the node, in kilobytes."
 msgstr ""
 
-#, fuzzy
 msgid "Returns state about a domain."
-msgstr "Kembalikan daftar domain"
+msgstr "Mengembalikan status tentang domain."
 
 #, fuzzy
 msgid "Returns state of a control interface to the domain."
 msgstr "Kembalikan informasi dasar tentang domain."
 
-#, fuzzy
 msgid "Returns the number of virtual CPUs used by the domain."
-msgstr "ubah jumlah CPU virtual"
+msgstr "Mengembalikan jumlah CPU virtual yang digunakan oleh domain."
 
 #, fuzzy
 msgid "Revert a domain to a snapshot"
@@ -13524,9 +13774,13 @@ msgstr "Mempergunakan API: %s %d.%d.%d\n"
 msgid "S3 state is disabled for this domain"
 msgstr ""
 
+msgid "S390 PV launch security is not supported with this QEMU binary"
+msgstr ""
+
 msgid "S4 state is disabled for this domain"
 msgstr ""
 
+#. Denied
 #, c-format
 msgid "SASL client identity '%s' not allowed by ACL"
 msgstr ""
@@ -14009,9 +14263,11 @@ msgstr ""
 msgid "Shared memory mapping is not supported with this QEMU"
 msgstr ""
 
-#, fuzzy
+#. XXX: Need to sort the returned params once new parameter
+#. * fields not of shared memory are added.
+#.
 msgid "Shared memory:\n"
-msgstr "Memory terpakai:"
+msgstr "Memori bersama\n"
 
 #, c-format
 msgid "Shell '%s' should have absolute path"
@@ -14020,80 +14276,80 @@ msgstr ""
 msgid "Should define both master and slave path attributes for nmdm device"
 msgstr ""
 
-#, fuzzy
 msgid "Show block device errors"
-msgstr "perangkat blok"
+msgstr "Tampilkan kesalahan perangkat blok"
 
-#, fuzzy
 msgid "Show errors on block devices"
-msgstr "perangkat blok"
+msgstr "Tampilkan kesalahan pada perangkat blok"
 
 msgid "Show features that are part of the CPU model type"
-msgstr ""
+msgstr "Tampilkan fitur yang merupakan bagian dari tipe model CPU"
 
 msgid "Show maximum number of virtual CPUs for guests on this connection."
-msgstr ""
+msgstr "Tampilkan jumlah maksimum CPU virtual untuk tamu pada koneksi ini."
 
 msgid "Show statistics from this CPU"
-msgstr ""
+msgstr "Tampilkan statistik dari CPU ini"
 
 msgid "Show total statistics only"
-msgstr ""
+msgstr "Tampilkan statistik total saja"
 
 msgid "Show/Set scheduler parameters."
-msgstr ""
+msgstr "Tampilkan/Setel parameter penjadwal."
 
 msgid "Shows or modifies the XML metadata of a domain."
-msgstr ""
+msgstr "Tampilkan atau modifikasi metadata XML dari sebuah domain."
 
 msgid "Shutdown"
-msgstr ""
+msgstr "Matikan"
 
 #, sh-format
 msgid "Shutdown of guest $name complete."
-msgstr ""
+msgstr "Mematikan tamu $name telah selesai."
 
 #, sh-format
 msgid "Shutdown of guest $name failed to complete in time."
-msgstr ""
+msgstr "Mematikan tamu $name gagal selesai tepat waktu."
 
 #, sh-format
 msgid "Shutting down guests on $uri URI..."
-msgstr ""
+msgstr "Mematikan tamu di $uri URI..."
 
 msgid "Signal handling not available on this platform"
-msgstr ""
+msgstr "Penanganan sinyal tidak tersedia di platform ini"
 
 #, c-format
 msgid ""
 "Size of SMM TSEG size differs: source: '%llu %s', destination: '%llu %s'"
 msgstr ""
+"Ukuran dari SMM TSEG size berbeda: sumber: '%llu %s', tujuan: '%llu %s'"
 
 #, c-format
 msgid "Size of target NUMA node %zu (%llu) doesn't match source (%llu)"
-msgstr ""
+msgstr "Ukuran node NUMA target %zu (%llu) tidak cocok dengan sumber (%llu)"
 
 #, c-format
 msgid "Size of volume '%s' successfully changed by %s\n"
-msgstr ""
+msgstr "Ukuran volume '%s' berhasil diubah oleh %s\n"
 
 #, c-format
 msgid "Size of volume '%s' successfully changed to %s\n"
-msgstr ""
+msgstr "Ukuran volume '%s' berhasil diubah menjadi %s\n"
 
 msgid "Skipping is not supported with this stream"
 msgstr ""
 
 msgid "Snapshot"
-msgstr ""
+msgstr "Snapshot"
 
+#. Depending on flags, we re-edit even if XML is unchanged.
 #, c-format
 msgid "Snapshot %s XML configuration not changed.\n"
-msgstr ""
+msgstr "Snapshot %s konfigurasi XML tidak diubah.\n"
 
 #, c-format
 msgid "Snapshot %s cloned to %s.\n"
-msgstr ""
+msgstr "Snapshot %s diklon ke %s.\n"
 
 #, c-format
 msgid "Snapshot %s edited.\n"
@@ -14216,11 +14472,10 @@ msgid ""
 msgstr ""
 
 msgid "Start a network."
-msgstr "Hidupkan jaringan"
+msgstr "Hidupkan jaringan."
 
-#, fuzzy
 msgid "Start a pool."
-msgstr "Hidupkan jaringan"
+msgstr "Mulai sebuah pool."
 
 msgid "Start an inactive node device"
 msgstr ""
@@ -14518,6 +14773,9 @@ msgstr ""
 msgid "TLS:"
 msgstr ""
 
+msgid "TPM 1.2 is not supported on ARM"
+msgstr ""
+
 msgid "TPM 1.2 is not supported with the SPAPR device model"
 msgstr ""
 
@@ -14540,6 +14798,7 @@ msgstr ""
 msgid "Table row cannot be empty"
 msgstr ""
 
+#. title
 msgid "Target"
 msgstr ""
 
@@ -15560,12 +15819,9 @@ msgstr ""
 msgid "Time: %lld"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Time: %s"
-msgstr ""
-"\n"
-"(Waktu: %.3f ms)\n"
-"\n"
+msgstr "Waktu: %s"
 
 #, fuzzy
 msgid "Timed out during operation"
@@ -15763,9 +16019,11 @@ msgstr ""
 msgid "Try again?"
 msgstr ""
 
+#. Better leak than crash
 msgid "Trying to free MultiCURL object that is still in use"
 msgstr ""
 
+#. Better leak than crash
 msgid "Trying to free SharedCURL object that is still in use"
 msgstr ""
 
@@ -15809,9 +16067,8 @@ msgstr ""
 msgid "Turn xbzrle compression on to tune it"
 msgstr ""
 
-#, fuzzy
 msgid "Type"
-msgstr "Jenis OS:"
+msgstr "Tipe"
 
 #, c-format
 msgid "Type mismatch for '%s' migration parameter"
@@ -15918,9 +16175,8 @@ msgstr ""
 msgid "UTS namespace support is required"
 msgstr ""
 
-#, fuzzy
 msgid "UUID"
-msgstr "UUID:"
+msgstr "UUID"
 
 msgid "UUID in config file malformed"
 msgstr ""
@@ -16091,9 +16347,8 @@ msgstr "Gagal menemukan jaringan: %s"
 msgid "Unable to change MaxMemorySize"
 msgstr "Tidak dapat mengubah MaxMemorySize"
 
-#, fuzzy
 msgid "Unable to change balloon collection period."
-msgstr "Tidak dapat mengubah MaxMemorySize"
+msgstr "Tidak dapat mengubah periode koleksi balon."
 
 #, fuzzy
 msgid "Unable to change blkio parameters"
@@ -16107,9 +16362,8 @@ msgstr "Tidak dapat mengubah MaxMemorySize"
 msgid "Unable to change daemon logging settings"
 msgstr "Tidak dapat mengubah MaxMemorySize"
 
-#, fuzzy
 msgid "Unable to change lifecycle action."
-msgstr "Tidak dapat mengubah MaxMemorySize"
+msgstr "Tidak dapat mengubah tindakan siklus hidup."
 
 msgid ""
 "Unable to change memory of active domain without the balloon device and "
@@ -16255,6 +16509,10 @@ msgstr ""
 #, fuzzy
 msgid "Unable to create UNIX socket"
 msgstr "Gagal membuat XML"
+
+#, c-format
+msgid "Unable to create and set qos configuration on port %s"
+msgstr ""
 
 msgid "Unable to create blkid library handle"
 msgstr ""
@@ -16409,6 +16667,14 @@ msgstr ""
 
 #, c-format
 msgid "Unable to destroy '%s': device in use"
+msgstr ""
+
+#, c-format
+msgid "Unable to destroy qos on port %s"
+msgstr ""
+
+#, c-format
+msgid "Unable to destroy queue on port %s"
 msgstr ""
 
 #, fuzzy, c-format
@@ -17066,9 +17332,9 @@ msgstr ""
 msgid "Unable to obtain iSCSI adapter"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unable to obtain information about pid: %d"
-msgstr "Kembalikan informasi dasar tentang node."
+msgstr "Tidak dapat memperoleh informasi tentang pid: %d"
 
 #, c-format
 msgid "Unable to open %s"
@@ -17722,6 +17988,14 @@ msgstr ""
 msgid "Unable to set port profile on direct interfaces"
 msgstr ""
 
+#, c-format
+msgid "Unable to set qos configuration on port %s"
+msgstr ""
+
+#, c-format
+msgid "Unable to set queue configuration on port %s"
+msgstr ""
+
 msgid "Unable to set socket reuse addr flag"
 msgstr ""
 
@@ -17761,7 +18035,7 @@ msgid "Unable to start event thread: %s"
 msgstr "Gagal memulai jaringan %s"
 
 #, c-format
-msgid "Unable to start mediated device '%s': %s"
+msgid "Unable to start mediated device: %s"
 msgstr ""
 
 #, c-format
@@ -17825,11 +18099,13 @@ msgstr ""
 msgid "Unable to update server's tls related files."
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "Unable to validate doc against %s\n"
 "%s"
-msgstr "Gagal menyimpan domain %s ke %s"
+msgstr ""
+"Tidak dapat memvalidasi doc terhadap %s\n"
+"%s"
 
 #, c-format
 msgid "Unable to verify TLS peer: %s"
@@ -18046,7 +18322,7 @@ msgstr ""
 msgid "Unexpected filesystem type %s"
 msgstr ""
 
-msgid "Unexpected format for parent device object"
+msgid "Unexpected format for mdevctl response"
 msgstr ""
 
 #, c-format
@@ -18176,6 +18452,10 @@ msgstr "jenis OS %s tidak diketahui"
 #, fuzzy, c-format
 msgid "Unknown CPU vendor %s"
 msgstr "jenis OS %s tidak diketahui"
+
+#, c-format
+msgid "Unknown Command '%i'"
+msgstr ""
 
 #, c-format
 msgid "Unknown IP address data source %d"
@@ -18316,6 +18596,7 @@ msgstr ""
 msgid "Unknown error"
 msgstr "Tidak diketahui"
 
+#. should never happen (tm)
 msgid "Unknown error value"
 msgstr ""
 
@@ -18405,9 +18686,9 @@ msgstr "jenis OS %s tidak diketahui"
 msgid "Unknown namespace: %s"
 msgstr "prosedur tidak dikenali: %d"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Unknown parameter %s"
-msgstr "prosedur tidak dikenali: %d"
+msgstr "Parameter tidak diketahui: %s"
 
 #, fuzzy
 msgid "Unknown parameter type"
@@ -18849,9 +19130,8 @@ msgstr ""
 msgid "Unusual value in %s/devices/%s/class: %s"
 msgstr ""
 
-#, fuzzy
 msgid "Update device from an XML <file>."
-msgstr "Pasang perangkat dari <berkas> XML"
+msgstr "Perbarui perangkat dari <berkas> XML."
 
 msgid "Update the media"
 msgstr ""
@@ -18967,9 +19247,8 @@ msgstr ""
 msgid "V1 controller '%s' is not wanted, but '%s' is co-mounted"
 msgstr ""
 
-#, fuzzy
 msgid "VCPU"
-msgstr "VCPU:"
+msgstr "VCPU"
 
 msgid "VCPU:"
 msgstr "VCPU:"
@@ -19068,10 +19347,12 @@ msgstr ""
 msgid "Video adapters are not supported int containers."
 msgstr ""
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virsh command line tool of libvirt %s\n"
 msgstr ""
 
+#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virt-admin command line tool of libvirt %s\n"
 msgstr ""
@@ -19268,9 +19549,9 @@ msgstr ""
 msgid "XML does not contain expected 'system' element"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "XML error: %s"
-msgstr "kesalahan: "
+msgstr "Kesalahan XML: %s"
 
 msgid "XML file"
 msgstr "berkas XML"
@@ -19481,9 +19762,8 @@ msgstr ""
 msgid "affect current domain"
 msgstr ""
 
-#, fuzzy
 msgid "affect current state of network"
-msgstr "Mengembalikan daftar jaringan."
+msgstr "mempengaruhi keadaan jaringan saat ini"
 
 msgid "affect next boot"
 msgstr ""
@@ -19525,6 +19805,11 @@ msgstr ""
 msgid "allocate the new capacity, rather than leaving it sparse"
 msgstr ""
 
+#.
+#. * we need to use an intermediary pointer to @data as compilers may sometimes
+#. * complain about @data not being a pointer type:
+#. * error: the address of 'foo' will always evaluate as 'true' [-Werror=address]
+#.
 msgid "allocated netlink buffer is too small"
 msgstr ""
 
@@ -21129,6 +21414,7 @@ msgstr ""
 msgid "cannot open path '%s' in '%s'"
 msgstr ""
 
+#. A dangling symlink now implies a TOCTTOU race; report it.
 #, c-format
 msgid "cannot open volume '%s'"
 msgstr ""
@@ -21436,9 +21722,8 @@ msgstr ""
 msgid "cannot reset current job"
 msgstr ""
 
-#, fuzzy
 msgid "cannot resize the maximum memory on an active domain"
-msgstr "Ubah batas alokasi memori maksimum di domain tamu."
+msgstr "tidak dapat mengubah ukuran memori maksimum pada domain aktif"
 
 #, c-format
 msgid "cannot resolve '%s' without starting directory"
@@ -21457,9 +21742,8 @@ msgstr ""
 msgid "cannot restore domain snapshot for running domain"
 msgstr ""
 
-#, fuzzy
 msgid "cannot retrieve vcpu information for inactive domain"
-msgstr "Kembalikan informasi dasar tentang domain."
+msgstr "tidak dapat mengambil informasi vcpu untuk domain yang tidak aktif"
 
 msgid "cannot revert snapshot of running domain"
 msgstr ""
@@ -21906,6 +22190,7 @@ msgstr ""
 msgid "child didn't write error (status=%d)"
 msgstr ""
 
+#. in case of EACCES, the parent will retry
 #, fuzzy, c-format
 msgid "child failed to create directory '%s'"
 msgstr "gagal mendapatkan jaringan '%s"
@@ -21994,9 +22279,9 @@ msgstr "perintah '%s' tidak mendukung opsi --%s"
 msgid "command '%s' has inconsistent alias"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "command '%s' has too many options"
-msgstr "perintah '%s' membutuhkan opsi --%s "
+msgstr "perintah '%s' memiliki terlalu banyak opsi"
 
 #, c-format
 msgid "command '%s' lacks help"
@@ -22004,7 +22289,7 @@ msgstr ""
 
 #, c-format
 msgid "command '%s' requires --%s option"
-msgstr "perintah '%s' membutuhkan opsi --%s "
+msgstr "perintah '%s' membutuhkan opsi --%s"
 
 #, c-format
 msgid "command '%s' requires <%s> option"
@@ -22963,9 +23248,8 @@ msgstr ""
 msgid "destroy (stop) a device on the node"
 msgstr ""
 
-#, fuzzy
 msgid "destroy (stop) a domain"
-msgstr "Kembalikan domain."
+msgstr "menghancurkan (menghentikan) sebuah domain"
 
 #, fuzzy
 msgid "destroy (stop) a network"
@@ -23063,6 +23347,9 @@ msgid "device is already in the domain configuration"
 msgstr ""
 
 msgid "device key"
+msgstr ""
+
+msgid "device list is not an object"
 msgstr ""
 
 msgid "device name"
@@ -23424,9 +23711,8 @@ msgstr ""
 msgid "display the progress of dump"
 msgstr ""
 
-#, fuzzy
 msgid "display the progress of migration"
-msgstr "Tampilkan informasi versi sistem."
+msgstr "tampilkan perkembangan migrasi"
 
 msgid "display the progress of save"
 msgstr ""
@@ -24066,9 +24352,8 @@ msgstr ""
 msgid "error copying profile name"
 msgstr ""
 
-#, fuzzy
 msgid "error count:"
-msgstr "kesalahan: "
+msgstr "jumlah kesalahan:"
 
 #, fuzzy, c-format
 msgid "error creating %s interface %s@%s (%s)"
@@ -25153,9 +25438,9 @@ msgstr "Gagal memulai jaringan %s"
 msgid "failed to mark pool %s as autostarted"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "failed to move file to %s "
-msgstr "gagal membuka berkas"
+msgstr "gagal memindahkan berkas ke %s "
 
 #, c-format
 msgid "failed to obtain list of available servers from %s"
@@ -25779,6 +26064,9 @@ msgstr ""
 msgid "fetch or set the currently defined set of logging outputs on daemon"
 msgstr ""
 
+#. parse inbound and outbound which are in the format of
+#. * 'average,peak,burst,floor', in which peak and burst are optional,
+#. * thus 'average,,burst' and 'average,peak' are also legal.
 #, c-format
 msgid "field '%s' is malformed"
 msgstr ""
@@ -26374,6 +26662,7 @@ msgstr ""
 msgid "handler failed to wait on condition"
 msgstr "gagal menulis berkas konfigurasi"
 
+#. caller's error
 msgid "hash lookup resulted in NULL pointer"
 msgstr ""
 
@@ -26440,9 +26729,8 @@ msgstr ""
 msgid "host name for source of disk device"
 msgstr ""
 
-#, fuzzy
 msgid "host pci device "
-msgstr "perangkat blok"
+msgstr "perangkat pci host "
 
 #, c-format
 msgid "host reports map buffer length exceeds maximum: %d > %d"
@@ -26910,6 +27198,25 @@ msgstr "nama jaringan"
 msgid "interface name %s does not fit into buffer "
 msgstr ""
 
+#.
+#. * virsh-interface.c: Commands to manage host interface
+#. *
+#. * Copyright (C) 2005, 2007-2016 Red Hat, Inc.
+#. *
+#. * This library is free software; you can redistribute it and/or
+#. * modify it under the terms of the GNU Lesser General Public
+#. * License as published by the Free Software Foundation; either
+#. * version 2.1 of the License, or (at your option) any later version.
+#. *
+#. * This library is distributed in the hope that it will be useful,
+#. * but WITHOUT ANY WARRANTY; without even the implied warranty of
+#. * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#. * Lesser General Public License for more details.
+#. *
+#. * You should have received a copy of the GNU Lesser General Public
+#. * License along with this library.  If not, see
+#. * <http://www.gnu.org/licenses/>.
+#.
 msgid "interface name or MAC address"
 msgstr ""
 
@@ -27961,9 +28268,8 @@ msgstr "Gagal memasang perangkat dari %s"
 msgid "libxenlight failed to attach network device"
 msgstr ""
 
-#, fuzzy
 msgid "libxenlight failed to attach pci device "
-msgstr "Gagal memasang perangkat dari %s"
+msgstr "libxenlight gagal memasang perangkat pci "
 
 #, c-format
 msgid "libxenlight failed to attach usb device Busnum:%3x, Devnum:%3x"
@@ -27992,9 +28298,8 @@ msgstr "gagal mendapatkan domain '%s'"
 msgid "libxenlight failed to detach network device"
 msgstr "gagal mendapatkan jaringan '%s"
 
-#, fuzzy
 msgid "libxenlight failed to detach pci device "
-msgstr "Gagal melepas perangkat dari %s"
+msgstr "libxenlight gagal melepaskan perangkat pci "
 
 #, c-format
 msgid "libxenlight failed to parse UUID '%s'"
@@ -29303,13 +29608,11 @@ msgstr ""
 msgid "missing cellno argument"
 msgstr "informasi kernel tidak ada"
 
-#, fuzzy
 msgid "missing connection mode for <reservations/>"
-msgstr "informasi sistem operasi tidak ada"
+msgstr "kehilangan mode koneksi untuk <reservations/>"
 
-#, fuzzy
 msgid "missing connection type for <reservations/>"
-msgstr "informasi sistem operasi tidak ada"
+msgstr "kehilangan tipe koneksi untuk <reservations/>"
 
 msgid "missing cookie name"
 msgstr ""
@@ -29518,9 +29821,6 @@ msgstr "informasi kernel tidak ada"
 
 #, c-format
 msgid "missing label for static security driver in domain %s"
-msgstr ""
-
-msgid "missing launch security type"
 msgstr ""
 
 msgid "missing listen attribute in migration data"
@@ -29999,6 +30299,15 @@ msgstr ""
 msgid "monitor failure"
 msgstr ""
 
+#. *
+#. * QEMU_CHECK_MONITOR_FULL:
+#. * @mon: monitor pointer variable to check, evaluated multiple times, no parentheses
+#. * @exit: statement that is used to exit the function
+#. *
+#. * This macro checks that the monitor is valid for given operation and exits
+#. * the function if not. The macro also adds a debug statement regarding the
+#. * monitor.
+#.
 msgid "monitor must not be NULL"
 msgstr ""
 
@@ -30196,6 +30505,7 @@ msgstr ""
 msgid "negative size requires --shrink"
 msgstr ""
 
+#. 56 is good for Kerberos
 #, c-format
 msgid "negotiated SSF %d was not strong enough"
 msgstr ""
@@ -32285,9 +32595,8 @@ msgstr ""
 msgid "query -rx-filter return data missing array element"
 msgstr ""
 
-#, fuzzy
 msgid "query information about the guest (via agent)"
-msgstr "Kembalikan informasi dasar tentang domain."
+msgstr "tanyakan informasi tentang tamu (melalui agen)"
 
 msgid "query is supported only with HTTP(S) protocols"
 msgstr ""
@@ -32631,9 +32940,8 @@ msgstr ""
 msgid "removing of '%s' volumes is not supported by the gluster backend: %s"
 msgstr ""
 
-#, fuzzy
 msgid "rename a domain"
-msgstr "Buat sebuah domain."
+msgstr "Ganti nama domain"
 
 msgid "rename to new name during migration (if supported)"
 msgstr ""
@@ -32742,12 +33050,6 @@ msgstr ""
 msgid "requested target '%s' does not match target '%s'"
 msgstr ""
 
-msgid "requested unknown memory failure action"
-msgstr ""
-
-msgid "requested unknown memory failure recipient"
-msgstr ""
-
 #, c-format
 msgid "requested vcpu '%d' is not present in the domain"
 msgstr ""
@@ -32830,9 +33132,8 @@ msgstr ""
 msgid "result too large: %llu"
 msgstr ""
 
-#, fuzzy
 msgid "resume a domain"
-msgstr "Buat sebuah domain."
+msgstr "lanjutkan domain"
 
 #, fuzzy
 msgid "resume operation failed"
@@ -33867,9 +34168,8 @@ msgstr ""
 msgid "supplying <cipher> for domain disk definition is unnecessary"
 msgstr ""
 
-#, fuzzy
 msgid "suspend a domain"
-msgstr "Definisikan domain."
+msgstr "tangguhkan domain"
 
 msgid "suspend a domain gracefully using power management functions"
 msgstr ""
@@ -34796,9 +35096,9 @@ msgstr ""
 msgid "unable query filesystem type on '%s'"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "unable to access device %s\n"
-msgstr "Gagal memasang perangkat dari %s"
+msgstr "tidak dapat mengakses perangkat %s\n"
 
 #, c-format
 msgid "unable to access disk %s\n"
@@ -34954,6 +35254,7 @@ msgstr ""
 msgid "unable to find valid requested VMware backend '%s'"
 msgstr ""
 
+#. fdatasync() may fail on some special FDs, e.g. pipes
 #, c-format
 msgid "unable to fsync %s"
 msgstr ""
@@ -35307,9 +35608,8 @@ msgstr ""
 msgid "undefine a bridge device after detaching its device(s)"
 msgstr ""
 
-#, fuzzy
 msgid "undefine a domain"
-msgstr "Definisikan domain."
+msgstr "Batalkan definisi domain"
 
 #, fuzzy
 msgid "undefine a network filter"
@@ -35327,9 +35627,8 @@ msgstr ""
 msgid "undefine an inactive pool"
 msgstr ""
 
-#, fuzzy
 msgid "undefine an interface."
-msgstr "sumber antarmuka jaringan"
+msgstr "Batalkan definisi antarmuka."
 
 msgid "undefined"
 msgstr ""
@@ -35783,6 +36082,8 @@ msgstr ""
 msgid "unix socket for spice graphics are not supported with this QEMU"
 msgstr ""
 
+#. Something went wrong retrieving a volume path, cope with it
+#. Something went wrong retrieving volume info, cope with it
 #, fuzzy
 msgid "unknown"
 msgstr "Tidak diketahui"
@@ -36005,10 +36306,6 @@ msgstr "host tidak diketahui"
 #, fuzzy, c-format
 msgid "unknown event type %s"
 msgstr "jenis OS %s tidak diketahui"
-
-#, fuzzy, c-format
-msgid "unknown feature %s"
-msgstr "host %s tidak diketahui"
 
 #, fuzzy, c-format
 msgid "unknown filesystem type '%s'"
@@ -36676,6 +36973,28 @@ msgstr ""
 msgid "unsupported filesystem type '%s'"
 msgstr ""
 
+#. *
+#. * virCheckFlags:
+#. * @supported: an OR'ed set of supported flags
+#. * @retval: return value in case unsupported flags were passed
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Exits the caller function if unsupported flags were
+#. * passed to it.
+#.
+#. *
+#. * virCheckFlagsGoto:
+#. * @supported: an OR'ed set of supported flags
+#. * @label: label to jump to on error
+#. *
+#. * To avoid memory leaks this macro has to be used before any non-trivial
+#. * code which could possibly allocate some memory.
+#. *
+#. * Returns nothing. Jumps to a label if unsupported flags were
+#. * passed to it.
+#.
 #, c-format
 msgid "unsupported flags (0x%lx) in function %s"
 msgstr ""
@@ -37825,6 +38144,10 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr ""
+
+#, fuzzy
+#~ msgid "unknown feature %s"
+#~ msgstr "host %s tidak diketahui"
 
 #, fuzzy
 #~ msgid "Unknown controller type '%s'"

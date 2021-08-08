@@ -636,6 +636,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               /* 405 */
               "confidential-guest-support",
               "query-display-options",
+              "s390-pv-guest",
     );
 
 
@@ -942,6 +943,7 @@ virQEMUCapsGetMachineTypesCaps(virQEMUCaps *qemuCaps,
 {
     size_t i;
     virQEMUCapsAccel *accel;
+    g_autoptr(GPtrArray) array = NULL;
 
     /* Guest capabilities do not report TCG vs. KVM caps separately. We just
      * take the set of machine types we probed first. */
@@ -953,13 +955,13 @@ virQEMUCapsGetMachineTypesCaps(virQEMUCaps *qemuCaps,
     *machines = NULL;
     *nmachines = accel->nmachineTypes;
 
-    if (*nmachines)
-        *machines = g_new0(virCapsGuestMachine *, accel->nmachineTypes);
+    if (*nmachines == 0)
+        return 0;
+
+    array = g_ptr_array_sized_new(*nmachines);
 
     for (i = 0; i < accel->nmachineTypes; i++) {
-        virCapsGuestMachine *mach;
-        mach = g_new0(virCapsGuestMachine, 1);
-        (*machines)[i] = mach;
+        virCapsGuestMachine *mach = g_new0(virCapsGuestMachine, 1);
         if (accel->machineTypes[i].alias) {
             mach->name = g_strdup(accel->machineTypes[i].alias);
             mach->canonical = g_strdup(accel->machineTypes[i].name);
@@ -968,6 +970,7 @@ virQEMUCapsGetMachineTypesCaps(virQEMUCaps *qemuCaps,
         }
         mach->maxCpus = accel->machineTypes[i].maxCpus;
         mach->deprecated = accel->machineTypes[i].deprecated;
+        g_ptr_array_add(array, mach);
     }
 
     /* Make sure all canonical machine types also have their own entry so that
@@ -975,18 +978,19 @@ virQEMUCapsGetMachineTypesCaps(virQEMUCaps *qemuCaps,
      * supported machine types.
      */
     i = 0;
-    while (i < *nmachines) {
+    while (i < array->len) {
         size_t j;
         bool found = false;
-        virCapsGuestMachine *machine = (*machines)[i];
+        virCapsGuestMachine *machine = g_ptr_array_index(array, i);
 
         if (!machine->canonical) {
             i++;
             continue;
         }
 
-        for (j = 0; j < *nmachines; j++) {
-            if (STREQ(machine->canonical, (*machines)[j]->name)) {
+        for (j = 0; j < array->len; j++) {
+            virCapsGuestMachine *mach = g_ptr_array_index(array, j);
+            if (STREQ(machine->canonical, mach->name)) {
                 found = true;
                 break;
             }
@@ -995,25 +999,21 @@ virQEMUCapsGetMachineTypesCaps(virQEMUCaps *qemuCaps,
         if (!found) {
             virCapsGuestMachine *mach;
             mach = g_new0(virCapsGuestMachine, 1);
-            if (VIR_INSERT_ELEMENT_COPY(*machines, i, *nmachines, mach) < 0) {
-                VIR_FREE(mach);
-                goto error;
-            }
             mach->name = g_strdup(machine->canonical);
             mach->maxCpus = machine->maxCpus;
             mach->deprecated = machine->deprecated;
+            g_ptr_array_insert(array, i, mach);
             i++;
         }
         i++;
     }
 
-    return 0;
+    *nmachines = array->len;
+    *machines = g_new0(virCapsGuestMachine *, array->len);
+    for (i = 0; i < array->len; ++i)
+        (*machines)[i] = g_ptr_array_index(array, i);
 
- error:
-    virCapabilitiesFreeMachines(*machines, *nmachines);
-    *nmachines = 0;
-    *machines = NULL;
-    return -1;
+    return 0;
 }
 
 
@@ -1182,6 +1182,7 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-cpu-model-comparison", QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON },
     { "block-export-add", QEMU_CAPS_BLOCK_EXPORT_ADD },
     { "query-display-options", QEMU_CAPS_QUERY_DISPLAY_OPTIONS },
+    { "blockdev-reopen", QEMU_CAPS_BLOCKDEV_REOPEN },
 };
 
 struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
@@ -1354,6 +1355,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "input-linux", QEMU_CAPS_INPUT_LINUX },
     { "virtio-gpu-gl-pci", QEMU_CAPS_VIRTIO_GPU_GL_PCI },
     { "virtio-vga-gl", QEMU_CAPS_VIRTIO_VGA_GL },
+    { "s390-pv-guest", QEMU_CAPS_S390_PV_GUEST },
 };
 
 
@@ -2133,6 +2135,12 @@ unsigned int virQEMUCapsGetKVMVersion(virQEMUCaps *qemuCaps)
 const char *virQEMUCapsGetPackage(virQEMUCaps *qemuCaps)
 {
     return qemuCaps->package;
+}
+
+
+bool virQEMUCapsGetKVMSupportsSecureGuest(virQEMUCaps *qemuCaps)
+{
+    return qemuCaps->kvmSupportsSecureGuest;
 }
 
 
@@ -3038,8 +3046,7 @@ virQEMUCapsProbeQMPHostCPU(virQEMUCaps *qemuCaps,
         qemuMonitorCPUProperty *nmProp;
         size_t i;
 
-        if (!(hash = virHashNew(NULL)))
-            goto cleanup;
+        hash = virHashNew(NULL);
 
         for (i = 0; i < modelInfo->nprops; i++) {
             prop = modelInfo->props + i;
@@ -3168,6 +3175,9 @@ virQEMUCapsProbeQMPTPM(virQEMUCaps *qemuCaps,
     if (qemuMonitorGetTPMModels(mon, &models) < 0)
         return -1;
 
+    if (!models)
+        return 0;
+
     for (i = 0; i < G_N_ELEMENTS(virQEMUCapsTPMModelsToCaps); i++) {
         const char *needle = virDomainTPMModelTypeToString(virQEMUCapsTPMModelsToCaps[i].type);
         if (g_strv_contains((const char **)models, needle))
@@ -3176,6 +3186,9 @@ virQEMUCapsProbeQMPTPM(virQEMUCaps *qemuCaps,
 
     if (qemuMonitorGetTPMTypes(mon, &types) < 0)
         return -1;
+
+    if (!types)
+        return 0;
 
     for (i = 0; i < G_N_ELEMENTS(virQEMUCapsTPMTypesToCaps); i++) {
         const char *needle = virDomainTPMBackendTypeToString(virQEMUCapsTPMTypesToCaps[i].type);
@@ -6005,6 +6018,26 @@ virQEMUCapsFillDomainFeaturesFromQEMUCaps(virQEMUCaps *qemuCaps,
 }
 
 
+void
+virQEMUCapsFillDomainMemoryBackingCaps(virQEMUCaps *qemuCaps,
+                                  virDomainCapsMemoryBacking *memoryBacking)
+{
+    memoryBacking->supported = VIR_TRISTATE_BOOL_YES;
+    memoryBacking->sourceType.report = true;
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_MEMFD))
+        VIR_DOMAIN_CAPS_ENUM_SET(memoryBacking->sourceType,
+                                 VIR_DOMAIN_MEMORY_SOURCE_MEMFD);
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE))
+        VIR_DOMAIN_CAPS_ENUM_SET(memoryBacking->sourceType,
+                                 VIR_DOMAIN_MEMORY_SOURCE_FILE);
+
+    VIR_DOMAIN_CAPS_ENUM_SET(memoryBacking->sourceType,
+                             VIR_DOMAIN_MEMORY_SOURCE_ANONYMOUS);
+}
+
+
 static void
 virQEMUCapsFillDomainDeviceDiskCaps(virQEMUCaps *qemuCaps,
                                     const char *machine,
@@ -6307,6 +6340,21 @@ virQEMUCapsFillDomainFeatureSEVCaps(virQEMUCaps *qemuCaps,
 }
 
 
+static void
+virQEMUCapsFillDomainFeatureS390PVCaps(virQEMUCaps *qemuCaps,
+                                       virDomainCaps *domCaps)
+{
+    if (ARCH_IS_S390(qemuCaps->arch)) {
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT) &&
+            virQEMUCapsGet(qemuCaps, QEMU_CAPS_S390_PV_GUEST) &&
+            virQEMUCapsGetKVMSupportsSecureGuest(qemuCaps))
+            domCaps->features[VIR_DOMAIN_CAPS_FEATURE_S390_PV] = VIR_TRISTATE_BOOL_YES;
+        else
+            domCaps->features[VIR_DOMAIN_CAPS_FEATURE_S390_PV] = VIR_TRISTATE_BOOL_NO;
+    }
+}
+
+
 int
 virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
                           virArch hostarch,
@@ -6322,6 +6370,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virDomainCapsDeviceVideo *video = &domCaps->video;
     virDomainCapsDeviceRNG *rng = &domCaps->rng;
     virDomainCapsDeviceFilesystem *filesystem = &domCaps->filesystem;
+    virDomainCapsMemoryBacking *memoryBacking = &domCaps->memoryBacking;
 
     virQEMUCapsFillDomainFeaturesFromQEMUCaps(qemuCaps, domCaps);
 
@@ -6345,6 +6394,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
         return -1;
 
     virQEMUCapsFillDomainCPUCaps(qemuCaps, hostarch, domCaps);
+    virQEMUCapsFillDomainMemoryBackingCaps(qemuCaps, memoryBacking);
     virQEMUCapsFillDomainDeviceDiskCaps(qemuCaps, domCaps->machine, disk);
     virQEMUCapsFillDomainDeviceGraphicsCaps(qemuCaps, graphics);
     virQEMUCapsFillDomainDeviceVideoCaps(qemuCaps, video);
@@ -6353,6 +6403,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainDeviceFSCaps(qemuCaps, filesystem);
     virQEMUCapsFillDomainFeatureGICCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSEVCaps(qemuCaps, domCaps);
+    virQEMUCapsFillDomainFeatureS390PVCaps(qemuCaps, domCaps);
 
     return 0;
 }

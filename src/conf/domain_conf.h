@@ -1420,6 +1420,18 @@ typedef enum {
     VIR_DOMAIN_INPUT_SOURCE_GRAB_LAST
 } virDomainInputSourceGrab;
 
+typedef enum {
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_DEFAULT,
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_CTRL_CTRL,
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_ALT_ALT,
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_SHIFT_SHIFT,
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_META_META,
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_SCROLLLOCK,
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_CTRL_SCROLLLOCK,
+
+    VIR_DOMAIN_INPUT_SOURCE_GRAB_TOGGLE_LAST
+} virDomainInputSourceGrabToggle;
+
 struct _virDomainInputDef {
     int type;
     int bus;
@@ -1427,6 +1439,7 @@ struct _virDomainInputDef {
     struct {
         char *evdev;
         virDomainInputSourceGrab grab;
+        virDomainInputSourceGrabToggle grabToggle;
         virTristateSwitch repeat;
     } source;
     virDomainDeviceInfo info;
@@ -2645,13 +2658,13 @@ struct _virDomainKeyWrapDef {
 typedef enum {
     VIR_DOMAIN_LAUNCH_SECURITY_NONE,
     VIR_DOMAIN_LAUNCH_SECURITY_SEV,
+    VIR_DOMAIN_LAUNCH_SECURITY_PV,
 
     VIR_DOMAIN_LAUNCH_SECURITY_LAST,
 } virDomainLaunchSecurity;
 
 
 struct _virDomainSEVDef {
-    int sectype; /* enum virDomainLaunchSecurity */
     char *dh_cert;
     char *session;
     unsigned int policy;
@@ -2661,6 +2674,15 @@ struct _virDomainSEVDef {
     unsigned int reduced_phys_bits;
 };
 
+struct _virDomainSecDef {
+    virDomainLaunchSecurity sectype;
+    union {
+        virDomainSEVDef sev;
+    } data;
+};
+
+void virDomainSecDefFree(virDomainSecDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainSecDef, virDomainSecDefFree);
 
 typedef enum {
     VIR_DOMAIN_IOMMU_MODEL_INTEL,
@@ -2871,8 +2893,8 @@ struct _virDomainDef {
 
     virDomainKeyWrapDef *keywrap;
 
-    /* SEV-specific domain */
-    virDomainSEVDef *sev;
+    /* launch security e.g. SEV */
+    virDomainSecDef *sec;
 
     /* Application-specific custom metadata */
     xmlNodePtr metadata;
@@ -3590,6 +3612,8 @@ virDomainHostdevDef *
 virDomainHostdevRemove(virDomainDef *def, size_t i);
 int virDomainHostdevFind(virDomainDef *def, virDomainHostdevDef *match,
                          virDomainHostdevDef **found);
+int virDomainHostdevMatch(virDomainHostdevDef *a,
+                          virDomainHostdevDef *b);
 
 virDomainGraphicsListenDef *
 virDomainGraphicsGetListen(virDomainGraphicsDef *def, size_t i);
@@ -3608,6 +3632,8 @@ int virDomainNetGetActualDirectMode(const virDomainNetDef *iface);
 virDomainHostdevDef *virDomainNetGetActualHostdev(virDomainNetDef *iface);
 const virNetDevVPortProfile *
 virDomainNetGetActualVirtPortProfile(const virDomainNetDef *iface);
+bool
+virDomainNetDefIsOvsport(const virDomainNetDef *net);
 const virNetDevBandwidth *
 virDomainNetGetActualBandwidth(const virDomainNetDef *iface);
 const virNetDevVlan *virDomainNetGetActualVlan(const virDomainNetDef *iface);
@@ -3858,6 +3884,7 @@ VIR_ENUM_DECL(virDomainInput);
 VIR_ENUM_DECL(virDomainInputBus);
 VIR_ENUM_DECL(virDomainInputModel);
 VIR_ENUM_DECL(virDomainInputSourceGrab);
+VIR_ENUM_DECL(virDomainInputSourceGrabToggle);
 VIR_ENUM_DECL(virDomainGraphics);
 VIR_ENUM_DECL(virDomainGraphicsListen);
 VIR_ENUM_DECL(virDomainGraphicsAuthConnected);

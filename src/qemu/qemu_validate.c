@@ -1214,12 +1214,31 @@ qemuValidateDomainDef(const virDomainDef *def,
     if (qemuValidateDomainDefPanic(def, qemuCaps) < 0)
         return -1;
 
-    if (def->sev &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("SEV launch security is not supported with "
-                         "this QEMU binary"));
-        return -1;
+    if (def->sec) {
+        switch ((virDomainLaunchSecurity) def->sec->sectype) {
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("SEV launch security is not supported with "
+                                 "this QEMU binary"));
+                return -1;
+            }
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT) ||
+                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_S390_PV_GUEST) ||
+                !virQEMUCapsGetKVMSupportsSecureGuest(qemuCaps)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("S390 PV launch security is not supported with "
+                                 "this QEMU binary"));
+                return -1;
+            }
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+        case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+            virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
+            return -1;
+        }
     }
 
     if (def->naudios > 1 &&
@@ -4515,6 +4534,12 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
         if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("TPM 1.2 is not supported with the SPAPR device model"));
+            return -1;
+        }
+        /* TPM 1.2 + ARM does not work */
+        if (qemuDomainIsARMVirt(def)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("TPM 1.2 is not supported on ARM"));
             return -1;
         }
         break;

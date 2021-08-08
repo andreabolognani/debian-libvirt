@@ -1422,7 +1422,7 @@ virFileReadLimFD(int fd, int maxlen, char **buf)
         errno = EINVAL;
         return -1;
     }
-    s = saferead_lim(fd, maxlen+1, &len);
+    s = saferead_lim(fd, (size_t) maxlen + 1, &len);
     if (s == NULL)
         return -1;
     if (len > maxlen || (int)len != len) {
@@ -2889,9 +2889,9 @@ virDirOpenQuiet(DIR **dirp, const char *name)
  * @name: if non-NULL, the name related to @dirp for use in error reporting
  *
  * Wrapper around readdir. Typical usage:
+ *   g_autoptr(DIR) dir = NULL;
  *   struct dirent *ent;
  *   int rc;
- *   DIR *dir;
  *   if (virDirOpen(&dir, name) < 0)
  *       goto error;
  *   while ((rc = virDirRead(dir, &ent, name)) > 0)
@@ -4065,6 +4065,30 @@ virFileReadValueUllong(unsigned long long *value, const char *format, ...)
     return 0;
 }
 
+int
+virFileReadValueUllongQuiet(unsigned long long *value, const char *format, ...)
+{
+    g_autofree char *str = NULL;
+    g_autofree char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    path = g_strdup_vprintf(format, ap);
+    va_end(ap);
+
+    if (!virFileExists(path))
+        return -2;
+
+    if (virFileReadAllQuiet(path, VIR_INT64_STR_BUFLEN, &str) < 0)
+        return -1;
+
+    virStringTrimOptionalNewline(str);
+
+    if (virStrToLong_ullp(str, NULL, 10, value) < 0)
+        return -1;
+
+    return 0;
+}
 
 /**
  * virFileReadValueScaledInt:

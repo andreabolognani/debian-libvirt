@@ -57,6 +57,9 @@ VIR_ENUM_IMPL(virMdevctlCommand,
 );
 
 
+#define MDEVCTL_ERROR(msg) (msg && msg[0] != '\0' ? msg : _("Unknown error"))
+
+
 virDrvOpenStatus
 nodeConnectOpen(virConnectPtr conn,
                 virConnectAuthPtr auth G_GNUC_UNUSED,
@@ -743,6 +746,8 @@ nodeDeviceGetMdevctlCommand(virNodeDeviceDef *def,
     case MDEVCTL_CMD_LAST:
     default:
         /* SHOULD NEVER HAPPEN */
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unknown Command '%i'"), cmd_type);
         return NULL;
     }
 
@@ -792,41 +797,62 @@ nodeDeviceGetMdevctlCommand(virNodeDeviceDef *def,
 
 
 static int
-virMdevctlCreate(virNodeDeviceDef *def, char **uuid, char **errmsg)
+virMdevctlCreate(virNodeDeviceDef *def, char **uuid)
 {
     int status;
+    g_autofree char *errmsg = NULL;
     g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlCommand(def,
                                                             MDEVCTL_CMD_CREATE,
                                                             uuid,
-                                                            errmsg);
+                                                            &errmsg);
+
+    if (!cmd)
+        return -1;
+
     /* an auto-generated uuid is returned via stdout if no uuid is specified in
      * the mdevctl args */
-    if (virCommandRun(cmd, &status) < 0 || status != 0)
+    if (virCommandRun(cmd, &status) < 0)
         return -1;
+
+    if (status != 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to start mediated device: %s"),
+                       MDEVCTL_ERROR(errmsg));
+        return -1;
+    }
 
     /* remove newline */
     *uuid = g_strstrip(*uuid);
-
     return 0;
 }
 
 
 static int
-virMdevctlDefine(virNodeDeviceDef *def, char **uuid, char **errmsg)
+virMdevctlDefine(virNodeDeviceDef *def, char **uuid)
 {
     int status;
+    g_autofree char *errmsg = NULL;
     g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlCommand(def,
                                                             MDEVCTL_CMD_DEFINE,
-                                                            uuid, errmsg);
+                                                            uuid, &errmsg);
+
+    if (!cmd)
+        return -1;
 
     /* an auto-generated uuid is returned via stdout if no uuid is specified in
      * the mdevctl args */
-    if (virCommandRun(cmd, &status) < 0 || status != 0)
+    if (virCommandRun(cmd, &status) < 0)
         return -1;
+
+    if (status != 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to define mediated device: %s"),
+                       MDEVCTL_ERROR(errmsg));
+        return -1;
+    }
 
     /* remove newline */
     *uuid = g_strstrip(*uuid);
-
     return 0;
 }
 
@@ -836,7 +862,6 @@ nodeDeviceCreateXMLMdev(virConnectPtr conn,
                         virNodeDeviceDef *def)
 {
     g_autofree char *uuid = NULL;
-    g_autofree char *errmsg = NULL;
 
     if (!def->parent) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -844,11 +869,7 @@ nodeDeviceCreateXMLMdev(virConnectPtr conn,
         return NULL;
     }
 
-    if (virMdevctlCreate(def, &uuid, &errmsg) < 0) {
-        if (errmsg)
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to start mediated device '%s': %s"),
-                           def->name, errmsg);
+    if (virMdevctlCreate(def, &uuid) < 0) {
         return NULL;
     }
 
@@ -918,45 +939,78 @@ nodeDeviceCreateXML(virConnectPtr conn,
 
 
 static int
-virMdevctlStop(virNodeDeviceDef *def, char **errmsg)
+virMdevctlStop(virNodeDeviceDef *def)
 {
     int status;
     g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *errmsg = NULL;
 
-    cmd = nodeDeviceGetMdevctlCommand(def, MDEVCTL_CMD_STOP, NULL, errmsg);
+    cmd = nodeDeviceGetMdevctlCommand(def, MDEVCTL_CMD_STOP, NULL, &errmsg);
 
-    if (virCommandRun(cmd, &status) < 0 || status != 0)
+    if (!cmd)
         return -1;
+
+    if (virCommandRun(cmd, &status) < 0)
+        return -1;
+
+    if (status != 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to destroy '%s': %s"), def->name,
+                       MDEVCTL_ERROR(errmsg));
+        return -1;
+    }
 
     return 0;
 }
 
 
 static int
-virMdevctlUndefine(virNodeDeviceDef *def, char **errmsg)
+virMdevctlUndefine(virNodeDeviceDef *def)
 {
     int status;
     g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *errmsg = NULL;
 
-    cmd = nodeDeviceGetMdevctlCommand(def, MDEVCTL_CMD_UNDEFINE, NULL, errmsg);
+    cmd = nodeDeviceGetMdevctlCommand(def, MDEVCTL_CMD_UNDEFINE, NULL, &errmsg);
 
-    if (virCommandRun(cmd, &status) < 0 || status != 0)
+    if (!cmd)
         return -1;
+
+    if (virCommandRun(cmd, &status) < 0)
+        return -1;
+
+    if (status != 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to undefine mediated device: %s"),
+                       MDEVCTL_ERROR(errmsg));
+        return -1;
+    }
 
     return 0;
 }
 
 
 static int
-virMdevctlStart(virNodeDeviceDef *def, char **errmsg)
+virMdevctlStart(virNodeDeviceDef *def)
 {
     int status;
     g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *errmsg = NULL;
 
-    cmd = nodeDeviceGetMdevctlCommand(def, MDEVCTL_CMD_START, NULL, errmsg);
+    cmd = nodeDeviceGetMdevctlCommand(def, MDEVCTL_CMD_START, NULL, &errmsg);
 
-    if (virCommandRun(cmd, &status) < 0 || status != 0)
+    if (!cmd)
         return -1;
+
+    if (virCommandRun(cmd, &status) < 0)
+        return -1;
+
+    if (status != 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to create mediated device: %s"),
+                       MDEVCTL_ERROR(errmsg));
+        return -1;
+    }
 
     return 0;
 }
@@ -997,6 +1051,7 @@ nodeDeviceParseMdevctlChildDevice(const char *parent,
     virJSONValue *props;
     virJSONValue *attrs;
     g_autoptr(virNodeDeviceDef) child = g_new0(virNodeDeviceDef, 1);
+    g_autofree char *parent_sysfs_path = NULL;
 
     /* the child object should have a single key equal to its uuid.
      * The value is an object describing the properties of the mdev */
@@ -1006,7 +1061,25 @@ nodeDeviceParseMdevctlChildDevice(const char *parent,
     uuid = virJSONValueObjectGetKey(json, 0);
     props = virJSONValueObjectGetValue(json, 0);
 
-    child->parent = g_strdup(parent);
+    /* Look up id of parent device. mdevctl supports defining mdevs for parent
+     * devices that are not present on the system (to support starting mdevs on
+     * hotplug, etc) so the parent may not actually exist. */
+    parent_sysfs_path = g_strdup_printf("/sys/class/mdev_bus/%s", parent);
+    if (virFileExists(parent_sysfs_path)) {
+        g_autofree char *canon_syspath = virFileCanonicalizePath(parent_sysfs_path);
+        virNodeDeviceObj *parentobj = NULL;
+
+        if ((parentobj = virNodeDeviceObjListFindBySysfsPath(driver->devs,
+                                                             canon_syspath))) {
+            virNodeDeviceDef *parentdef = virNodeDeviceObjGetDef(parentobj);
+            child->parent = g_strdup(parentdef->name);
+            virNodeDeviceObjEndAPI(&parentobj);
+
+            child->parent_sysfs_path = g_steal_pointer(&canon_syspath);
+        }
+    }
+    if (!child->parent)
+        child->parent = g_strdup("computer");
     child->caps = g_new0(virNodeDevCapsDef, 1);
     child->caps->data.type = VIR_NODE_DEV_CAP_MDEV;
 
@@ -1056,6 +1129,7 @@ nodeDeviceParseMdevctlJSON(const char *jsonstring,
     size_t noutdevs = 0;
     size_t i;
     size_t j;
+    virJSONValue *obj;
 
     json_devicelist = virJSONValueFromString(jsonstring);
 
@@ -1065,31 +1139,39 @@ nodeDeviceParseMdevctlJSON(const char *jsonstring,
         goto error;
     }
 
-    n = virJSONValueArraySize(json_devicelist);
+    if (virJSONValueArraySize(json_devicelist) == 0) {
+        VIR_DEBUG("mdevctl has no defined mediated devices");
+        *devs = NULL;
+        return 0;
+    }
 
+    /* mdevctl list --dumpjson produces an output that is an array that
+     * contains only a single object which contains a property for each parent
+     * device */
+    if (virJSONValueArraySize(json_devicelist) != 1) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Unexpected format for mdevctl response"));
+        goto error;
+    }
+
+    obj = virJSONValueArrayGet(json_devicelist, 0);
+
+    if (!virJSONValueIsObject(obj)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("device list is not an object"));
+        goto error;
+    }
+
+    n = virJSONValueObjectKeysNumber(obj);
     for (i = 0; i < n; i++) {
-        virJSONValue *obj = virJSONValueArrayGet(json_devicelist, i);
         const char *parent;
         virJSONValue *child_array;
         int nchildren;
 
-        if (!virJSONValueIsObject(obj)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Parent device is not an object"));
-            goto error;
-        }
-
-        /* mdevctl returns an array of objects.  Each object is a parent device
-         * object containing a single key-value pair which maps from the name
-         * of the parent device to an array of child devices */
-        if (virJSONValueObjectKeysNumber(obj) != 1) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Unexpected format for parent device object"));
-            goto error;
-        }
-
-        parent = virJSONValueObjectGetKey(obj, 0);
-        child_array = virJSONValueObjectGetValue(obj, 0);
+        /* The key of each object property is the name of a parent device
+         * which maps to an array of child devices */
+        parent = virJSONValueObjectGetKey(obj, i);
+        child_array = virJSONValueObjectGetValue(obj, i);
 
         if (!virJSONValueIsArray(child_array)) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1173,6 +1255,15 @@ nodeDeviceDestroy(virNodeDevicePtr device)
 
         ret = 0;
     } else if (nodeDeviceHasCapability(def, VIR_NODE_DEV_CAP_MDEV)) {
+        g_autofree char *vfiogroup = NULL;
+        VIR_AUTOCLOSE fd = -1;
+
+        if (!virNodeDeviceObjIsActive(obj)) {
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           _("Device '%s' is not active"), def->name);
+            goto cleanup;
+        }
+
         /* If this mediated device is in use by a vm, attempting to stop it
          * will block until the vm closes the device. The nodedev driver
          * cannot query the hypervisor driver to determine whether the device
@@ -1182,11 +1273,7 @@ nodeDeviceDestroy(virNodeDevicePtr device)
          * to be opened by one user at a time. So if we get EBUSY when opening
          * the group, we infer that the device is in use and therefore we
          * shouldn't try to remove the device. */
-        g_autofree char *vfiogroup =
-            virMediatedDeviceGetIOMMUGroupDev(def->caps->data.mdev.uuid);
-        VIR_AUTOCLOSE fd = -1;
-        g_autofree char *errmsg = NULL;
-
+        vfiogroup = virMediatedDeviceGetIOMMUGroupDev(def->caps->data.mdev.uuid);
         if (!vfiogroup)
             goto cleanup;
 
@@ -1199,13 +1286,9 @@ nodeDeviceDestroy(virNodeDevicePtr device)
             goto cleanup;
         }
 
-        if (virMdevctlStop(def, &errmsg) < 0) {
-            if (errmsg)
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Unable to destroy '%s': %s"), def->name,
-                               errmsg);
+        if (virMdevctlStop(def) < 0)
             goto cleanup;
-        }
+
         ret = 0;
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -1280,7 +1363,6 @@ nodeDeviceDefineXML(virConnect *conn,
     g_autoptr(virNodeDeviceDef) def = NULL;
     const char *virt_type = NULL;
     g_autofree char *uuid = NULL;
-    g_autofree char *errmsg = NULL;
     g_autofree char *name = NULL;
 
     virCheckFlags(0, NULL);
@@ -1308,10 +1390,7 @@ nodeDeviceDefineXML(virConnect *conn,
         return NULL;
     }
 
-    if (virMdevctlDefine(def, &uuid, &errmsg) < 0) {
-        if (errmsg)
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to define mediated device: %s"), errmsg);
+    if (virMdevctlDefine(def, &uuid) < 0) {
         return NULL;
     }
 
@@ -1366,14 +1445,9 @@ nodeDeviceUndefine(virNodeDevice *device,
     }
 
     if (nodeDeviceHasCapability(def, VIR_NODE_DEV_CAP_MDEV)) {
-        g_autofree char *errmsg = NULL;
-
-        if (virMdevctlUndefine(def, &errmsg) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to undefine mediated device: %s"),
-                           errmsg && errmsg[0] ? errmsg : "Unknown Error");
+        if (virMdevctlUndefine(def) < 0)
             goto cleanup;
-        }
+
         ret = 0;
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -1413,14 +1487,9 @@ nodeDeviceCreate(virNodeDevice *device,
         goto cleanup;
 
     if (nodeDeviceHasCapability(def, VIR_NODE_DEV_CAP_MDEV)) {
-        g_autofree char *errmsg = NULL;
-
-        if (virMdevctlStart(def, &errmsg) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to create mediated device: %s"),
-                           errmsg && errmsg[0] ? errmsg : "Unknown Error");
+        if (virMdevctlStart(def) < 0)
             goto cleanup;
-        }
+
         ret = 0;
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",

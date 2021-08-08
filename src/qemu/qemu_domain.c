@@ -1772,37 +1772,6 @@ qemuDomainObjStopWorker(virDomainObj *dom)
 }
 
 
-static void *
-qemuDomainObjPrivateAlloc(void *opaque)
-{
-    qemuDomainObjPrivate *priv;
-
-    priv = g_new0(qemuDomainObjPrivate, 1);
-
-    if (qemuDomainObjInitJob(&priv->job, &qemuPrivateJobCallbacks) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Unable to init qemu driver mutexes"));
-        goto error;
-    }
-
-    if (!(priv->devs = virChrdevAlloc()))
-        goto error;
-
-    if (!(priv->blockjobs = virHashNew(virObjectFreeHashData)))
-        goto error;
-
-    /* agent commands block by default, user can choose different behavior */
-    priv->agentTimeout = VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_BLOCK;
-    priv->migMaxBandwidth = QEMU_DOMAIN_MIG_BANDWIDTH_MAX;
-    priv->driver = opaque;
-
-    return priv;
-
- error:
-    VIR_FREE(priv);
-    return NULL;
-}
-
 /**
  * qemuDomainObjPrivateDataClear:
  * @priv: domain private data
@@ -1922,6 +1891,33 @@ qemuDomainObjPrivateFree(void *data)
     g_free(priv);
 }
 
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuDomainObjPrivate, qemuDomainObjPrivateFree);
+
+
+static void *
+qemuDomainObjPrivateAlloc(void *opaque)
+{
+    g_autoptr(qemuDomainObjPrivate) priv = g_new0(qemuDomainObjPrivate, 1);
+
+    if (qemuDomainObjInitJob(&priv->job, &qemuPrivateJobCallbacks) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Unable to init qemu driver mutexes"));
+        return NULL;
+    }
+
+    if (!(priv->devs = virChrdevAlloc()))
+        return NULL;
+
+    priv->blockjobs = virHashNew(virObjectFreeHashData);
+
+    /* agent commands block by default, user can choose different behavior */
+    priv->agentTimeout = VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_BLOCK;
+    priv->migMaxBandwidth = QEMU_DOMAIN_MIG_BANDWIDTH_MAX;
+    priv->driver = opaque;
+
+    return g_steal_pointer(&priv);
+}
+
 
 static int
 qemuStorageSourcePrivateDataAssignSecinfo(qemuDomainSecretInfo **secinfo,
@@ -1951,6 +1947,7 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
     g_autofree char *encalias = NULL;
     g_autofree char *httpcookiealias = NULL;
     g_autofree char *tlskeyalias = NULL;
+    g_autofree char *thresholdEventWithIndex = NULL;
 
     src->nodestorage = virXPathString("string(./nodenames/nodename[@type='storage']/@name)", ctxt);
     src->nodeformat = virXPathString("string(./nodenames/nodename[@type='format']/@name)", ctxt);
@@ -1989,6 +1986,10 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
 
     if (virStorageSourcePrivateDataParseRelPath(ctxt, src) < 0)
         return -1;
+
+    if ((thresholdEventWithIndex = virXPathString("string(./thresholdEvent/@indexUsed)", ctxt)) &&
+        virTristateBoolTypeFromString(thresholdEventWithIndex) == VIR_TRISTATE_BOOL_YES)
+        src->thresholdEventWithIndex = true;
 
     return 0;
 }
@@ -2043,6 +2044,9 @@ qemuStorageSourcePrivateDataFormat(virStorageSource *src,
         virBufferAsprintf(&tmp, "<TLSx509 alias='%s'/>\n", src->tlsAlias);
 
     virXMLFormatElement(buf, "objects", NULL, &tmp);
+
+    if (src->thresholdEventWithIndex)
+        virBufferAddLit(buf, "<thresholdEvent indexUsed='yes'/>\n");
 
     return 0;
 }
@@ -3587,18 +3591,19 @@ qemuDomainDefAddImplicitInputDevice(virDomainDef *def)
 }
 
 static int
-qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
-                                    virDomainDef *def)
+qemuDomainDefSuggestDefaultAudioBackend(virQEMUDriver *driver,
+                                        virDomainDef *def,
+                                        bool *addAudio,
+                                        int *audioBackend,
+                                        int *audioSDLDriver)
 {
     size_t i;
-    bool addAudio = false;
     bool audioPassthrough = false;
-    int audioBackend = VIR_DOMAIN_AUDIO_TYPE_NONE;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
 
-    if (def->naudios > 0) {
-        return 0;
-    }
+    *addAudio = false;
+    *audioBackend = VIR_DOMAIN_AUDIO_TYPE_NONE;
+    *audioSDLDriver = VIR_DOMAIN_AUDIO_SDL_DRIVER_DEFAULT;
 
     for (i = 0; i < def->ngraphics; i++) {
         virDomainGraphicsDef *graph = def->graphics[i];
@@ -3609,18 +3614,18 @@ qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
                 audioPassthrough = true;
             } else {
                 audioPassthrough = false;
-                audioBackend = VIR_DOMAIN_AUDIO_TYPE_NONE;
+                *audioBackend = VIR_DOMAIN_AUDIO_TYPE_NONE;
             }
-            addAudio = true;
+            *addAudio = true;
             break;
         case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
             audioPassthrough = false;
-            audioBackend = VIR_DOMAIN_AUDIO_TYPE_SPICE;
-            addAudio = true;
+            *audioBackend = VIR_DOMAIN_AUDIO_TYPE_SPICE;
+            *addAudio = true;
             break;
         case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
             audioPassthrough = true;
-            addAudio = true;
+            *addAudio = true;
             break;
 
         case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
@@ -3639,24 +3644,24 @@ qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
             audioPassthrough = true;
         } else {
             audioPassthrough = false;
-            audioBackend = VIR_DOMAIN_AUDIO_TYPE_NONE;
+            *audioBackend = VIR_DOMAIN_AUDIO_TYPE_NONE;
         }
-        addAudio = true;
+        *addAudio = true;
     }
 
-    if (addAudio && audioPassthrough) {
+    if (*addAudio && audioPassthrough) {
         const char *audioenv = g_getenv("QEMU_AUDIO_DRV");
         if (audioenv == NULL) {
-            addAudio = false;
+            *addAudio = false;
         } else {
             /*
              * QEMU audio driver names are mostly the same as
              * libvirt XML audio backend names
              */
             if (STREQ(audioenv, "pa")) {
-                audioBackend = VIR_DOMAIN_AUDIO_TYPE_PULSEAUDIO;
+                *audioBackend = VIR_DOMAIN_AUDIO_TYPE_PULSEAUDIO;
             } else {
-                if ((audioBackend = virDomainAudioTypeTypeFromString(audioenv)) < 0) {
+                if (((*audioBackend) = virDomainAudioTypeTypeFromString(audioenv)) < 0) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                    _("unknown QEMU_AUDIO_DRV setting %s"), audioenv);
                     return -1;
@@ -3664,6 +3669,79 @@ qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
             }
         }
     }
+
+    if (*addAudio && *audioBackend == VIR_DOMAIN_AUDIO_TYPE_SDL) {
+        const char *sdldriver = g_getenv("SDL_AUDIODRIVER");
+        if (sdldriver != NULL &&
+            (((*audioSDLDriver) =
+              virDomainAudioSDLDriverTypeFromString(sdldriver)) <= 0)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("unknown SDL_AUDIODRIVER setting %s"), sdldriver);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int
+qemuDomainDefClearDefaultAudioBackend(virQEMUDriver *driver,
+                                      virDomainDef *def)
+{
+    bool addAudio;
+    int audioBackend;
+    int audioSDLDriver;
+    virDomainAudioDef *audio;
+
+    if (def->naudios != 1) {
+        return 0;
+    }
+
+    if (qemuDomainDefSuggestDefaultAudioBackend(driver,
+                                                def,
+                                                &addAudio,
+                                                &audioBackend,
+                                                &audioSDLDriver) < 0)
+        return -1;
+
+    if (!addAudio)
+        return 0;
+
+    audio = def->audios[0];
+    if (audio->type != audioBackend)
+        return 0;
+
+    if (audio->type == VIR_DOMAIN_AUDIO_TYPE_SDL &&
+        audio->backend.sdl.driver != audioSDLDriver)
+        return 0;
+
+    virDomainAudioDefFree(audio);
+    g_free(def->audios);
+    def->naudios = 0;
+    def->audios = NULL;
+
+    return 0;
+}
+
+static int
+qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
+                                    virDomainDef *def)
+{
+    bool addAudio;
+    int audioBackend;
+    int audioSDLDriver;
+
+    if (def->naudios > 0) {
+        return 0;
+    }
+
+    if (qemuDomainDefSuggestDefaultAudioBackend(driver,
+                                                def,
+                                                &addAudio,
+                                                &audioBackend,
+                                                &audioSDLDriver) < 0)
+        return -1;
+
     if (addAudio) {
         virDomainAudioDef *audio = g_new0(virDomainAudioDef, 1);
 
@@ -3674,16 +3752,8 @@ qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
         def->audios = g_new0(virDomainAudioDef *, def->naudios);
         def->audios[0] = audio;
 
-        if (audioBackend == VIR_DOMAIN_AUDIO_TYPE_SDL) {
-            const char *sdldriver = g_getenv("SDL_AUDIODRIVER");
-            if (sdldriver != NULL &&
-                ((audio->backend.sdl.driver =
-                  virDomainAudioSDLDriverTypeFromString(sdldriver)) <= 0)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("unknown SDL_AUDIODRIVER setting %s"), sdldriver);
-                return -1;
-            }
-        }
+        if (audioBackend == VIR_DOMAIN_AUDIO_TYPE_SDL)
+            audio->backend.sdl.driver = audioSDLDriver;
     }
 
     return 0;
@@ -4445,7 +4515,8 @@ qemuDomainDefTPMsPostParse(virDomainDef *def)
         /* TPM 1.2 and 2 are not compatible, so we choose a specific version here */
         if (tpm->version == VIR_DOMAIN_TPM_VERSION_DEFAULT) {
             if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR ||
-                tpm->model == VIR_DOMAIN_TPM_MODEL_CRB)
+                tpm->model == VIR_DOMAIN_TPM_MODEL_CRB ||
+                qemuDomainIsARMVirt(def))
                 tpm->version = VIR_DOMAIN_TPM_VERSION_2_0;
             else
                 tpm->version = VIR_DOMAIN_TPM_VERSION_1_2;
@@ -6297,6 +6368,12 @@ qemuDomainDefFormatBufInternal(virQEMUDriver *driver,
 
         if (def->cpu && qemuDomainMakeCPUMigratable(def->cpu) < 0)
             return -1;
+
+        /* Old libvirt doesn't understand <audio> elements so
+         * remove any we added by default
+         */
+        if (qemuDomainDefClearDefaultAudioBackend(driver, def) < 0)
+            return -1;
     }
 
  format:
@@ -7853,10 +7930,8 @@ qemuDomainStorageSourceAccessModify(virQEMUDriver *driver,
 
         revoke_nvme = true;
 
-        if (qemuDomainNamespaceSetupDisk(vm, src) < 0)
+        if (qemuDomainNamespaceSetupDisk(vm, src, &revoke_namespace) < 0)
             goto revoke;
-
-        revoke_namespace = true;
     }
 
     if (qemuSecuritySetImageLabel(driver, vm, src, chain, chain_top) < 0)
@@ -11526,7 +11601,8 @@ qemuDomainInterfaceSetDefaultQDisc(virQEMUDriver *driver,
         actualType == VIR_DOMAIN_NET_TYPE_NETWORK ||
         actualType == VIR_DOMAIN_NET_TYPE_BRIDGE ||
         actualType == VIR_DOMAIN_NET_TYPE_DIRECT) {
-        if (virNetDevBandwidthSetRootQDisc(net->ifname, "noqueue") < 0)
+        if (!virDomainNetDefIsOvsport(net) &&
+            virNetDevBandwidthSetRootQDisc(net->ifname, "noqueue") < 0)
             return -1;
     }
 
