@@ -38,6 +38,7 @@ Build-Depends:
  libsanlock-dev [linux-any],
  libsasl2-dev,
  libselinux1-dev (>= 2.0.82) [linux-any],
+ libssh-dev,
  libssh2-1-dev,
  libudev-dev [linux-any],
  libwireshark-dev (>= 1.11.3),
