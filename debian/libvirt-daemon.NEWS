@@ -1,3 +1,13 @@
+libvirt (7.6.0-1) UNRELEASED; urgency=medium
+
+  netcf support is now disabled in libvirt.
+
+  This results in most virInterface* APIs, as well as the
+  corresponding iface-* virsh commands, becoming non-functional,
+  and mirrors upstream's decision to deprecate the feature.
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 17 Aug 2021 20:56:14 +0200
+
 libvirt (5.6.0-3) unstable; urgency=medium
 
   Just as version 3.7.0-3 separated the storage drivers into individual

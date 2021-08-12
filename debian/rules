@@ -41,7 +41,6 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_LIBNL                = -Dlibnl=enabled
     WITH_NETWORK              = -Ddriver_network=enabled
     WITH_OPENVZ               = -Ddriver_openvz=enabled
-    WITH_NETCF                = -Dnetcf=enabled
     WITH_POLKIT               = -Dpolkit=enabled
     WITH_SANLOCK              = -Dsanlock=enabled
     WITH_INIT_SCRIPT          = -Dinit_script=systemd
@@ -74,7 +73,6 @@ else
     WITH_LIBNL                = -Dlibnl=disabled
     WITH_NETWORK              = -Ddriver_network=disabled
     WITH_OPENVZ               = -Ddriver_openvz=disabled
-    WITH_NETCF                = -Dnetcf=disabled
     WITH_POLKIT               = -Dpolkit=disabled
     WITH_SANLOCK              = -Dsanlock=disabled
     WITH_INIT_SCRIPT          = -Dinit_script=none
@@ -132,7 +130,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_CAPNG) \
     $(WITH_LIBNL) \
     $(WITH_NETWORK) \
-    $(WITH_NETCF) \
+    -Dnetcf=disabled \
     $(WITH_LIBXL) \
     $(WITH_VBOX) \
     $(WITH_LXC) \
