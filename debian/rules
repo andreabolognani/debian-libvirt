@@ -96,6 +96,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Ddriver_qemu=enabled \
     -Ddriver_libvirtd=enabled \
     -Ddriver_remote=enabled \
+    -Dremote_default_mode=legacy \
     -Ddriver_test=enabled \
     -Ddriver_ch=disabled \
     -Dqemu_user=libvirt-qemu \
