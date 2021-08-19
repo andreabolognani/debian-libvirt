@@ -1,4 +1,4 @@
-libvirt (7.6.0-1) UNRELEASED; urgency=medium
+libvirt (7.6.0-1) unstable; urgency=medium
 
   netcf support is now disabled in libvirt.
 

@@ -1,8 +1,26 @@
-libvirt (7.6.0-1) UNRELEASED; urgency=medium
+libvirt (7.6.0-1) unstable; urgency=medium
 
   * Team upload
 
- -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 29 Jun 2021 08:48:53 +0200
+  [ Andrea Bolognani ]
+  * [a256a80] New upstream version 7.6.0
+  * [4a96793] rules: Disable netcf support
+    - netcf support is considered deprecated upstream
+
+  [ Christian Ehrhardt ]
+  * [ac145fd] d/rules: disable the new Cloud Hypervisor driver
+    - Cloud Hypervisor is not available in Debian
+  * [4bafac5] d/control, d/rules: enable libssh
+    - Closes: #985969
+    - LP: #1939416
+  * [fbc728f] d/t/smoke-lxc: skip if cgroup v1&v2 are present
+    - This works around an upstream bug which causes the LXC driver
+      to break when both v1 and v2 cgroups are in use
+  * [8d2e0fe] d/control: add libtirpc for rpc.h with glibc >=2.31-14
+    - Switch from glibc's legacy RPC implementation, which is now
+      disabled in the Debian package, to libtirpc's one
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 19 Aug 2021 21:16:21 +0200
 
 libvirt (7.0.0-3) unstable; urgency=medium
 
