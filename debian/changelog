@@ -1,3 +1,12 @@
+libvirt (7.9.0-1) UNRELEASED; urgency=medium
+
+  * Team upload
+
+  * [2c54c68] New upstream version 7.9.0
+    - Closes: #994061, #997108
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 03 Nov 2021 00:51:22 +0100
+
 libvirt (7.6.0-1) unstable; urgency=medium
 
   * Team upload
