@@ -36,17 +36,16 @@ static struct testConfigParam configParams[] = {
 static int
 testReadConfigParam(const void *data G_GNUC_UNUSED)
 {
-    int result = -1;
     size_t i;
-    char *conf = NULL;
-    char *value = NULL;
+    g_autofree char *conf = NULL;
+    g_autofree char *value = NULL;
 
     conf = g_strdup_printf("%s/openvzutilstest.conf", abs_srcdir);
 
     for (i = 0; i < G_N_ELEMENTS(configParams); ++i) {
         if (openvzReadConfigParam(conf, configParams[i].param,
                                   &value) != configParams[i].ret) {
-            goto cleanup;
+            return -1;
         }
 
         if (configParams[i].ret != 1)
@@ -54,25 +53,19 @@ testReadConfigParam(const void *data G_GNUC_UNUSED)
 
         if (STRNEQ(configParams[i].value, value)) {
             virTestDifference(stderr, configParams[i].value, value);
-            goto cleanup;
+            return -1;
         }
     }
 
-    result = 0;
-
- cleanup:
-    VIR_FREE(conf);
-    VIR_FREE(value);
-
-    return result;
+    return 0;
 }
 
 static int
 testReadNetworkConf(const void *data G_GNUC_UNUSED)
 {
     int result = -1;
-    virDomainDef *def = NULL;
-    char *actual = NULL;
+    g_autoptr(virDomainDef) def = NULL;
+    g_autofree char *actual = NULL;
     const char *expected =
         "<domain type='openvz'>\n"
         "  <uuid>00000000-0000-0000-0000-000000000000</uuid>\n"
@@ -103,7 +96,7 @@ testReadNetworkConf(const void *data G_GNUC_UNUSED)
         .caps = openvzCapsInit(),
     };
 
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(driver.xmlopt)))
         goto cleanup;
 
     def->os.init = g_strdup("/sbin/init");
@@ -133,8 +126,6 @@ testReadNetworkConf(const void *data G_GNUC_UNUSED)
  cleanup:
     virObjectUnref(driver.xmlopt);
     virObjectUnref(driver.caps);
-    VIR_FREE(actual);
-    virDomainDefFree(def);
 
     return result;
 }

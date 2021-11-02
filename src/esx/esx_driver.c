@@ -1800,10 +1800,7 @@ esxDomainDestroy(virDomainPtr dom)
 static char *
 esxDomainGetOSType(virDomainPtr domain G_GNUC_UNUSED)
 {
-    char *osType;
-
-    osType = g_strdup("hvm");
-    return osType;
+    return g_strdup("hvm");
 }
 
 
@@ -5166,8 +5163,7 @@ esxDomainInterfaceAddresses(virDomainPtr domain,
                 else if (ret == 0)
                     continue;
 
-                if (VIR_APPEND_ELEMENT(iface->addrs, addrs_count, ip_addr)  < 0)
-                    goto cleanup;
+                VIR_APPEND_ELEMENT(iface->addrs, addrs_count, ip_addr);
             }
         } else {
             esxVI_String *str;
@@ -5182,9 +5178,7 @@ esxDomainInterfaceAddresses(virDomainPtr domain,
                 else if (ret == 0)
                     continue;
 
-                if (VIR_APPEND_ELEMENT(iface->addrs, addrs_count, ip_addr)  < 0)
-                    goto cleanup;
-
+                VIR_APPEND_ELEMENT(iface->addrs, addrs_count, ip_addr);
             }
         }
 

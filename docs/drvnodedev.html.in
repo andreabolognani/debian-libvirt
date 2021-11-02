@@ -14,13 +14,26 @@
 
     <p>
       The node device driver provides means to list and show details about host
-      devices (<code>virsh nodedev-list</code>,
-      <code>virsh nodedev-dumpxml</code>), which are generic and can be used
-      with all devices. It also provides means to create and destroy devices
-      (<code>virsh nodedev-create</code>, <code>virsh nodedev-destroy</code>)
-      which are meant to be used to create virtual devices, currently only
-      supported by NPIV
-      (<a href="https://wiki.libvirt.org/page/NPIV_in_libvirt">more info about NPIV)</a>).
+      devices (<code>virsh nodedev-list</code>, <code>virsh nodedev-info</code>,
+      and <code>virsh nodedev-dumpxml</code>), which are generic and can be used
+      with all devices.  It also provides the means to manage virtual devices.
+      Persistently-defined virtual devices are only supported for mediated
+      devices, while transient devices are supported by both mediated devices
+      and NPIV (<a href="https://wiki.libvirt.org/page/NPIV_in_libvirt">more
+      info about NPIV)</a>).
+    </p>
+    <p>
+      Persistent virtual devices are managed with
+      <code>virsh nodedev-define</code> and <code>virsh nodedev-undefine</code>.
+      Persistent devices can be configured to start manually or automatically
+      using <code>virsh nodedev-autostart</code>. Inactive devices can be made
+      active with <code>virsh nodedev-start</code>.
+    </p>
+    <p>
+      Transient virtual devices are started and stopped with the commands
+      <code>virsh nodedev-create</code> and <code>virsh nodedev-destroy</code>.
+    </p>
+    <p>
       Devices on the host system are arranged in a tree-like hierarchy, with
       the root node being called <code>computer</code>. The node device driver
       supports udev backend (HAL backend was removed in <code>6.8.0</code>).
@@ -172,6 +185,75 @@
   &lt;/capability&gt;
 &lt;/device&gt;</pre>
 
+    <h3><a id="VPDCap">VPD capability</a></h3>
+    <p>
+      A device that exposes a PCI/PCIe VPD capability will include a nested
+      capability <code>vpd</code> which presents data stored in the Vital Product
+      Data (VPD). VPD provides a device name and a number of other standard-defined
+      read-only fields (change level, manufacture id, part number, serial number) and
+      vendor-specific read-only fields. Additionally, if a device supports it,
+      read-write fields (asset tag, vendor-specific fields or system fields) may
+      also be present. The VPD capability is optional for PCI/PCIe devices and the
+      set of exposed fields may vary depending on a device. The XML format follows
+      the binary format described in "I.3. VPD Definitions" in PCI Local Bus (2.2+)
+      and the identical format in PCIe 4.0+. At the time of writing, the support for
+      exposing this capability is only present on Linux-based systems (kernel version
+      v2.6.26 is the first one to expose VPD via sysfs which Libvirt relies on).
+      Reading the VPD contents requires root privileges, therefore,
+      <code>virsh nodedev-dumpxml</code> must be executed accordingly.
+      A description of the XML format for the <code>vpd</code> capability can
+      be found <a href="formatnode.html#VPDCap">here</a>.
+    </p>
+    <p>
+      The following example shows a VPD representation for a device that exposes the
+      VPD capability with read-only and read-write fields. Among other things,
+      the VPD of this particular device includes a unique board serial number.
+    </p>
+<pre>
+&lt;device&gt;
+  &lt;name&gt;pci_0000_42_00_0&lt;/name&gt;
+  &lt;capability type=&apos;pci&apos;&gt;
+    &lt;class&gt;0x020000&lt;/class&gt;
+    &lt;domain&gt;0&lt;/domain&gt;
+    &lt;bus&gt;66&lt;/bus&gt;
+    &lt;slot&gt;0&lt;/slot&gt;
+    &lt;function&gt;0&lt;/function&gt;
+    &lt;product id=&apos;0xa2d6&apos;&gt;MT42822 BlueField-2 integrated ConnectX-6 Dx network controller&lt;/product&gt;
+    &lt;vendor id=&apos;0x15b3&apos;&gt;Mellanox Technologies&lt;/vendor&gt;
+    &lt;capability type=&apos;virt_functions&apos; maxCount=&apos;16&apos;/&gt;
+    &lt;capability type=&apos;vpd&apos;&gt;
+      &lt;name&gt;BlueField-2 DPU 25GbE Dual-Port SFP56, Crypto Enabled, 16GB on-board DDR, 1GbE OOB management, Tall Bracket&lt;/name&gt;
+      &lt;fields access=&apos;readonly&apos;&gt;
+        &lt;change_level&gt;B1&lt;/change_level&gt;
+        &lt;manufacture_id&gt;foobar&lt;/manufacture_id&gt;
+        &lt;part_number&gt;MBF2H332A-AEEOT&lt;/part_number&gt;
+        &lt;serial_number&gt;MT2113X00000&lt;/serial_number&gt;
+        &lt;vendor_field index=&apos;0&apos;&gt;PCIeGen4 x8&lt;/vendor_field&gt;
+        &lt;vendor_field index=&apos;2&apos;&gt;MBF2H332A-AEEOT&lt;/vendor_field&gt;
+        &lt;vendor_field index=&apos;3&apos;&gt;3c53d07eec484d8aab34dabd24fe575aa&lt;/vendor_field&gt;
+        &lt;vendor_field index=&apos;A&apos;&gt;MLX:MN=MLNX:CSKU=V2:UUID=V3:PCI=V0:MODL=BF2H332A&lt;/vendor_field&gt;
+      &lt;/fields&gt;
+      &lt;fields access=&apos;readwrite&apos;&gt;
+        &lt;asset_tag&gt;fooasset&lt;/asset_tag&gt;
+        &lt;vendor_field index=&apos;0&apos;&gt;vendorfield0&lt;/vendor_field&gt;
+        &lt;vendor_field index=&apos;2&apos;&gt;vendorfield2&lt;/vendor_field&gt;
+        &lt;vendor_field index=&apos;A&apos;&gt;vendorfieldA&lt;/vendor_field&gt;
+        &lt;system_field index=&apos;B&apos;&gt;systemfieldB&lt;/system_field&gt;
+        &lt;system_field index=&apos;0&apos;&gt;systemfield0&lt;/system_field&gt;
+      &lt;/fields&gt;
+    &lt;/capability&gt;
+    &lt;iommuGroup number=&apos;65&apos;&gt;
+      &lt;address domain=&apos;0x0000&apos; bus=&apos;0x42&apos; slot=&apos;0x00&apos; function=&apos;0x0&apos;/&gt;
+    &lt;/iommuGroup&gt;
+    &lt;numa node=&apos;0&apos;/&gt;
+    &lt;pci-express&gt;
+      &lt;link validity=&apos;cap&apos; port=&apos;0&apos; speed=&apos;16&apos; width=&apos;8&apos;/&gt;
+      &lt;link validity=&apos;sta&apos; speed=&apos;8&apos; width=&apos;8&apos;/&gt;
+    &lt;/pci-express&gt;
+  &lt;/capability&gt;
+&lt;/device&gt;
+</pre>
+
     <h2><a id="MDEV">Mediated devices (MDEVs)</a></h2>
     <p>
       Mediated devices (<span class="since">Since 3.2.0</span>) are software
@@ -198,6 +280,7 @@
   &lt;/driver&gt;
   &lt;capability type='mdev'&gt;
     &lt;type id='nvidia-11'/&gt;
+    &lt;uuid&gt;4b20d080-1b54-4048-85b3-a6a62d165c01&lt;/uuid&gt;
     &lt;iommuGroup number='12'/&gt;
   &lt;/capability&gt;
 &lt;/device&gt;</pre>
@@ -216,22 +299,31 @@
         display device details
         (<span class="since">Since 3.4.0</span>)
       </li>
+      <li>
+        create transient mediated devices
+        (<span class="since">Since 6.5.0</span>)
+      </li>
+      <li>
+        define persistent mediated devices
+        (<span class="since">Since 7.3.0</span>)
+      </li>
     </ul>
 
     <p>
       Because mediated devices are instantiated from vendor specific templates,
       simply called 'types', information describing these types is contained
-      within the parent device's capabilities
-      (see the example in <a href="#PCI">PCI host devices</a>).
+      within the parent device's capabilities (see the example in <a
+      href="#PCI">PCI host devices</a>). To list all devices capable of
+      creating mediated devices, the following command can be used.
     </p>
+    <pre>$ virsh nodedev-list --cap mdev_types</pre>
 
     <p>
       To see the supported mediated device types on a specific physical device
       use the following:
     </p>
 
-    <pre>
-$ ls /sys/class/mdev_bus/&lt;device&gt;/mdev_supported_types</pre>
+    <pre>$ virsh nodedev-dumpxml &lt;device&gt;</pre>
 
     <p>
       Before creating a mediated device, unbind the device from the respective
@@ -252,22 +344,40 @@ echo $subchannel &gt; /sys/bus/css/drivers/vfio_ccw/bind
     </pre>
 
     <p>
-      To manually instantiate a mediated device, use one of the following as a
-      reference. For a CCW device, use the subchannel ID instead of the device
-      ID.
+      To instantiate a transient mediated device, create an XML file representing the
+      device. See above for information about the mediated device xml format.
     </p>
 
-    <pre>
-$ uuidgen &gt; /sys/class/mdev_bus/&lt;device&gt;/mdev_supported_types/&lt;type&gt;/create
-...
-$ echo &lt;UUID&gt; &gt; /sys/class/mdev_bus/&lt;device&gt;/mdev_supported_types/&lt;type&gt;/create</pre>
+    <pre>$ virsh nodedev-create &lt;xml-file&gt;
+Node device '&lt;device-name&gt;' created from '&lt;xml-file&gt;'</pre>
 
     <p>
-      Manual removal of a mediated device is then performed as follows:
+      If you would like to persistently define the device so that it will be
+      maintained across host reboots, use <code>virsh nodedev-define</code>
+      instead of <code>nodedev-create</code>:
     </p>
 
-    <pre>
-$ echo 1 &gt; /sys/bus/mdev/devices/&lt;uuid&gt;/remove</pre>
+    <pre>$ virsh nodedev-define &lt;xml-file&gt;
+Node device '&lt;device-name&gt;' defined from '&lt;xml-file&gt;'</pre>
 
+    <p>
+      To start an instance of this device definition, use the following command:
+    </p>
+
+    <pre>$ virsh nodedev-start &lt;device-name&gt;</pre>
+    <p>
+      Active mediated device instances can be stopped using <code>virsh
+      nodedev-destroy</code>, and persistent device definitions can be removed
+      using <code>virsh nodedev-undefine</code>.
+    </p>
+
+    <p>
+      If a mediated device is defined persistently, it can also be set to be
+      automatically started whenever the host reboots or when the parent device
+      becomes available. In order to autostart a mediated device, use the
+      following command:
+    </p>
+
+    <pre>$ virsh nodedev-autostart &lt;device-name&gt;</pre>
   </body>
 </html>

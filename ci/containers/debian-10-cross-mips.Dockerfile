@@ -1,8 +1,8 @@
 # THIS FILE WAS AUTO-GENERATED
 #
-#  $ lcitool dockerfile --cross mips debian-10 libvirt
+#  $ lcitool manifest ci/manifest.yml
 #
-# https://gitlab.com/libvirt/libvirt-ci/-/commit/1d4e10a04c6a0d29302003244a9dc4dc3c9d06f0
+# https://gitlab.com/libvirt/libvirt-ci
 
 FROM docker.io/library/debian:10-slim
 
@@ -50,16 +50,11 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             radvd \
             scrub \
             sed \
-            xsltproc \
-            zfs-fuse && \
+            xsltproc && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
-    dpkg-reconfigure locales && \
-    dpkg-query --showformat '${Package}_${Version}_${Architecture}\n' --show > /packages.txt && \
-    mkdir -p /usr/libexec/ccache-wrappers && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips-linux-gnu-cc && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips-linux-gnu-gcc
+    dpkg-reconfigure locales
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture mips && \
@@ -72,7 +67,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libapparmor-dev:mips \
             libattr1-dev:mips \
             libaudit-dev:mips \
-            libavahi-client-dev:mips \
             libblkid-dev:mips \
             libc6-dev:mips \
             libcap-ng-dev:mips \
@@ -116,7 +110,11 @@ pkgconfig = '/usr/bin/mips-linux-gnu-pkg-config'\n\
 system = 'linux'\n\
 cpu_family = 'mips'\n\
 cpu = 'mips'\n\
-endian = 'big'" > /usr/local/share/meson/cross/mips-linux-gnu
+endian = 'big'" > /usr/local/share/meson/cross/mips-linux-gnu && \
+    dpkg-query --showformat '${Package}_${Version}_${Architecture}\n' --show > /packages.txt && \
+    mkdir -p /usr/libexec/ccache-wrappers && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips-linux-gnu-cc && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips-linux-gnu-gcc
 
 RUN pip3 install \
          meson==0.56.0

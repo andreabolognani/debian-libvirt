@@ -118,14 +118,14 @@ foreach data : docs_man_files
     html_in_file,
     input: rst_file,
     output: html_in_file,
-    command: [ rst2html_prog, '--stylesheet=', '--strict', '@INPUT@' ],
+    command: [ rst2html5_prog, '--stylesheet=', '--strict', '@INPUT@' ],
     capture: true,
   )
 
   html_xslt_gen += {
     'name': data['name'],
     'file': html_in,
-    'source': 'docs/manpages' / rst_in_file,
+    'source': 'docs' / 'manpages' / rst_in_file,
   }
 endforeach
 

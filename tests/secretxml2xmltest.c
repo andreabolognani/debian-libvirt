@@ -10,25 +10,19 @@
 static int
 testCompareXMLToXMLFiles(const char *inxml, const char *outxml)
 {
-    char *actual = NULL;
-    int ret = -1;
-    virSecretDef *secret = NULL;
+    g_autofree char *actual = NULL;
+    g_autoptr(virSecretDef) secret = NULL;
 
     if (!(secret = virSecretDefParseFile(inxml)))
-        goto fail;
+        return -1;
 
     if (!(actual = virSecretDefFormat(secret)))
-        goto fail;
+        return -1;
 
     if (virTestCompareToFile(actual, outxml) < 0)
-        goto fail;
+        return -1;
 
-    ret = 0;
-
- fail:
-    VIR_FREE(actual);
-    virSecretDefFree(secret);
-    return ret;
+    return 0;
 }
 
 struct testInfo {
@@ -40,8 +34,8 @@ static int
 testCompareXMLToXMLHelper(const void *data)
 {
     int result = -1;
-    char *inxml = NULL;
-    char *outxml = NULL;
+    g_autofree char *inxml = NULL;
+    g_autofree char *outxml = NULL;
     const struct testInfo *info = data;
 
     inxml = g_strdup_printf("%s/secretxml2xmlin/%s.xml", abs_srcdir, info->name);
@@ -51,9 +45,6 @@ testCompareXMLToXMLHelper(const void *data)
                              info->name);
 
     result = testCompareXMLToXMLFiles(inxml, outxml);
-
-    VIR_FREE(inxml);
-    VIR_FREE(outxml);
 
     return result;
 }

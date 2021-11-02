@@ -150,7 +150,8 @@ virConnectNumOfInterfaces(virConnectPtr conn)
  * Collect the list of active physical host interfaces,
  * and store their names in @names
  *
- * For more control over the results, see virConnectListAllInterfaces().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllInterfaces().
  *
  * Returns the number of interfaces found or -1 in case of error.  Note that
  * this command is inherently racy; a interface can be started between a call
@@ -227,7 +228,8 @@ virConnectNumOfDefinedInterfaces(virConnectPtr conn)
  * Collect the list of defined (inactive) physical host interfaces,
  * and store their names in @names.
  *
- * For more control over the results, see virConnectListAllInterfaces().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllInterfaces().
  *
  * Returns the number of names provided in the array or -1 in case of error.
  * Note that this command is inherently racy; a interface can be defined between
@@ -437,7 +439,7 @@ virInterfaceGetXMLDesc(virInterfacePtr iface, unsigned int flags)
  * virInterfaceDefineXML:
  * @conn: pointer to the hypervisor connection
  * @xml: the XML description for the interface, preferably in UTF-8
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virInterfaceDefineFlags
  *
  * Define an inactive persistent physical host interface or modify an existing
  * persistent one from the XML description.

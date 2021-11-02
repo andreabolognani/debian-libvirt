@@ -70,35 +70,28 @@ testCapsInit(void)
 static int
 testCompareFiles(const char *xml, const char *vmx, int virtualHW_version)
 {
-    int result = -1;
-    char *formatted = NULL;
-    virDomainDef *def = NULL;
+    g_autofree char *formatted = NULL;
+    g_autoptr(virDomainDef) def = NULL;
 
     def = virDomainDefParseFile(xml, xmlopt, NULL,
                                 VIR_DOMAIN_DEF_PARSE_INACTIVE);
 
     if (def == NULL)
-        goto failure;
+        return -1;
 
     if (!virDomainDefCheckABIStability(def, def, xmlopt)) {
         fprintf(stderr, "ABI stability check failed on %s", xml);
-        goto failure;
+        return -1;
     }
 
     formatted = virVMXFormatConfig(&ctx, xmlopt, def, virtualHW_version);
     if (formatted == NULL)
-        goto failure;
+        return -1;
 
     if (virTestCompareToFile(formatted, vmx) < 0)
-        goto failure;
+        return -1;
 
-    result = 0;
-
- failure:
-    VIR_FREE(formatted);
-    virDomainDefFree(def);
-
-    return result;
+    return 0;
 }
 
 struct testInfo {
@@ -112,8 +105,8 @@ testCompareHelper(const void *data)
 {
     int result = -1;
     const struct testInfo *info = data;
-    char *xml = NULL;
-    char *vmx = NULL;
+    g_autofree char *xml = NULL;
+    g_autofree char *vmx = NULL;
 
     xml = g_strdup_printf("%s/xml2vmxdata/xml2vmx-%s.xml", abs_srcdir,
                           info->input);
@@ -121,9 +114,6 @@ testCompareHelper(const void *data)
                           info->output);
 
     result = testCompareFiles(xml, vmx, info->virtualHW_version);
-
-    VIR_FREE(xml);
-    VIR_FREE(vmx);
 
     return result;
 }
@@ -141,7 +131,7 @@ static char *
 testFormatVMXFileName(const char *src, void *opaque G_GNUC_UNUSED)
 {
     bool success = false;
-    char *copyOfDatastorePath = NULL;
+    g_autofree char *copyOfDatastorePath = NULL;
     char *tmp = NULL;
     char *saveptr = NULL;
     char *datastoreName = NULL;
@@ -181,8 +171,6 @@ testFormatVMXFileName(const char *src, void *opaque G_GNUC_UNUSED)
  cleanup:
     if (! success)
         VIR_FREE(absolutePath);
-
-    VIR_FREE(copyOfDatastorePath);
 
     return absolutePath;
 }

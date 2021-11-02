@@ -41,8 +41,8 @@ VIR_LOG_INIT("libvirt.domain");
  *
  * Collect the list of active domains, and store their IDs in array @ids
  *
- * For inactive domains, see virConnectListDefinedDomains().  For more
- * control over the results, see virConnectListAllDomains().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllDomains().
  *
  * Returns the number of domains found or -1 in case of error.  Note that
  * this command is inherently racy; a domain can be started between a
@@ -4215,7 +4215,7 @@ virDomainMigrateToURI(virDomainPtr domain,
     const char *dconnuri = NULL;
     const char *miguri = NULL;
 
-    VIR_DOMAIN_DEBUG(domain, "duri=%p, flags=0x%lx, dname=%s, bandwidth=%lu",
+    VIR_DOMAIN_DEBUG(domain, "duri=%s, flags=0x%lx, dname=%s, bandwidth=%lu",
                      NULLSTR(duri), flags, NULLSTR(dname), bandwidth);
 
     virResetLastError();
@@ -6526,8 +6526,8 @@ virConnectNumOfDefinedDomains(virConnectPtr conn)
  * list the defined but inactive domains, stores the pointers to the names
  * in @names
  *
- * For active domains, see virConnectListDomains().  For more control over
- * the results, see virConnectListAllDomains().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllDomains().
  *
  * Returns the number of names provided in the array or -1 in case of error.
  * Note that this command is inherently racy; a domain can be defined between
@@ -8309,7 +8309,7 @@ virDomainGetMetadata(virDomainPtr domain,
  *
  * For compatibility, this method can also be used to change the media
  * in an existing CDROM/Floppy device, however, applications are
- * recommended to use the virDomainUpdateDeviceFlag method instead.
+ * recommended to use the virDomainUpdateDeviceFlags method instead.
  *
  * Be aware that hotplug changes might not persist across a domain going
  * into S4 state (also known as hibernation) unless you also modify the

@@ -30,6 +30,10 @@ typedef int (*virQEMUBuildCommandLineJSONArrayFormatFunc)(const char *key,
                                                           virJSONValue *array,
                                                           virBuffer *buf,
                                                           const char *skipKey);
+int virQEMUBuildCommandLineJSONArrayObjectsStr(const char *key,
+                                               virJSONValue *array,
+                                               virBuffer *buf,
+                                               const char *skipKey);
 int virQEMUBuildCommandLineJSONArrayBitmap(const char *key,
                                            virJSONValue *array,
                                            virBuffer *buf,
@@ -43,11 +47,5 @@ int virQEMUBuildCommandLineJSON(virJSONValue *value,
                                 virBuffer *buf,
                                 const char *skipKey,
                                 virQEMUBuildCommandLineJSONArrayFormatFunc array);
-
-char *
-virQEMUBuildNetdevCommandlineFromJSON(virJSONValue *props,
-                                      bool rawjson);
-
-char *virQEMUBuildDriveCommandlineFromJSON(virJSONValue *src);
 
 void virQEMUBuildBufferEscapeComma(virBuffer *buf, const char *str);

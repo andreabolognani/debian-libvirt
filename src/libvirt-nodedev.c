@@ -128,7 +128,8 @@ virConnectListAllNodeDevices(virConnectPtr conn,
  *
  * Collect the list of node devices, and store their names in @names
  *
- * For more control over the results, see virConnectListAllNodeDevices().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllNodeDevices().
  *
  * If the optional 'cap'  argument is non-NULL, then the count
  * will be restricted to devices with the specified capability
@@ -977,5 +978,146 @@ virConnectNodeDeviceEventDeregisterAny(virConnectPtr conn,
     virReportUnsupportedError();
  error:
     virDispatchError(conn);
+    return -1;
+}
+
+/**
+ * virNodeDeviceSetAutostart:
+ * @dev: the device object
+ * @autostart: whether the device should be automatically started
+ *
+ * Configure the node device to be automatically started when the host machine
+ * boots or the parent device becomes available.
+ *
+ * Returns -1 in case of error, 0 in case of success
+ */
+int
+virNodeDeviceSetAutostart(virNodeDevicePtr dev,
+                          int autostart)
+{
+    VIR_DEBUG("dev=%p", dev);
+
+    virResetLastError();
+
+    virCheckNodeDeviceReturn(dev, -1);
+    virCheckReadOnlyGoto(dev->conn->flags, error);
+
+    if (dev->conn->nodeDeviceDriver &&
+        dev->conn->nodeDeviceDriver->nodeDeviceSetAutostart) {
+        int retval = dev->conn->nodeDeviceDriver->nodeDeviceSetAutostart(dev, autostart);
+        if (retval < 0)
+            goto error;
+
+        return 0;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(dev->conn);
+    return -1;
+}
+
+
+/**
+ * virNodeDeviceGetAutostart:
+ * @dev: the device object
+ * @autostart: the value returned
+ *
+ * Provides a boolean value indicating whether the node device is configured to
+ * be automatically started when the host machine boots or the parent device
+ * becomes available.
+ *
+ * Returns -1 in case of error, 0 in case of success
+ */
+int
+virNodeDeviceGetAutostart(virNodeDevicePtr dev,
+                          int *autostart)
+{
+    VIR_DEBUG("dev=%p", dev);
+
+    virResetLastError();
+
+    virCheckNodeDeviceReturn(dev, -1);
+    virCheckReadOnlyGoto(dev->conn->flags, error);
+
+    if (dev->conn->nodeDeviceDriver &&
+        dev->conn->nodeDeviceDriver->nodeDeviceGetAutostart) {
+        int retval = dev->conn->nodeDeviceDriver->nodeDeviceGetAutostart(dev, autostart);
+        if (retval < 0)
+            goto error;
+
+        return 0;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(dev->conn);
+    return -1;
+}
+
+/**
+ * virNodeDeviceIsPersistent:
+ * @dev: pointer to the nodedev object
+ *
+ * Determine if the node device has a persistent configuration
+ * which means it will still exist after shutting down
+ *
+ * Returns 1 if persistent, 0 if transient, -1 on error
+ */
+int
+virNodeDeviceIsPersistent(virNodeDevicePtr dev)
+{
+    VIR_DEBUG("dev=%p", dev);
+
+    virResetLastError();
+
+    virCheckNodeDeviceReturn(dev, -1);
+
+    if (dev->conn->nodeDeviceDriver &&
+        dev->conn->nodeDeviceDriver->nodeDeviceIsPersistent) {
+        int ret;
+        ret = dev->conn->nodeDeviceDriver->nodeDeviceIsPersistent(dev);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+ error:
+    virDispatchError(dev->conn);
+    return -1;
+}
+
+
+/**
+ * virNodeDeviceIsActive:
+ * @dev: pointer to the node device object
+ *
+ * Determine if the node device is currently active
+ *
+ * Returns 1 if active, 0 if inactive, -1 on error
+ */
+int virNodeDeviceIsActive(virNodeDevicePtr dev)
+{
+    VIR_DEBUG("dev=%p", dev);
+
+    virResetLastError();
+
+    virCheckNodeDeviceReturn(dev, -1);
+
+    if (dev->conn->nodeDeviceDriver &&
+        dev->conn->nodeDeviceDriver->nodeDeviceIsActive) {
+        int ret;
+        ret = dev->conn->nodeDeviceDriver->nodeDeviceIsActive(dev);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+ error:
+    virDispatchError(dev->conn);
     return -1;
 }

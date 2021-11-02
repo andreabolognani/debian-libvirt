@@ -180,6 +180,36 @@ virTestRun(const char *title,
 }
 
 
+/*
+ * A wrapper for virTestRun that resets the log content before each run
+ * and sets ret to -1 on failure. On success, ret is untouched.
+ */
+void
+virTestRunLog(int *ret,
+              const char *title,
+              int (*body)(const void *data),
+              const void *data)
+{
+    int rc;
+
+    g_free(virTestLogContentAndReset());
+
+    rc = virTestRun(title, body, data);
+
+    if (rc >= 0)
+        return;
+
+    *ret = -1;
+
+    if (virTestGetDebug()) {
+        g_autofree char *log = virTestLogContentAndReset();
+
+        if (strlen(log) > 0)
+            VIR_TEST_DEBUG("\n%s", log);
+    }
+}
+
+
 /**
  * virTestLoadFile:
  * @file: name of the file to load
@@ -193,7 +223,7 @@ virTestRun(const char *title,
 int
 virTestLoadFile(const char *file, char **buf)
 {
-    FILE *fp = fopen(file, "r");
+    g_autoptr(FILE) fp = fopen(file, "r");
     struct stat st;
     char *tmp;
     int len, tmplen, buflen;
@@ -205,7 +235,6 @@ virTestLoadFile(const char *file, char **buf)
 
     if (fstat(fileno(fp), &st) < 0) {
         fprintf(stderr, "%s: failed to fstat: %s\n", file, g_strerror(errno));
-        VIR_FORCE_FCLOSE(fp);
         return -1;
     }
 
@@ -233,13 +262,11 @@ virTestLoadFile(const char *file, char **buf)
         }
         if (ferror(fp)) {
             fprintf(stderr, "%s: read failed: %s\n", file, g_strerror(errno));
-            VIR_FORCE_FCLOSE(fp);
             VIR_FREE(*buf);
             return -1;
         }
     }
 
-    VIR_FORCE_FCLOSE(fp);
     return 0;
 }
 
@@ -812,10 +839,12 @@ int virTestMain(int argc,
     if (!getenv("LIBVIRT_DEBUG") && !virLogGetNbOutputs()) {
         if (!(output = virLogOutputNew(virtTestLogOutput, virtTestLogClose,
                                        &testLog, VIR_LOG_DEBUG,
-                                       VIR_LOG_TO_STDERR, NULL)) ||
-            VIR_APPEND_ELEMENT(outputs, noutputs, output) < 0 ||
-            virLogDefineOutputs(outputs, noutputs) < 0) {
-            virLogOutputFree(output);
+                                       VIR_LOG_TO_STDERR, NULL)))
+            return EXIT_FAILURE;
+
+        VIR_APPEND_ELEMENT(outputs, noutputs, output);
+
+        if (virLogDefineOutputs(outputs, noutputs) < 0) {
             virLogOutputListFree(outputs, noutputs);
             return EXIT_FAILURE;
         }
@@ -856,6 +885,9 @@ int virTestMain(int argc,
         fprintf(stderr, "Some tests failed. Run them using:\n");
         fprintf(stderr, "VIR_TEST_DEBUG=1 VIR_TEST_RANGE=%s %s\n", failed, argv[0]);
     }
+
+    virBitmapFree(testBitmap);
+    virBitmapFree(failedTests);
     virLogReset();
     return ret;
 }
@@ -977,7 +1009,7 @@ testCompareDomXML2XMLFiles(virCaps *caps G_GNUC_UNUSED,
     g_autofree char *actual = NULL;
     int ret = -1;
     testCompareDomXML2XMLResult result;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     unsigned int parse_flags = live ? 0 : VIR_DOMAIN_DEF_PARSE_INACTIVE;
     unsigned int format_flags = VIR_DOMAIN_DEF_FORMAT_SECURE;
 
@@ -1027,7 +1059,6 @@ testCompareDomXML2XMLFiles(virCaps *caps G_GNUC_UNUSED,
                        expectResult, result);
     }
 
-    virDomainDefFree(def);
     return ret;
 }
 
@@ -1082,3 +1113,68 @@ const char
 
     return virtTestCounterStr;
 }
+
+
+/**
+ * virTestStablePath:
+ * @path: path to make stable
+ *
+ * If @path starts with the absolute source directory path, the prefix
+ * is replaced with the string "ABS_SRCDIR" and similarly the build directory
+ * is replaced by "ABS_BUILDDIR". This is useful when paths e.g. in output
+ * test files need to be made stable.
+ *
+ * If @path is NULL the equivalent to NULLSTR(path) is returned.
+ *
+ * The caller is responsible for freeing the returned buffer.
+ */
+char *
+virTestStablePath(const char *path)
+{
+    const char *tmp;
+
+    path = NULLSTR(path);
+
+    if ((tmp = STRSKIP(path, abs_srcdir)))
+        return g_strdup_printf("ABS_SRCDIR%s", tmp);
+
+    if ((tmp = STRSKIP(path, abs_builddir)))
+        return g_strdup_printf("ABS_BUILDDIR%s", tmp);
+
+    return g_strdup(path);
+}
+
+#ifdef __linux__
+/**
+ * virCreateAnonymousFile:
+ * @data: a pointer to data to be written into a new file.
+ * @len: the length of data to be written (in bytes).
+ *
+ * Create a fake fd, write initial data to it.
+ *
+ */
+int
+virCreateAnonymousFile(const uint8_t *data, size_t len)
+{
+    int fd = -1;
+    char path[] = abs_builddir "testutils-memfd-XXXXXX";
+    /* A temp file is used since not all supported distributions support memfd. */
+    if ((fd = g_mkstemp_full(path, O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)) < 0) {
+        return fd;
+    }
+    g_unlink(path);
+
+    if (safewrite(fd, data, len) != len) {
+        VIR_TEST_DEBUG("%s: %s", "failed to write to an anonymous file",
+                g_strerror(errno));
+        goto cleanup;
+    }
+    return fd;
+ cleanup:
+    if (VIR_CLOSE(fd) < 0) {
+        VIR_TEST_DEBUG("%s: %s", "failed to close an anonymous file",
+                g_strerror(errno));
+    }
+    return -1;
+}
+#endif

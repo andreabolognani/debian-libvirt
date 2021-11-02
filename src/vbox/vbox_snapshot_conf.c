@@ -575,10 +575,10 @@ virVBoxSnapshotConfLoadVboxFile(const char *filePath,
 {
     int ret = -1;
     virVBoxSnapshotConfMachine *machineDescription = NULL;
-    xmlDocPtr xml = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
     xmlNodePtr machineNode = NULL;
     xmlNodePtr cur = NULL;
-    xmlXPathContextPtr xPathContext = NULL;
+    g_autoptr(xmlXPathContext) xPathContext = NULL;
     char *currentStateModifiedString = NULL;
 
     char **searchResultTab = NULL;
@@ -593,7 +593,7 @@ virVBoxSnapshotConfLoadVboxFile(const char *filePath,
 
     machineDescription = g_new0(virVBoxSnapshotConfMachine, 1);
 
-    xml = virXMLParse(filePath, NULL, NULL);
+    xml = virXMLParse(filePath, NULL, NULL, NULL, false);
     if (xml == NULL) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("Unable to parse the xml"));
@@ -716,8 +716,6 @@ virVBoxSnapshotConfLoadVboxFile(const char *filePath,
     ret = 0;
 
  cleanup:
-    xmlXPathFreeContext(xPathContext);
-    xmlFreeDoc(xml);
 
     VIR_FREE(currentStateModifiedString);
     VIR_FREE(currentSnapshotAttribute);
@@ -955,7 +953,7 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
 {
     int ret = -1;
     size_t i = 0;
-    xmlDocPtr xml = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
     xmlNodePtr mediaRegistryNode = NULL;
     xmlNodePtr snapshotNode = NULL;
     xmlNodePtr machineNode = NULL;
@@ -1173,7 +1171,6 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
     xmlUnlinkNode(machineNode);
     xmlFreeNode(machineNode);
 
-    xmlFreeDoc(xml);
 
     g_strfreev(firstRegex);
     g_strfreev(secondRegex);
@@ -1220,8 +1217,8 @@ virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(const char *filePath,
     int result = -1;
     size_t i = 0;
     char **ret = NULL;
-    xmlDocPtr xml = NULL;
-    xmlXPathContextPtr xPathContext = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) xPathContext = NULL;
     xmlNodePtr *nodes = NULL;
     int nodeSize = 0;
     *rwDisksPath = NULL;
@@ -1230,7 +1227,7 @@ virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(const char *filePath,
                        _("filePath is null"));
         goto cleanup;
     }
-    xml = virXMLParse(filePath, NULL, NULL);
+    xml = virXMLParse(filePath, NULL, NULL, NULL, false);
     if (xml == NULL) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("Unable to parse the xml"));
@@ -1259,8 +1256,6 @@ virVBoxSnapshotConfGetRWDisksPathsFromLibvirtXML(const char *filePath,
     result = 0;
 
  cleanup:
-    xmlFreeDoc(xml);
-    xmlXPathFreeContext(xPathContext);
     if (result < 0) {
         g_strfreev(ret);
         nodeSize = -1;
@@ -1283,8 +1278,8 @@ virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(const char *filePath,
     int result = -1;
     size_t i = 0;
     char **ret = NULL;
-    xmlDocPtr xml = NULL;
-    xmlXPathContextPtr xPathContext = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) xPathContext = NULL;
     xmlNodePtr *nodes = NULL;
     int nodeSize = 0;
     if (filePath == NULL) {
@@ -1292,7 +1287,7 @@ virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(const char *filePath,
                        _("filePath is null"));
         goto cleanup;
     }
-    xml = virXMLParse(filePath, NULL, NULL);
+    xml = virXMLParse(filePath, NULL, NULL, NULL, false);
     if (xml == NULL) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("Unable to parse the xml"));
@@ -1321,8 +1316,6 @@ virVBoxSnapshotConfGetRODisksPathsFromLibvirtXML(const char *filePath,
     result = 0;
 
  cleanup:
-    xmlFreeDoc(xml);
-    xmlXPathFreeContext(xPathContext);
     if (result < 0) {
         g_strfreev(ret);
         nodeSize = -1;

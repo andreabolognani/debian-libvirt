@@ -274,7 +274,8 @@ esxBandwidthToShapingPolicy(virNetDevBandwidth *bandwidth,
 
 
 static virNetworkPtr
-esxNetworkDefineXML(virConnectPtr conn, const char *xml)
+esxNetworkDefineXMLFlags(virConnectPtr conn, const char *xml,
+                         unsigned int flags)
 {
     virNetworkPtr network = NULL;
     esxPrivate *priv = conn->privateData;
@@ -291,11 +292,13 @@ esxNetworkDefineXML(virConnectPtr conn, const char *xml)
 
     unsigned char md5[VIR_CRYPTO_HASH_SIZE_MD5]; /* VIR_CRYPTO_HASH_SIZE_MD5 = VIR_UUID_BUFLEN = 16 */
 
+    virCheckFlags(VIR_NETWORK_DEFINE_VALIDATE, NULL);
+
     if (esxVI_EnsureSession(priv->primary) < 0)
         return NULL;
 
     /* Parse network XML */
-    def = virNetworkDefParseString(xml, NULL);
+    def = virNetworkDefParseString(xml, NULL, !!(flags & VIR_NETWORK_DEFINE_VALIDATE));
 
     if (!def)
         return NULL;
@@ -490,6 +493,14 @@ esxNetworkDefineXML(virConnectPtr conn, const char *xml)
     esxVI_HostPortGroupSpec_Free(&hostPortGroupSpec);
 
     return network;
+}
+
+
+
+static virNetworkPtr
+esxNetworkDefineXML(virConnectPtr conn, const char *xml)
+{
+    return esxNetworkDefineXMLFlags(conn, xml, 0);
 }
 
 
@@ -900,8 +911,7 @@ esxConnectListAllNetworks(virConnectPtr conn,
             virNetworkPtr net = virtualswitchToNetwork(conn, hostVirtualSwitch);
             if (!net)
                 goto cleanup;
-            if (VIR_APPEND_ELEMENT(*nets, count, net) < 0)
-                goto cleanup;
+            VIR_APPEND_ELEMENT(*nets, count, net);
         } else {
             ++count;
         }
@@ -934,6 +944,7 @@ virNetworkDriver esxNetworkDriver = {
     .networkLookupByUUID = esxNetworkLookupByUUID, /* 0.10.0 */
     .networkLookupByName = esxNetworkLookupByName, /* 0.10.0 */
     .networkDefineXML = esxNetworkDefineXML, /* 0.10.0 */
+    .networkDefineXMLFlags = esxNetworkDefineXMLFlags, /* 7.7.0 */
     .networkUndefine = esxNetworkUndefine, /* 0.10.0 */
     .networkGetXMLDesc = esxNetworkGetXMLDesc, /* 0.10.0 */
     .networkGetAutostart = esxNetworkGetAutostart, /* 0.10.0 */

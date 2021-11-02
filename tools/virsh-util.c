@@ -137,8 +137,7 @@ virshDomainState(vshControl *ctl,
     /* fall back to virDomainGetInfo if virDomainGetState is not supported */
     if (virDomainGetInfo(dom, &info) < 0)
         return -1;
-    else
-        return info.state;
+    return info.state;
 }
 
 
@@ -287,6 +286,50 @@ virshDomainSnapshotFree(virDomainSnapshotPtr snap)
 
 
 void
+virshInterfaceFree(virInterfacePtr iface)
+{
+    if (!iface)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virInterfaceFree(iface); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
+void
+virshNetworkFree(virNetworkPtr network)
+{
+    if (!network)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virNetworkFree(network); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
+void
+virshNodeDeviceFree(virNodeDevicePtr device)
+{
+    if (!device)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virNodeDeviceFree(device); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
+void
+virshNWFilterFree(virNWFilterPtr nwfilter)
+{
+    if (!nwfilter)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virNWFilterFree(nwfilter); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
+void
 virshSecretFree(virSecretPtr secret)
 {
     if (!secret)
@@ -297,6 +340,40 @@ virshSecretFree(virSecretPtr secret)
 }
 
 
+void
+virshStoragePoolFree(virStoragePoolPtr pool)
+{
+    if (!pool)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virStoragePoolFree(pool); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
+void
+virshStorageVolFree(virStorageVolPtr vol)
+{
+    if (!vol)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virStorageVolFree(vol); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
+
+void
+virshStreamFree(virStreamPtr stream)
+{
+    if (!stream)
+        return;
+
+    vshSaveLibvirtHelperError();
+    virStreamFree(stream); /* sc_prohibit_obj_free_apis_in_virsh */
+}
+
+
 int
 virshDomainGetXMLFromDom(vshControl *ctl,
                          virDomainPtr dom,
@@ -304,7 +381,7 @@ virshDomainGetXMLFromDom(vshControl *ctl,
                          xmlDocPtr *xml,
                          xmlXPathContextPtr *ctxt)
 {
-    char *desc = NULL;
+    g_autofree char *desc = NULL;
 
     if (!(desc = virDomainGetXMLDesc(dom, flags))) {
         vshError(ctl, _("Failed to get domain description xml"));
@@ -312,7 +389,6 @@ virshDomainGetXMLFromDom(vshControl *ctl,
     }
 
     *xml = virXMLParseStringCtxt(desc, _("(domain_definition)"), ctxt);
-    VIR_FREE(desc);
 
     if (!(*xml)) {
         vshError(ctl, _("Failed to parse domain description xml"));

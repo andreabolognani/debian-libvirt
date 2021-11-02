@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-guest/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-guest/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name guest \
+-name guest=guest,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-guest/master-key.aes \
 -machine pc,accel=tcg,usb=off,dump-guest-core=off \
 -m 214 \
 -realtime mlock=off \
@@ -23,5 +24,7 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -netdev user,id=hostnet0 \
--device virtio-net-pci,netdev=hostnet0,id=net0,mac=52:54:00:24:a5:9f,bus=pci.0,addr=0x2,romfile=
+-device virtio-net-pci,netdev=hostnet0,id=net0,mac=52:54:00:24:a5:9f,bus=pci.0,addr=0x2,romfile= \
+-msg timestamp=on

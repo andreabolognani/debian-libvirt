@@ -10,6 +10,7 @@ docs_kbase_files = [
   'locking-lockd',
   'locking',
   'locking-sanlock',
+  'memorydevices',
   'merging_disk_image_chains',
   'migrationinternals',
   'qemu-core-dump',
@@ -30,8 +31,8 @@ foreach name : docs_kbase_files
 
   html_xslt_gen += {
     'name': name,
-    'file': docs_rst2html_gen.process(rst_file),
-    'source': 'docs/kbase' / rst_file,
+    'file': docs_rst2html5_gen.process(rst_file),
+    'source': 'docs' / 'kbase' / rst_file,
   }
 endforeach
 

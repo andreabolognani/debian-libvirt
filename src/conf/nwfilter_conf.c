@@ -394,11 +394,9 @@ virNWFilterRuleDefAddString(virNWFilterRuleDef *nwf,
                             const char *string,
                             size_t maxstrlen)
 {
-    char *tmp;
+    char *tmp = g_strndup(string, maxstrlen);
 
-    tmp = g_strndup(string, maxstrlen);
-    if (VIR_APPEND_ELEMENT_COPY(nwf->strings, nwf->nstrings, tmp) < 0)
-        VIR_FREE(tmp);
+    VIR_APPEND_ELEMENT_COPY(nwf->strings, nwf->nstrings, tmp);
 
     return tmp;
 }
@@ -2696,11 +2694,7 @@ virNWFilterDefParseXML(xmlXPathContextPtr ctxt)
             }
 
             if (entry->rule || entry->include) {
-                if (VIR_APPEND_ELEMENT_COPY(ret->filterEntries,
-                                            ret->nentries, entry) < 0) {
-                    virNWFilterEntryFree(entry);
-                    goto cleanup;
-                }
+                VIR_APPEND_ELEMENT_COPY(ret->filterEntries, ret->nentries, entry);
             } else {
                 virNWFilterEntryFree(entry);
             }
@@ -2745,14 +2739,15 @@ virNWFilterDefParseNode(xmlDocPtr xml,
 
 static virNWFilterDef *
 virNWFilterDefParse(const char *xmlStr,
-                    const char *filename)
+                    const char *filename,
+                    unsigned int flags)
 {
     virNWFilterDef *def = NULL;
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilter_definition)")))) {
+    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilter_definition)"), "nwfilter.rng",
+                           flags & VIR_NWFILTER_DEFINE_VALIDATE))) {
         def = virNWFilterDefParseNode(xml, xmlDocGetRootElement(xml));
-        xmlFreeDoc(xml);
     }
 
     return def;
@@ -2760,16 +2755,17 @@ virNWFilterDefParse(const char *xmlStr,
 
 
 virNWFilterDef *
-virNWFilterDefParseString(const char *xmlStr)
+virNWFilterDefParseString(const char *xmlStr,
+                          unsigned int flags)
 {
-    return virNWFilterDefParse(xmlStr, NULL);
+    return virNWFilterDefParse(xmlStr, NULL, flags);
 }
 
 
 virNWFilterDef *
 virNWFilterDefParseFile(const char *filename)
 {
-    return virNWFilterDefParse(NULL, filename);
+    return virNWFilterDefParse(NULL, filename, 0);
 }
 
 

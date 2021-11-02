@@ -67,11 +67,10 @@ static int
 create_scsihost(const char *fakesysfsdir, const char *devicepath,
                 const char *unique_id, const char *hostname)
 {
-    char *unique_id_path = NULL;
-    char *link_path = NULL;
+    g_autofree char *unique_id_path = NULL;
+    g_autofree char *link_path = NULL;
     char *spot;
-    int ret = -1;
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
 
     unique_id_path = g_strdup_printf("%s/devices/pci0000:00/%s/unique_id",
                                      fakesysfsdir, devicepath);
@@ -83,13 +82,13 @@ create_scsihost(const char *fakesysfsdir, const char *devicepath,
      */
     if (!(spot = strstr(unique_id_path, "unique_id"))) {
         fprintf(stderr, "Did not find unique_id in path\n");
-        goto cleanup;
+        return -1;
     }
     spot--;
     *spot = '\0';
     if (g_mkdir_with_parents(unique_id_path, 0755) < 0) {
         fprintf(stderr, "Unable to make path to '%s'\n", unique_id_path);
-        goto cleanup;
+        return -1;
     }
     *spot = '/';
 
@@ -98,48 +97,42 @@ create_scsihost(const char *fakesysfsdir, const char *devicepath,
      */
     if (!(spot = strstr(link_path, hostname))) {
         fprintf(stderr, "Did not find hostname in path\n");
-        goto cleanup;
+        return -1;
     }
     spot--;
     *spot = '\0';
     if (g_mkdir_with_parents(link_path, 0755) < 0) {
         fprintf(stderr, "Unable to make path to '%s'\n", link_path);
-        goto cleanup;
+        return -1;
     }
     *spot = '/';
 
     if ((fd = open(unique_id_path, O_CREAT|O_WRONLY, 0444)) < 0) {
         fprintf(stderr, "Unable to create '%s'\n", unique_id_path);
-        goto cleanup;
+        return -1;
     }
 
     if (safewrite(fd, unique_id, 1) != 1) {
         fprintf(stderr, "Unable to write '%s'\n", unique_id);
-        goto cleanup;
+        return -1;
     }
     VIR_DEBUG("Created unique_id '%s'", unique_id_path);
 
     /* The link is to the path not the file - so remove the file */
     if (!(spot = strstr(unique_id_path, "unique_id"))) {
         fprintf(stderr, "Did not find unique_id in path\n");
-        goto cleanup;
+        return -1;
     }
     spot--;
     *spot = '\0';
     if (symlink(unique_id_path, link_path) < 0) {
         fprintf(stderr, "Unable to create symlink '%s' to '%s'\n",
                 link_path, unique_id_path);
-        goto cleanup;
+        return -1;
     }
     VIR_DEBUG("Created symlink '%s'", link_path);
 
-    ret = 0;
-
- cleanup:
-    VIR_FORCE_CLOSE(fd);
-    VIR_FREE(unique_id_path);
-    VIR_FREE(link_path);
-    return ret;
+    return 0;
 }
 
 static int
@@ -242,8 +235,8 @@ static int
 mymain(void)
 {
     int ret = -1;
-    char *fakerootdir = NULL;
-    char *fakesysfsdir = NULL;
+    g_autofree char *fakerootdir = NULL;
+    g_autofree char *fakesysfsdir = NULL;
 
     fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
 
@@ -279,8 +272,6 @@ mymain(void)
  cleanup:
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);
-    VIR_FREE(fakerootdir);
-    VIR_FREE(fakesysfsdir);
     VIR_FREE(scsihost_class_path);
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

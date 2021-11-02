@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-dummy2/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-dummy2/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name dummy2 \
+-name guest=dummy2,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-dummy2/master-key.aes \
 -machine pc,accel=kvm,usb=off,dump-guest-core=off \
 -m 128 \
 -realtime mlock=off \
@@ -25,4 +26,6 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
--usb
+-boot strict=on \
+-usb \
+-msg timestamp=on

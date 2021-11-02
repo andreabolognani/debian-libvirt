@@ -495,7 +495,7 @@ qemuMigrationCookieAddNBD(qemuMigrationCookie *mig,
     if (blockdev)
         rc = qemuMonitorBlockStatsUpdateCapacityBlockdev(priv->mon, stats);
     else
-        rc = qemuMonitorBlockStatsUpdateCapacity(priv->mon, stats, false);
+        rc = qemuMonitorBlockStatsUpdateCapacity(priv->mon, stats);
     if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
         return -1;
 
@@ -555,18 +555,6 @@ qemuMigrationCookieAddCPU(qemuMigrationCookie *mig,
     mig->flags |= QEMU_MIGRATION_COOKIE_CPU;
 
     return 0;
-}
-
-
-static void
-qemuMigrationCookieAddAllowReboot(qemuMigrationCookie *mig,
-                                  virDomainObj *vm)
-{
-    qemuDomainObjPrivate *priv = vm->privateData;
-
-    mig->allowReboot = priv->allowReboot;
-
-    mig->flags |= QEMU_MIGRATION_COOKIE_ALLOW_REBOOT;
 }
 
 
@@ -900,9 +888,6 @@ qemuMigrationCookieXMLFormat(virQEMUDriver *driver,
 
     if (mig->flags & QEMU_MIGRATION_COOKIE_CPU && mig->cpu)
         virCPUDefFormatBufFull(buf, mig->cpu, NULL);
-
-    if (mig->flags & QEMU_MIGRATION_COOKIE_ALLOW_REBOOT)
-        qemuDomainObjPrivateXMLFormatAllowReboot(buf, mig->allowReboot);
 
     if (mig->flags & QEMU_MIGRATION_COOKIE_CAPS)
         qemuMigrationCookieCapsXMLFormat(buf, mig->caps);
@@ -1407,10 +1392,6 @@ qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
                           false) < 0)
         return -1;
 
-    if (flags & QEMU_MIGRATION_COOKIE_ALLOW_REBOOT &&
-        qemuDomainObjPrivateXMLParseAllowReboot(ctxt, &mig->allowReboot) < 0)
-        return -1;
-
     if (flags & QEMU_MIGRATION_COOKIE_CAPS &&
         !(mig->caps = qemuMigrationCookieCapsXMLParse(ctxt)))
         return -1;
@@ -1431,22 +1412,15 @@ qemuMigrationCookieXMLParseStr(qemuMigrationCookie *mig,
                                const char *xml,
                                unsigned int flags)
 {
-    xmlDocPtr doc = NULL;
-    xmlXPathContextPtr ctxt = NULL;
-    int ret = -1;
+    g_autoptr(xmlDoc) doc = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
 
     VIR_DEBUG("xml=%s", NULLSTR(xml));
 
     if (!(doc = virXMLParseStringCtxt(xml, _("(qemu_migration_cookie)"), &ctxt)))
-        goto cleanup;
+        return -1;
 
-    ret = qemuMigrationCookieXMLParse(mig, driver, qemuCaps, doc, ctxt, flags);
-
- cleanup:
-    xmlXPathFreeContext(ctxt);
-    xmlFreeDoc(doc);
-
-    return ret;
+    return qemuMigrationCookieXMLParse(mig, driver, qemuCaps, doc, ctxt, flags);
 }
 
 
@@ -1497,9 +1471,6 @@ qemuMigrationCookieFormat(qemuMigrationCookie *mig,
     if (flags & QEMU_MIGRATION_COOKIE_CPU &&
         qemuMigrationCookieAddCPU(mig, dom) < 0)
         return -1;
-
-    if (flags & QEMU_MIGRATION_COOKIE_ALLOW_REBOOT)
-        qemuMigrationCookieAddAllowReboot(mig, dom);
 
     if (flags & QEMU_MIGRATION_COOKIE_CAPS &&
         qemuMigrationCookieAddCaps(mig, dom, party) < 0)

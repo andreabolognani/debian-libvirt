@@ -17,6 +17,7 @@
  */
 
 #include <config.h>
+#include "internal.h"
 
 #include "testutils.h"
 
@@ -26,32 +27,28 @@
 # include <sys/stat.h>
 # include <fcntl.h>
 # include <virpci.h>
+# include <virpcivpd.h>
 
 # define VIR_FROM_THIS VIR_FROM_NONE
 
 static int
 testVirPCIDeviceCheckDriver(virPCIDevice *dev, const char *expected)
 {
-    char *path = NULL;
-    char *driver = NULL;
-    int ret = -1;
+    g_autofree char *path = NULL;
+    g_autofree char *driver = NULL;
 
     if (virPCIDeviceGetDriverPathAndName(dev, &path, &driver) < 0)
-        goto cleanup;
+        return -1;
 
     if (STRNEQ_NULLABLE(driver, expected)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "PCI device %s driver mismatch: %s, expecting %s",
                        virPCIDeviceGetName(dev), NULLSTR(driver),
                        NULLSTR(expected));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(path);
-    VIR_FREE(driver);
-    return ret;
+    return 0;
 }
 
 static int
@@ -93,8 +90,8 @@ testVirPCIDeviceDetach(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     virPCIDevice *dev[] = {NULL, NULL, NULL};
     size_t i, nDev = G_N_ELEMENTS(dev);
-    virPCIDeviceList *activeDevs = NULL;
-    virPCIDeviceList *inactiveDevs = NULL;
+    g_autoptr(virPCIDeviceList) activeDevs = NULL;
+    g_autoptr(virPCIDeviceList) inactiveDevs = NULL;
     int count;
 
     if (!(activeDevs = virPCIDeviceListNew()) ||
@@ -126,8 +123,6 @@ testVirPCIDeviceDetach(const void *opaque G_GNUC_UNUSED)
  cleanup:
     for (i = 0; i < nDev; i++)
         virPCIDeviceFree(dev[i]);
-    virObjectUnref(activeDevs);
-    virObjectUnref(inactiveDevs);
     return ret;
 }
 
@@ -137,8 +132,8 @@ testVirPCIDeviceReset(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     virPCIDevice *dev[] = {NULL, NULL, NULL};
     size_t i, nDev = G_N_ELEMENTS(dev);
-    virPCIDeviceList *activeDevs = NULL;
-    virPCIDeviceList *inactiveDevs = NULL;
+    g_autoptr(virPCIDeviceList) activeDevs = NULL;
+    g_autoptr(virPCIDeviceList) inactiveDevs = NULL;
     int count;
 
     if (!(activeDevs = virPCIDeviceListNew()) ||
@@ -164,8 +159,6 @@ testVirPCIDeviceReset(const void *opaque G_GNUC_UNUSED)
  cleanup:
     for (i = 0; i < nDev; i++)
         virPCIDeviceFree(dev[i]);
-    virObjectUnref(activeDevs);
-    virObjectUnref(inactiveDevs);
     return ret;
 }
 
@@ -175,8 +168,8 @@ testVirPCIDeviceReattach(const void *opaque G_GNUC_UNUSED)
     int ret = -1;
     virPCIDevice *dev[] = {NULL, NULL, NULL};
     size_t i, nDev = G_N_ELEMENTS(dev);
-    virPCIDeviceList *activeDevs = NULL;
-    virPCIDeviceList *inactiveDevs = NULL;
+    g_autoptr(virPCIDeviceList) activeDevs = NULL;
+    g_autoptr(virPCIDeviceList) inactiveDevs = NULL;
     int count;
 
     if (!(activeDevs = virPCIDeviceListNew()) ||
@@ -213,8 +206,6 @@ testVirPCIDeviceReattach(const void *opaque G_GNUC_UNUSED)
 
     ret = 0;
  cleanup:
-    virObjectUnref(activeDevs);
-    virObjectUnref(inactiveDevs);
     return ret;
 }
 
@@ -339,13 +330,46 @@ testVirPCIDeviceUnbind(const void *opaque)
     return ret;
 }
 
+
+static int
+testVirPCIDeviceGetVPD(const void *opaque)
+{
+    const struct testPCIDevData *data = opaque;
+    g_autoptr(virPCIDevice) dev = NULL;
+    virPCIDeviceAddress devAddr = {.domain = data->domain, .bus = data->bus,
+                                   .slot = data->slot, .function = data->function};
+    g_autoptr(virPCIVPDResource) res = NULL;
+
+    dev = virPCIDeviceNew(&devAddr);
+    if (!dev)
+        return -1;
+
+    res = virPCIDeviceGetVPD(dev);
+
+    /* Only basic checks - full parser validation is done elsewhere. */
+    if (res->ro == NULL)
+        return -1;
+
+    if (STRNEQ(res->name, "testname")) {
+        VIR_TEST_DEBUG("Unexpected name present in VPD: %s", res->name);
+        return -1;
+    }
+
+    if (STRNEQ(res->ro->part_number, "42")) {
+        VIR_TEST_DEBUG("Unexpected part number value present in VPD: %s", res->ro->part_number);
+        return -1;
+    }
+
+    return 0;
+}
+
 # define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
 
 static int
 mymain(void)
 {
     int ret = 0;
-    char *fakerootdir;
+    g_autofree char *fakerootdir = NULL;
 
     fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
 
@@ -367,12 +391,11 @@ mymain(void)
         struct testPCIDevData data = { \
             domain, bus, slot, function, NULL \
         }; \
-        char *label = NULL; \
+        g_autofree char *label = NULL; \
         label = g_strdup_printf("%s(%04x:%02x:%02x.%x)", \
                                 #fnc, domain, bus, slot, function); \
         if (virTestRun(label, fnc, &data) < 0) \
             ret = -1; \
-        VIR_FREE(label); \
     } while (0)
 
 # define DO_TEST_PCI_DRIVER(domain, bus, slot, function, driver) \
@@ -380,14 +403,13 @@ mymain(void)
         struct testPCIDevData data = { \
             domain, bus, slot, function, driver \
         }; \
-        char *label = NULL; \
+        g_autofree char *label = NULL; \
         label = g_strdup_printf("PCI driver %04x:%02x:%02x.%x is %s", \
                                 domain, bus, slot, function, \
                                 NULLSTR(driver)); \
         if (virTestRun(label, testVirPCIDeviceCheckDriverTest, \
                        &data) < 0) \
             ret = -1; \
-        VIR_FREE(label); \
     } while (0)
 
     /* Changes made to individual devices are persistent and the
@@ -422,10 +444,10 @@ mymain(void)
     DO_TEST_PCI(testVirPCIDeviceReattachSingle, 0, 0x0a, 3, 0);
     DO_TEST_PCI_DRIVER(0, 0x0a, 3, 0, NULL);
 
+    DO_TEST_PCI(testVirPCIDeviceGetVPD, 0, 0x03, 0, 0);
+
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);
-
-    VIR_FREE(fakerootdir);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -39,9 +39,9 @@
 VIR_LOG_INIT("qemu.virtiofs");
 
 
-char *
-qemuVirtioFSCreatePidFilename(virDomainObj *vm,
-                              const char *alias)
+static char *
+qemuVirtioFSCreatePidFilenameOld(virDomainObj *vm,
+                                 const char *alias)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autofree char *name = NULL;
@@ -49,6 +49,19 @@ qemuVirtioFSCreatePidFilename(virDomainObj *vm,
     name = g_strdup_printf("%s-fs", alias);
 
     return virPidFileBuildPath(priv->libDir, name);
+}
+
+
+char *
+qemuVirtioFSCreatePidFilename(virDomainObj *vm,
+                              const char *alias)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autofree char *domname = virDomainDefGetShortName(vm->def);
+    g_autofree char *name = g_strdup_printf("%s-%s-fs", domname, alias);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
+
+    return virPidFileBuildPath(cfg->stateDir, name);
 }
 
 
@@ -157,8 +170,7 @@ qemuVirtioFSBuildCommandLine(virQEMUDriverConfig *cfg,
 }
 
 int
-qemuVirtioFSStart(virLogManager *logManager,
-                  virQEMUDriver *driver,
+qemuVirtioFSStart(virQEMUDriver *driver,
                   virDomainObj *vm,
                   virDomainFSDef *fs)
 {
@@ -183,8 +195,7 @@ qemuVirtioFSStart(virLogManager *logManager,
     if (!(pidfile = qemuVirtioFSCreatePidFilename(vm, fs->info.alias)))
         goto cleanup;
 
-    if (!(socket_path = qemuVirtioFSCreateSocketFilename(vm, fs->info.alias)))
-        goto cleanup;
+    socket_path = qemuDomainGetVHostUserFSSocketPath(vm->privateData, fs);
 
     if ((fd = qemuVirtioFSOpenChardev(driver, vm, socket_path)) < 0)
         goto cleanup;
@@ -192,6 +203,11 @@ qemuVirtioFSStart(virLogManager *logManager,
     logpath = qemuVirtioFSCreateLogFilename(cfg, vm->def, fs->info.alias);
 
     if (cfg->stdioLogD) {
+        g_autoptr(virLogManager) logManager = virLogManagerNew(driver->privileged);
+
+        if (!logManager)
+            goto cleanup;
+
         if ((logfd = virLogManagerDomainOpenLogFile(logManager,
                                                     "qemu",
                                                     vm->def->uuid,
@@ -251,12 +267,9 @@ qemuVirtioFSStart(virLogManager *logManager,
         goto error;
     }
 
-    QEMU_DOMAIN_FS_PRIVATE(fs)->vhostuser_fs_sock = g_steal_pointer(&socket_path);
     ret = 0;
 
  cleanup:
-    if (socket_path)
-        unlink(socket_path);
     return ret;
 
  error:
@@ -264,6 +277,8 @@ qemuVirtioFSStart(virLogManager *logManager,
         virProcessKillPainfully(pid, true);
     if (pidfile)
         unlink(pidfile);
+    if (socket_path)
+        unlink(socket_path);
     goto cleanup;
 }
 
@@ -281,11 +296,19 @@ qemuVirtioFSStop(virQEMUDriver *driver G_GNUC_UNUSED,
     if (!(pidfile = qemuVirtioFSCreatePidFilename(vm, fs->info.alias)))
         goto cleanup;
 
-    if (virPidFileForceCleanupPath(pidfile) < 0) {
+    if (!virFileExists(pidfile)) {
+        g_free(pidfile);
+        if (!(pidfile = qemuVirtioFSCreatePidFilenameOld(vm, fs->info.alias)))
+            goto cleanup;
+    }
+
+    if (virPidFileForceCleanupPathFull(pidfile, true) < 0) {
         VIR_WARN("Unable to kill virtiofsd process");
     } else {
-        if (QEMU_DOMAIN_FS_PRIVATE(fs)->vhostuser_fs_sock)
-            unlink(QEMU_DOMAIN_FS_PRIVATE(fs)->vhostuser_fs_sock);
+        g_autofree char *socket_path = NULL;
+
+        socket_path = qemuDomainGetVHostUserFSSocketPath(vm->privateData, fs);
+        unlink(socket_path);
     }
 
  cleanup:

@@ -410,6 +410,10 @@ remoteDomainBuildEventMemoryFailure(virNetClientProgram *prog,
                                     void *evdata, void *opaque);
 
 static void
+remoteDomainBuildEventMemoryDeviceSizeChange(virNetClientProgram *prog,
+                                             virNetClient *client,
+                                             void *evdata, void *opaque);
+static void
 remoteConnectNotifyEventConnectionClosed(virNetClientProgram *prog G_GNUC_UNUSED,
                                          virNetClient *client G_GNUC_UNUSED,
                                          void *evdata, void *opaque);
@@ -624,6 +628,10 @@ static virNetClientProgramEvent remoteEvents[] = {
       remoteDomainBuildEventMemoryFailure,
       sizeof(remote_domain_event_memory_failure_msg),
       (xdrproc_t)xdr_remote_domain_event_memory_failure_msg },
+    { REMOTE_PROC_DOMAIN_EVENT_MEMORY_DEVICE_SIZE_CHANGE,
+      remoteDomainBuildEventMemoryDeviceSizeChange,
+      sizeof(remote_domain_event_memory_device_size_change_msg),
+      (xdrproc_t)xdr_remote_domain_event_memory_device_size_change_msg },
 };
 
 static void
@@ -5436,6 +5444,30 @@ remoteDomainBuildEventMemoryFailure(virNetClientProgram *prog G_GNUC_UNUSED,
 }
 
 
+static void
+remoteDomainBuildEventMemoryDeviceSizeChange(virNetClientProgram *prog G_GNUC_UNUSED,
+                                             virNetClient *client G_GNUC_UNUSED,
+                                             void *evdata, void *opaque)
+{
+    virConnectPtr conn = opaque;
+    remote_domain_event_memory_device_size_change_msg *msg = evdata;
+    struct private_data *priv = conn->privateData;
+    virDomainPtr dom;
+    virObjectEvent *event = NULL;
+
+    if (!(dom = get_nonnull_domain(conn, msg->dom)))
+        return;
+
+    event = virDomainEventMemoryDeviceSizeChangeNewFromDom(dom,
+                                                           msg->alias,
+                                                           msg->size);
+
+    virObjectUnref(dom);
+
+    virObjectEventStateQueueRemote(priv->eventState, event, msg->callbackID);
+}
+
+
 static int
 remoteStreamSend(virStreamPtr st,
                  const char *data,
@@ -8552,7 +8584,9 @@ static virNetworkDriver network_driver = {
     .networkLookupByUUID = remoteNetworkLookupByUUID, /* 0.3.0 */
     .networkLookupByName = remoteNetworkLookupByName, /* 0.3.0 */
     .networkCreateXML = remoteNetworkCreateXML, /* 0.3.0 */
+    .networkCreateXMLFlags = remoteNetworkCreateXMLFlags, /* 7.8.0 */
     .networkDefineXML = remoteNetworkDefineXML, /* 0.3.0 */
+    .networkDefineXMLFlags = remoteNetworkDefineXMLFlags, /* 7.7.0 */
     .networkUndefine = remoteNetworkUndefine, /* 0.3.0 */
     .networkUpdate = remoteNetworkUpdate, /* 0.10.2 */
     .networkCreate = remoteNetworkCreate, /* 0.3.0 */
@@ -8672,7 +8706,11 @@ static virNodeDeviceDriver node_device_driver = {
     .nodeDeviceCreate = remoteNodeDeviceCreate, /* 7.3.0 */
     .nodeDeviceDefineXML = remoteNodeDeviceDefineXML, /* 7.3.0 */
     .nodeDeviceUndefine = remoteNodeDeviceUndefine, /* 7.3.0 */
-    .nodeDeviceDestroy = remoteNodeDeviceDestroy /* 0.6.3 */
+    .nodeDeviceDestroy = remoteNodeDeviceDestroy, /* 0.6.3 */
+    .nodeDeviceGetAutostart = remoteNodeDeviceGetAutostart, /* 7.8.0 */
+    .nodeDeviceSetAutostart = remoteNodeDeviceSetAutostart, /* 7.8.0 */
+    .nodeDeviceIsPersistent = remoteNodeDeviceIsPersistent, /* 7.8.0 */
+    .nodeDeviceIsActive = remoteNodeDeviceIsActive, /* 7.8.0 */
 };
 
 static virNWFilterDriver nwfilter_driver = {
@@ -8680,6 +8718,7 @@ static virNWFilterDriver nwfilter_driver = {
     .nwfilterLookupByName = remoteNWFilterLookupByName, /* 0.8.0 */
     .nwfilterGetXMLDesc           = remoteNWFilterGetXMLDesc, /* 0.8.0 */
     .nwfilterDefineXML            = remoteNWFilterDefineXML, /* 0.8.0 */
+    .nwfilterDefineXMLFlags       = remoteNWFilterDefineXMLFlags, /* 7.7.0 */
     .nwfilterUndefine             = remoteNWFilterUndefine, /* 0.8.0 */
     .connectNumOfNWFilters       = remoteConnectNumOfNWFilters, /* 0.8.0 */
     .connectListNWFilters        = remoteConnectListNWFilters, /* 0.8.0 */

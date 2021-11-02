@@ -367,7 +367,8 @@ vboxSocketFormatAddrUtf16(struct _vboxDriver *data, virSocketAddr *addr)
 }
 
 static virNetworkPtr
-vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
+vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
+                           unsigned int flags)
 {
     struct _vboxDriver *data = conn->privateData;
     PRUnichar *networkInterfaceNameUtf16 = NULL;
@@ -375,7 +376,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
     PRUnichar *networkNameUtf16 = NULL;
     char *networkNameUtf8 = NULL;
     IHostNetworkInterface *networkInterface = NULL;
-    virNetworkDef *def = virNetworkDefParseString(xml, NULL);
+    virNetworkDef *def = NULL;
     virNetworkIPDef *ipdef = NULL;
     unsigned char uuid[VIR_UUID_BUFLEN];
     vboxIID vboxnetiid;
@@ -384,6 +385,15 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
     IHost *host = NULL;
     virNetworkPtr ret = NULL;
     nsresult rc;
+    bool validate;
+
+    if (start) {
+        virCheckFlags(VIR_NETWORK_CREATE_VALIDATE, NULL);
+        validate = flags & VIR_NETWORK_CREATE_VALIDATE;
+    } else {
+        virCheckFlags(VIR_NETWORK_DEFINE_VALIDATE, NULL);
+        validate = flags & VIR_NETWORK_DEFINE_VALIDATE;
+    }
 
     if (!data->vboxObj)
         return ret;
@@ -394,7 +404,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
 
     VBOX_IID_INITIALIZE(&vboxnetiid);
 
-    if ((!def) ||
+    if (!(def = virNetworkDefParseString(xml, NULL, validate)) ||
         (def->forward.type != VIR_NETWORK_FORWARD_NONE) ||
         (def->nips == 0 || !def->ips))
         goto cleanup;
@@ -554,12 +564,24 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start)
 
 static virNetworkPtr vboxNetworkCreateXML(virConnectPtr conn, const char *xml)
 {
-    return vboxNetworkDefineCreateXML(conn, xml, true);
+    return vboxNetworkDefineCreateXML(conn, xml, true, 0);
+}
+
+static virNetworkPtr vboxNetworkCreateXMLFlags(virConnectPtr conn, const char *xml,
+                                               unsigned int flags)
+{
+    return vboxNetworkDefineCreateXML(conn, xml, true, flags);
 }
 
 static virNetworkPtr vboxNetworkDefineXML(virConnectPtr conn, const char *xml)
 {
-    return vboxNetworkDefineCreateXML(conn, xml, false);
+    return vboxNetworkDefineCreateXML(conn, xml, false, 0);
+}
+
+static virNetworkPtr vboxNetworkDefineXMLFlags(virConnectPtr conn, const char *xml,
+                                               unsigned int flags)
+{
+    return vboxNetworkDefineCreateXML(conn, xml, false, flags);
 }
 
 static int
@@ -920,7 +942,9 @@ virNetworkDriver vboxNetworkDriver = {
     .networkLookupByUUID = vboxNetworkLookupByUUID, /* 0.6.4 */
     .networkLookupByName = vboxNetworkLookupByName, /* 0.6.4 */
     .networkCreateXML = vboxNetworkCreateXML, /* 0.6.4 */
+    .networkCreateXMLFlags = vboxNetworkCreateXMLFlags, /* 7.8.0 */
     .networkDefineXML = vboxNetworkDefineXML, /* 0.6.4 */
+    .networkDefineXMLFlags = vboxNetworkDefineXMLFlags, /* 7.7.0 */
     .networkUndefine = vboxNetworkUndefine, /* 0.6.4 */
     .networkCreate = vboxNetworkCreate, /* 0.6.4 */
     .networkDestroy = vboxNetworkDestroy, /* 0.6.4 */

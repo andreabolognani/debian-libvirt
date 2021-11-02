@@ -21,6 +21,7 @@
 #include <config.h>
 
 #include "virsh-completer-volume.h"
+#include "virsh-util.h"
 #include "viralloc.h"
 #include "virsh-pool.h"
 #include "virsh.h"
@@ -32,7 +33,7 @@ virshStorageVolNameCompleter(vshControl *ctl,
                              unsigned int flags)
 {
     virshControl *priv = ctl->privData;
-    virStoragePoolPtr pool = NULL;
+    g_autoptr(virshStoragePool) pool = NULL;
     virStorageVolPtr *vols = NULL;
     int rc;
     int nvols = 0;
@@ -63,9 +64,8 @@ virshStorageVolNameCompleter(vshControl *ctl,
     ret = g_steal_pointer(&tmp);
 
  cleanup:
-    virStoragePoolFree(pool);
     for (i = 0; i < nvols; i++)
-        virStorageVolFree(vols[i]);
+        virshStorageVolFree(vols[i]);
     g_free(vols);
     return ret;
 }
@@ -104,7 +104,7 @@ virshStorageVolKeyCompleter(vshControl *ctl,
             const char *key = virStorageVolGetKey(vols[j]);
             tmp[nvols] = g_strdup(key);
             nvols++;
-            virStorageVolFree(vols[j]);
+            virshStorageVolFree(vols[j]);
         }
 
         g_free(vols);

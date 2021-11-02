@@ -50,22 +50,22 @@ testQemuDataInit(testQemuData *data)
 static virQEMUCaps *
 testQemuGetCaps(char *caps)
 {
-    virQEMUCaps *qemuCaps = NULL;
-    xmlDocPtr xml;
-    xmlXPathContextPtr ctxt = NULL;
+    g_autoptr(virQEMUCaps) qemuCaps = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
     ssize_t i, n;
     g_autofree xmlNodePtr *nodes = NULL;
 
     if (!(xml = virXMLParseStringCtxt(caps, "(test caps)", &ctxt)))
-        goto error;
+        return NULL;
 
     if ((n = virXPathNodeSet("/qemuCaps/flag", ctxt, &nodes)) < 0) {
         fprintf(stderr, "failed to parse qemu capabilities flags");
-        goto error;
+        return NULL;
     }
 
     if (!(qemuCaps = virQEMUCapsNew()))
-        goto error;
+        return NULL;
 
     for (i = 0; i < n; i++) {
         g_autofree char *str = virXMLPropString(nodes[i], "name");
@@ -73,21 +73,13 @@ testQemuGetCaps(char *caps)
             int flag = virQEMUCapsTypeFromString(str);
             if (flag < 0) {
                 fprintf(stderr, "Unknown qemu capabilities flag %s", str);
-                goto error;
+                return NULL;
             }
             virQEMUCapsSet(qemuCaps, flag);
         }
     }
 
-    xmlFreeDoc(xml);
-    xmlXPathFreeContext(ctxt);
-    return qemuCaps;
-
- error:
-    virObjectUnref(qemuCaps);
-    xmlFreeDoc(xml);
-    xmlXPathFreeContext(ctxt);
-    return NULL;
+    return g_steal_pointer(&qemuCaps);
 }
 
 static virCaps *

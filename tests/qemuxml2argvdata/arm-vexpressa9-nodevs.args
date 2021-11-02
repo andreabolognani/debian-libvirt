@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-armtest/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-armtest/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-arm \
--name armtest \
+-name guest=armtest,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-armtest/master-key.aes \
 -machine vexpress-a9,accel=tcg,usb=off,dump-guest-core=off \
 -m 1024 \
 -realtime mlock=off \
@@ -22,8 +23,10 @@ QEMU_AUDIO_DRV=none \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \
+-boot strict=on \
 -kernel /arm.kernel \
 -initrd /arm.initrd \
 -append console=ttyAMA0,115200n8 \
 -dtb /arm.dtb \
--usb
+-usb \
+-msg timestamp=on

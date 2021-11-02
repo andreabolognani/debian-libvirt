@@ -335,14 +335,24 @@ qemuAssignDeviceNetAlias(virDomainDef *def,
 }
 
 
-static int
-qemuAssignDeviceFSAlias(virDomainFSDef *fss,
-                        int idx)
+int
+qemuAssignDeviceFSAlias(virDomainDef *def,
+                        virDomainFSDef *fss)
 {
+    size_t i;
+    int maxidx = 0;
+
     if (fss->info.alias)
         return 0;
 
-    fss->info.alias = g_strdup_printf("fs%d", idx);
+    for (i = 0; i < def->nfss; i++) {
+        int idx;
+
+        if ((idx = qemuDomainDeviceAliasIndex(&def->fss[i]->info, "fs")) >= maxidx)
+            maxidx = idx + 1;
+    }
+
+    fss->info.alias = g_strdup_printf("fs%d", maxidx);
     return 0;
 }
 
@@ -475,8 +485,11 @@ qemuDeviceMemoryGetAliasID(virDomainDef *def,
     size_t i;
     int maxidx = 0;
 
-    /* virtio-pmem goes onto PCI bus and thus DIMM address is not valid */
-    if (!oldAlias && mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM)
+    /* virtio-pmem and virtio-mem go onto PCI bus and thus DIMM address is not
+     * valid */
+    if (!oldAlias &&
+        mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM &&
+        mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM)
         return mem->info.addr.dimm.slot;
 
     for (i = 0; i < def->nmems; i++) {
@@ -521,6 +534,9 @@ qemuAssignDeviceMemoryAlias(virDomainDef *def,
         break;
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
         prefix = "virtiopmem";
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        prefix = "virtiomem";
         break;
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
@@ -628,7 +644,7 @@ qemuAssignDeviceAliases(virDomainDef *def, virQEMUCaps *qemuCaps)
     }
 
     for (i = 0; i < def->nfss; i++) {
-        if (qemuAssignDeviceFSAlias(def->fss[i], i) < 0)
+        if (qemuAssignDeviceFSAlias(def, def->fss[i]) < 0)
             return -1;
     }
     for (i = 0; i < def->nsounds; i++) {
@@ -788,11 +804,7 @@ qemuAliasFromHostdev(const virDomainHostdevDef *hostdev)
 char *
 qemuDomainGetMasterKeyAlias(void)
 {
-    char *alias;
-
-    alias = g_strdup("masterKey0");
-
-    return alias;
+    return g_strdup("masterKey0");
 }
 
 
@@ -821,11 +833,7 @@ qemuAliasForSecret(const char *parentalias,
 char *
 qemuAliasTLSObjFromSrcAlias(const char *srcAlias)
 {
-    char *ret;
-
-    ret = g_strdup_printf("obj%s_tls0", srcAlias);
-
-    return ret;
+    return g_strdup_printf("obj%s_tls0", srcAlias);
 }
 
 
@@ -837,11 +845,7 @@ qemuAliasTLSObjFromSrcAlias(const char *srcAlias)
 char *
 qemuAliasChardevFromDevAlias(const char *devAlias)
 {
-    char *ret;
-
-    ret = g_strdup_printf("char%s", devAlias);
-
-    return ret;
+    return g_strdup_printf("char%s", devAlias);
 }
 
 
@@ -855,11 +859,7 @@ qemuDomainGetManagedPRAlias(void)
 char *
 qemuDomainGetUnmanagedPRAlias(const char *parentalias)
 {
-    char *ret;
-
-    ret = g_strdup_printf("pr-helper-%s", parentalias);
-
-    return ret;
+    return g_strdup_printf("pr-helper-%s", parentalias);
 }
 
 

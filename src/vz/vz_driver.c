@@ -2789,8 +2789,8 @@ vzBakeCookie(struct _vzDriver *driver,
 static vzMigrationCookie *
 vzEatCookie(const char *cookiein, int cookieinlen, unsigned int flags)
 {
-    xmlDocPtr doc = NULL;
-    xmlXPathContextPtr ctx = NULL;
+    g_autoptr(xmlDoc) doc = NULL;
+    g_autoptr(xmlXPathContext) ctx = NULL;
     vzMigrationCookie *mig = NULL;
 
     mig = g_new0(vzMigrationCookie, 1);
@@ -2837,15 +2837,11 @@ vzEatCookie(const char *cookiein, int cookieinlen, unsigned int flags)
         goto error;
     }
 
- cleanup:
-    xmlXPathFreeContext(ctx);
-    xmlFreeDoc(doc);
     return mig;
 
  error:
     vzMigrationCookieFree(mig);
-    mig = NULL;
-    goto cleanup;
+    return NULL;
 }
 
 #define VZ_MIGRATION_FLAGS         (VIR_MIGRATE_PAUSED | \

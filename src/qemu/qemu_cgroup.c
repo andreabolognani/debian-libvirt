@@ -38,6 +38,7 @@
 #include "virnuma.h"
 #include "virdevmapper.h"
 #include "virutil.h"
+#include "virglibutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -60,8 +61,8 @@ qemuSetupImagePathCgroup(virDomainObj *vm,
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     int perms = VIR_CGROUP_DEVICE_READ;
-    g_auto(GStrv) targetPaths = NULL;
-    size_t i;
+    g_autoptr(virGSListString) targetPaths = NULL;
+    GSList *n;
     int rv;
 
     if (!virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_DEVICES))
@@ -94,10 +95,10 @@ qemuSetupImagePathCgroup(virDomainObj *vm,
         return -1;
     }
 
-    for (i = 0; targetPaths && targetPaths[i]; i++) {
-        rv = virCgroupAllowDevicePath(priv->cgroup, targetPaths[i], perms, false);
+    for (n = targetPaths; n; n = n->next) {
+        rv = virCgroupAllowDevicePath(priv->cgroup, n->data, perms, false);
 
-        virDomainAuditCgroupPath(vm, priv->cgroup, "allow", targetPaths[i],
+        virDomainAuditCgroupPath(vm, priv->cgroup, "allow", n->data,
                                  virCgroupGetDevicePermsString(perms),
                                  rv);
         if (rv < 0)
@@ -905,6 +906,34 @@ qemuSetupCpuCgroup(virDomainObj *vm)
 
 
 static int
+qemuSetupCgroupAppid(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    int inode = -1;
+    const char *path = "/sys/class/fc/fc_udev_device/appid_store";
+    g_autofree char *appid = NULL;
+    virDomainResourceDef *resource = vm->def->resource;
+
+    if (!resource || !resource->appid)
+        return 0;
+
+    inode = virCgroupGetInode(priv->cgroup);
+    if (inode < 0)
+        return -1;
+
+    appid = g_strdup_printf("%X:%s", inode, resource->appid);
+
+    if (virFileWriteStr(path, appid, 0) < 0) {
+        virReportSystemError(errno,
+                             _("Unable to write '%s' to '%s'"), appid, path);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuInitCgroup(virDomainObj *vm,
                size_t nnicindexes,
                int *nicindexes)
@@ -921,15 +950,11 @@ qemuInitCgroup(virDomainObj *vm,
     virCgroupFree(priv->cgroup);
     priv->cgroup = NULL;
 
-    if (!vm->def->resource) {
-        virDomainResourceDef *res;
+    if (!vm->def->resource)
+        vm->def->resource = g_new0(virDomainResourceDef, 1);
 
-        res = g_new0(virDomainResourceDef, 1);
-
-        res->partition = g_strdup("/machine");
-
-        vm->def->resource = res;
-    }
+    if (!vm->def->resource->partition)
+        vm->def->resource->partition = g_strdup("/machine");
 
     if (!g_path_is_absolute(vm->def->resource->partition)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -1094,6 +1119,9 @@ qemuSetupCgroup(virDomainObj *vm,
         return -1;
 
     if (qemuSetupCpusetCgroup(vm) < 0)
+        return -1;
+
+    if (qemuSetupCgroupAppid(vm) < 0)
         return -1;
 
     return 0;

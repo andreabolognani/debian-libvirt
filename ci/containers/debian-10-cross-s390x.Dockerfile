@@ -1,8 +1,8 @@
 # THIS FILE WAS AUTO-GENERATED
 #
-#  $ lcitool dockerfile --cross s390x debian-10 libvirt
+#  $ lcitool manifest ci/manifest.yml
 #
-# https://gitlab.com/libvirt/libvirt-ci/-/commit/1d4e10a04c6a0d29302003244a9dc4dc3c9d06f0
+# https://gitlab.com/libvirt/libvirt-ci
 
 FROM docker.io/library/debian:10-slim
 
@@ -50,16 +50,11 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             radvd \
             scrub \
             sed \
-            xsltproc \
-            zfs-fuse && \
+            xsltproc && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
-    dpkg-reconfigure locales && \
-    dpkg-query --showformat '${Package}_${Version}_${Architecture}\n' --show > /packages.txt && \
-    mkdir -p /usr/libexec/ccache-wrappers && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/s390x-linux-gnu-cc && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/s390x-linux-gnu-gcc
+    dpkg-reconfigure locales
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture s390x && \
@@ -72,7 +67,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libapparmor-dev:s390x \
             libattr1-dev:s390x \
             libaudit-dev:s390x \
-            libavahi-client-dev:s390x \
             libblkid-dev:s390x \
             libc6-dev:s390x \
             libcap-ng-dev:s390x \
@@ -116,7 +110,11 @@ pkgconfig = '/usr/bin/s390x-linux-gnu-pkg-config'\n\
 system = 'linux'\n\
 cpu_family = 's390x'\n\
 cpu = 's390x'\n\
-endian = 'big'" > /usr/local/share/meson/cross/s390x-linux-gnu
+endian = 'big'" > /usr/local/share/meson/cross/s390x-linux-gnu && \
+    dpkg-query --showformat '${Package}_${Version}_${Architecture}\n' --show > /packages.txt && \
+    mkdir -p /usr/libexec/ccache-wrappers && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/s390x-linux-gnu-cc && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/s390x-linux-gnu-gcc
 
 RUN pip3 install \
          meson==0.56.0

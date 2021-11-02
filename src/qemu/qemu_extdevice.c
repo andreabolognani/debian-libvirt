@@ -166,7 +166,6 @@ qemuExtDevicesCleanupHost(virQEMUDriver *driver,
 int
 qemuExtDevicesStart(virQEMUDriver *driver,
                     virDomainObj *vm,
-                    virLogManager *logManager,
                     bool incomingMigration)
 {
     virDomainDef *def = vm->def;
@@ -196,10 +195,8 @@ qemuExtDevicesStart(virQEMUDriver *driver,
     for (i = 0; i < def->nfss; i++) {
         virDomainFSDef *fs = def->fss[i];
 
-        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS) {
-            if (fs->sock)
-                QEMU_DOMAIN_FS_PRIVATE(fs)->vhostuser_fs_sock = g_strdup(fs->sock);
-            else if (qemuVirtioFSStart(logManager, driver, vm, fs) < 0)
+        if (fs->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS && !fs->sock) {
+            if (qemuVirtioFSStart(driver, vm, fs) < 0)
                 return -1;
         }
     }

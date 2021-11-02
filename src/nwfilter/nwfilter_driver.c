@@ -525,14 +525,19 @@ nwfilterConnectListAllNWFilters(virConnectPtr conn,
     return ret;
 }
 
+
 static virNWFilterPtr
-nwfilterDefineXML(virConnectPtr conn,
-                  const char *xml)
+nwfilterDefineXMLFlags(virConnectPtr conn,
+                       const char *xml,
+                       unsigned int flags)
 {
     virNWFilterDef *def;
     virNWFilterObj *obj = NULL;
     virNWFilterDef *objdef;
     virNWFilterPtr nwfilter = NULL;
+
+    virCheckFlags(VIR_NWFILTER_DEFINE_VALIDATE, NULL);
+
 
     if (!driver->privileged) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
@@ -543,10 +548,10 @@ nwfilterDefineXML(virConnectPtr conn,
     nwfilterDriverLock();
     virNWFilterWriteLockFilterUpdates();
 
-    if (!(def = virNWFilterDefParseString(xml)))
+    if (!(def = virNWFilterDefParseString(xml, flags)))
         goto cleanup;
 
-    if (virNWFilterDefineXMLEnsureACL(conn, def) < 0)
+    if (virNWFilterDefineXMLFlagsEnsureACL(conn, def) < 0)
         goto cleanup;
 
     if (!(obj = virNWFilterObjListAssignDef(driver->nwfilters, def)))
@@ -569,6 +574,14 @@ nwfilterDefineXML(virConnectPtr conn,
     virNWFilterUnlockFilterUpdates();
     nwfilterDriverUnlock();
     return nwfilter;
+}
+
+
+static virNWFilterPtr
+nwfilterDefineXML(virConnectPtr conn,
+                  const char *xml)
+{
+    return nwfilterDefineXMLFlags(conn, xml, 0);
 }
 
 
@@ -724,7 +737,7 @@ nwfilterBindingCreateXML(virConnectPtr conn,
     virNWFilterBindingObj *obj = NULL;
     virNWFilterBindingPtr ret = NULL;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_NWFILTER_BINDING_CREATE_VALIDATE, NULL);
 
     if (!driver->privileged) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
@@ -732,7 +745,7 @@ nwfilterBindingCreateXML(virConnectPtr conn,
         return NULL;
     }
 
-    def = virNWFilterBindingDefParseString(xml);
+    def = virNWFilterBindingDefParseString(xml, flags);
     if (!def)
         return NULL;
 
@@ -809,6 +822,7 @@ static virNWFilterDriver nwfilterDriver = {
     .nwfilterLookupByName = nwfilterLookupByName, /* 0.8.0 */
     .nwfilterLookupByUUID = nwfilterLookupByUUID, /* 0.8.0 */
     .nwfilterDefineXML = nwfilterDefineXML, /* 0.8.0 */
+    .nwfilterDefineXMLFlags = nwfilterDefineXMLFlags, /* 7.7.0 */
     .nwfilterUndefine = nwfilterUndefine, /* 0.8.0 */
     .nwfilterGetXMLDesc = nwfilterGetXMLDesc, /* 0.8.0 */
     .nwfilterBindingLookupByPortDev = nwfilterBindingLookupByPortDev, /* 4.5.0 */

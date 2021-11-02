@@ -115,6 +115,7 @@ virJSONValueGetType(const virJSONValue *value)
  *
  * i: signed integer value
  * j: signed integer value, error if negative
+ * k: signed integer value, omitted if negative
  * z: signed integer value, omitted if zero
  * y: signed integer value, omitted if zero, error if negative
  *
@@ -160,9 +161,9 @@ virJSONValueObjectAddVArgs(virJSONValue *obj,
 
     while ((key = va_arg(args, char *)) != NULL) {
 
-        if (strlen(key) < 3) {
+        if (strlen(key) < 3 || key[1] != ':') {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("argument key '%s' is too short, missing type prefix"),
+                           _("argument key '%s' is too short or malformed"),
                            key);
             return -1;
         }
@@ -189,6 +190,7 @@ virJSONValueObjectAddVArgs(virJSONValue *obj,
 
         case 'z':
         case 'y':
+        case 'k':
         case 'j':
         case 'i': {
             int val = va_arg(args, int);
@@ -201,6 +203,9 @@ virJSONValueObjectAddVArgs(virJSONValue *obj,
             }
 
             if (!val && (type == 'z' || type == 'y'))
+                continue;
+
+            if (val < 0 && type == 'k')
                 continue;
 
             rc = virJSONValueObjectAppendNumberInt(obj, key, val);
@@ -599,8 +604,9 @@ virJSONValueObjectInsert(virJSONValue *object,
         ret = VIR_INSERT_ELEMENT(object->data.object.pairs, 0,
                                  object->data.object.npairs, pair);
     } else {
-        ret = VIR_APPEND_ELEMENT(object->data.object.pairs,
-                                 object->data.object.npairs, pair);
+        VIR_APPEND_ELEMENT(object->data.object.pairs,
+                           object->data.object.npairs, pair);
+        ret = 0;
     }
 
     if (ret == 0)

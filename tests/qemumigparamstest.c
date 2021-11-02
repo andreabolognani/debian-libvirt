@@ -171,6 +171,7 @@ qemuMigParamsTestJSON(const void *opaque)
                                       data->qmpschema,
                                       false,
                                       false,
+                                      false,
                                       &debug) < 0) {
         VIR_TEST_VERBOSE("failed to validate migration params '%s' against QMP schema: %s",
                          actualJSON, virBufferCurrentContent(&debug));
@@ -218,7 +219,6 @@ mymain(void)
             ret = -1; \
     } while (0)
 
-    DO_TEST("unsupported");
     DO_TEST("empty");
     DO_TEST("basic");
     DO_TEST("tls");

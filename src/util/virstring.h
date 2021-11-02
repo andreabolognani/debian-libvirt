@@ -22,12 +22,6 @@
 
 #define VIR_INT64_STR_BUFLEN 21
 
-int virStringListMerge(char ***dst,
-                       char ***src);
-
-void virStringListFreeCount(char **strings,
-                            size_t count);
-
 int virStrToLong_i(char const *s,
                    char **end_ptr,
                    int base,

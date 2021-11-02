@@ -42,9 +42,9 @@ typedef struct _virFirewallGroup virFirewallGroup;
 VIR_ENUM_DECL(virFirewallLayerCommand);
 VIR_ENUM_IMPL(virFirewallLayerCommand,
               VIR_FIREWALL_LAYER_LAST,
-              EBTABLES_PATH,
-              IPTABLES_PATH,
-              IP6TABLES_PATH,
+              EBTABLES,
+              IPTABLES,
+              IP6TABLES,
 );
 
 struct _virFirewallRule {
@@ -99,7 +99,7 @@ static int
 virFirewallValidateBackend(virFirewallBackend backend)
 {
     const char *commands[] = {
-        IPTABLES_PATH, IP6TABLES_PATH, EBTABLES_PATH
+        IPTABLES, IP6TABLES, EBTABLES
     };
     size_t i;
 
@@ -157,11 +157,7 @@ virFirewallSetBackend(virFirewallBackend backend)
 static virFirewallGroup *
 virFirewallGroupNew(void)
 {
-    virFirewallGroup *group;
-
-    group = g_new0(virFirewallGroup, 1);
-
-    return group;
+    return g_new0(virFirewallGroup, 1);
 }
 
 
@@ -313,13 +309,9 @@ virFirewallAddRuleFullV(virFirewall *firewall,
         ADD_ARG(rule, str);
 
     if (group->addingRollback) {
-        ignore_value(VIR_APPEND_ELEMENT_COPY(group->rollback,
-                                             group->nrollback,
-                                             rule));
+        VIR_APPEND_ELEMENT_COPY(group->rollback, group->nrollback, rule);
     } else {
-        ignore_value(VIR_APPEND_ELEMENT_COPY(group->action,
-                                             group->naction,
-                                             rule));
+        VIR_APPEND_ELEMENT_COPY(group->action, group->naction, rule);
     }
 
 

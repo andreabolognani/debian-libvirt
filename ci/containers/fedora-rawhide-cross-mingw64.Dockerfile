@@ -1,8 +1,8 @@
 # THIS FILE WAS AUTO-GENERATED
 #
-#  $ lcitool dockerfile --cross mingw64 fedora-rawhide libvirt
+#  $ lcitool manifest ci/manifest.yml
 #
-# https://gitlab.com/libvirt/libvirt-ci/-/commit/1d4e10a04c6a0d29302003244a9dc4dc3c9d06f0
+# https://gitlab.com/libvirt/libvirt-ci
 
 FROM registry.fedoraproject.org/fedora:rawhide
 
@@ -61,11 +61,7 @@ exec "$@"' > /usr/bin/nosync && \
         sheepdog \
         zfs-fuse && \
     nosync dnf autoremove -y && \
-    nosync dnf clean all -y && \
-    rpm -qa | sort > /packages.txt && \
-    mkdir -p /usr/libexec/ccache-wrappers && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/x86_64-w64-mingw32-cc && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/x86_64-w64-mingw32-gcc
+    nosync dnf clean all -y
 
 RUN nosync dnf install -y \
         mingw64-curl \
@@ -81,7 +77,11 @@ RUN nosync dnf install -y \
         mingw64-pkg-config \
         mingw64-portablexdr \
         mingw64-readline && \
-    nosync dnf clean all -y
+    nosync dnf clean all -y && \
+    rpm -qa | sort > /packages.txt && \
+    mkdir -p /usr/libexec/ccache-wrappers && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/x86_64-w64-mingw32-cc && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/x86_64-w64-mingw32-gcc
 
 ENV LANG "en_US.UTF-8"
 ENV MAKE "/usr/bin/make"

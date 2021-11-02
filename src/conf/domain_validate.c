@@ -28,6 +28,7 @@
 #include "virlog.h"
 #include "virutil.h"
 #include "virstring.h"
+#include "virhostmem.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
 
@@ -49,6 +50,37 @@ virDomainDefBootValidate(const virDomainDef *def)
                        _("invalid value for rebootTimeout, "
                          "must be in range [-1,65535]"));
         return -1;
+    }
+
+    return 0;
+}
+
+
+#define APPID_LEN_MIN 1
+#define APPID_LEN_MAX 128
+
+static int
+virDomainDefResourceValidate(const virDomainDef *def)
+{
+    if (!def->resource)
+        return 0;
+
+    if (def->resource->appid) {
+        int len;
+
+        if (!virStringIsPrintable(def->resource->appid)) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("Fibre Channel 'appid' is not a printable string"));
+            return -1;
+        }
+
+        len = strlen(def->resource->appid);
+        if (len < APPID_LEN_MIN || len > APPID_LEN_MAX) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("Fibre Channel 'appid' string length must be between [%d, %d]"),
+                           APPID_LEN_MIN, APPID_LEN_MAX);
+            return -1;
+        }
     }
 
     return 0;
@@ -101,6 +133,12 @@ virDomainCheckVirtioOptionsAreAbsent(virDomainVirtioOptions *virtio)
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("packed driver option is only supported "
                          "for virtio devices"));
+        return -1;
+    }
+
+    if (virtio->page_per_vq != VIR_TRISTATE_SWITCH_ABSENT) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("page_per_vq option is only supported for virtio devices"));
         return -1;
     }
     return 0;
@@ -509,27 +547,84 @@ virDomainDiskDefValidateSource(const virStorageSource *src)
 #define VENDOR_LEN  8
 #define PRODUCT_LEN 16
 
+
+/**
+ * virDomainDiskDefSourceLUNValidate:
+ * @src: disk source struct
+ *
+ * Validate whether the disk source is valid for disk device='lun'.
+ *
+ * Returns 0 if the configuration is valid -1 and a libvirt error if the source
+ * is invalid.
+ */
+int
+virDomainDiskDefSourceLUNValidate(const virStorageSource *src)
+{
+    if (virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_NETWORK) {
+        if (src->protocol != VIR_STORAGE_NET_PROTOCOL_ISCSI) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("disk device='lun' is not supported for protocol='%s'"),
+                           virStorageNetProtocolTypeToString(src->protocol));
+            return -1;
+        }
+    } else if (!virStorageSourceIsBlockLocal(src) &&
+               src->type != VIR_STORAGE_TYPE_VOLUME) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("disk device='lun' is only valid for block type disk source"));
+        return -1;
+    }
+
+    if (src->format != VIR_STORAGE_FILE_RAW &&
+        src->format != VIR_STORAGE_FILE_NONE) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("disk device 'lun' must use 'raw' format"));
+        return -1;
+    }
+
+    if (src->sliceStorage) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("disk device 'lun' doesn't support storage slice"));
+        return -1;
+    }
+
+    if (src->encryption &&
+        src->encryption->format != VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("disk device 'lun' doesn't support encryption"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
 static int
 virDomainDiskDefValidate(const virDomainDef *def,
                          const virDomainDiskDef *disk)
 {
     virStorageSource *next;
 
+    /* disk target is used widely in other code so it must be validated first */
+    if (!disk->dst) {
+        if (disk->src->srcpool) {
+            virReportError(VIR_ERR_NO_TARGET, _("pool = '%s', volume = '%s'"),
+                           disk->src->srcpool->pool,
+                           disk->src->srcpool->volume);
+        } else {
+            virReportError(VIR_ERR_NO_TARGET,
+                           disk->src->path ? "%s" : NULL, disk->src->path);
+        }
+
+        return -1;
+    }
+
     if (virDomainDiskDefValidateSource(disk->src) < 0)
         return -1;
 
     /* Validate LUN configuration */
     if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
-        /* volumes haven't been translated at this point, so accept them */
-        if (!(disk->src->type == VIR_STORAGE_TYPE_BLOCK ||
-              disk->src->type == VIR_STORAGE_TYPE_VOLUME ||
-              (disk->src->type == VIR_STORAGE_TYPE_NETWORK &&
-               disk->src->protocol == VIR_STORAGE_NET_PROTOCOL_ISCSI))) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk '%s' improperly configured for a "
-                             "device='lun'"), disk->dst);
+        if (virDomainDiskDefSourceLUNValidate(disk->src) < 0)
             return -1;
-        }
     } else {
         if (disk->src->pr) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -701,19 +796,6 @@ virDomainDiskDefValidate(const virDomainDef *def,
 
     if (disk->wwn && !virValidateWWN(disk->wwn))
         return -1;
-
-    if (!disk->dst) {
-        if (disk->src->srcpool) {
-            virReportError(VIR_ERR_NO_TARGET, _("pool = '%s', volume = '%s'"),
-                           disk->src->srcpool->pool,
-                           disk->src->srcpool->volume);
-        } else {
-            virReportError(VIR_ERR_NO_TARGET,
-                           disk->src->path ? "%s" : NULL, disk->src->path);
-        }
-
-        return -1;
-    }
 
     if ((disk->device == VIR_DOMAIN_DISK_DEVICE_DISK ||
          disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) &&
@@ -1538,6 +1620,9 @@ static int
 virDomainDefValidateInternal(const virDomainDef *def,
                              virDomainXMLOption *xmlopt)
 {
+    if (virDomainDefResourceValidate(def) < 0)
+        return -1;
+
     if (virDomainDefDuplicateDiskInfoValidate(def) < 0)
         return -1;
 
@@ -1888,6 +1973,8 @@ static int
 virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
                            const virDomainDef *def)
 {
+    unsigned long long thpSize;
+
     switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         if (!mem->nvdimmPath) {
@@ -1941,6 +2028,42 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
                            _("virtio-pmem does not support NUMA nodes"));
             return -1;
         }
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        if (mem->requestedsize > mem->size) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("requested size must be smaller than or equal to @size"));
+            return -1;
+        }
+
+        if (!VIR_IS_POW2(mem->blocksize)) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("block size must be a power of two"));
+            return -1;
+        }
+
+        if (virHostMemGetTHPSize(&thpSize) < 0) {
+            /* We failed to get THP size, fall back to a sane default. On
+             * almost every architecture the size will be 2MiB, except for some
+             * funky arches like sparc and m68k. Use 2MiB and refine later if
+             * somebody complains. */
+            thpSize = 2048;
+        }
+
+        if (mem->blocksize < thpSize) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("block size too small, must be at least %lluKiB"),
+                           thpSize);
+            return -1;
+        }
+
+        if (mem->requestedsize % mem->blocksize != 0) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("requested size must be an integer multiple of block size"));
+            return -1;
+        }
+        break;
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
         break;
@@ -2212,11 +2335,11 @@ virDomainDeviceDefValidate(const virDomainDeviceDef *dev,
     if (parseFlags & VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE)
         return 0;
 
-    if (xmlopt->config.deviceValidateCallback &&
-        xmlopt->config.deviceValidateCallback(dev, def, xmlopt->config.priv, parseOpaque))
+    if (virDomainDeviceDefValidateInternal(dev, def) < 0)
         return -1;
 
-    if (virDomainDeviceDefValidateInternal(dev, def) < 0)
+    if (xmlopt->config.deviceValidateCallback &&
+        xmlopt->config.deviceValidateCallback(dev, def, xmlopt->config.priv, parseOpaque))
         return -1;
 
     return 0;

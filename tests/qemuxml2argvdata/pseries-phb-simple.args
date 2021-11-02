@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-ppc64 \
--name QEMUGuest1 \
+-name guest=QEMUGuest1,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
 -machine pseries,accel=tcg,usb=off,dump-guest-core=off \
 -m 512 \
 -realtime mlock=off \
@@ -22,5 +23,7 @@ QEMU_AUDIO_DRV=none \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \
+-boot strict=on \
 -device spapr-pci-host-bridge,index=1,id=pci.1 \
--device spapr-pci-host-bridge,index=2,id=pci.2
+-device spapr-pci-host-bridge,index=2,id=pci.2 \
+-msg timestamp=on

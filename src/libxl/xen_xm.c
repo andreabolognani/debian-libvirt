@@ -238,9 +238,9 @@ xenParseXMDisk(char *entry, int hvm)
 static int
 xenParseXMDiskList(virConf *conf, virDomainDef *def)
 {
-    char **disks = NULL, **entries;
+    g_auto(GStrv) disks = NULL;
+    GStrv entries;
     int hvm = def->os.type == VIR_DOMAIN_OSTYPE_HVM;
-    int ret = -1;
     int rc;
 
     rc = virConfGetValueStringList(conf, "disk", false, &disks);
@@ -255,18 +255,10 @@ xenParseXMDiskList(virConf *conf, virDomainDef *def)
             continue;
 
         /* Maintain list in sorted order according to target device name */
-        rc = VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk);
-        virDomainDiskDefFree(disk);
-
-        if (rc < 0)
-            goto cleanup;
+        VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk);
     }
 
-    ret = 0;
-
- cleanup:
-    g_strfreev(disks);
-    return ret;
+    return 0;
 }
 
 
@@ -402,10 +394,7 @@ xenParseXMInputDevs(virConf *conf, virDomainDef *def)
                 input->type = VIR_DOMAIN_INPUT_TYPE_TABLET;
             else if (STREQ(str, "keyboard"))
                 input->type = VIR_DOMAIN_INPUT_TYPE_KBD;
-            if (VIR_APPEND_ELEMENT(def->inputs, def->ninputs, input) < 0) {
-                virDomainInputDefFree(input);
-                return -1;
-            }
+            VIR_APPEND_ELEMENT(def->inputs, def->ninputs, input);
         }
     }
     return 0;
@@ -421,7 +410,7 @@ xenParseXM(virConf *conf,
 {
     virDomainDef *def = NULL;
 
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(xmlopt)))
         return NULL;
 
     def->virtType = VIR_DOMAIN_VIRT_XEN;

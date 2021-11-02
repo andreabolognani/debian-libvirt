@@ -73,6 +73,10 @@ static const vshCmdInfo info_secret_define[] = {
 
 static const vshCmdOptDef opts_secret_define[] = {
     VIRSH_COMMON_OPT_FILE(N_("file containing secret attributes in XML")),
+    {.name = "validate",
+     .type = VSH_OT_BOOL,
+     .help = N_("validate the XML against the schema")
+    },
     {.name = NULL}
 };
 
@@ -80,19 +84,23 @@ static bool
 cmdSecretDefine(vshControl *ctl, const vshCmd *cmd)
 {
     const char *from = NULL;
-    char *buffer;
+    g_autofree char *buffer = NULL;
     virSecretPtr res;
     char uuid[VIR_UUID_STRING_BUFLEN];
     bool ret = false;
+    unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
         return false;
 
+    if (vshCommandOptBool(cmd, "validate"))
+        flags |= VIR_SECRET_DEFINE_VALIDATE;
+
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
         return false;
 
-    if (!(res = virSecretDefineXML(priv->conn, buffer, 0))) {
+    if (!(res = virSecretDefineXML(priv->conn, buffer, flags))) {
         vshError(ctl, _("Failed to set attributes from %s"), from);
         goto cleanup;
     }
@@ -106,7 +114,6 @@ cmdSecretDefine(vshControl *ctl, const vshCmd *cmd)
     ret = true;
 
  cleanup:
-    VIR_FREE(buffer);
     virshSecretFree(res);
     return ret;
 }
@@ -139,7 +146,7 @@ cmdSecretDumpXML(vshControl *ctl, const vshCmd *cmd)
 {
     virSecretPtr secret;
     bool ret = false;
-    char *xml;
+    g_autofree char *xml = NULL;
 
     secret = virshCommandOptSecret(ctl, cmd, NULL);
     if (secret == NULL)
@@ -149,7 +156,6 @@ cmdSecretDumpXML(vshControl *ctl, const vshCmd *cmd)
     if (xml == NULL)
         goto cleanup;
     vshPrint(ctl, "%s", xml);
-    VIR_FREE(xml);
     ret = true;
 
  cleanup:
@@ -180,6 +186,7 @@ static const vshCmdOptDef opts_secret_set_value[] = {
     {.name = "file",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_REQ_OPT,
+     .completer = virshCompletePathLocalExisting,
      .help = N_("read secret from file"),
     },
     {.name = "plain",
@@ -192,6 +199,7 @@ static const vshCmdOptDef opts_secret_set_value[] = {
     },
     {.name = "base64",
      .type = VSH_OT_STRING,
+     .completer = virshCompleteEmpty,
      .help = N_("base64-encoded secret value")
     },
     {.name = NULL}
@@ -551,7 +559,7 @@ cmdSecretList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     struct virshSecretList *list = NULL;
     bool ret = false;
     unsigned int flags = 0;
-    vshTable *table = NULL;
+    g_autoptr(vshTable) table = NULL;
 
     if (vshCommandOptBool(cmd, "ephemeral"))
         flags |= VIR_CONNECT_LIST_SECRETS_EPHEMERAL;
@@ -605,7 +613,6 @@ cmdSecretList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     ret = true;
 
  cleanup:
-    vshTableFree(table);
     virshSecretListFree(list);
     return ret;
 }

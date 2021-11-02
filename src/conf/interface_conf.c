@@ -819,14 +819,15 @@ virInterfaceDefParseNode(xmlDocPtr xml,
 
 static virInterfaceDef *
 virInterfaceDefParse(const char *xmlStr,
-                     const char *filename)
+                     const char *filename,
+                     unsigned int flags)
 {
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
     virInterfaceDef *def = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(interface_definition)")))) {
+    if ((xml = virXMLParse(filename, xmlStr, _("(interface_definition)"), "interface.rng",
+                           flags & VIR_INTERFACE_DEFINE_VALIDATE))) {
         def = virInterfaceDefParseNode(xml, xmlDocGetRootElement(xml));
-        xmlFreeDoc(xml);
     }
 
     return def;
@@ -834,16 +835,17 @@ virInterfaceDefParse(const char *xmlStr,
 
 
 virInterfaceDef *
-virInterfaceDefParseString(const char *xmlStr)
+virInterfaceDefParseString(const char *xmlStr,
+                           unsigned int flags)
 {
-    return virInterfaceDefParse(xmlStr, NULL);
+    return virInterfaceDefParse(xmlStr, NULL, flags);
 }
 
 
 virInterfaceDef *
 virInterfaceDefParseFile(const char *filename)
 {
-    return virInterfaceDefParse(NULL, filename);
+    return virInterfaceDefParse(NULL, filename, 0);
 }
 
 

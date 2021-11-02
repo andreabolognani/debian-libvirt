@@ -105,8 +105,7 @@ virCommand *qemuProcessCreatePretendCmdBuild(virQEMUDriver *driver,
                                                virDomainObj *vm,
                                                const char *migrateURI,
                                                bool enableFips,
-                                               bool standalone,
-                                               bool jsonPropsValidation);
+                                               bool standalone);
 
 int qemuProcessInit(virQEMUDriver *driver,
                     virDomainObj *vm,
@@ -242,3 +241,5 @@ void qemuProcessQMPFree(qemuProcessQMP *proc);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuProcessQMP, qemuProcessQMPFree);
 
 int qemuProcessQMPStart(qemuProcessQMP *proc);
+
+bool qemuProcessRebootAllowed(const virDomainDef *def);

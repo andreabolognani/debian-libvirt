@@ -35,17 +35,16 @@ static int
 testMACLookup(const void *opaque)
 {
     const struct testData *data = opaque;
-    virMacMap *mgr = NULL;
+    g_autoptr(virMacMap) mgr = NULL;
     GSList *macs;
     GSList *next;
     size_t i, j;
-    char *file = NULL;
-    int ret = -1;
+    g_autofree char *file = NULL;
 
     file = g_strdup_printf("%s/virmacmaptestdata/%s.json", abs_srcdir, data->file);
 
     if (!(mgr = virMacMapNew(file)))
-        goto cleanup;
+        return -1;
 
     macs = virMacMapLookup(mgr, data->domain);
 
@@ -59,7 +58,7 @@ testMACLookup(const void *opaque)
             fprintf(stderr,
                     "Unexpected %s in the returned list of MACs\n",
                     (const char *) next->data);
-            goto cleanup;
+            return -1;
         }
     }
 
@@ -72,15 +71,11 @@ testMACLookup(const void *opaque)
         if (!next) {
             fprintf(stderr,
                     "Expected %s in the returned list of MACs\n", data->macs[i]);
-            goto cleanup;
+            return -1;
         }
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(file);
-    virObjectUnref(mgr);
-    return ret;
+    return 0;
 }
 
 
@@ -88,22 +83,21 @@ static int
 testMACRemove(const void *opaque)
 {
     const struct testData *data = opaque;
-    virMacMap *mgr = NULL;
+    g_autoptr(virMacMap) mgr = NULL;
     GSList *macs;
     size_t i;
-    char *file = NULL;
-    int ret = -1;
+    g_autofree char *file = NULL;
 
     file = g_strdup_printf("%s/virmacmaptestdata/%s.json", abs_srcdir, data->file);
 
     if (!(mgr = virMacMapNew(file)))
-        goto cleanup;
+        return -1;
 
     for (i = 0; data->macs && data->macs[i]; i++) {
         if (virMacMapRemove(mgr, data->domain, data->macs[i]) < 0) {
             fprintf(stderr,
                     "Error when removing %s from the list of MACs\n", data->macs[i]);
-            goto cleanup;
+            return -1;
         }
     }
 
@@ -111,14 +105,10 @@ testMACRemove(const void *opaque)
         fprintf(stderr,
                 "Not removed all MACs for domain %s: %s\n",
                 data->domain, (const char *) macs->data);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(file);
-    virObjectUnref(mgr);
-    return ret;
+    return 0;
 }
 
 
@@ -126,23 +116,18 @@ static int
 testMACFlush(const void *opaque)
 {
     const struct testData *data = opaque;
-    char *file = NULL;
-    char *str = NULL;
-    int ret = -1;
+    g_autofree char *file = NULL;
+    g_autofree char *str = NULL;
 
     file = g_strdup_printf("%s/virmacmaptestdata/%s.json", abs_srcdir, data->file);
 
     if (virMacMapDumpStr(data->mgr, &str) < 0)
-        goto cleanup;
+        return -1;
 
     if (virTestCompareToFile(str, file) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(file);
-    VIR_FREE(str);
-    return ret;
+    return 0;
 }
 
 

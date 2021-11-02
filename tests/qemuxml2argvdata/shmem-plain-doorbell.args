@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-i386 \
--name QEMUGuest1 \
+-name guest=QEMUGuest1,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
 -machine pc,accel=tcg,usb=off,dump-guest-core=off \
 -m 214 \
 -realtime mlock=off \
@@ -23,6 +24,7 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -usb \
 -object memory-backend-file,id=shmmem-shmem0,mem-path=/dev/shm/shmem0,size=4194304,share=on \
 -device ivshmem-plain,id=shmem0,memdev=shmmem-shmem0,bus=pci.0,addr=0x2 \
@@ -39,4 +41,5 @@ QEMU_AUDIO_DRV=none \
 -device ivshmem-doorbell,id=shmem6,chardev=charshmem6,vectors=16,ioeventfd=on,bus=pci.0,addr=0x8 \
 -chardev socket,id=charshmem6,path=/tmp/shmem6-sock \
 -device ivshmem-doorbell,id=shmem7,chardev=charshmem7,vectors=32,ioeventfd=on,bus=pci.0,addr=0x9 \
--chardev socket,id=charshmem7,path=/tmp/shmem7-sock
+-chardev socket,id=charshmem7,path=/tmp/shmem7-sock \
+-msg timestamp=on

@@ -8,10 +8,11 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-lots-of-disks/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-lots-of-disks/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name lots-of-disks \
+-name guest=lots-of-disks,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-lots-of-disks/master-key.aes \
 -machine pc-i440fx-1.4,accel=tcg,usb=off,dump-guest-core=off \
--cpu qemu64,-kvmclock \
+-cpu qemu64,kvmclock=off \
 -bios /usr/share/seabios/bios.bin \
 -m 3907 \
 -realtime mlock=off \
@@ -24,6 +25,7 @@ QEMU_AUDIO_DRV=none \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \
+-boot strict=on \
 -device pci-bridge,chassis_nr=1,id=pci.1,bus=pci.0,addr=0x2 \
 -device pci-bridge,chassis_nr=2,id=pci.2,bus=pci.0,addr=0x3 \
 -device pci-bridge,chassis_nr=3,id=pci.3,bus=pci.0,addr=0x4 \
@@ -237,4 +239,5 @@ QEMU_AUDIO_DRV=none \
 -drive file=/var/lib/libvirt/images/disk-z-c.img,format=raw,if=none,id=drive-virtio-disk678 \
 -device virtio-blk-pci,bus=pci.3,addr=0xf,drive=drive-virtio-disk678,id=virtio-disk678 \
 -drive file=/var/lib/libvirt/images/disk-z-d.img,format=raw,if=none,id=drive-virtio-disk679 \
--device virtio-blk-pci,bus=pci.3,addr=0x10,drive=drive-virtio-disk679,id=virtio-disk679
+-device virtio-blk-pci,bus=pci.3,addr=0x10,drive=drive-virtio-disk679,id=virtio-disk679 \
+-msg timestamp=on

@@ -113,17 +113,31 @@ virNetworkPtr           virNetworkLookupByUUID          (virConnectPtr conn,
 virNetworkPtr           virNetworkLookupByUUIDString    (virConnectPtr conn,
                                                          const char *uuid);
 
+typedef enum {
+    VIR_NETWORK_CREATE_VALIDATE = 1 << 0, /* Validate the XML document against schema */
+} virNetworkCreateFlags;
+
 /*
  * Create active transient network
  */
 virNetworkPtr           virNetworkCreateXML     (virConnectPtr conn,
                                                  const char *xmlDesc);
+virNetworkPtr           virNetworkCreateXMLFlags(virConnectPtr conn,
+                                                 const char *xmlDesc,
+                                                 unsigned int flags);
+
+typedef enum {
+    VIR_NETWORK_DEFINE_VALIDATE = 1 << 0, /* Validate the XML document against schema */
+} virNetworkDefineFlags;
 
 /*
  * Define inactive persistent network
  */
 virNetworkPtr           virNetworkDefineXML     (virConnectPtr conn,
                                                  const char *xmlDesc);
+virNetworkPtr           virNetworkDefineXMLFlags(virConnectPtr conn,
+                                                 const char *xmlDesc,
+                                                 unsigned int flags);
 
 /*
  * Delete persistent network
@@ -360,6 +374,7 @@ virNetworkPortLookupByUUIDString(virNetworkPtr net,
 
 typedef enum {
     VIR_NETWORK_PORT_CREATE_RECLAIM = (1 << 0), /* reclaim existing used resources */
+    VIR_NETWORK_PORT_CREATE_VALIDATE = (1 << 1), /* Validate the XML document against schema */
 } virNetworkPortCreateFlags;
 
 virNetworkPortPtr

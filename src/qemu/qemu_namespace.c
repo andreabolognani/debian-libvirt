@@ -251,8 +251,7 @@ qemuDomainSetupDisk(virStorageSource *src,
             if (!(tmpPath = virPCIDeviceAddressGetIOMMUGroupDev(&next->nvme->pciAddr)))
                 return -1;
         } else {
-            g_auto(GStrv) targetPaths = NULL;
-            GStrv tmp;
+            GSList *targetPaths;
 
             if (virStorageSourceIsEmpty(next) ||
                 !virStorageSourceIsLocalStorage(next)) {
@@ -270,10 +269,8 @@ qemuDomainSetupDisk(virStorageSource *src,
                 return -1;
             }
 
-            if (targetPaths) {
-                for (tmp = targetPaths; *tmp; tmp++)
-                    *paths = g_slist_prepend(*paths, g_steal_pointer(tmp));
-            }
+            if (targetPaths)
+                *paths = g_slist_concat(g_slist_reverse(targetPaths), *paths);
         }
 
         *paths = g_slist_prepend(*paths, g_steal_pointer(&tmpPath));
@@ -682,7 +679,8 @@ qemuDomainUnshareNamespace(virQEMUDriverConfig *cfg,
                            virDomainObj *vm)
 {
     const char *devPath = NULL;
-    char **devMountsPath = NULL, **devMountsSavePath = NULL;
+    g_auto(GStrv) devMountsPath = NULL;
+    g_auto(GStrv) devMountsSavePath = NULL;
     size_t ndevMountsPath = 0, i;
     int ret = -1;
 
@@ -791,8 +789,6 @@ qemuDomainUnshareNamespace(virQEMUDriverConfig *cfg,
         else
             unlink(devMountsSavePath[i]);
     }
-    virStringListFreeCount(devMountsPath, ndevMountsPath);
-    virStringListFreeCount(devMountsSavePath, ndevMountsPath);
     return ret;
 }
 
@@ -1187,17 +1183,14 @@ qemuNamespacePrepareOneItem(qemuNamespaceMknodData *data,
                             virQEMUDriverConfig *cfg,
                             virDomainObj *vm,
                             const char *file,
-                            char * const *devMountsPath,
-                            size_t ndevMountsPath)
+                            GStrv devMountsPath)
 {
     long ttl = sysconf(_SC_SYMLOOP_MAX);
     g_autofree char *next = g_strdup(file);
-    size_t i;
 
     while (1) {
         g_auto(qemuNamespaceMknodItem) item = { 0 };
         bool isLink;
-        bool addToData = false;
         int rc;
 
         rc = qemuNamespaceMknodItemInit(&item, cfg, vm, next);
@@ -1210,25 +1203,25 @@ qemuNamespacePrepareOneItem(qemuNamespaceMknodData *data,
         }
 
         isLink = S_ISLNK(item.sb.st_mode);
-
-        if (STRPREFIX(next, QEMU_DEVPREFIX)) {
-            for (i = 0; i < ndevMountsPath; i++) {
-                if (STREQ(devMountsPath[i], "/dev"))
-                    continue;
-                if (STRPREFIX(next, devMountsPath[i]))
-                    break;
-            }
-
-            if (i == ndevMountsPath)
-                addToData = true;
-        }
-
         g_free(next);
         next = g_strdup(item.target);
 
-        if (addToData &&
-            VIR_APPEND_ELEMENT(data->items, data->nitems, item) < 0)
-            return -1;
+        if (STRPREFIX(item.file, QEMU_DEVPREFIX)) {
+            GStrv n;
+            bool found = false;
+
+            for (n = devMountsPath; n && *n; n++) {
+                if (STREQ(*n, "/dev"))
+                    continue;
+                if (STRPREFIX(item.file, *n)) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+                VIR_APPEND_ELEMENT(data->items, data->nitems, item);
+        }
 
         if (!isLink)
             break;
@@ -1253,8 +1246,7 @@ qemuNamespaceMknodPaths(virDomainObj *vm,
     qemuDomainObjPrivate *priv = vm->privateData;
     virQEMUDriver *driver = priv->driver;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
-    char **devMountsPath = NULL;
-    size_t ndevMountsPath = 0;
+    g_auto(GStrv) devMountsPath = NULL;
     qemuNamespaceMknodData data = { 0 };
     size_t i;
     int ret = -1;
@@ -1264,9 +1256,7 @@ qemuNamespaceMknodPaths(virDomainObj *vm,
         return 0;
 
     cfg = virQEMUDriverGetConfig(driver);
-    if (qemuDomainGetPreservedMounts(cfg, vm,
-                                     &devMountsPath, NULL,
-                                     &ndevMountsPath) < 0)
+    if (qemuDomainGetPreservedMounts(cfg, vm, &devMountsPath, NULL, NULL) < 0)
         return -1;
 
     data.driver = driver;
@@ -1275,8 +1265,7 @@ qemuNamespaceMknodPaths(virDomainObj *vm,
     for (next = paths; next; next = next->next) {
         const char *path = next->data;
 
-        if (qemuNamespacePrepareOneItem(&data, cfg, vm, path,
-                                        devMountsPath, ndevMountsPath) < 0)
+        if (qemuNamespacePrepareOneItem(&data, cfg, vm, path, devMountsPath) < 0)
             goto cleanup;
     }
 
@@ -1308,7 +1297,6 @@ qemuNamespaceMknodPaths(virDomainObj *vm,
         }
     }
     qemuNamespaceMknodDataClear(&data);
-    virStringListFreeCount(devMountsPath, ndevMountsPath);
     return ret;
 }
 

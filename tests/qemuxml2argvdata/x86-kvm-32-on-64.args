@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-kvm/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-kvm/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name kvm \
+-name guest=kvm,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-kvm/master-key.aes \
 -machine pc,accel=kvm,usb=off,dump-guest-core=off \
 -cpu qemu32 \
 -m 4096 \
@@ -23,4 +24,6 @@ QEMU_AUDIO_DRV=none \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \
--no-acpi
+-no-acpi \
+-boot strict=on \
+-msg timestamp=on

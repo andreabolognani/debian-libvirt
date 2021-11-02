@@ -576,6 +576,17 @@
     </element>
   </define>
 
+  <define name="fibrechannel">
+    <element name="fibrechannel">
+      <attribute name="appid">
+        <data type="string">
+          <!-- All printable characters -->
+          <param name="pattern">[&#x20;-&#x7E;]{1,128}</param>
+        </data>
+      </attribute>
+    </element>
+  </define>
+
   <!--
       The Identifiers can be:
       - an optional id attribute with a number on the domain element
@@ -1172,9 +1183,14 @@
 
   <define name="respartition">
     <element name="resource">
-      <element name="partition">
-        <ref name="absFilePath"/>
-      </element>
+      <optional>
+        <element name="partition">
+          <ref name="absFilePath"/>
+        </element>
+      </optional>
+      <optional>
+        <ref name="fibrechannel"/>
+      </optional>
     </element>
   </define>
 
@@ -2344,6 +2360,11 @@
       </optional>
       <optional>
         <attribute name="queues">
+          <ref name="positiveInteger"/>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="queue_size">
           <ref name="positiveInteger"/>
         </attribute>
       </optional>
@@ -6579,6 +6600,7 @@
           <value>dimm</value>
           <value>nvdimm</value>
           <value>virtio-pmem</value>
+          <value>virtio-mem</value>
         </choice>
       </attribute>
       <optional>
@@ -6664,6 +6686,21 @@
         <optional>
           <element name="node">
             <ref name="unsignedInt"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="block">
+            <ref name="scaledInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="requested">
+            <ref name="scaledInteger"/>
+          </element>
+        </optional>
+        <optional>
+          <element name="current">
+            <ref name="scaledInteger"/>
           </element>
         </optional>
         <optional>
@@ -6770,6 +6807,11 @@
     </optional>
     <optional>
       <attribute name="packed">
+        <ref name="virOnOff"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="page_per_vq">
         <ref name="virOnOff"/>
       </attribute>
     </optional>

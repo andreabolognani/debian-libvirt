@@ -121,14 +121,13 @@ virStorageBackendLogicalParseVolExtents(virStorageVolDef *vol,
     g_autoptr(GRegex) re = NULL;
     g_autoptr(GError) err = NULL;
     g_autoptr(GMatchInfo) info = NULL;
-    int nextents, ret = -1;
+    int nextents;
     const char *regex_unit = "(\\S+)\\((\\S+)\\)";
     size_t i;
-    unsigned long long offset, size, length;
-    virStorageVolSourceExtent extent;
+    unsigned long long offset;
+    unsigned long long size;
+    unsigned long long length;
     g_autofree char *regex = NULL;
-
-    memset(&extent, 0, sizeof(extent));
 
     /* Assume 1 extent (the regex for 'devices' is "(\\S+)") and only
      * check the 'stripes' field if we have a striped, mirror, or one of
@@ -144,20 +143,20 @@ virStorageBackendLogicalParseVolExtents(virStorageVolDef *vol,
         if (virStrToLong_i(groups[5], NULL, 10, &nextents) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("malformed volume extent stripes value"));
-            goto cleanup;
+            return -1;
         }
     }
 
     if (virStrToLong_ull(groups[6], NULL, 10, &length) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "%s", _("malformed volume extent length value"));
-        goto cleanup;
+        return -1;
     }
 
     if (virStrToLong_ull(groups[7], NULL, 10, &size) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "%s", _("malformed volume extent size value"));
-        goto cleanup;
+        return -1;
     }
 
     /* Allocate space for 'nextents' regex_unit strings plus a comma for each */
@@ -179,38 +178,35 @@ virStorageBackendLogicalParseVolExtents(virStorageVolDef *vol,
     if (!g_regex_match(re, groups[3], 0, &info)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("malformed volume extent devices value"));
-        goto cleanup;
+        return -1;
     }
 
     /* Each extent has a "path:offset" pair, and match #0
      * is the whole matched string.
      */
     for (i = 0; i < nextents; i++) {
-        size_t j;
         g_autofree char *offset_str = NULL;
+        virStorageVolSourceExtent extent;
+        size_t j = (i * 2) + 1;
 
-        j = (i * 2) + 1;
-        extent.path = g_match_info_fetch(info, j);
+        memset(&extent, 0, sizeof(extent));
+
         offset_str = g_match_info_fetch(info, j + 1);
 
         if (virStrToLong_ull(offset_str, NULL, 10, &offset) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("malformed volume extent offset value"));
-            goto cleanup;
+            return -1;
         }
+
+        extent.path = g_match_info_fetch(info, j);
         extent.start = offset * size;
         extent.end = (offset * size) + length;
 
-        if (VIR_APPEND_ELEMENT(vol->source.extents, vol->source.nextent,
-                               extent) < 0)
-            goto cleanup;
+        VIR_APPEND_ELEMENT(vol->source.extents, vol->source.nextent, extent);
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(extent.path);
-    return ret;
+    return 0;
 }
 
 

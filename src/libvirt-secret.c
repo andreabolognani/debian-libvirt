@@ -156,6 +156,9 @@ virConnectListAllSecrets(virConnectPtr conn,
  *
  * List UUIDs of defined secrets, store pointers to names in uuids.
  *
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllSecrets().
+ *
  * Returns the number of UUIDs provided in the array, or -1 on failure.
  */
 int
@@ -316,7 +319,7 @@ virSecretLookupByUsage(virConnectPtr conn,
  * virSecretDefineXML:
  * @conn: virConnect connection
  * @xml: XML describing the secret.
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of virSecretDefineFlags
  *
  * If XML specifies a UUID, locates the specified secret and replaces all
  * attributes of the secret specified by UUID by attributes specified in xml

@@ -43,9 +43,17 @@ void virResizeN(void *ptrptr, size_t size, size_t *alloc, size_t count, size_t d
 void virShrinkN(void *ptrptr, size_t size, size_t *count, size_t toremove)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(3);
 int virInsertElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
-                       size_t add, void *newelem,
+                       size_t typematchDummy, void *newelem,
                        bool clearOriginal, bool inPlace)
     G_GNUC_WARN_UNUSED_RESULT ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4);
+void virAppendElement(void *ptrptr,
+                      size_t size,
+                      size_t *countptr,
+                      size_t typematchDummy,
+                      void *newelem,
+                      bool clearOriginal,
+                      bool inPlace)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4);
 int virDeleteElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
                        size_t toremove, bool inPlace)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4);
@@ -182,12 +190,6 @@ int virDeleteElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
  * VIR_INSERT_ELEMENT_INPLACE is identical, but assumes any necessary
  * memory re-allocation has already been done.
  *
- * Both functions need to send "1" as the "add" argument to
- * virInsertElementsN (which has the currently-unused capability of
- * inserting multiple items at once). We use this to our advantage by
- * replacing it with VIR_TYPECHECK(ptr, &newelem) so that we can be
- * assured ptr and &newelem are of compatible types.
- *
  * These macros are safe to use on arguments with side effects.
  *
  * Returns -1 on failure (with OOM error reported), 0 on success
@@ -224,34 +226,22 @@ int virDeleteElementsN(void *ptrptr, size_t size, size_t at, size_t *countptr,
  * VIR_APPEND_ELEMENT_*INPLACE are identical, but assume any
  *   necessary memory re-allocation has already been done.
  *
- * VIR_APPEND_ELEMENT_* all need to send "1" as the "add" argument to
- * virInsertElementsN (which has the currently-unused capability of
- * inserting multiple items at once). We use this to our advantage by
- * replacing it with VIR_TYPECHECK(ptr, &newelem) so that we can be
- * assured ptr and &newelem are of compatible types.
- *
  * These macros are safe to use on arguments with side effects.
- *
- * Returns -1 on failure (with OOM error reported), 0 on success
  */
 #define VIR_APPEND_ELEMENT(ptr, count, newelem) \
-    virInsertElementsN(&(ptr), sizeof(*(ptr)), -1, &(count), \
-                       VIR_TYPEMATCH(ptr, &(newelem)), &(newelem), true, false)
+    virAppendElement(&(ptr), sizeof(*(ptr)), &(count), \
+                     VIR_TYPEMATCH(ptr, &(newelem)), &(newelem), true, false)
 #define VIR_APPEND_ELEMENT_COPY(ptr, count, newelem) \
-    virInsertElementsN(&(ptr), sizeof(*(ptr)), -1, &(count), \
-                       VIR_TYPEMATCH(ptr, &(newelem)), &(newelem), false, false)
+    virAppendElement(&(ptr), sizeof(*(ptr)), &(count), \
+                     VIR_TYPEMATCH(ptr, &(newelem)), &(newelem), false, false)
 #define VIR_APPEND_ELEMENT_INPLACE(ptr, count, newelem) \
-    ignore_value(virInsertElementsN(&(ptr), sizeof(*(ptr)), -1, &(count), \
-                                    VIR_TYPEMATCH(ptr, &(newelem)), \
-                                    &(newelem), true, true))
+    virAppendElement(&(ptr), sizeof(*(ptr)), &(count), \
+                     VIR_TYPEMATCH(ptr, &(newelem)), \
+                     &(newelem), true, true)
 #define VIR_APPEND_ELEMENT_COPY_INPLACE(ptr, count, newelem) \
-    ignore_value(virInsertElementsN(&(ptr), sizeof(*(ptr)), -1, &(count), \
-                                    VIR_TYPEMATCH(ptr, &(newelem)), \
-                                    &(newelem), false, true))
-
-/* Quiet version of macros above */
-#define VIR_APPEND_ELEMENT_QUIET(ptr, count, newelem) \
-    VIR_APPEND_ELEMENT(ptr, count, newelem)
+    virAppendElement(&(ptr), sizeof(*(ptr)), &(count), \
+                     VIR_TYPEMATCH(ptr, &(newelem)), \
+                     &(newelem), false, true)
 
 /**
  * VIR_DELETE_ELEMENT:

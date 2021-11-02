@@ -318,7 +318,7 @@ virNetworkDefCopy(virNetworkDef *def,
     if (!(xml = virNetworkDefFormat(def, xmlopt, flags)))
        return NULL;
 
-    return virNetworkDefParseString(xml, xmlopt);
+    return virNetworkDefParseString(xml, xmlopt, false);
 }
 
 
@@ -643,8 +643,7 @@ virNetworkDHCPDefParseXML(const char *networkName,
 
             if (virNetworkDHCPRangeDefParseXML(networkName, def, cur, &range) < 0)
                 goto cleanup;
-            if (VIR_APPEND_ELEMENT(def->ranges, def->nranges, range) < 0)
-                goto cleanup;
+            VIR_APPEND_ELEMENT(def->ranges, def->nranges, range);
 
         } else if (cur->type == XML_ELEMENT_NODE &&
             virXMLNodeNameEqual(cur, "host")) {
@@ -652,8 +651,7 @@ virNetworkDHCPDefParseXML(const char *networkName,
             if (virNetworkDHCPHostDefParseXML(networkName, def, cur,
                                               &host, false) < 0)
                 goto cleanup;
-            if (VIR_APPEND_ELEMENT(def->hosts, def->nhosts, host) < 0)
-                goto cleanup;
+            VIR_APPEND_ELEMENT(def->hosts, def->nhosts, host);
         } else if (VIR_SOCKET_ADDR_IS_FAMILY(&def->address, AF_INET) &&
                    cur->type == XML_ELEMENT_NODE &&
                    virXMLNodeNameEqual(cur, "bootp")) {
@@ -726,8 +724,7 @@ virNetworkDNSHostDefParseXML(const char *networkName,
                                      networkName);
                       goto error;
                   }
-                  if (VIR_APPEND_ELEMENT(def->names, def->nnames, name) < 0)
-                      goto error;
+                  VIR_APPEND_ELEMENT(def->names, def->nnames, name);
               }
         }
         cur = cur->next;
@@ -2088,13 +2085,15 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
 static virNetworkDef *
 virNetworkDefParse(const char *xmlStr,
                    const char *filename,
-                   virNetworkXMLOption *xmlopt)
+                   virNetworkXMLOption *xmlopt,
+                   bool validate)
 {
     g_autoptr(xmlDoc) xml = NULL;
     virNetworkDef *def = NULL;
     int keepBlanksDefault = xmlKeepBlanksDefault(0);
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(network_definition)"))))
+    if ((xml = virXMLParse(filename, xmlStr, _("(network_definition)"),
+                           "network.rng", validate)))
         def = virNetworkDefParseNode(xml, xmlDocGetRootElement(xml), xmlopt);
 
     xmlKeepBlanksDefault(keepBlanksDefault);
@@ -2104,9 +2103,10 @@ virNetworkDefParse(const char *xmlStr,
 
 virNetworkDef *
 virNetworkDefParseString(const char *xmlStr,
-                         virNetworkXMLOption *xmlopt)
+                         virNetworkXMLOption *xmlopt,
+                         bool validate)
 {
-    return virNetworkDefParse(xmlStr, NULL, xmlopt);
+    return virNetworkDefParse(xmlStr, NULL, xmlopt, validate);
 }
 
 
@@ -2114,7 +2114,7 @@ virNetworkDef *
 virNetworkDefParseFile(const char *filename,
                        virNetworkXMLOption *xmlopt)
 {
-    return virNetworkDefParse(NULL, filename, xmlopt);
+    return virNetworkDefParse(NULL, filename, xmlopt, false);
 }
 
 

@@ -584,7 +584,7 @@ libxlAddDom0(libxlDriverPrivate *driver)
      * created.
      */
     if ((vm = virDomainObjListFindByID(driver->domains, 0)) == NULL) {
-        if (!(def = virDomainDefNew()))
+        if (!(def = virDomainDefNew(driver->xmlopt)))
             goto cleanup;
 
         def->id = 0;
@@ -821,13 +821,9 @@ libxlStateReload(void)
     virDomainObjListLoadAllConfigs(libxl_driver->domains,
                                    cfg->configDir,
                                    cfg->autostartDir,
-                                   true,
+                                   false,
                                    libxl_driver->xmlopt,
                                    NULL, libxl_driver);
-
-    virDomainObjListForEach(libxl_driver->domains, false,
-                            libxlAutostartDomain,
-                            libxl_driver);
 
     virObjectUnref(cfg);
     return 0;

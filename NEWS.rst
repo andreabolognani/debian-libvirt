@@ -8,6 +8,205 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v7.9.0 (2021-11-01)
+===================
+
+* **New features**
+
+  * Introduce virtio-mem ``<memory/>`` model
+
+    New virtio-mem model is introduced for ``<memory/>`` device which is a
+    paravirtualized mechanism of adding/removing memory to/from a VM. Use
+    ``virDomainUpdateDeviceFlags()`` API to adjust amount of memory or ``virsh
+    update-memory-device`` for convenience.
+
+  * qemu: support disabling hotplug of devices on the pci-root controller
+
+    the <target hotplug='on|off'/> option is now supported for the
+    pci-root controller on i440fx-based (x86 "pc") machinetypes. This
+    can be used to disable hotplug/unplug of devices from this
+    controller. The default behavior is unchanged (hotplug is
+    allowed).
+
+  * Support hotplug and hotunplug for virtiofs
+
+    Filesystems backed by virtiofsd can now be hotplugged and hotunplugged.
+
+  * virpcivpd: Add a PCI VPD parser
+
+    A parser for the standard PCI/PCIe VPD ("I.3. VPD Definitions" in PCI 2.2+
+    and an equivalent definition in "6.28.1 VPD Format" PCIe 4.0) was added
+    along with relevant types to represent PCI VPD in memory. This
+    functionality got added for Linux only at this point (kernels above
+    v2.6.26 have support for exposing VPD via sysfs).
+
+  * virpci: Add PCI VPD-related helper functions to virpci
+
+    In order to utilize the PCI VPD parser, a couple of helper functions got
+    introduced to check for the presence of a VPD file in the sysfs tree and
+    to invoke the PCI VPD parser to get a list of resources representing PCI
+    VPD contents in memory.
+
+  * nodedev: Add PCI VPD capability support
+
+    Support for serializing and deserializing PCI VPD data structures is added
+    following the addition of the PCI VPD parser. A new PCI device capability
+    called "vpd" is introduced holding string resources and keyword resources
+    found in PCI VPD.
+
+  * qemu: Support page_per_vq for driver element
+
+    This optional virtio attribute ``page_per_vq`` controls the layout of the
+    notification capabilities exposed to the guest. It is recommended for the
+    vDPA devices.
+
+  * qemu: Support librbd encryption
+
+    Add an encryption engine ``librbd``. It will provides the image-level
+    encryption of librbd. It requires QEMU >= 6.1.0 and librbd >= 16.1.0.
+
+* **Improvements**
+
+  * Use of JSON syntax with ``-device`` with upcoming QEMU-6.2
+
+    Libvirt started using JSON directly with the ``-device`` commandline
+    parameter as it's considered the preferred stable syntax for further QEMU
+    releases. If any problems with the conversion are encountered please
+    report them as soon as possible.
+
+* **Bug fixes**
+
+  * qemu: Fix problems on ``virsh domstats`` with qemu <5.2.0
+
+    Libvirt v7.2.0 and later called query-dirty-rate, which was introduced in
+    qemu-5.2.0, regardless of qemu version and failed in qemu-5.1.0. This
+    release fixes the bug.
+
+ * Don't enter endless loop when unable to accept new clients
+
+   If libvirtd (or any other daemon) hit the ulimit for maximum number of open
+   files but there are still client connections pending then libvirtd (or
+   corresponding split daemon) would enter an endless loop from which it would
+   never recover. This behaviour is now fixed.
+
+ * qemu: Run secondary driver hooks in split daemon mode
+
+   Because of a bug in implementation it may happen that hooks from secondary
+   drivers were not called in all cases, for instance a network hook wasn't
+   called upon removal of interface after domain shut off itself. With this
+   release the bug is fixed.
+
+
+v7.8.0 (2021-10-01)
+===================
+
+* **New features**
+
+  * nodedev: Add ability to automatically start mediated devices
+
+    The autostart status of a persistent mediated devices can be managed with
+    the new APIs ``virNodeDeviceSetAutostart()`` and
+    ``virNodeDeviceGetAutostart()``. The corresponding virsh command is
+    ``nodedev-autostart``. In addition, two new APIs were added to get
+    additional information about node devices: ``virNodeDeviceIsPersistent()``
+    checks whether the device is persistently defined, and
+    ``virNodeDeviceIsActive()`` checks whether the node device is currently
+    active. This information can also be retrieved with the new virsh command
+    ``nodedev-info``.
+
+v7.7.0 (2021-09-01)
+===================
+
+* **New features**
+
+  * Add support for Fibre Channel VMID
+
+    New VM element ``<fibrechannel appid=''/>`` was added to allow users to set
+    their ``appid`` for each VM which will be used by kernel to create Fibre
+    Channel VMID. This allows various QoS levels, access control or collecting
+    telemetry data per VM.
+
+* **Improvements**
+
+  * virsh: Allow XML validation for define of: storage pool, network, secret,
+    nwfilter, interface
+
+    * Add flag ``VIR_STORAGE_POOL_DEFINE_VALIDATE`` to validate storage pool
+      input xml. For virsh, users can use it as ``virsh pool-define --validate``.
+    * Add flag ``VIR_NETWORK_DEFINE_VALIDATE`` to validate network input xml. For
+      virsh, users can use it as ``net-define --validate``.
+    * Add flag ``VIR_SECRET_DEFINE_VALIDATE`` to validate secret input xml. For
+      virsh, users can use it as ``secret-define --validate``.
+    * Add flag ``VIR_NWFILTER_DEFINE_VALIDATE`` to validate nwfilter input xml.
+      For virsh, users can use it as ``nwfilter-define --validate``.
+    * Add flag ``VIR_INTERFACE_DEFINE_VALIDATE`` to validate interface input xml.
+      For virsh, users can use it as ``iface-define --validate``.
+
+  * Add SecurityManager APIs for labeling network devices
+
+    New ``virSecurityManagerSetNetdevLabel`` and ``virSecurityManagerSetNetdevLabel``
+    APIs are introduced and implemented in the Apparmor security driver.
+    The qemu driver uses the APIs to label vhostuser ports on hotplug and
+    restore labeling on unplug.
+
+  * vmx: Parse vm.genid and support super wide SCSI bus
+
+    The genid attribute is now reported for VMX guests. Libvirt can now
+    properly process super wide SCSI bus (64 units).
+
+  * qemu: Lifecycle action (``on_poweroff``/``on_reboot``) handling improvements
+
+    The handling of lifecycle actions was fixed and improved in multiple ways:
+
+    - ``restart-rename`` action was forbidden
+
+      The action was never properly implemented in the qemu driver and didn't
+      actually result in a restart of the VM but rather termination. The qemu
+      driver now rejects such configurations.
+
+    - ``preserve`` action was forbidden
+
+      Similarly to the previous case this never worked as the intended semantics
+      of the actions dictate. It's better to not allow it at all until there's a
+      proper implementation
+
+    - ``reboot`` action of ``on_poweroff`` now actually works
+
+      The guest OS is now rebooted instead of terminating the VM when the
+      ``reboot`` action is used and the guest OS powers down. Note that it's
+      incompatible with ``on_reboot`` set to ``destroy``.
+
+    - Changes in action action of ``on_reboot`` are now updated with qemu
+
+      Libvirtd can now properly update the ``on_reboot`` action in qemu which
+      allows proper handling when changing between ``reboot`` and ``destroy``
+      actions. In addition, switching from ``reboot`` to ``destroy`` was
+      forbidden for older qemus which don't support the update API as the guest
+      could still reboot and execute some instructions until it was terminated.
+
+* **Bug fixes**
+
+  * qemu: Open chardev logfile on behalf of QEMU
+
+    Guests with a logfile configured for their chardevs are now able to start
+    even when no virtlogd is configured.
+
+  * virhostmem: Handle numactl-less build in hugepages allocation/reporting
+
+    Some architectures don't have notion of NUMA (e.g. s390x) but do support
+    hugepages. Libvirt silently ignored requests to allocate/report hugepage
+    pool when built without numactl. This is now fixed and the pool can be
+    allocated/reported on properly.
+
+  * qemu: Record proper ``backing`` format for overlays of qcow2+luks images
+
+    Libvirt would record ``luks`` instead of ``qcow2`` into the metadata. In
+    practice this is a problem only when inspecting images manually via
+    ``qemu-img`` as with libvirt users must use full specification of the
+    backing chain in the domain XML which supersedes information recorded in
+    the image metadata.
+
+
 v7.6.0 (2021-08-02)
 ===================
 

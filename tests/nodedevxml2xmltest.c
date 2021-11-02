@@ -16,8 +16,8 @@
 static int
 testCompareXMLToXMLFiles(const char *xml, const char *outfile)
 {
-    char *xmlData = NULL;
-    char *actual = NULL;
+    g_autofree char *xmlData = NULL;
+    g_autofree char *actual = NULL;
     int ret = -1;
     virNodeDeviceDef *dev = NULL;
     virNodeDevCapsDef *caps;
@@ -25,7 +25,8 @@ testCompareXMLToXMLFiles(const char *xml, const char *outfile)
     if (virTestLoadFile(xml, &xmlData) < 0)
         goto fail;
 
-    if (!(dev = virNodeDeviceDefParseString(xmlData, EXISTING_DEVICE, NULL)))
+    if (!(dev = virNodeDeviceDefParseString(xmlData, EXISTING_DEVICE, NULL,
+                                            NULL, NULL)))
         goto fail;
 
     /* Calculate some things that are not read in */
@@ -58,8 +59,6 @@ testCompareXMLToXMLFiles(const char *xml, const char *outfile)
     ret = 0;
 
  fail:
-    VIR_FREE(xmlData);
-    VIR_FREE(actual);
     virNodeDeviceDefFree(dev);
     return ret;
 }
@@ -68,7 +67,7 @@ static int
 testCompareXMLToXMLHelper(const void *data)
 {
     int result = -1;
-    char *xml = NULL;
+    g_autofree char *xml = NULL;
     g_autofree char *outfile = NULL;
 
     xml = g_strdup_printf("%s/nodedevschemadata/%s.xml", abs_srcdir,
@@ -79,7 +78,6 @@ testCompareXMLToXMLHelper(const void *data)
 
     result = testCompareXMLToXMLFiles(xml, outfile);
 
-    VIR_FREE(xml);
     return result;
 }
 
@@ -123,6 +121,7 @@ mymain(void)
     DO_TEST("pci_0000_02_10_7_sriov_pf_vfs_all_header_type");
     DO_TEST("drm_renderD129");
     DO_TEST("pci_0000_02_10_7_mdev_types");
+    DO_TEST("pci_0000_42_00_0_vpd");
     DO_TEST("mdev_3627463d_b7f0_4fea_b468_f1da537d301b");
     DO_TEST("ccw_0_0_ffff");
     DO_TEST("css_0_0_ffff");

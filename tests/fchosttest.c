@@ -118,12 +118,11 @@ test3(const void *data G_GNUC_UNUSED)
     const char *expect_fabric_wwn = "2001000dec9877c1";
     const char *expect_max_vports = "127";
     const char *expect_vports = "0";
-    char *wwnn = NULL;
-    char *wwpn = NULL;
-    char *fabric_wwn = NULL;
-    char *max_vports = NULL;
-    char *vports = NULL;
-    int ret = -1;
+    g_autofree char *wwnn = NULL;
+    g_autofree char *wwpn = NULL;
+    g_autofree char *fabric_wwn = NULL;
+    g_autofree char *max_vports = NULL;
+    g_autofree char *vports = NULL;
 
     if (!(wwnn = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM,
                                   "node_name")))
@@ -131,36 +130,29 @@ test3(const void *data G_GNUC_UNUSED)
 
     if (!(wwpn = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM,
                                   "port_name")))
-        goto cleanup;
+        return -1;
 
     if (!(fabric_wwn = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM,
                                         "fabric_name")))
-        goto cleanup;
+        return -1;
 
     if (!(max_vports = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM,
                                         "max_npiv_vports")))
-        goto cleanup;
+        return -1;
 
 
     if (!(vports = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM,
                                     "npiv_vports_inuse")))
-        goto cleanup;
+        return -1;
 
     if (STRNEQ(expect_wwnn, wwnn) ||
         STRNEQ(expect_wwpn, wwpn) ||
         STRNEQ(expect_fabric_wwn, fabric_wwn) ||
         STRNEQ(expect_max_vports, max_vports) ||
         STRNEQ(expect_vports, vports))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(wwnn);
-    VIR_FREE(wwpn);
-    VIR_FREE(fabric_wwn);
-    VIR_FREE(max_vports);
-    VIR_FREE(vports);
-    return ret;
+    return 0;
 }
 
 /* Test virVHBAGetHostByWWN */
@@ -168,8 +160,7 @@ static int
 test4(const void *data G_GNUC_UNUSED)
 {
     const char *expect_hostname = "host5";
-    char *hostname = NULL;
-    int ret = -1;
+    g_autofree char *hostname = NULL;
 
     if (!(hostname = virVHBAGetHostByWWN(TEST_FC_HOST_PREFIX,
                                          "2001001b32a9da4e",
@@ -177,12 +168,9 @@ test4(const void *data G_GNUC_UNUSED)
         return -1;
 
     if (STRNEQ(hostname, expect_hostname))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(hostname);
-    return ret;
+    return 0;
 }
 
 /* Test virVHBAFindVportHost
@@ -193,19 +181,15 @@ static int
 test5(const void *data G_GNUC_UNUSED)
 {
     const char *expect_hostname = "host5";
-    char *hostname = NULL;
-    int ret = -1;
+    g_autofree char *hostname = NULL;
 
     if (!(hostname = virVHBAFindVportHost(TEST_FC_HOST_PREFIX)))
         return -1;
 
     if (STRNEQ(hostname, expect_hostname))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(hostname);
-    return ret;
+    return 0;
 }
 
 /* Test virVHBAGetConfig fabric name optional */
@@ -214,10 +198,9 @@ test6(const void *data G_GNUC_UNUSED)
 {
     const char *expect_wwnn = "2002001b32a9da4e";
     const char *expect_wwpn = "2102001b32a9da4e";
-    char *wwnn = NULL;
-    char *wwpn = NULL;
-    char *fabric_wwn = NULL;
-    int ret = -1;
+    g_autofree char *wwnn = NULL;
+    g_autofree char *wwpn = NULL;
+    g_autofree char *fabric_wwn = NULL;
 
     if (!(wwnn = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM_NO_FAB,
                                   "node_name")))
@@ -225,23 +208,18 @@ test6(const void *data G_GNUC_UNUSED)
 
     if (!(wwpn = virVHBAGetConfig(TEST_FC_HOST_PREFIX, TEST_FC_HOST_NUM_NO_FAB,
                                   "port_name")))
-        goto cleanup;
+        return -1;
 
     if ((fabric_wwn = virVHBAGetConfig(TEST_FC_HOST_PREFIX,
                                        TEST_FC_HOST_NUM_NO_FAB,
                                        "fabric_name")))
-        goto cleanup;
+        return -1;
 
     if (STRNEQ(expect_wwnn, wwnn) ||
         STRNEQ(expect_wwpn, wwpn))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(wwnn);
-    VIR_FREE(wwpn);
-    VIR_FREE(fabric_wwn);
-    return ret;
+    return 0;
 }
 
 

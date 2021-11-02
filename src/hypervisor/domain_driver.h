@@ -60,3 +60,13 @@ int virDomainDriverNodeDeviceReAttach(virNodeDevicePtr dev,
 int virDomainDriverNodeDeviceDetachFlags(virNodeDevicePtr dev,
                                          virHostdevManager *hostdevMgr,
                                          const char *driverName);
+
+int virDomainDriverAddIOThreadCheck(virDomainDef *def,
+                                    unsigned int iothread_id);
+
+int virDomainDriverDelIOThreadCheck(virDomainDef *def,
+                                    unsigned int iothread_id);
+
+int virDomainDriverGetIOThreadsConfig(virDomainDef *targetDef,
+                                      virDomainIOThreadInfoPtr **info,
+                                      unsigned int bitmap_size);

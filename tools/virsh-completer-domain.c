@@ -32,6 +32,7 @@
 #include "virperf.h"
 #include "virbitmap.h"
 #include "virkeycode.h"
+#include "virglibutil.h"
 #include "virkeynametable_linux.h"
 #include "virkeynametable_osx.h"
 #include "virkeynametable_win32.h"
@@ -220,6 +221,141 @@ virshDomainDiskTargetCompleter(vshControl *ctl,
 }
 
 
+static char **
+virshDomainDiskTargetListCompleter(vshControl *ctl,
+                                   const vshCmd *cmd,
+                                   const char *argname)
+{
+    const char *curval = NULL;
+    g_auto(GStrv) targets = virshDomainDiskTargetCompleter(ctl, cmd, 0);
+
+    if (vshCommandOptStringQuiet(ctl, cmd, argname, &curval) < 0)
+        return NULL;
+
+    if (!targets)
+        return NULL;
+
+    return virshCommaStringListComplete(curval, (const char **) targets);
+}
+
+
+char **
+virshDomainMigrateDisksCompleter(vshControl *ctl,
+                                 const vshCmd *cmd,
+                                 unsigned int completeflags G_GNUC_UNUSED)
+{
+    return virshDomainDiskTargetListCompleter(ctl, cmd, "migrate-disks");
+}
+
+
+char **
+virshDomainUndefineStorageDisksCompleter(vshControl *ctl,
+                                 const vshCmd *cmd,
+                                 unsigned int completeflags G_GNUC_UNUSED)
+{
+    return virshDomainDiskTargetListCompleter(ctl, cmd, "storage");
+}
+
+
+static GSList *
+virshDomainBlockjobBaseTopCompleteDisk(const char *target,
+                                       xmlXPathContext *ctxt)
+{
+    g_autofree xmlNodePtr *indexlist = NULL;
+    int nindexlist = 0;
+    size_t i;
+    GSList *ret = NULL;
+
+    if ((nindexlist = virXPathNodeSet("./source|./backingStore",
+                                      ctxt, &indexlist)) < 0)
+        return NULL;
+
+    ret = g_slist_prepend(ret, g_strdup(target));
+
+    for (i = 0; i < nindexlist; i++) {
+        g_autofree char *idx = virXMLPropString(indexlist[i], "index");
+
+        if (!idx)
+            continue;
+
+        ret = g_slist_prepend(ret, g_strdup_printf("%s[%s]", target, idx));
+    }
+
+    return ret;
+}
+
+
+char **
+virshDomainBlockjobBaseTopCompleter(vshControl *ctl,
+                                    const vshCmd *cmd,
+                                    unsigned int flags)
+{
+    virshControl *priv = ctl->privData;
+    g_autoptr(xmlDoc) xmldoc = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    g_autofree xmlNodePtr *disks = NULL;
+    int ndisks;
+    size_t i;
+    const char *path = NULL;
+    g_autoptr(virGSListString) list = NULL;
+    GSList *n;
+    GStrv ret = NULL;
+    size_t nelems;
+
+    virCheckFlags(0, NULL);
+
+    if (!priv->conn || virConnectIsAlive(priv->conn) <= 0)
+        return NULL;
+
+    if (virshDomainGetXML(ctl, cmd, 0, &xmldoc, &ctxt) < 0)
+        return NULL;
+
+    ignore_value(vshCommandOptStringQuiet(ctl, cmd, "path", &path));
+
+    if ((ndisks = virXPathNodeSet("./devices/disk", ctxt, &disks)) <= 0)
+        return NULL;
+
+    for (i = 0; i < ndisks; i++) {
+        g_autofree char *disktarget = NULL;
+
+        ctxt->node = disks[i];
+        disktarget = virXPathString("string(./target/@dev)", ctxt);
+
+        if (STREQ_NULLABLE(path, disktarget))
+            break;
+    }
+
+    if (i == ndisks)
+        path = NULL;
+
+    for (i = 0; i < ndisks; i++) {
+        g_autofree char *disktarget = NULL;
+        GSList *tmplist;
+
+        ctxt->node = disks[i];
+
+        if (!(disktarget = virXPathString("string(./target/@dev)", ctxt)))
+            return NULL;
+
+        if (path && STRNEQ(path, disktarget))
+            continue;
+
+        /* note that ctxt->node moved */
+        if ((tmplist = virshDomainBlockjobBaseTopCompleteDisk(disktarget, ctxt)))
+            list = g_slist_concat(tmplist, list);
+    }
+
+    list = g_slist_reverse(list);
+    nelems = g_slist_length(list);
+    ret = g_new0(char *, nelems + 1);
+    i = 0;
+
+    for (n = list; n; n = n->next)
+        ret[i++] = g_strdup(n->data);
+
+    return ret;
+}
+
 char **
 virshDomainEventNameCompleter(vshControl *ctl G_GNUC_UNUSED,
                               const vshCmd *cmd G_GNUC_UNUSED,
@@ -373,6 +509,25 @@ virshDomainInterfaceAddrSourceCompleter(vshControl *ctl G_GNUC_UNUSED,
 
 
 char **
+virshDomainInterfaceSourceModeCompleter(vshControl *ctl G_GNUC_UNUSED,
+                                        const vshCmd *cmd G_GNUC_UNUSED,
+                                        unsigned int flags)
+{
+    char **ret = NULL;
+    size_t i;
+
+    virCheckFlags(0, NULL);
+
+    ret = g_new0(char *, VIRSH_DOMAIN_INTERFACE_SOURCE_MODE_LAST);
+
+    for (i = 0; i < VIRSH_DOMAIN_INTERFACE_SOURCE_MODE_LAST; i++)
+        ret[i] = g_strdup(virshDomainInterfaceSourceModeTypeToString(i));
+
+    return ret;
+}
+
+
+char **
 virshDomainHostnameSourceCompleter(vshControl *ctl G_GNUC_UNUSED,
                                    const vshCmd *cmd G_GNUC_UNUSED,
                                    unsigned int flags)
@@ -442,12 +597,11 @@ virshDomainIOThreadIdCompleter(vshControl *ctl,
                                const vshCmd *cmd,
                                unsigned int flags)
 {
-    virDomainPtr dom = NULL;
+    g_autoptr(virshDomain) dom = NULL;
     size_t niothreads = 0;
     g_autofree virDomainIOThreadInfoPtr *info = NULL;
     size_t i;
     int rc;
-    char **ret = NULL;
     g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
@@ -456,7 +610,7 @@ virshDomainIOThreadIdCompleter(vshControl *ctl,
         return NULL;
 
     if ((rc = virDomainGetIOThreadInfo(dom, &info, flags)) < 0)
-        goto cleanup;
+        return NULL;
 
     niothreads = rc;
 
@@ -465,11 +619,7 @@ virshDomainIOThreadIdCompleter(vshControl *ctl,
     for (i = 0; i < niothreads; i++)
         tmp[i] = g_strdup_printf("%u", info[i]->iothread_id);
 
-    ret = g_steal_pointer(&tmp);
-
- cleanup:
-    virshDomainFree(dom);
-    return ret;
+    return g_steal_pointer(&tmp);
 }
 
 
@@ -478,12 +628,11 @@ virshDomainVcpuCompleter(vshControl *ctl,
                          const vshCmd *cmd,
                          unsigned int flags)
 {
-    virDomainPtr dom = NULL;
-    xmlDocPtr xml = NULL;
-    xmlXPathContextPtr ctxt = NULL;
+    g_autoptr(virshDomain) dom = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
     int nvcpus = 0;
     unsigned int id;
-    char **ret = NULL;
     g_auto(GStrv) tmp = NULL;
 
     virCheckFlags(0, NULL);
@@ -493,24 +642,18 @@ virshDomainVcpuCompleter(vshControl *ctl,
 
     if (virshDomainGetXMLFromDom(ctl, dom, VIR_DOMAIN_XML_INACTIVE,
                                  &xml, &ctxt) < 0)
-        goto cleanup;
+        return NULL;
 
     /* Query the max rather than the current vcpu count */
     if (virXPathInt("string(/domain/vcpu)", ctxt, &nvcpus) < 0)
-        goto cleanup;
+        return NULL;
 
     tmp = g_new0(char *, nvcpus + 1);
 
     for (id = 0; id < nvcpus; id++)
         tmp[id] = g_strdup_printf("%u", id);
 
-    ret = g_steal_pointer(&tmp);
-
- cleanup:
-    xmlXPathFreeContext(ctxt);
-    xmlFreeDoc(xml);
-    virshDomainFree(dom);
-    return ret;
+    return g_steal_pointer(&tmp);
 }
 
 
@@ -519,14 +662,13 @@ virshDomainVcpulistCompleter(vshControl *ctl,
                              const vshCmd *cmd,
                              unsigned int flags)
 {
-    virDomainPtr dom = NULL;
-    xmlDocPtr xml = NULL;
-    xmlXPathContextPtr ctxt = NULL;
+    g_autoptr(virshDomain) dom = NULL;
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
     int nvcpus = 0;
     unsigned int id;
     g_auto(GStrv) vcpulist = NULL;
     const char *vcpuid = NULL;
-    char **ret = NULL;
 
     virCheckFlags(0, NULL);
 
@@ -534,28 +676,22 @@ virshDomainVcpulistCompleter(vshControl *ctl,
         return NULL;
 
     if (vshCommandOptStringQuiet(ctl, cmd, "vcpulist", &vcpuid) < 0)
-        goto cleanup;
+        return NULL;
 
     if (virshDomainGetXMLFromDom(ctl, dom, VIR_DOMAIN_XML_INACTIVE,
                                  &xml, &ctxt) < 0)
-        goto cleanup;
+        return NULL;
 
     /* Query the max rather than the current vcpu count */
     if (virXPathInt("string(/domain/vcpu)", ctxt, &nvcpus) < 0)
-        goto cleanup;
+        return NULL;
 
     vcpulist = g_new0(char *, nvcpus + 1);
 
     for (id = 0; id < nvcpus; id++)
         vcpulist[id] = g_strdup_printf("%u", id);
 
-    ret = virshCommaStringListComplete(vcpuid, (const char **)vcpulist);
-
- cleanup:
-    xmlXPathFreeContext(ctxt);
-    xmlFreeDoc(xml);
-    virshDomainFree(dom);
-    return ret;
+    return virshCommaStringListComplete(vcpuid, (const char **)vcpulist);
 }
 
 
@@ -594,7 +730,7 @@ virshDomainVcpulistViaAgentCompleter(vshControl *ctl,
                                      const vshCmd *cmd,
                                      unsigned int flags)
 {
-    virDomainPtr dom;
+    g_autoptr(virshDomain) dom = NULL;
     bool enable = vshCommandOptBool(cmd, "enable");
     bool disable = vshCommandOptBool(cmd, "disable");
     virTypedParameterPtr params = NULL;
@@ -690,7 +826,6 @@ virshDomainVcpulistViaAgentCompleter(vshControl *ctl,
 
  cleanup:
     virTypedParamsFree(params, nparams);
-    virshDomainFree(dom);
     return ret;
 }
 
@@ -908,7 +1043,7 @@ virshDomainFSMountpointsCompleter(vshControl *ctl,
                                   unsigned int flags)
 {
     g_auto(GStrv) tmp = NULL;
-    virDomainPtr dom = NULL;
+    g_autoptr(virshDomain) dom = NULL;
     int rc = -1;
     size_t i;
     virDomainFSInfoPtr *info = NULL;
@@ -938,7 +1073,6 @@ virshDomainFSMountpointsCompleter(vshControl *ctl,
             virDomainFSInfoFree(info[i]);
         VIR_FREE(info);
     }
-    virshDomainFree(dom);
     return ret;
 }
 

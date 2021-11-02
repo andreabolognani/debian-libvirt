@@ -159,7 +159,8 @@ virConnectNumOfNetworks(virConnectPtr conn)
  *
  * Collect the list of active networks, and store their names in @names
  *
- * For more control over the results, see virConnectListAllNetworks().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllNetworks().
  *
  * Returns the number of networks found or -1 in case of error.  Note that
  * this command is inherently racy; a network can be started between a call
@@ -235,7 +236,8 @@ virConnectNumOfDefinedNetworks(virConnectPtr conn)
  *
  * list the inactive networks, stores the pointers to the names in @names
  *
- * For more control over the results, see virConnectListAllNetworks().
+ * The use of this function is discouraged. Instead, use
+ * virConnectListAllNetworks().
  *
  * Returns the number of names provided in the array or -1 in case of error.
  * Note that this command is inherently racy; a network can be defined between
@@ -426,6 +428,47 @@ virNetworkCreateXML(virConnectPtr conn, const char *xmlDesc)
 
 
 /**
+ * virNetworkCreateXMLFlags:
+ * @conn: pointer to the hypervisor connection
+ * @xmlDesc: an XML description of the network
+ * @flags: bitwise-OR of virNetworkCreateFlags
+ *
+ * Create and start a new virtual network, based on an XML description
+ * similar to the one returned by virNetworkGetXMLDesc()
+ *
+ * virNetworkFree should be used to free the resources after the
+ * network object is no longer needed.
+ *
+ * Returns a new network object or NULL in case of failure
+ */
+virNetworkPtr
+virNetworkCreateXMLFlags(virConnectPtr conn, const char *xmlDesc, unsigned int flags)
+{
+    VIR_DEBUG("conn=%p, xmlDesc=%s, flags=0x%x", conn, NULLSTR(xmlDesc), flags);
+
+    virResetLastError();
+
+    virCheckConnectReturn(conn, NULL);
+    virCheckNonNullArgGoto(xmlDesc, error);
+    virCheckReadOnlyGoto(conn->flags, error);
+
+    if (conn->networkDriver && conn->networkDriver->networkCreateXMLFlags) {
+        virNetworkPtr ret;
+        ret = conn->networkDriver->networkCreateXMLFlags(conn, xmlDesc, flags);
+        if (!ret)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(conn);
+    return NULL;
+}
+
+
+/**
  * virNetworkDefineXML:
  * @conn: pointer to the hypervisor connection
  * @xml: the XML description for the network, preferably in UTF-8
@@ -452,6 +495,47 @@ virNetworkDefineXML(virConnectPtr conn, const char *xml)
     if (conn->networkDriver && conn->networkDriver->networkDefineXML) {
         virNetworkPtr ret;
         ret = conn->networkDriver->networkDefineXML(conn, xml);
+        if (!ret)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(conn);
+    return NULL;
+}
+
+
+/**
+ * virNetworkDefineXMLFlags:
+ * @conn: pointer to the hypervisor connection
+ * @xml: the XML description for the network, preferably in UTF-8
+ * @flags: bitwise-OR of virNetworkDefineFlags
+ *
+ * Define an inactive persistent virtual network or modify an existing
+ * persistent one from the XML description.
+ *
+ * virNetworkFree should be used to free the resources after the
+ * network object is no longer needed.
+ *
+ * Returns NULL in case of error, a pointer to the network otherwise
+ */
+virNetworkPtr
+virNetworkDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
+{
+    VIR_DEBUG("conn=%p, xml=%s, flags=0x%x", conn, NULLSTR(xml), flags);
+
+    virResetLastError();
+
+    virCheckConnectReturn(conn, NULL);
+    virCheckReadOnlyGoto(conn->flags, error);
+    virCheckNonNullArgGoto(xml, error);
+
+    if (conn->networkDriver && conn->networkDriver->networkDefineXMLFlags) {
+        virNetworkPtr ret;
+        ret = conn->networkDriver->networkDefineXMLFlags(conn, xml, flags);
         if (!ret)
             goto error;
         return ret;
@@ -1442,7 +1526,7 @@ virNetworkPortGetParameters(virNetworkPortPtr port,
  * virNetworkPortCreateXML:
  * @net: pointer to the network object
  * @xmldesc: an XML description of the port
- * @flags: currently unused, pass 0
+ * @flags: bitwise-OR of virNetworkPortCreateFlags
  *
  * Create a new network port, based on an XML description
  * similar to the one returned by virNetworkPortGetXMLDesc()

@@ -13,8 +13,17 @@
           <value>default</value>
           <value>qcow</value>
           <value>luks</value>
+          <value>luks2</value>
         </choice>
       </attribute>
+      <optional>
+        <attribute name="engine">
+          <choice>
+            <value>qemu</value>
+            <value>librbd</value>
+          </choice>
+        </attribute>
+      </optional>
       <interleave>
         <ref name="secret"/>
         <optional>

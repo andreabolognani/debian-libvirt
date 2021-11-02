@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-aarch64test/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-aarch64test/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-aarch64 \
--name aarch64test \
+-name guest=aarch64test,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-aarch64test/master-key.aes \
 -machine virt,accel=tcg,usb=off,dump-guest-core=off,gic-version=2 \
 -cpu cortex-a53 \
 -m 1024 \
@@ -24,6 +25,7 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -kernel /aarch64.kernel \
 -initrd /aarch64.initrd \
 -append 'earlyprintk console=ttyAMA0,115200n8 rw root=/dev/vda rootwait' \
@@ -37,4 +39,5 @@ QEMU_AUDIO_DRV=none \
 -netdev user,id=hostnet0 \
 -device virtio-net-pci,netdev=hostnet0,id=net0,mac=52:54:00:09:a4:37,bus=pci.3,addr=0x2 \
 -netdev user,id=hostnet1 \
--device virtio-net-pci,netdev=hostnet1,id=net1,mac=52:54:00:09:a4:38,bus=pci.2,addr=0x1
+-device virtio-net-pci,netdev=hostnet1,id=net1,mac=52:54:00:09:a4:38,bus=pci.2,addr=0x1 \
+-msg timestamp=on

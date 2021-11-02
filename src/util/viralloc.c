@@ -148,7 +148,6 @@ void virShrinkN(void *ptrptr, size_t size, size_t *countptr, size_t toremove)
  * @size:     the size of one element in bytes
  * @at:       index within array where new elements should be added, -1 for end
  * @countptr: variable tracking number of elements currently allocated
- * @add:      number of elements to add
  * @newelems: pointer to array of one or more new elements to move into
  *            place (the originals will be zeroed out if successful
  *            and if clearOriginal is true)
@@ -160,8 +159,74 @@ void virShrinkN(void *ptrptr, size_t size, size_t *countptr, size_t toremove)
  *            already* done that.
  *
  * Re-allocate an array of *countptr elements, each sizeof(*ptrptr) bytes
- * long, to be *countptr+add elements long, then appropriately move
- * the elements starting at ptrptr[at] up by add elements, copy the
+ * long, to be *countptr elements long, then appropriately move
+ * the elements starting at ptrptr[at] up by 1 elements, copy the
+ * items from newelems into ptrptr[at], then store the address of
+ * allocated memory in *ptrptr and the new size in *countptr.  If
+ * newelems is NULL, the new elements at ptrptr[at] are instead filled
+ * with zero.  at must be between [0,*countptr], except that -1 is
+ * treated the same as *countptr for convenience.
+ *
+ * Aborts on OOM failure.
+ */
+static void
+virInsertElementInternal(void *ptrptr,
+                         size_t size,
+                         size_t at,
+                         size_t *countptr,
+                         void *newelems,
+                         bool clearOriginal,
+                         bool inPlace)
+{
+    if (inPlace) {
+        *countptr += 1;
+    } else {
+        virExpandN(ptrptr, size, countptr, 1);
+    }
+
+    /* memory was successfully re-allocated. Move up all elements from
+     * ptrptr[at] to the end (if we're not "inserting" at the end
+     * already), memcpy in the new elements, and clear the elements
+     * from their original location. Remember that *countptr has
+     * already been updated with new element count!
+     */
+    if (at < *countptr - 1) {
+        memmove(*(char**)ptrptr + (size * (at + 1)),
+                *(char**)ptrptr + (size * at),
+                size * (*countptr - 1 - at));
+    }
+
+    if (newelems) {
+        memcpy(*(char**)ptrptr + (size * at), newelems, size);
+        if (clearOriginal)
+           memset((char*)newelems, 0, size);
+    } else if (inPlace || (at < *countptr - 1)) {
+        /* NB: if inPlace, assume memory at the end wasn't initialized */
+        memset(*(char**)ptrptr + (size * at), 0, size);
+    }
+}
+
+
+/**
+ * virInsertElementsN:
+ * @ptrptr:   pointer to hold address of allocated memory
+ * @size:     the size of one element in bytes
+ * @at:       index within array where new elements should be added, -1 for end
+ * @countptr: variable tracking number of elements currently allocated
+ * @typematchDummy: helper variable to consume results of compile time checks
+ * @newelems: pointer to array of one or more new elements to move into
+ *            place (the originals will be zeroed out if successful
+ *            and if clearOriginal is true)
+ * @clearOriginal: false if the new item in the array should be copied
+ *            from the original, and the original left intact.
+ *            true if the original should be 0'd out on success.
+ * @inPlace:  false if we should expand the allocated memory before
+ *            moving, true if we should assume someone else *has
+ *            already* done that.
+ *
+ * Re-allocate an array of *countptr elements, each sizeof(*ptrptr) bytes
+ * long, to be *countptr elements long, then appropriately move
+ * the elements starting at ptrptr[at] up by 1 elements, copy the
  * items from newelems into ptrptr[at], then store the address of
  * allocated memory in *ptrptr and the new size in *countptr.  If
  * newelems is NULL, the new elements at ptrptr[at] are instead filled
@@ -171,49 +236,59 @@ void virShrinkN(void *ptrptr, size_t size, size_t *countptr, size_t toremove)
  * Returns -1 on failure, 0 on success
  */
 int
-virInsertElementsN(void *ptrptr, size_t size, size_t at,
+virInsertElementsN(void *ptrptr,
+                   size_t size,
+                   size_t at,
                    size_t *countptr,
-                   size_t add, void *newelems,
-                   bool clearOriginal, bool inPlace)
+                   size_t typematchDummy G_GNUC_UNUSED,
+                   void *newelems,
+                   bool clearOriginal,
+                   bool inPlace)
 {
     if (at == -1) {
         at = *countptr;
     } else if (at > *countptr) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("out of bounds index - count %zu at %zu add %zu"),
-                       *countptr, at, add);
+                       _("out of bounds index - count %zu at %zu"),
+                       *countptr, at);
         return -1;
     }
 
-    if (inPlace) {
-        *countptr += add;
-    } else {
-        virExpandN(ptrptr, size, countptr, add);
-    }
-
-    /* memory was successfully re-allocated. Move up all elements from
-     * ptrptr[at] to the end (if we're not "inserting" at the end
-     * already), memcpy in the new elements, and clear the elements
-     * from their original location. Remember that *countptr has
-     * already been updated with new element count!
-     */
-    if (at < *countptr - add) {
-        memmove(*(char**)ptrptr + (size * (at + add)),
-                *(char**)ptrptr + (size * at),
-                size * (*countptr - add - at));
-    }
-
-    if (newelems) {
-        memcpy(*(char**)ptrptr + (size * at), newelems, size * add);
-        if (clearOriginal)
-           memset((char*)newelems, 0, size * add);
-    } else if (inPlace || (at < *countptr - add)) {
-        /* NB: if inPlace, assume memory at the end wasn't initialized */
-        memset(*(char**)ptrptr + (size * at), 0, size * add);
-    }
+    virInsertElementInternal(ptrptr, size, at, countptr, newelems, clearOriginal, inPlace);
 
     return 0;
 }
+
+
+/**
+ * virAppendElement:
+ * @ptrptr:   pointer to hold address of allocated memory
+ * @size:     the size of one element in bytes
+ * @countptr: variable tracking number of elements currently allocated
+ * @typematchDummy: helper variable to consume results of compile time checks
+ * @newelem: pointer to a new element to append to @ptrptr
+ *           (the original will be zeroed out if clearOriginal is true)
+ * @clearOriginal: false if the new item in the array should be copied
+ *            from the original, and the original left intact.
+ *            true if the original should be 0'd out on success.
+ * @inPlace:  false if we should expand the allocated memory before
+ *            moving, true if we should assume someone else *has
+ *            already* done that.
+ *
+ * Re-allocate @ptrptr to fit an extra element and place @newelem at the end.
+ */
+void
+virAppendElement(void *ptrptr,
+                 size_t size,
+                 size_t *countptr,
+                 size_t typematchDummy G_GNUC_UNUSED,
+                 void *newelem,
+                 bool clearOriginal,
+                 bool inPlace)
+{
+    virInsertElementInternal(ptrptr, size, *countptr, countptr, newelem, clearOriginal, inPlace);
+}
+
 
 /**
  * virDeleteElementsN:

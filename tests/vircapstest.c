@@ -151,12 +151,10 @@ static int
 test_virCapsDomainDataLookupQEMU(const void *data G_GNUC_UNUSED)
 {
     int ret = 0;
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
 
-    if (!(caps = testQemuCapsInit())) {
-        ret = -1;
-        goto out;
-    }
+    if (!(caps = testQemuCapsInit()))
+        return -1;
 
     /* Checking each parameter individually */
     CAPSCOMP(-1, VIR_ARCH_NONE, VIR_DOMAIN_VIRT_NONE, NULL, NULL,
@@ -195,8 +193,6 @@ test_virCapsDomainDataLookupQEMU(const void *data G_GNUC_UNUSED)
         "/usr/bin/qemu-system-aarch64", "pc");
     CAPS_EXPECT_ERR(-1, VIR_ARCH_NONE, VIR_DOMAIN_VIRT_VMWARE, NULL, "pc");
 
- out:
-    virObjectUnref(caps);
     return ret;
 }
 #endif /* WITH_QEMU */
@@ -206,12 +202,10 @@ static int
 test_virCapsDomainDataLookupLXC(const void *data G_GNUC_UNUSED)
 {
     int ret = 0;
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
 
-    if (!(caps = testLXCCapsInit())) {
-        ret = -1;
-        goto out;
-    }
+    if (!(caps = testLXCCapsInit()))
+        return -1;
 
     CAPSCOMP(-1, VIR_ARCH_NONE, VIR_DOMAIN_VIRT_NONE, NULL, NULL,
         VIR_DOMAIN_OSTYPE_EXE, VIR_ARCH_X86_64,
@@ -220,8 +214,6 @@ test_virCapsDomainDataLookupLXC(const void *data G_GNUC_UNUSED)
         VIR_DOMAIN_OSTYPE_EXE, VIR_ARCH_X86_64,
         VIR_DOMAIN_VIRT_LXC, "/usr/libexec/libvirt_lxc", NULL);
 
- out:
-    virObjectUnref(caps);
     return ret;
 }
 #endif /* WITH_LXC */

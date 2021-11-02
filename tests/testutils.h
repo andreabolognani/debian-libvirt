@@ -40,6 +40,10 @@ extern virArch virTestHostArch;
 int virTestRun(const char *title,
                int (*body)(const void *data),
                const void *data);
+void virTestRunLog(int *ret,
+                   const char *title,
+                   int (*body)(const void *data),
+                   const void *data);
 int virTestLoadFile(const char *file, char **buf);
 char *virTestLoadFilePath(const char *p, ...)
     G_GNUC_NULL_TERMINATED;
@@ -166,3 +170,10 @@ int testCompareDomXML2XMLFiles(virCaps *caps,
                                bool live,
                                unsigned int parseFlags,
                                testCompareDomXML2XMLResult expectResult);
+
+char *
+virTestStablePath(const char *path);
+
+#ifdef __linux__
+int virCreateAnonymousFile(const uint8_t *data, size_t len);
+#endif

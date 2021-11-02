@@ -36,20 +36,16 @@ static char *virscsi_prefix;
 static int
 test1(const void *data G_GNUC_UNUSED)
 {
-    char *name = NULL;
-    int ret = -1;
+    g_autofree char *name = NULL;
 
     if (!(name = virSCSIDeviceGetDevName(virscsi_prefix,
                                          "scsi_host1", 0, 0, 0)))
         return -1;
 
     if (STRNEQ(name, "sdh"))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(name);
-    return ret;
+    return 0;
 }
 
 /*
@@ -60,13 +56,13 @@ test1(const void *data G_GNUC_UNUSED)
 static int
 test2(const void *data G_GNUC_UNUSED)
 {
-    virSCSIDeviceList *list = NULL;
+    g_autoptr(virSCSIDeviceList) list = NULL;
     virSCSIDevice *dev = NULL;
     virSCSIDevice *dev1 = NULL;
     bool free_dev = true;
     bool free_dev1 = true;
     virSCSIDevice *tmp = NULL;
-    char *sgname = NULL;
+    g_autofree char *sgname = NULL;
     int ret = -1;
 
     sgname = virSCSIDeviceGetSgName(virscsi_prefix,
@@ -152,21 +148,18 @@ test2(const void *data G_GNUC_UNUSED)
 
     ret = 0;
  cleanup:
-    VIR_FREE(sgname);
     if (free_dev)
         virSCSIDeviceFree(dev);
     if (free_dev1)
         virSCSIDeviceFree(dev1);
-    virObjectUnref(list);
     return ret;
 }
 
 static int
 create_symlink(const char *tmpdir, const char *src_name, const char *dst_name)
 {
-    int ret = -1;
-    char *src_path = NULL;
-    char *dst_path = NULL;
+    g_autofree char *src_path = NULL;
+    g_autofree char *dst_path = NULL;
 
     src_path = g_strdup_printf("%s/%s", virscsi_prefix, src_name);
 
@@ -174,16 +167,10 @@ create_symlink(const char *tmpdir, const char *src_name, const char *dst_name)
 
     if (symlink(src_path, dst_path) < 0) {
         VIR_WARN("Failed to create symlink '%s' to '%s'", src_path, dst_path);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(src_path);
-    VIR_FREE(dst_path);
-
-    return ret;
+    return 0;
 }
 
 static int

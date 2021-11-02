@@ -43,8 +43,7 @@ int qemuDomainAddTLSObjects(virQEMUDriver *driver,
                             virJSONValue **secProps,
                             virJSONValue **tlsProps);
 
-int qemuDomainGetTLSObjects(virQEMUCaps *qemuCaps,
-                            qemuDomainSecretInfo *secinfo,
+int qemuDomainGetTLSObjects(qemuDomainSecretInfo *secinfo,
                             const char *tlsCertdir,
                             bool tlsListen,
                             bool tlsVerify,
@@ -108,6 +107,10 @@ int qemuDomainAttachInputDevice(virQEMUDriver *driver,
 int qemuDomainAttachVsockDevice(virQEMUDriver *driver,
                                 virDomainObj *vm,
                                 virDomainVsockDef *vsock);
+int
+qemuDomainAttachFSDevice(virQEMUDriver *driver,
+                         virDomainObj *vm,
+                         virDomainFSDef *fs);
 
 int qemuDomainAttachLease(virQEMUDriver *driver,
                           virDomainObj *vm,
@@ -166,3 +169,8 @@ int qemuHotplugAttachDBusVMState(virQEMUDriver *driver,
 int qemuHotplugRemoveDBusVMState(virQEMUDriver *driver,
                                  virDomainObj *vm,
                                  qemuDomainAsyncJob asyncJob);
+
+int qemuDomainChangeMemoryRequestedSize(virQEMUDriver *driver,
+                                        virDomainObj *vm,
+                                        const char *alias,
+                                        unsigned long long requestedsize);

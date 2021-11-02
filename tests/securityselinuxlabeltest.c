@@ -59,7 +59,7 @@ testUserXattrEnabled(void)
     int ret = -1;
     ssize_t len;
     const char *con_value = "system_u:object_r:svirt_image_t:s0:c41,c264";
-    char *path = NULL;
+    g_autofree char *path = NULL;
     path = g_strdup_printf("%s/securityselinuxlabeldata/testxattr", abs_builddir);
 
     if (g_mkdir_with_parents(abs_builddir "/securityselinuxlabeldata", 0777) < 0 ||
@@ -79,7 +79,6 @@ testUserXattrEnabled(void)
  cleanup:
     unlink(path);
     rmdir(abs_builddir "/securityselinuxlabeldata");
-    VIR_FREE(path);
     return ret;
 }
 
@@ -100,10 +99,9 @@ testSELinuxLoadFileList(const char *testname,
                         testSELinuxFile **files,
                         size_t *nfiles)
 {
-    int ret = -1;
-    char *path = NULL;
-    FILE *fp = NULL;
-    char *line = NULL;
+    g_autofree char *path = NULL;
+    g_autoptr(FILE) fp = NULL;
+    g_autofree char *line = NULL;
 
     *files = NULL;
     *nfiles = 0;
@@ -112,7 +110,7 @@ testSELinuxLoadFileList(const char *testname,
                            testname);
 
     if (!(fp = fopen(path, "r")))
-        goto cleanup;
+        return -1;
 
     line = g_new0(char, 1024);
 
@@ -120,7 +118,7 @@ testSELinuxLoadFileList(const char *testname,
         char *file = NULL, *context = NULL, *tmp;
         if (!fgets(line, 1024, fp)) {
             if (!feof(fp))
-                goto cleanup;
+                return -1;
             break;
         }
 
@@ -129,7 +127,7 @@ testSELinuxLoadFileList(const char *testname,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            "unexpected format for line '%s'",
                            line);
-            goto cleanup;
+            return -1;
         }
         *tmp = '\0';
         tmp++;
@@ -149,13 +147,7 @@ testSELinuxLoadFileList(const char *testname,
         (*files)[(*nfiles)-1].context = context;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FORCE_FCLOSE(fp);
-    VIR_FREE(path);
-    VIR_FREE(line);
-    return ret;
+    return 0;
 }
 
 
@@ -246,10 +238,9 @@ static int
 testSELinuxCheckLabels(testSELinuxFile *files, size_t nfiles)
 {
     size_t i;
-    char *ctx;
 
     for (i = 0; i < nfiles; i++) {
-        ctx = NULL;
+        g_autofree char *ctx = NULL;
         if (getfilecon(files[i].file, &ctx) < 0) {
             if (errno == ENODATA) {
                 /* nothing to do */
@@ -266,10 +257,8 @@ testSELinuxCheckLabels(testSELinuxFile *files, size_t nfiles)
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            "File %s context '%s' did not match expected '%s'",
                            files[i].file, ctx, files[i].context);
-            VIR_FREE(ctx);
             return -1;
         }
-        VIR_FREE(ctx);
     }
     return 0;
 }
@@ -282,7 +271,7 @@ testSELinuxLabeling(const void *opaque)
     testSELinuxFile *files = NULL;
     size_t nfiles = 0;
     size_t i;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
 
     if (testSELinuxLoadFileList(testname, &files, &nfiles) < 0)
         goto cleanup;
@@ -305,7 +294,6 @@ testSELinuxLabeling(const void *opaque)
     if (testSELinuxDeleteDisks(files, nfiles) < 0)
         VIR_WARN("unable to fully clean up");
 
-    virDomainDefFree(def);
     for (i = 0; i < nfiles; i++) {
         VIR_FREE(files[i].file);
         VIR_FREE(files[i].context);

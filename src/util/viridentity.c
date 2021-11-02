@@ -134,7 +134,7 @@ virIdentity *virIdentityGetCurrent(void)
  */
 int virIdentitySetCurrent(virIdentity *ident)
 {
-    g_autoptr(virIdentity) old = NULL;
+    virIdentity *old = NULL;
 
     if (virIdentityInitialize() < 0)
         return -1;
@@ -150,6 +150,8 @@ int virIdentitySetCurrent(virIdentity *ident)
         return -1;
     }
 
+    if (old)
+        g_object_unref(old);
     return 0;
 }
 
@@ -313,14 +315,11 @@ virIdentity *virIdentityGetSystem(void)
     g_autofree char *username = NULL;
     g_autofree char *groupname = NULL;
     unsigned long long startTime;
-    g_autoptr(virIdentity) ret = NULL;
+    g_autoptr(virIdentity) ret = virIdentityNew();
 #if WITH_SELINUX
     char *con;
 #endif
     g_autofree char *token = NULL;
-
-    if (!(ret = virIdentityNew()))
-        return NULL;
 
     if (virIdentitySetProcessID(ret, getpid()) < 0)
         return NULL;

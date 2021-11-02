@@ -12,6 +12,11 @@
 
 #define VIRT_TYPE "QEMU"
 
+static virNodeDeviceDefParserCallbacks parser_callbacks = {
+    .postParse = nodeDeviceDefPostParse,
+    .validate = nodeDeviceDefValidate
+};
+
 struct TestInfo {
     const char *filename;
     virMdevctlCommand command;
@@ -66,7 +71,8 @@ testMdevctlCmd(virMdevctlCommand cmd_type,
             return -1;
     }
 
-    if (!(def = virNodeDeviceDefParseFile(mdevxml, create, VIRT_TYPE)))
+    if (!(def = virNodeDeviceDefParseFile(mdevxml, create, VIRT_TYPE,
+                                          &parser_callbacks, NULL)))
         return -1;
 
     /* this function will set a stdin buffer containing the json configuration
@@ -117,6 +123,56 @@ testMdevctlHelper(const void *data)
     return testMdevctlCmd(info->command, mdevxml, cmdlinefile, jsonfile);
 }
 
+
+static int
+testMdevctlAutostart(const void *data G_GNUC_UNUSED)
+{
+    g_autoptr(virNodeDeviceDef) def = NULL;
+    virBuffer buf = VIR_BUFFER_INITIALIZER;
+    const char *actualCmdline = NULL;
+    int ret = -1;
+    g_autoptr(virCommand) enablecmd = NULL;
+    g_autoptr(virCommand) disablecmd = NULL;
+    g_autofree char *errmsg = NULL;
+    /* just concatenate both calls into the same output file */
+    g_autofree char *cmdlinefile =
+        g_strdup_printf("%s/nodedevmdevctldata/mdevctl-autostart.argv",
+                        abs_srcdir);
+    g_autofree char *mdevxml =
+        g_strdup_printf("%s/nodedevschemadata/mdev_d069d019_36ea_4111_8f0a_8c9a70e21366.xml",
+                        abs_srcdir);
+    g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
+
+    if (!(def = virNodeDeviceDefParseFile(mdevxml, CREATE_DEVICE, VIRT_TYPE,
+                                          &parser_callbacks, NULL)))
+        return -1;
+
+    virCommandSetDryRun(dryRunToken, &buf, true, true, NULL, NULL);
+
+    if (!(enablecmd = nodeDeviceGetMdevctlSetAutostartCommand(def, true, &errmsg)))
+        goto cleanup;
+
+    if (virCommandRun(enablecmd, NULL) < 0)
+        goto cleanup;
+
+    if (!(disablecmd = nodeDeviceGetMdevctlSetAutostartCommand(def, false, &errmsg)))
+        goto cleanup;
+
+    if (virCommandRun(disablecmd, NULL) < 0)
+        goto cleanup;
+
+    if (!(actualCmdline = virBufferCurrentContent(&buf)))
+        goto cleanup;
+
+    if (virTestCompareToFileFull(actualCmdline, cmdlinefile, false) < 0)
+        goto cleanup;
+
+    ret = 0;
+
+ cleanup:
+    virBufferFreeAndReset(&buf);
+    return ret;
+}
 
 static int
 testMdevctlListDefined(const void *data G_GNUC_UNUSED)
@@ -231,7 +287,7 @@ fakeRootDevice(void)
  * parent of the mdev, and it needs a PCI address
  */
 static virNodeDeviceDef *
-fakeParentDevice(void)
+fakePCIDevice(void)
 {
     virNodeDeviceDef *def = NULL;
     virNodeDevCapPCIDev *pci_dev;
@@ -252,6 +308,29 @@ fakeParentDevice(void)
     return def;
 }
 
+
+/* Add a fake matrix device that can be used as a parent device for mediated
+ * devices. For our purposes, it only needs to have a name that matches the
+ * parent of the mdev, and it needs the proper name
+ */
+static virNodeDeviceDef *
+fakeMatrixDevice(void)
+{
+    virNodeDeviceDef *def = NULL;
+    virNodeDevCapAPMatrix *cap;
+
+    def = g_new0(virNodeDeviceDef, 1);
+    def->caps = g_new0(virNodeDevCapsDef, 1);
+
+    def->name = g_strdup("ap_matrix");
+    def->parent = g_strdup("computer");
+
+    def->caps->data.type = VIR_NODE_DEV_CAP_AP_MATRIX;
+    cap = &def->caps->data.ap_matrix;
+    cap->addr = g_strdup("matrix");
+
+    return def;
+}
 static int
 addDevice(virNodeDeviceDef *def)
 {
@@ -274,7 +353,8 @@ static int
 nodedevTestDriverAddTestDevices(void)
 {
     if (addDevice(fakeRootDevice()) < 0 ||
-        addDevice(fakeParentDevice()) < 0)
+        addDevice(fakePCIDevice()) < 0 ||
+        addDevice(fakeMatrixDevice()) < 0)
         return -1;
 
     return 0;
@@ -348,6 +428,9 @@ mymain(void)
 #define DO_TEST_LIST_DEFINED() \
     DO_TEST_FULL("list defined mdevs", testMdevctlListDefined, NULL)
 
+#define DO_TEST_AUTOSTART() \
+    DO_TEST_FULL("autostart mdevs", testMdevctlAutostart, NULL)
+
 #define DO_TEST_PARSE_JSON(filename) \
     DO_TEST_FULL("parse mdevctl json " filename, testMdevctlParse, filename)
 
@@ -370,6 +453,8 @@ mymain(void)
     DO_TEST_UNDEFINE("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
 
     DO_TEST_START("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
+
+    DO_TEST_AUTOSTART();
 
  done:
     nodedevTestDriverFree(driver);

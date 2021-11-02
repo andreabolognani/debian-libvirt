@@ -188,7 +188,7 @@ static char *testGenerateJSON(const char *server_name)
 {
     virNetDaemon *dmn = NULL;
     virNetServer *srv = NULL;
-    virJSONValue *json = NULL;
+    g_autoptr(virJSONValue) json = NULL;
     char *jsonstr = NULL;
     bool has_ipv4, has_ipv6;
 
@@ -226,7 +226,6 @@ static char *testGenerateJSON(const char *server_name)
     virNetServerClose(srv);
     virObjectUnref(srv);
     virObjectUnref(dmn);
-    virJSONValueFree(json);
     if (!jsonstr)
         virDispatchError(NULL);
     return jsonstr;
@@ -270,8 +269,10 @@ static int testExecRestart(const void *opaque)
     int ret = -1;
     virNetDaemon *dmn = NULL;
     const struct testExecRestartData *data = opaque;
-    char *infile = NULL, *outfile = NULL;
-    char *injsonstr = NULL, *outjsonstr = NULL;
+    g_autofree char *infile = NULL;
+    g_autofree char *outfile = NULL;
+    g_autofree char *injsonstr = NULL;
+    g_autofree char *outjsonstr = NULL;
     virJSONValue *injson = NULL;
     virJSONValue *outjson = NULL;
     int fdclient[2] = { -1, -1 }, fdserver[2] = { -1, -1 };
@@ -350,10 +351,6 @@ static int testExecRestart(const void *opaque)
             VIR_TEST_DEBUG("Test should have failed");
             ret = -1;
     }
-    VIR_FREE(infile);
-    VIR_FREE(outfile);
-    VIR_FREE(injsonstr);
-    VIR_FREE(outjsonstr);
     virJSONValueFree(injson);
     virJSONValueFree(outjson);
     virObjectUnref(dmn);

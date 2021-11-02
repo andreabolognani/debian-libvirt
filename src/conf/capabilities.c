@@ -1434,6 +1434,15 @@ virCapabilitiesHostNUMAGetCpus(virCapsHostNUMA *caps,
 
 
 int
+virCapabilitiesHostNUMAGetMaxNode(virCapsHostNUMA *caps)
+{
+    virCapsHostNUMACell *cell = g_ptr_array_index(caps->cells, caps->cells->len - 1);
+
+    return cell->num;
+}
+
+
+int
 virCapabilitiesGetNodeInfo(virNodeInfoPtr nodeinfo)
 {
     virArch hostarch = virArchFromHost();
@@ -2124,10 +2133,7 @@ virCapabilitiesInitResctrlMemory(virCaps *caps)
             node->id = bank->id;
             node->cpus = virBitmapNewCopy(bank->cpus);
 
-            if (VIR_APPEND_ELEMENT(caps->host.memBW.nodes,
-                                   caps->host.memBW.nnodes, node) < 0) {
-                goto cleanup;
-            }
+            VIR_APPEND_ELEMENT(caps->host.memBW.nodes, caps->host.memBW.nnodes, node);
         }
         virCapsHostMemBWNodeFree(node);
         node = NULL;
@@ -2250,11 +2256,7 @@ virCapabilitiesInitCaches(virCaps *caps)
                                            &bank->controls) < 0)
                     goto cleanup;
 
-                if (VIR_APPEND_ELEMENT(caps->host.cache.banks,
-                                       caps->host.cache.nbanks,
-                                       bank) < 0) {
-                    goto cleanup;
-                }
+                VIR_APPEND_ELEMENT(caps->host.cache.banks, caps->host.cache.nbanks, bank);
             }
 
             virCapsHostCacheBankFree(bank);

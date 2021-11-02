@@ -222,8 +222,7 @@ static int
 testStringReplace(const void *opaque G_GNUC_UNUSED)
 {
     const struct stringReplaceData *data = opaque;
-    char *result;
-    int ret = -1;
+    g_autofree char *result = NULL;
 
     result = virStringReplace(data->haystack,
                               data->oldneedle,
@@ -232,14 +231,10 @@ testStringReplace(const void *opaque G_GNUC_UNUSED)
     if (STRNEQ_NULLABLE(data->result, result)) {
         fprintf(stderr, "Expected '%s' but got '%s'\n",
                 data->result, NULLSTR(result));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(result);
-    return ret;
+    return 0;
 }
 
 
@@ -401,8 +396,7 @@ struct testStripData {
 static int testStripIPv6Brackets(const void *args)
 {
     const struct testStripData *data = args;
-    int ret = -1;
-    char *res = NULL;
+    g_autofree char *res = NULL;
 
     res = g_strdup(data->string);
 
@@ -411,21 +405,16 @@ static int testStripIPv6Brackets(const void *args)
     if (STRNEQ_NULLABLE(res, data->result)) {
         fprintf(stderr, "Returned '%s', expected '%s'\n",
                 NULLSTR(res), NULLSTR(data->result));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(res);
-    return ret;
+    return 0;
 }
 
 static int testStripControlChars(const void *args)
 {
     const struct testStripData *data = args;
-    int ret = -1;
-    char *res = NULL;
+    g_autofree char *res = NULL;
 
     res = g_strdup(data->string);
 
@@ -434,14 +423,10 @@ static int testStripControlChars(const void *args)
     if (STRNEQ_NULLABLE(res, data->result)) {
         fprintf(stderr, "Returned '%s', expected '%s'\n",
                 NULLSTR(res), NULLSTR(data->result));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(res);
-    return ret;
+    return 0;
 }
 
 struct testFilterData {
@@ -453,8 +438,7 @@ struct testFilterData {
 static int testFilterChars(const void *args)
 {
     const struct testFilterData *data = args;
-    int ret = -1;
-    char *res = NULL;
+    g_autofree char *res = NULL;
 
     res = g_strdup(data->string);
 
@@ -463,14 +447,10 @@ static int testFilterChars(const void *args)
     if (STRNEQ_NULLABLE(res, data->result)) {
         fprintf(stderr, "Returned '%s', expected '%s'\n",
                 NULLSTR(res), NULLSTR(data->result));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(res);
-    return ret;
+    return 0;
 }
 
 static int

@@ -1,7 +1,9 @@
 docs_html_dir = docdir / 'html'
 
 # xsltproc requires that the -o path ends with '/'
-docs_builddir = meson.current_build_dir() / ''
+# Not using '/' operator due to bug in meson 0.60.0
+# https://github.com/mesonbuild/meson/issues/9450
+docs_builddir = join_paths(meson.current_build_dir(), '')
 
 docs_assets = [
   'android-chrome-192x192.png',
@@ -183,8 +185,8 @@ docs_lxc_api_xml = docs_api_generated[1]
 docs_qemu_api_xml = docs_api_generated[2]
 docs_admin_api_xml = docs_api_generated[3]
 
-docs_rst2html_gen = generator(
-  rst2html_prog,
+docs_rst2html5_gen = generator(
+  rst2html5_prog,
   output: '@BASENAME@.html.in',
   arguments: [ '--stylesheet=', '--strict', '@INPUT@' ],
   capture: true,
@@ -215,7 +217,7 @@ foreach name : docs_rst_files
   rst_file = '@0@.rst'.format(name)
   html_xslt_gen += {
     'name': name,
-    'file': docs_rst2html_gen.process(rst_file),
+    'file': docs_rst2html5_gen.process(rst_file),
     'source': 'docs' / rst_file,
   }
 endforeach
@@ -252,7 +254,7 @@ html_xslt_gen += {
   'file': hvsupport_html_in,
 }
 
-news_html_in = docs_rst2html_gen.process(meson.source_root() / 'NEWS.rst')
+news_html_in = docs_rst2html5_gen.process(meson.source_root() / 'NEWS.rst')
 html_xslt_gen += {
   'name': 'news',
   'file': news_html_in,

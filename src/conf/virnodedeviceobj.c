@@ -41,6 +41,7 @@ struct _virNodeDeviceObj {
                                            used by testdriver */
     bool active;
     bool persistent;
+    bool autostart;
 };
 
 struct _virNodeDeviceObjList {
@@ -401,13 +402,21 @@ virNodeDeviceObjListFindSCSIHostByWWNs(virNodeDeviceObjList *devs,
                                       &data);
 }
 
+
+typedef struct _FindMediatedDeviceData FindMediatedDeviceData;
+struct _FindMediatedDeviceData {
+    const char *uuid;
+    const char *parent_addr;
+};
+
+
 static int
 virNodeDeviceObjListFindMediatedDeviceByUUIDCallback(const void *payload,
                                                      const char *name G_GNUC_UNUSED,
                                                      const void *opaque)
 {
     virNodeDeviceObj *obj = (virNodeDeviceObj *) payload;
-    const char *uuid = (const char *) opaque;
+    const FindMediatedDeviceData* data = opaque;
     virNodeDevCapsDef *cap;
     int want = 0;
 
@@ -415,7 +424,8 @@ virNodeDeviceObjListFindMediatedDeviceByUUIDCallback(const void *payload,
 
     for (cap = obj->def->caps; cap != NULL; cap = cap->next) {
         if (cap->data.type == VIR_NODE_DEV_CAP_MDEV) {
-            if (STREQ(cap->data.mdev.uuid, uuid)) {
+            if (STREQ(cap->data.mdev.uuid, data->uuid) &&
+                STREQ(cap->data.mdev.parent_addr, data->parent_addr)) {
                 want = 1;
                 break;
             }
@@ -429,11 +439,13 @@ virNodeDeviceObjListFindMediatedDeviceByUUIDCallback(const void *payload,
 
 virNodeDeviceObj *
 virNodeDeviceObjListFindMediatedDeviceByUUID(virNodeDeviceObjList *devs,
-                                             const char *uuid)
+                                             const char *uuid,
+                                             const char *parent_addr)
 {
+    const FindMediatedDeviceData data = {uuid, parent_addr};
     return virNodeDeviceObjListSearch(devs,
                                       virNodeDeviceObjListFindMediatedDeviceByUUIDCallback,
-                                      uuid);
+                                      &data);
 }
 
 static void
@@ -689,6 +701,9 @@ virNodeDeviceObjHasCap(const virNodeDeviceObj *obj,
             if (type == VIR_NODE_DEV_CAP_MDEV_TYPES &&
                 (cap->data.pci_dev.flags & VIR_NODE_DEV_CAP_FLAG_PCI_MDEV))
                 return true;
+            if (type == VIR_NODE_DEV_CAP_VPD &&
+                (cap->data.pci_dev.flags & VIR_NODE_DEV_CAP_FLAG_PCI_VPD))
+                return true;
             break;
 
         case VIR_NODE_DEV_CAP_SCSI_HOST:
@@ -730,6 +745,7 @@ virNodeDeviceObjHasCap(const virNodeDeviceObj *obj,
         case VIR_NODE_DEV_CAP_VDPA:
         case VIR_NODE_DEV_CAP_AP_CARD:
         case VIR_NODE_DEV_CAP_AP_QUEUE:
+        case VIR_NODE_DEV_CAP_VPD:
         case VIR_NODE_DEV_CAP_LAST:
             break;
         }
@@ -887,7 +903,8 @@ virNodeDeviceObjMatch(virNodeDeviceObj *obj,
               MATCH_CAP(VDPA)          ||
               MATCH_CAP(AP_CARD)       ||
               MATCH_CAP(AP_QUEUE)      ||
-              MATCH_CAP(AP_MATRIX)))
+              MATCH_CAP(AP_MATRIX)     ||
+              MATCH_CAP(VPD)))
             return false;
     }
 
@@ -1023,9 +1040,24 @@ virNodeDeviceObjSetPersistent(virNodeDeviceObj *obj,
 }
 
 
-struct virNodeDeviceObjListRemoveHelperData
+bool
+virNodeDeviceObjIsAutostart(virNodeDeviceObj *obj)
 {
-    virNodeDeviceObjListRemoveIterator callback;
+    return obj->autostart;
+}
+
+
+void
+virNodeDeviceObjSetAutostart(virNodeDeviceObj *obj,
+                             bool autostart)
+{
+    obj->autostart = autostart;
+}
+
+
+typedef struct _PredicateHelperData PredicateHelperData;
+struct _PredicateHelperData {
+    virNodeDeviceObjListPredicate predicate;
     void *opaque;
 };
 
@@ -1033,9 +1065,9 @@ static int virNodeDeviceObjListRemoveHelper(void *key G_GNUC_UNUSED,
                                             void *value,
                                             void *opaque)
 {
-    struct virNodeDeviceObjListRemoveHelperData *data = opaque;
+    PredicateHelperData *data = opaque;
 
-    return data->callback(value, data->opaque);
+    return data->predicate(value, data->opaque);
 }
 
 
@@ -1051,11 +1083,11 @@ static int virNodeDeviceObjListRemoveHelper(void *key G_GNUC_UNUSED,
  */
 void
 virNodeDeviceObjListForEachRemove(virNodeDeviceObjList *devs,
-                                  virNodeDeviceObjListRemoveIterator callback,
+                                  virNodeDeviceObjListPredicate callback,
                                   void *opaque)
 {
-    struct virNodeDeviceObjListRemoveHelperData data = {
-        .callback = callback,
+    PredicateHelperData data = {
+        .predicate = callback,
         .opaque = opaque
     };
 
@@ -1064,4 +1096,41 @@ virNodeDeviceObjListForEachRemove(virNodeDeviceObjList *devs,
                                 virNodeDeviceObjListRemoveHelper,
                                 &data);
     virObjectRWUnlock(devs);
+}
+
+
+static int virNodeDeviceObjListFindHelper(const void *payload,
+                                          const char *name G_GNUC_UNUSED,
+                                          const void *opaque)
+{
+    PredicateHelperData *data = (PredicateHelperData *) opaque;
+    virNodeDeviceObj *obj = (virNodeDeviceObj *) payload;
+
+    return data->predicate(obj, data->opaque);
+}
+
+
+/**
+ * virNodeDeviceObjListFind
+ * @devs: Pointer to object list
+ * @predicate: function to test the device for a certain property
+ * @opaque: Opaque data to use as argument to helper
+ *
+ * For each object in @devs, call the @predicate helper using @opaque as
+ * an argument until it returns TRUE. The list may not be modified while
+ * iterating.
+ */
+virNodeDeviceObj *
+virNodeDeviceObjListFind(virNodeDeviceObjList *devs,
+                         virNodeDeviceObjListPredicate predicate,
+                         void *opaque)
+{
+    PredicateHelperData data = {
+        .predicate = predicate,
+        .opaque = opaque
+    };
+
+    return virNodeDeviceObjListSearch(devs,
+                                      virNodeDeviceObjListFindHelper,
+                                      &data);
 }

@@ -127,7 +127,7 @@ virQEMUBuildCommandLineJSONArrayNumbered(const char *key,
  *
  *  guestfwd=tcp:10.0.2.1:4600-chardev:charchannel0,guestfwd=...
  */
-static int
+int
 virQEMUBuildCommandLineJSONArrayObjectsStr(const char *key,
                                            virJSONValue *array,
                                            virBuffer *buf,
@@ -158,23 +158,17 @@ virQEMUBuildCommandLineJSONIterate(const char *key,
                                    void *opaque)
 {
     struct virQEMUCommandLineJSONIteratorData *data = opaque;
+    g_autofree char *tmpkey = NULL;
 
     if (STREQ_NULLABLE(key, data->skipKey))
         return 0;
 
-    if (data->prefix) {
-        g_autofree char *tmpkey = NULL;
+    if (data->prefix)
+        key = tmpkey = g_strdup_printf("%s.%s", data->prefix, key);
 
-        tmpkey = g_strdup_printf("%s.%s", data->prefix, key);
-
-        return virQEMUBuildCommandLineJSONRecurse(tmpkey, value, data->buf,
-                                                  data->skipKey,
-                                                  data->arrayFunc, false);
-    } else {
-        return virQEMUBuildCommandLineJSONRecurse(key, value, data->buf,
-                                                  data->skipKey,
-                                                  data->arrayFunc, false);
-    }
+    return virQEMUBuildCommandLineJSONRecurse(key, value, data->buf,
+                                              data->skipKey,
+                                              data->arrayFunc, false);
 }
 
 
@@ -225,7 +219,13 @@ virQEMUBuildCommandLineJSONRecurse(const char *key,
             return -1;
         }
 
-        if (!arrayFunc || arrayFunc(key, value, buf, skipKey) < 0) {
+        if (!arrayFunc) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("JSON array -> commandline conversion function not provided"));
+            return -1;
+        }
+
+        if (arrayFunc(key, value, buf, skipKey) < 0) {
             /* fallback, treat the array as a non-bitmap, adding the key
              * for each member */
             for (i = 0; i < virJSONValueArraySize(value); i++) {
@@ -280,49 +280,6 @@ virQEMUBuildCommandLineJSON(virJSONValue *value,
     virBufferTrim(buf, ",");
 
     return 0;
-}
-
-
-/**
- * virQEMUBuildNetdevCommandlineFromJSON:
- * @props: JSON properties describing a netdev
- * @rawjson: don't transform to commandline args, but just stringify json
- *
- * Converts @props into arguments for -netdev including all the quirks and
- * differences between the monitor and command line syntax.
- *
- * @rawjson is meant for testing of the schema in the xml2argvtest
- */
-char *
-virQEMUBuildNetdevCommandlineFromJSON(virJSONValue *props,
-                                      bool rawjson)
-{
-    const char *type = virJSONValueObjectGetString(props, "type");
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-
-    if (rawjson)
-        return virJSONValueToString(props, false);
-
-    virBufferAsprintf(&buf, "%s,", type);
-
-    if (virQEMUBuildCommandLineJSON(props, &buf, "type",
-                                    virQEMUBuildCommandLineJSONArrayObjectsStr) < 0)
-        return NULL;
-
-    return virBufferContentAndReset(&buf);
-}
-
-
-char *
-virQEMUBuildDriveCommandlineFromJSON(virJSONValue *srcdef)
-{
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-
-    if (virQEMUBuildCommandLineJSON(srcdef, &buf, NULL,
-                                    virQEMUBuildCommandLineJSONArrayNumbered) < 0)
-        return NULL;
-
-    return virBufferContentAndReset(&buf);
 }
 
 

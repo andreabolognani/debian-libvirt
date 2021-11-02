@@ -159,38 +159,35 @@ virNWFilterBindingDef *
 virNWFilterBindingDefParseNode(xmlDocPtr xml,
                                xmlNodePtr root)
 {
-    xmlXPathContextPtr ctxt = NULL;
-    virNWFilterBindingDef *def = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
 
     if (STRNEQ((const char *)root->name, "filterbinding")) {
         virReportError(VIR_ERR_XML_ERROR,
                        "%s",
                        _("unknown root element for nwfilter binding"));
-        goto cleanup;
+        return NULL;
     }
 
     if (!(ctxt = virXMLXPathContextNew(xml)))
-        goto cleanup;
+        return NULL;
 
     ctxt->node = root;
-    def = virNWFilterBindingDefParseXML(ctxt);
-
- cleanup:
-    xmlXPathFreeContext(ctxt);
-    return def;
+    return virNWFilterBindingDefParseXML(ctxt);
 }
 
 
 static virNWFilterBindingDef *
 virNWFilterBindingDefParse(const char *xmlStr,
-                           const char *filename)
+                           const char *filename,
+                           unsigned int flags)
 {
     virNWFilterBindingDef *def = NULL;
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilterbinding_definition)")))) {
+    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilterbinding_definition)"),
+                           "nwfilterbinding.rng",
+                           flags & VIR_NWFILTER_BINDING_CREATE_VALIDATE))) {
         def = virNWFilterBindingDefParseNode(xml, xmlDocGetRootElement(xml));
-        xmlFreeDoc(xml);
     }
 
     return def;
@@ -198,16 +195,17 @@ virNWFilterBindingDefParse(const char *xmlStr,
 
 
 virNWFilterBindingDef *
-virNWFilterBindingDefParseString(const char *xmlStr)
+virNWFilterBindingDefParseString(const char *xmlStr,
+                                 unsigned int flags)
 {
-    return virNWFilterBindingDefParse(xmlStr, NULL);
+    return virNWFilterBindingDefParse(xmlStr, NULL, flags);
 }
 
 
 virNWFilterBindingDef *
 virNWFilterBindingDefParseFile(const char *filename)
 {
-    return virNWFilterBindingDefParse(NULL, filename);
+    return virNWFilterBindingDefParse(NULL, filename, 0);
 }
 
 

@@ -206,8 +206,7 @@ openvzReadNetworkConf(virDomainDef *def,
             if (virDomainNetAppendIPAddress(net, token, AF_UNSPEC, 0) < 0)
                 goto error;
 
-            if (VIR_APPEND_ELEMENT_COPY(def->nets, def->nnets, net) < 0)
-                goto error;
+            VIR_APPEND_ELEMENT_COPY(def->nets, def->nnets, net);
 
             token = strtok_r(NULL, " ", &saveptr);
         }
@@ -275,7 +274,7 @@ openvzReadNetworkConf(virDomainDef *def,
                 }
             }
 
-            ignore_value(VIR_APPEND_ELEMENT_COPY(def->nets, def->nnets, net));
+            VIR_APPEND_ELEMENT_COPY(def->nets, def->nnets, net);
         }
     }
 
@@ -356,8 +355,7 @@ openvzReadFSConf(virDomainDef *def,
         }
     }
 
-    if (VIR_APPEND_ELEMENT(def->fss, def->nfss, fs) < 0)
-        goto error;
+    VIR_APPEND_ELEMENT(def->fss, def->nfss, fs);
 
     VIR_FREE(temp);
 
@@ -486,7 +484,7 @@ int openvzLoadDomains(struct openvz_driver *driver)
         }
         *line++ = '\0';
 
-        if (!(def = virDomainDefNew()))
+        if (!(def = virDomainDefNew(driver->xmlopt)))
             goto cleanup;
 
         def->virtType = VIR_DOMAIN_VIRT_OPENVZ;
