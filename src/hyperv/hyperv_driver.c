@@ -1203,8 +1203,7 @@ hypervDomainDefAppendController(virDomainDef *def,
 
     controller->idx = idx;
 
-    if (VIR_APPEND_ELEMENT(def->controllers, def->ncontrollers, controller) < 0)
-        return -1;
+    VIR_APPEND_ELEMENT(def->controllers, def->ncontrollers, controller);
 
     return 0;
 }
@@ -1270,8 +1269,7 @@ hypervDomainDefAppendDisk(virDomainDef *def,
     disk->info.addr.drive.target = 0;
     disk->info.addr.drive.unit = addr;
 
-    if (VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk) < 0)
-        return -1;
+    VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk);
 
     return 0;
 }
@@ -1283,8 +1281,7 @@ hypervDomainDefParseFloppyStorageExtent(virDomainDef *def, virDomainDiskDef *dis
     disk->bus = VIR_DOMAIN_DISK_BUS_FDC;
     disk->dst = g_strdup("fda");
 
-    if (VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk) < 0)
-        return -1;
+    VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk);
 
     return 0;
 }
@@ -1456,8 +1453,7 @@ hypervDomainDefParsePhysicalDisk(hypervPrivate *priv,
 
     disk->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE;
 
-    if (VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(def->disks, def->ndisks, disk);
 
     result = 0;
 
@@ -1579,10 +1575,7 @@ hypervDomainDefParseSerial(virDomainDef *def, Msvm_ResourceAllocationSettingData
 
         serial->source->data.file.path = g_strdup(srcPath);
 
-        if (VIR_APPEND_ELEMENT(def->serials, def->nserials, serial) < 0) {
-            virDomainChrDefFree(serial);
-            return -1;
-        }
+        VIR_APPEND_ELEMENT(def->serials, def->nserials, serial);
     }
 
     return 0;
@@ -1661,10 +1654,7 @@ hypervDomainDefParseEthernetAdapter(virDomainDef *def,
     /* get bridge name */
     ndef->data.bridge.brname = g_strdup(vSwitch->data->Name);
 
-    if (VIR_APPEND_ELEMENT(def->nets, def->nnets, ndef) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Could not append definition to domain"));
-        return -1;
-    }
+    VIR_APPEND_ELEMENT(def->nets, def->nnets, ndef);
 
     return 0;
 }
@@ -2244,10 +2234,7 @@ hypervDomainDestroy(virDomainPtr domain)
 static char *
 hypervDomainGetOSType(virDomainPtr domain G_GNUC_UNUSED)
 {
-    char *osType;
-
-    osType = g_strdup("hvm");
-    return osType;
+    return g_strdup("hvm");
 }
 
 
@@ -2688,7 +2675,7 @@ hypervDomainGetXMLDesc(virDomainPtr domain, unsigned int flags)
 
     virCheckFlags(VIR_DOMAIN_XML_COMMON_FLAGS, NULL);
 
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(priv->xmlopt)))
         return NULL;
 
     virUUIDFormat(domain->uuid, uuid_string);
@@ -3058,7 +3045,7 @@ hypervDomainAttachDeviceFlags(virDomainPtr domain, const char *xml, unsigned int
     virUUIDFormat(domain->uuid, uuid_string);
 
     /* get domain definition */
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(priv->xmlopt)))
         return -1;
 
     /* get domain device definition */

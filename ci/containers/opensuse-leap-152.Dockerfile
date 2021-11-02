@@ -1,8 +1,8 @@
 # THIS FILE WAS AUTO-GENERATED
 #
-#  $ lcitool dockerfile opensuse-leap-152 libvirt
+#  $ lcitool manifest ci/manifest.yml
 #
-# https://gitlab.com/libvirt/libvirt-ci/-/commit/1d4e10a04c6a0d29302003244a9dc4dc3c9d06f0
+# https://gitlab.com/libvirt/libvirt-ci
 
 FROM registry.opensuse.org/opensuse/leap:15.2
 
@@ -11,7 +11,6 @@ RUN zypper update -y && \
            audit-devel \
            augeas \
            augeas-lenses \
-           avahi-devel \
            bash-completion \
            ca-certificates \
            ccache \

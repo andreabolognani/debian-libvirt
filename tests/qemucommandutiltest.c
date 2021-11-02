@@ -37,10 +37,9 @@ static int
 testQemuCommandBuildFromJSON(const void *opaque)
 {
     const testQemuCommandBuildObjectFromJSONData *data = opaque;
-    virJSONValue *val = NULL;
+    g_autoptr(virJSONValue) val = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    char *result = NULL;
-    int ret = -1;
+    g_autofree char *result = NULL;
 
     if (!(val = virJSONValueFromString(data->props))) {
         fprintf(stderr, "Failed to parse JSON string '%s'", data->props);
@@ -51,7 +50,7 @@ testQemuCommandBuildFromJSON(const void *opaque)
         fprintf(stderr,
                 "\nvirQEMUBuildCommandlineJSON failed process JSON:\n%s\n",
                 data->props);
-        goto cleanup;
+        return -1;
     }
 
     result = virBufferContentAndReset(&buf);
@@ -60,14 +59,10 @@ testQemuCommandBuildFromJSON(const void *opaque)
         fprintf(stderr, "\nFailed to create object string. "
                 "\nExpected:\n'%s'\nGot:\n'%s'",
                 NULLSTR(data->expectprops), NULLSTR(result));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    virJSONValueFree(val);
-    VIR_FREE(result);
-    return ret;
+    return 0;
 }
 
 static int

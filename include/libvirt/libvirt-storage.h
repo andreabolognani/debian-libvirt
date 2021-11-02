@@ -70,6 +70,7 @@ typedef enum {
 } virStoragePoolDeleteFlags;
 
 typedef enum {
+    /* Create the pool but do not perform pool build */
     VIR_STORAGE_POOL_CREATE_NORMAL = 0,
 
     /* Create the pool and perform pool build without any flags */
@@ -270,6 +271,10 @@ virStoragePoolPtr       virStoragePoolLookupByUUIDString(virConnectPtr conn,
 virStoragePoolPtr       virStoragePoolLookupByVolume    (virStorageVolPtr vol);
 virStoragePoolPtr       virStoragePoolLookupByTargetPath(virConnectPtr conn,
                                                          const char *path);
+
+typedef enum {
+    VIR_STORAGE_POOL_DEFINE_VALIDATE = 1 << 0, /* Validate the XML document against schema */
+} virStoragePoolDefineFlags;
 
 /*
  * Creating/destroying pools

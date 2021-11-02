@@ -90,38 +90,15 @@ struct _qemuDomainUnpluggingDevice {
 #define QEMU_DEVICE_MAPPER_CONTROL_PATH "/dev/mapper/control"
 
 
-/* Type of domain secret */
-typedef enum {
-    VIR_DOMAIN_SECRET_INFO_TYPE_PLAIN = 0,
-    VIR_DOMAIN_SECRET_INFO_TYPE_AES,  /* utilize GNUTLS_CIPHER_AES_256_CBC */
-
-    VIR_DOMAIN_SECRET_INFO_TYPE_LAST
-} qemuDomainSecretInfoType;
-
-typedef struct _qemuDomainSecretPlain qemuDomainSecretPlain;
-struct _qemuDomainSecretPlain {
-    char *username;
-    uint8_t *secret;
-    size_t secretlen;
-};
-
 #define QEMU_DOMAIN_AES_IV_LEN 16   /* 16 bytes for 128 bit random */
                                     /*    initialization vector */
-typedef struct _qemuDomainSecretAES qemuDomainSecretAES;
-struct _qemuDomainSecretAES {
+
+typedef struct _qemuDomainSecretInfo qemuDomainSecretInfo;
+struct _qemuDomainSecretInfo {
     char *username;
     char *alias;      /* generated alias for secret */
     char *iv;         /* base64 encoded initialization vector */
     char *ciphertext; /* encoded/encrypted secret */
-};
-
-typedef struct _qemuDomainSecretInfo qemuDomainSecretInfo;
-struct _qemuDomainSecretInfo {
-    qemuDomainSecretInfoType type;
-    union {
-        qemuDomainSecretPlain plain;
-        qemuDomainSecretAES aes;
-    } s;
 };
 
 typedef struct _qemuDomainObjPrivate qemuDomainObjPrivate;
@@ -154,6 +131,14 @@ struct _qemuDomainObjPrivate {
 
     bool fakeReboot;
     bool pausedShutdown;
+    /* allowReboot:
+     *
+     * Unused with new QEMU versions which have QEMU_CAPS_SET_ACTION.
+     *
+     * Otherwise if it's set to VIR_TRISTATE_BOOL_YES, QEMU was started with
+     * -no-shutdown, and if set to VIR_TRISTATE_BOOL_NO qemu was started with
+     * -no-reboot instead.
+     */
     virTristateBool allowReboot;
 
     int jobs_queued;
@@ -285,10 +270,6 @@ struct _qemuDomainDiskPrivate {
     char *qomName; /* QOM path of the disk (also refers to the block backend) */
     char *nodeCopyOnRead; /* nodename of the disk-wide copy-on-read blockdev layer */
 
-    unsigned int effectiveBootindex; /* boot index of the disk based on one
-                                        of the two ways we use to select a boot
-                                        device */
-
     bool transientOverlayCreated; /* the overlay image of a transient disk was
                                      created and the definition was updated */
 };
@@ -407,17 +388,6 @@ struct _qemuDomainNetworkPrivate {
 };
 
 
-#define QEMU_DOMAIN_FS_PRIVATE(dev) \
-    ((qemuDomainFSPrivate *) (dev)->privateData)
-
-typedef struct _qemuDomainFSPrivate qemuDomainFSPrivate;
-struct _qemuDomainFSPrivate {
-    virObject parent;
-
-    char *vhostuser_fs_sock;
-};
-
-
 typedef enum {
     QEMU_PROCESS_EVENT_WATCHDOG = 0,
     QEMU_PROCESS_EVENT_GUESTPANIC,
@@ -430,6 +400,7 @@ typedef enum {
     QEMU_PROCESS_EVENT_PR_DISCONNECT,
     QEMU_PROCESS_EVENT_RDMA_GID_STATUS_CHANGED,
     QEMU_PROCESS_EVENT_GUEST_CRASHLOADED,
+    QEMU_PROCESS_EVENT_MEMORY_DEVICE_SIZE_CHANGE,
 
     QEMU_PROCESS_EVENT_LAST
 } qemuProcessEventType;
@@ -457,19 +428,21 @@ struct _qemuDomainSaveCookie {
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuDomainSaveCookie, virObjectUnref);
 
+typedef struct _qemuDomainXmlNsEnvTuple qemuDomainXmlNsEnvTuple;
+struct _qemuDomainXmlNsEnvTuple {
+    char *name;
+    char *value;
+};
+
 typedef struct _qemuDomainXmlNsDef qemuDomainXmlNsDef;
 struct _qemuDomainXmlNsDef {
-    size_t num_args;
     char **args;
 
     unsigned int num_env;
-    char **env_name;
-    char **env_value;
+    qemuDomainXmlNsEnvTuple *env;
 
-    size_t ncapsadd;
     char **capsadd;
 
-    size_t ncapsdel;
     char **capsdel;
 
     /* We deliberately keep this as a string so that it's parsed only when
@@ -843,8 +816,6 @@ int qemuDomainMasterKeyCreate(virDomainObj *vm);
 
 void qemuDomainMasterKeyRemove(qemuDomainObjPrivate *priv);
 
-bool qemuDomainSupportsEncryptedSecret(qemuDomainObjPrivate *priv);
-
 void qemuDomainSecretInfoFree(qemuDomainSecretInfo *secinfo)
     ATTRIBUTE_NONNULL(1);
 
@@ -883,11 +854,11 @@ int qemuDomainSecretPrepare(virQEMUDriver *driver,
                             virDomainObj *vm)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-int qemuDomainDefValidateDiskLunSource(const virStorageSource *src)
-    ATTRIBUTE_NONNULL(1);
-
 int qemuDomainDeviceDefValidateDisk(const virDomainDiskDef *disk,
                                     virQEMUCaps *qemuCaps);
+
+int qemuDomainDeviceDiskDefPostParse(virDomainDiskDef *disk,
+                                     unsigned int parseFlags);
 
 int qemuDomainPrepareChannel(virDomainChrDef *chr,
                              const char *domainChannelTargetDir)
@@ -992,9 +963,6 @@ virDomainEventResumedDetailType
 qemuDomainRunningReasonToResumeEvent(virDomainRunningReason reason);
 
 bool
-qemuDomainIsUsingNoShutdown(qemuDomainObjPrivate *priv);
-
-bool
 qemuDomainDiskIsMissingLocalOptional(virDomainDiskDef *disk);
 
 void
@@ -1045,8 +1013,8 @@ int virQEMUFileOpenAs(uid_t fallback_uid,
                       bool *needUnlink);
 
 int
-qemuDomainOpenFile(virQEMUDriver *driver,
-                   virDomainObj *vm,
+qemuDomainOpenFile(virQEMUDriverConfig *cfg,
+                   const virDomainDef *def,
                    const char *path,
                    int oflags,
                    bool *needUnlink);
@@ -1063,3 +1031,7 @@ int
 qemuDomainNamePathsCleanup(virQEMUDriverConfig *cfg,
                            const char *name,
                            bool bestEffort);
+
+char *
+qemuDomainGetVHostUserFSSocketPath(qemuDomainObjPrivate *priv,
+                                   const virDomainFSDef *fs);

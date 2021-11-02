@@ -2699,16 +2699,15 @@ static int vboxDomainDestroy(virDomainPtr dom)
     return vboxDomainDestroyFlags(dom, 0);
 }
 
-static char *vboxDomainGetOSType(virDomainPtr dom G_GNUC_UNUSED) {
+static char *vboxDomainGetOSType(virDomainPtr dom G_GNUC_UNUSED)
+{
     /* Returning "hvm" always as suggested on list, cause
      * this functions seems to be badly named and it
      * is supposed to pass the ABI name and not the domain
      * operating system driver as I had imagined ;)
      */
-    char *osType;
 
-    osType = g_strdup("hvm");
-    return osType;
+    return g_strdup("hvm");
 }
 
 static int vboxDomainSetMemory(virDomainPtr dom, unsigned long memory)
@@ -3535,9 +3534,8 @@ vboxDumpDisplay(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
         graphics->data.desktop.display = g_strdup(getenv("DISPLAY"));
     }
 
-    if (graphics &&
-        VIR_APPEND_ELEMENT(def->graphics, def->ngraphics, graphics) < 0)
-        goto cleanup;
+    if (graphics)
+        VIR_APPEND_ELEMENT(def->graphics, def->ngraphics, graphics);
 
     gVBoxAPI.UIMachine.GetVRDEServer(machine, &VRDEServer);
     if (VRDEServer)
@@ -3574,8 +3572,7 @@ vboxDumpDisplay(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
         if (reuseSingleConnection)
             graphics->data.rdp.replaceUser = true;
 
-        if (VIR_APPEND_ELEMENT(def->graphics, def->ngraphics, graphics) < 0)
-            goto cleanup;
+        VIR_APPEND_ELEMENT(def->graphics, def->ngraphics, graphics);
     }
 
     ret = 0;
@@ -3758,10 +3755,7 @@ vboxDumpNetworks(virDomainDef *def, struct _vboxDriver *data, IMachine *machine,
 
         if (enabled) {
             net = vboxDumpNetwork(data, adapter);
-            if (VIR_APPEND_ELEMENT(def->nets, def->nnets, net) < 0) {
-                VBOX_RELEASE(adapter);
-                return -1;
-            }
+            VIR_APPEND_ELEMENT(def->nets, def->nnets, net);
         }
 
         VBOX_RELEASE(adapter);
@@ -4009,7 +4003,7 @@ static char *vboxDomainGetXMLDesc(virDomainPtr dom, unsigned int flags)
     if (openSessionForMachine(data, dom->uuid, &iid, &machine) < 0)
         goto cleanup;
 
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(data->xmlopt)))
         goto cleanup;
 
     gVBoxAPI.UIMachine.GetAccessible(machine, &accessible);
@@ -4252,7 +4246,7 @@ static int vboxDomainAttachDeviceImpl(virDomainPtr dom,
         return ret;
 
     VBOX_IID_INITIALIZE(&iid);
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(data->xmlopt)))
         return ret;
 
     def->os.type = VIR_DOMAIN_OSTYPE_HVM;
@@ -4371,7 +4365,7 @@ static int vboxDomainDetachDevice(virDomainPtr dom, const char *xml)
         return ret;
 
     VBOX_IID_INITIALIZE(&iid);
-    if (!(def = virDomainDefNew()))
+    if (!(def = virDomainDefNew(data->xmlopt)))
         return ret;
 
     def->os.type = VIR_DOMAIN_OSTYPE_HVM;
@@ -6124,7 +6118,7 @@ static char *vboxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
         goto cleanup;
 
     if (!(def = virDomainSnapshotDefNew()) ||
-        !(def->parent.dom = virDomainDefNew()))
+        !(def->parent.dom = virDomainDefNew(data->xmlopt)))
         goto cleanup;
     defdom = def->parent.dom;
     def->parent.name = g_strdup(snapshot->name);
@@ -7603,7 +7597,7 @@ vboxNodeGetFreeMemory(virConnectPtr conn G_GNUC_UNUSED)
 }
 
 static int
-vboxNodeGetFreePages(virConnectPtr conn G_GNUC_UNUSED,
+vboxNodeGetFreePages(virConnectPtr conn,
                      unsigned int npages,
                      unsigned int *pages,
                      int startCell,
@@ -7611,9 +7605,17 @@ vboxNodeGetFreePages(virConnectPtr conn G_GNUC_UNUSED,
                      unsigned long long *counts,
                      unsigned int flags)
 {
+    struct _vboxDriver *driver = conn->privateData;
+    int lastCell;
+
     virCheckFlags(0, -1);
 
-    return virHostMemGetFreePages(npages, pages, startCell, cellCount, counts);
+    virObjectLock(driver);
+    lastCell = virCapabilitiesHostNUMAGetMaxNode(driver->caps->host.numa);
+    virObjectUnlock(driver);
+
+    return virHostMemGetFreePages(npages, pages, startCell,
+                                  cellCount, lastCell, counts);
 }
 
 static int
@@ -7625,12 +7627,18 @@ vboxNodeAllocPages(virConnectPtr conn G_GNUC_UNUSED,
                    unsigned int cellCount,
                    unsigned int flags)
 {
+    struct _vboxDriver *driver = conn->privateData;
+    int lastCell;
     bool add = !(flags & VIR_NODE_ALLOC_PAGES_SET);
 
     virCheckFlags(VIR_NODE_ALLOC_PAGES_SET, -1);
 
+    virObjectLock(driver);
+    lastCell = virCapabilitiesHostNUMAGetMaxNode(driver->caps->host.numa);
+    virObjectUnlock(driver);
+
     return virHostMemAllocPages(npages, pageSizes, pageCounts,
-                                startCell, cellCount, add);
+                                startCell, cellCount, lastCell, add);
 }
 
 static int

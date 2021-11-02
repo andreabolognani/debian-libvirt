@@ -35,21 +35,17 @@ static struct testPath paths[] = {
 static int
 testParseDatastorePath(const void *data G_GNUC_UNUSED)
 {
-    int result = 0;
     size_t i;
-    char *datastoreName = NULL;
-    char *directoryName = NULL;
-    char *directoryAndFileName = NULL;
 
     for (i = 0; i < G_N_ELEMENTS(paths); ++i) {
-        VIR_FREE(datastoreName);
-        VIR_FREE(directoryName);
-        VIR_FREE(directoryAndFileName);
+        g_autofree char *datastoreName = NULL;
+        g_autofree char *directoryName = NULL;
+        g_autofree char *directoryAndFileName = NULL;
 
         if (esxUtil_ParseDatastorePath
              (paths[i].datastorePath, &datastoreName, &directoryName,
               &directoryAndFileName) != paths[i].result) {
-            goto failure;
+            return -1;
         }
 
         if (paths[i].result < 0)
@@ -57,32 +53,22 @@ testParseDatastorePath(const void *data G_GNUC_UNUSED)
 
         if (STRNEQ(paths[i].datastoreName, datastoreName)) {
             virTestDifference(stderr, paths[i].datastoreName, datastoreName);
-            goto failure;
+            return -1;
         }
 
         if (STRNEQ(paths[i].directoryName, directoryName)) {
             virTestDifference(stderr, paths[i].directoryName, directoryName);
-            goto failure;
+            return -1;
         }
 
         if (STRNEQ(paths[i].directoryAndFileName, directoryAndFileName)) {
             virTestDifference(stderr, paths[i].directoryAndFileName,
                               directoryAndFileName);
-            goto failure;
+            return -1;
         }
     }
 
- cleanup:
-    VIR_FREE(datastoreName);
-    VIR_FREE(directoryName);
-    VIR_FREE(directoryAndFileName);
-
-    return result;
-
- failure:
-    result = -1;
-
-    goto cleanup;
+    return 0;
 }
 
 
@@ -175,23 +161,19 @@ static int
 testEscapeDatastoreItem(const void *data G_GNUC_UNUSED)
 {
     size_t i;
-    char *escaped = NULL;
 
     for (i = 0; i < G_N_ELEMENTS(datastoreItems); ++i) {
-        VIR_FREE(escaped);
+        g_autofree char *escaped = NULL;
 
         escaped = esxUtil_EscapeDatastoreItem(datastoreItems[i].string);
 
         if (escaped == NULL)
             return -1;
 
-        if (STRNEQ(datastoreItems[i].escaped, escaped)) {
-            VIR_FREE(escaped);
+        if (STRNEQ(datastoreItems[i].escaped, escaped))
             return -1;
-        }
     }
 
-    VIR_FREE(escaped);
     return 0;
 }
 
@@ -215,10 +197,9 @@ static int
 testConvertWindows1252ToUTF8(const void *data G_GNUC_UNUSED)
 {
     size_t i;
-    char *utf8 = NULL;
 
     for (i = 0; i < G_N_ELEMENTS(windows1252ToUTF8); ++i) {
-        VIR_FREE(utf8);
+        g_autofree char *utf8 = NULL;
 
         utf8 = virVMXConvertToUTF8("Windows-1252",
                                    windows1252ToUTF8[i].windows1252);
@@ -226,13 +207,10 @@ testConvertWindows1252ToUTF8(const void *data G_GNUC_UNUSED)
         if (utf8 == NULL)
             return -1;
 
-        if (STRNEQ(windows1252ToUTF8[i].utf8, utf8)) {
-            VIR_FREE(utf8);
+        if (STRNEQ(windows1252ToUTF8[i].utf8, utf8))
             return -1;
-        }
     }
 
-    VIR_FREE(utf8);
     return 0;
 }
 

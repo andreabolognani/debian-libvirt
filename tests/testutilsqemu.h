@@ -34,7 +34,7 @@ enum {
 };
 
 typedef enum {
-    ARG_QEMU_CAPS,
+    ARG_QEMU_CAPS = QEMU_CAPS_LAST + 1,
     ARG_GIC,
     ARG_MIGRATE_FROM,
     ARG_MIGRATE_FD,
@@ -54,6 +54,22 @@ typedef enum {
     FLAG_SLIRP_HELPER       = 1 << 5,
 } testQemuInfoFlags;
 
+struct testQemuConf {
+    GHashTable *capscache;
+    GHashTable *capslatest;
+    GHashTable *qapiSchemaCache;
+};
+
+struct testQemuArgs {
+    bool newargs;
+    virQEMUCaps *fakeCaps;
+    bool fakeCapsUsed;
+    char *capsver;
+    char *capsarch;
+    int gic;
+    bool invalidarg;
+};
+
 struct testQemuInfo {
     const char *name;
     char *infile;
@@ -66,7 +82,9 @@ struct testQemuInfo {
     unsigned int parseFlags;
     virArch arch;
     char *schemafile;
-    GHashTable *qapiSchemaCache;
+
+    struct testQemuArgs args;
+    struct testQemuConf *conf;
 };
 
 virCaps *testQemuCapsInit(void);
@@ -109,9 +127,10 @@ int testQemuCapsIterate(const char *suffix,
                         testQemuCapsIterateCallback callback,
                         void *opaque);
 
-int testQemuInfoSetArgs(struct testQemuInfo *info,
-                        GHashTable *capscache,
-                        GHashTable *capslatest, ...);
+void testQemuInfoSetArgs(struct testQemuInfo *info,
+                         struct testQemuConf *conf,
+                         ...);
+int testQemuInfoInitArgs(struct testQemuInfo *info);
 void testQemuInfoClear(struct testQemuInfo *info);
 
 #endif

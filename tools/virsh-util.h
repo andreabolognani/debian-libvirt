@@ -40,21 +40,59 @@ virshCommandOptDomain(vshControl *ctl,
                       const char **name);
 
 typedef virDomain virshDomain;
-
 void
 virshDomainFree(virDomainPtr dom);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshDomain, virshDomainFree);
+
+typedef virDomainCheckpoint virshDomainCheckpoint;
+void
+virshDomainCheckpointFree(virDomainCheckpointPtr chk);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshDomainCheckpoint, virshDomainCheckpointFree);
+
+typedef virDomainSnapshot virshDomainSnapshot;
+void
+virshDomainSnapshotFree(virDomainSnapshotPtr snap);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshDomainSnapshot, virshDomainSnapshotFree);
+
+typedef virInterface virshInterface;
+void
+virshInterfaceFree(virInterfacePtr iface);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshInterface, virshInterfaceFree);
+
+typedef virNetwork virshNetwork;
+void
+virshNetworkFree(virNetworkPtr network);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshNetwork, virshNetworkFree);
+
+typedef virNodeDevice virshNodeDevice;
+void
+virshNodeDeviceFree(virNodeDevicePtr device);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshNodeDevice, virshNodeDeviceFree);
+
+typedef virNWFilter virshNWFilter;
+void
+virshNWFilterFree(virNWFilterPtr nwfilter);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshNWFilter, virshNWFilterFree);
 
 typedef virSecret virshSecret;
 void
 virshSecretFree(virSecretPtr secret);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshSecret, virshSecretFree);
 
+typedef virStoragePool virshStoragePool;
 void
-virshDomainCheckpointFree(virDomainCheckpointPtr chk);
+virshStoragePoolFree(virStoragePoolPtr pool);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshStoragePool, virshStoragePoolFree);
 
+typedef virStorageVol virshStorageVol;
 void
-virshDomainSnapshotFree(virDomainSnapshotPtr snap);
+virshStorageVolFree(virStorageVolPtr vol);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshStorageVol, virshStorageVolFree);
+
+typedef virStream virshStream;
+void
+virshStreamFree(virStreamPtr stream);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virshStream, virshStreamFree);
 
 int
 virshDomainState(vshControl *ctl,

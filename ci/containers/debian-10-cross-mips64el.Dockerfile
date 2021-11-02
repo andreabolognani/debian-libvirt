@@ -1,8 +1,8 @@
 # THIS FILE WAS AUTO-GENERATED
 #
-#  $ lcitool dockerfile --cross mips64el debian-10 libvirt
+#  $ lcitool manifest ci/manifest.yml
 #
-# https://gitlab.com/libvirt/libvirt-ci/-/commit/1d4e10a04c6a0d29302003244a9dc4dc3c9d06f0
+# https://gitlab.com/libvirt/libvirt-ci
 
 FROM docker.io/library/debian:10-slim
 
@@ -50,16 +50,11 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             radvd \
             scrub \
             sed \
-            xsltproc \
-            zfs-fuse && \
+            xsltproc && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
-    dpkg-reconfigure locales && \
-    dpkg-query --showformat '${Package}_${Version}_${Architecture}\n' --show > /packages.txt && \
-    mkdir -p /usr/libexec/ccache-wrappers && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips64el-linux-gnuabi64-cc && \
-    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips64el-linux-gnuabi64-gcc
+    dpkg-reconfigure locales
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture mips64el && \
@@ -72,7 +67,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libapparmor-dev:mips64el \
             libattr1-dev:mips64el \
             libaudit-dev:mips64el \
-            libavahi-client-dev:mips64el \
             libblkid-dev:mips64el \
             libc6-dev:mips64el \
             libcap-ng-dev:mips64el \
@@ -116,7 +110,11 @@ pkgconfig = '/usr/bin/mips64el-linux-gnuabi64-pkg-config'\n\
 system = 'linux'\n\
 cpu_family = 'mips64'\n\
 cpu = 'mips64el'\n\
-endian = 'little'" > /usr/local/share/meson/cross/mips64el-linux-gnuabi64
+endian = 'little'" > /usr/local/share/meson/cross/mips64el-linux-gnuabi64 && \
+    dpkg-query --showformat '${Package}_${Version}_${Architecture}\n' --show > /packages.txt && \
+    mkdir -p /usr/libexec/ccache-wrappers && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips64el-linux-gnuabi64-cc && \
+    ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips64el-linux-gnuabi64-gcc
 
 RUN pip3 install \
          meson==0.56.0

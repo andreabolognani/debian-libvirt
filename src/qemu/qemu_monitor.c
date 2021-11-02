@@ -98,6 +98,9 @@ struct _qemuMonitor {
      * the next monitor msg */
     virError lastError;
 
+    /* Set to true when EOF is detected on the monitor */
+    bool goteof;
+
     int nextSerial;
 
     bool waitGreeting;
@@ -233,8 +236,6 @@ qemuMonitorDispose(void *obj)
 
     VIR_DEBUG("mon=%p", mon);
     qemuMonitorDisposed = true;
-    if (mon->cb && mon->cb->destroy)
-        (mon->cb->destroy)(mon, mon->vm, mon->callbackOpaque);
     virObjectUnref(mon->vm);
 
     g_main_context_unref(mon->context);
@@ -419,7 +420,7 @@ static int
 qemuMonitorIOWrite(qemuMonitor *mon)
 {
     int done;
-    char *buf;
+    const char *buf;
     size_t len;
 
     /* If no active message, or fully transmitted, the no-op */
@@ -528,7 +529,6 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
 {
     qemuMonitor *mon = opaque;
     bool error = false;
-    bool eof = false;
     bool hangup = false;
 
     virObjectRef(mon);
@@ -546,7 +546,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
 
     if (mon->lastError.code != VIR_ERR_OK) {
         if (cond & (G_IO_HUP | G_IO_ERR))
-            eof = true;
+            mon->goteof = true;
         error = true;
     } else {
         if (cond & G_IO_OUT) {
@@ -564,7 +564,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
                 if (errno == ECONNRESET)
                     hangup = true;
             } else if (got == 0) {
-                eof = true;
+                mon->goteof = true;
             } else {
                 /* Ignore hangup/error cond if we read some data, to
                  * give time for that data to be consumed */
@@ -577,22 +577,19 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
 
         if (cond & G_IO_HUP) {
             hangup = true;
-            if (!error) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("End of file from qemu monitor"));
-                eof = true;
-            }
+            if (!error)
+                mon->goteof = true;
         }
 
-        if (!error && !eof &&
+        if (!error && !mon->goteof &&
             cond & G_IO_ERR) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Invalid file descriptor while waiting for monitor"));
-            eof = true;
+            mon->goteof = true;
         }
     }
 
-    if (error || eof) {
+    if (error || mon->goteof) {
         if (hangup && mon->logFunc != NULL) {
             /* Check if an error message from qemu is available and if so, use
              * it to overwrite the actual message. It's done only in early
@@ -611,7 +608,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
             /* Already have an error, so clear any new error */
             virResetLastError();
         } else {
-            if (virGetLastErrorCode() == VIR_ERR_OK)
+            if (virGetLastErrorCode() == VIR_ERR_OK && !mon->goteof)
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("Error while processing monitor IO"));
             virCopyLastError(&mon->lastError);
@@ -632,7 +629,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
     /* We have to unlock to avoid deadlock against command thread,
      * but is this safe ?  I think it is, because the callback
      * will try to acquire the virDomainObj *mutex next */
-    if (eof) {
+    if (mon->goteof) {
         qemuMonitorEofNotifyCallback eofNotify = mon->cb->eofNotify;
         virDomainObj *vm = mon->vm;
 
@@ -702,7 +699,7 @@ qemuMonitorOpenInternal(virDomainObj *vm,
     mon->callbackOpaque = opaque;
 
     if (priv)
-        mon->objectAddNoWrap = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_QAPIFIED);
+        mon->objectAddNoWrap = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_JSON);
 
     if (virSetCloseExec(mon->fd) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -923,10 +920,7 @@ qemuMonitorClose(qemuMonitor *mon)
 char *
 qemuMonitorNextCommandID(qemuMonitor *mon)
 {
-    char *id;
-
-    id = g_strdup_printf("libvirt-%d", ++mon->nextSerial);
-    return id;
+    return g_strdup_printf("libvirt-%d", ++mon->nextSerial);
 }
 
 
@@ -949,6 +943,11 @@ qemuMonitorSend(qemuMonitor *mon,
         VIR_DEBUG("Attempt to send command while error is set %s",
                   NULLSTR(mon->lastError.message));
         virSetError(&mon->lastError);
+        return -1;
+    }
+    if (mon->goteof) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("End of file from qemu monitor"));
         return -1;
     }
 
@@ -1381,6 +1380,17 @@ qemuMonitorEmitSpiceMigrated(qemuMonitor *mon)
     VIR_DEBUG("mon=%p", mon);
 
     QEMU_MONITOR_CALLBACK(mon, domainSpiceMigrated, mon->vm);
+}
+
+
+void
+qemuMonitorEmitMemoryDeviceSizeChange(qemuMonitor *mon,
+                                      const char *devAlias,
+                                      unsigned long long size)
+{
+    VIR_DEBUG("mon=%p, devAlias='%s', size=%llu", mon, devAlias, size);
+
+    QEMU_MONITOR_CALLBACK(mon, domainMemoryDeviceSizeChange, mon->vm, devAlias, size);
 }
 
 
@@ -2043,27 +2053,22 @@ qemuMonitorQueryBlockstats(qemuMonitor *mon)
  * qemuMonitorGetAllBlockStatsInfo:
  * @mon: monitor object
  * @ret_stats: pointer that is filled with a hash table containing the stats
- * @backingChain: recurse into the backing chain of devices
  *
- * Creates a hash table in @ret_stats with block stats of all devices. In case
- * @backingChain is true @ret_stats will additionally contain stats for
- * backing chain members of block devices.
+ * Creates a hash table in @ret_stats with block stats of all devices and the
+ * backing chains for the block devices.
  *
  * Returns < 0 on error, count of supported block stats fields on success.
  */
 int
 qemuMonitorGetAllBlockStatsInfo(qemuMonitor *mon,
-                                GHashTable **ret_stats,
-                                bool backingChain)
+                                GHashTable **ret_stats)
 {
     int ret;
     g_autoptr(GHashTable) stats = virHashNew(g_free);
 
-    VIR_DEBUG("ret_stats=%p, backing=%d", ret_stats, backingChain);
-
     QEMU_CHECK_MONITOR(mon);
 
-    ret = qemuMonitorJSONGetAllBlockStatsInfo(mon, stats, backingChain);
+    ret = qemuMonitorJSONGetAllBlockStatsInfo(mon, stats);
 
     if (ret < 0)
         return -1;
@@ -2076,14 +2081,11 @@ qemuMonitorGetAllBlockStatsInfo(qemuMonitor *mon,
 /* Updates "stats" to fill virtual and physical size of the image */
 int
 qemuMonitorBlockStatsUpdateCapacity(qemuMonitor *mon,
-                                    GHashTable *stats,
-                                    bool backingChain)
+                                    GHashTable *stats)
 {
-    VIR_DEBUG("stats=%p, backing=%d", stats, backingChain);
-
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONBlockStatsUpdateCapacity(mon, stats, backingChain);
+    return qemuMonitorJSONBlockStatsUpdateCapacity(mon, stats);
 }
 
 
@@ -2376,9 +2378,7 @@ qemuMonitorSetMigrationCacheSize(qemuMonitor *mon,
  * @mon: Pointer to the monitor object.
  * @params: Where to store migration parameters.
  *
- * If QEMU does not support querying migration parameters, the function will
- * set @params to NULL and return 0 (success). The caller is responsible for
- * freeing @params.
+ * The caller is responsible for freeing @params.
  *
  * Returns 0 on success, -1 on error.
  */
@@ -2849,55 +2849,22 @@ qemuMonitorDelDevice(qemuMonitor *mon,
 }
 
 
-int
-qemuMonitorAddDeviceWithFd(qemuMonitor *mon,
-                           const char *devicestr,
-                           int fd,
-                           const char *fdname)
-{
-    int ret;
-
-    VIR_DEBUG("device=%s fd=%d fdname=%s", devicestr, fd, NULLSTR(fdname));
-
-    QEMU_CHECK_MONITOR(mon);
-
-    if (fd >= 0 && qemuMonitorSendFileHandle(mon, fdname, fd) < 0)
-        return -1;
-
-    ret = qemuMonitorJSONAddDevice(mon, devicestr);
-
-    if (ret < 0 && fd >= 0) {
-        if (qemuMonitorCloseFileHandle(mon, fdname) < 0)
-            VIR_WARN("failed to close device handle '%s'", fdname);
-    }
-
-    return ret;
-}
-
-
-int
-qemuMonitorAddDevice(qemuMonitor *mon,
-                     const char *devicestr)
-{
-    return qemuMonitorAddDeviceWithFd(mon, devicestr, -1, NULL);
-}
-
-
 /**
- * qemuMonitorAddDeviceArgs:
+ * qemuMonitorAddDeviceProps:
  * @mon: monitor object
- * @args: arguments for device add, consumed on success or failure
+ * @props: JSON object describing the device to add, the object is consumed
+ *         and cleared.
  *
- * Adds a device described by @args. Requires JSON monitor.
+ * Adds a device described by @props.
  * Returns 0 on success -1 on error.
  */
 int
-qemuMonitorAddDeviceArgs(qemuMonitor *mon,
-                         virJSONValue *args)
+qemuMonitorAddDeviceProps(qemuMonitor *mon,
+                          virJSONValue **props)
 {
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONAddDeviceArgs(mon, args);
+    return qemuMonitorJSONAddDeviceProps(mon, props);
 }
 
 
@@ -3335,20 +3302,14 @@ int
 qemuMonitorSetBlockIoThrottle(qemuMonitor *mon,
                               const char *drivealias,
                               const char *qomid,
-                              virDomainBlockIoTuneInfo *info,
-                              bool supportMaxOptions,
-                              bool supportGroupNameOption,
-                              bool supportMaxLengthOptions)
+                              virDomainBlockIoTuneInfo *info)
 {
     VIR_DEBUG("drivealias=%s, qomid=%s, info=%p",
               NULLSTR(drivealias), NULLSTR(qomid), info);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONSetBlockIoThrottle(mon, drivealias, qomid, info,
-                                             supportMaxOptions,
-                                             supportGroupNameOption,
-                                             supportMaxLengthOptions);
+    return qemuMonitorJSONSetBlockIoThrottle(mon, drivealias, qomid, info);
 }
 
 
@@ -4115,9 +4076,8 @@ qemuMonitorSetIOThread(qemuMonitor *mon,
  * Retrieve state and addresses of frontend memory devices present in
  * the guest.
  *
- * Returns 0 on success and fills @info with a newly allocated struct; if the
- * data can't be retrieved due to lack of support in qemu, returns -2. On
- * other errors returns -1.
+ * Returns: 0 on success and fills @info with a newly allocated struct,
+ *         -1 otherwise.
  */
 int
 qemuMonitorGetMemoryDeviceInfo(qemuMonitor *mon,
@@ -4271,6 +4231,16 @@ qemuMonitorEventRdmaGidStatusFree(qemuMonitorRdmaGidStatus *info)
 
     g_free(info->netdev);
     g_free(info);
+}
+
+
+void
+qemuMonitorMemoryDeviceSizeChangeFree(qemuMonitorMemoryDeviceSizeChangePtr info)
+{
+    if (!info)
+        return;
+
+    g_free(info->devAlias);
 }
 
 
@@ -4616,4 +4586,33 @@ qemuMonitorQueryDirtyRate(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONQueryDirtyRate(mon, info);
+}
+
+
+int
+qemuMonitorSetAction(qemuMonitor *mon,
+                     qemuMonitorActionShutdown shutdown,
+                     qemuMonitorActionReboot reboot,
+                     qemuMonitorActionWatchdog watchdog,
+                     qemuMonitorActionPanic panic)
+{
+    VIR_DEBUG("shutdown=%u, reboot=%u, watchdog=%u panic=%u",
+              shutdown, reboot, watchdog, panic);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONSetAction(mon, shutdown, reboot, watchdog, panic);
+}
+
+
+int
+qemuMonitorChangeMemoryRequestedSize(qemuMonitor *mon,
+                                     const char *alias,
+                                     unsigned long long requestedsize)
+{
+    VIR_DEBUG("alias=%s requestedsize=%llu", alias, requestedsize);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONChangeMemoryRequestedSize(mon, alias, requestedsize);
 }

@@ -44,6 +44,7 @@ struct _virNetworkXMLOption {
     virXMLNamespace ns;
 };
 typedef struct _virNetworkXMLOption virNetworkXMLOption;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNetworkXMLOption, virObjectUnref);
 
 
 typedef enum {
@@ -327,7 +328,8 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
 
 virNetworkDef *
 virNetworkDefParseString(const char *xmlStr,
-                         virNetworkXMLOption *xmlopt);
+                         virNetworkXMLOption *xmlopt,
+                         bool validate);
 
 virNetworkDef *
 virNetworkDefParseFile(const char *filename,

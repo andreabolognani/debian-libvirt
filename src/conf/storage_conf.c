@@ -609,11 +609,7 @@ virStoragePoolDefParseSource(xmlXPathContextPtr ctxt,
             return -1;
         }
 
-        if (VIR_APPEND_ELEMENT(source->devices, source->ndevice, dev) < 0) {
-            virStoragePoolSourceDeviceClear(&dev);
-            return -1;
-        }
-
+        VIR_APPEND_ELEMENT(source->devices, source->ndevice, dev);
     }
 
     sourcedir = virXPathString("string(./dir/@path)", ctxt);
@@ -1008,14 +1004,15 @@ virStoragePoolDefParseNode(xmlDocPtr xml,
 
 static virStoragePoolDef *
 virStoragePoolDefParse(const char *xmlStr,
-                       const char *filename)
+                       const char *filename,
+                       unsigned int flags)
 {
     virStoragePoolDef *ret = NULL;
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(storage_pool_definition)")))) {
+    if ((xml = virXMLParse(filename, xmlStr, _("(storage_pool_definition)"),
+                           "storagepool.rng", flags & VIR_STORAGE_POOL_DEFINE_VALIDATE))) {
         ret = virStoragePoolDefParseNode(xml, xmlDocGetRootElement(xml));
-        xmlFreeDoc(xml);
     }
 
     return ret;
@@ -1023,16 +1020,17 @@ virStoragePoolDefParse(const char *xmlStr,
 
 
 virStoragePoolDef *
-virStoragePoolDefParseString(const char *xmlStr)
+virStoragePoolDefParseString(const char *xmlStr,
+                             unsigned int flags)
 {
-    return virStoragePoolDefParse(xmlStr, NULL);
+    return virStoragePoolDefParse(xmlStr, NULL, flags);
 }
 
 
 virStoragePoolDef *
 virStoragePoolDefParseFile(const char *filename)
 {
-    return virStoragePoolDefParse(NULL, filename);
+    return virStoragePoolDefParse(NULL, filename, 0);
 }
 
 
@@ -1480,11 +1478,10 @@ virStorageVolDefParse(virStoragePoolDef *pool,
                       unsigned int flags)
 {
     virStorageVolDef *ret = NULL;
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(storage_volume_definition)")))) {
+    if ((xml = virXMLParse(filename, xmlStr, _("(storage_volume_definition)"), NULL, false))) {
         ret = virStorageVolDefParseNode(pool, xml, xmlDocGetRootElement(xml), flags);
-        xmlFreeDoc(xml);
     }
 
     return ret;

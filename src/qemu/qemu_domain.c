@@ -557,10 +557,6 @@ qemuDomainMasterKeyReadFile(qemuDomainObjPrivate *priv)
     uint8_t *masterKey = NULL;
     ssize_t masterKeyLen = 0;
 
-    /* If we don't have the capability, then do nothing. */
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_SECRET))
-        return 0;
-
     if (!(path = qemuDomainGetMasterKeyFilePath(priv->libDir)))
         return -1;
 
@@ -649,10 +645,6 @@ qemuDomainMasterKeyCreate(virDomainObj *vm)
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autofree uint8_t *key = NULL;
 
-    /* If we don't have the capability, then do nothing. */
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_SECRET))
-        return 0;
-
     key = g_new0(uint8_t, QEMU_DOMAIN_MASTER_KEY_LEN);
 
     if (virRandomBytes(key, QEMU_DOMAIN_MASTER_KEY_LEN) < 0)
@@ -666,46 +658,18 @@ qemuDomainMasterKeyCreate(virDomainObj *vm)
 
 
 static void
-qemuDomainSecretPlainClear(struct _qemuDomainSecretPlain *secret)
-{
-    VIR_FREE(secret->username);
-    virSecureErase(secret->secret, secret->secretlen);
-    g_clear_pointer(&secret->secret, g_free);
-}
-
-
-static void
-qemuDomainSecretAESClear(struct _qemuDomainSecretAES *secret,
-                         bool keepAlias)
-{
-    if (!keepAlias)
-        VIR_FREE(secret->alias);
-
-    VIR_FREE(secret->username);
-    VIR_FREE(secret->iv);
-    VIR_FREE(secret->ciphertext);
-}
-
-
-static void
 qemuDomainSecretInfoClear(qemuDomainSecretInfo *secinfo,
                           bool keepAlias)
 {
     if (!secinfo)
         return;
 
-    switch ((qemuDomainSecretInfoType) secinfo->type) {
-    case VIR_DOMAIN_SECRET_INFO_TYPE_PLAIN:
-        qemuDomainSecretPlainClear(&secinfo->s.plain);
-        break;
+    if (!keepAlias)
+        VIR_FREE(secinfo->alias);
 
-    case VIR_DOMAIN_SECRET_INFO_TYPE_AES:
-        qemuDomainSecretAESClear(&secinfo->s.aes, keepAlias);
-        break;
-
-    case VIR_DOMAIN_SECRET_INFO_TYPE_LAST:
-        break;
-    }
+    VIR_FREE(secinfo->username);
+    VIR_FREE(secinfo->iv);
+    VIR_FREE(secinfo->ciphertext);
 }
 
 
@@ -1019,46 +983,6 @@ qemuDomainNetworkPrivateDispose(void *obj G_GNUC_UNUSED)
 }
 
 
-static virClass *qemuDomainFSPrivateClass;
-static void qemuDomainFSPrivateDispose(void *obj);
-
-
-static int
-qemuDomainFSPrivateOnceInit(void)
-{
-    if (!VIR_CLASS_NEW(qemuDomainFSPrivate, virClassForObject()))
-        return -1;
-
-    return 0;
-}
-
-
-VIR_ONCE_GLOBAL_INIT(qemuDomainFSPrivate);
-
-
-static virObject *
-qemuDomainFSPrivateNew(void)
-{
-    qemuDomainFSPrivate *priv;
-
-    if (qemuDomainFSPrivateInitialize() < 0)
-        return NULL;
-
-    if (!(priv = virObjectNew(qemuDomainFSPrivateClass)))
-        return NULL;
-
-    return (virObject *) priv;
-}
-
-
-static void
-qemuDomainFSPrivateDispose(void *obj)
-{
-    qemuDomainFSPrivate *priv = obj;
-
-    g_free(priv->vhostuser_fs_sock);
-}
-
 static virClass *qemuDomainVideoPrivateClass;
 static void qemuDomainVideoPrivateDispose(void *obj);
 
@@ -1101,44 +1025,7 @@ qemuDomainVideoPrivateDispose(void *obj)
 }
 
 
-/* qemuDomainSecretPlainSetup:
- * @secinfo: Pointer to secret info
- * @usageType: The virSecretUsageType
- * @username: username to use for authentication (may be NULL)
- * @seclookupdef: Pointer to seclookupdef data
- *
- * Taking a secinfo, fill in the plaintext information
- *
- * Returns 0 on success, -1 on failure with error message
- */
-static int
-qemuDomainSecretPlainSetup(qemuDomainSecretInfo *secinfo,
-                           virSecretUsageType usageType,
-                           const char *username,
-                           virSecretLookupTypeDef *seclookupdef)
-{
-    VIR_IDENTITY_AUTORESTORE virIdentity *oldident = virIdentityElevateCurrent();
-    g_autoptr(virConnect) conn = virGetConnectSecret();
-    int ret = -1;
-
-    if (!oldident)
-        return -1;
-
-    if (!conn)
-        return -1;
-
-    secinfo->type = VIR_DOMAIN_SECRET_INFO_TYPE_PLAIN;
-    secinfo->s.plain.username = g_strdup(username);
-
-    ret = virSecretGetSecretString(conn, seclookupdef, usageType,
-                                   &secinfo->s.plain.secret,
-                                   &secinfo->s.plain.secretlen);
-
-    return ret;
-}
-
-
-/* qemuDomainSecretAESSetup:
+/* qemuDomainSecretInfoSetup:
  * @priv: pointer to domain private object
  * @alias: alias of the secret
  * @username: username to use (may be NULL)
@@ -1150,11 +1037,11 @@ qemuDomainSecretPlainSetup(qemuDomainSecretInfo *secinfo,
  * Returns qemuDomainSecretInfo *filled with the necessary information.
  */
 static qemuDomainSecretInfo *
-qemuDomainSecretAESSetup(qemuDomainObjPrivate *priv,
-                         const char *alias,
-                         const char *username,
-                         uint8_t *secret,
-                         size_t secretlen)
+qemuDomainSecretInfoSetup(qemuDomainObjPrivate *priv,
+                          const char *alias,
+                          const char *username,
+                          uint8_t *secret,
+                          size_t secretlen)
 {
     g_autoptr(qemuDomainSecretInfo) secinfo = NULL;
     g_autofree uint8_t *raw_iv = NULL;
@@ -1162,17 +1049,10 @@ qemuDomainSecretAESSetup(qemuDomainObjPrivate *priv,
     g_autofree uint8_t *ciphertext = NULL;
     size_t ciphertextlen = 0;
 
-    if (!qemuDomainSupportsEncryptedSecret(priv)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("encrypted secrets are not supported"));
-        return NULL;
-    }
-
     secinfo = g_new0(qemuDomainSecretInfo, 1);
 
-    secinfo->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
-    secinfo->s.aes.alias = g_strdup(alias);
-    secinfo->s.aes.username = g_strdup(username);
+    secinfo->alias = g_strdup(alias);
+    secinfo->username = g_strdup(username);
 
     raw_iv = g_new0(uint8_t, ivlen);
 
@@ -1181,7 +1061,7 @@ qemuDomainSecretAESSetup(qemuDomainObjPrivate *priv,
         return NULL;
 
     /* Encode the IV and save that since qemu will need it */
-    secinfo->s.aes.iv = g_base64_encode(raw_iv, ivlen);
+    secinfo->iv = g_base64_encode(raw_iv, ivlen);
 
     if (virCryptoEncryptData(VIR_CRYPTO_CIPHER_AES256CBC,
                              priv->masterKey, QEMU_DOMAIN_MASTER_KEY_LEN,
@@ -1190,15 +1070,14 @@ qemuDomainSecretAESSetup(qemuDomainObjPrivate *priv,
         return NULL;
 
     /* Now encode the ciphertext and store to be passed to qemu */
-    secinfo->s.aes.ciphertext = g_base64_encode(ciphertext,
-                                                ciphertextlen);
+    secinfo->ciphertext = g_base64_encode(ciphertext, ciphertextlen);
 
     return g_steal_pointer(&secinfo);
 }
 
 
 /**
- * qemuDomainSecretAESSetupFromSecret:
+ * qemuDomainSecretInfoSetupFromSecret:
  * @priv: pointer to domain private object
  * @srcalias: Alias of the disk/hostdev used to generate the secret alias
  * @secretuse: specific usage for the secret (may be NULL if main object is using it)
@@ -1211,12 +1090,12 @@ qemuDomainSecretAESSetup(qemuDomainObjPrivate *priv,
  * secret in case if @srcalias requires more secrets for various usage cases.
  */
 static qemuDomainSecretInfo *
-qemuDomainSecretAESSetupFromSecret(qemuDomainObjPrivate *priv,
-                                   const char *srcalias,
-                                   const char *secretuse,
-                                   virSecretUsageType usageType,
-                                   const char *username,
-                                   virSecretLookupTypeDef *seclookupdef)
+qemuDomainSecretInfoSetupFromSecret(qemuDomainObjPrivate *priv,
+                                    const char *srcalias,
+                                    const char *secretuse,
+                                    virSecretUsageType usageType,
+                                    const char *username,
+                                    virSecretLookupTypeDef *seclookupdef)
 {
     qemuDomainSecretInfo *secinfo;
     g_autofree char *alias = qemuAliasForSecret(srcalias, secretuse);
@@ -1235,54 +1114,9 @@ qemuDomainSecretAESSetupFromSecret(qemuDomainObjPrivate *priv,
                                  &secret, &secretlen) < 0)
         return NULL;
 
-    secinfo = qemuDomainSecretAESSetup(priv, alias, username, secret, secretlen);
+    secinfo = qemuDomainSecretInfoSetup(priv, alias, username, secret, secretlen);
 
     virSecureErase(secret, secretlen);
-
-    return secinfo;
-}
-
-
-/**
- * qemuDomainSupportsEncryptedSecret:
- * @priv: qemu domain private data
- *
- * Returns true if libvirt can use encrypted 'secret' objects with VM which
- * @priv belongs to.
- */
-bool
-qemuDomainSupportsEncryptedSecret(qemuDomainObjPrivate *priv)
-{
-    return virCryptoHaveCipher(VIR_CRYPTO_CIPHER_AES256CBC) &&
-           virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_SECRET) &&
-           priv->masterKey;
-}
-
-
-/* qemuDomainSecretInfoNewPlain:
- * @usageType: Secret usage type
- * @username: username
- * @lookupDef: lookup def describing secret
- *
- * Helper function to create a secinfo to be used for secinfo consumers. This
- * sets up a 'plain' (unencrypted) secret for legacy consumers.
- *
- * Returns @secinfo on success, NULL on failure. Caller is responsible
- * to eventually free @secinfo.
- */
-static qemuDomainSecretInfo *
-qemuDomainSecretInfoNewPlain(virSecretUsageType usageType,
-                             const char *username,
-                             virSecretLookupTypeDef *lookupDef)
-{
-    qemuDomainSecretInfo *secinfo = NULL;
-
-    secinfo = g_new0(qemuDomainSecretInfo, 1);
-
-    if (qemuDomainSecretPlainSetup(secinfo, usageType, username, lookupDef) < 0) {
-        g_clear_pointer(&secinfo, qemuDomainSecretInfoFree);
-        return NULL;
-    }
 
     return secinfo;
 }
@@ -1314,9 +1148,9 @@ qemuDomainSecretInfoTLSNew(qemuDomainObjPrivate *priv,
     }
     seclookupdef.type = VIR_SECRET_LOOKUP_TYPE_UUID;
 
-    return qemuDomainSecretAESSetupFromSecret(priv, srcAlias, NULL,
-                                              VIR_SECRET_USAGE_TYPE_TLS,
-                                              NULL, &seclookupdef);
+    return qemuDomainSecretInfoSetupFromSecret(priv, srcAlias, NULL,
+                                               VIR_SECRET_USAGE_TYPE_TLS,
+                                               NULL, &seclookupdef);
 }
 
 
@@ -1354,7 +1188,8 @@ static bool
 qemuDomainDiskHasEncryptionSecret(virStorageSource *src)
 {
     if (!virStorageSourceIsEmpty(src) && src->encryption &&
-        src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS &&
+        (src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS ||
+         src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2) &&
         src->encryption->nsecrets > 0)
         return true;
 
@@ -1370,8 +1205,8 @@ qemuDomainSecretStorageSourcePrepareCookies(qemuDomainObjPrivate *priv,
     g_autofree char *secretalias = qemuAliasForSecret(aliasprotocol, "httpcookie");
     g_autofree char *cookies = qemuBlockStorageSourceGetCookieString(src);
 
-    return qemuDomainSecretAESSetup(priv, secretalias, NULL,
-                                    (uint8_t *) cookies, strlen(cookies));
+    return qemuDomainSecretInfoSetup(priv, secretalias, NULL,
+                                     (uint8_t *) cookies, strlen(cookies));
 }
 
 
@@ -1396,7 +1231,6 @@ qemuDomainSecretStorageSourcePrepare(qemuDomainObjPrivate *priv,
                                      const char *aliasformat)
 {
     qemuDomainStorageSourcePrivate *srcPriv;
-    bool iscsiHasPS = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET);
     bool hasAuth = qemuDomainStorageSourceHasAuth(src);
     bool hasEnc = qemuDomainDiskHasEncryptionSecret(src);
 
@@ -1414,29 +1248,20 @@ qemuDomainSecretStorageSourcePrepare(qemuDomainObjPrivate *priv,
         if (src->protocol == VIR_STORAGE_NET_PROTOCOL_RBD)
             usageType = VIR_SECRET_USAGE_TYPE_CEPH;
 
-        if (!qemuDomainSupportsEncryptedSecret(priv) ||
-            (src->protocol == VIR_STORAGE_NET_PROTOCOL_ISCSI && !iscsiHasPS)) {
-            srcPriv->secinfo = qemuDomainSecretInfoNewPlain(usageType,
-                                                            src->auth->username,
-                                                            &src->auth->seclookupdef);
-        } else {
-            srcPriv->secinfo = qemuDomainSecretAESSetupFromSecret(priv, aliasprotocol,
-                                                                  "auth",
-                                                                  usageType,
-                                                                  src->auth->username,
-                                                                  &src->auth->seclookupdef);
-        }
-
-        if (!srcPriv->secinfo)
+        if (!(srcPriv->secinfo = qemuDomainSecretInfoSetupFromSecret(priv, aliasprotocol,
+                                                                     "auth",
+                                                                     usageType,
+                                                                     src->auth->username,
+                                                                     &src->auth->seclookupdef)))
             return -1;
     }
 
     if (hasEnc) {
-        if (!(srcPriv->encinfo = qemuDomainSecretAESSetupFromSecret(priv, aliasformat,
-                                                                    "encryption",
-                                                                    VIR_SECRET_USAGE_TYPE_VOLUME,
-                                                                    NULL,
-                                                                    &src->encryption->secrets[0]->seclookupdef)))
+        if (!(srcPriv->encinfo = qemuDomainSecretInfoSetupFromSecret(priv, aliasformat,
+                                                                     "encryption",
+                                                                     VIR_SECRET_USAGE_TYPE_VOLUME,
+                                                                     NULL,
+                                                                     &src->encryption->secrets[0]->seclookupdef)))
               return -1;
     }
 
@@ -1542,13 +1367,9 @@ qemuDomainSecretGraphicsPrepare(virQEMUDriverConfig *cfg,
                                 qemuDomainObjPrivate *priv,
                                 virDomainGraphicsDef *graphics)
 {
-    virQEMUCaps *qemuCaps = priv->qemuCaps;
     qemuDomainGraphicsPrivate *gfxPriv = QEMU_DOMAIN_GRAPHICS_PRIVATE(graphics);
 
     if (graphics->type != VIR_DOMAIN_GRAPHICS_TYPE_VNC)
-        return 0;
-
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_TLS_CREDS_X509))
         return 0;
 
     if (!cfg->vncTLS)
@@ -1928,11 +1749,9 @@ qemuStorageSourcePrivateDataAssignSecinfo(qemuDomainSecretInfo **secinfo,
 
     if (!*secinfo) {
         *secinfo = g_new0(qemuDomainSecretInfo, 1);
-        (*secinfo)->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
     }
 
-    if ((*secinfo)->type == VIR_DOMAIN_SECRET_INFO_TYPE_AES)
-        (*secinfo)->s.aes.alias = g_steal_pointer(&*alias);
+    (*secinfo)->alias = g_steal_pointer(&*alias);
 
     return 0;
 }
@@ -2000,13 +1819,11 @@ qemuStorageSourcePrivateDataFormatSecinfo(virBuffer *buf,
                                           qemuDomainSecretInfo *secinfo,
                                           const char *type)
 {
-    if (!secinfo ||
-        secinfo->type != VIR_DOMAIN_SECRET_INFO_TYPE_AES ||
-        !secinfo->s.aes.alias)
+    if (!secinfo || !secinfo->alias)
         return;
 
     virBufferAsprintf(buf, "<secret type='%s' alias='%s'/>\n",
-                      type, secinfo->s.aes.alias);
+                      type, secinfo->alias);
 }
 
 
@@ -3307,7 +3124,6 @@ virDomainXMLPrivateDataCallbacks virQEMUDriverPrivateDataCallbacks = {
     .graphicsNew = qemuDomainGraphicsPrivateNew,
     .networkNew = qemuDomainNetworkPrivateNew,
     .videoNew = qemuDomainVideoPrivateNew,
-    .fsNew = qemuDomainFSPrivateNew,
     .parse = qemuDomainObjPrivateXMLParse,
     .format = qemuDomainObjPrivateXMLFormat,
     .getParseOpaque = qemuDomainObjPrivateXMLGetParseOpaque,
@@ -3319,14 +3135,20 @@ virDomainXMLPrivateDataCallbacks virQEMUDriverPrivateDataCallbacks = {
 static void
 qemuDomainXmlNsDefFree(qemuDomainXmlNsDef *def)
 {
+    size_t i;
+
     if (!def)
         return;
 
-    virStringListFreeCount(def->args, def->num_args);
-    virStringListFreeCount(def->env_name, def->num_env);
-    virStringListFreeCount(def->env_value, def->num_env);
-    virStringListFreeCount(def->capsadd, def->ncapsadd);
-    virStringListFreeCount(def->capsdel, def->ncapsdel);
+    for (i = 0; i < def->num_env; i++) {
+        g_free(def->env[i].name);
+        g_free(def->env[i].value);
+    }
+    g_free(def->env);
+
+    g_strfreev(def->args);
+    g_strfreev(def->capsadd);
+    g_strfreev(def->capsdel);
 
     g_free(def->deprecationBehavior);
 
@@ -3357,10 +3179,10 @@ qemuDomainDefNamespaceParseCommandlineArgs(qemuDomainXmlNsDef *nsdef,
     if (nnodes == 0)
         return 0;
 
-    nsdef->args = g_new0(char *, nnodes);
+    nsdef->args = g_new0(char *, nnodes + 1);
 
     for (i = 0; i < nnodes; i++) {
-        if (!(nsdef->args[nsdef->num_args++] = virXMLPropString(nodes[i], "value"))) {
+        if (!(nsdef->args[i] = virXMLPropString(nodes[i], "value"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("No qemu command-line argument specified"));
             return -1;
@@ -3372,15 +3194,21 @@ qemuDomainDefNamespaceParseCommandlineArgs(qemuDomainXmlNsDef *nsdef,
 
 
 static int
-qemuDomainDefNamespaceParseCommandlineEnvNameValidate(const char *envname)
+qemuDomainDefNamespaceParseCommandlineEnvValidate(qemuDomainXmlNsEnvTuple *env)
 {
-    if (!g_ascii_isalpha(envname[0]) && envname[0] != '_') {
+    if (!env->name) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("No qemu environment name specified"));
+        return -1;
+    }
+
+    if (!g_ascii_isalpha(env->name[0]) && env->name[0] != '_') {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Invalid environment name, it must begin with a letter or underscore"));
         return -1;
     }
 
-    if (strspn(envname, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != strlen(envname)) {
+    if (strspn(env->name, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != strlen(env->name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Invalid environment name, it must contain only alphanumerics and underscore"));
         return -1;
@@ -3404,22 +3232,17 @@ qemuDomainDefNamespaceParseCommandlineEnv(qemuDomainXmlNsDef *nsdef,
     if (nnodes == 0)
         return 0;
 
-    nsdef->env_name = g_new0(char *, nnodes);
-    nsdef->env_value = g_new0(char *, nnodes);
+    nsdef->env = g_new0(qemuDomainXmlNsEnvTuple, nnodes);
 
     for (i = 0; i < nnodes; i++) {
-        if (!(nsdef->env_name[nsdef->num_env] = virXMLPropString(nodes[i], "name"))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("No qemu environment name specified"));
-            return -1;
-        }
+        qemuDomainXmlNsEnvTuple *env = nsdef->env + i;
 
-        if (qemuDomainDefNamespaceParseCommandlineEnvNameValidate(nsdef->env_name[nsdef->num_env]) < 0)
-            return -1;
-
-        nsdef->env_value[nsdef->num_env] = virXMLPropString(nodes[i], "value");
-        /* a NULL value for command is allowed, since it might be empty */
+        env->name = virXMLPropString(nodes[i], "name");
+        env->value = virXMLPropString(nodes[i], "value");
         nsdef->num_env++;
+
+        if (qemuDomainDefNamespaceParseCommandlineEnvValidate(env) < 0)
+            return -1;
     }
 
     return 0;
@@ -3441,10 +3264,10 @@ qemuDomainDefNamespaceParseCaps(qemuDomainXmlNsDef *nsdef,
         return -1;
 
     if (nnodesadd > 0) {
-        nsdef->capsadd = g_new0(char *, nnodesadd);
+        nsdef->capsadd = g_new0(char *, nnodesadd + 1);
 
         for (i = 0; i < nnodesadd; i++) {
-            if (!(nsdef->capsadd[nsdef->ncapsadd++] = virXMLPropString(nodesadd[i], "capability"))) {
+            if (!(nsdef->capsadd[i] = virXMLPropString(nodesadd[i], "capability"))) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("missing capability name"));
                 return -1;
@@ -3453,10 +3276,10 @@ qemuDomainDefNamespaceParseCaps(qemuDomainXmlNsDef *nsdef,
     }
 
     if (nnodesdel > 0) {
-        nsdef->capsdel = g_new0(char *, nnodesdel);
+        nsdef->capsdel = g_new0(char *, nnodesdel + 1);
 
         for (i = 0; i < nnodesdel; i++) {
-            if (!(nsdef->capsdel[nsdef->ncapsdel++] = virXMLPropString(nodesdel[i], "capability"))) {
+            if (!(nsdef->capsdel[i] = virXMLPropString(nodesdel[i], "capability"))) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("missing capability name"));
                 return -1;
@@ -3484,8 +3307,8 @@ qemuDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
 
     nsdata->deprecationBehavior = virXPathString("string(./qemu:deprecation/@behavior)", ctxt);
 
-    if (nsdata->num_args > 0 || nsdata->num_env > 0 ||
-        nsdata->ncapsadd > 0 || nsdata->ncapsdel > 0 ||
+    if (nsdata->args || nsdata->num_env > 0 ||
+        nsdata->capsadd || nsdata->capsdel ||
         nsdata->deprecationBehavior)
         *data = g_steal_pointer(&nsdata);
 
@@ -3501,21 +3324,20 @@ static void
 qemuDomainDefNamespaceFormatXMLCommandline(virBuffer *buf,
                                            qemuDomainXmlNsDef *cmd)
 {
+    GStrv n;
     size_t i;
 
-    if (!cmd->num_args && !cmd->num_env)
+    if (!cmd->args && !cmd->num_env)
         return;
 
     virBufferAddLit(buf, "<qemu:commandline>\n");
     virBufferAdjustIndent(buf, 2);
 
-    for (i = 0; i < cmd->num_args; i++)
-        virBufferEscapeString(buf, "<qemu:arg value='%s'/>\n",
-                              cmd->args[i]);
+    for (n = cmd->args; n && *n; n++)
+        virBufferEscapeString(buf, "<qemu:arg value='%s'/>\n", *n);
     for (i = 0; i < cmd->num_env; i++) {
-        virBufferAsprintf(buf, "<qemu:env name='%s'", cmd->env_name[i]);
-        if (cmd->env_value[i])
-            virBufferEscapeString(buf, " value='%s'", cmd->env_value[i]);
+        virBufferAsprintf(buf, "<qemu:env name='%s'", cmd->env[i].name);
+        virBufferEscapeString(buf, " value='%s'", cmd->env[i].value);
         virBufferAddLit(buf, "/>\n");
     }
 
@@ -3528,19 +3350,19 @@ static void
 qemuDomainDefNamespaceFormatXMLCaps(virBuffer *buf,
                                     qemuDomainXmlNsDef *xmlns)
 {
-    size_t i;
+    GStrv n;
 
-    if (!xmlns->ncapsadd && !xmlns->ncapsdel)
+    if (!xmlns->capsadd && !xmlns->capsdel)
         return;
 
     virBufferAddLit(buf, "<qemu:capabilities>\n");
     virBufferAdjustIndent(buf, 2);
 
-    for (i = 0; i < xmlns->ncapsadd; i++)
-        virBufferEscapeString(buf, "<qemu:add capability='%s'/>\n", xmlns->capsadd[i]);
+    for (n = xmlns->capsadd; n && *n; n++)
+        virBufferEscapeString(buf, "<qemu:add capability='%s'/>\n", *n);
 
-    for (i = 0; i < xmlns->ncapsdel; i++)
-        virBufferEscapeString(buf, "<qemu:del capability='%s'/>\n", xmlns->capsdel[i]);
+    for (n = xmlns->capsdel; n && *n; n++)
+        virBufferEscapeString(buf, "<qemu:del capability='%s'/>\n", *n);
 
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</qemu:capabilities>\n");
@@ -4001,11 +3823,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         if (j == def->npanics) {
             virDomainPanicDef *panic = g_new0(virDomainPanicDef, 1);
 
-            if (VIR_APPEND_ELEMENT_COPY(def->panics,
-                                        def->npanics, panic) < 0) {
-                VIR_FREE(panic);
-                return -1;
-            }
+            VIR_APPEND_ELEMENT_COPY(def->panics, def->npanics, panic);
         }
     }
 
@@ -4806,15 +4624,6 @@ qemuDomainValidateStorageSource(virStorageSource *src,
         return -1;
     }
 
-    /* Use QEMU_CAPS_ISCSI_PASSWORD_SECRET as witness that iscsi 'initiator-name'
-     * option is available, it was introduced at the same time. */
-    if (src->initiator.iqn &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("iSCSI initiator IQN not supported with this QEMU binary"));
-        return -1;
-    }
-
     if (src->sliceStorage) {
         /* In pre-blockdev era we can't configure the slice so we can allow them
          * only for detected backing store entries as they are populated
@@ -4959,6 +4768,62 @@ qemuDomainValidateStorageSource(virStorageSource *src,
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("metadata cache max size control is not supported with this QEMU binary"));
             return -1;
+        }
+    }
+
+    if (src->encryption) {
+        switch (src->encryption->engine) {
+            case VIR_STORAGE_ENCRYPTION_ENGINE_QEMU:
+                switch ((virStorageEncryptionFormatType) src->encryption->format) {
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS:
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_QCOW:
+                        break;
+
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2:
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                       _("luks2 is currently not supported by the qemu encryption engine"));
+                        return -1;
+
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT:
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_LAST:
+                    default:
+                        virReportEnumRangeError(virStorageEncryptionFormatType,
+                                                src->encryption->format);
+                        return -1;
+                }
+
+                break;
+            case VIR_STORAGE_ENCRYPTION_ENGINE_LIBRBD:
+                if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_RBD_ENCRYPTION)) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("librbd encryption is not supported by this QEMU binary"));
+                    return -1;
+                }
+
+                switch ((virStorageEncryptionFormatType) src->encryption->format) {
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS:
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2:
+                        break;
+
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_QCOW:
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                       _("librbd encryption engine only supports luks/luks2 formats"));
+                        return -1;
+
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT:
+                    case VIR_STORAGE_ENCRYPTION_FORMAT_LAST:
+                    default:
+                        virReportEnumRangeError(virStorageEncryptionFormatType,
+                                                src->encryption->format);
+                        return -1;
+                }
+
+                break;
+            case VIR_STORAGE_ENCRYPTION_ENGINE_DEFAULT:
+            case VIR_STORAGE_ENCRYPTION_ENGINE_LAST:
+                virReportEnumRangeError(virStorageEncryptionEngine,
+                                        src->encryption->engine);
+                return -1;
         }
     }
 
@@ -5222,10 +5087,10 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
             return -1;
         }
         if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_PCIE_EXPANDER_BUS &&
-            !qemuDomainIsQ35(def)) {
+            !(qemuDomainIsQ35(def) || qemuDomainIsARMVirt(def))) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("pcie-expander-bus controllers are only supported "
-                             "on q35-based machinetypes"));
+                           _("pcie-expander-bus controllers are not supported "
+                             "with this machine type"));
             return -1;
         }
 
@@ -5351,7 +5216,6 @@ qemuDomainChrDefPostParse(virDomainChrDef *chr,
  */
 static int
 qemuDomainDeviceDiskDefPostParseRestoreSecAlias(virDomainDiskDef *disk,
-                                                virQEMUCaps *qemuCaps,
                                                 unsigned int parseFlags)
 {
     qemuDomainStorageSourcePrivate *priv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(disk->src);
@@ -5361,8 +5225,7 @@ qemuDomainDeviceDiskDefPostParseRestoreSecAlias(virDomainDiskDef *disk,
     g_autofree char *encalias = NULL;
 
     if (!(parseFlags & VIR_DOMAIN_DEF_PARSE_STATUS) ||
-        virStorageSourceIsEmpty(disk->src) ||
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_SECRET))
+        virStorageSourceIsEmpty(disk->src))
         return 0;
 
     /* network storage authentication secret */
@@ -5374,8 +5237,7 @@ qemuDomainDeviceDiskDefPostParseRestoreSecAlias(virDomainDiskDef *disk,
          * status XML */
         if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_NETWORK &&
             (disk->src->protocol == VIR_STORAGE_NET_PROTOCOL_RBD ||
-             (disk->src->protocol == VIR_STORAGE_NET_PROTOCOL_ISCSI &&
-              virQEMUCapsGet(qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET))))
+             disk->src->protocol == VIR_STORAGE_NET_PROTOCOL_ISCSI))
             restoreAuthSecret = true;
     }
 
@@ -5413,11 +5275,12 @@ qemuDomainDeviceDiskDefPostParseRestoreSecAlias(virDomainDiskDef *disk,
 }
 
 
-static int
+int
 qemuDomainDeviceDiskDefPostParse(virDomainDiskDef *disk,
-                                 virQEMUCaps *qemuCaps,
                                  unsigned int parseFlags)
 {
+    virStorageSource *n;
+
     /* set default disk types and drivers */
     if (!virDomainDiskGetDriver(disk))
         virDomainDiskSetDriver(disk, "qemu");
@@ -5432,8 +5295,13 @@ qemuDomainDeviceDiskDefPostParse(virDomainDiskDef *disk,
         disk->mirror->format == VIR_STORAGE_FILE_NONE)
         disk->mirror->format = VIR_STORAGE_FILE_RAW;
 
-    if (qemuDomainDeviceDiskDefPostParseRestoreSecAlias(disk, qemuCaps,
-                                                        parseFlags) < 0)
+    /* default disk encryption engine */
+    for (n = disk->src; virStorageSourceIsBacking(n); n = n->backingStore) {
+        if (n->encryption && n->encryption->engine == VIR_STORAGE_ENCRYPTION_ENGINE_DEFAULT)
+            n->encryption->engine = VIR_STORAGE_ENCRYPTION_ENGINE_QEMU;
+    }
+
+    if (qemuDomainDeviceDiskDefPostParseRestoreSecAlias(disk, parseFlags) < 0)
         return -1;
 
     /* regenerate TLS alias for old status XMLs */
@@ -5537,7 +5405,6 @@ qemuDomainVsockDefPostParse(virDomainVsockDef *vsock)
  */
 static int
 qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(virDomainHostdevDef *hostdev,
-                                                   virQEMUCaps *qemuCaps,
                                                    unsigned int parseFlags)
 {
     qemuDomainStorageSourcePrivate *priv;
@@ -5545,14 +5412,12 @@ qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(virDomainHostdevDef *hostdev,
     virDomainHostdevSubsysSCSIiSCSI *iscsisrc = &scsisrc->u.iscsi;
     g_autofree char *authalias = NULL;
 
-    if (!(parseFlags & VIR_DOMAIN_DEF_PARSE_STATUS) ||
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_SECRET))
+    if (!(parseFlags & VIR_DOMAIN_DEF_PARSE_STATUS))
         return 0;
 
     if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS ||
         hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI ||
         scsisrc->protocol != VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI ||
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET) ||
         !qemuDomainStorageSourceHasAuth(iscsisrc->src))
         return 0;
 
@@ -5642,8 +5507,7 @@ qemuDomainHostdevDefPostParse(virDomainHostdevDef *hostdev,
 {
     virDomainHostdevSubsys *subsys = &hostdev->source.subsys;
 
-    if (qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(hostdev, qemuCaps,
-                                                           parseFlags) < 0)
+    if (qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(hostdev, parseFlags) < 0)
         return -1;
 
     if (qemuDomainDeviceHostdevDefPostParseRestoreBackendAlias(hostdev, qemuCaps,
@@ -5763,8 +5627,7 @@ qemuDomainDeviceDefPostParse(virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_DEVICE_DISK:
-        ret = qemuDomainDeviceDiskDefPostParse(dev->data.disk, qemuCaps,
-                                               parseFlags);
+        ret = qemuDomainDeviceDiskDefPostParse(dev->data.disk, parseFlags);
         break;
 
     case VIR_DOMAIN_DEVICE_VIDEO:
@@ -6146,13 +6009,9 @@ qemuDomainDefFromXML(virQEMUDriver *driver,
                      virQEMUCaps *qemuCaps,
                      const char *xml)
 {
-    virDomainDef *def;
-
-    def = virDomainDefParseString(xml, driver->xmlopt, qemuCaps,
-                                  VIR_DOMAIN_DEF_PARSE_INACTIVE |
-                                  VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE);
-
-    return def;
+    return virDomainDefParseString(xml, driver->xmlopt, qemuCaps,
+                                   VIR_DOMAIN_DEF_PARSE_INACTIVE |
+                                   VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE);
 }
 
 
@@ -6461,7 +6320,10 @@ void qemuDomainObjTaint(virQEMUDriver *driver,
                         virDomainTaintFlags taint,
                         qemuDomainLogContext *logCtxt)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
     qemuDomainObjTaintMsg(driver, obj, taint, logCtxt, NULL);
+    ignore_value(virDomainObjSave(obj, driver->xmlopt, cfg->stateDir));
 }
 
 void qemuDomainObjTaintMsg(virQEMUDriver *driver,
@@ -6613,9 +6475,9 @@ void qemuDomainObjCheckTaint(virQEMUDriver *driver,
 
     if (obj->def->namespaceData) {
         qemuDomainXmlNsDef *qemuxmlns = obj->def->namespaceData;
-        if (qemuxmlns->num_args || qemuxmlns->num_env)
+        if (qemuxmlns->args || qemuxmlns->num_env)
             qemuDomainObjTaint(driver, obj, VIR_DOMAIN_TAINT_CUSTOM_ARGV, logCtxt);
-        if (qemuxmlns->ncapsadd > 0 || qemuxmlns->ncapsdel > 0)
+        if (qemuxmlns->capsadd || qemuxmlns->capsdel)
             custom_hypervisor_feat = true;
     }
 
@@ -7083,6 +6945,7 @@ qemuDomainSnapshotDiscard(virQEMUDriver *driver,
 
     if (!metadata_only) {
         if (!virDomainObjIsActive(vm)) {
+            size_t i;
             /* Ignore any skipped disks */
 
             /* Prefer action on the disks in use at the time the snapshot was
@@ -7092,6 +6955,11 @@ qemuDomainSnapshotDiscard(virQEMUDriver *driver,
 
             if (!def)
                 def = vm->def;
+
+            for (i = 0; i < def->ndisks; i++) {
+                if (virDomainDiskTranslateSourcePool(def->disks[i]) < 0)
+                    return -1;
+            }
 
             if (qemuDomainSnapshotForEachQcow2(driver, def, snap, "-d", true) < 0)
                 return -1;
@@ -8347,10 +8215,6 @@ qemuDomainUpdateMemoryDeviceInfo(virQEMUDriver *driver,
         return -1;
     }
 
-    /* if qemu doesn't support the info request, just carry on */
-    if (rc == -2)
-        return 0;
-
     if (rc < 0)
         return -1;
 
@@ -8364,9 +8228,23 @@ qemuDomainUpdateMemoryDeviceInfo(virQEMUDriver *driver,
         if (!(dimm = virHashLookup(meminfo, mem->info.alias)))
             continue;
 
-        mem->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM;
-        mem->info.addr.dimm.slot = dimm->slot;
-        mem->info.addr.dimm.base = dimm->address;
+        switch (mem->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            mem->currentsize = VIR_DIV_UP(dimm->size, 1024);
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+            mem->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM;
+            mem->info.addr.dimm.slot = dimm->slot;
+            mem->info.addr.dimm.base = dimm->address;
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            break;
+        }
     }
 
     virHashFree(meminfo);
@@ -8818,21 +8696,11 @@ static bool
 qemuDomainMachineNeedsFDC(const char *machine,
                           const virArch arch)
 {
-    const char *p = STRSKIP(machine, "pc-q35-");
-
     if (!ARCH_IS_X86(arch))
         return false;
 
-    if (!p)
+    if (!STRPREFIX(machine, "pc-q35-"))
         return false;
-
-    if (STRPREFIX(p, "1.") ||
-        STREQ(p, "2.0") ||
-        STREQ(p, "2.1") ||
-        STREQ(p, "2.2") ||
-        STREQ(p, "2.3")) {
-        return false;
-    }
 
     return true;
 }
@@ -9035,6 +8903,16 @@ qemuDomainDefValidateMemoryHotplugDevice(const virDomainMemoryDef *mem,
 
         /* virtio-pmem doesn't have .node attribute. */
         needsNuma = false;
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        if (mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI &&
+            mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("only 'pci' addresses are supported for the %s device"),
+                           virDomainMemoryModelTypeToString(mem->model));
+            return -1;
+        }
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
@@ -9821,56 +9699,6 @@ qemuDomainDiskByName(virDomainDef *def,
     }
 
     return ret;
-}
-
-
-/**
- * qemuDomainDefValidateDiskLunSource:
- * @src: disk source struct
- *
- * Validate whether the disk source is valid for disk device='lun'.
- *
- * Returns 0 if the configuration is valid -1 and a libvirt error if the source
- * is invalid.
- */
-int
-qemuDomainDefValidateDiskLunSource(const virStorageSource *src)
-{
-    if (virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_NETWORK) {
-        if (src->protocol != VIR_STORAGE_NET_PROTOCOL_ISCSI) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk device='lun' is not supported "
-                             "for protocol='%s'"),
-                           virStorageNetProtocolTypeToString(src->protocol));
-            return -1;
-        }
-    } else if (!virStorageSourceIsBlockLocal(src)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("disk device='lun' is only valid for block "
-                         "type disk source"));
-        return -1;
-    }
-
-    if (src->format != VIR_STORAGE_FILE_RAW) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("disk device 'lun' must use 'raw' format"));
-        return -1;
-    }
-
-    if (src->sliceStorage) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("disk device 'lun' doesn't support storage slice"));
-        return -1;
-    }
-
-    if (src->encryption &&
-        src->encryption->format != VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("disk device 'lun' doesn't support encryption"));
-        return -1;
-    }
-
-    return 0;
 }
 
 
@@ -10945,24 +10773,15 @@ qemuDomainPrepareHostdev(virDomainHostdevDef *hostdev,
             }
 
             if (src->auth) {
-                bool iscsiHasPS = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ISCSI_PASSWORD_SECRET);
                 virSecretUsageType usageType = VIR_SECRET_USAGE_TYPE_ISCSI;
                 qemuDomainStorageSourcePrivate *srcPriv = qemuDomainStorageSourcePrivateFetch(src);
 
-                if (!qemuDomainSupportsEncryptedSecret(priv) || !iscsiHasPS) {
-                    srcPriv->secinfo = qemuDomainSecretInfoNewPlain(usageType,
-                                                                    src->auth->username,
-                                                                    &src->auth->seclookupdef);
-                } else {
-                    srcPriv->secinfo = qemuDomainSecretAESSetupFromSecret(priv,
-                                                                          backendalias,
-                                                                          NULL,
-                                                                          usageType,
-                                                                          src->auth->username,
-                                                                          &src->auth->seclookupdef);
-                }
-
-                if (!srcPriv->secinfo)
+                if (!(srcPriv->secinfo = qemuDomainSecretInfoSetupFromSecret(priv,
+                                                                             backendalias,
+                                                                             NULL,
+                                                                             usageType,
+                                                                             src->auth->username,
+                                                                             &src->auth->seclookupdef)))
                     return -1;
             }
         }
@@ -11072,6 +10891,9 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
     case QEMU_PROCESS_EVENT_JOB_STATUS_CHANGE:
         virObjectUnref(event->data);
         break;
+    case QEMU_PROCESS_EVENT_MEMORY_DEVICE_SIZE_CHANGE:
+        qemuMonitorMemoryDeviceSizeChangeFree(event->data);
+        break;
     case QEMU_PROCESS_EVENT_PR_DISCONNECT:
     case QEMU_PROCESS_EVENT_LAST:
         break;
@@ -11141,22 +10963,6 @@ qemuDomainRunningReasonToResumeEvent(virDomainRunningReason reason)
     }
 
     return VIR_DOMAIN_EVENT_RESUMED_UNPAUSED;
-}
-
-
-/* qemuDomainIsUsingNoShutdown:
- * @priv: Domain private data
- *
- * We can receive an event when QEMU stops. If we use no-shutdown, then
- * we can watch for this event and do a soft/warm reboot.
- *
- * Returns: @true when -no-shutdown either should be or was added to the
- * command line.
- */
-bool
-qemuDomainIsUsingNoShutdown(qemuDomainObjPrivate *priv)
-{
-    return priv->allowReboot == VIR_TRISTATE_BOOL_YES;
 }
 
 
@@ -11506,8 +11312,8 @@ virQEMUFileOpenAs(uid_t fallback_uid,
 
 /**
  * qemuDomainOpenFile:
- * @driver: driver object
- * @vm: domain object
+ * @cfg: driver config object
+ * @def: domain definition
  * @path: path to file to open
  * @oflags: flags for opening/creation of the file
  * @needUnlink: set to true if file was created by this function
@@ -11521,21 +11327,20 @@ virQEMUFileOpenAs(uid_t fallback_uid,
  * qemuDomainStorageFileInit and storage driver APIs if possible.
  **/
 int
-qemuDomainOpenFile(virQEMUDriver *driver,
-                   virDomainObj *vm,
+qemuDomainOpenFile(virQEMUDriverConfig *cfg,
+                   const virDomainDef *def,
                    const char *path,
                    int oflags,
                    bool *needUnlink)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     uid_t user = cfg->user;
     gid_t group = cfg->group;
     bool dynamicOwnership = cfg->dynamicOwnership;
     virSecurityLabelDef *seclabel;
 
     /* TODO: Take imagelabel into account? */
-    if (vm &&
-        (seclabel = virDomainDefGetSecurityLabelDef(vm->def, "dac")) != NULL &&
+    if (def &&
+        (seclabel = virDomainDefGetSecurityLabelDef(def, "dac")) != NULL &&
         seclabel->label != NULL &&
         (virParseOwnershipIds(seclabel->label, &user, &group) < 0))
         return -EINVAL;
@@ -11650,4 +11455,15 @@ qemuDomainNamePathsCleanup(virQEMUDriverConfig *cfg,
         return -1;
 
     return 0;
+}
+
+
+char *
+qemuDomainGetVHostUserFSSocketPath(qemuDomainObjPrivate *priv,
+                                   const virDomainFSDef *fs)
+{
+    if (fs->sock)
+        return g_strdup(fs->sock);
+
+    return virFileBuildPath(priv->libDir, fs->info.alias, "-fs.sock");
 }

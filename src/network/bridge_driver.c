@@ -145,7 +145,6 @@ extern virXMLNamespace networkDnsmasqXMLNamespace;
 
 typedef struct _networkDnsmasqXmlNsDef networkDnsmasqXmlNsDef;
 struct _networkDnsmasqXmlNsDef {
-    size_t noptions;
     char **options;
 };
 
@@ -157,7 +156,7 @@ networkDnsmasqDefNamespaceFree(void *nsdata)
     if (!def)
         return;
 
-    virStringListFreeCount(def->options, def->noptions);
+    g_strfreev(def->options);
 
     g_free(def);
 }
@@ -179,10 +178,10 @@ networkDnsmasqDefNamespaceParseOptions(networkDnsmasqXmlNsDef *nsdef,
     if (nnodes == 0)
         return 0;
 
-    nsdef->options = g_new0(char *, nnodes);
+    nsdef->options = g_new0(char *, nnodes + 1);
 
     for (i = 0; i < nnodes; i++) {
-        if (!(nsdef->options[nsdef->noptions++] = virXMLPropString(nodes[i], "value"))) {
+        if (!(nsdef->options[i] = virXMLPropString(nodes[i], "value"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("No dnsmasq options value specified"));
             return -1;
@@ -202,7 +201,7 @@ networkDnsmasqDefNamespaceParse(xmlXPathContextPtr ctxt,
     if (networkDnsmasqDefNamespaceParseOptions(nsdata, ctxt))
         return -1;
 
-    if (nsdata->noptions > 0)
+    if (nsdata->options)
         *data = g_steal_pointer(&nsdata);
 
     return 0;
@@ -214,17 +213,16 @@ networkDnsmasqDefNamespaceFormatXML(virBuffer *buf,
                                     void *nsdata)
 {
     networkDnsmasqXmlNsDef *def = nsdata;
-    size_t i;
+    GStrv n;
 
-    if (!def->noptions)
+    if (!def->options)
         return 0;
 
     virBufferAddLit(buf, "<dnsmasq:options>\n");
     virBufferAdjustIndent(buf, 2);
 
-    for (i = 0; i < def->noptions; i++) {
-        virBufferEscapeString(buf, "<dnsmasq:option value='%s'/>\n",
-                              def->options[i]);
+    for (n = def->options; *n; n++) {
+        virBufferEscapeString(buf, "<dnsmasq:option value='%s'/>\n", *n);
     }
 
     virBufferAdjustIndent(buf, -2);
@@ -367,10 +365,7 @@ static char *
 networkDnsmasqLeaseFileNameDefault(virNetworkDriverState *driver,
                                    const char *netname)
 {
-    char *leasefile;
-
-    leasefile = g_strdup_printf("%s/%s.leases", driver->dnsmasqStateDir, netname);
-    return leasefile;
+    return g_strdup_printf("%s/%s.leases", driver->dnsmasqStateDir, netname);
 }
 
 
@@ -378,10 +373,7 @@ static char *
 networkDnsmasqLeaseFileNameCustom(virNetworkDriverState *driver,
                                   const char *bridge)
 {
-    char *leasefile;
-
-    leasefile = g_strdup_printf("%s/%s.status", driver->dnsmasqStateDir, bridge);
-    return leasefile;
+    return g_strdup_printf("%s/%s.status", driver->dnsmasqStateDir, bridge);
 }
 
 
@@ -389,21 +381,13 @@ static char *
 networkDnsmasqConfigFileName(virNetworkDriverState *driver,
                              const char *netname)
 {
-    char *conffile;
-
-    conffile = g_strdup_printf("%s/%s.conf", driver->dnsmasqStateDir, netname);
-    return conffile;
+    return g_strdup_printf("%s/%s.conf", driver->dnsmasqStateDir, netname);
 }
 
 
 static char *
 networkRadvdPidfileBasename(const char *netname)
-{
-    /* this is simple but we want to be sure it's consistently done */
-    char *pidfilebase;
-
-    pidfilebase = g_strdup_printf("%s-radvd", netname);
-    return pidfilebase;
+{return g_strdup_printf("%s-radvd", netname);
 }
 
 
@@ -411,10 +395,7 @@ static char *
 networkRadvdConfigFileName(virNetworkDriverState *driver,
                            const char *netname)
 {
-    char *configfile;
-
-    configfile = g_strdup_printf("%s/%s-radvd.conf", driver->radvdStateDir, netname);
-    return configfile;
+    return g_strdup_printf("%s/%s-radvd.conf", driver->radvdStateDir, netname);
 }
 
 
@@ -1554,8 +1535,9 @@ networkDnsmasqConfContents(virNetworkObj *obj,
 
     if (def->namespaceData) {
         networkDnsmasqXmlNsDef *dnsmasqxmlns = def->namespaceData;
-        for (i = 0; i < dnsmasqxmlns->noptions; i++)
-            virBufferAsprintf(&configbuf, "%s\n", dnsmasqxmlns->options[i]);
+        GStrv n;
+        for (n = dnsmasqxmlns->options; n && *n; n++)
+            virBufferAsprintf(&configbuf, "%s\n", *n);
     }
 
     if (!(*configstr = virBufferContentAndReset(&configbuf)))
@@ -2598,30 +2580,25 @@ networkShutdownNetworkBridge(virNetworkObj *obj G_GNUC_UNUSED)
 static int
 networkCreateInterfacePool(virNetworkDef *netdef)
 {
-    size_t numVirtFns = 0;
-    unsigned int maxVirtFns = 0;
-    char **vfNames = NULL;
-    virPCIDeviceAddress **virtFns;
-
+    g_autoptr(virPCIVirtualFunctionList) vfs = NULL;
     int ret = -1;
     size_t i;
 
     if (netdef->forward.npfs == 0 || netdef->forward.nifs > 0)
        return 0;
 
-    if ((virNetDevGetVirtualFunctions(netdef->forward.pfs->dev, &vfNames,
-                                      &virtFns, &numVirtFns, &maxVirtFns)) < 0) {
+    if (virNetDevGetVirtualFunctions(netdef->forward.pfs->dev, &vfs) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not get Virtual functions on %s"),
                        netdef->forward.pfs->dev);
         goto cleanup;
     }
 
-    netdef->forward.ifs = g_new0(virNetworkForwardIfDef, numVirtFns);
+    netdef->forward.ifs = g_new0(virNetworkForwardIfDef, vfs->nfunctions);
 
-    for (i = 0; i < numVirtFns; i++) {
-        virPCIDeviceAddress *thisVirtFn = virtFns[i];
-        const char *thisName = vfNames[i];
+    for (i = 0; i < vfs->nfunctions; i++) {
+        virPCIDeviceAddress *thisVirtFn = vfs->functions[i].addr;
+        const char *thisName = vfs->functions[i].ifname;
         virNetworkForwardIfDef *thisIf
             = &netdef->forward.ifs[netdef->forward.nifs];
 
@@ -2690,12 +2667,6 @@ networkCreateInterfacePool(virNetworkDef *netdef)
     if (netdef->forward.nifs == 0)
         g_clear_pointer(&netdef->forward.ifs, g_free);
 
-    for (i = 0; i < numVirtFns; i++) {
-        g_free(vfNames[i]);
-        g_free(virtFns[i]);
-    }
-    g_free(vfNames);
-    g_free(virtFns);
     return ret;
 }
 
@@ -3476,8 +3447,9 @@ networkValidate(virNetworkDriverState *driver,
 
 
 static virNetworkPtr
-networkCreateXML(virConnectPtr conn,
-                 const char *xml)
+networkCreateXMLFlags(virConnectPtr conn,
+                      const char *xml,
+                      unsigned int flags)
 {
     virNetworkDriverState *driver = networkGetDriver();
     virNetworkDef *newDef;
@@ -3486,10 +3458,13 @@ networkCreateXML(virConnectPtr conn,
     virNetworkPtr net = NULL;
     virObjectEvent *event = NULL;
 
-    if (!(newDef = virNetworkDefParseString(xml, network_driver->xmlopt)))
+    virCheckFlags(VIR_NETWORK_CREATE_VALIDATE, NULL);
+
+    if (!(newDef = virNetworkDefParseString(xml, network_driver->xmlopt,
+                                            !!(flags & VIR_NETWORK_CREATE_VALIDATE))))
         goto cleanup;
 
-    if (virNetworkCreateXMLEnsureACL(conn, newDef) < 0)
+    if (virNetworkCreateXMLFlagsEnsureACL(conn, newDef) < 0)
         goto cleanup;
 
     if (networkValidate(driver, newDef) < 0)
@@ -3528,8 +3503,17 @@ networkCreateXML(virConnectPtr conn,
 
 
 static virNetworkPtr
-networkDefineXML(virConnectPtr conn,
+networkCreateXML(virConnectPtr conn,
                  const char *xml)
+{
+    return networkCreateXMLFlags(conn, xml, 0);
+}
+
+
+static virNetworkPtr
+networkDefineXMLFlags(virConnectPtr conn,
+                      const char *xml,
+                      unsigned int flags)
 {
     virNetworkDriverState *driver = networkGetDriver();
     virNetworkDef *def = NULL;
@@ -3538,10 +3522,13 @@ networkDefineXML(virConnectPtr conn,
     virNetworkPtr net = NULL;
     virObjectEvent *event = NULL;
 
-    if (!(def = virNetworkDefParseString(xml, network_driver->xmlopt)))
+    virCheckFlags(VIR_NETWORK_DEFINE_VALIDATE, NULL);
+
+    if (!(def = virNetworkDefParseString(xml, network_driver->xmlopt,
+                                         !!(flags & VIR_NETWORK_DEFINE_VALIDATE))))
         goto cleanup;
 
-    if (virNetworkDefineXMLEnsureACL(conn, def) < 0)
+    if (virNetworkDefineXMLFlagsEnsureACL(conn, def) < 0)
         goto cleanup;
 
     if (networkValidate(driver, def) < 0)
@@ -3580,6 +3567,14 @@ networkDefineXML(virConnectPtr conn,
         virNetworkDefFree(def);
     virNetworkObjEndAPI(&obj);
     return net;
+}
+
+
+static virNetworkPtr
+networkDefineXML(virConnectPtr conn,
+                 const char *xml)
+{
+    return networkDefineXMLFlags(conn, xml, 0);
 }
 
 
@@ -4227,9 +4222,7 @@ networkGetDHCPLeases(virNetworkPtr net,
             lease->clientid = g_strdup(virJSONValueObjectGetString(lease_tmp, "client-id"));
             lease->hostname = g_strdup(virJSONValueObjectGetString(lease_tmp, "hostname"));
 
-            if (VIR_APPEND_ELEMENT(leases_ret, nleases, lease) < 0)
-                goto cleanup;
-
+            VIR_APPEND_ELEMENT(leases_ret, nleases, lease);
         } else {
             nleases++;
         }
@@ -5283,14 +5276,15 @@ networkPortCreateXML(virNetworkPtr net,
     virNetworkPortPtr ret = NULL;
     int rc;
 
-    virCheckFlags(VIR_NETWORK_PORT_CREATE_RECLAIM, NULL);
+    virCheckFlags(VIR_NETWORK_PORT_CREATE_RECLAIM |
+                  VIR_NETWORK_PORT_CREATE_VALIDATE, NULL);
 
     if (!(obj = networkObjFromNetwork(net)))
         return ret;
 
     def = virNetworkObjGetDef(obj);
 
-    if (!(portdef = virNetworkPortDefParseString(xmldesc)))
+    if (!(portdef = virNetworkPortDefParseString(xmldesc, flags)))
         goto cleanup;
 
     if (virNetworkPortCreateXMLEnsureACL(net->conn, def, portdef) < 0)
@@ -5631,7 +5625,9 @@ static virNetworkDriver networkDriver = {
     .networkLookupByUUID = networkLookupByUUID, /* 0.2.0 */
     .networkLookupByName = networkLookupByName, /* 0.2.0 */
     .networkCreateXML = networkCreateXML, /* 0.2.0 */
+    .networkCreateXMLFlags = networkCreateXMLFlags, /* 7.8.0 */
     .networkDefineXML = networkDefineXML, /* 0.2.0 */
+    .networkDefineXMLFlags = networkDefineXMLFlags, /* 7.7.0 */
     .networkUndefine = networkUndefine, /* 0.2.0 */
     .networkUpdate = networkUpdate, /* 0.10.2 */
     .networkCreate = networkCreate, /* 0.2.0 */

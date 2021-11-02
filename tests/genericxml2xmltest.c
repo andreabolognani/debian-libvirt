@@ -26,8 +26,8 @@ static int
 testCompareXMLToXMLHelper(const void *data)
 {
     const struct testInfo *info = data;
-    char *xml_in = NULL;
-    char *xml_out = NULL;
+    g_autofree char *xml_in = NULL;
+    g_autofree char *xml_out = NULL;
     int ret = -1;
 
     xml_in = g_strdup_printf("%s/genericxml2xmlindata/%s.xml",
@@ -39,8 +39,6 @@ testCompareXMLToXMLHelper(const void *data)
                                      info->different ? xml_out : xml_in,
                                      info->active_only, 0,
                                      info->expectResult);
-    VIR_FREE(xml_in);
-    VIR_FREE(xml_out);
     return ret;
 }
 
@@ -100,7 +98,7 @@ testCompareBackupXML(const void *opaque)
     }
 
     /* create a fake definition and fill it with disks */
-    if (!(fakedef = virDomainDefNew()))
+    if (!(fakedef = virDomainDefNew(xmlopt)))
         return -1;
 
     fakedef->ndisks = backup->ndisks + 1;
@@ -224,6 +222,8 @@ mymain(void)
 
     DO_TEST_DIFFERENT("cputune");
     DO_TEST("device-backenddomain");
+
+    DO_TEST("fibrechannel-appid");
 
 #define DO_TEST_BACKUP_FULL(name, intrnl) \
     do { \

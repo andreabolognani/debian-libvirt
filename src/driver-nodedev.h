@@ -88,6 +88,20 @@ typedef int
                           unsigned int flags);
 
 typedef int
+(*virDrvNodeDeviceSetAutostart)(virNodeDevicePtr dev,
+                                int autostart);
+
+typedef int
+(*virDrvNodeDeviceGetAutostart)(virNodeDevicePtr dev,
+                                int *autostart);
+
+typedef int
+(*virDrvNodeDeviceIsPersistent)(virNodeDevicePtr dev);
+
+typedef int
+(*virDrvNodeDeviceIsActive)(virNodeDevicePtr dev);
+
+typedef int
 (*virDrvConnectNodeDeviceEventRegisterAny)(virConnectPtr conn,
                                            virNodeDevicePtr dev,
                                            int eventID,
@@ -128,4 +142,8 @@ struct _virNodeDeviceDriver {
     virDrvNodeDeviceDefineXML nodeDeviceDefineXML;
     virDrvNodeDeviceUndefine nodeDeviceUndefine;
     virDrvNodeDeviceCreate nodeDeviceCreate;
+    virDrvNodeDeviceSetAutostart nodeDeviceSetAutostart;
+    virDrvNodeDeviceGetAutostart nodeDeviceGetAutostart;
+    virDrvNodeDeviceIsPersistent nodeDeviceIsPersistent;
+    virDrvNodeDeviceIsActive nodeDeviceIsActive;
 };

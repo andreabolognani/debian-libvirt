@@ -73,18 +73,17 @@ fillQemuCaps(virDomainCaps *domCaps,
              const char *machine,
              virQEMUDriverConfig *cfg)
 {
-    int ret = -1;
-    char *path = NULL;
-    virQEMUCaps *qemuCaps = NULL;
+    g_autofree char *path = NULL;
+    g_autoptr(virQEMUCaps) qemuCaps = NULL;
     virDomainCapsLoader *loader = &domCaps->os.loader;
     virDomainVirtType virtType;
 
     if (fakeHostCPU(domCaps->arch) < 0)
-        goto cleanup;
+        return -1;
 
     path = g_strdup_printf("%s/%s.%s.xml", TEST_QEMU_CAPS_PATH, name, arch);
     if (!(qemuCaps = qemuTestParseCapabilitiesArch(domCaps->arch, path)))
-        goto cleanup;
+        return -1;
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_KVM))
         virtType = VIR_DOMAIN_VIRT_KVM;
@@ -103,7 +102,7 @@ fillQemuCaps(virDomainCaps *domCaps,
                                   false,
                                   cfg->firmwares,
                                   cfg->nfirmwares) < 0)
-        goto cleanup;
+        return -1;
 
     /* The function above tries to query host's VFIO capabilities by calling
      * qemuHostdevHostSupportsPassthroughVFIO() which, however, can't be
@@ -123,13 +122,9 @@ fillQemuCaps(virDomainCaps *domCaps,
                          "/usr/share/AAVMF/AAVMF32_CODE.fd",
                          "/usr/share/OVMF/OVMF_CODE.fd",
                          NULL) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virObjectUnref(qemuCaps);
-    VIR_FREE(path);
-    return ret;
+    return 0;
 }
 #endif /* WITH_QEMU */
 
@@ -168,21 +163,17 @@ fillXenCaps(virDomainCaps *domCaps)
 static int
 fillBhyveCaps(virDomainCaps *domCaps, unsigned int *bhyve_caps)
 {
-    virDomainCapsStringValues *firmwares = NULL;
-    int ret = -1;
+    g_autofree virDomainCapsStringValues *firmwares = NULL;
 
     firmwares = g_new0(virDomainCapsStringValues, 1);
 
     if (fillStringValues(firmwares, "/foo/bar", "/foo/baz", NULL) < 0)
-        goto cleanup;
+        return -1;
 
     if (virBhyveDomainCapsFill(domCaps, *bhyve_caps, firmwares) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(firmwares);
-    return ret;
+    return 0;
 }
 #endif /* WITH_BHYVE */
 
@@ -208,17 +199,16 @@ static int
 test_virDomainCapsFormat(const void *opaque)
 {
     const struct testData *data = opaque;
-    virDomainCaps *domCaps = NULL;
-    char *path = NULL;
-    char *domCapsXML = NULL;
-    int ret = -1;
+    g_autoptr(virDomainCaps) domCaps = NULL;
+    g_autofree char *path = NULL;
+    g_autofree char *domCapsXML = NULL;
 
     path = g_strdup_printf("%s/domaincapsdata/%s.xml", abs_srcdir, data->name);
 
     if (!(domCaps = virDomainCapsNew(data->emulator, data->machine,
                                      virArchFromString(data->arch),
                                      data->type)))
-        goto cleanup;
+        return -1;
 
     switch (data->capsType) {
     case CAPS_NONE:
@@ -228,36 +218,31 @@ test_virDomainCapsFormat(const void *opaque)
 #if WITH_QEMU
         if (fillQemuCaps(domCaps, data->capsName, data->arch, data->machine,
                          data->capsOpaque) < 0)
-            goto cleanup;
+            return -1;
 #endif
         break;
 
     case CAPS_LIBXL:
 #if WITH_LIBXL
         if (fillXenCaps(domCaps) < 0)
-            goto cleanup;
+            return -1;
 #endif
         break;
     case CAPS_BHYVE:
 #if WITH_BHYVE
         if (fillBhyveCaps(domCaps, data->capsOpaque) < 0)
-            goto cleanup;
+            return -1;
 #endif
         break;
     }
 
     if (!(domCapsXML = virDomainCapsFormat(domCaps)))
-        goto cleanup;
+        return -1;
 
     if (virTestCompareToFile(domCapsXML, path) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(domCapsXML);
-    VIR_FREE(path);
-    virObjectUnref(domCaps);
-    return ret;
+    return 0;
 }
 
 
@@ -402,7 +387,7 @@ mymain(void)
 
 #define DO_TEST_BHYVE(Name, Emulator, BhyveCaps, Type) \
     do { \
-        char *name = NULL; \
+        g_autofree char *name = NULL; \
         name = g_strdup_printf("bhyve_%s.x86_64", Name); \
         struct testData data = { \
             .name = name, \
@@ -414,7 +399,6 @@ mymain(void)
         }; \
         if (virTestRun(name, test_virDomainCapsFormat, &data) < 0) \
             ret = -1; \
-        VIR_FREE(name); \
     } while (0)
 
     DO_TEST("empty", "/bin/emulatorbin", "my-machine-type",

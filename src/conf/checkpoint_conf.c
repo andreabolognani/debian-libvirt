@@ -193,21 +193,11 @@ virDomainCheckpointDefParseNode(xmlDocPtr xml,
                                 unsigned int flags)
 {
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    g_autofree char *schema = NULL;
 
     if (!virXMLNodeNameEqual(root, "domaincheckpoint")) {
         virReportError(VIR_ERR_XML_ERROR, "%s", _("domaincheckpoint"));
         return NULL;
     }
-
-    /* This is a new enough API to make schema validation unconditional */
-    schema = virFileFindResource("domaincheckpoint.rng",
-                                 abs_top_srcdir "/docs/schemas",
-                                 PKGDATADIR "/schemas");
-    if (!schema)
-        return NULL;
-    if (virXMLValidateAgainstSchema(schema, xml) < 0)
-        return NULL;
 
     if (!(ctxt = virXMLXPathContextNew(xml)))
         return NULL;
@@ -223,14 +213,14 @@ virDomainCheckpointDefParseString(const char *xmlStr,
                                   unsigned int flags)
 {
     virDomainCheckpointDef *ret = NULL;
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
     int keepBlanksDefault = xmlKeepBlanksDefault(0);
 
-    if ((xml = virXMLParse(NULL, xmlStr, _("(domain_checkpoint)")))) {
+    if ((xml = virXMLParse(NULL, xmlStr, _("(domain_checkpoint)"),
+                           "domaincheckpoint.rng", true))) {
         xmlKeepBlanksDefault(keepBlanksDefault);
         ret = virDomainCheckpointDefParseNode(xml, xmlDocGetRootElement(xml),
                                               xmlopt, parseOpaque, flags);
-        xmlFreeDoc(xml);
     }
     xmlKeepBlanksDefault(keepBlanksDefault);
 
@@ -275,6 +265,7 @@ virDomainCheckpointAlignDisks(virDomainCheckpointDef *chkdef)
     virDomainDef *domdef = chkdef->parent.dom;
     g_autoptr(GHashTable) map = virHashNew(NULL);
     g_autofree virDomainCheckpointDiskDef *olddisks = NULL;
+    size_t oldndisks;
     size_t i;
     int checkpoint_default = VIR_DOMAIN_CHECKPOINT_TYPE_NONE;
 
@@ -302,9 +293,14 @@ virDomainCheckpointAlignDisks(virDomainCheckpointDef *chkdef)
     if (!chkdef->ndisks)
         checkpoint_default = VIR_DOMAIN_CHECKPOINT_TYPE_BITMAP;
 
+    olddisks = g_steal_pointer(&chkdef->disks);
+    oldndisks = chkdef->ndisks;
+    chkdef->disks = g_new0(virDomainCheckpointDiskDef, domdef->ndisks);
+    chkdef->ndisks = domdef->ndisks;
+
     /* Double check requested disks.  */
-    for (i = 0; i < chkdef->ndisks; i++) {
-        virDomainCheckpointDiskDef *chkdisk = &chkdef->disks[i];
+    for (i = 0; i < oldndisks; i++) {
+        virDomainCheckpointDiskDef *chkdisk = &olddisks[i];
         virDomainDiskDef *domdisk = virDomainDiskByName(domdef, chkdisk->name, false);
 
         if (!domdisk) {
@@ -337,10 +333,6 @@ virDomainCheckpointAlignDisks(virDomainCheckpointDef *chkdef)
             chkdisk->name = g_strdup(domdisk->dst);
         }
     }
-
-    olddisks = g_steal_pointer(&chkdef->disks);
-    chkdef->disks = g_new0(virDomainCheckpointDiskDef, domdef->ndisks);
-    chkdef->ndisks = domdef->ndisks;
 
     for (i = 0; i < domdef->ndisks; i++) {
         virDomainDiskDef *domdisk = domdef->disks[i];

@@ -11,7 +11,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2021-07-27 13:35+0000\n"
+"POT-Creation-Date: 2021-10-26 08:13+0000\n"
 "PO-Revision-Date: 2020-06-24 14:36+0000\n"
 "Last-Translator: Akarshan Biswas <akarshan.biswas@gmail.com>\n"
 "Language-Team: Bengali (India) <https://translate.fedoraproject.org/projects/"
@@ -290,6 +290,7 @@ msgid ""
 "   - qemu\n"
 "   - lxc\n"
 "   - bhyve\n"
+"   - ch\n"
 "\n"
 " Options:\n"
 "   -h, --help     Display command line help\n"
@@ -1490,9 +1491,21 @@ msgstr ""
 msgid "<snapshot> element is currently supported only with 'rbd' disks"
 msgstr ""
 
+msgid "<system_field> evaluation has failed"
+msgstr ""
+
+msgid "<system_field> value evaluation has failed"
+msgstr ""
+
 #, c-format
 msgid "<uuid> does not match secret file name '%s'"
 msgstr "<uuid>, গোপনীয় ফাইলের নাম '%s'-র সাথে সুসংগত নয়"
+
+msgid "<vendor_field> evaluation has failed"
+msgstr ""
+
+msgid "<vendor_field> value evaluation has failed"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -1867,6 +1880,9 @@ msgstr ""
 
 msgid "Available:"
 msgstr "উপলব্ধ:"
+
+msgid "BIOS serial console only supported on x86 architectures"
+msgstr ""
 
 msgid "Backup"
 msgstr ""
@@ -3259,6 +3275,19 @@ msgstr "মাউন্ট করা নেম-স্পেস, শেয়ার 
 msgid "Cannot unshare uninitialized CURL handle"
 msgstr "মাউন্ট করা নেম-স্পেস, শেয়ার থেকে সরিয়ে নেওয়া সম্ভব নয়"
 
+msgid "Cannot update the read-only keyword: RO section not initialized."
+msgstr ""
+
+msgid ""
+"Cannot update the read-write keyword: read-write section not initialized."
+msgstr ""
+
+msgid "Cannot update the resource: a NULL keyword pointer has been provided."
+msgstr ""
+
+msgid "Cannot update the resource: a NULL resource pointer has been provided."
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Cannot use direct socket mode for %s transport"
 msgstr "unix ট্র্যান্সপোর্টের ক্ষেত্রে সকেট অনুপস্থিত"
@@ -3466,6 +3495,10 @@ msgstr ""
 msgid "Checkpoints have inconsistent relations for domain %s"
 msgstr ""
 
+#. All bytes up to and including the checksum byte should add up to 0.
+msgid "Checksum validation has failed"
+msgstr ""
+
 #, c-format
 msgid "Child process (%lld) unexpected %s"
 msgstr ""
@@ -3654,6 +3687,9 @@ msgstr "বুট করার সময় স্বয়ংক্রিয়রূপ
 msgid "Configure a network to be automatically started at boot."
 msgstr "বুট করার সময় স্বয়ংক্রিয়রূপে আরম্ভের জন্য একটি নেটওয়ার্ক কনফিগার করুন।"
 
+msgid "Configure a node device to be automatically started at boot."
+msgstr ""
+
 msgid "Configure a pool to be automatically started at boot."
 msgstr "বুট করার সময় স্বয়ংক্রিয়রূপে আরম্ভের জন্য একটি পুল কনফিগার করুন।"
 
@@ -3697,6 +3733,9 @@ msgid "Connected to the admin server"
 msgstr "ডোমেইন %s-র সাথে সংযোগ স্থাপন করা হয়েছে\n"
 
 msgid "Connections from inside daemon must be direct"
+msgstr ""
+
+msgid "Console can only be enabled for a PTY"
 msgstr ""
 
 msgid "Constant pages:"
@@ -3785,9 +3824,6 @@ msgid "Could not allocate disk def"
 msgstr ""
 
 msgid "Could not allocate disk definition"
-msgstr ""
-
-msgid "Could not append definition to domain"
 msgstr ""
 
 #, fuzzy, c-format
@@ -3983,7 +4019,8 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Could not find PCI controller with index %u required for device at address %s"
+"Could not find PCI controller with index '%u' required for device at address "
+"'%s'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -4290,6 +4327,10 @@ msgstr "ডোমেন পুনরারম্ভ করা যায়নি
 msgid "Could not get number of Domains, rc=%08x"
 msgstr "ডোমেন পুনরারম্ভ করা যায়নি: %s"
 
+#, c-format
+msgid "Could not get parent of '%s'"
+msgstr ""
+
 #, fuzzy
 msgid "Could not get process id of swtpm"
 msgstr "বর্তমান সময় প্রাপ্ত করতে ব্যর্থ"
@@ -4485,6 +4526,10 @@ msgstr "'%s' এর জন্য পেরেন্ট ডিভাইস খু
 msgid "Could not open TPM device's cancel path %s"
 msgstr "ইনপুট পাথ '%s' খুলতে ব্যর্থ"
 
+#, c-format
+msgid "Could not parse %s VPD resource fields"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Could not parse 'bonding/arp_interval' '%s' for '%s'"
 msgstr "চেন অগ্রাধিকার '%s' পার্জ করা যায়নি"
@@ -4539,6 +4584,9 @@ msgstr "VPS ID %s পার্স করতে ব্যর্থ"
 #, c-format
 msgid "Could not parse VPS ID %s"
 msgstr "VPS ID %s পার্স করতে ব্যর্থ"
+
+msgid "Could not parse a resource field data - VPD has invalid format"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Could not parse barrier and limit of '%s' from config for container %d"
@@ -4599,6 +4647,15 @@ msgstr "ধারণকারী %d-র কনফিগ তথ্য থেক�
 #, c-format
 msgid "Could not read 'VE_PRIVATE' from config for container %d"
 msgstr "ধারণকারী %d-র কনফিগ তথ্য থেকে 'VE_PRIVATE' পাঠ করা সম্ভব হয়নি"
+
+msgid "Could not read a device name from the <name> element"
+msgstr ""
+
+msgid "Could not read a part of a resource - VPD has invalid format"
+msgstr ""
+
+msgid "Could not read a resource field header - VPD has invalid format"
+msgstr ""
 
 #, c-format
 msgid "Could not read config for container %d"
@@ -4698,6 +4755,12 @@ msgid "Could not revert to snapshot '%s': %s"
 msgstr "'%s'-র প্রোফাইল মুছে ফেলতে ব্যর্থ"
 
 #, c-format
+msgid ""
+"Could not run '%s' to create config files. exitstatus: %d;\n"
+"Error: %s"
+msgstr ""
+
+#, c-format
 msgid "Could not run '%s'. exitstatus: %d; Check error log '%s' for details."
 msgstr ""
 
@@ -4795,6 +4858,10 @@ msgstr "ডোমেন প্রারম্ভ করা যায়নি: %
 #, fuzzy
 msgid "Could not translate keycode"
 msgstr "ধারণকারীর কনফিগ পড়তে ব্যর্থ"
+
+#, c-format
+msgid "Could not update the VPD resource keyword: %s"
+msgstr ""
 
 #, fuzzy
 msgid "Could not verify disk address"
@@ -5128,6 +5195,10 @@ msgid "Device %s detached\n"
 msgstr "%s ডিভাইস পুনরায় সংযুক্ত করা হয়েছে\n"
 
 #, c-format
+msgid "Device %s does not have a VPD"
+msgstr ""
+
+#, c-format
 msgid "Device %s is already in use"
 msgstr "%s ডিভাইস বর্তমানে ব্যবহৃত হচ্ছে"
 
@@ -5139,6 +5210,10 @@ msgstr ""
 #, fuzzy, c-format
 msgid "Device %s is not a bridge"
 msgstr "ডিভাইসের প্রকৃতি '%s' পূর্ণসংখ্যা নয়"
+
+#, c-format
+msgid "Device %s marked as autostarted\n"
+msgstr ""
 
 #, c-format
 msgid "Device %s not found: could not access %s"
@@ -5160,6 +5235,10 @@ msgstr ""
 msgid "Device %s un-attached from bridge %s\n"
 msgstr "%s ডিভাইস পুনরায় সংযুক্ত করা হয়েছে\n"
 
+#, c-format
+msgid "Device %s unmarked as autostarted\n"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Device '%s' already formatted using '%s'"
 msgstr "%s ডিভাইস বর্তমানে ব্যবহৃত হচ্ছে"
@@ -5178,8 +5257,8 @@ msgstr "একাধিক '%s' কন্ট্রোলার সূচি '%d'
 
 #, c-format
 msgid ""
-"Device alias was not set for PCI controller with index %u required for "
-"device at address %s"
+"Device alias was not set for PCI controller with index '%u' required for "
+"device at address '%s'"
 msgstr ""
 
 msgid "Device attached successfully\n"
@@ -5774,7 +5853,7 @@ msgstr ""
 msgid "EOF on stdout"
 msgstr ""
 
-msgid "Echo back arguments, possibly with quoting."
+msgid "Echo back arguments, possibly with quoting. Used for internal testing."
 msgstr ""
 
 msgid "Edit the XML configuration for a domain."
@@ -6330,18 +6409,6 @@ msgstr "PCI ডিভাইস পুনরায় নির্ধারণ ক�
 
 msgid "Failed to allocate XML buffer"
 msgstr "XML বাফার বরাদ্দ করতে ব্যর্থ"
-
-#, fuzzy, c-format
-msgid "Failed to allocate memory for checkpoint directory for domain %s"
-msgstr "%s ডোমেইনের জন্য মেমরি সংক্রান্ত পরিসংখ্যান প্রাপ্ত করতে ব্যর্থ"
-
-#, fuzzy
-msgid "Failed to allocate memory for path"
-msgstr "ডোমেইনের জন্য মেমরি নির্ধারণ করতে ব্যর্থ"
-
-#, fuzzy, c-format
-msgid "Failed to allocate memory for snapshot directory for domain %s"
-msgstr "%s ডোমেইনের জন্য মেমরি সংক্রান্ত পরিসংখ্যান প্রাপ্ত করতে ব্যর্থ"
 
 #, fuzzy, c-format
 msgid "Failed to allocate slirp for '%s'"
@@ -7085,10 +7152,6 @@ msgstr "uuid নির্মাণ করতে ব্যর্থ"
 msgid "Failed to get %s minor number"
 msgstr "ডিস্ক সংক্রান্ত তথ্য প্রাপ্ত করতে ব্যর্থ"
 
-#, fuzzy
-msgid "Failed to get PCI SYSFS file"
-msgstr "PCI ডিভাইস পুনরায় নির্ধারণ করতে ব্যর্থ: %s"
-
 #, fuzzy, c-format
 msgid "Failed to get SRIOV function from device link '%s'"
 msgstr "নোড ডিভাইস '%s' ধ্বংশ করতে ব্যর্থ"
@@ -7277,6 +7340,9 @@ msgstr "SASL লাইব্রেরি আরম্ভ করতে ব্য�
 #, fuzzy
 msgid "Failed to initialize cgroup backend."
 msgstr "SASL লাইব্রেরি আরম্ভ করতে ব্যর্থ : %d (%s)"
+
+msgid "Failed to initialize host cpu features"
+msgstr ""
 
 #, fuzzy
 msgid "Failed to initialize libpciaccess"
@@ -7581,6 +7647,10 @@ msgid "Failed to open '%s'"
 msgstr "'%s' খুলতে ব্যর্থ"
 
 #, c-format
+msgid "Failed to open a VPD file '%s'"
+msgstr ""
+
+#, c-format
 msgid "Failed to open config space file '%s'"
 msgstr "কনফিগ স্পেস ফাইল '%s' খুলতে ব্যর্থ"
 
@@ -7755,6 +7825,10 @@ msgstr "%s ব্লকের নাম পার্স করতে ব্য�
 
 msgid "Failed to parse vzlist output"
 msgstr "vzlist-র ফলাফল পার্স করতে ব্যর্থ"
+
+#, c-format
+msgid "Failed to parse wwn '%s' as number"
+msgstr ""
 
 #, c-format
 msgid "Failed to pin vcpu '%d' with libxenlight"
@@ -8533,6 +8607,13 @@ msgstr ""
 msgid "Feature %s required by CPU model %s not found"
 msgstr "%s বৈশিষ্ট্যটি CPU মডেল %s-র ক্ষেত্রে আবশ্যক, কিন্তু এটি পাওয়া যায়নি"
 
+msgid "Fibre Channel 'appid' is not a printable string"
+msgstr ""
+
+#, c-format
+msgid "Fibre Channel 'appid' string length must be between [%d, %d]"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Field '%s' too long for destination"
 msgstr "CPU মডেল %s গন্তব্যের ক্ষেত্রে অত্যন্ত বড়"
@@ -8548,6 +8629,9 @@ msgstr "ipset নাম অত্যন্ত দীর্ঘ"
 #, fuzzy
 msgid "Field name too long"
 msgstr "ipset নাম অত্যন্ত দীর্ঘ"
+
+msgid "Field value contains invalid characters"
+msgstr ""
 
 #, c-format
 msgid "File %s contains no keys"
@@ -9150,10 +9234,6 @@ msgid ""
 msgstr ""
 
 #, fuzzy
-msgid "I/O APIC tuning is not supported by this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
-
-#, fuzzy
 msgid "I/O Error"
 msgstr "I/O সমস্যা"
 
@@ -9525,9 +9605,6 @@ msgstr "CPU-র বৈশিষ্ট্যের নাম বৈধ নয়"
 #, fuzzy, c-format
 msgid "Invalid CPU signature model in model %s"
 msgstr "CPU-র বৈশিষ্ট্যের নাম বৈধ নয়"
-
-msgid "Invalid CPU topology"
-msgstr "CPU টোপোলজি বৈধ নয়"
 
 msgid ""
 "Invalid CPU topology: total number of vCPUs must equal the product of "
@@ -10293,6 +10370,10 @@ msgid "Invalid setting for nested HV state"
 msgstr ""
 
 #, c-format
+msgid "Invalid source mode: %s"
+msgstr ""
+
+#, c-format
 msgid ""
 "Invalid specification for virtio ccw address: cssid='0x%x' ssid='0x%x' "
 "devno='0x%04x'"
@@ -10510,6 +10591,9 @@ msgstr "অবস্থান:"
 msgid "Iterator ID exceeds maximum ID of %u"
 msgstr "ইটিরেটর অাইডি %u এর সর্বাধিক অাইডি ছাড়িয়ে গেছে"
 
+msgid "JSON array -> commandline conversion function not provided"
+msgstr ""
+
 #, c-format
 msgid "JSON backing volume definition '%s' lacks 'file' object"
 msgstr ""
@@ -10722,10 +10806,6 @@ msgstr "ভুল ভাবে গঠিত ইটিরেটর অাইড�
 
 msgid "Malformatted variable"
 msgstr "ভুল ভাবে ফর্ম্যাট করা পরিবর্তনশীল"
-
-#, fuzzy
-msgid "Malformed 'dies' attribute in CPU topology"
-msgstr "CPU টোপোলজির মধ্যে 'core' নামক বৈশিষ্ট্য অনুপস্থিত"
 
 #, fuzzy
 msgid "Malformed 'domuuid' in JSON document"
@@ -11120,9 +11200,6 @@ msgstr "'%s' নেটওয়ার্কের ক্ষেত্রে dhcp 
 msgid "Missing 'associativity' attribute in cache element for NUMA node %d"
 msgstr ""
 
-msgid "Missing 'cores' attribute in CPU topology"
-msgstr "CPU টোপোলজির মধ্যে 'core' নামক বৈশিষ্ট্য অনুপস্থিত"
-
 msgid "Missing 'domname' in JSON document"
 msgstr ""
 
@@ -11176,18 +11253,12 @@ msgstr ""
 msgid "Missing 'runtime.powerState' property"
 msgstr "'hostName' বিশিষ্টতা অনুপস্থিত বা খালি"
 
-msgid "Missing 'sockets' attribute in CPU topology"
-msgstr "CPU টোপোলজির মধ্যে 'sockets' নামক বৈশিষ্ট্য অনুপস্থিত"
-
 #, c-format
 msgid "Missing 'start' attribute in dhcp range for network '%s'"
 msgstr "'%s' নেটওয়ার্কের ক্ষেত্রে dhcp রেঞ্জে 'start' অ্যাট্রিবিউট অনুপস্থিত"
 
 msgid "Missing 'target' element for lease"
 msgstr "লিজের ক্ষেত্রে 'টার্গেট' উপাদান অনুপস্থিত"
-
-msgid "Missing 'threads' attribute in CPU topology"
-msgstr "CPU টোপোলজির মধ্যে 'threads' নামক বৈশিষ্ট্য অনুপস্থিত"
 
 #, fuzzy
 msgid "Missing 'uuid' attribute for element <address>"
@@ -12262,10 +12333,6 @@ msgstr "অত্যাধিক সংখ্যক ড্রাইভার ন
 msgid "No active block job '%s'"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "No active operation on device: %s"
-msgstr "%s ডিভাইসের জন্য কোনো pty নির্ধারণ করা হয়নি"
-
 msgid "No addresses to bind to"
 msgstr ""
 
@@ -12830,6 +12897,15 @@ msgstr "সমর্থিত নয়"
 msgid "Only a single IDE controller is supported for this machine type"
 msgstr "অপর একটি USB কন্ট্রোলার যোগ করা যাবে না: এই ডোমেনের জন্য USB নিষ্ক্রিয়"
 
+msgid "Only a single console can be configured for this domain"
+msgstr ""
+
+msgid "Only a single console or serial can be configured for this domain"
+msgstr ""
+
+msgid "Only a single serial can be configured for this domain"
+msgstr ""
+
 msgid "Only bridged veth devices can be detached"
 msgstr ""
 
@@ -12969,10 +13045,6 @@ msgstr "OpenVZ নিয়ন্ত্রণের ফাইল /proc/vz ব্য
 
 msgid "Operation cancelled by client"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "Operation is not supported for device: %s"
-msgstr "কর্ম সমর্থিত হয় না"
 
 msgid "Operation not supported"
 msgstr "কর্ম সমর্থিত হয় না"
@@ -13133,6 +13205,9 @@ msgid "Overlay file '%s' for transient disk '%s' already exists"
 msgstr ""
 
 msgid "PASS"
+msgstr ""
+
+msgid "PCI VPD reporting not available on this platform"
 msgstr ""
 
 #, c-format
@@ -14014,6 +14089,9 @@ msgstr "ডোমেইন সংক্রান্ত সাধারণ তথ
 msgid "Returns basic information about the network"
 msgstr "নোড সংক্রান্ত মৌলিক তথ্য উপলব্ধ করা হয়।"
 
+msgid "Returns basic information about the node device"
+msgstr ""
+
 msgid "Returns basic information about the node."
 msgstr "নোড সংক্রান্ত মৌলিক তথ্য উপলব্ধ করা হয়।"
 
@@ -14210,6 +14288,10 @@ msgstr "hostdev মোড '%s' সমর্থিত নয়"
 #, fuzzy
 msgid "SCSI host device must use 'drive' address type"
 msgstr "অজানা হোস্ট ডিভাইস সোর্স ঠিকানা ধরন '%s'"
+
+#, c-format
+msgid "SCSI unit index %d out of [0..6,8..%u] range"
+msgstr ""
 
 #, c-format
 msgid "SCSI unit index %d out of [0..6,8..15] range"
@@ -14429,6 +14511,9 @@ msgstr ""
 #, fuzzy
 msgid "Sending file descriptors is not supported on this socket"
 msgstr "এই প্ল্যাটফর্মের মধ্যে CPU অ্যাফিনিটি সমর্থন করা হয় না"
+
+msgid "Serial can only be enabled for a PTY"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -14975,6 +15060,10 @@ msgstr "গন্তব্যের ক্ষেত্রে স্লট %s অ
 msgid "Stats types bits 0x%x are not supported by this daemon"
 msgstr ""
 
+#, c-format
+msgid "Stats types bits 0x%x are not supported by this daemon or QEMU"
+msgstr ""
+
 msgid "Status is unknown"
 msgstr ""
 
@@ -15461,6 +15550,10 @@ msgstr "টার্গেট ডিভাইস ccid ঠিকানা %d:%d �
 msgid "Target device packed option '%s' does not match source '%s'"
 msgstr "টার্গেট ডিভাইস ঠিকানা ধরন %s %s সোর্সের সংগে মেলে না"
 
+#, c-format
+msgid "Target device page_per_vq option '%s' does not match source '%s'"
+msgstr ""
+
 msgid "Target device virtio options don't match the source"
 msgstr ""
 
@@ -15488,6 +15581,14 @@ msgstr "টার্গেট ডিস্ক ডিভাইস %s %s সোর
 #, fuzzy, c-format
 msgid "Target disk model %s does not match source %s"
 msgstr "টার্গেট ডিস্ক %s %s সোর্সের সংগে মেলে না"
+
+#, c-format
+msgid "Target disk queue count %u does not match source %u"
+msgstr ""
+
+#, c-format
+msgid "Target disk queue size %u does not match source %u"
+msgstr ""
 
 #, c-format
 msgid "Target disk rotation rate %u RPM does not match source %u RPM"
@@ -15732,9 +15833,21 @@ msgstr "টার্গেট ডোমেন সর্বাধিক মেম
 msgid "Target memory device alias '%s' doesn't match source alias '%s'"
 msgstr "টার্গেট RNG মডেল '%s' '%s' সোর্সের সংগে মিলছে না"
 
+#, c-format
+msgid ""
+"Target memory device block size '%llu' doesn't match source memory device "
+"block size '%llu'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Target memory device model '%s' doesn't match source model '%s'"
 msgstr "টার্গেট হোস্ট ডিভাইস মোড %s সোর্সের সংগে মিলছে না %s"
+
+#, c-format
+msgid ""
+"Target memory device requested size '%llu' doesn't match source memory "
+"device requested size '%llu'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -16092,6 +16205,13 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
+msgid "The keyword is not comprised only of uppercase ASCII letters or digits"
+msgstr ""
+
+#, c-format
+msgid "The keyword length is not 2 bytes: %s"
+msgstr ""
+
 msgid "The machine has no snapshot and it should have it"
 msgstr ""
 
@@ -16101,6 +16221,10 @@ msgstr ""
 msgid ""
 "The overall maximum number of clients must be greater than the maximum "
 "number of clients waiting for authentication"
+msgstr ""
+
+#, c-format
+msgid "The provided value contains invalid characters: %s"
 msgstr ""
 
 msgid "The read only disk has no parent"
@@ -16126,6 +16250,9 @@ msgstr ""
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "সংগ্রহের পুল দ্বারা ভলিউম নির্মাণের কর্ম সমর্থিত নয়"
+
+msgid "The string resource has invalid characters in its value"
+msgstr ""
 
 #, c-format
 msgid "The vbox driver does not support %s SCSI controller model"
@@ -16157,9 +16284,6 @@ msgid "There is no more free %s."
 msgstr ""
 
 msgid "This QEMU binary doesn't support zPCI"
-msgstr ""
-
-msgid "This QEMU can't disable file transfers through spice"
 msgstr ""
 
 msgid "This QEMU doesn't support '-device usb-storage'"
@@ -16240,10 +16364,6 @@ msgstr ""
 #, fuzzy
 msgid "This type of disk cannot be hot unplugged"
 msgstr "'%s' ডিস্ক ডিভাইসের ধরন হট-প্লাগ করা সম্ভব নয়"
-
-msgid ""
-"This version of libxenlight does not support disk 'discard' option passing"
-msgstr ""
 
 msgid "Thread(s) per core:"
 msgstr "প্রতি কোরে থ্রেড সংখ্যা:"
@@ -16598,6 +16718,10 @@ msgid "USB bus %u requested but no controller with that index is present"
 msgstr ""
 
 #, c-format
+msgid "USB controller model '%s' not supported in this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid "USB controller model type 'qusb1' or 'qusb2' is not supported in %s"
 msgstr ""
 
@@ -16669,6 +16793,10 @@ msgstr "কনফিগারেশন ফাইল %s পার্স করত
 #, fuzzy, c-format
 msgid "Unable to access file descriptor %d"
 msgstr "non-blocking ফাইল ডেস্ক্রিপটর ফ্ল্যাগের মান নির্ধারণ করতে ব্যর্থ"
+
+#, c-format
+msgid "Unable to access file descriptor %d path %s"
+msgstr ""
 
 msgid "Unable to access kernel32.dll"
 msgstr ""
@@ -16921,6 +17049,10 @@ msgid "Unable to close recursively all disks"
 msgstr ""
 
 #, c-format
+msgid "Unable to close the VPD file, fd: %d"
+msgstr ""
+
+#, c-format
 msgid "Unable to close the new medium, rc=%08x"
 msgstr ""
 
@@ -17155,14 +17287,6 @@ msgstr ""
 msgid "Unable to destroy '%s': device in use"
 msgstr ""
 
-#, c-format
-msgid "Unable to destroy qos on port %s"
-msgstr ""
-
-#, c-format
-msgid "Unable to destroy queue on port %s"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Unable to detect filesystem for %s"
 msgstr "ভলিউম %s মুছে ফেলতে ব্যর্থ"
@@ -17284,6 +17408,10 @@ msgid "Unable to find a satisfying virtiofsd"
 msgstr ""
 
 #, c-format
+msgid "Unable to find address for parent device '%s'"
+msgstr ""
+
+#, c-format
 msgid "Unable to find an unused port in range '%s' (%d-%d)"
 msgstr ""
 
@@ -17298,10 +17426,6 @@ msgstr ""
 #, c-format
 msgid "Unable to find any usable hugetlbfs mount for %llu KiB"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "Unable to find controller for %s"
-msgstr "%s-র ঊর্ধ্বতন ডিভাইস সন্ধান করতে ব্যর্থ"
 
 #, c-format
 msgid "Unable to find correct value in 'bonding/arp_validate' for '%s'"
@@ -18090,6 +18214,9 @@ msgstr "অবৈধ টাইমার ফ্রিকোয়েন্সি"
 msgid "Unable to process file with flags %d"
 msgstr "ক্লাস অাইডি পার্জ করতে ব্যর্থ '%s'"
 
+msgid "Unable to query TSC scaling support"
+msgstr ""
+
 #, c-format
 msgid "Unable to query certificate %s basic constraints %s"
 msgstr ""
@@ -18317,6 +18444,10 @@ msgstr "নিরাপত্তার কনটেক্সট '%s', '%s'-র �
 msgid "Unable to reset PCI device %s: %s"
 msgstr "%s PCI ডিভাইস পুনরায় নির্ধারণ করতে ব্যর্থ: %s"
 
+#, c-format
+msgid "Unable to reset ingress on port %s"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Unable to resolve address '%s' service '%s': %s"
 msgstr "%s PCI ডিভাইস পুনরায় নির্ধারণ করতে ব্যর্থ: %s"
@@ -18492,6 +18623,10 @@ msgstr "%s খুলতে ব্যর্থ"
 #, fuzzy
 msgid "Unable to set agent close-on-exec flag"
 msgstr "মনিটর সংক্রান্ত close-on-exec ফ্ল্যাগের মান নির্ধারণ করতে ব্যর্থ"
+
+#, c-format
+msgid "Unable to set autostart on '%s': %s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Unable to set backing file %s"
@@ -18731,6 +18866,10 @@ msgid "Unable to write %s"
 msgstr "%s খুলতে ব্যর্থ"
 
 #, c-format
+msgid "Unable to write '%s' to '%s'"
+msgstr ""
+
+#, c-format
 msgid "Unable to write pid file '%s/%s.pid'"
 msgstr "pid ফাইল '%s/%s.pid' লিখতে ব্যর্থ"
 
@@ -18860,6 +18999,12 @@ msgstr ""
 msgid "Unexpected QEMU monitor still active during domain deletion"
 msgstr ""
 
+msgid "Unexpected RV keyword in the read-write section."
+msgstr ""
+
+msgid "Unexpected RW keyword in the read-only section."
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Unexpected SCSI controller model %d"
 msgstr "অপ্রত্যাশিত প্রকৃতির কনট্রোলার %d"
@@ -18904,6 +19049,9 @@ msgid "Unexpected element '%s' in CPU map '%s'"
 msgstr "অপ্রত্যাশিত রুট উপাদান <%s>, প্রত্যাশিত <domstatus>"
 
 msgid "Unexpected event thread still active during domain deletion"
+msgstr ""
+
+msgid "Unexpected field value format encountered."
 msgstr ""
 
 #, fuzzy, c-format
@@ -19046,6 +19194,9 @@ msgstr "অজানা CPU ভেন্ডার %s"
 
 #, c-format
 msgid "Unknown Command '%i'"
+msgstr ""
+
+msgid "Unknown Error"
 msgstr ""
 
 #, fuzzy, c-format
@@ -19481,6 +19632,10 @@ msgstr "অসমর্থিত ডিভাইস ধরন '%s'"
 msgid "Unsupported URI scheme '%s'"
 msgstr "অসমর্থিত CPU প্লেসমেন্ট মোড '%s'"
 
+#, c-format
+msgid "Unsupported VPD field access type specified %s"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Unsupported action: %s\n"
 msgstr "কনফিগারেশন সমর্থিত নয়: %s"
@@ -19735,6 +19890,9 @@ msgstr "একটি XML <file> থেকে ডিভাইস যোগ কর
 msgid "Update the media"
 msgstr ""
 
+msgid "Update values of a memory device of a domain"
+msgstr ""
+
 msgid "Updated"
 msgstr ""
 
@@ -19922,6 +20080,15 @@ msgstr ""
 
 msgid "VNC supports connected='keep' only"
 msgstr "VNC শুধুমাত্র connected='keep' সমর্থন করে"
+
+msgid "VPD fields access type parsing has failed"
+msgstr ""
+
+msgid "VPD-R does not contain the mandatory RV field"
+msgstr ""
+
+msgid "VPD-W does not contain the mandatory RW field"
+msgstr ""
 
 #, c-format
 msgid "Value '%s' is not representable as %s"
@@ -20244,16 +20411,6 @@ msgstr ""
 msgid "a block I/O throttling is not supported for vhostuser disk"
 msgstr ""
 
-#, fuzzy
-msgid ""
-"a block I/O throttling length parameter is not supported with this QEMU "
-"binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
-
-#, fuzzy
-msgid "a block I/O throttling parameter is not supported with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
-
 msgid "a device with the same address already exists "
 msgstr ""
 
@@ -20387,6 +20544,10 @@ msgid "address source: 'lease' or 'agent'"
 msgstr ""
 
 msgid "address source: 'lease', 'agent', or 'arp'"
+msgstr ""
+
+#, c-format
+msgid "address type drive is not supported for bus '%s'"
 msgstr ""
 
 #, c-format
@@ -20540,8 +20701,8 @@ msgid "architecture from emulator '%s' doesn't match given architecture '%s'"
 msgstr "টার্গেট ডোমেন নাম '%s' '%s' সোর্সের সংগে মিলছে না"
 
 #, c-format
-msgid "argument key '%s' is too short, missing type prefix"
-msgstr "আর্গুমেন্ট-কি '%s' অত্যাধিক ছোট, ধরনের প্রে-ফিক্স অনুপস্থিত"
+msgid "argument key '%s' is too short or malformed"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "argument key '%s' must not be negative"
@@ -20721,6 +20882,9 @@ msgid "automatically destroy the guest when virsh disconnects"
 msgstr ""
 
 msgid "automatically switch to post-copy migration after one pass of pre-copy"
+msgstr ""
+
+msgid "autostart a defined node device"
 msgstr ""
 
 msgid "autostart a domain"
@@ -20958,6 +21122,13 @@ msgstr "দূরবর্তী প্রোটোকলের জন্য ব
 msgid "block resize is not supported for vhostuser disk"
 msgstr ""
 
+msgid "block size must be a power of two"
+msgstr ""
+
+#, c-format
+msgid "block size too small, must be at least %lluKiB"
+msgstr ""
+
 msgid "block stats are not supported for vhostuser disk"
 msgstr ""
 
@@ -21016,6 +21187,10 @@ msgid "bond interface misses the bond element"
 msgstr "bond ইন্টারফেসের মধ্যে bond স্বত্বা অনুপস্থিত"
 
 msgid "bool"
+msgstr ""
+
+#, c-format
+msgid "bool parameter '%s' of command '%s' has completer set"
 msgstr ""
 
 #, fuzzy, c-format
@@ -22025,6 +22200,10 @@ msgstr "হোস্ট CPU-র ক্ষমতা প্রাপ্ত কর�
 msgid "cannot migrate a domain with <hostdev mode='subsystem' type='%s'>"
 msgstr ""
 
+#, c-format
+msgid "cannot migrate a domain with <interface type='%s'>"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "cannot migrate domain with %d snapshots"
 msgstr "স্ন্যাপশটে অনুপস্থিত ডোমেন"
@@ -22050,6 +22229,63 @@ msgstr ""
 
 #, c-format
 msgid "cannot modify field '%s' of the disk"
+msgstr ""
+
+msgid "cannot modify memory UUID"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory access from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory align size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory block size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory discard from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory label size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory model from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory of model '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory pagesize from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory path from '%s' to '%s'"
+msgstr ""
+
+msgid "cannot modify memory pmem flag"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory pmem from '%d' to '%d'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory size from '%llu' to '%llu'"
+msgstr ""
+
+msgid "cannot modify memory source nodes"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory targetNode from '%d' to '%d'"
 msgstr ""
 
 #, fuzzy
@@ -22507,6 +22743,9 @@ msgstr "netlink সকেটে পাঠাতে ব্যর্থ"
 msgid "cannot set CPU affinity on process %d"
 msgstr "%d প্রসসের জন্য CPU অ্যাফিনিটি নির্ধারণ করতে ব্যর্থ"
 
+msgid "cannot set autostart for transient device"
+msgstr ""
+
 msgid "cannot set autostart for transient domain"
 msgstr "স্বল্পকাল স্থায়ী ডোমেইনের জন্য স্বয়ংক্রিয় আরম্ভের ব্যবস্থা নির্ধারণ করা সম্ভব নয়"
 
@@ -22673,8 +22912,8 @@ msgid "cannot update guest CPU for %s architecture"
 msgstr "%s আর্কিটেকচারের জন্য CPU-র জন্য ডি-কোড করা সম্ভব নয়"
 
 msgid ""
-"cannot update lifecycle action because QEMU was started with -no-reboot "
-"option"
+"cannot update lifecycle action because QEMU was started with incompatible -"
+"no-reboot setting"
 msgstr ""
 
 #, fuzzy, c-format
@@ -22845,6 +23084,9 @@ msgstr "SASL প্রণালী %s, সার্ভার দ্বারা 
 #, fuzzy
 msgid "changing cpu placement mode is not supported by vz driver"
 msgstr "SASL প্রণালী %s, সার্ভার দ্বারা সমর্থিত নয়"
+
+msgid "changing device 'acpi index' is not allowed"
+msgstr ""
 
 msgid "changing device alias is not allowed"
 msgstr ""
@@ -23037,7 +23279,23 @@ msgid "command '%s' doesn't support option --%s"
 msgstr "কমান্ড '%s'-র দ্বারা --%s বিকল্প সমর্থিত হয় না"
 
 #, c-format
+msgid "command '%s' has handler set"
+msgstr ""
+
+#, c-format
 msgid "command '%s' has inconsistent alias"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has info set"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has multiple flags set"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has options set"
 msgstr ""
 
 #, fuzzy, c-format
@@ -23055,6 +23313,14 @@ msgstr "কমান্ড '%s'-র সাথে --%s বিকল্প প্�
 #, c-format
 msgid "command '%s' requires <%s> option"
 msgstr "'%s' কমান্ডের সাথে <%s> বিকল্প প্রয়োগ করা আবশ্যক"
+
+#, c-format
+msgid "command alias '%s' is pointing to a non-existent command '%s'"
+msgstr ""
+
+#, c-format
+msgid "command alias '%s' is pointing to another command alias '%s'"
+msgstr ""
 
 msgid "command groups and command are both NULL run vshInit before reloading"
 msgstr ""
@@ -24250,10 +24516,6 @@ msgid "disable cpus specified by cpumap"
 msgstr ""
 
 #, fuzzy
-msgid "disable shared memory is not available with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
-
-#, fuzzy
 msgid "disabled"
 msgstr "নিষ্ক্রিয়"
 
@@ -24319,10 +24581,6 @@ msgstr ""
 #, fuzzy, c-format
 msgid "disk '%s' has no media"
 msgstr "%s ডিস্ক পাওয়া যায়নি"
-
-#, c-format
-msgid "disk '%s' improperly configured for a device='lun'"
-msgstr ""
 
 #, c-format
 msgid "disk '%s' is empty or readonly"
@@ -25006,9 +25264,8 @@ msgstr ""
 msgid "dynamic label type must use resource relabeling"
 msgstr "ডায়নামিক লেবেল ধরনে অবশ্যই রিসোর্স পুনঃলেবেলিং ব্যবহার করতে হবে"
 
-#, fuzzy
-msgid "echo arguments"
-msgstr "অবৈধ আর্গুমেন্ট"
+msgid "echo arguments. Used for internal testing."
+msgstr ""
 
 msgid "edit XML configuration for a domain"
 msgstr "ডোমেইনের XML কনফিগারেশন সম্পাদনা করুন"
@@ -25108,16 +25365,8 @@ msgstr "সক্রিয়"
 msgid "encountered an error on interface %s index %d"
 msgstr ""
 
-#, fuzzy
-msgid "encrypted VNC TLS keys are not supported with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
-
 msgid "encrypted ploop volumes are not supported with ploop init"
 msgstr ""
-
-#, fuzzy
-msgid "encrypted secrets are not supported"
-msgstr "%d প্রকৃতির নেটওয়ার্ক সমর্থিত নয়"
 
 #, c-format
 msgid "encryption format %d doesn't match expected format %d"
@@ -25383,6 +25632,13 @@ msgstr ""
 
 #, c-format
 msgid "event 'lifecycle' for storage pool %s: %s\n"
+msgstr ""
+
+#, c-format
+msgid ""
+"event 'memory-device-size-change' for domain '%s':\n"
+"alias: %s\n"
+"size: %llu\n"
 msgstr ""
 
 #, c-format
@@ -25936,6 +26192,12 @@ msgstr "SASL লাইব্রেরি আরম্ভ করতে ব্য�
 msgid "failed to encrypt the data: '%s'"
 msgstr "ডোমেইন '%s' প্রাপ্ত করতে ব্যর্থ"
 
+msgid "failed to evaluate <system_field> elements"
+msgstr ""
+
+msgid "failed to evaluate <vendor_field> elements"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "failed to execute command '%s': %s"
 msgstr "QEMU কমান্ড '%s' সঞ্চালনা করতে ব্যর্থ: %s"
@@ -26143,6 +26405,10 @@ msgstr "গোপনীয় তথ্য '%s' প্রাপ্ত করতে 
 msgid "failed to get source from sourceList"
 msgstr "sourceList থেকে উৎস প্রাপ্ত করতে ব্যর্থ"
 
+#, c-format
+msgid "failed to get stat for '%s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "failed to get status of interface %s: %s%s%s"
 msgstr "ইন্টারফেস সংক্রান্ত পরিসংখ্যান প্রাপ্ত করতে ব্যর্থ %s %s"
@@ -26264,6 +26530,10 @@ msgstr "ডিভাইস %s নির্মাণ করতে ব্যর্
 #, fuzzy, c-format
 msgid "failed to lookup interface with MAC address '%s'"
 msgstr "ইন্টারফেস '%s' প্রাপ্ত করতে ব্যর্থ"
+
+#, c-format
+msgid "failed to mark device %s as autostarted"
+msgstr ""
 
 #, c-format
 msgid "failed to mark network %s as autostarted"
@@ -26753,6 +27023,10 @@ msgid "failed to undefine interface %s: %s%s%s"
 msgstr "%s ইন্টারফেসের ব্যাখ্যা মুছে ফেলতে ব্যর্থ"
 
 #, c-format
+msgid "failed to unmark device %s as autostarted"
+msgstr ""
+
+#, c-format
 msgid "failed to unmark network %s as autostarted"
 msgstr "নেটওয়ার্ক %s থেকে স্বয়ং প্রারম্ভকারী চিহ্ন মুছে ফেলতে ব্যর্থ"
 
@@ -26805,6 +27079,10 @@ msgstr "কনফিগারেশন ফাইলের মধ্যে লি
 #, fuzzy, c-format
 msgid "failed to wipe RBD image %s"
 msgstr "ভলিউম %s মুছে ফেলতে ব্যর্থ"
+
+#, c-format
+msgid "failed to wrap arguments '%s' into a QMP command wrapper"
+msgstr ""
 
 msgid "failed to write configuration file"
 msgstr "কনফিগারেশন ফাইলের মধ্যে লিখতে ব্যর্থ"
@@ -27119,9 +27397,6 @@ msgstr ""
 msgid "floor attribute is not supported for this config"
 msgstr "ram অ্যাট্রিবিউট শুধুমাত্র qxl এর ধরনের জন্য সমর্থিত"
 
-msgid "fmode and dmode are not supported with this QEMU binary"
-msgstr ""
-
 msgid "fmode and dmode must be used with accessmode=mapped"
 msgstr ""
 
@@ -27221,9 +27496,6 @@ msgstr ""
 msgid "found lease without mac-address"
 msgstr ""
 
-msgid "found non printable characters in secret"
-msgstr ""
-
 msgid "freePageReporting is not supported by this QEMU binary"
 msgstr ""
 
@@ -27252,9 +27524,6 @@ msgstr ""
 #, fuzzy
 msgid "fuse_loop failed"
 msgstr "sockpair বিফল"
-
-msgid "fw_cfg is not supported with this QEMU"
-msgstr ""
 
 #, c-format
 msgid "g_mkstemp(\"%s\") failed"
@@ -27750,10 +28019,6 @@ msgstr ""
 
 msgid "i - turn off validation and try to redefine again"
 msgstr ""
-
-#, fuzzy
-msgid "iSCSI initiator IQN not supported with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
 #, fuzzy
 msgid "iSCSI storage pool does not support volume creation"
@@ -28745,6 +29010,10 @@ msgstr "CPU টোপোলজির মধ্যে 'core' নামক বৈ�
 msgid "invalid or missing decode/host attribute in CPU model %s"
 msgstr "CPU টোপোলজির মধ্যে 'core' নামক বৈশিষ্ট্য অনুপস্থিত"
 
+#, c-format
+msgid "invalid parent device '%s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "invalid partition name '%s', expected '%s'"
 msgstr "অবৈধ ipv6 সেটিং '%s', '%s' নেটওয়ার্কে"
@@ -29063,7 +29332,7 @@ msgstr ""
 msgid "kdump-compressed format is only supported with memory-only dump"
 msgstr ""
 
-msgid "keep nvram file, if inactive"
+msgid "keep nvram file"
 msgstr ""
 
 msgid "keep the backing chain relatively referenced"
@@ -29132,6 +29401,12 @@ msgstr ""
 #, fuzzy, c-format
 msgid "library call failed: %s"
 msgstr "কর্ম বিফল: %s"
+
+msgid "librbd encryption engine only supports luks/luks2 formats"
+msgstr ""
+
+msgid "librbd encryption is not supported by this QEMU binary"
+msgstr ""
 
 msgid "libssh transport error"
 msgstr ""
@@ -29644,8 +29919,7 @@ msgstr ""
 msgid "loop until timeout or interrupt, rather than one-shot"
 msgstr ""
 
-msgid ""
-"luks encryption usage requires encrypted secret generation to be supported"
+msgid "luks2 is currently not supported by the qemu encryption engine"
 msgstr ""
 
 msgid "lxc state driver is not active"
@@ -29903,6 +30177,9 @@ msgstr ""
 msgid "malformed/missing hotplugged in dimm memory info"
 msgstr ""
 
+msgid "malformed/missing size in virtio memory info"
+msgstr ""
+
 msgid "malformed/missing slot in dimm memory info"
 msgstr ""
 
@@ -29926,6 +30203,9 @@ msgstr "ডোমেইন পাওয়া যায়নি"
 #, fuzzy, c-format
 msgid "match mode %s not supported"
 msgstr "hostdev মোড '%s' সমর্থিত নয়"
+
+msgid "matching filesystem not found"
+msgstr ""
 
 #, fuzzy
 msgid "matching input device not found"
@@ -30054,10 +30334,17 @@ msgid "mem(Suspend-to-RAM), disk(Suspend-to-Disk), hybrid(Hybrid-Suspend)"
 msgstr ""
 
 #, c-format
+msgid "memory '%s' not found"
+msgstr ""
+
+#, c-format
 msgid "memory access mode '%s' not supported without guest numa node"
 msgstr ""
 
 msgid "memory attributes: [file=]name[,snapshot=type]"
+msgstr ""
+
+msgid "memory device alias"
 msgstr ""
 
 msgid "memory device alias is not assigned"
@@ -30078,6 +30365,9 @@ msgstr ""
 
 #, c-format
 msgid "memory device slot '%u' is already being used by another memory device"
+msgstr ""
+
+msgid "memory device target node"
 msgstr ""
 
 msgid "memory device total size exceeds hotplug space"
@@ -30103,6 +30393,9 @@ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্�
 msgid ""
 "memory hotplug tunables <maxMemory> are not supported by this hypervisor "
 "driver"
+msgstr ""
+
+msgid "memory not found"
 msgstr ""
 
 #, c-format
@@ -30336,6 +30629,10 @@ msgstr "অনুপস্থিত \""
 msgid "missing %s in <virtualport type='%s'>"
 msgstr "প্রয়োজনীয় virtualport ধরন অনুপস্থিত"
 
+#, c-format
+msgid "missing '%s' in 'config' from cloud-hypervisor"
+msgstr ""
+
 #, fuzzy
 msgid "missing 'DateTime' element"
 msgstr "root সামগ্রী অনুপস্থিত"
@@ -30343,6 +30640,9 @@ msgstr "root সামগ্রী অনুপস্থিত"
 #, fuzzy, c-format
 msgid "missing 'architecture' in '%s'"
 msgstr "CPU আর্কিটেকচার অনুপস্থিত"
+
+msgid "missing 'config' in info query result from cloud-hypervisor"
+msgstr ""
 
 #, c-format
 msgid "missing 'content' value in selinux lxc contexts file '%s'"
@@ -30357,6 +30657,10 @@ msgstr ""
 
 #, c-format
 msgid "missing 'executable' in '%s'"
+msgstr ""
+
+#, c-format
+msgid "missing 'file' in '%s' from cloud-hypervisor"
 msgstr ""
 
 #, c-format
@@ -30438,10 +30742,6 @@ msgstr ""
 #, fuzzy
 msgid "missing 'type' attribute to disk source"
 msgstr "ডিস্ক সোর্সের ক্ষেত্রে অনুপস্থিত নাম"
-
-#, c-format
-msgid "missing 'type'(%s) or 'alias'(%s) field of QOM 'object'"
-msgstr ""
 
 msgid "missing 'url' in JSON backing volume definition"
 msgstr ""
@@ -30947,6 +31247,9 @@ msgstr "'%s'-র জন্য uuid স্বত্ত্বা বৈধ নয়"
 msgid "missing pagesize argument"
 msgstr "ক্ষমতার স্বত্ত্বা অনুপস্থিত"
 
+msgid "missing parent device"
+msgstr ""
+
 #, c-format
 msgid "missing parser implementation for JSON backing volume driver '%s'"
 msgstr ""
@@ -31007,9 +31310,6 @@ msgstr ""
 msgid "missing required virtualport type"
 msgstr "প্রয়োজনীয় virtualport ধরন অনুপস্থিত"
 
-msgid "missing resource partition attribute"
-msgstr "রিসোর্স বিভাজন অ্যাট্রিবিউট অনুপস্থিত"
-
 msgid "missing root device information"
 msgstr "root ডিভাইস সংক্রান্ত তথ্য অনুপস্থিত"
 
@@ -31051,9 +31351,6 @@ msgstr ""
 #, fuzzy
 msgid "missing sheepdog vdi name"
 msgstr "স্টোরেজ পুল হোস্ট নাম অনুপস্থিত"
-
-msgid "missing smartcard device mode"
-msgstr "smartcard ডিভাইস মোড অনুপস্থিত"
 
 msgid "missing socket address type in JSON backing volume definition"
 msgstr ""
@@ -31235,9 +31532,6 @@ msgstr ""
 msgid "missing vporttype attribute in migration data"
 msgstr "ইন্টারফেসের <actual> উপাদানে ধরন অ্যাট্রিবিউট অনুপস্থিত"
 
-msgid "missing watchdog model"
-msgstr "watchdog মডেল অনুপস্থিত"
-
 #, fuzzy, c-format
 msgid "missing wwpn identifier for '%s'"
 msgstr "%s-র ক্ষেত্রে ডিস্ক ডিভাইসের উপনাম অনুপস্থিত"
@@ -31257,6 +31551,9 @@ msgstr ""
 msgid ""
 "mkfs is not available on this platform: Failed to make filesystem of type "
 "'%s' on device '%s'"
+msgstr ""
+
+msgid "mode attribute of <source/> element"
 msgstr ""
 
 msgid "mode of device reading and writing"
@@ -31422,6 +31719,9 @@ msgstr "একাধিক সমতূল্য ইন্টারফেস প
 msgid "multiple matching interfaces found: %s"
 msgstr "একাধিক সমতূল্য ইন্টারফেস পাওয়া গিয়েছে: %s"
 
+msgid "multiple memory devices found, use --alias or --node to select one"
+msgstr ""
+
 msgid "multiple stream callbacks not supported"
 msgstr ""
 
@@ -31509,7 +31809,7 @@ msgstr ""
 msgid "ncr53c90 can only be used as first SCSI controller"
 msgstr ""
 
-msgid "need at least one serial port to use SGA"
+msgid "need at least one serial port to use BIOS serial output"
 msgstr ""
 
 msgid "need either --dest or --xml"
@@ -31793,6 +32093,9 @@ msgstr "মিটা-ডাটার দৈর্ঘ্য সীমা বহ�
 msgid "new state of the device"
 msgstr "চিহ্নিত ডিভাইসের ঊর্ধ্বে কিছু নেই"
 
+msgid "new value of <requested/> size, as scaled integer (default KiB)"
+msgstr ""
+
 #, fuzzy
 msgid "new xml too large to fit in file"
 msgstr "কনফিগারেশন ফাইল পার্স করতে ব্যর্থ"
@@ -31915,6 +32218,9 @@ msgstr "'%s'-র জন্য USB উৎপাদনের ID উল্লিখ
 #, c-format
 msgid "no USB vendor ID supplied for '%s'"
 msgstr "'%s'-র জন্য USB বিক্রেতার ID উল্লিখিত হয়নি"
+
+msgid "no VPD <fields> elements with an access type attribute found"
+msgstr ""
 
 #, c-format
 msgid "no WWNN supplied for '%s', and auto-generation failed"
@@ -32122,6 +32428,9 @@ msgid "no matching redirdev was not found"
 msgstr "ক্লায়েন্টের ব্যবহারকারীর নাম পাওয়া যায়নি"
 
 msgid "no medium attachments"
+msgstr ""
+
+msgid "no memory device found"
 msgstr ""
 
 msgid "no model provided for USB controller"
@@ -32379,6 +32688,9 @@ msgstr "XML-র মধ্যে নোড ডিভাইসের বিবর�
 #, fuzzy, c-format
 msgid "node device event callback %d not registered"
 msgstr "ডোমেন ইভেন্ট %d নিবন্ধিত নেই"
+
+msgid "node device information"
+msgstr ""
 
 #, fuzzy
 msgid "node get memory parameters not implemented on this platform"
@@ -32643,6 +32955,10 @@ msgstr ""
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
 msgstr ""
 
+#, c-format
+msgid "only 'pci' addresses are supported for the %s device"
+msgstr ""
+
 msgid "only 'pci' addresses are supported for the shared memory device"
 msgstr ""
 
@@ -32831,6 +33147,9 @@ msgstr "শুধুমাত্র একটি ফাইল-সিস্টে
 msgid "only two source elements are allowed for character device"
 msgstr "অক্ষর ডিভাইসের জন্য অজানা টার্গেট ধরন '%s' নির্দিষ্ট করা হয়েছে"
 
+msgid "only virtiofs filesystems can be hotplugged"
+msgstr ""
+
 msgid "open an editor to modify the description"
 msgstr ""
 
@@ -32934,7 +33253,7 @@ msgid "os.type is not defined"
 msgstr "ধারণকারী নির্ধারিত হয়নি"
 
 #, c-format
-msgid "out of bounds index - count %zu at %zu add %zu"
+msgid "out of bounds index - count %zu at %zu"
 msgstr ""
 
 msgid "out of memory"
@@ -32960,6 +33279,9 @@ msgid "outgoing RDMA migration is not supported with this QEMU binary"
 msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
 msgid "output an XML string for the hypervisor sysinfo, if available"
+msgstr ""
+
+msgid "output the list of options which are missing completers"
 msgstr ""
 
 msgid "output to stderr"
@@ -33019,6 +33341,9 @@ msgid "page size %u is not available on node %d"
 msgstr ""
 
 msgid "page size (in kibibytes)"
+msgstr ""
+
+msgid "page_per_vq option is only supported for virtio devices"
 msgstr ""
 
 msgid "panic is supported only with ISA address type"
@@ -33193,8 +33518,7 @@ msgstr ""
 msgid "pci-root and pcie-root controllers should not have an address"
 msgstr ""
 
-msgid ""
-"pcie-expander-bus controllers are only supported on q35-based machinetypes"
+msgid "pcie-expander-bus controllers are not supported with this machine type"
 msgstr ""
 
 msgid "peeking is not supported for vhostuser disk"
@@ -33558,6 +33882,9 @@ msgstr "হাইপার-ভাইসরের হোস্ট-নেম প�
 msgid "print the raw data returned by libvirt"
 msgstr ""
 
+msgid "print updated memory device XML instead of executing the change"
+msgstr ""
+
 msgid "prints by percentage during 1 second."
 msgstr ""
 
@@ -33651,10 +33978,6 @@ msgstr ""
 msgid "qemu does not allow specifying screen ID"
 msgstr ""
 
-#, fuzzy
-msgid "qemu does not support SGA"
-msgstr "'%s' qemu এমুলেটর দ্বারা xen সমর্থিত হয় না"
-
 msgid "qemu does not support more than one entry to Type 2 in SMBIOS table"
 msgstr ""
 
@@ -33666,6 +33989,21 @@ msgid "qemu doesn't support reversion of snapshot taken in PMSUSPENDED state"
 msgstr ""
 
 msgid "qemu doesn't support taking snapshots of PMSUSPENDED guests"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support 'onReboot' set to 'destroy and 'onPoweroff' set "
+"to 'reboot'"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support the 'preserve' action for "
+"'on_reboot'/'on_poweroff'"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support the 'rename-restart' action for "
+"'on_reboot'/'on_poweroff'/'on_crash'"
 msgstr ""
 
 #, c-format
@@ -33713,9 +34051,6 @@ msgstr ""
 #, fuzzy, c-format
 msgid "qom-set invalid object property type %d"
 msgstr "অবৈধ সিক্রেট ধরন %s"
-
-msgid "query -rx-filter return data missing array element"
-msgstr ""
 
 #, fuzzy
 msgid "query information about the guest (via agent)"
@@ -33816,6 +34151,9 @@ msgstr ""
 msgid "query-named-block-nodes entry was not in expected format"
 msgstr "blockstats ডিভাইসের এনট্রি প্রত্যাশিত বিন্যাসে নেই"
 
+msgid "query-rx-filter return data missing array element"
+msgstr ""
+
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr ""
 
@@ -33854,6 +34192,9 @@ msgstr "info মাইগ্রেশনের উত্তরের মধ্�
 
 msgid ""
 "querying maximum post-copy migration speed is not supported by QEMU binary"
+msgstr ""
+
+msgid "queue-size property isn't supported by this QEMU binary"
 msgstr ""
 
 msgid "queues attribute in disk driver element is only supported by virtio-blk"
@@ -33950,10 +34291,6 @@ msgstr "ডিভাইস ড্রাইভারের সাথে নোড
 
 msgid "reboot a domain"
 msgstr "ডোমেইন পুনরায় বুট করা হবে"
-
-#, fuzzy
-msgid "reboot timeout is not supported by this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
 msgid "received error event on socket"
 msgstr ""
@@ -34063,7 +34400,7 @@ msgstr "ফাইলের মধ্যে সংরক্ষিত অবস্
 msgid "remove keys from the authorized keys file"
 msgstr ""
 
-msgid "remove nvram file, if inactive"
+msgid "remove nvram file"
 msgstr ""
 
 msgid "remove the metadata corresponding to an uri"
@@ -34182,6 +34519,12 @@ msgstr "vCPU-র সংখ্যা সর্বাধিক সংখ্যা�
 #, fuzzy, c-format
 msgid "requested cpu amount exceeds maximum supported amount (%d > %d)"
 msgstr "vCPU-র সংখ্যা সর্বাধিক সংখ্যার অধিক: %d > %d"
+
+msgid "requested size must be an integer multiple of block size"
+msgstr ""
+
+msgid "requested size must be smaller than or equal to @size"
+msgstr ""
 
 msgid "requested size of the cache (in bytes) used for compression"
 msgstr ""
@@ -34744,7 +35087,7 @@ msgstr "sgio শুধুমাত্র scsi হোস্ট ডিভাইস
 
 #, c-format
 msgid ""
-"setting the hotplug property on a '%s' device is not supported by this QEMU "
+"setting the '%s' property on a '%s' device is not supported by this QEMU "
 "binary"
 msgstr ""
 
@@ -35039,6 +35382,9 @@ msgstr "অন্তর্নিহিত সংগ্রহস্থলের �
 msgid "source-host for underlying storage"
 msgstr "অন্তর্নিহিত সংগ্রহস্থলের সোর্স হোস্ট"
 
+msgid "source-mode is mandatory"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "spapr-vio address %#llx already in use"
 msgstr "'%s' নামক ব্রিজ বর্তমানে উপস্থিত রয়েছে।"
@@ -35097,9 +35443,8 @@ msgstr ""
 msgid "spicevmc device type only supports virtio"
 msgstr "spicevmc ডিভাইস ধরন শুধুমাত্র virtio সমর্থন করে"
 
-#, fuzzy
-msgid "splash timeout is not supported by this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+msgid "split each argument on ','; ',,' is an escape sequence"
+msgstr ""
 
 #, c-format
 msgid "splitting StorageUrl failed %s"
@@ -35489,10 +35834,6 @@ msgstr "টার্গেট ধরন অবশ্যই %s ডিভাইস
 msgid "target must be 0 for sata controller"
 msgstr ""
 
-msgid ""
-"target must be 0 for scsi host device if its controller model is 'lsilogic'"
-msgstr ""
-
 msgid "target network name"
 msgstr "উদ্দিষ্ট নেটওয়ার্কের নাম"
 
@@ -35586,21 +35927,11 @@ msgid ""
 "dhcp element's parent"
 msgstr ""
 
-#, fuzzy
-msgid "the ats setting is not supported with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
-
 msgid "the backing volume if taking a snapshot"
 msgstr ""
 
 msgid "the bandwidth limit is in bytes/s rather than MiB/s"
 msgstr ""
-
-#, fuzzy
-msgid ""
-"the block I/O throttling group parameter is not supported with this QEMU "
-"binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
 msgid ""
 "the caller doesn't support keepalive protocol; perhaps it's missing event "
@@ -35627,10 +35958,6 @@ msgstr "ট্র্যানজিয়েন্ট ডোমেনে কো�
 
 msgid "the guest hasn't updated any stats yet"
 msgstr ""
-
-#, fuzzy
-msgid "the iommu setting is not supported with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
 msgid "the key code"
 msgstr ""
@@ -35685,16 +36012,6 @@ msgstr "'%s' টেমপ্লেট বর্তমানে উপস্থ�
 
 #, c-format
 msgid "the wwnn/wwpn for '%s' are assigned to an HBA"
-msgstr ""
-
-msgid ""
-"there are some block I/O throttling length parameters that are not supported "
-"with this QEMU binary"
-msgstr ""
-
-msgid ""
-"there are some block I/O throttling parameters that are not supported with "
-"this QEMU binary"
 msgstr ""
 
 #, c-format
@@ -35915,10 +36232,6 @@ msgstr "SASL প্রণালী %s, সার্ভার দ্বারা 
 
 msgid "tls"
 msgstr ""
-
-#, fuzzy
-msgid "tls-creds-x509 not supported in this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
 #, c-format
 msgid "too many NUMA cells: %d > %d"
@@ -36215,6 +36528,11 @@ msgstr ""
 msgid "transient disk '%s' must not be read-only"
 msgstr ""
 
+msgid ""
+"transient disk backing image sharing with destroy action of lifecycle isn't "
+"supported by this QEMU binary"
+msgstr ""
+
 #, c-format
 msgid "transient disk not supported by this QEMU binary (%s)"
 msgstr ""
@@ -36452,10 +36770,6 @@ msgid "unable to enable host cpu perf event for %s"
 msgstr "মনিটর ইভেন্ট নিবন্ধন করতে ব্যর্থ"
 
 #, fuzzy, c-format
-msgid "unable to execute '%s', unexpected error: '%s'"
-msgstr "QEMU কমান্ড '%s' সঞ্চালনা করতে ব্যর্থ"
-
-#, fuzzy, c-format
 msgid "unable to execute QEMU agent command '%s'"
 msgstr "QEMU কমান্ড '%s' সঞ্চালনা করতে ব্যর্থ"
 
@@ -36646,6 +36960,10 @@ msgstr "%s খুলতে ব্যর্থ"
 #, fuzzy, c-format
 msgid "unable to parse blkio device '%s' '%s'"
 msgstr "%s PCI ডিভাইস পুনরায় নির্ধারণ করতে ব্যর্থ: %s"
+
+#, c-format
+msgid "unable to parse contents of 'file' field in '%s' from cloud-hypervisor"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unable to parse diskspec: %s"
@@ -37058,9 +37376,8 @@ msgstr "অপ্রত্যাশিত প্রকৃতির ডোমে�
 msgid "unexpected element <%s>, expecting <%s>, while updating network '%s'"
 msgstr "অপ্রত্যাশিত উপাদান <%s>, প্রত্যাশিত <%s>, '%s' নেটওয়ার্ক অাপডেটের সময়ে"
 
-#, fuzzy, c-format
-msgid "unexpected empty keyword in %s"
-msgstr "অপ্রত্যাশিত টাইমার নাম %d"
+msgid "unexpected encryption engine"
+msgstr ""
 
 msgid "unexpected encryption format"
 msgstr "অপ্রত্যাশিত এনক্রিপশনের বিন্যাস"
@@ -37350,11 +37667,6 @@ msgstr "অপ্রত্যাশিত প্রকৃতির ডোমে�
 msgid "unimplemented parameter type %d"
 msgstr "অজানা প্যারামিটার ধরন: %d"
 
-msgid ""
-"unit must be not more than 7 for scsi host device if its controller model is "
-"'lsilogic'"
-msgstr ""
-
 msgid "unix"
 msgstr ""
 
@@ -37477,6 +37789,9 @@ msgstr "অজানা ব্যাক-এন্ড ধরন '%s', egd এর 
 #, fuzzy, c-format
 msgid "unknown backup mode '%s'"
 msgstr "অজানা RNG ব্যাক-এন্ড মডেল '%s'"
+
+msgid "unknown base name while formatting virtio device"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unknown block IO status: %s"
@@ -37842,17 +38157,6 @@ msgstr "গোপনীয় ব্যবহারের অজানা ধরন
 #, c-format
 msgid "unknown sgio mode '%s'"
 msgstr "অজানা sgio মোড '%s'"
-
-#, c-format
-msgid "unknown smartcard device mode: %s"
-msgstr "অজানা smartcard ডিভাইস মোড: %s"
-
-msgid "unknown smartcard mode"
-msgstr "অজানা স্মার্টকার্ড মোড"
-
-#, fuzzy, c-format
-msgid "unknown smartcard type %d"
-msgstr "অজানা স্মার্টকার্ড মোড"
 
 #, c-format
 msgid "unknown smbios mode '%s'"
@@ -38445,6 +38749,9 @@ msgstr "একটি XML ফাইল থেকে ডিভাইস যোগ 
 msgid "update guest CPU according to host CPU"
 msgstr "হোস্ট CPU-র সাথে CPU-র তুলনা করা হবে"
 
+msgid "update memory device of a domain"
+msgstr ""
+
 msgid "update parts of an existing network's configuration"
 msgstr ""
 
@@ -38463,9 +38770,9 @@ msgstr "অপ্রত্যাশিত তথ্য '%s'"
 msgid "usage:"
 msgstr "ব্যবহার"
 
-#, fuzzy, c-format
-msgid "usb controller type %s doesn't support 'ports' with this QEMU binary"
-msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+#, c-format
+msgid "usb controller type '%s' doesn't support 'ports' with this QEMU binary"
+msgstr ""
 
 #, fuzzy
 msgid "usb device not found"
@@ -39011,6 +39318,12 @@ msgstr ""
 msgid "virtio tx_queue_size option is not supported with this QEMU binary"
 msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
 
+msgid "virtio-mem device is missing <requested/>"
+msgstr ""
+
+msgid "virtio-mem isn't supported by this QEMU binary"
+msgstr ""
+
 #, fuzzy
 msgid "virtio-net failover (teaming) is not supported with this QEMU binary"
 msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
@@ -39474,6 +39787,149 @@ msgstr ""
 #, fuzzy, c-format
 msgid "{[--%s] <string>}..."
 msgstr "[--%s <string>]"
+
+#, fuzzy
+#~ msgid "I/O APIC tuning is not supported by this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#~ msgid "Invalid CPU topology"
+#~ msgstr "CPU টোপোলজি বৈধ নয়"
+
+#, fuzzy
+#~ msgid "Malformed 'dies' attribute in CPU topology"
+#~ msgstr "CPU টোপোলজির মধ্যে 'core' নামক বৈশিষ্ট্য অনুপস্থিত"
+
+#~ msgid "Missing 'cores' attribute in CPU topology"
+#~ msgstr "CPU টোপোলজির মধ্যে 'core' নামক বৈশিষ্ট্য অনুপস্থিত"
+
+#~ msgid "Missing 'sockets' attribute in CPU topology"
+#~ msgstr "CPU টোপোলজির মধ্যে 'sockets' নামক বৈশিষ্ট্য অনুপস্থিত"
+
+#~ msgid "Missing 'threads' attribute in CPU topology"
+#~ msgstr "CPU টোপোলজির মধ্যে 'threads' নামক বৈশিষ্ট্য অনুপস্থিত"
+
+#, fuzzy
+#~ msgid "Unable to find controller for %s"
+#~ msgstr "%s-র ঊর্ধ্বতন ডিভাইস সন্ধান করতে ব্যর্থ"
+
+#~ msgid "argument key '%s' is too short, missing type prefix"
+#~ msgstr "আর্গুমেন্ট-কি '%s' অত্যাধিক ছোট, ধরনের প্রে-ফিক্স অনুপস্থিত"
+
+#~ msgid "missing smartcard device mode"
+#~ msgstr "smartcard ডিভাইস মোড অনুপস্থিত"
+
+#~ msgid "missing watchdog model"
+#~ msgstr "watchdog মডেল অনুপস্থিত"
+
+#, fuzzy
+#~ msgid "the ats setting is not supported with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "the iommu setting is not supported with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "unexpected empty keyword in %s"
+#~ msgstr "অপ্রত্যাশিত টাইমার নাম %d"
+
+#~ msgid "unknown smartcard device mode: %s"
+#~ msgstr "অজানা smartcard ডিভাইস মোড: %s"
+
+#~ msgid "unknown smartcard mode"
+#~ msgstr "অজানা স্মার্টকার্ড মোড"
+
+#, fuzzy
+#~ msgid "unknown smartcard type %d"
+#~ msgstr "অজানা স্মার্টকার্ড মোড"
+
+#, fuzzy
+#~ msgid "usb controller type %s doesn't support 'ports' with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "Failed to allocate memory for checkpoint directory for domain %s"
+#~ msgstr "%s ডোমেইনের জন্য মেমরি সংক্রান্ত পরিসংখ্যান প্রাপ্ত করতে ব্যর্থ"
+
+#, fuzzy
+#~ msgid "Failed to allocate memory for path"
+#~ msgstr "ডোমেইনের জন্য মেমরি নির্ধারণ করতে ব্যর্থ"
+
+#, fuzzy
+#~ msgid "Failed to allocate memory for snapshot directory for domain %s"
+#~ msgstr "%s ডোমেইনের জন্য মেমরি সংক্রান্ত পরিসংখ্যান প্রাপ্ত করতে ব্যর্থ"
+
+#, fuzzy
+#~ msgid "No active operation on device: %s"
+#~ msgstr "%s ডিভাইসের জন্য কোনো pty নির্ধারণ করা হয়নি"
+
+#, fuzzy
+#~ msgid "Operation is not supported for device: %s"
+#~ msgstr "কর্ম সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid ""
+#~ "a block I/O throttling length parameter is not supported with this QEMU "
+#~ "binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid ""
+#~ "a block I/O throttling parameter is not supported with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "disable shared memory is not available with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "echo arguments"
+#~ msgstr "অবৈধ আর্গুমেন্ট"
+
+#, fuzzy
+#~ msgid "encrypted VNC TLS keys are not supported with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "encrypted secrets are not supported"
+#~ msgstr "%d প্রকৃতির নেটওয়ার্ক সমর্থিত নয়"
+
+#, fuzzy
+#~ msgid "iSCSI initiator IQN not supported with this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#~ msgid "missing resource partition attribute"
+#~ msgstr "রিসোর্স বিভাজন অ্যাট্রিবিউট অনুপস্থিত"
+
+#, fuzzy
+#~ msgid "qemu does not support SGA"
+#~ msgstr "'%s' qemu এমুলেটর দ্বারা xen সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "reboot timeout is not supported by this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "splash timeout is not supported by this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid ""
+#~ "the block I/O throttling group parameter is not supported with this QEMU "
+#~ "binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "tls-creds-x509 not supported in this QEMU binary"
+#~ msgstr "এই QEMU বাইনারি দ্বারা SATA সমর্থিত হয় না"
+
+#, fuzzy
+#~ msgid "unable to execute '%s', unexpected error: '%s'"
+#~ msgstr "QEMU কমান্ড '%s' সঞ্চালনা করতে ব্যর্থ"
+
+#, fuzzy
+#~ msgid "Failed to get PCI SYSFS file"
+#~ msgstr "PCI ডিভাইস পুনরায় নির্ধারণ করতে ব্যর্থ: %s"
 
 #, fuzzy
 #~ msgid "missing launch security type"

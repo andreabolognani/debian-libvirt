@@ -501,7 +501,7 @@ int virHostValidateSecureGuests(const char *hvname,
             return VIR_HOST_VALIDATE_FAILURE(level);
         }
 
-        if (mod_value[0] != '1') {
+        if (mod_value[0] != '1' && mod_value[0] != 'Y' && mod_value[0] != 'y') {
             virHostMsgFail(level,
                            "AMD Secure Encrypted Virtualization appears to be "
                            "disabled in kernel. Add kvm_amd.sev=1 "
@@ -515,7 +515,7 @@ int virHostValidateSecureGuests(const char *hvname,
         } else {
             virHostMsgFail(level,
                            "AMD Secure Encrypted Virtualization appears to be "
-                           "disabled in firemare.");
+                           "disabled in firmware.");
             return VIR_HOST_VALIDATE_FAILURE(level);
         }
     }

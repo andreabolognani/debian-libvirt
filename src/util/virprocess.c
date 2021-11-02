@@ -361,6 +361,40 @@ int virProcessKill(pid_t pid, int sig)
 }
 
 
+/* send signal to a process group */
+int virProcessGroupKill(pid_t pid, int sig G_GNUC_UNUSED)
+{
+    if (pid <= 1) {
+        errno = ESRCH;
+        return -1;
+    }
+
+#ifdef WIN32
+    errno = ENOSYS;
+    return -1;
+#else
+    return killpg(pid, sig);
+#endif
+}
+
+
+/* get process group from a pid */
+pid_t virProcessGroupGet(pid_t pid)
+{
+    if (pid <= 1) {
+        errno = ESRCH;
+        return -1;
+    }
+
+#ifdef WIN32
+    errno = ENOSYS;
+    return -1;
+#else
+    return getpgid(pid);
+#endif
+}
+
+
 /*
  * Try to kill the process and verify it has exited
  *
@@ -368,19 +402,19 @@ int virProcessKill(pid_t pid, int sig)
  * was killed forcibly, -1 if it is still alive,
  * or another error occurred.
  *
- * Callers can proide an extra delay in seconds to
+ * Callers can provide an extra delay in seconds to
  * wait longer than the default.
  */
 int
-virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay)
+virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay, bool group)
 {
     size_t i;
     /* This is in 1/5th seconds since polling is on a 0.2s interval */
     unsigned int polldelay = (force ? 200 : 75) + (extradelay*5);
     const char *signame = "TERM";
 
-    VIR_DEBUG("vpid=%lld force=%d extradelay=%u",
-              (long long)pid, force, extradelay);
+    VIR_DEBUG("vpid=%lld force=%d extradelay=%u group=%d",
+              (long long)pid, force, extradelay, group);
 
     /* This loop sends SIGTERM, then waits a few iterations (10 seconds)
      * to see if it dies. If the process still hasn't exited, and
@@ -395,6 +429,8 @@ virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay)
      */
     for (i = 0; i < polldelay; i++) {
         int signum;
+        int rc;
+
         if (i == 0) {
             signum = SIGTERM; /* kindly suggest it should exit */
         } else if (i == 50 && force) {
@@ -413,7 +449,12 @@ virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay)
             signum = 0; /* Just check for existence */
         }
 
-        if (virProcessKill(pid, signum) < 0) {
+        if (group)
+            rc = virProcessGroupKill(pid, signum);
+        else
+            rc = virProcessKill(pid, signum);
+
+        if (rc < 0) {
             if (errno != ESRCH) {
                 virReportSystemError(errno,
                                      _("Failed to terminate process %lld with SIG%s"),
@@ -436,7 +477,7 @@ virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay)
 
 int virProcessKillPainfully(pid_t pid, bool force)
 {
-    return virProcessKillPainfullyDelay(pid, force, 0);
+    return virProcessKillPainfullyDelay(pid, force, 0, false);
 }
 
 #if WITH_SCHED_GETAFFINITY
@@ -632,8 +673,7 @@ int virProcessGetPids(pid_t pid, size_t *npids, pid_t **pids)
             goto cleanup;
         tmp_pid = tmp;
 
-        if (VIR_APPEND_ELEMENT(*pids, *npids, tmp_pid) < 0)
-            goto cleanup;
+        VIR_APPEND_ELEMENT(*pids, *npids, tmp_pid);
     }
 
     if (value < 0)

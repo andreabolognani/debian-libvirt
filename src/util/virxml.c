@@ -33,6 +33,7 @@
 #include "virfile.h"
 #include "virstring.h"
 #include "virutil.h"
+#include "configmake.h"
 
 #define VIR_FROM_THIS VIR_FROM_XML
 
@@ -72,8 +73,7 @@ char *
 virXPathString(const char *xpath,
                xmlXPathContextPtr ctxt)
 {
-    xmlXPathObjectPtr obj;
-    char *ret;
+    g_autoptr(xmlXPathObject) obj = NULL;
 
     if ((ctxt == NULL) || (xpath == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -83,12 +83,9 @@ virXPathString(const char *xpath,
     obj = xmlXPathEval(BAD_CAST xpath, ctxt);
     if ((obj == NULL) || (obj->type != XPATH_STRING) ||
         (obj->stringval == NULL) || (obj->stringval[0] == 0)) {
-        xmlXPathFreeObject(obj);
         return NULL;
     }
-    ret = g_strdup((char *)obj->stringval);
-    xmlXPathFreeObject(obj);
-    return ret;
+    return g_strdup((char *)obj->stringval);
 }
 
 
@@ -147,7 +144,7 @@ virXPathNumber(const char *xpath,
                xmlXPathContextPtr ctxt,
                double *value)
 {
-    xmlXPathObjectPtr obj;
+    g_autoptr(xmlXPathObject) obj = NULL;
 
     if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -157,12 +154,10 @@ virXPathNumber(const char *xpath,
     obj = xmlXPathEval(BAD_CAST xpath, ctxt);
     if ((obj == NULL) || (obj->type != XPATH_NUMBER) ||
         (isnan(obj->floatval))) {
-        xmlXPathFreeObject(obj);
         return -1;
     }
 
     *value = obj->floatval;
-    xmlXPathFreeObject(obj);
     return 0;
 }
 
@@ -172,7 +167,7 @@ virXPathLongBase(const char *xpath,
                  int base,
                  long *value)
 {
-    xmlXPathObjectPtr obj;
+    g_autoptr(xmlXPathObject) obj = NULL;
     int ret = 0;
 
     if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
@@ -194,7 +189,6 @@ virXPathLongBase(const char *xpath,
         ret = -1;
     }
 
-    xmlXPathFreeObject(obj);
     return ret;
 }
 
@@ -274,7 +268,7 @@ virXPathULongBase(const char *xpath,
                   int base,
                   unsigned long *value)
 {
-    xmlXPathObjectPtr obj;
+    g_autoptr(xmlXPathObject) obj = NULL;
     int ret = 0;
 
     if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
@@ -296,7 +290,6 @@ virXPathULongBase(const char *xpath,
         ret = -1;
     }
 
-    xmlXPathFreeObject(obj);
     return ret;
 }
 
@@ -387,7 +380,7 @@ virXPathULongLong(const char *xpath,
                   xmlXPathContextPtr ctxt,
                   unsigned long long *value)
 {
-    xmlXPathObjectPtr obj;
+    g_autoptr(xmlXPathObject) obj = NULL;
     int ret = 0;
 
     if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
@@ -409,7 +402,6 @@ virXPathULongLong(const char *xpath,
         ret = -1;
     }
 
-    xmlXPathFreeObject(obj);
     return ret;
 }
 
@@ -430,7 +422,7 @@ virXPathLongLong(const char *xpath,
                  xmlXPathContextPtr ctxt,
                  long long *value)
 {
-    xmlXPathObjectPtr obj;
+    g_autoptr(xmlXPathObject) obj = NULL;
     int ret = 0;
 
     if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
@@ -452,7 +444,6 @@ virXPathLongLong(const char *xpath,
         ret = -1;
     }
 
-    xmlXPathFreeObject(obj);
     return ret;
 }
 
@@ -894,8 +885,7 @@ int
 virXPathBoolean(const char *xpath,
                 xmlXPathContextPtr ctxt)
 {
-    xmlXPathObjectPtr obj;
-    int ret;
+    g_autoptr(xmlXPathObject) obj = NULL;
 
     if ((ctxt == NULL) || (xpath == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -905,13 +895,9 @@ virXPathBoolean(const char *xpath,
     obj = xmlXPathEval(BAD_CAST xpath, ctxt);
     if ((obj == NULL) || (obj->type != XPATH_BOOLEAN) ||
         (obj->boolval < 0) || (obj->boolval > 1)) {
-        xmlXPathFreeObject(obj);
         return -1;
     }
-    ret = obj->boolval;
-
-    xmlXPathFreeObject(obj);
-    return ret;
+    return obj->boolval;
 }
 
 /**
@@ -928,8 +914,7 @@ xmlNodePtr
 virXPathNode(const char *xpath,
              xmlXPathContextPtr ctxt)
 {
-    xmlXPathObjectPtr obj;
-    xmlNodePtr ret;
+    g_autoptr(xmlXPathObject) obj = NULL;
 
     if ((ctxt == NULL) || (xpath == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -940,13 +925,10 @@ virXPathNode(const char *xpath,
     if ((obj == NULL) || (obj->type != XPATH_NODESET) ||
         (obj->nodesetval == NULL) || (obj->nodesetval->nodeNr <= 0) ||
         (obj->nodesetval->nodeTab == NULL)) {
-        xmlXPathFreeObject(obj);
         return NULL;
     }
 
-    ret = obj->nodesetval->nodeTab[0];
-    xmlXPathFreeObject(obj);
-    return ret;
+    return obj->nodesetval->nodeTab[0];
 }
 
 /**
@@ -965,7 +947,7 @@ virXPathNodeSet(const char *xpath,
                 xmlXPathContextPtr ctxt,
                 xmlNodePtr **list)
 {
-    xmlXPathObjectPtr obj;
+    g_autoptr(xmlXPathObject) obj = NULL;
     int ret;
 
     if ((ctxt == NULL) || (xpath == NULL)) {
@@ -984,21 +966,17 @@ virXPathNodeSet(const char *xpath,
     if (obj->type != XPATH_NODESET) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Incorrect xpath '%s'"), xpath);
-        xmlXPathFreeObject(obj);
         return -1;
     }
 
-    if ((obj->nodesetval == NULL)  || (obj->nodesetval->nodeNr < 0)) {
-        xmlXPathFreeObject(obj);
+    if ((obj->nodesetval == NULL)  || (obj->nodesetval->nodeNr < 0))
         return 0;
-    }
 
     ret = obj->nodesetval->nodeNr;
     if (list != NULL && ret) {
         *list = g_new0(xmlNodePtr, ret);
         memcpy(*list, obj->nodesetval->nodeTab, ret * sizeof(xmlNodePtr));
     }
-    xmlXPathFreeObject(obj);
     return ret;
 }
 
@@ -1096,6 +1074,8 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
  * @url: URL of XML document for string parser
  * @rootelement: Optional name of the expected root element
  * @ctxt: optional pointer to populate with new context pointer
+ * @schemafile: optional name of the file the parsed XML will be validated against
+ * @validate: if true, the XML will be validated against schema in @schemafile
  *
  * Parse XML document provided either as a file or a string. The function
  * guarantees that the XML document contains a root element.
@@ -1111,7 +1091,9 @@ virXMLParseHelper(int domcode,
                   const char *xmlStr,
                   const char *url,
                   const char *rootelement,
-                  xmlXPathContextPtr *ctxt)
+                  xmlXPathContextPtr *ctxt,
+                  const char *schemafile,
+                  bool validate)
 {
     struct virParserData private;
     g_autoptr(xmlParserCtxt) pctxt = NULL;
@@ -1175,6 +1157,15 @@ virXMLParseHelper(int domcode,
             return NULL;
 
         (*ctxt)->node = rootnode;
+    }
+
+    if (validate && schemafile != NULL) {
+        g_autofree char *schema = virFileFindResource(schemafile,
+                                                      abs_top_srcdir "/docs/schemas",
+                                                      PKGDATADIR "/schemas");
+        if (!schema ||
+            (virXMLValidateAgainstSchema(schema, xml) < 0))
+            return NULL;
     }
 
     return g_steal_pointer(&xml);
@@ -1628,12 +1619,11 @@ int
 virXMLValidateNodeAgainstSchema(const char *schemafile, xmlNodePtr node)
 {
     int ret;
-    xmlDocPtr copy = xmlNewDoc(NULL);
+    g_autoptr(xmlDoc) copy = xmlNewDoc(NULL);
 
     xmlDocSetRootElement(copy, xmlCopyNode(node, true));
     ret = virXMLValidateAgainstSchema(schemafile, copy);
 
-    xmlFreeDoc(copy);
     return ret;
 }
 

@@ -18,13 +18,12 @@ static int
 test_virResctrlGetUnused(const void *opaque)
 {
     struct virResctrlData *data = (struct virResctrlData *) opaque;
-    char *system_dir = NULL;
-    char *resctrl_dir = NULL;
-    int ret = -1;
-    virResctrlAlloc *alloc = NULL;
-    char *schemata_str = NULL;
-    char *schemata_file;
-    virCaps *caps = NULL;
+    g_autofree char *system_dir = NULL;
+    g_autofree char *resctrl_dir = NULL;
+    g_autoptr(virResctrlAlloc) alloc = NULL;
+    g_autofree char *schemata_str = NULL;
+    g_autofree char *schemata_file = NULL;
+    g_autoptr(virCaps) caps = NULL;
 
     system_dir = g_strdup_printf("%s/vircaps2xmldata/linux-%s/system", abs_srcdir,
                                  data->filename);
@@ -41,7 +40,7 @@ test_virResctrlGetUnused(const void *opaque)
     caps = virCapabilitiesNew(VIR_ARCH_X86_64, false, false);
     if (!caps || virCapabilitiesInitCaches(caps) < 0) {
         fprintf(stderr, "Could not initialize capabilities");
-        goto cleanup;
+        return -1;
     }
 
     alloc = virResctrlAllocGetUnused(caps->host.resctrl);
@@ -50,28 +49,19 @@ test_virResctrlGetUnused(const void *opaque)
 
     if (!alloc) {
         if (data->fail)
-            ret = 0;
-        goto cleanup;
+            return 0;
+        return -1;
     } else if (data->fail) {
         VIR_TEST_DEBUG("Error expected but there wasn't any.");
-        ret = -1;
-        goto cleanup;
+        return -1;
     }
 
     schemata_str = virResctrlAllocFormat(alloc);
 
     if (virTestCompareToFile(schemata_str, schemata_file) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virObjectUnref(caps);
-    virObjectUnref(alloc);
-    VIR_FREE(system_dir);
-    VIR_FREE(resctrl_dir);
-    VIR_FREE(schemata_str);
-    VIR_FREE(schemata_file);
-    return ret;
+    return 0;
 }
 
 

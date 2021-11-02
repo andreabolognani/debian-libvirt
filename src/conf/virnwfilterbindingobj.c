@@ -138,10 +138,7 @@ char *
 virNWFilterBindingObjConfigFile(const char *dir,
                                 const char *name)
 {
-    char *ret;
-
-    ret = g_strdup_printf("%s/%s.xml", dir, name);
-    return ret;
+    return g_strdup_printf("%s/%s.xml", dir, name);
 }
 
 
@@ -236,25 +233,20 @@ static virNWFilterBindingObj *
 virNWFilterBindingObjParseNode(xmlDocPtr doc,
                                xmlNodePtr root)
 {
-    xmlXPathContextPtr ctxt = NULL;
-    virNWFilterBindingObj *obj = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
 
     if (STRNEQ((const char *)root->name, "filterbindingstatus")) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("unknown root element '%s' for filter binding"),
                        root->name);
-        goto cleanup;
+        return NULL;
     }
 
     if (!(ctxt = virXMLXPathContextNew(doc)))
-        goto cleanup;
+        return NULL;
 
     ctxt->node = root;
-    obj = virNWFilterBindingObjParseXML(doc, ctxt);
-
- cleanup:
-    xmlXPathFreeContext(ctxt);
-    return obj;
+    return virNWFilterBindingObjParseXML(doc, ctxt);
 }
 
 
@@ -263,11 +255,10 @@ virNWFilterBindingObjParse(const char *xmlStr,
                            const char *filename)
 {
     virNWFilterBindingObj *obj = NULL;
-    xmlDocPtr xml;
+    g_autoptr(xmlDoc) xml = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilterbinding_status)")))) {
+    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilterbinding_status)"), NULL, false))) {
         obj = virNWFilterBindingObjParseNode(xml, xmlDocGetRootElement(xml));
-        xmlFreeDoc(xml);
     }
 
     return obj;

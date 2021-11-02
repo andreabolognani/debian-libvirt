@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-ppc64 \
--name QEMUGuest1 \
+-name guest=QEMUGuest1,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
 -machine pseries,accel=kvm,usb=off,dump-guest-core=off \
 -m size=1310720k,slots=16,maxmem=4194304k \
 -realtime mlock=off \
@@ -25,4 +26,6 @@ QEMU_AUDIO_DRV=none \
 -chardev socket,id=charmonitor,path=/tmp/lib/domain--1-QEMUGuest1/monitor.sock,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
--no-shutdown
+-no-shutdown \
+-boot strict=on \
+-msg timestamp=on

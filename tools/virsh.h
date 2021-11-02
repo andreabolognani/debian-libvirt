@@ -95,10 +95,12 @@
      .help = _helpstr \
     }
 
+/* Use this only for files which are existing and used locally by virsh */
 #define VIRSH_COMMON_OPT_FILE(_helpstr) \
     {.name = "file", \
      .type = VSH_OT_DATA, \
      .flags = VSH_OFLAG_REQ, \
+     .completer = virshCompletePathLocalExisting, \
      .help = _helpstr \
     }
 

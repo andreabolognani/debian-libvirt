@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "virsh-completer-checkpoint.h"
 #include "virsh-completer-domain.h"
 #include "virsh-completer-host.h"
 #include "virsh-completer-interface.h"
@@ -31,9 +32,16 @@
 #include "virsh-completer-snapshot.h"
 #include "virsh-completer-volume.h"
 
-char ** virshCommaStringListComplete(const char *input,
-                                     const char **options);
+char **
+virshCommaStringListComplete(const char *input,
+                             const char **options);
 
-char ** virshCheckpointNameCompleter(vshControl *ctl,
-                                     const vshCmd *cmd,
-                                     unsigned int flags);
+char **
+virshCompletePathLocalExisting(vshControl *ctl,
+                               const vshCmd *cmd,
+                               unsigned int completerflags);
+
+char **
+virshCompleteEmpty(vshControl *ctl,
+                   const vshCmd *cmd,
+                   unsigned int completerflags);

@@ -18,7 +18,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2021-07-27 13:35+0000\n"
+"POT-Creation-Date: 2021-10-26 08:13+0000\n"
 "PO-Revision-Date: 2021-02-21 08:40+0000\n"
 "Last-Translator: Pany <geekpany@gmail.com>\n"
 "Language-Team: Chinese (Simplified) <https://translate.fedoraproject.org/"
@@ -420,6 +420,7 @@ msgid ""
 "   - qemu\n"
 "   - lxc\n"
 "   - bhyve\n"
+"   - ch\n"
 "\n"
 " Options:\n"
 "   -h, --help     Display command line help\n"
@@ -427,20 +428,6 @@ msgid ""
 "   -q, --quiet    Don't display progress information\n"
 "\n"
 msgstr ""
-"\n"
-"syntax: %s [选项] [虚拟化层的类型]\n"
-"\n"
-" 虚拟化层的类型:\n"
-"\n"
-"   - qemu\n"
-"   - lxc\n"
-"   - bhyve\n"
-"\n"
-" 选项:\n"
-"   -h, --help     显示帮助信息\n"
-"   -v, --version  显示版本信息\n"
-"   -q, --quiet    不显示检测过程\n"
-"\n"
 
 #, c-format
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
@@ -1640,9 +1627,21 @@ msgstr ""
 msgid "<snapshot> element is currently supported only with 'rbd' disks"
 msgstr "目前只有 'rbd' 磁盘支持 <snapshot> 元素"
 
+msgid "<system_field> evaluation has failed"
+msgstr ""
+
+msgid "<system_field> value evaluation has failed"
+msgstr ""
+
 #, c-format
 msgid "<uuid> does not match secret file name '%s'"
 msgstr "<uuid> 与 secret 文件名 '%s' 不匹配"
+
+msgid "<vendor_field> evaluation has failed"
+msgstr ""
+
+msgid "<vendor_field> value evaluation has failed"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -2007,6 +2006,9 @@ msgstr ""
 
 msgid "Available:"
 msgstr "可用："
+
+msgid "BIOS serial console only supported on x86 architectures"
+msgstr ""
 
 msgid "Backup"
 msgstr ""
@@ -3387,6 +3389,19 @@ msgstr "无法取消共享挂载名称空间"
 msgid "Cannot unshare uninitialized CURL handle"
 msgstr "无法取消共享未初始化的 CRUL 句柄"
 
+msgid "Cannot update the read-only keyword: RO section not initialized."
+msgstr ""
+
+msgid ""
+"Cannot update the read-write keyword: read-write section not initialized."
+msgstr ""
+
+msgid "Cannot update the resource: a NULL keyword pointer has been provided."
+msgstr ""
+
+msgid "Cannot update the resource: a NULL resource pointer has been provided."
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Cannot use direct socket mode for %s transport"
 msgstr "无法将插槽地址转换为字符串：%s"
@@ -3591,6 +3606,10 @@ msgstr ""
 msgid "Checkpoints have inconsistent relations for domain %s"
 msgstr "域 %s 有不连贯的关系"
 
+#. All bytes up to and including the checksum byte should add up to 0.
+msgid "Checksum validation has failed"
+msgstr ""
+
 #, c-format
 msgid "Child process (%lld) unexpected %s"
 msgstr "意外的子进程（%lld）%s"
@@ -3783,6 +3802,9 @@ msgstr "设置一个域在启动时自动开始."
 msgid "Configure a network to be automatically started at boot."
 msgstr "设置一个网络在启动时自动开始."
 
+msgid "Configure a node device to be automatically started at boot."
+msgstr ""
+
 msgid "Configure a pool to be automatically started at boot."
 msgstr "将某个池设置为在引导时自动启动。"
 
@@ -3823,6 +3845,9 @@ msgid "Connected to the admin server"
 msgstr "已连接到admin server"
 
 msgid "Connections from inside daemon must be direct"
+msgstr ""
+
+msgid "Console can only be enabled for a PTY"
 msgstr ""
 
 msgid "Constant pages:"
@@ -3911,9 +3936,6 @@ msgid "Could not allocate disk def"
 msgstr ""
 
 msgid "Could not allocate disk definition"
-msgstr ""
-
-msgid "Could not append definition to domain"
 msgstr ""
 
 #, c-format
@@ -4103,7 +4125,8 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Could not find PCI controller with index %u required for device at address %s"
+"Could not find PCI controller with index '%u' required for device at address "
+"'%s'"
 msgstr ""
 
 #, c-format
@@ -4406,6 +4429,10 @@ msgstr "无法获取定义的域数量：rc=%08x"
 msgid "Could not get number of Domains, rc=%08x"
 msgstr "无法获取域数量，rc=%08x"
 
+#, c-format
+msgid "Could not get parent of '%s'"
+msgstr ""
+
 #, fuzzy
 msgid "Could not get process id of swtpm"
 msgstr "无法获取快照 %s 的上级快照"
@@ -4591,6 +4618,10 @@ msgid "Could not open TPM device's cancel path %s"
 msgstr "无法打开输入路径 '%s'"
 
 #, c-format
+msgid "Could not parse %s VPD resource fields"
+msgstr ""
+
+#, c-format
 msgid "Could not parse 'bonding/arp_interval' '%s' for '%s'"
 msgstr "无法为 '%s' 解析 'bonding/arp_interval' '%s'"
 
@@ -4644,6 +4675,9 @@ msgstr "无法解析 VI API 版本 '%s'"
 #, c-format
 msgid "Could not parse VPS ID %s"
 msgstr "无法解析 VPS ID %s"
+
+msgid "Could not parse a resource field data - VPD has invalid format"
+msgstr ""
 
 #, c-format
 msgid "Could not parse barrier and limit of '%s' from config for container %d"
@@ -4704,6 +4738,15 @@ msgstr "无法为容器 %d 在 config 中读取 'OSTEMPLATE'"
 #, c-format
 msgid "Could not read 'VE_PRIVATE' from config for container %d"
 msgstr "无法为容器 %d 在 config 中读取 'VE_PRIVATE'"
+
+msgid "Could not read a device name from the <name> element"
+msgstr ""
+
+msgid "Could not read a part of a resource - VPD has invalid format"
+msgstr ""
+
+msgid "Could not read a resource field header - VPD has invalid format"
+msgstr ""
 
 #, c-format
 msgid "Could not read config for container %d"
@@ -4802,6 +4845,12 @@ msgid "Could not revert to snapshot '%s': %s"
 msgstr "无法转换为快照 '%s': %s"
 
 #, c-format
+msgid ""
+"Could not run '%s' to create config files. exitstatus: %d;\n"
+"Error: %s"
+msgstr ""
+
+#, c-format
 msgid "Could not run '%s'. exitstatus: %d; Check error log '%s' for details."
 msgstr ""
 
@@ -4898,6 +4947,10 @@ msgstr "无法传输数据：%s (%d)"
 #, fuzzy
 msgid "Could not translate keycode"
 msgstr "无法分配内存"
+
+#, c-format
+msgid "Could not update the VPD resource keyword: %s"
+msgstr ""
 
 msgid "Could not verify disk address"
 msgstr "无法确认磁盘地址"
@@ -5221,6 +5274,10 @@ msgid "Device %s detached\n"
 msgstr "已分离设备 %s\n"
 
 #, c-format
+msgid "Device %s does not have a VPD"
+msgstr ""
+
+#, c-format
 msgid "Device %s is already in use"
 msgstr "失败 %s 已在使用中"
 
@@ -5231,6 +5288,10 @@ msgstr "设备 %s 位于缺少 ACS 的开关够，且无法为其分配 ACS。"
 #, c-format
 msgid "Device %s is not a bridge"
 msgstr "失败 %s 不是一个桥接"
+
+#, c-format
+msgid "Device %s marked as autostarted\n"
+msgstr ""
 
 #, c-format
 msgid "Device %s not found: could not access %s"
@@ -5252,6 +5313,10 @@ msgstr ""
 msgid "Device %s un-attached from bridge %s\n"
 msgstr "从桥接 %s 中分离设备 %s\n"
 
+#, c-format
+msgid "Device %s unmarked as autostarted\n"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Device '%s' already formatted using '%s'"
 msgstr "失败 %s 已在使用中"
@@ -5270,8 +5335,8 @@ msgstr "多个 '%s' 控制器附带索引 '%d'"
 
 #, c-format
 msgid ""
-"Device alias was not set for PCI controller with index %u required for "
-"device at address %s"
+"Device alias was not set for PCI controller with index '%u' required for "
+"device at address '%s'"
 msgstr ""
 
 msgid "Device attached successfully\n"
@@ -5854,8 +5919,8 @@ msgstr ""
 msgid "EOF on stdout"
 msgstr ""
 
-msgid "Echo back arguments, possibly with quoting."
-msgstr "显示参数重新编码后的字符串，可能有引号。"
+msgid "Echo back arguments, possibly with quoting. Used for internal testing."
+msgstr ""
 
 msgid "Edit the XML configuration for a domain."
 msgstr "编辑某个域的 XML 配置。"
@@ -6421,17 +6486,6 @@ msgstr "分配 PCI 设备列表失败：%s"
 
 msgid "Failed to allocate XML buffer"
 msgstr "分配 XML 缓冲失败"
-
-#, fuzzy, c-format
-msgid "Failed to allocate memory for checkpoint directory for domain %s"
-msgstr "为域 %s 的快照目录分配内存失败"
-
-msgid "Failed to allocate memory for path"
-msgstr "为路径分配内存失败"
-
-#, c-format
-msgid "Failed to allocate memory for snapshot directory for domain %s"
-msgstr "为域 %s 的快照目录分配内存失败"
 
 #, fuzzy, c-format
 msgid "Failed to allocate slirp for '%s'"
@@ -7155,9 +7209,6 @@ msgstr "生成 uuid 失败"
 msgid "Failed to get %s minor number"
 msgstr "获取 %s 监控程序数失败"
 
-msgid "Failed to get PCI SYSFS file"
-msgstr "获取 PCI SYSFS 文件失败"
-
 #, fuzzy, c-format
 msgid "Failed to get SRIOV function from device link '%s'"
 msgstr "解析设备链接 '%s' 失败"
@@ -7325,6 +7376,9 @@ msgstr "初始化 libvirt 失败"
 #, fuzzy
 msgid "Failed to initialize cgroup backend."
 msgstr "初始化互斥锁失败"
+
+msgid "Failed to initialize host cpu features"
+msgstr ""
 
 #, fuzzy
 msgid "Failed to initialize libpciaccess"
@@ -7613,6 +7667,10 @@ msgid "Failed to open '%s'"
 msgstr "打开 '%s' 失败"
 
 #, c-format
+msgid "Failed to open a VPD file '%s'"
+msgstr ""
+
+#, c-format
 msgid "Failed to open config space file '%s'"
 msgstr "打开 config 空间文件 '%s' 失败"
 
@@ -7784,6 +7842,10 @@ msgstr "解析 URI 组件值 %s 失败"
 
 msgid "Failed to parse vzlist output"
 msgstr "解析 vzlist 输入失败"
+
+#, c-format
+msgid "Failed to parse wwn '%s' as number"
+msgstr ""
 
 #, c-format
 msgid "Failed to pin vcpu '%d' with libxenlight"
@@ -8536,6 +8598,13 @@ msgstr "网络 '%s' 为非 IPv6 地址 '%s' 指定 'ipv6' 产品线"
 msgid "Feature %s required by CPU model %s not found"
 msgstr "未找到 CPU 型号 %s 需要的 %s 特性"
 
+msgid "Fibre Channel 'appid' is not a printable string"
+msgstr ""
+
+#, c-format
+msgid "Fibre Channel 'appid' string length must be between [%d, %d]"
+msgstr ""
+
 #, c-format
 msgid "Field '%s' too long for destination"
 msgstr "目标字段 '%s' 太长"
@@ -8550,6 +8619,9 @@ msgstr "字段名称 '%s' 过长"
 #, fuzzy
 msgid "Field name too long"
 msgstr "字段名称 '%s' 过长"
+
+msgid "Field value contains invalid characters"
+msgstr ""
 
 #, c-format
 msgid "File %s contains no keys"
@@ -9157,10 +9229,6 @@ msgid ""
 msgstr "接口类型 %s 中不支持的脚本"
 
 #, fuzzy
-msgid "I/O APIC tuning is not supported by this QEMU binary"
-msgstr "这个 QEMU 二进制不支持弃用"
-
-#, fuzzy
 msgid "I/O Error"
 msgstr "I/O 错误"
 
@@ -9535,9 +9603,6 @@ msgstr "无效 CPU 特性名称"
 #, fuzzy, c-format
 msgid "Invalid CPU signature model in model %s"
 msgstr "无效 CPU 特性名称"
-
-msgid "Invalid CPU topology"
-msgstr "无效 CPU 拓扑"
 
 msgid ""
 "Invalid CPU topology: total number of vCPUs must equal the product of "
@@ -10294,6 +10359,10 @@ msgid "Invalid setting for nested HV state"
 msgstr "iothread '%s' 的无效设置"
 
 #, c-format
+msgid "Invalid source mode: %s"
+msgstr ""
+
+#, c-format
 msgid ""
 "Invalid specification for virtio ccw address: cssid='0x%x' ssid='0x%x' "
 "devno='0x%04x'"
@@ -10507,6 +10576,9 @@ msgstr "位置："
 msgid "Iterator ID exceeds maximum ID of %u"
 msgstr "迭代器 ID 超过 %u 的最大 ID"
 
+msgid "JSON array -> commandline conversion function not provided"
+msgstr ""
+
 #, c-format
 msgid "JSON backing volume definition '%s' lacks 'file' object"
 msgstr ""
@@ -10717,10 +10789,6 @@ msgstr "不正常迭代器 id"
 
 msgid "Malformatted variable"
 msgstr "不正常变量"
-
-#, fuzzy
-msgid "Malformed 'dies' attribute in CPU topology"
-msgstr "CPU 拓扑中缺少 ‘cores’ 属性"
 
 #, fuzzy
 msgid "Malformed 'domuuid' in JSON document"
@@ -11128,9 +11196,6 @@ msgstr "cgroup 挂载 '%s' 中缺少 '/' 分隔符"
 msgid "Missing 'associativity' attribute in cache element for NUMA node %d"
 msgstr ""
 
-msgid "Missing 'cores' attribute in CPU topology"
-msgstr "CPU 拓扑中缺少 ‘cores’ 属性"
-
 #, fuzzy
 msgid "Missing 'domname' in JSON document"
 msgstr "JSON 文件中缺少 resource 名称"
@@ -11187,18 +11252,12 @@ msgstr ""
 msgid "Missing 'runtime.powerState' property"
 msgstr "缺少 'runtime.powerState' 属性"
 
-msgid "Missing 'sockets' attribute in CPU topology"
-msgstr "CPU 拓扑中缺少 ‘socket’ 属性"
-
 #, c-format
 msgid "Missing 'start' attribute in dhcp range for network '%s'"
 msgstr "在网络 '%s' 的 dhcp 范围中缺少 'start' 属性"
 
 msgid "Missing 'target' element for lease"
 msgstr "租约缺少 'target' 元素"
-
-msgid "Missing 'threads' attribute in CPU topology"
-msgstr "CPU 拓扑中缺少 ‘threads’ 属性"
 
 #, fuzzy
 msgid "Missing 'uuid' attribute for element <address>"
@@ -12246,10 +12305,6 @@ msgstr "注册了太多的设备"
 msgid "No active block job '%s'"
 msgstr "无法请求在 '%s' 中加锁"
 
-#, c-format
-msgid "No active operation on device: %s"
-msgstr "设备中没有活跃操作：%s"
-
 #, fuzzy
 msgid "No addresses to bind to"
 msgstr "未找到 '%s' 的插槽地址"
@@ -12811,6 +12866,15 @@ msgstr "尚不支持"
 msgid "Only a single IDE controller is supported for this machine type"
 msgstr "无法添加另一个 USB 控制器：这个域禁用 USB"
 
+msgid "Only a single console can be configured for this domain"
+msgstr ""
+
+msgid "Only a single console or serial can be configured for this domain"
+msgstr ""
+
+msgid "Only a single serial can be configured for this domain"
+msgstr ""
+
 msgid "Only bridged veth devices can be detached"
 msgstr "只能端口桥接的 veth 设备"
 
@@ -12956,10 +13020,6 @@ msgstr "OpenVZ 控制的文件 /proc/vz 无法访问"
 #, fuzzy
 msgid "Operation cancelled by client"
 msgstr "由客户端取消"
-
-#, c-format
-msgid "Operation is not supported for device: %s"
-msgstr "设备不支持操作：%s"
 
 msgid "Operation not supported"
 msgstr "不支持该操作"
@@ -13118,6 +13178,9 @@ msgstr ""
 
 msgid "PASS"
 msgstr "通过"
+
+msgid "PCI VPD reporting not available on this platform"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -14004,6 +14067,9 @@ msgstr "返回这个域的基本信息。"
 msgid "Returns basic information about the network"
 msgstr "返回关于这个网络的基本信息。"
 
+msgid "Returns basic information about the node device"
+msgstr ""
+
 msgid "Returns basic information about the node."
 msgstr "返回关于这个节点的基本信息。"
 
@@ -14193,6 +14259,10 @@ msgstr "SCSI 主机设备不支持管理的模式"
 #, fuzzy
 msgid "SCSI host device must use 'drive' address type"
 msgstr "未知主机设备源地址类型 '%s'"
+
+#, c-format
+msgid "SCSI unit index %d out of [0..6,8..%u] range"
+msgstr ""
 
 #, c-format
 msgid "SCSI unit index %d out of [0..6,8..15] range"
@@ -14419,6 +14489,9 @@ msgstr "向虚拟机中的进程发送信号"
 
 msgid "Sending file descriptors is not supported on this socket"
 msgstr "这个插槽不支持发送文件描述符"
+
+msgid "Serial can only be enabled for a PTY"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -14967,6 +15040,10 @@ msgstr "对于目的地来说 stats %s 太大"
 msgid "Stats types bits 0x%x are not supported by this daemon"
 msgstr "这个内核不支持参数 '%s'"
 
+#, c-format
+msgid "Stats types bits 0x%x are not supported by this daemon or QEMU"
+msgstr ""
+
 msgid "Status is unknown"
 msgstr "未知状态"
 
@@ -15448,6 +15525,10 @@ msgstr "目标设备 isa 地址 %d:%d 与源 %d:%d 不匹配"
 msgid "Target device packed option '%s' does not match source '%s'"
 msgstr "目标设备地址类型 %s 与源 %s 不匹配"
 
+#, c-format
+msgid "Target device page_per_vq option '%s' does not match source '%s'"
+msgstr ""
+
 msgid "Target device virtio options don't match the source"
 msgstr ""
 
@@ -15474,6 +15555,14 @@ msgstr "目标磁盘设备 %s 与源 %s 不匹配"
 #, fuzzy, c-format
 msgid "Target disk model %s does not match source %s"
 msgstr "目标磁盘 %s 与源 %s 不匹配"
+
+#, c-format
+msgid "Target disk queue count %u does not match source %u"
+msgstr ""
+
+#, c-format
+msgid "Target disk queue size %u does not match source %u"
+msgstr ""
 
 #, c-format
 msgid "Target disk rotation rate %u RPM does not match source %u RPM"
@@ -15718,9 +15807,21 @@ msgstr "目标共享内存大小 '%llu' 与源 '%llu' 不匹配"
 msgid "Target memory device alias '%s' doesn't match source alias '%s'"
 msgstr "目标 RNG 型号 '%s' 与源 '%s' 不映射"
 
+#, c-format
+msgid ""
+"Target memory device block size '%llu' doesn't match source memory device "
+"block size '%llu'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Target memory device model '%s' doesn't match source model '%s'"
 msgstr "目标主机设备型号 %s 与源 %s 不匹配"
+
+#, c-format
+msgid ""
+"Target memory device requested size '%llu' doesn't match source memory "
+"device requested size '%llu'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -16068,6 +16169,13 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "这个 QEMU 二进制文件不支持 nvram 设备 "
 
+msgid "The keyword is not comprised only of uppercase ASCII letters or digits"
+msgstr ""
+
+#, c-format
+msgid "The keyword length is not 2 bytes: %s"
+msgstr ""
+
 #, fuzzy
 msgid "The machine has no snapshot and it should have it"
 msgstr "域 %s 没有名为 %s 的快照"
@@ -16078,6 +16186,10 @@ msgstr ""
 msgid ""
 "The overall maximum number of clients must be greater than the maximum "
 "number of clients waiting for authentication"
+msgstr ""
+
+#, c-format
+msgid "The provided value contains invalid characters: %s"
 msgstr ""
 
 #, fuzzy
@@ -16104,6 +16216,9 @@ msgstr "从 '%s' 重新指向 '%s' 的服务器"
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "存储池不支持卷创建"
+
+msgid "The string resource has invalid characters in its value"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The vbox driver does not support %s SCSI controller model"
@@ -16139,9 +16254,6 @@ msgstr "有更多可用 CCW devnos。"
 #, fuzzy
 msgid "This QEMU binary doesn't support zPCI"
 msgstr "QEMU 二进制不支持 %s"
-
-msgid "This QEMU can't disable file transfers through spice"
-msgstr ""
 
 #, fuzzy
 msgid "This QEMU doesn't support '-device usb-storage'"
@@ -16227,10 +16339,6 @@ msgstr ""
 
 msgid "This type of disk cannot be hot unplugged"
 msgstr "无法热插拔此类磁盘"
-
-msgid ""
-"This version of libxenlight does not support disk 'discard' option passing"
-msgstr "libxenlight 的这个版本不支持磁盘 'discard' 选项"
 
 msgid "Thread(s) per core:"
 msgstr "每个内核的线程数："
@@ -16577,6 +16685,10 @@ msgstr ""
 msgid "USB bus %u requested but no controller with that index is present"
 msgstr ""
 
+#, c-format
+msgid "USB controller model '%s' not supported in this QEMU binary"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "USB controller model type 'qusb1' or 'qusb2' is not supported in %s"
 msgstr "%s 不支持 hostdev 模式 'capabilities'"
@@ -16647,6 +16759,10 @@ msgstr "无法访问配置文件 %s"
 #, c-format
 msgid "Unable to access file descriptor %d"
 msgstr "服务访问文件描述符 %d"
+
+#, c-format
+msgid "Unable to access file descriptor %d path %s"
+msgstr ""
 
 #, fuzzy
 msgid "Unable to access kernel32.dll"
@@ -16894,6 +17010,10 @@ msgid "Unable to close recursively all disks"
 msgstr "无法打开资源 %s"
 
 #, c-format
+msgid "Unable to close the VPD file, fd: %d"
+msgstr ""
+
+#, c-format
 msgid "Unable to close the new medium, rc=%08x"
 msgstr ""
 
@@ -17117,14 +17237,6 @@ msgid "Unable to destroy '%s': device in use"
 msgstr ""
 
 #, c-format
-msgid "Unable to destroy qos on port %s"
-msgstr ""
-
-#, c-format
-msgid "Unable to destroy queue on port %s"
-msgstr ""
-
-#, c-format
 msgid "Unable to detect filesystem for %s"
 msgstr "无法为 %s 探测文件系统"
 
@@ -17238,6 +17350,10 @@ msgid "Unable to find a satisfying virtiofsd"
 msgstr "无法捆绑到端口"
 
 #, c-format
+msgid "Unable to find address for parent device '%s'"
+msgstr ""
+
+#, c-format
 msgid "Unable to find an unused port in range '%s' (%d-%d)"
 msgstr ""
 
@@ -17252,10 +17368,6 @@ msgstr "无法写入 '%s'"
 #, c-format
 msgid "Unable to find any usable hugetlbfs mount for %llu KiB"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "Unable to find controller for %s"
-msgstr "无法为 '%s' 打开流"
 
 #, c-format
 msgid "Unable to find correct value in 'bonding/arp_validate' for '%s'"
@@ -17999,6 +18111,9 @@ msgstr "无法解析配额"
 msgid "Unable to process file with flags %d"
 msgstr "无法使用标签 %d 处理文件"
 
+msgid "Unable to query TSC scaling support"
+msgstr ""
+
 #, c-format
 msgid "Unable to query certificate %s basic constraints %s"
 msgstr "无法查询证书 %s 的基本约束 %s"
@@ -18216,6 +18331,10 @@ msgid "Unable to reset PCI device %s: %s"
 msgstr "无法重置 PCI 设备 %s: %s"
 
 #, c-format
+msgid "Unable to reset ingress on port %s"
+msgstr ""
+
+#, c-format
 msgid "Unable to resolve address '%s' service '%s': %s"
 msgstr "无法解析地址 '%s' 服务 '%s': %s"
 
@@ -18392,6 +18511,10 @@ msgstr "无法在 %s 中设定 STP 延迟"
 #, fuzzy
 msgid "Unable to set agent close-on-exec flag"
 msgstr "无法设定 close-on-exec 标签"
+
+#, c-format
+msgid "Unable to set autostart on '%s': %s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Unable to set backing file %s"
@@ -18619,6 +18742,10 @@ msgid "Unable to write %s"
 msgstr "无法写入 %s"
 
 #, c-format
+msgid "Unable to write '%s' to '%s'"
+msgstr ""
+
+#, c-format
 msgid "Unable to write pid file '%s/%s.pid'"
 msgstr "无法写入 pid 文件 '%s/%s.pid'"
 
@@ -18746,6 +18873,12 @@ msgstr "删除域的过程中意外 QEMU 代理仍活跃"
 msgid "Unexpected QEMU monitor still active during domain deletion"
 msgstr "删除域的过程中 QEMU 监控器仍活跃"
 
+msgid "Unexpected RV keyword in the read-write section."
+msgstr ""
+
+msgid "Unexpected RW keyword in the read-only section."
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Unexpected SCSI controller model %d"
 msgstr "意外的控制器类型 %d"
@@ -18792,6 +18925,9 @@ msgstr "意外的 root 元素 <%s>，应为 <qemuCaps>"
 #, fuzzy
 msgid "Unexpected event thread still active during domain deletion"
 msgstr "删除域的过程中意外 QEMU 代理仍活跃"
+
+msgid "Unexpected field value format encountered."
+msgstr ""
 
 #, c-format
 msgid "Unexpected filesystem type %s"
@@ -18929,6 +19065,9 @@ msgstr "未知 CPU 供应商 %s"
 
 #, c-format
 msgid "Unknown Command '%i'"
+msgstr ""
+
+msgid "Unknown Error"
 msgstr ""
 
 #, fuzzy, c-format
@@ -19363,6 +19502,10 @@ msgid "Unsupported URI scheme '%s'"
 msgstr "不支持的 SMBIOS 模式 '%s'"
 
 #, c-format
+msgid "Unsupported VPD field access type specified %s"
+msgstr ""
+
+#, c-format
 msgid "Unsupported action: %s\n"
 msgstr "不支持的动作：%s\n"
 
@@ -19614,6 +19757,9 @@ msgstr "从 XML <file> 中关系设备"
 msgid "Update the media"
 msgstr "更新介质"
 
+msgid "Update values of a memory device of a domain"
+msgstr ""
+
 #, fuzzy
 msgid "Updated"
 msgstr "更新介质"
@@ -19811,6 +19957,15 @@ msgstr ""
 
 msgid "VNC supports connected='keep' only"
 msgstr "VNC 只支持 connected='keep' "
+
+msgid "VPD fields access type parsing has failed"
+msgstr ""
+
+msgid "VPD-R does not contain the mandatory RV field"
+msgstr ""
+
+msgid "VPD-W does not contain the mandatory RW field"
+msgstr ""
 
 #, c-format
 msgid "Value '%s' is not representable as %s"
@@ -20128,16 +20283,6 @@ msgid "a block I/O throttling is not supported for vhostuser disk"
 msgstr ""
 
 #, fuzzy
-msgid ""
-"a block I/O throttling length parameter is not supported with this QEMU "
-"binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
-
-#, fuzzy
-msgid "a block I/O throttling parameter is not supported with this QEMU binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
-
-#, fuzzy
 msgid "a device with the same address already exists "
 msgstr "设备 %s 已存在"
 
@@ -20267,6 +20412,10 @@ msgid "address source: 'lease' or 'agent'"
 msgstr ""
 
 msgid "address source: 'lease', 'agent', or 'arp'"
+msgstr ""
+
+#, c-format
+msgid "address type drive is not supported for bus '%s'"
 msgstr ""
 
 #, c-format
@@ -20413,8 +20562,8 @@ msgid "architecture from emulator '%s' doesn't match given architecture '%s'"
 msgstr "目标共享内存名称 '%s' 与源 '%s' 不匹配"
 
 #, c-format
-msgid "argument key '%s' is too short, missing type prefix"
-msgstr "参数密钥 '%s' 太短，缺少类型前缀"
+msgid "argument key '%s' is too short or malformed"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "argument key '%s' must not be negative"
@@ -20594,6 +20743,9 @@ msgid "automatically destroy the guest when virsh disconnects"
 msgstr "virsh 断开连接时自动销毁虚拟机"
 
 msgid "automatically switch to post-copy migration after one pass of pre-copy"
+msgstr ""
+
+msgid "autostart a defined node device"
 msgstr ""
 
 msgid "autostart a domain"
@@ -20833,6 +20985,13 @@ msgstr "为远程协议请求的块 peek 过大，%zi > %d"
 msgid "block resize is not supported for vhostuser disk"
 msgstr ""
 
+msgid "block size must be a power of two"
+msgstr ""
+
+#, c-format
+msgid "block size too small, must be at least %lluKiB"
+msgstr ""
+
 msgid "block stats are not supported for vhostuser disk"
 msgstr ""
 
@@ -20890,6 +21049,10 @@ msgstr "绑定接口缺少绑定元素"
 
 msgid "bool"
 msgstr "布尔值"
+
+#, c-format
+msgid "bool parameter '%s' of command '%s' has completer set"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "boot order %u is already used by another device"
@@ -21886,6 +22049,10 @@ msgid "cannot migrate a domain with <hostdev mode='subsystem' type='%s'>"
 msgstr "无法使用 %d 快照迁移域"
 
 #, c-format
+msgid "cannot migrate a domain with <interface type='%s'>"
+msgstr ""
+
+#, c-format
 msgid "cannot migrate domain with %d snapshots"
 msgstr "无法使用 %d 快照迁移域"
 
@@ -21911,6 +22078,63 @@ msgstr ""
 #, fuzzy, c-format
 msgid "cannot modify field '%s' of the disk"
 msgstr "无法将 fd %d 移出路径"
+
+msgid "cannot modify memory UUID"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory access from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory align size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory block size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory discard from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory label size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory model from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory of model '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory pagesize from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory path from '%s' to '%s'"
+msgstr ""
+
+msgid "cannot modify memory pmem flag"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory pmem from '%d' to '%d'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory size from '%llu' to '%llu'"
+msgstr ""
+
+msgid "cannot modify memory source nodes"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory targetNode from '%d' to '%d'"
+msgstr ""
 
 #, fuzzy
 msgid "cannot modify network device address type"
@@ -22357,6 +22581,9 @@ msgstr "无法发送 netlink 插槽"
 msgid "cannot set CPU affinity on process %d"
 msgstr "无法在进程 %d 中设置 CPU 亲和性"
 
+msgid "cannot set autostart for transient device"
+msgstr ""
+
 msgid "cannot set autostart for transient domain"
 msgstr "无法为瞬时域设定自动启动"
 
@@ -22519,8 +22746,8 @@ msgid "cannot update guest CPU for %s architecture"
 msgstr "无法为 %s 架构解码 CPU 数据"
 
 msgid ""
-"cannot update lifecycle action because QEMU was started with -no-reboot "
-"option"
+"cannot update lifecycle action because QEMU was started with incompatible -"
+"no-reboot setting"
 msgstr ""
 
 #, c-format
@@ -22689,6 +22916,9 @@ msgstr "这个内核不支持参数 '%s'"
 #, fuzzy
 msgid "changing cpu placement mode is not supported by vz driver"
 msgstr "连接驱动器不支持这个功能"
+
+msgid "changing device 'acpi index' is not allowed"
+msgstr ""
 
 #, fuzzy
 msgid "changing device alias is not allowed"
@@ -22876,9 +23106,25 @@ msgstr "命令"
 msgid "command '%s' doesn't support option --%s"
 msgstr "命令 '%s' 不支持选项 --%s"
 
+#, c-format
+msgid "command '%s' has handler set"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "command '%s' has inconsistent alias"
 msgstr "域 '%s' 无当前快照"
+
+#, c-format
+msgid "command '%s' has info set"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has multiple flags set"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has options set"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "command '%s' has too many options"
@@ -22895,6 +23141,14 @@ msgstr "命令 '%s' 需要 --%s 选项"
 #, c-format
 msgid "command '%s' requires <%s> option"
 msgstr "命令 '%s' 需要 <%s> 选项"
+
+#, c-format
+msgid "command alias '%s' is pointing to a non-existent command '%s'"
+msgstr ""
+
+#, c-format
+msgid "command alias '%s' is pointing to another command alias '%s'"
+msgstr ""
 
 msgid "command groups and command are both NULL run vshInit before reloading"
 msgstr "命令组和命令集同时为空。需要先运行vshInit，然后再重置"
@@ -24060,9 +24314,6 @@ msgstr ""
 msgid "disable cpus specified by cpumap"
 msgstr ""
 
-msgid "disable shared memory is not available with this QEMU binary"
-msgstr "这个 QEMU 二进制中不能使用共享内存"
-
 #, fuzzy
 msgid "disabled"
 msgstr "禁用"
@@ -24128,10 +24379,6 @@ msgstr ""
 #, fuzzy, c-format
 msgid "disk '%s' has no media"
 msgstr "ifkey \"%s\" 没有 req"
-
-#, c-format
-msgid "disk '%s' improperly configured for a device='lun'"
-msgstr ""
 
 #, c-format
 msgid "disk '%s' is empty or readonly"
@@ -24802,8 +25049,8 @@ msgstr "挂起时间，单位秒，最小值为 60。"
 msgid "dynamic label type must use resource relabeling"
 msgstr "动态标签类型必须使用资源重新标记"
 
-msgid "echo arguments"
-msgstr "对参数进行编码"
+msgid "echo arguments. Used for internal testing."
+msgstr ""
 
 msgid "edit XML configuration for a domain"
 msgstr "编辑某个域的 XML 配置"
@@ -24904,16 +25151,8 @@ msgid "encountered an error on interface %s index %d"
 msgstr "在接口 %s 索引 %d 中遇到问题"
 
 #, fuzzy
-msgid "encrypted VNC TLS keys are not supported with this QEMU binary"
-msgstr "这个 QEMU 二进制中不支持 SATA"
-
-#, fuzzy
 msgid "encrypted ploop volumes are not supported with ploop init"
 msgstr "selinux 不支持安全标签模式 %s"
-
-#, fuzzy
-msgid "encrypted secrets are not supported"
-msgstr "只支持两个串口端口"
 
 #, c-format
 msgid "encryption format %d doesn't match expected format %d"
@@ -25174,6 +25413,13 @@ msgstr ""
 #, fuzzy, c-format
 msgid "event 'lifecycle' for storage pool %s: %s\n"
 msgstr "自动启动化存储池 '%s' 失败：%s"
+
+#, c-format
+msgid ""
+"event 'memory-device-size-change' for domain '%s':\n"
+"alias: %s\n"
+"size: %llu\n"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -25719,6 +25965,12 @@ msgstr "编码 SASL 数据失败：%d (%s)"
 msgid "failed to encrypt the data: '%s'"
 msgstr "打开 RBF 图像文件 '%s' 失败"
 
+msgid "failed to evaluate <system_field> elements"
+msgstr ""
+
+msgid "failed to evaluate <vendor_field> elements"
+msgstr ""
+
 #, c-format
 msgid "failed to execute command '%s': %s"
 msgstr "无法执行命令 '%s'：%s"
@@ -25926,6 +26178,10 @@ msgid "failed to get source from sourceList"
 msgstr "从 sourceList 获得源失败"
 
 #, c-format
+msgid "failed to get stat for '%s'"
+msgstr ""
+
+#, c-format
 msgid "failed to get status of interface %s: %s%s%s"
 msgstr "获取接口 %s 状态失败：%s%s%s"
 
@@ -26043,6 +26299,10 @@ msgstr "将设备 %s 挂载到 %s 失败"
 #, c-format
 msgid "failed to lookup interface with MAC address '%s'"
 msgstr "无法找到 MAC 地址为 '%s' 的接口"
+
+#, c-format
+msgid "failed to mark device %s as autostarted"
+msgstr ""
 
 #, c-format
 msgid "failed to mark network %s as autostarted"
@@ -26519,6 +26779,10 @@ msgid "failed to undefine interface %s: %s%s%s"
 msgstr "无法取消定义接口 %s：%s%s%s"
 
 #, c-format
+msgid "failed to unmark device %s as autostarted"
+msgstr ""
+
+#, c-format
 msgid "failed to unmark network %s as autostarted"
 msgstr "把网络%s取消标记为自动启动失败"
 
@@ -26570,6 +26834,10 @@ msgstr "唤醒迁移管道失败"
 #, fuzzy, c-format
 msgid "failed to wipe RBD image %s"
 msgstr "打开 RBF 图像文件 '%s' 失败"
+
+#, c-format
+msgid "failed to wrap arguments '%s' into a QMP command wrapper"
+msgstr ""
 
 msgid "failed to write configuration file"
 msgstr "写入配置文件失败"
@@ -26885,9 +27153,6 @@ msgstr ""
 msgid "floor attribute is not supported for this config"
 msgstr "只有 qxl 类型支持 ram 属性"
 
-msgid "fmode and dmode are not supported with this QEMU binary"
-msgstr ""
-
 msgid "fmode and dmode must be used with accessmode=mapped"
 msgstr ""
 
@@ -26985,9 +27250,6 @@ msgstr "找到没有 ip-address 的租用"
 msgid "found lease without mac-address"
 msgstr "找到没有 mac-address 的租用"
 
-msgid "found non printable characters in secret"
-msgstr ""
-
 msgid "freePageReporting is not supported by this QEMU binary"
 msgstr ""
 
@@ -27014,9 +27276,6 @@ msgstr "磁盘的完全限定路径"
 
 msgid "fuse_loop failed"
 msgstr "fuse_loop 失败"
-
-msgid "fw_cfg is not supported with this QEMU"
-msgstr ""
 
 #, c-format
 msgid "g_mkstemp(\"%s\") failed"
@@ -27506,10 +27765,6 @@ msgstr ""
 
 msgid "i - turn off validation and try to redefine again"
 msgstr "i - 关闭有效性检查并再次重新生成配置"
-
-#, fuzzy
-msgid "iSCSI initiator IQN not supported with this QEMU binary"
-msgstr "这个 QEMU 二进制中不支持 SATA"
 
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "iSCSI 存储池不支持卷创建"
@@ -28477,6 +28732,10 @@ msgstr "CPU 拓扑中缺少 ‘cores’ 属性"
 msgid "invalid or missing decode/host attribute in CPU model %s"
 msgstr "CPU 拓扑中缺少 ‘cores’ 属性"
 
+#, c-format
+msgid "invalid parent device '%s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "invalid partition name '%s', expected '%s'"
 msgstr "参数 '%s' 的无效类型 '%s'，应为 '%s'。"
@@ -28793,7 +29052,7 @@ msgstr "不支持转储格式 '%d'"
 msgid "kdump-compressed format is only supported with memory-only dump"
 msgstr ""
 
-msgid "keep nvram file, if inactive"
+msgid "keep nvram file"
 msgstr ""
 
 msgid "keep the backing chain relatively referenced"
@@ -28861,6 +29120,12 @@ msgstr "nl_recv 失败"
 #, fuzzy, c-format
 msgid "library call failed: %s"
 msgstr "写入失败：%s"
+
+msgid "librbd encryption engine only supports luks/luks2 formats"
+msgstr ""
+
+msgid "librbd encryption is not supported by this QEMU binary"
+msgstr ""
 
 #, fuzzy
 msgid "libssh transport error"
@@ -29356,8 +29621,7 @@ msgstr "不支持生成 %s 卷"
 msgid "loop until timeout or interrupt, rather than one-shot"
 msgstr ""
 
-msgid ""
-"luks encryption usage requires encrypted secret generation to be supported"
+msgid "luks2 is currently not supported by the qemu encryption engine"
 msgstr ""
 
 msgid "lxc state driver is not active"
@@ -29610,6 +29874,9 @@ msgstr ""
 msgid "malformed/missing hotplugged in dimm memory info"
 msgstr ""
 
+msgid "malformed/missing size in virtio memory info"
+msgstr ""
+
 msgid "malformed/missing slot in dimm memory info"
 msgstr ""
 
@@ -29632,6 +29899,9 @@ msgstr "没有找到 hostdev %s "
 #, fuzzy, c-format
 msgid "match mode %s not supported"
 msgstr "不支持磁盘缓存模式 %s"
+
+msgid "matching filesystem not found"
+msgstr ""
 
 #, fuzzy
 msgid "matching input device not found"
@@ -29750,12 +30020,19 @@ msgstr "在非 linux 平台中不支持"
 msgid "mem(Suspend-to-RAM), disk(Suspend-to-Disk), hybrid(Hybrid-Suspend)"
 msgstr "mem(Suspend-to-RAM), disk(Suspend-to-Disk), hybrid(Hybrid-Suspend)"
 
+#, c-format
+msgid "memory '%s' not found"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "memory access mode '%s' not supported without guest numa node"
 msgstr "selinux 不支持安全标签模式 %s"
 
 msgid "memory attributes: [file=]name[,snapshot=type]"
 msgstr "内存属性：[file=]name[,snapshot=type]"
+
+msgid "memory device alias"
+msgstr ""
 
 #, fuzzy
 msgid "memory device alias is not assigned"
@@ -29776,6 +30053,9 @@ msgstr ""
 
 #, c-format
 msgid "memory device slot '%u' is already being used by another memory device"
+msgstr ""
+
+msgid "memory device target node"
 msgstr ""
 
 msgid "memory device total size exceeds hotplug space"
@@ -29801,6 +30081,9 @@ msgstr "这个 QEMU 二进制中不支持重启超时"
 msgid ""
 "memory hotplug tunables <maxMemory> are not supported by this hypervisor "
 "driver"
+msgstr ""
+
+msgid "memory not found"
 msgstr ""
 
 #, c-format
@@ -30033,6 +30316,10 @@ msgstr "缺少 \""
 msgid "missing %s in <virtualport type='%s'>"
 msgstr "<virtualport type='%s'> 中缺少 %s"
 
+#, c-format
+msgid "missing '%s' in 'config' from cloud-hypervisor"
+msgstr ""
+
 #, fuzzy
 msgid "missing 'DateTime' element"
 msgstr "缺少根元素"
@@ -30040,6 +30327,9 @@ msgstr "缺少根元素"
 #, fuzzy, c-format
 msgid "missing 'architecture' in '%s'"
 msgstr "缺少 CPU 架构"
+
+msgid "missing 'config' in info query result from cloud-hypervisor"
+msgstr ""
 
 #, c-format
 msgid "missing 'content' value in selinux lxc contexts file '%s'"
@@ -30054,6 +30344,10 @@ msgstr "网络 %s <forward> 中的 <nat> 的 <address> 元素中缺少 'end' 属
 #, fuzzy, c-format
 msgid "missing 'executable' in '%s'"
 msgstr "缺少关键配置条目 '%s'"
+
+#, c-format
+msgid "missing 'file' in '%s' from cloud-hypervisor"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "missing 'file' value in selinux lxc contexts file '%s'"
@@ -30135,10 +30429,6 @@ msgstr ""
 #, fuzzy
 msgid "missing 'type' attribute to disk source"
 msgstr "缺少磁盘源名称"
-
-#, c-format
-msgid "missing 'type'(%s) or 'alias'(%s) field of QOM 'object'"
-msgstr ""
 
 msgid "missing 'url' in JSON backing volume definition"
 msgstr ""
@@ -30641,6 +30931,9 @@ msgstr "迁移数据中缺少 uuid 元素"
 msgid "missing pagesize argument"
 msgstr "缺少参数"
 
+msgid "missing parent device"
+msgstr ""
+
 #, c-format
 msgid "missing parser implementation for JSON backing volume driver '%s'"
 msgstr ""
@@ -30698,9 +30991,6 @@ msgstr "网络 %s 的 DNS TXT 记录 named '%s' 缺少所需 value 属性"
 msgid "missing required virtualport type"
 msgstr "缺少所需虚拟端口类型"
 
-msgid "missing resource partition attribute"
-msgstr "缺少 resource partition 属性"
-
 msgid "missing root device information"
 msgstr "丢失root设备信息"
 
@@ -30742,9 +31032,6 @@ msgstr ""
 #, fuzzy
 msgid "missing sheepdog vdi name"
 msgstr "缺少功能名称"
-
-msgid "missing smartcard device mode"
-msgstr "缺少智能卡设备类型"
 
 #, fuzzy
 msgid "missing socket address type in JSON backing volume definition"
@@ -30921,9 +31208,6 @@ msgstr "gluster 源路径 '%s' 中缺少卷名或文件名"
 msgid "missing vporttype attribute in migration data"
 msgstr "迁移数据中缺少 vporttype 属性"
 
-msgid "missing watchdog model"
-msgstr "缺少 watchdog 型号"
-
 #, fuzzy, c-format
 msgid "missing wwpn identifier for '%s'"
 msgstr "磁盘 %s 缺少目的地文件：%s"
@@ -30944,6 +31228,9 @@ msgstr "mkdir(\"%s\")"
 msgid ""
 "mkfs is not available on this platform: Failed to make filesystem of type "
 "'%s' on device '%s'"
+msgstr ""
+
+msgid "mode attribute of <source/> element"
 msgstr ""
 
 msgid "mode of device reading and writing"
@@ -31103,6 +31390,9 @@ msgstr "找到多个匹配的接口"
 msgid "multiple matching interfaces found: %s"
 msgstr "找到多个匹配的接口：%s"
 
+msgid "multiple memory devices found, use --alias or --node to select one"
+msgstr ""
+
 msgid "multiple stream callbacks not supported"
 msgstr "不支持多流回叫"
 
@@ -31191,8 +31481,8 @@ msgstr ""
 msgid "ncr53c90 can only be used as first SCSI controller"
 msgstr ""
 
-msgid "need at least one serial port to use SGA"
-msgstr "需要至少一个串口方可使用 SGA"
+msgid "need at least one serial port to use BIOS serial output"
+msgstr ""
 
 msgid "need either --dest or --xml"
 msgstr ""
@@ -31469,6 +31759,9 @@ msgstr "未找到元数据：%s"
 msgid "new state of the device"
 msgstr "设备的新状态"
 
+msgid "new value of <requested/> size, as scaled integer (default KiB)"
+msgstr ""
+
 msgid "new xml too large to fit in file"
 msgstr "新的 xml 太大无法放入文件"
 
@@ -31592,6 +31885,9 @@ msgstr "没有为 '%s' 提供 USB 产品 ID"
 #, c-format
 msgid "no USB vendor ID supplied for '%s'"
 msgstr "没有为 '%s' 提供 USB 经销商 ID"
+
+msgid "no VPD <fields> elements with an access type attribute found"
+msgstr ""
 
 #, c-format
 msgid "no WWNN supplied for '%s', and auto-generation failed"
@@ -31797,6 +32093,9 @@ msgid "no matching redirdev was not found"
 msgstr "没有找到客户端用户名"
 
 msgid "no medium attachments"
+msgstr ""
+
+msgid "no memory device found"
 msgstr ""
 
 msgid "no model provided for USB controller"
@@ -32055,6 +32354,9 @@ msgstr "XML 中的节点设备详情"
 msgid "node device event callback %d not registered"
 msgstr "域事件回叫 %d 未注册"
 
+msgid "node device information"
+msgstr ""
+
 msgid "node get memory parameters not implemented on this platform"
 msgstr "在这个平台中未采用 node get memory 参数"
 
@@ -32308,6 +32610,10 @@ msgstr ""
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
 msgstr ""
 
+#, c-format
+msgid "only 'pci' addresses are supported for the %s device"
+msgstr ""
+
 msgid "only 'pci' addresses are supported for the shared memory device"
 msgstr ""
 
@@ -32492,6 +32798,9 @@ msgstr "只支持两个串口端口"
 msgid "only two source elements are allowed for character device"
 msgstr "存储源 %s 必须是字符设备"
 
+msgid "only virtiofs filesystems can be hotplugged"
+msgstr ""
+
 msgid "open an editor to modify the description"
 msgstr "打开编辑器修改描述"
 
@@ -32593,8 +32902,8 @@ msgid "os.type is not defined"
 msgstr "没有定义容器"
 
 #, c-format
-msgid "out of bounds index - count %zu at %zu add %zu"
-msgstr "超出捆绑索引范围 - %zu 指定计数 %zu，添加 %zu"
+msgid "out of bounds index - count %zu at %zu"
+msgstr ""
 
 msgid "out of memory"
 msgstr "内存溢出"
@@ -32620,6 +32929,9 @@ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
 
 msgid "output an XML string for the hypervisor sysinfo, if available"
 msgstr "在可能的情况下为 hypervisor sysinfo 输出 XML 字符串"
+
+msgid "output the list of options which are missing completers"
+msgstr ""
 
 msgid "output to stderr"
 msgstr ""
@@ -32679,6 +32991,9 @@ msgid "page size %u is not available on node %d"
 msgstr "人工监控程序命令还不能运行 %s"
 
 msgid "page size (in kibibytes)"
+msgstr ""
+
+msgid "page_per_vq option is only supported for virtio devices"
 msgstr ""
 
 #, fuzzy
@@ -32853,8 +33168,7 @@ msgstr "pci-root 和 pcie-root 控制器应含有索引 0"
 msgid "pci-root and pcie-root controllers should not have an address"
 msgstr "pci-root 和 pcie-root 控制器不应有任何地址"
 
-msgid ""
-"pcie-expander-bus controllers are only supported on q35-based machinetypes"
+msgid "pcie-expander-bus controllers are not supported with this machine type"
 msgstr ""
 
 msgid "peeking is not supported for vhostuser disk"
@@ -33219,6 +33533,9 @@ msgstr "输出 hypervisor sysinfo"
 msgid "print the raw data returned by libvirt"
 msgstr ""
 
+msgid "print updated memory device XML instead of executing the change"
+msgstr ""
+
 msgid "prints by percentage during 1 second."
 msgstr "输出一秒内的百分比。"
 
@@ -33310,9 +33627,6 @@ msgstr ""
 msgid "qemu does not allow specifying screen ID"
 msgstr ""
 
-msgid "qemu does not support SGA"
-msgstr "qemu 不支持 SGA"
-
 msgid "qemu does not support more than one entry to Type 2 in SMBIOS table"
 msgstr ""
 
@@ -33324,6 +33638,21 @@ msgid "qemu doesn't support reversion of snapshot taken in PMSUSPENDED state"
 msgstr ""
 
 msgid "qemu doesn't support taking snapshots of PMSUSPENDED guests"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support 'onReboot' set to 'destroy and 'onPoweroff' set "
+"to 'reboot'"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support the 'preserve' action for "
+"'on_reboot'/'on_poweroff'"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support the 'rename-restart' action for "
+"'on_reboot'/'on_poweroff'/'on_crash'"
 msgstr ""
 
 #, c-format
@@ -33371,10 +33700,6 @@ msgstr "qom-list-types 回复缺少 'name'"
 #, c-format
 msgid "qom-set invalid object property type %d"
 msgstr "qom-set 无效属性类型 %d"
-
-#, fuzzy
-msgid "query -rx-filter return data missing array element"
-msgstr "字符设备信息缺少 array 元素"
 
 #, fuzzy
 msgid "query information about the guest (via agent)"
@@ -33480,6 +33805,9 @@ msgstr ""
 msgid "query-named-block-nodes entry was not in expected format"
 msgstr "块状态设备条目不是预期的格式"
 
+msgid "query-rx-filter return data missing array element"
+msgstr ""
+
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr "query-version 回复缺少 'micro' 数据"
@@ -33521,6 +33849,9 @@ msgstr "query-version 回复缺少 'qemu' 数据"
 msgid ""
 "querying maximum post-copy migration speed is not supported by QEMU binary"
 msgstr "QEMU 二进制文件不支持压缩迁移"
+
+msgid "queue-size property isn't supported by this QEMU binary"
+msgstr ""
 
 msgid "queues attribute in disk driver element is only supported by virtio-blk"
 msgstr ""
@@ -33618,9 +33949,6 @@ msgstr "重新将节点设备附加到他的设备驱动程序中"
 
 msgid "reboot a domain"
 msgstr "重新启动一个域"
-
-msgid "reboot timeout is not supported by this QEMU binary"
-msgstr "这个 QEMU 二进制中不支持重启超时"
 
 msgid "received error event on socket"
 msgstr ""
@@ -33728,7 +34056,7 @@ msgstr "删除域管理的状态文件"
 msgid "remove keys from the authorized keys file"
 msgstr ""
 
-msgid "remove nvram file, if inactive"
+msgid "remove nvram file"
 msgstr ""
 
 msgid "remove the metadata corresponding to an uri"
@@ -33853,6 +34181,12 @@ msgstr "所需 cpu 量超过最大值（%d > %d）"
 #, fuzzy, c-format
 msgid "requested cpu amount exceeds maximum supported amount (%d > %d)"
 msgstr "所需 cpu 量超过最大值（%d > %d）"
+
+msgid "requested size must be an integer multiple of block size"
+msgstr ""
+
+msgid "requested size must be smaller than or equal to @size"
+msgstr ""
 
 msgid "requested size of the cache (in bytes) used for compression"
 msgstr "压缩中所需缓存大小（单位：字节）"
@@ -34393,11 +34727,11 @@ msgstr "只有在使用 tickpolicy='catchup' 后才支持设定计时器 catchup
 msgid "setting source evdev path only supported for passthrough input devices"
 msgstr "只有 scsi 主机设备支持 sgio"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
-"setting the hotplug property on a '%s' device is not supported by this QEMU "
+"setting the '%s' property on a '%s' device is not supported by this QEMU "
 "binary"
-msgstr "这个 QEMU 二进制文件不支持 nvram 设备 "
+msgstr ""
 
 #, fuzzy
 msgid "setting the panic device address is not supported for model 'hyperv'"
@@ -34685,6 +35019,9 @@ msgstr "基本存储的源路径"
 msgid "source-host for underlying storage"
 msgstr "基本存储的源主机"
 
+msgid "source-mode is mandatory"
+msgstr ""
+
 #, c-format
 msgid "spapr-vio address %#llx already in use"
 msgstr "spapr-vio 地址 %#llx 已被使用"
@@ -34746,9 +35083,8 @@ msgstr ""
 msgid "spicevmc device type only supports virtio"
 msgstr "spicevmc 设备类型只支持 virtio"
 
-#, fuzzy
-msgid "splash timeout is not supported by this QEMU binary"
-msgstr "这个 QEMU 二进制中不支持重启超时"
+msgid "split each argument on ','; ',,' is an escape sequence"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "splitting StorageUrl failed %s"
@@ -35139,10 +35475,6 @@ msgstr "控制器 ide 目标必须为 0"
 msgid "target must be 0 for sata controller"
 msgstr ""
 
-msgid ""
-"target must be 0 for scsi host device if its controller model is 'lsilogic'"
-msgstr "如果控制器模型为 'lsilogic'，则 scsi 目标必须为 0."
-
 msgid "target network name"
 msgstr "目标网络名称"
 
@@ -35232,22 +35564,12 @@ msgid ""
 "dhcp element's parent"
 msgstr ""
 
-#, fuzzy
-msgid "the ats setting is not supported with this QEMU binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
-
 msgid "the backing volume if taking a snapshot"
 msgstr "提取快照时的后端卷"
 
 #, fuzzy
 msgid "the bandwidth limit is in bytes/s rather than MiB/s"
 msgstr "带宽限制，单位 MiB/s"
-
-#, fuzzy
-msgid ""
-"the block I/O throttling group parameter is not supported with this QEMU "
-"binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
 
 msgid ""
 "the caller doesn't support keepalive protocol; perhaps it's missing event "
@@ -35272,10 +35594,6 @@ msgstr "该域没有当前快照"
 
 msgid "the guest hasn't updated any stats yet"
 msgstr ""
-
-#, fuzzy
-msgid "the iommu setting is not supported with this QEMU binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
 
 msgid "the key code"
 msgstr "序列号"
@@ -35329,18 +35647,6 @@ msgstr "模板 '%s' 不存在"
 #, c-format
 msgid "the wwnn/wwpn for '%s' are assigned to an HBA"
 msgstr ""
-
-#, fuzzy
-msgid ""
-"there are some block I/O throttling length parameters that are not supported "
-"with this QEMU binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
-
-#, fuzzy
-msgid ""
-"there are some block I/O throttling parameters that are not supported with "
-"this QEMU binary"
-msgstr "这个 QEMU 二进制中不支持重启超时"
 
 #, c-format
 msgid "there is already a DNS TXT record with name '%s' in network %s"
@@ -35563,10 +35869,6 @@ msgstr "这个 libvirt 版本不支持过滤"
 
 msgid "tls"
 msgstr "tls"
-
-#, fuzzy
-msgid "tls-creds-x509 not supported in this QEMU binary"
-msgstr "这个 QEMU 二进制中不支持 %s"
 
 #, c-format
 msgid "too many NUMA cells: %d > %d"
@@ -35863,6 +36165,11 @@ msgstr ""
 msgid "transient disk '%s' must not be read-only"
 msgstr ""
 
+msgid ""
+"transient disk backing image sharing with destroy action of lifecycle isn't "
+"supported by this QEMU binary"
+msgstr ""
+
 #, c-format
 msgid "transient disk not supported by this QEMU binary (%s)"
 msgstr ""
@@ -36092,10 +36399,6 @@ msgstr "无法注册监控程序事件"
 msgid "unable to enable host cpu perf event for %s"
 msgstr "无法读取服务器证书 %s"
 
-#, fuzzy, c-format
-msgid "unable to execute '%s', unexpected error: '%s'"
-msgstr "为意外类型 '%s' 调用 %s，应为 '%s'。"
-
 #, c-format
 msgid "unable to execute QEMU agent command '%s'"
 msgstr "无法执行 QEMU 代理命令 '%s'"
@@ -36281,6 +36584,10 @@ msgstr "无法解析 URI：%s"
 #, c-format
 msgid "unable to parse blkio device '%s' '%s'"
 msgstr "无法解析 blkio 设备 '%s' '%s'"
+
+#, c-format
+msgid "unable to parse contents of 'file' field in '%s' from cloud-hypervisor"
+msgstr ""
 
 #, c-format
 msgid "unable to parse diskspec: %s"
@@ -36685,9 +36992,8 @@ msgstr "意外的域类型 %d"
 msgid "unexpected element <%s>, expecting <%s>, while updating network '%s'"
 msgstr "更新网络 '%s' 时出现意外元素 <%s>，应为 <%s>。"
 
-#, c-format
-msgid "unexpected empty keyword in %s"
-msgstr "%s 中的意外空 keymap"
+msgid "unexpected encryption engine"
+msgstr ""
 
 msgid "unexpected encryption format"
 msgstr "意外加密格式"
@@ -36974,11 +37280,6 @@ msgstr "意外失败"
 msgid "unimplemented parameter type %d"
 msgstr "未定义的参数类型 %d"
 
-msgid ""
-"unit must be not more than 7 for scsi host device if its controller model is "
-"'lsilogic'"
-msgstr "如果控制器模型为 'lsilogic'，则 scsi 主机设备单元不得超过 7 个"
-
 msgid "unix"
 msgstr ""
 
@@ -37101,6 +37402,9 @@ msgstr "未知 egd 后端类型 '%s'"
 #, fuzzy, c-format
 msgid "unknown backup mode '%s'"
 msgstr "未知 RNG 后端型号 '%s'"
+
+msgid "unknown base name while formatting virtio device"
+msgstr ""
 
 #, c-format
 msgid "unknown block IO status: %s"
@@ -37462,17 +37766,6 @@ msgstr "未知 secret 用法类型 %s"
 #, c-format
 msgid "unknown sgio mode '%s'"
 msgstr "未知 sgio 模式 '%s' "
-
-#, c-format
-msgid "unknown smartcard device mode: %s"
-msgstr "未知智能卡设备类型：%s"
-
-msgid "unknown smartcard mode"
-msgstr "未知智能卡模式"
-
-#, c-format
-msgid "unknown smartcard type %d"
-msgstr "未知智能卡类型 %d"
 
 #, c-format
 msgid "unknown smbios mode '%s'"
@@ -38057,6 +38350,9 @@ msgstr "从 XML 文件中关系设备"
 msgid "update guest CPU according to host CPU"
 msgstr "根据主机 CPU 更新虚拟机 CPU"
 
+msgid "update memory device of a domain"
+msgstr ""
+
 msgid "update parts of an existing network's configuration"
 msgstr "更新现有网络配置的部分"
 
@@ -38074,9 +38370,9 @@ msgstr "xsd:dateTime 值 '%s' 使用意外的格式"
 msgid "usage:"
 msgstr "用量："
 
-#, fuzzy, c-format
-msgid "usb controller type %s doesn't support 'ports' with this QEMU binary"
-msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+#, c-format
+msgid "usb controller type '%s' doesn't support 'ports' with this QEMU binary"
+msgstr ""
 
 msgid "usb device not found"
 msgstr "未找到 usb 设备"
@@ -38619,6 +38915,12 @@ msgstr ""
 msgid "virtio tx_queue_size option is not supported with this QEMU binary"
 msgstr "这个 QEMU 二进制不支持 virtio-net-pci 'tx' 选项"
 
+msgid "virtio-mem device is missing <requested/>"
+msgstr ""
+
+msgid "virtio-mem isn't supported by this QEMU binary"
+msgstr ""
+
 #, fuzzy
 msgid "virtio-net failover (teaming) is not supported with this QEMU binary"
 msgstr "这个 QEMU 二进制文件不支持 vhost-net "
@@ -39083,6 +39385,214 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <字符串>}..."
+
+#~ msgid ""
+#~ "\n"
+#~ "syntax: %s [OPTIONS] [HVTYPE]\n"
+#~ "\n"
+#~ " Hypervisor types:\n"
+#~ "\n"
+#~ "   - qemu\n"
+#~ "   - lxc\n"
+#~ "   - bhyve\n"
+#~ "\n"
+#~ " Options:\n"
+#~ "   -h, --help     Display command line help\n"
+#~ "   -v, --version  Display command version\n"
+#~ "   -q, --quiet    Don't display progress information\n"
+#~ "\n"
+#~ msgstr ""
+#~ "\n"
+#~ "syntax: %s [选项] [虚拟化层的类型]\n"
+#~ "\n"
+#~ " 虚拟化层的类型:\n"
+#~ "\n"
+#~ "   - qemu\n"
+#~ "   - lxc\n"
+#~ "   - bhyve\n"
+#~ "\n"
+#~ " 选项:\n"
+#~ "   -h, --help     显示帮助信息\n"
+#~ "   -v, --version  显示版本信息\n"
+#~ "   -q, --quiet    不显示检测过程\n"
+#~ "\n"
+
+#, fuzzy
+#~ msgid "I/O APIC tuning is not supported by this QEMU binary"
+#~ msgstr "这个 QEMU 二进制不支持弃用"
+
+#~ msgid "Invalid CPU topology"
+#~ msgstr "无效 CPU 拓扑"
+
+#, fuzzy
+#~ msgid "Malformed 'dies' attribute in CPU topology"
+#~ msgstr "CPU 拓扑中缺少 ‘cores’ 属性"
+
+#~ msgid "Missing 'cores' attribute in CPU topology"
+#~ msgstr "CPU 拓扑中缺少 ‘cores’ 属性"
+
+#~ msgid "Missing 'sockets' attribute in CPU topology"
+#~ msgstr "CPU 拓扑中缺少 ‘socket’ 属性"
+
+#~ msgid "Missing 'threads' attribute in CPU topology"
+#~ msgstr "CPU 拓扑中缺少 ‘threads’ 属性"
+
+#, fuzzy
+#~ msgid "Unable to find controller for %s"
+#~ msgstr "无法为 '%s' 打开流"
+
+#~ msgid "argument key '%s' is too short, missing type prefix"
+#~ msgstr "参数密钥 '%s' 太短，缺少类型前缀"
+
+#~ msgid "missing smartcard device mode"
+#~ msgstr "缺少智能卡设备类型"
+
+#~ msgid "missing watchdog model"
+#~ msgstr "缺少 watchdog 型号"
+
+#, fuzzy
+#~ msgid "query -rx-filter return data missing array element"
+#~ msgstr "字符设备信息缺少 array 元素"
+
+#, fuzzy
+#~ msgid ""
+#~ "setting the hotplug property on a '%s' device is not supported by this "
+#~ "QEMU binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 nvram 设备 "
+
+#~ msgid ""
+#~ "target must be 0 for scsi host device if its controller model is "
+#~ "'lsilogic'"
+#~ msgstr "如果控制器模型为 'lsilogic'，则 scsi 目标必须为 0."
+
+#, fuzzy
+#~ msgid "the ats setting is not supported with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#, fuzzy
+#~ msgid "the iommu setting is not supported with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#~ msgid "unexpected empty keyword in %s"
+#~ msgstr "%s 中的意外空 keymap"
+
+#~ msgid ""
+#~ "unit must be not more than 7 for scsi host device if its controller model "
+#~ "is 'lsilogic'"
+#~ msgstr "如果控制器模型为 'lsilogic'，则 scsi 主机设备单元不得超过 7 个"
+
+#~ msgid "unknown smartcard device mode: %s"
+#~ msgstr "未知智能卡设备类型：%s"
+
+#~ msgid "unknown smartcard mode"
+#~ msgstr "未知智能卡模式"
+
+#~ msgid "unknown smartcard type %d"
+#~ msgstr "未知智能卡类型 %d"
+
+#, fuzzy
+#~ msgid "usb controller type %s doesn't support 'ports' with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#~ msgid "Echo back arguments, possibly with quoting."
+#~ msgstr "显示参数重新编码后的字符串，可能有引号。"
+
+#, fuzzy
+#~ msgid "Failed to allocate memory for checkpoint directory for domain %s"
+#~ msgstr "为域 %s 的快照目录分配内存失败"
+
+#~ msgid "Failed to allocate memory for path"
+#~ msgstr "为路径分配内存失败"
+
+#~ msgid "Failed to allocate memory for snapshot directory for domain %s"
+#~ msgstr "为域 %s 的快照目录分配内存失败"
+
+#~ msgid "No active operation on device: %s"
+#~ msgstr "设备中没有活跃操作：%s"
+
+#~ msgid "Operation is not supported for device: %s"
+#~ msgstr "设备不支持操作：%s"
+
+#, fuzzy
+#~ msgid ""
+#~ "a block I/O throttling length parameter is not supported with this QEMU "
+#~ "binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#, fuzzy
+#~ msgid ""
+#~ "a block I/O throttling parameter is not supported with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#~ msgid "disable shared memory is not available with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不能使用共享内存"
+
+#~ msgid "echo arguments"
+#~ msgstr "对参数进行编码"
+
+#, fuzzy
+#~ msgid "encrypted VNC TLS keys are not supported with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不支持 SATA"
+
+#, fuzzy
+#~ msgid "encrypted secrets are not supported"
+#~ msgstr "只支持两个串口端口"
+
+#, fuzzy
+#~ msgid "iSCSI initiator IQN not supported with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不支持 SATA"
+
+#~ msgid "missing resource partition attribute"
+#~ msgstr "缺少 resource partition 属性"
+
+#~ msgid "need at least one serial port to use SGA"
+#~ msgstr "需要至少一个串口方可使用 SGA"
+
+#~ msgid "qemu does not support SGA"
+#~ msgstr "qemu 不支持 SGA"
+
+#~ msgid "reboot timeout is not supported by this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不支持重启超时"
+
+#, fuzzy
+#~ msgid "splash timeout is not supported by this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不支持重启超时"
+
+#, fuzzy
+#~ msgid ""
+#~ "the block I/O throttling group parameter is not supported with this QEMU "
+#~ "binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#, fuzzy
+#~ msgid ""
+#~ "there are some block I/O throttling length parameters that are not "
+#~ "supported with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制文件不支持 vhost-net "
+
+#, fuzzy
+#~ msgid ""
+#~ "there are some block I/O throttling parameters that are not supported "
+#~ "with this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不支持重启超时"
+
+#, fuzzy
+#~ msgid "tls-creds-x509 not supported in this QEMU binary"
+#~ msgstr "这个 QEMU 二进制中不支持 %s"
+
+#, fuzzy
+#~ msgid "unable to execute '%s', unexpected error: '%s'"
+#~ msgstr "为意外类型 '%s' 调用 %s，应为 '%s'。"
+
+#~ msgid "Failed to get PCI SYSFS file"
+#~ msgstr "获取 PCI SYSFS 文件失败"
+
+#~ msgid ""
+#~ "This version of libxenlight does not support disk 'discard' option passing"
+#~ msgstr "libxenlight 的这个版本不支持磁盘 'discard' 选项"
+
+#~ msgid "out of bounds index - count %zu at %zu add %zu"
+#~ msgstr "超出捆绑索引范围 - %zu 指定计数 %zu，添加 %zu"
 
 #, fuzzy
 #~ msgid "missing launch security type"

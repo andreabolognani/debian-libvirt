@@ -395,7 +395,8 @@ virDomainDriverNodeDeviceReset(virNodeDevicePtr dev,
     if (!xml)
         return -1;
 
-    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL);
+    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL,
+                                      NULL, NULL);
     if (!def)
         return -1;
 
@@ -440,7 +441,7 @@ virDomainDriverNodeDeviceReAttach(virNodeDevicePtr dev,
     if (!xml)
         return -1;
 
-    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL);
+    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL, NULL, NULL);
     if (!def)
         return -1;
 
@@ -488,7 +489,7 @@ virDomainDriverNodeDeviceDetachFlags(virNodeDevicePtr dev,
     if (!xml)
         return -1;
 
-    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL);
+    def = virNodeDeviceDefParseString(xml, EXISTING_DEVICE, NULL, NULL, NULL);
     if (!def)
         return -1;
 
@@ -510,4 +511,136 @@ virDomainDriverNodeDeviceDetachFlags(virNodeDevicePtr dev,
         virPCIDeviceSetStubDriver(pci, VIR_PCI_STUB_DRIVER_XEN);
 
     return virHostdevPCINodeDeviceDetach(hostdevMgr, pci);
+}
+
+/**
+ * virDomainDriverAddIOThreadCheck:
+ * @def: domain definition
+ * @iothread_id: iothread id
+ *
+ * Returns -1 if an IOThread is already using the given iothread id
+ */
+int
+virDomainDriverAddIOThreadCheck(virDomainDef *def,
+                                unsigned int iothread_id)
+{
+    if (virDomainIOThreadIDFind(def, iothread_id)) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("an IOThread is already using iothread_id '%u'"),
+                       iothread_id);
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * virDomainDriverDelIOThreadCheck:
+ * @def: domain definition
+ * @iothread_id: iothread id
+ *
+ * Returns -1 if there is no IOThread using the given iothread id
+ */
+int
+virDomainDriverDelIOThreadCheck(virDomainDef *def,
+                                unsigned int iothread_id)
+{
+    size_t i;
+
+    if (!virDomainIOThreadIDFind(def, iothread_id)) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("cannot find IOThread '%u' in iothreadids list"),
+                       iothread_id);
+        return -1;
+    }
+
+    for (i = 0; i < def->ndisks; i++) {
+        if (def->disks[i]->iothread == iothread_id) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("cannot remove IOThread %u since it "
+                             "is being used by disk '%s'"),
+                           iothread_id, def->disks[i]->dst);
+            return -1;
+        }
+    }
+
+    for (i = 0; i < def->ncontrollers; i++) {
+        if (def->controllers[i]->iothread == iothread_id) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("cannot remove IOThread '%u' since it "
+                             "is being used by controller"),
+                           iothread_id);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * virDomainDriverGetIOThreadsConfig:
+ * @targetDef: domain definition
+ * @info: information about the IOThread in a domain
+ * @bitmap_size: generate bitmap with bitmap_size, 0 for getting the size
+ * from host
+ *
+ * Returns the number of IOThreads in the given domain or -1 in case of error
+ */
+int
+virDomainDriverGetIOThreadsConfig(virDomainDef *targetDef,
+                                  virDomainIOThreadInfoPtr **info,
+                                  unsigned int bitmap_size)
+{
+    virDomainIOThreadInfoPtr *info_ret = NULL;
+    virBitmap *bitmap = NULL;
+    virBitmap *cpumask = NULL;
+    size_t i;
+    int ret = -1;
+
+    if (targetDef->niothreadids == 0)
+        return 0;
+
+    info_ret = g_new0(virDomainIOThreadInfoPtr, targetDef->niothreadids);
+
+    for (i = 0; i < targetDef->niothreadids; i++) {
+        info_ret[i] = g_new0(virDomainIOThreadInfo, 1);
+
+        /* IOThread ID's are taken from the iothreadids list */
+        info_ret[i]->iothread_id = targetDef->iothreadids[i]->iothread_id;
+
+        cpumask = targetDef->iothreadids[i]->cpumask;
+        if (!cpumask) {
+            if (targetDef->cpumask) {
+                cpumask = targetDef->cpumask;
+            } else {
+                if (bitmap_size) {
+                    if (!(bitmap = virBitmapNew(bitmap_size)))
+                        goto cleanup;
+                    virBitmapSetAll(bitmap);
+                } else {
+                    if (!(bitmap = virHostCPUGetAvailableCPUsBitmap()))
+                        goto cleanup;
+                }
+                cpumask = bitmap;
+            }
+        }
+        if (virBitmapToData(cpumask, &info_ret[i]->cpumap,
+                            &info_ret[i]->cpumaplen) < 0)
+            goto cleanup;
+        virBitmapFree(bitmap);
+        bitmap = NULL;
+    }
+
+    *info = g_steal_pointer(&info_ret);
+    ret = targetDef->niothreadids;
+
+ cleanup:
+    if (info_ret) {
+        for (i = 0; i < targetDef->niothreadids; i++)
+            virDomainIOThreadInfoFree(info_ret[i]);
+        VIR_FREE(info_ret);
+    }
+    virBitmapFree(bitmap);
+
+    return ret;
 }

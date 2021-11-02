@@ -1213,74 +1213,28 @@ virNetDevGetPhysPortName(const char *ifname,
 
 /**
  * virNetDevGetVirtualFunctions:
- *
  * @pfname : name of the physical function interface name
- * @vfname: array that will hold the interface names of the virtual_functions
- * @n_vfname: pointer to the number of virtual functions
+ * @vfs: Filled with struct describing the virtual functions of @pfname
  *
  * Returns 0 on success and -1 on failure
  */
-
 int
 virNetDevGetVirtualFunctions(const char *pfname,
-                             char ***vfname,
-                             virPCIDeviceAddress ***virt_fns,
-                             size_t *n_vfname,
-                             unsigned int *max_vfs)
+                             virPCIVirtualFunctionList **vfs)
 {
-    int ret = -1;
-    size_t i;
     g_autofree char *pf_sysfs_device_link = NULL;
     g_autofree char *pfPhysPortID = NULL;
 
-    *virt_fns = NULL;
-    *n_vfname = 0;
-    *max_vfs = 0;
-
     if (virNetDevGetPhysPortID(pfname, &pfPhysPortID) < 0)
-        goto cleanup;
+        return -1;
 
     if (virNetDevSysfsFile(&pf_sysfs_device_link, pfname, "device") < 0)
-        goto cleanup;
+        return -1;
 
-    if (virPCIGetVirtualFunctions(pf_sysfs_device_link, virt_fns,
-                                  n_vfname, max_vfs) < 0)
-        goto cleanup;
+    if (virPCIGetVirtualFunctionsFull(pf_sysfs_device_link, vfs, pfPhysPortID) < 0)
+        return -1;
 
-    *vfname = g_new0(char *, *n_vfname);
-
-    for (i = 0; i < *n_vfname; i++) {
-        g_autofree char *pci_sysfs_device_link = NULL;
-
-        if (virPCIDeviceAddressGetSysfsFile((*virt_fns)[i],
-                                            &pci_sysfs_device_link) < 0) {
-            virReportSystemError(ENOSYS, "%s",
-                                 _("Failed to get PCI SYSFS file"));
-            goto cleanup;
-        }
-
-        if (virPCIGetNetName(pci_sysfs_device_link, 0,
-                             pfPhysPortID, &((*vfname)[i])) < 0) {
-            goto cleanup;
-        }
-
-        if (!(*vfname)[i])
-            VIR_INFO("VF does not have an interface name");
-    }
-
-    ret = 0;
-
- cleanup:
-    if (ret < 0) {
-        virStringListFreeCount(*vfname, *n_vfname);
-
-        for (i = 0; i < *n_vfname; i++)
-            VIR_FREE((*virt_fns)[i]);
-        VIR_FREE(*virt_fns);
-        *vfname = NULL;
-        *n_vfname = 0;
-    }
-    return ret;
+    return 0;
 }
 
 /**
@@ -1478,10 +1432,7 @@ virNetDevGetPhysPortName(const char *ifname G_GNUC_UNUSED,
 
 int
 virNetDevGetVirtualFunctions(const char *pfname G_GNUC_UNUSED,
-                             char ***vfname G_GNUC_UNUSED,
-                             virPCIDeviceAddress ***virt_fns G_GNUC_UNUSED,
-                             size_t *n_vfname G_GNUC_UNUSED,
-                             unsigned int *max_vfs G_GNUC_UNUSED)
+                             virPCIVirtualFunctionList **vfs G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS, "%s",
                          _("Unable to get virtual functions on this platform"));
@@ -2799,8 +2750,7 @@ static int virNetDevGetMcastList(const char *ifname,
         /* Only return global multicast MAC addresses for
          * specified interface */
         if (entry->global && STREQ(ifname, entry->name)) {
-            if (VIR_APPEND_ELEMENT(mcast->entries, mcast->nentries, entry))
-                 return -1;
+            VIR_APPEND_ELEMENT(mcast->entries, mcast->nentries, entry);
         } else {
             memset(entry, 0, sizeof(virNetDevMcastEntry));
         }
@@ -2853,10 +2803,7 @@ static int virNetDevGetMulticastTable(const char *ifname,
 virNetDevRxFilter *
 virNetDevRxFilterNew(void)
 {
-    virNetDevRxFilter *filter;
-
-    filter = g_new0(virNetDevRxFilter, 1);
-    return filter;
+    return g_new0(virNetDevRxFilter, 1);
 }
 
 

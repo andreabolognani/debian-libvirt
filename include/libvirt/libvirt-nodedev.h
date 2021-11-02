@@ -84,6 +84,7 @@ typedef enum {
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_CARD       = 1 << 18, /* s390 AP Card device */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_QUEUE      = 1 << 19, /* s390 AP Queue */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_MATRIX     = 1 << 20, /* s390 AP Matrix */
+    VIR_CONNECT_LIST_NODE_DEVICES_CAP_VPD           = 1 << 21, /* Device with VPD */
 
     /* filter the devices by active state */
     VIR_CONNECT_LIST_NODE_DEVICES_INACTIVE          = 1 << 30, /* Inactive devices */
@@ -140,6 +141,16 @@ int virNodeDeviceUndefine(virNodeDevicePtr dev,
 
 int virNodeDeviceCreate(virNodeDevicePtr dev,
                         unsigned int flags);
+
+int virNodeDeviceSetAutostart(virNodeDevicePtr dev,
+                              int autostart);
+
+int virNodeDeviceGetAutostart(virNodeDevicePtr dev,
+                              int *autostart);
+
+int virNodeDeviceIsPersistent(virNodeDevicePtr dev);
+
+int virNodeDeviceIsActive(virNodeDevicePtr dev);
 
 /**
  * VIR_NODE_DEVICE_EVENT_CALLBACK:

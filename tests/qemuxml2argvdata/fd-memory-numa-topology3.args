@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-instance-00000092/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-instance-00000092/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name instance-00000092 \
+-name guest=instance-00000092,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-instance-00000092/master-key.aes \
 -machine pc-i440fx-2.3,accel=kvm,usb=off,dump-guest-core=off \
 -m 43008 \
 -mem-prealloc \
@@ -30,5 +31,7 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -usb \
--device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x3
+-device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x3 \
+-msg timestamp=on

@@ -254,8 +254,7 @@ virSCSIDeviceSetUsedBy(virSCSIDevice *dev,
     copy->drvname = g_strdup(drvname);
     copy->domname = g_strdup(domname);
 
-    if (VIR_APPEND_ELEMENT(dev->used_by, dev->n_used_by, copy) < 0)
-        return -1;
+    VIR_APPEND_ELEMENT(dev->used_by, dev->n_used_by, copy);
 
     return 0;
 }
@@ -359,7 +358,9 @@ virSCSIDeviceListAdd(virSCSIDeviceList *list,
         return -1;
     }
 
-    return VIR_APPEND_ELEMENT(list->devs, list->count, dev);
+    VIR_APPEND_ELEMENT(list->devs, list->count, dev);
+
+    return 0;
 }
 
 virSCSIDevice *
@@ -413,8 +414,7 @@ virSCSIDeviceListDel(virSCSIDeviceList *list,
                 virSCSIDeviceUsedByInfoFree(dev->used_by[i]);
                 VIR_DELETE_ELEMENT(dev->used_by, i, dev->n_used_by);
             } else {
-                g_autoptr(virSCSIDevice) tmp = NULL;
-                tmp = virSCSIDeviceListSteal(list, dev);
+                virSCSIDeviceFree(virSCSIDeviceListSteal(list, dev));
             }
             break;
         }

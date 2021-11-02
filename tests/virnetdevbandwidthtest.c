@@ -39,42 +39,39 @@ struct testSetStruct {
     const bool hierarchical_class;
 };
 
-#define PARSE(xml, var) \
-    do { \
-        int rc; \
-        xmlDocPtr doc; \
-        xmlXPathContextPtr ctxt = NULL; \
- \
-        if (!xml) \
-            break; \
- \
-        if (!(doc = virXMLParseStringCtxt((xml), \
-                                          "bandwidth definition", \
-                                          &ctxt))) \
-            goto cleanup; \
- \
-        rc = virNetDevBandwidthParse(&(var), \
-                                     NULL, \
-                                     ctxt->node, \
-                                     true); \
-        xmlFreeDoc(doc); \
-        xmlXPathFreeContext(ctxt); \
-        if (rc < 0) \
-            goto cleanup; \
-    } while (0)
+static int
+testVirNetDevBandwidthParse(virNetDevBandwidth **var,
+                            const char *xml)
+{
+    g_autoptr(xmlDoc) doc = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+
+    if (!xml)
+        return 0;
+
+    if (!(doc = virXMLParseStringCtxt((xml),
+                                      "bandwidth definition",
+                                      &ctxt)))
+        return -1;
+
+    return virNetDevBandwidthParse(var,
+                                   NULL,
+                                   ctxt->node,
+                                   true);
+}
 
 static int
 testVirNetDevBandwidthSet(const void *data)
 {
-    int ret = -1;
     const struct testSetStruct *info = data;
     const char *iface = info->iface;
     g_autoptr(virNetDevBandwidth) band = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    char *actual_cmd = NULL;
+    g_autofree char *actual_cmd = NULL;
     g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
-    PARSE(info->band, band);
+    if (testVirNetDevBandwidthParse(&band, info->band) < 0)
+        return -1;
 
     if (!iface)
         iface = "eth0";
@@ -82,7 +79,7 @@ testVirNetDevBandwidthSet(const void *data)
     virCommandSetDryRun(dryRunToken, &buf, false, false, NULL, NULL);
 
     if (virNetDevBandwidthSet(iface, band, info->hierarchical_class, true) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(actual_cmd = virBufferContentAndReset(&buf))) {
         /* This is interesting, no command has been executed.
@@ -93,13 +90,10 @@ testVirNetDevBandwidthSet(const void *data)
         virTestDifference(stderr,
                           NULLSTR(info->exp_cmd),
                           NULLSTR(actual_cmd));
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(actual_cmd);
-    return ret;
+    return 0;
 }
 
 static int

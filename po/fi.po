@@ -13,9 +13,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2021-07-27 13:35+0000\n"
-"PO-Revision-Date: 2021-07-02 14:04+0000\n"
-"Last-Translator: Ricky Tigg <ricky.tigg@gmail.com>\n"
+"POT-Creation-Date: 2021-10-26 08:13+0000\n"
+"PO-Revision-Date: 2021-10-30 18:05+0000\n"
+"Last-Translator: Jan Kuparinen <copper_fin@hotmail.com>\n"
 "Language-Team: Finnish <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/fi/>\n"
 "Language: fi\n"
@@ -23,7 +23,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 4.7.1\n"
+"X-Generator: Weblate 4.8\n"
 
 msgid ""
 "\n"
@@ -428,6 +428,7 @@ msgid ""
 "   - qemu\n"
 "   - lxc\n"
 "   - bhyve\n"
+"   - ch\n"
 "\n"
 " Options:\n"
 "   -h, --help     Display command line help\n"
@@ -435,19 +436,6 @@ msgid ""
 "   -q, --quiet    Don't display progress information\n"
 "\n"
 msgstr ""
-"\n"
-"syntax: %s [valitsimet] [hypervisorin tyypit:\n"
-"\n"
-" Hypervisorin tyypit:\n"
-"   - qemu\n"
-"   - lxc\n"
-"   - bhyve\n"
-"\n"
-" Valitsimet\n"
-"   -h, --help     Display command line help\n"
-"   -v, --version  Display command version\n"
-"   -q, --quiet    Don't display progress information\n"
-"\n"
 
 #, c-format
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
@@ -1611,8 +1599,20 @@ msgstr ""
 msgid "<snapshot> element is currently supported only with 'rbd' disks"
 msgstr ""
 
+msgid "<system_field> evaluation has failed"
+msgstr ""
+
+msgid "<system_field> value evaluation has failed"
+msgstr ""
+
 #, c-format
 msgid "<uuid> does not match secret file name '%s'"
+msgstr ""
+
+msgid "<vendor_field> evaluation has failed"
+msgstr ""
+
+msgid "<vendor_field> value evaluation has failed"
 msgstr ""
 
 #, c-format
@@ -1972,6 +1972,9 @@ msgstr ""
 
 msgid "Available:"
 msgstr "Saatavilla:"
+
+msgid "BIOS serial console only supported on x86 architectures"
+msgstr ""
 
 msgid "Backup"
 msgstr ""
@@ -2688,7 +2691,7 @@ msgstr ""
 
 #, c-format
 msgid "Cannot create socket directory '%s'"
-msgstr ""
+msgstr "Pistorasiahakemistoa '%s' ei voi luoda"
 
 #, c-format
 msgid "Cannot create user runtime directory '%s'"
@@ -3299,6 +3302,19 @@ msgstr ""
 msgid "Cannot unshare uninitialized CURL handle"
 msgstr ""
 
+msgid "Cannot update the read-only keyword: RO section not initialized."
+msgstr ""
+
+msgid ""
+"Cannot update the read-write keyword: read-write section not initialized."
+msgstr ""
+
+msgid "Cannot update the resource: a NULL keyword pointer has been provided."
+msgstr ""
+
+msgid "Cannot update the resource: a NULL resource pointer has been provided."
+msgstr ""
+
 #, c-format
 msgid "Cannot use direct socket mode for %s transport"
 msgstr ""
@@ -3496,6 +3512,10 @@ msgstr ""
 msgid "Checkpoints have inconsistent relations for domain %s"
 msgstr "Tarkistuskohteilla on epäjohdonmukaiset suhteet toimialueelle %s"
 
+#. All bytes up to and including the checksum byte should add up to 0.
+msgid "Checksum validation has failed"
+msgstr ""
+
 #, c-format
 msgid "Child process (%lld) unexpected %s"
 msgstr ""
@@ -3595,7 +3615,7 @@ msgstr "Toimenpiteen teko epäonnistui"
 
 #, c-format
 msgid "Compiled against library: libvirt %d.%d.%d\n"
-msgstr ""
+msgstr "Koottu vastaan kirjastoa: libvirt %d.%d.%d\n"
 
 msgid "Compiled with support for:"
 msgstr ""
@@ -3683,6 +3703,10 @@ msgstr ""
 msgid "Configure a network to be automatically started at boot."
 msgstr "Aseta verkko käynnistymään automaattisesti käynnistyksen yhteydessä."
 
+msgid "Configure a node device to be automatically started at boot."
+msgstr ""
+"Aseta solmulaite käynnistymään automaattisesti käynnistyksen yhteydessä."
+
 msgid "Configure a pool to be automatically started at boot."
 msgstr ""
 "Määritä varanto käynnistymään automaattisesti käynnistyksen yhteydessä."
@@ -3724,6 +3748,9 @@ msgid "Connected to the admin server"
 msgstr "Yhdistetty hallintapalvelimeen"
 
 msgid "Connections from inside daemon must be direct"
+msgstr ""
+
+msgid "Console can only be enabled for a PTY"
 msgstr ""
 
 msgid "Constant pages:"
@@ -3808,9 +3835,6 @@ msgid "Could not allocate disk def"
 msgstr ""
 
 msgid "Could not allocate disk definition"
-msgstr ""
-
-msgid "Could not append definition to domain"
 msgstr ""
 
 #, c-format
@@ -3994,7 +4018,8 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Could not find PCI controller with index %u required for device at address %s"
+"Could not find PCI controller with index '%u' required for device at address "
+"'%s'"
 msgstr ""
 
 #, c-format
@@ -4287,6 +4312,10 @@ msgstr "Määritettyjen Toimialueiden määrää ei voitu saada, rc=%08x"
 msgid "Could not get number of Domains, rc=%08x"
 msgstr "Toimialueiden määrää ei voitu saada, rc=%08x"
 
+#, c-format
+msgid "Could not get parent of '%s'"
+msgstr ""
+
 msgid "Could not get process id of swtpm"
 msgstr ""
 
@@ -4461,6 +4490,10 @@ msgid "Could not open TPM device's cancel path %s"
 msgstr ""
 
 #, c-format
+msgid "Could not parse %s VPD resource fields"
+msgstr ""
+
+#, c-format
 msgid "Could not parse 'bonding/arp_interval' '%s' for '%s'"
 msgstr ""
 
@@ -4513,6 +4546,9 @@ msgstr ""
 
 #, c-format
 msgid "Could not parse VPS ID %s"
+msgstr ""
+
+msgid "Could not parse a resource field data - VPD has invalid format"
 msgstr ""
 
 #, c-format
@@ -4573,6 +4609,15 @@ msgstr ""
 
 #, c-format
 msgid "Could not read 'VE_PRIVATE' from config for container %d"
+msgstr ""
+
+msgid "Could not read a device name from the <name> element"
+msgstr ""
+
+msgid "Could not read a part of a resource - VPD has invalid format"
+msgstr ""
+
+msgid "Could not read a resource field header - VPD has invalid format"
 msgstr ""
 
 #, c-format
@@ -4670,6 +4715,12 @@ msgid "Could not revert to snapshot '%s': %s"
 msgstr ""
 
 #, c-format
+msgid ""
+"Could not run '%s' to create config files. exitstatus: %d;\n"
+"Error: %s"
+msgstr ""
+
+#, c-format
 msgid "Could not run '%s'. exitstatus: %d; Check error log '%s' for details."
 msgstr ""
 
@@ -4761,6 +4812,10 @@ msgid "Could not transfer data: %s (%d)"
 msgstr ""
 
 msgid "Could not translate keycode"
+msgstr ""
+
+#, c-format
+msgid "Could not update the VPD resource keyword: %s"
 msgstr ""
 
 msgid "Could not verify disk address"
@@ -5065,6 +5120,10 @@ msgid "Device %s detached\n"
 msgstr "Laite %s irrotettu\n"
 
 #, c-format
+msgid "Device %s does not have a VPD"
+msgstr ""
+
+#, c-format
 msgid "Device %s is already in use"
 msgstr "Laite %s on jo käytössä"
 
@@ -5074,6 +5133,10 @@ msgstr ""
 
 #, c-format
 msgid "Device %s is not a bridge"
+msgstr ""
+
+#, c-format
+msgid "Device %s marked as autostarted\n"
 msgstr ""
 
 #, c-format
@@ -5097,6 +5160,10 @@ msgid "Device %s un-attached from bridge %s\n"
 msgstr "Laite %s irrotettu sillasta %s\n"
 
 #, c-format
+msgid "Device %s unmarked as autostarted\n"
+msgstr ""
+
+#, c-format
 msgid "Device '%s' already formatted using '%s'"
 msgstr ""
 
@@ -5114,8 +5181,8 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Device alias was not set for PCI controller with index %u required for "
-"device at address %s"
+"Device alias was not set for PCI controller with index '%u' required for "
+"device at address '%s'"
 msgstr ""
 
 msgid "Device attached successfully\n"
@@ -5680,7 +5747,7 @@ msgstr ""
 msgid "EOF on stdout"
 msgstr ""
 
-msgid "Echo back arguments, possibly with quoting."
+msgid "Echo back arguments, possibly with quoting. Used for internal testing."
 msgstr ""
 
 msgid "Edit the XML configuration for a domain."
@@ -6216,17 +6283,6 @@ msgstr "PCI-laiteluettelon allokointi epäonnistui: %s"
 
 msgid "Failed to allocate XML buffer"
 msgstr "XML-puskurin allokointi epäonnistui"
-
-#, c-format
-msgid "Failed to allocate memory for checkpoint directory for domain %s"
-msgstr ""
-
-msgid "Failed to allocate memory for path"
-msgstr "Muistin varaaminen polulle epäonnistui"
-
-#, c-format
-msgid "Failed to allocate memory for snapshot directory for domain %s"
-msgstr ""
 
 #, c-format
 msgid "Failed to allocate slirp for '%s'"
@@ -6942,9 +6998,6 @@ msgstr "uuid luonti epäonnistui"
 msgid "Failed to get %s minor number"
 msgstr "%s:n pienen numeron saaminen epäonnistui"
 
-msgid "Failed to get PCI SYSFS file"
-msgstr "PCI SYSFS -tiedoston noutaminen epäonnistui"
-
 #, c-format
 msgid "Failed to get SRIOV function from device link '%s'"
 msgstr "SRIOV-toiminnon hakeminen laitelinkistä '%s' epäonnistui"
@@ -7105,6 +7158,9 @@ msgid "Failed to initialize a valid firewall backend"
 msgstr ""
 
 msgid "Failed to initialize cgroup backend."
+msgstr ""
+
+msgid "Failed to initialize host cpu features"
 msgstr ""
 
 msgid "Failed to initialize libpciaccess"
@@ -7391,6 +7447,10 @@ msgid "Failed to open '%s'"
 msgstr "'%s':ta ei voitu avata"
 
 #, c-format
+msgid "Failed to open a VPD file '%s'"
+msgstr "VPD tiedoston '%s' avaaminen epäonnistui"
+
+#, c-format
 msgid "Failed to open config space file '%s'"
 msgstr "Kokoonpanotilatiedoston '%s' avaaminen epäonnistui"
 
@@ -7556,6 +7616,10 @@ msgstr "URI-komponentin arvon jäsentäminen epäonnistui %s"
 
 msgid "Failed to parse vzlist output"
 msgstr ""
+
+#, c-format
+msgid "Failed to parse wwn '%s' as number"
+msgstr "Wwn arvon %s jäsentäminen lukuna epäonnistui"
 
 #, c-format
 msgid "Failed to pin vcpu '%d' with libxenlight"
@@ -8017,9 +8081,8 @@ msgstr "Istuntotyypin asettaminen epäonnistui: %s"
 msgid "Failed to set slave for %s: last letter not 'A' or 'B'"
 msgstr ""
 
-#, fuzzy
 msgid "Failed to set stp attribute in xml document"
-msgstr "Aktiivisten toimialueiden luettelointi epäonnistui"
+msgstr "Stp-määritteen määrittäminen xml-asiakirjassa epäonnistui"
 
 #, c-format
 msgid "Failed to set target name: %s"
@@ -8198,13 +8261,13 @@ msgid "Failed to unmark domain '%s' as autostarted"
 msgstr ""
 "Toimialueen %s automaattinen käynnistys -merkinnän poistaminen epäonnistui"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Failed to unmarshall reply: %s"
-msgstr "mkdir %s epäonnistui"
+msgstr "Vastauksen purkaminen marshall-tilasta epäonnistui: %s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Failed to unmarshall reportluns: %s"
-msgstr "Verkon %s käynnistäminen epäonnistui"
+msgstr "Raporttilunien purkaminen marshall-tilasta epäonnistui: %s"
 
 #, c-format
 msgid "Failed to unmount '%s' and could not detach subtree '%s'"
@@ -8304,6 +8367,13 @@ msgstr "Määritetty 'ipv6' perhe, ei IPv6-osoiteelle '%s' verkossa '%s'"
 msgid "Feature %s required by CPU model %s not found"
 msgstr ""
 
+msgid "Fibre Channel 'appid' is not a printable string"
+msgstr ""
+
+#, c-format
+msgid "Fibre Channel 'appid' string length must be between [%d, %d]"
+msgstr ""
+
 #, c-format
 msgid "Field '%s' too long for destination"
 msgstr ""
@@ -8318,6 +8388,9 @@ msgstr ""
 msgid "Field name too long"
 msgstr ""
 
+msgid "Field value contains invalid characters"
+msgstr ""
+
 #, c-format
 msgid "File %s contains no keys"
 msgstr ""
@@ -8330,7 +8403,7 @@ msgstr ""
 
 #, c-format
 msgid "File '%s' does not exist"
-msgstr ""
+msgstr "Tiedostoa '%s' ei ole olemassa"
 
 #, c-format
 msgid "File '%s' has unknown type"
@@ -8844,11 +8917,11 @@ msgstr ""
 
 #, c-format
 msgid "Hotplug unsupported for char device type '%d'"
-msgstr ""
+msgstr "Hotplugia ei tueta char-laitetyypille '%d'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Hotplug unsupported for char device type '%s'"
-msgstr "ei tuettu arkkitehtuuri: %s"
+msgstr "Hotplugia ei tueta char -laitetyypille %s"
 
 #, c-format
 msgid "Human monitor command is not available to run %s"
@@ -8881,9 +8954,6 @@ msgstr ""
 #, c-format
 msgid ""
 "Hyperv features are not supported for architecture '%s' or machine type '%s'"
-msgstr ""
-
-msgid "I/O APIC tuning is not supported by this QEMU binary"
 msgstr ""
 
 msgid "I/O Error"
@@ -9240,9 +9310,6 @@ msgstr ""
 
 #, c-format
 msgid "Invalid CPU signature model in model %s"
-msgstr ""
-
-msgid "Invalid CPU topology"
 msgstr ""
 
 msgid ""
@@ -9981,6 +10048,10 @@ msgid "Invalid setting for nested HV state"
 msgstr ""
 
 #, c-format
+msgid "Invalid source mode: %s"
+msgstr ""
+
+#, c-format
 msgid ""
 "Invalid specification for virtio ccw address: cssid='0x%x' ssid='0x%x' "
 "devno='0x%04x'"
@@ -10189,6 +10260,9 @@ msgstr ""
 msgid "Iterator ID exceeds maximum ID of %u"
 msgstr ""
 
+msgid "JSON array -> commandline conversion function not provided"
+msgstr ""
+
 #, c-format
 msgid "JSON backing volume definition '%s' lacks 'file' object"
 msgstr ""
@@ -10392,9 +10466,6 @@ msgid "Malformatted iterator id"
 msgstr ""
 
 msgid "Malformatted variable"
-msgstr ""
-
-msgid "Malformed 'dies' attribute in CPU topology"
 msgstr ""
 
 msgid "Malformed 'domuuid' in JSON document"
@@ -10771,9 +10842,6 @@ msgstr ""
 msgid "Missing 'associativity' attribute in cache element for NUMA node %d"
 msgstr ""
 
-msgid "Missing 'cores' attribute in CPU topology"
-msgstr ""
-
 msgid "Missing 'domname' in JSON document"
 msgstr ""
 
@@ -10823,18 +10891,12 @@ msgstr ""
 msgid "Missing 'runtime.powerState' property"
 msgstr ""
 
-msgid "Missing 'sockets' attribute in CPU topology"
-msgstr ""
-
 #, c-format
 msgid "Missing 'start' attribute in dhcp range for network '%s'"
 msgstr ""
 
 msgid "Missing 'target' element for lease"
 msgstr "Puuttuva elementti 'target' lainaa varten"
-
-msgid "Missing 'threads' attribute in CPU topology"
-msgstr ""
 
 msgid "Missing 'uuid' attribute for element <address>"
 msgstr ""
@@ -11828,10 +11890,6 @@ msgstr "Ei käyttöoikeuksien hallintaa rekisteröity"
 msgid "No active block job '%s'"
 msgstr "Ei aktiivista lohkotyötä '%s'"
 
-#, c-format
-msgid "No active operation on device: %s"
-msgstr "Ei aktiivista toimintaa laitteella: %s"
-
 msgid "No addresses to bind to"
 msgstr ""
 
@@ -12367,6 +12425,15 @@ msgstr ""
 msgid "Only a single IDE controller is supported for this machine type"
 msgstr ""
 
+msgid "Only a single console can be configured for this domain"
+msgstr ""
+
+msgid "Only a single console or serial can be configured for this domain"
+msgstr ""
+
+msgid "Only a single serial can be configured for this domain"
+msgstr ""
+
 msgid "Only bridged veth devices can be detached"
 msgstr ""
 
@@ -12498,10 +12565,6 @@ msgid "OpenVZ control file /proc/vz is not accessible"
 msgstr ""
 
 msgid "Operation cancelled by client"
-msgstr ""
-
-#, c-format
-msgid "Operation is not supported for device: %s"
 msgstr ""
 
 msgid "Operation not supported"
@@ -12658,6 +12721,9 @@ msgid "Overlay file '%s' for transient disk '%s' already exists"
 msgstr ""
 
 msgid "PASS"
+msgstr ""
+
+msgid "PCI VPD reporting not available on this platform"
 msgstr ""
 
 #, c-format
@@ -13508,6 +13574,9 @@ msgstr "Palauttaa perustietoja toimialueesta."
 msgid "Returns basic information about the network"
 msgstr "Palauttaa verkon perustiedot"
 
+msgid "Returns basic information about the node device"
+msgstr "Palauttaa perustietoja solmulaitteesta"
+
 msgid "Returns basic information about the node."
 msgstr "Palauttaa perustietoja solmusta."
 
@@ -13565,9 +13634,8 @@ msgstr "Palauttaa listan toimialueista."
 msgid "Returns memory stats of the node, in kilobytes."
 msgstr ""
 
-#, fuzzy
 msgid "Returns state about a domain."
-msgstr "Palauttaa listan toimialueista."
+msgstr "Palauttaa toimialueen tilan."
 
 #, fuzzy
 msgid "Returns state of a control interface to the domain."
@@ -13608,7 +13676,7 @@ msgstr "Aja sammutus kohdetoimialueella."
 
 #, c-format
 msgid "Running against daemon: %d.%d.%d\n"
-msgstr "Käynnissä daemonia vastaan: %d.%d.%d\n"
+msgstr "Ajetaan vastaan daemonia: %d.%d.%d\n"
 
 #, sh-format
 msgid "Running guests on $uri URI: "
@@ -13700,6 +13768,10 @@ msgid "SCSI host device doesn't support managed mode"
 msgstr ""
 
 msgid "SCSI host device must use 'drive' address type"
+msgstr ""
+
+#, c-format
+msgid "SCSI unit index %d out of [0..6,8..%u] range"
 msgstr ""
 
 #, c-format
@@ -13877,13 +13949,12 @@ msgstr ""
 msgid "Security model %s cannot be entered"
 msgstr ""
 
-#, fuzzy
 msgid "Security model not found"
-msgstr "Verkkoa ei löytynyt"
+msgstr "Tietoturvamallia ei löytynyt"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Security model not found: %s"
-msgstr "Verkkoa ei löytynyt %s"
+msgstr "Tietoturvamallia ei löytynyt: %s"
 
 msgid "Security model:"
 msgstr ""
@@ -13918,6 +13989,9 @@ msgstr ""
 msgid "Sending file descriptors is not supported on this socket"
 msgstr ""
 
+msgid "Serial can only be enabled for a PTY"
+msgstr ""
+
 #, c-format
 msgid ""
 "Serial device with target type '%s' and target model '%s' not compatible "
@@ -13939,13 +14013,12 @@ msgstr ""
 msgid "Server count %zd greater than default name count %zu"
 msgstr ""
 
-#, fuzzy
 msgid "Server not found"
-msgstr "Verkkoa ei löytynyt"
+msgstr "Palvelinta ei löytynyt"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Server not found: %s"
-msgstr "Verkkoa ei löytynyt %s"
+msgstr "Palvelinta ei löytynyt: %s"
 
 msgid "Server private key:"
 msgstr ""
@@ -13998,7 +14071,7 @@ msgid "Set the number of seconds to wait for a response from the guest agent."
 msgstr ""
 
 msgid "Setting TSEG size is not supported with this QEMU binary"
-msgstr ""
+msgstr "TSEG:n koon määrittämistä ei tueta tällä QEMU-binaarilla"
 
 msgid ""
 "Setting device info for character devices is not supported by vz driver."
@@ -14107,9 +14180,8 @@ msgstr ""
 msgid "Setting wwn is not supported for lun device"
 msgstr ""
 
-#, fuzzy
 msgid "Setup time:"
-msgstr "Prosessoriaika:"
+msgstr "Asennuksen aika:"
 
 msgid "Shared memory mapping is not supported with this QEMU"
 msgstr ""
@@ -14417,6 +14489,10 @@ msgstr ""
 msgid "Stats types bits 0x%x are not supported by this daemon"
 msgstr ""
 
+#, c-format
+msgid "Stats types bits 0x%x are not supported by this daemon or QEMU"
+msgstr ""
+
 msgid "Status is unknown"
 msgstr "Tila on tuntematon"
 
@@ -14491,6 +14567,8 @@ msgstr "Verkkoa ei löytynyt %s"
 #, c-format
 msgid "Stream data too long to send (%zu bytes needed, %zu bytes available)"
 msgstr ""
+"Raakadata on liian pitkä lähetettäväksi (%zu tavua tarvitaan, %zu tavua "
+"käytettävissä)"
 
 msgid "Stream has untransferred data left"
 msgstr ""
@@ -14660,7 +14738,7 @@ msgid "Target CPU arch %s does not match source %s"
 msgstr "Kohdeprosessoriarkkitehtuuri %s ei vastaa lähdettä %s"
 
 msgid "Target CPU cache does not match source"
-msgstr ""
+msgstr "Kohdeprosessorin välimuisti ei vastaa lähdettä"
 
 #, c-format
 msgid "Target CPU check %s does not match source %s"
@@ -14668,14 +14746,14 @@ msgstr "Kohdeprosessoritarkistus %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target CPU cores %d does not match source %d"
-msgstr "Kohdeprosessoriytimet %s eivät vastaa lähdettä %s"
+msgstr "Kohdeprosessoriytimet %d eivät vastaa lähdettä %d"
 
 #, c-format
 msgid "Target CPU dies %d does not match source %d"
 msgstr "Kohdesuoritinmalli %d ei vastaa lähdettä %d"
 
 msgid "Target CPU does not match source"
-msgstr ""
+msgstr "Kohdeprosessori ei vastaa lähdettä"
 
 #, c-format
 msgid "Target CPU feature %s does not match source %s"
@@ -14683,11 +14761,11 @@ msgstr "Kohdeprosessoriominaisuus %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target CPU feature count %zu does not match source %zu"
-msgstr ""
+msgstr "Kohdesuorittimen ominaisuuksien määrä %zu ei vastaa lähdettä %zu"
 
 #, c-format
 msgid "Target CPU feature policy %s does not match source %s"
-msgstr ""
+msgstr "Kohdesuorittimen ominaisuuskäytäntö %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target CPU mode %s does not match source %s"
@@ -14773,17 +14851,17 @@ msgid "Target USB allow '%s' does not match source '%s'"
 msgstr ""
 
 msgid "Target USB product ID does not match source"
-msgstr ""
+msgstr "Kohde-USB:n toimittajan tunnus ei vastaa lähdettä"
 
 #, c-format
 msgid "Target USB redirection filter rule count %zu does not match source %zu"
 msgstr ""
 
 msgid "Target USB vendor ID does not match source"
-msgstr ""
+msgstr "Kohde-USB:n toimittajan tunnus ei vastaa lähdettä"
 
 msgid "Target USB version does not match source"
-msgstr ""
+msgstr "Kohde-USB:n versio ei vastaa lähdettä"
 
 msgid "Target already exists"
 msgstr ""
@@ -14808,42 +14886,42 @@ msgstr ""
 
 #, c-format
 msgid "Target channel addr %s does not match source %s"
-msgstr ""
+msgstr "Kohdekanavaosoite %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target channel name %s does not match source %s"
-msgstr ""
+msgstr "Kohdekanavanimi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target channel type %s does not match source %s"
-msgstr ""
+msgstr "Kohdekanavatyyppi %s ei vastaa lähdettä %s"
 
 msgid "Target chassis does not match source"
-msgstr ""
+msgstr "Kohderunko ei vastaa lähdettä"
 
 #, c-format
 msgid "Target console type %s does not match source %s"
-msgstr ""
+msgstr "Kohdekonsolin tyyppi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target controller index %d does not match source %d"
-msgstr ""
+msgstr "Kohdeohjaimen indeksi %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target controller model %d does not match source %d"
-msgstr ""
+msgstr "Kohdeohjaimen malli %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target controller ports %d does not match source %d"
-msgstr ""
+msgstr "Kohdeohjaimen portit %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target controller type %s does not match source %s"
-msgstr ""
+msgstr "Kohdeohjaimen tyyppi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target controller vectors %d does not match source %d"
-msgstr ""
+msgstr "Kohdeohjaimen vektorit %d ei vastaa lähdettä %d"
 
 msgid "Target device PCI address "
 msgstr "Kohdelaitteen PCI-osoite "
@@ -14884,6 +14962,10 @@ msgstr ""
 msgid "Target device packed option '%s' does not match source '%s'"
 msgstr ""
 
+#, c-format
+msgid "Target device page_per_vq option '%s' does not match source '%s'"
+msgstr ""
+
 msgid "Target device virtio options don't match the source"
 msgstr ""
 
@@ -14912,6 +14994,14 @@ msgid "Target disk model %s does not match source %s"
 msgstr "Kohdelevymalli %s ei vastaa lähdettä %s"
 
 #, c-format
+msgid "Target disk queue count %u does not match source %u"
+msgstr ""
+
+#, c-format
+msgid "Target disk queue size %u does not match source %u"
+msgstr ""
+
+#, c-format
 msgid "Target disk rotation rate %u RPM does not match source %u RPM"
 msgstr ""
 
@@ -14933,7 +15023,7 @@ msgid "Target domain IOMMU device caching mode '%s' does not match source '%s'"
 msgstr ""
 
 msgid "Target domain IOMMU device count does not match source"
-msgstr ""
+msgstr "Kohdetoimialueen IOMMU-laitteiden määrä ei vastaa lähdettä"
 
 #, c-format
 msgid "Target domain IOMMU device eim value '%s' does not match source '%s'"
@@ -14954,7 +15044,7 @@ msgstr ""
 
 #, c-format
 msgid "Target domain OS type %s does not match source %s"
-msgstr ""
+msgstr "Kohdetoimialueen käyttöjärjestelmän tyyppi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target domain RNG device count %zu does not match source %zu"
@@ -14962,7 +15052,7 @@ msgstr "Kohdetoimialueen RNG-laitteen lasku %zu ei vastaa lähdettä %zu"
 
 #, c-format
 msgid "Target domain SMBIOS mode %s does not match source %s"
-msgstr ""
+msgstr "Kohdetoimialueen SMBIOS tyyppi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target domain TPM device count %zu does not match source %zu"
@@ -15005,7 +15095,7 @@ msgstr "Kohdetoimialueen tiedostojärjestelmän lasku %zu ei vastaa lähdettä %
 
 #, c-format
 msgid "Target domain genid %s does not match source %s"
-msgstr ""
+msgstr "Kohdetoimialueen genid %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target domain host device count %zu does not match source %zu"
@@ -15021,7 +15111,7 @@ msgstr "Kohdetoimialueen syöttölaitteen lasku %zu ei vastaa lähdettä %zu"
 
 #, c-format
 msgid "Target domain machine type %s does not match source %s"
-msgstr ""
+msgstr "Kohdetoimialueen koneen tyyppi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target domain max memory %lld does not match source %lld"
@@ -15029,7 +15119,7 @@ msgstr ""
 
 #, c-format
 msgid "Target domain memory balloon count %d does not match source %d"
-msgstr ""
+msgstr "Kohdetoimialueen muistin ilmapallojen määrä %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target domain memory device count %zu does not match source %zu"
@@ -15041,7 +15131,7 @@ msgstr ""
 
 #, c-format
 msgid "Target domain name '%s' does not match source '%s'"
-msgstr ""
+msgstr "Kohdetoimialueen nimi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target domain net card count %zu does not match source %zu"
@@ -15054,10 +15144,13 @@ msgstr "Kohdetoimialueen paniikkilaitteen lasku %zu ei vastaa lähdettä %zu"
 #, c-format
 msgid "Target domain parallel port count %zu does not match source %zu"
 msgstr ""
+"Kohdetoimialueen rinnakkaisporttien lukumäärä %zu ei vastaa lähdettä %zu"
 
 #, c-format
 msgid "Target domain redirected devices count %zu does not match source %zu"
 msgstr ""
+"Kohdetoimialueen uudelleenohjattujen laitteiden lukumäärä %zu ei vastaa "
+"lähdettä %zu"
 
 msgid "Target domain requested genid does not match source"
 msgstr ""
@@ -15069,6 +15162,7 @@ msgstr "Kohdetoimialueen sarjaportin lasku %zu ei vastaa lähdettä %zu"
 #, c-format
 msgid "Target domain shared memory device count %zu does not match source %zu"
 msgstr ""
+"Kohdetoimialueen jaetun muistilaitteen määrä %zu ei vastaa lähdettä %zu"
 
 #, c-format
 msgid "Target domain smartcard count %zu does not match source %zu"
@@ -15083,7 +15177,7 @@ msgstr ""
 
 #, c-format
 msgid "Target domain uuid %s does not match source %s"
-msgstr ""
+msgstr "Kohdetoimialueen uuid %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target domain vCPU max %zu does not match source %zu"
@@ -15095,10 +15189,10 @@ msgstr "Kohdetoimialueen videokortin lasku %zu ei vastaa lähdettä %zu"
 
 #, c-format
 msgid "Target domain virt type %s does not match source %s"
-msgstr ""
+msgstr "Kohdetoimialueen virtuaalityyppi %s ei vastaa lähdettä %s"
 
 msgid "Target domain vsock device count does not match source"
-msgstr ""
+msgstr "Kohdetoimialueen vsock-laitteiden määrä ei vastaa lähdettä"
 
 #, c-format
 msgid "Target domain vsock device model '%s' does not match source '%s'"
@@ -15120,15 +15214,15 @@ msgstr ""
 
 #, c-format
 msgid "Target host device mode %s does not match source %s"
-msgstr ""
+msgstr "Kohdeisäntälaitteen tila %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target host device subsystem %s does not match source %s"
-msgstr ""
+msgstr "Kohdeisäntälaitteen alijärjestelmä %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target hub device type %s does not match source %s"
-msgstr ""
+msgstr "Kohdeisäntälaitteen tyyppi %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target input device bus %s does not match source %s"
@@ -15151,7 +15245,19 @@ msgid "Target memory device alias '%s' doesn't match source alias '%s'"
 msgstr ""
 
 #, c-format
+msgid ""
+"Target memory device block size '%llu' doesn't match source memory device "
+"block size '%llu'"
+msgstr ""
+
+#, c-format
 msgid "Target memory device model '%s' doesn't match source model '%s'"
+msgstr ""
+
+#, c-format
+msgid ""
+"Target memory device requested size '%llu' doesn't match source memory "
+"device requested size '%llu'"
 msgstr ""
 
 #, c-format
@@ -15177,19 +15283,18 @@ msgstr ""
 
 #, c-format
 msgid "Target network card MTU %d does not match source %d"
-msgstr ""
+msgstr "Kohdeverkkokortin MTU %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target network card mac %s does not match source %s"
-msgstr ""
+msgstr "Kohdeverkkokortin mac %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target network card model %s does not match source %s"
-msgstr ""
+msgstr "Kohdeverkkokorttimalli %s ei vastaa lähdettä %s"
 
-#, fuzzy
 msgid "Target not found"
-msgstr "Verkkoa ei löytynyt"
+msgstr "Kohdetta ei löytynyt"
 
 #, c-format
 msgid "Target panic model '%s' does not match source '%s'"
@@ -15197,7 +15302,7 @@ msgstr "Kohdepaniikkimallin lasku '%s' ei vastaa lähdettä '%s'"
 
 #, c-format
 msgid "Target parallel port %d does not match source %d"
-msgstr ""
+msgstr "Kohderinnakkaisportti %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target redirected device bus %s does not match source %s"
@@ -15211,11 +15316,11 @@ msgstr ""
 
 #, c-format
 msgid "Target serial port %d does not match source %d"
-msgstr ""
+msgstr "Kohdesarjaportti %d ei vastaa lähdettä %d"
 
 #, c-format
 msgid "Target serial type %s does not match source %s"
-msgstr ""
+msgstr "Kohdesarjatyyppi %s ei vastaa lähdettä %s"
 
 msgid "Target shared memory MSI configuration doesn't match source"
 msgstr "Kohdennettu jaettu muisti MSI-kokoonpano ei vastaa lähdettä"
@@ -15241,18 +15346,18 @@ msgstr "Kohde-äänikorttimallin lasku %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target sysinfo %s %s does not match source %s"
-msgstr ""
+msgstr "Kohde-sysinfo %s %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target sysinfo %s does not match source %s"
-msgstr ""
+msgstr "Kohde-sysinfo %s ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target sysinfo base board count '%zu' does not match source '%zu'"
 msgstr ""
 
 msgid "Target sysinfo does not match source"
-msgstr ""
+msgstr "Kohde-sysinfo ei vastaa lähdettä"
 
 #, c-format
 msgid "Target timer %s does not match source %s"
@@ -15272,18 +15377,18 @@ msgstr ""
 
 #, c-format
 msgid "Target video card 2d accel %u does not match source %u"
-msgstr ""
+msgstr "Kohdevideokortti 2d accel %u ei vastaa lähdettä %u"
 
 #, c-format
 msgid "Target video card 3d accel %u does not match source %u"
-msgstr ""
+msgstr "Kohdevideokortti 3d accel %u ei vastaa lähdettä %u"
 
 msgid "Target video card acceleration does not match source"
 msgstr ""
 
 #, c-format
 msgid "Target video card heads %u does not match source %u"
-msgstr ""
+msgstr "Kohdenäytönohjaimen päät %u eivät vastaa lähdettä %u"
 
 #, c-format
 msgid "Target video card model %s does not match source %s"
@@ -15291,19 +15396,19 @@ msgstr "Kohdevideokorttimallin %s'ei vastaa lähdettä %s"
 
 #, c-format
 msgid "Target video card ram %u does not match source %u"
-msgstr ""
+msgstr "Kohdenäytönohjaimen RAM %u ei vastaa lähdettä %u"
 
 #, c-format
 msgid "Target video card vgamem %u does not match source %u"
-msgstr ""
+msgstr "Kohdenäytönohjaimen vgamem %u ei vastaa lähdettä %u"
 
 #, c-format
 msgid "Target video card vram %u does not match source %u"
-msgstr ""
+msgstr "Kohdevideokortti vRAM %u ei vastaa lähdettä %u"
 
 #, c-format
 msgid "Target video card vram64 %u does not match source %u"
-msgstr ""
+msgstr "Kohdevideokortti vRAM64 %u ei vastaa lähdettä %u"
 
 #, c-format
 msgid "Target watchdog model %s does not match source %s"
@@ -15498,6 +15603,13 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr ""
 
+msgid "The keyword is not comprised only of uppercase ASCII letters or digits"
+msgstr ""
+
+#, c-format
+msgid "The keyword length is not 2 bytes: %s"
+msgstr ""
+
 msgid "The machine has no snapshot and it should have it"
 msgstr ""
 
@@ -15507,6 +15619,10 @@ msgstr ""
 msgid ""
 "The overall maximum number of clients must be greater than the maximum "
 "number of clients waiting for authentication"
+msgstr ""
+
+#, c-format
+msgid "The provided value contains invalid characters: %s"
 msgstr ""
 
 msgid "The read only disk has no parent"
@@ -15530,6 +15646,9 @@ msgid "The server redirects from '%s' to '%s'"
 msgstr ""
 
 msgid "The slirp-helper doesn't support migration"
+msgstr ""
+
+msgid "The string resource has invalid characters in its value"
 msgstr ""
 
 #, c-format
@@ -15562,9 +15681,6 @@ msgid "There is no more free %s."
 msgstr ""
 
 msgid "This QEMU binary doesn't support zPCI"
-msgstr ""
-
-msgid "This QEMU can't disable file transfers through spice"
 msgstr ""
 
 msgid "This QEMU doesn't support '-device usb-storage'"
@@ -15643,10 +15759,6 @@ msgstr ""
 msgid "This type of disk cannot be hot unplugged"
 msgstr ""
 
-msgid ""
-"This version of libxenlight does not support disk 'discard' option passing"
-msgstr ""
-
 msgid "Thread(s) per core:"
 msgstr "Säikeitä per ydin:"
 
@@ -15707,9 +15819,8 @@ msgstr ""
 msgid "Too long bridge device name"
 msgstr ""
 
-#, fuzzy
 msgid "Too long network device name"
-msgstr "verkon nimi"
+msgstr "Liian pitkä verkkolaitteen nimi"
 
 #, c-format
 msgid "Too many CPU models '%d' for limit '%d'"
@@ -15752,9 +15863,9 @@ msgstr ""
 msgid "Too many domains '%d' for limit '%d'"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "Too many drivers, cannot register %s"
-msgstr "liian monta rekisteröityä ajuria kohteessa %s"
+msgstr "Liian monta ajuria, ei pysty rekisteröimään %s"
 
 #, fuzzy, c-format
 msgid "Too many drivers, cannot register storage backend '%s'"
@@ -15850,9 +15961,8 @@ msgstr "Yhteensä:\n"
 msgid "Transient disks are not supported by vz driver."
 msgstr ""
 
-#, fuzzy
 msgid "Transition started"
-msgstr "ei tilaa"
+msgstr "Siirtymä aloitettu"
 
 msgid "Transport"
 msgstr ""
@@ -15991,6 +16101,10 @@ msgid "USB bus %u requested but no controller with that index is present"
 msgstr ""
 
 #, c-format
+msgid "USB controller model '%s' not supported in this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid "USB controller model type 'qusb1' or 'qusb2' is not supported in %s"
 msgstr ""
 
@@ -16048,7 +16162,7 @@ msgstr "sisältöä ei voitu tallentaa"
 
 #, c-format
 msgid "Unable to access %s"
-msgstr ""
+msgstr "Ei pääse kohteeseen %s"
 
 #, c-format
 msgid "Unable to access cache '%s' for '%s'"
@@ -16060,6 +16174,10 @@ msgstr "asetustiedoston %s jäsentäminen epäonnistui"
 
 #, c-format
 msgid "Unable to access file descriptor %d"
+msgstr ""
+
+#, c-format
+msgid "Unable to access file descriptor %d path %s"
 msgstr ""
 
 msgid "Unable to access kernel32.dll"
@@ -16298,6 +16416,10 @@ msgid "Unable to close recursively all disks"
 msgstr ""
 
 #, c-format
+msgid "Unable to close the VPD file, fd: %d"
+msgstr ""
+
+#, c-format
 msgid "Unable to close the new medium, rc=%08x"
 msgstr ""
 
@@ -16467,13 +16589,13 @@ msgid "Unable to decode header until len is received"
 msgstr ""
 
 msgid "Unable to decode message header"
-msgstr ""
+msgstr "Viestin otsikon purkaminen ei onnistu"
 
 msgid "Unable to decode message length"
-msgstr ""
+msgstr "Viestin pituuden purkaminen ei onnistu"
 
 msgid "Unable to decode message payload"
-msgstr ""
+msgstr "Viestien hyötykuorman purkaminen ei onnistu"
 
 msgid "Unable to decode number of FDs"
 msgstr ""
@@ -16518,14 +16640,6 @@ msgstr ""
 
 #, c-format
 msgid "Unable to destroy '%s': device in use"
-msgstr ""
-
-#, c-format
-msgid "Unable to destroy qos on port %s"
-msgstr ""
-
-#, c-format
-msgid "Unable to destroy queue on port %s"
 msgstr ""
 
 #, fuzzy, c-format
@@ -16575,13 +16689,13 @@ msgid "Unable to enable/disable perf events"
 msgstr ""
 
 msgid "Unable to encode message header"
-msgstr ""
+msgstr "Viestin otsikkoa ei voi koodata"
 
 msgid "Unable to encode message length"
-msgstr ""
+msgstr "Viestin pituutta ei voi koodata"
 
 msgid "Unable to encode message payload"
-msgstr ""
+msgstr "Viestin hyötykuormaa ei voi koodata"
 
 msgid "Unable to encode number of FDs"
 msgstr ""
@@ -16639,6 +16753,10 @@ msgid "Unable to find a satisfying virtiofsd"
 msgstr ""
 
 #, c-format
+msgid "Unable to find address for parent device '%s'"
+msgstr ""
+
+#, c-format
 msgid "Unable to find an unused port in range '%s' (%d-%d)"
 msgstr ""
 
@@ -16652,10 +16770,6 @@ msgstr ""
 #, c-format
 msgid "Unable to find any usable hugetlbfs mount for %llu KiB"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "Unable to find controller for %s"
-msgstr "Verkon määrittäminen tiedostosta %s epäonnistui"
 
 #, c-format
 msgid "Unable to find correct value in 'bonding/arp_validate' for '%s'"
@@ -17391,6 +17505,9 @@ msgstr ""
 msgid "Unable to process file with flags %d"
 msgstr ""
 
+msgid "Unable to query TSC scaling support"
+msgstr ""
+
 #, c-format
 msgid "Unable to query certificate %s basic constraints %s"
 msgstr ""
@@ -17440,7 +17557,7 @@ msgid "Unable to query tap interface name"
 msgstr "Liitännän tietojen haku epäonnistui"
 
 msgid "Unable to re-encode message length"
-msgstr ""
+msgstr "Viestin pituuden uudelleenkoodaus ei onnistu"
 
 #, c-format
 msgid "Unable to read %s"
@@ -17607,6 +17724,10 @@ msgid "Unable to reset PCI device %s: %s"
 msgstr "PCI-laitetta %s ei voi nollata: %s"
 
 #, c-format
+msgid "Unable to reset ingress on port %s"
+msgstr ""
+
+#, c-format
 msgid "Unable to resolve address '%s' service '%s': %s"
 msgstr ""
 
@@ -17743,15 +17864,15 @@ msgstr ""
 
 #, c-format
 msgid "Unable to set SELinux context MCS '%s'"
-msgstr ""
+msgstr "MCS %s SELinux-kontekstin asettaminen epäonnistui"
 
 #, c-format
 msgid "Unable to set SELinux context role '%s'"
-msgstr ""
+msgstr "Roolin %s SELinux-kontekstin asettaminen epäonnistui"
 
 #, c-format
 msgid "Unable to set SELinux context user '%s'"
-msgstr ""
+msgstr "Käyttäjän: %s SELinux-kontekstin asettaminen epäonnistui"
 
 #, c-format
 msgid "Unable to set SELinux label on %s"
@@ -17774,6 +17895,10 @@ msgid "Unable to set XATTR %s on %s"
 msgstr "XATTR: ta %s ei pysty asettamaan %s:lla"
 
 msgid "Unable to set agent close-on-exec flag"
+msgstr ""
+
+#, c-format
+msgid "Unable to set autostart on '%s': %s"
 msgstr ""
 
 #, fuzzy, c-format
@@ -17840,11 +17965,11 @@ msgstr ""
 
 #, c-format
 msgid "Unable to set qos configuration on port %s"
-msgstr ""
+msgstr "qos-kokoonpanon asettaminen portilla %s ei onnistu"
 
 #, c-format
 msgid "Unable to set queue configuration on port %s"
-msgstr ""
+msgstr "Jonon määritystä ei voi määrittää portilla %s"
 
 msgid "Unable to set socket reuse addr flag"
 msgstr ""
@@ -17995,6 +18120,10 @@ msgstr "Yhdistä vieraskonsoliin"
 msgid "Unable to write %s"
 msgstr "Ei voi kirjoittaa %s:lle"
 
+#, c-format
+msgid "Unable to write '%s' to '%s'"
+msgstr "Ei voi kirjoittaa '%s' '%s':lle"
+
 #, fuzzy, c-format
 msgid "Unable to write pid file '%s/%s.pid'"
 msgstr "%s: lokitiedostoon kirjoitus epäonnistui: %s"
@@ -18125,6 +18254,12 @@ msgstr ""
 msgid "Unexpected QEMU monitor still active during domain deletion"
 msgstr "Odottamaton QEMU-näyttö edelleen aktiivinen toimialueen poiston aikana"
 
+msgid "Unexpected RV keyword in the read-write section."
+msgstr ""
+
+msgid "Unexpected RW keyword in the read-only section."
+msgstr ""
+
 #, c-format
 msgid "Unexpected SCSI controller model %d"
 msgstr ""
@@ -18171,6 +18306,9 @@ msgstr ""
 msgid "Unexpected event thread still active during domain deletion"
 msgstr ""
 "Odottamaton tapahtumalanka edelleen aktiivinen toimialueen poiston aikana"
+
+msgid "Unexpected field value format encountered."
+msgstr ""
 
 #, c-format
 msgid "Unexpected filesystem type %s"
@@ -18309,7 +18447,10 @@ msgstr "Tuntematon suorittimen toimittaja %s"
 
 #, c-format
 msgid "Unknown Command '%i'"
-msgstr ""
+msgstr "Tuntematon komento: '%i'"
+
+msgid "Unknown Error"
+msgstr "Tuntematon virhe"
 
 #, c-format
 msgid "Unknown IP address data source %d"
@@ -18741,6 +18882,10 @@ msgid "Unsupported URI scheme '%s'"
 msgstr "ei tuettu arkkitehtuuri: %s"
 
 #, c-format
+msgid "Unsupported VPD field access type specified %s"
+msgstr ""
+
+#, c-format
 msgid "Unsupported action: %s\n"
 msgstr "Toimintaa ei tueta: %s\n"
 
@@ -18975,9 +19120,8 @@ msgstr "virt-tyyppi ei tuettu"
 msgid "Unsupported volume format '%s'"
 msgstr ""
 
-#, fuzzy
 msgid "Unused"
-msgstr "pysäytetty"
+msgstr "Ei käytössä"
 
 #, c-format
 msgid "Unusual value in %s/devices/%s/class: %s"
@@ -18987,6 +19131,9 @@ msgid "Update device from an XML <file>."
 msgstr "Päivitä laite XML-<tiedosto>:sta."
 
 msgid "Update the media"
+msgstr ""
+
+msgid "Update values of a memory device of a domain"
 msgstr ""
 
 msgid "Updated"
@@ -19091,7 +19238,7 @@ msgstr "Käytetään API:a: %s %d.%d.%d\n"
 
 #, c-format
 msgid "Using library: libvirt %d.%d.%d\n"
-msgstr "Käyttetään kirjastoa:: libvirt %d.%d.%d\n"
+msgstr "Käytetään kirjastoa:: libvirt %d.%d.%d\n"
 
 msgid "Uuid is null"
 msgstr ""
@@ -19172,6 +19319,15 @@ msgid "VNC power control is not available"
 msgstr ""
 
 msgid "VNC supports connected='keep' only"
+msgstr ""
+
+msgid "VPD fields access type parsing has failed"
+msgstr ""
+
+msgid "VPD-R does not contain the mandatory RV field"
+msgstr ""
+
+msgid "VPD-W does not contain the mandatory RW field"
 msgstr ""
 
 #, c-format
@@ -19480,14 +19636,6 @@ msgstr ""
 msgid "a block I/O throttling is not supported for vhostuser disk"
 msgstr ""
 
-msgid ""
-"a block I/O throttling length parameter is not supported with this QEMU "
-"binary"
-msgstr ""
-
-msgid "a block I/O throttling parameter is not supported with this QEMU binary"
-msgstr ""
-
 msgid "a device with the same address already exists "
 msgstr ""
 
@@ -19609,6 +19757,10 @@ msgid "address source: 'lease' or 'agent'"
 msgstr ""
 
 msgid "address source: 'lease', 'agent', or 'arp'"
+msgstr ""
+
+#, c-format
+msgid "address type drive is not supported for bus '%s'"
 msgstr ""
 
 #, c-format
@@ -19752,7 +19904,7 @@ msgid "architecture from emulator '%s' doesn't match given architecture '%s'"
 msgstr ""
 
 #, c-format
-msgid "argument key '%s' is too short, missing type prefix"
+msgid "argument key '%s' is too short or malformed"
 msgstr ""
 
 #, c-format
@@ -19924,6 +20076,9 @@ msgid "automatically destroy the guest when virsh disconnects"
 msgstr ""
 
 msgid "automatically switch to post-copy migration after one pass of pre-copy"
+msgstr ""
+
+msgid "autostart a defined node device"
 msgstr ""
 
 msgid "autostart a domain"
@@ -20157,6 +20312,13 @@ msgstr ""
 msgid "block resize is not supported for vhostuser disk"
 msgstr ""
 
+msgid "block size must be a power of two"
+msgstr ""
+
+#, c-format
+msgid "block size too small, must be at least %lluKiB"
+msgstr ""
+
 msgid "block stats are not supported for vhostuser disk"
 msgstr ""
 
@@ -20212,6 +20374,10 @@ msgid "bond interface misses the bond element"
 msgstr ""
 
 msgid "bool"
+msgstr ""
+
+#, c-format
+msgid "bool parameter '%s' of command '%s' has completer set"
 msgstr ""
 
 #, c-format
@@ -21171,6 +21337,10 @@ msgid "cannot migrate a domain with <hostdev mode='subsystem' type='%s'>"
 msgstr ""
 
 #, c-format
+msgid "cannot migrate a domain with <interface type='%s'>"
+msgstr ""
+
+#, c-format
 msgid "cannot migrate domain with %d snapshots"
 msgstr "ei voi siirtää toimialuetta %d tilannevedosten kanssa"
 
@@ -21195,6 +21365,63 @@ msgstr ""
 
 #, c-format
 msgid "cannot modify field '%s' of the disk"
+msgstr ""
+
+msgid "cannot modify memory UUID"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory access from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory align size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory block size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory discard from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory label size from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory model from '%s' to '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory of model '%s'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory pagesize from '%llu' to '%llu'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory path from '%s' to '%s'"
+msgstr ""
+
+msgid "cannot modify memory pmem flag"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory pmem from '%d' to '%d'"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory size from '%llu' to '%llu'"
+msgstr ""
+
+msgid "cannot modify memory source nodes"
+msgstr ""
+
+#, c-format
+msgid "cannot modify memory targetNode from '%d' to '%d'"
 msgstr ""
 
 msgid "cannot modify network device address type"
@@ -21636,6 +21863,9 @@ msgstr ""
 msgid "cannot set CPU affinity on process %d"
 msgstr ""
 
+msgid "cannot set autostart for transient device"
+msgstr "ei pysty asettamaan autokäynnistystä tilapäiselle laitteelle"
+
 msgid "cannot set autostart for transient domain"
 msgstr "ei pysty asettamaan autokäynnistystä ohimenevälle toimialueelle"
 
@@ -21796,11 +22026,9 @@ msgid "cannot update guest CPU for %s architecture"
 msgstr ""
 
 msgid ""
-"cannot update lifecycle action because QEMU was started with -no-reboot "
-"option"
+"cannot update lifecycle action because QEMU was started with incompatible -"
+"no-reboot setting"
 msgstr ""
-"ei voi päivittää elinkaaritoimintoa, koska QEMU käynnistettiin vaihtoehdolla "
-"'-no-reboot'"
 
 #, c-format
 msgid "cannot upload to volume %s"
@@ -21955,6 +22183,9 @@ msgid "changing clock parameters is not supported by vz driver"
 msgstr ""
 
 msgid "changing cpu placement mode is not supported by vz driver"
+msgstr ""
+
+msgid "changing device 'acpi index' is not allowed"
 msgstr ""
 
 msgid "changing device alias is not allowed"
@@ -22138,7 +22369,23 @@ msgid "command '%s' doesn't support option --%s"
 msgstr "komento ”%s” ei tue valitsinta --%s"
 
 #, c-format
+msgid "command '%s' has handler set"
+msgstr ""
+
+#, c-format
 msgid "command '%s' has inconsistent alias"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has info set"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has multiple flags set"
+msgstr ""
+
+#, c-format
+msgid "command '%s' has options set"
 msgstr ""
 
 #, c-format
@@ -22156,6 +22403,14 @@ msgstr "komento ”%s” vaatii valitsimen --%s"
 #, c-format
 msgid "command '%s' requires <%s> option"
 msgstr "komento ”%s” vaatii valitsimen <%s>"
+
+#, c-format
+msgid "command alias '%s' is pointing to a non-existent command '%s'"
+msgstr ""
+
+#, c-format
+msgid "command alias '%s' is pointing to another command alias '%s'"
+msgstr ""
 
 msgid "command groups and command are both NULL run vshInit before reloading"
 msgstr ""
@@ -23303,9 +23558,6 @@ msgstr ""
 msgid "disable cpus specified by cpumap"
 msgstr ""
 
-msgid "disable shared memory is not available with this QEMU binary"
-msgstr ""
-
 msgid "disabled"
 msgstr "pois käytöstä"
 
@@ -23367,10 +23619,6 @@ msgstr ""
 
 #, c-format
 msgid "disk '%s' has no media"
-msgstr ""
-
-#, c-format
-msgid "disk '%s' improperly configured for a device='lun'"
 msgstr ""
 
 #, c-format
@@ -24031,7 +24279,7 @@ msgstr ""
 msgid "dynamic label type must use resource relabeling"
 msgstr ""
 
-msgid "echo arguments"
+msgid "echo arguments. Used for internal testing."
 msgstr ""
 
 msgid "edit XML configuration for a domain"
@@ -24128,13 +24376,7 @@ msgstr "otettu käyttöön"
 msgid "encountered an error on interface %s index %d"
 msgstr ""
 
-msgid "encrypted VNC TLS keys are not supported with this QEMU binary"
-msgstr ""
-
 msgid "encrypted ploop volumes are not supported with ploop init"
-msgstr ""
-
-msgid "encrypted secrets are not supported"
 msgstr ""
 
 #, c-format
@@ -24394,6 +24636,13 @@ msgstr ""
 
 #, c-format
 msgid "event 'lifecycle' for storage pool %s: %s\n"
+msgstr ""
+
+#, c-format
+msgid ""
+"event 'memory-device-size-change' for domain '%s':\n"
+"alias: %s\n"
+"size: %llu\n"
 msgstr ""
 
 #, c-format
@@ -24944,6 +25193,12 @@ msgstr "SASL-tietojen koodaus epäonnistui: %d (%s)"
 msgid "failed to encrypt the data: '%s'"
 msgstr "toimialueen ”%s” hakeminen epäonnistui"
 
+msgid "failed to evaluate <system_field> elements"
+msgstr ""
+
+msgid "failed to evaluate <vendor_field> elements"
+msgstr ""
+
 #, c-format
 msgid "failed to execute command '%s': %s"
 msgstr "komennon '%s' suorittaminen epäonnistui: %s"
@@ -25154,6 +25409,10 @@ msgid "failed to get source from sourceList"
 msgstr "solmun tietojen saanti epäonnistui"
 
 #, c-format
+msgid "failed to get stat for '%s'"
+msgstr ""
+
+#, c-format
 msgid "failed to get status of interface %s: %s%s%s"
 msgstr "liitännän %s tilan saaminen epäonnistui: %s%s%s"
 
@@ -25271,6 +25530,10 @@ msgstr "ei voitu avata tiedostoa"
 #, c-format
 msgid "failed to lookup interface with MAC address '%s'"
 msgstr "liitännän selvitys, jonka MAC-osoite on '%s', epäonnistui"
+
+#, c-format
+msgid "failed to mark device %s as autostarted"
+msgstr "laitteen %s merkitseminen automaattisesti käynnistyväksi epäonnistui"
 
 #, c-format
 msgid "failed to mark network %s as autostarted"
@@ -25758,6 +26021,10 @@ msgid "failed to undefine interface %s: %s%s%s"
 msgstr "Liitännän %s pois-määritteleminen epäonnistui: %s%s%s"
 
 #, c-format
+msgid "failed to unmark device %s as autostarted"
+msgstr "laitteen %s automaattinen käynnistys merkinnän poistaminen epäonnistui"
+
+#, c-format
 msgid "failed to unmark network %s as autostarted"
 msgstr ""
 "verkon %s automaattisen käynnistymisen merkinnän poistaminen epäonnistui"
@@ -25813,6 +26080,10 @@ msgstr "asetustiedoston kirjoitus epäonnistui"
 #, c-format
 msgid "failed to wipe RBD image %s"
 msgstr "RBD-kuvan %s pyyhkiminen epäonnistui"
+
+#, c-format
+msgid "failed to wrap arguments '%s' into a QMP command wrapper"
+msgstr ""
 
 msgid "failed to write configuration file"
 msgstr "asetustiedoston kirjoitus epäonnistui"
@@ -25914,7 +26185,7 @@ msgstr "tiedosto"
 
 #, c-format
 msgid "file %s does not exist"
-msgstr ""
+msgstr "Tiedostoa '%s' ei ole olemassa"
 
 #, c-format
 msgid "file '%s' for disk '%s' requires use of external snapshot mode"
@@ -26118,9 +26389,6 @@ msgstr ""
 msgid "floor attribute is not supported for this config"
 msgstr ""
 
-msgid "fmode and dmode are not supported with this QEMU binary"
-msgstr ""
-
 msgid "fmode and dmode must be used with accessmode=mapped"
 msgstr ""
 
@@ -26218,9 +26486,6 @@ msgstr ""
 msgid "found lease without mac-address"
 msgstr ""
 
-msgid "found non printable characters in secret"
-msgstr ""
-
 msgid "freePageReporting is not supported by this QEMU binary"
 msgstr ""
 
@@ -26245,9 +26510,6 @@ msgid "fully-qualified path of source disk"
 msgstr "lähdelevyn täysin määritelty polku"
 
 msgid "fuse_loop failed"
-msgstr ""
-
-msgid "fw_cfg is not supported with this QEMU"
 msgstr ""
 
 #, c-format
@@ -26719,9 +26981,6 @@ msgstr ""
 msgid "i - turn off validation and try to redefine again"
 msgstr ""
 
-msgid "iSCSI initiator IQN not supported with this QEMU binary"
-msgstr ""
-
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "iSCSI tallennusvaranto ei tue taltion luomista"
 
@@ -26875,7 +27134,7 @@ msgid "initial memory size overflowed after alignment"
 msgstr ""
 
 msgid "initialize"
-msgstr ""
+msgstr "alusta"
 
 msgid "initiator iqn for underlying storage"
 msgstr ""
@@ -26968,6 +27227,7 @@ msgstr ""
 msgid ""
 "interface %s - multiqueue is not supported for network interfaces of type %s"
 msgstr ""
+"liitäntä %s - moniriviä ei tueta verkkoliitännöissä, joiden tyyppi on %s"
 
 #, c-format
 msgid ""
@@ -27685,6 +27945,10 @@ msgid "invalid or missing decode/host attribute in CPU model %s"
 msgstr ""
 
 #, c-format
+msgid "invalid parent device '%s'"
+msgstr ""
+
+#, c-format
 msgid "invalid partition name '%s', expected '%s'"
 msgstr ""
 
@@ -27989,7 +28253,7 @@ msgid "kdump-compressed format is only supported with memory-only dump"
 msgstr ""
 "kdump-pakattua muotoa tuetaan vain pelkkää muistia sisältävässä dumpissa"
 
-msgid "keep nvram file, if inactive"
+msgid "keep nvram file"
 msgstr ""
 
 msgid "keep the backing chain relatively referenced"
@@ -28056,6 +28320,12 @@ msgstr ""
 #, fuzzy, c-format
 msgid "library call failed: %s"
 msgstr "toimenpide epäonnistui: %s"
+
+msgid "librbd encryption engine only supports luks/luks2 formats"
+msgstr ""
+
+msgid "librbd encryption is not supported by this QEMU binary"
+msgstr ""
 
 msgid "libssh transport error"
 msgstr ""
@@ -28553,8 +28823,7 @@ msgstr ""
 msgid "loop until timeout or interrupt, rather than one-shot"
 msgstr ""
 
-msgid ""
-"luks encryption usage requires encrypted secret generation to be supported"
+msgid "luks2 is currently not supported by the qemu encryption engine"
 msgstr ""
 
 msgid "lxc state driver is not active"
@@ -28795,6 +29064,9 @@ msgstr ""
 msgid "malformed/missing hotplugged in dimm memory info"
 msgstr ""
 
+msgid "malformed/missing size in virtio memory info"
+msgstr ""
+
 msgid "malformed/missing slot in dimm memory info"
 msgstr ""
 
@@ -28817,6 +29089,9 @@ msgstr "Toimialuetta ei löytynyt"
 
 #, c-format
 msgid "match mode %s not supported"
+msgstr ""
+
+msgid "matching filesystem not found"
 msgstr ""
 
 #, fuzzy
@@ -28933,10 +29208,17 @@ msgid "mem(Suspend-to-RAM), disk(Suspend-to-Disk), hybrid(Hybrid-Suspend)"
 msgstr ""
 
 #, c-format
+msgid "memory '%s' not found"
+msgstr ""
+
+#, c-format
 msgid "memory access mode '%s' not supported without guest numa node"
 msgstr ""
 
 msgid "memory attributes: [file=]name[,snapshot=type]"
+msgstr ""
+
+msgid "memory device alias"
 msgstr ""
 
 msgid "memory device alias is not assigned"
@@ -28957,6 +29239,9 @@ msgstr ""
 
 #, c-format
 msgid "memory device slot '%u' is already being used by another memory device"
+msgstr ""
+
+msgid "memory device target node"
 msgstr ""
 
 msgid "memory device total size exceeds hotplug space"
@@ -28980,6 +29265,9 @@ msgstr ""
 msgid ""
 "memory hotplug tunables <maxMemory> are not supported by this hypervisor "
 "driver"
+msgstr ""
+
+msgid "memory not found"
 msgstr ""
 
 #, c-format
@@ -29205,12 +29493,19 @@ msgstr "\" puuttuu"
 msgid "missing %s in <virtualport type='%s'>"
 msgstr ""
 
+#, c-format
+msgid "missing '%s' in 'config' from cloud-hypervisor"
+msgstr ""
+
 msgid "missing 'DateTime' element"
 msgstr ""
 
 #, c-format
 msgid "missing 'architecture' in '%s'"
 msgstr "Puuttuva CPU arkkitehtuuri '%s'"
+
+msgid "missing 'config' in info query result from cloud-hypervisor"
+msgstr ""
 
 #, c-format
 msgid "missing 'content' value in selinux lxc contexts file '%s'"
@@ -29224,6 +29519,10 @@ msgstr ""
 
 #, c-format
 msgid "missing 'executable' in '%s'"
+msgstr ""
+
+#, c-format
+msgid "missing 'file' in '%s' from cloud-hypervisor"
 msgstr ""
 
 #, c-format
@@ -29298,10 +29597,6 @@ msgid "missing 'type' attribute for vhostuser disk source"
 msgstr ""
 
 msgid "missing 'type' attribute to disk source"
-msgstr ""
-
-#, c-format
-msgid "missing 'type'(%s) or 'alias'(%s) field of QOM 'object'"
 msgstr ""
 
 msgid "missing 'url' in JSON backing volume definition"
@@ -29788,6 +30083,9 @@ msgstr ""
 msgid "missing pagesize argument"
 msgstr ""
 
+msgid "missing parent device"
+msgstr ""
+
 #, c-format
 msgid "missing parser implementation for JSON backing volume driver '%s'"
 msgstr ""
@@ -29847,10 +30145,6 @@ msgstr ""
 msgid "missing required virtualport type"
 msgstr ""
 
-#, fuzzy
-msgid "missing resource partition attribute"
-msgstr "lähdetietoja puuttuu laitteelle"
-
 msgid "missing root device information"
 msgstr "juurilaitteen tietoja puuttuu"
 
@@ -29892,10 +30186,6 @@ msgstr ""
 
 msgid "missing sheepdog vdi name"
 msgstr ""
-
-#, fuzzy
-msgid "missing smartcard device mode"
-msgstr "juurilaitteen tietoja puuttuu"
 
 msgid "missing socket address type in JSON backing volume definition"
 msgstr ""
@@ -29952,7 +30242,7 @@ msgid "missing storage capability type for '%s'"
 msgstr ""
 
 msgid "missing storage pool host name"
-msgstr ""
+msgstr "tallennusvaraston isäntänimi puuttuu"
 
 msgid "missing storage pool source adapter"
 msgstr ""
@@ -30077,9 +30367,6 @@ msgstr ""
 msgid "missing vporttype attribute in migration data"
 msgstr "käyttöjärjestelmätieto puuttuu"
 
-msgid "missing watchdog model"
-msgstr "puuttuuva vahtikoiramalli"
-
 #, fuzzy, c-format
 msgid "missing wwpn identifier for '%s'"
 msgstr "laitetietoja puuttuu kohteelle %s"
@@ -30099,6 +30386,9 @@ msgstr ""
 msgid ""
 "mkfs is not available on this platform: Failed to make filesystem of type "
 "'%s' on device '%s'"
+msgstr ""
+
+msgid "mode attribute of <source/> element"
 msgstr ""
 
 msgid "mode of device reading and writing"
@@ -30253,6 +30543,9 @@ msgstr ""
 msgid "multiple matching interfaces found: %s"
 msgstr ""
 
+msgid "multiple memory devices found, use --alias or --node to select one"
+msgstr ""
+
 msgid "multiple stream callbacks not supported"
 msgstr ""
 
@@ -30339,7 +30632,7 @@ msgstr ""
 msgid "ncr53c90 can only be used as first SCSI controller"
 msgstr ""
 
-msgid "need at least one serial port to use SGA"
+msgid "need at least one serial port to use BIOS serial output"
 msgstr ""
 
 msgid "need either --dest or --xml"
@@ -30615,6 +30908,9 @@ msgstr ""
 msgid "new state of the device"
 msgstr "levylaitteen kohde"
 
+msgid "new value of <requested/> size, as scaled integer (default KiB)"
+msgstr ""
+
 #, fuzzy
 msgid "new xml too large to fit in file"
 msgstr "asetustiedoston jäsentäminen epäonnistui"
@@ -30734,6 +31030,9 @@ msgstr ""
 
 #, c-format
 msgid "no USB vendor ID supplied for '%s'"
+msgstr ""
+
+msgid "no VPD <fields> elements with an access type attribute found"
 msgstr ""
 
 #, c-format
@@ -30936,6 +31235,9 @@ msgid "no matching redirdev was not found"
 msgstr "Toimialuetta ei löytynyt"
 
 msgid "no medium attachments"
+msgstr ""
+
+msgid "no memory device found"
 msgstr ""
 
 msgid "no model provided for USB controller"
@@ -31188,6 +31490,9 @@ msgstr ""
 msgid "node device event callback %d not registered"
 msgstr ""
 
+msgid "node device information"
+msgstr ""
+
 msgid "node get memory parameters not implemented on this platform"
 msgstr ""
 
@@ -31422,6 +31727,10 @@ msgstr ""
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
 msgstr ""
 
+#, c-format
+msgid "only 'pci' addresses are supported for the %s device"
+msgstr ""
+
 msgid "only 'pci' addresses are supported for the shared memory device"
 msgstr ""
 
@@ -31590,6 +31899,9 @@ msgstr ""
 msgid "only two source elements are allowed for character device"
 msgstr ""
 
+msgid "only virtiofs filesystems can be hotplugged"
+msgstr ""
+
 msgid "open an editor to modify the description"
 msgstr ""
 
@@ -31688,7 +32000,7 @@ msgid "os.type is not defined"
 msgstr ""
 
 #, c-format
-msgid "out of bounds index - count %zu at %zu add %zu"
+msgid "out of bounds index - count %zu at %zu"
 msgstr ""
 
 msgid "out of memory"
@@ -31712,6 +32024,9 @@ msgid "outgoing RDMA migration is not supported with this QEMU binary"
 msgstr ""
 
 msgid "output an XML string for the hypervisor sysinfo, if available"
+msgstr ""
+
+msgid "output the list of options which are missing completers"
 msgstr ""
 
 msgid "output to stderr"
@@ -31740,10 +32055,12 @@ msgstr ""
 #, c-format
 msgid "packet %d bytes received from server too large, want %d"
 msgstr ""
+"palvelimelta vastaanotettu paketti %d tavua on liian suuri, halutaan %d"
 
 #, c-format
 msgid "packet %d bytes received from server too small, want %d"
 msgstr ""
+"palvelimelta vastaanotettu paketti %d tavua on liian pieni, halutaan %d"
 
 msgid "page cache size for xbzrle compression"
 msgstr ""
@@ -31766,6 +32083,9 @@ msgid "page size %u is not available on node %d"
 msgstr ""
 
 msgid "page size (in kibibytes)"
+msgstr ""
+
+msgid "page_per_vq option is only supported for virtio devices"
 msgstr ""
 
 msgid "panic is supported only with ISA address type"
@@ -31938,8 +32258,7 @@ msgstr ""
 msgid "pci-root and pcie-root controllers should not have an address"
 msgstr ""
 
-msgid ""
-"pcie-expander-bus controllers are only supported on q35-based machinetypes"
+msgid "pcie-expander-bus controllers are not supported with this machine type"
 msgstr ""
 
 msgid "peeking is not supported for vhostuser disk"
@@ -32287,6 +32606,9 @@ msgstr "tulosta hypervisorin konenimi"
 msgid "print the raw data returned by libvirt"
 msgstr ""
 
+msgid "print updated memory device XML instead of executing the change"
+msgstr ""
+
 msgid "prints by percentage during 1 second."
 msgstr ""
 
@@ -32378,9 +32700,6 @@ msgstr ""
 msgid "qemu does not allow specifying screen ID"
 msgstr ""
 
-msgid "qemu does not support SGA"
-msgstr ""
-
 msgid "qemu does not support more than one entry to Type 2 in SMBIOS table"
 msgstr ""
 
@@ -32391,6 +32710,21 @@ msgid "qemu doesn't support reversion of snapshot taken in PMSUSPENDED state"
 msgstr ""
 
 msgid "qemu doesn't support taking snapshots of PMSUSPENDED guests"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support 'onReboot' set to 'destroy and 'onPoweroff' set "
+"to 'reboot'"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support the 'preserve' action for "
+"'on_reboot'/'on_poweroff'"
+msgstr ""
+
+msgid ""
+"qemu driver doesn't support the 'rename-restart' action for "
+"'on_reboot'/'on_poweroff'/'on_crash'"
 msgstr ""
 
 #, c-format
@@ -32435,9 +32769,6 @@ msgstr ""
 
 #, c-format
 msgid "qom-set invalid object property type %d"
-msgstr ""
-
-msgid "query -rx-filter return data missing array element"
 msgstr ""
 
 msgid "query information about the guest (via agent)"
@@ -32536,6 +32867,9 @@ msgstr ""
 msgid "query-named-block-nodes entry was not in expected format"
 msgstr ""
 
+msgid "query-rx-filter return data missing array element"
+msgstr ""
+
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr ""
 
@@ -32571,6 +32905,9 @@ msgstr ""
 
 msgid ""
 "querying maximum post-copy migration speed is not supported by QEMU binary"
+msgstr ""
+
+msgid "queue-size property isn't supported by this QEMU binary"
 msgstr ""
 
 msgid "queues attribute in disk driver element is only supported by virtio-blk"
@@ -32662,9 +32999,6 @@ msgstr ""
 
 msgid "reboot a domain"
 msgstr "käynnistä toimialue uudelleen"
-
-msgid "reboot timeout is not supported by this QEMU binary"
-msgstr ""
 
 msgid "received error event on socket"
 msgstr ""
@@ -32771,7 +33105,7 @@ msgstr "palauta toimialue tiedostoon tallennetusta tilasta"
 msgid "remove keys from the authorized keys file"
 msgstr ""
 
-msgid "remove nvram file, if inactive"
+msgid "remove nvram file"
 msgstr ""
 
 msgid "remove the metadata corresponding to an uri"
@@ -32886,6 +33220,12 @@ msgstr ""
 
 #, c-format
 msgid "requested cpu amount exceeds maximum supported amount (%d > %d)"
+msgstr ""
+
+msgid "requested size must be an integer multiple of block size"
+msgstr ""
+
+msgid "requested size must be smaller than or equal to @size"
 msgstr ""
 
 msgid "requested size of the cache (in bytes) used for compression"
@@ -33417,7 +33757,7 @@ msgstr ""
 
 #, c-format
 msgid ""
-"setting the hotplug property on a '%s' device is not supported by this QEMU "
+"setting the '%s' property on a '%s' device is not supported by this QEMU "
 "binary"
 msgstr ""
 
@@ -33702,6 +34042,9 @@ msgstr ""
 msgid "source-host for underlying storage"
 msgstr ""
 
+msgid "source-mode is mandatory"
+msgstr ""
+
 #, c-format
 msgid "spapr-vio address %#llx already in use"
 msgstr ""
@@ -33758,7 +34101,7 @@ msgstr ""
 msgid "spicevmc device type only supports virtio"
 msgstr ""
 
-msgid "splash timeout is not supported by this QEMU binary"
+msgid "split each argument on ','; ',,' is an escape sequence"
 msgstr ""
 
 #, c-format
@@ -34133,10 +34476,6 @@ msgstr ""
 msgid "target must be 0 for sata controller"
 msgstr ""
 
-msgid ""
-"target must be 0 for scsi host device if its controller model is 'lsilogic'"
-msgstr ""
-
 msgid "target network name"
 msgstr "kohdeverkon nimi"
 
@@ -34224,18 +34563,10 @@ msgid ""
 "dhcp element's parent"
 msgstr ""
 
-msgid "the ats setting is not supported with this QEMU binary"
-msgstr ""
-
 msgid "the backing volume if taking a snapshot"
 msgstr ""
 
 msgid "the bandwidth limit is in bytes/s rather than MiB/s"
-msgstr ""
-
-msgid ""
-"the block I/O throttling group parameter is not supported with this QEMU "
-"binary"
 msgstr ""
 
 msgid ""
@@ -34260,9 +34591,6 @@ msgid "the domain does not have a current snapshot"
 msgstr "siirrä toimialue toiseen koneeseen"
 
 msgid "the guest hasn't updated any stats yet"
-msgstr ""
-
-msgid "the iommu setting is not supported with this QEMU binary"
 msgstr ""
 
 msgid "the key code"
@@ -34312,16 +34640,6 @@ msgstr ""
 
 #, c-format
 msgid "the wwnn/wwpn for '%s' are assigned to an HBA"
-msgstr ""
-
-msgid ""
-"there are some block I/O throttling length parameters that are not supported "
-"with this QEMU binary"
-msgstr ""
-
-msgid ""
-"there are some block I/O throttling parameters that are not supported with "
-"this QEMU binary"
 msgstr ""
 
 #, c-format
@@ -34521,9 +34839,6 @@ msgid "titles are not supported by vz driver"
 msgstr ""
 
 msgid "tls"
-msgstr ""
-
-msgid "tls-creds-x509 not supported in this QEMU binary"
 msgstr ""
 
 #, c-format
@@ -34813,6 +35128,11 @@ msgstr ""
 msgid "transient disk '%s' must not be read-only"
 msgstr ""
 
+msgid ""
+"transient disk backing image sharing with destroy action of lifecycle isn't "
+"supported by this QEMU binary"
+msgstr ""
+
 #, c-format
 msgid "transient disk not supported by this QEMU binary (%s)"
 msgstr ""
@@ -35040,10 +35360,6 @@ msgstr ""
 msgid "unable to enable host cpu perf event for %s"
 msgstr ""
 
-#, c-format
-msgid "unable to execute '%s', unexpected error: '%s'"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "unable to execute QEMU agent command '%s'"
 msgstr "toimialueen ”%s” hakeminen epäonnistui"
@@ -35122,7 +35438,7 @@ msgstr ""
 
 #, c-format
 msgid "unable to get SELinux context of %s"
-msgstr ""
+msgstr "kohteen %s SELinux-kontekstin noutaminen epäonnistui"
 
 msgid "unable to get cpu account"
 msgstr ""
@@ -35231,8 +35547,12 @@ msgid "unable to parse blkio device '%s' '%s'"
 msgstr ""
 
 #, c-format
-msgid "unable to parse diskspec: %s"
+msgid "unable to parse contents of 'file' field in '%s' from cloud-hypervisor"
 msgstr ""
+
+#, c-format
+msgid "unable to parse diskspec: %s"
+msgstr "levymäärityksiä ei voi jäsentää: %s"
 
 #, c-format
 msgid "unable to parse json capabilities '%s'"
@@ -35429,9 +35749,9 @@ msgstr ""
 msgid "unable to wait on dhcp snoop thread"
 msgstr ""
 
-#, fuzzy, c-format
+#, c-format
 msgid "unable to write data to '%s'"
-msgstr "verkon ”%s” hakeminen epäonnistui"
+msgstr "Ei voi kirjoittaa tietoa kohteeseen '%s'"
 
 #, fuzzy
 msgid "unable to write to child input"
@@ -35627,9 +35947,8 @@ msgstr "odottamaton toimialueen tyyppi %d"
 msgid "unexpected element <%s>, expecting <%s>, while updating network '%s'"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "unexpected empty keyword in %s"
-msgstr "odottamatonta dataa ”%s”"
+msgid "unexpected encryption engine"
+msgstr ""
 
 msgid "unexpected encryption format"
 msgstr ""
@@ -35914,11 +36233,6 @@ msgstr "odottamatonta dataa ”%s”"
 msgid "unimplemented parameter type %d"
 msgstr ""
 
-msgid ""
-"unit must be not more than 7 for scsi host device if its controller model is "
-"'lsilogic'"
-msgstr ""
-
 msgid "unix"
 msgstr ""
 
@@ -36040,6 +36354,9 @@ msgstr "tuntematon käyttöjärjestelmän tyyppi %s"
 #, fuzzy, c-format
 msgid "unknown backup mode '%s'"
 msgstr "tuntematon komento: ”%s”"
+
+msgid "unknown base name while formatting virtio device"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unknown block IO status: %s"
@@ -36401,18 +36718,6 @@ msgstr "tuntematon käyttöjärjestelmän tyyppi %s"
 #, fuzzy, c-format
 msgid "unknown sgio mode '%s'"
 msgstr "tuntematon komento: ”%s”"
-
-#, fuzzy, c-format
-msgid "unknown smartcard device mode: %s"
-msgstr "tuntematon arkkitehtuuri: %s"
-
-#, fuzzy
-msgid "unknown smartcard mode"
-msgstr "tuntematon arkkitehtuuri: %s"
-
-#, c-format
-msgid "unknown smartcard type %d"
-msgstr "tuntematon älykortin tyyppi %d"
 
 #, fuzzy, c-format
 msgid "unknown smbios mode '%s'"
@@ -36997,6 +37302,9 @@ msgstr "päivitä laite XML-tiedostosta"
 msgid "update guest CPU according to host CPU"
 msgstr ""
 
+msgid "update memory device of a domain"
+msgstr ""
+
 msgid "update parts of an existing network's configuration"
 msgstr ""
 
@@ -37015,7 +37323,7 @@ msgid "usage:"
 msgstr "käyttö:"
 
 #, c-format
-msgid "usb controller type %s doesn't support 'ports' with this QEMU binary"
+msgid "usb controller type '%s' doesn't support 'ports' with this QEMU binary"
 msgstr ""
 
 msgid "usb device not found"
@@ -37379,7 +37687,7 @@ msgid "vhost_user type support UNIX socket in this CH"
 msgstr ""
 
 msgid "vhostuser disk is not supported with this QEMU binary"
-msgstr ""
+msgstr "vhostuser-levyä ei tueta tällä QEMU-binaarilla"
 
 msgid "vhostuser disk supports only virtio bus"
 msgstr ""
@@ -37541,6 +37849,12 @@ msgid "virtio serial port %u on controller %u is already occupied"
 msgstr ""
 
 msgid "virtio tx_queue_size option is not supported with this QEMU binary"
+msgstr ""
+
+msgid "virtio-mem device is missing <requested/>"
+msgstr ""
+
+msgid "virtio-mem isn't supported by this QEMU binary"
 msgstr ""
 
 msgid "virtio-net failover (teaming) is not supported with this QEMU binary"
@@ -37987,6 +38301,82 @@ msgstr "vyöhyke %s pyydetty verkolle %s, mutta palomuuri ei ole aktiivinen"
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <merkkijono>}..."
+
+#~ msgid ""
+#~ "\n"
+#~ "syntax: %s [OPTIONS] [HVTYPE]\n"
+#~ "\n"
+#~ " Hypervisor types:\n"
+#~ "\n"
+#~ "   - qemu\n"
+#~ "   - lxc\n"
+#~ "   - bhyve\n"
+#~ "\n"
+#~ " Options:\n"
+#~ "   -h, --help     Display command line help\n"
+#~ "   -v, --version  Display command version\n"
+#~ "   -q, --quiet    Don't display progress information\n"
+#~ "\n"
+#~ msgstr ""
+#~ "\n"
+#~ "syntax: %s [valitsimet] [hypervisorin tyypit:\n"
+#~ "\n"
+#~ " Hypervisorin tyypit:\n"
+#~ "   - qemu\n"
+#~ "   - lxc\n"
+#~ "   - bhyve\n"
+#~ "\n"
+#~ " Valitsimet\n"
+#~ "   -h, --help     Display command line help\n"
+#~ "   -v, --version  Display command version\n"
+#~ "   -q, --quiet    Don't display progress information\n"
+#~ "\n"
+
+#, fuzzy
+#~ msgid "Unable to find controller for %s"
+#~ msgstr "Verkon määrittäminen tiedostosta %s epäonnistui"
+
+#, fuzzy
+#~ msgid "missing smartcard device mode"
+#~ msgstr "juurilaitteen tietoja puuttuu"
+
+#~ msgid "missing watchdog model"
+#~ msgstr "puuttuuva vahtikoiramalli"
+
+#, fuzzy
+#~ msgid "unexpected empty keyword in %s"
+#~ msgstr "odottamatonta dataa ”%s”"
+
+#, fuzzy
+#~ msgid "unknown smartcard device mode: %s"
+#~ msgstr "tuntematon arkkitehtuuri: %s"
+
+#, fuzzy
+#~ msgid "unknown smartcard mode"
+#~ msgstr "tuntematon arkkitehtuuri: %s"
+
+#~ msgid "unknown smartcard type %d"
+#~ msgstr "tuntematon älykortin tyyppi %d"
+
+#~ msgid "Failed to allocate memory for path"
+#~ msgstr "Muistin varaaminen polulle epäonnistui"
+
+#~ msgid "No active operation on device: %s"
+#~ msgstr "Ei aktiivista toimintaa laitteella: %s"
+
+#~ msgid ""
+#~ "cannot update lifecycle action because QEMU was started with -no-reboot "
+#~ "option"
+#~ msgstr ""
+#~ "ei voi päivittää elinkaaritoimintoa, koska QEMU käynnistettiin "
+#~ "vaihtoehdolla '-no-reboot'"
+
+#, fuzzy
+#~ msgid "missing resource partition attribute"
+#~ msgstr "lähdetietoja puuttuu laitteelle"
+
+#~ msgid "Failed to get PCI SYSFS file"
+#~ msgstr "PCI SYSFS -tiedoston noutaminen epäonnistui"
 
 #~ msgid "unknown feature %s"
 #~ msgstr "tuntematon ominaisuus %s"

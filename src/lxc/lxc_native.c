@@ -448,8 +448,7 @@ lxcAddNetworkRouteDefinition(const char *address,
                                          0, false)))
         return -1;
 
-    if (VIR_APPEND_ELEMENT(*routes, *nroutes, route) < 0)
-        return -1;
+    VIR_APPEND_ELEMENT(*routes, *nroutes, route);
 
     return 0;
 }
@@ -549,7 +548,7 @@ lxcNetworkParseDataIPs(const char *name,
                        lxcNetworkParseData *parseData)
 {
     int family = AF_INET;
-    char **ipparts = NULL;
+    g_auto(GStrv) ipparts = NULL;
     g_autofree virNetDevIPAddr *ip = g_new0(virNetDevIPAddr, 1);
 
     if (STREQ(name, "ipv6") || STREQ(name, "ipv6.address"))
@@ -562,15 +561,10 @@ lxcNetworkParseDataIPs(const char *name,
 
         virReportError(VIR_ERR_INVALID_ARG,
                        _("Invalid CIDR address: '%s'"), value->str);
-
-        g_strfreev(ipparts);
         return -1;
     }
 
-    g_strfreev(ipparts);
-
-    if (VIR_APPEND_ELEMENT(parseData->ips, parseData->nips, ip) < 0)
-        return -1;
+    VIR_APPEND_ELEMENT(parseData->ips, parseData->nips, ip);
 
     return 0;
 }
@@ -1109,7 +1103,7 @@ lxcParseConfigString(const char *config,
     if (!(properties = virConfReadString(config, VIR_CONF_FLAG_LXC_FORMAT)))
         return NULL;
 
-    if (!(vmdef = virDomainDefNew()))
+    if (!(vmdef = virDomainDefNew(xmlopt)))
         goto error;
 
     if (virUUIDGenerate(vmdef->uuid) < 0) {

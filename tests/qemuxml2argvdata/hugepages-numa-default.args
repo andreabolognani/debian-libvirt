@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-fedora/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-fedora/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name fedora \
+-name guest=fedora,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-fedora/master-key.aes \
 -machine pc-i440fx-2.3,accel=tcg,usb=off,dump-guest-core=off \
 -m 1024 \
 -realtime mlock=off \
@@ -26,4 +27,6 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
--usb
+-boot strict=on \
+-usb \
+-msg timestamp=on

@@ -114,7 +114,6 @@ virSecuritySELinuxContextListAppend(virSecuritySELinuxContextList *list,
                                     bool remember,
                                     bool restore)
 {
-    int ret = -1;
     virSecuritySELinuxContextItem *item = NULL;
 
     item = g_new0(virSecuritySELinuxContextItem, 1);
@@ -125,13 +124,9 @@ virSecuritySELinuxContextListAppend(virSecuritySELinuxContextList *list,
     item->remember = remember;
     item->restore = restore;
 
-    if (VIR_APPEND_ELEMENT(list->items, list->nItems, item) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(list->items, list->nItems, item);
 
-    ret = 0;
- cleanup:
-    virSecuritySELinuxContextItemFree(item);
-    return ret;
+    return 0;
 }
 
 static void
@@ -972,7 +967,6 @@ virSecuritySELinuxReserveLabel(virSecurityManager *mgr,
     }
 
     ctx = context_new(pctx);
-    freecon(pctx);
     if (!ctx)
         goto error;
 
@@ -990,11 +984,13 @@ virSecuritySELinuxReserveLabel(virSecurityManager *mgr,
         goto error;
     }
 
+    freecon(pctx);
     context_free(ctx);
 
     return 0;
 
  error:
+    freecon(pctx);
     context_free(ctx);
     return -1;
 }
@@ -1586,6 +1582,7 @@ virSecuritySELinuxSetMemoryLabel(virSecurityManager *mgr,
 
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         break;
     }
@@ -1613,6 +1610,7 @@ virSecuritySELinuxRestoreMemoryLabel(virSecurityManager *mgr,
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         ret = 0;
@@ -1894,11 +1892,7 @@ virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
         if (!disk_seclabel)
             return -1;
         disk_seclabel->labelskip = true;
-        if (VIR_APPEND_ELEMENT(src->seclabels, src->nseclabels,
-                               disk_seclabel) < 0) {
-            virSecurityDeviceLabelDefFree(disk_seclabel);
-            return -1;
-        }
+        VIR_APPEND_ELEMENT(src->seclabels, src->nseclabels, disk_seclabel);
         ret = 0;
     }
 
@@ -2702,10 +2696,9 @@ virSecuritySELinuxRestoreSecuritySmartcardCallback(virDomainDef *def,
         return virSecuritySELinuxRestoreChardevLabel(mgr, def,
                                                      dev->data.passthru, false);
 
+    case VIR_DOMAIN_SMARTCARD_TYPE_LAST:
     default:
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown smartcard type %d"),
-                       dev->type);
+        virReportEnumRangeError(virDomainSmartcardType, dev->type);
         return -1;
     }
 
@@ -3109,10 +3102,9 @@ virSecuritySELinuxSetSecuritySmartcardCallback(virDomainDef *def,
         return virSecuritySELinuxSetChardevLabel(mgr, def,
                                                  dev->data.passthru, false);
 
+    case VIR_DOMAIN_SMARTCARD_TYPE_LAST:
     default:
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown smartcard type %d"),
-                       dev->type);
+        virReportEnumRangeError(virDomainSmartcardType, dev->type);
         return -1;
     }
 

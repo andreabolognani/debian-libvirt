@@ -80,11 +80,18 @@ virNWFilterPtr          virNWFilterLookupByUUID       (virConnectPtr conn,
 virNWFilterPtr          virNWFilterLookupByUUIDString (virConnectPtr conn,
                                                        const char *uuid);
 
+typedef enum {
+    VIR_NWFILTER_DEFINE_VALIDATE = 1 << 0, /* Validate the XML document against schema */
+} virNWFilterDefineFlags;
+
 /*
  * Define persistent nwfilter
  */
 virNWFilterPtr          virNWFilterDefineXML    (virConnectPtr conn,
                                                  const char *xmlDesc);
+virNWFilterPtr          virNWFilterDefineXMLFlags(virConnectPtr conn,
+                                                  const char *xmlDesc,
+                                                  unsigned int flags);
 
 /*
  * Delete persistent nwfilter
@@ -100,6 +107,11 @@ int                     virNWFilterFree         (virNWFilterPtr nwfilter);
 /*
  * NWFilter information
  */
+
+typedef enum {
+    VIR_NWFILTER_BINDING_CREATE_VALIDATE = 1 << 0, /* Validate the XML document against schema */
+} virNWFilterBindingCreateFlags;
+
 const char*             virNWFilterGetName       (virNWFilterPtr nwfilter);
 int                     virNWFilterGetUUID       (virNWFilterPtr nwfilter,
                                                   unsigned char *uuid);

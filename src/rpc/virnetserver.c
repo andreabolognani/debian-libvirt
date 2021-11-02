@@ -252,6 +252,15 @@ virNetServerDispatchNewMessage(virNetServerClient *client,
 static void
 virNetServerCheckLimits(virNetServer *srv)
 {
+    size_t i;
+
+    for (i = 0; i < srv->nservices; i++) {
+        if (virNetServerServiceTimerActive(srv->services[i])) {
+            VIR_DEBUG("Skipping client-related limits evaluation");
+            return;
+        }
+    }
+
     VIR_DEBUG("Checking client-related limits to re-enable or temporarily "
               "suspend services: nclients=%zu nclients_max=%zu "
               "nclients_unauth=%zu nclients_unauth_max=%zu",
@@ -369,6 +378,7 @@ virNetServer *virNetServerNew(const char *name,
                                               priority_workers,
                                               virNetServerHandleJob,
                                               "rpc-worker",
+                                              NULL,
                                               srv)))
         goto error;
 
@@ -1077,7 +1087,6 @@ int
 virNetServerGetClients(virNetServer *srv,
                        virNetServerClient ***clts)
 {
-    int ret = -1;
     size_t i;
     size_t nclients = 0;
     virNetServerClient **list = NULL;
@@ -1086,19 +1095,14 @@ virNetServerGetClients(virNetServer *srv,
 
     for (i = 0; i < srv->nclients; i++) {
         virNetServerClient *client = virObjectRef(srv->clients[i]);
-        if (VIR_APPEND_ELEMENT(list, nclients, client) < 0) {
-            virObjectUnref(client);
-            goto cleanup;
-        }
+        VIR_APPEND_ELEMENT(list, nclients, client);
     }
 
     *clts = g_steal_pointer(&list);
-    ret = nclients;
 
- cleanup:
-    virObjectListFreeCount(list, nclients);
     virObjectUnlock(srv);
-    return ret;
+
+    return nclients;
 }
 
 virNetServerClient *

@@ -171,3 +171,28 @@ bool nodeDeviceDefCopyFromMdevctl(virNodeDeviceDef *dst,
 int
 nodeDeviceCreate(virNodeDevice *dev,
                  unsigned int flags);
+
+int nodeDeviceDefPostParse(virNodeDeviceDef *def,
+                           void *opaque);
+
+int nodeDeviceDefValidate(virNodeDeviceDef *def,
+                          void *opaque);
+
+int
+nodeDeviceSetAutostart(virNodeDevice *dev,
+                       int autostart);
+
+int
+nodeDeviceGetAutostart(virNodeDevice *dev,
+                       int *autostart);
+
+int
+nodeDeviceIsPersistent(virNodeDevice *dev);
+
+int
+nodeDeviceIsActive(virNodeDevice *dev);
+
+virCommand*
+nodeDeviceGetMdevctlSetAutostartCommand(virNodeDeviceDef *def,
+                                        bool autostart,
+                                        char **errmsg);

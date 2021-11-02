@@ -42,6 +42,7 @@
 #include "virnetdev.h"
 #include "virmdev.h"
 #include "virutil.h"
+#include "virpcivpd.h"
 
 #include "configmake.h"
 
@@ -1019,11 +1020,11 @@ static int
 udevProcessMediatedDevice(struct udev_device *dev,
                           virNodeDeviceDef *def)
 {
-    int ret = -1;
     int iommugrp = -1;
-    char *linkpath = NULL;
-    char *canonicalpath = NULL;
+    g_autofree char *linkpath = NULL;
+    g_autofree char *canonicalpath = NULL;
     virNodeDevCapMdev *data = &def->caps->data.mdev;
+    struct udev_device *parent_device = NULL;
 
     /* Because of a kernel uevent race, we might get the 'add' event prior to
      * the sysfs tree being ready, so any attempt to access any sysfs attribute
@@ -1037,29 +1038,40 @@ udevProcessMediatedDevice(struct udev_device *dev,
         virReportSystemError(errno,
                              _("failed to wait for file '%s' to appear"),
                              linkpath);
-        goto cleanup;
+        return -1;
     }
 
     if (virFileResolveLink(linkpath, &canonicalpath) < 0) {
         virReportSystemError(errno, _("failed to resolve '%s'"), linkpath);
-        goto cleanup;
+        return -1;
     }
 
     data->type = g_path_get_basename(canonicalpath);
 
     data->uuid = g_strdup(udev_device_get_sysname(dev));
     if ((iommugrp = virMediatedDeviceGetIOMMUGroupNum(data->uuid)) < 0)
-        goto cleanup;
+        return -1;
 
-    udevGenerateDeviceName(dev, def, NULL);
+    /* lookup the address of parent device */
+    parent_device = udev_device_get_parent(dev);
+    if (parent_device) {
+        const char *parent_sysfs_path = udev_device_get_syspath(parent_device);
+        if (parent_sysfs_path)
+            data->parent_addr = g_path_get_basename(parent_sysfs_path);
+    }
+
+    if (!data->parent_addr) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not get parent of '%s'"),
+                       udev_device_get_syspath(dev));
+        return -1;
+    }
+
+    udevGenerateDeviceName(dev, def, data->parent_addr);
 
     data->iommuGroupNumber = iommugrp;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(linkpath);
-    VIR_FREE(canonicalpath);
-    return ret;
+    return 0;
 }
 
 
@@ -1381,6 +1393,7 @@ udevGetDeviceDetails(struct udev_device *device,
     case VIR_NODE_DEV_CAP_AP_MATRIX:
         return udevProcessAPMatrix(device, def);
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
+    case VIR_NODE_DEV_CAP_VPD:
     case VIR_NODE_DEV_CAP_SYSTEM:
     case VIR_NODE_DEV_CAP_FC_HOST:
     case VIR_NODE_DEV_CAP_VPORTS:
@@ -1487,7 +1500,9 @@ udevAddOneDevice(struct udev_device *device)
     virObjectEvent *event = NULL;
     bool new_device = true;
     int ret = -1;
-    bool was_persistent = false;
+    bool persistent = false;
+    bool autostart = false;
+    bool is_mdev;
 
     def = g_new0(virNodeDeviceDef, 1);
 
@@ -1509,12 +1524,17 @@ udevAddOneDevice(struct udev_device *device)
     if (udevSetParent(device, def) != 0)
         goto cleanup;
 
+    is_mdev = def->caps->data.type == VIR_NODE_DEV_CAP_MDEV;
+
     if ((obj = virNodeDeviceObjListFindByName(driver->devs, def->name))) {
         objdef = virNodeDeviceObjGetDef(obj);
 
-        if (def->caps->data.type == VIR_NODE_DEV_CAP_MDEV)
+        if (is_mdev)
             nodeDeviceDefCopyFromMdevctl(def, objdef);
-        was_persistent = virNodeDeviceObjIsPersistent(obj);
+
+        persistent = virNodeDeviceObjIsPersistent(obj);
+        autostart = virNodeDeviceObjIsAutostart(obj);
+
         /* If the device was defined by mdevctl and was never instantiated, it
          * won't have a sysfs path. We need to emit a CREATED event... */
         new_device = (objdef->sysfs_path == NULL);
@@ -1526,7 +1546,8 @@ udevAddOneDevice(struct udev_device *device)
      * and the current definition will take its place. */
     if (!(obj = virNodeDeviceObjListAssignDef(driver->devs, def)))
         goto cleanup;
-    virNodeDeviceObjSetPersistent(obj, was_persistent);
+    virNodeDeviceObjSetPersistent(obj, persistent);
+    virNodeDeviceObjSetAutostart(obj, autostart);
     objdef = virNodeDeviceObjGetDef(obj);
 
     if (new_device)
@@ -1930,6 +1951,8 @@ udevSetupSystemDev(void)
         goto cleanup;
 
     virNodeDeviceObjSetActive(obj, true);
+    virNodeDeviceObjSetAutostart(obj, true);
+    virNodeDeviceObjSetPersistent(obj, true);
 
     virNodeDeviceObjEndAPI(&obj);
 
@@ -2227,6 +2250,9 @@ nodeStateInitialize(bool privileged,
     driver->privateData = priv;
     driver->nodeDeviceEventState = virObjectEventStateNew();
 
+    driver->parserCallbacks.postParse = nodeDeviceDefPostParse;
+    driver->parserCallbacks.validate = nodeDeviceDefValidate;
+
     if (udevPCITranslateInit(privileged) < 0)
         goto unlock;
 
@@ -2331,6 +2357,10 @@ static virNodeDeviceDriver udevNodeDeviceDriver = {
     .nodeDeviceDefineXML = nodeDeviceDefineXML, /* 7.3.0 */
     .nodeDeviceUndefine = nodeDeviceUndefine, /* 7.3.0 */
     .nodeDeviceCreate = nodeDeviceCreate, /* 7.3.0 */
+    .nodeDeviceSetAutostart = nodeDeviceSetAutostart, /* 7.8.0 */
+    .nodeDeviceGetAutostart = nodeDeviceGetAutostart, /* 7.8.0 */
+    .nodeDeviceIsPersistent = nodeDeviceIsPersistent, /* 7.8.0 */
+    .nodeDeviceIsActive = nodeDeviceIsActive, /* 7.8.0 */
 };
 
 

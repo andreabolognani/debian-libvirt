@@ -47,6 +47,7 @@ struct _virNodeDeviceDriverState {
 
     /* Immutable pointer, self-locking APIs */
     virObjectEventState *nodeDeviceEventState;
+    virNodeDeviceDefParserCallbacks parserCallbacks;
 };
 
 void
@@ -121,7 +122,8 @@ virNodeDeviceObjSetSkipUpdateCaps(virNodeDeviceObj *obj,
                                   bool skipUpdateCaps);
 virNodeDeviceObj *
 virNodeDeviceObjListFindMediatedDeviceByUUID(virNodeDeviceObjList *devs,
-                                             const char *uuid);
+                                             const char *uuid,
+                                             const char *parent_addr);
 
 bool
 virNodeDeviceObjIsActive(virNodeDeviceObj *obj);
@@ -135,10 +137,21 @@ virNodeDeviceObjIsPersistent(virNodeDeviceObj *obj);
 void
 virNodeDeviceObjSetPersistent(virNodeDeviceObj *obj,
                               bool persistent);
+bool
+virNodeDeviceObjIsAutostart(virNodeDeviceObj *obj);
 
-typedef bool (*virNodeDeviceObjListRemoveIterator)(virNodeDeviceObj *obj,
-                                                   const void *opaque);
+void
+virNodeDeviceObjSetAutostart(virNodeDeviceObj *obj,
+                             bool autostart);
+
+typedef bool (*virNodeDeviceObjListPredicate)(virNodeDeviceObj *obj,
+                                              const void *opaque);
 
 void virNodeDeviceObjListForEachRemove(virNodeDeviceObjList *devs,
-                                       virNodeDeviceObjListRemoveIterator callback,
+                                       virNodeDeviceObjListPredicate callback,
                                        void *opaque);
+
+virNodeDeviceObj *
+virNodeDeviceObjListFind(virNodeDeviceObjList *devs,
+                         virNodeDeviceObjListPredicate callback,
+                         void *opaque);

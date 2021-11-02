@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-guest/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-guest/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-x86_64 \
--name guest \
+-name guest=guest,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-guest/master-key.aes \
 -machine q35,accel=tcg,usb=off,dump-guest-core=off \
 -cpu Haswell \
 -m 1024 \
@@ -24,6 +25,8 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -kernel /var/lib/libvirt/images/guest.vmlinuz \
 -initrd /var/lib/libvirt/images/guest.initramfs \
--append 'rw root=/dev/vda rootwait'
+-append 'rw root=/dev/vda rootwait' \
+-msg timestamp=on

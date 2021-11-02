@@ -54,12 +54,11 @@ VIR_ONCE_GLOBAL_INIT(virCHMonitor);
 
 int virCHMonitorShutdownVMM(virCHMonitor *mon);
 int virCHMonitorPutNoContent(virCHMonitor *mon, const char *endpoint);
-int virCHMonitorGet(virCHMonitor *mon, const char *endpoint);
 
 static int
 virCHMonitorBuildCPUJson(virJSONValue *content, virDomainDef *vmdef)
 {
-    virJSONValue *cpus;
+    g_autoptr(virJSONValue) cpus = NULL;
     unsigned int maxvcpus = 0;
     unsigned int nvcpus = 0;
     virDomainVcpuDef *vcpu;
@@ -76,113 +75,121 @@ virCHMonitorBuildCPUJson(virJSONValue *content, virDomainDef *vmdef)
     if (maxvcpus != 0 || nvcpus != 0) {
         cpus = virJSONValueNewObject();
         if (virJSONValueObjectAppendNumberInt(cpus, "boot_vcpus", nvcpus) < 0)
-            goto cleanup;
+            return -1;
         if (virJSONValueObjectAppendNumberInt(cpus, "max_vcpus", vmdef->maxvcpus) < 0)
-            goto cleanup;
+            return -1;
         if (virJSONValueObjectAppend(content, "cpus", &cpus) < 0)
-            goto cleanup;
+            return -1;
     }
 
     return 0;
+}
 
- cleanup:
-    virJSONValueFree(cpus);
-    return -1;
+static int
+virCHMonitorBuildPTYJson(virJSONValue *content, virDomainDef *vmdef)
+{
+    virJSONValue *ptys = virJSONValueNewObject();
+
+    if (vmdef->nconsoles) {
+        g_autoptr(virJSONValue) pty = virJSONValueNewObject();
+        if (virJSONValueObjectAppendString(pty, "mode", "Pty") < 0)
+            return -1;
+        if (virJSONValueObjectAppend(content, "console", &pty) < 0)
+            return -1;
+    }
+
+    if (vmdef->nserials) {
+        g_autoptr(virJSONValue) pty = virJSONValueNewObject();
+        if (virJSONValueObjectAppendString(ptys, "mode", "Pty") < 0)
+            return -1;
+        if (virJSONValueObjectAppend(content, "serial", &pty) < 0)
+            return -1;
+    }
+
+    return 0;
 }
 
 static int
 virCHMonitorBuildKernelRelatedJson(virJSONValue *content, virDomainDef *vmdef)
 {
-    virJSONValue *kernel = virJSONValueNewObject();
-    virJSONValue *cmdline = virJSONValueNewObject();
-    virJSONValue *initramfs = virJSONValueNewObject();
+    g_autoptr(virJSONValue) kernel = virJSONValueNewObject();
+    g_autoptr(virJSONValue) cmdline = virJSONValueNewObject();
+    g_autoptr(virJSONValue) initramfs = virJSONValueNewObject();
 
     if (vmdef->os.kernel == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Kernel image path in this domain is not defined"));
-        goto cleanup;
+        return -1;
     } else {
-        kernel = virJSONValueNewObject();
         if (virJSONValueObjectAppendString(kernel, "path", vmdef->os.kernel) < 0)
-            goto cleanup;
+            return -1;
         if (virJSONValueObjectAppend(content, "kernel", &kernel) < 0)
-            goto cleanup;
+            return -1;
     }
 
     if (vmdef->os.cmdline) {
         if (virJSONValueObjectAppendString(cmdline, "args", vmdef->os.cmdline) < 0)
-            goto cleanup;
+            return -1;
         if (virJSONValueObjectAppend(content, "cmdline", &cmdline) < 0)
-            goto cleanup;
+            return -1;
     }
 
     if (vmdef->os.initrd != NULL) {
-        initramfs = virJSONValueNewObject();
         if (virJSONValueObjectAppendString(initramfs, "path", vmdef->os.initrd) < 0)
-            goto cleanup;
+            return -1;
         if (virJSONValueObjectAppend(content, "initramfs", &initramfs) < 0)
-            goto cleanup;
+            return -1;
     }
 
     return 0;
-
- cleanup:
-    virJSONValueFree(kernel);
-    virJSONValueFree(cmdline);
-    virJSONValueFree(initramfs);
-
-    return -1;
 }
 
 static int
 virCHMonitorBuildMemoryJson(virJSONValue *content, virDomainDef *vmdef)
 {
-    virJSONValue *memory;
     unsigned long long total_memory = virDomainDefGetMemoryInitial(vmdef) * 1024;
 
     if (total_memory != 0) {
-        memory = virJSONValueNewObject();
+        g_autoptr(virJSONValue) memory = virJSONValueNewObject();
+
         if (virJSONValueObjectAppendNumberUlong(memory, "size", total_memory) < 0)
-            goto cleanup;
+            return -1;
+
         if (virJSONValueObjectAppend(content, "memory", &memory) < 0)
-            goto cleanup;
+            return -1;
     }
 
     return 0;
-
- cleanup:
-    virJSONValueFree(memory);
-    return -1;
 }
 
 static int
 virCHMonitorBuildDiskJson(virJSONValue *disks, virDomainDiskDef *diskdef)
 {
-    virJSONValue *disk = virJSONValueNewObject();
+    g_autoptr(virJSONValue) disk = virJSONValueNewObject();
 
     if (!diskdef->src)
-        goto cleanup;
+        return -1;
 
     switch (diskdef->src->type) {
     case VIR_STORAGE_TYPE_FILE:
         if (!diskdef->src->path) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
                            _("Missing disk file path in domain"));
-            goto cleanup;
+            return -1;
         }
         if (diskdef->bus != VIR_DOMAIN_DISK_BUS_VIRTIO) {
             virReportError(VIR_ERR_INVALID_ARG,
                            _("Only virtio bus types are supported for '%s'"), diskdef->src->path);
-            goto cleanup;
+            return -1;
         }
         if (virJSONValueObjectAppendString(disk, "path", diskdef->src->path) < 0)
-            goto cleanup;
+            return -1;
         if (diskdef->src->readonly) {
             if (virJSONValueObjectAppendBoolean(disk, "readonly", true) < 0)
-                goto cleanup;
+                return -1;
         }
         if (virJSONValueArrayAppend(disks, &disk) < 0)
-            goto cleanup;
+            return -1;
 
         break;
     case VIR_STORAGE_TYPE_NONE:
@@ -194,20 +201,16 @@ virCHMonitorBuildDiskJson(virJSONValue *disks, virDomainDiskDef *diskdef)
     case VIR_STORAGE_TYPE_VHOST_USER:
     default:
         virReportEnumRangeError(virStorageType, diskdef->src->type);
-        goto cleanup;
+        return -1;
     }
 
     return 0;
-
- cleanup:
-    virJSONValueFree(disk);
-    return -1;
 }
 
 static int
 virCHMonitorBuildDisksJson(virJSONValue *content, virDomainDef *vmdef)
 {
-    virJSONValue *disks;
+    g_autoptr(virJSONValue) disks = NULL;
     size_t i;
 
     if (vmdef->ndisks > 0) {
@@ -215,17 +218,13 @@ virCHMonitorBuildDisksJson(virJSONValue *content, virDomainDef *vmdef)
 
         for (i = 0; i < vmdef->ndisks; i++) {
             if (virCHMonitorBuildDiskJson(disks, vmdef->disks[i]) < 0)
-                goto cleanup;
+                return -1;
         }
         if (virJSONValueObjectAppend(content, "disks", &disks) < 0)
-            goto cleanup;
+            return -1;
     }
 
     return 0;
-
- cleanup:
-    virJSONValueFree(disks);
-    return -1;
 }
 
 static int
@@ -233,7 +232,7 @@ virCHMonitorBuildNetJson(virJSONValue *nets, virDomainNetDef *netdef)
 {
     virDomainNetType netType = virDomainNetGetActualType(netdef);
     char macaddr[VIR_MAC_STRING_BUFLEN];
-    virJSONValue *net;
+    g_autoptr(virJSONValue) net = NULL;
 
     // check net type at first
     net = virJSONValueNewObject();
@@ -246,20 +245,20 @@ virCHMonitorBuildNetJson(virJSONValue *nets, virDomainNetDef *netdef)
             virSocketAddr netmask;
             g_autofree char *netmaskStr = NULL;
             if (!(addr = virSocketAddrFormat(&ip->address)))
-                goto cleanup;
+                return -1;
             if (virJSONValueObjectAppendString(net, "ip", addr) < 0)
-                goto cleanup;
+                return -1;
 
             if (virSocketAddrPrefixToNetmask(ip->prefix, &netmask, AF_INET) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("Failed to translate net prefix %d to netmask"),
                                ip->prefix);
-                goto cleanup;
+                return -1;
             }
             if (!(netmaskStr = virSocketAddrFormat(&netmask)))
-                goto cleanup;
+                return -1;
             if (virJSONValueObjectAppendString(net, "mask", netmaskStr) < 0)
-                goto cleanup;
+                return -1;
         } else if (netdef->guestIP.nips > 1) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("ethernet type supports a single guest ip"));
@@ -269,12 +268,12 @@ virCHMonitorBuildNetJson(virJSONValue *nets, virDomainNetDef *netdef)
         if ((virDomainChrType)netdef->data.vhostuser->type != VIR_DOMAIN_CHR_TYPE_UNIX) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("vhost_user type support UNIX socket in this CH"));
-            goto cleanup;
+            return -1;
         } else {
             if (virJSONValueObjectAppendString(net, "vhost_socket", netdef->data.vhostuser->data.nix.path) < 0)
-                goto cleanup;
+                return -1;
             if (virJSONValueObjectAppendBoolean(net, "vhost_user", true) < 0)
-                goto cleanup;
+                return -1;
         }
         break;
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
@@ -291,26 +290,26 @@ virCHMonitorBuildNetJson(virJSONValue *nets, virDomainNetDef *netdef)
     case VIR_DOMAIN_NET_TYPE_LAST:
     default:
         virReportEnumRangeError(virDomainNetType, netType);
-        goto cleanup;
+        return -1;
     }
 
     if (netdef->ifname != NULL) {
         if (virJSONValueObjectAppendString(net, "tap", netdef->ifname) < 0)
-            goto cleanup;
+            return -1;
     }
     if (virJSONValueObjectAppendString(net, "mac", virMacAddrFormat(&netdef->mac, macaddr)) < 0)
-        goto cleanup;
+        return -1;
 
 
     if (netdef->virtio != NULL) {
         if (netdef->virtio->iommu == VIR_TRISTATE_SWITCH_ON) {
             if (virJSONValueObjectAppendBoolean(net, "iommu", true) < 0)
-                goto cleanup;
+                return -1;
         }
     }
     if (netdef->driver.virtio.queues) {
         if (virJSONValueObjectAppendNumberInt(net, "num_queues", netdef->driver.virtio.queues) < 0)
-            goto cleanup;
+            return -1;
     }
 
     if (netdef->driver.virtio.rx_queue_size || netdef->driver.virtio.tx_queue_size) {
@@ -319,26 +318,22 @@ virCHMonitorBuildNetJson(virJSONValue *nets, virDomainNetDef *netdef)
                _("virtio rx_queue_size option %d is not same with tx_queue_size %d"),
                netdef->driver.virtio.rx_queue_size,
                netdef->driver.virtio.tx_queue_size);
-            goto cleanup;
+            return -1;
         }
         if (virJSONValueObjectAppendNumberInt(net, "queue_size", netdef->driver.virtio.rx_queue_size) < 0)
-            goto cleanup;
+            return -1;
     }
 
     if (virJSONValueArrayAppend(nets, &net) < 0)
-        goto cleanup;
+        return -1;
 
     return 0;
-
- cleanup:
-    virJSONValueFree(net);
-    return -1;
 }
 
 static int
 virCHMonitorBuildNetsJson(virJSONValue *content, virDomainDef *vmdef)
 {
-    virJSONValue *nets;
+    g_autoptr(virJSONValue) nets = NULL;
     size_t i;
 
     if (vmdef->nnets > 0) {
@@ -346,54 +341,48 @@ virCHMonitorBuildNetsJson(virJSONValue *content, virDomainDef *vmdef)
 
         for (i = 0; i < vmdef->nnets; i++) {
             if (virCHMonitorBuildNetJson(nets, vmdef->nets[i]) < 0)
-                goto cleanup;
+                return -1;
         }
         if (virJSONValueObjectAppend(content, "net", &nets) < 0)
-            goto cleanup;
+            return -1;
     }
 
     return 0;
-
- cleanup:
-    virJSONValueFree(nets);
-    return -1;
 }
 
 static int
 virCHMonitorBuildVMJson(virDomainDef *vmdef, char **jsonstr)
 {
-    virJSONValue *content = virJSONValueNewObject();
-    int ret = -1;
+    g_autoptr(virJSONValue) content = virJSONValueNewObject();
 
     if (vmdef == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("VM is not defined"));
-        goto cleanup;
+        return -1;
     }
 
+    if (virCHMonitorBuildPTYJson(content, vmdef) < 0)
+        return -1;
+
     if (virCHMonitorBuildCPUJson(content, vmdef) < 0)
-        goto cleanup;
+        return -1;
 
     if (virCHMonitorBuildMemoryJson(content, vmdef) < 0)
-        goto cleanup;
+        return -1;
 
     if (virCHMonitorBuildKernelRelatedJson(content, vmdef) < 0)
-        goto cleanup;
+        return -1;
 
     if (virCHMonitorBuildDisksJson(content, vmdef) < 0)
-        goto cleanup;
+        return -1;
 
     if (virCHMonitorBuildNetsJson(content, vmdef) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(*jsonstr = virJSONValueToString(content, false)))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virJSONValueFree(content);
-    return ret;
+    return 0;
 }
 
 static int
@@ -455,9 +444,8 @@ chMonitorCreateSocket(const char *socket_path)
 virCHMonitor *
 virCHMonitorNew(virDomainObj *vm, const char *socketdir)
 {
-    virCHMonitor *ret = NULL;
-    virCHMonitor *mon = NULL;
-    virCommand *cmd = NULL;
+    g_autoptr(virCHMonitor) mon = NULL;
+    g_autoptr(virCommand) cmd = NULL;
     int socket_fd = 0;
 
     if (virCHMonitorInitialize() < 0)
@@ -478,7 +466,7 @@ virCHMonitorNew(virDomainObj *vm, const char *socketdir)
         virReportSystemError(errno,
                              _("Cannot create socket directory '%s'"),
                              socketdir);
-        goto cleanup;
+        return NULL;
     }
 
     cmd = virCommandNew(vm->def->emulator);
@@ -488,7 +476,7 @@ virCHMonitorNew(virDomainObj *vm, const char *socketdir)
         virReportSystemError(errno,
                              _("Cannot create socket '%s'"),
                              mon->socketpath);
-        goto cleanup;
+        return NULL;
     }
 
     virCommandAddArg(cmd, "--api-socket");
@@ -497,20 +485,15 @@ virCHMonitorNew(virDomainObj *vm, const char *socketdir)
 
     /* launch Cloud-Hypervisor socket */
     if (virCommandRunAsync(cmd, &mon->pid) < 0)
-        goto cleanup;
+        return NULL;
 
     /* get a curl handle */
     mon->handle = curl_easy_init();
 
     /* now has its own reference */
-    virObjectRef(mon);
     mon->vm = virObjectRef(vm);
 
-    ret = mon;
-
- cleanup:
-    virCommandFree(cmd);
-    return ret;
+    return g_steal_pointer(&mon);
 }
 
 static void virCHMonitorDispose(void *opaque)
@@ -544,8 +527,6 @@ void virCHMonitorClose(virCHMonitor *mon)
     }
 
     virObjectUnref(mon);
-    if (mon->vm)
-        virObjectUnref(mon->vm);
 }
 
 static int
@@ -613,12 +594,36 @@ virCHMonitorPutNoContent(virCHMonitor *mon, const char *endpoint)
     return ret;
 }
 
-int
-virCHMonitorGet(virCHMonitor *mon, const char *endpoint)
+struct curl_data {
+    char *content;
+    size_t size;
+};
+
+static size_t
+curl_callback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    size_t content_size = size * nmemb;
+    struct curl_data *data = userp;
+
+    if (content_size == 0)
+        return content_size;
+
+    data->content = g_realloc(data->content, data->size + content_size);
+
+    memcpy(&(data->content[data->size]), contents, content_size);
+    data->size += content_size;
+
+    return content_size;
+}
+
+static int
+virCHMonitorGet(virCHMonitor *mon, const char *endpoint, virJSONValue **response)
 {
     g_autofree char *url = NULL;
     int responseCode = 0;
     int ret = -1;
+    struct curl_slist *headers = NULL;
+    struct curl_data data = {0};
 
     url = g_strdup_printf("%s/%s", URL_ROOT, endpoint);
 
@@ -630,12 +635,33 @@ virCHMonitorGet(virCHMonitor *mon, const char *endpoint)
     curl_easy_setopt(mon->handle, CURLOPT_UNIX_SOCKET_PATH, mon->socketpath);
     curl_easy_setopt(mon->handle, CURLOPT_URL, url);
 
+    if (response) {
+        headers = curl_slist_append(headers, "Accept: application/json");
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(mon->handle, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(mon->handle, CURLOPT_WRITEFUNCTION, curl_callback);
+        curl_easy_setopt(mon->handle, CURLOPT_WRITEDATA, (void *)&data);
+    }
+
     responseCode = virCHMonitorCurlPerform(mon->handle);
 
     virObjectUnlock(mon);
 
-    if (responseCode == 200 || responseCode == 204)
+    if (responseCode == 200 || responseCode == 204) {
+        if (response) {
+            data.content = g_realloc(data.content, data.size + 1);
+            data.content[data.size] = 0;
+            *response = virJSONValueFromString(data.content);
+            if (!*response)
+                goto cleanup;
+        }
         ret = 0;
+    }
+
+ cleanup:
+    g_free(data.content);
+    /* reset the libcurl handle to avoid leaking a stack pointer to data */
+    curl_easy_reset(mon->handle);
 
     return ret;
 }
@@ -712,4 +738,19 @@ int
 virCHMonitorResumeVM(virCHMonitor *mon)
 {
     return virCHMonitorPutNoContent(mon, URL_VM_RESUME);
+}
+
+/**
+ * virCHMonitorGetInfo:
+ * @mon: Pointer to the monitor
+ * @info: Get VM info
+ *
+ * Retrieve the VM info and store in @info
+ *
+ * Returns 0 on success.
+ */
+int
+virCHMonitorGetInfo(virCHMonitor *mon, virJSONValue **info)
+{
+    return virCHMonitorGet(mon, URL_VM_INFO, info);
 }

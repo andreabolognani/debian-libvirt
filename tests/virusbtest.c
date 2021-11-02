@@ -49,7 +49,7 @@ static int testDeviceFileActor(virUSBDevice *dev,
                                const char *path,
                                void *opaque G_GNUC_UNUSED)
 {
-    char *str = NULL;
+    g_autofree char *str = NULL;
     int ret = 0;
 
     str = g_strdup_printf(USB_DEVFS "%03d/%03d", virUSBDeviceGetBus(dev),
@@ -61,7 +61,6 @@ static int testDeviceFileActor(virUSBDevice *dev,
                        path, str);
         ret = -1;
     }
-    VIR_FREE(str);
     return ret;
 }
 
@@ -70,7 +69,7 @@ static int testDeviceFind(const void *opaque)
     const struct findTestInfo *info = opaque;
     int ret = -1;
     virUSBDevice *dev = NULL;
-    virUSBDeviceList *devs = NULL;
+    g_autoptr(virUSBDeviceList) devs = NULL;
     int rv = 0;
     size_t i, ndevs = 0;
 
@@ -123,7 +122,6 @@ static int testDeviceFind(const void *opaque)
     ret = 0;
 
  cleanup:
-    virObjectUnref(devs);
     virUSBDeviceFree(dev);
     return ret;
 }

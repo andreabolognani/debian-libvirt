@@ -47,28 +47,29 @@ checkProtocols(bool *hasIPv4, bool *hasIPv6,
 {
     struct sockaddr_in in4;
     struct sockaddr_in6 in6;
-    int s4 = -1, s6 = -1;
     size_t i;
-    int ret = -1;
 
     *freePort = 0;
     if (virNetSocketCheckProtocols(hasIPv4, hasIPv6) < 0)
         return -1;
 
     for (i = 0; i < 50; i++) {
+        VIR_AUTOCLOSE s4 = -1;
+        VIR_AUTOCLOSE s6 = -1;
+
         if (*hasIPv4) {
             if ((s4 = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-                goto cleanup;
+                return -1;
         }
 
         if (*hasIPv6) {
             int only = 1;
 
             if ((s6 = socket(AF_INET6, SOCK_STREAM, 0)) < 0)
-                goto cleanup;
+                return -1;
 
             if (setsockopt(s6, IPPROTO_IPV6, IPV6_V6ONLY, &only, sizeof(only)) < 0)
-                goto cleanup;
+                return -1;
         }
 
         memset(&in4, 0, sizeof(in4));
@@ -84,22 +85,18 @@ checkProtocols(bool *hasIPv4, bool *hasIPv6,
         if (*hasIPv4) {
             if (bind(s4, (struct sockaddr *)&in4, sizeof(in4)) < 0) {
                 if (errno == EADDRINUSE) {
-                    VIR_FORCE_CLOSE(s4);
-                    VIR_FORCE_CLOSE(s6);
                     continue;
                 }
-                goto cleanup;
+                return -1;
             }
         }
 
         if (*hasIPv6) {
             if (bind(s6, (struct sockaddr *)&in6, sizeof(in6)) < 0) {
                 if (errno == EADDRINUSE) {
-                    VIR_FORCE_CLOSE(s4);
-                    VIR_FORCE_CLOSE(s6);
                     continue;
                 }
-                goto cleanup;
+                return -1;
             }
         }
 
@@ -109,12 +106,7 @@ checkProtocols(bool *hasIPv4, bool *hasIPv6,
 
     VIR_DEBUG("Choose port %d", *freePort);
 
-    ret = 0;
-
- cleanup:
-    VIR_FORCE_CLOSE(s4);
-    VIR_FORCE_CLOSE(s6);
-    return ret;
+    return 0;
 }
 
 struct testClientData {
@@ -186,7 +178,7 @@ testSocketAccept(const void *opaque)
     int ret = -1;
     char portstr[100];
     char *tmpdir = NULL;
-    char *path = NULL;
+    g_autofree char *path = NULL;
     char template[] = "/tmp/libvirt_XXXXXX";
     virThread th;
     struct testClientData cdata = { 0 };
@@ -296,7 +288,6 @@ testSocketAccept(const void *opaque)
         virObjectUnref(lsock[i]);
     }
     VIR_FREE(lsock);
-    VIR_FREE(path);
     if (tmpdir)
         rmdir(tmpdir);
     return ret;
@@ -312,7 +303,7 @@ static int testSocketUNIXAddrs(const void *data G_GNUC_UNUSED)
     virNetSocket *csock = NULL; /* Client socket */
     int ret = -1;
 
-    char *path = NULL;
+    g_autofree char *path = NULL;
     char *tmpdir;
     char template[] = "/tmp/libvirt_XXXXXX";
 
@@ -383,7 +374,6 @@ static int testSocketUNIXAddrs(const void *data G_GNUC_UNUSED)
     ret = 0;
 
  cleanup:
-    VIR_FREE(path);
     virObjectUnref(lsock);
     virObjectUnref(ssock);
     virObjectUnref(csock);
@@ -398,7 +388,8 @@ static int testSocketCommandNormal(const void *data G_GNUC_UNUSED)
     char buf[100];
     size_t i;
     int ret = -1;
-    virCommand *cmd = virCommandNewArgList("/bin/cat", "/dev/zero", NULL);
+    g_autoptr(virCommand) cmd = virCommandNewArgList("/bin/cat", "/dev/zero", NULL);
+
     virCommandAddEnvPassCommon(cmd);
 
     if (virNetSocketNewConnectCommand(cmd, &csock) < 0)
@@ -425,7 +416,8 @@ static int testSocketCommandFail(const void *data G_GNUC_UNUSED)
     virNetSocket *csock = NULL; /* Client socket */
     char buf[100];
     int ret = -1;
-    virCommand *cmd = virCommandNewArgList("/bin/cat", "/dev/does-not-exist", NULL);
+    g_autoptr(virCommand) cmd = virCommandNewArgList("/bin/cat", "/dev/does-not-exist", NULL);
+
     virCommandAddEnvPassCommon(cmd);
 
     if (virNetSocketNewConnectCommand(cmd, &csock) < 0)

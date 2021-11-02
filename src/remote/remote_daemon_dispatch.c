@@ -1334,6 +1334,35 @@ remoteRelayDomainEventMemoryFailure(virConnectPtr conn,
 }
 
 
+static int
+remoteRelayDomainEventMemoryDeviceSizeChange(virConnectPtr conn,
+                                             virDomainPtr dom,
+                                             const char *alias,
+                                             unsigned long long size,
+                                             void *opaque)
+{
+    daemonClientEventCallback *callback = opaque;
+    remote_domain_event_memory_device_size_change_msg data;
+
+    if (callback->callbackID < 0 ||
+        !remoteRelayDomainEventCheckACL(callback->client, conn, dom))
+        return -1;
+
+    /* build return data */
+    memset(&data, 0, sizeof(data));
+    data.callbackID = callback->callbackID;
+    data.alias = g_strdup(alias);
+    data.size = size;
+    make_nonnull_domain(&data.dom, dom);
+
+    remoteDispatchObjectEventSend(callback->client, remoteProgram,
+                                  REMOTE_PROC_DOMAIN_EVENT_MEMORY_DEVICE_SIZE_CHANGE,
+                                  (xdrproc_t)xdr_remote_domain_event_memory_device_size_change_msg,
+                                  &data);
+    return 0;
+}
+
+
 static virConnectDomainEventGenericCallback domainEventCallbacks[] = {
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventLifecycle),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventReboot),
@@ -1361,6 +1390,7 @@ static virConnectDomainEventGenericCallback domainEventCallbacks[] = {
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMetadataChange),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventBlockThreshold),
     VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMemoryFailure),
+    VIR_DOMAIN_EVENT_CALLBACK(remoteRelayDomainEventMemoryDeviceSizeChange),
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(domainEventCallbacks) == VIR_DOMAIN_EVENT_ID_LAST);
@@ -1948,6 +1978,73 @@ void *remoteClientNew(virNetServerClient *client,
 
 /*----- Functions. -----*/
 
+#ifdef VIRTPROXYD
+/*
+ * When running in virtproxyd regular auto-probing of drivers
+ * does not work as we don't have any drivers present (except
+ * stateless ones inside libvirt.so). All the interesting
+ * drivers are in separate daemons. Thus when we get a NULL
+ * URI we need to simulate probing that virConnectOpen would
+ * previously do. We use the existence of the UNIX domain
+ * socket as our hook for probing.
+ *
+ * This assumes no stale sockets left over from a now dead
+ * daemon, but that's reasonable since libvirtd unlinks
+ * sockets it creates on shutdown, or uses systemd activation
+ *
+ * We only try to probe for primary hypervisor drivers,
+ * not the secondary drivers.
+ */
+static int
+remoteDispatchProbeURI(bool readonly,
+                       char **probeduri)
+{
+    g_autofree char *driver = NULL;
+    const char *suffix;
+    *probeduri = NULL;
+    VIR_DEBUG("Probing for driver daemon sockets");
+
+    /*
+     * If running root, either the daemon is running and the socket
+     * exists, or we're using socket activation so the socket exists
+     * too.
+     *
+     * If running non-root, the daemon may or may not already be
+     * running, and socket activation probably isn't relevant.
+     * So if no viable socket exists, we need to check which daemons
+     * are actually installed. This is not a big deal as only QEMU &
+     * VBox run as non-root, anyway.
+     */
+    if (geteuid() != 0) {
+        if (remoteProbeSessionDriverFromSocket(false, &driver) < 0)
+            return -1;
+
+        if (driver == NULL &&
+            remoteProbeSessionDriverFromBinary(&driver) < 0)
+            return -1;
+
+        suffix = "session";
+    } else {
+        if (remoteProbeSystemDriverFromSocket(readonly, &driver) < 0)
+            return -1;
+
+        suffix = "system";
+    }
+
+    /* Even if we didn't probe any socket, we won't
+     * return error. Just let virConnectOpen's normal
+     * logic run which will likely return an error anyway
+     */
+    if (!driver)
+        return 0;
+
+    *probeduri = g_strdup_printf("%s:///%s", driver, suffix);
+    VIR_DEBUG("Probed URI %s for driver %s", *probeduri, driver);
+    return 0;
+}
+#endif /* VIRTPROXYD */
+
+
 static int
 remoteDispatchConnectOpen(virNetServer *server G_GNUC_UNUSED,
                           virNetServerClient *client,
@@ -1956,6 +2053,9 @@ remoteDispatchConnectOpen(virNetServer *server G_GNUC_UNUSED,
                           struct remote_connect_open_args *args)
 {
     const char *name;
+#ifdef VIRTPROXYD
+    g_autofree char *probeduri = NULL;
+#endif
     unsigned int flags;
     struct daemonClientPrivate *priv = virNetServerClientGetPrivateData(client);
     int rv = -1;
@@ -1984,6 +2084,13 @@ remoteDispatchConnectOpen(virNetServer *server G_GNUC_UNUSED,
     priv->readonly = flags & VIR_CONNECT_RO;
 
 #ifdef VIRTPROXYD
+    if (!name || STREQ(name, "")) {
+        if (remoteDispatchProbeURI(priv->readonly, &probeduri) < 0)
+            goto cleanup;
+
+        name = probeduri;
+    }
+
     preserveIdentity = true;
 #endif /* VIRTPROXYD */
 
@@ -2115,7 +2222,7 @@ remoteDispatchConnectSetIdentity(virNetServer *server G_GNUC_UNUSED,
     int nparams = 0;
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
-    g_autoptr(virIdentity) ident = NULL;
+    g_autoptr(virIdentity) ident = virIdentityNew();
     if (!conn)
         goto cleanup;
 
@@ -2130,9 +2237,6 @@ remoteDispatchConnectSetIdentity(virNetServer *server G_GNUC_UNUSED,
     VIR_TYPED_PARAMS_DEBUG(params, nparams);
 
     if (virConnectSetIdentityEnsureACL(conn) < 0)
-        goto cleanup;
-
-    if (!(ident = virIdentityNew()))
         goto cleanup;
 
     if (virIdentitySetParameters(ident, params, nparams) < 0)
@@ -4120,10 +4224,9 @@ remoteDispatchConnectDomainEventRegister(virNetServer *server G_GNUC_UNUSED,
     callback->callbackID = -1;
     callback->legacy = true;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->domainEventCallbacks,
-                           priv->ndomainEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->domainEventCallbacks,
+                       priv->ndomainEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectDomainEventRegisterAny(conn,
                                                        NULL,
@@ -4348,10 +4451,9 @@ remoteDispatchConnectDomainEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
     callback->callbackID = -1;
     callback->legacy = true;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->domainEventCallbacks,
-                           priv->ndomainEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->domainEventCallbacks,
+                       priv->ndomainEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectDomainEventRegisterAny(conn,
                                                        NULL,
@@ -4422,10 +4524,9 @@ remoteDispatchConnectDomainEventCallbackRegisterAny(virNetServer *server G_GNUC_
     callback->eventID = args->eventID;
     callback->callbackID = -1;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->domainEventCallbacks,
-                           priv->ndomainEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->domainEventCallbacks,
+                       priv->ndomainEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectDomainEventRegisterAny(conn,
                                                        dom,
@@ -5898,10 +5999,9 @@ remoteDispatchConnectNetworkEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
     callback->eventID = args->eventID;
     callback->callbackID = -1;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->networkEventCallbacks,
-                           priv->nnetworkEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->networkEventCallbacks,
+                       priv->nnetworkEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectNetworkEventRegisterAny(conn,
                                                         net,
@@ -6018,10 +6118,9 @@ remoteDispatchConnectStoragePoolEventRegisterAny(virNetServer *server G_GNUC_UNU
     callback->eventID = args->eventID;
     callback->callbackID = -1;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->storageEventCallbacks,
-                           priv->nstorageEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->storageEventCallbacks,
+                       priv->nstorageEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectStoragePoolEventRegisterAny(conn,
                                                             pool,
@@ -6137,10 +6236,9 @@ remoteDispatchConnectNodeDeviceEventRegisterAny(virNetServer *server G_GNUC_UNUS
     callback->eventID = args->eventID;
     callback->callbackID = -1;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->nodeDeviceEventCallbacks,
-                           priv->nnodeDeviceEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->nodeDeviceEventCallbacks,
+                       priv->nnodeDeviceEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectNodeDeviceEventRegisterAny(conn,
                                                            dev,
@@ -6256,10 +6354,9 @@ remoteDispatchConnectSecretEventRegisterAny(virNetServer *server G_GNUC_UNUSED,
     callback->eventID = args->eventID;
     callback->callbackID = -1;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->secretEventCallbacks,
-                           priv->nsecretEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->secretEventCallbacks,
+                       priv->nsecretEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectSecretEventRegisterAny(conn,
                                                        secret,
@@ -6370,10 +6467,9 @@ qemuDispatchConnectDomainMonitorEventRegister(virNetServer *server G_GNUC_UNUSED
     callback->eventID = -1;
     callback->callbackID = -1;
     ref = callback;
-    if (VIR_APPEND_ELEMENT(priv->qemuEventCallbacks,
-                           priv->nqemuEventCallbacks,
-                           callback) < 0)
-        goto cleanup;
+    VIR_APPEND_ELEMENT(priv->qemuEventCallbacks,
+                       priv->nqemuEventCallbacks,
+                       callback);
 
     if ((callbackID = virConnectDomainQemuMonitorEventRegister(conn,
                                                                dom,
@@ -7261,7 +7357,7 @@ remoteDispatchDomainAuthorizedSshKeysGet(virNetServer *server G_GNUC_UNUSED,
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
     int nkeys = 0;
-    char **keys = NULL;
+    g_auto(GStrv) keys = NULL;
     virDomainPtr dom = NULL;
 
     if (!conn)
@@ -7289,8 +7385,6 @@ remoteDispatchDomainAuthorizedSshKeysGet(virNetServer *server G_GNUC_UNUSED,
  cleanup:
     if (rv < 0)
         virNetMessageSaveError(rerr);
-    if (nkeys > 0)
-        virStringListFreeCount(keys, nkeys);
     virObjectUnref(dom);
 
     return rv;
@@ -7343,7 +7437,7 @@ remoteDispatchDomainGetMessages(virNetServer *server G_GNUC_UNUSED,
     int rv = -1;
     virConnectPtr conn = remoteGetHypervisorConn(client);
     int nmsgs = 0;
-    char **msgs = NULL;
+    g_auto(GStrv) msgs = NULL;
     virDomainPtr dom = NULL;
 
     if (!conn)
@@ -7370,8 +7464,6 @@ remoteDispatchDomainGetMessages(virNetServer *server G_GNUC_UNUSED,
  cleanup:
     if (rv < 0)
         virNetMessageSaveError(rerr);
-    if (nmsgs > 0)
-        virStringListFreeCount(msgs, nmsgs);
     virObjectUnref(dom);
 
     return rv;

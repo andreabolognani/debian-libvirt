@@ -117,10 +117,7 @@ virNWFilterObjListFree(virNWFilterObjList *nwfilters)
 virNWFilterObjList *
 virNWFilterObjListNew(void)
 {
-    virNWFilterObjList *nwfilters;
-
-    nwfilters = g_new0(virNWFilterObjList, 1);
-    return nwfilters;
+    return g_new0(virNWFilterObjList, 1);
 }
 
 
@@ -371,12 +368,8 @@ virNWFilterObjListAssignDef(virNWFilterObjList *nwfilters,
     if (!(obj = virNWFilterObjNew()))
         return NULL;
 
-    if (VIR_APPEND_ELEMENT_COPY(nwfilters->objs,
-                                nwfilters->count, obj) < 0) {
-        virNWFilterObjUnlock(obj);
-        virNWFilterObjFree(obj);
-        return NULL;
-    }
+    VIR_APPEND_ELEMENT_COPY(nwfilters->objs, nwfilters->count, obj);
+
     obj->def = def;
 
     return obj;

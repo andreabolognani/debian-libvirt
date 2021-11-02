@@ -281,27 +281,21 @@ virCPUDefParseXMLString(const char *xml,
                         virCPUDef **cpu,
                         bool validateXML)
 {
-    xmlDocPtr doc = NULL;
-    xmlXPathContextPtr ctxt = NULL;
-    int ret = -1;
+    g_autoptr(xmlDoc) doc = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
 
     if (!xml) {
         virReportError(VIR_ERR_INVALID_ARG, "%s", _("missing CPU definition"));
-        goto cleanup;
+        return -1;
     }
 
     if (!(doc = virXMLParseStringCtxt(xml, _("(CPU_definition)"), &ctxt)))
-        goto cleanup;
+        return -1;
 
     if (virCPUDefParseXML(ctxt, NULL, type, cpu, validateXML) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    xmlFreeDoc(doc);
-    xmlXPathFreeContext(ctxt);
-    return ret;
+    return 0;
 }
 
 
@@ -326,6 +320,7 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
 {
     g_autoptr(virCPUDef) def = NULL;
     g_autofree xmlNodePtr *nodes = NULL;
+    xmlNodePtr topology = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     int n;
     size_t i;
@@ -531,44 +526,32 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
         return -1;
     }
 
-    if (virXPathNode("./topology[1]", ctxt)) {
-        unsigned long ul;
+    if ((topology = virXPathNode("./topology[1]", ctxt))) {
+        int rc;
 
-        if (virXPathULong("string(./topology[1]/@sockets)", ctxt, &ul) < 0) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("Missing 'sockets' attribute in CPU topology"));
+        if (virXMLPropUInt(topology, "sockets", 10,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &def->sockets) < 0) {
             return -1;
         }
-        def->sockets = (unsigned int) ul;
 
-        if (virXPathNode("./topology[1]/@dies", ctxt)) {
-            if (virXPathULong("string(./topology[1]/@dies)", ctxt, &ul) < 0) {
-                virReportError(VIR_ERR_XML_ERROR, "%s",
-                               _("Malformed 'dies' attribute in CPU topology"));
-                return -1;
-            }
-            def->dies = (unsigned int) ul;
-        } else {
+        if ((rc = virXMLPropUInt(topology, "dies", 10,
+                                 VIR_XML_PROP_NONZERO,
+                                 &def->dies)) < 0) {
+            return -1;
+        } else if (rc == 0) {
             def->dies = 1;
         }
 
-        if (virXPathULong("string(./topology[1]/@cores)", ctxt, &ul) < 0) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("Missing 'cores' attribute in CPU topology"));
+        if (virXMLPropUInt(topology, "cores", 10,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &def->cores) < 0) {
             return -1;
         }
-        def->cores = (unsigned int) ul;
 
-        if (virXPathULong("string(./topology[1]/@threads)", ctxt, &ul) < 0) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("Missing 'threads' attribute in CPU topology"));
-            return -1;
-        }
-        def->threads = (unsigned int) ul;
-
-        if (!def->sockets || !def->cores || !def->threads || !def->dies) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("Invalid CPU topology"));
+        if (virXMLPropUInt(topology, "threads", 10,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &def->threads) < 0) {
             return -1;
         }
     }
@@ -1126,8 +1109,6 @@ virCPUDefListParse(const char **xmlCPUs,
                    unsigned int ncpus,
                    virCPUType cpuType)
 {
-    xmlDocPtr doc = NULL;
-    xmlXPathContextPtr ctxt = NULL;
     virCPUDef **cpus = NULL;
     size_t i;
 
@@ -1152,24 +1133,20 @@ virCPUDefListParse(const char **xmlCPUs,
     cpus = g_new0(virCPUDef *, ncpus + 1);
 
     for (i = 0; i < ncpus; i++) {
+        g_autoptr(xmlDoc) doc = NULL;
+        g_autoptr(xmlXPathContext) ctxt = NULL;
+
         if (!(doc = virXMLParseStringCtxt(xmlCPUs[i], _("(CPU_definition)"), &ctxt)))
             goto error;
 
         if (virCPUDefParseXML(ctxt, NULL, cpuType, &cpus[i], false) < 0)
             goto error;
-
-        xmlXPathFreeContext(ctxt);
-        xmlFreeDoc(doc);
-        ctxt = NULL;
-        doc = NULL;
     }
 
     return cpus;
 
  error:
     virCPUDefListFree(cpus);
-    xmlXPathFreeContext(ctxt);
-    xmlFreeDoc(doc);
     return NULL;
 }
 

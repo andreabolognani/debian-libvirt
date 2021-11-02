@@ -584,6 +584,7 @@ struct _virDomainDiskDef {
     virDomainDiskDetectZeroes detect_zeroes;
     char *domain_name; /* backend domain name */
     unsigned int queues;
+    unsigned int queue_size;
     virDomainDiskModel model;
     virDomainVirtioOptions *virtio;
 
@@ -1283,6 +1284,7 @@ struct _virDomainChrSourceDef {
     size_t nseclabels;
     virSecurityDeviceLabelDef **seclabels;
 };
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainChrSourceDef, virObjectUnref);
 
 /* A complete character device, both host and domain views.  */
 struct _virDomainChrDef {
@@ -1318,7 +1320,7 @@ typedef enum {
 #define VIR_DOMAIN_SMARTCARD_DEFAULT_DATABASE "/etc/pki/nssdb"
 
 struct _virDomainSmartcardDef {
-    int type; /* virDomainSmartcardType */
+    virDomainSmartcardType type;
     union {
         /* no extra data for 'host' */
         struct {
@@ -2472,6 +2474,7 @@ typedef enum {
     VIR_DOMAIN_MEMORY_MODEL_DIMM, /* dimm hotpluggable memory device */
     VIR_DOMAIN_MEMORY_MODEL_NVDIMM, /* nvdimm memory device */
     VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM, /* virtio-pmem memory device */
+    VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM, /* virtio-mem memory device */
 
     VIR_DOMAIN_MEMORY_MODEL_LAST
 } virDomainMemoryModel;
@@ -2492,6 +2495,11 @@ struct _virDomainMemoryDef {
     int targetNode;
     unsigned long long size; /* kibibytes */
     unsigned long long labelsize; /* kibibytes; valid only for NVDIMM */
+    unsigned long long blocksize; /* kibibytes; valid only for VIRTIO_MEM */
+    unsigned long long requestedsize; /* kibibytes; valid only for VIRTIO_MEM */
+    unsigned long long currentsize; /* kibibytes, valid for VIRTIO_MEM and
+                                       active domain only, only to report never
+                                       parse */
     bool readonly; /* valid only for NVDIMM */
 
     /* required for QEMU NVDIMM ppc64 support */
@@ -2538,6 +2546,7 @@ void virBlkioDeviceArrayClear(virBlkioDevice *deviceWeights,
 
 struct _virDomainResourceDef {
     char *partition;
+    char *appid;
 };
 
 struct _virDomainHugePage {
@@ -2724,7 +2733,14 @@ struct _virDomainVirtioOptions {
     virTristateSwitch iommu;
     virTristateSwitch ats;
     virTristateSwitch packed;
+    virTristateSwitch page_per_vq;
 };
+
+
+#define SCSI_SUPER_WIDE_BUS_MAX_CONT_UNIT 64
+#define SCSI_WIDE_BUS_MAX_CONT_UNIT 16
+#define SCSI_NARROW_BUS_MAX_CONT_UNIT 7
+
 
 /*
  * Guest VM main configuration
@@ -2904,6 +2920,8 @@ struct _virDomainDef {
                              callbacks failed for a non-critical reason
                              (was not able to fill in some data) and thus
                              should be re-run before starting */
+
+    unsigned int scsiBusMaxUnit;
 };
 
 
@@ -3274,6 +3292,9 @@ bool virDomainControllerIsPSeriesPHB(const virDomainControllerDef *cont);
 virDomainFSDef *virDomainFSDefNew(virDomainXMLOption *xmlopt);
 void virDomainFSDefFree(virDomainFSDef *def);
 void virDomainActualNetDefFree(virDomainActualNetDef *def);
+virDomainIOMMUDef *virDomainIOMMUDefNew(void);
+void virDomainIOMMUDefFree(virDomainIOMMUDef *iommu);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainIOMMUDef, virDomainIOMMUDefFree);
 virDomainVsockDef *virDomainVsockDefNew(virDomainXMLOption *xmlopt);
 void virDomainVsockDefFree(virDomainVsockDef *vsock);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVsockDef, virDomainVsockDefFree);
@@ -3284,6 +3305,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainNetDef, virDomainNetDefFree);
 void virDomainSmartcardDefFree(virDomainSmartcardDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainSmartcardDef, virDomainSmartcardDefFree);
 void virDomainChrDefFree(virDomainChrDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainChrDef, virDomainChrDefFree);
 int virDomainChrSourceDefCopy(virDomainChrSourceDef *dest,
                               virDomainChrSourceDef *src);
 void virDomainSoundCodecDefFree(virDomainSoundCodecDef *def);
@@ -3314,7 +3336,7 @@ virDomainDeviceDef *virDomainDeviceDefCopy(virDomainDeviceDef *src,
                                            const virDomainDef *def,
                                            virDomainXMLOption *xmlopt,
                                            void *parseOpaque);
-virDomainDeviceInfo *virDomainDeviceGetInfo(virDomainDeviceDef *device);
+virDomainDeviceInfo *virDomainDeviceGetInfo(const virDomainDeviceDef *device);
 void virDomainDeviceSetData(virDomainDeviceDef *device,
                             void *devicedata);
 void virDomainTPMDefFree(virDomainTPMDef *def);
@@ -3351,7 +3373,7 @@ virDomainGraphicsDefNew(virDomainXMLOption *xmlopt);
 virDomainNetDef *
 virDomainNetDefNew(virDomainXMLOption *xmlopt);
 
-virDomainDef *virDomainDefNew(void);
+virDomainDef *virDomainDefNew(virDomainXMLOption *xmlopt);
 
 void virDomainObjAssignDef(virDomainObj *domain,
                            virDomainDef *def,
@@ -3739,6 +3761,8 @@ virDomainFSDef *virDomainGetFilesystemForTarget(virDomainDef *def,
 int virDomainFSInsert(virDomainDef *def, virDomainFSDef *fs);
 int virDomainFSIndexByName(virDomainDef *def, const char *name);
 virDomainFSDef *virDomainFSRemove(virDomainDef *def, size_t i);
+ssize_t virDomainFSDefFind(virDomainDef *def,
+                           virDomainFSDef *fs);
 
 unsigned int virDomainVideoDefaultRAM(const virDomainDef *def,
                                       const virDomainVideoType type);
@@ -3776,7 +3800,7 @@ virDomainObjGetState(virDomainObj *obj, int *reason)
         ATTRIBUTE_NONNULL(1);
 
 virSecurityLabelDef *
-virDomainDefGetSecurityLabelDef(virDomainDef *def, const char *model);
+virDomainDefGetSecurityLabelDef(const virDomainDef *def, const char *model);
 
 virSecurityDeviceLabelDef *
 virDomainChrSourceDefGetSecurityLabelDef(virDomainChrSourceDef *def,
@@ -3793,6 +3817,16 @@ int virDomainMemoryFindByDef(virDomainDef *def, virDomainMemoryDef *mem)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 int virDomainMemoryFindInactiveByDef(virDomainDef *def,
                                      virDomainMemoryDef *mem)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
+virDomainMemoryDef *
+virDomainMemoryFindByDeviceInfo(virDomainDef *dev,
+                                virDomainDeviceInfo *info,
+                                int *pos)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
+
+virDomainMemoryDef *
+virDomainMemoryFindByDeviceAlias(virDomainDef *def,
+                                 const char *alias)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 
 int virDomainShmemDefInsert(virDomainDef *def, virDomainShmemDef *shmem)
@@ -4165,3 +4199,8 @@ virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
 bool
 virHostdevIsVFIODevice(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
+
+int
+virDomainObjGetMessages(virDomainObj *vm,
+                        char ***msgs,
+                        unsigned int flags);

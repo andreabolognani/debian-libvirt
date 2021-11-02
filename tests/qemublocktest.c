@@ -235,19 +235,16 @@ testQemuDiskXMLToJSONFakeSecrets(virStorageSource *src)
     if (src->auth) {
         srcpriv->secinfo = g_new0(qemuDomainSecretInfo, 1);
 
-        srcpriv->secinfo->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
-        srcpriv->secinfo->s.aes.username = g_strdup(src->auth->username);
-
-        srcpriv->secinfo->s.aes.alias = g_strdup_printf("%s-secalias",
-                                                        NULLSTR(src->nodestorage));
+        srcpriv->secinfo->username = g_strdup(src->auth->username);
+        srcpriv->secinfo->alias = g_strdup_printf("%s-secalias",
+                                                  NULLSTR(src->nodestorage));
     }
 
     if (src->encryption) {
         srcpriv->encinfo = g_new0(qemuDomainSecretInfo, 1);
 
-        srcpriv->encinfo->type = VIR_DOMAIN_SECRET_INFO_TYPE_AES;
-        srcpriv->encinfo->s.aes.alias = g_strdup_printf("%s-encalias",
-                                                        NULLSTR(src->nodeformat));
+        srcpriv->encinfo->alias = g_strdup_printf("%s-encalias",
+                                                  NULLSTR(src->nodeformat));
     }
 
     return 0;
@@ -279,7 +276,10 @@ testQemuDiskXMLToProps(const void *opaque)
                                        VIR_DOMAIN_DEF_PARSE_STATUS)))
         return -1;
 
-    if (!(vmdef = virDomainDefNew()))
+    if (qemuDomainDeviceDiskDefPostParse(disk, 0) < 0)
+        return -1;
+
+    if (!(vmdef = virDomainDefNew(data->driver->xmlopt)))
         return -1;
 
     virDomainDiskInsert(vmdef, disk);
@@ -473,32 +473,24 @@ testQemuImageCreateLoadDiskXML(const char *name,
                                virDomainXMLOption *xmlopt)
 
 {
-    virDomainSnapshotDiskDef *diskdef = NULL;
-    g_autoptr(xmlDoc) doc = NULL;
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-    xmlNodePtr node;
+    g_autoptr(virDomainDiskDef) disk = NULL;
     g_autofree char *xmlpath = NULL;
-    virStorageSource *ret = NULL;
+    g_autofree char *xmlstr = NULL;
 
     xmlpath = g_strdup_printf("%s%s.xml", testQemuImageCreatePath, name);
 
-    if (!(doc = virXMLParseFileCtxt(xmlpath, &ctxt)))
+    if (virTestLoadFile(xmlpath, &xmlstr) < 0)
         return NULL;
 
-    if (!(node = virXPathNode("//disk", ctxt))) {
-        VIR_TEST_VERBOSE("failed to find <source> element\n");
+    /* qemu stores node names in the status XML portion */
+    if (!(disk = virDomainDiskDefParse(xmlstr, xmlopt,
+                                       VIR_DOMAIN_DEF_PARSE_STATUS)))
         return NULL;
-    }
 
-    diskdef = g_new0(virDomainSnapshotDiskDef, 1);
+    if (qemuDomainDeviceDiskDefPostParse(disk, 0) < 0)
+        return NULL;
 
-    if (virDomainSnapshotDiskDefParseXML(node, ctxt, diskdef,
-                                         VIR_DOMAIN_DEF_PARSE_STATUS,
-                                         xmlopt) == 0)
-        ret = g_steal_pointer(&diskdef->src);
-
-    virDomainSnapshotDiskDefFree(diskdef);
-    return ret;
+    return g_steal_pointer(&disk->src);
 }
 
 
@@ -1216,6 +1208,7 @@ mymain(void)
     TEST_IMAGE_CREATE("qcow2-backing-raw", "raw");
     TEST_IMAGE_CREATE("qcow2-backing-raw-nbd", "raw-nbd");
     TEST_IMAGE_CREATE("qcow2-backing-luks", "luks-noopts");
+    TEST_IMAGE_CREATE("qcow2-backing-qcow2luks", "qcow2-luks-noopts");
     TEST_IMAGE_CREATE("qcow2-luks-encopts-backing", "qcow2");
     TEST_IMAGE_CREATE("qcow2-backing-raw-slice", "raw-slice");
     TEST_IMAGE_CREATE("qcow2-backing-qcow2-slice", "qcow2-slice");

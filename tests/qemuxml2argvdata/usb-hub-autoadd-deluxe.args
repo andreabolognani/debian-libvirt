@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 QEMU_AUDIO_DRV=none \
 /usr/bin/qemu-system-i386 \
--name QEMUGuest1 \
+-name guest=QEMUGuest1,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
 -machine pc,accel=tcg,usb=off,dump-guest-core=off \
 -m 214 \
 -realtime mlock=off \
@@ -23,6 +24,7 @@ QEMU_AUDIO_DRV=none \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -usb \
 -device usb-hub,id=hub0,bus=usb.0,port=1 \
 -device usb-hub,id=hub1,bus=usb.0,port=2 \
@@ -43,4 +45,5 @@ QEMU_AUDIO_DRV=none \
 -device usb-tablet,id=input13,bus=usb.0,port=1.1.7 \
 -device usb-tablet,id=input14,bus=usb.0,port=1.1.8 \
 -device usb-tablet,id=input15,bus=usb.0,port=2.1 \
--device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x2
+-device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x2 \
+-msg timestamp=on

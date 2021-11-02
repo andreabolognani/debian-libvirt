@@ -8,8 +8,9 @@ XDG_CACHE_HOME=/tmp/lib/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 QEMU_AUDIO_DRV=spice \
 /usr/bin/qemu-system-i386 \
--name QEMUGuest1 \
+-name guest=QEMUGuest1,debug-threads=on \
 -S \
+-object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-QEMUGuest1/master-key.aes \
 -machine pc,accel=tcg,usb=off,dump-guest-core=off \
 -m 214 \
 -realtime mlock=off \
@@ -22,6 +23,7 @@ QEMU_AUDIO_DRV=spice \
 -rtc base=utc \
 -no-shutdown \
 -no-acpi \
+-boot strict=on \
 -device ich9-usb-ehci1,id=usb,bus=pci.0,addr=0x4.0x7 \
 -device ich9-usb-uhci1,masterbus=usb.0,firstport=0,bus=pci.0,multifunction=on,addr=0x4 \
 -device ich9-usb-uhci2,masterbus=usb.0,firstport=2,bus=pci.0,addr=0x4.0x1 \
@@ -32,4 +34,5 @@ QEMU_AUDIO_DRV=spice \
 -device usb-redir,chardev=charredir0,id=redir0,bus=usb.0,port=1 \
 -chardev spicevmc,id=charredir1,name=usbredir \
 -device usb-redir,chardev=charredir1,id=redir1,bus=usb.0,port=4 \
--device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x3
+-device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x3 \
+-msg timestamp=on

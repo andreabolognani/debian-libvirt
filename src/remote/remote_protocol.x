@@ -1530,11 +1530,29 @@ struct remote_network_create_xml_ret {
     remote_nonnull_network net;
 };
 
+struct remote_network_create_xml_flags_args {
+    remote_nonnull_string xml;
+    unsigned int flags;
+};
+
+struct remote_network_create_xml_flags_ret {
+    remote_nonnull_network net;
+};
+
 struct remote_network_define_xml_args {
     remote_nonnull_string xml;
 };
 
 struct remote_network_define_xml_ret {
+    remote_nonnull_network net;
+};
+
+struct remote_network_define_xml_flags_args {
+    remote_nonnull_string xml;
+    unsigned int flags;
+};
+
+struct remote_network_define_xml_flags_ret {
     remote_nonnull_network net;
 };
 
@@ -1624,6 +1642,15 @@ struct remote_nwfilter_define_xml_args {
 };
 
 struct remote_nwfilter_define_xml_ret {
+    remote_nonnull_nwfilter nwfilter;
+};
+
+struct remote_nwfilter_define_xml_flags_args {
+    remote_nonnull_string xml;
+    unsigned int flags;
+};
+
+struct remote_nwfilter_define_xml_flags_ret {
     remote_nonnull_nwfilter nwfilter;
 };
 
@@ -2162,6 +2189,35 @@ struct remote_node_device_undefine_args {
 struct remote_node_device_create_args {
     remote_nonnull_string name;
     unsigned int flags;
+};
+
+struct remote_node_device_get_autostart_args {
+    remote_nonnull_string name;
+};
+
+struct remote_node_device_get_autostart_ret {
+    int autostart;
+};
+
+struct remote_node_device_set_autostart_args {
+    remote_nonnull_string name;
+    int autostart;
+};
+
+struct remote_node_device_is_persistent_args {
+    remote_nonnull_string name;
+};
+
+struct remote_node_device_is_persistent_ret {
+    int persistent;
+};
+
+struct remote_node_device_is_active_args {
+    remote_nonnull_string name;
+};
+
+struct remote_node_device_is_active_ret {
+    int active;
 };
 
 
@@ -3836,6 +3892,13 @@ struct remote_domain_start_dirty_rate_calc_args {
     unsigned int flags;
 };
 
+
+struct remote_domain_event_memory_device_size_change_msg {
+    int callbackID;
+    remote_nonnull_domain dom;
+    remote_nonnull_string alias;
+    unsigned hyper size;
+};
 
 /*----- Protocol. -----*/
 
@@ -6784,6 +6847,63 @@ enum remote_procedure {
      * @priority: high
      * @acl: node_device:start
      */
-    REMOTE_PROC_NODE_DEVICE_CREATE = 430
+    REMOTE_PROC_NODE_DEVICE_CREATE = 430,
 
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: nwfilter:write
+     * @acl: nwfilter:save
+     */
+    REMOTE_PROC_NWFILTER_DEFINE_XML_FLAGS = 431,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: network:write
+     * @acl: network:save
+     */
+    REMOTE_PROC_NETWORK_DEFINE_XML_FLAGS = 432,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:read
+     */
+    REMOTE_PROC_NODE_DEVICE_GET_AUTOSTART = 433,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:write
+     */
+    REMOTE_PROC_NODE_DEVICE_SET_AUTOSTART = 434,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:read
+     */
+    REMOTE_PROC_NODE_DEVICE_IS_PERSISTENT = 435,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:read
+     */
+    REMOTE_PROC_NODE_DEVICE_IS_ACTIVE = 436,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: network:write
+     * @acl: network:start
+     */
+    REMOTE_PROC_NETWORK_CREATE_XML_FLAGS = 437,
+
+    /**
+     * @generate: both
+     * @acl: none
+     */
+    REMOTE_PROC_DOMAIN_EVENT_MEMORY_DEVICE_SIZE_CHANGE = 438
 };

@@ -77,11 +77,9 @@ int qemuMonitorJSONGetBlockInfo(qemuMonitor *mon,
 
 virJSONValue *qemuMonitorJSONQueryBlockstats(qemuMonitor *mon);
 int qemuMonitorJSONGetAllBlockStatsInfo(qemuMonitor *mon,
-                                        GHashTable *hash,
-                                        bool backingChain);
+                                        GHashTable *hash);
 int qemuMonitorJSONBlockStatsUpdateCapacity(qemuMonitor *mon,
-                                            GHashTable *stats,
-                                            bool backingChain);
+                                            GHashTable *stats);
 int qemuMonitorJSONBlockStatsUpdateCapacityBlockdev(qemuMonitor *mon,
                                                     GHashTable *stats);
 
@@ -235,10 +233,8 @@ int qemuMonitorJSONAttachPCIDiskController(qemuMonitor *mon,
                                            const char *bus,
                                            virPCIDeviceAddress *guestAddr);
 
-int qemuMonitorJSONAddDeviceArgs(qemuMonitor *mon,
-                                 virJSONValue *args);
-int qemuMonitorJSONAddDevice(qemuMonitor *mon,
-                             const char *devicestr);
+int qemuMonitorJSONAddDeviceProps(qemuMonitor *mon,
+                                  virJSONValue **props);
 
 int qemuMonitorJSONDelDevice(qemuMonitor *mon,
                              const char *devalias);
@@ -361,10 +357,7 @@ int qemuMonitorJSONOpenGraphics(qemuMonitor *mon,
 int qemuMonitorJSONSetBlockIoThrottle(qemuMonitor *mon,
                                       const char *drivealias,
                                       const char *qomid,
-                                      virDomainBlockIoTuneInfo *info,
-                                      bool supportMaxOptions,
-                                      bool supportGroupNameOption,
-                                      bool supportMaxLengthOptions);
+                                      virDomainBlockIoTuneInfo *info);
 
 int qemuMonitorJSONGetBlockIoThrottle(qemuMonitor *mon,
                                       const char *drivealias,
@@ -706,3 +699,15 @@ qemuMonitorJSONStartDirtyRateCalc(qemuMonitor *mon,
 int
 qemuMonitorJSONQueryDirtyRate(qemuMonitor *mon,
                               qemuMonitorDirtyRateInfo *info);
+
+int
+qemuMonitorJSONSetAction(qemuMonitor *mon,
+                         qemuMonitorActionShutdown shutdown,
+                         qemuMonitorActionReboot reboot,
+                         qemuMonitorActionWatchdog watchdog,
+                         qemuMonitorActionPanic panic);
+
+int
+qemuMonitorJSONChangeMemoryRequestedSize(qemuMonitor *mon,
+                                         const char *alias,
+                                         unsigned long long requestedsize);

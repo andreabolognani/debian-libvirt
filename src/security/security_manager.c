@@ -684,9 +684,8 @@ virSecurityManagerGenLabel(virSecurityManager *mgr,
         } else {
             /* The seclabel must be added to @vm prior calling domainGenSecurityLabel
              * which may require seclabel to be presented already */
-            if (generated &&
-                VIR_APPEND_ELEMENT(vm->seclabels, vm->nseclabels, seclabel) < 0)
-                goto cleanup;
+            if (generated)
+                VIR_APPEND_ELEMENT(vm->seclabels, vm->nseclabels, seclabel);
 
             if (sec_managers[i]->drv->domainGenSecurityLabel(sec_managers[i], vm) < 0) {
                 if (VIR_DELETE_ELEMENT(vm->seclabels,
@@ -1289,6 +1288,44 @@ virSecurityManagerRestoreTPMLabels(virSecurityManager *mgr,
     if (mgr->drv->domainRestoreSecurityTPMLabels) {
         virObjectLock(mgr);
         ret = mgr->drv->domainRestoreSecurityTPMLabels(mgr, vm);
+        virObjectUnlock(mgr);
+
+        return ret;
+    }
+
+    return 0;
+}
+
+
+int
+virSecurityManagerSetNetdevLabel(virSecurityManager *mgr,
+                                 virDomainDef *vm,
+                                 virDomainNetDef *net)
+{
+    int ret;
+
+    if (mgr->drv->domainSetSecurityNetdevLabel) {
+        virObjectLock(mgr);
+        ret = mgr->drv->domainSetSecurityNetdevLabel(mgr, vm, net);
+        virObjectUnlock(mgr);
+
+        return ret;
+    }
+
+    return 0;
+}
+
+
+int
+virSecurityManagerRestoreNetdevLabel(virSecurityManager *mgr,
+                                     virDomainDef *vm,
+                                     virDomainNetDef *net)
+{
+    int ret;
+
+    if (mgr->drv->domainRestoreSecurityNetdevLabel) {
+        virObjectLock(mgr);
+        ret = mgr->drv->domainRestoreSecurityNetdevLabel(mgr, vm, net);
         virObjectUnlock(mgr);
 
         return ret;

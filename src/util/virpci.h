@@ -24,6 +24,7 @@
 #include "virmdev.h"
 #include "virobject.h"
 #include "virenum.h"
+#include "virpcivpd.h"
 
 typedef struct _virPCIDevice virPCIDevice;
 typedef struct _virPCIDeviceAddress virPCIDeviceAddress;
@@ -212,10 +213,26 @@ virPCIGetDeviceAddressFromSysfsLink(const char *device_link);
 int virPCIGetPhysicalFunction(const char *vf_sysfs_path,
                               virPCIDeviceAddress **pf);
 
+struct virPCIVirtualFunction {
+    virPCIDeviceAddress *addr;
+    char *ifname;
+};
+
+struct _virPCIVirtualFunctionList {
+    struct virPCIVirtualFunction *functions;
+    size_t nfunctions;
+    size_t maxfunctions;
+};
+typedef struct _virPCIVirtualFunctionList virPCIVirtualFunctionList;
+
+void virPCIVirtualFunctionListFree(virPCIVirtualFunctionList *list);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virPCIVirtualFunctionList, virPCIVirtualFunctionListFree);
+
+int virPCIGetVirtualFunctionsFull(const char *sysfs_path,
+                                  virPCIVirtualFunctionList **vfs,
+                                  const char *pfPhysPortID);
 int virPCIGetVirtualFunctions(const char *sysfs_path,
-                              virPCIDeviceAddress ***virtual_functions,
-                              size_t *num_virtual_functions,
-                              unsigned int *max_virtual_functions);
+                              virPCIVirtualFunctionList **vfs);
 
 int virPCIIsVirtualFunction(const char *vf_sysfs_device_link);
 
@@ -228,7 +245,7 @@ int virPCIDeviceAddressGetSysfsFile(virPCIDeviceAddress *addr,
 
 int virPCIGetNetName(const char *device_link_sysfs_path,
                      size_t idx,
-                     char *physPortID,
+                     const char *physPortID,
                      char **netname);
 
 bool virPCIDeviceAddressIsValid(virPCIDeviceAddress *addr,
@@ -252,6 +269,9 @@ int virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path,
                                  int pfNetDevIdx,
                                  char **pfname,
                                  int *vf_index);
+
+bool virPCIDeviceHasVPD(virPCIDevice *dev);
+virPCIVPDResource * virPCIDeviceGetVPD(virPCIDevice *dev);
 
 int virPCIDeviceUnbind(virPCIDevice *dev);
 int virPCIDeviceRebind(virPCIDevice *dev);

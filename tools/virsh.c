@@ -81,7 +81,7 @@ virshCatchDisconnect(virConnectPtr conn,
         vshControl *ctl = opaque;
         const char *str = "unknown reason";
         virErrorPtr error;
-        char *uri;
+        g_autofree char *uri = NULL;
 
         virErrorPreserveLast(&error);
         uri = virConnectGetURI(conn);
@@ -101,7 +101,6 @@ virshCatchDisconnect(virConnectPtr conn,
             break;
         }
         vshError(ctl, _(str), NULLSTR(uri));
-        VIR_FREE(uri);
 
         virErrorRestore(&error);
         disconnected++;
@@ -253,6 +252,7 @@ static const vshCmdOptDef opts_connect[] = {
     {.name = "name",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_EMPTY_OK,
+     .completer = virshCompleteEmpty,
      .help = N_("hypervisor connection URI")
     },
     {.name = "readonly",
@@ -465,7 +465,8 @@ virshUsage(void)
         fprintf(stdout, _(" %s (help keyword '%s')\n"),
                 grp->name, grp->keyword);
         for (cmd = grp->commands; cmd->name; cmd++) {
-            if (cmd->flags & VSH_CMD_FLAG_ALIAS)
+            if (cmd->flags & VSH_CMD_FLAG_ALIAS ||
+                cmd->flags & VSH_CMD_FLAG_HIDDEN)
                 continue;
             fprintf(stdout,
                     "    %-30s %s\n", cmd->name,
