@@ -8,10 +8,10 @@ It is the reasonable default for Debian.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/tools/vsh.c b/tools/vsh.c
-index 123284c..69b6d41 100644
+index ecb591f..96f4931 100644
 --- a/tools/vsh.c
 +++ b/tools/vsh.c
-@@ -2399,7 +2399,7 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
+@@ -2423,7 +2423,7 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
  
  /* Hard-code default editor used as a fallback if not configured by
   * VISUAL or EDITOR environment variables. */
