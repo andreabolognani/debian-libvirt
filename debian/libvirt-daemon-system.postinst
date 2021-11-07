@@ -69,11 +69,11 @@ add_statoverrides()
         /var/lib/libvirt/images/
         /var/lib/libvirt/boot/
         /var/cache/libvirt/
+        /var/cache/libvirt/qemu/
     "
 
     QEMU_DIRS="
         /var/lib/libvirt/qemu/
-        /var/cache/libvirt/qemu/
         /var/lib/libvirt/qemu/channel/
         /var/lib/libvirt/qemu/channel/target/
     "
