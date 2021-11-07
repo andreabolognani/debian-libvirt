@@ -65,17 +65,17 @@ add_users_groups()
 
 add_statoverrides()
 {
-    ROOT_DIRS="\
-        /var/lib/libvirt/images/ \
-        /var/lib/libvirt/boot/ \
-        /var/cache/libvirt/ \
+    ROOT_DIRS="
+        /var/lib/libvirt/images/
+        /var/lib/libvirt/boot/
+        /var/cache/libvirt/
     "
 
-    QEMU_DIRS="\
-         /var/lib/libvirt/qemu/ \
-         /var/cache/libvirt/qemu/ \
-         /var/lib/libvirt/qemu/channel/ \
-         /var/lib/libvirt/qemu/channel/target/ \
+    QEMU_DIRS="
+        /var/lib/libvirt/qemu/
+        /var/cache/libvirt/qemu/
+        /var/lib/libvirt/qemu/channel/
+        /var/lib/libvirt/qemu/channel/target/
     "
 
     SANLOCK_DIR="/var/lib/libvirt/sanlock"
