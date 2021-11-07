@@ -35,6 +35,16 @@ License: AS-IS-I
  MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS AND
  CONTRIBUTORS ACCEPT NO RESPONSIBILITY IN ANY CONCEIVABLE MANNER.
 
+Files: src/util/virpcivpd.*
+       src/util/virpcivpdpriv.h
+       tests/virpcivpdtest.c
+Copyright: 2021 Canonical Ltd.
+License: LGPL-2.1+
+
+Files: tools/virt-host-validate-ch.*
+Copyright: 2020-2021 Microsoft Corp.
+License: LGPL-2.1+
+
 Files: tests/pkix_asn1_tab.c
        tests/virsh-cpuset
        tests/virsh-optparse
