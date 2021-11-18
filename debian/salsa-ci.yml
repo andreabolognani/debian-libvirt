@@ -18,7 +18,7 @@ build-debian-package:
     - apt-get -y install build-essential git-buildpackage pristine-tar
     - apt-get -y build-dep .
     - rm -f ../* || true
-    - git config user.email 'libvirt@exmple.com'
+    - git config user.email 'libvirt@example.com'
     - git config user.name 'Gitlab CI'
   script:
     - export DEBEMAIL="$(git config user.email)"
