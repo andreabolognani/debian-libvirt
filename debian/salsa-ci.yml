@@ -22,7 +22,7 @@ build-debian-package:
     - git config user.name 'Gitlab CI'
   script:
     - export DEBEMAIL="$(git config user.email)"
-    - 'UPSTREAM_BRANCH=$(gbp config dch.upstream-branch)'
+    - UPSTREAM_BRANCH="$(gbp config dch.upstream-branch)"
     - git branch "${UPSTREAM_BRANCH}" "origin/${UPSTREAM_BRANCH}"
     - git branch pristine-tar origin/pristine-tar
     - gbp dch --git-author -S -a --ignore-branch
