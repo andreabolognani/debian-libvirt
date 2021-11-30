@@ -1,11 +1,26 @@
-libvirt (7.9.0-1) UNRELEASED; urgency=medium
+libvirt (7.9.0-1) unstable; urgency=medium
 
   * Team upload
 
   * [2c54c68] New upstream version 7.9.0
-    - Closes: #994061, #997108
+    - Closes: #994061
+    - Fixes FTBFS (Closes: #997108)
+  * [6ca05a9] patches: Update ZFS enablement patches
+    - Replace the Debian-specific patch
+        debian/Set-defaults-for-zfs-tools.patch
+      with backported upstream patches
+        backport/meson-Enable-ZFS-storage-backend-even-more-often.patch
+        backport/meson-Stop-looking-up-ZFS-programs-at-build-time.patch
+  * [32a1e7b] patches: Add backport/wireshark-Switch-to-tvb_bytes_to_str.patch
+    - Needed to build against Wireshark 3.6.0
+  * [30fdaae] libvirt-daemon-system: Make QEMU cache directory root-owned
+    - Recent changes in libvirt make it possible to be more strict
+  * [8c2f99b] tests: No longer skip smoke-lxc with both cgroups v1&v2 present
+    - The bug that made this workaround necessary has been resolved
+  * [803bd5a] control: Bump Standards-Version to 4.6.0
+    - No changes needed
 
- -- Andrea Bolognani <eof@kiyuko.org>  Wed, 03 Nov 2021 00:51:22 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 06 Dec 2021 21:56:00 +0100
 
 libvirt (7.6.0-1) unstable; urgency=medium
 
