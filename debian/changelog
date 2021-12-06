@@ -13,6 +13,7 @@ libvirt (7.6.0-1) unstable; urgency=medium
 
   [ Andrea Bolognani ]
   * [a256a80] New upstream version 7.6.0
+    - Fixes CVE-2021-3667 (Closes: #991594)
   * [4a96793] rules: Disable netcf support
     - netcf support is considered deprecated upstream
 
