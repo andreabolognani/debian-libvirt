@@ -75,7 +75,8 @@ int qemuMonitorJSONSetMemoryStatsPeriod(qemuMonitor *mon,
 int qemuMonitorJSONGetBlockInfo(qemuMonitor *mon,
                                 GHashTable *table);
 
-virJSONValue *qemuMonitorJSONQueryBlockstats(qemuMonitor *mon);
+virJSONValue *qemuMonitorJSONQueryBlockstats(qemuMonitor *mon,
+                                             bool queryNodes);
 int qemuMonitorJSONGetAllBlockStatsInfo(qemuMonitor *mon,
                                         GHashTable *hash);
 int qemuMonitorJSONBlockStatsUpdateCapacity(qemuMonitor *mon,
@@ -104,7 +105,6 @@ int qemuMonitorJSONExpirePassword(qemuMonitor *mon,
                                   const char *expire_time);
 int qemuMonitorJSONSetBalloon(qemuMonitor *mon,
                               unsigned long long newmem);
-int qemuMonitorJSONSetCPU(qemuMonitor *mon, int cpu, bool online);
 
 int qemuMonitorJSONEjectMedia(qemuMonitor *mon,
                               const char *dev_name,

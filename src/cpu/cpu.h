@@ -62,6 +62,9 @@ typedef int
                      virCPUData **forbidden,
                      virCPUData **vendor);
 
+typedef virCPUData *
+(*cpuArchDataCopyNew)(virCPUData *data);
+
 typedef void
 (*cpuArchDataFree)  (virCPUData *data);
 
@@ -98,7 +101,7 @@ typedef char *
 (*virCPUArchDataFormat)(const virCPUData *data);
 
 typedef virCPUData *
-(*virCPUArchDataParse)(xmlXPathContextPtr ctxt);
+(*virCPUArchDataParse)(xmlNodePtr node);
 
 typedef int
 (*virCPUArchGetModels)(char ***models);
@@ -123,6 +126,13 @@ typedef int
 (*virCPUArchDataAddFeature)(virCPUData *cpuData,
                             const char *name);
 
+typedef virCPUCompareResult
+(*virCPUArchDataIsIdentical)(const virCPUData *a,
+                             const virCPUData *b);
+
+typedef virCPUData *
+(*virCPUArchDataGetHost)(void);
+
 struct cpuArchDriver {
     const char *name;
     const virArch *arch;
@@ -130,6 +140,7 @@ struct cpuArchDriver {
     virCPUArchCompare   compare;
     cpuArchDecode       decode;
     cpuArchEncode       encode;
+    cpuArchDataCopyNew  dataCopyNew;
     cpuArchDataFree     dataFree;
     virCPUArchGetHost   getHost;
     virCPUArchBaseline baseline;
@@ -146,6 +157,8 @@ struct cpuArchDriver {
     virCPUArchCopyMigratable copyMigratable;
     virCPUArchValidateFeatures validateFeatures;
     virCPUArchDataAddFeature dataAddFeature;
+    virCPUArchDataIsIdentical dataIsIdentical;
+    virCPUArchDataGetHost dataGetHost;
 };
 
 
@@ -182,6 +195,9 @@ cpuEncode   (virArch arch,
 
 virCPUData *
 virCPUDataNew(virArch arch);
+
+virCPUData *
+virCPUDataNewCopy(virCPUData *data);
 
 void
 virCPUDataFree(virCPUData *data);
@@ -275,6 +291,13 @@ int
 virCPUDataAddFeature(virCPUData *cpuData,
                      const char *name);
 
+virCPUCompareResult
+virCPUDataIsIdentical(const virCPUData *a,
+                      const virCPUData *b);
+
+virCPUData*
+virCPUDataGetHost(void);
+
 bool
 virCPUArchIsSupported(virArch arch);
 
@@ -284,4 +307,6 @@ virCPUArchIsSupported(virArch arch);
 char *virCPUDataFormat(const virCPUData *data)
     ATTRIBUTE_NONNULL(1);
 virCPUData *virCPUDataParse(const char *xmlStr)
+    ATTRIBUTE_NONNULL(1);
+virCPUData *virCPUDataParseNode(xmlNodePtr node)
     ATTRIBUTE_NONNULL(1);

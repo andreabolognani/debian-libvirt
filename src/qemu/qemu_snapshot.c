@@ -1577,12 +1577,12 @@ qemuSnapshotCreateXML(virDomainPtr domain,
         parse_flags |= VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE;
 
     if (qemuDomainSupportsCheckpointsBlockjobs(vm) < 0)
-        goto cleanup;
+        return NULL;
 
     if (!vm->persistent && (flags & VIR_DOMAIN_SNAPSHOT_CREATE_HALT)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("cannot halt after transient domain snapshot"));
-        goto cleanup;
+        return NULL;
     }
     if ((flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) ||
         !virDomainObjIsActive(vm))
@@ -1593,7 +1593,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
 
     if (!(def = virDomainSnapshotDefParseString(xmlDesc, driver->xmlopt,
                                                 priv->qemuCaps, NULL, parse_flags)))
-        goto cleanup;
+        return NULL;
 
     /* reject snapshot names containing slashes or starting with dot as
      * snapshot definitions are saved in files named by the snapshot name */
@@ -1603,7 +1603,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
                            _("invalid snapshot name '%s': "
                              "name can't contain '/'"),
                            def->parent.name);
-            goto cleanup;
+            return NULL;
         }
 
         if (def->parent.name[0] == '.') {
@@ -1611,7 +1611,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
                            _("invalid snapshot name '%s': "
                              "name can't start with '.'"),
                            def->parent.name);
-            goto cleanup;
+            return NULL;
         }
     }
 
@@ -1622,7 +1622,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("live snapshot creation is supported only "
                          "during full system snapshots"));
-        goto cleanup;
+        return NULL;
     }
 
     /* allow snapshots only in certain states */
@@ -1640,7 +1640,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
         if (!redefine) {
             virReportError(VIR_ERR_INTERNAL_ERROR, _("Invalid domain state %s"),
                            virDomainSnapshotStateTypeToString(state));
-            goto cleanup;
+            return NULL;
         }
         break;
 
@@ -1648,7 +1648,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("qemu doesn't support taking snapshots of "
                          "PMSUSPENDED guests"));
-        goto cleanup;
+        return NULL;
 
         /* invalid states */
     case VIR_DOMAIN_SNAPSHOT_NOSTATE:
@@ -1656,7 +1656,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
     case VIR_DOMAIN_SNAPSHOT_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR, _("Invalid domain state %s"),
                        virDomainSnapshotStateTypeToString(state));
-        goto cleanup;
+        return NULL;
     }
 
     /* We are going to modify the domain below. Internal snapshots would use
@@ -1665,7 +1665,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
      * job mask appropriately. */
     if (qemuDomainObjBeginAsyncJob(driver, vm, QEMU_ASYNC_JOB_SNAPSHOT,
                                    VIR_DOMAIN_JOB_OPERATION_SNAPSHOT, flags) < 0)
-        goto cleanup;
+        return NULL;
 
     qemuDomainObjSetAsyncJobMask(vm, QEMU_JOB_NONE);
 
@@ -1801,7 +1801,6 @@ qemuSnapshotCreateXML(virDomainPtr domain,
 
     qemuDomainObjEndAsyncJob(driver, vm);
 
- cleanup:
     return snapshot;
 }
 
@@ -1852,7 +1851,6 @@ qemuSnapshotRevert(virDomainObj *vm,
     virDomainDef *config = NULL;
     virDomainDef *inactiveConfig = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    bool was_stopped = false;
     qemuDomainSaveCookie *cookie;
     virCPUDef *origCPU = NULL;
     unsigned int start_flags = VIR_QEMU_PROCESS_START_GEN_VMID;
@@ -1865,15 +1863,14 @@ qemuSnapshotRevert(virDomainObj *vm,
     /* We have the following transitions, which create the following events:
      * 1. inactive -> inactive: none
      * 2. inactive -> running:  EVENT_STARTED
-     * 3. inactive -> paused:   EVENT_STARTED, EVENT_PAUSED
+     * 3. inactive -> paused:   EVENT_STARTED, EVENT_SUSPENDED
      * 4. running  -> inactive: EVENT_STOPPED
-     * 5. running  -> running:  none
-     * 6. running  -> paused:   EVENT_PAUSED
+     * 5. running  -> running:  EVENT_STOPPED, EVENT_STARTED
+     * 6. running  -> paused:   EVENT_STOPPED, EVENT_STARTED, EVENT_SUSPENDED
      * 7. paused   -> inactive: EVENT_STOPPED
-     * 8. paused   -> running:  EVENT_RESUMED
-     * 9. paused   -> paused:   none
-     * Also, several transitions occur even if we fail partway through,
-     * and use of FORCE can cause multiple transitions.
+     * 8. paused   -> running:  EVENT_STOPPED, EVENT_STARTED
+     * 9. paused   -> paused:   EVENT_STOPPED, EVENT_STARTED, EVENT_SUSPENDED
+     * Also, several transitions occur even if we fail partway through.
      */
 
     if (qemuDomainHasBlockjob(vm, false)) {
@@ -1908,22 +1905,14 @@ qemuSnapshotRevert(virDomainObj *vm,
         goto endjob;
     }
 
+    if (!snap->def->dom) {
+        virReportError(VIR_ERR_SNAPSHOT_REVERT_RISKY,
+                       _("snapshot '%s' lacks domain '%s' rollback info"),
+                       snap->def->name, vm->def->name);
+        goto endjob;
+    }
+
     if (!(flags & VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)) {
-        if (!snap->def->dom) {
-            virReportError(VIR_ERR_SNAPSHOT_REVERT_RISKY,
-                           _("snapshot '%s' lacks domain '%s' rollback info"),
-                           snap->def->name, vm->def->name);
-            goto endjob;
-        }
-        if (virDomainObjIsActive(vm) &&
-            !(snapdef->state == VIR_DOMAIN_SNAPSHOT_RUNNING ||
-              snapdef->state == VIR_DOMAIN_SNAPSHOT_PAUSED) &&
-            (flags & (VIR_DOMAIN_SNAPSHOT_REVERT_RUNNING |
-                      VIR_DOMAIN_SNAPSHOT_REVERT_PAUSED))) {
-            virReportError(VIR_ERR_SNAPSHOT_REVERT_RISKY, "%s",
-                           _("must respawn qemu to start inactive snapshot"));
-            goto endjob;
-        }
         if (vm->hasManagedSave &&
             !(snapdef->state == VIR_DOMAIN_SNAPSHOT_RUNNING ||
               snapdef->state == VIR_DOMAIN_SNAPSHOT_PAUSED)) {
@@ -1935,16 +1924,14 @@ qemuSnapshotRevert(virDomainObj *vm,
         }
     }
 
-    if (snap->def->dom) {
-        config = virDomainDefCopy(snap->def->dom,
-                                  driver->xmlopt, priv->qemuCaps, true);
-        if (!config)
-            goto endjob;
+    config = virDomainDefCopy(snap->def->dom,
+                              driver->xmlopt, priv->qemuCaps, true);
+    if (!config)
+        goto endjob;
 
-        if (STRNEQ(config->name, vm->def->name)) {
-            VIR_FREE(config->name);
-            config->name = g_strdup(vm->def->name);
-        }
+    if (STRNEQ(config->name, vm->def->name)) {
+        VIR_FREE(config->name);
+        config->name = g_strdup(vm->def->name);
     }
 
     if (snap->def->inactiveDom) {
@@ -1983,145 +1970,45 @@ qemuSnapshotRevert(virDomainObj *vm,
         start_flags |= VIR_QEMU_PROCESS_START_PAUSED;
 
         /* Transitions 2, 3, 5, 6, 8, 9 */
-        /* When using the loadvm monitor command, qemu does not know
-         * whether to pause or run the reverted domain, and just stays
-         * in the same state as before the monitor command, whether
-         * that is paused or running.  We always pause before loadvm,
-         * to have finer control.  */
         if (virDomainObjIsActive(vm)) {
             /* Transitions 5, 6, 8, 9 */
-            /* Check for ABI compatibility. We need to do this check against
-             * the migratable XML or it will always fail otherwise */
-            if (config) {
-                bool compatible;
-
-                /* Replace the CPU in config and put the original one in priv
-                 * once we're done. When we have the updated CPU def in the
-                 * cookie, we don't want to replace the CPU in migratable def
-                 * when doing ABI checks to make sure the current CPU exactly
-                 * matches the one used at the time the snapshot was taken.
-                 */
-                if (cookie && cookie->cpu && config->cpu) {
-                    origCPU = config->cpu;
-                    if (!(config->cpu = virCPUDefCopy(cookie->cpu)))
-                        goto endjob;
-
-                    compatible = qemuDomainDefCheckABIStability(driver,
-                                                                priv->qemuCaps,
-                                                                vm->def,
-                                                                config);
-                } else {
-                    compatible = qemuDomainCheckABIStability(driver, vm, config);
-                }
-
-                /* If using VM GenID, there is no way currently to change
-                 * the genid for the running guest, so set an error,
-                 * mark as incompatible, and don't allow change of genid
-                 * if the revert force flag would start the guest again. */
-                if (compatible && config->genidRequested) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("domain genid update requires restart"));
-                    compatible = false;
-                    start_flags &= ~VIR_QEMU_PROCESS_START_GEN_VMID;
-                }
-
-                if (!compatible) {
-                    virErrorPtr err = virGetLastError();
-
-                    if (!(flags & VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)) {
-                        /* Re-spawn error using correct category. */
-                        if (err->code == VIR_ERR_CONFIG_UNSUPPORTED)
-                            virReportError(VIR_ERR_SNAPSHOT_REVERT_RISKY, "%s",
-                                           err->str2);
-                        goto endjob;
-                    }
-                    virResetError(err);
-                    qemuProcessStop(driver, vm,
-                                    VIR_DOMAIN_SHUTOFF_FROM_SNAPSHOT,
-                                    QEMU_ASYNC_JOB_START, 0);
-                    virDomainAuditStop(vm, "from-snapshot");
-                    detail = VIR_DOMAIN_EVENT_STOPPED_FROM_SNAPSHOT;
-                    event = virDomainEventLifecycleNewFromObj(vm,
-                                                     VIR_DOMAIN_EVENT_STOPPED,
-                                                     detail);
-                    virObjectEventStateQueue(driver->domainEventState, event);
-                    goto load;
-                }
-            }
-
-            if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_RUNNING) {
-                /* Transitions 5, 6 */
-                if (qemuProcessStopCPUs(driver, vm,
-                                        VIR_DOMAIN_PAUSED_FROM_SNAPSHOT,
-                                        QEMU_ASYNC_JOB_START) < 0)
-                    goto endjob;
-                if (!virDomainObjIsActive(vm)) {
-                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                   _("guest unexpectedly quit"));
-                    goto endjob;
-                }
-            }
-
-            if (qemuDomainObjEnterMonitorAsync(driver, vm,
-                                               QEMU_ASYNC_JOB_START) < 0)
-                goto endjob;
-            rc = qemuMonitorLoadSnapshot(priv->mon, snap->def->name);
-            if (qemuDomainObjExitMonitor(driver, vm) < 0)
-                goto endjob;
-            if (rc < 0) {
-                /* XXX resume domain if it was running before the
-                 * failed loadvm attempt? */
-                goto endjob;
-            }
-            if (config) {
-                virCPUDefFree(priv->origCPU);
-                priv->origCPU = g_steal_pointer(&origCPU);
-            }
-
-            if (cookie && !cookie->slirpHelper)
-                priv->disableSlirp = true;
-
-            if (inactiveConfig) {
-                virDomainObjAssignDef(vm, inactiveConfig, false, NULL);
-                inactiveConfig = NULL;
-                defined = true;
-            }
-        } else {
-            /* Transitions 2, 3 */
-        load:
-            was_stopped = true;
-
-            if (inactiveConfig) {
-                virDomainObjAssignDef(vm, inactiveConfig, false, NULL);
-                inactiveConfig = NULL;
-                defined = true;
-            }
-
-            if (config) {
-                virDomainObjAssignDef(vm, config, true, NULL);
-                config = NULL;
-            }
-
-            /* No cookie means libvirt which saved the domain was too old to
-             * mess up the CPU definitions.
-             */
-            if (cookie &&
-                qemuDomainFixupCPUs(vm, &cookie->cpu) < 0)
-                goto cleanup;
-
-            rc = qemuProcessStart(snapshot->domain->conn, driver, vm,
-                                  cookie ? cookie->cpu : NULL,
-                                  QEMU_ASYNC_JOB_START, NULL, -1, NULL, snap,
-                                  VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
-                                  start_flags);
-            virDomainAuditStart(vm, "from-snapshot", rc >= 0);
-            detail = VIR_DOMAIN_EVENT_STARTED_FROM_SNAPSHOT;
+            qemuProcessStop(driver, vm,
+                            VIR_DOMAIN_SHUTOFF_FROM_SNAPSHOT,
+                            QEMU_ASYNC_JOB_START, 0);
+            virDomainAuditStop(vm, "from-snapshot");
+            detail = VIR_DOMAIN_EVENT_STOPPED_FROM_SNAPSHOT;
             event = virDomainEventLifecycleNewFromObj(vm,
-                                             VIR_DOMAIN_EVENT_STARTED,
-                                             detail);
-            if (rc < 0)
-                goto endjob;
+                                                      VIR_DOMAIN_EVENT_STOPPED,
+                                                      detail);
+            virObjectEventStateQueue(driver->domainEventState, event);
         }
+
+        if (inactiveConfig) {
+            virDomainObjAssignDef(vm, &inactiveConfig, false, NULL);
+            defined = true;
+        }
+
+        virDomainObjAssignDef(vm, &config, true, NULL);
+
+        /* No cookie means libvirt which saved the domain was too old to
+         * mess up the CPU definitions.
+         */
+        if (cookie &&
+            qemuDomainFixupCPUs(vm, &cookie->cpu) < 0)
+            goto cleanup;
+
+        rc = qemuProcessStart(snapshot->domain->conn, driver, vm,
+                              cookie ? cookie->cpu : NULL,
+                              QEMU_ASYNC_JOB_START, NULL, -1, NULL, snap,
+                              VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
+                              start_flags);
+        virDomainAuditStart(vm, "from-snapshot", rc >= 0);
+        detail = VIR_DOMAIN_EVENT_STARTED_FROM_SNAPSHOT;
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                         VIR_DOMAIN_EVENT_STARTED,
+                                         detail);
+        if (rc < 0)
+            goto endjob;
 
         /* Touch up domain state.  */
         if (!(flags & VIR_DOMAIN_SNAPSHOT_REVERT_RUNNING) &&
@@ -2130,13 +2017,10 @@ qemuSnapshotRevert(virDomainObj *vm,
             /* Transitions 3, 6, 9 */
             virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
                                  VIR_DOMAIN_PAUSED_FROM_SNAPSHOT);
-            if (was_stopped) {
-                /* Transition 3, use event as-is and add event2 */
-                detail = VIR_DOMAIN_EVENT_SUSPENDED_FROM_SNAPSHOT;
-                event2 = virDomainEventLifecycleNewFromObj(vm,
-                                                  VIR_DOMAIN_EVENT_SUSPENDED,
-                                                  detail);
-            } /* else transition 6 and 9 use event as-is */
+            detail = VIR_DOMAIN_EVENT_SUSPENDED_FROM_SNAPSHOT;
+            event2 = virDomainEventLifecycleNewFromObj(vm,
+                                              VIR_DOMAIN_EVENT_SUSPENDED,
+                                              detail);
         } else {
             /* Transitions 2, 5, 8 */
             if (!virDomainObjIsActive(vm)) {
@@ -2149,15 +2033,6 @@ qemuSnapshotRevert(virDomainObj *vm,
                                       QEMU_ASYNC_JOB_START);
             if (rc < 0)
                 goto endjob;
-            virObjectUnref(event);
-            event = NULL;
-            if (was_stopped) {
-                /* Transition 2 */
-                detail = VIR_DOMAIN_EVENT_STARTED_FROM_SNAPSHOT;
-                event = virDomainEventLifecycleNewFromObj(vm,
-                                                 VIR_DOMAIN_EVENT_STARTED,
-                                                 detail);
-            }
         }
         break;
 
@@ -2188,8 +2063,7 @@ qemuSnapshotRevert(virDomainObj *vm,
         }
 
         if (inactiveConfig) {
-            virDomainObjAssignDef(vm, inactiveConfig, false, NULL);
-            inactiveConfig = NULL;
+            virDomainObjAssignDef(vm, &inactiveConfig, false, NULL);
             defined = true;
         }
 

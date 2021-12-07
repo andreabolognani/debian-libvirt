@@ -255,7 +255,7 @@ testQemuHotplug(const void *data)
     virDomainObj *vm = NULL;
     virDomainDeviceDef *dev = NULL;
     g_autoptr(virCaps) caps = NULL;
-    qemuMonitorTest *test_mon = NULL;
+    g_autoptr(qemuMonitorTest) test_mon = NULL;
     qemuDomainObjPrivate *priv = NULL;
 
     domain_filename = g_strdup_printf("%s/qemuhotplugtestdomains/qemuhotplug-%s.xml",
@@ -359,7 +359,6 @@ testQemuHotplug(const void *data)
         test->vm = NULL;
     }
     virDomainDeviceDefFree(dev);
-    qemuMonitorTestFree(test_mon);
     return ((ret < 0 && fail) || (!ret && !fail)) ? 0 : -1;
 }
 
@@ -874,7 +873,6 @@ mymain(void)
     } while (0)
 
     DO_TEST_CPU_GROUP("x86-modern-bulk", 7, true, false);
-    DO_TEST_CPU_GROUP("x86-old-bulk", 7, false, false);
     DO_TEST_CPU_GROUP("ppc64-modern-bulk", 24, true, false);
     DO_TEST_CPU_GROUP("ppc64-modern-bulk", 15, true, true);
     DO_TEST_CPU_GROUP("ppc64-modern-bulk", 23, true, true);

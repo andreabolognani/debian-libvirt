@@ -380,7 +380,7 @@ libxlCapsInitGuests(libxl_ctx *ctx, virCaps *caps)
      * we "own" the buffer.  Parse out the features from each token.
      */
     for (str = ver_info->capabilities, nr_guest_archs = 0;
-         nr_guest_archs < sizeof(guest_archs) / sizeof(guest_archs[0])
+         nr_guest_archs < G_N_ELEMENTS(guest_archs)
                  && (token = strtok_r(str, " ", &saveptr)) != NULL;
          str = NULL) {
         if (g_regex_match(regex, token, 0, &info)) {
@@ -473,29 +473,21 @@ libxlCapsInitGuests(libxl_ctx *ctx, virCaps *caps)
         if ((machines = virCapabilitiesAllocMachines(xen_machines, 1)) == NULL)
             return -1;
 
-        if ((guest = virCapabilitiesAddGuest(caps,
-                                             guest_archs[i].hvm ? VIR_DOMAIN_OSTYPE_HVM :
-                                                (guest_archs[i].pvh ? VIR_DOMAIN_OSTYPE_XENPVH :
-                                                 VIR_DOMAIN_OSTYPE_XEN),
-                                             guest_archs[i].arch,
-                                             LIBXL_EXECBIN_DIR "/qemu-system-i386",
-                                             (guest_archs[i].hvm ?
-                                              LIBXL_FIRMWARE_DIR "/hvmloader" :
-                                              NULL),
-                                             1,
-                                             machines)) == NULL) {
-            virCapabilitiesFreeMachines(machines, 1);
-            return -1;
-        }
+        guest = virCapabilitiesAddGuest(caps,
+                                        guest_archs[i].hvm ? VIR_DOMAIN_OSTYPE_HVM :
+                                        (guest_archs[i].pvh ? VIR_DOMAIN_OSTYPE_XENPVH :
+                                         VIR_DOMAIN_OSTYPE_XEN),
+                                        guest_archs[i].arch,
+                                        LIBXL_EXECBIN_DIR "/qemu-system-i386",
+                                        (guest_archs[i].hvm ?
+                                         LIBXL_FIRMWARE_DIR "/hvmloader" :
+                                         NULL),
+                                        1,
+                                        machines);
         machines = NULL;
 
-        if (virCapabilitiesAddGuestDomain(guest,
-                                          VIR_DOMAIN_VIRT_XEN,
-                                          NULL,
-                                          NULL,
-                                          0,
-                                          NULL) == NULL)
-            return -1;
+        virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_XEN,
+                                      NULL, NULL, 0, NULL);
 
         if (guest_archs[i].pae)
             virCapabilitiesAddGuestFeature(guest, VIR_CAPS_GUEST_FEATURE_TYPE_PAE);

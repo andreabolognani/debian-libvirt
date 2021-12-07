@@ -10,7 +10,8 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 -name guest=QEMUGuest1,debug-threads=on \
 -S \
 -object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-QEMUGuest1/master-key.aes"}' \
--machine q35,accel=tcg,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-machine q35,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-accel tcg \
 -cpu qemu64 \
 -m 214 \
 -object '{"qom-type":"memory-backend-ram","id":"pc.ram","size":224395264}' \
@@ -47,7 +48,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 -netdev user,id=hostnet0 \
 -device '{"driver":"virtio-net-pci-non-transitional","netdev":"hostnet0","id":"net0","mac":"00:11:22:33:44:55","bus":"pci.2","addr":"0x0"}' \
 -device '{"driver":"virtio-input-host-pci-non-transitional","id":"input0","evdev":"/dev/input/event1234","bus":"pci.9","addr":"0x0"}' \
--audiodev id=audio1,driver=none \
+-audiodev '{"id":"audio1","driver":"none"}' \
 -device '{"driver":"vhost-scsi-pci-non-transitional","wwpn":"naa.5123456789abcde0","vhostfd":"3","id":"hostdev0","bus":"pci.6","addr":"0x0"}' \
 -device '{"driver":"virtio-balloon-pci-non-transitional","id":"balloon0","bus":"pci.7","addr":"0x0"}' \
 -object '{"qom-type":"rng-random","id":"objrng0","filename":"/dev/urandom"}' \

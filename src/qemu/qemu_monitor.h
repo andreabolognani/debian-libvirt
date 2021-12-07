@@ -294,6 +294,11 @@ typedef void (*qemuMonitorDomainDeviceDeletedCallback)(qemuMonitor *mon,
                                                        virDomainObj *vm,
                                                        const char *devAlias,
                                                        void *opaque);
+typedef void (*qemuMonitorDomainDeviceUnplugErrCallback)(qemuMonitor *mon,
+                                                         virDomainObj *vm,
+                                                         const char *devPath,
+                                                         const char *devAlias,
+                                                         void *opaque);
 typedef void (*qemuMonitorDomainNicRxFilterChangedCallback)(qemuMonitor *mon,
                                                             virDomainObj *vm,
                                                             const char *devAlias,
@@ -454,6 +459,7 @@ struct _qemuMonitorCallbacks {
     qemuMonitorDomainGuestCrashloadedCallback domainGuestCrashloaded;
     qemuMonitorDomainMemoryFailureCallback domainMemoryFailure;
     qemuMonitorDomainMemoryDeviceSizeChange domainMemoryDeviceSizeChange;
+    qemuMonitorDomainDeviceUnplugErrCallback domainDeviceUnplugError;
 };
 
 qemuMonitor *qemuMonitorOpen(virDomainObj *vm,
@@ -542,6 +548,9 @@ void qemuMonitorEmitGuestPanic(qemuMonitor *mon,
                                qemuMonitorEventPanicInfo *info);
 void qemuMonitorEmitDeviceDeleted(qemuMonitor *mon,
                                   const char *devAlias);
+void qemuMonitorEmitDeviceUnplugErr(qemuMonitor *mon,
+                                    const char *devPath,
+                                    const char *devAlias);
 void qemuMonitorEmitNicRxFilterChanged(qemuMonitor *mon,
                                        const char *devAlias);
 void qemuMonitorEmitSerialChange(qemuMonitor *mon,
@@ -794,13 +803,7 @@ int qemuMonitorExpirePassword(qemuMonitor *mon,
                               const char *expire_time);
 int qemuMonitorSetBalloon(qemuMonitor *mon,
                           unsigned long long newmem);
-int qemuMonitorSetCPU(qemuMonitor *mon, int cpu, bool online);
 
-
-/* XXX should we pass the virDomainDiskDef *instead
- * and hide dev_name details inside monitor. Reconsider
- * this when doing the QMP implementation
- */
 int qemuMonitorEjectMedia(qemuMonitor *mon,
                           const char *dev_name,
                           bool force);
@@ -1054,7 +1057,6 @@ int qemuMonitorDriveDel(qemuMonitor *mon,
                         const char *drivestr);
 
 int qemuMonitorCreateSnapshot(qemuMonitor *mon, const char *name);
-int qemuMonitorLoadSnapshot(qemuMonitor *mon, const char *name);
 int qemuMonitorDeleteSnapshot(qemuMonitor *mon, const char *name);
 
 int qemuMonitorTransaction(qemuMonitor *mon, virJSONValue **actions)

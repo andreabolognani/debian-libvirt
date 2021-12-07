@@ -10,7 +10,8 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-guest/.config \
 -name guest=guest,debug-threads=on \
 -S \
 -object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-guest/master-key.aes"}' \
--machine s390-ccw-virtio,accel=tcg,usb=off,dump-guest-core=off,memory-backend=s390.ram \
+-machine s390-ccw-virtio,usb=off,dump-guest-core=off,memory-backend=s390.ram \
+-accel tcg \
 -cpu qemu \
 -m 4096 \
 -object '{"qom-type":"memory-backend-ram","id":"s390.ram","size":4294967296}' \
@@ -36,7 +37,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-guest/.config \
 -device sclpconsole,chardev=charconsole0,id=console0 \
 -device virtio-tablet-ccw,id=input0,devno=fe.0.0004 \
 -device virtio-keyboard-ccw,id=input1,devno=fe.0.0005 \
--audiodev id=audio1,driver=none \
+-audiodev '{"id":"audio1","driver":"none"}' \
 -vnc 127.0.0.1:0,audiodev=audio1 \
 -device virtio-gpu-ccw,id=video0,max_outputs=1,devno=fe.0.0002 \
 -device virtio-balloon-ccw,id=balloon0,devno=fe.0.0006 \

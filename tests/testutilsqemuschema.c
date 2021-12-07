@@ -30,6 +30,47 @@ struct testQEMUSchemaValidateCtxt {
 
 
 static int
+testQEMUSchemaValidateDeprecated(virJSONValue *root,
+                                 const char *name,
+                                 struct testQEMUSchemaValidateCtxt *ctxt)
+{
+    virJSONValue *features = virJSONValueObjectGetArray(root, "features");
+    size_t nfeatures;
+    size_t i;
+
+    if (!features)
+        return 0;
+
+    nfeatures = virJSONValueArraySize(features);
+
+    for (i = 0; i < nfeatures; i++) {
+        virJSONValue *cur = virJSONValueArrayGet(features, i);
+        const char *curstr;
+
+        if (!cur ||
+            !(curstr = virJSONValueGetString(cur))) {
+            virBufferAsprintf(ctxt->debug, "ERROR: features of '%s' are malformed", name);
+            return -2;
+        }
+
+        if (STREQ(curstr, "deprecated")) {
+            if (ctxt->allowDeprecated) {
+                virBufferAsprintf(ctxt->debug, "WARNING: '%s' is deprecated", name);
+                if (virTestGetVerbose())
+                    g_fprintf(stderr, "\nWARNING: '%s' is deprecated\n", name);
+                return 0;
+            } else {
+                virBufferAsprintf(ctxt->debug, "ERROR: '%s' is deprecated", name);
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
+static int
 testQEMUSchemaValidateRecurse(virJSONValue *obj,
                               virJSONValue *root,
                               struct testQEMUSchemaValidateCtxt *ctxt);
@@ -324,7 +365,7 @@ testQEMUSchemaValidateEnum(virJSONValue *obj,
 {
     const char *objstr;
     virJSONValue *values = NULL;
-    virJSONValue *value;
+    virJSONValue *members = NULL;
     size_t i;
 
     if (virJSONValueGetType(obj) != VIR_JSON_TYPE_STRING) {
@@ -334,24 +375,46 @@ testQEMUSchemaValidateEnum(virJSONValue *obj,
 
     objstr = virJSONValueGetString(obj);
 
-    if (!(values = virJSONValueObjectGetArray(root, "values"))) {
-        virBufferAsprintf(ctxt->debug, "ERROR: missing enum values in schema '%s'",
-                          NULLSTR(virJSONValueObjectGetString(root, "name")));
-        return -2;
-    }
+    /* qemu-6.2 added a "members" array superseding "values" */
+    if ((members = virJSONValueObjectGetArray(root, "members"))) {
+        for (i = 0; i < virJSONValueArraySize(members); i++) {
+            virJSONValue *member = virJSONValueArrayGet(members, i);
 
-    for (i = 0; i < virJSONValueArraySize(values); i++) {
-        value = virJSONValueArrayGet(values, i);
+            if (STREQ_NULLABLE(objstr, virJSONValueObjectGetString(member, "name"))) {
+                int rc;
 
-        if (STREQ_NULLABLE(objstr, virJSONValueGetString(value))) {
-            virBufferAsprintf(ctxt->debug, "'%s' OK", NULLSTR(objstr));
-            return 0;
+                /* the new 'members' array allows us to check deprecations */
+                if ((rc = testQEMUSchemaValidateDeprecated(member, objstr, ctxt)) < 0)
+                    return rc;
+
+                virBufferAsprintf(ctxt->debug, "'%s' OK", NULLSTR(objstr));
+                return 0;
+            }
         }
+
+        virBufferAsprintf(ctxt->debug, "ERROR: enum value '%s' is not in schema",
+                          NULLSTR(objstr));
+        return -1;
     }
 
-    virBufferAsprintf(ctxt->debug, "ERROR: enum value '%s' is not in schema",
-                      NULLSTR(objstr));
-    return -1;
+    if ((values = virJSONValueObjectGetArray(root, "values"))) {
+        for (i = 0; i < virJSONValueArraySize(values); i++) {
+            virJSONValue *value = virJSONValueArrayGet(values, i);
+
+            if (STREQ_NULLABLE(objstr, virJSONValueGetString(value))) {
+                virBufferAsprintf(ctxt->debug, "'%s' OK", NULLSTR(objstr));
+                return 0;
+            }
+        }
+
+        virBufferAsprintf(ctxt->debug, "ERROR: enum value '%s' is not in schema",
+                          NULLSTR(objstr));
+        return -1;
+    }
+
+    virBufferAsprintf(ctxt->debug, "ERROR: missing enum values in schema '%s'",
+                      NULLSTR(virJSONValueObjectGetString(root, "name")));
+    return -2;
 }
 
 
@@ -447,47 +510,6 @@ testQEMUSchemaValidateAlternate(virJSONValue *obj,
 
     virBufferAddLit(ctxt->debug, "ERROR: no alternate type was matched");
     return -1;
-}
-
-
-static int
-testQEMUSchemaValidateDeprecated(virJSONValue *root,
-                                 const char *name,
-                                 struct testQEMUSchemaValidateCtxt *ctxt)
-{
-    virJSONValue *features = virJSONValueObjectGetArray(root, "features");
-    size_t nfeatures;
-    size_t i;
-
-    if (!features)
-        return 0;
-
-    nfeatures = virJSONValueArraySize(features);
-
-    for (i = 0; i < nfeatures; i++) {
-        virJSONValue *cur = virJSONValueArrayGet(features, i);
-        const char *curstr;
-
-        if (!cur ||
-            !(curstr = virJSONValueGetString(cur))) {
-            virBufferAsprintf(ctxt->debug, "ERROR: features of '%s' are malformed", name);
-            return -2;
-        }
-
-        if (STREQ(curstr, "deprecated")) {
-            if (ctxt->allowDeprecated) {
-                virBufferAsprintf(ctxt->debug, "WARNING: '%s' is deprecated", name);
-                if (virTestGetVerbose())
-                    g_fprintf(stderr, "\nWARNING: '%s' is deprecated\n", name);
-                return 0;
-            } else {
-                virBufferAsprintf(ctxt->debug, "ERROR: '%s' is deprecated", name);
-                return -1;
-            }
-        }
-    }
-
-    return 0;
 }
 
 

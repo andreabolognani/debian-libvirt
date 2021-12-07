@@ -642,7 +642,7 @@ virNetDevOpenvswitchFindUUID(const char *table,
  * However other_config in ovs qos is in bit.
  * ingress_policing_rate in ovs interface is in kbit.
  */
-#define VIR_NETDEV_TX_TO_OVS 8192
+#define VIR_NETDEV_TX_TO_OVS 8000
 #define VIR_NETDEV_RX_TO_OVS 8
 
 /**
@@ -759,7 +759,7 @@ virNetDevOpenvswitchInterfaceSetQos(const char *ifname,
         }
         virCommandAddArgList(cmd, vmid_ex_id, ifname_ex_id, NULL);
         if (virCommandRun(cmd, NULL) < 0) {
-            if (*queue_uuid) {
+            if (queue_uuid && *queue_uuid) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("Unable to set queue configuration on port %s"), ifname);
             } else {

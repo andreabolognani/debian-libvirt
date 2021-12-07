@@ -388,33 +388,17 @@ mymain(void)
     DO_TEST("graphics-sdl-fullscreen", QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_SDL);
 
     cfg->spiceTLS = true;
-    DO_TEST("graphics-spice",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_SPICE);
-    DO_TEST("graphics-spice-compression",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_SPICE);
-    DO_TEST("graphics-spice-qxl-vga",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_SPICE);
-    DO_TEST("graphics-spice-socket",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_UNIX);
-    DO_TEST("graphics-spice-auto-socket",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_UNIX);
+    DO_TEST_CAPS_LATEST("graphics-spice");
+    DO_TEST_CAPS_LATEST("graphics-spice-compression");
+    DO_TEST_CAPS_LATEST("graphics-spice-qxl-vga");
+    DO_TEST_CAPS_LATEST("graphics-spice-socket");
+    DO_TEST_CAPS_LATEST("graphics-spice-auto-socket");
     cfg->spiceAutoUnixSocket = true;
-    DO_TEST("graphics-spice-auto-socket-cfg",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_SPICE);
+    DO_TEST_CAPS_LATEST("graphics-spice-auto-socket-cfg");
     cfg->spiceAutoUnixSocket = false;
     cfg->spiceTLS = false;
-    DO_TEST("graphics-spice-egl-headless",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_EGL_HEADLESS);
+    DO_TEST_CAPS_LATEST("graphics-spice-egl-headless");
+    DO_TEST_CAPS_LATEST("graphics-spice-timeout");
 
     DO_TEST("graphics-egl-headless-rendernode",
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
@@ -766,9 +750,6 @@ mymain(void)
     DO_TEST("graphics-listen-network2",
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
             QEMU_CAPS_VNC);
-    DO_TEST("graphics-spice-timeout",
-            QEMU_CAPS_DEVICE_VGA,
-            QEMU_CAPS_SPICE);
     DO_TEST_NOCAPS("numad-auto-vcpu-no-numatune");
     DO_TEST_NOCAPS("numad-auto-memory-vcpu-no-cpuset-and-placement");
     DO_TEST_NOCAPS("numad-auto-memory-vcpu-cpuset");
@@ -1254,6 +1235,7 @@ mymain(void)
             QEMU_CAPS_KVM);
     DO_TEST("fd-memory-numa-topology3", QEMU_CAPS_OBJECT_MEMORY_FILE,
             QEMU_CAPS_KVM);
+    DO_TEST_CAPS_LATEST("fd-memory-numa-topology4");
 
     DO_TEST("fd-memory-no-numa-topology", QEMU_CAPS_OBJECT_MEMORY_FILE,
             QEMU_CAPS_KVM);

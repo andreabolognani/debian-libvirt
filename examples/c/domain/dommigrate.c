@@ -26,24 +26,23 @@
 #include <libvirt/virterror.h>
 
 
-static int
-usage(char *prgn, int ret)
+static void
+usage(char *prgn)
 {
     printf("Usage: %s <src uri> <dst uri> <domain name>\n", prgn);
-    return ret;
 }
 
 int
 main(int argc, char *argv[])
 {
     char *src_uri, *dst_uri, *domname;
-    int ret = 0;
+    int ret = EXIT_FAILURE;
     virConnectPtr conn = NULL;
     virDomainPtr dom = NULL;
 
     if (argc < 4) {
-        ret = usage(argv[0], 1);
-        goto out;
+        usage(argv[0]);
+        return EXIT_FAILURE;
     }
 
     src_uri = argv[1];
@@ -53,10 +52,9 @@ main(int argc, char *argv[])
     printf("Attempting to connect to the source hypervisor...\n");
     conn = virConnectOpenAuth(src_uri, virConnectAuthPtrDefault, 0);
     if (!conn) {
-        ret = 1;
         fprintf(stderr, "No connection to the source hypervisor: %s.\n",
                 virGetLastErrorMessage());
-        goto out;
+        return EXIT_FAILURE;
     }
 
     printf("Attempting to retrieve domain %s...\n", domname);
@@ -75,12 +73,11 @@ main(int argc, char *argv[])
     }
 
     printf("Migration finished with success.\n");
+    ret = EXIT_SUCCESS;
 
  cleanup:
     if (dom != NULL)
         virDomainFree(dom);
     virConnectClose(conn);
-
- out:
     return ret;
 }

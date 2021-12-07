@@ -379,32 +379,15 @@ ppc64LoadMap(void)
     return g_steal_pointer(&map);
 }
 
-static virCPUData *
-ppc64MakeCPUData(virArch arch,
-                 virCPUppc64Data *data)
-{
-    g_autoptr(virCPUData) cpuData = NULL;
-
-    cpuData = g_new0(virCPUData, 1);
-    cpuData->arch = arch;
-
-    if (ppc64DataCopy(&cpuData->data.ppc64, data) < 0)
-        return NULL;
-
-    return g_steal_pointer(&cpuData);
-}
-
 static virCPUCompareResult
 ppc64Compute(virCPUDef *host,
              const virCPUDef *other,
-             virCPUData **guestData,
              char **message)
 {
     g_autoptr(virCPUppc64Map) map = NULL;
     g_autoptr(virCPUppc64Model) host_model = NULL;
     g_autoptr(virCPUppc64Model) guest_model = NULL;
     g_autoptr(virCPUDef) cpu = NULL;
-    virArch arch;
     size_t i;
 
     /* Ensure existing configurations are handled correctly */
@@ -431,9 +414,6 @@ ppc64Compute(virCPUDef *host,
 
             return VIR_CPU_COMPARE_INCOMPATIBLE;
         }
-        arch = cpu->arch;
-    } else {
-        arch = host->arch;
     }
 
     if (cpu->vendor &&
@@ -506,10 +486,6 @@ ppc64Compute(virCPUDef *host,
         return VIR_CPU_COMPARE_INCOMPATIBLE;
     }
 
-    if (guestData)
-        if (!(*guestData = ppc64MakeCPUData(arch, &guest_model->data)))
-            return VIR_CPU_COMPARE_ERROR;
-
     return VIR_CPU_COMPARE_IDENTICAL;
 }
 
@@ -532,7 +508,7 @@ virCPUppc64Compare(virCPUDef *host,
         return VIR_CPU_COMPARE_INCOMPATIBLE;
     }
 
-    ret = ppc64Compute(host, cpu, NULL, &message);
+    ret = ppc64Compute(host, cpu, &message);
 
     if (failIncompatible && ret == VIR_CPU_COMPARE_INCOMPATIBLE) {
         ret = VIR_CPU_COMPARE_ERROR;
@@ -576,6 +552,48 @@ ppc64DriverDecode(virCPUDef *cpu,
         cpu->vendor = g_strdup(model->vendor->name);
 
     return 0;
+}
+
+static virCPUCompareResult
+virCPUppc64DataIsIdentical(const virCPUData *a,
+                           const virCPUData *b)
+{
+    size_t i;
+
+    if (!a || !b)
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (a->arch != b->arch)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    if (a->data.ppc64.len != b->data.ppc64.len)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    for (i = 0; i < a->data.ppc64.len; ++i) {
+        if (a->data.ppc64.pvr[i].mask != b->data.ppc64.pvr[i].mask)
+            return VIR_CPU_COMPARE_INCOMPATIBLE;
+        if (a->data.ppc64.pvr[i].value != b->data.ppc64.pvr[i].value)
+            return VIR_CPU_COMPARE_INCOMPATIBLE;
+    }
+
+    return VIR_CPU_COMPARE_IDENTICAL;
+}
+
+static virCPUData *
+virCPUppc64DataCopyNew(virCPUData *data)
+{
+    virCPUData *copy;
+    size_t i;
+
+    if (!data)
+        return NULL;
+
+    copy = virCPUDataNew(data->arch);
+    copy->data.ppc64.len = data->data.ppc64.len;
+    for (i = 0; i < copy->data.ppc64.len; ++i)
+        copy->data.ppc64.pvr[i] = data->data.ppc64.pvr[i];
+
+    return copy;
 }
 
 static void
@@ -743,10 +761,12 @@ struct cpuArchDriver cpuDriverPPC64 = {
     .compare    = virCPUppc64Compare,
     .decode     = ppc64DriverDecode,
     .encode     = NULL,
+    .dataCopyNew = virCPUppc64DataCopyNew,
     .dataFree   = virCPUppc64DataFree,
     .getHost    = virCPUppc64GetHost,
     .baseline   = virCPUppc64Baseline,
     .update     = virCPUppc64Update,
     .getModels  = virCPUppc64DriverGetModels,
     .convertLegacy = virCPUppc64ConvertLegacy,
+    .dataIsIdentical = virCPUppc64DataIsIdentical,
 };

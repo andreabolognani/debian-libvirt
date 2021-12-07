@@ -4453,7 +4453,7 @@ cmdSave(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (vshCommandOptStringReq(ctl, cmd, "file", &to) < 0)
-        goto cleanup;
+        return false;
 
     if (vshCommandOptBool(cmd, "verbose"))
         verbose = true;
@@ -4462,7 +4462,7 @@ cmdSave(vshControl *ctl, const vshCmd *cmd)
                         true,
                         doSave,
                         &data) < 0)
-        goto cleanup;
+        return false;
 
     virshWatchJob(ctl, dom, verbose, eventLoop,
                   &data.ret, 0, NULL, NULL, _("Save"));
@@ -4472,7 +4472,6 @@ cmdSave(vshControl *ctl, const vshCmd *cmd)
     if (!data.ret)
         vshPrintExtra(ctl, _("\nDomain '%s' saved to %s\n"), name, to);
 
- cleanup:
     return !data.ret;
 }
 
@@ -4770,7 +4769,7 @@ cmdManagedSave(vshControl *ctl, const vshCmd *cmd)
                         true,
                         doManagedsave,
                         &data) < 0)
-        goto cleanup;
+        return false;
 
     virshWatchJob(ctl, dom, verbose, eventLoop,
                   &data.ret, 0, NULL, NULL, _("Managedsave"));
@@ -4780,7 +4779,6 @@ cmdManagedSave(vshControl *ctl, const vshCmd *cmd)
     if (!data.ret)
         vshPrintExtra(ctl, _("\nDomain '%s' state saved by libvirt\n"), name);
 
- cleanup:
     return !data.ret;
 }
 
@@ -9623,10 +9621,10 @@ cmdQemuMonitorCommandQMPWrap(vshControl *ctl,
         }
     }
 
-    if (virJSONValueObjectCreate(&command,
-                                 "s:execute", commandname,
-                                 "A:arguments", &arguments,
-                                 NULL) < 0)
+    if (virJSONValueObjectAdd(&command,
+                              "s:execute", commandname,
+                              "A:arguments", &arguments,
+                              NULL) < 0)
         return NULL;
 
     return virJSONValueToString(command, false);
@@ -13317,7 +13315,7 @@ virshEventMetadataChangePrint(virConnectPtr conn G_GNUC_UNUSED,
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
-    virBufferAsprintf(&buf, _("event 'metadata-change' for domain '%s': %s %s\n"),
+    virBufferAsprintf(&buf, _("event 'metadata-change' for domain '%s': type %s, uri %s\n"),
                       virDomainGetName(dom),
                       UNKNOWNSTR(virshEventMetadataChangeTypeTypeToString(type)),
                       NULLSTR(nsuri));
@@ -14077,6 +14075,10 @@ static const vshCmdOptDef opts_guestinfo[] = {
      .type = VSH_OT_BOOL,
      .help = N_("report disk information"),
     },
+    {.name = "interface",
+     .type = VSH_OT_BOOL,
+     .help = N_("report interface information"),
+    },
     {.name = NULL}
 };
 
@@ -14102,6 +14104,8 @@ cmdGuestInfo(vshControl *ctl, const vshCmd *cmd)
         types |= VIR_DOMAIN_GUEST_INFO_FILESYSTEM;
     if (vshCommandOptBool(cmd, "disk"))
         types |= VIR_DOMAIN_GUEST_INFO_DISKS;
+    if (vshCommandOptBool(cmd, "interface"))
+        types |= VIR_DOMAIN_GUEST_INFO_INTERFACES;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;

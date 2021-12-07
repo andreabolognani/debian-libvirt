@@ -10,7 +10,8 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-encryptdisk/.config \
 -name guest=encryptdisk,debug-threads=on \
 -S \
 -object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-encryptdisk/master-key.aes \
--machine pc-i440fx-5.2,accel=tcg,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-machine pc-i440fx-5.2,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-accel tcg \
 -cpu qemu64 \
 -m 1024 \
 -object memory-backend-ram,id=pc.ram,size=1073741824 \
@@ -55,7 +56,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-encryptdisk/.config \
 -blockdev '{"driver":"file","filename":"/storage/guest_disks/encryptdisk5","node-name":"libvirt-1-storage","auto-read-only":true,"discard":"unmap"}' \
 -blockdev '{"node-name":"libvirt-1-format","read-only":false,"driver":"qcow2","encrypt":{"format":"luks","key-secret":"libvirt-1-format-encryption-secret0"},"file":"libvirt-1-storage","backing":"libvirt-2-format"}' \
 -device virtio-blk-pci,bus=pci.0,addr=0x8,drive=libvirt-1-format,id=virtio-disk5 \
--audiodev id=audio1,driver=none \
+-audiodev '{"id":"audio1","driver":"none"}' \
 -device virtio-balloon-pci,id=balloon0,bus=pci.0,addr=0x3 \
 -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
 -msg timestamp=on

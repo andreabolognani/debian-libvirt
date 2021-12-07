@@ -37,7 +37,7 @@ struct _virSecurityLabelDef {
     char *label;        /* security label string */
     char *imagelabel;   /* security image label string */
     char *baselabel;    /* base name of label string */
-    int type;           /* virDomainSeclabelType */
+    virDomainSeclabelType type; /* virDomainSeclabelType */
     bool relabel;       /* true (default) for allowing relabels */
     bool implicit;      /* true if seclabel is auto-added */
 };
@@ -63,4 +63,7 @@ virSecurityDeviceLabelDefCopy(const virSecurityDeviceLabelDef *src)
     ATTRIBUTE_NONNULL(1);
 
 void virSecurityLabelDefFree(virSecurityLabelDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virSecurityLabelDef, virSecurityLabelDefFree);
+
 void virSecurityDeviceLabelDefFree(virSecurityDeviceLabelDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virSecurityDeviceLabelDef, virSecurityDeviceLabelDefFree);

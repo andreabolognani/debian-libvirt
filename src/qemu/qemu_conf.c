@@ -1001,12 +1001,12 @@ virQEMUDriverConfigLoadMemoryEntry(virQEMUDriverConfig *cfg,
     g_autofree char *dir = NULL;
     int rc;
 
-    if ((rc = virConfGetValueString(conf, "memory_backing_dir", &dir)) < 0) {
+    if ((rc = virConfGetValueString(conf, "memory_backing_dir", &dir)) < 0)
         return -1;
-    } else if (rc > 0) {
+
+    if (rc > 0) {
         VIR_FREE(cfg->memoryBackingDir);
         cfg->memoryBackingDir = g_strdup_printf("%s/libvirt/qemu", dir);
-        return 0;
     }
 
     return 0;
@@ -1777,11 +1777,10 @@ qemuSharedDeviceAddRemoveInternal(virQEMUDriver *driver,
     if (dev->type == VIR_DOMAIN_DEVICE_DISK)
         return qemuSharedDiskAddRemoveInternal(driver, dev->data.disk,
                                                name, addDevice);
-    else if (dev->type == VIR_DOMAIN_DEVICE_HOSTDEV)
+    if (dev->type == VIR_DOMAIN_DEVICE_HOSTDEV)
         return qemuSharedHostdevAddRemoveInternal(driver, dev->data.hostdev,
                                                   name, addDevice);
-    else
-        return 0;
+    return 0;
 }
 
 
@@ -1915,16 +1914,13 @@ qemuGetBaseHugepagePath(virQEMUDriver *driver,
                         virHugeTLBFS *hugepage)
 {
     const char *root = driver->embeddedRoot;
-    char *ret;
 
     if (root && !STRPREFIX(hugepage->mnt_dir, root)) {
         g_autofree char * hash = virDomainDriverGenerateRootHash("qemu", root);
-        ret = g_strdup_printf("%s/libvirt/%s", hugepage->mnt_dir, hash);
-    } else {
-        ret = g_strdup_printf("%s/libvirt/qemu", hugepage->mnt_dir);
+        return g_strdup_printf("%s/libvirt/%s", hugepage->mnt_dir, hash);
     }
 
-    return ret;
+    return g_strdup_printf("%s/libvirt/qemu", hugepage->mnt_dir);
 }
 
 
@@ -1935,11 +1931,11 @@ qemuGetDomainHugepagePath(virQEMUDriver *driver,
 {
     g_autofree char *base = qemuGetBaseHugepagePath(driver, hugepage);
     g_autofree char *domPath = virDomainDefGetShortName(def);
-    char *ret = NULL;
 
-    if (base && domPath)
-        ret = g_strdup_printf("%s/%s", base, domPath);
-    return ret;
+    if (!base || !domPath)
+        return NULL;
+
+    return g_strdup_printf("%s/%s", base, domPath);
 }
 
 

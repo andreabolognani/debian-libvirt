@@ -10,7 +10,8 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 -name guest=QEMUGuest1,debug-threads=on \
 -S \
 -object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-QEMUGuest1/master-key.aes"}' \
--machine pc,accel=kvm,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-machine pc,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-accel kvm \
 -cpu qemu64 \
 -m 214 \
 -object '{"qom-type":"memory-backend-ram","id":"pc.ram","size":224395264}' \
@@ -31,7 +32,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 -netdev user,guestfwd=tcp:10.0.2.1:4600-chardev:charchannel0,id=channel0 \
 -chardev socket,id=charchannel1,path=/tmp/guestfwd-connect.socket \
 -netdev user,guestfwd=tcp:10.0.2.1:4601-chardev:charchannel1,id=channel1 \
--audiodev id=audio1,driver=none \
+-audiodev '{"id":"audio1","driver":"none"}' \
 -device '{"driver":"virtio-balloon-pci","id":"balloon0","bus":"pci.0","addr":"0x2"}' \
 -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
 -msg timestamp=on

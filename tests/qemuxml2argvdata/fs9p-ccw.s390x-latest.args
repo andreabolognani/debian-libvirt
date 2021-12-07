@@ -10,7 +10,8 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 -name guest=QEMUGuest1,debug-threads=on \
 -S \
 -object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-QEMUGuest1/master-key.aes"}' \
--machine s390-ccw-virtio,accel=tcg,usb=off,dump-guest-core=off,memory-backend=s390.ram \
+-machine s390-ccw-virtio,usb=off,dump-guest-core=off,memory-backend=s390.ram \
+-accel tcg \
 -cpu qemu \
 -m 214 \
 -object '{"qom-type":"memory-backend-ram","id":"s390.ram","size":224395264}' \
@@ -34,7 +35,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-QEMUGuest1/.config \
 -device virtio-9p-ccw,id=fs1,fsdev=fsdev-fs1,mount_tag=/import/from/host2,devno=fe.0.0002 \
 -fsdev handle,writeout=immediate,id=fsdev-fs2,path=/export/to/guest3 \
 -device virtio-9p-ccw,id=fs2,fsdev=fsdev-fs2,mount_tag=/import/from/host3,devno=fe.0.0003 \
--audiodev id=audio1,driver=none \
+-audiodev '{"id":"audio1","driver":"none"}' \
 -device virtio-balloon-ccw,id=balloon0,devno=fe.0.0004 \
 -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
 -msg timestamp=on

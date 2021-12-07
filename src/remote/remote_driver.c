@@ -4186,6 +4186,11 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
                            _("negotiation SSF %d was not strong enough"), ssf);
             goto cleanup;
         }
+        if (ssf < SSF_WARNING_LEVEL) {
+            VIR_WARN("negotiation SSF %d lower than %d will be deprecated. "
+                     "Please upgrade your ciphers.",
+                     ssf, SSF_WARNING_LEVEL);
+        }
         priv->is_secure = 1;
     }
 
@@ -6266,7 +6271,7 @@ remoteConnectGetCPUModelNames(virConnectPtr conn,
 {
     int rv = -1;
     size_t i;
-    char **retmodels = NULL;
+    g_auto(GStrv) retmodels = NULL;
     remote_connect_get_cpu_model_names_args args;
     remote_connect_get_cpu_model_names_ret ret;
 
@@ -6307,8 +6312,6 @@ remoteConnectGetCPUModelNames(virConnectPtr conn,
     rv = ret.ret;
 
  cleanup:
-    g_strfreev(retmodels);
-
     xdr_free((xdrproc_t) xdr_remote_connect_get_cpu_model_names_ret, (char *) &ret);
 
  done:

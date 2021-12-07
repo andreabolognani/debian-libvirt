@@ -246,8 +246,7 @@ static int
 xenParseXLCPUID(virConf *conf, virDomainDef *def)
 {
     g_autofree char *cpuid_str = NULL;
-    char **cpuid_pairs = NULL;
-    char **name_and_value = NULL;
+    g_auto(GStrv) cpuid_pairs = NULL;
     size_t i;
     int ret = -1;
     int policy;
@@ -283,7 +282,7 @@ xenParseXLCPUID(virConf *conf, virDomainDef *def)
     }
 
     for (i = 1; cpuid_pairs[i]; i++) {
-        name_and_value = g_strsplit(cpuid_pairs[i], "=", 2);
+        g_auto(GStrv) name_and_value = g_strsplit(cpuid_pairs[i], "=", 2);
         if (!name_and_value)
             goto cleanup;
         if (!name_and_value[0] || !name_and_value[1]) {
@@ -313,16 +312,11 @@ xenParseXLCPUID(virConf *conf, virDomainDef *def)
                                 xenTranslateCPUFeature(name_and_value[0], true),
                                 policy) < 0)
             goto cleanup;
-
-        g_strfreev(name_and_value);
-        name_and_value = NULL;
     }
 
     ret = 0;
 
  cleanup:
-    g_strfreev(name_and_value);
-    g_strfreev(cpuid_pairs);
     return ret;
 }
 
@@ -406,7 +400,6 @@ xenParseXLVnuma(virConf *conf,
 {
     int ret = -1;
     char *tmp = NULL;
-    char **token = NULL;
     size_t vcpus = 0;
     size_t nr_nodes = 0;
     size_t vnodeCnt = 0;
@@ -506,6 +499,7 @@ xenParseXLVnuma(virConf *conf,
                         vcpus += virBitmapCountBits(cpumask);
 
                     } else if (STRPREFIX(str, "vdistances")) {
+                        g_auto(GStrv) token = NULL;
                         size_t i, ndistances;
                         unsigned int value;
 
@@ -519,7 +513,6 @@ xenParseXLVnuma(virConf *conf,
                         VIR_FREE(tmp);
                         tmp = g_strdup(vtoken);
 
-                        g_strfreev(token);
                         if (!(token = g_strsplit(tmp, ",", 0)))
                             goto cleanup;
 
@@ -583,7 +576,6 @@ xenParseXLVnuma(virConf *conf,
  cleanup:
     if (ret)
         VIR_FREE(cpu);
-    g_strfreev(token);
     VIR_FREE(tmp);
 
     return ret;
@@ -1301,7 +1293,7 @@ xenFormatXLOS(virConf *conf, virDomainDef *def)
 static int
 xenFormatXLCPUID(virConf *conf, virDomainDef *def)
 {
-    char **cpuid_pairs = NULL;
+    g_auto(GStrv) cpuid_pairs = NULL;
     g_autofree char *cpuid_string = NULL;
     size_t i, j;
     int ret = -1;
@@ -1359,7 +1351,6 @@ xenFormatXLCPUID(virConf *conf, virDomainDef *def)
     ret = 0;
 
  cleanup:
-    g_strfreev(cpuid_pairs);
     return ret;
 }
 
@@ -1616,7 +1607,6 @@ xenFormatXLDisk(virConfValue *list, virDomainDiskDef *disk)
     int format = virDomainDiskGetFormat(disk);
     const char *driver = virDomainDiskGetDriver(disk);
     g_autofree char *target = NULL;
-    int ret = -1;
 
     /* format */
     virBufferAddLit(&buf, "format=");
@@ -1655,7 +1645,7 @@ xenFormatXLDisk(virConfValue *list, virDomainDiskDef *disk)
     if (disk->transient) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("transient disks not supported yet"));
-        goto cleanup;
+        return -1;
     }
 
     /* backendtype */
@@ -1682,7 +1672,7 @@ xenFormatXLDisk(virConfValue *list, virDomainDiskDef *disk)
      * it must come last.
      */
     if (xenFormatXLDiskSrc(disk->src, &target) < 0)
-        goto cleanup;
+        return -1;
 
     if (target)
         virBufferAsprintf(&buf, ",target=%s", target);
@@ -1698,10 +1688,8 @@ xenFormatXLDisk(virConfValue *list, virDomainDiskDef *disk)
         tmp->next = val;
     else
         list->list = val;
-    ret = 0;
 
- cleanup:
-    return ret;
+    return 0;
 }
 
 

@@ -769,10 +769,6 @@ qemuMonitorOpen(virDomainObj *vm,
 
     timeout += QEMU_DEFAULT_MONITOR_WAIT;
 
-    /* Hold an extra reference because we can't allow 'vm' to be
-     * deleted until the monitor gets its own reference. */
-    virObjectRef(vm);
-
     if (config->type != VIR_DOMAIN_CHR_TYPE_UNIX) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unable to handle monitor type: %s"),
@@ -798,7 +794,6 @@ qemuMonitorOpen(virDomainObj *vm,
  cleanup:
     if (!ret)
         VIR_FORCE_CLOSE(fd);
-    virObjectUnref(vm);
     return ret;
 }
 
@@ -1350,6 +1345,18 @@ qemuMonitorEmitDeviceDeleted(qemuMonitor *mon,
     VIR_DEBUG("mon=%p", mon);
 
     QEMU_MONITOR_CALLBACK(mon, domainDeviceDeleted, mon->vm, devAlias);
+}
+
+
+void
+qemuMonitorEmitDeviceUnplugErr(qemuMonitor *mon,
+                               const char *devPath,
+                               const char *devAlias)
+{
+    VIR_DEBUG("mon=%p", mon);
+
+    QEMU_MONITOR_CALLBACK(mon, domainDeviceUnplugError, mon->vm,
+                          devPath, devAlias);
 }
 
 
@@ -2038,14 +2045,14 @@ qemuMonitorGetBlockInfo(qemuMonitor *mon)
  * qemuMonitorQueryBlockstats:
  * @mon: monitor object
  *
- * Returns data from a call to 'query-blockstats'.
+ * Returns data from a call to 'query-blockstats' without using 'query-nodes'
  */
 virJSONValue *
 qemuMonitorQueryBlockstats(qemuMonitor *mon)
 {
     QEMU_CHECK_MONITOR_NULL(mon);
 
-    return qemuMonitorJSONQueryBlockstats(mon);
+    return qemuMonitorJSONQueryBlockstats(mon, false);
 }
 
 
@@ -2219,20 +2226,6 @@ qemuMonitorSetBalloon(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONSetBalloon(mon, newmem);
-}
-
-
-/*
- * Returns: 0 if CPU modification was successful or -1 on failure
- */
-int
-qemuMonitorSetCPU(qemuMonitor *mon, int cpu, bool online)
-{
-    VIR_DEBUG("cpu=%d online=%d", cpu, online);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONSetCPU(mon, cpu, online);
 }
 
 
@@ -2887,16 +2880,16 @@ qemuMonitorCreateObjectProps(virJSONValue **propsret,
     int rc;
     va_list args;
 
-    if (virJSONValueObjectCreate(&props,
-                                 "s:qom-type", type,
-                                 "s:id", alias,
-                                 NULL) < 0)
+    if (virJSONValueObjectAdd(&props,
+                              "s:qom-type", type,
+                              "s:id", alias,
+                              NULL) < 0)
         return -1;
 
 
     va_start(args, alias);
 
-    rc = virJSONValueObjectAddVArgs(props, args);
+    rc = virJSONValueObjectAddVArgs(&props, args);
 
     va_end(args);
 
@@ -2968,11 +2961,11 @@ qemuMonitorAddObject(qemuMonitor *mon,
             *props = NULL;
         }
 
-        if (virJSONValueObjectCreate(&pr,
-                                     "s:qom-type", type,
-                                     "s:id", id,
-                                     "A:props", props,
-                                     NULL) < 0)
+        if (virJSONValueObjectAdd(&pr,
+                                  "s:qom-type", type,
+                                  "s:id", id,
+                                  "A:props", props,
+                                  NULL) < 0)
             return -1;
     }
 
@@ -3021,17 +3014,6 @@ qemuMonitorCreateSnapshot(qemuMonitor *mon, const char *name)
 
     /* there won't ever be a direct QMP replacement for this function */
     return qemuMonitorTextCreateSnapshot(mon, name);
-}
-
-int
-qemuMonitorLoadSnapshot(qemuMonitor *mon, const char *name)
-{
-    VIR_DEBUG("name=%s", name);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    /* there won't ever be a direct QMP replacement for this function */
-    return qemuMonitorTextLoadSnapshot(mon, name);
 }
 
 

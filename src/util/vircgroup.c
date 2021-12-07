@@ -851,7 +851,7 @@ virCgroupAddThread(virCgroup *group,
 static int
 virCgroupSetPartitionSuffix(const char *path, char **res)
 {
-    char **tokens;
+    g_auto(GStrv) tokens = NULL;
     size_t i;
     int ret = -1;
 
@@ -887,7 +887,6 @@ virCgroupSetPartitionSuffix(const char *path, char **res)
     ret = 0;
 
  cleanup:
-    g_strfreev(tokens);
     return ret;
 }
 
@@ -2765,8 +2764,7 @@ virCgroupKillRecursiveInternal(virCgroup *group,
 
     if (rc == 0) {
         VIR_DEBUG("Path %s does not exist, assuming done", keypath);
-        killedAny = false;
-        goto done;
+        return 0;
     }
 
     while ((direrr = virDirRead(dp, &ent, keypath)) > 0) {
@@ -2792,7 +2790,6 @@ virCgroupKillRecursiveInternal(virCgroup *group,
     if (direrr < 0)
         return -1;
 
- done:
     return killedAny ? 1 : 0;
 }
 

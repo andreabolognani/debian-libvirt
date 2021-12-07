@@ -10,7 +10,8 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-TPM-VM/.config \
 -name guest=TPM-VM,debug-threads=on \
 -S \
 -object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-TPM-VM/master-key.aes"}' \
--machine pc-i440fx-2.12,accel=tcg,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-machine pc-i440fx-2.12,usb=off,dump-guest-core=off,memory-backend=pc.ram \
+-accel tcg \
 -cpu qemu64 \
 -m 2048 \
 -object '{"qom-type":"memory-backend-ram","id":"pc.ram","size":2147483648}' \
@@ -30,7 +31,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-TPM-VM/.config \
 -add-fd set=0,fd=1730 \
 -add-fd set=1,fd=1731 \
 -device '{"driver":"tpm-tis","tpmdev":"tpm-tpm0","id":"tpm0"}' \
--audiodev id=audio1,driver=none \
+-audiodev '{"id":"audio1","driver":"none"}' \
 -device '{"driver":"virtio-balloon-pci","id":"balloon0","bus":"pci.0","addr":"0x2"}' \
 -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
 -msg timestamp=on

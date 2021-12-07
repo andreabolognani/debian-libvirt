@@ -382,7 +382,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "qxl-vga.max_outputs", /* X_QEMU_CAPS_QXL_VGA_MAX_OUTPUTS */
 
               /* 225 */
-              "spice-unix", /* QEMU_CAPS_SPICE_UNIX */
+              "spice-unix", /* X_QEMU_CAPS_SPICE_UNIX */
               "drive-detect-zeroes", /* QEMU_CAPS_DRIVE_DETECT_ZEROES */
               "tls-creds-x509", /* X_QEMU_CAPS_OBJECT_TLS_CREDS_X509 */
               "display", /* X_QEMU_CAPS_DISPLAY */
@@ -725,6 +725,7 @@ struct _virQEMUCaps {
     char *kernelVersion;
 
     virArch arch;
+    virCPUData *cpuData;
 
     size_t ngicCapabilities;
     virGICCapability *gicCapabilities;
@@ -772,9 +773,9 @@ const char *virQEMUCapsArchToString(virArch arch)
 {
     if (arch == VIR_ARCH_I686)
         return "i386";
-    else if (arch == VIR_ARCH_ARMV6L || arch == VIR_ARCH_ARMV7L)
+    if (arch == VIR_ARCH_ARMV6L || arch == VIR_ARCH_ARMV7L)
         return "arm";
-    else if (arch == VIR_ARCH_OR32)
+    if (arch == VIR_ARCH_OR32)
         return "or32";
 
     return virArchToString(arch);
@@ -1050,14 +1051,9 @@ virQEMUCapsInitGuestFromBinary(virCaps *caps,
 
     /* We register kvm as the base emulator too, since we can
      * just give -no-kvm to disable acceleration if required */
-    if ((guest = virCapabilitiesAddGuest(caps,
-                                         VIR_DOMAIN_OSTYPE_HVM,
-                                         guestarch,
-                                         binary,
-                                         NULL,
-                                         nmachines,
-                                         machines)) == NULL)
-        goto cleanup;
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
+                                    guestarch, binary,
+                                    NULL, nmachines, machines);
 
     machines = NULL;
     nmachines = 0;
@@ -1070,25 +1066,13 @@ virQEMUCapsInitGuestFromBinary(virCaps *caps,
                                              true, false);
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_TCG)) {
-        if (virCapabilitiesAddGuestDomain(guest,
-                                          VIR_DOMAIN_VIRT_QEMU,
-                                          NULL,
-                                          NULL,
-                                          0,
-                                          NULL) == NULL) {
-            goto cleanup;
-        }
+        virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_QEMU,
+                                      NULL, NULL, 0, NULL);
     }
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_KVM)) {
-        if (virCapabilitiesAddGuestDomain(guest,
-                                          VIR_DOMAIN_VIRT_KVM,
-                                          NULL,
-                                          NULL,
-                                          0,
-                                          NULL) == NULL) {
-            goto cleanup;
-        }
+        virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_KVM,
+                                      NULL, NULL, 0, NULL);
     }
 
     if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64))
@@ -1982,6 +1966,7 @@ virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps)
     ret->kernelVersion = g_strdup(qemuCaps->kernelVersion);
 
     ret->arch = qemuCaps->arch;
+    ret->cpuData = virCPUDataNewCopy(qemuCaps->cpuData);
 
     if (virQEMUCapsAccelCopy(&ret->kvm, &qemuCaps->kvm) < 0 ||
         virQEMUCapsAccelCopy(&ret->tcg, &qemuCaps->tcg) < 0)
@@ -2031,6 +2016,8 @@ void virQEMUCapsDispose(void *obj)
     g_free(qemuCaps->hostCPUSignature);
 
     g_free(qemuCaps->gicCapabilities);
+
+    virCPUDataFree(qemuCaps->cpuData);
 
     virSEVCapabilitiesFree(qemuCaps->sevCapabilities);
 
@@ -3083,7 +3070,6 @@ virQEMUCapsGetCPUFeatures(virQEMUCaps *qemuCaps,
     g_auto(GStrv) list = NULL;
     size_t i;
     size_t n;
-    int ret = -1;
 
     *features = NULL;
     modelInfo = virQEMUCapsGetCPUModelInfo(qemuCaps, virtType);
@@ -3104,12 +3090,10 @@ virQEMUCapsGetCPUFeatures(virQEMUCaps *qemuCaps,
     }
 
     *features = g_steal_pointer(&list);
-    if (migratable && !modelInfo->migratability)
-        ret = 1;
-    else
-        ret = 0;
 
-    return ret;
+    if (migratable && !modelInfo->migratability)
+        return 1;
+    return 0;
 }
 
 
@@ -3213,7 +3197,6 @@ static struct virQEMUCapsCommandLineProps virQEMUCapsCommandLine[] = {
     { "overcommit", NULL, QEMU_CAPS_OVERCOMMIT },
     { "sandbox", NULL, QEMU_CAPS_SECCOMP_SANDBOX },
     { "spice", "gl", QEMU_CAPS_SPICE_GL },
-    { "spice", "unix", QEMU_CAPS_SPICE_UNIX },
     { "spice", "rendernode", QEMU_CAPS_SPICE_RENDERNODE },
     { "vnc", "power-control", QEMU_CAPS_VNC_POWER_CONTROL },
     { "vnc", "audiodev", QEMU_CAPS_AUDIODEV },
@@ -3737,20 +3720,18 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                                 xmlXPathContextPtr ctxt,
                                 const char *typeStr)
 {
-    char *str = NULL;
+    g_autofree char *migratability = NULL;
     xmlNodePtr hostCPUNode;
     g_autofree xmlNodePtr *nodes = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autoptr(qemuMonitorCPUModelInfo) hostCPU = NULL;
     g_autofree char *xpath = g_strdup_printf("./hostCPU[@type='%s']", typeStr);
-    int ret = -1;
     size_t i;
     int n;
     int val;
 
     if (!(hostCPUNode = virXPathNode(xpath, ctxt))) {
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
     hostCPU = g_new0(qemuMonitorCPUModelInfo, 1);
@@ -3759,17 +3740,16 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing host CPU model name in QEMU "
                          "capabilities cache"));
-        goto cleanup;
+        return -1;
     }
 
-    if (!(str = virXMLPropString(hostCPUNode, "migratability")) ||
-        (val = virTristateBoolTypeFromString(str)) <= 0) {
+    if (!(migratability = virXMLPropString(hostCPUNode, "migratability")) ||
+        (val = virTristateBoolTypeFromString(migratability)) <= 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("invalid migratability value for host CPU model"));
-        goto cleanup;
+        return -1;
     }
     hostCPU->migratability = val == VIR_TRISTATE_BOOL_YES;
-    VIR_FREE(str);
 
     ctxt->node = hostCPUNode;
 
@@ -3779,6 +3759,8 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
 
         for (i = 0; i < n; i++) {
             qemuMonitorCPUProperty *prop = hostCPU->props + i;
+            g_autofree char *type = NULL;
+            g_autofree char *migratable = NULL;
 
             ctxt->node = nodes[i];
 
@@ -3786,17 +3768,16 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("missing 'name' attribute for a host CPU"
                                  " model property in QEMU capabilities cache"));
-                goto cleanup;
+                return -1;
             }
 
-            if (!(str = virXMLPropString(ctxt->node, "type")) ||
-                (val = qemuMonitorCPUPropertyTypeFromString(str)) < 0) {
+            if (!(type = virXMLPropString(ctxt->node, "type")) ||
+                (val = qemuMonitorCPUPropertyTypeFromString(type)) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("missing or invalid CPU model property type "
                                  "in QEMU capabilities cache"));
-                goto cleanup;
+                return -1;
             }
-            VIR_FREE(str);
 
             prop->type = val;
             switch (prop->type) {
@@ -3812,7 +3793,7 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                                    _("invalid string value for '%s' host CPU "
                                      "model property in QEMU capabilities cache"),
                                    prop->name);
-                    goto cleanup;
+                    return -1;
                 }
                 break;
 
@@ -3823,7 +3804,7 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                                    _("invalid number value for '%s' host CPU "
                                      "model property in QEMU capabilities cache"),
                                    prop->name);
-                    goto cleanup;
+                    return -1;
                 }
                 break;
 
@@ -3831,27 +3812,22 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                 break;
             }
 
-            if ((str = virXMLPropString(ctxt->node, "migratable"))) {
-                if ((val = virTristateBoolTypeFromString(str)) <= 0) {
+            if ((migratable = virXMLPropString(ctxt->node, "migratable"))) {
+                if ((val = virTristateBoolTypeFromString(migratable)) <= 0) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
                                    _("unknown migratable value for '%s' host "
                                      "CPU model property"),
                                    prop->name);
-                    goto cleanup;
+                    return -1;
                 }
 
                 prop->migratable = val;
-                VIR_FREE(str);
             }
         }
     }
 
     caps->hostCPU.info = g_steal_pointer(&hostCPU);
-    ret = 0;
-
- cleanup:
-    VIR_FREE(str);
-    return ret;
+    return 0;
 }
 
 
@@ -4037,6 +4013,7 @@ struct _virQEMUCapsCachePriv {
     gid_t runGid;
     virArch hostArch;
     unsigned int microcodeVersion;
+    virCPUData *cpuData;
     char *kernelVersion;
     char *hostCPUSignature;
 
@@ -4054,6 +4031,7 @@ virQEMUCapsCachePrivFree(void *privData)
 
     g_free(priv->libDir);
     g_free(priv->kernelVersion);
+    virCPUDataFree(priv->cpuData);
     g_free(priv->hostCPUSignature);
     g_free(priv);
 }
@@ -4110,6 +4088,162 @@ virQEMUCapsParseSEVInfo(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
 }
 
 
+static int
+virQEMUCapsParseFlags(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
+{
+    g_autofree xmlNodePtr *nodes = NULL;
+    size_t i;
+    int n;
+
+    if ((n = virXPathNodeSet("./flag", ctxt, &nodes)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed to parse qemu capabilities flags"));
+        return -1;
+    }
+
+    VIR_DEBUG("Got flags %d", n);
+    for (i = 0; i < n; i++) {
+        g_autofree char *str = NULL;
+        int flag;
+
+        if (!(str = virXMLPropString(nodes[i], "name"))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("missing flag name in QEMU capabilities cache"));
+            return -1;
+        }
+
+        flag = virQEMUCapsTypeFromString(str);
+        if (flag < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Unknown qemu capabilities flag %s"), str);
+            return -1;
+        }
+
+        virQEMUCapsSet(qemuCaps, flag);
+    }
+
+    return 0;
+}
+
+
+static int
+virQEMUCapsParseGIC(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
+{
+    g_autofree xmlNodePtr *nodes = NULL;
+    size_t i;
+    int n;
+
+    if ((n = virXPathNodeSet("./gic", ctxt, &nodes)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed to parse qemu capabilities gic"));
+        return -1;
+    }
+
+    if (n > 0) {
+        unsigned int uintValue;
+        bool boolValue;
+
+        qemuCaps->ngicCapabilities = n;
+        qemuCaps->gicCapabilities = g_new0(virGICCapability, n);
+
+        for (i = 0; i < n; i++) {
+            virGICCapability *cap = &qemuCaps->gicCapabilities[i];
+            g_autofree char *version = NULL;
+            g_autofree char *kernel = NULL;
+            g_autofree char *emulated = NULL;
+
+            if (!(version = virXMLPropString(nodes[i], "version"))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing GIC version "
+                                 "in QEMU capabilities cache"));
+                return -1;
+            }
+            if (virStrToLong_ui(version, NULL, 10, &uintValue) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("malformed GIC version "
+                                 "in QEMU capabilities cache"));
+                return -1;
+            }
+            cap->version = uintValue;
+
+            if (!(kernel = virXMLPropString(nodes[i], "kernel"))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing in-kernel GIC information "
+                                 "in QEMU capabilities cache"));
+                return -1;
+            }
+            if (!(boolValue = STREQ(kernel, "yes")) && STRNEQ(kernel, "no")) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("malformed in-kernel GIC information "
+                                 "in QEMU capabilities cache"));
+                return -1;
+            }
+            if (boolValue)
+                cap->implementation |= VIR_GIC_IMPLEMENTATION_KERNEL;
+
+            if (!(emulated = virXMLPropString(nodes[i], "emulated"))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing emulated GIC information "
+                                 "in QEMU capabilities cache"));
+                return -1;
+            }
+            if (!(boolValue = STREQ(emulated, "yes")) && STRNEQ(emulated, "no")) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("malformed emulated GIC information "
+                                 "in QEMU capabilities cache"));
+                return -1;
+            }
+            if (boolValue)
+                cap->implementation |= VIR_GIC_IMPLEMENTATION_EMULATED;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+virQEMUCapsValidateEmulator(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
+{
+    g_autofree char *str = NULL;
+
+    if (!(str = virXPathString("string(./emulator)", ctxt))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("missing emulator in QEMU capabilities cache"));
+        return -1;
+    }
+
+    if (STRNEQ(str, qemuCaps->binary)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Expected caps for '%s' but saw '%s'"),
+                       qemuCaps->binary, str);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+virQEMUCapsValidateArch(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
+{
+    g_autofree char *str = NULL;
+
+    if (!(str = virXPathString("string(./arch)", ctxt))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("missing arch in QEMU capabilities cache"));
+        return -1;
+    }
+    if (!(qemuCaps->arch = virArchFromString(str))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("unknown arch %s in QEMU capabilities cache"), str);
+        return -1;
+    }
+
+    return 0;
+}
+
+
 /*
  * Parsing a doc that looks like
  *
@@ -4137,20 +4271,15 @@ virQEMUCapsLoadCache(virArch hostArch,
                      bool skipInvalidation)
 {
     g_autoptr(xmlDoc) doc = NULL;
-    int ret = -1;
-    size_t i;
-    int n;
-    xmlNodePtr *nodes = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    char *str = NULL;
     long long int l;
     unsigned long lu;
 
     if (!(doc = virXMLParseFile(filename)))
-        goto cleanup;
+        return -1;
 
     if (!(ctxt = virXMLXPathContextNew(doc)))
-        goto cleanup;
+        return -1;
 
     ctxt->node = xmlDocGetRootElement(doc);
 
@@ -4159,13 +4288,13 @@ virQEMUCapsLoadCache(virArch hostArch,
                        _("unexpected root element <%s>, "
                          "expecting <qemuCaps>"),
                        ctxt->node->name);
-        goto cleanup;
+        return -1;
     }
 
     if (virXPathLongLong("string(./selfctime)", ctxt, &l) < 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("missing selfctime in QEMU capabilities XML"));
-        goto cleanup;
+        return -1;
     }
     qemuCaps->libvirtCtime = (time_t)l;
 
@@ -4183,73 +4312,42 @@ virQEMUCapsLoadCache(virArch hostArch,
                   (long long)virGetSelfLastChanged(),
                   (unsigned long)qemuCaps->libvirtVersion,
                   (unsigned long)LIBVIR_VERSION_NUMBER);
-        ret = 1;
-        goto cleanup;
+        return 1;
     }
 
-    if (!(str = virXPathString("string(./emulator)", ctxt))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("missing emulator in QEMU capabilities cache"));
-        goto cleanup;
-    }
-    if (STRNEQ(str, qemuCaps->binary)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expected caps for '%s' but saw '%s'"),
-                       qemuCaps->binary, str);
-        goto cleanup;
-    }
-    VIR_FREE(str);
+    if (virQEMUCapsValidateEmulator(qemuCaps, ctxt) < 0)
+        return -1;
+
     if (virXPathLongLong("string(./qemuctime)", ctxt, &l) < 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("missing qemuctime in QEMU capabilities XML"));
-        goto cleanup;
+        return -1;
     }
     qemuCaps->ctime = (time_t)l;
 
     if (virXPathLongLong("string(./qemumoddirmtime)", ctxt, &l) == 0)
         qemuCaps->modDirMtime = (time_t)l;
 
-    if ((n = virXPathNodeSet("./flag", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to parse qemu capabilities flags"));
-        goto cleanup;
-    }
-    VIR_DEBUG("Got flags %d", n);
-    for (i = 0; i < n; i++) {
-        int flag;
-        if (!(str = virXMLPropString(nodes[i], "name"))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("missing flag name in QEMU capabilities cache"));
-            goto cleanup;
-        }
-        flag = virQEMUCapsTypeFromString(str);
-        if (flag < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unknown qemu capabilities flag %s"), str);
-            goto cleanup;
-        }
-        VIR_FREE(str);
-        virQEMUCapsSet(qemuCaps, flag);
-    }
-    VIR_FREE(nodes);
+    if (virQEMUCapsParseFlags(qemuCaps, ctxt) < 0)
+        return -1;
 
     if (virXPathUInt("string(./version)", ctxt, &qemuCaps->version) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing version in QEMU capabilities cache"));
-        goto cleanup;
+        return -1;
     }
 
     if (virXPathUInt("string(./kvmVersion)", ctxt, &qemuCaps->kvmVersion) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing version in QEMU capabilities cache"));
-        goto cleanup;
+        return -1;
     }
 
     if (virXPathUInt("string(./microcodeVersion)", ctxt,
                      &qemuCaps->microcodeVersion) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing microcode version in QEMU capabilities cache"));
-        goto cleanup;
+        return -1;
     }
 
     qemuCaps->hostCPUSignature = virXPathString("string(./hostCPUSignature)", ctxt);
@@ -4263,92 +4361,27 @@ virQEMUCapsLoadCache(virArch hostArch,
     if (virXPathBoolean("boolean(./kernelVersion)", ctxt) > 0) {
         qemuCaps->kernelVersion = virXPathString("string(./kernelVersion)", ctxt);
         if (!qemuCaps->kernelVersion)
-            goto cleanup;
+            return -1;
     }
 
-    if (!(str = virXPathString("string(./arch)", ctxt))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("missing arch in QEMU capabilities cache"));
-        goto cleanup;
+    if (virQEMUCapsValidateArch(qemuCaps, ctxt) < 0)
+        return -1;
+
+    if (virXPathBoolean("boolean(./cpudata)", ctxt) > 0) {
+        qemuCaps->cpuData = virCPUDataParseNode(virXPathNode("./cpudata", ctxt));
+        if (!qemuCaps->cpuData)
+            return -1;
     }
-    if (!(qemuCaps->arch = virArchFromString(str))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown arch %s in QEMU capabilities cache"), str);
-        goto cleanup;
-    }
-    VIR_FREE(str);
 
     if (virQEMUCapsLoadAccel(qemuCaps, ctxt, VIR_DOMAIN_VIRT_KVM) < 0 ||
         virQEMUCapsLoadAccel(qemuCaps, ctxt, VIR_DOMAIN_VIRT_QEMU) < 0)
-        goto cleanup;
+        return -1;
 
-    if ((n = virXPathNodeSet("./gic", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to parse qemu capabilities gic"));
-        goto cleanup;
-    }
-    if (n > 0) {
-        unsigned int uintValue;
-        bool boolValue;
-
-        qemuCaps->ngicCapabilities = n;
-        qemuCaps->gicCapabilities = g_new0(virGICCapability, n);
-
-        for (i = 0; i < n; i++) {
-            virGICCapability *cap = &qemuCaps->gicCapabilities[i];
-
-            if (!(str = virXMLPropString(nodes[i], "version"))) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("missing GIC version "
-                                 "in QEMU capabilities cache"));
-                goto cleanup;
-            }
-            if (virStrToLong_ui(str, NULL, 10, &uintValue) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("malformed GIC version "
-                                 "in QEMU capabilities cache"));
-                goto cleanup;
-            }
-            cap->version = uintValue;
-            VIR_FREE(str);
-
-            if (!(str = virXMLPropString(nodes[i], "kernel"))) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("missing in-kernel GIC information "
-                                 "in QEMU capabilities cache"));
-                goto cleanup;
-            }
-            if (!(boolValue = STREQ(str, "yes")) && STRNEQ(str, "no")) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("malformed in-kernel GIC information "
-                                 "in QEMU capabilities cache"));
-                goto cleanup;
-            }
-            if (boolValue)
-                cap->implementation |= VIR_GIC_IMPLEMENTATION_KERNEL;
-            VIR_FREE(str);
-
-            if (!(str = virXMLPropString(nodes[i], "emulated"))) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("missing emulated GIC information "
-                                 "in QEMU capabilities cache"));
-                goto cleanup;
-            }
-            if (!(boolValue = STREQ(str, "yes")) && STRNEQ(str, "no")) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("malformed emulated GIC information "
-                                 "in QEMU capabilities cache"));
-                goto cleanup;
-            }
-            if (boolValue)
-                cap->implementation |= VIR_GIC_IMPLEMENTATION_EMULATED;
-            VIR_FREE(str);
-        }
-    }
-    VIR_FREE(nodes);
+    if (virQEMUCapsParseGIC(qemuCaps, ctxt) < 0)
+        return -1;
 
     if (virQEMUCapsParseSEVInfo(qemuCaps, ctxt) < 0)
-        goto cleanup;
+        return -1;
 
     virQEMUCapsInitHostCPUModel(qemuCaps, hostArch, VIR_DOMAIN_VIRT_KVM);
     virQEMUCapsInitHostCPUModel(qemuCaps, hostArch, VIR_DOMAIN_VIRT_QEMU);
@@ -4362,11 +4395,7 @@ virQEMUCapsLoadCache(virArch hostArch,
     if (skipInvalidation)
         qemuCaps->invalidation = false;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(str);
-    VIR_FREE(nodes);
-    return ret;
+    return 0;
 }
 
 
@@ -4579,6 +4608,11 @@ virQEMUCapsFormatCache(virQEMUCaps *qemuCaps)
         virBufferAsprintf(&buf, "<kernelVersion>%s</kernelVersion>\n",
                           qemuCaps->kernelVersion);
 
+    if (qemuCaps->cpuData) {
+        g_autofree char * cpudata = virCPUDataFormat(qemuCaps->cpuData);
+        virBufferAsprintf(&buf, "%s", cpudata);
+    }
+
     virBufferAsprintf(&buf, "<arch>%s</arch>\n",
                       virArchToString(qemuCaps->arch));
 
@@ -4682,7 +4716,7 @@ virQEMUCapsKVMSupportsSecureGuestAMD(void)
     if (virFileReadValueString(&modValue, "/sys/module/kvm_amd/parameters/sev") < 0)
         return false;
 
-    if (modValue[0] != '1')
+    if (modValue[0] != '1' && modValue[0] != 'Y' && modValue[0] != 'y')
         return false;
 
     if (virFileExists(QEMU_DEV_SEV))
@@ -4905,6 +4939,13 @@ virQEMUCapsIsValid(void *data,
                       qemuCaps->binary,
                       priv->kernelVersion,
                       qemuCaps->kernelVersion);
+            return false;
+        }
+
+        if (virCPUDataIsIdentical(priv->cpuData, qemuCaps->cpuData) !=
+            VIR_CPU_COMPARE_IDENTICAL) {
+            VIR_DEBUG("Outdated capabilities for '%s': host cpuid changed",
+                      qemuCaps->binary);
             return false;
         }
 
@@ -5193,15 +5234,13 @@ virQEMUCapsProbeQMPSchemaCapabilities(virQEMUCaps *qemuCaps,
 virDomainVirtType
 virQEMUCapsGetVirtType(virQEMUCaps *qemuCaps)
 {
-    virDomainVirtType type;
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_KVM))
-        type = VIR_DOMAIN_VIRT_KVM;
-    else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_TCG))
-        type = VIR_DOMAIN_VIRT_QEMU;
-    else
-        type = VIR_DOMAIN_VIRT_NONE;
+        return VIR_DOMAIN_VIRT_KVM;
 
-    return type;
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_TCG))
+        return VIR_DOMAIN_VIRT_QEMU;
+
+    return VIR_DOMAIN_VIRT_NONE;
 }
 
 int
@@ -5388,7 +5427,8 @@ virQEMUCapsNewForBinaryInternal(virArch hostArch,
                                 gid_t runGid,
                                 const char *hostCPUSignature,
                                 unsigned int microcodeVersion,
-                                const char *kernelVersion)
+                                const char *kernelVersion,
+                                virCPUData* cpuData)
 {
     g_autoptr(virQEMUCaps) qemuCaps = NULL;
     struct stat sb;
@@ -5436,6 +5476,7 @@ virQEMUCapsNewForBinaryInternal(virArch hostArch,
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_KVM)) {
         qemuCaps->hostCPUSignature = g_strdup(hostCPUSignature);
         qemuCaps->microcodeVersion = microcodeVersion;
+        qemuCaps->cpuData = virCPUDataNewCopy(cpuData);
 
         qemuCaps->kernelVersion = g_strdup(kernelVersion);
 
@@ -5460,7 +5501,8 @@ virQEMUCapsNewData(const char *binary,
                                            priv->runGid,
                                            priv->hostCPUSignature,
                                            virHostCPUGetMicrocodeVersion(priv->hostArch),
-                                           priv->kernelVersion);
+                                           priv->kernelVersion,
+                                           priv->cpuData);
 }
 
 
@@ -5570,13 +5612,12 @@ virQEMUCapsCacheNew(const char *libDir,
     if (uname(&uts) == 0)
         priv->kernelVersion = g_strdup_printf("%s %s", uts.release, uts.version);
 
- cleanup:
+    priv->cpuData = virCPUDataGetHost();
     return cache;
 
  error:
     virObjectUnref(cache);
-    cache = NULL;
-    goto cleanup;
+    return NULL;
 }
 
 

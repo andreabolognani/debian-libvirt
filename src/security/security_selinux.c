@@ -899,7 +899,8 @@ virSecuritySELinuxGenLabel(virSecurityManager *mgr,
         mcs = g_strdup(sens);
 
         break;
-
+    case VIR_DOMAIN_SECLABEL_DEFAULT:
+    case VIR_DOMAIN_SECLABEL_LAST:
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unexpected security label type '%s'"),
@@ -1637,7 +1638,7 @@ virSecuritySELinuxSetTPMFileLabel(virSecurityManager *mgr,
 
     switch (tpm->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        tpmdev = tpm->data.passthrough.source.data.file.path;
+        tpmdev = tpm->data.passthrough.source->data.file.path;
         rc = virSecuritySELinuxSetFilecon(mgr, tpmdev, seclabel->imagelabel, false);
         if (rc < 0)
             return -1;
@@ -1656,7 +1657,7 @@ virSecuritySELinuxSetTPMFileLabel(virSecurityManager *mgr,
         }
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-        tpmdev = tpm->data.emulator.source.data.nix.path;
+        tpmdev = tpm->data.emulator.source->data.nix.path;
         rc = virSecuritySELinuxSetFilecon(mgr, tpmdev, seclabel->imagelabel, false);
         if (rc < 0)
             return -1;
@@ -1685,7 +1686,7 @@ virSecuritySELinuxRestoreTPMFileLabelInt(virSecurityManager *mgr,
 
     switch (tpm->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        tpmdev = tpm->data.passthrough.source.data.file.path;
+        tpmdev = tpm->data.passthrough.source->data.file.path;
         rc = virSecuritySELinuxRestoreFileLabel(mgr, tpmdev, false);
 
         if ((cancel_path = virTPMCreateCancelPath(tpmdev)) != NULL) {

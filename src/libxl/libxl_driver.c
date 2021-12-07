@@ -389,7 +389,7 @@ libxlReconnectDomain(virDomainObj *vm,
     int rc;
     libxl_dominfo d_info;
     int len;
-    uint8_t *data = NULL;
+    g_autofree uint8_t *data = NULL;
     virHostdevManager *hostdev_mgr = driver->hostdevMgr;
     unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
     int ret = -1;
@@ -461,8 +461,7 @@ libxlReconnectDomain(virDomainObj *vm,
 
  cleanup:
     libxl_dominfo_dispose(&d_info);
-    virObjectUnlock(vm);
-    virObjectUnref(vm);
+    virDomainObjEndAPI(&vm);
     virObjectUnref(cfg);
     return ret;
 
@@ -596,13 +595,12 @@ libxlAddDom0(libxlDriverPrivate *driver)
         if (virUUIDParse("00000000-0000-0000-0000-000000000000", def->uuid) < 0)
             goto cleanup;
 
-        if (!(vm = virDomainObjListAdd(driver->domains, def,
+        if (!(vm = virDomainObjListAdd(driver->domains, &def,
                                        driver->xmlopt,
                                        0,
                                        NULL)))
             goto cleanup;
 
-        def = NULL;
         vm->persistent = 1;
         virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, VIR_DOMAIN_RUNNING_BOOTED);
     }
@@ -1029,13 +1027,12 @@ libxlDomainCreateXML(virConnectPtr conn, const char *xml,
     if (virDomainCreateXMLEnsureACL(conn, def) < 0)
         goto cleanup;
 
-    if (!(vm = virDomainObjListAdd(driver->domains, def,
+    if (!(vm = virDomainObjListAdd(driver->domains, &def,
                                    driver->xmlopt,
                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
                                    VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
                                    NULL)))
         goto cleanup;
-    def = NULL;
 
     if (libxlDomainObjBeginJob(driver, vm, LIBXL_JOB_MODIFY) < 0) {
         if (!vm->persistent)
@@ -1949,13 +1946,12 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
     if (virDomainRestoreFlagsEnsureACL(conn, def) < 0)
         goto cleanup;
 
-    if (!(vm = virDomainObjListAdd(driver->domains, def,
+    if (!(vm = virDomainObjListAdd(driver->domains, &def,
                                    driver->xmlopt,
                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
                                    VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
                                    NULL)))
         goto cleanup;
-    def = NULL;
 
     if (libxlDomainObjBeginJob(driver, vm, LIBXL_JOB_MODIFY) < 0) {
         if (!vm->persistent)
@@ -2827,12 +2823,11 @@ libxlDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
     if (virDomainDefineXMLFlagsEnsureACL(conn, def) < 0)
         goto cleanup;
 
-    if (!(vm = virDomainObjListAdd(driver->domains, def,
+    if (!(vm = virDomainObjListAdd(driver->domains, &def,
                                    driver->xmlopt,
                                    0,
                                    &oldDef)))
         goto cleanup;
-    def = NULL;
 
     vm->persistent = 1;
 
@@ -4144,10 +4139,8 @@ libxlDomainAttachDeviceFlags(virDomainPtr dom, const char *xml,
     /* Finally, if no error until here, we can save config. */
     if (flags & VIR_DOMAIN_DEVICE_MODIFY_CONFIG) {
         ret = virDomainDefSave(vmdef, driver->xmlopt, cfg->configDir);
-        if (!ret) {
-            virDomainObjAssignDef(vm, vmdef, false, NULL);
-            vmdef = NULL;
-        }
+        if (!ret)
+            virDomainObjAssignDef(vm, &vmdef, false, NULL);
     }
 
  endjob:
@@ -4235,10 +4228,8 @@ libxlDomainDetachDeviceFlags(virDomainPtr dom, const char *xml,
     /* Finally, if no error until here, we can save config. */
     if (flags & VIR_DOMAIN_DEVICE_MODIFY_CONFIG) {
         ret = virDomainDefSave(vmdef, driver->xmlopt, cfg->configDir);
-        if (!ret) {
-            virDomainObjAssignDef(vm, vmdef, false, NULL);
-            vmdef = NULL;
-        }
+        if (!ret)
+            virDomainObjAssignDef(vm, &vmdef, false, NULL);
     }
 
  endjob:
@@ -4320,10 +4311,8 @@ libxlDomainUpdateDeviceFlags(virDomainPtr dom, const char *xml,
     /* Finally, if no error until here, we can save config. */
     if (!ret && (flags & VIR_DOMAIN_DEVICE_MODIFY_CONFIG)) {
         ret = virDomainDefSave(vmdef, driver->xmlopt, cfg->configDir);
-        if (!ret) {
-            virDomainObjAssignDef(vm, vmdef, false, NULL);
-            vmdef = NULL;
-        }
+        if (!ret)
+            virDomainObjAssignDef(vm, &vmdef, false, NULL);
     }
 
  cleanup:

@@ -1363,6 +1363,15 @@ typedef enum {
     VIR_DOMAIN_TPM_VERSION_LAST
 } virDomainTPMVersion;
 
+typedef enum {
+    VIR_DOMAIN_TPM_PCR_BANK_SHA1,
+    VIR_DOMAIN_TPM_PCR_BANK_SHA256,
+    VIR_DOMAIN_TPM_PCR_BANK_SHA384,
+    VIR_DOMAIN_TPM_PCR_BANK_SHA512,
+
+    VIR_DOMAIN_TPM_PCR_BANK_LAST
+} virDomainPcrBank;
+
 #define VIR_DOMAIN_TPM_DEFAULT_DEVICE "/dev/tpm0"
 
 struct _virDomainTPMDef {
@@ -1372,15 +1381,16 @@ struct _virDomainTPMDef {
     int version; /* virDomainTPMVersion */
     union {
         struct {
-            virDomainChrSourceDef source;
+            virDomainChrSourceDef *source;
         } passthrough;
         struct {
-            virDomainChrSourceDef source;
+            virDomainChrSourceDef *source;
             char *storagepath;
             char *logfile;
             unsigned char secretuuid[VIR_UUID_BUFLEN];
             bool hassecretuuid;
             bool persistent_state;
+            unsigned int activePcrBanks;
         } emulator;
     } data;
 };
@@ -1987,7 +1997,7 @@ struct _virDomainShmemDef {
     virDomainShmemRole role;
     struct {
         bool enabled;
-        virDomainChrSourceDef chr;
+        virDomainChrSourceDef *chr;
     } server;
     struct {
         bool enabled;
@@ -2073,6 +2083,7 @@ typedef enum {
     VIR_DOMAIN_KVM_HIDDEN = 0,
     VIR_DOMAIN_KVM_DEDICATED,
     VIR_DOMAIN_KVM_POLLCONTROL,
+    VIR_DOMAIN_KVM_PVIPI,
 
     VIR_DOMAIN_KVM_LAST
 } virDomainKVM;
@@ -3203,6 +3214,7 @@ struct _virDomainXMLOption {
     /* Snapshot postparse callbacks */
     virDomainMomentPostParseCallback momentPostParse;
 };
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainXMLOption, virObjectUnref);
 
 struct virDomainDefPostParseDeviceIteratorData {
     virDomainXMLOption *xmlopt;
@@ -3376,7 +3388,7 @@ virDomainNetDefNew(virDomainXMLOption *xmlopt);
 virDomainDef *virDomainDefNew(virDomainXMLOption *xmlopt);
 
 void virDomainObjAssignDef(virDomainObj *domain,
-                           virDomainDef *def,
+                           virDomainDef **def,
                            bool live,
                            virDomainDef **oldDef);
 int virDomainObjSetDefTransient(virDomainXMLOption *xmlopt,
@@ -3940,6 +3952,7 @@ VIR_ENUM_DECL(virDomainRNGBackend);
 VIR_ENUM_DECL(virDomainTPMModel);
 VIR_ENUM_DECL(virDomainTPMBackend);
 VIR_ENUM_DECL(virDomainTPMVersion);
+VIR_ENUM_DECL(virDomainTPMPcrBank);
 VIR_ENUM_DECL(virDomainMemoryModel);
 VIR_ENUM_DECL(virDomainMemoryBackingModel);
 VIR_ENUM_DECL(virDomainMemorySource);

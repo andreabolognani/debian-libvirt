@@ -58,13 +58,13 @@ qemuDomainGetSCSIControllerModel(const virDomainDef *def,
 
     if (qemuDomainIsPSeries(def))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
-    else if (ARCH_IS_S390(def->os.arch))
+    if (ARCH_IS_S390(def->os.arch))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
-    else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI))
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
-    else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI))
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
-    else if (qemuDomainHasBuiltinESP(def))
+    if (qemuDomainHasBuiltinESP(def))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90;
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1589,9 +1589,8 @@ qemuDomainCollectPCIAddress(virDomainDef *def G_GNUC_UNUSED,
                                _("Bus 0 must be PCI for integrated PIIX3 "
                                  "USB or IDE controllers"));
                 return -1;
-            } else {
-                return 0;
             }
+            return 0;
         }
     }
 
@@ -2465,7 +2464,6 @@ static int
 qemuDomainAddressFindNewTargetIndex(virDomainDef *def)
 {
     int targetIndex;
-    int ret = -1;
 
     /* Try all indexes between 1 and 31 - QEMU only supports 32
      * PHBs, and 0 is reserved for the default, implicit one */
@@ -2490,13 +2488,11 @@ qemuDomainAddressFindNewTargetIndex(virDomainDef *def)
 
         /* If no existing PCI controller uses this index, great,
          * it means it's free and we can return it to the caller */
-        if (!found) {
-            ret = targetIndex;
-            break;
-        }
+        if (!found)
+            return targetIndex;
     }
 
-    return ret;
+    return -1;
 }
 
 
@@ -3034,8 +3030,7 @@ qemuAssignMemoryDeviceSlot(virDomainMemoryDef *mem,
 
 
 int
-qemuDomainAssignMemoryDeviceSlot(virQEMUDriver *driver,
-                                 virDomainObj *vm,
+qemuDomainAssignMemoryDeviceSlot(virDomainObj *vm,
                                  virDomainMemoryDef *mem)
 {
     g_autoptr(virBitmap) slotmap = NULL;
@@ -3052,7 +3047,7 @@ qemuDomainAssignMemoryDeviceSlot(virQEMUDriver *driver,
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-        return qemuDomainEnsurePCIAddress(vm, &dev, driver);
+        return qemuDomainEnsurePCIAddress(vm, &dev);
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
@@ -3232,8 +3227,7 @@ qemuDomainAssignAddresses(virDomainDef *def,
  */
 int
 qemuDomainEnsurePCIAddress(virDomainObj *obj,
-                           virDomainDeviceDef *dev,
-                           virQEMUDriver *driver)
+                           virDomainDeviceDef *dev)
 {
     qemuDomainObjPrivate *priv = obj->privateData;
     virDomainDeviceInfo *info = virDomainDeviceGetInfo(dev);
@@ -3241,7 +3235,7 @@ qemuDomainEnsurePCIAddress(virDomainObj *obj,
     if (!info)
         return 0;
 
-    qemuDomainFillDevicePCIConnectFlags(obj->def, dev, priv->qemuCaps, driver);
+    qemuDomainFillDevicePCIConnectFlags(obj->def, dev, priv->qemuCaps, priv->driver);
 
     qemuDomainFillDevicePCIExtensionFlags(dev, info, priv->qemuCaps);
 
@@ -3272,7 +3266,6 @@ qemuDomainEnsureVirtioAddress(bool *releaseAddr,
     virDomainDeviceInfo *info = virDomainDeviceGetInfo(dev);
     qemuDomainObjPrivate *priv = vm->privateData;
     virDomainCCWAddressSet *ccwaddrs = NULL;
-    virQEMUDriver *driver = priv->driver;
     int ret = -1;
 
     if (!info->type) {
@@ -3289,7 +3282,7 @@ qemuDomainEnsureVirtioAddress(bool *releaseAddr,
             goto cleanup;
     } else if (!info->type ||
                info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
-        if (qemuDomainEnsurePCIAddress(vm, dev, driver) < 0)
+        if (qemuDomainEnsurePCIAddress(vm, dev) < 0)
             goto cleanup;
         *releaseAddr = true;
     }

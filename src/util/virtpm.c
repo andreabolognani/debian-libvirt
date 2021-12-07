@@ -46,6 +46,8 @@ VIR_ENUM_IMPL(virTPMSwtpmSetupFeature,
               VIR_TPM_SWTPM_SETUP_FEATURE_LAST,
               "cmdarg-pwdfile-fd",
               "cmdarg-create-config-files",
+              "tpm12-not-need-root",
+              "cmdarg-reconfigure-pcr-banks",
 );
 
 /**
@@ -299,7 +301,7 @@ virTPMEmulatorInit(void)
                 findit = true;
 
             if (!findit &&
-                &statbuf.st_mtime != &prgs[i].stat->st_mtime)
+                statbuf.st_mtime != prgs[i].stat->st_mtime)
                 findit = true;
         }
 
