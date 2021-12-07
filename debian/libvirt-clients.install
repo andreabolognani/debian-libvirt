@@ -3,6 +3,7 @@ etc/libvirt/libvirt.conf
 usr/bin/virsh
 usr/bin/virt-admin
 usr/bin/virt-host-validate
+usr/bin/virt-pki-query-dn
 usr/bin/virt-pki-validate
 usr/bin/virt-xml-validate
 usr/share/bash-completion/completions/virsh
