@@ -102,6 +102,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dqemu_user=libvirt-qemu \
     -Dqemu_group=libvirt-qemu \
     -Dqemu_moddir=/usr/lib/$(DEB_HOST_MULTIARCH)/qemu \
+    -Dqemu_datadir=/usr/share/qemu \
     -Ddocs=enabled \
     -Dtests=enabled \
     $(WITH_OPENVZ) \
