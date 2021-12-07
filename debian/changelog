@@ -1,3 +1,11 @@
+libvirt (7.10.0-1) UNRELEASED; urgency=medium
+
+  * Team upload
+
+  * [0817e92] New upstream version 7.10.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 07 Dec 2021 13:34:08 +0100
+
 libvirt (7.9.0-1) unstable; urgency=medium
 
   * Team upload
