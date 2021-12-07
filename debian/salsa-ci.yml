@@ -1,82 +1,15 @@
-stages:
-  - build
-  - test
+---
+include:
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/recipes/debian.yml
 
+# libvirt is unfortunately not reproducible at the moment. Upstream work is
+# needed to resolve this issue, and until that happens it's better to keep the
+# reprotest job disabled and avoid pointlessly consuming resources
 variables:
-  # Default docker image to use
-  LV_DOCKER_IMAGE: debian:unstable
-  LV_WORKING_DIR: $CI_PROJECT_DIR/debian/output
-
-build-debian-package:
-  image: ${LV_DOCKER_IMAGE}
-  stage: build
-  timeout: 3h
-  before_script:
-    - echo "man-db man-db/auto-update boolean false" | debconf-set-selections
-    - export DEBIAN_FRONTEND=noninteractive
-    - apt-get -y update
-    - apt-get -y install build-essential git-buildpackage pristine-tar
-    - apt-get -y build-dep .
-    - git config user.email 'libvirt@example.com'
-    - git config user.name 'Gitlab CI'
-  script:
-    - export DEBEMAIL="$(git config user.email)"
-    - UPSTREAM_BRANCH="$(gbp config dch.upstream-branch)"
-    - git branch "${UPSTREAM_BRANCH}" "origin/${UPSTREAM_BRANCH}"
-    - git branch pristine-tar origin/pristine-tar
-    - gbp dch --git-author
-              --snapshot
-              --commit
-              --ignore-branch
-    - mkdir -p "${LV_WORKING_DIR}/tarballs"
-    - gbp export-orig --tarball-dir="${LV_WORKING_DIR}/tarballs"
-                      --pristine-tar
-    - gbp buildpackage --git-ignore-new
-                       --git-ignore-branch
-                       --git-export-dir="${LV_WORKING_DIR}/"
-                       --git-tarball-dir="${LV_WORKING_DIR}/tarballs"
-                        -j -b -uc -us > "${LV_WORKING_DIR}/build.log"
-  artifacts:
-    when: always
-    paths:
-      - "${LV_WORKING_DIR}/build.log"
-      - "${LV_WORKING_DIR}/*.deb"
-      - "${LV_WORKING_DIR}/*.buildinfo"
-      - "${LV_WORKING_DIR}/*.changes"
-
-lint-debian-package:
-  image: ${LV_DOCKER_IMAGE}
-  stage: test
-  dependencies:
-    - build-debian-package
-  before_script:
-    - echo "man-db man-db/auto-update boolean false" | debconf-set-selections
-    - export DEBIAN_FRONTEND=noninteractive
-    - apt-get -y update
-    - apt-get -y install lintian
-  script:
-    - ls "${LV_WORKING_DIR}"
-    - lintian ${LV_LINTIAN_OPTS} ${LV_WORKING_DIR}/*.changes
-
-autopkgtest-debian-package:
-  image: ${LV_DOCKER_IMAGE}
-  stage: test
-  dependencies:
-    - build-debian-package
-  before_script:
-    - echo "man-db man-db/auto-update boolean false" | debconf-set-selections
-    - export DEBIAN_FRONTEND=noninteractive
-    - apt-get -y update
-    - apt-get -y install autopkgtest
-  script:
-    - ls "${LV_WORKING_DIR}"
-    - RET=0;
-      autopkgtest -U ${LV_WORKING_DIR}/*.changes -- autopkgtest-virt-null || RET=$?;
-      echo "Autopkgtest exited with ${RET}";
-      [ "${RET}" -eq 8 -o "${RET}" -eq 2 ] && exit 0 || exit "${RET}"
+  SALSA_CI_DISABLE_REPROTEST: 1
 
 verify-wrap-and-sort:
-  image: ${LV_DOCKER_IMAGE}
+  image: debian:unstable
   stage: test
   before_script:
     - echo "man-db man-db/auto-update boolean false" | debconf-set-selections
