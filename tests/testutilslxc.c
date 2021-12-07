@@ -11,48 +11,35 @@
 virCaps *
 testLXCCapsInit(void)
 {
-    virCaps *caps;
+    g_autoptr(virCaps) caps = NULL;
     virCapsGuest *guest;
 
-    if ((caps = virCapabilitiesNew(VIR_ARCH_X86_64,
-                                   false, false)) == NULL)
+    if ((caps = virCapabilitiesNew(VIR_ARCH_X86_64, false, false)) == NULL)
         return NULL;
 
-    if ((guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_EXE,
-                                         VIR_ARCH_I686,
-                                         "/usr/libexec/libvirt_lxc", NULL,
-                                         0, NULL)) == NULL)
-        goto error;
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_EXE,
+                                    VIR_ARCH_I686,
+                                    "/usr/libexec/libvirt_lxc", NULL,
+                                    0, NULL);
 
-    if (!virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_LXC, NULL, NULL, 0, NULL))
-        goto error;
+    virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_LXC, NULL, NULL, 0, NULL);
 
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_EXE,
+                                    VIR_ARCH_X86_64,
+                                    "/usr/libexec/libvirt_lxc", NULL,
+                                    0, NULL);
 
-    if ((guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_EXE,
-                                         VIR_ARCH_X86_64,
-                                         "/usr/libexec/libvirt_lxc", NULL,
-                                         0, NULL)) == NULL)
-        goto error;
-
-    if (!virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_LXC, NULL, NULL, 0, NULL))
-        goto error;
-
+    virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_LXC, NULL, NULL, 0, NULL);
 
     if (virTestGetDebug()) {
-        g_autofree char *caps_str = NULL;
-
-        caps_str = virCapabilitiesFormatXML(caps);
+        g_autofree char *caps_str = virCapabilitiesFormatXML(caps);
         if (!caps_str)
-            goto error;
+            return NULL;
 
         VIR_TEST_DEBUG("LXC driver capabilities:\n%s", caps_str);
     }
 
-    return caps;
-
- error:
-    virObjectUnref(caps);
-    return NULL;
+    return g_steal_pointer(&caps);
 }
 
 

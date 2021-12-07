@@ -60,17 +60,6 @@ VIR_LOG_INIT("qemu.qemu_agent");
  */
 #define QEMU_AGENT_MAX_RESPONSE (10 * 1024 * 1024)
 
-/* When you are the first to uncomment this,
- * don't forget to uncomment the corresponding
- * part in qemuAgentIOProcessEvent as well.
- *
-static struct {
-    const char *type;
-    void (*handler)(qemuAgent *agent, virJSONValue *data);
-} eventHandlers[] = {
-};
-*/
-
 typedef struct _qemuAgentMessage qemuAgentMessage;
 struct _qemuAgentMessage {
     char *txBuffer;
@@ -171,9 +160,11 @@ qemuAgentEscapeNonPrintable(const char *text)
 static void qemuAgentDispose(void *obj)
 {
     qemuAgent *agent = obj;
+
     VIR_DEBUG("agent=%p", agent);
-    if (agent->cb && agent->cb->destroy)
-        (agent->cb->destroy)(agent, agent->vm);
+
+    if (agent->vm)
+        virObjectUnref(agent->vm);
     virCondDestroy(&agent->notify);
     g_free(agent->buffer);
     g_main_context_unref(agent->context);
@@ -185,7 +176,6 @@ qemuAgentOpenUnix(const char *socketpath)
 {
     struct sockaddr_un addr;
     int agentfd;
-    int ret = -1;
 
     if ((agentfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
         virReportSystemError(errno,
@@ -208,8 +198,7 @@ qemuAgentOpenUnix(const char *socketpath)
         goto error;
     }
 
-    ret = connect(agentfd, (struct sockaddr *)&addr, sizeof(addr));
-    if (ret < 0) {
+    if (connect(agentfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         virReportSystemError(errno, "%s",
                              _("failed to connect to agent socket"));
         goto error;
@@ -237,17 +226,6 @@ qemuAgentIOProcessEvent(qemuAgent *agent,
         return -1;
     }
 
-/*
-    for (i = 0; i < G_N_ELEMENTS(eventHandlers); i++) {
-        if (STREQ(eventHandlers[i].type, type)) {
-            virJSONValue *data = virJSONValueObjectGet(obj, "data");
-            VIR_DEBUG("handle %s handler=%p data=%p", type,
-                      eventHandlers[i].handler, data);
-            (eventHandlers[i].handler)(agent, data);
-            break;
-        }
-    }
-*/
     return 0;
 }
 
@@ -693,7 +671,7 @@ qemuAgentOpen(virDomainObj *vm,
         virObjectUnref(agent);
         return NULL;
     }
-    agent->vm = vm;
+    agent->vm = virObjectRef(vm);
     agent->cb = cb;
     agent->singleSync = singleSync;
 
@@ -704,7 +682,10 @@ qemuAgentOpen(virDomainObj *vm,
         goto cleanup;
     }
 
+    virObjectUnlock(vm);
     agent->fd = qemuAgentOpenUnix(config->data.nix.path);
+    virObjectLock(vm);
+
     if (agent->fd == -1)
         goto cleanup;
 
@@ -726,12 +707,6 @@ qemuAgentOpen(virDomainObj *vm,
     return agent;
 
  cleanup:
-    /* We don't want the 'destroy' callback invoked during
-     * cleanup from construction failure, because that can
-     * give a double-unref on virDomainObj *in the caller,
-     * so kill the callbacks now.
-     */
-    agent->cb = NULL;
     qemuAgentClose(agent);
     return NULL;
 }
@@ -1012,8 +987,7 @@ qemuAgentCommandName(virJSONValue *cmd)
     const char *name = virJSONValueObjectGetString(cmd, "execute");
     if (name)
         return name;
-    else
-        return "<unknown>";
+    return "<unknown>";
 }
 
 static int
@@ -1052,7 +1026,8 @@ qemuAgentCheckError(virJSONValue *cmd,
                        qemuAgentStringifyError(error));
 
         return -1;
-    } else if (!virJSONValueObjectHasKey(reply, "return")) {
+    }
+    if (!virJSONValueObjectHasKey(reply, "return")) {
         g_autofree char *cmdstr = virJSONValueToString(cmd, false);
         g_autofree char *replystr = virJSONValueToString(reply, false);
 
@@ -1150,17 +1125,17 @@ qemuAgentMakeCommand(const char *cmdname,
 
     va_start(args, cmdname);
 
-    if (virJSONValueObjectCreateVArgs(&jargs, args) < 0) {
+    if (virJSONValueObjectAddVArgs(&jargs, args) < 0) {
         va_end(args);
         return NULL;
     }
 
     va_end(args);
 
-    if (virJSONValueObjectCreate(&obj,
-                                 "s:execute", cmdname,
-                                 "A:arguments", &jargs,
-                                 NULL) < 0)
+    if (virJSONValueObjectAdd(&obj,
+                              "s:execute", cmdname,
+                              "A:arguments", &jargs,
+                              NULL) < 0)
         return NULL;
 
     return g_steal_pointer(&obj);
@@ -2245,17 +2220,20 @@ qemuAgentGetAllInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
  */
 int
 qemuAgentGetInterfaces(qemuAgent *agent,
-                       virDomainInterfacePtr **ifaces)
+                       virDomainInterfacePtr **ifaces,
+                       bool report_unsupported)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
     virJSONValue *ret_array = NULL;
+    int rc;
 
     if (!(cmd = qemuAgentMakeCommand("guest-network-get-interfaces", NULL)))
         return -1;
 
-    if (qemuAgentCommand(agent, cmd, &reply, agent->timeout) < 0)
-        return -1;
+    if ((rc = qemuAgentCommandFull(agent, cmd, &reply, agent->timeout,
+                                   report_unsupported)) < 0)
+        return rc;
 
     if (!(ret_array = virJSONValueObjectGetArray(reply, "return"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",

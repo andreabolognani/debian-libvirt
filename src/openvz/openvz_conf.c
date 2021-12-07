@@ -156,22 +156,11 @@ virCaps *openvzCapsInit(void)
     if (virCapabilitiesInitCaches(caps) < 0)
         return NULL;
 
-    if ((guest = virCapabilitiesAddGuest(caps,
-                                         VIR_DOMAIN_OSTYPE_EXE,
-                                         caps->host.arch,
-                                         NULL,
-                                         NULL,
-                                         0,
-                                         NULL)) == NULL)
-        return NULL;
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_EXE,
+                                    caps->host.arch, NULL, NULL, 0, NULL);
 
-    if (virCapabilitiesAddGuestDomain(guest,
-                                      VIR_DOMAIN_VIRT_OPENVZ,
-                                      NULL,
-                                      NULL,
-                                      0,
-                                      NULL) == NULL)
-        return NULL;
+    virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_OPENVZ,
+                                  NULL, NULL, 0, NULL);
 
     return g_steal_pointer(&caps);
 }
@@ -538,7 +527,7 @@ int openvzLoadDomains(struct openvz_driver *driver)
             flags |= VIR_DOMAIN_OBJ_LIST_ADD_LIVE;
 
         if (!(dom = virDomainObjListAdd(driver->domains,
-                                        def,
+                                        &def,
                                         driver->xmlopt,
                                         flags,
                                         NULL)))
@@ -558,7 +547,6 @@ int openvzLoadDomains(struct openvz_driver *driver)
 
         virDomainObjEndAPI(&dom);
         dom = NULL;
-        def = NULL;
     }
 
     virCommandFree(cmd);

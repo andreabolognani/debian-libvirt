@@ -362,7 +362,7 @@ virInterfaceObjListCloneCb(void *payload,
     virInterfaceObj *srcObj = payload;
     struct _virInterfaceObjListCloneData *data = opaque;
     char *xml = NULL;
-    virInterfaceDef *backup = NULL;
+    g_autoptr(virInterfaceDef) backup = NULL;
     virInterfaceObj *obj;
 
     if (data->error)
@@ -377,7 +377,7 @@ virInterfaceObjListCloneCb(void *payload,
         goto error;
     VIR_FREE(xml);
 
-    if (!(obj = virInterfaceObjListAssignDef(data->dest, backup)))
+    if (!(obj = virInterfaceObjListAssignDef(data->dest, &backup)))
         goto error;
     virInterfaceObjEndAPI(&obj);
 
@@ -387,7 +387,6 @@ virInterfaceObjListCloneCb(void *payload,
  error:
     data->error = true;
     VIR_FREE(xml);
-    virInterfaceDefFree(backup);
     virObjectUnlock(srcObj);
     return 0;
 }
@@ -420,25 +419,39 @@ virInterfaceObjListClone(virInterfaceObjList *interfaces)
 }
 
 
+/**
+ * virInterfaceObjListAssignDef:
+ * @interfaces: virInterface object list
+ * @def: new definition
+ *
+ * Assigns new definition to either an existing or newly created
+ * virInterface object. Upon successful return the virInterface
+ * object is the owner of @def and callers should use
+ * virInterfaceObjGetDef() if they need to access the definition
+ * as @def is set to NULL.
+ *
+ * Returns: a virInterface object instance on success, or
+ *          NULL on error.
+ */
 virInterfaceObj *
 virInterfaceObjListAssignDef(virInterfaceObjList *interfaces,
-                             virInterfaceDef *def)
+                             virInterfaceDef **def)
 {
     virInterfaceObj *obj;
 
     virObjectRWLockWrite(interfaces);
-    if ((obj = virInterfaceObjListFindByNameLocked(interfaces, def->name))) {
+    if ((obj = virInterfaceObjListFindByNameLocked(interfaces, (*def)->name))) {
         virInterfaceDefFree(obj->def);
     } else {
         if (!(obj = virInterfaceObjNew()))
             goto error;
 
-        if (virHashAddEntry(interfaces->objsName, def->name, obj) < 0)
+        if (virHashAddEntry(interfaces->objsName, (*def)->name, obj) < 0)
             goto error;
         virObjectRef(obj);
     }
 
-    obj->def = def;
+    obj->def = g_steal_pointer(def);
     virObjectRWUnlock(interfaces);
 
     return obj;
@@ -462,8 +475,7 @@ virInterfaceObjListRemove(virInterfaceObjList *interfaces,
     virObjectRWLockWrite(interfaces);
     virObjectLock(obj);
     virHashRemoveEntry(interfaces->objsName, obj->def->name);
-    virObjectUnlock(obj);
-    virObjectUnref(obj);
+    virInterfaceObjEndAPI(&obj);
     virObjectRWUnlock(interfaces);
 }
 

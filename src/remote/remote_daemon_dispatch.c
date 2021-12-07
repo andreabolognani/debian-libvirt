@@ -3695,7 +3695,7 @@ remoteDispatchAuthSaslInit(virNetServer *server G_GNUC_UNUSED,
     else
         /* Plain TCP, better get an SSF layer */
         virNetSASLSessionSecProps(sasl,
-                                  56,  /* Good enough to require kerberos */
+                                  virNetSASLContextGetTCPMinSSF(saslCtxt),
                                   100000,  /* Arbitrary big number */
                                   false); /* No anonymous */
 
@@ -5824,7 +5824,7 @@ remoteDispatchConnectGetCPUModelNames(virNetServer *server G_GNUC_UNUSED,
                                       remote_connect_get_cpu_model_names_ret *ret)
 {
     int len, rv = -1;
-    char **models = NULL;
+    g_auto(GStrv) models = NULL;
     virConnectPtr conn = remoteGetHypervisorConn(client);
 
     if (!conn)
@@ -5858,7 +5858,6 @@ remoteDispatchConnectGetCPUModelNames(virNetServer *server G_GNUC_UNUSED,
  cleanup:
     if (rv < 0)
         virNetMessageSaveError(rerr);
-    g_strfreev(models);
     return rv;
 }
 

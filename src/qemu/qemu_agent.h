@@ -28,8 +28,6 @@ typedef struct _qemuAgent qemuAgent;
 
 typedef struct _qemuAgentCallbacks qemuAgentCallbacks;
 struct _qemuAgentCallbacks {
-    void (*destroy)(qemuAgent *mon,
-                    virDomainObj *vm);
     void (*eofNotify)(qemuAgent *mon,
                       virDomainObj *vm);
     void (*errorNotify)(qemuAgent *mon,
@@ -151,7 +149,8 @@ int qemuAgentSetTime(qemuAgent *mon,
                      bool sync);
 
 int qemuAgentGetInterfaces(qemuAgent *mon,
-                           virDomainInterfacePtr **ifaces);
+                           virDomainInterfacePtr **ifaces,
+                           bool report_unsupported);
 
 int qemuAgentSetUserPassword(qemuAgent *mon,
                              const char *user,

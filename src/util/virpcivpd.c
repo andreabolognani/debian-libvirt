@@ -161,8 +161,6 @@ virPCIVPDResourceGetFieldValueFormat(const char *keyword)
     return format;
 }
 
-#define ACCEPTED_CHARS "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_,.:;="
-
 /**
  * virPCIVPDResourceIsValidTextValue:
  * @value: A NULL-terminated string to assess.
@@ -175,6 +173,7 @@ virPCIVPDResourceGetFieldValueFormat(const char *keyword)
 bool
 virPCIVPDResourceIsValidTextValue(const char *value)
 {
+    size_t i = 0;
     /*
      * The PCI(e) specs mention alphanumeric characters when talking about text fields
      * and the string resource but also include spaces and dashes in the provided example.
@@ -191,10 +190,12 @@ virPCIVPDResourceIsValidTextValue(const char *value)
     if (STREQ(value, ""))
         return true;
 
-    if (strspn(value, ACCEPTED_CHARS) != strlen(value)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("The provided value contains invalid characters: %s"), value);
-        return false;
+    while (i < strlen(value)) {
+        if (!g_ascii_isprint(value[i])) {
+            VIR_DEBUG("The provided value contains non-ASCII printable characters: %s", value);
+            return false;
+        }
+        ++i;
     }
     return true;
 }
@@ -455,10 +456,6 @@ bool
 virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t resDataLen,
                                      bool readOnly, uint8_t *csum, virPCIVPDResource *res)
 {
-    g_autofree char *fieldKeyword = NULL;
-    g_autofree char *fieldValue = NULL;
-    virPCIVPDResourceFieldValueFormat fieldFormat = VIR_PCI_VPD_RESOURCE_FIELD_VALUE_FORMAT_LAST;
-
     /* A buffer of up to one resource record field size (plus a zero byte) is needed. */
     g_autofree uint8_t *buf = g_malloc0(PCI_VPD_MAX_FIELD_SIZE + 1);
     uint16_t fieldDataLen = 0, bytesToRead = 0;
@@ -466,8 +463,16 @@ virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t re
 
     bool hasChecksum = false;
     bool hasRW = false;
+    bool endReached = false;
 
-    while (fieldPos + 3 < resPos + resDataLen) {
+    /* Note the equal sign - fields may have a zero length in which case they will
+     * just occupy 3 header bytes. In the in case of the RW field this may mean that
+     * no more space is left in the section. */
+    while (fieldPos + 3 <= resPos + resDataLen) {
+        virPCIVPDResourceFieldValueFormat fieldFormat = VIR_PCI_VPD_RESOURCE_FIELD_VALUE_FORMAT_LAST;
+        g_autofree char *fieldKeyword = NULL;
+        g_autofree char *fieldValue = NULL;
+
         /* Keyword resources consist of keywords (2 ASCII bytes per the spec) and 1-byte length. */
         if (virPCIVPDReadVPDBytes(vpdFileFd, buf, 3, fieldPos, csum) != 3) {
             /* Invalid field encountered which means the resource itself is invalid too. Report
@@ -518,6 +523,13 @@ virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t re
                 return false;
         }
 
+        if (resPos + resDataLen < fieldPos + fieldDataLen) {
+            /* In this case the field cannot simply be skipped since the position of the
+             * next field is determined based on the length of a previous field. */
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("A field data length violates the resource length boundary."));
+            return false;
+        }
         if (virPCIVPDReadVPDBytes(vpdFileFd, buf, bytesToRead, fieldPos, csum) != bytesToRead) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Could not parse a resource field data - VPD has invalid format"));
@@ -533,9 +545,10 @@ virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t re
              */
             fieldValue = g_strstrip(g_strndup((char *)buf, fieldDataLen));
             if (!virPCIVPDResourceIsValidTextValue(fieldValue)) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("Field value contains invalid characters"));
-                return false;
+                /* Skip fields with invalid values - this is safe assuming field length is
+                 * correctly specified. */
+                VIR_DEBUG("A value for field %s contains invalid characters", fieldKeyword);
+                continue;
             }
         } else if (fieldFormat == VIR_PCI_VPD_RESOURCE_FIELD_VALUE_FORMAT_RESVD) {
             if (*csum) {
@@ -544,18 +557,13 @@ virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t re
                 return false;
             }
             hasChecksum = true;
-            g_free(g_steal_pointer(&fieldKeyword));
-            g_free(g_steal_pointer(&fieldValue));
-            continue;
+            break;
         } else if (fieldFormat == VIR_PCI_VPD_RESOURCE_FIELD_VALUE_FORMAT_RDWR) {
             /* Skip the read-write space since it is used for indication only. */
             hasRW = true;
-            g_free(g_steal_pointer(&fieldKeyword));
-            g_free(g_steal_pointer(&fieldValue));
+            break;
         } else if (fieldFormat == VIR_PCI_VPD_RESOURCE_FIELD_VALUE_FORMAT_LAST) {
             /* Skip unknown fields */
-            g_free(g_steal_pointer(&fieldKeyword));
-            g_free(g_steal_pointer(&fieldValue));
             continue;
         } else {
             fieldValue = g_malloc(fieldDataLen);
@@ -575,18 +583,26 @@ virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t re
                            _("Could not update the VPD resource keyword: %s"), fieldKeyword);
             return false;
         }
-        /* No longer need those since copies were made during the keyword update. */
-        g_free(g_steal_pointer(&fieldKeyword));
-        g_free(g_steal_pointer(&fieldValue));
     }
-    if (readOnly && !hasChecksum) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("VPD-R does not contain the mandatory RV field"));
+
+    /* May have exited the loop prematurely in case RV or RW were encountered and
+     * they were not the last fields in the section. */
+    endReached = (fieldPos >= resPos + resDataLen);
+    if (readOnly && !(hasChecksum && endReached)) {
+        VIR_DEBUG("VPD-R does not contain the mandatory RV field as the last field");
         return false;
-    } else if (!readOnly && !hasRW) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("VPD-W does not contain the mandatory RW field"));
-        return false;
+    } else if (!readOnly && !endReached) {
+        /* The lack of RW is allowed on purpose in the read-write section since some vendors
+         * violate the PCI/PCIe specs and do not include it, however, this does not prevent parsing
+         * of valid data. If the RW is present, however, we make sure it is the last field in
+         * the read-write section. */
+        if (hasRW) {
+            VIR_DEBUG("VPD-W section parsing ended prematurely (RW is not the last field).");
+            return false;
+        } else {
+            VIR_DEBUG("VPD-W section parsing ended prematurely.");
+            return false;
+        }
     }
 
     return true;

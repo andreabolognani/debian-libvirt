@@ -193,17 +193,8 @@ qemuProcessHandleAgentError(qemuAgent *agent G_GNUC_UNUSED,
     virObjectUnlock(vm);
 }
 
-static void qemuProcessHandleAgentDestroy(qemuAgent *agent,
-                                          virDomainObj *vm)
-{
-    VIR_DEBUG("Received destroy agent=%p vm=%p", agent, vm);
-
-    virObjectUnref(vm);
-}
-
 
 static qemuAgentCallbacks agentCallbacks = {
-    .destroy = qemuProcessHandleAgentDestroy,
     .eofNotify = qemuProcessHandleAgentEOF,
     .errorNotify = qemuProcessHandleAgentError,
 };
@@ -234,22 +225,11 @@ qemuConnectAgent(virQEMUDriver *driver, virDomainObj *vm)
         goto cleanup;
     }
 
-    /* Hold an extra reference because we can't allow 'vm' to be
-     * deleted while the agent is active */
-    virObjectRef(vm);
-
-    virObjectUnlock(vm);
-
     agent = qemuAgentOpen(vm,
                           config->source,
                           virEventThreadGetContext(priv->eventThread),
                           &agentCallbacks,
                           virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_VSERPORT_CHANGE));
-
-    virObjectLock(vm);
-
-    if (agent == NULL)
-        virObjectUnref(vm);
 
     if (!virDomainObjIsActive(vm)) {
         qemuAgentClose(agent);
@@ -523,6 +503,7 @@ qemuProcessFakeReboot(void *opaque)
 
  cleanup:
     priv->pausedShutdown = false;
+    qemuDomainSetFakeReboot(driver, vm, false);
     if (ret == -1)
         ignore_value(qemuProcessKill(vm, VIR_QEMU_PROCESS_KILL_FORCE));
     virDomainObjEndAPI(&vm);
@@ -540,7 +521,6 @@ qemuProcessShutdownOrReboot(virQEMUDriver *driver,
         g_autofree char *name = g_strdup_printf("reboot-%s", vm->def->name);
         virThread th;
 
-        qemuDomainSetFakeReboot(driver, vm, false);
         virObjectRef(vm);
         if (virThreadCreateFull(&th,
                                 false,
@@ -551,6 +531,7 @@ qemuProcessShutdownOrReboot(virQEMUDriver *driver,
             VIR_ERROR(_("Failed to create reboot thread, killing domain"));
             ignore_value(qemuProcessKill(vm, VIR_QEMU_PROCESS_KILL_NOWAIT));
             priv->pausedShutdown = false;
+            qemuDomainSetFakeReboot(driver, vm, false);
             virObjectUnref(vm);
         }
     } else {
@@ -1341,6 +1322,42 @@ qemuProcessHandleDeviceDeleted(qemuMonitor *mon G_GNUC_UNUSED,
 }
 
 
+static void
+qemuProcessHandleDeviceUnplugErr(qemuMonitor *mon G_GNUC_UNUSED,
+                                 virDomainObj *vm,
+                                 const char *devPath,
+                                 const char *devAlias,
+                                 void *opaque)
+{
+    virQEMUDriver *driver = opaque;
+    virObjectEvent *event = NULL;
+
+    virObjectLock(vm);
+
+    VIR_DEBUG("Device %s QOM path %s failed to be removed from domain %p %s",
+              devAlias, devPath, vm, vm->def->name);
+
+    /*
+     * DEVICE_UNPLUG_GUEST_ERROR will always contain the QOM path
+     * but QEMU will not guarantee that devAlias will be provided.
+     *
+     * However, given that all Libvirt devices have a devAlias, we
+     * can ignore the case where QEMU emitted this event without it.
+     */
+    if (!devAlias)
+        goto cleanup;
+
+    qemuDomainSignalDeviceRemoval(vm, devAlias,
+                                  QEMU_DOMAIN_UNPLUGGING_DEVICE_STATUS_GUEST_REJECTED);
+
+    event = virDomainEventDeviceRemovalFailedNewFromObj(vm, devAlias);
+
+ cleanup:
+    virObjectUnlock(vm);
+    virObjectEventStateQueue(driver->domainEventState, event);
+}
+
+
 /**
  *
  * Meaning of fields reported by the event according to the ACPI standard:
@@ -1910,6 +1927,7 @@ static qemuMonitorCallbacks monitorCallbacks = {
     .domainGuestCrashloaded = qemuProcessHandleGuestCrashloaded,
     .domainMemoryFailure = qemuProcessHandleMemoryFailure,
     .domainMemoryDeviceSizeChange = qemuProcessHandleMemoryDeviceSizeChange,
+    .domainDeviceUnplugError = qemuProcessHandleDeviceUnplugErr,
 };
 
 static void
@@ -8731,13 +8749,15 @@ qemuProcessReconnect(void *opaque)
         goto error;
     }
 
-    /* In case the domain shutdown while we were not running,
-     * we need to finish the shutdown process. And we need to do it after
-     * we have virQEMUCaps filled in.
+    /* In case the domain shutdown or fake reboot while we were not running,
+     * we need to finish the shutdown or fake reboot process. And we need to
+     * do it after we have virQEMUCaps filled in.
      */
     if (state == VIR_DOMAIN_SHUTDOWN ||
         (state == VIR_DOMAIN_PAUSED &&
-         reason == VIR_DOMAIN_PAUSED_SHUTTING_DOWN)) {
+         reason == VIR_DOMAIN_PAUSED_SHUTTING_DOWN) ||
+        (priv->fakeReboot && state == VIR_DOMAIN_PAUSED &&
+         reason == VIR_DOMAIN_PAUSED_USER)) {
         VIR_DEBUG("Finishing shutdown sequence for domain %s",
                   obj->def->name);
         qemuProcessShutdownOrReboot(driver, obj);
@@ -9237,9 +9257,8 @@ qemuProcessQMPInitMonitor(qemuMonitor *mon)
 static int
 qemuProcessQMPConnectMonitor(qemuProcessQMP *proc)
 {
-    virDomainXMLOption *xmlopt = NULL;
+    g_autoptr(virDomainXMLOption) xmlopt = NULL;
     virDomainChrSourceDef monConfig;
-    int ret = -1;
 
     VIR_DEBUG("proc=%p, emulator=%s, proc->pid=%lld",
               proc, proc->binary, (long long)proc->pid);
@@ -9251,25 +9270,21 @@ qemuProcessQMPConnectMonitor(qemuProcessQMP *proc)
     if (!(xmlopt = virDomainXMLOptionNew(NULL, NULL, NULL, NULL, NULL)) ||
         !(proc->vm = virDomainObjNew(xmlopt)) ||
         !(proc->vm->def = virDomainDefNew(xmlopt)))
-        goto cleanup;
+        return -1;
 
     proc->vm->pid = proc->pid;
 
     if (!(proc->mon = qemuMonitorOpen(proc->vm, &monConfig, true, 0,
                                       virEventThreadGetContext(proc->eventThread),
                                       &callbacks, NULL)))
-        goto cleanup;
+        return -1;
 
     virObjectLock(proc->mon);
 
     if (qemuProcessQMPInitMonitor(proc->mon) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virObjectUnref(xmlopt);
-    return ret;
+    return 0;
 }
 
 

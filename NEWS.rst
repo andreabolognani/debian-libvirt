@@ -8,6 +8,56 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v7.10.0 (2021-12-01)
+====================
+
+* **New features**
+
+  * Added virt-pki-query-dn binary
+
+    This binary helps users figure out the format of Distinguished Name
+    from a certificate file the way that libvirt expects it in
+    tls_allowed_dn_list option of libvirtd.conf configuration file
+
+* **Improvements**
+
+  * qemu: Report guest interface information in ``virDomainGetGuestInfo``
+
+    Libvirt is now able to report interface information from the guest's
+    perspective (using guest agent).
+
+  * qemu: detect guest side errors during device removal
+
+    Libvirt is now able to detect guest side errors during device removal by
+    using the DEVICE_UNPLUG_GUEST_ERROR event, available in QEMU 6.2.0.
+
+  * Minimum SSF setting
+
+    The libvirtd.conf option tcp_min_ssf can be used to override the minimum
+    permitted security strength factor for non-TLS remote connections.
+    The current hardcoded minimum is 56 (single-DES) and will be raised to 112
+    in the future. Setting a minimum lower than 112 is not supported.
+
+  * qemu: Report stats also for block copy destination and backup job scratch
+    images
+
+    The statistics are available via the bulk domain stats API.
+
+* **Bug fixes**
+
+  * qemu: Don't format 'ramfb' attribute when disabled
+
+    Fix a regression caused by the conversion to JSON -device arguments where
+    'ramfb' would be put on the commandline of 'vfio-pci' which doesn't have it,
+    thus breaking VMs with a mediated host device.
+
+  * qemu: Fix block copy and backup to encrypted storage
+
+    An oversight in last release lead to a spurious error being reported when
+    encrypted storage was requested for disk images which are not directly
+    backing the disk, which is now fixed.
+
+
 v7.9.0 (2021-11-01)
 ===================
 

@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '7.9.0',
+  version: '7.10.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -553,7 +553,6 @@ functions = [
   'posix_fallocate',
   'posix_memalign',
   'prlimit',
-  'sched_getaffinity',
   'sched_setscheduler',
   'setgroups',
   'setns',
@@ -602,6 +601,7 @@ headers = [
   'net/if.h',
   'pty.h',
   'pwd.h',
+  'sched.h',
   'sys/auxv.h',
   'sys/ioctl.h',
   'sys/mount.h',
@@ -671,6 +671,8 @@ symbols = [
 
   # Check for BSD approach for setting MAC addr
   [ 'net/if_dl.h', 'link_addr', '#include <sys/types.h>\n#include <sys/socket.h>' ],
+
+  [ 'sched.h', 'cpu_set_t' ],
 ]
 
 if host_machine.system() == 'linux'
@@ -707,7 +709,7 @@ if (cc.has_header_symbol('net/if_bridgevar.h', 'BRDGSFD', prefix: brd_required_h
 endif
 
 # Check for BSD CPU affinity availability
-if cc.has_header_symbol('sys/cpuset.h', 'cpuset_getaffinity')
+if cc.has_header_symbol('sys/cpuset.h', 'cpuset_getaffinity', prefix: '#include <sys/param.h>')
   conf.set('WITH_BSD_CPU_AFFINITY', 1)
 endif
 
@@ -812,6 +814,34 @@ foreach item : required_programs_groups
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
+# There are two versions of rst2html5 in the wild: one is the version
+# coming from the docutils package, and the other is the one coming
+# from the rst2html5 package. These versions are subtly different,
+# and the libvirt documentation can only be successfully generated
+# using the docutils version. Every now and then, users will report
+# build failures that can be traced back to having the wrong version
+# installed.
+#
+# The only reliable way to tell the two binaries apart seems to be
+# looking look at their version information: the docutils version
+# will report
+#
+#   rst2html5 (Docutils ..., Python ..., on ...)
+#
+# whereas the rst2html5 version will report
+#
+#   rst2html5 ... (Docutils ..., Python ..., on ...)
+#
+# with the additional bit of information being the version number for
+# the rst2html5 package itself.
+#
+# Use this knowledge to detect the version that we know doesn't work
+# for building libvirt and reject it
+rst2html5_version = run_command(rst2html5_prog, '--version')
+rst2html5_version = rst2html5_version.stdout().split(' ')
+if rst2html5_version[1] != '(Docutils'
+  error('Please uninstall the rst2html5 package and install the docutils package')
+endif
 
 # optional programs
 
@@ -1653,9 +1683,15 @@ if not get_option('driver_qemu').disabled()
 
     qemu_moddir = get_option('qemu_moddir')
     if qemu_moddir == ''
-      qemu_moddir = '/usr' / libdir / 'qemu'
+      qemu_moddir = libdir / 'qemu'
     endif
     conf.set_quoted('QEMU_MODDIR', qemu_moddir)
+
+    qemu_datadir = get_option('qemu_datadir')
+    if qemu_datadir == ''
+      qemu_datadir = datadir / 'qemu'
+    endif
+    conf.set_quoted('QEMU_DATADIR', qemu_datadir)
 
     if host_machine.system() in [ 'freebsd', 'darwin' ]
       default_qemu_user = 'root'
@@ -1947,24 +1983,8 @@ if conf.has('WITH_LIBVIRTD')
   endif
 
   if not get_option('storage_zfs').disabled()
-    foreach name : [ 'zfs', 'zpool' ]
-      set_variable(
-        '@0@_prog'.format(name),
-        find_program(name, required: get_option('storage_zfs'), dirs: libvirt_sbin_path)
-      )
-    endforeach
-
     use_storage = true
     conf.set('WITH_STORAGE_ZFS', 1)
-    foreach name : [ 'zfs', 'zpool' ]
-      prog_var = get_variable('@0@_prog'.format(name))
-      if prog_var.found()
-        prog_path = prog_var.path()
-      else
-        prog_path = name
-      endif
-      conf.set_quoted(name.to_upper(), prog_path)
-    endforeach
   endif
 endif
 

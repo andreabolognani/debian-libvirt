@@ -799,7 +799,7 @@ openvzDomainSetNetworkConfig(virConnectPtr conn,
         if (openvzDomainSetNetwork(conn, def->name, def->nets[i], &buf) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Could not configure network"));
-            goto exit;
+            return -1;
         }
     }
 
@@ -817,9 +817,6 @@ openvzDomainSetNetworkConfig(virConnectPtr conn,
     }
 
     return 0;
-
- exit:
-    return -1;
 }
 
 
@@ -845,11 +842,10 @@ openvzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int fla
     if (virXMLCheckIllegalChars("name", vmdef->name, "\n") < 0)
         goto cleanup;
 
-    if (!(vm = virDomainObjListAdd(driver->domains, vmdef,
+    if (!(vm = virDomainObjListAdd(driver->domains, &vmdef,
                                    driver->xmlopt,
                                    0, NULL)))
         goto cleanup;
-    vmdef = NULL;
     vm->persistent = 1;
 
     if (openvzSetInitialConfig(vm->def) < 0) {
@@ -933,13 +929,13 @@ openvzDomainCreateXML(virConnectPtr conn, const char *xml,
         goto cleanup;
 
     if (!(vm = virDomainObjListAdd(driver->domains,
-                                   vmdef,
+                                   &vmdef,
                                    driver->xmlopt,
                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
                                    VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
                                    NULL)))
         goto cleanup;
-    vmdef = NULL;
+
     /* All OpenVZ domains seem to be persistent - this is a bit of a violation
      * of this libvirt API which is intended for transient domain creation */
     vm->persistent = 1;
@@ -2097,13 +2093,12 @@ openvzDomainMigratePrepare3Params(virConnectPtr dconn,
                                         VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE)))
         goto error;
 
-    if (!(vm = virDomainObjListAdd(driver->domains, def,
+    if (!(vm = virDomainObjListAdd(driver->domains, &def,
                                    driver->xmlopt,
                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
                                    VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
                                    NULL)))
         goto error;
-    def = NULL;
 
     if (!uri_in) {
         if ((my_hostname = virGetHostname()) == NULL)

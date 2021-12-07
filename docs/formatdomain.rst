@@ -1842,6 +1842,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
        <hidden state='on'/>
        <hint-dedicated state='on'/>
        <poll-control state='on'/>
+       <pv-ipi state='off'/>
      </kvm>
      <xen>
        <e820_host state='on'/>
@@ -1930,6 +1931,7 @@ are:
    hidden         Hide the KVM hypervisor from standard MSR based discovery                    on, off :since:`1.2.8 (QEMU 2.1.0)`
    hint-dedicated Allows a guest to enable optimizations when running on dedicated vCPUs       on, off :since:`5.7.0 (QEMU 2.12.0)`
    poll-control   Decrease IO completion latency by introducing a grace period of busy waiting on, off :since:`6.10.0 (QEMU 4.2)`
+   pv-ipi         Paravirtualized send IPIs                                                    on, off :since:`7.10.0 (QEMU 3.1)`
    ============== ============================================================================ ======= ============================
 
 ``xen``
@@ -7537,6 +7539,9 @@ Example: usage of the TPM Emulator
        <tpm model='tpm-tis'>
          <backend type='emulator' version='2.0'>
            <encryption secret='6dd3e4a5-1d76-44ce-961f-f119f5aad935'/>
+           <active_pcr_banks>
+               <sha256/>
+           </active_pcr_banks>
          </backend>
        </tpm>
      </devices>
@@ -7595,6 +7600,15 @@ Example: usage of the TPM Emulator
    option can be used for preserving TPM state. By default the value is ``no``.
    This attribute only works with the ``emulator`` backend. The accepted values
    are ``yes`` and ``no``. :since:`Since 7.0.0`
+
+``active_pcr_banks``
+   The ``active_pcr_banks`` node is used to define which of the PCR banks
+   of a TPM 2.0 to activate. Valid names are for example sha1, sha256, sha384,
+   and sha512. If this node is provided, the set of PCR banks are activated
+   before every start of a VM and this step is logged in the swtpm's log.
+   This attribute requires that swtpm_setup v0.7 or later is installed
+   and may not have any effect otherwise. The selection of PCR banks only works
+   with the ``emulator`` backend. since:`Since 7.10.0`
 
 ``encryption``
    The ``encryption`` element allows the state of a TPM emulator to be

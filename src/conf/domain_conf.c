@@ -204,6 +204,7 @@ VIR_ENUM_IMPL(virDomainKVM,
               "hidden",
               "hint-dedicated",
               "poll-control",
+              "pv-ipi",
 );
 
 VIR_ENUM_IMPL(virDomainXen,
@@ -1255,6 +1256,14 @@ VIR_ENUM_IMPL(virDomainTPMVersion,
               "default",
               "1.2",
               "2.0",
+);
+
+VIR_ENUM_IMPL(virDomainTPMPcrBank,
+              VIR_DOMAIN_TPM_PCR_BANK_LAST,
+              "sha1",
+              "sha256",
+              "sha384",
+              "sha512",
 );
 
 VIR_ENUM_IMPL(virDomainIOMMUModel,
@@ -3060,7 +3069,7 @@ void virDomainShmemDefFree(virDomainShmemDef *def)
         return;
 
     virDomainDeviceInfoClear(&def->info);
-    virDomainChrSourceDefClear(&def->server.chr);
+    virObjectUnref(def->server.chr);
     g_free(def->name);
     g_free(def);
 }
@@ -3202,10 +3211,10 @@ void virDomainTPMDefFree(virDomainTPMDef *def)
 
     switch (def->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        virDomainChrSourceDefClear(&def->data.passthrough.source);
+        virObjectUnref(def->data.passthrough.source);
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-        virDomainChrSourceDefClear(&def->data.emulator.source);
+        virObjectUnref(def->data.emulator.source);
         g_free(def->data.emulator.storagepath);
         g_free(def->data.emulator.logfile);
         break;
@@ -3856,7 +3865,7 @@ virDomainDefNew(virDomainXMLOption *xmlopt)
 
 
 void virDomainObjAssignDef(virDomainObj *domain,
-                           virDomainDef *def,
+                           virDomainDef **def,
                            bool live,
                            virDomainDef **oldDef)
 {
@@ -3867,7 +3876,7 @@ void virDomainObjAssignDef(virDomainObj *domain,
             *oldDef = domain->newDef;
         else
             virDomainDefFree(domain->newDef);
-        domain->newDef = def;
+        domain->newDef = g_steal_pointer(def);
     } else {
         if (live) {
             /* save current configuration to be restored on domain shutdown */
@@ -3875,13 +3884,13 @@ void virDomainObjAssignDef(virDomainObj *domain,
                 domain->newDef = domain->def;
             else
                 virDomainDefFree(domain->def);
-            domain->def = def;
+            domain->def = g_steal_pointer(def);
         } else {
             if (oldDef)
                 *oldDef = domain->def;
             else
                 virDomainDefFree(domain->def);
-            domain->def = def;
+            domain->def = g_steal_pointer(def);
         }
     }
 }
@@ -7791,55 +7800,49 @@ static virSecurityLabelDef *
 virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
                             unsigned int flags)
 {
-    char *p;
-    virSecurityLabelDef *seclabel = NULL;
+    g_autofree char *model = NULL;
+    g_autofree char *relabel = NULL;
+    g_autoptr(virSecurityLabelDef) seclabel = NULL;
 
-    p = virXMLPropStringLimit(ctxt->node, "model",
-                              VIR_SECURITY_MODEL_BUFLEN - 1);
+    if ((model = virXMLPropString(ctxt->node, "model")) &&
+        strlen(model) >= VIR_SECURITY_MODEL_BUFLEN - 1)
+        g_clear_pointer(&model, g_free);
 
-    if (!(seclabel = virSecurityLabelDefNew(p)))
-        goto error;
-    VIR_FREE(p);
+    if (!(seclabel = virSecurityLabelDefNew(model)))
+        return NULL;
 
     /* set default value */
     seclabel->type = VIR_DOMAIN_SECLABEL_DYNAMIC;
 
-    p = virXMLPropString(ctxt->node, "type");
-    if (p) {
-        seclabel->type = virDomainSeclabelTypeFromString(p);
-        if (seclabel->type <= 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("invalid security type '%s'"), p);
-            goto error;
-        }
-    }
+    if (virXMLPropEnum(ctxt->node, "type",
+                       virDomainSeclabelTypeFromString,
+                       VIR_XML_PROP_NONZERO,
+                       &seclabel->type) < 0)
+        return NULL;
 
     if (seclabel->type == VIR_DOMAIN_SECLABEL_STATIC ||
         seclabel->type == VIR_DOMAIN_SECLABEL_NONE)
         seclabel->relabel = false;
 
-    VIR_FREE(p);
-    p = virXMLPropString(ctxt->node, "relabel");
-    if (p) {
-        if (virStringParseYesNo(p, &seclabel->relabel) < 0) {
+    if ((relabel = virXMLPropString(ctxt->node, "relabel"))) {
+        if (virStringParseYesNo(relabel, &seclabel->relabel) < 0) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("invalid security relabel value %s"), p);
-            goto error;
+                           _("invalid security relabel value '%s'"), relabel);
+            return NULL;
         }
     }
-    VIR_FREE(p);
 
     if (seclabel->type == VIR_DOMAIN_SECLABEL_DYNAMIC &&
         !seclabel->relabel) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        "%s", _("dynamic label type must use resource relabeling"));
-        goto error;
+        return NULL;
     }
     if (seclabel->type == VIR_DOMAIN_SECLABEL_NONE &&
         seclabel->relabel) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        "%s", _("resource relabeling is not compatible with 'none' label type"));
-        goto error;
+        return NULL;
     }
 
     /* For the model 'none' none of the following labels is going to be
@@ -7855,12 +7858,12 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("unsupported type='%s' to model 'none'"),
                                virDomainSeclabelTypeToString(seclabel->type));
-                goto error;
+                return NULL;
             }
             /* combination of relabel='yes' and type='static'
              * is checked a few lines above. */
         }
-        return seclabel;
+        return g_steal_pointer(&seclabel);
     }
 
     /* Only parse label, if using static labels, or
@@ -7869,44 +7872,39 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
     if (seclabel->type == VIR_DOMAIN_SECLABEL_STATIC ||
         (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE) &&
          seclabel->type != VIR_DOMAIN_SECLABEL_NONE)) {
-        p = virXPathStringLimit("string(./label[1])",
-                                VIR_SECURITY_LABEL_BUFLEN-1, ctxt);
-        if (p == NULL) {
+        seclabel->label = virXPathString("string(./label[1])", ctxt);
+        if (!seclabel->label ||
+            strlen(seclabel->label) >= VIR_SECURITY_LABEL_BUFLEN - 1) {
             virReportError(VIR_ERR_XML_ERROR,
                            "%s", _("security label is missing"));
-            goto error;
+            return NULL;
         }
-
-        seclabel->label = g_steal_pointer(&p);
     }
 
     /* Only parse imagelabel, if requested live XML with relabeling */
     if (seclabel->relabel &&
         (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE) &&
          seclabel->type != VIR_DOMAIN_SECLABEL_NONE)) {
-        p = virXPathStringLimit("string(./imagelabel[1])",
-                                VIR_SECURITY_LABEL_BUFLEN-1, ctxt);
-        if (p == NULL) {
+        seclabel->imagelabel = virXPathString("string(./imagelabel[1])", ctxt);
+
+        if (!seclabel->imagelabel ||
+            strlen(seclabel->imagelabel) >= VIR_SECURITY_LABEL_BUFLEN - 1) {
             virReportError(VIR_ERR_XML_ERROR,
                            "%s", _("security imagelabel is missing"));
-            goto error;
+            return NULL;
         }
-        seclabel->imagelabel = g_steal_pointer(&p);
     }
 
     /* Only parse baselabel for dynamic label type */
     if (seclabel->type == VIR_DOMAIN_SECLABEL_DYNAMIC) {
-        p = virXPathStringLimit("string(./baselabel[1])",
-                                VIR_SECURITY_LABEL_BUFLEN-1, ctxt);
-        seclabel->baselabel = g_steal_pointer(&p);
+        seclabel->baselabel = virXPathString("string(./baselabel[1])", ctxt);
+
+        if (seclabel->baselabel &&
+            strlen(seclabel->baselabel) >= VIR_SECURITY_LABEL_BUFLEN - 1)
+            g_clear_pointer(&seclabel->baselabel, g_free);
     }
 
-    return seclabel;
-
- error:
-    VIR_FREE(p);
-    virSecurityLabelDefFree(seclabel);
-    return NULL;
+    return g_steal_pointer(&seclabel);
 }
 
 static int
@@ -8017,7 +8015,6 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
     size_t nseclabels = 0;
     int n;
     size_t i, j;
-    char *model, *relabel, *label, *labelskip;
     g_autofree xmlNodePtr *list = NULL;
 
     if ((n = virXPathNodeSet("./seclabel", ctxt, &list)) < 0)
@@ -8031,6 +8028,11 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
         seclabels[i] = g_new0(virSecurityDeviceLabelDef, 1);
 
     for (i = 0; i < n; i++) {
+        g_autofree char *model = NULL;
+        g_autofree char *relabel = NULL;
+        g_autofree char *label = NULL;
+        g_autofree char *labelskip = NULL;
+
         /* get model associated to this override */
         model = virXMLPropString(list[i], "model");
         if (model) {
@@ -8042,7 +8044,7 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
                     goto error;
                 }
             }
-            seclabels[i]->model = model;
+            seclabels[i]->model = g_steal_pointer(&model);
         }
 
         relabel = virXMLPropString(list[i], "relabel");
@@ -8051,10 +8053,8 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
                 virReportError(VIR_ERR_XML_ERROR,
                                _("invalid security relabel value %s"),
                                relabel);
-                VIR_FREE(relabel);
                 goto error;
             }
-            VIR_FREE(relabel);
         } else {
             seclabels[i]->relabel = true;
         }
@@ -8064,14 +8064,14 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
         seclabels[i]->labelskip = false;
         if (labelskip && !(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE))
             ignore_value(virStringParseYesNo(labelskip, &seclabels[i]->labelskip));
-        VIR_FREE(labelskip);
 
         ctxt->node = list[i];
-        label = virXPathStringLimit("string(./label)",
-                                    VIR_SECURITY_LABEL_BUFLEN-1, ctxt);
-        seclabels[i]->label = label;
+        label = virXPathString("string(./label)", ctxt);
 
-        if (label && !seclabels[i]->relabel) {
+        if (label && strlen(label) < VIR_SECURITY_LABEL_BUFLEN)
+            seclabels[i]->label = g_steal_pointer(&label);
+
+        if (seclabels[i]->label && !seclabels[i]->relabel) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("Cannot specify a label if relabelling is "
                              "turned off. model=%s"),
@@ -11734,6 +11734,10 @@ virDomainSmartcardDefParseXML(virDomainXMLOption *xmlopt,
  * <tpm model='tpm-tis'>
  *   <backend type='emulator' version='2.0'>
  *     <encryption secret='32ee7e76-2178-47a1-ab7b-269e6e348015'/>
+ *     <active_pcr_banks>
+ *       <sha256/>
+ *       <sha384/>
+ *     </active_pcr_banks>
  *   </backend>
  * </tpm>
  *
@@ -11752,6 +11756,8 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
     virDomainTPMDef *def;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     int nbackends;
+    int nnodes;
+    size_t i;
     g_autofree char *path = NULL;
     g_autofree char *model = NULL;
     g_autofree char *backend = NULL;
@@ -11759,6 +11765,8 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
     g_autofree char *secretuuid = NULL;
     g_autofree char *persistent_state = NULL;
     g_autofree xmlNodePtr *backends = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
+    int bank;
 
     def = g_new0(virDomainTPMDef, 1);
 
@@ -11814,13 +11822,17 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
 
     switch (def->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+        if (!(def->data.passthrough.source = virDomainChrSourceDefNew(xmlopt)))
+            goto error;
         path = virXPathString("string(./backend/device/@path)", ctxt);
         if (!path)
             path = g_strdup(VIR_DOMAIN_TPM_DEFAULT_DEVICE);
-        def->data.passthrough.source.data.file.path = g_steal_pointer(&path);
-        def->data.passthrough.source.type = VIR_DOMAIN_CHR_TYPE_DEV;
+        def->data.passthrough.source->type = VIR_DOMAIN_CHR_TYPE_DEV;
+        def->data.passthrough.source->data.file.path = g_steal_pointer(&path);
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+        if (!(def->data.emulator.source = virDomainChrSourceDefNew(xmlopt)))
+            goto error;
         secretuuid = virXPathString("string(./backend/encryption/@secret)", ctxt);
         if (secretuuid) {
             if (virUUIDParse(secretuuid, def->data.emulator.secretuuid) < 0) {
@@ -11838,6 +11850,19 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("Invalid persistent_state value, either 'yes' or 'no'"));
                 goto error;
+            }
+        }
+        if (def->version == VIR_DOMAIN_TPM_VERSION_2_0) {
+            if ((nnodes = virXPathNodeSet("./backend/active_pcr_banks/*", ctxt, &nodes)) < 0)
+                break;
+            for (i = 0; i < nnodes; i++) {
+                if ((bank = virDomainTPMPcrBankTypeFromString((const char *)nodes[i]->name)) < 0) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                   _("Unsupported PCR banks '%s'"),
+                                   nodes[i]->name);
+                    goto error;
+                }
+                def->data.emulator.activePcrBanks |= (1 << bank);
             }
         }
         break;
@@ -13635,11 +13660,14 @@ virDomainShmemDefParseXML(virDomainXMLOption *xmlopt,
     if ((server = virXPathNode("./server[1]", ctxt))) {
         g_autofree char *tmp = NULL;
 
+        if (!(def->server.chr = virDomainChrSourceDefNew(xmlopt)))
+            return NULL;
+
         def->server.enabled = true;
-        def->server.chr.type = VIR_DOMAIN_CHR_TYPE_UNIX;
-        def->server.chr.data.nix.listen = false;
+        def->server.chr->type = VIR_DOMAIN_CHR_TYPE_UNIX;
+        def->server.chr->data.nix.listen = false;
         if ((tmp = virXMLPropString(server, "path")))
-            def->server.chr.data.nix.path = virFileSanitizePath(tmp);
+            def->server.chr->data.nix.path = virFileSanitizePath(tmp);
     }
 
     if ((msi = virXPathNode("./msi[1]", ctxt))) {
@@ -15733,8 +15761,8 @@ virDomainNetFindIdx(virDomainDef *def, virDomainNetDef *net)
                                             &net->info.addr.ccw))
             continue;
 
-        if (net->info.alias &&
-            STRNEQ_NULLABLE(def->nets[i]->info.alias, net->info.alias)) {
+        if (net->info.alias && def->nets[i]->info.alias &&
+            STRNEQ(def->nets[i]->info.alias, net->info.alias)) {
             continue;
         }
 
@@ -16784,8 +16812,8 @@ virDomainShmemDefEquals(virDomainShmemDef *src,
         return false;
 
     if (src->server.enabled) {
-        if (STRNEQ_NULLABLE(src->server.chr.data.nix.path,
-                            dst->server.chr.data.nix.path))
+        if (STRNEQ_NULLABLE(src->server.chr->data.nix.path,
+                            dst->server.chr->data.nix.path))
             return false;
     }
 
@@ -18829,7 +18857,7 @@ virDomainDefParseIDs(virDomainDef *def,
     /* Extract domain name */
     if (!(def->name = virXPathString("string(./name[1])", ctxt))) {
         virReportError(VIR_ERR_NO_NAME, NULL);
-        goto error;
+        return -1;
     }
 
     /* Extract domain uuid. If both uuid and sysinfo/system/entry/uuid
@@ -18840,50 +18868,47 @@ virDomainDefParseIDs(virDomainDef *def,
         if (virUUIDGenerate(def->uuid) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            "%s", _("Failed to generate UUID"));
-            goto error;
+            return -1;
         }
         *uuid_generated = true;
     } else {
         if (virUUIDParse(tmp, def->uuid) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            "%s", _("malformed uuid element"));
-            goto error;
+            return -1;
         }
         VIR_FREE(tmp);
     }
 
     /* Extract domain genid - a genid can either be provided or generated */
     if ((n = virXPathNodeSet("./genid", ctxt, &nodes)) < 0)
-        goto error;
+        return -1;
 
     if (n > 0) {
         if (n != 1) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("element 'genid' can only appear once"));
-            goto error;
+            return -1;
         }
         def->genidRequested = true;
         if (!(tmp = virXPathString("string(./genid)", ctxt))) {
             if (virUUIDGenerate(def->genid) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                "%s", _("Failed to generate genid"));
-                goto error;
+                return -1;
             }
             def->genidGenerated = true;
         } else {
             if (virUUIDParse(tmp, def->genid) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                "%s", _("malformed genid element"));
-                goto error;
+                return -1;
             }
             VIR_FREE(tmp);
         }
     }
     VIR_FREE(nodes);
     return 0;
-
- error:
-    return -1;
 }
 
 
@@ -18972,20 +18997,20 @@ virDomainDefParseMemory(virDomainDef *def,
     /* Extract domain memory */
     if (virDomainParseMemory("./memory[1]", NULL, ctxt,
                              &def->mem.total_memory, false, true) < 0)
-        goto error;
+        return -1;
 
     if (virDomainParseMemory("./currentMemory[1]", NULL, ctxt,
                              &def->mem.cur_balloon, false, true) < 0)
-        goto error;
+        return -1;
 
     if (virDomainParseMemory("./maxMemory[1]", NULL, ctxt,
                              &def->mem.max_memory, false, false) < 0)
-        goto error;
+        return -1;
 
     if (virXPathUInt("string(./maxMemory[1]/@slots)", ctxt, &def->mem.memory_slots) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("Failed to parse memory slot count"));
-        goto error;
+        return -1;
     }
 
     /* and info about it */
@@ -18993,7 +19018,7 @@ virDomainDefParseMemory(virDomainDef *def,
         (def->mem.dump_core = virTristateSwitchTypeFromString(tmp)) <= 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Invalid memory core dump attribute value '%s'"), tmp);
-        goto error;
+        return -1;
     }
     VIR_FREE(tmp);
 
@@ -19002,7 +19027,7 @@ virDomainDefParseMemory(virDomainDef *def,
         if ((def->mem.source = virDomainMemorySourceTypeFromString(tmp)) <= 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unknown memoryBacking/source/type '%s'"), tmp);
-            goto error;
+            return -1;
         }
         VIR_FREE(tmp);
     }
@@ -19012,7 +19037,7 @@ virDomainDefParseMemory(virDomainDef *def,
         if ((def->mem.access = virDomainMemoryAccessTypeFromString(tmp)) <= 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unknown memoryBacking/access/mode '%s'"), tmp);
-            goto error;
+            return -1;
         }
         VIR_FREE(tmp);
     }
@@ -19022,7 +19047,7 @@ virDomainDefParseMemory(virDomainDef *def,
         if ((def->mem.allocation = virDomainMemoryAllocationTypeFromString(tmp)) <= 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unknown memoryBacking/allocation/mode '%s'"), tmp);
-            goto error;
+            return -1;
         }
         VIR_FREE(tmp);
     }
@@ -19032,7 +19057,7 @@ virDomainDefParseMemory(virDomainDef *def,
         if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("cannot extract hugepages nodes"));
-            goto error;
+            return -1;
         }
 
         if (n) {
@@ -19041,7 +19066,7 @@ virDomainDefParseMemory(virDomainDef *def,
             for (i = 0; i < n; i++) {
                 if (virDomainHugepagesParseXML(nodes[i], ctxt,
                                                &def->mem.hugepages[i]) < 0)
-                    goto error;
+                    return -1;
                 def->mem.nhugepages++;
             }
 
@@ -19063,9 +19088,6 @@ virDomainDefParseMemory(virDomainDef *def,
         def->mem.discard = VIR_TRISTATE_BOOL_YES;
 
     return 0;
-
- error:
-    return -1;
 }
 
 
@@ -19416,43 +19438,40 @@ virDomainDefLifecycleParse(virDomainDef *def,
                                      &def->onReboot,
                                      VIR_DOMAIN_LIFECYCLE_ACTION_RESTART,
                                      virDomainLifecycleActionTypeFromString) < 0)
-        goto error;
+        return -1;
 
     if (virDomainEventActionParseXML(ctxt, "on_poweroff",
                                      "string(./on_poweroff[1])",
                                      &def->onPoweroff,
                                      VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY,
                                      virDomainLifecycleActionTypeFromString) < 0)
-        goto error;
+        return -1;
 
     if (virDomainEventActionParseXML(ctxt, "on_crash",
                                      "string(./on_crash[1])",
                                      &def->onCrash,
                                      VIR_DOMAIN_LIFECYCLE_ACTION_DESTROY,
                                      virDomainLifecycleActionTypeFromString) < 0)
-        goto error;
+        return -1;
 
     if (virDomainEventActionParseXML(ctxt, "on_lockfailure",
                                      "string(./on_lockfailure[1])",
                                      &def->onLockFailure,
                                      VIR_DOMAIN_LOCK_FAILURE_DEFAULT,
                                      virDomainLockFailureTypeFromString) < 0)
-        goto error;
+        return -1;
 
     if (virDomainPMStateParseXML(ctxt,
                                  "string(./pm/suspend-to-mem/@enabled)",
                                  &def->pm.s3) < 0)
-        goto error;
+        return -1;
 
     if (virDomainPMStateParseXML(ctxt,
                                  "string(./pm/suspend-to-disk/@enabled)",
                                  &def->pm.s4) < 0)
-        goto error;
+        return -1;
 
     return 0;
-
- error:
-    return -1;
 }
 
 
@@ -19469,7 +19488,7 @@ virDomainDefClockParse(virDomainDef *def,
         (def->clock.offset = virDomainClockOffsetTypeFromString(tmp)) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unknown clock offset '%s'"), tmp);
-        goto error;
+        return -1;
     }
     VIR_FREE(tmp);
 
@@ -19486,7 +19505,7 @@ virDomainDefClockParse(virDomainDef *def,
                     virReportError(VIR_ERR_XML_ERROR,
                                    _("unknown clock adjustment '%s'"),
                                    tmp);
-                    goto error;
+                    return -1;
                 }
                 switch (def->clock.offset) {
                 case VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME:
@@ -19516,7 +19535,7 @@ virDomainDefClockParse(virDomainDef *def,
             if ((def->clock.data.variable.basis = virDomainClockBasisTypeFromString(tmp)) < 0) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("unknown clock basis '%s'"), tmp);
-                goto error;
+                return -1;
             }
             VIR_FREE(tmp);
         } else {
@@ -19529,13 +19548,13 @@ virDomainDefClockParse(virDomainDef *def,
         if (!def->clock.data.timezone) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("missing 'timezone' attribute for clock with offset='timezone'"));
-            goto error;
+            return -1;
         }
         break;
     }
 
     if ((n = virXPathNodeSet("./clock/timer", ctxt, &nodes)) < 0)
-        goto error;
+        return -1;
 
     if (n)
         def->clock.timers = g_new0(virDomainTimerDef *, n);
@@ -19544,16 +19563,13 @@ virDomainDefClockParse(virDomainDef *def,
         virDomainTimerDef *timer = virDomainTimerDefParseXML(nodes[i], ctxt);
 
         if (!timer)
-            goto error;
+            return -1;
 
         def->clock.timers[def->clock.ntimers++] = timer;
     }
     VIR_FREE(nodes);
 
     return 0;
-
- error:
-    return -1;
 }
 
 static int
@@ -21789,6 +21805,7 @@ virDomainDefFeaturesCheckABIStability(virDomainDef *src,
             case VIR_DOMAIN_KVM_HIDDEN:
             case VIR_DOMAIN_KVM_DEDICATED:
             case VIR_DOMAIN_KVM_POLLCONTROL:
+            case VIR_DOMAIN_KVM_PVIPI:
                 if (src->kvm_features[i] != dst->kvm_features[i]) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                    _("State of KVM feature '%s' differs: "
@@ -25422,7 +25439,7 @@ virDomainTPMDefFormat(virBuffer *buf,
         virBufferAddLit(buf, ">\n");
         virBufferAdjustIndent(buf, 2);
         virBufferEscapeString(buf, "<device path='%s'/>\n",
-                              def->data.passthrough.source.data.file.path);
+                              def->data.passthrough.source->data.file.path);
         virBufferAdjustIndent(buf, -2);
         virBufferAddLit(buf, "</backend>\n");
         break;
@@ -25438,10 +25455,27 @@ virDomainTPMDefFormat(virBuffer *buf,
             virBufferAsprintf(buf, "<encryption secret='%s'/>\n",
                 virUUIDFormat(def->data.emulator.secretuuid, uuidstr));
             virBufferAdjustIndent(buf, -2);
-            virBufferAddLit(buf, "</backend>\n");
-        } else {
-            virBufferAddLit(buf, "/>\n");
         }
+        if (def->data.emulator.activePcrBanks) {
+            size_t i;
+            virBufferAddLit(buf, ">\n");
+            virBufferAdjustIndent(buf, 2);
+            virBufferAddLit(buf, "<active_pcr_banks>\n");
+            virBufferAdjustIndent(buf, 2);
+            for (i = VIR_DOMAIN_TPM_PCR_BANK_SHA1; i < VIR_DOMAIN_TPM_PCR_BANK_LAST; i++) {
+                if ((def->data.emulator.activePcrBanks & (1 << i)))
+                    virBufferAsprintf(buf, "<%s/>\n",
+                                      virDomainTPMPcrBankTypeToString(i));
+            }
+            virBufferAdjustIndent(buf, -2);
+            virBufferAddLit(buf, "</active_pcr_banks>\n");
+            virBufferAdjustIndent(buf, -2);
+        }
+        if (def->data.emulator.hassecretuuid ||
+            def->data.emulator.activePcrBanks)
+            virBufferAddLit(buf, "</backend>\n");
+        else
+            virBufferAddLit(buf, "/>\n");
         break;
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
@@ -25820,7 +25854,7 @@ virDomainShmemDefFormat(virBuffer *buf,
 
     if (def->server.enabled) {
         virBufferAddLit(buf, "<server");
-        virBufferEscapeString(buf, " path='%s'", def->server.chr.data.nix.path);
+        virBufferEscapeString(buf, " path='%s'", def->server.chr->data.nix.path);
         virBufferAddLit(buf, "/>\n");
     }
 
@@ -27821,6 +27855,7 @@ virDomainDefFormatFeatures(virBuffer *buf,
                 case VIR_DOMAIN_KVM_HIDDEN:
                 case VIR_DOMAIN_KVM_DEDICATED:
                 case VIR_DOMAIN_KVM_POLLCONTROL:
+                case VIR_DOMAIN_KVM_PVIPI:
                     if (def->kvm_features[j])
                         virBufferAsprintf(&childBuf, "<%s state='%s'/>\n",
                                           virDomainKVMTypeToString(j),

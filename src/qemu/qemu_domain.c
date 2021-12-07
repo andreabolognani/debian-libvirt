@@ -2152,7 +2152,7 @@ qemuDomainObjPrivateXMLFormatBackups(virBuffer *buf,
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
     if (priv->backup &&
-        virDomainBackupDefFormat(&childBuf, priv->backup, true) < 0)
+        virDomainBackupDefFormat(&childBuf, priv->backup, true, priv->driver->xmlopt) < 0)
         return -1;
 
     virXMLFormatElement(buf, "backups", &attrBuf, &childBuf);
@@ -9964,11 +9964,11 @@ void
 qemuDomainPrepareShmemChardev(virDomainShmemDef *shmem)
 {
     if (!shmem->server.enabled ||
-        shmem->server.chr.data.nix.path)
+        shmem->server.chr->data.nix.path)
         return;
 
-    shmem->server.chr.data.nix.path = g_strdup_printf("/var/lib/libvirt/shmem-%s-sock",
-                                                      shmem->name);
+    shmem->server.chr->data.nix.path = g_strdup_printf("/var/lib/libvirt/shmem-%s-sock",
+                                                       shmem->name);
 }
 
 
@@ -10650,6 +10650,9 @@ qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
 
     if (qemuBlockStorageSourceNeedsStorageSliceLayer(src))
         src->sliceStorage->nodename = g_strdup_printf("libvirt-%u-slice-sto", src->id);
+
+    if (src->encryption && src->encryption->engine == VIR_STORAGE_ENCRYPTION_ENGINE_DEFAULT)
+        src->encryption->engine = VIR_STORAGE_ENCRYPTION_ENGINE_QEMU;
 
     if (qemuDomainValidateStorageSource(src, priv->qemuCaps, false) < 0)
         return -1;

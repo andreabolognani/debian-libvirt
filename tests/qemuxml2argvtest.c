@@ -141,20 +141,15 @@ fakeStorageVolLookupByName(virStoragePoolPtr pool,
         return NULL;
     }
 
-    if (!strchr(name, '+'))
-        goto fallback;
-
     if (!(volinfo = g_strsplit(name, "+", 2)))
         return NULL;
 
-    if (!volinfo[1])
-        goto fallback;
+    if (!volinfo[1]) {
+        return virGetStorageVol(pool->conn, pool->name, name, "block", NULL, NULL);
+    }
 
     return virGetStorageVol(pool->conn, pool->name, volinfo[1], volinfo[0],
                            NULL, NULL);
-
- fallback:
-    return virGetStorageVol(pool->conn, pool->name, name, "block", NULL, NULL);
 }
 
 static int
@@ -450,9 +445,9 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         if (vm->def->tpms[i]->type != VIR_DOMAIN_TPM_TYPE_EMULATOR)
             continue;
 
-        VIR_FREE(vm->def->tpms[i]->data.emulator.source.data.file.path);
-        vm->def->tpms[i]->data.emulator.source.data.file.path = g_strdup("/dev/test");
-        vm->def->tpms[i]->data.emulator.source.type = VIR_DOMAIN_CHR_TYPE_FILE;
+        VIR_FREE(vm->def->tpms[i]->data.emulator.source->data.nix.path);
+        vm->def->tpms[i]->data.emulator.source->type = VIR_DOMAIN_CHR_TYPE_UNIX;
+        vm->def->tpms[i]->data.emulator.source->data.nix.path = g_strdup("/dev/test");
     }
 
     for (i = 0; i < vm->def->nvideos; i++) {
@@ -527,8 +522,6 @@ testCompareXMLToArgvValidateSchemaCommand(GStrv args,
             }
 
             if (*curargs != '{') {
-                VIR_TEST_DEBUG("skipping validation of '%s': argument is not JSON",
-                               command->name);
                 arg++;
                 break;
             }
@@ -1498,60 +1491,25 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("graphics-sdl-egl-headless");
     DO_TEST("graphics-sdl-fullscreen",
             QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_SDL);
-    DO_TEST("graphics-spice",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("graphics-spice-no-args",
-            QEMU_CAPS_SPICE, QEMU_CAPS_DEVICE_CIRRUS_VGA);
+    DO_TEST_CAPS_LATEST("graphics-spice");
+    DO_TEST_CAPS_LATEST("graphics-spice-no-args");
     driver.config->spiceSASL = 1;
     driver.config->spiceSASLdir = g_strdup("/root/.sasl2");
-    DO_TEST("graphics-spice-sasl",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL);
+    DO_TEST_CAPS_LATEST("graphics-spice-sasl");
     VIR_FREE(driver.config->spiceSASLdir);
     driver.config->spiceSASL = 0;
-    DO_TEST("graphics-spice-agentmouse",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST("graphics-spice-compression",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("graphics-spice-timeout",
-            QEMU_CAPS_KVM,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_DEVICE_VGA);
-    DO_TEST("graphics-spice-qxl-vga",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("graphics-spice-usb-redir",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_USB_HUB,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_USB_REDIR,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST("graphics-spice-agent-file-xfer",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("graphics-spice-socket",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_UNIX,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST("graphics-spice-auto-socket",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_UNIX,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
+    DO_TEST_CAPS_LATEST("graphics-spice-agentmouse");
+    DO_TEST_CAPS_LATEST("graphics-spice-compression");
+    DO_TEST_CAPS_LATEST("graphics-spice-timeout");
+    DO_TEST_CAPS_LATEST("graphics-spice-qxl-vga");
+    DO_TEST_CAPS_LATEST("graphics-spice-usb-redir");
+    DO_TEST_CAPS_LATEST("graphics-spice-agent-file-xfer");
+    DO_TEST_CAPS_LATEST("graphics-spice-socket");
+    DO_TEST_CAPS_LATEST("graphics-spice-auto-socket");
     driver.config->spiceAutoUnixSocket = true;
-    DO_TEST("graphics-spice-auto-socket-cfg",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_UNIX,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
+    DO_TEST_CAPS_LATEST("graphics-spice-auto-socket-cfg");
     driver.config->spiceAutoUnixSocket = false;
-    DO_TEST("graphics-spice-egl-headless",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_EGL_HEADLESS);
+    DO_TEST_CAPS_LATEST("graphics-spice-egl-headless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("graphics-spice-invalid-egl-headless");
     DO_TEST_CAPS_LATEST("graphics-spice-gl-auto-rendernode");
 
@@ -2100,6 +2058,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("numatune-memnode");
     DO_TEST_PARSE_ERROR_NOCAPS("numatune-memnode-invalid-mode");
     DO_TEST_CAPS_LATEST("numatune-memnode-restrictive-mode");
+    DO_TEST_CAPS_LATEST("numatune-system-memory");
 
     DO_TEST("numatune-memnode-no-memory",
             QEMU_CAPS_NUMA,
@@ -3215,19 +3174,7 @@ mymain(void)
                  ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE,
                  ARG_END);
 
-    DO_TEST("name-escape",
-            QEMU_CAPS_VNC,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_UNIX,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_SPICE_GL,
-            QEMU_CAPS_SPICE_RENDERNODE,
-            QEMU_CAPS_DEVICE_ISA_SERIAL,
-            QEMU_CAPS_CHARDEV_FILE_APPEND,
-            QEMU_CAPS_CCID_EMULATED,
-            QEMU_CAPS_VIRTIO_SCSI);
+    DO_TEST_CAPS_VER("name-escape", "2.11.0");
 
     DO_TEST_NOCAPS("master-key");
     DO_TEST("usb-long-port-path",
@@ -3296,6 +3243,7 @@ mymain(void)
             QEMU_CAPS_KVM);
     DO_TEST("fd-memory-numa-topology3", QEMU_CAPS_OBJECT_MEMORY_FILE,
             QEMU_CAPS_KVM);
+    DO_TEST_CAPS_LATEST("fd-memory-numa-topology4");
 
     DO_TEST("fd-memory-no-numa-topology", QEMU_CAPS_OBJECT_MEMORY_FILE,
             QEMU_CAPS_KVM);

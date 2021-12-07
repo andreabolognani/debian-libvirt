@@ -1059,7 +1059,7 @@ static char **
 vshExtractCPUDefXMLs(vshControl *ctl,
                      const char *xmlFile)
 {
-    char **cpus = NULL;
+    g_auto(GStrv) cpus = NULL;
     g_autofree char *buffer = NULL;
     g_autofree char *xmlStr = NULL;
     g_autoptr(xmlDoc) xml = NULL;
@@ -1070,7 +1070,7 @@ vshExtractCPUDefXMLs(vshControl *ctl,
     int n;
 
     if (virFileReadAll(xmlFile, VSH_MAX_XML_FILE, &buffer) < 0)
-        goto error;
+        return NULL;
 
     /* Strip possible XML declaration */
     if (STRPREFIX(buffer, "<?xml") && (doc = strstr(buffer, "?>")))
@@ -1081,7 +1081,7 @@ vshExtractCPUDefXMLs(vshControl *ctl,
     xmlStr = g_strdup_printf("<container>%s</container>", doc);
 
     if (!(xml = virXMLParseStringCtxt(xmlStr, xmlFile, &ctxt)))
-        goto error;
+        return NULL;
 
     n = virXPathNodeSet("/container/cpu|"
                         "/container/domain/cpu|"
@@ -1090,13 +1090,13 @@ vshExtractCPUDefXMLs(vshControl *ctl,
                             "mode[@name='host-model' and @supported='yes']",
                         ctxt, &nodes);
     if (n < 0)
-        goto error;
+        return NULL;
 
     if (n == 0) {
         vshError(ctl, _("File '%s' does not contain any <cpu> element or "
                         "valid domain XML, host capabilities XML, or "
                         "domain capabilities XML"), xmlFile);
-        goto error;
+        return NULL;
     }
 
     cpus = g_new0(char *, n + 1);
@@ -1111,23 +1111,18 @@ vshExtractCPUDefXMLs(vshControl *ctl,
                     vshError(ctl,
                              _("Cannot extract CPU definition from domain "
                                "capabilities XML"));
-                    goto error;
+                    return NULL;
                 }
             }
         }
 
         if (!(cpus[i] = virXMLNodeToString(xml, nodes[i]))) {
             vshSaveLibvirtError();
-            goto error;
+            return NULL;
         }
     }
 
- cleanup:
-    return cpus;
-
- error:
-    g_strfreev(cpus);
-    goto cleanup;
+    return g_steal_pointer(&cpus);
 }
 
 
@@ -1163,7 +1158,7 @@ cmdCPUCompare(vshControl *ctl, const vshCmd *cmd)
     const char *from = NULL;
     bool ret = false;
     int result;
-    char **cpus = NULL;
+    g_auto(GStrv) cpus = NULL;
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
@@ -1207,8 +1202,6 @@ cmdCPUCompare(vshControl *ctl, const vshCmd *cmd)
     ret = true;
 
  cleanup:
-    g_strfreev(cpus);
-
     return ret;
 }
 
@@ -1585,7 +1578,7 @@ cmdHypervisorCPUCompare(vshControl *ctl,
     const char *machine = NULL;
     bool ret = false;
     int result;
-    char **cpus = NULL;
+    g_auto(GStrv) cpus = NULL;
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
@@ -1640,7 +1633,6 @@ cmdHypervisorCPUCompare(vshControl *ctl,
     ret = true;
 
  cleanup:
-    g_strfreev(cpus);
     return ret;
 }
 
@@ -1699,7 +1691,7 @@ cmdHypervisorCPUBaseline(vshControl *ctl,
     const char *machine = NULL;
     bool ret = false;
     g_autofree char *result = NULL;
-    char **list = NULL;
+    g_auto(GStrv) list = NULL;
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
@@ -1729,7 +1721,6 @@ cmdHypervisorCPUBaseline(vshControl *ctl,
         ret = true;
     }
 
-    g_strfreev(list);
     return ret;
 }
 

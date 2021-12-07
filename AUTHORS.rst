@@ -363,6 +363,7 @@ Patches have also been contributed by:
 * Igor Gnatenko <ignatenkobrain@fedoraproject.org>
 * Ilias Stamatis <stamatis.iliass@gmail.com>
 * Ilja Livenson <ilja.livenson@gmail.com>
+* Ioanna Alifieraki <ioanna-maria.alifieraki@canonical.com>
 * Ishmanpreet Kaur Khera <khera.ishman@gmail.com>
 * Ivan Baldo <ibaldo@adinet.com.uy>
 * Ivan Kardykov <kardykov@tabit.pro>
@@ -441,6 +442,7 @@ Patches have also been contributed by:
 * Kevin Locke <kevin@kevinlocke.name>
 * Kiarie Kahurani <davidkiarie4@gmail.com>
 * Klaus Ethgen <Klaus@Ethgen.de>
+* Koichi Murase <myoga.murase@gmail.com>
 * Konrad Rzeszutek Wilk <konrad@kernel.org>
 * Konstantin Neumoin <kneumoin@virtuozzo.com>
 * Kothapally Madhu Pavan <kmp@linux.vnet.ibm.com>
@@ -763,6 +765,7 @@ Patches have also been contributed by:
 * Tuguoyi <tu.guoyi@h3c.com>
 * Tyler Coumbes <coumbes@gmail.com>
 * Vasiliy Tolstov <v.tolstov@selfip.ru>
+* Vasiliy Ulyanov <vulyanov@suse.de>
 * Viktor Mihajlovski <mihajlov@linux.ibm.com>
 * Viktor Mihajlovski <mihajlov@linux.vnet.ibm.com>
 * Ville Skyttä <ville.skytta@iki.fi>
@@ -802,6 +805,7 @@ Patches have also been contributed by:
 * Xian Han Yu <xhyubj@linux.vnet.ibm.com>
 * Xiao Feng Ren <renxiaof@linux.vnet.ibm.com>
 * Xing Lin <xinglin@cs.utah.edu>
+* Xu Chao <xu.chao6@zte.com.cn>
 * Xu He Jie <xuhj@linux.vnet.ibm.com>
 * Xu Yandong <xuyandong2@huawei.com>
 * Xuesong Zhang <xuzhang@redhat.com>
@@ -877,7 +881,9 @@ Patches have also been contributed by:
 * yuelongguang <yuelongguang@le.com>
 * zhang bo <oscar.zhangbo@huawei.com>
 * zhangjl02 <zhangjl02@inspur.com>
+* zhanglei <zhanglei@smartx.com>
 * zhenwei pi <pizhenwei@bytedance.com>
+* Дамјан Георгиевски <gdamjan@gmail.com>
 * Марк Коренберг <socketpair@gmail.com>
 
 

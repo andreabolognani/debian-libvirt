@@ -78,16 +78,11 @@ vmwareCapsInit(void)
         VIR_WARN("Failed to get host CPU cache info");
 
     /* i686 guests are always supported */
-    if ((guest = virCapabilitiesAddGuest(caps,
-                                         VIR_DOMAIN_OSTYPE_HVM,
-                                         VIR_ARCH_I686,
-                                         NULL, NULL, 0, NULL)) == NULL)
-        goto error;
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
+                                    VIR_ARCH_I686, NULL, NULL, 0, NULL);
 
-    if (virCapabilitiesAddGuestDomain(guest,
-                                      VIR_DOMAIN_VIRT_VMWARE,
-                                      NULL, NULL, 0, NULL) == NULL)
-        goto error;
+    virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_VMWARE,
+                                  NULL, NULL, 0, NULL);
     guest = NULL;
 
     if (!(caps->host.cpu = virCPUProbeHost(caps->host.arch)))
@@ -103,16 +98,11 @@ vmwareCapsInit(void)
          (virCPUCheckFeature(caps->host.cpu->arch, caps->host.cpu, "vmx") ||
           virCPUCheckFeature(caps->host.cpu->arch, caps->host.cpu, "svm")))) {
 
-        if ((guest = virCapabilitiesAddGuest(caps,
-                                             VIR_DOMAIN_OSTYPE_HVM,
-                                             VIR_ARCH_X86_64,
-                                             NULL, NULL, 0, NULL)) == NULL)
-            goto error;
+        guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
+                                        VIR_ARCH_X86_64, NULL, NULL, 0, NULL);
 
-        if (virCapabilitiesAddGuestDomain(guest,
-                                          VIR_DOMAIN_VIRT_VMWARE,
-                                          NULL, NULL, 0, NULL) == NULL)
-            goto error;
+        virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_VMWARE,
+                                      NULL, NULL, 0, NULL);
         guest = NULL;
     }
 
@@ -166,7 +156,7 @@ vmwareLoadDomains(struct vmware_driver *driver)
             goto cleanup;
         }
 
-        if (!(vm = virDomainObjListAdd(driver->domains, vmdef,
+        if (!(vm = virDomainObjListAdd(driver->domains, &vmdef,
                                        driver->xmlopt,
                                        0, NULL)))
             goto cleanup;
@@ -175,7 +165,7 @@ vmwareLoadDomains(struct vmware_driver *driver)
 
         pDomain->vmxPath = g_strdup(vmxPath);
 
-        vmwareDomainConfigDisplay(pDomain, vmdef);
+        vmwareDomainConfigDisplay(pDomain, vm->def);
 
         if ((vm->def->id = vmwareExtractPid(vmxPath)) < 0)
             goto cleanup;
@@ -185,8 +175,6 @@ vmwareLoadDomains(struct vmware_driver *driver)
         vm->persistent = 1;
 
         virDomainObjEndAPI(&vm);
-
-        vmdef = NULL;
     }
 
     ret = 0;

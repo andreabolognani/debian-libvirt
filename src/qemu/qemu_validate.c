@@ -1485,7 +1485,9 @@ qemuValidateDomainDeviceInfo(const virDomainDeviceDef *dev,
     }
 
     if (info->romenabled || info->rombar || info->romfile) {
-        if (info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+        if (info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI &&
+            info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+            info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_UNASSIGNED) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("ROM tuning is only supported for PCI devices"));
             return -1;
@@ -4037,15 +4039,6 @@ qemuValidateDomainDeviceDefSPICEGraphics(const virDomainGraphicsDef *graphics,
     }
 
     switch (glisten->type) {
-    case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_SOCKET:
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SPICE_UNIX)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("unix socket for spice graphics are not supported "
-                             "with this QEMU"));
-            return -1;
-        }
-        break;
-
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_ADDRESS:
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NETWORK:
         if (tlsPort > 0 && !cfg->spiceTLS) {
@@ -4056,6 +4049,7 @@ qemuValidateDomainDeviceDefSPICEGraphics(const virDomainGraphicsDef *graphics,
         }
         break;
 
+    case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_SOCKET:
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NONE:
         break;
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_LAST:

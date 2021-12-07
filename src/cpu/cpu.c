@@ -295,6 +295,27 @@ virCPUDataNew(virArch arch)
 
 
 /**
+ * virCPUDataNewCopy:
+ *
+ * Returns a copy of @data or NULL on error.
+ */
+virCPUData *
+virCPUDataNewCopy(virCPUData *data)
+{
+    struct cpuArchDriver *driver;
+
+    VIR_DEBUG("data=%p", data);
+
+    if (!data)
+        return NULL;
+
+    if ((driver = cpuGetSubDriver(data->arch)) && driver->dataCopyNew)
+        return driver->dataCopyNew(data);
+
+    return NULL;
+}
+
+/**
  * virCPUDataFree:
  *
  * @data: CPU data structure to be freed
@@ -803,11 +824,8 @@ virCPUDataFormat(const virCPUData *data)
 virCPUData *
 virCPUDataParse(const char *xmlStr)
 {
-    struct cpuArchDriver *driver;
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    virCPUData *data = NULL;
-    g_autofree char *arch = NULL;
 
     VIR_DEBUG("xmlStr=%s", xmlStr);
 
@@ -817,7 +835,25 @@ virCPUDataParse(const char *xmlStr)
         return NULL;
     }
 
-    if (!(arch = virXPathString("string(/cpudata/@arch)", ctxt))) {
+    return virCPUDataParseNode(ctxt->node);
+}
+
+
+/**
+ * virCPUDataParseNode:
+ *
+ * @node: XML node as produced by virCPUDataFormat
+ *
+ * Parses XML representation of virCPUData structure.
+ *
+ * Returns internal CPU data structure parsed from the XML or NULL on error.
+ */
+virCPUData *virCPUDataParseNode(xmlNodePtr node)
+{
+    g_autofree char *arch = NULL;
+    struct cpuArchDriver *driver;
+
+    if (!(arch = virXMLPropString(node, "arch"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing CPU data architecture"));
         return NULL;
@@ -827,13 +863,11 @@ virCPUDataParse(const char *xmlStr)
         return NULL;
 
     if (!driver->dataParse) {
-        virReportError(VIR_ERR_NO_SUPPORT,
-                       _("cannot parse %s CPU data"), arch);
+        virReportError(VIR_ERR_NO_SUPPORT, _("cannot parse %s CPU data"), arch);
         return NULL;
     }
 
-    data = driver->dataParse(ctxt);
-    return data;
+    return driver->dataParse(node);
 }
 
 
@@ -1125,6 +1159,53 @@ virCPUDataAddFeature(virCPUData *cpuData,
     }
 
     return driver->dataAddFeature(cpuData, name);
+}
+
+
+/**
+ * virCPUDataIsIdentical:
+ *
+ * Returns VIR_CPU_COMPARE_IDENTICAL if @a and @b are identical,
+ * VIR_CPU_COMPARE_INCOMPATIBLE if @a and @b are not identical, or
+ * VIR_CPU_COMPARE_ERROR on error.
+ */
+virCPUCompareResult
+virCPUDataIsIdentical(const virCPUData *a,
+                      const virCPUData *b)
+{
+    struct cpuArchDriver *driver;
+
+    VIR_DEBUG("a=%p, b=%p", a, b);
+
+    if (!a || !b)
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (!(driver = cpuGetSubDriver(a->arch)))
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (!driver->dataIsIdentical)
+        return VIR_CPU_COMPARE_ERROR;
+
+    return driver->dataIsIdentical(a, b);
+}
+
+
+/**
+ * virCPUDataGetHost:
+ *
+ */
+virCPUData*
+virCPUDataGetHost(void)
+{
+    struct cpuArchDriver *driver;
+
+    if (!(driver = cpuGetSubDriver(virArchFromHost())))
+        return NULL;
+
+    if (!driver->dataGetHost)
+        return NULL;
+
+    return driver->dataGetHost();
 }
 
 

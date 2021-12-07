@@ -29,14 +29,14 @@
 virNetDevVPortProfile *
 virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
 {
-    char *virtPortType;
-    char *virtPortManagerID = NULL;
-    char *virtPortTypeID = NULL;
-    char *virtPortTypeIDVersion = NULL;
-    char *virtPortInstanceID = NULL;
-    char *virtPortProfileID = NULL;
-    char *virtPortInterfaceID = NULL;
-    virNetDevVPortProfile *virtPort = NULL;
+    g_autofree char *virtPortType = NULL;
+    g_autofree char *virtPortManagerID = NULL;
+    g_autofree char *virtPortTypeID = NULL;
+    g_autofree char *virtPortTypeIDVersion = NULL;
+    g_autofree char *virtPortInstanceID = NULL;
+    g_autofree char *virtPortProfileID = NULL;
+    g_autofree char *virtPortInterfaceID = NULL;
+    g_autofree virNetDevVPortProfile *virtPort = NULL;
     xmlNodePtr cur = node->children;
 
     virtPort = g_new0(virNetDevVPortProfile, 1);
@@ -45,14 +45,14 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         (virtPort->virtPortType = virNetDevVPortTypeFromString(virtPortType)) <= 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unknown virtualport type %s"), virtPortType);
-        goto error;
+        return NULL;
     }
 
     if ((virtPort->virtPortType == VIR_NETDEV_VPORT_PROFILE_NONE) &&
         (flags & VIR_VPORT_XML_REQUIRE_TYPE)) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("missing required virtualport type"));
-        goto error;
+        return NULL;
     }
 
     while (cur != NULL) {
@@ -74,12 +74,12 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         if (virStrToLong_ui(virtPortManagerID, NULL, 0, &val)) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot parse value of managerid parameter"));
-            goto error;
+            return NULL;
         }
         if (val > 0xff) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("value of managerid out of range"));
-            goto error;
+            return NULL;
         }
         virtPort->managerID = (uint8_t)val;
         virtPort->managerID_specified = true;
@@ -91,12 +91,12 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         if (virStrToLong_ui(virtPortTypeID, NULL, 0, &val)) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot parse value of typeid parameter"));
-            goto error;
+            return NULL;
         }
         if (val > 0xffffff) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("value for typeid out of range"));
-            goto error;
+            return NULL;
         }
         virtPort->typeID = (uint32_t)val;
         virtPort->typeID_specified = true;
@@ -108,12 +108,12 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         if (virStrToLong_ui(virtPortTypeIDVersion, NULL, 0, &val)) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot parse value of typeidversion parameter"));
-            goto error;
+            return NULL;
         }
         if (val > 0xff) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("value of typeidversion out of range"));
-            goto error;
+            return NULL;
         }
         virtPort->typeIDVersion = (uint8_t)val;
         virtPort->typeIDVersion_specified = true;
@@ -123,7 +123,7 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         if (virUUIDParse(virtPortInstanceID, virtPort->instanceID) < 0) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot parse instanceid parameter as a uuid"));
-            goto error;
+            return NULL;
         }
         virtPort->instanceID_specified = true;
     }
@@ -132,14 +132,14 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         virStrcpyStatic(virtPort->profileID, virtPortProfileID) < 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("profileid parameter too long"));
-        goto error;
+        return NULL;
     }
 
     if (virtPortInterfaceID) {
         if (virUUIDParse(virtPortInterfaceID, virtPort->interfaceID) < 0) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot parse interfaceid parameter as a uuid"));
-            goto error;
+            return NULL;
         }
         virtPort->interfaceID_specified = true;
     }
@@ -152,7 +152,7 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
             if (virUUIDGenerate(virtPort->instanceID) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("cannot generate a random uuid for instanceid"));
-                goto error;
+                return NULL;
             }
             virtPort->instanceID_specified = true;
         }
@@ -162,7 +162,7 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
             if (virUUIDGenerate(virtPort->interfaceID) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("cannot generate a random uuid for interfaceid"));
-                goto error;
+                return NULL;
             }
             virtPort->interfaceID_specified = true;
         }
@@ -172,26 +172,13 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
 
     if ((flags & VIR_VPORT_XML_REQUIRE_ALL_ATTRIBUTES) &&
         (virNetDevVPortProfileCheckComplete(virtPort, false) < 0)) {
-        goto error;
+        return NULL;
     }
 
     if (virNetDevVPortProfileCheckNoExtras(virtPort) < 0)
-        goto error;
+        return NULL;
 
- cleanup:
-    VIR_FREE(virtPortManagerID);
-    VIR_FREE(virtPortTypeID);
-    VIR_FREE(virtPortTypeIDVersion);
-    VIR_FREE(virtPortInstanceID);
-    VIR_FREE(virtPortProfileID);
-    VIR_FREE(virtPortType);
-    VIR_FREE(virtPortInterfaceID);
-
-    return virtPort;
-
- error:
-    VIR_FREE(virtPort);
-    goto cleanup;
+    return g_steal_pointer(&virtPort);
 }
 
 

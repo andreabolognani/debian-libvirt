@@ -58,19 +58,13 @@ virSaveCookieParse(xmlXPathContextPtr ctxt,
                    virSaveCookieCallbacks *saveCookie)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    int ret = -1;
 
     *obj = NULL;
 
-    if (!(ctxt->node = virXPathNode("./cookie", ctxt))) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (!(ctxt->node = virXPathNode("./cookie", ctxt)))
+        return 0;
 
-    ret = virSaveCookieParseNode(ctxt, obj, saveCookie);
-
- cleanup:
-    return ret;
+    return virSaveCookieParseNode(ctxt, obj, saveCookie);
 }
 
 

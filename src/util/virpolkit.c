@@ -20,6 +20,7 @@
  */
 
 #include <config.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "virpolkit.h"
@@ -168,7 +169,7 @@ virPolkitAgentDestroy(virPolkitAgent *agent)
  *
  * Allocate and setup a polkit agent
  *
- * Returns a virCommand *on success and NULL on failure
+ * Returns newly allocated virPolkitAgent * on success and NULL on failure
  */
 virPolkitAgent *
 virPolkitAgentCreate(void)
@@ -179,8 +180,11 @@ virPolkitAgentCreate(void)
     int outfd = STDOUT_FILENO;
     int errfd = STDERR_FILENO;
 
-    if (!isatty(STDIN_FILENO))
+    if (!virPolkitAgentAvailable()) {
+        virReportError(VIR_ERR_SYSTEM_ERROR, "%s",
+                       _("polkit text authentication agent unavailable"));
         goto error;
+    }
 
     if (virPipe(pipe_fd) < 0)
         goto error;
@@ -204,8 +208,11 @@ virPolkitAgentCreate(void)
     pollfd.fd = pipe_fd[0];
     pollfd.events = POLLHUP;
 
-    if (poll(&pollfd, 1, -1) < 0)
+    if (poll(&pollfd, 1, -1) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("error in poll call"));
         goto error;
+    }
 
     return agent;
 
@@ -216,6 +223,42 @@ virPolkitAgentCreate(void)
     return NULL;
 }
 
+
+/*
+ * virPolkitAgentAvailable
+ *
+ * This function does some preliminary checking that the pkttyagent does not
+ * fail starting so that it can be started without waiting for first failed
+ * connection with VIR_ERR_AUTH_UNAVAILABLE.
+ */
+bool
+virPolkitAgentAvailable(void)
+{
+    const char *termid = ctermid(NULL);
+    VIR_AUTOCLOSE fd = -1;
+
+    if (!virFileIsExecutable(PKTTYAGENT))
+        return false;
+
+    if (!termid)
+        return false;
+
+    /*
+     *The pkttyagent needs to open the controlling terminal.
+     *
+     * Just in case we are running without a ctty make sure this open() does not
+     * change that.
+     *
+     * We could check if our session has a controlling terminal available
+     * instead, but it would require parsing `/proc/self/stat` on Linux, which
+     * is not portable and moreover requires way more work than just open().
+     */
+    fd = open(termid, O_RDWR | O_NOCTTY);
+    if (fd < 0)
+        return false;
+
+    return true;
+}
 
 #else /* ! WITH_POLKIT */
 
@@ -247,4 +290,11 @@ virPolkitAgentCreate(void)
                    _("polkit text authentication agent unavailable"));
     return NULL;
 }
+
+bool
+virPolkitAgentAvailable(void)
+{
+    return false;
+}
+
 #endif /* WITH_POLKIT */

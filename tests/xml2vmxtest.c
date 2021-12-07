@@ -32,39 +32,20 @@ testCapsInit(void)
 
 
     /* i686 guest */
-    guest =
-      virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
-                              VIR_ARCH_I686,
-                              NULL, NULL, 0, NULL);
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
+                                    VIR_ARCH_I686,
+                                    NULL, NULL, 0, NULL);
 
-    if (guest == NULL)
-        goto failure;
-
-    if (virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_VMWARE, NULL, NULL, 0,
-                                      NULL) == NULL) {
-        goto failure;
-    }
+    virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_VMWARE,
+                                  NULL, NULL, 0, NULL);
 
     /* x86_64 guest */
-    guest =
-      virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
-                              VIR_ARCH_X86_64,
-                              NULL, NULL, 0, NULL);
+    guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM,
+                                    VIR_ARCH_X86_64,
+                                    NULL, NULL, 0, NULL);
 
-    if (guest == NULL)
-        goto failure;
-
-    if (virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_VMWARE, NULL, NULL, 0,
-                                      NULL) == NULL) {
-        goto failure;
-    }
-
-    return;
-
- failure:
-    virObjectUnref(caps);
-    virObjectUnref(xmlopt);
-    caps = NULL;
+    virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_VMWARE,
+                                  NULL, NULL, 0, NULL);
 }
 
 static int

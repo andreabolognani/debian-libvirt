@@ -20,6 +20,9 @@
 
 #include <config.h>
 
+#if WITH_LINUX_KVM_H
+# include <linux/kvm.h>
+#endif
 
 #include "virlog.h"
 #include "viralloc.h"
@@ -480,6 +483,23 @@ virCPUx86DataClear(virCPUx86Data *data)
 }
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(virCPUx86Data, virCPUx86DataClear);
 
+
+static virCPUData *
+virCPUx86DataCopyNew(virCPUData *data)
+{
+    virCPUData *copy;
+
+    if (!data)
+        return NULL;
+
+    copy = virCPUDataNew(data->arch);
+    copy->data.x86.len = data->data.x86.len;
+    copy->data.x86.items = g_new0(virCPUx86DataItem, data->data.x86.len);
+    memcpy(copy->data.x86.items, data->data.x86.items,
+           data->data.x86.len * sizeof(*data->data.x86.items));
+
+    return copy;
+}
 
 static void
 virCPUx86DataFree(virCPUData *data)
@@ -1021,65 +1041,88 @@ x86FeatureNames(virCPUx86Map *map,
 
 
 static int
-x86ParseCPUID(xmlXPathContextPtr ctxt,
+x86ParseCPUID(xmlNodePtr node,
               virCPUx86DataItem *item)
 {
-    virCPUx86CPUID *cpuid;
-    unsigned long eax_in, ecx_in;
-    unsigned long eax, ebx, ecx, edx;
-    int ret_eax_in, ret_ecx_in, ret_eax, ret_ebx, ret_ecx, ret_edx;
+    virCPUx86CPUID cpuid = { 0 };
 
-    memset(item, 0, sizeof(*item));
-
-    eax_in = ecx_in = 0;
-    eax = ebx = ecx = edx = 0;
-    ret_eax_in = virXPathULongHex("string(@eax_in)", ctxt, &eax_in);
-    ret_ecx_in = virXPathULongHex("string(@ecx_in)", ctxt, &ecx_in);
-    ret_eax = virXPathULongHex("string(@eax)", ctxt, &eax);
-    ret_ebx = virXPathULongHex("string(@ebx)", ctxt, &ebx);
-    ret_ecx = virXPathULongHex("string(@ecx)", ctxt, &ecx);
-    ret_edx = virXPathULongHex("string(@edx)", ctxt, &edx);
-
-    if (ret_eax_in < 0 || ret_ecx_in == -2 ||
-        ret_eax == -2 || ret_ebx == -2 || ret_ecx == -2 || ret_edx == -2)
+    if (virXMLPropUInt(node, "eax_in", 0, VIR_XML_PROP_REQUIRED, &cpuid.eax_in) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "ecx_in", 0, VIR_XML_PROP_NONE, &cpuid.ecx_in) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "eax", 0, VIR_XML_PROP_NONE, &cpuid.eax) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "ebx", 0, VIR_XML_PROP_NONE, &cpuid.ebx) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "ecx", 0, VIR_XML_PROP_NONE, &cpuid.ecx) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "edx", 0, VIR_XML_PROP_NONE, &cpuid.edx) < 0)
         return -1;
 
     item->type = VIR_CPU_X86_DATA_CPUID;
-    cpuid = &item->data.cpuid;
-    cpuid->eax_in = eax_in;
-    cpuid->ecx_in = ecx_in;
-    cpuid->eax = eax;
-    cpuid->ebx = ebx;
-    cpuid->ecx = ecx;
-    cpuid->edx = edx;
+    item->data.cpuid = cpuid;
     return 0;
 }
 
 
 static int
-x86ParseMSR(xmlXPathContextPtr ctxt,
+x86ParseMSR(xmlNodePtr node,
             virCPUx86DataItem *item)
 {
-    virCPUx86MSR *msr;
-    unsigned long index;
-    unsigned long eax;
-    unsigned long edx;
+    virCPUx86MSR msr;
 
-    memset(item, 0, sizeof(*item));
+    memset(&msr, 0, sizeof(msr));
 
-    if (virXPathULongHex("string(@index)", ctxt, &index) < 0 ||
-        virXPathULongHex("string(@eax)", ctxt, &eax) < 0 ||
-        virXPathULongHex("string(@edx)", ctxt, &edx) < 0)
+    if (virXMLPropUInt(node, "index", 0, VIR_XML_PROP_REQUIRED, &msr.index) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "eax", 0, VIR_XML_PROP_REQUIRED, &msr.eax) < 0)
+        return -1;
+    if (virXMLPropUInt(node, "edx", 0, VIR_XML_PROP_REQUIRED, &msr.edx) < 0)
         return -1;
 
     item->type = VIR_CPU_X86_DATA_MSR;
-    msr = &item->data.msr;
-    msr->index = index;
-    msr->eax = eax;
-    msr->edx = edx;
+    item->data.msr = msr;
     return 0;
 }
 
+
+static int
+x86ParseDataItemList(virCPUx86Data *cpudata,
+                     xmlNodePtr node)
+{
+    size_t i;
+
+    if (xmlChildElementCount(node) <= 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("no x86 CPU data found"));
+        return -1;
+    }
+
+    node = xmlFirstElementChild(node);
+    for (i = 0; node; ++i) {
+        virCPUx86DataItem item;
+
+        if (virXMLNodeNameEqual(node, "cpuid")) {
+            if (x86ParseCPUID(node, &item) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Invalid cpuid[%zu]"), i);
+                return -1;
+            }
+        } else {
+            if (x86ParseMSR(node, &item) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Invalid msr[%zu]"), i);
+                return -1;
+            }
+        }
+
+        if (virCPUx86DataAddItem(cpudata, &item) < 0)
+            return -1;
+
+        node = xmlNextElementSibling(node);
+    }
+
+    return 0;
+}
 
 static int
 x86FeatureParse(xmlXPathContextPtr ctxt,
@@ -1087,11 +1130,7 @@ x86FeatureParse(xmlXPathContextPtr ctxt,
                 void *data)
 {
     virCPUx86Map *map = data;
-    g_autofree xmlNodePtr *nodes = NULL;
     g_autoptr(virCPUx86Feature) feature = NULL;
-    virCPUx86DataItem item;
-    size_t i;
-    int n;
     g_autofree char *str = NULL;
 
     feature = g_new0(virCPUx86Feature, 1);
@@ -1108,38 +1147,8 @@ x86FeatureParse(xmlXPathContextPtr ctxt,
     if (STREQ_NULLABLE(str, "no"))
         feature->migratable = false;
 
-    n = virXPathNodeSet("./cpuid|./msr", ctxt, &nodes);
-    if (n < 0)
+    if (x86ParseDataItemList(&feature->data, ctxt->node) < 0)
         return -1;
-
-    if (n == 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing cpuid or msr element in feature %s"),
-                       feature->name);
-        return -1;
-    }
-
-    for (i = 0; i < n; i++) {
-        ctxt->node = nodes[i];
-        if (virXMLNodeNameEqual(nodes[i], "cpuid")) {
-            if (x86ParseCPUID(ctxt, &item) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid cpuid[%zu] in %s feature"),
-                               i, feature->name);
-                return -1;
-            }
-        } else {
-            if (x86ParseMSR(ctxt, &item) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid msr[%zu] in %s feature"),
-                               i, feature->name);
-                return -1;
-            }
-        }
-
-        if (virCPUx86DataAddItem(&feature->data, &item))
-            return -1;
-    }
 
     if (!feature->migratable)
         VIR_APPEND_ELEMENT_COPY(map->migrate_blockers, map->nblockers, feature);
@@ -1791,43 +1800,15 @@ virCPUx86DataFormat(const virCPUData *data)
 
 
 static virCPUData *
-virCPUx86DataParse(xmlXPathContextPtr ctxt)
+virCPUx86DataParse(xmlNodePtr node)
 {
-    g_autofree xmlNodePtr *nodes = NULL;
     g_autoptr(virCPUData) cpuData = NULL;
-    virCPUx86DataItem item;
-    size_t i;
-    int n;
-
-    n = virXPathNodeSet("/cpudata/cpuid|/cpudata/msr", ctxt, &nodes);
-    if (n <= 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("no x86 CPU data found"));
-        return NULL;
-    }
 
     if (!(cpuData = virCPUDataNew(VIR_ARCH_X86_64)))
         return NULL;
 
-    for (i = 0; i < n; i++) {
-        ctxt->node = nodes[i];
-        if (virXMLNodeNameEqual(nodes[i], "cpuid")) {
-            if (x86ParseCPUID(ctxt, &item) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("failed to parse cpuid[%zu]"), i);
-                return NULL;
-            }
-        } else {
-            if (x86ParseMSR(ctxt, &item) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("failed to parse msr[%zu]"), i);
-                return NULL;
-            }
-        }
-
-        if (virCPUx86DataAdd(cpuData, &item) < 0)
-            return NULL;
-    }
+    if (x86ParseDataItemList(&cpuData->data.x86, node) < 0)
+        return NULL;
 
     return g_steal_pointer(&cpuData);
 }
@@ -1852,7 +1833,6 @@ virCPUx86DataParse(xmlXPathContextPtr ctxt)
 static virCPUCompareResult
 x86Compute(virCPUDef *host,
            virCPUDef *cpu,
-           virCPUData **guest,
            char **message)
 {
     virCPUx86Map *map = NULL;
@@ -1863,11 +1843,8 @@ x86Compute(virCPUDef *host,
     g_autoptr(virCPUx86Model) cpu_disable = NULL;
     g_autoptr(virCPUx86Model) cpu_forbid = NULL;
     g_autoptr(virCPUx86Model) diff = NULL;
-    g_autoptr(virCPUx86Model) guest_model = NULL;
-    g_autoptr(virCPUData) guestData = NULL;
     virCPUCompareResult ret;
     virCPUx86CompareResult result;
-    virArch arch;
     size_t i;
 
     if (cpu->arch != VIR_ARCH_NONE) {
@@ -1889,9 +1866,6 @@ x86Compute(virCPUDef *host,
             }
             return VIR_CPU_COMPARE_INCOMPATIBLE;
         }
-        arch = cpu->arch;
-    } else {
-        arch = host->arch;
     }
 
     if (cpu->vendor &&
@@ -1958,37 +1932,6 @@ x86Compute(virCPUDef *host,
         return VIR_CPU_COMPARE_INCOMPATIBLE;
     }
 
-    if (guest) {
-        guest_model = x86ModelCopy(host_model);
-
-        if (cpu->vendor && host_model->vendor &&
-            virCPUx86DataAddItem(&guest_model->data,
-                                 &host_model->vendor->data) < 0)
-            return VIR_CPU_COMPARE_ERROR;
-
-        if (host_model->signatures && host_model->signatures->count > 0) {
-            virCPUx86Signature *sig = &host_model->signatures->items[0];
-            if (x86DataAddSignature(&guest_model->data,
-                                    virCPUx86SignatureToCPUID(sig)) < 0)
-                return VIR_CPU_COMPARE_ERROR;
-        }
-
-        if (cpu->type == VIR_CPU_TYPE_GUEST
-            && cpu->match == VIR_CPU_MATCH_EXACT)
-            x86DataSubtract(&guest_model->data, &diff->data);
-
-        if (x86DataAdd(&guest_model->data, &cpu_force->data))
-            return VIR_CPU_COMPARE_ERROR;
-
-        x86DataSubtract(&guest_model->data, &cpu_disable->data);
-
-        if (!(guestData = virCPUDataNew(arch)))
-            return VIR_CPU_COMPARE_ERROR;
-        x86DataCopy(&guestData->data.x86, &guest_model->data);
-
-        *guest = g_steal_pointer(&guestData);
-    }
-
     return ret;
 }
 #undef virX86CpuIncompatible
@@ -2013,7 +1956,7 @@ virCPUx86Compare(virCPUDef *host,
         return VIR_CPU_COMPARE_INCOMPATIBLE;
     }
 
-    ret = x86Compute(host, cpu, NULL, &message);
+    ret = x86Compute(host, cpu, &message);
 
     if (ret == VIR_CPU_COMPARE_INCOMPATIBLE && failIncompatible) {
         if (message)
@@ -3370,6 +3313,99 @@ virCPUx86DataAddFeature(virCPUData *cpuData,
 
 
 static bool
+virCPUx86DataItemIsIdentical(const virCPUx86DataItem *a,
+                             const virCPUx86DataItem *b)
+{
+    if (a->type != b->type)
+        return false;
+
+    switch (a->type) {
+    case VIR_CPU_X86_DATA_NONE:
+        break;
+
+    case VIR_CPU_X86_DATA_CPUID:
+        return memcmp(&a->data.cpuid, &b->data.cpuid, sizeof(a->data.cpuid)) == 0;
+
+    case VIR_CPU_X86_DATA_MSR:
+        return memcmp(&a->data.msr, &b->data.msr, sizeof(a->data.msr)) == 0;
+    }
+
+    return true;
+}
+
+static virCPUCompareResult
+virCPUx86DataIsIdentical(const virCPUData *a,
+                         const virCPUData *b)
+{
+    const virCPUx86Data *adata;
+    const virCPUx86Data *bdata;
+    size_t i;
+    size_t j;
+
+    if (!a || !b)
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (a->arch != b->arch)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    if (!((adata = &a->data.x86) && (bdata = &b->data.x86)))
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (adata->len != bdata->len)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    for (i = 0; i < adata->len; ++i) {
+        bool found = false;
+
+        for (j = 0; j < bdata->len; ++j) {
+            if (!virCPUx86DataItemIsIdentical(&adata->items[i],
+                                              &bdata->items[j]))
+                continue;
+
+            found = true;
+            break;
+        }
+
+        if (!found)
+            return VIR_CPU_COMPARE_INCOMPATIBLE;
+    }
+
+    return VIR_CPU_COMPARE_IDENTICAL;
+}
+
+#if WITH_LINUX_KVM_H && defined(KVM_GET_MSRS) && \
+    (defined(__i386__) || defined(__x86_64__)) && \
+    (defined(__linux__) || defined(__FreeBSD__))
+static virCPUData *
+virCPUx86DataGetHost(void)
+{
+    size_t i;
+    virCPUData *cpuid;
+    g_autofree struct kvm_cpuid2 *kvm_cpuid = NULL;
+
+    if ((kvm_cpuid = virHostCPUGetCPUID()) == NULL)
+        return NULL;
+
+    cpuid = virCPUDataNew(virArchFromHost());
+    cpuid->data.x86.len = kvm_cpuid->nent;
+    cpuid->data.x86.items = g_new0(virCPUx86DataItem, kvm_cpuid->nent);
+
+    for (i = 0; i < kvm_cpuid->nent; ++i) {
+        virCPUx86DataItem *item = &cpuid->data.x86.items[i];
+        item->type = VIR_CPU_X86_DATA_CPUID;
+        item->data.cpuid.eax_in = kvm_cpuid->entries[i].function;
+        item->data.cpuid.ecx_in = kvm_cpuid->entries[i].index;
+        item->data.cpuid.eax = kvm_cpuid->entries[i].eax;
+        item->data.cpuid.ebx = kvm_cpuid->entries[i].ebx;
+        item->data.cpuid.ecx = kvm_cpuid->entries[i].ecx;
+        item->data.cpuid.edx = kvm_cpuid->entries[i].edx;
+    }
+
+    return cpuid;
+}
+#endif
+
+static bool
 virCPUx86FeatureIsMSR(const char *name)
 {
     virCPUx86Feature *feature;
@@ -3435,6 +3471,7 @@ struct cpuArchDriver cpuDriverX86 = {
     .compare    = virCPUx86Compare,
     .decode     = x86DecodeCPUData,
     .encode     = x86Encode,
+    .dataCopyNew = virCPUx86DataCopyNew,
     .dataFree   = virCPUx86DataFree,
 #if defined(__i386__) || defined(__x86_64__)
     .getHost    = virCPUx86GetHost,
@@ -3452,4 +3489,10 @@ struct cpuArchDriver cpuDriverX86 = {
     .copyMigratable = virCPUx86CopyMigratable,
     .validateFeatures = virCPUx86ValidateFeatures,
     .dataAddFeature = virCPUx86DataAddFeature,
+    .dataIsIdentical = virCPUx86DataIsIdentical,
+#if WITH_LINUX_KVM_H && defined(KVM_GET_MSRS) && \
+    (defined(__i386__) || defined(__x86_64__)) && \
+    (defined(__linux__) || defined(__FreeBSD__))
+    .dataGetHost = virCPUx86DataGetHost,
+#endif
 };

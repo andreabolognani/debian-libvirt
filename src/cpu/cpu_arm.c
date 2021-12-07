@@ -39,12 +39,11 @@
 #include "virxml.h"
 
 #define VIR_FROM_THIS VIR_FROM_CPU
-#if defined(__aarch64__)
+
 /* Shift bit mask for parsing cpu flags */
-# define BIT_SHIFTS(n) (1UL << (n))
+#define BIT_SHIFTS(n) (1UL << (n))
 /* The current max number of cpu flags on ARM is 32 */
-# define MAX_CPU_FLAGS 32
-#endif
+#define MAX_CPU_FLAGS 32
 
 
 VIR_LOG_INIT("cpu.cpu_arm");
@@ -123,6 +122,51 @@ virCPUarmDataClear(virCPUarmData *data)
         return;
 
     g_strfreev(data->features);
+}
+
+static virCPUCompareResult
+virCPUarmDataIsIdentical(const virCPUData *a,
+                         const virCPUData *b)
+{
+    size_t i;
+
+    if (!a || !b)
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (a->arch != b->arch)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    if (a->data.arm.pvr != b->data.arm.pvr)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    if (a->data.arm.vendor_id != b->data.arm.vendor_id)
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
+
+    for (i = 0; i < MAX_CPU_FLAGS; ++i) {
+        if (STRNEQ(a->data.arm.features[i], b->data.arm.features[i]))
+            return VIR_CPU_COMPARE_INCOMPATIBLE;
+    }
+
+    return VIR_CPU_COMPARE_IDENTICAL;
+}
+
+static virCPUData *
+virCPUarmDataCopyNew(virCPUData *data)
+{
+    virCPUData *copy;
+    size_t i;
+
+    if (!data)
+        return NULL;
+
+    copy = virCPUDataNew(data->arch);
+    copy->data.arm.pvr = data->data.arm.pvr;
+    copy->data.arm.vendor_id = data->data.arm.vendor_id;
+    copy->data.arm.features = g_new0(char *, MAX_CPU_FLAGS + 1);
+    for (i = 0; i < MAX_CPU_FLAGS; ++i)
+        copy->data.arm.features[i] = g_strdup(data->data.arm.features[i]);
+
+    return copy;
 }
 
 static void
@@ -671,8 +715,10 @@ struct cpuArchDriver cpuDriverArm = {
 #endif
     .decode = NULL,
     .encode = NULL,
+    .dataCopyNew = virCPUarmDataCopyNew,
     .dataFree = virCPUarmDataFree,
     .baseline = virCPUarmBaseline,
     .update = virCPUarmUpdate,
     .validateFeatures = virCPUarmValidateFeatures,
+    .dataIsIdentical = virCPUarmDataIsIdentical,
 };

@@ -119,7 +119,6 @@ virshConnect(vshControl *ctl, const char *uri, bool readonly)
     bool keepalive_forced = false;
     virPolkitAgent *pkagent = NULL;
     int authfail = 0;
-    bool agentCreated = false;
 
     if (ctl->keepalive_interval >= 0) {
         interval = ctl->keepalive_interval;
@@ -129,6 +128,10 @@ virshConnect(vshControl *ctl, const char *uri, bool readonly)
         count = ctl->keepalive_count;
         keepalive_forced = true;
     }
+
+    if (virPolkitAgentAvailable() &&
+        !(pkagent = virPolkitAgentCreate()))
+        virResetLastError();
 
     do {
         virErrorPtr err;
@@ -141,12 +144,15 @@ virshConnect(vshControl *ctl, const char *uri, bool readonly)
             goto cleanup;
 
         err = virGetLastError();
-        if (!agentCreated &&
+        /*
+         * If polkit agent failed starting the first time, then retry once more
+         * now when we know it really is needed.
+         */
+        if (!pkagent &&
             err && err->domain == VIR_FROM_POLKIT &&
             err->code == VIR_ERR_AUTH_UNAVAILABLE) {
-            if (!pkagent && !(pkagent = virPolkitAgentCreate()))
+            if (!(pkagent = virPolkitAgentCreate()))
                 goto cleanup;
-            agentCreated = true;
         } else if (err && err->domain == VIR_FROM_POLKIT &&
                    err->code == VIR_ERR_AUTH_FAILED) {
             authfail++;
