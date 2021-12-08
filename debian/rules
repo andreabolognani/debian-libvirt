@@ -253,13 +253,13 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	               lib/systemd/system/; \
 	done
 	dh_install -p libvirt-daemon usr/lib/libvirt/virt-aa-helper
-	for f in $(APPARMOR_ABSTRACTIONS); do \
+	set -e; for f in $(APPARMOR_ABSTRACTIONS); do \
 	    dh_install -p libvirt-daemon-system etc/apparmor.d/abstractions/$${f}; \
 	done
-	for f in $(APPARMOR_TEMPLATES); do \
+	set -e; for f in $(APPARMOR_TEMPLATES); do \
 	    dh_install -p libvirt-daemon-system etc/apparmor.d/libvirt/$${f}; \
 	done
-	for f in $(APPARMOR_SERVICES); do \
+	set -e; for f in $(APPARMOR_SERVICES); do \
 	    dh_install -p libvirt-daemon-system etc/apparmor.d/$${f}; \
 	    dh_apparmor -p libvirt-daemon-system --profile-name=$${f}; \
 	done
