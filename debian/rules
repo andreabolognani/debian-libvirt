@@ -177,6 +177,11 @@ APPARMOR_SERVICES = \
     usr.sbin.libvirtd \
     $(NULL)
 
+NSS_PLUGINS = \
+    libvirt \
+    libvirt_guest \
+    $(NULL)
+
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
 SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirtd-tls virt-guest-shutdown
@@ -266,9 +271,11 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	dh_install -p libvirt-daemon-system usr/share/systemtap
 	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
-	dh_install -p libnss-libvirt \
-	           usr/lib/$(DEB_HOST_MULTIARCH)/libnss_libvirt*.so.2 \
-	           lib/$(DEB_HOST_MULTIARCH)/
+	set -e; for f in $(NSS_PLUGINS); do \
+	    dh_install -p libnss-libvirt \
+	               usr/lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2 \
+	               lib/$(DEB_HOST_MULTIARCH)/; \
+	done
 endif
 ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_XEN)))
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl.conf
