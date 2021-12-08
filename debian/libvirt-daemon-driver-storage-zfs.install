@@ -1,1 +1,1 @@
-usr/lib/*/libvirt/storage-backend/libvirt_storage_backend_zfs.so
+usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_zfs.so

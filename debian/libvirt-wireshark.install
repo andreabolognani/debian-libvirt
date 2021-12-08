@@ -1,1 +1,1 @@
-usr/lib/*/wireshark/plugins/*/epan/libvirt.so
+usr/lib/${DEB_HOST_MULTIARCH}/wireshark/plugins/*/epan/libvirt.so
