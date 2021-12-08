@@ -209,6 +209,8 @@ execute_after_dh_auto_install:
 	# Move upstream files where dh_* can find them
 	mv $(DEB_DESTDIR)/etc/sysconfig/ \
 	   $(DEB_DESTDIR)/etc/default/
+	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/60-libvirtd.conf \
+	   $(DEB_DESTDIR)/usr/lib/sysctl.d/libvirtd.sysctl
 
 	# Copy the release notes where dh_installdocs can find them
 	cp NEWS.rst \

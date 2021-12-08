@@ -1,1 +1,1 @@
-src/remote/libvirtd.sysctl
+usr/lib/sysctl.d/libvirtd.sysctl
