@@ -182,6 +182,13 @@ NSS_PLUGINS = \
     libvirt_guest \
     $(NULL)
 
+SYSTEMTAP_TAPSETS = \
+    libvirt_functions \
+    libvirt_probes \
+    libvirt_qemu_probes \
+    $(NULL)
+
+
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
 SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirtd-tls virt-guest-shutdown
@@ -267,8 +274,12 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	    dh_apparmor -p libvirt-daemon-system --profile-name=$${f}; \
 	done
 	# Not all linux arches have systemtap yet
-	mkdir -p $(DEB_DESTDIR)/usr/share/systemtap
-	dh_install -p libvirt-daemon-system usr/share/systemtap
+	if test -d $(DEB_DESTDIR)/usr/share/systemtap; then \
+	    set -e; for f in $(SYSTEMTAP_TAPSETS); do \
+	        dh_install -p libvirt-daemon-system \
+	                   usr/share/systemtap/tapset/$${f}.stp; \
+	    done; \
+	fi
 	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
 	set -e; for f in $(NSS_PLUGINS); do \
