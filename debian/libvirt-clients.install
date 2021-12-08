@@ -13,5 +13,15 @@ usr/share/man/man1/virt-admin.1
 usr/share/man/man1/virt-host-validate.1
 usr/share/man/man1/virt-pki-validate.1
 usr/share/man/man1/virt-xml-validate.1
-usr/share/man/man7/virkeycode-*.7
-usr/share/man/man7/virkeyname-*.7
+usr/share/man/man7/virkeycode-atset1.7
+usr/share/man/man7/virkeycode-atset2.7
+usr/share/man/man7/virkeycode-atset3.7
+usr/share/man/man7/virkeycode-linux.7
+usr/share/man/man7/virkeycode-osx.7
+usr/share/man/man7/virkeycode-qnum.7
+usr/share/man/man7/virkeycode-usb.7
+usr/share/man/man7/virkeycode-win32.7
+usr/share/man/man7/virkeycode-xtkbd.7
+usr/share/man/man7/virkeyname-linux.7
+usr/share/man/man7/virkeyname-osx.7
+usr/share/man/man7/virkeyname-win32.7
