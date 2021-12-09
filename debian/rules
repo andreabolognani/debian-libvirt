@@ -205,9 +205,7 @@ override_dh_auto_test:
 # we're not interested in, move things around) so that later calls to the
 # various dh_* tools will work optimally. This target is the perfect place
 # to perform such operations
-override_dh_auto_install:
-	dh_auto_install
-
+execute_after_dh_auto_install:
 	# Move upstream files where dh_* can find them
 	mv $(DEB_DESTDIR)/etc/sysconfig/ \
 	   $(DEB_DESTDIR)/etc/default/
@@ -242,9 +240,7 @@ override_dh_auto_install:
 	   $(DEB_DESTDIR)/etc/libvirt/nwfilter/ \
 	   $(DEB_DESTDIR)/usr/share/libvirt/
 
-override_dh_install-arch:
-	dh_install
-
+execute_after_dh_install:
 ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	# Linux supports more nice things:
 	set -e; for f in $(SRV_MONOLITHIC); do \
