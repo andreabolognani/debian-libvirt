@@ -8,6 +8,12 @@ include:
 variables:
   SALSA_CI_DISABLE_REPROTEST: 1
 
+# The cross-build job is currently allowed to fail in the default
+# configuration, but we want to make sure libvirt remains cross-buildable and
+# so we mark it as required instead
+test-crossbuild-arm64:
+  allow_failure: false
+
 verify-wrap-and-sort:
   image: debian:unstable
   stage: test
