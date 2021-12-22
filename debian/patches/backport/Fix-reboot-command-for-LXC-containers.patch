@@ -21,7 +21,7 @@ Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
  1 file changed, 11 insertions(+), 7 deletions(-)
 
 diff --git a/src/lxc/lxc_controller.c b/src/lxc/lxc_controller.c
-index 444f728af4..039efcd7c7 100644
+index 444f728..039efcd 100644
 --- a/src/lxc/lxc_controller.c
 +++ b/src/lxc/lxc_controller.c
 @@ -894,8 +894,10 @@ static void virLXCControllerClientCloseHook(virNetServerClient *client)
@@ -87,6 +87,3 @@ index 444f728af4..039efcd7c7 100644
   cleanup:
      VIR_FORCE_CLOSE(control[0]);
      VIR_FORCE_CLOSE(control[1]);
--- 
-2.30.2
-
