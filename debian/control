@@ -164,6 +164,7 @@ Description: Virtualization daemon
 Package: libvirt-daemon-driver-qemu
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -185,6 +186,7 @@ Description: Virtualization daemon QEMU connection driver
 Package: libvirt-daemon-driver-lxc
 Section: admin
 Architecture: alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -205,6 +207,7 @@ Description: Virtualization daemon LXC connection driver
 Package: libvirt-daemon-driver-vbox
 Section: admin
 Architecture: amd64 i386
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -225,6 +228,7 @@ Description: Virtualization daemon VirtualBox connection driver
 Package: libvirt-daemon-driver-xen
 Section: admin
 Architecture: amd64 arm64 armhf i386
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -245,6 +249,7 @@ Description: Virtualization daemon Xen connection driver
 Package: libvirt-daemon-driver-storage-gluster
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -265,6 +270,7 @@ Description: Virtualization daemon glusterfs storage driver
 Package: libvirt-daemon-driver-storage-iscsi-direct
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -284,6 +290,7 @@ Description: Virtualization daemon iSCSI (libiscsi) storage driver
 Package: libvirt-daemon-driver-storage-rbd
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -304,6 +311,7 @@ Description: Virtualization daemon RBD storage driver
 Package: libvirt-daemon-driver-storage-zfs
 Section: admin
 Architecture: linux-any
+Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -368,6 +376,7 @@ Description: Libvirt daemon configuration files
 Package: libvirt-daemon-system-systemd
 Section: admin
 Architecture: all
+Multi-Arch: foreign
 Depends:
  systemd-container,
  systemd-sysv,
@@ -467,6 +476,7 @@ Description: library for interfacing with different virtualization systems
 Package: libvirt-doc
 Section: doc
 Architecture: all
+Multi-Arch: foreign
 Depends:
  ${misc:Depends},
 Description: documentation for the libvirt library
@@ -539,6 +549,7 @@ Description: nss plugins providing IP address resolution for virtual machines
 Package: libvirt-wireshark
 Section: admin
 Architecture: any
+Multi-Arch: same
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
