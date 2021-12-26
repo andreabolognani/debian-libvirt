@@ -1,4 +1,11 @@
 backport/Fix-reboot-command-for-LXC-containers.patch
+backport/libxlLoggerNew-Avoid-virHashFree-by-rearranging-code.patch
+backport/libxl-Disable-death-events-after-receiving-a-shutdown-eve.patch
+backport/libxl-Rename-libxlShutdownThreadInfo-struct.patch
+backport/libxl-Modify-name-of-shutdown-thread.patch
+backport/libxl-Handle-domain-death-events-in-a-thread.patch
+backport/libxl-Search-for-virDomainObj-in-event-handler-threads.patch
+backport/libxl-Protect-access-to-libxlLogger-files-hash-table.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch

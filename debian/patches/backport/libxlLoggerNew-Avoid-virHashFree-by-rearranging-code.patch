@@ -1,0 +1,40 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Tue, 30 Nov 2021 11:34:43 +0100
+Subject: libxlLoggerNew: Avoid virHashFree by rearranging code
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Allocate the hash table only after the log file is opened so that we
+don't need to deallocate it on failure.
+
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+Reviewed-by: Martin Kletzander <mkletzan@redhat.com>
+(cherry picked from commit 04bbaa2b1f828b83faea03041f246c14770726db)
+---
+ src/libxl/libxl_logger.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/src/libxl/libxl_logger.c b/src/libxl/libxl_logger.c
+index f7b5c8e..4692578 100644
+--- a/src/libxl/libxl_logger.c
++++ b/src/libxl/libxl_logger.c
+@@ -149,14 +149,13 @@ libxlLoggerNew(const char *logDir, virLogPriority minLevel)
+         break;
+     }
+     logger.logDir = logDir;
+-    logger.files = virHashNew(libxlLoggerFileFree);
+ 
+     path = g_strdup_printf("%s/libxl-driver.log", logDir);
+ 
+-    if ((logger.defaultLogFile = fopen(path, "a")) == NULL) {
+-        virHashFree(logger.files);
++    if ((logger.defaultLogFile = fopen(path, "a")) == NULL)
+         return NULL;
+-    }
++
++    logger.files = virHashNew(libxlLoggerFileFree);
+ 
+     return XTL_NEW_LOGGER(libvirt, logger);
+ }
