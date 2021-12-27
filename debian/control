@@ -133,6 +133,7 @@ Recommends:
  libvirt-daemon-driver-vbox (= ${binary:Version}),
  libvirt-daemon-driver-xen (= ${binary:Version}),
  libxml2-utils,
+ lvm2 [linux-any],
  netcat-openbsd,
  qemu-kvm | qemu-system (>= 0.9.1),
 Suggests:
@@ -459,8 +460,6 @@ Pre-Depends:
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
-Recommends:
- lvm2 [linux-any],
 Breaks:
  libvirt-daemon (<< 4.10.0-2~),
  selinux-policy-default (<< 2:2.20131214-1~),
