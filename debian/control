@@ -464,6 +464,8 @@ Multi-Arch: same
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
+Recommends:
+ libvirt-l10n (= ${binary:Version}),
 Breaks:
  libvirt-daemon (<< 4.10.0-2~),
 Replaces:
@@ -473,6 +475,24 @@ Description: library for interfacing with different virtualization systems
  of recent versions of Linux (and other OSes). The library aims at providing
  a long term stable C API for different virtualization mechanisms. It currently
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+
+Package: libvirt-l10n
+Section: localization
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+Breaks:
+ libvirt0 (<< 8.10.0-2~),
+Replaces:
+ libvirt0 (<< 8.10.0-2~),
+Description: localization for the libvirt library
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the localization files.
 
 Package: libvirt-doc
 Section: doc
