@@ -2,6 +2,7 @@ From: Andrea Bolognani <eof@kiyuko.org>
 Date: Sun, 14 Feb 2021 18:10:53 +0100
 Subject: Debianize libvirtd
 
+Forwarded: not-needed
 ---
  src/remote/libvirtd.sysconf | 30 ++++++++++++++++++++++++------
  1 file changed, 24 insertions(+), 6 deletions(-)

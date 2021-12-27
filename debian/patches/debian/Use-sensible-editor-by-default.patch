@@ -3,6 +3,8 @@ Date: Tue, 18 Aug 2020 21:57:14 +0200
 Subject: Use sensible-editor by default
 
 It is the reasonable default for Debian.
+
+Forwarded: not-needed
 ---
  tools/vsh.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)

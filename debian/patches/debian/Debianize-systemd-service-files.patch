@@ -2,6 +2,7 @@ From: =?utf-8?q?Guido_G=C3=BCnther?= <agx@sigxcpu.org>
 Date: Tue, 26 Jun 2012 09:30:39 +0200
 Subject: Debianize systemd service files
 
+Forwarded: not-needed
 ---
  src/locking/virtlockd.service.in | 2 +-
  src/logging/virtlogd.service.in  | 2 +-

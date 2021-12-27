@@ -3,6 +3,8 @@ Date: Tue, 11 Aug 2015 07:25:01 +0200
 Subject: apparmor_profiles_local_include
 
 Include local apparmor profile
+
+Forwarded: not-needed
 ---
  src/security/apparmor/libvirt-lxc                       | 3 +++
  src/security/apparmor/libvirt-qemu                      | 3 +++
