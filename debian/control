@@ -11,7 +11,7 @@ Build-Depends:
  debhelper-compat (= 13),
  dh-apparmor [linux-any],
  dnsmasq-base,
- iptables (>= 1.8.1) [linux-any],
+ iptables [linux-any],
  kmod [linux-any],
  libacl1-dev [linux-any],
  libapparmor-dev [linux-any],
@@ -30,7 +30,7 @@ Build-Depends:
  libnl-3-dev [linux-any],
  libnl-route-3-dev [linux-any],
  libnuma-dev [linux-any],
- libparted-dev (>= 2.2),
+ libparted-dev,
  libpcap0.8-dev,
  libpciaccess-dev,
  librados-dev [linux-any],
@@ -38,15 +38,15 @@ Build-Depends:
  libreadline-dev,
  libsanlock-dev [linux-any],
  libsasl2-dev,
- libselinux1-dev (>= 2.0.82) [linux-any],
+ libselinux1-dev [linux-any],
  libssh-dev,
  libssh2-1-dev,
  libtasn1-6-dev,
  libtirpc-dev,
  libudev-dev [linux-any],
- libwireshark-dev (>= 1.11.3),
- libxen-dev (>= 4.3) [amd64 arm64 armhf i386],
- libxml2-dev (>= 2.9.2+really2.9.1+dfsg1-0.2),
+ libwireshark-dev,
+ libxen-dev [amd64 arm64 armhf i386],
+ libxml2-dev,
  libxml2-utils,
  libyajl-dev,
  lvm2 [linux-any],
@@ -54,7 +54,7 @@ Build-Depends:
  nfs-common,
  numad [linux-any],
  open-iscsi [linux-any],
- parted (>= 2.2),
+ parted,
  po-debconf,
  python3-docutils,
  python3:any,
@@ -63,8 +63,6 @@ Build-Depends:
  radvd [linux-any],
  systemtap-sdt-dev [linux-any],
  xsltproc,
-Build-Conflicts:
- dpkg-dev (= 1.15.3),
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
 Vcs-Browser: https://salsa.debian.org/libvirt-team/libvirt
 Homepage: https://libvirt.org/
@@ -132,7 +130,7 @@ Recommends:
  libxml2-utils,
  lvm2 [linux-any],
  netcat-openbsd,
- qemu-kvm | qemu-system (>= 0.9.1),
+ qemu-kvm | qemu-system,
 Suggests:
  libvirt-daemon-driver-storage-gluster (= ${binary:Version}),
  libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
@@ -335,7 +333,7 @@ Pre-Depends:
 Depends:
  adduser,
  gettext-base,
- iptables (>= 1.8.1-1) [linux-any] | firewalld,
+ iptables [linux-any] | firewalld,
  libvirt-clients (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt-daemon-config-network (= ${source:Version}),
@@ -346,7 +344,7 @@ Depends:
  ${misc:Depends},
 Recommends:
  dmidecode,
- dnsmasq-base (>= 2.46-1),
+ dnsmasq-base,
  iproute2,
  mdevctl,
  parted,
@@ -360,8 +358,6 @@ Suggests:
  systemd,
  systemtap,
  zfsutils,
-Breaks:
- systemd-sysv (<< 224-1~),
 Description: Libvirt daemon configuration files
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -459,8 +455,6 @@ Depends:
  ${shlibs:Depends},
 Breaks:
  libvirt-daemon (<< 4.10.0-2~),
- selinux-policy-default (<< 2:2.20131214-1~),
- selinux-policy-mls (<< 2:2.20131214-1~),
 Replaces:
  libvirt-daemon (<< 4.10.0-2~),
 Description: library for interfacing with different virtualization systems
