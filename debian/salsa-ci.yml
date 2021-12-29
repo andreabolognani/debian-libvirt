@@ -23,9 +23,8 @@ verify-wrap-and-sort:
     - apt-get -y update
     - apt-get -y install devscripts
   script:
-    - wrap-and-sort -ast
-    - git diff >wrap-and-sort.diff
-    - if test -s wrap-and-sort.diff; then
+    - out=$(wrap-and-sort -ast --dry-run)
+    - if test "$out"; then
           echo "Please run 'wrap-and-sort -ast' before 'git commit'" >&2;
           exit 1;
       fi
