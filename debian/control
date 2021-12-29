@@ -328,8 +328,6 @@ Description: Virtualization daemon ZFS storage driver
 Package: libvirt-daemon-system
 Section: admin
 Architecture: any
-Pre-Depends:
- ${misc:Pre-Depends},
 Depends:
  adduser,
  gettext-base,
@@ -390,8 +388,6 @@ Description: Libvirt daemon configuration files (systemd)
 Package: libvirt-daemon-system-sysv
 Section: admin
 Architecture: all
-Pre-Depends:
- ${misc:Pre-Depends},
 Depends:
  lsb-base,
  ${misc:Depends},
@@ -448,8 +444,6 @@ Description: Libvirt daemon configuration files (default network filters)
 Package: libvirt0
 Architecture: any
 Multi-Arch: same
-Pre-Depends:
- ${misc:Pre-Depends},
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
@@ -520,8 +514,6 @@ Package: libnss-libvirt
 Section: admin
 Architecture: linux-any
 Multi-Arch: same
-Pre-Depends:
- ${misc:Pre-Depends},
 Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
