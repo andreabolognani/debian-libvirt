@@ -21,7 +21,7 @@ verify-wrap-and-sort:
     - echo "man-db man-db/auto-update boolean false" | debconf-set-selections
     - export DEBIAN_FRONTEND=noninteractive
     - apt-get -y update
-    - apt-get -y install devscripts
+    - apt-get -y install --no-install-recommends devscripts python3-debian
   script:
     - out=$(wrap-and-sort -ast --dry-run)
     - if test "$out"; then
