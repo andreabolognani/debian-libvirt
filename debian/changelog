@@ -1,3 +1,21 @@
+libvirt (7.10.0-3) unstable; urgency=medium
+
+  * [16b245a] control: Improve multiarch support
+    - Mark libvirt-{daemon-system-systemd,doc} as Multi-Arch: foreign
+    - Mark libvirt-wireshark as Multi-Arch: same
+    - Mark libvirt-daemon-driver-* as Multi-Arch: no
+  * [ef19843] control: Move Recommends on LVM to -daemon package
+    - It's used by the storage driver, not the client library
+  * [a10f605] control: Update Uploaders field
+    - Add Andrea Bolognani, remove Laurent Léonard
+  * [c74efcb] control: Drop obsolete version constraints
+    - They're satisfied on our expected backport targets (Debian 11
+      and Ubuntu 20.04)
+  * [1ad0b3a] control: Drop all Pre-Depends
+    - They're not necessary on our expected backport targets
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 09 Jan 2022 11:28:35 +0100
+
 libvirt (7.10.0-2) unstable; urgency=medium
 
   * Team upload
