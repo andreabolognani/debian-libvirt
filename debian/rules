@@ -190,6 +190,7 @@ SYSTEMTAP_TAPSETS = \
 
 SYSCTL_CONFIGS = \
     libvirtd \
+    qemu-postcopy-migration \
     $(NULL)
 
 
