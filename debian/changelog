@@ -1,3 +1,9 @@
+libvirt (8.0.0-1) UNRELEASED; urgency=medium
+
+  * [a26cc81] New upstream version 8.0.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 13 Jan 2022 11:33:21 +0100
+
 libvirt (7.10.0-3) unstable; urgency=medium
 
   * [16b245a] control: Improve multiarch support
