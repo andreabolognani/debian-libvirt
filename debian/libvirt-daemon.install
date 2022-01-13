@@ -31,5 +31,6 @@ usr/share/augeas/lenses/tests/test_virtlogd.aug
 usr/share/augeas/lenses/virtlockd.aug
 usr/share/augeas/lenses/virtlogd.aug
 usr/share/man/man8/libvirtd.8
+usr/share/man/man8/virt-ssh-helper.8
 usr/share/man/man8/virtlockd.8
 usr/share/man/man8/virtlogd.8
