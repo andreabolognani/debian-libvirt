@@ -87,6 +87,15 @@
 #define STRPREFIX(a, b) (strncmp(a, b, strlen(b)) == 0)
 #define STRCASEPREFIX(a, b) (g_ascii_strncasecmp(a, b, strlen(b)) == 0)
 #define STRSKIP(a, b) (STRPREFIX(a, b) ? (a) + strlen(b) : NULL)
+/**
+ * STRLIM
+ * @str: pointer to a string (evaluated once)
+ * @lim: length limit (evaluated twice)
+ *
+ * Evaluates as true if length of @str doesn't exceed the limit @lim. Note
+ * that @lim + 1 characters may be accessed.
+ */
+#define STRLIM(str, lim) (strnlen((str), (lim) + 1) <= (lim))
 
 #define STREQ_NULLABLE(a, b) (g_strcmp0(a, b) == 0)
 #define STRNEQ_NULLABLE(a, b) (g_strcmp0(a, b) != 0)
@@ -365,7 +374,7 @@
  */
 #define VIR_REQUIRE_FLAG_RET(FLAG1, FLAG2, RET) \
     do { \
-        if ((flags & FLAG1) && !(flags & FLAG2)) { \
+        if ((flags & (FLAG1)) && !(flags & (FLAG2))) { \
             virReportInvalidArg(ctl, \
                                 _("Flag '%s' is required by flag '%s'"), \
                                 #FLAG2, #FLAG1); \
@@ -387,7 +396,7 @@
  */
 #define VIR_REQUIRE_FLAG_GOTO(FLAG1, FLAG2, LABEL) \
     do { \
-        if ((flags & FLAG1) && !(flags & FLAG2)) { \
+        if ((flags & (FLAG1)) && !(flags & (FLAG2))) { \
             virReportInvalidArg(ctl, \
                                 _("Flag '%s' is required by flag '%s'"), \
                                 #FLAG2, #FLAG1); \

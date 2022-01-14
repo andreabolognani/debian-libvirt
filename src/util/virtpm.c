@@ -96,62 +96,95 @@ virTPMCreateCancelPath(const char *devpath)
  * capabilities bitmap
  */
 static virMutex swtpm_tools_lock = VIR_MUTEX_INITIALIZER;
-static char *swtpm_path;
-static struct stat swtpm_stat;
-static virBitmap *swtpm_caps;
 
-static char *swtpm_setup;
-static struct stat swtpm_setup_stat;
-static virBitmap *swtpm_setup_caps;
+typedef int (*virTPMBinaryCapsParse)(const char *);
 
-static char *swtpm_ioctl;
-static struct stat swtpm_ioctl_stat;
+typedef enum _virTPMBinary {
+    VIR_TPM_BINARY_SWTPM,
+    VIR_TPM_BINARY_SWTPM_SETUP,
+    VIR_TPM_BINARY_SWTPM_IOCTL,
 
-typedef int (*TypeFromStringFn)(const char *);
+    VIR_TPM_BINARY_LAST
+} virTPMBinary;
+
+VIR_ENUM_DECL(virTPMBinary);
+VIR_ENUM_IMPL(virTPMBinary,
+              VIR_TPM_BINARY_LAST,
+              "swtpm", "swtpm_setup", "swtpm_ioctl");
+
+typedef struct _virTPMBinaryInfo {
+    char *path;
+    struct stat stat;
+    const char *parm;
+    virBitmap *caps;
+    virTPMBinaryCapsParse capsParse;
+} virTPMBinaryInfo;
+
+static virTPMBinaryInfo swtpmBinaries[VIR_TPM_BINARY_LAST] = {
+    [VIR_TPM_BINARY_SWTPM] = {
+        .parm = "socket",
+        .capsParse = virTPMSwtpmFeatureTypeFromString,
+    },
+    [VIR_TPM_BINARY_SWTPM_SETUP] = {
+        .capsParse = virTPMSwtpmSetupFeatureTypeFromString,
+    },
+    [VIR_TPM_BINARY_SWTPM_IOCTL] = {
+    },
+};
+
+static int virTPMEmulatorInit(bool quiet);
+
+static char *
+virTPMBinaryGetPath(virTPMBinary binary)
+{
+    char *s = NULL;
+
+    virMutexLock(&swtpm_tools_lock);
+
+    if (virTPMEmulatorInit(false) < 0)
+        goto cleanup;
+
+    s = g_strdup(swtpmBinaries[binary].path);
+
+ cleanup:
+    virMutexUnlock(&swtpm_tools_lock);
+    return s;
+}
 
 char *
 virTPMGetSwtpm(void)
 {
-    char *s;
-
-    if (!swtpm_path && virTPMEmulatorInit() < 0)
-        return NULL;
-
-    virMutexLock(&swtpm_tools_lock);
-    s = g_strdup(swtpm_path);
-    virMutexUnlock(&swtpm_tools_lock);
-
-    return s;
+    return virTPMBinaryGetPath(VIR_TPM_BINARY_SWTPM);
 }
 
 char *
 virTPMGetSwtpmSetup(void)
 {
-    char *s;
-
-    if (!swtpm_setup && virTPMEmulatorInit() < 0)
-        return NULL;
-
-    virMutexLock(&swtpm_tools_lock);
-    s = g_strdup(swtpm_setup);
-    virMutexUnlock(&swtpm_tools_lock);
-
-    return s;
+    return virTPMBinaryGetPath(VIR_TPM_BINARY_SWTPM_SETUP);
 }
 
 char *
 virTPMGetSwtpmIoctl(void)
 {
-    char *s;
+    return virTPMBinaryGetPath(VIR_TPM_BINARY_SWTPM_IOCTL);
+}
 
-    if (!swtpm_ioctl && virTPMEmulatorInit() < 0)
-        return NULL;
+bool virTPMHasSwtpm(void)
+{
+    bool ret = false;
 
     virMutexLock(&swtpm_tools_lock);
-    s = g_strdup(swtpm_ioctl);
-    virMutexUnlock(&swtpm_tools_lock);
 
-    return s;
+    if (virTPMEmulatorInit(true) < 0)
+        goto cleanup;
+
+    ret = swtpmBinaries[VIR_TPM_BINARY_SWTPM].path != NULL &&
+        swtpmBinaries[VIR_TPM_BINARY_SWTPM_SETUP].path != NULL &&
+        swtpmBinaries[VIR_TPM_BINARY_SWTPM_IOCTL].path != NULL;
+
+ cleanup:
+    virMutexUnlock(&swtpm_tools_lock);
+    return ret;
 }
 
 /* virTPMExecGetCaps
@@ -171,7 +204,7 @@ virTPMGetSwtpmIoctl(void)
  */
 static virBitmap *
 virTPMExecGetCaps(virCommand *cmd,
-                  TypeFromStringFn typeFromStringFn)
+                  virTPMBinaryCapsParse capsParse)
 {
     int exitstatus;
     virBitmap *bitmap;
@@ -214,12 +247,11 @@ virTPMExecGetCaps(virCommand *cmd,
         str = virJSONValueGetString(item);
         if (!str)
             goto error_bad_json;
-        typ = typeFromStringFn(str);
+        typ = capsParse(str);
         if (typ < 0)
             continue;
 
-        if (virBitmapSetBitExpand(bitmap, typ) < 0)
-            return bitmap;
+        virBitmapSetBitExpand(bitmap, typ);
     }
 
     return bitmap;
@@ -231,8 +263,8 @@ virTPMExecGetCaps(virCommand *cmd,
 }
 
 static virBitmap *
-virTPMGetCaps(TypeFromStringFn typeFromStringFn,
-                  const char *exec, const char *param1)
+virTPMGetCaps(virTPMBinaryCapsParse capsParse,
+              const char *exec, const char *param1)
 {
     g_autoptr(virCommand) cmd = NULL;
 
@@ -244,7 +276,7 @@ virTPMGetCaps(TypeFromStringFn typeFromStringFn,
     virCommandAddArg(cmd, "--print-capabilities");
     virCommandClearCaps(cmd);
 
-    return virTPMExecGetCaps(cmd, typeFromStringFn);
+    return virTPMExecGetCaps(cmd, capsParse);
 }
 
 /*
@@ -253,110 +285,93 @@ virTPMGetCaps(TypeFromStringFn typeFromStringFn,
  * Initialize the Emulator functions by searching for necessary
  * executables that we will use to start and setup the swtpm
  */
-int
-virTPMEmulatorInit(void)
+static int
+virTPMEmulatorInit(bool quiet)
 {
-    int ret = -1;
-    static const struct {
-        const char *name;
-        char **path;
-        struct stat *stat;
-        const char *parm;
-        virBitmap **caps;
-        TypeFromStringFn typeFromStringFn;
-    } prgs[] = {
-        {
-            .name = "swtpm",
-            .path = &swtpm_path,
-            .stat = &swtpm_stat,
-            .parm = "socket",
-            .caps = &swtpm_caps,
-            .typeFromStringFn = virTPMSwtpmFeatureTypeFromString,
-        },
-        {
-            .name = "swtpm_setup",
-            .path = &swtpm_setup,
-            .stat = &swtpm_setup_stat,
-            .caps = &swtpm_setup_caps,
-            .typeFromStringFn = virTPMSwtpmSetupFeatureTypeFromString,
-        },
-        {
-            .name = "swtpm_ioctl",
-            .path = &swtpm_ioctl,
-            .stat = &swtpm_ioctl_stat,
-        }
-    };
     size_t i;
 
-    virMutexLock(&swtpm_tools_lock);
-
-    for (i = 0; i < G_N_ELEMENTS(prgs); i++) {
+    for (i = 0; i < VIR_TPM_BINARY_LAST; i++) {
         g_autofree char *path = NULL;
-        bool findit = *prgs[i].path == NULL;
+        bool findit = swtpmBinaries[i].path == NULL;
         struct stat statbuf;
 
         if (!findit) {
             /* has executables changed? */
-            if (stat(*prgs[i].path, &statbuf) < 0)
+            if (stat(swtpmBinaries[i].path, &statbuf) < 0)
                 findit = true;
 
             if (!findit &&
-                statbuf.st_mtime != prgs[i].stat->st_mtime)
+                statbuf.st_mtime != swtpmBinaries[i].stat.st_mtime)
                 findit = true;
         }
 
         if (findit) {
-            VIR_FREE(*prgs[i].path);
+            VIR_FREE(swtpmBinaries[i].path);
 
-            path = virFindFileInPath(prgs[i].name);
+            path = virFindFileInPath(virTPMBinaryTypeToString(i));
             if (!path) {
-                virReportSystemError(ENOENT,
-                                _("Unable to find '%s' binary in $PATH"),
-                                prgs[i].name);
-                goto cleanup;
+                if (!quiet)
+                    virReportSystemError(ENOENT,
+                                         _("Unable to find '%s' binary in $PATH"),
+                                         virTPMBinaryTypeToString(i));
+                return -1;
             }
             if (!virFileIsExecutable(path)) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("%s is not an executable"),
-                               path);
-                goto cleanup;
+                if (!quiet)
+                    virReportError(VIR_ERR_INTERNAL_ERROR,
+                                   _("%s is not an executable"),
+                                   path);
+                return -1;
             }
-            if (stat(path, prgs[i].stat) < 0) {
-                virReportSystemError(errno,
-                                     _("Could not stat %s"), path);
-                goto cleanup;
+            if (stat(path, &swtpmBinaries[i].stat) < 0) {
+                if (!quiet)
+                    virReportSystemError(errno,
+                                         _("Could not stat %s"), path);
+                return -1;
             }
-            *prgs[i].path = g_steal_pointer(&path);
-
-            if (prgs[i].caps) {
-                *prgs[i].caps = virTPMGetCaps(prgs[i].typeFromStringFn,
-                                              *prgs[i].path, prgs[i].parm);
-                if (!*prgs[i].caps)
-                    goto cleanup;
-            }
+            swtpmBinaries[i].path = g_steal_pointer(&path);
+            virBitmapFree(swtpmBinaries[i].caps);
+            swtpmBinaries[i].caps = NULL;
         }
     }
 
-    ret = 0;
+    return 0;
+}
+
+static bool
+virTPMBinaryGetCaps(virTPMBinary binary,
+                    unsigned int cap)
+{
+    bool ret = false;
+
+    virMutexLock(&swtpm_tools_lock);
+
+    if (virTPMEmulatorInit(false) < 0)
+        goto cleanup;
+
+    if (!swtpmBinaries[binary].caps &&
+        swtpmBinaries[binary].capsParse) {
+        swtpmBinaries[binary].caps = virTPMGetCaps(
+            swtpmBinaries[binary].capsParse,
+            swtpmBinaries[binary].path,
+            swtpmBinaries[binary].parm);
+    }
+    if (swtpmBinaries[binary].caps)
+        ret = virBitmapIsBitSet(swtpmBinaries[binary].caps, cap);
 
  cleanup:
     virMutexUnlock(&swtpm_tools_lock);
-
     return ret;
 }
 
 bool
 virTPMSwtpmCapsGet(unsigned int cap)
 {
-    if (virTPMEmulatorInit() < 0)
-        return false;
-    return virBitmapIsBitSet(swtpm_caps, cap);
+    return virTPMBinaryGetCaps(VIR_TPM_BINARY_SWTPM, cap);
 }
 
 bool
 virTPMSwtpmSetupCapsGet(unsigned int cap)
 {
-    if (virTPMEmulatorInit() < 0)
-        return false;
-    return virBitmapIsBitSet(swtpm_setup_caps, cap);
+    return virTPMBinaryGetCaps(VIR_TPM_BINARY_SWTPM_SETUP, cap);
 }

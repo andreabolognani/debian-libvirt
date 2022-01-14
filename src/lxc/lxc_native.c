@@ -119,7 +119,7 @@ static char ** lxcStringSplit(const char *string)
     }
 
     if (!(parts = g_strsplit(tmp, " ", 0)))
-        goto error;
+        return NULL;
 
     /* Append NULL element */
     VIR_EXPAND_N(result, ntokens, 1);
@@ -133,9 +133,6 @@ static char ** lxcStringSplit(const char *string)
     }
 
     return g_steal_pointer(&result);
-
- error:
-    return NULL;
 }
 
 static lxcFstab *
@@ -250,7 +247,6 @@ lxcAddFstabLine(virDomainDef *def, lxcFstab *fstab)
     bool readonly;
     int type = VIR_DOMAIN_FS_TYPE_MOUNT;
     unsigned long long usage = 0;
-    int ret = -1;
 
     if (!options)
         return -1;
@@ -262,10 +258,8 @@ lxcAddFstabLine(virDomainDef *def, lxcFstab *fstab)
     }
 
     /* Check that we don't add basic mounts */
-    if (lxcIsBasicMountLocation(dst)) {
-        ret = 0;
-        goto cleanup;
-    }
+    if (lxcIsBasicMountLocation(dst))
+        return 0;
 
     if (STREQ(fstab->type, "tmpfs")) {
         char *sizeStr = NULL;
@@ -275,14 +269,14 @@ lxcAddFstabLine(virDomainDef *def, lxcFstab *fstab)
         for (i = 0; options[i]; i++) {
             if ((sizeStr = STRSKIP(options[i], "size="))) {
                 if (lxcConvertSize(sizeStr, &usage) < 0)
-                    goto cleanup;
+                    return -1;
                 break;
             }
         }
         if (!sizeStr) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("missing tmpfs size, set the size option"));
-            goto cleanup;
+            return -1;
         }
     } else {
         src = fstab->src;
@@ -296,12 +290,9 @@ lxcAddFstabLine(virDomainDef *def, lxcFstab *fstab)
     readonly = g_strv_contains((const char **)options, "ro");
 
     if (lxcAddFSDef(def, type, src, dst, readonly, usage) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 1;
-
- cleanup:
-    return ret;
+    return 1;
 }
 
 static int
@@ -926,32 +917,28 @@ lxcSetCpuTune(virDomainDef *def, virConf *properties)
 static int
 lxcSetCpusetTune(virDomainDef *def, virConf *properties)
 {
-    g_autofree char *value = NULL;
-    virBitmap *nodeset = NULL;
+    g_autofree char *cpus = NULL;
+    g_autofree char *mems = NULL;
+    g_autoptr(virBitmap) nodeset = NULL;
 
     if (virConfGetValueString(properties, "lxc.cgroup.cpuset.cpus",
-                              &value) > 0) {
-        if (virBitmapParse(value, &def->cpumask, VIR_DOMAIN_CPUMASK_LEN) < 0)
+                              &cpus) > 0) {
+        if (virBitmapParse(cpus, &def->cpumask, VIR_DOMAIN_CPUMASK_LEN) < 0)
             return -1;
         def->placement_mode = VIR_DOMAIN_CPU_PLACEMENT_MODE_STATIC;
-        g_free(value);
-        value = NULL;
     }
 
     if (virConfGetValueString(properties, "lxc.cgroup.cpuset.mems",
-                              &value) > 0) {
-        if (virBitmapParse(value, &nodeset, VIR_DOMAIN_CPUMASK_LEN) < 0)
+                              &mems) > 0) {
+        if (virBitmapParse(mems, &nodeset, VIR_DOMAIN_CPUMASK_LEN) < 0)
             return -1;
         if (virDomainNumatuneSet(def->numa,
                                  def->placement_mode ==
                                  VIR_DOMAIN_CPU_PLACEMENT_MODE_STATIC,
                                  VIR_DOMAIN_NUMATUNE_PLACEMENT_STATIC,
                                  VIR_DOMAIN_NUMATUNE_MEM_STRICT,
-                                 nodeset) < 0) {
-            virBitmapFree(nodeset);
+                                 nodeset) < 0)
             return -1;
-        }
-        virBitmapFree(nodeset);
     }
 
     return 0;
@@ -965,7 +952,6 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValue *value, void *data)
     virDomainDef *def = data;
     size_t i = 0;
     g_autofree char *path = NULL;
-    int ret = -1;
 
     if (!STRPREFIX(name, "lxc.cgroup.blkio.") ||
             STREQ(name, "lxc.cgroup.blkio.weight")|| !value->str)
@@ -978,7 +964,7 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValue *value, void *data)
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("invalid %s value: '%s'"),
                        name, value->str);
-        goto cleanup;
+        return -1;
     }
 
     path = g_strdup_printf("/dev/block/%s", parts[0]);
@@ -1000,44 +986,41 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValue *value, void *data)
         if (virStrToLong_ui(parts[1], NULL, 10, &device->weight) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("failed to parse device weight: '%s'"), parts[1]);
-            goto cleanup;
+            return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.read_bps_device")) {
         if (virStrToLong_ull(parts[1], NULL, 10, &device->rbps) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("failed to parse read_bps_device: '%s'"),
                            parts[1]);
-            goto cleanup;
+            return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.write_bps_device")) {
         if (virStrToLong_ull(parts[1], NULL, 10, &device->wbps) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("failed to parse write_bps_device: '%s'"),
                            parts[1]);
-            goto cleanup;
+            return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.read_iops_device")) {
         if (virStrToLong_ui(parts[1], NULL, 10, &device->riops) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("failed to parse read_iops_device: '%s'"),
                            parts[1]);
-            goto cleanup;
+            return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.write_iops_device")) {
         if (virStrToLong_ui(parts[1], NULL, 10, &device->wiops) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("failed to parse write_iops_device: '%s'"),
                            parts[1]);
-            goto cleanup;
+            return -1;
         }
     } else {
         VIR_WARN("Unhandled blkio tune config: %s", name);
     }
 
-    ret = 0;
-
- cleanup:
-    return ret;
+    return 0;
 }
 
 static int
@@ -1086,7 +1069,7 @@ lxcParseConfigString(const char *config,
                      virCaps *caps G_GNUC_UNUSED,
                      virDomainXMLOption *xmlopt)
 {
-    virDomainDef *vmdef = NULL;
+    g_autoptr(virDomainDef) vmdef = NULL;
     g_autoptr(virConf) properties = NULL;
     g_autofree char *value = NULL;
 
@@ -1094,12 +1077,12 @@ lxcParseConfigString(const char *config,
         return NULL;
 
     if (!(vmdef = virDomainDefNew(xmlopt)))
-        goto error;
+        return NULL;
 
     if (virUUIDGenerate(vmdef->uuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("failed to generate uuid"));
-        goto error;
+        return NULL;
     }
 
     vmdef->id = -1;
@@ -1113,10 +1096,10 @@ lxcParseConfigString(const char *config,
     /* Value not handled by the LXC driver, setting to
      * minimum required to make XML parsing pass */
     if (virDomainDefSetVcpusMax(vmdef, 1, xmlopt) < 0)
-        goto error;
+        return NULL;
 
     if (virDomainDefSetVcpus(vmdef, 1) < 0)
-        goto error;
+        return NULL;
 
     vmdef->nfss = 0;
     vmdef->os.type = VIR_DOMAIN_OSTYPE_EXE;
@@ -1139,7 +1122,7 @@ lxcParseConfigString(const char *config,
 
         /* Check for pre LXC 3.0 legacy key */
         if (virConfGetValueString(properties, "lxc.utsname", &value) <= 0)
-            goto error;
+            return NULL;
     }
 
     vmdef->name = g_strdup(value);
@@ -1148,7 +1131,7 @@ lxcParseConfigString(const char *config,
         vmdef->name = g_strdup("unnamed");
 
     if (lxcSetRootfs(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* LXC 3.0 uses "lxc.mount.fstab", while legacy used just "lxc.mount".
      * In either case, generate the error to use "lxc.mount.entry" instead */
@@ -1157,51 +1140,47 @@ lxcParseConfigString(const char *config,
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
                        _("lxc.mount.fstab or lxc.mount found, use "
                          "lxc.mount.entry lines instead"));
-        goto error;
+        return NULL;
     }
 
     /* Loop over lxc.mount.entry to add filesystem devices for them */
     if (virConfWalk(properties, lxcFstabWalkCallback, vmdef) < 0)
-        goto error;
+        return NULL;
 
     /* Network configuration */
     if (lxcConvertNetworkSettings(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* Consoles */
     if (lxcCreateConsoles(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* lxc.idmap or legacy lxc.id_map */
     if (virConfWalk(properties, lxcIdmapWalkCallback, vmdef) < 0)
-        goto error;
+        return NULL;
 
     /* lxc.cgroup.memory.* */
     if (lxcSetMemTune(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* lxc.cgroup.cpu.* */
     if (lxcSetCpuTune(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* lxc.cgroup.cpuset.* */
     if (lxcSetCpusetTune(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* lxc.cgroup.blkio.* */
     if (lxcSetBlkioTune(vmdef, properties) < 0)
-        goto error;
+        return NULL;
 
     /* lxc.cap.drop */
     lxcSetCapDrop(vmdef, properties);
 
     if (virDomainDefPostParse(vmdef, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
                               xmlopt, NULL) < 0)
-        goto error;
+        return NULL;
 
-    return vmdef;
-
- error:
-    virDomainDefFree(vmdef);
-    return NULL;
+    return g_steal_pointer(&vmdef);
 }

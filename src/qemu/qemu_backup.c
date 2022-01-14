@@ -132,7 +132,7 @@ qemuBackupDiskDataCleanupOne(virDomainObj *vm,
         if (dd->added) {
             qemuDomainObjEnterMonitor(priv->driver, vm);
             qemuBlockStorageSourceAttachRollback(priv->mon, dd->crdata->srcdata[0]);
-            ignore_value(qemuDomainObjExitMonitor(priv->driver, vm));
+            qemuDomainObjExitMonitor(priv->driver, vm);
         }
 
         if (dd->created) {
@@ -474,7 +474,8 @@ qemuBackupDiskPrepareOneStorage(virDomainObj *vm,
 
         rc = qemuBlockStorageSourceAttachApply(priv->mon, dd->crdata->srcdata[0]);
 
-        if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || rc < 0)
+        qemuDomainObjExitMonitor(priv->driver, vm);
+        if (rc < 0)
             return -1;
     }
 
@@ -677,8 +678,7 @@ qemuBackupJobCancelBlockjobs(virDomainObj *vm,
 
         rc = qemuMonitorBlockJobCancel(priv->mon, job->name, true);
 
-        if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-            return;
+        qemuDomainObjExitMonitor(priv->driver, vm);
 
         if (rc == 0) {
             backupdisk->state = VIR_DOMAIN_BACKUP_DISK_STATE_CANCELLING;
@@ -889,7 +889,8 @@ qemuBackupBegin(virDomainObj *vm,
     if (rc == 0)
         rc = qemuMonitorTransaction(priv->mon, &actions);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(priv->driver, vm);
+    if (rc < 0)
         goto endjob;
 
     job_started = true;
@@ -910,8 +911,7 @@ qemuBackupBegin(virDomainObj *vm,
         /* note that if the export fails we've already created the checkpoint
          * and we will not delete it */
         rc = qemuBackupBeginPullExportDisks(vm, dd, ndd);
-        if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-            goto endjob;
+        qemuDomainObjExitMonitor(priv->driver, vm);
 
         if (rc < 0) {
             qemuBackupJobCancelBlockjobs(vm, priv->backup, false, QEMU_ASYNC_JOB_BACKUP);
@@ -935,7 +935,7 @@ qemuBackupBegin(virDomainObj *vm,
             ignore_value(qemuMonitorDelObject(priv->mon, tlsAlias, false));
         if (tlsSecretAlias)
             ignore_value(qemuMonitorDelObject(priv->mon, tlsSecretAlias, false));
-        ignore_value(qemuDomainObjExitMonitor(priv->driver, vm));
+        qemuDomainObjExitMonitor(priv->driver, vm);
     }
 
     if (ret < 0 && !job_started && priv->backup)
@@ -1003,8 +1003,7 @@ qemuBackupNotifyBlockjobEnd(virDomainObj *vm,
             ignore_value(qemuMonitorDelObject(priv->mon, backup->tlsAlias, false));
         if (backup->tlsSecretAlias)
             ignore_value(qemuMonitorDelObject(priv->mon, backup->tlsSecretAlias, false));
-        if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-            return;
+        qemuDomainObjExitMonitor(priv->driver, vm);
 
         /* update the final statistics with the current job's data */
         backup->pull_tmp_used += cur;
@@ -1161,7 +1160,8 @@ qemuBackupGetJobInfoStats(virQEMUDriver *driver,
 
     rc = qemuMonitorGetJobInfo(priv->mon, &blockjobs, &nblockjobs);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(driver, vm);
+    if (rc < 0)
         goto cleanup;
 
     /* count in completed jobs */

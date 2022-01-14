@@ -155,6 +155,14 @@ typedef enum {
 } virDomainOSType;
 VIR_ENUM_DECL(virDomainOS);
 
+typedef enum {
+    VIR_DOMAIN_HYPERV_MODE_NONE = 0,
+    VIR_DOMAIN_HYPERV_MODE_CUSTOM,
+    VIR_DOMAIN_HYPERV_MODE_PASSTHROUGH,
+
+    VIR_DOMAIN_HYPERV_MODE_LAST
+} virDomainHyperVMode;
+VIR_ENUM_DECL(virDomainHyperVMode);
 
 struct _virDomainHostdevOrigStates {
     union {
@@ -2054,6 +2062,7 @@ typedef enum {
     VIR_DOMAIN_FEATURE_CFPC,
     VIR_DOMAIN_FEATURE_SBBC,
     VIR_DOMAIN_FEATURE_IBS,
+    VIR_DOMAIN_FEATURE_TCG,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -2084,6 +2093,7 @@ typedef enum {
     VIR_DOMAIN_KVM_DEDICATED,
     VIR_DOMAIN_KVM_POLLCONTROL,
     VIR_DOMAIN_KVM_PVIPI,
+    VIR_DOMAIN_KVM_DIRTY_RING,
 
     VIR_DOMAIN_KVM_LAST
 } virDomainKVM;
@@ -2261,6 +2271,18 @@ typedef enum {
 } virDomainIBS;
 
 VIR_ENUM_DECL(virDomainIBS);
+
+typedef struct _virDomainFeatureKVM virDomainFeatureKVM;
+struct _virDomainFeatureKVM {
+    int features[VIR_DOMAIN_KVM_LAST];
+
+    unsigned int dirty_ring_size; /* size of dirty ring for each vCPU, no units */
+};
+
+typedef struct _virDomainFeatureTCG virDomainFeatureTCG;
+struct _virDomainFeatureTCG {
+    unsigned long long tb_cache; /* Stored in KiB */
+};
 
 /* Operating system configuration data & machine / arch */
 struct _virDomainOSEnv {
@@ -2692,6 +2714,7 @@ struct _virDomainSEVDef {
     unsigned int cbitpos;
     bool haveReducedPhysBits;
     unsigned int reduced_phys_bits;
+    virTristateBool kernel_hashes;
 };
 
 struct _virDomainSecDef {
@@ -2813,7 +2836,7 @@ struct _virDomainDef {
     int features[VIR_DOMAIN_FEATURE_LAST];
     int caps_features[VIR_DOMAIN_PROCES_CAPS_FEATURE_LAST];
     int hyperv_features[VIR_DOMAIN_HYPERV_LAST];
-    int kvm_features[VIR_DOMAIN_KVM_LAST];
+    virDomainFeatureKVM *kvm_features;
     int msrs_features[VIR_DOMAIN_MSRS_LAST];
     int xen_features[VIR_DOMAIN_XEN_LAST];
     virDomainXenPassthroughMode xen_passthrough_mode;
@@ -2824,6 +2847,7 @@ struct _virDomainDef {
     unsigned long long hpt_maxpagesize; /* Stored in KiB */
     char *hyperv_vendor_id;
     virTristateSwitch apic_eoi;
+    virDomainFeatureTCG *tcg_features;
 
     bool tseg_specified;
     unsigned long long tseg_size;
@@ -4016,6 +4040,9 @@ bool
 virDomainSoundModelSupportsCodecs(virDomainSoundDef *def);
 bool
 virDomainAudioIOCommonIsSet(virDomainAudioIOCommon *common);
+bool
+virDomainAudioIsEqual(virDomainAudioDef *this,
+                      virDomainAudioDef *that);
 
 const char *virDomainChrSourceDefGetPath(virDomainChrSourceDef *chr);
 

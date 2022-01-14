@@ -86,7 +86,7 @@ static virCaps *
 testGetCaps(char *capsData, const testQemuData *data)
 {
     g_autoptr(virQEMUCaps) qemuCaps = NULL;
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
     virArch arch = virArchFromString(data->archName);
     g_autofree char *binary = NULL;
 
@@ -94,12 +94,12 @@ testGetCaps(char *capsData, const testQemuData *data)
 
     if ((qemuCaps = testQemuGetCaps(capsData)) == NULL) {
         fprintf(stderr, "failed to parse qemu capabilities flags");
-        goto error;
+        return NULL;
     }
 
     if ((caps = virCapabilitiesNew(arch, false, false)) == NULL) {
         fprintf(stderr, "failed to create the fake capabilities");
-        goto error;
+        return NULL;
     }
 
     if (virQEMUCapsInitGuestFromBinary(caps,
@@ -107,14 +107,10 @@ testGetCaps(char *capsData, const testQemuData *data)
                                        qemuCaps,
                                        arch) < 0) {
         fprintf(stderr, "failed to create the capabilities from qemu");
-        goto error;
+        return NULL;
     }
 
-    return caps;
-
- error:
-    virObjectUnref(caps);
-    return NULL;
+    return g_steal_pointer(&caps);
 }
 
 static int

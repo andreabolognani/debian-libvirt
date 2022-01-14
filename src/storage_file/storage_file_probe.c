@@ -344,11 +344,33 @@ enum qcow2CompatibleFeature {
 };
 
 /* conversion to virStorageFileFeature */
-static const int qcow2CompatibleFeatureArray[] = {
+static const virStorageFileFeature qcow2CompatibleFeatureArray[] = {
     VIR_STORAGE_FILE_FEATURE_LAZY_REFCOUNTS,
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(qcow2CompatibleFeatureArray) ==
        QCOW2_COMPATIBLE_FEATURE_LAST);
+
+/* qcow2 incompatible features in the order they appear on-disk */
+enum qcow2IncompatibleFeature {
+    QCOW2_INCOMPATIBLE_FEATURE_DIRTY = 0,
+    QCOW2_INCOMPATIBLE_FEATURE_CORRUPT,
+    QCOW2_INCOMPATIBLE_FEATURE_DATA_FILE,
+    QCOW2_INCOMPATIBLE_FEATURE_COMPRESSION,
+    QCOW2_INCOMPATIBLE_FEATURE_EXTL2,
+
+    QCOW2_INCOMPATIBLE_FEATURE_LAST
+};
+
+/* conversion to virStorageFileFeature */
+static const virStorageFileFeature qcow2IncompatibleFeatureArray[] = {
+    VIR_STORAGE_FILE_FEATURE_LAST, /* QCOW2_INCOMPATIBLE_FEATURE_DIRTY */
+    VIR_STORAGE_FILE_FEATURE_LAST, /* QCOW2_INCOMPATIBLE_FEATURE_CORRUPT */
+    VIR_STORAGE_FILE_FEATURE_LAST, /* QCOW2_INCOMPATIBLE_FEATURE_DATA_FILE */
+    VIR_STORAGE_FILE_FEATURE_LAST, /* QCOW2_INCOMPATIBLE_FEATURE_COMPRESSION */
+    VIR_STORAGE_FILE_FEATURE_EXTENDED_L2, /* QCOW2_INCOMPATIBLE_FEATURE_EXTL2 */
+};
+G_STATIC_ASSERT(G_N_ELEMENTS(qcow2IncompatibleFeatureArray) == QCOW2_INCOMPATIBLE_FEATURE_LAST);
+
 
 static int
 cowGetBackingStore(char **res,
@@ -748,6 +770,22 @@ virStorageFileProbeFormatFromBuf(const char *path,
 }
 
 
+static void
+qcow2GetFeaturesProcessGroup(uint64_t bits,
+                             const virStorageFileFeature *featuremap,
+                             size_t nfeatures,
+                             virBitmap *features)
+{
+    size_t i;
+
+    for (i = 0; i < nfeatures; i++) {
+        if ((bits & ((uint64_t) 1 << i)) &&
+            featuremap[i] != VIR_STORAGE_FILE_FEATURE_LAST)
+            ignore_value(virBitmapSetBit(features, featuremap[i]));
+    }
+}
+
+
 static int
 qcow2GetFeatures(virBitmap **features,
                  int format,
@@ -755,9 +793,6 @@ qcow2GetFeatures(virBitmap **features,
                  ssize_t len)
 {
     int version = -1;
-    virBitmap *feat = NULL;
-    uint64_t bits;
-    size_t i;
 
     version = virReadBufInt32BE(buf + fileTypeInfo[format].versionOffset);
 
@@ -767,16 +802,18 @@ qcow2GetFeatures(virBitmap **features,
     if (len < QCOW2v3_HDR_SIZE)
         return -1;
 
-    feat = virBitmapNew(VIR_STORAGE_FILE_FEATURE_LAST);
+    *features = virBitmapNew(VIR_STORAGE_FILE_FEATURE_LAST);
 
-    /* todo: check for incompatible or autoclear features? */
-    bits = virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_COMPATIBLE);
-    for (i = 0; i < QCOW2_COMPATIBLE_FEATURE_LAST; i++) {
-        if (bits & ((uint64_t) 1 << i))
-            ignore_value(virBitmapSetBit(feat, qcow2CompatibleFeatureArray[i]));
-    }
+    qcow2GetFeaturesProcessGroup(virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_COMPATIBLE),
+                                 qcow2CompatibleFeatureArray,
+                                 G_N_ELEMENTS(qcow2CompatibleFeatureArray),
+                                 *features);
 
-    *features = feat;
+    qcow2GetFeaturesProcessGroup(virReadBufInt64BE(buf + QCOW2v3_HDR_FEATURES_INCOMPATIBLE),
+                                 qcow2IncompatibleFeatureArray,
+                                 G_N_ELEMENTS(qcow2IncompatibleFeatureArray),
+                                 *features);
+
     return 0;
 }
 

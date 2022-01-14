@@ -146,7 +146,7 @@ char *virLogGetFilters(void);
 char *virLogGetOutputs(void);
 virLogPriority virLogGetDefaultPriority(void);
 int virLogSetDefaultPriority(virLogPriority priority);
-void virLogSetFromEnv(void);
+int virLogSetFromEnv(void) G_GNUC_WARN_UNUSED_RESULT;
 void virLogOutputFree(virLogOutput *output);
 void virLogOutputListFree(virLogOutput **list, int count);
 void virLogFilterFree(virLogFilter *filter);
@@ -154,7 +154,7 @@ void virLogFilterListFree(virLogFilter **list, int count);
 int virLogSetOutputs(const char *outputs);
 int virLogSetFilters(const char *filters);
 char *virLogGetDefaultOutput(void);
-void virLogSetDefaultOutput(const char *fname, bool godaemon, bool privileged);
+int virLogSetDefaultOutput(const char *fname, bool godaemon, bool privileged);
 
 /*
  * Internal logging API

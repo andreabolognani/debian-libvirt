@@ -22,8 +22,7 @@
 
 #include <stdarg.h>
 
-#define LIBVIRT_VIRFIREWALLPRIV_H_ALLOW
-#include "virfirewallpriv.h"
+#include "virfirewall.h"
 #include "virfirewalld.h"
 #include "viralloc.h"
 #include "virerror.h"
@@ -81,78 +80,7 @@ struct _virFirewall {
     size_t currentGroup;
 };
 
-static virFirewallBackend currentBackend = VIR_FIREWALL_BACKEND_AUTOMATIC;
 static virMutex ruleLock = VIR_MUTEX_INITIALIZER;
-
-static int
-virFirewallValidateBackend(virFirewallBackend backend);
-
-static int
-virFirewallOnceInit(void)
-{
-    return virFirewallValidateBackend(currentBackend);
-}
-
-VIR_ONCE_GLOBAL_INIT(virFirewall);
-
-static int
-virFirewallValidateBackend(virFirewallBackend backend)
-{
-    const char *commands[] = {
-        IPTABLES, IP6TABLES, EBTABLES
-    };
-    size_t i;
-
-    for (i = 0; i < G_N_ELEMENTS(commands); i++) {
-        g_autofree char *path = virFindFileInPath(commands[i]);
-
-        if (!path) {
-            virReportSystemError(errno,
-                                 _("%s not available, firewall backend will not function"),
-                                 commands[i]);
-            return -1;
-        }
-    }
-    VIR_DEBUG("found iptables/ip6tables/ebtables");
-
-    if (backend == VIR_FIREWALL_BACKEND_AUTOMATIC ||
-        backend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-        int rv = virFirewallDIsRegistered();
-
-        VIR_DEBUG("Firewalld is registered ? %d", rv);
-
-        if (rv == -1)
-            return -1;
-
-        if (rv == -2) {
-            if (backend == VIR_FIREWALL_BACKEND_FIREWALLD) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("firewalld backend requested, but service is not running"));
-                return -1;
-            } else {
-                VIR_DEBUG("firewalld service not running, using direct backend");
-                backend = VIR_FIREWALL_BACKEND_DIRECT;
-            }
-        } else {
-            VIR_DEBUG("firewalld service running, using firewalld backend");
-            backend = VIR_FIREWALL_BACKEND_FIREWALLD;
-        }
-    }
-
-    currentBackend = backend;
-    return 0;
-}
-
-int
-virFirewallSetBackend(virFirewallBackend backend)
-{
-    currentBackend = backend;
-
-    if (virFirewallInitialize() < 0)
-        return -1;
-
-    return virFirewallValidateBackend(backend);
-}
 
 static virFirewallGroup *
 virFirewallGroupNew(void)
@@ -173,12 +101,7 @@ virFirewallGroupNew(void)
  */
 virFirewall *virFirewallNew(void)
 {
-    virFirewall *firewall;
-
-    if (virFirewallInitialize() < 0)
-        return NULL;
-
-    firewall = g_new0(virFirewall, 1);
+    virFirewall *firewall = g_new0(virFirewall, 1);
 
     return firewall;
 }
@@ -611,35 +534,6 @@ virFirewallApplyRuleFirewallD(virFirewallRule *rule,
 }
 
 
-void
-virFirewallBackendSynchronize(void)
-{
-    const char *arg = "-V";
-    g_autofree char *output = NULL;
-
-    switch (currentBackend) {
-    case VIR_FIREWALL_BACKEND_DIRECT:
-        /* nobody to synchronize with */
-        break;
-    case VIR_FIREWALL_BACKEND_FIREWALLD:
-        /* Send a simple rule via firewalld's passthrough iptables
-         * command so that we'll be sure firewalld has fully
-         * initialized and caught up with its internal queue of
-         * iptables commands. Waiting for this will prevent our own
-         * directly-executed iptables commands from being run while
-         * firewalld is still initializing.
-         */
-        ignore_value(virFirewallDApplyRule(VIR_FIREWALL_LAYER_IPV4,
-                                           (char **)&arg, 1, true, &output));
-        VIR_DEBUG("Result of 'iptables -V' via firewalld: %s", NULLSTR(output));
-        break;
-    case VIR_FIREWALL_BACKEND_AUTOMATIC:
-    case VIR_FIREWALL_BACKEND_LAST:
-        break;
-    }
-}
-
-
 static int
 virFirewallApplyRule(virFirewall *firewall,
                      virFirewallRule *rule,
@@ -653,31 +547,8 @@ virFirewallApplyRule(virFirewall *firewall,
     if (rule->ignoreErrors)
         ignoreErrors = rule->ignoreErrors;
 
-    switch (currentBackend) {
-    case VIR_FIREWALL_BACKEND_DIRECT:
-        if (virFirewallApplyRuleDirect(rule, ignoreErrors, &output) < 0)
-            return -1;
-        break;
-    case VIR_FIREWALL_BACKEND_FIREWALLD:
-        /* Since we are using raw iptables rules, there is no
-         * advantage to going through firewalld, so instead just add
-         * them directly rather that via dbus calls to firewalld. This
-         * has the useful side effect of eliminating extra unwanted
-         * warning messages in the system logs when trying to delete
-         * rules that don't exist (which is something that happens
-         * often when libvirtd is started, and *always* when firewalld
-         * is restarted)
-         */
-        if (virFirewallApplyRuleDirect(rule, ignoreErrors, &output) < 0)
-            return -1;
-        break;
-
-    case VIR_FIREWALL_BACKEND_AUTOMATIC:
-    case VIR_FIREWALL_BACKEND_LAST:
-    default:
-        virReportEnumRangeError(virFirewallBackend, currentBackend);
+    if (virFirewallApplyRuleDirect(rule, ignoreErrors, &output) < 0)
         return -1;
-    }
 
     if (rule->queryCB && output) {
         if (!(lines = g_strsplit(output, "\n", -1)))
@@ -746,14 +617,6 @@ virFirewallApply(virFirewall *firewall)
 
     virMutexLock(&ruleLock);
 
-    if (currentBackend == VIR_FIREWALL_BACKEND_AUTOMATIC) {
-        /* a specific backend should have been set when the firewall
-         * object was created. If not, it means none was found.
-         */
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to initialize a valid firewall backend"));
-        goto cleanup;
-    }
     if (!firewall || firewall->err) {
         int err = EINVAL;
 

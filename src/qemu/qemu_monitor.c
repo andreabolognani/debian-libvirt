@@ -56,9 +56,6 @@
 
 VIR_LOG_INIT("qemu.qemu_monitor");
 
-#define DEBUG_IO 0
-#define DEBUG_RAW_IO 0
-
 /* We read from QEMU until seeing a \r\n pair to indicate a
  * completed reply or event. To avoid memory denial-of-service
  * though, we must have a size limit on amount of data we
@@ -80,6 +77,7 @@ struct _qemuMonitor {
     GSource *watch;
 
     virDomainObj *vm;
+    char *domainName;
 
     qemuMonitorCallbacks *cb;
     void *callbackOpaque;
@@ -210,25 +208,6 @@ VIR_ENUM_IMPL(qemuMonitorMemoryFailureAction,
               "ignore", "inject",
               "fatal", "reset");
 
-#if DEBUG_RAW_IO
-static char *
-qemuMonitorEscapeNonPrintable(const char *text)
-{
-    size_t i;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    for (i = 0; text[i] != '\0'; i++) {
-        if (g_ascii_isprint(text[i]) ||
-            text[i] == '\n' ||
-            (text[i] == '\r' && text[i + 1] == '\n'))
-            virBufferAddChar(&buf, text[i]);
-        else
-            virBufferAsprintf(&buf, "0x%02x", text[i]);
-    }
-    return virBufferContentAndReset(&buf);
-}
-#endif
-
-
 static void
 qemuMonitorDispose(void *obj)
 {
@@ -243,6 +222,7 @@ qemuMonitorDispose(void *obj)
     virCondDestroy(&mon->notify);
     g_free(mon->buffer);
     g_free(mon->balloonpath);
+    g_free(mon->domainName);
 }
 
 
@@ -329,17 +309,6 @@ qemuMonitorIOProcess(qemuMonitor *mon)
     if (mon->msg && mon->msg->txOffset == mon->msg->txLength)
         msg = mon->msg;
 
-#if DEBUG_IO
-# if DEBUG_RAW_IO
-    char *str1 = qemuMonitorEscapeNonPrintable(msg ? msg->txBuffer : "");
-    char *str2 = qemuMonitorEscapeNonPrintable(mon->buffer);
-    VIR_ERROR(_("Process %d %p %p [[[[%s]]][[[%s]]]"), (int)mon->bufferOffset, mon->msg, msg, str1, str2);
-    VIR_FREE(str1);
-    VIR_FREE(str2);
-# else
-    VIR_DEBUG("Process %d", (int)mon->bufferOffset);
-# endif
-#endif
 
     PROBE_QUIET(QEMU_MONITOR_IO_PROCESS, "mon=%p buf=%s len=%zu",
                 mon, mon->buffer, mon->bufferOffset);
@@ -360,10 +329,6 @@ qemuMonitorIOProcess(qemuMonitor *mon)
         VIR_FREE(mon->buffer);
         mon->bufferOffset = mon->bufferLength = 0;
     }
-#if DEBUG_IO
-    VIR_DEBUG("Process done %d used %d", (int)mon->bufferOffset, len);
-#endif
-
     /* As the monitor mutex was unlocked in qemuMonitorJSONIOProcess()
      * while dealing with qemu event, mon->msg could be changed which
      * means the above 'msg' may be invalid, thus we use 'mon->msg' here */
@@ -505,10 +470,6 @@ qemuMonitorIORead(qemuMonitor *mon)
         mon->buffer[mon->bufferOffset] = '\0';
     }
 
-#if DEBUG_IO
-    VIR_DEBUG("Now read %d bytes of data", (int)mon->bufferOffset);
-#endif
-
     return ret;
 }
 
@@ -535,9 +496,6 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
 
     /* lock access to the monitor and protect fd */
     virObjectLock(mon);
-#if DEBUG_IO
-    VIR_DEBUG("Monitor %p I/O on socket %p cond %d", mon, socket, cond);
-#endif
     if (mon->fd == -1 || !mon->watch) {
         virObjectUnlock(mon);
         virObjectUnref(mon);
@@ -583,8 +541,8 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
 
         if (!error && !mon->goteof &&
             cond & G_IO_ERR) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Invalid file descriptor while waiting for monitor"));
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Invalid file descriptor while waiting for monitor (vm='%s')"), mon->domainName);
             mon->goteof = true;
         }
     }
@@ -609,13 +567,14 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
             virResetLastError();
         } else {
             if (virGetLastErrorCode() == VIR_ERR_OK && !mon->goteof)
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("Error while processing monitor IO"));
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("Error while processing monitor IO (vm='%s')"), mon->domainName);
             virCopyLastError(&mon->lastError);
             virResetLastError();
         }
 
-        VIR_DEBUG("Error on monitor %s", NULLSTR(mon->lastError.message));
+        VIR_DEBUG("Error on monitor %s mon=%p vm=%p name=%s",
+                  NULLSTR(mon->lastError.message), mon, mon->vm, mon->domainName);
         /* If IO process resulted in an error & we have a message,
          * then wakeup that waiter */
         if (mon->msg && !mon->msg->finished) {
@@ -636,7 +595,8 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
         /* Make sure anyone waiting wakes up now */
         virCondSignal(&mon->notify);
         virObjectUnlock(mon);
-        VIR_DEBUG("Triggering EOF callback");
+        VIR_DEBUG("Triggering EOF callback mon=%p vm=%p name=%s",
+                  mon, mon->vm, mon->domainName);
         (eofNotify)(mon, vm, mon->callbackOpaque);
         virObjectUnref(mon);
     } else if (error) {
@@ -646,7 +606,8 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
         /* Make sure anyone waiting wakes up now */
         virCondSignal(&mon->notify);
         virObjectUnlock(mon);
-        VIR_DEBUG("Triggering error callback");
+        VIR_DEBUG("Triggering error callback mon=%p vm=%p name=%s",
+                  mon, mon->vm, mon->domainName);
         (errorNotify)(mon, vm, mon->callbackOpaque);
         virObjectUnref(mon);
     } else {
@@ -694,6 +655,7 @@ qemuMonitorOpenInternal(virDomainObj *vm,
     mon->fd = fd;
     mon->context = g_main_context_ref(context);
     mon->vm = virObjectRef(vm);
+    mon->domainName = g_strdup(NULLSTR(vm->def->name));
     mon->waitGreeting = true;
     mon->cb = cb;
     mon->callbackOpaque = opaque;
@@ -935,14 +897,14 @@ qemuMonitorSend(qemuMonitor *mon,
 
     /* Check whether qemu quit unexpectedly */
     if (mon->lastError.code != VIR_ERR_OK) {
-        VIR_DEBUG("Attempt to send command while error is set %s",
-                  NULLSTR(mon->lastError.message));
+        VIR_DEBUG("Attempt to send command while error is set %s mon=%p vm=%p name=%s",
+                  NULLSTR(mon->lastError.message), mon, mon->vm, mon->domainName);
         virSetError(&mon->lastError);
         return -1;
     }
     if (mon->goteof) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("End of file from qemu monitor"));
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("End of file from qemu monitor (vm='%s')"), mon->domainName);
         return -1;
     }
 
@@ -955,15 +917,15 @@ qemuMonitorSend(qemuMonitor *mon,
 
     while (!mon->msg->finished) {
         if (virCondWait(&mon->notify, &mon->parent.lock) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Unable to wait on monitor condition"));
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Unable to wait on monitor condition (vm='%s')"), mon->domainName);
             goto cleanup;
         }
     }
 
     if (mon->lastError.code != VIR_ERR_OK) {
-        VIR_DEBUG("Send command resulted in error %s",
-                  NULLSTR(mon->lastError.message));
+        VIR_DEBUG("Send command resulted in error %s mon=%p vm=%p name=%s",
+                  NULLSTR(mon->lastError.message), mon, mon->vm, mon->domainName);
         virSetError(&mon->lastError);
         goto cleanup;
     }
@@ -2956,10 +2918,9 @@ qemuMonitorAddObject(qemuMonitor *mon,
         ignore_value(virJSONValueObjectRemoveKey(*props, "qom-type", &typeobj));
         ignore_value(virJSONValueObjectRemoveKey(*props, "id", &idobj));
 
-        if (!virJSONValueObjectGetKey(*props, 0)) {
-            virJSONValueFree(*props);
-            *props = NULL;
-        }
+        /* avoid empty 'props' member */
+        if (!virJSONValueObjectGetKey(*props, 0))
+            g_clear_pointer(props, virJSONValueFree);
 
         if (virJSONValueObjectAdd(&pr,
                                   "s:qom-type", type,
@@ -3059,17 +3020,19 @@ qemuMonitorBlockdevMirror(qemuMonitor *mon,
                           unsigned long long bandwidth,
                           unsigned int granularity,
                           unsigned long long buf_size,
-                          bool shallow)
+                          bool shallow,
+                          bool syncWrite)
 {
     VIR_DEBUG("jobname=%s, persistjob=%d, device=%s, target=%s, bandwidth=%lld, "
-              "granularity=%#x, buf_size=%lld, shallow=%d",
+              "granularity=%#x, buf_size=%lld, shallow=%d syncWrite=%d",
               NULLSTR(jobname), persistjob, device, target, bandwidth, granularity,
-              buf_size, shallow);
+              buf_size, shallow, syncWrite);
 
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONBlockdevMirror(mon, jobname, persistjob, device, target,
-                                         bandwidth, granularity, buf_size, shallow);
+                                         bandwidth, granularity, buf_size, shallow,
+                                         syncWrite);
 }
 
 
@@ -4242,30 +4205,23 @@ qemuMonitorSetWatchdogAction(qemuMonitor *mon,
  * qemuMonitorBlockdevCreate:
  * @mon: monitor object
  * @jobname: name of the job
- * @props: JSON object describing the blockdev to add
+ * @props: JSON object describing the blockdev to add (consumed on success)
  *
  * Instructs qemu to create/format a new storage or format layer. Note that
  * the job does not add the created/formatted image into qemu and
  * qemuMonitorBlockdevAdd needs to be called separately with corresponding
  * arguments. Note that the arguments for creating and adding are different.
- *
- * Note that @props is always consumed by this function and should not be
- * accessed after calling this function.
  */
 int
 qemuMonitorBlockdevCreate(qemuMonitor *mon,
                           const char *jobname,
-                          virJSONValue *props)
+                          virJSONValue **props)
 {
     VIR_DEBUG("jobname=%s props=%p", jobname, props);
 
-    QEMU_CHECK_MONITOR_GOTO(mon, error);
+    QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONBlockdevCreate(mon, jobname, props);
-
- error:
-    virJSONValueFree(props);
-    return -1;
 }
 
 /**
@@ -4369,6 +4325,33 @@ qemuMonitorGetSEVMeasurement(qemuMonitor *mon)
     QEMU_CHECK_MONITOR_NULL(mon);
 
     return qemuMonitorJSONGetSEVMeasurement(mon);
+}
+
+
+int
+qemuMonitorGetSEVInfo(qemuMonitor *mon,
+                      unsigned int *apiMajor,
+                      unsigned int *apiMinor,
+                      unsigned int *buildID,
+                      unsigned int *policy)
+{
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONGetSEVInfo(mon, apiMajor, apiMinor, buildID, policy);
+}
+
+
+int
+qemuMonitorSetLaunchSecurityState(qemuMonitor *mon,
+                                  const char *secrethdr,
+                                  const char *secret,
+                                  unsigned long long setaddr,
+                                  bool hasSetaddr)
+{
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONSetLaunchSecurityState(mon, secrethdr, secret,
+                                                 setaddr, hasSetaddr);
 }
 
 

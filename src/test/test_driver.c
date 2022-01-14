@@ -291,19 +291,19 @@ static virCaps *
 testBuildCapabilities(virConnectPtr conn)
 {
     testDriver *privconn = conn->privateData;
-    virCaps *caps;
+    g_autoptr(virCaps) caps = NULL;
     virCapsGuest *guest;
     int guest_types[] = { VIR_DOMAIN_OSTYPE_HVM,
                           VIR_DOMAIN_OSTYPE_XEN };
     size_t i, j;
 
     if ((caps = virCapabilitiesNew(VIR_ARCH_I686, false, false)) == NULL)
-        goto error;
+        return NULL;
 
     if (virCapabilitiesAddHostFeature(caps, "pae") < 0)
-        goto error;
+        return NULL;
     if (virCapabilitiesAddHostFeature(caps, "nonpae") < 0)
-        goto error;
+        return NULL;
 
     virCapabilitiesHostInitIOMMU(caps);
 
@@ -361,11 +361,7 @@ testBuildCapabilities(virConnectPtr conn)
 
     caps->host.secModels[0].doi = g_strdup("");
 
-    return caps;
-
- error:
-    virObjectUnref(caps);
-    return NULL;
+    return g_steal_pointer(&caps);
 }
 
 
@@ -1029,7 +1025,7 @@ testParseDomains(testDriver *privconn,
         return -1;
 
     for (i = 0; i < num; i++) {
-        virDomainDef *def;
+        g_autoptr(virDomainDef) def = NULL;
         testDomainNamespaceDef *nsdata;
         xmlNodePtr node = testParseXMLDocFromFile(nodes[i], file, "domain");
         if (!node)
@@ -1046,7 +1042,6 @@ testParseDomains(testDriver *privconn,
                                         &def,
                                         privconn->xmlopt,
                                         0, NULL))) {
-            virDomainDefFree(def);
             goto error;
         }
 
@@ -1750,7 +1745,7 @@ testDomainCreateXML(virConnectPtr conn, const char *xml,
 {
     testDriver *privconn = conn->privateData;
     virDomainPtr ret = NULL;
-    virDomainDef *def;
+    g_autoptr(virDomainDef) def = NULL;
     virDomainObj *dom = NULL;
     virObjectEvent *event = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
@@ -1790,7 +1785,6 @@ testDomainCreateXML(virConnectPtr conn, const char *xml,
  cleanup:
     virDomainObjEndAPI(&dom);
     virObjectEventStateQueue(privconn->eventState, event);
-    virDomainDefFree(def);
     virObjectUnlock(privconn);
     return ret;
 }
@@ -2388,7 +2382,7 @@ testDomainSaveImageOpen(testDriver *driver,
     char magic[15];
     int fd = -1;
     int len;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     g_autofree char *xml = NULL;
 
     if ((fd = open(path, O_RDONLY)) < 0) {
@@ -2436,7 +2430,6 @@ testDomainSaveImageOpen(testDriver *driver,
     return fd;
 
  error:
-    virDomainDefFree(def);
     VIR_FORCE_CLOSE(fd);
     return -1;
 }
@@ -2498,7 +2491,7 @@ testDomainRestoreFlags(virConnectPtr conn,
 {
     testDriver *privconn = conn->privateData;
     int fd = -1;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     virDomainObj *dom = NULL;
     virObjectEvent *event = NULL;
     int ret = -1;
@@ -2535,7 +2528,6 @@ testDomainRestoreFlags(virConnectPtr conn,
     ret = 0;
 
  cleanup:
-    virDomainDefFree(def);
     VIR_FORCE_CLOSE(fd);
     virDomainObjEndAPI(&dom);
     virObjectEventStateQueue(privconn->eventState, event);
@@ -2556,32 +2548,26 @@ testDomainSaveImageDefineXML(virConnectPtr conn,
                              const char *dxml,
                              unsigned int flags)
 {
-    int ret = -1;
     int fd = -1;
-    virDomainDef *def = NULL;
-    virDomainDef *newdef = NULL;
+    g_autoptr(virDomainDef) def = NULL;
+    g_autoptr(virDomainDef) newdef = NULL;
     testDriver *privconn = conn->privateData;
 
     virCheckFlags(VIR_DOMAIN_SAVE_RUNNING |
                   VIR_DOMAIN_SAVE_PAUSED, -1);
 
     if ((fd = testDomainSaveImageOpen(privconn, path, &def)) < 0)
-        goto cleanup;
+        return -1;
     VIR_FORCE_CLOSE(fd);
 
     if ((newdef = virDomainDefParseString(dxml, privconn->xmlopt, NULL,
                                           VIR_DOMAIN_DEF_PARSE_INACTIVE)) == NULL)
-        goto cleanup;
+        return -1;
 
     if (!testDomainSaveImageWrite(privconn, path, newdef))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virDomainDefFree(def);
-    virDomainDefFree(newdef);
-    return ret;
+    return 0;
 }
 
 
@@ -2592,7 +2578,7 @@ testDomainSaveImageGetXMLDesc(virConnectPtr conn,
 {
     int fd = -1;
     char *ret = NULL;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     testDriver *privconn = conn->privateData;
 
     virCheckFlags(VIR_DOMAIN_SAVE_IMAGE_XML_SECURE, NULL);
@@ -2604,7 +2590,6 @@ testDomainSaveImageGetXMLDesc(virConnectPtr conn,
                              VIR_DOMAIN_DEF_FORMAT_SECURE);
 
  cleanup:
-    virDomainDefFree(def);
     VIR_FORCE_CLOSE(fd);
     return ret;
 }
@@ -2837,7 +2822,7 @@ testDomainPinEmulator(virDomainPtr dom,
 {
     virDomainObj *vm = NULL;
     virDomainDef *def = NULL;
-    virBitmap *pcpumap = NULL;
+    g_autoptr(virBitmap) pcpumap = NULL;
     int ret = -1;
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
@@ -2859,11 +2844,10 @@ testDomainPinEmulator(virDomainPtr dom,
     }
 
     virBitmapFree(def->cputune.emulatorpin);
-    def->cputune.emulatorpin = virBitmapNewCopy(pcpumap);
+    def->cputune.emulatorpin = g_steal_pointer(&pcpumap);
 
     ret = 0;
  cleanup:
-    virBitmapFree(pcpumap);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -2879,7 +2863,7 @@ testDomainGetEmulatorPinInfo(virDomainPtr dom,
     virDomainObj *vm = NULL;
     virDomainDef *def = NULL;
     virBitmap *cpumask = NULL;
-    virBitmap *bitmap = NULL;
+    g_autoptr(virBitmap) bitmap = NULL;
     int hostcpus;
     int ret = -1;
 
@@ -2909,7 +2893,6 @@ testDomainGetEmulatorPinInfo(virDomainPtr dom,
     ret = 1;
  cleanup:
     virDomainObjEndAPI(&vm);
-    virBitmapFree(bitmap);
     return ret;
 }
 
@@ -3060,7 +3043,7 @@ static int testDomainGetVcpus(virDomainPtr domain,
     int hostcpus;
     int ret = -1;
     unsigned long long statbase;
-    virBitmap *allcpumap = NULL;
+    g_autoptr(virBitmap) allcpumap = NULL;
 
     if (!(privdom = testDomObjFromDomain(domain)))
         return -1;
@@ -3113,7 +3096,6 @@ static int testDomainGetVcpus(virDomainPtr domain,
 
     ret = maxinfo;
  cleanup:
-    virBitmapFree(allcpumap);
     virDomainObjEndAPI(&privdom);
     return ret;
 }
@@ -3534,7 +3516,7 @@ testDomainSetNumaParameters(virDomainPtr dom,
 {
     virDomainObj *vm = NULL;
     virDomainDef *def = NULL;
-    virBitmap *nodeset = NULL;
+    g_autoptr(virBitmap) nodeset = NULL;
     virDomainNumatuneMemMode config_mode;
     bool live;
     size_t i;
@@ -3601,7 +3583,6 @@ testDomainSetNumaParameters(virDomainPtr dom,
 
     ret = 0;
  cleanup:
-    virBitmapFree(nodeset);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -4185,10 +4166,10 @@ static virDomainPtr testDomainDefineXMLFlags(virConnectPtr conn,
 {
     testDriver *privconn = conn->privateData;
     virDomainPtr ret = NULL;
-    virDomainDef *def;
+    g_autoptr(virDomainDef) def = NULL;
     virDomainObj *dom = NULL;
     virObjectEvent *event = NULL;
-    virDomainDef *oldDef = NULL;
+    g_autoptr(virDomainDef) oldDef = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
 
     virCheckFlags(VIR_DOMAIN_DEFINE_VALIDATE, NULL);
@@ -4222,8 +4203,6 @@ static virDomainPtr testDomainDefineXMLFlags(virConnectPtr conn,
     ret = virGetDomain(conn, dom->def->name, dom->def->uuid, dom->def->id);
 
  cleanup:
-    virDomainDefFree(def);
-    virDomainDefFree(oldDef);
     virDomainObjEndAPI(&dom);
     virObjectEventStateQueue(privconn->eventState, event);
     return ret;
@@ -9682,7 +9661,7 @@ testDomainPinIOThread(virDomainPtr dom,
     virDomainObj *vm;
     virDomainDef *def;
     virDomainIOThreadIDDef *iothrid;
-    virBitmap *cpumask = NULL;
+    g_autoptr(virBitmap) cpumask = NULL;
 
     virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
                   VIR_DOMAIN_AFFECT_CONFIG, -1);
@@ -9715,7 +9694,6 @@ testDomainPinIOThread(virDomainPtr dom,
     ret = 0;
 
  cleanup:
-    virBitmapFree(cpumask);
     virDomainObjEndAPI(&vm);
     return ret;
 }

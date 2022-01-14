@@ -23,11 +23,15 @@
 #include "datatypes.h"
 #include "viralloc.h"
 #include "virlog.h"
-#include "rpc/virnetprotocol.h"
 
 VIR_LOG_INIT("libvirt.stream");
 
 #define VIR_FROM_THIS VIR_FROM_STREAMS
+
+/* To avoid dragging in RPC code (which may be not compiled in),
+ * redefine this constant. Its value can't ever change, so we're
+ * safe to do so. */
+#define VIR_NET_MESSAGE_LEGACY_PAYLOAD_MAX 262120
 
 
 /**
@@ -505,7 +509,14 @@ virStreamRecvHole(virStreamPtr stream,
  * hole:         @data = false, @length > 0
  * EOF:          @data = false, @length = 0
  *
- * Returns 0 on success,
+ * The position in the underlying stream should not be changed
+ * upon return from this function, e.g. position in the
+ * underlying file is kept the same. For streams where this
+ * condition is impossible to meet, the function can return 1 to
+ * signal this to a caller.
+ *
+ * Returns 0 on success (stream position unchanged),
+ *         1 on success (stream position changed),
  *        -1 otherwise
  */
 int

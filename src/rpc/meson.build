@@ -1,10 +1,31 @@
 genprotocol_prog = find_program('genprotocol.pl')
 gendispatch_prog = find_program('gendispatch.pl')
 
-rpc_sources = [
-  'virnetmessage.c',
+socket_sources = [
   'virnettlscontext.c',
   'virnetsocket.c',
+]
+
+virt_socket_lib = static_library(
+  'virt_socket',
+  [
+    dtrace_gen_headers,
+    socket_sources,
+  ],
+  dependencies: [
+    gnutls_dep,
+    src_dep,
+  ],
+)
+
+libvirt_libs += [
+  virt_socket_lib
+]
+
+used_sym_files += 'libvirt_socket.syms'
+
+rpc_sources = [
+  'virnetmessage.c',
   'virkeepalive.c',
 ]
 
@@ -63,59 +84,67 @@ rpc_client_sources = [
   'virnetclient.c',
 ]
 
-virt_rpc_lib = static_library(
-  'virt_net_rpc',
-  [
-    rpc_sources,
-    rpc_gen_headers,
-    rpc_gen_sources,
-  ],
-  dependencies: [
-    gnutls_dep,
-    libssh2_dep,
-    libssh_dep,
-    sasl_dep,
-    secdriver_dep,
-    src_dep,
-    xdr_dep,
-  ],
-)
+if conf.has('WITH_REMOTE')
+  virt_rpc_lib = static_library(
+    'virt_net_rpc',
+    [
+      rpc_sources,
+      rpc_gen_headers,
+      rpc_gen_sources,
+    ],
+    dependencies: [
+      gnutls_dep,
+      libssh2_dep,
+      libssh_dep,
+      sasl_dep,
+      secdriver_dep,
+      src_dep,
+      xdr_dep,
+    ],
+  )
 
-check_protocols += {
-  'name': 'virnetprotocol',
-  'lib': virt_rpc_lib,
-}
+  check_protocols += {
+    'name': 'virnetprotocol',
+    'lib': virt_rpc_lib,
+  }
 
-check_protocols += {
-  'name': 'virkeepaliveprotocol',
-  'lib': virt_rpc_lib,
-}
+  check_protocols += {
+    'name': 'virkeepaliveprotocol',
+    'lib': virt_rpc_lib,
+  }
 
-virt_rpc_server_lib = static_library(
-  'virt_net_rpc_server',
-  [
-    rpc_server_sources,
-    rpc_gen_headers,
-  ],
-  dependencies: [
-    sasl_dep,
-    src_dep,
-    xdr_dep,
-  ],
-)
+  virt_rpc_server_lib = static_library(
+    'virt_net_rpc_server',
+    [
+      rpc_server_sources,
+      rpc_gen_headers,
+    ],
+    dependencies: [
+      sasl_dep,
+      src_dep,
+      xdr_dep,
+    ],
+  )
 
-virt_rpc_client_lib = static_library(
-  'virt_net_rpc_client',
-  [
-    rpc_client_sources,
-    rpc_gen_headers,
-  ],
-  dependencies: [
-    sasl_dep,
-    src_dep,
-    xdr_dep,
-  ],
-)
+  virt_rpc_client_lib = static_library(
+    'virt_net_rpc_client',
+    [
+      rpc_client_sources,
+      rpc_gen_headers,
+    ],
+    dependencies: [
+      sasl_dep,
+      src_dep,
+      xdr_dep,
+    ],
+  )
+
+  libvirt_libs += [
+    virt_rpc_lib,
+    virt_rpc_client_lib,
+    virt_rpc_server_lib,
+  ]
+endif
 
 rpc_inc_dir = include_directories('.')
 
@@ -123,9 +152,3 @@ rpc_dep = declare_dependency(
   include_directories: [ rpc_inc_dir ],
   sources: [ rpc_gen_headers ],
 )
-
-libvirt_libs += [
-  virt_rpc_lib,
-  virt_rpc_client_lib,
-  virt_rpc_server_lib,
-]

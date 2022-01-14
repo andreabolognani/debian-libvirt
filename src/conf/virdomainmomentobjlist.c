@@ -205,7 +205,7 @@ virDomainMomentMoveChildren(virDomainMomentObj *from,
 }
 
 
-static virDomainMomentObj *
+virDomainMomentObj *
 virDomainMomentObjNew(void)
 {
     virDomainMomentObj *moment;
@@ -218,7 +218,7 @@ virDomainMomentObjNew(void)
 }
 
 
-static void
+void
 virDomainMomentObjFree(virDomainMomentObj *moment)
 {
     if (!moment)
@@ -282,7 +282,7 @@ virDomainMomentObjListFree(virDomainMomentObjList *moments)
 {
     if (!moments)
         return;
-    virHashFree(moments->objs);
+    g_clear_pointer(&moments->objs, g_hash_table_unref);
     g_free(moments);
 }
 

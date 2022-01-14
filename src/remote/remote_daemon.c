@@ -626,6 +626,10 @@ static void daemonRunStateInit(void *opaque)
 
     driversInitialized = true;
 
+    virNetDaemonSetShutdownCallbacks(dmn,
+                                     virStateShutdownPrepare,
+                                     virStateShutdownWait);
+
     /* Tie the non-privileged daemons to the session/shutdown lifecycle */
     if (!virNetDaemonIsPrivileged(dmn)) {
 
@@ -822,10 +826,8 @@ int main(int argc, char **argv) {
     };
 
     if (virGettextInitialize() < 0 ||
-        virInitialize() < 0) {
-        fprintf(stderr, _("%s: initialization failed\n"), argv[0]);
+        virInitialize() < 0)
         exit(EXIT_FAILURE);
-    }
 
     virUpdateSelfLastChanged(argv[0]);
 
@@ -932,13 +934,16 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    virDaemonSetupLogging(DAEMON_NAME,
-                          config->log_level,
-                          config->log_filters,
-                          config->log_outputs,
-                          privileged,
-                          verbose,
-                          godaemon);
+    if (virDaemonSetupLogging(DAEMON_NAME,
+                              config->log_level,
+                              config->log_filters,
+                              config->log_outputs,
+                              privileged,
+                              verbose,
+                              godaemon) < 0) {
+        virDispatchError(NULL);
+        exit(EXIT_FAILURE);
+    }
 
     /* Let's try to initialize global variable that holds the host's boot time. */
     if (virHostBootTimeInit() < 0) {
@@ -1214,9 +1219,6 @@ int main(int argc, char **argv) {
 #endif
 
     /* Run event loop. */
-    virNetDaemonSetShutdownCallbacks(dmn,
-                                     virStateShutdownPrepare,
-                                     virStateShutdownWait);
     virNetDaemonRun(dmn);
 
     ret = 0;

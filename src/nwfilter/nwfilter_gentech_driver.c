@@ -121,7 +121,7 @@ virNWFilterRuleInstFree(virNWFilterRuleInst *inst)
     if (!inst)
         return;
 
-    virHashFree(inst->vars);
+    g_clear_pointer(&inst->vars, g_hash_table_unref);
     g_free(inst);
 }
 
@@ -493,8 +493,7 @@ virNWFilterDoInstantiate(virNWFilterTechDriver *techdriver,
     virNWFilterVarValue *lv;
     const char *learning;
     bool reportIP = false;
-
-    GHashTable *missing_vars = virHashNew(virNWFilterVarValueHashFree);
+    g_autoptr(GHashTable) missing_vars = virHashNew(virNWFilterVarValueHashFree);
 
     memset(&inst, 0, sizeof(inst));
 
@@ -593,7 +592,6 @@ virNWFilterDoInstantiate(virNWFilterTechDriver *techdriver,
 
  error:
     virNWFilterInstReset(&inst);
-    virHashFree(missing_vars);
 
     return rc;
 
@@ -981,7 +979,8 @@ virNWFilterBuildAll(virNWFilterDriverState *driver,
     VIR_DEBUG("Build all filters newFilters=%d", newFilters);
 
     if (newFilters) {
-        data.skipInterfaces = virHashNew(NULL);
+        g_autoptr(GHashTable) skipInterfaces = virHashNew(NULL);
+        data.skipInterfaces = skipInterfaces;
 
         data.step = STEP_APPLY_NEW;
         if (virNWFilterBindingObjListForEach(driver->bindings,
@@ -1000,8 +999,6 @@ virNWFilterBuildAll(virNWFilterDriverState *driver,
                                              virNWFilterBuildIter,
                                              &data);
         }
-
-        virHashFree(data.skipInterfaces);
     } else {
         data.step = STEP_APPLY_CURRENT;
         if (virNWFilterBindingObjListForEach(driver->bindings,

@@ -262,7 +262,7 @@ hypervLookupHostSystemBiosUuid(hypervPrivate *priv, unsigned char *uuid)
 static virCaps *
 hypervCapsInit(hypervPrivate *priv)
 {
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
     virCapsGuest *guest = NULL;
 
     caps = virCapabilitiesNew(VIR_ARCH_X86_64, 1, 1);
@@ -271,7 +271,7 @@ hypervCapsInit(hypervPrivate *priv)
         return NULL;
 
     if (hypervLookupHostSystemBiosUuid(priv, caps->host.host_uuid) < 0)
-        goto error;
+        return NULL;
 
     /* i686 caps */
     guest = virCapabilitiesAddGuest(caps, VIR_DOMAIN_OSTYPE_HVM, VIR_ARCH_I686,
@@ -287,11 +287,7 @@ hypervCapsInit(hypervPrivate *priv)
     virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_HYPERV,
                                   NULL, NULL, 0, NULL);
 
-    return caps;
-
- error:
-    virObjectUnref(caps);
-    return NULL;
+    return g_steal_pointer(&caps);
 }
 
 
@@ -486,8 +482,6 @@ hypervDomainAddVirtualDiskParent(virDomainPtr domain,
     parent__PATH = g_strdup_printf("\\\\%s\\Root\\Virtualization\\V2:"
                                    "Msvm_ResourceAllocationSettingData.InstanceID=\"%s\"",
                                    hostname, parentInstanceIDEscaped);
-    if (!parent__PATH)
-        return -1;
 
     if (hypervSetEmbeddedProperty(controllerResource, "Parent", parent__PATH) < 0)
         return -1;
@@ -532,9 +526,6 @@ hypervDomainAddVirtualHardDisk(virDomainPtr domain,
     vhd__PATH = g_strdup_printf("\\\\%s\\Root\\Virtualization\\V2:"
                                 "Msvm_ResourceAllocationSettingData.InstanceID=\"%s\"",
                                 hostname, vhdInstanceIdEscaped);
-
-    if (!vhd__PATH)
-        return -1;
 
     if (hypervSetEmbeddedProperty(volumeResource, "Parent", vhd__PATH) < 0)
         return -1;
@@ -664,8 +655,6 @@ hypervDomainAttachPhysicalDisk(virDomainPtr domain,
     controller__PATH = g_strdup_printf("\\\\%s\\Root\\Virtualization\\V2:"
                                        "Msvm_ResourceAllocationSettingData.InstanceID=\"%s\"",
                                        hostname, controllerInstanceIdEscaped);
-    if (!controller__PATH)
-        return -1;
 
     if (hypervSetEmbeddedProperty(diskResource, "Parent", controller__PATH) < 0)
         return -1;
@@ -715,8 +704,6 @@ hypervDomainAddOpticalDrive(virDomainPtr domain,
     parent__PATH = g_strdup_printf("\\\\%s\\Root\\Virtualization\\V2:"
                                    "Msvm_ResourceAllocationSettingData.InstanceID=\"%s\"",
                                    hostname, parentInstanceIDEscaped);
-    if (!parent__PATH)
-        return -1;
 
     if (hypervSetEmbeddedProperty(driveResource, "Parent", parent__PATH) < 0)
         return -1;
@@ -760,8 +747,6 @@ hypervDomainAddOpticalDisk(virDomainPtr domain,
     vhd__PATH = g_strdup_printf("\\\\%s\\Root\\Virtualization\\V2:"
                                 "Msvm_ResourceAllocationSettingData.InstanceID=\"%s\"",
                                 hostname, vhdInstanceIdEscaped);
-    if (!vhd__PATH)
-        return -1;
 
     if (hypervSetEmbeddedProperty(volumeResource, "Parent", vhd__PATH) < 0)
         return -1;
@@ -832,9 +817,6 @@ hypervDomainAttachFloppy(virDomainPtr domain,
     vfd__PATH = g_strdup_printf("\\\\%s\\Root\\Virtualization\\V2:"
                                 "Msvm_ResourceAllocationSettingData.InstanceID=\"%s\"",
                                 hostname, vhdInstanceIdEscaped);
-
-    if (!vfd__PATH)
-        return -1;
 
     if (hypervSetEmbeddedProperty(volumeResource, "Parent", vfd__PATH) < 0)
         return -1;

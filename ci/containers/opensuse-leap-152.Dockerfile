@@ -15,10 +15,10 @@ RUN zypper update -y && \
            ca-certificates \
            ccache \
            clang \
+           codespell \
            cpp \
            cppi \
            cyrus-sasl-devel \
-           dbus-1-devel \
            device-mapper-devel \
            diffutils \
            dnsmasq \
@@ -65,7 +65,6 @@ RUN zypper update -y && \
            ninja \
            numad \
            open-iscsi \
-           parted \
            parted-devel \
            perl-base \
            pkgconfig \
@@ -77,7 +76,6 @@ RUN zypper update -y && \
            python3-setuptools \
            python3-wheel \
            qemu-tools \
-           radvd \
            readline-devel \
            rpcgen \
            rpm-build \
@@ -86,8 +84,7 @@ RUN zypper update -y && \
            sed \
            systemtap-sdt-devel \
            wireshark-devel \
-           xen-devel \
-           xfsprogs-devel && \
+           xen-devel && \
     zypper clean --all && \
     rpm -qa | sort > /packages.txt && \
     mkdir -p /usr/libexec/ccache-wrappers && \

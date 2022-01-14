@@ -284,27 +284,26 @@ vmwareConnectGetVersion(virConnectPtr conn, unsigned long *version)
 static int
 vmwareUpdateVMStatus(struct vmware_driver *driver, virDomainObj *vm)
 {
-    virCommand *cmd;
-    char *outbuf = NULL;
-    char *vmxAbsolutePath = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *outbuf = NULL;
+    g_autofree char *vmxAbsolutePath = NULL;
     char *parsedVmxPath = NULL;
     char *str;
     char *saveptr = NULL;
     bool found = false;
     int oldState = virDomainObjGetState(vm, NULL);
     int newState;
-    int ret = -1;
 
     cmd = virCommandNewArgList(driver->vmrun, "-T",
                                vmwareDriverTypeToString(driver->type),
                                "list", NULL);
     virCommandSetOutputBuffer(cmd, &outbuf);
     if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
+        return -1;
 
     if (virFileResolveAllLinks(((vmwareDomainPtr) vm->privateData)->vmxPath,
                                &vmxAbsolutePath) < 0)
-        goto cleanup;
+        return -1;
 
     for (str = outbuf; (parsedVmxPath = strtok_r(str, "\n", &saveptr)) != NULL;
          str = NULL) {
@@ -331,13 +330,7 @@ vmwareUpdateVMStatus(struct vmware_driver *driver, virDomainObj *vm)
 
     virDomainObjSetState(vm, newState, 0);
 
-    ret = 0;
-
- cleanup:
-    virCommandFree(cmd);
-    VIR_FREE(outbuf);
-    VIR_FREE(vmxAbsolutePath);
-    return ret;
+    return 0;
 }
 
 static int
@@ -394,7 +387,7 @@ static virDomainPtr
 vmwareDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
 {
     struct vmware_driver *driver = conn->privateData;
-    virDomainDef *vmdef = NULL;
+    g_autoptr(virDomainDef) vmdef = NULL;
     virDomainObj *vm = NULL;
     virDomainPtr dom = NULL;
     char *vmx = NULL;
@@ -454,7 +447,6 @@ vmwareDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int fla
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, -1);
 
  cleanup:
-    virDomainDefFree(vmdef);
     VIR_FREE(vmx);
     VIR_FREE(vmxPath);
     if (vm)
@@ -646,7 +638,7 @@ vmwareDomainCreateXML(virConnectPtr conn, const char *xml,
                       unsigned int flags)
 {
     struct vmware_driver *driver = conn->privateData;
-    virDomainDef *vmdef = NULL;
+    g_autoptr(virDomainDef) vmdef = NULL;
     virDomainObj *vm = NULL;
     virDomainPtr dom = NULL;
     char *vmx = NULL;
@@ -709,7 +701,6 @@ vmwareDomainCreateXML(virConnectPtr conn, const char *xml,
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
-    virDomainDefFree(vmdef);
     VIR_FREE(vmx);
     VIR_FREE(vmxPath);
     virDomainObjEndAPI(&vm);
@@ -937,7 +928,7 @@ vmwareConnectDomainXMLFromNative(virConnectPtr conn, const char *nativeFormat,
 {
     struct vmware_driver *driver = conn->privateData;
     virVMXContext ctx;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     char *xml = NULL;
 
     virCheckFlags(0, NULL);
@@ -958,8 +949,6 @@ vmwareConnectDomainXMLFromNative(virConnectPtr conn, const char *nativeFormat,
     if (def != NULL)
         xml = virDomainDefFormat(def, driver->xmlopt,
                                  VIR_DOMAIN_DEF_FORMAT_INACTIVE);
-
-    virDomainDefFree(def);
 
     return xml;
 }

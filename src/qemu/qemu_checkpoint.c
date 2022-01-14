@@ -237,8 +237,7 @@ qemuCheckpointDiscardBitmaps(virDomainObj *vm,
 
     qemuDomainObjEnterMonitor(driver, vm);
     rc = qemuMonitorTransaction(priv->mon, &actions);
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return -1;
+    qemuDomainObjExitMonitor(driver, vm);
 
  relabel:
     for (next = relabelimages; next; next = next->next) {
@@ -525,7 +524,8 @@ qemuCheckpointCreate(virQEMUDriver *driver,
 
     qemuDomainObjEnterMonitor(driver, vm);
     rc = qemuMonitorTransaction(qemuDomainGetMonitor(vm), &actions);
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0) {
+    qemuDomainObjExitMonitor(driver, vm);
+    if (rc < 0) {
         qemuCheckpointRollbackMetadata(vm, chk);
         return NULL;
     }
@@ -647,7 +647,8 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     virQEMUDriver *driver = priv->driver;
-    g_autoptr(GHashTable) blockNamedNodeData = NULL;
+    g_autoptr(GHashTable) nodedataMerge = NULL;
+    g_autoptr(GHashTable) nodedataStats = NULL;
     g_autofree struct qemuCheckpointDiskMap *diskmap = NULL;
     g_autoptr(virJSONValue) recoveractions = NULL;
     g_autoptr(virJSONValue) mergeactions = virJSONValueNewArray();
@@ -663,7 +664,7 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
+    if (!(nodedataMerge = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
         goto endjob;
 
     /* enumerate disks relevant for the checkpoint which are also present in the
@@ -683,7 +684,7 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
         if (!(domdisk = virDomainDiskByTarget(vm->def, chkdisk->name)))
             continue;
 
-        if (!qemuBlockBitmapChainIsValid(domdisk->src, chkdef->parent.name, blockNamedNodeData))
+        if (!qemuBlockBitmapChainIsValid(domdisk->src, chkdef->parent.name, nodedataMerge))
             continue;
 
         diskmap[ndisks].chkdisk = chkdisk;
@@ -702,7 +703,7 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
         g_autoptr(virJSONValue) actions = NULL;
 
         /* possibly delete leftovers from previous cases */
-        if (qemuBlockNamedNodeDataGetBitmapByName(blockNamedNodeData, domdisk->src,
+        if (qemuBlockNamedNodeDataGetBitmapByName(nodedataMerge, domdisk->src,
                                                   "libvirt-tmp-size-xml")) {
             if (!recoveractions)
                 recoveractions = virJSONValueNewArray();
@@ -715,7 +716,7 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
 
         if (qemuBlockGetBitmapMergeActions(domdisk->src, NULL, domdisk->src,
                                            chkdef->parent.name, "libvirt-tmp-size-xml",
-                                           NULL, &actions, blockNamedNodeData) < 0)
+                                           NULL, &actions, nodedataMerge) < 0)
             goto endjob;
 
         if (virJSONValueArrayConcat(mergeactions, actions) < 0)
@@ -735,19 +736,20 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
     if (rc == 0)
         rc = qemuMonitorTransaction(priv->mon, &mergeactions);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(driver, vm);
+    if (rc < 0)
         goto endjob;
 
     /* now do a final refresh */
-    virHashFree(blockNamedNodeData);
-    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
+    if (!(nodedataStats = qemuBlockGetNamedNodeData(vm, QEMU_ASYNC_JOB_NONE)))
         goto endjob;
 
     qemuDomainObjEnterMonitor(driver, vm);
 
     rc = qemuMonitorTransaction(priv->mon, &cleanupactions);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(driver, vm);
+    if (rc < 0)
         goto endjob;
 
     /* update disks */
@@ -756,7 +758,7 @@ qemuCheckpointGetXMLDescUpdateSize(virDomainObj *vm,
         virDomainDiskDef *domdisk = diskmap[i].domdisk;
         qemuBlockNamedNodeDataBitmap *bitmap;
 
-        if ((bitmap = qemuBlockNamedNodeDataGetBitmapByName(blockNamedNodeData, domdisk->src,
+        if ((bitmap = qemuBlockNamedNodeDataGetBitmapByName(nodedataStats, domdisk->src,
                                                             "libvirt-tmp-size-xml"))) {
             chkdisk->size = bitmap->dirtybytes;
             chkdisk->sizeValid = true;

@@ -379,7 +379,7 @@ libxlDomainMigrationSrcBegin(virConnectPtr conn,
     libxlDriverPrivate *driver = conn->privateData;
     libxlDriverConfig *cfg = libxlDriverConfigGet(driver);
     libxlMigrationCookie *mig = NULL;
-    virDomainDef *tmpdef = NULL;
+    g_autoptr(virDomainDef) tmpdef = NULL;
     virDomainDef *def;
     char *xml = NULL;
 
@@ -426,7 +426,6 @@ libxlDomainMigrationSrcBegin(virConnectPtr conn,
 
  cleanup:
     libxlMigrationCookieFree(mig);
-    virDomainDefFree(tmpdef);
     virObjectUnref(cfg);
     return xml;
 }
@@ -1135,9 +1134,6 @@ libxlDomainMigrationSrcPerformP2P(libxlDriverPrivate *driver,
     virObjectLock(vm);
 
     if (dconn == NULL) {
-        virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("Failed to connect to remote libvirt URI %s: %s"),
-                       dconnuri, virGetLastErrorMessage());
         return ret;
     }
 

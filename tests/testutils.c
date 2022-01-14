@@ -173,7 +173,7 @@ virTestRun(const char *title,
     }
 
     if (ret != 0 && ret != EXIT_AM_SKIP)
-        ignore_value(virBitmapSetBitExpand(failedTests, testCounter));
+        virBitmapSetBitExpand(failedTests, testCounter);
 
     g_unsetenv("VIR_TEST_MOCK_TESTNAME");
     return ret;
@@ -835,7 +835,9 @@ int virTestMain(int argc,
     if (virErrorInitialize() < 0)
         return EXIT_FAILURE;
 
-    virLogSetFromEnv();
+    if (virLogSetFromEnv() < 0)
+        return EXIT_FAILURE;
+
     if (!getenv("LIBVIRT_DEBUG") && !virLogGetNbOutputs()) {
         if (!(output = virLogOutputNew(virtTestLogOutput, virtTestLogClose,
                                        &testLog, VIR_LOG_DEBUG,

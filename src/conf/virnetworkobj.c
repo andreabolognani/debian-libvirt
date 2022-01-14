@@ -43,7 +43,6 @@ struct _virNetworkObj {
     virObjectLockable parent;
 
     pid_t dnsmasqPid;
-    pid_t radvdPid;
     bool active;
     bool autostart;
     bool persistent;
@@ -208,21 +207,6 @@ virNetworkObjSetDnsmasqPid(virNetworkObj *obj,
                            pid_t dnsmasqPid)
 {
     obj->dnsmasqPid = dnsmasqPid;
-}
-
-
-pid_t
-virNetworkObjGetRadvdPid(virNetworkObj *obj)
-{
-    return obj->radvdPid;
-}
-
-
-void
-virNetworkObjSetRadvdPid(virNetworkObj *obj,
-                         pid_t radvdPid)
-{
-    obj->radvdPid = radvdPid;
 }
 
 
@@ -464,7 +448,7 @@ virNetworkObjDispose(void *opaque)
 {
     virNetworkObj *obj = opaque;
 
-    virHashFree(obj->ports);
+    g_clear_pointer(&obj->ports, g_hash_table_unref);
     virNetworkDefFree(obj->def);
     virNetworkDefFree(obj->newDef);
     virBitmapFree(obj->classIdMap);
@@ -477,7 +461,7 @@ virNetworkObjListDispose(void *opaque)
 {
     virNetworkObjList *nets = opaque;
 
-    virHashFree(nets->objs);
+    g_clear_pointer(&nets->objs, g_hash_table_unref);
 }
 
 

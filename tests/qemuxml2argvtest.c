@@ -376,6 +376,79 @@ testCheckExclusiveFlags(int flags)
 }
 
 
+static int
+testPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
+                                 virDomainChrSourceDef *chardev,
+                                 void *opaque)
+{
+    virQEMUCaps *qemuCaps = opaque;
+    qemuDomainChrSourcePrivate *charpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(chardev);
+
+    if (dev) {
+        /* vhost-user disk doesn't use FD passing */
+        if (dev->type == VIR_DOMAIN_DEVICE_DISK)
+            return 0;
+
+        if (dev->type == VIR_DOMAIN_DEVICE_NET) {
+            /* due to a historical bug in qemu we don't use FD passtrhough for
+             * vhost-sockets for network devices */
+            return 0;
+        }
+
+        /* TPMs FD passing setup is special and handled separately */
+        if (dev->type == VIR_DOMAIN_DEVICE_TPM)
+            return 0;
+    }
+
+    switch ((virDomainChrType) chardev->type) {
+    case VIR_DOMAIN_CHR_TYPE_NULL:
+    case VIR_DOMAIN_CHR_TYPE_VC:
+    case VIR_DOMAIN_CHR_TYPE_PTY:
+    case VIR_DOMAIN_CHR_TYPE_DEV:
+    case VIR_DOMAIN_CHR_TYPE_PIPE:
+    case VIR_DOMAIN_CHR_TYPE_STDIO:
+    case VIR_DOMAIN_CHR_TYPE_UDP:
+    case VIR_DOMAIN_CHR_TYPE_TCP:
+    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
+    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_FILE:
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
+            if (fcntl(1750, F_GETFD) != -1)
+                abort();
+            charpriv->fd = 1750;
+        }
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_UNIX:
+        if (chardev->data.nix.listen &&
+            virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
+
+            if (fcntl(1729, F_GETFD) != -1)
+                abort();
+
+            charpriv->fd = 1729;
+        }
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_NMDM:
+    case VIR_DOMAIN_CHR_TYPE_LAST:
+        break;
+    }
+
+    if (chardev->logfile) {
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
+            if (fcntl(1751, F_GETFD) != -1)
+                abort();
+            charpriv->logfd = 1751;
+        }
+    }
+
+    return 0;
+}
+
+
 static virCommand *
 testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
                                virDomainObj *vm,
@@ -387,9 +460,23 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
     bool enableFips = !!(flags & FLAG_FIPS_HOST);
     size_t i;
 
-    if (qemuProcessCreatePretendCmdPrepare(drv, vm, migrateURI, false,
+    if (qemuProcessCreatePretendCmdPrepare(drv, vm, migrateURI,
                                            VIR_QEMU_PROCESS_START_COLD) < 0)
         return NULL;
+
+    if (qemuDomainDeviceBackendChardevForeach(vm->def,
+                                              testPrepareHostBackendChardevOne,
+                                              info->qemuCaps) < 0)
+        return NULL;
+
+    if (virQEMUCapsGet(info->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
+        qemuDomainChrSourcePrivate *monpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(priv->monConfig);
+
+        if (fcntl(1729, F_GETFD) != -1)
+            abort();
+
+        monpriv->fd = 1729;
+    }
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDef *disk = vm->def->disks[i];
@@ -673,11 +760,11 @@ testCompareXMLToArgv(const void *data)
 
     ctxt->node = root;
 
-    if ((archstr = virXPathString("string(./os/type[1]/@arch)", ctxt))) {
-        if ((arch = virArchFromString(archstr)) == VIR_ARCH_NONE) {
-            arch = virArchFromHost();
-        }
-    }
+    if ((archstr = virXPathString("string(./os/type[1]/@arch)", ctxt)))
+        arch = virArchFromString(archstr);
+
+    if (arch == VIR_ARCH_NONE)
+        arch = virArchFromHost();
 
     if (!(info->flags & FLAG_REAL_CAPS)) {
         if (testUpdateQEMUCaps(info, arch, driver.caps) < 0)
@@ -735,13 +822,6 @@ testCompareXMLToArgv(const void *data)
 
     if (qemuProcessPrepareMonitorChr(&monitor_chr, priv->libDir) < 0)
         goto cleanup;
-
-    if (!(info->flags & FLAG_REAL_CAPS)) {
-        if (testUpdateQEMUCaps(info, vm->def->os.arch, driver.caps) < 0)
-            goto cleanup;
-        if (qemuTestCapsCacheInsert(driver.qemuCapsCache, info->qemuCaps) < 0)
-            goto cleanup;
-    }
 
     virResetLastError();
 
@@ -823,7 +903,7 @@ mymain(void)
     int ret = 0;
     g_autofree char *fakerootdir = NULL;
     g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
-    g_autoptr(GHashTable) qapiSchemaCache = virHashNew((GDestroyNotify) virHashFree);
+    g_autoptr(GHashTable) qapiSchemaCache = virHashNew((GDestroyNotify) g_hash_table_unref);
     g_autoptr(GHashTable) capscache = virHashNew(virObjectFreeHashData);
     struct testQemuConf testConf = { .capslatest = capslatest,
                                      .capscache = capscache,
@@ -1047,7 +1127,8 @@ mymain(void)
             QEMU_CAPS_MACHINE_VMPORT_OPT);
     DO_TEST_NOCAPS("default-kvm-host-arch");
     DO_TEST_NOCAPS("default-qemu-host-arch");
-    DO_TEST_NOCAPS("x86-kvm-32-on-64");
+    DO_TEST_CAPS_VER("x86-kvm-32-on-64", "4.1.0");
+    DO_TEST_CAPS_LATEST("x86-kvm-32-on-64");
     DO_TEST_NOCAPS("boot-cdrom");
     DO_TEST_NOCAPS("boot-network");
     DO_TEST_NOCAPS("boot-floppy");
@@ -1189,6 +1270,8 @@ mymain(void)
     DO_TEST("clock-timer-hyperv-rtc", QEMU_CAPS_KVM);
     DO_TEST_NOCAPS("clock-realtime");
 
+    DO_TEST_CAPS_LATEST("controller-usb-order");
+
     DO_TEST_NOCAPS("cpu-eoi-disabled");
     DO_TEST_NOCAPS("cpu-eoi-enabled");
     DO_TEST("controller-order",
@@ -1217,6 +1300,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hyperv-off");
     DO_TEST_CAPS_VER("hyperv-panic", "4.0.0");
     DO_TEST_CAPS_LATEST("hyperv-panic");
+    DO_TEST_CAPS_VER("hyperv-passthrough", "6.1.0");
+    DO_TEST_CAPS_LATEST("hyperv-passthrough");
     DO_TEST_CAPS_LATEST("hyperv-stimer-direct");
 
     DO_TEST_NOCAPS("kvm-features");
@@ -1291,10 +1376,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-cdrom-tray");
     DO_TEST_CAPS_VER("disk-floppy", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-floppy");
-    DO_TEST_CAPS_VER("disk-floppy-q35-2_9", "2.12.0");
-    DO_TEST_CAPS_LATEST("disk-floppy-q35-2_9");
-    DO_TEST_CAPS_VER("disk-floppy-q35-2_11", "2.12.0");
-    DO_TEST_CAPS_LATEST("disk-floppy-q35-2_11");
+    DO_TEST_CAPS_VER("disk-floppy-q35", "2.12.0");
+    DO_TEST_CAPS_LATEST("disk-floppy-q35");
     DO_TEST_CAPS_ARCH_LATEST_FAILURE("disk-floppy-pseries", "ppc64");
     DO_TEST_CAPS_LATEST("disk-floppy-tray");
     DO_TEST_CAPS_LATEST("disk-virtio");
@@ -1606,6 +1689,18 @@ mymain(void)
             QEMU_CAPS_CHARDEV_FILE_APPEND);
     DO_TEST("serial-unix-chardev",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_CAPS_LATEST("serial-file-log");
+    DO_TEST_CAPS_LATEST("serial-spiceport");
+    DO_TEST_CAPS_LATEST("serial-spiceport-nospice");
+
+    DO_TEST_CAPS_LATEST("console-compat");
+    DO_TEST_CAPS_LATEST("console-compat-auto");
+
+    DO_TEST_CAPS_LATEST("serial-vc-chardev");
+    DO_TEST_CAPS_LATEST("serial-pty-chardev");
+    DO_TEST_CAPS_LATEST("serial-dev-chardev");
+    DO_TEST_CAPS_LATEST("serial-dev-chardev-iobase");
+    DO_TEST_CAPS_LATEST("serial-file-chardev");
     DO_TEST_CAPS_LATEST("serial-unix-chardev");
     DO_TEST_PARSE_ERROR_NOCAPS("serial-unix-missing-source");
     DO_TEST("serial-tcp-chardev",
@@ -1614,31 +1709,45 @@ mymain(void)
             QEMU_CAPS_DEVICE_ISA_SERIAL);
     DO_TEST("serial-tcp-telnet-chardev",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_CAPS_LATEST("serial-unix-chardev");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("serial-unix-missing-source");
+    DO_TEST_CAPS_LATEST("serial-tcp-chardev");
+    DO_TEST_CAPS_LATEST("serial-udp-chardev");
+    DO_TEST_CAPS_LATEST("serial-tcp-telnet-chardev");
     driver.config->chardevTLS = 1;
     DO_TEST("serial-tcp-tlsx509-chardev",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-chardev");
     driver.config->chardevTLSx509verify = 1;
     DO_TEST("serial-tcp-tlsx509-chardev-verify",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-chardev-verify");
     driver.config->chardevTLSx509verify = 0;
     DO_TEST("serial-tcp-tlsx509-chardev-notls",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-chardev-notls");
     VIR_FREE(driver.config->chardevTLSx509certdir);
     driver.config->chardevTLSx509certdir = g_strdup("/etc/pki/libvirt-chardev");
     driver.config->chardevTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST("serial-tcp-tlsx509-secret-chardev",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-secret-chardev");
     driver.config->chardevTLS = 0;
     VIR_FREE(driver.config->chardevTLSx509certdir);
     DO_TEST("serial-many-chardev",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
     DO_TEST_NOCAPS("parallel-tcp-chardev");
     DO_TEST_NOCAPS("parallel-parport-chardev");
+    DO_TEST_CAPS_LATEST("serial-many-chardev");
+    DO_TEST_CAPS_LATEST("parallel-tcp-chardev");
+    DO_TEST_CAPS_LATEST("parallel-parport-chardev");
     DO_TEST_CAPS_LATEST("parallel-unix-chardev");
     DO_TEST("console-compat-chardev",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
     DO_TEST("pci-serial-dev-chardev",
             QEMU_CAPS_DEVICE_PCI_SERIAL);
+    DO_TEST_CAPS_LATEST("console-compat-chardev");
+    DO_TEST_CAPS_LATEST("pci-serial-dev-chardev");
 
     DO_TEST_NOCAPS("channel-guestfwd");
     DO_TEST_CAPS_LATEST("channel-unix-guestfwd");
@@ -2082,6 +2191,7 @@ mymain(void)
     DO_TEST_NOCAPS("numad-auto-memory-vcpu-cpuset");
     DO_TEST_NOCAPS("numad-auto-memory-vcpu-no-cpuset-and-placement");
     DO_TEST_NOCAPS("numad-static-memory-auto-vcpu");
+    DO_TEST_CAPS_LATEST("blkdeviotune");
     DO_TEST_CAPS_VER("blkdeviotune-max", "4.1.0");
     DO_TEST_CAPS_LATEST("blkdeviotune-max");
     DO_TEST_CAPS_VER("blkdeviotune-group-num", "4.1.0");
@@ -3163,18 +3273,10 @@ mymain(void)
     DO_TEST("sparc-minimal",
             QEMU_CAPS_SCSI_NCR53C90);
 
-    /* VM XML has invalid arch/ostype/virttype combo, but the SKIP flag
-     * will avoid the error during parse. This will cause us to fill in
-     * the missing machine type using the i386 binary, despite it being
-     * the wrong binary for the arch. We expect to get a failure about
-     * bad arch later when creating the pretend command.
-     */
-    DO_TEST_FULL("missing-machine", "",
-                 ARG_FLAGS, FLAG_EXPECT_FAILURE,
-                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE,
-                 ARG_END);
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("missing-machine");
 
     DO_TEST_CAPS_VER("name-escape", "2.11.0");
+    DO_TEST_CAPS_LATEST("name-escape");
 
     DO_TEST_NOCAPS("master-key");
     DO_TEST("usb-long-port-path",
@@ -3309,6 +3411,11 @@ mymain(void)
     DO_TEST_CAPS_VER("launch-security-sev", "2.12.0");
     DO_TEST_CAPS_VER("launch-security-sev", "6.0.0");
     DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "2.12.0");
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-direct",
+                                  "x86_64",
+                                  ARG_QEMU_CAPS,
+                                  QEMU_CAPS_SEV_GUEST,
+                                  QEMU_CAPS_LAST);
 
     DO_TEST_CAPS_ARCH_LATEST("launch-security-s390-pv", "s390x");
 
@@ -3372,6 +3479,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-pc-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35-4.2", "x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-features", "x86_64");
 
     DO_TEST_CAPS_LATEST("virtio-9p-multidevs");
     DO_TEST_CAPS_LATEST("virtio-9p-createmode");

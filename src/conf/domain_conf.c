@@ -137,6 +137,13 @@ VIR_ENUM_IMPL(virDomainOS,
               "xenpvh",
 );
 
+VIR_ENUM_IMPL(virDomainHyperVMode,
+              VIR_DOMAIN_HYPERV_MODE_LAST,
+              "none",
+              "custom",
+              "passthrough",
+);
+
 VIR_ENUM_IMPL(virDomainBoot,
               VIR_DOMAIN_BOOT_LAST,
               "fd",
@@ -172,6 +179,7 @@ VIR_ENUM_IMPL(virDomainFeature,
               "cfpc",
               "sbbc",
               "ibs",
+              "tcg",
 );
 
 VIR_ENUM_IMPL(virDomainCapabilitiesPolicy,
@@ -205,6 +213,7 @@ VIR_ENUM_IMPL(virDomainKVM,
               "hint-dedicated",
               "poll-control",
               "pv-ipi",
+              "dirty-ring",
 );
 
 VIR_ENUM_IMPL(virDomainXen,
@@ -2640,7 +2649,7 @@ virDomainNetDefFree(virDomainNetDef *def)
     virDomainDeviceInfoClear(&def->info);
 
     g_free(def->filter);
-    virHashFree(def->filterparams);
+    g_clear_pointer(&def->filterparams, g_hash_table_unref);
 
     virNetDevBandwidthFree(def->bandwidth);
     virNetDevVlanClear(&def->vlan);
@@ -3712,7 +3721,9 @@ void virDomainDefFree(virDomainDef *def)
     g_free(def->emulator);
     g_free(def->description);
     g_free(def->title);
+    g_free(def->kvm_features);
     g_free(def->hyperv_vendor_id);
+    g_free(def->tcg_features);
 
     virBlkioDeviceArrayClear(def->blkio.devices,
                              def->blkio.ndevices);
@@ -3840,12 +3851,12 @@ virDomainObjNew(virDomainXMLOption *xmlopt)
 virDomainDef *
 virDomainDefNew(virDomainXMLOption *xmlopt)
 {
-    virDomainDef *ret;
+    g_autoptr(virDomainDef) ret = NULL;
 
     ret = g_new0(virDomainDef, 1);
 
     if (!(ret->numa = virDomainNumaNew()))
-        goto error;
+        return NULL;
 
     ret->mem.hard_limit = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
     ret->mem.soft_limit = VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
@@ -3856,11 +3867,7 @@ virDomainDefNew(virDomainXMLOption *xmlopt)
     else
         ret->scsiBusMaxUnit = SCSI_NARROW_BUS_MAX_CONT_UNIT;
 
-    return ret;
-
- error:
-    virDomainDefFree(ret);
-    return NULL;
+    return g_steal_pointer(&ret);
 }
 
 
@@ -6298,32 +6305,18 @@ virDomainObjCheckActive(virDomainObj *dom)
 static bool
 virDomainDeviceLoadparmIsValid(const char *loadparm)
 {
-    size_t i;
-
-    if (virStringIsEmpty(loadparm)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("loadparm cannot be an empty string"));
-        return false;
-    }
-
-    if (strlen(loadparm) > 8) {
+    if (virStringIsEmpty(loadparm) || !STRLIM(loadparm, 8)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("loadparm '%s' exceeds 8 characters"), loadparm);
+                       _("loadparm value '%s' must be between 1 and 8 characters"),
+                       loadparm);
         return false;
     }
 
-    for (i = 0; i < strlen(loadparm); i++) {
-        uint8_t c = loadparm[i];
-
-        if (('A' <= c && c <= 'Z') || ('0' <= c && c <= '9') ||
-            (c == '.') || (c == ' ')) {
-            continue;
-        } else {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("invalid loadparm char '%c', expecting chars"
-                             " in set of [a-zA-Z0-9.] and blank spaces"), c);
-            return false;
-        }
+    if (strspn(loadparm, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789. ") != strlen(loadparm)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("invalid loadparm value '%s', expecting chars in set of [a-zA-Z0-9.] and blank spaces"),
+                       loadparm);
+        return false;
     }
 
     return true;
@@ -7801,11 +7794,11 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
                             unsigned int flags)
 {
     g_autofree char *model = NULL;
-    g_autofree char *relabel = NULL;
+    virTristateBool relabel = VIR_TRISTATE_BOOL_ABSENT;
     g_autoptr(virSecurityLabelDef) seclabel = NULL;
 
     if ((model = virXMLPropString(ctxt->node, "model")) &&
-        strlen(model) >= VIR_SECURITY_MODEL_BUFLEN - 1)
+        !STRLIM(model, VIR_SECURITY_MODEL_BUFLEN - 1))
         g_clear_pointer(&model, g_free);
 
     if (!(seclabel = virSecurityLabelDefNew(model)))
@@ -7824,13 +7817,10 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
         seclabel->type == VIR_DOMAIN_SECLABEL_NONE)
         seclabel->relabel = false;
 
-    if ((relabel = virXMLPropString(ctxt->node, "relabel"))) {
-        if (virStringParseYesNo(relabel, &seclabel->relabel) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("invalid security relabel value '%s'"), relabel);
-            return NULL;
-        }
-    }
+    if (virXMLPropTristateBool(ctxt->node, "relabel", VIR_XML_PROP_NONZERO, &relabel) < 0)
+        return NULL;
+
+    virTristateBoolToBool(relabel, &seclabel->relabel);
 
     if (seclabel->type == VIR_DOMAIN_SECLABEL_DYNAMIC &&
         !seclabel->relabel) {
@@ -7873,8 +7863,7 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
         (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE) &&
          seclabel->type != VIR_DOMAIN_SECLABEL_NONE)) {
         seclabel->label = virXPathString("string(./label[1])", ctxt);
-        if (!seclabel->label ||
-            strlen(seclabel->label) >= VIR_SECURITY_LABEL_BUFLEN - 1) {
+        if (!seclabel->label || !STRLIM(seclabel->label, VIR_SECURITY_LABEL_BUFLEN - 1)) {
             virReportError(VIR_ERR_XML_ERROR,
                            "%s", _("security label is missing"));
             return NULL;
@@ -7887,8 +7876,7 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
          seclabel->type != VIR_DOMAIN_SECLABEL_NONE)) {
         seclabel->imagelabel = virXPathString("string(./imagelabel[1])", ctxt);
 
-        if (!seclabel->imagelabel ||
-            strlen(seclabel->imagelabel) >= VIR_SECURITY_LABEL_BUFLEN - 1) {
+        if (!seclabel->imagelabel || !STRLIM(seclabel->imagelabel, VIR_SECURITY_LABEL_BUFLEN - 1)) {
             virReportError(VIR_ERR_XML_ERROR,
                            "%s", _("security imagelabel is missing"));
             return NULL;
@@ -7900,7 +7888,7 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
         seclabel->baselabel = virXPathString("string(./baselabel[1])", ctxt);
 
         if (seclabel->baselabel &&
-            strlen(seclabel->baselabel) >= VIR_SECURITY_LABEL_BUFLEN - 1)
+            !STRLIM(seclabel->baselabel, VIR_SECURITY_LABEL_BUFLEN - 1))
             g_clear_pointer(&seclabel->baselabel, g_free);
     }
 
@@ -8029,9 +8017,8 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
 
     for (i = 0; i < n; i++) {
         g_autofree char *model = NULL;
-        g_autofree char *relabel = NULL;
         g_autofree char *label = NULL;
-        g_autofree char *labelskip = NULL;
+        virTristateBool t;
 
         /* get model associated to this override */
         model = virXMLPropString(list[i], "model");
@@ -8047,28 +8034,25 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
             seclabels[i]->model = g_steal_pointer(&model);
         }
 
-        relabel = virXMLPropString(list[i], "relabel");
-        if (relabel != NULL) {
-            if (virStringParseYesNo(relabel, &seclabels[i]->relabel) < 0) {
-                virReportError(VIR_ERR_XML_ERROR,
-                               _("invalid security relabel value %s"),
-                               relabel);
-                goto error;
-            }
-        } else {
-            seclabels[i]->relabel = true;
-        }
+        if (virXMLPropTristateBool(list[i], "relabel", VIR_XML_PROP_NONZERO, &t) < 0)
+            goto error;
+
+        seclabels[i]->relabel = true;
+        virTristateBoolToBool(t, &seclabels[i]->relabel);
 
         /* labelskip is only parsed on live images */
-        labelskip = virXMLPropString(list[i], "labelskip");
         seclabels[i]->labelskip = false;
-        if (labelskip && !(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE))
-            ignore_value(virStringParseYesNo(labelskip, &seclabels[i]->labelskip));
+        if (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE)) {
+            if (virXMLPropTristateBool(list[i], "labelskip", VIR_XML_PROP_NONZERO, &t) < 0)
+                goto error;
+
+            virTristateBoolToBool(t, &seclabels[i]->labelskip);
+        }
 
         ctxt->node = list[i];
         label = virXPathString("string(./label)", ctxt);
 
-        if (label && strlen(label) < VIR_SECURITY_LABEL_BUFLEN)
+        if (label && STRLIM(label, VIR_SECURITY_LABEL_BUFLEN - 1))
             seclabels[i]->label = g_steal_pointer(&label);
 
         if (seclabels[i]->label && !seclabels[i]->relabel) {
@@ -10244,7 +10228,7 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
     xmlNodePtr vlan_node = NULL;
     xmlNodePtr bandwidth_node = NULL;
     xmlNodePtr tmpNode;
-    GHashTable *filterparams = NULL;
+    g_autoptr(GHashTable) filterparams = NULL;
     virDomainActualNetDef *actual = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     virDomainChrSourceReconnectDef reconnect = {0};
@@ -10431,7 +10415,6 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
 
     if ((filterref_node = virXPathNode("./filterref", ctxt))) {
         filter = virXMLPropString(filterref_node, "filter");
-        virHashFree(filterparams);
         filterparams = virNWFilterParseParamAttributes(filterref_node);
     }
 
@@ -10960,7 +10943,6 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
 
  cleanup:
     virDomainActualNetDefFree(actual);
-    virHashFree(filterparams);
     return def;
 
  error:
@@ -14822,6 +14804,10 @@ virDomainSEVDefParseXML(virDomainSEVDef *def,
     unsigned long policy;
     int rc;
 
+    if (virXMLPropTristateBool(ctxt->node, "kernelHashes", VIR_XML_PROP_NONE,
+                               &def->kernel_hashes) < 0)
+        return -1;
+
     if (virXPathULongHex("string(./policy)", ctxt, &policy) < 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("failed to get launch security policy"));
@@ -15671,6 +15657,7 @@ void virDomainDiskInsert(virDomainDef *def,
         /* If bus matches and current disk is after
          * new disk, then new disk should go here */
         if (def->disks[idx]->bus == disk->bus &&
+            def->disks[idx]->dst && disk->dst &&
             (virDiskNameToIndex(def->disks[idx]->dst) >
              virDiskNameToIndex(disk->dst))) {
             insertAt = idx;
@@ -17447,7 +17434,14 @@ static int
 virDomainFeaturesHyperVDefParse(virDomainDef *def,
                                 xmlNodePtr node)
 {
-    def->features[VIR_DOMAIN_FEATURE_HYPERV] = VIR_TRISTATE_SWITCH_ON;
+    virDomainHyperVMode mode;
+
+    if (virXMLPropEnumDefault(node, "mode", virDomainHyperVModeTypeFromString,
+                              VIR_XML_PROP_NONZERO, &mode,
+                              VIR_DOMAIN_HYPERV_MODE_CUSTOM) < 0)
+        return -1;
+
+    def->features[VIR_DOMAIN_FEATURE_HYPERV] = mode;
 
     node = xmlFirstElementChild(node);
     while (node != NULL) {
@@ -17529,7 +17523,7 @@ virDomainFeaturesHyperVDefParse(virDomainDef *def,
                 return -1;
             }
 
-            if (strlen(def->hyperv_vendor_id) > VIR_DOMAIN_HYPERV_VENDOR_ID_MAX) {
+            if (!STRLIM(def->hyperv_vendor_id, VIR_DOMAIN_HYPERV_VENDOR_ID_MAX)) {
                 virReportError(VIR_ERR_XML_ERROR,
                                _("HyperV vendor_id value must not be more than %d characters."),
                                VIR_DOMAIN_HYPERV_VENDOR_ID_MAX);
@@ -17559,7 +17553,9 @@ static int
 virDomainFeaturesKVMDefParse(virDomainDef *def,
                              xmlNodePtr node)
 {
-    def->features[VIR_DOMAIN_FEATURE_KVM] = VIR_TRISTATE_SWITCH_ON;
+    g_autofree virDomainFeatureKVM *kvm = NULL;
+
+    kvm = g_new0(virDomainFeatureKVM, 1);
 
     node = xmlFirstElementChild(node);
     while (node) {
@@ -17578,10 +17574,32 @@ virDomainFeaturesKVMDefParse(virDomainDef *def,
                                      &value) < 0)
             return -1;
 
-        def->kvm_features[feature] = value;
+        kvm->features[feature] = value;
+
+        /* dirty ring feature should parse size property */
+        if (feature == VIR_DOMAIN_KVM_DIRTY_RING &&
+            value == VIR_TRISTATE_SWITCH_ON) {
+
+            if (virXMLPropUInt(node, "size", 0, VIR_XML_PROP_REQUIRED,
+                               &kvm->dirty_ring_size) < 0) {
+                return -1;
+            }
+
+            if (!VIR_IS_POW2(kvm->dirty_ring_size) ||
+                kvm->dirty_ring_size < 1024 ||
+                kvm->dirty_ring_size > 65536) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("dirty ring must be power of 2 and ranges [1024, 65536]"));
+
+                return -1;
+            }
+        }
 
         node = xmlNextElementSibling(node);
     }
+
+    def->features[VIR_DOMAIN_FEATURE_KVM] = VIR_TRISTATE_SWITCH_ON;
+    def->kvm_features = g_steal_pointer(&kvm);
 
     return 0;
 }
@@ -17673,6 +17691,30 @@ virDomainFeaturesCapabilitiesDefParse(virDomainDef *def,
         node = xmlNextElementSibling(node);
     }
 
+    return 0;
+}
+
+
+static int
+virDomainFeaturesTCGDefParse(virDomainDef *def,
+                             xmlXPathContextPtr ctxt,
+                             xmlNodePtr node)
+{
+    g_autofree virDomainFeatureTCG *tcg = NULL;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt);
+
+    tcg = g_new0(virDomainFeatureTCG, 1);
+    ctxt->node = node;
+
+    if (virDomainParseMemory("./tb-cache", "./tb-cache/@unit",
+                             ctxt, &tcg->tb_cache, false, false) < 0)
+        return -1;
+
+    if (tcg->tb_cache == 0)
+        return 0;
+
+    def->features[VIR_DOMAIN_FEATURE_TCG] = VIR_TRISTATE_SWITCH_ON;
+    def->tcg_features = g_steal_pointer(&tcg);
     return 0;
 }
 
@@ -17885,6 +17927,11 @@ virDomainFeaturesDefParse(virDomainDef *def,
             break;
         }
 
+        case VIR_DOMAIN_FEATURE_TCG:
+            if (virDomainFeaturesTCGDefParse(def, ctxt, nodes[i]) < 0)
+                return -1;
+            break;
+
         case VIR_DOMAIN_FEATURE_LAST:
             break;
         }
@@ -18006,34 +18053,30 @@ virDomainSchedulerParse(xmlNodePtr node,
                         virProcessSchedPolicy *policy,
                         int *priority)
 {
-    virBitmap *ret = NULL;
+    g_autoptr(virBitmap) ret = NULL;
     g_autofree char *tmp = NULL;
 
     if (!(tmp = virXMLPropString(node, attributeName))) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Missing attribute '%s' in element '%s'"),
                        attributeName, elementName);
-        goto error;
+        return NULL;
     }
 
     if (virBitmapParse(tmp, &ret, VIR_DOMAIN_CPUMASK_LEN) < 0)
-        goto error;
+        return NULL;
 
     if (virBitmapIsAllClear(ret)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("'%s' scheduler bitmap '%s' is empty"),
                        attributeName, tmp);
-        goto error;
+        return NULL;
     }
 
     if (virDomainSchedulerParseCommonAttrs(node, policy, priority) < 0)
-        goto error;
+        return NULL;
 
-    return ret;
-
- error:
-    virBitmapFree(ret);
-    return NULL;
+    return g_steal_pointer(&ret);
 }
 
 
@@ -21689,15 +21732,14 @@ virDomainDefFeaturesCheckABIStability(virDomainDef *src,
             break;
 
         case VIR_DOMAIN_FEATURE_MSRS:
-            break;
-
+        case VIR_DOMAIN_FEATURE_TCG:
         case VIR_DOMAIN_FEATURE_LAST:
             break;
         }
     }
 
     /* hyperv */
-    if (src->features[VIR_DOMAIN_FEATURE_HYPERV] == VIR_TRISTATE_SWITCH_ON) {
+    if (src->features[VIR_DOMAIN_FEATURE_HYPERV] != VIR_DOMAIN_HYPERV_MODE_NONE) {
         for (i = 0; i < VIR_DOMAIN_HYPERV_LAST; i++) {
             switch ((virDomainHyperv) i) {
             case VIR_DOMAIN_HYPERV_RELAXED:
@@ -21806,13 +21848,14 @@ virDomainDefFeaturesCheckABIStability(virDomainDef *src,
             case VIR_DOMAIN_KVM_DEDICATED:
             case VIR_DOMAIN_KVM_POLLCONTROL:
             case VIR_DOMAIN_KVM_PVIPI:
-                if (src->kvm_features[i] != dst->kvm_features[i]) {
+            case VIR_DOMAIN_KVM_DIRTY_RING:
+                if (src->kvm_features->features[i] != dst->kvm_features->features[i]) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                    _("State of KVM feature '%s' differs: "
                                      "source: '%s', destination: '%s'"),
                                    virDomainKVMTypeToString(i),
-                                   virTristateSwitchTypeToString(src->kvm_features[i]),
-                                   virTristateSwitchTypeToString(dst->kvm_features[i]));
+                                   virTristateSwitchTypeToString(src->kvm_features->features[i]),
+                                   virTristateSwitchTypeToString(dst->kvm_features->features[i]));
                     return false;
                 }
 
@@ -21821,6 +21864,16 @@ virDomainDefFeaturesCheckABIStability(virDomainDef *src,
             case VIR_DOMAIN_KVM_LAST:
                 break;
             }
+        }
+
+        if (src->kvm_features->dirty_ring_size != dst->kvm_features->dirty_ring_size) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("dirty ring size of KVM feature '%s' differs: "
+                             "source: '%d', destination: '%d'"),
+                           virDomainKVMTypeToString(i),
+                           src->kvm_features->dirty_ring_size,
+                           dst->kvm_features->dirty_ring_size);
+            return false;
         }
     }
 
@@ -21939,6 +21992,20 @@ virDomainTPMDefCheckABIStability(virDomainTPMDef *src,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("Target TPM version doesn't match source"));
         return false;
+    }
+
+    switch (src->type) {
+    case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+        if (src->data.emulator.activePcrBanks != dst->data.emulator.activePcrBanks) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Target active PCR banks doesn't match source"));
+            return false;
+        }
+        break;
+
+    case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+    case VIR_DOMAIN_TPM_TYPE_LAST:
+        break;
     }
 
     return virDomainDeviceInfoCheckABIStability(&src->info, &dst->info);
@@ -25423,70 +25490,59 @@ virDomainSoundCodecDefFormat(virBuffer *buf,
     return 0;
 }
 
-static int
+static void
 virDomainTPMDefFormat(virBuffer *buf,
-                      virDomainTPMDef *def,
+                      const virDomainTPMDef *def,
                       unsigned int flags)
 {
-    virBufferAsprintf(buf, "<tpm model='%s'>\n",
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) backendAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) backendChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+
+    virBufferAsprintf(&attrBuf, " model='%s'",
                       virDomainTPMModelTypeToString(def->model));
-    virBufferAdjustIndent(buf, 2);
-    virBufferAsprintf(buf, "<backend type='%s'",
+
+    virBufferAsprintf(&backendAttrBuf, " type='%s'",
                       virDomainTPMBackendTypeToString(def->type));
 
     switch (def->type) {
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        virBufferAddLit(buf, ">\n");
-        virBufferAdjustIndent(buf, 2);
-        virBufferEscapeString(buf, "<device path='%s'/>\n",
+        virBufferEscapeString(&backendChildBuf, "<device path='%s'/>\n",
                               def->data.passthrough.source->data.file.path);
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</backend>\n");
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-        virBufferAsprintf(buf, " version='%s'",
+        virBufferAsprintf(&backendAttrBuf, " version='%s'",
                           virDomainTPMVersionTypeToString(def->version));
         if (def->data.emulator.persistent_state)
-            virBufferAddLit(buf, " persistent_state='yes'");
+            virBufferAddLit(&backendAttrBuf, " persistent_state='yes'");
         if (def->data.emulator.hassecretuuid) {
             char uuidstr[VIR_UUID_STRING_BUFLEN];
-            virBufferAddLit(buf, ">\n");
-            virBufferAdjustIndent(buf, 2);
-            virBufferAsprintf(buf, "<encryption secret='%s'/>\n",
-                virUUIDFormat(def->data.emulator.secretuuid, uuidstr));
-            virBufferAdjustIndent(buf, -2);
+
+            virBufferAsprintf(&backendChildBuf, "<encryption secret='%s'/>\n",
+                              virUUIDFormat(def->data.emulator.secretuuid, uuidstr));
         }
         if (def->data.emulator.activePcrBanks) {
+            g_auto(virBuffer) activePcrBanksBuf = VIR_BUFFER_INIT_CHILD(&backendChildBuf);
             size_t i;
-            virBufferAddLit(buf, ">\n");
-            virBufferAdjustIndent(buf, 2);
-            virBufferAddLit(buf, "<active_pcr_banks>\n");
-            virBufferAdjustIndent(buf, 2);
+
             for (i = VIR_DOMAIN_TPM_PCR_BANK_SHA1; i < VIR_DOMAIN_TPM_PCR_BANK_LAST; i++) {
                 if ((def->data.emulator.activePcrBanks & (1 << i)))
-                    virBufferAsprintf(buf, "<%s/>\n",
+                    virBufferAsprintf(&activePcrBanksBuf, "<%s/>\n",
                                       virDomainTPMPcrBankTypeToString(i));
             }
-            virBufferAdjustIndent(buf, -2);
-            virBufferAddLit(buf, "</active_pcr_banks>\n");
-            virBufferAdjustIndent(buf, -2);
+
+            virXMLFormatElement(&backendChildBuf, "active_pcr_banks", NULL, &activePcrBanksBuf);
         }
-        if (def->data.emulator.hassecretuuid ||
-            def->data.emulator.activePcrBanks)
-            virBufferAddLit(buf, "</backend>\n");
-        else
-            virBufferAddLit(buf, "/>\n");
         break;
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }
 
-    virDomainDeviceInfoFormat(buf, &def->info, flags);
+    virXMLFormatElement(&childBuf, "backend", &backendAttrBuf, &backendChildBuf);
+    virDomainDeviceInfoFormat(&childBuf, &def->info, flags);
 
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</tpm>\n");
-
-    return 0;
+    virXMLFormatElement(buf, "tpm", &attrBuf, &childBuf);
 }
 
 
@@ -27085,6 +27141,10 @@ virDomainSecDefFormat(virBuffer *buf, virDomainSecDef *sec)
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV: {
         virDomainSEVDef *sev = &sec->data.sev;
 
+        if (sev->kernel_hashes != VIR_TRISTATE_BOOL_ABSENT)
+            virBufferAsprintf(&attrBuf, " kernelHashes='%s'",
+                              virTristateBoolTypeToString(sev->kernel_hashes));
+
         if (sev->haveCbitpos)
             virBufferAsprintf(&childBuf, "<cbitpos>%d</cbitpos>\n", sev->cbitpos);
 
@@ -27677,6 +27737,26 @@ virDomainDefFormatBlkiotune(virBuffer *buf,
 }
 
 
+static void
+virDomainFeatureTCGFormat(virBuffer *buf,
+                          const virDomainDef *def)
+{
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+
+    if (!def->tcg_features ||
+        def->features[VIR_DOMAIN_FEATURE_TCG] != VIR_TRISTATE_SWITCH_ON)
+        return;
+
+    if (def->tcg_features->tb_cache > 0) {
+        virBufferAsprintf(&childBuf,
+                          "<tb-cache unit='KiB'>%lld</tb-cache>\n",
+                          def->tcg_features->tb_cache);
+    }
+
+    virXMLFormatElement(buf, "tcg", NULL, &childBuf);
+}
+
+
 static int
 virDomainDefFormatFeatures(virBuffer *buf,
                            virDomainDef *def)
@@ -27729,12 +27809,12 @@ virDomainDefFormatFeatures(virBuffer *buf,
                 break;
 
             case VIR_TRISTATE_SWITCH_ON:
-               virBufferAsprintf(&childBuf, "<%s state='on'/>\n", name);
-               break;
-
             case VIR_TRISTATE_SWITCH_OFF:
-               virBufferAsprintf(&childBuf, "<%s state='off'/>\n", name);
-               break;
+                virBufferAsprintf(&tmpAttrBuf, " state='%s'",
+                                  virTristateSwitchTypeToString(def->features[i]));
+
+                virXMLFormatElement(&childBuf, name, &tmpAttrBuf, NULL);
+                break;
             }
 
             break;
@@ -27762,20 +27842,21 @@ virDomainDefFormatFeatures(virBuffer *buf,
 
         case VIR_DOMAIN_FEATURE_APIC:
             if (def->features[i] == VIR_TRISTATE_SWITCH_ON) {
-                virBufferAddLit(&childBuf, "<apic");
                 if (def->apic_eoi) {
-                    virBufferAsprintf(&childBuf, " eoi='%s'",
+                    virBufferAsprintf(&tmpAttrBuf, " eoi='%s'",
                                       virTristateSwitchTypeToString(def->apic_eoi));
                 }
-                virBufferAddLit(&childBuf, "/>\n");
+
+                virXMLFormatElementEmpty(&childBuf, "apic", &tmpAttrBuf, NULL);
             }
             break;
 
         case VIR_DOMAIN_FEATURE_HYPERV:
-            if (def->features[i] != VIR_TRISTATE_SWITCH_ON)
+            if (def->features[i] == VIR_DOMAIN_HYPERV_MODE_NONE)
                 break;
 
-            virBufferAddLit(&childBuf, "<hyperv>\n");
+            virBufferAsprintf(&childBuf, "<hyperv mode='%s'>\n",
+                              virDomainHyperVModeTypeToString(def->features[i]));
             virBufferAdjustIndent(&childBuf, 2);
             for (j = 0; j < VIR_DOMAIN_HYPERV_LAST; j++) {
                 if (def->hyperv_features[j] == VIR_TRISTATE_SWITCH_ABSENT)
@@ -27856,11 +27937,25 @@ virDomainDefFormatFeatures(virBuffer *buf,
                 case VIR_DOMAIN_KVM_DEDICATED:
                 case VIR_DOMAIN_KVM_POLLCONTROL:
                 case VIR_DOMAIN_KVM_PVIPI:
-                    if (def->kvm_features[j])
+                    if (def->kvm_features->features[j])
                         virBufferAsprintf(&childBuf, "<%s state='%s'/>\n",
                                           virDomainKVMTypeToString(j),
                                           virTristateSwitchTypeToString(
-                                              def->kvm_features[j]));
+                                              def->kvm_features->features[j]));
+                    break;
+
+                case VIR_DOMAIN_KVM_DIRTY_RING:
+                    if (def->kvm_features->features[j] != VIR_TRISTATE_SWITCH_ABSENT) {
+                        virBufferAsprintf(&childBuf, "<%s state='%s'",
+                                          virDomainKVMTypeToString(j),
+                                          virTristateSwitchTypeToString(def->kvm_features->features[j]));
+                        if (def->kvm_features->dirty_ring_size > 0) {
+                            virBufferAsprintf(&childBuf, " size='%d'/>\n",
+                                              def->kvm_features->dirty_ring_size);
+                        } else {
+                            virBufferAddLit(&childBuf, "/>\n");
+                        }
+                    }
                     break;
 
                 case VIR_DOMAIN_KVM_LAST:
@@ -27931,11 +28026,11 @@ virDomainDefFormatFeatures(virBuffer *buf,
 
         case VIR_DOMAIN_FEATURE_GIC:
             if (def->features[i] == VIR_TRISTATE_SWITCH_ON) {
-                virBufferAddLit(&childBuf, "<gic");
                 if (def->gic_version != VIR_GIC_VERSION_NONE)
-                    virBufferAsprintf(&childBuf, " version='%s'",
+                    virBufferAsprintf(&tmpAttrBuf, " version='%s'",
                                       virGICVersionTypeToString(def->gic_version));
-                virBufferAddLit(&childBuf, "/>\n");
+
+                virXMLFormatElementEmpty(&childBuf, "gic", &tmpAttrBuf, NULL);
             }
             break;
 
@@ -27995,6 +28090,10 @@ virDomainDefFormatFeatures(virBuffer *buf,
 
             virBufferAsprintf(&childBuf, "<ibs value='%s'/>\n",
                               virDomainIBSTypeToString(def->features[i]));
+            break;
+
+        case VIR_DOMAIN_FEATURE_TCG:
+            virDomainFeatureTCGFormat(&childBuf, def);
             break;
 
         case VIR_DOMAIN_FEATURE_LAST:
@@ -28430,8 +28529,7 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     }
 
     for (n = 0; n < def->ntpms; n++) {
-        if (virDomainTPMDefFormat(buf, def->tpms[n], flags) < 0)
-            return -1;
+        virDomainTPMDefFormat(buf, def->tpms[n], flags);
     }
 
     for (n = 0; n < def->ngraphics; n++) {
@@ -29661,7 +29759,8 @@ virDomainDeviceDefCopy(virDomainDeviceDef *src,
         rc = virDomainChrDefFormat(&buf, src->data.chr, flags);
         break;
     case VIR_DOMAIN_DEVICE_TPM:
-        rc = virDomainTPMDefFormat(&buf, src->data.tpm, flags);
+        virDomainTPMDefFormat(&buf, src->data.tpm, flags);
+        rc = 0;
         break;
     case VIR_DOMAIN_DEVICE_PANIC:
         virDomainPanicDefFormat(&buf, src->data.panic);
@@ -29827,6 +29926,150 @@ virDomainAudioIOCommonIsSet(virDomainAudioIOCommon *common)
         common->format ||
         common->bufferLength;
 }
+
+
+static bool
+virDomainAudioIOCommonIsEqual(virDomainAudioIOCommon *this,
+                              virDomainAudioIOCommon *that)
+{
+    return this->mixingEngine == that->mixingEngine &&
+        this->fixedSettings == that->fixedSettings &&
+        this->frequency == that->frequency &&
+        this->channels == that->channels &&
+        this->voices == that->voices &&
+        this->format == that->format &&
+        this->bufferLength == that->bufferLength;
+}
+
+static bool
+virDomainAudioIOALSAIsEqual(virDomainAudioIOALSA *this,
+                            virDomainAudioIOALSA *that)
+{
+    return STREQ_NULLABLE(this->dev, that->dev);
+}
+
+static bool
+virDomainAudioIOCoreAudioIsEqual(virDomainAudioIOCoreAudio *this,
+                                 virDomainAudioIOCoreAudio *that)
+{
+    return this->bufferCount == that->bufferCount;
+}
+
+static bool
+virDomainAudioIOJackIsEqual(virDomainAudioIOJack *this,
+                            virDomainAudioIOJack *that)
+{
+    return STREQ_NULLABLE(this->serverName, that->serverName) &&
+         STREQ_NULLABLE(this->clientName, that->clientName) &&
+         STREQ_NULLABLE(this->connectPorts, that->connectPorts) &&
+        this->exactName == that->exactName;
+}
+
+static bool
+virDomainAudioIOOSSIsEqual(virDomainAudioIOOSS *this,
+                           virDomainAudioIOOSS *that)
+{
+    return STREQ_NULLABLE(this->dev, that->dev) &&
+        this->bufferCount == that->bufferCount &&
+        this->tryPoll == that->tryPoll;
+}
+
+static bool
+virDomainAudioIOPulseAudioIsEqual(virDomainAudioIOPulseAudio *this,
+                                  virDomainAudioIOPulseAudio *that)
+{
+        return STREQ_NULLABLE(this->name, that->name) &&
+            STREQ_NULLABLE(this->streamName, that->streamName) &&
+            this->latency == that->latency;
+}
+
+static bool
+virDomainAudioIOSDLIsEqual(virDomainAudioIOSDL *this,
+                           virDomainAudioIOSDL *that)
+{
+    return this->bufferCount == that->bufferCount;
+}
+
+
+static bool
+virDomainAudioBackendIsEqual(virDomainAudioDef *this,
+                             virDomainAudioDef *that)
+{
+    if (this->type != that->type)
+        return false;
+
+    switch (this->type) {
+    case VIR_DOMAIN_AUDIO_TYPE_NONE:
+        return true;
+
+    case VIR_DOMAIN_AUDIO_TYPE_ALSA:
+        return virDomainAudioIOALSAIsEqual(&this->backend.alsa.input,
+                                           &that->backend.alsa.input) &&
+            virDomainAudioIOALSAIsEqual(&this->backend.alsa.output,
+                                        &that->backend.alsa.output);
+
+    case VIR_DOMAIN_AUDIO_TYPE_COREAUDIO:
+        return virDomainAudioIOCoreAudioIsEqual(&this->backend.coreaudio.input,
+                                                &that->backend.coreaudio.input) &&
+            virDomainAudioIOCoreAudioIsEqual(&this->backend.coreaudio.output,
+                                             &that->backend.coreaudio.output);
+
+    case VIR_DOMAIN_AUDIO_TYPE_JACK:
+        return virDomainAudioIOJackIsEqual(&this->backend.jack.input,
+                                           &that->backend.jack.input) &&
+            virDomainAudioIOJackIsEqual(&this->backend.jack.output,
+                                        &that->backend.jack.output);
+
+    case VIR_DOMAIN_AUDIO_TYPE_OSS:
+        return virDomainAudioIOOSSIsEqual(&this->backend.oss.input,
+                                          &that->backend.oss.input) &&
+            virDomainAudioIOOSSIsEqual(&this->backend.oss.output,
+                                       &that->backend.oss.output) &&
+            this->backend.oss.tryMMap == that->backend.oss.tryMMap &&
+            this->backend.oss.exclusive == that->backend.oss.exclusive &&
+            this->backend.oss.dspPolicySet == that->backend.oss.dspPolicySet &&
+            this->backend.oss.dspPolicy == that->backend.oss.dspPolicy;
+
+    case VIR_DOMAIN_AUDIO_TYPE_PULSEAUDIO:
+        return virDomainAudioIOPulseAudioIsEqual(&this->backend.pulseaudio.input,
+                                                 &that->backend.pulseaudio.input) &&
+            virDomainAudioIOPulseAudioIsEqual(&this->backend.pulseaudio.output,
+                                              &that->backend.pulseaudio.output) &&
+            STREQ_NULLABLE(this->backend.pulseaudio.serverName,
+                           that->backend.pulseaudio.serverName);
+
+    case VIR_DOMAIN_AUDIO_TYPE_SDL:
+        return virDomainAudioIOSDLIsEqual(&this->backend.sdl.input,
+                                          &that->backend.sdl.input) &&
+            virDomainAudioIOSDLIsEqual(&this->backend.sdl.output,
+                                       &that->backend.sdl.output) &&
+            this->backend.sdl.driver == that->backend.sdl.driver;
+
+    case VIR_DOMAIN_AUDIO_TYPE_SPICE:
+        return true;
+
+    case VIR_DOMAIN_AUDIO_TYPE_FILE:
+        return STREQ_NULLABLE(this->backend.file.path, that->backend.file.path);
+
+    case VIR_DOMAIN_AUDIO_TYPE_LAST:
+    default:
+        return false;
+    }
+}
+
+
+bool
+virDomainAudioIsEqual(virDomainAudioDef *this,
+                      virDomainAudioDef *that)
+{
+    return this->type == that->type &&
+        this->id == that->id &&
+        this->timerPeriod == that->timerPeriod &&
+        virDomainAudioIOCommonIsEqual(&this->input, &that->input) &&
+        virDomainAudioIOCommonIsEqual(&this->output, &that->output) &&
+        virDomainAudioBackendIsEqual(this, that);
+}
+
 
 char *
 virDomainObjGetMetadata(virDomainObj *vm,

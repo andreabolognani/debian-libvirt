@@ -141,8 +141,6 @@ struct _qemuDomainObjPrivate {
      */
     virTristateBool allowReboot;
 
-    int jobs_queued;
-
     unsigned long migMaxBandwidth;
     char *origname;
     int nbdPort; /* Port used for migration with NBD */
@@ -343,6 +341,18 @@ struct _qemuDomainChrSourcePrivate {
     /* for char devices using secret
      * NB: *not* to be written to qemu domain object XML */
     qemuDomainSecretInfo *secinfo;
+
+    int fd; /* file descriptor of the chardev source */
+    int logfd; /* file descriptor of the logging source */
+    bool wait; /* wait for incoming connections on chardev */
+
+    char *tlsCertPath; /* path to certificates if TLS is requested */
+    bool tlsVerify; /* whether server should verify client certificates */
+
+    char *fdset; /* fdset path corresponding to the passed filedescriptor */
+    char *logFdset; /* fdset path corresponding to the passed filedescriptor for logfile */
+    int passedFD; /* filedescriptor number when fdset passing it directly */
+    char *tlsCredsAlias; /* alias of the x509 tls credentials object */
 };
 
 
@@ -487,10 +497,9 @@ qemuMonitor *qemuDomainGetMonitor(virDomainObj *vm)
 void qemuDomainObjEnterMonitor(virQEMUDriver *driver,
                                virDomainObj *obj)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-int qemuDomainObjExitMonitor(virQEMUDriver *driver,
-                             virDomainObj *obj)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
-    G_GNUC_WARN_UNUSED_RESULT;
+void qemuDomainObjExitMonitor(virQEMUDriver *driver,
+                              virDomainObj *obj)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 int qemuDomainObjEnterMonitorAsync(virQEMUDriver *driver,
                                    virDomainObj *obj,
                                    qemuDomainAsyncJob asyncJob)
@@ -632,8 +641,7 @@ int qemuDomainSnapshotDiscardAllMetadata(virQEMUDriver *driver,
 void qemuDomainRemoveInactive(virQEMUDriver *driver,
                               virDomainObj *vm);
 
-void qemuDomainSetFakeReboot(virQEMUDriver *driver,
-                             virDomainObj *vm,
+void qemuDomainSetFakeReboot(virDomainObj *vm,
                              bool value);
 
 int qemuDomainCheckDiskStartupPolicy(virQEMUDriver *driver,
@@ -864,13 +872,15 @@ int qemuDomainPrepareChannel(virDomainChrDef *chr,
                              const char *domainChannelTargetDir)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-void qemuDomainPrepareChardevSourceTLS(virDomainChrSourceDef *source,
-                                       virQEMUDriverConfig *cfg)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+struct qemuDomainPrepareChardevSourceData {
+    virQEMUDriverConfig *cfg;
+    bool hotplug;
+};
 
-void qemuDomainPrepareChardevSource(virDomainDef *def,
-                                    virQEMUDriverConfig *cfg)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+int
+qemuDomainPrepareChardevSourceOne(virDomainDeviceDef *dev,
+                                  virDomainChrSourceDef *charsrc,
+                                  void *opaque);
 
 void  qemuDomainPrepareShmemChardev(virDomainShmemDef *shmem)
     ATTRIBUTE_NONNULL(1);
@@ -1035,3 +1045,15 @@ qemuDomainNamePathsCleanup(virQEMUDriverConfig *cfg,
 char *
 qemuDomainGetVHostUserFSSocketPath(qemuDomainObjPrivate *priv,
                                    const virDomainFSDef *fs);
+
+typedef int (*qemuDomainDeviceBackendChardevForeachCallback)(virDomainDeviceDef *dev,
+                                                             virDomainChrSourceDef *charsrc,
+                                                             void *opaque);
+int
+qemuDomainDeviceBackendChardevForeachOne(virDomainDeviceDef *dev,
+                                         qemuDomainDeviceBackendChardevForeachCallback cb,
+                                         void *opaque);
+int
+qemuDomainDeviceBackendChardevForeach(virDomainDef *def,
+                                      qemuDomainDeviceBackendChardevForeachCallback cb,
+                                      void *opaque);

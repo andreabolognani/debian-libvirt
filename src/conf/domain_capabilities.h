@@ -120,6 +120,15 @@ struct _virDomainCapsDeviceRNG {
     virDomainCapsEnum backendModel;   /* virDomainRNGBackend */
 };
 
+STATIC_ASSERT_ENUM(VIR_DOMAIN_TPM_MODEL_LAST);
+STATIC_ASSERT_ENUM(VIR_DOMAIN_TPM_TYPE_LAST);
+typedef struct _virDomainCapsDeviceTPM virDomainCapsDeviceTPM;
+struct _virDomainCapsDeviceTPM {
+    virTristateBool supported;
+    virDomainCapsEnum model;   /* virDomainTPMModel */
+    virDomainCapsEnum backendModel;   /* virDomainTPMBackendType */
+};
+
 STATIC_ASSERT_ENUM(VIR_DOMAIN_FS_DRIVER_TYPE_LAST);
 typedef struct _virDomainCapsDeviceFilesystem virDomainCapsDeviceFilesystem;
 struct _virDomainCapsDeviceFilesystem {
@@ -178,6 +187,8 @@ struct _virSEVCapability {
     char *cert_chain;
     unsigned int cbitpos;
     unsigned int reduced_phys_bits;
+    unsigned int max_guests;
+    unsigned int max_es_guests;
 };
 
 typedef enum {
@@ -211,6 +222,7 @@ struct _virDomainCaps {
     virDomainCapsDeviceHostdev hostdev;
     virDomainCapsDeviceRNG rng;
     virDomainCapsDeviceFilesystem filesystem;
+    virDomainCapsDeviceTPM tpm;
     /* add new domain devices here */
 
     virDomainCapsFeatureGIC gic;

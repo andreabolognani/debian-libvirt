@@ -8,6 +8,114 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.0.0 (2022-01-14)
+===================
+
+* **Security**
+
+  * libxl: Fix potential deadlock and crash (CVE-2021-4147)
+
+    A rogue guest could continuously reboot itself and cause libvirtd on the
+    host to deadlock or crash, resulting in a denial of service condition.
+
+* **Removed features**
+
+  * qemu: Explicitly forbid live changing nodeset for strict numatune
+
+    For ``strict`` mode of <numatune/> it can't be guaranteed that memory is
+    moved completely onto new set of nodes (e.g. QEMU might have locked pieces
+    of its memory) thus breaking the strict promise. If live migration of QEMU
+    memory between NUMA nodes is desired, users are advised to use
+    ``restrictive`` mode instead.
+
+* **New features**
+
+  * qemu: Synchronous write mode for disk copy operations
+
+    The ``blockdev-mirror`` block job supports a mode where writes from the VM
+    are synchronously propagated to the destination of the copy. This ensures
+    that the job will converge under heavy I/O.
+
+    Implement the mode for the copy blockjob as
+    ``VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES`` flag exposed via
+    ``virsh blockcopy --synchronous-writes`` and for non-shared storage migration
+    as ``VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES`` exposed via
+    ``virsh migrate --copy-storage-synchronous-writes``.
+
+  * Introduce TCG domain features
+
+    Libvirt is now able to set the size of translation block cache size
+    (tb-size) for TCG domains.
+
+  * qemu: Add new API to inject a launch secret in a domain
+
+    New API ``virDomainSetLaunchSecurityState()`` and virsh command
+    ``domsetlaunchsecstate`` are added to support injecting a launch secret
+    in a domain's memory.
+
+* **Improvements**
+
+  * libxl: Implement the virDomainGetMessages API
+
+  * qemu: Preserve qcow2 sub-cluster allocation state after external snapshots and block-copy
+
+    The new image which is installed as an overlay on top of the current chain
+    when taking an external snapshot, or the target of a block copy operation
+    now enables sub-cluster allocation (``extended_l2``) if the original
+    image has the option enabled.
+
+* **Bug fixes**
+
+  * qemu: Fix device hot-unplug with ``libvirt-7.9`` or ``libvirt-7.10`` used with ``qemu-6.2``
+
+    An internal change to the configuration format used by the above libvirt
+    versions triggers a bug in ``qemu-6.2`` where qemu no longer emits the
+    event notifying that the device was unplugged successfully and thus libvirt
+    never removes the device from the definition.
+
+    This impacts only devices which were present at startup of the VM, hotplugged
+    devices behave correctly.
+
+    This is fixed in ``libvirt-8.0`` by reverting to the old configuration
+    approach until qemu is fixed.
+
+    As a workaround for ``libvirt-7.9`` and ``libvirt-7.10`` the old configuration
+    approach can be forced by:
+
+    Option 1, global ``qemu.conf``::
+
+     capability_filters = [ "device.json" ]
+
+    Option 2, per VM XML override::
+
+     <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+
+      [...]
+
+      <qemu:capabilities>
+        <qemu:del capability='device.json'/>
+      </qemu:capabilities>
+     </domain>
+
+  * Fix sparse streams with split daemon
+
+    In split daemon scenario, a client connected to a hypervisor driver and
+    using sparse streams (e.g. ``virsh vol-download --sparse``) would make the
+    hypervisor daemon enter an infinite loop without any data transfer. This is
+    now fixed.
+
+  * Build no longer requires RPC library
+
+    Code and its cross dependencies were fixed so that build without remote
+    driver and thus an RPC library (like ``tirpc``) fails no more.
+
+  * virnetdevopenvswitch: Fix 'burst' value passed to ovs-vsctl
+
+    When a ``<bandwidth/>`` was defined for a TAP device that's plugged into an
+    OvS bridge values passed to the OvS were incorrectly recalculated resulting
+    in slightly different limits being applied.
+
+
 v7.10.0 (2021-12-01)
 ====================
 
@@ -163,6 +271,7 @@ v7.8.0 (2021-10-01)
     ``virNodeDeviceIsActive()`` checks whether the node device is currently
     active. This information can also be retrieved with the new virsh command
     ``nodedev-info``.
+
 
 v7.7.0 (2021-09-01)
 ===================

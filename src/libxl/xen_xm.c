@@ -408,7 +408,7 @@ xenParseXM(virConf *conf,
            virCaps *caps,
            virDomainXMLOption *xmlopt)
 {
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
 
     if (!(def = virDomainDefNew(xmlopt)))
         return NULL;
@@ -418,26 +418,22 @@ xenParseXM(virConf *conf,
 
     if (xenParseConfigCommon(conf, def, caps, XEN_CONFIG_FORMAT_XM,
                              xmlopt) < 0)
-        goto cleanup;
+        return NULL;
 
     if (xenParseXMOS(conf, def) < 0)
-         goto cleanup;
+         return NULL;
 
     if (xenParseXMDiskList(conf, def) < 0)
-         goto cleanup;
+         return NULL;
 
     if (xenParseXMInputDevs(conf, def) < 0)
-         goto cleanup;
+         return NULL;
 
     if (virDomainDefPostParse(def, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
                               xmlopt, NULL) < 0)
-        goto cleanup;
+        return NULL;
 
-    return def;
-
- cleanup:
-    virDomainDefFree(def);
-    return NULL;
+    return g_steal_pointer(&def);
 }
 
 static int

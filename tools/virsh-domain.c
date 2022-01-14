@@ -2284,6 +2284,10 @@ static const vshCmdOptDef opts_blockcopy[] = {
      .type = VSH_OT_BOOL,
      .help = N_("the copy job is not persisted if VM is turned off")
     },
+    {.name = "synchronous-writes",
+     .type = VSH_OT_BOOL,
+     .help = N_("the copy job forces guest writes to be synchronously written to the destination")
+    },
     {.name = NULL}
 };
 
@@ -2306,6 +2310,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
     bool async = vshCommandOptBool(cmd, "async");
     bool bytes = vshCommandOptBool(cmd, "bytes");
     bool transientjob = vshCommandOptBool(cmd, "transient-job");
+    bool syncWrites = vshCommandOptBool(cmd, "synchronous-writes");
     int timeout = 0;
     const char *path = NULL;
     int abort_flags = 0;
@@ -2337,6 +2342,8 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_BLOCK_REBASE_REUSE_EXT;
     if (transientjob)
         flags |= VIR_DOMAIN_BLOCK_COPY_TRANSIENT_JOB;
+    if (syncWrites)
+        flags |= VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES;
     if (vshCommandOptTimeoutToMs(ctl, cmd, &timeout) < 0)
         return false;
 
@@ -2386,7 +2393,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (granularity || buf_size || (format && STRNEQ(format, "raw")) || xml ||
-        transientjob) {
+        transientjob || syncWrites) {
         /* New API */
         if (bandwidth || granularity || buf_size) {
             params = g_new0(virTypedParameter, 3);
@@ -6976,7 +6983,7 @@ virshParseCPUList(vshControl *ctl, int *cpumaplen,
                   const char *cpulist, int maxcpu)
 {
     unsigned char *cpumap = NULL;
-    virBitmap *map = NULL;
+    g_autoptr(virBitmap) map = NULL;
 
     if (cpulist[0] == 'r') {
         map = virBitmapNew(maxcpu);
@@ -6987,21 +6994,19 @@ virshParseCPUList(vshControl *ctl, int *cpumaplen,
         if (virBitmapParse(cpulist, &map, 1024) < 0 ||
             virBitmapIsAllClear(map)) {
             vshError(ctl, _("Invalid cpulist '%s'"), cpulist);
-            goto cleanup;
+            return NULL;
         }
         lastcpu = virBitmapLastSetBit(map);
         if (lastcpu >= maxcpu) {
             vshError(ctl, _("CPU %d in cpulist '%s' exceed the maxcpu %d"),
                      lastcpu, cpulist, maxcpu);
-            goto cleanup;
+            return NULL;
         }
     }
 
     if (virBitmapToData(map, &cpumap, cpumaplen) < 0)
-        goto cleanup;
+        return NULL;
 
- cleanup:
-    virBitmapFree(map);
     return cpumap;
 }
 
@@ -9402,6 +9407,7 @@ static const vshCmdOptDef opts_numatune[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "mode",
      .type = VSH_OT_STRING,
+     .completer = virshDomainNumatuneModeCompleter,
      .help = N_("NUMA mode, one of strict, preferred and interleave \n"
                 "or a number from the virDomainNumatuneMemMode enum")
     },
@@ -9516,6 +9522,154 @@ cmdNumatune(vshControl * ctl, const vshCmd * cmd)
  error:
     vshError(ctl, "%s", _("Unable to change numa parameters"));
     goto cleanup;
+}
+
+/*
+ * "domlaunchsecinfo" command
+ */
+static const vshCmdInfo info_domlaunchsecinfo[] = {
+    {.name = "help",
+     .data = N_("Get domain launch security info")
+    },
+    {.name = "desc",
+     .data = N_("Get the launch security parameters for a guest domain")
+    },
+    {.name = NULL}
+};
+
+static const vshCmdOptDef opts_domlaunchsecinfo[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = NULL}
+};
+
+static bool
+cmdDomLaunchSecInfo(vshControl * ctl, const vshCmd * cmd)
+{
+    g_autoptr(virshDomain) dom = NULL;
+    size_t i;
+    int nparams = 0;
+    virTypedParameterPtr params = NULL;
+    bool ret = false;
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        return false;
+
+    if (virDomainGetLaunchSecurityInfo(dom, &params, &nparams, 0) != 0) {
+        vshError(ctl, "%s", _("Unable to get launch security parameters"));
+        goto cleanup;
+    }
+
+    for (i = 0; i < nparams; i++) {
+        g_autofree char *str = vshGetTypedParamValue(ctl, &params[i]);
+        vshPrint(ctl, "%-15s: %s\n", params[i].field, str);
+    }
+
+    ret = true;
+
+ cleanup:
+    virTypedParamsFree(params, nparams);
+    return ret;
+}
+
+/*
+ * "domsetlaunchsecstate" command
+ */
+static const vshCmdInfo info_domsetlaunchsecstate[] = {
+    {.name = "help",
+     .data = N_("Set domain launch security state")
+    },
+    {.name = "desc",
+     .data = N_("Set a secret in the guest domain's memory")
+    },
+    {.name = NULL}
+};
+
+static const vshCmdOptDef opts_domsetlaunchsecstate[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "secrethdr",
+     .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
+     .help = N_("path to file containing the secret header"),
+    },
+    {.name = "secret",
+     .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
+     .help = N_("path to file containing the secret"),
+    },
+    {.name = "set-address",
+     .type = VSH_OT_INT,
+     .help = N_("physical address within the guest domain's memory to set the secret"),
+    },
+    {.name = NULL}
+};
+
+static bool
+cmdDomSetLaunchSecState(vshControl * ctl, const vshCmd * cmd)
+{
+    g_autoptr(virshDomain) dom = NULL;
+    const char *sechdrfile = NULL;
+    const char *secfile = NULL;
+    g_autofree char *sechdr = NULL;
+    g_autofree char *sec = NULL;
+    unsigned long long setaddr;
+    virTypedParameterPtr params = NULL;
+    int nparams = 0;
+    int maxparams = 0;
+    int rv;
+    bool ret = false;
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        return false;
+
+    if (vshCommandOptStringReq(ctl, cmd, "secrethdr", &sechdrfile) < 0)
+        return false;
+
+    if (vshCommandOptStringReq(ctl, cmd, "secret", &secfile) < 0)
+        return false;
+
+    if (sechdrfile == NULL || secfile == NULL)
+        return false;
+
+    if (virFileReadAll(sechdrfile, 1024*64, &sechdr) < 0) {
+        vshSaveLibvirtError();
+        return false;
+    }
+
+    if (virFileReadAll(secfile, 1024*64, &sec) < 0) {
+        vshSaveLibvirtError();
+        return false;
+    }
+
+    if (virTypedParamsAddString(&params, &nparams, &maxparams,
+                                VIR_DOMAIN_LAUNCH_SECURITY_SEV_SECRET_HEADER,
+                                sechdr) < 0)
+        return false;
+
+    if (virTypedParamsAddString(&params, &nparams, &maxparams,
+                                VIR_DOMAIN_LAUNCH_SECURITY_SEV_SECRET,
+                                sec) < 0)
+        return false;
+
+
+    if ((rv = vshCommandOptULongLong(ctl, cmd, "set-address", &setaddr)) < 0) {
+        return false;
+    } else if (rv > 0) {
+        if (virTypedParamsAddULLong(&params, &nparams, &maxparams,
+                                    VIR_DOMAIN_LAUNCH_SECURITY_SEV_SECRET_SET_ADDRESS,
+                                    setaddr) < 0)
+            return false;
+    }
+
+    if (virDomainSetLaunchSecurityState(dom, params, nparams, 0) != 0) {
+        vshError(ctl, "%s", _("Unable to set launch security state"));
+        goto cleanup;
+    }
+
+    ret = true;
+
+ cleanup:
+    virTypedParamsFree(params, nparams);
+    return ret;
 }
 
 /*
@@ -10536,6 +10690,10 @@ static const vshCmdOptDef opts_migrate[] = {
      .type = VSH_OT_BOOL,
      .help = N_("migration with non-shared storage with incremental copy (same base image shared between source and destination)")
     },
+    {.name = "copy-storage-synchronous-writes",
+     .type = VSH_OT_BOOL,
+     .help = N_("force guest disk writes to be synchronously written to the destination to improve storage migration convergence")
+    },
     {.name = "change-protection",
      .type = VSH_OT_BOOL,
      .help = N_("prevent any configuration changes to domain until migration ends")
@@ -10941,6 +11099,15 @@ doMigrate(void *opaque)
 
     if (vshCommandOptBool(cmd, "copy-storage-inc"))
         flags |= VIR_MIGRATE_NON_SHARED_INC;
+
+    if (vshCommandOptBool(cmd, "copy-storage-synchronous-writes")) {
+        if (!(flags & VIR_MIGRATE_NON_SHARED_DISK) &&
+            !(flags & VIR_MIGRATE_NON_SHARED_INC)) {
+            vshError(ctl, "'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', 'copy-storage-inc'");
+            goto out;
+        }
+        flags |= VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES;
+    }
 
     if (vshCommandOptBool(cmd, "change-protection"))
         flags |= VIR_MIGRATE_CHANGE_PROTECTION;
@@ -14522,6 +14689,18 @@ const vshCmdDef domManagementCmds[] = {
      .handler = cmdDomjobinfo,
      .opts = opts_domjobinfo,
      .info = info_domjobinfo,
+     .flags = 0
+    },
+    {.name = "domlaunchsecinfo",
+     .handler = cmdDomLaunchSecInfo,
+     .opts = opts_domlaunchsecinfo,
+     .info = info_domlaunchsecinfo,
+     .flags = 0
+    },
+    {.name = "domsetlaunchsecstate",
+     .handler = cmdDomSetLaunchSecState,
+     .opts = opts_domsetlaunchsecstate,
+     .info = info_domsetlaunchsecstate,
      .flags = 0
     },
     {.name = "domname",

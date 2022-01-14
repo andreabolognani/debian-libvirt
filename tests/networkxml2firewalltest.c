@@ -31,9 +31,7 @@
 # include "network/bridge_driver_platform.h"
 # include "virbuffer.h"
 # include "virmock.h"
-
-# define LIBVIRT_VIRFIREWALLPRIV_H_ALLOW
-# include "virfirewallpriv.h"
+# include "virfirewall.h"
 
 # define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
 # include "vircommandpriv.h"
@@ -167,10 +165,6 @@ mymain(void)
             ret = -1; \
     } while (0)
 
-    if (virFirewallSetBackend(VIR_FIREWALL_BACKEND_DIRECT) < 0) {
-        return EXIT_FAILURE;
-    }
-
     basefile = g_strdup_printf("%s/networkxml2firewalldata/base.args", abs_srcdir);
 
     if (virFileReadAll(basefile, INT_MAX, &baseargs) < 0)
@@ -186,6 +180,12 @@ mymain(void)
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+/* NB: virgdbus must be mocked because this test calls
+ * networkAddFirewallRules(), which will always call
+ * virFirewallDIsRegistered(), which calls
+ * virGDBusIsServiceRegistered().
+ */
 
 VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"),
                       VIR_TEST_MOCK("virfirewall"))

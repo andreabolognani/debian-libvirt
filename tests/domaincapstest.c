@@ -22,6 +22,7 @@
 #include "domain_capabilities.h"
 #include "virfilewrapper.h"
 #include "configmake.h"
+#include "virtpm.h"
 
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -126,6 +127,14 @@ fillQemuCaps(virDomainCaps *domCaps,
 
     return 0;
 }
+
+
+/* Enough to tell capabilities code that swtpm is usable */
+bool virTPMHasSwtpm(void)
+{
+    return true;
+}
+
 #endif /* WITH_QEMU */
 
 
@@ -413,7 +422,8 @@ mymain(void)
      * to generate updated or new *.replies data files.
      *
      * If you manually edit replies files you can run
-     * "tests/qemucapsfixreplies foo.replies" to fix the replies ids.
+     * VIR_TEST_REGENERATE_OUTPUT=1 tests/qemucapabilitiesnumbering
+     * to fix the replies ids.
      *
      * Once a replies file has been generated and tweaked if necessary,
      * you can drop it into tests/qemucapabilitiesdata/ (with a sensible

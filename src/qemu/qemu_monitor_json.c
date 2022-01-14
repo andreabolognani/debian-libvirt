@@ -280,10 +280,6 @@ int qemuMonitorJSONIOProcess(qemuMonitor *mon,
         }
     }
 
-#if DEBUG_IO
-    VIR_DEBUG("Total used %d bytes out of %zd available in buffer", used, len);
-#endif
-
     return used;
 }
 
@@ -574,7 +570,7 @@ static void qemuMonitorJSONHandleShutdown(qemuMonitor *mon, virJSONValue *data)
     virTristateBool guest_initiated = VIR_TRISTATE_BOOL_ABSENT;
 
     if (data && virJSONValueObjectGetBoolean(data, "guest", &guest) == 0)
-        guest_initiated = guest ? VIR_TRISTATE_BOOL_YES : VIR_TRISTATE_BOOL_NO;
+        guest_initiated = virTristateBoolFromBool(guest);
 
     qemuMonitorEmitShutdown(mon, guest_initiated);
 }
@@ -2806,9 +2802,13 @@ qemuMonitorJSONBlockGetNamedNodeDataWorker(size_t pos G_GNUC_UNUSED,
         STREQ_NULLABLE(virJSONValueObjectGetString(format_specific, "type"), "qcow2")) {
         virJSONValue *qcow2props = virJSONValueObjectGetObject(format_specific, "data");
 
-        if (qcow2props &&
-            STREQ_NULLABLE(virJSONValueObjectGetString(qcow2props, "compat"), "0.10"))
-            ent->qcow2v2 = true;
+        if (qcow2props) {
+            if (STREQ_NULLABLE(virJSONValueObjectGetString(qcow2props, "compat"), "0.10"))
+                ent->qcow2v2 = true;
+
+            ignore_value(virJSONValueObjectGetBoolean(qcow2props, "extended-l2",
+                                                      &ent->qcow2extendedL2));
+        }
     }
 
     if (virHashAddEntry(nodes, nodename, ent) < 0)
@@ -2830,7 +2830,7 @@ qemuMonitorJSONBlockGetNamedNodeDataJSON(virJSONValue *nodes)
 {
     g_autoptr(GHashTable) ret = NULL;
 
-    ret = virHashNew((virHashDataFree) qemuMonitorJSONBlockNamedNodeDataFree);
+    ret = virHashNew((GDestroyNotify) qemuMonitorJSONBlockNamedNodeDataFree);
 
     if (virJSONValueArrayForeachSteal(nodes,
                                       qemuMonitorJSONBlockGetNamedNodeDataWorker,
@@ -2970,7 +2970,7 @@ int qemuMonitorJSONEjectMedia(qemuMonitor *mon,
 {
     g_autoptr(virJSONValue) cmd = qemuMonitorJSONMakeCommand("eject",
                                                              "s:device", dev_name,
-                                                             "b:force", force ? 1 : 0,
+                                                             "b:force", force,
                                                              NULL);
     g_autoptr(virJSONValue) reply = NULL;
 
@@ -3440,13 +3440,15 @@ int qemuMonitorJSONMigrate(qemuMonitor *mon,
                            unsigned int flags,
                            const char *uri)
 {
-    g_autoptr(virJSONValue) cmd =
-      qemuMonitorJSONMakeCommand("migrate",
-                                 "b:detach", flags & QEMU_MONITOR_MIGRATE_BACKGROUND ? 1 : 0,
-                                 "b:blk", flags & QEMU_MONITOR_MIGRATE_NON_SHARED_DISK ? 1 : 0,
-                                 "b:inc", flags & QEMU_MONITOR_MIGRATE_NON_SHARED_INC ? 1 : 0,
-                                 "s:uri", uri,
-                                 NULL);
+    bool detach = !!(flags & QEMU_MONITOR_MIGRATE_BACKGROUND);
+    bool blk = !!(flags & QEMU_MONITOR_MIGRATE_NON_SHARED_DISK);
+    bool inc = !!(flags & QEMU_MONITOR_MIGRATE_NON_SHARED_INC);
+    g_autoptr(virJSONValue) cmd = qemuMonitorJSONMakeCommand("migrate",
+                                                             "b:detach", detach,
+                                                             "b:blk", blk,
+                                                             "b:inc", inc,
+                                                             "s:uri", uri,
+                                                             NULL);
     g_autoptr(virJSONValue) reply = NULL;
 
     if (!cmd)
@@ -3588,17 +3590,20 @@ int qemuMonitorJSONGraphicsRelocate(qemuMonitor *mon,
                                     int tlsPort,
                                     const char *tlsSubject)
 {
-    g_autoptr(virJSONValue) cmd = qemuMonitorJSONMakeCommand("client_migrate_info",
-                                                             "s:protocol",
-                                                             (type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE ? "spice" : "vnc"),
-                                                             "s:hostname", hostname,
-                                                             "i:port", port,
-                                                             "i:tls-port", tlsPort,
-                                                             "S:cert-subject", tlsSubject,
-                                                             NULL);
+    const char *protocol = "vnc";
+    g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
 
-    if (!cmd)
+    if (type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE)
+        protocol = "spice";
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("client_migrate_info",
+                                           "s:protocol", protocol,
+                                           "s:hostname", hostname,
+                                           "i:port", port,
+                                           "i:tls-port", tlsPort,
+                                           "S:cert-subject", tlsSubject,
+                                           NULL)))
         return -1;
 
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
@@ -4262,6 +4267,14 @@ qemuMonitorJSONDriveMirror(qemuMonitor *mon,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    const char *syncmode = "full";
+    const char *mode = "absolute-paths";
+
+    if (shallow)
+        syncmode = "top";
+
+    if (reuse)
+        mode = "existing";
 
     cmd = qemuMonitorJSONMakeCommand("drive-mirror",
                                      "s:device", device,
@@ -4269,8 +4282,8 @@ qemuMonitorJSONDriveMirror(qemuMonitor *mon,
                                      "Y:speed", speed,
                                      "z:granularity", granularity,
                                      "P:buf-size", buf_size,
-                                     "s:sync", shallow ? "top" : "full",
-                                     "s:mode", reuse ? "existing" : "absolute-paths",
+                                     "s:sync", syncmode,
+                                     "s:mode", mode,
                                      "S:format", format,
                                      NULL);
     if (!cmd)
@@ -4292,12 +4305,21 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                               unsigned long long speed,
                               unsigned int granularity,
                               unsigned long long buf_size,
-                              bool shallow)
+                              bool shallow,
+                              bool syncWrite)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autofinalize = VIR_TRISTATE_BOOL_ABSENT;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_ABSENT;
+    const char *syncmode = "full";
+    const char *copymode = NULL;
+
+    if (shallow)
+        syncmode = "top";
+
+    if (syncWrite)
+        copymode = "write-blocking";
 
     if (persistjob) {
         autofinalize = VIR_TRISTATE_BOOL_YES;
@@ -4311,7 +4333,8 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
                                      "Y:speed", speed,
                                      "z:granularity", granularity,
                                      "P:buf-size", buf_size,
-                                     "s:sync", shallow ? "top" : "full",
+                                     "s:sync", syncmode,
+                                     "S:copy-mode", copymode,
                                      "T:auto-finalize", autofinalize,
                                      "T:auto-dismiss", autodismiss,
                                      NULL);
@@ -5469,29 +5492,16 @@ qemuMonitorJSONParseCPUModel(const char *cpu_name,
 }
 
 
-int
-qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
-                                    qemuMonitorCPUModelExpansionType type,
-                                    virCPUDef *cpu,
-                                    bool migratable,
-                                    bool fail_no_props,
-                                    qemuMonitorCPUModelInfo **model_info)
+static int
+qemuMonitorJSONQueryCPUModelExpansionOne(qemuMonitor *mon,
+                                         qemuMonitorCPUModelExpansionType type,
+                                         virJSONValue **model,
+                                         virJSONValue **data)
 {
-    g_autoptr(virJSONValue) model = NULL;
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virJSONValue *data;
-    virJSONValue *cpu_model;
-    virJSONValue *cpu_props = NULL;
-    const char *cpu_name = "";
     const char *typeStr = "";
 
-    *model_info = NULL;
-
-    if (!(model = qemuMonitorJSONMakeCPUModel(cpu, migratable)))
-        return -1;
-
- retry:
     switch (type) {
     case QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC:
     case QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC_FULL:
@@ -5502,10 +5512,9 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
         typeStr = "full";
         break;
     }
-
     if (!(cmd = qemuMonitorJSONMakeCommand("query-cpu-model-expansion",
                                            "s:type", typeStr,
-                                           "a:model", &model,
+                                           "a:model", model,
                                            NULL)))
         return -1;
 
@@ -5522,7 +5531,35 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
     if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
         return -1;
 
-    data = virJSONValueObjectGetObject(reply, "return");
+    *data = virJSONValueObjectStealObject(reply, "return");
+
+    return 1;
+}
+
+
+int
+qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
+                                    qemuMonitorCPUModelExpansionType type,
+                                    virCPUDef *cpu,
+                                    bool migratable,
+                                    bool fail_no_props,
+                                    qemuMonitorCPUModelInfo **model_info)
+{
+    g_autoptr(virJSONValue) model = NULL;
+    g_autoptr(virJSONValue) data = NULL;
+    g_autoptr(virJSONValue) fullData = NULL;
+    virJSONValue *cpu_model;
+    virJSONValue *cpu_props = NULL;
+    const char *cpu_name = "";
+    int rc;
+
+    *model_info = NULL;
+
+    if (!(model = qemuMonitorJSONMakeCPUModel(cpu, migratable)))
+        return -1;
+
+    if ((rc = qemuMonitorJSONQueryCPUModelExpansionOne(mon, type, &model, &data)) <= 0)
+        return rc;
 
     if (qemuMonitorJSONParseCPUModelData(data, "query-cpu-model-expansion",
                                          fail_no_props, &cpu_model, &cpu_props,
@@ -5530,16 +5567,22 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
         return -1;
 
     /* QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC_FULL requests "full" expansion
-     * on the result of the initial "static" expansion.
-     */
+     * on the result of the initial "static" expansion. */
     if (type == QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC_FULL) {
-        if (!(model = virJSONValueCopy(cpu_model)))
+        g_autoptr(virJSONValue) fullModel = virJSONValueCopy(cpu_model);
+
+        if (!fullModel)
             return -1;
 
-        virJSONValueFree(cmd);
-        virJSONValueFree(reply);
         type = QEMU_MONITOR_CPU_MODEL_EXPANSION_FULL;
-        goto retry;
+
+        if ((rc = qemuMonitorJSONQueryCPUModelExpansionOne(mon, type, &fullModel, &fullData)) <= 0)
+            return rc;
+
+        if (qemuMonitorJSONParseCPUModelData(fullData, "query-cpu-model-expansion",
+                                             fail_no_props, &cpu_model, &cpu_props,
+                                             &cpu_name) < 0)
+            return -1;
     }
 
     return qemuMonitorJSONParseCPUModel(cpu_name, cpu_props, model_info);
@@ -7964,16 +8007,15 @@ qemuMonitorJSONSetWatchdogAction(qemuMonitor *mon,
 int
 qemuMonitorJSONBlockdevCreate(qemuMonitor *mon,
                               const char *jobname,
-                              virJSONValue *props)
+                              virJSONValue **props)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
 
     cmd = qemuMonitorJSONMakeCommand("blockdev-create",
                                      "s:job-id", jobname,
-                                     "a:options", &props,
+                                     "a:options", props,
                                      NULL);
-    virJSONValueFree(props);
     if (!cmd)
         return -1;
 
@@ -8171,6 +8213,97 @@ qemuMonitorJSONGetSEVMeasurement(qemuMonitor *mon)
         return NULL;
 
     return g_strdup(tmp);
+}
+
+
+/**
+ * Retrieve info about the SEV setup, returning those fields that
+ * are required to do a launch attestation, as per
+ *
+ * HMAC(0x04 || API_MAJOR || API_MINOR || BUILD || GCTX.POLICY || GCTX.LD || MNONCE; GCTX.TIK)
+ *
+ * specified in section 6.5.1 of AMD Secure Encrypted
+ * Virtualization API.
+ *
+ *  { "execute": "query-sev" }
+ *  { "return": { "enabled": true, "api-major" : 0, "api-minor" : 0,
+ *                "build-id" : 0, "policy" : 0, "state" : "running",
+ *                "handle" : 1 } }
+ */
+int
+qemuMonitorJSONGetSEVInfo(qemuMonitor *mon,
+                          unsigned int *apiMajor,
+                          unsigned int *apiMinor,
+                          unsigned int *buildID,
+                          unsigned int *policy)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("query-sev", NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+        return -1;
+
+    data = virJSONValueObjectGetObject(reply, "return");
+
+    if (virJSONValueObjectGetNumberUint(data, "api-major", apiMajor) < 0 ||
+        virJSONValueObjectGetNumberUint(data, "api-minor", apiMinor) < 0 ||
+        virJSONValueObjectGetNumberUint(data, "build-id", buildID) < 0 ||
+        virJSONValueObjectGetNumberUint(data, "policy", policy) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+/**
+ * Set a launch secret in guest memory
+ *
+ * Example JSON:
+ *
+ * { "execute" : "sev-inject-launch-secret",
+ *   "data": { "packet-header": "str", "secret": "str", "gpa": "uint64" } }
+ *
+ * The guest physical address (gpa) parameter is optional
+ */
+int
+qemuMonitorJSONSetLaunchSecurityState(qemuMonitor *mon,
+                                      const char *secrethdr,
+                                      const char *secret,
+                                      unsigned long long setaddr,
+                                      bool hasSetaddr)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+
+    if (hasSetaddr) {
+        cmd = qemuMonitorJSONMakeCommand("sev-inject-launch-secret",
+                                         "s:packet-header", secrethdr,
+                                         "s:secret", secret,
+                                         "U:gpa", setaddr,
+                                         NULL);
+    } else {
+        cmd = qemuMonitorJSONMakeCommand("sev-inject-launch-secret",
+                                         "s:packet-header", secrethdr,
+                                         "s:secret", secret,
+                                         NULL);
+    }
+    if (cmd == NULL)
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
+        return -1;
+
+    return 0;
 }
 
 

@@ -24,10 +24,10 @@ exec "$@"' > /usr/bin/nosync && \
         ca-certificates \
         ccache \
         clang \
+        codespell \
         cpp \
         cppi \
         cyrus-sasl-devel \
-        dbus-devel \
         device-mapper-devel \
         diffutils \
         dnsmasq \
@@ -63,7 +63,6 @@ exec "$@"' > /usr/bin/nosync && \
         libssh-devel \
         libssh2-devel \
         libtirpc-devel \
-        libudev-devel \
         libwsman-devel \
         libxml2 \
         libxml2-devel \
@@ -76,7 +75,6 @@ exec "$@"' > /usr/bin/nosync && \
         ninja-build \
         numactl-devel \
         numad \
-        parted \
         parted-devel \
         perl-base \
         pkgconfig \
@@ -85,7 +83,6 @@ exec "$@"' > /usr/bin/nosync && \
         python3-docutils \
         python3-flake8 \
         qemu-img \
-        radvd \
         readline-devel \
         rpcgen \
         rpm-build \
@@ -93,12 +90,11 @@ exec "$@"' > /usr/bin/nosync && \
         scrub \
         sed \
         sheepdog \
+        systemd-devel \
         systemtap-sdt-devel \
         wireshark-devel \
         xen-devel \
-        xfsprogs-devel \
-        yajl-devel \
-        zfs-fuse && \
+        yajl-devel && \
     nosync dnf autoremove -y && \
     nosync dnf clean all -y && \
     rpm -qa | sort > /packages.txt && \

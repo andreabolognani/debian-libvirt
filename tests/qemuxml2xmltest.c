@@ -260,6 +260,7 @@ mymain(void)
     DO_TEST_NOCAPS("hyperv");
     DO_TEST_NOCAPS("hyperv-off");
     DO_TEST_NOCAPS("hyperv-panic");
+    DO_TEST_NOCAPS("hyperv-passthrough");
     DO_TEST_NOCAPS("hyperv-stimer-direct");
 
     DO_TEST_NOCAPS("kvm-features");
@@ -527,8 +528,8 @@ mymain(void)
 
     DO_TEST("encrypted-disk", QEMU_CAPS_QCOW2_LUKS);
     DO_TEST("encrypted-disk-usage", QEMU_CAPS_QCOW2_LUKS);
-    DO_TEST_NOCAPS("luks-disks");
-    DO_TEST_NOCAPS("luks-disks-source");
+    DO_TEST_CAPS_LATEST("luks-disks");
+    DO_TEST_CAPS_LATEST("luks-disks-source");
     DO_TEST_CAPS_LATEST("luks-disks-source-qcow2");
     DO_TEST_NOCAPS("memtune");
     DO_TEST_NOCAPS("memtune-unlimited");
@@ -560,11 +561,7 @@ mymain(void)
     DO_TEST_NOCAPS("event_idx");
     DO_TEST_NOCAPS("vhost_queues");
     DO_TEST_NOCAPS("interface-driver");
-    DO_TEST("interface-server", QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_OBJECT_MEMORY_FILE,
-            QEMU_CAPS_PIIX_DISABLE_S3,
-            QEMU_CAPS_PIIX_DISABLE_S4,
-            QEMU_CAPS_VNC);
+    DO_TEST_NOCAPS("net-server");
     DO_TEST_NOCAPS("virtio-lun");
 
     DO_TEST_NOCAPS("usb-none");
@@ -599,9 +596,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("blkdeviotune-max");
     DO_TEST_CAPS_LATEST("blkdeviotune-group-num");
     DO_TEST_CAPS_LATEST("blkdeviotune-max-length");
-    DO_TEST("controller-usb-order",
-            QEMU_CAPS_PIIX_DISABLE_S3,
-            QEMU_CAPS_PIIX_DISABLE_S4);
+    DO_TEST_CAPS_LATEST("controller-usb-order");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-tpmproxy-single", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-tpmproxy-with-tpm", "ppc64");
 
@@ -758,6 +753,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tpm-passthrough");
     DO_TEST_CAPS_LATEST("tpm-passthrough-crb");
     DO_TEST_CAPS_LATEST("tpm-emulator");
+    DO_TEST_CAPS_ARCH_LATEST("tpm-emulator-spapr", "ppc64");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-enc");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-pstate");
@@ -1240,15 +1236,8 @@ mymain(void)
     DO_TEST("fd-memory-no-numa-topology", QEMU_CAPS_OBJECT_MEMORY_FILE,
             QEMU_CAPS_KVM);
 
-    DO_TEST("memfd-memory-numa",
-            QEMU_CAPS_OBJECT_MEMORY_MEMFD,
-            QEMU_CAPS_OBJECT_MEMORY_MEMFD_HUGETLB,
-            QEMU_CAPS_OBJECT_MEMORY_FILE,
-            QEMU_CAPS_DEVICE_NVDIMM);
-    DO_TEST("memfd-memory-default-hugepage",
-            QEMU_CAPS_OBJECT_MEMORY_MEMFD,
-            QEMU_CAPS_OBJECT_MEMORY_MEMFD_HUGETLB,
-            QEMU_CAPS_OBJECT_MEMORY_FILE);
+    DO_TEST_CAPS_LATEST("memfd-memory-numa");
+    DO_TEST_CAPS_LATEST("memfd-memory-default-hugepage");
 
     DO_TEST_NOCAPS("acpi-table");
 
@@ -1323,16 +1312,10 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_MOUSE_CCW,
             QEMU_CAPS_DEVICE_VIRTIO_TABLET_CCW);
 
-    DO_TEST("tseg-explicit-size",
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_MCH_EXTENDED_TSEG_MBYTES);
+    DO_TEST_CAPS_LATEST("tseg-explicit-size");
 
-    DO_TEST("vhost-vsock", QEMU_CAPS_DEVICE_VHOST_VSOCK);
-    DO_TEST("vhost-vsock-auto", QEMU_CAPS_DEVICE_VHOST_VSOCK);
+    DO_TEST_CAPS_LATEST("vhost-vsock");
+    DO_TEST_CAPS_LATEST("vhost-vsock-auto");
     DO_TEST("vhost-vsock-ccw", QEMU_CAPS_DEVICE_VHOST_VSOCK,
             QEMU_CAPS_CCW);
     DO_TEST("vhost-vsock-ccw-auto", QEMU_CAPS_DEVICE_VHOST_VSOCK,
@@ -1348,6 +1331,9 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_MMIO);
     DO_TEST("riscv64-virt-pci",
             QEMU_CAPS_OBJECT_GPEX);
+
+    DO_TEST_CAPS_VER("x86-kvm-32-on-64", "4.1.0");
+    DO_TEST_CAPS_LATEST("x86-kvm-32-on-64");
 
     DO_TEST_CAPS_LATEST("virtio-transitional");
     DO_TEST_CAPS_LATEST("virtio-non-transitional");
@@ -1387,6 +1373,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-pc-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35-4.2", "x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-features", "x86_64");
 
     DO_TEST_CAPS_LATEST("virtio-9p-multidevs");
     DO_TEST_CAPS_LATEST("virtio-9p-createmode");
