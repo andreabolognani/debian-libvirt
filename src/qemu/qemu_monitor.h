@@ -784,6 +784,9 @@ struct _qemuBlockNamedNodeData {
 
     /* image version */
     bool qcow2v2;
+
+    /* qcow2 subcluster allocation -> extended_l2 */
+    bool qcow2extendedL2;
 };
 
 GHashTable *
@@ -1079,7 +1082,8 @@ int qemuMonitorBlockdevMirror(qemuMonitor *mon,
                               unsigned long long bandwidth,
                               unsigned int granularity,
                               unsigned long long buf_size,
-                              bool shallow)
+                              bool shallow,
+                              bool syncWrite)
     ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5);
 int qemuMonitorDrivePivot(qemuMonitor *mon,
                           const char *jobname)
@@ -1416,7 +1420,7 @@ int qemuMonitorSetWatchdogAction(qemuMonitor *mon,
 
 int qemuMonitorBlockdevCreate(qemuMonitor *mon,
                               const char *jobname,
-                              virJSONValue *props);
+                              virJSONValue **props);
 
 int qemuMonitorBlockdevAdd(qemuMonitor *mon,
                            virJSONValue **props);
@@ -1443,6 +1447,22 @@ int qemuMonitorBlockdevMediumInsert(qemuMonitor *mon,
 
 char *
 qemuMonitorGetSEVMeasurement(qemuMonitor *mon);
+
+int
+qemuMonitorGetSEVInfo(qemuMonitor *mon,
+                      unsigned int *apiMajor,
+                      unsigned int *apiMinor,
+                      unsigned int *buildID,
+                      unsigned int *policy)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3)
+    ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5);
+
+int
+qemuMonitorSetLaunchSecurityState(qemuMonitor *mon,
+                                  const char *secrethdr,
+                                  const char *secret,
+                                  unsigned long long setaddr,
+                                  bool hasSetaddr);
 
 typedef struct _qemuMonitorPRManagerInfo qemuMonitorPRManagerInfo;
 struct _qemuMonitorPRManagerInfo {

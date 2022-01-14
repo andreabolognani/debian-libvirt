@@ -355,6 +355,7 @@ Patches have also been contributed by:
 * Hu Tao <hutao@cn.fujitsu.com>
 * Huanle Han <hanxueluo@gmail.com>
 * Huaqiang <huaqiang.wang@intel.com>
+* Hyman Huang(黄勇) <huangy81@chinatelecom.cn>
 * Ian Campbell <Ian.Campbell@citrix.com>
 * Ian Campbell <ian.campbell@citrix.com>
 * Ian Jackson <ian.jackson@eu.citrix.com>
@@ -407,6 +408,7 @@ Patches have also been contributed by:
 * Jingjing Shao <jishao@redhat.com>
 * Jinsheng Zhang <zhangjl02@inspur.com>
 * Jiri Denemark <jdenemar@redhat.com>
+* Joachim Falk <joachim.falk@gmx.de>
 * Joao Martins <joao.m.martins@oracle.com>
 * Joel SIMOES <joel.simoes@laposte.net>
 * Johannes Holmberg <johannes.holmberg@dataductus.se>
@@ -647,6 +649,7 @@ Patches have also been contributed by:
 * Rikard Falkeborn <rikard.falkeborn@gmail.com>
 * Riku Voipio <riku.voipio@linaro.org>
 * Robin Lee <cheeselee@fedoraproject.org>
+* Rohit Kumar <rohit.kumar3@nutanix.com>
 * Roland Schulz <schullzroll@gmail.com>
 * Rolf Eike Beer <eike@sf-mail.de>
 * Roman Bogorodskiy <bogorodskiy@gmail.com>
@@ -771,6 +774,7 @@ Patches have also been contributed by:
 * Ville Skyttä <ville.skytta@iki.fi>
 * Vinayak Kale <vkale@nvidia.com>
 * Vincent Bernat <vincent@bernat.im>
+* Vineeth Pillai <viremana@linux.microsoft.com>
 * Vitaly Kuznetsov <vkuznets@redhat.com>
 * Vitor de Lima <vitor.lima@eldorado.org.br>
 * Vladislav Bogdanov <bubble@hoster-ok.com>
@@ -818,6 +822,7 @@ Patches have also been contributed by:
 * Yaniv Kaul <ykaul@redhat.com>
 * Yanqiu Zhang <yanqzhan@redhat.com>
 * Yaroslav Kargin <ykargin@virtuozzo.com>
+* Yasuhiko Kamata <belphegor@belbel.or.jp>
 * Yi Li <yili@winhong.com>
 * Yi Min Zhao <zyimin@linux.ibm.com>
 * Yi Wang <wang.yi59@zte.com.cn>

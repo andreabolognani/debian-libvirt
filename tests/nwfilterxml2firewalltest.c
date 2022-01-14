@@ -26,9 +26,7 @@
 # include "testutils.h"
 # include "nwfilter/nwfilter_ebiptables_driver.h"
 # include "virbuffer.h"
-
-# define LIBVIRT_VIRFIREWALLPRIV_H_ALLOW
-# include "virfirewallpriv.h"
+# include "virfirewall.h"
 
 # define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
 # include "vircommandpriv.h"
@@ -166,7 +164,7 @@ virNWFilterRuleInstFree(virNWFilterRuleInst *inst)
     if (!inst)
         return;
 
-    virHashFree(inst->vars);
+    g_clear_pointer(&inst->vars, g_hash_table_unref);
     g_free(inst);
 }
 
@@ -227,7 +225,7 @@ virNWFilterIncludeDefToRuleInst(virNWFilterIncludeDef *inc,
                                 GHashTable *vars,
                                 virNWFilterInst *inst)
 {
-    GHashTable *tmpvars = NULL;
+    g_autoptr(GHashTable) tmpvars = NULL;
     int ret = -1;
     g_autofree char *xml = NULL;
 
@@ -248,7 +246,6 @@ virNWFilterIncludeDefToRuleInst(virNWFilterIncludeDef *inc,
  cleanup:
     if (ret < 0)
         virNWFilterInstReset(inst);
-    virHashFree(tmpvars);
     return ret;
 }
 
@@ -351,7 +348,7 @@ static int testCompareXMLToArgvFiles(const char *xml,
 {
     g_autofree char *actualargv = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    GHashTable *vars = virHashNew(virNWFilterVarValueHashFree);
+    g_autoptr(GHashTable) vars = virHashNew(virNWFilterVarValueHashFree);
     virNWFilterInst inst;
     int ret = -1;
     g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
@@ -382,7 +379,6 @@ static int testCompareXMLToArgvFiles(const char *xml,
 
  cleanup:
     virNWFilterInstReset(&inst);
-    virHashFree(vars);
     return ret;
 }
 
@@ -424,10 +420,6 @@ mymain(void)
                        testCompareXMLToIPTablesHelper, &info) < 0) \
             ret = -1; \
     } while (0)
-
-    if (virFirewallSetBackend(VIR_FIREWALL_BACKEND_DIRECT) < 0) {
-        return EXIT_FAILURE;
-    }
 
     DO_TEST("ah");
     DO_TEST("ah-ipv6");

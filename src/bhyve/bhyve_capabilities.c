@@ -168,35 +168,27 @@ virBhyveDomainCapsBuild(struct _bhyveConn *conn,
 int
 virBhyveProbeGrubCaps(virBhyveGrubCapsFlags *caps)
 {
-    char *binary, *help;
-    virCommand *cmd;
-    int ret, exit;
+    g_autofree char *binary = NULL;
+    g_autofree char *help = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    int exit;
 
-    ret = 0;
     *caps = 0;
-    cmd = NULL;
-    help = NULL;
 
     binary = virFindFileInPath("grub-bhyve");
-    if (binary == NULL)
-        goto out;
+    if (!binary)
+        return 0;
 
     cmd = virCommandNew(binary);
     virCommandAddArg(cmd, "--help");
     virCommandSetOutputBuffer(cmd, &help);
-    if (virCommandRun(cmd, &exit) < 0) {
-        ret = -1;
-        goto out;
-    }
+    if (virCommandRun(cmd, &exit) < 0)
+        return -1;
 
     if (strstr(help, "--cons-dev") != NULL)
         *caps |= BHYVE_GRUB_CAP_CONSDEV;
 
- out:
-    VIR_FREE(help);
-    virCommandFree(cmd);
-    VIR_FREE(binary);
-    return ret;
+    return 0;
 }
 
 static int
@@ -207,40 +199,34 @@ bhyveProbeCapsDeviceHelper(unsigned int *caps,
                            const char *errormsg,
                            unsigned int flag)
 {
-    char *error;
-    virCommand *cmd = NULL;
-    int ret = -1, exit;
+    g_autofree char *error = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    int exit;
 
     cmd = virCommandNew(binary);
     virCommandAddArgList(cmd, bus, device, NULL);
     virCommandSetErrorBuffer(cmd, &error);
     if (virCommandRun(cmd, &exit) < 0)
-        goto cleanup;
+        return -1;
 
     if (strstr(error, errormsg) == NULL)
         *caps |= flag;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(error);
-    virCommandFree(cmd);
-    return ret;
+    return 0;
 }
 
 static int
 bhyveProbeCapsFromHelp(unsigned int *caps, char *binary)
 {
-    char *help;
-    virCommand *cmd = NULL;
-    int ret = 0, exit;
+    g_autofree char *help = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    int exit;
 
     cmd = virCommandNew(binary);
     virCommandAddArg(cmd, "-h");
     virCommandSetErrorBuffer(cmd, &help);
-    if (virCommandRun(cmd, &exit) < 0) {
-        ret = -1;
-        goto out;
-    }
+    if (virCommandRun(cmd, &exit) < 0)
+        return -1;
 
     if (strstr(help, "-u:") != NULL)
         *caps |= BHYVE_CAP_RTC_UTC;
@@ -251,10 +237,7 @@ bhyveProbeCapsFromHelp(unsigned int *caps, char *binary)
     if (strstr(help, "-c vcpus") == NULL)
         *caps |= BHYVE_CAP_CPUTOPOLOGY;
 
- out:
-    VIR_FREE(help);
-    virCommandFree(cmd);
-    return ret;
+    return 0;
 }
 
 static int

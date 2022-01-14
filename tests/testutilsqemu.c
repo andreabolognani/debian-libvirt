@@ -41,44 +41,35 @@ static const virArch arch_alias[VIR_ARCH_LAST] = {
 };
 
 static const char *const i386_machines[] = {
-    "pc", "isapc", NULL
+    "pc", NULL
 };
-/**
- * Oldest supported qemu-2.11 supports machine types back to pc-0.10.
- */
+
 static const char *const x86_64_machines[] = {
-    "pc", "isapc", "q35",
-    "pc-1.0", "pc-1.2",
-    "pc-i440fx-1.4", "pc-i440fx-2.1", "pc-i440fx-2.3", "pc-i440fx-2.5",
-    "pc-i440fx-2.6", "pc-i440fx-2.9", "pc-i440fx-2.12",
-    "pc-q35-2.3", "pc-q35-2.4", "pc-q35-2.5", "pc-q35-2.7", "pc-q35-2.10",
-    NULL
+    "pc", "q35", NULL
 };
 static const char *const aarch64_machines[] = {
     "virt", "virt-2.6", "versatilepb", NULL
 };
 static const char *const arm_machines[] = {
-    "vexpress-a9", "vexpress-a15", "versatilepb", "virt", NULL
+    "vexpress-a9", "virt", NULL
 };
 static const char *const ppc64_machines[] = {
     "pseries", NULL
 };
 static const char *const ppc_machines[] = {
-    "g3beige", "mac99", "prep", "ppce500", NULL
+    "ppce500", NULL
 };
 static const char *const riscv32_machines[] = {
-    "spike_v1.10", "spike_v1.9.1", "sifive_e", "virt", "sifive_u", NULL
+    "virt", NULL
 };
 static const char *const riscv64_machines[] = {
-    "spike_v1.10", "spike_v1.9.1", "sifive_e", "virt", "sifive_u", NULL
+    "virt", NULL
 };
 static const char *const s390x_machines[] = {
     "s390-ccw-virtio", NULL
 };
 static const char *const sparc_machines[] = {
-    "SS-5", "LX", "SPARCClassic", "SPARCbook",
-    "SS-10", "SS-20", "SS-4", "SS-600MP",
-    "Voyager", "leon3_generic", NULL
+    "SS-5", NULL
 };
 
 static const char *const *qemu_machines[VIR_ARCH_LAST] = {
@@ -143,6 +134,29 @@ virCapabilitiesHostNUMANewHost(void)
     return virTestCapsBuildNUMATopology(3);
 }
 
+void
+virHostCPUX86GetCPUID(uint32_t leaf,
+                      uint32_t extended,
+                      uint32_t *eax,
+                      uint32_t *ebx,
+                      uint32_t *ecx,
+                      uint32_t *edx)
+{
+    if (eax)
+        *eax = 0;
+    if (ebx)
+        *ebx = 0;
+    if (ecx)
+        *ecx = 0;
+    if (edx)
+        *edx = 0;
+    if (leaf == 0x8000001F && extended == 0) {
+        if (ecx)
+            *ecx = 509;
+        if (edx)
+            *edx = 451;
+    }
+}
 
 static int
 testQemuAddGuest(virCaps *caps,
@@ -321,70 +335,135 @@ void qemuTestDriverFree(virQEMUDriver *driver)
     virCPUDefFree(cpuPower9);
 }
 
+
+static void
+qemuTestCapsPopulateFakeMachines(virQEMUCaps *caps,
+                                 virArch arch)
+{
+    size_t i;
+    const char *defaultRAMid = NULL;
+
+    /* default-ram-id appeared in QEMU 5.2.0. Reflect
+     * this in our capabilities, i.e. set it for new
+     * enough versions only. */
+    if (virQEMUCapsGetVersion(caps) >= 5002000)
+        defaultRAMid = qemu_default_ram_id[arch];
+
+    virQEMUCapsSetArch(caps, arch);
+
+    for (i = 0; qemu_machines[arch][i] != NULL; i++) {
+        virQEMUCapsAddMachine(caps,
+                              VIR_DOMAIN_VIRT_QEMU,
+                              qemu_machines[arch][i],
+                              NULL,
+                              NULL,
+                              0,
+                              false,
+                              false,
+                              true,
+                              defaultRAMid,
+                              false);
+        virQEMUCapsSet(caps, QEMU_CAPS_TCG);
+    }
+
+    if (kvm_machines[arch] != NULL) {
+        for (i = 0; kvm_machines[arch][i] != NULL; i++) {
+            virQEMUCapsAddMachine(caps,
+                                  VIR_DOMAIN_VIRT_KVM,
+                                  kvm_machines[arch][i],
+                                  NULL,
+                                  NULL,
+                                  0,
+                                  false,
+                                  false,
+                                  true,
+                                  defaultRAMid,
+                                  false);
+            virQEMUCapsSet(caps, QEMU_CAPS_KVM);
+        }
+    }
+}
+
+
+static int
+qemuTestCapsCacheInsertData(virFileCache *cache,
+                            const char *binary,
+                            virQEMUCaps *caps)
+{
+    if (virFileCacheInsertData(cache, binary, virObjectRef(caps)) < 0) {
+        virObjectUnref(caps);
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int qemuTestCapsCacheInsert(virFileCache *cache,
                             virQEMUCaps *caps)
 {
-    size_t i, j;
+    size_t i;
 
-    for (i = 0; i < G_N_ELEMENTS(qemu_emulators); i++) {
-        virQEMUCaps *tmpCaps;
-        if (qemu_emulators[i] == NULL)
-            continue;
-        if (caps) {
-            tmpCaps = virQEMUCapsNewCopy(caps);
-        } else {
-            tmpCaps = virQEMUCapsNew();
-        }
+    if (caps && virQEMUCapsGetArch(caps) != VIR_ARCH_NONE) {
+        /* for capabilities which have architecture set we populate only the
+         * given architecture and poison all other so that the test doesn't
+         * accidentally test a weird combination */
+        virArch arch = virQEMUCapsGetArch(caps);
+        g_autoptr(virQEMUCaps) emptyCaps = virQEMUCapsNew();
+        g_autoptr(virQEMUCaps) copyCaps = NULL;
+        virQEMUCaps *effCaps = caps;
 
-        if (!tmpCaps)
+        if (!emptyCaps)
             return -1;
 
-        if (!virQEMUCapsHasMachines(tmpCaps)) {
-            const char *defaultRAMid = NULL;
+        if (arch_alias[arch] != VIR_ARCH_NONE)
+            arch = arch_alias[arch];
 
-            /* default-ram-id appeared in QEMU 5.2.0. Reflect
-             * this in our capabilities, i.e. set it for new
-             * enough versions only. */
-            if (virQEMUCapsGetVersion(tmpCaps) >= 5002000)
-                defaultRAMid = qemu_default_ram_id[i];
+        if (qemu_emulators[arch]) {
+            /* if we are dealing with fake caps we need to populate machine types */
+            if (!virQEMUCapsHasMachines(caps)) {
+                if (!(copyCaps = effCaps = virQEMUCapsNewCopy(caps)))
+                    return -1;
 
-            virQEMUCapsSetArch(tmpCaps, i);
-
-            for (j = 0; qemu_machines[i][j] != NULL; j++) {
-                virQEMUCapsAddMachine(tmpCaps,
-                                      VIR_DOMAIN_VIRT_QEMU,
-                                      qemu_machines[i][j],
-                                      NULL,
-                                      NULL,
-                                      0,
-                                      false,
-                                      false,
-                                      true,
-                                      defaultRAMid,
-                                      false);
-                virQEMUCapsSet(tmpCaps, QEMU_CAPS_TCG);
+                qemuTestCapsPopulateFakeMachines(copyCaps, arch);
             }
-            if (kvm_machines[i] != NULL) {
-                for (j = 0; kvm_machines[i][j] != NULL; j++) {
-                    virQEMUCapsAddMachine(tmpCaps,
-                                          VIR_DOMAIN_VIRT_KVM,
-                                          kvm_machines[i][j],
-                                          NULL,
-                                          NULL,
-                                          0,
-                                          false,
-                                          false,
-                                          true,
-                                          defaultRAMid,
-                                          false);
-                    virQEMUCapsSet(tmpCaps, QEMU_CAPS_KVM);
-                }
-            }
+
+            if (qemuTestCapsCacheInsertData(cache, qemu_emulators[arch], effCaps) < 0)
+                return -1;
         }
 
-        if (virFileCacheInsertData(cache, qemu_emulators[i], tmpCaps) < 0) {
-            virObjectUnref(tmpCaps);
-            return -1;
+
+        for (i = 0; i < G_N_ELEMENTS(qemu_emulators); i++) {
+            if (!qemu_emulators[i])
+                continue;
+
+            if (i == arch)
+                continue;
+
+            if (qemuTestCapsCacheInsertData(cache, qemu_emulators[i], emptyCaps) < 0)
+                return -1;
+        }
+    } else {
+        /* in case when caps are missing or are missing architecture, we populate
+         * everything */
+        for (i = 0; i < G_N_ELEMENTS(qemu_emulators); i++) {
+            g_autoptr(virQEMUCaps) tmp = NULL;
+
+            if (qemu_emulators[i] == NULL)
+                continue;
+
+            if (caps)
+                tmp = virQEMUCapsNewCopy(caps);
+            else
+                tmp = virQEMUCapsNew();
+
+            if (!tmp)
+                return -1;
+
+            qemuTestCapsPopulateFakeMachines(tmp, i);
+
+            if (qemuTestCapsCacheInsertData(cache, qemu_emulators[i], tmp) < 0)
+                return -1;
         }
     }
 
@@ -749,11 +828,6 @@ testQemuInfoInitArgs(struct testQemuInfo *info)
         bool stripmachinealiases = false;
         virQEMUCaps *cachedcaps = NULL;
 
-        if (info->args.fakeCapsUsed) {
-            fprintf(stderr, "ARG_QEMU_CAPS can not be combined with ARG_CAPS_ARCH or ARG_CAPS_VER\n");
-            return -1;
-        }
-
         info->arch = virArchFromString(info->args.capsarch);
 
         if (STREQ(info->args.capsver, "latest")) {
@@ -781,6 +855,16 @@ testQemuInfoInitArgs(struct testQemuInfo *info)
 
         if (!(info->qemuCaps = virQEMUCapsNewCopy(cachedcaps)))
             return -1;
+
+        if (info->args.fakeCapsUsed) {
+            size_t i;
+            for (i = 0; i < QEMU_CAPS_LAST; i++) {
+                if (virQEMUCapsGet(info->args.fakeCaps, i)) {
+                    virQEMUCapsSet(info->qemuCaps, i);
+                }
+            }
+        }
+
 
         if (stripmachinealiases)
             virQEMUCapsStripMachineAliases(info->qemuCaps);

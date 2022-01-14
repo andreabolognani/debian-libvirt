@@ -20,7 +20,6 @@ RUN dnf update -y && \
         clang \
         cpp \
         cyrus-sasl-devel \
-        dbus-devel \
         device-mapper-devel \
         diffutils \
         dnsmasq \
@@ -56,7 +55,6 @@ RUN dnf update -y && \
         libssh-devel \
         libssh2-devel \
         libtirpc-devel \
-        libudev-devel \
         libwsman-devel \
         libxml2 \
         libxml2-devel \
@@ -69,7 +67,6 @@ RUN dnf update -y && \
         ninja-build \
         numactl-devel \
         numad \
-        parted \
         parted-devel \
         perl \
         pkgconfig \
@@ -78,16 +75,15 @@ RUN dnf update -y && \
         python3-docutils \
         python3-flake8 \
         qemu-img \
-        radvd \
         readline-devel \
         rpcgen \
         rpm-build \
         sanlock-devel \
         scrub \
         sed \
+        systemd-devel \
         systemtap-sdt-devel \
         wireshark-devel \
-        xfsprogs-devel \
         yajl-devel && \
     dnf autoremove -y && \
     dnf clean all -y && \

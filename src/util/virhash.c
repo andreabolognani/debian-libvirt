@@ -83,7 +83,7 @@ virHashTableStringKey(const void *vkey)
  * Returns the newly created object.
  */
 GHashTable *
-virHashNew(virHashDataFree dataFree)
+virHashNew(GDestroyNotify dataFree)
 {
     ignore_value(virHashTableSeedInitialize());
 
@@ -92,7 +92,7 @@ virHashNew(virHashDataFree dataFree)
 
 
 virHashAtomic *
-virHashAtomicNew(virHashDataFree dataFree)
+virHashAtomicNew(GDestroyNotify dataFree)
 {
     virHashAtomic *hash;
 
@@ -112,26 +112,7 @@ virHashAtomicDispose(void *obj)
 {
     virHashAtomic *hash = obj;
 
-    virHashFree(hash->hash);
-}
-
-
-/**
- * virHashFree:
- * @table: the hash table
- *
- * Free the hash @table and its contents. The userdata is
- * deallocated with function provided at creation time.
- *
- * Deprecated: consider using g_hash_table_unref instead
- */
-void
-virHashFree(GHashTable *table)
-{
-    if (table == NULL)
-        return;
-
-    g_hash_table_unref(table);
+    g_clear_pointer(&hash->hash, g_hash_table_unref);
 }
 
 

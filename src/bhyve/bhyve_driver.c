@@ -140,8 +140,7 @@ static char *
 bhyveConnectGetCapabilities(virConnectPtr conn)
 {
     struct _bhyveConn *privconn = conn->privateData;
-    virCaps *caps;
-    char *xml = NULL;
+    g_autoptr(virCaps) caps = NULL;
 
     if (virConnectGetCapabilitiesEnsureACL(conn) < 0)
         return NULL;
@@ -149,15 +148,10 @@ bhyveConnectGetCapabilities(virConnectPtr conn)
     if (!(caps = bhyveDriverGetCapabilities(privconn))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Unable to get Capabilities"));
-        goto cleanup;
+        return NULL;
     }
 
-    if (!(xml = virCapabilitiesFormatXML(caps)))
-        goto cleanup;
-
- cleanup:
-    virObjectUnref(caps);
-    return xml;
+    return virCapabilitiesFormatXML(caps);
 }
 
 static virDomainObj *
@@ -504,11 +498,11 @@ bhyveDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
 {
     struct _bhyveConn *privconn = conn->privateData;
     virDomainPtr dom = NULL;
-    virDomainDef *def = NULL;
-    virDomainDef *oldDef = NULL;
+    g_autoptr(virDomainDef) def = NULL;
+    g_autoptr(virDomainDef) oldDef = NULL;
     virDomainObj *vm = NULL;
     virObjectEvent *event = NULL;
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
 
     virCheckFlags(VIR_DOMAIN_DEFINE_VALIDATE, NULL);
@@ -554,9 +548,6 @@ bhyveDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flag
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
-    virObjectUnref(caps);
-    virDomainDefFree(def);
-    virDomainDefFree(oldDef);
     virDomainObjEndAPI(&vm);
     virObjectEventStateQueue(privconn->domainEventState, event);
 
@@ -679,28 +670,27 @@ bhyveConnectDomainXMLToNative(virConnectPtr conn,
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     struct _bhyveConn *privconn = conn->privateData;
-    virDomainDef *def = NULL;
-    virCommand *cmd = NULL;
-    virCommand *loadcmd = NULL;
-    char *ret = NULL;
+    g_autoptr(virDomainDef) def = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autoptr(virCommand) loadcmd = NULL;
 
     virCheckFlags(0, NULL);
 
     if (virConnectDomainXMLToNativeEnsureACL(conn) < 0)
-        goto cleanup;
+        return NULL;
 
     if (STRNEQ(format, BHYVE_CONFIG_FORMAT_ARGV)) {
         virReportError(VIR_ERR_INVALID_ARG,
                        _("Unsupported config type %s"), format);
-        goto cleanup;
+        return NULL;
     }
 
     if (!(def = virDomainDefParseString(xmlData, privconn->xmlopt,
                                         NULL, VIR_DOMAIN_DEF_PARSE_INACTIVE)))
-        goto cleanup;
+        return NULL;
 
     if (bhyveDomainAssignAddresses(def, NULL) < 0)
-        goto cleanup;
+        return NULL;
 
     if (def->os.bootloader == NULL &&
         def->os.loader) {
@@ -708,36 +698,30 @@ bhyveConnectDomainXMLToNative(virConnectPtr conn,
         if (!virDomainDefHasOldStyleROUEFI(def)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Only read-only pflash is supported."));
-            goto cleanup;
+            return NULL;
         }
 
         if ((bhyveDriverGetBhyveCaps(privconn) & BHYVE_CAP_LPC_BOOTROM) == 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Installed bhyve binary does not support "
                           "bootrom"));
-            goto cleanup;
+            return NULL;
         }
     } else {
         if (!(loadcmd = virBhyveProcessBuildLoadCmd(privconn, def,
                                                     "<device.map>", NULL)))
-            goto cleanup;
+            return NULL;
 
         virCommandToStringBuf(loadcmd, &buf, false, false);
         virBufferAddChar(&buf, '\n');
     }
 
     if (!(cmd = virBhyveProcessBuildBhyveCmd(privconn, def, true)))
-        goto cleanup;
+        return NULL;
 
     virCommandToStringBuf(cmd, &buf, false, false);
 
-    ret = virBufferContentAndReset(&buf);
-
- cleanup:
-    virCommandFree(loadcmd);
-    virCommandFree(cmd);
-    virDomainDefFree(def);
-    return ret;
+    return virBufferContentAndReset(&buf);
 }
 
 static int
@@ -890,7 +874,7 @@ bhyveDomainCreateXML(virConnectPtr conn,
 {
     struct _bhyveConn *privconn = conn->privateData;
     virDomainPtr dom = NULL;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     virDomainObj *vm = NULL;
     virObjectEvent *event = NULL;
     unsigned int start_flags = 0;
@@ -936,7 +920,6 @@ bhyveDomainCreateXML(virConnectPtr conn,
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  cleanup:
-    virDomainDefFree(def);
     virDomainObjEndAPI(&vm);
     virObjectEventStateQueue(privconn->domainEventState, event);
 
@@ -1437,8 +1420,7 @@ bhyveConnectCompareCPU(virConnectPtr conn,
                        unsigned int flags)
 {
     struct _bhyveConn *driver = conn->privateData;
-    int ret = VIR_CPU_COMPARE_ERROR;
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
     bool failIncompatible;
     bool validateXML;
 
@@ -1447,31 +1429,27 @@ bhyveConnectCompareCPU(virConnectPtr conn,
                   VIR_CPU_COMPARE_ERROR);
 
     if (virConnectCompareCPUEnsureACL(conn) < 0)
-        goto cleanup;
+        return VIR_CPU_COMPARE_ERROR;
 
     failIncompatible = !!(flags & VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE);
     validateXML = !!(flags & VIR_CONNECT_COMPARE_CPU_VALIDATE_XML);
 
     if (!(caps = bhyveDriverGetCapabilities(driver)))
-        goto cleanup;
+        return VIR_CPU_COMPARE_ERROR;
 
     if (!caps->host.cpu ||
         !caps->host.cpu->model) {
         if (failIncompatible) {
             virReportError(VIR_ERR_CPU_INCOMPATIBLE, "%s",
                            _("cannot get host CPU capabilities"));
-        } else {
-            VIR_WARN("cannot get host CPU capabilities");
-            ret = VIR_CPU_COMPARE_INCOMPATIBLE;
+            return VIR_CPU_COMPARE_ERROR;
         }
-    } else {
-        ret = virCPUCompareXML(caps->host.arch, caps->host.cpu,
-                               xmlDesc, failIncompatible, validateXML);
+        VIR_WARN("cannot get host CPU capabilities");
+        return VIR_CPU_COMPARE_INCOMPATIBLE;
     }
 
- cleanup:
-    virObjectUnref(caps);
-    return ret;
+    return virCPUCompareXML(caps->host.arch, caps->host.cpu,
+                            xmlDesc, failIncompatible, validateXML);
 }
 
 static int
@@ -1569,8 +1547,7 @@ bhyveConnectDomainXMLFromNative(virConnectPtr conn,
                                 const char *nativeConfig,
                                 unsigned int flags)
 {
-    char *xml = NULL;
-    virDomainDef *def = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     struct _bhyveConn *privconn = conn->privateData;
     unsigned bhyveCaps = bhyveDriverGetBhyveCaps(privconn);
 
@@ -1582,19 +1559,15 @@ bhyveConnectDomainXMLFromNative(virConnectPtr conn,
     if (STRNEQ(nativeFormat, BHYVE_CONFIG_FORMAT_ARGV)) {
         virReportError(VIR_ERR_INVALID_ARG,
                        _("unsupported config type %s"), nativeFormat);
-        goto cleanup;
+        return NULL;
     }
 
     def = bhyveParseCommandLineString(nativeConfig, bhyveCaps,
                                       privconn->xmlopt);
     if (def == NULL)
-        goto cleanup;
+        return NULL;
 
-    xml = virDomainDefFormat(def, privconn->xmlopt, 0);
-
- cleanup:
-    virDomainDefFree(def);
-    return xml;
+    return virDomainDefFormat(def, privconn->xmlopt, 0);
 }
 
 static char *

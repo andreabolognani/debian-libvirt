@@ -230,7 +230,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virPCIVirtualFunctionList, virPCIVirtualFunctionLi
 
 int virPCIGetVirtualFunctionsFull(const char *sysfs_path,
                                   virPCIVirtualFunctionList **vfs,
-                                  const char *pfPhysPortID);
+                                  const char *pfNetDevName);
 int virPCIGetVirtualFunctions(const char *sysfs_path,
                               virPCIVirtualFunctionList **vfs);
 
@@ -245,7 +245,7 @@ int virPCIDeviceAddressGetSysfsFile(virPCIDeviceAddress *addr,
 
 int virPCIGetNetName(const char *device_link_sysfs_path,
                      size_t idx,
-                     const char *physPortID,
+                     const char *physPortNetDevName,
                      char **netname);
 
 bool virPCIDeviceAddressIsValid(virPCIDeviceAddress *addr,

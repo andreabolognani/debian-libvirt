@@ -49,6 +49,7 @@
 #include "qemu_process.h"
 #include "qemu_firmware.h"
 #include "virutil.h"
+#include "virtpm.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -651,6 +652,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "device.json", /* QEMU_CAPS_DEVICE_JSON */
               "query-dirty-rate", /* QEMU_CAPS_QUERY_DIRTY_RATE */
               "rbd-encryption", /* QEMU_CAPS_RBD_ENCRYPTION */
+              "sev-guest-kernel-hashes", /* QEMU_CAPS_SEV_GUEST_KERNEL_HASHES */
+              "sev-inject-launch-secret", /* QEMU_CAPS_SEV_INJECT_LAUNCH_SECRET */
     );
 
 
@@ -1180,6 +1183,7 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "set-numa-node", QEMU_CAPS_NUMA },
     { "set-action", QEMU_CAPS_SET_ACTION },
     { "query-dirty-rate", QEMU_CAPS_QUERY_DIRTY_RATE },
+    { "sev-inject-launch-secret", QEMU_CAPS_SEV_INJECT_LAUNCH_SECRET },
 };
 
 struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
@@ -1552,7 +1556,6 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "chardev-add/arg-type/backend/+socket/data/reconnect", QEMU_CAPS_CHARDEV_RECONNECT },
     { "chardev-add/arg-type/backend/+file/data/logfile", QEMU_CAPS_CHARDEV_LOGFILE },
     { "chardev-add/arg-type/backend/+file/data/logappend", QEMU_CAPS_CHARDEV_FILE_APPEND },
-    { "device_add/$json-cli", QEMU_CAPS_DEVICE_JSON },
     { "human-monitor-command/$savevm-monitor-nodes", QEMU_CAPS_SAVEVM_MONITOR_NODES },
     { "migrate-set-parameters/arg-type/max-bandwidth", QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH },
     { "migrate-set-parameters/arg-type/downtime-limit", QEMU_CAPS_MIGRATION_PARAM_DOWNTIME },
@@ -1570,6 +1573,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "query-named-block-nodes/arg-type/flat", QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT },
     { "screendump/arg-type/device", QEMU_CAPS_SCREENDUMP_DEVICE },
     { "set-numa-node/arg-type/+hmat-lb", QEMU_CAPS_NUMA_HMAT },
+    { "object-add/arg-type/+sev-guest/kernel-hashes", QEMU_CAPS_SEV_GUEST_KERNEL_HASHES },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -1889,6 +1893,11 @@ virQEMUCapsSEVInfoCopy(virSEVCapability **dst,
 {
     g_autoptr(virSEVCapability) tmp = NULL;
 
+    if (!src) {
+        *dst = NULL;
+        return 0;
+    }
+
     tmp = g_new0(virSEVCapability, 1);
 
     tmp->pdh = g_strdup(src->pdh);
@@ -1896,6 +1905,8 @@ virQEMUCapsSEVInfoCopy(virSEVCapability **dst,
 
     tmp->cbitpos = src->cbitpos;
     tmp->reduced_phys_bits = src->reduced_phys_bits;
+    tmp->max_guests = src->max_guests;
+    tmp->max_es_guests = src->max_es_guests;
 
     *dst = g_steal_pointer(&tmp);
     return 0;
@@ -3285,6 +3296,31 @@ virQEMUCapsProbeQMPGICCapabilities(virQEMUCaps *qemuCaps,
 }
 
 
+static void
+virQEMUCapsGetSEVMaxGuests(virSEVCapability *caps)
+{
+    /*
+     * From Secure Encrypted Virtualization API v0.24, section 6.19.1
+     *
+     * If the guest is SEV-ES enabled, then the ASID must be at least
+     * 1h and at most (MIN_SEV_ASID-1). If the guest is not SEV-ES
+     * enabled, then the ASID must be at least MIN_SEV_ASID and at
+     * most the maximum SEV ASID available. The MIN_SEV_ASID value
+     * is discovered by CPUID Fn8000_001F[EDX]. The maximum SEV ASID
+     * available is discovered by CPUID Fn8000_001F[ECX].
+     */
+    uint32_t min_asid, max_asid;
+    virHostCPUX86GetCPUID(0x8000001F, 0, NULL, NULL,
+                          &max_asid, &min_asid);
+
+    if (max_asid != 0 && min_asid != 0) {
+        caps->max_guests = max_asid - min_asid + 1;
+        caps->max_es_guests = min_asid - 1;
+    } else {
+        caps->max_guests = caps->max_es_guests = 0;
+    }
+}
+
 static int
 virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
                                    qemuMonitor *mon)
@@ -3303,6 +3339,8 @@ virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
         virQEMUCapsClear(qemuCaps, QEMU_CAPS_SEV_GUEST);
         return 0;
     }
+
+    virQEMUCapsGetSEVMaxGuests(caps);
 
     virSEVCapabilitiesFree(qemuCaps->sevCapabilities);
     qemuCaps->sevCapabilities = caps;
@@ -4082,6 +4120,14 @@ virQEMUCapsParseSEVInfo(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
                          "in QEMU capabilities cache"));
         return -1;
     }
+
+
+    /* We probe this every time because the values
+     * can change on every reboot via firmware
+     * config tunables. It is cheap to query so
+     * lack of caching is a non-issue
+     */
+    virQEMUCapsGetSEVMaxGuests(sev);
 
     qemuCaps->sevCapabilities = g_steal_pointer(&sev);
     return 0;
@@ -4942,8 +4988,8 @@ virQEMUCapsIsValid(void *data,
             return false;
         }
 
-        if (virCPUDataIsIdentical(priv->cpuData, qemuCaps->cpuData) !=
-            VIR_CPU_COMPARE_IDENTICAL) {
+        if (priv->cpuData &&
+            virCPUDataIsIdentical(priv->cpuData, qemuCaps->cpuData) != VIR_CPU_COMPARE_IDENTICAL) {
             VIR_DEBUG("Outdated capabilities for '%s': host cpuid changed",
                       qemuCaps->binary);
             return false;
@@ -6201,6 +6247,37 @@ virQEMUCapsFillDomainDeviceFSCaps(virQEMUCaps *qemuCaps,
 }
 
 
+void
+virQEMUCapsFillDomainDeviceTPMCaps(virQEMUCaps *qemuCaps,
+                                   virDomainCapsDeviceTPM *tpm)
+{
+    tpm->supported = VIR_TRISTATE_BOOL_YES;
+    tpm->model.report = true;
+    tpm->backendModel.report = true;
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_TIS))
+        VIR_DOMAIN_CAPS_ENUM_SET(tpm->model, VIR_DOMAIN_TPM_MODEL_TIS);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_CRB))
+        VIR_DOMAIN_CAPS_ENUM_SET(tpm->model, VIR_DOMAIN_TPM_MODEL_CRB);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_SPAPR))
+        VIR_DOMAIN_CAPS_ENUM_SET(tpm->model, VIR_DOMAIN_TPM_MODEL_SPAPR);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY))
+        VIR_DOMAIN_CAPS_ENUM_SET(tpm->model, VIR_DOMAIN_TPM_MODEL_SPAPR_PROXY);
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_PASSTHROUGH))
+        VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendModel, VIR_DOMAIN_TPM_TYPE_PASSTHROUGH);
+    if (virTPMHasSwtpm() &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_EMULATOR))
+        VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendModel, VIR_DOMAIN_TPM_TYPE_EMULATOR);
+
+    /*
+     * Need at least one frontend if it is to be usable by applications
+     */
+    if (!tpm->model.values)
+        tpm->supported = VIR_TRISTATE_BOOL_NO;
+}
+
+
 /**
  * virQEMUCapsSupportsGICVersion:
  * @qemuCaps: QEMU capabilities
@@ -6312,6 +6389,8 @@ virQEMUCapsFillDomainFeatureSEVCaps(virQEMUCaps *qemuCaps,
     domCaps->sev->cert_chain = g_strdup(cap->cert_chain);
     domCaps->sev->cbitpos = cap->cbitpos;
     domCaps->sev->reduced_phys_bits = cap->reduced_phys_bits;
+    domCaps->sev->max_guests = cap->max_guests;
+    domCaps->sev->max_es_guests = cap->max_es_guests;
 }
 
 
@@ -6345,6 +6424,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virDomainCapsDeviceVideo *video = &domCaps->video;
     virDomainCapsDeviceRNG *rng = &domCaps->rng;
     virDomainCapsDeviceFilesystem *filesystem = &domCaps->filesystem;
+    virDomainCapsDeviceTPM *tpm = &domCaps->tpm;
     virDomainCapsMemoryBacking *memoryBacking = &domCaps->memoryBacking;
 
     virQEMUCapsFillDomainFeaturesFromQEMUCaps(qemuCaps, domCaps);
@@ -6376,6 +6456,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainDeviceHostdevCaps(qemuCaps, hostdev);
     virQEMUCapsFillDomainDeviceRNGCaps(qemuCaps, rng);
     virQEMUCapsFillDomainDeviceFSCaps(qemuCaps, filesystem);
+    virQEMUCapsFillDomainDeviceTPMCaps(qemuCaps, tpm);
     virQEMUCapsFillDomainFeatureGICCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSEVCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureS390PVCaps(qemuCaps, domCaps);

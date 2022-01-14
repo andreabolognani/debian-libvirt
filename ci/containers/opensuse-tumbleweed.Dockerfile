@@ -15,10 +15,10 @@ RUN zypper dist-upgrade -y && \
            ca-certificates \
            ccache \
            clang \
+           codespell \
            cpp \
            cppi \
            cyrus-sasl-devel \
-           dbus-1-devel \
            device-mapper-devel \
            diffutils \
            dnsmasq \
@@ -66,7 +66,6 @@ RUN zypper dist-upgrade -y && \
            ninja \
            numad \
            open-iscsi \
-           parted \
            parted-devel \
            perl-base \
            pkgconfig \
@@ -75,7 +74,6 @@ RUN zypper dist-upgrade -y && \
            python3-docutils \
            python3-flake8 \
            qemu-tools \
-           radvd \
            readline-devel \
            rpcgen \
            rpm-build \
@@ -84,8 +82,7 @@ RUN zypper dist-upgrade -y && \
            sed \
            systemtap-sdt-devel \
            wireshark-devel \
-           xen-devel \
-           xfsprogs-devel && \
+           xen-devel && \
     zypper clean --all && \
     rpm -qa | sort > /packages.txt && \
     mkdir -p /usr/libexec/ccache-wrappers && \

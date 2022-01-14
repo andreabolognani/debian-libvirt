@@ -5599,6 +5599,31 @@ remoteStreamRecvHole(virStreamPtr st,
 }
 
 
+static int
+remoteStreamInData(virStreamPtr st,
+                   int *data,
+                   long long *length)
+{
+    struct private_data *priv = st->conn->privateData;
+    virNetClientStream *privst = st->privateData;
+    int rv;
+
+    VIR_DEBUG("st=%p data=%p length=%p",
+              st, data, length);
+
+    remoteDriverLock(priv);
+    priv->localUses++;
+    remoteDriverUnlock(priv);
+
+    rv = virNetClientStreamInData(privst, data, length);
+
+    remoteDriverLock(priv);
+    priv->localUses--;
+    remoteDriverUnlock(priv);
+    return rv;
+}
+
+
 struct remoteStreamCallbackData {
     virStreamPtr st;
     virStreamEventCallback cb;
@@ -5745,6 +5770,7 @@ static virStreamDriver remoteStreamDrv = {
     .streamSend = remoteStreamSend,
     .streamSendHole = remoteStreamSendHole,
     .streamRecvHole = remoteStreamRecvHole,
+    .streamInData = remoteStreamInData,
     .streamFinish = remoteStreamFinish,
     .streamAbort = remoteStreamAbort,
     .streamEventAddCallback = remoteStreamEventAddCallback,
@@ -8574,6 +8600,7 @@ static virHypervisorDriver hypervisor_driver = {
     .domainAuthorizedSSHKeysSet = remoteDomainAuthorizedSSHKeysSet, /* 6.10.0 */
     .domainGetMessages = remoteDomainGetMessages, /* 7.1.0 */
     .domainStartDirtyRateCalc = remoteDomainStartDirtyRateCalc, /* 7.2.0 */
+    .domainSetLaunchSecurityState = remoteDomainSetLaunchSecurityState, /* 8.0.0 */
 };
 
 static virNetworkDriver network_driver = {

@@ -67,14 +67,6 @@ typedef struct
     dnsmasqAddnHostsfile *addnhostsfile;
 } dnsmasqContext;
 
-typedef enum {
-   DNSMASQ_CAPS_BIND_DYNAMIC = 0, /* support for --bind-dynamic */
-   DNSMASQ_CAPS_BINDTODEVICE = 1, /* uses SO_BINDTODEVICE for --bind-interfaces */
-   DNSMASQ_CAPS_RA_PARAM = 2,     /* support for --ra-param */
-
-   DNSMASQ_CAPS_LAST,             /* this must always be the last item */
-} dnsmasqCapsFlags;
-
 typedef struct _dnsmasqCaps dnsmasqCaps;
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(dnsmasqCaps, virObjectUnref);
@@ -101,22 +93,6 @@ int              dnsmasqReload(pid_t pid);
 
 dnsmasqCaps *dnsmasqCapsNewFromBuffer(const char *buf);
 dnsmasqCaps *dnsmasqCapsNewFromBinary(void);
-bool dnsmasqCapsGet(dnsmasqCaps *caps, dnsmasqCapsFlags flag);
 const char *dnsmasqCapsGetBinaryPath(dnsmasqCaps *caps);
-unsigned long dnsmasqCapsGetVersion(dnsmasqCaps *caps);
 char *dnsmasqDhcpHostsToString(dnsmasqDhcpHost *hosts,
                                unsigned int nhosts);
-
-#define DNSMASQ_DHCPv6_MAJOR_REQD 2
-#define DNSMASQ_DHCPv6_MINOR_REQD 64
-#define DNSMASQ_RA_MAJOR_REQD 2
-#define DNSMASQ_RA_MINOR_REQD 64
-
-#define DNSMASQ_DHCPv6_SUPPORT(CAPS) \
-    (dnsmasqCapsGetVersion(CAPS) >= \
-     (DNSMASQ_DHCPv6_MAJOR_REQD * 1000000) + \
-     (DNSMASQ_DHCPv6_MINOR_REQD * 1000))
-#define DNSMASQ_RA_SUPPORT(CAPS) \
-    (dnsmasqCapsGetVersion(CAPS) >= \
-     (DNSMASQ_RA_MAJOR_REQD * 1000000) + \
-     (DNSMASQ_RA_MINOR_REQD * 1000))

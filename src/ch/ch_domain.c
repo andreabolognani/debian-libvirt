@@ -21,10 +21,12 @@
 #include <config.h>
 
 #include "ch_domain.h"
+#include "domain_driver.h"
 #include "viralloc.h"
 #include "virchrdev.h"
 #include "virlog.h"
 #include "virtime.h"
+#include "virsystemd.h"
 
 #define VIR_FROM_THIS VIR_FROM_CH
 
@@ -134,7 +136,7 @@ virCHDomainObjEndJob(virDomainObj *obj)
 }
 
 static void *
-virCHDomainObjPrivateAlloc(void *opaque G_GNUC_UNUSED)
+virCHDomainObjPrivateAlloc(void *opaque)
 {
     virCHDomainObjPrivate *priv;
 
@@ -150,6 +152,7 @@ virCHDomainObjPrivateAlloc(void *opaque G_GNUC_UNUSED)
         g_free(priv);
         return NULL;
     }
+    priv->driver = opaque;
 
     return priv;
 }
@@ -161,13 +164,9 @@ virCHDomainObjPrivateFree(void *data)
 
     virChrdevFree(priv->chrdevs);
     virCHDomainObjFreeJob(priv);
+    g_free(priv->machineName);
     g_free(priv);
 }
-
-virDomainXMLPrivateDataCallbacks virCHDriverPrivateDataCallbacks = {
-    .alloc = virCHDomainObjPrivateAlloc,
-    .free = virCHDomainObjPrivateFree,
-};
 
 static int
 virCHDomainDefPostParseBasic(virDomainDef *def,
@@ -184,6 +183,39 @@ virCHDomainDefPostParseBasic(virDomainDef *def,
 
     return 0;
 }
+
+static virClass *virCHDomainVcpuPrivateClass;
+
+static void
+virCHDomainVcpuPrivateDispose(void *obj G_GNUC_UNUSED)
+{
+}
+
+static int
+virCHDomainVcpuPrivateOnceInit(void)
+{
+    if (!VIR_CLASS_NEW(virCHDomainVcpuPrivate, virClassForObject()))
+        return -1;
+
+    return 0;
+}
+
+VIR_ONCE_GLOBAL_INIT(virCHDomainVcpuPrivate);
+
+static virObject *
+virCHDomainVcpuPrivateNew(void)
+{
+    virCHDomainVcpuPrivate *priv;
+
+    if (virCHDomainVcpuPrivateInitialize() < 0)
+        return NULL;
+
+    if (!(priv = virObjectNew(virCHDomainVcpuPrivateClass)))
+        return NULL;
+
+    return (virObject *) priv;
+}
+
 
 static int
 virCHDomainDefPostParse(virDomainDef *def,
@@ -202,6 +234,12 @@ virCHDomainDefPostParse(virDomainDef *def,
 
     return 0;
 }
+
+virDomainXMLPrivateDataCallbacks virCHDriverPrivateDataCallbacks = {
+    .alloc = virCHDomainObjPrivateAlloc,
+    .free = virCHDomainObjPrivateFree,
+    .vcpuNew = virCHDomainVcpuPrivateNew,
+};
 
 static int
 chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
@@ -290,3 +328,57 @@ virDomainDefParserConfig virCHDriverDomainDefParserConfig = {
     .domainPostParseCallback = virCHDomainDefPostParse,
     .deviceValidateCallback = chValidateDomainDeviceDef,
 };
+
+virCHMonitor *
+virCHDomainGetMonitor(virDomainObj *vm)
+{
+    return CH_DOMAIN_PRIVATE(vm)->monitor;
+}
+
+pid_t
+virCHDomainGetVcpuPid(virDomainObj *vm,
+                      unsigned int vcpuid)
+{
+    virDomainVcpuDef *vcpu = virDomainDefGetVcpu(vm->def, vcpuid);
+
+    return CH_DOMAIN_VCPU_PRIVATE(vcpu)->tid;
+}
+
+bool
+virCHDomainHasVcpuPids(virDomainObj *vm)
+{
+    size_t i;
+    size_t maxvcpus = virDomainDefGetVcpusMax(vm->def);
+    virDomainVcpuDef *vcpu;
+
+    for (i = 0; i < maxvcpus; i++) {
+        vcpu = virDomainDefGetVcpu(vm->def, i);
+
+        if (CH_DOMAIN_VCPU_PRIVATE(vcpu)->tid > 0)
+            return true;
+    }
+
+    return false;
+}
+
+char *
+virCHDomainGetMachineName(virDomainObj *vm)
+{
+    virCHDomainObjPrivate *priv = CH_DOMAIN_PRIVATE(vm);
+    virCHDriver *driver = priv->driver;
+    char *ret = NULL;
+
+    if (vm->pid > 0) {
+        ret = virSystemdGetMachineNameByPID(vm->pid);
+        if (!ret)
+            virResetLastError();
+    }
+
+    if (!ret)
+        ret = virDomainDriverGenerateMachineName("ch",
+                                                 NULL,
+                                                 vm->def->id, vm->def->name,
+                                                 driver->privileged);
+
+    return ret;
+}

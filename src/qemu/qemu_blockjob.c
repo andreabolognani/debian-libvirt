@@ -507,7 +507,8 @@ qemuBlockJobRefreshJobs(virQEMUDriver *driver,
 
     rc = qemuMonitorGetJobInfo(priv->mon, &jobinfo, &njobinfo);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(driver, vm);
+    if (rc < 0)
         goto cleanup;
 
     for (i = 0; i < njobinfo; i++) {
@@ -530,8 +531,7 @@ qemuBlockJobRefreshJobs(virQEMUDriver *driver,
             if (rc == -1 && jobinfo[i]->status == QEMU_MONITOR_JOB_STATUS_CONCLUDED)
                 VIR_WARN("can't cancel job '%s' with invalid data", job->name);
 
-            if (qemuDomainObjExitMonitor(driver, vm) < 0)
-                goto cleanup;
+            qemuDomainObjExitMonitor(driver, vm);
 
             if (rc < 0)
                 qemuBlockJobUnregister(job, vm);
@@ -667,14 +667,23 @@ qemuBlockJobRewriteConfigDiskSource(virDomainObj *vm,
     g_autoptr(virStorageSource) copy = NULL;
     virStorageSource *n;
 
-    if (!vm->newDef)
+    if (!vm->newDef) {
+        VIR_DEBUG("not updating disk '%s' in persistent definition: no persistent definition",
+                  disk->dst);
         return;
+    }
 
-    if (!(persistDisk = virDomainDiskByTarget(vm->newDef, disk->dst)))
+    if (!(persistDisk = virDomainDiskByTarget(vm->newDef, disk->dst))) {
+        VIR_DEBUG("not updating disk '%s' in persistent definition: disk not present",
+                  disk->dst);
         return;
+    }
 
-    if (!virStorageSourceIsSameLocation(disk->src, persistDisk->src))
+    if (!virStorageSourceIsSameLocation(disk->src, persistDisk->src)) {
+        VIR_DEBUG("not updating disk '%s' in persistent definition: disk source doesn't match",
+                  disk->dst);
         return;
+    }
 
     if (!(copy = virStorageSourceCopy(newsrc, true)) ||
         virStorageSourceInitChainElement(copy, persistDisk->src, true) < 0) {
@@ -847,8 +856,8 @@ qemuBlockJobEventProcessConcludedRemoveChain(virQEMUDriver *driver,
         return;
 
     qemuBlockStorageSourceChainDetach(qemuDomainGetMonitor(vm), data);
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return;
+
+    qemuDomainObjExitMonitor(driver, vm);
 
     qemuDomainStorageSourceChainAccessRevoke(driver, vm, chain);
 }
@@ -964,8 +973,7 @@ qemuBlockJobProcessEventCompletedPullBitmaps(virDomainObj *vm,
 
     qemuMonitorTransaction(priv->mon, &actions);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-        return -1;
+    qemuDomainObjExitMonitor(priv->driver, vm);
 
     return 0;
 }
@@ -1138,8 +1146,7 @@ qemuBlockJobProcessEventCompletedCommitBitmaps(virDomainObj *vm,
 
     qemuMonitorTransaction(priv->mon, &actions);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-        return -1;
+    qemuDomainObjExitMonitor(priv->driver, vm);
 
     if (!active) {
         if (qemuBlockReopenReadOnly(vm, job->data.commit.base, asyncJob) < 0)
@@ -1359,8 +1366,7 @@ qemuBlockJobProcessEventCompletedCopyBitmaps(virDomainObj *vm,
 
     qemuMonitorTransaction(priv->mon, &actions);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-        return -1;
+    qemuDomainObjExitMonitor(priv->driver, vm);
 
     return 0;
 }
@@ -1442,8 +1448,7 @@ qemuBlockJobProcessEventFailedActiveCommit(virQEMUDriver *driver,
                             disk->mirror->nodeformat,
                             "libvirt-tmp-activewrite");
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0)
-        return;
+    qemuDomainObjExitMonitor(priv->driver, vm);
 
     /* Ideally, we would make the backing chain read only again (yes, SELinux
      * can do that using different labels). But that is not implemented yet and
@@ -1491,8 +1496,7 @@ qemuBlockJobProcessEventConcludedCreate(virQEMUDriver *driver,
 
     qemuBlockStorageSourceAttachRollback(qemuDomainGetMonitor(vm), backend);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return;
+    qemuDomainObjExitMonitor(driver, vm);
 
     qemuDomainStorageSourceAccessRevoke(driver, vm, job->data.create.src);
 }
@@ -1527,8 +1531,7 @@ qemuBlockJobProcessEventConcludedBackup(virQEMUDriver *driver,
                                 job->disk->src->nodeformat,
                                 job->data.backup.bitmap);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return;
+    qemuDomainObjExitMonitor(driver, vm);
 
     if (job->data.backup.store)
         qemuDomainStorageSourceAccessRevoke(driver, vm, job->data.backup.store);
@@ -1641,8 +1644,7 @@ qemuBlockJobEventProcessConcluded(qemuBlockJobData *job,
     /* dismiss job in qemu */
     ignore_value(qemuMonitorJobDismiss(qemuDomainGetMonitor(vm), job->name));
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        goto cleanup;
+    qemuDomainObjExitMonitor(driver, vm);
 
     if ((job->newstate == QEMU_BLOCKJOB_STATE_COMPLETED ||
          job->newstate == QEMU_BLOCKJOB_STATE_FAILED) &&

@@ -94,7 +94,7 @@ vzCapsAddGuestDomain(virCaps *caps,
 static virCaps *
 vzBuildCapabilities(void)
 {
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
     virNodeInfo nodeinfo;
     virDomainOSType ostypes[] = {
         VIR_DOMAIN_OSTYPE_HVM,
@@ -115,33 +115,29 @@ vzBuildCapabilities(void)
         return NULL;
 
     if (!(caps->host.numa = virCapabilitiesHostNUMANewHost()))
-        goto error;
+        return NULL;
 
     if (virCapabilitiesInitCaches(caps) < 0)
-        goto error;
+        return NULL;
 
     for (i = 0; i < G_N_ELEMENTS(ostypes); i++)
         for (j = 0; j < G_N_ELEMENTS(archs); j++)
             for (k = 0; k < G_N_ELEMENTS(emulators); k++)
                 if (vzCapsAddGuestDomain(caps, ostypes[i], archs[j],
                                          emulators[k], virt_types[k]) < 0)
-                    goto error;
+                    return NULL;
 
     if (virCapabilitiesGetNodeInfo(&nodeinfo))
-        goto error;
+        return NULL;
 
     if (!(caps->host.cpu = virCPUGetHost(caps->host.arch, VIR_CPU_TYPE_HOST,
                                          &nodeinfo, NULL)))
-        goto error;
+        return NULL;
 
     if (virCapabilitiesAddHostMigrateTransport(caps, "vzmigr") < 0)
-        goto error;
+        return NULL;
 
-    return caps;
-
- error:
-    virObjectUnref(caps);
-    return NULL;
+    return g_steal_pointer(&caps);
 }
 
 static void vzDriverDispose(void * obj)
@@ -788,7 +784,7 @@ vzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
 {
     struct _vzConn *privconn = conn->privateData;
     virDomainPtr retdom = NULL;
-    virDomainDef *def;
+    g_autoptr(virDomainDef) def = NULL;
     virDomainObj *dom = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
     struct _vzDriver *driver = privconn->driver;
@@ -872,7 +868,6 @@ vzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
     if (job)
         vzDomainObjEndJob(dom);
     virDomainObjEndAPI(&dom);
-    virDomainDefFree(def);
     return retdom;
 }
 
@@ -2964,13 +2959,12 @@ vzDomainMigratePrepare3Params(virConnectPtr conn,
     const char *miguri = NULL;
     const char *dname = NULL;
     const char *dom_xml = NULL;
-    virDomainDef *def = NULL;
-    int ret = -1;
+    g_autoptr(virDomainDef) def = NULL;
 
     virCheckFlags(VZ_MIGRATION_FLAGS, -1);
 
     if (virTypedParamsValidate(params, nparams, VZ_MIGRATION_PARAMETERS) < 0)
-        goto cleanup;
+        return -1;
 
     if (virTypedParamsGetString(params, nparams,
                                 VIR_MIGRATE_PARAM_URI, &miguri) < 0 ||
@@ -2978,12 +2972,12 @@ vzDomainMigratePrepare3Params(virConnectPtr conn,
                                 VIR_MIGRATE_PARAM_DEST_XML, &dom_xml) < 0 ||
         virTypedParamsGetString(params, nparams,
                                 VIR_MIGRATE_PARAM_DEST_NAME, &dname) < 0)
-        goto cleanup;
+        return -1;
 
     /* We must set uri_out if miguri is not set. This is direct
      * managed migration requirement */
     if (!miguri && !(*uri_out = vzMigrationCreateURI()))
-        goto cleanup;
+        return -1;
 
     /* domain uuid and domain name are for backward compat */
     if (vzBakeCookie(privconn->driver, NULL,
@@ -2991,12 +2985,12 @@ vzDomainMigratePrepare3Params(virConnectPtr conn,
                      VZ_MIGRATION_COOKIE_SESSION_UUID
                      | VZ_MIGRATION_COOKIE_DOMAIN_UUID
                      | VZ_MIGRATION_COOKIE_DOMAIN_NAME) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(def = virDomainDefParseString(dom_xml, driver->xmlopt,
                                         NULL,
                                         VIR_DOMAIN_DEF_PARSE_INACTIVE)))
-        goto cleanup;
+        return -1;
 
     if (dname) {
         VIR_FREE(def->name);
@@ -3004,13 +2998,9 @@ vzDomainMigratePrepare3Params(virConnectPtr conn,
     }
 
     if (virDomainMigratePrepare3ParamsEnsureACL(conn, def) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virDomainDefFree(def);
-    return ret;
+    return 0;
 }
 
 static int

@@ -33,28 +33,21 @@ static int
 test_virCapabilitiesGetCpusForNodemask(const void *data G_GNUC_UNUSED)
 {
     const char *nodestr = "3,4,5,6";
-    virBitmap *nodemask = NULL;
-    virBitmap *cpumap = NULL;
+    g_autoptr(virBitmap) nodemask = NULL;
+    g_autoptr(virBitmap) cpumap = NULL;
     g_autoptr(virCapsHostNUMA) caps = NULL;
     int mask_size = 8;
-    int ret = -1;
 
     if (!(caps = virTestCapsBuildNUMATopology(3)))
-        goto error;
+        return -1;
 
     if (virBitmapParse(nodestr, &nodemask, mask_size) < 0)
-        goto error;
+        return -1;
 
     if (!(cpumap = virCapabilitiesHostNUMAGetCpus(caps, nodemask)))
-        goto error;
+        return -1;
 
-    ret = 0;
-
- error:
-    virBitmapFree(nodemask);
-    virBitmapFree(cpumap);
-    return ret;
-
+    return 0;
 }
 
 
@@ -172,12 +165,6 @@ test_virCapsDomainDataLookupQEMU(const void *data G_GNUC_UNUSED)
     CAPSCOMP(-1, VIR_ARCH_NONE, VIR_DOMAIN_VIRT_NONE, "/usr/bin/qemu-system-ppc64", NULL,
         VIR_DOMAIN_OSTYPE_HVM, VIR_ARCH_PPC64,
         VIR_DOMAIN_VIRT_QEMU, "/usr/bin/qemu-system-ppc64", "pseries");
-    CAPSCOMP(-1, VIR_ARCH_RISCV32, VIR_DOMAIN_VIRT_NONE, NULL, NULL,
-        VIR_DOMAIN_OSTYPE_HVM, VIR_ARCH_RISCV32,
-        VIR_DOMAIN_VIRT_QEMU, "/usr/bin/qemu-system-riscv32", "spike_v1.10");
-    CAPSCOMP(-1, VIR_ARCH_RISCV64, VIR_DOMAIN_VIRT_NONE, NULL, NULL,
-        VIR_DOMAIN_OSTYPE_HVM, VIR_ARCH_RISCV64,
-        VIR_DOMAIN_VIRT_QEMU, "/usr/bin/qemu-system-riscv64", "spike_v1.10");
 
     CAPSCOMP(-1, VIR_ARCH_NONE, VIR_DOMAIN_VIRT_NONE, NULL, "pseries",
         VIR_DOMAIN_OSTYPE_HVM, VIR_ARCH_PPC64,

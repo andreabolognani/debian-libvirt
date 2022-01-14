@@ -85,8 +85,8 @@ static void virDomainObjListDispose(void *obj)
 {
     virDomainObjList *doms = obj;
 
-    virHashFree(doms->objs);
-    virHashFree(doms->objsName);
+    g_clear_pointer(&doms->objs, g_hash_table_unref);
+    g_clear_pointer(&doms->objsName, g_hash_table_unref);
 }
 
 
@@ -423,7 +423,7 @@ virDomainObjListRename(virDomainObjList *doms,
                        void *opaque)
 {
     int ret = -1;
-    char *old_name = NULL;
+    g_autofree char *old_name = NULL;
     int rc;
 
     if (STREQ(dom->def->name, new_name)) {
@@ -468,7 +468,6 @@ virDomainObjListRename(virDomainObjList *doms,
     ret = 0;
  cleanup:
     virObjectRWUnlock(doms);
-    VIR_FREE(old_name);
     return ret;
 }
 
@@ -482,44 +481,36 @@ virDomainObjListLoadConfig(virDomainObjList *doms,
                            virDomainLoadConfigNotify notify,
                            void *opaque)
 {
-    char *configFile = NULL, *autostartLink = NULL;
-    virDomainDef *def = NULL;
+    g_autofree char *configFile = NULL;
+    g_autofree char *autostartLink = NULL;
+    g_autoptr(virDomainDef) def = NULL;
     virDomainObj *dom;
     int autostart;
-    virDomainDef *oldDef = NULL;
+    g_autoptr(virDomainDef) oldDef = NULL;
 
     if ((configFile = virDomainConfigFile(configDir, name)) == NULL)
-        goto error;
+        return NULL;
     if (!(def = virDomainDefParseFile(configFile, xmlopt, NULL,
                                       VIR_DOMAIN_DEF_PARSE_INACTIVE |
                                       VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE |
                                       VIR_DOMAIN_DEF_PARSE_ALLOW_POST_PARSE_FAIL)))
-        goto error;
+        return NULL;
 
     if ((autostartLink = virDomainConfigFile(autostartDir, name)) == NULL)
-        goto error;
+        return NULL;
 
     if ((autostart = virFileLinkPointsTo(autostartLink, configFile)) < 0)
-        goto error;
+        return NULL;
 
     if (!(dom = virDomainObjListAddLocked(doms, &def, xmlopt, 0, &oldDef)))
-        goto error;
+        return NULL;
 
     dom->autostart = autostart;
 
     if (notify)
         (*notify)(dom, oldDef == NULL, opaque);
 
-    virDomainDefFree(oldDef);
-    VIR_FREE(configFile);
-    VIR_FREE(autostartLink);
     return dom;
-
- error:
-    VIR_FREE(configFile);
-    VIR_FREE(autostartLink);
-    virDomainDefFree(def);
-    return NULL;
 }
 
 
@@ -531,7 +522,7 @@ virDomainObjListLoadStatus(virDomainObjList *doms,
                            virDomainLoadConfigNotify notify,
                            void *opaque)
 {
-    char *statusFile = NULL;
+    g_autofree char *statusFile = NULL;
     virDomainObj *obj = NULL;
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
@@ -561,12 +552,10 @@ virDomainObjListLoadStatus(virDomainObjList *doms,
     if (notify)
         (*notify)(obj, 1, opaque);
 
-    VIR_FREE(statusFile);
     return obj;
 
  error:
     virDomainObjEndAPI(&obj);
-    VIR_FREE(statusFile);
     return NULL;
 }
 

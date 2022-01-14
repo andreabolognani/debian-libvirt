@@ -43,16 +43,6 @@
 # include <selinux/selinux.h>
 #endif
 
-#ifdef FICLONE
-# define REFLINK_IOC_CLONE FICLONE
-#elif WITH_LINUX_BTRFS_H
-# include <linux/btrfs.h>
-# define REFLINK_IOC_CLONE BTRFS_IOC_CLONE
-#elif WITH_XFS_XFS_H
-# include <xfs/xfs.h>
-# define REFLINK_IOC_CLONE XFS_IOC_CLONE
-#endif
-
 #include "datatypes.h"
 #include "virerror.h"
 #include "viralloc.h"
@@ -85,6 +75,8 @@ VIR_LOG_INIT("storage.storage_util");
 # define S_IRWXUGO (S_IRWXU | S_IRWXG | S_IRWXO)
 #endif
 
+#define PARTED "parted"
+
 /* virStorageBackendNamespaceInit:
  * @poolType: virStoragePoolType
  * @xmlns: Storage Pool specific namespace callback methods
@@ -107,11 +99,11 @@ virStorageBackendNamespaceInit(int poolType,
  * Perform the O(1) btrfs clone operation, if possible.
  * Upon success, return 0.  Otherwise, return -1 and set errno.
  */
-#ifdef REFLINK_IOC_CLONE
+#ifdef __linux__
 static inline int
 reflinkCloneFile(int dest_fd, int src_fd)
 {
-    return ioctl(dest_fd, REFLINK_IOC_CLONE, src_fd);
+    return ioctl(dest_fd, FICLONE, src_fd);
 }
 #else
 static inline int
@@ -796,6 +788,17 @@ storageBackendCreateQemuImgOpts(virStorageEncryptionInfoDef *encinfo,
             }
             virBufferAddLit(&buf, "lazy_refcounts,");
         }
+
+        if (virBitmapIsBitSet(info->features,
+                              VIR_STORAGE_FILE_FEATURE_EXTENDED_L2)) {
+            if (STREQ_NULLABLE(info->compat, "0.10")) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("'extended_l2' not supported with compat level %s"),
+                               info->compat);
+                return -1;
+            }
+            virBufferAddLit(&buf, "extended_l2=on,");
+        }
     }
 
     virBufferTrim(&buf, ",");
@@ -1116,7 +1119,7 @@ virStorageBackendCreateQemuImgCmdFromVol(virStoragePoolObj *pool,
                                          const char *inputSecretPath,
                                          virStorageVolEncryptConvertStep convertStep)
 {
-    virCommand *cmd = NULL;
+    g_autoptr(virCommand) cmd = NULL;
     struct _virStorageBackendQemuImgInfo info = {
         .format = vol->target.format,
         .type = NULL,
@@ -1246,11 +1249,10 @@ virStorageBackendCreateQemuImgCmdFromVol(virStoragePoolObj *pool,
     }
     VIR_FREE(info.secretAlias);
 
-    return cmd;
+    return g_steal_pointer(&cmd);
 
  error:
     VIR_FREE(info.secretAlias);
-    virCommandFree(cmd);
     return NULL;
 }
 

@@ -326,7 +326,9 @@ qemuBlockNodeNamesDetect(virQEMUDriver *driver,
     data = qemuMonitorQueryNamedBlockNodes(qemuDomainGetMonitor(vm));
     blockstats = qemuMonitorQueryBlockstats(qemuDomainGetMonitor(vm));
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || !data || !blockstats)
+    qemuDomainObjExitMonitor(driver, vm);
+
+    if (!data || !blockstats)
         return -1;
 
     if (!(disktable = qemuBlockNodeNameGetBackingChain(data, blockstats)))
@@ -879,7 +881,6 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
     const char *encformat;
     const char *username = NULL;
     g_autoptr(virJSONValue) authmodes = NULL;
-    g_autoptr(virJSONValue) mode = NULL;
     const char *keysecret = NULL;
 
     if (src->nhosts > 0 &&
@@ -890,14 +891,7 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
         username = srcPriv->secinfo->username;
         keysecret = srcPriv->secinfo->alias;
         /* the auth modes are modelled after our old command line generator */
-        authmodes = virJSONValueNewArray();
-
-        if (!(mode = virJSONValueNewString("cephx")) ||
-            virJSONValueArrayAppend(authmodes, &mode) < 0)
-            return NULL;
-
-        if (!(mode = virJSONValueNewString("none")) ||
-            virJSONValueArrayAppend(authmodes, &mode) < 0)
+        if (!(authmodes = virJSONValueFromString("[\"cephx\",\"none\"]")))
             return NULL;
     }
 
@@ -1653,7 +1647,6 @@ qemuBlockStorageSourceAttachDataFree(qemuBlockStorageSourceAttachData *data)
     g_free(data->driveCmd);
     g_free(data->driveAlias);
     g_free(data->chardevAlias);
-    g_free(data->chardevCmd);
     g_free(data);
 }
 
@@ -2136,8 +2129,7 @@ qemuBlockStorageSourceDetachOneBlockdev(virQEMUDriver *driver,
     if (ret == 0)
         ret = qemuMonitorBlockdevDel(qemuDomainGetMonitor(vm), src->nodestorage);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0)
-        return -1;
+    qemuDomainObjExitMonitor(driver, vm);
 
     return ret;
 }
@@ -2441,11 +2433,15 @@ qemuBlockStorageSourceCreateGetFormatPropsQcow2(virStorageSource *src,
 {
     g_autoptr(virJSONValue) qcow2props = NULL;
     const char *qcow2version = NULL;
+    bool extendedL2 = false;
 
     if (STREQ_NULLABLE(src->compat, "0.10"))
         qcow2version = "v2";
     else if (STREQ_NULLABLE(src->compat, "1.1"))
         qcow2version = "v3";
+
+    if (src->features)
+        extendedL2 = virBitmapIsBitSet(src->features, VIR_STORAGE_FILE_FEATURE_EXTENDED_L2);
 
     if (virJSONValueObjectAdd(&qcow2props,
                               "s:driver", "qcow2",
@@ -2453,6 +2449,7 @@ qemuBlockStorageSourceCreateGetFormatPropsQcow2(virStorageSource *src,
                               "U:size", src->capacity,
                               "S:version", qcow2version,
                               "P:cluster-size", src->clusterSize,
+                              "B:extended-l2", extendedL2,
                               NULL) < 0)
         return -1;
 
@@ -2709,10 +2706,10 @@ qemuBlockStorageSourceCreateGeneric(virDomainObj *vm,
     if (qemuDomainObjEnterMonitorAsync(priv->driver, vm, asyncJob) < 0)
         goto cleanup;
 
-    rc = qemuMonitorBlockdevCreate(priv->mon, job->name, props);
-    props = NULL;
+    rc = qemuMonitorBlockdevCreate(priv->mon, job->name, &props);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(priv->driver, vm);
+    if (rc < 0)
         goto cleanup;
 
     qemuBlockJobStarted(job, vm);
@@ -2858,7 +2855,8 @@ qemuBlockStorageSourceCreate(virDomainObj *vm,
 
     rc = qemuBlockStorageSourceAttachApplyStorageDeps(priv->mon, data);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(priv->driver, vm);
+    if (rc < 0)
         goto cleanup;
 
     if (qemuBlockStorageSourceCreateStorage(vm, src, chain, asyncJob) < 0)
@@ -2872,7 +2870,8 @@ qemuBlockStorageSourceCreate(virDomainObj *vm,
     if (rc == 0)
         rc = qemuBlockStorageSourceAttachApplyFormatDeps(priv->mon, data);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(priv->driver, vm);
+    if (rc < 0)
         goto cleanup;
 
     if (qemuBlockStorageSourceCreateFormat(vm, src, backingStore, chain,
@@ -2890,7 +2889,8 @@ qemuBlockStorageSourceCreate(virDomainObj *vm,
 
     rc = qemuBlockStorageSourceAttachApplyFormat(priv->mon, data);
 
-    if (qemuDomainObjExitMonitor(priv->driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(priv->driver, vm);
+    if (rc < 0)
         goto cleanup;
 
     ret = 0;
@@ -2901,7 +2901,7 @@ qemuBlockStorageSourceCreate(virDomainObj *vm,
         qemuDomainObjEnterMonitorAsync(priv->driver, vm, asyncJob) == 0) {
 
         qemuBlockStorageSourceAttachRollback(priv->mon, data);
-        ignore_value(qemuDomainObjExitMonitor(priv->driver, vm));
+        qemuDomainObjExitMonitor(priv->driver, vm);
     }
 
     return ret;
@@ -2933,11 +2933,18 @@ qemuBlockStorageSourceCreateDetectSize(GHashTable *blockNamedNodeData,
         return -1;
     }
 
-    /* propagate cluster size if the images are compatible */
+    /* propagate properties of qcow2 images if possible*/
     if (templ->format == VIR_STORAGE_FILE_QCOW2 &&
-        src->format == VIR_STORAGE_FILE_QCOW2 &&
-        src->clusterSize == 0)
-        src->clusterSize = entry->clusterSize;
+        src->format == VIR_STORAGE_FILE_QCOW2) {
+        if (src->clusterSize == 0)
+            src->clusterSize = entry->clusterSize;
+
+        if (entry->qcow2extendedL2) {
+            if (!src->features)
+                src->features = virBitmapNew(VIR_STORAGE_FILE_FEATURE_LAST);
+            ignore_value(virBitmapSetBit(src->features, VIR_STORAGE_FILE_FEATURE_EXTENDED_L2));
+        }
+    }
 
     if (src->format == VIR_STORAGE_FILE_RAW) {
         src->physical = entry->capacity;
@@ -3022,7 +3029,9 @@ qemuBlockGetNamedNodeData(virDomainObj *vm,
 
     blockNamedNodeData = qemuMonitorBlockGetNamedNodeData(priv->mon, supports_flat);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || !blockNamedNodeData)
+    qemuDomainObjExitMonitor(driver, vm);
+
+    if (!blockNamedNodeData)
         return NULL;
 
     return g_steal_pointer(&blockNamedNodeData);
@@ -3378,7 +3387,8 @@ qemuBlockReopenFormat(virDomainObj *vm,
 
     rc = qemuBlockReopenFormatMon(priv->mon, src);
 
-    if (qemuDomainObjExitMonitor(driver, vm) < 0 || rc < 0)
+    qemuDomainObjExitMonitor(driver, vm);
+    if (rc < 0)
         return -1;
 
     return 0;

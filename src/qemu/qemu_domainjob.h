@@ -176,6 +176,8 @@ struct _qemuDomainObjPrivateJobCallbacks {
 struct _qemuDomainJobObj {
     virCond cond;                       /* Use to coordinate jobs */
 
+    int jobsQueued;
+
     /* The following members are for QEMU_JOB_* */
     qemuDomainJob active;               /* Currently running job */
     unsigned long long owner;           /* Thread id which set current job */
@@ -276,8 +278,6 @@ G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(qemuDomainJobObj, qemuDomainObjClearJob);
 int
 qemuDomainObjInitJob(qemuDomainJobObj *job,
                      qemuDomainObjPrivateJobCallbacks *cb);
-
-bool qemuDomainJobAllowed(qemuDomainJobObj *jobs, qemuDomainJob newJob);
 
 int
 qemuDomainObjPrivateXMLFormatJob(virBuffer *buf,

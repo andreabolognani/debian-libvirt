@@ -271,17 +271,12 @@ virHostCPUGetSiblingsList(unsigned int cpu)
 static unsigned long
 virHostCPUCountThreadSiblings(unsigned int cpu)
 {
-    virBitmap *siblings_map;
-    unsigned long ret = 0;
+    g_autoptr(virBitmap) siblings_map = NULL;
 
     if (!(siblings_map = virHostCPUGetSiblingsList(cpu)))
-        goto cleanup;
+        return 0;
 
-    ret = virBitmapCountBits(siblings_map);
-
- cleanup:
-    virBitmapFree(siblings_map);
-    return ret;
+    return virBitmapCountBits(siblings_map);
 }
 
 /* parses a node entry, returning number of processors in the node and
@@ -305,10 +300,10 @@ virHostCPUParseNode(const char *node,
     int processors = 0;
     g_autoptr(DIR) cpudir = NULL;
     struct dirent *cpudirent = NULL;
-    virBitmap *node_cpus_map = NULL;
-    virBitmap *sockets_map = NULL;
+    g_autoptr(virBitmap) sockets_map = virBitmapNew(0);
     virBitmap **cores_maps = NULL;
     int npresent_cpus = virBitmapSize(present_cpus_map);
+    g_autoptr(virBitmap) node_cpus_map = virBitmapNew(npresent_cpus);
     unsigned int sock_max = 0;
     unsigned int sock;
     unsigned int core;
@@ -323,12 +318,6 @@ virHostCPUParseNode(const char *node,
 
     if (virDirOpen(&cpudir, node) < 0)
         goto cleanup;
-
-    /* Keep track of the CPUs that belong to the current node */
-    node_cpus_map = virBitmapNew(npresent_cpus);
-
-    /* enumerate sockets in the node */
-    sockets_map = virBitmapNew(0);
 
     while ((direrr = virDirRead(cpudir, &cpudirent, node)) > 0) {
         if (sscanf(cpudirent->d_name, "cpu%u", &cpu) != 1)
@@ -347,8 +336,7 @@ virHostCPUParseNode(const char *node,
         if (virHostCPUGetSocket(cpu, &sock) < 0)
             goto cleanup;
 
-        if (virBitmapSetBitExpand(sockets_map, sock) < 0)
-            goto cleanup;
+        virBitmapSetBitExpand(sockets_map, sock);
 
         if (sock > sock_max)
             sock_max = sock;
@@ -407,8 +395,7 @@ virHostCPUParseNode(const char *node,
                 goto cleanup;
         }
 
-        if (virBitmapSetBitExpand(cores_maps[sock], core) < 0)
-            goto cleanup;
+        virBitmapSetBitExpand(cores_maps[sock], core);
 
         if (!(siblings = virHostCPUCountThreadSiblings(cpu)))
             goto cleanup;
@@ -442,8 +429,6 @@ virHostCPUParseNode(const char *node,
         for (i = 0; i < sock_max; i++)
             virBitmapFree(cores_maps[i]);
     VIR_FREE(cores_maps);
-    virBitmapFree(sockets_map);
-    virBitmapFree(node_cpus_map);
 
     return ret;
 }
@@ -455,31 +440,25 @@ virHostCPUParseNode(const char *node,
 static bool
 virHostCPUHasValidSubcoreConfiguration(int threads_per_subcore)
 {
-    virBitmap *online_cpus = NULL;
+    g_autoptr(virBitmap) online_cpus = NULL;
     int cpu = -1;
-    bool ret = false;
 
     /* No point in checking if subcores are not in use */
     if (threads_per_subcore <= 0)
-        goto cleanup;
+        return false;
 
     if (!(online_cpus = virHostCPUGetOnlineBitmap()))
-        goto cleanup;
+        return false;
 
     while ((cpu = virBitmapNextSetBit(online_cpus, cpu)) >= 0) {
 
         /* A single online secondary thread is enough to
          * make the configuration invalid */
         if (cpu % threads_per_subcore != 0)
-            goto cleanup;
+            return false;
     }
 
-    ret = true;
-
- cleanup:
-    virBitmapFree(online_cpus);
-
-    return ret;
+    return true;
 }
 
 
@@ -603,8 +582,8 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
                                unsigned int *cores,
                                unsigned int *threads)
 {
-    virBitmap *present_cpus_map = NULL;
-    virBitmap *online_cpus_map = NULL;
+    g_autoptr(virBitmap) present_cpus_map = NULL;
+    g_autoptr(virBitmap) online_cpus_map = NULL;
     g_autoptr(DIR) nodedir = NULL;
     struct dirent *nodedirent = NULL;
     int nodecpus, nodecores, nodesockets, nodethreads, offline = 0;
@@ -766,8 +745,6 @@ virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
     ret = 0;
 
  cleanup:
-    virBitmapFree(present_cpus_map);
-    virBitmapFree(online_cpus_map);
     VIR_FREE(sysfs_nodedir);
     VIR_FREE(sysfs_cpudir);
     return ret;
@@ -1605,4 +1582,62 @@ virHostCPUGetHaltPollTime(pid_t pid,
         return -1;
 
     return 0;
+}
+
+void
+virHostCPUX86GetCPUID(uint32_t leaf G_GNUC_UNUSED,
+                      uint32_t extended G_GNUC_UNUSED,
+                      uint32_t *eax,
+                      uint32_t *ebx,
+                      uint32_t *ecx,
+                      uint32_t *edx)
+{
+#if defined(__i386__) || defined(__x86_64__)
+    uint32_t out[4];
+# if __x86_64__
+    asm("xor %%ebx, %%ebx;" /* clear the other registers as some cpuid */
+        "xor %%edx, %%edx;" /* functions may use them as additional arguments */
+        "cpuid;"
+        : "=a" (out[0]),
+          "=b" (out[1]),
+          "=c" (out[2]),
+          "=d" (out[3])
+        : "a" (leaf),
+          "c" (extended));
+# else
+    /* we need to avoid direct use of ebx for CPUID output as it is used
+     * for global offset table on i386 with -fPIC
+     */
+    asm("push %%ebx;"
+        "xor %%ebx, %%ebx;" /* clear the other registers as some cpuid */
+        "xor %%edx, %%edx;" /* functions may use them as additional arguments */
+        "cpuid;"
+        "mov %%ebx, %1;"
+        "pop %%ebx;"
+        : "=a" (out[0]),
+          "=r" (out[1]),
+          "=c" (out[2]),
+          "=d" (out[3])
+        : "a" (leaf),
+          "c" (extended)
+        : "cc");
+# endif
+    if (eax)
+        *eax = out[0];
+    if (ebx)
+        *ebx = out[1];
+    if (ecx)
+        *ecx = out[2];
+    if (edx)
+        *edx = out[3];
+#else
+    if (eax)
+        *eax = 0;
+    if (ebx)
+        *ebx = 0;
+    if (ecx)
+        *ecx = 0;
+    if (edx)
+        *edx = 0;
+#endif
 }

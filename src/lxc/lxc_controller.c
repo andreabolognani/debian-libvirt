@@ -731,7 +731,7 @@ static int virLXCControllerSetupLoopDevices(virLXCController *ctrl)
 static int virLXCControllerSetupCpuAffinity(virLXCController *ctrl)
 {
     int hostcpus, maxcpu = CPU_SETSIZE;
-    virBitmap *cpumap;
+    g_autoptr(virBitmap) cpumap = NULL;
     virBitmap *cpumapToSet;
 
     VIR_DEBUG("Setting CPU affinity");
@@ -761,11 +761,8 @@ static int virLXCControllerSetupCpuAffinity(virLXCController *ctrl)
      * so use '0' to indicate our own process ID. No threads are
      * running at this point
      */
-    if (virProcessSetAffinity(0 /* Self */, cpumapToSet, false) < 0) {
-        virBitmapFree(cpumap);
+    if (virProcessSetAffinity(0 /* Self */, cpumapToSet, false) < 0)
         return -1;
-    }
-    virBitmapFree(cpumap);
 
     return 0;
 }
@@ -810,8 +807,7 @@ static int virLXCControllerGetNumadAdvice(virLXCController *ctrl,
  */
 static int virLXCControllerSetupResourceLimits(virLXCController *ctrl)
 {
-    virBitmap *auto_nodeset = NULL;
-    int ret = -1;
+    g_autoptr(virBitmap) auto_nodeset = NULL;
     virBitmap *nodeset = NULL;
     virDomainNumatuneMemMode mode;
 
@@ -827,22 +823,19 @@ static int virLXCControllerSetupResourceLimits(virLXCController *ctrl)
             VIR_DEBUG("Setting up process resource limits");
 
             if (virLXCControllerGetNumadAdvice(ctrl, &auto_nodeset) < 0)
-                goto cleanup;
+                return -1;
 
             nodeset = virDomainNumatuneGetNodeset(ctrl->def->numa, auto_nodeset, -1);
 
             if (virNumaSetupMemoryPolicy(mode, nodeset) < 0)
-                goto cleanup;
+                return -1;
         }
     }
 
     if (virLXCControllerSetupCpuAffinity(ctrl) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virBitmapFree(auto_nodeset);
-    return ret;
+    return 0;
 }
 
 
@@ -852,40 +845,36 @@ static int virLXCControllerSetupResourceLimits(virLXCController *ctrl)
  */
 static int virLXCControllerSetupCgroupLimits(virLXCController *ctrl)
 {
-    virBitmap *auto_nodeset = NULL;
-    int ret = -1;
+    g_autoptr(virBitmap) auto_nodeset = NULL;
     virBitmap *nodeset = NULL;
     size_t i;
 
     VIR_DEBUG("Setting up cgroup resource limits");
 
     if (virLXCControllerGetNumadAdvice(ctrl, &auto_nodeset) < 0)
-        goto cleanup;
+        return -1;
 
     nodeset = virDomainNumatuneGetNodeset(ctrl->def->numa, auto_nodeset, -1);
 
     if (!(ctrl->cgroup = virLXCCgroupCreate(ctrl->def,
-                                            getpid(),
+                                            ctrl->initpid,
                                             ctrl->nnicindexes,
                                             ctrl->nicindexes)))
-        goto cleanup;
+        return -1;
 
-    if (virCgroupAddMachineProcess(ctrl->cgroup, ctrl->initpid) < 0)
-        goto cleanup;
+    if (virCgroupAddMachineProcess(ctrl->cgroup, getpid()) < 0)
+        return -1;
 
     /* Add all qemu-nbd tasks to the cgroup */
     for (i = 0; i < ctrl->nnbdpids; i++) {
         if (virCgroupAddMachineProcess(ctrl->cgroup, ctrl->nbdpids[i]) < 0)
-            goto cleanup;
+            return -1;
     }
 
     if (virLXCCgroupSetup(ctrl->def, ctrl->cgroup, nodeset) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virBitmapFree(auto_nodeset);
-    return ret;
+    return 0;
 }
 
 
@@ -894,8 +883,10 @@ static void virLXCControllerClientCloseHook(virNetServerClient *client)
     virLXCController *ctrl = virNetServerClientGetPrivateData(client);
 
     VIR_DEBUG("Client %p has closed", client);
-    if (ctrl->client == client)
+    if (ctrl->client == client) {
         ctrl->client = NULL;
+        VIR_DEBUG("Client has gone away");
+    }
     if (ctrl->inShutdown) {
         VIR_DEBUG("Arm timer to quit event loop");
         virEventUpdateTimeout(ctrl->timerShutdown, 0);
@@ -1006,8 +997,11 @@ static int lxcControllerClearCapabilities(void)
 static bool wantReboot;
 static virMutex lock = VIR_MUTEX_INITIALIZER;
 
+static int
+virLXCControllerEventSendExit(virLXCController *ctrl,
+                              int exitstatus);
 
-static void virLXCControllerSignalChildIO(virNetDaemon *dmn,
+static void virLXCControllerSignalChildIO(virNetDaemon *dmn G_GNUC_UNUSED,
                                           siginfo_t *info G_GNUC_UNUSED,
                                           void *opaque)
 {
@@ -1018,7 +1012,6 @@ static void virLXCControllerSignalChildIO(virNetDaemon *dmn,
     ret = waitpid(-1, &status, WNOHANG);
     VIR_DEBUG("Got sig child %d vs %lld", ret, (long long)ctrl->initpid);
     if (ret == ctrl->initpid) {
-        virNetDaemonQuit(dmn);
         virMutexLock(&lock);
         if (WIFSIGNALED(status) &&
             WTERMSIG(status) == SIGHUP) {
@@ -1026,6 +1019,7 @@ static void virLXCControllerSignalChildIO(virNetDaemon *dmn,
             wantReboot = true;
         }
         virMutexUnlock(&lock);
+        virLXCControllerEventSendExit(ctrl, wantReboot ? 1 : 0);
     }
 }
 
@@ -2276,9 +2270,10 @@ virLXCControllerEventSendExit(virLXCController *ctrl,
         VIR_DEBUG("Waiting for client to complete dispatch");
         ctrl->inShutdown = true;
         virNetServerClientDelayedClose(ctrl->client);
-        virNetDaemonRun(ctrl->daemon);
+    } else {
+        VIR_DEBUG("Arm timer to quit event loop");
+        virEventUpdateTimeout(ctrl->timerShutdown, 0);
     }
-    VIR_DEBUG("Client has gone away");
     return 0;
 }
 
@@ -2430,8 +2425,6 @@ virLXCControllerRun(virLXCController *ctrl)
 
     rc = virLXCControllerMain(ctrl);
 
-    virLXCControllerEventSendExit(ctrl, rc);
-
  cleanup:
     VIR_FORCE_CLOSE(control[0]);
     VIR_FORCE_CLOSE(control[1]);
@@ -2510,7 +2503,8 @@ int main(int argc, char *argv[])
     }
 
     /* Initialize logging */
-    virLogSetFromEnv();
+    if (virLogSetFromEnv() < 0)
+        exit(EXIT_FAILURE);
 
     while (1) {
         int c;

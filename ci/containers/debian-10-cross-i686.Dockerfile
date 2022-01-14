@@ -16,6 +16,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             bash-completion \
             ca-certificates \
             ccache \
+            codespell \
             cpp \
             diffutils \
             dnsmasq-base \
@@ -37,7 +38,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             ninja-build \
             numad \
             open-iscsi \
-            parted \
             perl-base \
             pkgconf \
             policykit-1 \
@@ -47,7 +47,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             python3-setuptools \
             python3-wheel \
             qemu-utils \
-            radvd \
             scrub \
             sed \
             xsltproc && \
@@ -55,6 +54,15 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
     dpkg-reconfigure locales
+
+RUN pip3 install \
+         meson==0.56.0
+
+ENV LANG "en_US.UTF-8"
+ENV MAKE "/usr/bin/make"
+ENV NINJA "/usr/bin/ninja"
+ENV PYTHON "/usr/bin/python3"
+ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture i386 && \
@@ -71,7 +79,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libc6-dev:i386 \
             libcap-ng-dev:i386 \
             libcurl4-gnutls-dev:i386 \
-            libdbus-1-dev:i386 \
             libdevmapper-dev:i386 \
             libfuse-dev:i386 \
             libglib2.0-dev:i386 \
@@ -95,8 +102,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libudev-dev:i386 \
             libxml2-dev:i386 \
             libyajl-dev:i386 \
-            systemtap-sdt-dev:i386 \
-            xfslibs-dev:i386 && \
+            systemtap-sdt-dev:i386 && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     mkdir -p /usr/local/share/meson/cross && \
@@ -115,15 +121,6 @@ endian = 'little'" > /usr/local/share/meson/cross/i686-linux-gnu && \
     mkdir -p /usr/libexec/ccache-wrappers && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/i686-linux-gnu-cc && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/i686-linux-gnu-gcc
-
-RUN pip3 install \
-         meson==0.56.0
-
-ENV LANG "en_US.UTF-8"
-ENV MAKE "/usr/bin/make"
-ENV NINJA "/usr/bin/ninja"
-ENV PYTHON "/usr/bin/python3"
-ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 ENV ABI "i686-linux-gnu"
 ENV MESON_OPTS "--cross-file=i686-linux-gnu"

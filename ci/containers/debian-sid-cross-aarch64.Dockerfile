@@ -16,6 +16,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             bash-completion \
             ca-certificates \
             ccache \
+            codespell \
             cpp \
             diffutils \
             dnsmasq-base \
@@ -38,22 +39,25 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             ninja-build \
             numad \
             open-iscsi \
-            parted \
             perl-base \
             pkgconf \
             policykit-1 \
             python3 \
             python3-docutils \
             qemu-utils \
-            radvd \
             scrub \
             sed \
-            xsltproc \
-            zfs-fuse && \
+            xsltproc && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
     dpkg-reconfigure locales
+
+ENV LANG "en_US.UTF-8"
+ENV MAKE "/usr/bin/make"
+ENV NINJA "/usr/bin/ninja"
+ENV PYTHON "/usr/bin/python3"
+ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture arm64 && \
@@ -70,7 +74,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libc6-dev:arm64 \
             libcap-ng-dev:arm64 \
             libcurl4-gnutls-dev:arm64 \
-            libdbus-1-dev:arm64 \
             libdevmapper-dev:arm64 \
             libfuse-dev:arm64 \
             libglib2.0-dev:arm64 \
@@ -95,8 +98,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libxen-dev:arm64 \
             libxml2-dev:arm64 \
             libyajl-dev:arm64 \
-            systemtap-sdt-dev:arm64 \
-            xfslibs-dev:arm64 && \
+            systemtap-sdt-dev:arm64 && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     mkdir -p /usr/local/share/meson/cross && \
@@ -115,12 +117,6 @@ endian = 'little'" > /usr/local/share/meson/cross/aarch64-linux-gnu && \
     mkdir -p /usr/libexec/ccache-wrappers && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/aarch64-linux-gnu-cc && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/aarch64-linux-gnu-gcc
-
-ENV LANG "en_US.UTF-8"
-ENV MAKE "/usr/bin/make"
-ENV NINJA "/usr/bin/ninja"
-ENV PYTHON "/usr/bin/python3"
-ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 ENV ABI "aarch64-linux-gnu"
 ENV MESON_OPTS "--cross-file=aarch64-linux-gnu"

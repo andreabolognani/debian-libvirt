@@ -89,7 +89,7 @@ virLockDaemonFree(virLockDaemon *lockd)
 
     g_mutex_clear(&lockd->lock);
     virObjectUnref(lockd->dmn);
-    virHashFree(lockd->lockspaces);
+    g_clear_pointer(&lockd->lockspaces, g_hash_table_unref);
     virLockSpaceFree(lockd->defaultLockspace);
 
     g_free(lockd);
@@ -549,41 +549,21 @@ virLockDaemonClientPreExecRestart(virNetServerClient *client G_GNUC_UNUSED,
                                   void *opaque)
 {
     virLockDaemonClient *priv = opaque;
-    virJSONValue *object = virJSONValueNewObject();
+    virJSONValue *object = NULL;
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
-    if (virJSONValueObjectAppendBoolean(object, "restricted", priv->restricted) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot set restricted data in JSON document"));
-        goto error;
-    }
-    if (virJSONValueObjectAppendNumberUint(object, "ownerPid", priv->ownerPid) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot set ownerPid data in JSON document"));
-        goto error;
-    }
-    if (virJSONValueObjectAppendNumberUint(object, "ownerId", priv->ownerId) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot set ownerId data in JSON document"));
-        goto error;
-    }
-    if (virJSONValueObjectAppendString(object, "ownerName", priv->ownerName) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot set ownerName data in JSON document"));
-        goto error;
-    }
     virUUIDFormat(priv->ownerUUID, uuidstr);
-    if (virJSONValueObjectAppendString(object, "ownerUUID", uuidstr) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot set ownerUUID data in JSON document"));
-        goto error;
-    }
+
+    if (virJSONValueObjectAdd(&object,
+                              "b:restricted", priv->restricted,
+                              "u:ownerPid", priv->ownerPid,
+                              "u:ownerId", priv->ownerId,
+                              "s:ownerName", priv->ownerName,
+                              "s:ownerUUID", uuidstr,
+                              NULL) < 0)
+        return NULL;
 
     return object;
-
- error:
-    virJSONValueFree(object);
-    return NULL;
 }
 
 
@@ -627,63 +607,58 @@ virLockDaemonPostExecRestart(const char *state_file,
                              bool privileged)
 {
     const char *gotmagic;
-    char *wantmagic = NULL;
-    int ret = -1;
-    char *state = NULL;
-    virJSONValue *object = NULL;
+    g_autofree char *wantmagic = NULL;
+    g_autofree char *state = NULL;
+    g_autoptr(virJSONValue) object = NULL;
+    int rc;
 
     VIR_DEBUG("Running post-restart exec");
 
     if (!virFileExists(state_file)) {
         VIR_DEBUG("No restart state file %s present",
                   state_file);
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
-    if (virFileReadAll(state_file,
-                       1024 * 1024 * 10, /* 10 MB */
-                       &state) < 0)
-        goto cleanup;
+    rc = virFileReadAll(state_file,
+                        1024 * 1024 * 10, /* 10 MB */
+                        &state);
+
+    unlink(state_file);
+
+    if (rc < 0)
+        return -1;
 
     VIR_DEBUG("Loading state %s", state);
 
     if (!(object = virJSONValueFromString(state)))
-        goto cleanup;
+        return -1;
 
     gotmagic = virJSONValueObjectGetString(object, "magic");
     if (!gotmagic) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Missing magic data in JSON document"));
-        goto cleanup;
+        return -1;
     }
 
     if (!(wantmagic = virLockDaemonGetExecRestartMagic()))
-        goto cleanup;
+        return -1;
 
     if (STRNEQ(gotmagic, wantmagic)) {
         VIR_WARN("Found restart exec file with old magic %s vs wanted %s",
                  gotmagic, wantmagic);
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
     /* Re-claim PID file now as we will not be daemonizing */
     if (pid_file &&
         (*pid_file_fd = virPidFileAcquirePath(pid_file, false, getpid())) < 0)
-        goto cleanup;
+        return -1;
 
     if (!(lockDaemon = virLockDaemonNewPostExecRestart(object, privileged)))
-        goto cleanup;
+        return -1;
 
-    ret = 1;
-
- cleanup:
-    unlink(state_file);
-    VIR_FREE(wantmagic);
-    VIR_FREE(state);
-    virJSONValueFree(object);
-    return ret;
+    return 1;
 }
 
 
@@ -938,13 +913,16 @@ int main(int argc, char **argv) {
     }
     VIR_FREE(remote_config_file);
 
-    virDaemonSetupLogging("virtlockd",
-                          config->log_level,
-                          config->log_filters,
-                          config->log_outputs,
-                          privileged,
-                          verbose,
-                          godaemon);
+    if (virDaemonSetupLogging("virtlockd",
+                              config->log_level,
+                              config->log_filters,
+                              config->log_outputs,
+                              privileged,
+                              verbose,
+                              godaemon) < 0) {
+        virDispatchError(NULL);
+        exit(EXIT_FAILURE);
+    }
 
     if (!pid_file &&
         virPidFileConstructPath(privileged,

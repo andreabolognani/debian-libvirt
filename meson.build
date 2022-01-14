@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '7.10.0',
+  version: '8.0.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -613,10 +613,6 @@ headers = [
 ]
 
 if host_machine.system() == 'linux'
-  # check for kernel headers required by btrfs ioctl
-  headers += 'linux/btrfs.h'
-  # check for xfs dev headers required by xfs ioctl
-  headers += 'xfs/xfs.h'
   # check for DEVLINK_CMD_ESWITCH_GET
   headers += 'linux/devlink.h'
 endif
@@ -860,7 +856,6 @@ optional_programs = [
   'modprobe',
   'ovs-vsctl',
   'pdwtags',
-  'radvd',
   'rmmod',
   'scrub',
   'tc',
@@ -883,32 +878,27 @@ endforeach
 
 # early checks where lot of other packages depend on the result
 
-# On MinGW portablexdr provides XDR functions, on linux they are
-# provided by libtirpc and on FreeBSD/macOS there is no need to
-# use extra library as it's provided by libc directly.
-if host_machine.system() == 'windows'
-  xdr_dep = cc.find_library('portablexdr', required: false)
-elif host_machine.system() == 'linux'
-  xdr_dep = dependency('libtirpc', required: false)
-elif host_machine.system() in [ 'freebsd', 'darwin' ]
-  xdr_dep = cc.find_library('c', required: false)
+if not get_option('driver_remote').disabled()
+  # On MinGW portablexdr provides XDR functions, on linux they are
+  # provided by libtirpc and on FreeBSD/macOS there is no need to
+  # use extra library as it's provided by libc directly.
+  if host_machine.system() == 'windows'
+    xdr_dep = cc.find_library('portablexdr', required: get_option('driver_remote'))
+  elif host_machine.system() == 'linux'
+    xdr_dep = dependency('libtirpc', required: get_option('driver_remote'))
+  elif host_machine.system() in [ 'freebsd', 'darwin' ]
+    xdr_dep = cc.find_library('c', required: get_option('driver_remote'))
+  else
+    xdr_dep = dependency('', required: false)
+  endif
+
+  if xdr_dep.found()
+    conf.set('WITH_REMOTE', 1)
+  elif get_option('driver_remote').enabled()
+    error('XDR is required for remote driver')
+  endif
 else
   xdr_dep = dependency('', required: false)
-endif
-
-if not get_option('driver_remote').disabled()
-  use_remote = true
-
-  if not xdr_dep.found()
-    use_remote = false
-    if get_option('driver_remote').enabled()
-      error('XDR is required for remote driver')
-    endif
-  endif
-
-  if use_remote
-    conf.set('WITH_REMOTE', 1)
-  endif
 endif
 
 
@@ -1049,14 +1039,6 @@ endif
 
 libparted_version = '1.8.0'
 libparted_dep = dependency('libparted', version: '>=' + libparted_version, required: false)
-if libparted_dep.found()
-  parted_prog = find_program('parted', required: false, dirs: libvirt_sbin_path)
-  if parted_prog.found()
-    conf.set_quoted('PARTED', parted_prog.path())
-  else
-    libparted_dep = dependency('', required: false)
-  endif
-endif
 
 libpcap_version = '1.5.0'
 if not get_option('libpcap').disabled()
@@ -1311,6 +1293,16 @@ endif
 wireshark_version = '2.6.0'
 wireshark_dep = dependency('wireshark', version: '>=' + wireshark_version, required: get_option('wireshark_dissector'))
 if wireshark_dep.found()
+  if not xdr_dep.found()
+    if get_option('wireshark_dissector').enabled()
+      error('XDR is required for wireshark plugin')
+    else
+      wireshark_dep = dependency('', required: false)
+    endif
+  endif
+endif
+
+if wireshark_dep.found()
   wireshark_plugindir = get_option('wireshark_plugindir')
   if wireshark_plugindir == ''
     wireshark_plugindir = wireshark_dep.get_pkgconfig_variable('plugindir')
@@ -1364,17 +1356,18 @@ if yajl_dep.found()
   #
   # [1] https://github.com/Homebrew/homebrew-core/pull/74516
   if host_machine.system() != 'linux'
-    cflags = yajl_dep.get_pkgconfig_variable('cflags')
-    if cflags.contains('include/yajl')
+    includedir = yajl_dep.get_pkgconfig_variable('includedir')
+    if includedir.contains('include/yajl')
       rc = run_command(
         'python3', '-c',
         'print("@0@".replace("@1@", "@2@"))'.format(
-          cflags, 'include/yajl', 'include',
+          includedir, 'include/yajl', 'include',
         ),
         check: true,
       )
+      includedir = rc.stdout().strip()
       yajl_dep = declare_dependency(
-        compile_args: rc.stdout().strip().split(),
+        compile_args: [ '-I' + includedir ],
         dependencies: [ yajl_dep ],
       )
     endif
@@ -1645,10 +1638,10 @@ if not get_option('driver_ch').disabled() and host_machine.system() == 'linux' a
   endif
 endif
 
-# there's no use compiling the network driver without the libvirt
-# daemon, nor compiling it for macOS, where it breaks the compile
-if not get_option('driver_network').disabled() and conf.has('WITH_LIBVIRTD') and host_machine.system() != 'darwin'
+if not get_option('driver_network').disabled() and conf.has('WITH_LIBVIRTD')
   conf.set('WITH_NETWORK', 1)
+elif get_option('driver_network').enabled()
+  error('libvirtd must be enabled to build the network driver')
 endif
 
 if udev_dep.found() and conf.has('WITH_LIBVIRTD')

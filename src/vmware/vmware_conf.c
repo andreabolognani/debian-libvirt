@@ -64,7 +64,7 @@ vmwareFreeDriver(struct vmware_driver *driver)
 virCaps *
 vmwareCapsInit(void)
 {
-    virCaps *caps = NULL;
+    g_autoptr(virCaps) caps = NULL;
     virCapsGuest *guest = NULL;
 
     if ((caps = virCapabilitiesNew(virArchFromHost(),
@@ -106,28 +106,26 @@ vmwareCapsInit(void)
         guest = NULL;
     }
 
-    return caps;
+    return g_steal_pointer(&caps);
 
  error:
     virCapabilitiesFreeGuest(guest);
-    virObjectUnref(caps);
     return NULL;
 }
 
 int
 vmwareLoadDomains(struct vmware_driver *driver)
 {
-    virDomainDef *vmdef = NULL;
     virDomainObj *vm = NULL;
     char *vmxPath = NULL;
-    char *vmx = NULL;
+    g_autofree char *vmx = NULL;
     vmwareDomainPtr pDomain;
     int ret = -1;
     virVMXContext ctx;
-    char *outbuf = NULL;
+    g_autofree char *outbuf = NULL;
     char *str;
     char *saveptr = NULL;
-    virCommand *cmd;
+    g_autoptr(virCommand) cmd = NULL;
 
     ctx.parseFileName = vmwareParseVMXFileName;
     ctx.formatFileName = NULL;
@@ -141,8 +139,8 @@ vmwareLoadDomains(struct vmware_driver *driver)
     if (virCommandRun(cmd, NULL) < 0)
         goto cleanup;
 
-    for (str = outbuf; (vmxPath = strtok_r(str, "\n", &saveptr)) != NULL;
-        str = NULL) {
+    for (str = outbuf; (vmxPath = strtok_r(str, "\n", &saveptr)) != NULL; str = NULL) {
+        g_autoptr(virDomainDef) vmdef = NULL;
 
         if (!g_path_is_absolute(vmxPath))
             continue;
@@ -180,10 +178,6 @@ vmwareLoadDomains(struct vmware_driver *driver)
     ret = 0;
 
  cleanup:
-    virCommandFree(cmd);
-    VIR_FREE(outbuf);
-    virDomainDefFree(vmdef);
-    VIR_FREE(vmx);
     virObjectUnref(vm);
     return ret;
 }
@@ -248,11 +242,10 @@ vmwareParseVersionStr(int type, const char *verbuf, unsigned long *version)
 int
 vmwareExtractVersion(struct vmware_driver *driver)
 {
-    int ret = -1;
-    virCommand *cmd = NULL;
-    char * outbuf = NULL;
-    char *bin = NULL;
-    char *vmwarePath = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *outbuf = NULL;
+    g_autofree char *bin = NULL;
+    g_autofree char *vmwarePath = NULL;
 
     vmwarePath = g_path_get_dirname(driver->vmrun);
 
@@ -272,7 +265,7 @@ vmwareExtractVersion(struct vmware_driver *driver)
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("invalid driver type for version detection"));
-            goto cleanup;
+            return -1;
     }
 
     cmd = virCommandNewArgList(bin, "-v", NULL);
@@ -280,19 +273,12 @@ vmwareExtractVersion(struct vmware_driver *driver)
     virCommandSetErrorBuffer(cmd, &outbuf);
 
     if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
+        return -1;
 
     if (vmwareParseVersionStr(driver->type, outbuf, &driver->version) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virCommandFree(cmd);
-    VIR_FREE(outbuf);
-    VIR_FREE(bin);
-    VIR_FREE(vmwarePath);
-    return ret;
+    return 0;
 }
 
 int

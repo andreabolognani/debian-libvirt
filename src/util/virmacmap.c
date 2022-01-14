@@ -62,7 +62,7 @@ virMacMapDispose(void *obj)
     while (g_hash_table_iter_next(&htitr, NULL, &value))
         g_slist_free_full(value, g_free);
 
-    virHashFree(mgr->macs);
+    g_clear_pointer(&mgr->macs, g_hash_table_unref);
 }
 
 
@@ -214,9 +214,7 @@ virMACMapHashDumper(void *payload,
     GSList *next;
 
     for (next = macs; next; next = next->next) {
-        g_autoptr(virJSONValue) m = virJSONValueNewString((const char *) next->data);
-
-        if (virJSONValueArrayAppend(arr, &m) < 0)
+        if (virJSONValueArrayAppendString(arr, (const char *) next->data) < 0)
             return -1;
     }
 

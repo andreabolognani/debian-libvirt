@@ -44,8 +44,8 @@ void virBitmapFree(virBitmap *bitmap);
 int virBitmapSetBit(virBitmap *bitmap, size_t b)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
-int virBitmapSetBitExpand(virBitmap *bitmap, size_t b)
-    ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
+void virBitmapSetBitExpand(virBitmap *bitmap, size_t b)
+    ATTRIBUTE_NONNULL(1);
 
 
 /*
@@ -54,8 +54,8 @@ int virBitmapSetBitExpand(virBitmap *bitmap, size_t b)
 int virBitmapClearBit(virBitmap *bitmap, size_t b)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
-int virBitmapClearBitExpand(virBitmap *bitmap, size_t b)
-    ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
+void virBitmapClearBitExpand(virBitmap *bitmap, size_t b)
+    ATTRIBUTE_NONNULL(1);
 
 /*
  * Get bit @b in @bitmap. Returns false if b is out of range.
@@ -81,11 +81,6 @@ int virBitmapParse(const char *str,
                    virBitmap **bitmap,
                    size_t bitmapSize)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-int
-virBitmapParseSeparator(const char *str,
-                        char terminator,
-                        virBitmap **bitmap,
-                        size_t bitmapSize);
 virBitmap *
 virBitmapParseUnlimited(const char *str);
 
@@ -138,8 +133,8 @@ bool virBitmapOverlaps(virBitmap *b1,
 void virBitmapIntersect(virBitmap *a, virBitmap *b)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-int virBitmapUnion(virBitmap *a,
-                   const virBitmap *b)
+void virBitmapUnion(virBitmap *a,
+                    const virBitmap *b)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 void virBitmapSubtract(virBitmap *a, virBitmap *b)

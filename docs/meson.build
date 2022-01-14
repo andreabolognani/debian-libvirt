@@ -13,22 +13,8 @@ docs_assets = [
   'favicon.ico',
   'favicon-16x16.png',
   'favicon-32x32.png',
-  'generic.css',
-  'libvirt.css',
-  'libvirt-daemon-arch.png',
-  'libvirt-driver-arch.png',
-  'libvirt-object-model.png',
-  'libvirt-virConnect-example.png',
-  'main.css',
   'manifest.json',
-  'migration-managed-direct.png',
-  'migration-managed-p2p.png',
-  'migration-native.png',
-  'migration-tunnel.png',
-  'migration-unmanaged-direct.png',
-  'mobile.css',
   'mstile-150x150.png',
-  'node.gif',
 ]
 
 docs_html_in_files = [
@@ -69,7 +55,6 @@ docs_html_in_files = [
   'formatsnapshot',
   'formatstoragecaps',
   'formatstorageencryption',
-  'formatstorage',
   'goals',
   'governance',
   'hooks',
@@ -77,7 +62,6 @@ docs_html_in_files = [
   'internals',
   'java',
   'logging',
-  'migration',
   'nss',
   'pci-hotplug',
   'php',
@@ -117,10 +101,12 @@ docs_rst_files = [
   'formatbackup',
   'formatcheckpoint',
   'formatdomain',
+  'formatstorage',
   'glib-adoption',
   'hacking',
   'libvirt-go',
   'libvirt-go-xml',
+  'migration',
   'newreposetup',
   'pci-addresses',
   'platforms',
@@ -298,9 +284,11 @@ html_xslt_gen = []
 
 # --- end of XSLT processing ---
 
+subdir('css')
 subdir('fonts')
 subdir('go')
 subdir('html')
+subdir('images')
 subdir('internals')
 subdir('js')
 subdir('kbase')

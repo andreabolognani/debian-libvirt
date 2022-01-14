@@ -16,6 +16,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             bash-completion \
             ca-certificates \
             ccache \
+            codespell \
             cpp \
             diffutils \
             dnsmasq-base \
@@ -38,22 +39,25 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             ninja-build \
             numad \
             open-iscsi \
-            parted \
             perl-base \
             pkgconf \
             policykit-1 \
             python3 \
             python3-docutils \
             qemu-utils \
-            radvd \
             scrub \
             sed \
-            xsltproc \
-            zfs-fuse && \
+            xsltproc && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
     dpkg-reconfigure locales
+
+ENV LANG "en_US.UTF-8"
+ENV MAKE "/usr/bin/make"
+ENV NINJA "/usr/bin/ninja"
+ENV PYTHON "/usr/bin/python3"
+ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture s390x && \
@@ -70,7 +74,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libc6-dev:s390x \
             libcap-ng-dev:s390x \
             libcurl4-gnutls-dev:s390x \
-            libdbus-1-dev:s390x \
             libdevmapper-dev:s390x \
             libfuse-dev:s390x \
             libglib2.0-dev:s390x \
@@ -94,8 +97,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libudev-dev:s390x \
             libxml2-dev:s390x \
             libyajl-dev:s390x \
-            systemtap-sdt-dev:s390x \
-            xfslibs-dev:s390x && \
+            systemtap-sdt-dev:s390x && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     mkdir -p /usr/local/share/meson/cross && \
@@ -114,12 +116,6 @@ endian = 'big'" > /usr/local/share/meson/cross/s390x-linux-gnu && \
     mkdir -p /usr/libexec/ccache-wrappers && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/s390x-linux-gnu-cc && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/s390x-linux-gnu-gcc
-
-ENV LANG "en_US.UTF-8"
-ENV MAKE "/usr/bin/make"
-ENV NINJA "/usr/bin/ninja"
-ENV PYTHON "/usr/bin/python3"
-ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 ENV ABI "s390x-linux-gnu"
 ENV MESON_OPTS "--cross-file=s390x-linux-gnu"

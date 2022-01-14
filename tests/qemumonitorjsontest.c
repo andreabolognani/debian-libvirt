@@ -1175,7 +1175,7 @@ GEN_TEST_FUNC(qemuMonitorJSONGraphicsRelocate, VIR_DOMAIN_GRAPHICS_TYPE_SPICE,
 GEN_TEST_FUNC(qemuMonitorJSONRemoveNetdev, "net0")
 GEN_TEST_FUNC(qemuMonitorJSONDelDevice, "ide0")
 GEN_TEST_FUNC(qemuMonitorJSONDriveMirror, "vdb", "/foo/bar", "formatstr", 1024, 1234, 31234, true, true)
-GEN_TEST_FUNC(qemuMonitorJSONBlockdevMirror, "jobname", true, "vdb", "targetnode", 1024, 1234, 31234, true)
+GEN_TEST_FUNC(qemuMonitorJSONBlockdevMirror, "jobname", true, "vdb", "targetnode", 1024, 1234, 31234, true, true)
 GEN_TEST_FUNC(qemuMonitorJSONBlockStream, "vdb", "jobname", true, "/foo/bar1", "backingnode", "backingfilename", 1024)
 GEN_TEST_FUNC(qemuMonitorJSONBlockCommit, "vdb", "jobname", true, "/foo/bar1", "topnode", "/foo/bar2", "basenode", "backingfilename", 1024)
 GEN_TEST_FUNC(qemuMonitorJSONDrivePivot, "vdb")
@@ -1196,6 +1196,8 @@ GEN_TEST_FUNC(qemuMonitorJSONSetAction,
               QEMU_MONITOR_ACTION_REBOOT_RESET,
               QEMU_MONITOR_ACTION_WATCHDOG_SHUTDOWN,
               QEMU_MONITOR_ACTION_PANIC_SHUTDOWN)
+GEN_TEST_FUNC(qemuMonitorJSONSetLaunchSecurityState, "sev_secret_header",
+              "sev_secret", 0, true)
 
 static int
 testQemuMonitorJSONqemuMonitorJSONNBDServerStart(const void *opaque)
@@ -2490,24 +2492,23 @@ testBlockNodeNameDetect(const void *opaque)
     g_autofree char *actual = NULL;
     g_autoptr(virJSONValue) namedNodesJson = NULL;
     g_autoptr(virJSONValue) blockstatsJson = NULL;
-    GHashTable *nodedata = NULL;
+    g_autoptr(GHashTable) nodedata = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    int ret = -1;
 
     resultFile = g_strdup_printf("%s/%s%s.result", abs_srcdir, pathprefix,
                                  testname);
 
     if (!(namedNodesJson = virTestLoadFileJSON(pathprefix, testname,
                                                "-named-nodes.json", NULL)))
-        goto cleanup;
+        return -1;
 
     if (!(blockstatsJson = virTestLoadFileJSON(pathprefix, testname,
                                                "-blockstats.json", NULL)))
-        goto cleanup;
+        return -1;
 
     if (!(nodedata = qemuBlockNodeNameGetBackingChain(namedNodesJson,
                                                       blockstatsJson)))
-        goto cleanup;
+        return -1;
 
     virHashForEachSorted(nodedata, testBlockNodeNameDetectFormat, &buf);
 
@@ -2516,14 +2517,9 @@ testBlockNodeNameDetect(const void *opaque)
     actual = virBufferContentAndReset(&buf);
 
     if (virTestCompareToFile(actual, resultFile) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virHashFree(nodedata);
-
-    return ret;
+    return 0;
 }
 
 
@@ -2891,11 +2887,55 @@ testQemuMonitorJSONqemuMonitorJSONGetCPUModelBaseline(const void *opaque)
 
 
 static int
+testQemuMonitorJSONGetSEVInfo(const void *opaque)
+{
+    const testGenericData *data = opaque;
+    virDomainXMLOption *xmlopt = data->xmlopt;
+    g_autoptr(qemuMonitorTest) test = NULL;
+    unsigned int apiMajor = 0;
+    unsigned int apiMinor = 0;
+    unsigned int buildID = 0;
+    unsigned int policy = 0;
+
+    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
+        return -1;
+
+    if (qemuMonitorTestAddItem(test, "query-sev",
+                               "{"
+                               "    \"return\": {"
+                               "        \"enabled\": false,"
+                               "        \"api-minor\": 8,"
+                               "        \"handle\": 0,"
+                               "        \"state\": \"uninit\","
+                               "        \"api-major\": 1,"
+                               "        \"build-id\": 834,"
+                               "        \"policy\": 3"
+                               "    },"
+                               "    \"id\": \"libvirt-15\""
+                               "}") < 0)
+        return -1;
+
+    if (qemuMonitorGetSEVInfo(qemuMonitorTestGetMonitor(test),
+                              &apiMajor, &apiMinor, &buildID, &policy) < 0)
+        return -1;
+
+    if (apiMajor != 1 || apiMinor != 8 || buildID != 834 || policy != 3) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       "Unexpected SEV info values");
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
 mymain(void)
 {
     int ret = 0;
     virQEMUDriver driver;
     testQemuMonitorJSONSimpleFuncData simpleFunc;
+    g_autoptr(GHashTable) qapischema_x86_64 = NULL;
+    g_autoptr(GHashTable) qapischema_s390x = NULL;
     struct testQAPISchemaData qapiData;
     g_autoptr(virJSONValue) metaschema = NULL;
     g_autofree char *metaschemastr = NULL;
@@ -2905,11 +2945,13 @@ mymain(void)
 
     virEventRegisterDefaultImpl();
 
-    if (!(qapiData.schema = testQEMUSchemaLoadLatest("x86_64"))) {
-        VIR_TEST_VERBOSE("failed to load qapi schema");
+    if (!(qapischema_x86_64 = testQEMUSchemaLoadLatest("x86_64"))) {
+        VIR_TEST_VERBOSE("failed to load x86_64 qapi schema");
         ret = -1;
         goto cleanup;
     }
+
+    qapiData.schema = qapischema_x86_64;
 
 #define DO_TEST(name) \
     do { \
@@ -2981,6 +3023,7 @@ mymain(void)
     DO_TEST(CPU);
     DO_TEST(GetNonExistingCPUData);
     DO_TEST(GetIOThreads);
+    DO_TEST(GetSEVInfo);
     DO_TEST(Transaction);
     DO_TEST(BlockExportAdd);
     DO_TEST(BlockdevReopen);
@@ -3026,6 +3069,7 @@ mymain(void)
     DO_TEST_GEN(qemuMonitorJSONJobComplete);
     DO_TEST_GEN(qemuMonitorJSONBlockJobCancel);
     DO_TEST_GEN(qemuMonitorJSONSetAction);
+    DO_TEST_GEN(qemuMonitorJSONSetLaunchSecurityState);
     DO_TEST(qemuMonitorJSONGetBalloonInfo);
     DO_TEST(qemuMonitorJSONGetBlockInfo);
     DO_TEST(qemuMonitorJSONGetAllBlockStatsInfo);
@@ -3177,18 +3221,18 @@ mymain(void)
 
 #undef DO_TEST_QUERY_JOBS
 
-    virHashFree(qapiData.schema);
-    if (!(qapiData.schema = testQEMUSchemaLoadLatest("s390x"))) {
+    if (!(qapischema_s390x = testQEMUSchemaLoadLatest("s390x"))) {
         VIR_TEST_VERBOSE("failed to load qapi schema for s390x");
         ret = -1;
         goto cleanup;
     }
 
+    qapiData.schema = qapischema_s390x;
+
     DO_TEST(qemuMonitorJSONGetCPUModelComparison);
     DO_TEST(qemuMonitorJSONGetCPUModelBaseline);
 
  cleanup:
-    virHashFree(qapiData.schema);
     qemuTestDriverFree(&driver);
     return (ret == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

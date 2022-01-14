@@ -2182,6 +2182,13 @@ virDomainGetMemoryParameters(virDomainPtr domain,
  * Change all or a subset of the numa tunables.
  * This function may require privileged access to the hypervisor.
  *
+ * Changing live configuration may be possible only in some cases. For
+ * instance, for QEMU driver the mode (VIR_DOMAIN_NUMA_MODE) can not be
+ * changed, and changing the nodeset (VIR_DOMAIN_NUMA_NODESET) is possible
+ * only for VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE mode.
+ *
+ * Changing persistent configuration does not pose such limitations.
+ *
  * Returns -1 in case of error, 0 in case of success.
  */
 int
@@ -3567,6 +3574,10 @@ virDomainMigrate(virDomainPtr domain,
                              VIR_MIGRATE_PARALLEL,
                              error);
 
+    VIR_REQUIRE_FLAG_GOTO(VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES,
+                          VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC,
+                          error);
+
     if (flags & VIR_MIGRATE_OFFLINE) {
         rc = VIR_DRV_SUPPORTS_FEATURE(domain->conn->driver, domain->conn,
                                       VIR_DRV_FEATURE_MIGRATION_OFFLINE);
@@ -3759,6 +3770,10 @@ virDomainMigrate2(virDomainPtr domain,
     VIR_EXCLUSIVE_FLAGS_GOTO(VIR_MIGRATE_TUNNELLED,
                              VIR_MIGRATE_PARALLEL,
                              error);
+
+    VIR_REQUIRE_FLAG_GOTO(VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES,
+                          VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC,
+                          error);
 
     if (flags & VIR_MIGRATE_OFFLINE) {
         rc = VIR_DRV_SUPPORTS_FEATURE(domain->conn->driver, domain->conn,
@@ -3966,6 +3981,14 @@ virDomainMigrate3(virDomainPtr domain,
                              VIR_MIGRATE_NON_SHARED_INC,
                              error);
 
+    VIR_REQUIRE_FLAG_GOTO(VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES,
+                          VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC,
+                          error);
+
+    VIR_REQUIRE_FLAG_GOTO(VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES,
+                          VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC,
+                          error);
+
     if (flags & VIR_MIGRATE_PEER2PEER) {
         virReportInvalidArg(flags, "%s",
                             _("use virDomainMigrateToURI3 for peer-to-peer "
@@ -4136,6 +4159,10 @@ int virDomainMigrateUnmanagedCheckCompat(virDomainPtr domain,
     VIR_EXCLUSIVE_FLAGS_RET(VIR_MIGRATE_NON_SHARED_DISK,
                             VIR_MIGRATE_NON_SHARED_INC,
                             -1);
+
+    VIR_REQUIRE_FLAG_RET(VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES,
+                         VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC,
+                         -1);
 
     if (flags & VIR_MIGRATE_OFFLINE) {
         rc = VIR_DRV_SUPPORTS_FEATURE(domain->conn->driver, domain->conn,
@@ -10509,6 +10536,12 @@ virDomainBlockRebase(virDomainPtr dom, const char *disk,
  * remove the restriction of copy jobs to transient domains. Note that this flag
  * is automatically implied if the VM is transient at the time it's started.
  *
+ * If @flags contains VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES the job will wait
+ * for guest writes to be propagated both to the original image and to the
+ * destination of the copy so that it's guaranteed that the job converges if
+ * the destination storage is slower. This may impact performance of writes
+ * while the blockjob is running.
+ *
  * The @disk parameter is either an unambiguous source name of the
  * block device (the <source file='...'/> sub-element, such as
  * "/path/to/image"), or the device target shorthand (the
@@ -12806,6 +12839,68 @@ int virDomainGetLaunchSecurityInfo(virDomainPtr domain,
         int ret;
         ret = conn->driver->domainGetLaunchSecurityInfo(domain, params,
                                                         nparams, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(domain->conn);
+    return -1;
+}
+
+
+/**
+ * virDomainSetLaunchSecurityState:
+ * @domain: a domain object
+ * @params: pointer to launch security parameter objects
+ * @nparams: number of launch security parameters
+ * @flags: currently used, set to 0.
+ *
+ * Set a launch security secret in the guest's memory. The guest must be
+ * in a paused state, e.g. in state VIR_DOMIAN_PAUSED as reported by
+ * virDomainGetState. On success, the guest can be transitioned to a
+ * running state. On failure, the guest should be destroyed.
+ *
+ * A basic guest attestation process can be achieved by:
+ * - Start a secure guest in the paused state by passing VIR_DOMAIN_START_PAUSED
+ *   to one of the virDomainCreate APIs
+ * - Retrieve the guest launch measurement with virDomainGetLaunchSecurityInfo
+ * - Verify launch measurement and generate a secret for the guest
+ * - Set the secret in the guest's memory with virDomainSetLaunchSecurityState
+ * - Start running the guest with virDomainResume
+ *
+ * See VIR_DOMAIN_LAUNCH_SECURITY_* for a detailed description of accepted
+ * launch security parameters.
+ *
+ * Returns -1 in case of failure, 0 in case of success.
+ */
+int virDomainSetLaunchSecurityState(virDomainPtr domain,
+                                    virTypedParameterPtr params,
+                                    int nparams,
+                                    unsigned int flags)
+{
+    virConnectPtr conn = domain->conn;
+
+    VIR_DOMAIN_DEBUG(domain, "params=%p, nparams=%d flags=0x%x",
+                     params, nparams, flags);
+    VIR_TYPED_PARAMS_DEBUG(params, nparams);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    virCheckNonNullArgGoto(params, error);
+    virCheckPositiveArgGoto(nparams, error);
+    virCheckReadOnlyGoto(domain->conn->flags, error);
+
+    if (virTypedParameterValidateSet(conn, params, nparams) < 0)
+        goto error;
+
+    if (conn->driver->domainSetLaunchSecurityState) {
+        int ret;
+        ret = conn->driver->domainSetLaunchSecurityState(domain, params,
+                                                         nparams, flags);
         if (ret < 0)
             goto error;
         return ret;

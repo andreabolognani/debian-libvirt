@@ -1127,6 +1127,9 @@ NUMA Node Tuning
    will be ignored if it's specified. If ``placement`` of ``vcpu`` is 'auto',
    and ``numatune`` is not specified, a default ``numatune`` with ``placement``
    'auto' and ``mode`` 'strict' will be added implicitly. :since:`Since 0.9.3`
+   See `virDomainSetNumaParameters
+   <html/libvirt-libvirt-domain.html#virDomainSetNumaParameters>`__ for more
+   information on update of this element.
 ``memnode``
    Optional ``memnode`` elements can specify memory allocation policies per each
    guest NUMA node. For those nodes having no corresponding ``memnode`` element,
@@ -1820,7 +1823,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      <apic/>
      <hap/>
      <privnet/>
-     <hyperv>
+     <hyperv mode='custom'>
        <relaxed state='on'/>
        <vapic state='on'/>
        <spinlocks state='on' retries='4096'/>
@@ -1843,6 +1846,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
        <hint-dedicated state='on'/>
        <poll-control state='on'/>
        <pv-ipi state='off'/>
+       <dirty-ring state='on' size='4096'/>
      </kvm>
      <xen>
        <e820_host state='on'/>
@@ -1864,6 +1868,9 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      <cfpc value='workaround'/>
      <sbbc value='workaround'/>
      <ibs value='fixed-na'/>
+     <tcg>
+       <tb-cache unit='MiB'>128</tb-cache>
+     </tcg>
    </features>
    ...
 
@@ -1918,6 +1925,24 @@ are:
    evmcs           Enable Enlightened VMCS                                                on, off                                      :since:`4.10.0 (QEMU 3.1)`
    =============== ====================================================================== ============================================ =======================================================
 
+   :since:`Since 8.0.0` , the hypervisor can be configured further by setting
+   the ``mode`` attribute to one of the following values:
+
+   ``custom``
+      Set exactly the specified features.
+
+   ``passthrough``
+      Enable all features currently supported by the hypervisor, even those that
+      libvirt does not understand. Migration of a guest using passthrough is
+      dangerous if the source and destination hosts are not identical in both
+      hardware, QEMU version, microcode version and configuration. If such a
+      migration is attempted then the guest may hang or crash upon resuming
+      execution on the destination host. Depending on hypervisor version the
+      virtual CPU may or may not contain features which may block migration
+      even to an identical host.
+
+   The ``mode`` attribute can be omitted and will default to ``custom``.
+
 ``pvspinlock``
    Notify the guest that the host supports paravirtual spinlocks for example by
    exposing the pvticketlocks mechanism. This feature can be explicitly disabled
@@ -1925,14 +1950,15 @@ are:
 ``kvm``
    Various features to change the behavior of the KVM hypervisor.
 
-   ============== ============================================================================ ======= ============================
-   Feature        Description                                                                  Value   Since
-   ============== ============================================================================ ======= ============================
-   hidden         Hide the KVM hypervisor from standard MSR based discovery                    on, off :since:`1.2.8 (QEMU 2.1.0)`
-   hint-dedicated Allows a guest to enable optimizations when running on dedicated vCPUs       on, off :since:`5.7.0 (QEMU 2.12.0)`
-   poll-control   Decrease IO completion latency by introducing a grace period of busy waiting on, off :since:`6.10.0 (QEMU 4.2)`
-   pv-ipi         Paravirtualized send IPIs                                                    on, off :since:`7.10.0 (QEMU 3.1)`
-   ============== ============================================================================ ======= ============================
+   ============== ============================================================================ ====================================================== ============================
+   Feature        Description                                                                  Value                                                  Since
+   ============== ============================================================================ ====================================================== ============================
+   hidden         Hide the KVM hypervisor from standard MSR based discovery                    on, off                                                :since:`1.2.8 (QEMU 2.1.0)`
+   hint-dedicated Allows a guest to enable optimizations when running on dedicated vCPUs       on, off                                                :since:`5.7.0 (QEMU 2.12.0)`
+   poll-control   Decrease IO completion latency by introducing a grace period of busy waiting on, off                                                :since:`6.10.0 (QEMU 4.2)`
+   pv-ipi         Paravirtualized send IPIs                                                    on, off                                                :since:`7.10.0 (QEMU 3.1)`
+   dirty-ring     Enable dirty ring feature                                                    on, off; size - must be power of 2, range [1024,65536] :since:`8.0.0 (QEMU 6.1)`
+   ============== ============================================================================ ====================================================== ============================
 
 ``xen``
    Various features to change the behavior of the Xen hypervisor.
@@ -2065,6 +2091,14 @@ are:
    ``fixed-na (fixed in           hardware - no longer applicable)``. If the
    attribute is not defined, the hypervisor default will be used. :since:`Since
    6.3.0` (QEMU/KVM only)
+``tcg``
+   Various features to change the behavior of the TCG accelerator.
+
+   =========== ============================================== =================================================== ==============
+   Feature     Description                                    Value                                               Since
+   =========== ============================================== =================================================== ==============
+   tb-cache    The size of translation block cache size       an integer (a multiple of MiB)                      :since:`8.0.0`
+   =========== ============================================== =================================================== ==============
 
 :anchor:`<a id="elementsTime"/>`
 
@@ -7606,6 +7640,8 @@ Example: usage of the TPM Emulator
    of a TPM 2.0 to activate. Valid names are for example sha1, sha256, sha384,
    and sha512. If this node is provided, the set of PCR banks are activated
    before every start of a VM and this step is logged in the swtpm's log.
+   If this node is removed or omitted then libvirt will not modify the
+   active PCR banks upon VM start but leave them at their last configuration.
    This attribute requires that swtpm_setup v0.7 or later is installed
    and may not have any effect otherwise. The selection of PCR banks only works
    with the ``emulator`` backend. since:`Since 7.10.0`
@@ -8167,7 +8203,7 @@ Note: DEA/TDEA is synonymous with DES/TDES.
 Launch Security
 ---------------
 
-Specifying ``<launchSecurity type='s390-pv'\>`` in a s390 domain prepares
+Specifying ``<launchSecurity type='s390-pv'/>`` in a s390 domain prepares
 the guest to run in protected virtualization secure mode, also known as
 IBM Secure Execution. For more required host and guest preparation steps, see
 `Protected Virtualization on s390 <kbase/s390_protected_virt.html>`__
@@ -8191,7 +8227,7 @@ spec <https://support.amd.com/TechDocs/55766_SEV-KM_API_Specification.pdf>`__
 
    <domain>
      ...
-     <launchSecurity type='sev'>
+     <launchSecurity type='sev' kernelHashes='yes'>
        <policy>0x0001</policy>
        <cbitpos>47</cbitpos>
        <reducedPhysBits>1</reducedPhysBits>
@@ -8201,6 +8237,11 @@ spec <https://support.amd.com/TechDocs/55766_SEV-KM_API_Specification.pdf>`__
      ...
    </domain>
 
+``kernelHashes``
+   The optional ``kernelHashes`` attribute indicates whether the
+   hashes of the kernel, ramdisk and command line should be included
+   in the measurement done by the firmware. This is only valid if
+   using direct kernel boot. :since:`Since 8.0.0`
 ``cbitpos``
    The required ``cbitpos`` element provides the C-bit (aka encryption bit)
    location in guest page table entry. The value of ``cbitpos`` is hypervisor

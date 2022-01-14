@@ -479,6 +479,20 @@ Returns memory stats of the node.
 If *cell* is specified, this will print the specified cell statistics only.
 
 
+nodesevinfo
+-----------
+
+**Syntax:**
+
+::
+
+   nodesevinfo
+
+Reports information about the AMD SEV launch security features for
+the node, if any. Some of this information is also reported in the
+domain capabilities XML document.
+
+
 nodesuspend
 -----------
 
@@ -1218,7 +1232,7 @@ blockcopy
       [--shallow] [--reuse-external] [bandwidth]
       [--wait [--async] [--verbose]] [{--pivot | --finish}]
       [--timeout seconds] [granularity] [buf-size] [--bytes]
-      [--transient-job]
+      [--transient-job] [--synchronous-writes]
 
 Copy a disk backing image chain to a destination.  Either *dest* as
 the destination file name, or *--xml* with the name of an XML file containing
@@ -1277,6 +1291,11 @@ may allow faster completion (the default value is usually correct).
 be recovered if the VM crashes or is turned off before the job completes. This
 flag removes the restriction of copy jobs to transient domains if that
 restriction is applied by the hypervisor.
+
+If *--synchronous-writes* is specified the block job will wait for guest writes
+to be propagated both to the original image and to the destination of the copy
+so that it's guaranteed that the job converges if the destination storage is
+slower. This may impact performance of writes while the blockjob is running.
 
 
 blockjob
@@ -2050,6 +2069,48 @@ Note that time information returned for completed
 migrations may be completely irrelevant unless both source and
 destination hosts have synchronized time (i.e., NTP daemon is running
 on both of them).
+
+
+domlaunchsecinfo
+----------------
+
+**Syntax:**
+
+::
+
+   domlaunchsecinfo domain
+
+Returns information about the launch security parameters associated
+with a running domain.
+
+The set of parameters reported will vary depending on which type of
+launch security protection is active. If none is active, no parameters
+will be reported.
+
+
+domsetlaunchsecstate
+--------------------
+
+**Syntax:**
+
+::
+
+   domsetlaunchsecstate domain --secrethdr hdr-filename
+       --secret secret-filename [--set-address address]
+
+Set a launch security secret in the guest's memory. The guest must have a
+launchSecurity type enabled in its configuration and be in a paused state.
+On success, the guest can be transitioned to a running state. On failure,
+the guest should be destroyed.
+
+*--secrethdr* specifies a filename containing the base64-encoded secret header.
+The header includes artifacts needed by the hypervisor firmware to recover the
+plain text of the launch secret. *--secret* specifies the filename containing
+the base64-encoded encrypted launch secret.
+
+The *--set-address* option can be used to specify a physical address within
+the guest's memory to set the secret. If not specified, the address will be
+determined by the hypervisor.
 
 
 dommemstat
@@ -3175,16 +3236,19 @@ migrate
       [--postcopy-bandwidth bandwidth]
       [--parallel [--parallel-connections connections]]
       [--bandwidth bandwidth] [--tls-destination hostname]
-      [--disks-uri URI]
+      [--disks-uri URI] [--copy-storage-synchronous-writes]
 
 Migrate domain to another host.  Add *--live* for live migration; <--p2p>
 for peer-2-peer migration; *--direct* for direct migration; or *--tunnelled*
 for tunnelled migration.  *--offline* migrates domain definition without
 starting the domain on destination and without stopping it on source host.
 Offline migration may be used with inactive domains and it must be used with
-*--persistent* option.  *--persistent* leaves the domain persistent on
-destination host, *--undefinesource* undefines the domain on the source host,
-and *--suspend* leaves the domain paused on the destination host.
+*--persistent* option.
+
+*--persistent* leaves the domain persistent on destination host,
+*--undefinesource* undefines the domain on the source host, and *--suspend*
+leaves the domain paused on the destination host.
+
 *--copy-storage-all* indicates migration with non-shared storage with full
 disk copy, *--copy-storage-inc* indicates migration with non-shared storage
 with incremental copy (same base image shared between source and destination).
@@ -3193,15 +3257,24 @@ In both cases the disk images have to exist on destination host, the
 images on source host to the images found at the same place on the destination
 host. By default only non-shared non-readonly images are transferred. Use
 *--migrate-disks* to explicitly specify a list of disk targets to
-transfer via the comma separated ``disk-list`` argument. *--change-protection*
-enforces that no incompatible configuration changes will be made to the domain
-while the migration is underway; this flag is implicitly enabled when supported
-by the hypervisor, but can be explicitly used to reject the migration if the
-hypervisor lacks change protection support.  *--verbose* displays the progress
-of migration.  *--abort-on-error* cancels
-the migration if a soft error (for example I/O error) happens during the
-migration. *--postcopy* enables post-copy logic in migration, but does not
-actually start post-copy, i.e., migration is started in pre-copy mode.
+transfer via the comma separated ``disk-list`` argument.
+With *--copy-storage-synchronous-writes* flag used the disk data migration will
+synchronously handle guest disk writes to both the original source and the
+destination to ensure that the disk migration converges at the price of possibly
+decreased burst performance.
+
+*--change-protection* enforces that no incompatible configuration changes will
+be made to the domain while the migration is underway; this flag is implicitly
+enabled when supported by the hypervisor, but can be explicitly used to reject
+the migration if the hypervisor lacks change protection support.
+
+*--verbose* displays the progress of migration.
+
+*--abort-on-error* cancels the migration if a soft error (for example I/O error)
+happens during the migration.
+
+*--postcopy* enables post-copy logic in migration, but does not actually start
+post-copy, i.e., migration is started in pre-copy mode.
 Once migration is running, the user may switch to post-copy using the
 ``migrate-postcopy`` command sent from another virsh instance or use
 *--postcopy-after-precopy* along with *--postcopy* to let libvirt
@@ -3497,11 +3570,11 @@ Set or get a domain's numa parameters, corresponding to the <numatune>
 element of domain XML.  Without flags, the current settings are
 displayed.
 
-*mode* can be one of \`strict', \`interleave' and \`preferred' or any
-valid number from the virDomainNumatuneMemMode enum in case the daemon
-supports it.  For a running domain, the mode can't be changed, and the
-nodeset can be changed only if the domain was started with a mode of
-\`strict'.
+*mode* can be one of \`strict', \`interleave', \`preferred' and
+\'restrictive' or any valid number from the virDomainNumatuneMemMode enum
+in case the daemon supports it.  For a running domain, the mode can't be
+changed, and the nodeset can be changed only if the domain was started with
+\`restrictive' mode.
 
 *nodeset* is a list of numa nodes used by the host for running the domain.
 Its syntax is a comma separated list, with '-' for ranges and '^' for

@@ -16,6 +16,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             bash-completion \
             ca-certificates \
             ccache \
+            codespell \
             cpp \
             diffutils \
             dnsmasq-base \
@@ -38,22 +39,25 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             ninja-build \
             numad \
             open-iscsi \
-            parted \
             perl-base \
             pkgconf \
             policykit-1 \
             python3 \
             python3-docutils \
             qemu-utils \
-            radvd \
             scrub \
             sed \
-            xsltproc \
-            zfs-fuse && \
+            xsltproc && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     sed -Ei 's,^# (en_US\.UTF-8 .*)$,\1,' /etc/locale.gen && \
     dpkg-reconfigure locales
+
+ENV LANG "en_US.UTF-8"
+ENV MAKE "/usr/bin/make"
+ENV NINJA "/usr/bin/ninja"
+ENV PYTHON "/usr/bin/python3"
+ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     dpkg --add-architecture mips64el && \
@@ -70,7 +74,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libc6-dev:mips64el \
             libcap-ng-dev:mips64el \
             libcurl4-gnutls-dev:mips64el \
-            libdbus-1-dev:mips64el \
             libdevmapper-dev:mips64el \
             libfuse-dev:mips64el \
             libglib2.0-dev:mips64el \
@@ -94,8 +97,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
             libudev-dev:mips64el \
             libxml2-dev:mips64el \
             libyajl-dev:mips64el \
-            systemtap-sdt-dev:mips64el \
-            xfslibs-dev:mips64el && \
+            systemtap-sdt-dev:mips64el && \
     eatmydata apt-get autoremove -y && \
     eatmydata apt-get autoclean -y && \
     mkdir -p /usr/local/share/meson/cross && \
@@ -114,12 +116,6 @@ endian = 'little'" > /usr/local/share/meson/cross/mips64el-linux-gnuabi64 && \
     mkdir -p /usr/libexec/ccache-wrappers && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips64el-linux-gnuabi64-cc && \
     ln -s /usr/bin/ccache /usr/libexec/ccache-wrappers/mips64el-linux-gnuabi64-gcc
-
-ENV LANG "en_US.UTF-8"
-ENV MAKE "/usr/bin/make"
-ENV NINJA "/usr/bin/ninja"
-ENV PYTHON "/usr/bin/python3"
-ENV CCACHE_WRAPPERSDIR "/usr/libexec/ccache-wrappers"
 
 ENV ABI "mips64el-linux-gnuabi64"
 ENV MESON_OPTS "--cross-file=mips64el-linux-gnuabi64"

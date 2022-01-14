@@ -195,6 +195,9 @@
       <optional>
         <ref name="filesystem"/>
       </optional>
+      <optional>
+        <ref name="tpm"/>
+      </optional>
     </element>
   </define>
 
@@ -235,6 +238,13 @@
 
   <define name="filesystem">
     <element name="filesystem">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
+  <define name="tpm">
+    <element name="tpm">
       <ref name="supported"/>
       <ref name="enum"/>
     </element>
@@ -311,6 +321,12 @@
           <data type="unsignedInt"/>
         </element>
         <element name="reducedPhysBits">
+          <data type="unsignedInt"/>
+        </element>
+        <element name="maxGuests">
+          <data type="unsignedInt"/>
+        </element>
+        <element name="maxESGuests">
           <data type="unsignedInt"/>
         </element>
       </optional>
