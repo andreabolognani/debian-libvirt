@@ -54,7 +54,6 @@ Build-Depends:
  nfs-common,
  numad [linux-any],
  open-iscsi [linux-any],
- parted,
  po-debconf,
  python3-docutils,
  python3:any,
