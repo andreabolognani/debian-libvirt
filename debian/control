@@ -60,7 +60,6 @@ Build-Depends:
  python3:any,
  qemu-system-common,
  qemu-utils,
- radvd [linux-any],
  systemtap-sdt-dev [linux-any],
  xsltproc,
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
@@ -352,7 +351,6 @@ Suggests:
  nfs-common,
  open-iscsi [linux-any],
  pm-utils,
- radvd,
  systemd,
  systemtap,
  zfsutils,
