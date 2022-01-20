@@ -1,3 +1,0 @@
-# NSS plugins are not regular shared libraries that applications link against
-# and as such they don't need to have a SONAME
-libnss-libvirt: sharedobject-in-library-directory-missing-soname
