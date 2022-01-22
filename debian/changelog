@@ -1,8 +1,15 @@
-libvirt (8.0.0-1) UNRELEASED; urgency=medium
+libvirt (8.0.0-1) unstable; urgency=medium
 
   * [a26cc81] New upstream version 8.0.0
+  * [9f18b0d] patches: Drop backports
+  * [7ea1214] patches: Add backport/qemu-fix-inactive-snapshot-revert.patch
+  * [9454a95] patches: Add backport/Revert-report-error-when-[...].patch
+  * [ec3b590] control: Drop dependency on radvd
+    - libvirt no longer uses it
+  * [19eb356] control: Drop build dependency on parted
+    - The parted binary is only needed at runtime
 
- -- Andrea Bolognani <eof@kiyuko.org>  Thu, 13 Jan 2022 11:33:21 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 22 Jan 2022 19:22:57 +0100
 
 libvirt (7.10.0-3) unstable; urgency=medium
 
