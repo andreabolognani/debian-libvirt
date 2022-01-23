@@ -1,8 +1,5 @@
 #!/usr/bin/make -f
 
-DEB_RELEASE = $(shell dpkg-parsechangelog -SVersion | sed 's/[^-]\+-//')
-DEB_BUILDDATE = $(shell dpkg-parsechangelog -SDate)
-DEB_BUILDUSER = $(shell dpkg-parsechangelog -SMaintainer)
 NULL =
 
 DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
@@ -91,8 +88,8 @@ endif
 DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
     -Drunstatedir=/run \
-    -Dpackager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
-    -Dpackager_version="$(DEB_RELEASE)" \
+    -Dpackager="$(DEB_VENDOR)" \
+    -Dpackager_version="$(DEB_VERSION)" \
     -Ddriver_qemu=enabled \
     -Ddriver_libvirtd=enabled \
     -Ddriver_remote=enabled \
