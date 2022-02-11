@@ -107,6 +107,52 @@ add_statoverrides()
     fi
 }
 
+systemd_daemon_reload() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+    fi
+}
+
+systemd_unit_enable() {
+    for unit in "$@"; do
+        deb-systemd-helper unmask "$unit" >/dev/null || true
+        # was-enabled defaults to true, so new installations run enable.
+        if deb-systemd-helper --quiet was-enabled "$unit"; then
+            # Enables the unit on first installation, creates new
+            # symlinks on upgrades if the unit file has changed.
+            deb-systemd-helper enable "$unit" >/dev/null || true
+        else
+            # Update the statefile to add new symlinks (if any), which need to be
+            # cleaned up on purge. Also remove old symlinks.
+            deb-systemd-helper update-state "$unit" >/dev/null || true
+        fi
+    done
+}
+
+systemd_unit_start() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        deb-systemd-invoke start "$@" >/dev/null || true
+    fi
+}
+
+systemd_unit_restart() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        deb-systemd-invoke restart "$@" >/dev/null || true
+    fi
+}
+
+systemd_unit_reload() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        for unit in "$@"; do
+            if systemctl is-active -q "$unit"; then
+                deb-systemd-invoke reload "$unit" >/dev/null || true
+            else
+                deb-systemd-invoke start "$unit" >/dev/null || true
+            fi
+        done
+    fi
+}
+
 case "$1" in
     configure)
         add_users_groups
@@ -119,16 +165,6 @@ case "$1" in
         done
         # Remove left over empty directory from pre 1.2.7
         [ ! -d /etc/apparmor.d/libvirtd ] || rmdir --ignore-fail-on-non-empty /etc/apparmor.d/libvirtd
-
-        # Force virtlogd and virtlockd to reexec if enabled
-        if [ -d /run/systemd/system ]; then
-            if systemctl is-active -q virtlogd; then
-                systemctl reload virtlogd
-            fi
-            if systemctl is-active -q virtlockd; then
-                systemctl reload virtlockd
-            fi
-        fi
 
         # Force refresh of capabilities (#731815)
         rm -f /var/cache/libvirt/qemu/capabilities/*.xml
@@ -149,6 +185,19 @@ case "$1" in
                 install -m 0644 /dev/null "$local_abstraction"
             fi
         done
+
+        systemd_daemon_reload
+        systemd_unit_enable virtlockd.service virtlockd.socket virtlockd-admin.socket
+        systemd_unit_enable virtlogd.service virtlogd.socket virtlogd-admin.socket
+        systemd_unit_enable libvirtd.service libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
+        systemd_unit_enable libvirt-guests.service
+        systemd_unit_start virtlogd.socket virtlogd-admin.socket
+        systemd_unit_reload virtlogd.service
+        systemd_unit_start virtlockd.socket virtlockd-admin.socket
+        systemd_unit_reload virtlockd.service
+        systemd_unit_start libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
+        systemd_unit_restart libvirtd.service
+        systemd_unit_start libvirt-guests.service
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
@@ -161,202 +210,6 @@ case "$1" in
 esac
 
 db_stop
-
-# Section copied verbatim from the output of dh_installsystemd/13.6
-#
-# Due to #994204, we are forced to handle systemd units ourselves to
-# avoid the restart of services/sockets which would result in VMs
-# being stopped or crashing.
-#
-# In order to do this, instead of calling dh_installsystemd in
-# debian/rules we take the output that those calls would generate
-# and hardcode it here, tweaking it as necessary to prevent the
-# problematic scenarios.
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'libvirtd.service' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'libvirtd.service'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'libvirtd.service' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'libvirtd.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-		systemctl --system daemon-reload >/dev/null || true
-		deb-systemd-invoke restart 'libvirtd.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'libvirt-guests.service' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'libvirt-guests.service'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'libvirt-guests.service' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'libvirt-guests.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'virtlockd.service' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'virtlockd.service'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'virtlockd.service' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'virtlockd.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'virtlogd.service' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'virtlogd.service'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'virtlogd.service' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'virtlogd.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-		systemctl --system daemon-reload >/dev/null || true
-		# We have already called 'reload' for virtlogd and virtlockd earlier if they were active
-		deb-systemd-invoke start 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'libvirtd-admin.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'libvirtd-admin.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'libvirtd-admin.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'libvirtd-admin.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'libvirtd-ro.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'libvirtd-ro.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'libvirtd-ro.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'libvirtd-ro.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'libvirtd.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'libvirtd.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'libvirtd.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'libvirtd.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'virtlockd-admin.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'virtlockd-admin.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'virtlockd-admin.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'virtlockd-admin.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'virtlockd.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'virtlockd.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'virtlockd.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'virtlockd.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'virtlogd-admin.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'virtlogd-admin.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'virtlogd-admin.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'virtlogd-admin.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	# This will only remove masks created by d-s-h on package removal.
-	deb-systemd-helper unmask 'virtlogd.socket' >/dev/null || true
-
-	# was-enabled defaults to true, so new installations run enable.
-	if deb-systemd-helper --quiet was-enabled 'virtlogd.socket'; then
-		# Enables the unit on first installation, creates new
-		# symlinks on upgrades if the unit file has changed.
-		deb-systemd-helper enable 'virtlogd.socket' >/dev/null || true
-	else
-		# Update the statefile to add new symlinks (if any), which need to be
-		# cleaned up on purge. Also remove old symlinks.
-		deb-systemd-helper update-state 'virtlogd.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-		systemctl --system daemon-reload >/dev/null || true
-		deb-systemd-invoke start 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
-	fi
-fi
-# End of section copied verbatim
 
 #DEBHELPER#
 
