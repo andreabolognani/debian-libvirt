@@ -99,7 +99,6 @@
   <flag name='spapr-pci-host-bridge.numa_node'/>
   <flag name='virtio-net.tx_queue_size'/>
   <flag name='chardev-reconnect'/>
-  <flag name='virtio-gpu.max_outputs'/>
   <flag name='virtio-blk.num-queues'/>
   <flag name='machine.pseries.resize-hpt'/>
   <flag name='spapr-vty'/>
@@ -190,6 +189,7 @@
   <flag name='query-display-options'/>
   <flag name='virtio-blk.queue-size'/>
   <flag name='query-dirty-rate'/>
+  <flag name='calc-dirty-rate'/>
   <version>5002000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>42900243</microcodeVersion>

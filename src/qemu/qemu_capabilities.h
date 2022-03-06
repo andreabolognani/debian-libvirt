@@ -358,7 +358,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_NEC_USB_XHCI_PORTS, /* -device nec-usb-xhci.p3 ports setting */
     QEMU_CAPS_VIRTIO_SCSI_IOTHREAD, /* virtio-scsi-{pci,ccw}.iothread */
     X_QEMU_CAPS_NAME_GUEST, /* -name guest= */
-    QEMU_CAPS_QXL_MAX_OUTPUTS, /* -device qxl,max-outputs= */
+    X_QEMU_CAPS_QXL_MAX_OUTPUTS, /* -device qxl,max-outputs= */
     X_QEMU_CAPS_QXL_VGA_MAX_OUTPUTS, /* -device qxl-vga,max-outputs= */
 
     /* 225 */
@@ -420,7 +420,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 265 */
     QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, /* virtio-net-*.tx_queue_size */
     QEMU_CAPS_CHARDEV_RECONNECT, /* -chardev reconnect */
-    QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS, /* -device virtio-(vga|gpu-*),max-outputs= */
+    X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS, /* -device virtio-(vga|gpu-*),max-outputs= */
     QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
     QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
 
@@ -628,11 +628,18 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_CHARDEV_JSON, /* -chardev accepts JSON */
 
     /* 415 */
-    QEMU_CAPS_DEVICE_JSON, /* -device accepts JSON (must not be used - users are filtering the capbility) */
+    X_QEMU_CAPS_DEVICE_JSON_BROKEN_HOTPLUG, /* -device accepts JSON (must not be used - users are filtering the capbility) */
     QEMU_CAPS_QUERY_DIRTY_RATE, /* accepts query-dirty-rate */
     QEMU_CAPS_RBD_ENCRYPTION, /* Ceph RBD encryption support */
     QEMU_CAPS_SEV_GUEST_KERNEL_HASHES, /* sev-guest.kernel-hashes= */
     QEMU_CAPS_SEV_INJECT_LAUNCH_SECRET, /* 'sev-inject-launch-secret' qmp command present */
+
+    /* 420 */
+    QEMU_CAPS_DEVICE_JSON, /* -device accepts JSON (and works with hot-unplug) */
+    QEMU_CAPS_HVF, /* Whether Hypervisor.framework is available */
+    QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_PREALLOC, /* -device virtio-mem-pci.prealloc= */
+    QEMU_CAPS_CALC_DIRTY_RATE, /* accepts calc-dirty-rate */
+    QEMU_CAPS_DIRTYRATE_MODE , /* calc-dirty-rate accepts mode parameter */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

@@ -126,23 +126,18 @@ char *virDomainSnapshotDefFormat(const char *uuidstr,
                                  virDomainXMLOption *xmlopt,
                                  unsigned int flags);
 int virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapshot,
-                                int default_snapshot,
-                                bool require_match);
+                                virDomainDef *existingDomainDef,
+                                virDomainSnapshotLocation default_snapshot,
+                                bool uniform_internal_snapshot);
 
 bool virDomainSnapshotDefIsExternal(virDomainSnapshotDef *def);
 bool virDomainSnapshotIsExternal(virDomainMomentObj *snap);
 
 int virDomainSnapshotRedefinePrep(virDomainObj *vm,
-                                  virDomainSnapshotDef **def,
+                                  virDomainSnapshotDef *snapdef,
                                   virDomainMomentObj **snap,
                                   virDomainXMLOption *xmlopt,
                                   unsigned int flags);
-
-int virDomainSnapshotRedefineValidate(virDomainSnapshotDef *def,
-                                      const unsigned char *domain_uuid,
-                                      virDomainMomentObj *other,
-                                      virDomainXMLOption *xmlopt,
-                                      unsigned int flags);
 
 VIR_ENUM_DECL(virDomainSnapshotLocation);
 VIR_ENUM_DECL(virDomainSnapshotState);

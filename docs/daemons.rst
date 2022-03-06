@@ -209,13 +209,6 @@ controlled via the system unit files
   ``libvirtd.socket``, ``libvirtd-ro.socket`` and ``libvirtd-admin.socket`` unit
   files.
 
-Systemd releases prior to version 227 lacked support for passing the activation
-socket unit names into the service. When using these old versions, the
-``tcp_port``, ``tls_port`` and ``unix_sock_dir`` settings in ``libvirtd.conf``
-must be changed in lock-step with the equivalent settings in the unit files to
-ensure that ``libvirtd`` can identify the sockets.
-
-
 Modular driver daemons
 ======================
 
@@ -354,13 +347,6 @@ controlled via the system unit files:
   ``virt${DRIVER}d.socket``, ``virt${DRIVER}d-ro.socket`` and
   ``virt${DRIVER}d-admin.socket`` unit files.
 
-Systemd releases prior to version 227 lacked support for passing the activation
-socket unit names into the service. When using these old versions, the
-``unix_sock_dir`` setting in ``virt${DRIVER}d.conf`` must be changed in
-lock-step with the equivalent setting in the unit files to ensure that
-``virt${DRIVER}d`` can identify the sockets.
-
-
 Switching to modular daemons
 ----------------------------
 
@@ -435,6 +421,58 @@ host first.
       $ systemctl enable virtproxyd-tls.socket
       $ systemctl start virtproxyd-tls.socket
 
+Checking whether modular/monolithic mode is in use
+==================================================
+
+New distributions are likely to use the modular mode although the upgrade
+process preserves whichever mode was in use before the upgrade.
+
+To determine whether modular or monolithic mode is in use on a host running
+``systemd`` as the init system you can take the following steps:
+
+#. Check whether the modular daemon infrastructure is in use
+
+   First check whether the modular daemon you are interested (see
+   `Modular driver daemons`_ for a summary of which daemons are provided by
+   libvirt) in is running:
+
+   #. Check ``.socket`` for socket activated services
+
+     ::
+
+       # systemctl is-active virtqemud.socket
+       active
+
+   #. Check ``.service`` for always-running daemons
+
+     ::
+
+       # systemctl is-active virtqemud.service
+       active
+
+   If either of the above is ``active`` your system is using the modular daemons.
+
+#. Check whether the monolithic daemon is in use
+
+   #. Check ``libvirtd.socket``
+
+     ::
+
+       # systemctl is-active libvirtd.socket
+       active
+
+   #. Check ``libvirtd.service`` for always-running daemon
+
+     ::
+
+       # systemctl is-active libvirtd.service
+       active
+
+   If either of the above is ``active`` your system is using the monolithic
+   daemon.
+
+#. To determine which of the above will be in use on the next boot of the system,
+   substitute ``is-enabled`` for ``is-active`` in the above examples.
 
 Proxy daemon
 ============
@@ -587,12 +625,6 @@ controlled via the system unit files:
   independently controlled via the ``ListenStream`` parameter in any of the
   ``virtlogd.socket`` and ``virtlogd-admin.socket`` unit files.
 
-Systemd releases prior to version 227 lacked support for passing the activation
-socket unit names into the service. When using these old versions, the
-``unix_sock_dir`` setting in ``virtlogd.conf`` must be changed in
-lock-step with the equivalent setting in the unit files to ensure that
-``virtlogd`` can identify the sockets.
-
 Locking daemon
 ==============
 
@@ -681,8 +713,23 @@ controlled via the system unit files:
   independently controlled via the ``ListenStream`` parameter in any of the
   ``virtlockd.socket`` and ``virtlockd-admin.socket`` unit files.
 
-Systemd releases prior to version 227 lacked support for passing the activation
-socket unit names into the service. When using these old versions, the
-``unix_sock_dir`` setting in ``virtlockd.conf`` must be changed in
-lock-step with the equivalent setting in the unit files to ensure that
-``virtlockd`` can identify the sockets.
+Changing command line options for daemons
+=========================================
+
+Two ways exist to override the defaults in the provided service files:
+either a systemd "drop-in" configuration file, or a ``/etc/sysconfig/$daemon``
+file must be created.  For example, to change the command line option
+for a debug session of ``libvirtd``, create a file
+``/etc/systemd/system/libvirtd.service.d/debug.conf`` with the following content:
+
+   ::
+
+      [Unit]
+      Description=Virtualization daemon, with override from debug.conf
+
+      [Service]
+      Environment=G_DEBUG=fatal-warnings
+      Environment=LIBVIRTD_ARGS="--listen --verbose"
+
+After changes to systemd "drop-in" configuration files it is required to run
+``systemctl daemon-reload``.

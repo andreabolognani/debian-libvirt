@@ -63,8 +63,7 @@ virRemoteSSHHelperShutdown(virRemoteSSHHelper *proxy)
     if (proxy->sock) {
         virNetSocketRemoveIOCallback(proxy->sock);
         virNetSocketClose(proxy->sock);
-        virObjectUnref(proxy->sock);
-        proxy->sock = NULL;
+        g_clear_pointer(&proxy->sock, virObjectUnref);
     }
     VIR_FREE(proxy->sockToTerminal.data);
     VIR_FREE(proxy->terminalToSock.data);
@@ -256,7 +255,7 @@ virRemoteSSHHelperEventOnStdout(int watch G_GNUC_UNUSED,
     if (events & VIR_EVENT_HANDLE_WRITABLE &&
         proxy->sockToTerminal.offset) {
         ssize_t done;
-        done = write(fd,
+        done = write(fd, /* sc_avoid_write */
                      proxy->sockToTerminal.data,
                      proxy->sockToTerminal.offset);
         if (done < 0) {

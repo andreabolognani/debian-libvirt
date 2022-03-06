@@ -21,13 +21,15 @@
         <li>is accessible from C, Python, Perl, Go and more</li>
         <li>is licensed under open source licenses</li>
         <li>supports <a href="drvqemu.html">KVM</a>,
+          <a href="drvqemu.html">Hypervisor.framework</a>,
           <a href="drvqemu.html">QEMU</a>, <a href="drvxen.html">Xen</a>,
           <a href="drvvirtuozzo.html">Virtuozzo</a>,
           <a href="drvesx.html">VMWare ESX</a>,
           <a href="drvlxc.html">LXC</a>,
           <a href="drvbhyve.html">BHyve</a> and
           <a href="drivers.html">more</a></li>
-        <li>targets Linux, FreeBSD, <a href="windows.html">Windows</a> and macOS</li>
+        <li>targets Linux, FreeBSD, <a href="windows.html">Windows</a> and
+          <a href="macos.html">macOS</a></li>
         <li>is used by many <a href="apps.html">applications</a></li>
       </ul>
       <p>Recent / forthcoming <a href="news.html">release changes</a></p>

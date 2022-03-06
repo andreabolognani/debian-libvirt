@@ -621,6 +621,12 @@ virDomainDiskDefValidate(const virDomainDef *def,
     if (virDomainDiskDefValidateSource(disk->src) < 0)
         return -1;
 
+    if (disk->sgio == VIR_DOMAIN_DEVICE_SGIO_UNFILTERED) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("unfiltered sgio is no longer supported"));
+        return -1;
+    }
+
     /* Validate LUN configuration */
     if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
         if (virDomainDiskDefSourceLUNValidate(disk->src) < 0)
@@ -1917,6 +1923,11 @@ virDomainHostdevDefValidate(const virDomainHostdevDef *hostdev)
                                  "address type"));
                 return -1;
             }
+            if (hostdev->source.subsys.u.scsi.sgio == VIR_DOMAIN_DEVICE_SGIO_UNFILTERED) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("unfiltered sgio is no longer supported"));
+                return -1;
+            }
             break;
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
             if (hostdev->info->type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
@@ -2101,8 +2112,71 @@ virDomainVsockDefValidate(const virDomainVsockDef *vsock)
 
 
 static int
-virDomainInputDefValidate(const virDomainInputDef *input)
+virDomainInputDefValidate(const virDomainInputDef *input,
+                          const virDomainDef *def)
 {
+    switch (def->os.type) {
+    case VIR_DOMAIN_OSTYPE_HVM:
+        if (input->bus == VIR_DOMAIN_INPUT_BUS_PS2 &&
+            input->type != VIR_DOMAIN_INPUT_TYPE_MOUSE &&
+            input->type != VIR_DOMAIN_INPUT_TYPE_KBD) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("ps2 bus does not support %s input device"),
+                           virDomainInputTypeToString(input->type));
+            return -1;
+        }
+        if (input->bus == VIR_DOMAIN_INPUT_BUS_XEN) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("unsupported input bus %s"),
+                           virDomainInputBusTypeToString(input->bus));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_OSTYPE_XEN:
+    case VIR_DOMAIN_OSTYPE_XENPVH:
+        if (input->bus != VIR_DOMAIN_INPUT_BUS_XEN) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("unsupported input bus %s"),
+                           virDomainInputBusTypeToString(input->bus));
+            return -1;
+        }
+        if (input->type != VIR_DOMAIN_INPUT_TYPE_MOUSE &&
+            input->type != VIR_DOMAIN_INPUT_TYPE_KBD) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("xen bus does not support %s input device"),
+                           virDomainInputTypeToString(input->type));
+            return -1;
+        }
+        break;
+
+    default:
+        if (def->virtType == VIR_DOMAIN_VIRT_VZ ||
+            def->virtType == VIR_DOMAIN_VIRT_PARALLELS) {
+            if (input->bus != VIR_DOMAIN_INPUT_BUS_PARALLELS) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("parallels containers don't support "
+                                 "input bus %s"),
+                               virDomainInputBusTypeToString(input->bus));
+                return -1;
+            }
+
+            if (input->type != VIR_DOMAIN_INPUT_TYPE_MOUSE &&
+                input->type != VIR_DOMAIN_INPUT_TYPE_KBD) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("parallels bus does not support "
+                                 "%s input device"),
+                               virDomainInputTypeToString(input->type));
+                return -1;
+            }
+        } else {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Input devices are not supported by this "
+                             "virtualization driver."));
+            return -1;
+        }
+    }
+
     switch ((virDomainInputType) input->type) {
         case VIR_DOMAIN_INPUT_TYPE_MOUSE:
         case VIR_DOMAIN_INPUT_TYPE_TABLET:
@@ -2247,9 +2321,54 @@ virDomainGraphicsDefValidate(const virDomainDef *def,
 }
 
 static int
+virDomainDeviceInfoValidate(const virDomainDeviceDef *dev)
+{
+    virDomainDeviceInfo *info;
+
+    if (!(info = virDomainDeviceGetInfo(dev)))
+        return 0;
+
+    switch ((virDomainDeviceAddressType) info->type) {
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCID:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_MMIO:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_ISA:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM:
+        /* No validation for these address types yet */
+        break;
+
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_UNASSIGNED:
+        if (dev->type != VIR_DOMAIN_DEVICE_HOSTDEV) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("address of type '%s' is supported only for hostdevs"),
+                           virDomainDeviceAddressTypeToString(info->type));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_LAST:
+    default:
+        virReportEnumRangeError(virDomainDeviceAddressType, info->type);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
 virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
                                    const virDomainDef *def)
 {
+    if (virDomainDeviceInfoValidate(dev) < 0)
+        return -1;
+
     switch ((virDomainDeviceType) dev->type) {
     case VIR_DOMAIN_DEVICE_DISK:
         return virDomainDiskDefValidate(def, dev->data.disk);
@@ -2285,7 +2404,7 @@ virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
         return virDomainVsockDefValidate(dev->data.vsock);
 
     case VIR_DOMAIN_DEVICE_INPUT:
-        return virDomainInputDefValidate(dev->data.input);
+        return virDomainInputDefValidate(dev->data.input, def);
 
     case VIR_DOMAIN_DEVICE_SHMEM:
         return virDomainShmemDefValidate(dev->data.shmem);

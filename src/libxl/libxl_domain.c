@@ -60,7 +60,7 @@ libxlDomainObjInitJob(libxlDomainObjPrivate *priv)
     if (virCondInit(&priv->job.cond) < 0)
         return -1;
 
-    priv->job.current = g_new0(virDomainJobInfo, 1);
+    priv->job.current = virDomainJobDataInit(NULL);
 
     return 0;
 }
@@ -78,7 +78,7 @@ static void
 libxlDomainObjFreeJob(libxlDomainObjPrivate *priv)
 {
     ignore_value(virCondDestroy(&priv->job.cond));
-    VIR_FREE(priv->job.current);
+    virDomainJobDataFree(priv->job.current);
 }
 
 /* Give up waiting for mutex after 30 seconds */
@@ -119,7 +119,7 @@ libxlDomainObjBeginJob(libxlDriverPrivate *driver G_GNUC_UNUSED,
     priv->job.active = job;
     priv->job.owner = virThreadSelfID();
     priv->job.started = now;
-    priv->job.current->type = VIR_DOMAIN_JOB_UNBOUNDED;
+    priv->job.current->jobType = VIR_DOMAIN_JOB_UNBOUNDED;
 
     return 0;
 
@@ -168,7 +168,7 @@ libxlDomainObjEndJob(libxlDriverPrivate *driver G_GNUC_UNUSED,
 int
 libxlDomainJobUpdateTime(struct libxlDomainJobObj *job)
 {
-    virDomainJobInfoPtr jobInfo = job->current;
+    virDomainJobData *jobData = job->current;
     unsigned long long now;
 
     if (!job->started)
@@ -182,7 +182,7 @@ libxlDomainJobUpdateTime(struct libxlDomainJobObj *job)
         return 0;
     }
 
-    jobInfo->timeElapsed = now - job->started;
+    jobData->timeElapsed = now - job->started;
     return 0;
 }
 
@@ -226,6 +226,7 @@ libxlDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
     libxlDomainObjPrivate *priv = vm->privateData;
 
     priv->lockState = virXPathString("string(./lockstate)", ctxt);
+    priv->lockProcessRunning = virXPathBoolean("boolean(./lockProcessRunning)", ctxt);
 
     return 0;
 }
@@ -238,6 +239,9 @@ libxlDomainObjPrivateXMLFormat(virBuffer *buf,
 
     if (priv->lockState)
         virBufferAsprintf(buf, "<lockstate>%s</lockstate>\n", priv->lockState);
+
+    if (priv->lockProcessRunning)
+        virBufferAddLit(buf, "<lockProcessRunning/>\n");
 
     return 0;
 }
@@ -807,7 +811,7 @@ libxlDomainSaveImageOpen(libxlDriverPrivate *driver,
                                         VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE)))
         goto error;
 
-    *ret_def = def;
+    *ret_def = g_steal_pointer(&def);
     *ret_hdr = hdr;
 
     return fd;
@@ -902,10 +906,10 @@ libxlDomainCleanup(libxlDriverPrivate *driver,
 {
     libxlDomainObjPrivate *priv = vm->privateData;
     g_autoptr(libxlDriverConfig) cfg = libxlDriverConfigGet(driver);
-    int vnc_port;
     char *file;
     virHostdevManager *hostdev_mgr = driver->hostdevMgr;
     unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
+    size_t i;
 
     VIR_DEBUG("Cleaning up domain with id '%d' and name '%s'",
               vm->def->id, vm->def->name);
@@ -940,13 +944,31 @@ libxlDomainCleanup(libxlDriverPrivate *driver,
     if (!!g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
         driver->inhibitCallback(false, driver->inhibitOpaque);
 
-    if ((vm->def->ngraphics == 1) &&
-        vm->def->graphics[0]->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC &&
-        vm->def->graphics[0]->data.vnc.autoport) {
-        vnc_port = vm->def->graphics[0]->data.vnc.port;
-        if (vnc_port >= LIBXL_VNC_PORT_MIN) {
-            if (virPortAllocatorRelease(vnc_port) < 0)
-                VIR_DEBUG("Could not mark port %d as unused", vnc_port);
+    /* Release auto-allocated graphics ports */
+    for (i = 0; i < vm->def->ngraphics; i++) {
+        virDomainGraphicsDef *graphics = vm->def->graphics[i];
+        int gport = -1;
+
+        switch (graphics->type) {
+        case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
+            if (graphics->data.vnc.autoport &&
+                graphics->data.vnc.port >= LIBXL_VNC_PORT_MIN)
+                gport = graphics->data.vnc.port;
+            break;
+        case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
+            if (graphics->data.spice.autoport)
+                gport = graphics->data.spice.port;
+            break;
+        case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
+        case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+        case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
+        case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
+        case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
+            break;
+        }
+        if (gport != -1) {
+            if (virPortAllocatorRelease(gport) < 0)
+                VIR_DEBUG("Could not mark port %d as unused", gport);
         }
     }
 

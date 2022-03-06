@@ -1472,8 +1472,7 @@ static int lxcStateInitialize(bool privileged,
     lxc_driver = g_new0(virLXCDriver, 1);
     lxc_driver->lockFD = -1;
     if (virMutexInit(&lxc_driver->lock) < 0) {
-        g_free(lxc_driver);
-        lxc_driver = NULL;
+        g_clear_pointer(&lxc_driver, g_free);
         return VIR_DRV_STATE_INIT_ERROR;
     }
 
@@ -1611,8 +1610,7 @@ static int lxcStateCleanup(void)
 
     virObjectUnref(lxc_driver->config);
     virMutexDestroy(&lxc_driver->lock);
-    g_free(lxc_driver);
-    lxc_driver = NULL;
+    g_clear_pointer(&lxc_driver, g_free);
 
     return 0;
 }
@@ -1620,8 +1618,13 @@ static int lxcStateCleanup(void)
 static int
 lxcConnectSupportsFeature(virConnectPtr conn, int feature)
 {
+    int supported;
+
     if (virConnectSupportsFeatureEnsureACL(conn) < 0)
         return -1;
+
+    if (virDriverFeatureIsGlobal(feature, &supported))
+        return supported;
 
     switch ((virDrvFeature) feature) {
     case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
@@ -1656,7 +1659,7 @@ static int lxcConnectGetVersion(virConnectPtr conn, unsigned long *version)
     if (virConnectGetVersionEnsureACL(conn) < 0)
         return -1;
 
-    if (virParseVersionString(ver.release, version, true) < 0) {
+    if (virStringParseVersion(version, ver.release, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, _("Unknown release: %s"), ver.release);
         return -1;
     }
@@ -4045,9 +4048,9 @@ lxcDomainDetachDeviceHostdevUSBLive(virLXCDriver *driver,
         VIR_WARN("cannot deny device %s for domain %s: %s",
                  dst, vm->def->name, virGetLastErrorMessage());
 
-    virObjectLock(hostdev_mgr->activeUSBHostdevs);
-    virUSBDeviceListDel(hostdev_mgr->activeUSBHostdevs, usb);
-    virObjectUnlock(hostdev_mgr->activeUSBHostdevs);
+    VIR_WITH_OBJECT_LOCK_GUARD(hostdev_mgr->activeUSBHostdevs) {
+        virUSBDeviceListDel(hostdev_mgr->activeUSBHostdevs, usb);
+    }
 
     virDomainHostdevRemove(vm->def, idx);
     virDomainHostdevDefFree(def);

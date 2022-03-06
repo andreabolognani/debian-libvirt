@@ -174,8 +174,7 @@ virshConnect(vshControl *ctl, const char *uri, bool readonly)
             vshError(ctl, "%s",
                      _("Cannot setup keepalive on connection "
                        "as requested, disconnecting"));
-            virConnectClose(c);
-            c = NULL;
+            g_clear_pointer(&c, virConnectClose);
             goto cleanup;
         }
         vshDebug(ctl, VSH_ERR_INFO, "%s",
@@ -413,13 +412,13 @@ virshDeinit(vshControl *ctl)
     virResetLastError();
 
     if (ctl->eventLoopStarted) {
-        int timer;
+        int timer = -1;
 
-        virMutexLock(&ctl->lock);
-        ctl->quit = true;
-        /* HACK: Add a dummy timeout to break event loop */
-        timer = virEventAddTimeout(0, virshDeinitTimer, NULL, NULL);
-        virMutexUnlock(&ctl->lock);
+        VIR_WITH_MUTEX_LOCK_GUARD(&ctl->lock) {
+            ctl->quit = true;
+            /* HACK: Add a dummy timeout to break event loop */
+            timer = virEventAddTimeout(0, virshDeinitTimer, NULL, NULL);
+        }
 
         virThreadJoin(&ctl->eventLoop);
 

@@ -105,8 +105,7 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
                                    bool create_new)
 {
     int ret = -1;
-    char *filter_id = NULL;
-    virCommand *cmd = NULL;
+    g_autofree char *filter_id = NULL;
     unsigned char ifmac[VIR_MAC_BUFLEN];
     char *mac[2] = {NULL, NULL};
 
@@ -120,9 +119,9 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
     filter_id = g_strdup_printf("800::%u", id);
 
     if (remove_old) {
+        g_autoptr(virCommand) cmd = virCommandNew(TC);
         int cmd_ret = 0;
 
-        cmd = virCommandNew(TC);
         virCommandAddArgList(cmd, "filter", "del", "dev", ifname,
                              "prio", "2", "handle",  filter_id, "u32", NULL);
 
@@ -132,14 +131,13 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
     }
 
     if (create_new) {
+        g_autoptr(virCommand) cmd = virCommandNew(TC);
         virMacAddrGetRaw(ifmac_ptr, ifmac);
 
         mac[0] = g_strdup_printf("0x%02x%02x%02x%02x", ifmac[2],
                                  ifmac[3], ifmac[4], ifmac[5]);
         mac[1] = g_strdup_printf("0x%02x%02x", ifmac[0], ifmac[1]);
 
-        virCommandFree(cmd);
-        cmd = virCommandNew(TC);
         /* Okay, this not nice. But since libvirt does not necessarily track
          * interface IP address(es), and tc fw filter simply refuse to use
          * ebtables marks, we need to use u32 selector to match MAC address.
@@ -160,8 +158,6 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
  cleanup:
     VIR_FREE(mac[1]);
     VIR_FREE(mac[0]);
-    VIR_FREE(filter_id);
-    virCommandFree(cmd);
     return ret;
 }
 
@@ -420,26 +416,23 @@ virNetDevBandwidthClear(const char *ifname)
 {
     int ret = 0;
     int dummy; /* for ignoring the exit status */
-    virCommand *cmd = NULL;
+    g_autoptr(virCommand) rootcmd = NULL;
+    g_autoptr(virCommand) ingresscmd = NULL;
 
     if (!ifname)
        return 0;
 
-    cmd = virCommandNew(TC);
-    virCommandAddArgList(cmd, "qdisc", "del", "dev", ifname, "root", NULL);
+    rootcmd = virCommandNew(TC);
+    virCommandAddArgList(rootcmd, "qdisc", "del", "dev", ifname, "root", NULL);
 
-    if (virCommandRun(cmd, &dummy) < 0)
+    if (virCommandRun(rootcmd, &dummy) < 0)
         ret = -1;
 
-    virCommandFree(cmd);
+    ingresscmd = virCommandNew(TC);
+    virCommandAddArgList(ingresscmd, "qdisc",  "del", "dev", ifname, "ingress", NULL);
 
-    cmd = virCommandNew(TC);
-    virCommandAddArgList(cmd, "qdisc",  "del", "dev", ifname, "ingress", NULL);
-
-    if (virCommandRun(cmd, &dummy) < 0)
+    if (virCommandRun(ingresscmd, &dummy) < 0)
         ret = -1;
-
-    virCommandFree(cmd);
 
     return ret;
 }
@@ -545,12 +538,12 @@ virNetDevBandwidthPlug(const char *brname,
                        virNetDevBandwidth *bandwidth,
                        unsigned int id)
 {
-    int ret = -1;
-    virCommand *cmd = NULL;
-    char *class_id = NULL;
-    char *qdisc_id = NULL;
-    char *floor = NULL;
-    char *ceil = NULL;
+    g_autoptr(virCommand) cmd1 = NULL;
+    g_autoptr(virCommand) cmd2 = NULL;
+    g_autofree char *class_id = NULL;
+    g_autofree char *qdisc_id = NULL;
+    g_autofree char *floor = NULL;
+    g_autofree char *ceil = NULL;
     char ifmacStr[VIR_MAC_STRING_BUFLEN];
 
     if (id <= 2) {
@@ -575,37 +568,28 @@ virNetDevBandwidthPlug(const char *brname,
                            net_bandwidth->in->peak :
                            net_bandwidth->in->average);
 
-    cmd = virCommandNew(TC);
-    virCommandAddArgList(cmd, "class", "add", "dev", brname, "parent", "1:1",
+    cmd1 = virCommandNew(TC);
+    virCommandAddArgList(cmd1, "class", "add", "dev", brname, "parent", "1:1",
                          "classid", class_id, "htb", "rate", floor,
                          "ceil", ceil, NULL);
-    virNetDevBandwidthCmdAddOptimalQuantum(cmd, bandwidth->in);
+    virNetDevBandwidthCmdAddOptimalQuantum(cmd1, bandwidth->in);
 
-    if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
+    if (virCommandRun(cmd1, NULL) < 0)
+        return -1;
 
-    virCommandFree(cmd);
-    cmd = virCommandNew(TC);
-    virCommandAddArgList(cmd, "qdisc", "add", "dev", brname, "parent",
+    cmd2 = virCommandNew(TC);
+    virCommandAddArgList(cmd2, "qdisc", "add", "dev", brname, "parent",
                          class_id, "handle", qdisc_id, "sfq", "perturb",
                          "10", NULL);
 
-    if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
+    if (virCommandRun(cmd2, NULL) < 0)
+        return -1;
 
     if (virNetDevBandwidthManipulateFilter(brname, ifmac_ptr, id,
                                            class_id, false, true) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(ceil);
-    VIR_FREE(floor);
-    VIR_FREE(qdisc_id);
-    VIR_FREE(class_id);
-    virCommandFree(cmd);
-    return ret;
+    return 0;
 }
 
 /*
@@ -621,11 +605,11 @@ int
 virNetDevBandwidthUnplug(const char *brname,
                          unsigned int id)
 {
-    int ret = -1;
     int cmd_ret = 0;
-    virCommand *cmd = NULL;
-    char *class_id = NULL;
-    char *qdisc_id = NULL;
+    g_autoptr(virCommand) cmd1 = NULL;
+    g_autoptr(virCommand) cmd2 = NULL;
+    g_autofree char *class_id = NULL;
+    g_autofree char *qdisc_id = NULL;
 
     if (id <= 2) {
         virReportError(VIR_ERR_INTERNAL_ERROR, _("Invalid class ID %d"), id);
@@ -635,34 +619,27 @@ virNetDevBandwidthUnplug(const char *brname,
     class_id = g_strdup_printf("1:%x", id);
     qdisc_id = g_strdup_printf("%x:", id);
 
-    cmd = virCommandNew(TC);
-    virCommandAddArgList(cmd, "qdisc", "del", "dev", brname,
+    cmd1 = virCommandNew(TC);
+    virCommandAddArgList(cmd1, "qdisc", "del", "dev", brname,
                          "handle", qdisc_id, NULL);
 
     /* Don't threat tc errors as fatal, but
      * try to remove as much as possible */
-    if (virCommandRun(cmd, &cmd_ret) < 0)
-        goto cleanup;
+    if (virCommandRun(cmd1, &cmd_ret) < 0)
+        return -1;
 
     if (virNetDevBandwidthManipulateFilter(brname, NULL, id,
                                            NULL, true, false) < 0)
-        goto cleanup;
+        return -1;
 
-    virCommandFree(cmd);
-    cmd = virCommandNew(TC);
-    virCommandAddArgList(cmd, "class", "del", "dev", brname,
+    cmd2 = virCommandNew(TC);
+    virCommandAddArgList(cmd2, "class", "del", "dev", brname,
                          "classid", class_id, NULL);
 
-    if (virCommandRun(cmd, &cmd_ret) < 0)
-        goto cleanup;
+    if (virCommandRun(cmd2, &cmd_ret) < 0)
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(qdisc_id);
-    VIR_FREE(class_id);
-    virCommandFree(cmd);
-    return ret;
+    return 0;
 }
 
 /**
@@ -685,11 +662,10 @@ virNetDevBandwidthUpdateRate(const char *ifname,
                              virNetDevBandwidth *bandwidth,
                              unsigned long long new_rate)
 {
-    int ret = -1;
-    virCommand *cmd = NULL;
-    char *class_id = NULL;
-    char *rate = NULL;
-    char *ceil = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *class_id = NULL;
+    g_autofree char *rate = NULL;
+    g_autofree char *ceil = NULL;
 
     class_id = g_strdup_printf("1:%x", id);
     rate = g_strdup_printf("%llukbps", new_rate);
@@ -703,17 +679,7 @@ virNetDevBandwidthUpdateRate(const char *ifname,
                          "ceil", ceil, NULL);
     virNetDevBandwidthCmdAddOptimalQuantum(cmd, bandwidth->in);
 
-    if (virCommandRun(cmd, NULL) < 0)
-        goto cleanup;
-
-    ret = 0;
-
- cleanup:
-    virCommandFree(cmd);
-    VIR_FREE(class_id);
-    VIR_FREE(rate);
-    VIR_FREE(ceil);
-    return ret;
+    return virCommandRun(cmd, NULL);
 }
 
 /**

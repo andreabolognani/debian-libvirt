@@ -41,6 +41,7 @@ VIR_LOG_INIT("ch.ch_monitor");
 
 static virClass *virCHMonitorClass;
 static void virCHMonitorDispose(void *obj);
+static void virCHMonitorThreadInfoFree(virCHMonitor *mon);
 
 static int virCHMonitorOnceInit(void)
 {
@@ -578,6 +579,7 @@ static void virCHMonitorDispose(void *opaque)
     virCHMonitor *mon = opaque;
 
     VIR_DEBUG("mon=%p", mon);
+    virCHMonitorThreadInfoFree(mon);
     virObjectUnref(mon->vm);
 }
 
@@ -743,6 +745,98 @@ virCHMonitorGet(virCHMonitor *mon, const char *endpoint, virJSONValue **response
     return ret;
 }
 
+static void
+virCHMonitorThreadInfoFree(virCHMonitor *mon)
+{
+    mon->nthreads = 0;
+    VIR_FREE(mon->threads);
+}
+
+static size_t
+virCHMonitorRefreshThreadInfo(virCHMonitor *mon)
+{
+    virCHMonitorThreadInfo *info = NULL;
+    g_autofree pid_t *tids = NULL;
+    virDomainObj *vm = mon->vm;
+    size_t ntids = 0;
+    size_t i;
+
+
+    virCHMonitorThreadInfoFree(mon);
+    if (virProcessGetPids(vm->pid, &ntids, &tids) < 0)
+        return 0;
+
+    info = g_new0(virCHMonitorThreadInfo, ntids);
+    for (i = 0; i < ntids; i++) {
+        g_autofree char *proc = NULL;
+        g_autofree char *data = NULL;
+
+        proc = g_strdup_printf("/proc/%d/task/%d/comm",
+                               (int)vm->pid, (int)tids[i]);
+
+        if (virFileReadAll(proc, (1 << 16), &data) < 0) {
+            continue;
+        }
+
+        VIR_DEBUG("VM PID: %d, TID %d, COMM: %s",
+                  (int)vm->pid, (int)tids[i], data);
+        if (STRPREFIX(data, "vcpu")) {
+            int cpuid;
+            char *tmp;
+
+            if (virStrToLong_i(data + 4, &tmp, 0, &cpuid) < 0) {
+                VIR_WARN("Index is not specified correctly");
+                continue;
+            }
+            info[i].type = virCHThreadTypeVcpu;
+            info[i].vcpuInfo.tid = tids[i];
+            info[i].vcpuInfo.online = true;
+            info[i].vcpuInfo.cpuid = cpuid;
+            VIR_DEBUG("vcpu%d -> tid: %d", cpuid, tids[i]);
+        } else if (STRPREFIX(data, "_disk") || STRPREFIX(data, "_net") ||
+                   STRPREFIX(data, "_rng")) {
+            /* Prefixes used by cloud-hypervisor for IO Threads are captured at
+             * https://github.com/cloud-hypervisor/cloud-hypervisor/blob/main/vmm/src/device_manager.rs */
+            info[i].type = virCHThreadTypeIO;
+            info[i].ioInfo.tid = tids[i];
+            virStrcpy(info[i].ioInfo.thrName, data, VIRCH_THREAD_NAME_LEN - 1);
+        } else {
+            info[i].type = virCHThreadTypeEmulator;
+            info[i].emuInfo.tid = tids[i];
+            virStrcpy(info[i].emuInfo.thrName, data, VIRCH_THREAD_NAME_LEN - 1);
+        }
+        mon->nthreads++;
+
+    }
+    mon->threads = info;
+
+    return mon->nthreads;
+}
+
+/**
+ * virCHMonitorGetThreadInfo:
+ * @mon: Pointer to the monitor
+ * @refresh: Refresh thread info or not
+ *
+ * Retrieve thread info and store to @threads
+ *
+ * Returns count of threads on success.
+ */
+size_t
+virCHMonitorGetThreadInfo(virCHMonitor *mon,
+                          bool refresh,
+                          virCHMonitorThreadInfo **threads)
+{
+    int nthreads = 0;
+
+    if (refresh)
+        nthreads = virCHMonitorRefreshThreadInfo(mon);
+
+    *threads = mon->threads;
+
+    return nthreads;
+}
+
 int
 virCHMonitorShutdownVMM(virCHMonitor *mon)
 {
@@ -833,4 +927,65 @@ int
 virCHMonitorGetInfo(virCHMonitor *mon, virJSONValue **info)
 {
     return virCHMonitorGet(mon, URL_VM_INFO, info);
+}
+
+/**
+ * virCHMonitorGetIOThreads:
+ * @mon: Pointer to the monitor
+ * @iothreads: Location to return array of IOThreadInfo data
+ *
+ * Retrieve the list of iothreads defined/running for the machine
+ *
+ * Returns count of IOThreadInfo structures on success
+ *        -1 on error.
+ */
+int
+virCHMonitorGetIOThreads(virCHMonitor *mon,
+                         virDomainIOThreadInfo ***iothreads)
+{
+    size_t nthreads = 0;
+    size_t niothreads = 0;
+    int thd_index;
+    virDomainIOThreadInfo **iothreadinfolist = NULL;
+    virDomainIOThreadInfo *iothreadinfo = NULL;
+
+    *iothreads = NULL;
+    nthreads = virCHMonitorRefreshThreadInfo(mon);
+
+    iothreadinfolist = g_new0(virDomainIOThreadInfo*, nthreads + 1);
+
+    for (thd_index = 0; thd_index < nthreads; thd_index++) {
+        g_autoptr(virBitmap) map = NULL;
+
+        if (mon->threads[thd_index].type == virCHThreadTypeIO) {
+            iothreadinfo = g_new0(virDomainIOThreadInfo, 1);
+
+            iothreadinfo->iothread_id = mon->threads[thd_index].ioInfo.tid;
+
+            if (!(map = virProcessGetAffinity(iothreadinfo->iothread_id)))
+                goto error;
+
+            if (virBitmapToData(map, &(iothreadinfo->cpumap),
+                                &(iothreadinfo->cpumaplen)) < 0) {
+                goto error;
+            }
+
+            /* Append to iothreadinfolist */
+            iothreadinfolist[niothreads] = g_steal_pointer(&iothreadinfo);
+            niothreads++;
+        }
+    }
+
+    VIR_DEBUG("niothreads = %ld", niothreads);
+    *iothreads = g_steal_pointer(&iothreadinfolist);
+    return niothreads;
+
+ error:
+    if (iothreadinfolist) {
+        for (thd_index = 0; thd_index < niothreads; thd_index++)
+            virDomainIOThreadInfoFree(iothreadinfolist[thd_index]);
+        VIR_FREE(iothreadinfolist);
+    }
+    virDomainIOThreadInfoFree(iothreadinfo);
+    return -1;
 }

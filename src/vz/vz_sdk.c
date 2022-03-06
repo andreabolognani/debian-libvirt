@@ -179,8 +179,7 @@ getJobResultHelper(PRL_HANDLE job, unsigned int timeout, PRL_HANDLE *result,
         ret = PrlJob_GetResult(job, result);
         if (PRL_FAILED(ret)) {
             logPrlErrorHelper(ret, filename, funcname, linenr);
-            PrlHandle_Free(*result);
-            *result = NULL;
+            g_clear_pointer(result, PrlHandle_Free);
             goto cleanup;
         }
 
@@ -3799,7 +3798,7 @@ prlsdkSetBootOrderVm(PRL_HANDLE sdkdom, virDomainDef *def)
     for (i = 0; i < def->os.nBootDevs; ++i) {
         virType = def->os.bootDevs[i];
 
-        switch ((int)virType) {
+        switch (virType) {
         case VIR_DOMAIN_BOOT_CDROM:
             sdkType = PDE_OPTICAL_DISK;
             break;
@@ -3809,6 +3808,8 @@ prlsdkSetBootOrderVm(PRL_HANDLE sdkdom, virDomainDef *def)
         case VIR_DOMAIN_BOOT_NET:
             sdkType = PDE_GENERIC_NETWORK_ADAPTER;
             break;
+        case VIR_DOMAIN_BOOT_FLOPPY:
+        case VIR_DOMAIN_BOOT_LAST:
         default:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Unsupported boot device type: '%s'"),
@@ -4661,9 +4662,8 @@ prlsdkParseSnapshotTree(const char *treexml)
         }
         VIR_FREE(xmlstr);
 
-        if (!(snapshot = virDomainSnapshotAssignDef(snapshots, def)))
+        if (!(snapshot = virDomainSnapshotAssignDef(snapshots, &def)))
             goto cleanup;
-        def = NULL;
 
         xmlstr = virXPathString("string(./@current)", ctxt);
         if (xmlstr && STREQ("yes", xmlstr)) {

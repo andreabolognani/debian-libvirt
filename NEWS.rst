@@ -8,6 +8,78 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.1.0 (2022-03-01)
+===================
+
+* **New features**
+
+  * qemu: Add hvf domain type for Hypervisor.framework
+
+    It works on Intel machines as well as recent machines powered by Apple
+    Silicon. QEMU 6.2.0 is needed for Apple Silicon support.
+
+  * qemu: Support mode option for dirtyrate calculation
+
+    Introduce ``virDomainDirtyRateCalcFlags`` as parameter of
+    ``virDomainStartDirtyRateCalc``, which is used to specify the mode of
+    dirty page rate calculation.
+
+    Add ``--mode`` option to ``virsh domdirtyrate-calc``, which can be
+    either of the following 3 options:
+    ``page-sampling, dirty-bitmap, dirty-ring``.
+
+    Add ``calc_mode`` field for dirtyrate statistics returned by
+    ``virsh domstats --dirtyrate``, also add ``vCPU dirtyrate`` if
+    ``dirty-ring`` mode was used in last measurement.
+
+* **Improvements**
+
+  * packaging: sysconfig files no longer installed
+
+    libvirt used to provide defaults in various /etc/sysconfig/ files, such
+    as /etc/sysconfig/libvirtd. Since these files are owned by the admin, this
+    made it difficult to change built-in defaults in case such file was
+    modified by the admin. The built-in defaults are now part of the provided
+    systemd unit files, such as libvirtd.service. These unit files continue
+    to parse sysconfig files, in case they are created by the admin and filled
+    with the desired key=value pairs.
+
+  * virnetdev: Ignore EPERM on implicit clearing of VF VLAN ID
+
+    Libvirt will now ignore EPERM errors on attempts to implicitly clear a
+    VLAN ID (when a VLAN is not explicitly provided via an interface XML
+    using a 0 or a non-zero value) as SmartNIC DPUs do not expose VLAN
+    programming capabilities to the hypervisor host. This allows Libvirt
+    clients to avoid specifying a VLAN and expect VF configuration to work
+    since Libvirt tries to clear a VLAN in the same operation
+    as setting a MAC address for VIR_DOMAIN_NET_TYPE_HOSTDEV devices which
+    is now split into two distinct operations. EPERM errors received while
+    trying to program a non-zero VLAN ID or explicitly program a VLAN ID 0
+    will still cause errors as before so there is no change in behavior
+    in those cases.
+
+* **Bug fixes**
+
+  * Remove unix sockets from filesystem when disabling a '.socket' systemd unit
+
+    The presence of the socket files is used by our remote driver to determine
+    which service to access. Since neiter systemd nor the daemons clean up the
+    socket file clients were running into problems when a modular deployment was
+    switched to monolithic ``libvirtd``.
+
+  * qemu: Fixes of fd passing during hotplug and hotunplug of chardevs
+
+    FDs used as chardev backing are now properly removed when hot-unplugging
+    a chardev from qemu and hotplugged chardevs now properly use ``virtlogd``
+    to handle the input and output from qemu.
+
+  * RPM: Run pre/post-install steps on ``daemon-driver-storage-core``
+
+    Previously the pre/post-install code was part of the meta-package which
+    installed all storage driver sub-packages thus a minimalistic install
+    of the storage driver didn't behave correctly.
+
+
 v8.0.0 (2022-01-14)
 ===================
 

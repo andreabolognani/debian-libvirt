@@ -1212,6 +1212,7 @@ virDomainSnapshotObjListNew;
 virDomainSnapshotObjListNum;
 virDomainSnapshotObjListRemove;
 virDomainSnapshotObjListRemoveAll;
+virDomainSnapshotReplaceDef;
 virDomainSnapshotSetCurrent;
 virDomainSnapshotUpdateRelations;
 
@@ -1527,6 +1528,7 @@ virStreamClass;
 
 # driver.h
 virConnectValidateURIPath;
+virDriverFeatureIsGlobal;
 virDriverShouldAutostart;
 virGetConnectInterface;
 virGetConnectNetwork;
@@ -1543,11 +1545,23 @@ virSetConnectStorage;
 
 
 # hypervisor/domain_cgroup.h
+virDomainCgroupConnectCgroup;
+virDomainCgroupEmulatorAllNodesAllow;
+virDomainCgroupEmulatorAllNodesRestore;
+virDomainCgroupInitCgroup;
+virDomainCgroupRemoveCgroup;
 virDomainCgroupSetMemoryLimitParameters;
 virDomainCgroupSetupBlkio;
+virDomainCgroupSetupBlkioCgroup;
+virDomainCgroupSetupCgroup;
+virDomainCgroupSetupCpuCgroup;
+virDomainCgroupSetupCpusetCgroup;
+virDomainCgroupSetupCpusetCpus;
 virDomainCgroupSetupDomainBlkioParameters;
+virDomainCgroupSetupGlobalCpuCgroup;
+virDomainCgroupSetupMemoryCgroup;
 virDomainCgroupSetupMemtune;
-
+virDomainCgroupSetupVcpuBW;
 
 # hypervisor/domain_driver.h
 virDomainDriverAddIOThreadCheck;
@@ -1562,6 +1576,13 @@ virDomainDriverNodeDeviceReAttach;
 virDomainDriverNodeDeviceReset;
 virDomainDriverParseBlkioDeviceStr;
 virDomainDriverSetupPersistentDefBlkioParams;
+
+
+# hypervisor/domain_job.h
+virDomainJobDataCopy;
+virDomainJobDataFree;
+virDomainJobDataInit;
+virDomainJobStatusToType;
 
 
 # hypervisor/virclosecallbacks.h
@@ -2116,7 +2137,6 @@ dnsmasqAddDhcpHost;
 dnsmasqAddHost;
 dnsmasqCapsGetBinaryPath;
 dnsmasqCapsNewFromBinary;
-dnsmasqCapsNewFromBuffer;
 dnsmasqContextFree;
 dnsmasqContextNew;
 dnsmasqDelete;
@@ -2824,8 +2844,6 @@ virNetDevOpenvswitchAddPort;
 virNetDevOpenvswitchGetMigrateData;
 virNetDevOpenvswitchGetVhostuserIfname;
 virNetDevOpenvswitchInterfaceClearQos;
-virNetDevOpenvswitchInterfaceClearRxQos;
-virNetDevOpenvswitchInterfaceClearTxQos;
 virNetDevOpenvswitchInterfaceGetMaster;
 virNetDevOpenvswitchInterfaceParseStats;
 virNetDevOpenvswitchInterfaceSetQos;
@@ -2835,6 +2853,13 @@ virNetDevOpenvswitchRemovePort;
 virNetDevOpenvswitchSetMigrateData;
 virNetDevOpenvswitchSetTimeout;
 virNetDevOpenvswitchUpdateVlan;
+
+
+# util/virnetdevpriv.h
+virNetDevSendVfSetLinkRequest;
+virNetDevSetVfConfig;
+virNetDevSetVfMac;
+virNetDevSetVfVlan;
 
 
 # util/virnetdevtap.h
@@ -2946,6 +2971,7 @@ virObjectListFree;
 virObjectListFreeCount;
 virObjectLock;
 virObjectLockableNew;
+virObjectLockGuard;
 virObjectNew;
 virObjectRef;
 virObjectRWLockableNew;
@@ -3059,6 +3085,7 @@ virPidFileRead;
 virPidFileReadIfAlive;
 virPidFileReadPath;
 virPidFileReadPathIfAlive;
+virPidFileReadPathIfLocked;
 virPidFileRelease;
 virPidFileReleasePath;
 virPidFileWrite;
@@ -3308,6 +3335,7 @@ virStringIsPrintable;
 virStringMatch;
 virStringMatchesNameSuffix;
 virStringParsePort;
+virStringParseVersion;
 virStringParseYesNo;
 virStringReplace;
 virStringSearch;
@@ -3378,6 +3406,8 @@ virCondInit;
 virCondSignal;
 virCondWait;
 virCondWaitUntil;
+virLockGuardLock;
+virLockGuardUnlock;
 virMutexDestroy;
 virMutexInit;
 virMutexInitRecursive;
@@ -3510,8 +3540,6 @@ virDoesUserExist;
 virDoubleToStr;
 virFormatIntDecimal;
 virFormatIntPretty;
-virGetDeviceID;
-virGetDeviceUnprivSGIO;
 virGetGroupID;
 virGetGroupList;
 virGetGroupName;
@@ -3521,7 +3549,6 @@ virGetPassword;
 virGetSelfLastChanged;
 virGetSystemPageSize;
 virGetSystemPageSizeKB;
-virGetUnprivSGIOSysfsPath;
 virGetUserCacheDirectory;
 virGetUserConfigDirectory;
 virGetUserDirectory;
@@ -3539,14 +3566,12 @@ virMemoryLimitIsSet;
 virMemoryLimitTruncate;
 virMemoryMaxValue;
 virParseOwnershipIds;
-virParseVersionString;
 virPipe;
 virPipeNonBlock;
 virPipeQuiet;
 virScaleInteger;
 virSetBlocking;
 virSetCloseExec;
-virSetDeviceUnprivSGIO;
 virSetInherit;
 virSetNonBlock;
 virSetSockReuseAddr;

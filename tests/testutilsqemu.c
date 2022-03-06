@@ -12,7 +12,9 @@
 # include "qemu/qemu_capspriv.h"
 # include "virstring.h"
 # include "virfilecache.h"
-# include "virutil.h"
+
+# include <sys/types.h>
+# include <fcntl.h>
 
 # define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -97,6 +99,18 @@ static const char *const *kvm_machines[VIR_ARCH_LAST] = {
     [VIR_ARCH_S390X] = s390x_machines,
 };
 
+static const char *const *hvf_machines[VIR_ARCH_LAST] = {
+    [VIR_ARCH_I686] = NULL,
+    [VIR_ARCH_X86_64] = x86_64_machines,
+    [VIR_ARCH_AARCH64] = aarch64_machines,
+    [VIR_ARCH_ARMV7L] = NULL,
+    [VIR_ARCH_PPC64] = NULL,
+    [VIR_ARCH_PPC] = NULL,
+    [VIR_ARCH_RISCV32] = NULL,
+    [VIR_ARCH_RISCV64] = NULL,
+    [VIR_ARCH_S390X] = NULL,
+};
+
 static const char *qemu_default_ram_id[VIR_ARCH_LAST] = {
     [VIR_ARCH_I686] = "pc.ram",
     [VIR_ARCH_X86_64] = "pc.ram",
@@ -160,7 +174,8 @@ virHostCPUX86GetCPUID(uint32_t leaf,
 
 static int
 testQemuAddGuest(virCaps *caps,
-                 virArch arch)
+                 virArch arch,
+                 testQemuHostOS hostOS)
 {
     size_t nmachines;
     virCapsGuestMachine **machines = NULL;
@@ -193,16 +208,32 @@ testQemuAddGuest(virCaps *caps,
     virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_QEMU,
                                   NULL, NULL, 0, NULL);
 
-    if (kvm_machines[emu_arch] != NULL) {
-        nmachines = g_strv_length((char **)kvm_machines[emu_arch]);
-        machines = virCapabilitiesAllocMachines(kvm_machines[emu_arch],
-                                                nmachines);
-        if (machines == NULL)
-            goto error;
+    if (hostOS == HOST_OS_LINUX) {
+        if (kvm_machines[emu_arch] != NULL) {
+            nmachines = g_strv_length((char **)kvm_machines[emu_arch]);
+            machines = virCapabilitiesAllocMachines(kvm_machines[emu_arch],
+                                                    nmachines);
+            if (machines == NULL)
+                goto error;
 
-        virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_KVM,
-                                      qemu_emulators[emu_arch],
-                                      NULL, nmachines, machines);
+            virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_KVM,
+                                          qemu_emulators[emu_arch],
+                                          NULL, nmachines, machines);
+        }
+    }
+
+    if (hostOS == HOST_OS_MACOS) {
+        if (hvf_machines[emu_arch] != NULL) {
+            nmachines = g_strv_length((char **)hvf_machines[emu_arch]);
+            machines = virCapabilitiesAllocMachines(hvf_machines[emu_arch],
+                                                    nmachines);
+            if (machines == NULL)
+                goto error;
+
+            virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_HVF,
+                                          qemu_emulators[emu_arch],
+                                          NULL, nmachines, machines);
+        }
     }
 
     return 0;
@@ -213,7 +244,8 @@ testQemuAddGuest(virCaps *caps,
 }
 
 
-virCaps *testQemuCapsInit(void)
+static virCaps*
+testQemuCapsInitImpl(testQemuHostOS hostOS)
 {
     virCaps *caps;
     size_t i;
@@ -233,7 +265,7 @@ virCaps *testQemuCapsInit(void)
         goto cleanup;
 
     for (i = 0; i < VIR_ARCH_LAST; i++) {
-        if (testQemuAddGuest(caps, i) < 0)
+        if (testQemuAddGuest(caps, i, hostOS) < 0)
             goto cleanup;
     }
 
@@ -253,6 +285,18 @@ virCaps *testQemuCapsInit(void)
     caps->host.cpu = NULL;
     virObjectUnref(caps);
     return NULL;
+}
+
+virCaps*
+testQemuCapsInit(void)
+{
+    return testQemuCapsInitImpl(HOST_OS_LINUX);
+}
+
+virCaps*
+testQemuCapsInitMacOS(void)
+{
+    return testQemuCapsInitImpl(HOST_OS_MACOS);
 }
 
 
@@ -338,7 +382,8 @@ void qemuTestDriverFree(virQEMUDriver *driver)
 
 static void
 qemuTestCapsPopulateFakeMachines(virQEMUCaps *caps,
-                                 virArch arch)
+                                 virArch arch,
+                                 testQemuHostOS hostOS)
 {
     size_t i;
     const char *defaultRAMid = NULL;
@@ -366,20 +411,41 @@ qemuTestCapsPopulateFakeMachines(virQEMUCaps *caps,
         virQEMUCapsSet(caps, QEMU_CAPS_TCG);
     }
 
-    if (kvm_machines[arch] != NULL) {
-        for (i = 0; kvm_machines[arch][i] != NULL; i++) {
-            virQEMUCapsAddMachine(caps,
-                                  VIR_DOMAIN_VIRT_KVM,
-                                  kvm_machines[arch][i],
-                                  NULL,
-                                  NULL,
-                                  0,
-                                  false,
-                                  false,
-                                  true,
-                                  defaultRAMid,
-                                  false);
-            virQEMUCapsSet(caps, QEMU_CAPS_KVM);
+    if (hostOS == HOST_OS_LINUX) {
+        if (kvm_machines[arch] != NULL) {
+            for (i = 0; kvm_machines[arch][i] != NULL; i++) {
+                virQEMUCapsAddMachine(caps,
+                                      VIR_DOMAIN_VIRT_KVM,
+                                      kvm_machines[arch][i],
+                                      NULL,
+                                      NULL,
+                                      0,
+                                      false,
+                                      false,
+                                      true,
+                                      defaultRAMid,
+                                      false);
+                virQEMUCapsSet(caps, QEMU_CAPS_KVM);
+            }
+        }
+    }
+
+    if (hostOS == HOST_OS_MACOS) {
+        if (hvf_machines[arch] != NULL) {
+            for (i = 0; hvf_machines[arch][i] != NULL; i++) {
+                virQEMUCapsAddMachine(caps,
+                        VIR_DOMAIN_VIRT_HVF,
+                        hvf_machines[arch][i],
+                        NULL,
+                        NULL,
+                        0,
+                        false,
+                        false,
+                        true,
+                        defaultRAMid,
+                        false);
+                virQEMUCapsSet(caps, QEMU_CAPS_HVF);
+            }
         }
     }
 }
@@ -399,8 +465,10 @@ qemuTestCapsCacheInsertData(virFileCache *cache,
 }
 
 
-int qemuTestCapsCacheInsert(virFileCache *cache,
-                            virQEMUCaps *caps)
+static int
+qemuTestCapsCacheInsertImpl(virFileCache *cache,
+                            virQEMUCaps *caps,
+                            testQemuHostOS hostOS)
 {
     size_t i;
 
@@ -425,7 +493,7 @@ int qemuTestCapsCacheInsert(virFileCache *cache,
                 if (!(copyCaps = effCaps = virQEMUCapsNewCopy(caps)))
                     return -1;
 
-                qemuTestCapsPopulateFakeMachines(copyCaps, arch);
+                qemuTestCapsPopulateFakeMachines(copyCaps, arch, hostOS);
             }
 
             if (qemuTestCapsCacheInsertData(cache, qemu_emulators[arch], effCaps) < 0)
@@ -460,7 +528,7 @@ int qemuTestCapsCacheInsert(virFileCache *cache,
             if (!tmp)
                 return -1;
 
-            qemuTestCapsPopulateFakeMachines(tmp, i);
+            qemuTestCapsPopulateFakeMachines(tmp, i, hostOS);
 
             if (qemuTestCapsCacheInsertData(cache, qemu_emulators[i], tmp) < 0)
                 return -1;
@@ -468,6 +536,20 @@ int qemuTestCapsCacheInsert(virFileCache *cache,
     }
 
     return 0;
+}
+
+int
+qemuTestCapsCacheInsert(virFileCache *cache,
+                        virQEMUCaps *caps)
+{
+    return qemuTestCapsCacheInsertImpl(cache, caps, HOST_OS_LINUX);
+}
+
+int
+qemuTestCapsCacheInsertMacOS(virFileCache *cache,
+                             virQEMUCaps *caps)
+{
+    return qemuTestCapsCacheInsertImpl(cache, caps, HOST_OS_MACOS);
 }
 
 
@@ -616,7 +698,7 @@ testQemuGetLatestCapsForArch(const char *arch,
         if (!virStringStripSuffix(tmp, fullsuffix))
             continue;
 
-        if (virParseVersionString(tmp, &ver, false) < 0) {
+        if (virStringParseVersion(&ver, tmp, false) < 0) {
             VIR_TEST_DEBUG("skipping caps file '%s'", ent->d_name);
             continue;
         }
@@ -790,6 +872,10 @@ testQemuInfoSetArgs(struct testQemuInfo *info,
             info->args.capsver = va_arg(argptr, char *);
             break;
 
+        case ARG_HOST_OS:
+            info->args.hostOS = va_arg(argptr, int);
+            break;
+
         case ARG_END:
         default:
             info->args.invalidarg = true;
@@ -895,4 +981,110 @@ testQemuInfoClear(struct testQemuInfo *info)
     VIR_FREE(info->errfile);
     virObjectUnref(info->qemuCaps);
     g_clear_pointer(&info->args.fakeCaps, virObjectUnref);
+}
+
+
+/**
+ * testQemuPrepareHostBackendChardevOne:
+ * @dev: device definition object
+ * @chardev: chardev source object
+ * @opaque: Caller is expected to pass pointer to virDomainObj or NULL
+ *
+ * This helper sets up a chardev source backend for FD passing with fake
+ * file descriptros. It's expected to be used as  callback for
+ * 'qemuDomainDeviceBackendChardevForeach', thus the VM object is passed via
+ * @opaque. Callers may pass NULL if the test scope is limited.
+ */
+int
+testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
+                                     virDomainChrSourceDef *chardev,
+                                     void *opaque)
+{
+    virDomainObj *vm = opaque;
+    qemuDomainObjPrivate *priv = NULL;
+    qemuDomainChrSourcePrivate *charpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(chardev);
+    int fakesourcefd = -1;
+    const char *devalias = NULL;
+    bool usefdset = true;
+
+    if (vm)
+        priv = vm->privateData;
+
+    if (dev) {
+        virDomainDeviceInfo *info = virDomainDeviceGetInfo(dev);
+        devalias = info->alias;
+
+        /* vhost-user disk doesn't use FD passing */
+        if (dev->type == VIR_DOMAIN_DEVICE_DISK)
+            return 0;
+
+        if (dev->type == VIR_DOMAIN_DEVICE_NET) {
+            /* due to a historical bug in qemu we don't use FD passtrhough for
+             * vhost-sockets for network devices */
+            return 0;
+        }
+
+        /* TPMs FD passing setup is special and handled separately */
+        if (dev->type == VIR_DOMAIN_DEVICE_TPM)
+            return 0;
+    } else {
+        devalias = "monitor";
+    }
+
+    switch ((virDomainChrType) chardev->type) {
+    case VIR_DOMAIN_CHR_TYPE_NULL:
+    case VIR_DOMAIN_CHR_TYPE_VC:
+    case VIR_DOMAIN_CHR_TYPE_PTY:
+    case VIR_DOMAIN_CHR_TYPE_DEV:
+    case VIR_DOMAIN_CHR_TYPE_PIPE:
+    case VIR_DOMAIN_CHR_TYPE_STDIO:
+    case VIR_DOMAIN_CHR_TYPE_UDP:
+    case VIR_DOMAIN_CHR_TYPE_TCP:
+    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
+    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_FILE:
+        fakesourcefd = 1750;
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_UNIX:
+        if (chardev->data.nix.listen &&
+            virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE))
+            fakesourcefd = 1729;
+
+        usefdset = false;
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_NMDM:
+    case VIR_DOMAIN_CHR_TYPE_LAST:
+        break;
+    }
+
+    if (fakesourcefd != -1) {
+        if (fcntl(fakesourcefd, F_GETFD) != -1)
+            abort();
+
+        if (usefdset)
+            charpriv->sourcefd = qemuFDPassNew(devalias, priv);
+        else
+            charpriv->sourcefd = qemuFDPassNewDirect(devalias, priv);
+
+        if (qemuFDPassAddFD(charpriv->sourcefd, &fakesourcefd, "-source") < 0)
+            return -1;
+    }
+
+    if (chardev->logfile) {
+        int fd = 1751;
+
+        if (fcntl(fd, F_GETFD) != -1)
+            abort();
+
+        charpriv->logfd = qemuFDPassNew(devalias, priv);
+
+        if (qemuFDPassAddFD(charpriv->logfd, &fd, "-log") < 0)
+            return -1;
+    }
+
+    return 0;
 }

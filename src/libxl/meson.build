@@ -78,14 +78,15 @@ if conf.has('WITH_LIBXL')
     'in_file': files('virtxend.init.in'),
   }
 
-  sysconf_files += {
-    'name': 'virtxend',
-    'file': files('virtxend.sysconf'),
-  }
-
   virt_install_dirs += [
+    confdir / 'libxl',
+    confdir / 'libxl' / 'autostart',
     localstatedir / 'lib' / 'libvirt' / 'libxl',
-    runstatedir / 'libvirt' / 'libxl',
+    localstatedir / 'lib' / 'libvirt' / 'libxl' / 'channel',
+    localstatedir / 'lib' / 'libvirt' / 'libxl' / 'channel' / 'target',
+    localstatedir / 'lib' / 'libvirt' / 'libxl' / 'dump',
+    localstatedir / 'lib' / 'libvirt' / 'libxl' / 'save',
     localstatedir / 'log' / 'libvirt' / 'libxl',
+    runstatedir / 'libvirt' / 'libxl',
   ]
 endif

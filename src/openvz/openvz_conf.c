@@ -40,7 +40,6 @@
 #include "vircommand.h"
 #include "virstring.h"
 #include "virhostcpu.h"
-#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_OPENVZ
 
@@ -86,7 +85,7 @@ openvzExtractVersionInfo(const char *cmdstr, int *retversion)
     if ((tmp = STRSKIP(tmp, "vzctl version ")) == NULL)
         return -1;
 
-    if (virParseVersionString(tmp, &version, true) < 0)
+    if (virStringParseVersion(&version, tmp, true) < 0)
         return -1;
 
     if (retversion)

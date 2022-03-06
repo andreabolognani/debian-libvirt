@@ -126,10 +126,11 @@ if conf.has('WITH_STORAGE')
     'in_file': files('virtstoraged.init.in'),
   }
 
-  sysconf_files += {
-    'name': 'virtstoraged',
-    'file': files('virtstoraged.sysconf'),
-  }
+  virt_install_dirs += [
+    confdir / 'storage',
+    confdir / 'storage' / 'autostart',
+    runstatedir / 'libvirt' / 'storage',
+  ]
 endif
 
 if conf.has('WITH_STORAGE_DISK')

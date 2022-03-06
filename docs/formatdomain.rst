@@ -20,7 +20,8 @@ Element and attribute overview
 
 The root element required for all virtual machines is named ``domain``. It has
 two attributes, the ``type`` specifies the hypervisor used for running the
-domain. The allowed values are driver specific, but include "xen", "kvm", "qemu"
+domain. The allowed values are driver specific, but include "xen", "kvm",
+"hvf" (:since:`since 8.1.0 and QEMU 2.12`), "qemu"
 and "lxc". The second attribute is ``id`` which is a unique integer identifier
 for the running guest machine. Inactive machines have no id value.
 
@@ -110,16 +111,42 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
 
 ::
 
+   <!-- Xen with fullvirt loader -->
    ...
-   <os firmware='efi'>
+   <os>
      <type>hvm</type>
-     <loader readonly='yes' secure='no' type='rom'>/usr/lib/xen/boot/hvmloader</loader>
-     <nvram template='/usr/share/OVMF/OVMF_VARS.fd'>/var/lib/libvirt/nvram/guest_VARS.fd</nvram>
+     <loader>/usr/lib/xen/boot/hvmloader</loader>
      <boot dev='hd'/>
+   </os>
+   ...
+
+   <!-- QEMU with default firmware, serial console and SMBIOS -->
+   ...
+   <os>
+     <type>hvm</type>
      <boot dev='cdrom'/>
      <bootmenu enable='yes' timeout='3000'/>
      <smbios mode='sysinfo'/>
      <bios useserial='yes' rebootTimeout='0'/>
+   </os>
+   ...
+
+   <!-- QEMU with UEFI manual firmware and secure boot -->
+   ...
+   <os>
+     <type>hvm</type>
+     <loader readonly='yes' secure='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE.fd</loader>
+     <nvram template='/usr/share/OVMF/OVMF_VARS.fd'>/var/lib/libvirt/nvram/guest_VARS.fd</nvram>
+     <boot dev='hd'/>
+   </os>
+   ...
+
+   <!-- QEMU with automatic UEFI firmware and secure boot -->
+   ...
+   <os firmware='efi'>
+     <type>hvm</type>
+     <loader secure='yes'/>
+     <boot dev='hd'/>
    </os>
    ...
 
@@ -1425,7 +1452,8 @@ In case no restrictions need to be put on CPU model and its features, a simpler
       :since:`Since 7.1.0` with the QEMU driver.
 
    Both ``host-model`` and ``host-passthrough`` modes make sense when a domain
-   can run directly on the host CPUs (for example, domains with type ``kvm``).
+   can run directly on the host CPUs (for example, domains with type ``kvm``
+   or ``hvf``).
    The actual host CPU is irrelevant for domains with emulated virtual CPUs
    (such as domains with type ``qemu``). However, for backward compatibility
    ``host-model`` may be implemented even for domains running on emulated CPUs
@@ -1634,14 +1662,13 @@ ACPI Heterogeneous Memory Attribute Table
    <cpu>
      ...
      <numa>
-       <cell id='0' cpus='0-3' memory='512000' unit='KiB' discard='yes'/>
-       <cell id='1' cpus='4-7' memory='512000' unit='KiB' memAccess='shared'/>
-       <cell id='3' cpus='0-3' memory='2097152' unit='KiB'>
+       <cell id='0' cpus='0-3' memory='2097152' unit='KiB' discard='yes'>
          <cache level='1' associativity='direct' policy='writeback'>
            <size value='10' unit='KiB'/>
            <line value='8' unit='B'/>
          </cache>
        </cell>
+       <cell id='1' cpus='4-7' memory='512000' unit='KiB' memAccess='shared'/>
        <interconnects>
          <latency initiator='0' target='0' type='access' value='5'/>
          <latency initiator='0' target='0' cache='1' type='access' value='10'/>
@@ -1749,7 +1776,7 @@ Each of these states allow for the same four possible actions.
    The domain will be terminated and then restarted with a new name. (Only
    supported by the libxl hypervisor driver.)
 
-QEMU/KVM supports the ``on_poweroff`` and ``on_reboot`` events handling the
+QEMU/KVM/HVF supports the ``on_poweroff`` and ``on_reboot`` events handling the
 ``destroy`` and ``restart`` actions, but the combination of ``on_poweroff`` set
 to ``restart`` and ``on_reboot`` set to ``destroy`` is forbidden.
 
@@ -1884,8 +1911,8 @@ are:
    Physical address extension mode allows 32-bit guests to address more than 4
    GB of memory.
 ``acpi``
-   ACPI is useful for power management, for example, with KVM guests it is
-   required for graceful shutdown to work.
+   ACPI is useful for power management, for example, with KVM or HVF guests it
+   is required for graceful shutdown to work.
 ``apic``
    APIC allows the use of programmable IRQ management. :since:`Since 0.10.2
    (QEMU only)` there is an optional attribute ``eoi`` with values ``on`` and
@@ -6194,14 +6221,16 @@ A video device.
 
    You can provide the amount of video memory in kibibytes (blocks of 1024
    bytes) using ``vram``. This is supported only for guest type of "vz", "qemu",
-   "vbox", "vmx" and "xen". If no value is provided the default is used. If the
+   "kvm", "hvf", "vbox", "vmx" and "xen".
+   If no value is provided the default is used. If the
    size is not a power of two it will be rounded to closest one.
 
    The number of screen can be set using ``heads``. This is supported only for
-   guests type of "vz", "kvm", "vbox" and "vmx".
+   guests type of "vz", "kvm", "hvf", "vbox" and "vmx".
 
-   For guest type of "kvm" or "qemu" and model type "qxl" there are optional
-   attributes. Attribute ``ram`` ( :since:`since 1.0.2` ) specifies the size of
+   For guest type of "kvm", "hvf" or "qemu" and model type "qxl" there are
+   optional attributes.
+   Attribute ``ram`` ( :since:`since 1.0.2` ) specifies the size of
    the primary bar, while the attribute ``vram`` specifies the secondary bar
    size. If ``ram`` or ``vram`` are not supplied a default value is used. The
    ``ram`` should also be rounded to power of two as ``vram``. There is also
@@ -6365,6 +6394,12 @@ Serial port
        <source path='/dev/pts/3'/>
        <target port='0'/>
      </serial>
+     <!-- Debug port for SeaBIOS / EDK II -->
+     <serial type='pty'>
+       <target type='isa-debug'/>
+       <address type='isa' iobase='0x402'/>
+     </console>
+
    </devices>
    ...
 
@@ -6388,8 +6423,9 @@ values are, :since:`since 1.0.2` , ``isa-serial`` (usable with x86 guests),
 ``usb-serial`` (usable whenever USB support is available) and ``pci-serial``
 (usable whenever PCI support is available); :since:`since 3.10.0` ,
 ``spapr-vio-serial`` (usable with ppc64/pseries guests), ``system-serial``
-(usable with aarch64/virt and, :since:`since 4.7.0` , riscv/virt guests) and
-``sclp-serial`` (usable with s390 and s390x guests) are available as well.
+(usable with aarch64/virt and, :since:`since 4.7.0` , riscv/virt guests),
+``sclp-serial`` (usable with s390 and s390x guests) are available as well
+and :since:`since 8.1.0` ``isa-debug`` (usable with x86 guests).
 
 :since:`Since 3.10.0` , the ``target`` element can have an optional ``model``
 subelement; valid values for its ``name`` attribute are: ``isa-serial`` (usable
@@ -6398,9 +6434,12 @@ with the ``isa-serial`` target type); ``usb-serial`` (usable with the
 target type); ``spapr-vty`` (usable with the ``spapr-vio-serial`` target type);
 ``pl011`` and, :since:`since 4.7.0` , ``16550a`` (usable with the
 ``system-serial`` target type); ``sclpconsole`` and ``sclplmconsole`` (usable
-with the ``sclp-serial`` target type). Providing a target model is usually
-unnecessary: libvirt will automatically pick one that's suitable for the chosen
-target type, and overriding that value is generally not recommended.
+with the ``sclp-serial`` target type). ``isa-debugcon`` (usable with the
+``isa-debug`` target type); provides a virtual console for receiving debug
+messages from the firmware on x86 platforms. :since:`Since: 8.1.0`.
+Providing a target model is usually unnecessary: libvirt will automatically
+pick one that's suitable for the chosen target type, and overriding that
+value is generally not recommended.
 
 If any of the attributes is not specified by the user, libvirt will choose a
 value suitable for most users.
@@ -7078,6 +7117,20 @@ is permitted with the following attributes.
 
   The audio format, one of ``s8``, ``u8``, ``s16``, ``u16``,
   ``s32``, ``u32``, ``f32``. The default is hypervisor specific.
+
+Note:
+If no ``<audio/>`` element is defined, and the ``graphics`` element is set to
+either 'vnc' or 'sdl', the libvirtd or virtqemud process will honor the following
+environment variables:
+
+* ``SDL_AUDIODRIVER``
+
+  Valid values are 'pulseaudio', 'esd', 'alsa' or 'arts'.
+
+* ``QEMU_AUDIO_DRV``
+
+  Valid values are 'pa', 'none', 'alsa', 'coreaudio', 'jack', 'oss',
+  'sdl', 'spice' or 'wav'.
 
 None audio backend
 ^^^^^^^^^^^^^^^^^^

@@ -28,10 +28,10 @@
 #include "virfirewalldpriv.h"
 #include "viralloc.h"
 #include "virerror.h"
-#include "virutil.h"
 #include "virlog.h"
 #include "virgdbus.h"
 #include "virenum.h"
+#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_FIREWALLD
 
@@ -107,7 +107,7 @@ virFirewallDGetVersion(unsigned long *version)
     g_variant_get(reply, "(v)", &gvar);
     g_variant_get(gvar, "&s", &versionStr);
 
-    if (virParseVersionString(versionStr, version, false) < 0) {
+    if (virStringParseVersion(version, versionStr, false) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Failed to parse firewalld version '%s'"),
                        versionStr);

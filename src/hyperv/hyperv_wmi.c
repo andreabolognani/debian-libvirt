@@ -925,8 +925,7 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQuery *wqlQuery,
 
     enumContext = wsmc_get_enum_context(response);
 
-    ws_xml_destroy_doc(response);
-    response = NULL;
+    g_clear_pointer(&response, ws_xml_destroy_doc);
 
     while (enumContext != NULL && *enumContext != '\0') {
         XML_TYPE_PTR data = NULL;
@@ -990,12 +989,10 @@ hypervEnumAndPull(hypervPrivate *priv, hypervWqlQuery *wqlQuery,
         VIR_FREE(enumContext);
         enumContext = wsmc_get_enum_context(response);
 
-        ws_xml_destroy_doc(response);
-        response = NULL;
+        g_clear_pointer(&response, ws_xml_destroy_doc);
     }
 
-    *list = head;
-    head = NULL;
+    *list = g_steal_pointer(&head);
 
     return 0;
 }

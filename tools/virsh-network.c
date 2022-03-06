@@ -640,8 +640,7 @@ virshNetworkListCollect(vshControl *ctl,
     VIR_FREE(names);
 
     if (!success) {
-        virshNetworkListFree(list);
-        list = NULL;
+        g_clear_pointer(&list, virshNetworkListFree);
     }
 
     return list;
@@ -919,11 +918,13 @@ static const vshCmdOptDef opts_network_update[] = {
     {.name = "command",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshNetworkUpdateCommandCompleter,
      .help = N_("type of update (add-first, add-last (add), delete, or modify)")
     },
     {.name = "section",
      .type = VSH_OT_DATA,
      .flags = VSH_OFLAG_REQ,
+     .completer = virshNetworkUpdateSectionCompleter,
      .help = N_("which section of network configuration to update")
     },
     {.name = "xml",
@@ -943,12 +944,10 @@ static const vshCmdOptDef opts_network_update[] = {
     {.name = NULL}
 };
 
-VIR_ENUM_DECL(virshNetworkUpdateCommand);
 VIR_ENUM_IMPL(virshNetworkUpdateCommand,
               VIR_NETWORK_UPDATE_COMMAND_LAST,
               "none", "modify", "delete", "add-last", "add-first");
 
-VIR_ENUM_DECL(virshNetworkSection);
 VIR_ENUM_IMPL(virshNetworkSection,
               VIR_NETWORK_SECTION_LAST,
               "none", "bridge", "domain", "ip", "ip-dhcp-host",
@@ -984,7 +983,7 @@ cmdNetworkUpdate(vshControl *ctl, const vshCmd *cmd)
         command = VIR_NETWORK_UPDATE_COMMAND_ADD_LAST;
     } else {
         command = virshNetworkUpdateCommandTypeFromString(commandStr);
-        if (command <= 0 || command >= VIR_NETWORK_UPDATE_COMMAND_LAST) {
+        if (command <= 0) {
             vshError(ctl, _("unrecognized command name '%s'"), commandStr);
             goto cleanup;
         }
@@ -994,7 +993,7 @@ cmdNetworkUpdate(vshControl *ctl, const vshCmd *cmd)
         goto cleanup;
 
     section = virshNetworkSectionTypeFromString(sectionStr);
-    if (section <= 0 || section >= VIR_NETWORK_SECTION_LAST) {
+    if (section <= 0) {
         vshError(ctl, _("unrecognized section name '%s'"), sectionStr);
         goto cleanup;
     }
@@ -1697,8 +1696,7 @@ virshNetworkPortListCollect(vshControl *ctl,
 
  cleanup:
     if (!success) {
-        virshNetworkPortListFree(list);
-        list = NULL;
+        g_clear_pointer(&list, virshNetworkPortListFree);
     }
 
     return list;

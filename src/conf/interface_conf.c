@@ -68,6 +68,7 @@ virInterfaceProtocolDefFree(virInterfaceProtocolDef *def)
     g_free(def->gateway);
     g_free(def);
 }
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virInterfaceProtocolDef, virInterfaceProtocolDefFree);
 
 
 void
@@ -116,23 +117,6 @@ virInterfaceDefFree(virInterfaceDef *def)
 
 
 static int
-virInterfaceDefParseName(virInterfaceDef *def,
-                         xmlXPathContextPtr ctxt)
-{
-    char *tmp;
-
-    tmp = virXPathString("string(./@name)", ctxt);
-    if (tmp == NULL) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s",  _("interface has no name"));
-        return -1;
-    }
-    def->name = tmp;
-    return 0;
-}
-
-
-static int
 virInterfaceDefParseMtu(virInterfaceDef *def,
                         xmlXPathContextPtr ctxt)
 {
@@ -155,9 +139,8 @@ static int
 virInterfaceDefParseStartMode(virInterfaceDef *def,
                               xmlXPathContextPtr ctxt)
 {
-    char *tmp;
+    g_autofree char *tmp = virXPathString("string(./start/@mode)", ctxt);
 
-    tmp = virXPathString("string(./start/@mode)", ctxt);
     if (tmp == NULL) {
         def->startmode = VIR_INTERFACE_START_UNSPECIFIED;
     } else if (STREQ(tmp, "onboot")) {
@@ -169,10 +152,8 @@ virInterfaceDefParseStartMode(virInterfaceDef *def,
     } else {
         virReportError(VIR_ERR_XML_ERROR,
                        _("unknown interface startmode %s"), tmp);
-        VIR_FREE(tmp);
         return -1;
     }
-    VIR_FREE(tmp);
     return 0;
 }
 
@@ -180,133 +161,98 @@ virInterfaceDefParseStartMode(virInterfaceDef *def,
 static int
 virInterfaceDefParseBondMode(xmlXPathContextPtr ctxt)
 {
-    char *tmp;
-    int ret = 0;
+    g_autofree char *tmp = virXPathString("string(./@mode)", ctxt);
 
-    tmp = virXPathString("string(./@mode)", ctxt);
     if (tmp == NULL)
         return VIR_INTERFACE_BOND_NONE;
     if (STREQ(tmp, "balance-rr")) {
-        ret = VIR_INTERFACE_BOND_BALRR;
+        return VIR_INTERFACE_BOND_BALRR;
     } else if (STREQ(tmp, "active-backup")) {
-        ret = VIR_INTERFACE_BOND_ABACKUP;
+        return VIR_INTERFACE_BOND_ABACKUP;
     } else if (STREQ(tmp, "balance-xor")) {
-        ret = VIR_INTERFACE_BOND_BALXOR;
+        return VIR_INTERFACE_BOND_BALXOR;
     } else if (STREQ(tmp, "broadcast")) {
-        ret = VIR_INTERFACE_BOND_BCAST;
+        return VIR_INTERFACE_BOND_BCAST;
     } else if (STREQ(tmp, "802.3ad")) {
-        ret = VIR_INTERFACE_BOND_8023AD;
+        return VIR_INTERFACE_BOND_8023AD;
     } else if (STREQ(tmp, "balance-tlb")) {
-        ret = VIR_INTERFACE_BOND_BALTLB;
+        return VIR_INTERFACE_BOND_BALTLB;
     } else if (STREQ(tmp, "balance-alb")) {
-        ret = VIR_INTERFACE_BOND_BALALB;
-    } else {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unknown bonding mode %s"), tmp);
-        ret = -1;
+        return VIR_INTERFACE_BOND_BALALB;
     }
-    VIR_FREE(tmp);
-    return ret;
+
+    virReportError(VIR_ERR_XML_ERROR, _("unknown bonding mode %s"), tmp);
+    return -1;
 }
 
 
 static int
 virInterfaceDefParseBondMiiCarrier(xmlXPathContextPtr ctxt)
 {
-    char *tmp;
-    int ret = 0;
+    g_autofree char *tmp = virXPathString("string(./miimon/@carrier)", ctxt);
 
-    tmp = virXPathString("string(./miimon/@carrier)", ctxt);
     if (tmp == NULL)
         return VIR_INTERFACE_BOND_MII_NONE;
     if (STREQ(tmp, "ioctl")) {
-        ret = VIR_INTERFACE_BOND_MII_IOCTL;
+        return VIR_INTERFACE_BOND_MII_IOCTL;
     } else if (STREQ(tmp, "netif")) {
-        ret = VIR_INTERFACE_BOND_MII_NETIF;
-    } else {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unknown mii bonding carrier %s"), tmp);
-        ret = -1;
+        return VIR_INTERFACE_BOND_MII_NETIF;
     }
-    VIR_FREE(tmp);
-    return ret;
+
+    virReportError(VIR_ERR_XML_ERROR, _("unknown mii bonding carrier %s"), tmp);
+    return -1;
 }
 
 
 static int
 virInterfaceDefParseBondArpValid(xmlXPathContextPtr ctxt)
 {
-    char *tmp;
-    int ret = 0;
+    g_autofree char *tmp = virXPathString("string(./arpmon/@validate)", ctxt);
 
-    tmp = virXPathString("string(./arpmon/@validate)", ctxt);
     if (tmp == NULL)
         return VIR_INTERFACE_BOND_ARP_NONE;
     if (STREQ(tmp, "active")) {
-        ret = VIR_INTERFACE_BOND_ARP_ACTIVE;
+        return VIR_INTERFACE_BOND_ARP_ACTIVE;
     } else if (STREQ(tmp, "backup")) {
-        ret = VIR_INTERFACE_BOND_ARP_BACKUP;
+        return VIR_INTERFACE_BOND_ARP_BACKUP;
     } else if (STREQ(tmp, "all")) {
-        ret = VIR_INTERFACE_BOND_ARP_ALL;
-    } else {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unknown arp bonding validate %s"), tmp);
-        ret = -1;
+        return VIR_INTERFACE_BOND_ARP_ALL;
     }
-    VIR_FREE(tmp);
-    return ret;
+
+    virReportError(VIR_ERR_XML_ERROR, _("unknown arp bonding validate %s"), tmp);
+    return -1;
 }
 
 
 static int
 virInterfaceDefParseDhcp(virInterfaceProtocolDef *def,
-                         xmlNodePtr dhcp, xmlXPathContextPtr ctxt)
+                         xmlNodePtr dhcp)
 {
-    VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    char *tmp;
-    int ret = 0;
+    virTristateBool peerdns;
 
     def->dhcp = 1;
-    ctxt->node = dhcp;
     def->peerdns = -1;
-    /* Not much to do in the current version */
-    tmp = virXPathString("string(./@peerdns)", ctxt);
-    if (tmp) {
-        bool state = false;
-        if (virStringParseYesNo(tmp, &state) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("unknown dhcp peerdns value %s"), tmp);
-            ret = -1;
-        } else {
-            def->peerdns = state ? 1 : 0;
-        }
-        VIR_FREE(tmp);
+
+    if (virXMLPropTristateBool(dhcp, "peerdns", VIR_XML_PROP_NONZERO, &peerdns) < 0)
+        return -1;
+
+    if (peerdns != VIR_TRISTATE_BOOL_ABSENT) {
+        def->peerdns = peerdns == VIR_TRISTATE_BOOL_YES ? 1 : 0;
     }
 
-    return ret;
+    return 0;
 }
 
 
 static int
 virInterfaceDefParseIP(virInterfaceIPDef *def,
-                       xmlXPathContextPtr ctxt)
+                       xmlNodePtr node)
 {
-    int ret = 0;
-    char *tmp;
-    long l;
+    if (!(def->address = virXMLPropString(node, "address")))
+        return 0;
 
-    tmp = virXPathString("string(./@address)", ctxt);
-    def->address = tmp;
-    if (tmp != NULL) {
-        ret = virXPathLong("string(./@prefix)", ctxt, &l);
-        if (ret == 0) {
-            def->prefix = (int) l;
-        } else if (ret == -2) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           "%s", _("Invalid ip address prefix value"));
-            return -1;
-        }
-    }
+    if (virXMLPropInt(node, "prefix", 0, VIR_XML_PROP_NONE, &def->prefix, 0) < 0)
+        return -1;
 
     return 0;
 }
@@ -317,17 +263,15 @@ virInterfaceDefParseProtoIPv4(virInterfaceProtocolDef *def,
                               xmlXPathContextPtr ctxt)
 {
     xmlNodePtr dhcp;
-    xmlNodePtr *ipNodes = NULL;
-    int nipNodes, ret = -1;
+    g_autofree xmlNodePtr *ipNodes = NULL;
+    int nipNodes;
     size_t i;
-    char *tmp;
 
-    tmp = virXPathString("string(./route[1]/@gateway)", ctxt);
-    def->gateway = tmp;
+    def->gateway = virXPathString("string(./route[1]/@gateway)", ctxt);
 
     dhcp = virXPathNode("./dhcp", ctxt);
     if (dhcp != NULL) {
-        if (virInterfaceDefParseDhcp(def, dhcp, ctxt) < 0)
+        if (virInterfaceDefParseDhcp(def, dhcp) < 0)
             return -1;
     }
 
@@ -341,24 +285,16 @@ virInterfaceDefParseProtoIPv4(virInterfaceProtocolDef *def,
 
     def->nips = 0;
     for (i = 0; i < nipNodes; i++) {
+        virInterfaceIPDef *ip = g_new0(virInterfaceIPDef, 1);
 
-        virInterfaceIPDef *ip;
-
-        ip = g_new0(virInterfaceIPDef, 1);
-
-        ctxt->node = ipNodes[i];
-        if (virInterfaceDefParseIP(ip, ctxt) < 0) {
+        if (virInterfaceDefParseIP(ip, ipNodes[i]) < 0) {
             virInterfaceIPDefFree(ip);
-            goto error;
+            return -1;
         }
         def->ips[def->nips++] = ip;
     }
 
-    ret = 0;
-
- error:
-    VIR_FREE(ipNodes);
-    return ret;
+    return 0;
 }
 
 
@@ -366,22 +302,19 @@ static int
 virInterfaceDefParseProtoIPv6(virInterfaceProtocolDef *def,
                               xmlXPathContextPtr ctxt)
 {
-    xmlNodePtr dhcp, autoconf;
-    xmlNodePtr *ipNodes = NULL;
-    int nipNodes, ret = -1;
+    xmlNodePtr dhcp;
+    g_autofree xmlNodePtr *ipNodes = NULL;
+    int nipNodes;
     size_t i;
-    char *tmp;
 
-    tmp = virXPathString("string(./route[1]/@gateway)", ctxt);
-    def->gateway = tmp;
+    def->gateway = virXPathString("string(./route[1]/@gateway)", ctxt);
 
-    autoconf = virXPathNode("./autoconf", ctxt);
-    if (autoconf != NULL)
+    if (virXPathNode("./autoconf", ctxt) != NULL)
         def->autoconf = 1;
 
     dhcp = virXPathNode("./dhcp", ctxt);
     if (dhcp != NULL) {
-        if (virInterfaceDefParseDhcp(def, dhcp, ctxt) < 0)
+        if (virInterfaceDefParseDhcp(def, dhcp) < 0)
             return -1;
     }
 
@@ -395,24 +328,16 @@ virInterfaceDefParseProtoIPv6(virInterfaceProtocolDef *def,
 
     def->nips = 0;
     for (i = 0; i < nipNodes; i++) {
+        virInterfaceIPDef *ip = g_new0(virInterfaceIPDef, 1);
 
-        virInterfaceIPDef *ip;
-
-        ip = g_new0(virInterfaceIPDef, 1);
-
-        ctxt->node = ipNodes[i];
-        if (virInterfaceDefParseIP(ip, ctxt) < 0) {
+        if (virInterfaceDefParseIP(ip, ipNodes[i]) < 0) {
             virInterfaceIPDefFree(ip);
-            goto error;
+            return -1;
         }
         def->ips[def->nips++] = ip;
     }
 
-    ret = 0;
-
- error:
-    VIR_FREE(ipNodes);
-    return ret;
+    return 0;
 }
 
 
@@ -421,13 +346,12 @@ virInterfaceDefParseIfAdressing(virInterfaceDef *def,
                                 xmlXPathContextPtr ctxt)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    xmlNodePtr *protoNodes = NULL;
-    int nProtoNodes, pp, ret = -1;
-    char *tmp;
+    g_autofree xmlNodePtr *protoNodes = NULL;
+    int nProtoNodes, pp;
 
     nProtoNodes = virXPathNodeSet("./protocol", ctxt, &protoNodes);
     if (nProtoNodes < 0)
-        goto error;
+        return -1;
 
     if (nProtoNodes == 0) {
         /* no protocols is an acceptable outcome */
@@ -438,47 +362,30 @@ virInterfaceDefParseIfAdressing(virInterfaceDef *def,
 
     def->nprotos = 0;
     for (pp = 0; pp < nProtoNodes; pp++) {
+        g_autoptr(virInterfaceProtocolDef) proto = g_new0(virInterfaceProtocolDef, 1);
 
-        virInterfaceProtocolDef *proto;
-
-        proto = g_new0(virInterfaceProtocolDef, 1);
-
-        ctxt->node = protoNodes[pp];
-        tmp = virXPathString("string(./@family)", ctxt);
-        if (tmp == NULL) {
+        if (!(proto->family = virXMLPropString(protoNodes[pp], "family"))) {
             virReportError(VIR_ERR_XML_ERROR,
                            "%s", _("protocol misses the family attribute"));
-            virInterfaceProtocolDefFree(proto);
-            goto error;
+            return -1;
         }
-        proto->family = tmp;
-        if (STREQ(tmp, "ipv4")) {
-            ret = virInterfaceDefParseProtoIPv4(proto, ctxt);
-            if (ret != 0) {
-                virInterfaceProtocolDefFree(proto);
-                goto error;
-            }
-        } else if (STREQ(tmp, "ipv6")) {
-            ret = virInterfaceDefParseProtoIPv6(proto, ctxt);
-            if (ret != 0) {
-                virInterfaceProtocolDefFree(proto);
-                goto error;
-            }
+
+        ctxt->node = protoNodes[pp];
+        if (STREQ(proto->family, "ipv4")) {
+            if (virInterfaceDefParseProtoIPv4(proto, ctxt) != 0)
+                return -1;
+        } else if (STREQ(proto->family, "ipv6")) {
+            if (virInterfaceDefParseProtoIPv6(proto, ctxt) != 0)
+                return -1;
         } else {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("unsupported protocol family '%s'"), tmp);
-            virInterfaceProtocolDefFree(proto);
-            goto error;
+                           _("unsupported protocol family '%s'"), proto->family);
+            return -1;
         }
-        def->protos[def->nprotos++] = proto;
+        def->protos[def->nprotos++] = g_steal_pointer(&proto);
     }
 
-    ret = 0;
-
- error:
-    VIR_FREE(protoNodes);
-    return ret;
-
+    return 0;
 }
 
 
@@ -486,17 +393,15 @@ static int
 virInterfaceDefParseBridge(virInterfaceDef *def,
                            xmlXPathContextPtr ctxt)
 {
-    xmlNodePtr *interfaces = NULL;
-    xmlNodePtr bridge;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    g_autofree xmlNodePtr *interfaces = NULL;
     virInterfaceDef *itf;
-    char *tmp = NULL;
+    g_autofree char *tmp = NULL;
     int nbItf;
     size_t i;
-    int ret = 0;
 
-    bridge = ctxt->node;
     def->data.bridge.stp = -1;
-    if ((tmp = virXMLPropString(bridge, "stp"))) {
+    if ((tmp = virXMLPropString(ctxt->node, "stp"))) {
         if (STREQ(tmp, "on")) {
             def->data.bridge.stp = 1;
         } else if (STREQ(tmp, "off")) {
@@ -505,15 +410,14 @@ virInterfaceDefParseBridge(virInterfaceDef *def,
             virReportError(VIR_ERR_XML_ERROR,
                            _("bridge interface stp should be on or off got %s"),
                            tmp);
-            goto error;
+            return 0;
         }
     }
-    def->data.bridge.delay = virXMLPropString(bridge, "delay");
+    def->data.bridge.delay = virXMLPropString(ctxt->node, "delay");
 
     nbItf = virXPathNodeSet("./interface", ctxt, &interfaces);
     if (nbItf < 0) {
-        ret = -1;
-        goto error;
+        return -1;
     }
     if (nbItf > 0) {
         def->data.bridge.itf = g_new0(struct _virInterfaceDef *, nbItf);
@@ -523,19 +427,14 @@ virInterfaceDefParseBridge(virInterfaceDef *def,
             ctxt->node = interfaces[i];
             itf = virInterfaceDefParseXML(ctxt, VIR_INTERFACE_TYPE_BRIDGE);
             if (itf == NULL) {
-                ret = -1;
                 def->data.bridge.nbItf = i;
-                goto error;
+                return -1;
             }
             def->data.bridge.itf[i] = itf;
         }
     }
 
- error:
-    VIR_FREE(tmp);
-    VIR_FREE(interfaces);
-    ctxt->node = bridge;
-    return ret;
+    return 0;
 }
 
 
@@ -543,20 +442,18 @@ static int
 virInterfaceDefParseBondItfs(virInterfaceDef *def,
                              xmlXPathContextPtr ctxt)
 {
-    xmlNodePtr *interfaces = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    g_autofree xmlNodePtr *interfaces = NULL;
     virInterfaceDef *itf;
     int nbItf;
     size_t i;
-    int ret = -1;
 
     nbItf = virXPathNodeSet("./interface", ctxt, &interfaces);
     if (nbItf < 0)
-        goto cleanup;
+        return -1;
 
     if (nbItf == 0) {
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
     def->data.bond.itf = g_new0(struct _virInterfaceDef *, nbItf);
@@ -568,15 +465,12 @@ virInterfaceDefParseBondItfs(virInterfaceDef *def,
         itf = virInterfaceDefParseXML(ctxt, VIR_INTERFACE_TYPE_BOND);
         if (itf == NULL) {
             def->data.bond.nbItf = i;
-            goto cleanup;
+            return -1;
         }
         def->data.bond.itf[i] = itf;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(interfaces);
-    return ret;
+    return 0;
 }
 
 
@@ -679,28 +573,14 @@ static virInterfaceDef *
 virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
                         int parentIfType)
 {
-    g_autoptr(virInterfaceDef) def = NULL;
-    int type;
-    char *tmp;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    g_autoptr(virInterfaceDef) def = NULL;
+    virInterfaceType type;
     xmlNodePtr lnk;
 
-
-    /* check @type */
-    tmp = virXPathString("string(./@type)", ctxt);
-    if (tmp == NULL) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s", _("interface misses the type attribute"));
+    if (virXMLPropEnum(ctxt->node, "type", virInterfaceTypeFromString,
+                       VIR_XML_PROP_REQUIRED, &type) < 0)
         return NULL;
-    }
-    type = virInterfaceTypeFromString(tmp);
-    if (type == -1) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown interface type %s"), tmp);
-        VIR_FREE(tmp);
-        return NULL;
-    }
-    VIR_FREE(tmp);
 
     def = g_new0(virInterfaceDef, 1);
 
@@ -720,8 +600,10 @@ virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
     }
     def->type = type;
 
-    if (virInterfaceDefParseName(def, ctxt) < 0)
-       return NULL;
+    if (!(def->name = virXMLPropString(ctxt->node, "name"))) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",  _("interface has no name"));
+        return NULL;
+    }
 
     if (parentIfType == VIR_INTERFACE_TYPE_LAST) {
         /* only recognize these in toplevel bond interfaces */
@@ -741,10 +623,12 @@ virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
     }
 
     switch (type) {
-        case VIR_INTERFACE_TYPE_ETHERNET:
-            if ((tmp = virXPathString("string(./mac/@address)", ctxt)))
-                def->mac = tmp;
+        case VIR_INTERFACE_TYPE_ETHERNET: {
+            char *mac = virXPathString("string(./mac/@address)", ctxt);
+            if (mac != NULL)
+                def->mac = mac;
             break;
+        }
         case VIR_INTERFACE_TYPE_BRIDGE: {
             xmlNodePtr bridge;
 
@@ -784,7 +668,8 @@ virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
                 return NULL;
             break;
         }
-
+        case VIR_INTERFACE_TYPE_LAST:
+            return NULL;
     }
 
     return g_steal_pointer(&def);
@@ -819,14 +704,13 @@ virInterfaceDefParse(const char *xmlStr,
                      unsigned int flags)
 {
     g_autoptr(xmlDoc) xml = NULL;
-    virInterfaceDef *def = NULL;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(interface_definition)"), "interface.rng",
-                           flags & VIR_INTERFACE_DEFINE_VALIDATE))) {
-        def = virInterfaceDefParseNode(xml, xmlDocGetRootElement(xml));
-    }
+    xml = virXMLParse(filename, xmlStr, _("(interface_definition)"),
+                      "interface.rng", flags & VIR_INTERFACE_DEFINE_VALIDATE);
+    if (!xml)
+        return NULL;
 
-    return def;
+    return virInterfaceDefParseNode(xml, xmlDocGetRootElement(xml));
 }
 
 
@@ -850,7 +734,6 @@ virInterfaceBridgeDefFormat(virBuffer *buf,
                             const virInterfaceDef *def)
 {
     size_t i;
-    int ret = 0;
 
     virBufferAddLit(buf, "<bridge");
     if (def->data.bridge.stp == 1)
@@ -865,12 +748,12 @@ virInterfaceBridgeDefFormat(virBuffer *buf,
     for (i = 0; i < def->data.bridge.nbItf; i++) {
         if (virInterfaceDefDevFormat(buf, def->data.bridge.itf[i],
                                      VIR_INTERFACE_TYPE_BRIDGE) < 0)
-            ret = -1;
+            return -1;
     }
 
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</bridge>\n");
-    return ret;
+    return 0;
 }
 
 
@@ -879,7 +762,6 @@ virInterfaceBondDefFormat(virBuffer *buf,
                           const virInterfaceDef *def)
 {
     size_t i;
-    int ret = 0;
 
     virBufferAddLit(buf, "<bond");
     if (def->data.bond.mode == VIR_INTERFACE_BOND_BALRR)
@@ -930,12 +812,12 @@ virInterfaceBondDefFormat(virBuffer *buf,
     for (i = 0; i < def->data.bond.nbItf; i++) {
         if (virInterfaceDefDevFormat(buf, def->data.bond.itf[i],
                                      VIR_INTERFACE_TYPE_BOND) < 0)
-            ret = -1;
+            return -1;
     }
 
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</bond>\n");
-    return ret;
+    return 0;
 }
 
 
@@ -1089,13 +971,16 @@ virInterfaceDefDevFormat(virBuffer *buf,
                 virBufferAsprintf(buf, "<mac address='%s'/>\n", def->mac);
             break;
         case VIR_INTERFACE_TYPE_BRIDGE:
-            virInterfaceBridgeDefFormat(buf, def);
+            if (virInterfaceBridgeDefFormat(buf, def) < 0)
+                return -1;
             break;
         case VIR_INTERFACE_TYPE_BOND:
-            virInterfaceBondDefFormat(buf, def);
+            if (virInterfaceBondDefFormat(buf, def) < 0)
+                return -1;
             break;
         case VIR_INTERFACE_TYPE_VLAN:
-            virInterfaceVlanDefFormat(buf, def);
+            if (virInterfaceVlanDefFormat(buf, def) < 0)
+                return -1;
             break;
     }
 

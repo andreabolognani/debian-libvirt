@@ -102,7 +102,6 @@
   <flag name='qemu-xhci'/>
   <flag name='virtio-net.tx_queue_size'/>
   <flag name='chardev-reconnect'/>
-  <flag name='virtio-gpu.max_outputs'/>
   <flag name='virtio-blk.num-queues'/>
   <flag name='vmcoreinfo'/>
   <flag name='disk-share-rw'/>
@@ -184,6 +183,7 @@
   <flag name='query-display-options'/>
   <flag name='virtio-blk.queue-size'/>
   <flag name='query-dirty-rate'/>
+  <flag name='calc-dirty-rate'/>
   <version>5002000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>61700243</microcodeVersion>

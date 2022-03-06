@@ -108,8 +108,7 @@ virNodeDeviceObjEndAPI(virNodeDeviceObj **obj)
         return;
 
     virObjectUnlock(*obj);
-    virObjectUnref(*obj);
-    *obj = NULL;
+    g_clear_pointer(obj, virObjectUnref);
 }
 
 
@@ -524,7 +523,7 @@ virNodeDeviceObjListRemove(virNodeDeviceObjList *devs,
     virObjectRWLockWrite(devs);
     virObjectLock(obj);
     virNodeDeviceObjListRemoveLocked(devs, obj);
-    virNodeDeviceObjEndAPI(&obj);
+    virObjectUnref(obj);
     virObjectRWUnlock(devs);
 }
 

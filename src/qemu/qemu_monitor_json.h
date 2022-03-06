@@ -257,7 +257,7 @@ qemuMonitorJSONAddFileHandleToSet(qemuMonitor *mon,
 
 int
 qemuMonitorJSONRemoveFdset(qemuMonitor *mon,
-                           int fdset);
+                           unsigned int fdset);
 
 int
 qemuMonitorJSONQueryFdsets(qemuMonitor *mon,
@@ -647,18 +647,15 @@ qemuMonitorJSONGetDeviceAliases(qemuMonitor *mon,
                                 char ***aliases);
 
 int
-qemuMonitorJSONGetCPUx86Data(qemuMonitor *mon,
-                             const char *property,
-                             virCPUData **cpudata);
-
-int
 qemuMonitorJSONGetGuestCPUx86(qemuMonitor *mon,
+                              const char *cpuQOMPath,
                               virCPUData **data,
                               virCPUData **disabled);
 
 int
 qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
                            virArch arch,
+                           const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
                            void *opaque,
                            virCPUData **enabled,
@@ -851,11 +848,13 @@ qemuMonitorJSONSetDBusVMStateIdList(qemuMonitor *mon,
 
 int
 qemuMonitorJSONGetCPUMigratable(qemuMonitor *mon,
+                                const char *cpuQOMPath,
                                 bool *migratable);
 
 int
 qemuMonitorJSONStartDirtyRateCalc(qemuMonitor *mon,
-                                  int seconds);
+                                  int seconds,
+                                  qemuMonitorDirtyRateCalcMode mode);
 
 int
 qemuMonitorJSONQueryDirtyRate(qemuMonitor *mon,

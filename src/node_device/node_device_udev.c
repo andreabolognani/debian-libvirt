@@ -93,9 +93,9 @@ udevEventDataDispose(void *obj)
     udev_monitor_unref(priv->udev_monitor);
     udev_unref(udev);
 
-    virMutexLock(&priv->mdevctlLock);
-    g_list_free_full(priv->mdevctlMonitors, g_object_unref);
-    virMutexUnlock(&priv->mdevctlLock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&priv->mdevctlLock) {
+        g_list_free_full(priv->mdevctlMonitors, g_object_unref);
+    }
     virMutexDestroy(&priv->mdevctlLock);
 
     virCondDestroy(&priv->threadCond);
@@ -348,13 +348,9 @@ udevTranslatePCIIds(unsigned int vendor,
     m.match_data = 0;
 
     /* pci_get_strings returns void and unfortunately is not thread safe. */
-    virMutexLock(&pciaccessMutex);
-    pci_get_strings(&m,
-                    &device_name,
-                    &vendor_name,
-                    NULL,
-                    NULL);
-    virMutexUnlock(&pciaccessMutex);
+    VIR_WITH_MUTEX_LOCK_GUARD(&pciaccessMutex) {
+        pci_get_strings(&m, &device_name, &vendor_name, NULL, NULL);
+    }
 
     *vendor_string = g_strdup(vendor_name);
     *product_string = g_strdup(device_name);
@@ -370,14 +366,14 @@ udevProcessPCI(struct udev_device *device,
     virNodeDevCapPCIDev *pci_dev = &def->caps->data.pci_dev;
     virPCIEDeviceInfo *pci_express = NULL;
     virPCIDevice *pciDev = NULL;
-    virPCIDeviceAddress devAddr;
+    virPCIDeviceAddress devAddr = { 0 };
     int ret = -1;
     char *p;
-    bool privileged;
+    bool privileged = false;
 
-    nodeDeviceLock();
-    privileged = driver->privileged;
-    nodeDeviceUnlock();
+    VIR_WITH_MUTEX_LOCK_GUARD(&driver->lock) {
+        privileged = driver->privileged;
+    }
 
     pci_dev->klass = -1;
     if (udevGetIntProperty(device, "PCI_CLASS", &pci_dev->klass, 16) < 0)
@@ -890,32 +886,40 @@ udevProcessDASD(struct udev_device *device,
 static int
 udevKludgeStorageType(virNodeDeviceDef *def)
 {
+    size_t i;
+    const struct {
+        const char *prefix;
+        const char *subst;
+    } fixups[] = {
+        /* virtio disk */
+        { "/dev/vd", "disk" },
+
+        /* For Direct Access Storage Devices (DASDs) there are
+         * currently no identifiers in udev besides ID_PATH. Since
+         * ID_TYPE=disk does not exist on DASDs they fall through
+         * the udevProcessStorage detection logic. */
+        { "/dev/dasd", "dasd" },
+
+        /* NVMe disk. While strictly speaking /dev/nvme is a
+         * controller not a disk, this function is called if and
+         * only if @def is of VIR_NODE_DEV_CAP_STORAGE type. */
+        { "/dev/nvme", "disk" },
+    };
+
     VIR_DEBUG("Could not find definitive storage type for device "
               "with sysfs path '%s', trying to guess it",
               def->sysfs_path);
 
-    /* virtio disk */
-    if (STRPREFIX(def->caps->data.storage.block, "/dev/vd")) {
-        def->caps->data.storage.drive_type = g_strdup("disk");
-        VIR_DEBUG("Found storage type '%s' for device "
-                  "with sysfs path '%s'",
-                  def->caps->data.storage.drive_type,
-                  def->sysfs_path);
-        return 0;
+    for (i = 0; i < G_N_ELEMENTS(fixups); i++) {
+        if (STRPREFIX(def->caps->data.storage.block, fixups[i].prefix)) {
+            def->caps->data.storage.drive_type = g_strdup(fixups[i].subst);
+            VIR_DEBUG("Found storage type '%s' for device with sysfs path '%s'",
+                      def->caps->data.storage.drive_type,
+                      def->sysfs_path);
+            return 0;
+        }
     }
 
-    /* For Direct Access Storage Devices (DASDs) there are
-     * currently no identifiers in udev besides ID_PATH. Since
-     * ID_TYPE=disk does not exist on DASDs they fall through
-     * the udevProcessStorage detection logic. */
-    if (STRPREFIX(def->caps->data.storage.block, "/dev/dasd")) {
-        def->caps->data.storage.drive_type = g_strdup("dasd");
-        VIR_DEBUG("Found storage type '%s' for device "
-                  "with sysfs path '%s'",
-                  def->caps->data.storage.drive_type,
-                  def->sysfs_path);
-        return 0;
-    }
     VIR_DEBUG("Could not determine storage type "
               "for device with sysfs path '%s'", def->sysfs_path);
     return -1;
@@ -1981,10 +1985,10 @@ nodeStateInitializeEnumerate(void *opaque)
         goto error;
 
  cleanup:
-    nodeDeviceLock();
-    driver->initialized = true;
-    virCondBroadcast(&driver->initCond);
-    nodeDeviceUnlock();
+    VIR_WITH_MUTEX_LOCK_GUARD(&driver->lock) {
+        driver->initialized = true;
+        virCondBroadcast(&driver->initCond);
+    }
 
     return;
 
@@ -2028,12 +2032,10 @@ static void
 mdevctlHandlerThread(void *opaque G_GNUC_UNUSED)
 {
     udevEventData *priv = driver->privateData;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&priv->mdevctlLock);
 
-    /* ensure only a single thread can query mdevctl at a time */
-    virMutexLock(&priv->mdevctlLock);
     if (nodeDeviceUpdateMediatedDevices() < 0)
         VIR_WARN("mdevctl failed to updated mediated devices");
-    virMutexUnlock(&priv->mdevctlLock);
 }
 
 
@@ -2135,13 +2137,10 @@ mdevctlEnableMonitor(udevEventData *priv)
      * mdevctl configuration is stored in a directory tree within
      * /etc/mdevctl.d/. There is a directory for each parent device, which
      * contains a file defining each mediated device */
-    virMutexLock(&priv->mdevctlLock);
-    if (!(priv->mdevctlMonitors = monitorFileRecursively(priv,
-                                                         mdevctlConfigDir))) {
-        virMutexUnlock(&priv->mdevctlLock);
-        return -1;
+    VIR_WITH_MUTEX_LOCK_GUARD(&priv->mdevctlLock) {
+        if (!(priv->mdevctlMonitors = monitorFileRecursively(priv, mdevctlConfigDir)))
+            return -1;
     }
-    virMutexUnlock(&priv->mdevctlLock);
 
     return 0;
 }
@@ -2163,9 +2162,10 @@ mdevctlEventHandleCallback(GFileMonitor *monitor G_GNUC_UNUSED,
         if (file_type == G_FILE_TYPE_DIRECTORY) {
             GList *newmonitors = monitorFileRecursively(priv, file);
 
-            virMutexLock(&priv->mdevctlLock);
-            priv->mdevctlMonitors = g_list_concat(priv->mdevctlMonitors, newmonitors);
-            virMutexUnlock(&priv->mdevctlLock);
+            VIR_WITH_MUTEX_LOCK_GUARD(&priv->mdevctlLock) {
+                priv->mdevctlMonitors = g_list_concat(priv->mdevctlMonitors,
+                                                      newmonitors);
+            }
         }
     }
 

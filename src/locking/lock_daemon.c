@@ -136,8 +136,7 @@ virLockDaemonNew(virLockDaemonConfig *config, bool privileged)
 
     if (virNetDaemonAddServer(lockd->dmn, srv) < 0)
         goto error;
-    virObjectUnref(srv);
-    srv = NULL;
+    g_clear_pointer(&srv, virObjectUnref);
 
     if (!(srv = virNetServerNew("admin", 1,
                                 0, 0, 0, config->admin_max_clients,
@@ -150,8 +149,7 @@ virLockDaemonNew(virLockDaemonConfig *config, bool privileged)
 
     if (virNetDaemonAddServer(lockd->dmn, srv) < 0)
          goto error;
-    virObjectUnref(srv);
-    srv = NULL;
+    g_clear_pointer(&srv, virObjectUnref);
 
     lockd->lockspaces = virHashNew(virLockDaemonLockSpaceDataFree);
 
@@ -988,10 +986,6 @@ int main(int argc, char **argv) {
      * saved state is present, therefore initialize from scratch here. */
     if (rv == 0) {
         g_autoptr(virSystemdActivation) act = NULL;
-        virSystemdActivationMap actmap[] = {
-            { .name = "virtlockd.socket", .family = AF_UNIX, .path = sock_file },
-            { .name = "virtlockd-admin.socket", .family = AF_UNIX, .path = admin_sock_file },
-        };
 
         if (godaemon) {
             if (chdir("/") < 0) {
@@ -1018,9 +1012,7 @@ int main(int argc, char **argv) {
             goto cleanup;
         }
 
-        if (virSystemdGetActivation(actmap,
-                                    G_N_ELEMENTS(actmap),
-                                    &act) < 0) {
+        if (virSystemdGetActivation(&act) < 0) {
             ret = VIR_DAEMON_ERR_NETWORK;
             goto cleanup;
         }
@@ -1106,7 +1098,7 @@ int main(int argc, char **argv) {
      */
     if (statuswrite != -1) {
         char status = 0;
-        while (write(statuswrite, &status, 1) == -1 &&
+        while (write(statuswrite, &status, 1) == -1 && /* sc_avoid_write */
                errno == EINTR)
             ;
         VIR_FORCE_CLOSE(statuswrite);
@@ -1135,7 +1127,7 @@ int main(int argc, char **argv) {
         if (ret != 0) {
             /* Tell parent of daemon what failed */
             char status = ret;
-            while (write(statuswrite, &status, 1) == -1 &&
+            while (write(statuswrite, &status, 1) == -1 && /* sc_avoid_write */
                    errno == EINTR)
                 ;
         }

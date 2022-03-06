@@ -411,7 +411,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
         case VIR_DOMAIN_TIMER_NAME_TSC:
         case VIR_DOMAIN_TIMER_NAME_KVMCLOCK:
         case VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK:
-            if (!ARCH_IS_X86(def->os.arch) && timer->present == 1) {
+            if (!ARCH_IS_X86(def->os.arch) && timer->present == VIR_TRISTATE_BOOL_YES) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("Configuring the '%s' timer is not supported "
                                  "for virtType=%s arch=%s machine=%s guests"),
@@ -428,7 +428,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
 
         case VIR_DOMAIN_TIMER_NAME_RTC:
             switch (timer->track) {
-            case -1: /* unspecified - use hypervisor default */
+            case VIR_DOMAIN_TIMER_TRACK_NONE: /* unspecified - use hypervisor default */
             case VIR_DOMAIN_TIMER_TRACK_GUEST:
             case VIR_DOMAIN_TIMER_TRACK_WALL:
             case VIR_DOMAIN_TIMER_TRACK_REALTIME:
@@ -441,7 +441,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
             }
 
             switch (timer->tickpolicy) {
-            case -1:
+            case VIR_DOMAIN_TIMER_TICKPOLICY_NONE:
             case VIR_DOMAIN_TIMER_TICKPOLICY_DELAY:
                 /* This is the default - missed ticks delivered when
                    next scheduled, at normal rate */
@@ -461,7 +461,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
 
         case VIR_DOMAIN_TIMER_NAME_PIT:
             switch (timer->tickpolicy) {
-            case -1:
+            case VIR_DOMAIN_TIMER_TICKPOLICY_NONE:
             case VIR_DOMAIN_TIMER_TICKPOLICY_DELAY:
             case VIR_DOMAIN_TIMER_TICKPOLICY_DISCARD:
                 break;
@@ -489,7 +489,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
             /* no hpet timer available. The only possible action
               is to raise an error if present="yes" */
             if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NO_HPET) &&
-                timer->present == 1) {
+                timer->present == VIR_TRISTATE_BOOL_YES) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                "%s", _("hpet timer is not supported"));
                 return -1;
@@ -508,7 +508,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
                                def->os.machine);
                 return -1;
             }
-            if (timer->present == 0) {
+            if (timer->present == VIR_TRISTATE_BOOL_NO) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("The '%s' timer can't be disabled"),
                                virDomainTimerNameTypeToString(timer->name));
@@ -523,7 +523,7 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
             }
 
             switch (timer->tickpolicy) {
-            case -1:
+            case VIR_DOMAIN_TIMER_TICKPOLICY_NONE:
             case VIR_DOMAIN_TIMER_TICKPOLICY_DELAY:
             case VIR_DOMAIN_TIMER_TICKPOLICY_DISCARD:
                 break;
@@ -1817,6 +1817,7 @@ qemuValidateChrSerialTargetTypeToAddressType(int targetType)
 {
     switch ((virDomainChrSerialTargetType)targetType) {
     case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_ISA:
+    case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_ISA_DEBUG:
         return VIR_DOMAIN_DEVICE_ADDRESS_TYPE_ISA;
     case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_USB:
         return VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB;
@@ -1853,6 +1854,8 @@ qemuValidateChrSerialTargetModelToTargetType(int targetModel)
     case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_SCLPCONSOLE:
     case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_SCLPLMCONSOLE:
         return VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SCLP;
+    case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_DEBUGCON:
+        return VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_ISA_DEBUG;
     case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_NONE:
     case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_LAST:
         break;
@@ -1876,6 +1879,7 @@ qemuValidateDomainChrTargetDef(const virDomainChrDef *chr)
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_USB:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_PCI:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SPAPR_VIO:
+        case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_ISA_DEBUG:
 
             expected = qemuValidateChrSerialTargetTypeToAddressType(chr->targetType);
 
@@ -1915,6 +1919,7 @@ qemuValidateDomainChrTargetDef(const virDomainChrDef *chr)
         case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_SCLPCONSOLE:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_SCLPLMCONSOLE:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_16550A:
+        case VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_ISA_DEBUGCON:
 
             expected = qemuValidateChrSerialTargetModelToTargetType(chr->targetModel);
 
@@ -2357,7 +2362,7 @@ qemuValidateDomainMdevDef(const virDomainHostdevDef *hostdev,
     const virDomainHostdevSubsysMediatedDev *mdevsrc;
 
     mdevsrc = &hostdev->source.subsys.u.mdev;
-    switch ((virMediatedDeviceModelType) mdevsrc->model) {
+    switch (mdevsrc->model) {
     case VIR_MDEV_MODEL_TYPE_VFIO_PCI:
         return qemuValidateDomainMdevDefVFIOPCI(hostdev, def, qemuCaps);
     case VIR_MDEV_MODEL_TYPE_VFIO_AP:
@@ -2472,17 +2477,24 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
         return -1;
     }
 
-    if (!video->primary &&
-        video->type != VIR_DOMAIN_VIDEO_TYPE_QXL &&
+    if (video->type != VIR_DOMAIN_VIDEO_TYPE_QXL &&
         video->type != VIR_DOMAIN_VIDEO_TYPE_VIRTIO) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("video type '%s' is only valid as primary "
-                         "video device"),
-                       virDomainVideoTypeToString(video->type));
-        return -1;
+        if (!video->primary) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("video type '%s' is only valid as primary video device"),
+                           virDomainVideoTypeToString(video->type));
+            return -1;
+        }
+
+        if (video->heads != 1) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("video type '%s' doesn't support multiple 'heads'"),
+                           virDomainVideoTypeToString(video->type));
+            return -1;
+        }
     }
 
-    if (video->accel && video->accel->accel2d == VIR_TRISTATE_SWITCH_ON) {
+    if (video->accel && video->accel->accel2d == VIR_TRISTATE_BOOL_YES) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("qemu does not support the accel2d setting"));
         return -1;
@@ -2546,7 +2558,7 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
             return -1;
         }
     } else if (video->accel) {
-        if (video->accel->accel3d == VIR_TRISTATE_SWITCH_ON &&
+        if (video->accel->accel3d == VIR_TRISTATE_BOOL_YES &&
             (video->type != VIR_DOMAIN_VIDEO_TYPE_VIRTIO ||
              !(virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_GPU_VIRGL) ||
                virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_GPU_GL_PCI) ||
@@ -4227,7 +4239,7 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
                        _("only supports mount filesystem type"));
         return -1;
     }
-    if (fs->multidevs != VIR_DOMAIN_FS_MODEL_DEFAULT &&
+    if (fs->multidevs != VIR_DOMAIN_FS_MULTIDEVS_DEFAULT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_FSDEV_MULTIDEVS)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("multidevs is not supported with this QEMU binary"));
@@ -4699,29 +4711,15 @@ qemuValidateDomainDeviceDefInput(const virDomainInputDef *input,
     if (input->bus != VIR_DOMAIN_INPUT_BUS_VIRTIO)
         return 0;
 
-    /* Only type=passthrough supports model=virtio-(non-)transitional */
+    /* model=virtio-(non-)transitional is unsupported */
     switch ((virDomainInputModel)input->model) {
     case VIR_DOMAIN_INPUT_MODEL_VIRTIO_TRANSITIONAL:
     case VIR_DOMAIN_INPUT_MODEL_VIRTIO_NON_TRANSITIONAL:
-        switch ((virDomainInputType)input->type) {
-        case VIR_DOMAIN_INPUT_TYPE_MOUSE:
-        case VIR_DOMAIN_INPUT_TYPE_TABLET:
-        case VIR_DOMAIN_INPUT_TYPE_KBD:
-        case VIR_DOMAIN_INPUT_TYPE_EVDEV:
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("virtio (non-)transitional models are not "
-                             "supported for input type=%s"),
-                           virDomainInputTypeToString(input->type));
-            return -1;
-        case VIR_DOMAIN_INPUT_TYPE_PASSTHROUGH:
-            break;
-        case VIR_DOMAIN_INPUT_TYPE_LAST:
-        default:
-            virReportEnumRangeError(virDomainInputType,
-                                    input->type);
-            return -1;
-        }
-        break;
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("virtio (non-)transitional models are not "
+                         "supported for input type=%s"),
+                       virDomainInputTypeToString(input->type));
+        return -1;
     case VIR_DOMAIN_INPUT_MODEL_VIRTIO:
     case VIR_DOMAIN_INPUT_MODEL_DEFAULT:
         break;

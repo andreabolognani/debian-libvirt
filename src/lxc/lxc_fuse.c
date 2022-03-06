@@ -260,11 +260,10 @@ static struct fuse_operations lxcProcOper = {
 
 static void lxcFuseDestroy(struct virLXCFuse *fuse)
 {
-    virMutexLock(&fuse->lock);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&fuse->lock);
+
     fuse_unmount(fuse->mountpoint, fuse->ch);
-    fuse_destroy(fuse->fuse);
-    fuse->fuse = NULL;
-    virMutexUnlock(&fuse->lock);
+    g_clear_pointer(&fuse->fuse, fuse_destroy);
 }
 
 static void lxcFuseRun(void *opaque)
@@ -346,10 +345,10 @@ void lxcFreeFuse(struct virLXCFuse **f)
     if (fuse) {
         /* exit fuse_loop, lxcFuseRun thread may try to destroy
          * fuse->fuse at the same time,so add a lock here. */
-        virMutexLock(&fuse->lock);
-        if (fuse->fuse)
-            fuse_exit(fuse->fuse);
-        virMutexUnlock(&fuse->lock);
+        VIR_WITH_MUTEX_LOCK_GUARD(&fuse->lock) {
+            if (fuse->fuse)
+                fuse_exit(fuse->fuse);
+        }
 
         g_free(fuse->mountpoint);
         g_free(*f);

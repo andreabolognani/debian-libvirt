@@ -225,6 +225,50 @@ virshAddressFormat(virBuffer *buf,
 }
 
 
+/**
+ * virshFetchPassFdsList
+ *
+ * Helper to process the 'pass-fds' argument.
+ */
+static int
+virshFetchPassFdsList(vshControl *ctl,
+                      const vshCmd *cmd,
+                      size_t *nfdsret,
+                      int **fdsret)
+{
+    const char *fdopt;
+    g_auto(GStrv) fdlist = NULL;
+    g_autofree int *fds = NULL;
+    size_t nfds = 0;
+    size_t i;
+
+    *nfdsret = 0;
+    *fdsret = NULL;
+
+    if (vshCommandOptStringQuiet(ctl, cmd, "pass-fds", &fdopt) <= 0)
+        return 0;
+
+    if (!(fdlist = g_strsplit(fdopt, ",", -1))) {
+        vshError(ctl, _("Unable to split FD list '%s'"), fdopt);
+        return -1;
+    }
+
+    nfds = g_strv_length(fdlist);
+    fds = g_new0(int, nfds);
+
+    for (i = 0; i < nfds; i++) {
+        if (virStrToLong_i(fdlist[i], NULL, 10, fds + i) < 0) {
+            vshError(ctl, _("Unable to parse FD number '%s'"), fdlist[i]);
+            return -1;
+        }
+    }
+
+    *fdsret = g_steal_pointer(&fds);
+    *nfdsret = nfds;
+    return 0;
+}
+
+
 #define VIRSH_COMMON_OPT_DOMAIN_PERSISTENT \
     {.name = "persistent", \
      .type = VSH_OT_BOOL, \
@@ -4010,50 +4054,12 @@ static const vshCmdOptDef opts_start[] = {
      .completer = virshCompleteEmpty,
      .help = N_("pass file descriptors N,M,... to the guest")
     },
+    {.name = "reset-nvram",
+     .type = VSH_OT_BOOL,
+     .help = N_("re-initialize NVRAM from its pristine template")
+    },
     {.name = NULL}
 };
-
-static int
-cmdStartGetFDs(vshControl *ctl,
-               const vshCmd *cmd,
-               size_t *nfdsret,
-               int **fdsret)
-{
-    const char *fdopt;
-    g_auto(GStrv) fdlist = NULL;
-    int *fds = NULL;
-    size_t nfds = 0;
-    size_t i;
-
-    *nfdsret = 0;
-    *fdsret = NULL;
-
-    if (vshCommandOptStringQuiet(ctl, cmd, "pass-fds", &fdopt) <= 0)
-        return 0;
-
-    if (!(fdlist = g_strsplit(fdopt, ",", -1))) {
-        vshError(ctl, _("Unable to split FD list '%s'"), fdopt);
-        return -1;
-    }
-
-    for (i = 0; fdlist[i] != NULL; i++) {
-        int fd;
-        if (virStrToLong_i(fdlist[i], NULL, 10, &fd) < 0) {
-            vshError(ctl, _("Unable to parse FD number '%s'"), fdlist[i]);
-            goto error;
-        }
-        VIR_EXPAND_N(fds, nfds, 1);
-        fds[nfds - 1] = fd;
-    }
-
-    *fdsret = fds;
-    *nfdsret = nfds;
-    return 0;
-
- error:
-    VIR_FREE(fds);
-    return -1;
-}
 
 static bool
 cmdStart(vshControl *ctl, const vshCmd *cmd)
@@ -4076,7 +4082,7 @@ cmdStart(vshControl *ctl, const vshCmd *cmd)
         return false;
     }
 
-    if (cmdStartGetFDs(ctl, cmd, &nfds, &fds) < 0)
+    if (virshFetchPassFdsList(ctl, cmd, &nfds, &fds) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "paused"))
@@ -4087,6 +4093,8 @@ cmdStart(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_START_BYPASS_CACHE;
     if (vshCommandOptBool(cmd, "force-boot"))
         flags |= VIR_DOMAIN_START_FORCE_BOOT;
+    if (vshCommandOptBool(cmd, "reset-nvram"))
+        flags |= VIR_DOMAIN_START_RESET_NVRAM;
 
     /* We can emulate force boot, even for older servers that reject it.  */
     if (flags & VIR_DOMAIN_START_FORCE_BOOT) {
@@ -5268,6 +5276,10 @@ static const vshCmdOptDef opts_restore[] = {
      .type = VSH_OT_BOOL,
      .help = N_("restore domain into paused state")
     },
+    {.name = "reset-nvram",
+     .type = VSH_OT_BOOL,
+     .help = N_("re-initialize NVRAM from its pristine template")
+    },
     {.name = NULL}
 };
 
@@ -5289,6 +5301,8 @@ cmdRestore(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_SAVE_RUNNING;
     if (vshCommandOptBool(cmd, "paused"))
         flags |= VIR_DOMAIN_SAVE_PAUSED;
+    if (vshCommandOptBool(cmd, "reset-nvram"))
+        flags |= VIR_DOMAIN_SAVE_RESET_NVRAM;
 
     if (vshCommandOptStringReq(ctl, cmd, "xml", &xmlfile) < 0)
         return false;
@@ -8093,6 +8107,10 @@ static const vshCmdOptDef opts_create[] = {
      .type = VSH_OT_BOOL,
      .help = N_("validate the XML against the schema")
     },
+    {.name = "reset-nvram",
+     .type = VSH_OT_BOOL,
+     .help = N_("re-initialize NVRAM from its pristine template")
+    },
     {.name = NULL}
 };
 
@@ -8116,7 +8134,7 @@ cmdCreate(vshControl *ctl, const vshCmd *cmd)
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
         return false;
 
-    if (cmdStartGetFDs(ctl, cmd, &nfds, &fds) < 0)
+    if (virshFetchPassFdsList(ctl, cmd, &nfds, &fds) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "paused"))
@@ -8125,6 +8143,8 @@ cmdCreate(vshControl *ctl, const vshCmd *cmd)
         flags |= VIR_DOMAIN_START_AUTODESTROY;
     if (vshCommandOptBool(cmd, "validate"))
         flags |= VIR_DOMAIN_START_VALIDATE;
+    if (vshCommandOptBool(cmd, "reset-nvram"))
+        flags |= VIR_DOMAIN_START_RESET_NVRAM;
 
     if (nfds)
         dom = virDomainCreateXMLWithFiles(priv->conn, buffer, nfds, fds, flags);
@@ -9627,8 +9647,10 @@ cmdDomSetLaunchSecState(vshControl * ctl, const vshCmd * cmd)
     if (vshCommandOptStringReq(ctl, cmd, "secret", &secfile) < 0)
         return false;
 
-    if (sechdrfile == NULL || secfile == NULL)
+    if (sechdrfile == NULL || secfile == NULL) {
+        vshError(ctl, "%s", _("Both secret and the secret header are required"));
         return false;
+    }
 
     if (virFileReadAll(sechdrfile, 1024*64, &sechdr) < 0) {
         vshSaveLibvirtError();
@@ -12612,8 +12634,7 @@ virshUpdateDiskXML(xmlNodePtr disk_node,
 
         /* remove current source */
         xmlUnlinkNode(source);
-        xmlFreeNode(source);
-        source = NULL;
+        g_clear_pointer(&source, xmlFreeNode);
     }
 
     /* set the correct disk type */
@@ -14465,14 +14486,28 @@ static const vshCmdOptDef opts_domdirtyrate_calc[] = {
      .help = N_("calculate memory dirty rate within specified seconds, "
                 "the supported value range from 1 to 60, default to 1.")
     },
+    {.name = "mode",
+     .type = VSH_OT_STRING,
+     .completer = virshDomainDirtyRateCalcModeCompleter,
+     .help = N_("dirty page rate calculation mode, either of these 3 options "
+                "'page-sampling, dirty-bitmap, dirty-ring' can be specified.")
+    },
     {.name = NULL}
 };
+
+VIR_ENUM_IMPL(virshDomainDirtyRateCalcMode,
+              VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_LAST,
+              "page-sampling",
+              "dirty-bitmap",
+              "dirty-ring");
 
 static bool
 cmdDomDirtyRateCalc(vshControl *ctl, const vshCmd *cmd)
 {
     g_autoptr(virshDomain) dom = NULL;
     int seconds = 1; /* the default value is 1 */
+    const char *modestr = NULL;
+    unsigned int flags = 0;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -14480,7 +14515,33 @@ cmdDomDirtyRateCalc(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptInt(ctl, cmd, "seconds", &seconds) < 0)
         return false;
 
-    if (virDomainStartDirtyRateCalc(dom, seconds, 0) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "mode", &modestr) < 0)
+        return false;
+
+    if (modestr) {
+        int mode = virshDomainDirtyRateCalcModeTypeFromString(modestr);
+
+        if (mode < 0) {
+            vshError(ctl, _("Unknown calculation mode '%s'"), modestr);
+            return false;
+        }
+
+        switch ((virshDomainDirtyRateCalcMode) mode) {
+        case VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_PAGE_SAMPLING:
+            flags |= VIR_DOMAIN_DIRTYRATE_MODE_PAGE_SAMPLING;
+            break;
+        case VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_DIRTY_BITMAP:
+            flags |= VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_BITMAP;
+            break;
+        case VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_DIRTY_RING:
+            flags |= VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_RING;
+            break;
+        case VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_LAST:
+            break;
+        }
+    }
+
+    if (virDomainStartDirtyRateCalc(dom, seconds, flags) < 0)
         return false;
 
     vshPrintExtra(ctl, _("Start to calculate domain's memory "

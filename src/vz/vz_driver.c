@@ -169,11 +169,12 @@ vzGetDriverConnection(void)
                        "%s", _("vz state driver is not active"));
         return NULL;
     }
-    virMutexLock(&vz_driver_lock);
-    if (!vz_driver)
-        vz_driver = vzDriverObjNew();
-    virObjectRef(vz_driver);
-    virMutexUnlock(&vz_driver_lock);
+
+    VIR_WITH_MUTEX_LOCK_GUARD(&vz_driver_lock) {
+        if (!vz_driver)
+            vz_driver = vzDriverObjNew();
+        virObjectRef(vz_driver);
+    }
 
     return vz_driver;
 }
@@ -181,13 +182,13 @@ vzGetDriverConnection(void)
 void
 vzDestroyDriverConnection(void)
 {
-    struct _vzDriver *driver;
-    struct _vzConn *privconn_list;
+    struct _vzDriver *driver = NULL;
+    struct _vzConn *privconn_list = NULL;
 
-    virMutexLock(&vz_driver_lock);
-    driver = g_steal_pointer(&vz_driver);
-    privconn_list = g_steal_pointer(&vz_conn_list);
-    virMutexUnlock(&vz_driver_lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&vz_driver_lock) {
+        driver = g_steal_pointer(&vz_driver);
+        privconn_list = g_steal_pointer(&vz_conn_list);
+    }
 
     while (privconn_list) {
         struct _vzConn *privconn = privconn_list;
@@ -382,10 +383,10 @@ vzConnectOpen(virConnectPtr conn,
     if (!(privconn->closeCallback = virNewConnectCloseCallbackData()))
         goto error;
 
-    virMutexLock(&vz_driver_lock);
-    privconn->next = vz_conn_list;
-    vz_conn_list = privconn;
-    virMutexUnlock(&vz_driver_lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&vz_driver_lock) {
+        privconn->next = vz_conn_list;
+        vz_conn_list = privconn;
+    }
 
     return VIR_DRV_OPEN_SUCCESS;
 
@@ -407,15 +408,14 @@ vzConnectClose(virConnectPtr conn)
     if (!privconn)
         return 0;
 
-    virMutexLock(&vz_driver_lock);
-    for (curr = vz_conn_list; curr; prev = &curr->next, curr = curr->next) {
-        if (curr == privconn) {
-            *prev = curr->next;
-            break;
+    VIR_WITH_MUTEX_LOCK_GUARD(&vz_driver_lock) {
+        for (curr = vz_conn_list; curr; prev = &curr->next, curr = curr->next) {
+            if (curr == privconn) {
+                *prev = curr->next;
+                break;
+            }
         }
     }
-
-    virMutexUnlock(&vz_driver_lock);
 
     virObjectUnref(privconn->closeCallback);
     virObjectUnref(privconn->driver);
@@ -3006,8 +3006,13 @@ vzDomainMigratePrepare3Params(virConnectPtr conn,
 static int
 vzConnectSupportsFeature(virConnectPtr conn G_GNUC_UNUSED, int feature)
 {
+    int supported;
+
     if (virConnectSupportsFeatureEnsureACL(conn) < 0)
         return -1;
+
+    if (virDriverFeatureIsGlobal(feature, &supported))
+        return supported;
 
     switch ((virDrvFeature) feature) {
     case VIR_DRV_FEATURE_MIGRATION_PARAMS:
@@ -4071,8 +4076,7 @@ static int
 vzStateCleanup(void)
 {
     if (vz_driver_privileged) {
-        virObjectUnref(vz_driver);
-        vz_driver = NULL;
+        g_clear_pointer(&vz_driver, virObjectUnref);
         if (vz_driver_lock_fd != -1)
             virPidFileRelease(VZ_STATEDIR, "driver", vz_driver_lock_fd);
         virMutexDestroy(&vz_driver_lock);

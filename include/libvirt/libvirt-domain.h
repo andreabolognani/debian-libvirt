@@ -62,7 +62,7 @@ typedef enum {
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_LAST
     /*
-     * NB: this enum value will increase over time as new events are
+     * NB: this enum value will increase over time as new states are
      * added to the libvirt API. It reflects the last state supported
      * by this version of the libvirt API.
      */
@@ -302,6 +302,7 @@ typedef enum {
     VIR_DOMAIN_START_BYPASS_CACHE = 1 << 2, /* Avoid file system cache pollution */
     VIR_DOMAIN_START_FORCE_BOOT   = 1 << 3, /* Boot, discarding any managed save */
     VIR_DOMAIN_START_VALIDATE     = 1 << 4, /* Validate the XML document against schema */
+    VIR_DOMAIN_START_RESET_NVRAM  = 1 << 5, /* Re-initialize NVRAM from template */
 } virDomainCreateFlags;
 
 
@@ -696,7 +697,7 @@ typedef enum {
     VIR_DOMAIN_CORE_DUMP_FORMAT_LAST
     /*
      * NB: this enum value will increase over time as new formats are
-     * added to the libvirt API. It reflects the last state supported
+     * added to the libvirt API. It reflects the last format supported
      * by this version of the libvirt API.
      */
 # endif
@@ -1268,6 +1269,7 @@ typedef enum {
     VIR_DOMAIN_SAVE_BYPASS_CACHE = 1 << 0, /* Avoid file system cache pollution */
     VIR_DOMAIN_SAVE_RUNNING      = 1 << 1, /* Favor running over paused */
     VIR_DOMAIN_SAVE_PAUSED       = 1 << 2, /* Favor paused over running */
+    VIR_DOMAIN_SAVE_RESET_NVRAM  = 1 << 3, /* Re-initialize NVRAM from template */
 } virDomainSaveRestoreFlags;
 
 int                     virDomainSave           (virDomainPtr domain,
@@ -2909,7 +2911,7 @@ typedef enum {
 # ifdef VIR_ENUM_SENTINELS
     VIR_KEYCODE_SET_LAST
     /*
-     * NB: this enum value will increase over time as new events are
+     * NB: this enum value will increase over time as new keycode sets are
      * added to the libvirt API. It reflects the last keycode set supported
      * by this version of the libvirt API.
      */
@@ -3281,7 +3283,7 @@ typedef enum {
  * @conn: virConnect connection
  * @dom: The domain on which the event occurred
  * @event: The specific virDomainEventType which occurred
- * @detail: event specific detail information
+ * @detail: event specific detail information (virDomainEvent*DetailType)
  * @opaque: opaque user data
  *
  * A callback function to be registered, and called when a domain event occurs
@@ -3783,7 +3785,7 @@ typedef enum {
  * virConnectDomainEventWatchdogCallback:
  * @conn: connection object
  * @dom: domain on which the event occurred
- * @action: action that is to be taken due to watchdog firing
+ * @action: action that is to be taken due to watchdog firing (virDomainEventWatchdogAction)
  * @opaque: application specified data
  *
  * The callback signature to use when registering for an event of type
@@ -3817,7 +3819,7 @@ typedef enum {
  * @dom: domain on which the event occurred
  * @srcPath: The host file on which the IO error occurred
  * @devAlias: The guest device alias associated with the path
- * @action: action that is to be taken due to the IO error
+ * @action: action that is to be taken due to the IO error (virDomainEventIOErrorAction)
  * @opaque: application specified data
  *
  * The callback signature to use when registering for an event of type
@@ -3836,7 +3838,7 @@ typedef void (*virConnectDomainEventIOErrorCallback)(virConnectPtr conn,
  * @dom: domain on which the event occurred
  * @srcPath: The host file on which the IO error occurred
  * @devAlias: The guest device alias associated with the path
- * @action: action that is to be taken due to the IO error
+ * @action: action that is to be taken due to the IO error (virDomainEventIOErrorAction)
  * @reason: the cause of the IO error
  * @opaque: application specified data
  *
@@ -3940,7 +3942,7 @@ typedef virDomainEventGraphicsSubject *virDomainEventGraphicsSubjectPtr;
  * virConnectDomainEventGraphicsCallback:
  * @conn: connection object
  * @dom: domain on which the event occurred
- * @phase: the phase of the connection
+ * @phase: the phase of the connection (virDomainEventGraphicsPhase)
  * @local: the local server address
  * @remote: the remote client address
  * @authScheme: the authentication scheme activated
@@ -4054,7 +4056,7 @@ typedef void (*virConnectDomainEventDiskChangeCallback)(virConnectPtr conn,
                                                         void *opaque);
 
 /**
- * virConnectDomainEventTrayChangeReason:
+ * virDomainEventTrayChangeReason:
  *
  * The reason describing why the callback was called
  */
@@ -4072,7 +4074,7 @@ typedef enum {
  * @conn: connection object
  * @dom: domain on which the event occurred
  * @devAlias: device alias
- * @reason: why the tray status was changed?
+ * @reason: why the tray status was changed? (virDomainEventTrayChangeReason)
  * @opaque: application specified data
  *
  * This callback occurs when the tray of a removable device is moved.
@@ -4653,7 +4655,7 @@ typedef void (*virConnectDomainEventBlockThresholdCallback)(virConnectPtr conn,
  *             (virDomainMemoryFailureRecipientType)
  * @action: the action of hardware memory failure
  *          (virDomainMemoryFailureActionType)
- * @flags: the flags of hardware memory failure
+ * @flags: the flags of hardware memory failure (virDomainMemoryFailureFlags)
  * @opaque: application specified data
  *
  * The callback occurs when the hypervisor handles the hardware memory
@@ -5256,6 +5258,19 @@ typedef enum {
     VIR_DOMAIN_DIRTYRATE_LAST
 # endif
 } virDomainDirtyRateStatus;
+
+/**
+ * virDomainDirtyRateCalcFlags:
+ *
+ * Flags OR'ed together to provide specific behaviour when calculating dirty page
+ * rate for a Domain
+ *
+ */
+typedef enum {
+    VIR_DOMAIN_DIRTYRATE_MODE_PAGE_SAMPLING = 0,        /* default mode - page-sampling */
+    VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_BITMAP = 1 << 0,    /* dirty-bitmap mode */
+    VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_RING = 1 << 1,      /* dirty-ring mode */
+} virDomainDirtyRateCalcFlags;
 
 int virDomainStartDirtyRateCalc(virDomainPtr domain,
                                 int seconds,

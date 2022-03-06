@@ -87,12 +87,11 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
     xmlNodePtr vlanNode;
     xmlNodePtr bandwidthNode;
     xmlNodePtr addressNode;
-    g_autofree char *trustGuestRxFilters = NULL;
+    xmlNodePtr rxfiltersNode = NULL;
+    xmlNodePtr plugNode = NULL;
     g_autofree char *mac = NULL;
     g_autofree char *macmgr = NULL;
     g_autofree char *mode = NULL;
-    g_autofree char *plugtype = NULL;
-    g_autofree char *managed = NULL;
     g_autofree char *driver = NULL;
 
     def = g_new0(virNetworkPortDef, 1);
@@ -169,25 +168,19 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
     if (virNetworkPortOptionsParseXML(ctxt, &def->isolatedPort) < 0)
         return NULL;
 
-    trustGuestRxFilters
-        = virXPathString("string(./rxfilters/@trustGuest)", ctxt);
-    if (trustGuestRxFilters) {
-        if ((def->trustGuestRxFilters
-             = virTristateBoolTypeFromString(trustGuestRxFilters)) <= 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid guest rx filters trust setting '%s' "),
-                           trustGuestRxFilters);
-            return NULL;
-        }
-    }
+    rxfiltersNode = virXPathNode("./rxfilters", ctxt);
+    if (virXMLPropTristateBool(rxfiltersNode, "trustGuest",
+                               VIR_XML_PROP_NONE,
+                               &def->trustGuestRxFilters) < 0)
+        return NULL;
 
-    plugtype = virXPathString("string(./plug/@type)", ctxt);
+    plugNode = virXPathNode("./plug", ctxt);
 
-    if (plugtype &&
-        (def->plugtype = virNetworkPortPlugTypeFromString(plugtype)) < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("Invalid network prt plug type '%s'"), plugtype);
-    }
+    if (virXMLPropEnum(plugNode, "type",
+                       virNetworkPortPlugTypeFromString,
+                       VIR_XML_PROP_NONE,
+                       &def->plugtype) < 0)
+        return NULL;
 
     switch (def->plugtype) {
     case VIR_NETWORK_PORT_PLUG_TYPE_NONE:
@@ -195,12 +188,12 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
 
     case VIR_NETWORK_PORT_PLUG_TYPE_NETWORK:
     case VIR_NETWORK_PORT_PLUG_TYPE_BRIDGE:
-        if (!(def->plug.bridge.brname = virXPathString("string(./plug/@bridge)", ctxt))) {
+        if (!(def->plug.bridge.brname = virXMLPropString(plugNode, "bridge"))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("Missing network port bridge name"));
             return NULL;
         }
-        macmgr = virXPathString("string(./plug/@macTableManager)", ctxt);
+        macmgr = virXMLPropString(plugNode, "macTableManager");
         if (macmgr &&
             (def->plug.bridge.macTableManager =
              virNetworkBridgeMACTableManagerTypeFromString(macmgr)) <= 0) {
@@ -212,12 +205,12 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
         break;
 
     case VIR_NETWORK_PORT_PLUG_TYPE_DIRECT:
-        if (!(def->plug.direct.linkdev = virXPathString("string(./plug/@dev)", ctxt))) {
+        if (!(def->plug.direct.linkdev = virXMLPropString(plugNode, "dev"))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("Missing network port link device name"));
             return NULL;
         }
-        mode = virXPathString("string(./plug/@mode)", ctxt);
+        mode = virXMLPropString(plugNode, "mode");
         if (mode &&
             (def->plug.direct.mode =
              virNetDevMacVLanModeTypeFromString(mode)) < 0) {
@@ -228,14 +221,10 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
         break;
 
     case VIR_NETWORK_PORT_PLUG_TYPE_HOSTDEV_PCI:
-        managed = virXPathString("string(./plug/@managed)", ctxt);
-        if (managed &&
-            (def->plug.hostdevpci.managed =
-             virTristateBoolTypeFromString(managed)) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid managed setting '%s' in network port"), mode);
+        if (virXMLPropTristateBool(plugNode, "managed",
+                                   VIR_XML_PROP_NONE,
+                                   &def->plug.hostdevpci.managed) < 0)
             return NULL;
-        }
         driver = virXPathString("string(./plug/driver/@name)", ctxt);
         if (driver &&
             (def->plug.hostdevpci.driver =
