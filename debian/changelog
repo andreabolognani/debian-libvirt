@@ -1,3 +1,9 @@
+libvirt (8.1.0-1) UNRELEASED; urgency=medium
+
+  * [224b64e] New upstream version 8.1.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 06 Mar 2022 11:23:44 +0100
+
 libvirt (8.0.0-1) unstable; urgency=medium
 
   * [a26cc81] New upstream version 8.0.0
