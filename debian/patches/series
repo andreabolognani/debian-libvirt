@@ -1,5 +1,3 @@
-backport/qemu-fix-inactive-snapshot-revert.patch
-backport/Revert-report-error-when-virProcessGetStatInfo-is-unable-.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
