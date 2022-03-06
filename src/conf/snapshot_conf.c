@@ -94,8 +94,7 @@ static void
 virDomainSnapshotDiskDefClear(virDomainSnapshotDiskDef *disk)
 {
     VIR_FREE(disk->name);
-    virObjectUnref(disk->src);
-    disk->src = NULL;
+    g_clear_pointer(&disk->src, virObjectUnref);
 }
 
 void
@@ -463,22 +462,16 @@ virDomainSnapshotDefParseString(const char *xmlStr,
 }
 
 
-/* Perform sanity checking on a redefined snapshot definition. If
- * @other is non-NULL, this may include swapping def->parent.dom from other
- * into def. */
-int
+/* Perform sanity checking on a redefined snapshot definition. */
+static int
 virDomainSnapshotRedefineValidate(virDomainSnapshotDef *def,
                                   const unsigned char *domain_uuid,
                                   virDomainMomentObj *other,
                                   virDomainXMLOption *xmlopt,
                                   unsigned int flags)
 {
-    int align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
-    bool align_match = true;
-    bool external = def->state == VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT ||
-        virDomainSnapshotDefIsExternal(def);
-
-    if ((flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) && !external) {
+    if ((flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) &&
+        def->state != VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT) {
         virReportError(VIR_ERR_INVALID_ARG,
                        _("disk-only flag for snapshot %s requires "
                          "disk-snapshot state"),
@@ -524,23 +517,9 @@ virDomainSnapshotRedefineValidate(virDomainSnapshotDef *def,
                 if (!virDomainDefCheckABIStability(otherdef->parent.dom,
                                                    def->parent.dom, xmlopt))
                     return -1;
-            } else {
-                /* Transfer the domain def */
-                def->parent.dom = g_steal_pointer(&otherdef->parent.dom);
             }
         }
     }
-
-    if (def->parent.dom) {
-        if (external) {
-            align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
-            align_match = false;
-        }
-        if (virDomainSnapshotAlignDisks(def, align_location,
-                                        align_match) < 0)
-            return -1;
-    }
-
 
     return 0;
 }
@@ -621,23 +600,49 @@ virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDef *def)
 }
 
 
-/* Align def->disks to def->parent.dom.  Sort the list of def->disks,
- * filling in any missing disks or snapshot state defaults given by
- * the domain, with a fallback to a passed in default.  Convert paths
- * to disk targets for uniformity.  Issue an error and return -1 if
- * any def->disks[n]->name appears more than once or does not map to
- * dom->disks.  If require_match, also ensure that there is no
- * conflicting requests for both internal and external snapshots.  */
+/**
+ * virDomainSnapshotAlignDisks:
+ * @snapdef: Snapshot definition to align
+ * @existingDomainDef: definition of the domain belonging to a redefined snapshot
+ * @default_snapshot: snapshot location to assign to disks which don't have any
+ * @uniform_internal_snapshot: Require that for an internal snapshot all disks
+ *                             take part in the internal snapshot
+ *
+ * Align snapdef->disks to domain definition, filling in any missing disks or
+ * snapshot state defaults given by the domain, with a fallback to
+ * @default_snapshot. Ensure that there are no duplicate snapshot disk
+ * definitions in @snapdef and there are no disks described in @snapdef but
+ * missing from the domain definition.
+ *
+ * By default the domain definition from @snapdef->parent.dom is used, but when
+ * redefining an existing snapshot the domain definition may be omitted in
+ * @snapdef. In such case callers must pass in the definition from the snapsot
+ * being redefined as @existingDomainDef. In all other cases callers pass NULL.
+ *
+ * When @uniform_internal_snapshot is true and @default_snapshot is
+ * VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL, all disks in @snapdef must take part
+ * in the internal snapshot. This is for hypervisors where granularity of an
+ * internal snapshot can't be controlled.
+ *
+ * Convert paths to disk targets for uniformity.
+ *
+ * On error -1 is returned and a libvirt error is reported.
+ */
 int
 virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
-                            int default_snapshot,
-                            bool require_match)
+                            virDomainDef *existingDomainDef,
+                            virDomainSnapshotLocation default_snapshot,
+                            bool uniform_internal_snapshot)
 {
     virDomainDef *domdef = snapdef->parent.dom;
     g_autoptr(GHashTable) map = virHashNew(NULL);
     g_autofree virDomainSnapshotDiskDef *olddisks = NULL;
+    bool require_match = false;
     size_t oldndisks;
     size_t i;
+
+    if (!domdef)
+        domdef = existingDomainDef;
 
     if (!domdef) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -650,6 +655,10 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
                        _("too many disk snapshot requests for domain"));
         return -1;
     }
+
+    if (uniform_internal_snapshot &&
+        default_snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL)
+        require_match = true;
 
     /* Unlikely to have a guest without disks but technically possible.  */
     if (!domdef->ndisks)
@@ -947,39 +956,35 @@ virDomainSnapshotIsExternal(virDomainMomentObj *snap)
 
 int
 virDomainSnapshotRedefinePrep(virDomainObj *vm,
-                              virDomainSnapshotDef **defptr,
+                              virDomainSnapshotDef *snapdef,
                               virDomainMomentObj **snap,
                               virDomainXMLOption *xmlopt,
                               unsigned int flags)
 {
-    virDomainSnapshotDef *def = *defptr;
     virDomainMomentObj *other;
-    virDomainSnapshotDef *otherdef = NULL;
-    bool check_if_stolen;
+    virDomainSnapshotDef *otherSnapDef = NULL;
+    virDomainDef *otherDomDef = NULL;
+    virDomainSnapshotLocation align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
 
-    if (virDomainSnapshotCheckCycles(vm->snapshots, def, vm->def->name) < 0)
+    if (virDomainSnapshotCheckCycles(vm->snapshots, snapdef, vm->def->name) < 0)
         return -1;
 
-    other = virDomainSnapshotFindByName(vm->snapshots, def->parent.name);
-    if (other)
-        otherdef = virDomainSnapshotObjGetDef(other);
-    check_if_stolen = other && otherdef->parent.dom;
-    if (virDomainSnapshotRedefineValidate(def, vm->def->uuid, other, xmlopt,
-                                          flags) < 0) {
-        /* revert any stealing of the snapshot domain definition */
-        if (check_if_stolen && def->parent.dom && !otherdef->parent.dom)
-            otherdef->parent.dom = g_steal_pointer(&def->parent.dom);
+    if ((other = virDomainSnapshotFindByName(vm->snapshots, snapdef->parent.name))) {
+        otherSnapDef = virDomainSnapshotObjGetDef(other);
+        otherDomDef = otherSnapDef->parent.dom;
+    }
+
+    *snap = other;
+
+    if (virDomainSnapshotRedefineValidate(snapdef, vm->def->uuid, other, xmlopt, flags) < 0)
         return -1;
-    }
-    if (other) {
-        /* Drop and rebuild the parent relationship, but keep all
-         * child relations by reusing snap. */
-        virDomainMomentDropParent(other);
-        virObjectUnref(otherdef);
-        other->def = &(*defptr)->parent;
-        *defptr = NULL;
-        *snap = other;
-    }
+
+    if (snapdef->state == VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT ||
+        virDomainSnapshotDefIsExternal(snapdef))
+        align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
+
+    if (virDomainSnapshotAlignDisks(snapdef, otherDomDef, align_location, true) < 0)
+        return -1;
 
     return 0;
 }

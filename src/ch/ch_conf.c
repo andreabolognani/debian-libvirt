@@ -87,21 +87,21 @@ virCaps *virCHDriverCapsInit(void)
 virCaps *virCHDriverGetCapabilities(virCHDriver *driver,
                                       bool refresh)
 {
-    virCaps *ret;
-    if (refresh) {
-        virCaps *caps = NULL;
-        if ((caps = virCHDriverCapsInit()) == NULL)
-            return NULL;
+    virCaps *ret = NULL;
+    virCaps *caps = NULL;
 
-        chDriverLock(driver);
-        virObjectUnref(driver->caps);
-        driver->caps = caps;
-    } else {
-        chDriverLock(driver);
+    if (refresh && !(caps = virCHDriverCapsInit()))
+        return NULL;
+
+    VIR_WITH_MUTEX_LOCK_GUARD(&driver->lock) {
+        if (refresh) {
+            virObjectUnref(driver->caps);
+            driver->caps = caps;
+        }
+
+        ret = virObjectRef(driver->caps);
     }
 
-    ret = virObjectRef(driver->caps);
-    chDriverUnlock(driver);
     return ret;
 }
 
@@ -124,6 +124,8 @@ virCHDriverConfigNew(bool privileged)
 
     if (!(cfg = virObjectNew(virCHDriverConfigClass)))
         return NULL;
+
+    cfg->cgroupControllers = -1; /* Auto detect */
 
     if (privileged) {
         if (virGetUserID(CH_USER, &cfg->user) < 0)
@@ -156,11 +158,8 @@ virCHDriverConfigNew(bool privileged)
 
 virCHDriverConfig *virCHDriverGetConfig(virCHDriver *driver)
 {
-    virCHDriverConfig *cfg;
-    chDriverLock(driver);
-    cfg = virObjectRef(driver->config);
-    chDriverUnlock(driver);
-    return cfg;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&driver->lock);
+    return virObjectRef(driver->config);
 }
 
 static void
@@ -202,7 +201,7 @@ chExtractVersion(virCHDriver *driver)
         return -1;
     }
 
-    if (virParseVersionString(tmp, &version, true) < 0) {
+    if (virStringParseVersion(&version, tmp, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unable to parse cloud-hypervisor version: %s"), tmp);
         return -1;

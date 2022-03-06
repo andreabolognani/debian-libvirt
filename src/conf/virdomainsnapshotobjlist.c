@@ -42,9 +42,34 @@ struct _virDomainSnapshotObjList {
 
 virDomainMomentObj *
 virDomainSnapshotAssignDef(virDomainSnapshotObjList *snapshots,
-                           virDomainSnapshotDef *def)
+                           virDomainSnapshotDef **snapdefptr)
 {
-    return virDomainMomentAssignDef(snapshots->base, &def->parent);
+    virDomainSnapshotDef *snapdef = *snapdefptr;
+    virDomainMomentObj *ret = virDomainMomentAssignDef(snapshots->base, &snapdef->parent);
+
+    if (ret)
+        *snapdefptr = NULL;
+
+    return ret;
+}
+
+
+void
+virDomainSnapshotReplaceDef(virDomainMomentObj *snap,
+                            virDomainSnapshotDef **snapdefptr)
+{
+    virDomainSnapshotDef *snapdef = *snapdefptr;
+    g_autoptr(virDomainSnapshotDef) origsnapdef = virDomainSnapshotObjGetDef(snap);
+
+    /* steal the domain definition if redefining an existing snapshot which
+     * with a snapshot definition lacking the domain definition */
+    if (!snapdef->parent.dom)
+        snapdef->parent.dom = g_steal_pointer(&origsnapdef->parent.dom);
+
+    /* Drop and rebuild the parent relationship, but keep all child relations by reusing snap. */
+    virDomainMomentDropParent(snap);
+    snap->def = &snapdef->parent;
+    *snapdefptr = NULL;
 }
 
 

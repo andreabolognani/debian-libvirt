@@ -8,11 +8,12 @@ After=network.target
 After=dbus.service
 After=apparmor.service
 After=local-fs.target
-Documentation=man:libvirtd(8)
+Documentation=man:virtnodedevd(8)
 Documentation=https://libvirt.org
 
 [Service]
 Type=notify
+Environment=VIRTNODEDEVD_ARGS="--timeout 120"
 EnvironmentFile=-@sysconfdir@/sysconfig/virtnodedevd
 ExecStart=@sbindir@/virtnodedevd $VIRTNODEDEVD_ARGS
 ExecReload=/bin/kill -HUP $MAINPID

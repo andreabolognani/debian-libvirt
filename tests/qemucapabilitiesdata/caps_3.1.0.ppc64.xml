@@ -92,7 +92,6 @@
   <flag name='spapr-pci-host-bridge.numa_node'/>
   <flag name='virtio-net.tx_queue_size'/>
   <flag name='chardev-reconnect'/>
-  <flag name='virtio-gpu.max_outputs'/>
   <flag name='vxhs'/>
   <flag name='virtio-blk.num-queues'/>
   <flag name='machine.pseries.resize-hpt'/>
@@ -144,7 +143,7 @@
   <flag name='cpu-max'/>
   <flag name='input-linux'/>
   <flag name='virtio-blk.queue-size'/>
-  <version>3000091</version>
+  <version>3001000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>42900240</microcodeVersion>
   <package>v3.1.0-rc1-74-g3c035a41dc</package>

@@ -1444,36 +1444,29 @@ static int
 x86ModelParseDecode(virCPUx86Model *model,
                     xmlXPathContextPtr ctxt)
 {
-    g_autofree char *host = NULL;
-    g_autofree char *guest = NULL;
-    int val;
+    xmlNodePtr decode_node = NULL;
+    virTristateSwitch decodeHost;
+    virTristateSwitch decodeGuest;
 
-    if ((host = virXPathString("string(./decode/@host)", ctxt)))
-        val = virTristateSwitchTypeFromString(host);
-    else
-        val = VIR_TRISTATE_SWITCH_ABSENT;
-
-    if (val <= 0) {
+    if (!(decode_node = virXPathNode("./decode", ctxt))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("invalid or missing decode/host attribute in CPU model %s"),
+                       _("missing decode element in CPU model %s"),
                        model->name);
         return -1;
     }
-    model->decodeHost = val == VIR_TRISTATE_SWITCH_ON;
 
-    if ((guest = virXPathString("string(./decode/@guest)", ctxt)))
-        val = virTristateSwitchTypeFromString(guest);
-    else
-        val = VIR_TRISTATE_SWITCH_ABSENT;
-
-    if (val <= 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("invalid or missing decode/guest attribute in CPU model %s"),
-                       model->name);
+    if (virXMLPropTristateSwitch(decode_node, "host",
+                                 VIR_XML_PROP_REQUIRED,
+                                 &decodeHost) < 0)
         return -1;
-    }
-    model->decodeGuest = val == VIR_TRISTATE_SWITCH_ON;
 
+    if (virXMLPropTristateSwitch(decode_node, "guest",
+                                 VIR_XML_PROP_REQUIRED,
+                                 &decodeGuest) < 0)
+        return -1;
+
+    virTristateSwitchToBool(decodeHost, &model->decodeHost);
+    virTristateSwitchToBool(decodeGuest, &model->decodeGuest);
     return 0;
 }
 
@@ -1610,8 +1603,8 @@ x86ModelParseFeatures(virCPUx86Model *model,
 
     for (i = 0; i < n; i++) {
         g_autofree char *ftname = NULL;
-        g_autofree char *removed = NULL;
         virCPUx86Feature *feature;
+        virTristateBool rem;
 
         if (!(ftname = virXMLPropString(nodes[i], "name"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1627,21 +1620,14 @@ x86ModelParseFeatures(virCPUx86Model *model,
             return -1;
         }
 
-        if ((removed = virXMLPropString(nodes[i], "removed"))) {
-            int rem;
+        if (virXMLPropTristateBool(nodes[i], "removed",
+                                   VIR_XML_PROP_NONE,
+                                   &rem) < 0)
+            return -1;
 
-            if ((rem = virTristateBoolTypeFromString(removed)) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid 'removed' attribute for feature %s "
-                                 "in model %s"),
-                               ftname, model->name);
-                return -1;
-            }
-
-            if (rem == VIR_TRISTATE_BOOL_YES) {
-                model->removedFeatures[nremoved++] = g_strdup(ftname);
-                continue;
-            }
+        if (rem == VIR_TRISTATE_BOOL_YES) {
+            model->removedFeatures[nremoved++] = g_strdup(ftname);
+            continue;
         }
 
         if (x86DataAdd(&model->data, &feature->data))

@@ -170,7 +170,7 @@ vboxExtractVersion(void)
 
     gVBoxAPI.UPFN.Utf16ToUtf8(vbox_driver->pFuncs, versionUtf16, &vboxVersion);
 
-    if (virParseVersionString(vboxVersion, &vbox_driver->version, false) >= 0)
+    if (virStringParseVersion(&vbox_driver->version, vboxVersion, false) >= 0)
         ret = 0;
 
     gVBoxAPI.UPFN.Utf8Free(vbox_driver->pFuncs, vboxVersion);
@@ -224,7 +224,7 @@ vboxSdkUninitialize(void)
 static struct _vboxDriver *
 vboxGetDriverConnection(void)
 {
-    virMutexLock(&vbox_driver_lock);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&vbox_driver_lock);
 
     if (vbox_driver) {
         virObjectRef(vbox_driver);
@@ -234,9 +234,6 @@ vboxGetDriverConnection(void)
         if (!vbox_driver) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Failed to create vbox driver object."));
-
-            virMutexUnlock(&vbox_driver_lock);
-
             return NULL;
         }
     }
@@ -248,26 +245,20 @@ vboxGetDriverConnection(void)
         virObjectUnref(vbox_driver);
         if (vboxDriverDisposed)
             vbox_driver = NULL;
-
-        virMutexUnlock(&vbox_driver_lock);
-
         return NULL;
     }
 
     vbox_driver->connectionCount++;
-
-    virMutexUnlock(&vbox_driver_lock);
-
     return vbox_driver;
 }
 
 static void
 vboxDestroyDriverConnection(void)
 {
-    virMutexLock(&vbox_driver_lock);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&vbox_driver_lock);
 
     if (!vbox_driver)
-        goto cleanup;
+        return;
 
     vbox_driver->connectionCount--;
 
@@ -277,9 +268,6 @@ vboxDestroyDriverConnection(void)
     virObjectUnref(vbox_driver);
     if (vboxDriverDisposed)
         vbox_driver = NULL;
-
- cleanup:
-    virMutexUnlock(&vbox_driver_lock);
 }
 
 static int openSessionForMachine(struct _vboxDriver *data, const unsigned char *dom_uuid,
@@ -2808,7 +2796,6 @@ static int vboxDomainGetInfo(virDomainPtr dom, virDomainInfoPtr info)
             if (systemProperties) {
                 gVBoxAPI.UISystemProperties.GetMaxGuestRAM(systemProperties, &maxMemorySize);
                 VBOX_RELEASE(systemProperties);
-                systemProperties = NULL;
             }
 
             gVBoxAPI.UIMachine.GetCPUCount(machine, &CPUCount);
@@ -4015,7 +4002,6 @@ static char *vboxDomainGetXMLDesc(virDomainPtr dom, unsigned int flags)
         gVBoxAPI.UISystemProperties.GetSerialPortCount(systemProperties, &serialPortCount);
         gVBoxAPI.UISystemProperties.GetParallelPortCount(systemProperties, &parallelPortCount);
         VBOX_RELEASE(systemProperties);
-        systemProperties = NULL;
     }
     /* Currently setting memory and maxMemory as same, cause
      * the notation here seems to be inconsistent while
@@ -4955,8 +4941,7 @@ vboxSnapshotRedefine(virDomainPtr dom,
         tmp = virStringReplace(newSnapshotPtr->storageController,
                                searchResultTab[it],
                                uuidReplacing);
-        g_strfreev(searchResultTab);
-        searchResultTab = NULL;
+        g_clear_pointer(&searchResultTab, g_strfreev);
         VIR_FREE(newSnapshotPtr->storageController);
         if (!tmp)
             goto cleanup;

@@ -251,7 +251,7 @@ qemuDomainSetupDisk(virStorageSource *src,
             if (!(tmpPath = virPCIDeviceAddressGetIOMMUGroupDev(&next->nvme->pciAddr)))
                 return -1;
         } else {
-            GSList *targetPaths;
+            GSList *targetPaths = NULL;
 
             if (virStorageSourceIsEmpty(next) ||
                 !virStorageSourceIsLocalStorage(next)) {
@@ -833,8 +833,7 @@ qemuDomainDisableNamespace(virDomainObj *vm,
     if (priv->namespaces) {
         ignore_value(virBitmapClearBit(priv->namespaces, ns));
         if (virBitmapIsAllClear(priv->namespaces)) {
-            virBitmapFree(priv->namespaces);
-            priv->namespaces = NULL;
+            g_clear_pointer(&priv->namespaces, virBitmapFree);
         }
     }
 }

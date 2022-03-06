@@ -259,7 +259,7 @@ xenConfigSetInt(virConf *conf, const char *setting, long long l)
     value->next = NULL;
     value->l = l;
 
-    return virConfSetValue(conf, setting, value);
+    return virConfSetValue(conf, setting, &value);
 }
 
 
@@ -274,7 +274,7 @@ xenConfigSetString(virConf *conf, const char *setting, const char *str)
     value->next = NULL;
     value->str = g_strdup(str);
 
-    return virConfSetValue(conf, setting, value);
+    return virConfSetValue(conf, setting, &value);
 }
 
 
@@ -553,10 +553,10 @@ xenParseHypervisorFeatures(virConf *conf, virDomainDef *def)
 
         timer = g_new0(virDomainTimerDef, 1);
         timer->name = VIR_DOMAIN_TIMER_NAME_TSC;
-        timer->present = 1;
-        timer->tickpolicy = -1;
+        timer->present = VIR_TRISTATE_BOOL_YES;
+        timer->tickpolicy = VIR_DOMAIN_TIMER_TICKPOLICY_NONE;
         timer->mode = VIR_DOMAIN_TIMER_MODE_AUTO;
-        timer->track = -1;
+        timer->track = VIR_DOMAIN_TIMER_TRACK_NONE;
         if (STREQ_NULLABLE(tscmode, "always_emulate"))
             timer->mode = VIR_DOMAIN_TIMER_MODE_EMULATE;
         else if (STREQ_NULLABLE(tscmode, "native"))
@@ -625,10 +625,10 @@ xenParseHypervisorFeatures(virConf *conf, virDomainDef *def)
 
             timer = g_new0(virDomainTimerDef, 1);
             timer->name = VIR_DOMAIN_TIMER_NAME_HPET;
-            timer->present = val;
-            timer->tickpolicy = -1;
-            timer->mode = -1;
-            timer->track = -1;
+            timer->present = virTristateBoolFromBool(val);
+            timer->tickpolicy = VIR_DOMAIN_TIMER_TICKPOLICY_NONE;
+            timer->mode = VIR_DOMAIN_TIMER_MODE_NONE;
+            timer->track = VIR_DOMAIN_TIMER_TRACK_NONE;
 
             def->clock.timers[def->clock.ntimers - 1] = timer;
         }
@@ -682,9 +682,8 @@ xenParseVfb(virConf *conf, virDomainDef *def)
             if (xenConfigCopyStringOpt(conf, "keymap", &graphics->data.vnc.keymap) < 0)
                 goto cleanup;
             def->graphics = g_new0(virDomainGraphicsDef *, 1);
-            def->graphics[0] = graphics;
+            def->graphics[0] = g_steal_pointer(&graphics);
             def->ngraphics = 1;
-            graphics = NULL;
         } else {
             if (xenConfigGetBool(conf, "sdl", &val, 0) < 0)
                 goto cleanup;
@@ -696,9 +695,8 @@ xenParseVfb(virConf *conf, virDomainDef *def)
                 if (xenConfigCopyStringOpt(conf, "xauthority", &graphics->data.sdl.xauth) < 0)
                     goto cleanup;
                 def->graphics = g_new0(virDomainGraphicsDef *, 1);
-                def->graphics[0] = graphics;
+                def->graphics[0] = g_steal_pointer(&graphics);
                 def->ngraphics = 1;
-                graphics = NULL;
             }
         }
     }
@@ -774,9 +772,8 @@ xenParseVfb(virConf *conf, virDomainDef *def)
                 VIR_FREE(listenAddr);
             }
             def->graphics = g_new0(virDomainGraphicsDef *, 1);
-            def->graphics[0] = graphics;
+            def->graphics[0] = g_steal_pointer(&graphics);
             def->ngraphics = 1;
-            graphics = NULL;
         } else {
             if (xenHandleConfGetValueStringListErrors(rc) < 0)
                 goto cleanup;
@@ -953,9 +950,8 @@ xenParseCharDev(virConf *conf, virDomainDef *def, const char *nativeFormat)
 
             chr->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_PARALLEL;
             chr->target.port = 0;
-            def->parallels[0] = chr;
+            def->parallels[0] = g_steal_pointer(&chr);
             def->nparallels++;
-            chr = NULL;
         }
 
         /* Try to get the list of values to support multiple serial ports */
@@ -1729,7 +1725,7 @@ xenFormatNet(virConnectPtr conn,
 static int
 xenFormatPCI(virConf *conf, virDomainDef *def)
 {
-    virConfValue *pciVal = NULL;
+    g_autoptr(virConfValue) pciVal = NULL;
     int hasPCI = 0;
     size_t i;
 
@@ -1788,13 +1784,9 @@ xenFormatPCI(virConf *conf, virDomainDef *def)
         }
     }
 
-    if (pciVal->list != NULL) {
-        int ret = virConfSetValue(conf, "pci", pciVal);
-        pciVal = NULL;
-        if (ret < 0)
-            return -1;
-    }
-    VIR_FREE(pciVal);
+    if (pciVal->list != NULL &&
+        virConfSetValue(conf, "pci", &pciVal) < 0)
+        return -1;
 
     return 0;
 }
@@ -1970,7 +1962,7 @@ xenFormatCharDev(virConf *conf, virDomainDef *def,
             } else {
                 size_t j = 0;
                 int maxport = -1, port;
-                virConfValue *serialVal = NULL;
+                g_autoptr(virConfValue) serialVal = NULL;
 
                 if (STREQ(nativeFormat, XEN_CONFIG_FORMAT_XM)) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -1997,19 +1989,13 @@ xenFormatCharDev(virConf *conf, virDomainDef *def,
                     }
 
                     if (xenFormatSerial(serialVal, chr) < 0) {
-                        VIR_FREE(serialVal);
                         return -1;
                     }
                 }
 
-                if (serialVal->list != NULL) {
-                    int ret = virConfSetValue(conf, "serial", serialVal);
-
-                    serialVal = NULL;
-                    if (ret < 0)
-                        return -1;
-                }
-                VIR_FREE(serialVal);
+                if (serialVal->list != NULL &&
+                    virConfSetValue(conf, "serial", &serialVal) < 0)
+                    return -1;
             }
         } else {
             if (xenConfigSetString(conf, "serial", "none") < 0)
@@ -2122,9 +2108,10 @@ xenFormatHypervisorFeatures(virConf *conf, virDomainDef *def)
 
         case VIR_DOMAIN_TIMER_NAME_HPET:
             if (hvm) {
-                int enable_hpet = def->clock.timers[i]->present != 0;
+                int enable_hpet = def->clock.timers[i]->present != VIR_TRISTATE_BOOL_NO;
 
-                /* disable hpet if 'present' is 0, enable otherwise */
+                /* disable hpet if 'present' is VIR_TRISTATE_BOOL_NO, enable
+                 * otherwise */
                 if (xenConfigSetInt(conf, "hpet", enable_hpet) < 0)
                     return -1;
             } else {
@@ -2224,8 +2211,8 @@ xenFormatVfb(virConf *conf, virDomainDef *def)
                     return -1;
             }
         } else {
-            virConfValue *vfb;
-            virConfValue *disp;
+            g_autoptr(virConfValue) vfb = NULL;
+            g_autoptr(virConfValue) disp = NULL;
             char *vfbstr = NULL;
             g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
@@ -2259,15 +2246,15 @@ xenFormatVfb(virConf *conf, virDomainDef *def)
 
             vfbstr = virBufferContentAndReset(&buf);
 
-            vfb = g_new0(virConfValue, 1);
             disp = g_new0(virConfValue, 1);
-
-            vfb->type = VIR_CONF_LIST;
-            vfb->list = disp;
             disp->type = VIR_CONF_STRING;
             disp->str = vfbstr;
 
-            if (virConfSetValue(conf, "vfb", vfb) < 0)
+            vfb = g_new0(virConfValue, 1);
+            vfb->type = VIR_CONF_LIST;
+            vfb->list = g_steal_pointer(&disp);
+
+            if (virConfSetValue(conf, "vfb", &vfb) < 0)
                 return -1;
         }
     }
@@ -2312,7 +2299,7 @@ xenFormatVif(virConf *conf,
              virDomainDef *def,
              const char *vif_typename)
 {
-    virConfValue *netVal = NULL;
+    g_autoptr(virConfValue) netVal = NULL;
     size_t i;
     int hvm = def->os.type == VIR_DOMAIN_OSTYPE_HVM;
 
@@ -2323,22 +2310,14 @@ xenFormatVif(virConf *conf,
     for (i = 0; i < def->nnets; i++) {
         if (xenFormatNet(conn, netVal, def->nets[i],
                          hvm, vif_typename) < 0)
-            goto cleanup;
+            return -1;
     }
 
-    if (netVal->list != NULL) {
-        int ret = virConfSetValue(conf, "vif", netVal);
-        netVal = NULL;
-        if (ret < 0)
-            goto cleanup;
-    }
+    if (netVal->list != NULL &&
+        virConfSetValue(conf, "vif", &netVal) < 0)
+        return -1;
 
-    VIR_FREE(netVal);
     return 0;
-
- cleanup:
-    virConfFreeValue(netVal);
-    return -1;
 }
 
 

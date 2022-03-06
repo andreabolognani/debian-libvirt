@@ -58,6 +58,8 @@ struct _virCHDomainObjPrivate {
     virCHMonitor *monitor;
     char *machineName;
     virBitmap *autoCpuset;
+    virBitmap *autoNodeset;
+    virCgroup *cgroup;
 };
 
 #define CH_DOMAIN_PRIVATE(vm) \
@@ -86,8 +88,13 @@ virCHDomainObjBeginJob(virDomainObj *obj, enum virCHDomainJob job)
 void
 virCHDomainObjEndJob(virDomainObj *obj);
 
+void
+virCHDomainRemoveInactive(virCHDriver *driver,
+                          virDomainObj *vm);
+
 int
-virCHDomainRefreshVcpuInfo(virDomainObj *vm);
+virCHDomainRefreshThreadInfo(virDomainObj *vm);
+
 pid_t
 virCHDomainGetVcpuPid(virDomainObj *vm,
                       unsigned int vcpuid);
@@ -96,3 +103,6 @@ virCHDomainHasVcpuPids(virDomainObj *vm);
 
 char *
 virCHDomainGetMachineName(virDomainObj *vm);
+
+virDomainObj *
+virCHDomainObjFromDomain(virDomainPtr domain);

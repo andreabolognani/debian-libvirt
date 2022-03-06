@@ -230,6 +230,7 @@
         <value>phyp</value> <!-- NOT USED ANYMORE -->
         <value>vz</value>
         <value>bhyve</value>
+        <value>hvf</value>
       </choice>
     </attribute>
   </define>
@@ -300,18 +301,12 @@
           <element name="loader">
             <optional>
               <attribute name="readonly">
-                <choice>
-                  <value>yes</value>
-                  <value>no</value>
-                </choice>
+                <ref name="virYesNo"/>
               </attribute>
             </optional>
             <optional>
               <attribute name="secure">
-                <choice>
-                  <value>yes</value>
-                  <value>no</value>
-                </choice>
+                <ref name="virYesNo"/>
               </attribute>
             </optional>
             <optional>
@@ -4406,6 +4401,7 @@
         <value>spapr-vio-serial</value>
         <value>system-serial</value>
         <value>sclp-serial</value>
+        <value>isa-debug</value>
       </choice>
     </attribute>
   </define>
@@ -4422,6 +4418,7 @@
           <value>16550a</value>
           <value>sclpconsole</value>
           <value>sclplmconsole</value>
+          <value>isa-debugcon</value>
         </choice>
       </attribute>
     </element>
@@ -5331,11 +5328,8 @@
           <ref name="tpm-backend-emulator-active-pcr-banks"/>
           <optional>
             <attribute name="persistent_state">
-              <choice>
-                <value>yes</value>
-                <value>no</value>
-              </choice>
-           </attribute>
+              <ref name="virYesNo"/>
+            </attribute>
           </optional>
         </group>
       </choice>

@@ -220,8 +220,7 @@ static virLXCController *virLXCControllerNew(const char *name)
     return ctrl;
 
  error:
-    virLXCControllerFree(ctrl);
-    ctrl = NULL;
+    g_clear_pointer(&ctrl, virLXCControllerFree);
     goto cleanup;
 }
 
@@ -951,8 +950,7 @@ static int virLXCControllerSetupServer(virLXCController *ctrl)
 
     if (virNetServerAddService(srv, svc) < 0)
         goto error;
-    virObjectUnref(svc);
-    svc = NULL;
+    g_clear_pointer(&svc, virObjectUnref);
 
     if (!(ctrl->prog = virNetServerProgramNew(VIR_LXC_MONITOR_PROGRAM,
                                               VIR_LXC_MONITOR_PROGRAM_VERSION,
@@ -969,8 +967,7 @@ static int virLXCControllerSetupServer(virLXCController *ctrl)
 
  error:
     virObjectUnref(srv);
-    virObjectUnref(ctrl->daemon);
-    ctrl->daemon = NULL;
+    g_clear_pointer(&ctrl->daemon, virObjectUnref);
     virObjectUnref(svc);
     return -1;
 }
@@ -995,7 +992,7 @@ static int lxcControllerClearCapabilities(void)
 }
 
 static bool wantReboot;
-static virMutex lock = VIR_MUTEX_INITIALIZER;
+static virMutex mutex = VIR_MUTEX_INITIALIZER;
 
 static int
 virLXCControllerEventSendExit(virLXCController *ctrl,
@@ -1012,13 +1009,13 @@ static void virLXCControllerSignalChildIO(virNetDaemon *dmn G_GNUC_UNUSED,
     ret = waitpid(-1, &status, WNOHANG);
     VIR_DEBUG("Got sig child %d vs %lld", ret, (long long)ctrl->initpid);
     if (ret == ctrl->initpid) {
-        virMutexLock(&lock);
-        if (WIFSIGNALED(status) &&
-            WTERMSIG(status) == SIGHUP) {
-            VIR_DEBUG("Status indicates reboot");
-            wantReboot = true;
+        VIR_WITH_MUTEX_LOCK_GUARD(&mutex) {
+            if (WIFSIGNALED(status) &&
+                WTERMSIG(status) == SIGHUP) {
+                VIR_DEBUG("Status indicates reboot");
+                wantReboot = true;
+            }
         }
-        virMutexUnlock(&lock);
         virLXCControllerEventSendExit(ctrl, wantReboot ? 1 : 0);
     }
 }
@@ -1132,8 +1129,8 @@ static void virLXCControllerConsoleUpdateWatch(virLXCControllerConsole *console)
 static void virLXCControllerConsoleEPoll(int watch, int fd, int events, void *opaque)
 {
     virLXCControllerConsole *console = opaque;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&mutex);
 
-    virMutexLock(&lock);
     VIR_DEBUG("IO event watch=%d fd=%d events=%d fromHost=%zu fromcont=%zu",
               watch, fd, events,
               console->fromHostLen,
@@ -1149,7 +1146,7 @@ static void virLXCControllerConsoleEPoll(int watch, int fd, int events, void *op
             virReportSystemError(errno, "%s",
                                  _("Unable to wait on epoll"));
             virNetDaemonQuit(console->daemon);
-            goto cleanup;
+            return;
         }
 
         if (ret == 0)
@@ -1171,16 +1168,13 @@ static void virLXCControllerConsoleEPoll(int watch, int fd, int events, void *op
             break;
         }
     }
-
- cleanup:
-    virMutexUnlock(&lock);
 }
 
 static void virLXCControllerConsoleIO(int watch, int fd, int events, void *opaque)
 {
     virLXCControllerConsole *console = opaque;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&mutex);
 
-    virMutexLock(&lock);
     VIR_DEBUG("IO event watch=%d fd=%d events=%d fromHost=%zu fromcont=%zu",
               watch, fd, events,
               console->fromHostLen,
@@ -1228,7 +1222,7 @@ static void virLXCControllerConsoleIO(int watch, int fd, int events, void *opaqu
         }
 
      rewrite:
-        done = write(fd, buf, *len);
+        done = write(fd, buf, *len); /* sc_avoid_write */
         if (done == -1 && errno == EINTR)
             goto rewrite;
         if (done == -1 && errno != EAGAIN) {
@@ -1254,7 +1248,6 @@ static void virLXCControllerConsoleIO(int watch, int fd, int events, void *opaqu
     }
 
     virLXCControllerConsoleUpdateWatch(console);
-    virMutexUnlock(&lock);
     return;
 
  error:
@@ -1262,7 +1255,6 @@ static void virLXCControllerConsoleIO(int watch, int fd, int events, void *opaqu
     virEventRemoveHandle(console->hostWatch);
     console->contWatch = console->hostWatch = -1;
     virNetDaemonQuit(console->daemon);
-    virMutexUnlock(&lock);
 }
 
 
@@ -1510,7 +1502,7 @@ virLXCControllerSetupTimers(virLXCController *ctrl)
         dev_t dev;
 
         /* Check if "present" is set to "no" otherwise enable it. */
-        if (!timer->present)
+        if (timer->present == VIR_TRISTATE_BOOL_NO)
             continue;
 
         switch ((virDomainTimerNameType)timer->name) {
@@ -2067,8 +2059,7 @@ lxcCreateTty(virLXCController *ctrl, int *ttyprimary,
  cleanup:
     if (ret != 0) {
         VIR_FORCE_CLOSE(*ttyprimary);
-        g_free(*ttyName);
-        *ttyName = NULL;
+        g_clear_pointer(ttyName, g_free);
     }
 
     return ret;

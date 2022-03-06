@@ -35,7 +35,6 @@
 #include "esx_vi_methods.h"
 #include "esx_util.h"
 #include "virstring.h"
-#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_ESX
 
@@ -869,8 +868,8 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
         return -1;
     }
 
-    if (virParseVersionString(ctx->service->about->apiVersion,
-                              &ctx->apiVersion, true) < 0) {
+    if (virStringParseVersion(&ctx->apiVersion,
+                              ctx->service->about->apiVersion, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not parse VI API version '%s'"),
                        ctx->service->about->apiVersion);
@@ -884,8 +883,8 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
         return -1;
     }
 
-    if (virParseVersionString(ctx->service->about->version,
-                              &ctx->productVersion, true) < 0) {
+    if (virStringParseVersion(&ctx->productVersion,
+                              ctx->service->about->version, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not parse product version '%s'"),
                        ctx->service->about->version);
@@ -1033,8 +1032,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
             if (root != ctx->service->rootFolder)
                 esxVI_ManagedObjectReference_Free(&root);
 
-            root = folder->_reference;
-            folder->_reference = NULL;
+            root = g_steal_pointer(&folder->_reference);
         } else {
             /* Try to lookup item as a datacenter */
             if (esxVI_LookupDatacenter(ctx, item, root, NULL, &ctx->datacenter,
@@ -1087,8 +1085,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
             if (root != ctx->datacenter->hostFolder)
                 esxVI_ManagedObjectReference_Free(&root);
 
-            root = folder->_reference;
-            folder->_reference = NULL;
+            root = g_steal_pointer(&folder->_reference);
         } else {
             /* Try to lookup item as a compute resource */
             if (esxVI_LookupComputeResource(ctx, item, root, NULL,
@@ -4972,6 +4969,11 @@ esxVI_LookupManagedObjectHelper(esxVI_Context *ctx,
         for (candidate = *objectContentList; candidate;
              candidate = candidate->_next) {
             name_candidate = NULL;
+
+            if (candidate->obj->_type == root->_type &&
+                g_strcmp0(candidate->obj->type, root->type) == 0 &&
+                g_strcmp0(candidate->obj->value, root->value) == 0)
+                continue;
 
             if (esxVI_GetStringValue(candidate, "name", &name_candidate,
                                      esxVI_Occurrence_RequiredItem) < 0) {

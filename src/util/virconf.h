@@ -78,6 +78,7 @@ virConf *virConfReadString(const char *memory,
 int virConfFree(virConf *conf);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virConf, virConfFree);
 void virConfFreeValue(virConfValue *val);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virConfValue, virConfFreeValue);
 virConfValue *virConfGetValue(virConf *conf,
                                 const char *setting);
 
@@ -114,7 +115,7 @@ int virConfGetValueULLong(virConf *conf,
 
 int virConfSetValue(virConf *conf,
                     const char *setting,
-                    virConfValue *value);
+                    virConfValue **value);
 int virConfWalk(virConf *conf,
                 virConfWalkCallback callback,
                 void *opaque);

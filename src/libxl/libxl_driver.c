@@ -393,6 +393,7 @@ libxlReconnectDomain(virDomainObj *vm,
     virHostdevManager *hostdev_mgr = driver->hostdevMgr;
     unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
     int ret = -1;
+    size_t i;
 
     hostdev_flags |= VIR_HOSTDEV_SP_USB;
 
@@ -446,6 +447,28 @@ libxlReconnectDomain(virDomainObj *vm,
     libxl_evenable_domain_death(cfg->ctx, vm->def->id, 0, &priv->deathW);
 
     libxlReconnectNotifyNets(vm->def);
+
+    /* Set any auto-allocated graphics ports to used */
+    for (i = 0; i < vm->def->ngraphics; i++) {
+        virDomainGraphicsDef *graphics = vm->def->graphics[i];
+
+         switch (graphics->type) {
+         case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
+             if (graphics->data.vnc.autoport)
+                 virPortAllocatorSetUsed(graphics->data.vnc.port);
+             break;
+         case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
+             if (graphics->data.spice.autoport)
+                 virPortAllocatorSetUsed(graphics->data.spice.port);
+             break;
+         case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
+         case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
+         case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
+         case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
+         case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
+             break;
+         }
+    }
 
     if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0)
         VIR_WARN("Cannot update XML for running Xen guest %s", vm->def->name);
@@ -5212,7 +5235,11 @@ libxlDomainGetJobInfo(virDomainPtr dom,
     if (libxlDomainJobUpdateTime(&priv->job) < 0)
         goto cleanup;
 
-    memcpy(info, priv->job.current, sizeof(virDomainJobInfo));
+    /* setting only these two attributes is enough because libxl never sets
+     * anything else */
+    memset(info, 0, sizeof(*info));
+    info->type = priv->job.current->jobType;
+    info->timeElapsed = priv->job.current->timeElapsed;
     ret = 0;
 
  cleanup:
@@ -5229,7 +5256,7 @@ libxlDomainGetJobStats(virDomainPtr dom,
 {
     libxlDomainObjPrivate *priv;
     virDomainObj *vm;
-    virDomainJobInfoPtr jobInfo;
+    virDomainJobData *jobData;
     int ret = -1;
     int maxparams = 0;
 
@@ -5243,7 +5270,7 @@ libxlDomainGetJobStats(virDomainPtr dom,
         goto cleanup;
 
     priv = vm->privateData;
-    jobInfo = priv->job.current;
+    jobData = priv->job.current;
     if (!priv->job.active) {
         *type = VIR_DOMAIN_JOB_NONE;
         *params = NULL;
@@ -5260,10 +5287,10 @@ libxlDomainGetJobStats(virDomainPtr dom,
 
     if (virTypedParamsAddULLong(params, nparams, &maxparams,
                                 VIR_DOMAIN_JOB_TIME_ELAPSED,
-                                jobInfo->timeElapsed) < 0)
+                                jobData->timeElapsed) < 0)
         goto cleanup;
 
-    *type = jobInfo->type;
+    *type = jobData->jobType;
     ret = 0;
 
  cleanup:
@@ -5670,8 +5697,13 @@ libxlConnectListAllDomains(virConnectPtr conn,
 static int
 libxlConnectSupportsFeature(virConnectPtr conn, int feature)
 {
+    int supported;
+
     if (virConnectSupportsFeatureEnsureACL(conn) < 0)
         return -1;
+
+    if (virDriverFeatureIsGlobal(feature, &supported))
+        return supported;
 
     switch ((virDrvFeature) feature) {
     case VIR_DRV_FEATURE_MIGRATION_V3:

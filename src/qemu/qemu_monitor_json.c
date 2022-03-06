@@ -44,37 +44,14 @@
 # include "libvirt_qemu_probes.h"
 #endif
 
+#define LIBVIRT_QEMU_MONITOR_PRIV_H_ALLOW
+#include "qemu_monitor_priv.h"
+
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
 VIR_LOG_INIT("qemu.qemu_monitor_json");
 
-#define QOM_CPU_PATH  "/machine/unattached/device[0]"
-
 #define LINE_ENDING "\r\n"
-
-VIR_ENUM_IMPL(qemuMonitorJob,
-              QEMU_MONITOR_JOB_TYPE_LAST,
-              "",
-              "commit",
-              "stream",
-              "mirror",
-              "backup",
-              "create");
-
-VIR_ENUM_IMPL(qemuMonitorJobStatus,
-              QEMU_MONITOR_JOB_STATUS_LAST,
-              "",
-              "created",
-              "running",
-              "paused",
-              "ready",
-              "standby",
-              "waiting",
-              "pending",
-              "aborting",
-              "concluded",
-              "undefined",
-              "null");
 
 static void qemuMonitorJSONHandleShutdown(qemuMonitor *mon, virJSONValue *data);
 static void qemuMonitorJSONHandleReset(qemuMonitor *mon, virJSONValue *data);
@@ -3697,7 +3674,6 @@ qemuMonitorJSONQueryFdsetsParse(virJSONValue *msg,
 
     for (i = 0; i < ninfo; i++) {
         size_t j;
-        const char *tmp;
         virJSONValue *fdarray;
         qemuMonitorFdsetInfo *fdsetinfo = &sets->fdsets[i];
 
@@ -3707,7 +3683,7 @@ qemuMonitorJSONQueryFdsetsParse(virJSONValue *msg,
             return -1;
         }
 
-        if (virJSONValueObjectGetNumberInt(entry, "fdset-id", &fdsetinfo->id) < 0) {
+        if (virJSONValueObjectGetNumberUint(entry, "fdset-id", &fdsetinfo->id) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("query-fdsets reply was missing 'fdset-id'"));
             return -1;
@@ -3736,9 +3712,7 @@ qemuMonitorJSONQueryFdsetsParse(virJSONValue *msg,
             }
 
             /* opaque is optional and may be missing */
-            tmp = virJSONValueObjectGetString(fdentry, "opaque");
-            if (tmp)
-                fdinfo->opaque = g_strdup(tmp);
+            fdinfo->opaque = g_strdup(virJSONValueObjectGetString(fdentry, "opaque"));
         }
     }
 
@@ -3771,11 +3745,11 @@ int qemuMonitorJSONQueryFdsets(qemuMonitor *mon,
 
 
 int qemuMonitorJSONRemoveFdset(qemuMonitor *mon,
-                               int fdset)
+                               unsigned int fdset)
 {
     g_autoptr(virJSONValue) reply = NULL;
     g_autoptr(virJSONValue) cmd = qemuMonitorJSONMakeCommand("remove-fd",
-                                                             "i:fdset-id", fdset,
+                                                             "u:fdset-id", fdset,
                                                              NULL);
 
     if (!cmd)
@@ -5349,11 +5323,6 @@ qemuMonitorJSONGetCPUDefinitions(qemuMonitor *mon,
 }
 
 
-VIR_ENUM_IMPL(qemuMonitorCPUProperty,
-              QEMU_MONITOR_CPU_PROPERTY_LAST,
-              "boolean", "string", "number",
-);
-
 static int
 qemuMonitorJSONParseCPUModelProperty(const char *key,
                                      virJSONValue *value,
@@ -6532,6 +6501,23 @@ qemuMonitorJSONBuildUnixSocketAddress(const char *path)
     return g_steal_pointer(&addr);
 }
 
+
+static virJSONValue *
+qemuMonitorJSONBuildFDSocketAddress(const char *fdname)
+{
+    g_autoptr(virJSONValue) addr = NULL;
+    g_autoptr(virJSONValue) data = NULL;
+
+    if (virJSONValueObjectAdd(&data, "s:str", fdname, NULL) < 0)
+        return NULL;
+
+    if (virJSONValueObjectAdd(&addr,
+                              "s:type", "fd",
+                              "a:data", &data, NULL) < 0)
+        return NULL;
+
+    return g_steal_pointer(&addr);
+}
 int
 qemuMonitorJSONNBDServerStart(qemuMonitor *mon,
                               const virStorageNetHostDef *server,
@@ -6688,6 +6674,7 @@ static virJSONValue *
 qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
                                      const virDomainChrSourceDef *chr)
 {
+    qemuDomainChrSourcePrivate *chrSourcePriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(chr);
     g_autoptr(virJSONValue) props = NULL;
     g_autoptr(virJSONValue) backend = NULL;
     g_autoptr(virJSONValue) backendData = virJSONValueNewObject();
@@ -6700,14 +6687,22 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
         backendType = virDomainChrTypeToString(chr->type);
         break;
 
-    case VIR_DOMAIN_CHR_TYPE_FILE:
+    case VIR_DOMAIN_CHR_TYPE_FILE: {
+        const char *path = chr->data.file.path;
+        virTristateSwitch append = chr->data.file.append;
         backendType = "file";
+
+        if (chrSourcePriv->sourcefd) {
+            path = qemuFDPassGetPath(chrSourcePriv->sourcefd);
+            append = VIR_TRISTATE_SWITCH_ON;
+        }
+
         if (virJSONValueObjectAdd(&backendData,
-                                  "s:out", chr->data.file.path,
-                                  "T:append", chr->data.file.append,
+                                  "s:out", path,
+                                  "T:append", append,
                                   NULL) < 0)
             return NULL;
-
+    }
         break;
 
     case VIR_DOMAIN_CHR_TYPE_DEV:
@@ -6725,7 +6720,7 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
 
     case VIR_DOMAIN_CHR_TYPE_UNIX:
     case VIR_DOMAIN_CHR_TYPE_TCP: {
-        g_autofree char *tlsalias = NULL;
+        const char *tlsalias = NULL;
         g_autoptr(virJSONValue) addr = NULL;
         virTristateBool waitval = VIR_TRISTATE_BOOL_ABSENT;
         virTristateBool telnet = VIR_TRISTATE_BOOL_ABSENT;
@@ -6742,9 +6737,7 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
                 waitval = VIR_TRISTATE_BOOL_NO;
             }
 
-            if (chr->data.tcp.tlscreds &&
-                !(tlsalias = qemuAliasTLSObjFromSrcAlias(chrID)))
-                return NULL;
+            tlsalias = chrSourcePriv->tlsCredsAlias;
 
             if (!(addr = qemuMonitorJSONBuildInetSocketAddress(chr->data.tcp.host,
                                                                chr->data.tcp.service)))
@@ -6760,13 +6753,18 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
                 waitval = VIR_TRISTATE_BOOL_NO;
             }
 
-            if (!(addr = qemuMonitorJSONBuildUnixSocketAddress(chr->data.nix.path)))
-                return NULL;
+            if (chrSourcePriv->sourcefd) {
+                if (!(addr = qemuMonitorJSONBuildFDSocketAddress(qemuFDPassGetPath(chrSourcePriv->sourcefd))))
+                    return NULL;
+            } else {
+                if (!(addr = qemuMonitorJSONBuildUnixSocketAddress(chr->data.nix.path)))
+                    return NULL;
 
-            if (chr->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_YES)
-                reconnect = chr->data.tcp.reconnect.timeout;
-            else if (chr->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_NO)
-                reconnect = 0;
+                if (chr->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_YES)
+                    reconnect = chr->data.tcp.reconnect.timeout;
+                else if (chr->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_NO)
+                    reconnect = 0;
+            }
         }
 
         if (virJSONValueObjectAdd(&backendData,
@@ -6831,9 +6829,17 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
     }
 
     if (chr->logfile) {
+        const char *path = chr->logfile;
+        virTristateSwitch append = chr->logappend;
+
+        if (chrSourcePriv->logfd) {
+            path = qemuFDPassGetPath(chrSourcePriv->logfd);
+            append = VIR_TRISTATE_SWITCH_ON;
+        }
+
         if (virJSONValueObjectAdd(&backendData,
-                                  "s:logfile", chr->logfile,
-                                  "T:logappend", chr->logappend,
+                                  "s:logfile", path,
+                                  "T:logappend", append,
                                   NULL) < 0)
             return NULL;
     }
@@ -7024,8 +7030,9 @@ qemuMonitorJSONParseCPUx86Features(virJSONValue *data)
 }
 
 
-int
+static int
 qemuMonitorJSONGetCPUx86Data(qemuMonitor *mon,
+                             const char *cpuQOMPath,
                              const char *property,
                              virCPUData **cpudata)
 {
@@ -7034,7 +7041,7 @@ qemuMonitorJSONGetCPUx86Data(qemuMonitor *mon,
     virJSONValue *data;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("qom-get",
-                                           "s:path", QOM_CPU_PATH,
+                                           "s:path", cpuQOMPath,
                                            "s:property", property,
                                            NULL)))
         return -1;
@@ -7058,7 +7065,8 @@ qemuMonitorJSONGetCPUx86Data(qemuMonitor *mon,
  * of a guest CPU, and 1 if the feature is supported.
  */
 static int
-qemuMonitorJSONCheckCPUx86(qemuMonitor *mon)
+qemuMonitorJSONCheckCPUx86(qemuMonitor *mon,
+                           const char *cpuQOMPath)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
@@ -7067,7 +7075,7 @@ qemuMonitorJSONCheckCPUx86(qemuMonitor *mon)
     size_t n;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("qom-list",
-                                           "s:path", QOM_CPU_PATH,
+                                           "s:path", cpuQOMPath,
                                            NULL)))
         return -1;
 
@@ -7102,6 +7110,7 @@ qemuMonitorJSONCheckCPUx86(qemuMonitor *mon)
 /**
  * qemuMonitorJSONGetGuestCPUx86:
  * @mon: Pointer to the monitor
+ * @cpuQOMPath: QOM path of a CPU to probe
  * @data: returns the cpu data of the guest
  * @disabled: returns the CPU data for features which were disabled by QEMU
  *
@@ -7112,6 +7121,7 @@ qemuMonitorJSONCheckCPUx86(qemuMonitor *mon)
  */
 int
 qemuMonitorJSONGetGuestCPUx86(qemuMonitor *mon,
+                              const char *cpuQOMPath,
                               virCPUData **data,
                               virCPUData **disabled)
 {
@@ -7119,17 +7129,17 @@ qemuMonitorJSONGetGuestCPUx86(qemuMonitor *mon,
     g_autoptr(virCPUData) cpuDisabled = NULL;
     int rc;
 
-    if ((rc = qemuMonitorJSONCheckCPUx86(mon)) < 0)
+    if ((rc = qemuMonitorJSONCheckCPUx86(mon, cpuQOMPath)) < 0)
         return -1;
     else if (!rc)
         return -2;
 
-    if (qemuMonitorJSONGetCPUx86Data(mon, "feature-words",
+    if (qemuMonitorJSONGetCPUx86Data(mon, cpuQOMPath, "feature-words",
                                      &cpuEnabled) < 0)
         return -1;
 
     if (disabled &&
-        qemuMonitorJSONGetCPUx86Data(mon, "filtered-features",
+        qemuMonitorJSONGetCPUx86Data(mon, cpuQOMPath, "filtered-features",
                                      &cpuDisabled) < 0)
         return -1;
 
@@ -7142,6 +7152,7 @@ qemuMonitorJSONGetGuestCPUx86(qemuMonitor *mon,
 
 static int
 qemuMonitorJSONGetCPUProperties(qemuMonitor *mon,
+                                const char *cpuQOMPath,
                                 char ***props)
 {
     g_autoptr(virJSONValue) cmd = NULL;
@@ -7150,7 +7161,7 @@ qemuMonitorJSONGetCPUProperties(qemuMonitor *mon,
     *props = NULL;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("qom-list",
-                                           "s:path", QOM_CPU_PATH,
+                                           "s:path", cpuQOMPath,
                                            NULL)))
         return -1;
 
@@ -7166,6 +7177,7 @@ qemuMonitorJSONGetCPUProperties(qemuMonitor *mon,
 
 static int
 qemuMonitorJSONGetCPUData(qemuMonitor *mon,
+                          const char *cpuQOMPath,
                           qemuMonitorCPUFeatureTranslationCallback translate,
                           void *opaque,
                           virCPUData *data)
@@ -7174,13 +7186,13 @@ qemuMonitorJSONGetCPUData(qemuMonitor *mon,
     g_auto(GStrv) props = NULL;
     char **p;
 
-    if (qemuMonitorJSONGetCPUProperties(mon, &props) < 0)
+    if (qemuMonitorJSONGetCPUProperties(mon, cpuQOMPath, &props) < 0)
         return -1;
 
     for (p = props; p && *p; p++) {
         const char *name = *p;
 
-        if (qemuMonitorJSONGetObjectProperty(mon, QOM_CPU_PATH, name, &prop) < 0)
+        if (qemuMonitorJSONGetObjectProperty(mon, cpuQOMPath, name, &prop) < 0)
             return -1;
 
         if (!prop.val.b)
@@ -7199,6 +7211,7 @@ qemuMonitorJSONGetCPUData(qemuMonitor *mon,
 
 static int
 qemuMonitorJSONGetCPUDataDisabled(qemuMonitor *mon,
+                                  const char *cpuQOMPath,
                                   qemuMonitorCPUFeatureTranslationCallback translate,
                                   void *opaque,
                                   virCPUData *data)
@@ -7206,7 +7219,7 @@ qemuMonitorJSONGetCPUDataDisabled(qemuMonitor *mon,
     g_auto(GStrv) props = NULL;
     char **p;
 
-    if (qemuMonitorJSONGetStringListProperty(mon, QOM_CPU_PATH,
+    if (qemuMonitorJSONGetStringListProperty(mon, cpuQOMPath,
                                              "unavailable-features", &props) < 0)
         return -1;
 
@@ -7228,6 +7241,7 @@ qemuMonitorJSONGetCPUDataDisabled(qemuMonitor *mon,
  * qemuMonitorJSONGetGuestCPU:
  * @mon: Pointer to the monitor
  * @arch: CPU architecture
+ * @cpuQOMPath: QOM path of a CPU to probe
  * @translate: callback for translating CPU feature names from QEMU to libvirt
  * @opaque: data for @translate callback
  * @enabled: returns the CPU data for all enabled features
@@ -7241,6 +7255,7 @@ qemuMonitorJSONGetCPUDataDisabled(qemuMonitor *mon,
 int
 qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
                            virArch arch,
+                           const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
                            void *opaque,
                            virCPUData **enabled,
@@ -7253,11 +7268,11 @@ qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
         !(cpuDisabled = virCPUDataNew(arch)))
         return -1;
 
-    if (qemuMonitorJSONGetCPUData(mon, translate, opaque, cpuEnabled) < 0)
+    if (qemuMonitorJSONGetCPUData(mon, cpuQOMPath, translate, opaque, cpuEnabled) < 0)
         return -1;
 
     if (disabled &&
-        qemuMonitorJSONGetCPUDataDisabled(mon, translate, opaque, cpuDisabled) < 0)
+        qemuMonitorJSONGetCPUDataDisabled(mon, cpuQOMPath, translate, opaque, cpuDisabled) < 0)
         return -1;
 
     *enabled = g_steal_pointer(&cpuEnabled);
@@ -8671,13 +8686,14 @@ qemuMonitorJSONGetJobInfo(qemuMonitor *mon,
 
 int
 qemuMonitorJSONGetCPUMigratable(qemuMonitor *mon,
+                                const char *cpuQOMPath,
                                 bool *migratable)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("qom-get",
-                                           "s:path", QOM_CPU_PATH,
+                                           "s:path", cpuQOMPath,
                                            "s:property", "migratable",
                                            NULL)))
         return -1;
@@ -8698,15 +8714,22 @@ qemuMonitorJSONGetCPUMigratable(qemuMonitor *mon,
 
 int
 qemuMonitorJSONStartDirtyRateCalc(qemuMonitor *mon,
-                                  int seconds)
+                                  int seconds,
+                                  qemuMonitorDirtyRateCalcMode mode)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    const char *modestr = NULL;
+
+    if (mode != QEMU_MONITOR_DIRTYRATE_CALC_MODE_PAGE_SAMPLING)
+       modestr = qemuMonitorDirtyRateCalcModeTypeToString(mode);
 
     if (!(cmd = qemuMonitorJSONMakeCommand("calc-dirty-rate",
                                            "i:calc-time", seconds,
-                                           NULL)))
+                                           "S:mode", modestr,
+                                           NULL))) {
         return -1;
+    }
 
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
@@ -8725,11 +8748,45 @@ VIR_ENUM_IMPL(qemuMonitorDirtyRateStatus,
               "measured");
 
 static int
+qemuMonitorJSONExtractVcpuDirtyRate(virJSONValue *data,
+                                    qemuMonitorDirtyRateInfo *info)
+{
+    size_t nvcpus;
+    size_t i;
+
+    nvcpus = virJSONValueArraySize(data);
+    info->nvcpus = nvcpus;
+    info->rates = g_new0(qemuMonitorDirtyRateVcpu, nvcpus);
+
+    for (i = 0; i < nvcpus; i++) {
+        virJSONValue *entry = virJSONValueArrayGet(data, i);
+        if (virJSONValueObjectGetNumberInt(entry, "id",
+                                           &info->rates[i].idx) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("query-dirty-rate reply was missing 'id' data"));
+            return -1;
+        }
+
+        if (virJSONValueObjectGetNumberUlong(entry, "dirty-rate",
+                                            &info->rates[i].value) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("query-dirty-rate reply was missing 'dirty-rate' data"));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int
 qemuMonitorJSONExtractDirtyRateInfo(virJSONValue *data,
                                     qemuMonitorDirtyRateInfo *info)
 {
     const char *statusstr;
+    const char *modestr;
     int status;
+    int mode;
+    virJSONValue *rates = NULL;
 
     if (!(statusstr = virJSONValueObjectGetString(data, "status"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -8764,6 +8821,25 @@ qemuMonitorJSONExtractDirtyRateInfo(virJSONValue *data,
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("query-dirty-rate reply was missing 'calc-time' data"));
         return -1;
+    }
+
+    if ((modestr = virJSONValueObjectGetString(data, "mode"))) {
+        if ((mode = qemuMonitorDirtyRateCalcModeTypeFromString(modestr)) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unknown dirty page rate calculation mode: %s"), modestr);
+            return -1;
+        }
+        info->mode = mode;
+    } else {
+        info->mode = QEMU_MONITOR_DIRTYRATE_CALC_MODE_PAGE_SAMPLING;
+    }
+
+    if ((rates = virJSONValueObjectGetArray(data, "vcpu-dirty-rate"))) {
+        if (qemuMonitorJSONExtractVcpuDirtyRate(rates, info) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("query-dirty-rate parsing 'vcpu-dirty-rate' in failure"));
+            return -1;
+        }
     }
 
     return 0;

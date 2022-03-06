@@ -484,27 +484,49 @@ int virFileUnlock(int fd G_GNUC_UNUSED,
 #endif /* WIN32 */
 
 
+/**
+ * virFileRewrite:
+ * @path: file to rewrite
+ * @mode: mode of the file
+ * @uid: uid that should own file
+ * @gid: gid that should own file
+ * @rewrite: callback to write file contents
+ * @opaque: opaque data to pass to the callback
+ *
+ * Rewrite given @path atomically. This is achieved by writing a
+ * temporary file on a side and renaming it to the desired name.
+ * The temporary file is created using supplied @mode and
+ * @uid:@gid (pass -1 for current uid/gid) and written by
+ * @rewrite callback. It's callback's responsibility to report
+ * errors.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise (with error reported)
+ */
 int
 virFileRewrite(const char *path,
                mode_t mode,
+               uid_t uid, gid_t gid,
                virFileRewriteFunc rewrite,
                const void *opaque)
 {
     g_autofree char *newfile = NULL;
     int fd = -1;
     int ret = -1;
+    int rc;
 
     newfile = g_strdup_printf("%s.new", path);
 
-    if ((fd = open(newfile, O_WRONLY | O_CREAT | O_TRUNC, mode)) < 0) {
-        virReportSystemError(errno, _("cannot create file '%s'"),
+    if ((fd = virFileOpenAs(newfile, O_WRONLY | O_CREAT | O_TRUNC, mode,
+                            uid, gid,
+                            VIR_FILE_OPEN_FORCE_OWNER | VIR_FILE_OPEN_FORCE_MODE)) < 0) {
+        virReportSystemError(-fd,
+                             _("Failed to create file '%s'"),
                              newfile);
         goto cleanup;
     }
 
-    if (rewrite(fd, opaque) < 0) {
-        virReportSystemError(errno, _("cannot write data to file '%s'"),
-                             newfile);
+    if ((rc = rewrite(fd, newfile, opaque)) < 0) {
         goto cleanup;
     }
 
@@ -536,12 +558,18 @@ virFileRewrite(const char *path,
 
 
 static int
-virFileRewriteStrHelper(int fd, const void *opaque)
+virFileRewriteStrHelper(int fd,
+                        const char *path,
+                        const void *opaque)
 {
     const char *data = opaque;
 
-    if (safewrite(fd, data, strlen(data)) < 0)
+    if (safewrite(fd, data, strlen(data)) < 0) {
+        virReportSystemError(errno,
+                             _("cannot write data to file '%s'"),
+                             path);
         return -1;
+    }
 
     return 0;
 }
@@ -552,7 +580,7 @@ virFileRewriteStr(const char *path,
                   mode_t mode,
                   const char *str)
 {
-    return virFileRewrite(path, mode,
+    return virFileRewrite(path, mode, -1, -1,
                           virFileRewriteStrHelper, str);
 }
 
@@ -967,8 +995,7 @@ int virFileNBDDeviceAssociate(const char *file,
 
     VIR_DEBUG("Associated NBD device %s with file %s and format %s",
               nbddev, file, fmtstr);
-    *dev = nbddev;
-    nbddev = NULL;
+    *dev = g_steal_pointer(&nbddev);
 
     return 0;
 }
@@ -1085,17 +1112,17 @@ saferead(int fd, void *buf, size_t count)
     return nread;
 }
 
-/* Like write(), but restarts after EINTR. Doesn't play
- * nicely with nonblocking FD and EAGAIN, in which case
- * you want to use bare write(). Or even use virSocket()
- * if the FD is related to a socket rather than a plain
+/* Like write(), but restarts after EINTR. Encouraged by sc_avoid_write.
+ * Doesn't play nicely with nonblocking FD and EAGAIN, in which case
+ * you want to use bare write() and mark it's use with sc_avoid_write.
+ * Or even use virSocket() if the FD is related to a socket rather than a plain
  * file or pipe. */
 ssize_t
 safewrite(int fd, const void *buf, size_t count)
 {
     size_t nwritten = 0;
     while (count > 0) {
-        ssize_t r = write(fd, buf, count);
+        ssize_t r = write(fd, buf, count); /* sc_avoid_write */
 
         if (r < 0 && errno == EINTR)
             continue;
@@ -3724,8 +3751,7 @@ virFileSetACLs(const char *file,
 void
 virFileFreeACLs(void **acl)
 {
-    acl_free(*acl);
-    *acl = NULL;
+    g_clear_pointer(acl, acl_free);
 }
 
 #else /* !defined(WITH_LIBACL) */

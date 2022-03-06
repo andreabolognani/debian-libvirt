@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '8.0.0',
+  version: '8.1.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -14,10 +14,10 @@ project(
 
 # figure out if we are building from git
 
-git = run_command('test', '-d', '.git').returncode() == 0
+git = run_command('test', '-d', '.git', check: false).returncode() == 0
 
 if git and not get_option('no_git')
-  run_command('git', 'submodule', 'update', '--init')
+  run_command('git', 'submodule', 'update', '--init', check: true)
 endif
 
 
@@ -45,7 +45,7 @@ endif
 if get_option('system')
   prefix = '/usr'
   libdir = prefix / 'lib64'
-  if run_command('test', '-d', libdir).returncode() != 0
+  if run_command('test', '-d', libdir, check: false).returncode() != 0
     libdir = prefix / 'lib'
   endif
   localstatedir = '/var'
@@ -222,6 +222,7 @@ size_max = cc.sizeof('size_t', prefix: '#include <stdint.h>')
 alloc_max = run_command(
   'python3', '-c',
   'print(min(2**(@0@ * 8 - 1) - 1, 2**(@1@ * 8) - 1))'.format(ptrdiff_max, size_max),
+  check: true,
 )
 
 # sanitizer instrumentation may enlarge stack frames
@@ -788,8 +789,6 @@ required_programs = [
 
 required_programs_groups = [
   { 'name': 'rpcgen', 'prog': [ 'rpcgen', 'portable-rpcgen' ] },
-  { 'name': 'rst2html5', 'prog': [ 'rst2html5', 'rst2html5.py', 'rst2html5-3' ] },
-  { 'name': 'rst2man', 'prog': [ 'rst2man', 'rst2man.py', 'rst2man-3' ] },
 ]
 
 if host_machine.system() == 'freebsd'
@@ -810,41 +809,11 @@ foreach item : required_programs_groups
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
-# There are two versions of rst2html5 in the wild: one is the version
-# coming from the docutils package, and the other is the one coming
-# from the rst2html5 package. These versions are subtly different,
-# and the libvirt documentation can only be successfully generated
-# using the docutils version. Every now and then, users will report
-# build failures that can be traced back to having the wrong version
-# installed.
-#
-# The only reliable way to tell the two binaries apart seems to be
-# looking look at their version information: the docutils version
-# will report
-#
-#   rst2html5 (Docutils ..., Python ..., on ...)
-#
-# whereas the rst2html5 version will report
-#
-#   rst2html5 ... (Docutils ..., Python ..., on ...)
-#
-# with the additional bit of information being the version number for
-# the rst2html5 package itself.
-#
-# Use this knowledge to detect the version that we know doesn't work
-# for building libvirt and reject it
-rst2html5_version = run_command(rst2html5_prog, '--version')
-rst2html5_version = rst2html5_version.stdout().split(' ')
-if rst2html5_version[1] != '(Docutils'
-  error('Please uninstall the rst2html5 package and install the docutils package')
-endif
-
 # optional programs
 
 optional_programs = [
   'augparse',
   'dmidecode',
-  'dnsmasq',
   'ebtables',
   'flake8',
   'ip',
@@ -1128,7 +1097,7 @@ if not get_option('nls').disabled()
   endforeach
 
   if xgettext_prog.found() and msgfmt_prog.found() and msgmerge_prog.found()
-    rc = run_command(msgfmt_prog, '--version')
+    rc = run_command(msgfmt_prog, '--version', check: false)
     if rc.returncode() == 0 and rc.stdout().contains('GNU gettext')
       have_gnu_gettext_tools = true
     endif
@@ -1231,7 +1200,7 @@ selinux_dep = dependency('libselinux', required: get_option('selinux'))
 if selinux_dep.found()
   selinux_mount = get_option('selinux_mount')
   if selinux_mount == ''
-    if run_command('test', '-d', '/sys/fs/selinux').returncode() == 0
+    if run_command('test', '-d', '/sys/fs/selinux', check: false).returncode() == 0
       selinux_mount = '/sys/fs/selinux'
     else
       selinux_mount = '/selinux'
@@ -1356,18 +1325,18 @@ if yajl_dep.found()
   #
   # [1] https://github.com/Homebrew/homebrew-core/pull/74516
   if host_machine.system() != 'linux'
-    includedir = yajl_dep.get_pkgconfig_variable('includedir')
-    if includedir.contains('include/yajl')
+    yajl_includedir = yajl_dep.get_pkgconfig_variable('includedir')
+    if yajl_includedir.contains('include/yajl')
       rc = run_command(
         'python3', '-c',
         'print("@0@".replace("@1@", "@2@"))'.format(
-          includedir, 'include/yajl', 'include',
+          yajl_includedir, 'include/yajl', 'include',
         ),
         check: true,
       )
-      includedir = rc.stdout().strip()
+      yajl_includedir = rc.stdout().strip()
       yajl_dep = declare_dependency(
-        compile_args: [ '-I' + includedir ],
+        compile_args: [ '-I' + yajl_includedir ],
         dependencies: [ yajl_dep ],
       )
     endif
@@ -1686,47 +1655,39 @@ if not get_option('driver_qemu').disabled()
     endif
     conf.set_quoted('QEMU_DATADIR', qemu_datadir)
 
-    if host_machine.system() in [ 'freebsd', 'darwin' ]
-      default_qemu_user = 'root'
-      default_qemu_group = 'wheel'
-    else
-      os_release = run_command('grep', '^ID=', '/etc/os-release').stdout()
-      if os_release.contains('arch')
-        default_qemu_user = 'nobody'
-        default_qemu_group = 'nobody'
-      elif (os_release.contains('centos') or
-            os_release.contains('fedora') or
-            os_release.contains('gentoo') or
-            os_release.contains('rhel') or
-            os_release.contains('suse'))
-        default_qemu_user = 'qemu'
-        default_qemu_group = 'qemu'
-      elif os_release.contains('debian')
-        default_qemu_user = 'libvirt-qemu'
-        default_qemu_group = 'libvirt-qemu'
-      elif os_release.contains('ubuntu')
-        default_qemu_user = 'libvirt-qemu'
-        default_qemu_group = 'kvm'
-      else
-        default_qemu_user = 'root'
-        default_qemu_group = 'root'
-      endif
-      # If the expected user and group don't exist, or we haven't hit any
-      # of the cases above bacuse we're running on an unknown OS, the only
-      # sensible fallback is root:root
-      if (run_command('getent', 'passwd', default_qemu_user).returncode() != 0 and
-          run_command('getent', 'group', default_qemu_group).returncode() != 0)
-        default_qemu_user = 'root'
-        default_qemu_group = 'root'
-      endif
-    endif
     qemu_user = get_option('qemu_user')
-    if qemu_user == ''
-      qemu_user = default_qemu_user
-    endif
     qemu_group = get_option('qemu_group')
-    if qemu_group == ''
-      qemu_group = default_qemu_group
+    if (qemu_user == '' and qemu_group != '') or (qemu_user != '' and qemu_group == '')
+      error('Please specify both qemu_user and qemu_group or neither of them')
+    endif
+    if qemu_user == '' and qemu_group == ''
+      if host_machine.system() in [ 'freebsd', 'darwin' ]
+        qemu_user = 'root'
+        qemu_group = 'wheel'
+      else
+        os_release = run_command('grep', '^ID=', '/etc/os-release', check: false).stdout()
+        if os_release.contains('arch')
+          qemu_user = 'nobody'
+          qemu_group = 'nobody'
+        elif (os_release.contains('centos') or
+              os_release.contains('fedora') or
+              os_release.contains('gentoo') or
+              os_release.contains('rhel') or
+              os_release.contains('sles') or
+              os_release.contains('suse'))
+          qemu_user = 'qemu'
+          qemu_group = 'qemu'
+        elif os_release.contains('debian')
+          qemu_user = 'libvirt-qemu'
+          qemu_group = 'libvirt-qemu'
+        elif os_release.contains('ubuntu')
+          qemu_user = 'libvirt-qemu'
+          qemu_group = 'kvm'
+        else
+          qemu_user = 'root'
+          qemu_group = 'root'
+        endif
+      endif
     endif
     conf.set_quoted('QEMU_USER', qemu_user)
     conf.set_quoted('QEMU_GROUP', qemu_group)
@@ -2210,7 +2171,8 @@ if git
     )
   endforeach
 
-  authors = run_command(python3_prog, meson_gen_authors_prog.path(), env: runutf8)
+  authors = run_command(python3_prog, meson_gen_authors_prog.path(),
+                        env: runutf8, check: true)
   authors_file = 'AUTHORS.rst.in'
 
   authors_conf = configuration_data()
@@ -2250,7 +2212,7 @@ configure_file(
   output: '@BASENAME@',
   configuration: run_conf,
 )
-run_command('chmod', 'a+x', meson.current_build_dir() / 'run')
+run_command('chmod', 'a+x', meson.current_build_dir() / 'run', check: true)
 
 
 # generate developer tooling files

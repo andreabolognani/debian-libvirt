@@ -65,56 +65,6 @@ VIR_LOG_INIT("qemu.qemu_monitor");
  */
 #define QEMU_MONITOR_MAX_RESPONSE (10 * 1024 * 1024)
 
-struct _qemuMonitor {
-    virObjectLockable parent;
-
-    virCond notify;
-
-    int fd;
-
-    GMainContext *context;
-    GSocket *socket;
-    GSource *watch;
-
-    virDomainObj *vm;
-    char *domainName;
-
-    qemuMonitorCallbacks *cb;
-    void *callbackOpaque;
-
-    /* If there's a command being processed this will be
-     * non-NULL */
-    qemuMonitorMessage *msg;
-
-    /* Buffer incoming data ready for Text/QMP monitor
-     * code to process & find message boundaries */
-    size_t bufferOffset;
-    size_t bufferLength;
-    char *buffer;
-
-    /* If anything went wrong, this will be fed back
-     * the next monitor msg */
-    virError lastError;
-
-    /* Set to true when EOF is detected on the monitor */
-    bool goteof;
-
-    int nextSerial;
-
-    bool waitGreeting;
-
-    /* If found, path to the virtio memballoon driver */
-    char *balloonpath;
-    bool ballooninit;
-
-    /* Log file context of the qemu process to dig for usable info */
-    qemuMonitorReportDomainLogError logFunc;
-    void *logOpaque;
-    virFreeCallback logDestroy;
-
-    /* true if qemu no longer wants 'props' sub-object of object-add */
-    bool objectAddNoWrap;
-};
 
 /**
  * QEMU_CHECK_MONITOR_FULL:
@@ -161,6 +111,38 @@ static int qemuMonitorOnceInit(void)
 
 VIR_ONCE_GLOBAL_INIT(qemuMonitor);
 
+VIR_ENUM_IMPL(qemuMonitorJob,
+              QEMU_MONITOR_JOB_TYPE_LAST,
+              "",
+              "commit",
+              "stream",
+              "mirror",
+              "backup",
+              "create",
+);
+
+VIR_ENUM_IMPL(qemuMonitorJobStatus,
+              QEMU_MONITOR_JOB_STATUS_LAST,
+              "",
+              "created",
+              "running",
+              "paused",
+              "ready",
+              "standby",
+              "waiting",
+              "pending",
+              "aborting",
+              "concluded",
+              "undefined",
+              "null",
+);
+
+VIR_ENUM_IMPL(qemuMonitorCPUProperty,
+              QEMU_MONITOR_CPU_PROPERTY_LAST,
+              "boolean",
+              "string",
+              "number",
+);
 
 VIR_ENUM_IMPL(qemuMonitorMigrationStatus,
               QEMU_MONITOR_MIGRATION_STATUS_LAST,
@@ -233,7 +215,7 @@ qemuMonitorOpenUnix(const char *monitor,
                     unsigned long long timeout)
 {
     struct sockaddr_un addr;
-    int monfd;
+    VIR_AUTOCLOSE monfd = -1;
     virTimeBackOffVar timebackoff;
     int ret = -1;
 
@@ -248,12 +230,12 @@ qemuMonitorOpenUnix(const char *monitor,
     if (virStrcpyStatic(addr.sun_path, monitor) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Monitor path %s too big for destination"), monitor);
-        goto error;
+        return -1;
     }
 
     if (retry) {
         if (virTimeBackOffStart(&timebackoff, 1, timeout * 1000) < 0)
-            goto error;
+            return -1;
         while (virTimeBackOffWait(&timebackoff)) {
             ret = connect(monfd, (struct sockaddr *)&addr, sizeof(addr));
 
@@ -269,28 +251,27 @@ qemuMonitorOpenUnix(const char *monitor,
 
             virReportSystemError(errno, "%s",
                                  _("failed to connect to monitor socket"));
-            goto error;
+            return -1;
         }
 
         if (ret != 0) {
             virReportSystemError(errno, "%s",
                                  _("monitor socket did not show up"));
-            goto error;
+            return -1;
         }
     } else {
         ret = connect(monfd, (struct sockaddr *) &addr, sizeof(addr));
         if (ret < 0) {
             virReportSystemError(errno, "%s",
                                  _("failed to connect to monitor socket"));
-            goto error;
+            return -1;
         }
     }
 
-    return monfd;
+    ret = monfd;
+    monfd = -1;
 
- error:
-    VIR_FORCE_CLOSE(monfd);
-    return -1;
+    return ret;
 }
 
 
@@ -339,7 +320,7 @@ qemuMonitorIOProcess(qemuMonitor *mon)
 
 
 /* Call this function while holding the monitor lock. */
-static int
+int
 qemuMonitorIOWriteWithFD(qemuMonitor *mon,
                          const char *data,
                          size_t len,
@@ -395,7 +376,7 @@ qemuMonitorIOWrite(qemuMonitor *mon)
     buf = mon->msg->txBuffer + mon->msg->txOffset;
     len = mon->msg->txLength - mon->msg->txOffset;
     if (mon->msg->txFD == -1)
-        done = write(mon->fd, buf, len);
+        done = write(mon->fd, buf, len); /* sc_avoid_write */
     else
         done = qemuMonitorIOWriteWithFD(mon, buf, len, mon->msg->txFD);
 
@@ -726,7 +707,7 @@ qemuMonitorOpen(virDomainObj *vm,
                 qemuMonitorCallbacks *cb,
                 void *opaque)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     qemuMonitor *ret = NULL;
 
     timeout += QEMU_DEFAULT_MONITOR_WAIT;
@@ -735,7 +716,7 @@ qemuMonitorOpen(virDomainObj *vm,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unable to handle monitor type: %s"),
                        virDomainChrTypeToString(config->type));
-        goto cleanup;
+        return NULL;
     }
 
     virObjectUnlock(vm);
@@ -744,18 +725,16 @@ qemuMonitorOpen(virDomainObj *vm,
     virObjectLock(vm);
 
     if (fd < 0)
-        goto cleanup;
+        return NULL;
 
     if (!virDomainObjIsActive(vm)) {
         virReportError(VIR_ERR_OPERATION_FAILED, "%s",
                        _("domain is not running"));
-        goto cleanup;
+        return NULL;
     }
 
     ret = qemuMonitorOpenInternal(vm, fd, context, cb, opaque);
- cleanup:
-    if (!ret)
-        VIR_FORCE_CLOSE(fd);
+    fd = -1;
     return ret;
 }
 
@@ -818,9 +797,8 @@ void
 qemuMonitorUnregister(qemuMonitor *mon)
 {
     if (mon->watch) {
-        g_source_destroy(mon->watch);
         vir_g_source_unref(mon->watch, mon->context);
-        mon->watch = NULL;
+        g_clear_pointer(&mon->watch, g_source_destroy);
     }
 }
 
@@ -837,8 +815,7 @@ qemuMonitorClose(qemuMonitor *mon)
 
     if (mon->socket) {
         qemuMonitorUnregister(mon);
-        g_object_unref(mon->socket);
-        mon->socket = NULL;
+        g_clear_pointer(&mon->socket, g_object_unref);
         mon->fd = -1;
     }
 
@@ -1557,8 +1534,7 @@ qemuMonitorCPUInfoClear(qemuMonitorCPUInfo *cpus,
         VIR_FREE(cpus[i].qom_path);
         VIR_FREE(cpus[i].alias);
         VIR_FREE(cpus[i].type);
-        virJSONValueFree(cpus[i].props);
-        cpus[i].props = NULL;
+        g_clear_pointer(&cpus[i].props, virJSONValueFree);
     }
 }
 
@@ -2559,23 +2535,17 @@ qemuMonitorAddFileHandleToSet(qemuMonitor *mon,
 /**
  * qemuMonitorRemoveFdset:
  * @mon: monitor object
- * @fdset: the fdset to remove
+ * @fdset: id of the fdset to remove
  *
- * Attempts to remove a fdset from qemu and close associated file descriptors
+ * Attempts to remove @fdset from qemu and close associated file descriptors
  * Returns 0 if ok, and -1 on failure */
 int
 qemuMonitorRemoveFdset(qemuMonitor *mon,
-                       int fdset)
+                       unsigned int fdset)
 {
-    VIR_DEBUG("fdset=%d", fdset);
+    VIR_DEBUG("fdset=%u", fdset);
 
     QEMU_CHECK_MONITOR(mon);
-
-    if (fdset < 0) {
-        virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("fdset must be valid"));
-        return -1;
-    }
 
     return qemuMonitorJSONRemoveFdset(mon, fdset);
 }
@@ -3887,6 +3857,7 @@ qemuMonitorSetDomainLog(qemuMonitor *mon,
 /**
  * qemuMonitorJSONGetGuestCPUx86:
  * @mon: Pointer to the monitor
+ * @cpuQOMPath: QOM path of a CPU to probe
  * @data: returns the cpu data
  * @disabled: returns the CPU data for features which were disabled by QEMU
  *
@@ -3897,10 +3868,11 @@ qemuMonitorSetDomainLog(qemuMonitor *mon,
  */
 int
 qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
+                          const char *cpuQOMPath,
                           virCPUData **data,
                           virCPUData **disabled)
 {
-    VIR_DEBUG("data=%p disabled=%p", data, disabled);
+    VIR_DEBUG("cpuQOMPath=%s data=%p disabled=%p", cpuQOMPath, data, disabled);
 
     QEMU_CHECK_MONITOR(mon);
 
@@ -3908,7 +3880,7 @@ qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
     if (disabled)
         *disabled = NULL;
 
-    return qemuMonitorJSONGetGuestCPUx86(mon, data, disabled);
+    return qemuMonitorJSONGetGuestCPUx86(mon, cpuQOMPath, data, disabled);
 }
 
 
@@ -3916,6 +3888,7 @@ qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
  * qemuMonitorGetGuestCPU:
  * @mon: Pointer to the monitor
  * @arch: CPU architecture
+ * @cpuQOMPath: QOM path of a CPU to probe
  * @translate: callback for translating CPU feature names from QEMU to libvirt
  * @opaque: data for @translate callback
  * @enabled: returns the CPU data for all enabled features
@@ -3929,13 +3902,14 @@ qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
 int
 qemuMonitorGetGuestCPU(qemuMonitor *mon,
                        virArch arch,
+                       const char *cpuQOMPath,
                        qemuMonitorCPUFeatureTranslationCallback translate,
                        void *opaque,
                        virCPUData **enabled,
                        virCPUData **disabled)
 {
-    VIR_DEBUG("arch=%s translate=%p opaque=%p enabled=%p disabled=%p",
-              virArchToString(arch), translate, opaque, enabled, disabled);
+    VIR_DEBUG("arch=%s cpuQOMPath=%s translate=%p opaque=%p enabled=%p disabled=%p",
+              virArchToString(arch), cpuQOMPath, translate, opaque, enabled, disabled);
 
     QEMU_CHECK_MONITOR(mon);
 
@@ -3943,7 +3917,7 @@ qemuMonitorGetGuestCPU(qemuMonitor *mon,
     if (disabled)
         *disabled = NULL;
 
-    return qemuMonitorJSONGetGuestCPU(mon, arch, translate, opaque,
+    return qemuMonitorJSONGetGuestCPU(mon, arch, cpuQOMPath, translate, opaque,
                                       enabled, disabled);
 }
 
@@ -4416,11 +4390,12 @@ qemuMonitorGetJobInfo(qemuMonitor *mon,
  */
 int
 qemuMonitorGetCPUMigratable(qemuMonitor *mon,
+                            const char *cpuQOMPath,
                             bool *migratable)
 {
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONGetCPUMigratable(mon, migratable);
+    return qemuMonitorJSONGetCPUMigratable(mon, cpuQOMPath, migratable);
 }
 
 
@@ -4530,15 +4505,24 @@ qemuMonitorTransactionBackup(virJSONValue *actions,
 }
 
 
+VIR_ENUM_IMPL(qemuMonitorDirtyRateCalcMode,
+              QEMU_MONITOR_DIRTYRATE_CALC_MODE_LAST,
+              "page-sampling",
+              "dirty-bitmap",
+              "dirty-ring",
+);
+
+
 int
 qemuMonitorStartDirtyRateCalc(qemuMonitor *mon,
-                              int seconds)
+                              int seconds,
+                              qemuMonitorDirtyRateCalcMode mode)
 {
     VIR_DEBUG("seconds=%d", seconds);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONStartDirtyRateCalc(mon, seconds);
+    return qemuMonitorJSONStartDirtyRateCalc(mon, seconds, mode);
 }
 
 

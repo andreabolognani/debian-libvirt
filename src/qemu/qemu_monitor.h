@@ -34,26 +34,7 @@
 #include "virenum.h"
 
 typedef struct _qemuMonitor qemuMonitor;
-
 typedef struct _qemuMonitorMessage qemuMonitorMessage;
-struct _qemuMonitorMessage {
-    int txFD;
-
-    const char *txBuffer;
-    int txOffset;
-    int txLength;
-
-    /* Used by the text monitor reply / error */
-    char *rxBuffer;
-    int rxLength;
-    /* Used by the JSON monitor to hold reply / error */
-    void *rxObject;
-
-    /* True if rxBuffer / rxObject are ready, or a
-     * fatal error occurred on the monitor channel
-     */
-    bool finished;
-};
 
 typedef enum {
     QEMU_MONITOR_EVENT_PANIC_INFO_TYPE_NONE = 0,
@@ -692,7 +673,6 @@ struct _qemuMonitorCPUInfo {
     /* alias of an hotpluggable entry. Entries with alias can be hot-unplugged */
     char *alias;
 
-    /* internal for use in the matching code */
     char *qom_path;
 
     bool halted;
@@ -975,7 +955,7 @@ qemuMonitorAddFileHandleToSet(qemuMonitor *mon,
 
 int
 qemuMonitorRemoveFdset(qemuMonitor *mon,
-                       int fdset);
+                       unsigned int fdset);
 
 typedef struct _qemuMonitorFdsetFdInfo qemuMonitorFdsetFdInfo;
 struct _qemuMonitorFdsetFdInfo {
@@ -984,7 +964,7 @@ struct _qemuMonitorFdsetFdInfo {
 };
 typedef struct _qemuMonitorFdsetInfo qemuMonitorFdsetInfo;
 struct _qemuMonitorFdsetInfo {
-    int id;
+    unsigned int id;
     qemuMonitorFdsetFdInfo *fds;
     int nfds;
 };
@@ -1348,6 +1328,7 @@ void qemuMonitorSetDomainLog(qemuMonitor *mon,
                              virFreeCallback destroy);
 
 int qemuMonitorGetGuestCPUx86(qemuMonitor *mon,
+                              const char *cpuQOMPath,
                               virCPUData **data,
                               virCPUData **disabled);
 
@@ -1356,6 +1337,7 @@ typedef const char *(*qemuMonitorCPUFeatureTranslationCallback)(const char *name
 
 int qemuMonitorGetGuestCPU(qemuMonitor *mon,
                            virArch arch,
+                           const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
                            void *opaque,
                            virCPUData **enabled,
@@ -1489,6 +1471,7 @@ int qemuMonitorGetJobInfo(qemuMonitor *mon,
 
 int
 qemuMonitorGetCPUMigratable(qemuMonitor *mon,
+                            const char *cpuQOMPath,
                             bool *migratable);
 
 int
@@ -1551,9 +1534,30 @@ qemuMonitorTransactionBackup(virJSONValue *actions,
                              const char *bitmap,
                              qemuMonitorTransactionBackupSyncMode syncmode);
 
+/**
+ * qemuMonitorDirtyRateCalcMode:
+ *
+ * Dirty page rate calculation mode used during measurement.
+ */
+typedef enum {
+    QEMU_MONITOR_DIRTYRATE_CALC_MODE_PAGE_SAMPLING = 0,
+    QEMU_MONITOR_DIRTYRATE_CALC_MODE_DIRTY_BITMAP,
+    QEMU_MONITOR_DIRTYRATE_CALC_MODE_DIRTY_RING,
+    QEMU_MONITOR_DIRTYRATE_CALC_MODE_LAST,
+} qemuMonitorDirtyRateCalcMode;
+
+VIR_ENUM_DECL(qemuMonitorDirtyRateCalcMode);
+
 int
 qemuMonitorStartDirtyRateCalc(qemuMonitor *mon,
-                              int seconds);
+                              int seconds,
+                              qemuMonitorDirtyRateCalcMode mode);
+
+typedef struct _qemuMonitorDirtyRateVcpu qemuMonitorDirtyRateVcpu;
+struct _qemuMonitorDirtyRateVcpu {
+    int idx;                    /* virtual cpu index */
+    unsigned long long value;   /* virtual cpu dirty page rate in MB/s */
+};
 
 typedef struct _qemuMonitorDirtyRateInfo qemuMonitorDirtyRateInfo;
 struct _qemuMonitorDirtyRateInfo {
@@ -1562,6 +1566,10 @@ struct _qemuMonitorDirtyRateInfo {
     int calcTime;           /* the period of dirtyrate calculation */
     long long startTime;    /* the start time of dirtyrate calculation */
     long long dirtyRate;    /* the dirtyrate in MiB/s */
+    qemuMonitorDirtyRateCalcMode mode;  /* calculation mode used in
+                                           last measurement */
+    size_t nvcpus;  /* number of virtual cpu */
+    qemuMonitorDirtyRateVcpu *rates; /* array of dirty page rate */
 };
 
 int

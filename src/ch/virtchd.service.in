@@ -13,11 +13,12 @@ After=local-fs.target
 After=remote-fs.target
 After=systemd-logind.service
 After=systemd-machined.service
-Documentation=man:libvirtd(8)
+Documentation=man:virtchd(8)
 Documentation=https://libvirt.org
 
 [Service]
 Type=notify
+Environment=VIRTCHD_ARGS="--timeout 120"
 EnvironmentFile=-@sysconfdir@/sysconfig/virtchd
 ExecStart=@sbindir@/virtchd $VIRTCHD_ARGS
 ExecReload=/bin/kill -HUP $MAINPID

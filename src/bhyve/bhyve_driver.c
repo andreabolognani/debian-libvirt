@@ -70,24 +70,13 @@ VIR_LOG_INIT("bhyve.bhyve_driver");
 
 struct _bhyveConn *bhyve_driver = NULL;
 
-void
-bhyveDriverLock(struct _bhyveConn *driver)
-{
-    virMutexLock(&driver->lock);
-}
-
-void
-bhyveDriverUnlock(struct _bhyveConn *driver)
-{
-    virMutexUnlock(&driver->lock);
-}
-
 static int
 bhyveAutostartDomain(virDomainObj *vm, void *opaque)
 {
     const struct bhyveAutostartData *data = opaque;
     int ret = 0;
-    virObjectLock(vm);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(vm);
+
     if (vm->autostart && !virDomainObjIsActive(vm)) {
         virResetLastError();
         ret = virBhyveProcessStart(data->conn, vm,
@@ -98,7 +87,6 @@ bhyveAutostartDomain(virDomainObj *vm, void *opaque)
                            vm->def->name, virGetLastErrorMessage());
         }
     }
-    virObjectUnlock(vm);
     return ret;
 }
 
@@ -267,7 +255,7 @@ bhyveConnectGetVersion(virConnectPtr conn, unsigned long *version)
 
     uname(&ver);
 
-    if (virParseVersionString(ver.release, version, true) < 0) {
+    if (virStringParseVersion(version, ver.release, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unknown release: %s"), ver.release);
         return -1;

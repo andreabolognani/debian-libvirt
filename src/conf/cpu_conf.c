@@ -323,12 +323,11 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
     xmlNodePtr topology = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     int n;
+    int rv;
     size_t i;
     g_autofree char *cpuMode = NULL;
     g_autofree char *fallback = NULL;
     g_autofree char *vendor_id = NULL;
-    g_autofree char *tscScaling = NULL;
-    g_autofree char *migratable = NULL;
     g_autofree virHostCPUTscInfo *tsc = NULL;
 
     *cpu = NULL;
@@ -394,39 +393,25 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
             def->mode = VIR_CPU_MODE_CUSTOM;
     }
 
-    if ((migratable = virXMLPropString(ctxt->node, "migratable"))) {
-        int val;
-
-        if (def->mode != VIR_CPU_MODE_HOST_PASSTHROUGH &&
-            def->mode != VIR_CPU_MODE_MAXIMUM) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Attribute migratable is only allowed for "
-                             "'host-passthrough' / 'maximum' CPU mode"));
-            return -1;
-        }
-
-        if ((val = virTristateSwitchTypeFromString(migratable)) < 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Invalid value in migratable attribute: '%s'"),
-                           migratable);
-            return -1;
-        }
-
-        def->migratable = val;
+    if ((rv = virXMLPropTristateSwitch(ctxt->node, "migratable",
+                                       VIR_XML_PROP_NONE,
+                                       &def->migratable)) < 0) {
+        return -1;
+    } else if (rv > 0 &&
+               def->mode != VIR_CPU_MODE_HOST_PASSTHROUGH &&
+               def->mode != VIR_CPU_MODE_MAXIMUM) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Attribute migratable is only allowed for "
+                         "'host-passthrough' / 'maximum' CPU mode"));
+        return -1;
     }
 
     if (def->type == VIR_CPU_TYPE_GUEST) {
-        g_autofree char *match = virXMLPropString(ctxt->node, "match");
-
-        if (match) {
-            def->match = virCPUMatchTypeFromString(match);
-            if (def->match < 0) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Invalid match attribute for CPU "
-                                 "specification"));
-                return -1;
-            }
-        }
+        if (virXMLPropEnum(ctxt->node, "match",
+                           virCPUMatchTypeFromString,
+                           VIR_XML_PROP_NONE,
+                           &def->match) < 0)
+            return -1;
 
         if (virXMLPropEnum(ctxt->node, "check", virCPUCheckTypeFromString,
                            VIR_XML_PROP_NONE, &def->check) < 0)
@@ -435,6 +420,8 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
 
     if (def->type == VIR_CPU_TYPE_HOST) {
         g_autofree char *arch = virXPathString("string(./arch[1])", ctxt);
+        xmlNodePtr counter_node = NULL;
+
         if (!arch) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("Missing CPU architecture"));
@@ -454,27 +441,18 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
             return -1;
         }
 
-        if (virXPathBoolean("boolean(./counter[@name='tsc'])", ctxt) > 0) {
+        if ((counter_node = virXPathNode("./counter[@name='tsc']", ctxt))) {
             tsc = g_new0(virHostCPUTscInfo, 1);
 
-            if (virXPathULongLong("string(./counter[@name='tsc']/@frequency)",
-                                  ctxt, &tsc->frequency) < 0) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Invalid TSC frequency"));
+            if (virXMLPropULongLong(counter_node, "frequency", 10,
+                                    VIR_XML_PROP_REQUIRED,
+                                    &tsc->frequency) < 0)
                 return -1;
-            }
 
-            tscScaling = virXPathString("string(./counter[@name='tsc']/@scaling)",
-                                        ctxt);
-            if (tscScaling) {
-                int scaling = virTristateBoolTypeFromString(tscScaling);
-                if (scaling < 0) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("Invalid TSC scaling attribute"));
-                    return -1;
-                }
-                tsc->scaling = scaling;
-            }
+            if (virXMLPropTristateBool(counter_node, "scaling",
+                                       VIR_XML_PROP_NONE,
+                                       &tsc->scaling) < 0)
+                return -1;
 
             def->tsc = g_steal_pointer(&tsc);
         }

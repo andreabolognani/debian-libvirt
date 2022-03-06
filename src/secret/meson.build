@@ -44,8 +44,8 @@ if conf.has('WITH_SECRETS')
     'in_file': files('virtsecretd.init.in'),
   }
 
-  sysconf_files += {
-    'name': 'virtsecretd',
-    'file': files('virtsecretd.sysconf'),
-  }
+  virt_install_dirs += [
+    confdir / 'secrets',
+    runstatedir / 'libvirt' / 'secrets',
+  ]
 endif

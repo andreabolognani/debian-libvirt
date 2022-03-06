@@ -253,12 +253,11 @@ qemuMonitorTestIO(virNetSocket *sock,
 {
     qemuMonitorTest *test = opaque;
     bool err = false;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&test->lock);
 
-    virMutexLock(&test->lock);
-    if (test->quit) {
-        virMutexUnlock(&test->lock);
+    if (test->quit)
         return;
-    }
+
     if (events & VIR_EVENT_HANDLE_WRITABLE) {
         ssize_t ret;
         if ((ret = virNetSocketWrite(sock,
@@ -327,8 +326,7 @@ qemuMonitorTestIO(virNetSocket *sock,
     if (err) {
         virNetSocketRemoveIOCallback(sock);
         virNetSocketClose(sock);
-        virObjectUnref(test->client);
-        test->client = NULL;
+        g_clear_pointer(&test->client, virObjectUnref);
     } else {
         events = VIR_EVENT_HANDLE_READABLE;
 
@@ -337,7 +335,6 @@ qemuMonitorTestIO(virNetSocket *sock,
 
         virNetSocketUpdateIOCallback(sock, events);
     }
-    virMutexUnlock(&test->lock);
 }
 
 
@@ -346,24 +343,22 @@ qemuMonitorTestWorker(void *opaque)
 {
     qemuMonitorTest *test = opaque;
 
-    virMutexLock(&test->lock);
-
-    while (!test->quit) {
-        virMutexUnlock(&test->lock);
-
-        if (virEventRunDefaultImpl() < 0) {
-            virMutexLock(&test->lock);
-            test->quit = true;
-            break;
+    while (true) {
+        VIR_WITH_MUTEX_LOCK_GUARD(&test->lock) {
+            if (test->quit) {
+                test->running = false;
+                return;
+            }
         }
 
-        virMutexLock(&test->lock);
+        if (virEventRunDefaultImpl() < 0) {
+            VIR_WITH_MUTEX_LOCK_GUARD(&test->lock) {
+                test->quit = true;
+                test->running = false;
+                return;
+            }
+        }
     }
-
-    test->running = false;
-
-    virMutexUnlock(&test->lock);
-    return;
 }
 
 
@@ -384,13 +379,13 @@ qemuMonitorTestFree(qemuMonitorTest *test)
     if (!test)
         return;
 
-    virMutexLock(&test->lock);
-    if (test->running) {
-        test->quit = true;
-        /* HACK: Add a dummy timeout to break event loop */
-        timer = virEventAddTimeout(0, qemuMonitorTestFreeTimer, NULL, NULL);
+    VIR_WITH_MUTEX_LOCK_GUARD(&test->lock) {
+        if (test->running) {
+            test->quit = true;
+            /* HACK: Add a dummy timeout to break event loop */
+            timer = virEventAddTimeout(0, qemuMonitorTestFreeTimer, NULL, NULL);
+        }
     }
-    virMutexUnlock(&test->lock);
 
     if (test->client) {
         virNetSocketRemoveIOCallback(test->client);
@@ -464,9 +459,9 @@ qemuMonitorTestAddHandler(qemuMonitorTest *test,
     item->freecb = freecb;
     item->opaque = opaque;
 
-    virMutexLock(&test->lock);
-    VIR_APPEND_ELEMENT(test->items, test->nitems, item);
-    virMutexUnlock(&test->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&test->lock) {
+        VIR_APPEND_ELEMENT(test->items, test->nitems, item);
+    }
 
     return 0;
 }
@@ -648,7 +643,8 @@ qemuMonitorTestProcessCommandVerbatim(qemuMonitorTest *test,
         ret = qemuMonitorTestAddResponse(test, data->response);
     } else {
         if (data->cmderr) {
-            qemuMonitorTestError("%s: %s", data->cmderr, cmdstr);
+            qemuMonitorTestError("%s: %s expected %s",
+                                 data->cmderr, cmdstr, data->command_name);
         } else {
             qemuMonitorTestErrorInvalidCommand(data->command_name, cmdstr);
         }
@@ -1072,16 +1068,11 @@ qemuMonitorCommonTestInit(qemuMonitorTest *test)
                                   NULL) < 0)
         return -1;
 
-    virMutexLock(&test->lock);
-    if (virThreadCreate(&test->thread,
-                        true,
-                        qemuMonitorTestWorker,
-                        test) < 0) {
-        virMutexUnlock(&test->lock);
-        return -1;
+    VIR_WITH_MUTEX_LOCK_GUARD(&test->lock) {
+        if (virThreadCreate(&test->thread, true, qemuMonitorTestWorker, test) < 0)
+            return -1;
+        test->started = test->running = true;
     }
-    test->started = test->running = true;
-    virMutexUnlock(&test->lock);
 
     return 0;
 }

@@ -488,8 +488,8 @@ typedef enum {
  * virConnectStoragePoolEventLifecycleCallback:
  * @conn: connection object
  * @pool: pool on which the event occurred
- * @event: The specific virStoragePoolEventLifeCycleType which occurred
- * @detail: contains some details on the reason of the event.
+ * @event: The specific virStoragePoolEventLifecycleType which occurred
+ * @detail: contains some details on the reason of the event (currently unused)
  * @opaque: application specified data
  *
  * This callback is called when a pool lifecycle action is performed, like start

@@ -36,6 +36,7 @@
 #include "qemu_capabilities.h"
 #include "qemu_migration_params.h"
 #include "qemu_slirp.h"
+#include "qemu_fd.h"
 #include "virmdev.h"
 #include "virchrdev.h"
 #include "virobject.h"
@@ -207,6 +208,9 @@ struct _qemuDomainObjPrivate {
     /* counter for generating node names for qemu disks */
     unsigned long long nodenameindex;
 
+    /* counter for generating IDs of fdsets - only relevant during startup */
+    unsigned int fdsetindex;
+
     /* qemuProcessStartCPUs stores the reason for starting vCPUs here for the
      * RESUME event handler to use it */
     virDomainRunningReason runningReason;
@@ -316,6 +320,8 @@ struct _qemuDomainVcpuPrivate {
     int thread_id;
     int node_id;
     int vcpus;
+
+    char *qomPath;
 };
 
 #define QEMU_DOMAIN_VCPU_PRIVATE(vcpu) \
@@ -342,16 +348,13 @@ struct _qemuDomainChrSourcePrivate {
      * NB: *not* to be written to qemu domain object XML */
     qemuDomainSecretInfo *secinfo;
 
-    int fd; /* file descriptor of the chardev source */
-    int logfd; /* file descriptor of the logging source */
+    qemuFDPass *sourcefd;
+    qemuFDPass *logfd;
     bool wait; /* wait for incoming connections on chardev */
 
     char *tlsCertPath; /* path to certificates if TLS is requested */
     bool tlsVerify; /* whether server should verify client certificates */
 
-    char *fdset; /* fdset path corresponding to the passed filedescriptor */
-    char *logFdset; /* fdset path corresponding to the passed filedescriptor for logfile */
-    int passedFD; /* filedescriptor number when fdset passing it directly */
     char *tlsCredsAlias; /* alias of the x509 tls credentials object */
 };
 
@@ -770,6 +773,7 @@ bool qemuDomainIsS390CCW(const virDomainDef *def);
 bool qemuDomainIsARMVirt(const virDomainDef *def);
 bool qemuDomainIsRISCVVirt(const virDomainDef *def);
 bool qemuDomainIsPSeries(const virDomainDef *def);
+bool qemuDomainIsMipsMalta(const virDomainDef *def);
 bool qemuDomainHasPCIRoot(const virDomainDef *def);
 bool qemuDomainHasPCIeRoot(const virDomainDef *def);
 bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
@@ -966,8 +970,7 @@ char * qemuDomainGetManagedPRSocketPath(qemuDomainObjPrivate *priv);
 
 bool qemuDomainDefHasManagedPR(virDomainObj *vm);
 
-unsigned int qemuDomainStorageIdNew(qemuDomainObjPrivate *priv);
-void qemuDomainStorageIdReset(qemuDomainObjPrivate *priv);
+unsigned int qemuDomainFDSetIDNew(qemuDomainObjPrivate *priv);
 
 virDomainEventResumedDetailType
 qemuDomainRunningReasonToResumeEvent(virDomainRunningReason reason);
@@ -977,12 +980,8 @@ qemuDomainDiskIsMissingLocalOptional(virDomainDiskDef *disk);
 
 void
 qemuDomainNVRAMPathFormat(virQEMUDriverConfig *cfg,
-                            virDomainDef *def,
-                            char **path);
-
-void
-qemuDomainNVRAMPathGenerate(virQEMUDriverConfig *cfg,
-                            virDomainDef *def);
+                          virDomainDef *def,
+                          char **path);
 
 virDomainEventSuspendedDetailType
 qemuDomainPausedReasonToSuspendedEvent(virDomainPausedReason reason);

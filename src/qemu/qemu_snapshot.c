@@ -1418,7 +1418,8 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
         if (!qemuMigrationSrcIsAllowed(driver, vm, false, 0))
             goto cleanup;
 
-        priv->job.current->statsType = QEMU_DOMAIN_JOB_STATS_TYPE_SAVEDUMP;
+        qemuDomainJobSetStatsType(priv->job.current,
+                                  QEMU_DOMAIN_JOB_STATS_TYPE_SAVEDUMP);
 
         /* allow the migration job to be cancelled or the domain to be paused */
         qemuDomainObjSetAsyncJobMask(vm, (QEMU_JOB_DEFAULT_MASK |
@@ -1630,8 +1631,7 @@ qemuSnapshotCreateAlignDisks(virDomainObj *vm,
 {
     g_autofree char *xml = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
-    int align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
-    bool align_match = true;
+    virDomainSnapshotLocation align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
 
     /* Easiest way to clone inactive portion of vm->def is via
      * conversion in and back out of xml.  */
@@ -1653,7 +1653,6 @@ qemuSnapshotCreateAlignDisks(virDomainObj *vm,
 
     if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) {
         align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
-        align_match = false;
         if (virDomainObjIsActive(vm))
             def->state = VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT;
         else
@@ -1662,7 +1661,6 @@ qemuSnapshotCreateAlignDisks(virDomainObj *vm,
     } else if (def->memory == VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
         def->state = virDomainObjGetState(vm, NULL);
         align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
-        align_match = false;
     } else {
         def->state = virDomainObjGetState(vm, NULL);
 
@@ -1678,7 +1676,7 @@ qemuSnapshotCreateAlignDisks(virDomainObj *vm,
                        VIR_DOMAIN_SNAPSHOT_LOCATION_NONE :
                        VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL);
     }
-    if (virDomainSnapshotAlignDisks(def, align_location, align_match) < 0)
+    if (virDomainSnapshotAlignDisks(def, NULL, align_location, true) < 0)
         return -1;
 
     return 0;
@@ -1718,16 +1716,16 @@ qemuSnapshotRedefine(virDomainObj *vm,
     virDomainSnapshotPtr ret = NULL;
     g_autoptr(virDomainSnapshotDef) snapdef = virObjectRef(snapdeftmp);
 
-    if (virDomainSnapshotRedefinePrep(vm, &snapdef, &snap,
-                                      driver->xmlopt,
-                                      flags) < 0)
+    if (virDomainSnapshotRedefinePrep(vm, snapdef, &snap, driver->xmlopt, flags) < 0)
         return NULL;
 
-    if (!snap) {
-        if (!(snap = virDomainSnapshotAssignDef(vm->snapshots, snapdef)))
+    if (snap) {
+        virDomainSnapshotReplaceDef(snap, &snapdef);
+    } else {
+        if (!(snap = virDomainSnapshotAssignDef(vm->snapshots, &snapdef)))
             return NULL;
-        snapdef = NULL;
     }
+
     /* XXX Should we validate that the redefined snapshot even
      * makes sense, such as checking that qemu-img recognizes the
      * snapshot name in at least one of the domain's disks?  */
@@ -1753,35 +1751,35 @@ qemuSnapshotRedefine(virDomainObj *vm,
 static virDomainSnapshotPtr
 qemuSnapshotCreate(virDomainObj *vm,
                    virDomainPtr domain,
-                   virDomainSnapshotDef *def,
+                   virDomainSnapshotDef *snapdeftmp,
                    virQEMUDriver *driver,
                    virQEMUDriverConfig *cfg,
                    unsigned int flags)
 {
+    g_autoptr(virDomainSnapshotDef) snapdef = virObjectRef(snapdeftmp);
     g_autoptr(virDomainMomentObj) tmpsnap = NULL;
     virDomainMomentObj *snap = NULL;
     virDomainMomentObj *current = NULL;
     virDomainSnapshotPtr ret = NULL;
 
-    if (qemuSnapshotCreateAlignDisks(vm, def, driver, flags) < 0)
+    if (qemuSnapshotCreateAlignDisks(vm, snapdef, driver, flags) < 0)
         return NULL;
 
-    if (qemuSnapshotPrepare(vm, def, &flags) < 0)
+    if (qemuSnapshotPrepare(vm, snapdef, &flags) < 0)
         return NULL;
 
     if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_NO_METADATA) {
         snap = tmpsnap = virDomainMomentObjNew();
-        snap->def = &def->parent;
+        snap->def = &snapdef->parent;
+        snapdef = NULL;
     } else {
-        if (!(snap = virDomainSnapshotAssignDef(vm->snapshots, def)))
+        if (!(snap = virDomainSnapshotAssignDef(vm->snapshots, &snapdef)))
             return NULL;
 
         if ((current = virDomainSnapshotGetCurrent(vm->snapshots))) {
             snap->def->parent_name = g_strdup(current->def->name);
         }
     }
-
-    virObjectRef(def);
 
     /* actually do the snapshot */
     if (virDomainObjIsActive(vm)) {
@@ -2193,7 +2191,7 @@ qemuSnapshotRevertInactive(virDomainObj *vm,
 
     if (*inactiveConfig) {
         virDomainObjAssignDef(vm, inactiveConfig, false, NULL);
-        return -1;
+        defined = true;
     }
 
     if (flags & (VIR_DOMAIN_SNAPSHOT_REVERT_RUNNING |
@@ -2246,7 +2244,11 @@ qemuSnapshotRevert(virDomainObj *vm,
 
     virCheckFlags(VIR_DOMAIN_SNAPSHOT_REVERT_RUNNING |
                   VIR_DOMAIN_SNAPSHOT_REVERT_PAUSED |
-                  VIR_DOMAIN_SNAPSHOT_REVERT_FORCE, -1);
+                  VIR_DOMAIN_SNAPSHOT_REVERT_FORCE |
+                  VIR_DOMAIN_SNAPSHOT_REVERT_RESET_NVRAM, -1);
+
+    if (flags & VIR_DOMAIN_SNAPSHOT_REVERT_RESET_NVRAM)
+        start_flags |= VIR_QEMU_PROCESS_START_RESET_NVRAM;
 
     /* We have the following transitions, which create the following events:
      * 1. inactive -> inactive: none

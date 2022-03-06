@@ -227,10 +227,12 @@ testPCIVPDResourceCustomCompareIndex(const void *data G_GNUC_UNUSED)
         return -1;
 
     /* Different index, same value pointers */
-    g_free(b->value);
+    g_clear_pointer(&b->value, g_free);
     b->value = a->value;
-    if (virPCIVPDResourceCustomCompareIndex(b, a))
+    if (virPCIVPDResourceCustomCompareIndex(b, a)) {
+        b->value = NULL;
         return -1;
+    }
 
     b->value = NULL;
 
@@ -430,7 +432,7 @@ testPCIVPDGetFieldValueFormat(const void *data G_GNUC_UNUSED)
 static int
 testVirPCIVPDReadVPDBytes(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     g_autofree uint8_t *buf = NULL;
     uint8_t csum = 0;
     size_t readBytes = 0;
@@ -469,7 +471,7 @@ testVirPCIVPDReadVPDBytes(const void *opaque G_GNUC_UNUSED)
 static int
 testVirPCIVPDParseVPDStringResource(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     uint8_t csum = 0;
     size_t dataLen = 0;
     bool result = false;
@@ -486,7 +488,6 @@ testVirPCIVPDParseVPDStringResource(const void *opaque G_GNUC_UNUSED)
         return -1;
 
     result = virPCIVPDParseVPDLargeResourceString(fd, 0, dataLen, &csum, res);
-    VIR_FORCE_CLOSE(fd);
 
     if (!result) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -539,7 +540,7 @@ testVirPCIVPDValidateExampleReadOnlyFields(virPCIVPDResource *res)
 static int
 testVirPCIVPDParseFullVPD(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     size_t dataLen = 0;
 
     g_autoptr(virPCIVPDResource) res = NULL;
@@ -558,7 +559,6 @@ testVirPCIVPDParseFullVPD(const void *opaque G_GNUC_UNUSED)
         return -1;
 
     res = virPCIVPDParse(fd);
-    VIR_FORCE_CLOSE(fd);
 
     if (!res) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -607,7 +607,7 @@ testVirPCIVPDParseFullVPD(const void *opaque G_GNUC_UNUSED)
 static int
 testVirPCIVPDParseZeroLengthRW(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     size_t dataLen = 0;
 
     g_autoptr(virPCIVPDResource) res = NULL;
@@ -628,7 +628,6 @@ testVirPCIVPDParseZeroLengthRW(const void *opaque G_GNUC_UNUSED)
         return -1;
 
     res = virPCIVPDParse(fd);
-    VIR_FORCE_CLOSE(fd);
 
     if (!res) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -660,7 +659,7 @@ testVirPCIVPDParseZeroLengthRW(const void *opaque G_GNUC_UNUSED)
 static int
 testVirPCIVPDParseNoRW(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     size_t dataLen = 0;
 
     g_autoptr(virPCIVPDResource) res = NULL;
@@ -680,7 +679,6 @@ testVirPCIVPDParseNoRW(const void *opaque G_GNUC_UNUSED)
         return -1;
 
     res = virPCIVPDParse(fd);
-    VIR_FORCE_CLOSE(fd);
 
     if (!res) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -712,7 +710,7 @@ testVirPCIVPDParseNoRW(const void *opaque G_GNUC_UNUSED)
 static int
 testVirPCIVPDParseFullVPDSkipInvalidKeywords(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     size_t dataLen = 0;
 
     g_autoptr(virPCIVPDResource) res = NULL;
@@ -735,7 +733,6 @@ testVirPCIVPDParseFullVPDSkipInvalidKeywords(const void *opaque G_GNUC_UNUSED)
         return -1;
 
     res = virPCIVPDParse(fd);
-    VIR_FORCE_CLOSE(fd);
 
     if (!res) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -757,7 +754,7 @@ testVirPCIVPDParseFullVPDSkipInvalidKeywords(const void *opaque G_GNUC_UNUSED)
 static int
 testVirPCIVPDParseFullVPDSkipInvalidValues(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
+    VIR_AUTOCLOSE fd = -1;
     size_t dataLen = 0;
     size_t i = 0;
     virPCIVPDResourceCustom *custom = NULL;
@@ -790,7 +787,6 @@ testVirPCIVPDParseFullVPDSkipInvalidValues(const void *opaque G_GNUC_UNUSED)
         return -1;
 
     res = virPCIVPDParse(fd);
-    VIR_FORCE_CLOSE(fd);
 
     if (!res) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -866,7 +862,6 @@ testVirPCIVPDParseFullVPDSkipInvalidValues(const void *opaque G_GNUC_UNUSED)
 static int
 testVirPCIVPDParseFullVPDInvalid(const void *opaque G_GNUC_UNUSED)
 {
-    int fd = -1;
     size_t dataLen = 0;
 
 # define VPD_INVALID_ZERO_BYTE \
@@ -961,6 +956,7 @@ testVirPCIVPDParseFullVPDInvalid(const void *opaque G_GNUC_UNUSED)
 
 # define TEST_INVALID_VPD(invalidVPD) \
     do { \
+        VIR_AUTOCLOSE fd = -1; \
         g_autoptr(virPCIVPDResource) res = NULL; \
         const uint8_t testCase[] = { invalidVPD }; \
         dataLen = G_N_ELEMENTS(testCase); \
@@ -971,7 +967,6 @@ testVirPCIVPDParseFullVPDInvalid(const void *opaque G_GNUC_UNUSED)
                     "Successfully parsed an invalid VPD - this is not expected"); \
             return -1; \
         } \
-        VIR_FORCE_CLOSE(fd); \
     } while (0);
 
     TEST_INVALID_VPD(VPD_INVALID_ZERO_BYTE);

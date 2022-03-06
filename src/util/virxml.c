@@ -679,7 +679,7 @@ virXMLPropUInt(xmlNodePtr node,
 
     if (ret < 0) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("Invalid value for attribute '%s' in element '%s': '%s'. Expected integer value"),
+                       _("Invalid value for attribute '%s' in element '%s': '%s'. Expected non-negative integer value"),
                        name, node->name, tmp);
         return -1;
     }
@@ -738,7 +738,7 @@ virXMLPropULongLong(xmlNodePtr node,
 
     if (ret < 0) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("Invalid value for attribute '%s' in element '%s': '%s'. Expected integer value"),
+                       _("Invalid value for attribute '%s' in element '%s': '%s'. Expected non-negative integer value"),
                        name, node->name, tmp);
         return -1;
     }
@@ -1172,17 +1172,26 @@ struct virXMLRewriteFileData {
 };
 
 static int
-virXMLRewriteFile(int fd, const void *opaque)
+virXMLRewriteFile(int fd,
+                  const char *path,
+                  const void *opaque)
 {
     const struct virXMLRewriteFileData *data = opaque;
 
-    if (data->warnCommand) {
-        if (virXMLEmitWarning(fd, data->warnName, data->warnCommand) < 0)
-            return -1;
+    if (data->warnCommand &&
+        virXMLEmitWarning(fd, data->warnName, data->warnCommand) < 0) {
+        virReportSystemError(errno,
+                             _("cannot write data to file '%s'"),
+                             path);
+        return -1;
     }
 
-    if (safewrite(fd, data->xml, strlen(data->xml)) < 0)
+    if (safewrite(fd, data->xml, strlen(data->xml)) < 0) {
+        virReportSystemError(errno,
+                             _("cannot write data to file '%s'"),
+                             path);
         return -1;
+    }
 
     return 0;
 }
@@ -1195,7 +1204,8 @@ virXMLSaveFile(const char *path,
 {
     struct virXMLRewriteFileData data = { warnName, warnCommand, xml };
 
-    return virFileRewrite(path, S_IRUSR | S_IWUSR, virXMLRewriteFile, &data);
+    return virFileRewrite(path, S_IRUSR | S_IWUSR, -1, -1,
+                          virXMLRewriteFile, &data);
 }
 
 /**

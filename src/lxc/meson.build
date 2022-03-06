@@ -175,14 +175,11 @@ if conf.has('WITH_LXC')
     'in_file': files('virtlxcd.init.in'),
   }
 
-  sysconf_files += {
-    'name': 'virtlxcd',
-    'file': files('virtlxcd.sysconf'),
-  }
-
   virt_install_dirs += [
+    confdir / 'lxc',
+    confdir / 'lxc' / 'autostart',
     localstatedir / 'lib' / 'libvirt' / 'lxc',
-    runstatedir / 'libvirt' / 'lxc',
     localstatedir / 'log' / 'libvirt' / 'lxc',
+    runstatedir / 'libvirt' / 'lxc',
   ]
 endif

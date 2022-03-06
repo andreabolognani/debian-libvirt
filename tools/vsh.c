@@ -199,8 +199,7 @@ vshSaveLibvirtHelperError(void)
 void
 vshResetLibvirtError(void)
 {
-    virFreeError(last_error);
-    last_error = NULL;
+    g_clear_pointer(&last_error, virFreeError);
     virResetLastError();
 }
 
@@ -1377,8 +1376,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
     const vshCmdDef *cmd = NULL;
 
     if (!partial) {
-        vshCommandFree(ctl->cmd);
-        ctl->cmd = NULL;
+        g_clear_pointer(&ctl->cmd, vshCommandFree);
     }
 
     while (1) {
@@ -1393,8 +1391,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
         first = NULL;
 
         if (partial) {
-            vshCommandFree(*partial);
-            *partial = NULL;
+            g_clear_pointer(partial, vshCommandFree);
         }
 
         while (1) {
@@ -1605,8 +1602,7 @@ vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
 
         *partial = tmp;
     } else {
-        vshCommandFree(ctl->cmd);
-        ctl->cmd = NULL;
+        g_clear_pointer(&ctl->cmd, vshCommandFree);
         vshCommandOptFree(first);
     }
     VIR_FREE(tkdata);
@@ -2022,10 +2018,10 @@ vshEventLoop(void *opaque)
     vshControl *ctl = opaque;
 
     while (1) {
-        bool quit;
-        virMutexLock(&ctl->lock);
-        quit = ctl->quit;
-        virMutexUnlock(&ctl->lock);
+        bool quit = false;
+        VIR_WITH_MUTEX_LOCK_GUARD(&ctl->lock) {
+            quit = ctl->quit;
+        }
 
         if (quit)
             break;
@@ -2731,8 +2727,7 @@ vshReadlineParse(const char *text, int state)
         const vshCmdOptDef *opt = NULL;
         g_autofree char *line = g_strdup(rl_line_buffer);
 
-        g_strfreev(list);
-        list = NULL;
+        g_clear_pointer(&list, g_strfreev);
         list_index = 0;
 
         *(line + rl_point) = '\0';
@@ -2798,8 +2793,7 @@ vshReadlineParse(const char *text, int state)
 
  cleanup:
     if (!ret) {
-        g_strfreev(list);
-        list = NULL;
+        g_clear_pointer(&list, g_strfreev);
         list_index = 0;
     }
 
@@ -3360,7 +3354,6 @@ const vshCmdInfo info_complete[] = {
 bool
 cmdComplete(vshControl *ctl, const vshCmd *cmd)
 {
-    bool ret = false;
     const vshClientHooks *hooks = ctl->hooks;
     int stdin_fileno = STDIN_FILENO;
     const char *arg = "";
@@ -3370,7 +3363,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
     if (vshCommandOptStringQuiet(ctl, cmd, "string", &arg) <= 0)
-        goto cleanup;
+        return false;
 
     /* This command is flagged VSH_CMD_FLAG_NOCONNECT because we
      * need to prevent auth hooks reading any input. Therefore, we
@@ -3378,7 +3371,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
     VIR_FORCE_CLOSE(stdin_fileno);
 
     if (!(hooks && hooks->connHandler && hooks->connHandler(ctl)))
-        goto cleanup;
+        return false;
 
     while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {
         if (virBufferUse(&buf) != 0)
@@ -3397,7 +3390,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
     rl_point = strlen(rl_line_buffer);
 
     if (!(matches = vshReadlineCompletion(arg, 0, 0)))
-        goto cleanup;
+        return false;
 
     for (iter = matches; *iter; iter++) {
         if (iter == matches && matches[1])
@@ -3405,9 +3398,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
         printf("%s\n", *iter);
     }
 
-    ret = true;
- cleanup:
-    return ret;
+    return true;
 }
 
 

@@ -149,11 +149,7 @@ struct _libxlDriverPrivate {
 };
 
 #define LIBXL_SAVE_MAGIC "libvirt-xml\n \0 \r"
-#ifdef LIBXL_HAVE_SRM_V2
-# define LIBXL_SAVE_VERSION 2
-#else
-# define LIBXL_SAVE_VERSION 1
-#endif
+#define LIBXL_SAVE_VERSION 2
 
 typedef struct _libxlSavefileHeader libxlSavefileHeader;
 struct _libxlSavefileHeader {
@@ -208,37 +204,18 @@ libxlMakeVfb(virPortAllocatorRange *graphicsports,
 int
 libxlMakePCI(virDomainHostdevDef *hostdev, libxl_device_pci *pcidev);
 
-#ifdef LIBXL_HAVE_PVUSB
 int
 libxlMakeUSBController(virDomainControllerDef *controller,
                        libxl_device_usbctrl *usbctrl);
 
 int
 libxlMakeUSB(virDomainHostdevDef *hostdev, libxl_device_usbdev *usbdev);
-#endif
 
 virDomainXMLOption *
 libxlCreateXMLConf(libxlDriverPrivate *driver);
 
-#ifdef LIBXL_HAVE_DEVICE_CHANNEL
-# define LIBXL_ATTR_UNUSED
-#else
-# define LIBXL_ATTR_UNUSED G_GNUC_UNUSED
-#endif
 int
 libxlBuildDomainConfig(virPortAllocatorRange *graphicsports,
                        virDomainDef *def,
                        libxlDriverConfig *cfg,
                        libxl_domain_config *d_config);
-
-static inline void
-libxlDriverLock(libxlDriverPrivate *driver)
-{
-    virMutexLock(&driver->lock);
-}
-
-static inline void
-libxlDriverUnlock(libxlDriverPrivate *driver)
-{
-    virMutexUnlock(&driver->lock);
-}

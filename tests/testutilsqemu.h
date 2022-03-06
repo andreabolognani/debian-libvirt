@@ -34,6 +34,11 @@ enum {
 };
 
 typedef enum {
+    HOST_OS_LINUX = 0,
+    HOST_OS_MACOS,
+} testQemuHostOS;
+
+typedef enum {
     ARG_QEMU_CAPS = QEMU_CAPS_LAST + 1,
     ARG_GIC,
     ARG_MIGRATE_FROM,
@@ -42,6 +47,7 @@ typedef enum {
     ARG_PARSEFLAGS,
     ARG_CAPS_ARCH,
     ARG_CAPS_VER,
+    ARG_HOST_OS,
     ARG_END,
 } testQemuInfoArgName;
 
@@ -67,6 +73,7 @@ struct testQemuArgs {
     char *capsver;
     char *capsarch;
     int gic;
+    testQemuHostOS hostOS;
     bool invalidarg;
 };
 
@@ -88,6 +95,7 @@ struct testQemuInfo {
 };
 
 virCaps *testQemuCapsInit(void);
+virCaps *testQemuCapsInitMacOS(void);
 virDomainXMLOption *testQemuXMLConfInit(void);
 
 
@@ -109,6 +117,8 @@ int qemuTestDriverInit(virQEMUDriver *driver);
 void qemuTestDriverFree(virQEMUDriver *driver);
 int qemuTestCapsCacheInsert(virFileCache *cache,
                             virQEMUCaps *caps);
+int qemuTestCapsCacheInsertMacOS(virFileCache *cache,
+                                 virQEMUCaps *caps);
 
 int testQemuCapsSetGIC(virQEMUCaps *qemuCaps,
                        int gic);
@@ -133,4 +143,7 @@ void testQemuInfoSetArgs(struct testQemuInfo *info,
 int testQemuInfoInitArgs(struct testQemuInfo *info);
 void testQemuInfoClear(struct testQemuInfo *info);
 
+int testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
+                                         virDomainChrSourceDef *chardev,
+                                         void *opaque);
 #endif

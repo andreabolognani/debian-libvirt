@@ -15,6 +15,7 @@ qemu_driver_sources = [
   'qemu_domainjob.c',
   'qemu_driver.c',
   'qemu_extdevice.c',
+  'qemu_fd.c',
   'qemu_firmware.c',
   'qemu_hostdev.c',
   'qemu_hotplug.c',
@@ -165,11 +166,6 @@ if conf.has('WITH_QEMU')
     'in_file': files('virtqemud.init.in'),
   }
 
-  sysconf_files += {
-    'name': 'virtqemud',
-    'file': files('virtqemud.sysconf'),
-  }
-
   if conf.has('WITH_SYSCTL')
     install_data(
       'postcopy-migration.sysctl',
@@ -179,12 +175,24 @@ if conf.has('WITH_QEMU')
   endif
 
   virt_install_dirs += [
-    localstatedir / 'lib' / 'libvirt' / 'qemu',
-    runstatedir / 'libvirt' / 'qemu',
+    confdir / 'qemu',
+    confdir / 'qemu' / 'autostart',
     localstatedir / 'cache' / 'libvirt' / 'qemu',
-    localstatedir / 'log' / 'libvirt' / 'qemu',
+    localstatedir / 'lib' / 'libvirt' / 'qemu',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'channel',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'channel' / 'target',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'checkpoint',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'dump',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'nvram',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'ram',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'save',
+    localstatedir / 'lib' / 'libvirt' / 'qemu' / 'snapshot',
     localstatedir / 'lib' / 'libvirt' / 'swtpm',
-    runstatedir / 'libvirt' / 'qemu' / 'swtpm',
+    localstatedir / 'log' / 'libvirt' / 'qemu',
     localstatedir / 'log' / 'swtpm' / 'libvirt' / 'qemu',
+    runstatedir / 'libvirt' / 'qemu',
+    runstatedir / 'libvirt' / 'qemu' / 'dbus',
+    runstatedir / 'libvirt' / 'qemu' / 'slirp',
+    runstatedir / 'libvirt' / 'qemu' / 'swtpm',
   ]
 endif

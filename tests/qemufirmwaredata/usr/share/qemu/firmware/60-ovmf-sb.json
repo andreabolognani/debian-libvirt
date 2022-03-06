@@ -5,6 +5,7 @@
     ],
     "mapping": {
         "device": "flash",
+        "mode": "split",
         "executable": {
             "filename": "/usr/share/OVMF/OVMF_CODE.secboot.fd",
             "format": "raw"

@@ -44,9 +44,6 @@ int virScaleInteger(unsigned long long *value, const char *suffix,
                     unsigned long long scale, unsigned long long limit)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
-int virParseVersionString(const char *str, unsigned long *version,
-                          bool allowMissing);
-
 char *virFormatIntDecimal(char *buf, size_t buflen, int val)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
@@ -115,18 +112,6 @@ bool virDoesGroupExist(const char *name);
 
 
 bool virValidateWWN(const char *wwn);
-
-int virGetDeviceID(const char *path,
-                   int *maj,
-                   int *min) G_GNUC_NO_INLINE;
-int virSetDeviceUnprivSGIO(const char *path,
-                           const char *sysfs_dir,
-                           int unpriv_sgio);
-int virGetDeviceUnprivSGIO(const char *path,
-                           const char *sysfs_dir,
-                           int *unpriv_sgio);
-char *virGetUnprivSGIOSysfsPath(const char *path,
-                                const char *sysfs_dir);
 
 int virParseOwnershipIds(const char *label, uid_t *uidPtr, gid_t *gidPtr);
 

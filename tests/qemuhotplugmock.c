@@ -21,13 +21,16 @@
 #include "qemu/qemu_hotplug.h"
 #include "qemu/qemu_interface.h"
 #include "qemu/qemu_process.h"
+#include "testutilsqemu.h"
 #include "conf/domain_conf.h"
 #include "virdevmapper.h"
 #include "virutil.h"
 #include "virmock.h"
 #include <fcntl.h>
 
-static int (*real_virGetDeviceID)(const char *path, int *maj, int *min);
+#define LIBVIRT_QEMU_MONITOR_PRIV_H_ALLOW
+#include "qemu/qemu_monitor_priv.h"
+
 static bool (*real_virFileExists)(const char *path);
 
 static void
@@ -36,7 +39,6 @@ init_syms(void)
     if (real_virFileExists)
         return;
 
-    VIR_MOCK_REAL_INIT(virGetDeviceID);
     VIR_MOCK_REAL_INIT(virFileExists);
 }
 
@@ -65,21 +67,6 @@ virDevMapperGetTargets(const char *path,
     }
 
     return 0;
-}
-
-
-int
-virGetDeviceID(const char *path, int *maj, int *min)
-{
-    init_syms();
-
-    if (STREQ(path, "/dev/mapper/virt")) {
-        *maj = 254;
-        *min = 0;
-        return 0;
-    }
-
-    return real_virGetDeviceID(path, maj, min);
 }
 
 
@@ -112,4 +99,25 @@ qemuInterfaceVDPAConnect(virDomainNetDef *net G_GNUC_UNUSED)
 {
     /* need a valid fd or sendmsg won't work. Just open /dev/null */
     return open("/dev/null", O_RDONLY);
+}
+
+
+int
+qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
+                                            virDomainDeviceDef *dev)
+{
+    return qemuDomainDeviceBackendChardevForeachOne(dev,
+                                                    testQemuPrepareHostBackendChardevOne,
+                                                    vm);
+}
+
+
+/* we don't really want to send fake FDs across the monitor */
+int
+qemuMonitorIOWriteWithFD(qemuMonitor *mon,
+                         const char *data,
+                         size_t len,
+                         int fd G_GNUC_UNUSED)
+{
+    return write(mon->fd, data, len); /* sc_avoid_write */
 }

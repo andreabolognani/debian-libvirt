@@ -260,6 +260,7 @@ Patches have also been contributed by:
 * Diego Woitasen <diego.woitasen@vhgroup.net>
 * Dipankar Sarma <dipankar@in.ibm.com>
 * Dirk Herrendoerfer <d.herrendoerfer@herrendoerfer.name>
+* Divya Garg <divya.garg@nutanix.com>
 * Dmitrii Shcherbakov <dmitrii.shcherbakov@canonical.com>
 * Dmitry Andreev <dandreev@virtuozzo.com>
 * Dmitry Guryanov <dguryanov@parallels.com>
@@ -285,6 +286,7 @@ Patches have also been contributed by:
 * Eiichi Tsukata <eiichi.tsukata@nutanix.com>
 * Eli Qiao <liyong.qiao@intel.com>
 * Eli Qiao <taget@linux.vnet.ibm.com>
+* Emilio Herrera <ehespinosa57@gmail.com>
 * Eric Blake <eblake@redhat.com>
 * Eric Farman <farman@linux.ibm.com>
 * Eric Farman <farman@linux.vnet.ibm.com>
@@ -368,6 +370,7 @@ Patches have also been contributed by:
 * Ishmanpreet Kaur Khera <khera.ishman@gmail.com>
 * Ivan Baldo <ibaldo@adinet.com.uy>
 * Ivan Kardykov <kardykov@tabit.pro>
+* Ivan Teterevkov <ivan.teterevkov@nutanix.com>
 * J.B. Joret <jb@linux.vnet.ibm.com>
 * Jaak Ristioja <jaak@ristioja.ee>
 * Jakob Meng <jakobmeng@web.de>
@@ -405,6 +408,7 @@ Patches have also been contributed by:
 * Jim Paris <jim@jtan.com>
 * Jin Yan <jinyan12@huawei.com>
 * Jincheng Miao <jmiao@redhat.com>
+* Jing Qi <jinqi@redhat.com>
 * Jingjing Shao <jishao@redhat.com>
 * Jinsheng Zhang <zhangjl02@inspur.com>
 * Jiri Denemark <jdenemar@redhat.com>
@@ -443,6 +447,7 @@ Patches have also been contributed by:
 * Kenneth Nagin <NAGIN@il.ibm.com>
 * Kevin Locke <kevin@kevinlocke.name>
 * Kiarie Kahurani <davidkiarie4@gmail.com>
+* Kim InSoo <simmon@nplob.com>
 * Klaus Ethgen <Klaus@Ethgen.de>
 * Koichi Murase <myoga.murase@gmail.com>
 * Konrad Rzeszutek Wilk <konrad@kernel.org>
@@ -571,6 +576,7 @@ Patches have also been contributed by:
 * Nickys Music Group <nickys.music.group@gmail.com>
 * Nico Pache <npache@redhat.com>
 * Nicolas Brignone <nmbrignone@gmail.com>
+* Nicolas Lécureuil <neoclust@mageia.org>
 * Niels de Vos <ndevos@redhat.com>
 * Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>
 * Nikos Mavrogiannopoulos <nmav@redhat.com>
@@ -876,7 +882,9 @@ Patches have also been contributed by:
 * ramyelkest <ramyelkest@gmail.com>
 * ryan woodsmall <rwoodsmall@gmail.com>
 * sannyshao <jishao@redhat.com>
+* shenjiatong <yshxxsjt715@gmail.com>
 * simmon <simmon@nplob.com>
+* tuqiang <tu.qiang35@zte.com.cn>
 * w00251574 <wangjie88@huawei.com>
 * wangjian <wangjian161@huawei.com>
 * weiwei li <weiweili821@gmail.com>

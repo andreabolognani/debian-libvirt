@@ -55,8 +55,7 @@ if conf.has('WITH_INTERFACE')
     'in_file': files('virtinterfaced.init.in')
   }
 
-  sysconf_files += {
-    'name': 'virtinterfaced',
-    'file': files('virtinterfaced.sysconf'),
-  }
+  virt_install_dirs += [
+    runstatedir / 'libvirt' / 'interface',
+  ]
 endif

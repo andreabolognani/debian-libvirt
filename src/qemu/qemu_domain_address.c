@@ -705,7 +705,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         case VIR_DOMAIN_FS_DRIVER_TYPE_PATH:
         case VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE:
             /* these drivers are handled by virtio-9p-pci */
-            switch ((virDomainFSModel) dev->data.fs->model) {
+            switch (dev->data.fs->model) {
             case VIR_DOMAIN_FS_MODEL_VIRTIO_TRANSITIONAL:
                 /* Transitional devices only work in conventional PCI slots */
                 return pciFlags;
@@ -995,6 +995,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SPAPR_VIO:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SCLP:
+        case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_ISA_DEBUG:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_NONE:
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_LAST:
             return 0;
@@ -1742,7 +1743,7 @@ qemuDomainValidateDevicePCISlotsPIIX3(virDomainDef *def,
                                       virDomainPCIAddressSet *addrs)
 {
     size_t i;
-    virPCIDeviceAddress tmp_addr;
+    virPCIDeviceAddress tmp_addr = { 0 };
     g_autofree char *addrStr = NULL;
     virDomainPCIConnectFlags flags = (VIR_PCI_CONNECT_AUTOASSIGN
                                       | VIR_PCI_CONNECT_TYPE_PCI_DEVICE);
@@ -1852,7 +1853,7 @@ qemuDomainValidateDevicePCISlotsQ35(virDomainDef *def,
                                     virDomainPCIAddressSet *addrs)
 {
     size_t i;
-    virPCIDeviceAddress tmp_addr;
+    virPCIDeviceAddress tmp_addr = { 0 };
     g_autofree char *addrStr = NULL;
     virDomainPCIConnectFlags flags = VIR_PCI_CONNECT_TYPE_PCIE_DEVICE;
 
@@ -2737,8 +2738,7 @@ qemuDomainAssignPCIAddresses(virDomainDef *def,
         }
 
         nbuses = addrs->nbuses;
-        virDomainPCIAddressSetFree(addrs);
-        addrs = NULL;
+        g_clear_pointer(&addrs, virDomainPCIAddressSetFree);
     }
 
     if (!(addrs = qemuDomainPCIAddressSetCreate(def, qemuCaps, nbuses, false)))

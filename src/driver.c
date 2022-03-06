@@ -316,3 +316,70 @@ virConnectValidateURIPath(const char *uriPath,
 
     return true;
 }
+
+
+/**
+ * virDriverFeatureIsGlobal:
+ * @feat: a VIR_DRV_FEATURE
+ * @supported: If a feature is globally handled
+ *
+ * Certain driver feature flags are really not for individual drivers to decide
+ * whether they implement them or not, but are rather global based on e.g.
+ * whether the RPC protocol supports it.
+ *
+ * This function returns 'true' and fills @supported if a feature is a global
+ * feature and the individual driver implementations don't decide whether
+ * they support it or not.
+ */
+bool
+virDriverFeatureIsGlobal(virDrvFeature feat,
+                         int *supported)
+
+{
+    switch (feat) {
+    /* This is a special case where the generated remote driver dispatcher
+     * function intercepts this specific flag and returns '1'. Thus any local
+     * implementation must return 0, so that the return value properly reflects
+     * whether we are going through the remote driver */
+    case VIR_DRV_FEATURE_REMOTE:
+    /* keepalive is handled at RPC level, driver implementations must always
+     * return 0, to signal that direct/embedded use doesn't use keepalive */
+    case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
+    /* Support for close callbacks and remote event filtering are both features
+     * of the RPC protocol and thus normal drivers must not signal support
+     * for them. */
+    case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
+    case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
+        *supported = 0;
+        return true;
+
+    /* Limitation of string support in typed parameters was an RPC limitation.
+     * At this point everything supports them and thus also drivers need to
+     * always advertise this feature */
+    case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
+    /* Feature flag exposes that the accidental switching of order of arguments
+     * in the public API trampoline virNetworkUpdate is known. Updated clients
+     * thus use the correct ordering with an updated server. All drivers must
+     * signal support for this feature. */
+    case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
+    /* The remote driver intercepts and always reports the feature since it was
+     * introduced. This means that all driver implementations should advertise
+     * it too as it works natively without RPC. Always enabling this will also
+     * prevent regressions when a driver is used in embedded mode */
+    case VIR_DRV_FEATURE_FD_PASSING:
+        *supported = 1;
+        return true;
+
+    case VIR_DRV_FEATURE_MIGRATION_V2:
+    case VIR_DRV_FEATURE_MIGRATION_V3:
+    case VIR_DRV_FEATURE_MIGRATION_P2P:
+    case VIR_DRV_FEATURE_MIGRATE_CHANGE_PROTECTION:
+    case VIR_DRV_FEATURE_XML_MIGRATABLE:
+    case VIR_DRV_FEATURE_MIGRATION_OFFLINE:
+    case VIR_DRV_FEATURE_MIGRATION_PARAMS:
+    case VIR_DRV_FEATURE_MIGRATION_DIRECT:
+    case VIR_DRV_FEATURE_MIGRATION_V1:
+    default:
+        return false;
+    }
+}

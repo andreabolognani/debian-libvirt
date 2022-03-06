@@ -21,6 +21,8 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 static virQEMUDriver driver;
+static virCaps *linuxCaps;
+static virCaps *macOSCaps;
 
 enum {
     WHEN_INACTIVE = 1,
@@ -32,13 +34,24 @@ enum {
 static int
 testXML2XMLCommon(const struct testQemuInfo *info)
 {
+    int rc;
+
     if (testQemuInfoInitArgs((struct testQemuInfo *) info) < 0)
         return -1;
+
+    if (info->args.hostOS == HOST_OS_MACOS)
+        driver.caps = macOSCaps;
+    else
+        driver.caps = linuxCaps;
 
     if (!(info->flags & FLAG_REAL_CAPS))
         virQEMUCapsInitQMPBasicArch(info->qemuCaps);
 
-    if (qemuTestCapsCacheInsert(driver.qemuCapsCache, info->qemuCaps) < 0)
+    if (info->args.hostOS == HOST_OS_MACOS)
+        rc = qemuTestCapsCacheInsertMacOS(driver.qemuCapsCache, info->qemuCaps);
+    else
+        rc = qemuTestCapsCacheInsert(driver.qemuCapsCache, info->qemuCaps);
+    if (rc < 0)
         return -1;
 
     return 0;
@@ -143,6 +156,13 @@ mymain(void)
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
 
+    /* By default, the driver gets a virCaps instance that's suitable for
+     * tests that expect Linux as the host OS. We create another one for
+     * macOS and keep around pointers to both: this allows us to later
+     * pick the appropriate one for each test case */
+    linuxCaps = driver.caps;
+    macOSCaps = testQemuCapsInitMacOS();
+
     cfg = virQEMUDriverGetConfig(&driver);
     driver.privileged = true;
 
@@ -205,6 +225,11 @@ mymain(void)
                  ARG_QEMU_CAPS, __VA_ARGS__, QEMU_CAPS_LAST, ARG_END)
 #define DO_TEST_NOCAPS(name) \
     DO_TEST_FULL(name, "", WHEN_BOTH, ARG_END)
+
+#define DO_TEST_MACOS(name, ...) \
+    DO_TEST_FULL(name, "", WHEN_BOTH, \
+                 ARG_HOST_OS, HOST_OS_MACOS, \
+                 ARG_QEMU_CAPS, __VA_ARGS__, QEMU_CAPS_LAST, ARG_END)
 
     /* Unset or set all envvars here that are copied in qemudBuildCommandLine
      * using ADD_ENV_COPY, otherwise these tests may fail due to unexpected
@@ -308,7 +333,6 @@ mymain(void)
     DO_TEST_NOCAPS("disk-error-policy");
     DO_TEST_CAPS_LATEST("disk-transient");
     DO_TEST_NOCAPS("disk-fmt-qcow");
-    DO_TEST_CAPS_VER("disk-cache", "2.12.0");
     DO_TEST_CAPS_LATEST("disk-cache");
     DO_TEST_CAPS_LATEST("disk-metadata-cache");
     DO_TEST_NOCAPS("disk-network-nbd");
@@ -472,6 +496,7 @@ mymain(void)
     cfg->spiceTLS = false;
 
     DO_TEST_NOCAPS("serial-spiceport-nospice");
+    DO_TEST_NOCAPS("serial-debugcon");
     DO_TEST_NOCAPS("console-compat");
     DO_TEST_NOCAPS("console-compat2");
     DO_TEST_NOCAPS("console-virtio-many");
@@ -617,11 +642,6 @@ mymain(void)
                  ARG_END);
     DO_TEST_NOCAPS("numad-static-vcpu-no-numatune");
 
-    DO_TEST("disk-scsi-lun-passthrough-sgio",
-            QEMU_CAPS_SCSI_LSI,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_DISK_WWN,
-            QEMU_CAPS_SCSI_BLOCK);
     DO_TEST("disk-scsi-disk-vpd",
             QEMU_CAPS_SCSI_LSI, QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_SCSI_DISK_WWN);
     DO_TEST_NOCAPS("disk-source-pool");
@@ -1002,12 +1022,6 @@ mymain(void)
     DO_TEST("hostdev-scsi-shareable",
             QEMU_CAPS_VIRTIO_SCSI,
             QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-sgio",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
-    DO_TEST("hostdev-scsi-rawio",
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_SCSI_LSI);
 
     DO_TEST("hostdev-scsi-autogen-address",
             QEMU_CAPS_VIRTIO_SCSI,
@@ -1252,13 +1266,11 @@ mymain(void)
     DO_TEST("video-virtio-gpu-ccw",
             QEMU_CAPS_CCW,
             QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS,
             QEMU_CAPS_VNC,
             QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW);
     DO_TEST("video-virtio-gpu-ccw-auto",
             QEMU_CAPS_CCW,
             QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS,
             QEMU_CAPS_VNC,
             QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW);
     DO_TEST("video-none-device", QEMU_CAPS_VNC);
@@ -1434,6 +1446,22 @@ mymain(void)
     g_unsetenv("QEMU_AUDIO_DRV");
 
     DO_TEST_CAPS_LATEST("devices-acpi-index");
+
+    DO_TEST_MACOS("hvf-x86_64-q35-headless",
+                  QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
+                  QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
+                  QEMU_CAPS_DEVICE_VIRTIO_NET,
+                  QEMU_CAPS_DEVICE_ISA_SERIAL,
+                  QEMU_CAPS_DEVICE_VIRTIO_RNG,
+                  QEMU_CAPS_OBJECT_RNG_RANDOM);
+    DO_TEST_MACOS("hvf-aarch64-virt-headless",
+                  QEMU_CAPS_OBJECT_GPEX,
+                  QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
+                  QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
+                  QEMU_CAPS_DEVICE_VIRTIO_NET,
+                  QEMU_CAPS_DEVICE_PL011,
+                  QEMU_CAPS_DEVICE_VIRTIO_RNG,
+                  QEMU_CAPS_OBJECT_RNG_RANDOM);
 
  cleanup:
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)

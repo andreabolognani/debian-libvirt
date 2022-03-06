@@ -1813,7 +1813,6 @@ virNWFilterRuleDetailsParse(xmlNodePtr node,
     if (match && STREQ(match, "no"))
         match_flag = NWFILTER_ENTRY_ITEM_FLAG_IS_NEG;
     VIR_FREE(match);
-    match = NULL;
 
     while (att[idx].name != NULL) {
         prop = virXMLPropString(node, att[idx].name);
@@ -2515,8 +2514,7 @@ virNWFilterRuleParse(xmlNodePtr node)
     return ret;
 
  err_exit:
-    virNWFilterRuleDefFree(ret);
-    ret = NULL;
+    g_clear_pointer(&ret, virNWFilterRuleDefFree);
     goto cleanup;
 }
 

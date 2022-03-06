@@ -48,9 +48,9 @@ typedef enum {
 # ifdef VIR_ENUM_SENTINELS
     VIR_SECRET_USAGE_TYPE_LAST
     /*
-     * NB: this enum value will increase over time as new events are
-     * added to the libvirt API. It reflects the last secret owner ID
-     * supported by this version of the libvirt API.
+     * NB: this enum value will increase over time as new usage types are
+     * added to the libvirt API. It reflects the last usage type supported
+     * by this version of the libvirt API.
      */
 # endif
 } virSecretUsageType;
@@ -190,8 +190,8 @@ typedef enum {
  * virConnectSecretEventLifecycleCallback:
  * @conn: connection object
  * @secret: secret on which the event occurred
- * @event: The specific virSecretEventLifeCycleType which occurred
- * @detail: contains some details on the reason of the event.
+ * @event: The specific virSecretEventLifecycleType which occurred
+ * @detail: contains some details on the reason of the event (currently unused)
  * @opaque: application specified data
  *
  * This callback is called when a secret lifecycle action is performed,

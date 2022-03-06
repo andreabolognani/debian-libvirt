@@ -39,6 +39,8 @@
 # define VIR_FROM_THIS VIR_FROM_QEMU
 
 static virQEMUDriver driver;
+static virCaps *linuxCaps;
+static virCaps *macOSCaps;
 
 static unsigned char *
 fakeSecretGetValue(virSecretPtr obj G_GNUC_UNUSED,
@@ -376,79 +378,6 @@ testCheckExclusiveFlags(int flags)
 }
 
 
-static int
-testPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
-                                 virDomainChrSourceDef *chardev,
-                                 void *opaque)
-{
-    virQEMUCaps *qemuCaps = opaque;
-    qemuDomainChrSourcePrivate *charpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(chardev);
-
-    if (dev) {
-        /* vhost-user disk doesn't use FD passing */
-        if (dev->type == VIR_DOMAIN_DEVICE_DISK)
-            return 0;
-
-        if (dev->type == VIR_DOMAIN_DEVICE_NET) {
-            /* due to a historical bug in qemu we don't use FD passtrhough for
-             * vhost-sockets for network devices */
-            return 0;
-        }
-
-        /* TPMs FD passing setup is special and handled separately */
-        if (dev->type == VIR_DOMAIN_DEVICE_TPM)
-            return 0;
-    }
-
-    switch ((virDomainChrType) chardev->type) {
-    case VIR_DOMAIN_CHR_TYPE_NULL:
-    case VIR_DOMAIN_CHR_TYPE_VC:
-    case VIR_DOMAIN_CHR_TYPE_PTY:
-    case VIR_DOMAIN_CHR_TYPE_DEV:
-    case VIR_DOMAIN_CHR_TYPE_PIPE:
-    case VIR_DOMAIN_CHR_TYPE_STDIO:
-    case VIR_DOMAIN_CHR_TYPE_UDP:
-    case VIR_DOMAIN_CHR_TYPE_TCP:
-    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
-    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_FILE:
-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
-            if (fcntl(1750, F_GETFD) != -1)
-                abort();
-            charpriv->fd = 1750;
-        }
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_UNIX:
-        if (chardev->data.nix.listen &&
-            virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
-
-            if (fcntl(1729, F_GETFD) != -1)
-                abort();
-
-            charpriv->fd = 1729;
-        }
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_NMDM:
-    case VIR_DOMAIN_CHR_TYPE_LAST:
-        break;
-    }
-
-    if (chardev->logfile) {
-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
-            if (fcntl(1751, F_GETFD) != -1)
-                abort();
-            charpriv->logfd = 1751;
-        }
-    }
-
-    return 0;
-}
-
-
 static virCommand *
 testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
                                virDomainObj *vm,
@@ -465,18 +394,12 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
         return NULL;
 
     if (qemuDomainDeviceBackendChardevForeach(vm->def,
-                                              testPrepareHostBackendChardevOne,
-                                              info->qemuCaps) < 0)
+                                              testQemuPrepareHostBackendChardevOne,
+                                              vm) < 0)
         return NULL;
 
-    if (virQEMUCapsGet(info->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
-        qemuDomainChrSourcePrivate *monpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(priv->monConfig);
-
-        if (fcntl(1729, F_GETFD) != -1)
-            abort();
-
-        monpriv->fd = 1729;
-    }
+    if (testQemuPrepareHostBackendChardevOne(NULL, priv->monConfig, vm) < 0)
+        return NULL;
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDef *disk = vm->def->disks[i];
@@ -716,11 +639,17 @@ testCompareXMLToArgv(const void *data)
     g_autofree char *archstr = NULL;
     virArch arch = VIR_ARCH_NONE;
     g_autoptr(virIdentity) sysident = virIdentityGetSystem();
+    int rc;
 
     memset(&monitor_chr, 0, sizeof(monitor_chr));
 
     if (testQemuInfoInitArgs((struct testQemuInfo *) info) < 0)
         goto cleanup;
+
+    if (info->args.hostOS == HOST_OS_MACOS)
+        driver.caps = macOSCaps;
+    else
+        driver.caps = linuxCaps;
 
     if (info->arch != VIR_ARCH_NONE && info->arch != VIR_ARCH_X86_64)
         qemuTestSetHostArch(&driver, info->arch);
@@ -771,7 +700,11 @@ testCompareXMLToArgv(const void *data)
             goto cleanup;
     }
 
-    if (qemuTestCapsCacheInsert(driver.qemuCapsCache, info->qemuCaps) < 0)
+    if (info->args.hostOS == HOST_OS_MACOS)
+        rc = qemuTestCapsCacheInsertMacOS(driver.qemuCapsCache, info->qemuCaps);
+    else
+        rc = qemuTestCapsCacheInsert(driver.qemuCapsCache, info->qemuCaps);
+    if (rc < 0)
         goto cleanup;
 
     if (info->migrateFrom &&
@@ -934,6 +867,13 @@ mymain(void)
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
 
+    /* By default, the driver gets a virCaps instance that's suitable for
+     * tests that expect Linux as the host OS. We create another one for
+     * macOS and keep around pointers to both: this allows us to later
+     * pick the appropriate one for each test case */
+    linuxCaps = driver.caps;
+    macOSCaps = testQemuCapsInitMacOS();
+
     driver.privileged = true;
 
     VIR_FREE(driver.config->defaultTLSx509certdir);
@@ -1073,6 +1013,10 @@ mymain(void)
 # define DO_TEST_GIC(name, gic, ...) \
     DO_TEST_FULL(name, "", \
                  ARG_GIC, gic, \
+                 ARG_QEMU_CAPS, __VA_ARGS__, QEMU_CAPS_LAST, ARG_END)
+# define DO_TEST_MACOS(name, ...) \
+    DO_TEST_FULL(name, "", \
+                 ARG_HOST_OS, HOST_OS_MACOS, \
                  ARG_QEMU_CAPS, __VA_ARGS__, QEMU_CAPS_LAST, ARG_END)
 
 # define DO_TEST_FAILURE(name, ...) \
@@ -1244,12 +1188,16 @@ mymain(void)
     DO_TEST("bios",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
     DO_TEST_NOCAPS("bios-nvram");
+    DO_TEST_PARSE_ERROR_NOCAPS("bios-nvram-no-path");
+    DO_TEST_CAPS_LATEST("bios-nvram-rw");
+    DO_TEST_CAPS_LATEST("bios-nvram-rw-implicit");
     DO_TEST("bios-nvram-secure",
             QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_IOH3420,
             QEMU_CAPS_ICH9_AHCI,
             QEMU_CAPS_VIRTIO_SCSI);
+    DO_TEST_CAPS_LATEST("bios-nvram-template");
 
     /* Make sure all combinations of ACPI and UEFI behave as expected */
     DO_TEST_NOCAPS("q35-acpi-uefi");
@@ -1324,6 +1272,7 @@ mymain(void)
     DO_TEST("hugepages-default", QEMU_CAPS_OBJECT_MEMORY_FILE);
     DO_TEST("hugepages-default-2M", QEMU_CAPS_OBJECT_MEMORY_FILE);
     DO_TEST("hugepages-default-system-size", QEMU_CAPS_OBJECT_MEMORY_FILE);
+    DO_TEST_CAPS_LATEST_FAILURE("hugepages-default-5M");
     DO_TEST_PARSE_ERROR_NOCAPS("hugepages-default-1G-nodeset-2M");
     DO_TEST("hugepages-nodeset", QEMU_CAPS_OBJECT_MEMORY_FILE);
     DO_TEST_PARSE_ERROR("hugepages-nodeset-nonexist",
@@ -1366,17 +1315,18 @@ mymain(void)
 
     DO_TEST_PARSE_ERROR("non-x86_64-timer-error", QEMU_CAPS_CCW);
 
-    DO_TEST_CAPS_VER("disk-cdrom", "2.12.0");
+    /* qemu-4.1 was the last qemu version which we didn't use -blockdev with */
+    DO_TEST_CAPS_VER("disk-cdrom", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-cdrom");
     DO_TEST_CAPS_LATEST("disk-cdrom-empty-network-invalid");
     DO_TEST_CAPS_LATEST("disk-cdrom-bus-other");
-    DO_TEST_CAPS_VER("disk-cdrom-network", "2.12.0");
+    DO_TEST_CAPS_VER("disk-cdrom-network", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-cdrom-network");
-    DO_TEST_CAPS_VER("disk-cdrom-tray", "2.12.0");
+    DO_TEST_CAPS_VER("disk-cdrom-tray", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-cdrom-tray");
-    DO_TEST_CAPS_VER("disk-floppy", "2.12.0");
+    DO_TEST_CAPS_VER("disk-floppy", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-floppy");
-    DO_TEST_CAPS_VER("disk-floppy-q35", "2.12.0");
+    DO_TEST_CAPS_VER("disk-floppy-q35", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-floppy-q35");
     DO_TEST_CAPS_ARCH_LATEST_FAILURE("disk-floppy-pseries", "ppc64");
     DO_TEST_CAPS_LATEST("disk-floppy-tray");
@@ -1388,53 +1338,58 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-virtio-queues");
     DO_TEST_CAPS_LATEST("disk-boot-disk");
     DO_TEST_CAPS_LATEST("disk-boot-cdrom");
-    DO_TEST_CAPS_VER("floppy-drive-fat", "2.12.0");
+    DO_TEST_CAPS_VER("floppy-drive-fat", "4.1.0");
     DO_TEST_CAPS_LATEST("floppy-drive-fat");
-    DO_TEST_CAPS_VER("disk-readonly-disk", "2.12.0");
+    DO_TEST_CAPS_VER("disk-readonly-disk", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-readonly-disk");
     DO_TEST_CAPS_VER("disk-fmt-qcow", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-fmt-qcow");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-fmt-cow");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-fmt-dir");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-fmt-iso");
-    DO_TEST_CAPS_VER("disk-shared", "2.12.0");
+    DO_TEST_CAPS_VER("disk-shared", "3.1.0");
+    DO_TEST_CAPS_VER("disk-shared", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-shared");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-shared-qcow");
     DO_TEST_CAPS_VER("disk-error-policy", "2.12.0");
+    DO_TEST_CAPS_VER("disk-error-policy", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-error-policy");
     DO_TEST_CAPS_ARCH_VER("disk-error-policy-s390x", "s390x", "2.12.0");
+    DO_TEST_CAPS_ARCH_VER("disk-error-policy-s390x", "s390x", "4.0.0");
     DO_TEST_CAPS_ARCH_LATEST("disk-error-policy-s390x", "s390x");
-    DO_TEST_CAPS_VER("disk-cache", "2.12.0");
+    DO_TEST_CAPS_VER("disk-cache", "3.1.0");
+    DO_TEST_CAPS_VER("disk-cache", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-cache");
     DO_TEST_CAPS_LATEST("disk-metadata-cache");
     DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("disk-transient", "x86_64", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-transient");
-    DO_TEST_CAPS_VER("disk-network-nbd", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-nbd", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-nbd");
-    DO_TEST_CAPS_VER("disk-network-iscsi", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-iscsi", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-iscsi");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-iscsi-auth-secrettype-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-iscsi-auth-wrong-secrettype");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-source-auth-both");
-    DO_TEST_CAPS_VER("disk-network-gluster", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-gluster", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-gluster");
-    DO_TEST_CAPS_VER("disk-network-rbd", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-rbd", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-rbd-encryption", "6.0.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption");
     DO_TEST_CAPS_VER_FAILURE("disk-network-rbd-no-colon", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-no-colon");
-    DO_TEST_CAPS_VER("disk-network-sheepdog", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-sheepdog", "4.1.0");
+    /* qemu-6.0 is the last qemu version supporting sheepdog */
     DO_TEST_CAPS_VER("disk-network-sheepdog", "6.0.0");
-    DO_TEST_CAPS_VER("disk-network-source-auth", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-source-auth", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-source-auth");
     DO_TEST_CAPS_LATEST("disk-network-nfs");
     driver.config->vxhsTLS = 1;
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     driver.config->vxhsTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
-    DO_TEST_CAPS_VER("disk-network-tlsx509-nbd", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-tlsx509-nbd", "4.1.0");
     DO_TEST_CAPS_VER("disk-network-tlsx509-nbd", "5.2.0");
-    DO_TEST_CAPS_VER("disk-network-tlsx509-vxhs", "2.12.0");
+    DO_TEST_CAPS_VER("disk-network-tlsx509-vxhs", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd");
     DO_TEST_CAPS_VER("disk-network-tlsx509-vxhs", "5.0.0");
     DO_TEST_CAPS_LATEST("disk-network-http");
@@ -1442,6 +1397,8 @@ mymain(void)
     VIR_FREE(driver.config->vxhsTLSx509certdir);
     DO_TEST_CAPS_LATEST("disk-no-boot");
     DO_TEST_CAPS_LATEST("disk-nvme");
+    DO_TEST_CAPS_VER("disk-vhostuser-numa", "4.2.0");
+    DO_TEST_CAPS_LATEST("disk-vhostuser-numa");
     DO_TEST_CAPS_LATEST("disk-vhostuser");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-device-lun-type-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-attaching-partition-nosupport");
@@ -1456,7 +1413,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-disk-vpd-build-error");
     DO_TEST_CAPS_LATEST("controller-virtio-scsi");
     DO_TEST_CAPS_LATEST("disk-sata-device");
-    DO_TEST_CAPS_VER("disk-aio", "2.12.0");
+    DO_TEST_CAPS_VER("disk-aio", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-aio");
     DO_TEST_CAPS_LATEST("disk-aio-io_uring");
     DO_TEST_CAPS_VER("disk-source-pool", "4.1.0");
@@ -1464,11 +1421,11 @@ mymain(void)
     DO_TEST_CAPS_VER("disk-source-pool-mode", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-source-pool-mode");
     DO_TEST_CAPS_LATEST("disk-ioeventfd");
-    DO_TEST_CAPS_VER("disk-copy_on_read", "2.12.0");
+    DO_TEST_CAPS_VER("disk-copy_on_read", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-copy_on_read");
     DO_TEST_CAPS_VER("disk-discard", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-discard");
-    DO_TEST_CAPS_VER("disk-detect-zeroes", "2.12.0");
+    DO_TEST_CAPS_VER("disk-detect-zeroes", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-detect-zeroes");
     DO_TEST_CAPS_LATEST("disk-snapshot");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-same-targets");
@@ -1484,9 +1441,9 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-ide-incompatible-address");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-sata-incompatible-address");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-incompatible-address");
-    DO_TEST_CAPS_VER("disk-backing-chains-index", "2.12.0");
+    DO_TEST_CAPS_VER("disk-backing-chains-index", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-backing-chains-index");
-    DO_TEST_CAPS_VER("disk-backing-chains-noindex", "2.12.0");
+    DO_TEST_CAPS_VER("disk-backing-chains-noindex", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-backing-chains-noindex");
 
     DO_TEST_CAPS_LATEST("disk-slices");
@@ -1513,7 +1470,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-geometry");
     DO_TEST_CAPS_LATEST("disk-blockio");
 
-    DO_TEST_CAPS_VER("disk-virtio-scsi-reservations", "2.12.0");
+    DO_TEST_CAPS_VER("disk-virtio-scsi-reservations", "4.1.0");
     DO_TEST_CAPS_VER("disk-virtio-scsi-reservations", "5.2.0");
     DO_TEST_CAPS_LATEST("disk-virtio-scsi-reservations");
 
@@ -1692,6 +1649,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("serial-file-log");
     DO_TEST_CAPS_LATEST("serial-spiceport");
     DO_TEST_CAPS_LATEST("serial-spiceport-nospice");
+    DO_TEST_CAPS_LATEST("serial-debugcon");
 
     DO_TEST_CAPS_LATEST("console-compat");
     DO_TEST_CAPS_LATEST("console-compat-auto");
@@ -2478,15 +2436,9 @@ mymain(void)
             QEMU_CAPS_DEVICE_QXL,
             QEMU_CAPS_QXL_VGAMEM);
     DO_TEST_CAPS_LATEST("video-qxl-sec-device-vram64");
-    DO_TEST("video-qxl-heads",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_QXL_MAX_OUTPUTS);
-    DO_TEST("video-vga-qxl-heads",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_QXL_MAX_OUTPUTS);
-    DO_TEST("video-qxl-noheads",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_QXL_MAX_OUTPUTS);
+    DO_TEST("video-qxl-heads", QEMU_CAPS_DEVICE_QXL);
+    DO_TEST("video-vga-qxl-heads", QEMU_CAPS_DEVICE_QXL);
+    DO_TEST("video-qxl-noheads", QEMU_CAPS_DEVICE_QXL);
     DO_TEST("video-qxl-resolution",
             QEMU_CAPS_DEVICE_QXL,
             QEMU_CAPS_QXL_VGAMEM);
@@ -2509,8 +2461,7 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_GPU);
     DO_TEST("video-virtio-vga",
             QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_DEVICE_VIRTIO_VGA,
-            QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS);
+            QEMU_CAPS_DEVICE_VIRTIO_VGA);
     DO_TEST_CAPS_LATEST("video-virtio-vga-gpu-gl");
     DO_TEST_CAPS_LATEST("video-bochs-display-device");
     DO_TEST_CAPS_LATEST("video-ramfb-display-device");
@@ -3390,7 +3341,6 @@ mymain(void)
 
     DO_TEST("video-virtio-gpu-ccw", QEMU_CAPS_CCW,
             QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS,
             QEMU_CAPS_VNC,
             QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW);
 
@@ -3411,6 +3361,7 @@ mymain(void)
     DO_TEST_CAPS_VER("launch-security-sev", "2.12.0");
     DO_TEST_CAPS_VER("launch-security-sev", "6.0.0");
     DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "2.12.0");
+    DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "6.0.0");
     DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-direct",
                                   "x86_64",
                                   ARG_QEMU_CAPS,
@@ -3485,6 +3436,24 @@ mymain(void)
     DO_TEST_CAPS_LATEST("virtio-9p-createmode");
 
     DO_TEST_CAPS_LATEST("devices-acpi-index");
+
+    DO_TEST_MACOS("hvf-x86_64-q35-headless",
+                  QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
+                  QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
+                  QEMU_CAPS_DEVICE_VIRTIO_NET,
+                  QEMU_CAPS_DEVICE_ISA_SERIAL,
+                  QEMU_CAPS_DEVICE_VIRTIO_RNG,
+                  QEMU_CAPS_OBJECT_RNG_RANDOM);
+    DO_TEST_MACOS("hvf-aarch64-virt-headless",
+                  QEMU_CAPS_OBJECT_GPEX,
+                  QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
+                  QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
+                  QEMU_CAPS_DEVICE_VIRTIO_NET,
+                  QEMU_CAPS_DEVICE_PL011,
+                  QEMU_CAPS_DEVICE_VIRTIO_RNG,
+                  QEMU_CAPS_OBJECT_RNG_RANDOM);
+    /* HVF guests should not work on Linux with KVM */
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("hvf-x86_64-q35-headless");
 
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);

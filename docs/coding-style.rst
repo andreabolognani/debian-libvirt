@@ -53,11 +53,16 @@ Struct type names
    All structs should have a 'vir' prefix in their typedef name,
    and each following word should have its first letter in
    uppercase. The struct name should be the same as the typedef
-   name with a leading underscore.
+   name with a leading underscore. For types that are part of the
+   public API, a second typedef should be given for a pointer to
+   the struct with a 'Ptr' suffix. Do not introduce new such
+   typedefs for internal types.
+
    ::
 
-     typedef struct _virHashTable virHashTable;
-     struct _virHashTable {
+     typedef struct _virSomeType virSomeType;
+     typedef virSomeType *virSomeTypePtr;
+     struct _virSomeType {
          ...
      };
 
@@ -69,8 +74,8 @@ Function names
    name prefix should match the object typedef name, otherwise it
    should match the filename. Following this comes the verb /
    action name, and finally an optional subject name. For example,
-   given an object 'virHashTable', all functions should have a
-   name 'virHashTable$VERB' or 'virHashTable$VERB$SUBJECT", e.g.
+   given an object 'virSomeType', all functions should have a
+   name 'virSomeType$VERB' or 'virSomeType$VERB$SUBJECT", e.g.
    'virHashTableLookup' or 'virHashTableGetValue'.
 
 Macro names
@@ -422,25 +427,47 @@ Conditional expressions
 -----------------------
 
 For readability reasons new code should avoid shortening
-comparisons to 0 for numeric types. Boolean and pointer
-comparisons may be shortened. All long forms are okay:
+comparisons to 0 for numeric types:
 
 ::
 
-  virFoo *foos = NULL;
   size nfoos = 0;
+
+  GOOD:
+    if (nfoos != 0)
+    if (nfoos == 0)
+
+  BAD:
+    if (nfoos)
+    if (!nfoos)
+
+Prefer the shortened version for boolean values. Boolean values
+should never be compared against the literal ``true``, as a
+logical non-false value need not be ``1``.
+
+::
+
   bool hasFoos = false;
 
   GOOD:
-    if (!foos)
+    if (hasFoos)
     if (!hasFoos)
-    if (nfoos == 0)
-    if (foos == NULL)
-    if (hasFoos == true)
 
   BAD:
-    if (!nfoos)
-    if (nfoos)
+    if (hasFoos == true)
+    if (hasFoos != false)
+    if (hasFoos == false)
+    if (hasFoos != true)
+
+Pointer comparisons may be shortened. All long forms are okay.
+
+::
+
+  virFoo *foo = NULL;
+
+  GOOD:
+    if (foo)                 # or: if (foo != NULL)
+    if (!foo)                # or: if (foo == NULL)
 
 New code should avoid the ternary operator as much as possible.
 Specifically it must never span more than one line or nest:
@@ -502,19 +529,13 @@ Scalars
 -  In the unusual event that you require a specific width, use a
    standard type like ``int32_t``, ``uint32_t``, ``uint64_t``,
    etc.
--  While using ``bool`` is good for readability, it comes with
-   minor caveats:
-
-   -  Don't use ``bool`` in places where the type size must be
-      constant across all systems, like public interfaces and
-      on-the-wire protocols. Note that it would be possible
-      (albeit wasteful) to use ``bool`` in libvirt's logical wire
-      protocol, since XDR maps that to its lower-level ``bool_t``
-      type, which **is** fixed-size.
-   -  Don't compare a bool variable against the literal, ``true``,
-      since a value with a logical non-false value need not be
-      ``1``. I.e., don't write ``if (seen == true) ...``. Rather,
-      write ``if (seen)...``.
+-  While using ``bool`` is good for readability, it comes with a
+   minor caveat: Don't use ``bool`` in places where the type size
+   must be constant across all systems, like public interfaces and
+   on-the-wire protocols. Note that it would be possible (albeit
+   wasteful) to use ``bool`` in libvirt's logical wire protocol,
+   since XDR maps that to its lower-level ``bool_t`` type, which
+   **is** fixed-size.
 
 Of course, take all of the above with a grain of salt. If you're
 about to use some system interface that requires a type like
@@ -578,6 +599,19 @@ calling another function.
         char *z = NULL; // <===
         ...
     }
+
+Prefer variable definitions on separate lines. This allows for smaller,
+easier to understand diffs when changing them. Define variables in the
+smallest possible scope.
+
+::
+
+  GOOD:
+    int count = 0;
+    int nnodes;
+
+  BAD:
+    int count = 0, nnodes;
 
 Attribute annotations
 ---------------------
@@ -932,7 +966,6 @@ makes sense:
 
   error:     A path only taken upon return with an error code
   cleanup:   A path taken upon return with success code + optional error
-  no_memory: A path only taken upon return with an OOM error code
   retry:     If needing to jump upwards (e.g., retry on EINTR)
 
 Top-level labels should be indented by one space (putting them on

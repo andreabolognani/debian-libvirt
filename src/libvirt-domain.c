@@ -154,6 +154,10 @@ virDomainGetConnect(virDomainPtr dom)
  * block attempts at migration. Hypervisors may also block save-to-file,
  * or snapshots.
  *
+ * If @flags includes VIR_DOMAIN_START_RESET_NVRAM, then libvirt will
+ * discard any existing NVRAM file and re-initialize NVRAM from the
+ * pristine template.
+ *
  * virDomainFree should be used to free the resources after the
  * domain object is no longer needed.
  *
@@ -239,6 +243,18 @@ virDomainCreateXMLWithFiles(virConnectPtr conn, const char *xmlDesc,
     virCheckConnectReturn(conn, NULL);
     virCheckNonNullArgGoto(xmlDesc, error);
     virCheckReadOnlyGoto(conn->flags, error);
+
+    if (nfiles > 0) {
+        int rc;
+
+        if ((rc = VIR_DRV_SUPPORTS_FEATURE(conn->driver, conn,
+                                           VIR_DRV_FEATURE_FD_PASSING)) <= 0) {
+            if (rc == 0)
+                virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                               _("fd passing is not supported by this connection"));
+            goto error;
+        }
+    }
 
     if (conn->driver->domainCreateXMLWithFiles) {
         virDomainPtr ret;
@@ -1014,6 +1030,10 @@ virDomainRestore(virConnectPtr conn, const char *from)
  * Specifying VIR_DOMAIN_SAVE_RUNNING or VIR_DOMAIN_SAVE_PAUSED in
  * @flags will override the default read from the file.  These two
  * flags are mutually exclusive.
+ *
+ * If @flags includes VIR_DOMAIN_SAVE_RESET_NVRAM, then libvirt will
+ * discard any existing NVRAM file and re-initialize NVRAM from the
+ * pristine template.
  *
  * Returns 0 in case of success and -1 in case of failure.
  */
@@ -3205,8 +3225,7 @@ virDomainMigrateVersion3Full(virDomainPtr domain,
                 if (err &&
                     err->domain == VIR_FROM_QEMU &&
                     err->code != VIR_ERR_MIGRATE_FINISH_OK) {
-                    virFreeError(orig_err);
-                    orig_err = NULL;
+                    g_clear_pointer(&orig_err, virFreeError);
                 }
             }
         }
@@ -6764,6 +6783,10 @@ virDomainCreate(virDomainPtr domain)
  * If the VIR_DOMAIN_START_FORCE_BOOT flag is set, then any managed save
  * file for this domain is discarded, and the domain boots from scratch.
  *
+ * If @flags includes VIR_DOMAIN_START_RESET_NVRAM, then libvirt will
+ * discard any existing NVRAM file and re-initialize NVRAM from the
+ * pristine template.
+ *
  * Returns 0 in case of success, -1 in case of error
  */
 int
@@ -6836,6 +6859,10 @@ virDomainCreateWithFlags(virDomainPtr domain, unsigned int flags)
  * If the VIR_DOMAIN_START_FORCE_BOOT flag is set, then any managed save
  * file for this domain is discarded, and the domain boots from scratch.
  *
+ * If @flags includes VIR_DOMAIN_START_RESET_NVRAM, then libvirt will
+ * discard any existing NVRAM file and re-initialize NVRAM from the
+ * pristine template.
+ *
  * Returns 0 in case of success, -1 in case of error
  */
 int
@@ -6853,6 +6880,18 @@ virDomainCreateWithFiles(virDomainPtr domain, unsigned int nfiles,
     conn = domain->conn;
 
     virCheckReadOnlyGoto(conn->flags, error);
+
+    if (nfiles > 0) {
+        int rc;
+
+        if ((rc = VIR_DRV_SUPPORTS_FEATURE(conn->driver, conn,
+                                           VIR_DRV_FEATURE_FD_PASSING)) <= 0) {
+            if (rc == 0)
+                virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                               _("fd passing is not supported by this connection"));
+            goto error;
+        }
+    }
 
     if (conn->driver->domainCreateWithFiles) {
         int ret;
@@ -11941,6 +11980,12 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *     "dirtyrate.megabytes_per_second" - the calculated memory dirty rate in
  *                                        MiB/s as long long. It is produced
  *                                        only if the calc_status is measured.
+ *     "dirtyrate.calc_mode" - the calculation mode used last measurement, either
+ *                             of these 3 'page-sampling,dirty-bitmap,dirty-ring'
+ *                             values returned.
+ *     "dirtyrate.vcpu.<num>.megabytes_per_second" - the calculated memory dirty
+ *                                                   rate for a virtual cpu as
+ *                                                   unsigned long long.
  *
  * Note that entire stats groups or individual stat fields may be missing from
  * the output in case they are not supported by the given hypervisor, are not
@@ -13298,7 +13343,7 @@ virDomainGetMessages(virDomainPtr domain,
  * virDomainStartDirtyRateCalc:
  * @domain: a domain object
  * @seconds: specified calculating time in seconds
- * @flags: extra flags; not used yet, so callers should always pass 0
+ * @flags: bitwise-OR of supported virDomainDirtyRateCalcFlags
  *
  * Calculate the current domain's memory dirty rate in next @seconds.
  * The calculated dirty rate information is available by calling
@@ -13321,6 +13366,16 @@ virDomainStartDirtyRateCalc(virDomainPtr domain,
     conn = domain->conn;
 
     virCheckReadOnlyGoto(conn->flags, error);
+
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_DOMAIN_DIRTYRATE_MODE_PAGE_SAMPLING,
+                             VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_BITMAP,
+                             error);
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_DOMAIN_DIRTYRATE_MODE_PAGE_SAMPLING,
+                             VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_RING,
+                             error);
+    VIR_EXCLUSIVE_FLAGS_GOTO(VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_BITMAP,
+                             VIR_DOMAIN_DIRTYRATE_MODE_DIRTY_RING,
+                             error);
 
     if (conn->driver->domainStartDirtyRateCalc) {
         int ret;

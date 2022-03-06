@@ -31,6 +31,11 @@ struct virMutex {
     pthread_mutex_t lock;
 };
 
+typedef struct virLockGuard virLockGuard;
+struct virLockGuard {
+    virMutex *mutex;
+};
+
 typedef struct virRWLock virRWLock;
 struct virRWLock {
     pthread_rwlock_t lock;
@@ -121,6 +126,11 @@ void virMutexLock(virMutex *m);
 void virMutexUnlock(virMutex *m);
 
 
+virLockGuard virLockGuardLock(virMutex *m);
+void virLockGuardUnlock(virLockGuard *l);
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(virLockGuard, virLockGuardUnlock);
+#define VIR_LOCK_GUARD g_auto(virLockGuard) G_GNUC_UNUSED
+
 int virRWLockInit(virRWLock *m) G_GNUC_WARN_UNUSED_RESULT;
 void virRWLockDestroy(virRWLock *m);
 
@@ -199,3 +209,24 @@ int virThreadLocalSet(virThreadLocal *l, void*) G_GNUC_WARN_UNUSED_RESULT;
         return 0; \
     } \
     struct classname ## EatSemicolon
+
+#define VIR_WITH_MUTEX_LOCK_GUARD_(m, name) \
+    for (g_auto(virLockGuard) name = virLockGuardLock(m); name.mutex; \
+        name.mutex = (virLockGuardUnlock(&name), NULL))
+/**
+ * VIR_WITH_MUTEX_LOCK_GUARD:
+ *
+ * This macro defines a lock scope such that entering the scope takes the lock
+ * and leaving the scope releases the lock. Return statements are allowed
+ * within the scope and release the lock. Break and continue statements leave
+ * the scope early and release the lock.
+ *
+ *     virMutex *mutex = ...;
+ *
+ *     VIR_WITH_MUTEX_LOCK_GUARD(mutex) {
+ *         // `mutex` is locked, and released automatically on scope exit
+ *         ...
+ *     }
+ */
+#define VIR_WITH_MUTEX_LOCK_GUARD(m) \
+    VIR_WITH_MUTEX_LOCK_GUARD_(m, CONCAT(var, __COUNTER__))

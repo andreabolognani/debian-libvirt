@@ -95,6 +95,7 @@ qemuHotplugCreateObjects(virDomainXMLOption *xmlopt,
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_SCSI_BLOCK);
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_DEVICE_USB_KBD);
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_NETDEV_VHOST_VDPA);
+    virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE);
 
     if (qemuTestCapsCacheInsert(driver.qemuCapsCache, priv->qemuCaps) < 0)
         return -1;
@@ -135,7 +136,7 @@ testQemuHotplugAttach(virDomainObj *vm,
         ret = qemuDomainAttachDeviceDiskLive(&driver, vm, dev);
         break;
     case VIR_DOMAIN_DEVICE_CHR:
-        ret = qemuDomainAttachChrDevice(&driver, vm, dev->data.chr);
+        ret = qemuDomainAttachChrDevice(&driver, vm, dev);
         break;
     case VIR_DOMAIN_DEVICE_SHMEM:
         ret = qemuDomainAttachShmemDevice(&driver, vm, dev->data.shmem);
@@ -708,7 +709,7 @@ mymain(void)
 
     DO_TEST_DETACH("console-compat-2-live", "console-virtio", false, false,
                    "device_del", QMP_DEVICE_DELETED("console1") QMP_OK,
-                   "chardev-remove", QMP_OK);
+                   "chardev-remove", QMP_OK, "query-fdsets", "{\"return\": []}");
 
     DO_TEST_ATTACH("base-live", "disk-virtio", false, true,
                    "human-monitor-command", HMP("OK\\r\\n"),
@@ -764,11 +765,12 @@ mymain(void)
                    "object-del", QMP_OK);
 
     DO_TEST_ATTACH("base-live", "qemu-agent", false, true,
+                   "getfd", QMP_OK,
                    "chardev-add", QMP_OK,
                    "device_add", QMP_OK);
     DO_TEST_DETACH("base-live", "qemu-agent-detach", false, false,
                    "device_del", QMP_DEVICE_DELETED("channel0") QMP_OK,
-                   "chardev-remove", QMP_OK);
+                   "chardev-remove", QMP_OK, "query-fdsets", "{\"return\": []}");
 
     DO_TEST_ATTACH("base-ccw-live", "ccw-virtio", false, true,
                    "human-monitor-command", HMP("OK\\r\\n"),
@@ -856,6 +858,7 @@ mymain(void)
                    "device_del", QMP_DEVICE_DELETED("ua-UserWatchdog") QMP_OK);
 
     DO_TEST_ATTACH("base-live", "guestfwd", false, true,
+                   "getfd", QMP_OK,
                    "chardev-add", QMP_OK,
                    "netdev_add", QMP_OK);
     DO_TEST_DETACH("base-live", "guestfwd", false, false,

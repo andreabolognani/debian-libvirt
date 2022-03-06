@@ -145,8 +145,7 @@ virStorageVolObjEndAPI(virStorageVolObj **obj)
         return;
 
     virObjectUnlock(*obj);
-    virObjectUnref(*obj);
-    *obj = NULL;
+    g_clear_pointer(obj, virObjectUnref);
 }
 
 
@@ -233,8 +232,7 @@ virStoragePoolObjEndAPI(virStoragePoolObj **obj)
         return;
 
     virObjectUnlock(*obj);
-    virObjectUnref(*obj);
-    *obj = NULL;
+    g_clear_pointer(obj, virObjectUnref);
 }
 
 
@@ -1447,13 +1445,11 @@ virStoragePoolObjSourceFindDuplicateCb(const void *payload,
         break;
 
     case VIR_STORAGE_POOL_ISCSI:
-    case VIR_STORAGE_POOL_ISCSI_DIRECT:
     case VIR_STORAGE_POOL_FS:
     case VIR_STORAGE_POOL_LOGICAL:
     case VIR_STORAGE_POOL_DISK:
     case VIR_STORAGE_POOL_ZFS:
         if ((data->def->type == VIR_STORAGE_POOL_ISCSI ||
-             data->def->type == VIR_STORAGE_POOL_ISCSI_DIRECT ||
              data->def->type == VIR_STORAGE_POOL_FS ||
              data->def->type == VIR_STORAGE_POOL_LOGICAL ||
              data->def->type == VIR_STORAGE_POOL_DISK ||
@@ -1481,6 +1477,7 @@ virStoragePoolObjSourceFindDuplicateCb(const void *payload,
             return 1;
         break;
 
+    case VIR_STORAGE_POOL_ISCSI_DIRECT:
     case VIR_STORAGE_POOL_RBD:
     case VIR_STORAGE_POOL_LAST:
         break;
@@ -1614,6 +1611,8 @@ virStoragePoolObjLoad(virStoragePoolObjList *pools,
     virStoragePoolObj *obj;
     g_autoptr(virStoragePoolDef) def = NULL;
 
+    VIR_DEBUG("loading storage pool config XML '%s'", path);
+
     if (!(def = virStoragePoolDefParseFile(path)))
         return NULL;
 
@@ -1654,6 +1653,8 @@ virStoragePoolObjLoadState(virStoragePoolObjList *pools,
 
     if (!(stateFile = virFileBuildPath(stateDir, name, ".xml")))
         return NULL;
+
+    VIR_DEBUG("loading storage pool state XML '%s'", stateFile);
 
     if (!(xml = virXMLParseCtxt(stateFile, NULL, _("(pool state)"), &ctxt)))
         return NULL;
@@ -1732,27 +1733,15 @@ virStoragePoolObjLoadAllConfigs(virStoragePoolObjList *pools,
         return rc;
 
     while ((ret = virDirRead(dir, &entry, configDir)) > 0) {
-        char *path;
-        char *autostartLink;
+        g_autofree char *path = virFileBuildPath(configDir, entry->d_name, NULL);
+        g_autofree char *autostartLink = virFileBuildPath(autostartDir, entry->d_name, NULL);
         virStoragePoolObj *obj;
 
         if (!virStringHasSuffix(entry->d_name, ".xml"))
             continue;
 
-        if (!(path = virFileBuildPath(configDir, entry->d_name, NULL)))
-            continue;
-
-        if (!(autostartLink = virFileBuildPath(autostartDir, entry->d_name,
-                                               NULL))) {
-            VIR_FREE(path);
-            continue;
-        }
-
         obj = virStoragePoolObjLoad(pools, entry->d_name, path, autostartLink);
         virStoragePoolObjEndAPI(&obj);
-
-        VIR_FREE(path);
-        VIR_FREE(autostartLink);
     }
 
     return ret;
