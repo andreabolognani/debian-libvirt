@@ -4,10 +4,32 @@ Subject: Debianize libvirt-guests
 
 Forwarded: not-needed
 ---
- tools/libvirt-guests.sh.in   | 21 ++++++++++-----------
- tools/libvirt-guests.sysconf |  4 ++--
+ docs/manpages/libvirt-guests.rst |  4 ++--
+ tools/libvirt-guests.sh.in       | 21 ++++++++++-----------
  2 files changed, 12 insertions(+), 13 deletions(-)
 
+diff --git a/docs/manpages/libvirt-guests.rst b/docs/manpages/libvirt-guests.rst
+index bea08e3..e52c8c1 100644
+--- a/docs/manpages/libvirt-guests.rst
++++ b/docs/manpages/libvirt-guests.rst
+@@ -51,7 +51,7 @@ The following variables are supported:
+   URIs to check for running guests. Example:
+   ``URIS='default xen:///system xen+tcp://host/system lxc:///system'``
+ 
+-- ON_BOOT=start
++- ON_BOOT=ignore
+ 
+   Action taken on host boot
+ 
+@@ -70,7 +70,7 @@ The following variables are supported:
+   Number of seconds to wait between each guest start. Set to 0 to allow parallel
+   startup.
+ 
+-- ON_SHUTDOWN=suspend
++- ON_SHUTDOWN=shutdown
+ 
+   Action taken on host shutdown
+ 
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
 index 87f96af..9fe1c4c 100644
 --- a/tools/libvirt-guests.sh.in
@@ -62,25 +84,3 @@ index 87f96af..9fe1c4c 100644
  rh_status() {
      if [ -f "$LISTFILE" ]; then
          gettext "stopped, with saved guests"; echo
-diff --git a/tools/libvirt-guests.sysconf b/tools/libvirt-guests.sysconf
-index 4f83eda..4b09bdb 100644
---- a/tools/libvirt-guests.sysconf
-+++ b/tools/libvirt-guests.sysconf
-@@ -10,7 +10,7 @@
- # - ignore  libvirt-guests init script won't start any guest on boot, however,
- #           guests marked as autostart will still be automatically started by
- #           libvirtd
--#ON_BOOT=start
-+#ON_BOOT=ignore
- 
- # Number of seconds to wait between each guest start. Set to 0 to allow
- # parallel startup.
-@@ -24,7 +24,7 @@
- #             which just needs a long time to shutdown. When setting
- #             ON_SHUTDOWN=shutdown, you must also set SHUTDOWN_TIMEOUT to a
- #             value suitable for your guests.
--#ON_SHUTDOWN=suspend
-+#ON_SHUTDOWN=shutdown
- 
- # Number of guests will be shutdown concurrently, taking effect when
- # "ON_SHUTDOWN" is set to "shutdown". If Set to 0, guests will be shutdown one
