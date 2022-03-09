@@ -24,13 +24,13 @@ index 0c8b812..72278b5 100644
 +  # Site-specific additions and overrides. See local/README for details.
 +  #include <local/abstractions/libvirt-lxc>
 diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
-index 8cd76d4..8210291 100644
+index 250ba4e..1b0d7e3 100644
 --- a/src/security/apparmor/libvirt-qemu
 +++ b/src/security/apparmor/libvirt-qemu
-@@ -248,3 +248,6 @@
-   # /sys/bus/nd/devices
-   / r, # harmless on any lsb compliant system
-   /sys/bus/nd/devices/{,**/} r,
+@@ -252,3 +252,6 @@
+   # required for QEMU accessing UEFI nvram variables
+   owner /var/lib/libvirt/qemu/nvram/*_VARS.fd rwk,
+   owner /var/lib/libvirt/qemu/nvram/*_VARS.ms.fd rwk,
 +
 +  # Site-specific additions and overrides. See local/README for details.
 +  #include <local/abstractions/libvirt-qemu>
