@@ -1,7 +1,3 @@
-etc/default/libvirt-guests
-etc/default/libvirtd
-etc/default/virtlockd
-etc/default/virtlogd
 etc/libvirt/libvirtd.conf
 etc/libvirt/qemu-lockd.conf
 etc/libvirt/qemu.conf
