@@ -10,7 +10,6 @@ Build-Depends:
  bash-completion,
  debhelper-compat (= 13),
  dh-apparmor [linux-any],
- dnsmasq-base,
  iptables [linux-any],
  kmod [linux-any],
  libacl1-dev [linux-any],
