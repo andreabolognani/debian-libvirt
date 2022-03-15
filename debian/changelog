@@ -1,8 +1,28 @@
-libvirt (8.1.0-1) UNRELEASED; urgency=medium
+libvirt (8.1.0-1) experimental; urgency=medium
 
+  [ Andrea Bolognani ]
   * [224b64e] New upstream version 8.1.0
+  * [06dea7a] patches: Drop backports
+  * [9f3a2e6] patches: Add backport/qemu-segmentation-fault-[...].patch
+    - Fixes a regression introduced in 8.1.0
+  * [70e6209] control: Drop build dependency on dnsmasq-base
+    - Availability is only checked at runtime
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sun, 06 Mar 2022 11:23:44 +0100
+  [ Martin Pitt ]
+  * [171a675] apparmor: Fix QEMU access for UEFI variable files
+    - QEMU needs to read, write and lock the NVRAM *.fd files with
+      UEFI firmware
+    - Closes: #1006324
+    - LP: #1962035
+
+  [ Maximilian Engelhardt ]
+  * [a06d5e5] control: Drop i386 from Xen arches
+    - Starting with version 4.16, Xen is no longer built on the i386
+      architecture in Debian
+    - Thanks to Diederik de Haas for helping get this fix merged
+    - Closes: #1006300
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 15 Mar 2022 23:53:49 +0100
 
 libvirt (8.0.0-1) unstable; urgency=medium
 
