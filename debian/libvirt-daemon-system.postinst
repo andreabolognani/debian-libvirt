@@ -242,7 +242,7 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
 		systemctl --system daemon-reload >/dev/null || true
 		# We have already called 'reload' for virtlogd and virtlockd earlier if they were active
-		deb-systemd-invoke restart 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
+		deb-systemd-invoke start 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
 	fi
 fi
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
@@ -353,7 +353,7 @@ fi
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
 		systemctl --system daemon-reload >/dev/null || true
-		deb-systemd-invoke restart 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
+		deb-systemd-invoke start 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
 	fi
 fi
 # End of section copied verbatim
