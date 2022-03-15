@@ -145,23 +145,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dwireshark_dissector=enabled \
     $(NULL)
 
-# Those have to stay up through upgrades to avoid interruptions
-LIBVIRT_SYSTEM_SERVICES = \
-    virtlogd.service \
-    virtlockd.service \
-    libvirt-guests.service \
-    $(NULL)
-
-LIBVIRT_SOCKETS = \
-    libvirtd.socket \
-    libvirtd-ro.socket \
-    libvirtd-admin.socket \
-    virtlogd.socket \
-    virtlogd-admin.socket \
-    virtlockd.socket \
-    virtlockd-admin.socket \
-    $(NULL)
-
 APPARMOR_ABSTRACTIONS = \
     libvirt-lxc \
     libvirt-qemu \
@@ -312,9 +295,9 @@ override_dh_installinit:
 	dh_installinit -p libvirt-daemon-system --name=libvirt-guests --no-scripts
 
 override_dh_installsystemd:
-	dh_installsystemd -p libvirt-daemon-system --no-also --restart-after-upgrade libvirtd.service
-	dh_installsystemd -p libvirt-daemon-system --no-also --no-stop-on-upgrade $(LIBVIRT_SYSTEM_SERVICES)
-	dh_installsystemd -p libvirt-daemon-system --no-also --no-stop-on-upgrade $(LIBVIRT_SOCKETS)
+	# Due to #994204, we are forced to handle systemd units ourselves to
+	# avoid the restart of services/sockets which would result in VMs
+	# being stopped or crashing.
 
 override_dh_installdocs:
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
