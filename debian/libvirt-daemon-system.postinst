@@ -162,7 +162,16 @@ esac
 
 db_stop
 
-# Automatically added by dh_installsystemd/13.6
+# Section copied verbatim from the output of dh_installsystemd/13.6
+#
+# Due to #994204, we are forced to handle systemd units ourselves to
+# avoid the restart of services/sockets which would result in VMs
+# being stopped or crashing.
+#
+# In order to do this, instead of calling dh_installsystemd in
+# debian/rules we take the output that those calls would generate
+# and hardcode it here, tweaking it as necessary to prevent the
+# problematic scenarios.
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'libvirtd.service' >/dev/null || true
@@ -178,16 +187,12 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'libvirtd.service' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
 		systemctl --system daemon-reload >/dev/null || true
 		deb-systemd-invoke restart 'libvirtd.service' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'libvirt-guests.service' >/dev/null || true
@@ -203,8 +208,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'libvirt-guests.service' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'virtlockd.service' >/dev/null || true
@@ -220,8 +223,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'virtlockd.service' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'virtlogd.service' >/dev/null || true
@@ -237,16 +238,13 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'virtlogd.service' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
 		systemctl --system daemon-reload >/dev/null || true
+		# We have already called 'reload' for virtlogd and virtlockd earlier if they were active
 		deb-systemd-invoke restart 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'libvirtd-admin.socket' >/dev/null || true
@@ -262,8 +260,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'libvirtd-admin.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'libvirtd-ro.socket' >/dev/null || true
@@ -279,8 +275,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'libvirtd-ro.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'libvirtd.socket' >/dev/null || true
@@ -296,8 +290,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'libvirtd.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'virtlockd-admin.socket' >/dev/null || true
@@ -313,8 +305,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'virtlockd-admin.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'virtlockd.socket' >/dev/null || true
@@ -330,8 +320,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'virtlockd.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'virtlogd-admin.socket' >/dev/null || true
@@ -347,8 +335,6 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'virtlogd-admin.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	# This will only remove masks created by d-s-h on package removal.
 	deb-systemd-helper unmask 'virtlogd.socket' >/dev/null || true
@@ -364,15 +350,13 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 		deb-systemd-helper update-state 'virtlogd.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
-# Automatically added by dh_installsystemd/13.6
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
 	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
 		systemctl --system daemon-reload >/dev/null || true
 		deb-systemd-invoke restart 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
 	fi
 fi
-# End automatically added section
+# End of section copied verbatim
 
 #DEBHELPER#
 

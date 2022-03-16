@@ -298,6 +298,8 @@ override_dh_installsystemd:
 	# Due to #994204, we are forced to handle systemd units ourselves to
 	# avoid the restart of services/sockets which would result in VMs
 	# being stopped or crashing.
+	#
+	# See libvirt-daemon-system.{pre,post}{inst,rm} for details.
 
 override_dh_installdocs:
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
