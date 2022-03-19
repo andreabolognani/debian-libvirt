@@ -1,3 +1,14 @@
+libvirt (8.1.0-2) unstable; urgency=medium
+
+  * [ba504f6] systemd: Hardcode output of dh_installsystemd
+    - Stop using dh_installsystemd and hardcode slightly tweaked
+      versions of its output in maintainer scripts instead, as a
+      temporary workaround for #994204
+  * [4c89356] systemd: Only ever restart libvirtd on upgrade
+    - This avoids guests being stopped or crashing during upgrades
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 19 Mar 2022 19:06:47 +0100
+
 libvirt (8.1.0-1) experimental; urgency=medium
 
   [ Andrea Bolognani ]
