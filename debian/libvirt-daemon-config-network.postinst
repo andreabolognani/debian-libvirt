@@ -105,9 +105,6 @@ case "$1" in
         # services, restart them so that they can pick up the new settings
         if [ -d /run/systemd/system ]; then
             systemctl --system daemon-reload >/dev/null || true
-            if systemctl is-active -q virtnetworkd; then
-                systemctl restart virtnetworkd
-            fi
             if systemctl is-active -q libvirtd; then
                 systemctl restart libvirtd
             fi
