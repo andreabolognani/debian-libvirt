@@ -1,3 +1,9 @@
+libvirt (8.2.0-1) UNRELEASED; urgency=medium
+
+  * [4d84203] New upstream version 8.2.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 02 Apr 2022 10:31:51 +0200
+
 libvirt (8.1.0-2) unstable; urgency=medium
 
   * [ba504f6] systemd: Hardcode output of dh_installsystemd
