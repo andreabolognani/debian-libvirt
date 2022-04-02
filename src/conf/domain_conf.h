@@ -537,6 +537,19 @@ typedef enum {
 } virDomainMemoryAllocation;
 
 
+typedef enum {
+    VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT = 0,
+    VIR_DOMAIN_SNAPSHOT_LOCATION_NO,
+    VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL,
+    VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL,
+    VIR_DOMAIN_SNAPSHOT_LOCATION_MANUAL,
+
+    VIR_DOMAIN_SNAPSHOT_LOCATION_LAST
+} virDomainSnapshotLocation;
+
+VIR_ENUM_DECL(virDomainSnapshotLocation);
+
+
 /* Stores the virtual disk configuration */
 struct _virDomainDiskDef {
     virStorageSource *src; /* non-NULL.  XXX Allow NULL for empty cdrom? */
@@ -581,7 +594,7 @@ struct _virDomainDiskDef {
     virTristateSwitch ioeventfd;
     virTristateSwitch event_idx;
     virTristateSwitch copy_on_read;
-    unsigned int snapshot; /* virDomainSnapshotLocation, snapshot_conf.h */
+    virDomainSnapshotLocation snapshot;
     virDomainStartupPolicy startupPolicy;
     bool transient;
     virTristateBool transientShareBacking;
@@ -2689,6 +2702,7 @@ struct _virDomainMemtune {
     int source; /* enum virDomainMemorySource */
     int access; /* enum virDomainMemoryAccess */
     int allocation; /* enum virDomainMemoryAllocation */
+    unsigned int allocation_threads;
 
     virTristateBool discard;
 };
@@ -2997,6 +3011,7 @@ typedef enum {
     VIR_DOMAIN_TAINT_CUSTOM_GA_COMMAND, /* Custom guest agent command */
     VIR_DOMAIN_TAINT_CUSTOM_HYPERVISOR_FEATURE, /* custom hypervisor feature control */
     VIR_DOMAIN_TAINT_DEPRECATED_CONFIG,  /* Configuration that is marked deprecated */
+    VIR_DOMAIN_TAINT_CUSTOM_DEVICE, /* hypervisor device config customized */
 
     VIR_DOMAIN_TAINT_LAST
 } virDomainTaintFlags;

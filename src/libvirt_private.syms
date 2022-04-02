@@ -637,6 +637,8 @@ virDomainSmartcardTypeFromString;
 virDomainSmartcardTypeToString;
 virDomainSmbiosModeTypeFromString;
 virDomainSmbiosModeTypeToString;
+virDomainSnapshotLocationTypeFromString;
+virDomainSnapshotLocationTypeToString;
 virDomainSoundDefFind;
 virDomainSoundDefFree;
 virDomainSoundDefRemove;
@@ -947,7 +949,6 @@ virNWFilterDeleteDef;
 virNWFilterJumpTargetTypeToString;
 virNWFilterPrintStateMatchFlags;
 virNWFilterPrintTCPFlags;
-virNWFilterReadLockFilterUpdates;
 virNWFilterRuleActionTypeToString;
 virNWFilterRuleDirectionTypeToString;
 virNWFilterRuleIsProtocolEthernet;
@@ -956,8 +957,6 @@ virNWFilterRuleIsProtocolIPv6;
 virNWFilterRuleProtocolTypeToString;
 virNWFilterSaveConfig;
 virNWFilterTriggerRebuild;
-virNWFilterUnlockFilterUpdates;
-virNWFilterWriteLockFilterUpdates;
 
 
 # conf/nwfilter_ipaddrmap.h
@@ -1024,8 +1023,6 @@ virDomainSnapshotDiskDefFree;
 virDomainSnapshotDiskDefParseXML;
 virDomainSnapshotFormatConvertXMLFlags;
 virDomainSnapshotIsExternal;
-virDomainSnapshotLocationTypeFromString;
-virDomainSnapshotLocationTypeToString;
 virDomainSnapshotRedefinePrep;
 virDomainSnapshotStateTypeFromString;
 virDomainSnapshotStateTypeToString;
@@ -1298,6 +1295,7 @@ virNetworkPortDefSaveStatus;
 # conf/virnodedeviceobj.h
 virNodeDeviceObjEndAPI;
 virNodeDeviceObjGetDef;
+virNodeDeviceObjHasCap;
 virNodeDeviceObjIsActive;
 virNodeDeviceObjIsAutostart;
 virNodeDeviceObjIsPersistent;
@@ -1579,10 +1577,15 @@ virDomainDriverSetupPersistentDefBlkioParams;
 
 
 # hypervisor/domain_job.h
+virDomainAgentJobTypeToString;
+virDomainAsyncJobTypeFromString;
+virDomainAsyncJobTypeToString;
 virDomainJobDataCopy;
 virDomainJobDataFree;
 virDomainJobDataInit;
 virDomainJobStatusToType;
+virDomainJobTypeFromString;
+virDomainJobTypeToString;
 
 
 # hypervisor/virclosecallbacks.h

@@ -227,7 +227,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 8.1.0
+Version: 8.2.0
 Release: 1%{?dist}
 License: LGPLv2+
 URL: https://libvirt.org/
@@ -1733,7 +1733,6 @@ exit 0
 %{_mandir}/man8/virtlogd.8*
 %{_mandir}/man8/virtlockd.8*
 %{_mandir}/man8/virtproxyd.8*
-%{_mandir}/man7/virkey*.7*
 
 %{_bindir}/virt-host-validate
 %{_bindir}/virt-admin
@@ -2039,6 +2038,7 @@ exit 0
 %{_mandir}/man1/virt-xml-validate.1*
 %{_mandir}/man1/virt-pki-query-dn.1*
 %{_mandir}/man1/virt-pki-validate.1*
+%{_mandir}/man7/virkey*.7*
 %{_bindir}/virsh
 %{_bindir}/virt-xml-validate
 %{_bindir}/virt-pki-query-dn

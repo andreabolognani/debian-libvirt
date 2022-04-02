@@ -209,6 +209,7 @@ Patches have also been contributed by:
 * Clark Laughlin <clark.laughlin@linaro.org>
 * Claudio André <claudioandre.br@gmail.com>
 * Claudio Bley <claudio.bley@gmail.com>
+* Claudio Fontana <cfontana@suse.de>
 * Clementine Hayat <clem@lse.epita.fr>
 * Cole Robinson <crobinso@redhat.com>
 * Collin L. Walling <walling@linux.vnet.ibm.com>
@@ -340,6 +341,7 @@ Patches have also been contributed by:
 * Hao Liu <hliu@redhat.com>
 * Hao Peng <peng.hao2@zte.com.cn>
 * Hao Wang <wanghao232@huawei.com>
+* Haonan Wang <hnwanga1@gmail.com>
 * Harry Wei <harryxiyou@gmail.com>
 * Harsh Prateek Bora <harsh@linux.vnet.ibm.com>
 * Harshavardhana <harsha@gluster.com>
@@ -418,7 +420,9 @@ Patches have also been contributed by:
 * Johannes Holmberg <johannes.holmberg@dataductus.se>
 * John Eckersberg <jeckersb@redhat.com>
 * John Ferlan <jferlan@redhat.com>
+* John Levon <john.levon@nutanix.com>
 * John Levon <john.levon@sun.com>
+* John Levon <levon@movementarian.org>
 * John Morrissey <jwm@horde.net>
 * John Williams <john.williams@petalogix.com>
 * Jonas Eriksson <jonas.j.eriksson@ericsson.com>
@@ -510,6 +514,7 @@ Patches have also been contributed by:
 * Marti Raudsepp <marti@juffo.org>
 * Martin Kletzander <mkletzan@redhat.com>
 * Martin Pietsch <martin.pietsch@tu-dresden.de>
+* Martin Pitt <mpitt@debian.org>
 * Martin Wilck <mwilck@suse.de>
 * Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
 * Matej Cepl <mcepl@cepl.eu>
@@ -763,6 +768,7 @@ Patches have also been contributed by:
 * Tiziano Mueller <dev-zero@gentoo.org>
 * Tobin Feldman-Fitzthum <tobin@linux.vnet.ibm.com>
 * Tom Vijlbrief <tom.vijlbrief@xs4all.nl>
+* Tom Wieczorek <tom@bibbu.net>
 * Tomas Meszaros <exo@tty.sk>
 * Tomasz Flendrich <t.flendrich@gmail.com>
 * Tomoki Sekiyama <tomoki.sekiyama@hds.com>
@@ -898,6 +904,7 @@ Patches have also been contributed by:
 * zhenwei pi <pizhenwei@bytedance.com>
 * Дамјан Георгиевски <gdamjan@gmail.com>
 * Марк Коренберг <socketpair@gmail.com>
+* 김인수 <simmon@nplob.com>
 
 
 The libvirt logo was designed by Diana Fong

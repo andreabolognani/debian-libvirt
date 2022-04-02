@@ -24,7 +24,7 @@
 #include <config.h>
 
 #include <sys/types.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -2580,7 +2580,7 @@ vzDomainSnapshotCreateXML(virDomainPtr domain,
     virDomainObj *dom;
     struct _vzConn *privconn = domain->conn->privateData;
     struct _vzDriver *driver = privconn->driver;
-    unsigned int parse_flags = VIR_DOMAIN_SNAPSHOT_PARSE_DISKS;
+    unsigned int parse_flags = 0;
     virDomainSnapshotObjList *snapshots = NULL;
     virDomainMomentObj *current;
     bool job = false;

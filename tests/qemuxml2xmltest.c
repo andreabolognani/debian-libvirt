@@ -346,6 +346,7 @@ mymain(void)
     DO_TEST_NOCAPS("disk-network-vxhs");
     DO_TEST_CAPS_LATEST("disk-network-nfs");
     DO_TEST_NOCAPS("disk-network-tlsx509-nbd");
+    DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
     DO_TEST_NOCAPS("disk-network-tlsx509-vxhs");
     DO_TEST("disk-nvme", QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_QCOW2_LUKS);
     DO_TEST_CAPS_LATEST("disk-vhostuser");
@@ -485,6 +486,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-coalesce");
     DO_TEST_NOCAPS("net-many-models");
     DO_TEST("net-vdpa", QEMU_CAPS_NETDEV_VHOST_VDPA);
+    DO_TEST("net-vdpa-multiqueue", QEMU_CAPS_NETDEV_VHOST_VDPA);
 
     DO_TEST_NOCAPS("serial-tcp-tlsx509-chardev");
     DO_TEST_NOCAPS("serial-tcp-tlsx509-chardev-notls");

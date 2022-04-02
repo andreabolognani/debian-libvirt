@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '8.1.0',
+  version: '8.2.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -947,10 +947,16 @@ if dlopen_dep.found()
   conf.set('WITH_DLFCN_H', 1)
 endif
 
-fuse_version = '2.8.6'
-fuse_dep = dependency('fuse', version: '>=' + fuse_version, required: get_option('fuse'))
+fuse_version = '3.1.0'
+fuse_dep = dependency('fuse3', version: '>=' + fuse_version, required: false)
 if fuse_dep.found()
-  conf.set('WITH_FUSE', 1)
+  conf.set('WITH_FUSE', 3)
+else
+  fuse_version = '2.8.6'
+  fuse_dep = dependency('fuse', version: '>=' + fuse_version, required: get_option('fuse'))
+  if fuse_dep.found()
+    conf.set('WITH_FUSE', 1)
+  endif
 endif
 
 glib_version = '2.56.0'
@@ -1007,7 +1013,7 @@ else
 endif
 
 libparted_version = '1.8.0'
-libparted_dep = dependency('libparted', version: '>=' + libparted_version, required: false)
+libparted_dep = dependency('libparted', version: '>=' + libparted_version, required: get_option('storage_disk'))
 
 libpcap_version = '1.5.0'
 if not get_option('libpcap').disabled()
@@ -1121,8 +1127,8 @@ parallels_sdk_dep = dependency('parallels-sdk', version: '>=' + parallels_sdk_ve
 pciaccess_version = '0.10.0'
 pciaccess_dep = dependency('pciaccess', version: '>=' + pciaccess_version, required: get_option('pciaccess'))
 
-rbd_dep = cc.find_library('rbd', required: false)
-rados_dep = cc.find_library('rados', required: false)
+rbd_dep = cc.find_library('rbd', required: get_option('storage_rbd'))
+rados_dep = cc.find_library('rados', required: get_option('storage_rbd'))
 if rbd_dep.found() and not cc.has_function('rbd_get_features', dependencies: rbd_dep)
   rbd_dep = dependency('', required: false)
 endif
@@ -1665,24 +1671,23 @@ if not get_option('driver_qemu').disabled()
         qemu_user = 'root'
         qemu_group = 'wheel'
       else
-        os_release = run_command('grep', '^ID=', '/etc/os-release', check: false).stdout()
+        os_release = run_command('grep', '-E', '^ID(_LIKE)*=', '/etc/os-release', check: false).stdout()
         if os_release.contains('arch')
           qemu_user = 'nobody'
           qemu_group = 'nobody'
-        elif (os_release.contains('centos') or
-              os_release.contains('fedora') or
+        # RHEL and CentOS both have ID_LIKE=fedora, SLES has ID_LIKE=suse
+        elif (os_release.contains('fedora') or
               os_release.contains('gentoo') or
-              os_release.contains('rhel') or
-              os_release.contains('sles') or
               os_release.contains('suse'))
           qemu_user = 'qemu'
           qemu_group = 'qemu'
-        elif os_release.contains('debian')
-          qemu_user = 'libvirt-qemu'
-          qemu_group = 'libvirt-qemu'
+        # Ubuntu has ID_LIKE=debian so we need to handle it first
         elif os_release.contains('ubuntu')
           qemu_user = 'libvirt-qemu'
           qemu_group = 'kvm'
+        elif os_release.contains('debian')
+          qemu_user = 'libvirt-qemu'
+          qemu_group = 'libvirt-qemu'
         else
           qemu_user = 'root'
           qemu_group = 'root'
@@ -2213,25 +2218,6 @@ configure_file(
   configuration: run_conf,
 )
 run_command('chmod', 'a+x', meson.current_build_dir() / 'run', check: true)
-
-
-# generate developer tooling files
-tooling_files = [
-  '.color_coded.in',
-  '.ycm_extra_conf.py.in',
-]
-
-tooling_conf = configuration_data()
-tooling_conf.set('abs_top_builddir', meson.build_root())
-tooling_conf.set('abs_top_srcdir', meson.source_root())
-
-foreach file : tooling_files
-  configure_file(
-    input: file,
-    output: '@BASENAME@',
-    configuration: tooling_conf,
-  )
-endforeach
 
 
 # print configuration summary

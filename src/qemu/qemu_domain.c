@@ -210,7 +210,7 @@ qemuDomainFormatJobPrivate(virBuffer *buf,
 {
     qemuDomainJobPrivate *priv = job->privateData;
 
-    if (job->asyncJob == QEMU_ASYNC_JOB_MIGRATION_OUT) {
+    if (job->asyncJob == VIR_ASYNC_JOB_MIGRATION_OUT) {
         if (qemuDomainObjPrivateXMLFormatNBDMigration(buf, vm) < 0)
             return -1;
 
@@ -284,7 +284,7 @@ qemuDomainObjPrivateXMLParseJobNBD(virDomainObj *vm,
         return -1;
 
     if (n > 0) {
-        if (priv->job.asyncJob != QEMU_ASYNC_JOB_MIGRATION_OUT) {
+        if (priv->job.asyncJob != VIR_ASYNC_JOB_MIGRATION_OUT) {
             VIR_WARN("Found disks marked for migration but we were not "
                      "migrating");
             n = 0;
@@ -3181,6 +3181,23 @@ qemuDomainXmlNsDefFree(qemuDomainXmlNsDef *def)
 
     g_free(def->deprecationBehavior);
 
+    for (i = 0; i < def->ndeviceOverride; i++) {
+        size_t j;
+        g_free(def->deviceOverride[i].alias);
+
+        for (j = 0; j < def->deviceOverride[i].nfrontend; j++) {
+            qemuDomainXmlNsOverrideProperty *prop = def->deviceOverride[i].frontend + j;
+
+            g_free(prop->name);
+            g_free(prop->value);
+            virJSONValueFree(prop->json);
+        }
+
+        g_free(def->deviceOverride[i].frontend);
+    }
+
+    g_free(def->deviceOverride);
+
     g_free(def);
 }
 
@@ -3319,6 +3336,159 @@ qemuDomainDefNamespaceParseCaps(qemuDomainXmlNsDef *nsdef,
     return 0;
 }
 
+VIR_ENUM_IMPL(qemuDomainXmlNsOverride,
+              QEMU_DOMAIN_XML_NS_OVERRIDE_LAST,
+              "",
+              "string",
+              "signed",
+              "unsigned",
+              "bool",
+              "remove",
+             );
+
+
+static int
+qemuDomainDefNamespaceParseOverrideProperties(qemuDomainXmlNsOverrideProperty *props,
+                                              xmlNodePtr *propnodes,
+                                              size_t npropnodes)
+{
+    size_t i;
+
+    for (i = 0; i < npropnodes; i++) {
+        qemuDomainXmlNsOverrideProperty *prop = props + i;
+        unsigned long long ull;
+        long long ll;
+        bool b;
+
+        if (!(prop->name = virXMLPropString(propnodes[i], "name"))) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("missing 'name' attribute for qemu:property"));
+            return -1;
+        }
+
+        if (STREQ(prop->name, "id")) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("property with name 'id' can't be overridden"));
+            return -1;
+        }
+
+        if (virXMLPropEnum(propnodes[i], "type",
+                           qemuDomainXmlNsOverrideTypeFromString,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &prop->type) < 0)
+            return -1;
+
+        if (!(prop->value = virXMLPropString(propnodes[i], "value"))) {
+            if (prop->type != QEMU_DOMAIN_XML_NS_OVERRIDE_REMOVE) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("missing 'value' attribute for 'qemu:property'"));
+                return -1;
+            }
+        }
+
+        switch (prop->type) {
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_STRING:
+            prop->json = virJSONValueNewString(g_strdup(prop->value));
+            break;
+
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_SIGNED:
+            if (virStrToLong_ll(prop->value, NULL, 10, &ll) < 0) {
+                virReportError(VIR_ERR_XML_ERROR,
+                               _("invalid value '%s' of 'value' attribute of 'qemu:property'"),
+                               prop->value);
+                return -1;
+            }
+            prop->json = virJSONValueNewNumberLong(ll);
+            break;
+
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_UNSIGNED:
+            if (virStrToLong_ullp(prop->value, NULL, 10, &ull) < 0) {
+                virReportError(VIR_ERR_XML_ERROR,
+                               _("invalid value '%s' of 'value' attribute of 'qemu:property'"),
+                               prop->value);
+                return -1;
+            }
+            prop->json = virJSONValueNewNumberUlong(ull);
+            break;
+
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_BOOL:
+            if (STRNEQ(prop->value, "true") && STRNEQ(prop->value, "false")) {
+                virReportError(VIR_ERR_XML_ERROR,
+                               _("invalid value '%s' of 'value' attribute of 'qemu:property'"),
+                               prop->value);
+                return -1;
+            }
+
+            b = STREQ(prop->value, "true");
+            prop->json = virJSONValueNewBoolean(b);
+            break;
+
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_REMOVE:
+            if (prop->value) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("setting 'value' attribute of 'qemu:property' doesn't make sense with 'remove' type"));
+                return -1;
+            }
+            break;
+
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_NONE:
+        case QEMU_DOMAIN_XML_NS_OVERRIDE_LAST:
+            virReportEnumRangeError(qemuDomainXmlNsOverrideType, prop->type);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+qemuDomainDefNamespaceParseDeviceOverride(qemuDomainXmlNsDef *nsdef,
+                                          xmlXPathContextPtr ctxt)
+{
+    g_autofree xmlNodePtr *devicenodes = NULL;
+    ssize_t ndevicenodes;
+    size_t i;
+
+    if ((ndevicenodes = virXPathNodeSet("./qemu:override/qemu:device", ctxt, &devicenodes)) < 0)
+        return -1;
+
+    if (ndevicenodes == 0)
+        return 0;
+
+    nsdef->deviceOverride = g_new0(qemuDomainXmlNsDeviceOverride, ndevicenodes);
+    nsdef->ndeviceOverride = ndevicenodes;
+
+    for (i = 0; i < ndevicenodes; i++) {
+        qemuDomainXmlNsDeviceOverride *n = nsdef->deviceOverride + i;
+        g_autofree xmlNodePtr *propnodes = NULL;
+        ssize_t npropnodes;
+        VIR_XPATH_NODE_AUTORESTORE(ctxt);
+
+        ctxt->node = devicenodes[i];
+
+        if (!(n->alias = virXMLPropString(devicenodes[i], "alias"))) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("missing 'alias' attribute for qemu:device"));
+            return -1;
+        }
+
+        if ((npropnodes = virXPathNodeSet("./qemu:frontend/qemu:property", ctxt, &propnodes)) < 0)
+            return -1;
+
+        if (npropnodes == 0)
+            continue;
+
+        n->frontend = g_new0(qemuDomainXmlNsOverrideProperty, npropnodes);
+        n->nfrontend = npropnodes;
+
+        if (qemuDomainDefNamespaceParseOverrideProperties(n->frontend, propnodes, npropnodes) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
 
 static int
 qemuDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
@@ -3331,6 +3501,7 @@ qemuDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
 
     if (qemuDomainDefNamespaceParseCommandlineArgs(nsdata, ctxt) < 0 ||
         qemuDomainDefNamespaceParseCommandlineEnv(nsdata, ctxt) < 0 ||
+        qemuDomainDefNamespaceParseDeviceOverride(nsdata, ctxt) < 0 ||
         qemuDomainDefNamespaceParseCaps(nsdata, ctxt) < 0)
         goto cleanup;
 
@@ -3353,25 +3524,19 @@ static void
 qemuDomainDefNamespaceFormatXMLCommandline(virBuffer *buf,
                                            qemuDomainXmlNsDef *cmd)
 {
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
     GStrv n;
     size_t i;
 
-    if (!cmd->args && !cmd->num_env)
-        return;
-
-    virBufferAddLit(buf, "<qemu:commandline>\n");
-    virBufferAdjustIndent(buf, 2);
-
     for (n = cmd->args; n && *n; n++)
-        virBufferEscapeString(buf, "<qemu:arg value='%s'/>\n", *n);
+        virBufferEscapeString(&childBuf, "<qemu:arg value='%s'/>\n", *n);
     for (i = 0; i < cmd->num_env; i++) {
-        virBufferAsprintf(buf, "<qemu:env name='%s'", cmd->env[i].name);
-        virBufferEscapeString(buf, " value='%s'", cmd->env[i].value);
-        virBufferAddLit(buf, "/>\n");
+        virBufferAsprintf(&childBuf, "<qemu:env name='%s'", cmd->env[i].name);
+        virBufferEscapeString(&childBuf, " value='%s'", cmd->env[i].value);
+        virBufferAddLit(&childBuf, "/>\n");
     }
 
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</qemu:commandline>\n");
+    virXMLFormatElement(buf, "qemu:commandline", NULL, &childBuf);
 }
 
 
@@ -3379,22 +3544,62 @@ static void
 qemuDomainDefNamespaceFormatXMLCaps(virBuffer *buf,
                                     qemuDomainXmlNsDef *xmlns)
 {
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
     GStrv n;
 
-    if (!xmlns->capsadd && !xmlns->capsdel)
-        return;
-
-    virBufferAddLit(buf, "<qemu:capabilities>\n");
-    virBufferAdjustIndent(buf, 2);
-
     for (n = xmlns->capsadd; n && *n; n++)
-        virBufferEscapeString(buf, "<qemu:add capability='%s'/>\n", *n);
+        virBufferEscapeString(&childBuf, "<qemu:add capability='%s'/>\n", *n);
 
     for (n = xmlns->capsdel; n && *n; n++)
-        virBufferEscapeString(buf, "<qemu:del capability='%s'/>\n", *n);
+        virBufferEscapeString(&childBuf, "<qemu:del capability='%s'/>\n", *n);
 
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</qemu:capabilities>\n");
+    virXMLFormatElement(buf, "qemu:capabilities", NULL, &childBuf);
+}
+
+
+static void
+qemuDomainDefNamespaceFormatXMLOverrideProperties(virBuffer *buf,
+                                                  qemuDomainXmlNsOverrideProperty *props,
+                                                  size_t nprops)
+{
+    size_t i;
+
+    for (i = 0; i < nprops; i++) {
+        g_auto(virBuffer) propAttrBuf = VIR_BUFFER_INITIALIZER;
+        qemuDomainXmlNsOverrideProperty *prop = props + i;
+
+        virBufferEscapeString(&propAttrBuf, " name='%s'", prop->name);
+        virBufferAsprintf(&propAttrBuf, " type='%s'",
+                          qemuDomainXmlNsOverrideTypeToString(prop->type));
+        virBufferEscapeString(&propAttrBuf, " value='%s'", prop->value);
+
+        virXMLFormatElement(buf, "qemu:property", &propAttrBuf, NULL);
+    }
+}
+
+
+static void
+qemuDomainDefNamespaceFormatXMLOverride(virBuffer *buf,
+                                        qemuDomainXmlNsDef *xmlns)
+{
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    size_t i;
+
+    for (i = 0; i < xmlns->ndeviceOverride; i++) {
+        qemuDomainXmlNsDeviceOverride *device = xmlns->deviceOverride + i;
+        g_auto(virBuffer) deviceAttrBuf = VIR_BUFFER_INITIALIZER;
+        g_auto(virBuffer) deviceChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+        g_auto(virBuffer) frontendChildBuf = VIR_BUFFER_INIT_CHILD(&deviceChildBuf);
+
+        virBufferEscapeString(&deviceAttrBuf, " alias='%s'", device->alias);
+
+        qemuDomainDefNamespaceFormatXMLOverrideProperties(&frontendChildBuf, device->frontend, device->nfrontend);
+        virXMLFormatElement(&deviceChildBuf, "qemu:frontend", NULL, &frontendChildBuf);
+
+        virXMLFormatElement(&childBuf, "qemu:device", &deviceAttrBuf, &deviceChildBuf);
+    }
+
+    virXMLFormatElement(buf, "qemu:override", NULL, &childBuf);
 }
 
 
@@ -3406,6 +3611,7 @@ qemuDomainDefNamespaceFormatXML(virBuffer *buf,
 
     qemuDomainDefNamespaceFormatXMLCommandline(buf, cmd);
     qemuDomainDefNamespaceFormatXMLCaps(buf, cmd);
+    qemuDomainDefNamespaceFormatXMLOverride(buf, cmd);
 
     virBufferEscapeString(buf, "<qemu:deprecation behavior='%s'/>\n",
                           cmd->deprecationBehavior);
@@ -4523,7 +4729,8 @@ qemuDomainValidateActualNetDef(const virDomainNetDef *net,
               actualType == VIR_DOMAIN_NET_TYPE_BRIDGE ||
               actualType == VIR_DOMAIN_NET_TYPE_DIRECT ||
               actualType == VIR_DOMAIN_NET_TYPE_ETHERNET ||
-              actualType == VIR_DOMAIN_NET_TYPE_VHOSTUSER)) {
+              actualType == VIR_DOMAIN_NET_TYPE_VHOSTUSER ||
+              actualType == VIR_DOMAIN_NET_TYPE_VDPA)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("interface %s - multiqueue is not supported for network interfaces of type %s"),
                            macstr, virDomainNetTypeToString(actualType));
@@ -4858,6 +5065,21 @@ qemuDomainValidateStorageSource(virStorageSource *src,
                 virReportEnumRangeError(virStorageEncryptionEngine,
                                         src->encryption->engine);
                 return -1;
+        }
+    }
+
+    if (src->tlsHostname) {
+        if (actualType != VIR_STORAGE_TYPE_NETWORK ||
+            src->protocol != VIR_STORAGE_NET_PROTOCOL_NBD) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'tlsHostname' field is supported only with NBD disks"));
+            return -1;
+        }
+
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV_NBD_TLS_HOSTNAME)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'tlsHostname' field is not supported by this QEMU"));
+            return -1;
         }
     }
 
@@ -5806,22 +6028,16 @@ virDomainDefParserConfig virQEMUDriverDomainDefParserConfig = {
 
 
 void
-qemuDomainObjSaveStatus(virQEMUDriver *driver,
-                        virDomainObj *obj)
+qemuDomainSaveStatus(virDomainObj *obj)
 {
+    qemuDomainObjPrivate *priv = obj->privateData;
+    virQEMUDriver *driver = priv->driver;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
 
     if (virDomainObjIsActive(obj)) {
         if (virDomainObjSave(obj, driver->xmlopt, cfg->stateDir) < 0)
             VIR_WARN("Failed to save status on vm %s", obj->def->name);
     }
-}
-
-
-void
-qemuDomainSaveStatus(virDomainObj *obj)
-{
-    qemuDomainObjSaveStatus(QEMU_DOMAIN_PRIVATE(obj)->driver, obj);
 }
 
 
@@ -5860,18 +6076,18 @@ qemuDomainSaveConfig(virDomainObj *obj)
 static int
 qemuDomainObjEnterMonitorInternal(virQEMUDriver *driver,
                                   virDomainObj *obj,
-                                  qemuDomainAsyncJob asyncJob)
+                                  virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = obj->privateData;
 
-    if (asyncJob != QEMU_ASYNC_JOB_NONE) {
+    if (asyncJob != VIR_ASYNC_JOB_NONE) {
         int ret;
         if ((ret = qemuDomainObjBeginNestedJob(driver, obj, asyncJob)) < 0)
             return ret;
         if (!virDomainObjIsActive(obj)) {
             virReportError(VIR_ERR_OPERATION_FAILED, "%s",
                            _("domain is no longer running"));
-            qemuDomainObjEndJob(driver, obj);
+            qemuDomainObjEndJob(obj);
             return -1;
         }
     } else if (priv->job.asyncOwner == virThreadSelfID()) {
@@ -5880,7 +6096,7 @@ qemuDomainObjEnterMonitorInternal(virQEMUDriver *driver,
     } else if (priv->job.owner != virThreadSelfID()) {
         VIR_WARN("Entering a monitor without owning a job. "
                  "Job %s owner %s (%llu)",
-                 qemuDomainJobTypeToString(priv->job.active),
+                 virDomainJobTypeToString(priv->job.active),
                  priv->job.ownerAPI, priv->job.owner);
     }
 
@@ -5900,8 +6116,7 @@ qemuDomainObjEnterMonitorInternal(virQEMUDriver *driver,
  *
  */
 void
-qemuDomainObjExitMonitor(virQEMUDriver *driver,
-                         virDomainObj *obj)
+qemuDomainObjExitMonitor(virDomainObj *obj)
 {
     qemuDomainObjPrivate *priv = obj->privateData;
     bool hasRefs;
@@ -5921,15 +6136,15 @@ qemuDomainObjExitMonitor(virQEMUDriver *driver,
     if (!hasRefs)
         priv->mon = NULL;
 
-    if (priv->job.active == QEMU_JOB_ASYNC_NESTED)
-        qemuDomainObjEndJob(driver, obj);
+    if (priv->job.active == VIR_JOB_ASYNC_NESTED)
+        qemuDomainObjEndJob(obj);
 }
 
 void qemuDomainObjEnterMonitor(virQEMUDriver *driver,
                                virDomainObj *obj)
 {
     ignore_value(qemuDomainObjEnterMonitorInternal(driver, obj,
-                                                   QEMU_ASYNC_JOB_NONE));
+                                                   VIR_ASYNC_JOB_NONE));
 }
 
 /*
@@ -5938,7 +6153,7 @@ void qemuDomainObjEnterMonitor(virQEMUDriver *driver,
  * To be called immediately before any QEMU monitor API call.
  * Must have already either called qemuDomainObjBeginJob()
  * and checked that the VM is still active, with asyncJob of
- * QEMU_ASYNC_JOB_NONE; or already called qemuDomainObjBeginAsyncJob,
+ * VIR_ASYNC_JOB_NONE; or already called qemuDomainObjBeginAsyncJob,
  * with the same asyncJob.
  *
  * Returns 0 if job was started, in which case this must be followed with
@@ -5949,7 +6164,7 @@ void qemuDomainObjEnterMonitor(virQEMUDriver *driver,
 int
 qemuDomainObjEnterMonitorAsync(virQEMUDriver *driver,
                                virDomainObj *obj,
-                               qemuDomainAsyncJob asyncJob)
+                               virDomainAsyncJob asyncJob)
 {
     return qemuDomainObjEnterMonitorInternal(driver, obj, asyncJob);
 }
@@ -6497,6 +6712,9 @@ void qemuDomainObjCheckTaint(virQEMUDriver *driver,
             qemuDomainObjTaint(driver, obj, VIR_DOMAIN_TAINT_CUSTOM_ARGV, logCtxt);
         if (qemuxmlns->capsadd || qemuxmlns->capsdel)
             custom_hypervisor_feat = true;
+
+        if (qemuxmlns->ndeviceOverride > 0)
+            qemuDomainObjTaint(driver, obj, VIR_DOMAIN_TAINT_CUSTOM_DEVICE, logCtxt);
     }
 
     if (custom_hypervisor_feat ||
@@ -6885,7 +7103,7 @@ qemuDomainSnapshotForEachQcow2Raw(virQEMUDriver *driver,
 
         /* FIXME: we also need to handle LVM here */
         if (def->disks[i]->device != VIR_DOMAIN_DISK_DEVICE_DISK ||
-            snapdef->disks[i].snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE)
+            snapdef->disks[i].snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL)
             continue;
 
         if (!virStorageSourceIsLocalStorage(def->disks[i]->src)) {
@@ -6988,7 +7206,7 @@ qemuDomainSnapshotDiscard(virQEMUDriver *driver,
             qemuDomainObjEnterMonitor(driver, vm);
             /* we continue on even in the face of error */
             qemuMonitorDeleteSnapshot(priv->mon, snap->def->name);
-            qemuDomainObjExitMonitor(driver, vm);
+            qemuDomainObjExitMonitor(vm);
         }
     }
 
@@ -7138,7 +7356,7 @@ qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
  * qemuDomainRemoveInactiveJob:
  *
  * Just like qemuDomainRemoveInactive but it tries to grab a
- * QEMU_JOB_MODIFY first. Even though it doesn't succeed in
+ * VIR_JOB_MODIFY first. Even though it doesn't succeed in
  * grabbing the job the control carries with
  * qemuDomainRemoveInactive call.
  */
@@ -7148,12 +7366,12 @@ qemuDomainRemoveInactiveJob(virQEMUDriver *driver,
 {
     bool haveJob;
 
-    haveJob = qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) >= 0;
+    haveJob = qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) >= 0;
 
     qemuDomainRemoveInactive(driver, vm);
 
     if (haveJob)
-        qemuDomainObjEndJob(driver, vm);
+        qemuDomainObjEndJob(vm);
 }
 
 
@@ -7169,12 +7387,12 @@ qemuDomainRemoveInactiveJobLocked(virQEMUDriver *driver,
 {
     bool haveJob;
 
-    haveJob = qemuDomainObjBeginJob(driver, vm, QEMU_JOB_MODIFY) >= 0;
+    haveJob = qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) >= 0;
 
     qemuDomainRemoveInactiveLocked(driver, vm);
 
     if (haveJob)
-        qemuDomainObjEndJob(driver, vm);
+        qemuDomainObjEndJob(vm);
 }
 
 
@@ -8197,7 +8415,7 @@ qemuDomainUpdateDeviceList(virQEMUDriver *driver,
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
         return -1;
     rc = qemuMonitorGetDeviceAliases(priv->mon, &aliases);
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
     if (rc < 0)
         return -1;
 
@@ -8225,7 +8443,7 @@ qemuDomainUpdateMemoryDeviceInfo(virQEMUDriver *driver,
 
     rc = qemuMonitorGetMemoryDeviceInfo(priv->mon, &meminfo);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
 
     if (rc < 0)
         return -1;
@@ -9499,7 +9717,7 @@ qemuDomainRefreshVcpuInfo(virQEMUDriver *driver,
     rc = qemuMonitorGetCPUInfo(qemuDomainGetMonitor(vm), &info, maxvcpus,
                                hotplug, fast);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
 
     if (rc < 0)
         goto cleanup;
@@ -9653,7 +9871,7 @@ qemuDomainRefreshVcpuHalted(virQEMUDriver *driver,
                           QEMU_CAPS_QUERY_CPUS_FAST);
     haltedmap = qemuMonitorGetCpuHalted(qemuDomainGetMonitor(vm), maxvcpus,
                                         fast);
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
 
     if (!haltedmap)
         return -1;
@@ -10074,7 +10292,7 @@ qemuDomainVcpuPersistOrder(virDomainDef *def)
 int
 qemuDomainCheckMonitor(virQEMUDriver *driver,
                        virDomainObj *vm,
-                       qemuDomainAsyncJob asyncJob)
+                       virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     int ret;
@@ -10084,7 +10302,7 @@ qemuDomainCheckMonitor(virQEMUDriver *driver,
 
     ret = qemuMonitorCheck(priv->mon);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
 
     return ret;
 }

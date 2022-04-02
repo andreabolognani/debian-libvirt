@@ -43,6 +43,7 @@
 import os
 import os.path
 import random
+import signal
 import sys
 import subprocess
 
@@ -70,6 +71,7 @@ env = os.environ
 prepend(env, "LD_LIBRARY_PATH", os.path.join(here, "src"))
 prepend(env, "PKG_CONFIG_PATH", os.path.join(here, "src"))
 prepend(env, "PATH", os.path.join(here, "tools"))
+prepend(env, "PATH", os.path.join(here, "src"))
 
 # Ensure that any 3rd party apps using libvirt.so from the build tree get
 # files resolved to the build/source tree too. Typically useful for language
@@ -154,6 +156,13 @@ else:
     print("Temporarily stopping systemd units...")
     stopped_units = []
 
+    def sighandler(signum, frame):
+        raise OSError("Signal %d received, terminating" % signum)
+
+    signal.signal(signal.SIGHUP, sighandler)
+    signal.signal(signal.SIGTERM, sighandler)
+    signal.signal(signal.SIGQUIT, sighandler)
+
     try:
         for unit in try_stop_units:
             print(" > %s" % unit)
@@ -166,6 +175,8 @@ else:
         ret = subprocess.call(args, env=env)
     except KeyboardInterrupt:
         pass
+    except Exception as e:
+        print("%s" % e, file=sys.stderr)
     finally:
         print("Re-starting original systemd units...")
         stopped_units.reverse()

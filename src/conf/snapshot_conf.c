@@ -67,14 +67,6 @@ virDomainSnapshotOnceInit(void)
 
 VIR_ONCE_GLOBAL_INIT(virDomainSnapshot);
 
-VIR_ENUM_IMPL(virDomainSnapshotLocation,
-              VIR_DOMAIN_SNAPSHOT_LOCATION_LAST,
-              "default",
-              "no",
-              "internal",
-              "external",
-);
-
 /* virDomainSnapshotState is really virDomainState plus one extra state */
 VIR_ENUM_IMPL(virDomainSnapshotState,
               VIR_DOMAIN_SNAPSHOT_LAST,
@@ -138,83 +130,75 @@ virDomainSnapshotDiskDefParseXML(xmlNodePtr node,
                                  unsigned int flags,
                                  virDomainXMLOption *xmlopt)
 {
-    int ret = -1;
-    char *snapshot = NULL;
-    char *type = NULL;
-    char *driver = NULL;
+    g_autofree char *driver = NULL;
+    g_autofree char *name = NULL;
+    g_autoptr(virStorageSource) src = virStorageSourceNew();
     xmlNodePtr cur;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = node;
 
-    def->src = virStorageSourceNew();
-    def->name = virXMLPropString(node, "name");
-    if (!def->name) {
+    if (!(name = virXMLPropString(node, "name"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing name from disk snapshot element"));
-        goto cleanup;
+        return -1;
     }
 
-    snapshot = virXMLPropString(node, "snapshot");
-    if (snapshot) {
-        def->snapshot = virDomainSnapshotLocationTypeFromString(snapshot);
-        if (def->snapshot <= 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown disk snapshot setting '%s'"),
-                           snapshot);
-            goto cleanup;
-        }
-    }
+    if (virXMLPropEnumDefault(node, "snapshot",
+                              virDomainSnapshotLocationTypeFromString,
+                              VIR_XML_PROP_NONZERO,
+                              &def->snapshot,
+                              VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT) < 0)
+        return -1;
 
-    if ((type = virXMLPropString(node, "type"))) {
-        if ((def->src->type = virStorageTypeFromString(type)) <= 0 ||
-            def->src->type == VIR_STORAGE_TYPE_VOLUME ||
-            def->src->type == VIR_STORAGE_TYPE_DIR) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("unknown disk snapshot type '%s'"), type);
-            goto cleanup;
-        }
-    } else {
-        def->src->type = VIR_STORAGE_TYPE_FILE;
+    if (virXMLPropEnumDefault(node, "type",
+                              virStorageTypeFromString,
+                              VIR_XML_PROP_NONZERO,
+                              &src->type,
+                              VIR_STORAGE_TYPE_FILE) < 0)
+        return -1;
+
+    if (src->type == VIR_STORAGE_TYPE_VOLUME ||
+        src->type == VIR_STORAGE_TYPE_DIR) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("unsupported disk snapshot type '%s'"),
+                       virStorageTypeToString(src->type));
+        return -1;
     }
 
     if ((cur = virXPathNode("./source", ctxt)) &&
-        virDomainStorageSourceParse(cur, ctxt, def->src, flags, xmlopt) < 0)
-        goto cleanup;
+        virDomainStorageSourceParse(cur, ctxt, src, flags, xmlopt) < 0)
+        return -1;
 
     if ((driver = virXPathString("string(./driver/@type)", ctxt)) &&
-        (def->src->format = virStorageFileFormatTypeFromString(driver)) <= 0) {
+        (src->format = virStorageFileFormatTypeFromString(driver)) <= 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unknown disk snapshot driver '%s'"), driver);
-            goto cleanup;
+            return -1;
     }
 
     if (virParseScaledValue("./driver/metadata_cache/max_size", NULL,
                             ctxt,
-                            &def->src->metadataCacheMaxSize,
+                            &src->metadataCacheMaxSize,
                             1, ULLONG_MAX, false) < 0)
-        goto cleanup;
+        return -1;
 
     /* validate that the passed path is absolute */
-    if (virStorageSourceIsRelative(def->src)) {
+    if (virStorageSourceIsRelative(src)) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("disk snapshot image path '%s' must be absolute"),
-                       def->src->path);
-        goto cleanup;
+                       src->path);
+        return -1;
     }
 
-    if (!def->snapshot && (def->src->path || def->src->format))
+    if (def->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT &&
+        (src->path || src->format))
         def->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
 
-    ret = 0;
- cleanup:
+    def->name = g_steal_pointer(&name);
+    def->src = g_steal_pointer(&src);
 
-    VIR_FREE(driver);
-    VIR_FREE(snapshot);
-    VIR_FREE(type);
-    if (ret < 0)
-        virDomainSnapshotDiskDefClear(def);
-    return ret;
+    return 0;
 }
 
 /* flags is bitwise-or of virDomainSnapshotParseFlags.
@@ -228,17 +212,11 @@ virDomainSnapshotDefParse(xmlXPathContextPtr ctxt,
                           bool *current,
                           unsigned int flags)
 {
-    virDomainSnapshotDef *def = NULL;
-    virDomainSnapshotDef *ret = NULL;
-    xmlNodePtr *nodes = NULL;
-    xmlNodePtr inactiveDomNode = NULL;
+    g_autoptr(virDomainSnapshotDef) def = NULL;
+    g_autofree xmlNodePtr *diskNodes = NULL;
     size_t i;
     int n;
-    char *state = NULL;
-    int active;
-    char *tmp;
-    char *memorySnapshot = NULL;
-    char *memoryFile = NULL;
+    xmlNodePtr memoryNode = NULL;
     bool offline = !!(flags & VIR_DOMAIN_SNAPSHOT_PARSE_OFFLINE);
     virSaveCookieCallbacks *saveCookie = virDomainXMLOptionGetSaveCookie(xmlopt);
     int domainflags = VIR_DOMAIN_DEF_PARSE_INACTIVE |
@@ -252,18 +230,22 @@ virDomainSnapshotDefParse(xmlXPathContextPtr ctxt,
         if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("a redefined snapshot must have a name"));
-            goto cleanup;
+            return NULL;
         }
     }
 
     def->parent.description = virXPathString("string(./description)", ctxt);
 
     if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE) {
+        g_autofree char *state = NULL;
+        g_autofree char *domtype = NULL;
+        xmlNodePtr inactiveDomNode = NULL;
+
         if (virXPathLongLong("string(./creationTime)", ctxt,
                              &def->parent.creationTime) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("missing creationTime from existing snapshot"));
-            goto cleanup;
+            return NULL;
         }
 
         def->parent.parent_name = virXPathString("string(./parent/name)", ctxt);
@@ -275,14 +257,14 @@ virDomainSnapshotDefParse(xmlXPathContextPtr ctxt,
              */
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("missing state from existing snapshot"));
-            goto cleanup;
+            return NULL;
         }
         def->state = virDomainSnapshotStateTypeFromString(state);
         if (def->state <= 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Invalid state '%s' in domain snapshot XML"),
                            state);
-            goto cleanup;
+            return NULL;
         }
         offline = (def->state == VIR_DOMAIN_SNAPSHOT_SHUTOFF ||
                    def->state == VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT);
@@ -291,20 +273,19 @@ virDomainSnapshotDefParse(xmlXPathContextPtr ctxt,
          * lack domain/@type.  In that case, leave dom NULL, and
          * clients will have to decide between best effort
          * initialization or outright failure.  */
-        if ((tmp = virXPathString("string(./domain/@type)", ctxt))) {
+        if ((domtype = virXPathString("string(./domain/@type)", ctxt))) {
             xmlNodePtr domainNode = virXPathNode("./domain", ctxt);
 
-            VIR_FREE(tmp);
             if (!domainNode) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("missing domain in snapshot"));
-                goto cleanup;
+                return NULL;
             }
             def->parent.dom = virDomainDefParseNode(ctxt->node->doc, domainNode,
                                                     xmlopt, parseOpaque,
                                                     domainflags);
             if (!def->parent.dom)
-                goto cleanup;
+                return NULL;
         } else {
             VIR_WARN("parsing older snapshot that lacks domain");
         }
@@ -316,104 +297,104 @@ virDomainSnapshotDefParse(xmlXPathContextPtr ctxt,
             def->parent.inactiveDom = virDomainDefParseNode(ctxt->node->doc, inactiveDomNode,
                                                             xmlopt, NULL, domainflags);
             if (!def->parent.inactiveDom)
-                goto cleanup;
+                return NULL;
         }
     } else if (virDomainXMLOptionRunMomentPostParse(xmlopt, &def->parent) < 0) {
-        goto cleanup;
+        return NULL;
     }
 
-    memorySnapshot = virXPathString("string(./memory/@snapshot)", ctxt);
-    memoryFile = virXPathString("string(./memory/@file)", ctxt);
-    if (memorySnapshot) {
-        def->memory = virDomainSnapshotLocationTypeFromString(memorySnapshot);
-        if (def->memory <= 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown memory snapshot setting '%s'"),
-                           memorySnapshot);
-            goto cleanup;
-        }
-        if (memoryFile &&
-            def->memory != VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("memory filename '%s' requires external snapshot"),
-                           memoryFile);
-            goto cleanup;
-        }
-        if (!memoryFile &&
-            def->memory == VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
+    if ((memoryNode = virXPathNode("./memory", ctxt))) {
+        def->memorysnapshotfile = virXMLPropString(memoryNode, "file");
+
+        if (virXMLPropEnumDefault(memoryNode, "snapshot",
+                                  virDomainSnapshotLocationTypeFromString,
+                                  VIR_XML_PROP_NONZERO,
+                                  &def->memory,
+                                  VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT) < 0)
+            return NULL;
+
+        if (def->memory == VIR_DOMAIN_SNAPSHOT_LOCATION_MANUAL) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("external memory snapshots require a filename"));
-            goto cleanup;
+                           _("'manual' memory snapshot mode not supported"));
+            return NULL;
         }
-    } else if (memoryFile) {
-        def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
-    } else if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE) {
-        def->memory = (offline ?
-                       VIR_DOMAIN_SNAPSHOT_LOCATION_NONE :
-                       VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL);
     }
-    if (offline && def->memory &&
-        def->memory != VIR_DOMAIN_SNAPSHOT_LOCATION_NONE) {
+
+    if (def->memory == VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT) {
+        if (def->memorysnapshotfile) {
+            def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
+        } else if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE) {
+            if (offline) {
+                def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_NO;
+            } else {
+                def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
+            }
+        }
+    }
+
+    if (def->memorysnapshotfile &&
+        def->memory != VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("memory filename '%s' requires external snapshot"),
+                       def->memorysnapshotfile);
+        return NULL;
+    }
+
+    if (!def->memorysnapshotfile &&
+        def->memory == VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("external memory snapshots require a filename"));
+        return NULL;
+    }
+
+    if (offline &&
+        def->memory != VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT &&
+        def->memory != VIR_DOMAIN_SNAPSHOT_LOCATION_NO) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("memory state cannot be saved with offline or "
                          "disk-only snapshot"));
-        goto cleanup;
+        return NULL;
     }
-    def->memorysnapshotfile = g_steal_pointer(&memoryFile);
 
     /* verify that memory path is absolute */
     if (def->memorysnapshotfile && !g_path_is_absolute(def->memorysnapshotfile)) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("memory snapshot file path (%s) must be absolute"),
                        def->memorysnapshotfile);
-        goto cleanup;
+        return NULL;
     }
 
-    if ((n = virXPathNodeSet("./disks/*", ctxt, &nodes)) < 0)
-        goto cleanup;
-    if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_DISKS) {
-        if (n)
-            def->disks = g_new0(virDomainSnapshotDiskDef, n);
-        def->ndisks = n;
-        for (i = 0; i < def->ndisks; i++) {
-            if (virDomainSnapshotDiskDefParseXML(nodes[i], ctxt, &def->disks[i],
-                                                 flags, xmlopt) < 0)
-                goto cleanup;
-        }
-        VIR_FREE(nodes);
-    } else if (n) {
-        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
-                       _("unable to handle disk requests in snapshot"));
-        goto cleanup;
+    if ((n = virXPathNodeSet("./disks/*", ctxt, &diskNodes)) < 0)
+        return NULL;
+    if (n)
+        def->disks = g_new0(virDomainSnapshotDiskDef, n);
+    def->ndisks = n;
+    for (i = 0; i < def->ndisks; i++) {
+        if (virDomainSnapshotDiskDefParseXML(diskNodes[i], ctxt, &def->disks[i],
+                                             flags, xmlopt) < 0)
+            return NULL;
     }
 
     if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_INTERNAL) {
+        int active;
+
         if (!current) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("internal parse requested with NULL current"));
-            goto cleanup;
+            return NULL;
         }
         if (virXPathInt("string(./active)", ctxt, &active) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Could not find 'active' element"));
-            goto cleanup;
+            return NULL;
         }
         *current = active != 0;
     }
 
     if (!offline && virSaveCookieParse(ctxt, &def->cookie, saveCookie) < 0)
-        goto cleanup;
+        return NULL;
 
-    ret = g_steal_pointer(&def);
-
- cleanup:
-    VIR_FREE(state);
-    VIR_FREE(nodes);
-    VIR_FREE(memorySnapshot);
-    VIR_FREE(memoryFile);
-    virObjectUnref(def);
-
-    return ret;
+    return g_steal_pointer(&def);
 }
 
 virDomainSnapshotDef *
@@ -693,15 +674,15 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
         if (snapdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT) {
             if (domdisk->snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT &&
                 (!require_match ||
-                 domdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE)) {
+                 domdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NO)) {
                 snapdisk->snapshot = domdisk->snapshot;
             } else {
                 snapdisk->snapshot = default_snapshot;
             }
         } else if (require_match &&
                    snapdisk->snapshot != default_snapshot &&
-                   !(snapdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE &&
-                     domdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE)) {
+                   !(snapdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NO &&
+                     domdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NO)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("disk '%s' must use snapshot mode '%s'"),
                            snapdisk->name,
@@ -740,7 +721,7 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
 
         /* Don't snapshot empty drives */
         if (virStorageSourceIsEmpty(domdef->disks[i]->src))
-            snapdisk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
+            snapdisk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NO;
         else
             snapdisk->snapshot = domdef->disks[i]->snapshot;
 

@@ -61,10 +61,6 @@ typedef void (*qemuDomainCleanupCallback)(virQEMUDriver *driver,
 
 #define QEMU_DOMAIN_MASTER_KEY_LEN 32  /* 32 bytes for 256 bit random key */
 
-void
-qemuDomainObjSaveStatus(virQEMUDriver *driver,
-                        virDomainObj *obj);
-
 void qemuDomainSaveStatus(virDomainObj *obj);
 void qemuDomainSaveConfig(virDomainObj *obj);
 
@@ -447,6 +443,36 @@ struct _qemuDomainXmlNsEnvTuple {
     char *value;
 };
 
+
+typedef enum {
+    QEMU_DOMAIN_XML_NS_OVERRIDE_NONE,
+    QEMU_DOMAIN_XML_NS_OVERRIDE_STRING,
+    QEMU_DOMAIN_XML_NS_OVERRIDE_SIGNED,
+    QEMU_DOMAIN_XML_NS_OVERRIDE_UNSIGNED,
+    QEMU_DOMAIN_XML_NS_OVERRIDE_BOOL,
+    QEMU_DOMAIN_XML_NS_OVERRIDE_REMOVE,
+
+    QEMU_DOMAIN_XML_NS_OVERRIDE_LAST
+} qemuDomainXmlNsOverrideType;
+VIR_ENUM_DECL(qemuDomainXmlNsOverride);
+
+typedef struct _qemuDomainXmlNsOverrideProperty qemuDomainXmlNsOverrideProperty;
+struct _qemuDomainXmlNsOverrideProperty {
+    char *name;
+    qemuDomainXmlNsOverrideType type;
+    char *value;
+    virJSONValue *json;
+};
+
+typedef struct _qemuDomainXmlNsDeviceOverride qemuDomainXmlNsDeviceOverride;
+struct _qemuDomainXmlNsDeviceOverride {
+    char *alias;
+
+    size_t nfrontend;
+    qemuDomainXmlNsOverrideProperty *frontend;
+};
+
+
 typedef struct _qemuDomainXmlNsDef qemuDomainXmlNsDef;
 struct _qemuDomainXmlNsDef {
     char **args;
@@ -462,6 +488,9 @@ struct _qemuDomainXmlNsDef {
      * starting the VM to avoid any form of errors in the parser or when
      * changing qemu versions. The knob is mainly for development/CI purposes */
     char *deprecationBehavior;
+
+    size_t ndeviceOverride;
+    qemuDomainXmlNsDeviceOverride *deviceOverride;
 };
 
 
@@ -500,12 +529,11 @@ qemuMonitor *qemuDomainGetMonitor(virDomainObj *vm)
 void qemuDomainObjEnterMonitor(virQEMUDriver *driver,
                                virDomainObj *obj)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-void qemuDomainObjExitMonitor(virQEMUDriver *driver,
-                              virDomainObj *obj)
+void qemuDomainObjExitMonitor(virDomainObj *obj)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 int qemuDomainObjEnterMonitorAsync(virQEMUDriver *driver,
                                    virDomainObj *obj,
-                                   qemuDomainAsyncJob asyncJob)
+                                   virDomainAsyncJob asyncJob)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 
 
@@ -897,7 +925,7 @@ void qemuDomainVcpuPersistOrder(virDomainDef *def)
 
 int qemuDomainCheckMonitor(virQEMUDriver *driver,
                            virDomainObj *vm,
-                           qemuDomainAsyncJob asyncJob);
+                           virDomainAsyncJob asyncJob);
 
 bool qemuDomainSupportsVideoVga(const virDomainVideoDef *video,
                                 virQEMUCaps *qemuCaps);

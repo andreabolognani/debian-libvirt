@@ -1,5 +1,5 @@
 /*
- * libvirt-qemu.c: Interfaces for the libvirt library to handle qemu-specific
+ * libvirt-qemu.c: Interfaces for the libvirt library to handle QEMU-specific
  *                 APIs.
  *
  * Copyright (C) 2010-2014 Red Hat, Inc.
@@ -33,7 +33,7 @@ VIR_LOG_INIT("libvirt-qemu");
 /**
  * virDomainQemuMonitorCommand:
  * @domain: a domain object
- * @cmd: the qemu monitor command string
+ * @cmd: the QEMU monitor command string
  * @result: a string returned by @cmd
  * @flags: bitwise-or of supported virDomainQemuMonitorCommandFlags
  *
@@ -41,14 +41,14 @@ VIR_LOG_INIT("libvirt-qemu");
  * connections to the QEMU driver.
  *
  * Send an arbitrary monitor command @cmd to @domain through the
- * qemu monitor. There are several requirements to safely and
+ * QEMU monitor. There are several requirements to safely and
  * successfully use this API:
  *
  *   - A @cmd that queries state without making any modifications is safe
  *   - A @cmd that alters state that is also tracked by libvirt is unsafe,
  *     and may cause libvirtd to crash
  *   - A @cmd that alters state not tracked by the current version of
- *     libvirt is possible as a means to test new qemu features before
+ *     libvirt is possible as a means to test new QEMU features before
  *     they have support in libvirt, but no guarantees are made to safety
  *
  * If VIR_DOMAIN_QEMU_MONITOR_COMMAND_HMP is set, the command is
@@ -95,6 +95,97 @@ virDomainQemuMonitorCommand(virDomainPtr domain, const char *cmd,
     return -1;
 }
 
+
+/**
+ * virDomainQemuMonitorCommandWithFiles:
+ * @domain: a domain object
+ * @cmd: the QEMU monitor command string
+ * @ninfiles: number of filedescriptors passed in @infiles
+ * @infiles: filedescriptors to be passed to QEMU with the command
+ * @noutfiles: if non-NULL filled with number of returned file descriptors
+ * @outfiles: if non-NULL filled with an array of returned file descriptors
+ * @result: a string returned by @cmd
+ * @flags: bitwise-or of supported virDomainQemuMonitorCommandFlags
+ *
+ * This API is QEMU specific, so it will only work with hypervisor
+ * connections to the QEMU driver with local connections using the unix socket.
+ *
+ * Send an arbitrary monitor command @cmd with file descriptors @infiles to
+ * @domain through the QEMU monitor and optionally return file descriptors via
+ * @outfiles. There are several requirements to safely and successfully use
+ * this API:
+ *
+ *   - A @cmd that queries state without making any modifications is safe
+ *   - A @cmd that alters state that is also tracked by libvirt is unsafe,
+ *     and may cause libvirtd to crash
+ *   - A @cmd that alters state not tracked by the current version of
+ *     libvirt is possible as a means to test new QEMU features before
+ *     they have support in libvirt, but no guarantees are made to safety
+ *
+ * If VIR_DOMAIN_QEMU_MONITOR_COMMAND_HMP is set, the command is
+ * considered to be a human monitor command and libvirt will automatically
+ * convert it into QMP if needed.  In that case the @result will also
+ * be converted back from QMP.
+ *
+ * If successful, @result will be filled with the string output of the
+ * @cmd, and the caller must free this string.
+ *
+ * Returns 0 in case of success, -1 in case of failure
+ */
+int
+virDomainQemuMonitorCommandWithFiles(virDomainPtr domain,
+                                     const char *cmd,
+                                     unsigned int ninfiles,
+                                     int *infiles,
+                                     unsigned int *noutfiles,
+                                     int **outfiles,
+                                     char **result,
+                                     unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain,
+                     "cmd=%s, ninfiles=%u, infiles=%p, noutfiles=%p, outfiles=%p, result=%p, flags=0x%x",
+                     cmd, ninfiles, infiles, noutfiles, outfiles, result, flags);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    conn = domain->conn;
+
+    virCheckNonNullArgGoto(cmd, error);
+
+    if (ninfiles > 0 || outfiles) {
+        int rc;
+        if ((rc = VIR_DRV_SUPPORTS_FEATURE(conn->driver, conn,
+                                           VIR_DRV_FEATURE_FD_PASSING) <= 0)) {
+            if (rc == 0)
+                virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                               _("fd passing is not supported by this connection"));
+            goto error;
+        }
+    }
+
+    virCheckNonNullArgGoto(result, error);
+    virCheckReadOnlyGoto(conn->flags, error);
+
+    if (conn->driver->domainQemuMonitorCommandWithFiles) {
+        int ret;
+        ret = conn->driver->domainQemuMonitorCommandWithFiles(domain, cmd,
+                                                              ninfiles, infiles,
+                                                              noutfiles, outfiles,
+                                                              result, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(conn);
+    return -1;
+}
 
 /**
  * virDomainQemuAttach:
@@ -230,10 +321,10 @@ virDomainQemuAgentCommand(virDomainPtr domain,
  * This API is QEMU specific, so it will only work with hypervisor
  * connections to the QEMU driver.
  *
- * Adds a callback to receive notifications of arbitrary qemu monitor events
- * occurring on a domain.  Many qemu monitor events also result in a libvirt
+ * Adds a callback to receive notifications of arbitrary QEMU monitor events
+ * occurring on a domain.  Many QEMU monitor events also result in a libvirt
  * event which can be delivered via virConnectDomainEventRegisterAny(); this
- * command is primarily for testing new qemu events that have not yet been
+ * command is primarily for testing new QEMU events that have not yet been
  * given a libvirt counterpart event.
  *
  * If @dom is NULL, then events will be monitored for any domain. If @dom

@@ -201,6 +201,57 @@ struct _virFileWrapperFd {
 };
 
 #ifndef WIN32
+
+# ifdef __linux__
+
+/**
+ * virFileWrapperSetPipeSize:
+ * @fd: the fd of the pipe
+ *
+ * Set best pipe size on the passed file descriptor for bulk transfers of data.
+ *
+ * default pipe size (usually 64K) is generally not suited for large transfers
+ * to fast devices. A value of 1MB has been measured to improve virsh save
+ * by 400% in ideal conditions. We retry multiple times with smaller sizes
+ * on EPERM to account for possible small values of /proc/sys/fs/pipe-max-size.
+ *
+ * OS note: only for linux, on other OS this is a no-op.
+ */
+static int
+virFileWrapperSetPipeSize(int fd)
+{
+    int sz;
+
+    for (sz = 1024 * 1024; sz >= 64 * 1024; sz /= 2) {
+        int rv = fcntl(fd, F_SETPIPE_SZ, sz);
+
+        if (rv < 0 && errno == EPERM) {
+            VIR_DEBUG("EPERM trying to set fd %d pipe size to %d", fd, sz);
+            continue; /* retry with half the size */
+        }
+        if (rv < 0) {
+            virReportSystemError(errno, "%s",
+                                 _("unable to set pipe size"));
+            return -1;
+        }
+        VIR_DEBUG("fd %d pipe size adjusted to %d", fd, sz);
+        return 0;
+    }
+
+    VIR_WARN("unable to set pipe size, data transfer might be slow: %s",
+             g_strerror(errno));
+    return 0;
+}
+
+# else /* !__linux__ */
+static int
+virFileWrapperSetPipeSize(int fd G_GNUC_UNUSED)
+{
+    return 0;
+}
+# endif /* !__linux__ */
+
+
 /**
  * virFileWrapperFdNew:
  * @fd: pointer to fd to wrap
@@ -273,6 +324,9 @@ virFileWrapperFdNew(int *fd, const char *name, unsigned int flags)
     }
 
     if (virPipe(pipefd) < 0)
+        goto error;
+
+    if (virFileWrapperSetPipeSize(pipefd[output]) < 0)
         goto error;
 
     if (!(iohelper_path = virFileFindResource("libvirt_iohelper",
