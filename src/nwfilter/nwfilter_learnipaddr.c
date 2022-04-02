@@ -143,61 +143,51 @@ static bool threadsTerminate;
 int
 virNWFilterLockIface(const char *ifname)
 {
-    virNWFilterIfaceLock *ifaceLock;
+    virNWFilterIfaceLock *ifaceLock = NULL;
 
-    virMutexLock(&ifaceMapLock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&ifaceMapLock) {
+        ifaceLock = virHashLookup(ifaceLockMap, ifname);
 
-    ifaceLock = virHashLookup(ifaceLockMap, ifname);
-    if (!ifaceLock) {
-        ifaceLock = g_new0(virNWFilterIfaceLock, 1);
+        if (!ifaceLock) {
+            ifaceLock = g_new0(virNWFilterIfaceLock, 1);
 
-        if (virMutexInitRecursive(&ifaceLock->lock) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("mutex initialization failed"));
-            g_free(ifaceLock);
-            goto error;
+            if (virMutexInitRecursive(&ifaceLock->lock) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("mutex initialization failed"));
+                g_free(ifaceLock);
+                return -1;
+            }
+
+            if (virStrcpyStatic(ifaceLock->ifname, ifname) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("interface name %s does not fit into buffer"),
+                               ifaceLock->ifname);
+                g_free(ifaceLock);
+                return -1;
+            }
+
+            while (virHashAddEntry(ifaceLockMap, ifname, ifaceLock)) {
+                g_free(ifaceLock);
+                return -1;
+            }
+
+            ifaceLock->refctr = 0;
         }
 
-        if (virStrcpyStatic(ifaceLock->ifname, ifname) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("interface name %s does not fit into "
-                             "buffer "),
-                           ifaceLock->ifname);
-            g_free(ifaceLock);
-            goto error;
-        }
-
-        while (virHashAddEntry(ifaceLockMap, ifname, ifaceLock)) {
-            g_free(ifaceLock);
-            goto error;
-        }
-
-        ifaceLock->refctr = 0;
+        ifaceLock->refctr++;
     }
-
-    ifaceLock->refctr++;
-
-    virMutexUnlock(&ifaceMapLock);
 
     virMutexLock(&ifaceLock->lock);
 
     return 0;
-
- error:
-    virMutexUnlock(&ifaceMapLock);
-
-    return -1;
 }
 
 
 void
 virNWFilterUnlockIface(const char *ifname)
 {
-    virNWFilterIfaceLock *ifaceLock;
-
-    virMutexLock(&ifaceMapLock);
-
-    ifaceLock = virHashLookup(ifaceLockMap, ifname);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&ifaceMapLock);
+    virNWFilterIfaceLock *ifaceLock = virHashLookup(ifaceLockMap, ifname);
 
     if (ifaceLock) {
         virMutexUnlock(&ifaceLock->lock);
@@ -206,8 +196,6 @@ virNWFilterUnlockIface(const char *ifname)
         if (ifaceLock->refctr == 0)
             virHashRemoveEntry(ifaceLockMap, ifname);
     }
-
-    virMutexUnlock(&ifaceMapLock);
 }
 
 
@@ -228,17 +216,13 @@ virNWFilterIPAddrLearnReqFree(virNWFilterIPAddrLearnReq *req)
 static int
 virNWFilterRegisterLearnReq(virNWFilterIPAddrLearnReq *req)
 {
-    int res = -1;
     g_autofree char *ifindex_str = g_strdup_printf("%d", req->ifindex);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&pendingLearnReqLock);
 
-    virMutexLock(&pendingLearnReqLock);
+    if (virHashLookup(pendingLearnReq, ifindex_str))
+        return -1;
 
-    if (!virHashLookup(pendingLearnReq, ifindex_str))
-        res = virHashAddEntry(pendingLearnReq, ifindex_str, req);
-
-    virMutexUnlock(&pendingLearnReqLock);
-
-    return res;
+    return virHashAddEntry(pendingLearnReq, ifindex_str, req);
 }
 
 
@@ -247,9 +231,7 @@ virNWFilterRegisterLearnReq(virNWFilterIPAddrLearnReq *req)
 int
 virNWFilterTerminateLearnReq(const char *ifname)
 {
-    int rc = -1;
     int ifindex;
-    virNWFilterIPAddrLearnReq *req;
     g_autofree char *ifindex_str = NULL;
 
     /* It's possible that it's already been removed as a result of
@@ -262,38 +244,30 @@ virNWFilterTerminateLearnReq(const char *ifname)
 
     if (virNetDevGetIndex(ifname, &ifindex) < 0) {
         virResetLastError();
-        return rc;
+        return -1;
     }
 
     ifindex_str = g_strdup_printf("%d", ifindex);
 
-    virMutexLock(&pendingLearnReqLock);
-
-    req = virHashLookup(pendingLearnReq, ifindex_str);
-    if (req) {
-        rc = 0;
-        req->terminate = true;
+    VIR_WITH_MUTEX_LOCK_GUARD(&pendingLearnReqLock) {
+        virNWFilterIPAddrLearnReq *req;
+        if ((req = virHashLookup(pendingLearnReq, ifindex_str))) {
+            req->terminate = true;
+            return 0;
+        }
     }
 
-    virMutexUnlock(&pendingLearnReqLock);
-
-    return rc;
+    return -1;
 }
 
 
 bool
 virNWFilterHasLearnReq(int ifindex)
 {
-    void *res;
     g_autofree char *ifindex_str = g_strdup_printf("%d", ifindex);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&pendingLearnReqLock);
 
-    virMutexLock(&pendingLearnReqLock);
-
-    res = virHashLookup(pendingLearnReq, ifindex_str);
-
-    virMutexUnlock(&pendingLearnReqLock);
-
-    return res != NULL;
+    return virHashLookup(pendingLearnReq, ifindex_str) != NULL;
 }
 
 
@@ -309,16 +283,10 @@ freeLearnReqEntry(void *payload)
 static virNWFilterIPAddrLearnReq *
 virNWFilterDeregisterLearnReq(int ifindex)
 {
-    virNWFilterIPAddrLearnReq *res;
     g_autofree char *ifindex_str = g_strdup_printf("%d", ifindex);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&pendingLearnReqLock);
 
-    virMutexLock(&pendingLearnReqLock);
-
-    res = virHashSteal(pendingLearnReq, ifindex_str);
-
-    virMutexUnlock(&pendingLearnReqLock);
-
-    return res;
+    return virHashSteal(pendingLearnReq, ifindex_str);
 }
 
 #endif
@@ -384,7 +352,7 @@ learnIPAddressThread(void *arg)
     struct bpf_program fp;
     struct pcap_pkthdr header;
     const u_char *packet;
-    struct ether_header *ether_hdr;
+    struct ether_header ether_hdr;
     struct ether_vlan_header *vlan_hdr;
     virNWFilterIPAddrLearnReq *req = arg;
     uint32_t vmaddr = 0, bcastaddr = 0;
@@ -506,13 +474,14 @@ learnIPAddressThread(void *arg)
         }
 
         if (header.len >= sizeof(struct ether_header)) {
-            ether_hdr = (struct ether_header*)packet;
+            /* Avoid alignment issues */
+            memcpy(&ether_hdr, packet, sizeof(struct ether_header));
 
-            switch (ntohs(ether_hdr->ether_type)) {
+            switch (ntohs(ether_hdr.ether_type)) {
 
             case ETHERTYPE_IP:
                 ethHdrSize = sizeof(struct ether_header);
-                etherType = ntohs(ether_hdr->ether_type);
+                etherType = ntohs(ether_hdr.ether_type);
                 break;
 
             case ETHERTYPE_VLAN:
@@ -528,7 +497,7 @@ learnIPAddressThread(void *arg)
                 continue;
             }
 
-            if (virMacAddrCmpRaw(&req->binding->mac, ether_hdr->ether_shost) == 0) {
+            if (virMacAddrCmpRaw(&req->binding->mac, ether_hdr.ether_shost) == 0) {
                 /* packets from the VM */
 
                 if (etherType == ETHERTYPE_IP &&
@@ -568,9 +537,9 @@ learnIPAddressThread(void *arg)
                     }
                 }
             } else if (virMacAddrCmpRaw(&req->binding->mac,
-                                        ether_hdr->ether_dhost) == 0 ||
+                                        ether_hdr.ether_dhost) == 0 ||
                        /* allow Broadcast replies from DHCP server */
-                       virMacAddrIsBroadcastRaw(ether_hdr->ether_dhost)) {
+                       virMacAddrIsBroadcastRaw(ether_hdr.ether_dhost)) {
                 /* packets to the VM */
                 if (etherType == ETHERTYPE_IP &&
                     (header.len >= ethHdrSize +

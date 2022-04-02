@@ -850,7 +850,7 @@ qemuMigrationParamsApply(virQEMUDriver *driver,
     if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
         return -1;
 
-    if (asyncJob == QEMU_ASYNC_JOB_NONE) {
+    if (asyncJob == VIR_ASYNC_JOB_NONE) {
         if (!virBitmapIsAllClear(migParams->caps)) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Migration capabilities can only be set by "
@@ -889,7 +889,7 @@ qemuMigrationParamsApply(virQEMUDriver *driver,
     ret = 0;
 
  cleanup:
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
 
     if (xbzrleCacheSize_old)
         migParams->params[xbzrle].set = true;
@@ -1098,7 +1098,7 @@ qemuMigrationParamsFetch(virQEMUDriver *driver,
 
     rc = qemuMonitorGetMigrationParams(priv->mon, &jsonParams);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
     if (rc < 0)
         return -1;
 
@@ -1165,7 +1165,7 @@ qemuMigrationParamsCheck(virQEMUDriver *driver,
     qemuMigrationParty party;
     size_t i;
 
-    if (asyncJob == QEMU_ASYNC_JOB_MIGRATION_OUT)
+    if (asyncJob == VIR_ASYNC_JOB_MIGRATION_OUT)
         party = QEMU_MIGRATION_SOURCE;
     else
         party = QEMU_MIGRATION_DESTINATION;
@@ -1399,7 +1399,7 @@ qemuMigrationCapsCheck(virQEMUDriver *driver,
 
     rc = qemuMonitorGetMigrationCapabilities(priv->mon, &caps);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
     if (rc < 0)
         return -1;
 
@@ -1432,7 +1432,7 @@ qemuMigrationCapsCheck(virQEMUDriver *driver,
 
         rc = qemuMonitorSetMigrationCapabilities(priv->mon, &json);
 
-        qemuDomainObjExitMonitor(driver, vm);
+        qemuDomainObjExitMonitor(vm);
 
         if (rc < 0) {
             virResetLastError();
@@ -1463,4 +1463,21 @@ qemuMigrationCapsGet(virDomainObj *vm,
         ignore_value(virBitmapGetBit(priv->migrationCaps, cap, &enabled));
 
     return enabled;
+}
+
+
+/**
+ * qemuMigrationParamsGetTLSHostname:
+ * @migParams: Migration params object
+ *
+ * Fetches the value of the QEMU_MIGRATION_PARAM_TLS_HOSTNAME parameter which is
+ * passed from the user as VIR_MIGRATE_PARAM_TLS_DESTINATION
+ */
+const char *
+qemuMigrationParamsGetTLSHostname(qemuMigrationParams *migParams)
+{
+    if (!migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].set)
+        return NULL;
+
+    return migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].value.s;
 }

@@ -921,7 +921,6 @@ http_sites += www.javvin.com
 # 404 links
 http_sites += publib.boulder.ibm.com
 http_sites += kerneltrap.org
-http_sites += valloric.github.io
 http_sites += www.microsoft.com
 http_sites += xenbits.xen.org
 http_sites += lovezutto.googlepages.com
@@ -1549,7 +1548,7 @@ sc_spacing-check:
 	  { echo '$(ME): incorrect formatting' 1>&2; exit 1; }
 
 sc_mock-noinline:
-	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | $(RUNUTF8) xargs \
+	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | $(RUNUTF8) \
 	$(PYTHON) $(top_srcdir)/scripts/mock-noinline.py
 
 sc_header-ifdef:
@@ -1620,7 +1619,7 @@ exclude_file_name_regexp--sc_prohibit_newline_at_end_of_diagnostic = \
   ^src/rpc/gendispatch\.pl$$
 
 exclude_file_name_regexp--sc_prohibit_nonreentrant = \
-  ^((po|tests|examples)/|docs/.*(py|js|html\.in)|run.in$$|tools/wireshark/util/genxdrstub\.pl|tools/virt-login-shell\.c$$)
+  ^((po|tests|examples)/|docs/.*(py|js|html\.in|.rst)|run.in$$|tools/wireshark/util/genxdrstub\.pl|tools/virt-login-shell\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_select = \
 	^build-aux/syntax-check\.mk$$

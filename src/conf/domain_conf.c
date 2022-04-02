@@ -88,6 +88,7 @@ VIR_ENUM_IMPL(virDomainTaint,
               "custom-ga-command",
               "custom-hypervisor-feature",
               "deprecated-config",
+              "custom-device",
 );
 
 VIR_ENUM_IMPL(virDomainTaintMessage,
@@ -105,6 +106,7 @@ VIR_ENUM_IMPL(virDomainTaintMessage,
               N_("custom guest agent control commands issued"),
               N_("hypervisor feature autodetection override"),
               N_("use of deprecated configuration settings"),
+              N_("custom device configuration"),
 );
 
 VIR_ENUM_IMPL(virDomainVirt,
@@ -1400,6 +1402,15 @@ VIR_ENUM_IMPL(virDomainIBS,
               "fixed-ibs",
               "fixed-ccd",
               "fixed-na",
+);
+
+VIR_ENUM_IMPL(virDomainSnapshotLocation,
+              VIR_DOMAIN_SNAPSHOT_LOCATION_LAST,
+              "default",
+              "no",
+              "internal",
+              "external",
+              "manual",
 );
 
 /* Internal mapping: subset of block job types that can be present in
@@ -5513,7 +5524,7 @@ virDomainDiskDefPostParse(virDomainDiskDef *disk,
 
     if (disk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT &&
         disk->src->readonly)
-        disk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
+        disk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NO;
 
     if (disk->src->type == VIR_STORAGE_TYPE_NETWORK &&
         disk->src->protocol == VIR_STORAGE_NET_PROTOCOL_ISCSI) {
@@ -5528,7 +5539,7 @@ virDomainDiskDefPostParse(virDomainDiskDef *disk,
     /* vhost-user doesn't allow us to snapshot, disable snapshots by default */
     if (disk->src->type == VIR_STORAGE_TYPE_VHOST_USER &&
         disk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT) {
-        disk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
+        disk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NO;
     }
 
     if (disk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
@@ -8293,6 +8304,8 @@ virDomainDiskSourceNetworkParse(xmlNodePtr node,
                                &src->haveTLS) < 0)
         return -1;
 
+    src->tlsHostname = virXMLPropString(node, "tlsHostname");
+
     if (flags & VIR_DOMAIN_DEF_PARSE_STATUS) {
         int value;
         if (virXMLPropInt(node, "tlsFromConfig", 10, VIR_XML_PROP_NONE,
@@ -8502,11 +8515,15 @@ virDomainStorageSourceParseBase(const char *type,
     src = virStorageSourceNew();
     src->type = VIR_STORAGE_TYPE_FILE;
 
-    if (type &&
-        (src->type = virStorageTypeFromString(type)) <= 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unknown storage source type '%s'"), type);
-        return NULL;
+    if (type) {
+        int tmp;
+        if ((tmp = virStorageTypeFromString(type)) <= 0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("unknown storage source type '%s'"), type);
+            return NULL;
+        }
+
+        src->type = tmp;
     }
 
     if (format &&
@@ -9055,19 +9072,16 @@ virDomainDiskDefParseSourceXML(virDomainXMLOption *xmlopt,
 {
     g_autoptr(virStorageSource) src = virStorageSourceNew();
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    g_autofree char *type = NULL;
     xmlNodePtr tmp;
 
     ctxt->node = node;
 
-    src->type = VIR_STORAGE_TYPE_FILE;
-
-    if ((type = virXMLPropString(node, "type")) &&
-        (src->type = virStorageTypeFromString(type)) <= 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown disk type '%s'"), type);
+    if (virXMLPropEnumDefault(node, "type",
+                              virStorageTypeFromString,
+                              VIR_XML_PROP_NONZERO,
+                              &src->type,
+                              VIR_STORAGE_TYPE_FILE) < 0)
         return NULL;
-    }
 
     if ((tmp = virXPathNode("./source[1]", ctxt))) {
         if (virDomainStorageSourceParse(tmp, ctxt, src, flags, xmlopt) < 0)
@@ -18903,6 +18917,13 @@ virDomainDefParseMemory(virDomainDef *def,
         VIR_FREE(tmp);
     }
 
+    if (virXPathUInt("string(./memoryBacking/allocation/@threads)",
+                     ctxt, &def->mem.allocation_threads) == -2) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("Failed to parse memory allocation threads"));
+        return -1;
+    }
+
     if (virXPathNode("./memoryBacking/hugepages", ctxt)) {
         /* hugepages will be used */
         if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0) {
@@ -23043,6 +23064,7 @@ virDomainDiskSourceFormatNetwork(virBuffer *attrBuf,
           src->tlsFromConfig))
         virBufferAsprintf(attrBuf, " tls='%s'",
                           virTristateBoolTypeToString(src->haveTLS));
+    virBufferEscapeString(attrBuf, " tlsHostname='%s'", src->tlsHostname);
     if (flags & VIR_DOMAIN_DEF_FORMAT_STATUS)
         virBufferAsprintf(attrBuf, " tlsFromConfig='%d'", src->tlsFromConfig);
 
@@ -23568,6 +23590,8 @@ virDomainDiskDefFormat(virBuffer *buf,
     const char *device = virDomainDiskDeviceTypeToString(def->device);
     const char *bus = virDomainDiskBusTypeToString(def->bus);
     const char *sgio = virDomainDeviceSGIOTypeToString(def->sgio);
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
     if (!type || !def->src->type) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -23590,39 +23614,35 @@ virDomainDiskDefFormat(virBuffer *buf,
         return -1;
     }
 
-    virBufferAsprintf(buf,
-                      "<disk type='%s' device='%s'",
-                      type, device);
+    virBufferAsprintf(&attrBuf, " type='%s' device='%s'", type, device);
 
     if (def->model) {
-        virBufferAsprintf(buf, " model='%s'",
+        virBufferAsprintf(&attrBuf, " model='%s'",
                           virDomainDiskModelTypeToString(def->model));
     }
 
     if (def->rawio) {
-        virBufferAsprintf(buf, " rawio='%s'",
+        virBufferAsprintf(&attrBuf, " rawio='%s'",
                           virTristateBoolTypeToString(def->rawio));
     }
 
     if (def->sgio)
-        virBufferAsprintf(buf, " sgio='%s'", sgio);
+        virBufferAsprintf(&attrBuf, " sgio='%s'", sgio);
 
-    if (def->snapshot &&
-        !(def->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NONE &&
+    if (def->snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT &&
+        !(def->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NO &&
           def->src->readonly))
-        virBufferAsprintf(buf, " snapshot='%s'",
+        virBufferAsprintf(&attrBuf, " snapshot='%s'",
                           virDomainSnapshotLocationTypeToString(def->snapshot));
-    virBufferAddLit(buf, ">\n");
-    virBufferAdjustIndent(buf, 2);
 
-    virDomainDiskDefFormatDriver(buf, def);
+    virDomainDiskDefFormatDriver(&childBuf, def);
 
     /* Format as child of <disk> if defined there; otherwise,
      * if defined as child of <source>, then format later */
     if (def->src->auth && def->diskElementAuth)
-        virStorageAuthDefFormat(buf, def->src->auth);
+        virStorageAuthDefFormat(&childBuf, def->src->auth);
 
-    if (virDomainDiskSourceFormat(buf, def->src, "source", def->startupPolicy,
+    if (virDomainDiskSourceFormat(&childBuf, def->src, "source", def->startupPolicy,
                                   true, flags,
                                   def->diskElementAuth, def->diskElementEnc,
                                   xmlopt) < 0)
@@ -23630,75 +23650,74 @@ virDomainDiskDefFormat(virBuffer *buf,
 
     /* Don't format backingStore to inactive XMLs until the code for
      * persistent storage of backing chains is ready. */
-    if (virDomainDiskBackingStoreFormat(buf, def->src, xmlopt, flags) < 0)
+    if (virDomainDiskBackingStoreFormat(&childBuf, def->src, xmlopt, flags) < 0)
         return -1;
 
-    virBufferEscapeString(buf, "<backenddomain name='%s'/>\n", def->domain_name);
+    virBufferEscapeString(&childBuf, "<backenddomain name='%s'/>\n", def->domain_name);
 
-    virDomainDiskGeometryDefFormat(buf, def);
-    virDomainDiskBlockIoDefFormat(buf, def);
+    virDomainDiskGeometryDefFormat(&childBuf, def);
+    virDomainDiskBlockIoDefFormat(&childBuf, def);
 
-    if (virDomainDiskDefFormatMirror(buf, def, flags, xmlopt) < 0)
+    if (virDomainDiskDefFormatMirror(&childBuf, def, flags, xmlopt) < 0)
         return -1;
 
-    virBufferAsprintf(buf, "<target dev='%s' bus='%s'",
+    virBufferAsprintf(&childBuf, "<target dev='%s' bus='%s'",
                       def->dst, bus);
     if ((def->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY ||
          def->device == VIR_DOMAIN_DISK_DEVICE_CDROM) &&
         def->tray_status != VIR_DOMAIN_DISK_TRAY_CLOSED)
-        virBufferAsprintf(buf, " tray='%s'",
+        virBufferAsprintf(&childBuf, " tray='%s'",
                           virDomainDiskTrayTypeToString(def->tray_status));
     if (def->bus == VIR_DOMAIN_DISK_BUS_USB &&
         def->removable != VIR_TRISTATE_SWITCH_ABSENT) {
-        virBufferAsprintf(buf, " removable='%s'",
+        virBufferAsprintf(&childBuf, " removable='%s'",
                           virTristateSwitchTypeToString(def->removable));
     }
     if (def->rotation_rate)
-        virBufferAsprintf(buf, " rotation_rate='%u'", def->rotation_rate);
-    virBufferAddLit(buf, "/>\n");
+        virBufferAsprintf(&childBuf, " rotation_rate='%u'", def->rotation_rate);
+    virBufferAddLit(&childBuf, "/>\n");
 
-    virDomainDiskDefFormatIotune(buf, def);
+    virDomainDiskDefFormatIotune(&childBuf, def);
 
     if (def->src->readonly)
-        virBufferAddLit(buf, "<readonly/>\n");
+        virBufferAddLit(&childBuf, "<readonly/>\n");
     if (def->src->shared)
-        virBufferAddLit(buf, "<shareable/>\n");
+        virBufferAddLit(&childBuf, "<shareable/>\n");
     if (def->transient) {
-        virBufferAddLit(buf, "<transient");
+        virBufferAddLit(&childBuf, "<transient");
         if (def->transientShareBacking == VIR_TRISTATE_BOOL_YES)
-            virBufferAddLit(buf, " shareBacking='yes'");
-        virBufferAddLit(buf, "/>\n");
+            virBufferAddLit(&childBuf, " shareBacking='yes'");
+        virBufferAddLit(&childBuf, "/>\n");
     }
-    virBufferEscapeString(buf, "<serial>%s</serial>\n", def->serial);
-    virBufferEscapeString(buf, "<wwn>%s</wwn>\n", def->wwn);
-    virBufferEscapeString(buf, "<vendor>%s</vendor>\n", def->vendor);
-    virBufferEscapeString(buf, "<product>%s</product>\n", def->product);
+    virBufferEscapeString(&childBuf, "<serial>%s</serial>\n", def->serial);
+    virBufferEscapeString(&childBuf, "<wwn>%s</wwn>\n", def->wwn);
+    virBufferEscapeString(&childBuf, "<vendor>%s</vendor>\n", def->vendor);
+    virBufferEscapeString(&childBuf, "<product>%s</product>\n", def->product);
 
     /* If originally found as a child of <disk>, then format thusly;
      * otherwise, will be formatted as child of <source> */
     if (def->src->encryption && def->diskElementEnc &&
-        virStorageEncryptionFormat(buf, def->src->encryption) < 0)
+        virStorageEncryptionFormat(&childBuf, def->src->encryption) < 0)
         return -1;
-    virDomainDeviceInfoFormat(buf, &def->info, flags | VIR_DOMAIN_DEF_FORMAT_ALLOW_BOOT);
+    virDomainDeviceInfoFormat(&childBuf, &def->info, flags | VIR_DOMAIN_DEF_FORMAT_ALLOW_BOOT);
 
-    if (virDomainDiskDefFormatPrivateData(buf, def, flags, xmlopt) < 0)
+    if (virDomainDiskDefFormatPrivateData(&childBuf, def, flags, xmlopt) < 0)
         return -1;
 
     /* format diskElementAuth and diskElementEnc into status XML to preserve
      * formatting */
     if (flags & VIR_DOMAIN_DEF_FORMAT_STATUS) {
-        g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+        g_auto(virBuffer) secretPlacementAttrBuf = VIR_BUFFER_INITIALIZER;
 
         if (def->diskElementAuth)
-            virBufferAddLit(&attrBuf, " auth='true'");
+            virBufferAddLit(&secretPlacementAttrBuf, " auth='true'");
         if (def->diskElementEnc)
-            virBufferAddLit(&attrBuf, " enc='true'");
+            virBufferAddLit(&secretPlacementAttrBuf, " enc='true'");
 
-        virXMLFormatElement(buf, "diskSecretsPlacement", &attrBuf, NULL);
+        virXMLFormatElement(&childBuf, "diskSecretsPlacement", &secretPlacementAttrBuf, NULL);
     }
 
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</disk>\n");
+    virXMLFormatElement(buf, "disk", &attrBuf, &childBuf);
     return 0;
 }
 
@@ -27455,6 +27474,7 @@ virDomainMemorybackingFormat(virBuffer *buf,
                              const virDomainMemtune *mem)
 {
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) allocAttrBuf = VIR_BUFFER_INITIALIZER;
 
     if (mem->nhugepages)
         virDomainHugepagesFormat(&childBuf, mem->hugepages, mem->nhugepages);
@@ -27469,8 +27489,13 @@ virDomainMemorybackingFormat(virBuffer *buf,
         virBufferAsprintf(&childBuf, "<access mode='%s'/>\n",
                           virDomainMemoryAccessTypeToString(mem->access));
     if (mem->allocation)
-        virBufferAsprintf(&childBuf, "<allocation mode='%s'/>\n",
+        virBufferAsprintf(&allocAttrBuf, " mode='%s'",
                           virDomainMemoryAllocationTypeToString(mem->allocation));
+    if (mem->allocation_threads > 0)
+        virBufferAsprintf(&allocAttrBuf, " threads='%u'", mem->allocation_threads);
+
+    virXMLFormatElement(&childBuf, "allocation", &allocAttrBuf, NULL);
+
     if (mem->discard)
         virBufferAddLit(&childBuf, "<discard/>\n");
 

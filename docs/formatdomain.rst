@@ -1004,7 +1004,7 @@ Memory Backing
        <locked/>
        <source type="file|anonymous|memfd"/>
        <access mode="shared|private"/>
-       <allocation mode="immediate|ondemand"/>
+       <allocation mode="immediate|ondemand" threads='8'/>
        <discard/>
      </memoryBacking>
      ...
@@ -1053,8 +1053,10 @@ influence how virtual memory pages are backed by host pages.
    Using the ``mode`` attribute, specify if the memory is to be "shared" or
    "private". This can be overridden per numa node by ``memAccess``.
 ``allocation``
-   Using the ``mode`` attribute, specify when to allocate the memory by
-   supplying either "immediate" or "ondemand".
+   Using the optional ``mode`` attribute, specify when to allocate the memory by
+   supplying either "immediate" or "ondemand". :since:`Since 8.2.0` it is
+   possible to set the number of threads that hypervisor uses to allocate
+   memory via ``threads`` attribute.
 ``discard``
    When set and supported by hypervisor the memory content is discarded just
    before guest shuts down (or when DIMM module is unplugged). Please note that
@@ -1487,12 +1489,12 @@ In case no restrictions need to be put on CPU model and its features, a simpler
    The ``topology`` element specifies requested topology of virtual CPU provided
    to the guest. Four attributes, ``sockets``, ``dies``, ``cores``, and
    ``threads``, accept non-zero positive integer values. They refer to the
-   number of CPU sockets per NUMA node, number of dies per socket, number of
-   cores per die, and number of threads per core, respectively. The ``dies``
-   attribute is optional and will default to 1 if omitted, while the other
-   attributes are all mandatory. Hypervisors may require that the maximum number
-   of vCPUs specified by the ``cpus`` element equals to the number of vcpus
-   resulting from the topology.
+   total number of CPU sockets, number of dies per socket, number of cores per
+   die, and number of threads per core, respectively. The ``dies`` attribute is
+   optional and will default to 1 if omitted, while the other attributes are all
+   mandatory. Hypervisors may require that the maximum number of vCPUs specified
+   by the ``cpus`` element equals to the number of vcpus resulting from the
+   topology.
 ``feature``
    The ``cpu`` element can contain zero or more ``feature`` elements used to
    fine-tune features provided by the selected CPU model. The list of known
@@ -2620,13 +2622,14 @@ paravirtualized driver is specified via the ``disk`` element.
       Indicates the default behavior of the disk during disk snapshots:
       "``internal``" requires a file format such as qcow2 that can store both
       the snapshot and the data changes since the snapshot; "``external``" will
-      separate the snapshot from the live data; and "``no``" means the disk will
-      not participate in snapshots. Read-only disks default to "``no``", while
-      the default for other disks depends on the hypervisor's capabilities. Some
-      hypervisors allow a per-snapshot choice as well, during `domain snapshot
-      creation <formatsnapshot.html>`__. Not all snapshot modes are supported;
-      for example, enabling snapshots with a transient disk generally does not
-      make sense. :since:`Since 0.9.5`
+      separate the snapshot from the live data; "``no``" means the disk will
+      not participate in snapshots; and ``manual`` allows snapshotting done via
+      an unmanaged storage provider. Read-only disks default to "``no``", while
+      the default for other disks depends on the hypervisor's capabilities.
+      Some hypervisors allow a per-snapshot choice as well, during `domain
+      snapshot creation <formatsnapshot.html>`__. Not all snapshot modes are
+      supported; for example, enabling snapshots with a transient disk
+      generally does not make sense. :since:`Since 0.9.5`
 
 ``source``
    Representation of the disk ``source`` depends on the disk ``type`` attribute
@@ -2653,7 +2656,9 @@ paravirtualized driver is specified via the ``disk`` element.
       be enabled by setting the ``tls`` attribute to ``yes``. For the QEMU
       hypervisor, usage of a TLS environment can also be globally controlled on
       the host by the ``nbd_tls`` and ``nbd_tls_x509_cert_dir`` in
-      /etc/libvirt/qemu.conf. ('tls' :since:`Since 4.5.0` )
+      /etc/libvirt/qemu.conf. ('tls' :since:`Since 4.5.0` ) :since:`Since 8.2.0`
+      the optional attribute ``tlsHostname`` can be used to override the
+      expected host name of the NBD server used for TLS certificate verification.
 
       For protocols ``http`` and ``https`` an optional attribute ``query``
       specifies the query string. ( :since:`Since 6.2.0` )

@@ -8,6 +8,94 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.2.0 (2022-04-01)
+===================
+
+* **New features**
+
+  * qemu: Introduce ``manual`` disk snapshot mode
+
+    This new mode allows users to synchronize libvirt snapshots with snapshots
+    which need to be done outside of libvirt e.g. when 'vhost-user-blk' is used
+    to back the disk.
+
+  * Introduce memory allocation threads
+
+    When starting a QEMU guest, libvirt can now instruct QEMU to allocate
+    guest's memory in parallel. This may be handy when guest has large amounts
+    of memory.
+
+* **Improvements**
+
+  * qemu: ``VIR_MIGRATE_PARAM_TLS_DESTINATION`` now works with non-shared storage migration
+
+    The setting now also applies to the NBD connections for non-shared storage
+    migration allowing migration to proceed even when the user expects certificate
+    name not to match.
+
+  * qemu: Allow overrides of device properties via the qemu namespace
+
+    Users wishing to override or modify properties of devices configured by
+    libvirt can use the ``<qemu:deviceOverride>`` QEMU namespace element to
+    specify the overrides instead of relying on the argv passthrough of the
+    ``-set`` qemu commandline option which no longer works with new qemu.
+
+  * qemu: Allow passing file descriptors to ``virsh qemu-monitor-command``
+
+    Passing FDs allows users wanting to experiment with qemu driven by libvirt
+    use commands like ``add-fd`` properly.
+
+  * libxl: Turn on user aliases
+
+    Users can now use so called user aliases for XEN domains.
+
+  * Implement support for FUSE3
+
+    The LXC driver uses fuse to overwrite some lines in ``/proc/meminfo``
+    inside containers so that they see correct amount of memory given to them.
+    The code was changed so that both ``fuse`` and ``fuse3`` are supported.
+
+  * Improve domain save/restore throughput
+
+    Code that's handling save or restore of QEMU domains was changed resulting
+    in better performance of I/O and thus shortening time needed for the operation.
+
+* **Bug fixes**
+
+  * Both build and tests should now pass on Alpine Linux or any other
+    distribution with musl libc.
+
+  * virsh: Fix integer overflow in allocpages
+
+    On hosts which support hugepages larger than 1GiB ``virsh allocpages``
+    failed to accept them because of an integer overflow. This is now fixed.
+
+  * qemu: Fix segmentation fault in virDomainUndefineFlags
+
+    When a domain without any ``<loader/>`` was being undefined, libvirt has
+    crashed. This is now fixed.
+
+  * lxc: Fix unaligned reads of /proc/meminfo within a container
+
+    When /proc/meminfo was read in chunks smaller than the entire file, libvirt
+    would produce mangled output. While porting the code to FUSE3 this area was
+    reworked and the file can now be read with any granularity.
+
+  * qemu: Be less aggressive around cgroup_device_acl
+
+    A basic set of devices common to every domain can be set in ``qemu.conf``
+    via cgroup_device_acl knob. Devices from this set are allowed in CGroup and
+    created in domain private namespace for every domain. However, upon device
+    hotunplug it may have had happened that libvirt mistakenly denied a device
+    from this set and/or removed it from the namespace. For instance,
+    /dev/urandom was removed and denied in CGroup on RNG hotunplug.
+
+  * nodedev: trigger mdev device definition update on udev add and remove
+
+    When nodedev objects are added and removed mdev device definitions are
+    updated to report correct associated parent.
+
+
 v8.1.0 (2022-03-01)
 ===================
 
@@ -63,7 +151,7 @@ v8.1.0 (2022-03-01)
   * Remove unix sockets from filesystem when disabling a '.socket' systemd unit
 
     The presence of the socket files is used by our remote driver to determine
-    which service to access. Since neiter systemd nor the daemons clean up the
+    which service to access. Since neither systemd nor the daemons clean up the
     socket file clients were running into problems when a modular deployment was
     switched to monolithic ``libvirtd``.
 

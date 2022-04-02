@@ -978,7 +978,6 @@ testParseDomainSnapshots(testDriver *privconn,
                                             privconn->xmlopt,
                                             NULL,
                                             &cur,
-                                            VIR_DOMAIN_SNAPSHOT_PARSE_DISKS |
                                             VIR_DOMAIN_SNAPSHOT_PARSE_INTERNAL |
                                             VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE);
         if (!def)
@@ -1386,16 +1385,14 @@ testOpenFromFile(virConnectPtr conn, const char *file)
 static int
 testOpenDefault(virConnectPtr conn)
 {
-    int ret = VIR_DRV_OPEN_ERROR;
     testDriver *privconn = NULL;
     g_autoptr(xmlDoc) doc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     size_t i;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&defaultLock);
 
-    virMutexLock(&defaultLock);
     if (defaultPrivconn) {
         conn->privateData = virObjectRef(defaultPrivconn);
-        virMutexUnlock(&defaultLock);
         return VIR_DRV_OPEN_SUCCESS;
     }
 
@@ -1434,15 +1431,12 @@ testOpenDefault(virConnectPtr conn)
         goto error;
 
     defaultPrivconn = privconn;
-    ret = VIR_DRV_OPEN_SUCCESS;
- cleanup:
-    virMutexUnlock(&defaultLock);
-    return ret;
+    return VIR_DRV_OPEN_SUCCESS;
 
  error:
     virObjectUnref(privconn);
     conn->privateData = NULL;
-    goto cleanup;
+    return VIR_DRV_OPEN_ERROR;
 }
 
 static int
@@ -1500,12 +1494,12 @@ testConnectAuthenticate(virConnectPtr conn,
 static void
 testDriverCloseInternal(testDriver *driver)
 {
-    virMutexLock(&defaultLock);
+    VIR_LOCK_GUARD lock = virLockGuardLock(&defaultLock);
+
     testDriverDisposed = false;
     virObjectUnref(driver);
     if (testDriverDisposed && driver == defaultPrivconn)
         defaultPrivconn = NULL;
-    virMutexUnlock(&defaultLock);
 }
 
 
@@ -8716,6 +8710,23 @@ testDomainSnapshotAlignDisks(virDomainObj *vm,
                              unsigned int flags)
 {
     virDomainSnapshotLocation align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
+    size_t i;
+
+    for (i = 0; i < def->ndisks; i++) {
+        switch (def->disks[i].snapshot) {
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_NO:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_LAST:
+            break;
+
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_MANUAL:
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("'manual' snapshot mode is not supported by the test driver"));
+            return -1;
+        }
+    }
 
     if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY) {
         align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
@@ -8723,14 +8734,14 @@ testDomainSnapshotAlignDisks(virDomainObj *vm,
             def->state = VIR_DOMAIN_SNAPSHOT_DISK_SNAPSHOT;
         else
             def->state = VIR_DOMAIN_SNAPSHOT_SHUTOFF;
-        def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_NONE;
+        def->memory = VIR_DOMAIN_SNAPSHOT_LOCATION_NO;
     } else if (def->memory == VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL) {
         def->state = virDomainObjGetState(vm, NULL);
         align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
     } else {
         def->state = virDomainObjGetState(vm, NULL);
         def->memory = def->state == VIR_DOMAIN_SNAPSHOT_SHUTOFF ?
-                      VIR_DOMAIN_SNAPSHOT_LOCATION_NONE :
+                      VIR_DOMAIN_SNAPSHOT_LOCATION_NO :
                       VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
     }
 
@@ -8777,7 +8788,7 @@ testDomainSnapshotCreateXML(virDomainPtr domain,
     virObjectEvent *event = NULL;
     bool update_current = true;
     bool redefine = flags & VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE;
-    unsigned int parse_flags = VIR_DOMAIN_SNAPSHOT_PARSE_DISKS;
+    unsigned int parse_flags = 0;
     g_autoptr(virDomainSnapshotDef) def = NULL;
 
     /*
