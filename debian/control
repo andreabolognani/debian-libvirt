@@ -473,7 +473,6 @@ Architecture: any
 Multi-Arch: same
 Depends:
  libvirt0 (= ${binary:Version}),
- libxen-dev [amd64 armhf arm64],
  ${misc:Depends},
 Recommends:
  pkg-config,
