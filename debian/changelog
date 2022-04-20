@@ -1,8 +1,12 @@
-libvirt (8.2.0-1) UNRELEASED; urgency=medium
+libvirt (8.2.0-1) unstable; urgency=medium
 
   * [4d84203] New upstream version 8.2.0
+  * [d1baa54] patches: Drop backports
+  * [333c80a] control: Switch from fuse to fuse3
+  * [4793ac2] libvirt-dev: Drop dependency on libxen-dev
+    - Thanks to Pino Toscano
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sat, 02 Apr 2022 10:31:51 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 20 Apr 2022 22:51:26 +0200
 
 libvirt (8.1.0-2) unstable; urgency=medium
 
