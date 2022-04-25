@@ -7,6 +7,7 @@ libvirt (8.3.0-1) UNRELEASED; urgency=medium
 libvirt (8.2.0-1) unstable; urgency=medium
 
   * [4d84203] New upstream version 8.2.0
+    - Fixes CVE-2022-0897 (Closes: #1009075)
   * [d1baa54] patches: Drop backports
   * [333c80a] control: Switch from fuse to fuse3
   * [4793ac2] libvirt-dev: Drop dependency on libxen-dev
