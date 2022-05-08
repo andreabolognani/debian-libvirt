@@ -14,13 +14,13 @@ QEMU_AUDIO_DRV=none \
 -machine q35,usb=off,dump-guest-core=off \
 -accel tcg \
 -m 2048 \
--realtime mlock=off \
+-overcommit mem-lock=off \
 -smp 1,sockets=1,cores=1,threads=1 \
 -uuid 11dbdcdd-4c3b-482b-8903-9bdb8c0a2774 \
 -display none \
 -no-user-config \
 -nodefaults \
--chardev socket,id=charmonitor,path=/tmp/lib/domain--1-q35-test/monitor.sock,server=on,wait=off \
+-chardev socket,id=charmonitor,fd=1729,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \

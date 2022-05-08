@@ -2036,8 +2036,7 @@ qemuBuildDiskGetErrorPolicy(virDomainDiskDef *disk,
 
 
 static char *
-qemuBuildDriveStr(virDomainDiskDef *disk,
-                  virQEMUCaps *qemuCaps)
+qemuBuildDriveStr(virDomainDiskDef *disk)
 {
     g_auto(virBuffer) opt = VIR_BUFFER_INITIALIZER;
     int detect_zeroes = virDomainDiskGetDetectZeroesMode(disk->discard,
@@ -2056,20 +2055,6 @@ qemuBuildDriveStr(virDomainDiskDef *disk,
     } else {
         virBufferAsprintf(&opt, "if=sd,index=%d",
                           virDiskNameToIndex(disk->dst));
-    }
-
-    /* werror/rerror are really frontend attributes, but older
-     * qemu requires them on -drive instead of -device */
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_STORAGE_WERROR)) {
-        const char *wpolicy = NULL;
-        const char *rpolicy = NULL;
-
-        qemuBuildDiskGetErrorPolicy(disk, &wpolicy, &rpolicy);
-
-        if (wpolicy)
-            virBufferAsprintf(&opt, ",werror=%s", wpolicy);
-        if (rpolicy)
-            virBufferAsprintf(&opt, ",rerror=%s", rpolicy);
     }
 
     if (disk->src->readonly)
@@ -2307,8 +2292,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
         serial = virBufferContentAndReset(&buf);
     }
 
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_STORAGE_WERROR))
-        qemuBuildDiskGetErrorPolicy(disk, &wpolicy, &rpolicy);
+    qemuBuildDiskGetErrorPolicy(disk, &wpolicy, &rpolicy);
 
     if (virJSONValueObjectAdd(&props,
                               "S:device_id", scsiVPDDeviceId,
@@ -2588,7 +2572,7 @@ qemuBuildDiskSourceCommandLine(virCommand *cmd,
             !(copyOnReadProps = qemuBlockStorageGetCopyOnReadProps(disk)))
             return -1;
     } else {
-        if (!(data = qemuBuildStorageSourceChainAttachPrepareDrive(disk, qemuCaps)))
+        if (!(data = qemuBuildStorageSourceChainAttachPrepareDrive(disk)))
             return -1;
     }
 
@@ -4165,6 +4149,8 @@ qemuBuildNicDevProps(virDomainDef *def,
                                   "P:vectors", vectors,
                                   "p:rx_queue_size", net->driver.virtio.rx_queue_size,
                                   "p:tx_queue_size", net->driver.virtio.tx_queue_size,
+                                  "T:rss", net->driver.virtio.rss,
+                                  "T:hash", net->driver.virtio.rss_hash_report,
                                   "p:host_mtu", net->mtu,
                                   "T:failover", failover,
                                   NULL) < 0)
@@ -6428,15 +6414,14 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
                           const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
+    g_autoptr(virJSONValue) props = NULL;
     const virDomainIOMMUDef *iommu = def->iommu;
 
     if (!iommu)
         return 0;
 
     switch (iommu->model) {
-    case VIR_DOMAIN_IOMMU_MODEL_INTEL: {
-        g_autoptr(virJSONValue) props = NULL;
-
+    case VIR_DOMAIN_IOMMU_MODEL_INTEL:
         if (virJSONValueObjectAdd(&props,
                                   "s:driver", "intel-iommu",
                                   "S:intremap", qemuOnOffAuto(iommu->intremap),
@@ -6451,7 +6436,21 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
             return -1;
 
         return 0;
-    }
+
+    case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+        if (virJSONValueObjectAdd(&props,
+                                  "s:driver", "virtio-iommu",
+                                  NULL) < 0) {
+            return -1;
+        }
+
+        if (qemuBuildDeviceAddressProps(props, def, &iommu->info) < 0)
+            return -1;
+
+        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+            return -1;
+
+        return 0;
 
     case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
         /* There is no -device for SMMUv3, so nothing to be done here */
@@ -6543,11 +6542,6 @@ qemuBuildCpuModelArgStr(virQEMUDriver *driver,
          */
         if (ARCH_IS_PPC64(def->os.arch)) {
             virBufferAddLit(buf, "host");
-            if (cpu->model &&
-                !(qemuDomainIsPSeries(def) &&
-                  virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT))) {
-                virBufferAsprintf(buf, ",compat=%s", cpu->model);
-            }
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unexpected host-model CPU for %s architecture"),
@@ -7034,12 +7028,13 @@ qemuBuildMachineCommandLine(virCommand *cmd,
 
     if (def->iommu) {
         switch (def->iommu->model) {
-        case VIR_DOMAIN_IOMMU_MODEL_INTEL:
-            /* The 'intel' IOMMu is formatted in qemuBuildIOMMUCommandLine */
-            break;
-
         case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
             virBufferAddLit(&buf, ",iommu=smmuv3");
+            break;
+
+        case VIR_DOMAIN_IOMMU_MODEL_INTEL:
+        case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+            /* These IOMMUs are formatted in qemuBuildIOMMUCommandLine */
             break;
 
         case VIR_DOMAIN_IOMMU_MODEL_LAST:
@@ -7118,8 +7113,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
 
     if (cpu && cpu->model &&
         cpu->mode == VIR_CPU_MODE_HOST_MODEL &&
-        qemuDomainIsPSeries(def) &&
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT)) {
+        qemuDomainIsPSeries(def)) {
         virBufferAsprintf(&buf, ",max-cpu-compat=%s", cpu->model);
     }
 
@@ -7425,14 +7419,8 @@ qemuBuildMemCommandLine(virCommand *cmd,
             return -1;
     }
 
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OVERCOMMIT)) {
-        virCommandAddArg(cmd, "-overcommit");
-        virCommandAddArgFormat(cmd, "mem-lock=%s", def->mem.locked ? "on" : "off");
-    } else {
-        virCommandAddArg(cmd, "-realtime");
-        virCommandAddArgFormat(cmd, "mlock=%s",
-                               def->mem.locked ? "on" : "off");
-    }
+    virCommandAddArg(cmd, "-overcommit");
+    virCommandAddArgFormat(cmd, "mem-lock=%s", def->mem.locked ? "on" : "off");
 
     return 0;
 }
@@ -10898,20 +10886,18 @@ qemuBuildHotpluggableCPUProps(const virDomainVcpuDef *vcpu)
 /**
  * qemuBuildStorageSourceAttachPrepareDrive:
  * @disk: disk object to prepare
- * @qemuCaps: qemu capabilities object
  *
  * Prepare qemuBlockStorageSourceAttachData *for use with the old approach
  * using -drive/drive_add. See qemuBlockStorageSourceAttachPrepareBlockdev.
  */
 static qemuBlockStorageSourceAttachData *
-qemuBuildStorageSourceAttachPrepareDrive(virDomainDiskDef *disk,
-                                         virQEMUCaps *qemuCaps)
+qemuBuildStorageSourceAttachPrepareDrive(virDomainDiskDef *disk)
 {
     g_autoptr(qemuBlockStorageSourceAttachData) data = NULL;
 
     data = g_new0(qemuBlockStorageSourceAttachData, 1);
 
-    if (!(data->driveCmd = qemuBuildDriveStr(disk, qemuCaps)) ||
+    if (!(data->driveCmd = qemuBuildDriveStr(disk)) ||
         !(data->driveAlias = qemuAliasDiskDriveFromDisk(disk)))
         return NULL;
 
@@ -10993,20 +10979,18 @@ qemuBuildStorageSourceAttachPrepareCommon(virStorageSource *src,
 /**
  * qemuBuildStorageSourceChainAttachPrepareDrive:
  * @disk: disk definition
- * @qemuCaps: qemu capabilities object
  *
  * Prepares qemuBlockStorageSourceChainData *for attaching @disk via -drive.
  */
 qemuBlockStorageSourceChainData *
-qemuBuildStorageSourceChainAttachPrepareDrive(virDomainDiskDef *disk,
-                                              virQEMUCaps *qemuCaps)
+qemuBuildStorageSourceChainAttachPrepareDrive(virDomainDiskDef *disk)
 {
     g_autoptr(qemuBlockStorageSourceAttachData) elem = NULL;
     g_autoptr(qemuBlockStorageSourceChainData) data = NULL;
 
     data = g_new0(qemuBlockStorageSourceChainData, 1);
 
-    if (!(elem = qemuBuildStorageSourceAttachPrepareDrive(disk, qemuCaps)))
+    if (!(elem = qemuBuildStorageSourceAttachPrepareDrive(disk)))
         return NULL;
 
     if (qemuBuildStorageSourceAttachPrepareCommon(disk->src, elem) < 0)

@@ -14,7 +14,7 @@ QEMU_AUDIO_DRV=none \
 -machine pc,usb=off,dump-guest-core=off \
 -accel tcg \
 -m 12288 \
--realtime mlock=off \
+-overcommit mem-lock=off \
 -smp 12,sockets=12,cores=1,threads=1 \
 -numa node,nodeid=0,cpus=0-3,mem=2048 \
 -numa node,nodeid=1,cpus=4-7,mem=2048 \
@@ -26,7 +26,7 @@ QEMU_AUDIO_DRV=none \
 -display none \
 -no-user-config \
 -nodefaults \
--chardev socket,id=charmonitor,path=/tmp/lib/domain--1-QEMUGuest/monitor.sock,server=on,wait=off \
+-chardev socket,id=charmonitor,fd=1729,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \

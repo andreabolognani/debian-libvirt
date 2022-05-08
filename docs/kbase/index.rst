@@ -19,6 +19,9 @@ Usage
    Examination of the security protections used for QEMU and how they need
    configuring to allow use of QEMU passthrough with host files/devices.
 
+`TLS certificates <tlscerts.html>`__
+   Generate and deploy x509 certificates for TLS.
+
 `RPM deployment <rpm-deployment.html>`__
    Explanation of the different RPM packages and illustration of which to
    pick for installation
@@ -59,8 +62,8 @@ Usage
     Details about snapshotting a VM
 
 
-Internals / Debugging
----------------------
+Debugging
+---------
 
 `Debug logs <debuglogs.html>`__
   Configuration of logging and tips on how to file a good bug report.
@@ -68,13 +71,33 @@ Internals / Debugging
 `Systemtap <systemtap.html>`__
    Explanation of how to use systemtap for libvirt tracing.
 
-`Incremental backup internals <incrementalbackupinternals.html>`__
-   Incremental backup implementation details relevant for users
-
-`VM migration internals <migrationinternals.html>`__
-   VM migration implementation details, complementing the info in
-   `migration <../migration.html>`__
-
 `Capturing core dumps for QEMU <qemu-core-dump.html>`__
    How to configure libvirt to enable capture of core dumps from
    QEMU virtual machines
+
+
+Internals
+---------
+
+`Incremental backup internals <internals/incremental-backup.html>`__
+   Incremental backup implementation details relevant for users
+
+`VM migration internals <internals/migration.html>`__
+   VM migration implementation details, complementing the info in
+   `migration <../migration.html>`__
+
+`API call flow overview <internals/overview.html>`__
+   Overview of how an API call is handled by the ``libvirt`` library and passed
+   over RPC to the daemon.
+
+`Spawning commands <internals/command.html>`__
+   Spawning commands from libvirt driver code
+
+`Event loop and worker pool <internals/eventloop.html>`__
+   Libvirt's event loop and worker pool mode
+
+`Lock managers <internals/locking.html>`__
+   Use lock managers to protect disk content
+
+`RPC protocol & APIs <internals/rpc.html>`__
+   RPC protocol information and API / dispatch guide

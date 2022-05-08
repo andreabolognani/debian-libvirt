@@ -62,14 +62,6 @@ qemuValidateDomainDefPSeriesFeature(const virDomainDef *def,
             break;
 
         if (def->hpt_resizing != VIR_DOMAIN_HPT_RESIZING_NONE) {
-            if (!virQEMUCapsGet(qemuCaps,
-                                QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("HTP resizing is not supported by this "
-                                "QEMU binary"));
-                return -1;
-            }
-
             str = virDomainHPTResizingTypeToString(def->hpt_resizing);
             if (!str) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -1748,6 +1740,20 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                                  "with this QEMU binary"));
                 return -1;
             }
+        }
+
+        if (net->driver.virtio.rss &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_NET_RSS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("virtio rss is not supported with this QEMU binary"));
+            return -1;
+        }
+
+        if (net->driver.virtio.rss_hash_report &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_NET_RSS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("virtio rss hash report is not supported with this QEMU binary"));
+            return -1;
         }
 
         if (net->mtu &&
@@ -4860,6 +4866,38 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("IOMMU device: '%s' is not supported with "
                              "this QEMU binary"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+        if (!qemuDomainIsARMVirt(def) &&
+            !qemuDomainIsQ35(def)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%s' is only supported with "
+                             "Q35 and ARM Virt machines"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_IOMMU_PCI) ||
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_IOMMU_BOOT_BYPASS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%s' is not supported with "
+                             "this QEMU binary"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        if (def->features[VIR_DOMAIN_FEATURE_ACPI] != VIR_TRISTATE_SWITCH_ON) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%s' requires ACPI"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        if (iommu->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+            iommu->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("IOMMU device: '%s' needs a PCI address"),
                            virDomainIOMMUModelTypeToString(iommu->model));
             return -1;
         }

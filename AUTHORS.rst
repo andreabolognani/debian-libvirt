@@ -25,7 +25,7 @@ The primary maintainers and people with commit access rights:
 * Laine Stump <laine@redhat.com>
 * Martin Kletzander <mkletzan@redhat.com>
 * Michal Prívozník <mprivozn@redhat.com>
-* Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>
+* Nikolay Shirokovskiy <nshirokovskiy@openvz.org>
 * Pavel Hrdina <phrdina@redhat.com>
 * Peter Krempa <pkrempa@redhat.com>
 * Pino Toscano <ptoscano@redhat.com>
@@ -116,12 +116,14 @@ Patches have also been contributed by:
 * Allen, John <John.Allen@amd.com>
 * Alon Levy <alevy@redhat.com>
 * Alvaro Polo <apoloval@gmail.com>
+* Amneesh Singh <natto@weirdnatto.in>
 * Amy Fong <amy.fong@windriver.com>
 * Amy Griffis <amy.griffis@hp.com>
 * Anatole Denis <natolumin@gmail.com>
 * Andika Triwidada <andika@gmail.com>
 * Andrea Bolognani <abologna@redhat.com>
 * Andres Lagar-Cavilla <andres@lagarcavilla.org>
+* Andrew Melnychenko <andrew@daynix.com>
 * Andrew Miloradovsky <andrew@interpretmath.pw>
 * Ani Sinha <ani.sinha@nutanix.com>
 * Ani Sinha <ani@anisinha.ca>
@@ -470,6 +472,7 @@ Patches have also been contributed by:
 * Lee Yarwood <lyarwood@redhat.com>
 * Lei Li <lilei@linux.vnet.ibm.com>
 * Lei Yang <yanglei209@huawei.com>
+* Lena Voytek <lena.voytek@canonical.com>
 * Leno Hou <houqy@linux.vnet.ibm.com>
 * Leonid Bloch <lb.workbox@gmail.com>
 * Li Yang <liyang.fnst@cn.fujitsu.com>
@@ -567,6 +570,7 @@ Patches have also been contributed by:
 * Mooli Tayer <mtayer@redhat.com>
 * Moshe Levi <moshele@mellanox.com>
 * Moshe Levi <moshele@nvidia.com>
+* Moteen Shah <moteenshah.02@gmail.com>
 * Muha Aliss <muhaaliss@gmail.com>
 * Nan Zhang <nzhang@redhat.com>
 * Naoya Horiguchi <n-horiguchi@ah.jp.nec.com>
@@ -583,6 +587,7 @@ Patches have also been contributed by:
 * Nicolas Brignone <nmbrignone@gmail.com>
 * Nicolas Lécureuil <neoclust@mageia.org>
 * Niels de Vos <ndevos@redhat.com>
+* Nikolay Shirokovskiy <nshirokovskiy@openvz.org>
 * Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>
 * Nikos Mavrogiannopoulos <nmav@redhat.com>
 * Nikunj A. Dadhania <nikunj@linux.vnet.ibm.com>
@@ -781,6 +786,7 @@ Patches have also been contributed by:
 * Tyler Coumbes <coumbes@gmail.com>
 * Vasiliy Tolstov <v.tolstov@selfip.ru>
 * Vasiliy Ulyanov <vulyanov@suse.de>
+* Victor Toso <victortoso@redhat.com>
 * Viktor Mihajlovski <mihajlov@linux.ibm.com>
 * Viktor Mihajlovski <mihajlov@linux.vnet.ibm.com>
 * Ville Skyttä <ville.skytta@iki.fi>

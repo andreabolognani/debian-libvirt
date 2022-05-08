@@ -1069,6 +1069,8 @@ struct _virDomainNetDef {
                 virTristateSwitch ecn;
                 virTristateSwitch ufo;
             } guest;
+            virTristateSwitch rss;
+            virTristateSwitch rss_hash_report;
         } virtio;
     } driver;
     struct {
@@ -1899,6 +1901,7 @@ struct _virDomainGraphicsDef {
             bool portReserved;
             int websocket;
             bool websocketGenerated;
+            bool websocketReserved;
             bool autoport;
             char *keymap;
             virDomainGraphicsAuthDef auth;
@@ -2755,6 +2758,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainSecDef, virDomainSecDefFree);
 typedef enum {
     VIR_DOMAIN_IOMMU_MODEL_INTEL,
     VIR_DOMAIN_IOMMU_MODEL_SMMUV3,
+    VIR_DOMAIN_IOMMU_MODEL_VIRTIO,
 
     VIR_DOMAIN_IOMMU_MODEL_LAST
 } virDomainIOMMUModel;
@@ -2766,6 +2770,7 @@ struct _virDomainIOMMUDef {
     virTristateSwitch eim;
     virTristateSwitch iotlb;
     unsigned int aw_bits;
+    virDomainDeviceInfo info;
 };
 
 typedef enum {

@@ -485,7 +485,7 @@ virDomainCgroupConnectCgroup(const char *prefix,
                              bool privileged,
                              char *machineName)
 {
-    if (privileged)
+    if (!privileged)
         return 0;
 
     if (!virCgroupAvailable())
@@ -572,13 +572,10 @@ virDomainCgroupSetupCpusetCpus(virCgroup *cgroup,
 
 int
 virDomainCgroupSetupGlobalCpuCgroup(virDomainObj *vm,
-                                    virCgroup *cgroup,
-                                    virBitmap *autoNodeset)
+                                    virCgroup *cgroup)
 {
     unsigned long long period = vm->def->cputune.global_period;
     long long quota = vm->def->cputune.global_quota;
-    g_autofree char *mem_mask = NULL;
-    virDomainNumatuneMemMode mem_mode;
 
     if ((period || quota) &&
         !virCgroupHasController(cgroup, VIR_CGROUP_CONTROLLER_CPU)) {
@@ -587,26 +584,8 @@ virDomainCgroupSetupGlobalCpuCgroup(virDomainObj *vm,
         return -1;
     }
 
-    /*
-     * If CPU cgroup controller is not initialized here, then we need
-     * neither period nor quota settings.  And if CPUSET controller is
-     * not initialized either, then there's nothing to do anyway.
-     */
-    if (!virCgroupHasController(cgroup, VIR_CGROUP_CONTROLLER_CPU) &&
-        !virCgroupHasController(cgroup, VIR_CGROUP_CONTROLLER_CPUSET))
-        return 0;
-
-
-    if (virDomainNumatuneGetMode(vm->def->numa, -1, &mem_mode) == 0 &&
-        mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT &&
-        virDomainNumatuneMaybeFormatNodeset(vm->def->numa,
-                                            autoNodeset, &mem_mask, -1) < 0)
+    if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
         return -1;
-
-    if (period || quota) {
-        if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
-            return -1;
-    }
 
     return 0;
 }

@@ -61,7 +61,6 @@
   <flag name='rtl8139'/>
   <flag name='e1000'/>
   <flag name='virtio-net'/>
-  <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-keyboard'/>
   <flag name='virtio-mouse'/>
@@ -94,11 +93,9 @@
   <flag name='chardev-reconnect'/>
   <flag name='vxhs'/>
   <flag name='virtio-blk.num-queues'/>
-  <flag name='machine.pseries.resize-hpt'/>
   <flag name='spapr-vty'/>
   <flag name='disk-share-rw'/>
   <flag name='isa-serial'/>
-  <flag name='machine.pseries.max-cpu-compat'/>
   <flag name='dump-completed'/>
   <flag name='qcow2-luks'/>
   <flag name='query-cpus-fast'/>
@@ -111,11 +108,9 @@
   <flag name='hda-output'/>
   <flag name='blockdev-del'/>
   <flag name='vhost-vsock'/>
-  <flag name='chardev-fd-pass'/>
   <flag name='tpm-emulator'/>
   <flag name='machine.pseries.cap-hpt-max-page-size'/>
   <flag name='machine.pseries.cap-htm'/>
-  <flag name='usb-storage.werror'/>
   <flag name='egl-headless'/>
   <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
@@ -124,11 +119,9 @@
   <flag name='machine.pseries.cap-nested-hv'/>
   <flag name='memory-backend-file.align'/>
   <flag name='memory-backend-file.pmem'/>
-  <flag name='overcommit'/>
   <flag name='bochs-display'/>
   <flag name='drive-nvme'/>
   <flag name='i8042'/>
-  <flag name='storage.werror'/>
   <flag name='machine.pseries.cap-cfpc'/>
   <flag name='machine.pseries.cap-sbbc'/>
   <flag name='machine.pseries.cap-ibs'/>

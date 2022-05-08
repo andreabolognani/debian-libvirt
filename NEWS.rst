@@ -8,6 +8,22 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.3.0 (2022-05-02)
+===================
+
+* **Removed features**
+
+  * qemu: Remove support for QEMU < 3.1
+
+    In accordance with our platform support policy, the oldest supported QEMU
+    version is now bumped from 2.11 to 3.1.
+
+* **New features**
+
+  * qemu: Introduce support for virtio-iommu
+
+    This IOMMU device can be used with both Q35 and ARM virt guests.
+
 v8.2.0 (2022-04-01)
 ===================
 

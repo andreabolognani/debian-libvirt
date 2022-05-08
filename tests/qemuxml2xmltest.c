@@ -322,6 +322,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-aio-io_uring");
     DO_TEST_NOCAPS("disk-cdrom");
     DO_TEST_CAPS_LATEST("disk-cdrom-empty-network-invalid");
+    DO_TEST_CAPS_LATEST("disk-cdrom-network");
     DO_TEST("disk-cdrom-bus-other", QEMU_CAPS_DEVICE_USB_STORAGE);
     DO_TEST_NOCAPS("disk-floppy");
     DO_TEST("disk-usb-device", QEMU_CAPS_DEVICE_USB_STORAGE);
@@ -487,6 +488,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-many-models");
     DO_TEST("net-vdpa", QEMU_CAPS_NETDEV_VHOST_VDPA);
     DO_TEST("net-vdpa-multiqueue", QEMU_CAPS_NETDEV_VHOST_VDPA);
+    DO_TEST_CAPS_LATEST("net-virtio-rss");
 
     DO_TEST_NOCAPS("serial-tcp-tlsx509-chardev");
     DO_TEST_NOCAPS("serial-tcp-tlsx509-chardev-notls");
@@ -710,7 +712,6 @@ mymain(void)
             QEMU_CAPS_MACHINE_PSERIES_CAP_HTM,
             QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV,
             QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST,
-            QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT,
             QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
             QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
             QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
@@ -1284,6 +1285,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("intel-iommu-device-iotlb");
     DO_TEST_CAPS_LATEST("intel-iommu-aw-bits");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
+    DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("virtio-iommu-aarch64", "aarch64");
 
     DO_TEST_NOCAPS("cpu-check-none");
     DO_TEST_NOCAPS("cpu-check-partial");

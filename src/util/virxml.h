@@ -104,6 +104,13 @@ virXMLPropTristateBool(xmlNodePtr node,
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(4);
 
 int
+virXMLPropTristateBoolAllowDefault(xmlNodePtr node,
+                                   const char *name,
+                                   virXMLPropFlags flags,
+                                   virTristateBool *result)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(4);
+
+int
 virXMLPropTristateSwitch(xmlNodePtr node,
                          const char *name,
                          virXMLPropFlags flags,
@@ -315,6 +322,13 @@ void
 virXMLValidatorFree(virXMLValidator *validator);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virXMLValidator, virXMLValidatorFree);
 
+void
+virXMLFormatElementInternal(virBuffer *buf,
+                            const char *name,
+                            virBuffer *attrBuf,
+                            virBuffer *childBuf,
+                            bool allowEmpty,
+                            bool childNewline);
 void
 virXMLFormatElement(virBuffer *buf,
                     const char *name,

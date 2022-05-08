@@ -1181,23 +1181,27 @@ qemuConnectSupportsFeature(virConnectPtr conn, int feature)
         return supported;
 
     switch ((virDrvFeature) feature) {
+    case VIR_DRV_FEATURE_REMOTE:
+    case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
+    case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
+    case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
+    case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
+    case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
+    case VIR_DRV_FEATURE_FD_PASSING:
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Global feature %d should have already been handled"),
+                       feature);
+        return -1;
     case VIR_DRV_FEATURE_MIGRATION_V2:
     case VIR_DRV_FEATURE_MIGRATION_V3:
     case VIR_DRV_FEATURE_MIGRATION_P2P:
     case VIR_DRV_FEATURE_MIGRATE_CHANGE_PROTECTION:
-    case VIR_DRV_FEATURE_FD_PASSING:
-    case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
     case VIR_DRV_FEATURE_XML_MIGRATABLE:
     case VIR_DRV_FEATURE_MIGRATION_OFFLINE:
     case VIR_DRV_FEATURE_MIGRATION_PARAMS:
-    case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
         return 1;
     case VIR_DRV_FEATURE_MIGRATION_DIRECT:
     case VIR_DRV_FEATURE_MIGRATION_V1:
-    case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
-    case VIR_DRV_FEATURE_REMOTE:
-    case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
-    case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
     default:
         return 0;
     }
@@ -1621,7 +1625,7 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
 
     if (qemuProcessBeginJob(driver, vm, VIR_DOMAIN_JOB_OPERATION_START,
                             flags) < 0) {
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
         goto cleanup;
     }
 
@@ -2072,7 +2076,8 @@ qemuDomainDestroyFlags(virDomainPtr dom,
     int reason;
     bool starting;
 
-    virCheckFlags(VIR_DOMAIN_DESTROY_GRACEFUL, -1);
+    virCheckFlags(VIR_DOMAIN_DESTROY_GRACEFUL |
+                  VIR_DOMAIN_DESTROY_REMOVE_LOGS, -1);
 
     if (!(vm = qemuDomainObjFromDomain(dom)))
         return -1;
@@ -2112,6 +2117,11 @@ qemuDomainDestroyFlags(virDomainPtr dom,
 
     qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_DESTROYED,
                     VIR_ASYNC_JOB_NONE, stopFlags);
+
+    if ((flags & VIR_DOMAIN_DESTROY_REMOVE_LOGS) &&
+        qemuDomainRemoveLogs(driver, vm->def->name) < 0)
+        VIR_WARN("Failed to remove logs for VM '%s'", vm->def->name);
+
     event = virDomainEventLifecycleNewFromObj(vm,
                                      VIR_DOMAIN_EVENT_STOPPED,
                                      VIR_DOMAIN_EVENT_STOPPED_DESTROYED);
@@ -2741,7 +2751,7 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
     }
     qemuDomainObjEndAsyncJob(vm);
     if (ret == 0)
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
 
  cleanup:
     virQEMUSaveDataFree(data);
@@ -3218,7 +3228,7 @@ qemuDomainCoreDumpWithFormat(virDomainPtr dom,
 
     qemuDomainObjEndAsyncJob(vm);
     if (ret == 0 && flags & VIR_DUMP_CRASH)
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -3526,7 +3536,7 @@ processGuestPanicEvent(virQEMUDriver *driver,
  endjob:
     qemuDomainObjEndAsyncJob(vm);
     if (removeInactive)
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
 }
 
 
@@ -5841,7 +5851,7 @@ qemuDomainRestoreFlags(virConnectPtr conn,
     virFileWrapperFdFree(wrapperFd);
     virQEMUSaveDataFree(data);
     if (vm && ret < 0)
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -6500,7 +6510,7 @@ qemuDomainDefineXMLFlags(virConnectPtr conn,
         } else {
             /* Brand new domain. Remove it */
             VIR_INFO("Deleting domain '%s'", vm->def->name);
-            qemuDomainRemoveInactiveJob(driver, vm);
+            qemuDomainRemoveInactive(driver, vm);
         }
     }
 
@@ -8923,9 +8933,6 @@ static int
 qemuSetGlobalBWLive(virCgroup *cgroup, unsigned long long period,
                     long long quota)
 {
-    if (period == 0 && quota == 0)
-        return 0;
-
     if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
         return -1;
 
@@ -9104,9 +9111,6 @@ qemuSetVcpusBWLive(virDomainObj *vm, virCgroup *cgroup,
 {
     size_t i;
 
-    if (period == 0 && quota == 0)
-        return 0;
-
     if (!qemuDomainHasVcpuPids(vm))
         return 0;
 
@@ -9135,9 +9139,6 @@ qemuSetEmulatorBandwidthLive(virCgroup *cgroup,
 {
     g_autoptr(virCgroup) cgroup_emulator = NULL;
 
-    if (period == 0 && quota == 0)
-        return 0;
-
     if (virCgroupNewThread(cgroup, VIR_CGROUP_THREAD_EMULATOR, 0,
                            false, &cgroup_emulator) < 0)
         return -1;
@@ -9154,9 +9155,6 @@ qemuSetIOThreadsBWLive(virDomainObj *vm, virCgroup *cgroup,
                        unsigned long long period, long long quota)
 {
     size_t i;
-
-    if (period == 0 && quota == 0)
-        return 0;
 
     if (!vm->def->niothreadids)
         return 0;

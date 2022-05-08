@@ -1231,33 +1231,6 @@ qemuDomainSecretDiskDestroy(virDomainDiskDef *disk)
 }
 
 
-bool
-qemuDomainStorageSourceHasAuth(virStorageSource *src)
-{
-    if (!virStorageSourceIsEmpty(src) &&
-        virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_NETWORK &&
-        src->auth &&
-        (src->protocol == VIR_STORAGE_NET_PROTOCOL_ISCSI ||
-         src->protocol == VIR_STORAGE_NET_PROTOCOL_RBD))
-        return true;
-
-    return false;
-}
-
-
-static bool
-qemuDomainDiskHasEncryptionSecret(virStorageSource *src)
-{
-    if (!virStorageSourceIsEmpty(src) && src->encryption &&
-        (src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS ||
-         src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2) &&
-        src->encryption->nsecrets > 0)
-        return true;
-
-    return false;
-}
-
-
 static qemuDomainSecretInfo *
 qemuDomainSecretStorageSourcePrepareCookies(qemuDomainObjPrivate *priv,
                                             virStorageSource *src,
@@ -1292,10 +1265,12 @@ qemuDomainSecretStorageSourcePrepare(qemuDomainObjPrivate *priv,
                                      const char *aliasformat)
 {
     qemuDomainStorageSourcePrivate *srcPriv;
-    bool hasAuth = qemuDomainStorageSourceHasAuth(src);
-    bool hasEnc = qemuDomainDiskHasEncryptionSecret(src);
+    bool hasEnc = src->encryption && src->encryption->nsecrets > 0;
 
-    if (!hasAuth && !hasEnc && src->ncookies == 0)
+    if (virStorageSourceIsEmpty(src))
+        return 0;
+
+    if (!src->auth && !hasEnc && src->ncookies == 0)
         return 0;
 
     if (!(src->privateData = qemuDomainStorageSourcePrivateNew()))
@@ -1303,7 +1278,7 @@ qemuDomainSecretStorageSourcePrepare(qemuDomainObjPrivate *priv,
 
     srcPriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
 
-    if (hasAuth) {
+    if (src->auth) {
         virSecretUsageType usageType = VIR_SECRET_USAGE_TYPE_ISCSI;
 
         if (src->protocol == VIR_STORAGE_NET_PROTOCOL_RBD)
@@ -2205,9 +2180,10 @@ void
 qemuDomainObjPrivateXMLFormatAllowReboot(virBuffer *buf,
                                          virTristateBool allowReboot)
 {
-    virBufferAsprintf(buf, "<allowReboot value='%s'/>\n",
-                      virTristateBoolTypeToString(allowReboot));
-
+    if (allowReboot) {
+        virBufferAsprintf(buf, "<allowReboot value='%s'/>\n",
+                          virTristateBoolTypeToString(allowReboot));
+    }
 }
 
 
@@ -2858,9 +2834,12 @@ qemuDomainObjPrivateXMLParseAllowReboot(xmlXPathContextPtr ctxt,
 {
     xmlNodePtr node = virXPathNode("./allowReboot", ctxt);
 
-    return virXMLPropTristateBool(node, "value",
-                                  VIR_XML_PROP_NONE,
-                                  allowReboot);
+    /* Allow value='default' as the input here, because old versions
+     * of libvirt produced that output and we need to be able to read
+     * it back to correctly handle running guests on daemon upgrade */
+    return virXMLPropTristateBoolAllowDefault(node, "value",
+                                              VIR_XML_PROP_NONE,
+                                              allowReboot);
 }
 
 
@@ -3102,7 +3081,8 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
     priv->chardevStdioLogd = virXPathBoolean("boolean(./chardevStdioLogd)",
                                              ctxt) == 1;
 
-    qemuDomainObjPrivateXMLParseAllowReboot(ctxt, &priv->allowReboot);
+    if (qemuDomainObjPrivateXMLParseAllowReboot(ctxt, &priv->allowReboot) < 0)
+        goto error;
 
     qemuDomainObjPrivateXMLParsePR(ctxt, &priv->prDaemonRunning);
 
@@ -3509,7 +3489,8 @@ qemuDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
 
     if (nsdata->args || nsdata->num_env > 0 ||
         nsdata->capsadd || nsdata->capsdel ||
-        nsdata->deprecationBehavior)
+        nsdata->deprecationBehavior ||
+        nsdata->ndeviceOverride > 0)
         *data = g_steal_pointer(&nsdata);
 
     ret = 0;
@@ -4815,25 +4796,6 @@ qemuDomainValidateStorageSource(virStorageSource *src,
         return -1;
     }
 
-    if ((src->format == VIR_STORAGE_FILE_QCOW ||
-         src->format == VIR_STORAGE_FILE_QCOW2) &&
-        src->encryption &&
-        (src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT ||
-         src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_QCOW)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("old qcow/qcow2 encryption is not supported"));
-            return -1;
-    }
-
-    if (src->format == VIR_STORAGE_FILE_QCOW2 &&
-        src->encryption &&
-        src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_QCOW2_LUKS)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("LUKS encrypted QCOW2 images are not supported by this QEMU"));
-        return -1;
-    }
-
     if (src->format == VIR_STORAGE_FILE_FAT &&
         actualType != VIR_STORAGE_TYPE_VOLUME &&
         actualType != VIR_STORAGE_TYPE_DIR) {
@@ -5013,11 +4975,24 @@ qemuDomainValidateStorageSource(virStorageSource *src,
     }
 
     if (src->encryption) {
+        if (src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT ||
+            src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_QCOW) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("old qcow/qcow2 encryption is not supported"));
+            return -1;
+        }
+
         switch (src->encryption->engine) {
             case VIR_STORAGE_ENCRYPTION_ENGINE_QEMU:
                 switch ((virStorageEncryptionFormatType) src->encryption->format) {
                     case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS:
                     case VIR_STORAGE_ENCRYPTION_FORMAT_QCOW:
+                        if (src->format != VIR_STORAGE_FILE_QCOW2 &&
+                            src->format != VIR_STORAGE_FILE_RAW) {
+                            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                           _("encryption is supported only with 'raw' and 'qcow2' image format"));
+                            return -1;
+                        }
                         break;
 
                     case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2:
@@ -5034,6 +5009,7 @@ qemuDomainValidateStorageSource(virStorageSource *src,
                 }
 
                 break;
+
             case VIR_STORAGE_ENCRYPTION_ENGINE_LIBRBD:
                 if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_RBD_ENCRYPTION)) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -5041,30 +5017,27 @@ qemuDomainValidateStorageSource(virStorageSource *src,
                     return -1;
                 }
 
-                switch ((virStorageEncryptionFormatType) src->encryption->format) {
-                    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS:
-                    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2:
-                        break;
-
-                    case VIR_STORAGE_ENCRYPTION_FORMAT_QCOW:
-                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                       _("librbd encryption engine only supports luks/luks2 formats"));
-                        return -1;
-
-                    case VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT:
-                    case VIR_STORAGE_ENCRYPTION_FORMAT_LAST:
-                    default:
-                        virReportEnumRangeError(virStorageEncryptionFormatType,
-                                                src->encryption->format);
-                        return -1;
+                if (actualType != VIR_STORAGE_TYPE_NETWORK &&
+                    src->protocol != VIR_STORAGE_NET_PROTOCOL_RBD) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("librbd encryption is supported only with RBD backed disks"));
+                    return -1;
                 }
-
                 break;
+
             case VIR_STORAGE_ENCRYPTION_ENGINE_DEFAULT:
             case VIR_STORAGE_ENCRYPTION_ENGINE_LAST:
                 virReportEnumRangeError(virStorageEncryptionEngine,
                                         src->encryption->engine);
                 return -1;
+        }
+
+        if (src->format == VIR_STORAGE_FILE_QCOW2 &&
+            src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_QCOW2_LUKS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("LUKS encrypted QCOW2 images are not supported by this QEMU"));
+            return -1;
         }
     }
 
@@ -5677,7 +5650,7 @@ qemuDomainDeviceHostdevDefPostParseRestoreSecAlias(virDomainHostdevDef *hostdev,
     if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS ||
         hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI ||
         scsisrc->protocol != VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI ||
-        !qemuDomainStorageSourceHasAuth(iscsisrc->src))
+        !iscsisrc->src->auth)
         return 0;
 
     if (!(priv = qemuDomainStorageSourcePrivateFetch(iscsisrc->src)))
@@ -7338,7 +7311,7 @@ qemuDomainRemoveInactive(virQEMUDriver *driver,
  * lock on driver->domains in order to call the remove obj
  * from locked list method.
  */
-static void
+void
 qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
                                virDomainObj *vm)
 {
@@ -7350,49 +7323,6 @@ qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
     qemuDomainRemoveInactiveCommon(driver, vm);
 
     virDomainObjListRemoveLocked(driver->domains, vm);
-}
-
-/**
- * qemuDomainRemoveInactiveJob:
- *
- * Just like qemuDomainRemoveInactive but it tries to grab a
- * VIR_JOB_MODIFY first. Even though it doesn't succeed in
- * grabbing the job the control carries with
- * qemuDomainRemoveInactive call.
- */
-void
-qemuDomainRemoveInactiveJob(virQEMUDriver *driver,
-                            virDomainObj *vm)
-{
-    bool haveJob;
-
-    haveJob = qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) >= 0;
-
-    qemuDomainRemoveInactive(driver, vm);
-
-    if (haveJob)
-        qemuDomainObjEndJob(vm);
-}
-
-
-/**
- * qemuDomainRemoveInactiveJobLocked:
- *
- * Similar to qemuDomainRemoveInactiveJob, except that the caller must
- * also hold the lock @driver->domains
- */
-void
-qemuDomainRemoveInactiveJobLocked(virQEMUDriver *driver,
-                                  virDomainObj *vm)
-{
-    bool haveJob;
-
-    haveJob = qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) >= 0;
-
-    qemuDomainRemoveInactiveLocked(driver, vm);
-
-    if (haveJob)
-        qemuDomainObjEndJob(vm);
 }
 
 
@@ -11814,4 +11744,45 @@ qemuDomainDeviceBackendChardevForeach(virDomainDef *def,
                                            qemuDomainDeviceBackendChardevIter,
                                            DOMAIN_DEVICE_ITERATE_MISSING_INFO,
                                            &data);
+}
+
+
+int
+qemuDomainRemoveLogs(virQEMUDriver *driver,
+                     const char *name)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = NULL;
+    g_autofree char *format = NULL;
+    g_autofree char *main_log = NULL;
+    g_autoptr(DIR) dir = NULL;
+    struct dirent *entry;
+    int rc;
+
+    cfg = virQEMUDriverGetConfig(driver);
+    if (!cfg->stdioLogD)
+        return 0;
+
+    if (virDirOpen(&dir, cfg->logDir) < 0)
+        return -1;
+
+    main_log = g_strdup_printf("%s.log", name);
+    format = g_strdup_printf("%s.log.%%u", name);
+
+    while ((rc = virDirRead(dir, &entry, cfg->logDir)) > 0) {
+        unsigned int u;
+
+        if (STREQ(entry->d_name, main_log) ||
+            sscanf(entry->d_name, format, &u) == 1) {
+            g_autofree char *path = NULL;
+
+            path = g_strdup_printf("%s/%s", cfg->logDir, entry->d_name);
+            if (unlink(path) && errno != ENOENT)
+                VIR_WARN("unlink(%s) error: %s", path, g_strerror(errno));
+        }
+    }
+
+    if (rc < 0)
+        return -1;
+
+    return 0;
 }

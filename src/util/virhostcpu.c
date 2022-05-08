@@ -1316,10 +1316,79 @@ virHostCPUGetMSR(unsigned long index,
 }
 
 
+/**
+ * virHostCPUGetCPUIDFilterVolatile:
+ *
+ * Filters the 'kvm_cpuid2' struct and removes data which may change depending
+ * on the CPU core this was run on.
+ *
+ * Currently filtered fields:
+ * - local APIC ID
+ * - topology ids and information on AMD cpus
+ */
+static void
+virHostCPUGetCPUIDFilterVolatile(struct kvm_cpuid2 *kvm_cpuid)
+{
+    size_t i;
+    bool isAMD = false;
+
+    for (i = 0; i < kvm_cpuid->nent; ++i) {
+        struct kvm_cpuid_entry2 *entry = &kvm_cpuid->entries[i];
+
+        /* filter out local apic id */
+        if (entry->function == 0x01 && entry->index == 0x00)
+            entry->ebx &= 0x00ffffff;
+        if (entry->function == 0x0b)
+            entry->edx &= 0xffffff00;
+
+        /* Match AMD hosts */
+        if (entry->function == 0x00 && entry->index == 0x00 &&
+            entry->ebx == 0x68747541 && /* Auth */
+            entry->edx == 0x69746e65 && /* enti */
+            entry->ecx == 0x444d4163)   /* cAMD */
+            isAMD = true;
+
+        /* AMD APIC ID and topology information:
+         *
+         * Leaf 0x8000001e
+         *
+         * CPUID Fn8000_001E_EAX Extended APIC ID
+         *  31:0 ExtendedApicId: extended APIC ID.
+         *
+         * CPUID Fn8000_001E_EBX Compute Unit Identifiers
+         *  31:10 Reserved.
+         *  9:8   CoresPerComputeUnit: cores per compute unit.
+         *        The number of cores per compute unit is CoresPerComputeUnit+1.
+         *  7:0   ComputeUnitId: compute unit ID. Identifies the processor compute unit ID.
+         *
+         * CPUID Fn8000_001E_ECX Node Identifiers
+         *  31:11 Reserved.
+         *  10:8  NodesPerProcessor. Specifies the number of nodes per processor.
+         *          000b      1  node per processor
+         *          001b      2  nodes per processor
+         *          111b-010b Reserved
+         *  7:0   NodeId. Specifies the node ID.
+         *
+         * CPUID Fn8000_001E_EDX Reserved
+         *  31:0 Reserved.
+         *
+         * For libvirt none of this information seems to be interesting, thus
+         * we clear all of it including reserved bits for future-proofing.
+         */
+        if (isAMD && entry->function == 0x8000001e) {
+            entry->eax = 0x00;
+            entry->ebx = 0x00;
+            entry->ecx = 0x00;
+            entry->edx = 0x00;
+        }
+    }
+}
+
+
 struct kvm_cpuid2 *
 virHostCPUGetCPUID(void)
 {
-    size_t i;
+    size_t alloc_size;
     VIR_AUTOCLOSE fd = open(KVM_DEVICE, O_RDONLY);
 
     if (fd < 0) {
@@ -1327,24 +1396,33 @@ virHostCPUGetCPUID(void)
         return NULL;
     }
 
-    for (i = 1; i < INT32_MAX; i *= 2) {
+    /* Userspace invokes KVM_GET_SUPPORTED_CPUID by passing a kvm_cpuid2 structure
+     * with the 'nent' field indicating the number of entries in the variable-size
+     * array 'entries'.  If the number of entries is too low to describe the cpu
+     * capabilities, an error (E2BIG) is returned.  If the number is too high,
+     * the 'nent' field is adjusted and an error (ENOMEM) is returned.  If the
+     * number is just right, the 'nent' field is adjusted to the number of valid
+     * entries in the 'entries' array, which is then filled. */
+    for (alloc_size = 64; alloc_size <= 65536; alloc_size *= 2) {
         g_autofree struct kvm_cpuid2 *kvm_cpuid = NULL;
+
         kvm_cpuid = g_malloc0(sizeof(struct kvm_cpuid2) +
-                              sizeof(struct kvm_cpuid_entry2) * i);
-        kvm_cpuid->nent = i;
+                              sizeof(struct kvm_cpuid_entry2) * alloc_size);
+        kvm_cpuid->nent = alloc_size;
 
         if (ioctl(fd, KVM_GET_SUPPORTED_CPUID, kvm_cpuid) == 0) {
-            /* filter out local apic id */
-            for (i = 0; i < kvm_cpuid->nent; ++i) {
-                struct kvm_cpuid_entry2 *entry = &kvm_cpuid->entries[i];
-                if (entry->function == 0x01 && entry->index == 0x00)
-                    entry->ebx &= 0x00ffffff;
-                if (entry->function == 0x0b)
-                    entry->edx &= 0xffffff00;
-            }
-
+            virHostCPUGetCPUIDFilterVolatile(kvm_cpuid);
             return g_steal_pointer(&kvm_cpuid);
         }
+
+        /* enlarge the buffer and try again */
+        if (errno == E2BIG) {
+            VIR_DEBUG("looping %zu", alloc_size);
+            continue;
+        }
+
+        /* we fail on any other error code to prevent pointless looping */
+        break;
     }
 
     virReportSystemError(errno, "%s", _("Cannot read host CPUID"));

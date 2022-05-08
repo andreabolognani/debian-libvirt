@@ -435,6 +435,7 @@ qemuProcessHandleReset(qemuMonitor *mon G_GNUC_UNUSED,
     if (priv->agent)
         qemuAgentNotifyEvent(priv->agent, QEMU_AGENT_EVENT_RESET);
 
+    qemuDomainSetFakeReboot(vm, false);
     qemuDomainSaveStatus(vm);
 
  unlock:
@@ -2347,11 +2348,7 @@ qemuProcessWaitForMonitor(virQEMUDriver *driver,
     int ret = -1;
     g_autoptr(GHashTable) info = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
-    bool retry = true;
-
-    if (priv->qemuCaps &&
-        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE))
-        retry = false;
+    bool retry = false;
 
     VIR_DEBUG("Connect monitor to vm=%p name='%s' retry=%d",
               vm, vm->def->name, retry);
@@ -2650,7 +2647,8 @@ qemuProcessSetupPid(virDomainObj *vm,
         virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUSET)) {
 
         if (virDomainNumatuneGetMode(vm->def->numa, -1, &mem_mode) == 0 &&
-            mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT &&
+            (mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT ||
+             mem_mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) &&
             virDomainNumatuneMaybeFormatNodeset(vm->def->numa,
                                                 priv->autoNodeset,
                                                 &mem_mask, -1) < 0)
@@ -2699,8 +2697,7 @@ qemuProcessSetupPid(virDomainObj *vm,
 
         }
 
-        if ((period || quota) &&
-            virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
+        if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
             goto cleanup;
 
         /* Move the thread to the sub dir */
@@ -3167,7 +3164,8 @@ static int qemuProcessHook(void *data)
         goto cleanup;
 
     if (virDomainNumatuneGetMode(h->vm->def->numa, -1, &mode) == 0) {
-        if (mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT &&
+        if ((mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT ||
+             mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) &&
             h->cfg->cgroupControllers & (1 << VIR_CGROUP_CONTROLLER_CPUSET) &&
             virCgroupControllerAvailable(VIR_CGROUP_CONTROLLER_CPUSET)) {
             /* Use virNuma* API iff necessary. Once set and child is exec()-ed,
@@ -3997,6 +3995,7 @@ qemuProcessVNCAllocatePorts(virQEMUDriver *driver,
         if (virPortAllocatorAcquire(driver->remotePorts, &port) < 0)
             return -1;
         graphics->data.vnc.port = port;
+        graphics->data.vnc.portReserved = true;
     }
 
     if (graphics->data.vnc.websocket == -1) {
@@ -4004,6 +4003,7 @@ qemuProcessVNCAllocatePorts(virQEMUDriver *driver,
             return -1;
         graphics->data.vnc.websocket = port;
         graphics->data.vnc.websocketGenerated = true;
+        graphics->data.vnc.websocketReserved = true;
     }
 
     return 0;
@@ -4072,9 +4072,7 @@ qemuProcessSPICEAllocatePorts(virQEMUDriver *driver,
             return -1;
 
         graphics->data.spice.port = port;
-
-        if (!graphics->data.spice.autoport)
-            graphics->data.spice.portReserved = true;
+        graphics->data.spice.portReserved = true;
     }
 
     if (needTLSPort || graphics->data.spice.tlsPort == -1) {
@@ -4089,9 +4087,7 @@ qemuProcessSPICEAllocatePorts(virQEMUDriver *driver,
             return -1;
 
         graphics->data.spice.tlsPort = tlsPort;
-
-        if (!graphics->data.spice.autoport)
-            graphics->data.spice.tlsPortReserved = true;
+        graphics->data.spice.tlsPortReserved = true;
     }
 
     return 0;
@@ -4562,8 +4558,7 @@ qemuProcessIncomingDefFree(qemuProcessIncomingDef *inc)
         return;
 
     g_free(inc->address);
-    g_free(inc->launchURI);
-    g_free(inc->deferredURI);
+    g_free(inc->uri);
     g_free(inc);
 }
 
@@ -4592,14 +4587,9 @@ qemuProcessIncomingDefNew(virQEMUCaps *qemuCaps,
 
     inc->address = g_strdup(listenAddress);
 
-    inc->launchURI = qemuMigrationDstGetURI(migrateFrom, fd);
-    if (!inc->launchURI)
+    inc->uri = qemuMigrationDstGetURI(migrateFrom, fd);
+    if (!inc->uri)
         goto error;
-
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_INCOMING_DEFER)) {
-        inc->deferredURI = inc->launchURI;
-        inc->launchURI = g_strdup("defer");
-    }
 
     inc->fd = fd;
     inc->path = path;
@@ -4686,9 +4676,11 @@ qemuProcessGraphicsReservePorts(virDomainGraphicsDef *graphics,
                 return -1;
             graphics->data.vnc.portReserved = true;
         }
-        if (graphics->data.vnc.websocket > 0 &&
-            virPortAllocatorSetUsed(graphics->data.vnc.websocket) < 0)
-            return -1;
+        if (graphics->data.vnc.websocket > 0) {
+            if (virPortAllocatorSetUsed(graphics->data.vnc.websocket) < 0)
+                return -1;
+            graphics->data.vnc.websocketReserved = true;
+        }
         break;
 
     case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
@@ -6856,8 +6848,7 @@ qemuProcessPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_CHR_TYPE_UNIX:
-        if (chardev->data.nix.listen &&
-            virQEMUCapsGet(data->priv->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE)) {
+        if (chardev->data.nix.listen) {
             VIR_AUTOCLOSE sourcefd = -1;
 
             if (qemuSecuritySetSocketLabel(data->priv->driver->securityManager, data->def) < 0)
@@ -7377,12 +7368,11 @@ qemuProcessLaunch(virConnectPtr conn,
     unsigned long long maxMemLock = 0;
 
     VIR_DEBUG("conn=%p driver=%p vm=%p name=%s if=%d asyncJob=%d "
-              "incoming.launchURI=%s incoming.deferredURI=%s "
+              "incoming.uri=%s "
               "incoming.fd=%d incoming.path=%s "
               "snapshot=%p vmop=%d flags=0x%x",
               conn, driver, vm, vm->def->name, vm->def->id, asyncJob,
-              NULLSTR(incoming ? incoming->launchURI : NULL),
-              NULLSTR(incoming ? incoming->deferredURI : NULL),
+              NULLSTR(incoming ? incoming->uri : NULL),
               incoming ? incoming->fd : -1,
               NULLSTR(incoming ? incoming->path : NULL),
               snapshot, vmop, flags);
@@ -7433,7 +7423,7 @@ qemuProcessLaunch(virConnectPtr conn,
     VIR_DEBUG("Building emulator command line");
     if (!(cmd = qemuBuildCommandLine(driver,
                                      vm,
-                                     incoming ? incoming->launchURI : NULL,
+                                     incoming ? "defer" : NULL,
                                      snapshot, vmop,
                                      false,
                                      qemuCheckFips(vm),
@@ -7643,7 +7633,7 @@ qemuProcessLaunch(virConnectPtr conn,
         goto cleanup;
 
     VIR_DEBUG("Setting global CPU cgroup (if required)");
-    if (virDomainCgroupSetupGlobalCpuCgroup(vm, priv->cgroup, priv->autoNodeset) < 0)
+    if (virDomainCgroupSetupGlobalCpuCgroup(vm, priv->cgroup) < 0)
         goto cleanup;
 
     VIR_DEBUG("Setting vCPU tuning/settings");
@@ -7860,8 +7850,7 @@ qemuProcessStart(virConnectPtr conn,
     relabel = true;
 
     if (incoming) {
-        if (incoming->deferredURI &&
-            qemuMigrationDstRun(driver, vm, incoming->deferredURI, asyncJob) < 0)
+        if (qemuMigrationDstRun(driver, vm, incoming->uri, asyncJob) < 0)
             goto stop;
     } else {
         /* Refresh state of devices from QEMU. During migration this happens
@@ -8273,34 +8262,28 @@ void qemuProcessStop(virQEMUDriver *driver,
     for (i = 0; i < vm->def->ngraphics; ++i) {
         virDomainGraphicsDef *graphics = vm->def->graphics[i];
         if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC) {
-            if (graphics->data.vnc.autoport) {
-                virPortAllocatorRelease(graphics->data.vnc.port);
-            } else if (graphics->data.vnc.portReserved) {
+            if (graphics->data.vnc.portReserved) {
                 virPortAllocatorRelease(graphics->data.vnc.port);
                 graphics->data.vnc.portReserved = false;
             }
-            if (graphics->data.vnc.websocketGenerated) {
+            if (graphics->data.vnc.websocketReserved) {
                 virPortAllocatorRelease(graphics->data.vnc.websocket);
+                graphics->data.vnc.websocketReserved = false;
+            }
+            if (graphics->data.vnc.websocketGenerated) {
                 graphics->data.vnc.websocketGenerated = false;
                 graphics->data.vnc.websocket = -1;
-            } else if (graphics->data.vnc.websocket) {
-                virPortAllocatorRelease(graphics->data.vnc.websocket);
             }
         }
         if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
-            if (graphics->data.spice.autoport) {
+            if (graphics->data.spice.portReserved) {
                 virPortAllocatorRelease(graphics->data.spice.port);
-                virPortAllocatorRelease(graphics->data.spice.tlsPort);
-            } else {
-                if (graphics->data.spice.portReserved) {
-                    virPortAllocatorRelease(graphics->data.spice.port);
-                    graphics->data.spice.portReserved = false;
-                }
+                graphics->data.spice.portReserved = false;
+            }
 
-                if (graphics->data.spice.tlsPortReserved) {
-                    virPortAllocatorRelease(graphics->data.spice.tlsPort);
-                    graphics->data.spice.tlsPortReserved = false;
-                }
+            if (graphics->data.spice.tlsPortReserved) {
+                virPortAllocatorRelease(graphics->data.spice.tlsPort);
+                graphics->data.spice.tlsPortReserved = false;
             }
         }
     }
@@ -8744,7 +8727,7 @@ qemuProcessReconnect(void *opaque)
     size_t i;
     unsigned int stopFlags = 0;
     bool jobStarted = false;
-    bool retry = true;
+    bool retry = false;
     bool tryMonReconn = false;
 
     virIdentitySetCurrent(data->identity);
@@ -8779,9 +8762,6 @@ qemuProcessReconnect(void *opaque)
 
     if (qemuHostdevUpdateActiveDomainDevices(driver, obj->def) < 0)
         goto error;
-
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE))
-        retry = false;
 
     if (qemuDomainObjStartWorker(obj) < 0)
         goto error;
@@ -8994,14 +8974,10 @@ qemuProcessReconnect(void *opaque)
         driver->inhibitCallback(true, driver->inhibitOpaque);
 
  cleanup:
-    if (jobStarted) {
-        if (!virDomainObjIsActive(obj))
-            qemuDomainRemoveInactive(driver, obj);
+    if (jobStarted)
         qemuDomainObjEndJob(obj);
-    } else {
-        if (!virDomainObjIsActive(obj))
-            qemuDomainRemoveInactiveJob(driver, obj);
-    }
+    if (!virDomainObjIsActive(obj))
+        qemuDomainRemoveInactive(driver, obj);
     virDomainObjEndAPI(&obj);
     virIdentitySetCurrent(NULL);
     return;
@@ -9073,7 +9049,7 @@ qemuProcessReconnectHelper(virDomainObj *obj,
          */
         qemuProcessStop(src->driver, obj, VIR_DOMAIN_SHUTOFF_FAILED,
                         VIR_ASYNC_JOB_NONE, 0);
-        qemuDomainRemoveInactiveJobLocked(src->driver, obj);
+        qemuDomainRemoveInactiveLocked(src->driver, obj);
 
         virDomainObjEndAPI(&obj);
         g_clear_object(&data->identity);

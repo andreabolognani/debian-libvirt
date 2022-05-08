@@ -2190,7 +2190,7 @@ qemuMigrationSrcCleanup(virDomainObj *vm,
     VIR_DEBUG("vm=%s, conn=%p, asyncJob=%s, phase=%s",
               vm->def->name, conn,
               virDomainAsyncJobTypeToString(priv->job.asyncJob),
-              virDomainAsyncJobPhaseToString(priv->job.asyncJob,
+              qemuDomainAsyncJobPhaseToString(priv->job.asyncJob,
                                               priv->job.phase));
 
     if (!qemuMigrationJobIsActive(vm, VIR_ASYNC_JOB_MIGRATION_OUT))
@@ -3040,8 +3040,7 @@ qemuMigrationDstPrepareAny(virQEMUDriver *driver,
         VIR_DEBUG("Received no lockstate");
     }
 
-    if (incoming->deferredURI &&
-        qemuMigrationDstRun(driver, vm, incoming->deferredURI,
+    if (qemuMigrationDstRun(driver, vm, incoming->uri,
                             VIR_ASYNC_JOB_MIGRATION_IN) < 0)
         goto stopjob;
 
@@ -3101,7 +3100,7 @@ qemuMigrationDstPrepareAny(virQEMUDriver *driver,
             virPortAllocatorRelease(priv->nbdPort);
         priv->nbdPort = 0;
         virDomainObjRemoveTransientDef(vm);
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
     }
     virDomainObjEndAPI(&vm);
     virObjectEventStateQueue(driver->domainEventState, event);
@@ -3518,7 +3517,7 @@ qemuMigrationSrcConfirm(virQEMUDriver *driver,
             virDomainDeleteConfig(cfg->configDir, cfg->autostartDir, vm);
             vm->persistent = 0;
         }
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
     }
 
  cleanup:
@@ -5343,7 +5342,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
             virDomainDeleteConfig(cfg->configDir, cfg->autostartDir, vm);
             vm->persistent = 0;
         }
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
     }
 
     virErrorRestore(&orig_err);
@@ -5417,7 +5416,7 @@ qemuMigrationSrcPerformPhase(virQEMUDriver *driver,
     }
 
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
 
     return ret;
 }
@@ -5878,7 +5877,7 @@ qemuMigrationDstFinish(virQEMUDriver *driver,
 
     qemuMigrationJobFinish(vm);
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactiveJob(driver, vm);
+        qemuDomainRemoveInactive(driver, vm);
 
  cleanup:
     g_clear_pointer(&jobData, virDomainJobDataFree);

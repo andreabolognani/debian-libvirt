@@ -672,6 +672,10 @@ int qemuDomainSnapshotDiscardAllMetadata(virQEMUDriver *driver,
 void qemuDomainRemoveInactive(virQEMUDriver *driver,
                               virDomainObj *vm);
 
+void
+qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
+                               virDomainObj *vm);
+
 void qemuDomainSetFakeReboot(virDomainObj *vm,
                              bool value);
 
@@ -866,9 +870,6 @@ void qemuDomainSecretInfoDestroy(qemuDomainSecretInfo *secinfo);
 void qemuDomainSecretDiskDestroy(virDomainDiskDef *disk)
     ATTRIBUTE_NONNULL(1);
 
-bool qemuDomainStorageSourceHasAuth(virStorageSource *src)
-    ATTRIBUTE_NONNULL(1);
-
 qemuDomainSecretInfo *
 qemuDomainSecretInfoTLSNew(qemuDomainObjPrivate *priv,
                            const char *srcAlias,
@@ -1036,12 +1037,6 @@ int
 qemuDomainDefNumaCPUsRectify(virDomainDef *def,
                              virQEMUCaps *qemuCaps);
 
-void qemuDomainRemoveInactiveJob(virQEMUDriver *driver,
-                                 virDomainObj *vm);
-
-void qemuDomainRemoveInactiveJobLocked(virQEMUDriver *driver,
-                                       virDomainObj *vm);
-
 int virQEMUFileOpenAs(uid_t fallback_uid,
                       gid_t fallback_gid,
                       bool dynamicOwnership,
@@ -1084,3 +1079,7 @@ int
 qemuDomainDeviceBackendChardevForeach(virDomainDef *def,
                                       qemuDomainDeviceBackendChardevForeachCallback cb,
                                       void *opaque);
+
+int
+qemuDomainRemoveLogs(virQEMUDriver *driver,
+                     const char *name);
