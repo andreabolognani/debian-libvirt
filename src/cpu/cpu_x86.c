@@ -3309,14 +3309,18 @@ virCPUx86DataIsIdentical(const virCPUData *a,
     if (!a || !b)
         return VIR_CPU_COMPARE_ERROR;
 
-    if (a->arch != b->arch)
+    if (a->arch != b->arch) {
+        VIR_DEBUG("incompatible architecture a:%u b:%u", a->arch, b->arch);
         return VIR_CPU_COMPARE_INCOMPATIBLE;
+    }
 
-    if (!((adata = &a->data.x86) && (bdata = &b->data.x86)))
-        return VIR_CPU_COMPARE_ERROR;
+    adata = &a->data.x86;
+    bdata = &b->data.x86;
 
-    if (adata->len != bdata->len)
+    if (adata->len != bdata->len) {
+        VIR_DEBUG("unequal length a:%zu b:%zu", adata->len, bdata->len);
         return VIR_CPU_COMPARE_INCOMPATIBLE;
+    }
 
     for (i = 0; i < adata->len; ++i) {
         bool found = false;
@@ -3330,8 +3334,10 @@ virCPUx86DataIsIdentical(const virCPUData *a,
             break;
         }
 
-        if (!found)
+        if (!found) {
+            VIR_DEBUG("mismatched data");
             return VIR_CPU_COMPARE_INCOMPATIBLE;
+        }
     }
 
     return VIR_CPU_COMPARE_IDENTICAL;
@@ -3346,16 +3352,17 @@ virCPUx86DataGetHost(void)
     size_t i;
     virCPUData *cpuid;
     g_autofree struct kvm_cpuid2 *kvm_cpuid = NULL;
+    virCPUx86DataItem zero = { 0 };
 
     if ((kvm_cpuid = virHostCPUGetCPUID()) == NULL)
         return NULL;
 
     cpuid = virCPUDataNew(virArchFromHost());
-    cpuid->data.x86.len = kvm_cpuid->nent;
+    cpuid->data.x86.len = 0;
     cpuid->data.x86.items = g_new0(virCPUx86DataItem, kvm_cpuid->nent);
 
     for (i = 0; i < kvm_cpuid->nent; ++i) {
-        virCPUx86DataItem *item = &cpuid->data.x86.items[i];
+        virCPUx86DataItem *item = &cpuid->data.x86.items[cpuid->data.x86.len];
         item->type = VIR_CPU_X86_DATA_CPUID;
         item->data.cpuid.eax_in = kvm_cpuid->entries[i].function;
         item->data.cpuid.ecx_in = kvm_cpuid->entries[i].index;
@@ -3363,7 +3370,17 @@ virCPUx86DataGetHost(void)
         item->data.cpuid.ebx = kvm_cpuid->entries[i].ebx;
         item->data.cpuid.ecx = kvm_cpuid->entries[i].ecx;
         item->data.cpuid.edx = kvm_cpuid->entries[i].edx;
+
+        /* skip all-zero leaves same as we do in the XML formatter */
+        if (virCPUx86DataItemMatch(item, &zero))
+            continue;
+
+        cpuid->data.x86.len++;
     }
+
+    /* the rest of the code expects the function to be in order */
+    qsort(cpuid->data.x86.items, cpuid->data.x86.len,
+          sizeof(virCPUx86DataItem), virCPUx86DataSorter);
 
     return cpuid;
 }

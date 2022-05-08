@@ -67,7 +67,6 @@
   <flag name='rtl8139'/>
   <flag name='e1000'/>
   <flag name='virtio-net'/>
-  <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-keyboard'/>
   <flag name='virtio-mouse'/>
@@ -102,11 +101,9 @@
   <flag name='chardev-reconnect'/>
   <flag name='vxhs'/>
   <flag name='virtio-blk.num-queues'/>
-  <flag name='machine.pseries.resize-hpt'/>
   <flag name='spapr-vty'/>
   <flag name='disk-share-rw'/>
   <flag name='isa-serial'/>
-  <flag name='machine.pseries.max-cpu-compat'/>
   <flag name='dump-completed'/>
   <flag name='qcow2-luks'/>
   <flag name='pcie-pci-bridge'/>
@@ -120,11 +117,9 @@
   <flag name='hda-output'/>
   <flag name='blockdev-del'/>
   <flag name='vhost-vsock'/>
-  <flag name='chardev-fd-pass'/>
   <flag name='tpm-emulator'/>
   <flag name='machine.pseries.cap-hpt-max-page-size'/>
   <flag name='machine.pseries.cap-htm'/>
-  <flag name='usb-storage.werror'/>
   <flag name='egl-headless'/>
   <flag name='vfio-pci.display'/>
   <flag name='blockdev'/>
@@ -138,7 +133,6 @@
   <flag name='nvdimm.unarmed'/>
   <flag name='scsi-disk.device_id'/>
   <flag name='virtio-pci-non-transitional'/>
-  <flag name='overcommit'/>
   <flag name='query-current-machine'/>
   <flag name='bitmap-merge'/>
   <flag name='nbd-bitmap'/>
@@ -159,7 +153,6 @@
   <flag name='vhost-user-fs'/>
   <flag name='query-named-block-nodes.flat'/>
   <flag name='blockdev-snapshot.allow-write-only-overlay'/>
-  <flag name='storage.werror'/>
   <flag name='fsdev.multidevs'/>
   <flag name='virtio.packed'/>
   <flag name='pcie-root-port.hotplug'/>
@@ -187,6 +180,7 @@
   <flag name='query-display-options'/>
   <flag name='virtio-blk.queue-size'/>
   <flag name='memory-backend-file.prealloc-threads'/>
+  <flag name='virtio-iommu-pci'/>
   <version>5000000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>42900241</microcodeVersion>

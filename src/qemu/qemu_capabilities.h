@@ -322,7 +322,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_E1000, /* -device e1000 */
     QEMU_CAPS_DEVICE_VIRTIO_NET, /* -device virtio-net-* */
     QEMU_CAPS_MACH_VIRT_GIC_VERSION, /* -machine virt,gic-version */
-    QEMU_CAPS_INCOMING_DEFER, /* -incoming defer and migrate_incoming */
+    X_QEMU_CAPS_INCOMING_DEFER, /* -incoming defer and migrate_incoming */
     QEMU_CAPS_DEVICE_VIRTIO_GPU, /* -device virtio-gpu-* */
 
     /* 200 */
@@ -425,7 +425,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
 
     /* 270 */
-    QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT, /* -machine pseries,resize-hpt */
+    X_QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT, /* -machine pseries,resize-hpt */
     QEMU_CAPS_DEVICE_VMCOREINFO, /* -device vmcoreinfo */
     QEMU_CAPS_DEVICE_SPAPR_VTY, /* -device spapr-vty */
     QEMU_CAPS_DEVICE_SCLPLMCONSOLE, /* -device sclplmconsole */
@@ -436,7 +436,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_ISCSI_PASSWORD_SECRET, /* -drive file.driver=iscsi,...,password-secret= */
     QEMU_CAPS_DEVICE_ISA_SERIAL, /* -device isa-serial */
     QEMU_CAPS_DEVICE_PL011, /* -device pl011 (not user-instantiable) */
-    QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT, /* -machine pseries,max-cpu-compat= */
+    X_QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT, /* -machine pseries,max-cpu-compat= */
 
     /* 280 */
     QEMU_CAPS_DUMP_COMPLETED, /* DUMP_COMPLETED event */
@@ -471,7 +471,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_BLOCKDEV_DEL, /* blockdev-del is supported */
     QEMU_CAPS_DEVICE_VMGENID, /* -device vmgenid */
     QEMU_CAPS_DEVICE_VHOST_VSOCK, /* -device vhost-vsock-* */
-    QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE, /* Passing pre-opened FDs for chardevs on commandline */
+    X_QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE, /* Passing pre-opened FDs for chardevs on commandline */
 
     /* 305 */
     QEMU_CAPS_DEVICE_TPM_EMULATOR, /* -tpmdev emulator */
@@ -482,7 +482,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 310 */
     QEMU_CAPS_MACHINE_PSERIES_CAP_HTM, /* -machine pseries.cap-htm */
-    QEMU_CAPS_USB_STORAGE_WERROR, /* -device usb-storage,werror=..,rerror=.. */
+    X_QEMU_CAPS_USB_STORAGE_WERROR, /* -device usb-storage,werror=..,rerror=.. */
     QEMU_CAPS_EGL_HEADLESS, /* -display egl-headless */
     QEMU_CAPS_VFIO_PCI_DISPLAY, /* -device vfio-pci.display */
     QEMU_CAPS_BLOCKDEV, /* -blockdev and blockdev-add are supported */
@@ -504,7 +504,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 325 */
     QEMU_CAPS_SCSI_DISK_DEVICE_ID, /* 'device_id' property of scsi disk */
     QEMU_CAPS_VIRTIO_PCI_TRANSITIONAL, /* virtio *-pci-{non-}transitional devices */
-    QEMU_CAPS_OVERCOMMIT, /* -overcommit */
+    X_QEMU_CAPS_OVERCOMMIT, /* -overcommit */
     QEMU_CAPS_QUERY_CURRENT_MACHINE, /* query-current-machine command */
     QEMU_CAPS_MACHINE_VIRT_IOMMU, /* -machine virt,iommu */
 
@@ -548,7 +548,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT, /* query-named-block-nodes supports the 'flat' option */
     QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY, /* blockdev-snapshot has the 'allow-write-only-overlay' feature */
     QEMU_CAPS_BLOCKDEV_REOPEN, /* 'blockdev-reopen' qmp command is supported */
-    QEMU_CAPS_STORAGE_WERROR, /* virtio-blk,scsi-hd.werror */
+    X_QEMU_CAPS_STORAGE_WERROR, /* virtio-blk,scsi-hd.werror */
 
     /* 360 */
     QEMU_CAPS_FSDEV_MULTIDEVS, /* fsdev.multidevs */
@@ -566,7 +566,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 370 */
     QEMU_CAPS_CPU_MIGRATABLE, /* -cpu ...,migratable=on|off */
-    QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_MIGRATABLE, /* query-cpu-model-expansion supports migratable:false */
+    X_QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_MIGRATABLE, /* query-cpu-model-expansion supports migratable:false */
     X_QEMU_CAPS_FW_CFG, /* -fw_cfg command line option */
     QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH, /* max-bandwidth field in migrate-set-parameters */
     QEMU_CAPS_MIGRATION_PARAM_DOWNTIME, /* downtime-limit field in migrate-set-parameters */
@@ -644,6 +644,9 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 425 */
     QEMU_CAPS_BLOCKDEV_NBD_TLS_HOSTNAME, /* tls hostname can be overridden for NBD clients */
     QEMU_CAPS_MEMORY_BACKEND_PREALLOC_THREADS, /* -object memory-backend-*.prealloc-threads */
+    QEMU_CAPS_DEVICE_VIRTIO_IOMMU_PCI, /* -device virtio-iommu-pci */
+    QEMU_CAPS_VIRTIO_IOMMU_BOOT_BYPASS, /* virtio-iommu.boot-bypass */
+    QEMU_CAPS_VIRTIO_NET_RSS, /* virtio-net rss feature */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

@@ -84,7 +84,6 @@
   <flag name='rtl8139'/>
   <flag name='e1000'/>
   <flag name='virtio-net'/>
-  <flag name='incoming-defer'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-gpu.virgl'/>
   <flag name='virtio-keyboard'/>
@@ -150,11 +149,9 @@
   <flag name='blockdev-del'/>
   <flag name='vmgenid'/>
   <flag name='vhost-vsock'/>
-  <flag name='chardev-fd-pass'/>
   <flag name='tpm-emulator'/>
   <flag name='mch'/>
   <flag name='mch.extended-tseg-mbytes'/>
-  <flag name='usb-storage.werror'/>
   <flag name='egl-headless'/>
   <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
@@ -166,7 +163,6 @@
   <flag name='nvdimm.unarmed'/>
   <flag name='scsi-disk.device_id'/>
   <flag name='virtio-pci-non-transitional'/>
-  <flag name='overcommit'/>
   <flag name='query-current-machine'/>
   <flag name='bitmap-merge'/>
   <flag name='nbd-bitmap'/>
@@ -182,11 +178,9 @@
   <flag name='drive-nvme'/>
   <flag name='smp-dies'/>
   <flag name='i8042'/>
-  <flag name='storage.werror'/>
   <flag name='tcg'/>
   <flag name='pvscsi'/>
   <flag name='cpu.migratable'/>
-  <flag name='query-cpu-model-expansion.migratable'/>
   <flag name='migration-param.bandwidth'/>
   <flag name='migration-param.downtime'/>
   <flag name='migration-param.xbzrle-cache-size'/>

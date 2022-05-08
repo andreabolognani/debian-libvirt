@@ -1287,6 +1287,7 @@ VIR_ENUM_IMPL(virDomainIOMMUModel,
               VIR_DOMAIN_IOMMU_MODEL_LAST,
               "intel",
               "smmuv3",
+              "virtio",
 );
 
 VIR_ENUM_IMPL(virDomainVsockModel,
@@ -2580,6 +2581,7 @@ virDomainIOMMUDefFree(virDomainIOMMUDef *iommu)
     if (!iommu)
         return;
 
+    virDomainDeviceInfoClear(&iommu->info);
     g_free(iommu);
 }
 
@@ -4275,13 +4277,14 @@ virDomainDeviceGetInfo(const virDomainDeviceDef *device)
         return &device->data.panic->info;
     case VIR_DOMAIN_DEVICE_MEMORY:
         return &device->data.memory->info;
+    case VIR_DOMAIN_DEVICE_IOMMU:
+        return &device->data.iommu->info;
     case VIR_DOMAIN_DEVICE_VSOCK:
         return &device->data.vsock->info;
 
     /* The following devices do not contain virDomainDeviceInfo */
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
-    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_LAST:
     case VIR_DOMAIN_DEVICE_NONE:
@@ -4577,6 +4580,13 @@ virDomainDeviceInfoIterateFlags(virDomainDef *def,
             return rc;
     }
 
+    device.type = VIR_DOMAIN_DEVICE_IOMMU;
+    if (def->iommu) {
+        device.data.iommu = def->iommu;
+        if ((rc = cb(def, &device, &def->iommu->info, opaque)) != 0)
+            return rc;
+    }
+
     device.type = VIR_DOMAIN_DEVICE_VSOCK;
     if (def->vsock) {
         device.data.vsock = def->vsock;
@@ -4601,12 +4611,6 @@ virDomainDeviceInfoIterateFlags(virDomainDef *def,
         device.type = VIR_DOMAIN_DEVICE_LEASE;
         for (i = 0; i < def->nleases; i++) {
             device.data.lease = def->leases[i];
-            if ((rc = cb(def, &device, NULL, opaque)) != 0)
-                return rc;
-        }
-        device.type = VIR_DOMAIN_DEVICE_IOMMU;
-        if (def->iommu) {
-            device.data.iommu = def->iommu;
             if ((rc = cb(def, &device, NULL, opaque)) != 0)
                 return rc;
         }
@@ -6858,7 +6862,7 @@ virDomainHostdevSubsysUSBDefParseXML(xmlNodePtr node,
     if (virXMLPropTristateBool(node, "autoAddress", VIR_XML_PROP_NONE,
                                &autoAddress) < 0)
         return -1;
-    usbsrc->autoAddress = autoAddress == VIR_TRISTATE_BOOL_YES;
+    virTristateBoolToBool(autoAddress, &usbsrc->autoAddress);
 
     /* Product can validly be 0, so we need some extra help to determine
      * if it is uninitialized */
@@ -7864,7 +7868,7 @@ virSecurityLabelDefParseXML(xmlXPathContextPtr ctxt,
         seclabel->type == VIR_DOMAIN_SECLABEL_NONE)
         seclabel->relabel = false;
 
-    if (virXMLPropTristateBool(ctxt->node, "relabel", VIR_XML_PROP_NONZERO, &relabel) < 0)
+    if (virXMLPropTristateBool(ctxt->node, "relabel", VIR_XML_PROP_NONE, &relabel) < 0)
         return NULL;
 
     virTristateBoolToBool(relabel, &seclabel->relabel);
@@ -8081,7 +8085,7 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
             seclabels[i]->model = g_steal_pointer(&model);
         }
 
-        if (virXMLPropTristateBool(list[i], "relabel", VIR_XML_PROP_NONZERO, &t) < 0)
+        if (virXMLPropTristateBool(list[i], "relabel", VIR_XML_PROP_NONE, &t) < 0)
             goto error;
 
         seclabels[i]->relabel = true;
@@ -8090,7 +8094,7 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
         /* labelskip is only parsed on live images */
         seclabels[i]->labelskip = false;
         if (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE)) {
-            if (virXMLPropTristateBool(list[i], "labelskip", VIR_XML_PROP_NONZERO, &t) < 0)
+            if (virXMLPropTristateBool(list[i], "labelskip", VIR_XML_PROP_NONE, &t) < 0)
                 goto error;
 
             virTristateBoolToBool(t, &seclabels[i]->labelskip);
@@ -8785,46 +8789,6 @@ virDomainDiskDefIotuneParse(virDomainDiskDef *def,
 
     def->blkdeviotune.group_name =
         virXPathString("string(./iotune/group_name)", ctxt);
-
-    if ((def->blkdeviotune.total_bytes_sec &&
-         def->blkdeviotune.read_bytes_sec) ||
-        (def->blkdeviotune.total_bytes_sec &&
-         def->blkdeviotune.write_bytes_sec)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write bytes_sec "
-                         "cannot be set at the same time"));
-        return -1;
-    }
-
-    if ((def->blkdeviotune.total_iops_sec &&
-         def->blkdeviotune.read_iops_sec) ||
-        (def->blkdeviotune.total_iops_sec &&
-         def->blkdeviotune.write_iops_sec)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write iops_sec "
-                         "cannot be set at the same time"));
-        return -1;
-    }
-
-    if ((def->blkdeviotune.total_bytes_sec_max &&
-         def->blkdeviotune.read_bytes_sec_max) ||
-        (def->blkdeviotune.total_bytes_sec_max &&
-         def->blkdeviotune.write_bytes_sec_max)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write bytes_sec_max "
-                         "cannot be set at the same time"));
-        return -1;
-    }
-
-    if ((def->blkdeviotune.total_iops_sec_max &&
-         def->blkdeviotune.read_iops_sec_max) ||
-        (def->blkdeviotune.total_iops_sec_max &&
-         def->blkdeviotune.write_iops_sec_max)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("total and read/write iops_sec_max "
-                         "cannot be set at the same time"));
-        return -1;
-    }
 
     return 0;
 }
@@ -10773,6 +10737,16 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
                            &def->driver.virtio.tx_queue_size) < 0)
             goto error;
 
+        if (virXMLPropTristateSwitch(driver_node, "rss",
+                                     VIR_XML_PROP_NONE,
+                                     &def->driver.virtio.rss) < 0)
+            goto error;
+
+        if (virXMLPropTristateSwitch(driver_node, "rss_hash_report",
+                                     VIR_XML_PROP_NONE,
+                                     &def->driver.virtio.rss_hash_report) < 0)
+            goto error;
+
         if ((tmpNode = virXPathNode("./driver/host", ctxt))) {
             if (virXMLPropTristateSwitch(tmpNode, "csum", VIR_XML_PROP_NONE,
                                          &def->driver.virtio.host.csum) < 0)
@@ -12500,7 +12474,7 @@ virDomainGraphicsDefParseXMLSDL(virDomainGraphicsDef *def,
                                &fullscreen) < 0)
         return -1;
 
-    def->data.sdl.fullscreen = fullscreen == VIR_TRISTATE_BOOL_YES;
+    virTristateBoolToBool(fullscreen, &def->data.sdl.fullscreen);
     def->data.sdl.xauth = virXMLPropString(node, "xauth");
     def->data.sdl.display = virXMLPropString(node, "display");
 
@@ -12569,7 +12543,7 @@ virDomainGraphicsDefParseXMLDesktop(virDomainGraphicsDef *def,
                                &fullscreen) < 0)
         return -1;
 
-    def->data.desktop.fullscreen = fullscreen == VIR_TRISTATE_BOOL_YES;
+    virTristateBoolToBool(fullscreen, &def->data.desktop.fullscreen);
     def->data.desktop.display = virXMLPropString(node, "display");
 
     return 0;
@@ -12605,7 +12579,7 @@ virDomainGraphicsDefParseXMLSpice(virDomainGraphicsDef *def,
     if (virXMLPropTristateBool(node, "autoport", VIR_XML_PROP_NONE,
                                &autoport) < 0)
         return -1;
-    def->data.spice.autoport = autoport == VIR_TRISTATE_BOOL_YES;
+    virTristateBoolToBool(autoport, &def->data.spice.autoport);
 
     def->data.spice.defaultMode = VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_MODE_ANY;
     if (virXMLPropEnum(node, "defaultMode",
@@ -14021,23 +13995,31 @@ virDomainVideoAccelDefParseXML(xmlNodePtr node)
 {
     g_autofree virDomainVideoAccelDef *def = NULL;
     g_autofree char *rendernode = NULL;
+    virTristateBool accel3d;
+    virTristateBool accel2d;
 
     rendernode = virXMLPropString(node, "rendernode");
+    if (virXMLPropTristateBool(node, "accel3d",
+                               VIR_XML_PROP_NONE, &accel3d) < 0)
+        return NULL;
+    if (virXMLPropTristateBool(node, "accel2d",
+                               VIR_XML_PROP_NONE, &accel2d) < 0)
+        return NULL;
+
+    if (!rendernode &&
+        accel3d == VIR_TRISTATE_BOOL_ABSENT &&
+        accel2d == VIR_TRISTATE_BOOL_ABSENT) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                _("missing values for acceleration"));
+        return NULL;
+    }
 
     def = g_new0(virDomainVideoAccelDef, 1);
 
-    if (virXMLPropTristateBool(node, "accel3d",
-                               VIR_XML_PROP_NONE,
-                               &def->accel3d) < 0)
-        return NULL;
-
-    if (virXMLPropTristateBool(node, "accel2d",
-                               VIR_XML_PROP_NONE,
-                               &def->accel2d) < 0)
-        return NULL;
-
     if (rendernode)
         def->rendernode = virFileSanitizePath(rendernode);
+    def->accel3d = accel3d;
+    def->accel2d = accel2d;
 
     return g_steal_pointer(&def);
 }
@@ -14403,7 +14385,7 @@ virDomainRedirFilterUSBDevDefParseXML(xmlNodePtr node)
     if (virXMLPropTristateBool(node, "allow", VIR_XML_PROP_REQUIRED, &allow) < 0)
         return NULL;
 
-    def->allow = allow == VIR_TRISTATE_BOOL_YES;
+    virTristateBoolToBool(allow, &def->allow);
 
     return g_steal_pointer(&def);
 }
@@ -14796,8 +14778,10 @@ virDomainMemoryDefParseXML(virDomainXMLOption *xmlopt,
 
 
 static virDomainIOMMUDef *
-virDomainIOMMUDefParseXML(xmlNodePtr node,
-                          xmlXPathContextPtr ctxt)
+virDomainIOMMUDefParseXML(virDomainXMLOption *xmlopt,
+                          xmlNodePtr node,
+                          xmlXPathContextPtr ctxt,
+                          unsigned int flags)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr driver;
@@ -14832,6 +14816,10 @@ virDomainIOMMUDefParseXML(xmlNodePtr node,
                            &iommu->aw_bits) < 0)
             return NULL;
     }
+
+    if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt,
+                                    &iommu->info, flags) < 0)
+        return NULL;
 
     return g_steal_pointer(&iommu);
 }
@@ -15030,7 +15018,8 @@ virDomainDeviceDefParse(const char *xmlStr,
             return NULL;
         break;
     case VIR_DOMAIN_DEVICE_IOMMU:
-        if (!(dev->data.iommu = virDomainIOMMUDefParseXML(node, ctxt)))
+        if (!(dev->data.iommu = virDomainIOMMUDefParseXML(xmlopt, node,
+                                                          ctxt, flags)))
             return NULL;
         break;
     case VIR_DOMAIN_DEVICE_VSOCK:
@@ -18073,7 +18062,7 @@ virDomainVcpuParse(virDomainDef *def,
                                        VIR_XML_PROP_REQUIRED, &state) < 0)
                 return -1;
 
-            vcpu->online = state == VIR_TRISTATE_BOOL_YES;
+            virTristateBoolToBool(state, &vcpu->online);
 
             if (virXMLPropTristateBool(nodes[i], "hotpluggable",
                                        VIR_XML_PROP_NONE,
@@ -20165,7 +20154,8 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     }
 
     if (n > 0) {
-        if (!(def->iommu = virDomainIOMMUDefParseXML(nodes[0], ctxt)))
+        if (!(def->iommu = virDomainIOMMUDefParseXML(xmlopt, nodes[0],
+                                                     ctxt, flags)))
             return NULL;
     }
     VIR_FREE(nodes);
@@ -22029,7 +22019,7 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDef *src,
         return false;
     }
 
-    return true;
+    return virDomainDeviceInfoCheckABIStability(&src->info, &dst->info);
 }
 
 
@@ -24596,6 +24586,14 @@ virDomainVirtioNetDriverFormat(virBuffer *buf,
     if (def->driver.virtio.tx_queue_size)
         virBufferAsprintf(buf, " tx_queue_size='%u'",
                           def->driver.virtio.tx_queue_size);
+    if (def->driver.virtio.rss != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(buf, " rss='%s'",
+                          virTristateSwitchTypeToString(def->driver.virtio.rss));
+    }
+    if (def->driver.virtio.rss_hash_report != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(buf, " rss_hash_report='%s'",
+                          virTristateSwitchTypeToString(def->driver.virtio.rss_hash_report));
+    }
 
     virDomainVirtioOptionsFormat(buf, def->virtio);
 }
@@ -26911,34 +26909,30 @@ static void
 virDomainLoaderDefFormat(virBuffer *buf,
                          virDomainLoaderDef *loader)
 {
-    const char *readonly = virTristateBoolTypeToString(loader->readonly);
-    const char *secure = virTristateBoolTypeToString(loader->secure);
-    const char *type = virDomainLoaderTypeToString(loader->type);
+    g_auto(virBuffer) loaderAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) loaderChildBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) nvramAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) nvramChildBuf = VIR_BUFFER_INITIALIZER;
 
-    virBufferAddLit(buf, "<loader");
+    if (loader->readonly != VIR_TRISTATE_BOOL_ABSENT)
+        virBufferAsprintf(&loaderAttrBuf, " readonly='%s'",
+                          virTristateBoolTypeToString(loader->readonly));
 
-    if (loader->readonly)
-        virBufferAsprintf(buf, " readonly='%s'", readonly);
-
-    if (loader->secure)
-        virBufferAsprintf(buf, " secure='%s'", secure);
+    if (loader->secure != VIR_TRISTATE_BOOL_ABSENT)
+        virBufferAsprintf(&loaderAttrBuf, " secure='%s'",
+                          virTristateBoolTypeToString(loader->secure));
 
     if (loader->type != VIR_DOMAIN_LOADER_TYPE_NONE)
-        virBufferAsprintf(buf, " type='%s'", type);
+        virBufferAsprintf(&loaderAttrBuf, " type='%s'",
+                          virDomainLoaderTypeToString(loader->type));
 
-    if (loader->path)
-        virBufferEscapeString(buf, ">%s</loader>\n", loader->path);
-    else
-        virBufferAddLit(buf, "/>\n");
+    virBufferEscapeString(&loaderChildBuf, "%s", loader->path);
 
-    if (loader->nvram || loader->nvramTemplate) {
-        virBufferAddLit(buf, "<nvram");
-        virBufferEscapeString(buf, " template='%s'", loader->nvramTemplate);
-        if (loader->nvram)
-            virBufferEscapeString(buf, ">%s</nvram>\n", loader->nvram);
-        else
-            virBufferAddLit(buf, "/>\n");
-    }
+    virXMLFormatElementInternal(buf, "loader", &loaderAttrBuf, &loaderChildBuf, false, false);
+
+    virBufferEscapeString(&nvramAttrBuf, " template='%s'", loader->nvramTemplate);
+    virBufferEscapeString(&nvramChildBuf, "%s", loader->nvram);
+    virXMLFormatElementInternal(buf, "nvram", &nvramAttrBuf, &nvramChildBuf, false, false);
 }
 
 static void
@@ -27430,6 +27424,8 @@ virDomainIOMMUDefFormat(virBuffer *buf,
     }
 
     virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, NULL);
+
+    virDomainDeviceInfoFormat(&childBuf, &iommu->info, 0);
 
     virBufferAsprintf(&attrBuf, " model='%s'",
                       virDomainIOMMUModelTypeToString(iommu->model));

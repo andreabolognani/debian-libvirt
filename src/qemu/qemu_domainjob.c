@@ -74,7 +74,7 @@ qemuDomainJobSetStatsType(virDomainJobData *jobData,
 
 
 const char *
-virDomainAsyncJobPhaseToString(virDomainAsyncJob job,
+qemuDomainAsyncJobPhaseToString(virDomainAsyncJob job,
                                 int phase G_GNUC_UNUSED)
 {
     switch (job) {
@@ -97,7 +97,7 @@ virDomainAsyncJobPhaseToString(virDomainAsyncJob job,
 }
 
 int
-virDomainAsyncJobPhaseFromString(virDomainAsyncJob job,
+qemuDomainAsyncJobPhaseFromString(virDomainAsyncJob job,
                                   const char *phase)
 {
     if (!phase)
@@ -682,7 +682,7 @@ qemuDomainObjSetJobPhase(virDomainObj *obj,
 
     VIR_DEBUG("Setting '%s' phase to '%s'",
               virDomainAsyncJobTypeToString(priv->job.asyncJob),
-              virDomainAsyncJobPhaseToString(priv->job.asyncJob, phase));
+              qemuDomainAsyncJobPhaseToString(priv->job.asyncJob, phase));
 
     if (priv->job.asyncOwner == 0) {
         priv->job.asyncOwnerAPI = g_strdup(virThreadJobGet());
@@ -848,6 +848,16 @@ qemuDomainObjBeginJobInternal(virQEMUDriver *driver,
      * was unlocked, so we need to recheck it. */
     if (!nested && !qemuDomainNestedJobAllowed(&priv->job, job))
         goto retry;
+
+    if (obj->removing) {
+        char uuidstr[VIR_UUID_STRING_BUFLEN];
+
+        virUUIDFormat(obj->def->uuid, uuidstr);
+        virReportError(VIR_ERR_NO_DOMAIN,
+                       _("no domain with matching uuid '%s' (%s)"),
+                       uuidstr, obj->def->name);
+        goto cleanup;
+    }
 
     ignore_value(virTimeMillisNow(&now));
 
@@ -1191,7 +1201,7 @@ qemuDomainObjPrivateXMLFormatJob(virBuffer *buf,
 
     if (priv->job.phase) {
         virBufferAsprintf(&attrBuf, " phase='%s'",
-                          virDomainAsyncJobPhaseToString(priv->job.asyncJob,
+                          qemuDomainAsyncJobPhaseToString(priv->job.asyncJob,
                                                           priv->job.phase));
     }
 
@@ -1244,7 +1254,7 @@ qemuDomainObjPrivateXMLParseJob(virDomainObj *vm,
         priv->job.asyncJob = async;
 
         if ((tmp = virXPathString("string(@phase)", ctxt))) {
-            priv->job.phase = virDomainAsyncJobPhaseFromString(async, tmp);
+            priv->job.phase = qemuDomainAsyncJobPhaseFromString(async, tmp);
             if (priv->job.phase < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                _("Unknown job phase %s"), tmp);

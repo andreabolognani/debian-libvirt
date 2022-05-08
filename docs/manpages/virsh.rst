@@ -1232,7 +1232,7 @@ blockcopy
       [--shallow] [--reuse-external] [bandwidth]
       [--wait [--async] [--verbose]] [{--pivot | --finish}]
       [--timeout seconds] [granularity] [buf-size] [--bytes]
-      [--transient-job] [--synchronous-writes]
+      [--transient-job] [--synchronous-writes] [--print-xml]
 
 Copy a disk backing image chain to a destination.  Either *dest* as
 the destination file name, or *--xml* with the name of an XML file containing
@@ -1297,6 +1297,8 @@ to be propagated both to the original image and to the destination of the copy
 so that it's guaranteed that the job converges if the destination storage is
 slower. This may impact performance of writes while the blockjob is running.
 
+If *--print-xml* is specified, then the XML used to start the block copy job
+is printed instead of starting the job.
 
 blockjob
 --------
@@ -1566,7 +1568,7 @@ destroy
 
 ::
 
-   destroy domain [--graceful]
+   destroy domain [--graceful] [--remove-logs]
 
 Immediately terminate the domain *domain*.  This doesn't give the domain
 OS any chance to react, and it's the equivalent of ripping the power
@@ -1585,6 +1587,11 @@ If *--graceful* is specified, don't resort to extreme measures
 (e.g. SIGKILL) when the guest doesn't stop after a reasonable timeout;
 return an error instead.
 
+If *--remove-logs* is specified, remove per *domain* log files. Not all
+deployment configuration can be supported.
+
+In case of QEMU the flag is only supported if virlogd is used to handle QEMU
+process output. Otherwise the flag is ignored.
 
 
 domblkerror
@@ -2012,7 +2019,8 @@ inbound or outbound bandwidth. *average,peak,burst,floor* is the same as
 in command *attach-interface*.  Values for *average*, *peak* and *floor*
 are expressed in kilobytes per second, while *burst* is expressed in kilobytes
 in a single burst at *peak* speed as described in the Network XML
-documentation at `https://libvirt.org/formatnetwork.html#elementQoS <https://libvirt.org/formatnetwork.html#elementQoS>`__.
+documentation at
+`https://libvirt.org/formatnetwork.html#quality-of-service <https://libvirt.org/formatnetwork.html#quality-of-service>`__.
 
 To clear inbound or outbound settings, use *--inbound* or *--outbound*
 respectfully with average value of zero.
@@ -2500,6 +2508,10 @@ not available for statistical purposes.
   calculation.
 * ``dirtyrate.megabytes_per_second`` - the calculated memory dirty
   rate in MiB/s.
+* ``dirtyrate.calc_mode`` - the calculation mode used last measurement
+  (``page-sampling``/``dirty-bitmap``/``dirty-ring``)
+* ``dirtyrate.vcpu.<num>.megabytes_per_second`` - the calculated memory dirty
+  rate for a virtual cpu in MiB/s
 
 
 Selecting a specific statistics groups doesn't guarantee that the
@@ -4815,7 +4827,7 @@ specified.  The other two *peak* and *burst* are optional, so
 are expressed in kilobytes per second, while *burst* is expressed in
 kilobytes in a single burst at *peak* speed as described in the
 Network XML documentation at
-`https://libvirt.org/formatnetwork.html#elementQoS <https://libvirt.org/formatnetwork.html#elementQoS>`__.
+`https://libvirt.org/formatnetwork.html#quality-of-service <https://libvirt.org/formatnetwork.html#quality-of-service>`__.
 
 ``--managed`` is usable only for *hostdev* type and tells libvirt
 that the interface should be managed, which means detached and reattached
@@ -5198,10 +5210,9 @@ guests via <hostdev> passthrough.  This is reversed with
 ``nodedev-reattach``, and is done automatically for managed devices.
 
 Different backend drivers expect the device to be bound to different
-dummy devices. For example, QEMU's "kvm" backend driver (the default)
-expects the device to be bound to pci-stub, but its "vfio" backend
-driver expects the device to be bound to vfio-pci. The *--driver*
-parameter can be used to specify the desired backend driver.
+dummy devices. For example, QEMU's "vfio" backend driver expects the
+device to be bound to vfio-pci. The *--driver* parameter can be used
+to specify the desired backend driver.
 
 
 nodedev-dumpxml

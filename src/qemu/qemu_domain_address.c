@@ -1002,6 +1002,19 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         }
         break;
 
+    case VIR_DOMAIN_DEVICE_IOMMU:
+        switch ((virDomainIOMMUModel) dev->data.iommu->model) {
+            case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+                return virtioFlags | VIR_PCI_CONNECT_INTEGRATED;
+
+            case VIR_DOMAIN_IOMMU_MODEL_INTEL:
+            case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
+            case VIR_DOMAIN_IOMMU_MODEL_LAST:
+                /* These are not PCI devices */
+                return 0;
+        }
+        break;
+
     case VIR_DOMAIN_DEVICE_VSOCK:
         switch ((virDomainVsockModel) dev->data.vsock->model) {
         case VIR_DOMAIN_VSOCK_MODEL_VIRTIO_TRANSITIONAL:
@@ -1041,7 +1054,6 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         /* These devices don't even have a DeviceInfo */
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
-    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_LAST:
     case VIR_DOMAIN_DEVICE_NONE:
@@ -2367,6 +2379,25 @@ qemuDomainAssignDevicePCISlots(virDomainDef *def,
     }
     for (i = 0; i < def->nhubs; i++) {
         /* Nada - none are PCI based (yet) */
+    }
+
+    if (def->iommu) {
+        virDomainIOMMUDef *iommu = def->iommu;
+
+        switch ((virDomainIOMMUModel) iommu->model) {
+        case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+            if (virDeviceInfoPCIAddressIsWanted(&iommu->info) &&
+                qemuDomainPCIAddressReserveNextAddr(addrs, &iommu->info) < 0) {
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_IOMMU_MODEL_INTEL:
+        case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
+        case VIR_DOMAIN_IOMMU_MODEL_LAST:
+            /* These are not PCI devices */
+            break;
+        }
     }
 
     if (def->vsock &&

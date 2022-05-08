@@ -928,23 +928,26 @@ chConnectSupportsFeature(virConnectPtr conn,
         return supported;
 
     switch ((virDrvFeature) feature) {
+        case VIR_DRV_FEATURE_REMOTE:
+        case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
+        case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
+        case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
         case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
         case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
-            return 1;
+        case VIR_DRV_FEATURE_FD_PASSING:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Global feature %d should have already been handled"),
+                           feature);
+            return -1;
         case VIR_DRV_FEATURE_MIGRATION_V2:
         case VIR_DRV_FEATURE_MIGRATION_V3:
         case VIR_DRV_FEATURE_MIGRATION_P2P:
         case VIR_DRV_FEATURE_MIGRATE_CHANGE_PROTECTION:
-        case VIR_DRV_FEATURE_FD_PASSING:
         case VIR_DRV_FEATURE_XML_MIGRATABLE:
         case VIR_DRV_FEATURE_MIGRATION_OFFLINE:
         case VIR_DRV_FEATURE_MIGRATION_PARAMS:
         case VIR_DRV_FEATURE_MIGRATION_DIRECT:
         case VIR_DRV_FEATURE_MIGRATION_V1:
-        case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
-        case VIR_DRV_FEATURE_REMOTE:
-        case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
-        case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
         default:
             return 0;
     }
@@ -1519,7 +1522,7 @@ chDomainSetNumaParamsLive(virDomainObj *vm,
     size_t i = 0;
 
     if (virDomainNumatuneGetMode(vm->def->numa, -1, &mode) == 0 &&
-        mode != VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
+        mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("change of nodeset for running domain requires strict numa mode"));
         return -1;

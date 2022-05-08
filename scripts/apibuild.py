@@ -111,6 +111,17 @@ ignored_functions = {
     "virErrorCopyNew": "private",
 }
 
+# The version in the .sym file might different from
+# the real version that the function was introduced.
+# This dict's value is the correct version, as it should
+# be in the docstrings.
+ignored_function_versions = {
+    'virDomainSetBlockThreshold': '3.2.0',
+    'virAdmServerUpdateTlsFiles': '6.2.0',
+    'virDomainBlockPeek': '0.4.3',
+    'virDomainMemoryPeek': '0.4.3',
+}
+
 ignored_macros = {
     "_virSchedParameter": "backward compatibility macro for virTypedParameter",
     "_virBlkioParameter": "backward compatibility macro for virTypedParameter",
@@ -722,15 +733,24 @@ class CParser:
             line = line.replace('*', '', 1)
         return line
 
-    def cleanupComment(self):
-        if not isinstance(self.comment, str):
-            return
-        # remove the leading * on multi-line comments
-        lines = self.comment.splitlines(True)
+    def cleanup_code_comment(self, comment: str, type_name="") -> str:
+        if not isinstance(comment, str) or comment == "":
+            return ""
+
+        lines = comment.splitlines(True)
+
+        # If type_name is provided, check and remove header of
+        # the comment block.
+        if type_name != "" and f"{type_name}:" in lines[0]:
+            del lines[0]
+
         com = ""
         for line in lines:
             com = com + self.strip_lead_star(line)
-        self.comment = com.strip()
+        return com.strip()
+
+    def cleanupComment(self):
+        self.comment = self.cleanup_code_comment(self.comment)
 
     def parseComment(self, token):
         com = token[1]
@@ -1145,6 +1165,12 @@ class CParser:
     def parseTypedef(self, token):
         if token is None:
             return None
+
+        # With typedef enum types, we can have comments parsed before the
+        # enum themselves. The parsing of enum values does clear the
+        # self.comment variable. So we store it here for later.
+        typedef_comment = self.comment
+
         token = self.parseType(token)
         if token is None:
             self.error("parsing typedef")
@@ -1168,7 +1194,7 @@ class CParser:
                                        "struct", type)
                         base_type = "struct " + name
                     else:
-                        # TODO report missing or misformatted comments
+                        self.comment = typedef_comment
                         info = self.parseTypeComment(name, 1)
                         self.index_add(name, self.filename, not self.is_header,
                                        "typedef", type, info)
@@ -1921,10 +1947,14 @@ class CParser:
             if token is None or token[0] != 'name':
                 return token
 
+        variable_comment = None
         if token[1] == 'typedef':
             token = self.token()
             return self.parseTypedef(token)
         else:
+            # Store block of comment that might be from variable as
+            # the code uses self.comment a lot and it would lose it.
+            variable_comment = self.comment
             token = self.parseType(token)
             type_orig = self.type
         if token is None or token[0] != "name":
@@ -1970,8 +2000,11 @@ class CParser:
                                        not self.is_header, "struct",
                                        self.struct_fields)
                     else:
+                        # Just to use the cleanupComment function.
+                        variable_comment = self.cleanup_code_comment(variable_comment, self.name)
+                        info = (type, variable_comment)
                         self.index_add(self.name, self.filename,
-                                       not self.is_header, "variable", type)
+                                       not self.is_header, "variable", info)
                     break
                 elif token[1] == "(":
                     token = self.token()
@@ -2178,6 +2211,38 @@ class docBuilder:
         self.scanModules()
         self.scanVersions()
 
+    # Fetch tags from the comment. Only 'Since' supported at the moment.
+    # For functions, since tags are on Return comments.
+    # Return the tags and the original comments, but without the tags.
+    def retrieve_comment_tags(self, name: str, comment: str,
+                              return_comment="") -> (str, str, str):
+        since = ""
+        if comment is not None:
+            comment_match = re.search(r"\(?Since: v?(\d+\.\d+\.\d+\.?\d?)\)?",
+                                      comment)
+            if comment_match:
+                # Remove Since tag from the comment
+                (start, end) = comment_match.span()
+                comment = comment[:start] + comment[end:]
+                comment = comment.strip()
+                # Only the version
+                since = comment_match.group(1)
+
+        if since == "" and return_comment is not None:
+            return_match = re.search(r"\(?Since: v?(\d+\.\d+\.\d+\.?\d?)\)?",
+                                     return_comment)
+            if return_match:
+                # Remove Since tag from the comment
+                (start, end) = return_match.span()
+                return_comment = return_comment[:start] + return_comment[end:]
+                return_comment = return_comment.strip()
+                # Only the version
+                since = return_match.group(1)
+
+        if since == "":
+            self.warning("Missing 'Since' tag for: " + name)
+        return (since, comment, return_comment)
+
     def modulename_file(self, file):
         module = os.path.basename(file)
         if module[-2:] == '.h':
@@ -2211,7 +2276,15 @@ class docBuilder:
             if info[2] is not None and info[2] != '':
                 output.write(" type='%s'" % info[2])
             if info[1] is not None and info[1] != '':
-                output.write(" info='%s'" % escape(info[1]))
+                # Search for 'Since' version tag
+                (since, comment, _) = self.retrieve_comment_tags(name, info[1])
+                if len(since) > 0:
+                    output.write(" version='%s'" % escape(since))
+                if len(comment) > 0:
+                    output.write(" info='%s'" % escape(comment))
+            else:
+                self.warning("Missing docstring for enum: " + name)
+
         output.write("/>\n")
 
     def serialize_macro(self, output, name):
@@ -2233,11 +2306,15 @@ class docBuilder:
             output.write(" string='%s'" % strValue)
         else:
             output.write(" raw='%s'" % escape(rawValue))
+
+        (since, comment, _) = self.retrieve_comment_tags(name, desc)
+        if len(since) > 0:
+            output.write(" version='%s'" % escape(since))
         output.write(">\n")
 
-        if desc is not None and desc != "":
-            output.write("      <info><![CDATA[%s]]></info>\n" % (desc))
-            self.indexString(name, desc)
+        if comment is not None and comment != "":
+            output.write("      <info><![CDATA[%s]]></info>\n" % (comment))
+            self.indexString(name, comment)
         for arg in args:
             (name, desc) = arg
             if desc is not None and desc != "":
@@ -2264,9 +2341,11 @@ class docBuilder:
 
     def serialize_typedef(self, output, name):
         id = self.idx.typedefs[name]
+        (since, comment, _) = self.retrieve_comment_tags(name, id.extra)
+        version_tag = len(since) > 0 and f" version='{since}'" or ""
         if id.info[0:7] == 'struct ':
-            output.write("    <struct name='%s' file='%s' type='%s'" % (
-                name, self.modulename_file(id.header), id.info))
+            output.write("    <struct name='%s' file='%s' type='%s'%s" % (
+                name, self.modulename_file(id.header), id.info, version_tag))
             name = id.info[7:]
             if (name in self.idx.structs and
                     isinstance(self.idx.structs[name].info, (list, tuple))):
@@ -2289,12 +2368,11 @@ class docBuilder:
             else:
                 output.write("/>\n")
         else:
-            output.write("    <typedef name='%s' file='%s' type='%s'" % (
-                         name, self.modulename_file(id.header), id.info))
+            output.write("    <typedef name='%s' file='%s' type='%s'%s" % (
+                         name, self.modulename_file(id.header), id.info, version_tag))
             try:
-                desc = id.extra
-                if desc is not None and desc != "":
-                    output.write(">\n      <info><![CDATA[%s]]></info>\n" % (desc))
+                if comment is not None and comment != "":
+                    output.write(">\n      <info><![CDATA[%s]]></info>\n" % (comment))
                     output.write("    </typedef>\n")
                 else:
                     output.write("/>\n")
@@ -2303,17 +2381,27 @@ class docBuilder:
 
     def serialize_variable(self, output, name):
         id = self.idx.variables[name]
-        if id.info is not None:
-            output.write("    <variable name='%s' file='%s' type='%s'/>\n" % (
-                name, self.modulename_file(id.header), id.info))
+        (type, comment) = id.info
+        (since, comment, _) = self.retrieve_comment_tags(name, comment)
+        version_tag = len(since) > 0 and f" version='{since}'" or ""
+        output.write("    <variable name='%s' file='%s' type='%s'%s" % (
+            name, self.modulename_file(id.header), type, version_tag))
+        if len(comment) == 0:
+            output.write("/>\n")
         else:
-            output.write("    <variable name='%s' file='%s'/>\n" % (
-                name, self.modulename_file(id.header)))
+            output.write(">\n      <info><![CDATA[%s]]></info>\n" % (comment))
+            output.write("    </variable>\n")
 
     def serialize_function(self, output, name):
         id = self.idx.functions[name]
         if name == debugsym and not quiet:
             print("=>", id)
+
+        (ret, params, desc) = id.info
+        return_comment = (ret is not None and ret[1] is not None) and ret[1] or ""
+        (since, comment, return_comment) = self.retrieve_comment_tags(name, desc, return_comment)
+        # Simple way to avoid setting empty version
+        version_tag = len(since) > 0 and f" version='{since}'" or ""
 
         # NB: this is consumed by a regex in 'getAPIFilenames' in hvsupport.pl
         if id.type == "function":
@@ -2324,9 +2412,10 @@ class docBuilder:
                 name, self.modulename_file(id.header),
                 self.modulename_file(id.module), self.versions[name]))
         else:
-            output.write("    <functype name='%s' file='%s' module='%s'>\n" % (
+            output.write("    <functype name='%s' file='%s' module='%s'%s>\n" % (
                 name, self.modulename_file(id.header),
-                self.modulename_file(id.module)))
+                self.modulename_file(id.module),
+                version_tag))
         #
         # Processing of conditionals modified by Bill 1/1/05
         #
@@ -2337,19 +2426,33 @@ class docBuilder:
                     apstr = apstr + " &amp;&amp; "
                 apstr = apstr + cond
             output.write("      <cond>%s</cond>\n" % (apstr))
+
         try:
-            (ret, params, desc) = id.info
-            output.write("      <info><![CDATA[%s]]></info>\n" % (desc))
+            # For functions, we get the since version from .syms files.
+            # This is an extra check to see that docstrings are correct
+            # and to avoid wrong versions in the .sym files too.
+            ver = name in self.versions and self.versions[name] or None
+            if len(since) > 0 and ver is not None and since != ver:
+                if name in ignored_function_versions:
+                    allowedver = ignored_function_versions[name]
+                    if allowedver != since:
+                        self.warning(f"Function {name} has allowed version {allowedver} but docstring says {since}")
+                else:
+                    self.warning(f"Function {name} has symversion {ver} but docstring says {since}")
+
+            output.write("      <info><![CDATA[%s]]></info>\n" % (comment))
             self.indexString(name, desc)
+
             if ret[0] is not None:
                 if ret[0] == "void":
                     output.write("      <return type='void'/>\n")
-                elif (ret[1] is None or ret[1] == '') and name not in ignored_functions:
+                elif (return_comment == '') and name not in ignored_functions:
                     self.error("Missing documentation for return of function `%s'" % name)
                 else:
                     output.write("      <return type='%s' info='%s'/>\n" % (
-                        ret[0], escape(ret[1])))
+                        ret[0], escape(return_comment)))
                     self.indexString(name, ret[1])
+
             for param in params:
                 if param[0] == 'void':
                     continue

@@ -18,46 +18,7 @@ docs_assets = [
 ]
 
 docs_html_in_files = [
-  '404',
-  'cgroups',
-  'csharp',
-  'dbus',
-  'docs',
-  'drvbhyve',
-  'drvesx',
-  'drvhyperv',
-  'drvlxc',
-  'drvnodedev',
-  'drvopenvz',
-  'drvremote',
-  'drvsecret',
-  'drvtest',
-  'drvvbox',
-  'drvvirtuozzo',
-  'drvvmware',
-  'drvxen',
-  'firewall',
-  'format',
-  'formatcaps',
-  'formatdomaincaps',
-  'formatnetwork',
-  'formatnetworkport',
-  'formatnode',
-  'formatnwfilter',
-  'formatstoragecaps',
-  'formatstorageencryption',
-  'hooks',
   'index',
-  'internals',
-  'java',
-  'logging',
-  'php',
-  'python',
-  'remote',
-  'storage',
-  'tlscerts',
-  'uri',
-  'windows',
 ]
 
 docs_rst_files = [
@@ -71,39 +32,72 @@ docs_rst_files = [
   'best-practices',
   'bindings',
   'bugs',
+  'cgroups',
   'ci',
   'coding-style',
   'committer-guidelines',
   'compiling',
   'contact',
   'contribute',
+  'csharp',
   'daemons',
+  'dbus',
+  'docs',
   'downloads',
   'drivers',
+  'drvbhyve',
   'drvch',
+  'drvesx',
+  'drvhyperv',
+  'drvlxc',
+  'drvnodedev',
+  'drvopenvz',
   'drvqemu',
+  'drvsecret',
+  'drvtest',
+  'drvvbox',
+  'drvvirtuozzo',
+  'drvvmware',
+  'drvxen',
   'errors',
+  'firewall',
+  'format',
   'formatbackup',
+  'formatcaps',
   'formatcheckpoint',
   'formatdomain',
+  'formatdomaincaps',
+  'formatnetwork',
+  'formatnetworkport',
+  'formatnode',
+  'formatnwfilter',
   'formatsecret',
   'formatsnapshot',
   'formatstorage',
+  'formatstoragecaps',
+  'formatstorageencryption',
   'glib-adoption',
   'goals',
   'governance',
   'hacking',
+  'hooks',
+  'java',
   'libvirt-go',
   'libvirt-go-xml',
+  'logging',
   'macos',
   'migration',
   'newreposetup',
   'nss',
   'pci-addresses',
   'pci-hotplug',
+  'php',
   'platforms',
   'programming-languages',
+  'python',
+  'remote',
   'securityprocess',
+  'storage',
   'strategy',
   'styleguide',
   'submitting-patches',
@@ -111,6 +105,8 @@ docs_rst_files = [
   'testapi',
   'testsuites',
   'testtck',
+  'uri',
+  'windows',
 ]
 
 # list of web targets to build for docs/web rule
@@ -134,7 +130,6 @@ docs_timestamp = run_command(
 ).stdout().strip()
 
 site_xsl = files('site.xsl')
-subsite_xsl = files('subsite.xsl')
 page_xsl = files('page.xsl')
 newapi_xsl = files('newapi.xsl')
 
@@ -220,7 +215,6 @@ docs_rst2html5_gen = generator(
 
 # html_xslt_gen config
 
-html_xslt_gen_xslt = site_xsl
 html_xslt_gen_install_dir = docs_html_dir
 
 html_xslt_gen = []
@@ -251,6 +245,12 @@ html_xslt_gen += {
   'name': 'acl',
   'source': 'docs' / 'acl.html.in',
   'depends': aclperms_gen,
+}
+
+html_xslt_gen += {
+  'name': '404',
+  'source': 'docs' / '404.html.in',
+  'href_base': '/',
 }
 
 hvsupport_html_in = custom_target(
@@ -304,8 +304,9 @@ foreach data : html_xslt_gen
       '--stringparam', 'pagesrc', data.get('source', ''),
       '--stringparam', 'builddir', meson.build_root(),
       '--stringparam', 'timestamp', docs_timestamp,
+      '--stringparam', 'href_base', data.get('href_base', ''),
       '--nonet',
-      html_xslt_gen_xslt,
+      site_xsl,
       '@INPUT@',
     ],
     depends: data.get('depends', []),
@@ -328,7 +329,6 @@ subdir('fonts')
 subdir('go')
 subdir('html')
 subdir('images')
-subdir('internals')
 subdir('js')
 subdir('kbase')
 subdir('logos')

@@ -721,38 +721,33 @@ libxlStateInitialize(bool privileged,
 
     libxl_driver->config = cfg;
     if (g_mkdir_with_parents(cfg->stateDir, 0777) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create state dir '%s': %s"),
-                       cfg->stateDir,
-                       g_strerror(errno));
+        virReportSystemError(errno,
+                             _("failed to create state dir '%s'"),
+                             cfg->stateDir);
         goto error;
     }
     if (g_mkdir_with_parents(cfg->libDir, 0777) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create lib dir '%s': %s"),
-                       cfg->libDir,
-                       g_strerror(errno));
+        virReportSystemError(errno,
+                             _("failed to create lib dir '%s'"),
+                             cfg->libDir);
         goto error;
     }
     if (g_mkdir_with_parents(cfg->saveDir, 0777) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create save dir '%s': %s"),
-                       cfg->saveDir,
-                       g_strerror(errno));
+        virReportSystemError(errno,
+                             _("failed to create save dir '%s'"),
+                             cfg->saveDir);
         goto error;
     }
     if (g_mkdir_with_parents(cfg->autoDumpDir, 0777) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create dump dir '%s': %s"),
-                       cfg->autoDumpDir,
-                       g_strerror(errno));
+        virReportSystemError(errno,
+                             _("failed to create dump dir '%s'"),
+                             cfg->autoDumpDir);
         goto error;
     }
     if (g_mkdir_with_parents(cfg->channelDir, 0777) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create channel dir '%s': %s"),
-                       cfg->channelDir,
-                       g_strerror(errno));
+        virReportSystemError(errno,
+                             _("failed to create channel dir '%s'"),
+                             cfg->channelDir);
         goto error;
     }
 
@@ -5706,22 +5701,26 @@ libxlConnectSupportsFeature(virConnectPtr conn, int feature)
         return supported;
 
     switch ((virDrvFeature) feature) {
-    case VIR_DRV_FEATURE_MIGRATION_V3:
+    case VIR_DRV_FEATURE_REMOTE:
+    case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
+    case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
+    case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
     case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
+    case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
+    case VIR_DRV_FEATURE_FD_PASSING:
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Global feature %d should have already been handled"),
+                       feature);
+        return -1;
+    case VIR_DRV_FEATURE_MIGRATION_V3:
     case VIR_DRV_FEATURE_MIGRATION_PARAMS:
     case VIR_DRV_FEATURE_MIGRATION_P2P:
-    case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
         return 1;
-    case VIR_DRV_FEATURE_FD_PASSING:
     case VIR_DRV_FEATURE_MIGRATE_CHANGE_PROTECTION:
     case VIR_DRV_FEATURE_MIGRATION_DIRECT:
     case VIR_DRV_FEATURE_MIGRATION_OFFLINE:
     case VIR_DRV_FEATURE_MIGRATION_V1:
     case VIR_DRV_FEATURE_MIGRATION_V2:
-    case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
-    case VIR_DRV_FEATURE_REMOTE:
-    case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
-    case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
     case VIR_DRV_FEATURE_XML_MIGRATABLE:
     default:
         return 0;

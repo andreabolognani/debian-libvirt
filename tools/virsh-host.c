@@ -77,6 +77,7 @@ static const vshCmdInfo info_domcapabilities[] = {
 static const vshCmdOptDef opts_domcapabilities[] = {
     {.name = "virttype",
      .type = VSH_OT_STRING,
+     .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulatorbin",
@@ -85,6 +86,7 @@ static const vshCmdOptDef opts_domcapabilities[] = {
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
+     .completer = virshArchCompleter,
      .help = N_("domain architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
@@ -559,6 +561,7 @@ static const vshCmdInfo info_maxvcpus[] = {
 static const vshCmdOptDef opts_maxvcpus[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
+     .completer = virshDomainVirtTypeCompleter,
      .help = N_("domain type")
     },
     {.name = NULL}
@@ -1310,6 +1313,7 @@ static const vshCmdInfo info_cpu_models[] = {
 static const vshCmdOptDef opts_cpu_models[] = {
     {.name = "arch",
      .type = VSH_OT_DATA,
+     .completer = virshArchCompleter,
      .flags = VSH_OFLAG_REQ,
      .help = N_("architecture")
     },
@@ -1577,6 +1581,7 @@ static const vshCmdOptDef opts_hypervisor_cpu_compare[] = {
     VIRSH_COMMON_OPT_FILE(N_("file containing an XML CPU description")),
     {.name = "virttype",
      .type = VSH_OT_STRING,
+     .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulator",
@@ -1585,6 +1590,7 @@ static const vshCmdOptDef opts_hypervisor_cpu_compare[] = {
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
+     .completer = virshArchCompleter,
      .help = N_("CPU architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
@@ -1686,6 +1692,7 @@ static const vshCmdOptDef opts_hypervisor_cpu_baseline[] = {
     VIRSH_COMMON_OPT_FILE(N_("file containing XML CPU descriptions")),
     {.name = "virttype",
      .type = VSH_OT_STRING,
+     .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulator",
@@ -1694,6 +1701,7 @@ static const vshCmdOptDef opts_hypervisor_cpu_baseline[] = {
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
+     .completer = virshArchCompleter,
      .help = N_("CPU architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",

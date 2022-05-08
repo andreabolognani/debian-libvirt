@@ -1351,10 +1351,8 @@ mymain(void)
     DO_TEST_CAPS_VER("disk-shared", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-shared");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-shared-qcow");
-    DO_TEST_CAPS_VER("disk-error-policy", "2.12.0");
     DO_TEST_CAPS_VER("disk-error-policy", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-error-policy");
-    DO_TEST_CAPS_ARCH_VER("disk-error-policy-s390x", "s390x", "2.12.0");
     DO_TEST_CAPS_ARCH_VER("disk-error-policy-s390x", "s390x", "4.0.0");
     DO_TEST_CAPS_ARCH_LATEST("disk-error-policy-s390x", "s390x");
     DO_TEST_CAPS_VER("disk-cache", "3.1.0");
@@ -1376,6 +1374,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-network-rbd");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-rbd-encryption", "6.0.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-encryption-wrong");
     DO_TEST_CAPS_VER_FAILURE("disk-network-rbd-no-colon", "4.1.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-no-colon");
     DO_TEST_CAPS_VER("disk-network-sheepdog", "4.1.0");
@@ -1482,41 +1481,26 @@ mymain(void)
     DO_TEST_CAPS_LATEST("graphics-egl-headless");
     DO_TEST_CAPS_LATEST("graphics-egl-headless-rendernode");
 
-    /* DO_TEST_CAPS_VER("graphics-vnc-*", "2.11.0"); were added as a demonstration
-     * that the old fake-caps tests were already using the new format, thus
-     * they can be removed without replacement when "2.11.0" will be retired */
-    DO_TEST_CAPS_VER("graphics-vnc", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc");
-    DO_TEST_CAPS_VER("graphics-vnc-socket", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-socket");
-    DO_TEST_CAPS_VER("graphics-vnc-websocket", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-websocket");
-    DO_TEST_CAPS_VER("graphics-vnc-policy", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-policy");
     DO_TEST_CAPS_LATEST("graphics-vnc-power");
-    DO_TEST_CAPS_VER("graphics-vnc-no-listen-attr", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-no-listen-attr");
-    DO_TEST_CAPS_VER("graphics-vnc-remove-generated-socket", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-remove-generated-socket");
     driver.config->vncAutoUnixSocket = true;
-    DO_TEST_CAPS_VER("graphics-vnc-auto-socket-cfg", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-auto-socket-cfg");
     driver.config->vncAutoUnixSocket = false;
-    DO_TEST_CAPS_VER("graphics-vnc-auto-socket", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-auto-socket");
-    DO_TEST_CAPS_VER("graphics-vnc-none", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-none");
-    DO_TEST_CAPS_VER("graphics-vnc-socket-new-cmdline", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-socket-new-cmdline");
 
     driver.config->vncSASL = 1;
     VIR_FREE(driver.config->vncSASLdir);
     driver.config->vncSASLdir = g_strdup("/root/.sasl2");
-    DO_TEST_CAPS_VER("graphics-vnc-sasl", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-sasl");
     driver.config->vncTLS = 1;
     driver.config->vncTLSx509verify = 1;
-    DO_TEST_CAPS_VER("graphics-vnc-tls", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-tls");
     driver.config->vncTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST_CAPS_VER("graphics-vnc-tls-secret", "5.2.0");
@@ -1525,7 +1509,6 @@ mymain(void)
     driver.config->vncSASL = driver.config->vncTLSx509verify = driver.config->vncTLS = 0;
     VIR_FREE(driver.config->vncSASLdir);
     VIR_FREE(driver.config->vncTLSx509certdir);
-    DO_TEST_CAPS_VER("graphics-vnc-egl-headless", "2.11.0");
     DO_TEST_CAPS_LATEST("graphics-vnc-egl-headless");
 
     DO_TEST("graphics-sdl",
@@ -1566,7 +1549,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("misc-no-reboot");
     DO_TEST_NOCAPS("misc-uuid");
     DO_TEST_PARSE_ERROR_NOCAPS("vhost_queues-invalid");
-    DO_TEST("net-vhostuser", QEMU_CAPS_CHARDEV_FD_PASS_COMMANDLINE);
+    DO_TEST_NOCAPS("net-vhostuser");
     DO_TEST_CAPS_LATEST("net-vhostuser");
     DO_TEST_NOCAPS("net-vhostuser-multiq");
     DO_TEST_FAILURE_NOCAPS("net-vhostuser-fail");
@@ -1612,6 +1595,7 @@ mymain(void)
                     QEMU_CAPS_DEVICE_VFIO_PCI);
     DO_TEST_CAPS_LATEST("net-vdpa");
     DO_TEST_CAPS_LATEST("net-vdpa-multiqueue");
+    DO_TEST_CAPS_LATEST("net-virtio-rss");
 
     DO_TEST("hostdev-pci-multifunction",
             QEMU_CAPS_KVM,
@@ -2055,9 +2039,6 @@ mymain(void)
 
     /* host-model cpu expansion depends on the cpu reported by qemu and thus
      * we invoke it for all real capability dumps we have */
-    DO_TEST_CAPS_VER("cpu-host-model", "2.11.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "2.12.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "3.0.0");
     DO_TEST_CAPS_VER("cpu-host-model", "3.1.0");
     DO_TEST_CAPS_VER("cpu-host-model", "4.0.0");
     DO_TEST_CAPS_VER("cpu-host-model", "4.1.0");
@@ -2214,10 +2195,6 @@ mymain(void)
     DO_TEST("pseries-cpu-compat", QEMU_CAPS_KVM,
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
             QEMU_CAPS_DEVICE_SPAPR_VTY);
-    DO_TEST("pseries-machine-max-cpu-compat",
-            QEMU_CAPS_KVM,
-            QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT,
-            QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE);
     DO_TEST("pseries-cpu-le", QEMU_CAPS_KVM,
             QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
             QEMU_CAPS_DEVICE_SPAPR_VTY);
@@ -2291,8 +2268,7 @@ mymain(void)
             QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST,
             QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
             QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
-            QEMU_CAPS_MACHINE_PSERIES_CAP_IBS,
-            QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT);
+            QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
 
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_CAP_HPT_MAX_PAGE_SIZE */
     DO_TEST_PARSE_ERROR("pseries-features-hpt-pagesize",
@@ -2302,8 +2278,7 @@ mymain(void)
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
-                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT);
+                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
 
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_CAP_HTM */
     DO_TEST_PARSE_ERROR("pseries-features-htm",
@@ -2313,8 +2288,7 @@ mymain(void)
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
-                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT);
+                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
 
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV */
     DO_TEST_PARSE_ERROR("pseries-features-nested-hv",
@@ -2324,8 +2298,7 @@ mymain(void)
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
-                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT);
+                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
 
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_CAP_CCF_ASSIST */
     DO_TEST_PARSE_ERROR("pseries-features-ccf",
@@ -2335,13 +2308,11 @@ mymain(void)
                         QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_CFPC,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_SBBC,
-                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT);
+                        QEMU_CAPS_MACHINE_PSERIES_CAP_IBS);
 
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_CFPC */
     DO_TEST_PARSE_ERROR("pseries-features-cfpc",
                         QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_HPT_MAX_PAGE_SIZE,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_HTM,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV,
@@ -2352,7 +2323,6 @@ mymain(void)
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_SBBC */
     DO_TEST_PARSE_ERROR("pseries-features-sbbc",
                         QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_HPT_MAX_PAGE_SIZE,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_HTM,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV,
@@ -2363,7 +2333,6 @@ mymain(void)
     /* parse error: no QEMU_CAPS_MACHINE_PSERIES_IBS */
     DO_TEST_PARSE_ERROR("pseries-features-ibs",
                         QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE,
-                        QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_HPT_MAX_PAGE_SIZE,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_HTM,
                         QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV,
@@ -2843,8 +2812,6 @@ mymain(void)
                         QEMU_CAPS_VIRTIO_SCSI,
                         QEMU_CAPS_DEVICE_VHOST_SCSI);
 
-    DO_TEST_CAPS_VER("mlock-on", "3.0.0");
-    DO_TEST_CAPS_VER("mlock-off", "3.0.0");
     DO_TEST_CAPS_LATEST("mlock-on");
     DO_TEST_CAPS_LATEST("mlock-off");
 
@@ -3229,7 +3196,6 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST_PARSE_ERROR("missing-machine");
 
-    DO_TEST_CAPS_VER("name-escape", "2.11.0");
     DO_TEST_CAPS_LATEST("name-escape");
 
     DO_TEST_NOCAPS("master-key");
@@ -3247,6 +3213,13 @@ mymain(void)
     DO_TEST_CAPS_LATEST("intel-iommu-aw-bits");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("intel-iommu-wrong-machine");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
+    DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
+    DO_TEST_CAPS_VER_PARSE_ERROR("virtio-iommu-x86_64", "6.1.0");
+    DO_TEST_CAPS_ARCH_LATEST("virtio-iommu-aarch64", "aarch64");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-wrong-machine");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-no-acpi");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-invalid-address-type");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-invalid-address");
 
     DO_TEST("cpu-hotplug-startup", QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS);
     DO_TEST_PARSE_ERROR("cpu-hotplug-granularity",
@@ -3361,9 +3334,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("vhost-vsock-ccw-auto", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("vhost-vsock-ccw-iommu", "s390x");
 
-    DO_TEST_CAPS_VER("launch-security-sev", "2.12.0");
     DO_TEST_CAPS_VER("launch-security-sev", "6.0.0");
-    DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "2.12.0");
     DO_TEST_CAPS_VER("launch-security-sev-missing-platform-info", "6.0.0");
     DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-direct",
                                   "x86_64",

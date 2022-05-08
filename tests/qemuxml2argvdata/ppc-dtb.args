@@ -14,13 +14,13 @@ QEMU_AUDIO_DRV=none \
 -machine ppce500,usb=off,dump-guest-core=off \
 -accel kvm \
 -m 256 \
--realtime mlock=off \
+-overcommit mem-lock=off \
 -smp 1,sockets=1,cores=1,threads=1 \
 -uuid 49545eb3-75e1-2d0a-acdd-f0294406c99e \
 -display none \
 -no-user-config \
 -nodefaults \
--chardev socket,id=charmonitor,path=/tmp/lib/domain--1-QEMUGuest1/monitor.sock,server=on,wait=off \
+-chardev socket,id=charmonitor,fd=1729,server=on,wait=off \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc \
 -no-shutdown \

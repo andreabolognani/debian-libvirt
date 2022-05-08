@@ -2332,6 +2332,10 @@ static const vshCmdOptDef opts_blockcopy[] = {
      .type = VSH_OT_BOOL,
      .help = N_("the copy job forces guest writes to be synchronously written to the destination")
     },
+    {.name = "print-xml",
+     .type = VSH_OT_BOOL,
+     .help = N_("print the XML used to start the copy job instead of starting the job")
+    },
     {.name = NULL}
 };
 
@@ -2360,6 +2364,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
     int abort_flags = 0;
     const char *xml = NULL;
     char *xmlstr = NULL;
+    bool print_xml = vshCommandOptBool(cmd, "print-xml");
     virTypedParameterPtr params = NULL;
     virshBlockJobWaitData *bjWait = NULL;
     int nparams = 0;
@@ -2437,7 +2442,7 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (granularity || buf_size || (format && STRNEQ(format, "raw")) || xml ||
-        transientjob || syncWrites) {
+        transientjob || syncWrites || print_xml) {
         /* New API */
         if (bandwidth || granularity || buf_size) {
             params = g_new0(virTypedParameter, 3);
@@ -2476,20 +2481,25 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
         if (!xmlstr) {
             g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
             g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
-            g_auto(virBuffer) childBuf = VIR_BUFFER_INITIALIZER;
+            g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(&buf);
 
             if (blockdev) {
                 virBufferAddLit(&attrBuf, " type='block'");
-                virBufferAddLit(&childBuf, "<source dev=");
+                virBufferEscapeString(&childBuf, "<source dev='%s'/>\n", dest);
             } else {
-                virBufferAddLit(&buf, " type='file'");
-                virBufferAddLit(&childBuf, "<source file=");
+                virBufferAddLit(&attrBuf, " type='file'");
+                virBufferEscapeString(&childBuf, "<source file='%s'/>\n", dest);
             }
 
-            virBufferEscapeString(&buf, "'%s'/>\n", dest);
-            virBufferEscapeString(&buf, "<driver type='%s'/>\n", format);
+            virBufferEscapeString(&childBuf, "<driver type='%s'/>\n", format);
             virXMLFormatElement(&buf, "disk", &attrBuf, &childBuf);
             xmlstr = virBufferContentAndReset(&buf);
+        }
+
+        if (print_xml) {
+            vshPrint(ctl, "%s", xmlstr);
+            ret = true;
+            goto cleanup;
         }
 
         if (virDomainBlockCopy(dom, path, xmlstr, params, nparams, flags) < 0)
@@ -8257,6 +8267,10 @@ static const vshCmdOptDef opts_destroy[] = {
      .type = VSH_OT_BOOL,
      .help = N_("terminate gracefully")
     },
+    {.name = "remove-logs",
+     .type = VSH_OT_BOOL,
+     .help = N_("remove domain logs")
+    },
     {.name = NULL}
 };
 
@@ -8273,9 +8287,11 @@ cmdDestroy(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptBool(cmd, "graceful"))
        flags |= VIR_DOMAIN_DESTROY_GRACEFUL;
+    if (vshCommandOptBool(cmd, "remove-logs"))
+       flags |= VIR_DOMAIN_DESTROY_REMOVE_LOGS;
 
     if (flags)
-       result = virDomainDestroyFlags(dom, VIR_DOMAIN_DESTROY_GRACEFUL);
+       result = virDomainDestroyFlags(dom, flags);
     else
        result = virDomainDestroy(dom);
 
