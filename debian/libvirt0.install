@@ -17,6 +17,7 @@ usr/share/libvirt/cpu_map/arm_cortex-a72.xml
 usr/share/libvirt/cpu_map/arm_features.xml
 usr/share/libvirt/cpu_map/arm_vendors.xml
 usr/share/libvirt/cpu_map/index.xml
+usr/share/libvirt/cpu_map/ppc64_POWER10.xml
 usr/share/libvirt/cpu_map/ppc64_POWER6.xml
 usr/share/libvirt/cpu_map/ppc64_POWER7.xml
 usr/share/libvirt/cpu_map/ppc64_POWER8.xml
