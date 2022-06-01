@@ -11,7 +11,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2022-04-21 15:30+0000\n"
+"POT-Creation-Date: 2022-05-25 19:40+0000\n"
 "PO-Revision-Date: 2015-02-24 06:05+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: English (United Kingdom) (http://www.transifex.com/projects/p/"
@@ -39,7 +39,6 @@ msgstr ""
 "\n"
 "  (specify help <group> for details about the commands in the group)\n"
 
-#. Print the description only if it's not empty.
 msgid ""
 "\n"
 "  DESCRIPTION\n"
@@ -340,7 +339,6 @@ msgstr ""
 msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
 msgstr ""
 
-#. true if 'arg' works instead of '--opt arg'
 msgid "  NAME\n"
 msgstr "  NAME\n"
 
@@ -574,16 +572,6 @@ msgstr "%s not supported in this QEMU binary"
 msgid "%s object has invalid dynamic type"
 msgstr "%s object has invalid dynamic type"
 
-#.
-#. * A required property must be != 0 (NULL for pointers, "undefined" == 0 for
-#. * enumeration values).
-#. *
-#. * To be used as part of ESX_VI__TEMPLATE__VALIDATE.
-#.
-#.
-#. * Macros to implement managed objects
-#.
-#. FIXME: This results in O(n^2) runtime in case of missing required, but      * unselected properties.
 #, c-format
 msgid "%s object is missing the required '%s' property"
 msgstr "%s object is missing the required '%s' property"
@@ -932,10 +920,6 @@ msgid "%s: try --help for more details\n"
 msgstr "%s: try --help for more details"
 
 #, c-format
-msgid "%s: unable to determine access mode of fd %d"
-msgstr "%s: unable to determine access mode of fd %d"
-
-#, c-format
 msgid "%s: unexpected URI transport '%s'\n"
 msgstr ""
 
@@ -989,6 +973,10 @@ msgstr ""
 
 #, c-format
 msgid "'%s'"
+msgstr ""
+
+#, c-format
+msgid "'%s' D-Bus address is not handled"
 msgstr ""
 
 #, fuzzy, c-format
@@ -1195,6 +1183,9 @@ msgstr "'online' missing in reply of guest-get-vcpus"
 msgid "'netns' namespace source can only be used with sharenet"
 msgstr ""
 
+msgid "'network' attribute is required for listen type 'network'"
+msgstr ""
+
 #, fuzzy
 msgid "'network' attribute is valid only for listen type 'network'"
 msgstr ""
@@ -1358,7 +1349,6 @@ msgstr "(interface_definition)"
 msgid "(libxl_migration_cookie)"
 msgstr "(qemu_migration_cookie)"
 
-#. parse and modify the xml from the user
 msgid "(metadata_xml)"
 msgstr "(metadata_xml)"
 
@@ -1421,7 +1411,6 @@ msgstr ""
 msgid "(volume_definition)"
 msgstr "(volume_definition)"
 
-#. Capacity related information isn't available
 msgid "-"
 msgstr "-"
 
@@ -2352,14 +2341,10 @@ msgid ""
 "dirtyrate'."
 msgstr ""
 
-#.
-#. * Macros to implement dynamic dispatched functions
-#.
 #, c-format
 msgid "Call to %s for unexpected type '%s'"
 msgstr "Call to %s for unexpected type '%s'"
 
-#. nothing
 #, c-format
 msgid "Call to %s for unexpected type '%s', expected '%s'"
 msgstr "Call to %s for unexpected type '%s', expected '%s'"
@@ -2384,8 +2369,8 @@ msgid "Can only modify disk quota"
 msgstr "Can only modify disk quota"
 
 #, c-format
-msgid "Can only open VNC or SPICE graphics backends, not %s"
-msgstr "Can only open VNC or SPICE graphics backends, not %s"
+msgid "Can only open VNC, SPICE or D-Bus p2p graphics backends, not %s"
+msgstr ""
 
 msgid "Can't add USB hub: USB is disabled for this domain"
 msgstr "Can't add USB hub: USB is disabled for this domain"
@@ -3536,7 +3521,6 @@ msgstr ""
 msgid "Checkpoints have inconsistent relations for domain %s"
 msgstr "Snapshots have inconsistent relations for domain %s"
 
-#. All bytes up to and including the checksum byte should add up to 0.
 msgid "Checksum validation has failed"
 msgstr ""
 
@@ -4759,7 +4743,6 @@ msgstr ""
 msgid "Could not retrieve default Msvm_DiskDrive object"
 msgstr ""
 
-#. Something went wrong retrieving pool info, cope with it
 msgid "Could not retrieve pool information"
 msgstr "Could not retrieve pool information"
 
@@ -5017,6 +5000,12 @@ msgstr "Current:"
 
 #, c-format
 msgid "Custom loader requires explicit %s configuration"
+msgstr ""
+
+msgid "D-Bus audio is not supported with this QEMU"
+msgstr ""
+
+msgid "D-Bus p2p with an address is not supported"
 msgstr ""
 
 msgid "DAC imagelabel couldn't be determined"
@@ -5639,7 +5628,6 @@ msgid ""
 msgstr ""
 "Domain has %d interfaces. Please specify which one to detach using --mac"
 
-#. this is the 2nd match, so it's ambiguous
 #, c-format
 msgid ""
 "Domain has multiple interfaces matching MAC address %s. You must use detach-"
@@ -6842,27 +6830,17 @@ msgstr "Failed to create %s"
 msgid "Failed to create thread for receiving migration data"
 msgstr "Failed to create thread to suspend the host"
 
-#.
-#. * Not much we can do on error here except log it.
-#.
 #, fuzzy
 msgid "Failed to create thread to handle daemon restart"
 msgstr "Failed to create thread to suspend the host"
 
-#.
-#. * Not much we can do on error here except log it.
-#.
 msgid "Failed to create thread to handle domain death"
 msgstr ""
 
-#.
-#. * Not much we can do on error here except log it.
-#.
 #, fuzzy
 msgid "Failed to create thread to handle domain shutdown"
 msgstr "Failed to create thread to suspend the host"
 
-#. Not much else can be done
 #, fuzzy
 msgid "Failed to create thread to handle pool refresh"
 msgstr "Failed to create thread to suspend the host"
@@ -7419,7 +7397,6 @@ msgstr "Failed to list active networks"
 msgid "Failed to list active pools"
 msgstr "Failed to list active pools"
 
-#. there was an error during the first or second call
 msgid "Failed to list domains"
 msgstr "Failed to list domains"
 
@@ -7435,28 +7412,22 @@ msgstr "Failed to list inactive networks"
 msgid "Failed to list inactive pools"
 msgstr "Failed to list inactive pools"
 
-#. there was an error during the first or second call
 msgid "Failed to list interfaces"
 msgstr "Failed to list interfaces"
 
-#. there was an error during the call
 #, fuzzy
 msgid "Failed to list network filter bindings"
 msgstr "Failed to list network filters"
 
-#. there was an error during the call
 msgid "Failed to list network filters"
 msgstr "Failed to list network filters"
 
-#. there was an error during the first or second call
 msgid "Failed to list networks"
 msgstr "Failed to list networks"
 
-#. there was an error during the call
 msgid "Failed to list node devices"
 msgstr "Failed to list node devices"
 
-#. there was an error during the call
 msgid "Failed to list node secrets"
 msgstr "Failed to list node secrets"
 
@@ -7464,7 +7435,6 @@ msgstr "Failed to list node secrets"
 msgid "Failed to list persistent guests on $uri"
 msgstr "Failed to list persistent guests on $uri"
 
-#. there was an error during the first or second call
 msgid "Failed to list pools"
 msgstr "Failed to list pools"
 
@@ -7484,7 +7454,6 @@ msgstr "Failed to list transient guests"
 msgid "Failed to list vcpus for domain '%d' with libxenlight"
 msgstr "Failed to list vcpus for domain '%d' with libxenlight"
 
-#. there was an error during the call
 msgid "Failed to list volumes"
 msgstr "Failed to list volumes"
 
@@ -7691,6 +7660,10 @@ msgstr "Failed to open tty %s"
 #, fuzzy, c-format
 msgid "Failed to parse %s: only com1 and com2 supported."
 msgstr "Failed to parse value of URI component %s"
+
+#, c-format
+msgid "Failed to parse CCW address '%s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to parse MAC address from '%s'"
@@ -7978,10 +7951,6 @@ msgstr "Failed to release lock"
 msgid "Failed to release lock: %s"
 msgstr "Failed to release lock"
 
-#, c-format
-msgid "Failed to release port %d"
-msgstr "Failed to release port %d"
-
 #, fuzzy, c-format
 msgid "Failed to remove capability %s: %d"
 msgstr "Failed to apply capabilities: %d"
@@ -8076,9 +8045,6 @@ msgstr "Failed to resume domain '%d' with libxenlight"
 msgid "Failed to resume domain '%s'"
 msgstr ""
 
-#. Hm, we already know we are in error here.  We don't want to
-#. * overwrite the previous error, though, so we just throw something
-#. * to the logs and hope for the best
 #, c-format
 msgid "Failed to resume guest %s after failure"
 msgstr "Failed to resume guest %s after failure"
@@ -8718,63 +8684,10 @@ msgstr ""
 "First file-based harddisk has no source, cannot deduce datastore and path "
 "for VMX file"
 
-#. Macros to help dealing with flag requirements.
-#. *
-#. * VIR_REQUIRE_FLAG_RET:
-#. *
-#. * @FLAG1: First flag to be checked.
-#. * @FLAG2: Second flag that is required by first flag.
-#. * @RET: Return value.
-#. *
-#. * Check whether required flag is set.  The checked flags are compared
-#. * with flags variable.
-#. *
-#. * This helper does an early return and therefore it has to be called
-#. * before anything that would require cleanup.
-#.
-#. *
-#. * VIR_REQUIRE_FLAG_GOTO:
-#. *
-#. * @FLAG1: First flag to be checked.
-#. * @FLAG2: Second flag that is required by first flag.
-#. * @LABEL: Label to jump to.
-#. *
-#. * Check whether required flag is set.  The checked flags are compared
-#. * with flags variable.
-#. *
-#. * Returns nothing.  Jumps to a label if required flag is not set.
-#.
 #, c-format
 msgid "Flag '%s' is required by flag '%s'"
 msgstr ""
 
-#. Macros to help dealing with mutually exclusive flags.
-#. *
-#. * VIR_EXCLUSIVE_FLAGS_RET:
-#. *
-#. * @FLAG1: First flag to be checked.
-#. * @FLAG2: Second flag to be checked.
-#. * @RET: Return value.
-#. *
-#. * Reject mutually exclusive API flags.  The checked flags are compared
-#. * with flags variable.
-#. *
-#. * This helper does an early return and therefore it has to be called
-#. * before anything that would require cleanup.
-#.
-#. *
-#. * VIR_EXCLUSIVE_FLAGS_GOTO:
-#. *
-#. * @FLAG1: First flag to be checked.
-#. * @FLAG2: Second flag to be checked.
-#. * @LABEL: Label to jump to.
-#. *
-#. * Reject mutually exclusive API flags.  The checked flags are compared
-#. * with flags variable.
-#. *
-#. * Returns nothing.  Jumps to a label if unsupported flags were
-#. * passed to it.
-#.
 #, fuzzy, c-format
 msgid "Flags '%s' and '%s' are mutually exclusive"
 msgstr "Options --%s and --%s are mutually exclusive"
@@ -9752,15 +9665,6 @@ msgstr "invalid type '%s' for parameter '%s', expected '%s'"
 msgid "Invalid address."
 msgstr "Invalid address."
 
-#.
-#. * Don't check for *selectSet != NULL here because selectSet is a list
-#. * and might contain items already. This function appends to selectSet.
-#.
-#. optional
-#. optional
-#. nothing
-#. nothing
-#. nothing
 msgid "Invalid argument"
 msgstr "Invalid argument"
 
@@ -10253,7 +10157,7 @@ msgid "Invalid parameter type passed to free"
 msgstr "Invalid parameter to virXPathNode()"
 
 #, c-format
-msgid "Invalid parameters: %d"
+msgid "Invalid parameters macaddr=%p allowRetry=%p"
 msgstr ""
 
 msgid "Invalid partial specification for virtio ccw address"
@@ -11610,18 +11514,9 @@ msgid ""
 "response"
 msgstr ""
 
-msgid "Missing or invalid fd in add-fd response"
-msgstr ""
-
-msgid "Missing or invalid fdset-id in add-fd response"
-msgstr ""
-
 #, fuzzy
 msgid "Missing or invalid name in query-rx-filter response"
 msgstr "Missing or invalid PVR value in CPU model %s"
-
-msgid "Missing or invalid return data in add-fd response"
-msgstr ""
 
 #, fuzzy
 msgid "Missing or invalid scsi adapter 'unique_id' value"
@@ -12018,12 +11913,6 @@ msgstr "SATA is not supported with this QEMU binary"
 msgid "NVMe namespace can't be zero"
 msgstr ""
 
-#. Output old style header
-#. We only get here if the --details option was selected.
-#. Insert the header into table
-#. The old output format
-#. We only get here if the --details option was selected.
-#. Insert the header into table
 msgid "Name"
 msgstr "Name"
 
@@ -12981,6 +12870,9 @@ msgstr "Only one primary video device is supported"
 msgid "Only one primary video device is supported"
 msgstr "Only one primary video device is supported"
 
+msgid "Only one vgpu device can have 'ramfb' enabled"
+msgstr ""
+
 msgid "Only ploop disk images are supported by vz driver."
 msgstr ""
 
@@ -13067,20 +12959,6 @@ msgstr ""
 "Device alias was not set for PCI controller with index %u required for "
 "device at address %s"
 
-#. Macros to help dealing with required options.
-#. VSH_REQUIRE_OPTION_EXPR:
-#. *
-#. * @NAME1: String containing the name of the option.
-#. * @EXPR1: Expression to validate the variable (boolean variable).
-#. * @NAME2: String containing the name of required option.
-#. * @EXPR2: Expression to validate the variable (boolean variable).
-#. *
-#. * Check if required command options in virsh was set.  Use the
-#. * provided expression to check the variables.
-#. *
-#. * This helper does an early return and therefore it has to be called
-#. * before anything that would require cleanup.
-#.
 #, c-format
 msgid "Option --%s is required by option --%s"
 msgstr ""
@@ -13100,20 +12978,6 @@ msgstr "Option argument is empty"
 msgid "Optional flags or --rawstats are not supported by the daemon"
 msgstr ""
 
-#. Macros to help dealing with mutually exclusive options.
-#. VSH_EXCLUSIVE_OPTIONS_EXPR:
-#. *
-#. * @NAME1: String containing the name of the option.
-#. * @EXPR1: Expression to validate the variable (boolean variable)
-#. * @NAME2: String containing the name of the option.
-#. * @EXPR2: Expression to validate the variable (boolean variable)
-#. *
-#. * Reject mutually exclusive command options in virsh. Use the
-#. * provided expression to check the variables.
-#. *
-#. * This helper does an early return and therefore it has to be called
-#. * before anything that would require cleanup.
-#.
 #, c-format
 msgid "Options --%s and --%s are mutually exclusive"
 msgstr "Options --%s and --%s are mutually exclusive"
@@ -13357,7 +13221,6 @@ msgstr "Parsed JSON reply '%s' isn't an object"
 msgid "Partition path '%s' must start with '/'"
 msgstr "Partition path '%s' must start with '/'"
 
-#. warn users that the --base64 option passed from command line is wrong
 #, fuzzy
 msgid "Passing secret value as command-line argument is insecure!"
 msgstr "No qemu command-line argument specified"
@@ -14221,7 +14084,6 @@ msgstr ""
 msgid "S4 state is disabled for this domain"
 msgstr "S4 state is disabled for this domain"
 
-#. Denied
 #, c-format
 msgid "SASL client identity '%s' not allowed by ACL"
 msgstr ""
@@ -14769,9 +14631,6 @@ msgstr "CPU time:"
 msgid "Shared memory mapping is not supported with this QEMU"
 msgstr "spice graphics are not supported with this QEMU"
 
-#. XXX: Need to sort the returned params once new parameter
-#. * fields not of shared memory are added.
-#.
 msgid "Shared memory:\n"
 msgstr "Shared memory:\n"
 
@@ -14851,7 +14710,6 @@ msgstr "SATA is not supported with this QEMU binary"
 msgid "Snapshot"
 msgstr "Snapshot List"
 
-#. Depending on flags, we re-edit even if XML is unchanged.
 #, c-format
 msgid "Snapshot %s XML configuration not changed.\n"
 msgstr "Snapshot %s XML configuration not changed.\n"
@@ -14972,6 +14830,9 @@ msgstr "Specifies if pages from different numa nodes can be merged"
 
 msgid "Specifying mount point is not supported for now"
 msgstr "Specifying mount point is not supported for now"
+
+msgid "Spice audio is not supported without spice graphics"
+msgstr ""
 
 #, fuzzy
 msgid "Start"
@@ -15362,7 +15223,6 @@ msgstr ""
 msgid "Table row cannot be empty"
 msgstr "%s can't be empty"
 
-#. title
 msgid "Target"
 msgstr "Target"
 
@@ -16173,6 +16033,9 @@ msgstr "The QEMU executable %s does not support TPM model %s"
 msgid "The XML configuration was changed by another user."
 msgstr "The XML configuration was changed by another user."
 
+msgid "The associated audio is not of 'dbus' kind."
+msgstr ""
+
 #, c-format
 msgid "The certificate %s basic constraints do not show a CA"
 msgstr "The certificate %s basic constraints do not show a CA"
@@ -16652,11 +16515,9 @@ msgstr "Tried to write socket in error state"
 msgid "Try again?"
 msgstr ""
 
-#. Better leak than crash
 msgid "Trying to free MultiCURL object that is still in use"
 msgstr "Trying to free MultiCURL object that is still in use"
 
-#. Better leak than crash
 msgid "Trying to free SharedCURL object that is still in use"
 msgstr "Trying to free SharedCURL object that is still in use"
 
@@ -16849,10 +16710,6 @@ msgstr "Unable to access config file %s"
 #, c-format
 msgid "Unable to access file descriptor %d"
 msgstr "Unable to access file descriptor %d"
-
-#, c-format
-msgid "Unable to access file descriptor %d path %s"
-msgstr ""
 
 #, fuzzy
 msgid "Unable to access kernel32.dll"
@@ -19333,7 +19190,6 @@ msgstr "Unknown forward type %d in network '%s'"
 msgid "Unknown error"
 msgstr "Unknown error"
 
-#. should never happen (tm)
 msgid "Unknown error value"
 msgstr "Unknown error value"
 
@@ -20132,12 +19988,10 @@ msgstr "message"
 msgid "Video adapters are not supported int containers."
 msgstr "spice graphics are not supported with this QEMU"
 
-#. FIXME - list a copyright blurb, as in GNU programs?
 #, c-format
 msgid "Virsh command line tool of libvirt %s\n"
 msgstr "Virsh command line tool of libvirt %s\n"
 
-#. FIXME - list a copyright blurb, as in GNU programs?
 #, fuzzy, c-format
 msgid "Virt-admin command line tool of libvirt %s\n"
 msgstr "Virsh command line tool of libvirt %s\n"
@@ -20614,11 +20468,6 @@ msgstr ""
 msgid "allocate the new capacity, rather than leaving it sparse"
 msgstr "allocate the new capacity, rather than leaving it sparse"
 
-#.
-#. * we need to use an intermediary pointer to @data as compilers may sometimes
-#. * complain about @data not being a pointer type:
-#. * error: the address of 'foo' will always evaluate as 'true' [-Werror=address]
-#.
 msgid "allocated netlink buffer is too small"
 msgstr "allocated netlink buffer is too small"
 
@@ -20871,6 +20720,13 @@ msgstr ""
 #, c-format
 msgid "authentication failed: %s"
 msgstr "authentication failed: %s"
+
+#, c-format
+msgid "authentication is not supported for protocol '%s'"
+msgstr ""
+
+msgid "authentication is supported only for network backed disks"
+msgstr ""
 
 msgid "authentication required"
 msgstr "authentication required"
@@ -22372,7 +22228,6 @@ msgstr "cannot open path '%s'"
 msgid "cannot open path '%s' in '%s'"
 msgstr "cannot open path '%s'"
 
-#. A dangling symlink now implies a TOCTTOU race; report it.
 #, c-format
 msgid "cannot open volume '%s'"
 msgstr "cannot open volume '%s'"
@@ -23131,6 +22986,14 @@ msgstr "character device information was missing filename"
 msgid "character device name"
 msgstr "character device name"
 
+#, c-format
+msgid "chardev '%s' not supported in this QEMU binary"
+msgstr ""
+
+#, c-format
+msgid "chardev '%s' not supported without spice graphics"
+msgstr ""
+
 msgid "chardev already exists"
 msgstr "chardev already exists"
 
@@ -23181,7 +23044,6 @@ msgstr "clone name"
 msgid "child didn't write error (status=%d)"
 msgstr ""
 
-#. in case of EACCES, the parent will retry
 #, c-format
 msgid "child failed to create directory '%s'"
 msgstr "child failed to create directory '%s'"
@@ -24468,9 +24330,6 @@ msgstr ""
 msgid "dir"
 msgstr "dir"
 
-msgid "direct FD passing supports only 1 file descriptor"
-msgstr ""
-
 msgid "direct migration"
 msgstr "direct migration"
 
@@ -25365,6 +25224,9 @@ msgid "encryption format of inputvol must be LUKS"
 msgstr ""
 
 msgid "encryption is not supported with vhostuser disk"
+msgstr ""
+
+msgid "encryption is supported only with 'raw' and 'qcow2' image format"
 msgstr ""
 
 #, c-format
@@ -26647,6 +26509,9 @@ msgstr "Failed to parse uid and gid from '%s'"
 msgid "failed to parse node name index"
 msgstr "Failed to parse block name %s"
 
+msgid "failed to parse original memlock size"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "failed to parse port number '%s'"
 msgstr "Failed to parse port number"
@@ -27120,15 +26985,16 @@ msgstr "fd must be valid"
 msgid "fd passing is not supported by this connection"
 msgstr "this function is not supported by the connection driver"
 
+#, c-format
+msgid "fdset '%u' is already in use by qemu"
+msgstr ""
+
 msgid "fetch or set the currently defined set of logging filters on daemon"
 msgstr ""
 
 msgid "fetch or set the currently defined set of logging outputs on daemon"
 msgstr ""
 
-#. parse inbound and outbound which are in the format of
-#. * 'average,peak,burst,floor', in which peak and burst are optional,
-#. * thus 'average,,burst' and 'average,peak' are also legal.
 #, fuzzy, c-format
 msgid "field '%s' is malformed"
 msgstr "config value %s was malformed"
@@ -27726,7 +27592,6 @@ msgstr "halt domain after snapshot is created"
 msgid "handler failed to wait on condition"
 msgstr "failed to wait on condition"
 
-#. caller's error
 msgid "hash lookup resulted in NULL pointer"
 msgstr "hash lookup resulted in NULL pointer"
 
@@ -28283,25 +28148,6 @@ msgstr "interface name"
 msgid "interface name %s does not fit into buffer"
 msgstr ""
 
-#.
-#. * virsh-interface.c: Commands to manage host interface
-#. *
-#. * Copyright (C) 2005, 2007-2016 Red Hat, Inc.
-#. *
-#. * This library is free software; you can redistribute it and/or
-#. * modify it under the terms of the GNU Lesser General Public
-#. * License as published by the Free Software Foundation; either
-#. * version 2.1 of the License, or (at your option) any later version.
-#. *
-#. * This library is distributed in the hope that it will be useful,
-#. * but WITHOUT ANY WARRANTY; without even the implied warranty of
-#. * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#. * Lesser General Public License for more details.
-#. *
-#. * You should have received a copy of the GNU Lesser General Public
-#. * License along with this library.  If not, see
-#. * <http://www.gnu.org/licenses/>.
-#.
 msgid "interface name or MAC address"
 msgstr "interface name or MAC address"
 
@@ -28711,9 +28557,6 @@ msgstr "invalid failure action: '%s'\n"
 #, c-format
 msgid "invalid fd %d for %s"
 msgstr "invalid fd %d for %s"
-
-msgid "invalid file descriptor"
-msgstr ""
 
 msgid "invalid flag"
 msgstr "invalid flag"
@@ -29293,10 +29136,10 @@ msgstr "nl_recv failed"
 msgid "library call failed: %s"
 msgstr "write failed: %s"
 
-msgid "librbd encryption engine only supports luks/luks2 formats"
+msgid "librbd encryption is not supported by this QEMU binary"
 msgstr ""
 
-msgid "librbd encryption is not supported by this QEMU binary"
+msgid "librbd encryption is supported only with RBD backed disks"
 msgstr ""
 
 #, fuzzy
@@ -30588,6 +30431,9 @@ msgstr ""
 msgid "missing 'server' attribute in JSON backing definition for NFS volume"
 msgstr ""
 
+msgid "missing 'start' attribute for clock with offset='absolute'"
+msgstr ""
+
 #, c-format
 msgid ""
 "missing 'start' attribute in <address> element in <nat> in <forward> in "
@@ -31130,6 +30976,9 @@ msgstr ""
 msgid "missing path for <reservations/>"
 msgstr "missing name information"
 
+msgid "missing path to restore from"
+msgstr ""
+
 msgid "missing per-device path"
 msgstr "missing per-device path"
 
@@ -31479,15 +31328,6 @@ msgstr "modify/get the title instead of description"
 msgid "monitor failure"
 msgstr "no monitor path"
 
-#. *
-#. * QEMU_CHECK_MONITOR_FULL:
-#. * @mon: monitor pointer variable to check, evaluated multiple times, no parentheses
-#. * @exit: statement that is used to exit the function
-#. *
-#. * This macro checks that the monitor is valid for given operation and exits
-#. * the function if not. The macro also adds a debug statement regarding the
-#. * monitor.
-#.
 msgid "monitor must not be NULL"
 msgstr "monitor must not be NULL"
 
@@ -31687,7 +31527,6 @@ msgstr "needs rawio capability"
 msgid "negative size requires --shrink"
 msgstr ""
 
-#. 56 is good for Kerberos
 #, c-format
 msgid "negotiated SSF %d was not strong enough"
 msgstr "negotiated SSF %d was not strong enough"
@@ -32823,7 +32662,8 @@ msgid "only 'pci' addresses are supported for the virtio-pmem device"
 msgstr ""
 
 msgid ""
-"only 1 graphics device of each type (sdl, vnc, spice, headless) is supported"
+"only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is "
+"supported"
 msgstr ""
 
 msgid "only JSON objects can be top level"
@@ -33731,6 +33571,9 @@ msgstr "Forcefully stop a given network."
 msgid "print statistics for any kind of job (even failed ones)"
 msgstr ""
 
+msgid "print the XML used to start the copy job instead of starting the job"
+msgstr ""
+
 #, fuzzy
 msgid "print the admin server URI"
 msgstr "print the domain's hostname"
@@ -33972,9 +33815,6 @@ msgid "query-dirty-rate reply was missing 'status' data"
 msgstr ""
 
 msgid "query-fdsets reply was missing 'fdset-id'"
-msgstr ""
-
-msgid "query-fdsets return data missing 'fd'"
 msgstr ""
 
 msgid "query-fdsets return data missing fd array element"
@@ -34817,7 +34657,9 @@ msgstr "security model exceeds maximum: %zu"
 msgid "security model string exceeds max %d bytes"
 msgstr "security model string exceeds max %d bytes"
 
-msgid "select particular graphical display (e.g. \"vnc\", \"spice\", \"rdp\")"
+msgid ""
+"select particular graphical display (e.g. \"vnc\", \"spice\", \"rdp\", \"dbus"
+"\")"
 msgstr ""
 
 #, fuzzy
@@ -36670,6 +36512,10 @@ msgstr ""
 "unable to delete interface '%s' in network '%s'. It is currently being used  "
 "by %d domains."
 
+#, c-format
+msgid "unable to determine access mode of %s"
+msgstr ""
+
 #, fuzzy
 msgid "unable to determine if checkpoint has parent"
 msgstr "unable to determine if snapshot has parent"
@@ -36742,7 +36588,6 @@ msgstr "unable to init mutex"
 msgid "unable to find valid requested VMware backend '%s'"
 msgstr ""
 
-#. fdatasync() may fail on some special FDs, e.g. pipes
 #, c-format
 msgid "unable to fsync %s"
 msgstr "unable to fsync %s"
@@ -37043,6 +36888,10 @@ msgstr ""
 #, fuzzy, c-format
 msgid "unable to stat block copy target '%s'"
 msgstr "Unable to stat bind target %s"
+
+#, c-format
+msgid "unable to stat file descriptor %d path %s"
+msgstr ""
 
 #, c-format
 msgid "unable to stat for disk %s: %s"
@@ -37557,8 +37406,6 @@ msgstr "unimplemented parameter type %d"
 msgid "unix"
 msgstr ""
 
-#. Something went wrong retrieving a volume path, cope with it
-#. Something went wrong retrieving volume info, cope with it
 msgid "unknown"
 msgstr "unknown"
 
@@ -38326,28 +38173,6 @@ msgstr ""
 msgid "unsupported filesystem type '%s'"
 msgstr ""
 
-#. *
-#. * virCheckFlags:
-#. * @supported: an OR'ed set of supported flags
-#. * @retval: return value in case unsupported flags were passed
-#. *
-#. * To avoid memory leaks this macro has to be used before any non-trivial
-#. * code which could possibly allocate some memory.
-#. *
-#. * Returns nothing. Exits the caller function if unsupported flags were
-#. * passed to it.
-#.
-#. *
-#. * virCheckFlagsGoto:
-#. * @supported: an OR'ed set of supported flags
-#. * @label: label to jump to on error
-#. *
-#. * To avoid memory leaks this macro has to be used before any non-trivial
-#. * code which could possibly allocate some memory.
-#. *
-#. * Returns nothing. Jumps to a label if unsupported flags were
-#. * passed to it.
-#.
 #, c-format
 msgid "unsupported flags (0x%lx) in function %s"
 msgstr "unsupported flags (0x%lx) in function %s"
@@ -38955,6 +38780,9 @@ msgstr "virDomainGetXMLDesc with secure flag"
 msgid "virDomainSnapshotGetXMLDesc with secure flag"
 msgstr "virDomainSnapshotGetXMLDesc with secure flag"
 
+msgid "virFileDiskCopy unsupported on this platform"
+msgstr ""
+
 msgid "virFileOpenAs is not implemented for WIN32"
 msgstr "virFileOpenAs is not implemented for WIN32"
 
@@ -39547,6 +39375,15 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <string>}..."
+
+#~ msgid "%s: unable to determine access mode of fd %d"
+#~ msgstr "%s: unable to determine access mode of fd %d"
+
+#~ msgid "Can only open VNC or SPICE graphics backends, not %s"
+#~ msgstr "Can only open VNC or SPICE graphics backends, not %s"
+
+#~ msgid "Failed to release port %d"
+#~ msgstr "Failed to release port %d"
 
 #, fuzzy
 #~ msgid "%s: failed to communicate with bridge helper: %s%s"

@@ -26,6 +26,8 @@ else
   grep_prog = find_program('grep')
 endif
 
+awk_prog = find_program('awk')
+
 syntax_check_conf = configuration_data({
   'top_srcdir': meson.source_root(),
   'top_builddir': meson.build_root(),
@@ -34,6 +36,7 @@ syntax_check_conf = configuration_data({
   'PYTHON3': python3_prog.path(),
   'GREP': grep_prog.path(),
   'SED': sed_prog.path(),
+  'AWK': awk_prog.path(),
 })
 
 configure_file(
@@ -44,7 +47,7 @@ configure_file(
 
 rc = run_command(
   'sed', '-n',
-  's/^\\(sc_[a-zA-Z0-9_-]*\\):.*/\\1/p',
+  's/^sc_\\([a-zA-Z0-9_-]*\\):.*/\\1/p',
   meson.current_source_dir() / 'syntax-check.mk',
   check: true,
 )
@@ -59,7 +62,7 @@ if git
     test(
       target,
       make_prog,
-      args: [ '-C', meson.current_build_dir(), target ],
+      args: [ '-C', meson.current_build_dir(), 'sc_@0@'.format(target) ],
       depends: [
         potfiles_dep,
       ],

@@ -1181,18 +1181,8 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     virDomainDeviceDef dev = { VIR_DOMAIN_DEVICE_NET, { .net = net } };
+    qemuDomainNetworkPrivate *netpriv = QEMU_DOMAIN_NETWORK_PRIVATE(net);
     virErrorPtr originalError = NULL;
-    g_autofree char *slirpfdName = NULL;
-    int slirpfd = -1;
-    g_autofree char *vdpafdName = NULL;
-    int vdpafd = -1;
-    char **tapfdName = NULL;
-    int *tapfd = NULL;
-    size_t tapfdSize = 0;
-    char **vhostfdName = NULL;
-    int *vhostfd = NULL;
-    size_t vhostfdSize = 0;
-    size_t queueSize = 0;
     g_autoptr(virJSONValue) nicprops = NULL;
     g_autoptr(virJSONValue) netprops = NULL;
     int ret = -1;
@@ -1203,7 +1193,6 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     const virNetDevBandwidth *actualBandwidth;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     virDomainCCWAddressSet *ccwaddrs = NULL;
-    size_t i;
     g_autofree char *charDevAlias = NULL;
     bool charDevPlugged = false;
     bool netdevPlugged = false;
@@ -1211,6 +1200,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     g_autoptr(virConnect) conn = NULL;
     virErrorPtr save_err = NULL;
     bool teardownlabel = false;
+    GSList *n;
 
     /* If appropriate, grab a physical device from the configured
      * network's pool of devices, or resolve bridge device name
@@ -1278,64 +1268,19 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
      */
     VIR_APPEND_ELEMENT_COPY(vm->def->nets, vm->def->nnets, net);
 
+    if (qemuBuildInterfaceConnect(vm, net, VIR_NETDEV_VPORT_PROFILE_OP_CREATE) < 0)
+         return -1;
+
+    iface_connected = true;
+
     switch (actualType) {
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
     case VIR_DOMAIN_NET_TYPE_NETWORK:
-        tapfdSize = vhostfdSize = net->driver.virtio.queues;
-        if (!tapfdSize)
-            tapfdSize = vhostfdSize = 1;
-        queueSize = tapfdSize;
-        tapfd = g_new0(int, tapfdSize);
-        memset(tapfd, -1, sizeof(*tapfd) * tapfdSize);
-        vhostfd = g_new0(int, vhostfdSize);
-        memset(vhostfd, -1, sizeof(*vhostfd) * vhostfdSize);
-        if (qemuInterfaceBridgeConnect(vm->def, driver, net,
-                                       tapfd, &tapfdSize) < 0)
-            goto cleanup;
-        iface_connected = true;
-        if (qemuInterfaceOpenVhostNet(vm->def, net, vhostfd, &vhostfdSize) < 0)
-            goto cleanup;
-        break;
-
     case VIR_DOMAIN_NET_TYPE_DIRECT:
-        tapfdSize = vhostfdSize = net->driver.virtio.queues;
-        if (!tapfdSize)
-            tapfdSize = vhostfdSize = 1;
-        queueSize = tapfdSize;
-        tapfd = g_new0(int, tapfdSize);
-        memset(tapfd, -1, sizeof(*tapfd) * tapfdSize);
-        vhostfd = g_new0(int, vhostfdSize);
-        memset(vhostfd, -1, sizeof(*vhostfd) * vhostfdSize);
-        if (qemuInterfaceDirectConnect(vm->def, driver, net,
-                                       tapfd, tapfdSize,
-                                       VIR_NETDEV_VPORT_PROFILE_OP_CREATE) < 0)
-            goto cleanup;
-        iface_connected = true;
-        if (qemuInterfaceOpenVhostNet(vm->def, net, vhostfd, &vhostfdSize) < 0)
-            goto cleanup;
-        break;
-
     case VIR_DOMAIN_NET_TYPE_ETHERNET:
-        tapfdSize = vhostfdSize = net->driver.virtio.queues;
-        if (!tapfdSize)
-            tapfdSize = vhostfdSize = 1;
-        queueSize = tapfdSize;
-        tapfd = g_new0(int, tapfdSize);
-        memset(tapfd, -1, sizeof(*tapfd) * tapfdSize);
-        vhostfd = g_new0(int, vhostfdSize);
-        memset(vhostfd, -1, sizeof(*vhostfd) * vhostfdSize);
-        if (qemuInterfaceEthernetConnect(vm->def, driver, net,
-                                         tapfd, tapfdSize) < 0)
-            goto cleanup;
-        iface_connected = true;
-        if (qemuInterfaceOpenVhostNet(vm->def, net, vhostfd, &vhostfdSize) < 0)
-            goto cleanup;
         break;
 
     case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
-        queueSize = net->driver.virtio.queues;
-        if (!queueSize)
-            queueSize = 1;
         if (!qemuDomainSupportsNicdev(vm->def, net)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            "%s", _("Nicdev support unavailable"));
@@ -1358,25 +1303,15 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     case VIR_DOMAIN_NET_TYPE_USER:
         if (!priv->disableSlirp &&
             virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
-            qemuSlirp *slirp = NULL;
-            int rv = qemuInterfacePrepareSlirp(driver, net, &slirp);
 
-            if (rv == -1)
+            if (qemuInterfacePrepareSlirp(driver, net) < 0)
                 goto cleanup;
-            if (rv == 0)
-                break;
 
-            QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp = slirp;
-
-            if (qemuSlirpOpen(slirp, driver, vm->def) < 0 ||
-                qemuSlirpStart(slirp, vm, driver, net, NULL) < 0) {
+            if (qemuSlirpStart(vm, net, NULL) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
                                "%s", _("Failed to start slirp"));
                 goto cleanup;
             }
-
-            slirpfd = qemuSlirpGetFD(slirp);
-            slirpfdName = g_strdup_printf("slirpfd-%s", net->info.alias);
         }
         break;
 
@@ -1385,15 +1320,9 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         break;
 
     case VIR_DOMAIN_NET_TYPE_VDPA:
-        queueSize = net->driver.virtio.queues;
-        if (!queueSize)
-            queueSize = 1;
         if (qemuDomainAdjustMaxMemLock(vm, false) < 0)
             goto cleanup;
         adjustmemlock = true;
-
-        if ((vdpafd = qemuInterfaceVDPAConnect(net)) < 0)
-            goto cleanup;
         break;
 
     case VIR_DOMAIN_NET_TYPE_SERVER:
@@ -1438,41 +1367,27 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         virNetDevSetMTU(net->ifname, net->mtu) < 0)
         goto cleanup;
 
-    for (i = 0; i < tapfdSize; i++) {
-        if (qemuSecuritySetTapFDLabel(driver->securityManager,
-                                      vm->def, tapfd[i]) < 0)
-            goto cleanup;
-    }
-
-    tapfdName = g_new0(char *, tapfdSize);
-    vhostfdName = g_new0(char *, vhostfdSize);
-
-    for (i = 0; i < tapfdSize; i++)
-        tapfdName[i] = g_strdup_printf("fd-%s%zu", net->info.alias, i);
-
-    for (i = 0; i < vhostfdSize; i++)
-        vhostfdName[i] = g_strdup_printf("vhostfd-%s%zu", net->info.alias, i);
+    if (!(netprops = qemuBuildHostNetProps(net)))
+        goto cleanup;
 
     qemuDomainObjEnterMonitor(driver, vm);
 
-    if (vdpafd > 0) {
-        /* vhost-vdpa only accepts a filename. We can pass an open fd by
-         * filename if we add the fd to an fdset and then pass a filename of
-         * /dev/fdset/$FDSETID. */
-        qemuMonitorAddFdInfo fdinfo;
-        if (qemuMonitorAddFileHandleToSet(priv->mon, vdpafd, -1,
-                                          net->data.vdpa.devicepath,
-                                          &fdinfo) < 0) {
+    for (n = netpriv->tapfds; n; n = n->next) {
+        if (qemuFDPassDirectTransferMonitor(n->data, priv->mon) < 0) {
             qemuDomainObjExitMonitor(vm);
             goto cleanup;
         }
-        vdpafdName = g_strdup_printf("/dev/fdset/%d", fdinfo.fdset);
     }
 
-    if (!(netprops = qemuBuildHostNetProps(net,
-                                           tapfdName, tapfdSize,
-                                           vhostfdName, vhostfdSize,
-                                           slirpfdName, vdpafdName))) {
+    for (n = netpriv->vhostfds; n; n = n->next) {
+        if (qemuFDPassDirectTransferMonitor(n->data, priv->mon) < 0) {
+            qemuDomainObjExitMonitor(vm);
+            goto cleanup;
+        }
+    }
+
+    if (qemuFDPassDirectTransferMonitor(netpriv->slirpfd, priv->mon) < 0 ||
+        qemuFDPassTransferMonitor(netpriv->vdpafd, priv->mon) < 0) {
         qemuDomainObjExitMonitor(vm);
         goto cleanup;
     }
@@ -1486,10 +1401,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         charDevPlugged = true;
     }
 
-    if (qemuMonitorAddNetdev(priv->mon, &netprops,
-                             tapfd, tapfdName, tapfdSize,
-                             vhostfd, vhostfdName, vhostfdSize,
-                             slirpfd, slirpfdName) < 0) {
+    if (qemuMonitorAddNetdev(priv->mon, &netprops) < 0) {
         qemuDomainObjExitMonitor(vm);
         virDomainAuditNet(vm, NULL, net, "attach", false);
         goto try_remove;
@@ -1498,12 +1410,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
 
     qemuDomainObjExitMonitor(vm);
 
-    for (i = 0; i < tapfdSize; i++)
-        VIR_FORCE_CLOSE(tapfd[i]);
-    for (i = 0; i < vhostfdSize; i++)
-        VIR_FORCE_CLOSE(vhostfd[i]);
-
-    if (!(nicprops = qemuBuildNicDevProps(vm->def, net, queueSize, priv->qemuCaps)))
+    if (!(nicprops = qemuBuildNicDevProps(vm->def, net, priv->qemuCaps)))
         goto try_remove;
 
     qemuDomainObjEnterMonitor(driver, vm);
@@ -1546,6 +1453,8 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     ret = 0;
 
  cleanup:
+    qemuDomainNetworkPrivateClearFDs(netpriv);
+
     if (ret < 0) {
         virErrorPreserveLast(&save_err);
         if (releaseaddr)
@@ -1594,23 +1503,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         virErrorRestore(&save_err);
     }
 
-    for (i = 0; tapfd && i < tapfdSize; i++) {
-        VIR_FORCE_CLOSE(tapfd[i]);
-        if (tapfdName)
-            VIR_FREE(tapfdName[i]);
-    }
-    VIR_FREE(tapfd);
-    VIR_FREE(tapfdName);
-    for (i = 0; vhostfd && i < vhostfdSize; i++) {
-        VIR_FORCE_CLOSE(vhostfd[i]);
-        if (vhostfdName)
-            VIR_FREE(vhostfdName[i]);
-    }
-    VIR_FREE(vhostfd);
-    VIR_FREE(vhostfdName);
     virDomainCCWAddressSetFree(ccwaddrs);
-    VIR_FORCE_CLOSE(slirpfd);
-    VIR_FORCE_CLOSE(vdpafd);
 
     return ret;
 
@@ -1630,6 +1523,13 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         qemuMonitorRemoveNetdev(priv->mon, netdev_name) < 0)
         VIR_WARN("Failed to remove network backend for netdev %s",
                  netdev_name);
+
+    for (n = netpriv->tapfds; n; n = n->next)
+        qemuFDPassDirectTransferMonitorRollback(n->data, priv->mon);
+
+    for (n = netpriv->vhostfds; n; n = n->next)
+        qemuFDPassDirectTransferMonitorRollback(n->data, priv->mon);
+
     qemuDomainObjExitMonitor(vm);
     virErrorRestore(&originalError);
     goto cleanup;
@@ -2233,11 +2133,12 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
     if (qemuProcessPrepareHostBackendChardevHotplug(vm, dev) < 0)
         goto cleanup;
 
-    if (charpriv->sourcefd || charpriv->logfd) {
+    if (charpriv->sourcefd || charpriv->logfd || charpriv->directfd) {
         qemuDomainObjEnterMonitor(driver, vm);
 
         if (qemuFDPassTransferMonitor(charpriv->sourcefd, priv->mon) < 0 ||
-            qemuFDPassTransferMonitor(charpriv->logfd, priv->mon) < 0)
+            qemuFDPassTransferMonitor(charpriv->logfd, priv->mon) < 0 ||
+            qemuFDPassDirectTransferMonitor(charpriv->directfd, priv->mon) < 0)
             goto exit_monitor;
 
         qemuDomainObjExitMonitor(vm);
@@ -2269,8 +2170,7 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
     chardevAttached = true;
 
     if (netdevprops) {
-        if (qemuMonitorAddNetdev(priv->mon, &netdevprops,
-                                 NULL, NULL, 0, NULL, NULL, 0, -1, NULL) < 0)
+        if (qemuMonitorAddNetdev(priv->mon, &netdevprops) < 0)
             goto exit_monitor;
     }
 
@@ -2298,6 +2198,9 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
         if (teardowndevice && qemuDomainNamespaceTeardownChardev(vm, chr) < 0)
             VIR_WARN("Unable to remove chr device from /dev");
     }
+
+    qemuDomainChrSourcePrivateClearFDPass(charpriv);
+
     return ret;
 
  exit_monitor:
@@ -3759,7 +3662,9 @@ qemuDomainChangeNet(virQEMUDriver *driver,
          olddev->driver.virtio.guest.tso4 != newdev->driver.virtio.guest.tso4 ||
          olddev->driver.virtio.guest.tso6 != newdev->driver.virtio.guest.tso6 ||
          olddev->driver.virtio.guest.ecn != newdev->driver.virtio.guest.ecn ||
-         olddev->driver.virtio.guest.ufo != newdev->driver.virtio.guest.ufo)) {
+         olddev->driver.virtio.guest.ufo != newdev->driver.virtio.guest.ufo ||
+         olddev->driver.virtio.rss != newdev->driver.virtio.rss ||
+         olddev->driver.virtio.rss_hash_report != newdev->driver.virtio.rss_hash_report)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("cannot modify virtio network device driver attributes"));
         goto cleanup;
@@ -4420,6 +4325,7 @@ qemuDomainChangeGraphics(virQEMUDriver *driver,
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unable to change config on '%s' graphics type"), type);
         break;

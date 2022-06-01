@@ -661,13 +661,13 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
             }
 
         case VIR_NODE_DEV_CAP_CSS_DEV: {
-            virDomainDeviceCCWAddress ccw_addr = {
+            virCCWDeviceAddress ccw_addr = {
                 .cssid = caps->data.ccw_dev.cssid,
                 .ssid = caps->data.ccw_dev.ssid,
                 .devno = caps->data.ccw_dev.devno
             };
 
-            addr = virDomainCCWAddressAsString(&ccw_addr);
+            addr = virCCWDeviceAddressAsString(&ccw_addr);
             break;
             }
 

@@ -230,6 +230,9 @@ const REMOTE_NODE_MEMORY_PARAMETERS_MAX = 64;
 /* Upper limit on migrate parameters */
 const REMOTE_DOMAIN_MIGRATE_PARAM_LIST_MAX = 64;
 
+/* Upper limit on save/restore parameters */
+const REMOTE_DOMAIN_SAVE_PARAMS_MAX = 64;
+
 /* Upper limit on number of job stats */
 const REMOTE_DOMAIN_JOB_STATS_MAX = 64;
 
@@ -980,6 +983,12 @@ struct remote_domain_save_flags_args {
     unsigned int flags;
 };
 
+struct remote_domain_save_params_args {
+    remote_nonnull_domain dom;
+    remote_typed_param params<REMOTE_DOMAIN_SAVE_PARAMS_MAX>;
+    unsigned int flags;
+};
+
 struct remote_domain_restore_args {
     remote_nonnull_string from;
 };
@@ -987,6 +996,11 @@ struct remote_domain_restore_args {
 struct remote_domain_restore_flags_args {
     remote_nonnull_string from;
     remote_string dxml;
+    unsigned int flags;
+};
+
+struct remote_domain_restore_params_args {
+    remote_typed_param params<REMOTE_DOMAIN_SAVE_PARAMS_MAX>;
     unsigned int flags;
 };
 
@@ -6920,5 +6934,18 @@ enum remote_procedure {
      * @generate: both
      * @acl: domain:write
      */
-    REMOTE_PROC_DOMAIN_SET_LAUNCH_SECURITY_STATE = 439
+    REMOTE_PROC_DOMAIN_SET_LAUNCH_SECURITY_STATE = 439,
+
+    /**
+     * @generate: both
+     * @acl: domain:hibernate
+     */
+    REMOTE_PROC_DOMAIN_SAVE_PARAMS = 440,
+
+    /**
+     * @generate: both
+     * @acl: domain:start
+     * @acl: domain:write
+     */
+    REMOTE_PROC_DOMAIN_RESTORE_PARAMS = 441
 };

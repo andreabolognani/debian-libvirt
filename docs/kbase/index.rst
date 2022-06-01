@@ -101,3 +101,12 @@ Internals
 
 `RPC protocol & APIs <internals/rpc.html>`__
    RPC protocol information and API / dispatch guide
+
+`QEMU driver threading <internals/qemu-threads.html>`__
+   Basics of locking and threaded access to qemu driver primitives.
+
+`QEMU migration internals <internals/qemu-migration.html>`__
+   Description of migration phases in the ``v2`` and ``v3`` migration protocol.
+
+`QEMU monitor event handling <internals/qemu-event-handlers.html>`__
+   Brief outline how events emitted by qemu on the monitor are handlded.

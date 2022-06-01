@@ -309,7 +309,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_PCI_SERIAL, /* -device pci-serial */
     QEMU_CAPS_CPU_AARCH64_OFF, /* -cpu ...,aarch64=off */
     X_QEMU_CAPS_VHOSTUSER_MULTIQUEUE, /* vhost-user with -netdev queues= */
-    QEMU_CAPS_MIGRATION_EVENT, /* MIGRATION event */
+    X_QEMU_CAPS_MIGRATION_EVENT, /* MIGRATION event */
 
     /* 190 */
     QEMU_CAPS_OBJECT_GPEX, /* have generic PCI host controller */
@@ -647,6 +647,10 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_VIRTIO_IOMMU_PCI, /* -device virtio-iommu-pci */
     QEMU_CAPS_VIRTIO_IOMMU_BOOT_BYPASS, /* virtio-iommu.boot-bypass */
     QEMU_CAPS_VIRTIO_NET_RSS, /* virtio-net rss feature */
+
+    /* 430 */
+    QEMU_CAPS_CHARDEV_QEMU_VDAGENT, /* -chardev qemu-vdagent */
+    QEMU_CAPS_DISPLAY_DBUS, /* -display dbus */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

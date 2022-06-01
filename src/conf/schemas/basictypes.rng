@@ -220,6 +220,13 @@
   </define>
   <!--======================================================================-->
 
+  <!-- A D-Bus server address: https://dbus.freedesktop.org/doc/dbus-specification.html#addresses -->
+  <define name="dbusAddr">
+    <data type="string">
+      <param name="pattern">.+</param>
+    </data>
+  </define>
+
   <!-- An ipv4 "dotted quad" address -->
   <define name="ipv4Addr">
     <data type="string">
@@ -227,7 +234,7 @@
     </data>
   </define>
 
-  <!-- Based on http://blog.mes-stats.fr/2008/10/09/regex-ipv4-et-ipv6 -->
+  <!-- Based on https://web.archive.org/web/20090503193311/http://blog.mes-stats.fr/2008/10/09/regex-ipv4-et-ipv6 -->
   <define name="ipv6Addr">
     <data type="string">
       <!-- To understand this better, take apart the toplevel "|"s -->

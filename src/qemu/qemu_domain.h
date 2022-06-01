@@ -204,8 +204,9 @@ struct _qemuDomainObjPrivate {
     /* counter for generating node names for qemu disks */
     unsigned long long nodenameindex;
 
-    /* counter for generating IDs of fdsets - only relevant during startup */
+    /* counter for generating IDs of fdsets */
     unsigned int fdsetindex;
+    bool fdsetindexParsed;
 
     /* qemuProcessStartCPUs stores the reason for starting vCPUs here for the
      * RESUME event handler to use it */
@@ -241,6 +242,9 @@ struct _qemuDomainObjPrivate {
     GSList *dbusVMStateIds;
     /* true if -object dbus-vmstate was added */
     bool dbusVMState;
+
+    unsigned long long originalMemlock; /* Original RLIMIT_MEMLOCK, zero if no
+                                         * restore will be required later */
 };
 
 #define QEMU_DOMAIN_PRIVATE(vm) \
@@ -346,6 +350,7 @@ struct _qemuDomainChrSourcePrivate {
 
     qemuFDPass *sourcefd;
     qemuFDPass *logfd;
+    qemuFDPassDirect *directfd;
     bool wait; /* wait for incoming connections on chardev */
 
     char *tlsCertPath; /* path to certificates if TLS is requested */
@@ -354,6 +359,9 @@ struct _qemuDomainChrSourcePrivate {
     char *tlsCredsAlias; /* alias of the x509 tls credentials object */
 };
 
+
+void
+qemuDomainChrSourcePrivateClearFDPass(qemuDomainChrSourcePrivate *priv);
 
 typedef struct _qemuDomainVsockPrivate qemuDomainVsockPrivate;
 struct _qemuDomainVsockPrivate {
@@ -394,8 +402,16 @@ struct _qemuDomainNetworkPrivate {
     virObject parent;
 
     qemuSlirp *slirp;
+
+    /* file descriptor transfer helpers */
+    qemuFDPassDirect *slirpfd;
+    GSList *tapfds; /* qemuFDPassDirect */
+    GSList *vhostfds; /* qemuFDPassDirect */
+    qemuFDPass *vdpafd;
 };
 
+void
+qemuDomainNetworkPrivateClearFDs(qemuDomainNetworkPrivate *priv);
 
 typedef enum {
     QEMU_PROCESS_EVENT_WATCHDOG = 0,

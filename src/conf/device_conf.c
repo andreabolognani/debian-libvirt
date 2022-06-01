@@ -258,17 +258,9 @@ virPCIDeviceAddressFormat(virBuffer *buf,
                       addr.function);
 }
 
-bool
-virDomainDeviceCCWAddressIsValid(virDomainDeviceCCWAddress *addr)
-{
-    return addr->cssid <= VIR_DOMAIN_DEVICE_CCW_MAX_CSSID &&
-           addr->ssid <= VIR_DOMAIN_DEVICE_CCW_MAX_SSID &&
-           addr->devno <= VIR_DOMAIN_DEVICE_CCW_MAX_DEVNO;
-}
-
 int
-virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
-                                  virDomainDeviceCCWAddress *addr)
+virCCWDeviceAddressParseXML(xmlNodePtr node,
+                            virCCWDeviceAddress *addr)
 {
     int cssid;
     int ssid;
@@ -288,7 +280,7 @@ virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
                                 &addr->devno)) < 0)
         return -1;
 
-    if (!virDomainDeviceCCWAddressIsValid(addr)) {
+    if (!virCCWDeviceAddressIsValid(addr)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Invalid specification for virtio ccw address: cssid='0x%x' ssid='0x%x' devno='0x%04x'"),
                        addr->cssid, addr->ssid, addr->devno);
@@ -304,18 +296,6 @@ virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
     }
 
     return 0;
-}
-
-bool
-virDomainDeviceCCWAddressEqual(virDomainDeviceCCWAddress *addr1,
-                               virDomainDeviceCCWAddress *addr2)
-{
-    if (addr1->cssid == addr2->cssid &&
-        addr1->ssid == addr2->ssid &&
-        addr1->devno == addr2->devno) {
-        return true;
-    }
-    return false;
 }
 
 int
@@ -453,7 +433,7 @@ virDomainDeviceAddressIsValid(virDomainDeviceInfo *info,
         return true;
 
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
-        return virDomainDeviceCCWAddressIsValid(&info->addr.ccw);
+        return virCCWDeviceAddressIsValid(&info->addr.ccw);
 
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB:
         return true;

@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '8.3.0',
+  version: '8.4.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -510,12 +510,13 @@ libvirt_no_indirect = cc.get_supported_link_arguments([
 
 if host_machine.system() == 'windows'
   version_script_flags = '-Wl,'
+elif host_machine.system() == 'darwin'
+  # macOS libraries don't support symbol versioning
+  version_script_flags = ''
 else
   test_file = '@0@/src/libvirt_qemu.syms'.format(meson.source_root())
   if cc.has_link_argument('-Wl,--version-script=@0@'.format(test_file))
     version_script_flags = '-Wl,--version-script='
-  elif cc.has_link_argument('-Wl,-M,')
-    version_script_flags = '-Wl,-M,'
   else
     error('No supported version script link argument found.')
   endif
@@ -556,7 +557,6 @@ functions = [
   'prlimit',
   'sched_setscheduler',
   'setgroups',
-  'setns',
   'setrlimit',
   'symlink',
   'sysctlbyname',

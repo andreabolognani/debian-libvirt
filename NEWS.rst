@@ -8,6 +8,50 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.4.0 (2022-06-01)
+===================
+
+* **New features**
+
+  * qemu: D-Bus display
+
+    Libvirt is now able to setup a D-Bus display export, either with a private
+    bus or in p2p mode. This display is available in QEMU 7.0.0.
+
+  * qemu: ppc64 Power10 processor support
+
+    Support for the recently released IBM Power10 processor was added.
+
+  * qemu: Introduce ``absolute`` clock offset
+
+    The ``absolute`` clock offset type allows to set the guest clock to an
+    arbitrary epoch timestamp at each start. This is useful if some VM needs
+    to be kept set to an arbitrary time for e.g. testing or working around
+    broken software.
+
+  * qemu: add qemu-vdagent channel
+
+    This paravirtualized qemu vdagent channel can enable copy and paste between
+    a guest and a VNC client. It is available in QEMU 6.1.0.
+
+  * api: Add new APIs ``virDomainSaveParams`` and ``virDomainRestoreParams``
+
+    * ``virDomainSaveParams``: An alternative domain saving API, extends
+      ``virDomainSaveFlags`` by adding parameters.
+    * ``virDomainRestoreParams``: An alternative domain restoring API, extends
+      ``virDomainRestoreFlags`` by adding parameters.
+
+* **Bug fixes**
+
+  * Improve heuristics for computing baseline CPU models
+
+    Both ``virConnectBaselineHypervisorCPU`` and ``virConnectBaselineCPU`` were
+    in some cases computing the result using a CPU model which was newer than
+    some of the input models. For example, ``Cascadelake-Server`` was used as a
+    baseline for ``Skylake-Server-IBRS`` and ``Cascadelake-Server``. The CPU
+    model selection heuristics was improved to choose a more appropriate model.
+
+
 v8.3.0 (2022-05-02)
 ===================
 
@@ -23,6 +67,12 @@ v8.3.0 (2022-05-02)
   * qemu: Introduce support for virtio-iommu
 
     This IOMMU device can be used with both Q35 and ARM virt guests.
+
+  * qemu: Introduce attributes rss and rss_hash_report for net interface
+
+    They can enable in-qemu/ebpf RSS and in-qemu RSS hash report for virtio NIC.
+    Require QEMU >= 5.1.
+
 
 v8.2.0 (2022-04-01)
 ===================
@@ -448,6 +498,20 @@ v7.8.0 (2021-10-01)
     active. This information can also be retrieved with the new virsh command
     ``nodedev-info``.
 
+  * qemu: Add attribute ``queue_size`` for virtio-blk devices
+
+* **Improvements**
+
+  * api: Add XML validation for creating of: networkport, nwfilter-binding,
+    network
+
+    * Add flag ``VIR_NETWORK_PORT_CREATE_VALIDATE`` to validate network port
+      input xml of network-port creating.
+    * Add flag ``VIR_NETWORK_CREATE_VALIDATE`` to validate network input xml of
+      network creating.
+    * Add flag ``VIR_NWFILTER_BINDING_CREATE_VALIDATE`` to validate
+      nwfilter-binding input xml of nwfilter-binding creating.
+
 
 v7.7.0 (2021-09-01)
 ===================
@@ -518,6 +582,8 @@ v7.7.0 (2021-09-01)
       actions. In addition, switching from ``reboot`` to ``destroy`` was
       forbidden for older qemus which don't support the update API as the guest
       could still reboot and execute some instructions until it was terminated.
+
+  * virsh: Support vhostuser in attach-interface
 
 * **Bug fixes**
 
@@ -994,6 +1060,14 @@ v7.0.0 (2021-01-15)
     powered off or undefined. Add per-TPM emulator option ``persistent_state``
     for keeping TPM state.
 
+  * cpu_map: Add Snowridge CPU model
+
+    It's supported in QEMU 4.1 and newer.
+
+  * qemu: Add support for NFS disk protocol
+
+    Implement support for the 'nfs' native protocol driver in the qemu driver.
+
 * **Improvements**
 
   * qemu: Discourage users from polling ``virDomainGetBlockJobInfo`` for block
@@ -1084,6 +1158,12 @@ v6.10.0 (2020-12-01)
   option is missing are now '1'. This ensures that only legitimate clients
   access servers, which don't have any additional form of authentication.
 
+  * qemu: Introduce "migrate_tls_force" qemu.conf option
+
+    The ``migrate_tls_force`` configuration option allows administrators to
+    always force connections used for migration to be TLS secured as if the
+    ``VIR_MIGRATE_TLS`` flag had been used.
+
 * **New features**
 
   * qemu: Implement OpenSSH authorized key file management APIs
@@ -1101,6 +1181,18 @@ v6.10.0 (2020-12-01)
     ``virDomainGetVcpusFlags()``, ``virDomainGetMaxVcpus()``,
     ``virDomainSetVcpus()``, and ``virDomainSetVcpusFlags()`` APIs have been
     implemented in the Hyper-V driver.
+
+  * qemu: Add 'fmode' and 'dmode' options for 9pfs
+
+    Expose QEMU's 9pfs 'fmode' and 'dmode' options via attributes on the
+    'filesystem' node in the domain XML. These options control the creation
+    mode of files and directories, respectively, when using accessmode=mapped.
+    It requires QEMU 2.10 or above.
+
+  * qemu: support kvm-poll-control performance hint
+
+    Implement the new KVM feature 'poll-control' to set this performance hint
+    for KVM guests. It requires QEMU 4.2 or above.
 
 * **Improvements**
 
@@ -1169,6 +1261,52 @@ v6.9.0 (2020-11-02)
     VMs using the QEMU hypervisor can now specify vDPA network devices
     using ``<interface type='vdpa'>``. The node device APIs also now
     list and provide XML descriptions for vDPA devices.
+
+  * cpu_map: Add EPYC-Rome CPU model
+
+    It's supported in QEMU 5.0.0 and newer.
+
+  * cpu: Add a flag for XML validation in CPU comparison
+
+    The ``virConnectCompareCPU`` and ``virConnectCompareHypervisorCPU`` API
+    now support the ``VIR_CONNECT_COMPARE_CPU_VALIDATE_XML`` flag, which
+    enables XML validation. For virsh, this feature is enabled by passing
+    the ``--validate`` option to the ``cpu-compare`` and
+    ``hypervisor-cpu-compare`` subcommands.
+
+  * qemu: Introduce virtio-balloon free page reporting feature
+
+    Introduce the optional attribute ``free-page-reporting`` for virtio
+    memballoon device. It enables/disables the ability of the QEMU virtio
+    memory balloon to return unused pages back to the hypervisor. QEMU 5.1
+    and newer support this feature.
+
+* **Improvements**
+
+  * qemu: Make 'cbitpos' & 'reducedPhysBits' attrs optional
+
+    Libvirt probes the underlying platform in order to fill in these SEV
+    attributes automatically before launching a guest.
+
+  * util: support device stats collection for SR-IOV VF hostdev
+
+    For SR-IOV VF hostdevs, libvirt now supports retrieving device traffic
+    stats via the ``virDomainInterfaceStats`` API and ``virsh domifstat``.
+
+  * logging: Allow disabling log rollover
+
+    Set ``max_len=0`` in ``virtlogd.conf`` to disable log rollover.
+
+  * qemu: Set noqueue qdisc for TAP devices
+
+    Set ``noqueue`` instead of the former ``pfifo_fast`` queue discipline
+    for TAP devices. It will avoid needless cost of host CPU cycles and
+    thus improve performance.
+
+  * qemu: virtiofs can be used without NUMA nodes
+
+    Virtiofs is supported for the VM without NUMA nodes but configured with
+    shared memory.
 
 * **Bug fixes**
 

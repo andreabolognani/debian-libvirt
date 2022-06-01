@@ -3594,40 +3594,11 @@ int qemuMonitorJSONGraphicsRelocate(qemuMonitor *mon,
 }
 
 
-static int
-qemuAddfdInfoParse(virJSONValue *msg,
-                   qemuMonitorAddFdInfo *fdinfo)
-{
-    virJSONValue *returnObj;
-
-    if (!(returnObj = virJSONValueObjectGetObject(msg, "return"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Missing or invalid return data in add-fd response"));
-        return -1;
-    }
-
-    if (virJSONValueObjectGetNumberInt(returnObj, "fd", &fdinfo->fd) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Missing or invalid fd in add-fd response"));
-        return -1;
-    }
-
-    if (virJSONValueObjectGetNumberInt(returnObj, "fdset-id", &fdinfo->fdset) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Missing or invalid fdset-id in add-fd response"));
-        return -1;
-    }
-
-    return 0;
-}
-
-
-/* if fdset is negative, qemu will create a new fdset and add the fd to that */
-int qemuMonitorJSONAddFileHandleToSet(qemuMonitor *mon,
-                                      int fd,
-                                      int fdset,
-                                      const char *opaque,
-                                      qemuMonitorAddFdInfo *fdinfo)
+int
+qemuMonitorJSONAddFileHandleToSet(qemuMonitor *mon,
+                                  int fd,
+                                  int fdset,
+                                  const char *opaque)
 {
     g_autoptr(virJSONValue) args = NULL;
     g_autoptr(virJSONValue) reply = NULL;
@@ -3650,11 +3621,9 @@ int qemuMonitorJSONAddFileHandleToSet(qemuMonitor *mon,
     if (qemuMonitorJSONCheckError(cmd, reply) < 0)
         return -1;
 
-    if (qemuAddfdInfoParse(reply, fdinfo) < 0)
-        return -1;
-
     return 0;
 }
+
 
 static int
 qemuMonitorJSONQueryFdsetsParse(virJSONValue *msg,
@@ -3691,29 +3660,24 @@ qemuMonitorJSONQueryFdsetsParse(virJSONValue *msg,
 
         }
 
-        fdarray = virJSONValueObjectGetArray(entry, "fds");
-        fdsetinfo->nfds = virJSONValueArraySize(fdarray);
-        if (fdsetinfo->nfds > 0)
-            fdsetinfo->fds = g_new0(qemuMonitorFdsetFdInfo, fdsetinfo->nfds);
+        if ((fdarray = virJSONValueObjectGetArray(entry, "fds"))) {
+            fdsetinfo->nfds = virJSONValueArraySize(fdarray);
+            if (fdsetinfo->nfds > 0)
+                fdsetinfo->fds = g_new0(qemuMonitorFdsetFdInfo, fdsetinfo->nfds);
 
-        for (j = 0; j < fdsetinfo->nfds; j++) {
-            qemuMonitorFdsetFdInfo *fdinfo = &fdsetinfo->fds[j];
-            virJSONValue *fdentry;
+            for (j = 0; j < fdsetinfo->nfds; j++) {
+                qemuMonitorFdsetFdInfo *fdinfo = &fdsetinfo->fds[j];
+                virJSONValue *fdentry;
 
-            if (!(fdentry = virJSONValueArrayGet(fdarray, j))) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("query-fdsets return data missing fd array element"));
-                return -1;
+                if (!(fdentry = virJSONValueArrayGet(fdarray, j))) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                                   _("query-fdsets return data missing fd array element"));
+                    return -1;
+                }
+
+                /* opaque is optional and may be missing */
+                fdinfo->opaque = g_strdup(virJSONValueObjectGetString(fdentry, "opaque"));
             }
-
-            if (virJSONValueObjectGetNumberInt(fdentry, "fd", &fdinfo->fd) < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("query-fdsets return data missing 'fd'"));
-                return -1;
-            }
-
-            /* opaque is optional and may be missing */
-            fdinfo->opaque = g_strdup(virJSONValueObjectGetString(fdentry, "opaque"));
         }
     }
 
@@ -3735,7 +3699,7 @@ int qemuMonitorJSONQueryFdsets(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
+    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
         return -1;
 
     if (qemuMonitorJSONQueryFdsetsParse(reply, fdsets) < 0)
@@ -6400,6 +6364,7 @@ qemuMonitorJSONGetSEVCapabilities(qemuMonitor *mon,
     virJSONValue *caps;
     const char *pdh = NULL;
     const char *cert_chain = NULL;
+    const char *cpu0_id = NULL;
     unsigned int cbitpos;
     unsigned int reduced_phys_bits;
     g_autoptr(virSEVCapability) capability = NULL;
@@ -6456,6 +6421,11 @@ qemuMonitorJSONGetSEVCapabilities(qemuMonitor *mon,
     capability->pdh = g_strdup(pdh);
 
     capability->cert_chain = g_strdup(cert_chain);
+
+    cpu0_id = virJSONValueObjectGetString(caps, "cpu0-id");
+    if (cpu0_id != NULL) {
+        capability->cpu0_id = g_strdup(cpu0_id);
+    }
 
     capability->cbitpos = cbitpos;
     capability->reduced_phys_bits = reduced_phys_bits;
@@ -6754,8 +6724,8 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
                 waitval = VIR_TRISTATE_BOOL_NO;
             }
 
-            if (chrSourcePriv->sourcefd) {
-                if (!(addr = qemuMonitorJSONBuildFDSocketAddress(qemuFDPassGetPath(chrSourcePriv->sourcefd))))
+            if (chrSourcePriv->directfd) {
+                if (!(addr = qemuMonitorJSONBuildFDSocketAddress(qemuFDPassDirectGetPath(chrSourcePriv->directfd))))
                     return NULL;
             } else {
                 if (!(addr = qemuMonitorJSONBuildUnixSocketAddress(chr->data.nix.path)))
@@ -6809,6 +6779,43 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
 
         if (virJSONValueObjectAdd(&backendData,
                                   "s:type", virDomainChrSpicevmcTypeToString(chr->data.spicevmc),
+                                  NULL) < 0)
+            return NULL;
+
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT: {
+        virTristateBool mouse = VIR_TRISTATE_BOOL_ABSENT;
+        switch (chr->data.qemuVdagent.mouse) {
+            case VIR_DOMAIN_MOUSE_MODE_CLIENT:
+                mouse = VIR_TRISTATE_BOOL_YES;
+                break;
+            case VIR_DOMAIN_MOUSE_MODE_SERVER:
+                mouse = VIR_TRISTATE_BOOL_NO;
+                break;
+            case VIR_DOMAIN_MOUSE_MODE_DEFAULT:
+                break;
+            case VIR_DOMAIN_MOUSE_MODE_LAST:
+            default:
+                virReportEnumRangeError(virDomainMouseMode,
+                                        chr->data.qemuVdagent.mouse);
+                return NULL;
+        }
+        backendType = "qemu-vdagent";
+
+        if (virJSONValueObjectAdd(&backendData,
+                                  "T:clipboard", chr->data.qemuVdagent.clipboard,
+                                  "T:mouse", mouse,
+                                  NULL) < 0)
+            return NULL;
+        break;
+    }
+
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        backendType = "dbus";
+
+        if (virJSONValueObjectAdd(&backendData,
+                                  "s:name", chr->data.dbus.channel,
                                   NULL) < 0)
             return NULL;
 

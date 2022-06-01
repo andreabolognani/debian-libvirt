@@ -563,12 +563,27 @@ struct remote_domain_save_flags_args {
         remote_string              dxml;
         u_int                      flags;
 };
+struct remote_domain_save_params_args {
+        remote_nonnull_domain      dom;
+        struct {
+                u_int              params_len;
+                remote_typed_param * params_val;
+        } params;
+    u_int                      flags;
+};
 struct remote_domain_restore_args {
         remote_nonnull_string      from;
 };
 struct remote_domain_restore_flags_args {
         remote_nonnull_string      from;
         remote_string              dxml;
+        u_int                      flags;
+};
+struct remote_domain_restore_params_args {
+        struct {
+                u_int              params_len;
+                remote_typed_param * params_val;
+        } params;
         u_int                      flags;
 };
 struct remote_domain_save_image_get_xml_desc_args {
@@ -3689,4 +3704,6 @@ enum remote_procedure {
         REMOTE_PROC_NETWORK_CREATE_XML_FLAGS = 437,
         REMOTE_PROC_DOMAIN_EVENT_MEMORY_DEVICE_SIZE_CHANGE = 438,
         REMOTE_PROC_DOMAIN_SET_LAUNCH_SECURITY_STATE = 439,
+        REMOTE_PROC_DOMAIN_SAVE_PARAMS = 440,
+        REMOTE_PROC_DOMAIN_RESTORE_PARAMS = 441,
 };

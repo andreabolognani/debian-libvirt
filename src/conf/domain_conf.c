@@ -715,6 +715,8 @@ VIR_ENUM_IMPL(virDomainChr,
               "spicevmc",
               "spiceport",
               "nmdm",
+              "qemu-vdagent",
+              "dbus",
 );
 
 VIR_ENUM_IMPL(virDomainChrTcpProtocol,
@@ -769,6 +771,7 @@ VIR_ENUM_IMPL(virDomainAudioType,
               "sdl",
               "spice",
               "file",
+              "dbus",
 );
 
 VIR_ENUM_IMPL(virDomainAudioSDLDriver,
@@ -925,6 +928,7 @@ VIR_ENUM_IMPL(virDomainGraphics,
               "desktop",
               "spice",
               "egl-headless",
+              "dbus",
 );
 
 VIR_ENUM_IMPL(virDomainGraphicsListen,
@@ -997,8 +1001,8 @@ VIR_ENUM_IMPL(virDomainGraphicsSpiceZlibCompression,
               "always",
 );
 
-VIR_ENUM_IMPL(virDomainGraphicsSpiceMouseMode,
-              VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_LAST,
+VIR_ENUM_IMPL(virDomainMouseMode,
+              VIR_DOMAIN_MOUSE_MODE_LAST,
               "default",
               "server",
               "client",
@@ -1171,6 +1175,7 @@ VIR_ENUM_IMPL(virDomainClockOffset,
               "localtime",
               "variable",
               "timezone",
+              "absolute",
 );
 
 VIR_ENUM_IMPL(virDomainClockBasis,
@@ -1916,6 +1921,11 @@ void virDomainGraphicsDefFree(virDomainGraphicsDef *def)
 
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
         g_free(def->data.egl_headless.rendernode);
+        break;
+
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        g_free(def->data.dbus.address);
+        g_free(def->data.dbus.rendernode);
         break;
 
     case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
@@ -2702,6 +2712,8 @@ virDomainChrSourceDefGetPath(virDomainChrSourceDef *chr)
     case VIR_DOMAIN_CHR_TYPE_STDIO:
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
     case VIR_DOMAIN_CHR_TYPE_LAST:
         return NULL;
     }
@@ -2744,6 +2756,10 @@ virDomainChrSourceDefClear(virDomainChrSourceDef *def)
 
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
         VIR_FREE(def->data.spiceport.channel);
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        VIR_FREE(def->data.dbus.channel);
         break;
     }
 
@@ -2809,6 +2825,15 @@ virDomainChrSourceDefCopy(virDomainChrSourceDef *dest,
 
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
         dest->data.spiceport.channel = g_strdup(src->data.spiceport.channel);
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+        dest->data.qemuVdagent.clipboard = src->data.qemuVdagent.clipboard;
+        dest->data.qemuVdagent.mouse = src->data.qemuVdagent.mouse;
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        dest->data.dbus.channel = g_strdup(src->data.dbus.channel);
         break;
 
     case VIR_DOMAIN_CHR_TYPE_NULL:
@@ -2891,6 +2916,16 @@ virDomainChrSourceDefIsEqual(const virDomainChrSourceDef *src,
 
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
         return src->data.spicevmc == tgt->data.spicevmc;
+
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+        return src->data.qemuVdagent.clipboard == tgt->data.qemuVdagent.clipboard &&
+            src->data.qemuVdagent.mouse == tgt->data.qemuVdagent.mouse;
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        return STREQ_NULLABLE(src->data.dbus.channel,
+                              tgt->data.dbus.channel);
+        break;
 
     case VIR_DOMAIN_CHR_TYPE_NULL:
     case VIR_DOMAIN_CHR_TYPE_VC:
@@ -3056,6 +3091,7 @@ virDomainAudioDefFree(virDomainAudioDef *def)
         g_free(def->backend.file.path);
         break;
 
+    case VIR_DOMAIN_AUDIO_TYPE_DBUS:
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
         break;
     }
@@ -6720,8 +6756,7 @@ virDomainDeviceAddressParseXML(xmlNodePtr address,
         break;
 
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
-        if (virDomainDeviceCCWAddressParseXML
-                (address, &info->addr.ccw) < 0)
+        if (virCCWDeviceAddressParseXML(address, &info->addr.ccw) < 0)
             return -1;
         break;
 
@@ -11220,6 +11255,33 @@ virDomainChrSourceDefParseLog(virDomainChrSourceDef *def,
 }
 
 
+static int
+virDomainChrSourceDefParseQemuVdagent(virDomainChrSourceDef *def,
+                                      xmlNodePtr source,
+                                      xmlXPathContextPtr ctxt)
+{
+    xmlNodePtr cur;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+
+    ctxt->node = source;
+    if ((cur = virXPathNode("./clipboard", ctxt))) {
+        if (virXMLPropTristateBool(cur, "copypaste",
+                                   VIR_XML_PROP_REQUIRED,
+                                   &def->data.qemuVdagent.clipboard) < 0)
+            return -1;
+    }
+    if ((cur = virXPathNode("./mouse", ctxt))) {
+        if (virXMLPropEnum(cur, "mode",
+                           virDomainMouseModeTypeFromString,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &def->data.qemuVdagent.mouse) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
 /* Parse the source half of the XML definition for a character device,
  * where node is the first element of node->children of the parent
  * element.  def->type must already be valid.
@@ -11296,9 +11358,19 @@ virDomainChrSourceDefParseXML(virDomainChrSourceDef *def,
             def->data.spiceport.channel = virXMLPropString(sources[0], "channel");
             break;
 
+        case VIR_DOMAIN_CHR_TYPE_DBUS:
+            def->data.dbus.channel = virXMLPropString(sources[0], "channel");
+            break;
+
         case VIR_DOMAIN_CHR_TYPE_NMDM:
             def->data.nmdm.master = virXMLPropString(sources[0], "master");
             def->data.nmdm.slave = virXMLPropString(sources[0], "slave");
+            break;
+
+        case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+            if (virDomainChrSourceDefParseQemuVdagent(def, sources[0], ctxt) < 0)
+                goto error;
+
             break;
 
         case VIR_DOMAIN_CHR_TYPE_LAST:
@@ -12703,7 +12775,7 @@ virDomainGraphicsDefParseXMLSpice(virDomainGraphicsDef *def,
 
     if ((cur = virXPathNode("./mouse", ctxt))) {
         if (virXMLPropEnum(cur, "mode",
-                           virDomainGraphicsSpiceMouseModeTypeFromString,
+                           virDomainMouseModeTypeFromString,
                            VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
                            &def->data.spice.mousemode) < 0)
             return -1;
@@ -12726,6 +12798,47 @@ virDomainGraphicsDefParseXMLEGLHeadless(virDomainGraphicsDef *def,
     if ((glNode = virXPathNode("./gl", ctxt)))
         def->data.egl_headless.rendernode = virXMLPropString(glNode,
                                                              "rendernode");
+}
+
+
+static int
+virDomainGraphicsDefParseXMLDBus(virDomainGraphicsDef *def,
+                                 xmlNodePtr node,
+                                 xmlXPathContextPtr ctxt)
+{
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    xmlNodePtr cur;
+    virTristateBool p2p;
+
+    if (virXMLPropTristateBool(node, "p2p", VIR_XML_PROP_NONE,
+                               &p2p) < 0)
+        return -1;
+    def->data.dbus.p2p = p2p == VIR_TRISTATE_BOOL_YES;
+
+    def->data.dbus.address = virXMLPropString(node, "address");
+    def->data.dbus.fromConfig = def->data.dbus.address != NULL;
+
+    ctxt->node = node;
+
+    if ((cur = virXPathNode("./gl", ctxt))) {
+        def->data.dbus.rendernode = virXMLPropString(cur,
+                                                     "rendernode");
+
+        if (virXMLPropTristateBool(cur, "enable",
+                                   VIR_XML_PROP_REQUIRED,
+                                   &def->data.dbus.gl) < 0)
+            return -1;
+    }
+
+    cur = virXPathNode("./audio", ctxt);
+    if (cur) {
+        if (virXMLPropUInt(cur, "id", 10,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &def->data.dbus.audioId) < 0)
+            return -1;
+    }
+
+    return 0;
 }
 
 
@@ -12800,6 +12913,10 @@ virDomainGraphicsDefParseXML(virDomainXMLOption *xmlopt,
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
         virDomainGraphicsDefParseXMLEGLHeadless(def, node, ctxt);
+        break;
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        if (virDomainGraphicsDefParseXMLDBus(def, node, ctxt) < 0)
+            goto error;
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
         break;
@@ -13206,6 +13323,9 @@ virDomainAudioDefParseXML(virDomainXMLOption *xmlopt G_GNUC_UNUSED,
 
     case VIR_DOMAIN_AUDIO_TYPE_FILE:
         def->backend.file.path = virXMLPropString(node, "path");
+        break;
+
+    case VIR_DOMAIN_AUDIO_TYPE_DBUS:
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -14290,6 +14410,8 @@ virDomainRedirdevDefParseXML(virDomainXMLOption *xmlopt,
 
     if (def->source->type == VIR_DOMAIN_CHR_TYPE_SPICEVMC)
         def->source->data.spicevmc = VIR_DOMAIN_CHR_SPICEVMC_USBREDIR;
+    if (def->source->type == VIR_DOMAIN_CHR_TYPE_DBUS && !def->source->data.dbus.channel)
+        def->source->data.dbus.channel = g_strdup("org.qemu.usbredir");
 
     if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt, &def->info,
                                     flags | VIR_DOMAIN_DEF_PARSE_ALLOW_BOOT) < 0)
@@ -15368,7 +15490,7 @@ virDomainDiskControllerMatch(int controller_type, int disk_bus)
 int
 virDomainDiskIndexByAddress(virDomainDef *def,
                             virPCIDeviceAddress *pci_address,
-                            virDomainDeviceCCWAddress *ccw_addr,
+                            virCCWDeviceAddress *ccw_addr,
                             unsigned int bus, unsigned int target,
                             unsigned int unit)
 {
@@ -15393,7 +15515,7 @@ virDomainDiskIndexByAddress(virDomainDef *def,
             return i;
         if (vdisk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW &&
             ccw_addr &&
-            virDomainDeviceCCWAddressEqual(&vdisk->info.addr.ccw, ccw_addr)) {
+            virCCWDeviceAddressEqual(&vdisk->info.addr.ccw, ccw_addr)) {
             return i;
         }
         if (vdisk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE) {
@@ -15412,7 +15534,7 @@ virDomainDiskIndexByAddress(virDomainDef *def,
 virDomainDiskDef *
 virDomainDiskByAddress(virDomainDef *def,
                        virPCIDeviceAddress *pci_address,
-                       virDomainDeviceCCWAddress *ccw_addr,
+                       virCCWDeviceAddress *ccw_addr,
                        unsigned int bus,
                        unsigned int target,
                        unsigned int unit)
@@ -15582,8 +15704,8 @@ virDomainNetFindIdx(virDomainDef *def, virDomainNetDef *net)
             continue;
 
         if (CCWAddrSpecified &&
-            !virDomainDeviceCCWAddressEqual(&def->nets[i]->info.addr.ccw,
-                                            &net->info.addr.ccw))
+            !virCCWDeviceAddressEqual(&def->nets[i]->info.addr.ccw,
+                                      &net->info.addr.ccw))
             continue;
 
         if (net->info.alias && def->nets[i]->info.alias &&
@@ -15620,7 +15742,7 @@ virDomainNetFindIdx(virDomainDef *def, virDomainNetDef *net)
         alias = net->info.alias;
 
     if (CCWAddrSpecified)
-        addr = virDomainCCWAddressAsString(&net->info.addr.ccw);
+        addr = virCCWDeviceAddressAsString(&net->info.addr.ccw);
     else if (PCIAddrSpecified)
         addr = virPCIDeviceAddressAsString(&net->info.addr.pci);
     else
@@ -16011,7 +16133,7 @@ virDomainControllerFindByType(virDomainDef *def,
 
 int
 virDomainControllerFindByCCWAddress(virDomainDef *def,
-                                    virDomainDeviceCCWAddress *addr)
+                                    virCCWDeviceAddress *addr)
 {
     size_t i;
 
@@ -16019,7 +16141,7 @@ virDomainControllerFindByCCWAddress(virDomainDef *def,
         virDomainDeviceInfo *info = &def->controllers[i]->info;
 
         if (info->type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW &&
-            virDomainDeviceCCWAddressEqual(&info->addr.ccw, addr))
+            virCCWDeviceAddressEqual(&info->addr.ccw, addr))
             return i;
     }
 
@@ -17632,8 +17754,12 @@ virDomainFeaturesDefParse(virDomainDef *def,
                                          VIR_XML_PROP_NONE, &state) < 0)
                 return -1;
 
-            if ((state == VIR_TRISTATE_SWITCH_ABSENT) ||
-                (state == VIR_TRISTATE_SWITCH_ON)) {
+            if (state == VIR_TRISTATE_SWITCH_ABSENT)
+                state = VIR_TRISTATE_SWITCH_ON;
+
+            def->features[val] = state;
+
+            if (state == VIR_TRISTATE_SWITCH_ON) {
                 int rv = virParseScaledValue("string(./features/smm/tseg)",
                                              "string(./features/smm/tseg/@unit)",
                                              ctxt,
@@ -17644,7 +17770,6 @@ virDomainFeaturesDefParse(virDomainDef *def,
                 if (rv < 0)
                     return -1;
 
-                def->features[val] = VIR_TRISTATE_SWITCH_ON;
                 def->tseg_specified = rv != 0;
             }
             break;
@@ -19409,6 +19534,15 @@ virDomainDefClockParse(virDomainDef *def,
         if (!def->clock.data.timezone) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("missing 'timezone' attribute for clock with offset='timezone'"));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE:
+        if (virXPathULongLong("number(./clock/@start)", ctxt,
+                              &def->clock.data.starttime) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("missing 'start' attribute for clock with offset='absolute'"));
             return -1;
         }
         break;
@@ -24996,6 +25130,22 @@ virDomainChrSourceDefFormat(virBuffer *buf,
         /* nada */
         break;
 
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+        if (def->data.qemuVdagent.mouse != VIR_DOMAIN_MOUSE_MODE_DEFAULT ||
+            def->data.qemuVdagent.clipboard != VIR_TRISTATE_BOOL_ABSENT) {
+            virBufferAddLit(buf, "<source>\n");
+            virBufferAdjustIndent(buf, 2);
+            if (def->data.qemuVdagent.clipboard != VIR_TRISTATE_BOOL_ABSENT)
+                virBufferEscapeString(buf, "<clipboard copypaste='%s'/>\n",
+                                      virTristateBoolTypeToString(def->data.qemuVdagent.clipboard));
+            if (def->data.qemuVdagent.mouse != VIR_DOMAIN_MOUSE_MODE_DEFAULT)
+                virBufferEscapeString(buf, "<mouse mode='%s'/>\n",
+                                      virDomainMouseModeTypeToString(def->data.qemuVdagent.mouse));
+            virBufferAdjustIndent(buf, -2);
+            virBufferAddLit(buf, "</source>\n");
+        }
+        break;
+
     case VIR_DOMAIN_CHR_TYPE_PTY:
     case VIR_DOMAIN_CHR_TYPE_DEV:
     case VIR_DOMAIN_CHR_TYPE_FILE:
@@ -25082,6 +25232,10 @@ virDomainChrSourceDefFormat(virBuffer *buf,
                               def->data.spiceport.channel);
         break;
 
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        virBufferEscapeString(buf, "<source channel='%s'/>\n",
+                              def->data.dbus.channel);
+        break;
     }
 
     if (def->logfile) {
@@ -25210,7 +25364,6 @@ virDomainChrTargetDefFormat(virBuffer *buf,
 
     return 0;
 }
-
 
 static int
 virDomainChrDefFormat(virBuffer *buf,
@@ -25603,6 +25756,9 @@ virDomainAudioDefFormat(virBuffer *buf,
 
     case VIR_DOMAIN_AUDIO_TYPE_FILE:
         virBufferEscapeString(&attrBuf, " path='%s'", def->backend.file.path);
+        break;
+
+    case VIR_DOMAIN_AUDIO_TYPE_DBUS:
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -26202,6 +26358,9 @@ virDomainClockDefFormat(virBuffer *buf,
     case VIR_DOMAIN_CLOCK_OFFSET_TIMEZONE:
         virBufferEscapeString(&clockAttr, " timezone='%s'", def->data.timezone);
         break;
+    case VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE:
+        virBufferAsprintf(&clockAttr, " start='%llu'", def->data.starttime);
+        break;
     }
 
     for (n = 0; n < def->ntimers; n++) {
@@ -26536,6 +26695,34 @@ virDomainGraphicsDefFormat(virBuffer *buf,
                               def->data.egl_headless.rendernode);
         virBufferAddLit(buf, "/>\n");
         break;
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        if (def->data.dbus.p2p)
+            virBufferAddLit(buf, " p2p='yes'");
+        if (def->data.dbus.address)
+            virBufferAsprintf(buf, " address='%s'",
+                              def->data.dbus.address);
+
+        if (!def->data.dbus.gl && def->data.dbus.audioId <= 0)
+            break;
+
+        if (!children) {
+            virBufferAddLit(buf, ">\n");
+            virBufferAdjustIndent(buf, 2);
+            children = true;
+        }
+
+        if (def->data.dbus.gl) {
+            virBufferAsprintf(buf, "<gl enable='%s'",
+                              virTristateBoolTypeToString(def->data.dbus.gl));
+            virBufferEscapeString(buf, " rendernode='%s'", def->data.dbus.rendernode);
+            virBufferAddLit(buf, "/>\n");
+        }
+
+        if (def->data.dbus.audioId > 0)
+            virBufferAsprintf(buf, "<audio id='%d'/>\n",
+                              def->data.dbus.audioId);
+
+        break;
     case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
         break;
     }
@@ -26616,7 +26803,7 @@ virDomainGraphicsDefFormat(virBuffer *buf,
                               virDomainGraphicsSpiceStreamingModeTypeToString(def->data.spice.streaming));
         if (def->data.spice.mousemode)
             virBufferAsprintf(buf, "<mouse mode='%s'/>\n",
-                              virDomainGraphicsSpiceMouseModeTypeToString(def->data.spice.mousemode));
+                              virDomainMouseModeTypeToString(def->data.spice.mousemode));
         if (def->data.spice.copypaste)
             virBufferAsprintf(buf, "<clipboard copypaste='%s'/>\n",
                               virTristateBoolTypeToString(def->data.spice.copypaste));
@@ -29855,6 +30042,7 @@ virDomainAudioBackendIsEqual(virDomainAudioDef *this,
     case VIR_DOMAIN_AUDIO_TYPE_FILE:
         return STREQ_NULLABLE(this->backend.file.path, that->backend.file.path);
 
+    case VIR_DOMAIN_AUDIO_TYPE_DBUS:
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
     default:
         return false;
@@ -31262,6 +31450,11 @@ virDomainGraphicsDefHasOpenGL(const virDomainDef *def)
         case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
             return true;
 
+        case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+            if (graphics->data.dbus.gl == VIR_TRISTATE_BOOL_YES)
+                return true;
+
+            continue;
         case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
             break;
         }
@@ -31277,7 +31470,8 @@ virDomainGraphicsSupportsRenderNode(const virDomainGraphicsDef *graphics)
     bool ret = false;
 
     if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE ||
-        graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS)
+        graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS ||
+        graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS)
         ret = true;
 
     return ret;
@@ -31295,6 +31489,9 @@ virDomainGraphicsGetRenderNode(const virDomainGraphicsDef *graphics)
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
         ret = graphics->data.egl_headless.rendernode;
+        break;
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        ret = graphics->data.dbus.rendernode;
         break;
     case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
@@ -31316,6 +31513,9 @@ virDomainGraphicsNeedsAutoRenderNode(const virDomainGraphicsDef *graphics)
 
     if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE &&
         graphics->data.spice.gl != VIR_TRISTATE_BOOL_YES)
+        return false;
+    if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS &&
+        graphics->data.dbus.gl != VIR_TRISTATE_BOOL_YES)
         return false;
 
     if (virDomainGraphicsGetRenderNode(graphics))
@@ -31499,4 +31699,18 @@ virDomainObjGetMessages(virDomainObj *vm,
     rv = nmsgs;
 
     return rv;
+}
+
+bool
+virDomainDefHasSpiceGraphics(const virDomainDef *def)
+{
+    size_t i = 0;
+
+    for (i = 0; i < def->ngraphics; i++) {
+        if (def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
+            return true;
+        }
+    }
+
+    return false;
 }

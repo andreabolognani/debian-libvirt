@@ -43,16 +43,12 @@
 VIR_ENUM_DECL(qemuVideo);
 VIR_ENUM_DECL(qemuSoundCodec);
 
-virCommand *qemuBuildCommandLine(virQEMUDriver *driver,
-                                   virDomainObj *vm,
-                                   const char *migrateURI,
-                                   virDomainMomentObj *snapshot,
-                                   virNetDevVPortProfileOp vmop,
-                                   bool standalone,
-                                   bool enableFips,
-                                   size_t *nnicindexes,
-                                   int **nicindexes,
-                                   unsigned int flags);
+virCommand *qemuBuildCommandLine(virDomainObj *vm,
+                                 const char *migrateURI,
+                                 virDomainMomentObj *snapshot,
+                                 virNetDevVPortProfileOp vmop,
+                                 size_t *nnicindexes,
+                                 int **nicindexes);
 
 /* Generate the object properties for pr-manager */
 virJSONValue *qemuBuildPRManagerInfoProps(virStorageSource *src);
@@ -86,19 +82,17 @@ virJSONValue *
 qemuBuildChannelGuestfwdNetdevProps(virDomainChrDef *chr);
 
 virJSONValue *
-qemuBuildHostNetProps(virDomainNetDef *net,
-                      char **tapfd,
-                      size_t tapfdSize,
-                      char **vhostfd,
-                      size_t vhostfdSize,
-                      const char *slirpfd,
-                      const char *vdpadev);
+qemuBuildHostNetProps(virDomainNetDef *net);
+
+int
+qemuBuildInterfaceConnect(virDomainObj *vm,
+                          virDomainNetDef *net,
+                          virNetDevVPortProfileOp vmop);
 
 /* Current, best practice */
 virJSONValue *
 qemuBuildNicDevProps(virDomainDef *def,
                      virDomainNetDef *net,
-                     size_t vhostfdSize,
                      virQEMUCaps *qemuCaps);
 
 char *qemuDeviceDriveHostAlias(virDomainDiskDef *disk);
@@ -213,10 +207,6 @@ int qemuGetDriveSourceString(virStorageSource *src,
 
 bool
 qemuDiskConfigBlkdeviotuneEnabled(virDomainDiskDef *disk);
-
-
-bool
-qemuCheckFips(virDomainObj *vm);
 
 virJSONValue *qemuBuildHotpluggableCPUProps(const virDomainVcpuDef *vcpu)
     ATTRIBUTE_NONNULL(1);

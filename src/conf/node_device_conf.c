@@ -634,10 +634,32 @@ virNodeDeviceCapCCWDefFormat(virBuffer *buf,
                       data->ccw_dev.ssid);
     virBufferAsprintf(buf, "<devno>0x%04x</devno>\n",
                       data->ccw_dev.devno);
-    if (data->ccw_dev.flags & VIR_NODE_DEV_CAP_FLAG_CSS_MDEV)
+}
+
+
+static void
+virNodeDeviceCapCSSDefFormat(virBuffer *buf,
+                             const virNodeDevCapData *data)
+{
+    virNodeDevCapCCW ccw_dev = data->ccw_dev;
+
+    virNodeDeviceCapCCWDefFormat(buf, data);
+
+    if (ccw_dev.channel_dev_addr) {
+        virCCWDeviceAddress *ccw = ccw_dev.channel_dev_addr;
+        virBufferAddLit(buf, "<channel_dev_addr>\n");
+        virBufferAdjustIndent(buf, 2);
+        virBufferAsprintf(buf, "<cssid>0x%x</cssid>\n", ccw->cssid);
+        virBufferAsprintf(buf, "<ssid>0x%x</ssid>\n", ccw->ssid);
+        virBufferAsprintf(buf, "<devno>0x%04x</devno>\n", ccw->devno);
+        virBufferAdjustIndent(buf, -2);
+        virBufferAddLit(buf, "</channel_dev_addr>\n");
+    }
+
+    if (ccw_dev.flags & VIR_NODE_DEV_CAP_FLAG_CSS_MDEV)
         virNodeDeviceCapMdevTypesFormat(buf,
-                                        data->ccw_dev.mdev_types,
-                                        data->ccw_dev.nmdev_types);
+                                        ccw_dev.mdev_types,
+                                        ccw_dev.nmdev_types);
 }
 
 
@@ -726,8 +748,10 @@ virNodeDeviceDefFormat(const virNodeDeviceDef *def)
             virNodeDeviceCapMdevDefFormat(&buf, data);
             break;
         case VIR_NODE_DEV_CAP_CCW_DEV:
-        case VIR_NODE_DEV_CAP_CSS_DEV:
             virNodeDeviceCapCCWDefFormat(&buf, data);
+            break;
+        case VIR_NODE_DEV_CAP_CSS_DEV:
+            virNodeDeviceCapCSSDefFormat(&buf, data);
             break;
         case VIR_NODE_DEV_CAP_VDPA:
             virNodeDeviceCapVDPADefFormat(&buf, data);
@@ -1131,6 +1155,83 @@ virNodeDevAPMatrixCapabilityParseXML(xmlXPathContextPtr ctxt,
 
 
 static int
+virNodeDevCCWDeviceAddressParseXML(xmlXPathContextPtr ctxt,
+                                   xmlNodePtr node,
+                                   const char *dev_name,
+                                   virCCWDeviceAddress *ccw_addr)
+{
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    g_autofree char *cssid = NULL;
+    g_autofree char *ssid = NULL;
+    g_autofree char *devno = NULL;
+
+    ctxt->node = node;
+
+    if (!(cssid = virXPathString("string(./cssid[1])", ctxt))) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("missing cssid value for '%s'"), dev_name);
+        return -1;
+    }
+    if (virStrToLong_uip(cssid, NULL, 0, &ccw_addr->cssid) < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("invalid cssid value '%s' for '%s'"),
+                       cssid, dev_name);
+        return -1;
+    }
+
+    if (!(ssid = virXPathString("string(./ssid[1])", ctxt))) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("missing ssid value for '%s'"), dev_name);
+        return -1;
+    }
+    if (virStrToLong_uip(ssid, NULL, 0, &ccw_addr->ssid) < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("invalid ssid value '%s' for '%s'"),
+                       ssid, dev_name);
+        return -1;
+    }
+
+    if (!(devno = virXPathString("string(./devno[1])", ctxt))) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("missing devno value for '%s'"), dev_name);
+        return -1;
+    }
+    if (virStrToLong_uip(devno, NULL, 16, &ccw_addr->devno) < 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("invalid devno value '%s' for '%s'"),
+                       devno, dev_name);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
+                         virNodeDeviceDef *def,
+                         xmlNodePtr node,
+                         virNodeDevCapCCW *ccw_dev)
+{
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    g_autofree virCCWDeviceAddress *ccw_addr = NULL;
+
+    ctxt->node = node;
+
+    ccw_addr = g_new0(virCCWDeviceAddress, 1);
+
+    if (virNodeDevCCWDeviceAddressParseXML(ctxt, node, def->name, ccw_addr) < 0)
+        return -1;
+
+    ccw_dev->cssid = ccw_addr->cssid;
+    ccw_dev->ssid = ccw_addr->ssid;
+    ccw_dev->devno = ccw_addr->devno;
+
+    return 0;
+}
+
+
+static int
 virNodeDevCSSCapabilityParseXML(xmlXPathContextPtr ctxt,
                                 xmlNodePtr node,
                                 virNodeDevCapCCW *ccw_dev)
@@ -1158,7 +1259,7 @@ virNodeDevCSSCapabilityParseXML(xmlXPathContextPtr ctxt,
 
 
 static int
-virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
+virNodeDevCapCSSParseXML(xmlXPathContextPtr ctxt,
                          virNodeDeviceDef *def,
                          xmlNodePtr node,
                          virNodeDevCapCCW *ccw_dev)
@@ -1167,50 +1268,12 @@ virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
     g_autofree xmlNodePtr *nodes = NULL;
     int n = 0;
     size_t i = 0;
-    g_autofree char *cssid = NULL;
-    g_autofree char *ssid = NULL;
-    g_autofree char *devno = NULL;
+    xmlNodePtr channel_ddno = NULL;
 
     ctxt->node = node;
 
-    if (!(cssid = virXPathString("string(./cssid[1])", ctxt))) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("missing cssid value for '%s'"), def->name);
+    if (virNodeDevCapCCWParseXML(ctxt, def, node, ccw_dev) < 0)
         return -1;
-    }
-
-    if (virStrToLong_uip(cssid, NULL, 0, &ccw_dev->cssid) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("invalid cssid value '%s' for '%s'"),
-                       cssid, def->name);
-        return -1;
-    }
-
-    if (!(ssid = virXPathString("string(./ssid[1])", ctxt))) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("missing ssid value for '%s'"), def->name);
-        return -1;
-    }
-
-    if (virStrToLong_uip(ssid, NULL, 0, &ccw_dev->ssid) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("invalid ssid value '%s' for '%s'"),
-                       cssid, def->name);
-        return -1;
-    }
-
-    if (!(devno = virXPathString("string(./devno[1])", ctxt))) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("missing devno value for '%s'"), def->name);
-        return -1;
-    }
-
-    if (virStrToLong_uip(devno, NULL, 16, &ccw_dev->devno) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("invalid devno value '%s' for '%s'"),
-                       devno, def->name);
-        return -1;
-    }
 
     if ((n = virXPathNodeSet("./capability", ctxt, &nodes)) < 0)
         return -1;
@@ -1218,6 +1281,21 @@ virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
     for (i = 0; i < n; i++) {
         if (virNodeDevCSSCapabilityParseXML(ctxt, nodes[i], ccw_dev) < 0)
             return -1;
+    }
+
+    /* channel_dev_addr is optional */
+    if ((channel_ddno = virXPathNode("./channel_dev_addr[1]", ctxt))) {
+        g_autofree virCCWDeviceAddress *channel_dev = NULL;
+
+        channel_dev = g_new0(virCCWDeviceAddress, 1);
+
+        if (virNodeDevCCWDeviceAddressParseXML(ctxt,
+                                               channel_ddno,
+                                               def->name,
+                                               channel_dev) < 0)
+            return -1;
+
+        ccw_dev->channel_dev_addr = g_steal_pointer(&channel_dev);
     }
 
     return 0;
@@ -2251,8 +2329,10 @@ virNodeDevCapsDefParseXML(xmlXPathContextPtr ctxt,
         ret = virNodeDevCapMdevParseXML(ctxt, def, node, &caps->data.mdev);
         break;
     case VIR_NODE_DEV_CAP_CCW_DEV:
-    case VIR_NODE_DEV_CAP_CSS_DEV:
         ret = virNodeDevCapCCWParseXML(ctxt, def, node, &caps->data.ccw_dev);
+        break;
+    case VIR_NODE_DEV_CAP_CSS_DEV:
+        ret = virNodeDevCapCSSParseXML(ctxt, def, node, &caps->data.ccw_dev);
         break;
     case VIR_NODE_DEV_CAP_AP_CARD:
         ret = virNodeDevCapAPCardParseXML(ctxt, def, node,
@@ -2586,6 +2666,7 @@ virNodeDevCapsDefFree(virNodeDevCapsDef *caps)
         for (i = 0; i < data->ccw_dev.nmdev_types; i++)
             virMediatedDeviceTypeFree(data->ccw_dev.mdev_types[i]);
         g_free(data->ccw_dev.mdev_types);
+        g_free(data->ccw_dev.channel_dev_addr);
         break;
     case VIR_NODE_DEV_CAP_AP_MATRIX:
         g_free(data->ap_matrix.addr);

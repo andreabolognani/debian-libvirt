@@ -1316,7 +1316,7 @@ get_files(vahControl * ctl)
         virBufferAddLit(&buf, "  \"/dev/nvidiactl\" rw,\n");
         virBufferAddLit(&buf, "  # Probe DRI device attributes\n");
         virBufferAddLit(&buf, "  \"/dev/dri/\" r,\n");
-        virBufferAddLit(&buf, "  \"/sys/devices/**/{uevent,vendor,device,subsystem_vendor,subsystem_device}\" r,\n");
+        virBufferAddLit(&buf, "  \"/sys/devices/**/{uevent,vendor,device,subsystem_vendor,subsystem_device,config,revision}\" r,\n");
         virBufferAddLit(&buf, "  # dri libs will trigger that, but t is not requited and DAC would deny it anyway\n");
         virBufferAddLit(&buf, "  deny \"/var/lib/libvirt/.cache/\" w,\n");
     }
@@ -1497,7 +1497,7 @@ main(int argc, char **argv)
                 size = virFileLength(profile, -1);
                 if (size == 0) {
                         vah_warning(_("Profile of 0 size detected, will attempt to remove it"));
-                        if ((rc = parserRemove(ctl->uuid) != 0))
+                        if ((rc = parserRemove(ctl->uuid)) != 0)
                                 vah_error(ctl, 1, _("could not remove profile"));
                         unlink(profile);
                         purged = true;

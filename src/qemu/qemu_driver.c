@@ -735,6 +735,15 @@ qemuStateInitialize(bool privileged,
     if (qemuMigrationDstErrorInit(qemu_driver) < 0)
         goto error;
 
+    /* qemu-5.1 and older requires use of '-enable-fips' flag when the host
+     * is in FIPS mode. We store whether FIPS is enabled */
+    if (virFileExists("/proc/sys/crypto/fips_enabled")) {
+        g_autofree char *buf = NULL;
+
+        if (virFileReadAll("/proc/sys/crypto/fips_enabled", 10, &buf) > 0)
+            qemu_driver->hostFips = STREQ(buf, "1\n");
+    }
+
     if (privileged) {
         g_autofree char *channeldir = NULL;
 
@@ -1161,7 +1170,7 @@ static int qemuConnectClose(virConnectPtr conn)
     virQEMUDriver *driver = conn->privateData;
 
     /* Get rid of callbacks registered for this conn */
-    virCloseCallbacksRun(driver->closeCallbacks, conn, driver->domains, driver);
+    virCloseCallbacksRun(driver->closeCallbacks, conn, driver->domains);
 
     conn->privateData = NULL;
 
@@ -2760,6 +2769,54 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
 }
 
 
+static char *
+qemuDomainManagedSavePath(virQEMUDriver *driver, virDomainObj *vm)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
+    return g_strdup_printf("%s/%s.save", cfg->saveDir, vm->def->name);
+}
+
+
+static int
+qemuDomainManagedSaveHelper(virQEMUDriver *driver,
+                            virDomainObj *vm,
+                            const char *dxml,
+                            unsigned int flags)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = NULL;
+    g_autoptr(virCommand) compressor = NULL;
+    g_autofree char *path = NULL;
+    int compressed;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        return -1;
+
+    if (!vm->persistent) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("cannot do managed save for transient domain"));
+        return -1;
+    }
+
+    cfg = virQEMUDriverGetConfig(driver);
+    if ((compressed = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
+                                                         &compressor,
+                                                         "save", false)) < 0)
+        return -1;
+
+    path = qemuDomainManagedSavePath(driver, vm);
+
+    VIR_INFO("Saving state of domain '%s' to '%s'", vm->def->name, path);
+
+    if (qemuDomainSaveInternal(driver, vm, path, compressed,
+                                 compressor, dxml, flags) < 0)
+        return -1;
+
+    vm->hasManagedSave = true;
+    return 0;
+}
+
+
 static int
 qemuDomainSaveFlags(virDomainPtr dom, const char *path, const char *dxml,
                     unsigned int flags)
@@ -2804,23 +2861,74 @@ qemuDomainSave(virDomainPtr dom, const char *path)
     return qemuDomainSaveFlags(dom, path, NULL, 0);
 }
 
-static char *
-qemuDomainManagedSavePath(virQEMUDriver *driver, virDomainObj *vm)
+static int
+qemuDomainSaveParams(virDomainPtr dom,
+                     virTypedParameterPtr params,
+                     int nparams,
+                     unsigned int flags)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    virQEMUDriver *driver = dom->conn->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = NULL;
+    virDomainObj *vm = NULL;
+    g_autoptr(virCommand) compressor = NULL;
+    const char *to = NULL;
+    const char *dxml = NULL;
+    int compressed;
+    int ret = -1;
 
-    return g_strdup_printf("%s/%s.save", cfg->saveDir, vm->def->name);
+    virCheckFlags(VIR_DOMAIN_SAVE_BYPASS_CACHE |
+                  VIR_DOMAIN_SAVE_RUNNING |
+                  VIR_DOMAIN_SAVE_PAUSED, -1);
+
+    if (virTypedParamsValidate(params, nparams,
+                               VIR_DOMAIN_SAVE_PARAM_FILE,
+                               VIR_TYPED_PARAM_STRING,
+                               VIR_DOMAIN_SAVE_PARAM_DXML,
+                               VIR_TYPED_PARAM_STRING,
+                               NULL) < 0)
+        return -1;
+
+    if (virTypedParamsGetString(params, nparams,
+                                VIR_DOMAIN_SAVE_PARAM_FILE, &to) < 0)
+        return -1;
+    if (virTypedParamsGetString(params, nparams,
+                                VIR_DOMAIN_SAVE_PARAM_DXML, &dxml) < 0)
+        return -1;
+
+    if (!(vm = qemuDomainObjFromDomain(dom)))
+        goto cleanup;
+
+    if (virDomainSaveParamsEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (!to) {
+        /* If no save path was provided then this behaves as managed save. */
+        return qemuDomainManagedSaveHelper(driver, vm, dxml, flags);
+    }
+
+    cfg = virQEMUDriverGetConfig(driver);
+    if ((compressed = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
+                                                         &compressor,
+                                                         "save", false)) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto cleanup;
+
+    ret = qemuDomainSaveInternal(driver, vm, to, compressed,
+                                 compressor, dxml, flags);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
 }
+
 
 static int
 qemuDomainManagedSave(virDomainPtr dom, unsigned int flags)
 {
     virQEMUDriver *driver = dom->conn->privateData;
-    g_autoptr(virQEMUDriverConfig) cfg = NULL;
-    int compressed;
-    g_autoptr(virCommand) compressor = NULL;
     virDomainObj *vm;
-    g_autofree char *name = NULL;
     int ret = -1;
 
     virCheckFlags(VIR_DOMAIN_SAVE_BYPASS_CACHE |
@@ -2833,30 +2941,7 @@ qemuDomainManagedSave(virDomainPtr dom, unsigned int flags)
     if (virDomainManagedSaveEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virDomainObjCheckActive(vm) < 0)
-        goto cleanup;
-
-    if (!vm->persistent) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("cannot do managed save for transient domain"));
-        goto cleanup;
-    }
-
-    cfg = virQEMUDriverGetConfig(driver);
-    if ((compressed = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
-                                                         &compressor,
-                                                         "save", false)) < 0)
-        goto cleanup;
-
-    if (!(name = qemuDomainManagedSavePath(driver, vm)))
-        goto cleanup;
-
-    VIR_INFO("Saving state of domain '%s' to '%s'", vm->def->name, name);
-
-    ret = qemuDomainSaveInternal(driver, vm, name, compressed,
-                                 compressor, NULL, flags);
-    if (ret == 0)
-        vm->hasManagedSave = true;
+    ret = qemuDomainManagedSaveHelper(driver, vm, NULL, flags);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -2870,19 +2955,15 @@ qemuDomainManagedSaveLoad(virDomainObj *vm,
 {
     virQEMUDriver *driver = opaque;
     g_autofree char *name = NULL;
-    int ret = -1;
 
     virObjectLock(vm);
 
-    if (!(name = qemuDomainManagedSavePath(driver, vm)))
-        goto cleanup;
+    name = qemuDomainManagedSavePath(driver, vm);
 
     vm->hasManagedSave = virFileExists(name);
 
-    ret = 0;
- cleanup:
     virObjectUnlock(vm);
-    return ret;
+    return 0;
 }
 
 
@@ -2923,8 +3004,7 @@ qemuDomainManagedSaveRemove(virDomainPtr dom, unsigned int flags)
     if (virDomainManagedSaveRemoveEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (!(name = qemuDomainManagedSavePath(driver, vm)))
-        goto cleanup;
+    name = qemuDomainManagedSavePath(driver, vm);
 
     if (unlink(name) < 0) {
         virReportSystemError(errno,
@@ -5754,12 +5834,12 @@ static int qemuNodeGetSecurityModel(virConnectPtr conn,
     return 0;
 }
 
-
 static int
-qemuDomainRestoreFlags(virConnectPtr conn,
-                       const char *path,
-                       const char *dxml,
-                       unsigned int flags)
+qemuDomainRestoreInternal(virConnectPtr conn,
+                          const char *path,
+                          const char *dxml,
+                          unsigned int flags,
+                          int (*ensureACL)(virConnectPtr, virDomainDef *))
 {
     virQEMUDriver *driver = conn->privateData;
     qemuDomainObjPrivate *priv = NULL;
@@ -5788,7 +5868,7 @@ qemuDomainRestoreFlags(virConnectPtr conn,
     if (fd < 0)
         goto cleanup;
 
-    if (virDomainRestoreFlagsEnsureACL(conn, def) < 0)
+    if (ensureACL(conn, def) < 0)
         goto cleanup;
 
     if (virHookPresent(VIR_HOOK_DRIVER_QEMU)) {
@@ -5857,10 +5937,54 @@ qemuDomainRestoreFlags(virConnectPtr conn,
 }
 
 static int
+qemuDomainRestoreFlags(virConnectPtr conn,
+                       const char *path,
+                       const char *dxml,
+                       unsigned int flags)
+{
+    return qemuDomainRestoreInternal(conn, path, dxml, flags,
+                                     virDomainRestoreFlagsEnsureACL);
+}
+
+static int
 qemuDomainRestore(virConnectPtr conn,
                   const char *path)
 {
-    return qemuDomainRestoreFlags(conn, path, NULL, 0);
+    return qemuDomainRestoreInternal(conn, path, NULL, 0,
+                                     virDomainRestoreEnsureACL);
+}
+
+static int
+qemuDomainRestoreParams(virConnectPtr conn,
+                        virTypedParameterPtr params, int nparams,
+                        unsigned int flags)
+{
+    const char *path = NULL;
+    const char *dxml = NULL;
+    int ret = -1;
+
+    if (virTypedParamsValidate(params, nparams,
+                               VIR_DOMAIN_SAVE_PARAM_FILE, VIR_TYPED_PARAM_STRING,
+                               VIR_DOMAIN_SAVE_PARAM_DXML, VIR_TYPED_PARAM_STRING,
+                               NULL) < 0)
+        return -1;
+
+    if (virTypedParamsGetString(params, nparams,
+                                VIR_DOMAIN_SAVE_PARAM_FILE, &path) < 0)
+        return -1;
+    if (virTypedParamsGetString(params, nparams,
+                                VIR_DOMAIN_SAVE_PARAM_DXML, &dxml) < 0)
+        return -1;
+
+    if (!path) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("missing path to restore from"));
+        return -1;
+    }
+
+    ret = qemuDomainRestoreInternal(conn, path, dxml, flags,
+                                    virDomainRestoreParamsEnsureACL);
+    return ret;
 }
 
 static char *
@@ -5985,8 +6109,7 @@ qemuDomainManagedSaveGetXMLDesc(virDomainPtr dom, unsigned int flags)
     if (virDomainManagedSaveGetXMLDescEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (!(path = qemuDomainManagedSavePath(driver, vm)))
-        goto cleanup;
+    path = qemuDomainManagedSavePath(driver, vm);
 
     if (!virFileExists(path)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
@@ -6023,8 +6146,7 @@ qemuDomainManagedSaveDefineXML(virDomainPtr dom, const char *dxml,
     if (virDomainManagedSaveDefineXMLEnsureACL(conn, vm->def) < 0)
         goto cleanup;
 
-    if (!(path = qemuDomainManagedSavePath(driver, vm)))
-        goto cleanup;
+    path = qemuDomainManagedSavePath(driver, vm);
 
     if (!virFileExists(path)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
@@ -6215,29 +6337,28 @@ static char *qemuConnectDomainXMLToNative(virConnectPtr conn,
                                           unsigned int flags)
 {
     virQEMUDriver *driver = conn->privateData;
-    virDomainObj *vm = NULL;
+    g_autoptr(virDomainObj) vm = NULL;
     g_autoptr(virCommand) cmd = NULL;
-    char *ret = NULL;
     size_t i;
 
     virCheckFlags(0, NULL);
 
     if (virConnectDomainXMLToNativeEnsureACL(conn) < 0)
-        goto cleanup;
+        return NULL;
 
     if (STRNEQ(format, QEMU_CONFIG_FORMAT_ARGV)) {
         virReportError(VIR_ERR_INVALID_ARG,
                        _("unsupported config type %s"), format);
-        goto cleanup;
+        return NULL;
     }
 
     if (!(vm = virDomainObjNew(driver->xmlopt)))
-        goto cleanup;
+        return NULL;
 
     if (!(vm->def = virDomainDefParseString(xmlData, driver->xmlopt, NULL,
                                             VIR_DOMAIN_DEF_PARSE_INACTIVE |
                                             VIR_DOMAIN_DEF_PARSE_ABI_UPDATE)))
-        goto cleanup;
+        return NULL;
 
     /* Since we're just exporting args, we can't do bridge/network/direct
      * setups, since libvirt will normally create TAP/macvtap devices
@@ -6249,7 +6370,7 @@ static char *qemuConnectDomainXMLToNative(virConnectPtr conn,
         virDomainNetDef *newNet = virDomainNetDefNew(driver->xmlopt);
 
         if (!newNet)
-            goto cleanup;
+            return NULL;
 
         newNet->type = VIR_DOMAIN_NET_TYPE_ETHERNET;
         newNet->info.bootIndex = net->info.bootIndex;
@@ -6264,20 +6385,15 @@ static char *qemuConnectDomainXMLToNative(virConnectPtr conn,
 
     if (qemuProcessCreatePretendCmdPrepare(driver, vm, NULL,
                                            VIR_QEMU_PROCESS_START_COLD) < 0)
-        goto cleanup;
+        return NULL;
 
     if (qemuConnectDomainXMLToNativePrepareHost(vm) < 0)
-        goto cleanup;
+        return NULL;
 
-    if (!(cmd = qemuProcessCreatePretendCmdBuild(driver, vm, NULL,
-                                                 qemuCheckFips(vm), true)))
-        goto cleanup;
+    if (!(cmd = qemuProcessCreatePretendCmdBuild(vm, NULL)))
+        return NULL;
 
-    ret = virCommandToString(cmd, false);
-
- cleanup:
-    virObjectUnref(vm);
-    return ret;
+    return virCommandToString(cmd, false);
 }
 
 
@@ -6332,9 +6448,6 @@ qemuDomainObjStart(virConnectPtr conn,
      * from scratch. The old state is removed once the restoring succeeded.
      */
     managed_save = qemuDomainManagedSavePath(driver, vm);
-
-    if (!managed_save)
-        return ret;
 
     if (virFileExists(managed_save)) {
         if (force_boot) {
@@ -6596,8 +6709,6 @@ qemuDomainUndefineFlags(virDomainPtr dom,
     }
 
     name = qemuDomainManagedSavePath(driver, vm);
-    if (name == NULL)
-        goto endjob;
 
     if (virFileExists(name)) {
         if (flags & VIR_DOMAIN_UNDEFINE_MANAGED_SAVE) {
@@ -12415,32 +12526,34 @@ qemuDomainGetJobInfoMigrationStats(virQEMUDriver *driver,
                                    virDomainObj *vm,
                                    virDomainJobData *jobData)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
     qemuDomainJobDataPrivate *privStats = jobData->privateData;
 
-    bool events = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT);
-
-    if (jobData->status == VIR_DOMAIN_JOB_STATUS_ACTIVE ||
-        jobData->status == VIR_DOMAIN_JOB_STATUS_MIGRATING ||
-        jobData->status == VIR_DOMAIN_JOB_STATUS_HYPERVISOR_COMPLETED ||
-        jobData->status == VIR_DOMAIN_JOB_STATUS_POSTCOPY) {
-        if (events &&
-            jobData->status != VIR_DOMAIN_JOB_STATUS_ACTIVE &&
-            qemuMigrationAnyFetchStats(driver, vm, VIR_ASYNC_JOB_NONE,
-                                       jobData, NULL) < 0)
-            return -1;
-
-        if (jobData->status == VIR_DOMAIN_JOB_STATUS_ACTIVE &&
-            privStats->statsType == QEMU_DOMAIN_JOB_STATS_TYPE_MIGRATION &&
+    switch (jobData->status) {
+    case VIR_DOMAIN_JOB_STATUS_ACTIVE:
+        if (privStats->statsType == QEMU_DOMAIN_JOB_STATS_TYPE_MIGRATION &&
             qemuMigrationSrcFetchMirrorStats(driver, vm, VIR_ASYNC_JOB_NONE,
                                              jobData) < 0)
             return -1;
+        break;
 
-        if (qemuDomainJobDataUpdateTime(jobData) < 0)
+    case VIR_DOMAIN_JOB_STATUS_MIGRATING:
+    case VIR_DOMAIN_JOB_STATUS_HYPERVISOR_COMPLETED:
+    case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
+        if (qemuMigrationAnyFetchStats(driver, vm, VIR_ASYNC_JOB_NONE,
+                                       jobData, NULL) < 0)
             return -1;
+        break;
+
+    case VIR_DOMAIN_JOB_STATUS_NONE:
+    case VIR_DOMAIN_JOB_STATUS_PAUSED:
+    case VIR_DOMAIN_JOB_STATUS_COMPLETED:
+    case VIR_DOMAIN_JOB_STATUS_FAILED:
+    case VIR_DOMAIN_JOB_STATUS_CANCELED:
+    default:
+        return 0;
     }
 
-    return 0;
+    return qemuDomainJobDataUpdateTime(jobData);
 }
 
 
@@ -14469,12 +14582,12 @@ qemuDomainBlockJobAbort(virDomainPtr dom,
             job->state == QEMU_BLOCKJOB_STATE_FAILED) {
             if (job->errmsg) {
                 virReportError(VIR_ERR_OPERATION_FAILED,
-                               _("block job '%s' failed while pivoting"),
-                               job->name);
-            } else {
-                virReportError(VIR_ERR_OPERATION_FAILED,
                                _("block job '%s' failed while pivoting: %s"),
                                job->name, job->errmsg);
+            } else {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("block job '%s' failed while pivoting"),
+                               job->name);
             }
 
             ret = -1;
@@ -15604,12 +15717,15 @@ qemuDomainOpenGraphics(virDomainPtr dom,
     case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
         protocol = "spice";
         break;
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        protocol = "@dbus-display";
+        break;
     case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Can only open VNC or SPICE graphics backends, not %s"),
+                       _("Can only open VNC, SPICE or D-Bus p2p graphics backends, not %s"),
                        virDomainGraphicsTypeToString(vm->def->graphics[idx]->type));
         goto endjob;
     case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
@@ -15672,12 +15788,15 @@ qemuDomainOpenGraphicsFD(virDomainPtr dom,
     case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
         protocol = "spice";
         break;
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        protocol = "@dbus-display";
+        break;
     case VIR_DOMAIN_GRAPHICS_TYPE_SDL:
     case VIR_DOMAIN_GRAPHICS_TYPE_RDP:
     case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
     case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Can only open VNC or SPICE graphics backends, not %s"),
+                       _("Can only open VNC, SPICE or D-Bus p2p graphics backends, not %s"),
                        virDomainGraphicsTypeToString(vm->def->graphics[idx]->type));
         goto cleanup;
     case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
@@ -19861,6 +19980,11 @@ qemuGetSEVInfoToParams(virQEMUCaps *qemuCaps,
                                 VIR_NODE_SEV_CERT_CHAIN, sev->cert_chain) < 0)
         goto cleanup;
 
+    if ((sev->cpu0_id != NULL) &&
+       (virTypedParamsAddString(&sevParams, &n, &maxpar,
+                                VIR_NODE_SEV_CPU0_ID, sev->cpu0_id) < 0))
+        goto cleanup;
+
     if (virTypedParamsAddUInt(&sevParams, &n, &maxpar,
                               VIR_NODE_SEV_CBITPOS, sev->cbitpos) < 0)
         goto cleanup;
@@ -20824,8 +20948,10 @@ static virHypervisorDriver qemuHypervisorDriver = {
     .domainGetControlInfo = qemuDomainGetControlInfo, /* 0.9.3 */
     .domainSave = qemuDomainSave, /* 0.2.0 */
     .domainSaveFlags = qemuDomainSaveFlags, /* 0.9.4 */
+    .domainSaveParams = qemuDomainSaveParams, /* 8.4.0 */
     .domainRestore = qemuDomainRestore, /* 0.2.0 */
     .domainRestoreFlags = qemuDomainRestoreFlags, /* 0.9.4 */
+    .domainRestoreParams = qemuDomainRestoreParams, /* 8.4.0 */
     .domainSaveImageGetXMLDesc = qemuDomainSaveImageGetXMLDesc, /* 0.9.4 */
     .domainSaveImageDefineXML = qemuDomainSaveImageDefineXML, /* 0.9.4 */
     .domainCoreDump = qemuDomainCoreDump, /* 0.7.0 */

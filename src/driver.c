@@ -36,6 +36,7 @@
 #include "viridentity.h"
 #include "datatypes.h"
 #include "configmake.h"
+#include "virtypedparam.h"
 
 VIR_LOG_INIT("driver");
 
@@ -159,17 +160,16 @@ virGetConnectGeneric(virThreadLocal *threadPtr, const char *name)
 
         if (conn->driver->connectSetIdentity != NULL) {
             g_autoptr(virIdentity) ident = NULL;
-            virTypedParameterPtr identparams = NULL;
-            int nidentparams = 0;
+            g_autoptr(virTypedParamList) identparams = NULL;
 
             VIR_DEBUG("Attempting to delegate current identity");
             if (!(ident = virIdentityGetCurrent()))
                 goto error;
 
-            if (virIdentityGetParameters(ident, &identparams, &nidentparams) < 0)
+            if (!(identparams = virIdentityGetParameters(ident)))
                 goto error;
 
-            if (virConnectSetIdentity(conn, identparams, nidentparams, 0) < 0)
+            if (virConnectSetIdentity(conn, identparams->par, identparams->npar, 0) < 0)
                 goto error;
         }
     }

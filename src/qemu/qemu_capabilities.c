@@ -335,7 +335,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "pci-serial", /* QEMU_CAPS_DEVICE_PCI_SERIAL */
               "aarch64-off", /* QEMU_CAPS_CPU_AARCH64_OFF */
               "vhost-user-multiqueue", /* X_QEMU_CAPS_VHOSTUSER_MULTIQUEUE */
-              "migration-event", /* QEMU_CAPS_MIGRATION_EVENT */
+              "migration-event", /* X_QEMU_CAPS_MIGRATION_EVENT */
 
               /* 190 */
               "gpex-pcihost", /* QEMU_CAPS_OBJECT_GPEX */
@@ -672,6 +672,10 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "virtio-iommu-pci", /* QEMU_CAPS_DEVICE_VIRTIO_IOMMU_PCI */
               "virtio-iommu.boot-bypass", /* QEMU_CAPS_VIRTIO_IOMMU_BOOT_BYPASS */
               "virtio-net.rss", /* QEMU_CAPS_VIRTIO_NET_RSS */
+
+              /* 430 */
+              "chardev.qemu-vdagent", /* QEMU_CAPS_CHARDEV_QEMU_VDAGENT */
+              "display-dbus", /* QEMU_CAPS_DISPLAY_DBUS */
     );
 
 
@@ -1234,7 +1238,6 @@ struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
 
 /* Use virQEMUCapsQMPSchemaQueries for querying parameters of events */
 struct virQEMUCapsStringFlags virQEMUCapsEvents[] = {
-    { "MIGRATION", QEMU_CAPS_MIGRATION_EVENT },
     { "VSERPORT_CHANGE", QEMU_CAPS_VSERPORT_CHANGE },
     { "BLOCK_WRITE_THRESHOLD", QEMU_CAPS_BLOCK_WRITE_THRESHOLD },
     { "DUMP_COMPLETED", QEMU_CAPS_DUMP_COMPLETED },
@@ -1622,6 +1625,8 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "set-numa-node/arg-type/+hmat-lb", QEMU_CAPS_NUMA_HMAT },
     { "object-add/arg-type/+sev-guest/kernel-hashes", QEMU_CAPS_SEV_GUEST_KERNEL_HASHES },
     { "calc-dirty-rate/arg-type/mode", QEMU_CAPS_DIRTYRATE_MODE },
+    { "chardev-add/arg-type/backend/+qemu-vdagent", QEMU_CAPS_CHARDEV_QEMU_VDAGENT },
+    { "query-display-options/ret-type/+dbus", QEMU_CAPS_DISPLAY_DBUS },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -1857,7 +1862,7 @@ int virQEMUCapsGetDefaultVersion(virCaps *caps,
 
     hostarch = virArchFromHost();
     if (!(capsdata = virCapabilitiesDomainDataLookup(caps,
-            VIR_DOMAIN_OSTYPE_HVM, hostarch, VIR_DOMAIN_VIRT_QEMU,
+            VIR_DOMAIN_OSTYPE_HVM, hostarch, VIR_DOMAIN_VIRT_NONE,
             NULL, NULL))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Cannot find suitable emulator for %s"),
@@ -1957,6 +1962,9 @@ virQEMUCapsSEVInfoCopy(virSEVCapability **dst,
 
     tmp->pdh = g_strdup(src->pdh);
     tmp->cert_chain = g_strdup(src->cert_chain);
+    if (src->cpu0_id != NULL) {
+        tmp->cpu0_id = g_strdup(src->cpu0_id);
+    }
 
     tmp->cbitpos = src->cbitpos;
     tmp->reduced_phys_bits = src->reduced_phys_bits;
@@ -4693,6 +4701,11 @@ virQEMUCapsFormatSEVInfo(virQEMUCaps *qemuCaps, virBuffer *buf)
     virBufferEscapeString(buf, "<pdh>%s</pdh>\n", sev->pdh);
     virBufferEscapeString(buf, "<certChain>%s</certChain>\n",
                           sev->cert_chain);
+    if (sev->cpu0_id != NULL) {
+        virBufferEscapeString(buf, "<cpu0Id>%s</cpu0Id>\n",
+                              sev->cpu0_id);
+    }
+
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</sev>\n");
 }
@@ -6213,6 +6226,8 @@ virQEMUCapsFillDomainDeviceGraphicsCaps(virQEMUCaps *qemuCaps,
         VIR_DOMAIN_CAPS_ENUM_SET(dev->type, VIR_DOMAIN_GRAPHICS_TYPE_SPICE);
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_EGL_HEADLESS))
         VIR_DOMAIN_CAPS_ENUM_SET(dev->type, VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DISPLAY_DBUS))
+        VIR_DOMAIN_CAPS_ENUM_SET(dev->type, VIR_DOMAIN_GRAPHICS_TYPE_DBUS);
 }
 
 
@@ -6478,6 +6493,10 @@ virQEMUCapsFillDomainFeatureSEVCaps(virQEMUCaps *qemuCaps,
 
     domCaps->sev->pdh = g_strdup(cap->pdh);
     domCaps->sev->cert_chain = g_strdup(cap->cert_chain);
+    if (cap->cpu0_id != NULL) {
+        domCaps->sev->cpu0_id = g_strdup(cap->cpu0_id);
+    }
+
     domCaps->sev->cbitpos = cap->cbitpos;
     domCaps->sev->reduced_phys_bits = cap->reduced_phys_bits;
     domCaps->sev->max_guests = cap->max_guests;

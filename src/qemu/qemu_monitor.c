@@ -578,7 +578,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
         virObjectUnlock(mon);
         VIR_DEBUG("Triggering EOF callback mon=%p vm=%p name=%s",
                   mon, mon->vm, mon->domainName);
-        (eofNotify)(mon, vm, mon->callbackOpaque);
+        (eofNotify)(mon, vm);
         virObjectUnref(mon);
     } else if (error) {
         qemuMonitorErrorNotifyCallback errorNotify = mon->cb->errorNotify;
@@ -589,7 +589,7 @@ qemuMonitorIO(GSocket *socket G_GNUC_UNUSED,
         virObjectUnlock(mon);
         VIR_DEBUG("Triggering error callback mon=%p vm=%p name=%s",
                   mon, mon->vm, mon->domainName);
-        (errorNotify)(mon, vm, mon->callbackOpaque);
+        (errorNotify)(mon, vm);
         virObjectUnref(mon);
     } else {
         virObjectUnlock(mon);
@@ -604,8 +604,7 @@ static qemuMonitor *
 qemuMonitorOpenInternal(virDomainObj *vm,
                         int fd,
                         GMainContext *context,
-                        qemuMonitorCallbacks *cb,
-                        void *opaque)
+                        qemuMonitorCallbacks *cb)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     qemuMonitor *mon;
@@ -639,7 +638,6 @@ qemuMonitorOpenInternal(virDomainObj *vm,
     mon->domainName = g_strdup(NULLSTR(vm->def->name));
     mon->waitGreeting = true;
     mon->cb = cb;
-    mon->callbackOpaque = opaque;
 
     if (priv)
         mon->objectAddNoWrap = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_JSON);
@@ -688,7 +686,6 @@ qemuMonitorOpenInternal(virDomainObj *vm,
  * @config: monitor configuration
  * @timeout: number of seconds to add to default timeout
  * @cb: monitor event handles
- * @opaque: opaque data for @cb
  *
  * Opens the monitor for running qemu. It may happen that it
  * takes some time for qemu to create the monitor socket (e.g.
@@ -704,8 +701,7 @@ qemuMonitorOpen(virDomainObj *vm,
                 bool retry,
                 unsigned long long timeout,
                 GMainContext *context,
-                qemuMonitorCallbacks *cb,
-                void *opaque)
+                qemuMonitorCallbacks *cb)
 {
     VIR_AUTOCLOSE fd = -1;
     qemuMonitor *ret = NULL;
@@ -733,7 +729,7 @@ qemuMonitorOpen(virDomainObj *vm,
         return NULL;
     }
 
-    ret = qemuMonitorOpenInternal(vm, fd, context, cb, opaque);
+    ret = qemuMonitorOpenInternal(vm, fd, context, cb);
     fd = -1;
     return ret;
 }
@@ -1085,7 +1081,7 @@ qemuMonitorUpdateVideoVram64Size(qemuMonitor *mon,
         virObjectRef(mon); \
         virObjectUnlock(mon); \
         if ((mon)->cb && (mon)->cb->callback) \
-            (mon)->cb->callback(mon, __VA_ARGS__, (mon)->callbackOpaque); \
+            (mon)->cb->callback(mon, __VA_ARGS__); \
         virObjectLock(mon); \
         virObjectUnref(mon); \
     } while (0)
@@ -2506,7 +2502,6 @@ qemuMonitorGraphicsRelocate(qemuMonitor *mon,
  * @fd: file descriptor to pass to qemu
  * @fdset: the fdset to register this fd with, -1 to create a new fdset
  * @opaque: opaque data to associated with this fd
- * @info: structure that will be updated with the fd and fdset returned by qemu
  *
  * Attempts to register a file descriptor with qemu that can then be referenced
  * via the file path /dev/fdset/$FDSETID
@@ -2515,8 +2510,7 @@ int
 qemuMonitorAddFileHandleToSet(qemuMonitor *mon,
                               int fd,
                               int fdset,
-                              const char *opaque,
-                              qemuMonitorAddFdInfo *info)
+                              const char *opaque)
 {
     VIR_DEBUG("fd=%d,fdset=%i,opaque=%s", fd, fdset, opaque);
 
@@ -2528,7 +2522,7 @@ qemuMonitorAddFileHandleToSet(qemuMonitor *mon,
         return -1;
     }
 
-    return qemuMonitorJSONAddFileHandleToSet(mon, fd, fdset, opaque, info);
+    return qemuMonitorJSONAddFileHandleToSet(mon, fd, fdset, opaque);
 }
 
 
@@ -2631,52 +2625,12 @@ qemuMonitorCloseFileHandle(qemuMonitor *mon,
 
 int
 qemuMonitorAddNetdev(qemuMonitor *mon,
-                     virJSONValue **props,
-                     int *tapfd, char **tapfdName, int tapfdSize,
-                     int *vhostfd, char **vhostfdName, int vhostfdSize,
-                     int slirpfd, char *slirpfdName)
+                     virJSONValue **props)
 {
-    int ret = -1;
-    size_t i = 0, j = 0;
-
-    VIR_DEBUG("props=%p tapfd=%p tapfdName=%p tapfdSize=%d"
-              "vhostfd=%p vhostfdName=%p vhostfdSize=%d"
-              "slirpfd=%d slirpfdName=%s",
-              props, tapfd, tapfdName, tapfdSize,
-              vhostfd, vhostfdName, vhostfdSize, slirpfd, slirpfdName);
 
     QEMU_CHECK_MONITOR(mon);
 
-    for (i = 0; i < tapfdSize; i++) {
-        if (qemuMonitorSendFileHandle(mon, tapfdName[i], tapfd[i]) < 0)
-            goto cleanup;
-    }
-    for (j = 0; j < vhostfdSize; j++) {
-        if (qemuMonitorSendFileHandle(mon, vhostfdName[j], vhostfd[j]) < 0)
-            goto cleanup;
-    }
-
-    if (slirpfd > 0 &&
-        qemuMonitorSendFileHandle(mon, slirpfdName, slirpfd) < 0)
-        goto cleanup;
-
-    ret = qemuMonitorJSONAddNetdev(mon, props);
-
- cleanup:
-    if (ret < 0) {
-        while (i--) {
-            if (qemuMonitorCloseFileHandle(mon, tapfdName[i]) < 0)
-                VIR_WARN("failed to close device handle '%s'", tapfdName[i]);
-        }
-        while (j--) {
-            if (qemuMonitorCloseFileHandle(mon, vhostfdName[j]) < 0)
-                VIR_WARN("failed to close device handle '%s'", vhostfdName[j]);
-        }
-        if (qemuMonitorCloseFileHandle(mon, slirpfdName) < 0)
-            VIR_WARN("failed to close device handle '%s'", slirpfdName);
-    }
-
-    return ret;
+    return qemuMonitorJSONAddNetdev(mon, props);
 }
 
 

@@ -328,7 +328,7 @@ class index:
             if type in type_map:
                 type_map[type][name] = d
             else:
-                self.warning("Unable to register type ", type)
+                self.warning("Unable to register type %s" % type)
 
         if name == debugsym and not quiet:
             print("New symbol: %s" % (d))
@@ -2218,7 +2218,7 @@ class docBuilder:
                               return_comment="") -> (str, str, str):
         since = ""
         if comment is not None:
-            comment_match = re.search(r"\(?Since: v?(\d+\.\d+\.\d+\.?\d?)\)?",
+            comment_match = re.search(r"\(?Since: (\d+\.\d+\.\d+\.?\d?)\)?",
                                       comment)
             if comment_match:
                 # Remove Since tag from the comment
@@ -2229,7 +2229,7 @@ class docBuilder:
                 since = comment_match.group(1)
 
         if since == "" and return_comment is not None:
-            return_match = re.search(r"\(?Since: v?(\d+\.\d+\.\d+\.?\d?)\)?",
+            return_match = re.search(r"\(?Since: (\d+\.\d+\.\d+\.?\d?)\)?",
                                      return_comment)
             if return_match:
                 # Remove Since tag from the comment

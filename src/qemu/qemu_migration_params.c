@@ -1385,10 +1385,10 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
 int
 qemuMigrationCapsCheck(virQEMUDriver *driver,
                        virDomainObj *vm,
-                       int asyncJob)
+                       int asyncJob,
+                       bool reconnect)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    g_autoptr(virBitmap) migEvent = NULL;
     g_autoptr(virJSONValue) json = NULL;
     g_auto(GStrv) caps = NULL;
     char **capStr;
@@ -1419,8 +1419,8 @@ qemuMigrationCapsCheck(virQEMUDriver *driver,
         }
     }
 
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT)) {
-        migEvent = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
+    if (!reconnect) {
+        g_autoptr(virBitmap) migEvent = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
 
         ignore_value(virBitmapSetBit(migEvent, QEMU_MIGRATION_CAP_EVENTS));
 
@@ -1434,11 +1434,8 @@ qemuMigrationCapsCheck(virQEMUDriver *driver,
 
         qemuDomainObjExitMonitor(vm);
 
-        if (rc < 0) {
-            virResetLastError();
-            VIR_DEBUG("Cannot enable migration events; clearing capability");
-            virQEMUCapsClear(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT);
-        }
+        if (rc < 0)
+            return -1;
     }
 
     /* Migration events capability must always be enabled, clearing it from

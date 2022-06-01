@@ -391,6 +391,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
                        virDomainClockOffsetTypeToString(clock.offset));
         return -1;
 
+    case VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE:
     case VIR_DOMAIN_CLOCK_OFFSET_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -1537,6 +1538,7 @@ libxlMakeVfb(virPortAllocatorRange *graphicsports,
         case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
         case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
         case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
+        case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
         case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
             break;
     }
@@ -1645,14 +1647,14 @@ libxlMakeBuildInfoVfb(virPortAllocatorRange *graphicsports,
 
         switch (l_vfb->data.spice.mousemode) {
             /* client mouse mode is default in xl.cfg */
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_DEFAULT:
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_CLIENT:
+        case VIR_DOMAIN_MOUSE_MODE_DEFAULT:
+        case VIR_DOMAIN_MOUSE_MODE_CLIENT:
             libxl_defbool_set(&b_info->u.hvm.spice.agent_mouse, true);
             break;
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_SERVER:
+        case VIR_DOMAIN_MOUSE_MODE_SERVER:
             libxl_defbool_set(&b_info->u.hvm.spice.agent_mouse, false);
             break;
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_LAST:
+        case VIR_DOMAIN_MOUSE_MODE_LAST:
             break;
         }
 

@@ -1241,6 +1241,8 @@ typedef enum {
     VIR_DOMAIN_CHR_TYPE_SPICEVMC,
     VIR_DOMAIN_CHR_TYPE_SPICEPORT,
     VIR_DOMAIN_CHR_TYPE_NMDM,
+    VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT,
+    VIR_DOMAIN_CHR_TYPE_DBUS,
 
     VIR_DOMAIN_CHR_TYPE_LAST
 } virDomainChrType;
@@ -1268,6 +1270,13 @@ struct _virDomainChrSourceReconnectDef {
     unsigned int timeout;
 };
 
+typedef enum {
+    VIR_DOMAIN_MOUSE_MODE_DEFAULT = 0,
+    VIR_DOMAIN_MOUSE_MODE_SERVER,
+    VIR_DOMAIN_MOUSE_MODE_CLIENT,
+
+    VIR_DOMAIN_MOUSE_MODE_LAST
+} virDomainMouseMode;
 
 /* The host side information for a character device.  */
 struct _virDomainChrSourceDef {
@@ -1309,6 +1318,13 @@ struct _virDomainChrSourceDef {
         struct {
             char *channel;
         } spiceport;
+        struct {
+            virDomainMouseMode mouse;
+            virTristateBool clipboard;
+        } qemuVdagent;
+        struct {
+            char *channel;
+        } dbus;
     } data;
     char *logfile;
     virTristateSwitch logappend;
@@ -1536,6 +1552,7 @@ typedef enum {
     VIR_DOMAIN_AUDIO_TYPE_SDL,
     VIR_DOMAIN_AUDIO_TYPE_SPICE,
     VIR_DOMAIN_AUDIO_TYPE_FILE,
+    VIR_DOMAIN_AUDIO_TYPE_DBUS,
 
     VIR_DOMAIN_AUDIO_TYPE_LAST
 } virDomainAudioType;
@@ -1765,6 +1782,7 @@ typedef enum {
     VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP,
     VIR_DOMAIN_GRAPHICS_TYPE_SPICE,
     VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS,
+    VIR_DOMAIN_GRAPHICS_TYPE_DBUS,
 
     VIR_DOMAIN_GRAPHICS_TYPE_LAST
 } virDomainGraphicsType;
@@ -1846,14 +1864,6 @@ typedef enum {
 } virDomainGraphicsSpiceZlibCompression;
 
 typedef enum {
-    VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_DEFAULT = 0,
-    VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_SERVER,
-    VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_CLIENT,
-
-    VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_LAST
-} virDomainGraphicsSpiceMouseMode;
-
-typedef enum {
     VIR_DOMAIN_GRAPHICS_SPICE_STREAMING_MODE_DEFAULT = 0,
     VIR_DOMAIN_GRAPHICS_SPICE_STREAMING_MODE_FILTER,
     VIR_DOMAIN_GRAPHICS_SPICE_STREAMING_MODE_ALL,
@@ -1930,7 +1940,7 @@ struct _virDomainGraphicsDef {
             int tlsPort;
             bool portReserved;
             bool tlsPortReserved;
-            virDomainGraphicsSpiceMouseMode mousemode;
+            virDomainMouseMode mousemode;
             char *keymap;
             virDomainGraphicsAuthDef auth;
             bool autoport;
@@ -1949,6 +1959,14 @@ struct _virDomainGraphicsDef {
         struct {
             char *rendernode;
         } egl_headless;
+        struct {
+            bool p2p;
+            char *address;
+            char *rendernode;
+            virTristateBool gl;
+            unsigned int audioId;
+            bool fromConfig;    /* true if the @address is config file originated */
+        } dbus;
     } data;
     /* nListens, listens, and *port are only useful if type is vnc,
      * rdp, or spice. They've been extracted from the union only to
@@ -2449,6 +2467,7 @@ typedef enum {
     VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME = 1,
     VIR_DOMAIN_CLOCK_OFFSET_VARIABLE = 2,
     VIR_DOMAIN_CLOCK_OFFSET_TIMEZONE = 3,
+    VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE = 4,
 
     VIR_DOMAIN_CLOCK_OFFSET_LAST
 } virDomainClockOffsetType;
@@ -2483,6 +2502,9 @@ struct _virDomainClockDef {
         /* Timezone name, when
          * offset == VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME */
         char *timezone;
+
+        /* absolute clock start time for VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE */
+        unsigned long long starttime;
     } data;
 
     size_t ntimers;
@@ -3060,9 +3082,6 @@ struct _virDomainObj {
     int taint;
     size_t ndeprecations;
     char **deprecations;
-
-    unsigned long long originalMemlock; /* Original RLIMIT_MEMLOCK, zero if no
-                                         * restore will be required later */
 };
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainObj, virObjectUnref);
@@ -3655,12 +3674,12 @@ void virDomainRNGDefFree(virDomainRNGDef *def);
 
 int virDomainDiskIndexByAddress(virDomainDef *def,
                                 virPCIDeviceAddress *pci_controller,
-                                virDomainDeviceCCWAddress *ccw_addr,
+                                virCCWDeviceAddress *ccw_addr,
                                 unsigned int bus, unsigned int target,
                                 unsigned int unit);
 virDomainDiskDef *virDomainDiskByAddress(virDomainDef *def,
                                          virPCIDeviceAddress *pci_controller,
-                                         virDomainDeviceCCWAddress *ccw_addr,
+                                         virCCWDeviceAddress *ccw_addr,
                                          unsigned int bus,
                                          unsigned int target,
                                          unsigned int unit);
@@ -3745,7 +3764,7 @@ void virDomainControllerInsertPreAlloced(virDomainDef *def,
 int virDomainControllerFind(const virDomainDef *def, int type, int idx);
 int virDomainControllerFindByType(virDomainDef *def, int type);
 int virDomainControllerFindByCCWAddress(virDomainDef *def,
-                                        virDomainDeviceCCWAddress *addr);
+                                        virCCWDeviceAddress *addr);
 int virDomainControllerFindByPCIAddress(virDomainDef *def,
                                         virPCIDeviceAddress *addr);
 int virDomainControllerFindUnusedIndex(virDomainDef const *def, int type);
@@ -3996,7 +4015,7 @@ VIR_ENUM_DECL(virDomainGraphicsSpiceImageCompression);
 VIR_ENUM_DECL(virDomainGraphicsSpiceJpegCompression);
 VIR_ENUM_DECL(virDomainGraphicsSpiceZlibCompression);
 VIR_ENUM_DECL(virDomainGraphicsSpiceStreamingMode);
-VIR_ENUM_DECL(virDomainGraphicsSpiceMouseMode);
+VIR_ENUM_DECL(virDomainMouseMode);
 VIR_ENUM_DECL(virDomainGraphicsVNCSharePolicy);
 VIR_ENUM_DECL(virDomainHyperv);
 VIR_ENUM_DECL(virDomainKVM);
@@ -4276,3 +4295,6 @@ int
 virDomainObjGetMessages(virDomainObj *vm,
                         char ***msgs,
                         unsigned int flags);
+
+bool
+virDomainDefHasSpiceGraphics(const virDomainDef *def);
