@@ -199,7 +199,7 @@ void virDomainPCIAddressSetAllMulti(virDomainDef *def)
 
 struct _virDomainCCWAddressSet {
     GHashTable *defined;
-    virDomainDeviceCCWAddress next;
+    virCCWDeviceAddress next;
 };
 typedef struct _virDomainCCWAddressSet virDomainCCWAddressSet;
 
@@ -208,9 +208,6 @@ int virDomainCCWAddressAssign(virDomainDeviceInfo *dev,
                               bool autoassign)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 void virDomainCCWAddressSetFree(virDomainCCWAddressSet *addrs);
-
-char* virDomainCCWAddressAsString(virDomainDeviceCCWAddress *addr)
-    ATTRIBUTE_NONNULL(1);
 
 virDomainCCWAddressSet *
 virDomainCCWAddressSetCreateFromDomain(virDomainDef *def)

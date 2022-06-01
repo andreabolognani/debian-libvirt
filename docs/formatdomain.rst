@@ -2170,6 +2170,11 @@ Windows, however, expects it to be in so called 'localtime'.
       the RTC adjustments are lost at each reboot. :since:`Since 0.7.7`
       :since:`Since 0.9.11` the ``basis`` attribute can be either 'utc'
       (default) or 'localtime'.
+   ``absolute``
+      The guest clock will be always set to the value of the ``start``
+      attribute at startup of the domain. The ``start`` attribute takes an
+      epoch timestamp.
+      :since:`Since 8.4.0`.
 
    A ``clock`` may have zero or more ``timer`` sub-elements. :since:`Since
    0.8.0`
@@ -5295,7 +5300,7 @@ following attributes are available for the ``"virtio"`` NIC driver:
    virtio and tap backends only. Virtio NIC will be launched with "rss"
    property. For now "in-qemu" RSS is supported by libvirt.
    QEMU may load eBPF RSS if it has CAP_SYS_ADMIN permissions, which is
-   not supported by default in libvirt.
+   not supported by default in libvirt. :since:`Since 8.3.0 and QEMU 5.1`
    **In general you should leave this option alone, unless you are very certain
    you know what you are doing. Proper RSS configuration depends from vcpu,
    tap, and vhost settings.**
@@ -5305,6 +5310,7 @@ following attributes are available for the ``"virtio"`` NIC driver:
    to VM will contain a hash of the packet in the virt header. Usually enabled
    alongside with ``rss``. Without ``rss`` option, the hash report doesn't affect
    steering itself but provides vnet header with a calculated hash.
+   :since:`Since 8.3.0 and QEMU 5.1`
    **In general you should leave this option alone, unless you are very certain
    you know what you are doing. Proper RSS configuration depends from vcpu,
    tap, and vhost settings.**
@@ -6080,6 +6086,39 @@ interaction with the admin.
            <gl rendernode='/dev/dri/renderD128'/>
          </graphics>
 
+   ``dbus``:since:`Since 8.4.0`
+      Export the display over D-Bus. By default, it will use a private bus,
+      except when ``p2p`` or ``address`` are specified.
+
+      ::
+
+        <graphics type='dbus'/>
+
+      ``p2p`` (accepts ``on`` or ``off``) enables peer-to-peer connections,
+      established through virDomainOpenGraphics() APIs.
+
+      ``address`` (accepts a `D-Bus address
+      <https://dbus.freedesktop.org/doc/dbus-specification.html#addresses>`_),
+      will connect to the specified bus address.
+
+      This element accepts a ``<gl/>`` sub-element with an optional attribute
+      ``rendernode`` which can be used to specify an absolute path to a host's
+      DRI device to be used for OpenGL rendering.
+
+      Copy & Paste functionality is provided thanks to the QEMU clipboard
+      manager and the SPICE vdagent protocol. See ``qemu-vdagent`` for more
+      details.
+
+      D-Bus can export an audio backend using the ``<audio>`` sub-element:
+
+      ::
+
+         <graphics type='dbus' ...>
+           <audio id='1'>
+         </graphics>
+
+      Where ``1`` is an id of the `audio device <#elementsAudio>`__.
+
 Graphics device uses a ``<listen>`` to set up where the device should listen for
 clients. It has a mandatory attribute ``type`` which specifies the listen type.
 Only ``vnc``, ``spice`` and ``rdp`` supports ``<listen>`` element. :since:`Since
@@ -6608,6 +6647,29 @@ types have different ``target`` attributes.
    ``name='com.redhat.spice.0'``. The optional ``address`` element can tie the
    channel to a particular ``type='virtio-serial'`` controller. :since:`Since
    0.8.8`
+``qemu-vdagent``
+   Paravirtualized qemu vdagent channel. This channel implements the SPICE
+   vdagent protocol, but is handled internally by qemu and therefore does not
+   require a SPICE graphics device. Like the spicevmc channel, the ``target``
+   element must be present, with attribute ``type='virtio'``; an optional
+   attribute ``name`` controls how the guest will have access to the channel,
+   and defaults to ``name='com.redhat.spice.0'``. The optional ``address``
+   element can tie the channel to a particular ``type='virtio-serial'``
+   controller. Certain vdagent protocol features can by enabled or disabled
+   using the ``source`` element.
+
+   Copy & Paste functionality is set by the ``clipboard`` element. It is
+   disabled by default, and can be enabled by setting the ``copypaste``
+   property to ``yes``. This allows the guest's clipboard to be synchronized
+   with the qemu clipboard manager. This can enable copy and paste between a
+   guest and a client when using a VNC `graphics device <#elementsGraphics>`__
+   (when using a VNC client that supports the copy/paste feature) or other
+   graphics types that support the qemu clipboard manager.
+
+   Mouse mode is set by the ``mouse`` element, setting its ``mode`` attribute
+   to one of ``server`` or ``client``. If no mode is specified, the qemu
+   default will be used (client mode).
+   :since:`Since 8.4.0`
 
 :anchor:`<a id="elementsCharHostInterface"/>`
 
@@ -6973,7 +7035,7 @@ to the guest sound device.
 ``type``
    The required ``type`` attribute specifies audio backend type.
    Currently, the supported values are 'none', 'alsa', 'coreaudio',
-   'jack', 'oss', 'pulseaudio', 'sdl', 'spice', 'file'.
+   'dbus', jack', 'oss', 'pulseaudio', 'sdl', 'spice', 'file'.
 
 ``id``
    Integer id of the audio device. Must be greater than 0.
@@ -7113,6 +7175,14 @@ and ``<output>`` elements
    </audio>
 
 :since:`Since 7.2.0, qemu`
+
+D-Bus audio backend
+^^^^^^^^^^^^^^^^^^^
+
+The 'dbus' audio backend does not connect to any host audio framework. It
+exports a D-Bus interface when associated with a D-Bus display.
+
+:since:`Since 8.4.0, qemu`
 
 Jack audio backend
 ^^^^^^^^^^^^^^^^^^

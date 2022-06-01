@@ -124,6 +124,7 @@ virCPUModeTypeToString;
 
 
 # conf/device_conf.h
+virCCWDeviceAddressParseXML;
 virDeviceInfoPCIAddressExtensionIsPresent;
 virDeviceInfoPCIAddressExtensionIsWanted;
 virDeviceInfoPCIAddressIsPresent;
@@ -131,9 +132,6 @@ virDeviceInfoPCIAddressIsWanted;
 virDomainDeviceAddressIsValid;
 virDomainDeviceAddressTypeToString;
 virDomainDeviceCcidAddressParseXML;
-virDomainDeviceCCWAddressEqual;
-virDomainDeviceCCWAddressIsValid;
-virDomainDeviceCCWAddressParseXML;
 virDomainDeviceDriveAddressParseXML;
 virDomainDeviceInfoAddressIsEqual;
 virDomainDeviceSpaprVioAddressParseXML;
@@ -147,7 +145,6 @@ virPCIDeviceAddressParseXML;
 
 # conf/domain_addr.h
 virDomainCCWAddressAssign;
-virDomainCCWAddressAsString;
 virDomainCCWAddressSetCreateFromDomain;
 virDomainCCWAddressSetFree;
 virDomainPCIAddressBusIsFullyReserved;
@@ -333,6 +330,7 @@ virDomainDefHasMemoryHotplug;
 virDomainDefHasNVMeDisk;
 virDomainDefHasOldStyleROUEFI;
 virDomainDefHasOldStyleUEFI;
+virDomainDefHasSpiceGraphics;
 virDomainDefHasUSB;
 virDomainDefHasVcpusOffline;
 virDomainDefHasVDPANet;
@@ -444,8 +442,6 @@ virDomainGraphicsSpiceImageCompressionTypeFromString;
 virDomainGraphicsSpiceImageCompressionTypeToString;
 virDomainGraphicsSpiceJpegCompressionTypeFromString;
 virDomainGraphicsSpiceJpegCompressionTypeToString;
-virDomainGraphicsSpiceMouseModeTypeFromString;
-virDomainGraphicsSpiceMouseModeTypeToString;
 virDomainGraphicsSpiceStreamingModeTypeFromString;
 virDomainGraphicsSpiceStreamingModeTypeToString;
 virDomainGraphicsSpiceZlibCompressionTypeFromString;
@@ -519,6 +515,8 @@ virDomainMemoryModelTypeToString;
 virDomainMemoryRemove;
 virDomainMemorySourceTypeFromString;
 virDomainMemorySourceTypeToString;
+virDomainMouseModeTypeFromString;
+virDomainMouseModeTypeToString;
 virDomainNetAllocateActualDevice;
 virDomainNetAppendIPAddress;
 virDomainNetARPInterfaces;
@@ -1925,6 +1923,15 @@ virBufferUse;
 virBufferVasprintf;
 
 
+# util/virccw.h
+virCCWDeviceAddressAsString;
+virCCWDeviceAddressEqual;
+virCCWDeviceAddressFromString;
+virCCWDeviceAddressIncrement;
+virCCWDeviceAddressIsValid;
+virCCWDeviceAddressParseFromString;
+
+
 # util/vircgroup.h
 virCgroupAddMachineProcess;
 virCgroupAddProcess;
@@ -2056,8 +2063,6 @@ virCommandNewArgs;
 virCommandNewVAList;
 virCommandNonblockingFDs;
 virCommandPassFD;
-virCommandPassFDGetFDIndex;
-virCommandPassFDIndex;
 virCommandRawStatus;
 virCommandRequireHandshake;
 virCommandRun;
@@ -3494,6 +3499,7 @@ virTypedParamListAddString;
 virTypedParamListAddUInt;
 virTypedParamListAddULLong;
 virTypedParamListFree;
+virTypedParamListFromParams;
 virTypedParamListStealParams;
 virTypedParamsCheck;
 virTypedParamsCopy;

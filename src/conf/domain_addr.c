@@ -1303,26 +1303,6 @@ virDomainPCIAddressSetAllMulti(virDomainDef *def)
 }
 
 
-char*
-virDomainCCWAddressAsString(virDomainDeviceCCWAddress *addr)
-{
-    return g_strdup_printf("%x.%x.%04x", addr->cssid, addr->ssid, addr->devno);
-}
-
-static int
-virDomainCCWAddressIncrement(virDomainDeviceCCWAddress *addr)
-{
-    virDomainDeviceCCWAddress ccwaddr = *addr;
-
-    /* We are not touching subchannel sets and channel subsystems */
-    if (++ccwaddr.devno > VIR_DOMAIN_DEVICE_CCW_MAX_DEVNO)
-        return -1;
-
-    *addr = ccwaddr;
-    return 0;
-}
-
-
 int
 virDomainCCWAddressAssign(virDomainDeviceInfo *dev,
                           virDomainCCWAddressSet *addrs,
@@ -1334,7 +1314,7 @@ virDomainCCWAddressAssign(virDomainDeviceInfo *dev,
         return 0;
 
     if (!autoassign && dev->addr.ccw.assigned) {
-        if (!(addr = virDomainCCWAddressAsString(&dev->addr.ccw)))
+        if (!(addr = virCCWDeviceAddressAsString(&dev->addr.ccw)))
             return -1;
 
         if (virHashLookup(addrs->defined, addr)) {
@@ -1344,17 +1324,17 @@ virDomainCCWAddressAssign(virDomainDeviceInfo *dev,
             return -1;
         }
     } else if (autoassign && !dev->addr.ccw.assigned) {
-        if (!(addr = virDomainCCWAddressAsString(&addrs->next)))
+        if (!(addr = virCCWDeviceAddressAsString(&addrs->next)))
             return -1;
 
         while (virHashLookup(addrs->defined, addr)) {
-            if (virDomainCCWAddressIncrement(&addrs->next) < 0) {
+            if (virCCWDeviceAddressIncrement(&addrs->next) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("There are no more free CCW devnos."));
                 return -1;
             }
             VIR_FREE(addr);
-            if (!(addr = virDomainCCWAddressAsString(&addrs->next)))
+            if (!(addr = virCCWDeviceAddressAsString(&addrs->next)))
                 return -1;
         }
         dev->addr.ccw = addrs->next;

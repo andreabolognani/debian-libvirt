@@ -1965,6 +1965,7 @@ qemuValidateDomainChrTargetDef(const virDomainChrDef *chr)
 
 static int
 qemuValidateDomainChrSourceDef(const virDomainChrSourceDef *def,
+                               const virDomainDef *vmdef,
                                virQEMUCaps *qemuCaps)
 {
     switch ((virDomainChrType)def->type) {
@@ -1987,6 +1988,25 @@ qemuValidateDomainChrSourceDef(const virDomainChrSourceDef *def,
         }
         break;
 
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_CHARDEV_QEMU_VDAGENT)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("chardev '%s' not supported in this QEMU binary"),
+                           virDomainChrTypeToString(def->type));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
+    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
+        if (!virDomainDefHasSpiceGraphics(vmdef)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("chardev '%s' not supported without spice graphics"),
+                           virDomainChrTypeToString(def->type));
+            return -1;
+        }
+        break;
+
     case VIR_DOMAIN_CHR_TYPE_NULL:
     case VIR_DOMAIN_CHR_TYPE_VC:
     case VIR_DOMAIN_CHR_TYPE_PTY:
@@ -1994,9 +2014,8 @@ qemuValidateDomainChrSourceDef(const virDomainChrSourceDef *def,
     case VIR_DOMAIN_CHR_TYPE_PIPE:
     case VIR_DOMAIN_CHR_TYPE_STDIO:
     case VIR_DOMAIN_CHR_TYPE_UDP:
-    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
-    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
     case VIR_DOMAIN_CHR_TYPE_NMDM:
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
     case VIR_DOMAIN_CHR_TYPE_LAST:
         break;
     }
@@ -2018,7 +2037,7 @@ qemuValidateDomainChrDef(const virDomainChrDef *dev,
                          const virDomainDef *def,
                          virQEMUCaps *qemuCaps)
 {
-    if (qemuValidateDomainChrSourceDef(dev->source, qemuCaps) < 0)
+    if (qemuValidateDomainChrSourceDef(dev->source, def, qemuCaps) < 0)
         return -1;
 
     if (qemuValidateDomainChrTargetDef(dev) < 0)
@@ -2111,7 +2130,7 @@ qemuValidateDomainSmartcardDef(const virDomainSmartcardDef *smartcard,
             return -1;
         }
 
-        if (qemuValidateDomainChrSourceDef(smartcard->data.passthru, qemuCaps) < 0)
+        if (qemuValidateDomainChrSourceDef(smartcard->data.passthru, def, qemuCaps) < 0)
             return -1;
         break;
 
@@ -2127,6 +2146,7 @@ qemuValidateDomainSmartcardDef(const virDomainSmartcardDef *smartcard,
 
 static int
 qemuValidateDomainRNGDef(const virDomainRNGDef *def,
+                         const virDomainDef *vmdef,
                          virQEMUCaps *qemuCaps)
 {
     virDomainCapsDeviceRNG rngCaps = { 0 };
@@ -2149,7 +2169,9 @@ qemuValidateDomainRNGDef(const virDomainRNGDef *def,
             return -1;
         }
 
-        if (qemuValidateDomainChrSourceDef(def->source.chardev, qemuCaps) < 0)
+        if (qemuValidateDomainChrSourceDef(def->source.chardev,
+                                           vmdef,
+                                           qemuCaps) < 0)
             return -1;
 
         break;
@@ -2190,7 +2212,7 @@ qemuValidateDomainRedirdevDef(const virDomainRedirdevDef *dev,
                               const virDomainDef *def,
                               virQEMUCaps *qemuCaps)
 {
-    if (qemuValidateDomainChrSourceDef(dev->source, qemuCaps) < 0)
+    if (qemuValidateDomainChrSourceDef(dev->source, def, qemuCaps) < 0)
         return -1;
 
     if (dev->bus != VIR_DOMAIN_REDIRDEV_BUS_USB) {
@@ -4154,6 +4176,24 @@ qemuValidateDomainDeviceDefVNCGraphics(const virDomainGraphicsDef *graphics,
 
 
 static int
+qemuValidateDomainDeviceDefDBusGraphics(const virDomainGraphicsDef *graphics,
+                                        const virDomainDef *def)
+{
+    if (graphics->data.dbus.audioId > 0) {
+        virDomainAudioDef *audio = virDomainDefFindAudioByID(def, graphics->data.dbus.audioId);
+
+        if (audio && audio->type != VIR_DOMAIN_AUDIO_TYPE_DBUS) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("The associated audio is not of 'dbus' kind."));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
 qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
                                     const virDomainDef *def,
                                     virQEMUDriver *driver,
@@ -4226,6 +4266,12 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
 
     case VIR_DOMAIN_GRAPHICS_TYPE_VNC:
         if (qemuValidateDomainDeviceDefVNCGraphics(graphics, qemuCaps) < 0)
+            return -1;
+
+        break;
+
+    case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
+        if (qemuValidateDomainDeviceDefDBusGraphics(graphics, def) < 0)
             return -1;
 
         break;
@@ -4370,6 +4416,7 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
 
 static int
 qemuValidateDomainDeviceDefAudio(virDomainAudioDef *audio,
+                                 const virDomainDef *def,
                                  virQEMUCaps *qemuCaps G_GNUC_UNUSED)
 {
     if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_AUDIODEV)) {
@@ -4474,9 +4521,22 @@ qemuValidateDomainDeviceDefAudio(virDomainAudioDef *audio,
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_SPICE:
+        if (!virDomainDefHasSpiceGraphics(def)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Spice audio is not supported without spice graphics"));
+            return -1;
+        }
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_FILE:
+        break;
+
+    case VIR_DOMAIN_AUDIO_TYPE_DBUS:
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DISPLAY_DBUS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("D-Bus audio is not supported with this QEMU"));
+            return -1;
+        }
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -5137,7 +5197,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
         return qemuValidateDomainSmartcardDef(dev->data.smartcard, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_RNG:
-        return qemuValidateDomainRNGDef(dev->data.rng, qemuCaps);
+        return qemuValidateDomainRNGDef(dev->data.rng, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_REDIRDEV:
         return qemuValidateDomainRedirdevDef(dev->data.redirdev, def, qemuCaps);
@@ -5197,7 +5257,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
         return qemuValidateDomainDeviceDefShmem(dev->data.shmem, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_AUDIO:
-        return qemuValidateDomainDeviceDefAudio(dev->data.audio, qemuCaps);
+        return qemuValidateDomainDeviceDefAudio(dev->data.audio, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_PANIC:

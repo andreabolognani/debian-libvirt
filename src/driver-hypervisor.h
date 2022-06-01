@@ -241,6 +241,12 @@ typedef int
                          unsigned int flags);
 
 typedef int
+(*virDrvDomainSaveParams)(virDomainPtr domain,
+                          virTypedParameterPtr params,
+                          int nparams,
+                          unsigned int flags);
+
+typedef int
 (*virDrvDomainRestore)(virConnectPtr conn,
                        const char *from);
 
@@ -249,6 +255,12 @@ typedef int
                             const char *from,
                             const char *dxml,
                             unsigned int flags);
+
+typedef int
+(*virDrvDomainRestoreParams)(virConnectPtr conn,
+                             virTypedParameterPtr params,
+                             int nparams,
+                             unsigned int flags);
 
 typedef char *
 (*virDrvDomainSaveImageGetXMLDesc)(virConnectPtr conn,
@@ -1489,8 +1501,10 @@ struct _virHypervisorDriver {
     virDrvDomainGetControlInfo domainGetControlInfo;
     virDrvDomainSave domainSave;
     virDrvDomainSaveFlags domainSaveFlags;
+    virDrvDomainSaveParams domainSaveParams;
     virDrvDomainRestore domainRestore;
     virDrvDomainRestoreFlags domainRestoreFlags;
+    virDrvDomainRestoreParams domainRestoreParams;
     virDrvDomainSaveImageGetXMLDesc domainSaveImageGetXMLDesc;
     virDrvDomainSaveImageDefineXML domainSaveImageDefineXML;
     virDrvDomainCoreDump domainCoreDump;

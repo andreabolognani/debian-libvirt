@@ -36,6 +36,7 @@
 #include "viruuid.h"
 #include "virbuffer.h"
 #include "virfile.h"
+#include "virccw.h"
 #include "virpci.h"
 #include "virpidfile.h"
 #include "virstring.h"
@@ -1086,9 +1087,10 @@ udevGetCCWAddress(const char *sysfs_path,
     char *p;
 
     if ((p = strrchr(sysfs_path, '/')) == NULL ||
-        virStrToLong_ui(p + 1, &p, 16, &data->ccw_dev.cssid) < 0 || p == NULL ||
-        virStrToLong_ui(p + 1, &p, 16, &data->ccw_dev.ssid) < 0 || p == NULL ||
-        virStrToLong_ui(p + 1, &p, 16, &data->ccw_dev.devno) < 0) {
+        virCCWDeviceAddressParseFromString(p + 1,
+                                           &data->ccw_dev.cssid,
+                                           &data->ccw_dev.ssid,
+                                           &data->ccw_dev.devno) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to parse the CCW address from sysfs path: '%s'"),
                        sysfs_path);
@@ -1122,6 +1124,8 @@ static int
 udevProcessCSS(struct udev_device *device,
                virNodeDeviceDef *def)
 {
+    g_autofree char *dev_busid = NULL;
+
     /* only process IO subchannel and vfio-ccw devices to keep the list sane */
     if (!def->driver ||
         (STRNEQ(def->driver, "io_subchannel") &&
@@ -1132,6 +1136,12 @@ udevProcessCSS(struct udev_device *device,
         return -1;
 
     udevGenerateDeviceName(device, def, NULL);
+
+    /* process optional channel devices information */
+    udevGetStringSysfsAttr(device, "dev_busid", &dev_busid);
+
+    if (dev_busid != NULL && STRNEQ(dev_busid, "none"))
+        def->caps->data.ccw_dev.channel_dev_addr = virCCWDeviceAddressFromString(dev_busid);
 
     if (virNodeDeviceGetCSSDynamicCaps(def->sysfs_path, &def->caps->data.ccw_dev) < 0)
         return -1;

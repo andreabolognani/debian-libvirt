@@ -298,8 +298,7 @@ testQemuHotplug(const void *data)
 
     /* Now is the best time to feed the spoofed monitor with predefined
      * replies. */
-    if (!(test_mon = qemuMonitorTestNew(driver.xmlopt, vm, &driver,
-                                        NULL, NULL)))
+    if (!(test_mon = qemuMonitorTestNew(driver.xmlopt, vm, NULL, NULL)))
         goto cleanup;
 
     tmp = test->mon;
@@ -834,6 +833,7 @@ mymain(void)
                    "device_del", QMP_DEVICE_DELETED("hostdev0") QMP_OK);
 
     DO_TEST_ATTACH("base-live", "interface-vdpa", false, true,
+                   "query-fdsets", "{\"return\":[{\"fdset-id\":99999}]}",
                    "add-fd", "{ \"return\": { \"fdset-id\": 1, \"fd\": 95 }}",
                    "netdev_add", QMP_OK, "device_add", QMP_OK);
     DO_TEST_DETACH("base-live", "interface-vdpa", false, false,

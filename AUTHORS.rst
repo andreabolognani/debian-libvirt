@@ -477,6 +477,7 @@ Patches have also been contributed by:
 * Leonid Bloch <lb.workbox@gmail.com>
 * Li Yang <liyang.fnst@cn.fujitsu.com>
 * Li Zhang <zhlcindy@linux.vnet.ibm.com>
+* Liang Yan <lyan@digitalocean.com>
 * Liao Pingfang <liao.pingfang@zte.com.cn>
 * Lily Zhu <lizhu@redhat.com>
 * Lin Ma <lma@suse.com>
@@ -532,6 +533,7 @@ Patches have also been contributed by:
 * Matwey V. Kornilov <matwey.kornilov@gmail.com>
 * Mauro Matteo Cascella <mcascell@redhat.com>
 * Mauro S. M. Rodrigues <maurosr@linux.vnet.ibm.com>
+* Max Goodhart <c@chromakode.com>
 * Maxim Kozin <kolomaxes@gmail.com>
 * Maxim Nestratov <mnestratov@virtuozzo.com>
 * Maxim Perevedentsev <mperevedentsev@virtuozzo.com>
@@ -593,6 +595,7 @@ Patches have also been contributed by:
 * Nikunj A. Dadhania <nikunj@linux.vnet.ibm.com>
 * Nishank Trivedi <nistrive@cisco.com>
 * Nishith Shah <nishithshah.2211@gmail.com>
+* Niteesh Dubey <niteesh@linux.ibm.com>
 * Nitesh Konkar <niteshkonkar.libvirt@gmail.com>
 * Noella Ashu <ashu.noella207@gmail.com>
 * Ohad Levy <ohadlevy@gmail.com>
@@ -693,6 +696,7 @@ Patches have also been contributed by:
 * Sascha Silbe <silbe@linux.vnet.ibm.com>
 * Satoru Moriya <satoru.moriya@hds.com>
 * Satoru SATOH <satoru.satoh@gmail.com>
+* Scott Davis <scott.davis@starlab.io>
 * Scott Garfinkle <scottgar@linux.vnet.ibm.com>
 * Scott Garfinkle <seg@us.ibm.com>
 * Scott Moser <smoser@ubuntu.com>
@@ -890,6 +894,7 @@ Patches have also been contributed by:
 * jason lee <ppark5237@gmail.com>
 * lawrancejing <lawrancejing@gmail.com>
 * liguang <lig.fnst@cn.fujitsu.com>
+* luzhipeng <luzhipeng@cestc.cn>
 * ning.bo <ning.bo9@zte.com.cn>
 * ramyelkest <ramyelkest@gmail.com>
 * ryan woodsmall <rwoodsmall@gmail.com>

@@ -1252,6 +1252,14 @@
               </attribute>
             </optional>
           </group>
+          <group>
+            <attribute name="offset">
+              <value>absolute</value>
+            </attribute>
+            <attribute name="start">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </group>
         </choice>
         <zeroOrMore>
           <ref name="timer"/>
@@ -4009,23 +4017,10 @@
               </element>
             </optional>
             <optional>
-              <element name="clipboard">
-                <attribute name="copypaste">
-                  <ref name="virYesNo"/>
-                </attribute>
-                <empty/>
-              </element>
+              <ref name="clipboard"/>
             </optional>
             <optional>
-              <element name="mouse">
-                <attribute name="mode">
-                  <choice>
-                    <value>server</value>
-                    <value>client</value>
-                  </choice>
-                </attribute>
-                <empty/>
-              </element>
+              <ref name="mousemode"/>
             </optional>
             <optional>
               <element name="filetransfer">
@@ -4046,6 +4041,46 @@
                   </attribute>
                 </optional>
                 <empty/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>dbus</value>
+          </attribute>
+          <optional>
+            <choice>
+              <group>
+                <attribute name="address">
+                  <ref name="dbusAddr"/>
+                </attribute>
+              </group>
+              <group>
+                <attribute name="p2p">
+                  <ref name="virYesNo"/>
+                </attribute>
+              </group>
+            </choice>
+          </optional>
+          <interleave>
+            <optional>
+              <element name="gl">
+                <attribute name="enable">
+                  <ref name="virYesNo"/>
+                </attribute>
+                <optional>
+                  <attribute name="rendernode">
+                    <ref name="absFilePath"/>
+                  </attribute>
+                </optional>
+              </element>
+            </optional>
+            <optional>
+              <element name="audio">
+                <attribute name="id">
+                  <ref name="uint8"/>
+                </attribute>
               </element>
             </optional>
           </interleave>
@@ -4114,6 +4149,25 @@
     </element>
   </define>
 
+  <define name="clipboard">
+    <element name="clipboard">
+      <attribute name="copypaste">
+        <ref name="virYesNo"/>
+      </attribute>
+      <empty/>
+    </element>
+  </define>
+  <define name="mousemode">
+    <element name="mouse">
+      <attribute name="mode">
+        <choice>
+          <value>server</value>
+          <value>client</value>
+        </choice>
+      </attribute>
+      <empty/>
+    </element>
+  </define>
   <define name="listenElements">
     <zeroOrMore>
       <element name="listen">
@@ -4514,6 +4568,8 @@
       <value>spicevmc</value>
       <value>spiceport</value>
       <value>nmdm</value>
+      <value>qemu-vdagent</value>
+      <value>dbus</value>
     </choice>
   </define>
 
@@ -4599,9 +4655,17 @@
         <optional>
           <ref name="reconnect"/>
         </optional>
-        <zeroOrMore>
-          <ref name="devSeclabel"/>
-        </zeroOrMore>
+        <interleave>
+          <zeroOrMore>
+            <ref name="devSeclabel"/>
+          </zeroOrMore>
+          <optional>
+            <ref name="clipboard"/>
+          </optional>
+          <optional>
+            <ref name="mousemode"/>
+          </optional>
+        </interleave>
       </element>
     </zeroOrMore>
     <optional>
@@ -4862,6 +4926,11 @@
     <ref name="audiocommonchild"/>
   </define>
 
+  <define name="audiodbus">
+    <ref name="audiocommonattr"/>
+    <ref name="audiocommonchild"/>
+  </define>
+
   <define name="audio">
     <element name="audio">
       <attribute name="id">
@@ -4886,6 +4955,23 @@
             <optional>
               <element name="output">
                 <ref name="audionone"/>
+              </element>
+            </optional>
+          </interleave>
+        </group>
+        <group>
+          <attribute name="type">
+            <value>dbus</value>
+          </attribute>
+          <interleave>
+            <optional>
+              <element name="input">
+                <ref name="audiodbus"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="output">
+                <ref name="audiodbus"/>
               </element>
             </optional>
           </interleave>

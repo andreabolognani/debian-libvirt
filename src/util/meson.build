@@ -9,6 +9,7 @@ util_sources = [
   'virbitmap.c',
   'virbpf.c',
   'virbuffer.c',
+  'virccw.c',
   'vircgroup.c',
   'vircgroupbackend.c',
   'vircgroupv1.c',
@@ -175,6 +176,7 @@ keycode_dep = declare_dependency(
 
 io_helper_sources = [
   'iohelper.c',
+  'virfile.c',
 ]
 
 virt_util_lib = static_library(
@@ -212,6 +214,10 @@ if conf.has('WITH_LIBVIRTD')
     'sources': [
       files(io_helper_sources),
       dtrace_gen_headers,
+    ],
+    'deps': [
+      acl_dep,
+      libutil_dep,
     ],
   }
 endif

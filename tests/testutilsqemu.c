@@ -18,10 +18,11 @@
 
 # define VIR_FROM_THIS VIR_FROM_QEMU
 
-virCPUDef *cpuDefault;
-virCPUDef *cpuHaswell;
-virCPUDef *cpuPower8;
-virCPUDef *cpuPower9;
+static virCPUDef *cpuDefault;
+static virCPUDef *cpuHaswell;
+static virCPUDef *cpuPower8;
+static virCPUDef *cpuPower9;
+static virCPUDef *cpuPower10;
 
 
 static const char *qemu_emulators[VIR_ARCH_LAST] = {
@@ -300,6 +301,21 @@ testQemuCapsInitMacOS(void)
 }
 
 
+virCPUDef *
+qemuTestGetCPUDef(qemuTestCPUDef d)
+{
+    switch (d) {
+    case QEMU_CPU_DEF_DEFAULT: return cpuDefault;
+    case QEMU_CPU_DEF_HASWELL: return cpuHaswell;
+    case QEMU_CPU_DEF_POWER8: return cpuPower8;
+    case QEMU_CPU_DEF_POWER9: return cpuPower9;
+    case QEMU_CPU_DEF_POWER10: return cpuPower10;
+    }
+
+    return NULL;
+}
+
+
 void
 qemuTestSetHostArch(virQEMUDriver *driver,
                     virArch arch)
@@ -307,7 +323,7 @@ qemuTestSetHostArch(virQEMUDriver *driver,
     if (arch == VIR_ARCH_NONE)
         arch = VIR_ARCH_X86_64;
 
-    virTestHostArch = arch;
+    virTestSetHostArch(arch);
     driver->hostarch = virArchFromHost();
     driver->caps->host.arch = virArchFromHost();
     qemuTestSetHostCPU(driver, arch, NULL);
@@ -377,6 +393,7 @@ void qemuTestDriverFree(virQEMUDriver *driver)
     virCPUDefFree(cpuHaswell);
     virCPUDefFree(cpuPower8);
     virCPUDefFree(cpuPower9);
+    virCPUDefFree(cpuPower10);
 }
 
 
@@ -567,7 +584,8 @@ int qemuTestDriverInit(virQEMUDriver *driver)
     if (!(cpuDefault = virCPUDefCopy(&cpuDefaultData)) ||
         !(cpuHaswell = virCPUDefCopy(&cpuHaswellData)) ||
         !(cpuPower8 = virCPUDefCopy(&cpuPower8Data)) ||
-        !(cpuPower9 = virCPUDefCopy(&cpuPower9Data)))
+        !(cpuPower9 = virCPUDefCopy(&cpuPower9Data)) ||
+        !(cpuPower10 = virCPUDefCopy(&cpuPower10Data)))
         return -1;
 
     if (virMutexInit(&driver->lock) < 0)
@@ -872,6 +890,10 @@ testQemuInfoSetArgs(struct testQemuInfo *info,
             info->args.capsver = va_arg(argptr, char *);
             break;
 
+        case ARG_CAPS_HOST_CPU_MODEL:
+            info->args.capsHostCPUModel = va_arg(argptr, int);
+            break;
+
         case ARG_HOST_OS:
             info->args.hostOS = va_arg(argptr, int);
             break;
@@ -1005,7 +1027,6 @@ testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
     qemuDomainChrSourcePrivate *charpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(chardev);
     int fakesourcefd = -1;
     const char *devalias = NULL;
-    bool usefdset = true;
 
     if (vm)
         priv = vm->privateData;
@@ -1042,35 +1063,33 @@ testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_CHR_TYPE_TCP:
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
         break;
 
     case VIR_DOMAIN_CHR_TYPE_FILE:
         fakesourcefd = 1750;
+
+        if (fcntl(fakesourcefd, F_GETFD) != -1)
+            abort();
+
+        charpriv->sourcefd = qemuFDPassNew(devalias, priv);
+        qemuFDPassAddFD(charpriv->sourcefd, &fakesourcefd, "-source");
         break;
 
     case VIR_DOMAIN_CHR_TYPE_UNIX:
-        if (chardev->data.nix.listen)
+        if (chardev->data.nix.listen) {
+            g_autofree char *name = g_strdup_printf("%s-source", devalias);
             fakesourcefd = 1729;
 
-        usefdset = false;
+            charpriv->directfd = qemuFDPassDirectNew(name, &fakesourcefd);
+        }
+
         break;
 
     case VIR_DOMAIN_CHR_TYPE_NMDM:
     case VIR_DOMAIN_CHR_TYPE_LAST:
         break;
-    }
-
-    if (fakesourcefd != -1) {
-        if (fcntl(fakesourcefd, F_GETFD) != -1)
-            abort();
-
-        if (usefdset)
-            charpriv->sourcefd = qemuFDPassNew(devalias, priv);
-        else
-            charpriv->sourcefd = qemuFDPassNewDirect(devalias, priv);
-
-        if (qemuFDPassAddFD(charpriv->sourcefd, &fakesourcefd, "-source") < 0)
-            return -1;
     }
 
     if (chardev->logfile) {
@@ -1081,8 +1100,7 @@ testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
 
         charpriv->logfd = qemuFDPassNew(devalias, priv);
 
-        if (qemuFDPassAddFD(charpriv->logfd, &fd, "-log") < 0)
-            return -1;
+        qemuFDPassAddFD(charpriv->logfd, &fd, "-log");
     }
 
     return 0;

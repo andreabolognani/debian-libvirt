@@ -909,6 +909,24 @@ virDomainDiskDefValidate(const virDomainDef *def,
 #define SERIAL_CHANNEL_NAME_CHARS \
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-."
 
+
+static int
+virDomainChrSourceDefValidateChannelName(const char *name)
+{
+    if (!name) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Missing source channel attribute for char device"));
+        return -1;
+    }
+    if (strspn(name, SERIAL_CHANNEL_NAME_CHARS) < strlen(name)) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Invalid character in source channel for char device"));
+        return -1;
+    }
+
+    return 0;
+}
+
 static int
 virDomainChrSourceDefValidate(const virDomainChrSourceDef *src_def,
                               const virDomainChrDef *chr_def,
@@ -920,6 +938,7 @@ virDomainChrSourceDefValidate(const virDomainChrSourceDef *src_def,
     case VIR_DOMAIN_CHR_TYPE_VC:
     case VIR_DOMAIN_CHR_TYPE_STDIO:
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
     case VIR_DOMAIN_CHR_TYPE_LAST:
         break;
 
@@ -994,17 +1013,13 @@ virDomainChrSourceDefValidate(const virDomainChrSourceDef *src_def,
         break;
 
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
-        if (!src_def->data.spiceport.channel) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Missing source channel attribute for char device"));
+        if (virDomainChrSourceDefValidateChannelName(src_def->data.spiceport.channel) < 0)
             return -1;
-        }
-        if (strspn(src_def->data.spiceport.channel,
-                   SERIAL_CHANNEL_NAME_CHARS) < strlen(src_def->data.spiceport.channel)) {
-            virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("Invalid character in source channel for char device"));
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        if (virDomainChrSourceDefValidateChannelName(src_def->data.dbus.channel) < 0)
             return -1;
-        }
         break;
     }
 
@@ -1228,19 +1243,32 @@ virDomainDefDuplicateDiskInfoValidate(const virDomainDef *def)
 }
 
 static int
-virDomainDefDuplicateHostdevInfoValidate(const virDomainDef *def)
+virDomainDefHostdevValidate(const virDomainDef *def)
 {
     size_t i;
     size_t j;
+    bool ramfbEnabled = false;
 
     for (i = 0; i < def->nhostdevs; i++) {
+        virDomainHostdevDef *dev = def->hostdevs[i];
+
         for (j = i + 1; j < def->nhostdevs; j++) {
-            if (virDomainHostdevMatch(def->hostdevs[i],
+            if (virDomainHostdevMatch(dev,
                                       def->hostdevs[j])) {
                 virReportError(VIR_ERR_XML_ERROR, "%s",
                     _("Hostdev already exists in the domain configuration"));
                 return -1;
             }
+        }
+
+        if (dev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV &&
+            dev->source.subsys.u.mdev.ramfb == VIR_TRISTATE_SWITCH_ON) {
+            if (ramfbEnabled) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Only one vgpu device can have 'ramfb' enabled"));
+                return -1;
+            }
+            ramfbEnabled = true;
         }
     }
 
@@ -1698,7 +1726,7 @@ virDomainDefValidateInternal(const virDomainDef *def,
     if (virDomainDefDuplicateDiskInfoValidate(def) < 0)
         return -1;
 
-    if (virDomainDefDuplicateHostdevInfoValidate(def) < 0)
+    if (virDomainDefHostdevValidate(def) < 0)
         return -1;
 
     if (virDomainDefDuplicateDriveAddressesValidate(def) < 0)
@@ -2226,8 +2254,7 @@ virDomainInputDefValidate(const virDomainInputDef *input,
             def->virtType == VIR_DOMAIN_VIRT_PARALLELS) {
             if (input->bus != VIR_DOMAIN_INPUT_BUS_PARALLELS) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("parallels containers don't support "
-                                 "input bus %s"),
+                               _("parallels containers don't support input bus %s"),
                                virDomainInputBusTypeToString(input->bus));
                 return -1;
             }
@@ -2235,52 +2262,69 @@ virDomainInputDefValidate(const virDomainInputDef *input,
             if (input->type != VIR_DOMAIN_INPUT_TYPE_MOUSE &&
                 input->type != VIR_DOMAIN_INPUT_TYPE_KBD) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("parallels bus does not support "
-                                 "%s input device"),
+                               _("parallels bus does not support %s input device"),
                                virDomainInputTypeToString(input->type));
                 return -1;
             }
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Input devices are not supported by this "
-                             "virtualization driver."));
+                           _("Input devices are not supported by this virtualization driver."));
             return -1;
         }
     }
 
     switch ((virDomainInputType) input->type) {
-        case VIR_DOMAIN_INPUT_TYPE_MOUSE:
-        case VIR_DOMAIN_INPUT_TYPE_TABLET:
-        case VIR_DOMAIN_INPUT_TYPE_KBD:
-            if (input->source.evdev) {
-                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                _("setting source evdev path only supported for "
-                                  "passthrough input devices"));
-                 return -1;
-            }
-            break;
-
-        case VIR_DOMAIN_INPUT_TYPE_PASSTHROUGH:
-            if (input->bus != VIR_DOMAIN_INPUT_BUS_VIRTIO) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("only bus 'virtio' is supported for 'passthrough' "
-                                 "input devices"));
-                return -1;
-            }
-            break;
-
-        case VIR_DOMAIN_INPUT_TYPE_EVDEV:
-            if (input->bus != VIR_DOMAIN_INPUT_BUS_NONE) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("input evdev doesn't support bus element"));
-                return -1;
-            }
-            break;
-
-        case VIR_DOMAIN_INPUT_TYPE_LAST:
-        default:
-            virReportEnumRangeError(virDomainInputType, input->type);
+    case VIR_DOMAIN_INPUT_TYPE_MOUSE:
+    case VIR_DOMAIN_INPUT_TYPE_TABLET:
+    case VIR_DOMAIN_INPUT_TYPE_KBD:
+        if (input->source.evdev) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("setting source evdev path only supported for passthrough input devices"));
             return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_INPUT_TYPE_PASSTHROUGH:
+        if (input->bus != VIR_DOMAIN_INPUT_BUS_VIRTIO) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("only bus 'virtio' is supported for 'passthrough' input devices"));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_INPUT_TYPE_EVDEV:
+        if (input->bus != VIR_DOMAIN_INPUT_BUS_NONE) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("input evdev doesn't support bus element"));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_INPUT_TYPE_LAST:
+    default:
+        virReportEnumRangeError(virDomainInputType, input->type);
+        return -1;
+    }
+
+    switch ((virDomainInputModel)input->model) {
+    case VIR_DOMAIN_INPUT_MODEL_VIRTIO:
+    case VIR_DOMAIN_INPUT_MODEL_VIRTIO_TRANSITIONAL:
+    case VIR_DOMAIN_INPUT_MODEL_VIRTIO_NON_TRANSITIONAL:
+        if (input->bus != VIR_DOMAIN_INPUT_BUS_VIRTIO) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("only bus 'virtio' is supported for input model '%s'"),
+                           virDomainInputModelTypeToString(input->model));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_INPUT_MODEL_DEFAULT:
+        break;
+
+    case VIR_DOMAIN_INPUT_MODEL_LAST:
+    default:
+        virReportEnumRangeError(virDomainInputModel, input->model);
+        return -1;
     }
 
     return 0;
@@ -2382,11 +2426,43 @@ virDomainAudioDefValidate(const virDomainDef *def,
 }
 
 static int
+virDomainGraphicsDefListensValidate(const virDomainGraphicsDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nListens; i++) {
+        if (def->listens[i].type == VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NETWORK &&
+            !def->listens[i].network) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("'network' attribute is required for "
+                             "listen type 'network'"));
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+static int
 virDomainGraphicsDefValidate(const virDomainDef *def,
                              const virDomainGraphicsDef *graphics)
 {
-    if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC)
+    if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC ||
+        graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE ||
+        graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_RDP) {
+        if (virDomainGraphicsDefListensValidate(graphics) < 0)
+            return -1;
+    }
+
+    if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC) {
         return virDomainEnsureAudioID(def, graphics->data.vnc.audioId);
+    } else if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_DBUS) {
+        if (graphics->data.dbus.p2p && graphics->data.dbus.address) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("D-Bus p2p with an address is not supported"));
+            return -1;
+        }
+    }
 
     return 0;
 }
