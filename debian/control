@@ -50,7 +50,7 @@ Build-Depends:
  libyajl-dev,
  lvm2 [linux-any],
  meson (>= 0.54.0~),
- nfs-common,
+ nfs-common:native,
  numad [linux-any],
  open-iscsi [linux-any],
  po-debconf,
