@@ -45,25 +45,6 @@ abort_conffile_transfer() {
     rm -f "$conffile.dpkg-disappear"
 }
 
-systemd_daemon_reload() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        systemctl --system daemon-reload >/dev/null || true
-    fi
-}
-
-systemd_unit_disable() {
-    if [ -x "/usr/bin/deb-systemd-helper" ]; then
-        deb-systemd-helper mask "$@" >/dev/null || true
-    fi
-}
-
-systemd_unit_delete() {
-    if [ -x "/usr/bin/deb-systemd-helper" ]; then
-        deb-systemd-helper purge "$@" >/dev/null || true
-        deb-systemd-helper unmask "$@" >/dev/null || true
-    fi
-}
-
 NWFILTERS="
     allow-arp
     allow-dhcp
@@ -86,21 +67,7 @@ NWFILTERS="
 "
 
 case "$1" in
-    remove)
-        systemd_daemon_reload
-        systemd_unit_disable libvirt-guests.service
-        systemd_unit_disable libvirtd.service libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
-        systemd_unit_disable virtlogd.service virtlogd.socket virtlogd-admin.socket
-        systemd_unit_disable virtlockd.service virtlockd.socket virtlockd-admin.socket
-    ;;
-
     purge)
-        systemd_daemon_reload
-        systemd_unit_delete libvirt-guests.service
-        systemd_unit_delete libvirtd.service libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
-        systemd_unit_delete virtlogd.service virtlogd.socket virtlogd-admin.socket
-        systemd_unit_delete virtlockd.service virtlockd.socket virtlockd-admin.socket
-
         if getent group libvirt >/dev/null; then
             delgroup libvirt >/dev/null || true
         fi
@@ -166,7 +133,7 @@ case "$1" in
         done
     ;;
 
-    upgrade|failed-upgrade|disappear)
+    remove|upgrade|failed-upgrade|disappear)
     ;;
 
     *)
@@ -174,6 +141,63 @@ case "$1" in
         exit 1
     ;;
 esac
+
+# Section copied verbatim from the output of dh_installsystemd/13.6
+#
+# Due to #994204, we are forced to handle systemd units ourselves to
+# avoid the restart of services/sockets which would result in VMs
+# being stopped or crashing.
+#
+# In order to do this, instead of calling dh_installsystemd in
+# debian/rules we take the output that those calls would generate
+# and hardcode it here, tweaking it as necessary to prevent the
+# problematic scenarios.
+if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+if [ "$1" = "remove" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper mask 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
+	fi
+fi
+
+if [ "$1" = "purge" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper purge 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
+		deb-systemd-helper unmask 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
+	fi
+fi
+if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+if [ "$1" = "remove" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper mask 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
+	fi
+fi
+
+if [ "$1" = "purge" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper purge 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
+		deb-systemd-helper unmask 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
+	fi
+fi
+if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	systemctl --system daemon-reload >/dev/null || true
+fi
+if [ "$1" = "remove" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper mask 'libvirtd.service' >/dev/null || true
+	fi
+fi
+
+if [ "$1" = "purge" ]; then
+	if [ -x "/usr/bin/deb-systemd-helper" ]; then
+		deb-systemd-helper purge 'libvirtd.service' >/dev/null || true
+		deb-systemd-helper unmask 'libvirtd.service' >/dev/null || true
+	fi
+fi
+# End of section copied verbatim
 
 #DEBHELPER#
 

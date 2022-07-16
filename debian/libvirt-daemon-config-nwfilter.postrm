@@ -43,22 +43,6 @@ remove_config_from_template() {
     fi
 }
 
-systemd_daemon_reload() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        systemctl --system daemon-reload >/dev/null || true
-    fi
-}
-
-systemd_unit_restart_if_active() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        for unit in "$@"; do
-            if systemctl is-active -q "$unit"; then
-                deb-systemd-invoke restart "$unit" >/dev/null || true
-            fi
-        done
-    fi
-}
-
 NWFILTERS="
     allow-arp
     allow-dhcp
@@ -109,8 +93,11 @@ case "$1" in
 
         # Since we might have changed the on-disk configuration for some
         # services, restart them so that they can pick up the new settings
-        systemd_daemon_reload
-        systemd_unit_restart_if_active libvirtd.service
+        if [ -d /run/systemd/system ]; then
+            if systemctl is-active -q libvirtd; then
+                systemctl restart libvirtd
+            fi
+        fi
     ;;
 
     upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

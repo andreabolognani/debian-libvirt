@@ -11,28 +11,26 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-systemd_unit_stop() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        deb-systemd-invoke stop "$@" >/dev/null || true
-    fi
-}
-
-case "$1" in
-    remove)
-        systemd_unit_stop libvirt-guests.service
-        systemd_unit_stop libvirtd.service libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
-        systemd_unit_stop virtlogd.service virtlogd.socket virtlogd-admin.socket
-        systemd_unit_stop virtlockd.service virtlockd.socket virtlockd-admin.socket
-    ;;
-
-    upgrade|failed-upgrade|deconfigure)
-    ;;
-
-    *)
-        echo "prerm called with unknown argument \`$1'" >&2
-        exit 1
-    ;;
-esac
+# Section copied verbatim from the output of dh_installsystemd/13.6
+#
+# Due to #994204, we are forced to handle systemd units ourselves to
+# avoid the restart of services/sockets which would result in VMs
+# being stopped or crashing.
+#
+# In order to do this, instead of calling dh_installsystemd in
+# debian/rules we take the output that those calls would generate
+# and hardcode it here, tweaking it as necessary to prevent the
+# problematic scenarios.
+if [ -z "${DPKG_ROOT:-}" ] && [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	deb-systemd-invoke stop 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
+fi
+if [ -z "${DPKG_ROOT:-}" ] && [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	deb-systemd-invoke stop 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
+fi
+if [ -z "${DPKG_ROOT:-}" ] && [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
+	deb-systemd-invoke stop 'libvirtd.service' >/dev/null || true
+fi
+# End of section copied verbatim
 
 #DEBHELPER#
 
