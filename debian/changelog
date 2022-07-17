@@ -1,3 +1,10 @@
+libvirt (8.5.0-1) UNRELEASED; urgency=medium
+
+  * [74b9b5c] New upstream version 8.5.0
+  * [94a98bd] control: Fix cross building
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 17 Jul 2022 16:11:38 +0200
+
 libvirt (8.4.0-1) unstable; urgency=medium
 
   * [ef2fd0c] New upstream version 8.4.0
