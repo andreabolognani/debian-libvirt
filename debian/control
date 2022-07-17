@@ -63,7 +63,7 @@ Build-Depends:
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
 Vcs-Browser: https://salsa.debian.org/libvirt-team/libvirt
 Homepage: https://libvirt.org/
-Standards-Version: 4.6.0
+Standards-Version: 4.6.1
 Rules-Requires-Root: no
 
 Package: libvirt-clients
