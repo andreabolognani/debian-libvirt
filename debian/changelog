@@ -1,9 +1,12 @@
-libvirt (8.5.0-1) UNRELEASED; urgency=medium
+libvirt (8.5.0-1) unstable; urgency=medium
 
   * [74b9b5c] New upstream version 8.5.0
   * [94a98bd] control: Fix cross building
+    - Explicitly request :native versions of several Build-Depends
+  * [417c882] control: Bump Standards-Version to 4.6.1
+    - No changes needed
 
- -- Andrea Bolognani <eof@kiyuko.org>  Sun, 17 Jul 2022 16:11:38 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 17 Jul 2022 17:12:07 +0200
 
 libvirt (8.4.0-1) unstable; urgency=medium
 
