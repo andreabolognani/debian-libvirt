@@ -8,10 +8,7 @@
 #include "testutils.h"
 
 #include "internal.h"
-#include "qemu/qemu_domain_address.h"
-#include "qemu/qemu_domain.h"
 #include "testutilsqemu.h"
-#include "virstring.h"
 #include "virfilewrapper.h"
 #include "configmake.h"
 
@@ -597,6 +594,7 @@ mymain(void)
     DO_TEST_NOCAPS("smp");
     DO_TEST_NOCAPS("iothreads");
     DO_TEST_NOCAPS("iothreads-ids");
+    DO_TEST_CAPS_LATEST("iothreads-ids-pool-sizes");
     DO_TEST_NOCAPS("iothreads-ids-partial");
     DO_TEST_NOCAPS("cputune-iothreads");
     DO_TEST_NOCAPS("iothreads-disk");
@@ -1071,6 +1069,9 @@ mymain(void)
 
     DO_TEST_NOCAPS("bios-nvram");
     DO_TEST_NOCAPS("bios-nvram-os-interleave");
+    DO_TEST_CAPS_LATEST("bios-nvram-network-iscsi");
+    DO_TEST_CAPS_LATEST("bios-nvram-network-nbd");
+    DO_TEST_CAPS_LATEST("bios-nvram-file");
 
     DO_TEST_NOCAPS("tap-vhost");
     DO_TEST_NOCAPS("tap-vhost-incorrect");

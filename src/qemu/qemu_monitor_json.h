@@ -24,7 +24,6 @@
 #include "internal.h"
 
 #include "qemu_monitor.h"
-#include "virbitmap.h"
 #include "cpu/cpu.h"
 #include "util/virgic.h"
 
@@ -206,6 +205,9 @@ qemuMonitorJSONGetSpiceMigrationStatus(qemuMonitor *mon,
 
 int
 qemuMonitorJSONMigrateCancel(qemuMonitor *mon);
+
+int
+qemuMonitorJSONMigratePause(qemuMonitor *mon);
 
 int
 qemuMonitorJSONQueryDump(qemuMonitor *mon,
@@ -872,3 +874,7 @@ int
 qemuMonitorJSONChangeMemoryRequestedSize(qemuMonitor *mon,
                                          const char *alias,
                                          unsigned long long requestedsize);
+
+int
+qemuMonitorJSONMigrateRecover(qemuMonitor *mon,
+                              const char *uri);

@@ -6,12 +6,12 @@
 # include "testutils.h"
 # include "viralloc.h"
 # include "cpu_conf.h"
-# include "qemu/qemu_driver.h"
 # include "qemu/qemu_domain.h"
 # define LIBVIRT_QEMU_CAPSPRIV_H_ALLOW
 # include "qemu/qemu_capspriv.h"
 # include "virstring.h"
 # include "virfilecache.h"
+# include "virtpm.h"
 
 # include <sys/types.h>
 # include <fcntl.h>
@@ -136,6 +136,13 @@ virFindFileInPath(const char *file)
      * an error in such a case
      */
     return NULL;
+}
+
+
+/* Enough to tell capabilities code that swtpm is usable */
+bool virTPMHasSwtpm(void)
+{
+    return true;
 }
 
 

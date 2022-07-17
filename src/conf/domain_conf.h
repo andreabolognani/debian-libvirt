@@ -29,7 +29,6 @@
 #include "internal.h"
 #include "virconftypes.h"
 #include "capabilities.h"
-#include "storage_encryption_conf.h"
 #include "cpu_conf.h"
 #include "virthread.h"
 #include "virhash.h"
@@ -906,6 +905,7 @@ struct _virDomainFSDef {
     virTristateSwitch posix_lock;
     virTristateSwitch flock;
     virDomainFSSandboxMode sandbox;
+    int thread_pool_size;
     virDomainVirtioOptions *virtio;
     virObject *privateData;
 };
@@ -2253,7 +2253,8 @@ struct _virDomainLoaderDef {
     virTristateBool readonly;
     virDomainLoader type;
     virTristateBool secure;
-    char *nvram;    /* path to non-volatile RAM */
+    virStorageSource *nvram;
+    bool newStyleNVRAM;
     char *nvramTemplate;   /* user override of path to master nvram */
 };
 
@@ -2646,10 +2647,19 @@ struct _virDomainIOThreadIDDef {
     virBitmap *cpumask;
 
     virDomainThreadSchedParam sched;
+
+    int thread_pool_min;
+    int thread_pool_max;
 };
 
 void virDomainIOThreadIDDefFree(virDomainIOThreadIDDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainIOThreadIDDef, virDomainIOThreadIDDefFree);
+
+
+struct _virDomainDefaultIOThreadDef {
+    int thread_pool_min;
+    int thread_pool_max;
+};
 
 
 struct _virDomainCputune {
@@ -2860,6 +2870,8 @@ struct _virDomainDef {
     size_t niothreadids;
     virDomainIOThreadIDDef **iothreadids;
 
+    virDomainDefaultIOThreadDef *defaultIOThread;
+
     virDomainCputune cputune;
 
     virDomainResctrlDef **resctrls;
@@ -3059,7 +3071,7 @@ struct _virDomainObj {
     virObjectLockable parent;
     virCond cond;
 
-    pid_t pid;
+    pid_t pid; /* 0 for no PID, avoid negative values like -1 */
     virDomainStateReason state;
 
     unsigned int autostart : 1;
@@ -3884,6 +3896,14 @@ virDomainObjSetState(virDomainObj *obj, virDomainState state, int reason)
         ATTRIBUTE_NONNULL(1);
 virDomainState
 virDomainObjGetState(virDomainObj *obj, int *reason)
+        ATTRIBUTE_NONNULL(1);
+
+bool
+virDomainObjIsFailedPostcopy(virDomainObj *obj)
+        ATTRIBUTE_NONNULL(1);
+bool
+virDomainObjIsPostcopy(virDomainObj *dom,
+                       virDomainJobOperation op)
         ATTRIBUTE_NONNULL(1);
 
 virSecurityLabelDef *

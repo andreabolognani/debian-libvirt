@@ -385,6 +385,39 @@ qemuValidateDomainDefCpu(virQEMUDriver *driver,
 
 
 static int
+qemuValidateDomainDefIOThreads(const virDomainDef *def,
+                               virQEMUCaps *qemuCaps)
+{
+    size_t i;
+    bool needsThreadPoolCap = false;
+
+    for (i = 0; i < def->niothreadids; i++) {
+        virDomainIOThreadIDDef *iothread = def->iothreadids[i];
+
+        if (iothread->thread_pool_min != -1 || iothread->thread_pool_max != -1) {
+            needsThreadPoolCap = true;
+            break;
+        }
+    }
+
+    if (def->defaultIOThread &&
+        (def->defaultIOThread->thread_pool_min >= 0 ||
+         def->defaultIOThread->thread_pool_max >= 0)) {
+        needsThreadPoolCap = true;
+    }
+
+    if (needsThreadPoolCap &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("thread_pool_min and thread_pool_max is not supported by this QEMU binary"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuValidateDomainDefClockTimers(const virDomainDef *def,
                                  virQEMUCaps *qemuCaps)
 {
@@ -568,35 +601,102 @@ qemuValidateDomainDefPM(const virDomainDef *def,
 
 
 static int
-qemuValidateDomainDefBoot(const virDomainDef *def)
+qemuValidateDomainDefNvram(const virDomainDef *def,
+                           virQEMUCaps *qemuCaps)
 {
-    if (def->os.loader &&
-        def->os.loader->secure == VIR_TRISTATE_BOOL_YES) {
-        /* These are the QEMU implementation limitations. But we
-         * have to live with them for now. */
+    virStorageSource *src = def->os.loader->nvram;
 
-        if (!qemuDomainIsQ35(def)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Secure boot is supported with q35 machine types only"));
-            return -1;
+    if (!src)
+        return 0;
+
+    if (def->os.loader->newStyleNVRAM &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("modern nvram specification is not supported by this qemu"));
+        return -1;
+    }
+
+    switch (src->type) {
+    case VIR_STORAGE_TYPE_FILE:
+    case VIR_STORAGE_TYPE_BLOCK:
+    case VIR_STORAGE_TYPE_NETWORK:
+        break;
+
+    case VIR_STORAGE_TYPE_DIR:
+    case VIR_STORAGE_TYPE_VOLUME:
+    case VIR_STORAGE_TYPE_NVME:
+    case VIR_STORAGE_TYPE_VHOST_USER:
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("unsupported nvram disk type '%s'"),
+                       virStorageTypeToString(src->type));
+        return -1;
+
+    case VIR_STORAGE_TYPE_NONE:
+    case VIR_STORAGE_TYPE_LAST:
+        virReportEnumRangeError(virStorageType, src->type);
+        return -1;
+    }
+
+    if (src->sliceStorage) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                        _("slices are not supported with NVRAM"));
+        return -1;
+    }
+
+    if (src->pr) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                        _("persistent reservations are not supported with NVRAM"));
+        return -1;
+    }
+
+    if (src->backingStore) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                        _("backingStore is not supported with NVRAM"));
+        return -1;
+    }
+
+    if (qemuDomainValidateStorageSource(src, qemuCaps, false) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+qemuValidateDomainDefBoot(const virDomainDef *def,
+                          virQEMUCaps *qemuCaps)
+{
+    if (def->os.loader) {
+        if (def->os.loader->secure == VIR_TRISTATE_BOOL_YES) {
+            /* These are the QEMU implementation limitations. But we
+             * have to live with them for now. */
+
+            if (!qemuDomainIsQ35(def)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Secure boot is supported with q35 machine types only"));
+                return -1;
+            }
+
+            /* Now, technically it is possible to have secure boot on
+             * 32bits too, but that would require some -cpu xxx magic
+             * too. Not worth it unless we are explicitly asked. */
+            if (def->os.arch != VIR_ARCH_X86_64) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Secure boot is supported for x86_64 architecture only"));
+                return -1;
+            }
+
+            /* SMM will be enabled by qemuFirmwareFillDomain() if needed. */
+            if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE &&
+                def->features[VIR_DOMAIN_FEATURE_SMM] != VIR_TRISTATE_SWITCH_ON) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Secure boot requires SMM feature enabled"));
+                return -1;
+            }
         }
 
-        /* Now, technically it is possible to have secure boot on
-         * 32bits too, but that would require some -cpu xxx magic
-         * too. Not worth it unless we are explicitly asked. */
-        if (def->os.arch != VIR_ARCH_X86_64) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Secure boot is supported for x86_64 architecture only"));
+        if (qemuValidateDomainDefNvram(def, qemuCaps) < 0)
             return -1;
-        }
-
-        /* SMM will be enabled by qemuFirmwareFillDomain() if needed. */
-        if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE &&
-            def->features[VIR_DOMAIN_FEATURE_SMM] != VIR_TRISTATE_SWITCH_ON) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Secure boot requires SMM feature enabled"));
-            return -1;
-        }
     }
 
     return 0;
@@ -1168,13 +1268,16 @@ qemuValidateDomainDef(const virDomainDef *def,
     if (qemuDomainDefValidateMemoryHotplug(def, NULL) < 0)
         return -1;
 
+    if (qemuValidateDomainDefIOThreads(def, qemuCaps) < 0)
+        return -1;
+
     if (qemuValidateDomainDefClockTimers(def, qemuCaps) < 0)
         return -1;
 
     if (qemuValidateDomainDefPM(def, qemuCaps) < 0)
         return -1;
 
-    if (qemuValidateDomainDefBoot(def) < 0)
+    if (qemuValidateDomainDefBoot(def, qemuCaps) < 0)
         return -1;
 
     if (qemuValidateDomainVCpuTopology(def, qemuCaps) < 0)
@@ -4647,7 +4750,7 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
                                const virDomainDef *def,
                                virQEMUCaps *qemuCaps)
 {
-    virQEMUCapsFlags flag;
+    virDomainCapsDeviceTPM tpmCaps = { 0 };
 
     switch (tpm->version) {
     case VIR_DOMAIN_TPM_VERSION_1_2:
@@ -4678,63 +4781,28 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
         break;
     }
 
-    switch (tpm->type) {
-    case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_PASSTHROUGH))
-            goto no_support;
-        break;
+    virQEMUCapsFillDomainDeviceTPMCaps(qemuCaps, &tpmCaps);
 
-    case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_EMULATOR))
-            goto no_support;
-
-        break;
-    case VIR_DOMAIN_TPM_TYPE_LAST:
-        break;
-    }
-
-    switch (tpm->model) {
-    case VIR_DOMAIN_TPM_MODEL_TIS:
-        if (!ARCH_IS_X86(def->os.arch) && (def->os.arch != VIR_ARCH_AARCH64)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("TPM model '%s' is only available for x86 and aarch64 guests"),
-                          virDomainTPMModelTypeToString(tpm->model));
-            return -1;
-        }
-        flag = QEMU_CAPS_DEVICE_TPM_TIS;
-        break;
-    case VIR_DOMAIN_TPM_MODEL_CRB:
-        flag = QEMU_CAPS_DEVICE_TPM_CRB;
-        break;
-    case VIR_DOMAIN_TPM_MODEL_SPAPR:
-        flag = QEMU_CAPS_DEVICE_TPM_SPAPR;
-        break;
-    case VIR_DOMAIN_TPM_MODEL_SPAPR_PROXY:
-        if (!ARCH_IS_PPC64(def->os.arch)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("TPM Proxy model %s is only available for "
-                             "PPC64 guests"),
-                          virDomainTPMModelTypeToString(tpm->model));
-            return -1;
-        }
-
-        /* TPM Proxy devices have 'passthrough' backend */
-        if (tpm->type != VIR_DOMAIN_TPM_TYPE_PASSTHROUGH) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("TPM Proxy model %s requires "
-                             "'Passthrough' backend"),
-                            virDomainTPMModelTypeToString(tpm->model));
-        }
-
-        flag = QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY;
-        break;
-    case VIR_DOMAIN_TPM_MODEL_LAST:
-    default:
-        virReportEnumRangeError(virDomainTPMModel, tpm->model);
+    if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(tpmCaps.backendModel, tpm->type)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("The QEMU executable %s does not support TPM "
+                         "backend type %s"),
+                       def->emulator,
+                       virDomainTPMBackendTypeToString(tpm->type));
         return -1;
     }
 
-    if (!virQEMUCapsGet(qemuCaps, flag)) {
+    if (ARCH_IS_PPC64(def->os.arch) &&
+        tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR_PROXY &&
+        tpm->type != VIR_DOMAIN_TPM_TYPE_PASSTHROUGH) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("TPM Proxy model %s requires "
+                         "'Passthrough' backend"),
+                        virDomainTPMModelTypeToString(tpm->model));
+        return -1;
+    }
+
+    if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(tpmCaps.model, tpm->model)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("The QEMU executable %s does not support TPM "
                          "model %s"),
@@ -4744,14 +4812,6 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
     }
 
     return 0;
-
- no_support:
-    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                   _("The QEMU executable %s does not support TPM "
-                     "backend type %s"),
-                   def->emulator,
-                   virDomainTPMBackendTypeToString(tpm->type));
-    return -1;
 }
 
 

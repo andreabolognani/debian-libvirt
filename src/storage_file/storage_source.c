@@ -32,11 +32,9 @@
 #include "viralloc.h"
 #include "virerror.h"
 #include "virfile.h"
-#include "virhash.h"
 #include "virlog.h"
 #include "virobject.h"
 #include "virstoragefile.h"
-#include "virstring.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
@@ -807,7 +805,7 @@ static int
 virStorageSourceGetBackendForSupportCheck(const virStorageSource *src,
                                           virStorageFileBackend **backend)
 {
-    int actualType;
+    virStorageType actualType;
 
 
     if (!src) {
@@ -944,7 +942,7 @@ int
 virStorageSourceInitAs(virStorageSource *src,
                        uid_t uid, gid_t gid)
 {
-    int actualType = virStorageSourceGetActualType(src);
+    virStorageType actualType = virStorageSourceGetActualType(src);
     virStorageDriverData *drv = g_new0(virStorageDriverData, 1);
 
     src->drv = drv;

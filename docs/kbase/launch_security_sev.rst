@@ -154,7 +154,7 @@ VM Configuration
 ================
 
 SEV is enabled in the XML by specifying the
-`<launchSecurity> <https://libvirt.org/formatdomain.html#launchSecurity>`__
+`<launchSecurity> <https://libvirt.org/formatdomain.html#launch-security>`__
 element. However, specifying ``launchSecurity`` isn't enough to boot an
 SEV VM. Further configuration requirements are discussed below.
 
@@ -295,7 +295,9 @@ In order to make virtio devices work, we need to use
 ``<driver iommu='on'/>`` inside the given device XML element in order
 to enable DMA API in the virtio driver.
 
-::
+Starting with QEMU 6.0.0 QEMU will set this for us by default. For earlier
+versions though, you will need to explicitly enable this in the device XML as
+follows::
 
    # virsh edit <domain>
    <domain>

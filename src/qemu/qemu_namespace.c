@@ -38,7 +38,6 @@
 #include "qemu_hostdev.h"
 #include "viralloc.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "virdevmapper.h"
 #include "virglibutil.h"
 
@@ -572,8 +571,10 @@ qemuDomainSetupLoader(virDomainObj *vm,
         case VIR_DOMAIN_LOADER_TYPE_PFLASH:
             *paths = g_slist_prepend(*paths, g_strdup(loader->path));
 
-            if (loader->nvram)
-                *paths = g_slist_prepend(*paths, g_strdup(loader->nvram));
+            if (loader->nvram &&
+                qemuDomainSetupDisk(loader->nvram, paths) < 0)
+                return -1;
+
             break;
 
         case VIR_DOMAIN_LOADER_TYPE_NONE:

@@ -895,7 +895,7 @@ domain capabilities XML (printed by ``domcapabilities`` command). In
 addition to the <cpu> element itself, this command accepts
 full domain XML, capabilities XML, or domain capabilities XML containing
 the CPU definition. For more information on guest CPU definition see:
-`https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#elementsCPU>`__. If *--error* is
+`https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#cpu-model-and-topology>`__. If *--error* is
 specified, the command will return an error when the given CPU is
 incompatible with host CPU and a message providing more details about the
 incompatibility will be printed out. If *--validate* is specified, validates
@@ -943,7 +943,7 @@ host CPU model found in the domain capabilities XML (printed by the
 ``domcapabilities`` command). In addition to the <cpu> element itself, this
 command accepts full domain XML, capabilities XML, or domain capabilities XML
 containing the CPU definition. For more information on guest CPU definition
-see: `https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#elementsCPU>`__.
+see: `https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#cpu-model-and-topology>`__.
 
 The *virttype* option specifies the virtualization type (usable in the 'type'
 attribute of the <domain> top level element from the domain XML). *emulator*
@@ -1959,10 +1959,16 @@ backup-dumpxml
 
 ::
 
-   backup-dumpxml domain
+   backup-dumpxml [--xpath EXPRESSION] [--wrap] domain
 
 Output XML describing the current backup job.
 
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 domiflist
 ---------
@@ -2053,9 +2059,15 @@ domjobabort
 
 ::
 
-   domjobabort domain
+   domjobabort domain [--postcopy]
 
 Abort the currently running domain job.
+
+When the job to be aborted is a migration which entered post-copy mode, it
+cannot be aborted as none of the hosts involved in migration has a complete
+state of the domain. Optional *--postcopy* can be used to interrupt such
+migration although doing so may effectively suspend the domain until the
+migration is resumed (see also *--postcopy-resume* option of ``migrate``).
 
 
 domjobinfo
@@ -2646,7 +2658,8 @@ dumpxml
 
 ::
 
-   dumpxml domain [--inactive] [--security-info] [--update-cpu] [--migratable]
+   dumpxml [--inactive] [--security-info] [--update-cpu] [--migratable]
+           [--xpath EXPRESSION] [--wrap] domain
 
 Output the domain information as an XML dump to stdout, this format can be used
 by the ``create`` command. Additional options affecting the XML dump may be
@@ -2658,6 +2671,13 @@ host CPU. With *--migratable* one can request an XML that is suitable for
 migrations, i.e., compatible with older libvirt releases and possibly amended
 with internal run-time options. This option may automatically enable other
 options (*--update-cpu*, *--security-info*, ...) as necessary.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 edit
@@ -2993,7 +3013,8 @@ iothreadset
 ::
 
    iothreadset domain iothread_id [[--poll-max-ns ns] [--poll-grow factor]
-      [--poll-shrink divisor]]
+      [--poll-shrink divisor] [--thread-pool-min value]
+      [--thread-pool-max value]]
       [[--config] [--live] | [--current]]
 
 Modifies an existing iothread of the domain using the specified
@@ -3009,6 +3030,16 @@ the default quotient will be used. The polling values are purely dynamic
 for a running guest. Saving, destroying, stopping, etc. the guest will
 result in the polling values returning to hypervisor defaults at the
 next start, restore, etc.
+
+The *--thread-pool-min* and *--thread-pool-max* options then set lower and
+upper bound, respectively of number of threads in worker pool of given
+iothread. For changes to an inactive configuration -1 can be specified to
+remove corresponding boundary from the domain configuration. For changes to a
+running guest it's recommended to set the upper boundary first
+(*--thread-pool-max*) and only after that set the lower boundary
+(*--thread-pool-min*). It is allowed for the lower boundary to be the same as
+the upper boundary, however it's not allowed for the upper boundary to be value
+of zero.
 
 If *--live* is specified, affect a running guest. If the guest is not
 running an error is returned.
@@ -3073,11 +3104,18 @@ managedsave-dumpxml
 
 ::
 
-   managedsave-dumpxml domain [--security-info]
+   managedsave-dumpxml [--security-info] [--xpath EXPRESSION] [--wrap] domain
 
 Extract the domain XML that was in effect at the time the saved state
 file *file* was created with the ``managedsave`` command.  Using
 *--security-info* will also include security sensitive information.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 managedsave-edit
@@ -3246,7 +3284,8 @@ migrate
    migrate [--live] [--offline] [--direct] [--p2p [--tunnelled]]
       [--persistent] [--undefinesource] [--suspend] [--copy-storage-all]
       [--copy-storage-inc] [--change-protection] [--unsafe] [--verbose]
-      [--rdma-pin-all] [--abort-on-error] [--postcopy] [--postcopy-after-precopy]
+      [--rdma-pin-all] [--abort-on-error] [--postcopy]
+      [--postcopy-after-precopy] [--postcopy-resume] [--zerocopy]
       domain desturi [migrateuri] [graphicsuri] [listen-address] [dname]
       [--timeout seconds [--timeout-suspend | --timeout-postcopy]]
       [--xml file] [--migrate-disks disk-list] [--disks-port port]
@@ -3302,7 +3341,11 @@ Once migration is running, the user may switch to post-copy using the
 automatically switch to post-copy after the first pass of pre-copy is finished.
 The maximum bandwidth consumed during the post-copy phase may be limited using
 *--postcopy-bandwidth*. The maximum bandwidth consumed during the pre-copy phase
-may be limited using *--bandwidth*.
+may be limited using *--bandwidth*. In case connection between the hosts breaks
+while migration is in post-copy mode, the domain cannot be resumed on either
+source or destination host and the ``migrate`` command will report an error
+leaving the domain active on both hosts. To recover from such situation repeat
+the original ``migrate`` command with an additional *--postcopy-resume* flag.
 
 *--auto-converge* forces convergence during live migration. The initial
 guest CPU throttling rate can be set with *auto-converge-initial*. If the
@@ -3318,6 +3361,11 @@ consumed by the QEMU process itself. Beware of setting the memory limit too
 high (and thus allowing the domain to lock most of the host's memory). Doing so
 may be dangerous to both the domain and the host itself since the host's kernel
 may run out of memory.
+
+*--zerocopy* requests zero-copy mechanism to be used for migrating memory pages.
+For QEMU/KVM this means QEMU will be temporarily allowed to lock all guest
+pages in host's memory, although only those that are queued for transfer will
+be locked at the same time.
 
 ``Note``: Individual hypervisors usually do not support all possible types of
 migration. For example, QEMU does not support direct migration.
@@ -3868,11 +3916,18 @@ save-image-dumpxml
 
 ::
 
-   save-image-dumpxml file [--security-info]
+   save-image-dumpxml [--security-info] [--xpath EXPRESSION] [--wrap] file
 
 Extract the domain XML that was in effect at the time the saved state
 file *file* was created with the ``save`` command.  Using
 *--security-info* will also include security sensitive information.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 save-image-edit
@@ -4645,7 +4700,7 @@ attach-device
 Attach a device to the domain, using a device definition in an XML
 file using a device definition element such as <disk> or <interface>
 as the top-level element.  See the documentation at
-`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#elementsDevices>`__ to learn about
+`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#devices>`__ to learn about
 libvirt XML format for a device.  If *--config* is specified the
 command alters the persistent guest configuration with the device
 attach taking effect the next time libvirt starts the domain.
@@ -5006,7 +5061,7 @@ Update the characteristics of a device associated with *domain*,
 based on the device definition in an XML *file*.  The *--force* option
 can be used to force device update, e.g., to eject a CD-ROM even if it is
 locked/mounted in the domain. See the documentation at
-`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#elementsDevices>`__ to learn about
+`https://libvirt.org/formatdomain.html#elementsDevices <https://libvirt.org/formatdomain.html#devices>`__ to learn about
 libvirt XML format for a device.
 
 If *--live* is specified, affect a running domain.
@@ -5222,7 +5277,7 @@ nodedev-dumpxml
 
 ::
 
-   nodedev-dumpxml device
+   nodedev-dumpxml [--xpath EXPRESSION] [--wrap] device
 
 Dump a <device> XML representation for the given node device, including
 such information as the device name, which bus owns the device, the
@@ -5230,6 +5285,13 @@ vendor and product id, and any capabilities of the device usable by
 libvirt (such as whether device reset is supported). *device* can
 be either device name or wwn pair in "wwnn,wwpn" format (only works
 for HBA).
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 nodedev-info
@@ -5411,12 +5473,19 @@ net-dumpxml
 
 ::
 
-   net-dumpxml network [--inactive]
+   net-dumpxml [--inactive] [--xpath EXPRESSION] [--wrap] network
 
 
 Output the virtual network information as an XML dump to stdout.
 If *--inactive* is specified, then physical functions are not
 expanded into their associated virtual functions.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 net-edit
@@ -5673,9 +5742,16 @@ net-port-dumpxml
 
 ::
 
-   net-port-dumpxml network port
+   net-port-dumpxml [--xpath EXPRESSION] [--wrap] network port
 
 Output the network port information as an XML dump to stdout.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 net-port-delete
@@ -5760,11 +5836,18 @@ iface-dumpxml
 
 ::
 
-   iface-dumpxml interface [--inactive]
+   iface-dumpxml [--inactive] [--xpath EXPRESSION] [--wrap] interface
 
 Output the host interface information as an XML dump to stdout.  If
 *--inactive* is specified, then the output reflects the persistent
 state of the interface that will be used the next time it is started.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 iface-edit
@@ -6236,11 +6319,18 @@ pool-dumpxml
 
 ::
 
-   pool-dumpxml [--inactive] pool-or-uuid
+   pool-dumpxml [--inactive] [--xpath EXPRESSION] [--wrap] pool-or-uuid
 
 Returns the XML information about the *pool* object.
 *--inactive* tells virsh to dump pool configuration that will be used
 on next start of the pool as opposed to the current pool configuration.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 pool-edit
@@ -6728,7 +6818,8 @@ vol-dumpxml
 
 ::
 
-   vol-dumpxml vol-name-or-key-or-path [--pool pool-or-uuid]
+   vol-dumpxml [--pool pool-or-uuid] [--xpath EXPRESSION] [--wrap]
+               vol-name-or-key-or-path
 
 Output the volume information as an XML dump to stdout.
 
@@ -6739,6 +6830,13 @@ to output the XML.
 is in. If the volume name is provided instead of the key or path, then
 providing the pool is necessary to find the volume to be uploaded into;
 otherwise, the first volume found by the key or path will be used.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 vol-info
@@ -6927,9 +7025,16 @@ secret-dumpxml
 
 ::
 
-   secret-dumpxml secret
+   secret-dumpxml [--xpath EXPRESSION] [--wrap] secret
 
 Output properties of *secret* (specified by its UUID) as an XML dump to stdout.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 secret-event
@@ -7348,11 +7453,19 @@ snapshot-dumpxml
 
 ::
 
-   snapshot-dumpxml domain snapshot [--security-info]
+   snapshot-dumpxml [--security-info] [--xpath EXPRESSION] [--wrap]
+                    domain snapshot
 
 Output the snapshot XML for the domain's snapshot named *snapshot*.
 Using *--security-info* will also include security sensitive information.
 Use ``snapshot-current`` to easily access the XML of the current snapshot.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 snapshot-parent
@@ -7633,7 +7746,8 @@ checkpoint-dumpxml
 
 ::
 
-   checkpoint-dumpxml domain checkpoint [--security-info] [--no-domain] [--size]
+   checkpoint-dumpxml [--security-info] [--no-domain] [--size]
+                      [--xpath EXPRESSION] [--wrap] domain checkpoint
 
 Output the checkpoint XML for the domain's checkpoint named
 *checkpoint*.  Using
@@ -7648,6 +7762,13 @@ space). Note that some hypervisors may require that *domain* is running when
 
 Using *--no-domain* will omit the <domain> element from the
 output for a more compact view.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 checkpoint-parent
@@ -7751,9 +7872,16 @@ nwfilter-dumpxml
 
 ::
 
-   nwfilter-dumpxml nwfilter-name
+   nwfilter-dumpxml [--xpath EXPRESSION] [--wrap] nwfilter-name
 
 Output the network filter XML.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 nwfilter-edit
@@ -7854,10 +7982,17 @@ nwfilter-binding-dumpxml
 
 ::
 
-   nwfilter-binding-dumpxml port-name
+   nwfilter-binding-dumpxml [--xpath EXPRESSION] [--wrap] port-name
 
 Output the network filter binding XML for the network device called
 ``port-name``.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 HYPERVISOR-SPECIFIC COMMANDS

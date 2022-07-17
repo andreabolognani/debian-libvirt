@@ -61,7 +61,7 @@ The first elements provide basic metadata about the virtual network.
    The optional parameter ``trustGuestRxFilters`` can be used to set that
    attribute of the same name for each domain interface connected to this
    network ( :since:`since 1.2.10` ). See the `Network
-   interfaces <formatdomain.html#elementsNICS>`__ section of the domain XML
+   interfaces <formatdomain.html#network-interfaces>`__ section of the domain XML
    documentation for more details. Note that an explicit setting of this
    attribute in a portgroup or the individual domain interface will override the
    setting in the network.
@@ -253,7 +253,7 @@ to the physical LAN (if at all).
       interfaces to be used for a "direct" connection via macvtap using
       macvtap's "bridge" mode (if the forward element has one or more
       ``<interface>`` subelements, :since:`Since 0.9.4` ) (see `Direct
-      attachment to physical interface <formatdomain.html#elementsNICSDirect>`__
+      attachment to physical interface <formatdomain.html#direct-attachment-to-physical-interface>`__
       for descriptions of the various macvtap modes). libvirt doesn't attempt to
       manage the bridge interface at all, thus the ``<bridge>`` element's
       ``stp`` and ``delay`` attributes are not allowed; no iptables rules, IP
@@ -599,7 +599,7 @@ as the 'default' portgroup for the network), and each portgroup has a name, as
 well as various attributes and subelements associated with it. The currently
 supported subelements are ``<bandwidth>`` (described in `Quality of service`_)
 and ``<virtualport>`` (documented
-`here <formatdomain.html#elementsNICSDirect>`__). If a domain interface
+`here <formatdomain.html#direct-attachment-to-physical-interface>`__). If a domain interface
 definition specifies a portgroup (by adding a ``portgroup`` attribute to the
 ``<source>`` subelement), that portgroup's info will be merged into the
 interface's configuration. If no portgroup is given in the interface definition,
@@ -616,7 +616,7 @@ starting.
 portgroups also support the optional parameter ``trustGuestRxFilters`` which can
 be used to set that attribute of the same name for each domain interface using
 this portgroup ( :since:`since 1.2.10` ). See the `Network
-interfaces <formatdomain.html#elementsNICS>`__ section of the domain XML
+interfaces <formatdomain.html#network-interfaces>`__ section of the domain XML
 documentation for more details. Note that an explicit setting of this attribute
 in the portgroup overrides the network-wide setting, and an explicit setting in
 the individual domain interface will override the setting in the portgroup.

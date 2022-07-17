@@ -25,10 +25,8 @@
 
 #include "domain_conf.h"
 #include "virbitmap.h"
-#include "virhash.h"
 #include "virjson.h"
 #include "virnetdev.h"
-#include "device_conf.h"
 #include "cpu/cpu.h"
 #include "util/virgic.h"
 #include "virenum.h"
@@ -795,6 +793,8 @@ typedef enum {
     QEMU_MONITOR_MIGRATION_STATUS_PRE_SWITCHOVER,
     QEMU_MONITOR_MIGRATION_STATUS_DEVICE,
     QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY,
+    QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_PAUSED,
+    QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER,
     QEMU_MONITOR_MIGRATION_STATUS_COMPLETED,
     QEMU_MONITOR_MIGRATION_STATUS_ERROR,
     QEMU_MONITOR_MIGRATION_STATUS_CANCELLING,
@@ -868,6 +868,7 @@ typedef enum {
   QEMU_MONITOR_MIGRATE_BACKGROUND       = 1 << 0,
   QEMU_MONITOR_MIGRATE_NON_SHARED_DISK  = 1 << 1, /* migration with non-shared storage with full disk copy */
   QEMU_MONITOR_MIGRATE_NON_SHARED_INC   = 1 << 2, /* migration with non-shared storage with incremental copy */
+  QEMU_MONITOR_MIGRATE_RESUME           = 1 << 3, /* resume failed post-copy migration */
   QEMU_MONITOR_MIGRATION_FLAGS_LAST
 } QEMU_MONITOR_MIGRATE;
 
@@ -886,6 +887,9 @@ int qemuMonitorMigrateToSocket(qemuMonitor *mon,
                                const char *socketPath);
 
 int qemuMonitorMigrateCancel(qemuMonitor *mon);
+
+int
+qemuMonitorMigratePause(qemuMonitor *mon);
 
 int qemuMonitorGetDumpGuestMemoryCapability(qemuMonitor *mon,
                                             const char *capability);
@@ -1308,9 +1312,13 @@ struct _qemuMonitorIOThreadInfo {
     unsigned long long poll_max_ns;
     unsigned int poll_grow;
     unsigned int poll_shrink;
+    int thread_pool_min;
+    int thread_pool_max;
     bool set_poll_max_ns;
     bool set_poll_grow;
     bool set_poll_shrink;
+    bool set_thread_pool_min;
+    bool set_thread_pool_max;
 };
 int qemuMonitorGetIOThreads(qemuMonitor *mon,
                             qemuMonitorIOThreadInfo ***iothreads,
@@ -1542,3 +1550,7 @@ int
 qemuMonitorChangeMemoryRequestedSize(qemuMonitor *mon,
                                      const char *alias,
                                      unsigned long long requestedsize);
+
+int
+qemuMonitorMigrateRecover(qemuMonitor *mon,
+                          const char *uri);

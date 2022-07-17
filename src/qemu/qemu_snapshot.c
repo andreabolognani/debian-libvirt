@@ -36,10 +36,6 @@
 #include "domain_conf.h"
 #include "domain_audit.h"
 #include "locking/domain_lock.h"
-#include "libvirt_internal.h"
-#include "virxml.h"
-#include "virstoragefile.h"
-#include "virstring.h"
 #include "virdomainsnapshotobjlist.h"
 #include "virqemu.h"
 #include "storage_source.h"
@@ -380,10 +376,10 @@ static int
 qemuSnapshotPrepareDiskExternalInactive(virDomainSnapshotDiskDef *snapdisk,
                                         virDomainDiskDef *domdisk)
 {
-    int domDiskType = virStorageSourceGetActualType(domdisk->src);
-    int snapDiskType = virStorageSourceGetActualType(snapdisk->src);
+    virStorageType domDiskType = virStorageSourceGetActualType(domdisk->src);
+    virStorageType snapDiskType = virStorageSourceGetActualType(snapdisk->src);
 
-    switch ((virStorageType)domDiskType) {
+    switch (domDiskType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
         break;
@@ -425,7 +421,7 @@ qemuSnapshotPrepareDiskExternalInactive(virDomainSnapshotDiskDef *snapdisk,
         return -1;
     }
 
-    switch ((virStorageType)snapDiskType) {
+    switch (snapDiskType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
         break;
@@ -456,7 +452,7 @@ qemuSnapshotPrepareDiskExternalActive(virDomainObj *vm,
                                       virDomainDiskDef *domdisk,
                                       bool blockdev)
 {
-    int actualType = virStorageSourceGetActualType(snapdisk->src);
+    virStorageType actualType = virStorageSourceGetActualType(snapdisk->src);
 
     if (snapdisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_MANUAL)
         return 0;
@@ -471,7 +467,7 @@ qemuSnapshotPrepareDiskExternalActive(virDomainObj *vm,
     if (!qemuDomainDiskBlockJobIsSupported(vm, domdisk))
         return -1;
 
-    switch ((virStorageType)actualType) {
+    switch (actualType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
         break;
@@ -620,7 +616,7 @@ static int
 qemuSnapshotPrepareDiskInternal(virDomainDiskDef *disk,
                                 bool active)
 {
-    int actualType;
+    virStorageType actualType;
 
     /* active disks are handled by qemu itself so no need to worry about those */
     if (active)
@@ -631,7 +627,7 @@ qemuSnapshotPrepareDiskInternal(virDomainDiskDef *disk,
 
     actualType = virStorageSourceGetActualType(disk->src);
 
-    switch ((virStorageType)actualType) {
+    switch (actualType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
         return 0;

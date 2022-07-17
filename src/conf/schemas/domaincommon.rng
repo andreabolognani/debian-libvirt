@@ -333,7 +333,14 @@
               </attribute>
             </optional>
             <optional>
-              <ref name="absFilePath"/>
+              <choice>
+                <group>
+                  <ref name="absFilePath"/>
+                </group>
+                <group>
+                  <ref name="diskSource"/>
+                </group>
+              </choice>
             </optional>
           </element>
         </optional>
@@ -829,8 +836,33 @@
               <attribute name="id">
                 <ref name="unsignedInt"/>
               </attribute>
+              <optional>
+                <attribute name="thread_pool_min">
+                  <ref name="unsignedInt"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="thread_pool_max">
+                  <ref name="unsignedInt"/>
+                </attribute>
+              </optional>
             </element>
           </zeroOrMore>
+        </element>
+      </optional>
+
+      <optional>
+        <element name="defaultiothread">
+          <optional>
+            <attribute name="thread_pool_min">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </optional>
+          <optional>
+            <attribute name="thread_pool_max">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </optional>
         </element>
       </optional>
 
@@ -1544,6 +1576,7 @@
         <value>no</value>
         <value>internal</value>
         <value>external</value>
+        <value>manual</value>
       </choice>
     </attribute>
   </define>
@@ -1934,22 +1967,24 @@
   </define>
 
   <define name="diskSourceNetworkProtocolPropsCommon">
-    <optional>
-      <element name="readahead">
-        <attribute name="size">
-          <ref name="positiveInteger"/>
-        </attribute>
-        <empty/>
-      </element>
-    </optional>
-    <optional>
-      <element name="timeout">
-        <attribute name="seconds">
-          <ref name="positiveInteger"/>
-        </attribute>
-        <empty/>
-      </element>
-    </optional>
+    <interleave>
+      <optional>
+        <element name="readahead">
+          <attribute name="size">
+            <ref name="positiveInteger"/>
+          </attribute>
+          <empty/>
+        </element>
+      </optional>
+      <optional>
+        <element name="timeout">
+          <attribute name="seconds">
+            <ref name="positiveInteger"/>
+          </attribute>
+          <empty/>
+        </element>
+      </optional>
+    </interleave>
   </define>
 
   <define name="diskSourceNetworkProtocolSSLVerify">
@@ -3100,6 +3135,15 @@
             <optional>
               <attribute name="flock">
                 <ref name="virOnOff"/>
+              </attribute>
+            </optional>
+          </element>
+        </optional>
+        <optional>
+          <element name="thread_pool">
+            <optional>
+              <attribute name="size">
+                <data type="integer"/>
               </attribute>
             </optional>
           </element>

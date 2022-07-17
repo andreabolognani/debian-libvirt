@@ -31,7 +31,6 @@
 #include "cpu_x86.h"
 #include "virbuffer.h"
 #include "virendian.h"
-#include "virstring.h"
 #include "virhostcpu.h"
 
 #define VIR_FROM_THIS VIR_FROM_CPU
@@ -2265,6 +2264,9 @@ x86Decode(virCPUDef *cpu,
     cpuModel->nfeatures = 0;
     cpu->nfeatures_max = cpuModel->nfeatures_max;
     cpuModel->nfeatures_max = 0;
+    cpu->sigFamily = sigFamily;
+    cpu->sigModel = sigModel;
+    cpu->sigStepping = sigStepping;
 
     return 0;
 }

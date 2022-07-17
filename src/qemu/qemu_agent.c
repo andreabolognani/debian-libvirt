@@ -34,12 +34,10 @@
 #include "virerror.h"
 #include "virjson.h"
 #include "virfile.h"
-#include "virprocess.h"
 #include "virtime.h"
 #include "virobject.h"
 #include "virstring.h"
 #include "virenum.h"
-#include "virsocket.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
@@ -452,8 +450,9 @@ static void
 qemuAgentUnregister(qemuAgent *agent)
 {
     if (agent->watch) {
+        g_source_destroy(agent->watch);
         vir_g_source_unref(agent->watch, agent->context);
-        g_clear_pointer(&agent->watch, g_source_destroy);
+        agent->watch = NULL;
     }
 }
 

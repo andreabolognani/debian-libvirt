@@ -20,12 +20,9 @@
 
 #include <config.h>
 
-#include "viralloc.h"
 #include "virthread.h"
-#include "virfile.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "virnetsocket.h"
 #include "virkeepaliveprotocol.h"
 #include "virkeepalive.h"
 #include "virprobe.h"
@@ -91,7 +88,7 @@ virKeepAliveMessage(virKeepAlive *ka, int proc)
     msg->header.proc = proc;
 
     if (virNetMessageEncodeHeader(msg) < 0 ||
-        virNetMessageEncodePayloadEmpty(msg) < 0) {
+        virNetMessageEncodePayloadRaw(msg, NULL, 0) < 0) {
         virNetMessageFree(msg);
         goto error;
     }

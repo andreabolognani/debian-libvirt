@@ -8,8 +8,6 @@
 #include "internal.h"
 #include "testutils.h"
 #include "network_conf.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 #include "network/bridge_driver.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -127,6 +125,7 @@ mymain(void)
     DO_TEST("nat-network");
     DO_TEST("netboot-network");
     DO_TEST("netboot-proxy-network");
+    DO_TEST("netboot-tftp");
     DO_TEST("nat-network-dns-txt-record");
     DO_TEST("nat-network-dns-srv-record");
     DO_TEST("nat-network-dns-srv-records");

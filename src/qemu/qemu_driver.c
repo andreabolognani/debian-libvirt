@@ -25,11 +25,9 @@
 #include <poll.h>
 #include <sys/time.h>
 #include <dirent.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <sys/ioctl.h>
 
 #include "qemu_driver.h"
@@ -39,7 +37,6 @@
 #include "qemu_conf.h"
 #include "qemu_capabilities.h"
 #include "qemu_command.h"
-#include "qemu_cgroup.h"
 #include "qemu_hostdev.h"
 #include "qemu_hotplug.h"
 #include "qemu_monitor.h"
@@ -65,25 +62,20 @@
 #include "virnetdevopenvswitch.h"
 #include "capabilities.h"
 #include "viralloc.h"
-#include "virarptable.h"
 #include "viruuid.h"
 #include "domain_conf.h"
 #include "domain_audit.h"
 #include "domain_cgroup.h"
 #include "domain_driver.h"
 #include "domain_validate.h"
-#include "node_device_conf.h"
 #include "virpci.h"
-#include "virusb.h"
 #include "virpidfile.h"
 #include "virprocess.h"
 #include "libvirt_internal.h"
 #include "virxml.h"
 #include "cpu/cpu.h"
 #include "virsysinfo.h"
-#include "domain_nwfilter.h"
 #include "virhook.h"
-#include "virstoragefile.h"
 #include "storage_source_conf.h"
 #include "storage_file_probe.h"
 #include "storage_source.h"
@@ -107,11 +99,9 @@
 #include "virperf.h"
 #include "virnuma.h"
 #include "netdev_bandwidth_conf.h"
-#include "virqemu.h"
 #include "virdomainsnapshotobjlist.h"
 #include "virenum.h"
 #include "virdomaincheckpointobjlist.h"
-#include "virsocket.h"
 #include "virutil.h"
 #include "backup_conf.h"
 
@@ -3423,8 +3413,13 @@ qemuDomainScreenshot(virDomainPtr dom,
 
  endjob:
     VIR_FORCE_CLOSE(tmp_fd);
-    if (unlink_tmp)
+    if (unlink_tmp) {
+        /* This may look pointless, since we're removing the file anyways, but
+         * it's crucial for AppArmor. Otherwise these temp files would
+         * accumulate in the domain's profile. */
+        qemuSecurityDomainRestorePathLabel(driver, vm, tmp);
         unlink(tmp);
+    }
 
     qemuDomainObjEndJob(vm);
 
@@ -3993,7 +3988,7 @@ processSerialChangedEvent(virQEMUDriver *driver,
         memset(&dev, 0, sizeof(dev));
     }
 
-    if (qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY_MIGRATION_SAFE) < 0)
         return;
 
     if (!virDomainObjIsActive(vm)) {
@@ -4306,6 +4301,11 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         break;
     case QEMU_PROCESS_EVENT_MEMORY_DEVICE_SIZE_CHANGE:
         processMemoryDeviceSizeChange(driver, vm, processEvent->data);
+        break;
+    case QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION:
+        qemuMigrationProcessUnattended(driver, vm,
+                                       processEvent->action,
+                                       processEvent->status);
         break;
     case QEMU_PROCESS_EVENT_LAST:
         break;
@@ -5314,6 +5314,26 @@ qemuDomainHotplugModIOThread(virQEMUDriver *driver,
 
 
 static int
+qemuDomainHotplugModIOThreadIDDef(virDomainIOThreadIDDef *def,
+                                  qemuMonitorIOThreadInfo mondef)
+{
+    /* These have no representation in domain XML */
+    if (mondef.set_poll_grow ||
+        mondef.set_poll_max_ns ||
+        mondef.set_poll_shrink)
+        return -1;
+
+    if (mondef.set_thread_pool_min)
+        def->thread_pool_min = mondef.thread_pool_min;
+
+    if (mondef.set_thread_pool_max)
+        def->thread_pool_max = mondef.thread_pool_max;
+
+    return 0;
+}
+
+
+static int
 qemuDomainHotplugDelIOThread(virQEMUDriver *driver,
                              virDomainObj *vm,
                              unsigned int iothread_id)
@@ -5420,6 +5440,10 @@ qemuDomainIOThreadParseParams(virTypedParameterPtr params,
                                VIR_TYPED_PARAM_UINT,
                                VIR_DOMAIN_IOTHREAD_POLL_SHRINK,
                                VIR_TYPED_PARAM_UINT,
+                               VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN,
+                               VIR_TYPED_PARAM_INT,
+                               VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX,
+                               VIR_TYPED_PARAM_INT,
                                NULL) < 0)
         return -1;
 
@@ -5444,6 +5468,20 @@ qemuDomainIOThreadParseParams(virTypedParameterPtr params,
     if (rc == 1)
         iothread->set_poll_shrink = true;
 
+    if ((rc = virTypedParamsGetInt(params, nparams,
+                                   VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN,
+                                   &iothread->thread_pool_min)) < 0)
+        return -1;
+    if (rc == 1)
+        iothread->set_thread_pool_min = true;
+
+    if ((rc = virTypedParamsGetInt(params, nparams,
+                                   VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX,
+                                   &iothread->thread_pool_max)) < 0)
+        return -1;
+    if (rc == 1)
+        iothread->set_thread_pool_max = true;
+
     if (iothread->set_poll_max_ns && iothread->poll_max_ns > INT_MAX) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("poll-max-ns (%llu) must be less than or equal to %d"),
@@ -5462,6 +5500,78 @@ qemuDomainIOThreadParseParams(virTypedParameterPtr params,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("poll-shrink (%u) must be less than or equal to %d"),
                        iothread->poll_shrink, INT_MAX);
+        return -1;
+    }
+
+    if (iothread->set_thread_pool_min && iothread->thread_pool_min < -1) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("thread_pool_min (%d) must be equal to or greater than -1"),
+                       iothread->thread_pool_min);
+        return -1;
+    }
+
+    if (iothread->set_thread_pool_max &&
+        (iothread->thread_pool_max < -1 || iothread->thread_pool_max == 0)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("thread_pool_max (%d) must be a positive number or -1"),
+                       iothread->thread_pool_max);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+/**
+ * qemuDomainIOThreadValidate:
+ * iothreaddef: IOThread definition in domain XML
+ * iothread: new values to set
+ * live: whether this is update of active domain
+ *
+ * Validate that changes to be made to an IOThread (as expressed by @iothread)
+ * are consistent with the current state of the IOThread (@iothreaddef).
+ * For instance, that thread_pool_min won't end up greater than thread_pool_max.
+ *
+ * Returns: 0 on success,
+ *         -1 on error, with error message reported.
+ */
+static int
+qemuDomainIOThreadValidate(virDomainIOThreadIDDef *iothreaddef,
+                           qemuMonitorIOThreadInfo iothread,
+                           bool live)
+{
+    int thread_pool_min = iothreaddef->thread_pool_min;
+    int thread_pool_max = iothreaddef->thread_pool_max;
+
+    /* For live change we don't have a way to let QEMU return to its
+     * defaults. Therefore, deny setting -1. */
+
+    if (iothread.set_thread_pool_min) {
+        if (live && iothread.thread_pool_min < 0) {
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           _("thread_pool_min (%d) must be equal to or greater than 0 for live change"),
+                           iothread.thread_pool_min);
+            return -1;
+        }
+
+        thread_pool_min = iothread.thread_pool_min;
+    }
+
+    if (iothread.set_thread_pool_max) {
+        if (live && iothread.thread_pool_max < 0) {
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           _("thread_pool_max (%d) must be equal to or greater than 0 for live change"),
+                           iothread.thread_pool_max);
+            return -1;
+        }
+
+        thread_pool_max = iothread.thread_pool_max;
+    }
+
+    if (thread_pool_min > thread_pool_max) {
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       _("thread_pool_min (%d) can't be greater than thread_pool_max (%d)"),
+                       thread_pool_min, thread_pool_max);
         return -1;
     }
 
@@ -5486,6 +5596,7 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
     qemuDomainObjPrivate *priv;
     virDomainDef *def;
     virDomainDef *persistentDef;
+    virDomainIOThreadIDDef *iothreaddef = NULL;
     int ret = -1;
 
     cfg = virQEMUDriverGetConfig(driver);
@@ -5525,16 +5636,22 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
             break;
 
         case VIR_DOMAIN_IOTHREAD_ACTION_MOD:
-            if (!(virDomainIOThreadIDFind(def, iothread.iothread_id))) {
+            iothreaddef = virDomainIOThreadIDFind(def, iothread.iothread_id);
+
+            if (!iothreaddef) {
                 virReportError(VIR_ERR_INVALID_ARG,
                                _("cannot find IOThread '%u' in iothreadids"),
                                iothread.iothread_id);
                 goto endjob;
             }
 
+            if (qemuDomainIOThreadValidate(iothreaddef, iothread, true) < 0)
+                goto endjob;
+
             if (qemuDomainHotplugModIOThread(driver, vm, iothread) < 0)
                 goto endjob;
 
+            qemuDomainHotplugModIOThreadIDDef(iothreaddef, iothread);
             break;
 
         }
@@ -5562,10 +5679,23 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
             break;
 
         case VIR_DOMAIN_IOTHREAD_ACTION_MOD:
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("configuring persistent polling values is "
-                             "not supported"));
-            goto endjob;
+            iothreaddef = virDomainIOThreadIDFind(persistentDef, iothread.iothread_id);
+
+            if (!iothreaddef) {
+                virReportError(VIR_ERR_INVALID_ARG,
+                               _("cannot find IOThread '%u' in iothreadids"),
+                               iothread.iothread_id);
+                goto endjob;
+            }
+
+            if (qemuDomainIOThreadValidate(iothreaddef, iothread, false) < 0)
+                goto endjob;
+
+            if (qemuDomainHotplugModIOThreadIDDef(iothreaddef, iothread) < 0) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("configuring persistent polling values is not supported"));
+                goto endjob;
+            }
 
             break;
         }
@@ -6726,8 +6856,9 @@ qemuDomainUndefineFlags(virDomainPtr dom,
         }
     }
 
-    if (vm->def->os.loader && vm->def->os.loader->nvram) {
-        nvram_path = g_strdup(vm->def->os.loader->nvram);
+    if (vm->def->os.loader && vm->def->os.loader->nvram &&
+        virStorageSourceIsLocalStorage(vm->def->os.loader->nvram)) {
+        nvram_path = g_strdup(vm->def->os.loader->nvram->path);
     } else if (vm->def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
         qemuDomainNVRAMPathFormat(cfg, vm->def, &nvram_path);
     }
@@ -12539,13 +12670,14 @@ qemuDomainGetJobInfoMigrationStats(virQEMUDriver *driver,
     case VIR_DOMAIN_JOB_STATUS_MIGRATING:
     case VIR_DOMAIN_JOB_STATUS_HYPERVISOR_COMPLETED:
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
+    case VIR_DOMAIN_JOB_STATUS_PAUSED:
+    case VIR_DOMAIN_JOB_STATUS_POSTCOPY_PAUSED:
         if (qemuMigrationAnyFetchStats(driver, vm, VIR_ASYNC_JOB_NONE,
                                        jobData, NULL) < 0)
             return -1;
         break;
 
     case VIR_DOMAIN_JOB_STATUS_NONE:
-    case VIR_DOMAIN_JOB_STATUS_PAUSED:
     case VIR_DOMAIN_JOB_STATUS_COMPLETED:
     case VIR_DOMAIN_JOB_STATUS_FAILED:
     case VIR_DOMAIN_JOB_STATUS_CANCELED:
@@ -12777,18 +12909,47 @@ qemuDomainAbortJobMigration(virDomainObj *vm)
 }
 
 
-static int qemuDomainAbortJob(virDomainPtr dom)
+static int
+qemuDomainAbortJobPostcopy(virDomainObj *vm,
+                           unsigned int flags)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    int rc;
+
+    if (!(flags & VIR_DOMAIN_ABORT_JOB_POSTCOPY)) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("cannot abort migration in post-copy mode"));
+        return -1;
+    }
+
+    VIR_DEBUG("Suspending post-copy migration at client request");
+
+    qemuDomainObjAbortAsyncJob(vm);
+    qemuDomainObjEnterMonitor(priv->driver, vm);
+    rc = qemuMonitorMigratePause(priv->mon);
+    qemuDomainObjExitMonitor(vm);
+
+    return rc;
+}
+
+
+static int
+qemuDomainAbortJobFlags(virDomainPtr dom,
+                        unsigned int flags)
 {
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm;
     int ret = -1;
     qemuDomainObjPrivate *priv;
-    int reason;
+
+    VIR_DEBUG("flags=0x%x", flags);
+
+    virCheckFlags(VIR_DOMAIN_ABORT_JOB_POSTCOPY, -1);
 
     if (!(vm = qemuDomainObjFromDomain(dom)))
         goto cleanup;
 
-    if (virDomainAbortJobEnsureACL(dom->conn, vm->def) < 0)
+    if (virDomainAbortJobFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
     if (qemuDomainObjBeginJob(driver, vm, VIR_JOB_ABORT) < 0)
@@ -12798,6 +12959,14 @@ static int qemuDomainAbortJob(virDomainPtr dom)
         goto endjob;
 
     priv = vm->privateData;
+
+    if (flags & VIR_DOMAIN_ABORT_JOB_POSTCOPY &&
+        (priv->job.asyncJob != VIR_ASYNC_JOB_MIGRATION_OUT ||
+         !virDomainObjIsPostcopy(vm, VIR_DOMAIN_JOB_OPERATION_MIGRATION_OUT))) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("current job is not outgoing migration in post-copy mode"));
+        goto endjob;
+    }
 
     switch (priv->job.asyncJob) {
     case VIR_ASYNC_JOB_NONE:
@@ -12818,15 +12987,10 @@ static int qemuDomainAbortJob(virDomainPtr dom)
         break;
 
     case VIR_ASYNC_JOB_MIGRATION_OUT:
-        if ((priv->job.current->status == VIR_DOMAIN_JOB_STATUS_POSTCOPY ||
-             (virDomainObjGetState(vm, &reason) == VIR_DOMAIN_PAUSED &&
-              reason == VIR_DOMAIN_PAUSED_POSTCOPY))) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("cannot abort migration in post-copy mode"));
-            goto endjob;
-        }
-
-        ret = qemuDomainAbortJobMigration(vm);
+        if (virDomainObjIsPostcopy(vm, VIR_DOMAIN_JOB_OPERATION_MIGRATION_OUT))
+            ret = qemuDomainAbortJobPostcopy(vm, flags);
+        else
+            ret = qemuDomainAbortJobMigration(vm);
         break;
 
     case VIR_ASYNC_JOB_SAVE:
@@ -12864,6 +13028,13 @@ static int qemuDomainAbortJob(virDomainPtr dom)
  cleanup:
     virDomainObjEndAPI(&vm);
     return ret;
+}
+
+
+static int
+qemuDomainAbortJob(virDomainPtr dom)
+{
+    return qemuDomainAbortJobFlags(dom, 0);
 }
 
 
@@ -14790,7 +14961,7 @@ qemuDomainBlockCopyValidateMirror(virStorageSource *mirror,
                                   const char *dst,
                                   bool *reuse)
 {
-    int desttype = virStorageSourceGetActualType(mirror);
+    virStorageType desttype = virStorageSourceGetActualType(mirror);
     struct stat st;
 
     if (!virStorageSourceIsLocalStorage(mirror))
@@ -21031,6 +21202,7 @@ static virHypervisorDriver qemuHypervisorDriver = {
     .domainGetJobInfo = qemuDomainGetJobInfo, /* 0.7.7 */
     .domainGetJobStats = qemuDomainGetJobStats, /* 1.0.3 */
     .domainAbortJob = qemuDomainAbortJob, /* 0.7.7 */
+    .domainAbortJobFlags = qemuDomainAbortJobFlags, /* 8.5.0 */
     .domainMigrateGetMaxDowntime = qemuDomainMigrateGetMaxDowntime, /* 3.7.0 */
     .domainMigrateSetMaxDowntime = qemuDomainMigrateSetMaxDowntime, /* 0.8.0 */
     .domainMigrateGetCompressionCache = qemuDomainMigrateGetCompressionCache, /* 1.0.3 */

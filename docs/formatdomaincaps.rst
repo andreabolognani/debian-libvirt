@@ -18,7 +18,7 @@ more recent to support VFIO, while legacy KVM is achievable just fine with older
 qemus.
 
 The main difference between
-`virConnectGetCapabilities </html/libvirt-libvirt-host.html#virConnectGetCapabilities>`__
+`virConnectGetCapabilities <html/libvirt-libvirt-host.html#virConnectGetCapabilities>`__
 and the emulator capabilities API is, the former one aims more on the host
 capabilities (e.g. NUMA topology, security models in effect, etc.) while the
 latter one specializes on the hypervisor capabilities.
@@ -68,14 +68,14 @@ The root element that emulator capability XML document starts with has name
 ``path``
    The full path to the emulator binary.
 ``domain``
-   Describes the `virtualization type <formatdomain.html#elements>`__ (or so
+   Describes the `virtualization type <formatdomain.html#element-and-attribute-overview>`__ (or so
    called domain type).
 ``machine``
-   The domain's `machine type <formatdomain.html#elementsOSBIOS>`__. Since not
+   The domain's `machine type <formatdomain.html#bios-bootloader>`__. Since not
    every hypervisor has a sense of machine types this element might be omitted
    in such drivers.
 ``arch``
-   The domain's `architecture <formatdomain.html#elementsOSBIOS>`__.
+   The domain's `architecture <formatdomain.html#bios-bootloader>`__.
 
 CPU Allocation
 ~~~~~~~~~~~~~~
@@ -98,7 +98,7 @@ BIOS bootloader
 ~~~~~~~~~~~~~~~
 
 Sometimes users might want to tweak some BIOS knobs or use UEFI. For cases like
-that, `os <formatdomain.html#elementsOSBIOS>`__ element exposes what values can
+that, `os <formatdomain.html#bios-bootloader>`__ element exposes what values can
 be passed to its children.
 
 ::
@@ -165,7 +165,7 @@ CPU configuration
 ~~~~~~~~~~~~~~~~~
 
 The ``cpu`` element exposes options usable for configuring `guest
-CPUs <formatdomain.html#elementsCPU>`__.
+CPUs <formatdomain.html#cpu-model-and-topology>`__.
 
 ::
 
@@ -232,7 +232,7 @@ I/O Threads
 ~~~~~~~~~~~
 
 The ``iothread`` elements indicates whether or not `I/O
-threads <formatdomain.html#elementsIOThreadsAllocation>`__ are supported.
+threads <formatdomain.html#iothreads-allocation>`__ are supported.
 
 ::
 
@@ -527,7 +527,7 @@ each of the elements or attributes. For example, the ``gic`` element has an
 attribute ``version`` which can support the values ``2`` or ``3``.
 
 For information about the purpose of each feature, see the `relevant
-section <formatdomain.html#elementsFeatures>`__ in the domain XML documentation.
+section <formatdomain.html#hypervisor-features>`__ in the domain XML documentation.
 
 GIC capabilities
 ^^^^^^^^^^^^^^^^
@@ -568,7 +568,7 @@ s390-pv capability
 
 Reports whether the hypervisor supports the Protected Virtualization. In order
 to use Protected Virtualization with libvirt have a look at the `launchSecurity
-element in the domain XML <formatdomain.html#launchSecurity>`__. For more
+element in the domain XML <formatdomain.html#launch-security>`__. For more
 details on the Protected Virtualization feature please see `Protected
 Virtualization on s390 <kbase/s390_protected_virt.html>`__.
 
@@ -583,7 +583,7 @@ transparently encrypted with a key unique to that VM.
 
 For more details on the SEV feature, please follow resources in the AMD
 developer's document store. In order to use SEV with libvirt have a look at `SEV
-in domain XML <formatdomain.html#launchSecurity>`__
+in domain XML <formatdomain.html#launch-security>`__
 
 ``cbitpos``
    When memory encryption is enabled, one of the physical address bits (aka the

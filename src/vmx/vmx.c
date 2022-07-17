@@ -24,7 +24,6 @@
 
 #include "internal.h"
 #include "virerror.h"
-#include "virfile.h"
 #include "virconf.h"
 #include "viralloc.h"
 #include "virlog.h"
@@ -639,6 +638,7 @@ static virDomainDefParserConfig virVMXDomainDefParserConfig = {
     .domainPostParseCallback = virVMXDomainDefPostParse,
     .features = (VIR_DOMAIN_DEF_FEATURE_WIDE_SCSI |
                  VIR_DOMAIN_DEF_FEATURE_NAME_SLASH |
+                 VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT |
                  VIR_DOMAIN_DEF_FEATURE_NO_BOOT_ORDER),
     .defArch = VIR_ARCH_I686,
 };
@@ -2895,15 +2895,15 @@ virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
     bool startConnected = false;
 
     char fileType_name[48] = "";
-    char *fileType = NULL;
+    g_autofree char *fileType = NULL;
 
     char fileName_name[48] = "";
-    char *fileName = NULL;
+    g_autofree char *fileName = NULL;
 
     char network_endPoint_name[48] = "";
-    char *network_endPoint = NULL;
+    g_autofree char *network_endPoint = NULL;
 
-    virURI *parsedUri = NULL;
+    g_autoptr(virURI) parsedUri = NULL;
 
     if (def == NULL || *def != NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid argument"));
@@ -3047,11 +3047,6 @@ virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
     if (result < 0) {
         g_clear_pointer(def, virDomainChrDefFree);
     }
-
-    VIR_FREE(fileType);
-    VIR_FREE(fileName);
-    VIR_FREE(network_endPoint);
-    virURIFree(parsedUri);
 
     return result;
 }

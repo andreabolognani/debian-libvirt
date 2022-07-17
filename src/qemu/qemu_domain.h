@@ -22,12 +22,10 @@
 #pragma once
 
 #include <glib-object.h>
-#include "virthread.h"
 #include "vircgroup.h"
 #include "virperf.h"
 #include "domain_addr.h"
 #include "domain_conf.h"
-#include "snapshot_conf.h"
 #include "qemu_monitor.h"
 #include "qemu_agent.h"
 #include "qemu_blockjob.h"
@@ -37,7 +35,6 @@
 #include "qemu_migration_params.h"
 #include "qemu_slirp.h"
 #include "qemu_fd.h"
-#include "virmdev.h"
 #include "virchrdev.h"
 #include "virobject.h"
 #include "logging/log_manager.h"
@@ -143,6 +140,9 @@ struct _qemuDomainObjPrivate {
     int nbdPort; /* Port used for migration with NBD */
     unsigned short migrationPort;
     int preMigrationState;
+    unsigned long long preMigrationMemlock; /* Original RLIMIT_MEMLOCK in case
+                                               it was changed for the current
+                                               migration job. */
 
     virChrdevs *devs;
 
@@ -231,7 +231,6 @@ struct _qemuDomainObjPrivate {
      * pointers hold the temporary virStorageSources for creating the -blockdev
      * commandline for pflash drives. */
     virStorageSource *pflash0;
-    virStorageSource *pflash1;
 
     /* running backup job */
     virDomainBackupDef *backup;
@@ -426,6 +425,7 @@ typedef enum {
     QEMU_PROCESS_EVENT_RDMA_GID_STATUS_CHANGED,
     QEMU_PROCESS_EVENT_GUEST_CRASHLOADED,
     QEMU_PROCESS_EVENT_MEMORY_DEVICE_SIZE_CHANGE,
+    QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION,
 
     QEMU_PROCESS_EVENT_LAST
 } qemuProcessEventType;
@@ -757,13 +757,18 @@ int qemuDomainStorageSourceAccessAllow(virQEMUDriver *driver,
                                        bool newSource,
                                        bool chainTop);
 
+int qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
+                                                   virStorageSource *src,
+                                                   const char *nodenameprefix,
+                                                   qemuDomainObjPrivate *priv,
+                                                   virQEMUDriverConfig *cfg);
 int qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
                                            virStorageSource *src,
                                            qemuDomainObjPrivate *priv,
                                            virQEMUDriverConfig *cfg);
 
-int qemuDomainCleanupAdd(virDomainObj *vm,
-                         qemuDomainCleanupCallback cb);
+void qemuDomainCleanupAdd(virDomainObj *vm,
+                          qemuDomainCleanupCallback cb);
 void qemuDomainCleanupRemove(virDomainObj *vm,
                              qemuDomainCleanupCallback cb);
 void qemuDomainCleanupRun(virQEMUDriver *driver,
@@ -838,6 +843,9 @@ int qemuDomainAdjustMaxMemLock(virDomainObj *vm,
                                bool forceVFIO);
 int qemuDomainAdjustMaxMemLockHostdev(virDomainObj *vm,
                                       virDomainHostdevDef *hostdev);
+int qemuDomainSetMaxMemLock(virDomainObj *vm,
+                            unsigned long long limit,
+                            unsigned long long *origPtr);
 
 int qemuDomainDefValidateMemoryHotplug(const virDomainDef *def,
                                        const virDomainMemoryDef *mem);
@@ -1043,7 +1051,8 @@ int
 qemuDomainMakeCPUMigratable(virCPUDef *cpu);
 
 int
-qemuDomainInitializePflashStorageSource(virDomainObj *vm);
+qemuDomainInitializePflashStorageSource(virDomainObj *vm,
+                                        virQEMUDriverConfig *cfg);
 
 bool
 qemuDomainDiskBlockJobIsSupported(virDomainObj *vm,

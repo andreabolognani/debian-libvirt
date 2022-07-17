@@ -12,24 +12,16 @@
 # include "internal.h"
 # include "viralloc.h"
 # include "viridentity.h"
-# include "qemu/qemu_alias.h"
 # include "qemu/qemu_capabilities.h"
-# include "qemu/qemu_command.h"
 # include "qemu/qemu_domain.h"
 # include "qemu/qemu_migration.h"
 # include "qemu/qemu_process.h"
 # include "qemu/qemu_slirp.h"
-# include "qemu/qemu_qapi.h"
 # include "datatypes.h"
 # include "conf/storage_conf.h"
-# include "cpu/cpu_map.h"
-# include "virstring.h"
-# include "storage/storage_driver.h"
-# include "virmock.h"
 # include "virfilewrapper.h"
 # include "configmake.h"
 # include "testutilsqemuschema.h"
-# include "qemu/qemu_monitor_json.h"
 
 # define LIBVIRT_QEMU_CAPSPRIV_H_ALLOW
 # include "qemu/qemu_capspriv.h"
@@ -1209,6 +1201,10 @@ mymain(void)
             QEMU_CAPS_ICH9_AHCI,
             QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST_CAPS_LATEST("bios-nvram-template");
+    DO_TEST_CAPS_LATEST("bios-nvram-network-iscsi");
+    DO_TEST_CAPS_VER_PARSE_ERROR("bios-nvram-network-iscsi", "4.1.0");
+    DO_TEST_CAPS_LATEST("bios-nvram-network-nbd");
+    DO_TEST_CAPS_LATEST("bios-nvram-file");
 
     /* Make sure all combinations of ACPI and UEFI behave as expected */
     DO_TEST_NOCAPS("q35-acpi-uefi");
@@ -2038,6 +2034,7 @@ mymain(void)
     DO_TEST("iothreads", QEMU_CAPS_OBJECT_IOTHREAD);
     DO_TEST("iothreads-ids", QEMU_CAPS_OBJECT_IOTHREAD);
     DO_TEST("iothreads-ids-partial", QEMU_CAPS_OBJECT_IOTHREAD);
+    DO_TEST_CAPS_LATEST("iothreads-ids-pool-sizes");
     DO_TEST_FAILURE_NOCAPS("iothreads-nocap");
     DO_TEST("iothreads-disk", QEMU_CAPS_OBJECT_IOTHREAD);
     DO_TEST("iothreads-disk-virtio-ccw", QEMU_CAPS_OBJECT_IOTHREAD,

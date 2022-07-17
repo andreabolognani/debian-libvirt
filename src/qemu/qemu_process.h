@@ -23,7 +23,6 @@
 
 #include "qemu_conf.h"
 #include "qemu_domain.h"
-#include "virstoragefile.h"
 #include "vireventthread.h"
 
 int qemuProcessPrepareMonitorChr(virDomainChrSourceDef *monConfig,
@@ -241,3 +240,6 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuProcessQMP, qemuProcessQMPFree);
 int qemuProcessQMPStart(qemuProcessQMP *proc);
 
 bool qemuProcessRebootAllowed(const virDomainDef *def);
+
+void qemuProcessCleanupMigrationJob(virQEMUDriver *driver,
+                                    virDomainObj *vm);

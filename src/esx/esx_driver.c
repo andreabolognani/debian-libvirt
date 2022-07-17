@@ -28,7 +28,6 @@
 #include "snapshot_conf.h"
 #include "virauth.h"
 #include "viralloc.h"
-#include "virfile.h"
 #include "virlog.h"
 #include "viruuid.h"
 #include "vmx.h"
@@ -3659,7 +3658,7 @@ esxDomainMigratePerform(virDomainPtr domain,
 {
     int result = -1;
     esxPrivate *priv = domain->conn->privateData;
-    virURI *parsedUri = NULL;
+    g_autoptr(virURI) parsedUri = NULL;
     char *saveptr;
     char *path_resourcePool;
     char *path_hostSystem;
@@ -3780,7 +3779,6 @@ esxDomainMigratePerform(virDomainPtr domain,
     result = 0;
 
  cleanup:
-    virURIFree(parsedUri);
     esxVI_ObjectContent_Free(&virtualMachine);
     esxVI_Event_Free(&eventList);
     esxVI_ManagedObjectReference_Free(&task);
