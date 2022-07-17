@@ -3290,7 +3290,9 @@ virDomainMigrateVersion3Full(virDomainPtr domain,
         ret = virDomainGetInfo(domain, &info);
         state = info.state;
     }
-    if (ret == 0 && state == VIR_DOMAIN_PAUSED)
+    if (ret == 0 &&
+        state == VIR_DOMAIN_PAUSED &&
+        !(flags & VIR_MIGRATE_POSTCOPY_RESUME))
         flags |= VIR_MIGRATE_PAUSED;
 
     destflags = flags & ~(VIR_MIGRATE_ABORT_ON_ERROR |
@@ -9469,6 +9471,51 @@ virDomainAbortJob(virDomainPtr domain)
 
 
 /**
+ * virDomainAbortJobFlags:
+ * @domain: a domain object
+ * @flags: bitwise-OR of virDomainAbortJobFlagsValues
+ *
+ * Requests that the current background job be aborted at the
+ * soonest opportunity. In case the job is a migration in a post-copy mode,
+ * this function will report an error unless VIR_DOMAIN_ABORT_JOB_POSTCOPY
+ * flag is used (see virDomainMigrateStartPostCopy for more details).
+ *
+ * Returns 0 in case of success and -1 in case of failure.
+ *
+ * Since: 8.5.0
+ */
+int
+virDomainAbortJobFlags(virDomainPtr domain,
+                       unsigned int flags)
+{
+    virConnectPtr conn;
+
+    VIR_DOMAIN_DEBUG(domain);
+
+    virResetLastError();
+
+    virCheckDomainReturn(domain, -1);
+    conn = domain->conn;
+
+    virCheckReadOnlyGoto(conn->flags, error);
+
+    if (conn->driver->domainAbortJobFlags) {
+        int ret;
+        ret = conn->driver->domainAbortJobFlags(domain, flags);
+        if (ret < 0)
+            goto error;
+        return ret;
+    }
+
+    virReportUnsupportedError();
+
+ error:
+    virDispatchError(conn);
+    return -1;
+}
+
+
+/**
  * virDomainMigrateSetMaxDowntime:
  * @domain: a domain object
  * @downtime: maximum tolerable downtime for live migration, in milliseconds
@@ -9764,10 +9811,20 @@ virDomainMigrateGetMaxSpeed(virDomainPtr domain,
  * at most once no matter how fast it changes. On the other hand once the
  * guest is running on the destination host, the migration can no longer be
  * rolled back because none of the hosts has complete state. If this happens,
- * libvirt will leave the domain paused on both hosts with
- * VIR_DOMAIN_PAUSED_POSTCOPY_FAILED reason. It's up to the upper layer to
- * decide what to do in such case. Because of this, libvirt will refuse to
- * cancel post-copy migration via virDomainAbortJob.
+ * libvirt will leave the domain paused on the source host with
+ * VIR_DOMAIN_PAUSED_POSTCOPY_FAILED reason. The domain on the destination host
+ * will remain running with VIR_DOMAIN_RUNNING_POSTCOPY_FAILED reason.
+ * It's up to the upper layer to decide what to do in such case. Because of
+ * this, libvirt will refuse to cancel post-copy migration via
+ * virDomainAbortJobFlags unless it is called with
+ * VIR_DOMAIN_ABORT_JOB_POSTCOPY, in which case the post-copy migration will be
+ * paused.
+ *
+ * Failed post-copy migration can be recovered once the cause for the failure
+ * (e.g., a network issue) is resolved by repeating the migration with an
+ * additional VIR_MIGRATE_POSTCOPY_RESUME flag. This will recreate the
+ * connection and resume migration from the point where it failed. This step
+ * can be repeated in case the migration breaks again.
  *
  * The following domain life cycle events are emitted during post-copy
  * migration:
@@ -9781,9 +9838,11 @@ virDomainMigrateGetMaxSpeed(virDomainPtr domain,
  *  VIR_DOMAIN_EVENT_RESUMED_MIGRATED (on the destination),
  *  VIR_DOMAIN_EVENT_STOPPED_MIGRATED (on the source) -- migration finished
  *      successfully and the destination host holds a complete guest state.
- *  VIR_DOMAIN_EVENT_SUSPENDED_POSTCOPY_FAILED (on the destination) -- emitted
- *      when migration fails in post-copy mode and it's unclear whether any
- *      of the hosts has a complete guest state.
+ *  VIR_DOMAIN_EVENT_SUSPENDED_POSTCOPY_FAILED (on the source),
+ *  VIR_DOMAIN_EVENT_RESUMED_POSTCOPY_FAILED (on the destination) -- emitted
+ *      when migration fails in post-copy mode and it's unclear whether any of
+ *      the hosts has a complete guest state. Virtual CPUs on the destination
+ *      are still running.
  *
  * The progress of a post-copy migration can be monitored normally using
  * virDomainGetJobStats on the source host. Fetching statistics of a completed

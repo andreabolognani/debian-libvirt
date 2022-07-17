@@ -27,7 +27,6 @@
 #include "viralloc.h"
 #include "virfile.h"
 #include "conf/storage_conf.h"
-#include "virstring.h"
 #include "virtime.h"
 #include "vsh-table.h"
 #include "virenum.h"
@@ -776,6 +775,15 @@ static const vshCmdOptDef opts_pool_dumpxml[] = {
      .type = VSH_OT_BOOL,
      .help = N_("show inactive defined XML")
     },
+    {.name = "xpath",
+     .type = VSH_OT_STRING,
+     .completer = virshCompleteEmpty,
+     .help = N_("xpath expression to filter the XML document")
+    },
+    {.name = "wrap",
+     .type = VSH_OT_BOOL,
+     .help = N_("wrap xpath results in an common root element"),
+    },
     {.name = NULL}
 };
 
@@ -783,10 +791,11 @@ static bool
 cmdPoolDumpXML(vshControl *ctl, const vshCmd *cmd)
 {
     g_autoptr(virshStoragePool) pool = NULL;
-    bool ret = true;
     bool inactive = vshCommandOptBool(cmd, "inactive");
     unsigned int flags = 0;
-    g_autofree char *dump = NULL;
+    g_autofree char *xml = NULL;
+    bool wrap = vshCommandOptBool(cmd, "wrap");
+    const char *xpath = NULL;
 
     if (inactive)
         flags |= VIR_STORAGE_XML_INACTIVE;
@@ -794,14 +803,13 @@ cmdPoolDumpXML(vshControl *ctl, const vshCmd *cmd)
     if (!(pool = virshCommandOptPool(ctl, cmd, "pool", NULL)))
         return false;
 
-    dump = virStoragePoolGetXMLDesc(pool, flags);
-    if (dump != NULL) {
-        vshPrint(ctl, "%s", dump);
-    } else {
-        ret = false;
-    }
+    if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
+        return false;
 
-    return ret;
+    if (!(xml = virStoragePoolGetXMLDesc(pool, flags)))
+        return false;
+
+    return virshDumpXML(ctl, xml, "pool", xpath, wrap);
 }
 
 static int

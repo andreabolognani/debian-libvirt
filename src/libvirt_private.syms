@@ -577,6 +577,8 @@ virDomainObjGetOneDef;
 virDomainObjGetOneDefState;
 virDomainObjGetPersistentDef;
 virDomainObjGetState;
+virDomainObjIsFailedPostcopy;
+virDomainObjIsPostcopy;
 virDomainObjNew;
 virDomainObjParseFile;
 virDomainObjParseNode;
@@ -777,6 +779,7 @@ virDomainActualNetDefValidate;
 virDomainDefValidate;
 virDomainDeviceValidateAliasForHotplug;
 virDomainDiskDefSourceLUNValidate;
+virDomainDiskDefValidateStartupPolicy;
 
 
 # conf/interface_conf.h

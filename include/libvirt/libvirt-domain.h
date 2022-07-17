@@ -108,6 +108,7 @@ typedef enum {
                                                wakeup event (Since: 0.9.11) */
     VIR_DOMAIN_RUNNING_CRASHED = 9,         /* resumed from crashed (Since: 1.1.1) */
     VIR_DOMAIN_RUNNING_POSTCOPY = 10,       /* running in post-copy migration mode (Since: 1.3.3) */
+    VIR_DOMAIN_RUNNING_POSTCOPY_FAILED = 11, /* running in failed post-copy migration (Since: 8.5.0) */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_RUNNING_LAST /* (Since: 0.9.10) */
@@ -1083,6 +1084,20 @@ typedef enum {
       */
     VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES = (1 << 18),
 
+    /* Resume migration which failed in post-copy phase.
+     *
+     * Since: 8.5.0
+     */
+    VIR_MIGRATE_POSTCOPY_RESUME = (1 << 19),
+
+    /* Use zero-copy mechanism for migrating memory pages. For QEMU/KVM this
+     * means QEMU will be temporarily allowed to lock all guest pages in host's
+     * memory, although only those that are queued for transfer will be locked
+     * at the same time.
+     *
+     * Since: 8.5.0
+     */
+    VIR_MIGRATE_ZEROCOPY = (1 << 20),
 } virDomainMigrateFlags;
 
 
@@ -2493,6 +2508,30 @@ int                  virDomainDelIOThread(virDomainPtr domain,
  */
 # define VIR_DOMAIN_IOTHREAD_POLL_SHRINK "poll_shrink"
 
+/**
+ * VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN:
+ *
+ * Sets the lower bound for thread pool size. A value of -1 disables this bound
+ * leaving hypervisor use its default value, though this value is not accepted
+ * for running domains. Accepted type is VIR_TYPED_PARAM_INT.
+ *
+ * Since: 8.5.0
+ */
+# define VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN "thread_pool_min"
+
+/**
+ * VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX:
+ *
+ * Sets the upper bound for thread pool size. A value of -1 disables this bound
+ * leaving hypervisor use its default value, though this value is not accepted
+ * for running domains. Since the upper band has to be equal to or greater than
+ * lower bound value of 0 is not accepted. Accepted type is
+ * VIR_TYPED_PARAM_INT.
+ *
+ * Since: 8.5.0
+ */
+# define VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX "thread_pool_max"
+
 int                  virDomainSetIOThreadParams(virDomainPtr domain,
                                                 unsigned int iothread_id,
                                                 virTypedParameterPtr params,
@@ -3801,6 +3840,7 @@ typedef enum {
     VIR_DOMAIN_EVENT_RESUMED_FROM_SNAPSHOT = 2, /* Resumed from snapshot (Since: 0.9.5) */
     VIR_DOMAIN_EVENT_RESUMED_POSTCOPY = 3,   /* Resumed, but migration is still
                                                 running in post-copy mode (Since: 1.3.3) */
+    VIR_DOMAIN_EVENT_RESUMED_POSTCOPY_FAILED = 4, /* Running, but migration failed in post-copy (Since: 8.5.0) */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_EVENT_RESUMED_LAST /* (Since: 0.9.10) */
@@ -4091,6 +4131,25 @@ int virDomainGetJobStats(virDomainPtr domain,
                          int *nparams,
                          unsigned int flags);
 int virDomainAbortJob(virDomainPtr dom);
+
+/**
+ * virDomainAbortJobFlagsValues:
+ *
+ * Flags OR'ed together to provide specific behavior when aborting a domain job.
+ *
+ * Since: 8.5.0
+ */
+typedef enum {
+    /* Interrupt post-copy migration. Since migration in a post-copy phase
+     * cannot be aborted without losing the domain (none of the hosts involved
+     * in migration has a complete state of the domain), the migration will be
+     * suspended and it can later be resumed using virDomainMigrate* APIs with
+     * VIR_MIGRATE_POSTCOPY_RESUME flag. (Since: 8.5.0) */
+    VIR_DOMAIN_ABORT_JOB_POSTCOPY = 1 << 0,
+} virDomainAbortJobFlagsValues;
+
+int virDomainAbortJobFlags(virDomainPtr dom,
+                           unsigned int flags);
 
 /**
  * virDomainJobOperation:

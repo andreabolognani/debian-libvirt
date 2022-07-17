@@ -46,20 +46,16 @@
 #include "viralloc.h"
 #include "virpci.h"
 #include "virfile.h"
-#include "virprocess.h"
 #include "qemu_cgroup.h"
 #include "locking/domain_lock.h"
 #include "virnetdev.h"
 #include "virnetdevbridge.h"
-#include "virnetdevtap.h"
 #include "virnetdevopenvswitch.h"
 #include "virnetdevmidonet.h"
 #include "device_conf.h"
 #include "storage_source.h"
 #include "storage_source_conf.h"
-#include "virstring.h"
 #include "virtime.h"
-#include "virqemu.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
@@ -1269,7 +1265,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     VIR_APPEND_ELEMENT_COPY(vm->def->nets, vm->def->nnets, net);
 
     if (qemuBuildInterfaceConnect(vm, net, VIR_NETDEV_VPORT_PROFILE_OP_CREATE) < 0)
-         return -1;
+        goto cleanup;
 
     iface_connected = true;
 

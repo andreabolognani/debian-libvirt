@@ -31,7 +31,6 @@
 #include "qemu_monitor_text.h"
 #include "qemu_monitor_json.h"
 #include "qemu_domain.h"
-#include "qemu_process.h"
 #include "qemu_capabilities.h"
 #include "virerror.h"
 #include "viralloc.h"
@@ -42,7 +41,6 @@
 #include "virprobe.h"
 #include "virstring.h"
 #include "virtime.h"
-#include "virsocket.h"
 #include "virutil.h"
 
 #ifdef WITH_DTRACE_PROBES
@@ -149,6 +147,7 @@ VIR_ENUM_IMPL(qemuMonitorMigrationStatus,
               "inactive", "setup",
               "active", "pre-switchover",
               "device", "postcopy-active",
+              "postcopy-paused", "postcopy-recover",
               "completed", "failed",
               "cancelling", "cancelled",
               "wait-unplug",
@@ -793,8 +792,9 @@ void
 qemuMonitorUnregister(qemuMonitor *mon)
 {
     if (mon->watch) {
+        g_source_destroy(mon->watch);
         vir_g_source_unref(mon->watch, mon->context);
-        g_clear_pointer(&mon->watch, g_source_destroy);
+        mon->watch = NULL;
     }
 }
 
@@ -2421,6 +2421,15 @@ qemuMonitorMigrateCancel(qemuMonitor *mon)
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONMigrateCancel(mon);
+}
+
+
+int
+qemuMonitorMigratePause(qemuMonitor *mon)
+{
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONMigratePause(mon);
 }
 
 
@@ -4519,4 +4528,16 @@ qemuMonitorChangeMemoryRequestedSize(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONChangeMemoryRequestedSize(mon, alias, requestedsize);
+}
+
+
+int
+qemuMonitorMigrateRecover(qemuMonitor *mon,
+                          const char *uri)
+{
+    VIR_DEBUG("uri=%s", uri);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONMigrateRecover(mon, uri);
 }

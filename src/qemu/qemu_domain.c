@@ -26,10 +26,8 @@
 #include "qemu_block.h"
 #include "qemu_cgroup.h"
 #include "qemu_command.h"
-#include "qemu_process.h"
 #include "qemu_capabilities.h"
 #include "qemu_hostdev.h"
-#include "qemu_migration.h"
 #include "qemu_migration_params.h"
 #include "qemu_security.h"
 #include "qemu_slirp.h"
@@ -46,17 +44,14 @@
 #include "viruuid.h"
 #include "virfile.h"
 #include "domain_addr.h"
-#include "domain_capabilities.h"
 #include "domain_driver.h"
 #include "domain_event.h"
 #include "domain_validate.h"
 #include "virtime.h"
 #include "virnetdevbandwidth.h"
-#include "virnetdevopenvswitch.h"
 #include "virstoragefile.h"
 #include "storage_source.h"
 #include "virstring.h"
-#include "virthreadjob.h"
 #include "virprocess.h"
 #include "vircrypto.h"
 #include "virrandom.h"
@@ -68,7 +63,6 @@
 #include "virdomaincheckpointobjlist.h"
 #include "backup_conf.h"
 #include "virutil.h"
-#include "virqemu.h"
 #include "virsecureerase.h"
 
 #include <sys/time.h>
@@ -1698,7 +1692,6 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
     virHashRemoveAll(priv->blockjobs);
 
     g_clear_pointer(&priv->pflash0, virObjectUnref);
-    g_clear_pointer(&priv->pflash1, virObjectUnref);
     g_clear_pointer(&priv->backup, virDomainBackupDefFree);
 
     /* reset node name allocator */
@@ -2418,6 +2411,11 @@ qemuDomainObjPrivateXMLFormat(virBuffer *buf,
         virBufferAsprintf(buf,
                           "<originalMemlock>%llu</originalMemlock>\n",
                           priv->originalMemlock);
+    }
+
+    if (priv->preMigrationMemlock > 0) {
+        virBufferAsprintf(buf, "<preMigrationMemlock>%llu</preMigrationMemlock>\n",
+                          priv->preMigrationMemlock);
     }
 
     return 0;
@@ -3143,6 +3141,13 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
                           ctxt, &priv->originalMemlock) == -2) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("failed to parse original memlock size"));
+        return -1;
+    }
+
+    if (virXPathULongLong("string(./preMigrationMemlock)", ctxt,
+                          &priv->preMigrationMemlock) == -2) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed to parse pre-migration memlock limit"));
         return -1;
     }
 
@@ -4678,8 +4683,12 @@ qemuDomainDefPostParse(virDomainDef *def,
     }
 
     if (virDomainDefHasOldStyleROUEFI(def) &&
-        !def->os.loader->nvram)
-        qemuDomainNVRAMPathFormat(cfg, def, &def->os.loader->nvram);
+        !def->os.loader->nvram) {
+        def->os.loader->nvram = virStorageSourceNew();
+        def->os.loader->nvram->type = VIR_STORAGE_TYPE_FILE;
+        def->os.loader->nvram->format = VIR_STORAGE_FILE_RAW;
+        qemuDomainNVRAMPathFormat(cfg, def, &def->os.loader->nvram->path);
+    }
 
     if (qemuDomainDefAddDefaultDevices(driver, def, qemuCaps) < 0)
         return -1;
@@ -4809,7 +4818,7 @@ qemuDomainValidateStorageSource(virStorageSource *src,
                                 virQEMUCaps *qemuCaps,
                                 bool maskBlockdev)
 {
-    int actualType = virStorageSourceGetActualType(src);
+    virStorageType actualType = virStorageSourceGetActualType(src);
     bool blockdev = virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV);
 
     if (maskBlockdev)
@@ -7475,7 +7484,7 @@ qemuDomainCheckDiskStartupPolicy(virQEMUDriver *driver,
  * The vm must be locked when any of the following cleanup functions is
  * called.
  */
-int
+void
 qemuDomainCleanupAdd(virDomainObj *vm,
                      qemuDomainCleanupCallback cb)
 {
@@ -7486,7 +7495,7 @@ qemuDomainCleanupAdd(virDomainObj *vm,
 
     for (i = 0; i < priv->ncleanupCallbacks; i++) {
         if (priv->cleanupCallbacks[i] == cb)
-            return 0;
+            return;
     }
 
     VIR_RESIZE_N(priv->cleanupCallbacks,
@@ -7494,7 +7503,6 @@ qemuDomainCleanupAdd(virDomainObj *vm,
                  priv->ncleanupCallbacks, 1);
 
     priv->cleanupCallbacks[priv->ncleanupCallbacks++] = cb;
-    return 0;
 }
 
 void
@@ -9464,6 +9472,61 @@ qemuDomainGetMemLockLimitBytes(virDomainDef *def,
 
 
 /**
+ * qemuDomainSetMaxMemLock:
+ * @vm: domain
+ * @limit: the desired memory locking limit
+ * @origPtr: where to store (or load from) the original value of the limit
+ *
+ * Set the memory locking limit for @vm unless it's already big enough. If
+ * @origPtr is non-NULL, the original value of the limit will be store there
+ * and can be restored by calling this function with @limit == 0.
+ *
+ * Returns: 0 on success, -1 otherwise.
+ */
+int
+qemuDomainSetMaxMemLock(virDomainObj *vm,
+                        unsigned long long limit,
+                        unsigned long long *origPtr)
+{
+    unsigned long long current = 0;
+
+    if (virProcessGetMaxMemLock(vm->pid, &current) < 0)
+        return -1;
+
+    if (limit > 0) {
+        VIR_DEBUG("Requested memory lock limit: %llu", limit);
+        /* If the limit is already high enough, we can assume
+         * that some external process is taking care of managing
+         * process limits and we shouldn't do anything ourselves:
+         * we're probably running in a containerized environment
+         * where we don't have enough privilege anyway */
+        if (current >= limit) {
+            VIR_DEBUG("Current limit %llu is big enough", current);
+            return 0;
+        }
+
+        /* If this is the first time adjusting the limit, save the current
+         * value so that we can restore it once memory locking is no longer
+         * required */
+        if (origPtr && *origPtr == 0)
+            *origPtr = current;
+    } else {
+        /* Once memory locking is no longer required, we can restore the
+         * original, usually very low, limit. But only if we actually stored
+         * the original limit before. */
+        if (!origPtr || *origPtr == 0)
+            return 0;
+
+        limit = *origPtr;
+        *origPtr = 0;
+        VIR_DEBUG("Resetting memory lock limit back to %llu", limit);
+    }
+
+    return virProcessSetMaxMemLock(vm->pid, limit);
+}
+
+
+/**
  * qemuDomainAdjustMaxMemLock:
  * @vm: domain
  * @forceVFIO: apply VFIO requirements even if vm's def doesn't require it
@@ -9484,43 +9547,9 @@ int
 qemuDomainAdjustMaxMemLock(virDomainObj *vm,
                            bool forceVFIO)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-    unsigned long long currentMemLock = 0;
-    unsigned long long desiredMemLock = 0;
-
-    desiredMemLock = qemuDomainGetMemLockLimitBytes(vm->def, forceVFIO);
-    if (virProcessGetMaxMemLock(vm->pid, &currentMemLock) < 0)
-        return -1;
-
-    if (desiredMemLock > 0) {
-        if (currentMemLock < desiredMemLock) {
-            /* If this is the first time adjusting the limit, save the current
-             * value so that we can restore it once memory locking is no longer
-             * required */
-            if (priv->originalMemlock == 0) {
-                priv->originalMemlock = currentMemLock;
-            }
-        } else {
-            /* If the limit is already high enough, we can assume
-             * that some external process is taking care of managing
-             * process limits and we shouldn't do anything ourselves:
-             * we're probably running in a containerized environment
-             * where we don't have enough privilege anyway */
-            desiredMemLock = 0;
-        }
-    } else {
-        /* Once memory locking is no longer required, we can restore the
-         * original, usually very low, limit */
-        desiredMemLock = priv->originalMemlock;
-        priv->originalMemlock = 0;
-    }
-
-    if (desiredMemLock > 0 &&
-        virProcessSetMaxMemLock(vm->pid, desiredMemLock) < 0) {
-        return -1;
-    }
-
-    return 0;
+    return qemuDomainSetMaxMemLock(vm,
+                                   qemuDomainGetMemLockLimitBytes(vm->def, forceVFIO),
+                                   &QEMU_DOMAIN_PRIVATE(vm)->originalMemlock);
 }
 
 
@@ -10741,7 +10770,7 @@ qemuDomainGetMachineName(virDomainObj *vm)
     virQEMUDriver *driver = priv->driver;
     char *ret = NULL;
 
-    if (vm->pid > 0) {
+    if (vm->pid != 0) {
         ret = virSystemdGetMachineNameByPID(vm->pid);
         if (!ret)
             virResetLastError();
@@ -10855,15 +10884,14 @@ qemuDomainPrepareDiskSourceLegacy(virDomainDiskDef *disk,
 
 
 int
-qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
-                                       virStorageSource *src,
-                                       qemuDomainObjPrivate *priv,
-                                       virQEMUDriverConfig *cfg)
+qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
+                                               virStorageSource *src,
+                                               const char *nodenameprefix,
+                                               qemuDomainObjPrivate *priv,
+                                               virQEMUDriverConfig *cfg)
 {
-    src->id = qemuDomainStorageIDNew(priv);
-
-    src->nodestorage = g_strdup_printf("libvirt-%u-storage", src->id);
-    src->nodeformat = g_strdup_printf("libvirt-%u-format", src->id);
+    src->nodestorage = g_strdup_printf("%s-storage", nodenameprefix);
+    src->nodeformat = g_strdup_printf("%s-format", nodenameprefix);
 
     if (qemuBlockStorageSourceNeedsStorageSliceLayer(src))
         src->sliceStorage->nodename = g_strdup_printf("libvirt-%u-slice-sto", src->id);
@@ -10893,6 +10921,22 @@ qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
         return -1;
 
     return 0;
+}
+
+
+int
+qemuDomainPrepareStorageSourceBlockdev(virDomainDiskDef *disk,
+                                       virStorageSource *src,
+                                       qemuDomainObjPrivate *priv,
+                                       virQEMUDriverConfig *cfg)
+{
+    g_autofree char *nodenameprefix = NULL;
+
+    src->id = qemuDomainStorageIDNew(priv);
+
+    nodenameprefix = g_strdup_printf("libvirt-%u", src->id);
+
+    return qemuDomainPrepareStorageSourceBlockdevNodename(disk, src, nodenameprefix, priv, cfg);
 }
 
 
@@ -10932,7 +10976,7 @@ qemuDomainPrepareDiskSource(virDomainDiskDef *disk,
     /* set default format for storage pool based disks */
     if (disk->src->type == VIR_STORAGE_TYPE_VOLUME &&
         disk->src->format <= VIR_STORAGE_FILE_NONE) {
-        int actualType = virStorageSourceGetActualType(disk->src);
+        virStorageType actualType = virStorageSourceGetActualType(disk->src);
 
         if (actualType == VIR_STORAGE_TYPE_DIR)
             disk->src->format = VIR_STORAGE_FILE_FAT;
@@ -11115,6 +11159,7 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
         qemuMonitorMemoryDeviceSizeChangeFree(event->data);
         break;
     case QEMU_PROCESS_EVENT_PR_DISCONNECT:
+    case QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION:
     case QEMU_PROCESS_EVENT_LAST:
         break;
     }
@@ -11144,6 +11189,9 @@ qemuDomainRunningReasonToResumeEvent(virDomainRunningReason reason)
 
     case VIR_DOMAIN_RUNNING_POSTCOPY:
         return VIR_DOMAIN_EVENT_RESUMED_POSTCOPY;
+
+    case VIR_DOMAIN_RUNNING_POSTCOPY_FAILED:
+        return VIR_DOMAIN_EVENT_RESUMED_POSTCOPY_FAILED;
 
     case VIR_DOMAIN_RUNNING_UNKNOWN:
     case VIR_DOMAIN_RUNNING_SAVE_CANCELED:
@@ -11290,12 +11338,12 @@ qemuDomainSupportsCheckpointsBlockjobs(virDomainObj *vm)
  * 'libvirt-pflash1-format' for pflash1.
  */
 int
-qemuDomainInitializePflashStorageSource(virDomainObj *vm)
+qemuDomainInitializePflashStorageSource(virDomainObj *vm,
+                                        virQEMUDriverConfig *cfg)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     virDomainDef *def = vm->def;
     g_autoptr(virStorageSource) pflash0 = NULL;
-    g_autoptr(virStorageSource) pflash1 = NULL;
 
     if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV))
         return 0;
@@ -11314,17 +11362,15 @@ qemuDomainInitializePflashStorageSource(virDomainObj *vm)
 
 
     if (def->os.loader->nvram) {
-        pflash1 = virStorageSourceNew();
-        pflash1->type = VIR_STORAGE_TYPE_FILE;
-        pflash1->format = VIR_STORAGE_FILE_RAW;
-        pflash1->path = g_strdup(def->os.loader->nvram);
-        pflash1->readonly = false;
-        pflash1->nodeformat = g_strdup("libvirt-pflash1-format");
-        pflash1->nodestorage = g_strdup("libvirt-pflash1-storage");
+        if (qemuDomainPrepareStorageSourceBlockdevNodename(NULL,
+                                                           def->os.loader->nvram,
+                                                           "libvirt-pflash1",
+                                                           priv,
+                                                           cfg) < 0)
+            return -1;
     }
 
     priv->pflash0 = g_steal_pointer(&pflash0);
-    priv->pflash1 = g_steal_pointer(&pflash1);
 
     return 0;
 }

@@ -23,12 +23,10 @@
 #include "internal.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "virconf.h"
 #include "datatypes.h"
 #include "virfile.h"
 #include "viralloc.h"
 #include "viruuid.h"
-#include "vircommand.h"
 #include "virstring.h"
 #include "virobject.h"
 #include "virthread.h"
@@ -36,7 +34,6 @@
 #include "rpc/virnetsocket.h"
 #include "libxl_api_wrapper.h"
 #include "libxl_domain.h"
-#include "libxl_driver.h"
 #include "libxl_conf.h"
 #include "libxl_migration.h"
 #include "locking/domain_lock.h"
@@ -640,7 +637,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
     char *xmlout = NULL;
     unsigned short port;
     char portstr[100];
-    virURI *uri = NULL;
+    g_autoptr(virURI) uri = NULL;
     virNetSocket **socks = NULL;
     size_t nsocks = 0;
     int nsocks_listen = 0;
@@ -798,8 +795,6 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
     libxlMigrationCookieFree(mig);
     if (!uri_in)
         VIR_FREE(hostname);
-    else
-        virURIFree(uri);
     virObjectUnref(args);
     virDomainObjEndAPI(&vm);
     virObjectUnref(cfg);
@@ -1186,15 +1181,15 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
     char *hostname = NULL;
     unsigned short port = 0;
     char portstr[100];
-    virURI *uri = NULL;
+    g_autoptr(virURI) uri = NULL;
     virNetSocket *sock;
-    int sockfd = -1;
+    VIR_AUTOCLOSE sockfd = -1;
     int ret = -1;
 
     /* parse dst host:port from uri */
     uri = virURIParse(uri_str);
     if (uri == NULL || uri->server == NULL || uri->port == 0)
-        goto cleanup;
+        return -1;
 
     hostname = uri->server;
     port = uri->port;
@@ -1204,11 +1199,11 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
     if (virNetSocketNewConnectTCP(hostname, portstr,
                                   AF_UNSPEC,
                                   &sock) < 0)
-        goto cleanup;
+        return -1;
 
     if (virNetSocketSetBlocking(sock, true) < 0) {
         virObjectUnref(sock);
-        goto cleanup;
+        return -1;
     }
 
     sockfd = virNetSocketDupFD(sock, true);
@@ -1234,9 +1229,6 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
         libxlDomainObjEndJob(driver, vm);
     }
 
- cleanup:
-    VIR_FORCE_CLOSE(sockfd);
-    virURIFree(uri);
     return ret;
 }
 

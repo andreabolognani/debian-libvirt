@@ -29,7 +29,6 @@
 #include "virarch.h"
 #include "virjson.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "viralloc.h"
 #include "virenum.h"
 
@@ -752,7 +751,7 @@ qemuFirmwareMappingFlashFormat(virJSONValue *mapping,
             return -1;
 
         if (virJSONValueObjectAppend(mapping,
-                                 "nvram-template",
+                                     "nvram-template",
                                      &nvram_template) < 0)
             return -1;
     }
@@ -1081,31 +1080,25 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
 
     if (def->os.firmwareFeatures) {
         reqSecureBoot = def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_SECURE_BOOT];
-        if (reqSecureBoot != VIR_TRISTATE_BOOL_ABSENT) {
-            if (reqSecureBoot == VIR_TRISTATE_BOOL_YES && !supportsSecureBoot) {
-                VIR_DEBUG("User requested Secure Boot, firmware '%s' doesn't support it",
-                          path);
-                return false;
-            }
-
-            if (reqSecureBoot == VIR_TRISTATE_BOOL_NO && supportsSecureBoot) {
-                VIR_DEBUG("User refused Secure Boot, firmware '%s' supports it", path);
-                return false;
-            }
+        if (reqSecureBoot == VIR_TRISTATE_BOOL_YES && !supportsSecureBoot) {
+            VIR_DEBUG("User requested Secure Boot, firmware '%s' doesn't support it",
+                      path);
+            return false;
+        }
+        if (reqSecureBoot == VIR_TRISTATE_BOOL_NO && supportsSecureBoot) {
+            VIR_DEBUG("User refused Secure Boot, firmware '%s' supports it", path);
+            return false;
         }
 
         reqEnrolledKeys = def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_ENROLLED_KEYS];
-        if (reqEnrolledKeys != VIR_TRISTATE_BOOL_ABSENT) {
-            if (reqEnrolledKeys == VIR_TRISTATE_BOOL_YES && !hasEnrolledKeys) {
-                VIR_DEBUG("User requested Enrolled keys, firmware '%s' doesn't have them",
-                          path);
-                return false;
-            }
-
-            if (reqEnrolledKeys == VIR_TRISTATE_BOOL_NO && hasEnrolledKeys) {
-                VIR_DEBUG("User refused Enrolled keys, firmware '%s' has them", path);
-                return false;
-            }
+        if (reqEnrolledKeys == VIR_TRISTATE_BOOL_YES && !hasEnrolledKeys) {
+            VIR_DEBUG("User requested Enrolled keys, firmware '%s' doesn't have them",
+                      path);
+            return false;
+        }
+        if (reqEnrolledKeys == VIR_TRISTATE_BOOL_NO && hasEnrolledKeys) {
+            VIR_DEBUG("User refused Enrolled keys, firmware '%s' has them", path);
+            return false;
         }
     }
 
@@ -1192,13 +1185,17 @@ qemuFirmwareEnableFeatures(virQEMUDriver *driver,
         VIR_FREE(def->os.loader->nvramTemplate);
         def->os.loader->nvramTemplate = g_strdup(flash->nvram_template.filename);
 
-        if (!def->os.loader->nvram)
-            qemuDomainNVRAMPathFormat(cfg, def, &def->os.loader->nvram);
+        if (!def->os.loader->nvram) {
+            def->os.loader->nvram = virStorageSourceNew();
+            def->os.loader->nvram->type = VIR_STORAGE_TYPE_FILE;
+            def->os.loader->nvram->format = VIR_STORAGE_FILE_RAW;
+            qemuDomainNVRAMPathFormat(cfg, def, &def->os.loader->nvram->path);
+        }
 
         VIR_DEBUG("decided on firmware '%s' template '%s' NVRAM '%s'",
                   def->os.loader->path,
                   def->os.loader->nvramTemplate,
-                  def->os.loader->nvram);
+                  def->os.loader->nvram->path);
         break;
 
     case QEMU_FIRMWARE_DEVICE_KERNEL:
@@ -1364,9 +1361,25 @@ qemuFirmwareFillDomain(virQEMUDriver *driver,
          * its path in domain XML) but no template for NVRAM was
          * specified and the varstore doesn't exist ... */
         if (!virDomainDefHasOldStyleROUEFI(def) ||
-            def->os.loader->nvramTemplate ||
-            (!reset_nvram && virFileExists(def->os.loader->nvram)))
+            def->os.loader->nvramTemplate)
             return 0;
+
+        if (def->os.loader->nvram) {
+            if (!virStorageSourceIsLocalStorage(def->os.loader->nvram)) {
+                if (reset_nvram) {
+                    virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                                   _("resetting of nvram is not supported with network backed nvram"));
+                    return -1;
+                }
+
+                /* we don't scrutinize whether NVRAM image accessed via network
+                 * is present */
+                return 0;
+            }
+
+            if (!reset_nvram && virFileExists(def->os.loader->nvram->path))
+                return 0;
+        }
 
         /* ... then we want to consult JSON FW descriptors first,
          * but we don't want to fail if we haven't found a match. */

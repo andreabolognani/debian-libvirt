@@ -22,7 +22,6 @@
 
 #include "virbuffer.h"
 #include "virxml.h"
-#include "virbitmap.h"
 #include "virarch.h"
 #include "numa_conf.h"
 #include "virenum.h"
@@ -134,6 +133,9 @@ struct _virCPUDef {
     unsigned int dies;
     unsigned int cores;
     unsigned int threads;
+    unsigned int sigFamily;
+    unsigned int sigModel;
+    unsigned int sigStepping;
     size_t nfeatures;
     size_t nfeatures_max;
     virCPUFeatureDef *features;

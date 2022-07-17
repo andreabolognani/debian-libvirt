@@ -23,12 +23,10 @@
 
 #include "virlog.h"
 #include "virerror.h"
-#include "viralloc.h"
 #include "virstring.h"
 
 #include "qemu_alias.h"
 #include "qemu_hotplug.h"
-#include "qemu_migration.h"
 #include "qemu_migration_params.h"
 #define LIBVIRT_QEMU_MIGRATION_PARAMSPRIV_H_ALLOW
 #include "qemu_migration_paramspriv.h"
@@ -96,6 +94,7 @@ VIR_ENUM_IMPL(qemuMigrationCapability,
               "multifd",
               "dirty-bitmaps",
               "return-path",
+              "zero-copy-send",
 );
 
 
@@ -177,6 +176,11 @@ static const qemuMigrationParamsFlagMapItem qemuMigrationParamsFlagMap[] = {
      VIR_MIGRATE_TUNNELLED,
      QEMU_MIGRATION_CAP_RETURN_PATH,
      QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_ZEROCOPY,
+     QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
+     QEMU_MIGRATION_SOURCE},
 };
 
 /* Translation from VIR_MIGRATE_PARAM_* typed parameters to

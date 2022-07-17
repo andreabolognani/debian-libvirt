@@ -22,7 +22,6 @@
 
 #include "domain_validate.h"
 #include "domain_conf.h"
-#include "snapshot_conf.h"
 #include "vircgroup.h"
 #include "virconftypes.h"
 #include "virlog.h"
@@ -632,6 +631,35 @@ virDomainDiskDefSourceLUNValidate(const virStorageSource *src)
 }
 
 
+int
+virDomainDiskDefValidateStartupPolicy(const virDomainDiskDef *disk)
+{
+    if (disk->startupPolicy == VIR_DOMAIN_STARTUP_POLICY_DEFAULT)
+        return 0;
+
+    /* We want to allow any startup policy for un-translated _TYPE_VOLUME disks.
+     * virStorageSourceGetActualType returns _TYPE_VOLUME in such case */
+    if (virStorageSourceGetActualType(disk->src) != VIR_STORAGE_TYPE_VOLUME &&
+        !virStorageSourceIsLocalStorage(disk->src)) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("disk startupPolicy '%s' is not allowed for disk of '%s' type"),
+                       virDomainStartupPolicyTypeToString(disk->startupPolicy),
+                       virStorageTypeToString(disk->src->type));
+        return -1;
+    }
+
+    if (disk->device != VIR_DOMAIN_DISK_DEVICE_CDROM &&
+        disk->device != VIR_DOMAIN_DISK_DEVICE_FLOPPY &&
+        disk->startupPolicy == VIR_DOMAIN_STARTUP_POLICY_REQUISITE) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("disk startupPolicy 'requisite' is allowed only for cdrom or floppy"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
 static int
 virDomainDiskDefValidate(const virDomainDef *def,
                          const virDomainDiskDef *disk)
@@ -852,24 +880,8 @@ virDomainDiskDefValidate(const virDomainDef *def,
         return -1;
     }
 
-    if (disk->startupPolicy != VIR_DOMAIN_STARTUP_POLICY_DEFAULT) {
-        if (disk->src->type == VIR_STORAGE_TYPE_NETWORK) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Setting disk %s is not allowed for "
-                             "disk of network type"),
-                           virDomainStartupPolicyTypeToString(disk->startupPolicy));
-            return -1;
-        }
-
-        if (disk->device != VIR_DOMAIN_DISK_DEVICE_CDROM &&
-            disk->device != VIR_DOMAIN_DISK_DEVICE_FLOPPY &&
-            disk->startupPolicy == VIR_DOMAIN_STARTUP_POLICY_REQUISITE) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("Setting disk 'requisite' is allowed only for "
-                             "cdrom or floppy"));
-            return -1;
-        }
-    }
+    if (virDomainDiskDefValidateStartupPolicy(disk) < 0)
+        return -1;
 
     if (disk->wwn && !virValidateWWN(disk->wwn))
         return -1;
@@ -1586,15 +1598,15 @@ static int
 virDomainDefOSValidate(const virDomainDef *def,
                        virDomainXMLOption *xmlopt)
 {
-    if (!def->os.loader)
-        return 0;
-
     if (def->os.firmware &&
         !(xmlopt->config.features & VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT)) {
         virReportError(VIR_ERR_XML_DETAIL, "%s",
                        _("firmware auto selection not implemented for this driver"));
         return -1;
     }
+
+    if (!def->os.loader)
+        return 0;
 
     if (!def->os.loader->path &&
         def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE) {
@@ -1717,6 +1729,48 @@ virDomainDefFSValidate(const virDomainDef *def)
 
 
 static int
+virDomainDefValidateIOThreadsThreadPool(int thread_pool_min,
+                                        int thread_pool_max)
+{
+    if (thread_pool_max == 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("thread_pool_max must be a positive integer"));
+        return -1;
+    }
+
+    if (thread_pool_min > thread_pool_max) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("thread_pool_min must be smaller or equal to thread_pool_max"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+virDomainDefValidateIOThreads(const virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->niothreadids; i++) {
+        virDomainIOThreadIDDef *iothread = def->iothreadids[i];
+
+        if (virDomainDefValidateIOThreadsThreadPool(iothread->thread_pool_min,
+                                                    iothread->thread_pool_max) < 0)
+            return -1;
+    }
+
+    if (def->defaultIOThread &&
+        virDomainDefValidateIOThreadsThreadPool(def->defaultIOThread->thread_pool_min,
+                                                def->defaultIOThread->thread_pool_max) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 virDomainDefValidateInternal(const virDomainDef *def,
                              virDomainXMLOption *xmlopt)
 {
@@ -1769,6 +1823,9 @@ virDomainDefValidateInternal(const virDomainDef *def,
         return -1;
 
     if (virDomainDefFSValidate(def) < 0)
+        return -1;
+
+    if (virDomainDefValidateIOThreads(def) < 0)
         return -1;
 
     return 0;
@@ -2137,8 +2194,9 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
         if (mem->requestedsize > mem->size) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("requested size must be smaller than or equal to @size"));
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("requested size must be smaller than or equal to @size (%lluKiB)"),
+                           mem->size);
             return -1;
         }
 

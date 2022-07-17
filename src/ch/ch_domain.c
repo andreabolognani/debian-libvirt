@@ -22,7 +22,6 @@
 
 #include "ch_domain.h"
 #include "domain_driver.h"
-#include "viralloc.h"
 #include "virchrdev.h"
 #include "virlog.h"
 #include "virtime.h"
@@ -405,7 +404,7 @@ virCHDomainGetMachineName(virDomainObj *vm)
     virCHDriver *driver = priv->driver;
     char *ret = NULL;
 
-    if (vm->pid > 0) {
+    if (vm->pid != 0) {
         ret = virSystemdGetMachineNameByPID(vm->pid);
         if (!ret)
             virResetLastError();

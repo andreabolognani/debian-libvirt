@@ -18,6 +18,7 @@ VIR_ENUM_IMPL(virDomainJob,
               "modify",
               "abort",
               "migration operation",
+              "modify migration safe",
               "none",   /* async job is never stored in job.active */
               "async nested",
 );
@@ -93,6 +94,7 @@ virDomainJobStatusToType(virDomainJobStatus status)
     case VIR_DOMAIN_JOB_STATUS_MIGRATING:
     case VIR_DOMAIN_JOB_STATUS_HYPERVISOR_COMPLETED:
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
+    case VIR_DOMAIN_JOB_STATUS_POSTCOPY_PAUSED:
     case VIR_DOMAIN_JOB_STATUS_PAUSED:
         return VIR_DOMAIN_JOB_UNBOUNDED;
 

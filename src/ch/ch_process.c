@@ -27,8 +27,6 @@
 #include "ch_monitor.h"
 #include "ch_process.h"
 #include "domain_cgroup.h"
-#include "virnuma.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "virjson.h"
 #include "virlog.h"
@@ -574,7 +572,7 @@ virCHProcessStop(virCHDriver *driver G_GNUC_UNUSED,
                  vm->def->name);
     }
 
-    vm->pid = -1;
+    vm->pid = 0;
     vm->def->id = -1;
     g_clear_pointer(&priv->machineName, g_free);
 

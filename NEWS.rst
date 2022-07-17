@@ -8,6 +8,74 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.5.0 (2022-07-01)
+===================
+
+* **New features**
+
+  * qemu: Introduce support for network backed NVRAM
+
+    Users can now use remote store NVRAM image by specifying newly introduced
+    attribute `type='network'` with `<nvram>` element.
+
+  * qemu: Add support for post-copy migration recovery
+
+    A new ``VIR_MIGRATE_POSTCOPY_RESUME`` flag (``virsh migrate --postcopy-resume``)
+    was introduced for recovering from a failed post-copy migration.
+
+  * Introduce thread_pool_min and thread_pool_max attributes to IOThread
+
+    New attributes ``thread_pool_min`` and ``thread_pool_max`` were introduced
+    to ``<iothread/>`` as well as new ``<defaultiothread/>`` element with the
+    same attributes. This way it's possible to instruct QEMU to spawn enough
+    worker threads for an IOThread upfront, resulting in predictable time
+    needed to process an I/O request.
+
+* **Improvements**
+
+  * Define a TFTP server without a DHCP server in network configuration
+
+    It's now possible to define a network with no DHCP server but with a TFTP
+    server. This may be useful when DHCP service is provided by other entity on
+    the network than libvirt spawned dnsmasq.
+
+* **Bug fixes**
+
+  * qemu: Restore label to temp file in qemuDomainScreenshot()
+
+    When virDomainScreenshot() is called, libvirt instructs QEMU to save the
+    screenshot into a temporary file. This file needs to be labelled correctly,
+    so that QEMU can access it. And since the file is temporary (it's deleted
+    after the screenshot was taken) the corresponding label restore was
+    missing. This proven to be problematic for profile based models, like
+    AppArmor, where the temporary files were added into the profile but never
+    removed, which resulted in longer profile recalculation times.
+
+  * qemuBuildInterfaceConnect: Initialize @tapfd array
+
+    Due to an uninitialized array, unsuccessful attempt to start a guest with
+    an ``<interface/>`` might have resulted in closing of a random FD and thus
+    sudden disconnect of a client or other random failures.
+
+  * qemu: Fix hotplug of network interfaces
+
+    A logic bug introduced in a recent refactor was fixed. The bug caused a
+    problem when hot-adding a network interface, which failed with the
+    following error::
+
+      error: internal error: unable to execute QEMU command 'netdev_add': File descriptor named '(null)' has not been found
+
+  * Fix ``startupPolicy`` validation for ``block`` disks
+
+    Setting of ``startupPolicy`` for a block disk would result in an error due
+    to a logic bug in a recent refactor.
+
+  * qemu: Fix crash when overriding device properties via ``<qemu:override>`` element
+
+    Adding an override for a device property would result in a crash of the qemu
+    driver.
+
+
 v8.4.0 (2022-06-01)
 ===================
 

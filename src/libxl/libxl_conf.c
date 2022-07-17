@@ -28,20 +28,17 @@
 #include "internal.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "datatypes.h"
 #include "virconf.h"
 #include "virfile.h"
 #include "viridentity.h"
 #include "virstring.h"
 #include "viralloc.h"
 #include "viruuid.h"
-#include "vircommand.h"
 #include "virsocketaddr.h"
 #include "libxl_api_wrapper.h"
 #include "libxl_domain.h"
 #include "libxl_conf.h"
 #include "libxl_utils.h"
-#include "virstoragefile.h"
 #include "virsecret.h"
 #include "cpu/cpu.h"
 #include "xen_common.h"
@@ -1067,7 +1064,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
 {
     const char *driver = virDomainDiskGetDriver(l_disk);
     int format = virDomainDiskGetFormat(l_disk);
-    int actual_type = virStorageSourceGetActualType(l_disk->src);
+    virStorageType actual_type = virStorageSourceGetActualType(l_disk->src);
 
     if (actual_type == VIR_STORAGE_TYPE_NETWORK) {
         if (STRNEQ_NULLABLE(driver, "qemu")) {

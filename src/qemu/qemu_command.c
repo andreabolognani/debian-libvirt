@@ -41,23 +41,16 @@
 #include "viruuid.h"
 #include "domain_nwfilter.h"
 #include "domain_addr.h"
-#include "domain_audit.h"
 #include "domain_conf.h"
 #include "netdev_bandwidth_conf.h"
-#include "snapshot_conf.h"
-#include "storage_conf.h"
-#include "secret_conf.h"
 #include "virnetdevopenvswitch.h"
 #include "device_conf.h"
 #include "storage_source_conf.h"
 #include "virtpm.h"
-#include "virscsi.h"
 #include "virnuma.h"
 #include "virgic.h"
 #include "virmdev.h"
-#include "virdomainsnapshotobjlist.h"
 #include "virutil.h"
-#include "virsecureerase.h"
 
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -239,6 +232,10 @@ qemuBuildDeviceCommandlineHandleOverrides(virJSONValue *props,
 {
     const char *alias = virJSONValueObjectGetString(props, "id");
     size_t i;
+
+    /* If the device doesn't have an alias we can't override its props */
+    if (!alias)
+        return;
 
     for (i = 0; i < nsdef->ndeviceOverride; i++) {
         qemuDomainXmlNsDeviceOverride *dev = nsdef->deviceOverride + i;
@@ -1736,7 +1733,7 @@ qemuGetDriveSourceString(virStorageSource *src,
                          qemuDomainSecretInfo *secinfo,
                          char **source)
 {
-    int actualType = virStorageSourceGetActualType(src);
+    virStorageType actualType = virStorageSourceGetActualType(src);
 
     *source = NULL;
 
@@ -1744,7 +1741,7 @@ qemuGetDriveSourceString(virStorageSource *src,
     if (virStorageSourceIsEmpty(src))
         return 1;
 
-    switch ((virStorageType)actualType) {
+    switch (actualType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
     case VIR_STORAGE_TYPE_DIR:
@@ -1803,7 +1800,7 @@ qemuDiskBusIsSD(int bus)
 static bool
 qemuDiskSourceNeedsProps(virStorageSource *src)
 {
-    int actualType = virStorageSourceGetActualType(src);
+    virStorageType actualType = virStorageSourceGetActualType(src);
 
     if (actualType == VIR_STORAGE_TYPE_NETWORK &&
         src->protocol == VIR_STORAGE_NET_PROTOCOL_GLUSTER &&
@@ -1879,7 +1876,7 @@ static int
 qemuBuildDriveSourceStr(virDomainDiskDef *disk,
                         virBuffer *buf)
 {
-    int actualType = virStorageSourceGetActualType(disk->src);
+    virStorageType actualType = virStorageSourceGetActualType(disk->src);
     qemuDomainStorageSourcePrivate *srcpriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(disk->src);
     qemuDomainSecretInfo *secinfo = NULL;
     qemuDomainSecretInfo *encinfo = NULL;
@@ -7138,11 +7135,12 @@ qemuBuildMachineCommandLine(virCommand *cmd,
         }
     }
 
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV)) {
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV) &&
+        virDomainDefHasOldStyleUEFI(def)) {
         if (priv->pflash0)
             virBufferAsprintf(&buf, ",pflash0=%s", priv->pflash0->nodeformat);
-        if (priv->pflash1)
-            virBufferAsprintf(&buf, ",pflash1=%s", priv->pflash1->nodeformat);
+        if (def->os.loader->nvram)
+            virBufferAsprintf(&buf, ",pflash1=%s", def->os.loader->nvram->nodeformat);
     }
 
     if (virDomainNumaHasHMAT(def->numa))
@@ -7432,14 +7430,30 @@ qemuBuildIOThreadCommandLine(virCommand *cmd,
 {
     size_t i;
 
-    if (def->niothreadids == 0)
-        return 0;
-
     for (i = 0; i < def->niothreadids; i++) {
         g_autoptr(virJSONValue) props = NULL;
-        g_autofree char *alias = g_strdup_printf("iothread%u", def->iothreadids[i]->iothread_id);
+        const virDomainIOThreadIDDef *iothread = def->iothreadids[i];
+        g_autofree char *alias = NULL;
 
-        if (qemuMonitorCreateObjectProps(&props, "iothread", alias, NULL) < 0)
+        alias = g_strdup_printf("iothread%u", iothread->iothread_id);
+
+        if (qemuMonitorCreateObjectProps(&props, "iothread", alias,
+                                         "k:thread-pool-min", iothread->thread_pool_min,
+                                         "k:thread-pool-max", iothread->thread_pool_max,
+                                         NULL) < 0)
+            return -1;
+
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+            return -1;
+    }
+
+    if (def->defaultIOThread) {
+        g_autoptr(virJSONValue) props = NULL;
+
+        if (qemuMonitorCreateObjectProps(&props, "main-loop", "main-loop",
+                                         "k:thread-pool-min", def->defaultIOThread->thread_pool_min,
+                                         "k:thread-pool-max", def->defaultIOThread->thread_pool_max,
+                                         NULL) < 0)
             return -1;
 
         if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
@@ -8716,6 +8730,8 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
     size_t tapfdSize = net->driver.virtio.queues;
     g_autofree int *tapfd = g_new0(int, tapfdSize + 1);
 
+    memset(tapfd, -1, (tapfdSize + 1) * sizeof(*tapfd));
+
     if (tapfdSize == 0)
         tapfdSize = 1;
 
@@ -9668,7 +9684,7 @@ qemuBuildDomainLoaderPflashCommandLine(virCommand *cmd,
 
     if (loader->nvram) {
         virBufferAddLit(&buf, "file=");
-        virQEMUBuildBufferEscapeComma(&buf, loader->nvram);
+        virQEMUBuildBufferEscapeComma(&buf, loader->nvram->path);
         virBufferAsprintf(&buf, ",if=pflash,format=raw,unit=%d", unit);
 
         virCommandAddArg(cmd, "-drive");
@@ -9715,7 +9731,7 @@ qemuBuildTPMDevCmd(virCommand *cmd,
     const char *model = virDomainTPMModelTypeToString(tpm->model);
     g_autofree char *tpmdev = g_strdup_printf("tpm-%s", tpm->info.alias);
 
-    if (tpm->model == VIR_DOMAIN_TPM_MODEL_TIS && def->os.arch == VIR_ARCH_AARCH64)
+    if (tpm->model == VIR_DOMAIN_TPM_MODEL_TIS && !ARCH_IS_X86(def->os.arch))
         model = "tpm-tis-device";
 
     if (virJSONValueObjectAdd(&props,
@@ -10122,8 +10138,13 @@ qemuBuildPflashBlockdevOne(virCommand *cmd,
 
 static int
 qemuBuildPflashBlockdevCommandLine(virCommand *cmd,
-                                   qemuDomainObjPrivate *priv)
+                                   virDomainObj *vm)
 {
+    qemuDomainObjPrivate *priv = vm->privateData;
+
+    if (!virDomainDefHasOldStyleUEFI(vm->def))
+        return 0;
+
     if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV))
         return 0;
 
@@ -10131,8 +10152,8 @@ qemuBuildPflashBlockdevCommandLine(virCommand *cmd,
         qemuBuildPflashBlockdevOne(cmd, priv->pflash0, priv->qemuCaps) < 0)
         return -1;
 
-    if (priv->pflash1 &&
-        qemuBuildPflashBlockdevOne(cmd, priv->pflash1, priv->qemuCaps) < 0)
+    if (vm->def->os.loader->nvram &&
+        qemuBuildPflashBlockdevOne(cmd, vm->def->os.loader->nvram, priv->qemuCaps) < 0)
         return -1;
 
     return 0;
@@ -10504,7 +10525,7 @@ qemuBuildCommandLine(virDomainObj *vm,
     if (qemuBuildManagedPRCommandLine(cmd, def, priv) < 0)
         return NULL;
 
-    if (qemuBuildPflashBlockdevCommandLine(cmd, priv) < 0)
+    if (qemuBuildPflashBlockdevCommandLine(cmd, vm) < 0)
         return NULL;
 
     /* QEMU 1.2 and later have a binary flag -enable-fips that must be

@@ -31,15 +31,10 @@
 
 #include "virerror.h"
 #include "datatypes.h"
-#include "viralloc.h"
-#include "domain_conf.h"
-#include "domain_nwfilter.h"
 #include "nwfilter_driver.h"
 #include "nwfilter_gentech_driver.h"
 #include "configmake.h"
-#include "virfile.h"
 #include "virpidfile.h"
-#include "virstring.h"
 #include "viraccessapicheck.h"
 
 #include "nwfilter_ipaddrmap.h"
@@ -59,6 +54,13 @@ static virMutex driverMutex = VIR_MUTEX_INITIALIZER;
 
 #ifdef WITH_FIREWALLD
 
+static void nwfilterStateReloadThread(void *opaque G_GNUC_UNUSED)
+{
+    VIR_INFO("Reloading configuration on firewalld reload/restart");
+
+    nwfilterStateReload();
+}
+
 static void
 nwfilterFirewalldDBusSignalCallback(GDBusConnection *connection G_GNUC_UNUSED,
                                     const char *senderName G_GNUC_UNUSED,
@@ -68,7 +70,15 @@ nwfilterFirewalldDBusSignalCallback(GDBusConnection *connection G_GNUC_UNUSED,
                                     GVariant *parameters G_GNUC_UNUSED,
                                     gpointer user_data G_GNUC_UNUSED)
 {
-    nwfilterStateReload();
+    virThread thr;
+
+    if (virThreadCreateFull(&thr, false, nwfilterStateReloadThread,
+                            "firewall-reload", false, NULL) < 0) {
+        /*
+         * Not much we can do on error here except log it.
+         */
+        VIR_ERROR(_("Failed to create thread to handle firewall reload/restart"));
+    }
 }
 
 static unsigned int restartID;

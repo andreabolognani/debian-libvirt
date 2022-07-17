@@ -214,9 +214,19 @@ qemuDomainObjResetAsyncJob(qemuDomainJobObj *job)
         job->cb->resetJobPrivate(job->privateData);
 }
 
+
+/**
+ * qemuDomainObjPreserveJob
+ * @param obj domain with a job that needs to be preserved
+ * @param job structure where to store job details from @obj
+ *
+ * Saves the current job details from @obj to @job and resets the job in @obj.
+ *
+ * Returns 0 on success, -1 on failure.
+ */
 int
-qemuDomainObjRestoreJob(virDomainObj *obj,
-                        qemuDomainJobObj *job)
+qemuDomainObjPreserveJob(virDomainObj *obj,
+                         qemuDomainJobObj *job)
 {
     qemuDomainObjPrivate *priv = obj->privateData;
 
@@ -225,6 +235,7 @@ qemuDomainObjRestoreJob(virDomainObj *obj,
     job->owner = priv->job.owner;
     job->asyncJob = priv->job.asyncJob;
     job->asyncOwner = priv->job.asyncOwner;
+    job->asyncStarted = priv->job.asyncStarted;
     job->phase = priv->job.phase;
     job->privateData = g_steal_pointer(&priv->job.privateData);
     job->apiFlags = priv->job.apiFlags;
@@ -238,6 +249,42 @@ qemuDomainObjRestoreJob(virDomainObj *obj,
     qemuDomainObjResetAsyncJob(&priv->job);
     return 0;
 }
+
+
+void
+qemuDomainObjRestoreAsyncJob(virDomainObj *vm,
+                             virDomainAsyncJob asyncJob,
+                             int phase,
+                             unsigned long long started,
+                             virDomainJobOperation operation,
+                             qemuDomainJobStatsType statsType,
+                             virDomainJobStatus status,
+                             unsigned long long allowedJobs)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    qemuDomainJobObj *job = &priv->job;
+
+    VIR_DEBUG("Restoring %s async job for domain %s",
+              virDomainAsyncJobTypeToString(asyncJob), vm->def->name);
+
+    if (started == 0)
+        ignore_value(virTimeMillisNow(&started));
+
+    job->jobsQueued++;
+    job->asyncJob = asyncJob;
+    job->phase = phase;
+    job->asyncOwnerAPI = g_strdup(virThreadJobGet());
+    job->asyncStarted = started;
+
+    qemuDomainObjSetAsyncJobMask(vm, allowedJobs);
+
+    job->current = virDomainJobDataInit(&qemuJobDataPrivateDataCallbacks);
+    qemuDomainJobSetStatsType(priv->job.current, statsType);
+    job->current->operation = operation;
+    job->current->status = status;
+    job->current->started = started;
+}
+
 
 void
 qemuDomainObjClearJob(qemuDomainJobObj *job)
@@ -670,6 +717,10 @@ qemuDomainJobDataToParams(virDomainJobData *jobData,
 }
 
 
+/*
+ * Sets the job phase without changing the job owner. The owner is supposed to
+ * be 0 or the current thread, a warning is issued otherwise.
+ */
 void
 qemuDomainObjSetJobPhase(virDomainObj *obj,
                          int phase)
@@ -684,18 +735,50 @@ qemuDomainObjSetJobPhase(virDomainObj *obj,
               virDomainAsyncJobTypeToString(priv->job.asyncJob),
               qemuDomainAsyncJobPhaseToString(priv->job.asyncJob, phase));
 
-    if (priv->job.asyncOwner == 0) {
-        priv->job.asyncOwnerAPI = g_strdup(virThreadJobGet());
-    } else if (me != priv->job.asyncOwner) {
-        VIR_WARN("'%s' async job is owned by thread %llu",
+    if (priv->job.asyncOwner != 0 &&
+        priv->job.asyncOwner != me) {
+        VIR_WARN("'%s' async job is owned by thread %llu, API '%s'",
                  virDomainAsyncJobTypeToString(priv->job.asyncJob),
-                 priv->job.asyncOwner);
+                 priv->job.asyncOwner,
+                 NULLSTR(priv->job.asyncOwnerAPI));
     }
 
     priv->job.phase = phase;
-    priv->job.asyncOwner = me;
     qemuDomainSaveStatus(obj);
 }
+
+
+/*
+ * Changes the job owner and sets the job phase. The current owner is supposed
+ * to be 0 or the current thread, a warning is issued otherwise.
+ */
+void
+qemuDomainObjStartJobPhase(virDomainObj *obj,
+                           int phase)
+{
+    qemuDomainObjPrivate *priv = obj->privateData;
+    unsigned long long me = virThreadSelfID();
+
+    if (!priv->job.asyncJob)
+        return;
+
+    VIR_DEBUG("Starting phase '%s' of '%s' job",
+              qemuDomainAsyncJobPhaseToString(priv->job.asyncJob, phase),
+              virDomainAsyncJobTypeToString(priv->job.asyncJob));
+
+    if (priv->job.asyncOwner == 0) {
+        priv->job.asyncOwnerAPI = g_strdup(virThreadJobGet());
+    } else if (me != priv->job.asyncOwner) {
+        VIR_WARN("'%s' async job is owned by thread %llu, API '%s'",
+                 virDomainAsyncJobTypeToString(priv->job.asyncJob),
+                 priv->job.asyncOwner,
+                 NULLSTR(priv->job.asyncOwnerAPI));
+    }
+
+    priv->job.asyncOwner = me;
+    qemuDomainObjSetJobPhase(obj, phase);
+}
+
 
 void
 qemuDomainObjSetAsyncJobMask(virDomainObj *obj,
@@ -1205,8 +1288,10 @@ qemuDomainObjPrivateXMLFormatJob(virBuffer *buf,
                                                           priv->job.phase));
     }
 
-    if (priv->job.asyncJob != VIR_ASYNC_JOB_NONE)
+    if (priv->job.asyncJob != VIR_ASYNC_JOB_NONE) {
         virBufferAsprintf(&attrBuf, " flags='0x%lx'", priv->job.apiFlags);
+        virBufferAsprintf(&attrBuf, " asyncStarted='%llu'", priv->job.asyncStarted);
+    }
 
     if (priv->job.cb &&
         priv->job.cb->formatJob(&childBuf, &priv->job, vm) < 0)
@@ -1261,6 +1346,13 @@ qemuDomainObjPrivateXMLParseJob(virDomainObj *vm,
                 return -1;
             }
             VIR_FREE(tmp);
+        }
+
+        if (virXPathULongLong("string(@asyncStarted)", ctxt,
+                              &priv->job.asyncStarted) == -2) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Invalid async job start"));
+            return -1;
         }
     }
 

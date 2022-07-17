@@ -35,7 +35,6 @@
 #include "node_device_event.h"
 #include "secret_event.h"
 #include "driver.h"
-#include "virbuffer.h"
 #include "remote_driver.h"
 #include "remote_protocol.h"
 #include "remote_sockets.h"
@@ -43,7 +42,6 @@
 #include "qemu_protocol.h"
 #include "viralloc.h"
 #include "virfile.h"
-#include "vircommand.h"
 #include "virtypedparam.h"
 #include "viruri.h"
 #include "virauth.h"
@@ -8534,6 +8532,7 @@ static virHypervisorDriver hypervisor_driver = {
     .domainGetJobInfo = remoteDomainGetJobInfo, /* 0.7.7 */
     .domainGetJobStats = remoteDomainGetJobStats, /* 1.0.3 */
     .domainAbortJob = remoteDomainAbortJob, /* 0.7.7 */
+    .domainAbortJobFlags = remoteDomainAbortJobFlags, /* 8.5.0 */
     .domainMigrateGetMaxDowntime = remoteDomainMigrateGetMaxDowntime, /* 3.7.0 */
     .domainMigrateSetMaxDowntime = remoteDomainMigrateSetMaxDowntime, /* 0.8.0 */
     .domainMigrateGetCompressionCache = remoteDomainMigrateGetCompressionCache, /* 1.0.3 */

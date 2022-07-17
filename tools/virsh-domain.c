@@ -44,7 +44,6 @@
 #include "virsh-console.h"
 #include "virsh-domain-monitor.h"
 #include "virsh-host.h"
-#include "virerror.h"
 #include "virtime.h"
 #include "virtypedparam.h"
 #include "virxml.h"
@@ -4528,6 +4527,15 @@ static const vshCmdOptDef opts_save_image_dumpxml[] = {
      .type = VSH_OT_BOOL,
      .help = N_("include security sensitive information in XML dump")
     },
+    {.name = "xpath",
+     .type = VSH_OT_STRING,
+     .completer = virshCompleteEmpty,
+     .help = N_("xpath expression to filter the XML document")
+    },
+    {.name = "wrap",
+     .type = VSH_OT_BOOL,
+     .help = N_("wrap xpath results in an common root element"),
+    },
     {.name = NULL}
 };
 
@@ -4538,6 +4546,8 @@ cmdSaveImageDumpxml(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     g_autofree char *xml = NULL;
     virshControl *priv = ctl->privData;
+    bool wrap = vshCommandOptBool(cmd, "wrap");
+    const char *xpath = NULL;
 
     if (vshCommandOptBool(cmd, "security-info"))
         flags |= VIR_DOMAIN_XML_SECURE;
@@ -4545,12 +4555,14 @@ cmdSaveImageDumpxml(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptStringReq(ctl, cmd, "file", &file) < 0)
         return false;
 
+    if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
+        return false;
+
     xml = virDomainSaveImageGetXMLDesc(priv->conn, file, flags);
     if (!xml)
         return false;
 
-    vshPrint(ctl, "%s", xml);
-    return true;
+    return virshDumpXML(ctl, xml, "domain-save-image", xpath, wrap);
 }
 
 /*
@@ -4947,6 +4959,15 @@ static const vshCmdOptDef opts_managed_save_dumpxml[] = {
      .type = VSH_OT_BOOL,
      .help = N_("include security sensitive information in XML dump")
     },
+    {.name = "xpath",
+     .type = VSH_OT_STRING,
+     .completer = virshCompleteEmpty,
+     .help = N_("xpath expression to filter the XML document")
+    },
+    {.name = "wrap",
+     .type = VSH_OT_BOOL,
+     .help = N_("wrap xpath results in an common root element"),
+    },
     {.name = NULL}
 };
 
@@ -4956,6 +4977,8 @@ cmdManagedSaveDumpxml(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshDomain) dom = NULL;
     unsigned int flags = 0;
     g_autofree char *xml = NULL;
+    bool wrap = vshCommandOptBool(cmd, "wrap");
+    const char *xpath = NULL;
 
     if (vshCommandOptBool(cmd, "security-info"))
         flags |= VIR_DOMAIN_XML_SECURE;
@@ -4963,11 +4986,13 @@ cmdManagedSaveDumpxml(vshControl *ctl, const vshCmd *cmd)
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
+    if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
+        return false;
+
     if (!(xml = virDomainManagedSaveGetXMLDesc(dom, flags)))
         return false;
 
-    vshPrint(ctl, "%s", xml);
-    return true;
+    return virshDumpXML(ctl, xml, "domain-save-image", xpath, wrap);
 }
 
 /*
@@ -6477,6 +6502,10 @@ static const vshCmdInfo info_domjobabort[] = {
 
 static const vshCmdOptDef opts_domjobabort[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
+    {.name = "postcopy",
+     .type = VSH_OT_BOOL,
+     .help = N_("interrupt post-copy migration")
+    },
     {.name = NULL}
 };
 
@@ -6484,11 +6513,21 @@ static bool
 cmdDomjobabort(vshControl *ctl, const vshCmd *cmd)
 {
     g_autoptr(virshDomain) dom = NULL;
+    unsigned int flags = 0;
+    int rc;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (virDomainAbortJob(dom) < 0)
+    if (vshCommandOptBool(cmd, "postcopy"))
+        flags |= VIR_DOMAIN_ABORT_JOB_POSTCOPY;
+
+    if (flags == 0)
+        rc = virDomainAbortJob(dom);
+    else
+        rc = virDomainAbortJobFlags(dom, flags);
+
+    if (rc < 0)
         return false;
 
     return true;
@@ -7782,7 +7821,15 @@ static const vshCmdOptDef opts_iothreadset[] = {
     },
     {.name = "poll-shrink",
      .type = VSH_OT_INT,
-     .help = N_("set the value for reduction of the IOThread polling time ")
+     .help = N_("set the value for reduction of the IOThread polling time")
+    },
+    {.name = "thread-pool-min",
+     .type = VSH_OT_INT,
+     .help = N_("lower boundary for worker thread pool")
+    },
+    {.name = "thread-pool-max",
+     .type = VSH_OT_INT,
+     .help = N_("upper boundary for worker thread pool")
     },
     VIRSH_COMMON_OPT_DOMAIN_LIVE,
     VIRSH_COMMON_OPT_DOMAIN_CURRENT,
@@ -7802,6 +7849,7 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
     int maxparams = 0;
     unsigned long long poll_max;
     unsigned int poll_val;
+    int thread_val;
     int rc;
 
     if (live)
@@ -7838,6 +7886,24 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
     VSH_IOTHREAD_SET_UINT_PARAMS("poll-shrink", VIR_DOMAIN_IOTHREAD_POLL_SHRINK)
 
 #undef VSH_IOTHREAD_SET_UINT_PARAMS
+
+#define VSH_IOTHREAD_SET_INT_PARAMS(opt, param) \
+    thread_val = -1; \
+    if ((rc = vshCommandOptInt(ctl, cmd, opt, &thread_val)) < 0) \
+        goto cleanup; \
+    if (rc > 0 && \
+        virTypedParamsAddInt(&params, &nparams, &maxparams, \
+                             param, thread_val) < 0) \
+        goto save_error;
+
+    VSH_IOTHREAD_SET_INT_PARAMS("thread-pool-min", VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN)
+    VSH_IOTHREAD_SET_INT_PARAMS("thread-pool-max", VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX)
+#undef VSH_IOTHREAD_SET_INT_PARAMS
+
+    if (nparams == 0) {
+        vshError(ctl, _("Not enough arguments passed, nothing to set"));
+        goto cleanup;
+    }
 
     if (virDomainSetIOThreadParams(dom, id, params, nparams, flags) < 0)
         goto cleanup;
@@ -10393,6 +10459,15 @@ static const vshCmdOptDef opts_dumpxml[] = {
      .type = VSH_OT_BOOL,
      .help = N_("provide XML suitable for migrations")
     },
+    {.name = "xpath",
+     .type = VSH_OT_STRING,
+     .completer = virshCompleteEmpty,
+     .help = N_("xpath expression to filter the XML document")
+    },
+    {.name = "wrap",
+     .type = VSH_OT_BOOL,
+     .help = N_("wrap xpath results in an common root element"),
+    },
     {.name = NULL}
 };
 
@@ -10400,12 +10475,14 @@ static bool
 cmdDumpXML(vshControl *ctl, const vshCmd *cmd)
 {
     g_autoptr(virshDomain) dom = NULL;
-    g_autofree char *dump = NULL;
+    g_autofree char *xml = NULL;
     unsigned int flags = 0;
     bool inactive = vshCommandOptBool(cmd, "inactive");
     bool secure = vshCommandOptBool(cmd, "security-info");
     bool update = vshCommandOptBool(cmd, "update-cpu");
     bool migratable = vshCommandOptBool(cmd, "migratable");
+    bool wrap = vshCommandOptBool(cmd, "wrap");
+    const char *xpath = NULL;
 
     if (inactive)
         flags |= VIR_DOMAIN_XML_INACTIVE;
@@ -10419,11 +10496,13 @@ cmdDumpXML(vshControl *ctl, const vshCmd *cmd)
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (!(dump = virDomainGetXMLDesc(dom, flags)))
+    if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
         return false;
 
-    vshPrint(ctl, "%s", dump);
-    return true;
+    if (!(xml = virDomainGetXMLDesc(dom, flags)))
+        return false;
+
+    return virshDumpXML(ctl, xml, "domain", xpath, wrap);
 }
 
 /*
@@ -10806,6 +10885,14 @@ static const vshCmdOptDef opts_migrate[] = {
     {.name = "postcopy-after-precopy",
      .type = VSH_OT_BOOL,
      .help = N_("automatically switch to post-copy migration after one pass of pre-copy")
+    },
+    {.name = "postcopy-resume",
+     .type = VSH_OT_BOOL,
+     .help = N_("resume failed post-copy migration")
+    },
+    {.name = "zerocopy",
+     .type = VSH_OT_BOOL,
+     .help = N_("use zero-copy mechanism for migrating memory pages")
     },
     {.name = "migrateuri",
      .type = VSH_OT_STRING,
@@ -11210,6 +11297,12 @@ doMigrate(void *opaque)
     if (vshCommandOptBool(cmd, "postcopy"))
         flags |= VIR_MIGRATE_POSTCOPY;
 
+    if (vshCommandOptBool(cmd, "postcopy-resume"))
+        flags |= VIR_MIGRATE_POSTCOPY_RESUME;
+
+    if (vshCommandOptBool(cmd, "zerocopy"))
+        flags |= VIR_MIGRATE_ZEROCOPY;
+
     if (vshCommandOptBool(cmd, "tls"))
         flags |= VIR_MIGRATE_TLS;
 
@@ -11314,6 +11407,7 @@ cmdMigrate(vshControl *ctl, const vshCmd *cmd)
     VSH_EXCLUSIVE_OPTIONS("live", "offline");
     VSH_EXCLUSIVE_OPTIONS("timeout-suspend", "timeout-postcopy");
     VSH_REQUIRE_OPTION("postcopy-after-precopy", "postcopy");
+    VSH_REQUIRE_OPTION("postcopy-resume", "postcopy");
     VSH_REQUIRE_OPTION("timeout-postcopy", "postcopy");
     VSH_REQUIRE_OPTION("persistent-xml", "persistent");
     VSH_REQUIRE_OPTION("tls-destination", "tls");

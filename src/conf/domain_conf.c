@@ -34,25 +34,21 @@
 #include "domain_addr.h"
 #include "domain_conf.h"
 #include "domain_validate.h"
-#include "snapshot_conf.h"
 #include "viralloc.h"
 #include "virxml.h"
 #include "viruuid.h"
 #include "virbuffer.h"
 #include "virlog.h"
-#include "nwfilter_conf.h"
 #include "virnetworkportdef.h"
 #include "storage_conf.h"
 #include "storage_source_conf.h"
 #include "virfile.h"
 #include "virbitmap.h"
-#include "secret_conf.h"
 #include "netdev_vport_profile_conf.h"
 #include "netdev_bandwidth_conf.h"
 #include "netdev_vlan_conf.h"
 #include "device_conf.h"
 #include "network_conf.h"
-#include "virtpm.h"
 #include "virsecret.h"
 #include "virstring.h"
 #include "virnetdev.h"
@@ -1106,6 +1102,7 @@ VIR_ENUM_IMPL(virDomainRunningReason,
               "wakeup",
               "crashed",
               "post-copy",
+              "post-copy failed",
 );
 
 VIR_ENUM_IMPL(virDomainBlockedReason,
@@ -2475,6 +2472,8 @@ virDomainFSDefNew(virDomainXMLOption *xmlopt)
 
     ret->src = virStorageSourceNew();
 
+    ret->thread_pool_size = -1;
+
     if (xmlopt &&
         xmlopt->privateData.fsNew &&
         !(ret->privateData = xmlopt->privateData.fsNew()))
@@ -3476,6 +3475,18 @@ virDomainIOThreadIDArrayHasPin(virDomainDef *def)
 }
 
 
+static virDomainIOThreadIDDef *
+virDomainIOThreadIDDefNew(void)
+{
+    virDomainIOThreadIDDef *def = g_new0(virDomainIOThreadIDDef, 1);
+
+    def->thread_pool_min = -1;
+    def->thread_pool_max = -1;
+
+    return def;
+}
+
+
 void
 virDomainIOThreadIDDefFree(virDomainIOThreadIDDef *def)
 {
@@ -3508,7 +3519,6 @@ virDomainIOThreadIDDefArrayInit(virDomainDef *def,
 {
     size_t i;
     ssize_t nxt = -1;
-    virDomainIOThreadIDDef *iothrid = NULL;
     g_autoptr(virBitmap) thrmap = NULL;
 
     /* Same value (either 0 or some number), then we have none to fill in or
@@ -3533,15 +3543,17 @@ virDomainIOThreadIDDefArrayInit(virDomainDef *def,
 
     /* Populate iothreadids[] using the set bit number from thrmap */
     while (def->niothreadids < iothreads) {
+        g_autoptr(virDomainIOThreadIDDef) iothrid = NULL;
+
         if ((nxt = virBitmapNextSetBit(thrmap, nxt)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("failed to populate iothreadids"));
             return -1;
         }
-        iothrid = g_new0(virDomainIOThreadIDDef, 1);
+        iothrid = virDomainIOThreadIDDefNew();
         iothrid->iothread_id = nxt;
         iothrid->autofill = true;
-        def->iothreadids[def->niothreadids++] = iothrid;
+        def->iothreadids[def->niothreadids++] = g_steal_pointer(&iothrid);
     }
 
     return 0;
@@ -3576,7 +3588,7 @@ virDomainLoaderDefFree(virDomainLoaderDef *loader)
         return;
 
     g_free(loader->path);
-    g_free(loader->nvram);
+    virObjectUnref(loader->nvram);
     g_free(loader->nvramTemplate);
     g_free(loader);
 }
@@ -3810,6 +3822,8 @@ void virDomainDefFree(virDomainDef *def)
     virCPUDefFree(def->cpu);
 
     virDomainIOThreadIDDefArrayFree(def->iothreadids, def->niothreadids);
+
+    g_free(def->defaultIOThread);
 
     virBitmapFree(def->cputune.emulatorpin);
     g_free(def->cputune.emulatorsched);
@@ -8658,7 +8672,7 @@ virDomainStorageSourceParse(xmlNodePtr node,
 
     ctxt->node = node;
 
-    switch ((virStorageType)src->type) {
+    switch (src->type) {
     case VIR_STORAGE_TYPE_FILE:
         src->path = virXMLPropString(node, "file");
         break;
@@ -9898,6 +9912,7 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
     if (def->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS) {
         g_autofree char *queue_size = virXPathString("string(./driver/@queue)", ctxt);
         g_autofree char *binary = virXPathString("string(./binary/@path)", ctxt);
+        g_autofree char *thread_pool_size = virXPathString("string(./binary/thread_pool/@size)", ctxt);
         xmlNodePtr binary_node = virXPathNode("./binary", ctxt);
         xmlNodePtr binary_lock_node = virXPathNode("./binary/lock", ctxt);
         xmlNodePtr binary_cache_node = virXPathNode("./binary/cache", ctxt);
@@ -9906,6 +9921,14 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
         if (queue_size && virStrToLong_ull(queue_size, NULL, 10, &def->queue_size) < 0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("cannot parse queue size '%s' for virtiofs"),
+                           queue_size);
+            goto error;
+        }
+
+        if (thread_pool_size &&
+            virStrToLong_i(thread_pool_size, NULL, 10, &def->thread_pool_size) < 0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("cannot parse thread pool size '%s' for virtiofs"),
                            queue_size);
             goto error;
         }
@@ -16998,23 +17021,66 @@ virDomainIdmapDefParseXML(xmlXPathContextPtr ctxt,
  *
  *     <iothreads>4</iothreads>
  *     <iothreadids>
- *       <iothread id='1'/>
+ *       <iothread id='1' thread_pool_min="0" thread_pool_max="60"/>
  *       <iothread id='3'/>
  *       <iothread id='5'/>
  *       <iothread id='7'/>
  *     </iothreadids>
+ *     <defaultiothread thread_pool_min="8" thread_pool_max="8"/>
  */
 static virDomainIOThreadIDDef *
 virDomainIOThreadIDDefParseXML(xmlNodePtr node)
 {
-    g_autoptr(virDomainIOThreadIDDef) iothrid = g_new0(virDomainIOThreadIDDef, 1);
+    g_autoptr(virDomainIOThreadIDDef) iothrid = virDomainIOThreadIDDefNew();
 
     if (virXMLPropUInt(node, "id", 10,
                        VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
                        &iothrid->iothread_id) < 0)
         return NULL;
 
+    if (virXMLPropInt(node, "thread_pool_min", 10,
+                      VIR_XML_PROP_NONNEGATIVE,
+                      &iothrid->thread_pool_min, -1) < 0)
+        return NULL;
+
+    if (virXMLPropInt(node, "thread_pool_max", 10,
+                      VIR_XML_PROP_NONNEGATIVE,
+                      &iothrid->thread_pool_max, -1) < 0)
+        return NULL;
+
     return g_steal_pointer(&iothrid);
+}
+
+
+static int
+virDomainDefaultIOThreadDefParse(virDomainDef *def,
+                                 xmlXPathContextPtr ctxt)
+{
+    xmlNodePtr node = NULL;
+    g_autofree virDomainDefaultIOThreadDef *thrd = NULL;
+
+    node = virXPathNode("./defaultiothread", ctxt);
+    if (!node)
+        return 0;
+
+    thrd = g_new0(virDomainDefaultIOThreadDef, 1);
+
+    if (virXMLPropInt(node, "thread_pool_min", 10,
+                      VIR_XML_PROP_NONNEGATIVE,
+                      &thrd->thread_pool_min, -1) < 0)
+        return -1;
+
+    if (virXMLPropInt(node, "thread_pool_max", 10,
+                      VIR_XML_PROP_NONNEGATIVE,
+                      &thrd->thread_pool_max, -1) < 0)
+        return -1;
+
+    if (thrd->thread_pool_min == -1 &&
+        thrd->thread_pool_max == -1)
+        return 0;
+
+    def->defaultIOThread = g_steal_pointer(&thrd);
+    return 0;
 }
 
 
@@ -17035,6 +17101,9 @@ virDomainDefParseIOThreads(virDomainDef *def,
         return -1;
     }
 
+    if (virDomainDefaultIOThreadDefParse(def, ctxt) < 0)
+        return -1;
+
     /* Extract any iothread id's defined */
     if ((n = virXPathNodeSet("./iothreadids/iothread", ctxt, &nodes)) < 0)
         return -1;
@@ -17046,7 +17115,8 @@ virDomainDefParseIOThreads(virDomainDef *def,
         def->iothreadids = g_new0(virDomainIOThreadIDDef *, n);
 
     for (i = 0; i < n; i++) {
-        virDomainIOThreadIDDef *iothrid = NULL;
+        g_autoptr(virDomainIOThreadIDDef) iothrid = NULL;
+
         if (!(iothrid = virDomainIOThreadIDDefParseXML(nodes[i])))
             return -1;
 
@@ -17054,10 +17124,9 @@ virDomainDefParseIOThreads(virDomainDef *def,
             virReportError(VIR_ERR_XML_ERROR,
                            _("duplicate iothread id '%u' found"),
                            iothrid->iothread_id);
-            virDomainIOThreadIDDefFree(iothrid);
             return -1;
         }
-        def->iothreadids[def->niothreadids++] = iothrid;
+        def->iothreadids[def->niothreadids++] = g_steal_pointer(&iothrid);
     }
 
     return virDomainIOThreadIDDefArrayInit(def, iothreads);
@@ -17952,6 +18021,51 @@ virDomainLoaderDefParseXML(xmlNodePtr node,
 
 
 static int
+virDomainNvramDefParseXML(virDomainLoaderDef *loader,
+                          xmlXPathContextPtr ctxt,
+                          virDomainXMLOption *xmlopt,
+                          unsigned int flags)
+{
+    g_autofree char *nvramType = virXPathString("string(./os/nvram/@type)", ctxt);
+    g_autoptr(virStorageSource) src = virStorageSourceNew();
+
+    src->type = VIR_STORAGE_TYPE_FILE;
+    src->format = VIR_STORAGE_FILE_RAW;
+
+    if (!nvramType) {
+        char *nvramPath = NULL;
+
+        if (!(nvramPath = virXPathString("string(./os/nvram[1])", ctxt)))
+            return 0; /* no nvram */
+
+        src->path = nvramPath;
+    } else {
+        xmlNodePtr sourceNode;
+
+        if ((src->type = virStorageTypeFromString(nvramType)) <= 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("unknown disk type '%s'"), nvramType);
+            return -1;
+        }
+
+        if (!(sourceNode = virXPathNode("./os/nvram/source[1]", ctxt))) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("Missing source element for nvram"));
+            return -1;
+        }
+
+        if (virDomainStorageSourceParse(sourceNode, ctxt, src, flags, xmlopt) < 0)
+            return -1;
+
+        loader->newStyleNVRAM = true;
+    }
+
+    loader->nvram = g_steal_pointer(&src);
+    return 0;
+}
+
+
+static int
 virDomainSchedulerParseCommonAttrs(xmlNodePtr node,
                                    virProcessSchedPolicy *policy,
                                    int *priority)
@@ -18336,7 +18450,9 @@ virDomainDefParseBootFirmwareOptions(virDomainDef *def,
 
 static int
 virDomainDefParseBootLoaderOptions(virDomainDef *def,
-                                   xmlXPathContextPtr ctxt)
+                                   xmlXPathContextPtr ctxt,
+                                   virDomainXMLOption *xmlopt,
+                                   unsigned int flags)
 {
     xmlNodePtr loader_node = virXPathNode("./os/loader[1]", ctxt);
     const bool fwAutoSelect = def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_NONE;
@@ -18351,7 +18467,9 @@ virDomainDefParseBootLoaderOptions(virDomainDef *def,
                                    fwAutoSelect) < 0)
         return -1;
 
-    def->os.loader->nvram = virXPathString("string(./os/nvram[1])", ctxt);
+    if (virDomainNvramDefParseXML(def->os.loader, ctxt, xmlopt, flags) < 0)
+        return -1;
+
     if (!fwAutoSelect)
         def->os.loader->nvramTemplate = virXPathString("string(./os/nvram[1]/@template)", ctxt);
 
@@ -18405,7 +18523,9 @@ virDomainDefParseBootAcpiOptions(virDomainDef *def,
 
 static int
 virDomainDefParseBootOptions(virDomainDef *def,
-                             xmlXPathContextPtr ctxt)
+                             xmlXPathContextPtr ctxt,
+                             virDomainXMLOption *xmlopt,
+                             unsigned int flags)
 {
     /*
      * Booting options for different OS types....
@@ -18423,7 +18543,7 @@ virDomainDefParseBootOptions(virDomainDef *def,
         if (virDomainDefParseBootFirmwareOptions(def, ctxt) < 0)
             return -1;
 
-        if (virDomainDefParseBootLoaderOptions(def, ctxt) < 0)
+        if (virDomainDefParseBootLoaderOptions(def, ctxt, xmlopt, flags) < 0)
             return -1;
 
         if (virDomainDefParseBootAcpiOptions(def, ctxt) < 0)
@@ -18439,7 +18559,7 @@ virDomainDefParseBootOptions(virDomainDef *def,
     case VIR_DOMAIN_OSTYPE_UML:
         virDomainDefParseBootKernelOptions(def, ctxt);
 
-        if (virDomainDefParseBootLoaderOptions(def, ctxt) < 0)
+        if (virDomainDefParseBootLoaderOptions(def, ctxt, xmlopt, flags) < 0)
             return -1;
 
         break;
@@ -19064,7 +19184,7 @@ virDomainDefParseMemory(virDomainDef *def,
         }
     }
 
-    if ((node = virXPathNode("./memoryBacking/nosharepages", ctxt)))
+    if (virXPathBoolean("boolean(./memoryBacking/nosharepages)", ctxt))
         def->mem.nosharepages = true;
 
     if (virXPathBoolean("boolean(./memoryBacking/locked)", ctxt))
@@ -19739,7 +19859,7 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     if (virDomainDefClockParse(def, ctxt) < 0)
         return NULL;
 
-    if (virDomainDefParseBootOptions(def, ctxt) < 0)
+    if (virDomainDefParseBootOptions(def, ctxt, xmlopt, flags) < 0)
         return NULL;
 
     /* analysis of the disk devices */
@@ -22930,8 +23050,7 @@ virDomainIOThreadIDAdd(virDomainDef *def,
 {
     virDomainIOThreadIDDef *iothrid = NULL;
 
-    iothrid = g_new0(virDomainIOThreadIDDef, 1);
-
+    iothrid = virDomainIOThreadIDDefNew();
     iothrid->iothread_id = iothread_id;
 
     VIR_APPEND_ELEMENT_COPY(def->iothreadids, def->niothreadids, iothrid);
@@ -23349,7 +23468,7 @@ virDomainDiskSourceFormat(virBuffer *buf,
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
-    switch ((virStorageType)src->type) {
+    switch (src->type) {
     case VIR_STORAGE_TYPE_FILE:
         virBufferEscapeString(&attrBuf, " file='%s'", src->path);
         break;
@@ -24150,6 +24269,10 @@ virDomainFSDefFormat(virBuffer *buf,
         }
 
         virXMLFormatElement(&binaryBuf, "lock", &lockAttrBuf, NULL);
+
+        if (def->thread_pool_size >= 0)
+            virBufferAsprintf(&binaryBuf, "<thread_pool size='%d'/>\n", def->thread_pool_size);
+
     }
 
     virDomainVirtioOptionsFormat(&driverAttrBuf, def->virtio);
@@ -27074,32 +27197,63 @@ virDomainHugepagesFormat(virBuffer *buf,
                          virDomainHugePage *hugepages,
                          size_t nhugepages)
 {
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
     size_t i;
 
-    if (nhugepages == 1 &&
-        hugepages[0].size == 0) {
-        virBufferAddLit(buf, "<hugepages/>\n");
-        return;
+    if (nhugepages != 1 || hugepages[0].size != 0) {
+        for (i = 0; i < nhugepages; i++)
+            virDomainHugepagesFormatBuf(&childBuf, &hugepages[i]);
     }
 
-    virBufferAddLit(buf, "<hugepages>\n");
-    virBufferAdjustIndent(buf, 2);
-
-    for (i = 0; i < nhugepages; i++)
-        virDomainHugepagesFormatBuf(buf, &hugepages[i]);
-
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</hugepages>\n");
+    virXMLFormatElementEmpty(buf, "hugepages", NULL, &childBuf);
 }
 
-static void
+
+static int
+virDomainLoaderDefFormatNvram(virBuffer *buf,
+                              virDomainLoaderDef *loader,
+                              virDomainXMLOption *xmlopt,
+                              unsigned int flags)
+{
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBufDirect = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBufChild = VIR_BUFFER_INIT_CHILD(buf);
+    virBuffer *childBuf = &childBufDirect;
+    bool childNewline = false;
+
+    virBufferEscapeString(&attrBuf, " template='%s'", loader->nvramTemplate);
+
+    if (loader->nvram) {
+        virStorageSource *src = loader->nvram;
+
+        if (!loader->newStyleNVRAM) {
+            virBufferEscapeString(&childBufDirect, "%s", src->path);
+        } else {
+            childNewline = true;
+            childBuf = &childBufChild;
+
+            virBufferAsprintf(&attrBuf, " type='%s'", virStorageTypeToString(src->type));
+
+            if (virDomainDiskSourceFormat(&childBufChild, src, "source", 0,
+                                          false, flags, false, false, xmlopt) < 0)
+                return -1;
+        }
+    }
+
+    virXMLFormatElementInternal(buf, "nvram", &attrBuf, childBuf, false, childNewline);
+
+    return 0;
+}
+
+
+static int
 virDomainLoaderDefFormat(virBuffer *buf,
-                         virDomainLoaderDef *loader)
+                         virDomainLoaderDef *loader,
+                         virDomainXMLOption *xmlopt,
+                         unsigned int flags)
 {
     g_auto(virBuffer) loaderAttrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) loaderChildBuf = VIR_BUFFER_INITIALIZER;
-    g_auto(virBuffer) nvramAttrBuf = VIR_BUFFER_INITIALIZER;
-    g_auto(virBuffer) nvramChildBuf = VIR_BUFFER_INITIALIZER;
 
     if (loader->readonly != VIR_TRISTATE_BOOL_ABSENT)
         virBufferAsprintf(&loaderAttrBuf, " readonly='%s'",
@@ -27117,9 +27271,10 @@ virDomainLoaderDefFormat(virBuffer *buf,
 
     virXMLFormatElementInternal(buf, "loader", &loaderAttrBuf, &loaderChildBuf, false, false);
 
-    virBufferEscapeString(&nvramAttrBuf, " template='%s'", loader->nvramTemplate);
-    virBufferEscapeString(&nvramChildBuf, "%s", loader->nvram);
-    virXMLFormatElementInternal(buf, "nvram", &nvramAttrBuf, &nvramChildBuf, false, false);
+    if (virDomainLoaderDefFormatNvram(buf, loader, xmlopt, flags) < 0)
+        return -1;
+
+    return 0;
 }
 
 static void
@@ -27568,7 +27723,7 @@ virDomainCpuDefFormat(virBuffer *buf,
 
 
 static bool
-virDomainDefIothreadShouldFormat(virDomainDef *def)
+virDomainDefIothreadShouldFormat(const virDomainDef *def)
 {
     size_t i;
 
@@ -27578,6 +27733,71 @@ virDomainDefIothreadShouldFormat(virDomainDef *def)
     }
 
     return false;
+}
+
+
+static void
+virDomainDefaultIOThreadDefFormat(virBuffer *buf,
+                                  const virDomainDef *def)
+{
+    virBuffer attrBuf = VIR_BUFFER_INITIALIZER;
+
+    if (!def->defaultIOThread)
+        return;
+
+    if (def->defaultIOThread->thread_pool_min >= 0) {
+        virBufferAsprintf(&attrBuf, " thread_pool_min='%d'",
+                          def->defaultIOThread->thread_pool_min);
+    }
+
+    if (def->defaultIOThread->thread_pool_max >= 0) {
+        virBufferAsprintf(&attrBuf, " thread_pool_max='%d'",
+                          def->defaultIOThread->thread_pool_max);
+    }
+
+    virXMLFormatElement(buf, "defaultiothread", &attrBuf, NULL);
+}
+
+
+static void
+virDomainDefIOThreadsFormat(virBuffer *buf,
+                            const virDomainDef *def)
+{
+    g_auto(virBuffer) childrenBuf = VIR_BUFFER_INIT_CHILD(buf);
+    size_t i;
+
+    if (def->niothreadids == 0)
+        return;
+
+    virBufferAsprintf(buf, "<iothreads>%zu</iothreads>\n",
+                      def->niothreadids);
+
+    if (!virDomainDefIothreadShouldFormat(def))
+        return;
+
+    for (i = 0; i < def->niothreadids; i++) {
+        virDomainIOThreadIDDef *iothread = def->iothreadids[i];
+        g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+
+        virBufferAsprintf(&attrBuf, " id='%u'",
+                          iothread->iothread_id);
+
+        if (iothread->thread_pool_min >= 0) {
+            virBufferAsprintf(&attrBuf, " thread_pool_min='%d'",
+                              iothread->thread_pool_min);
+        }
+
+        if (iothread->thread_pool_max >= 0) {
+            virBufferAsprintf(&attrBuf, " thread_pool_max='%d'",
+                              iothread->thread_pool_max);
+        }
+
+        virXMLFormatElement(&childrenBuf, "iothread", &attrBuf, NULL);
+    }
+
+    virXMLFormatElement(buf, "iothreadids", NULL, &childrenBuf);
+
+    virDomainDefaultIOThreadDefFormat(buf, def);
 }
 
 
@@ -28226,20 +28446,7 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     if (virDomainCpuDefFormat(buf, def) < 0)
         return -1;
 
-    if (def->niothreadids > 0) {
-        virBufferAsprintf(buf, "<iothreads>%zu</iothreads>\n",
-                          def->niothreadids);
-        if (virDomainDefIothreadShouldFormat(def)) {
-            virBufferAddLit(buf, "<iothreadids>\n");
-            virBufferAdjustIndent(buf, 2);
-            for (i = 0; i < def->niothreadids; i++) {
-                virBufferAsprintf(buf, "<iothread id='%u'/>\n",
-                                  def->iothreadids[i]->iothread_id);
-            }
-            virBufferAdjustIndent(buf, -2);
-            virBufferAddLit(buf, "</iothreadids>\n");
-        }
-    }
+    virDomainDefIOThreadsFormat(buf, def);
 
     if (virDomainCputuneDefFormat(buf, def, flags) < 0)
         return -1;
@@ -28320,8 +28527,9 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     if (def->os.initgroup)
         virBufferAsprintf(buf, "<initgroup>%s</initgroup>\n", def->os.initgroup);
 
-    if (def->os.loader)
-        virDomainLoaderDefFormat(buf, def->os.loader);
+    if (def->os.loader &&
+        virDomainLoaderDefFormat(buf, def->os.loader, xmlopt, flags) < 0)
+        return -1;
     virBufferEscapeString(buf, "<kernel>%s</kernel>\n",
                           def->os.kernel);
     virBufferEscapeString(buf, "<initrd>%s</initrd>\n",
@@ -29235,6 +29443,38 @@ virDomainObjGetState(virDomainObj *dom, int *reason)
         *reason = dom->state.reason;
 
     return dom->state.state;
+}
+
+
+bool
+virDomainObjIsFailedPostcopy(virDomainObj *dom)
+{
+    return ((dom->state.state == VIR_DOMAIN_PAUSED &&
+             dom->state.reason == VIR_DOMAIN_PAUSED_POSTCOPY_FAILED) ||
+            (dom->state.state == VIR_DOMAIN_RUNNING &&
+             dom->state.reason == VIR_DOMAIN_RUNNING_POSTCOPY_FAILED));
+}
+
+
+bool
+virDomainObjIsPostcopy(virDomainObj *dom,
+                       virDomainJobOperation op)
+{
+    if (op != VIR_DOMAIN_JOB_OPERATION_MIGRATION_IN &&
+        op != VIR_DOMAIN_JOB_OPERATION_MIGRATION_OUT)
+        return false;
+
+    if (op == VIR_DOMAIN_JOB_OPERATION_MIGRATION_IN) {
+        return (dom->state.state == VIR_DOMAIN_PAUSED &&
+                dom->state.reason == VIR_DOMAIN_PAUSED_POSTCOPY_FAILED) ||
+               (dom->state.state == VIR_DOMAIN_RUNNING &&
+                (dom->state.reason == VIR_DOMAIN_RUNNING_POSTCOPY ||
+                 dom->state.reason == VIR_DOMAIN_RUNNING_POSTCOPY_FAILED));
+    }
+
+    return dom->state.state == VIR_DOMAIN_PAUSED &&
+           (dom->state.reason == VIR_DOMAIN_PAUSED_POSTCOPY ||
+            dom->state.reason == VIR_DOMAIN_PAUSED_POSTCOPY_FAILED);
 }
 
 
@@ -31288,13 +31528,13 @@ virDomainDiskTranslateSourcePool(virDomainDiskDef *def)
 
         if (virDomainStorageSourceTranslateSourcePool(n, conn) < 0)
             return -1;
-    }
 
-    if (def->startupPolicy != 0 &&
-        virStorageSourceGetActualType(def->src) != VIR_STORAGE_TYPE_FILE) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("'startupPolicy' is only valid for 'file' type volume"));
-        return -1;
+        /* The validity of 'startupPolicy' setting is checked only for the top
+         * level image. For any other subsequent images we honour it only if
+         * possible */
+        if (n == def->src &&
+            virDomainDiskDefValidateStartupPolicy(def) < 0)
+            return -1;
     }
 
     return 0;

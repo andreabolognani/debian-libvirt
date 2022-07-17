@@ -17,13 +17,11 @@
  */
 
 #include <config.h>
-#include "virsh-domain-event.h"
 #include "virsh-util.h"
 
 #include "internal.h"
 #include "viralloc.h"
 #include "virenum.h"
-#include "virutil.h"
 #include "virtime.h"
 #include "virtypedparam.h"
 
@@ -93,7 +91,8 @@ VIR_ENUM_IMPL(virshDomainEventResumed,
               N_("Unpaused"),
               N_("Migrated"),
               N_("Snapshot"),
-              N_("Post-copy"));
+              N_("Post-copy"),
+              N_("Post-copy Error"));
 
 VIR_ENUM_DECL(virshDomainEventStopped);
 VIR_ENUM_IMPL(virshDomainEventStopped,

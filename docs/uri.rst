@@ -121,7 +121,7 @@ So to connect to the daemon, one of two different URIs is used:
 domain socket(s) that it listens on in the various different modes).
 
 KVM URIs are identical. You select between qemu, qemu accelerated and KVM guests
-in the `guest XML as described here <format.html#KVM1>`__.
+in the `guest XML as described here <drvqemu.html#example-domain-xml-config>`__.
 
 test:///... Test URIs
 ~~~~~~~~~~~~~~~~~~~~~
@@ -291,7 +291,7 @@ Supported extra parameters:
     If set to a non-zero value, this disables client checks of the server's
     certificate. Note that to disable server checks of the client's certificate
     or IP address you must `change the libvirtd configuration
-    <#Remote_libvirtd_configuration>`__
+    <remote.html#libvirtd-configuration-file>`__
 
     **Example:** ``no_verify=1``
 

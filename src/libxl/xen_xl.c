@@ -29,7 +29,6 @@
 #include "domain_conf.h"
 #include "viralloc.h"
 #include "virstring.h"
-#include "storage_source.h"
 #include "storage_source_backingstore.h"
 #include "xen_xl.h"
 #include "libxl_capabilities.h"
@@ -1489,14 +1488,14 @@ xenFormatXLDiskSrcNet(virStorageSource *src)
 static int
 xenFormatXLDiskSrc(virStorageSource *src, char **srcstr)
 {
-    int actualType = virStorageSourceGetActualType(src);
+    virStorageType actualType = virStorageSourceGetActualType(src);
 
     *srcstr = NULL;
 
     if (virStorageSourceIsEmpty(src))
         return 0;
 
-    switch ((virStorageType)actualType) {
+    switch (actualType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
     case VIR_STORAGE_TYPE_DIR:
