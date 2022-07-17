@@ -10,10 +10,10 @@ Closes: #663931
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/util/virutil.c b/src/util/virutil.c
-index 176e2f8..b17f0ac 100644
+index 7e246d2..5bb1549 100644
 --- a/src/util/virutil.c
 +++ b/src/util/virutil.c
-@@ -1249,7 +1249,7 @@ void virWaitForDevices(void)
+@@ -1247,7 +1247,7 @@ void virWaitForDevices(void)
      if (!(udev = virFindFileInPath(UDEVADM)))
          return;
  

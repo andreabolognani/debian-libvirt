@@ -10,10 +10,10 @@ Forwarded: not-needed
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/tools/vsh.c b/tools/vsh.c
-index 499794c..038adb0 100644
+index 0066504..e84ea77 100644
 --- a/tools/vsh.c
 +++ b/tools/vsh.c
-@@ -2435,7 +2435,7 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
+@@ -2434,7 +2434,7 @@ vshEditWriteToTempFile(vshControl *ctl, const char *doc)
  
  /* Hard-code default editor used as a fallback if not configured by
   * VISUAL or EDITOR environment variables. */
