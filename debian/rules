@@ -232,7 +232,7 @@ execute_after_dh_auto_install:
 
 	# Don't ship the CI dashboard, which is not useful as documentation
 	# triggers the privacy-breach-generic Lintian tag
-	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci.html
+	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci-dashboard.html
 
 	# Disable network autostart
 	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
