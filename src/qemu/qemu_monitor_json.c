@@ -3034,102 +3034,6 @@ qemuMonitorJSONSavePhysicalMemory(qemuMonitor *mon,
 }
 
 
-int qemuMonitorJSONSetMigrationSpeed(qemuMonitor *mon,
-                                     unsigned long bandwidth)
-{
-    g_autoptr(virJSONValue) cmd = NULL;
-    g_autoptr(virJSONValue) reply = NULL;
-
-    cmd = qemuMonitorJSONMakeCommand("migrate_set_speed",
-                                     "U:value", bandwidth * 1024ULL * 1024ULL,
-                                     NULL);
-    if (!cmd)
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
-
-    return 0;
-}
-
-
-int qemuMonitorJSONSetMigrationDowntime(qemuMonitor *mon,
-                                        unsigned long long downtime)
-{
-    g_autoptr(virJSONValue) cmd = NULL;
-    g_autoptr(virJSONValue) reply = NULL;
-
-    cmd = qemuMonitorJSONMakeCommand("migrate_set_downtime",
-                                     "d:value", downtime / 1000.0,
-                                     NULL);
-    if (!cmd)
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
-
-    return 0;
-}
-
-
-int
-qemuMonitorJSONGetMigrationCacheSize(qemuMonitor *mon,
-                                     unsigned long long *cacheSize)
-{
-    g_autoptr(virJSONValue) cmd = NULL;
-    g_autoptr(virJSONValue) reply = NULL;
-
-    *cacheSize = 0;
-
-    cmd = qemuMonitorJSONMakeCommand("query-migrate-cache-size", NULL);
-    if (!cmd)
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_NUMBER) < 0)
-        return -1;
-
-    if (virJSONValueObjectGetNumberUlong(reply, "return", cacheSize) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("invalid cache size in query-migrate-cache-size reply"));
-        return -1;
-    }
-
-    return 0;
-}
-
-
-int
-qemuMonitorJSONSetMigrationCacheSize(qemuMonitor *mon,
-                                     unsigned long long cacheSize)
-{
-    g_autoptr(virJSONValue) cmd = NULL;
-    g_autoptr(virJSONValue) reply = NULL;
-
-    cmd = qemuMonitorJSONMakeCommand("migrate-set-cache-size",
-                                     "U:value", cacheSize,
-                                     NULL);
-    if (!cmd)
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
-
-    return 0;
-}
-
-
 int
 qemuMonitorJSONGetMigrationParams(qemuMonitor *mon,
                                   virJSONValue **params)
@@ -3433,6 +3337,52 @@ int qemuMonitorJSONMigrate(qemuMonitor *mon,
 
     return 0;
 }
+
+
+/*
+ * Get the exposed migration blockers.
+ *
+ * This function assume qemu has the capability of request them.
+ *
+ * It returns a NULL terminated array on blockers if there are any, or it set
+ * it to NULL otherwise.
+ */
+int
+qemuMonitorJSONGetMigrationBlockers(qemuMonitor *mon,
+                                    char ***blockers)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
+    virJSONValue *jblockers;
+    size_t i;
+
+    *blockers = NULL;
+    if (!(cmd = qemuMonitorJSONMakeCommand("query-migrate", NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+        return -1;
+
+    data = virJSONValueObjectGetObject(reply, "return");
+
+    if (!(jblockers = virJSONValueObjectGetArray(data, "blocked-reasons")))
+        return 0;
+
+    *blockers = g_new0(char *, virJSONValueArraySize(jblockers) + 1);
+    for (i = 0; i < virJSONValueArraySize(jblockers); i++) {
+        virJSONValue *jblocker = virJSONValueArrayGet(jblockers, i);
+        const char *blocker = virJSONValueGetString(jblocker);
+
+        (*blockers)[i] = g_strdup(blocker);
+    }
+
+    return 0;
+}
+
 
 int qemuMonitorJSONMigrateCancel(qemuMonitor *mon)
 {
@@ -7428,6 +7378,7 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
 {
     g_autofree char *path = NULL;
     qemuMonitorJSONObjectProperty prop;
+    bool setMaxFirst = false;
 
     path = g_strdup_printf("/objects/iothread%u", iothreadInfo->iothread_id);
 
@@ -7443,8 +7394,32 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
     VIR_IOTHREAD_SET_PROP("poll-max-ns", poll_max_ns);
     VIR_IOTHREAD_SET_PROP("poll-grow", poll_grow);
     VIR_IOTHREAD_SET_PROP("poll-shrink", poll_shrink);
-    VIR_IOTHREAD_SET_PROP("thread-pool-min", thread_pool_min);
-    VIR_IOTHREAD_SET_PROP("thread-pool-max", thread_pool_max);
+
+    if (iothreadInfo->set_thread_pool_min &&
+        iothreadInfo->set_thread_pool_max) {
+        int curr_max = -1;
+
+        /* By default, the minimum is set first, followed by the maximum. But
+         * if the current maximum is below the minimum we want to set we need
+         * to set the maximum first. Otherwise would get an error because we
+         * would be attempting to shift minimum above maximum. */
+        prop.type = QEMU_MONITOR_OBJECT_PROPERTY_INT;
+        if (qemuMonitorJSONGetObjectProperty(mon, path,
+                                             "thread-pool-max", &prop) < 0)
+            return -1;
+        curr_max = prop.val.iv;
+
+        if (curr_max < iothreadInfo->thread_pool_min)
+            setMaxFirst = true;
+    }
+
+    if (setMaxFirst) {
+        VIR_IOTHREAD_SET_PROP("thread-pool-max", thread_pool_max);
+        VIR_IOTHREAD_SET_PROP("thread-pool-min", thread_pool_min);
+    } else {
+        VIR_IOTHREAD_SET_PROP("thread-pool-min", thread_pool_min);
+        VIR_IOTHREAD_SET_PROP("thread-pool-max", thread_pool_max);
+    }
 
 #undef VIR_IOTHREAD_SET_PROP
 

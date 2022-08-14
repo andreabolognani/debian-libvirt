@@ -992,10 +992,9 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
     bool releaseSeclabel = false;
     int ret = -1;
 
-    if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM ||
-        disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) {
+    if (disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("cdrom/floppy device hotplug isn't supported"));
+                       _("floppy device hotplug isn't supported"));
         return -1;
     }
 
@@ -1025,6 +1024,10 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         break;
 
     case VIR_DOMAIN_DISK_BUS_VIRTIO:
+        if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("cdrom device with virtio bus isn't supported"));
+        }
         if (qemuDomainEnsureVirtioAddress(&releaseVirtio, vm, dev) < 0)
             goto cleanup;
         break;
@@ -2115,6 +2118,9 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
     if (qemuDomainAttachChrDeviceAssignAddr(vm, chr, &need_release) < 0)
         goto cleanup;
 
+    if (qemuProcessPrepareHostBackendChardevHotplug(vm, dev) < 0)
+        goto cleanup;
+
     if (qemuDomainNamespaceSetupChardev(vm, chr, &teardowndevice) < 0)
         goto cleanup;
 
@@ -2125,20 +2131,6 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
     if (qemuSetupChardevCgroup(vm, chr) < 0)
         goto cleanup;
     teardowncgroup = true;
-
-    if (qemuProcessPrepareHostBackendChardevHotplug(vm, dev) < 0)
-        goto cleanup;
-
-    if (charpriv->sourcefd || charpriv->logfd || charpriv->directfd) {
-        qemuDomainObjEnterMonitor(driver, vm);
-
-        if (qemuFDPassTransferMonitor(charpriv->sourcefd, priv->mon) < 0 ||
-            qemuFDPassTransferMonitor(charpriv->logfd, priv->mon) < 0 ||
-            qemuFDPassDirectTransferMonitor(charpriv->directfd, priv->mon) < 0)
-            goto exit_monitor;
-
-        qemuDomainObjExitMonitor(vm);
-    }
 
     if (guestfwd) {
         if (!(netdevprops = qemuBuildChannelGuestfwdNetdevProps(chr)))
@@ -2160,6 +2152,11 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
         goto audit;
 
     qemuDomainObjEnterMonitor(driver, vm);
+
+    if (qemuFDPassTransferMonitor(charpriv->sourcefd, priv->mon) < 0 ||
+        qemuFDPassTransferMonitor(charpriv->logfd, priv->mon) < 0 ||
+        qemuFDPassDirectTransferMonitor(charpriv->directfd, priv->mon) < 0)
+        goto exit_monitor;
 
     if (qemuHotplugChardevAttach(priv->mon, charAlias, chr->source) < 0)
         goto exit_monitor;
@@ -2206,6 +2203,7 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
         qemuMonitorDetachCharDev(priv->mon, charAlias);
     qemuFDPassTransferMonitorRollback(charpriv->sourcefd, priv->mon);
     qemuFDPassTransferMonitorRollback(charpriv->logfd, priv->mon);
+    qemuFDPassDirectTransferMonitorRollback(charpriv->directfd, priv->mon);
     qemuDomainObjExitMonitor(vm);
     virErrorRestore(&orig_err);
 
@@ -5281,7 +5279,7 @@ qemuDomainResetDeviceRemoval(virDomainObj *vm)
 }
 
 
-unsigned long long G_GNUC_NO_INLINE
+unsigned long long G_NO_INLINE
 qemuDomainGetUnplugTimeout(virDomainObj *vm)
 {
     if (qemuDomainIsPSeries(vm->def))
@@ -5413,6 +5411,12 @@ qemuDomainDetachPrepDisk(virDomainObj *vm,
         break;
 
     case VIR_DOMAIN_DISK_DEVICE_CDROM:
+        if (disk->bus == VIR_DOMAIN_DISK_BUS_USB ||
+            disk->bus == VIR_DOMAIN_DISK_BUS_SCSI) {
+            break;
+        }
+        G_GNUC_FALLTHROUGH;
+
     case VIR_DOMAIN_DISK_DEVICE_FLOPPY:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("disk device type '%s' cannot be detached"),

@@ -246,6 +246,7 @@ Patches have also been contributed by:
 * David L Stevens <dlstevens@us.ibm.com>
 * David L. Leskovec <dlesko@linux.vnet.ibm.com>
 * David Mansfield <dmansfield@gmail.com>
+* David Michael <david@bigbadwolfsecurity.com>
 * David S. Wang <dwang2@cisco.com>
 * David Shane Holden <dpejesh@yahoo.com>
 * David Weber <wb@munzinger.de>
@@ -297,6 +298,7 @@ Patches have also been contributed by:
 * Erik Skultety <eskultet@redhat.com>
 * Ersek Laszlo <lacos@caesar.elte.hu>
 * Eugen Feller <eugen.feller@inria.fr>
+* Eugenio Pérez <eperezma@redhat.com>
 * Fabian Affolter <mail@fabian-affolter.ch>
 * Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
 * Fabiano Fidêncio <fidencio@redhat.com>
@@ -901,6 +903,7 @@ Patches have also been contributed by:
 * lawrancejing <lawrancejing@gmail.com>
 * liguang <lig.fnst@cn.fujitsu.com>
 * luzhipeng <luzhipeng@cestc.cn>
+* minglei.liu <minglei.liu@smartx.com>
 * ning.bo <ning.bo9@zte.com.cn>
 * ramyelkest <ramyelkest@gmail.com>
 * ryan woodsmall <rwoodsmall@gmail.com>

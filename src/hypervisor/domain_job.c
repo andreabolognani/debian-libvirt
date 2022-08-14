@@ -1,4 +1,6 @@
 /*
+ * domain_job.c: job functions shared between hypervisor drivers
+ *
  * Copyright (C) 2022 Red Hat, Inc.
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
@@ -109,4 +111,29 @@ virDomainJobStatusToType(virDomainJobStatus status)
     }
 
     return VIR_DOMAIN_JOB_NONE;
+}
+
+int
+virDomainObjInitJob(virDomainJobObj *job,
+                    virDomainObjPrivateJobCallbacks *cb)
+{
+    memset(job, 0, sizeof(*job));
+    job->cb = cb;
+
+    if (virCondInit(&job->cond) < 0)
+        return -1;
+
+    if (virCondInit(&job->asyncCond) < 0) {
+        virCondDestroy(&job->cond);
+        return -1;
+    }
+
+    if (job->cb &&
+        !(job->privateData = job->cb->allocJobPrivate())) {
+        virCondDestroy(&job->cond);
+        virCondDestroy(&job->asyncCond);
+        return -1;
+    }
+
+    return 0;
 }

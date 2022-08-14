@@ -73,8 +73,11 @@ struct _virNetDaemon {
     bool finished;
     bool graceful;
     bool execRestart;
+    bool running; /* the daemon has reached the running phase */
 
     unsigned int autoShutdownTimeout;
+    int autoShutdownTimerID;
+    bool autoShutdownTimerActive;
     size_t autoShutdownInhibitions;
     int autoShutdownInhibitFd;
 };
@@ -139,7 +142,7 @@ virNetDaemonNew(void)
     if (!(dmn = virObjectLockableNew(virNetDaemonClass)))
         return NULL;
 
-    dmn->servers = virHashNew(virObjectFreeHashData);
+    dmn->servers = virHashNew(virObjectUnref);
 
 #ifndef WIN32
     dmn->sigwrite = dmn->sigread = -1;
@@ -150,6 +153,8 @@ virNetDaemonNew(void)
 
     if (virEventRegisterDefaultImpl() < 0)
         goto error;
+
+    dmn->autoShutdownTimerID = -1;
 
 #ifndef WIN32
     memset(&sig_action, 0, sizeof(sig_action));
@@ -401,13 +406,86 @@ virNetDaemonIsPrivileged(virNetDaemon *dmn)
 }
 
 
-void
+static void
+virNetDaemonAutoShutdownTimer(int timerid G_GNUC_UNUSED,
+                              void *opaque)
+{
+    virNetDaemon *dmn = opaque;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
+    if (!dmn->autoShutdownInhibitions) {
+        VIR_DEBUG("Automatic shutdown triggered");
+        dmn->quit = true;
+    }
+}
+
+
+static int
+virNetDaemonShutdownTimerRegister(virNetDaemon *dmn)
+{
+    if (dmn->autoShutdownTimerID != -1)
+        return 0;
+
+    if ((dmn->autoShutdownTimerID = virEventAddTimeout(-1,
+                                                       virNetDaemonAutoShutdownTimer,
+                                                       dmn, NULL)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Failed to register shutdown timeout"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static void
+virNetDaemonShutdownTimerUpdate(virNetDaemon *dmn)
+{
+    if (dmn->autoShutdownTimerID == -1)
+        return;
+
+    /* A shutdown timeout is specified, so check
+     * if any drivers have active state, if not
+     * shutdown after timeout seconds
+     */
+    if (dmn->autoShutdownTimerActive) {
+        if (virNetDaemonHasClients(dmn) ||
+            dmn->autoShutdownTimeout == 0) {
+            VIR_DEBUG("Deactivating shutdown timer %d", dmn->autoShutdownTimerID);
+            virEventUpdateTimeout(dmn->autoShutdownTimerID, -1);
+            dmn->autoShutdownTimerActive = false;
+        }
+    } else {
+        if (!virNetDaemonHasClients(dmn) &&
+            dmn->autoShutdownTimeout != 0) {
+            VIR_DEBUG("Activating shutdown timer %d", dmn->autoShutdownTimerID);
+            virEventUpdateTimeout(dmn->autoShutdownTimerID,
+                                  dmn->autoShutdownTimeout * 1000);
+            dmn->autoShutdownTimerActive = true;
+        }
+    }
+}
+
+
+int
 virNetDaemonAutoShutdown(virNetDaemon *dmn,
                          unsigned int timeout)
 {
     VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
+    VIR_DEBUG("Registering shutdown timeout %u", timeout);
+
+    if (timeout > 0) {
+        if (virNetDaemonShutdownTimerRegister(dmn) < 0)
+            return -1;
+    }
+
     dmn->autoShutdownTimeout = timeout;
+
+    if (dmn->running)
+        virNetDaemonShutdownTimerUpdate(dmn);
+
+    return 0;
 }
 
 
@@ -655,19 +733,6 @@ virNetDaemonAddSignalHandler(virNetDaemon *dmn G_GNUC_UNUSED,
 #endif /* WIN32 */
 
 
-static void
-virNetDaemonAutoShutdownTimer(int timerid G_GNUC_UNUSED,
-                              void *opaque)
-{
-    virNetDaemon *dmn = opaque;
-    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
-
-    if (!dmn->autoShutdownInhibitions) {
-        VIR_DEBUG("Automatic shutdown triggered");
-        dmn->quit = true;
-    }
-}
-
 static int
 daemonServerUpdateServices(void *payload,
                            const char *key G_GNUC_UNUSED,
@@ -741,11 +806,10 @@ virNetDaemonFinishTimer(int timerid G_GNUC_UNUSED,
     dmn->finished = true;
 }
 
+
 void
 virNetDaemonRun(virNetDaemon *dmn)
 {
-    int timerid = -1;
-    bool timerActive = false;
     virThread shutdownThread;
 
     virObjectLock(dmn);
@@ -760,15 +824,7 @@ virNetDaemonRun(virNetDaemon *dmn)
     dmn->finishTimer = -1;
     dmn->finished = false;
     dmn->graceful = false;
-
-    if (dmn->autoShutdownTimeout &&
-        (timerid = virEventAddTimeout(-1,
-                                      virNetDaemonAutoShutdownTimer,
-                                      dmn, NULL)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to register shutdown timeout"));
-        goto cleanup;
-    }
+    dmn->running = true;
 
     /* We are accepting connections now. Notify systemd
      * so it can start dependent services. */
@@ -776,26 +832,7 @@ virNetDaemonRun(virNetDaemon *dmn)
 
     VIR_DEBUG("dmn=%p quit=%d", dmn, dmn->quit);
     while (!dmn->finished) {
-        /* A shutdown timeout is specified, so check
-         * if any drivers have active state, if not
-         * shutdown after timeout seconds
-         */
-        if (dmn->autoShutdownTimeout) {
-            if (timerActive) {
-                if (virNetDaemonHasClients(dmn)) {
-                    VIR_DEBUG("Deactivating shutdown timer %d", timerid);
-                    virEventUpdateTimeout(timerid, -1);
-                    timerActive = false;
-                }
-            } else {
-                if (!virNetDaemonHasClients(dmn)) {
-                    VIR_DEBUG("Activating shutdown timer %d", timerid);
-                    virEventUpdateTimeout(timerid,
-                                          dmn->autoShutdownTimeout * 1000);
-                    timerActive = true;
-                }
-            }
-        }
+        virNetDaemonShutdownTimerUpdate(dmn);
 
         virObjectUnlock(dmn);
         if (virEventRunDefaultImpl() < 0) {

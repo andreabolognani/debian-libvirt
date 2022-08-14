@@ -5001,6 +5001,8 @@ qemuBuildUSBHostdevDevProps(const virDomainDef *def,
     unsigned int hostbus = 0;
     unsigned int hostaddr = 0;
     g_autofree char *hostdevice = NULL;
+    virTristateSwitch guestReset = VIR_TRISTATE_SWITCH_ABSENT;
+    virTristateSwitch guestResetsAll = VIR_TRISTATE_SWITCH_ABSENT;
 
     if (!dev->missing) {
         if (usbsrc->bus == 0 && usbsrc->device == 0) {
@@ -5018,6 +5020,23 @@ qemuBuildUSBHostdevDevProps(const virDomainDef *def,
         }
     }
 
+    switch (usbsrc->guestReset) {
+    case VIR_DOMAIN_HOSTDEV_USB_GUEST_RESET_OFF:
+        guestReset = VIR_TRISTATE_SWITCH_OFF;
+        break;
+    case VIR_DOMAIN_HOSTDEV_USB_GUEST_RESET_UNINITIALIZED:
+        guestReset = VIR_TRISTATE_SWITCH_ON;
+        guestResetsAll = VIR_TRISTATE_SWITCH_OFF;
+        break;
+    case VIR_DOMAIN_HOSTDEV_USB_GUEST_RESET_ON:
+        guestReset = VIR_TRISTATE_SWITCH_ON;
+        guestResetsAll = VIR_TRISTATE_SWITCH_ON;
+        break;
+    case VIR_DOMAIN_HOSTDEV_USB_GUEST_RESET_DEFAULT:
+    case VIR_DOMAIN_HOSTDEV_USB_GUEST_RESET_LAST:
+        break;
+    }
+
     if (virJSONValueObjectAdd(&props,
                               "s:driver", "usb-host",
                               "S:hostdevice", hostdevice,
@@ -5025,6 +5044,8 @@ qemuBuildUSBHostdevDevProps(const virDomainDef *def,
                               "p:hostaddr", hostaddr,
                               "s:id", dev->info->alias,
                               "p:bootindex",  dev->info->bootIndex,
+                              "T:guest-reset", guestReset,
+                              "T:guest-resets-all", guestResetsAll,
                               NULL) < 0)
         return NULL;
 
@@ -6420,6 +6441,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
     case VIR_DOMAIN_IOMMU_MODEL_INTEL:
         if (virJSONValueObjectAdd(&props,
                                   "s:driver", "intel-iommu",
+                                  "s:id", iommu->info.alias,
                                   "S:intremap", qemuOnOffAuto(iommu->intremap),
                                   "T:caching-mode", iommu->caching_mode,
                                   "S:eim", qemuOnOffAuto(iommu->eim),
@@ -6436,6 +6458,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
     case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
         if (virJSONValueObjectAdd(&props,
                                   "s:driver", "virtio-iommu",
+                                  "s:id", iommu->info.alias,
                                   NULL) < 0) {
             return -1;
         }

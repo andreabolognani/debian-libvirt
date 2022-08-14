@@ -136,8 +136,12 @@ Project development
 `Project strategy <strategy.html>`__
    Sets a vision for future direction & technical choices
 
-`CI Testing <ci.html>`__
-   Details of the Continuous Integration testing strategy
+`CI <ci.html>`__
+   Details on our Continuous Integration
+
+`Upstream issue handling <issue-handling.html>`__
+   Outlines the process of handling issues as well as describes the supported
+   issue types along with their life cycle.
 
 `Bug reports <bugs.html>`__
    How and where to report bugs and request features
@@ -154,10 +158,8 @@ Project development
 `API extensions <api_extension.html>`__
    Adding new public libvirt APIs
 
-`Functional testing <testsuites.html>`__
-   Testing libvirt with
-   `TCK test suite <testtck.html>`__ and
-   `Libvirt-test-API <testapi.html>`__
+`Testing <testing.html>`__
+   Details various types of testing available for libvirt
 
 `New repo setup <newreposetup.html>`__
    Procedure for configuring new git repositories for libvirt

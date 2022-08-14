@@ -35,21 +35,10 @@
 
 VIR_LOG_INIT("lxc.lxc_domain");
 
-static int
-virLXCDomainObjInitJob(virLXCDomainObjPrivate *priv)
-{
-    memset(&priv->job, 0, sizeof(priv->job));
-
-    if (virCondInit(&priv->job.cond) < 0)
-        return -1;
-
-    return 0;
-}
-
 static void
 virLXCDomainObjResetJob(virLXCDomainObjPrivate *priv)
 {
-    struct virLXCDomainJobObj *job = &priv->job;
+    virDomainJobObj *job = &priv->job;
 
     job->active = VIR_JOB_NONE;
     job->owner = 0;
@@ -103,7 +92,7 @@ virLXCDomainObjBeginJob(virLXCDriver *driver G_GNUC_UNUSED,
 
  error:
     VIR_WARN("Cannot start job (%s) for domain %s;"
-             " current job is (%s) owned by (%d)",
+             " current job is (%s) owned by (%llu)",
              virDomainJobTypeToString(job),
              obj->def->name,
              virDomainJobTypeToString(priv->job.active),
@@ -145,7 +134,7 @@ virLXCDomainObjPrivateAlloc(void *opaque)
 {
     virLXCDomainObjPrivate *priv = g_new0(virLXCDomainObjPrivate, 1);
 
-    if (virLXCDomainObjInitJob(priv) < 0) {
+    if (virDomainObjInitJob(&priv->job, NULL) < 0) {
         g_free(priv);
         return NULL;
     }

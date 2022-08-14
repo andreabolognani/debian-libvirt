@@ -587,11 +587,11 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "cpu.migratable", /* QEMU_CAPS_CPU_MIGRATABLE */
               "query-cpu-model-expansion.migratable", /* X_QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_MIGRATABLE */
               "fw_cfg", /* X_QEMU_CAPS_FW_CFG */
-              "migration-param.bandwidth", /* QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH */
-              "migration-param.downtime", /* QEMU_CAPS_MIGRATION_PARAM_DOWNTIME */
+              "migration-param.bandwidth", /* X_QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH */
+              "migration-param.downtime", /* X_QEMU_CAPS_MIGRATION_PARAM_DOWNTIME */
 
               /* 375 */
-              "migration-param.xbzrle-cache-size", /* QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE */
+              "migration-param.xbzrle-cache-size", /* X_QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE */
               "intel-iommu.aw-bits", /* QEMU_CAPS_INTEL_IOMMU_AW_BITS */
               "spapr-tpm-proxy", /* QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY */
               "numa.hmat", /* QEMU_CAPS_NUMA_HMAT */
@@ -671,6 +671,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "chardev.qemu-vdagent", /* QEMU_CAPS_CHARDEV_QEMU_VDAGENT */
               "display-dbus", /* QEMU_CAPS_DISPLAY_DBUS */
               "iothread.thread-pool-max", /* QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX */
+              "usb-host.guest-resets-all", /* QEMU_CAPS_USB_HOST_GUESTS_RESETS_ALL */
+              "migration.blocked-reasons", /* QEMU_CAPS_MIGRATION_BLOCKED_REASONS */
     );
 
 
@@ -1459,6 +1461,7 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsPCIeRootPort[] =
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsUSBHost[] = {
     { "hostdevice", QEMU_CAPS_USB_HOST_HOSTDEVICE, NULL },
+    { "guest-resets-all", QEMU_CAPS_USB_HOST_GUESTS_RESETS_ALL, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsSpaprPCIHostBridge[] = {
@@ -1602,9 +1605,6 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "chardev-add/arg-type/backend/+file/data/logappend", QEMU_CAPS_CHARDEV_FILE_APPEND },
     { "device_add/$json-cli-hotplug", QEMU_CAPS_DEVICE_JSON },
     { "human-monitor-command/$savevm-monitor-nodes", QEMU_CAPS_SAVEVM_MONITOR_NODES },
-    { "migrate-set-parameters/arg-type/max-bandwidth", QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH },
-    { "migrate-set-parameters/arg-type/downtime-limit", QEMU_CAPS_MIGRATION_PARAM_DOWNTIME },
-    { "migrate-set-parameters/arg-type/xbzrle-cache-size", QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE },
     { "migrate-set-parameters/arg-type/block-bitmap-mapping/bitmaps/transform", QEMU_CAPS_MIGRATION_PARAM_BLOCK_BITMAP_MAPPING },
     { "nbd-server-start/arg-type/tls-creds", QEMU_CAPS_NBD_TLS },
     { "nbd-server-add/arg-type/bitmap", QEMU_CAPS_NBD_BITMAP },
@@ -1623,6 +1623,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "chardev-add/arg-type/backend/+qemu-vdagent", QEMU_CAPS_CHARDEV_QEMU_VDAGENT },
     { "query-display-options/ret-type/+dbus", QEMU_CAPS_DISPLAY_DBUS },
     { "object-add/arg-type/+iothread/thread-pool-max", QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX },
+    { "query-migrate/ret-type/blocked-reasons", QEMU_CAPS_MIGRATION_BLOCKED_REASONS },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -4757,7 +4758,7 @@ virQEMUCapsFormatCache(virQEMUCaps *qemuCaps)
 
     if (qemuCaps->cpuData) {
         g_autofree char * cpudata = virCPUDataFormat(qemuCaps->cpuData);
-        virBufferAsprintf(&buf, "%s", cpudata);
+        virBufferAddStr(&buf, cpudata);
     }
 
     virBufferAsprintf(&buf, "<arch>%s</arch>\n",
@@ -6368,9 +6369,18 @@ virQEMUCapsFillDomainDeviceTPMCaps(virQEMUCaps *qemuCaps,
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_PASSTHROUGH))
         VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendModel, VIR_DOMAIN_TPM_TYPE_PASSTHROUGH);
-    if (virTPMHasSwtpm() &&
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_EMULATOR))
-        VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendModel, VIR_DOMAIN_TPM_TYPE_EMULATOR);
+    if (virTPMHasSwtpm()) {
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_TPM_EMULATOR))
+            VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendModel, VIR_DOMAIN_TPM_TYPE_EMULATOR);
+        if (virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_TPM_1_2)) {
+            VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendVersion, VIR_DOMAIN_TPM_VERSION_1_2);
+            tpm->backendVersion.report = true;
+        }
+        if (virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_TPM_2_0)) {
+            VIR_DOMAIN_CAPS_ENUM_SET(tpm->backendVersion, VIR_DOMAIN_TPM_VERSION_2_0);
+            tpm->backendVersion.report = true;
+        }
+    }
 
     /*
      * Need at least one frontend if it is to be usable by applications

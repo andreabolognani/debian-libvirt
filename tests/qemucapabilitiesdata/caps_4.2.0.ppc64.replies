@@ -17,8 +17,8 @@
 {
   "return": {
     "qemu": {
-      "micro": 50,
-      "minor": 1,
+      "micro": 0,
+      "minor": 2,
       "major": 4
     },
     "package": "v4.1.0-2198-g9e583f2"
@@ -18287,11 +18287,6 @@
       "default-value": 0,
       "name": "hostaddr",
       "type": "uint32"
-    },
-    {
-      "default-value": true,
-      "name": "suppress-remote-wake",
-      "type": "bool"
     },
     {
       "default-value": 2,

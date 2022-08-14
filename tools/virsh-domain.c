@@ -4529,6 +4529,7 @@ static const vshCmdOptDef opts_save_image_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -4961,6 +4962,7 @@ static const vshCmdOptDef opts_managed_save_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -7831,6 +7833,7 @@ static const vshCmdOptDef opts_iothreadset[] = {
      .type = VSH_OT_INT,
      .help = N_("upper boundary for worker thread pool")
     },
+    VIRSH_COMMON_OPT_DOMAIN_CONFIG,
     VIRSH_COMMON_OPT_DOMAIN_LIVE,
     VIRSH_COMMON_OPT_DOMAIN_CURRENT,
     {.name = NULL}
@@ -7842,6 +7845,8 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshDomain) dom = NULL;
     int id = 0;
     bool ret = false;
+    bool current = vshCommandOptBool(cmd, "current");
+    bool config = vshCommandOptBool(cmd, "config");
     bool live = vshCommandOptBool(cmd, "live");
     unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
     virTypedParameterPtr params = NULL;
@@ -7852,8 +7857,13 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
     int thread_val;
     int rc;
 
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, live);
+    VSH_EXCLUSIVE_OPTIONS_VAR(current, config);
+
     if (live)
         flags |= VIR_DOMAIN_AFFECT_LIVE;
+    if (config)
+        flags |= VIR_DOMAIN_AFFECT_CONFIG;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -9860,13 +9870,18 @@ cmdQemuMonitorCommandQMPWrap(vshControl *ctl,
                              const vshCmd *cmd)
 {
     g_autofree char *fullcmd = cmdQemuMonitorCommandConcatCmd(ctl, cmd, NULL);
-    g_autoptr(virJSONValue) fullcmdjson = virJSONValueFromString(fullcmd);
+    g_autoptr(virJSONValue) fullcmdjson = NULL;
     g_autofree char *fullargs = NULL;
     g_autoptr(virJSONValue) fullargsjson = NULL;
     const vshCmdOpt *opt = NULL;
     const char *commandname = NULL;
     g_autoptr(virJSONValue) command = NULL;
     g_autoptr(virJSONValue) arguments = NULL;
+
+    if (!(fullcmdjson = virJSONValueFromString(fullcmd))) {
+        /* Reset the error before adding wrapping. */
+        vshResetLibvirtError();
+    }
 
     /* if we've got a JSON object, pass it through */
     if (virJSONValueIsObject(fullcmdjson))
@@ -9879,8 +9894,11 @@ cmdQemuMonitorCommandQMPWrap(vshControl *ctl,
         commandname = opt->data;
 
     /* now we process arguments similarly to how we've dealt with the full command */
-    if ((fullargs = cmdQemuMonitorCommandConcatCmd(ctl, cmd, opt)))
-        fullargsjson = virJSONValueFromString(fullargs);
+    if ((fullargs = cmdQemuMonitorCommandConcatCmd(ctl, cmd, opt)) &&
+        !(fullargsjson = virJSONValueFromString(fullargs))) {
+        /* Reset the error before adding wrapping. */
+        vshResetLibvirtError();
+    }
 
     /* for empty args or a valid JSON object we just use that */
     if (!fullargs || virJSONValueIsObject(fullargsjson)) {
@@ -10461,6 +10479,7 @@ static const vshCmdOptDef opts_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },

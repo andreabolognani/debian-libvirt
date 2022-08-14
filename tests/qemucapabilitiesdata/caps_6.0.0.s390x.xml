@@ -116,9 +116,6 @@
   <flag name='aio.io_uring'/>
   <flag name='tcg'/>
   <flag name='virtio-blk-pci.scsi.default.disabled'/>
-  <flag name='migration-param.bandwidth'/>
-  <flag name='migration-param.downtime'/>
-  <flag name='migration-param.xbzrle-cache-size'/>
   <flag name='numa.hmat'/>
   <flag name='blockdev-hostdev-scsi'/>
   <flag name='virtio-balloon.free-page-reporting'/>
@@ -147,6 +144,7 @@
   <flag name='memory-backend-file.prealloc-threads'/>
   <flag name='virtio-iommu-pci'/>
   <flag name='virtio-net.rss'/>
+  <flag name='migration.blocked-reasons'/>
   <version>6000000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>39100242</microcodeVersion>

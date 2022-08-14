@@ -31,7 +31,7 @@ int
 qemuMonitorJSONIOProcessLine(qemuMonitor *mon,
                              const char *line,
                              qemuMonitorMessage *msg)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 
 int
 qemuMonitorJSONIOProcess(qemuMonitor *mon,
@@ -153,21 +153,6 @@ qemuMonitorJSONSavePhysicalMemory(qemuMonitor *mon,
                                   const char *path);
 
 int
-qemuMonitorJSONSetMigrationSpeed(qemuMonitor *mon,
-                                 unsigned long bandwidth);
-
-int
-qemuMonitorJSONSetMigrationDowntime(qemuMonitor *mon,
-                                    unsigned long long downtime);
-
-int
-qemuMonitorJSONGetMigrationCacheSize(qemuMonitor *mon,
-                                     unsigned long long *cacheSize);
-int
-qemuMonitorJSONSetMigrationCacheSize(qemuMonitor *mon,
-                                     unsigned long long cacheSize);
-
-int
 qemuMonitorJSONGetMigrationParams(qemuMonitor *mon,
                                   virJSONValue **params);
 int
@@ -198,6 +183,9 @@ int
 qemuMonitorJSONMigrate(qemuMonitor *mon,
                        unsigned int flags,
                        const char *uri);
+int
+qemuMonitorJSONGetMigrationBlockers(qemuMonitor *mon,
+                                    char ***blockers);
 int
 qemuMonitorJSONGetSpiceMigrationStatus(qemuMonitor *mon,
                                        bool *spice_migrated);

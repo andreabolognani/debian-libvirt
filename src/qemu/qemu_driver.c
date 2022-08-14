@@ -67,6 +67,7 @@
 #include "domain_audit.h"
 #include "domain_cgroup.h"
 #include "domain_driver.h"
+#include "domain_postparse.h"
 #include "domain_validate.h"
 #include "virpci.h"
 #include "virpidfile.h"
@@ -2650,12 +2651,12 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
     virQEMUSaveData *data = NULL;
     g_autoptr(qemuDomainSaveCookie) cookie = NULL;
 
-    if (!qemuMigrationSrcIsAllowed(driver, vm, false, 0))
-        goto cleanup;
-
     if (qemuDomainObjBeginAsyncJob(driver, vm, VIR_ASYNC_JOB_SAVE,
                                    VIR_DOMAIN_JOB_OPERATION_SAVE, flags) < 0)
         goto cleanup;
+
+    if (!qemuMigrationSrcIsAllowed(driver, vm, false, VIR_ASYNC_JOB_SAVE, 0))
+        goto endjob;
 
     if (!virDomainObjIsActive(vm)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -3176,7 +3177,7 @@ doCoreDump(virQEMUDriver *driver,
             goto cleanup;
         }
 
-        if (!qemuMigrationSrcIsAllowed(driver, vm, false, 0))
+        if (!qemuMigrationSrcIsAllowed(driver, vm, false, VIR_ASYNC_JOB_DUMP, 0))
             goto cleanup;
 
         if (qemuMigrationSrcToFile(driver, vm, fd, compressor,
@@ -5594,6 +5595,7 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
 {
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     qemuDomainObjPrivate *priv;
+    g_autoptr(virDomainDef) defcopy = NULL;
     virDomainDef *def;
     virDomainDef *persistentDef;
     virDomainIOThreadIDDef *iothreaddef = NULL;
@@ -5608,6 +5610,55 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
         goto endjob;
+
+    if (persistentDef) {
+        /* Make a copy of persistent definition and do all the changes there.
+         * Swap the definitions only after changes to live definition
+         * succeeded. */
+        if (!(defcopy = virDomainObjCopyPersistentDef(vm, driver->xmlopt,
+                                                      priv->qemuCaps)))
+            return -1;
+
+        switch (action) {
+        case VIR_DOMAIN_IOTHREAD_ACTION_ADD:
+            if (virDomainDriverAddIOThreadCheck(defcopy, iothread.iothread_id) < 0)
+                goto endjob;
+
+            if (!virDomainIOThreadIDAdd(defcopy, iothread.iothread_id))
+                goto endjob;
+
+            break;
+
+        case VIR_DOMAIN_IOTHREAD_ACTION_DEL:
+            if (virDomainDriverDelIOThreadCheck(defcopy, iothread.iothread_id) < 0)
+                goto endjob;
+
+            virDomainIOThreadIDDel(defcopy, iothread.iothread_id);
+
+            break;
+
+        case VIR_DOMAIN_IOTHREAD_ACTION_MOD:
+            iothreaddef = virDomainIOThreadIDFind(defcopy, iothread.iothread_id);
+
+            if (!iothreaddef) {
+                virReportError(VIR_ERR_INVALID_ARG,
+                               _("cannot find IOThread '%u' in iothreadids"),
+                               iothread.iothread_id);
+                goto endjob;
+            }
+
+            if (qemuDomainIOThreadValidate(iothreaddef, iothread, false) < 0)
+                goto endjob;
+
+            if (qemuDomainHotplugModIOThreadIDDef(iothreaddef, iothread) < 0) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("configuring persistent polling values is not supported"));
+                goto endjob;
+            }
+
+            break;
+        }
+    }
 
     if (def) {
         if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_IOTHREAD)) {
@@ -5659,50 +5710,12 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
         qemuDomainSaveStatus(vm);
     }
 
-    if (persistentDef) {
-        switch (action) {
-        case VIR_DOMAIN_IOTHREAD_ACTION_ADD:
-            if (virDomainDriverAddIOThreadCheck(persistentDef, iothread.iothread_id) < 0)
-                goto endjob;
-
-            if (!virDomainIOThreadIDAdd(persistentDef, iothread.iothread_id))
-                goto endjob;
-
-            break;
-
-        case VIR_DOMAIN_IOTHREAD_ACTION_DEL:
-            if (virDomainDriverDelIOThreadCheck(persistentDef, iothread.iothread_id) < 0)
-                goto endjob;
-
-            virDomainIOThreadIDDel(persistentDef, iothread.iothread_id);
-
-            break;
-
-        case VIR_DOMAIN_IOTHREAD_ACTION_MOD:
-            iothreaddef = virDomainIOThreadIDFind(persistentDef, iothread.iothread_id);
-
-            if (!iothreaddef) {
-                virReportError(VIR_ERR_INVALID_ARG,
-                               _("cannot find IOThread '%u' in iothreadids"),
-                               iothread.iothread_id);
-                goto endjob;
-            }
-
-            if (qemuDomainIOThreadValidate(iothreaddef, iothread, false) < 0)
-                goto endjob;
-
-            if (qemuDomainHotplugModIOThreadIDDef(iothreaddef, iothread) < 0) {
-                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                               _("configuring persistent polling values is not supported"));
-                goto endjob;
-            }
-
-            break;
-        }
-
-        if (virDomainDefSave(persistentDef, driver->xmlopt,
-                             cfg->configDir) < 0)
+    /* Finally, if no error until here, we can save config. */
+    if (defcopy) {
+        if (virDomainDefSave(defcopy, driver->xmlopt, cfg->configDir) < 0)
             goto endjob;
+
+        virDomainObjAssignDef(vm, &defcopy, false, NULL);
     }
 
     ret = 0;
@@ -5806,7 +5819,8 @@ qemuDomainSetIOThreadParams(virDomainPtr dom,
     qemuMonitorIOThreadInfo iothread = {0};
     int ret = -1;
 
-    virCheckFlags(VIR_DOMAIN_AFFECT_LIVE, -1);
+    virCheckFlags(VIR_DOMAIN_AFFECT_LIVE |
+                  VIR_DOMAIN_AFFECT_CONFIG, -1);
 
     if (iothread_id == 0) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
@@ -13045,10 +13059,8 @@ qemuDomainMigrateSetMaxDowntime(virDomainPtr dom,
 {
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm;
-    qemuDomainObjPrivate *priv;
     g_autoptr(qemuMigrationParams) migParams = NULL;
     int ret = -1;
-    int rc;
 
     virCheckFlags(0, -1);
 
@@ -13064,29 +13076,19 @@ qemuDomainMigrateSetMaxDowntime(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    priv = vm->privateData;
-
     VIR_DEBUG("Setting migration downtime to %llums", downtime);
 
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_DOWNTIME)) {
-        if (!(migParams = qemuMigrationParamsNew()))
-            goto endjob;
+    if (!(migParams = qemuMigrationParamsNew()))
+        goto endjob;
 
-        if (qemuMigrationParamsSetULL(migParams,
-                                      QEMU_MIGRATION_PARAM_DOWNTIME_LIMIT,
-                                      downtime) < 0)
-            goto endjob;
+    if (qemuMigrationParamsSetULL(migParams,
+                                  QEMU_MIGRATION_PARAM_DOWNTIME_LIMIT,
+                                  downtime) < 0)
+        goto endjob;
 
-        if (qemuMigrationParamsApply(driver, vm, VIR_ASYNC_JOB_NONE,
-                                     migParams) < 0)
-            goto endjob;
-    } else {
-        qemuDomainObjEnterMonitor(driver, vm);
-        rc = qemuMonitorSetMigrationDowntime(priv->mon, downtime);
-        qemuDomainObjExitMonitor(vm);
-        if (rc < 0)
-            goto endjob;
-    }
+    if (qemuMigrationParamsApply(driver, vm, VIR_ASYNC_JOB_NONE,
+                                 migParams, 0) < 0)
+        goto endjob;
 
     ret = 0;
 
@@ -13159,10 +13161,8 @@ qemuDomainMigrateGetCompressionCache(virDomainPtr dom,
 {
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm;
-    qemuDomainObjPrivate *priv;
     g_autoptr(qemuMigrationParams) migParams = NULL;
     int ret = -1;
-    int rc;
 
     virCheckFlags(0, -1);
 
@@ -13178,8 +13178,6 @@ qemuDomainMigrateGetCompressionCache(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    priv = vm->privateData;
-
     if (!qemuMigrationCapsGet(vm, QEMU_MIGRATION_CAP_XBZRLE)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("Compressed migration is not supported by "
@@ -13187,22 +13185,14 @@ qemuDomainMigrateGetCompressionCache(virDomainPtr dom,
         goto endjob;
     }
 
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE)) {
-        if (qemuMigrationParamsFetch(driver, vm, VIR_ASYNC_JOB_NONE,
-                                     &migParams) < 0)
-            goto endjob;
+    if (qemuMigrationParamsFetch(driver, vm, VIR_ASYNC_JOB_NONE,
+                                 &migParams) < 0)
+        goto endjob;
 
-        if (qemuMigrationParamsGetULL(migParams,
-                                      QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
-                                      cacheSize) < 0)
-            goto endjob;
-    } else {
-        qemuDomainObjEnterMonitor(driver, vm);
-        rc = qemuMonitorGetMigrationCacheSize(priv->mon, cacheSize);
-        qemuDomainObjExitMonitor(vm);
-        if (rc < 0)
-            goto endjob;
-    }
+    if (qemuMigrationParamsGetULL(migParams,
+                                  QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
+                                  cacheSize) < 0)
+        goto endjob;
 
     ret = 0;
 
@@ -13221,10 +13211,8 @@ qemuDomainMigrateSetCompressionCache(virDomainPtr dom,
 {
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm;
-    qemuDomainObjPrivate *priv;
     g_autoptr(qemuMigrationParams) migParams = NULL;
     int ret = -1;
-    int rc;
 
     virCheckFlags(0, -1);
 
@@ -13240,8 +13228,6 @@ qemuDomainMigrateSetCompressionCache(virDomainPtr dom,
     if (virDomainObjCheckActive(vm) < 0)
         goto endjob;
 
-    priv = vm->privateData;
-
     if (!qemuMigrationCapsGet(vm, QEMU_MIGRATION_CAP_XBZRLE)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("Compressed migration is not supported by "
@@ -13250,25 +13236,17 @@ qemuDomainMigrateSetCompressionCache(virDomainPtr dom,
     }
 
     VIR_DEBUG("Setting compression cache to %llu B", cacheSize);
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE)) {
-        if (!(migParams = qemuMigrationParamsNew()))
-            goto endjob;
+    if (!(migParams = qemuMigrationParamsNew()))
+        goto endjob;
 
-        if (qemuMigrationParamsSetULL(migParams,
-                                      QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
-                                      cacheSize) < 0)
-            goto endjob;
+    if (qemuMigrationParamsSetULL(migParams,
+                                  QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
+                                  cacheSize) < 0)
+        goto endjob;
 
-        if (qemuMigrationParamsApply(driver, vm, VIR_ASYNC_JOB_NONE,
-                                     migParams) < 0)
-            goto endjob;
-    } else {
-        qemuDomainObjEnterMonitor(driver, vm);
-        rc = qemuMonitorSetMigrationCacheSize(priv->mon, cacheSize);
-        qemuDomainObjExitMonitor(vm);
-        if (rc < 0)
-            goto endjob;
-    }
+    if (qemuMigrationParamsApply(driver, vm, VIR_ASYNC_JOB_NONE,
+                                 migParams, 0) < 0)
+        goto endjob;
 
     ret = 0;
 
@@ -13290,7 +13268,7 @@ qemuDomainMigrateSetMaxSpeed(virDomainPtr dom,
     qemuDomainObjPrivate *priv;
     bool postcopy = !!(flags & VIR_DOMAIN_MIGRATE_MAX_SPEED_POSTCOPY);
     g_autoptr(qemuMigrationParams) migParams = NULL;
-    bool bwParam;
+    qemuMigrationParam param;
     unsigned long long max;
     int ret = -1;
 
@@ -13329,35 +13307,22 @@ qemuDomainMigrateSetMaxSpeed(virDomainPtr dom,
 
     VIR_DEBUG("Setting migration bandwidth to %luMbs", bandwidth);
 
-    bwParam = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH);
 
-    if (postcopy || bwParam) {
-        qemuMigrationParam param;
+    if (!(migParams = qemuMigrationParamsNew()))
+        goto endjob;
 
-        if (!(migParams = qemuMigrationParamsNew()))
-            goto endjob;
+    if (postcopy)
+        param = QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH;
+    else
+        param = QEMU_MIGRATION_PARAM_MAX_BANDWIDTH;
 
-        if (postcopy)
-            param = QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH;
-        else
-            param = QEMU_MIGRATION_PARAM_MAX_BANDWIDTH;
+    if (qemuMigrationParamsSetULL(migParams, param,
+                                  bandwidth * 1024 * 1024) < 0)
+        goto endjob;
 
-        if (qemuMigrationParamsSetULL(migParams, param,
-                                      bandwidth * 1024 * 1024) < 0)
-            goto endjob;
-
-        if (qemuMigrationParamsApply(driver, vm, VIR_ASYNC_JOB_NONE,
-                                     migParams) < 0)
-            goto endjob;
-    } else {
-        int rc;
-
-        qemuDomainObjEnterMonitor(driver, vm);
-        rc = qemuMonitorSetMigrationSpeed(priv->mon, bandwidth);
-        qemuDomainObjExitMonitor(vm);
-        if (rc < 0)
-            goto endjob;
-    }
+    if (qemuMigrationParamsApply(driver, vm, VIR_ASYNC_JOB_NONE,
+                                 migParams, 0) < 0)
+        goto endjob;
 
     if (!postcopy)
         priv->migMaxBandwidth = bandwidth;

@@ -835,7 +835,7 @@ mymain(void)
     g_autofree char *fakerootdir = NULL;
     g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
     g_autoptr(GHashTable) qapiSchemaCache = virHashNew((GDestroyNotify) g_hash_table_unref);
-    g_autoptr(GHashTable) capscache = virHashNew(virObjectFreeHashData);
+    g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
     struct testQemuConf testConf = { .capslatest = capslatest,
                                      .capscache = capscache,
                                      .qapiSchemaCache = qapiSchemaCache };
@@ -1188,29 +1188,58 @@ mymain(void)
     DO_TEST_NOCAPS("reboot-timeout-disabled");
     DO_TEST_NOCAPS("reboot-timeout-enabled");
 
-    DO_TEST("bios",
+    DO_TEST("firmware-manual-bios",
             QEMU_CAPS_DEVICE_ISA_SERIAL);
-    DO_TEST_NOCAPS("bios-nvram");
-    DO_TEST_PARSE_ERROR_NOCAPS("bios-nvram-no-path");
-    DO_TEST_CAPS_LATEST("bios-nvram-rw");
-    DO_TEST_CAPS_LATEST("bios-nvram-rw-implicit");
-    DO_TEST("bios-nvram-secure",
+    DO_TEST("firmware-manual-bios-stateless",
+            QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_PARSE_ERROR("firmware-manual-bios-not-stateless",
+                        QEMU_CAPS_DEVICE_ISA_SERIAL);
+    DO_TEST_NOCAPS("firmware-manual-efi");
+    DO_TEST_PARSE_ERROR_NOCAPS("firmware-manual-efi-no-path");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-features");
+    DO_TEST_CAPS_LATEST("firmware-manual-bios-rw");
+    DO_TEST_CAPS_LATEST("firmware-manual-bios-rw-implicit");
+    DO_TEST("firmware-manual-efi-secure",
             QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_IOH3420,
             QEMU_CAPS_ICH9_AHCI,
             QEMU_CAPS_VIRTIO_SCSI);
-    DO_TEST_CAPS_LATEST("bios-nvram-template");
-    DO_TEST_CAPS_LATEST("bios-nvram-network-iscsi");
-    DO_TEST_CAPS_VER_PARSE_ERROR("bios-nvram-network-iscsi", "4.1.0");
-    DO_TEST_CAPS_LATEST("bios-nvram-network-nbd");
-    DO_TEST_CAPS_LATEST("bios-nvram-file");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-stateless");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-nvram-template-stateless");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-iscsi");
+    DO_TEST_CAPS_VER_PARSE_ERROR("firmware-manual-efi-nvram-network-iscsi", "4.1.0");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-nbd");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-file");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-nvram-stateless");
 
     /* Make sure all combinations of ACPI and UEFI behave as expected */
-    DO_TEST_NOCAPS("q35-acpi-uefi");
-    DO_TEST_PARSE_ERROR_NOCAPS("q35-noacpi-uefi");
-    DO_TEST_NOCAPS("q35-noacpi-nouefi");
-    DO_TEST_NOCAPS("q35-acpi-nouefi");
+    DO_TEST_NOCAPS("firmware-manual-efi-acpi-aarch64");
+    DO_TEST_NOCAPS("firmware-manual-efi-acpi-q35");
+    DO_TEST_NOCAPS("firmware-manual-efi-noacpi-aarch64");
+    DO_TEST_PARSE_ERROR_NOCAPS("firmware-manual-efi-noacpi-q35");
+    DO_TEST_PARSE_ERROR_NOCAPS("firmware-manual-noefi-acpi-aarch64");
+    DO_TEST_NOCAPS("firmware-manual-noefi-acpi-q35");
+    DO_TEST_NOCAPS("firmware-manual-noefi-noacpi-aarch64");
+    DO_TEST_NOCAPS("firmware-manual-noefi-noacpi-q35");
+
+    DO_TEST_CAPS_LATEST("firmware-auto-bios");
+    DO_TEST_CAPS_LATEST("firmware-auto-bios-stateless");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-not-stateless");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-nvram");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-stateless");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-secure");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-loader-insecure");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-loader-path");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-secboot");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-no-secboot");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-enrolled-keys");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-no-enrolled-keys");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-enrolled-keys-no-secboot");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-aarch64", "aarch64");
 
     DO_TEST_NOCAPS("clock-utc");
     DO_TEST_NOCAPS("clock-localtime");
@@ -1228,8 +1257,6 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("controller-usb-order");
 
-    DO_TEST_NOCAPS("cpu-eoi-disabled");
-    DO_TEST_NOCAPS("cpu-eoi-enabled");
     DO_TEST("controller-order",
             QEMU_CAPS_KVM,
             QEMU_CAPS_PIIX3_USB_UHCI,
@@ -1239,22 +1266,18 @@ mymain(void)
             QEMU_CAPS_USB_HUB,
             QEMU_CAPS_DEVICE_ISA_SERIAL,
             QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST_CAPS_VER("eoi-disabled", "4.0.0");
+    /* 'eoi' cpu feature with an explicit CPU defined */
+    DO_TEST_CAPS_LATEST("cpu-eoi-disabled");
+    DO_TEST_CAPS_LATEST("cpu-eoi-enabled");
+    /* 'eoi' cpu feature without an explicit CPU defined */
     DO_TEST_CAPS_LATEST("eoi-disabled");
-    DO_TEST_CAPS_VER("eoi-enabled", "4.0.0");
     DO_TEST_CAPS_LATEST("eoi-enabled");
-    DO_TEST_CAPS_VER("pv-spinlock-disabled", "4.0.0");
     DO_TEST_CAPS_LATEST("pv-spinlock-disabled");
-    DO_TEST_CAPS_VER("pv-spinlock-enabled", "4.0.0");
     DO_TEST_CAPS_LATEST("pv-spinlock-enabled");
-    DO_TEST_CAPS_VER("kvmclock+eoi-disabled", "4.0.0");
     DO_TEST_CAPS_LATEST("kvmclock+eoi-disabled");
 
-    DO_TEST_CAPS_VER("hyperv", "4.0.0");
     DO_TEST_CAPS_LATEST("hyperv");
-    DO_TEST_CAPS_VER("hyperv-off", "4.0.0");
     DO_TEST_CAPS_LATEST("hyperv-off");
-    DO_TEST_CAPS_VER("hyperv-panic", "4.0.0");
     DO_TEST_CAPS_LATEST("hyperv-panic");
     DO_TEST_CAPS_VER("hyperv-passthrough", "6.1.0");
     DO_TEST_CAPS_LATEST("hyperv-passthrough");
@@ -1579,7 +1602,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-vhostuser-multiq");
     DO_TEST_FAILURE_NOCAPS("net-vhostuser-fail");
     DO_TEST_NOCAPS("net-user");
-    DO_TEST_CAPS_ARCH_VER_FULL("net-user", "x86_64", "4.0.0", ARG_FLAGS, FLAG_SLIRP_HELPER);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("net-user", "x86_64", ARG_FLAGS, FLAG_SLIRP_HELPER);
     DO_TEST_NOCAPS("net-user-addr");
     DO_TEST_NOCAPS("net-virtio");
     DO_TEST("net-virtio-device",
@@ -1901,12 +1924,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("fs9p");
     DO_TEST_CAPS_ARCH_LATEST("fs9p-ccw", "s390x");
 
-    DO_TEST_NOCAPS("hostdev-usb-address");
-    DO_TEST_NOCAPS("hostdev-usb-address-device");
-    DO_TEST_NOCAPS("hostdev-usb-address-device-boot");
+    DO_TEST_CAPS_LATEST("hostdev-usb-address");
+    DO_TEST_CAPS_LATEST("hostdev-usb-address-device");
+    DO_TEST_CAPS_LATEST("hostdev-usb-address-device-boot");
     DO_TEST_PARSE_ERROR_NOCAPS("hostdev-usb-duplicate");
-    DO_TEST("hostdev-pci-address", QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST("hostdev-pci-address-device", QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_CAPS_LATEST("hostdev-pci-address");
+    DO_TEST_CAPS_LATEST("hostdev-pci-address-device");
     DO_TEST_PARSE_ERROR("hostdev-pci-duplicate",
                         QEMU_CAPS_DEVICE_VFIO_PCI);
     DO_TEST("hostdev-vfio",
@@ -2023,7 +2046,6 @@ mymain(void)
                  QEMU_CAPS_LAST,
                  ARG_END);
 
-    DO_TEST_CAPS_VER("qemu-ns", "4.0.0");
     DO_TEST_CAPS_LATEST("qemu-ns");
     DO_TEST_NOCAPS("qemu-ns-no-env");
     DO_TEST_NOCAPS("qemu-ns-alt");
@@ -2108,12 +2130,12 @@ mymain(void)
     DO_TEST("cpu-Haswell3", QEMU_CAPS_KVM);
     DO_TEST("cpu-Haswell-noTSX", QEMU_CAPS_KVM);
     DO_TEST_NOCAPS("cpu-host-model-cmt");
-    DO_TEST_CAPS_VER("cpu-host-model-cmt", "4.0.0");
     DO_TEST("cpu-tsc-frequency", QEMU_CAPS_KVM);
-    DO_TEST_CAPS_VER("cpu-tsc-frequency", "4.0.0");
-    DO_TEST_CAPS_VER("cpu-translation", "4.0.0");
-    DO_TEST_CAPS_LATEST("cpu-translation");
     qemuTestSetHostCPU(&driver, driver.hostarch, NULL);
+
+    DO_TEST_CAPS_VER("cpu-host-model-cmt", "4.0.0");
+    DO_TEST_CAPS_VER("cpu-tsc-frequency", "4.0.0");
+    DO_TEST_CAPS_LATEST("cpu-translation");
 
     DO_TEST_NOCAPS("memtune");
     DO_TEST_NOCAPS("memtune-unlimited");
@@ -3018,12 +3040,6 @@ mymain(void)
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_PCI_SERIAL);
 
-    /* Make sure all combinations of ACPI and UEFI behave as expected */
-    DO_TEST_NOCAPS("aarch64-acpi-uefi");
-    DO_TEST_NOCAPS("aarch64-noacpi-uefi");
-    DO_TEST_NOCAPS("aarch64-noacpi-nouefi");
-    DO_TEST_PARSE_ERROR_NOCAPS("aarch64-acpi-nouefi");
-
     /* QEMU 4.0.0 didn't have support for aarch64 CPU features */
     DO_TEST_CAPS_ARCH_VER_FAILURE("aarch64-features-sve", "aarch64", "4.0.0");
     /* aarch64 doesn't support the same CPU features as x86 */
@@ -3408,16 +3424,9 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("x86_64-pc-graphics", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-q35-graphics", "x86_64");
 
-    DO_TEST_CAPS_LATEST("os-firmware-bios");
-    DO_TEST_CAPS_LATEST("os-firmware-efi");
-    DO_TEST_CAPS_LATEST("os-firmware-efi-secboot");
-    DO_TEST_CAPS_LATEST("os-firmware-efi-no-enrolled-keys");
-    DO_TEST_CAPS_ARCH_LATEST("aarch64-os-firmware-efi", "aarch64");
-
     DO_TEST_CAPS_LATEST("vhost-user-vga");
     DO_TEST_CAPS_LATEST("vhost-user-gpu-secondary");
 
-    DO_TEST_CAPS_VER("cpu-Icelake-Server-pconfig", "3.1.0");
     DO_TEST_CAPS_LATEST("cpu-Icelake-Server-pconfig");
 
     DO_TEST_CAPS_ARCH_LATEST("aarch64-default-cpu-kvm-virt-4.2", "aarch64");

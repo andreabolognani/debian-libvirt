@@ -173,6 +173,15 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    </os>
    ...
 
+   <!-- QEMU with automatic UEFI stateless firmware for AMD SEV -->
+   ...
+   <os firmware='efi'>
+     <type>hvm</type>
+     <loader stateless='yes'/>
+     <boot dev='hd'/>
+   </os>
+   ...
+
 ``firmware``
    The ``firmware`` attribute allows management applications to automatically
    fill ``<loader/>`` and ``<nvram/>`` elements and possibly enable some
@@ -242,7 +251,12 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    firmwares may implement the Secure boot feature. Attribute ``secure`` can be
    used to tell the hypervisor that the firmware is capable of Secure Boot feature.
    It cannot be used to enable or disable the feature itself in the firmware.
-   :since:`Since 2.1.0`
+   :since:`Since 2.1.0`. If the loader is marked as read-only, then with UEFI it
+   is assumed that there will be a writable NVRAM available. In some cases,
+   however, it may be desirable for the loader to run without any NVRAM, discarding
+   any config changes on shutdown. The ``stateless`` flag (:since:`Since 8.6.0`)
+   can be used to control this behaviour, when set to ``no`` NVRAM will never
+   be created.
 ``nvram``
    Some UEFI firmwares may want to use a non-volatile memory to store some
    variables. In the host, this is represented as a file and the absolute path
@@ -261,6 +275,9 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
 
    **Note:** ``network`` backed NVRAM the variables are not instantiated from
    the ``template`` and it's user's responsibility to provide a valid NVRAM image.
+
+   It is not valid to provide this element if the loader is marked as
+   stateless.
 
 ``boot``
    The ``dev`` attribute takes one of the values "fd", "hd", "cdrom" or
@@ -715,7 +732,7 @@ host/guest with many LUNs. :since:`Since 1.2.8 (QEMU only)`
        <iothread id="6"/>
        <iothread id="8" thread_pool_min="2" thread_pool_max="32"/>
      </iothreadids>
-     <defaultiothread thread_pool_min="8" thread_pool_max="16">
+     <defaultiothread thread_pool_min="8" thread_pool_max="16"/>
      ...
    </domain>
 
@@ -4051,7 +4068,7 @@ for PCI (KVM only) and 1.0.6 for SCSI (KVM only)` :
    ...
    <devices>
      <hostdev mode='subsystem' type='usb'>
-       <source startupPolicy='optional'>
+       <source startupPolicy='optional' guestReset='off'>
          <vendor id='0x1234'/>
          <product id='0xbeef'/>
        </source>
@@ -4230,6 +4247,19 @@ or:
       requisite fail if missing on boot up, drop if missing on migrate/restore/revert
       optional  drop if missing at any start attempt
       ========= =====================================================================
+
+      :since:`Since 8.6.0`, the ``source`` element can contain ``guestReset``
+      attribute with the following value:
+
+      ============= =====================================================
+      off           all guest initiated device reset requests are ignored
+      uninitialized device request is ignored if device is initialized,
+                    otherwise reset is performed
+      on            device is reset on every guest initiated request
+      ============= =====================================================
+
+      This attribute can be helpful when assigning an USB device with a
+      firmware that crashes on reset.
 
    ``pci``
       PCI devices can only be described by their ``address``.
@@ -8082,6 +8112,9 @@ Example:
       The ``aw_bits`` attribute can be used to set the address width to allow
       mapping larger iova addresses in the guest. :since:`Since 6.5.0` (QEMU/KVM
       only)
+
+The ``virtio`` IOMMU devices can further have ``address`` element as described
+in `Device addresses`_ (address has to by type of ``pci``).
 
 
 Vsock

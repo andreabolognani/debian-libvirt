@@ -8,6 +8,16 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.6.0 (2022-08-01)
+===================
+
+* **Improvements**
+
+  * conf: Improved firmware autoselection
+
+    The firmware autoselection feature now behaves more intuitively, reports
+    better error messages on failure and comes with high-level documentation.
+
 v8.5.0 (2022-07-01)
 ===================
 
