@@ -494,6 +494,41 @@ instance:
 ``driverType``
    Options for the ``type`` attribute of the <filesystem><driver> element.
 
+TPM device
+^^^^^^^^^^
+
+TPM device capabilities are exposed under the ``tpm`` element. For instance:
+
+::
+
+  <domainCapabilities>
+    ...
+    <devices>
+      <tpm supported='yes'>
+        <enum name='model'>
+          <value>tpm-tis</value>
+          <value>tpm-crb</value>
+        </enum>
+        <enum name='backendModel'>
+          <value>passthrough</value>
+          <value>emulator</value>
+        </enum>
+        <enum name='backendVersion'>
+          <value>1.2</value>
+          <value>2.0</value>
+        </enum>
+      </tpm>
+      ...
+    </devices>
+  </domainCapabilities>
+
+``model``
+   Options for the ``model`` attribute of the ``<tpm/>`` element.
+``backendModel``
+   Options for the ``type`` attribute of the ``<tpm><backend/>`` element.
+``backendVersion``
+   Options for the ``version`` attribute of the ``<tpm><backend/>`` element.
+
 Features
 ~~~~~~~~
 

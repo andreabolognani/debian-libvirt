@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '8.5.0',
+  version: '8.6.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.54.0',
   default_options: [
@@ -982,7 +982,7 @@ conf.set('GLIB_VERSION_MAX_ALLOWED', glib_version_str)
 glusterfs_version = '3.4.1'
 glusterfs_dep = dependency('glusterfs-api', version: '>=' + glusterfs_version, required: get_option('glusterfs'))
 
-gnutls_version = '3.2.0'
+gnutls_version = '3.6.0'
 gnutls_dep = dependency('gnutls', version: '>=' + gnutls_version)
 
 # Check for BSD kvm (kernel memory interface)

@@ -343,7 +343,6 @@ virDomainDefNew;
 virDomainDefParseFile;
 virDomainDefParseNode;
 virDomainDefParseString;
-virDomainDefPostParse;
 virDomainDefSave;
 virDomainDefSetMemoryTotal;
 virDomainDefSetVcpus;
@@ -772,6 +771,10 @@ virHostdevIsVFIODevice;
 virDomainConfNWFilterInstantiate;
 virDomainConfNWFilterTeardown;
 virDomainConfVMNWFilterTeardown;
+
+
+# conf/domain_postparse.h
+virDomainDefPostParse;
 
 
 # conf/domain_validate.h
@@ -1587,11 +1590,11 @@ virDomainJobDataInit;
 virDomainJobStatusToType;
 virDomainJobTypeFromString;
 virDomainJobTypeToString;
+virDomainObjInitJob;
 
 
 # hypervisor/virclosecallbacks.h
 virCloseCallbacksGet;
-virCloseCallbacksGetConn;
 virCloseCallbacksNew;
 virCloseCallbacksRun;
 virCloseCallbacksSet;
@@ -2975,8 +2978,6 @@ virClassForObjectRWLockable;
 virClassIsDerivedFrom;
 virClassName;
 virClassNew;
-virObjectFreeCallback;
-virObjectFreeHashData;
 virObjectIsClass;
 virObjectListFree;
 virObjectListFreeCount;

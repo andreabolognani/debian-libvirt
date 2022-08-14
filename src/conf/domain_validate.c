@@ -1598,21 +1598,104 @@ static int
 virDomainDefOSValidate(const virDomainDef *def,
                        virDomainXMLOption *xmlopt)
 {
-    if (def->os.firmware &&
-        !(xmlopt->config.features & VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT)) {
-        virReportError(VIR_ERR_XML_DETAIL, "%s",
-                       _("firmware auto selection not implemented for this driver"));
-        return -1;
+    virDomainLoaderDef *loader = def->os.loader;
+
+    if (def->os.firmware) {
+        if (!(xmlopt->config.features & VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT)) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("firmware auto selection not implemented for this driver"));
+            return -1;
+        }
+
+        if (!loader)
+            return 0;
+
+        if (loader->readonly) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("loader attribute 'readonly' cannot be specified "
+                             "when firmware autoselection is enabled"));
+            return -1;
+        }
+        if (loader->type) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("loader attribute 'type' cannot be specified "
+                             "when firmware autoselection is enabled"));
+            return -1;
+        }
+        if (loader->path) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("loader path cannot be specified "
+                             "when firmware autoselection is enabled"));
+            return -1;
+        }
+        if (loader->nvramTemplate) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("nvram attribute 'template' cannot be specified "
+                             "when firmware autoselection is enabled"));
+            return -1;
+        }
+
+        /* We need to accept 'yes' here because the initial implementation
+         * of firmware autoselection used it as a way to request a firmware
+         * with Secure Boot support, so the error message is technically
+         * incorrect; however, we want to discourage people from using this
+         * attribute at all, so it's fine to be a bit more aggressive than
+         * it would be strictly required :) */
+        if (loader->secure == VIR_TRISTATE_BOOL_NO) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("loader attribute 'secure' cannot be specified "
+                             "when firmware autoselection is enabled"));
+            return -1;
+        }
+
+        if (loader->nvram && def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("firmware type '%s' does not support nvram"),
+                           virDomainOsDefFirmwareTypeToString(def->os.firmware));
+            return -1;
+        }
+    } else {
+        if (def->os.firmwareFeatures) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("cannot use feature-based firmware autoselection "
+                             "when firmware autoselection is disabled"));
+            return -1;
+        }
+
+        if (!loader)
+            return 0;
+
+        if (!loader->path) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("no loader path specified and firmware auto selection disabled"));
+            return -1;
+        }
     }
 
-    if (!def->os.loader)
-        return 0;
+    if (loader->stateless == VIR_TRISTATE_BOOL_YES) {
+        if (loader->nvramTemplate) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("NVRAM template is not permitted when loader is stateless"));
+            return -1;
+        }
 
-    if (!def->os.loader->path &&
-        def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE) {
-        virReportError(VIR_ERR_XML_DETAIL, "%s",
-                       _("no loader path specified and firmware auto selection disabled"));
-        return -1;
+        if (loader->nvram) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("NVRAM is not permitted when loader is stateless"));
+            return -1;
+        }
+    } else if (loader->stateless == VIR_TRISTATE_BOOL_NO) {
+        if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_NONE) {
+            if (def->os.loader->type != VIR_DOMAIN_LOADER_TYPE_PFLASH) {
+                virReportError(VIR_ERR_XML_DETAIL, "%s",
+                               _("Only pflash loader type permits NVRAM"));
+                return -1;
+            }
+        } else if (def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("Only EFI firmware permits NVRAM"));
+            return -1;
+        }
     }
 
     return 0;
@@ -1832,13 +1915,20 @@ virDomainDefValidateInternal(const virDomainDef *def,
 }
 
 
+struct virDomainDefValidateDeviceIteratorData {
+    virDomainXMLOption *xmlopt;
+    void *parseOpaque;
+    unsigned int parseFlags;
+};
+
+
 static int
 virDomainDefValidateDeviceIterator(virDomainDef *def,
                                    virDomainDeviceDef *dev,
                                    virDomainDeviceInfo *info G_GNUC_UNUSED,
                                    void *opaque)
 {
-    struct virDomainDefPostParseDeviceIteratorData *data = opaque;
+    struct virDomainDefValidateDeviceIteratorData *data = opaque;
     return virDomainDeviceDefValidate(dev, def,
                                       data->parseFlags, data->xmlopt,
                                       data->parseOpaque);
@@ -1867,7 +1957,7 @@ virDomainDefValidate(virDomainDef *def,
                      virDomainXMLOption *xmlopt,
                      void *parseOpaque)
 {
-    struct virDomainDefPostParseDeviceIteratorData data = {
+    struct virDomainDefValidateDeviceIteratorData data = {
         .xmlopt = xmlopt,
         .parseFlags = parseFlags,
         .parseOpaque = parseOpaque,
@@ -2526,6 +2616,28 @@ virDomainGraphicsDefValidate(const virDomainDef *def,
 }
 
 static int
+virDomainIOMMUDefValidate(const virDomainIOMMUDef *iommu)
+{
+    switch (iommu->model) {
+    case VIR_DOMAIN_IOMMU_MODEL_INTEL:
+    case VIR_DOMAIN_IOMMU_MODEL_SMMUV3:
+        if (iommu->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("iommu model '%s' can't have address"),
+                           virDomainIOMMUModelTypeToString(iommu->model));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+    case VIR_DOMAIN_IOMMU_MODEL_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+static int
 virDomainDeviceInfoValidate(const virDomainDeviceDef *dev)
 {
     virDomainDeviceInfo *info;
@@ -2626,6 +2738,9 @@ virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_GRAPHICS:
         return virDomainGraphicsDefValidate(def, dev->data.graphics);
 
+    case VIR_DOMAIN_DEVICE_IOMMU:
+        return virDomainIOMMUDefValidate(dev->data.iommu);
+
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_WATCHDOG:
     case VIR_DOMAIN_DEVICE_HUB:
@@ -2633,7 +2748,6 @@ virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_NVRAM:
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
-    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LAST:
         break;

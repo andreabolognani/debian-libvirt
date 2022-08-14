@@ -166,9 +166,6 @@
   <flag name='tcg'/>
   <flag name='virtio-blk-pci.scsi.default.disabled'/>
   <flag name='pvscsi'/>
-  <flag name='migration-param.bandwidth'/>
-  <flag name='migration-param.downtime'/>
-  <flag name='migration-param.xbzrle-cache-size'/>
   <flag name='numa.hmat'/>
   <flag name='blockdev-hostdev-scsi'/>
   <flag name='usb-host.hostdevice'/>
@@ -209,6 +206,8 @@
   <flag name='virtio-iommu.boot-bypass'/>
   <flag name='virtio-net.rss'/>
   <flag name='chardev.qemu-vdagent'/>
+  <flag name='usb-host.guest-resets-all'/>
+  <flag name='migration.blocked-reasons'/>
   <version>6002092</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>61700243</microcodeVersion>

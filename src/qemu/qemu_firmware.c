@@ -1110,10 +1110,18 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
         return false;
     }
 
-    if (fw->mapping.device == QEMU_FIRMWARE_DEVICE_FLASH &&
-        fw->mapping.data.flash.mode != QEMU_FIRMWARE_FLASH_MODE_SPLIT) {
-        VIR_DEBUG("Discarding loader without split flash");
-        return false;
+    if (fw->mapping.device == QEMU_FIRMWARE_DEVICE_FLASH) {
+        if (def->os.loader && def->os.loader->stateless == VIR_TRISTATE_BOOL_YES) {
+            if (fw->mapping.data.flash.mode != QEMU_FIRMWARE_FLASH_MODE_STATELESS) {
+                VIR_DEBUG("Discarding loader without stateless flash");
+                return false;
+            }
+        } else {
+            if (fw->mapping.data.flash.mode != QEMU_FIRMWARE_FLASH_MODE_SPLIT) {
+                VIR_DEBUG("Discarding loader without split flash");
+                return false;
+            }
+        }
     }
 
     if (def->sec) {
@@ -1175,27 +1183,29 @@ qemuFirmwareEnableFeatures(virQEMUDriver *driver,
         VIR_FREE(def->os.loader->path);
         def->os.loader->path = g_strdup(flash->executable.filename);
 
-        if (STRNEQ(flash->nvram_template.format, "raw")) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("unsupported nvram template format '%s'"),
-                           flash->nvram_template.format);
-            return -1;
-        }
+        if (flash->mode == QEMU_FIRMWARE_FLASH_MODE_SPLIT) {
+            if (STRNEQ(flash->nvram_template.format, "raw")) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                               _("unsupported nvram template format '%s'"),
+                               flash->nvram_template.format);
+                return -1;
+            }
 
-        VIR_FREE(def->os.loader->nvramTemplate);
-        def->os.loader->nvramTemplate = g_strdup(flash->nvram_template.filename);
+            VIR_FREE(def->os.loader->nvramTemplate);
+            def->os.loader->nvramTemplate = g_strdup(flash->nvram_template.filename);
 
-        if (!def->os.loader->nvram) {
-            def->os.loader->nvram = virStorageSourceNew();
-            def->os.loader->nvram->type = VIR_STORAGE_TYPE_FILE;
-            def->os.loader->nvram->format = VIR_STORAGE_FILE_RAW;
-            qemuDomainNVRAMPathFormat(cfg, def, &def->os.loader->nvram->path);
+            if (!def->os.loader->nvram) {
+                def->os.loader->nvram = virStorageSourceNew();
+                def->os.loader->nvram->type = VIR_STORAGE_TYPE_FILE;
+                def->os.loader->nvram->format = VIR_STORAGE_FILE_RAW;
+                qemuDomainNVRAMPathFormat(cfg, def, &def->os.loader->nvram->path);
+            }
         }
 
         VIR_DEBUG("decided on firmware '%s' template '%s' NVRAM '%s'",
                   def->os.loader->path,
-                  def->os.loader->nvramTemplate,
-                  def->os.loader->nvram->path);
+                  NULLSTR(def->os.loader->nvramTemplate),
+                  NULLSTR(def->os.loader->nvram ? def->os.loader->nvram->path : NULL));
         break;
 
     case QEMU_FIRMWARE_DEVICE_KERNEL:
@@ -1240,6 +1250,8 @@ qemuFirmwareEnableFeatures(virQEMUDriver *driver,
             case VIR_TRISTATE_SWITCH_LAST:
                 break;
             }
+            VIR_DEBUG("Enabling secure loader");
+            def->os.loader->secure = VIR_TRISTATE_BOOL_YES;
             break;
 
         case QEMU_FIRMWARE_FEATURE_NONE:
@@ -1267,6 +1279,7 @@ qemuFirmwareSanityCheck(const qemuFirmware *fw,
     size_t i;
     bool requiresSMM = false;
     bool supportsSecureBoot = false;
+    bool hasEnrolledKeys = false;
 
     for (i = 0; i < fw->nfeatures; i++) {
         switch (fw->features[i]) {
@@ -1276,12 +1289,14 @@ qemuFirmwareSanityCheck(const qemuFirmware *fw,
         case QEMU_FIRMWARE_FEATURE_SECURE_BOOT:
             supportsSecureBoot = true;
             break;
+        case QEMU_FIRMWARE_FEATURE_ENROLLED_KEYS:
+            hasEnrolledKeys = true;
+            break;
         case QEMU_FIRMWARE_FEATURE_NONE:
         case QEMU_FIRMWARE_FEATURE_ACPI_S3:
         case QEMU_FIRMWARE_FEATURE_ACPI_S4:
         case QEMU_FIRMWARE_FEATURE_AMD_SEV:
         case QEMU_FIRMWARE_FEATURE_AMD_SEV_ES:
-        case QEMU_FIRMWARE_FEATURE_ENROLLED_KEYS:
         case QEMU_FIRMWARE_FEATURE_VERBOSE_DYNAMIC:
         case QEMU_FIRMWARE_FEATURE_VERBOSE_STATIC:
         case QEMU_FIRMWARE_FEATURE_LAST:
@@ -1289,14 +1304,17 @@ qemuFirmwareSanityCheck(const qemuFirmware *fw,
         }
     }
 
-    if (supportsSecureBoot != requiresSMM) {
+    if ((supportsSecureBoot != requiresSMM) ||
+        (hasEnrolledKeys && !supportsSecureBoot)) {
         VIR_WARN("Firmware description '%s' has invalid set of features: "
-                 "%s = %d, %s = %d",
+                 "%s = %d, %s = %d, %s = %d",
                  filename,
                  qemuFirmwareFeatureTypeToString(QEMU_FIRMWARE_FEATURE_REQUIRES_SMM),
                  requiresSMM,
                  qemuFirmwareFeatureTypeToString(QEMU_FIRMWARE_FEATURE_SECURE_BOOT),
-                 supportsSecureBoot);
+                 supportsSecureBoot,
+                 qemuFirmwareFeatureTypeToString(QEMU_FIRMWARE_FEATURE_ENROLLED_KEYS),
+                 hasEnrolledKeys);
     }
 }
 

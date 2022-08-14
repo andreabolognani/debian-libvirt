@@ -114,9 +114,6 @@
   <flag name='fsdev.multidevs'/>
   <flag name='virtio.packed'/>
   <flag name='tcg'/>
-  <flag name='migration-param.bandwidth'/>
-  <flag name='migration-param.downtime'/>
-  <flag name='migration-param.xbzrle-cache-size'/>
   <flag name='blockdev-hostdev-scsi'/>
   <flag name='vhost-user-blk'/>
   <flag name='cpu-max'/>
@@ -127,6 +124,7 @@
   <flag name='input-linux'/>
   <flag name='query-display-options'/>
   <flag name='virtio-blk.queue-size'/>
+  <flag name='usb-host.guest-resets-all'/>
   <version>4002000</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>39100242</microcodeVersion>

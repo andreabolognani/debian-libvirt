@@ -350,7 +350,7 @@ following child elements:
 ``protocol``
    For a ``netfs`` Storage Pool provide a mechanism to define which NFS protocol
    version number will be used to contact the server's NFS service. The
-   attribute ``ver`` accepts an unsigned integer as the version number to use.
+   attribute ``ver`` accepts the version number to use.
    :since:`Since 5.1.0`
 ``vendor``
    Provides optional information about the vendor of the storage device. This
@@ -470,9 +470,9 @@ option in libvirt, and thus should never be used in production.
    options for the mount command via the "-o" option for the ``fs`` or ``netfs``
    type storage pools. In order to designate that the Storage Pool will be using
    the mechanism, the ``pool`` element must be modified to provide the XML
-   namespace attribute syntax as follows:
+   namespace attribute syntax as follows::
 
-   xmlns:fs='http://libvirt.org/schemas/storagepool/fs/1.0'
+      xmlns:fs='http://libvirt.org/schemas/storagepool/fs/1.0'
 
    The ``fs:mount_opts`` defines the mount options by specifying multiple
    ``fs:option`` subelements with the attribute ``name`` specifying the mount

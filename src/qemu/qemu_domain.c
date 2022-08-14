@@ -199,7 +199,7 @@ qemuDomainObjPrivateXMLFormatMigrateTempBitmap(virBuffer *buf,
 
 static int
 qemuDomainFormatJobPrivate(virBuffer *buf,
-                           qemuDomainJobObj *job,
+                           virDomainJobObj *job,
                            virDomainObj *vm)
 {
     qemuDomainJobPrivate *priv = job->privateData;
@@ -342,7 +342,7 @@ qemuDomainObjPrivateXMLParseMigrateTempBitmap(qemuDomainJobPrivate *jobPriv,
 
 static int
 qemuDomainParseJobPrivate(xmlXPathContextPtr ctxt,
-                          qemuDomainJobObj *job,
+                          virDomainJobObj *job,
                           virDomainObj *vm)
 {
     qemuDomainJobPrivate *priv = job->privateData;
@@ -360,12 +360,12 @@ qemuDomainParseJobPrivate(xmlXPathContextPtr ctxt,
 }
 
 
-static qemuDomainObjPrivateJobCallbacks qemuPrivateJobCallbacks = {
+static virDomainObjPrivateJobCallbacks qemuPrivateJobCallbacks = {
     .allocJobPrivate = qemuJobAllocPrivate,
     .freeJobPrivate = qemuJobFreePrivate,
     .resetJobPrivate = qemuJobResetPrivate,
-    .formatJob = qemuDomainFormatJobPrivate,
-    .parseJob = qemuDomainParseJobPrivate,
+    .formatJobPrivate = qemuDomainFormatJobPrivate,
+    .parseJobPrivate = qemuDomainParseJobPrivate,
 };
 
 /**
@@ -1755,7 +1755,7 @@ qemuDomainObjPrivateAlloc(void *opaque)
 {
     g_autoptr(qemuDomainObjPrivate) priv = g_new0(qemuDomainObjPrivate, 1);
 
-    if (qemuDomainObjInitJob(&priv->job, &qemuPrivateJobCallbacks) < 0) {
+    if (virDomainObjInitJob(&priv->job, &qemuPrivateJobCallbacks) < 0) {
         virReportSystemError(errno, "%s",
                              _("Unable to init qemu driver mutexes"));
         return NULL;
@@ -1764,7 +1764,7 @@ qemuDomainObjPrivateAlloc(void *opaque)
     if (!(priv->devs = virChrdevAlloc()))
         return NULL;
 
-    priv->blockjobs = virHashNew(virObjectFreeHashData);
+    priv->blockjobs = virHashNew(virObjectUnref);
 
     /* agent commands block by default, user can choose different behavior */
     priv->agentTimeout = VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_BLOCK;
@@ -4683,7 +4683,8 @@ qemuDomainDefPostParse(virDomainDef *def,
     }
 
     if (virDomainDefHasOldStyleROUEFI(def) &&
-        !def->os.loader->nvram) {
+        !def->os.loader->nvram &&
+        def->os.loader->stateless != VIR_TRISTATE_BOOL_YES) {
         def->os.loader->nvram = virStorageSourceNew();
         def->os.loader->nvram->type = VIR_STORAGE_TYPE_FILE;
         def->os.loader->nvram->format = VIR_STORAGE_FILE_RAW;

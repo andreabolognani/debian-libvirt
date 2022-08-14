@@ -15,8 +15,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2022-06-27 06:24+0000\n"
-"PO-Revision-Date: 2022-06-30 00:21+0000\n"
+"POT-Creation-Date: 2022-07-26 08:13+0000\n"
+"PO-Revision-Date: 2022-07-28 00:20+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -2508,7 +2508,7 @@ msgid "Can't add USB hub: USB is disabled for this domain"
 msgstr "USB 허브를 추가할 수 없음: USB는 이 도메인에 비활성화되어 있음"
 
 msgid "Can't add USB input device. USB bus is disabled"
-msgstr "USB 입력 장치를 추가할 수 없습니다. USB 버스가 비활성화되어 있습니다"
+msgstr "USB 입력 장치를 추가 할 수 없습니다. USB 버스가 비활성화 되었습니다"
 
 msgid "Can't add another USB controller: USB is disabled for this domain"
 msgstr ""
@@ -2762,7 +2762,7 @@ msgstr "vboxSnapshotXmlSnapshotPtr를 생성할 수 없습니다"
 
 #, c-format
 msgid "Cannot create autostart directory %s"
-msgstr "autostart 디렉터리 %s를 생성할 수 없음"
+msgstr "자동시작 디렉토리 %s를 생성 할 수 없음"
 
 #, c-format
 msgid "Cannot create daemon common directory '%s'"
@@ -2770,18 +2770,18 @@ msgstr "데몬의 공용 디렉토리 '%s'를 생성할 수 없습니다"
 
 #, c-format
 msgid "Cannot create directory '%s'"
-msgstr "디렉터리 '%s'를 생성 할 수 없습니다"
+msgstr "디렉토리 '%s'를 생성 할 수 없음"
 
 #, c-format
 msgid "Cannot create log directory '%s'"
-msgstr "로그 디렉터리 '%s'를 생성할 수 없음"
+msgstr "로그 디렉토리 '%s'를 생성 할 수 없음"
 
 msgid "Cannot create macvlan devices on this platform"
 msgstr "이 플랫폼에서 macvlan 장치를 생성할 수 없음"
 
 #, c-format
 msgid "Cannot create resctrl directory '%s'"
-msgstr "resctrl 디렉터리 '%s'를 생성 할 수 없습니다"
+msgstr "resctrl 디렉토리 '%s'를 생성 할 수 없음"
 
 #, c-format
 msgid "Cannot create socket '%s'"
@@ -3994,7 +3994,7 @@ msgstr "CDATA 요소를 생성 할 수 없습니다"
 
 #, c-format
 msgid "Could not create TPM directory %s"
-msgstr "TPM디렉터리 %s를 생성할 수 없음"
+msgstr "TPM 디렉토리 %s를 생성 할 수 없음"
 
 msgid "Could not create WQL filter"
 msgstr "WQL 필터를 생성 할 수 없습니다"
@@ -4888,7 +4888,7 @@ msgstr ""
 "음)이 예상됩니다"
 
 msgid "Could not set the source dir for the filesystem"
-msgstr "파일시스템에 대해 소스 디렉터리를 설정할 수 없음"
+msgstr "파일시스템을 위해 원천 디렉토리를 설정 할 수 없음"
 
 msgid "Could not set wsman namespace address for xmlNodeParam"
 msgstr ""
@@ -6876,8 +6876,7 @@ msgstr "호스트를 일시 중단할 스레드를 생성하지 못했습니다"
 #, c-format
 msgid "Failed to create unique directory with template '%s' for probing QEMU"
 msgstr ""
-"QEMU 검색을 위해 템플릿 '%s'을(를) 사용하여 고유한 디렉터리를 생성하지 못했습"
-"니다"
+"QEMU 검색을 위해 템플릿 '%s'을 사용하여 고유한 디렉토리를 생성하지 못했습니다"
 
 #, c-format
 msgid "Failed to create v1 controller %s for group"
@@ -7710,7 +7709,7 @@ msgstr "%s 설정을 구문 분석하는데 실패"
 
 #, c-format
 msgid "Failed to parse dir name '%s'"
-msgstr "디렉터리 이름 '%s'를 구문분숙 하는 데 실패"
+msgstr "디렉토리 이름 '%s'를 구문분석 하는 데 실패"
 
 msgid "Failed to parse domain description xml"
 msgstr "도메인 설명 xml을 구문 분석하는데 실패"
@@ -9076,8 +9075,8 @@ msgid ""
 "Host not compatible with KVM; HW virtualization CPU features not found. Only "
 "emulated CPUs are available; performance will be significantly limited"
 msgstr ""
-"호스트가 KVM과 호환되지 않음; 하드웨어 가상화 CPU 기능을 찾을 수 없음. "
-"모사된 CPU만 사용 할 수 있음; 성능은 상당히 제한적입니다"
+"호스트가 KVM과 호환되지 않음; 하드웨어 가상화 CPU 기능을 찾을 수 없음. 모사"
+"된 CPU만 사용 할 수 있음; 성능은 상당히 제한적입니다"
 
 msgid "Host sysinfo extraction not supported on this platform"
 msgstr "이 플랫폼에서는 호스트 sysinfo 추출이 지원되지 않습니다"
@@ -11603,9 +11602,6 @@ msgstr "JSON 상태 문서에서 sock 부분이 누락"
 msgid "Missing source channel attribute for char device"
 msgstr "문자 장치에 대한 소스 채널 속성이 누락되었습니다"
 
-msgid "Missing source element for nvram"
-msgstr "nvram을 위해 누락된 원천 요소"
-
 msgid "Missing source host attribute for char device"
 msgstr "캐릭터 장치에 대한 소스 호스트 특성 빠짐"
 
@@ -13330,7 +13326,7 @@ msgid "Print lease info for a given network"
 msgstr "주어진 네트워크에 대한 임대 정보를 출력합니다"
 
 msgid "Print the current directory."
-msgstr "현재 디렉터리를 출력."
+msgstr "현재 디렉토리를 출력합니다."
 
 msgid "Prints cpu stats of the node."
 msgstr "노드의 CPU 통계를 인쇄합니다."
@@ -16703,7 +16699,7 @@ msgid "Unable to change to %s"
 msgstr "%s로 변경 할 수 없습니다"
 
 msgid "Unable to change to root dir"
-msgstr "루트 디렉터리로 cd하기 실패"
+msgstr "루트 디렉토리로 변경 할 수 없음"
 
 #, c-format
 msgid "Unable to chdir(%s)"
@@ -17153,10 +17149,6 @@ msgid "Unable to freeze filesystems"
 msgstr "파일 시스템을 고정 할 수 없습니다"
 
 #, c-format
-msgid "Unable to generate diffie-hellman parameters: %s"
-msgstr "diffie-hellman 매개변수를 생성할 수 없음: %s"
-
-#, c-format
 msgid "Unable to get ACLs on %s"
 msgstr "%s에서 ACL을 가져올 수 없습니다"
 
@@ -17347,9 +17339,6 @@ msgstr "이 플랫폼에서 인터페이스 색인을 가져올 수 없습니다
 msgid "Unable to get interface parameters"
 msgstr "인터페이스 매개변수를 가져올 수 없습니다"
 
-msgid "Unable to get key length for diffie-hellman parameters"
-msgstr "디피-헬만(diffie-hellman) 매개변수를 위한 키 길이를 가져올 수 없습니다"
-
 #, c-format
 msgid "Unable to get kvm descriptor: %s"
 msgstr "kvm 서술자를 가져올 수 없습니다: %s"
@@ -17493,10 +17482,6 @@ msgstr "인증서를 초기화 할 수 없음: %s\n"
 
 msgid "Unable to initialize condition variable"
 msgstr "상태 변수를 초기화 할 수 없습니다"
-
-#, c-format
-msgid "Unable to initialize diffie-hellman parameters: %s"
-msgstr "diffie-hellman 매개변수를 초기화 할 수 없습니다: %s"
 
 #, c-format
 msgid "Unable to initialize lease %s"
@@ -20488,7 +20473,7 @@ msgid "backing store protocol '%s' is not yet supported"
 msgstr "백업 저장소 통신규약 '%s' 아직 지원하지 않습니다"
 
 msgid "backingStore is not supported with NVRAM"
-msgstr ""
+msgstr "백업저장소는 NVRAM에서 지원하지 않습니다"
 
 msgid "backingStore is not supported with vhostuser disk"
 msgstr "backingStore는 vhostuser 디스크에서 지원되지 않습니다"
@@ -21076,8 +21061,8 @@ msgstr "넷링크 멤버십을 추가할 수 없습니다"
 
 msgid "cannot add redirected USB device: USB is disabled for this domain"
 msgstr ""
-"리디렉션된 USB 장치를 추가할 수 없음: 이 도메인에 대해 USB가 비활성화되어 있"
-"습니다"
+"리디렉션된 USB 장치를 추가 할 수 없음: USB는 이 도메인에 대해 비활성화 되었습"
+"니다"
 
 #, c-format
 msgid "cannot allocate %llu bytes in file '%s'"
@@ -21169,11 +21154,11 @@ msgid "cannot change to '%u' group"
 msgstr "'%u' 그룹으로 변경 할 수 없음"
 
 msgid "cannot change to root directory"
-msgstr "root 디렉터리로 변경 할 수 없습니다"
+msgstr "root 디렉토리로 변경 할 수 없습니다"
 
 #, c-format
 msgid "cannot change to root directory: %s"
-msgstr "루트 디렉터리로 cd하기 실패: %s"
+msgstr "루트 디렉토리로 변경 할 수 없음: %s"
 
 #, c-format
 msgid "cannot change to uid to '%u'"
@@ -21239,7 +21224,7 @@ msgid "cannot convert disk '%s' to bus/device index"
 msgstr "디스크 '%s'를 버스/장치 인덱스로 변환할 수 없음"
 
 msgid "cannot copy from volume to a directory volume"
-msgstr "볼륨을 디렉터리 볼륨으로 복사할 수 없습니다"
+msgstr "볼륨에서 디렉토리 볼륨으로 복사 할 수 없습니다"
 
 #, c-format
 msgid "cannot create %s"
@@ -21256,18 +21241,18 @@ msgstr "vboxSnapshotXmlPtr을 생성 할 수 없습니다"
 
 #, c-format
 msgid "cannot create autostart directory %s"
-msgstr "autostart 디렉터리 %s를 생성할 수 없음"
+msgstr "자동시작 디렉토리 %s를 생성 할 수 없음"
 
 #, c-format
 msgid "cannot create autostart directory '%s'"
-msgstr "autostart 디렉터리 '%s'를 생성할 수 없음"
+msgstr "자동시작 디렉토리 '%s'를 생성 할 수 없음"
 
 msgid "cannot create capabilities for libxenlight"
 msgstr "libxenlight에 대한 기능을 만들 수 없습니다"
 
 #, c-format
 msgid "cannot create checkpoint directory '%s'"
-msgstr "검사점 디렉터리 '%s'을(를) 만들 수 없습니다"
+msgstr "점검부분 디렉토리 '%s'를 생성 할 수 없습니다"
 
 msgid "cannot create checkpoint for inactive domain"
 msgstr "비활성 도메인에 대한 체크포인트를 생성할 수 없습니다"
@@ -21277,15 +21262,15 @@ msgstr "스냅샷이 있는 동안에는 체크포인트를 생성할 수 없습
 
 #, c-format
 msgid "cannot create config directory %s"
-msgstr "설정 디렉터리 %s를 만들 수 없음"
+msgstr "구성 디렉토리 %s를 생성 할 수 없음"
 
 #, c-format
 msgid "cannot create config directory '%s'"
-msgstr "설정 디렉터리 '%s'를 만들 수 없음"
+msgstr "구성 디렉토리 '%s'를 생성 할 수 없음"
 
 #, c-format
 msgid "cannot create directory %s"
-msgstr "디렉터리 %s를 생성할 수 없음"
+msgstr "디렉토리 %s를 생성 할 수 없음"
 
 #, c-format
 msgid "cannot create file %s"
@@ -21297,7 +21282,7 @@ msgstr "파일 '%s'를 생성 할 수 없음"
 
 #, c-format
 msgid "cannot create log directory %s"
-msgstr "로그 디렉터리 %s를 생성할 수 없음"
+msgstr "로그 디렉토리 %s를 생성 할 수 없음"
 
 msgid "cannot create logger for libxenlight, disabling driver"
 msgstr "libxenlight용 로거를 생성할 수 없습니다; 드라이버를 비활성화 합니다"
@@ -21311,14 +21296,14 @@ msgstr "터널링된 이전을 위한 파이프를 생성 할 수 없습니다"
 
 #, c-format
 msgid "cannot create snapshot directory '%s'"
-msgstr "스냅샷 디렉터리 '%s'을(를) 만들 수 없습니다"
+msgstr "스냅샷 디렉토리 '%s'를 생성 할 수 없음"
 
 msgid "cannot create snapshot while checkpoint exists"
 msgstr "체크포인트가 존재하는 동안 스냅샷을 생성할 수 없습니다"
 
 #, c-format
 msgid "cannot create state directory '%s'"
-msgstr "상태 디렉터리 '%s'를 생성 할 수 없음"
+msgstr "상태 디렉토리 '%s'를 생성 할 수 없음"
 
 #, c-format
 msgid "cannot decode CPU data for %s architecture"
@@ -21733,6 +21718,10 @@ msgstr "%d 스냅샷와 함께 도메인을 이전 할 수 없습니다"
 msgid "cannot migrate domain with I/O error"
 msgstr "입출력(I/O) 오류가 있는 도메인을 이전 할 수 없습니다"
 
+#, c-format
+msgid "cannot migrate domain: %s"
+msgstr "도메인 이전을 할 수 없습니다: %s"
+
 msgid "cannot migrate this domain without dbus-vmstate support"
 msgstr "dbus-vmstate 지원 없는 이 도메인은 이전 할 수 없습니다"
 
@@ -21968,7 +21957,7 @@ msgstr "lunStr '%s'의 대상을 구문 분석할 수 없습니다"
 
 #, c-format
 msgid "cannot parse thread pool size '%s' for virtiofs"
-msgstr ""
+msgstr "virtiofs를 위해 쓰레드 풀 크기 '%s'를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "cannot parse usage '%s' for RAM filesystem"
@@ -22090,7 +22079,7 @@ msgstr "도메인 %d에 대한 cputime을 읽을 수 없음"
 
 #, c-format
 msgid "cannot read dir '%s'"
-msgstr "'%s' 디렉터리를 읽을 수 없음"
+msgstr "디렉토리 '%s'를 읽을 수 없음"
 
 #, c-format
 msgid "cannot read domain image '%s'"
@@ -22154,7 +22143,7 @@ msgstr "디렉토리 '%s'를 제거 할 수 없습니다"
 
 #, c-format
 msgid "cannot remove gluster volume dir '%s'"
-msgstr "Gluster 볼륨 디렉터리 '%s'를 제거 할 수 없습니다"
+msgstr "Gluster 볼륨 디렉토리 '%s'를 제거 할 수 없음"
 
 #, c-format
 msgid "cannot remove gluster volume file '%s'"
@@ -22423,6 +22412,12 @@ msgstr ""
 msgid "cannot use custom tap device in session mode"
 msgstr "세션 모드에서 사용자 정의 탭 장치를 사용할 수 없습니다"
 
+msgid ""
+"cannot use feature-based firmware autoselection when firmware autoselection "
+"is disabled"
+msgstr "펌웨어 자동선택이 비활성화 되었을 때에 기능-기반의 펌웨어 자동선택을 사용 할 "
+"수 없습니다"
+
 msgid "cannot use namespaces in session mode"
 msgstr "세션 모드에서 네임스페이스를 사용할 수 없습니다"
 
@@ -22483,11 +22478,11 @@ msgstr "cd: %s: %s"
 msgid "cd: command valid only in interactive mode"
 msgstr "cd: 명령어가 양방향 모드에서만 유효합니다"
 
+msgid "cdrom device with virtio bus isn't supported"
+msgstr "virtro 버스와 같은 cdrom 장치가 지원되지 않습니다"
+
 msgid "cdrom device without source path not supported"
 msgstr "원본 경로가 없는 CD-ROM 장치를 지원하지 않습니다"
-
-msgid "cdrom/floppy device hotplug isn't supported"
-msgstr "cdrom/플로피 장치 핫플러그는 지원되지 않습니다"
 
 msgid "cell number must be non-negative integer or -1"
 msgstr "셀 번호는 음이 아닌 정수 또는 -1이어야 합니다"
@@ -22549,7 +22544,7 @@ msgstr ""
 "실행 중인 도메인에 대한 노드 집합을 변경하려면 엄격한 numa 모드가 필요합니다"
 
 msgid "change the current directory"
-msgstr "현재 디렉터리를 변경함"
+msgstr "현재 디렉토리를 변경합니다"
 
 msgid "changed"
 msgstr "변경"
@@ -22677,7 +22672,7 @@ msgstr "자식이 오류를 쓰지 않았습니다(상태=%d)"
 
 #, c-format
 msgid "child failed to create directory '%s'"
-msgstr "자식이 디렉터리 '%s'를 만드는 데 실패"
+msgstr "자식이 디렉토리 '%s'를 생성하는 데 실패했습니다"
 
 #, c-format
 msgid "child process failed to create file '%s'"
@@ -23564,7 +23559,7 @@ msgid "current bridge device name"
 msgstr "현재 브리지 장치 이름"
 
 msgid "current job is not outgoing migration in post-copy mode"
-msgstr ""
+msgstr "현재 작업은 사후-복사 방식에서 외부로 이전 할 수 없습니다"
 
 msgid "current vcpu count must equal maximum"
 msgstr "현재 vcpu 수는 최대값과 같아야 합니다"
@@ -23946,7 +23941,7 @@ msgstr ""
 "니다"
 
 msgid "directory to switch to (default: home or else root)"
-msgstr "변경하려는 디렉터리(디폴트: 홈 또는 다른 루트)"
+msgstr "변경하려는 디렉토리(기본값: home 또는 아니면 root)"
 
 msgid ""
 "dirty page rate calculation mode, either of these 3 options 'page-sampling, "
@@ -24193,10 +24188,10 @@ msgstr "디스크 원본 경로가 빠졌습니다"
 
 #, c-format
 msgid "disk startupPolicy '%s' is not allowed for disk of '%s' type"
-msgstr ""
+msgstr "디스크 시작정책 '%s'는 '%s' 유형의 디스크에 허용되지 않습니다"
 
 msgid "disk startupPolicy 'requisite' is allowed only for cdrom or floppy"
-msgstr ""
+msgstr "디스크 시작정책 '필수품'는 CD롬 또는 플로피만 허용됩니다"
 
 #, c-format
 msgid "disk target %s not found"
@@ -24389,7 +24384,7 @@ msgid "domain control interface state"
 msgstr "도메인 제어 연결장치 상태"
 
 msgid "domain core dump"
-msgstr ""
+msgstr "도메인 코어 덤프"
 
 msgid "domain display connection URI"
 msgstr "도메인 디스플레이 연결 URI"
@@ -24498,7 +24493,7 @@ msgid "domain name, id or uuid"
 msgstr "도메인명, id 또는 uuid"
 
 msgid "domain save"
-msgstr ""
+msgstr "도메인 저장"
 
 msgid "domain snapshot XML"
 msgstr "도메인 스냅샷 XML"
@@ -25379,7 +25374,7 @@ msgstr "ssh 호스트키 해시를 계산하는데 실패"
 
 #, c-format
 msgid "failed to change to directory '%s' in '%s'"
-msgstr "'%s'의 '%s' 디렉터리로 변경하지 못했습니다"
+msgstr "'%s'의 '%s' 디렉토리로 변경하는 데 실패함"
 
 msgid "failed to chown secret file"
 msgstr "비밀 파일을 찾아내지 못했습니다"
@@ -25477,7 +25472,7 @@ msgstr "복사 대상을 만들지 못했습니다"
 
 #, c-format
 msgid "failed to create directory '%s'"
-msgstr "디렉터리 '%s' 생성 실패"
+msgstr "디렉토리 '%s'를 생성하는 데 실패함"
 
 #, c-format
 msgid "failed to create dump dir '%s'"
@@ -26053,7 +26048,7 @@ msgid "failed to parse port number '%s'"
 msgstr "포트 번호 '%s'을(를) 구문 분석하지 못했습니다"
 
 msgid "failed to parse pre-migration memlock limit"
-msgstr ""
+msgstr "사전-이전 memlock 제한을 구문 분석 할 수 없음"
 
 msgid "failed to parse qemu capabilities cpus"
 msgstr "qemu 기능 CPU를 구문 분석하지 못했습니다"
@@ -26168,7 +26163,7 @@ msgstr "쿠키를 읽지 못했습니다"
 
 #, c-format
 msgid "failed to read directory '%s' in '%s'"
-msgstr "'%s'의 디렉터리 '%s'을(를) 읽지 못했습니다"
+msgstr "'%s'의 디렉토리 '%s'를 읽는 데 실패함"
 
 msgid "failed to read domain XML"
 msgstr "도메인 XML을 읽지 못했습니다"
@@ -26699,6 +26694,17 @@ msgstr ""
 msgid "firmware auto selection not implemented for this driver"
 msgstr "이 드라이버에 대해 펌웨어 자동 선택이 구현되지 않았습니다"
 
+msgid ""
+"firmware feature 'enrolled-keys' cannot be enabled when firmware feature "
+"'secure-boot' is disabled"
+msgstr ""
+"펌웨어 기능 \"enrolled-keys\"는 펌웨어 기능 'secure-boot'가 비활성화 되었을 "
+"때에 활성화 할 수 없습니다"
+
+#, c-format
+msgid "firmware type '%s' does not support nvram"
+msgstr "펌웨어 유형 '%s'는 nvram을 지원하지 않습니다"
+
 msgid "fixed audio settings requires mixing engine"
 msgstr "고정 오디오 설정에는 믹싱 엔진이 필요합니다"
 
@@ -26722,6 +26728,9 @@ msgstr ""
 
 msgid "floor attribute is not supported for this config"
 msgstr "이 구성에는 floor 속성이 지원되지 않습니다"
+
+msgid "floppy device hotplug isn't supported"
+msgstr "플로피 장치 핫플러그는 지원되지 않습니다"
 
 msgid "fmode and dmode must be used with accessmode=mapped"
 msgstr "fmode 및 dmode는 accessmode=mapped와 함께 사용해야 합니다"
@@ -27089,6 +27098,9 @@ msgstr "guest-get-users 응답에 반환 데이터가 누락되었습니다"
 
 msgid "guest-get-vcpus reply was missing return data"
 msgstr "guest-get-vcpus 응답에 반환 데이터가 누락되었습니다"
+
+msgid "guestReset is not supported with this version of QEMU"
+msgstr "guestReset는 이와 같은 QEMU 버전에서 지원되지 않습니다"
 
 msgid "guestfwd channel does not define a target address"
 msgstr "guestfwd 채널이 타겟 주소를 정의하지 않습니다"
@@ -27719,7 +27731,7 @@ msgid "internal use only"
 msgstr "오직 내부 사용"
 
 msgid "interrupt post-copy migration"
-msgstr ""
+msgstr "복사-후 이전 중단"
 
 msgid "intr:"
 msgstr "소개:"
@@ -27953,9 +27965,6 @@ msgstr "잘못된 지원 프로토콜 '%s'"
 #, c-format
 msgid "invalid backing protocol string '%s'"
 msgstr "잘못된 지원 프로토콜 문자열 '%s'"
-
-msgid "invalid cache size in query-migrate-cache-size reply"
-msgstr "query-migrate-cache-size 응답의 잘못된 캐쉬 크기"
 
 #, c-format
 msgid "invalid capability_filters capability '%s'"
@@ -28473,6 +28482,10 @@ msgstr "ioeventfd는 vhostuser 디스크에서 지원되지 않습니다"
 msgid "iommu driver option is only supported for virtio devices"
 msgstr "iommu 드라이버 옵션은 virtio 장치에만 지원됩니다"
 
+#, c-format
+msgid "iommu model '%s' can't have address"
+msgstr "iommu 모델 '%s'은 주소를 가질 수 없습니다"
+
 msgid "iommu: aw_bits is not supported with this QEMU binary"
 msgstr "iommu: aw_bits는 이 QEMU 바이너리에서 지원되지 않습니다"
 
@@ -28537,27 +28550,27 @@ msgstr "ivshmem 장치는 이 QEMU 바이너리에서 지원되지 않습니다"
 
 #, c-format
 msgid "job '%s' canceled by client"
-msgstr ""
+msgstr "클라이언트가 작업 '%s'를 취소했습니다"
 
 #, c-format
 msgid "job '%s' failed due to I/O error"
-msgstr ""
+msgstr "작업 '%s'가 입/출력 오류로 실패하였습니다"
 
 #, c-format
 msgid "job '%s' failed in post-copy phase"
-msgstr ""
+msgstr "작업 '%s'가 사후-복사 단계에서 실패하였습니다"
 
 #, c-format
 msgid "job '%s' failed: %s"
-msgstr ""
+msgstr "작업'%s'가 실패함: %s"
 
 #, c-format
 msgid "job '%s' is not active"
-msgstr ""
+msgstr "작업 '%s'가 동작하지 않습니다"
 
 #, c-format
 msgid "job '%s' unexpectedly failed"
-msgstr ""
+msgstr "작업 '%s'가 예상치 않게 실패했습니다"
 
 #, c-format
 msgid "job type '%s' does not support pivot"
@@ -29081,6 +29094,25 @@ msgstr "라이브 스냅샷 생성은 전체 시스템 스냅샷 중에만 지�
 msgid "live update of device '%s' is not supported"
 msgstr "장치 '%s'의 라이브 업데이트가 지원되지 않습니다"
 
+msgid ""
+"loader attribute 'readonly' cannot be specified when firmware autoselection "
+"is enabled"
+msgstr "로더 속성 '읽기전용'은 펌웨어가 자동선택이 활성화 되었을 때에 지정 될 수 "
+"없습니다"
+
+msgid ""
+"loader attribute 'secure' cannot be specified when firmware autoselection is "
+"enabled"
+msgstr "로더 속성 '보안'은 펌웨어 자동선택이 활성화 되었을 때에 지정 될 수 없습니다"
+
+msgid ""
+"loader attribute 'type' cannot be specified when firmware autoselection is "
+"enabled"
+msgstr "로더 속성 '유형'은 펌웨어가 자동선택이 활성화 되었을 때에 지정 될 수 없습니다"
+
+msgid "loader path cannot be specified when firmware autoselection is enabled"
+msgstr "로더 경로는 펌웨어 자동선택이 활성화 되었을 때에 지정 될 수 없습니다"
+
 #, c-format
 msgid "loadparm value '%s' must be between 1 and 8 characters"
 msgstr "loadparm 값 '%s'는 1 ~ 8개의 문자 사이여야 합니다"
@@ -29102,7 +29134,7 @@ msgid "loop until timeout or interrupt, rather than one-shot"
 msgstr "원샷이 보다는, 타임아웃 또는 인터럽트까지 루프"
 
 msgid "lower boundary for worker thread pool"
-msgstr ""
+msgstr "작업자 쓰레드 풀의 최저 한계"
 
 msgid "luks2 is currently not supported by the qemu encryption engine"
 msgstr "luks2는 현재 qemu 암호화 엔진에서 지원되지 않습니다"
@@ -29654,7 +29686,7 @@ msgid "migration canceled"
 msgstr "이전 취소됨"
 
 msgid "migration in"
-msgstr ""
+msgstr "이전"
 
 #, c-format
 msgid "migration of disk %s failed"
@@ -29666,11 +29698,11 @@ msgstr "디스크 %s의 이전이 실패됨: %s"
 
 #, c-format
 msgid "migration of domain %s is being actively monitored by another thread"
-msgstr ""
+msgstr "도메인 %s의 이전이 다른 쓰레드에서 활동적으로 관리되고 있습니다"
 
 #, c-format
 msgid "migration of domain %s is not in post-copy phase"
-msgstr ""
+msgstr "도메인 %s의 이전은 복사-후 단계가 아닙니다"
 
 msgid ""
 "migration of non-shared storage is not supported with tunnelled migration "
@@ -29679,7 +29711,7 @@ msgstr ""
 "비-공유된 저장소의 이전은 터널링된 이전과 이 QEMU에서 지원되지 않습니다"
 
 msgid "migration out"
-msgstr ""
+msgstr "외부 이전"
 
 #, c-format
 msgid "migration parameter '%s' must be less than %llu"
@@ -30685,7 +30717,7 @@ msgid "model type"
 msgstr "모델 유형"
 
 msgid "modern nvram specification is not supported by this qemu"
-msgstr ""
+msgstr "최신 nvram 규격은 이와 같은 qemu에서 지원하지 않습니다"
 
 msgid "modifies an existing IOThread of the guest domain"
 msgstr "게스트 도메인의 기존 IOThread를 수정합니다"
@@ -31883,6 +31915,9 @@ msgstr "공유 메모리 서비스가 절전 모드로 전환되기 전에 스�
 msgid "number of read operations:"
 msgstr "읽기 동작 수:"
 
+msgid "number of seconds the daemon will run without any active connection"
+msgstr "활성화된 연결 없이 데몬이 실행되는 시간(초)"
+
 msgid "number of seconds to squelch traffic on newly connected ports"
 msgstr "새로 연결된 포트에서 트래픽을 억제하는 데 걸리는 시간(초)"
 
@@ -31922,6 +31957,12 @@ msgstr "이 QEMU 바이너리에서는 nvdimm 읽기 전용 속성을 사용 할
 
 msgid "nvram address type must be spaprvio"
 msgstr "nvram 주소 유형은 spaprvio여야 합니다"
+
+msgid ""
+"nvram attribute 'template' cannot be specified when firmware autoselection "
+"is enabled"
+msgstr "vnram 속성 '템플릿트'는 펌웨어 자동선택이 활성화 되었을 때에 지정 될 수 "
+"없습니다"
 
 msgid "nvram device is not supported by this QEMU binary"
 msgstr "nvram 장치는 이 QEMU 바이너리에서 지원되지 않습니다"
@@ -32053,7 +32094,7 @@ msgstr "'패스스루' 입력 장치에는 'virtio' 버스만 지원됩니다"
 
 #, c-format
 msgid "only bus 'virtio' is supported for input model '%s'"
-msgstr ""
+msgstr "'virtio' 버스만만 입력 모델 '%s'를 지원합니다"
 
 msgid "only can reboot running/paused domain"
 msgstr "실행/일시 중지된 도메인만 재부팅할 수 있습니다"
@@ -32612,7 +32653,7 @@ msgid "persistent detach of device is not supported"
 msgstr "장치의 영구 분리는 지원되지 않습니다"
 
 msgid "persistent reservations are not supported with NVRAM"
-msgstr ""
+msgstr "지속적인 예약은 NVRAM을 지원하지 않습니다"
 
 #, c-format
 msgid "persistent update of device '%s' is not supported"
@@ -32757,7 +32798,7 @@ msgstr "사후-복사 이전은 비-실시간 또는 일시 중지된 이전에�
 
 #, c-format
 msgid "post-copy migration of domain %s has not failed"
-msgstr ""
+msgstr "도메인 %s의 복사-후 이전이 실패하지 않았습니다"
 
 msgid "potentially unsafe disk format probing"
 msgstr "잠재적으로 안전하지 않은 디스크 형식 검사"
@@ -32878,7 +32919,7 @@ msgid "print the admin server URI"
 msgstr "관리 서버 URI 인쇄"
 
 msgid "print the current directory"
-msgstr "현재 디렉터리를 출력"
+msgstr "현재 디렉토리를 출력합니다"
 
 msgid "print the domain's hostname"
 msgstr "도메인의 호스트 이름 인쇄"
@@ -33535,8 +33576,9 @@ msgstr "요청된 CPU 양이 지원되는 최대 양을 초과합니다(%d > %d)
 msgid "requested size must be an integer multiple of block size"
 msgstr "요청된 크기는 블록 크기의 정수 배수이여야 합니다"
 
-msgid "requested size must be smaller than or equal to @size"
-msgstr "요청된 크기는 @크기로 작거나 같아야 합니다"
+#, c-format
+msgid "requested size must be smaller than or equal to @size (%lluKiB)"
+msgstr "요청된 크기는 @size (%lluKiB)와 작거나 같아야만 합니다"
 
 msgid "requested size of the cache (in bytes) used for compression"
 msgstr "압축에 사용된 캐쉬의 요청된 크기(바이트)"
@@ -33595,7 +33637,7 @@ msgid "reset the domain after core dump"
 msgstr "코어 덤프한 도메인을 재설정"
 
 msgid "resetting of nvram is not supported with network backed nvram"
-msgstr ""
+msgstr "nvram의 재설정은 네트워크 백업 nvram을 지원하지 않습니다"
 
 msgid "resize a vol"
 msgstr "볼륨 크기 조정"
@@ -33633,7 +33675,7 @@ msgid "resume a domain"
 msgstr "도메인을 다시 시작"
 
 msgid "resume failed post-copy migration"
-msgstr ""
+msgstr "실패한 복사-후 이전을 재시작"
 
 msgid "resume operation failed"
 msgstr "재개 동작이 실패했습니다"
@@ -33646,13 +33688,13 @@ msgstr "스냅샷 실패 후 재개"
 
 #, c-format
 msgid "resuming failed post-copy migration of domain %s already in progress"
-msgstr ""
+msgstr "이미 진행 중인 도메인 %s의 실패한 복사-후 이전 재시작"
 
 msgid "resuming failed post-copy migration requires change protection"
-msgstr ""
+msgstr "실패한 복사-후 이전의 재시작은 변경된 보호가 필요합니다"
 
 msgid "resuming failed post-copy migration requires post-copy to be enabled"
-msgstr ""
+msgstr "실패한 복사-후 이전의 재시작은 복사-후를 활성화하여야 합니다"
 
 msgid "retrieve client's identity info from server"
 msgstr "서버에서 클라이언트의 ID 정보 검색"
@@ -34012,6 +34054,9 @@ msgstr "서버 작업자 풀 매개변수 설정"
 msgid "set server's client-related configuration limits"
 msgstr "서버의 클라이언트 관련 구성 제한 설정"
 
+msgid "set the auto shutdown timeout of the daemon"
+msgstr "데몬의 자동 종료 시간만료를 지정합니다"
+
 msgid "set the bandwidth limit in MiB/s"
 msgstr "대역폭 제한(MiB/s) 설정"
 
@@ -34029,7 +34074,7 @@ msgid "set the user password inside the domain"
 msgstr "도메인 내부의 사용자 비밀번호 설정"
 
 msgid "set the value for reduction of the IOThread polling time"
-msgstr ""
+msgstr "IOT 쓰레드 주기별 응답시간의 감소를 위한 값을 설정합니다"
 
 msgid "set the value to increase the IOThread polling time"
 msgstr "값을 설정하여 IOThread 폴링 시간을 늘리십시오"
@@ -34275,10 +34320,10 @@ msgid "skipped restricted file"
 msgstr "건너뛴 제한된 파일"
 
 msgid "slices are not supported with NVRAM"
-msgstr ""
+msgstr "슬라이스는 NVRAM을 지원하지 않습니다"
 
 msgid "snapshot"
-msgstr ""
+msgstr "스냅샷"
 
 #, c-format
 msgid "snapshot %s disappeared from list"
@@ -34454,7 +34499,7 @@ msgid "ssl verification setting is not supported by this QEMU binary"
 msgstr "이 QEMU 바이너리는 SSL 확인 설정을 지원하지 않습니다"
 
 msgid "start"
-msgstr ""
+msgstr "시작"
 
 msgid "start a (previously defined) inactive domain"
 msgstr "(기존에 정의된) 비활성화 도메인 시작"
@@ -34599,8 +34644,8 @@ msgid "storage pool only supports LUKS encrypted volumes"
 msgstr "저장소 풀은 LUKS 암호화 볼륨만 지원합니다"
 
 #, c-format
-msgid "storage pool protocol ver '%s' is malformed"
-msgstr "저장소 풀 통신규약 버전 '%s'가 잘못된 형식입니다"
+msgid "storage pool protocol ver '%s' must not contain ','"
+msgstr "저장소 풀 통신규약 버전 '%s'가 포함되지 않아야만 합니다 ','"
 
 #, c-format
 msgid "storage pool protocol ver unsupported for pool type '%s'"
@@ -34993,7 +35038,7 @@ msgstr "사용자 이름"
 
 #, c-format
 msgid "the virtiofs export directory '%s' does not exist"
-msgstr "virtiofs 내보내기 디렉터리 '%s'가 존재하지 않습니다"
+msgstr "virtiofs 내보내기 디렉토리 '%s'가 존재하지 않습니다"
 
 #, c-format
 msgid "the wwnn/wwpn for '%s' are assigned to an HBA"
@@ -35144,33 +35189,35 @@ msgstr "이 저장소 볼륨이 이미 있습니다"
 
 #, c-format
 msgid "thread_pool_max (%d) must be a positive number or -1"
-msgstr ""
+msgstr "thread_pool_max (%d)은 양수 또는 -1이어야 합니다"
 
 #, c-format
 msgid "thread_pool_max (%d) must be equal to or greater than 0 for live change"
-msgstr ""
+msgstr "thread_pool_max (%d)는 실시간 변경을 위해 0보다 같거나 커야 합니다"
 
 msgid "thread_pool_max must be a positive integer"
-msgstr ""
+msgstr "thread_pool_max는 양의 정수이어야 합니다"
 
 #, c-format
 msgid "thread_pool_min (%d) can't be greater than thread_pool_max (%d)"
-msgstr ""
+msgstr "thread_pool_min (%d)은 thread_pool_max (%d)보다 클 수 없습니다"
 
 #, c-format
 msgid "thread_pool_min (%d) must be equal to or greater than -1"
-msgstr ""
+msgstr "thread_pool_min (%d)은 -1보다 같거나 커야 합니다"
 
 #, c-format
 msgid "thread_pool_min (%d) must be equal to or greater than 0 for live change"
-msgstr ""
+msgstr "hread_pool_min (%d)은 실시간 변경을 위해 0과 같거나 커야 합니다"
 
 msgid ""
 "thread_pool_min and thread_pool_max is not supported by this QEMU binary"
 msgstr ""
+"thread_pool_min and thread_pool_max 는 이와 같은 QEMU 바이너리에서 지원되지 "
+"않습니다"
 
 msgid "thread_pool_min must be smaller or equal to thread_pool_max"
-msgstr ""
+msgstr "thread_pool_min은 thread_pool_max 보다 작거나 동일해야 합니다"
 
 msgid "threshold as a scaled number (by default bytes)"
 msgstr "스케일된 숫자로서의 임계값(기본적으로 바이트)"
@@ -35653,7 +35700,7 @@ msgid "tty console"
 msgstr "tty 콘솔"
 
 msgid "tunnelFD argument is required for tunnelled migration"
-msgstr ""
+msgstr "tunnelFD 인수는 터널링된 이전을 위해 필요합니다"
 
 msgid "tunnelled migration"
 msgstr "터널링된 이전"
@@ -36477,7 +36524,7 @@ msgstr "예상치 못한 메시지 유형"
 
 #, c-format
 msgid "unexpected migration schema: %d"
-msgstr ""
+msgstr "기대하지 않은 이전 개요: %d"
 
 #, c-format
 msgid "unexpected migration status in %s"
@@ -36843,10 +36890,6 @@ msgstr "'%s'에 알 수 없는 장치 유형"
 #, c-format
 msgid "unknown disk snapshot driver '%s'"
 msgstr "알 수 없는 디스크 스냅샷 드라이버 '%s'"
-
-#, c-format
-msgid "unknown disk type '%s'"
-msgstr "알 수 없는 디스크 유형 '%s'"
 
 #, c-format
 msgid "unknown driver format value '%s'"
@@ -37515,7 +37558,7 @@ msgstr "지원되지 않는 numatune 방식: '%d'"
 
 #, c-format
 msgid "unsupported nvram disk type '%s'"
-msgstr ""
+msgstr "지원되지 않는 vnram 디스크 유형 '%s'"
 
 #, c-format
 msgid "unsupported nvram template format '%s'"
@@ -37622,7 +37665,7 @@ msgid "upload file contents to a volume"
 msgstr "볼륨에 파일 컨텐츠를 업로드함"
 
 msgid "upper boundary for worker thread pool"
-msgstr ""
+msgstr "작업자 쓰레드 풀을 위한 상위 경계"
 
 #, c-format
 msgid "uptime file has unexpected format '%s'"
@@ -37685,7 +37728,7 @@ msgid "use virDomainMigrateToURI3 for peer-to-peer migration"
 msgstr "장치간 이전을 위해 virDomainMigrateToURI3를 사용합니다"
 
 msgid "use zero-copy mechanism for migrating memory pages"
-msgstr ""
+msgstr "이전하는 메모리 부분을 위한 제로-카피 원리를 사용"
 
 msgid "user"
 msgstr "사용자"
@@ -38576,7 +38619,7 @@ msgid "with redefine, set current snapshot"
 msgstr "재정의로 현재 스냅샷 설정"
 
 msgid "wrap xpath results in an common root element"
-msgstr ""
+msgstr "wrap xpath는 일반 root 요소로 나타납니다"
 
 msgid "write I/O operations limit per second"
 msgstr "초당 쓰기 I/O 작업 제한"
@@ -38626,7 +38669,7 @@ msgid "xml modification unsupported"
 msgstr "xml 수정은 지원되지 않음"
 
 msgid "xpath expression to filter the XML document"
-msgstr ""
+msgstr "XML 문서를 필터링 하는 xpath 표현식"
 
 #, c-format
 msgid "xsd:dateTime value '%s' has unexpected format"
@@ -38653,6 +38696,34 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <string>}..."
+
+#~ msgid "Missing source element for nvram"
+#~ msgstr "nvram을 위해 누락된 원천 요소"
+
+#~ msgid "Unable to generate diffie-hellman parameters: %s"
+#~ msgstr "diffie-hellman 매개변수를 생성할 수 없음: %s"
+
+#~ msgid "Unable to get key length for diffie-hellman parameters"
+#~ msgstr ""
+#~ "디피-헬만(diffie-hellman) 매개변수를 위한 키 길이를 가져올 수 없습니다"
+
+#~ msgid "Unable to initialize diffie-hellman parameters: %s"
+#~ msgstr "diffie-hellman 매개변수를 초기화 할 수 없습니다: %s"
+
+#~ msgid "cdrom/floppy device hotplug isn't supported"
+#~ msgstr "cdrom/플로피 장치 핫플러그는 지원되지 않습니다"
+
+#~ msgid "invalid cache size in query-migrate-cache-size reply"
+#~ msgstr "query-migrate-cache-size 응답의 잘못된 캐쉬 크기"
+
+#~ msgid "requested size must be smaller than or equal to @size"
+#~ msgstr "요청된 크기는 @크기로 작거나 같아야 합니다"
+
+#~ msgid "storage pool protocol ver '%s' is malformed"
+#~ msgstr "저장소 풀 통신규약 버전 '%s'가 잘못된 형식입니다"
+
+#~ msgid "unknown disk type '%s'"
+#~ msgstr "알 수 없는 디스크 유형 '%s'"
 
 #~ msgid "'startupPolicy' is only valid for 'file' type volume"
 #~ msgstr ""

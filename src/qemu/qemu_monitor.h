@@ -435,7 +435,7 @@ int qemuMonitorSetLink(qemuMonitor *mon,
 /* These APIs are for use by the internal Text/JSON monitor impl code only */
 char *qemuMonitorNextCommandID(qemuMonitor *mon);
 int qemuMonitorSend(qemuMonitor *mon,
-                    qemuMonitorMessage *msg) G_GNUC_NO_INLINE;
+                    qemuMonitorMessage *msg) G_NO_INLINE;
 int qemuMonitorUpdateVideoMemorySize(qemuMonitor *mon,
                                      virDomainVideoDef *video,
                                      const char *videoName)
@@ -769,17 +769,6 @@ int qemuMonitorSavePhysicalMemory(qemuMonitor *mon,
 
 int qemuMonitorSetDBusVMStateIdList(qemuMonitor *mon,
                                     GSList *list);
-
-int qemuMonitorSetMigrationSpeed(qemuMonitor *mon,
-                                 unsigned long bandwidth);
-
-int qemuMonitorSetMigrationDowntime(qemuMonitor *mon,
-                                    unsigned long long downtime);
-
-int qemuMonitorGetMigrationCacheSize(qemuMonitor *mon,
-                                     unsigned long long *cacheSize);
-int qemuMonitorSetMigrationCacheSize(qemuMonitor *mon,
-                                     unsigned long long cacheSize);
 
 int qemuMonitorGetMigrationParams(qemuMonitor *mon,
                                   virJSONValue **params);
@@ -1554,3 +1543,7 @@ qemuMonitorChangeMemoryRequestedSize(qemuMonitor *mon,
 int
 qemuMonitorMigrateRecover(qemuMonitor *mon,
                           const char *uri);
+
+int
+qemuMonitorGetMigrationBlockers(qemuMonitor *mon,
+                                char ***blockers);

@@ -321,6 +321,11 @@
               </attribute>
             </optional>
             <optional>
+              <attribute name="stateless">
+                <ref name="virYesNo"/>
+              </attribute>
+            </optional>
+            <optional>
               <ref name="absFilePath"/>
             </optional>
           </element>
@@ -5410,9 +5415,6 @@
           <ref name="alias"/>
         </optional>
         <optional>
-          <ref name="acpi"/>
-        </optional>
-        <optional>
           <ref name="address"/>
         </optional>
       </interleave>
@@ -5454,9 +5456,6 @@
         </group>
       </choice>
       <optional>
-        <ref name="alias"/>
-      </optional>
-      <optional>
         <ref name="acpi"/>
       </optional>
       <optional>
@@ -5485,9 +5484,6 @@
       <ref name="tpm-backend"/>
       <optional>
         <ref name="alias"/>
-      </optional>
-      <optional>
-        <ref name="acpi"/>
       </optional>
       <optional>
         <ref name="address"/>
@@ -5662,7 +5658,13 @@
           </element>
         </optional>
         <optional>
+          <ref name="acpi"/>
+        </optional>
+        <optional>
           <ref name="address"/>
+        </optional>
+        <optional>
+          <ref name="alias"/>
         </optional>
       </interleave>
     </element>
@@ -5773,9 +5775,6 @@
           <ref name="alias"/>
         </optional>
         <optional>
-          <ref name="acpi"/>
-        </optional>
-        <optional>
           <ref name="address"/>
         </optional>
       </interleave>
@@ -5793,9 +5792,6 @@
         <ref name="qemucdevSrcDef"/>
         <optional>
           <ref name="alias"/>
-        </optional>
-        <optional>
-          <ref name="acpi"/>
         </optional>
         <optional>
           <ref name="address"/>
@@ -5935,6 +5931,15 @@
     <element name="source">
       <optional>
         <ref name="startupPolicy"/>
+      </optional>
+      <optional>
+        <attribute name="guestReset">
+          <choice>
+            <value>off</value>
+            <value>uninitialized</value>
+            <value>on</value>
+          </choice>
+        </attribute>
       </optional>
       <choice>
         <group>
@@ -8038,9 +8043,6 @@
       <interleave>
         <optional>
           <ref name="alias"/>
-        </optional>
-        <optional>
-          <ref name="acpi"/>
         </optional>
         <optional>
           <ref name="address"/>

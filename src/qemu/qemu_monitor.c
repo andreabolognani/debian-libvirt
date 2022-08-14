@@ -144,20 +144,37 @@ VIR_ENUM_IMPL(qemuMonitorCPUProperty,
 
 VIR_ENUM_IMPL(qemuMonitorMigrationStatus,
               QEMU_MONITOR_MIGRATION_STATUS_LAST,
-              "inactive", "setup",
-              "active", "pre-switchover",
-              "device", "postcopy-active",
-              "postcopy-paused", "postcopy-recover",
-              "completed", "failed",
-              "cancelling", "cancelled",
+              "inactive",
+              "setup",
+              "active",
+              "pre-switchover",
+              "device",
+              "postcopy-active",
+              "postcopy-paused",
+              "postcopy-recover",
+              "completed",
+              "failed",
+              "cancelling",
+              "cancelled",
               "wait-unplug",
 );
 
 VIR_ENUM_IMPL(qemuMonitorVMStatus,
               QEMU_MONITOR_VM_STATUS_LAST,
-              "debug", "inmigrate", "internal-error", "io-error", "paused",
-              "postmigrate", "prelaunch", "finish-migrate", "restore-vm",
-              "running", "save-vm", "shutdown", "watchdog", "guest-panicked",
+              "debug",
+              "inmigrate",
+              "internal-error",
+              "io-error",
+              "paused",
+              "postmigrate",
+              "prelaunch",
+              "finish-migrate",
+              "restore-vm",
+              "running",
+              "save-vm",
+              "shutdown",
+              "watchdog",
+              "guest-panicked",
 );
 
 typedef enum {
@@ -2242,61 +2259,6 @@ qemuMonitorSetDBusVMStateIdList(qemuMonitor *mon,
 
     return qemuMonitorJSONSetDBusVMStateIdList(mon, path,
                                                virBufferCurrentContent(&buf));
-}
-
-
-int
-qemuMonitorSetMigrationSpeed(qemuMonitor *mon,
-                             unsigned long bandwidth)
-{
-    VIR_DEBUG("bandwidth=%lu", bandwidth);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    if (bandwidth > QEMU_DOMAIN_MIG_BANDWIDTH_MAX) {
-        virReportError(VIR_ERR_OVERFLOW,
-                       _("bandwidth must be less than %llu"),
-                       QEMU_DOMAIN_MIG_BANDWIDTH_MAX + 1ULL);
-        return -1;
-    }
-
-    return qemuMonitorJSONSetMigrationSpeed(mon, bandwidth);
-}
-
-
-int
-qemuMonitorSetMigrationDowntime(qemuMonitor *mon,
-                                unsigned long long downtime)
-{
-    VIR_DEBUG("downtime=%llu", downtime);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONSetMigrationDowntime(mon, downtime);
-}
-
-
-int
-qemuMonitorGetMigrationCacheSize(qemuMonitor *mon,
-                                 unsigned long long *cacheSize)
-{
-    VIR_DEBUG("cacheSize=%p", cacheSize);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONGetMigrationCacheSize(mon, cacheSize);
-}
-
-
-int
-qemuMonitorSetMigrationCacheSize(qemuMonitor *mon,
-                                 unsigned long long cacheSize)
-{
-    VIR_DEBUG("cacheSize=%llu", cacheSize);
-
-    QEMU_CHECK_MONITOR(mon);
-
-    return qemuMonitorJSONSetMigrationCacheSize(mon, cacheSize);
 }
 
 
@@ -4540,4 +4502,16 @@ qemuMonitorMigrateRecover(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONMigrateRecover(mon, uri);
+}
+
+
+int
+qemuMonitorGetMigrationBlockers(qemuMonitor *mon,
+                                char ***blockers)
+{
+    VIR_DEBUG("blockers=%p", blockers);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONGetMigrationBlockers(mon, blockers);
 }

@@ -566,11 +566,11 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_CPU_MIGRATABLE, /* -cpu ...,migratable=on|off */
     X_QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_MIGRATABLE, /* query-cpu-model-expansion supports migratable:false */
     X_QEMU_CAPS_FW_CFG, /* -fw_cfg command line option */
-    QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH, /* max-bandwidth field in migrate-set-parameters */
-    QEMU_CAPS_MIGRATION_PARAM_DOWNTIME, /* downtime-limit field in migrate-set-parameters */
+    X_QEMU_CAPS_MIGRATION_PARAM_BANDWIDTH, /* max-bandwidth field in migrate-set-parameters */
+    X_QEMU_CAPS_MIGRATION_PARAM_DOWNTIME, /* downtime-limit field in migrate-set-parameters */
 
     /* 375 */
-    QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE, /* xbzrle-cache-size field in migrate-set-parameters */
+    X_QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE, /* xbzrle-cache-size field in migrate-set-parameters */
     QEMU_CAPS_INTEL_IOMMU_AW_BITS, /* intel-iommu.aw-bits */
     QEMU_CAPS_DEVICE_SPAPR_TPM_PROXY, /* -device spapr-tpm-proxy */
     QEMU_CAPS_NUMA_HMAT, /* -numa hmat */
@@ -650,6 +650,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_CHARDEV_QEMU_VDAGENT, /* -chardev qemu-vdagent */
     QEMU_CAPS_DISPLAY_DBUS, /* -display dbus */
     QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX, /* -object iothread.thread-pool-max */
+    QEMU_CAPS_USB_HOST_GUESTS_RESETS_ALL, /* -device usb-host.guest-resets-all */
+    QEMU_CAPS_MIGRATION_BLOCKED_REASONS, /* query-migrate returns 'blocked-reasons */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -844,7 +846,7 @@ virSEVCapability *
 virQEMUCapsGetSEVCapabilities(virQEMUCaps *qemuCaps);
 
 bool
-virQEMUCapsGetKVMSupportsSecureGuest(virQEMUCaps *qemuCaps) G_GNUC_NO_INLINE;
+virQEMUCapsGetKVMSupportsSecureGuest(virQEMUCaps *qemuCaps) G_NO_INLINE;
 
 virArch virQEMUCapsArchFromString(const char *arch);
 const char *virQEMUCapsArchToString(virArch arch);
