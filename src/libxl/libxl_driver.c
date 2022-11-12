@@ -326,7 +326,7 @@ libxlAutostartDomain(virDomainObj *vm,
     virObjectLock(vm);
     virResetLastError();
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (vm->autostart && !virDomainObjIsActive(vm) &&
@@ -340,7 +340,7 @@ libxlAutostartDomain(virDomainObj *vm,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
  cleanup:
     virDomainObjEndAPI(&vm);
 
@@ -648,6 +648,7 @@ libxlAddDom0(libxlDriverPrivate *driver)
 static int
 libxlStateInitialize(bool privileged,
                      const char *root,
+                     bool monolithic G_GNUC_UNUSED,
                      virStateInhibitCallback callback,
                      void *opaque)
 {
@@ -1049,7 +1050,7 @@ libxlDomainCreateXML(virConnectPtr conn, const char *xml,
                                    NULL)))
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0) {
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0) {
         if (!vm->persistent)
             virDomainObjListRemove(driver->domains, vm);
         goto cleanup;
@@ -1065,7 +1066,7 @@ libxlDomainCreateXML(virConnectPtr conn, const char *xml,
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1159,7 +1160,7 @@ libxlDomainSuspend(virDomainPtr dom)
     if (virDomainSuspendEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -1185,7 +1186,7 @@ libxlDomainSuspend(virDomainPtr dom)
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1212,7 +1213,7 @@ libxlDomainResume(virDomainPtr dom)
     if (virDomainResumeEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -1239,7 +1240,7 @@ libxlDomainResume(virDomainPtr dom)
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1373,7 +1374,7 @@ libxlDomainDestroyFlags(virDomainPtr dom,
     if (virDomainDestroyFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -1398,7 +1399,7 @@ libxlDomainDestroyFlags(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1446,7 +1447,7 @@ libxlDomainPMSuspendForDuration(virDomainPtr dom,
     if (virDomainPMSuspendForDurationEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -1472,7 +1473,7 @@ libxlDomainPMSuspendForDuration(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1499,7 +1500,7 @@ libxlDomainPMWakeup(virDomainPtr dom, unsigned int flags)
     if (virDomainPMWakeupEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetState(vm, NULL) != VIR_DOMAIN_PMSUSPENDED) {
@@ -1537,7 +1538,7 @@ libxlDomainPMWakeup(virDomainPtr dom, unsigned int flags)
     libxlDomainCleanup(driver, vm);
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1633,7 +1634,7 @@ libxlDomainSetMemoryFlags(virDomainPtr dom, unsigned long newmem,
     if (virDomainSetMemoryFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainLiveConfigHelperMethod(cfg->caps, driver->xmlopt, vm, &flags,
@@ -1696,7 +1697,7 @@ libxlDomainSetMemoryFlags(virDomainPtr dom, unsigned long newmem,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1902,7 +1903,7 @@ libxlDomainSaveFlags(virDomainPtr dom, const char *to, const char *dxml,
     if (virDomainSaveFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -1917,7 +1918,7 @@ libxlDomainSaveFlags(virDomainPtr dom, const char *to, const char *dxml,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1967,7 +1968,7 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
                                    NULL)))
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0) {
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0) {
         if (!vm->persistent)
             virDomainObjListRemove(driver->domains, vm);
         goto cleanup;
@@ -1979,7 +1980,7 @@ libxlDomainRestoreFlags(virConnectPtr conn, const char *from,
     if (ret < 0 && !vm->persistent)
         virDomainObjListRemove(driver->domains, vm);
 
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     if (VIR_CLOSE(fd) < 0)
@@ -2014,7 +2015,7 @@ libxlDomainCoreDump(virDomainPtr dom, const char *to, unsigned int flags)
     if (virDomainCoreDumpEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -2076,7 +2077,7 @@ libxlDomainCoreDump(virDomainPtr dom, const char *to, unsigned int flags)
     }
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -2103,7 +2104,7 @@ libxlDomainManagedSave(virDomainPtr dom, unsigned int flags)
     if (virDomainManagedSaveEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -2129,7 +2130,7 @@ libxlDomainManagedSave(virDomainPtr dom, unsigned int flags)
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -2248,7 +2249,7 @@ libxlDomainSetVcpusFlags(virDomainPtr dom, unsigned int nvcpus,
     if (virDomainSetVcpusFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (!virDomainObjIsActive(vm) && (flags & VIR_DOMAIN_VCPU_LIVE)) {
@@ -2344,7 +2345,7 @@ libxlDomainSetVcpusFlags(virDomainPtr dom, unsigned int nvcpus,
     }
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     VIR_FREE(bitmask);
@@ -2446,7 +2447,7 @@ libxlDomainPinVcpuFlags(virDomainPtr dom, unsigned int vcpu,
     if (virDomainPinVcpuFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainLiveConfigHelperMethod(cfg->caps, driver->xmlopt, vm,
@@ -2489,7 +2490,7 @@ libxlDomainPinVcpuFlags(virDomainPtr dom, unsigned int vcpu,
     }
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -2777,7 +2778,7 @@ libxlDomainCreateWithFlags(virDomainPtr dom,
     if (virDomainCreateWithFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjIsActive(vm)) {
@@ -2793,7 +2794,7 @@ libxlDomainCreateWithFlags(virDomainPtr dom,
     dom->id = vm->def->id;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -4095,7 +4096,7 @@ libxlDomainAttachDeviceFlags(virDomainPtr dom, const char *xml,
     if (virDomainAttachDeviceFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjUpdateModificationImpact(vm, &flags) < 0)
@@ -4152,7 +4153,7 @@ libxlDomainAttachDeviceFlags(virDomainPtr dom, const char *xml,
     }
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainDeviceDefFree(devConf);
@@ -4189,7 +4190,7 @@ libxlDomainDetachDeviceFlags(virDomainPtr dom, const char *xml,
     if (virDomainDetachDeviceFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjUpdateModificationImpact(vm, &flags) < 0)
@@ -4240,7 +4241,7 @@ libxlDomainDetachDeviceFlags(virDomainPtr dom, const char *xml,
     }
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainDeviceDefFree(dev);
@@ -4477,7 +4478,7 @@ libxlDomainSetAutostart(virDomainPtr dom, int autostart)
     if (virDomainSetAutostartEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (!vm->persistent) {
@@ -4522,7 +4523,7 @@ libxlDomainSetAutostart(virDomainPtr dom, int autostart)
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -4683,7 +4684,7 @@ libxlDomainSetSchedulerParametersFlags(virDomainPtr dom,
     if (virDomainSetSchedulerParametersFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -4723,7 +4724,7 @@ libxlDomainSetSchedulerParametersFlags(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -4989,7 +4990,6 @@ libxlDomainInterfaceStats(virDomainPtr dom,
                           const char *device,
                           virDomainInterfaceStatsPtr stats)
 {
-    libxlDriverPrivate *driver = dom->conn->privateData;
     virDomainObj *vm;
     virDomainNetDef *net = NULL;
     int ret = -1;
@@ -5000,7 +5000,7 @@ libxlDomainInterfaceStats(virDomainPtr dom,
     if (virDomainInterfaceStatsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_QUERY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -5016,7 +5016,7 @@ libxlDomainInterfaceStats(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -5168,7 +5168,7 @@ libxlDomainMemoryStats(virDomainPtr dom,
     if (virDomainMemoryStatsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_QUERY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -5189,7 +5189,7 @@ libxlDomainMemoryStats(virDomainPtr dom,
     ret = i;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     libxl_dominfo_dispose(&d_info);
@@ -5204,9 +5204,9 @@ static int
 libxlDomainGetJobInfo(virDomainPtr dom,
                       virDomainJobInfoPtr info)
 {
-    libxlDomainObjPrivate *priv;
     virDomainObj *vm;
     int ret = -1;
+    unsigned long long timeElapsed = 0;
 
     if (!(vm = libxlDomObjFromDomain(dom)))
         goto cleanup;
@@ -5214,8 +5214,7 @@ libxlDomainGetJobInfo(virDomainPtr dom,
     if (virDomainGetJobInfoEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    priv = vm->privateData;
-    if (!priv->job.active) {
+    if (!vm->job->active) {
         memset(info, 0, sizeof(*info));
         info->type = VIR_DOMAIN_JOB_NONE;
         ret = 0;
@@ -5225,14 +5224,14 @@ libxlDomainGetJobInfo(virDomainPtr dom,
     /* In libxl we don't have an estimated completion time
      * thus we always set to unbounded and update time
      * for the active job. */
-    if (libxlDomainJobUpdateTime(&priv->job) < 0)
+    if (libxlDomainJobGetTimeElapsed(vm->job, &timeElapsed) < 0)
         goto cleanup;
 
     /* setting only these two attributes is enough because libxl never sets
      * anything else */
     memset(info, 0, sizeof(*info));
-    info->type = priv->job.current->jobType;
-    info->timeElapsed = priv->job.current->timeElapsed;
+    info->type = VIR_DOMAIN_JOB_UNBOUNDED;
+    info->timeElapsed = timeElapsed;
     ret = 0;
 
  cleanup:
@@ -5247,11 +5246,10 @@ libxlDomainGetJobStats(virDomainPtr dom,
                        int *nparams,
                        unsigned int flags)
 {
-    libxlDomainObjPrivate *priv;
     virDomainObj *vm;
-    virDomainJobData *jobData;
     int ret = -1;
     int maxparams = 0;
+    unsigned long long timeElapsed = 0;
 
     /* VIR_DOMAIN_JOB_STATS_COMPLETED not supported yet */
     virCheckFlags(0, -1);
@@ -5262,9 +5260,7 @@ libxlDomainGetJobStats(virDomainPtr dom,
     if (virDomainGetJobStatsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    priv = vm->privateData;
-    jobData = priv->job.current;
-    if (!priv->job.active) {
+    if (!vm->job->active) {
         *type = VIR_DOMAIN_JOB_NONE;
         *params = NULL;
         *nparams = 0;
@@ -5275,15 +5271,15 @@ libxlDomainGetJobStats(virDomainPtr dom,
     /* In libxl we don't have an estimated completion time
      * thus we always set to unbounded and update time
      * for the active job. */
-    if (libxlDomainJobUpdateTime(&priv->job) < 0)
+    if (libxlDomainJobGetTimeElapsed(vm->job, &timeElapsed) < 0)
         goto cleanup;
 
     if (virTypedParamsAddULLong(params, nparams, &maxparams,
                                 VIR_DOMAIN_JOB_TIME_ELAPSED,
-                                jobData->timeElapsed) < 0)
+                                timeElapsed) < 0)
         goto cleanup;
 
-    *type = jobData->jobType;
+    *type = VIR_DOMAIN_JOB_UNBOUNDED;
     ret = 0;
 
  cleanup:
@@ -5515,7 +5511,6 @@ libxlDomainBlockStats(virDomainPtr dom,
                       const char *path,
                       virDomainBlockStatsPtr stats)
 {
-    libxlDriverPrivate *driver = dom->conn->privateData;
     virDomainObj *vm;
     libxlBlockStats blkstats;
     int ret = -1;
@@ -5526,7 +5521,7 @@ libxlDomainBlockStats(virDomainPtr dom,
     if (virDomainBlockStatsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_QUERY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -5546,7 +5541,7 @@ libxlDomainBlockStats(virDomainPtr dom,
         stats->errs = -1;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -5560,7 +5555,6 @@ libxlDomainBlockStatsFlags(virDomainPtr dom,
                            int *nparams,
                            unsigned int flags)
 {
-    libxlDriverPrivate *driver = dom->conn->privateData;
     virDomainObj *vm;
     libxlBlockStats blkstats;
     int nstats;
@@ -5576,7 +5570,7 @@ libxlDomainBlockStatsFlags(virDomainPtr dom,
     if (virDomainBlockStatsFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_QUERY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -5619,7 +5613,7 @@ libxlDomainBlockStatsFlags(virDomainPtr dom,
 #undef LIBXL_BLKSTAT_ASSIGN_PARAM
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -6372,7 +6366,7 @@ libxlDomainSetMetadata(virDomainPtr dom,
     if (virDomainSetMetadataEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     ret = virDomainObjSetMetadata(vm, type, metadata, key, uri,
@@ -6385,7 +6379,7 @@ libxlDomainSetMetadata(virDomainPtr dom,
         virObjectEventStateQueue(driver->domainEventState, ev);
     }
 
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);

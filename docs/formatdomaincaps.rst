@@ -191,9 +191,10 @@ CPUs <formatdomain.html#cpu-model-and-topology>`__.
          <feature policy='require' name='vmx'/>
        </mode>
        <mode name='custom' supported='yes'>
-         <model usable='no' deprecated='no'>Broadwell</model>
-         <model usable='yes' deprecated='no'>Broadwell-noTSX</model>
-         <model usable='no' deprecated='yes'>Haswell</model>
+         <model usable='no' deprecated='no' vendor='Intel'>Broadwell</model>
+         <model usable='yes' deprecated='no' vendor='Intel'>Broadwell-noTSX</model>
+         <model usable='no' deprecated='yes' vendor='Intel'>Haswell</model>
+         <model usable='no' deprecated='no' vendor='AMD'>EPYC-Milan</model>
          ...
        </mode>
      </cpu>
@@ -221,12 +222,25 @@ more details about it:
 ``custom``
    The ``mode`` element contains a list of supported CPU models, each described
    by a dedicated ``model`` element. The ``usable`` attribute specifies whether
-   the model can be used directly on the host. When usable='no' the
-   corresponding model cannot be used without disabling some features that the
-   CPU of such model is expected to have. A special value ``unknown`` indicates
-   libvirt does not have enough information to provide the usability data. The
+   the model can be used directly on the host. A special value ``unknown``
+   indicates libvirt does not have enough information to provide the usability
+   data. When ``usable='no'`` the corresponding model cannot be used without
+   disabling some features that the CPU of such model is expected to have. The
+   list of features blocking usability of a particular CPU model is returned
+   as disabled features in the result of ``virConnectBaselineHypervisorCPU``
+   API (or ``virsh hypervisor-cpu-baseline``) when called on a CPU definition
+   using the CPU model and no additional feature elements. Models marked as
+   usable (``usable='yes'``) can be safely used in domain XMLs with
+   ``check='none'`` as the hypervisor guarantees the model can be used on the
+   current host and additional checks done by libvirt are redundant. In fact,
+   disabling libvirt checks via ``check='none'`` for such models is recommended
+   to avoid needless issues with starting domains when libvirt's definition of
+   a particular model differs from hypervisor's definition. The
    ``deprecated`` attribute reflects the hypervisor's policy on usage of this
-   model :since:`(since 7.1.0)` .
+   model :since:`(since 7.1.0)`. The ``vendor`` attribute :since:`(since 8.9.0)`
+   contains the vendor of the CPU model for users who want to use CPU models
+   with specific vendors only. CPU models with undefined vendor will be listed
+   with ``vendor='unkwnown'``.
 
 I/O Threads
 ~~~~~~~~~~~
@@ -528,6 +542,52 @@ TPM device capabilities are exposed under the ``tpm`` element. For instance:
    Options for the ``type`` attribute of the ``<tpm><backend/>`` element.
 ``backendVersion``
    Options for the ``version`` attribute of the ``<tpm><backend/>`` element.
+
+USB redirect device
+^^^^^^^^^^^^^^^^^^^
+
+USB redirdev device capabilities are exposed under the ``redirdev`` element. For instance:
+
+::
+
+  <domainCapabilities>
+    ...
+    <devices>
+      <redirdev supported='yes'>
+        <enum name='bus'>
+          <value>usb</value>
+        </enum>
+      </redirdev>
+      ...
+    </devices>
+  </domainCapabilities>
+
+``bus``
+   Options for the ``bus`` attribute of the ``<redirdev/>`` element.
+
+Channel device
+^^^^^^^^^^^^^^
+
+Channel device capabilities are exposed under the ``channel`` element. For instance:
+
+::
+
+  <domainCapabilities>
+    ...
+    <devices>
+      <channel supported='yes'>
+        <enum name='type'>
+          <value>pty</value>
+          <value>unix</value>
+          <value>spicevmc</value>
+        </enum>
+      </channel
+      ...
+    </devices>
+  </domainCapabilities>
+
+``type``
+   Options for the ``type`` attribute of the ``<channel/>`` element.
 
 Features
 ~~~~~~~~

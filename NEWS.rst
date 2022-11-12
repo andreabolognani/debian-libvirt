@@ -8,6 +8,174 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v8.9.0 (2022-11-01)
+===================
+
+* **New features**
+
+  * Add ``virt-qemu-qmp-proxy`` for emulating a QMP socket for libvirt managed VMs
+
+    ``virt-qemu-qmp-proxy`` tool provides a way to expose an emulated QMP server
+    socket for a VM managed by libvirt. This allows existing QMP-only clients
+    to work with libvirt managed VMs.
+
+    **Note:** libvirt is not interpreting the communication between the tool
+    using the proxy and qemu itself, so any state-changing commands may
+    desynchronize libvirt. Use at your own risk.
+
+  * qemu: Core Scheduling support
+
+    To avoid side channel attacks, the Linux kernel allows creating groups of
+    processes that trust each other and thus can be scheduled to run on
+    hyperthreads of a CPU core at the same time. This is now implemented for
+    QEMU domains too (see ``sched_core`` knob in qemu.conf), although not
+    enabled by default, just yet.
+
+* **Improvements**
+
+  * qemu: Add hypervisor-specific statistics to ``virConnectGetAllDomainStats``
+
+    The new stats group ``VIR_DOMAIN_STATS_VM`` of
+    ``virConnectGetAllDomainStats``, also exposed as ``virsh domstats --vm``,
+    returns hypervisor-specific stats fields for given VM.
+
+  * Add ``vendor`` attribute for CPU models in domain capabilities
+
+    Users can now see the vendor of each CPU model in domain capabilities and
+    use it, e.g., for filtering usable CPU models based on host CPU vendor.
+
+  * virsh: Add ``--model`` option for ``hypervisor-cpu-baseline``
+
+    This is a shortcut for calling ``hypervisor-cpu-baseline`` with a single
+    CPU model and no additional features. It can be used for determining which
+    features block a particular CPU model from being usable.
+
+  * Improved documentation of CPU ``usable`` attribute in domain capabilities
+
+  * Report ``channel`` and ``redirdev`` devices in domain capabilities
+
+    The channel and redirect devices supported by the hypervisor are now
+    reported in domain capabilities.
+
+  * meson: Bump minimal required meson version
+
+    Newer meson versions deprecate some functions used. These were replaced
+    with their newer counterparts and the minimal required mesion version was
+    bumped to 0.56.0.
+
+  * qemu: Add flags to keep or remove TPM state for ``virDomainUndefineFlags``
+
+    ``VIR_DOMAIN_UNDEFINE_TPM`` and ``VIR_DOMAIN_UNDEFINE_KEEP_TPM`` specify
+    accordingly to delete or keep a TPM's persistent state directory structure
+    and files when undefining a domain. In virsh the flags are exposed as
+    ``--tpm`` and ``--keep-tpm`` for the sub-command ``undefine``.
+
+* **Bug fixes**
+
+  * qemu: Disable all blocker features in CPU baseline
+
+    Three years ago QEMU renamed some CPU features (mostly those containing
+    an underscore). When such renamed feature was reported by QEMU as blocking
+    usability of a CPU model, we would fail to explicitly disable it when
+    creating a baseline CPU definition using this model. This bug did not have
+    any functional impact when the default ``check='partial'`` attribute was
+    used for guest CPU definition in domain XML, but it could have caused
+    failures to start a domain with ``check='full'`` in some cases.
+
+  * qemu: Do not crash after restart with active migration
+
+    In 8.8.0 release libvirt daemon would crash after it was restarted during
+    an active outgoing migration.
+
+  * qemu: Refresh state after restore from a save image
+
+    When a domain is restored from a saved image, libvirt now queries QEMU for
+    those parts of runtime information that were not part of the save image.
+    For instance: MAC address of a macvtap NICs, tray state of CD-ROMs,
+    allocated size of virtio-mem, and others.
+
+
+v8.8.0 (2022-10-03)
+===================
+
+* **Removed features**
+
+  * storage: Remove 'sheepdog' storage driver backend
+
+    The 'sheepdog' project is no longer maintained and upstream bug reports
+    are unaddressed. Libvirt thus removed the support for the sheepdog storage
+    driver backend, following qemu's removal of sheepdog support in qemu-6.1.
+
+* **Improvements**
+
+  * qemu: Implement VIR_DOMAIN_STATS_CPU_TOTAL for qemu:///session
+
+    Users can now query VIR_DOMAIN_STATS_CPU_TOTAL (also known as cpu.time)
+    statistics for session domains.
+
+* **Bug fixes**
+
+  * qemu: Fix non-shared storage migration setup
+
+    This release fixes a bug in setup of a migration with non-shared storage
+    ( ``virsh migrate --copy-storage-all``) which was broken by a refactor of
+    the code in libvirt-8.7.
+
+  * selinux: Don't ignore NVMe disks when setting image label
+
+    Libvirt did not set any SELinux label on NVMe disks and relied only on the
+    default SELinux policy. This turned out to cause problem when using
+    namespace or altered policy and thus is fixed now.
+
+  * qemu: Fix a deadlock when setting up namespace
+
+    When starting a domain, libvirt creates a mount namespace and manages
+    private /dev with only a handful nodes exposed. But when creating those a
+    deadlock inside glib might have occurred. The code was changed so that
+    libvirt does not tickle the glib bug.
+
+  * qemu: Don't build memory paths on daemon restart
+
+    When the daemon is restarted it tried to create domain private paths for
+    each mounted hugetlbfs. When this failed, the corresponding domain was
+    killed. This operation is now performed during domain startup and memory
+    hotplug and no longer leads to sudden kill of the domain.
+
+
+v8.7.0 (2022-09-01)
+===================
+
+* **Removed features**
+
+  * qemu: Remove support for QEMU < 4.2
+
+    In accordance with our platform support policy, the oldest supported QEMU
+    version is now bumped from 3.1 to 4.2.
+
+* **New features**
+
+  * qemu: Add support for specifying vCPU physical address size in bits
+
+    Users can now specify the number of vCPU physical address bits with
+    the `<maxphysaddr>` subelement of the `<cpu>` element.
+
+* **Improvements**
+
+  * esx: Domain XMLs can now be dumped for VMs with two new interface types
+
+    One is when the interface is not connected anywhere `type='null'` and one
+    when it is connected to VMWare Distributed Switch `type='vds'`.
+
+* **Bug fixes**
+
+  * qemu: increase memlock limit for a domain with multiple vfio/vdpa devices
+
+    When multiple vfio or vdpa devices are assigned to a domain, the locked
+    memory limit could be too low to map memory for all devices. The memlock
+    limit has been increased to be proportional to the number of vdpa/vfio
+    devices.
+
+
 v8.6.0 (2022-08-01)
 ===================
 
@@ -32,6 +200,12 @@ v8.5.0 (2022-07-01)
 
     A new ``VIR_MIGRATE_POSTCOPY_RESUME`` flag (``virsh migrate --postcopy-resume``)
     was introduced for recovering from a failed post-copy migration.
+
+  * qemu: Add support for zero-copy migration
+
+    With QEMU 7.1.0, libvirt can enable zerocopy for parallel migration. This
+    is implmented by adding a new ``VIR_MIGRATE_ZEROCOPY`` flag(``virsh migrate
+    --zerocopy``).
 
   * Introduce thread_pool_min and thread_pool_max attributes to IOThread
 

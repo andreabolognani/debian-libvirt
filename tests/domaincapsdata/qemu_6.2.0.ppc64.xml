@@ -40,10 +40,10 @@
       <model fallback='allow'>POWER8</model>
     </mode>
     <mode name='custom' supported='yes'>
-      <model usable='unknown'>POWER10</model>
-      <model usable='unknown'>POWER9</model>
-      <model usable='unknown'>POWER8</model>
-      <model usable='unknown'>POWER7</model>
+      <model usable='unknown' vendor='IBM'>POWER10</model>
+      <model usable='unknown' vendor='IBM'>POWER9</model>
+      <model usable='unknown' vendor='IBM'>POWER8</model>
+      <model usable='unknown' vendor='IBM'>POWER7</model>
     </mode>
   </cpu>
   <memoryBacking supported='yes'>
@@ -136,7 +136,18 @@
         <value>passthrough</value>
         <value>emulator</value>
       </enum>
+      <enum name='backendVersion'>
+        <value>1.2</value>
+        <value>2.0</value>
+      </enum>
     </tpm>
+    <redirdev supported='no'/>
+    <channel supported='yes'>
+      <enum name='type'>
+        <value>pty</value>
+        <value>unix</value>
+      </enum>
+    </channel>
   </devices>
   <features>
     <gic supported='no'/>

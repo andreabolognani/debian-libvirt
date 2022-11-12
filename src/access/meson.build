@@ -11,7 +11,7 @@ access_polkit_sources = [
 
 access_perm_h = files('viraccessperm.h')
 
-remote_path = meson.source_root() / 'src' / 'remote'
+remote_path = meson.project_source_root() / 'src' / 'remote'
 
 access_gen_headers = []
 access_gen_sources = []
@@ -120,6 +120,6 @@ generated_sym_files += access_gen_sym
 test(
   'check-aclperms',
   python3_prog,
-  args: [ check_aclperms_prog.path(), access_perm_h, files('viraccessperm.c') ],
+  args: [ check_aclperms_prog.full_path(), access_perm_h, files('viraccessperm.c') ],
   env: runutf8,
 )

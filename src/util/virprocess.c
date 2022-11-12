@@ -56,6 +56,10 @@
 # include <windows.h>
 #endif
 
+#ifdef __linux__
+# include <sys/prctl.h>
+#endif
+
 #include "virprocess.h"
 #include "virerror.h"
 #include "viralloc.h"
@@ -1737,32 +1741,37 @@ virProcessGetStat(pid_t pid,
 #ifdef __linux__
 int
 virProcessGetStatInfo(unsigned long long *cpuTime,
+                      unsigned long long *userTime,
+                      unsigned long long *sysTime,
                       int *lastCpu,
                       long *vm_rss,
                       pid_t pid,
                       pid_t tid)
 {
     g_auto(GStrv) proc_stat = virProcessGetStat(pid, tid);
-    unsigned long long usertime = 0, systime = 0;
+    unsigned long long utime = 0;
+    unsigned long long stime = 0;
+    const unsigned long long jiff2nsec = 1000ull * 1000ull * 1000ull /
+                                         (unsigned long long) sysconf(_SC_CLK_TCK);
     long rss = 0;
     int cpu = 0;
 
     if (!proc_stat ||
-        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_UTIME], NULL, 10, &usertime) < 0 ||
-        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_STIME], NULL, 10, &systime) < 0 ||
+        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_UTIME], NULL, 10, &utime) < 0 ||
+        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_STIME], NULL, 10, &stime) < 0 ||
         virStrToLong_l(proc_stat[VIR_PROCESS_STAT_RSS], NULL, 10, &rss) < 0 ||
         virStrToLong_i(proc_stat[VIR_PROCESS_STAT_PROCESSOR], NULL, 10, &cpu) < 0) {
         VIR_WARN("cannot parse process status data");
     }
 
-    /* We got jiffies
-     * We want nanoseconds
-     * _SC_CLK_TCK is jiffies per second
-     * So calculate thus....
-     */
+    utime *= jiff2nsec;
+    stime *= jiff2nsec;
     if (cpuTime)
-        *cpuTime = 1000ull * 1000ull * 1000ull * (usertime + systime)
-            / (unsigned long long) sysconf(_SC_CLK_TCK);
+        *cpuTime = utime + stime;
+    if (userTime)
+        *userTime = utime;
+    if (sysTime)
+        *sysTime = stime;
     if (lastCpu)
         *lastCpu = cpu;
 
@@ -1771,7 +1780,7 @@ virProcessGetStatInfo(unsigned long long *cpuTime,
 
 
     VIR_DEBUG("Got status for %d/%d user=%llu sys=%llu cpu=%d rss=%ld",
-              (int) pid, tid, usertime, systime, cpu, rss);
+              (int) pid, tid, utime, stime, cpu, rss);
 
     return 0;
 }
@@ -1844,6 +1853,8 @@ virProcessGetSchedInfo(unsigned long long *cpuWait,
 #else
 int
 virProcessGetStatInfo(unsigned long long *cpuTime,
+                      unsigned long long *userTime,
+                      unsigned long long *sysTime,
                       int *lastCpu,
                       long *vm_rss,
                       pid_t pid G_GNUC_UNUSED,
@@ -1853,6 +1864,10 @@ virProcessGetStatInfo(unsigned long long *cpuTime,
      * platforms, so just report neutral values */
     if (cpuTime)
         *cpuTime = 0;
+    if (userTime)
+        *userTime = 0;
+    if (sysTime)
+        *sysTime = 0;
     if (lastCpu)
         *lastCpu = 0;
     if (vm_rss)
@@ -1874,3 +1889,123 @@ virProcessGetSchedInfo(unsigned long long *cpuWait,
     return 0;
 }
 #endif /* __linux__ */
+
+#ifdef __linux__
+# ifndef PR_SCHED_CORE
+/* Copied from linux/prctl.h */
+#  define PR_SCHED_CORE             62
+#  define PR_SCHED_CORE_GET         0
+#  define PR_SCHED_CORE_CREATE      1 /* create unique core_sched cookie */
+#  define PR_SCHED_CORE_SHARE_TO    2 /* push core_sched cookie to pid */
+#  define PR_SCHED_CORE_SHARE_FROM  3 /* pull core_sched cookie to pid */
+# endif
+
+/* Unfortunately, kernel-headers forgot to export these. */
+# ifndef PR_SCHED_CORE_SCOPE_THREAD
+#  define PR_SCHED_CORE_SCOPE_THREAD 0
+#  define PR_SCHED_CORE_SCOPE_THREAD_GROUP 1
+#  define PR_SCHED_CORE_SCOPE_PROCESS_GROUP 2
+# endif
+
+/**
+ * virProcessSchedCoreAvailable:
+ *
+ * Check whether kernel supports Core Scheduling (CONFIG_SCHED_CORE), i.e. only
+ * a defined set of PIDs/TIDs can run on sibling Hyper Threads at the same
+ * time.
+ *
+ * Returns: 1 if Core Scheduling is available,
+ *          0 if Core Scheduling is NOT available,
+ *         -1 otherwise.
+ */
+int
+virProcessSchedCoreAvailable(void)
+{
+    unsigned long cookie = 0;
+    int rc;
+
+    /* Let's just see if we can get our own sched cookie, and if yes we can
+     * safely assume CONFIG_SCHED_CORE kernel is available. */
+    rc = prctl(PR_SCHED_CORE, PR_SCHED_CORE_GET, 0,
+               PR_SCHED_CORE_SCOPE_THREAD, &cookie);
+
+    return rc == 0 ? 1 : errno == EINVAL ? 0 : -1;
+}
+
+/**
+ * virProcessSchedCoreCreate:
+ *
+ * Creates a new trusted group for the caller process.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise, with errno set.
+ */
+int
+virProcessSchedCoreCreate(void)
+{
+    /* pid = 0 (3rd argument) means the calling process. */
+    return prctl(PR_SCHED_CORE, PR_SCHED_CORE_CREATE, 0,
+                 PR_SCHED_CORE_SCOPE_THREAD_GROUP, 0);
+}
+
+/**
+ * virProcessSchedCoreShareFrom:
+ * @pid: PID to share group with
+ *
+ * Places the current caller process into the trusted group of @pid.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise, with errno set.
+ */
+int
+virProcessSchedCoreShareFrom(pid_t pid)
+{
+    return prctl(PR_SCHED_CORE, PR_SCHED_CORE_SHARE_FROM, pid,
+                 PR_SCHED_CORE_SCOPE_THREAD, 0);
+}
+
+/**
+ * virProcessSchedCoreShareTo:
+ * @pid: PID to share group with
+ *
+ * Places foreign @pid into the trusted group of the current caller process.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise, with errno set.
+ */
+int
+virProcessSchedCoreShareTo(pid_t pid)
+{
+    return prctl(PR_SCHED_CORE, PR_SCHED_CORE_SHARE_TO, pid,
+                 PR_SCHED_CORE_SCOPE_THREAD, 0);
+}
+
+#else /* !__linux__ */
+
+int
+virProcessSchedCoreAvailable(void)
+{
+    return 0;
+}
+
+int
+virProcessSchedCoreCreate(void)
+{
+    errno = ENOSYS;
+    return -1;
+}
+
+int
+virProcessSchedCoreShareFrom(pid_t pid G_GNUC_UNUSED)
+{
+    errno = ENOSYS;
+    return -1;
+}
+
+int
+virProcessSchedCoreShareTo(pid_t pid G_GNUC_UNUSED)
+{
+    errno = ENOSYS;
+    return -1;
+}
+#endif /* !__linux__ */

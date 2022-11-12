@@ -27,7 +27,7 @@ testCompareXMLToArgvFiles(bool shouldFail,
     g_autofree char *src = NULL;
     g_autoptr(virCommand) cmd = NULL;
 
-    if (!(def = virStoragePoolDefParseFile(poolxml)))
+    if (!(def = virStoragePoolDefParse(NULL, poolxml, 0)))
         goto cleanup;
     defTypeStr = virStoragePoolTypeToString(def->type);
 
@@ -175,7 +175,6 @@ mymain(void)
     DO_TEST_FAIL("pool-mpath");
     DO_TEST_FAIL("pool-iscsi-multiiqn");
     DO_TEST_FAIL("pool-iscsi-vendor-product");
-    DO_TEST_FAIL("pool-sheepdog");
     DO_TEST_FAIL("pool-gluster");
     DO_TEST_FAIL("pool-gluster-sub");
     DO_TEST_FAIL("pool-scsi-type-scsi-host-stable");

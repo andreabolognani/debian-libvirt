@@ -109,6 +109,8 @@ qemuDomainGetPreservedMountPath(virQEMUDriverConfig *cfg,
  * b) generate backup path for all the entries in a)
  *
  * Any of the return pointers can be NULL. Both arrays are NULL-terminated.
+ * Get the mount table either from @vm's PID (if running), or from the
+ * namespace we're in (if @vm's not running).
  *
  * Returns 0 on success, -1 otherwise (with error reported)
  */
@@ -123,12 +125,18 @@ qemuDomainGetPreservedMounts(virQEMUDriverConfig *cfg,
     size_t nmounts = 0;
     g_auto(GStrv) paths = NULL;
     g_auto(GStrv) savePaths = NULL;
+    g_autofree char *mountsPath = NULL;
     size_t i;
 
     if (ndevPath)
         *ndevPath = 0;
 
-    if (virFileGetMountSubtree(QEMU_PROC_MOUNTS, "/dev", &mounts, &nmounts) < 0)
+    if (vm->pid > 0)
+        mountsPath = g_strdup_printf("/proc/%lld/mounts", (long long) vm->pid);
+    else
+        mountsPath = g_strdup(QEMU_PROC_MOUNTS);
+
+    if (virFileGetMountSubtree(mountsPath, "/dev", &mounts, &nmounts) < 0)
         return -1;
 
     if (nmounts == 0)
@@ -949,10 +957,9 @@ qemuNamespaceMknodOne(qemuNamespaceMknodItem *data)
     }
 
     if (isLink) {
-        g_autoptr(GError) gerr = NULL;
         g_autofree char *target = NULL;
 
-        if ((target = g_file_read_link(data->file, &gerr)) &&
+        if ((target = g_file_read_link(data->file, NULL)) &&
             STREQ(target, data->target)) {
             VIR_DEBUG("Skipping symlink %s -> %s which exists and points to correct target",
                       data->file, data->target);
@@ -1040,8 +1047,7 @@ qemuNamespaceMknodOne(qemuNamespaceMknodItem *data)
         goto cleanup;
     }
 
-    /* Symlinks don't have ACLs. */
-    if (!isLink &&
+    if (data->acl &&
         virFileSetACLs(data->file, data->acl) < 0 &&
         errno != ENOTSUP) {
         virReportSystemError(errno,
@@ -1286,6 +1292,9 @@ qemuNamespaceMknodPaths(virDomainObj *vm,
             goto cleanup;
     }
 
+    if (data.nitems == 0)
+        return 0;
+
     for (i = 0; i < data.nitems; i++) {
         qemuNamespaceMknodItem *item = &data.items[i];
         if (item->target &&
@@ -1411,6 +1420,25 @@ qemuNamespaceUnlinkPaths(virDomainObj *vm,
         virProcessRunInMountNamespace(vm->pid,
                                       qemuNamespaceUnlinkHelper,
                                       unlinkPaths) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+int
+qemuDomainNamespaceSetupPath(virDomainObj *vm,
+                             const char *path,
+                             bool *created)
+{
+    g_autoptr(virGSListString) paths = NULL;
+
+    if (!qemuDomainNamespaceEnabled(vm, QEMU_DOMAIN_NS_MOUNT))
+        return 0;
+
+    paths = g_slist_prepend(paths, g_strdup(path));
+
+    if (qemuNamespaceMknodPaths(vm, paths, created) < 0)
         return -1;
 
     return 0;

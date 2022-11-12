@@ -20,7 +20,7 @@
 
 #include <glib-object.h>
 #include "qemu_monitor.h"
-#include "domain_job.h"
+#include "virdomainjob.h"
 
 
 typedef enum {
@@ -58,8 +58,6 @@ struct _qemuDomainJobDataPrivate {
     qemuDomainMirrorStats mirrorStats;
 };
 
-extern virDomainJobDataPrivateDataCallbacks qemuJobDataPrivateDataCallbacks;
-
 void qemuDomainJobSetStatsType(virDomainJobData *jobData,
                                qemuDomainJobStatsType type);
 
@@ -71,32 +69,6 @@ int qemuDomainAsyncJobPhaseFromString(virDomainAsyncJob job,
 void qemuDomainEventEmitJobCompleted(virQEMUDriver *driver,
                                      virDomainObj *vm);
 
-int qemuDomainObjBeginJob(virQEMUDriver *driver,
-                          virDomainObj *obj,
-                          virDomainJob job)
-    G_GNUC_WARN_UNUSED_RESULT;
-int qemuDomainObjBeginAgentJob(virQEMUDriver *driver,
-                               virDomainObj *obj,
-                               virDomainAgentJob agentJob)
-    G_GNUC_WARN_UNUSED_RESULT;
-int qemuDomainObjBeginAsyncJob(virQEMUDriver *driver,
-                               virDomainObj *obj,
-                               virDomainAsyncJob asyncJob,
-                               virDomainJobOperation operation,
-                               unsigned long apiFlags)
-    G_GNUC_WARN_UNUSED_RESULT;
-int qemuDomainObjBeginNestedJob(virQEMUDriver *driver,
-                                virDomainObj *obj,
-                                virDomainAsyncJob asyncJob)
-    G_GNUC_WARN_UNUSED_RESULT;
-int qemuDomainObjBeginJobNowait(virQEMUDriver *driver,
-                                virDomainObj *obj,
-                                virDomainJob job)
-    G_GNUC_WARN_UNUSED_RESULT;
-
-void qemuDomainObjEndJob(virDomainObj *obj);
-void qemuDomainObjEndAgentJob(virDomainObj *obj);
-void qemuDomainObjEndAsyncJob(virDomainObj *obj);
 void qemuDomainObjAbortAsyncJob(virDomainObj *obj);
 void qemuDomainObjSetJobPhase(virDomainObj *obj,
                               int phase);
@@ -105,8 +77,6 @@ qemuDomainObjStartJobPhase(virDomainObj *obj,
                            int phase);
 void qemuDomainObjSetAsyncJobMask(virDomainObj *obj,
                                   unsigned long long allowedJobs);
-int qemuDomainObjPreserveJob(virDomainObj *obj,
-                             virDomainJobObj *job);
 void
 qemuDomainObjRestoreAsyncJob(virDomainObj *vm,
                              virDomainAsyncJob asyncJob,
@@ -132,11 +102,6 @@ int qemuDomainJobDataToParams(virDomainJobData *jobData,
                               int *nparams)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
     ATTRIBUTE_NONNULL(3) ATTRIBUTE_NONNULL(4);
-
-bool qemuDomainTrackJob(virDomainJob job);
-
-void qemuDomainObjClearJob(virDomainJobObj *job);
-G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(virDomainJobObj, qemuDomainObjClearJob);
 
 int
 qemuDomainObjPrivateXMLFormatJob(virBuffer *buf,

@@ -383,7 +383,7 @@ libxlDomainMigrationSrcBegin(virConnectPtr conn,
      * terminated in the confirm phase. Errors in the begin or perform
      * phase will also terminate the job.
      */
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (!(mig = libxlMigrationCookieNew(vm)))
@@ -417,7 +417,7 @@ libxlDomainMigrationSrcBegin(virConnectPtr conn,
         goto cleanup;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     libxlMigrationCookieFree(mig);
@@ -553,7 +553,7 @@ libxlDomainMigrationDstPrepareTunnel3(virConnectPtr dconn,
      * Unless an error is encountered in this function, the job will
      * be terminated in the finish phase.
      */
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto error;
 
     priv = vm->privateData;
@@ -604,7 +604,7 @@ libxlDomainMigrationDstPrepareTunnel3(virConnectPtr dconn,
     goto done;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  error:
     libxlMigrationCookieFree(mig);
@@ -662,7 +662,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
      * Unless an error is encountered in this function, the job will
      * be terminated in the finish phase.
      */
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto error;
 
     priv = vm->privateData;
@@ -774,7 +774,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
     goto done;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  error:
     for (i = 0; i < nsocks; i++) {
@@ -1155,7 +1155,7 @@ libxlDomainMigrationSrcPerformP2P(libxlDriverPrivate *driver,
          * Confirm phase will not be executed if perform fails. End the
          * job started in begin phase.
          */
-        libxlDomainObjEndJob(driver, vm);
+        virDomainObjEndJob(vm);
     }
 
  cleanup:
@@ -1226,7 +1226,7 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
          * Confirm phase will not be executed if perform fails. End the
          * job started in begin phase.
          */
-        libxlDomainObjEndJob(driver, vm);
+        virDomainObjEndJob(vm);
     }
 
     return ret;
@@ -1327,7 +1327,7 @@ libxlDomainMigrationDstFinish(virConnectPtr dconn,
     }
 
     /* EndJob for corresponding BeginJob in prepare phase */
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
     virObjectEventStateQueue(driver->domainEventState, event);
     virObjectUnref(cfg);
     return dom;
@@ -1384,7 +1384,7 @@ libxlDomainMigrationSrcConfirm(libxlDriverPrivate *driver,
 
  cleanup:
     /* EndJob for corresponding BeginJob in begin phase */
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
     virObjectEventStateQueue(driver->domainEventState, event);
     virObjectUnref(cfg);
     return ret;

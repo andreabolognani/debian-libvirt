@@ -311,8 +311,7 @@ qemuSnapshotCreateActiveInternal(virQEMUDriver *driver,
         }
     }
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm,
-                                       VIR_ASYNC_JOB_SNAPSHOT) < 0) {
+    if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0) {
         resume = false;
         goto cleanup;
     }
@@ -447,10 +446,8 @@ qemuSnapshotPrepareDiskExternalInactive(virDomainSnapshotDiskDef *snapdisk,
 
 
 static int
-qemuSnapshotPrepareDiskExternalActive(virDomainObj *vm,
-                                      virDomainSnapshotDiskDef *snapdisk,
-                                      virDomainDiskDef *domdisk,
-                                      bool blockdev)
+qemuSnapshotPrepareDiskExternalActive(virDomainSnapshotDiskDef *snapdisk,
+                                      virDomainDiskDef *domdisk)
 {
     virStorageType actualType = virStorageSourceGetActualType(snapdisk->src);
 
@@ -464,44 +461,13 @@ qemuSnapshotPrepareDiskExternalActive(virDomainObj *vm,
         return -1;
     }
 
-    if (!qemuDomainDiskBlockJobIsSupported(vm, domdisk))
+    if (!qemuDomainDiskBlockJobIsSupported(domdisk))
         return -1;
 
     switch (actualType) {
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_FILE:
-        break;
-
     case VIR_STORAGE_TYPE_NETWORK:
-        /* defer all of the checking to either qemu or libvirt's blockdev code */
-        if (blockdev)
-            break;
-
-        switch ((virStorageNetProtocol) snapdisk->src->protocol) {
-        case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
-            break;
-
-        case VIR_STORAGE_NET_PROTOCOL_NONE:
-        case VIR_STORAGE_NET_PROTOCOL_NBD:
-        case VIR_STORAGE_NET_PROTOCOL_RBD:
-        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
-        case VIR_STORAGE_NET_PROTOCOL_ISCSI:
-        case VIR_STORAGE_NET_PROTOCOL_HTTP:
-        case VIR_STORAGE_NET_PROTOCOL_HTTPS:
-        case VIR_STORAGE_NET_PROTOCOL_FTP:
-        case VIR_STORAGE_NET_PROTOCOL_FTPS:
-        case VIR_STORAGE_NET_PROTOCOL_TFTP:
-        case VIR_STORAGE_NET_PROTOCOL_SSH:
-        case VIR_STORAGE_NET_PROTOCOL_VXHS:
-        case VIR_STORAGE_NET_PROTOCOL_NFS:
-        case VIR_STORAGE_NET_PROTOCOL_LAST:
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("external active snapshots are not supported on "
-                             "'network' disks using '%s' protocol"),
-                           virStorageNetProtocolTypeToString(snapdisk->src->protocol));
-            return -1;
-
-        }
         break;
 
     case VIR_STORAGE_TYPE_DIR:
@@ -524,21 +490,11 @@ qemuSnapshotPrepareDiskExternalActive(virDomainObj *vm,
 
 
 static int
-qemuSnapshotPrepareDiskExternal(virDomainObj *vm,
-                                virDomainDiskDef *disk,
+qemuSnapshotPrepareDiskExternal(virDomainDiskDef *disk,
                                 virDomainSnapshotDiskDef *snapdisk,
                                 bool active,
-                                bool reuse,
-                                bool blockdev)
+                                bool reuse)
 {
-
-    if (disk->src->readonly && !(reuse || blockdev)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("external snapshot for readonly disk %s "
-                         "is not supported"), disk->dst);
-        return -1;
-    }
-
     if (qemuTranslateSnapshotDiskSourcePool(snapdisk) < 0)
         return -1;
 
@@ -549,7 +505,7 @@ qemuSnapshotPrepareDiskExternal(virDomainObj *vm,
         if (qemuSnapshotPrepareDiskExternalInactive(snapdisk, disk) < 0)
             return -1;
     } else {
-        if (qemuSnapshotPrepareDiskExternalActive(vm, snapdisk, disk, blockdev) < 0)
+        if (qemuSnapshotPrepareDiskExternalActive(snapdisk, disk) < 0)
             return -1;
     }
 
@@ -679,8 +635,6 @@ qemuSnapshotPrepare(virDomainObj *vm,
                     bool *has_manual,
                     unsigned int *flags)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-    bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
     size_t i;
     bool active = virDomainObjIsActive(vm);
     bool reuse = (*flags & VIR_DOMAIN_SNAPSHOT_CREATE_REUSE_EXT) != 0;
@@ -742,16 +696,9 @@ qemuSnapshotPrepare(virDomainObj *vm,
                                    _("metadata cache max size control is supported only with qcow2 images"));
                     return -1;
                 }
-
-                if (!blockdev) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("metadata cache max size control is not supported with this QEMU binary"));
-                    return -1;
-                }
             }
 
-            if (qemuSnapshotPrepareDiskExternal(vm, dom_disk, disk,
-                                                active, reuse, blockdev) < 0)
+            if (qemuSnapshotPrepareDiskExternal(dom_disk, disk, active, reuse) < 0)
                 return -1;
 
             external++;
@@ -876,7 +823,7 @@ qemuSnapshotDiskCleanup(qemuSnapshotDiskData *data,
          * be set to NULL by qemuSnapshotDiskUpdateSource */
         if (data[i].src) {
             if (data[i].blockdevadded) {
-                if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) == 0) {
+                if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) == 0) {
 
                     qemuBlockStorageSourceAttachRollback(qemuDomainGetMonitor(vm),
                                                          data[i].crdata->srcdata[0]);
@@ -998,8 +945,7 @@ qemuSnapshotDiskBitmapsPropagate(qemuSnapshotDiskData *dd,
 
 
 static int
-qemuSnapshotDiskPrepareOneBlockdev(virQEMUDriver *driver,
-                                   virDomainObj *vm,
+qemuSnapshotDiskPrepareOneBlockdev(virDomainObj *vm,
                                    qemuSnapshotDiskData *dd,
                                    virQEMUDriverConfig *cfg,
                                    bool reuse,
@@ -1023,7 +969,7 @@ qemuSnapshotDiskPrepareOneBlockdev(virQEMUDriver *driver,
         return -1;
 
     if (reuse) {
-        if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+        if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
             return -1;
 
         rc = qemuBlockStorageSourceAttachApply(qemuDomainGetMonitor(vm),
@@ -1059,10 +1005,7 @@ qemuSnapshotDiskPrepareOne(qemuSnapshotDiskContext *snapctxt,
     virDomainObj *vm = snapctxt->vm;
     qemuDomainObjPrivate *priv = vm->privateData;
     virQEMUDriver *driver = priv->driver;
-    bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
     virDomainDiskDef *persistdisk;
-    bool supportsCreate;
-    bool updateRelativeBacking = false;
     qemuSnapshotDiskData *dd = snapctxt->dd + snapctxt->ndd++;
 
     dd->disk = disk;
@@ -1092,28 +1035,15 @@ qemuSnapshotDiskPrepareOne(qemuSnapshotDiskContext *snapctxt,
             return -1;
     }
 
-    supportsCreate = virStorageSourceSupportsCreate(dd->src);
-
-    /* relative backing store paths need to be updated so that relative
-     * block commit still works. With blockdev we must update it when doing
-     * commit anyways so it's skipped here */
-    if (!blockdev &&
-        virStorageSourceSupportsBackingChainTraversal(dd->src))
-        updateRelativeBacking = true;
-
-    if (supportsCreate || updateRelativeBacking) {
+    if (virStorageSourceSupportsCreate(dd->src)) {
         if (qemuDomainStorageFileInit(driver, vm, dd->src, NULL) < 0)
             return -1;
 
         dd->initialized = true;
 
-        if (reuse) {
-            if (updateRelativeBacking &&
-                virStorageSourceFetchRelativeBackingPath(dd->src, &dd->relPath) < 0)
-                return -1;
-        } else {
+        if (!reuse) {
             /* pre-create the image file so that we can label it before handing it to qemu */
-            if (supportsCreate && dd->src->type != VIR_STORAGE_TYPE_BLOCK) {
+            if (dd->src->type != VIR_STORAGE_TYPE_BLOCK) {
                 if (virStorageSourceCreate(dd->src) < 0) {
                     virReportSystemError(errno, _("failed to create image file '%s'"),
                                          NULLSTR(dd->src->path));
@@ -1131,20 +1061,15 @@ qemuSnapshotDiskPrepareOne(qemuSnapshotDiskContext *snapctxt,
 
     dd->prepared = true;
 
-    if (blockdev) {
-        if (qemuSnapshotDiskPrepareOneBlockdev(driver, vm, dd, snapctxt->cfg, reuse,
-                                               blockNamedNodeData, snapctxt->asyncJob) < 0)
-            return -1;
+    if (qemuSnapshotDiskPrepareOneBlockdev(vm, dd, snapctxt->cfg, reuse,
+                                           blockNamedNodeData, snapctxt->asyncJob) < 0)
+        return -1;
 
-        if (qemuSnapshotDiskBitmapsPropagate(dd, snapctxt->actions, blockNamedNodeData) < 0)
-            return -1;
+    if (qemuSnapshotDiskBitmapsPropagate(dd, snapctxt->actions, blockNamedNodeData) < 0)
+        return -1;
 
-        if (qemuBlockSnapshotAddBlockdev(snapctxt->actions, dd->disk, dd->src) < 0)
-            return -1;
-    } else {
-        if (qemuBlockSnapshotAddLegacy(snapctxt->actions, dd->disk, dd->src, reuse) < 0)
-            return -1;
-    }
+    if (qemuBlockSnapshotAddBlockdev(snapctxt->actions, dd->disk, dd->src) < 0)
+        return -1;
 
     return 0;
 }
@@ -1211,17 +1136,6 @@ qemuSnapshotGetTransientDiskDef(virDomainDiskDef *domdisk,
 }
 
 
-static void
-qemuSnapshotDiskUpdateSourceRenumber(virStorageSource *src)
-{
-    virStorageSource *next;
-    unsigned int idx = 1;
-
-    for (next = src->backingStore; virStorageSourceIsBacking(next); next = next->backingStore)
-        next->id = idx++;
-}
-
-
 /**
  * qemuSnapshotDiskUpdateSource:
  * @vm: domain object
@@ -1257,10 +1171,6 @@ qemuSnapshotDiskUpdateSource(virDomainObj *vm,
     dd->src->backingStore = g_steal_pointer(&dd->disk->src);
     dd->disk->src = g_steal_pointer(&dd->src);
 
-    /* fix numbering of disks */
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV))
-        qemuSnapshotDiskUpdateSourceRenumber(dd->disk->src);
-
     if (dd->persistdisk) {
         dd->persistdisk->src->readonly = true;
         dd->persistsrc->backingStore = g_steal_pointer(&dd->persistdisk->src);
@@ -1281,7 +1191,7 @@ qemuSnapshotDiskCreate(qemuSnapshotDiskContext *snapctxt)
     if (snapctxt->ndd == 0)
         return 0;
 
-    if (qemuDomainObjEnterMonitorAsync(driver, snapctxt->vm, snapctxt->asyncJob) < 0)
+    if (qemuDomainObjEnterMonitorAsync(snapctxt->vm, snapctxt->asyncJob) < 0)
         return -1;
 
     rc = qemuMonitorTransaction(priv->mon, &snapctxt->actions);
@@ -1367,16 +1277,16 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     if (flags & VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE) {
         int frozen;
 
-        if (qemuDomainObjBeginAgentJob(driver, vm, VIR_AGENT_JOB_MODIFY) < 0)
+        if (virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) < 0)
             goto cleanup;
 
         if (virDomainObjCheckActive(vm) < 0) {
-            qemuDomainObjEndAgentJob(vm);
+            virDomainObjEndAgentJob(vm);
             goto cleanup;
         }
 
         frozen = qemuSnapshotFSFreeze(vm, NULL, 0);
-        qemuDomainObjEndAgentJob(vm);
+        virDomainObjEndAgentJob(vm);
 
         if (frozen < 0)
             goto cleanup;
@@ -1415,8 +1325,7 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     /* We need to collect reply from 'query-named-block-nodes' prior to the
      * migration step as qemu deactivates bitmaps after migration so the result
      * would be wrong */
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV) &&
-        !(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, VIR_ASYNC_JOB_SNAPSHOT)))
+    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, VIR_ASYNC_JOB_SNAPSHOT)))
         goto cleanup;
 
     /* do the memory snapshot if necessary */
@@ -1425,7 +1334,7 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
         if (!qemuMigrationSrcIsAllowed(driver, vm, false, VIR_ASYNC_JOB_SNAPSHOT, 0))
             goto cleanup;
 
-        qemuDomainJobSetStatsType(priv->job.current,
+        qemuDomainJobSetStatsType(vm->job->current,
                                   QEMU_DOMAIN_JOB_STATS_TYPE_SAVEDUMP);
 
         /* allow the migration job to be cancelled or the domain to be paused */
@@ -1513,13 +1422,13 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     }
 
     if (thaw &&
-        qemuDomainObjBeginAgentJob(driver, vm, VIR_AGENT_JOB_MODIFY) >= 0 &&
+        virDomainObjBeginAgentJob(vm, VIR_AGENT_JOB_MODIFY) >= 0 &&
         virDomainObjIsActive(vm)) {
         /* report error only on an otherwise successful snapshot */
         if (qemuSnapshotFSThaw(vm, ret == 0) < 0)
             ret = -1;
 
-        qemuDomainObjEndAgentJob(vm);
+        virDomainObjEndAgentJob(vm);
     }
 
     virQEMUSaveDataFree(data);
@@ -1885,7 +1794,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
      * a regular job, so we need to set the job mask to disallow query as
      * 'savevm' blocks the monitor. External snapshot will then modify the
      * job mask appropriately. */
-    if (qemuDomainObjBeginAsyncJob(driver, vm, VIR_ASYNC_JOB_SNAPSHOT,
+    if (virDomainObjBeginAsyncJob(vm, VIR_ASYNC_JOB_SNAPSHOT,
                                    VIR_DOMAIN_JOB_OPERATION_SNAPSHOT, flags) < 0)
         return NULL;
 
@@ -1897,7 +1806,7 @@ qemuSnapshotCreateXML(virDomainPtr domain,
         snapshot = qemuSnapshotCreate(vm, domain, def, driver, cfg, flags);
     }
 
-    qemuDomainObjEndAsyncJob(vm);
+    virDomainObjEndAsyncJob(vm);
 
     return snapshot;
 }
@@ -2194,7 +2103,7 @@ qemuSnapshotRevertInactive(virDomainObj *vm,
     }
 
     if (qemuSnapshotInternalRevertInactive(driver, vm, snap) < 0) {
-        qemuDomainRemoveInactive(driver, vm);
+        qemuDomainRemoveInactive(driver, vm, 0);
         return -1;
     }
 
@@ -2216,7 +2125,7 @@ qemuSnapshotRevertInactive(virDomainObj *vm,
                               start_flags);
         virDomainAuditStart(vm, "from-snapshot", rc >= 0);
         if (rc < 0) {
-            qemuDomainRemoveInactive(driver, vm);
+            qemuDomainRemoveInactive(driver, vm, 0);
             return -1;
         }
         detail = VIR_DOMAIN_EVENT_STARTED_FROM_SNAPSHOT;
@@ -2278,7 +2187,7 @@ qemuSnapshotRevert(virDomainObj *vm,
         return -1;
     }
 
-    if (qemuProcessBeginJob(driver, vm,
+    if (qemuProcessBeginJob(vm,
                             VIR_DOMAIN_JOB_OPERATION_SNAPSHOT_REVERT,
                             flags) < 0)
         return -1;
@@ -2390,7 +2299,7 @@ qemuSnapshotDelete(virDomainObj *vm,
                   VIR_DOMAIN_SNAPSHOT_DELETE_METADATA_ONLY |
                   VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN_ONLY, -1);
 
-    if (qemuDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         return -1;
 
     if (!(snap = qemuSnapObjFromSnapshot(vm, snapshot)))
@@ -2464,7 +2373,7 @@ qemuSnapshotDelete(virDomainObj *vm,
     }
 
  endjob:
-    qemuDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
     return ret;
 }

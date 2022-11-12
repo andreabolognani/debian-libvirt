@@ -1257,14 +1257,6 @@ sc_po_check:
 	  rm -f $@-1 $@-2; \
 	fi
 
-linguas_file = $(top_srcdir)/po/LINGUAS
-
-sc_linguas_sorting:
-	@sort -u $(linguas_file) > $@-1; \
-	diff -u -L $(linguas_file) -L $(linguas_file) $(linguas_file) $@-1 \
-	  || { echo "$(linguas_file) is not sorted correctly" 1>&2; exit 1; }; \
-	rm -f $@-1
-
 # #if WITH_... will evaluate to false for any non numeric string.
 # That would be flagged by using -Wundef, however gnulib currently
 # tests many undefined macros, and so we can't enable that option.
@@ -1363,7 +1355,7 @@ exclude_file_name_regexp--sc_prohibit_strdup = \
   ^(docs/|examples/|tests/virnetserverclientmock.c|tests/commandhelper.c|tools/nss/libvirt_nss_(leases|macs)\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_close = \
-  (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)$$)
+  (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
   (^tests/(nodedevmdevctl|virhostcpu|virpcitest|virstoragetest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)

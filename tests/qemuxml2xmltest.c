@@ -242,7 +242,7 @@ mymain(void)
     DO_TEST_NOCAPS("machine-core-off");
     DO_TEST_CAPS_LATEST("machine-smm-on");
     DO_TEST_CAPS_LATEST("machine-smm-off");
-    DO_TEST("machine-loadparm-multiple-disks-nets-s390", QEMU_CAPS_CCW);
+    DO_TEST_NOCAPS("machine-loadparm-multiple-disks-nets-s390");
     DO_TEST_NOCAPS("default-kvm-host-arch");
     DO_TEST_NOCAPS("default-qemu-host-arch");
     DO_TEST_NOCAPS("boot-cdrom");
@@ -349,7 +349,7 @@ mymain(void)
     DO_TEST_NOCAPS("disk-network-tlsx509-nbd");
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
     DO_TEST_NOCAPS("disk-network-tlsx509-vxhs");
-    DO_TEST("disk-nvme", QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_QCOW2_LUKS);
+    DO_TEST_CAPS_LATEST("disk-nvme");
     DO_TEST_CAPS_LATEST("disk-vhostuser");
     DO_TEST_CAPS_LATEST("disk-scsi");
     DO_TEST("disk-virtio-scsi-reservations",
@@ -358,8 +358,7 @@ mymain(void)
             QEMU_CAPS_SCSI_BLOCK);
     DO_TEST("controller-virtio-scsi", QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST("disk-virtio-s390-zpci",
-            QEMU_CAPS_DEVICE_ZPCI,
-            QEMU_CAPS_CCW);
+            QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST_NOCAPS("disk-mirror-old");
     DO_TEST_NOCAPS("disk-mirror");
     DO_TEST_NOCAPS("disk-active-commit");
@@ -411,8 +410,7 @@ mymain(void)
             QEMU_CAPS_DISPLAY_DBUS);
     DO_TEST("graphics-dbus-audio",
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_DISPLAY_DBUS,
-            QEMU_CAPS_AUDIODEV);
+            QEMU_CAPS_DISPLAY_DBUS);
     DO_TEST("graphics-dbus-chardev",
             QEMU_CAPS_DEVICE_CIRRUS_VGA,
             QEMU_CAPS_DISPLAY_DBUS);
@@ -465,7 +463,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-user");
     DO_TEST_NOCAPS("net-user-addr");
     DO_TEST_NOCAPS("net-virtio");
-    DO_TEST("net-virtio-device", QEMU_CAPS_VIRTIO_TX_ALG);
+    DO_TEST_NOCAPS("net-virtio-device");
     DO_TEST_NOCAPS("net-virtio-disable-offloads");
     DO_TEST_NOCAPS("net-eth");
     DO_TEST_NOCAPS("net-eth-ifname");
@@ -533,8 +531,7 @@ mymain(void)
     DO_TEST("hostdev-vfio", QEMU_CAPS_DEVICE_VFIO_PCI);
     DO_TEST("hostdev-vfio-zpci",
             QEMU_CAPS_DEVICE_VFIO_PCI,
-            QEMU_CAPS_DEVICE_ZPCI,
-            QEMU_CAPS_CCW);
+            QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST("hostdev-vfio-zpci-multidomain-many",
             QEMU_CAPS_DEVICE_VFIO_PCI,
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
@@ -553,7 +550,6 @@ mymain(void)
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST("hostdev-vfio-zpci-ccw-memballoon",
-            QEMU_CAPS_CCW,
             QEMU_CAPS_DEVICE_VFIO_PCI,
             QEMU_CAPS_DEVICE_ZPCI);
     DO_TEST("hostdev-mdev-precreated", QEMU_CAPS_DEVICE_VFIO_PCI);
@@ -571,8 +567,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-slices");
     DO_TEST_CAPS_LATEST("disk-rotation");
 
-    DO_TEST("encrypted-disk", QEMU_CAPS_QCOW2_LUKS);
-    DO_TEST("encrypted-disk-usage", QEMU_CAPS_QCOW2_LUKS);
+    DO_TEST_CAPS_LATEST("encrypted-disk");
+    DO_TEST_CAPS_LATEST("encrypted-disk-usage");
     DO_TEST_CAPS_LATEST("luks-disks");
     DO_TEST_CAPS_LATEST("luks-disks-source");
     DO_TEST_CAPS_LATEST("luks-disks-source-qcow2");
@@ -598,11 +594,11 @@ mymain(void)
     DO_TEST_NOCAPS("iothreads-ids-partial");
     DO_TEST_NOCAPS("cputune-iothreads");
     DO_TEST_NOCAPS("iothreads-disk");
-    DO_TEST("iothreads-disk-virtio-ccw", QEMU_CAPS_CCW);
+    DO_TEST_NOCAPS("iothreads-disk-virtio-ccw");
     DO_TEST("iothreads-virtio-scsi-pci",
             QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST("iothreads-virtio-scsi-ccw",
-            QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_CCW);
+            QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST_NOCAPS("lease");
     DO_TEST_NOCAPS("event_idx");
     DO_TEST_NOCAPS("vhost_queues");
@@ -748,7 +744,7 @@ mymain(void)
     DO_TEST_NOCAPS("numad-auto-memory-vcpu-no-cpuset-and-placement");
     DO_TEST_NOCAPS("numad-auto-memory-vcpu-cpuset");
     DO_TEST_NOCAPS("usb-ich9-ehci-addr");
-    DO_TEST("disk-copy_on_read", QEMU_CAPS_VIRTIO_TX_ALG);
+    DO_TEST_NOCAPS("disk-copy_on_read");
     DO_TEST_CAPS_LATEST("tpm-passthrough");
     DO_TEST_CAPS_LATEST("tpm-passthrough-crb");
     DO_TEST_CAPS_LATEST("tpm-emulator");
@@ -805,125 +801,12 @@ mymain(void)
             QEMU_CAPS_ICH9_AHCI,
             QEMU_CAPS_ICH9_USB_EHCI1,
             QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("q35-pcie",
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIRTIO_NET,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_NEC_USB_XHCI);
-    /* same XML as q35-pcie, but don't set
-       QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY */
-    DO_TEST("q35-virtio-pci",
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIRTIO_NET,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_NEC_USB_XHCI);
+    DO_TEST_CAPS_LATEST("q35-pcie");
     /* same as q35-pcie, but all PCI controllers are added automatically */
-    DO_TEST("q35-pcie-autoadd",
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIRTIO_NET,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_NEC_USB_XHCI);
-    DO_TEST("q35-default-devices-only",
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIRTIO_NET,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_NEC_USB_XHCI);
-    DO_TEST("q35-multifunction",
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIRTIO_NET,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_NEC_USB_XHCI);
-    DO_TEST("q35-virt-manager-basic",
-            QEMU_CAPS_KVM,
-            QEMU_CAPS_ICH9_DISABLE_S3,
-            QEMU_CAPS_ICH9_DISABLE_S4,
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG,
-            QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_DEVICE_VIRTIO_NET,
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_VIRTIO_KEYBOARD,
-            QEMU_CAPS_VIRTIO_MOUSE,
-            QEMU_CAPS_VIRTIO_TABLET,
-            QEMU_CAPS_VIRTIO_INPUT_HOST,
-            QEMU_CAPS_VIRTIO_SCSI,
-            QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_ICH9_USB_EHCI1,
-            QEMU_CAPS_NEC_USB_XHCI,
-            QEMU_CAPS_DEVICE_ICH9_INTEL_HDA,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_HDA_DUPLEX,
-            QEMU_CAPS_USB_REDIR,
-            QEMU_CAPS_MACHINE_VMPORT_OPT);
+    DO_TEST_CAPS_LATEST("q35-pcie-autoadd");
+    DO_TEST_CAPS_LATEST("q35-default-devices-only");
+    DO_TEST_CAPS_LATEST("q35-multifunction");
+    DO_TEST_CAPS_LATEST("q35-virt-manager-basic");
     DO_TEST("pcie-root",
             QEMU_CAPS_DEVICE_IOH3420,
             QEMU_CAPS_ICH9_AHCI,
@@ -981,16 +864,11 @@ mymain(void)
             QEMU_CAPS_HDA_DUPLEX);
 
     DO_TEST("hostdev-scsi-vhost-scsi-ccw",
-            QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_DEVICE_VHOST_SCSI,
-            QEMU_CAPS_CCW);
+            QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_DEVICE_VHOST_SCSI);
     DO_TEST("hostdev-scsi-vhost-scsi-pci",
             QEMU_CAPS_VIRTIO_SCSI,
             QEMU_CAPS_DEVICE_VHOST_SCSI);
-    DO_TEST("hostdev-scsi-vhost-scsi-pcie",
-            QEMU_CAPS_KVM,
-            QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_DEVICE_VHOST_SCSI,
-            QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY);
+    DO_TEST_CAPS_LATEST("hostdev-scsi-vhost-scsi-pcie");
     DO_TEST("hostdev-scsi-lsi",
             QEMU_CAPS_VIRTIO_SCSI,
             QEMU_CAPS_SCSI_LSI);
@@ -1010,32 +888,26 @@ mymain(void)
             QEMU_CAPS_SCSI_LSI);
 
     DO_TEST("hostdev-subsys-mdev-vfio-ccw",
-            QEMU_CAPS_CCW,
-            QEMU_CAPS_CCW_CSSID_UNRESTRICTED,
             QEMU_CAPS_DEVICE_VFIO_CCW);
     DO_TEST_CAPS_ARCH_LATEST("hostdev-subsys-mdev-vfio-ccw-boot",
                              "s390x");
     DO_TEST("hostdev-subsys-mdev-vfio-ap",
-            QEMU_CAPS_CCW,
-            QEMU_CAPS_CCW_CSSID_UNRESTRICTED,
             QEMU_CAPS_DEVICE_VFIO_AP);
 
     DO_TEST_CAPS_ARCH_LATEST("s390-defaultconsole", "s390x");
-    DO_TEST("s390-panic", QEMU_CAPS_CCW);
-    DO_TEST("s390-panic-missing", QEMU_CAPS_CCW);
-    DO_TEST("s390-panic-no-address", QEMU_CAPS_CCW);
-    DO_TEST("s390-serial", QEMU_CAPS_CCW);
-    DO_TEST("s390-serial-2", QEMU_CAPS_CCW);
-    DO_TEST("s390-serial-console", QEMU_CAPS_CCW);
+    DO_TEST_NOCAPS("s390-panic");
+    DO_TEST_NOCAPS("s390-panic-missing");
+    DO_TEST_NOCAPS("s390-panic-no-address");
+    DO_TEST_NOCAPS("s390-serial");
+    DO_TEST_NOCAPS("s390-serial-2");
+    DO_TEST_NOCAPS("s390-serial-console");
 
-    DO_TEST("pcihole64", QEMU_CAPS_I440FX_PCI_HOLE64_SIZE);
-    DO_TEST("pcihole64-gib", QEMU_CAPS_I440FX_PCI_HOLE64_SIZE);
-    DO_TEST("pcihole64-none", QEMU_CAPS_I440FX_PCI_HOLE64_SIZE);
+    DO_TEST_NOCAPS("pcihole64");
+    DO_TEST_NOCAPS("pcihole64-gib");
     DO_TEST("pcihole64-q35",
             QEMU_CAPS_DEVICE_IOH3420,
             QEMU_CAPS_ICH9_AHCI,
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_Q35_PCI_HOLE64_SIZE);
+            QEMU_CAPS_DEVICE_QXL);
 
     DO_TEST("panic", QEMU_CAPS_DEVICE_PANIC);
     DO_TEST("panic-double", QEMU_CAPS_DEVICE_PANIC);
@@ -1097,14 +969,7 @@ mymain(void)
     DO_TEST("aarch64-aavmf-virtio-mmio",
             QEMU_CAPS_DEVICE_VIRTIO_MMIO,
             QEMU_CAPS_DEVICE_VIRTIO_RNG, QEMU_CAPS_OBJECT_RNG_RANDOM);
-    DO_TEST("aarch64-virtio-pci-default",
-            QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
-            QEMU_CAPS_DEVICE_VIRTIO_MMIO,
-            QEMU_CAPS_DEVICE_VIRTIO_RNG, QEMU_CAPS_OBJECT_RNG_RANDOM,
-            QEMU_CAPS_OBJECT_GPEX, QEMU_CAPS_DEVICE_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
-            QEMU_CAPS_DEVICE_IOH3420,
-            QEMU_CAPS_VIRTIO_SCSI);
+    DO_TEST_CAPS_ARCH_LATEST("aarch64-virtio-pci-default", "aarch64");
     DO_TEST("aarch64-virtio-pci-manual-addresses",
             QEMU_CAPS_DEVICE_VIRTIO_MMIO,
             QEMU_CAPS_DEVICE_VIRTIO_RNG, QEMU_CAPS_OBJECT_RNG_RANDOM,
@@ -1118,7 +983,6 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_GPU);
     DO_TEST("aarch64-pci-serial",
             QEMU_CAPS_DEVICE_PCI_SERIAL,
-            QEMU_CAPS_CHARDEV_LOGFILE,
             QEMU_CAPS_OBJECT_GPEX,
             QEMU_CAPS_DEVICE_PCI_BRIDGE,
             QEMU_CAPS_DEVICE_DMI_TO_PCI_BRIDGE,
@@ -1175,6 +1039,7 @@ mymain(void)
                  QEMU_CAPS_OBJECT_MEMORY_FILE, QEMU_CAPS_LAST, ARG_END);
     DO_TEST_NOCAPS("memory-hotplug");
     DO_TEST("memory-hotplug-dimm", QEMU_CAPS_DEVICE_PC_DIMM);
+    DO_TEST_CAPS_LATEST("memory-hotplug-dimm-addr");
     DO_TEST("memory-hotplug-nvdimm", QEMU_CAPS_DEVICE_NVDIMM);
     DO_TEST("memory-hotplug-nvdimm-access", QEMU_CAPS_DEVICE_NVDIMM);
     DO_TEST("memory-hotplug-nvdimm-label", QEMU_CAPS_DEVICE_NVDIMM);
@@ -1251,12 +1116,10 @@ mymain(void)
     DO_TEST("video-qxl-resolution", QEMU_CAPS_DEVICE_QXL);
     DO_TEST("video-virtio-gpu-secondary", QEMU_CAPS_DEVICE_VIRTIO_GPU);
     DO_TEST("video-virtio-gpu-ccw",
-            QEMU_CAPS_CCW,
             QEMU_CAPS_DEVICE_VIRTIO_GPU,
             QEMU_CAPS_VNC,
             QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW);
     DO_TEST("video-virtio-gpu-ccw-auto",
-            QEMU_CAPS_CCW,
             QEMU_CAPS_DEVICE_VIRTIO_GPU,
             QEMU_CAPS_VNC,
             QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW);
@@ -1297,16 +1160,8 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("pseries-cpu-compat", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("pseries-cpu-exact", "ppc64");
 
-    DO_TEST("user-aliases",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_QCOW2_LUKS,
-            QEMU_CAPS_OBJECT_MEMORY_FILE,
-            QEMU_CAPS_PIIX_DISABLE_S3,
-            QEMU_CAPS_PIIX_DISABLE_S4,
-            QEMU_CAPS_VNC,
-            QEMU_CAPS_CCID_EMULATED);
+    DO_TEST_CAPS_LATEST("user-aliases");
     DO_TEST("input-virtio-ccw",
-            QEMU_CAPS_CCW,
             QEMU_CAPS_VIRTIO_KEYBOARD,
             QEMU_CAPS_VIRTIO_MOUSE,
             QEMU_CAPS_VIRTIO_TABLET,
@@ -1318,10 +1173,8 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("vhost-vsock");
     DO_TEST_CAPS_LATEST("vhost-vsock-auto");
-    DO_TEST("vhost-vsock-ccw", QEMU_CAPS_DEVICE_VHOST_VSOCK,
-            QEMU_CAPS_CCW);
-    DO_TEST("vhost-vsock-ccw-auto", QEMU_CAPS_DEVICE_VHOST_VSOCK,
-            QEMU_CAPS_CCW);
+    DO_TEST("vhost-vsock-ccw", QEMU_CAPS_DEVICE_VHOST_VSOCK);
+    DO_TEST("vhost-vsock-ccw-auto", QEMU_CAPS_DEVICE_VHOST_VSOCK);
     DO_TEST_CAPS_ARCH_LATEST("vhost-vsock-ccw-iommu", "s390x");
 
 
@@ -1334,7 +1187,6 @@ mymain(void)
     DO_TEST("riscv64-virt-pci",
             QEMU_CAPS_OBJECT_GPEX);
 
-    DO_TEST_CAPS_VER("x86-kvm-32-on-64", "4.1.0");
     DO_TEST_CAPS_LATEST("x86-kvm-32-on-64");
 
     DO_TEST_CAPS_LATEST("virtio-transitional");
@@ -1405,18 +1257,17 @@ mymain(void)
     DO_TEST_NOCAPS("audio-file-best");
 
     /* Full <audio> only compat with new QEMU -audiodev args */
-    DO_TEST("audio-none-full", QEMU_CAPS_AUDIODEV);
-    DO_TEST("audio-alsa-full", QEMU_CAPS_AUDIODEV);
-    DO_TEST("audio-coreaudio-full", QEMU_CAPS_AUDIODEV);
-    DO_TEST("audio-jack-full", QEMU_CAPS_AUDIODEV);
-    DO_TEST("audio-oss-full", QEMU_CAPS_AUDIODEV);
-    DO_TEST("audio-pulseaudio-full", QEMU_CAPS_AUDIODEV);
-    DO_TEST("audio-sdl-full", QEMU_CAPS_AUDIODEV);
+    DO_TEST_NOCAPS("audio-none-full");
+    DO_TEST_NOCAPS("audio-alsa-full");
+    DO_TEST_NOCAPS("audio-coreaudio-full");
+    DO_TEST_NOCAPS("audio-jack-full");
+    DO_TEST_NOCAPS("audio-oss-full");
+    DO_TEST_NOCAPS("audio-pulseaudio-full");
+    DO_TEST_NOCAPS("audio-sdl-full");
     DO_TEST("audio-spice-full",
-            QEMU_CAPS_AUDIODEV,
             QEMU_CAPS_SPICE,
             QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST("audio-file-full", QEMU_CAPS_AUDIODEV);
+    DO_TEST_NOCAPS("audio-file-full");
 
     DO_TEST_CAPS_LATEST("audio-many-backends");
 
@@ -1444,7 +1295,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("devices-acpi-index");
 
     DO_TEST_MACOS("hvf-x86_64-q35-headless",
-                  QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
+                  QEMU_CAPS_VIRTIO_PCI_TRANSITIONAL,
                   QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
                   QEMU_CAPS_DEVICE_VIRTIO_NET,
                   QEMU_CAPS_DEVICE_ISA_SERIAL,
@@ -1452,7 +1303,7 @@ mymain(void)
                   QEMU_CAPS_OBJECT_RNG_RANDOM);
     DO_TEST_MACOS("hvf-aarch64-virt-headless",
                   QEMU_CAPS_OBJECT_GPEX,
-                  QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY,
+                  QEMU_CAPS_VIRTIO_PCI_TRANSITIONAL,
                   QEMU_CAPS_DEVICE_PCIE_ROOT_PORT,
                   QEMU_CAPS_DEVICE_VIRTIO_NET,
                   QEMU_CAPS_DEVICE_PL011,

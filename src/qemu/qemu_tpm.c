@@ -279,8 +279,6 @@ qemuTPMCreateConfigFiles(const char *swtpm_setup)
         return 0;
 
     cmd = virCommandNew(swtpm_setup);
-    if (!cmd)
-        return -1;
 
     virCommandAddArgList(cmd, "--create-config-files", "skip-if-exist", NULL);
     virCommandClearCaps(cmd);
@@ -388,8 +386,6 @@ qemuTPMEmulatorRunSetup(const char *storagepath,
         return -1;
 
     cmd = virCommandNew(swtpm_setup);
-    if (!cmd)
-        return -1;
 
     virUUIDFormat(vmuuid, uuid);
     vmid = g_strdup_printf("%s:%s", vmname, uuid);
@@ -444,19 +440,19 @@ qemuTPMEmulatorRunSetup(const char *storagepath,
 
 
 static char *
-qemuTPMPcrBankBitmapToStr(unsigned int pcrBanks)
+qemuTPMPcrBankBitmapToStr(virBitmap *activePcrBanks)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    const char *comma = "";
-    size_t i;
+    ssize_t bank = -1;
 
-    for (i = VIR_DOMAIN_TPM_PCR_BANK_SHA1; i < VIR_DOMAIN_TPM_PCR_BANK_LAST; i++) {
-        if (pcrBanks & (1 << i)) {
-            virBufferAsprintf(&buf, "%s%s",
-                              comma, virDomainTPMPcrBankTypeToString(i));
-            comma = ",";
-        }
-    }
+    if (!activePcrBanks)
+        return NULL;
+
+    while ((bank = virBitmapNextSetBit(activePcrBanks, bank)) > -1)
+        virBufferAsprintf(&buf, "%s,", virDomainTPMPcrBankTypeToString(bank));
+
+    virBufferTrim(&buf, ",");
+
     return virBufferContentAndReset(&buf);
 }
 
@@ -481,7 +477,7 @@ static int
 qemuTPMEmulatorReconfigure(const char *storagepath,
                            uid_t swtpm_user,
                            gid_t swtpm_group,
-                           unsigned int activePcrBanks,
+                           virBitmap *activePcrBanks,
                            const char *logfile,
                            const virDomainTPMVersion tpmversion,
                            const unsigned char *secretuuid)
@@ -500,8 +496,6 @@ qemuTPMEmulatorReconfigure(const char *storagepath,
         return 0;
 
     cmd = virCommandNew(swtpm_setup);
-    if (!cmd)
-        return -1;
 
     virCommandSetUID(cmd, swtpm_user);
     virCommandSetGID(cmd, swtpm_group);
@@ -575,7 +569,8 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     if (created &&
         qemuTPMEmulatorRunSetup(tpm->data.emulator.storagepath, vmname, vmuuid,
                                 privileged, swtpm_user, swtpm_group,
-                                tpm->data.emulator.logfile, tpm->version,
+                                tpm->data.emulator.logfile,
+                                tpm->data.emulator.version,
                                 secretuuid, incomingMigration) < 0)
         goto error;
 
@@ -583,15 +578,14 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
         qemuTPMEmulatorReconfigure(tpm->data.emulator.storagepath,
                                    swtpm_user, swtpm_group,
                                    tpm->data.emulator.activePcrBanks,
-                                   tpm->data.emulator.logfile, tpm->version,
+                                   tpm->data.emulator.logfile,
+                                   tpm->data.emulator.version,
                                    secretuuid) < 0)
         goto error;
 
     unlink(tpm->data.emulator.source->data.nix.path);
 
     cmd = virCommandNew(swtpm);
-    if (!cmd)
-        goto error;
 
     virCommandClearCaps(cmd);
 
@@ -611,7 +605,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     virCommandSetUID(cmd, swtpm_user);
     virCommandSetGID(cmd, swtpm_group);
 
-    switch (tpm->version) {
+    switch (tpm->data.emulator.version) {
     case VIR_DOMAIN_TPM_VERSION_1_2:
         break;
     case VIR_DOMAIN_TPM_VERSION_2_0:
@@ -684,7 +678,7 @@ qemuTPMEmulatorInitPaths(virDomainTPMDef *tpm,
     if (!tpm->data.emulator.storagepath &&
         !(tpm->data.emulator.storagepath =
             qemuTPMEmulatorStorageBuildPath(swtpmStorageDir, uuidstr,
-                                            tpm->version)))
+                                            tpm->data.emulator.version)))
         return -1;
 
     if (!tpm->data.emulator.logfile) {
@@ -699,14 +693,23 @@ qemuTPMEmulatorInitPaths(virDomainTPMDef *tpm,
 /**
  * qemuTPMEmulatorCleanupHost:
  * @tpm: TPM definition
+ * @flags: flags indicating whether to keep or remove TPM persistent state
  *
  * Clean up persistent storage for the swtpm.
  */
 static void
-qemuTPMEmulatorCleanupHost(virDomainTPMDef *tpm)
+qemuTPMEmulatorCleanupHost(virDomainTPMDef *tpm,
+                           virDomainUndefineFlagsValues flags)
 {
-    if (!tpm->data.emulator.persistent_state)
+    /*
+     * remove TPM state if:
+     * - persistent_state flag is set and the UNDEFINE_TPM flag is set
+     * - persistent_state flag is not set and the KEEP_TPM flag is not set
+     */
+    if ((tpm->data.emulator.persistent_state && (flags & VIR_DOMAIN_UNDEFINE_TPM)) ||
+        (!tpm->data.emulator.persistent_state && !(flags & VIR_DOMAIN_UNDEFINE_KEEP_TPM))) {
         qemuTPMEmulatorDeleteStorage(tpm);
+    }
 }
 
 
@@ -793,28 +796,24 @@ qemuTPMEmulatorStop(const char *swtpmStateDir,
     g_autofree char *pathname = NULL;
     g_autofree char *errbuf = NULL;
     g_autofree char *swtpm_ioctl = virTPMGetSwtpmIoctl();
+    g_autofree char *pidfile = qemuTPMEmulatorPidFileBuildPath(swtpmStateDir,
+                                                               shortName);
+    if (swtpm_ioctl &&
+        (pathname = qemuTPMEmulatorSocketBuildPath(swtpmStateDir, shortName)) &&
+        virFileExists(pathname)) {
 
-    if (!swtpm_ioctl)
-        return;
+        cmd = virCommandNewArgList(swtpm_ioctl, "--unix", pathname, "-s", NULL);
 
-    if (!(pathname = qemuTPMEmulatorSocketBuildPath(swtpmStateDir, shortName)))
-        return;
+        virCommandSetErrorBuffer(cmd, &errbuf);
 
-    if (!virFileExists(pathname))
-        return;
+        ignore_value(virCommandRun(cmd, NULL));
 
-    cmd = virCommandNew(swtpm_ioctl);
-    if (!cmd)
-        return;
+        /* clean up the socket */
+        unlink(pathname);
+    }
 
-    virCommandAddArgList(cmd, "--unix", pathname, "-s", NULL);
-
-    virCommandSetErrorBuffer(cmd, &errbuf);
-
-    ignore_value(virCommandRun(cmd, NULL));
-
-    /* clean up the socket */
-    unlink(pathname);
+    if (pidfile)
+        virPidFileForceCleanupPath(pidfile);
 }
 
 
@@ -1001,9 +1000,10 @@ qemuExtTPMPrepareHost(virQEMUDriver *driver,
 
 
 void
-qemuExtTPMCleanupHost(virDomainTPMDef *tpm)
+qemuExtTPMCleanupHost(virDomainTPMDef *tpm,
+                      virDomainUndefineFlagsValues flags)
 {
-    qemuTPMEmulatorCleanupHost(tpm);
+    qemuTPMEmulatorCleanupHost(tpm, flags);
 }
 
 

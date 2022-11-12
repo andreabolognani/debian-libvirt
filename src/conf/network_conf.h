@@ -325,18 +325,10 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
                       virNetworkXMLOption *xmlopt);
 
 virNetworkDef *
-virNetworkDefParseString(const char *xmlStr,
-                         virNetworkXMLOption *xmlopt,
-                         bool validate);
-
-virNetworkDef *
-virNetworkDefParseFile(const char *filename,
-                       virNetworkXMLOption *xmlopt);
-
-virNetworkDef *
-virNetworkDefParseNode(xmlDocPtr xml,
-                       xmlNodePtr root,
-                       virNetworkXMLOption *xmlopt);
+virNetworkDefParse(const char *xmlStr,
+                   const char *filename,
+                   virNetworkXMLOption *xmlopt,
+                   bool validate);
 
 char *
 virNetworkDefFormat(const virNetworkDef *def,

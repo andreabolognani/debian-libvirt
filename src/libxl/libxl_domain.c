@@ -37,131 +37,29 @@
 #include "xen_common.h"
 #include "driver.h"
 #include "domain_validate.h"
-#include "domain_job.h"
 
 #define VIR_FROM_THIS VIR_FROM_LIBXL
 
 VIR_LOG_INIT("libxl.libxl_domain");
 
 
-static void
-libxlDomainObjResetJob(libxlDomainObjPrivate *priv)
-{
-    virDomainJobObj *job = &priv->job;
-
-    job->active = VIR_JOB_NONE;
-    job->owner = 0;
-}
-
-static void
-libxlDomainObjFreeJob(libxlDomainObjPrivate *priv)
-{
-    ignore_value(virCondDestroy(&priv->job.cond));
-    virDomainJobDataFree(priv->job.current);
-}
-
-/* Give up waiting for mutex after 30 seconds */
-#define LIBXL_JOB_WAIT_TIME (1000ull * 30)
-
-/*
- * obj must be locked before calling, libxlDriverPrivate *must NOT be locked
- *
- * This must be called by anything that will change the VM state
- * in any way
- *
- * Upon successful return, the object will have its ref count increased,
- * successful calls must be followed by EndJob eventually
- */
 int
-libxlDomainObjBeginJob(libxlDriverPrivate *driver G_GNUC_UNUSED,
-                       virDomainObj *obj,
-                       virDomainJob job)
+libxlDomainJobGetTimeElapsed(virDomainJobObj *job, unsigned long long *timeElapsed)
 {
-    libxlDomainObjPrivate *priv = obj->privateData;
-    unsigned long long now;
-    unsigned long long then;
-
-    if (virTimeMillisNow(&now) < 0)
-        return -1;
-    then = now + LIBXL_JOB_WAIT_TIME;
-
-    while (priv->job.active) {
-        VIR_DEBUG("Wait normal job condition for starting job: %s",
-                  virDomainJobTypeToString(job));
-        if (virCondWaitUntil(&priv->job.cond, &obj->parent.lock, then) < 0)
-            goto error;
-    }
-
-    libxlDomainObjResetJob(priv);
-
-    VIR_DEBUG("Starting job: %s", virDomainJobTypeToString(job));
-    priv->job.active = job;
-    priv->job.owner = virThreadSelfID();
-    priv->job.current->started = now;
-    priv->job.current->jobType = VIR_DOMAIN_JOB_UNBOUNDED;
-
-    return 0;
-
- error:
-    VIR_WARN("Cannot start job (%s) for domain %s;"
-             " current job is (%s) owned by (%llu)",
-             virDomainJobTypeToString(job),
-             obj->def->name,
-             virDomainJobTypeToString(priv->job.active),
-             priv->job.owner);
-
-    if (errno == ETIMEDOUT)
-        virReportError(VIR_ERR_OPERATION_TIMEOUT,
-                       "%s", _("cannot acquire state change lock"));
-    else
-        virReportSystemError(errno,
-                             "%s", _("cannot acquire job mutex"));
-
-    return -1;
-}
-
-/*
- * obj must be locked before calling
- *
- * To be called after completing the work associated with the
- * earlier libxlDomainBeginJob() call
- *
- * Returns true if the remaining reference count on obj is
- * non-zero, false if the reference count has dropped to zero
- * and obj is disposed.
- */
-void
-libxlDomainObjEndJob(libxlDriverPrivate *driver G_GNUC_UNUSED,
-                     virDomainObj *obj)
-{
-    libxlDomainObjPrivate *priv = obj->privateData;
-    virDomainJob job = priv->job.active;
-
-    VIR_DEBUG("Stopping job: %s",
-              virDomainJobTypeToString(job));
-
-    libxlDomainObjResetJob(priv);
-    virCondSignal(&priv->job.cond);
-}
-
-int
-libxlDomainJobUpdateTime(virDomainJobObj *job)
-{
-    virDomainJobData *jobData = job->current;
     unsigned long long now;
 
-    if (!jobData->started)
+    if (!job->started)
         return 0;
 
     if (virTimeMillisNow(&now) < 0)
         return -1;
 
-    if (now < jobData->started) {
-        jobData->started = 0;
+    if (now < job->started) {
+        job->started = 0;
         return 0;
     }
 
-    jobData->timeElapsed = now - jobData->started;
+    *timeElapsed = now - job->started;
     return 0;
 }
 
@@ -177,14 +75,6 @@ libxlDomainObjPrivateAlloc(void *opaque G_GNUC_UNUSED)
         return NULL;
     }
 
-    if (virDomainObjInitJob(&priv->job, NULL) < 0) {
-        virChrdevFree(priv->devs);
-        g_free(priv);
-        return NULL;
-    }
-
-    priv->job.current = virDomainJobDataInit(NULL);
-
     return priv;
 }
 
@@ -194,7 +84,6 @@ libxlDomainObjPrivateFree(void *data)
     libxlDomainObjPrivate *priv = data;
 
     g_free(priv->lockState);
-    libxlDomainObjFreeJob(priv);
     virChrdevFree(priv->devs);
     g_free(priv);
 }
@@ -490,7 +379,7 @@ libxlDomainShutdownThread(void *opaque)
         goto cleanup;
     }
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (xl_reason == LIBXL_SHUTDOWN_REASON_POWEROFF) {
@@ -593,7 +482,7 @@ libxlDomainShutdownThread(void *opaque)
     }
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -619,7 +508,7 @@ libxlDomainDeathThread(void *opaque)
         goto cleanup;
     }
 
-    if (libxlDomainObjBeginJob(driver, vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, VIR_DOMAIN_SHUTOFF_DESTROYED);
@@ -629,7 +518,7 @@ libxlDomainDeathThread(void *opaque)
     libxlDomainCleanup(driver, vm);
     if (!vm->persistent)
         virDomainObjListRemove(driver->domains, vm);
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
     virObjectEventStateQueue(driver->domainEventState, dom_event);
 
  cleanup:

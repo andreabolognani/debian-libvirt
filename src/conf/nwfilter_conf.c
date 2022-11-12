@@ -2686,55 +2686,19 @@ virNWFilterDefParseXML(xmlXPathContextPtr ctxt)
 
 
 virNWFilterDef *
-virNWFilterDefParseNode(xmlDocPtr xml,
-                        xmlNodePtr root)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (STRNEQ((const char *)root->name, "filter")) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s",
-                       _("unknown root element for nw filter"));
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
-    return virNWFilterDefParseXML(ctxt);
-}
-
-
-static virNWFilterDef *
 virNWFilterDefParse(const char *xmlStr,
                     const char *filename,
                     unsigned int flags)
 {
-    virNWFilterDef *def = NULL;
     g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool validate = flags & VIR_NWFILTER_DEFINE_VALIDATE;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilter_definition)"), "nwfilter.rng",
-                           flags & VIR_NWFILTER_DEFINE_VALIDATE))) {
-        def = virNWFilterDefParseNode(xml, xmlDocGetRootElement(xml));
-    }
+    if (!(xml = virXMLParse(filename, xmlStr, _("(nwfilter_definition)"),
+                            "filter", &ctxt, "nwfilter.rng", validate)))
+        return NULL;
 
-    return def;
-}
-
-
-virNWFilterDef *
-virNWFilterDefParseString(const char *xmlStr,
-                          unsigned int flags)
-{
-    return virNWFilterDefParse(xmlStr, NULL, flags);
-}
-
-
-virNWFilterDef *
-virNWFilterDefParseFile(const char *filename)
-{
-    return virNWFilterDefParse(NULL, filename, 0);
+    return virNWFilterDefParseXML(ctxt);
 }
 
 

@@ -594,9 +594,11 @@ virLXCProcessSetupInterfaces(virLXCDriver *driver,
         case VIR_DOMAIN_NET_TYPE_MCAST:
         case VIR_DOMAIN_NET_TYPE_UDP:
         case VIR_DOMAIN_NET_TYPE_INTERNAL:
-        case VIR_DOMAIN_NET_TYPE_LAST:
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
         case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
+        case VIR_DOMAIN_NET_TYPE_LAST:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Unsupported network type %s"),
                            virDomainNetTypeToString(type));
@@ -1074,8 +1076,7 @@ virLXCProcessReadLogOutput(virDomainObj *vm,
                            char *buf,
                            size_t buflen)
 {
-    int fd = -1;
-    int ret;
+    VIR_AUTOCLOSE fd = -1;
 
     if ((fd = open(logfile, O_RDONLY)) < 0) {
         virReportSystemError(errno,
@@ -1088,17 +1089,47 @@ virLXCProcessReadLogOutput(virDomainObj *vm,
         virReportSystemError(errno,
                              _("Unable to seek log file %s to %llu"),
                              logfile, (unsigned long long)pos);
-        VIR_FORCE_CLOSE(fd);
         return -1;
     }
 
-    ret = virLXCProcessReadLogOutputData(vm,
-                                         fd,
-                                         buf,
-                                         buflen);
+    return virLXCProcessReadLogOutputData(vm, fd, buf, buflen);
+}
 
-    VIR_FORCE_CLOSE(fd);
-    return ret;
+
+/**
+ * virLXCProcessReportStartupLogError:
+ * @vm: domain object
+ * @logfile: path to the VM logfile
+ * @pos: position in @logfile to look for errors
+ *
+ * Looks for the error message from the LXC container process.
+ * Returns:
+ * -1: - When reading of error message failed. Reports appropriate error
+ *     - When successfully read a non-empty error message. Reports an error with
+ *       the following message
+ *          'guest failed to start: ' with the error from the log appended
+ *
+ *  0: - When reading the error was successful but the error log was empty.
+ */
+static int
+virLXCProcessReportStartupLogError(virDomainObj *vm,
+                                   char *logfile,
+                                   off_t pos)
+{
+    size_t buflen = 1024;
+    g_autofree char *errbuf = g_new0(char, buflen);
+    int rc;
+
+    if ((rc = virLXCProcessReadLogOutput(vm, logfile, pos, errbuf, buflen)) < 0)
+        return -1;
+
+    if (rc == 0)
+        return 0;
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("guest failed to start: %s"), errbuf);
+
+    return -1;
 }
 
 
@@ -1157,7 +1188,6 @@ int virLXCProcessStart(virLXCDriver * driver,
     g_auto(GStrv) veths = NULL;
     int handshakefds[4] = { -1, -1, -1, -1 }; /* two pipes */
     off_t pos = -1;
-    char ebuf[1024];
     g_autofree char *timestamp = NULL;
     int nsInheritFDs[VIR_LXC_DOMAIN_NAMESPACE_LAST];
     g_autoptr(virCommand) cmd = NULL;
@@ -1374,28 +1404,28 @@ int virLXCProcessStart(virLXCDriver * driver,
         goto cleanup;
 
     if (status != 0) {
-        if (virLXCProcessReadLogOutput(vm, logfile, pos, ebuf,
-                                       sizeof(ebuf)) <= 0) {
-            if (WIFEXITED(status))
-                g_snprintf(ebuf, sizeof(ebuf), _("unexpected exit status %d"),
+        if (virLXCProcessReportStartupLogError(vm, logfile, pos) < 0)
+            goto cleanup;
+
+        /* In case there isn't an error in the logs report one based on the exit status */
+        if (WIFEXITED(status)) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("guest failed to start: unexpected exit status %d"),
                            WEXITSTATUS(status));
-            else
-                g_snprintf(ebuf, sizeof(ebuf), "%s", _("terminated abnormally"));
+        } else {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("guest failed to start: terminated abnormally"));
         }
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("guest failed to start: %s"), ebuf);
         goto cleanup;
     }
 
     /* It has started running, so get its pid */
     if ((r = virPidFileReadPath(pidfile, &vm->pid)) < 0) {
-        if (virLXCProcessReadLogOutput(vm, logfile, pos, ebuf, sizeof(ebuf)) > 0)
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("guest failed to start: %s"), ebuf);
-        else
-            virReportSystemError(-r,
-                                 _("Failed to read pid file %s"),
-                                 pidfile);
+        if (virLXCProcessReportStartupLogError(vm, logfile, pos) < 0)
+            goto cleanup;
+
+        /* In case there isn't an error in the logs report that we failed to read the pidfile */
+        virReportSystemError(-r, _("Failed to read pid file %s"), pidfile);
         goto cleanup;
     }
 
@@ -1428,13 +1458,7 @@ int virLXCProcessStart(virLXCDriver * driver,
 
     /* The first synchronization point is when the controller creates CGroups. */
     if (lxcContainerWaitForContinue(handshakefds[0]) < 0) {
-        char out[1024];
-
-        if (!(virLXCProcessReadLogOutput(vm, logfile, pos, out, 1024) < 0)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("guest failed to start: %s"), out);
-        }
-
+        virLXCProcessReportStartupLogError(vm, logfile, pos);
         goto cleanup;
     }
 
@@ -1467,13 +1491,7 @@ int virLXCProcessStart(virLXCDriver * driver,
     /* The second synchronization point is when the controller finished
      * creating the container. */
     if (lxcContainerWaitForContinue(handshakefds[0]) < 0) {
-        char out[1024];
-
-        if (!(virLXCProcessReadLogOutput(vm, logfile, pos, out, 1024) < 0)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("guest failed to start: %s"), out);
-        }
-
+        virLXCProcessReportStartupLogError(vm, logfile, pos);
         goto cleanup;
     }
 
@@ -1482,11 +1500,7 @@ int virLXCProcessStart(virLXCDriver * driver,
         /* Intentionally overwrite the real monitor error message,
          * since a better one is almost always found in the logs
          */
-        if (virLXCProcessReadLogOutput(vm, logfile, pos, ebuf, sizeof(ebuf)) > 0) {
-            virResetLastError();
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("guest failed to start: %s"), ebuf);
-        }
+        virLXCProcessReportStartupLogError(vm, logfile, pos);
         goto cleanup;
     }
 
@@ -1607,6 +1621,8 @@ virLXCProcessReconnectNotifyNets(virDomainDef *def)
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
         case VIR_DOMAIN_NET_TYPE_UDP:
         case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
         case VIR_DOMAIN_NET_TYPE_LAST:
             break;
         }

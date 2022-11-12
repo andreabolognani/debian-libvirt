@@ -272,15 +272,9 @@ virStoragePoolDef *
 virStoragePoolDefParseXML(xmlXPathContextPtr ctxt);
 
 virStoragePoolDef *
-virStoragePoolDefParseString(const char *xml,
-                             unsigned int flags);
-
-virStoragePoolDef *
-virStoragePoolDefParseFile(const char *filename);
-
-virStoragePoolDef *
-virStoragePoolDefParseNode(xmlDocPtr xml,
-                           xmlNodePtr root);
+virStoragePoolDefParse(const char *xmlStr,
+                       const char *filename,
+                       unsigned int flags);
 
 char *
 virStoragePoolDefFormat(virStoragePoolDef *def);
@@ -293,20 +287,15 @@ typedef enum {
 } virStorageVolDefParseFlags;
 
 virStorageVolDef *
-virStorageVolDefParseString(virStoragePoolDef *pool,
-                            const char *xml,
-                            unsigned int flags);
+virStorageVolDefParse(virStoragePoolDef *pool,
+                      const char *xmlStr,
+                      const char *filename,
+                      unsigned int flags);
 
 virStorageVolDef *
-virStorageVolDefParseFile(virStoragePoolDef *pool,
-                          const char *filename,
-                          unsigned int flags);
-
-virStorageVolDef *
-virStorageVolDefParseNode(virStoragePoolDef *pool,
-                          xmlDocPtr xml,
-                          xmlNodePtr root,
-                          unsigned int flags);
+virStorageVolDefParseXML(virStoragePoolDef *pool,
+                         xmlXPathContextPtr ctxt,
+                         unsigned int flags);
 
 char *
 virStorageVolDefFormat(virStoragePoolDef *pool,

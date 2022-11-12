@@ -242,6 +242,7 @@ storageDriverAutostart(void)
 static int
 storageStateInitialize(bool privileged,
                        const char *root,
+                       bool monolithic G_GNUC_UNUSED,
                        virStateInhibitCallback callback G_GNUC_UNUSED,
                        void *opaque G_GNUC_UNUSED)
 {
@@ -720,7 +721,7 @@ storagePoolCreateXML(virConnectPtr conn,
     VIR_EXCLUSIVE_FLAGS_RET(VIR_STORAGE_POOL_BUILD_OVERWRITE,
                             VIR_STORAGE_POOL_BUILD_NO_OVERWRITE, NULL);
 
-    if (!(newDef = virStoragePoolDefParseString(xml, 0)))
+    if (!(newDef = virStoragePoolDefParse(xml, NULL, 0)))
         goto cleanup;
 
     if (virStoragePoolCreateXMLEnsureACL(conn, newDef) < 0)
@@ -800,7 +801,7 @@ storagePoolDefineXML(virConnectPtr conn,
 
     virCheckFlags(VIR_STORAGE_POOL_DEFINE_VALIDATE, NULL);
 
-    if (!(newDef = virStoragePoolDefParseString(xml, flags)))
+    if (!(newDef = virStoragePoolDefParse(xml, NULL, flags)))
         goto cleanup;
 
     if (virXMLCheckIllegalChars("name", newDef->name, "\n") < 0)
@@ -1892,8 +1893,7 @@ storageVolCreateXML(virStoragePoolPtr pool,
     if ((backend = virStorageBackendForType(def->type)) == NULL)
         goto cleanup;
 
-    voldef = virStorageVolDefParseString(def, xmldesc,
-                                         VIR_VOL_XML_PARSE_OPT_CAPACITY);
+    voldef = virStorageVolDefParse(def, xmldesc, NULL, VIR_VOL_XML_PARSE_OPT_CAPACITY);
     if (voldef == NULL)
         goto cleanup;
 
@@ -2066,8 +2066,7 @@ storageVolCreateXMLFrom(virStoragePoolPtr pool,
         goto cleanup;
     }
 
-    voldef = virStorageVolDefParseString(def, xmldesc,
-                                         VIR_VOL_XML_PARSE_NO_CAPACITY);
+    voldef = virStorageVolDefParse(def, xmldesc, NULL, VIR_VOL_XML_PARSE_NO_CAPACITY);
     if (voldef == NULL)
         goto cleanup;
 

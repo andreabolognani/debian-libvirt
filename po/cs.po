@@ -14,7 +14,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2022-07-26 08:13+0000\n"
+"POT-Creation-Date: 2022-10-25 07:42+0000\n"
 "PO-Revision-Date: 2021-07-21 11:38+0000\n"
 "Last-Translator: Matej Cepl <mcepl@cepl.eu>\n"
 "Language-Team: Czech <https://translate.fedoraproject.org/projects/libvirt/"
@@ -496,10 +496,6 @@ msgstr "%s %s „%s“ má nepodporovaný typ „%s“ – očekáváno „%s“
 #, c-format
 msgid "%s (out of %d)"
 msgstr "%s (z %d)"
-
-#, c-format
-msgid "%s 3d acceleration is not supported"
-msgstr "3d akcelerace %s není podporována"
 
 #, c-format
 msgid "%s array element does not contain a string"
@@ -1170,6 +1166,9 @@ msgstr ""
 msgid "':' not allowed in RBD source volume name '%s'"
 msgstr "„:“ není dovoleno v názvu RBD zdrojového svazku „%s“"
 
+msgid "'<local>' element missing for 'udp' socket interface"
+msgstr ""
+
 msgid "'adapter' name must be specified for scsi hostdev source"
 msgstr ""
 
@@ -1184,9 +1183,6 @@ msgid ""
 msgstr ""
 "prvek „arch“ (architektura) není možné použít uvnitř prvku „cpu“ (procesor) "
 "s atributem „match“ (shoda)"
-
-msgid "'base' and 'baseNode' can't be used together"
-msgstr "'base' a 'baseNode' není možné použít pohromadě"
 
 msgid "'cache' refers to a non-existent NUMA node cache"
 msgstr ""
@@ -1242,9 +1238,6 @@ msgstr "atribut 'iothread' je podporován pouze pro virtio scsi řadiče"
 msgid "'iothread' is only supported for virtio-scsi controller"
 msgstr "'iothread' je podporováno pouze pro řadič virtio-scsi"
 
-msgid "'jack' audio backend is not supported with this QEMU"
-msgstr ""
-
 msgid "'logical-id' missing in reply of guest-get-vcpus"
 msgstr "v odpovědi guest-get-vcpus chybí 'logical-id'"
 
@@ -1294,9 +1287,6 @@ msgstr ""
 msgid "'nfs' host must use TCP protocol"
 msgstr ""
 
-msgid "'nfs' protocol is not supported with this QEMU binary"
-msgstr ""
-
 msgid "'nfs' protocol requires the usage of exactly one host"
 msgstr ""
 
@@ -1327,11 +1317,9 @@ msgid "'queues' is only supported by virtio-scsi controller"
 msgstr "'queues' (fronty) jsou podporované pouze řadičem virtio-scsi"
 
 msgid ""
-"'reconnect' attribute  unsupported 'server' mode for <interface "
+"'reconnect' attribute unsupported 'server' mode for <interface "
 "type='vhostuser'>"
 msgstr ""
-"atribut 'reconnect' nepodporovaný 'server' režim pro <interface "
-"type='vhostuser'>"
 
 msgid ""
 "'restrictive' mode is required in memnode element when mode is 'restrictive' "
@@ -1344,9 +1332,6 @@ msgstr "'sibling_id %d' neodkazuje na platnou buňku v rámci NUMA 'cell id %d'"
 
 msgid "'socket' attribute is valid only for listen type 'socket'"
 msgstr "atribut 'socket' je platný pouze pro typ očekávání spojení 'socket'"
-
-msgid "'ssh' protocol is not yet supported"
-msgstr "protokol „ssh“ zatím ještě není podporován"
 
 msgid "'target' refers to a non-existent NUMA node"
 msgstr ""
@@ -1443,9 +1428,6 @@ msgstr "(_cookie_stehovani)"
 msgid "(metadata_xml)"
 msgstr "(xml_metadata)"
 
-msgid "(network status)"
-msgstr "(stav sítě)"
-
 msgid "(network_definition)"
 msgstr "(definice_sítě)"
 
@@ -1469,9 +1451,6 @@ msgstr "(definice_nwfiltru)"
 #, fuzzy
 msgid "(nwfilterbinding_status)"
 msgstr "(definice_nwfiltru)"
-
-msgid "(pool state)"
-msgstr "(stav fondu)"
 
 msgid "(qemu_migration_cookie)"
 msgstr "(qemu_cookie_stehování)"
@@ -1586,12 +1565,15 @@ msgstr ""
 msgid "/proc/net/dev: Interface not found"
 msgstr "/proc/net/dev: Rozhraní nenalezeno"
 
+msgid "3d acceleration is not supported by this QEMU binary"
+msgstr ""
+
+msgid "3d acceleration is supported only with 'virtio' video device"
+msgstr ""
+
 msgid "64-bit PCI hole setting is only for root PCI controllers"
 msgstr ""
 "nastavení 64bitové PCI díry je podporováno pouze pro kořenové PCI řadiče"
-
-msgid "64-bit PCI hole size setting is not supported with this QEMU binary"
-msgstr "nastavení 64bitové PCI díry není podporováno touto QEMU binárkou"
 
 #, c-format
 msgid "<%s>"
@@ -1600,6 +1582,10 @@ msgstr "<%s>"
 #, c-format
 msgid "<%s>..."
 msgstr "<%s>…"
+
+#, c-format
+msgid "<active_pcr_banks/> requires TPM version '%s'"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -1707,9 +1693,6 @@ msgstr "Bylo vyžádáno různé zpětné volání"
 #, c-format
 msgid "A domain definition can have no more than one cipher node with name %s"
 msgstr "Definice domény nemůže mít více než jeden uzel cihper s názvem %s"
-
-msgid "A field data length violates the resource length boundary."
-msgstr ""
 
 msgid "A interface driver is already registered"
 msgstr "Ovladač zařízení už je zaregistrován"
@@ -2180,9 +2163,6 @@ msgstr "Zaneprázdněno"
 msgid "CA certificate:"
 msgstr "Certifikát cert. autority"
 
-msgid "CCW address type is not supported by this QEMU"
-msgstr "adresa typu CCW není tímto QEMU podporována"
-
 #, c-format
 msgid "CHS geometry can not be set for '%s' bus"
 msgstr ""
@@ -2287,6 +2267,18 @@ msgstr "frekvence procesoru:"
 
 msgid "CPU map:"
 msgstr "Mapa procesoru:"
+
+#, c-format
+msgid ""
+"CPU maximum physical address bits number specification cannot be used with "
+"mode='%s'"
+msgstr ""
+
+#, c-format
+msgid ""
+"CPU maximum physical address bits specification is not supported for '%s' "
+"architecture"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -3138,12 +3130,6 @@ msgstr "Nedaří se zpracovat uzel <VirtualBox> <Machine>"
 msgid "Cannot parse <address> 'port' attribute"
 msgstr "Nedaří se zpracovat <address> atribut 'irg'"
 
-msgid "Cannot parse <local> 'port' attribute with socket interface"
-msgstr "Nedaří se zpracovat <local> atribut 'port' se socket rozhraním"
-
-msgid "Cannot parse <source> 'port' attribute with socket interface"
-msgstr "Nedaří se zpracovat <source> atribut 'port' se socket rozhraním"
-
 #, c-format
 msgid "Cannot parse MAC address '%s' in network '%s'"
 msgstr "Nedaří se zpracovat MAC adresu „%s“ v síti „%s“"
@@ -3176,10 +3162,6 @@ msgid "Cannot parse cbm_mask from resctrl cache info"
 msgstr ""
 "Nedaří se zpracovat cbm_mask z informací mezipaměti řízení prostředků "
 "(resctrl)"
-
-#, c-format
-msgid "Cannot parse controller index %s"
-msgstr "Nedaří se zpracovat pořadové číslo (index) %s řadiče"
 
 msgid "Cannot parse mode string"
 msgstr "Nedaří se zpracovat řetězec režimu"
@@ -3393,19 +3375,6 @@ msgstr "Není možné zrušit sdílení jmenného prostoru připojení (mount)"
 msgid "Cannot unshare uninitialized CURL handle"
 msgstr "Není možné zrušit sdílení neinicializované obsluhy CURL"
 
-msgid "Cannot update the read-only keyword: RO section not initialized."
-msgstr ""
-
-msgid ""
-"Cannot update the read-write keyword: read-write section not initialized."
-msgstr ""
-
-msgid "Cannot update the resource: a NULL keyword pointer has been provided."
-msgstr ""
-
-msgid "Cannot update the resource: a NULL resource pointer has been provided."
-msgstr ""
-
 #, c-format
 msgid "Cannot use direct socket mode for %s transport"
 msgstr "Pro transport %s není možné použít režim přímého soketu"
@@ -3616,9 +3585,6 @@ msgstr "Seznam kontrolních bodů"
 #, c-format
 msgid "Checkpoints have inconsistent relations for domain %s"
 msgstr "Kontrolní body mají nejednotné vztahy pro doménu %s"
-
-msgid "Checksum validation has failed"
-msgstr ""
 
 #, c-format
 msgid "Child process (%lld) unexpected %s"
@@ -4671,9 +4637,6 @@ msgstr "Nedaří se vyhodnotit VI API verze „%s“"
 msgid "Could not parse VPS ID %s"
 msgstr "Nedaří se zpracovat identifikátor VPS %s"
 
-msgid "Could not parse a resource field data - VPD has invalid format"
-msgstr ""
-
 #, c-format
 msgid "Could not parse barrier and limit of '%s' from config for container %d"
 msgstr ""
@@ -4736,12 +4699,6 @@ msgid "Could not read 'VE_PRIVATE' from config for container %d"
 msgstr "Nedaří se číst 'VE_PRIVATE' z nastavení pro kontejner %d"
 
 msgid "Could not read a device name from the <name> element"
-msgstr ""
-
-msgid "Could not read a part of a resource - VPD has invalid format"
-msgstr ""
-
-msgid "Could not read a resource field header - VPD has invalid format"
 msgstr ""
 
 #, c-format
@@ -4943,10 +4900,6 @@ msgstr "Nedaří se přenést data: %s (%d)"
 
 msgid "Could not translate keycode"
 msgstr "Nedaří se přeložit kód klávesy"
-
-#, c-format
-msgid "Could not update the VPD resource keyword: %s"
-msgstr ""
 
 msgid "Could not verify disk address"
 msgstr "Nedaří se ověřit adresu disku"
@@ -5964,6 +5917,10 @@ msgid "Either 'name' or 'parent' must be specified for the 'scsi_host' adapter"
 msgstr ""
 "Pro adaptér 'scsi_host' je třeba, aby bylo zadáno buď 'name' (název), nebo "
 "'parent' (nadřazené)"
+
+#, c-format
+msgid "Either --%s or --%s must be provided"
+msgstr ""
 
 msgid "Eject the media"
 msgstr "Vysunout médium"
@@ -9318,9 +9275,6 @@ msgstr "Číslo identifikátoru vlákna vstupu/výstupu"
 msgid "IOThread to be used by supported device"
 msgstr "IOThread který použít podporovaným zařízením"
 
-msgid "IOThreads for virtio-scsi not supported for this QEMU"
-msgstr "IOThreads pro virtio-scsi není tímto QEMU podporováno"
-
 #, c-format
 msgid "IOThreads not available for bus %s target %s"
 msgstr "IOThreads nedostupné pro sběřnici %s cíl %s"
@@ -9426,9 +9380,6 @@ msgstr ""
 
 msgid "Incorrect data type"
 msgstr "Nesprávný datový typ"
-
-msgid "Incorrect disk format"
-msgstr "Nesprávný formát disku"
 
 msgid "Incorrect number of cells in a table row"
 msgstr ""
@@ -9760,16 +9711,6 @@ msgid ""
 msgstr ""
 "Neplatný pokus o resetování PCI zařízení %s. Resetovat je možné pouze "
 "zařízení koncových bodů PCI"
-
-#, c-format
-msgid ""
-"Invalid attempt to set <interface type='ethernet'> device name with <source "
-"dev='%s'/>. Use <target dev='%s'/> (for host-side) or <guest dev='%s'/> (for "
-"guest-side) instead."
-msgstr ""
-"Neplatný pokus o nastavení <interface type='ethernet'> názvu zařízení s "
-"<source dev='%s'/>. Namísto toho použijte <target dev='%s'/> (pro stranu "
-"hostitele) nebo <guest dev='%s'/> (pro stranu hosta)."
 
 msgid ""
 "Invalid attempt to set network interface guest-side IP route and/or address "
@@ -10135,14 +10076,6 @@ msgid "Invalid match string '%s'"
 msgstr "Neplatný řetězec shody „%s“"
 
 #, c-format
-msgid "Invalid maxEventChannels: %i"
-msgstr ""
-
-#, c-format
-msgid "Invalid maxGrantFrames: %i"
-msgstr ""
-
-#, c-format
 msgid "Invalid message prog=%d type=%d serial=%u proc=%d"
 msgstr "Neplatná zpráva prog=%d type=%d serial=%u proc=%d"
 
@@ -10294,10 +10227,6 @@ msgid "Invalid port range '%u-%u'."
 msgstr "Neplatný rozsah portů „%u-%u“"
 
 #, c-format
-msgid "Invalid ports: %i"
-msgstr ""
-
-#, c-format
 msgid "Invalid prefix or netmask for '%s'"
 msgstr "Neplatná předpona nebo maska podsítě pro „%s“"
 
@@ -10387,10 +10316,6 @@ msgstr "Neplatný cíl"
 msgid "Invalid target domain state '%s'. Refusing snapshot reversion"
 msgstr "Neplatný stav cílové domény „%s“. Odmítá se reverze zachyceného stavu"
 
-#, c-format
-msgid "Invalid target index '%i' in PCI controller"
-msgstr ""
-
 msgid "Invalid target model for serial device"
 msgstr "Neplatný cílový model pro sériové zařízení"
 
@@ -10457,9 +10382,19 @@ msgid "Invalid value for attribute '%s' in element '%s': '%s'."
 msgstr ""
 
 #, c-format
+msgid "Invalid value for attribute '%s' in element '%s': '%s'. Expected UUID"
+msgstr ""
+
+#, c-format
 msgid ""
 "Invalid value for attribute '%s' in element '%s': '%s'. Expected integer "
 "value"
+msgstr ""
+
+#, c-format
+msgid ""
+"Invalid value for attribute '%s' in element '%s': '%s'. Expected long long "
+"integer value"
 msgstr ""
 
 #, c-format
@@ -10526,10 +10461,6 @@ msgstr "Neplatná hodnota „nodemask“: %s"
 #, c-format
 msgid "Invalid value of 'nodeset': %s"
 msgstr "Neplatná hodnota v „nodeset“: %s"
-
-#, c-format
-msgid "Invalid vectors: %i"
-msgstr ""
 
 #, c-format
 msgid "Invalid vendor element in CPU model %s"
@@ -10625,9 +10556,6 @@ msgstr "Klíč stávající relace se liší od klíče minulého přihlášení
 msgid "Known, but different label format present, requires build --overwrite"
 msgstr ""
 "Přítomen známý, ale odlišný formát štítku, vyžaduje sestavení --overwrite"
-
-msgid "LUKS encrypted QCOW2 images are not supported by this QEMU"
-msgstr "LUKS šifrované QCOW2 obrazy nejsou tímto QEMU podporovány"
 
 msgid "LXC Guest Enter Namespace"
 msgstr "Vstupní jmenný prostor LXC hosta"
@@ -11389,9 +11317,6 @@ msgstr "Chybí název zařízení pro veth na straně kontejneru"
 msgid "Missing disk file path in domain"
 msgstr ""
 
-msgid "Missing disk info when adding volume"
-msgstr "Chybějící informace o disku při přidávání svazku"
-
 msgid "Missing disk source file path"
 msgstr "Chybí popis umístění zdrojového souboru disku"
 
@@ -11560,6 +11485,10 @@ msgstr "Chybějící nebo neplatné 'vlan' v odpovědi query-rx-filter"
 
 msgid "Missing or invalid 'vlan-table' array in query-rx-filter response"
 msgstr "Chybějící nebo neplatné 'vlan-table' v odpovědi query-rx-filter"
+
+#, c-format
+msgid "Missing or invalid CPU address size in %s"
+msgstr ""
 
 #, c-format
 msgid "Missing or invalid CPU frequency in %s"
@@ -11861,9 +11790,6 @@ msgstr "N/A"
 msgid "NBD URI must be supplied when migration URI uses UNIX transport method"
 msgstr ""
 
-msgid "NBD migration with TLS is not supported"
-msgstr "NBD migrace s TLS není podporována"
-
 msgid "NBD migration with TLS is not supported over UNIX socket"
 msgstr ""
 
@@ -11985,6 +11911,12 @@ msgstr "SATA není touto binárkou QEMU podporováno"
 #, fuzzy
 msgid "NVMe namespace can't be zero"
 msgstr "velikost hugepages nemůže být nula"
+
+msgid "NVRAM is not permitted when loader is stateless"
+msgstr ""
+
+msgid "NVRAM template is not permitted when loader is stateless"
+msgstr ""
 
 msgid "Name"
 msgstr "Název"
@@ -12176,55 +12108,6 @@ msgstr ""
 
 msgid "Nicdev support unavailable"
 msgstr "Podpora pro nicdev (síťové zařízení) není k dispozici"
-
-msgid "No <local> 'address' attribute specified with socket interface"
-msgstr "Nezadán žádný <local> atribut 'address' se socket rozhraním"
-
-msgid "No <local> 'port' attribute specified with socket interface"
-msgstr "Nezadán žádný <local> atribut 'port' se socket rozhraním"
-
-msgid "No <source> 'address' attribute specified with socket interface"
-msgstr "Nezadán žádný <source> atribut 'address' se socket rozhraním"
-
-msgid ""
-"No <source> 'bridge' attribute specified with <interface type='bridge'/>"
-msgstr ""
-"Pro <interface type='bridge'/> nezadán žádný <source> atribut 'bridge' (most)"
-
-msgid "No <source> 'dev' attribute specified with <interface type='direct'/>"
-msgstr "Nezadán žádný <source> atribut 'dev' s <interface type='internal'/>"
-
-msgid "No <source> 'dev' attribute specified with <interface type='vdpa'/>"
-msgstr ""
-
-msgid ""
-"No <source> 'mode' attribute specified with <interface type='vhostuser'/>"
-msgstr ""
-"Pro <interface type='vhostuser'/> nezadán žádný <source> atribut "
-"'mode' (režim)"
-
-msgid ""
-"No <source> 'name' attribute specified with <interface type='internal'/>"
-msgstr "Nezadán žádný <source> atribut 'name' s <interface type='internal'/>"
-
-msgid ""
-"No <source> 'network' attribute specified with <interface type='network'/>"
-msgstr ""
-"Nezadán žádný atribut <source> (zdroj) 'network' (síť) s <interface "
-"type='network'/>"
-
-msgid ""
-"No <source> 'path' attribute specified with <interface type='vhostuser'/>"
-msgstr ""
-"Pro <interface type='vhostuser'/> nezadán žádný <source> atribut "
-"'path' (popis umístění)"
-
-msgid "No <source> 'port' attribute specified with socket interface"
-msgstr "Nezadán žádný <source> atribut 'port' se socket rozhraním"
-
-msgid "No <source> 'type' attribute specified for <interface type='vhostuser'>"
-msgstr ""
-"Pro <interface type='vhostuser'> nezadán žádný <source> atribut 'type' (typ)"
 
 msgid "No CA certificate path set to match server key/cert"
 msgstr ""
@@ -12808,6 +12691,9 @@ msgstr "Je podporován pouze jeden řadič disketových mechanik"
 msgid "Only 1 thread per core is supported"
 msgstr "Je podporováno pouze jedno vlákno na jádro"
 
+msgid "Only EFI firmware permits NVRAM"
+msgstr ""
+
 msgid "Only IPv4 or IPv6 addresses can be used with a prefix"
 msgstr ""
 
@@ -12919,6 +12805,9 @@ msgstr ""
 "V rámci jednoho stroje je podporováno pouze jedno hlavní video zařízení"
 
 msgid "Only one vgpu device can have 'ramfb' enabled"
+msgstr ""
+
+msgid "Only pflash loader type permits NVRAM"
 msgstr ""
 
 msgid "Only ploop disk images are supported by vz driver."
@@ -14075,9 +13964,6 @@ msgstr "Obnovit doménu ze zachyceného stavu"
 msgid "Revert domain to snapshot"
 msgstr "Obnovit doménu ze zachyceného stavu"
 
-msgid "Root element is not 'node'"
-msgstr "Kořenový prvek není „node“"
-
 #, c-format
 msgid "Route address '%s' conflicts with IP address for '%s'"
 msgstr "Adresa trasy „%s“ je v konfliktu s IP adresou pro „%s“"
@@ -14116,6 +14002,9 @@ msgstr "Spuštěný hypervizor: %s %d.%d.%d\n"
 msgid "S3 state is disabled for this domain"
 msgstr "Stav S3 je pro tuto doménu vypnutý"
 
+msgid "S390 PV launch security is not supported by this host or kernel"
+msgstr ""
+
 msgid "S390 PV launch security is not supported with this QEMU binary"
 msgstr ""
 
@@ -14147,6 +14036,9 @@ msgstr "SATA není touto binárkou QEMU podporováno"
 
 #, c-format
 msgid "SATA unit index %d out of [0..29] range"
+msgstr ""
+
+msgid "SCHED_CORE not supported by kernel"
 msgstr ""
 
 #, c-format
@@ -14417,9 +14309,6 @@ msgstr ""
 "Více informací najdete na webové stránce %s\n"
 "\n"
 
-msgid "Selecting disks to migrate is not implemented for tunnelled migration"
-msgstr "Vybírání disků pro migraci není pro tunelovanou migraci implementováno"
-
 msgid "Send keycodes (integers or symbolic names) to the guest"
 msgstr "Poslat kódy kláves (celá čísla nebo symbolické názvy) hostovi"
 
@@ -14658,6 +14547,11 @@ msgstr "Sdílená paměť: \n"
 #, c-format
 msgid "Shell '%s' should have absolute path"
 msgstr "Shell „%s“ by měl mít absolutní popis umístění"
+
+msgid ""
+"Shortcut for calling the command with a single CPU model and no additional "
+"features"
+msgstr ""
 
 msgid "Should define both master and slave path attributes for nmdm device"
 msgstr ""
@@ -15203,6 +15097,10 @@ msgstr ""
 msgid "TPM device path %s is invalid"
 msgstr "Popis umístění TPM zařízení %s není platný"
 
+#, c-format
+msgid "TPM version '%s' is not supported"
+msgstr ""
+
 #, fuzzy
 msgid "Table row cannot be empty"
 msgstr "%s nemůže být prázdné"
@@ -15247,6 +15145,9 @@ msgstr "Cílový počet funkcí procesoru %zu neodpovídá zdrojovém %zu"
 #, c-format
 msgid "Target CPU feature policy %s does not match source %s"
 msgstr "Cílová zásada funkce procesoru %s neodpovídá zdrojové %s"
+
+msgid "Target CPU maxphysaddr does not match source"
+msgstr ""
 
 #, c-format
 msgid "Target CPU mode %s does not match source %s"
@@ -16157,17 +16058,15 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "v tomto sestavení QEMU není řadič zvuku ich9-intel-hd_audio podporován"
 
-msgid "The keyword is not comprised only of uppercase ASCII letters or digits"
-msgstr ""
-
-#, c-format
-msgid "The keyword length is not 2 bytes: %s"
-msgstr ""
-
 msgid "The machine has no snapshot and it should have it"
 msgstr "Stroj nemá žádné zachycené stavy a přitom by měl mít"
 
 msgid "The minimum lease time should be greater than 2 minutes"
+msgstr ""
+
+msgid ""
+"The number of virtual CPU address bits cannot exceed the number supported by "
+"the host CPU"
 msgstr ""
 
 msgid ""
@@ -16202,9 +16101,6 @@ msgstr "Server přesměrovává z „%s“ na „%s“"
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "slirp-helper není možné přestěhovat"
-
-msgid "The string resource has invalid characters in its value"
-msgstr ""
 
 #, c-format
 msgid "The vbox driver does not support %s SCSI controller model"
@@ -17197,6 +17093,9 @@ msgstr ""
 msgid "Unable to destroy '%s': device in use"
 msgstr ""
 
+msgid "Unable to detect SCHED_CORE"
+msgstr ""
+
 #, c-format
 msgid "Unable to detect filesystem for %s"
 msgstr "Nedaří se zjistit souborové systémy na %s"
@@ -17311,6 +17210,13 @@ msgstr "Nedaří se najít zachycený stav %s"
 #, fuzzy
 msgid "Unable to find a satisfying virtiofsd"
 msgstr "Nedaří se najít volný virtio-serial prot"
+
+msgid "Unable to find a vCPU that is online"
+msgstr ""
+
+#, c-format
+msgid "Unable to find address for mdev parent device '%s'"
+msgstr ""
 
 #, c-format
 msgid "Unable to find address for parent device '%s'"
@@ -17700,10 +17606,6 @@ msgstr "Nedaří se importovat certifikát serveru %s"
 msgid "Unable to init device stream mutex"
 msgstr "Nedaří se inicializovat zámek výhradního přístupu k proudu zařízení"
 
-msgid "Unable to init qemu driver mutexes"
-msgstr ""
-"Nedaří se inicializovat zámky výhradního přístupu (mutex) ovladače pro qemu"
-
 msgid "Unable to initialize RW lock"
 msgstr "Nedaří se inicializovat zámek pro čtení/zápis"
 
@@ -17983,10 +17885,6 @@ msgstr "Nedaří se zpracovat stav zámku %s: %s"
 
 msgid "Unable to parse ovs-vsctl output"
 msgstr "Nedaří se zpracovat výstup z ovs-vsctl"
-
-#, c-format
-msgid "Unable to parse port id '%s'"
-msgstr "Nedaří se zpracovat číslo portu „%s“"
 
 msgid "Unable to parse quota"
 msgstr "Nedaří se zpracovat kvótu"
@@ -18288,6 +18186,10 @@ msgid "Unable to retrieve threadpool parameters"
 msgstr "Nedaří se číst parametry podprocesu"
 
 #, c-format
+msgid "Unable to run among %llu"
+msgstr ""
+
+#, c-format
 msgid "Unable to run command to get OVS master for interface %s"
 msgstr "Nedaří se spustit příkaz pro získání OVS hlavního pro rozhraní %s"
 
@@ -18389,6 +18291,9 @@ msgstr "Není možné nastavit blokování popisovače souborů %d"
 
 msgid "Unable to set IPV6_V6ONLY flag"
 msgstr "Nedaří se nastavit příznak IPV6_V6ONLY"
+
+msgid "Unable to set SCHED_CORE"
+msgstr ""
 
 #, c-format
 msgid "Unable to set SELinux context MCS '%s'"
@@ -18800,12 +18705,6 @@ msgstr ""
 "V průběhu mazání domény neočekávaně přišlo k tomu, že QEMU monitor je stále "
 "ještě aktivní"
 
-msgid "Unexpected RV keyword in the read-write section."
-msgstr ""
-
-msgid "Unexpected RW keyword in the read-only section."
-msgstr ""
-
 #, c-format
 msgid "Unexpected SCSI controller model %d"
 msgstr "Neočekávaný model SCSI řadiče %d"
@@ -18855,9 +18754,6 @@ msgstr ""
 "V průběhu mazání domény neočekávaně přišlo k tomu, že QEMU agent je stále "
 "ještě aktivní"
 
-msgid "Unexpected field value format encountered."
-msgstr ""
-
 #, c-format
 msgid "Unexpected filesystem type %s"
 msgstr "Neočekávaný typ souborového systému %s"
@@ -18903,10 +18799,6 @@ msgstr "Neočekávaný typ zprávy: %d"
 #, c-format
 msgid "Unexpected network port type %s"
 msgstr "Neočekávaný typ síťového portu %s"
-
-#, c-format
-msgid "Unexpected network protocol '%s'"
-msgstr "Neočekávaný síťový protokol „%s“"
 
 msgid "Unexpected output of cloud-hypervisor binary"
 msgstr ""
@@ -19028,14 +18920,6 @@ msgstr "Neznámý model řadiče SCSI %s"
 #, c-format
 msgid "Unknown SCSI subsystem protocol '%s'"
 msgstr "Neznámý protokol SCSI podsystému „%s“"
-
-#, c-format
-msgid "Unknown TPM backend type '%s'"
-msgstr "Neznámý typ TPM podpůrné vrstvy „%s“"
-
-#, c-format
-msgid "Unknown TPM frontend model '%s'"
-msgstr "Neznámý model TPM nadstavby „%s“"
 
 #, c-format
 msgid "Unknown URI parameter '%s'"
@@ -19208,9 +19092,6 @@ msgstr ""
 "Neznámá hodnota režimu %s, očekáváno 'acpi', 'agent', 'initctl', 'signal', "
 "nebo 'paravirt'"
 
-msgid "Unknown mode has been specified"
-msgstr "Byl zadán neznámý režim"
-
 #, c-format
 msgid "Unknown model type '%s'"
 msgstr "Neznámý typ modelu „%s“"
@@ -19244,6 +19125,10 @@ msgstr ""
 
 msgid "Unknown return code"
 msgstr "Neznámý návratový kód"
+
+#, c-format
+msgid "Unknown sched_core value %s"
+msgstr ""
 
 #, c-format
 msgid "Unknown scsi_host subsystem protocol '%s'"
@@ -19417,10 +19302,6 @@ msgid "Unsupported SMBIOS mode '%s'"
 msgstr "Neočekávaný SMBIOS režim „%s“"
 
 #, c-format
-msgid "Unsupported TPM version '%s'"
-msgstr "Nepodporovaná verze TPM „%s“"
-
-#, c-format
 msgid "Unsupported URI scheme '%s'"
 msgstr "Nepodporované schéma URI „%s“"
 
@@ -19581,8 +19462,8 @@ msgid "Unsupported hostdev type %s"
 msgstr "Nepodporovaný typ zařízení hostitele %s"
 
 #, c-format
-msgid "Unsupported interface %s for TPM 1.2"
-msgstr "Nepodporované zařízení %s pro TPM 1.2"
+msgid "Unsupported interface '%s' for TPM 1.2"
+msgstr ""
 
 msgid "Unsupported listen type"
 msgstr "Nepodporovaný typ očekávání spojení (listen)"
@@ -19852,12 +19733,6 @@ msgid "VFIO device assignment is currently not supported on this system"
 msgstr ""
 "VFIO přiřazování zařízení v tuto chvíli není na tomto systému podporováno"
 
-msgid "VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES is not supported by this VM"
-msgstr ""
-
-msgid "VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES is not supported by this QEMU"
-msgstr ""
-
 msgid "VM is already active"
 msgstr "virt. stroj už je aktivní"
 
@@ -20012,9 +19887,6 @@ msgstr "Popis umístění svazku „%s“ je soket"
 msgid "VxHS protocol accepts only one host"
 msgstr "protokol VxHS přijímá pouze jediného hostitele"
 
-msgid "VxHS protocol does not support URI syntax"
-msgstr "protokol VxHS nepodporuje URI syntaxi"
-
 msgid "VxHS protocol is not supported with this QEMU binary"
 msgstr "VxHS protokol není touto binárkou QEMU podporován"
 
@@ -20077,11 +19949,6 @@ msgstr "Zápis „%s“ na „%s“ při vport vytvořit/smazat se nezdařil"
 msgid "Write to '%s' to trigger host scan failed"
 msgstr "Zápis do „%s“ pro spuštění skenu hostitele se nezdařil"
 
-msgid ""
-"Wrong <source> 'mode' attribute specified with <interface type='vhostuser'/>"
-msgstr ""
-"Zadán nesprávný <source> atribut 'mode' s <interface type='vhostuser'/>"
-
 msgid "Wrong MAC address"
 msgstr "Chybná MAC adresa"
 
@@ -20132,9 +19999,6 @@ msgstr "XML neobsahuje očekávaný prvek 'bios'"
 
 msgid "XML does not contain expected 'chassis' element"
 msgstr "XML neobsahuje očekávaný prvek 'chassis' (skříň)"
-
-msgid "XML does not contain expected 'cookie' element"
-msgstr "XML neobsahuje očekávaný prvek 'cookie'"
 
 msgid "XML does not contain expected 'cpu' element"
 msgstr "XML neobsahuje očekávaný prvek „cpu“ (procesor)"
@@ -20281,9 +20145,6 @@ msgstr "přístup odepřen: %s"
 
 msgid "active"
 msgstr "aktivní"
-
-msgid "active commit not supported with this QEMU binary"
-msgstr "aktivní odesílání není touto binárkou QEMU podporováno"
 
 #, c-format
 msgid "active commit requested but '%s' is not active"
@@ -20490,9 +20351,6 @@ msgstr ""
 
 msgid "apparmor_parser exited with error"
 msgstr "apparmor_parser skončil s chybou"
-
-msgid "append not supported in this QEMU binary"
-msgstr "přidávání není v této binárce QEMU"
 
 msgid "applyDHCPOnlyRules failed - spoofing not protected!"
 msgstr "applyDHCPOnlyRules se nezdařilo – není chráněno proti podstrčení!"
@@ -20764,9 +20622,6 @@ msgstr ""
 msgid "backingStore is not supported with vhostuser disk"
 msgstr ""
 
-msgid "backingStore of mirror target is not supported by this qemu"
-msgstr "backingStore cíle zrcadlení není tímto qemu podporováno"
-
 msgid ""
 "backingStore of mirror without VIR_DOMAIN_BLOCK_COPY_SHALLOW doesn't make "
 "sense"
@@ -20776,9 +20631,6 @@ msgid "backup"
 msgstr ""
 
 msgid "backup TLS directory not configured"
-msgstr ""
-
-msgid "backup is not supported with this QEMU"
 msgstr ""
 
 msgid "backup job data missing"
@@ -21381,6 +21233,9 @@ msgstr "nedaří se stát vedoucím relace"
 
 msgid "cannot block signals"
 msgstr "nedaří se blokovat signály"
+
+msgid "cannot both keep and delete TPM"
+msgstr ""
 
 msgid "cannot both keep and delete nvram"
 msgstr "není možné nvram ponechat a zároveň smazat"
@@ -24092,20 +23947,6 @@ msgid "delete the specified network port"
 msgstr "smazat zadaný síťový port"
 
 #, c-format
-msgid "deleting %s drive failed: %s"
-msgstr "mazání disku %s se nezdařilo: %s"
-
-#, fuzzy
-msgid "deleting committed images is not supported by this VM"
-msgstr "Nastavení wwwn pro ide disk není tímto QEMU podporováno"
-
-msgid ""
-"deleting drive is not supported.  This may leak data if disk is reassigned"
-msgstr ""
-"mazání disku není podporováno. To může vést k úniku dat, pokud je disk znovu "
-"použit"
-
-#, c-format
 msgid "deletion of %d external disk snapshots not supported yet"
 msgstr "mazání %d externích zachycených stavů disku zatím není podporováno"
 
@@ -24167,9 +24008,6 @@ msgstr "odpojení sériové konzole není podporováno"
 
 msgid "detailed domain vcpu information"
 msgstr "detailní informace o VCPU domény"
-
-msgid "detect_zeroes is not supported by this QEMU binary"
-msgstr "detect_zeroes není touto binárkou QEMU podporován"
 
 msgid "detect_zeroes is not supported with vhostuser disk"
 msgstr ""
@@ -24338,12 +24176,6 @@ msgstr "vypnout procesory určené cpumap"
 
 msgid "disabled"
 msgstr "vypnuto"
-
-msgid "disabling audio mixing engine is not supported with this QEMU"
-msgstr ""
-
-msgid "discard is not supported by this QEMU binary"
-msgstr "discard není touto binárkou QEMU podporován"
 
 #, c-format
 msgid "discard is not supported for model '%s'"
@@ -24917,20 +24749,8 @@ msgstr "domainMigratePrepare2 nenastavilo uri"
 msgid "domainMigratePrepare3 did not set uri"
 msgstr "domainMigratePrepare3 nenastavilo uri"
 
-#, fuzzy
-msgid "domainbackup"
-msgstr "typ domény"
-
-#, fuzzy
-msgid "domaincheckpoint"
-msgstr "(kontrolni_bod_domeny)"
-
 msgid "domains in 'doms' array must belong to a single connection"
 msgstr "je třeba, aby domény v poli 'doms' náležely do stejného spojení"
-
-#, fuzzy
-msgid "domainsnapshot"
-msgstr "(zachyceny_stav_domeny)"
 
 #, c-format
 msgid "doms array in %s must contain at least one domain"
@@ -24956,9 +24776,6 @@ msgstr "hotovo"
 msgid "download volume contents to a file"
 msgstr "stáhnout obsah svazku do souboru"
 
-msgid "drive hotplug is not supported"
-msgstr "připojení disku za chodu není podporováno"
-
 #, c-format
 msgid "driver does not support net model '%s'"
 msgstr "ovladač nepodporuje net model „%s“"
@@ -24982,9 +24799,6 @@ msgstr "dotaz na výpis se nezdařil, status=%d"
 
 msgid "dump the core of a domain to a file for analysis"
 msgstr "uložit obraz paměti domény do souboru pro analýzu"
-
-msgid "dump-guest-memory is not supported"
-msgstr "výpis paměti hosta není podporován"
 
 #, c-format
 msgid "dumpformat '%d' is not supported"
@@ -25609,14 +25423,6 @@ msgstr "externí"
 msgid "external active snapshots are not supported on '%s' disks"
 msgstr "vnější aktivní zachycené stavy nejsou na „%s“ discích podporovány"
 
-#, c-format
-msgid ""
-"external active snapshots are not supported on 'network' disks using '%s' "
-"protocol"
-msgstr ""
-"externí aktivní zachycené stavy nejsou podporovány na 'network' discích při "
-"použití protokolu „%s“"
-
 msgid "external active snapshots are not supported on scsi passthrough devices"
 msgstr ""
 "externí aktivní zachycené stavy nejsou podporovány na scsi passthrough "
@@ -25652,10 +25458,6 @@ msgid ""
 msgstr ""
 "soubor vnějšího zachyceného stavu pro disk %s už existuje a není blokovým "
 "zařízením: %s"
-
-#, c-format
-msgid "external snapshot for readonly disk %s is not supported"
-msgstr "vnější zachycený stav pro disk pouze pro čtení %s není podporován"
 
 #, c-format
 msgid "external snapshot format for disk %s is unsupported: %s"
@@ -27498,6 +27300,13 @@ msgstr "při připojování k agentovi v něm host zhavaroval"
 msgid "guest failed to start: %s"
 msgstr "hosta se nepodařilo spustit: %s"
 
+msgid "guest failed to start: terminated abnormally"
+msgstr ""
+
+#, c-format
+msgid "guest failed to start: unexpected exit status %d"
+msgstr ""
+
 msgid "guest interface"
 msgstr "rozhraní hosta"
 
@@ -27730,10 +27539,6 @@ msgstr "připojení resetátoru modelu %s za chodu není podporováno"
 msgid "hpet timer is not supported"
 msgstr "hpet časovač není podporován"
 
-#, fuzzy
-msgid "http cookies are not supported by this QEMU binary"
-msgstr "%s není podporováno touto binárkou QEMU"
-
 msgid "http cookies are supported only with HTTP(S) protocol"
 msgstr ""
 
@@ -27809,6 +27614,11 @@ msgstr "identifikátory virt. procesorů, se kterými manipulovat"
 
 msgid "if IOMMU is enabled by kernel"
 msgstr "pokud je IOMMU zapnuté v jádře"
+
+#, c-format
+msgid ""
+"if using CPU maximum physical address mode='%s', bits= must be specified too"
+msgstr ""
 
 #, c-format
 msgid "ifkey \"%s\" has no req"
@@ -28112,6 +27922,10 @@ msgstr "ovladač stavu zařízení není aktivní"
 msgid "interface stats not implemented on this platform"
 msgstr "statistiky rozhraní nejsou na této platformě implementovány"
 
+#, c-format
+msgid "interface type='%s' requires a 'source' element"
+msgstr ""
+
 msgid "internal"
 msgstr "interní"
 
@@ -28200,10 +28014,6 @@ msgstr "neplatné %s: „%s“"
 #, c-format
 msgid "invalid '=' after option --%s"
 msgstr "neplatné „=“ po volbě --%s"
-
-#, c-format
-msgid "invalid 'managed' value '%s'"
-msgstr "neplatná „managed“ (spravováno) hodnota „%s“"
 
 msgid "invalid 'type' attribute for vhostuser disk source"
 msgstr ""
@@ -28943,6 +28753,10 @@ msgstr "volba iommu ovladače je podporovaná pouze pro virtio zařízení"
 msgid "iommu model '%s' can't have address"
 msgstr ""
 
+#, c-format
+msgid "iommu model '%s' doesn't support additional attributes"
+msgstr ""
+
 msgid "iommu: aw_bits is not supported with this QEMU binary"
 msgstr ""
 
@@ -29042,6 +28856,9 @@ msgstr "formát kdump-compressed zde není podporován"
 
 msgid "kdump-compressed format is only supported with memory-only dump"
 msgstr "kdump komprimovaný formát je podporován pouze pro výpis pouze paměti"
+
+msgid "keep TPM state"
+msgstr ""
 
 msgid "keep nvram file"
 msgstr ""
@@ -29594,9 +29411,6 @@ msgstr "připojení správy zámků bylo omezeno"
 msgid "lock owner details have not been registered"
 msgstr "podrobnosti o vlastníkovi zámku nebyly zaregistrovány"
 
-msgid "logfile not supported in this QEMU binary"
-msgstr "soubor se záznamem událostí není touto QEMU binárkou podporováno"
-
 #, c-format
 msgid "logical volume '%s' is sparse, volume wipe not supported"
 msgstr "logický svazek „%s“ je řídký, vymazání svazku není podporováno"
@@ -30114,9 +29928,6 @@ msgstr "výpis pouze paměti se nezdařil: %s"
 msgid "message"
 msgstr "zpráva"
 
-msgid "metadata cache max size control is not supported with this QEMU binary"
-msgstr ""
-
 msgid "metadata cache max size control is supported only with qcow2 images"
 msgstr ""
 
@@ -30204,6 +30015,9 @@ msgstr ""
 
 #, c-format
 msgid "migration of domain %s is not in post-copy phase"
+msgstr ""
+
+msgid "migration of non-shared disks requested but NBD is not set up"
 msgstr ""
 
 msgid ""
@@ -30524,9 +30338,6 @@ msgstr "v mezipaměti schopností QEMU chybí data o SEV platformě"
 msgid "missing TPM device backend"
 msgstr "chybí podpůrná vrstva TPM zařízení"
 
-msgid "missing TPM device backend type"
-msgstr "chybí typ podpůrné vrstvy TPM zařízení"
-
 msgid "missing Xen migration stream version"
 msgstr "chybí verze Xen migračního proudu"
 
@@ -30664,9 +30475,6 @@ msgstr "chybí zdroj úložiště, na kterém je disk založen"
 #, c-format
 msgid "missing disk device alias name for %s"
 msgstr "chybí alternativní název diskového zařízení pro %s"
-
-msgid "missing disk source for 'sheepdog' protocol"
-msgstr "chybí zdroj disku pro protokol „sheepdog“"
 
 msgid "missing domain in checkpoint"
 msgstr "v kontrolním bodu chybí doména"
@@ -31266,9 +31074,6 @@ msgstr "překlad modelu není podporován"
 msgid "model type"
 msgstr "typ modelu"
 
-msgid "modern nvram specification is not supported by this qemu"
-msgstr ""
-
 msgid "modifies an existing IOThread of the guest domain"
 msgstr "změní stávající vlákno vstupu/výstupu domény hosta"
 
@@ -31292,9 +31097,6 @@ msgstr "selhání monitoru"
 
 msgid "monitor must not be NULL"
 msgstr "monitor nemůže být prázdný"
-
-msgid "monitor socket did not show up"
-msgstr "soket monitoru se neobjevil"
 
 #, c-format
 msgid "more than %d vCPUs are only supported on q35-based machine types"
@@ -31437,10 +31239,6 @@ msgstr "název svazku"
 
 msgid "namespace key is required when modifying metadata"
 msgstr "při změně metadat je třeba klíče jmenného prostoru"
-
-#, c-format
-msgid "nbd does not support transport '%s'"
-msgstr "nbd nepodporuje transport „%s“"
 
 msgid "nbd port must be in range 0-65535"
 msgstr "je třeba, aby port pro nbd byl v rozsahu 0 až 65535"
@@ -32390,9 +32188,6 @@ msgstr ""
 msgid "non unique alias detected: %s"
 msgstr "zjištěn opakující se alternativní název: %s"
 
-msgid "non-file destination not supported yet"
-msgstr "cíl ne-soubor není zatím podporován"
-
 msgid "none"
 msgstr "žádné"
 
@@ -32711,9 +32506,6 @@ msgstr ""
 msgid "only one TPM backend is supported"
 msgstr "je podporována pouze jedna TPM podpůrná vrstva"
 
-msgid "only one audio backend is supported with this QEMU binary"
-msgstr ""
-
 #, fuzzy
 msgid "only one backup job is supported"
 msgstr "Je podporovaná pouze jedna acpi tabulka"
@@ -32797,9 +32589,6 @@ msgstr ""
 
 msgid "open an editor to modify the description"
 msgstr "otevřít editor pro úpravu popisu"
-
-msgid "open disk image file failed"
-msgstr "otevření obrazu disku se nezdařilo"
 
 #, c-format
 msgid "open(\"%s\")"
@@ -33592,9 +33381,6 @@ msgstr ""
 msgid "protocol '%s' accepts only one host"
 msgstr "protokol „%s“ přijímá pouze jediného hostitele"
 
-msgid "protocol 'sheepdog' accepts up to one host"
-msgstr "protokol 'sheepdog' přijímá nejvýše jednoho hostitele"
-
 msgid "protocol misses the family attribute"
 msgstr "protokolu chybí atribut family"
 
@@ -33631,10 +33417,6 @@ msgstr "qemu agent nevrátil pole rozhraní"
 
 msgid "qemu agent didn't return an array of keys"
 msgstr ""
-
-#, c-format
-msgid "qemu block name '%s' doesn't match expected '%s'"
-msgstr "název qemu bloku „%s“ neodpovídá očekávanému „%s“"
 
 #, c-format
 msgid "qemu didn't report thread id for vcpu '%zu'"
@@ -33958,10 +33740,6 @@ msgstr "spojení pouze pro čtení"
 msgid "readahead is supported only with HTTP(S)/FTP(s) protocols"
 msgstr ""
 
-#, fuzzy
-msgid "readahead setting is not supported with this QEMU binary"
-msgstr "nastavení ats není touto binárkou QEMU podporováno"
-
 msgid "readonly ide disks are not supported"
 msgstr "ide disky pouze pro čtení nejsou podporovány"
 
@@ -34064,6 +33842,9 @@ msgstr ""
 
 msgid "removable is only valid for usb disks"
 msgstr "vyjímatelné je platné pouze pro usb disky"
+
+msgid "remove TPM state"
+msgstr ""
 
 msgid "remove all associated storage volumes (use with caution)"
 msgstr "odebrat všechny související svazky úložiště (použijte obezřetně)"
@@ -34172,6 +33953,9 @@ msgstr "hlásit informace o virtuálním procesoru domény"
 
 msgid "report error if CPUs are incompatible"
 msgstr "hlásit chybu pokud procesory nejsou kompatibilní"
+
+msgid "report fd-based VM statistics by KVM"
+msgstr ""
 
 msgid "report filesystem information"
 msgstr "hlásit informace o souborovém systému"
@@ -34755,18 +34539,6 @@ msgstr "nastavování MTU na rozhraní typu %s zatím není podporováno"
 msgid "setting a launch secret is only supported in SEV-enabled domains"
 msgstr ""
 
-msgid "setting audio buffer count is not supported with this QEMU"
-msgstr ""
-
-msgid "setting audio buffer length is not supported with this QEMU"
-msgstr ""
-
-msgid "setting audio latency is not supported with this QEMU"
-msgstr ""
-
-msgid "setting audio stream name is not supported with this QEMU"
-msgstr ""
-
 #, c-format
 msgid "setting bandwidth on interfaces of type '%s' is not implemented yet"
 msgstr ""
@@ -35015,9 +34787,6 @@ msgstr "zachycené stavy mají nejednotné vztahy"
 msgid "sndbuf must be a positive integer"
 msgstr "je třeba, aby sndbuf bylo kladné celé číslo"
 
-msgid "socket attribute required for unix transport"
-msgstr "pro unixový transport je zapotřebí atribut soket"
-
 msgid "socketpair failed"
 msgstr "socketpair se nezdařilo"
 
@@ -35146,10 +34915,6 @@ msgstr ""
 
 msgid "ssl verification is supported only with HTTPS/FTPS protocol"
 msgstr ""
-
-#, fuzzy
-msgid "ssl verification setting is not supported by this QEMU binary"
-msgstr "nastavení ats není touto binárkou QEMU podporováno"
 
 msgid "start"
 msgstr ""
@@ -35306,10 +35071,6 @@ msgstr ""
 msgid "storage pool protocol ver unsupported for pool type '%s'"
 msgstr ""
 "pro fond typu „%s“ není podporována verze (ver) protokolu fondu úložiště"
-
-#, fuzzy
-msgid "storage slice is not supported by this QEMU binary"
-msgstr "nvram zařízení není touto QEMU binárkou podporováno"
 
 #, fuzzy, c-format
 msgid "storage source pool '%s' volume '%s' is not translated"
@@ -35582,9 +35343,6 @@ msgstr ""
 msgid "terminate gracefully"
 msgstr "ukončeno nenásilně"
 
-msgid "terminated abnormally"
-msgstr "ukončeno nenormálně"
-
 msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen: zadejte cestu nebo test:///default"
 
@@ -35677,10 +35435,6 @@ msgstr "stroj nemá žádný zachycený stav"
 msgid "the new password"
 msgstr "nové heslo"
 
-#, fuzzy
-msgid "the packed setting is not supported with this QEMU binary"
-msgstr "nastavení ats není touto binárkou QEMU podporováno"
-
 msgid "the password is already encrypted"
 msgstr "heslo už je šifrované"
 
@@ -35768,9 +35522,6 @@ msgstr "probíhá jiná transakce."
 msgid "there is no hub at port %u in USB address bus: %u port: %s"
 msgstr "na portu %u v adrese USB sběrnice není rozbočovač: %u port: %s"
 
-msgid "this QEMU binary doesn't support relative block pull/rebase"
-msgstr "toto sestavení QEMU nepodporuje vztažené blokové pull/rebase"
-
 msgid "this QEMU binary lacks multiple smartcard support"
 msgstr "tato binárka QEMU postrádá podporu pro vícero smartcad"
 
@@ -35823,12 +35574,6 @@ msgstr "tato platforma postrádá dlopen"
 
 msgid "this qemu does not support TLS transport for NBD"
 msgstr "toto qemu nepodporuje TLS transport pro NBD"
-
-msgid "this qemu does not support setting device threshold"
-msgstr "toto qemu nepodporuje nastavení prahu zařízení"
-
-msgid "this qemu doesn't support relative block commit"
-msgstr "toto qemu nepodporuje vztažené blokové odesílání"
 
 msgid "this qemu doesn't support the memory-backend-file object"
 msgstr "toto qemu nepodporuje objekt memory-backend-file"
@@ -35889,10 +35634,6 @@ msgstr ""
 msgid "threshold as a scaled number (by default bytes)"
 msgstr "práh jako škálované číslo (ve výchozím stavu bajty)"
 
-#, c-format
-msgid "threshold currently can't be set for block device '%s'"
-msgstr "práh v tuto chvíli není možné nastavit pro blokové zařízení „%s“"
-
 msgid "time to set"
 msgstr "čas který nastavit"
 
@@ -35915,10 +35656,6 @@ msgstr "sekund časového limitu"
 
 msgid "timeout seconds. must be positive."
 msgstr "je třeba, aby počet sekund časového limitu bylo kladné číslo."
-
-#, fuzzy
-msgid "timeout setting is not supported with this QEMU binary"
-msgstr "nastavení iommu není touto binárkou QEMU podporováno"
 
 msgid "timeout, async and block options are exclusive"
 msgstr "volby timeout, async a block není možné použít současně"
@@ -36302,10 +36039,6 @@ msgid ""
 msgstr ""
 
 #, c-format
-msgid "transient disk not supported by this QEMU binary (%s)"
-msgstr ""
-
-#, c-format
 msgid "transient disk supported only with 'disk' device (%s)"
 msgstr ""
 
@@ -36349,12 +36082,6 @@ msgstr "TLS transport není podporován pro protokol disku „%s“"
 #, fuzzy
 msgid "tray is only valid for cdrom and floppy"
 msgstr "vyjímatelné je platné pouze pro usb disky"
-
-msgid "tray status 'open' is invalid for block type disk"
-msgstr "stav držáku média (tray) 'open' není platný pro disk blokového typu"
-
-msgid "tray status 'open' is invalid for block type volume"
-msgstr "stav držáku média (tray) 'open' není platný pro svazek blokového typu"
 
 msgid "treat event as a regex rather than literal filter"
 msgstr "považovat událost za regulární výraz namísto doslovného filtru"
@@ -36575,10 +36302,6 @@ msgid "unable to find audio backend for sound device"
 msgstr ""
 
 #, c-format
-msgid "unable to find backing name for device %s"
-msgstr "nedaří se nalézt název, na kterém je založeno pro zařízení %s"
-
-#, c-format
 msgid "unable to find disk by target: %s"
 msgstr "nedaří se nalézt disk podle cíle: %s"
 
@@ -36785,6 +36508,9 @@ msgstr "nedaří se číst standardní výstup podřízeného"
 msgid "unable to read domain master key file"
 msgstr "nedaří se číst soubor s hlavním klíčem domény"
 
+msgid "unable to read from pipe"
+msgstr ""
+
 #, c-format
 msgid "unable to read server cert %s"
 msgstr "nedaří se číst certifikát serveru %s"
@@ -36883,6 +36609,14 @@ msgstr "nedaří se nastavit kontext zabezpečení „%s“ na „%s“"
 
 msgid "unable to set vnet or multiqueue flags on macvtap"
 msgstr "na macvtap se nedaří nastavit příznaky vnet nebo multiqeue"
+
+#, c-format
+msgid "unable to share scheduling cookie from %lld"
+msgstr ""
+
+#, c-format
+msgid "unable to share scheduling cookie to %lld"
+msgstr ""
 
 #, c-format
 msgid "unable to stat %s"
@@ -37135,10 +36869,6 @@ msgid "unexpected encryption format"
 msgstr "neočekávaný formát šifrování"
 
 #, c-format
-msgid "unexpected exit status %d"
-msgstr "neočekávaný návratový stav %d"
-
-#, c-format
 msgid "unexpected feature '%s'"
 msgstr "neočekávaná funkce „%s“"
 
@@ -37260,49 +36990,6 @@ msgstr "neočekávaný problém při čtení xml zachyceného stavu"
 
 msgid "unexpected protocol type"
 msgstr "neočekávaný typ protokolu"
-
-#, c-format
-msgid "unexpected root element <%s> expecting <device>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <device>"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <domain>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <domain> (doména)"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <domstatus>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <domstatus> (stav domény)"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <interface>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <interface>"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <network>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <network>"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <pool>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <pool>"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <qemuCaps>"
-msgstr "neočekávaný kořenový prvek <%s>, očekává se <qemuCaps>"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <secret>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <secret>"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <volume>"
-msgstr "neočekávaný kořenový prvek <%s>, očekáváno <volume>"
-
-msgid "unexpected root element, expecting <domain>"
-msgstr "neočekávaný kořenový prvek, očekáváno <domain>"
-
-#, c-format
-msgid "unexpected root element: '%s'"
-msgstr "neočekávaný kořenový prvek: „%s“"
 
 #, c-format
 msgid "unexpected secret usage type %d"
@@ -37752,21 +37439,6 @@ msgstr "neznámý typ znakového zařízení pro přesměrování „%s“"
 
 msgid "unknown rng-random backend"
 msgstr "neznámá podpůrná vrstva pro rng-random"
-
-#, fuzzy, c-format
-msgid "unknown root element '%s' for filter binding"
-msgstr "neznámý kořenový prvek pro nw filtr"
-
-#, fuzzy
-msgid "unknown root element for network port"
-msgstr "neznámý kořenový prvek pro nw filtr"
-
-msgid "unknown root element for nw filter"
-msgstr "neznámý kořenový prvek pro nw filtr"
-
-#, fuzzy
-msgid "unknown root element for nwfilter binding"
-msgstr "neznámý kořenový prvek pro nw filtr"
 
 msgid "unknown rule action attribute value"
 msgstr "neznámá hodnota atributu akce pravidla"
@@ -38951,9 +38623,6 @@ msgstr ""
 msgid "virtio-net teaming transient interface must be type='hostdev', not '%s'"
 msgstr ""
 
-msgid "virtio-net-pci 'tx' option not supported in this QEMU binary"
-msgstr "volba virtio-net-pci 'tx' není tímto sestavením QEMU"
-
 msgid "virtio-pmem does not support NUMA nodes"
 msgstr ""
 
@@ -39129,9 +38798,6 @@ msgstr "svazek „%s“ je pořád ještě přidělen."
 #, c-format
 msgid "volume '%s' is still in use."
 msgstr "svazek „%s“ je pořád používán."
-
-msgid "volume capacity required for this pool"
-msgstr "pro tento fond je třeba kapacita svazku"
 
 msgid "volume capacity required for this storage pool"
 msgstr "pro tento fond úložiště je zapotřebí kapacita svazku"
@@ -39409,6 +39075,360 @@ msgstr "zóna %s vyžadována pro sít %s, ale firewalld není aktivní"
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <řetězec>}…"
+
+#~ msgid "%s 3d acceleration is not supported"
+#~ msgstr "3d akcelerace %s není podporována"
+
+#~ msgid ""
+#~ "'reconnect' attribute  unsupported 'server' mode for <interface "
+#~ "type='vhostuser'>"
+#~ msgstr ""
+#~ "atribut 'reconnect' nepodporovaný 'server' režim pro <interface "
+#~ "type='vhostuser'>"
+
+#~ msgid "(network status)"
+#~ msgstr "(stav sítě)"
+
+#~ msgid "(pool state)"
+#~ msgstr "(stav fondu)"
+
+#~ msgid "CCW address type is not supported by this QEMU"
+#~ msgstr "adresa typu CCW není tímto QEMU podporována"
+
+#~ msgid "Cannot parse <local> 'port' attribute with socket interface"
+#~ msgstr "Nedaří se zpracovat <local> atribut 'port' se socket rozhraním"
+
+#~ msgid "Cannot parse <source> 'port' attribute with socket interface"
+#~ msgstr "Nedaří se zpracovat <source> atribut 'port' se socket rozhraním"
+
+#~ msgid ""
+#~ "Invalid attempt to set <interface type='ethernet'> device name with "
+#~ "<source dev='%s'/>. Use <target dev='%s'/> (for host-side) or <guest "
+#~ "dev='%s'/> (for guest-side) instead."
+#~ msgstr ""
+#~ "Neplatný pokus o nastavení <interface type='ethernet'> názvu zařízení s "
+#~ "<source dev='%s'/>. Namísto toho použijte <target dev='%s'/> (pro stranu "
+#~ "hostitele) nebo <guest dev='%s'/> (pro stranu hosta)."
+
+#~ msgid "No <local> 'address' attribute specified with socket interface"
+#~ msgstr "Nezadán žádný <local> atribut 'address' se socket rozhraním"
+
+#~ msgid "No <local> 'port' attribute specified with socket interface"
+#~ msgstr "Nezadán žádný <local> atribut 'port' se socket rozhraním"
+
+#~ msgid "No <source> 'address' attribute specified with socket interface"
+#~ msgstr "Nezadán žádný <source> atribut 'address' se socket rozhraním"
+
+#~ msgid ""
+#~ "No <source> 'bridge' attribute specified with <interface type='bridge'/>"
+#~ msgstr ""
+#~ "Pro <interface type='bridge'/> nezadán žádný <source> atribut "
+#~ "'bridge' (most)"
+
+#~ msgid ""
+#~ "No <source> 'dev' attribute specified with <interface type='direct'/>"
+#~ msgstr "Nezadán žádný <source> atribut 'dev' s <interface type='internal'/>"
+
+#~ msgid ""
+#~ "No <source> 'mode' attribute specified with <interface type='vhostuser'/>"
+#~ msgstr ""
+#~ "Pro <interface type='vhostuser'/> nezadán žádný <source> atribut "
+#~ "'mode' (režim)"
+
+#~ msgid ""
+#~ "No <source> 'name' attribute specified with <interface type='internal'/>"
+#~ msgstr ""
+#~ "Nezadán žádný <source> atribut 'name' s <interface type='internal'/>"
+
+#~ msgid ""
+#~ "No <source> 'network' attribute specified with <interface type='network'/>"
+#~ msgstr ""
+#~ "Nezadán žádný atribut <source> (zdroj) 'network' (síť) s <interface "
+#~ "type='network'/>"
+
+#~ msgid ""
+#~ "No <source> 'path' attribute specified with <interface type='vhostuser'/>"
+#~ msgstr ""
+#~ "Pro <interface type='vhostuser'/> nezadán žádný <source> atribut "
+#~ "'path' (popis umístění)"
+
+#~ msgid "No <source> 'port' attribute specified with socket interface"
+#~ msgstr "Nezadán žádný <source> atribut 'port' se socket rozhraním"
+
+#~ msgid ""
+#~ "No <source> 'type' attribute specified for <interface type='vhostuser'>"
+#~ msgstr ""
+#~ "Pro <interface type='vhostuser'> nezadán žádný <source> atribut "
+#~ "'type' (typ)"
+
+#~ msgid "Root element is not 'node'"
+#~ msgstr "Kořenový prvek není „node“"
+
+#~ msgid "Unable to parse port id '%s'"
+#~ msgstr "Nedaří se zpracovat číslo portu „%s“"
+
+#~ msgid "Unknown mode has been specified"
+#~ msgstr "Byl zadán neznámý režim"
+
+#~ msgid ""
+#~ "Wrong <source> 'mode' attribute specified with <interface "
+#~ "type='vhostuser'/>"
+#~ msgstr ""
+#~ "Zadán nesprávný <source> atribut 'mode' s <interface type='vhostuser'/>"
+
+#~ msgid "XML does not contain expected 'cookie' element"
+#~ msgstr "XML neobsahuje očekávaný prvek 'cookie'"
+
+#, fuzzy
+#~ msgid "domainbackup"
+#~ msgstr "typ domény"
+
+#, fuzzy
+#~ msgid "domaincheckpoint"
+#~ msgstr "(kontrolni_bod_domeny)"
+
+#, fuzzy
+#~ msgid "domainsnapshot"
+#~ msgstr "(zachyceny_stav_domeny)"
+
+#~ msgid "invalid 'managed' value '%s'"
+#~ msgstr "neplatná „managed“ (spravováno) hodnota „%s“"
+
+#~ msgid "unexpected root element <%s> expecting <device>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <device>"
+
+#~ msgid "unexpected root element <%s>, expecting <domain>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <domain> (doména)"
+
+#~ msgid "unexpected root element <%s>, expecting <domstatus>"
+#~ msgstr ""
+#~ "neočekávaný kořenový prvek <%s>, očekáváno <domstatus> (stav domény)"
+
+#~ msgid "unexpected root element <%s>, expecting <interface>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <interface>"
+
+#~ msgid "unexpected root element <%s>, expecting <network>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <network>"
+
+#~ msgid "unexpected root element <%s>, expecting <pool>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <pool>"
+
+#~ msgid "unexpected root element <%s>, expecting <qemuCaps>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekává se <qemuCaps>"
+
+#~ msgid "unexpected root element <%s>, expecting <secret>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <secret>"
+
+#~ msgid "unexpected root element <%s>, expecting <volume>"
+#~ msgstr "neočekávaný kořenový prvek <%s>, očekáváno <volume>"
+
+#~ msgid "unexpected root element, expecting <domain>"
+#~ msgstr "neočekávaný kořenový prvek, očekáváno <domain>"
+
+#~ msgid "unexpected root element: '%s'"
+#~ msgstr "neočekávaný kořenový prvek: „%s“"
+
+#, fuzzy
+#~ msgid "unknown root element '%s' for filter binding"
+#~ msgstr "neznámý kořenový prvek pro nw filtr"
+
+#, fuzzy
+#~ msgid "unknown root element for network port"
+#~ msgstr "neznámý kořenový prvek pro nw filtr"
+
+#~ msgid "unknown root element for nw filter"
+#~ msgstr "neznámý kořenový prvek pro nw filtr"
+
+#, fuzzy
+#~ msgid "unknown root element for nwfilter binding"
+#~ msgstr "neznámý kořenový prvek pro nw filtr"
+
+#~ msgid "Cannot parse controller index %s"
+#~ msgstr "Nedaří se zpracovat pořadové číslo (index) %s řadiče"
+
+#~ msgid "IOThreads for virtio-scsi not supported for this QEMU"
+#~ msgstr "IOThreads pro virtio-scsi není tímto QEMU podporováno"
+
+#~ msgid "Missing disk info when adding volume"
+#~ msgstr "Chybějící informace o disku při přidávání svazku"
+
+#~ msgid "Unable to init qemu driver mutexes"
+#~ msgstr ""
+#~ "Nedaří se inicializovat zámky výhradního přístupu (mutex) ovladače pro "
+#~ "qemu"
+
+#~ msgid "append not supported in this QEMU binary"
+#~ msgstr "přidávání není v této binárce QEMU"
+
+#~ msgid "logfile not supported in this QEMU binary"
+#~ msgstr "soubor se záznamem událostí není touto QEMU binárkou podporováno"
+
+#~ msgid "terminated abnormally"
+#~ msgstr "ukončeno nenormálně"
+
+#, fuzzy
+#~ msgid "the packed setting is not supported with this QEMU binary"
+#~ msgstr "nastavení ats není touto binárkou QEMU podporováno"
+
+#~ msgid "unexpected exit status %d"
+#~ msgstr "neočekávaný návratový stav %d"
+
+#~ msgid "volume capacity required for this pool"
+#~ msgstr "pro tento fond je třeba kapacita svazku"
+
+#~ msgid "'base' and 'baseNode' can't be used together"
+#~ msgstr "'base' a 'baseNode' není možné použít pohromadě"
+
+#~ msgid "'ssh' protocol is not yet supported"
+#~ msgstr "protokol „ssh“ zatím ještě není podporován"
+
+#~ msgid "64-bit PCI hole size setting is not supported with this QEMU binary"
+#~ msgstr "nastavení 64bitové PCI díry není podporováno touto QEMU binárkou"
+
+#~ msgid "Incorrect disk format"
+#~ msgstr "Nesprávný formát disku"
+
+#~ msgid "LUKS encrypted QCOW2 images are not supported by this QEMU"
+#~ msgstr "LUKS šifrované QCOW2 obrazy nejsou tímto QEMU podporovány"
+
+#~ msgid "NBD migration with TLS is not supported"
+#~ msgstr "NBD migrace s TLS není podporována"
+
+#~ msgid ""
+#~ "Selecting disks to migrate is not implemented for tunnelled migration"
+#~ msgstr ""
+#~ "Vybírání disků pro migraci není pro tunelovanou migraci implementováno"
+
+#~ msgid "Unexpected network protocol '%s'"
+#~ msgstr "Neočekávaný síťový protokol „%s“"
+
+#~ msgid "Unknown TPM backend type '%s'"
+#~ msgstr "Neznámý typ TPM podpůrné vrstvy „%s“"
+
+#~ msgid "Unknown TPM frontend model '%s'"
+#~ msgstr "Neznámý model TPM nadstavby „%s“"
+
+#~ msgid "Unsupported TPM version '%s'"
+#~ msgstr "Nepodporovaná verze TPM „%s“"
+
+#~ msgid "Unsupported interface %s for TPM 1.2"
+#~ msgstr "Nepodporované zařízení %s pro TPM 1.2"
+
+#~ msgid "VxHS protocol does not support URI syntax"
+#~ msgstr "protokol VxHS nepodporuje URI syntaxi"
+
+#~ msgid "active commit not supported with this QEMU binary"
+#~ msgstr "aktivní odesílání není touto binárkou QEMU podporováno"
+
+#~ msgid "backingStore of mirror target is not supported by this qemu"
+#~ msgstr "backingStore cíle zrcadlení není tímto qemu podporováno"
+
+#~ msgid "deleting %s drive failed: %s"
+#~ msgstr "mazání disku %s se nezdařilo: %s"
+
+#, fuzzy
+#~ msgid "deleting committed images is not supported by this VM"
+#~ msgstr "Nastavení wwwn pro ide disk není tímto QEMU podporováno"
+
+#~ msgid ""
+#~ "deleting drive is not supported.  This may leak data if disk is reassigned"
+#~ msgstr ""
+#~ "mazání disku není podporováno. To může vést k úniku dat, pokud je disk "
+#~ "znovu použit"
+
+#~ msgid "detect_zeroes is not supported by this QEMU binary"
+#~ msgstr "detect_zeroes není touto binárkou QEMU podporován"
+
+#~ msgid "discard is not supported by this QEMU binary"
+#~ msgstr "discard není touto binárkou QEMU podporován"
+
+#~ msgid "drive hotplug is not supported"
+#~ msgstr "připojení disku za chodu není podporováno"
+
+#~ msgid "dump-guest-memory is not supported"
+#~ msgstr "výpis paměti hosta není podporován"
+
+#~ msgid ""
+#~ "external active snapshots are not supported on 'network' disks using '%s' "
+#~ "protocol"
+#~ msgstr ""
+#~ "externí aktivní zachycené stavy nejsou podporovány na 'network' discích "
+#~ "při použití protokolu „%s“"
+
+#~ msgid "external snapshot for readonly disk %s is not supported"
+#~ msgstr "vnější zachycený stav pro disk pouze pro čtení %s není podporován"
+
+#, fuzzy
+#~ msgid "http cookies are not supported by this QEMU binary"
+#~ msgstr "%s není podporováno touto binárkou QEMU"
+
+#~ msgid "missing TPM device backend type"
+#~ msgstr "chybí typ podpůrné vrstvy TPM zařízení"
+
+#~ msgid "missing disk source for 'sheepdog' protocol"
+#~ msgstr "chybí zdroj disku pro protokol „sheepdog“"
+
+#~ msgid "monitor socket did not show up"
+#~ msgstr "soket monitoru se neobjevil"
+
+#~ msgid "nbd does not support transport '%s'"
+#~ msgstr "nbd nepodporuje transport „%s“"
+
+#~ msgid "non-file destination not supported yet"
+#~ msgstr "cíl ne-soubor není zatím podporován"
+
+#~ msgid "open disk image file failed"
+#~ msgstr "otevření obrazu disku se nezdařilo"
+
+#~ msgid "protocol 'sheepdog' accepts up to one host"
+#~ msgstr "protokol 'sheepdog' přijímá nejvýše jednoho hostitele"
+
+#~ msgid "qemu block name '%s' doesn't match expected '%s'"
+#~ msgstr "název qemu bloku „%s“ neodpovídá očekávanému „%s“"
+
+#, fuzzy
+#~ msgid "readahead setting is not supported with this QEMU binary"
+#~ msgstr "nastavení ats není touto binárkou QEMU podporováno"
+
+#~ msgid "socket attribute required for unix transport"
+#~ msgstr "pro unixový transport je zapotřebí atribut soket"
+
+#, fuzzy
+#~ msgid "ssl verification setting is not supported by this QEMU binary"
+#~ msgstr "nastavení ats není touto binárkou QEMU podporováno"
+
+#, fuzzy
+#~ msgid "storage slice is not supported by this QEMU binary"
+#~ msgstr "nvram zařízení není touto QEMU binárkou podporováno"
+
+#~ msgid "this QEMU binary doesn't support relative block pull/rebase"
+#~ msgstr "toto sestavení QEMU nepodporuje vztažené blokové pull/rebase"
+
+#~ msgid "this qemu does not support setting device threshold"
+#~ msgstr "toto qemu nepodporuje nastavení prahu zařízení"
+
+#~ msgid "this qemu doesn't support relative block commit"
+#~ msgstr "toto qemu nepodporuje vztažené blokové odesílání"
+
+#~ msgid "threshold currently can't be set for block device '%s'"
+#~ msgstr "práh v tuto chvíli není možné nastavit pro blokové zařízení „%s“"
+
+#, fuzzy
+#~ msgid "timeout setting is not supported with this QEMU binary"
+#~ msgstr "nastavení iommu není touto binárkou QEMU podporováno"
+
+#~ msgid "tray status 'open' is invalid for block type disk"
+#~ msgstr "stav držáku média (tray) 'open' není platný pro disk blokového typu"
+
+#~ msgid "tray status 'open' is invalid for block type volume"
+#~ msgstr ""
+#~ "stav držáku média (tray) 'open' není platný pro svazek blokového typu"
+
+#~ msgid "unable to find backing name for device %s"
+#~ msgstr "nedaří se nalézt název, na kterém je založeno pro zařízení %s"
+
+#~ msgid "virtio-net-pci 'tx' option not supported in this QEMU binary"
+#~ msgstr "volba virtio-net-pci 'tx' není tímto sestavením QEMU"
 
 #~ msgid "Unable to generate diffie-hellman parameters: %s"
 #~ msgstr "Nedaří se vytvořit diffie-hellman parametry: %s"

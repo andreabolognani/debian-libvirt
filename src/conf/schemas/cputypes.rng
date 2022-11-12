@@ -305,31 +305,49 @@
     </element>
   </define>
 
+  <define name="cpuMaxPhysAddr">
+    <element name="maxphysaddr">
+      <attribute name="mode">
+        <choice>
+          <value>emulate</value>
+          <value>passthrough</value>
+        </choice>
+      </attribute>
+      <optional>
+        <attribute name="bits">
+          <ref name="unsignedInt"/>
+        </attribute>
+      </optional>
+    </element>
+  </define>
+
   <define name="hostcpu">
     <element name="cpu">
       <element name="arch">
         <ref name="archnames"/>
       </element>
-      <optional>
-        <element name="features">
-          <optional>
-            <element name="pae"><empty/></element>
-          </optional>
-          <optional>
-            <element name="nonpae"><empty/></element>
-          </optional>
-          <optional>
-            <element name="vmx"><empty/></element>
-          </optional>
-          <optional>
-            <element name="svm"><empty/></element>
-          </optional>
-        </element>
-      </optional>
-      <optional>
-        <element name="model">
-          <text/>
-        </element>
+      <interleave>
+        <optional>
+          <element name="features">
+            <optional>
+              <element name="pae"><empty/></element>
+            </optional>
+            <optional>
+              <element name="nonpae"><empty/></element>
+            </optional>
+            <optional>
+              <element name="vmx"><empty/></element>
+            </optional>
+            <optional>
+              <element name="svm"><empty/></element>
+            </optional>
+          </element>
+        </optional>
+        <optional>
+          <element name="model">
+            <text/>
+          </element>
+        </optional>
         <optional>
           <element name="vendor">
             <text/>
@@ -371,6 +389,9 @@
         <optional>
           <ref name="cpuTopology"/>
         </optional>
+        <optional>
+          <ref name="cpuMaxPhysAddr"/>
+        </optional>
         <zeroOrMore>
           <element name="feature">
             <attribute name="name">
@@ -393,7 +414,7 @@
             </attribute>
           </element>
         </zeroOrMore>
-      </optional>
+      </interleave>
     </element>
   </define>
 
@@ -431,6 +452,9 @@
         </optional>
         <optional>
           <ref name="cpuCache"/>
+        </optional>
+        <optional>
+          <ref name="cpuMaxPhysAddr"/>
         </optional>
       </interleave>
     </element>

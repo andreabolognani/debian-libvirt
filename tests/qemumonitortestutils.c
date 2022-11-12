@@ -1109,8 +1109,6 @@ qemuMonitorTestNew(virDomainXMLOption *xmlopt,
     test->qapischema = schema;
     if (!(test->mon = qemuMonitorOpen(test->vm,
                                       &src,
-                                      true,
-                                      0,
                                       virEventThreadGetContext(test->eventThread),
                                       &qemuMonitorTestCallbacks)))
         goto error;

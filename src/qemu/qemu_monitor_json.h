@@ -66,8 +66,7 @@ int
 qemuMonitorJSONQueryCPUs(qemuMonitor *mon,
                          struct qemuMonitorQueryCpusEntry **entries,
                          size_t *nentries,
-                         bool force,
-                         bool fast);
+                         bool force);
 int
 qemuMonitorJSONUpdateVideoMemorySize(qemuMonitor *mon,
                                      virDomainVideoDef *video,
@@ -99,9 +98,6 @@ int
 qemuMonitorJSONGetAllBlockStatsInfo(qemuMonitor *mon,
                                     GHashTable *hash);
 int
-qemuMonitorJSONBlockStatsUpdateCapacity(qemuMonitor *mon,
-                                        GHashTable *stats);
-int
 qemuMonitorJSONBlockStatsUpdateCapacityBlockdev(qemuMonitor *mon,
                                                 GHashTable *stats);
 
@@ -130,16 +126,6 @@ qemuMonitorJSONExpirePassword(qemuMonitor *mon,
 int
 qemuMonitorJSONSetBalloon(qemuMonitor *mon,
                           unsigned long long newmem);
-
-int
-qemuMonitorJSONEjectMedia(qemuMonitor *mon,
-                          const char *dev_name,
-                          bool force);
-int
-qemuMonitorJSONChangeMedia(qemuMonitor *mon,
-                           const char *dev_name,
-                           const char *newmedia,
-                           const char *format);
 
 int
 qemuMonitorJSONSaveVirtualMemory(qemuMonitor *mon,
@@ -305,17 +291,6 @@ int
 qemuMonitorJSONTransaction(qemuMonitor *mon,
                            virJSONValue **actions)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-int
-qemuMonitorJSONDriveMirror(qemuMonitor *mon,
-                           const char *device,
-                           const char *file,
-                           const char *format,
-                           unsigned long long speed,
-                           unsigned int granularity,
-                           unsigned long long buf_size,
-                           bool shallow,
-                           bool reuse)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3);
 
 int
 qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
@@ -331,30 +306,14 @@ qemuMonitorJSONBlockdevMirror(qemuMonitor *mon,
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5);
 
 int
-qemuMonitorJSONDrivePivot(qemuMonitor *mon,
-                          const char *jobname)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-
-int
 qemuMonitorJSONBlockCommit(qemuMonitor *mon,
                            const char *device,
                            const char *jobname,
-                           bool persistjob,
-                           const char *top,
                            const char *topNode,
-                           const char *base,
                            const char *baseNode,
                            const char *backingName,
                            unsigned long long bandwidth)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-
-char *
-qemuMonitorJSONDiskNameLookup(qemuMonitor *mon,
-                              const char *device,
-                              virStorageSource *top,
-                              virStorageSource *target)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3)
-    ATTRIBUTE_NONNULL(4);
 
 int
 qemuMonitorJSONArbitraryCommand(qemuMonitor *mon,
@@ -381,8 +340,6 @@ int
 qemuMonitorJSONBlockStream(qemuMonitor *mon,
                            const char *device,
                            const char *jobname,
-                           bool persistjob,
-                           const char *base,
                            const char *baseNode,
                            const char *backingName,
                            unsigned long long speed)
@@ -648,7 +605,6 @@ qemuMonitorJSONGetGuestCPU(qemuMonitor *mon,
                            virArch arch,
                            const char *cpuQOMPath,
                            qemuMonitorCPUFeatureTranslationCallback translate,
-                           void *opaque,
                            virCPUData **enabled,
                            virCPUData **disabled);
 
@@ -712,11 +668,6 @@ qemuMonitorJSONSetBlockThreshold(qemuMonitor *mon,
                                  const char *nodename,
                                  unsigned long long threshold)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
-
-virJSONValue *
-qemuMonitorJSONQueryNamedBlockNodes(qemuMonitor *mon,
-                                    bool flat)
-    ATTRIBUTE_NONNULL(1);
 
 int
 qemuMonitorJSONSetWatchdogAction(qemuMonitor *mon,
@@ -813,12 +764,6 @@ qemuMonitorJSONTransactionBitmapMergeSourceAddBitmap(virJSONValue *sources,
                                                      const char *sourcebitmap);
 
 int
-qemuMonitorJSONTransactionSnapshotLegacy(virJSONValue *actions,
-                                         const char *device,
-                                         const char *path,
-                                         const char *format,
-                                         bool existing);
-int
 qemuMonitorJSONTransactionSnapshotBlockdev(virJSONValue *actions,
                                            const char *node,
                                            const char *overlay);
@@ -866,3 +811,13 @@ qemuMonitorJSONChangeMemoryRequestedSize(qemuMonitor *mon,
 int
 qemuMonitorJSONMigrateRecover(qemuMonitor *mon,
                               const char *uri);
+
+GHashTable *
+qemuMonitorJSONQueryStatsSchema(qemuMonitor *mon,
+                                qemuMonitorQueryStatsProviderType provider_type);
+
+virJSONValue *
+qemuMonitorJSONQueryStats(qemuMonitor *mon,
+                          qemuMonitorQueryStatsTargetType target,
+                          char **vcpus,
+                          GPtrArray *providers);

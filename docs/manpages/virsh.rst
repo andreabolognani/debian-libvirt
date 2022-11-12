@@ -962,12 +962,17 @@ hypervisor-cpu-baseline
 
 ::
 
-   hypervisor-cpu-baseline FILE [virttype] [emulator] [arch] [machine] [--features] [--migratable]
+   hypervisor-cpu-baseline [FILE] [virttype] [emulator] [arch] [machine]
+      [--features] [--migratable] [model]
 
 Compute a baseline CPU which will be compatible with all CPUs defined in an XML
 *file* and with the CPU the hypervisor is able to provide on the host. (This
 is different from ``cpu-baseline`` which does not consider any hypervisor
 abilities when computing the baseline CPU.)
+
+As an alternative for *FILE* in case the XML would only contain a CPU model
+with no additional features the CPU model name itself can be passed as *model*.
+Exactly one of *FILE* and *model* must be used.
 
 The XML *FILE* may contain either host or guest CPU definitions describing the
 host CPU model. The host CPU definition is the <cpu> element and its contents
@@ -981,10 +986,13 @@ fail or provide unexpected results.
 
 When *FILE* contains only a single CPU definition, the command will print the
 same CPU with restrictions imposed by the capabilities of the hypervisor.
-Specifically, running th ``virsh hypervisor-cpu-baseline`` command with no
+Specifically, running the ``virsh hypervisor-cpu-baseline`` command with no
 additional options on the result of ``virsh domcapabilities`` will transform the
 host CPU model from domain capabilities XML to a form directly usable in domain
-XML.
+XML. Running the command with *model* (or *FILE* containing just a single CPU
+definition with model and no feature elements) which is marked as unusable in
+``virsh domcapabilities`` will provide a list of features that block this CPU
+model from being usable.
 
 The *virttype* option specifies the virtualization type (usable in the 'type'
 attribute of the <domain> top level element from the domain XML). *emulator*
@@ -2289,7 +2297,7 @@ domstats
 
    domstats [--raw] [--enforce] [--backing] [--nowait] [--state]
       [--cpu-total] [--balloon] [--vcpu] [--interface]
-      [--block] [--perf] [--iothread] [--memory] [--dirtyrate]
+      [--block] [--perf] [--iothread] [--memory] [--dirtyrate] [--vm]
       [[--list-active] [--list-inactive]
        [--list-persistent] [--list-transient] [--list-running]y
        [--list-paused] [--list-shutoff] [--list-other]] | [domain ...]
@@ -2309,7 +2317,7 @@ The individual statistics groups are selectable via specific flags. By
 default all supported statistics groups are returned. Supported
 statistics groups flags are: *--state*, *--cpu-total*, *--balloon*,
 *--vcpu*, *--interface*, *--block*, *--perf*, *--iothread*, *--memory*,
-*--dirtyrate*.
+*--dirtyrate*, *--vm*.
 
 Note that - depending on the hypervisor type and version or the domain state
 - not all of the following statistics may be returned.
@@ -2525,6 +2533,38 @@ not available for statistical purposes.
 * ``dirtyrate.vcpu.<num>.megabytes_per_second`` - the calculated memory dirty
   rate for a virtual cpu in MiB/s
 
+*--vm* returns:
+
+The *--vm* option enables reporting of hypervisor-specific statistics. Naming
+and meaning of the fields is entirely hypervisor dependent.
+
+The statistics in this group have the following naming scheme:
+
+ ``vm.$NAME.$TYPE``
+
+ ``$NAME``
+   name of the statistics field provided by the hypervisor
+
+ ``$TYPE``
+   Type of the value. The following types are returned:
+
+   ``cur``
+     current instant value
+   ``sum``
+     aggregate value
+   ``max``
+     peak value
+
+ The returned value may be either an unsigned long long or a boolean.
+
+ **WARNING**: The stats reported in this group are runtime-collected and
+ hypervisor originated, thus fall outside of the usual stable API
+ policies of libvirt.
+
+ Libvirt can't guarantee that the statistics reported from the outside
+ source will be present in further versions of the hypervisor, or that
+ naming or meaning will stay consistent. Changes to existing fields,
+ however, are expected to be rare.
 
 Selecting a specific statistics groups doesn't guarantee that the
 daemon supports the selected group of stats. Flag *--enforce*
@@ -4486,6 +4526,7 @@ undefine
       [--checkpoints-metadata] [--nvram] [--keep-nvram]
       [ {--storage volumes | --remove-all-storage
          [--delete-storage-volume-snapshots]} --wipe-storage]
+      [--tpm] [--keep-tpm]
 
 Undefine a domain. If the domain is running, this converts it to a
 transient domain, without stopping it. If the domain is inactive,
@@ -4536,6 +4577,11 @@ failure.
 
 The flag *--wipe-storage* specifies that the storage volumes should be
 wiped before removal.
+
+*--tpm* and *--keep-tpm* specify accordingly to delete or keep a TPM's
+persistent state directory structure and files. If the flags are omitted
+then the persistent_state attribute in the TPM emulator definition in the
+domain XML determines whether the TPM state is kept.
 
 NOTE: For an inactive domain, the domain name or UUID must be used as the
 *domain*.

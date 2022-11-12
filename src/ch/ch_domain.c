@@ -32,90 +32,6 @@
 
 VIR_LOG_INIT("ch.ch_domain");
 
-static void
-virCHDomainObjResetJob(virCHDomainObjPrivate *priv)
-{
-    virDomainJobObj *job = &priv->job;
-
-    job->active = VIR_JOB_NONE;
-    job->owner = 0;
-}
-
-static void
-virCHDomainObjFreeJob(virCHDomainObjPrivate *priv)
-{
-    ignore_value(virCondDestroy(&priv->job.cond));
-}
-
-/*
- * obj must be locked before calling, virCHDriver must NOT be locked
- *
- * This must be called by anything that will change the VM state
- * in any way
- *
- * Upon successful return, the object will have its ref count increased.
- * Successful calls must be followed by EndJob eventually.
- */
-int
-virCHDomainObjBeginJob(virDomainObj *obj, virDomainJob job)
-{
-    virCHDomainObjPrivate *priv = obj->privateData;
-    unsigned long long now;
-    unsigned long long then;
-
-    if (virTimeMillisNow(&now) < 0)
-        return -1;
-    then = now + CH_JOB_WAIT_TIME;
-
-    while (priv->job.active) {
-        VIR_DEBUG("Wait normal job condition for starting job: %s",
-                  virDomainJobTypeToString(job));
-        if (virCondWaitUntil(&priv->job.cond, &obj->parent.lock, then) < 0) {
-            VIR_WARN("Cannot start job (%s) for domain %s;"
-                     " current job is (%s) owned by (%llu)",
-                     virDomainJobTypeToString(job),
-                     obj->def->name,
-                     virDomainJobTypeToString(priv->job.active),
-                     priv->job.owner);
-
-            if (errno == ETIMEDOUT)
-                virReportError(VIR_ERR_OPERATION_TIMEOUT,
-                               "%s", _("cannot acquire state change lock"));
-            else
-                virReportSystemError(errno,
-                                     "%s", _("cannot acquire job mutex"));
-            return -1;
-        }
-    }
-
-    virCHDomainObjResetJob(priv);
-
-    VIR_DEBUG("Starting job: %s", virDomainJobTypeToString(job));
-    priv->job.active = job;
-    priv->job.owner = virThreadSelfID();
-
-    return 0;
-}
-
-/*
- * obj must be locked and have a reference before calling
- *
- * To be called after completing the work associated with the
- * earlier virCHDomainBeginJob() call
- */
-void
-virCHDomainObjEndJob(virDomainObj *obj)
-{
-    virCHDomainObjPrivate *priv = obj->privateData;
-    virDomainJob job = priv->job.active;
-
-    VIR_DEBUG("Stopping job: %s",
-              virDomainJobTypeToString(job));
-
-    virCHDomainObjResetJob(priv);
-    virCondSignal(&priv->job.cond);
-}
-
 void
 virCHDomainRemoveInactive(virCHDriver *driver,
                           virDomainObj *vm)
@@ -132,13 +48,7 @@ virCHDomainObjPrivateAlloc(void *opaque)
 
     priv = g_new0(virCHDomainObjPrivate, 1);
 
-    if (virDomainObjInitJob(&priv->job, NULL) < 0) {
-        g_free(priv);
-        return NULL;
-    }
-
     if (!(priv->chrdevs = virChrdevAlloc())) {
-        virCHDomainObjFreeJob(priv);
         g_free(priv);
         return NULL;
     }
@@ -153,7 +63,6 @@ virCHDomainObjPrivateFree(void *data)
     virCHDomainObjPrivate *priv = data;
 
     virChrdevFree(priv->chrdevs);
-    virCHDomainObjFreeJob(priv);
     g_free(priv->machineName);
     g_free(priv);
 }

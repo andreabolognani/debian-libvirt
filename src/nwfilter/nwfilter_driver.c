@@ -211,6 +211,7 @@ nwfilterStateCleanup(void)
 static int
 nwfilterStateInitialize(bool privileged,
                         const char *root,
+                        bool monolithic G_GNUC_UNUSED,
                         virStateInhibitCallback callback G_GNUC_UNUSED,
                         void *opaque G_GNUC_UNUSED)
 {
@@ -544,7 +545,7 @@ nwfilterDefineXMLFlags(virConnectPtr conn,
         return NULL;
     }
 
-    if (!(def = virNWFilterDefParseString(xml, flags)))
+    if (!(def = virNWFilterDefParse(xml, NULL, flags)))
         goto cleanup;
 
     if (virNWFilterDefineXMLFlagsEnsureACL(conn, def) < 0)
@@ -738,7 +739,7 @@ nwfilterBindingCreateXML(virConnectPtr conn,
         return NULL;
     }
 
-    def = virNWFilterBindingDefParseString(xml, flags);
+    def = virNWFilterBindingDefParse(xml, NULL, flags);
     if (!def)
         return NULL;
 

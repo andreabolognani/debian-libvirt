@@ -240,9 +240,9 @@ virNetworkObjSetFloorSum(virNetworkObj *obj,
 
 void
 virNetworkObjSetMacMap(virNetworkObj *obj,
-                       virMacMap *macmap)
+                       virMacMap **macmap)
 {
-    obj->macmap = macmap;
+    obj->macmap = g_steal_pointer(macmap);
 }
 
 
@@ -843,7 +843,7 @@ virNetworkLoadState(virNetworkObjList *nets,
                     virNetworkXMLOption *xmlopt)
 {
     g_autofree char *configFile = NULL;
-    virNetworkDef *def = NULL;
+    g_autoptr(virNetworkDef) def = NULL;
     virNetworkObj *obj = NULL;
     g_autoptr(xmlDoc) xml = NULL;
     xmlNodePtr node = NULL;
@@ -856,28 +856,28 @@ virNetworkLoadState(virNetworkObjList *nets,
 
 
     if ((configFile = virNetworkConfigFile(stateDir, name)) == NULL)
-        goto error;
+        return NULL;
 
-    if (!(xml = virXMLParseCtxt(configFile, NULL, _("(network status)"), &ctxt)))
-        goto error;
+    if (!(xml = virXMLParseFileCtxt(configFile, &ctxt)))
+        return NULL;
 
     if (!(node = virXPathNode("//network", ctxt))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Could not find any 'network' element in status file"));
-        goto error;
+        return NULL;
     }
 
     /* parse the definition first */
     ctxt->node = node;
     if (!(def = virNetworkDefParseXML(ctxt, xmlopt)))
-        goto error;
+        return NULL;
 
     if (STRNEQ(name, def->name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Network config filename '%s'"
                          " does not match network name '%s'"),
                        configFile, def->name);
-        goto error;
+        return NULL;
     }
 
     /* now parse possible status data */
@@ -893,7 +893,7 @@ virNetworkLoadState(virNetworkObjList *nets,
         if ((classIdStr = virXPathString("string(./class_id[1]/@bitmap)",
                                          ctxt))) {
             if (!(classIdMap = virBitmapParseUnlimited(classIdStr)))
-                goto error;
+                return NULL;
         }
 
         floor_sum = virXPathString("string(./floor[1]/@sum)", ctxt);
@@ -902,11 +902,11 @@ virNetworkLoadState(virNetworkObjList *nets,
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Malformed 'floor_sum' attribute: %s"),
                            floor_sum);
-            goto error;
+            return NULL;
         }
 
         if ((n = virXPathNodeSet("./taint", ctxt, &nodes)) < 0)
-            goto error;
+            return NULL;
 
         for (i = 0; i < n; i++) {
             g_autofree char *str = virXMLPropString(nodes[i], "flag");
@@ -915,7 +915,7 @@ virNetworkLoadState(virNetworkObjList *nets,
                 if (flag < 0) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                    _("Unknown taint flag %s"), str);
-                    goto error;
+                    return NULL;
                 }
                 /* Compute taint mask here. The network object does not
                  * exist yet, so we can't use virNetworkObjtTaint. */
@@ -925,10 +925,10 @@ virNetworkLoadState(virNetworkObjList *nets,
     }
 
     /* create the object */
-    if (!(obj = virNetworkObjAssignDef(nets, def,
-                                       VIR_NETWORK_OBJ_LIST_ADD_LIVE)))
-        goto error;
-    /* do not put any "goto error" below this comment */
+    if (!(obj = virNetworkObjAssignDef(nets, def, VIR_NETWORK_OBJ_LIST_ADD_LIVE)))
+        return NULL;
+
+    def = NULL;
 
     /* assign status data stored in the network object */
     if (classIdMap) {
@@ -943,10 +943,6 @@ virNetworkLoadState(virNetworkObjList *nets,
     obj->active = true; /* network with a state file is by definition active */
 
     return obj;
-
- error:
-    virNetworkDefFree(def);
-    return NULL;
 }
 
 
@@ -958,7 +954,7 @@ virNetworkLoadConfig(virNetworkObjList *nets,
                      virNetworkXMLOption *xmlopt)
 {
     char *configFile = NULL, *autostartLink = NULL;
-    virNetworkDef *def = NULL;
+    g_autoptr(virNetworkDef) def = NULL;
     virNetworkObj *obj;
     bool saveConfig = false;
     int autostart;
@@ -971,7 +967,7 @@ virNetworkLoadConfig(virNetworkObjList *nets,
     if ((autostart = virFileLinkPointsTo(autostartLink, configFile)) < 0)
         goto error;
 
-    if (!(def = virNetworkDefParseFile(configFile, xmlopt)))
+    if (!(def = virNetworkDefParse(NULL, configFile, xmlopt, false)))
         goto error;
 
     if (STRNEQ(name, def->name)) {
@@ -1026,6 +1022,8 @@ virNetworkLoadConfig(virNetworkObjList *nets,
     if (!(obj = virNetworkObjAssignDef(nets, def, 0)))
         goto error;
 
+    def = NULL;
+
     obj->autostart = (autostart == 1);
 
     VIR_FREE(configFile);
@@ -1036,7 +1034,6 @@ virNetworkLoadConfig(virNetworkObjList *nets,
  error:
     VIR_FREE(configFile);
     VIR_FREE(autostartLink);
-    virNetworkDefFree(def);
     return NULL;
 }
 
@@ -1212,57 +1209,56 @@ virNetworkObjUpdate(virNetworkObj *obj,
                     virNetworkXMLOption *xmlopt,
                     unsigned int flags)  /* virNetworkUpdateFlags */
 {
-    int ret = -1;
-    virNetworkDef *livedef = NULL;
-    virNetworkDef *configdef = NULL;
+    g_autoptr(virNetworkDef) livedef = NULL;
+    g_autoptr(virNetworkDef) configdef = NULL;
 
     /* normalize config data, and check for common invalid requests. */
     if (virNetworkObjConfigChangeSetup(obj, xmlopt, flags) < 0)
-       goto cleanup;
+        return -1;
 
     if (flags & VIR_NETWORK_UPDATE_AFFECT_LIVE) {
-        virNetworkDef *checkdef;
+        g_autoptr(virNetworkDef) checkdef = NULL;
 
         /* work on a copy of the def */
         if (!(livedef = virNetworkDefCopy(obj->def, xmlopt, 0)))
-            goto cleanup;
+            return -1;
+
         if (virNetworkDefUpdateSection(livedef, command, section,
                                        parentIndex, xml, flags) < 0) {
-            goto cleanup;
+            return -1;
         }
         /* run a final format/parse cycle to make sure we didn't
          * add anything illegal to the def
          */
         if (!(checkdef = virNetworkDefCopy(livedef, xmlopt, 0)))
-            goto cleanup;
-        virNetworkDefFree(checkdef);
+            return -1;
     }
 
     if (flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) {
-        virNetworkDef *checkdef;
+        g_autoptr(virNetworkDef) checkdef = NULL;
 
         /* work on a copy of the def */
         if (!(configdef = virNetworkDefCopy(virNetworkObjGetPersistentDef(obj),
                                             xmlopt,
                                             VIR_NETWORK_XML_INACTIVE))) {
-            goto cleanup;
+            return -1;
         }
         if (virNetworkDefUpdateSection(configdef, command, section,
                                        parentIndex, xml, flags) < 0) {
-            goto cleanup;
+            return -1;
         }
         if (!(checkdef = virNetworkDefCopy(configdef,
                                            xmlopt,
                                            VIR_NETWORK_XML_INACTIVE))) {
-            goto cleanup;
+            return -1;
         }
-        virNetworkDefFree(checkdef);
     }
 
     if (configdef) {
         /* successfully modified copy, now replace original */
         if (virNetworkObjReplacePersistentDef(obj, configdef) < 0)
-           goto cleanup;
+            return -1;
+
         configdef = NULL;
     }
     if (livedef) {
@@ -1271,11 +1267,7 @@ virNetworkObjUpdate(virNetworkObj *obj,
         obj->def = g_steal_pointer(&livedef);
     }
 
-    ret = 0;
- cleanup:
-    virNetworkDefFree(livedef);
-    virNetworkDefFree(configdef);
-    return ret;
+    return 0;
 }
 
 
@@ -1841,7 +1833,7 @@ virNetworkObjLoadAllPorts(virNetworkObj *net,
 
         file = g_strdup_printf("%s/%s.xml", dir, de->d_name);
 
-        portdef = virNetworkPortDefParseFile(file);
+        portdef = virNetworkPortDefParse(NULL, file, 0);
         if (!portdef) {
             VIR_WARN("Cannot parse port %s", file);
             continue;
