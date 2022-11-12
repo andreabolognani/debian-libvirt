@@ -119,7 +119,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_STORAGE_ISCSI) \
     $(WITH_STORAGE_ISCSI_DIRECT) \
     $(WITH_STORAGE_DISK) \
-    -Dstorage_sheepdog=disabled \
     $(WITH_STORAGE_RBD) \
     $(WITH_STORAGE_GLUSTER) \
     -Dstorage_vstorage=disabled \
