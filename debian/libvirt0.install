@@ -9,8 +9,12 @@ usr/lib/${DEB_HOST_MULTIARCH}/libvirt.so.0.*
 usr/share/libvirt/cpu_map/arm_FT-2000plus.xml
 usr/share/libvirt/cpu_map/arm_Falkor.xml
 usr/share/libvirt/cpu_map/arm_Kunpeng-920.xml
+usr/share/libvirt/cpu_map/arm_Neoverse-N1.xml
+usr/share/libvirt/cpu_map/arm_Neoverse-N2.xml
+usr/share/libvirt/cpu_map/arm_Neoverse-V1.xml
 usr/share/libvirt/cpu_map/arm_Tengyun-S2500.xml
 usr/share/libvirt/cpu_map/arm_ThunderX299xx.xml
+usr/share/libvirt/cpu_map/arm_a64fx.xml
 usr/share/libvirt/cpu_map/arm_cortex-a53.xml
 usr/share/libvirt/cpu_map/arm_cortex-a57.xml
 usr/share/libvirt/cpu_map/arm_cortex-a72.xml
@@ -94,7 +98,9 @@ usr/share/libvirt/schemas/domainbackup.rng
 usr/share/libvirt/schemas/domaincaps.rng
 usr/share/libvirt/schemas/domaincheckpoint.rng
 usr/share/libvirt/schemas/domaincommon.rng
+usr/share/libvirt/schemas/domainoverrides.rng
 usr/share/libvirt/schemas/domainsnapshot.rng
+usr/share/libvirt/schemas/inactiveDomain.rng
 usr/share/libvirt/schemas/interface.rng
 usr/share/libvirt/schemas/network.rng
 usr/share/libvirt/schemas/networkcommon.rng
@@ -124,6 +130,7 @@ usr/share/locale/fi/LC_MESSAGES/libvirt.mo
 usr/share/locale/fr/LC_MESSAGES/libvirt.mo
 usr/share/locale/gu/LC_MESSAGES/libvirt.mo
 usr/share/locale/hi/LC_MESSAGES/libvirt.mo
+usr/share/locale/hr/LC_MESSAGES/libvirt.mo
 usr/share/locale/hu/LC_MESSAGES/libvirt.mo
 usr/share/locale/id/LC_MESSAGES/libvirt.mo
 usr/share/locale/it/LC_MESSAGES/libvirt.mo
