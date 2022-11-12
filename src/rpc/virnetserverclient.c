@@ -93,6 +93,9 @@ struct _virNetServerClient
      * throttling calculations */
     size_t nrequests;
     size_t nrequests_max;
+    /* True if we've warned about nrequests hittin
+     * the server limit already */
+    bool nrequests_warning;
     /* Zero or one messages being received. Zero if
      * nrequests >= max_clients and throttling */
     virNetMessage *rx;
@@ -416,15 +419,15 @@ virNetServerClientNewInternal(unsigned long long id,
 
 
 virNetServerClient *virNetServerClientNew(unsigned long long id,
-                                            virNetSocket *sock,
-                                            int auth,
-                                            bool readonly,
-                                            size_t nrequests_max,
-                                            virNetTLSContext *tls,
-                                            virNetServerClientPrivNew privNew,
-                                            virNetServerClientPrivPreExecRestart privPreExecRestart,
-                                            virFreeCallback privFree,
-                                            void *privOpaque)
+                                          virNetSocket *sock,
+                                          int auth,
+                                          bool readonly,
+                                          size_t nrequests_max,
+                                          virNetTLSContext *tls,
+                                          virNetServerClientPrivNew privNew,
+                                          virNetServerClientPrivPreExecRestart privPreExecRestart,
+                                          virFreeCallback privFree,
+                                          void *privOpaque)
 {
     virNetServerClient *client;
     time_t now;
@@ -454,11 +457,11 @@ virNetServerClient *virNetServerClientNew(unsigned long long id,
 
 
 virNetServerClient *virNetServerClientNewPostExecRestart(virNetServer *srv,
-                                                           virJSONValue *object,
-                                                           virNetServerClientPrivNewPostExecRestart privNew,
-                                                           virNetServerClientPrivPreExecRestart privPreExecRestart,
-                                                           virFreeCallback privFree,
-                                                           void *privOpaque)
+                                                         virJSONValue *object,
+                                                         virNetServerClientPrivNewPostExecRestart privNew,
+                                                         virNetServerClientPrivPreExecRestart privPreExecRestart,
+                                                         virFreeCallback privFree,
+                                                         void *privOpaque)
 {
     virJSONValue *child;
     virNetServerClient *client = NULL;
@@ -931,6 +934,8 @@ void virNetServerClientDispose(void *obj)
     PROBE(RPC_SERVER_CLIENT_DISPOSE,
           "client=%p", client);
 
+    if (client->rx)
+        virNetMessageFree(client->rx);
     if (client->privateData)
         client->privateDataFreeFunc(client->privateData);
 
@@ -1259,6 +1264,11 @@ static virNetMessage *virNetServerClientDispatchRead(virNetServerClient *client)
                 client->rx->buffer = g_new0(char, client->rx->bufferLength);
                 client->nrequests++;
             }
+        } else if (!client->nrequests_warning) {
+            client->nrequests_warning = true;
+            VIR_WARN("Client hit max requests limit %zd. This may result "
+                     "in keep-alive timeouts. Consider tuning the "
+                     "max_client_requests server parameter", client->nrequests);
         }
         virNetServerClientUpdateEvent(client);
 

@@ -1,4 +1,5 @@
 cpumap_data = [
+  'arm_a64fx.xml',
   'arm_cortex-a53.xml',
   'arm_cortex-a57.xml',
   'arm_cortex-a72.xml',
@@ -6,6 +7,9 @@ cpumap_data = [
   'arm_FT-2000plus.xml',
   'arm_features.xml',
   'arm_Kunpeng-920.xml',
+  'arm_Neoverse-N1.xml',
+  'arm_Neoverse-N2.xml',
+  'arm_Neoverse-V1.xml',
   'arm_Tengyun-S2500.xml',
   'arm_ThunderX299xx.xml',
   'arm_vendors.xml',

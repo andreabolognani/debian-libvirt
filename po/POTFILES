@@ -53,6 +53,7 @@ src/conf/storage_conf.c
 src/conf/storage_encryption_conf.c
 src/conf/storage_source_conf.c
 src/conf/virchrdev.c
+src/conf/virdomainjob.c
 src/conf/virdomainmomentobjlist.c
 src/conf/virdomainobjlist.c
 src/conf/virnetworkobj.c
@@ -137,6 +138,7 @@ src/lxc/lxc_hostdev.c
 src/lxc/lxc_native.c
 src/lxc/lxc_process.c
 src/network/bridge_driver.c
+src/network/bridge_driver_conf.c
 src/network/bridge_driver_linux.c
 src/network/leaseshelper.c
 src/node_device/node_device_driver.c
@@ -229,7 +231,6 @@ src/storage/storage_backend_logical.c
 src/storage/storage_backend_mpath.c
 src/storage/storage_backend_rbd.c
 src/storage/storage_backend_scsi.c
-src/storage/storage_backend_sheepdog.c
 src/storage/storage_backend_vstorage.c
 src/storage/storage_backend_zfs.c
 src/storage/storage_driver.c

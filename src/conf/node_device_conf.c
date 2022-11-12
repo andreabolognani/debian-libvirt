@@ -772,6 +772,10 @@ virNodeDeviceDefFormat(const virNodeDeviceDef *def)
                                                 data->ap_matrix.nmdev_types);
             break;
         case VIR_NODE_DEV_CAP_MDEV_TYPES:
+            virNodeDeviceCapMdevTypesFormat(&buf,
+                                            data->mdev_parent.mdev_types,
+                                            data->mdev_parent.nmdev_types);
+            break;
         case VIR_NODE_DEV_CAP_FC_HOST:
         case VIR_NODE_DEV_CAP_VPORTS:
         case VIR_NODE_DEV_CAP_VPD:
@@ -2366,7 +2370,7 @@ virNodeDevCapsDefParseXML(xmlXPathContextPtr ctxt,
 }
 
 
-static virNodeDeviceDef *
+virNodeDeviceDef *
 virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
                          int create,
                          const char *virt_type)
@@ -2470,30 +2474,6 @@ virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
 
 
 virNodeDeviceDef *
-virNodeDeviceDefParseNode(xmlDocPtr xml,
-                          xmlNodePtr root,
-                          int create,
-                          const char *virt_type)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (!virXMLNodeNameEqual(root, "device")) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unexpected root element <%s> "
-                         "expecting <device>"),
-                       root->name);
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
-    return virNodeDeviceDefParseXML(ctxt, create, virt_type);
-}
-
-
-static virNodeDeviceDef *
 virNodeDeviceDefParse(const char *str,
                       const char *filename,
                       int create,
@@ -2502,11 +2482,14 @@ virNodeDeviceDefParse(const char *str,
                       void *opaque)
 {
     g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
     g_autoptr(virNodeDeviceDef) def = NULL;
 
-    if (!(xml = virXMLParse(filename, str, _("(node_device_definition)"), NULL, false)) ||
-        !(def = virNodeDeviceDefParseNode(xml, xmlDocGetRootElement(xml),
-                                          create, virt_type)))
+    if (!(xml = virXMLParse(filename, str, _("(node_device_definition)"),
+                            "device", &ctxt, NULL, false)))
+        return NULL;
+
+    if (!(def = virNodeDeviceDefParseXML(ctxt, create, virt_type)))
         return NULL;
 
     if (parserCallbacks) {
@@ -2527,28 +2510,6 @@ virNodeDeviceDefParse(const char *str,
     }
 
     return g_steal_pointer(&def);
-}
-
-
-virNodeDeviceDef *
-virNodeDeviceDefParseString(const char *str,
-                            int create,
-                            const char *virt_type,
-                            virNodeDeviceDefParserCallbacks *parserCallbacks,
-                            void *opaque)
-{
-    return virNodeDeviceDefParse(str, NULL, create, virt_type, parserCallbacks, opaque);
-}
-
-
-virNodeDeviceDef *
-virNodeDeviceDefParseFile(const char *filename,
-                          int create,
-                          const char *virt_type,
-                          virNodeDeviceDefParserCallbacks *parserCallbacks,
-                          void *opaque)
-{
-    return virNodeDeviceDefParse(NULL, filename, create, virt_type, parserCallbacks, opaque);
 }
 
 
@@ -2674,6 +2635,11 @@ virNodeDevCapsDefFree(virNodeDevCapsDef *caps)
         g_free(data->ap_matrix.mdev_types);
         break;
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
+        for (i = 0; i < data->mdev_parent.nmdev_types; i++)
+            virMediatedDeviceTypeFree(data->mdev_parent.mdev_types[i]);
+        g_free(data->mdev_parent.mdev_types);
+        g_free(data->mdev_parent.address);
+        break;
     case VIR_NODE_DEV_CAP_DRM:
     case VIR_NODE_DEV_CAP_FC_HOST:
     case VIR_NODE_DEV_CAP_VPORTS:
@@ -2729,6 +2695,11 @@ virNodeDeviceUpdateCaps(virNodeDeviceDef *def)
                                                     &cap->data.ap_matrix) < 0)
                 return -1;
             break;
+        case VIR_NODE_DEV_CAP_MDEV_TYPES:
+            if (virNodeDeviceGetMdevParentDynamicCaps(def->sysfs_path,
+                                                      &cap->data.mdev_parent) < 0)
+                return -1;
+            break;
 
             /* all types that (supposedly) don't require any updates
              * relative to what's in the cache.
@@ -2742,7 +2713,6 @@ virNodeDeviceUpdateCaps(virNodeDeviceDef *def)
         case VIR_NODE_DEV_CAP_FC_HOST:
         case VIR_NODE_DEV_CAP_VPORTS:
         case VIR_NODE_DEV_CAP_SCSI_GENERIC:
-        case VIR_NODE_DEV_CAP_MDEV_TYPES:
         case VIR_NODE_DEV_CAP_MDEV:
         case VIR_NODE_DEV_CAP_CCW_DEV:
         case VIR_NODE_DEV_CAP_VDPA:
@@ -3193,6 +3163,24 @@ virNodeDeviceGetAPMatrixDynamicCaps(const char *sysfsPath,
     return 0;
 }
 
+/* virNodeDeviceGetMdevParentDynamicCaps() get info that is stored in sysfs
+ * about devices related to this device, i.e. things that can change
+ * without this device itself changing. These must be refreshed
+ * anytime full XML of the device is requested, because they can
+ * change with no corresponding notification from the kernel/udev.
+ */
+int
+virNodeDeviceGetMdevParentDynamicCaps(const char *sysfsPath,
+                                      virNodeDevCapMdevParent *mdev_parent)
+{
+    if (virNodeDeviceGetMdevTypesCaps(sysfsPath,
+                                      &mdev_parent->mdev_types,
+                                      &mdev_parent->nmdev_types) < 0)
+        return -1;
+    return 0;
+}
+
+
 #else
 
 int
@@ -3228,5 +3216,13 @@ virNodeDeviceGetAPMatrixDynamicCaps(const char *sysfsPath G_GNUC_UNUSED,
 {
     return -1;
 }
+
+int
+virNodeDeviceGetMdevParentDynamicCaps(const char *sysfsPath G_GNUC_UNUSED,
+                                      virNodeDevCapMdevParent *mdev_parent G_GNUC_UNUSED)
+{
+    return -1;
+}
+
 
 #endif /* __linux__ */

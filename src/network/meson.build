@@ -1,5 +1,6 @@
 network_driver_sources = [
   'bridge_driver.c',
+  'bridge_driver_conf.c',
   'bridge_driver_platform.c',
 ]
 
@@ -89,7 +90,7 @@ if conf.has('WITH_NETWORK')
   )
 
   meson.add_install_script(
-    meson_python_prog.path(), python3_prog.path(), meson_install_symlink_prog.path(),
+    meson_python_prog.full_path(), python3_prog.full_path(), meson_install_symlink_prog.full_path(),
     confdir / 'qemu' / 'networks' / 'autostart',
     '../default.xml', 'default.xml',
   )

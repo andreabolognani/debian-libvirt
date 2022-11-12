@@ -2738,6 +2738,7 @@ virCPUx86GetHost(virCPUDef *cpu,
                  virDomainCapsCPUModels *models)
 {
     g_autoptr(virCPUData) cpuData = NULL;
+    unsigned int addrsz;
     int ret;
 
     if (virCPUx86DriverInitialize() < 0)
@@ -2782,6 +2783,13 @@ virCPUx86GetHost(virCPUDef *cpu,
         cpu->tsc = virHostCPUGetTscInfo();
     } else {
         VIR_DEBUG("Host CPU does not support invariant TSC");
+    }
+
+    if (virHostCPUGetPhysAddrSize(&addrsz) == 0) {
+        virCPUMaxPhysAddrDef *addr = g_new0(virCPUMaxPhysAddrDef, 1);
+
+        addr->bits = addrsz;
+        cpu->addr = addr;
     }
 
     return ret;
@@ -3126,6 +3134,24 @@ virCPUx86GetModels(char ***models)
     }
 
     return map->nmodels;
+}
+
+
+static const char *
+virCPUx86GetVendorForModel(const char *modelName)
+{
+    virCPUx86Map *map;
+    virCPUx86Model *model;
+
+    if (!(map = virCPUx86GetMap()))
+        return NULL;
+
+    model = x86ModelFind(map, modelName);
+
+    if (!model || !model->vendor)
+        return NULL;
+
+    return model->vendor->name;
 }
 
 
@@ -3531,6 +3557,7 @@ struct cpuArchDriver cpuDriverX86 = {
     .dataFormat = virCPUx86DataFormat,
     .dataParse  = virCPUx86DataParse,
     .getModels  = virCPUx86GetModels,
+    .getVendorForModel = virCPUx86GetVendorForModel,
     .translate  = virCPUx86Translate,
     .expandFeatures = virCPUx86ExpandFeatures,
     .copyMigratable = virCPUx86CopyMigratable,

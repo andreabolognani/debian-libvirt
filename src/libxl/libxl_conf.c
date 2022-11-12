@@ -1240,6 +1240,10 @@ libxlUpdateDiskDef(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
         driver = "phy";
         break;
     case LIBXL_DISK_BACKEND_UNKNOWN:
+#ifdef LIBXL_HAVE_DEVICE_DISK_SPECIFICATION
+    case LIBXL_DISK_BACKEND_STANDALONE:
+#endif
+    default:
         break;
     }
     if (driver)
@@ -1391,6 +1395,8 @@ libxlMakeNic(virDomainDef *def,
         case VIR_DOMAIN_NET_TYPE_DIRECT:
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
         case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
         case VIR_DOMAIN_NET_TYPE_LAST:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                     _("unsupported interface type %s"),
@@ -2480,5 +2486,5 @@ libxlCreateXMLConf(libxlDriverPrivate *driver)
     return virDomainXMLOptionNew(&libxlDomainDefParserConfig,
                                  &libxlDomainXMLPrivateDataCallbacks,
                                  &libxlDriverDomainXMLNamespace,
-                                 NULL, NULL);
+                                 NULL, NULL, NULL);
 }

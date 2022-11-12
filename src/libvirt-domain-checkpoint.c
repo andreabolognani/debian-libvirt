@@ -114,7 +114,7 @@ virDomainCheckpointGetConnect(virDomainCheckpointPtr checkpoint)
  * kicking off a backup job with virDomainBackupBegin(); however, it
  * is also possible to start a checkpoint without a backup.
  *
- * See <a href="formatcheckpoint.html#CheckpointAttributes">Checkpoint XML</a>
+ * See https://www.libvirt.org/formatcheckpoint.html#checkpoint-xml
  * for more details on @xmlDesc. In particular, some hypervisors may require
  * particular disk formats, such as qcow2, in order to support this
  * command; where @xmlDesc can be used to limit the checkpoint to a working
@@ -141,6 +141,17 @@ virDomainCheckpointGetConnect(virDomainCheckpointPtr checkpoint)
  * systems in use within domain OS. However, if the guest agent is not
  * present, an error is thrown. This flag is incompatible with
  * VIR_DOMAIN_CHECKPOINT_CREATE_REDEFINE.
+ *
+ * Note: A checkpoint represents point in time after which blocks changed by
+ * the hypervisor are tracked. The tracking of changed blocks notes only whether
+ * a block was modified, but does not preserve the old contents.
+ * The main purpose of checkpoints is to enable incremental backups. But for a
+ * checkpoint to be useful for this purpose, a backup must be performed at the
+ * same time as the checkpoint is created.
+ * This is done via the virDomainBackupBegin API, which also allows to create a
+ * checkpoint at the same time. Creating checkpoints with
+ * virDomainCheckpointCreateXML is generally only useful for re-creating the
+ * libvirt metadata.
  *
  * Returns an (opaque) new virDomainCheckpointPtr on success or NULL
  * on failure.

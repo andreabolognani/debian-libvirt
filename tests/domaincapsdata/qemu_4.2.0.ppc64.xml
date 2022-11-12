@@ -40,9 +40,9 @@
       <model fallback='allow'>POWER8</model>
     </mode>
     <mode name='custom' supported='yes'>
-      <model usable='unknown'>POWER9</model>
-      <model usable='unknown'>POWER8</model>
-      <model usable='unknown'>POWER7</model>
+      <model usable='unknown' vendor='IBM'>POWER9</model>
+      <model usable='unknown' vendor='IBM'>POWER8</model>
+      <model usable='unknown' vendor='IBM'>POWER7</model>
     </mode>
   </cpu>
   <memoryBacking supported='yes'>
@@ -132,13 +132,23 @@
         <value>spapr-tpm-proxy</value>
       </enum>
       <enum name='backendModel'/>
+      <enum name='backendVersion'>
+        <value>1.2</value>
+      </enum>
     </tpm>
+    <redirdev supported='no'/>
+    <channel supported='yes'>
+      <enum name='type'>
+        <value>pty</value>
+        <value>unix</value>
+      </enum>
+    </channel>
   </devices>
   <features>
     <gic supported='no'/>
     <vmcoreinfo supported='no'/>
     <genid supported='no'/>
-    <backingStoreInput supported='no'/>
+    <backingStoreInput supported='yes'/>
     <backup supported='no'/>
     <sev supported='no'/>
   </features>

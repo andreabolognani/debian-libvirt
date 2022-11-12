@@ -159,6 +159,9 @@
               <ref name="virYesNo"/>
             </attribute>
           </optional>
+          <attribute name='vendor'>
+            <text/>
+          </attribute>
           <text/>
         </element>
       </zeroOrMore>
@@ -194,6 +197,12 @@
       </optional>
       <optional>
         <ref name="tpm"/>
+      </optional>
+      <optional>
+        <ref name="redirdev"/>
+      </optional>
+      <optional>
+        <ref name="channel"/>
       </optional>
     </element>
   </define>
@@ -242,6 +251,20 @@
 
   <define name="tpm">
     <element name="tpm">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
+  <define name="redirdev">
+    <element name="redirdev">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
+  <define name="channel">
+    <element name="channel">
       <ref name="supported"/>
       <ref name="enum"/>
     </element>

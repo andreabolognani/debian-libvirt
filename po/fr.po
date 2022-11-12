@@ -24,7 +24,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2022-07-26 08:13+0000\n"
+"POT-Creation-Date: 2022-10-25 07:42+0000\n"
 "PO-Revision-Date: 2021-10-22 21:05+0000\n"
 "Last-Translator: Franck Ridel <fridel@protonmail.com>\n"
 "Language-Team: French <https://translate.fedoraproject.org/projects/libvirt/"
@@ -420,10 +420,6 @@ msgstr ""
 #, c-format
 msgid "%s (out of %d)"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "%s 3d acceleration is not supported"
-msgstr "un seul emulatorpin est pris en charge"
 
 #, c-format
 msgid "%s array element does not contain a string"
@@ -1064,6 +1060,9 @@ msgstr ""
 msgid "':' not allowed in RBD source volume name '%s'"
 msgstr ""
 
+msgid "'<local>' element missing for 'udp' socket interface"
+msgstr ""
+
 msgid "'adapter' name must be specified for scsi hostdev source"
 msgstr ""
 
@@ -1075,9 +1074,6 @@ msgstr ""
 
 msgid ""
 "'arch' element cannot be used inside 'cpu' element with 'match' attribute'"
-msgstr ""
-
-msgid "'base' and 'baseNode' can't be used together"
 msgstr ""
 
 msgid "'cache' refers to a non-existent NUMA node cache"
@@ -1136,9 +1132,6 @@ msgstr "sgio est pris en charge pour les périphériques hôtes scsi uniquement"
 msgid "'iothread' is only supported for virtio-scsi controller"
 msgstr "sgio est pris en charge pour les périphériques hôtes scsi uniquement"
 
-msgid "'jack' audio backend is not supported with this QEMU"
-msgstr ""
-
 msgid "'logical-id' missing in reply of guest-get-vcpus"
 msgstr ""
 
@@ -1190,9 +1183,6 @@ msgstr ""
 msgid "'nfs' host must use TCP protocol"
 msgstr ""
 
-msgid "'nfs' protocol is not supported with this QEMU binary"
-msgstr ""
-
 msgid "'nfs' protocol requires the usage of exactly one host"
 msgstr ""
 
@@ -1223,11 +1213,10 @@ msgstr ""
 msgid "'queues' is only supported by virtio-scsi controller"
 msgstr "sgio est pris en charge pour les périphériques hôtes scsi uniquement"
 
-#, fuzzy
 msgid ""
-"'reconnect' attribute  unsupported 'server' mode for <interface "
+"'reconnect' attribute unsupported 'server' mode for <interface "
 "type='vhostuser'>"
-msgstr "élément <virtualport> non pris en charge pour <interface type='%s'>"
+msgstr ""
 
 msgid ""
 "'restrictive' mode is required in memnode element when mode is 'restrictive' "
@@ -1239,9 +1228,6 @@ msgid "'sibling_id %d' does not refer to a valid cell within NUMA 'cell id %d'"
 msgstr ""
 
 msgid "'socket' attribute is valid only for listen type 'socket'"
-msgstr ""
-
-msgid "'ssh' protocol is not yet supported"
 msgstr ""
 
 msgid "'target' refers to a non-existent NUMA node"
@@ -1340,9 +1326,6 @@ msgstr "(libxl_migration_cookie)"
 msgid "(metadata_xml)"
 msgstr "(metadata_xml)"
 
-msgid "(network status)"
-msgstr "(network status)"
-
 msgid "(network_definition)"
 msgstr "(network_definition)"
 
@@ -1365,9 +1348,6 @@ msgstr "(nwfilter_definition)"
 #, fuzzy
 msgid "(nwfilterbinding_status)"
 msgstr "(nwfilter_definition)"
-
-msgid "(pool state)"
-msgstr "(pool state)"
 
 msgid "(qemu_migration_cookie)"
 msgstr "(qemu_migration_cookie)"
@@ -1473,10 +1453,13 @@ msgstr ""
 msgid "/proc/net/dev: Interface not found"
 msgstr ""
 
-msgid "64-bit PCI hole setting is only for root PCI controllers"
+msgid "3d acceleration is not supported by this QEMU binary"
 msgstr ""
 
-msgid "64-bit PCI hole size setting is not supported with this QEMU binary"
+msgid "3d acceleration is supported only with 'virtio' video device"
+msgstr ""
+
+msgid "64-bit PCI hole setting is only for root PCI controllers"
 msgstr ""
 
 #, c-format
@@ -1485,6 +1468,10 @@ msgstr ""
 
 #, c-format
 msgid "<%s>..."
+msgstr ""
+
+#, c-format
+msgid "<active_pcr_banks/> requires TPM version '%s'"
 msgstr ""
 
 #, c-format
@@ -1584,9 +1571,6 @@ msgstr ""
 
 #, c-format
 msgid "A domain definition can have no more than one cipher node with name %s"
-msgstr ""
-
-msgid "A field data length violates the resource length boundary."
 msgstr ""
 
 #, fuzzy
@@ -2045,10 +2029,6 @@ msgstr ""
 msgid "CA certificate:"
 msgstr ""
 
-#, fuzzy
-msgid "CCW address type is not supported by this QEMU"
-msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
-
 #, c-format
 msgid "CHS geometry can not be set for '%s' bus"
 msgstr ""
@@ -2143,6 +2123,18 @@ msgstr "Fréquence de la CPU :"
 
 msgid "CPU map:"
 msgstr "Carte CPU :"
+
+#, c-format
+msgid ""
+"CPU maximum physical address bits number specification cannot be used with "
+"mode='%s'"
+msgstr ""
+
+#, c-format
+msgid ""
+"CPU maximum physical address bits specification is not supported for '%s' "
+"architecture"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -2985,14 +2977,6 @@ msgstr "Impossible d’analyser le nœud <VirtualBox> <Machine>"
 msgid "Cannot parse <address> 'port' attribute"
 msgstr "Impossible d’analyser l’attribut « port » <address>"
 
-msgid "Cannot parse <local> 'port' attribute with socket interface"
-msgstr ""
-"Impossible d’analyser l’attribut « port » <local> avec une interface socket"
-
-msgid "Cannot parse <source> 'port' attribute with socket interface"
-msgstr ""
-"Impossible d’analyser l’attribut <source> « port » avec l’interface du socket"
-
 #, fuzzy, c-format
 msgid "Cannot parse MAC address '%s' in network '%s'"
 msgstr "Impossible d’analyser l’attribut « bus » <address>"
@@ -3023,10 +3007,6 @@ msgstr "Impossible d’analyser l’index de contrôleur %s"
 
 msgid "Cannot parse cbm_mask from resctrl cache info"
 msgstr ""
-
-#, c-format
-msgid "Cannot parse controller index %s"
-msgstr "Impossible d’analyser l’index de contrôleur %s"
 
 #, fuzzy
 msgid "Cannot parse mode string"
@@ -3236,19 +3216,6 @@ msgstr ""
 msgid "Cannot unshare uninitialized CURL handle"
 msgstr ""
 
-msgid "Cannot update the read-only keyword: RO section not initialized."
-msgstr ""
-
-msgid ""
-"Cannot update the read-write keyword: read-write section not initialized."
-msgstr ""
-
-msgid "Cannot update the resource: a NULL keyword pointer has been provided."
-msgstr ""
-
-msgid "Cannot update the resource: a NULL resource pointer has been provided."
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Cannot use direct socket mode for %s transport"
 msgstr "socket manquant pour le transport unix"
@@ -3456,9 +3423,6 @@ msgstr ""
 
 #, c-format
 msgid "Checkpoints have inconsistent relations for domain %s"
-msgstr ""
-
-msgid "Checksum validation has failed"
 msgstr ""
 
 #, c-format
@@ -4527,9 +4491,6 @@ msgstr "Impossible d’analyser l’UUID depuis « %s »"
 msgid "Could not parse VPS ID %s"
 msgstr "Impossible d’analyser l’UUID depuis « %s »"
 
-msgid "Could not parse a resource field data - VPD has invalid format"
-msgstr ""
-
 #, c-format
 msgid "Could not parse barrier and limit of '%s' from config for container %d"
 msgstr ""
@@ -4591,12 +4552,6 @@ msgid "Could not read 'VE_PRIVATE' from config for container %d"
 msgstr ""
 
 msgid "Could not read a device name from the <name> element"
-msgstr ""
-
-msgid "Could not read a part of a resource - VPD has invalid format"
-msgstr ""
-
-msgid "Could not read a resource field header - VPD has invalid format"
 msgstr ""
 
 #, fuzzy, c-format
@@ -4800,10 +4755,6 @@ msgstr ""
 #, fuzzy
 msgid "Could not translate keycode"
 msgstr "Impossible de formater le type cible du canal"
-
-#, c-format
-msgid "Could not update the VPD resource keyword: %s"
-msgstr ""
 
 msgid "Could not verify disk address"
 msgstr ""
@@ -5815,6 +5766,10 @@ msgstr ""
 msgid "Either 'name' or 'parent' must be specified for the 'scsi_host' adapter"
 msgstr ""
 "« adapter » et « address » doivent être spécifiés pour la source scsi hostdev"
+
+#, c-format
+msgid "Either --%s or --%s must be provided"
+msgstr ""
 
 msgid "Eject the media"
 msgstr ""
@@ -9185,9 +9140,6 @@ msgstr ""
 msgid "IOThread to be used by supported device"
 msgstr ""
 
-msgid "IOThreads for virtio-scsi not supported for this QEMU"
-msgstr ""
-
 #, c-format
 msgid "IOThreads not available for bus %s target %s"
 msgstr ""
@@ -9287,9 +9239,6 @@ msgid ""
 msgstr ""
 
 msgid "Incorrect data type"
-msgstr ""
-
-msgid "Incorrect disk format"
 msgstr ""
 
 msgid "Incorrect number of cells in a table row"
@@ -9609,13 +9558,6 @@ msgstr ""
 msgid ""
 "Invalid attempt to reset PCI device %s. Only PCI endpoint devices can be "
 "reset"
-msgstr ""
-
-#, c-format
-msgid ""
-"Invalid attempt to set <interface type='ethernet'> device name with <source "
-"dev='%s'/>. Use <target dev='%s'/> (for host-side) or <guest dev='%s'/> (for "
-"guest-side) instead."
 msgstr ""
 
 msgid ""
@@ -9968,14 +9910,6 @@ msgid "Invalid match string '%s'"
 msgstr "Attribut mode invalide « %s »"
 
 #, c-format
-msgid "Invalid maxEventChannels: %i"
-msgstr ""
-
-#, c-format
-msgid "Invalid maxGrantFrames: %i"
-msgstr ""
-
-#, c-format
 msgid "Invalid message prog=%d type=%d serial=%u proc=%d"
 msgstr ""
 
@@ -10130,10 +10064,6 @@ msgstr "Numéro de port invalide : %s"
 msgid "Invalid port range '%u-%u'."
 msgstr "Numéro de port invalide : %s"
 
-#, c-format
-msgid "Invalid ports: %i"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Invalid prefix or netmask for '%s'"
 msgstr "Numéro de port invalide : %s"
@@ -10231,10 +10161,6 @@ msgstr "Argument invalide"
 msgid "Invalid target domain state '%s'. Refusing snapshot reversion"
 msgstr ""
 
-#, c-format
-msgid "Invalid target index '%i' in PCI controller"
-msgstr ""
-
 #, fuzzy
 msgid "Invalid target model for serial device"
 msgstr "Adresse invalide pour un périphérique USB"
@@ -10295,9 +10221,19 @@ msgid "Invalid value for attribute '%s' in element '%s': '%s'."
 msgstr ""
 
 #, c-format
+msgid "Invalid value for attribute '%s' in element '%s': '%s'. Expected UUID"
+msgstr ""
+
+#, c-format
 msgid ""
 "Invalid value for attribute '%s' in element '%s': '%s'. Expected integer "
 "value"
+msgstr ""
+
+#, c-format
+msgid ""
+"Invalid value for attribute '%s' in element '%s': '%s'. Expected long long "
+"integer value"
 msgstr ""
 
 #, c-format
@@ -10366,10 +10302,6 @@ msgstr "Vecteurs invalides : %s"
 #, fuzzy, c-format
 msgid "Invalid value of 'nodeset': %s"
 msgstr "Valeur invalide pour le délai d’attente"
-
-#, c-format
-msgid "Invalid vectors: %i"
-msgstr ""
 
 #, c-format
 msgid "Invalid vendor element in CPU model %s"
@@ -10460,9 +10392,6 @@ msgid "Key of the current session differs from the key at last login"
 msgstr ""
 
 msgid "Known, but different label format present, requires build --overwrite"
-msgstr ""
-
-msgid "LUKS encrypted QCOW2 images are not supported by this QEMU"
 msgstr ""
 
 msgid "LXC Guest Enter Namespace"
@@ -11248,9 +11177,6 @@ msgstr "Attribut du service source manquant pour le périphérique de caractère
 msgid "Missing disk file path in domain"
 msgstr ""
 
-msgid "Missing disk info when adding volume"
-msgstr ""
-
 #, fuzzy
 msgid "Missing disk source file path"
 msgstr "chemin source non spécifié"
@@ -11418,6 +11344,10 @@ msgid "Missing or invalid 'vlan' in query-rx-filter response"
 msgstr ""
 
 msgid "Missing or invalid 'vlan-table' array in query-rx-filter response"
+msgstr ""
+
+#, c-format
+msgid "Missing or invalid CPU address size in %s"
 msgstr ""
 
 #, c-format
@@ -11722,9 +11652,6 @@ msgstr ""
 msgid "NBD URI must be supplied when migration URI uses UNIX transport method"
 msgstr ""
 
-msgid "NBD migration with TLS is not supported"
-msgstr ""
-
 msgid "NBD migration with TLS is not supported over UNIX socket"
 msgstr ""
 
@@ -11840,6 +11767,12 @@ msgid "NVMe disks are not supported with this QEMU binary"
 msgstr ""
 
 msgid "NVMe namespace can't be zero"
+msgstr ""
+
+msgid "NVRAM is not permitted when loader is stateless"
+msgstr ""
+
+msgid "NVRAM template is not permitted when loader is stateless"
 msgstr ""
 
 msgid "Name"
@@ -12039,61 +11972,6 @@ msgstr ""
 
 msgid "Nicdev support unavailable"
 msgstr ""
-
-#, fuzzy
-msgid "No <local> 'address' attribute specified with socket interface"
-msgstr ""
-"Aucun attribut <source> « address » spécifié avec l’interface du socket"
-
-#, fuzzy
-msgid "No <local> 'port' attribute specified with socket interface"
-msgstr "Aucun attribut <source> « port » spécifié avec l’interface du socket"
-
-msgid "No <source> 'address' attribute specified with socket interface"
-msgstr ""
-"Aucun attribut <source> « address » spécifié avec l’interface du socket"
-
-msgid ""
-"No <source> 'bridge' attribute specified with <interface type='bridge'/>"
-msgstr ""
-"Aucun attribut <source> « bridge » spécifié avec <interface type='bridge'/>"
-
-msgid "No <source> 'dev' attribute specified with <interface type='direct'/>"
-msgstr ""
-"Aucun attribut <source> « dev » spécifié avec <interface type='direct'/>"
-
-msgid "No <source> 'dev' attribute specified with <interface type='vdpa'/>"
-msgstr ""
-
-#, fuzzy
-msgid ""
-"No <source> 'mode' attribute specified with <interface type='vhostuser'/>"
-msgstr ""
-"Aucun attribut <source> « name » spécifié avec <interface type='internal'/>"
-
-msgid ""
-"No <source> 'name' attribute specified with <interface type='internal'/>"
-msgstr ""
-"Aucun attribut <source> « name » spécifié avec <interface type='internal'/>"
-
-msgid ""
-"No <source> 'network' attribute specified with <interface type='network'/>"
-msgstr ""
-"Aucun attribut <source> « network » spécifié avec <interface type='network'/>"
-
-#, fuzzy
-msgid ""
-"No <source> 'path' attribute specified with <interface type='vhostuser'/>"
-msgstr ""
-"Aucun attribut <source> « name » spécifié avec <interface type='internal'/>"
-
-msgid "No <source> 'port' attribute specified with socket interface"
-msgstr "Aucun attribut <source> « port » spécifié avec l’interface du socket"
-
-#, fuzzy
-msgid "No <source> 'type' attribute specified for <interface type='vhostuser'>"
-msgstr ""
-"Aucun attribut <source> « name » spécifié avec <interface type='internal'/>"
 
 msgid "No CA certificate path set to match server key/cert"
 msgstr ""
@@ -12678,6 +12556,9 @@ msgstr "seuls des types de console nmdm sont pris en charge"
 msgid "Only 1 thread per core is supported"
 msgstr "Un seul périphérique vidéo principale peut être pris en charge"
 
+msgid "Only EFI firmware permits NVRAM"
+msgstr ""
+
 msgid "Only IPv4 or IPv6 addresses can be used with a prefix"
 msgstr ""
 
@@ -12795,6 +12676,9 @@ msgid "Only one primary video device is supported"
 msgstr "Un seul périphérique vidéo principale peut être pris en charge"
 
 msgid "Only one vgpu device can have 'ramfb' enabled"
+msgstr ""
+
+msgid "Only pflash loader type permits NVRAM"
 msgstr ""
 
 msgid "Only ploop disk images are supported by vz driver."
@@ -13936,9 +13820,6 @@ msgstr "migrer un domaine vers un autre hôte"
 msgid "Revert domain to snapshot"
 msgstr "(domain_snapshot)"
 
-msgid "Root element is not 'node'"
-msgstr ""
-
 #, c-format
 msgid "Route address '%s' conflicts with IP address for '%s'"
 msgstr ""
@@ -13975,6 +13856,9 @@ msgid "S3 state is disabled for this domain"
 msgstr ""
 "Impossible d’ajouter le concentrateur USB : USB désactivé sur ce domaine"
 
+msgid "S390 PV launch security is not supported by this host or kernel"
+msgstr ""
+
 msgid "S390 PV launch security is not supported with this QEMU binary"
 msgstr ""
 
@@ -14008,6 +13892,9 @@ msgstr ""
 
 #, c-format
 msgid "SATA unit index %d out of [0..29] range"
+msgstr ""
+
+msgid "SCHED_CORE not supported by kernel"
 msgstr ""
 
 #, c-format
@@ -14268,9 +14155,6 @@ msgid ""
 "\n"
 msgstr ""
 
-msgid "Selecting disks to migrate is not implemented for tunnelled migration"
-msgstr ""
-
 msgid "Send keycodes (integers or symbolic names) to the guest"
 msgstr ""
 
@@ -14504,6 +14388,11 @@ msgstr "Mémoire partagée :\n"
 
 #, c-format
 msgid "Shell '%s' should have absolute path"
+msgstr ""
+
+msgid ""
+"Shortcut for calling the command with a single CPU model and no additional "
+"features"
 msgstr ""
 
 msgid "Should define both master and slave path attributes for nmdm device"
@@ -15044,6 +14933,10 @@ msgstr ""
 msgid "TPM device path %s is invalid"
 msgstr ""
 
+#, c-format
+msgid "TPM version '%s' is not supported"
+msgstr ""
+
 msgid "Table row cannot be empty"
 msgstr ""
 
@@ -15092,6 +14985,9 @@ msgstr ""
 msgid "Target CPU feature policy %s does not match source %s"
 msgstr ""
 "La politique caractéristique du CPU cible %s ne correspond pas à la source %s"
+
+msgid "Target CPU maxphysaddr does not match source"
+msgstr ""
 
 #, c-format
 msgid "Target CPU mode %s does not match source %s"
@@ -16024,17 +15920,15 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr ""
 
-msgid "The keyword is not comprised only of uppercase ASCII letters or digits"
-msgstr ""
-
-#, c-format
-msgid "The keyword length is not 2 bytes: %s"
-msgstr ""
-
 msgid "The machine has no snapshot and it should have it"
 msgstr ""
 
 msgid "The minimum lease time should be greater than 2 minutes"
+msgstr ""
+
+msgid ""
+"The number of virtual CPU address bits cannot exceed the number supported by "
+"the host CPU"
 msgstr ""
 
 msgid ""
@@ -16065,9 +15959,6 @@ msgstr ""
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "le pool de stockage ne prend pas en charge la création de volume"
-
-msgid "The string resource has invalid characters in its value"
-msgstr ""
 
 #, c-format
 msgid "The vbox driver does not support %s SCSI controller model"
@@ -17077,6 +16968,9 @@ msgstr ""
 msgid "Unable to destroy '%s': device in use"
 msgstr ""
 
+msgid "Unable to detect SCHED_CORE"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Unable to detect filesystem for %s"
 msgstr "Impossible de détruire le volume %s"
@@ -17191,6 +17085,13 @@ msgid "Unable to find a satisfying vhost-user-gpu"
 msgstr ""
 
 msgid "Unable to find a satisfying virtiofsd"
+msgstr ""
+
+msgid "Unable to find a vCPU that is online"
+msgstr ""
+
+#, c-format
+msgid "Unable to find address for mdev parent device '%s'"
 msgstr ""
 
 #, c-format
@@ -17627,10 +17528,6 @@ msgid "Unable to init device stream mutex"
 msgstr "Impossible d’initialiser le mutex"
 
 #, fuzzy
-msgid "Unable to init qemu driver mutexes"
-msgstr "Impossible d’initialiser le mutex"
-
-#, fuzzy
 msgid "Unable to initialize RW lock"
 msgstr "Impossible d’initialiser le mutex"
 
@@ -17929,10 +17826,6 @@ msgstr "Impossible d’obtenir les statistiques du bloc %s %s"
 
 #, fuzzy
 msgid "Unable to parse ovs-vsctl output"
-msgstr "Impossible d’analyser l’ID de classe « %s »"
-
-#, fuzzy, c-format
-msgid "Unable to parse port id '%s'"
 msgstr "Impossible d’analyser l’ID de classe « %s »"
 
 #, fuzzy
@@ -18249,6 +18142,10 @@ msgid "Unable to retrieve threadpool parameters"
 msgstr "Impossible de récupérer les paramètres groupe d’unités d’exécution"
 
 #, c-format
+msgid "Unable to run among %llu"
+msgstr ""
+
+#, c-format
 msgid "Unable to run command to get OVS master for interface %s"
 msgstr ""
 
@@ -18351,6 +18248,9 @@ msgid "Unable to set FD %d blocking"
 msgstr ""
 
 msgid "Unable to set IPV6_V6ONLY flag"
+msgstr ""
+
+msgid "Unable to set SCHED_CORE"
 msgstr ""
 
 #, c-format
@@ -18768,12 +18668,6 @@ msgstr ""
 msgid "Unexpected QEMU monitor still active during domain deletion"
 msgstr ""
 
-msgid "Unexpected RV keyword in the read-write section."
-msgstr ""
-
-msgid "Unexpected RW keyword in the read-only section."
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Unexpected SCSI controller model %d"
 msgstr "type de contrôleur %d inattendu"
@@ -18818,9 +18712,6 @@ msgid "Unexpected element '%s' in CPU map '%s'"
 msgstr "élément racine <%s> inattendu, <domstatus> attendu"
 
 msgid "Unexpected event thread still active during domain deletion"
-msgstr ""
-
-msgid "Unexpected field value format encountered."
 msgstr ""
 
 #, fuzzy, c-format
@@ -18868,10 +18759,6 @@ msgstr "type de système de fichiers %d inattendu"
 #, fuzzy, c-format
 msgid "Unexpected network port type %s"
 msgstr "type net %d inattendu"
-
-#, fuzzy, c-format
-msgid "Unexpected network protocol '%s'"
-msgstr "Protocole inconnu « %s »"
 
 msgid "Unexpected output of cloud-hypervisor binary"
 msgstr ""
@@ -18997,14 +18884,6 @@ msgstr "Type de contrôleur « %s » inconnu"
 #, fuzzy, c-format
 msgid "Unknown SCSI subsystem protocol '%s'"
 msgstr "Protocole inconnu « %s »"
-
-#, c-format
-msgid "Unknown TPM backend type '%s'"
-msgstr "type de l’arrière-plan TPM « %s » inconnu"
-
-#, c-format
-msgid "Unknown TPM frontend model '%s'"
-msgstr "Modèle frontal TPM « %s » inconnu"
 
 #, fuzzy, c-format
 msgid "Unknown URI parameter '%s'"
@@ -19176,9 +19055,6 @@ msgid ""
 "'paravirt'"
 msgstr ""
 
-msgid "Unknown mode has been specified"
-msgstr "Un mode inconnu a été spécifié"
-
 #, c-format
 msgid "Unknown model type '%s'"
 msgstr "Type de modèle « %s » inconnu"
@@ -19214,6 +19090,10 @@ msgstr ""
 #, fuzzy
 msgid "Unknown return code"
 msgstr "Erreur inconnue"
+
+#, c-format
+msgid "Unknown sched_core value %s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Unknown scsi_host subsystem protocol '%s'"
@@ -19387,10 +19267,6 @@ msgid "Unsupported SMBIOS mode '%s'"
 msgstr "Mode de placement du CPU « %s » non-pris en charge"
 
 #, fuzzy, c-format
-msgid "Unsupported TPM version '%s'"
-msgstr "Mode de réglage de la mémoire NUMA « %s » non-pris en charge"
-
-#, fuzzy, c-format
 msgid "Unsupported URI scheme '%s'"
 msgstr "Mode de placement du CPU « %s » non-pris en charge"
 
@@ -19554,7 +19430,7 @@ msgid "Unsupported hostdev type %s"
 msgstr "Le type de configuration %s n’est pas pris en charge"
 
 #, c-format
-msgid "Unsupported interface %s for TPM 1.2"
+msgid "Unsupported interface '%s' for TPM 1.2"
 msgstr ""
 
 #, fuzzy
@@ -19817,12 +19693,6 @@ msgstr ""
 msgid "VFIO device assignment is currently not supported on this system"
 msgstr ""
 
-msgid "VIR_DOMAIN_BLOCK_COPY_SYNCHRONOUS_WRITES is not supported by this VM"
-msgstr ""
-
-msgid "VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES is not supported by this QEMU"
-msgstr ""
-
 #, fuzzy
 msgid "VM is already active"
 msgstr "Le domaine est déjà actif"
@@ -19974,10 +19844,6 @@ msgstr ""
 msgid "VxHS protocol accepts only one host"
 msgstr ""
 
-#, fuzzy
-msgid "VxHS protocol does not support URI syntax"
-msgstr "le pool de stockage ne prend pas en charge la suppression de volume"
-
 msgid "VxHS protocol is not supported with this QEMU binary"
 msgstr ""
 
@@ -20044,12 +19910,6 @@ msgid "Write to '%s' to trigger host scan failed"
 msgstr ""
 
 #, fuzzy
-msgid ""
-"Wrong <source> 'mode' attribute specified with <interface type='vhostuser'/>"
-msgstr ""
-"Aucun attribut <source> « name » spécifié avec <interface type='internal'/>"
-
-#, fuzzy
 msgid "Wrong MAC address"
 msgstr "adresse MAC"
 
@@ -20101,10 +19961,6 @@ msgstr "Le XML ne contient pas l’élément « sysinfo » attendu"
 #, fuzzy
 msgid "XML does not contain expected 'chassis' element"
 msgstr "Le XML ne contient pas l’élément « sysinfo » attendu"
-
-#, fuzzy
-msgid "XML does not contain expected 'cookie' element"
-msgstr "Le XML ne contient pas l’élément « cpu » attendu"
 
 msgid "XML does not contain expected 'cpu' element"
 msgstr "Le XML ne contient pas l’élément « cpu » attendu"
@@ -20244,9 +20100,6 @@ msgstr ""
 
 msgid "active"
 msgstr "actif"
-
-msgid "active commit not supported with this QEMU binary"
-msgstr ""
 
 #, c-format
 msgid "active commit requested but '%s' is not active"
@@ -20449,9 +20302,6 @@ msgid "ap-domain value '%s' is out of range for '%s'"
 msgstr ""
 
 msgid "apparmor_parser exited with error"
-msgstr ""
-
-msgid "append not supported in this QEMU binary"
 msgstr ""
 
 msgid "applyDHCPOnlyRules failed - spoofing not protected!"
@@ -20718,9 +20568,6 @@ msgstr ""
 msgid "backingStore is not supported with vhostuser disk"
 msgstr ""
 
-msgid "backingStore of mirror target is not supported by this qemu"
-msgstr ""
-
 msgid ""
 "backingStore of mirror without VIR_DOMAIN_BLOCK_COPY_SHALLOW doesn't make "
 "sense"
@@ -20730,9 +20577,6 @@ msgid "backup"
 msgstr ""
 
 msgid "backup TLS directory not configured"
-msgstr ""
-
-msgid "backup is not supported with this QEMU"
 msgstr ""
 
 msgid "backup job data missing"
@@ -21311,6 +21155,9 @@ msgid "cannot become session leader"
 msgstr ""
 
 msgid "cannot block signals"
+msgstr ""
+
+msgid "cannot both keep and delete TPM"
 msgstr ""
 
 msgid "cannot both keep and delete nvram"
@@ -24055,18 +23902,6 @@ msgstr ""
 msgid "delete the specified network port"
 msgstr "Créer un port réseau."
 
-#, fuzzy, c-format
-msgid "deleting %s drive failed: %s"
-msgstr "opération échouée : %s"
-
-#, fuzzy
-msgid "deleting committed images is not supported by this VM"
-msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
-
-msgid ""
-"deleting drive is not supported.  This may leak data if disk is reassigned"
-msgstr ""
-
 #, c-format
 msgid "deletion of %d external disk snapshots not supported yet"
 msgstr ""
@@ -24135,10 +23970,6 @@ msgstr ""
 #, fuzzy
 msgid "detailed domain vcpu information"
 msgstr "informations du domaine"
-
-#, fuzzy
-msgid "detect_zeroes is not supported by this QEMU binary"
-msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
 
 msgid "detect_zeroes is not supported with vhostuser disk"
 msgstr ""
@@ -24307,13 +24138,6 @@ msgstr ""
 
 msgid "disabled"
 msgstr ""
-
-msgid "disabling audio mixing engine is not supported with this QEMU"
-msgstr ""
-
-#, fuzzy
-msgid "discard is not supported by this QEMU binary"
-msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
 
 #, c-format
 msgid "discard is not supported for model '%s'"
@@ -24904,19 +24728,8 @@ msgstr "domainMigratePrepare n’a pas paramétré URI"
 msgid "domainMigratePrepare3 did not set uri"
 msgstr "domainMigratePrepare n’a pas paramétré URI"
 
-msgid "domainbackup"
-msgstr ""
-
-#, fuzzy
-msgid "domaincheckpoint"
-msgstr "(domainCapabilities)"
-
 msgid "domains in 'doms' array must belong to a single connection"
 msgstr ""
-
-#, fuzzy
-msgid "domainsnapshot"
-msgstr "(domain_snapshot)"
 
 #, c-format
 msgid "doms array in %s must contain at least one domain"
@@ -24942,9 +24755,6 @@ msgstr ""
 msgid "download volume contents to a file"
 msgstr "valeur de la longueur de l’extent du volume non conforme"
 
-msgid "drive hotplug is not supported"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "driver does not support net model '%s'"
 msgstr "le bus xen ne prend pas en charge le périphérique d’entrée %s"
@@ -24968,9 +24778,6 @@ msgstr ""
 
 msgid "dump the core of a domain to a file for analysis"
 msgstr "vider l’espace mémoire d’un domaine dans un fichier pour analyse"
-
-msgid "dump-guest-memory is not supported"
-msgstr ""
 
 #, c-format
 msgid "dumpformat '%d' is not supported"
@@ -25607,12 +25414,6 @@ msgstr ""
 msgid "external active snapshots are not supported on '%s' disks"
 msgstr ""
 
-#, c-format
-msgid ""
-"external active snapshots are not supported on 'network' disks using '%s' "
-"protocol"
-msgstr ""
-
 msgid "external active snapshots are not supported on scsi passthrough devices"
 msgstr ""
 
@@ -25639,10 +25440,6 @@ msgstr ""
 msgid ""
 "external snapshot file for disk %s already exists and is not a block device: "
 "%s"
-msgstr ""
-
-#, c-format
-msgid "external snapshot for readonly disk %s is not supported"
 msgstr ""
 
 #, c-format
@@ -27528,6 +27325,13 @@ msgstr ""
 msgid "guest failed to start: %s"
 msgstr "Impossible de démarrer le pool %s"
 
+msgid "guest failed to start: terminated abnormally"
+msgstr ""
+
+#, c-format
+msgid "guest failed to start: unexpected exit status %d"
+msgstr ""
+
 #, fuzzy
 msgid "guest interface"
 msgstr "type d’interface réseau"
@@ -27761,9 +27565,6 @@ msgstr "Le modèle de surveillance cible %s ne correspond pas à la source %s"
 msgid "hpet timer is not supported"
 msgstr ""
 
-msgid "http cookies are not supported by this QEMU binary"
-msgstr ""
-
 msgid "http cookies are supported only with HTTP(S) protocol"
 msgstr ""
 
@@ -27837,6 +27638,11 @@ msgid "ids of vcpus to manipulate"
 msgstr ""
 
 msgid "if IOMMU is enabled by kernel"
+msgstr ""
+
+#, c-format
+msgid ""
+"if using CPU maximum physical address mode='%s', bits= must be specified too"
 msgstr ""
 
 #, c-format
@@ -28137,6 +27943,10 @@ msgstr "le pilote d’état bhyve n’est pas actif"
 msgid "interface stats not implemented on this platform"
 msgstr ""
 
+#, c-format
+msgid "interface type='%s' requires a 'source' element"
+msgstr ""
+
 #, fuzzy
 msgid "internal"
 msgstr "erreur interne"
@@ -28217,10 +28027,6 @@ msgstr "chemin invalide : %s"
 #, fuzzy, c-format
 msgid "invalid '=' after option --%s"
 msgstr "pointeur de domaine invalide dans %s"
-
-#, fuzzy, c-format
-msgid "invalid 'managed' value '%s'"
-msgstr "valeur de traduction « %s » invalide "
 
 msgid "invalid 'type' attribute for vhostuser disk source"
 msgstr ""
@@ -28982,6 +28788,10 @@ msgstr "sgio est pris en charge pour les périphériques hôtes scsi uniquement"
 msgid "iommu model '%s' can't have address"
 msgstr ""
 
+#, c-format
+msgid "iommu model '%s' doesn't support additional attributes"
+msgstr ""
+
 msgid "iommu: aw_bits is not supported with this QEMU binary"
 msgstr ""
 
@@ -29078,6 +28888,9 @@ msgid "kdump-compressed format is not supported here"
 msgstr ""
 
 msgid "kdump-compressed format is only supported with memory-only dump"
+msgstr ""
+
+msgid "keep TPM state"
 msgstr ""
 
 msgid "keep nvram file"
@@ -29670,9 +29483,6 @@ msgstr ""
 msgid "lock owner details have not been registered"
 msgstr ""
 
-msgid "logfile not supported in this QEMU binary"
-msgstr ""
-
 #, c-format
 msgid "logical volume '%s' is sparse, volume wipe not supported"
 msgstr ""
@@ -30186,9 +29996,6 @@ msgstr "opération échouée : %s"
 msgid "message"
 msgstr ""
 
-msgid "metadata cache max size control is not supported with this QEMU binary"
-msgstr ""
-
 msgid "metadata cache max size control is supported only with qcow2 images"
 msgstr ""
 
@@ -30281,6 +30088,9 @@ msgstr ""
 
 #, c-format
 msgid "migration of domain %s is not in post-copy phase"
+msgstr ""
+
+msgid "migration of non-shared disks requested but NBD is not set up"
 msgstr ""
 
 msgid ""
@@ -30598,9 +30408,6 @@ msgstr ""
 msgid "missing TPM device backend"
 msgstr "l’arrière-plan du périphérique TPM est manquant"
 
-msgid "missing TPM device backend type"
-msgstr "le type de l’arrière-plan du périphérique TPM est manquant"
-
 #, fuzzy
 msgid "missing Xen migration stream version"
 msgstr "système d’exploitation non spécifié"
@@ -30749,9 +30556,6 @@ msgstr "Nom manquant pour le disque source"
 #, fuzzy, c-format
 msgid "missing disk device alias name for %s"
 msgstr "périphériques non spécifiés pour %s"
-
-msgid "missing disk source for 'sheepdog' protocol"
-msgstr ""
 
 #, fuzzy
 msgid "missing domain in checkpoint"
@@ -31371,9 +31175,6 @@ msgstr "un seul emulatorpin est pris en charge"
 msgid "model type"
 msgstr "Type de modèle « %s » inconnu"
 
-msgid "modern nvram specification is not supported by this qemu"
-msgstr ""
-
 msgid "modifies an existing IOThread of the guest domain"
 msgstr ""
 
@@ -31398,9 +31199,6 @@ msgid "monitor failure"
 msgstr ""
 
 msgid "monitor must not be NULL"
-msgstr ""
-
-msgid "monitor socket did not show up"
 msgstr ""
 
 #, c-format
@@ -31537,10 +31335,6 @@ msgstr "nom du volume inactif"
 
 msgid "namespace key is required when modifying metadata"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "nbd does not support transport '%s'"
-msgstr "le bus xen ne prend pas en charge le périphérique d’entrée %s"
 
 #, fuzzy
 msgid "nbd port must be in range 0-65535"
@@ -32500,9 +32294,6 @@ msgstr ""
 msgid "non unique alias detected: %s"
 msgstr ""
 
-msgid "non-file destination not supported yet"
-msgstr ""
-
 #, fuzzy
 msgid "none"
 msgstr "(none)"
@@ -32819,9 +32610,6 @@ msgstr "un seul arrière-plan TPM est pris en charge"
 msgid "only one TPM backend is supported"
 msgstr "un seul arrière-plan TPM est pris en charge"
 
-msgid "only one audio backend is supported with this QEMU binary"
-msgstr ""
-
 #, fuzzy
 msgid "only one backup job is supported"
 msgstr "un seul arrière-plan TPM est pris en charge"
@@ -32916,9 +32704,6 @@ msgid "only virtiofs filesystems can be hotplugged"
 msgstr ""
 
 msgid "open an editor to modify the description"
-msgstr ""
-
-msgid "open disk image file failed"
 msgstr ""
 
 #, c-format
@@ -33707,9 +33492,6 @@ msgstr ""
 msgid "protocol '%s' accepts only one host"
 msgstr ""
 
-msgid "protocol 'sheepdog' accepts up to one host"
-msgstr ""
-
 msgid "protocol misses the family attribute"
 msgstr ""
 
@@ -33746,10 +33528,6 @@ msgstr ""
 
 msgid "qemu agent didn't return an array of keys"
 msgstr ""
-
-#, fuzzy, c-format
-msgid "qemu block name '%s' doesn't match expected '%s'"
-msgstr "Le nom de domaine cible « %s » ne correspond pas à la source « %s »"
 
 #, c-format
 msgid "qemu didn't report thread id for vcpu '%zu'"
@@ -34048,9 +33826,6 @@ msgstr "connexion en lecture seule"
 msgid "readahead is supported only with HTTP(S)/FTP(s) protocols"
 msgstr ""
 
-msgid "readahead setting is not supported with this QEMU binary"
-msgstr ""
-
 #, fuzzy
 msgid "readonly ide disks are not supported"
 msgstr "seuls des types de console nmdm sont pris en charge"
@@ -34155,6 +33930,9 @@ msgstr ""
 #, fuzzy
 msgid "removable is only valid for usb disks"
 msgstr "L’attribut mode n’est autorisé que pour les CPU des invités"
+
+msgid "remove TPM state"
+msgstr ""
 
 msgid "remove all associated storage volumes (use with caution)"
 msgstr ""
@@ -34262,6 +34040,9 @@ msgid "report domain virtual cpu information"
 msgstr "informations du domaine"
 
 msgid "report error if CPUs are incompatible"
+msgstr ""
+
+msgid "report fd-based VM statistics by KVM"
 msgstr ""
 
 #, fuzzy
@@ -34850,18 +34631,6 @@ msgstr ""
 msgid "setting a launch secret is only supported in SEV-enabled domains"
 msgstr ""
 
-msgid "setting audio buffer count is not supported with this QEMU"
-msgstr ""
-
-msgid "setting audio buffer length is not supported with this QEMU"
-msgstr ""
-
-msgid "setting audio latency is not supported with this QEMU"
-msgstr ""
-
-msgid "setting audio stream name is not supported with this QEMU"
-msgstr ""
-
 #, c-format
 msgid "setting bandwidth on interfaces of type '%s' is not implemented yet"
 msgstr ""
@@ -35114,10 +34883,6 @@ msgid "sndbuf must be a positive integer"
 msgstr "sndbuf doit être un entier positif"
 
 #, fuzzy
-msgid "socket attribute required for unix transport"
-msgstr "socket manquant pour le transport unix"
-
-#, fuzzy
 msgid "socketpair failed"
 msgstr "opération échouée"
 
@@ -35240,9 +35005,6 @@ msgid "ssh protocol accepts only one host"
 msgstr ""
 
 msgid "ssl verification is supported only with HTTPS/FTPS protocol"
-msgstr ""
-
-msgid "ssl verification setting is not supported by this QEMU binary"
 msgstr ""
 
 msgid "start"
@@ -35406,10 +35168,6 @@ msgstr ""
 #, fuzzy, c-format
 msgid "storage pool protocol ver unsupported for pool type '%s'"
 msgstr "type de transport de protocole « %s » inconnu"
-
-#, fuzzy
-msgid "storage slice is not supported by this QEMU binary"
-msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
 
 #, c-format
 msgid "storage source pool '%s' volume '%s' is not translated"
@@ -35682,10 +35440,6 @@ msgstr ""
 msgid "terminate gracefully"
 msgstr ""
 
-#, fuzzy
-msgid "terminated abnormally"
-msgstr "nombre sans fin"
-
 msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen : donnez un chemin d’accès ou utilisez test:///default"
 
@@ -35774,9 +35528,6 @@ msgstr "l’interface n’a pas de nom"
 msgid "the new password"
 msgstr ""
 
-msgid "the packed setting is not supported with this QEMU binary"
-msgstr ""
-
 msgid "the password is already encrypted"
 msgstr ""
 
@@ -35854,9 +35605,6 @@ msgstr ""
 msgid "there is no hub at port %u in USB address bus: %u port: %s"
 msgstr ""
 
-msgid "this QEMU binary doesn't support relative block pull/rebase"
-msgstr ""
-
 msgid "this QEMU binary lacks multiple smartcard support"
 msgstr ""
 
@@ -35910,13 +35658,6 @@ msgid "this platform is missing dlopen"
 msgstr ""
 
 msgid "this qemu does not support TLS transport for NBD"
-msgstr ""
-
-#, fuzzy
-msgid "this qemu does not support setting device threshold"
-msgstr "le bus ps2 ne prend pas en charge le périphérique d’entrée %s"
-
-msgid "this qemu doesn't support relative block commit"
 msgstr ""
 
 msgid "this qemu doesn't support the memory-backend-file object"
@@ -35977,10 +35718,6 @@ msgstr ""
 msgid "threshold as a scaled number (by default bytes)"
 msgstr ""
 
-#, c-format
-msgid "threshold currently can't be set for block device '%s'"
-msgstr ""
-
 msgid "time to set"
 msgstr ""
 
@@ -36002,9 +35739,6 @@ msgid "timeout seconds."
 msgstr ""
 
 msgid "timeout seconds. must be positive."
-msgstr ""
-
-msgid "timeout setting is not supported with this QEMU binary"
 msgstr ""
 
 msgid "timeout, async and block options are exclusive"
@@ -36329,10 +36063,6 @@ msgid ""
 msgstr ""
 
 #, c-format
-msgid "transient disk not supported by this QEMU binary (%s)"
-msgstr ""
-
-#, c-format
 msgid "transient disk supported only with 'disk' device (%s)"
 msgstr ""
 
@@ -36377,12 +36107,6 @@ msgid "tray is only valid for cdrom and floppy"
 msgstr ""
 "le plateau est uniquement valide pour le lecteur de CD-ROM et le lecteur de "
 "disquettes"
-
-msgid "tray status 'open' is invalid for block type disk"
-msgstr ""
-
-msgid "tray status 'open' is invalid for block type volume"
-msgstr ""
 
 msgid "treat event as a regex rather than literal filter"
 msgstr ""
@@ -36609,10 +36333,6 @@ msgid "unable to find audio backend for sound device"
 msgstr ""
 
 #, fuzzy, c-format
-msgid "unable to find backing name for device %s"
-msgstr "Impossible de trouver un lecteur de stockage : %s"
-
-#, fuzzy, c-format
 msgid "unable to find disk by target: %s"
 msgstr "Impossible de trouver un lecteur de stockage : %s"
 
@@ -36830,6 +36550,9 @@ msgstr "Impossible d’analyser l’ID de classe « %s »"
 msgid "unable to read domain master key file"
 msgstr "enregistrer l’état du domaine dans un fichier"
 
+msgid "unable to read from pipe"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "unable to read server cert %s"
 msgstr "Impossible de créer le répertoire d’exécution %s : %s"
@@ -36933,6 +36656,14 @@ msgid "unable to set user and group to '%ld:%ld' on '%s'"
 msgstr ""
 
 msgid "unable to set vnet or multiqueue flags on macvtap"
+msgstr ""
+
+#, c-format
+msgid "unable to share scheduling cookie from %lld"
+msgstr ""
+
+#, c-format
+msgid "unable to share scheduling cookie to %lld"
 msgstr ""
 
 #, c-format
@@ -37197,10 +36928,6 @@ msgid "unexpected encryption format"
 msgstr "action %s inattendue : %d"
 
 #, fuzzy, c-format
-msgid "unexpected exit status %d"
-msgstr "bus de disque %d inattendu"
-
-#, fuzzy, c-format
 msgid "unexpected feature '%s'"
 msgstr "donnée inattendue « %s »"
 
@@ -37323,50 +37050,6 @@ msgstr ""
 #, fuzzy
 msgid "unexpected protocol type"
 msgstr "type de pool inattendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s> expecting <device>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <domain>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, c-format
-msgid "unexpected root element <%s>, expecting <domstatus>"
-msgstr "élément racine <%s> inattendu, <domstatus> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s>, expecting <interface>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s>, expecting <network>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s>, expecting <pool>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s>, expecting <qemuCaps>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s>, expecting <secret>"
-msgstr "élément racine <%s> inattendu, <domstatus> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element <%s>, expecting <volume>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, fuzzy
-msgid "unexpected root element, expecting <domain>"
-msgstr "élément racine <%s> inattendu, <domain> attendu"
-
-#, fuzzy, c-format
-msgid "unexpected root element: '%s'"
-msgstr "donnée inattendue « %s »"
 
 #, fuzzy, c-format
 msgid "unexpected secret usage type %d"
@@ -37824,19 +37507,6 @@ msgid "unknown redirdev character device type '%s'"
 msgstr "type de périphérique de caractères redirdev « %s » inconnu"
 
 msgid "unknown rng-random backend"
-msgstr ""
-
-#, c-format
-msgid "unknown root element '%s' for filter binding"
-msgstr ""
-
-msgid "unknown root element for network port"
-msgstr ""
-
-msgid "unknown root element for nw filter"
-msgstr ""
-
-msgid "unknown root element for nwfilter binding"
 msgstr ""
 
 #, fuzzy
@@ -39005,9 +38675,6 @@ msgstr ""
 msgid "virtio-net teaming transient interface must be type='hostdev', not '%s'"
 msgstr ""
 
-msgid "virtio-net-pci 'tx' option not supported in this QEMU binary"
-msgstr ""
-
 msgid "virtio-pmem does not support NUMA nodes"
 msgstr ""
 
@@ -39171,9 +38838,6 @@ msgstr ""
 
 #, c-format
 msgid "volume '%s' is still in use."
-msgstr ""
-
-msgid "volume capacity required for this pool"
 msgstr ""
 
 msgid "volume capacity required for this storage pool"
@@ -39451,6 +39115,247 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <string>}..."
+
+#, fuzzy
+#~ msgid "%s 3d acceleration is not supported"
+#~ msgstr "un seul emulatorpin est pris en charge"
+
+#, fuzzy
+#~ msgid ""
+#~ "'reconnect' attribute  unsupported 'server' mode for <interface "
+#~ "type='vhostuser'>"
+#~ msgstr "élément <virtualport> non pris en charge pour <interface type='%s'>"
+
+#~ msgid "(network status)"
+#~ msgstr "(network status)"
+
+#~ msgid "(pool state)"
+#~ msgstr "(pool state)"
+
+#, fuzzy
+#~ msgid "CCW address type is not supported by this QEMU"
+#~ msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
+
+#~ msgid "Cannot parse <local> 'port' attribute with socket interface"
+#~ msgstr ""
+#~ "Impossible d’analyser l’attribut « port » <local> avec une interface "
+#~ "socket"
+
+#~ msgid "Cannot parse <source> 'port' attribute with socket interface"
+#~ msgstr ""
+#~ "Impossible d’analyser l’attribut <source> « port » avec l’interface du "
+#~ "socket"
+
+#, fuzzy
+#~ msgid "No <local> 'address' attribute specified with socket interface"
+#~ msgstr ""
+#~ "Aucun attribut <source> « address » spécifié avec l’interface du socket"
+
+#, fuzzy
+#~ msgid "No <local> 'port' attribute specified with socket interface"
+#~ msgstr ""
+#~ "Aucun attribut <source> « port » spécifié avec l’interface du socket"
+
+#~ msgid "No <source> 'address' attribute specified with socket interface"
+#~ msgstr ""
+#~ "Aucun attribut <source> « address » spécifié avec l’interface du socket"
+
+#~ msgid ""
+#~ "No <source> 'bridge' attribute specified with <interface type='bridge'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « bridge » spécifié avec <interface type='bridge'/"
+#~ ">"
+
+#~ msgid ""
+#~ "No <source> 'dev' attribute specified with <interface type='direct'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « dev » spécifié avec <interface type='direct'/>"
+
+#, fuzzy
+#~ msgid ""
+#~ "No <source> 'mode' attribute specified with <interface type='vhostuser'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « name » spécifié avec <interface type='internal'/"
+#~ ">"
+
+#~ msgid ""
+#~ "No <source> 'name' attribute specified with <interface type='internal'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « name » spécifié avec <interface type='internal'/"
+#~ ">"
+
+#~ msgid ""
+#~ "No <source> 'network' attribute specified with <interface type='network'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « network » spécifié avec <interface "
+#~ "type='network'/>"
+
+#, fuzzy
+#~ msgid ""
+#~ "No <source> 'path' attribute specified with <interface type='vhostuser'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « name » spécifié avec <interface type='internal'/"
+#~ ">"
+
+#~ msgid "No <source> 'port' attribute specified with socket interface"
+#~ msgstr ""
+#~ "Aucun attribut <source> « port » spécifié avec l’interface du socket"
+
+#, fuzzy
+#~ msgid ""
+#~ "No <source> 'type' attribute specified for <interface type='vhostuser'>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « name » spécifié avec <interface type='internal'/"
+#~ ">"
+
+#, fuzzy
+#~ msgid "Unable to parse port id '%s'"
+#~ msgstr "Impossible d’analyser l’ID de classe « %s »"
+
+#~ msgid "Unknown mode has been specified"
+#~ msgstr "Un mode inconnu a été spécifié"
+
+#, fuzzy
+#~ msgid ""
+#~ "Wrong <source> 'mode' attribute specified with <interface "
+#~ "type='vhostuser'/>"
+#~ msgstr ""
+#~ "Aucun attribut <source> « name » spécifié avec <interface type='internal'/"
+#~ ">"
+
+#, fuzzy
+#~ msgid "XML does not contain expected 'cookie' element"
+#~ msgstr "Le XML ne contient pas l’élément « cpu » attendu"
+
+#, fuzzy
+#~ msgid "domaincheckpoint"
+#~ msgstr "(domainCapabilities)"
+
+#, fuzzy
+#~ msgid "domainsnapshot"
+#~ msgstr "(domain_snapshot)"
+
+#, fuzzy
+#~ msgid "invalid 'managed' value '%s'"
+#~ msgstr "valeur de traduction « %s » invalide "
+
+#, fuzzy
+#~ msgid "unexpected root element <%s> expecting <device>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#~ msgid "unexpected root element <%s>, expecting <domain>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#~ msgid "unexpected root element <%s>, expecting <domstatus>"
+#~ msgstr "élément racine <%s> inattendu, <domstatus> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element <%s>, expecting <interface>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element <%s>, expecting <network>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element <%s>, expecting <pool>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element <%s>, expecting <qemuCaps>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element <%s>, expecting <secret>"
+#~ msgstr "élément racine <%s> inattendu, <domstatus> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element <%s>, expecting <volume>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element, expecting <domain>"
+#~ msgstr "élément racine <%s> inattendu, <domain> attendu"
+
+#, fuzzy
+#~ msgid "unexpected root element: '%s'"
+#~ msgstr "donnée inattendue « %s »"
+
+#~ msgid "Cannot parse controller index %s"
+#~ msgstr "Impossible d’analyser l’index de contrôleur %s"
+
+#, fuzzy
+#~ msgid "Unable to init qemu driver mutexes"
+#~ msgstr "Impossible d’initialiser le mutex"
+
+#, fuzzy
+#~ msgid "terminated abnormally"
+#~ msgstr "nombre sans fin"
+
+#, fuzzy
+#~ msgid "unexpected exit status %d"
+#~ msgstr "bus de disque %d inattendu"
+
+#, fuzzy
+#~ msgid "Unexpected network protocol '%s'"
+#~ msgstr "Protocole inconnu « %s »"
+
+#~ msgid "Unknown TPM backend type '%s'"
+#~ msgstr "type de l’arrière-plan TPM « %s » inconnu"
+
+#~ msgid "Unknown TPM frontend model '%s'"
+#~ msgstr "Modèle frontal TPM « %s » inconnu"
+
+#, fuzzy
+#~ msgid "Unsupported TPM version '%s'"
+#~ msgstr "Mode de réglage de la mémoire NUMA « %s » non-pris en charge"
+
+#, fuzzy
+#~ msgid "VxHS protocol does not support URI syntax"
+#~ msgstr "le pool de stockage ne prend pas en charge la suppression de volume"
+
+#, fuzzy
+#~ msgid "deleting %s drive failed: %s"
+#~ msgstr "opération échouée : %s"
+
+#, fuzzy
+#~ msgid "deleting committed images is not supported by this VM"
+#~ msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
+
+#, fuzzy
+#~ msgid "detect_zeroes is not supported by this QEMU binary"
+#~ msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
+
+#, fuzzy
+#~ msgid "discard is not supported by this QEMU binary"
+#~ msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
+
+#~ msgid "missing TPM device backend type"
+#~ msgstr "le type de l’arrière-plan du périphérique TPM est manquant"
+
+#, fuzzy
+#~ msgid "nbd does not support transport '%s'"
+#~ msgstr "le bus xen ne prend pas en charge le périphérique d’entrée %s"
+
+#, fuzzy
+#~ msgid "qemu block name '%s' doesn't match expected '%s'"
+#~ msgstr "Le nom de domaine cible « %s » ne correspond pas à la source « %s »"
+
+#, fuzzy
+#~ msgid "socket attribute required for unix transport"
+#~ msgstr "socket manquant pour le transport unix"
+
+#, fuzzy
+#~ msgid "storage slice is not supported by this QEMU binary"
+#~ msgstr "Le modèle de CPU « %s » n’est pas pris en charge par l’hyperviseur"
+
+#, fuzzy
+#~ msgid "this qemu does not support setting device threshold"
+#~ msgstr "le bus ps2 ne prend pas en charge le périphérique d’entrée %s"
+
+#, fuzzy
+#~ msgid "unable to find backing name for device %s"
+#~ msgstr "Impossible de trouver un lecteur de stockage : %s"
 
 #, fuzzy
 #~ msgid "Unable to generate diffie-hellman parameters: %s"

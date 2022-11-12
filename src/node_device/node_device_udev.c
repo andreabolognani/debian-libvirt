@@ -52,6 +52,8 @@ VIR_LOG_INIT("node_device.node_device_udev");
 # define TYPE_RAID 12
 #endif
 
+#define DMI_DEVPATH "/sys/devices/virtual/dmi/id"
+
 typedef struct _udevEventData udevEventData;
 struct _udevEventData {
     virObjectLockable parent;
@@ -454,6 +456,28 @@ udevProcessPCI(struct udev_device *device,
     virPCIDeviceFree(pciDev);
     virPCIEDeviceInfoFree(pci_express);
     return ret;
+}
+
+
+static int
+udevProcessMdevParent(struct udev_device *device,
+                      virNodeDeviceDef *def)
+{
+    virNodeDevCapMdevParent *mdev_parent = &def->caps->data.mdev_parent;
+
+    udevGenerateDeviceName(device, def, NULL);
+
+    if (virMediatedDeviceParentGetAddress(def->sysfs_path, &mdev_parent->address) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Unable to find address for mdev parent device '%s'"),
+                       def->name);
+        return -1;
+    }
+
+    if (virNodeDeviceGetMdevParentDynamicCaps(def->sysfs_path, mdev_parent) < 0)
+        return -1;
+
+    return 0;
 }
 
 
@@ -1036,7 +1060,7 @@ udevProcessMediatedDevice(struct udev_device *dev,
 
     linkpath = g_strdup_printf("%s/mdev_type", udev_device_get_syspath(dev));
 
-    if (virFileWaitForExists(linkpath, 1, 100) < 0) {
+    if (virFileWaitForExists(linkpath, 10, 100) < 0) {
         virReportSystemError(errno,
                              _("failed to wait for file '%s' to appear"),
                              linkpath);
@@ -1349,6 +1373,8 @@ udevGetDeviceType(struct udev_device *device,
             *type = VIR_NODE_DEV_CAP_VDPA;
         else if (STREQ_NULLABLE(subsystem, "matrix"))
             *type = VIR_NODE_DEV_CAP_AP_MATRIX;
+        else if (STREQ_NULLABLE(subsystem, "mtty"))
+            *type = VIR_NODE_DEV_CAP_MDEV_TYPES;
 
         VIR_FREE(subsystem);
     }
@@ -1404,6 +1430,7 @@ udevGetDeviceDetails(struct udev_device *device,
     case VIR_NODE_DEV_CAP_AP_MATRIX:
         return udevProcessAPMatrix(device, def);
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
+        return udevProcessMdevParent(device, def);
     case VIR_NODE_DEV_CAP_VPD:
     case VIR_NODE_DEV_CAP_SYSTEM:
     case VIR_NODE_DEV_CAP_FC_HOST:
@@ -2201,6 +2228,7 @@ mdevctlEventHandleCallback(GFileMonitor *monitor G_GNUC_UNUSED,
 static int
 nodeStateInitialize(bool privileged,
                     const char *root,
+                    bool monolithic G_GNUC_UNUSED,
                     virStateInhibitCallback callback G_GNUC_UNUSED,
                     void *opaque G_GNUC_UNUSED)
 {

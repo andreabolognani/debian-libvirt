@@ -56,6 +56,7 @@
 #include "virsavecookie.h"
 #include "virresctrl.h"
 #include "virenum.h"
+#include "virdomainjob.h"
 
 /* Flags for the 'type' field in virDomainDeviceDef */
 typedef enum {
@@ -939,6 +940,8 @@ typedef enum {
     VIR_DOMAIN_NET_TYPE_HOSTDEV,
     VIR_DOMAIN_NET_TYPE_UDP,
     VIR_DOMAIN_NET_TYPE_VDPA,
+    VIR_DOMAIN_NET_TYPE_NULL,
+    VIR_DOMAIN_NET_TYPE_VDS,
 
     VIR_DOMAIN_NET_TYPE_LAST
 } virDomainNetType;
@@ -1127,11 +1130,17 @@ struct _virDomainNetDef {
         } internal;
         struct {
             char *linkdev;
-            int mode; /* enum virMacvtapMode from util/macvtap.h */
+            virNetDevMacVLanMode mode;
         } direct;
         struct {
             virDomainHostdevDef def;
         } hostdev;
+        struct {
+            unsigned char switch_id[VIR_UUID_BUFLEN];
+            char *portgroup_id;
+            long long port_id;
+            long long connection_id;
+        } vds;
     } data;
     /* virtPortProfile is used by network/bridge/direct/hostdev */
     virNetDevVPortProfile *virtPortProfile;
@@ -1143,7 +1152,7 @@ struct _virDomainNetDef {
     char *downscript;
     char *domain_name; /* backend domain name */
     char *ifname; /* interface name on the host (<target dev='x'/>) */
-    int managed_tap; /* enum virTristateBool - ABSENT == YES */
+    virTristateBool managed_tap;
     virNetDevIPInfo hostIP;
     char *ifname_guest_actual;
     char *ifname_guest;
@@ -1400,7 +1409,7 @@ struct _virDomainHubDef {
 };
 
 typedef enum {
-    VIR_DOMAIN_TPM_MODEL_DEFAULT,
+    VIR_DOMAIN_TPM_MODEL_DEFAULT = 0,
     VIR_DOMAIN_TPM_MODEL_TIS,
     VIR_DOMAIN_TPM_MODEL_CRB,
     VIR_DOMAIN_TPM_MODEL_SPAPR,
@@ -1417,7 +1426,7 @@ typedef enum {
 } virDomainTPMBackendType;
 
 typedef enum {
-    VIR_DOMAIN_TPM_VERSION_DEFAULT,
+    VIR_DOMAIN_TPM_VERSION_DEFAULT = 0,
     VIR_DOMAIN_TPM_VERSION_1_2,
     VIR_DOMAIN_TPM_VERSION_2_0,
 
@@ -1436,22 +1445,22 @@ typedef enum {
 #define VIR_DOMAIN_TPM_DEFAULT_DEVICE "/dev/tpm0"
 
 struct _virDomainTPMDef {
-    int type; /* virDomainTPMBackendType */
+    virDomainTPMModel model;
+    virDomainTPMBackendType type;
     virDomainDeviceInfo info;
-    int model; /* virDomainTPMModel */
-    int version; /* virDomainTPMVersion */
     union {
         struct {
             virDomainChrSourceDef *source;
         } passthrough;
         struct {
+            virDomainTPMVersion version;
             virDomainChrSourceDef *source;
             char *storagepath;
             char *logfile;
             unsigned char secretuuid[VIR_UUID_BUFLEN];
             bool hassecretuuid;
             bool persistent_state;
-            unsigned int activePcrBanks;
+            virBitmap *activePcrBanks;
         } emulator;
     } data;
 };
@@ -3085,6 +3094,8 @@ struct _virDomainObj {
     virObjectLockable parent;
     virCond cond;
 
+    virDomainJobObj *job;
+
     pid_t pid; /* 0 for no PID, avoid negative values like -1 */
     virDomainStateReason state;
 
@@ -3269,11 +3280,19 @@ struct _virDomainABIStability {
     virDomainABIStabilityDomain domain;
 };
 
+
+struct _virDomainJobObjConfig {
+    virDomainObjPrivateJobCallbacks cb;
+    virDomainJobDataPrivateDataCallbacks jobDataPrivateCb;
+    unsigned int maxQueuedJobs;
+};
+
 virDomainXMLOption *virDomainXMLOptionNew(virDomainDefParserConfig *config,
                                           virDomainXMLPrivateDataCallbacks *priv,
                                           virXMLNamespace *xmlns,
                                           virDomainABIStability *abi,
-                                          virSaveCookieCallbacks *saveCookie);
+                                          virSaveCookieCallbacks *saveCookie,
+                                          virDomainJobObjConfig *jobConfig);
 
 virSaveCookieCallbacks *
 virDomainXMLOptionGetSaveCookie(virDomainXMLOption *xmlopt);
@@ -3313,6 +3332,9 @@ struct _virDomainXMLOption {
 
     /* Snapshot postparse callbacks */
     virDomainMomentPostParseCallback momentPostParse;
+
+    /* virDomainJobObj callbacks, private data callbacks and defaults */
+    virDomainJobObjConfig jobObjConfig;
 };
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainXMLOption, virObjectUnref);
 
@@ -3394,6 +3416,7 @@ bool virDomainControllerIsPSeriesPHB(const virDomainControllerDef *cont);
 virDomainFSDef *virDomainFSDefNew(virDomainXMLOption *xmlopt);
 void virDomainFSDefFree(virDomainFSDef *def);
 void virDomainActualNetDefFree(virDomainActualNetDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainActualNetDef, virDomainActualNetDefFree);
 virDomainIOMMUDef *virDomainIOMMUDefNew(void);
 void virDomainIOMMUDefFree(virDomainIOMMUDef *iommu);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainIOMMUDef, virDomainIOMMUDefFree);
@@ -3589,14 +3612,9 @@ virDomainDef *virDomainDefParseFile(const char *filename,
                                     virDomainXMLOption *xmlopt,
                                     void *parseOpaque,
                                     unsigned int flags);
-virDomainDef *virDomainDefParseNode(xmlDocPtr doc,
-                                    xmlNodePtr root,
+virDomainDef *virDomainDefParseNode(xmlXPathContext *ctxt,
                                     virDomainXMLOption *xmlopt,
                                     void *parseOpaque,
-                                    unsigned int flags);
-virDomainObj *virDomainObjParseNode(xmlDocPtr xml,
-                                    xmlNodePtr root,
-                                    virDomainXMLOption *xmlopt,
                                     unsigned int flags);
 virDomainObj *virDomainObjParseFile(const char *filename,
                                     virDomainXMLOption *xmlopt,

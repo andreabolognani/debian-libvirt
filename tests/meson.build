@@ -1,9 +1,9 @@
 tests_dep = declare_dependency(
   compile_args: [
     '-Dabs_builddir="@0@"'.format(meson.current_build_dir()),
-    '-Dabs_top_builddir="@0@"'.format(meson.build_root()),
+    '-Dabs_top_builddir="@0@"'.format(meson.project_build_root()),
     '-Dabs_srcdir="@0@"'.format(meson.current_source_dir()),
-    '-Dabs_top_srcdir="@0@"'.format(meson.source_root()),
+    '-Dabs_top_srcdir="@0@"'.format(meson.project_source_root()),
   ] + coverage_flags + cc_flags_relaxed_frame_limit,
   dependencies: [
     apparmor_dep,
@@ -28,6 +28,7 @@ tests_dep = declare_dependency(
   ],
   link_args: (
     libvirt_export_dynamic
+    + libvirt_flat_namespace
     + coverage_flags
   ),
 )
@@ -35,8 +36,8 @@ tests_dep = declare_dependency(
 tests_env = [
   'abs_builddir=@0@'.format(meson.current_build_dir()),
   'abs_srcdir=@0@'.format(meson.current_source_dir()),
-  'abs_top_builddir=@0@'.format(meson.build_root()),
-  'abs_top_srcdir=@0@'.format(meson.source_root()),
+  'abs_top_builddir=@0@'.format(meson.project_build_root()),
+  'abs_top_srcdir=@0@'.format(meson.project_source_root()),
   'LC_ALL=C',
   'LIBVIRT_AUTOSTART=0',
 ]
@@ -508,12 +509,6 @@ if conf.has('WITH_STORAGE_FS')
   ]
 endif
 
-if conf.has('WITH_STORAGE_SHEEPDOG')
-  tests += [
-    { 'name': 'storagebackendsheepdogtest', 'link_with': [ storage_driver_impl_lib, storage_backend_sheepdog_priv_lib ] },
-  ]
-endif
-
 if conf.has('WITH_VBOX')
   tests += [
     { 'name': 'vboxsnapshotxmltest', 'link_with': [ vbox_driver_impl ] },
@@ -705,7 +700,7 @@ testenv += 'VIR_TEST_FILE_ACCESS=1'
 add_test_setup(
   'access',
   env: testenv,
-  exe_wrapper: [ python3_prog, check_file_access_prog.path() ],
+  exe_wrapper: [ python3_prog, check_file_access_prog.full_path() ],
 )
 
 add_test_setup(

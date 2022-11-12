@@ -1,8 +1,8 @@
 project(
   'libvirt', 'c',
-  version: '8.6.0',
+  version: '8.9.0',
   license: 'LGPLv2+',
-  meson_version: '>= 0.54.0',
+  meson_version: '>= 0.56.0',
   default_options: [
     'buildtype=debugoptimized',
     'b_pie=true',
@@ -26,8 +26,8 @@ endif
 conf = configuration_data()
 
 conf.set('_GNU_SOURCE', 1)
-conf.set_quoted('abs_top_builddir', meson.build_root())
-conf.set_quoted('abs_top_srcdir', meson.source_root())
+conf.set_quoted('abs_top_builddir', meson.project_build_root())
+conf.set_quoted('abs_top_srcdir', meson.project_source_root())
 conf.set_quoted('PACKAGE', meson.project_name())
 conf.set_quoted('PACKAGE_NAME', meson.project_name())
 conf.set_quoted('PACKAGE_VERSION', meson.project_version())
@@ -514,7 +514,7 @@ elif host_machine.system() == 'darwin'
   # macOS libraries don't support symbol versioning
   version_script_flags = ''
 else
-  test_file = '@0@/src/libvirt_qemu.syms'.format(meson.source_root())
+  test_file = '@0@/src/libvirt_qemu.syms'.format(meson.project_source_root())
   if cc.has_link_argument('-Wl,--version-script=@0@'.format(test_file))
     version_script_flags = '-Wl,--version-script='
   else
@@ -798,14 +798,14 @@ endif
 foreach name : required_programs
   prog = find_program(name, dirs: libvirt_sbin_path)
   varname = name.underscorify()
-  conf.set_quoted(varname.to_upper(), prog.path())
+  conf.set_quoted(varname.to_upper(), prog.full_path())
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
 foreach item : required_programs_groups
   prog = find_program(item.get('prog'), dirs: libvirt_sbin_path)
   varname = item.get('name').underscorify()
-  conf.set_quoted(varname.to_upper(), prog.path())
+  conf.set_quoted(varname.to_upper(), prog.full_path())
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
@@ -835,7 +835,7 @@ foreach name : optional_programs
   prog = find_program(name, required: false, dirs: libvirt_sbin_path)
   varname = name.underscorify()
   if prog.found()
-    prog_path = prog.path()
+    prog_path = prog.full_path()
   else
     prog_path = name
   endif
@@ -1025,24 +1025,11 @@ else
   libpcap_dep = dependency('', required: false)
 endif
 
-libssh_version = '0.7'
+libssh_version = '0.8.1'
 if conf.has('WITH_REMOTE')
   libssh_dep = dependency('libssh', version: '>=' + libssh_version, required: get_option('libssh'))
   if libssh_dep.found()
     conf.set('WITH_LIBSSH', 1)
-
-    # Check if new functions exists, if not redefine them with old deprecated ones.
-    # List of [ new_function, deprecated_function ].
-    functions = [
-      [ 'ssh_get_server_publickey', 'ssh_get_publickey' ],
-      [ 'ssh_session_is_known_server', 'ssh_is_server_known' ],
-      [ 'ssh_session_update_known_hosts', 'ssh_write_knownhost' ],
-    ]
-    foreach name : functions
-      if not cc.has_function(name[0], dependencies: libssh_dep)
-        conf.set(name[0], name[1])
-      endif
-    endforeach
   endif
 else
   libssh_dep = dependency('', required: false)
@@ -1280,10 +1267,10 @@ endif
 if wireshark_dep.found()
   wireshark_plugindir = get_option('wireshark_plugindir')
   if wireshark_plugindir == ''
-    wireshark_plugindir = wireshark_dep.get_pkgconfig_variable('plugindir')
+    wireshark_plugindir = wireshark_dep.get_variable(pkgconfig : 'plugindir')
   endif
 
-  wireshark_prefix = wireshark_dep.get_pkgconfig_variable('prefix')
+  wireshark_prefix = wireshark_dep.get_variable(pkgconfig : 'prefix')
   if wireshark_prefix == ''
     # If wireshark's prefix cannot be retrieved from pkg-config,
     # this is our best bet.
@@ -1331,7 +1318,7 @@ if yajl_dep.found()
   #
   # [1] https://github.com/Homebrew/homebrew-core/pull/74516
   if host_machine.system() != 'linux'
-    yajl_includedir = yajl_dep.get_pkgconfig_variable('includedir')
+    yajl_includedir = yajl_dep.get_variable(pkgconfig : 'includedir')
     if yajl_includedir.contains('include/yajl')
       rc = run_command(
         'python3', '-c',
@@ -1364,8 +1351,8 @@ endif
 if bash_completion_dep.found()
   bash_completion_dir = get_option('bash_completion_dir')
   if bash_completion_dir == ''
-    bash_completion_dir = bash_completion_dep.get_pkgconfig_variable('completionsdir')
-    bash_completion_prefix = bash_completion_dep.get_pkgconfig_variable('prefix')
+    bash_completion_dir = bash_completion_dep.get_variable(pkgconfig : 'completionsdir')
+    bash_completion_prefix = bash_completion_dep.get_variable(pkgconfig : 'prefix')
     rc = run_command(
       'python3', '-c',
       'print("@0@".replace("@1@", "@2@"))'.format(
@@ -1459,9 +1446,9 @@ if not get_option('driver_bhyve').disabled() and host_machine.system() == 'freeb
 
   if bhyve_prog.found() and bhyvectl_prog.found() and bhyveload_prog.found()
     conf.set('WITH_BHYVE', 1)
-    conf.set_quoted('BHYVE', bhyve_prog.path())
-    conf.set_quoted('BHYVECTL', bhyvectl_prog.path())
-    conf.set_quoted('BHYVELOAD', bhyveload_prog.path())
+    conf.set_quoted('BHYVE', bhyve_prog.full_path())
+    conf.set_quoted('BHYVECTL', bhyvectl_prog.full_path())
+    conf.set_quoted('BHYVELOAD', bhyveload_prog.full_path())
   endif
 elif get_option('driver_bhyve').enabled()
   error('The bhyve driver cannot be enabled')
@@ -1491,8 +1478,8 @@ if not get_option('driver_libxl').disabled() and conf.has('WITH_LIBVIRTD')
   libxl_dep = dependency('xenlight', version: '>=' + libxl_version, required: get_option('driver_libxl'))
 
   if libxl_dep.found()
-    libxl_firmware_dir = libxl_dep.get_pkgconfig_variable('xenfirmwaredir')
-    libxl_execbin = libxl_dep.get_pkgconfig_variable('libexec_bin')
+    libxl_firmware_dir = libxl_dep.get_variable(pkgconfig : 'xenfirmwaredir')
+    libxl_execbin = libxl_dep.get_variable(pkgconfig : 'libexec_bin')
     if libxl_firmware_dir != ''
       conf.set_quoted('LIBXL_FIRMWARE_DIR', libxl_firmware_dir)
     endif
@@ -1703,7 +1690,7 @@ if not get_option('driver_qemu').disabled()
       required: false
     )
     if qemu_bridge_prog.found()
-      qemu_bridge_path = qemu_bridge_prog.path()
+      qemu_bridge_path = qemu_bridge_prog.full_path()
     else
       qemu_bridge_path = '/usr/libexec/qemu-bridge-helper'
     endif
@@ -1715,7 +1702,7 @@ if not get_option('driver_qemu').disabled()
       required: false
     )
     if qemu_pr_prog.found()
-      qemu_pr_path = qemu_pr_prog.path()
+      qemu_pr_path = qemu_pr_prog.full_path()
     else
       qemu_pr_path = '/usr/bin/qemu-pr-helper'
     endif
@@ -1727,7 +1714,7 @@ if not get_option('driver_qemu').disabled()
       required: false
     )
     if qemu_slirp_prog.found()
-      qemu_slirp_path = qemu_slirp_prog.path()
+      qemu_slirp_path = qemu_slirp_prog.full_path()
     else
       qemu_slirp_path = '/usr/bin/slirp-helper'
     endif
@@ -1739,7 +1726,7 @@ if not get_option('driver_qemu').disabled()
       required: false
     )
     if qemu_dbus_daemon_prog.found()
-      qemu_dbus_daemon_path = qemu_dbus_daemon_prog.path()
+      qemu_dbus_daemon_path = qemu_dbus_daemon_prog.full_path()
     else
       qemu_dbus_daemon_path = '/usr/bin/dbus-daemon'
     endif
@@ -1835,14 +1822,14 @@ if conf.has('WITH_LIBVIRTD')
       use_storage = true
 
       conf.set('WITH_STORAGE_FS', 1)
-      conf.set_quoted('MOUNT', mount_prog.path())
-      conf.set_quoted('UMOUNT', umount_prog.path())
-      conf.set_quoted('MKFS', mkfs_prog.path())
+      conf.set_quoted('MOUNT', mount_prog.full_path())
+      conf.set_quoted('UMOUNT', umount_prog.full_path())
+      conf.set_quoted('MKFS', mkfs_prog.full_path())
 
       showmount_prog = find_program('showmount', required: false, dirs: libvirt_sbin_path)
       showmount_path = ''
       if showmount_prog.found()
-        showmount_path = showmount_prog.path()
+        showmount_path = showmount_prog.full_path()
       endif
       conf.set_quoted('SHOWMOUNT', showmount_path)
     endif
@@ -1892,7 +1879,7 @@ if conf.has('WITH_LIBVIRTD')
       conf.set('WITH_STORAGE_LVM', 1)
 
       foreach name : lvm_progs
-        conf.set_quoted(name.to_upper(), get_variable('@0@_prog'.format(name)).path())
+        conf.set_quoted(name.to_upper(), get_variable('@0@_prog'.format(name)).full_path())
       endforeach
     endif
   endif
@@ -1914,16 +1901,6 @@ if conf.has('WITH_LIBVIRTD')
   if not get_option('storage_scsi').disabled() and host_machine.system() == 'linux'
     use_storage = true
     conf.set('WITH_STORAGE_SCSI', 1)
-  endif
-
-  if not get_option('storage_sheepdog').disabled()
-    sheepdogcli_prog = find_program('dog', required: get_option('storage_sheepdog'), dirs: libvirt_sbin_path)
-
-    if sheepdogcli_prog.found()
-      use_storage = true
-      conf.set('WITH_STORAGE_SHEEPDOG', 1)
-      conf.set_quoted('SHEEPDOGCLI', sheepdogcli_prog.path())
-    endif
   endif
 
   if not get_option('storage_vstorage').disabled()
@@ -2056,7 +2033,7 @@ if not get_option('numad').disabled() and numactl_dep.found()
   numad_prog = find_program('numad', required: get_option('numad'), dirs: libvirt_sbin_path)
   if numad_prog.found()
     conf.set('WITH_NUMAD', 1)
-    conf.set_quoted('NUMAD', numad_prog.path())
+    conf.set_quoted('NUMAD', numad_prog.full_path())
   endif
 elif get_option('numad').enabled()
   error('You must have numactl enabled for numad support.')
@@ -2161,24 +2138,17 @@ endforeach
 # generate dist files
 
 if git
-  spec_files = [
-    'libvirt.spec.in',
-    'mingw-libvirt.spec.in',
-  ]
-
   spec_conf = configuration_data({
     'VERSION': meson.project_version(),
   })
 
-  foreach file : spec_files
-    configure_file(
-      input: file,
-      output: '@BASENAME@',
-      configuration: spec_conf,
-    )
-  endforeach
+  configure_file(
+    input: 'libvirt.spec.in',
+    output: '@BASENAME@',
+    configuration: spec_conf,
+  )
 
-  authors = run_command(python3_prog, meson_gen_authors_prog.path(),
+  authors = run_command(python3_prog, meson_gen_authors_prog.full_path(),
                         env: runutf8, check: true)
   authors_file = 'AUTHORS.rst.in'
 
@@ -2200,8 +2170,8 @@ if git
 
   foreach file : dist_files
     meson.add_dist_script(
-      meson_python_prog.path(), python3_prog.path(), meson_dist_prog.path(),
-      meson.build_root(), file
+      meson_python_prog.full_path(), python3_prog.full_path(), meson_dist_prog.full_path(),
+      meson.project_build_root(), file
     )
   endforeach
 endif
@@ -2213,8 +2183,8 @@ configure_file(output: 'meson-config.h', configuration: conf)
 
 # generate run helper
 run_conf = configuration_data({
-  'abs_builddir': meson.build_root(),
-  'abs_top_builddir': meson.build_root(),
+  'abs_builddir': meson.project_build_root(),
+  'abs_top_builddir': meson.project_build_root(),
 })
 
 configure_file(
@@ -2258,7 +2228,6 @@ storagedriver_summary = {
   'mpath': conf.has('WITH_STORAGE_MPATH'),
   'Disk': conf.has('WITH_STORAGE_DISK'),
   'RBD': conf.has('WITH_STORAGE_RBD'),
-  'Sheepdog': conf.has('WITH_STORAGE_SHEEPDOG'),
   'Gluster': conf.has('WITH_STORAGE_GLUSTER'),
   'ZFS': conf.has('WITH_STORAGE_ZFS'),
   'Virtuozzo storage': conf.has('WITH_STORAGE_VSTORAGE'),

@@ -35,6 +35,9 @@
 #include "node_device_conf.h"
 #include "node_device_event.h"
 #include "node_device_driver.h"
+#if WITH_UDEV
+# include "node_device_udev.h"
+#endif
 #include "virvhba.h"
 #include "viraccessapicheck.h"
 #include "virutil.h"
@@ -672,6 +675,10 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
             addr = g_strdup(caps->data.ap_matrix.addr);
             break;
 
+        case VIR_NODE_DEV_CAP_MDEV_TYPES:
+            addr = g_strdup(caps->data.mdev_parent.address);
+            break;
+
         case VIR_NODE_DEV_CAP_SYSTEM:
         case VIR_NODE_DEV_CAP_USB_DEV:
         case VIR_NODE_DEV_CAP_USB_INTERFACE:
@@ -684,7 +691,6 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
         case VIR_NODE_DEV_CAP_VPORTS:
         case VIR_NODE_DEV_CAP_SCSI_GENERIC:
         case VIR_NODE_DEV_CAP_DRM:
-        case VIR_NODE_DEV_CAP_MDEV_TYPES:
         case VIR_NODE_DEV_CAP_MDEV:
         case VIR_NODE_DEV_CAP_CCW_DEV:
         case VIR_NODE_DEV_CAP_VDPA:
@@ -881,8 +887,8 @@ nodeDeviceCreateXML(virConnectPtr conn,
 
     virt_type  = virConnectGetType(conn);
 
-    if (!(def = virNodeDeviceDefParseString(xmlDesc, CREATE_DEVICE, virt_type,
-                                            &driver->parserCallbacks, NULL)))
+    if (!(def = virNodeDeviceDefParse(xmlDesc, NULL, CREATE_DEVICE, virt_type,
+                                      &driver->parserCallbacks, NULL)))
         return NULL;
 
     if (virNodeDeviceCreateXMLEnsureACL(conn, def) < 0)
@@ -1402,8 +1408,8 @@ nodeDeviceDefineXML(virConnect *conn,
 
     virt_type  = virConnectGetType(conn);
 
-    if (!(def = virNodeDeviceDefParseString(xmlDesc, CREATE_DEVICE, virt_type,
-                                            &driver->parserCallbacks, NULL)))
+    if (!(def = virNodeDeviceDefParse(xmlDesc, NULL, CREATE_DEVICE, virt_type,
+                                      &driver->parserCallbacks, NULL)))
         return NULL;
 
     if (virNodeDeviceDefineXMLEnsureACL(conn, def) < 0)

@@ -591,6 +591,11 @@ static void daemonRunStateInit(void *opaque)
 #else /* ! MODULE_NAME */
     bool mandatory = false;
 #endif /* ! MODULE_NAME */
+#ifdef LIBVIRTD
+    bool monolithic = true;
+#else /* ! LIBVIRTD */
+    bool monolithic = false;
+#endif /* ! LIBVIRTD */
 
     virIdentitySetCurrent(sysident);
 
@@ -605,6 +610,7 @@ static void daemonRunStateInit(void *opaque)
     if (virStateInitialize(virNetDaemonIsPrivileged(dmn),
                            mandatory,
                            NULL,
+                           monolithic,
                            daemonInhibitCallback,
                            dmn) < 0) {
         VIR_ERROR(_("Driver state initialization failed"));
@@ -903,11 +909,7 @@ int main(int argc, char **argv) {
     /* No explicit config, so try and find a default one */
     if (remote_config_file == NULL) {
         implicit_conf = true;
-        if (daemonConfigFilePath(privileged,
-                                 &remote_config_file) < 0) {
-            VIR_ERROR(_("Can't determine config path"));
-            exit(EXIT_FAILURE);
-        }
+        daemonConfigFilePath(privileged, &remote_config_file);
     }
 
     /* Read the config file if it exists */

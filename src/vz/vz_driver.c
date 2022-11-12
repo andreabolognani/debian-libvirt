@@ -331,7 +331,7 @@ vzDriverObjNew(void)
     if (!(driver->caps = vzBuildCapabilities()) ||
         !(driver->xmlopt = virDomainXMLOptionNew(&vzDomainDefParserConfig,
                                                  &vzDomainXMLPrivateDataCallbacksPtr,
-                                                 NULL, NULL, NULL)) ||
+                                                 NULL, NULL, NULL, NULL)) ||
         !(driver->domains = virDomainObjListNew()) ||
         !(driver->domainEventState = virObjectEventStateNew()) ||
         (vzInitVersion(driver) < 0) ||
@@ -4077,6 +4077,7 @@ vzStateCleanup(void)
 static int
 vzStateInitialize(bool privileged,
                   const char *root,
+                  bool monolithic G_GNUC_UNUSED,
                   virStateInhibitCallback callback G_GNUC_UNUSED,
                   void *opaque G_GNUC_UNUSED)
 {

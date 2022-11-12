@@ -73,6 +73,7 @@ VIR_LOG_INIT("remote.remote_driver");
 #endif
 
 static bool inside_daemon;
+static bool monolithic_daemon;
 
 struct private_data {
     virMutex lock;
@@ -168,6 +169,7 @@ static void make_nonnull_domain_snapshot(remote_nonnull_domain_snapshot *snapsho
 static int
 remoteStateInitialize(bool privileged G_GNUC_UNUSED,
                       const char *root G_GNUC_UNUSED,
+                      bool monolithic,
                       virStateInhibitCallback callback G_GNUC_UNUSED,
                       void *opaque G_GNUC_UNUSED)
 {
@@ -175,6 +177,7 @@ remoteStateInitialize(bool privileged G_GNUC_UNUSED,
      * re-entering ourselves
      */
     inside_daemon = true;
+    monolithic_daemon = monolithic;
     return VIR_DRV_STATE_INIT_COMPLETE;
 }
 
@@ -1225,61 +1228,57 @@ remoteConnectOpen(virConnectPtr conn,
                   virConf *conf,
                   unsigned int flags)
 {
-    struct private_data *priv;
+    g_autofree struct private_data *priv = NULL;
     int ret = VIR_DRV_OPEN_ERROR;
     unsigned int rflags = 0;
-    char *driver = NULL;
+    g_autofree char *driver = NULL;
     remoteDriverTransport transport;
 
     if (conn->uri) {
         if (remoteSplitURIScheme(conn->uri, &driver, &transport) < 0)
-            goto cleanup;
+            return VIR_DRV_OPEN_ERROR;
     } else {
         /* No URI, then must be probing so use UNIX socket */
         transport = REMOTE_DRIVER_TRANSPORT_UNIX;
     }
 
-
     if (inside_daemon) {
-        if (!conn->uri) {
-            ret = VIR_DRV_OPEN_DECLINED;
-            goto cleanup;
-        }
+        if (!conn->uri)
+            return VIR_DRV_OPEN_DECLINED;
 
-        /* If there's a driver registered we must defer to that.
-         * If there isn't a driver, we must connect in "direct"
-         * mode - see doRemoteOpen.
-         * One exception is if we are trying to connect to an
-         * unknown socket path as that might be proxied to remote
-         * host */
-        if (!conn->uri->server &&
-            virHasDriverForURIScheme(driver) &&
-            !virURICheckUnixSocket(conn->uri)) {
-            ret = VIR_DRV_OPEN_DECLINED;
-            goto cleanup;
+        /* Handle deferring to local drivers if we are dealing with a default
+         * local URI. (Unknown local socket paths may be proxied to a remote
+         * host so they are treated as remote too).
+         *
+         * Deferring to a local driver is needed if:
+         * - the driver is registered in the current daemon
+         * - if we are running monolithic libvirtd, in which case we consider
+         *   even un-registered drivers as local
+         */
+        if (!conn->uri->server && !virURICheckUnixSocket(conn->uri)) {
+            if (virHasDriverForURIScheme(driver))
+                return VIR_DRV_OPEN_DECLINED;
+
+            if (monolithic_daemon)
+                return VIR_DRV_OPEN_DECLINED;
         }
     }
 
     if (!(priv = remoteAllocPrivateData()))
-        goto cleanup;
-
+        return VIR_DRV_OPEN_ERROR;
 
     remoteGetURIDaemonInfo(conn->uri, transport, &rflags);
     if (flags & VIR_CONNECT_RO)
         rflags |= REMOTE_DRIVER_OPEN_RO;
 
     ret = doRemoteOpen(conn, priv, driver, transport, auth, conf, rflags);
-    if (ret != VIR_DRV_OPEN_SUCCESS) {
-        conn->privateData = NULL;
-        remoteDriverUnlock(priv);
-        VIR_FREE(priv);
-    } else {
-        conn->privateData = priv;
-        remoteDriverUnlock(priv);
-    }
+    remoteDriverUnlock(priv);
 
- cleanup:
-    VIR_FREE(driver);
+    if (ret != VIR_DRV_OPEN_SUCCESS)
+        conn->privateData = NULL;
+    else
+        conn->privateData = g_steal_pointer(&priv);
+
     return ret;
 }
 
@@ -5079,7 +5078,7 @@ remoteDomainBuildEventCallbackTunable(virNetClientProgram *prog G_GNUC_UNUSED,
         return;
     }
 
-    event = virDomainEventTunableNewFromDom(dom, params, nparams);
+    event = virDomainEventTunableNewFromDom(dom, &params, nparams);
 
     virObjectUnref(dom);
 

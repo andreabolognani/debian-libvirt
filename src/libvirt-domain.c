@@ -12481,6 +12481,33 @@ virConnectGetDomainCapabilities(virConnectPtr conn,
  *                                                   rate for a virtual cpu as
  *                                                   unsigned long long.
  *
+ * VIR_DOMAIN_STATS_VM:
+ *     Return hypervisor-specific statistics. Note that the naming and meaning
+ *     of the fields is entirely hypervisor dependent.
+ *
+ *     The statistics in this group have the following naming scheme:
+ *
+ *     "vm.$NAME.$TYPE"
+ *
+ *       $NAME - name of the statistics field provided by the hypervisor
+ *
+ *       $TYPE - Type of the value. The following types are returned:
+ *          'cur' - current instant value
+ *          'sum' - aggregate value
+ *          'max' - peak value
+ *
+ *      The returned value may be either an unsigned long long or a boolean.
+ *
+ *     WARNING:
+ *      The stats reported in this group are runtime-collected and
+ *      hypervisor originated, thus fall outside of the usual stable API
+ *      policies of libvirt.
+ *
+ *      Libvirt can't guarantee that the statistics reported from the outside
+ *      source will be present in further versions of the hypervisor, or that
+ *      naming or meaning will stay consistent. Changes to existing fields,
+ *      however, are expected to be rare.
+ *
  * Note that entire stats groups or individual stat fields may be missing from
  * the output in case they are not supported by the given hypervisor, are not
  * applicable for the current state of the guest domain, or their retrieval
@@ -13582,7 +13609,7 @@ virDomainAgentSetResponseTimeout(virDomainPtr domain,
  *
  * virDomainBackupGetXMLDesc() can be called to learn actual
  * values selected.  For more information, see
- * formatcheckpoint.html#BackupAttributes.
+ * https://www.libvirt.org/formatbackup.html#backup-xml
  *
  * The @checkpointXML parameter is optional; if non-NULL, then libvirt
  * behaves as if virDomainCheckpointCreateXML() were called to create

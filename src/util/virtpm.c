@@ -252,8 +252,7 @@ virTPMGetCaps(virTPMBinaryCapsParse capsParse,
 {
     g_autoptr(virCommand) cmd = NULL;
 
-    if (!(cmd = virCommandNew(exec)))
-        return NULL;
+    cmd = virCommandNew(exec);
 
     if (param1)
         virCommandAddArg(cmd, param1);
@@ -345,13 +344,13 @@ virTPMBinaryGetCaps(virTPMBinary binary,
 }
 
 bool
-virTPMSwtpmCapsGet(unsigned int cap)
+virTPMSwtpmCapsGet(virTPMSwtpmFeature cap)
 {
     return virTPMBinaryGetCaps(VIR_TPM_BINARY_SWTPM, cap);
 }
 
 bool
-virTPMSwtpmSetupCapsGet(unsigned int cap)
+virTPMSwtpmSetupCapsGet(virTPMSwtpmSetupFeature cap)
 {
     return virTPMBinaryGetCaps(VIR_TPM_BINARY_SWTPM_SETUP, cap);
 }

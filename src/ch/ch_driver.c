@@ -217,7 +217,7 @@ chDomainCreateXML(virConnectPtr conn,
                                    NULL)))
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virCHProcessStart(driver, vm, VIR_DOMAIN_RUNNING_BOOTED) < 0)
@@ -226,7 +226,7 @@ chDomainCreateXML(virConnectPtr conn,
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     if (vm && !dom) {
@@ -251,12 +251,12 @@ chDomainCreateWithFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainCreateWithFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     ret = virCHProcessStart(driver, vm, VIR_DOMAIN_RUNNING_BOOTED);
 
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -390,7 +390,7 @@ chDomainShutdownFlags(virDomainPtr dom,
     if (virDomainShutdownFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -414,7 +414,7 @@ chDomainShutdownFlags(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -446,7 +446,7 @@ chDomainReboot(virDomainPtr dom, unsigned int flags)
     if (virDomainRebootEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -473,7 +473,7 @@ chDomainReboot(virDomainPtr dom, unsigned int flags)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -495,7 +495,7 @@ chDomainSuspend(virDomainPtr dom)
     if (virDomainSuspendEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -518,7 +518,7 @@ chDomainSuspend(virDomainPtr dom)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -540,7 +540,7 @@ chDomainResume(virDomainPtr dom)
     if (virDomainResumeEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -563,7 +563,7 @@ chDomainResume(virDomainPtr dom)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -594,7 +594,7 @@ chDomainDestroyFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainDestroyFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_DESTROY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_DESTROY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -607,7 +607,7 @@ chDomainDestroyFlags(virDomainPtr dom, unsigned int flags)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -861,6 +861,7 @@ static int chStateCleanup(void)
 
 static int chStateInitialize(bool privileged,
                              const char *root,
+                             bool monolithic G_GNUC_UNUSED,
                              virStateInhibitCallback callback G_GNUC_UNUSED,
                              void *opaque G_GNUC_UNUSED)
 {
@@ -1075,6 +1076,7 @@ chDomainHelperGetVcpus(virDomainObj *vm,
             vcpuinfo->number = i;
             vcpuinfo->state = VIR_VCPU_RUNNING;
             if (virProcessGetStatInfo(&vcpuinfo->cpuTime,
+                                      NULL, NULL,
                                       &vcpuinfo->cpu, NULL,
                                       vm->pid, vcpupid) < 0) {
                 virReportSystemError(errno, "%s",
@@ -1217,7 +1219,7 @@ chDomainPinVcpuFlags(virDomainPtr dom,
     if (virDomainPinVcpuFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
@@ -1253,7 +1255,7 @@ chDomainPinVcpuFlags(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1354,7 +1356,7 @@ chDomainPinEmulator(virDomainPtr dom,
     if (virDomainPinEmulatorEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
@@ -1417,7 +1419,7 @@ chDomainPinEmulator(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1625,7 +1627,7 @@ chDomainSetNumaParameters(virDomainPtr dom,
         }
     }
 
-    if (virCHDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
@@ -1679,7 +1681,7 @@ chDomainSetNumaParameters(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);

@@ -105,6 +105,7 @@ virDomainCapsCPUModelsDispose(void *obj)
     for (i = 0; i < cpuModels->nmodels; i++) {
         g_free(cpuModels->models[i].name);
         g_strfreev(cpuModels->models[i].blockers);
+        g_free(cpuModels->models[i].vendor);
     }
 
     g_free(cpuModels->models);
@@ -155,36 +156,34 @@ virDomainCapsCPUModelsNew(size_t nmodels)
 virDomainCapsCPUModels *
 virDomainCapsCPUModelsCopy(virDomainCapsCPUModels *old)
 {
-    g_autoptr(virDomainCapsCPUModels) cpuModels = NULL;
+    virDomainCapsCPUModels *cpuModels = NULL;
     size_t i;
 
     if (!(cpuModels = virDomainCapsCPUModelsNew(old->nmodels)))
         return NULL;
 
     for (i = 0; i < old->nmodels; i++) {
-        if (virDomainCapsCPUModelsAdd(cpuModels,
-                                      old->models[i].name,
-                                      old->models[i].usable,
-                                      old->models[i].blockers,
-                                      old->models[i].deprecated) < 0)
-            return NULL;
+        virDomainCapsCPUModelsAdd(cpuModels,
+                                  old->models[i].name,
+                                  old->models[i].usable,
+                                  old->models[i].blockers,
+                                  old->models[i].deprecated,
+                                  old->models[i].vendor);
     }
 
-    return g_steal_pointer(&cpuModels);
+    return cpuModels;
 }
 
 
-int
+void
 virDomainCapsCPUModelsAdd(virDomainCapsCPUModels *cpuModels,
                           const char *name,
                           virDomainCapsCPUUsable usable,
                           char **blockers,
-                          bool deprecated)
+                          bool deprecated,
+                          const char *vendor)
 {
-    g_autofree char * nameCopy = NULL;
     virDomainCapsCPUModel *cpu;
-
-    nameCopy = g_strdup(name);
 
     VIR_RESIZE_N(cpuModels->models, cpuModels->nmodels_max,
                  cpuModels->nmodels, 1);
@@ -193,11 +192,10 @@ virDomainCapsCPUModelsAdd(virDomainCapsCPUModels *cpuModels,
     cpuModels->nmodels++;
 
     cpu->usable = usable;
-    cpu->name = g_steal_pointer(&nameCopy);
+    cpu->name = g_strdup(name);
     cpu->blockers = g_strdupv(blockers);
     cpu->deprecated = deprecated;
-
-    return 0;
+    cpu->vendor = g_strdup(vendor);
 }
 
 
@@ -383,6 +381,11 @@ virDomainCapsCPUCustomFormat(virBuffer *buf,
         if (model->deprecated)
             virBufferAddLit(buf, " deprecated='yes'");
 
+        if (model->vendor)
+            virBufferAsprintf(buf, " vendor='%s'", model->vendor);
+        else
+            virBufferAddLit(buf, " vendor='unknown'");
+
         virBufferAsprintf(buf, ">%s</model>\n", model->name);
     }
 
@@ -559,6 +562,30 @@ virDomainCapsDeviceFilesystemFormat(virBuffer *buf,
 }
 
 
+static void
+virDomainCapsDeviceRedirdevFormat(virBuffer *buf,
+                                  const virDomainCapsDeviceRedirdev *redirdev)
+{
+    FORMAT_PROLOGUE(redirdev);
+
+    ENUM_PROCESS(redirdev, bus, virDomainRedirdevBusTypeToString);
+
+    FORMAT_EPILOGUE(redirdev);
+}
+
+
+static void
+virDomainCapsDeviceChannelFormat(virBuffer *buf,
+                                 const virDomainCapsDeviceChannel *channel)
+{
+    FORMAT_PROLOGUE(channel);
+
+    ENUM_PROCESS(channel, type, virDomainChrTypeToString);
+
+    FORMAT_EPILOGUE(channel);
+}
+
+
 /**
  * virDomainCapsFeatureGICFormat:
  * @buf: target buffer
@@ -672,6 +699,8 @@ virDomainCapsFormat(const virDomainCaps *caps)
     virDomainCapsDeviceRNGFormat(&buf, &caps->rng);
     virDomainCapsDeviceFilesystemFormat(&buf, &caps->filesystem);
     virDomainCapsDeviceTPMFormat(&buf, &caps->tpm);
+    virDomainCapsDeviceRedirdevFormat(&buf, &caps->redirdev);
+    virDomainCapsDeviceChannelFormat(&buf, &caps->channel);
 
     virBufferAdjustIndent(&buf, -2);
     virBufferAddLit(&buf, "</devices>\n");

@@ -188,7 +188,7 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    features required by selected firmware. Accepted values are ``bios`` and
    ``efi``.
    The selection process scans for files describing installed firmware images in
-   specified location and uses the most specific one which fulfils domain
+   specified location and uses the most specific one which fulfills domain
    requirements. The locations in order of preference (from generic to most
    specific one) are:
 
@@ -1336,6 +1336,7 @@ following collection of elements. :since:`Since 0.7.5`
      <vendor>Intel</vendor>
      <topology sockets='1' dies='1' cores='2' threads='1'/>
      <cache level='3' mode='emulate'/>
+     <maxphysaddr mode='emulate' bits='42'/>
      <feature policy='disable' name='lahf_lm'/>
    </cpu>
    ...
@@ -1352,6 +1353,7 @@ following collection of elements. :since:`Since 0.7.5`
 
    <cpu mode='host-passthrough' migratable='off'>
      <cache mode='passthrough'/>
+     <maxphysaddr mode='passthrough'/>
      <feature policy='disable' name='lahf_lm'/>
    ...
 
@@ -1509,7 +1511,7 @@ In case no restrictions need to be put on CPU model and its features, a simpler
    rather then trying to mimic the host CPU model.
 
    If an application does not care about a specific CPU, just wants the
-   best featureset without a need for migration compatibility, the
+   best feature set without a need for migration compatibility, the
    ``maximum`` model is a good choice on hypervisors where it is available.
 
 ``model``
@@ -1599,6 +1601,27 @@ In case no restrictions need to be put on CPU model and its features, a simpler
       ``disable``
          The virtual CPU will report no CPU cache of the specified level (or no
          cache at all if the ``level`` attribute is missing).
+
+``maxphysaddr``
+   :since:`Since 8.7.0` the ``maxphysaddr`` element describes the virtual CPU
+   address size in bits. The hypervisor default is used if the element is missing.
+
+   ``mode``
+      This mandatory attribute specifies how the address size is presented. The
+      follow modes are supported:
+
+      ``passthrough``
+         The number of physical address bits reported by the host CPU will be
+         passed through to the virtual CPUs
+      ``emulate``
+         The hypervisor will define a specific value for the number of bits
+         of physical addresses via the ``bits`` attribute, which is mandatory.
+	 The number of bits cannot exceed the number of physical address bits
+	 supported by the hypervisor.
+
+   ``bits``
+      The ``bits`` attribute is mandatory if the ``mode`` attribute is set to
+      ``emulate`` and specifies the virtual CPU address size in bits.
 
 Guest NUMA topology can be specified using the ``numa`` element. :since:`Since
 0.9.8`
@@ -2125,7 +2148,7 @@ are:
 ``nested-hv``
    Configure nested HV availability for pSeries guests. This needs to be enabled
    from the host (L0) in order to be effective; having HV support in the (L1)
-   guest is very desiderable if it's planned to run nested (L2) guests inside
+   guest is very desirable if it's planned to run nested (L2) guests inside
    it, because it will result in those nested guests having much better
    performance than they would when using KVM PR or TCG. Possible values for the
    ``state`` attribute are ``on`` and ``off``. If the attribute is not defined,
@@ -2357,7 +2380,7 @@ event name                  Description                                         
 ``page_faults_min``         the count of minor page faults, that is, where the page was present in the page cache, and therefore the fault avoided loading it from storage, by applications running on the platform ``perf.page_faults_min``
 ``page_faults_maj``         the count of major page faults, that is, where the page was not present in the page cache, and therefore had to be fetched from storage, by applications running on the platform        ``perf.page_faults_maj``
 ``alignment_faults``        the count of alignment faults, that is when the load or store is not aligned properly, by applications running on the platform                                                          ``perf.alignment_faults``
-``emulation_faults``        the count of emulation faults, that is when the kernel traps on unimplemented instrucions and emulates them for user space, by applications running on the platform                     ``perf.emulation_faults``
+``emulation_faults``        the count of emulation faults, that is when the kernel traps on unimplemented instructions and emulates them for user space, by applications running on the platform                     ``perf.emulation_faults``
 =========================== ======================================================================================================================================================================================= ================================
 
 
@@ -3086,7 +3109,7 @@ paravirtualized driver is specified via the ``disk`` element.
       :since:`Throughput limits since 1.2.11 and QEMU 1.7`
 
    ``group_name``
-      The optional ``group_name`` provides the cability to share I/O throttling
+      The optional ``group_name`` provides the ability to share I/O throttling
       quota between multiple drives. This prevents end-users from circumventing
       a hosting provider's throttling policy by splitting 1 large drive in N
       small drives and getting N times the normal throttling quota. Any name may
@@ -5217,6 +5240,44 @@ which the UDP socket packets will originate from the QEMU host. :since:`Since
    </devices>
    ...
 
+Null network interface
+^^^^^^^^^^^^^^^^^^^^^^^
+
+An unconnected network interface sounds pretty pointless, but can show up for
+example with VMWare without any specified network to be connected to.
+:since:`Since 8.7.0`
+
+::
+
+   ...
+   <devices>
+     <interface type='null'>
+       <mac address='52:54:00:22:c9:42'/>
+     </interface>
+   </devices>
+   ...
+
+VMWare Distributed Switch
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Interface can be connected to VMWare Distributed Switch, but since libvirt
+cannot provide information about that architecture, the information presented
+here is only what can be gathered from the VM configuration.  VMs with this
+interface type can be created, so that editing of the XML works properly,
+however libvirt cannot guarantee that any changes in these parameters will be
+valid in the hypervisor. :since:`Since 8.7.0`
+
+::
+
+   ...
+   <devices>
+     <interface type='vds'>
+       <mac address='52:54:00:22:c9:42'/>
+       <source switchid='12345678-1234-1234-1234-123456789abc' portid='6' portgroupid='pg-4321' connectionid='12345'/>
+     </interface>
+   </devices>
+   ...
+
 Setting the NIC model
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -5609,7 +5670,7 @@ be the "native" VLAN for this interface, and the ``nativeMode`` attribute
 determines whether or not traffic for that VLAN will be tagged.
 
 
-Isolating guests's network traffic from each other
+Isolating guests' network traffic from each other
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ::
@@ -7723,7 +7784,7 @@ Example: usage of the TPM Emulator
    active PCR banks upon VM start but leave them at their last configuration.
    This attribute requires that swtpm_setup v0.7 or later is installed
    and may not have any effect otherwise. The selection of PCR banks only works
-   with the ``emulator`` backend. since:`Since 7.10.0`
+   with the ``emulator`` backend. :since:`Since 7.10.0`
 
 ``encryption``
    The ``encryption`` element allows the state of a TPM emulator to be
@@ -8318,7 +8379,7 @@ spec <https://support.amd.com/TechDocs/55766_SEV-KM_API_Specification.pdf>`__
    capabilities.
 ``reducedPhysBits``
    The required ``reducedPhysBits`` element provides the physical address bit
-   reducation. Similar to ``cbitpos`` the value of ``reduced-phys-bit`` is
+   reduction. Similar to ``cbitpos`` the value of ``reduced-phys-bit`` is
    hypervisor dependent and can be obtained through the ``sev`` element from the
    domain capabilities.
 ``policy``

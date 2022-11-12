@@ -476,11 +476,13 @@ valid_path(const char *path, const bool readonly)
         "/initrd",
         "/initrd.img",
         "/usr/share/edk2/",
-        "/usr/share/OVMF/",              /* for OVMF images */
-        "/usr/share/ovmf/",              /* for OVMF images */
-        "/usr/share/AAVMF/",             /* for AAVMF images */
-        "/usr/share/qemu-efi/",          /* for AAVMF images */
-        "/usr/share/qemu-efi-aarch64/"   /* for AAVMF images */
+        "/usr/share/OVMF/",                  /* for OVMF images */
+        "/usr/share/ovmf/",                  /* for OVMF images */
+        "/usr/share/AAVMF/",                 /* for AAVMF images */
+        "/usr/share/qemu-efi/",              /* for AAVMF images */
+        "/usr/share/qemu-efi-aarch64/",      /* for AAVMF images */
+        "/usr/lib/u-boot/",                  /* u-boot loaders for qemu */
+        "/usr/lib/riscv64-linux-gnu/opensbi" /* RISC-V SBI implementation */
     };
     /* override the above with these */
     const char * const override[] = {
@@ -571,13 +573,8 @@ caps_mockup(vahControl * ctl, const char *xmlStr)
     g_autoptr(xmlXPathContext) ctxt = NULL;
     char *arch;
 
-    if (!(xml = virXMLParseStringCtxt(xmlStr, _("(domain_definition)"),
-                                      &ctxt))) {
-        return -1;
-    }
-
-    if (!virXMLNodeNameEqual(ctxt->node, "domain")) {
-        vah_error(NULL, 0, _("unexpected root element, expecting <domain>"));
+    if (!(xml = virXMLParse(NULL, xmlStr, _("(domain_definition)"),
+                            "domain", &ctxt, NULL, false))) {
         return -1;
     }
 
@@ -632,7 +629,7 @@ get_definition(vahControl * ctl, const char *xmlStr)
     }
 
     if (!(ctl->xmlopt = virDomainXMLOptionNew(&virAAHelperDomainDefParserConfig,
-                                              NULL, NULL, NULL, NULL))) {
+                                              NULL, NULL, NULL, NULL, NULL))) {
         vah_error(ctl, 0, _("Failed to create XML config object"));
         return -1;
     }
@@ -1212,7 +1209,7 @@ get_files(vahControl * ctl)
 
             shortName = virDomainDefGetShortName(ctl->def);
 
-            switch (ctl->def->tpms[i]->version) {
+            switch (ctl->def->tpms[i]->data.emulator.version) {
             case VIR_DOMAIN_TPM_VERSION_1_2:
                 tpmpath = "tpm1.2";
                 break;

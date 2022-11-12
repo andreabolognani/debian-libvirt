@@ -62,7 +62,7 @@ There are a number of locks on various objects
 
     Agent job condition is then used when thread wishes to talk to qemu
     agent monitor. It is possible to acquire just agent job
-    (``qemuDomainObjBeginAgentJob``), or only normal job (``qemuDomainObjBeginJob``)
+    (``virDomainObjBeginAgentJob``), or only normal job (``virDomainObjBeginJob``)
     but not both at the same time. Holding an agent job and a normal job would
     allow an unresponsive or malicious agent to block normal libvirt API and
     potentially result in a denial of service. Which type of job to grab
@@ -114,7 +114,7 @@ To lock the ``virDomainObj``
 
 To acquire the normal job condition
 
-  ``qemuDomainObjBeginJob()``
+  ``virDomainObjBeginJob()``
     - Waits until the job is compatible with current async job or no
       async job is running
     - Waits for ``job.cond`` condition ``job.active != 0`` using ``virDomainObj``
@@ -123,25 +123,25 @@ To acquire the normal job condition
       isn't
     - Sets ``job.active`` to the job type
 
-  ``qemuDomainObjEndJob()``
+  ``virDomainObjEndJob()``
     - Sets job.active to 0
     - Signals on job.cond condition
 
 
 To acquire the agent job condition
 
-  ``qemuDomainObjBeginAgentJob()``
+  ``virDomainObjBeginAgentJob()``
     - Waits until there is no other agent job set
     - Sets ``job.agentActive`` to the job type
 
-  ``qemuDomainObjEndAgentJob()``
+  ``virDomainObjEndAgentJob()``
     - Sets ``job.agentActive`` to 0
     - Signals on ``job.cond`` condition
 
 
 To acquire the asynchronous job condition
 
-  ``qemuDomainObjBeginAsyncJob()``
+  ``virDomainObjBeginAsyncJob()``
     - Waits until no async job is running
     - Waits for ``job.cond`` condition ``job.active != 0`` using ``virDomainObj``
       mutex
@@ -149,7 +149,7 @@ To acquire the asynchronous job condition
       and repeats waiting in that case
     - Sets ``job.asyncJob`` to the asynchronous job type
 
-  ``qemuDomainObjEndAsyncJob()``
+  ``virDomainObjEndAsyncJob()``
     - Sets ``job.asyncJob`` to 0
     - Broadcasts on ``job.asyncCond`` condition
 
@@ -214,11 +214,11 @@ Design patterns
 
      obj = qemuDomObjFromDomain(dom);
 
-     qemuDomainObjBeginJob(obj, VIR_JOB_TYPE);
+     virDomainObjBeginJob(obj, VIR_JOB_TYPE);
 
      ...do work...
 
-     qemuDomainObjEndJob(obj);
+     virDomainObjEndJob(obj);
 
      virDomainObjEndAPI(&obj);
 
@@ -230,7 +230,7 @@ Design patterns
 
      obj = qemuDomObjFromDomain(dom);
 
-     qemuDomainObjBeginJob(obj, VIR_JOB_TYPE);
+     virDomainObjBeginJob(obj, VIR_JOB_TYPE);
 
      ...do prep work...
 
@@ -242,7 +242,7 @@ Design patterns
 
      ...do final work...
 
-     qemuDomainObjEndJob(obj);
+     virDomainObjEndJob(obj);
      virDomainObjEndAPI(&obj);
 
 
@@ -253,7 +253,7 @@ Design patterns
 
      obj = qemuDomObjFromDomain(dom);
 
-     qemuDomainObjBeginAgentJob(obj, VIR_AGENT_JOB_TYPE);
+     virDomainObjBeginAgentJob(obj, VIR_AGENT_JOB_TYPE);
 
      ...do prep work...
 
@@ -266,7 +266,7 @@ Design patterns
 
      ...do final work...
 
-     qemuDomainObjEndAgentJob(obj);
+     virDomainObjEndAgentJob(obj);
      virDomainObjEndAPI(&obj);
 
 
@@ -277,7 +277,7 @@ Design patterns
 
      obj = qemuDomObjFromDomain(dom);
 
-     qemuDomainObjBeginAsyncJob(obj, VIR_ASYNC_JOB_TYPE);
+     virDomainObjBeginAsyncJob(obj, VIR_ASYNC_JOB_TYPE);
      qemuDomainObjSetAsyncJobMask(obj, allowedJobs);
 
      ...do prep work...
@@ -306,7 +306,7 @@ Design patterns
 
      ...do final work...
 
-     qemuDomainObjEndAsyncJob(obj);
+     virDomainObjEndAsyncJob(obj);
      virDomainObjEndAPI(&obj);
 
 
@@ -317,7 +317,7 @@ Design patterns
 
      obj = qemuDomObjFromDomain(dom);
 
-     qemuDomainObjBeginAsyncJob(obj, VIR_ASYNC_JOB_TYPE);
+     virDomainObjBeginAsyncJob(obj, VIR_ASYNC_JOB_TYPE);
 
      ...do prep work...
 
@@ -334,5 +334,5 @@ Design patterns
 
      ...do final work...
 
-     qemuDomainObjEndAsyncJob(obj);
+     virDomainObjEndAsyncJob(obj);
      virDomainObjEndAPI(&obj);

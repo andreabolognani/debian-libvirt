@@ -10,7 +10,6 @@
   <flag name='hda-duplex'/>
   <flag name='ccid-emulated'/>
   <flag name='ccid-passthru'/>
-  <flag name='virtio-tx-alg'/>
   <flag name='piix3-usb-uhci'/>
   <flag name='piix4-usb-uhci'/>
   <flag name='usb-ehci'/>
@@ -25,7 +24,6 @@
   <flag name='scsi-disk.channel'/>
   <flag name='scsi-block'/>
   <flag name='hda-micro'/>
-  <flag name='dump-guest-memory'/>
   <flag name='nec-usb-xhci'/>
   <flag name='lsi'/>
   <flag name='virtio-scsi-pci'/>
@@ -42,7 +40,6 @@
   <flag name='cirrus-vga'/>
   <flag name='vmware-svga'/>
   <flag name='usb-serial'/>
-  <flag name='nbd-server'/>
   <flag name='virtio-rng'/>
   <flag name='rng-random'/>
   <flag name='rng-egd'/>
@@ -51,10 +48,7 @@
   <flag name='tpm-tis'/>
   <flag name='pci-bridge'/>
   <flag name='vfio-pci'/>
-  <flag name='drive-discard'/>
   <flag name='dmi-to-pci-bridge'/>
-  <flag name='i440fx-pci-hole64-size'/>
-  <flag name='q35-pci-hole64-size'/>
   <flag name='usb-storage'/>
   <flag name='usb-storage.removable'/>
   <flag name='virtio-mmio'/>
@@ -62,8 +56,6 @@
   <flag name='kvm-pit-lost-tick-policy'/>
   <flag name='pvpanic'/>
   <flag name='usb-kbd'/>
-  <flag name='active-commit'/>
-  <flag name='change-backing-file'/>
   <flag name='memory-backend-ram'/>
   <flag name='numa'/>
   <flag name='memory-backend-file'/>
@@ -90,7 +82,6 @@
   <flag name='virtio-mouse'/>
   <flag name='virtio-tablet'/>
   <flag name='virtio-input-host'/>
-  <flag name='chardev-file-append'/>
   <flag name='ich9-disable-s3'/>
   <flag name='ich9-disable-s4'/>
   <flag name='vserport-change-event'/>
@@ -98,20 +89,14 @@
   <flag name='mptsas1068'/>
   <flag name='spice-gl'/>
   <flag name='qxl.vram64_size_mb'/>
-  <flag name='chardev-logfile'/>
   <flag name='pxb'/>
   <flag name='pxb-pcie'/>
-  <flag name='nec-usb-xhci-ports'/>
-  <flag name='virtio-scsi-pci.iothread'/>
-  <flag name='drive-detect-zeroes'/>
   <flag name='intel-iommu'/>
-  <flag name='virtio-pci-disable-legacy'/>
   <flag name='query-hotpluggable-cpus'/>
   <flag name='virtio-net.rx_queue_size'/>
   <flag name='virtio-vga'/>
   <flag name='ivshmem-plain'/>
   <flag name='ivshmem-doorbell'/>
-  <flag name='gluster.debug_level'/>
   <flag name='vhost-scsi'/>
   <flag name='query-cpu-model-expansion'/>
   <flag name='virtio-net.host_mtu'/>
@@ -119,8 +104,6 @@
   <flag name='nvdimm'/>
   <flag name='pcie-root-port'/>
   <flag name='query-cpu-definitions'/>
-  <flag name='block-write-threshold'/>
-  <flag name='query-named-block-nodes'/>
   <flag name='cpu-cache'/>
   <flag name='qemu-xhci'/>
   <flag name='intel-iommu.intremap'/>
@@ -134,9 +117,7 @@
   <flag name='disk-share-rw'/>
   <flag name='isa-serial'/>
   <flag name='dump-completed'/>
-  <flag name='qcow2-luks'/>
   <flag name='pcie-pci-bridge'/>
-  <flag name='query-cpus-fast'/>
   <flag name='disk-write-cache'/>
   <flag name='nbd-tls'/>
   <flag name='tpm-crb'/>
@@ -145,7 +126,6 @@
   <flag name='memory-backend-file.discard-data'/>
   <flag name='screendump_device'/>
   <flag name='hda-output'/>
-  <flag name='blockdev-del'/>
   <flag name='vmgenid'/>
   <flag name='vhost-vsock'/>
   <flag name='tpm-emulator'/>
@@ -153,7 +133,6 @@
   <flag name='mch.extended-tseg-mbytes'/>
   <flag name='egl-headless'/>
   <flag name='vfio-pci.display'/>
-  <flag name='blockdev'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
   <flag name='iothread.poll-max-ns'/>
@@ -161,7 +140,6 @@
   <flag name='memory-backend-file.align'/>
   <flag name='memory-backend-file.pmem'/>
   <flag name='nvdimm.unarmed'/>
-  <flag name='scsi-disk.device_id'/>
   <flag name='virtio-pci-non-transitional'/>
   <flag name='query-current-machine'/>
   <flag name='bitmap-merge'/>
@@ -175,8 +153,6 @@
   <flag name='vhost-user-gpu'/>
   <flag name='vhost-user-vga'/>
   <flag name='ramfb'/>
-  <flag name='blockdev-file-dynamic-auto-read-only'/>
-  <flag name='savevm-monitor-nodes'/>
   <flag name='drive-nvme'/>
   <flag name='smp-dies'/>
   <flag name='i8042'/>
@@ -186,7 +162,6 @@
   <flag name='query-named-block-nodes.flat'/>
   <flag name='blockdev-snapshot.allow-write-only-overlay'/>
   <flag name='fsdev.multidevs'/>
-  <flag name='virtio.packed'/>
   <flag name='pcie-root-port.hotplug'/>
   <flag name='aio.io_uring'/>
   <flag name='tcg'/>
@@ -195,7 +170,6 @@
   <flag name='cpu.migratable'/>
   <flag name='intel-iommu.aw-bits'/>
   <flag name='numa.hmat'/>
-  <flag name='blockdev-hostdev-scsi'/>
   <flag name='usb-host.hostdevice'/>
   <flag name='virtio-balloon.free-page-reporting'/>
   <flag name='block-export-add'/>
@@ -206,8 +180,6 @@
   <flag name='vhost-user-blk'/>
   <flag name='cpu-max'/>
   <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
-  <flag name='audiodev'/>
-  <flag name='blockdev-backup'/>
   <flag name='rotation-rate'/>
   <flag name='input-linux'/>
   <flag name='query-display-options'/>

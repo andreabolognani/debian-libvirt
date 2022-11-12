@@ -570,6 +570,38 @@ virHostCPUParseFrequency(FILE *cpuinfo,
 }
 
 
+static int
+virHostCPUParsePhysAddrSize(FILE *cpuinfo, unsigned int *addrsz)
+{
+    char line[1024];
+
+    while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+        char *str;
+        char *endptr;
+
+        if (!(str = STRSKIP(line, "address sizes")))
+            continue;
+
+        /* Skip the colon. */
+        if ((str = strstr(str, ":")) == NULL)
+            goto error;
+        str++;
+
+        /* Parse the number of physical address bits */
+        if (virStrToLong_ui(str, &endptr, 10, addrsz) < 0)
+            goto error;
+
+        return 0;
+    }
+
+ error:
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("Missing or invalid CPU address size in %s"),
+                   CPUINFO_PATH);
+    return -1;
+}
+
+
 int
 virHostCPUGetInfoPopulateLinux(FILE *cpuinfo,
                                virArch arch,
@@ -1255,25 +1287,22 @@ virHostCPUGetMSRFromKVM(unsigned long index,
                         uint64_t *result)
 {
     VIR_AUTOCLOSE fd = -1;
-    struct {
-        struct kvm_msrs header;
-        struct kvm_msr_entry entry;
-    } msr = {
-        .header = { .nmsrs = 1 },
-        .entry = { .index = index },
-    };
+    g_autofree struct kvm_msrs *msr = g_malloc0(sizeof(struct kvm_msrs) +
+                                                sizeof(struct kvm_msr_entry));
+    msr->nmsrs = 1;
+    msr->entries[0].index = index;
 
     if ((fd = open(KVM_DEVICE, O_RDONLY)) < 0) {
         virReportSystemError(errno, _("Unable to open %s"), KVM_DEVICE);
         return -1;
     }
 
-    if (ioctl(fd, KVM_GET_MSRS, &msr) < 0) {
+    if (ioctl(fd, KVM_GET_MSRS, msr) < 0) {
         VIR_DEBUG("Cannot get MSR 0x%lx from KVM", index);
         return 1;
     }
 
-    *result = msr.entry.data;
+    *result = msr->entries[0].data;
     return 0;
 }
 
@@ -1616,6 +1645,20 @@ virHostCPUGetSignature(char **signature)
     return virHostCPUReadSignature(virArchFromHost(), cpuinfo, signature);
 }
 
+int
+virHostCPUGetPhysAddrSize(unsigned int *size)
+{
+    g_autoptr(FILE) cpuinfo = NULL;
+
+    if (!(cpuinfo = fopen(CPUINFO_PATH, "r"))) {
+        virReportSystemError(errno, _("Failed to open cpuinfo file '%s'"),
+                             CPUINFO_PATH);
+        return -1;
+    }
+
+    return virHostCPUParsePhysAddrSize(cpuinfo, size);
+}
+
 #else
 
 int
@@ -1623,6 +1666,13 @@ virHostCPUGetSignature(char **signature)
 {
     *signature = NULL;
     return 0;
+}
+
+int
+virHostCPUGetPhysAddrSize(unsigned int *size G_GNUC_UNUSED)
+{
+    errno = ENOSYS;
+    return -1;
 }
 
 #endif /* __linux__ */
