@@ -37,10 +37,10 @@ index 8ab5478..dd25c7c 100644
  ExecReload=/bin/kill -USR1 $MAINPID
  # Losing the logs is a really bad thing that will
 diff --git a/src/remote/libvirtd.service.in b/src/remote/libvirtd.service.in
-index 5d4d412..6d4b6b2 100644
+index 954df5d..43eb169 100644
 --- a/src/remote/libvirtd.service.in
 +++ b/src/remote/libvirtd.service.in
-@@ -29,7 +29,7 @@ Documentation=https://libvirt.org
+@@ -28,7 +28,7 @@ Documentation=https://libvirt.org
  [Service]
  Type=notify
  Environment=LIBVIRTD_ARGS="--timeout 120"
@@ -50,10 +50,10 @@ index 5d4d412..6d4b6b2 100644
  ExecReload=/bin/kill -HUP $MAINPID
  KillMode=process
 diff --git a/tools/libvirt-guests.service.in b/tools/libvirt-guests.service.in
-index 3cf6476..b699081 100644
+index 1c569c3..b98e58a 100644
 --- a/tools/libvirt-guests.service.in
 +++ b/tools/libvirt-guests.service.in
-@@ -20,7 +20,7 @@ Documentation=man:libvirt-guests(8)
+@@ -14,7 +14,7 @@ Documentation=man:libvirt-guests(8)
  Documentation=https://libvirt.org
  
  [Service]

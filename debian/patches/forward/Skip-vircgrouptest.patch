@@ -9,7 +9,7 @@ without sysfs mounted.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/tests/vircgrouptest.c b/tests/vircgrouptest.c
-index e29bc09..969bed0 100644
+index 848a9c7..af6aabf 100644
 --- a/tests/vircgrouptest.c
 +++ b/tests/vircgrouptest.c
 @@ -20,7 +20,7 @@
