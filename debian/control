@@ -50,6 +50,7 @@ Build-Depends:
  libyajl-dev,
  lvm2 [linux-any],
  meson,
+ mount,
  nfs-common:native,
  numad:native [linux-any],
  open-iscsi [linux-any],
@@ -126,6 +127,7 @@ Recommends:
  libvirt-daemon-driver-xen (= ${binary:Version}),
  libxml2-utils,
  lvm2 [linux-any],
+ mount,
  netcat-openbsd,
  qemu-kvm | qemu-system,
 Suggests:
