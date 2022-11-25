@@ -170,6 +170,9 @@ Breaks:
 Replaces:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon (<< 6.0.0-1~),
+Recommends:
+ swtpm,
+ swtpm-tools,
 Description: Virtualization daemon QEMU connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
