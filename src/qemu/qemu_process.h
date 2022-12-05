@@ -65,7 +65,7 @@ void qemuProcessIncomingDefFree(qemuProcessIncomingDef *inc);
 
 int qemuProcessBeginJob(virDomainObj *vm,
                         virDomainJobOperation operation,
-                        unsigned long apiFlags);
+                        unsigned int apiFlags);
 void qemuProcessEndJob(virDomainObj *vm);
 
 typedef enum {
@@ -122,6 +122,8 @@ int qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
 int qemuProcessPrepareHost(virQEMUDriver *driver,
                            virDomainObj *vm,
                            unsigned int flags);
+
+int qemuProcessDeleteThreadContext(virDomainObj *vm);
 
 int qemuProcessLaunch(virConnectPtr conn,
                       virQEMUDriver *driver,

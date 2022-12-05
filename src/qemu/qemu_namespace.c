@@ -154,12 +154,24 @@ qemuDomainGetPreservedMounts(virQEMUDriverConfig *cfg,
     for (i = 1; i < nmounts; i++) {
         size_t j = i + 1;
 
+        /* If we looked into mount table of already running VM,
+         * we might have found /dev twice. Remove the other
+         * occurrence as it would jeopardize the rest of the prune
+         * algorithm.
+         */
+        if (STREQ(mounts[i], "/dev")) {
+            VIR_FREE(mounts[i]);
+            VIR_DELETE_ELEMENT_INPLACE(mounts, i, nmounts);
+            continue;
+        }
+
         while (j < nmounts) {
             char *c = STRSKIP(mounts[j], mounts[i]);
 
             if (c && (*c == '/' || *c == '\0')) {
                 VIR_DEBUG("Dropping path %s because of %s", mounts[j], mounts[i]);
-                VIR_DELETE_ELEMENT(mounts, j, nmounts);
+                VIR_FREE(mounts[j]);
+                VIR_DELETE_ELEMENT_INPLACE(mounts, j, nmounts);
             } else {
                 j++;
             }
@@ -358,11 +370,23 @@ static int
 qemuDomainSetupMemory(virDomainMemoryDef *mem,
                       GSList **paths)
 {
-    if (mem->model != VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
-        mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM)
-        return 0;
+    switch (mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        *paths = g_slist_prepend(*paths, g_strdup(mem->nvdimmPath));
+        break;
 
-    *paths = g_slist_prepend(*paths, g_strdup(mem->nvdimmPath));
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        *paths = g_slist_prepend(*paths, g_strdup(QEMU_DEV_SGX_VEPVC));
+        *paths = g_slist_prepend(*paths, g_strdup(QEMU_DEV_SGX_PROVISION));
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
 
     return 0;
 }

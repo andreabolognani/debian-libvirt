@@ -185,7 +185,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 100 */
     QEMU_CAPS_VIRTIO_SCSI, /* -device virtio-scsi-* */
-    QEMU_CAPS_BLOCKIO, /* -device ...logical_block_size & co */
+    X_QEMU_CAPS_BLOCKIO, /* -device ...logical_block_size & co */
     QEMU_CAPS_PIIX_DISABLE_S3, /* -M pc S3 BIOS Advertisement on/off */
     QEMU_CAPS_PIIX_DISABLE_S4, /* -M pc S4 BIOS Advertisement on/off */
     QEMU_CAPS_USB_REDIR_FILTER, /* usb-redir.filter */
@@ -278,11 +278,11 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_MSG_TIMESTAMP, /* -msg timestamp */
     X_QEMU_CAPS_ACTIVE_COMMIT, /* block-commit works without 'top' */
     X_QEMU_CAPS_CHANGE_BACKING_FILE, /* change name of backing file in metadata */
-    QEMU_CAPS_OBJECT_MEMORY_RAM, /* -object memory-backend-ram */
-    QEMU_CAPS_NUMA, /* newer -numa handling with disjoint cpu ranges */
+    X_QEMU_CAPS_OBJECT_MEMORY_RAM, /* -object memory-backend-ram */
+    X_QEMU_CAPS_NUMA, /* newer -numa handling with disjoint cpu ranges */
 
     /* 170 */
-    QEMU_CAPS_OBJECT_MEMORY_FILE, /* -object memory-backend-file */
+    X_QEMU_CAPS_OBJECT_MEMORY_FILE, /* -object memory-backend-file */
     QEMU_CAPS_OBJECT_USB_AUDIO, /* usb-audio device support */
     QEMU_CAPS_RTC_RESET_REINJECTION, /* rtc-reset-reinjection monitor command */
     X_QEMU_CAPS_SPLASH_TIMEOUT, /* -boot splash-time */
@@ -334,7 +334,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_CHARDEV_FILE_APPEND, /* -chardev file,append=on|off */
     QEMU_CAPS_ICH9_DISABLE_S3, /* -M q35 S3 BIOS Advertisement on/off */
     QEMU_CAPS_ICH9_DISABLE_S4, /* -M q35 S4 BIOS Advertisement on/off */
-    QEMU_CAPS_VSERPORT_CHANGE, /* VSERPORT_CHANGE event */
+    X_QEMU_CAPS_VSERPORT_CHANGE, /* VSERPORT_CHANGE event */
     QEMU_CAPS_VIRTIO_BALLOON_AUTODEFLATE, /* virtio-balloon-{device,pci,ccw}.
                                            * deflate-on-oom */
 
@@ -370,7 +370,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_MACHINE_SMM_OPT, /* -machine xxx,smm=on/off/auto */
     X_QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY, /* virtio-*pci.disable-legacy */
     QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS, /* qmp command query-hotpluggable-cpus */
-    QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE, /* virtio-net-*.rx_queue_size */
+    X_QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE, /* virtio-net-*.rx_queue_size */
     X_QEMU_CAPS_MACHINE_IOMMU, /* -machine iommu=on */
 
     /* 235 */
@@ -385,7 +385,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_VHOST_SCSI, /* -device vhost-scsi-{ccw,pci} */
     X_QEMU_CAPS_DRIVE_IOTUNE_GROUP, /* -drive throttling.group=<name> */
     QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION, /* qmp query-cpu-model-expansion */
-    QEMU_CAPS_VIRTIO_NET_HOST_MTU, /* virtio-net-*.host_mtu */
+    X_QEMU_CAPS_VIRTIO_NET_HOST_MTU, /* virtio-net-*.host_mtu */
 
     /* 245 */
     QEMU_CAPS_SPICE_RENDERNODE, /* -spice rendernode */
@@ -416,11 +416,11 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_VNC_MULTI_SERVERS, /* -vnc vnc=unix:/path */
 
     /* 265 */
-    QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, /* virtio-net-*.tx_queue_size */
+    X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, /* virtio-net-*.tx_queue_size */
     QEMU_CAPS_CHARDEV_RECONNECT, /* -chardev reconnect */
     X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS, /* -device virtio-(vga|gpu-*),max-outputs= */
     QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
-    QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
+    X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
 
     /* 270 */
     X_QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT, /* -machine pseries,resize-hpt */
@@ -430,14 +430,14 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_NUMA_DIST, /* -numa dist */
 
     /* 275 */
-    QEMU_CAPS_DISK_SHARE_RW, /* share-rw=on for concurrent disk access */
+    X_QEMU_CAPS_DISK_SHARE_RW, /* share-rw=on for concurrent disk access */
     X_QEMU_CAPS_ISCSI_PASSWORD_SECRET, /* -drive file.driver=iscsi,...,password-secret= */
     QEMU_CAPS_DEVICE_ISA_SERIAL, /* -device isa-serial */
     QEMU_CAPS_DEVICE_PL011, /* -device pl011 (not user-instantiable) */
     X_QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT, /* -machine pseries,max-cpu-compat= */
 
     /* 280 */
-    QEMU_CAPS_DUMP_COMPLETED, /* DUMP_COMPLETED event */
+    X_QEMU_CAPS_DUMP_COMPLETED, /* DUMP_COMPLETED event */
     QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW, /* -device virtio-gpu-ccw */
     QEMU_CAPS_DEVICE_VIRTIO_KEYBOARD_CCW, /* -device virtio-keyboard-ccw */
     QEMU_CAPS_DEVICE_VIRTIO_MOUSE_CCW, /* -device virtio-mouse-ccw */
@@ -448,14 +448,14 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_PCIE_PCI_BRIDGE, /* -device pcie-pci-bridge */
     X_QEMU_CAPS_SECCOMP_BLACKLIST, /* -sandbox.elevateprivileges */
     X_QEMU_CAPS_QUERY_CPUS_FAST, /* query-cpus-fast command */
-    QEMU_CAPS_DISK_WRITE_CACHE, /* qemu block frontends support write-cache param */
+    X_QEMU_CAPS_DISK_WRITE_CACHE, /* qemu block frontends support write-cache param */
 
     /* 290 */
     QEMU_CAPS_NBD_TLS, /* NBD server supports TLS transport */
     QEMU_CAPS_DEVICE_TPM_CRB, /* -device tpm-crb */
     QEMU_CAPS_PR_MANAGER_HELPER, /* -object pr-manager-helper */
-    QEMU_CAPS_QOM_LIST_PROPERTIES, /* qom-list-properties monitor command */
-    QEMU_CAPS_OBJECT_MEMORY_FILE_DISCARD, /* -object memory-backend-file,discard-data */
+    X_QEMU_CAPS_QOM_LIST_PROPERTIES, /* qom-list-properties monitor command */
+    X_QEMU_CAPS_OBJECT_MEMORY_FILE_DISCARD, /* -object memory-backend-file,discard-data */
 
     /* 295 */
     X_QEMU_CAPS_CCW, /* -device virtual-css-bridge */
@@ -495,7 +495,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 320 */
     QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV, /* -machine pseries.cap-nested-hv */
     QEMU_CAPS_EGL_HEADLESS_RENDERNODE, /* -display egl-headless,rendernode= */
-    QEMU_CAPS_OBJECT_MEMORY_FILE_ALIGN, /* -object memory-backend-file,align= */
+    X_QEMU_CAPS_OBJECT_MEMORY_FILE_ALIGN, /* -object memory-backend-file,align= */
     QEMU_CAPS_OBJECT_MEMORY_FILE_PMEM, /* -object memory-backend-file,pmem= */
     QEMU_CAPS_DEVICE_NVDIMM_UNARMED, /* -device nvdimm,unarmed= */
 
@@ -503,11 +503,11 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_SCSI_DISK_DEVICE_ID, /* 'device_id' property of scsi disk */
     QEMU_CAPS_VIRTIO_PCI_TRANSITIONAL, /* virtio *-pci-{non-}transitional devices */
     X_QEMU_CAPS_OVERCOMMIT, /* -overcommit */
-    QEMU_CAPS_QUERY_CURRENT_MACHINE, /* query-current-machine command */
+    X_QEMU_CAPS_QUERY_CURRENT_MACHINE, /* query-current-machine command */
     QEMU_CAPS_MACHINE_VIRT_IOMMU, /* -machine virt,iommu */
 
     /* 330 */
-    QEMU_CAPS_BITMAP_MERGE, /* block-dirty-bitmap-merge */
+    X_QEMU_CAPS_BITMAP_MERGE, /* block-dirty-bitmap-merge */
     QEMU_CAPS_NBD_BITMAP, /* nbd-server-add supports bitmap */
     QEMU_CAPS_X86_MAX_CPU, /* max-x86_64-cpu type exists */
     QEMU_CAPS_CPU_UNAVAILABLE_FEATURES, /* "unavailable-features" CPU property */
@@ -537,7 +537,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 350 */
     QEMU_CAPS_DEVICE_I8042, /* PS/2 controller */
     QEMU_CAPS_OBJECT_RNG_BUILTIN, /* -object rng-builtin */
-    QEMU_CAPS_VIRTIO_NET_FAILOVER, /* virtio-net-*.failover */
+    X_QEMU_CAPS_VIRTIO_NET_FAILOVER, /* virtio-net-*.failover */
     QEMU_CAPS_DEVICE_TPM_SPAPR, /* -device tpm-spapr */
     QEMU_CAPS_CPU_KVM_NO_ADJVTIME, /* cpu.kvm-no-adjvtime */
 
@@ -613,7 +613,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 405 */
     QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT, /* -machine confidential-guest-support */
-    QEMU_CAPS_QUERY_DISPLAY_OPTIONS, /* 'query-display-options' qmp command present */
+    X_QEMU_CAPS_QUERY_DISPLAY_OPTIONS, /* 'query-display-options' qmp command present */
     QEMU_CAPS_S390_PV_GUEST, /* -object s390-pv-guest,... */
     QEMU_CAPS_SET_ACTION, /* 'set-action' QMP command */
     QEMU_CAPS_VIRTIO_BLK_QUEUE_SIZE, /* virtio-blk-*.queue-size */
@@ -656,6 +656,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 435 */
     QEMU_CAPS_QUERY_STATS,  /* accepts query-stats */
     QEMU_CAPS_QUERY_STATS_SCHEMAS,  /* accepts query-stats-schemas */
+    QEMU_CAPS_SGX_EPC, /* -object sgx-epc,... */
+    QEMU_CAPS_THREAD_CONTEXT, /* -object thread-context */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -858,6 +860,9 @@ virQEMUCapsCPUFeatureFromQEMUInPlace(virArch arch,
 
 virSEVCapability *
 virQEMUCapsGetSEVCapabilities(virQEMUCaps *qemuCaps);
+
+virSGXCapability *
+virQEMUCapsGetSGXCapabilities(virQEMUCaps *qemuCaps);
 
 bool
 virQEMUCapsGetKVMSupportsSecureGuest(virQEMUCaps *qemuCaps) G_NO_INLINE;

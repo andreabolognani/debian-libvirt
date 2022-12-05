@@ -226,18 +226,13 @@ virDomainNumatuneParseXML(virDomainNuma *numa,
 {
     g_autofree char *modestr = NULL;
     int mode = -1;
-    int n = 0;
     g_autofree char *placementstr = NULL;
     int placement = -1;
     g_autofree char *nodesetstr = NULL;
     g_autoptr(virBitmap) nodeset = NULL;
     xmlNodePtr node = NULL;
 
-    if (virXPathInt("count(./numatune)", ctxt, &n) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract numatune nodes"));
-        return -1;
-    } else if (n > 1) {
+    if (virXPathBoolean("count(./numatune) > 1", ctxt) == 1) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("only one numatune is supported"));
         return -1;
@@ -1770,7 +1765,7 @@ virNumaCacheFormat(virBuffer *buf,
         }
 
         virBufferAsprintf(&childBuf,
-                          "<size value='%u' unit='KiB'/>\n",
+                          "<size value='%llu' unit='KiB'/>\n",
                           cache->size);
 
         if (cache->line) {

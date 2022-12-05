@@ -105,8 +105,7 @@ GHashTable *
 qemuMonitorJSONBlockGetNamedNodeDataJSON(virJSONValue *nodes);
 
 GHashTable *
-qemuMonitorJSONBlockGetNamedNodeData(qemuMonitor *mon,
-                                     bool supports_flat);
+qemuMonitorJSONBlockGetNamedNodeData(qemuMonitor *mon);
 
 int
 qemuMonitorJSONBlockResize(qemuMonitor *mon,
@@ -160,6 +159,10 @@ qemuMonitorJSONSetMigrationCapabilities(qemuMonitor *mon,
 int
 qemuMonitorJSONGetGICCapabilities(qemuMonitor *mon,
                                   virGICCapability **capabilities);
+
+int
+qemuMonitorJSONGetSGXCapabilities(qemuMonitor *mon,
+                                  virSGXCapability **capabilities);
 
 int
 qemuMonitorJSONGetSEVCapabilities(qemuMonitor *mon,

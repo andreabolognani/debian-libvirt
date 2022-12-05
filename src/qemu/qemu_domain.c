@@ -103,9 +103,8 @@ qemuJobFreePrivate(void *opaque)
         return;
 
     qemuMigrationParamsFree(priv->migParams);
-    if (priv->migTempBitmaps)
-        g_slist_free_full(priv->migTempBitmaps,
-                          (GDestroyNotify) qemuDomainJobPrivateMigrateTempBitmapFree);
+    g_slist_free_full(priv->migTempBitmaps,
+                      (GDestroyNotify) qemuDomainJobPrivateMigrateTempBitmapFree);
     g_free(priv);
 }
 
@@ -1139,6 +1138,77 @@ qemuDomainVideoPrivateDispose(void *obj)
 }
 
 
+static virClass *qemuDomainTPMPrivateClass;
+static void qemuDomainTPMPrivateDispose(void *obj);
+
+
+static int
+qemuDomainTPMPrivateOnceInit(void)
+{
+    if (!VIR_CLASS_NEW(qemuDomainTPMPrivate, virClassForObject()))
+        return -1;
+
+    return 0;
+}
+
+VIR_ONCE_GLOBAL_INIT(qemuDomainTPMPrivate);
+
+
+static virObject *
+qemuDomainTPMPrivateNew(void)
+{
+    qemuDomainTPMPrivate *priv;
+
+    if (qemuDomainTPMPrivateInitialize() < 0)
+        return NULL;
+
+    if (!(priv = virObjectNew(qemuDomainTPMPrivateClass)))
+        return NULL;
+
+    return (virObject *) priv;
+}
+
+
+static void
+qemuDomainTPMPrivateDispose(void *obj G_GNUC_UNUSED)
+{
+}
+
+
+static int
+qemuDomainTPMPrivateParse(xmlXPathContextPtr ctxt,
+                          virDomainTPMDef *tpm)
+{
+    qemuDomainTPMPrivate *priv = QEMU_DOMAIN_TPM_PRIVATE(tpm);
+
+    priv->swtpm.can_migrate_shared_storage =
+        virXPathBoolean("string(./swtpm/@can_migrate_shared_storage)", ctxt);
+
+    return 0;
+}
+
+
+static int
+qemuDomainTPMPrivateFormat(const virDomainTPMDef *tpm,
+                           virBuffer *buf)
+{
+    qemuDomainTPMPrivate *priv = QEMU_DOMAIN_TPM_PRIVATE(tpm);
+
+    switch (tpm->type) {
+    case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+        if (priv->swtpm.can_migrate_shared_storage)
+            virBufferAddLit(buf, "<swtpm can_migrate_shared_storage='yes'/>\n");
+        break;
+
+    case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+    case VIR_DOMAIN_TPM_TYPE_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+
 /* qemuDomainSecretInfoSetup:
  * @priv: pointer to domain private object
  * @alias: alias of the secret
@@ -1733,8 +1803,7 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
 
     priv->dbusDaemonRunning = false;
 
-    if (priv->dbusVMStateIds)
-        g_slist_free_full(g_steal_pointer(&priv->dbusVMStateIds), g_free);
+    g_slist_free_full(g_steal_pointer(&priv->dbusVMStateIds), g_free);
 
     priv->dbusVMState = false;
 
@@ -1742,6 +1811,8 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
     priv->preMigrationMemlock = 0;
 
     virHashRemoveAll(priv->statsSchema);
+
+    g_slist_free_full(g_steal_pointer(&priv->threadContextAliases), g_free);
 }
 
 
@@ -2764,7 +2835,6 @@ qemuDomainObjPrivateXMLParseBlockjobData(virDomainObj *vm,
     int newstate = -1;
     bool invalidData = false;
     xmlNodePtr tmp;
-    unsigned long jobflags = 0;
 
     ctxt->node = node;
 
@@ -2804,7 +2874,8 @@ qemuDomainObjPrivateXMLParseBlockjobData(virDomainObj *vm,
         STRNEQ(mirror, "yes"))
         invalidData = true;
 
-    if (virXPathULongHex("string(./@jobflags)", ctxt, &jobflags) != 0)
+    if (virXMLPropUInt(ctxt->node, "jobflags", 16, VIR_XML_PROP_NONE,
+                       &job->jobflags) != 1)
         job->jobflagsmissing = true;
 
     if (!disk && !invalidData) {
@@ -2826,7 +2897,6 @@ qemuDomainObjPrivateXMLParseBlockjobData(virDomainObj *vm,
 
     job->state = state;
     job->newstate = newstate;
-    job->jobflags = jobflags;
     job->errmsg = virXPathString("string(./errmsg)", ctxt);
     job->invalidData = invalidData;
     job->disk = disk;
@@ -3215,6 +3285,9 @@ virDomainXMLPrivateDataCallbacks virQEMUDriverPrivateDataCallbacks = {
     .graphicsNew = qemuDomainGraphicsPrivateNew,
     .networkNew = qemuDomainNetworkPrivateNew,
     .videoNew = qemuDomainVideoPrivateNew,
+    .tpmNew = qemuDomainTPMPrivateNew,
+    .tpmParse = qemuDomainTPMPrivateParse,
+    .tpmFormat = qemuDomainTPMPrivateFormat,
     .parse = qemuDomainObjPrivateXMLParse,
     .format = qemuDomainObjPrivateXMLFormat,
     .getParseOpaque = qemuDomainObjPrivateXMLGetParseOpaque,
@@ -4534,16 +4607,12 @@ qemuDomainDefTsegPostParse(virDomainDef *def,
  * Returns: 0 on success, -1 on error
  */
 int
-qemuDomainDefNumaCPUsRectify(virDomainDef *def, virQEMUCaps *qemuCaps)
+qemuDomainDefNumaCPUsRectify(virDomainDef *def,
+                             virQEMUCaps *qemuCaps G_GNUC_UNUSED)
 {
     unsigned int vcpusMax, numacpus;
 
-    /* QEMU_CAPS_NUMA tells us if QEMU is able to handle disjointed
-     * NUMA CPU ranges. The filling process will create a disjointed
-     * setup in node0 most of the time. Do not proceed if QEMU
-     * can't handle it.*/
-    if (virDomainNumaGetNodeCount(def->numa) == 0 ||
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NUMA))
+    if (virDomainNumaGetNodeCount(def->numa) == 0)
         return 0;
 
     vcpusMax = virDomainDefGetVcpusMax(def);
@@ -7184,7 +7253,8 @@ qemuDomainSnapshotDiscardAllMetadata(virQEMUDriver *driver,
 static void
 qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
                                virDomainObj *vm,
-                               virDomainUndefineFlagsValues flags)
+                               virDomainUndefineFlagsValues flags,
+                               bool outgoingMigration)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autofree char *snapDir = NULL;
@@ -7210,7 +7280,7 @@ qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
         if (rmdir(chkDir) < 0 && errno != ENOENT)
             VIR_WARN("unable to remove checkpoint directory %s", chkDir);
     }
-    qemuExtDevicesCleanupHost(driver, vm->def, flags);
+    qemuExtDevicesCleanupHost(driver, vm->def, flags, outgoingMigration);
 }
 
 
@@ -7222,14 +7292,15 @@ qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
 void
 qemuDomainRemoveInactive(virQEMUDriver *driver,
                          virDomainObj *vm,
-                         virDomainUndefineFlagsValues flags)
+                         virDomainUndefineFlagsValues flags,
+                         bool outgoingMigration)
 {
     if (vm->persistent) {
         /* Short-circuit, we don't want to remove a persistent domain */
         return;
     }
 
-    qemuDomainRemoveInactiveCommon(driver, vm, flags);
+    qemuDomainRemoveInactiveCommon(driver, vm, flags, outgoingMigration);
 
     virDomainObjListRemove(driver->domains, vm);
 }
@@ -7251,7 +7322,7 @@ qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,
         return;
     }
 
-    qemuDomainRemoveInactiveCommon(driver, vm, 0);
+    qemuDomainRemoveInactiveCommon(driver, vm, 0, false);
 
     virDomainObjListRemoveLocked(driver->domains, vm);
 }
@@ -8314,6 +8385,7 @@ qemuDomainUpdateMemoryDeviceInfo(virDomainObj *vm,
             break;
 
         case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
         case VIR_DOMAIN_MEMORY_MODEL_NONE:
         case VIR_DOMAIN_MEMORY_MODEL_LAST:
             break;
@@ -8995,6 +9067,12 @@ qemuDomainDefValidateMemoryHotplugDevice(const virDomainMemoryDef *mem,
         }
         break;
 
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("hotplug is not supported for the %s device"),
+                       virDomainMemoryModelTypeToString(mem->model));
+            return -1;
+
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         return -1;
@@ -9079,10 +9157,23 @@ qemuDomainDefValidateMemoryHotplug(const virDomainDef *def,
     for (i = 0; i < def->nmems; i++) {
         hotplugMemory += def->mems[i]->size;
 
-        /* already existing devices don't need to be checked on hotplug */
-        if (!mem &&
-            qemuDomainDefValidateMemoryHotplugDevice(def->mems[i], def) < 0)
-            return -1;
+        switch (def->mems[i]->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            /* already existing devices don't need to be checked on hotplug */
+            if (!mem &&
+                qemuDomainDefValidateMemoryHotplugDevice(def->mems[i], def) < 0)
+                return -1;
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+            /* sgx epc memory does not support hotplug, skip this check */
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+            break;
+        }
     }
 
     if (hotplugMemory > hotplugSpace) {
@@ -9379,10 +9470,14 @@ qemuDomainGetMemLockLimitBytes(virDomainDef *def,
          */
         int factor = nvdpa;
 
-        if (def->iommu)
-            factor += nvfio;
+        if (nvfio || forceVFIO) {
+            if (nvfio && def->iommu)
+                factor += nvfio;
+            else
+                factor += 1;
+        }
 
-        memKB = MAX(factor, 1) * virDomainDefGetMemoryTotal(def) + 1024 * 1024;
+        memKB = factor * virDomainDefGetMemoryTotal(def) + 1024 * 1024;
     }
 
     return memKB << 10;

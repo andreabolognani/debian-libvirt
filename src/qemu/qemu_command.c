@@ -1751,8 +1751,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     g_autofree char *chardev = NULL;
     g_autofree char *drive = NULL;
     unsigned int bootindex = 0;
-    unsigned int logical_block_size = 0;
-    unsigned int physical_block_size = 0;
+    unsigned int logical_block_size = disk->blockio.logical_block_size;
+    unsigned int physical_block_size = disk->blockio.physical_block_size;
     g_autoptr(virJSONValue) wwn = NULL;
     g_autofree char *serial = NULL;
     virTristateSwitch removable = VIR_TRISTATE_SWITCH_ABSENT;
@@ -1871,8 +1871,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     if (qemuBuildDeviceAddressProps(props, def, &disk->info) < 0)
         return NULL;
 
-    if (disk->src->shared &&
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_DISK_SHARE_RW))
+    if (disk->src->shared)
         shareRW = VIR_TRISTATE_SWITCH_ON;
 
     if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_VHOST_USER) {
@@ -1885,11 +1884,6 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     /* bootindex for floppies is configured via the fdc controller */
     if (disk->device != VIR_DOMAIN_DISK_DEVICE_FLOPPY)
         bootindex = disk->info.effectiveBootIndex;
-
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKIO)) {
-        logical_block_size = disk->blockio.logical_block_size;
-        physical_block_size = disk->blockio.physical_block_size;
-    }
 
     if (disk->wwn) {
         unsigned long long w = 0;
@@ -1906,8 +1900,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     if (disk->cachemode != VIR_DOMAIN_DISK_CACHE_DEFAULT) {
         /* VIR_DOMAIN_DISK_DEVICE_LUN translates into 'scsi-block'
          * where any caching setting makes no sense. */
-        if (disk->device != VIR_DOMAIN_DISK_DEVICE_LUN &&
-            virQEMUCapsGet(qemuCaps, QEMU_CAPS_DISK_WRITE_CACHE)) {
+        if (disk->device != VIR_DOMAIN_DISK_DEVICE_LUN) {
             bool wb;
 
             if (qemuDomainDiskCachemodeFlags(disk->cachemode, &wb, NULL,
@@ -3314,7 +3307,11 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
 
     props = virJSONValueNewObject();
 
-    if (!mem->nvdimmPath &&
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_SGX_EPC) {
+        backendType = "memory-backend-epc";
+        if (!priv->memPrealloc)
+            prealloc = true;
+    } else if (!mem->nvdimmPath &&
         def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_MEMFD) {
         backendType = "memory-backend-memfd";
 
@@ -3329,7 +3326,6 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
 
         if (systemMemory)
             disableCanonicalPath = true;
-
     } else if (useHugepage || mem->nvdimmPath || memAccess ||
         def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_FILE) {
 
@@ -3351,17 +3347,10 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
             return -1;
 
         if (!mem->nvdimmPath &&
-            discard == VIR_TRISTATE_BOOL_YES) {
-            if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE_DISCARD)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("this QEMU doesn't support memory discard"));
-                return -1;
-            }
-
-            if (virJSONValueObjectAdd(&props,
-                                      "B:discard-data", true,
-                                      NULL) < 0)
-                return -1;
+            virJSONValueObjectAdd(&props,
+                                  "T:discard-data", discard,
+                                  NULL) < 0) {
+            return -1;
         }
 
         if (qemuBuildMemoryBackendPropsShare(props, memAccess) < 0)
@@ -3417,16 +3406,8 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
     if (virJSONValueObjectAdd(&props, "U:size", mem->size * 1024, NULL) < 0)
         return -1;
 
-    if (mem->alignsize) {
-        if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE_ALIGN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("nvdimm align property is not available "
-                             "with this QEMU binary"));
-            return -1;
-        }
-        if (virJSONValueObjectAdd(&props, "U:align", mem->alignsize * 1024, NULL) < 0)
-            return -1;
-    }
+    if (virJSONValueObjectAdd(&props, "P:align", mem->alignsize * 1024, NULL) < 0)
+        return -1;
 
     if (mem->nvdimmPmem) {
         if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE_PMEM)) {
@@ -3472,23 +3453,10 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
         rc = 1;
     } else {
         /* otherwise check the required capability */
-        if (STREQ(backendType, "memory-backend-file") &&
-            !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE)) {
+        if (STREQ(backendType, "memory-backend-memfd") &&
+            !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_MEMFD)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this qemu doesn't support the "
-                             "memory-backend-file object"));
-            return -1;
-        } else if (STREQ(backendType, "memory-backend-ram") &&
-                   !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_RAM)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this qemu doesn't support the "
-                             "memory-backend-ram object"));
-            return -1;
-        } else if (STREQ(backendType, "memory-backend-memfd") &&
-                   !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_MEMFD)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this qemu doesn't support the "
-                             "memory-backend-memfd object"));
+                           _("this qemu doesn't support the memory-backend-memfd object"));
             return -1;
         }
 
@@ -3535,6 +3503,7 @@ qemuBuildMemoryDimmBackendStr(virCommand *cmd,
                               qemuDomainObjPrivate *priv)
 {
     g_autoptr(virJSONValue) props = NULL;
+    g_autoptr(virJSONValue) tcProps = NULL;
     g_autofree char *alias = NULL;
 
     if (!mem->info.alias) {
@@ -3547,6 +3516,14 @@ qemuBuildMemoryDimmBackendStr(virCommand *cmd,
 
     if (qemuBuildMemoryBackendProps(&props, alias, cfg,
                                     priv, def, mem, true, false) < 0)
+        return -1;
+
+    if (qemuBuildThreadContextProps(&tcProps, &props, priv) < 0)
+        return -1;
+
+    if (tcProps &&
+        qemuBuildObjectCommandlineFromJSON(cmd, tcProps,
+                                           priv->qemuCaps) < 0)
         return -1;
 
     if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
@@ -3597,6 +3574,7 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
             return NULL;
         break;
 
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
     default:
@@ -3631,6 +3609,60 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
         return NULL;
 
     return g_steal_pointer(&props);
+}
+
+
+int
+qemuBuildThreadContextProps(virJSONValue **tcProps,
+                            virJSONValue **memProps,
+                            qemuDomainObjPrivate *priv)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    virJSONValue *nodemask = NULL;
+    g_autoptr(virJSONValue) nodemaskCopy = NULL;
+    g_autofree char *tcAlias = NULL;
+    const char *memalias = NULL;
+    bool prealloc = false;
+
+    *tcProps = NULL;
+
+    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_THREAD_CONTEXT))
+        return 0;
+
+    nodemask = virJSONValueObjectGetArray(*memProps, "host-nodes");
+    if (!nodemask)
+        return 0;
+
+    memalias = virJSONValueObjectGetString(*memProps, "id");
+    if (!memalias) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("memory device alias is not assigned"));
+        return -1;
+    }
+
+    tcAlias = g_strdup_printf("tc-%s", memalias);
+    nodemaskCopy = virJSONValueCopy(nodemask);
+
+    if (virJSONValueObjectAdd(&props,
+                              "s:qom-type", "thread-context",
+                              "s:id", tcAlias,
+                              "a:node-affinity", &nodemaskCopy,
+                              NULL) < 0)
+        return -1;
+
+    if (virJSONValueObjectAdd(memProps,
+                              "s:prealloc-context", tcAlias,
+                              NULL) < 0)
+        return -1;
+
+    if (virJSONValueObjectGetBoolean(*memProps, "prealloc", &prealloc) >= 0 &&
+        prealloc) {
+        priv->threadContextAliases = g_slist_prepend(priv->threadContextAliases,
+                                                     g_steal_pointer(&tcAlias));
+    }
+
+    *tcProps = g_steal_pointer(&props);
+    return 0;
 }
 
 
@@ -5732,6 +5764,8 @@ qemuBuildClockArgStr(virDomainClockDef *def)
             case VIR_DOMAIN_TIMER_TRACK_REALTIME:
                 virBufferAddLit(&buf, ",clock=rt");
                 break;
+            case VIR_DOMAIN_TIMER_TRACK_LAST:
+                break;
             }
 
             switch (def->timers[i]->tickpolicy) {
@@ -5747,6 +5781,8 @@ qemuBuildClockArgStr(virDomainClockDef *def)
             case VIR_DOMAIN_TIMER_TICKPOLICY_MERGE:
             case VIR_DOMAIN_TIMER_TICKPOLICY_DISCARD:
                 return NULL;
+            case VIR_DOMAIN_TIMER_TICKPOLICY_LAST:
+                break;
             }
             break; /* no need to check other timers - there is only one rtc */
         }
@@ -5818,6 +5854,8 @@ qemuBuildClockCommandLine(virCommand *cmd,
             case VIR_DOMAIN_TIMER_TICKPOLICY_MERGE:
                 /* no way to support this mode for pit in qemu */
                 return -1;
+            case VIR_DOMAIN_TIMER_TICKPOLICY_LAST:
+                break;
             }
             break;
 
@@ -6201,6 +6239,7 @@ qemuBuildCpuCommandLine(virCommand *cmd,
             case VIR_DOMAIN_TIMER_TICKPOLICY_NONE:
             case VIR_DOMAIN_TIMER_TICKPOLICY_CATCHUP:
             case VIR_DOMAIN_TIMER_TICKPOLICY_MERGE:
+            case VIR_DOMAIN_TIMER_TICKPOLICY_LAST:
                 break;
             }
             break;
@@ -6258,6 +6297,7 @@ qemuBuildCpuCommandLine(virCommand *cmd,
             case VIR_DOMAIN_HYPERV_TLBFLUSH:
             case VIR_DOMAIN_HYPERV_IPI:
             case VIR_DOMAIN_HYPERV_EVMCS:
+            case VIR_DOMAIN_HYPERV_AVIC:
                 if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
                     virBufferAsprintf(&buf, ",hv-%s=on",
                                       virDomainHypervTypeToString(i));
@@ -6625,22 +6665,50 @@ qemuAppendDomainMemoryMachineParams(virBuffer *buf,
                                     const virDomainDef *def,
                                     virQEMUCaps *qemuCaps)
 {
+    virTristateSwitch dump = def->mem.dump_core;
+    bool nvdimmAdded = false;
+    int epcNum = 0;
     size_t i;
 
-    if (def->mem.dump_core) {
-        virBufferAsprintf(buf, ",dump-guest-core=%s",
-                          virTristateSwitchTypeToString(def->mem.dump_core));
-    } else {
-        virBufferAsprintf(buf, ",dump-guest-core=%s",
-                          cfg->dumpGuestCore ? "on" : "off");
-    }
+    if (dump == VIR_TRISTATE_SWITCH_ABSENT)
+        dump = virTristateSwitchFromBool(cfg->dumpGuestCore);
+
+    virBufferAsprintf(buf, ",dump-guest-core=%s", virTristateSwitchTypeToString(dump));
 
     if (def->mem.nosharepages)
         virBufferAddLit(buf, ",mem-merge=off");
 
     for (i = 0; i < def->nmems; i++) {
-        if (def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
-            virBufferAddLit(buf, ",nvdimm=on");
+        int targetNode = def->mems[i]->targetNode;
+
+        switch (def->mems[i]->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+            if (!nvdimmAdded) {
+                virBufferAddLit(buf, ",nvdimm=on");
+                nvdimmAdded = true;
+            }
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+            /* add sgx epc memory to -machine parameter */
+
+            if (targetNode < 0) {
+                /* set NUMA target node to 0 by default if user doesn't
+                 * specify it. */
+                targetNode = 0;
+            }
+
+            virBufferAsprintf(buf, ",sgx-epc.%d.memdev=mem%s,sgx-epc.%d.node=%d",
+                              epcNum, def->mems[i]->info.alias, epcNum, targetNode);
+
+            epcNum++;
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
             break;
         }
     }
@@ -6940,6 +7008,7 @@ qemuBuildMemCommandLineMemoryDefaultBackend(virCommand *cmd,
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
     g_autoptr(virJSONValue) props = NULL;
+    g_autoptr(virJSONValue) tcProps = NULL;
     virDomainMemoryDef mem = { 0 };
 
     mem.size = virDomainDefGetMemoryInitial(def);
@@ -6948,6 +7017,14 @@ qemuBuildMemCommandLineMemoryDefaultBackend(virCommand *cmd,
 
     if (qemuBuildMemoryBackendProps(&props, defaultRAMid, cfg,
                                     priv, def, &mem, false, true) < 0)
+        return -1;
+
+    if (qemuBuildThreadContextProps(&tcProps, &props, priv) < 0)
+        return -1;
+
+    if (tcProps &&
+        qemuBuildObjectCommandlineFromJSON(cmd, tcProps,
+                                           priv->qemuCaps) < 0)
         return -1;
 
     if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
@@ -7218,6 +7295,7 @@ qemuBuildNumaCommandLine(virQEMUDriverConfig *cfg,
     int ret = -1;
     size_t ncells = virDomainNumaGetNodeCount(def->numa);
     ssize_t masterInitiator = -1;
+    int rc;
 
     if (!virDomainNumatuneNodesetIsAvailable(def->numa, priv->autoNodeset))
         goto cleanup;
@@ -7234,21 +7312,13 @@ qemuBuildNumaCommandLine(virQEMUDriverConfig *cfg,
 
     nodeBackends = g_new0(virJSONValue *, ncells);
 
-    /* using of -numa memdev= cannot be combined with -numa mem=, thus we
-     * need to check which approach to use */
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_RAM) ||
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE) ||
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_MEMFD)) {
-        int rc;
+    for (i = 0; i < ncells; i++) {
+        if ((rc = qemuBuildMemoryCellBackendProps(def, cfg, i, priv,
+                                                  &nodeBackends[i])) < 0)
+            goto cleanup;
 
-        for (i = 0; i < ncells; i++) {
-            if ((rc = qemuBuildMemoryCellBackendProps(def, cfg, i, priv,
-                                                      &nodeBackends[i])) < 0)
-                goto cleanup;
-
-            if (rc == 0)
-                needBackend = true;
-        }
+        if (rc == 0)
+            needBackend = true;
     }
 
     if (!needBackend &&
@@ -7272,6 +7342,16 @@ qemuBuildNumaCommandLine(virQEMUDriverConfig *cfg,
         ssize_t initiator = virDomainNumaGetNodeInitiator(def->numa, i);
 
         if (needBackend) {
+            g_autoptr(virJSONValue) tcProps = NULL;
+
+            if (qemuBuildThreadContextProps(&tcProps, &nodeBackends[i], priv) < 0)
+                goto cleanup;
+
+            if (tcProps &&
+                qemuBuildObjectCommandlineFromJSON(cmd, tcProps,
+                                                   priv->qemuCaps) < 0)
+                goto cleanup;
+
             if (qemuBuildObjectCommandlineFromJSON(cmd, nodeBackends[i],
                                                    priv->qemuCaps) < 0)
                 goto cleanup;
@@ -7357,11 +7437,27 @@ qemuBuildMemoryDeviceCommandLine(virCommand *cmd,
         if (qemuBuildMemoryDimmBackendStr(cmd, def->mems[i], def, cfg, priv) < 0)
             return -1;
 
-        if (!(props = qemuBuildMemoryDeviceProps(cfg, priv, def, def->mems[i])))
-            return -1;
+        switch (def->mems[i]->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            if (!(props = qemuBuildMemoryDeviceProps(cfg, priv, def, def->mems[i])))
+                return -1;
 
-        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, priv->qemuCaps) < 0)
-            return -1;
+            if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, priv->qemuCaps) < 0)
+                return -1;
+
+            break;
+
+        /* sgx epc memory will be added to -machine parameter, so skip here */
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            break;
+        }
     }
 
     return 0;

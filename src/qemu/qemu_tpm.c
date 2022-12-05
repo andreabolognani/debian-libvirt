@@ -224,20 +224,25 @@ qemuTPMEmulatorDeleteStorage(virDomainTPMDef *tpm)
  *
  * @secretuuid: The UUID with the secret holding passphrase
  * @cmd: the virCommand to transfer the secret to
+ * @fd: returned read-end of the pipe
  *
- * Returns file descriptor representing the read-end of a pipe.
- * The passphrase can be read from this pipe. Returns < 0 in case
- * of error.
+ * Sets @fd to a file descriptor representing the read-end of a
+ * pipe. The passphrase can be read from this pipe.
  *
  * This function reads the passphrase and writes it into the
  * write-end of a pipe so that the read-end of the pipe can be
  * passed to the emulator for reading the passphrase from.
  *
- * Note that the returned FD is owned by @cmd.
+ * Note that the returned @fd is owned by @cmd and thus should
+ * only be used to append an argument onto emulator cmdline.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise (with proper error reported).
  */
 static int
 qemuTPMSetupEncryption(const unsigned char *secretuuid,
-                       virCommand *cmd)
+                       virCommand *cmd,
+                       int *fd)
 {
     g_autoptr(virConnect) conn = NULL;
     g_autofree uint8_t *secret = NULL;
@@ -260,7 +265,8 @@ qemuTPMSetupEncryption(const unsigned char *secretuuid,
                                  &secret, &secret_len) < 0)
         return -1;
 
-    return virCommandSetSendBuffer(cmd, g_steal_pointer(&secret), secret_len);
+    *fd = virCommandSetSendBuffer(cmd, g_steal_pointer(&secret), secret_len);
+    return 0;
 }
 
 
@@ -322,7 +328,7 @@ qemuTPMVirCommandAddEncryption(virCommand *cmd,
         return -1;
     }
 
-    if ((pwdfile_fd = qemuTPMSetupEncryption(secretuuid, cmd)) < 0)
+    if (qemuTPMSetupEncryption(secretuuid, cmd, &pwdfile_fd) < 0)
         return -1;
 
     virCommandAddArg(cmd, "--pwdfile-fd");
@@ -556,11 +562,21 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     int pwdfile_fd = -1;
     int migpwdfile_fd = -1;
     const unsigned char *secretuuid = NULL;
+    bool create_storage = true;
+    bool on_shared_storage;
 
     if (!swtpm)
         return NULL;
 
-    if (qemuTPMEmulatorCreateStorage(tpm, &created, swtpm_user, swtpm_group) < 0)
+    /* Do not create storage and run swtpm_setup on incoming migration over
+     * shared storage
+     */
+    on_shared_storage = virFileIsSharedFS(tpm->data.emulator.storagepath) == 1;
+    if (incomingMigration && on_shared_storage)
+        create_storage = false;
+
+    if (create_storage &&
+        qemuTPMEmulatorCreateStorage(tpm, &created, swtpm_user, swtpm_group) < 0)
         return NULL;
 
     if (tpm->data.emulator.hassecretuuid)
@@ -624,14 +640,43 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
             goto error;
         }
 
-        pwdfile_fd = qemuTPMSetupEncryption(tpm->data.emulator.secretuuid, cmd);
-        migpwdfile_fd = qemuTPMSetupEncryption(tpm->data.emulator.secretuuid, cmd);
+        if (qemuTPMSetupEncryption(tpm->data.emulator.secretuuid,
+                                   cmd, &pwdfile_fd) < 0)
+            goto error;
+
+        if (qemuTPMSetupEncryption(tpm->data.emulator.secretuuid,
+                                   cmd, &migpwdfile_fd) < 0)
+            goto error;
 
         virCommandAddArg(cmd, "--key");
         virCommandAddArgFormat(cmd, "pwdfd=%d,mode=aes-256-cbc", pwdfile_fd);
 
         virCommandAddArg(cmd, "--migration-key");
         virCommandAddArgFormat(cmd, "pwdfd=%d,mode=aes-256-cbc", migpwdfile_fd);
+    }
+
+    /* If swtpm supports it and the TPM state is stored on shared storage,
+     * start swtpm with --migration release-lock-outgoing so it can migrate
+     * across shared storage if needed.
+     */
+    QEMU_DOMAIN_TPM_PRIVATE(tpm)->swtpm.can_migrate_shared_storage = false;
+    if (on_shared_storage &&
+        virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_CMDARG_MIGRATION)) {
+
+        virCommandAddArg(cmd, "--migration");
+        virCommandAddArgFormat(cmd, "release-lock-outgoing%s",
+                               incomingMigration ? ",incoming": "");
+        QEMU_DOMAIN_TPM_PRIVATE(tpm)->swtpm.can_migrate_shared_storage = true;
+    } else {
+        /* Report an error if there's an incoming migration across shared
+         * storage and swtpm does not support the --migration option.
+         */
+        if (incomingMigration && on_shared_storage) {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
+                _("%s (on destination side) does not support the --migration option needed for migration with shared storage"),
+                   swtpm);
+            goto error;
+        }
     }
 
     return g_steal_pointer(&cmd);
@@ -694,13 +739,22 @@ qemuTPMEmulatorInitPaths(virDomainTPMDef *tpm,
  * qemuTPMEmulatorCleanupHost:
  * @tpm: TPM definition
  * @flags: flags indicating whether to keep or remove TPM persistent state
+ * @outgoingMigration: whether cleanup is due to an outgoing migration
  *
  * Clean up persistent storage for the swtpm.
  */
 static void
 qemuTPMEmulatorCleanupHost(virDomainTPMDef *tpm,
-                           virDomainUndefineFlagsValues flags)
+                           virDomainUndefineFlagsValues flags,
+                           bool outgoingMigration)
 {
+    /* Never remove the state in case of outgoing migration with shared
+     * storage.
+     */
+    if (outgoingMigration &&
+        virFileIsSharedFS(tpm->data.emulator.storagepath) == 1)
+        return;
+
     /*
      * remove TPM state if:
      * - persistent_state flag is set and the UNDEFINE_TPM flag is set
@@ -898,10 +952,19 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     virCommandSetPidFile(cmd, pidfile);
     virCommandSetErrorFD(cmd, &errfd);
 
-    if (qemuSecurityStartTPMEmulator(driver, vm, cmd,
-                                     cfg->swtpm_user, cfg->swtpm_group,
-                                     NULL, &cmdret) < 0)
-        return -1;
+    if (incomingMigration &&
+        virFileIsSharedFS(tpm->data.emulator.storagepath) == 1) {
+        /* security labels must have been set up on source already */
+        if (qemuSecurityCommandRun(driver, vm, cmd,
+                                   cfg->swtpm_user, cfg->swtpm_group,
+                                   NULL, &cmdret) < 0) {
+            goto error;
+        }
+    } else if (qemuSecurityStartTPMEmulator(driver, vm, cmd,
+                                            cfg->swtpm_user, cfg->swtpm_group,
+                                            NULL, &cmdret) < 0) {
+        goto error;
+    }
 
     if (cmdret < 0) {
         /* virCommandRun() hidden in qemuSecurityStartTPMEmulator()
@@ -954,6 +1017,46 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
 }
 
 
+bool
+qemuTPMHasSharedStorage(virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->ntpms; i++) {
+        virDomainTPMDef *tpm = def->tpms[i];
+
+        switch (tpm->type) {
+        case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+            return virFileIsSharedFS(tpm->data.emulator.storagepath) == 1;
+        case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+        case VIR_DOMAIN_TPM_TYPE_LAST:
+            break;
+        }
+    }
+
+    return false;
+}
+
+
+bool
+qemuTPMCanMigrateSharedStorage(virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->ntpms; i++) {
+        virDomainTPMDef *tpm = def->tpms[i];
+        switch (tpm->type) {
+        case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+            return QEMU_DOMAIN_TPM_PRIVATE(tpm)->swtpm.can_migrate_shared_storage;
+        case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+        case VIR_DOMAIN_TPM_TYPE_LAST:
+            break;
+        }
+    }
+    return true;
+}
+
+
 /* ---------------------
  *  Module entry points
  * ---------------------
@@ -1001,9 +1104,10 @@ qemuExtTPMPrepareHost(virQEMUDriver *driver,
 
 void
 qemuExtTPMCleanupHost(virDomainTPMDef *tpm,
-                      virDomainUndefineFlagsValues flags)
+                      virDomainUndefineFlagsValues flags,
+                      bool outgoingMigration)
 {
-    qemuTPMEmulatorCleanupHost(tpm, flags);
+    qemuTPMEmulatorCleanupHost(tpm, flags, outgoingMigration);
 }
 
 
@@ -1024,7 +1128,8 @@ qemuExtTPMStart(virQEMUDriver *driver,
 
 void
 qemuExtTPMStop(virQEMUDriver *driver,
-               virDomainObj *vm)
+               virDomainObj *vm,
+               bool outgoingMigration)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autofree char *shortName = virDomainDefGetShortName(vm->def);
@@ -1033,7 +1138,8 @@ qemuExtTPMStop(virQEMUDriver *driver,
         return;
 
     qemuTPMEmulatorStop(cfg->swtpmStateDir, shortName);
-    qemuSecurityCleanupTPMEmulator(driver, vm);
+    if (!(outgoingMigration && qemuTPMHasSharedStorage(vm->def)))
+        qemuSecurityCleanupTPMEmulator(driver, vm);
 }
 
 

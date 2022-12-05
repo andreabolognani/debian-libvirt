@@ -296,6 +296,7 @@ Patches have also been contributed by:
 * Eric Blake <eblake@redhat.com>
 * Eric Farman <farman@linux.ibm.com>
 * Eric Farman <farman@linux.vnet.ibm.com>
+* Eric Garver <eric@garver.life>
 * Eric W. Biederman <ebiederm@xmission.com>
 * Eric van Blokland <mail@ericvanblokland.nl>
 * Erik Skultety <eskultet@redhat.com>
@@ -343,6 +344,7 @@ Patches have also been contributed by:
 * Gui Jianfeng <guijianfeng@cn.fujitsu.com>
 * Guido Günther <agx@sigxcpu.org>
 * Göran Uddeborg <goeran@uddeborg.se>
+* Haibin Huang <haibin.huang@intel.com>
 * Halil Pasic <pasic@linux.ibm.com>
 * Han Cheng <hanc.fnst@cn.fujitsu.com>
 * Han Han <hhan@redhat.com>
@@ -384,6 +386,7 @@ Patches have also been contributed by:
 * J.B. Joret <jb@linux.vnet.ibm.com>
 * Jaak Ristioja <jaak@ristioja.ee>
 * Jakob Meng <jakobmeng@web.de>
+* Jakub Kuczys <me@jacken.men>
 * James Chapman <james.p.chapman@intel.com>
 * James Cowgill <james410@cowgill.org.uk>
 * James Shubin <james@shubin.ca>
@@ -491,11 +494,13 @@ Patches have also been contributed by:
 * Lin Ma <lma@suse.com>
 * Lin Ma <lma@suse.de>
 * Lin Ma <morecache@gmail.com>
+* Lin Yang <lin.a.yang@intel.com>
 * Lincoln Myers <lincoln_myers@yahoo.com>
 * Liu Dayu <liu.dayu@zte.com.cn>
 * Liu Yiding <liuyd.fnst@fujitsu.com>
 * Liuji (Jeremy) <jeremy.liu@huawei.com>
 * Lorin Hochstein <lorin@isi.edu>
+* Lu Ke <nicelukas@hotmail.com>
 * Lubomir Rintel <lkundrak@v3.sk>
 * Ludek Janda <ljanda@redhat.com>
 * Ludovic Beliveau <ludovic.beliveau@windriver.com>

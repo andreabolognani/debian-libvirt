@@ -1,16 +1,3 @@
-apipng = [
-  'home.png',
-  'left.png',
-  'right.png',
-  'up.png',
-]
-
-install_data(apipng, install_dir: docs_html_dir / 'html')
-
-foreach file : apipng
-  install_web_files += '@0@:@1@'.format(meson.current_source_dir() / file, docs_html_dir / 'html')
-endforeach
-
 docs_html_gen = []
 docs_html_dep = []
 
@@ -41,6 +28,7 @@ index_api_gen = custom_target(
     xsltproc_prog, '--nonet', '-o', docs_builddir,
     '--stringparam', 'builddir', meson.project_build_root(),
     '--stringparam', 'timestamp', docs_timestamp,
+    '--stringparam', 'indexfile', 'index.html',
     '@INPUT@',
   ],
   install: true,
@@ -61,14 +49,12 @@ foreach name : [ 'admin', 'lxc', 'qemu' ]
       get_variable('docs_@0@_api_xml'.format(name)),
     ],
     output: [
-      'index-@0@.html'.format(name),
       'libvirt-libvirt-@0@.html'.format(name),
     ],
     command: [
       xsltproc_prog, '--nonet', '-o', docs_builddir,
       '--stringparam', 'builddir', meson.project_build_root(),
       '--stringparam', 'timestamp', docs_timestamp,
-      '--stringparam', 'indexfile', 'index-@0@.html'.format(name),
       '@INPUT@',
     ],
     install: true,

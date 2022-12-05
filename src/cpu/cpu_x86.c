@@ -94,14 +94,18 @@ KVM_FEATURE_DEF(VIR_CPU_x86_HV_FREQUENCIES,
                 0x40000003, 0x00000800, 0x0);
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_REENLIGHTENMENT,
                 0x40000003, 0x00002000, 0x0);
+
+KVM_FEATURE_DEF(VIR_CPU_x86_HV_STIMER_DIRECT,
+                0x40000003, 0x0, 0x00080000);
+
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_TLBFLUSH,
                 0x40000004, 0x00000004, 0x0);
+KVM_FEATURE_DEF(VIR_CPU_x86_HV_AVIC,
+                0x40000004, 0x00000200, 0x0);
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_IPI,
                 0x40000004, 0x00000400, 0x0);
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_EVMCS,
                 0x40000004, 0x00004000, 0x0);
-KVM_FEATURE_DEF(VIR_CPU_x86_HV_STIMER_DIRECT,
-                0x40000003, 0x0, 0x00080000);
 
 static virCPUx86Feature x86_kvm_features[] =
 {
@@ -116,6 +120,7 @@ static virCPUx86Feature x86_kvm_features[] =
     KVM_FEATURE(VIR_CPU_x86_HV_FREQUENCIES),
     KVM_FEATURE(VIR_CPU_x86_HV_REENLIGHTENMENT),
     KVM_FEATURE(VIR_CPU_x86_HV_TLBFLUSH),
+    KVM_FEATURE(VIR_CPU_x86_HV_AVIC),
     KVM_FEATURE(VIR_CPU_x86_HV_IPI),
     KVM_FEATURE(VIR_CPU_x86_HV_EVMCS),
     KVM_FEATURE(VIR_CPU_x86_HV_STIMER_DIRECT),
@@ -1089,7 +1094,7 @@ static int
 x86ParseDataItemList(virCPUx86Data *cpudata,
                      xmlNodePtr node)
 {
-    size_t i;
+    size_t i = 0;
 
     if (xmlChildElementCount(node) <= 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("no x86 CPU data found"));
@@ -1097,8 +1102,13 @@ x86ParseDataItemList(virCPUx86Data *cpudata,
     }
 
     node = xmlFirstElementChild(node);
-    for (i = 0; node; ++i) {
+    while (node) {
         virCPUx86DataItem item;
+
+        if (virXMLNodeNameEqual(node, "alias")) {
+            node = xmlNextElementSibling(node);
+            continue;
+        }
 
         if (virXMLNodeNameEqual(node, "cpuid")) {
             if (x86ParseCPUID(node, &item) < 0) {
@@ -1116,6 +1126,7 @@ x86ParseDataItemList(virCPUx86Data *cpudata,
 
         if (virCPUx86DataAddItem(cpudata, &item) < 0)
             return -1;
+        ++i;
 
         node = xmlNextElementSibling(node);
     }

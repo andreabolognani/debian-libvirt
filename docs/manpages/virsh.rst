@@ -2399,6 +2399,28 @@ When selecting the *--state* group the following fields are returned:
   host scheduler, but was waiting in the queue instead of running.
   Exposed to the VM as a steal time.
 
+This group of statistics also reports additional hypervisor-originating per-vCPU
+stats. The hypervisor-specific statistics in this group have the following
+naming scheme:
+
+ ``vcpu.<num>.$NAME.$TYPE``
+
+ ``$NAME``
+   name of the statistics field provided by the hypervisor
+
+ ``$TYPE``
+   Type of the value. The following types are returned:
+
+   ``cur``
+     current instant value
+   ``sum``
+     aggregate value
+   ``max``
+     peak value
+
+ The returned value may be either an unsigned long long or a boolean. Meaning
+ is hypervisor specific. Please see the disclaimer for the *--vm* group which
+ also consists of hypervisor-specific stats.
 
 
 *--interface* returns:
@@ -5235,13 +5257,16 @@ nodedev-create
 
 ::
 
-   nodedev-create FILE
+   nodedev-create FILE [--validate]
 
 Create a device on the host node that can then be assigned to virtual
 machines. Normally, libvirt is able to automatically determine which
 host nodes are available for use, but this allows registration of
 host hardware that libvirt did not automatically detect.  *file*
 contains xml for a top-level <device> description of a node device.
+
+If *--validate* is specified, validates the format of the XML document against
+an internal RNG schema.
 
 
 nodedev-destroy
@@ -5266,10 +5291,13 @@ nodedev-define
 
 ::
 
-   nodedev-define FILE
+   nodedev-define FILE [--validate]
 
 Define an inactive persistent device or modify an existing persistent one from
 the XML *FILE*.
+
+If *--validate* is specified, validates the format of the XML document against
+an internal RNG schema.
 
 
 nodedev-undefine
@@ -6568,7 +6596,7 @@ vol-create
 
 ::
 
-   vol-create pool-or-uuid FILE [--prealloc-metadata]
+   vol-create pool-or-uuid FILE [--prealloc-metadata] [--validate]
 
 Create a volume from an XML <file>.
 
@@ -6582,6 +6610,9 @@ pre-existing volume.
 support full allocation). This option creates a sparse image file with metadata,
 resulting in higher performance compared to images with no preallocation and
 only slightly higher initial disk space usage.
+
+If *--validate* is specified, validates the format of the XML document against
+an internal RNG schema.
 
 **Example:**
 
@@ -6600,7 +6631,7 @@ vol-create-from
 ::
 
    vol-create-from pool-or-uuid FILE vol-name-or-key-or-path
-      [--inputpool pool-or-uuid]  [--prealloc-metadata] [--reflink]
+      [--inputpool pool-or-uuid]  [--prealloc-metadata] [--reflink] [--validate]
 
 Create a volume, using another volume as input.
 
@@ -6622,6 +6653,8 @@ When *--reflink* is specified, perform a COW lightweight copy,
 where the data blocks are copied only when modified.
 If this is not possible, the copy fails.
 
+If *--validate* is specified, validates the format of the XML document against
+an internal RNG schema.
 
 vol-create-as
 -------------

@@ -526,7 +526,7 @@ static char *
 virSecuritySELinuxContextAddRange(char *src,
                                   char *dst)
 {
-    char *str = NULL;
+    const char *str = NULL;
     char *ret = NULL;
     context_t srccon = NULL;
     context_t dstcon = NULL;
@@ -567,7 +567,7 @@ virSecuritySELinuxGenNewContext(const char *basecontext,
 {
     context_t context = NULL;
     char *ret = NULL;
-    char *str;
+    const char *str;
     char *ourSecContext = NULL;
     context_t ourContext = NULL;
 
@@ -1580,6 +1580,7 @@ virSecuritySELinuxSetMemoryLabel(virSecurityManager *mgr,
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         break;
     }
@@ -1608,6 +1609,7 @@ virSecuritySELinuxRestoreMemoryLabel(virSecurityManager *mgr,
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         ret = 0;
