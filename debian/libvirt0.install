@@ -109,6 +109,7 @@ usr/share/libvirt/schemas/nodedev.rng
 usr/share/libvirt/schemas/nwfilter.rng
 usr/share/libvirt/schemas/nwfilter_params.rng
 usr/share/libvirt/schemas/nwfilterbinding.rng
+usr/share/libvirt/schemas/privatedata.rng
 usr/share/libvirt/schemas/secret.rng
 usr/share/libvirt/schemas/storagecommon.rng
 usr/share/libvirt/schemas/storagepool.rng
