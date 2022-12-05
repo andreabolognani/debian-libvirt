@@ -874,41 +874,30 @@ testParseXMLDocFromFile(xmlNodePtr node,
 static int
 testParseNodeInfo(virNodeInfoPtr nodeInfo, xmlXPathContextPtr ctxt)
 {
-    long l;
-    int ret;
     g_autofree char *str = NULL;
+    unsigned int activeCpus;
+    unsigned long long memory = 0;
+    int rc;
 
-    ret = virXPathLong("string(/node/cpu/nodes[1])", ctxt, &l);
-    if (ret == 0) {
-        nodeInfo->nodes = l;
-    } else if (ret == -2) {
+    if (virXPathUInt("string(/node/cpu/nodes[1])", ctxt, &nodeInfo->nodes) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node cpu nodes value"));
         return -1;
     }
 
-    ret = virXPathLong("string(/node/cpu/sockets[1])", ctxt, &l);
-    if (ret == 0) {
-        nodeInfo->sockets = l;
-    } else if (ret == -2) {
+    if (virXPathUInt("string(/node/cpu/sockets[1])", ctxt, &nodeInfo->sockets) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node cpu sockets value"));
         return -1;
     }
 
-    ret = virXPathLong("string(/node/cpu/cores[1])", ctxt, &l);
-    if (ret == 0) {
-        nodeInfo->cores = l;
-    } else if (ret == -2) {
+    if (virXPathUInt("string(/node/cpu/cores[1])", ctxt, &nodeInfo->cores) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node cpu cores value"));
         return -1;
     }
 
-    ret = virXPathLong("string(/node/cpu/threads[1])", ctxt, &l);
-    if (ret == 0) {
-        nodeInfo->threads = l;
-    } else if (ret == -2) {
+    if (virXPathUInt("string(/node/cpu/threads[1])", ctxt, &nodeInfo->threads) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node cpu threads value"));
         return -1;
@@ -916,19 +905,19 @@ testParseNodeInfo(virNodeInfoPtr nodeInfo, xmlXPathContextPtr ctxt)
 
     nodeInfo->cpus = (nodeInfo->cores * nodeInfo->threads *
                       nodeInfo->sockets * nodeInfo->nodes);
-    ret = virXPathLong("string(/node/cpu/active[1])", ctxt, &l);
-    if (ret == 0) {
-        if (l < nodeInfo->cpus)
-            nodeInfo->cpus = l;
-    } else if (ret == -2) {
+
+    if ((rc = virXPathUInt("string(/node/cpu/active[1])", ctxt, &activeCpus)) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node cpu active value"));
         return -1;
     }
-    ret = virXPathLong("string(/node/cpu/mhz[1])", ctxt, &l);
-    if (ret == 0) {
-        nodeInfo->mhz = l;
-    } else if (ret == -2) {
+
+    if (rc == 0) {
+        if (activeCpus < nodeInfo->cpus)
+            nodeInfo->cpus = activeCpus;
+    }
+
+    if (virXPathUInt("string(/node/cpu/mhz[1])", ctxt, &nodeInfo->mhz) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node cpu mhz value"));
         return -1;
@@ -943,14 +932,14 @@ testParseNodeInfo(virNodeInfoPtr nodeInfo, xmlXPathContextPtr ctxt)
         }
     }
 
-    ret = virXPathLong("string(/node/memory[1])", ctxt, &l);
-    if (ret == 0) {
-        nodeInfo->memory = l;
-    } else if (ret == -2) {
+    if ((rc = virXPathULongLong("string(/node/memory[1])", ctxt, &memory)) == -2) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("invalid node memory value"));
         return -1;
     }
+
+    if (rc == 0)
+        nodeInfo->memory = memory;
 
     return 0;
 }
@@ -7182,14 +7171,18 @@ testStorageVolCreateXML(virStoragePoolPtr pool,
     virStoragePoolDef *def;
     virStorageVolPtr ret = NULL;
     g_autoptr(virStorageVolDef) privvol = NULL;
+    unsigned int parseFlags = 0;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_STORAGE_VOL_CREATE_VALIDATE, NULL);
+
+    if (flags & VIR_STORAGE_VOL_CREATE_VALIDATE)
+        parseFlags |= VIR_VOL_XML_PARSE_VALIDATE;
 
     if (!(obj = testStoragePoolObjFindActiveByName(privconn, pool->name)))
         return NULL;
     def = virStoragePoolObjGetDef(obj);
 
-    privvol = virStorageVolDefParse(def, xmldesc, NULL, 0);
+    privvol = virStorageVolDefParse(def, xmldesc, NULL, parseFlags);
     if (privvol == NULL)
         goto cleanup;
 
@@ -7241,14 +7234,18 @@ testStorageVolCreateXMLFrom(virStoragePoolPtr pool,
     virStorageVolDef *origvol = NULL;
     virStorageVolPtr ret = NULL;
     g_autoptr(virStorageVolDef) privvol = NULL;
+    unsigned int parseFlags = 0;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_STORAGE_VOL_CREATE_VALIDATE, NULL);
+
+    if (flags & VIR_STORAGE_VOL_CREATE_VALIDATE)
+        parseFlags |= VIR_VOL_XML_PARSE_VALIDATE;
 
     if (!(obj = testStoragePoolObjFindActiveByName(privconn, pool->name)))
         return NULL;
     def = virStoragePoolObjGetDef(obj);
 
-    privvol = virStorageVolDefParse(def, xmldesc, NULL, 0);
+    privvol = virStorageVolDefParse(def, xmldesc, NULL, parseFlags);
     if (privvol == NULL)
         goto cleanup;
 
@@ -7629,7 +7626,7 @@ testNodeDeviceMockCreateVport(testDriver *driver,
     if (!xml)
         goto cleanup;
 
-    if (!(def = virNodeDeviceDefParse(xml, NULL, EXISTING_DEVICE, NULL, NULL, NULL)))
+    if (!(def = virNodeDeviceDefParse(xml, NULL, EXISTING_DEVICE, NULL, NULL, NULL, false)))
         goto cleanup;
 
     VIR_FREE(def->name);
@@ -7688,10 +7685,12 @@ testNodeDeviceCreateXML(virConnectPtr conn,
     virNodeDeviceDef *objdef;
     g_autofree char *wwnn = NULL;
     g_autofree char *wwpn = NULL;
+    bool validate = flags & VIR_NODE_DEVICE_CREATE_XML_VALIDATE;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_NODE_DEVICE_CREATE_XML_VALIDATE, NULL);
 
-    if (!(def = virNodeDeviceDefParse(xmlDesc, NULL, CREATE_DEVICE, NULL, NULL, NULL)))
+    if (!(def = virNodeDeviceDefParse(xmlDesc, NULL, CREATE_DEVICE, NULL, NULL,
+                                      NULL, validate)))
         goto cleanup;
 
     /* We run this simply for validation - it essentially validates that

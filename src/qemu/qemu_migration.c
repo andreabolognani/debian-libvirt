@@ -38,6 +38,7 @@
 #include "qemu_security.h"
 #include "qemu_slirp.h"
 #include "qemu_block.h"
+#include "qemu_tpm.h"
 
 #include "domain_audit.h"
 #include "virlog.h"
@@ -101,7 +102,7 @@ qemuMigrationJobIsAllowed(virDomainObj *vm)
 static int ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT
 qemuMigrationJobStart(virDomainObj *vm,
                       virDomainAsyncJob job,
-                      unsigned long apiFlags)
+                      unsigned int apiFlags)
 {
     virDomainJobOperation op;
     unsigned long long mask;
@@ -1553,6 +1554,13 @@ qemuMigrationSrcIsAllowed(virQEMUDriver *driver,
                            _("migration with transient disk is not supported"));
                 return false;
             }
+        }
+
+        if (qemuTPMHasSharedStorage(vm->def)&&
+            !qemuTPMCanMigrateSharedStorage(vm->def)) {
+            virReportError(VIR_ERR_NO_SUPPORT, "%s",
+                           _("the running swtpm does not support migration with shared storage"));
+            return false;
         }
     }
 
@@ -3391,7 +3399,7 @@ qemuMigrationDstPrepareFresh(virQEMUDriver *driver,
          * and there is no 'goto cleanup;' in the middle of those */
         VIR_FREE(priv->origname);
         virDomainObjRemoveTransientDef(vm);
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
     }
     virDomainObjEndAPI(&vm);
     virErrorRestore(&origErr);
@@ -3893,6 +3901,7 @@ qemuMigrationSrcConfirmPhase(virQEMUDriver *driver,
     g_autoptr(qemuMigrationCookie) mig = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
     qemuDomainJobPrivate *jobPriv = vm->job->privateData;
+    qemuDomainJobDataPrivate *currentData = vm->job->current->privateData;
     virDomainJobData *jobData = NULL;
     qemuMigrationJobPhase phase;
 
@@ -3902,6 +3911,13 @@ qemuMigrationSrcConfirmPhase(virQEMUDriver *driver,
               flags, retcode);
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, -1);
+
+    if (retcode != 0 &&
+        virDomainObjIsPostcopy(vm, VIR_DOMAIN_JOB_OPERATION_MIGRATION_OUT) &&
+        currentData->stats.mig.status == QEMU_MONITOR_MIGRATION_STATUS_COMPLETED) {
+        VIR_DEBUG("Finish phase failed, but QEMU reports post-copy migration is completed; forcing success");
+        retcode = 0;
+    }
 
     if (flags & VIR_MIGRATE_POSTCOPY_RESUME) {
         phase = QEMU_MIGRATION_PHASE_CONFIRM_RESUME;
@@ -4036,7 +4052,7 @@ qemuMigrationSrcConfirm(virQEMUDriver *driver,
             virDomainDeleteConfig(cfg->configDir, cfg->autostartDir, vm);
             vm->persistent = 0;
         }
-        qemuDomainRemoveInactive(driver, vm, VIR_DOMAIN_UNDEFINE_TPM);
+        qemuDomainRemoveInactive(driver, vm, VIR_DOMAIN_UNDEFINE_TPM, true);
     }
 
  cleanup:
@@ -4759,7 +4775,7 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
                                    QEMU_MIGRATION_COOKIE_GRAPHICS |
                                    QEMU_MIGRATION_COOKIE_CAPS |
                                    QEMU_MIGRATION_COOKIE_BLOCK_DIRTY_BITMAPS,
-                                   NULL);
+                                   vm);
     if (!mig)
         goto error;
 
@@ -6047,7 +6063,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
             virDomainDeleteConfig(cfg->configDir, cfg->autostartDir, vm);
             vm->persistent = 0;
         }
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, true);
     }
 
     virErrorRestore(&orig_err);
@@ -6174,7 +6190,7 @@ qemuMigrationSrcPerformPhase(virQEMUDriver *driver,
     }
 
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, true);
 
     return ret;
 }
@@ -6443,7 +6459,7 @@ qemuMigrationDstFinishOffline(virQEMUDriver *driver,
     g_autoptr(qemuMigrationCookie) mig = NULL;
 
     if (!(mig = qemuMigrationCookieParse(driver, vm->def, priv->origname, priv,
-                                         cookiein, cookieinlen, cookie_flags, NULL)))
+                                         cookiein, cookieinlen, cookie_flags, vm)))
         return NULL;
 
     if (qemuMigrationDstPersist(driver, vm, mig, false) < 0)
@@ -6639,7 +6655,7 @@ qemuMigrationDstFinishActive(virQEMUDriver *driver,
               vm, flags, retcode);
 
     if (!(mig = qemuMigrationCookieParse(driver, vm->def, priv->origname, priv,
-                                         cookiein, cookieinlen, cookie_flags, NULL)))
+                                         cookiein, cookieinlen, cookie_flags, vm)))
         goto error;
 
     if (retcode != 0) {
@@ -6710,7 +6726,7 @@ qemuMigrationDstFinishActive(virQEMUDriver *driver,
     }
 
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, VIR_DOMAIN_UNDEFINE_TPM);
+        qemuDomainRemoveInactive(driver, vm, VIR_DOMAIN_UNDEFINE_TPM, false);
 
     virErrorRestore(&orig_err);
     return NULL;
@@ -6847,7 +6863,7 @@ qemuMigrationProcessUnattended(virQEMUDriver *driver,
     qemuMigrationJobFinish(vm);
 
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
 }
 
 

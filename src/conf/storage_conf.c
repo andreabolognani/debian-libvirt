@@ -720,7 +720,7 @@ virStorageDefParsePerms(xmlXPathContextPtr ctxt,
         perms->uid = (uid_t) -1;
     } else {
         /* We previously could output -1, so continue to parse it */
-        if (virXPathLongLong("number(./owner)", ctxt, &val) < 0 ||
+        if (virXPathLongLong("string(./owner)", ctxt, &val) < 0 ||
             ((uid_t)val != val &&
              val != -1)) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -735,7 +735,7 @@ virStorageDefParsePerms(xmlXPathContextPtr ctxt,
         perms->gid = (gid_t) -1;
     } else {
         /* We previously could output -1, so continue to parse it */
-        if (virXPathLongLong("number(./group)", ctxt, &val) < 0 ||
+        if (virXPathLongLong("string(./group)", ctxt, &val) < 0 ||
             ((gid_t) val != val &&
              val != -1)) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1407,9 +1407,10 @@ virStorageVolDefParse(virStoragePoolDef *pool,
 {
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool validate = flags & VIR_VOL_XML_PARSE_VALIDATE;
 
     if (!(xml = virXMLParse(filename, xmlStr, _("(storage_volume_definition)"),
-                            "volume", &ctxt, NULL, false)))
+                            "volume", &ctxt, "storagevol.rng", validate)))
         return NULL;
 
     return virStorageVolDefParseXML(pool, ctxt, flags);

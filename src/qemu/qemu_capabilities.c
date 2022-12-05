@@ -207,7 +207,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 100 */
               "virtio-scsi-pci", /* QEMU_CAPS_VIRTIO_SCSI */
-              "blockio", /* QEMU_CAPS_BLOCKIO */
+              "blockio", /* X_QEMU_CAPS_BLOCKIO */
               "disable-s3", /* QEMU_CAPS_PIIX_DISABLE_S3 */
               "disable-s4", /* QEMU_CAPS_PIIX_DISABLE_S4 */
               "usb-redir.filter", /* QEMU_CAPS_USB_REDIR_FILTER */
@@ -300,11 +300,11 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "msg-timestamp", /* X_QEMU_CAPS_MSG_TIMESTAMP */
               "active-commit", /* X_QEMU_CAPS_ACTIVE_COMMIT */
               "change-backing-file", /* X_QEMU_CAPS_CHANGE_BACKING_FILE */
-              "memory-backend-ram", /* QEMU_CAPS_OBJECT_MEMORY_RAM */
-              "numa", /* QEMU_CAPS_NUMA */
+              "memory-backend-ram", /* X_QEMU_CAPS_OBJECT_MEMORY_RAM */
+              "numa", /* X_QEMU_CAPS_NUMA */
 
               /* 170 */
-              "memory-backend-file", /* QEMU_CAPS_OBJECT_MEMORY_FILE */
+              "memory-backend-file", /* X_QEMU_CAPS_OBJECT_MEMORY_FILE */
               "usb-audio", /* QEMU_CAPS_OBJECT_USB_AUDIO */
               "rtc-reset-reinjection", /* QEMU_CAPS_RTC_RESET_REINJECTION */
               "splash-timeout", /* X_QEMU_CAPS_SPLASH_TIMEOUT */
@@ -356,7 +356,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "chardev-file-append", /* X_QEMU_CAPS_CHARDEV_FILE_APPEND */
               "ich9-disable-s3", /* QEMU_CAPS_ICH9_DISABLE_S3 */
               "ich9-disable-s4", /* QEMU_CAPS_ICH9_DISABLE_S4 */
-              "vserport-change-event", /* QEMU_CAPS_VSERPORT_CHANGE */
+              "vserport-change-event", /* X_QEMU_CAPS_VSERPORT_CHANGE */
               "virtio-balloon-pci.deflate-on-oom", /* QEMU_CAPS_VIRTIO_BALLOON_AUTODEFLATE */
 
               /* 210 */
@@ -391,7 +391,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "smm", /* X_QEMU_CAPS_MACHINE_SMM_OPT */
               "virtio-pci-disable-legacy", /* X_QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY */
               "query-hotpluggable-cpus", /* QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS */
-              "virtio-net.rx_queue_size", /* QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE */
+              "virtio-net.rx_queue_size", /* X_QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE */
               "machine-iommu", /* X_QEMU_CAPS_MACHINE_IOMMU */
 
               /* 235 */
@@ -406,7 +406,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "vhost-scsi", /* QEMU_CAPS_DEVICE_VHOST_SCSI */
               "drive-iotune-group", /* X_QEMU_CAPS_DRIVE_IOTUNE_GROUP */
               "query-cpu-model-expansion", /* QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION */
-              "virtio-net.host_mtu", /* QEMU_CAPS_VIRTIO_NET_HOST_MTU */
+              "virtio-net.host_mtu", /* X_QEMU_CAPS_VIRTIO_NET_HOST_MTU */
 
               /* 245 */
               "spice-rendernode", /* QEMU_CAPS_SPICE_RENDERNODE */
@@ -437,11 +437,11 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "vnc-multi-servers", /* X_QEMU_CAPS_VNC_MULTI_SERVERS */
 
               /* 265 */
-              "virtio-net.tx_queue_size", /* QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE */
+              "virtio-net.tx_queue_size", /* X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE */
               "chardev-reconnect", /* QEMU_CAPS_CHARDEV_RECONNECT */
               "virtio-gpu.max_outputs", /* X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS */
               "vxhs", /* QEMU_CAPS_VXHS */
-              "virtio-blk.num-queues", /* QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES */
+              "virtio-blk.num-queues", /* X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES */
 
               /* 270 */
               "machine.pseries.resize-hpt", /* X_QEMU_CAPS_MACHINE_PSERIES_RESIZE_HPT */
@@ -451,14 +451,14 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "numa.dist", /* X_QEMU_CAPS_NUMA_DIST */
 
               /* 275 */
-              "disk-share-rw", /* QEMU_CAPS_DISK_SHARE_RW */
+              "disk-share-rw", /* X_QEMU_CAPS_DISK_SHARE_RW */
               "iscsi.password-secret", /* X_QEMU_CAPS_ISCSI_PASSWORD_SECRET */
               "isa-serial", /* QEMU_CAPS_DEVICE_ISA_SERIAL */
               "pl011", /* QEMU_CAPS_DEVICE_PL011 */
               "machine.pseries.max-cpu-compat", /* X_QEMU_CAPS_MACHINE_PSERIES_MAX_CPU_COMPAT */
 
               /* 280 */
-              "dump-completed", /* QEMU_CAPS_DUMP_COMPLETED */
+              "dump-completed", /* X_QEMU_CAPS_DUMP_COMPLETED */
               "virtio-gpu-ccw", /* QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW */
               "virtio-keyboard-ccw", /* QEMU_CAPS_DEVICE_VIRTIO_KEYBOARD_CCW */
               "virtio-mouse-ccw", /* QEMU_CAPS_DEVICE_VIRTIO_MOUSE_CCW */
@@ -469,14 +469,14 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "pcie-pci-bridge", /* QEMU_CAPS_DEVICE_PCIE_PCI_BRIDGE */
               "seccomp-blacklist", /* X_QEMU_CAPS_SECCOMP_BLACKLIST */
               "query-cpus-fast", /* X_QEMU_CAPS_QUERY_CPUS_FAST */
-              "disk-write-cache", /* QEMU_CAPS_DISK_WRITE_CACHE */
+              "disk-write-cache", /* X_QEMU_CAPS_DISK_WRITE_CACHE */
 
               /* 290 */
               "nbd-tls", /* QEMU_CAPS_NBD_TLS */
               "tpm-crb", /* QEMU_CAPS_DEVICE_TPM_CRB */
               "pr-manager-helper", /* QEMU_CAPS_PR_MANAGER_HELPER */
-              "qom-list-properties", /* QEMU_CAPS_QOM_LIST_PROPERTIES */
-              "memory-backend-file.discard-data", /* QEMU_CAPS_OBJECT_MEMORY_FILE_DISCARD */
+              "qom-list-properties", /* X_QEMU_CAPS_QOM_LIST_PROPERTIES */
+              "memory-backend-file.discard-data", /* X_QEMU_CAPS_OBJECT_MEMORY_FILE_DISCARD */
 
               /* 295 */
               "virtual-css-bridge", /* X_QEMU_CAPS_CCW */
@@ -516,7 +516,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               /* 320 */
               "machine.pseries.cap-nested-hv", /* QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV */
               "egl-headless.rendernode", /* QEMU_CAPS_EGL_HEADLESS_RENDERNODE */
-              "memory-backend-file.align", /* QEMU_CAPS_OBJECT_MEMORY_FILE_ALIGN */
+              "memory-backend-file.align", /* X_QEMU_CAPS_OBJECT_MEMORY_FILE_ALIGN */
               "memory-backend-file.pmem", /* QEMU_CAPS_OBJECT_MEMORY_FILE_PMEM */
               "nvdimm.unarmed", /* QEMU_CAPS_DEVICE_NVDIMM_UNARMED */
 
@@ -524,11 +524,11 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "scsi-disk.device_id", /* X_QEMU_CAPS_SCSI_DISK_DEVICE_ID */
               "virtio-pci-non-transitional", /* QEMU_CAPS_VIRTIO_PCI_TRANSITIONAL */
               "overcommit", /* X_QEMU_CAPS_OVERCOMMIT */
-              "query-current-machine", /* QEMU_CAPS_QUERY_CURRENT_MACHINE */
+              "query-current-machine", /* X_QEMU_CAPS_QUERY_CURRENT_MACHINE */
               "machine.virt.iommu", /* QEMU_CAPS_MACHINE_VIRT_IOMMU */
 
               /* 330 */
-              "bitmap-merge", /* QEMU_CAPS_BITMAP_MERGE */
+              "bitmap-merge", /* X_QEMU_CAPS_BITMAP_MERGE */
               "nbd-bitmap", /* QEMU_CAPS_NBD_BITMAP */
               "x86-max-cpu", /* QEMU_CAPS_X86_MAX_CPU */
               "cpu-unavailable-features", /* QEMU_CAPS_CPU_UNAVAILABLE_FEATURES */
@@ -558,7 +558,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               /* 350 */
               "i8042", /* QEMU_CAPS_DEVICE_I8042 */
               "rng-builtin", /* QEMU_CAPS_OBJECT_RNG_BUILTIN */
-              "virtio-net.failover", /* QEMU_CAPS_VIRTIO_NET_FAILOVER */
+              "virtio-net.failover", /* X_QEMU_CAPS_VIRTIO_NET_FAILOVER */
               "tpm-spapr", /* QEMU_CAPS_DEVICE_TPM_SPAPR */
               "cpu.kvm-no-adjvtime", /* QEMU_CAPS_CPU_KVM_NO_ADJVTIME */
 
@@ -634,7 +634,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 405 */
               "confidential-guest-support", /* QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT */
-              "query-display-options", /* QEMU_CAPS_QUERY_DISPLAY_OPTIONS */
+              "query-display-options", /* X_QEMU_CAPS_QUERY_DISPLAY_OPTIONS */
               "s390-pv-guest", /* QEMU_CAPS_S390_PV_GUEST */
               "set-action", /* QEMU_CAPS_SET_ACTION */
               "virtio-blk.queue-size", /* QEMU_CAPS_VIRTIO_BLK_QUEUE_SIZE */
@@ -677,6 +677,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               /* 435 */
               "query-stats", /* QEMU_CAPS_QUERY_STATS */
               "query-stats-schemas", /* QEMU_CAPS_QUERY_STATS_SCHEMAS */
+              "sgx-epc", /* QEMU_CAPS_SGX_EPC */
+              "thread-context", /* QEMU_CAPS_THREAD_CONTEXT */
     );
 
 
@@ -757,6 +759,8 @@ struct _virQEMUCaps {
     virGICCapability *gicCapabilities;
 
     virSEVCapability *sevCapabilities;
+
+    virSGXCapability *sgxCapabilities;
 
     /* Capabilities which may differ depending on the accelerator. */
     virQEMUCapsAccel kvm;
@@ -1211,15 +1215,10 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-hotpluggable-cpus", QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS },
     { "query-cpu-model-expansion", QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION },
     { "query-cpu-definitions", QEMU_CAPS_QUERY_CPU_DEFINITIONS },
-    { "qom-list-properties", QEMU_CAPS_QOM_LIST_PROPERTIES },
-    { "query-current-machine", QEMU_CAPS_QUERY_CURRENT_MACHINE },
-    { "block-dirty-bitmap-merge", QEMU_CAPS_BITMAP_MERGE },
     { "query-cpu-model-baseline", QEMU_CAPS_QUERY_CPU_MODEL_BASELINE },
     { "query-cpu-model-comparison", QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON },
     { "block-export-add", QEMU_CAPS_BLOCK_EXPORT_ADD },
-    { "query-display-options", QEMU_CAPS_QUERY_DISPLAY_OPTIONS },
     { "blockdev-reopen", QEMU_CAPS_BLOCKDEV_REOPEN },
-    { "set-numa-node", QEMU_CAPS_NUMA },
     { "set-action", QEMU_CAPS_SET_ACTION },
     { "query-dirty-rate", QEMU_CAPS_QUERY_DIRTY_RATE },
     { "sev-inject-launch-secret", QEMU_CAPS_SEV_INJECT_LAUNCH_SECRET },
@@ -1230,12 +1229,6 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
 
 struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
     { "rdma-pin-all", QEMU_CAPS_MIGRATE_RDMA },
-};
-
-/* Use virQEMUCapsQMPSchemaQueries for querying parameters of events */
-struct virQEMUCapsStringFlags virQEMUCapsEvents[] = {
-    { "VSERPORT_CHANGE", QEMU_CAPS_VSERPORT_CHANGE },
-    { "DUMP_COMPLETED", QEMU_CAPS_DUMP_COMPLETED },
 };
 
 struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
@@ -1280,8 +1273,6 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "ich9-intel-hda", QEMU_CAPS_DEVICE_ICH9_INTEL_HDA },
     { "pvpanic", QEMU_CAPS_DEVICE_PANIC },
     { "usb-kbd", QEMU_CAPS_DEVICE_USB_KBD },
-    { "memory-backend-ram", QEMU_CAPS_OBJECT_MEMORY_RAM },
-    { "memory-backend-file", QEMU_CAPS_OBJECT_MEMORY_FILE },
     { "usb-audio", QEMU_CAPS_OBJECT_USB_AUDIO },
     { "iothread", QEMU_CAPS_OBJECT_IOTHREAD},
     { "ivshmem", QEMU_CAPS_DEVICE_IVSHMEM },
@@ -1393,6 +1384,8 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "s390-pv-guest", QEMU_CAPS_S390_PV_GUEST },
     { "virtio-mem-pci", QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI },
     { "virtio-iommu-pci", QEMU_CAPS_DEVICE_VIRTIO_IOMMU_PCI },
+    { "sgx-epc", QEMU_CAPS_SGX_EPC },
+    { "thread-context", QEMU_CAPS_THREAD_CONTEXT },
 };
 
 
@@ -1428,19 +1421,11 @@ virQEMUCapsDevicePropsVirtioBlkSCSIDefault(virJSONValue *props,
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioBlk[] = {
     { "scsi", QEMU_CAPS_VIRTIO_BLK_SCSI, virQEMUCapsDevicePropsVirtioBlkSCSIDefault },
-    { "logical_block_size", QEMU_CAPS_BLOCKIO, NULL },
-    { "num-queues", QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, NULL },
     { "queue-size", QEMU_CAPS_VIRTIO_BLK_QUEUE_SIZE, NULL },
-    { "share-rw", QEMU_CAPS_DISK_SHARE_RW, NULL },
-    { "write-cache", QEMU_CAPS_DISK_WRITE_CACHE, NULL },
     { "acpi-index", QEMU_CAPS_ACPI_INDEX, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioNet[] = {
-    { "rx_queue_size", QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE, NULL },
-    { "tx_queue_size", QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, NULL },
-    { "host_mtu", QEMU_CAPS_VIRTIO_NET_HOST_MTU, NULL },
-    { "failover", QEMU_CAPS_VIRTIO_NET_FAILOVER, NULL },
     { "acpi-index", QEMU_CAPS_ACPI_INDEX, NULL },
     { "rss", QEMU_CAPS_VIRTIO_NET_RSS, NULL },
 };
@@ -1469,15 +1454,11 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVfioPCI[] = {
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsSCSIDisk[] = {
     { "channel", QEMU_CAPS_SCSI_DISK_CHANNEL, NULL },
     { "wwn", QEMU_CAPS_SCSI_DISK_WWN, NULL },
-    { "share-rw", QEMU_CAPS_DISK_SHARE_RW, NULL },
-    { "write-cache", QEMU_CAPS_DISK_WRITE_CACHE, NULL },
     { "rotation_rate", QEMU_CAPS_ROTATION_RATE, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsIDEDrive[] = {
     { "wwn", QEMU_CAPS_IDE_DRIVE_WWN, NULL },
-    { "share-rw", QEMU_CAPS_DISK_SHARE_RW, NULL },
-    { "write-cache", QEMU_CAPS_DISK_WRITE_CACHE, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsPiix4PM[] = {
@@ -1492,8 +1473,6 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsUSBRedir[] = {
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsUSBStorage[] = {
     { "removable", QEMU_CAPS_USB_STORAGE_REMOVABLE, NULL },
-    { "share-rw", QEMU_CAPS_DISK_SHARE_RW, NULL },
-    { "write-cache", QEMU_CAPS_DISK_WRITE_CACHE, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsKVMPit[] = {
@@ -1566,6 +1545,8 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "nbd-server-start/arg-type/tls-creds", QEMU_CAPS_NBD_TLS },
     { "nbd-server-add/arg-type/bitmap", QEMU_CAPS_NBD_BITMAP },
     { "netdev_add/arg-type/+vhost-vdpa", QEMU_CAPS_NETDEV_VHOST_VDPA },
+    /* JSON support for -netdev was introduced for the 'dgram' netdev type */
+    { "netdev_add/arg-type/type/^dgram", QEMU_CAPS_NETDEV_JSON },
     { "object-add/arg-type/qom-type/^secret", QEMU_CAPS_OBJECT_JSON },
     { "query-display-options/ret-type/+egl-headless/rendernode", QEMU_CAPS_EGL_HEADLESS_RENDERNODE },
     { "query-display-options/ret-type/+sdl", QEMU_CAPS_SDL },
@@ -1701,8 +1682,6 @@ static virQEMUCapsDeviceTypeProps virQEMUCapsDeviceProps[] = {
 };
 
 static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsMemoryBackendFile[] = {
-    { "discard-data", QEMU_CAPS_OBJECT_MEMORY_FILE_DISCARD },
-    { "align", QEMU_CAPS_OBJECT_MEMORY_FILE_ALIGN },
     { "pmem", QEMU_CAPS_OBJECT_MEMORY_FILE_PMEM },
     /* As of QEMU commit 8db0b20415c129cf5e577a593a4a0372d90b7cc9 the
      * "x-use-canonical-path-for-ramblock-id" property is considered stable and
@@ -1726,7 +1705,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsObjectPropsMaxCPU[] = {
 static virQEMUCapsObjectTypeProps virQEMUCapsObjectProps[] = {
     { "memory-backend-file", virQEMUCapsObjectPropsMemoryBackendFile,
       G_N_ELEMENTS(virQEMUCapsObjectPropsMemoryBackendFile),
-      QEMU_CAPS_OBJECT_MEMORY_FILE },
+      -1 },
     { "memory-backend-memfd", virQEMUCapsObjectPropsMemoryBackendMemfd,
       G_N_ELEMENTS(virQEMUCapsObjectPropsMemoryBackendMemfd),
       QEMU_CAPS_OBJECT_MEMORY_MEMFD },
@@ -1918,6 +1897,36 @@ virQEMUCapsSEVInfoCopy(virSEVCapability **dst,
 }
 
 
+static int
+virQEMUCapsSGXInfoCopy(virSGXCapability **dst,
+                       virSGXCapability *src)
+{
+    g_autoptr(virSGXCapability) tmp = NULL;
+
+    if (!src) {
+        *dst = NULL;
+        return 0;
+    }
+
+    tmp = g_new0(virSGXCapability, 1);
+
+    tmp->flc = src->flc;
+    tmp->sgx1 = src->sgx1;
+    tmp->sgx2 = src->sgx2;
+    tmp->section_size = src->section_size;
+
+    if (src->nSgxSections > 0) {
+        tmp->sgxSections = g_new0(virSGXSection, src->nSgxSections);
+        memcpy(tmp->sgxSections, src->sgxSections,
+               src->nSgxSections * sizeof(*tmp->sgxSections));
+        tmp->nSgxSections = src->nSgxSections;
+    }
+
+    *dst = g_steal_pointer(&tmp);
+    return 0;
+}
+
+
 static void
 virQEMUCapsAccelCopyMachineTypes(virQEMUCapsAccel *dst,
                                  virQEMUCapsAccel *src)
@@ -1999,6 +2008,12 @@ virQEMUCaps *virQEMUCapsNewCopy(virQEMUCaps *qemuCaps)
                                qemuCaps->sevCapabilities) < 0)
         return NULL;
 
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC) &&
+        virQEMUCapsSGXInfoCopy(&ret->sgxCapabilities,
+                               qemuCaps->sgxCapabilities) < 0)
+        return NULL;
+
     return g_steal_pointer(&ret);
 }
 
@@ -2037,6 +2052,7 @@ void virQEMUCapsDispose(void *obj)
     virCPUDataFree(qemuCaps->cpuData);
 
     virSEVCapabilitiesFree(qemuCaps->sevCapabilities);
+    virSGXCapabilitiesFree(qemuCaps->sgxCapabilities);
 
     virQEMUCapsAccelClear(&qemuCaps->kvm);
     virQEMUCapsAccelClear(&qemuCaps->hvf);
@@ -2568,6 +2584,13 @@ virQEMUCapsGetSEVCapabilities(virQEMUCaps *qemuCaps)
 }
 
 
+virSGXCapability *
+virQEMUCapsGetSGXCapabilities(virQEMUCaps *qemuCaps)
+{
+    return qemuCaps->sgxCapabilities;
+}
+
+
 static int
 virQEMUCapsProbeQMPCommands(virQEMUCaps *qemuCaps,
                             qemuMonitor *mon)
@@ -2644,9 +2667,6 @@ virQEMUCapsProbeQMPObjectProperties(virQEMUCaps *qemuCaps,
                                     qemuMonitor *mon)
 {
     size_t i;
-
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_QOM_LIST_PROPERTIES))
-        return 0;
 
     for (i = 0; i < G_N_ELEMENTS(virQEMUCapsObjectProps); i++) {
         virQEMUCapsObjectTypeProps *props = virQEMUCapsObjectProps + i;
@@ -2869,9 +2889,6 @@ virQEMUCapsProbeQMPMachineProps(virQEMUCaps *qemuCaps,
                                 qemuMonitor *mon)
 {
     size_t i;
-
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_QOM_LIST_PROPERTIES))
-        return 0;
 
     for (i = 0; i < G_N_ELEMENTS(virQEMUCapsMachineProps); i++) {
         virQEMUCapsObjectTypeProps props = virQEMUCapsMachineProps[i];
@@ -3402,6 +3419,31 @@ virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
 
     virSEVCapabilitiesFree(qemuCaps->sevCapabilities);
     qemuCaps->sevCapabilities = caps;
+    return 0;
+}
+
+
+static int
+virQEMUCapsProbeQMPSGXCapabilities(virQEMUCaps *qemuCaps,
+                                   qemuMonitor *mon)
+{
+    int rc = -1;
+    virSGXCapability *caps = NULL;
+
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC))
+        return 0;
+
+    if ((rc = qemuMonitorGetSGXCapabilities(mon, &caps)) < 0)
+        return -1;
+
+    /* SGX isn't actually supported */
+    if (rc == 0) {
+        virQEMUCapsClear(qemuCaps, QEMU_CAPS_SGX_EPC);
+        return 0;
+    }
+
+    virSGXCapabilitiesFree(qemuCaps->sgxCapabilities);
+    qemuCaps->sgxCapabilities = caps;
     return 0;
 }
 
@@ -4201,6 +4243,97 @@ virQEMUCapsParseSEVInfo(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
 
 
 static int
+virQEMUCapsParseSGXInfo(virQEMUCaps *qemuCaps,
+                        xmlXPathContextPtr ctxt)
+{
+    g_autoptr(virSGXCapability) sgx = NULL;
+    xmlNodePtr sgxSections = NULL;
+    g_autofree char *flc = NULL;
+    g_autofree char *sgx1 = NULL;
+    g_autofree char *sgx2 = NULL;
+
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC))
+        return 0;
+
+    if (virXPathBoolean("boolean(./sgx)", ctxt) == 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing SGX platform data in QEMU capabilities cache"));
+        return -1;
+    }
+
+    sgx = g_new0(virSGXCapability, 1);
+
+    if ((!(flc = virXPathString("string(./sgx/flc)", ctxt))) ||
+        virStringParseYesNo(flc, &sgx->flc) < 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing or invalid SGX platform flc in QEMU capabilities cache"));
+        return -1;
+    }
+
+    if ((!(sgx1 = virXPathString("string(./sgx/sgx1)", ctxt))) ||
+        virStringParseYesNo(sgx1, &sgx->sgx1) < 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing or invalid SGX platform sgx1 in QEMU capabilities cache"));
+        return -1;
+    }
+
+    if ((!(sgx2 = virXPathString("string(./sgx/sgx2)", ctxt))) ||
+        virStringParseYesNo(sgx2, &sgx->sgx2) < 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing or invalid SGX platform sgx2 in QEMU capabilities cache"));
+        return -1;
+    }
+
+    if (virXPathULongLong("string(./sgx/section_size)", ctxt,
+                          &sgx->section_size) < 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing or malformed SGX platform section_size in QEMU capabilities cache"));
+        return -1;
+    }
+
+    if ((sgxSections = virXPathNode("./sgx/sections", ctxt))) {
+        g_autofree xmlNodePtr *sectionNodes = NULL;
+        int nSgxSections = 0;
+        size_t i;
+        VIR_XPATH_NODE_AUTORESTORE(ctxt);
+
+        ctxt->node = sgxSections;
+        nSgxSections = virXPathNodeSet("./section", ctxt, &sectionNodes);
+
+        if (nSgxSections < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("failed to parse SGX sections in QEMU capabilities cache"));
+            return -1;
+        }
+
+        sgx->nSgxSections = nSgxSections;
+        sgx->sgxSections = g_new0(virSGXSection, nSgxSections);
+
+        for (i = 0; i < nSgxSections; i++) {
+            if (virXMLPropUInt(sectionNodes[i], "node", 10,
+                              VIR_XML_PROP_REQUIRED,
+                              &(sgx->sgxSections[i].node)) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing node name in QEMU capabilities cache"));
+                return -1;
+            }
+
+            if (virXMLPropULongLong(sectionNodes[i], "size", 10,
+                                   VIR_XML_PROP_REQUIRED,
+                                   &(sgx->sgxSections[i].size)) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing size name in QEMU capabilities cache"));
+                return -1;
+            }
+        }
+    }
+
+    qemuCaps->sgxCapabilities = g_steal_pointer(&sgx);
+    return 0;
+}
+
+
+static int
 virQEMUCapsParseFlags(virQEMUCaps *qemuCaps, xmlXPathContextPtr ctxt)
 {
     g_autofree xmlNodePtr *nodes = NULL;
@@ -4385,7 +4518,6 @@ virQEMUCapsLoadCache(virArch hostArch,
     g_autoptr(xmlDoc) doc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
     long long int l;
-    unsigned long lu;
 
     if (!(doc = virXMLParse(filename, NULL, NULL, "qemuCaps", &ctxt, NULL, false)))
         return -1;
@@ -4397,9 +4529,9 @@ virQEMUCapsLoadCache(virArch hostArch,
     }
     qemuCaps->libvirtCtime = (time_t)l;
 
-    qemuCaps->libvirtVersion = 0;
-    if (virXPathULong("string(./selfvers)", ctxt, &lu) == 0)
-        qemuCaps->libvirtVersion = lu;
+    if (virXMLPropUInt(ctxt->node, "selfvers", 10, VIR_XML_PROP_NONE,
+                       &qemuCaps->libvirtVersion) < 0)
+        return -1;
 
     if (!skipInvalidation &&
         (qemuCaps->libvirtCtime != virGetSelfLastChanged() ||
@@ -4487,6 +4619,9 @@ virQEMUCapsLoadCache(virArch hostArch,
         return -1;
 
     if (virQEMUCapsParseSEVInfo(qemuCaps, ctxt) < 0)
+        return -1;
+
+    if (virQEMUCapsParseSGXInfo(qemuCaps, ctxt) < 0)
         return -1;
 
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_KVM))
@@ -4677,6 +4812,38 @@ virQEMUCapsFormatSEVInfo(virQEMUCaps *qemuCaps, virBuffer *buf)
 }
 
 
+static void
+virQEMUCapsFormatSGXInfo(virQEMUCaps *qemuCaps,
+                         virBuffer *buf)
+{
+    virSGXCapability *sgx = virQEMUCapsGetSGXCapabilities(qemuCaps);
+
+    virBufferAddLit(buf, "<sgx supported='yes'>\n");
+    virBufferAdjustIndent(buf, 2);
+    virBufferAsprintf(buf, "<flc>%s</flc>\n", sgx->flc ? "yes" : "no");
+    virBufferAsprintf(buf, "<sgx1>%s</sgx1>\n", sgx->sgx1 ? "yes" : "no");
+    virBufferAsprintf(buf, "<sgx2>%s</sgx2>\n", sgx->sgx2 ? "yes" : "no");
+    virBufferAsprintf(buf, "<section_size unit='KiB'>%llu</section_size>\n", sgx->section_size);
+
+    if (sgx->nSgxSections > 0) {
+        size_t i;
+        virBufferAddLit(buf, "<sections>\n");
+
+        for (i = 0; i < sgx->nSgxSections; i++) {
+            virBufferAdjustIndent(buf, 2);
+            virBufferAsprintf(buf, "<section node='%u' ", sgx->sgxSections[i].node);
+            virBufferAsprintf(buf, "size='%llu' ", sgx->sgxSections[i].size);
+            virBufferAddLit(buf, "unit='KiB'/>\n");
+            virBufferAdjustIndent(buf, -2);
+        }
+        virBufferAddLit(buf, "</sections>\n");
+    }
+
+    virBufferAdjustIndent(buf, -2);
+    virBufferAddLit(buf, "</sgx>\n");
+}
+
+
 char *
 virQEMUCapsFormatCache(virQEMUCaps *qemuCaps)
 {
@@ -4757,6 +4924,9 @@ virQEMUCapsFormatCache(virQEMUCaps *qemuCaps)
 
     if (qemuCaps->sevCapabilities)
         virQEMUCapsFormatSEVInfo(qemuCaps, &buf);
+
+    if (qemuCaps->sgxCapabilities)
+        virQEMUCapsFormatSGXInfo(qemuCaps, &buf);
 
     if (qemuCaps->kvmSupportsNesting)
         virBufferAddLit(&buf, "<kvmSupportsNesting/>\n");
@@ -5248,13 +5418,6 @@ virQEMUCapsInitProcessCapsInterlock(virQEMUCaps *qemuCaps)
 static void
 virQEMUCapsInitProcessCaps(virQEMUCaps *qemuCaps)
 {
-    /* versions prior to the introduction of 'query-display-options' had SDL
-     * mostly compiled in */
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_DISPLAY_OPTIONS)) {
-        virQEMUCapsSet(qemuCaps, QEMU_CAPS_SDL);
-        virQEMUCapsSet(qemuCaps, QEMU_CAPS_EGL_HEADLESS);
-    }
-
     if (ARCH_IS_X86(qemuCaps->arch) &&
         virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION)) {
         virQEMUCapsSet(qemuCaps, QEMU_CAPS_CPU_CACHE);
@@ -5293,14 +5456,6 @@ virQEMUCapsProbeQMPSchemaCapabilities(virQEMUCaps *qemuCaps,
 
     for (i = 0; i < G_N_ELEMENTS(virQEMUCapsQMPSchemaQueries); i++) {
         entry = virQEMUCapsQMPSchemaQueries + i;
-
-        if (virQEMUQAPISchemaPathExists(entry->value, schema))
-            virQEMUCapsSet(qemuCaps, entry->flag);
-    }
-
-    /* probe also for basic event support */
-    for (i = 0; i < G_N_ELEMENTS(virQEMUCapsEvents); i++) {
-        entry = virQEMUCapsEvents + i;
 
         if (virQEMUQAPISchemaPathExists(entry->value, schema))
             virQEMUCapsSet(qemuCaps, entry->flag);
@@ -5401,6 +5556,8 @@ virQEMUCapsInitQMPMonitor(virQEMUCaps *qemuCaps,
     if (virQEMUCapsProbeQMPGICCapabilities(qemuCaps, mon) < 0)
         return -1;
     if (virQEMUCapsProbeQMPSEVCapabilities(qemuCaps, mon) < 0)
+        return -1;
+    if (virQEMUCapsProbeQMPSGXCapabilities(qemuCaps, mon) < 0)
         return -1;
 
     virQEMUCapsInitProcessCaps(qemuCaps);
@@ -6098,12 +6255,9 @@ virQEMUCapsFillDomainMemoryBackingCaps(virQEMUCaps *qemuCaps,
         VIR_DOMAIN_CAPS_ENUM_SET(memoryBacking->sourceType,
                                  VIR_DOMAIN_MEMORY_SOURCE_MEMFD);
 
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE))
-        VIR_DOMAIN_CAPS_ENUM_SET(memoryBacking->sourceType,
-                                 VIR_DOMAIN_MEMORY_SOURCE_FILE);
-
     VIR_DOMAIN_CAPS_ENUM_SET(memoryBacking->sourceType,
-                             VIR_DOMAIN_MEMORY_SOURCE_ANONYMOUS);
+                             VIR_DOMAIN_MEMORY_SOURCE_ANONYMOUS,
+                             VIR_DOMAIN_MEMORY_SOURCE_FILE);
 }
 
 
@@ -6481,6 +6635,21 @@ virQEMUCapsFillDomainFeatureS390PVCaps(virQEMUCaps *qemuCaps,
     }
 }
 
+/**
+ * virQEMUCapsFillDomainFeatureSGXCaps:
+ * @qemuCaps: QEMU capabilities
+ * @domCaps: domain capabilities
+ *
+ * Take the information about SGX capabilities that has been obtained
+ * using the 'query-sgx-capabilities' QMP command and stored in @qemuCaps
+ * and convert it to a form suitable for @domCaps.
+ */
+static void
+virQEMUCapsFillDomainFeatureSGXCaps(virQEMUCaps *qemuCaps,
+                                    virDomainCaps *domCaps)
+{
+    virQEMUCapsSGXInfoCopy(&domCaps->sgx, qemuCaps->sgxCapabilities);
+}
 
 int
 virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
@@ -6537,6 +6706,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainFeatureGICCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSEVCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureS390PVCaps(qemuCaps, domCaps);
+    virQEMUCapsFillDomainFeatureSGXCaps(qemuCaps, domCaps);
 
     return 0;
 }

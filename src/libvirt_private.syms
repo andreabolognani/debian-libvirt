@@ -218,6 +218,7 @@ virDomainCapsEnumSet;
 virDomainCapsFormat;
 virDomainCapsNew;
 virSEVCapabilitiesFree;
+virSGXCapabilitiesFree;
 
 
 # conf/domain_conf.h
@@ -2360,10 +2361,12 @@ virFirewallStartTransaction;
 # util/virfirewalld.h
 virFirewallDApplyRule;
 virFirewallDGetBackend;
+virFirewallDGetPolicies;
 virFirewallDGetVersion;
 virFirewallDGetZones;
 virFirewallDInterfaceSetZone;
 virFirewallDIsRegistered;
+virFirewallDPolicyExists;
 virFirewallDSynchronize;
 virFirewallDZoneExists;
 
@@ -3690,21 +3693,17 @@ virXMLValidateAgainstSchema;
 virXMLValidatorFree;
 virXMLValidatorInit;
 virXMLValidatorValidate;
-virXMLXPathContextNew;
 virXPathBoolean;
 virXPathContextNodeRestore;
 virXPathInt;
-virXPathLong;
-virXPathLongHex;
 virXPathLongLong;
 virXPathNode;
 virXPathNodeSet;
-virXPathNumber;
 virXPathString;
 virXPathUInt;
-virXPathULong;
-virXPathULongHex;
+virXPathUIntBase;
 virXPathULongLong;
+virXPathULongLongBase;
 
 
 # Let emacs know we want case-insensitive sorting

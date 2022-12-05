@@ -554,6 +554,8 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
                                _("unsupported rtc timer track '%s'"),
                                virDomainTimerTrackTypeToString(timer->track));
                 return -1;
+            case VIR_DOMAIN_TIMER_TRACK_LAST:
+                break;
             }
 
             switch (timer->tickpolicy) {
@@ -572,6 +574,8 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
                                virDomainTimerTickpolicyTypeToString(
                                    timer->tickpolicy));
                 return -1;
+            case VIR_DOMAIN_TIMER_TICKPOLICY_LAST:
+                break;
             }
             break;
 
@@ -598,6 +602,8 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
                                virDomainTimerTickpolicyTypeToString(
                                    timer->tickpolicy));
                 return -1;
+            case VIR_DOMAIN_TIMER_TICKPOLICY_LAST:
+                break;
             }
             break;
 
@@ -650,9 +656,28 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
                                virDomainTimerNameTypeToString(timer->name),
                                virDomainTimerTickpolicyTypeToString(timer->tickpolicy));
                 return -1;
+            case VIR_DOMAIN_TIMER_TICKPOLICY_LAST:
+                break;
             }
             break;
         }
+    }
+
+    switch ((virDomainClockOffsetType) def->clock.offset) {
+    case VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE:
+        /* maximum timestamp glib can convert is 9999-12-31T23:59:59 */
+        if (def->clock.data.starttime > 253402300799) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("The maximum 'start' value for <clock offset='absolute'> is 253402300799"));
+            return -1;
+        }
+
+    case VIR_DOMAIN_CLOCK_OFFSET_UTC:
+    case VIR_DOMAIN_CLOCK_OFFSET_LOCALTIME:
+    case VIR_DOMAIN_CLOCK_OFFSET_TIMEZONE:
+    case VIR_DOMAIN_CLOCK_OFFSET_VARIABLE:
+    case VIR_DOMAIN_CLOCK_OFFSET_LAST:
+        break;
     }
 
     return 0;
@@ -958,77 +983,12 @@ static int
 qemuValidateDomainDefNuma(const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
-    const long system_page_size = virGetSystemPageSizeKB();
-    size_t ncells = virDomainNumaGetNodeCount(def->numa);
-    size_t i;
-    bool hasMemoryCap = virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_RAM) ||
-                        virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE) ||
-                        virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_MEMFD);
-    bool needBacking = false;
-
-    if (virDomainNumatuneHasPerNodeBinding(def->numa) && !hasMemoryCap) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Per-node memory binding is not supported "
-                         "with this QEMU"));
-        return -1;
-    }
-
-    if (def->mem.nhugepages &&
-        def->mem.hugepages[0].size != system_page_size &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("huge pages per NUMA node are not "
-                         "supported with this QEMU"));
-        return -1;
-    }
-
-    for (i = 0; i < ncells; i++) {
-        virBitmap *cpumask = virDomainNumaGetNodeCpumask(def->numa, i);
-
-        if (!hasMemoryCap &&
-            virDomainNumaGetNodeMemoryAccessMode(def->numa, i)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Shared memory mapping is not supported "
-                             "with this QEMU"));
-            return -1;
-        }
-
-        if (cpumask) {
-            g_autofree char * cpumaskStr = NULL;
-            if (!(cpumaskStr = virBitmapFormat(cpumask)))
-                return -1;
-
-            if (strchr(cpumaskStr, ',') &&
-                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NUMA)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("disjoint NUMA cpu ranges are not supported "
-                                 "with this QEMU"));
-                return -1;
-            }
-        }
-    }
-
-    if (!virQEMUCapsGetMachineNumaMemSupported(qemuCaps,
-                                               def->virtType,
-                                               def->os.machine)) {
-        needBacking = true;
-    }
-
     if (virDomainNumaHasHMAT(def->numa)) {
-        needBacking = true;
-
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NUMA_HMAT)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("HMAT is not supported with this QEMU"));
             return -1;
         }
-    }
-
-    if (needBacking && !hasMemoryCap) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("NUMA without specified memory backing is not "
-                         "supported with this QEMU binary"));
-        return -1;
     }
 
     return 0;
@@ -1906,24 +1866,12 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                                _("rx_queue_size has to be a power of two"));
                 return -1;
             }
-            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("virtio rx_queue_size option is not supported "
-                                 "with this QEMU binary"));
-                return -1;
-            }
         }
 
         if (net->driver.virtio.tx_queue_size) {
             if (!VIR_IS_POW2(net->driver.virtio.tx_queue_size)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("tx_queue_size has to be a power of two"));
-                return -1;
-            }
-            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("virtio tx_queue_size option is not supported "
-                                 "with this QEMU binary"));
                 return -1;
             }
         }
@@ -1941,14 +1889,6 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                            _("virtio rss hash report is not supported with this QEMU binary"));
             return -1;
         }
-
-        if (net->mtu &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_NET_HOST_MTU)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("setting MTU is not supported with this "
-                             "QEMU binary"));
-            return -1;
-        }
     }
 
     if (net->mtu &&
@@ -1960,12 +1900,6 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
     }
 
     if (net->teaming) {
-        if (net->teaming->type != VIR_DOMAIN_NET_TEAMING_TYPE_NONE &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_NET_FAILOVER)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("virtio-net failover (teaming) is not supported with this QEMU binary"));
-            return -1;
-        }
         if (net->teaming->type == VIR_DOMAIN_NET_TEAMING_TYPE_PERSISTENT
             && !virDomainNetIsVirtioModel(net)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -3043,13 +2977,6 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         break;
 
     case VIR_DOMAIN_DISK_BUS_VIRTIO:
-        if (disk->queues &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("num-queues property isn't supported by this "
-                             "QEMU binary"));
-            return -1;
-        }
         if (disk->queue_size > 0 &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_BLK_QUEUE_SIZE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -5057,6 +4984,9 @@ static int
 qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
                                   virQEMUCaps *qemuCaps)
 {
+    virSGXCapability *sgxCaps;
+    ssize_t node = -1;
+
     switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_PC_DIMM)) {
@@ -5096,6 +5026,43 @@ qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
                            _("virtio-mem isn't supported by this QEMU binary"));
             return -1;
         }
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("sgx epc isn't supported by this QEMU binary"));
+            return -1;
+        }
+
+        sgxCaps = virQEMUCapsGetSGXCapabilities(qemuCaps);
+
+        if (sgxCaps->nSgxSections == 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("this QEMU version didn't provide SGX EPC NUMA info"));
+            return -1;
+        }
+
+        if (mem->sourceNodes) {
+            while ((node = virBitmapNextSetBit(mem->sourceNodes, node)) >= 0) {
+                if (mem->size > sgxCaps->sgxSections[node].size) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                   _("sgx epc size %lld on host node %zd is less than requested size %lld"),
+                                   sgxCaps->sgxSections[node].size, node, mem->size);
+                    return -1;
+                }
+            }
+        } else {
+            /* allocate epc from host node 0 by default if user doesn't
+             * specify it. */
+            if (mem->size > sgxCaps->sgxSections[0].size) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("sgx epc size %lld on host node %d is less than requested size %lld"),
+                               sgxCaps->sgxSections[0].size, 0, mem->size);
+                return -1;
+            }
+        }
+
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NONE:

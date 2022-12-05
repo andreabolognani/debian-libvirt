@@ -65,6 +65,7 @@
       <feature policy='require' name='umip'/>
       <feature policy='require' name='pku'/>
       <feature policy='require' name='la57'/>
+      <feature policy='require' name='pks'/>
       <feature policy='require' name='xsaveopt'/>
       <feature policy='require' name='xgetbv1'/>
       <feature policy='require' name='mmxext'/>
@@ -73,6 +74,7 @@
       <feature policy='require' name='3dnow'/>
       <feature policy='require' name='cr8legacy'/>
       <feature policy='require' name='npt'/>
+      <feature policy='require' name='vgif'/>
       <feature policy='require' name='svme-addr-chk'/>
       <feature policy='disable' name='misalignsse'/>
     </mode>
@@ -257,5 +259,15 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <sev supported='no'/>
+    <sgx supported='yes'>
+      <flc>no</flc>
+      <sgx1>yes</sgx1>
+      <sgx2>no</sgx2>
+      <section_size unit='KiB'>524288</section_size>
+      <sections>
+        <section node='0' size='262144' unit='KiB'/>
+        <section node='1' size='262144' unit='KiB'/>
+      </sections>
+    </sgx>
   </features>
 </domainCapabilities>

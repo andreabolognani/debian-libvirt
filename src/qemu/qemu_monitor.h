@@ -712,8 +712,7 @@ struct _qemuBlockNamedNodeData {
 };
 
 GHashTable *
-qemuMonitorBlockGetNamedNodeData(qemuMonitor *mon,
-                                 bool supports_flat);
+qemuMonitorBlockGetNamedNodeData(qemuMonitor *mon);
 
 int qemuMonitorBlockResize(qemuMonitor *mon,
                            const char *device,
@@ -823,6 +822,9 @@ int qemuMonitorGetGICCapabilities(qemuMonitor *mon,
 
 int qemuMonitorGetSEVCapabilities(qemuMonitor *mon,
                                   virSEVCapability **capabilities);
+
+int qemuMonitorGetSGXCapabilities(qemuMonitor *mon,
+                                  virSGXCapability **capabilities);
 
 typedef enum {
   QEMU_MONITOR_MIGRATE_RESUME           = 1 << 0, /* resume failed post-copy migration */

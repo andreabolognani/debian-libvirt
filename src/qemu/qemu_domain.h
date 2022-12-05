@@ -81,6 +81,8 @@ struct _qemuDomainUnpluggingDevice {
 #define QEMU_DEVPREFIX "/dev/"
 #define QEMU_DEV_VFIO "/dev/vfio/vfio"
 #define QEMU_DEV_SEV "/dev/sev"
+#define QEMU_DEV_SGX_VEPVC "/dev/sgx_vepc"
+#define QEMU_DEV_SGX_PROVISION "/dev/sgx_provision"
 #define QEMU_DEVICE_MAPPER_CONTROL_PATH "/dev/mapper/control"
 
 
@@ -249,6 +251,8 @@ struct _qemuDomainObjPrivate {
      * briefly when starting a guest. Don't save/parse into XML. */
     pid_t schedCoreChildPID;
     pid_t schedCoreChildFD;
+
+    GSList *threadContextAliases; /* List of IDs of thread-context objects */
 };
 
 #define QEMU_DOMAIN_PRIVATE(vm) \
@@ -413,6 +417,20 @@ struct _qemuDomainNetworkPrivate {
     GSList *vhostfds; /* qemuFDPassDirect */
     qemuFDPass *vdpafd;
 };
+
+
+#define QEMU_DOMAIN_TPM_PRIVATE(dev) \
+    ((qemuDomainTPMPrivate *) (dev)->privateData)
+
+typedef struct _qemuDomainTPMPrivate qemuDomainTPMPrivate;
+struct _qemuDomainTPMPrivate {
+    virObject parent;
+
+    struct {
+        bool can_migrate_shared_storage;
+    } swtpm;
+};
+
 
 void
 qemuDomainNetworkPrivateClearFDs(qemuDomainNetworkPrivate *priv);
@@ -689,7 +707,8 @@ int qemuDomainSnapshotDiscardAllMetadata(virQEMUDriver *driver,
 
 void qemuDomainRemoveInactive(virQEMUDriver *driver,
                               virDomainObj *vm,
-                              virDomainUndefineFlagsValues flags);
+                              virDomainUndefineFlagsValues flags,
+                              bool outgoingMigration);
 
 void
 qemuDomainRemoveInactiveLocked(virQEMUDriver *driver,

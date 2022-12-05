@@ -48,7 +48,7 @@ struct virParserData {
 };
 
 
-xmlXPathContextPtr
+static xmlXPathContextPtr
 virXMLXPathContextNew(xmlDocPtr xml)
 {
     xmlXPathContextPtr ctxt;
@@ -57,6 +57,34 @@ virXMLXPathContextNew(xmlDocPtr xml)
         abort();
 
     return ctxt;
+}
+
+
+static xmlXPathObject *
+virXPathEvalString(const char *xpath,
+                   xmlXPathContextPtr ctxt)
+{
+    g_autoptr(xmlXPathObject) obj = NULL;
+
+    if (!xpath) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Missing XPath expression"));
+        return NULL;
+    }
+
+    if (!ctxt) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Missing XPath context"));
+        return NULL;
+    }
+
+    if (!(obj = xmlXPathEval(BAD_CAST xpath, ctxt)))
+        return NULL;
+
+    if (obj->type != XPATH_STRING ||
+        !obj->stringval ||
+        obj->stringval[0] == '\0')
+        return NULL;
+
+    return g_steal_pointer(&obj);
 }
 
 
@@ -76,83 +104,12 @@ virXPathString(const char *xpath,
 {
     g_autoptr(xmlXPathObject) obj = NULL;
 
-    if ((ctxt == NULL) || (xpath == NULL)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathString()"));
+    if (!(obj = virXPathEvalString(xpath, ctxt)))
         return NULL;
-    }
-    obj = xmlXPathEval(BAD_CAST xpath, ctxt);
-    if ((obj == NULL) || (obj->type != XPATH_STRING) ||
-        (obj->stringval == NULL) || (obj->stringval[0] == 0)) {
-        return NULL;
-    }
+
     return g_strdup((char *)obj->stringval);
 }
 
-
-/**
- * virXPathNumber:
- * @xpath: the XPath string to evaluate
- * @ctxt: an XPath context
- * @value: the returned double value
- *
- * Convenience function to evaluate an XPath number
- *
- * Returns 0 in case of success in which case @value is set,
- *         or -1 if the evaluation failed.
- */
-int
-virXPathNumber(const char *xpath,
-               xmlXPathContextPtr ctxt,
-               double *value)
-{
-    g_autoptr(xmlXPathObject) obj = NULL;
-
-    if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathNumber()"));
-        return -1;
-    }
-    obj = xmlXPathEval(BAD_CAST xpath, ctxt);
-    if ((obj == NULL) || (obj->type != XPATH_NUMBER) ||
-        (isnan(obj->floatval))) {
-        return -1;
-    }
-
-    *value = obj->floatval;
-    return 0;
-}
-
-static int
-virXPathLongBase(const char *xpath,
-                 xmlXPathContextPtr ctxt,
-                 int base,
-                 long *value)
-{
-    g_autoptr(xmlXPathObject) obj = NULL;
-    int ret = 0;
-
-    if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathLong()"));
-        return -1;
-    }
-    obj = xmlXPathEval(BAD_CAST xpath, ctxt);
-    if ((obj != NULL) && (obj->type == XPATH_STRING) &&
-        (obj->stringval != NULL) && (obj->stringval[0] != 0)) {
-        if (virStrToLong_l((char *) obj->stringval, NULL, base, value) < 0)
-            ret = -2;
-    } else if ((obj != NULL) && (obj->type == XPATH_NUMBER) &&
-               (!(isnan(obj->floatval)))) {
-        *value = (long) obj->floatval;
-        if (*value != obj->floatval)
-            ret = -2;
-    } else {
-        ret = -1;
-    }
-
-    return ret;
-}
 
 /**
  * virXPathInt:
@@ -160,7 +117,9 @@ virXPathLongBase(const char *xpath,
  * @ctxt: an XPath context
  * @value: the returned int value
  *
- * Convenience function to evaluate an XPath number
+ * Convenience function to evaluate an XPath number. The @xpath expression
+ * must ensure that the evaluated value is returned as a string (use the
+ * 'string()' conversion in the expression).
  *
  * Returns 0 in case of success in which case @value is set,
  *         or -1 if the XPath evaluation failed or -2 if the
@@ -171,201 +130,101 @@ virXPathInt(const char *xpath,
             xmlXPathContextPtr ctxt,
             int *value)
 {
-    long tmp;
-    int ret;
+    g_autoptr(xmlXPathObject) obj = NULL;
 
-    ret = virXPathLongBase(xpath, ctxt, 10, &tmp);
-    if (ret < 0)
-        return ret;
-    if ((int) tmp != tmp)
+    if (!(obj = virXPathEvalString(xpath, ctxt)))
+        return -1;
+
+    if (virStrToLong_i((char *) obj->stringval, NULL, 10, value) < 0)
         return -2;
-    *value = tmp;
+
     return 0;
 }
 
+
 /**
- * virXPathLong:
+ * virXPathUIntBase:
  * @xpath: the XPath string to evaluate
  * @ctxt: an XPath context
- * @value: the returned long value
+ * @base: base of the number to fetch @value as
+ * @value: the returned unsigned int value
  *
- * Convenience function to evaluate an XPath number
+ * Convenience function to evaluate an XPath number. The @xpath expression
+ * must ensure that the evaluated value is returned as a string (use the
+ * 'string()' conversion in the expression).
  *
  * Returns 0 in case of success in which case @value is set,
  *         or -1 if the XPath evaluation failed or -2 if the
- *         value doesn't have a long format.
+ *         value doesn't have an unsigned int format.
  */
 int
-virXPathLong(const char *xpath,
-             xmlXPathContextPtr ctxt,
-             long *value)
-{
-    return virXPathLongBase(xpath, ctxt, 10, value);
-}
-
-/**
- * virXPathLongHex:
- * @xpath: the XPath string to evaluate
- * @ctxt: an XPath context
- * @value: the returned long value
- *
- * Convenience function to evaluate an XPath number
- * according to a base of 16
- *
- * Returns 0 in case of success in which case @value is set,
- *         or -1 if the XPath evaluation failed or -2 if the
- *         value doesn't have a long format.
- */
-int
-virXPathLongHex(const char *xpath,
-                xmlXPathContextPtr ctxt,
-                long *value)
-{
-    return virXPathLongBase(xpath, ctxt, 16, value);
-}
-
-static int
-virXPathULongBase(const char *xpath,
-                  xmlXPathContextPtr ctxt,
-                  int base,
-                  unsigned long *value)
+virXPathUIntBase(const char *xpath,
+                 xmlXPathContextPtr ctxt,
+                 unsigned int base,
+                 unsigned int *value)
 {
     g_autoptr(xmlXPathObject) obj = NULL;
-    int ret = 0;
 
-    if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathULong()"));
+    if (!(obj = virXPathEvalString(xpath, ctxt)))
         return -1;
-    }
-    obj = xmlXPathEval(BAD_CAST xpath, ctxt);
-    if ((obj != NULL) && (obj->type == XPATH_STRING) &&
-        (obj->stringval != NULL) && (obj->stringval[0] != 0)) {
-        if (virStrToLong_ul((char *) obj->stringval, NULL, base, value) < 0)
-            ret = -2;
-    } else if ((obj != NULL) && (obj->type == XPATH_NUMBER) &&
-               (!(isnan(obj->floatval)))) {
-        *value = (unsigned long) obj->floatval;
-        if (*value != obj->floatval)
-            ret = -2;
-    } else {
-        ret = -1;
-    }
 
-    return ret;
+    if (virStrToLong_uip((char *) obj->stringval, NULL, base, value) < 0)
+        return -2;
+
+    return 0;
 }
 
-/**
- * virXPathUInt:
- * @xpath: the XPath string to evaluate
- * @ctxt: an XPath context
- * @value: the returned int value
- *
- * Convenience function to evaluate an XPath number
- *
- * Returns 0 in case of success in which case @value is set,
- *         or -1 if the XPath evaluation failed or -2 if the
- *         value doesn't have an int format.
- */
+
 int
 virXPathUInt(const char *xpath,
              xmlXPathContextPtr ctxt,
              unsigned int *value)
 {
-    unsigned long tmp;
-    int ret;
+    return virXPathUIntBase(xpath, ctxt, 10, value);
+}
 
-    ret = virXPathULongBase(xpath, ctxt, 10, &tmp);
-    if (ret < 0)
-        return ret;
-    if ((unsigned int) tmp != tmp)
+
+/**
+ * virXPathULongLongBase:
+ * @xpath: the XPath string to evaluate
+ * @ctxt: an XPath context
+ * @base: base of the number to fetch @value as
+ * @value: the returned unsigned long long value
+ *
+ * Convenience function to evaluate an XPath number. The @xpath expression
+ * must ensure that the evaluated value is returned as a string (use the
+ * 'string()' conversion in the expression).
+ *
+ * Returns 0 in case of success in which case @value is set,
+ *         or -1 if the XPath evaluation failed or -2 if the
+ *         value doesn't have a unsigned long long format.
+ */
+int
+virXPathULongLongBase(const char *xpath,
+                      xmlXPathContextPtr ctxt,
+                      unsigned int base,
+                      unsigned long long *value)
+{
+    g_autoptr(xmlXPathObject) obj = NULL;
+
+    if (!(obj = virXPathEvalString(xpath, ctxt)))
+        return -1;
+
+    if (virStrToLong_ullp((char *) obj->stringval, NULL, base, value) < 0)
         return -2;
-    *value = tmp;
+
     return 0;
 }
 
-/**
- * virXPathULong:
- * @xpath: the XPath string to evaluate
- * @ctxt: an XPath context
- * @value: the returned long value
- *
- * Convenience function to evaluate an XPath number
- *
- * Returns 0 in case of success in which case @value is set,
- *         or -1 if the XPath evaluation failed or -2 if the
- *         value doesn't have a long format.
- */
-int
-virXPathULong(const char *xpath,
-              xmlXPathContextPtr ctxt,
-              unsigned long *value)
-{
-    return virXPathULongBase(xpath, ctxt, 10, value);
-}
 
-/**
- * virXPathUHex:
- * @xpath: the XPath string to evaluate
- * @ctxt: an XPath context
- * @value: the returned long value
- *
- * Convenience function to evaluate an XPath number
- * according to base of 16
- *
- * Returns 0 in case of success in which case @value is set,
- *         or -1 if the XPath evaluation failed or -2 if the
- *         value doesn't have a long format.
- */
-int
-virXPathULongHex(const char *xpath,
-                 xmlXPathContextPtr ctxt,
-                 unsigned long *value)
-{
-    return virXPathULongBase(xpath, ctxt, 16, value);
-}
-
-/**
- * virXPathULongLong:
- * @xpath: the XPath string to evaluate
- * @ctxt: an XPath context
- * @value: the returned long long value
- *
- * Convenience function to evaluate an XPath number
- *
- * Returns 0 in case of success in which case @value is set,
- *         or -1 if the XPath evaluation failed or -2 if the
- *         value doesn't have a long format.
- */
 int
 virXPathULongLong(const char *xpath,
                   xmlXPathContextPtr ctxt,
                   unsigned long long *value)
 {
-    g_autoptr(xmlXPathObject) obj = NULL;
-    int ret = 0;
-
-    if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathULong()"));
-        return -1;
-    }
-    obj = xmlXPathEval(BAD_CAST xpath, ctxt);
-    if ((obj != NULL) && (obj->type == XPATH_STRING) &&
-        (obj->stringval != NULL) && (obj->stringval[0] != 0)) {
-        if (virStrToLong_ull((char *) obj->stringval, NULL, 10, value) < 0)
-            ret = -2;
-    } else if ((obj != NULL) && (obj->type == XPATH_NUMBER) &&
-               (!(isnan(obj->floatval)))) {
-        *value = (unsigned long long) obj->floatval;
-        if (*value != obj->floatval)
-            ret = -2;
-    } else {
-        ret = -1;
-    }
-
-    return ret;
+    return virXPathULongLongBase(xpath, ctxt, 10, value);
 }
+
 
 /**
  * virXPathLongLong:
@@ -373,7 +232,9 @@ virXPathULongLong(const char *xpath,
  * @ctxt: an XPath context
  * @value: the returned long long value
  *
- * Convenience function to evaluate an XPath number
+ * Convenience function to evaluate an XPath number. The @xpath expression
+ * must ensure that the evaluated value is returned as a string (use the
+ * 'string()' conversion in the expression).
  *
  * Returns 0 in case of success in which case @value is set,
  *         or -1 if the XPath evaluation failed or -2 if the
@@ -385,28 +246,14 @@ virXPathLongLong(const char *xpath,
                  long long *value)
 {
     g_autoptr(xmlXPathObject) obj = NULL;
-    int ret = 0;
 
-    if ((ctxt == NULL) || (xpath == NULL) || (value == NULL)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathLongLong()"));
+    if (!(obj = virXPathEvalString(xpath, ctxt)))
         return -1;
-    }
-    obj = xmlXPathEval(BAD_CAST xpath, ctxt);
-    if ((obj != NULL) && (obj->type == XPATH_STRING) &&
-        (obj->stringval != NULL) && (obj->stringval[0] != 0)) {
-        if (virStrToLong_ll((char *) obj->stringval, NULL, 10, value) < 0)
-            ret = -2;
-    } else if ((obj != NULL) && (obj->type == XPATH_NUMBER) &&
-               (!(isnan(obj->floatval)))) {
-        *value = (long long) obj->floatval;
-        if (*value != obj->floatval)
-            ret = -2;
-    } else {
-        ret = -1;
-    }
 
-    return ret;
+    if (virStrToLong_ll((char *) obj->stringval, NULL, 10, value) < 0)
+        return -2;
+
+    return 0;
 }
 
 
@@ -514,6 +361,7 @@ virXMLNodeContentString(xmlNodePtr node)
 
     return ret;
 }
+
 
 static int
 virXMLPropEnumInternal(xmlNodePtr node,
@@ -1000,6 +848,7 @@ virXPathBoolean(const char *xpath,
     return obj->boolval;
 }
 
+
 /**
  * virXPathNode:
  * @xpath: the XPath string to evaluate
@@ -1030,6 +879,7 @@ virXPathNode(const char *xpath,
 
     return obj->nodesetval->nodeTab[0];
 }
+
 
 /**
  * virXPathNodeSet:
@@ -1166,6 +1016,7 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
     }
 }
 
+
 /**
  * virXMLParseHelper:
  * @domcode: error domain of the caller, usually VIR_FROM_THIS
@@ -1271,7 +1122,10 @@ virXMLParseHelper(int domcode,
     return g_steal_pointer(&xml);
 }
 
-const char *virXMLPickShellSafeComment(const char *str1, const char *str2)
+
+const char *
+virXMLPickShellSafeComment(const char *str1,
+                           const char *str2)
 {
     if (str1 && !strpbrk(str1, "\r\t\n !\"#$&'()*;<>?[\\]^`{|}~") &&
         !strstr(str1, "--"))
@@ -1282,9 +1136,11 @@ const char *virXMLPickShellSafeComment(const char *str1, const char *str2)
     return NULL;
 }
 
-static int virXMLEmitWarning(int fd,
-                             const char *name,
-                             const char *cmd)
+
+static int
+virXMLEmitWarning(int fd,
+                  const char *name,
+                  const char *cmd)
 {
     size_t len;
     const char *prologue =
@@ -1333,6 +1189,7 @@ struct virXMLRewriteFileData {
     const char *xml;
 };
 
+
 static int
 virXMLRewriteFile(int fd,
                   const char *path,
@@ -1358,6 +1215,7 @@ virXMLRewriteFile(int fd,
     return 0;
 }
 
+
 int
 virXMLSaveFile(const char *path,
                const char *warnName,
@@ -1369,6 +1227,7 @@ virXMLSaveFile(const char *path,
     return virFileRewrite(path, S_IRUSR | S_IWUSR, -1, -1,
                           virXMLRewriteFile, &data);
 }
+
 
 /**
  * virXMLNodeToString: convert an XML node ptr to an XML string
@@ -1619,9 +1478,10 @@ virXMLNodeSanitizeNamespaces(xmlNodePtr node)
 }
 
 
-static void catchRNGError(void *ctx,
-                          const char *msg,
-                          ...)
+static void
+virXMLValidatorRNGErrorCatch(void *ctx,
+                             const char *msg,
+                             ...)
 {
     virBuffer *buf = ctx;
     va_list args;
@@ -1634,16 +1494,17 @@ static void catchRNGError(void *ctx,
 }
 
 
-static void ignoreRNGError(void *ctx G_GNUC_UNUSED,
-                           const char *msg G_GNUC_UNUSED,
-                           ...)
+static void
+virXMLValidatorRNGErrorIgnore(void *ctx G_GNUC_UNUSED,
+                              const char *msg G_GNUC_UNUSED,
+                              ...)
 {}
 
 
 virXMLValidator *
 virXMLValidatorInit(const char *schemafile)
 {
-    virXMLValidator *validator = NULL;
+    g_autoptr(virXMLValidator) validator = NULL;
 
     validator = g_new0(virXMLValidator, 1);
 
@@ -1654,12 +1515,12 @@ virXMLValidatorInit(const char *schemafile)
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unable to create RNG parser for %s"),
                        validator->schemafile);
-        goto error;
+        return NULL;
     }
 
     xmlRelaxNGSetParserErrors(validator->rngParser,
-                              catchRNGError,
-                              ignoreRNGError,
+                              virXMLValidatorRNGErrorCatch,
+                              virXMLValidatorRNGErrorIgnore,
                               &validator->buf);
 
     if (!(validator->rng = xmlRelaxNGParse(validator->rngParser))) {
@@ -1667,25 +1528,22 @@ virXMLValidatorInit(const char *schemafile)
                        _("Unable to parse RNG %s: %s"),
                        validator->schemafile,
                        virBufferCurrentContent(&validator->buf));
-        goto error;
+        return NULL;
     }
 
     if (!(validator->rngValid = xmlRelaxNGNewValidCtxt(validator->rng))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unable to create RNG validation context %s"),
                        validator->schemafile);
-        goto error;
+        return NULL;
     }
 
     xmlRelaxNGSetValidErrors(validator->rngValid,
-                             catchRNGError,
-                             ignoreRNGError,
+                             virXMLValidatorRNGErrorCatch,
+                             virXMLValidatorRNGErrorIgnore,
                              &validator->buf);
-    return validator;
 
- error:
-    virXMLValidatorFree(validator);
-    return NULL;
+    return g_steal_pointer(&validator);
 }
 
 
@@ -1709,19 +1567,15 @@ int
 virXMLValidateAgainstSchema(const char *schemafile,
                             xmlDocPtr doc)
 {
-    virXMLValidator *validator = NULL;
-    int ret = -1;
+    g_autoptr(virXMLValidator) validator = NULL;
 
     if (!(validator = virXMLValidatorInit(schemafile)))
         return -1;
 
     if (virXMLValidatorValidate(validator, doc) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virXMLValidatorFree(validator);
-    return ret;
+    return 0;
 }
 
 
@@ -1804,6 +1658,7 @@ virXMLFormatElementInternal(virBuffer *buf,
     virBufferFreeAndReset(attrBuf);
     virBufferFreeAndReset(childBuf);
 }
+
 
 /* same as virXMLFormatElement but outputs an empty element if @attrBuf and
  * @childBuf are both empty */

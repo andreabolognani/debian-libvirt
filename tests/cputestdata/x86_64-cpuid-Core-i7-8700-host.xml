@@ -20,8 +20,10 @@
   <feature name='pdcm'/>
   <feature name='osxsave'/>
   <feature name='tsc_adjust'/>
+  <feature name='sgx'/>
   <feature name='clflushopt'/>
   <feature name='intel-pt'/>
+  <feature name='sgxlc'/>
   <feature name='stibp'/>
   <feature name='ssbd'/>
   <feature name='xsaves'/>

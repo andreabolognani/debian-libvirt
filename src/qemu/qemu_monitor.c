@@ -622,8 +622,10 @@ qemuMonitorOpenInternal(virDomainObj *vm,
     mon->waitGreeting = true;
     mon->cb = cb;
 
-    if (priv)
+    if (priv) {
         mon->objectAddNoWrap = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_JSON);
+        mon->queryNamedBlockNodesFlat = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT);
+    }
 
     if (virSetCloseExec(mon->fd) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1988,20 +1990,17 @@ qemuMonitorBlockStatsUpdateCapacityBlockdev(qemuMonitor *mon,
 /**
  * qemuMonitorBlockGetNamedNodeData:
  * @mon: monitor object
- * @supports_flat: don't query data for backing store
  *
  * Uses 'query-named-block-nodes' to retrieve information about individual
  * storage nodes and returns them in a hash table of qemuBlockNamedNodeData *s
  * filled with the data. The hash table keys are node names.
  */
 GHashTable *
-qemuMonitorBlockGetNamedNodeData(qemuMonitor *mon,
-                                 bool supports_flat)
+qemuMonitorBlockGetNamedNodeData(qemuMonitor *mon)
 {
     QEMU_CHECK_MONITOR_NULL(mon);
-    VIR_DEBUG("supports_flat=%d", supports_flat);
 
-    return qemuMonitorJSONBlockGetNamedNodeData(mon, supports_flat);
+    return qemuMonitorJSONBlockGetNamedNodeData(mon);
 }
 
 
@@ -3420,6 +3419,16 @@ qemuMonitorGetSEVCapabilities(qemuMonitor *mon,
 
 
 int
+qemuMonitorGetSGXCapabilities(qemuMonitor *mon,
+                              virSGXCapability **capabilities)
+{
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONGetSGXCapabilities(mon, capabilities);
+}
+
+
+int
 qemuMonitorNBDServerStart(qemuMonitor *mon,
                           const virStorageNetHostDef *server,
                           const char *tls_alias)
@@ -4337,7 +4346,7 @@ qemuMonitorQueryStatsProviderNew(qemuMonitorQueryStatsProviderType provider_type
 
     /*
      * This can be lowered later in case of the enum getting quite large, hence
-     *  the virBitmapSetExpand below which also incidently makes this function
+     *  the virBitmapSetExpand below which also incidentally makes this function
      *  non-fallible.
      */
     provider->names = virBitmapNew(QEMU_MONITOR_QUERY_STATS_NAME_LAST);

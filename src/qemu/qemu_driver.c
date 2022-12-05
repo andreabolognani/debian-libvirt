@@ -1611,7 +1611,7 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
         goto cleanup;
 
     if (qemuProcessBeginJob(vm, VIR_DOMAIN_JOB_OPERATION_START, flags) < 0) {
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
         goto cleanup;
     }
 
@@ -1620,7 +1620,7 @@ static virDomainPtr qemuDomainCreateXML(virConnectPtr conn,
                          VIR_NETDEV_VPORT_PROFILE_OP_CREATE,
                          start_flags) < 0) {
         virDomainAuditStart(vm, "booted", false);
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
         qemuProcessEndJob(vm);
         goto cleanup;
     }
@@ -2103,7 +2103,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
     ret = 0;
  endjob:
     if (ret == 0)
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
     virDomainObjEndJob(vm);
 
  cleanup:
@@ -2723,7 +2723,7 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
     }
     virDomainObjEndAsyncJob(vm);
     if (ret == 0)
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
 
  cleanup:
     virQEMUSaveDataFree(data);
@@ -3033,28 +3033,21 @@ qemuDumpToFd(virQEMUDriver *driver,
              const char *dumpformat)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    bool detach = false;
-    int ret = -1;
-
-    detach = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DUMP_COMPLETED);
+    int rc = -1;
 
     if (qemuSecuritySetImageFDLabel(driver->securityManager, vm->def, fd) < 0)
         return -1;
 
-    if (detach) {
-        qemuDomainJobSetStatsType(vm->job->current,
-                                  QEMU_DOMAIN_JOB_STATS_TYPE_MEMDUMP);
-    } else {
-        g_clear_pointer(&vm->job->current, virDomainJobDataFree);
-    }
+    qemuDomainJobSetStatsType(vm->job->current,
+                              QEMU_DOMAIN_JOB_STATS_TYPE_MEMDUMP);
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
 
     if (dumpformat) {
-        ret = qemuMonitorGetDumpGuestMemoryCapability(priv->mon, dumpformat);
+        rc = qemuMonitorGetDumpGuestMemoryCapability(priv->mon, dumpformat);
 
-        if (ret <= 0) {
+        if (rc <= 0) {
             virReportError(VIR_ERR_INVALID_ARG,
                            _("unsupported dumpformat '%s' "
                              "for this QEMU binary"),
@@ -3064,16 +3057,13 @@ qemuDumpToFd(virQEMUDriver *driver,
         }
     }
 
-    ret = qemuMonitorDumpToFd(priv->mon, fd, dumpformat, detach);
+    rc = qemuMonitorDumpToFd(priv->mon, fd, dumpformat, true);
 
     qemuDomainObjExitMonitor(vm);
-    if (ret < 0)
+    if (rc < 0)
         return -1;
 
-    if (detach)
-        ret = qemuDumpWaitForCompletion(vm);
-
-    return ret;
+    return qemuDumpWaitForCompletion(vm);
 }
 
 
@@ -3263,7 +3253,7 @@ qemuDomainCoreDumpWithFormat(virDomainPtr dom,
 
     virDomainObjEndAsyncJob(vm);
     if (ret == 0 && flags & VIR_DUMP_CRASH)
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -3575,7 +3565,7 @@ processGuestPanicEvent(virQEMUDriver *driver,
  endjob:
     virDomainObjEndAsyncJob(vm);
     if (removeInactive)
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
 }
 
 
@@ -3809,7 +3799,7 @@ processMonitorEOFEvent(virQEMUDriver *driver,
     virObjectEventStateQueue(driver->domainEventState, event);
 
  endjob:
-    qemuDomainRemoveInactive(driver, vm, 0);
+    qemuDomainRemoveInactive(driver, vm, 0, false);
     virDomainObjEndJob(vm);
 }
 
@@ -5741,7 +5731,7 @@ qemuDomainRestoreInternal(virConnectPtr conn,
     virFileWrapperFdFree(wrapperFd);
     virQEMUSaveDataFree(data);
     if (vm && ret < 0)
-        qemuDomainRemoveInactive(driver, vm, 0);
+        qemuDomainRemoveInactive(driver, vm, 0, false);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -6431,7 +6421,7 @@ qemuDomainDefineXMLFlags(virConnectPtr conn,
         } else {
             /* Brand new domain. Remove it */
             VIR_INFO("Deleting domain '%s'", vm->def->name);
-            qemuDomainRemoveInactive(driver, vm, 0);
+            qemuDomainRemoveInactive(driver, vm, 0, false);
         }
     }
 
@@ -6580,7 +6570,7 @@ qemuDomainUndefineFlags(virDomainPtr dom,
      */
     vm->persistent = 0;
     if (!virDomainObjIsActive(vm))
-        qemuDomainRemoveInactive(driver, vm, flags);
+        qemuDomainRemoveInactive(driver, vm, flags, false);
 
     ret = 0;
  endjob:
@@ -6841,6 +6831,7 @@ qemuDomainChangeMemoryLiveValidateChange(const virDomainMemoryDef *oldDef,
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("cannot modify memory of model '%s'"),
@@ -16313,18 +16304,13 @@ qemuDomainProbeQMPCurrentMachine(virDomainObj *vm,
 }
 
 
-/* returns -1 on error, or if query is not supported, 0 if query was successful */
 static int
 qemuDomainQueryWakeupSuspendSupport(virDomainObj *vm,
                                     bool *wakeupSupported)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
     int ret = -1;
 
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_QUERY_CURRENT_MACHINE))
-        return -1;
-
-    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
         return -1;
 
     if ((ret = virDomainObjCheckActive(vm)) < 0)
@@ -16400,19 +16386,13 @@ qemuDomainPMSuspendForDuration(virDomainPtr dom,
     if (!qemuDomainAgentAvailable(vm, true))
         goto cleanup;
 
-    /*
-     * The case we want to handle here is when QEMU has the API (i.e.
-     * QEMU_CAPS_QUERY_CURRENT_MACHINE is set). Otherwise, do not interfere
-     * with the suspend process. This means that existing running domains,
-     * that don't know about this cap, will keep their old behavior of
-     * suspending 'in the dark'.
-     */
-    if (qemuDomainQueryWakeupSuspendSupport(vm, &wakeupSupported) == 0) {
-        if (!wakeupSupported) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("Domain does not have suspend support"));
-            goto cleanup;
-        }
+    if (qemuDomainQueryWakeupSuspendSupport(vm, &wakeupSupported) < 0)
+        goto cleanup;
+
+    if (!wakeupSupported) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("Domain does not have suspend support"));
+        goto cleanup;
     }
 
     if (vm->def->pm.s3 || vm->def->pm.s4) {

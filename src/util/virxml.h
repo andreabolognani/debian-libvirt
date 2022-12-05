@@ -30,10 +30,6 @@
 #include "virbuffer.h"
 #include "virenum.h"
 
-xmlXPathContextPtr virXMLXPathContextNew(xmlDocPtr xml)
-    G_GNUC_WARN_UNUSED_RESULT;
-
-
 typedef enum {
     VIR_XML_PROP_NONE = 0,
     VIR_XML_PROP_REQUIRED = 1 << 0, /* Attribute may not be absent */
@@ -51,25 +47,23 @@ char *
 virXPathString(const char *xpath,
                xmlXPathContextPtr ctxt);
 int
-virXPathNumber(const char *xpath,
-               xmlXPathContextPtr ctxt,
-               double *value);
-int
 virXPathInt(const char *xpath,
             xmlXPathContextPtr ctxt,
             int *value);
+int
+virXPathUIntBase(const char *xpath,
+                 xmlXPathContextPtr ctxt,
+                 unsigned int base,
+                 unsigned int *value);
 int
 virXPathUInt(const char *xpath,
              xmlXPathContextPtr ctxt,
              unsigned int *value);
 int
-virXPathLong(const char *xpath,
-             xmlXPathContextPtr ctxt,
-             long *value);
-int
-virXPathULong(const char *xpath,
-              xmlXPathContextPtr ctxt,
-              unsigned long *value);
+virXPathULongLongBase(const char *xpath,
+                      xmlXPathContextPtr ctxt,
+                      unsigned int base,
+                      unsigned long long *value);
 int
 virXPathULongLong(const char *xpath,
                   xmlXPathContextPtr ctxt,
@@ -78,14 +72,6 @@ int
 virXPathLongLong(const char *xpath,
                  xmlXPathContextPtr ctxt,
                  long long *value);
-int
-virXPathLongHex(const char *xpath,
-                xmlXPathContextPtr ctxt,
-                long *value);
-int
-virXPathULongHex(const char *xpath,
-                 xmlXPathContextPtr ctxt,
-                 unsigned long *value);
 xmlNodePtr
 virXPathNode(const char *xpath,
              xmlXPathContextPtr ctxt);

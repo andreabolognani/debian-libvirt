@@ -10,7 +10,6 @@
   <flag name='scsi-disk.channel'/>
   <flag name='scsi-block'/>
   <flag name='virtio-scsi-pci'/>
-  <flag name='blockio'/>
   <flag name='usb-redir.filter'/>
   <flag name='scsi-disk.wwn'/>
   <flag name='seccomp-sandbox'/>
@@ -23,9 +22,6 @@
   <flag name='pci-bridge'/>
   <flag name='vfio-pci'/>
   <flag name='enable-fips'/>
-  <flag name='memory-backend-ram'/>
-  <flag name='numa'/>
-  <flag name='memory-backend-file'/>
   <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='aes-key-wrap'/>
@@ -37,31 +33,21 @@
   <flag name='virtio-mouse'/>
   <flag name='virtio-tablet'/>
   <flag name='virtio-input-host'/>
-  <flag name='vserport-change-event'/>
   <flag name='virtio-balloon-pci.deflate-on-oom'/>
   <flag name='query-hotpluggable-cpus'/>
-  <flag name='virtio-net.rx_queue_size'/>
   <flag name='vhost-scsi'/>
   <flag name='query-cpu-model-expansion'/>
-  <flag name='virtio-net.host_mtu'/>
   <flag name='query-cpu-definitions'/>
   <flag name='loadparm'/>
-  <flag name='virtio-net.tx_queue_size'/>
   <flag name='chardev-reconnect'/>
   <flag name='vxhs'/>
-  <flag name='virtio-blk.num-queues'/>
   <flag name='sclplmconsole'/>
-  <flag name='disk-share-rw'/>
-  <flag name='dump-completed'/>
   <flag name='virtio-gpu-ccw'/>
   <flag name='virtio-keyboard-ccw'/>
   <flag name='virtio-mouse-ccw'/>
   <flag name='virtio-tablet-ccw'/>
-  <flag name='disk-write-cache'/>
   <flag name='nbd-tls'/>
   <flag name='pr-manager-helper'/>
-  <flag name='qom-list-properties'/>
-  <flag name='memory-backend-file.discard-data'/>
   <flag name='vfio-ccw'/>
   <flag name='screendump_device'/>
   <flag name='vhost-vsock'/>
@@ -73,11 +59,8 @@
   <flag name='memory-backend-memfd.hugetlb'/>
   <flag name='iothread.poll-max-ns'/>
   <flag name='egl-headless.rendernode'/>
-  <flag name='memory-backend-file.align'/>
   <flag name='memory-backend-file.pmem'/>
   <flag name='virtio-pci-non-transitional'/>
-  <flag name='query-current-machine'/>
-  <flag name='bitmap-merge'/>
   <flag name='nbd-bitmap'/>
   <flag name='migration-file-drop-cache'/>
   <flag name='vhost-user-gpu'/>
@@ -86,7 +69,6 @@
   <flag name='drive-nvme'/>
   <flag name='smp-dies'/>
   <flag name='rng-builtin'/>
-  <flag name='virtio-net.failover'/>
   <flag name='vhost-user-fs'/>
   <flag name='fsdev.multidevs'/>
   <flag name='tcg'/>
@@ -95,7 +77,6 @@
   <flag name='memory-backend-file.x-use-canonical-path-for-ramblock-id'/>
   <flag name='rotation-rate'/>
   <flag name='input-linux'/>
-  <flag name='query-display-options'/>
   <flag name='virtio-blk.queue-size'/>
   <flag name='usb-host.guest-resets-all'/>
   <version>4002000</version>

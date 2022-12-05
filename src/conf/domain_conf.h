@@ -1146,7 +1146,7 @@ struct _virDomainNetDef {
     virNetDevVPortProfile *virtPortProfile;
     struct {
         bool sndbuf_specified;
-        unsigned long sndbuf;
+        unsigned long long sndbuf;
     } tune;
     char *script;
     char *downscript;
@@ -1445,6 +1445,8 @@ typedef enum {
 #define VIR_DOMAIN_TPM_DEFAULT_DEVICE "/dev/tpm0"
 
 struct _virDomainTPMDef {
+    virObject *privateData;
+
     virDomainTPMModel model;
     virDomainTPMBackendType type;
     virDomainDeviceInfo info;
@@ -2149,6 +2151,7 @@ typedef enum {
     VIR_DOMAIN_HYPERV_TLBFLUSH,
     VIR_DOMAIN_HYPERV_IPI,
     VIR_DOMAIN_HYPERV_EVMCS,
+    VIR_DOMAIN_HYPERV_AVIC,
 
     VIR_DOMAIN_HYPERV_LAST
 } virDomainHyperv;
@@ -2466,24 +2469,24 @@ struct _virDomainThreadSchedParam {
 };
 
 struct _virDomainTimerCatchupDef {
-    unsigned long threshold;
-    unsigned long slew;
-    unsigned long limit;
+    unsigned long long threshold;
+    unsigned long long slew;
+    unsigned long long limit;
 };
 
 struct _virDomainTimerDef {
-    int name;
+    virDomainTimerNameType name;
     virTristateBool present;
-    int tickpolicy; /* enum virDomainTimerTickpolicyType */
+    virDomainTimerTickpolicyType tickpolicy;
 
     virDomainTimerCatchupDef catchup;
 
     /* track is only valid for name='platform|rtc' */
-    int track;  /* enum virDomainTimerTrackType */
+    virDomainTimerTrackType track;
 
     /* frequency & mode are only valid for name='tsc' */
     unsigned long long frequency; /* in Hz, unspecified = 0 */
-    int mode;   /* enum virDomainTimerModeType */
+    virDomainTimerModeType mode;
 };
 
 typedef enum {
@@ -2582,6 +2585,7 @@ typedef enum {
     VIR_DOMAIN_MEMORY_MODEL_NVDIMM, /* nvdimm memory device */
     VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM, /* virtio-pmem memory device */
     VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM, /* virtio-mem memory device */
+    VIR_DOMAIN_MEMORY_MODEL_SGX_EPC, /* SGX enclave page cache */
 
     VIR_DOMAIN_MEMORY_MODEL_LAST
 } virDomainMemoryModel;
@@ -2615,7 +2619,9 @@ struct _virDomainMemoryDef {
     virDomainDeviceInfo info;
 };
 
+virDomainMemoryDef *virDomainMemoryDefNew(virDomainMemoryModel model);
 void virDomainMemoryDefFree(virDomainMemoryDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainMemoryDef, virDomainMemoryDefFree);
 
 struct _virDomainIdMapEntry {
     unsigned int start;
@@ -3248,6 +3254,10 @@ typedef int (*virDomainXMLPrivateDataStorageSourceParseFunc)(xmlXPathContextPtr 
 typedef int (*virDomainXMLPrivateDataStorageSourceFormatFunc)(virStorageSource *src,
                                                               virBuffer *buf);
 
+typedef int (*virDomainXMLPrivateDataTPMParseFunc)(xmlXPathContextPtr ctxt,
+                                                   virDomainTPMDef *disk);
+typedef int (*virDomainXMLPrivateDataTPMFormatFunc)(const virDomainTPMDef *tpm,
+                                                    virBuffer *buf);
 
 struct _virDomainXMLPrivateDataCallbacks {
     virDomainXMLPrivateDataAllocFunc  alloc;
@@ -3264,6 +3274,9 @@ struct _virDomainXMLPrivateDataCallbacks {
     virDomainXMLPrivateDataNewFunc    networkNew;
     virDomainXMLPrivateDataNewFunc    videoNew;
     virDomainXMLPrivateDataNewFunc    fsNew;
+    virDomainXMLPrivateDataTPMParseFunc tpmParse;
+    virDomainXMLPrivateDataTPMFormatFunc tpmFormat;
+    virDomainXMLPrivateDataNewFunc    tpmNew;
     virDomainXMLPrivateDataFormatFunc format;
     virDomainXMLPrivateDataParseFunc  parse;
     /* following function shall return a pointer which will be used as the
