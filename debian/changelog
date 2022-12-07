@@ -1,4 +1,4 @@
-libvirt (8.10.0-1) UNRELEASED; urgency=medium
+libvirt (8.10.0-1) unstable; urgency=medium
 
   [ Guido Günther ]
   * [efe753f] qemu: Recommend swtpm for TPM emulation (Closes: #1009972)
@@ -6,7 +6,7 @@ libvirt (8.10.0-1) UNRELEASED; urgency=medium
   [ Andrea Bolognani ]
   * [7dc1e3c] New upstream version 8.10.0
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 05 Dec 2022 23:19:59 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 07 Dec 2022 17:20:19 +0100
 
 libvirt (8.9.0-1) unstable; urgency=medium
 
