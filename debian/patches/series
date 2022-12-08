@@ -1,3 +1,6 @@
+backport/docs-Fix-typo-in-virt-qemu-sev-validate-1.patch
+backport/tools-Fix-interpreter-for-virt-qemu-sev-validate.patch
+backport/tools-Fix-style-issues-in-virt-qemu-sev-validate.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
