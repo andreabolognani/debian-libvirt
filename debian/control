@@ -76,6 +76,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Suggests:
+ libvirt-clients-qemu (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt-login-shell (= ${binary:Version}),
 Breaks:
@@ -90,6 +91,21 @@ Description: Programs for the libvirt library
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the libvirt shell virsh and other client binaries.
+
+Package: libvirt-clients-qemu
+Section: admin
+Architecture: all
+Depends:
+ python3-libvirt,
+ python3:any,
+ ${misc:Depends},
+Description: Programs for the libvirt library (QEMU specific)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the QEMU-specific client binaries.
 
 Package: libvirt-login-shell
 Section: admin

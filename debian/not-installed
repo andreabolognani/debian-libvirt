@@ -1,9 +1,3 @@
-# Ignore these until we introduce a new binary package for them
-usr/bin/virt-qemu-qmp-proxy
-usr/bin/virt-qemu-sev-validate
-usr/share/man/man1/virt-qemu-qmp-proxy.1
-usr/share/man/man1/virt-qemu-sev-validate.1
-
 # Drop these once we start shipping split daemons
 etc/apparmor.d/usr.sbin.virtqemud
 etc/apparmor.d/usr.sbin.virtxend
