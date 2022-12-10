@@ -107,52 +107,6 @@ add_statoverrides()
     fi
 }
 
-systemd_daemon_reload() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        systemctl --system daemon-reload >/dev/null || true
-    fi
-}
-
-systemd_unit_enable() {
-    for unit in "$@"; do
-        deb-systemd-helper unmask "$unit" >/dev/null || true
-        # was-enabled defaults to true, so new installations run enable.
-        if deb-systemd-helper --quiet was-enabled "$unit"; then
-            # Enables the unit on first installation, creates new
-            # symlinks on upgrades if the unit file has changed.
-            deb-systemd-helper enable "$unit" >/dev/null || true
-        else
-            # Update the statefile to add new symlinks (if any), which need to be
-            # cleaned up on purge. Also remove old symlinks.
-            deb-systemd-helper update-state "$unit" >/dev/null || true
-        fi
-    done
-}
-
-systemd_unit_start() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        deb-systemd-invoke start "$@" >/dev/null || true
-    fi
-}
-
-systemd_unit_restart() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        deb-systemd-invoke restart "$@" >/dev/null || true
-    fi
-}
-
-systemd_unit_reload() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        for unit in "$@"; do
-            if systemctl is-active -q "$unit"; then
-                deb-systemd-invoke reload "$unit" >/dev/null || true
-            else
-                deb-systemd-invoke start "$unit" >/dev/null || true
-            fi
-        done
-    fi
-}
-
 case "$1" in
     configure)
         add_users_groups
@@ -185,19 +139,6 @@ case "$1" in
                 install -m 0644 /dev/null "$local_abstraction"
             fi
         done
-
-        systemd_daemon_reload
-        systemd_unit_enable virtlockd.service virtlockd.socket virtlockd-admin.socket
-        systemd_unit_enable virtlogd.service virtlogd.socket virtlogd-admin.socket
-        systemd_unit_enable libvirtd.service libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
-        systemd_unit_enable libvirt-guests.service
-        systemd_unit_start virtlogd.socket virtlogd-admin.socket
-        systemd_unit_reload virtlogd.service
-        systemd_unit_start virtlockd.socket virtlockd-admin.socket
-        systemd_unit_reload virtlockd.service
-        systemd_unit_start libvirtd.socket libvirtd-admin.socket libvirtd-ro.socket
-        systemd_unit_restart libvirtd.service
-        systemd_unit_start libvirt-guests.service
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
