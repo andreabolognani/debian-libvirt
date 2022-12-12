@@ -1,4 +1,4 @@
-libvirt (8.10.0-2) UNRELEASED; urgency=medium
+libvirt (8.10.0-2) experimental; urgency=medium
 
   Localization for libvirt has been moved to the libvirt-l10n
   package, which gets installed by default but can later be
