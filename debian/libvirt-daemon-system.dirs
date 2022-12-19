@@ -12,4 +12,3 @@ var/lib/libvirt/qemu/channel/target
 var/lib/libvirt/sanlock
 var/log/libvirt/lxc
 var/log/libvirt/qemu
-var/log/libvirt/uml

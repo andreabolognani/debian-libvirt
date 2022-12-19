@@ -114,9 +114,15 @@ case "$1" in
 
         # Make sure the directories don't get removed on package removal since
         # logrotate chokes otherwise.
-        for dir in qemu uml lxc; do
+        for dir in qemu lxc; do
             touch /var/log/libvirt/"${dir}"/.placeholder
         done
+
+        # Obsolete UML stuff included until 8.10.0-4
+        rm -f /var/log/libvirt/uml/.placeholder
+        if [ -d /var/log/libvirt/uml ]; then
+            rmdir --ignore-fail-on-non-empty /var/log/libvirt/uml
+        fi
 
         # Force refresh of capabilities (#731815)
         rm -f /var/cache/libvirt/qemu/capabilities/*.xml
