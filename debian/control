@@ -182,10 +182,8 @@ Depends:
  ${shlibs:Depends},
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
- libvirt-daemon (<< 6.0.0-1~),
 Replaces:
  libvirt-clients (<< 6.9.0-2~),
- libvirt-daemon (<< 6.0.0-1~),
 Recommends:
  swtpm,
  swtpm-tools,
@@ -227,10 +225,6 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-daemon (<< 6.0.0-1~),
-Replaces:
- libvirt-daemon (<< 6.0.0-1~),
 Description: Virtualization daemon VirtualBox connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -248,10 +242,6 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-daemon (<< 6.0.0-1~),
-Replaces:
- libvirt-daemon (<< 6.0.0-1~),
 Description: Virtualization daemon Xen connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -269,10 +259,6 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-daemon (<< 3.7.0-3~),
-Replaces:
- libvirt-daemon (<< 3.7.0-3~),
 Description: Virtualization daemon glusterfs storage driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -310,10 +296,6 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-daemon (<< 3.7.0-3~),
-Replaces:
- libvirt-daemon (<< 3.7.0-3~),
 Description: Virtualization daemon RBD storage driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -331,10 +313,6 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-daemon (<< 3.7.0-3~),
-Replaces:
- libvirt-daemon (<< 3.7.0-3~),
 Description: Virtualization daemon ZFS storage driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -408,10 +386,6 @@ Architecture: all
 Depends:
  lsb-base,
  ${misc:Depends},
-Breaks:
- libvirt-daemon-system (<< 5.6.0-4~),
-Replaces:
- libvirt-daemon-system (<< 5.6.0-4~),
 Description: Libvirt daemon configuration files (sysv)
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -466,10 +440,6 @@ Depends:
  ${shlibs:Depends},
 Recommends:
  libvirt-l10n (= ${binary:Version}),
-Breaks:
- libvirt-daemon (<< 4.10.0-2~),
-Replaces:
- libvirt-daemon (<< 4.10.0-2~),
 Description: library for interfacing with different virtualization systems
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
