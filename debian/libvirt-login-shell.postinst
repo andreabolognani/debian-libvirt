@@ -4,7 +4,7 @@ set -e
 
 # summary of how this script can be called:
 #        * <postinst> `configure' <most-recently-configured-version>
-#        * <old-postinst> `abort-upgrade' <new version>
+#        * <old-postinst> `abort-upgrade' <new-version>
 #        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
 #          <new-version>
 #        * <postinst> `abort-remove'
