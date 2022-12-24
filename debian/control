@@ -356,7 +356,8 @@ Depends:
  libvirt-daemon-config-nwfilter (= ${source:Version}),
  libvirt-daemon-system-systemd (= ${source:Version}) | libvirt-daemon-system-sysv (= ${source:Version}),
  logrotate,
- policykit-1 [linux-any],
+ polkitd [linux-any],
+ polkitd-pkla [linux-any],
  ${misc:Depends},
 Recommends:
  dmidecode,
