@@ -1,3 +1,28 @@
+libvirt (8.10.0-3) unstable; urgency=medium
+
+  [ Michael Biebl ]
+  * [4d6db56] Replace manual maintscript code with dh_installsystemd
+    - No longer needed now that #994204 has been addressed
+    - Closes: #1021956
+  * [91d9ac0] Drop no longer supported static priorities from dh_installinit
+
+  [ Smits Katze ]
+  * [60b2ca1] libnss-libvirt: Update apt seccomp filter
+    - Allow getdents64() in addition to getdents()
+    - Thanks to Thomas Luzat
+    - Closes: #934474
+
+  [ Andrea Bolognani ]
+  * [b9b2923] libvirt-daemon-system: Depend on polkitd instead of policykit-1
+    - Makes it possible to not install / uninstall pkexec
+    - Closes: #1025578
+  * [c62b8b2] libvirt-daemon-system: Drop polkit rules in legacy pkla format
+    - Makes it possible to not install / uninstall polkitd-pkla
+  * [8c5870d] control: Bump Standards-Version to 4.6.2
+    - No changes needed
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 04 Jan 2023 22:09:31 +0100
+
 libvirt (8.10.0-2) experimental; urgency=medium
 
   * [145e4fe] patches: Add backports
