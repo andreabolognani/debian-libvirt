@@ -1,3 +1,12 @@
+libvirt (9.0.0-1) UNRELEASED; urgency=medium
+
+  * [45d077a] libvirt-daemon-system: Make default files functionally empty
+  * [40fe229] Drop obsolete package transition logic
+  * [5bb56e9] Drop obsolete UML-related files
+  * [f9f3a4d] New upstream version 9.0.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 18 Jan 2023 00:09:52 +0100
+
 libvirt (8.10.0-3) unstable; urgency=medium
 
   [ Michael Biebl ]
