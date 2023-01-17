@@ -118,7 +118,7 @@ case "$1" in
             touch /var/log/libvirt/"${dir}"/.placeholder
         done
 
-        # Obsolete UML stuff included until 8.10.0-4
+        # Obsolete UML stuff included until 9.0.0-1
         rm -f /var/log/libvirt/uml/.placeholder
         if [ -d /var/log/libvirt/uml ]; then
             rmdir --ignore-fail-on-non-empty /var/log/libvirt/uml
