@@ -10,7 +10,7 @@ Closes: #663931
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/util/virutil.c b/src/util/virutil.c
-index 7e246d2..5bb1549 100644
+index ddc6600..ad0aa07 100644
 --- a/src/util/virutil.c
 +++ b/src/util/virutil.c
 @@ -1247,7 +1247,7 @@ void virWaitForDevices(void)
