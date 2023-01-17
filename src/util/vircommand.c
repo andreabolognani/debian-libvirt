@@ -1693,13 +1693,16 @@ virCommandFreeSendBuffers(virCommand *cmd)
  * @buffer is always stolen regardless of the return value. This function
  * doesn't raise a libvirt error, but rather propagates the error via virCommand.
  * Thus callers don't need to take a special action if -1 is returned.
+ *
+ * When the @cmd is daemonized via virCommandDaemonize() remember to request
+ * asynchronous IO via virCommandDoAsyncIO().
  */
 int
 virCommandSetSendBuffer(virCommand *cmd,
-                        unsigned char *buffer,
+                        unsigned char **buffer,
                         size_t buflen)
 {
-    g_autofree unsigned char *localbuf = g_steal_pointer(&buffer);
+    g_autofree unsigned char *localbuf = g_steal_pointer(buffer);
     int pipefd[2] = { -1, -1 };
     size_t i;
 
@@ -2898,7 +2901,7 @@ int virCommandHandshakeNotify(virCommand *cmd)
 #else /* WIN32 */
 int
 virCommandSetSendBuffer(virCommand *cmd,
-                        unsigned char *buffer G_GNUC_UNUSED,
+                        unsigned char **buffer G_GNUC_UNUSED,
                         size_t buflen G_GNUC_UNUSED)
 {
     if (virCommandHasError(cmd))
@@ -3075,8 +3078,6 @@ virCommandFree(virCommand *cmd)
  *
  *      ...
  *
- *
- * The libvirt's event loop is used for handling stdios of @cmd.
  * Since current implementation uses strlen to determine length
  * of data to be written to @cmd's stdin, don't pass any binary
  * data. If you want to re-run command, you need to call this and

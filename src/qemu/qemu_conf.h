@@ -95,6 +95,7 @@ struct _virQEMUDriverConfig {
     char *stateDir;
     char *swtpmStateDir;
     char *slirpStateDir;
+    char *passtStateDir;
     char *dbusStateDir;
     /* These two directories are ones QEMU processes use (so must match
      * the QEMU user/group */
@@ -313,9 +314,6 @@ struct _virQEMUDriver {
 
     /* Immutable pointer. lockless access */
     virLockManagerPlugin *lockManager;
-
-    /* Immutable pointer, self-clocking APIs */
-    virCloseCallbacks *closeCallbacks;
 
     /* Immutable pointer, self-locking APIs */
     virHashAtomic *migrationErrors;

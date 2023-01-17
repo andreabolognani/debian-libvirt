@@ -4172,6 +4172,7 @@ typedef enum {
     VIR_DOMAIN_JOB_OPERATION_SNAPSHOT_REVERT = 7, /* (Since: 3.3.0) */
     VIR_DOMAIN_JOB_OPERATION_DUMP = 8, /* (Since: 3.3.0) */
     VIR_DOMAIN_JOB_OPERATION_BACKUP = 9, /* (Since: 6.0.0) */
+    VIR_DOMAIN_JOB_OPERATION_SNAPSHOT_DELETE = 10, /* (Since: 9.0.0) */
 
 # ifdef VIR_ENUM_SENTINELS
     VIR_DOMAIN_JOB_OPERATION_LAST /* (Since: 3.3.0) */
@@ -6456,5 +6457,25 @@ typedef enum {
 int virDomainStartDirtyRateCalc(virDomainPtr domain,
                                 int seconds,
                                 unsigned int flags);
+
+
+/**
+ * virDomainFDAssociateFlags:
+ *
+ * Since: 9.0.0
+ */
+typedef enum {
+    /* Attempt a best-effort restore of security labels after use (Since: 9.0.0) */
+    VIR_DOMAIN_FD_ASSOCIATE_SECLABEL_RESTORE = (1 << 0),
+    /* Use a seclabel allowing writes for the FD even if usage implies read-only mode (Since: 9.0.0) */
+    VIR_DOMAIN_FD_ASSOCIATE_SECLABEL_WRITABLE = (1 << 1),
+} virDomainFDAssociateFlags;
+
+
+int virDomainFDAssociate(virDomainPtr domain,
+                         const char *name,
+                         unsigned int nfds,
+                         int *fds,
+                         unsigned int flags);
 
 #endif /* LIBVIRT_DOMAIN_H */

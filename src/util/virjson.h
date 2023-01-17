@@ -170,8 +170,7 @@ const char *
 virJSONValueObjectGetString(virJSONValue *object,
                             const char *key);
 char **
-virJSONValueObjectGetStringArray(virJSONValue *object,
-                                 const char *key);
+virJSONValueArrayToStringList(virJSONValue *data);
 const char *
 virJSONValueObjectGetStringOrNumber(virJSONValue *object,
                                     const char *key);

@@ -8,6 +8,89 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.0.0 (2023-01-16)
+===================
+
+* **New features**
+
+  * QEMU: implement external snapshot deletion
+
+    External snapshot deletion is now possible using the existing API
+    ``virDomainSnapshotDelete()``. Flags that allow deleting children
+    or children only are not supported.
+
+  * QEMU: support passt (https://passt.top)
+
+    passt can be used to connect an emulated network device to the
+    host's network without requiring libvirt to have any sort of
+    elevated privileges. This is configured with::
+
+      <interface type='user'>
+        <backend type='passt'>
+        ...
+
+  * QEMU: add external backend for swtpm
+
+    Connecting the VM to a swtpm daemon started outside of libvirt
+    is now possible.
+
+  * QEMU: Support for passing FDs instead of opening files for `<disk>`
+
+    A new API `virDomainFDAssociate` gives the users the option to pass FDs
+    to libvirt and then use them when starting a VM. Currently the FDs can
+    be used instead of directly opening files as `<disk>` backend.
+
+* **Improvements**
+
+  * qemu: Prefer PNG for domain screenshots
+
+    With sufficiently new QEMU (v7.1.0) screenshots change format from PPM to PNG.
+
+  * tools: Fix install_mode for some scripts
+
+    Scripts from the following list were installed with group write bit set:
+    virt-xml-validate, virt-pki-validate, virt-sanlock-cleanup,
+    libvirt-guests.sh. This was changed so that only the owner is able to write
+    them.
+
+  * qemu: Allow multiple nodes for preferred policy
+
+    Due to restrictions of old kernels and libnuma APIs, the preferred NUMA
+    policy accepted just a single host NUMA node. With recent enough kernel
+    (v5.15.0) and libnuma (v2.0.15) it's possible to set multiple nodes.
+
+  * secret: Inhibit shutdown of daemon for ephemeral secrets
+
+    When an ephemeral secret is defined then automatic shutdown of virtsecretd
+    is inhibited. This is to avoid ephemeral secrets disappearing shortly
+    before their use.
+
+  * qemu: Report Hyper-V Enlightenments in domcapabilities
+
+    The supported Hyper-V Enlightenments are now reported in domain
+    capabilities XML.
+
+* **Bug fixes**
+
+  * Fix NULL-pointer dereference `virXMLPropStringRequired`
+
+    Fix a bug where when parsing a XML property which is required to be present
+    by using `virXMLPropStringRequired` the parser will crash instead of
+    reporting an error.
+
+  * qemu: Init ext devices paths on reconnect
+
+    Paths for external devices are not stored in the status XML. Therefore,
+    when the daemon restarted and was reconnecting to a running domain, these
+    paths were left blank which led to the daemon crash.
+
+  * qemu: Validate arguments passed to `virConnectGetDomainCapabilities`
+
+    There was a code path in which insufficient validation of input arguments
+    of `virConnectGetDomainCapabilities` API was possible which led to the
+    daemon crash. This path is now fixed.
+
+
 v8.10.0 (2022-12-01)
 ====================
 

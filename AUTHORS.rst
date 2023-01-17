@@ -301,6 +301,7 @@ Patches have also been contributed by:
 * Eric van Blokland <mail@ericvanblokland.nl>
 * Erik Skultety <eskultet@redhat.com>
 * Ersek Laszlo <lacos@caesar.elte.hu>
+* Ettore Atalan <atalanttore@googlemail.com>
 * Eugen Feller <eugen.feller@inria.fr>
 * Eugenio Pérez <eperezma@redhat.com>
 * Fabian Affolter <mail@fabian-affolter.ch>
@@ -328,6 +329,7 @@ Patches have also been contributed by:
 * Garry Dolley <gdolley@arpnetworks.com>
 * Gary R Hook <grhookatwork@gmail.com>
 * Gaurav Agrawal <agrawalgaurav@gnome.org>
+* Gedalya <gedalya@gedalya.net>
 * Gema Gomez <gema.gomez-solano@linaro.org>
 * Gene Czarcinski <gene@czarc.net>
 * Geoff Hickey <ghickey@datagravity.com>
@@ -355,6 +357,7 @@ Patches have also been contributed by:
 * Harry Wei <harryxiyou@gmail.com>
 * Harsh Prateek Bora <harsh@linux.vnet.ibm.com>
 * Harshavardhana <harsha@gluster.com>
+* Haruka Ohata <ohata.haruka@fujitsu.com>
 * Heath Petersen <HeathPetersen@Kandre.com>
 * Hela Basa <r45xveza@pm.me>
 * Helmut Grohne <helmut@subdivi.de>
@@ -613,6 +616,7 @@ Patches have also been contributed by:
 * Nishith Shah <nishithshah.2211@gmail.com>
 * Niteesh Dubey <niteesh@linux.ibm.com>
 * Nitesh Konkar <niteshkonkar.libvirt@gmail.com>
+* Nobuhiro MIKI <nmiki@yahoo-corp.jp>
 * Noella Ashu <ashu.noella207@gmail.com>
 * Ohad Levy <ohadlevy@gmail.com>
 * Olaf Hering <olaf@aepfle.de>
@@ -731,6 +735,7 @@ Patches have also been contributed by:
 * Sergey Bronnikov <sergeyb@openvz.org>
 * Sergey Fionov <fionov@gmail.com>
 * Shahar Klein <shaharklein@yahoo.com>
+* Shaleen Bathla <shaleen.bathla@oracle.com>
 * Shalini Chellathurai Saroja <shalini@linux.ibm.com>
 * Shalini Chellathurai Saroja <shalini@linux.vnet.ibm.com>
 * Shanzhi Yu <shyu@redhat.com>
@@ -863,6 +868,7 @@ Patches have also been contributed by:
 * Yanbing Du <ydu@redhat.com>
 * Yanbing Du <ydu@ydu-0.nay.redhat.com>
 * Yang Fei <yangfei85@huawei.com>
+* Yang Yulin <yylteam@icloud.com>
 * Yaniv Kaul <ykaul@redhat.com>
 * Yanqiu Zhang <yanqzhan@redhat.com>
 * Yaroslav Kargin <ykargin@virtuozzo.com>
@@ -902,6 +908,7 @@ Patches have also been contributed by:
 * Zhou Yimin <zhouyimin@huawei.com>
 * Zhou yimin <zhouyimin@huawei.com>
 * Zhuang Yanying <ann.zhuangyanying@huawei.com>
+* antonios-f <anton.fadeev@red-soft.ru>
 * caoxinhua <caoxinhua@huawei.com>
 * dann frazier <dann.frazier@canonical.com>
 * dinglimin <dinglimin@cmss.chinamobile.com>
@@ -918,6 +925,7 @@ Patches have also been contributed by:
 * jiangjiacheng <jiangjiacheng@huawei.com>
 * lawrancejing <lawrancejing@gmail.com>
 * liguang <lig.fnst@cn.fujitsu.com>
+* liqiang <liqiang64@huawei.com>
 * lu zhipeng <luzhipeng@cestc.cn>
 * luzhipeng <luzhipeng@cestc.cn>
 * minglei.liu <minglei.liu@smartx.com>

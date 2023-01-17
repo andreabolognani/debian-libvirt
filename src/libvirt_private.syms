@@ -353,7 +353,6 @@ virDomainDefSetVcpusMax;
 virDomainDefVcpuOrderClear;
 virDomainDeleteConfig;
 virDomainDeviceAliasIsUserAlias;
-virDomainDeviceDefCopy;
 virDomainDeviceDefFree;
 virDomainDeviceDefParse;
 virDomainDeviceFindSCSIController;
@@ -552,6 +551,7 @@ virDomainNetIsVirtioModel;
 virDomainNetModelTypeFromString;
 virDomainNetModelTypeToString;
 virDomainNetNotifyActualDevice;
+virDomainNetPortForwardFree;
 virDomainNetReleaseActualDevice;
 virDomainNetRemove;
 virDomainNetRemoveByObj;
@@ -700,6 +700,7 @@ virDomainXenPassthroughModeTypeToString;
 virDomainXMLOptionGetNamespace;
 virDomainXMLOptionGetSaveCookie;
 virDomainXMLOptionNew;
+virDomainXMLOptionSetCloseCallbackAlloc;
 virDomainXMLOptionSetMomentPostParse;
 
 
@@ -1117,6 +1118,7 @@ virStorageSourceChainHasManagedPR;
 virStorageSourceChainHasNVMe;
 virStorageSourceClear;
 virStorageSourceCopy;
+virStorageSourceFDTupleNew;
 virStorageSourceGetActualType;
 virStorageSourceGetSecurityLabelDef;
 virStorageSourceHasBacking;
@@ -1128,6 +1130,7 @@ virStorageSourceInitiatorParseXML;
 virStorageSourceIsBacking;
 virStorageSourceIsBlockLocal;
 virStorageSourceIsEmpty;
+virStorageSourceIsFD;
 virStorageSourceIsLocalStorage;
 virStorageSourceIsRelative;
 virStorageSourceIsSameLocation;
@@ -1210,6 +1213,7 @@ virDomainMomentObjNew;
 # conf/virdomainobjlist.h
 virDomainObjListAdd;
 virDomainObjListCollect;
+virDomainObjListCollectAll;
 virDomainObjListConvert;
 virDomainObjListExport;
 virDomainObjListFindByID;
@@ -1606,11 +1610,11 @@ virDomainDriverSetupPersistentDefBlkioParams;
 
 
 # hypervisor/virclosecallbacks.h
-virCloseCallbacksGet;
-virCloseCallbacksNew;
-virCloseCallbacksRun;
-virCloseCallbacksSet;
-virCloseCallbacksUnset;
+virCloseCallbacksDomainAdd;
+virCloseCallbacksDomainAlloc;
+virCloseCallbacksDomainIsRegistered;
+virCloseCallbacksDomainRemove;
+virCloseCallbacksDomainRunForConn;
 
 
 # hypervisor/virhostdev.h
@@ -1779,6 +1783,7 @@ virStorageFileProbeGetMetadata;
 # storage_file/storage_source.h
 virStorageSourceAccess;
 virStorageSourceChainLookup;
+virStorageSourceChainLookupBySource;
 virStorageSourceChown;
 virStorageSourceCreate;
 virStorageSourceDeinit;
@@ -2564,6 +2569,7 @@ virJSONValueArrayForeachSteal;
 virJSONValueArrayGet;
 virJSONValueArraySize;
 virJSONValueArraySteal;
+virJSONValueArrayToStringList;
 virJSONValueCopy;
 virJSONValueFree;
 virJSONValueFromString;
@@ -2615,7 +2621,6 @@ virJSONValueObjectGetNumberUint;
 virJSONValueObjectGetNumberUlong;
 virJSONValueObjectGetObject;
 virJSONValueObjectGetString;
-virJSONValueObjectGetStringArray;
 virJSONValueObjectGetValue;
 virJSONValueObjectHasKey;
 virJSONValueObjectKeysNumber;
@@ -3671,6 +3676,7 @@ virXMLFormatElementInternal;
 virXMLFormatMetadata;
 virXMLNewNode;
 virXMLNodeContentString;
+virXMLNodeGetSubelement;
 virXMLNodeNameEqual;
 virXMLNodeSanitizeNamespaces;
 virXMLNodeToString;

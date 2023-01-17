@@ -2134,6 +2134,14 @@ virDomainNetDefValidate(const virDomainNetDef *net)
         return -1;
     }
 
+    if (net->type != VIR_DOMAIN_NET_TYPE_USER) {
+        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("The 'passt' backend can only be used with interface type='user'"));
+            return -1;
+        }
+    }
+
     switch (net->type) {
     case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
         if (!virDomainNetIsVirtioModel(net)) {
@@ -2150,6 +2158,29 @@ virDomainNetDefValidate(const virDomainNetDef *net)
         }
         break;
 
+    case VIR_DOMAIN_NET_TYPE_USER:
+        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+            size_t p;
+
+            for (p = 0; p < net->nPortForwards; p++) {
+                size_t r;
+                virDomainNetPortForward *pf = net->portForwards[p];
+
+                for (r = 0; r < pf->nRanges; r++) {
+                    virDomainNetPortForwardRange *range = pf->ranges[r];
+
+                    if (!range->start
+                        && (range->end || range->to
+                            || range->exclude != VIR_TRISTATE_BOOL_ABSENT)) {
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                       _("The 'range' of a 'portForward' requires 'start' attribute if 'end', 'to', or 'exclude' is specified"));
+                        return -1;
+                    }
+                }
+            }
+        }
+        break;
+
     case VIR_DOMAIN_NET_TYPE_NETWORK:
     case VIR_DOMAIN_NET_TYPE_VDPA:
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
@@ -2162,7 +2193,6 @@ virDomainNetDefValidate(const virDomainNetDef *net)
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
     case VIR_DOMAIN_NET_TYPE_VDS:
     case VIR_DOMAIN_NET_TYPE_ETHERNET:
-    case VIR_DOMAIN_NET_TYPE_USER:
     case VIR_DOMAIN_NET_TYPE_NULL:
     case VIR_DOMAIN_NET_TYPE_LAST:
         break;
@@ -2256,6 +2286,12 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
     /* Guest NUMA nodes are continuous and indexed from zero. */
     if (mem->targetNode != -1) {
         const size_t nodeCount = virDomainNumaGetNodeCount(def->numa);
+
+        if (nodeCount == 0) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("can't add memory backend as guest has no NUMA nodes configured"));
+            return -1;
+        }
 
         if (mem->targetNode >= nodeCount) {
             virReportError(VIR_ERR_XML_DETAIL,
@@ -2721,6 +2757,24 @@ virDomainTPMDevValidate(const virDomainTPMDef *tpm)
         break;
 
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+        break;
+
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
+        if (tpm->data.external.source->type != VIR_DOMAIN_CHR_TYPE_UNIX) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("only source type 'unix' is supported for external TPM device"));
+            return -1;
+        }
+        if (tpm->data.external.source->data.nix.listen) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("only 'client' mode is supported for external TPM device"));
+            return -1;
+        }
+        if (tpm->data.external.source->data.nix.path == NULL) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("missing socket path for external TPM device"));
+            return -1;
+        }
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }

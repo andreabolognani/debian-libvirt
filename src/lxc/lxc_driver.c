@@ -161,7 +161,8 @@ static int lxcConnectClose(virConnectPtr conn)
 {
     virLXCDriver *driver = conn->privateData;
 
-    virCloseCallbacksRun(driver->closeCallbacks, conn, driver->domains);
+    virCloseCallbacksDomainRunForConn(driver->domains, conn);
+
     conn->privateData = NULL;
     return 0;
 }
@@ -1496,9 +1497,6 @@ static int lxcStateInitialize(bool privileged,
     if (!(lxc_driver->xmlopt = lxcDomainXMLConfInit(lxc_driver, defsecmodel)))
         goto cleanup;
 
-    if (!(lxc_driver->closeCallbacks = virCloseCallbacksNew()))
-        goto cleanup;
-
     if (g_mkdir_with_parents(cfg->stateDir, 0777) < 0) {
         virReportSystemError(errno,
                              _("Failed to mkdir %s"),
@@ -1585,8 +1583,6 @@ static int lxcStateCleanup(void)
 
     virObjectUnref(lxc_driver->domains);
     virObjectUnref(lxc_driver->domainEventState);
-
-    virObjectUnref(lxc_driver->closeCallbacks);
 
     virSysinfoDefFree(lxc_driver->hostsysinfo);
 
@@ -4255,8 +4251,8 @@ static int lxcDomainAttachDeviceFlags(virDomainPtr dom,
     virLXCDriver *driver = dom->conn->privateData;
     virDomainObj *vm = NULL;
     g_autoptr(virDomainDef) vmdef = NULL;
-    virDomainDeviceDef *dev = NULL;
-    virDomainDeviceDef *dev_copy = NULL;
+    g_autoptr(virDomainDeviceDef) dev_config = NULL;
+    g_autoptr(virDomainDeviceDef) dev_live = NULL;
     int ret = -1;
     g_autoptr(virLXCDriverConfig) cfg = virLXCDriverGetConfig(driver);
 
@@ -4275,21 +4271,17 @@ static int lxcDomainAttachDeviceFlags(virDomainPtr dom,
     if (virDomainObjUpdateModificationImpact(vm, &flags) < 0)
         goto endjob;
 
-    dev = dev_copy = virDomainDeviceDefParse(xml, vm->def,
-                                             driver->xmlopt, NULL,
-                                             VIR_DOMAIN_DEF_PARSE_INACTIVE);
-    if (dev == NULL)
-        goto endjob;
+    if (flags & VIR_DOMAIN_AFFECT_CONFIG) {
+        if (!(dev_config = virDomainDeviceDefParse(xml, vm->def, driver->xmlopt,
+                                                   NULL,
+                                                   VIR_DOMAIN_DEF_PARSE_INACTIVE)))
+            goto endjob;
+    }
 
-    if (flags & VIR_DOMAIN_AFFECT_CONFIG &&
-        flags & VIR_DOMAIN_AFFECT_LIVE) {
-        /* If we are affecting both CONFIG and LIVE
-         * create a deep copy of device as adding
-         * to CONFIG takes one instance.
-         */
-        dev_copy = virDomainDeviceDefCopy(dev, vm->def,
-                                          driver->xmlopt, NULL);
-        if (!dev_copy)
+    if (flags & VIR_DOMAIN_AFFECT_LIVE) {
+        if (!(dev_live = virDomainDeviceDefParse(xml, vm->def, driver->xmlopt,
+                                                 NULL,
+                                                 VIR_DOMAIN_DEF_PARSE_INACTIVE)))
             goto endjob;
     }
 
@@ -4299,22 +4291,22 @@ static int lxcDomainAttachDeviceFlags(virDomainPtr dom,
         if (!vmdef)
             goto endjob;
 
-        if (virDomainDefCompatibleDevice(vmdef, dev, NULL,
+        if (virDomainDefCompatibleDevice(vmdef, dev_config, NULL,
                                          VIR_DOMAIN_DEVICE_ACTION_ATTACH,
                                          false) < 0)
             goto endjob;
 
-        if ((ret = lxcDomainAttachDeviceConfig(vmdef, dev_copy)) < 0)
+        if ((ret = lxcDomainAttachDeviceConfig(vmdef, dev_config)) < 0)
             goto endjob;
     }
 
     if (flags & VIR_DOMAIN_AFFECT_LIVE) {
-        if (virDomainDefCompatibleDevice(vm->def, dev, NULL,
+        if (virDomainDefCompatibleDevice(vm->def, dev_live, NULL,
                                          VIR_DOMAIN_DEVICE_ACTION_ATTACH,
                                          true) < 0)
             goto endjob;
 
-        if ((ret = lxcDomainAttachDeviceLive(driver, vm, dev)) < 0)
+        if ((ret = lxcDomainAttachDeviceLive(driver, vm, dev_live)) < 0)
             goto endjob;
         /*
          * update domain status forcibly because the domain status may be
@@ -4338,9 +4330,6 @@ static int lxcDomainAttachDeviceFlags(virDomainPtr dom,
     virDomainObjEndJob(vm);
 
  cleanup:
-    if (dev != dev_copy)
-        virDomainDeviceDefFree(dev_copy);
-    virDomainDeviceDefFree(dev);
     virDomainObjEndAPI(&vm);
     return ret;
 }
@@ -4423,8 +4412,10 @@ static int lxcDomainDetachDeviceFlags(virDomainPtr dom,
     g_autoptr(virCaps) caps = NULL;
     virDomainObj *vm = NULL;
     g_autoptr(virDomainDef) vmdef = NULL;
-    virDomainDeviceDef *dev = NULL;
-    virDomainDeviceDef *dev_copy = NULL;
+    g_autoptr(virDomainDeviceDef) dev_config = NULL;
+    g_autoptr(virDomainDeviceDef) dev_live = NULL;
+    unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE |
+                               VIR_DOMAIN_DEF_PARSE_INACTIVE;
     int ret = -1;
     g_autoptr(virLXCDriverConfig) cfg = virLXCDriverGetConfig(driver);
 
@@ -4446,22 +4437,15 @@ static int lxcDomainDetachDeviceFlags(virDomainPtr dom,
     if (!(caps = virLXCDriverGetCapabilities(driver, false)))
         goto endjob;
 
-    dev = dev_copy = virDomainDeviceDefParse(xml, vm->def,
-                                             driver->xmlopt, NULL,
-                                             VIR_DOMAIN_DEF_PARSE_INACTIVE |
-                                             VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE);
-    if (dev == NULL)
-        goto endjob;
+    if (flags & VIR_DOMAIN_AFFECT_CONFIG) {
+        if (!(dev_config = virDomainDeviceDefParse(xml, vm->def, driver->xmlopt,
+                                                   NULL, parse_flags)))
+            goto endjob;
+    }
 
-    if (flags & VIR_DOMAIN_AFFECT_CONFIG &&
-        flags & VIR_DOMAIN_AFFECT_LIVE) {
-        /* If we are affecting both CONFIG and LIVE
-         * create a deep copy of device as adding
-         * to CONFIG takes one instance.
-         */
-        dev_copy = virDomainDeviceDefCopy(dev, vm->def,
-                                          driver->xmlopt, NULL);
-        if (!dev_copy)
+    if (flags & VIR_DOMAIN_AFFECT_LIVE) {
+        if (!(dev_live = virDomainDeviceDefParse(xml, vm->def, driver->xmlopt,
+                                                 NULL, parse_flags)))
             goto endjob;
     }
 
@@ -4471,12 +4455,12 @@ static int lxcDomainDetachDeviceFlags(virDomainPtr dom,
         if (!vmdef)
             goto endjob;
 
-        if ((ret = lxcDomainDetachDeviceConfig(vmdef, dev_copy)) < 0)
+        if ((ret = lxcDomainDetachDeviceConfig(vmdef, dev_config)) < 0)
             goto endjob;
     }
 
     if (flags & VIR_DOMAIN_AFFECT_LIVE) {
-        if ((ret = lxcDomainDetachDeviceLive(driver, vm, dev)) < 0)
+        if ((ret = lxcDomainDetachDeviceLive(driver, vm, dev_live)) < 0)
             goto endjob;
         /*
          * update domain status forcibly because the domain status may be
@@ -4500,9 +4484,6 @@ static int lxcDomainDetachDeviceFlags(virDomainPtr dom,
     virDomainObjEndJob(vm);
 
  cleanup:
-    if (dev != dev_copy)
-        virDomainDeviceDefFree(dev_copy);
-    virDomainDeviceDefFree(dev);
     virDomainObjEndAPI(&vm);
     return ret;
 }

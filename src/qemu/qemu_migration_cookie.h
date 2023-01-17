@@ -189,13 +189,13 @@ qemuMigrationCookieFormat(qemuMigrationCookie *mig,
 
 qemuMigrationCookie *
 qemuMigrationCookieParse(virQEMUDriver *driver,
-                        const virDomainDef *def,
-                        const char *origname,
-                        qemuDomainObjPrivate *priv,
-                        const char *cookiein,
-                        int cookieinlen,
-                        unsigned int flags,
-                        virDomainObj *vm);
+                         virDomainObj *vm,
+                         const virDomainDef *def,
+                         const char *origname,
+                         virQEMUCaps *qemuCaps,
+                         const char *cookiein,
+                         int cookieinlen,
+                         unsigned int flags);
 
 void
 qemuMigrationCookieFree(qemuMigrationCookie *mig);

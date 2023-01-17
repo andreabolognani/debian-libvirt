@@ -461,6 +461,8 @@ qemuInterfaceEthernetConnect(virDomainDef *def,
         if (!net->ifname)
             template_ifname = true;
 
+        tap_create_flags |= VIR_NETDEV_TAP_CREATE_ALLOW_EXISTING;
+
         if (virNetDevTapCreate(&net->ifname, tunpath, tapfd, tapfdSize,
                                tap_create_flags) < 0) {
             goto cleanup;
@@ -717,14 +719,14 @@ qemuInterfaceOpenVhostNet(virDomainObj *vm,
     /* If running a plain QEMU guest, or
      * if the config says explicitly to not use vhost, return now */
     if (vm->def->virtType != VIR_DOMAIN_VIRT_KVM ||
-        net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_QEMU)
+        net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_QEMU)
         return 0;
 
     /* If qemu doesn't support vhost-net mode (including the -netdev and
      * -device command options), don't try to open the device.
      */
     if (!qemuDomainSupportsNicdev(vm->def, net)) {
-        if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_VHOST) {
+        if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_VHOST) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("vhost-net is not supported with this QEMU binary"));
             return -1;
@@ -734,7 +736,7 @@ qemuInterfaceOpenVhostNet(virDomainObj *vm,
 
     /* If the nic model isn't virtio, don't try to open. */
     if (!virDomainNetIsVirtioModel(net)) {
-        if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_VHOST) {
+        if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_VHOST) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("vhost-net is only supported for virtio network interfaces"));
             return -1;
@@ -751,7 +753,7 @@ qemuInterfaceOpenVhostNet(virDomainObj *vm,
          */
         if (fd < 0) {
             virDomainAuditNetDevice(vm->def, net, vhostnet_path, false);
-            if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_VHOST) {
+            if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_VHOST) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("vhost-net was requested for an interface, but is unavailable"));
                 return -1;

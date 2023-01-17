@@ -3120,6 +3120,10 @@ static const vshCmdOptDef opts_domif_setlink[] = {
      .help = "config"
     },
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
+    {.name = "print-xml",
+     .type = VSH_OT_BOOL,
+     .help = N_("print XML document rather than set the interface link state")
+    },
     {.name = NULL}
 };
 
@@ -3129,18 +3133,17 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshDomain) dom = NULL;
     const char *iface;
     const char *state;
-    virMacAddr macaddr;
-    const char *element;
-    const char *attr;
-    bool config;
     unsigned int flags = 0;
     unsigned int xmlflags = 0;
     size_t i;
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    g_autoptr(xmlXPathObject) obj = NULL;
-    xmlNodePtr cur = NULL;
     g_autofree char *xml_buf = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
+    ssize_t nnodes;
+    xmlNodePtr ifaceNode = NULL;
+    xmlNodePtr linkNode = NULL;
+    xmlAttrPtr stateAttr;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -3149,14 +3152,12 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
         vshCommandOptStringReq(ctl, cmd, "state", &state) < 0)
         return false;
 
-    config = vshCommandOptBool(cmd, "config");
-
     if (STRNEQ(state, "up") && STRNEQ(state, "down")) {
         vshError(ctl, _("invalid link state '%s'"), state);
         return false;
     }
 
-    if (config) {
+    if (vshCommandOptBool(cmd, "config")) {
         flags = VIR_DOMAIN_AFFECT_CONFIG;
         xmlflags |= VIR_DOMAIN_XML_INACTIVE;
     } else {
@@ -3169,73 +3170,64 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
     if (virshDomainGetXMLFromDom(ctl, dom, xmlflags, &xml, &ctxt) < 0)
         return false;
 
-    obj = xmlXPathEval(BAD_CAST "/domain/devices/interface", ctxt);
-    if (obj == NULL || obj->type != XPATH_NODESET ||
-        obj->nodesetval == NULL || obj->nodesetval->nodeNr == 0) {
+    if ((nnodes = virXPathNodeSet("/domain/devices/interface", ctxt, &nodes)) <= 0) {
         vshError(ctl, _("Failed to extract interface information or no interfaces found"));
         return false;
     }
 
-    if (virMacAddrParse(iface, &macaddr) == 0) {
-        element = "mac";
-        attr = "address";
-    } else {
-        element = "target";
-        attr = "dev";
-    }
+    for (i = 0; i < nnodes; i++) {
+        g_autofree char *macaddr = NULL;
+        g_autofree char *target = NULL;
 
-    /* find interface with matching mac addr */
-    for (i = 0; i < obj->nodesetval->nodeNr; i++) {
-        cur = obj->nodesetval->nodeTab[i]->children;
+        ctxt->node = nodes[i];
 
-        while (cur) {
-            if (cur->type == XML_ELEMENT_NODE &&
-                virXMLNodeNameEqual(cur, element)) {
-                g_autofree char *value = virXMLPropString(cur, attr);
-
-                if (STRCASEEQ(value, iface))
-                    goto hit;
-            }
-            cur = cur->next;
-        }
-    }
-
-    vshError(ctl, _("interface (%s: %s) not found"), element, iface);
-    return false;
-
- hit:
-    /* find and modify/add link state node */
-    /* try to find <link> element */
-    cur = obj->nodesetval->nodeTab[i]->children;
-
-    while (cur) {
-        if (cur->type == XML_ELEMENT_NODE &&
-            virXMLNodeNameEqual(cur, "link")) {
-            /* found, just modify the property */
-            xmlSetProp(cur, BAD_CAST "state", BAD_CAST state);
-
+        if ((macaddr = virXPathString("string(./mac/@address)", ctxt)) &&
+            STRCASEEQ(macaddr, iface)) {
+            ifaceNode = nodes[i];
             break;
         }
-        cur = cur->next;
+
+        if ((target = virXPathString("string(./target/@dev)", ctxt)) &&
+            STRCASEEQ(target, iface)) {
+            ifaceNode = nodes[i];
+            break;
+        }
     }
 
-    if (!cur) {
-        /* element <link> not found, add one */
-        cur = xmlNewChild(obj->nodesetval->nodeTab[i],
-                          NULL,
-                          BAD_CAST "link",
-                          NULL);
-        if (!cur)
-            return false;
-
-        if (xmlNewProp(cur, BAD_CAST "state", BAD_CAST state) == NULL)
-            return false;
+    if (!ifaceNode) {
+        vshError(ctl, _("interface '%s' not found"), iface);
+        return false;
     }
 
-    if (!(xml_buf = virXMLNodeToString(xml, obj->nodesetval->nodeTab[i]))) {
+    ctxt->node = ifaceNode;
+
+    /* try to find <link> element or create new one */
+    if (!(linkNode = virXPathNode("./link", ctxt))) {
+        if (!(linkNode = xmlNewChild(ifaceNode, NULL, BAD_CAST "link", NULL))) {
+            vshError(ctl, _("failed to create XML node"));
+            return false;
+        }
+    }
+
+    if (xmlHasProp(linkNode, BAD_CAST "link"))
+        stateAttr = xmlSetProp(linkNode, BAD_CAST "state", BAD_CAST state);
+    else
+        stateAttr = xmlNewProp(linkNode, BAD_CAST "state", BAD_CAST state);
+
+    if (!stateAttr) {
+        vshError(ctl, _("Failed to create or modify the state XML attribute"));
+        return false;
+    }
+
+    if (!(xml_buf = virXMLNodeToString(xml, ifaceNode))) {
         vshSaveLibvirtError();
         vshError(ctl, _("Failed to create XML"));
         return false;
+    }
+
+    if (vshCommandOptBool(cmd, "print-xml")) {
+        vshPrint(ctl, "%s", xml_buf);
+        return true;
     }
 
     if (virDomainUpdateDeviceFlags(dom, xml_buf, flags) < 0) {
@@ -6149,6 +6141,7 @@ VIR_ENUM_IMPL(virshDomainJobOperation,
               N_("Snapshot revert"),
               N_("Dump"),
               N_("Backup"),
+              N_("Snapshot delete"),
 );
 
 static const char *
@@ -9824,6 +9817,76 @@ cmdDomSetLaunchSecState(vshControl * ctl, const vshCmd * cmd)
     return ret;
 }
 
+
+/*
+ * "dom-fd-associate" command
+ */
+static const vshCmdInfo info_dom_fd_associate[] = {
+    {.name = "help",
+     .data = N_("associate a FD with a domain")
+    },
+    {.name = "desc",
+     .data = N_("associate a FD with a domain")
+    },
+    {.name = NULL}
+};
+
+static const vshCmdOptDef opts_dom_fd_associate[] = {
+    VIRSH_COMMON_OPT_DOMAIN_FULL(0),
+    {.name = "name",
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
+     .completer = virshCompleteEmpty,
+     .help = N_("name of the FD group")
+    },
+    {.name = "pass-fds",
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
+     .completer = virshCompleteEmpty,
+     .help = N_("file descriptors N,M,... to associate")
+    },
+    {.name = "seclabel-writable",
+     .type = VSH_OT_BOOL,
+     .help = N_("use seclabels allowing writes")
+    },
+    {.name = "seclabel-restore",
+     .type = VSH_OT_BOOL,
+     .help = N_("try to restore security label after use if possible")
+    },
+    {.name = NULL}
+};
+
+static bool
+cmdDomFdAssociate(vshControl *ctl, const vshCmd *cmd)
+{
+    g_autoptr(virshDomain) dom = NULL;
+    const char *name = NULL;
+    unsigned int flags = 0;
+    g_autofree int *fds = NULL;
+    size_t nfds = 0;
+
+    if (vshCommandOptBool(cmd, "seclabel-writable"))
+        flags |= VIR_DOMAIN_FD_ASSOCIATE_SECLABEL_WRITABLE;
+
+    if (vshCommandOptBool(cmd, "seclabel-restore"))
+        flags |= VIR_DOMAIN_FD_ASSOCIATE_SECLABEL_RESTORE;
+
+    if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
+        return false;
+
+    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+        return false;
+
+    if (virshFetchPassFdsList(ctl, cmd, &nfds, &fds) < 0)
+        return false;
+
+    if (virDomainFDAssociate(dom, name, nfds, fds, flags) < 0)
+        return false;
+
+    return true;
+}
+
+
 /*
  * "qemu-monitor-command" command
  */
@@ -12454,6 +12517,10 @@ static const vshCmdOptDef opts_detach_interface[] = {
     VIRSH_COMMON_OPT_DOMAIN_CONFIG,
     VIRSH_COMMON_OPT_DOMAIN_LIVE,
     VIRSH_COMMON_OPT_DOMAIN_CURRENT,
+    {.name = "print-xml",
+     .type = VSH_OT_BOOL,
+     .help = N_("print XML document rather than detach the interface")
+    },
     {.name = NULL}
 };
 
@@ -12464,15 +12531,16 @@ virshDomainDetachInterface(char *doc,
                            vshControl *ctl,
                            bool current,
                            const char *type,
-                           const char *mac)
+                           const char *mac,
+                           bool printxml)
 {
     g_autoptr(xmlDoc) xml = NULL;
-    g_autoptr(xmlXPathObject) obj = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    xmlNodePtr cur = NULL, matchNode = NULL;
     g_autofree char *detach_xml = NULL;
-    char buf[64];
-    int diff_mac = -1;
+    g_autofree char *xpath = g_strdup_printf("/domain/devices/interface[@type='%s']", type);
+    g_autofree xmlNodePtr *nodes = NULL;
+    ssize_t nnodes;
+    xmlNodePtr matchNode = NULL;
     size_t i;
 
     if (!(xml = virXMLParseStringCtxt(doc, _("(domain_definition)"), &ctxt))) {
@@ -12480,34 +12548,20 @@ virshDomainDetachInterface(char *doc,
         return false;
     }
 
-    g_snprintf(buf, sizeof(buf), "/domain/devices/interface[@type='%s']", type);
-    obj = xmlXPathEval(BAD_CAST buf, ctxt);
-    if (obj == NULL || obj->type != XPATH_NODESET ||
-        obj->nodesetval == NULL || obj->nodesetval->nodeNr == 0) {
+    if ((nnodes = virXPathNodeSet(xpath, ctxt, &nodes)) <= 0) {
         vshError(ctl, _("No interface found whose type is %s"), type);
         return false;
     }
 
-    if (!mac && obj->nodesetval->nodeNr > 1) {
-        vshError(ctl, _("Domain has %d interfaces. Please specify which one "
-                        "to detach using --mac"), obj->nodesetval->nodeNr);
-        return false;
-    }
+    if (mac) {
+        for (i = 0; i < nnodes; i++) {
+            g_autofree char *tmp_mac = NULL;
 
-    if (!mac) {
-        matchNode = obj->nodesetval->nodeTab[0];
-        goto hit;
-    }
+            ctxt->node = nodes[i];
 
-    /* multiple possibilities, so search for matching mac */
-    for (i = 0; i < obj->nodesetval->nodeNr; i++) {
-        cur = obj->nodesetval->nodeTab[i]->children;
-        while (cur != NULL) {
-            if (cur->type == XML_ELEMENT_NODE &&
-                virXMLNodeNameEqual(cur, "mac")) {
-                g_autofree char *tmp_mac = virXMLPropString(cur, "address");
-                diff_mac = virMacAddrCompare(tmp_mac, mac);
-                if (!diff_mac) {
+            if ((tmp_mac = virXPathString("string(./mac/@address)", ctxt))) {
+
+                if (virMacAddrCompare(tmp_mac, mac) == 0) {
                     if (matchNode) {
                         /* this is the 2nd match, so it's ambiguous */
                         vshError(ctl, _("Domain has multiple interfaces matching "
@@ -12516,21 +12570,34 @@ virshDomainDetachInterface(char *doc,
                                  mac);
                         return false;
                     }
-                    matchNode = obj->nodesetval->nodeTab[i];
+
+                    matchNode = nodes[i];
                 }
             }
-            cur = cur->next;
         }
+    } else {
+        if (nnodes > 1) {
+            vshError(ctl, _("Domain has %zd interfaces. Please specify which one to detach using --mac"),
+                     nnodes);
+            return false;
+        }
+
+        matchNode = nodes[0];
     }
+
     if (!matchNode) {
         vshError(ctl, _("No interface with MAC address %s was found"), mac);
         return false;
     }
 
- hit:
     if (!(detach_xml = virXMLNodeToString(xml, matchNode))) {
         vshSaveLibvirtError();
         return false;
+    }
+
+    if (printxml) {
+        vshPrint(ctl, "%s", detach_xml);
+        return true;
     }
 
     if (flags != 0 || current)
@@ -12552,6 +12619,7 @@ cmdDetachInterface(vshControl *ctl, const vshCmd *cmd)
     bool config = vshCommandOptBool(cmd, "config");
     bool live = vshCommandOptBool(cmd, "live");
     bool persistent = vshCommandOptBool(cmd, "persistent");
+    bool printxml = vshCommandOptBool(cmd, "print-xml");
 
     VSH_EXCLUSIVE_OPTIONS_VAR(persistent, current);
 
@@ -12574,7 +12642,8 @@ cmdDetachInterface(vshControl *ctl, const vshCmd *cmd)
             goto cleanup;
         if (!(ret = virshDomainDetachInterface(doc_config,
                                                flags | VIR_DOMAIN_AFFECT_CONFIG,
-                                               dom, ctl, current, type, mac)))
+                                               dom, ctl, current, type, mac,
+                                               printxml)))
             goto cleanup;
     }
 
@@ -12590,8 +12659,11 @@ cmdDetachInterface(vshControl *ctl, const vshCmd *cmd)
             goto cleanup;
 
         ret = virshDomainDetachInterface(doc_live, flags,
-                                         dom, ctl, current, type, mac);
+                                         dom, ctl, current, type, mac, printxml);
     }
+
+    if (printxml)
+        return ret;
 
  cleanup:
     if (!ret) {
@@ -12638,9 +12710,9 @@ virshFindDisk(const char *doc,
               int type)
 {
     g_autoptr(xmlDoc) xml = NULL;
-    g_autoptr(xmlXPathObject) obj = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    xmlNodePtr cur = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
+    ssize_t nnodes;
     size_t i;
 
     xml = virXMLParseStringCtxt(doc, _("(domain_definition)"), &ctxt);
@@ -12649,59 +12721,49 @@ virshFindDisk(const char *doc,
         return NULL;
     }
 
-    obj = xmlXPathEval(BAD_CAST "/domain/devices/disk", ctxt);
-    if (obj == NULL ||
-        obj->type != XPATH_NODESET ||
-        obj->nodesetval == NULL ||
-        obj->nodesetval->nodeNr == 0) {
+    if ((nnodes = virXPathNodeSet("/domain/devices/disk", ctxt, &nodes)) <= 0) {
         vshError(NULL, "%s", _("Failed to get disk information"));
         return NULL;
     }
 
     /* search disk using @path */
-    for (i = 0; i < obj->nodesetval->nodeNr; i++) {
-        bool is_supported = true;
+    for (i = 0; i < nnodes; i++) {
+        xmlNodePtr sourceNode;
+        g_autofree char *sourceFile = NULL;
+        g_autofree char *sourceDev = NULL;
+        g_autofree char *sourceDir = NULL;
+        g_autofree char *sourceName = NULL;
+        g_autofree char *targetDev = NULL;
 
         if (type == VIRSH_FIND_DISK_CHANGEABLE) {
-            xmlNodePtr n = obj->nodesetval->nodeTab[i];
-            is_supported = false;
+            g_autofree char *device = virXMLPropString(nodes[i], "device");
 
             /* Check if the disk is CDROM or floppy disk */
-            if (virXMLNodeNameEqual(n, "disk")) {
-                g_autofree char *device_value = virXMLPropString(n, "device");
-
-                if (STREQ(device_value, "cdrom") ||
-                    STREQ(device_value, "floppy"))
-                    is_supported = true;
-            }
-
-            if (!is_supported)
+            if (device &&
+                STRNEQ(device, "cdrom") &&
+                STRNEQ(device, "floppy"))
                 continue;
         }
 
-        cur = obj->nodesetval->nodeTab[i]->children;
-        while (cur != NULL) {
-            if (cur->type == XML_ELEMENT_NODE) {
-                g_autofree char *tmp = NULL;
+        if ((sourceNode = virXMLNodeGetSubelement(nodes[i], "source"))) {
+            sourceFile = virXMLPropString(sourceNode, "file");
+            sourceDev = virXMLPropString(sourceNode, "dev");
+            sourceDir = virXMLPropString(sourceNode, "dir");
+            sourceName = virXMLPropString(sourceNode, "name");
+        }
 
-                if (virXMLNodeNameEqual(cur, "source")) {
-                    if ((tmp = virXMLPropString(cur, "file")) ||
-                        (tmp = virXMLPropString(cur, "dev")) ||
-                        (tmp = virXMLPropString(cur, "dir")) ||
-                        (tmp = virXMLPropString(cur, "name"))) {
-                    }
-                } else if (virXMLNodeNameEqual(cur, "target")) {
-                    tmp = virXMLPropString(cur, "dev");
-                }
+        ctxt->node = nodes[i];
+        targetDev = virXPathString("string(./target/@dev)", ctxt);
 
-                if (STREQ_NULLABLE(tmp, path)) {
-                    xmlNodePtr ret = xmlCopyNode(obj->nodesetval->nodeTab[i], 1);
-                    /* drop backing store since they are not needed here */
-                    virshDiskDropBackingStore(ret);
-                    return ret;
-                }
-            }
-            cur = cur->next;
+        if (STREQ_NULLABLE(targetDev, path) ||
+            STREQ_NULLABLE(sourceFile, path) ||
+            STREQ_NULLABLE(sourceDev, path) ||
+            STREQ_NULLABLE(sourceDir, path) ||
+            STREQ_NULLABLE(sourceName, path)) {
+            xmlNodePtr ret = xmlCopyNode(nodes[i], 1);
+            /* drop backing store since they are not needed here */
+            virshDiskDropBackingStore(ret);
+            return ret;
         }
     }
 
@@ -12893,8 +12955,7 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
     const char *target = NULL;
     g_autofree char *doc = NULL;
     int ret;
-    bool functionReturn = false;
-    xmlNodePtr disk_node = NULL;
+    g_autoptr(xmlNode) disk_node = NULL;
     bool current = vshCommandOptBool(cmd, "current");
     bool config = vshCommandOptBool(cmd, "config");
     bool live = vshCommandOptBool(cmd, "live");
@@ -12915,7 +12976,7 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (vshCommandOptStringReq(ctl, cmd, "target", &target) < 0)
-        goto cleanup;
+        return false;
 
     if (flags == VIR_DOMAIN_AFFECT_CONFIG)
         doc = virDomainGetXMLDesc(dom, VIR_DOMAIN_XML_INACTIVE);
@@ -12923,24 +12984,23 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
         doc = virDomainGetXMLDesc(dom, 0);
 
     if (!doc)
-        goto cleanup;
+        return false;
 
     if (persistent &&
         virDomainIsActive(dom) == 1)
         flags |= VIR_DOMAIN_AFFECT_LIVE;
 
     if (!(disk_node = virshFindDisk(doc, target, VIRSH_FIND_DISK_NORMAL)))
-        goto cleanup;
+        return false;
 
     if (!(disk_xml = virXMLNodeToString(NULL, disk_node))) {
         vshSaveLibvirtError();
-        goto cleanup;
+        return false;
     }
 
     if (vshCommandOptBool(cmd, "print-xml")) {
         vshPrint(ctl, "%s", disk_xml);
-        functionReturn = true;
-        goto cleanup;
+        return true;
     }
 
     if (flags != 0 || current)
@@ -12950,15 +13010,11 @@ cmdDetachDisk(vshControl *ctl, const vshCmd *cmd)
 
     if (ret != 0) {
         vshError(ctl, "%s", _("Failed to detach disk"));
-        goto cleanup;
+        return false;
     }
 
     vshPrintExtra(ctl, "%s", _("Disk detached successfully\n"));
-    functionReturn = true;
-
- cleanup:
-    xmlFreeNode(disk_node);
-    return functionReturn;
+    return true;
 }
 
 /*
@@ -13094,9 +13150,8 @@ cmdChangeMedia(vshControl *ctl, const vshCmd *cmd)
     const char *source = NULL;
     const char *path = NULL;
     g_autofree char *doc = NULL;
-    xmlNodePtr disk_node = NULL;
+    g_autoptr(xmlNode) disk_node = NULL;
     g_autofree char *disk_xml = NULL;
-    bool ret = false;
     virshUpdateDiskXMLType update_type;
     const char *action = NULL;
     const char *success_msg = NULL;
@@ -13157,38 +13212,34 @@ cmdChangeMedia(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (vshCommandOptStringReq(ctl, cmd, "path", &path) < 0)
-        goto cleanup;
+        return false;
 
     if (flags & VIR_DOMAIN_AFFECT_CONFIG)
         doc = virDomainGetXMLDesc(dom, VIR_DOMAIN_XML_INACTIVE);
     else
         doc = virDomainGetXMLDesc(dom, 0);
     if (!doc)
-        goto cleanup;
+        return false;
 
     if (!(disk_node = virshFindDisk(doc, path, VIRSH_FIND_DISK_CHANGEABLE)))
-        goto cleanup;
+        return false;
 
     if (!(disk_xml = virshUpdateDiskXML(disk_node, source, block, path,
                                         update_type)))
-        goto cleanup;
+        return false;
 
     if (vshCommandOptBool(cmd, "print-xml")) {
         vshPrint(ctl, "%s", disk_xml);
-    } else {
-        if (virDomainUpdateDeviceFlags(dom, disk_xml, flags) != 0) {
-            vshError(ctl, _("Failed to complete action %s on media"), action);
-            goto cleanup;
-        }
-
-        vshPrint(ctl, "%s", success_msg);
+        return true;
     }
 
-    ret = true;
+    if (virDomainUpdateDeviceFlags(dom, disk_xml, flags) != 0) {
+        vshError(ctl, _("Failed to complete action %s on media"), action);
+        return false;
+    }
 
- cleanup:
-    xmlFreeNode(disk_node);
-    return ret;
+    vshPrint(ctl, "%s", success_msg);
+    return true;
 }
 
 static const vshCmdInfo info_domfstrim[] = {
@@ -14435,6 +14486,12 @@ const vshCmdDef domManagementCmds[] = {
      .handler = cmdDomDirtyRateCalc,
      .opts = opts_domdirtyrate_calc,
      .info = info_domdirtyrate_calc,
+     .flags = 0
+    },
+    {.name = "dom-fd-associate",
+     .handler = cmdDomFdAssociate,
+     .opts = opts_dom_fd_associate,
+     .info = info_dom_fd_associate,
      .flags = 0
     },
     {.name = NULL}

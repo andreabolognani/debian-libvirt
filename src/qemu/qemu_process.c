@@ -432,6 +432,8 @@ qemuProcessHandleReset(qemuMonitor *mon G_GNUC_UNUSED,
     qemuDomainSetFakeReboot(vm, false);
     qemuDomainSaveStatus(vm);
 
+    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_RESET, 0, 0, NULL);
+
  unlock:
     virObjectUnlock(vm);
     virObjectEventStateQueue(driver->domainEventState, event);
@@ -710,6 +712,15 @@ qemuProcessHandleResume(qemuMonitor *mon G_GNUC_UNUSED,
                   vm->def->name, virDomainRunningReasonTypeToString(reason),
                   eventDetail);
 
+        /* When a domain is running in (failed) post-copy migration on the
+         * destination host, we need to make sure to set the appropriate reason
+         * here. */
+        if (virDomainObjIsPostcopy(vm, vm->job)) {
+            if (virDomainObjIsFailedPostcopy(vm, vm->job))
+                reason = VIR_DOMAIN_RUNNING_POSTCOPY_FAILED;
+            else
+                reason = VIR_DOMAIN_RUNNING_POSTCOPY;
+        }
         virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, reason);
         event = virDomainEventLifecycleNewFromObj(vm,
                                                   VIR_DOMAIN_EVENT_RESUMED,
@@ -1471,7 +1482,7 @@ qemuProcessHandleMigrationStatus(qemuMonitor *mon G_GNUC_UNUSED,
         break;
 
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER:
-        if (virDomainObjIsFailedPostcopy(vm)) {
+        if (virDomainObjIsFailedPostcopy(vm, vm->job)) {
             int eventType = -1;
             int eventDetail = -1;
 
@@ -1489,6 +1500,7 @@ qemuProcessHandleMigrationStatus(qemuMonitor *mon G_GNUC_UNUSED,
                       vm->def->name,
                       virDomainStateTypeToString(state),
                       NULLSTR(virDomainStateReasonToString(state, reason)));
+            vm->job->asyncPaused = false;
             virDomainObjSetState(vm, state, reason);
             event = virDomainEventLifecycleNewFromObj(vm, eventType, eventDetail);
             qemuDomainSaveStatus(vm);
@@ -1501,7 +1513,7 @@ qemuProcessHandleMigrationStatus(qemuMonitor *mon G_GNUC_UNUSED,
          * watching it in any thread. Let's make sure the migration is properly
          * finished in case we get a "completed" event.
          */
-        if (virDomainObjIsPostcopy(vm, vm->job->current->operation) &&
+        if (virDomainObjIsPostcopy(vm, vm->job) &&
             vm->job->phase == QEMU_MIGRATION_PHASE_POSTCOPY_FAILED &&
             vm->job->asyncOwner == 0) {
             qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION,
@@ -3418,6 +3430,7 @@ qemuProcessRestoreMigrationJob(virDomainObj *vm,
     job->privateData = g_steal_pointer(&vm->job->privateData);
     vm->job->privateData = jobPriv;
     vm->job->apiFlags = job->apiFlags;
+    vm->job->asyncPaused = job->asyncPaused;
 
     qemuDomainCleanupAdd(vm, qemuProcessCleanupMigrationJob);
 }
@@ -3474,7 +3487,7 @@ qemuProcessRecoverMigrationIn(virQEMUDriver *driver,
         /* migration finished, we started resuming the domain but didn't
          * confirm success or failure yet; killing it seems safest unless
          * we already started guest CPUs or we were in post-copy mode */
-        if (virDomainObjIsPostcopy(vm, VIR_DOMAIN_JOB_OPERATION_MIGRATION_IN))
+        if (virDomainObjIsPostcopy(vm, job))
             return 1;
 
         if (state != VIR_DOMAIN_RUNNING) {
@@ -3509,7 +3522,7 @@ qemuProcessRecoverMigrationOut(virQEMUDriver *driver,
                                int reason,
                                unsigned int *stopFlags)
 {
-    bool postcopy = virDomainObjIsPostcopy(vm, VIR_DOMAIN_JOB_OPERATION_MIGRATION_OUT);
+    bool postcopy = virDomainObjIsPostcopy(vm, job);
     bool resume = false;
 
     VIR_DEBUG("Active outgoing migration in phase %s",
@@ -3643,6 +3656,7 @@ qemuProcessRecoverMigration(virQEMUDriver *driver,
         if (migStatus == VIR_DOMAIN_JOB_STATUS_POSTCOPY) {
             VIR_DEBUG("Post-copy migration of domain %s still running, it will be handled as unattended",
                       vm->def->name);
+            vm->job->asyncPaused = false;
             return 0;
         }
 
@@ -3651,6 +3665,9 @@ qemuProcessRecoverMigration(virQEMUDriver *driver,
                 qemuMigrationSrcPostcopyFailed(vm);
             else
                 qemuMigrationDstPostcopyFailed(vm);
+            /* Set the asyncPaused flag in case we're reconnecting to a domain
+             * started by an older libvirt. */
+            vm->job->asyncPaused = true;
             return 0;
         }
 
@@ -3672,6 +3689,42 @@ qemuProcessRecoverMigration(virQEMUDriver *driver,
     qemuDomainSetMaxMemLock(vm, 0, &priv->preMigrationMemlock);
 
     return 0;
+}
+
+
+static void
+qemuProcessAbortSnapshotDelete(virDomainObj *vm,
+                               virDomainJobObj *job)
+{
+    size_t i;
+    qemuDomainObjPrivate *priv = vm->privateData;
+    qemuDomainJobPrivate *jobPriv = job->privateData;
+
+    if (!jobPriv->snapshotDelete)
+        return;
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDef *disk = vm->def->disks[i];
+        g_autoptr(qemuBlockJobData) diskJob = qemuBlockJobDiskGetJob(disk);
+
+        if (!diskJob)
+            continue;
+
+        if (diskJob->type != QEMU_BLOCKJOB_TYPE_COMMIT &&
+            diskJob->type != QEMU_BLOCKJOB_TYPE_ACTIVE_COMMIT) {
+            continue;
+        }
+
+        qemuBlockJobSyncBegin(diskJob);
+
+        qemuDomainObjEnterMonitor(vm);
+        ignore_value(qemuMonitorBlockJobCancel(priv->mon, diskJob->name, false));
+        qemuDomainObjExitMonitor(vm);
+
+        diskJob->state = QEMU_BLOCKJOB_STATE_ABORTING;
+
+        qemuBlockJobSyncEnd(vm, diskJob, VIR_ASYNC_JOB_NONE);
+    }
 }
 
 
@@ -3724,6 +3777,7 @@ qemuProcessRecoverJob(virQEMUDriver *driver,
                           vm->def->name);
             }
         }
+        qemuProcessAbortSnapshotDelete(vm, job);
         break;
 
     case VIR_ASYNC_JOB_START:
@@ -5792,6 +5846,7 @@ qemuProcessNetworkPrepareDevices(virQEMUDriver *driver,
             if (virDomainHostdevInsert(def, hostdev) < 0)
                 return -1;
         } else if (actualType == VIR_DOMAIN_NET_TYPE_USER &&
+                   net->backend.type == VIR_DOMAIN_NET_BACKEND_DEFAULT &&
                    !priv->disableSlirp &&
                    virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
             if (qemuInterfacePrepareSlirp(driver, net) < 0)
@@ -6634,6 +6689,8 @@ qemuProcessPrepareChardevSource(virDomainDef *def,
  * start the domain but create a valid qemu command.  If some code shouldn't be
  * executed in this case, make sure to check this flag.
  *
+ * This function MUST be called before qemuProcessPrepareHost().
+ *
  * TODO: move all XML modification from qemuBuildCommandLine into this function
  */
 int
@@ -7151,6 +7208,8 @@ qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
  * update live XML) to prepare environment for a domain which is about to start
  * and it's the only place to do those modifications.
  *
+ * This function MUST be called only after qemuProcessPrepareDomain().
+ *
  * TODO: move all host modification from qemuBuildCommandLine into this function
  */
 int
@@ -7584,7 +7643,7 @@ qemuProcessLaunch(virConnectPtr conn,
     g_autofree int *nicindexes = NULL;
     unsigned long long maxMemLock = 0;
 
-    VIR_DEBUG("conn=%p driver=%p vm=%p name=%s if=%d asyncJob=%d "
+    VIR_DEBUG("conn=%p driver=%p vm=%p name=%s id=%d asyncJob=%d "
               "incoming.uri=%s "
               "incoming.fd=%d incoming.path=%s "
               "snapshot=%p vmop=%d flags=0x%x",
@@ -7895,9 +7954,8 @@ qemuProcessLaunch(virConnectPtr conn,
         qemuProcessRefreshBalloonState(vm, asyncJob) < 0)
         goto cleanup;
 
-    if (flags & VIR_QEMU_PROCESS_START_AUTODESTROY &&
-        qemuProcessAutoDestroyAdd(driver, vm, conn) < 0)
-        goto cleanup;
+    if (flags & VIR_QEMU_PROCESS_START_AUTODESTROY)
+        virCloseCallbacksDomainAdd(vm, conn, qemuProcessAutoDestroy);
 
     if (!incoming && !snapshot) {
         VIR_DEBUG("Setting up transient disk");
@@ -7916,7 +7974,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
  cleanup:
     qemuDomainSchedCoreStop(priv);
-    qemuDomainSecretDestroy(vm);
+    qemuDomainStartupCleanup(vm);
     return ret;
 }
 
@@ -8375,7 +8433,7 @@ void qemuProcessStop(virQEMUDriver *driver,
     virFileDeleteTree(priv->channelTargetDir);
 
     /* Stop autodestroy in case guest is restarted */
-    qemuProcessAutoDestroyRemove(driver, vm);
+    virCloseCallbacksDomainRemove(vm, NULL, qemuProcessAutoDestroy);
 
     /* now that we know it's stopped call the hook if present */
     if (virHookPresent(VIR_HOOK_DRIVER_QEMU)) {
@@ -8595,7 +8653,7 @@ void qemuProcessStop(virQEMUDriver *driver,
 }
 
 
-static void
+void
 qemuProcessAutoDestroy(virDomainObj *dom,
                        virConnectPtr conn)
 {
@@ -8635,38 +8693,13 @@ qemuProcessAutoDestroy(virDomainObj *dom,
     virObjectEventStateQueue(driver->domainEventState, event);
 }
 
-int qemuProcessAutoDestroyAdd(virQEMUDriver *driver,
-                              virDomainObj *vm,
-                              virConnectPtr conn)
-{
-    VIR_DEBUG("vm=%s, conn=%p", vm->def->name, conn);
-    return virCloseCallbacksSet(driver->closeCallbacks, vm, conn,
-                                qemuProcessAutoDestroy);
-}
-
-int qemuProcessAutoDestroyRemove(virQEMUDriver *driver,
-                                 virDomainObj *vm)
-{
-    VIR_DEBUG("vm=%s", vm->def->name);
-    return virCloseCallbacksUnset(driver->closeCallbacks, vm,
-                                  qemuProcessAutoDestroy);
-}
-
-bool qemuProcessAutoDestroyActive(virQEMUDriver *driver,
-                                  virDomainObj *vm)
-{
-    virCloseCallback cb;
-    VIR_DEBUG("vm=%s", vm->def->name);
-    cb = virCloseCallbacksGet(driver->closeCallbacks, vm, NULL);
-    return cb == qemuProcessAutoDestroy;
-}
-
 
 int
 qemuProcessRefreshDisks(virDomainObj *vm,
                         virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
     g_autoptr(GHashTable) table = NULL;
     size_t i;
 
@@ -8691,14 +8724,26 @@ qemuProcessRefreshDisks(virDomainObj *vm,
             continue;
 
         if (info->removable) {
+            virObjectEvent *event = NULL;
+            int reason;
+
             if (info->empty)
                 virDomainDiskEmptySource(disk);
 
             if (info->tray) {
-                if (info->tray_open)
+                if (info->tray_open == disk->tray_status)
+                    continue;
+
+                if (info->tray_open) {
+                    reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_OPEN;
                     disk->tray_status = VIR_DOMAIN_DISK_TRAY_OPEN;
-                else
+                } else {
+                    reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_CLOSE;
                     disk->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
+                }
+
+                event = virDomainEventTrayChangeNewFromObj(vm, disk->info.alias, reason);
+                virObjectEventStateQueue(driver->domainEventState, event);
             }
         }
 
@@ -8890,6 +8935,9 @@ qemuProcessReconnect(void *opaque)
 
     /* Restore the masterKey */
     if (qemuDomainMasterKeyReadFile(priv) < 0)
+        goto error;
+
+    if (qemuExtDevicesInitPaths(driver, obj->def) < 0)
         goto error;
 
     /* If we are connecting to a guest started by old libvirt there is no

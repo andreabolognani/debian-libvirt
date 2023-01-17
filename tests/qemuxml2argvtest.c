@@ -471,6 +471,7 @@ testCompareXMLToArgvCreateArgs(virQEMUDriver *drv,
             virDomainNetDef *net = vm->def->nets[i];
 
             if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+                net->backend.type == VIR_DOMAIN_NET_BACKEND_DEFAULT &&
                 virQEMUCapsGet(info->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
                 qemuSlirp *slirp = qemuSlirpNew();
                 slirp->fd[0] = 42;
@@ -704,6 +705,11 @@ testCompareXMLToArgv(const void *data)
         goto cleanup;
     }
     priv = vm->privateData;
+
+    if (info->args.fds) {
+        g_clear_pointer(&priv->fds, g_hash_table_unref);
+        priv->fds = g_steal_pointer(&info->args.fds);
+    }
 
     if (virBitmapParse("0-3", &priv->autoNodeset, 4) < 0)
         goto cleanup;
@@ -1339,6 +1345,10 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-incompatible-address");
     DO_TEST_CAPS_LATEST("disk-backing-chains-index");
     DO_TEST_CAPS_LATEST("disk-backing-chains-noindex");
+    DO_TEST_CAPS_ARCH_LATEST_FULL("disk-source-fd", "x86_64",
+                                  ARG_FD_GROUP, "testgroup2", 2, 700, 705,
+                                  ARG_FD_GROUP, "testgroup5", 1, 704,
+                                  ARG_FD_GROUP, "testgroup6", 2, 777, 778);
 
     DO_TEST_CAPS_LATEST("disk-slices");
     DO_TEST_CAPS_LATEST("disk-rotation");
@@ -1460,6 +1470,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-user");
     DO_TEST_CAPS_ARCH_LATEST_FULL("net-user", "x86_64", ARG_FLAGS, FLAG_SLIRP_HELPER);
     DO_TEST_NOCAPS("net-user-addr");
+    DO_TEST_CAPS_LATEST("net-user-passt");
     DO_TEST_NOCAPS("net-virtio");
     DO_TEST_NOCAPS("net-virtio-device");
     DO_TEST_NOCAPS("net-virtio-disable-offloads");
@@ -1981,6 +1992,8 @@ mymain(void)
     DO_TEST_FAILURE_NOCAPS("numatune-static-nodeset-exceed-hostnode");
     DO_TEST_PARSE_ERROR_NOCAPS("numatune-memnode-nocpu");
     DO_TEST_PARSE_ERROR_NOCAPS("numatune-memnodes-problematic");
+    DO_TEST_CAPS_LATEST_FAILURE("numatune-memnode-unavailable-strict");
+    DO_TEST_CAPS_LATEST_FAILURE("numatune-memnode-unavailable-restrictive");
     DO_TEST_NOCAPS("numad");
     DO_TEST_NOCAPS("numad-auto-vcpu-static-numatune");
     DO_TEST_PARSE_ERROR_NOCAPS("numad-auto-vcpu-static-numatune-no-nodeset");
@@ -2222,6 +2235,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PPC64("tpm-emulator-spapr");
     DO_TEST_CAPS_ARCH_LATEST("aarch64-tpm", "aarch64");
     DO_TEST_PARSE_ERROR_NOCAPS("aarch64-tpm-wrong-model");
+    DO_TEST_CAPS_LATEST("tpm-external");
 
     g_setenv(TEST_TPM_ENV_VAR, TPM_VER_2_0, true);
     DO_TEST_CAPS_LATEST_PARSE_ERROR("tpm-emulator");

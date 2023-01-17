@@ -85,16 +85,13 @@ int qemuSecurityRestoreNetdevLabel(virQEMUDriver *driver,
                                    virDomainObj *vm,
                                    virDomainNetDef *net);
 
-int qemuSecurityStartTPMEmulator(virQEMUDriver *driver,
-                                 virDomainObj *vm,
-                                 virCommand *cmd,
-                                 uid_t uid,
-                                 gid_t gid,
-                                 int *exitstatus,
-                                 int *cmdret);
+int qemuSecuritySetTPMLabels(virQEMUDriver *driver,
+                             virDomainObj *vm,
+                             bool setTPMStateLabel);
 
-void qemuSecurityCleanupTPMEmulator(virQEMUDriver *driver,
-                                    virDomainObj *vm);
+int qemuSecurityRestoreTPMLabels(virQEMUDriver *driver,
+                                 virDomainObj *vm,
+                                 bool restoreTPMStateLabel);
 
 int qemuSecuritySetSavedStateLabel(virQEMUDriver *driver,
                                    virDomainObj *vm,

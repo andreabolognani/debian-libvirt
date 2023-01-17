@@ -975,12 +975,12 @@ typedef enum {
 
 /* the backend driver used for virtio interfaces */
 typedef enum {
-    VIR_DOMAIN_NET_BACKEND_TYPE_DEFAULT = 0, /* prefer kernel, fall back to user */
-    VIR_DOMAIN_NET_BACKEND_TYPE_QEMU,    /* userland */
-    VIR_DOMAIN_NET_BACKEND_TYPE_VHOST,   /* kernel */
+    VIR_DOMAIN_NET_DRIVER_TYPE_DEFAULT = 0, /* prefer kernel, fall back to user */
+    VIR_DOMAIN_NET_DRIVER_TYPE_QEMU,    /* userland */
+    VIR_DOMAIN_NET_DRIVER_TYPE_VHOST,   /* kernel */
 
-    VIR_DOMAIN_NET_BACKEND_TYPE_LAST
-} virDomainNetBackendType;
+    VIR_DOMAIN_NET_DRIVER_TYPE_LAST
+} virDomainNetDriverType;
 
 /* the TX algorithm used for virtio interfaces */
 typedef enum {
@@ -1023,6 +1023,21 @@ typedef enum {
         VIR_DOMAIN_NET_INTERFACE_LINK_STATE_LAST
 } virDomainNetInterfaceLinkState;
 
+typedef enum {
+    VIR_DOMAIN_NET_BACKEND_DEFAULT = 0,
+    VIR_DOMAIN_NET_BACKEND_PASST,
+
+    VIR_DOMAIN_NET_BACKEND_LAST
+} virDomainNetBackendType;
+
+typedef enum {
+    VIR_DOMAIN_NET_PROTO_NONE = 0,
+    VIR_DOMAIN_NET_PROTO_TCP,
+    VIR_DOMAIN_NET_PROTO_UDP,
+
+    VIR_DOMAIN_NET_PROTO_LAST
+} virDomainNetProto;
+
 /* Config that was actually used to bring up interface, after
  * resolving network reference. This is private data, only used within
  * libvirt, but still must maintain backward compatibility, because
@@ -1051,6 +1066,30 @@ struct _virDomainActualNetDef {
     unsigned int class_id; /* class ID for bandwidth 'floor' */
 };
 
+struct _virDomainNetBackend {
+    virDomainNetBackendType type;
+    char *tap;
+    char *vhost;
+    /* The following are currently only valid/used when backend type='passt' */
+    char *logFile;  /* path to logfile used by passt process */
+    char *upstream; /* host interface to use for traffic egress */
+};
+
+struct _virDomainNetPortForwardRange {
+    unsigned int start;         /* original dst port range start */
+    unsigned int end;           /* range end (0 for "single port") */
+    unsigned int to;            /* start of range to forward to (0 for "unchanged") */
+    virTristateBool exclude;    /* true if this is a range to *not* forward */
+};
+
+struct _virDomainNetPortForward {
+    char *dev;                  /* host interface of incoming traffic */
+    virDomainNetProto proto;    /* tcp/udp */
+    virSocketAddr address;      /* original dst address (empty = wildcard) */
+    size_t nRanges;
+    virDomainNetPortForwardRange **ranges; /* list of ranges to forward */
+};
+
 /* Stores the virtual network interface configuration */
 struct _virDomainNetDef {
     virDomainNetType type;
@@ -1062,7 +1101,7 @@ struct _virDomainNetDef {
     char *modelstr;
     union {
         struct {
-            virDomainNetBackendType name; /* which driver backend to use */
+            virDomainNetDriverType name;
             virDomainNetVirtioTxModeType txmode;
             virTristateSwitch ioeventfd;
             virTristateSwitch event_idx;
@@ -1089,10 +1128,7 @@ struct _virDomainNetDef {
             virTristateSwitch rss_hash_report;
         } virtio;
     } driver;
-    struct {
-        char *tap;
-        char *vhost;
-    } backend;
+    virDomainNetBackend backend;
     virDomainNetTeamingInfo *teaming;
     union {
         virDomainChrSourceDef *vhostuser;
@@ -1156,7 +1192,10 @@ struct _virDomainNetDef {
     virNetDevIPInfo hostIP;
     char *ifname_guest_actual;
     char *ifname_guest;
+    char *sourceDev;
     virNetDevIPInfo guestIP;
+    size_t nPortForwards;
+    virDomainNetPortForward **portForwards;
     virDomainDeviceInfo info;
     char *filter;
     GHashTable *filterparams;
@@ -1421,6 +1460,7 @@ typedef enum {
 typedef enum {
     VIR_DOMAIN_TPM_TYPE_PASSTHROUGH,
     VIR_DOMAIN_TPM_TYPE_EMULATOR,
+    VIR_DOMAIN_TPM_TYPE_EXTERNAL,
 
     VIR_DOMAIN_TPM_TYPE_LAST
 } virDomainTPMBackendType;
@@ -1464,6 +1504,9 @@ struct _virDomainTPMDef {
             bool persistent_state;
             virBitmap *activePcrBanks;
         } emulator;
+        struct {
+            virDomainChrSourceDef *source;
+        } external;
     } data;
 };
 
@@ -3122,6 +3165,23 @@ struct _virDomainObj {
     void *privateData;
     void (*privateDataFreeFunc)(void *);
 
+    /* Connection close callbacks helper data
+     *
+     * Immutable pointer sharing lifetime of the virDomainObj. May be NULL, if
+     * the hypervisor driver doesn't use close callbacks.
+     *
+     * The closecallbacks helper data may be accessed without holding the
+     * virDomainObj lock to check whether a connection being closed has a
+     * registered close callback.
+     *
+     * Otherwise virDomainObj must be held and acquired before the lock on the
+     * closecallbacks data.
+     *
+     * The above rules ensure minimal lock contention when closing the
+     * connection while also allowing correct handling.
+    */
+    virObject *closecallbacks;
+
     int taint;
     size_t ndeprecations;
     char **deprecations;
@@ -3146,6 +3206,7 @@ typedef enum {
     VIR_DOMAIN_DEF_FEATURE_NO_BOOT_ORDER = (1 << 6),
     VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT = (1 << 7),
     VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING = (1 << 8),
+    VIR_DOMAIN_DEF_FEATURE_DISK_FD = (1 << 9),
 } virDomainDefFeatures;
 
 
@@ -3300,6 +3361,11 @@ struct _virDomainJobObjConfig {
     unsigned int maxQueuedJobs;
 };
 
+
+typedef virObject *(*virDomainCloseCallbackDataAlloc)(void);
+void virDomainXMLOptionSetCloseCallbackAlloc(virDomainXMLOption *xmlopt,
+                                             virDomainCloseCallbackDataAlloc cb);
+
 virDomainXMLOption *virDomainXMLOptionNew(virDomainDefParserConfig *config,
                                           virDomainXMLPrivateDataCallbacks *priv,
                                           virXMLNamespace *xmlns,
@@ -3348,6 +3414,9 @@ struct _virDomainXMLOption {
 
     /* virDomainJobObj callbacks, private data callbacks and defaults */
     virDomainJobObjConfig jobObjConfig;
+
+    /* closecallback allocation callback */
+    virDomainCloseCallbackDataAlloc closecallbackAlloc;
 };
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainXMLOption, virObjectUnref);
 
@@ -3438,6 +3507,8 @@ void virDomainVsockDefFree(virDomainVsockDef *vsock);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVsockDef, virDomainVsockDefFree);
 void virDomainNetTeamingInfoFree(virDomainNetTeamingInfo *teaming);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainNetTeamingInfo, virDomainNetTeamingInfoFree);
+void virDomainNetPortForwardFree(virDomainNetPortForward *pf);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainNetPortForward, virDomainNetPortForwardFree);
 void virDomainNetDefFree(virDomainNetDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainNetDef, virDomainNetDefFree);
 void virDomainSmartcardDefFree(virDomainSmartcardDef *def);
@@ -3471,10 +3542,6 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainShmemDef, virDomainShmemDefFree);
 void virDomainDeviceDefFree(virDomainDeviceDef *def);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainDeviceDef, virDomainDeviceDefFree);
-virDomainDeviceDef *virDomainDeviceDefCopy(virDomainDeviceDef *src,
-                                           const virDomainDef *def,
-                                           virDomainXMLOption *xmlopt,
-                                           void *parseOpaque);
 virDomainDeviceInfo *virDomainDeviceGetInfo(const virDomainDeviceDef *device);
 void virDomainDeviceSetData(virDomainDeviceDef *device,
                             void *devicedata);
@@ -3934,11 +4001,12 @@ virDomainObjGetState(virDomainObj *obj, int *reason)
         ATTRIBUTE_NONNULL(1);
 
 bool
-virDomainObjIsFailedPostcopy(virDomainObj *obj)
+virDomainObjIsFailedPostcopy(virDomainObj *obj,
+                             virDomainJobObj *job)
         ATTRIBUTE_NONNULL(1);
 bool
 virDomainObjIsPostcopy(virDomainObj *dom,
-                       virDomainJobOperation op)
+                       virDomainJobObj *job)
         ATTRIBUTE_NONNULL(1);
 
 virSecurityLabelDef *
@@ -4024,11 +4092,13 @@ VIR_ENUM_DECL(virDomainFSModel);
 VIR_ENUM_DECL(virDomainFSCacheMode);
 VIR_ENUM_DECL(virDomainFSSandboxMode);
 VIR_ENUM_DECL(virDomainNet);
-VIR_ENUM_DECL(virDomainNetBackend);
+VIR_ENUM_DECL(virDomainNetDriver);
 VIR_ENUM_DECL(virDomainNetVirtioTxMode);
 VIR_ENUM_DECL(virDomainNetMacType);
 VIR_ENUM_DECL(virDomainNetTeaming);
 VIR_ENUM_DECL(virDomainNetInterfaceLinkState);
+VIR_ENUM_DECL(virDomainNetBackend);
+VIR_ENUM_DECL(virDomainNetProto);
 VIR_ENUM_DECL(virDomainNetModel);
 VIR_ENUM_DECL(virDomainChrDevice);
 VIR_ENUM_DECL(virDomainChrChannelTarget);

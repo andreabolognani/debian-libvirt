@@ -673,22 +673,47 @@ qemuBlockStorageSourceGetSshProps(virStorageSource *src)
 
 static virJSONValue *
 qemuBlockStorageSourceGetFileProps(virStorageSource *src,
-                                   bool onlytarget)
+                                   bool onlytarget,
+                                   virTristateBool *autoReadOnly,
+                                   virTristateBool *readOnly)
 {
+    const char *path = src->path;
     const char *iomode = NULL;
     const char *prManagerAlias = NULL;
     virJSONValue *ret = NULL;
 
     if (!onlytarget) {
+        qemuDomainStorageSourcePrivate *srcpriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
+
         if (src->pr)
             prManagerAlias = src->pr->mgralias;
 
         if (src->iomode != VIR_DOMAIN_DISK_IO_DEFAULT)
             iomode = virDomainDiskIoTypeToString(src->iomode);
+
+        if (srcpriv && srcpriv->fdpass) {
+            path = qemuFDPassGetPath(srcpriv->fdpass);
+
+            /* when passing a FD to qemu via the /dev/fdset mechanism qemu
+             * fetches the appropriate FD from the fdset by checking that it has
+             * the correct accessmode. Now with 'auto-read-only' in effect qemu
+             * wants to use a read-only FD first. If the user didn't pass multiple
+             * FDs the feature will not work regardless, so we'll disable it. */
+            if (src->fdtuple->nfds == 1) {
+                *autoReadOnly = VIR_TRISTATE_BOOL_ABSENT;
+
+                /* now we setup the normal readonly flag. If user requested write
+                 * access honour it */
+                if (src->fdtuple->writable)
+                    *readOnly = VIR_TRISTATE_BOOL_NO;
+                else
+                    *readOnly = virTristateBoolFromBool(src->readonly);
+            }
+        }
     }
 
     ignore_value(virJSONValueObjectAdd(&ret,
-                                       "s:filename", src->path,
+                                       "s:filename", path,
                                        "S:aio", iomode,
                                        "S:pr-manager", prManagerAlias,
                                        NULL) < 0);
@@ -818,7 +843,7 @@ qemuBlockStorageSourceGetBackendProps(virStorageSource *src,
             driver = "file";
         }
 
-        if (!(fileprops = qemuBlockStorageSourceGetFileProps(src, onlytarget)))
+        if (!(fileprops = qemuBlockStorageSourceGetFileProps(src, onlytarget, &aro, &ro)))
             return NULL;
         break;
 
@@ -3195,4 +3220,357 @@ qemuBlockExportAddNBD(virDomainObj *vm,
         return -1;
 
     return qemuMonitorBlockExportAdd(priv->mon, &nbdprops);
+}
+
+
+/**
+ * qemuBlockCommit:
+ * @vm: domain object
+ * @disk: disk object where we are about to block commit
+ * @baseSource: disk source within backing chain to commit data into
+ * @topSource: disk source within backing chain with data we will commit
+ * @top_parent: disk source that has @topSource as backing disk
+ * @bandwidth: bandwidth limit in bytes/s
+ * @asyncJob: qemu async job type
+ * @autofinalize: virTristateBool controlling qemu block job finalization
+ * @flags: bitwise-OR of virDomainBlockCommitFlags
+ *
+ * Starts a block commit job for @disk. If @asyncJob is different then
+ * VIR_ASYNC_JOB_NONE the job will be started as synchronous.
+ *
+ * The @autofinalize argument controls if the qemu block job will be automatically
+ * finalized. This is used when deleting external snapshots where we need to
+ * disable automatic finalization for some use-case. The default value passed
+ * to this argument should be VIR_TRISTATE_BOOL_YES.
+ *
+ * Returns qemuBlockJobData pointer on success, NULL on error. Caller is responsible
+ * to call virObjectUnref on the pointer.
+ */
+qemuBlockJobData *
+qemuBlockCommit(virDomainObj *vm,
+                virDomainDiskDef *disk,
+                virStorageSource *baseSource,
+                virStorageSource *topSource,
+                virStorageSource *top_parent,
+                unsigned long long bandwidth,
+                virDomainAsyncJob asyncJob,
+                virTristateBool autofinalize,
+                unsigned int flags)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
+    int rc = -1;
+    bool clean_access = false;
+    g_autofree char *backingPath = NULL;
+    qemuBlockJobData *job = NULL;
+    qemuBlockJobData *ret = NULL;
+    g_autoptr(virStorageSource) mirror = NULL;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        return NULL;
+
+    if (!qemuDomainDiskBlockJobIsSupported(disk))
+        return NULL;
+
+    if (virStorageSourceIsEmpty(disk->src)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("disk %s has no source file to be committed"),
+                       disk->dst);
+        return NULL;
+    }
+
+    if (qemuDomainDiskBlockJobIsActive(disk))
+        return NULL;
+
+    if (qemuDomainSupportsCheckpointsBlockjobs(vm) < 0)
+        return NULL;
+
+    if (topSource == disk->src) {
+        /* XXX Should we auto-pivot when COMMIT_ACTIVE is not specified? */
+        if (!(flags & VIR_DOMAIN_BLOCK_COMMIT_ACTIVE)) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("commit of '%s' active layer requires active flag"),
+                           disk->dst);
+            return NULL;
+        }
+    } else if (flags & VIR_DOMAIN_BLOCK_COMMIT_ACTIVE) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("active commit requested but '%s' is not active"),
+                       topSource->path);
+        return NULL;
+    }
+
+    if (!virStorageSourceHasBacking(topSource)) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("top '%s' in chain for '%s' has no backing file"),
+                       topSource->path, disk->src->path);
+        return NULL;
+    }
+
+    if ((flags & VIR_DOMAIN_BLOCK_COMMIT_SHALLOW) &&
+        baseSource != topSource->backingStore) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("base '%s' is not immediately below '%s' in chain "
+                         "for '%s'"),
+                       baseSource->path, topSource->path, disk->src->path);
+        return NULL;
+    }
+
+    /* For an active commit, clone enough of the base to act as the mirror */
+    if (topSource == disk->src) {
+        if (!(mirror = virStorageSourceCopy(baseSource, false)))
+            return NULL;
+        if (virStorageSourceInitChainElement(mirror,
+                                             disk->src,
+                                             true) < 0)
+            return NULL;
+    }
+
+    if (flags & VIR_DOMAIN_BLOCK_COMMIT_RELATIVE &&
+        topSource != disk->src) {
+        if (top_parent &&
+            qemuBlockUpdateRelativeBacking(vm, top_parent, disk->src) < 0)
+            return NULL;
+
+        if (virStorageSourceGetRelativeBackingPath(topSource, baseSource,
+                                                   &backingPath) < 0)
+            return NULL;
+
+        if (!backingPath) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("can't keep relative backing relationship"));
+            return NULL;
+        }
+    }
+
+    /* For the commit to succeed, we must allow qemu to open both the
+     * 'base' image and the parent of 'top' as read/write; 'top' might
+     * not have a parent, or might already be read-write.  XXX It
+     * would also be nice to revert 'base' to read-only, as well as
+     * revoke access to files removed from the chain, when the commit
+     * operation succeeds, but doing that requires tracking the
+     * operation in XML across libvirtd restarts.  */
+    clean_access = true;
+    if (qemuDomainStorageSourceAccessAllow(driver, vm, baseSource,
+                                           false, false, false) < 0)
+        goto cleanup;
+
+    if (top_parent && top_parent != disk->src) {
+        /* While top_parent is topmost image, we don't need to remember its
+         * owner as it will be overwritten upon finishing the commit. Hence,
+         * pass chainTop = false. */
+        if (qemuDomainStorageSourceAccessAllow(driver, vm, top_parent,
+                                               false, false, false) < 0)
+            goto cleanup;
+    }
+
+    if (!(job = qemuBlockJobDiskNewCommit(vm, disk, top_parent, topSource,
+                                          baseSource,
+                                          flags & VIR_DOMAIN_BLOCK_COMMIT_DELETE,
+                                          flags)))
+        goto cleanup;
+
+    disk->mirrorState = VIR_DOMAIN_DISK_MIRROR_STATE_NONE;
+
+    if (!backingPath && top_parent &&
+        !(backingPath = qemuBlockGetBackingStoreString(baseSource, false)))
+        goto cleanup;
+
+    if (asyncJob != VIR_ASYNC_JOB_NONE)
+        qemuBlockJobSyncBegin(job);
+
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
+        goto cleanup;
+
+    rc = qemuMonitorBlockCommit(priv->mon,
+                                qemuDomainDiskGetTopNodename(disk),
+                                job->name,
+                                topSource->nodeformat,
+                                baseSource->nodeformat,
+                                backingPath, bandwidth,
+                                autofinalize);
+
+    qemuDomainObjExitMonitor(vm);
+
+    if (rc < 0)
+        goto cleanup;
+
+    if (mirror) {
+        disk->mirror = g_steal_pointer(&mirror);
+        disk->mirrorJob = VIR_DOMAIN_BLOCK_JOB_TYPE_ACTIVE_COMMIT;
+    }
+    qemuBlockJobStarted(job, vm);
+    ret = virObjectRef(job);
+
+ cleanup:
+    if (rc < 0 && clean_access) {
+        virErrorPtr orig_err;
+        virErrorPreserveLast(&orig_err);
+        /* Revert access to read-only, if possible.  */
+        qemuDomainStorageSourceAccessAllow(driver, vm, baseSource,
+                                           true, false, false);
+        if (top_parent && top_parent != disk->src)
+            qemuDomainStorageSourceAccessAllow(driver, vm, top_parent,
+                                               true, false, false);
+
+        virErrorRestore(&orig_err);
+    }
+    qemuBlockJobStartupFinalize(vm, job);
+
+    return ret;
+}
+
+
+/* Called while holding the VM job lock, to implement a block job
+ * abort with pivot; this updates the VM definition as appropriate, on
+ * either success or failure.  */
+int
+qemuBlockPivot(virDomainObj *vm,
+               qemuBlockJobData *job,
+               virDomainAsyncJob asyncJob,
+               virDomainDiskDef *disk)
+{
+    g_autoptr(qemuBlockStorageSourceChainData) chainattachdata = NULL;
+    int ret = -1;
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virJSONValue) bitmapactions = NULL;
+    g_autoptr(virJSONValue) reopenactions = NULL;
+    int rc = 0;
+
+    if (job->state != QEMU_BLOCKJOB_STATE_READY) {
+        virReportError(VIR_ERR_BLOCK_COPY_ACTIVE,
+                       _("block job '%s' not ready for pivot yet"),
+                       job->name);
+        return -1;
+    }
+
+    switch ((qemuBlockJobType) job->type) {
+    case QEMU_BLOCKJOB_TYPE_NONE:
+    case QEMU_BLOCKJOB_TYPE_LAST:
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("invalid job type '%d'"), job->type);
+        return -1;
+
+    case QEMU_BLOCKJOB_TYPE_PULL:
+    case QEMU_BLOCKJOB_TYPE_COMMIT:
+    case QEMU_BLOCKJOB_TYPE_BACKUP:
+    case QEMU_BLOCKJOB_TYPE_INTERNAL:
+    case QEMU_BLOCKJOB_TYPE_CREATE:
+    case QEMU_BLOCKJOB_TYPE_BROKEN:
+        virReportError(VIR_ERR_OPERATION_INVALID,
+                       _("job type '%s' does not support pivot"),
+                       qemuBlockjobTypeToString(job->type));
+        return -1;
+
+    case QEMU_BLOCKJOB_TYPE_COPY:
+        if (!job->jobflagsmissing) {
+            bool shallow = job->jobflags & VIR_DOMAIN_BLOCK_COPY_SHALLOW;
+            bool reuse = job->jobflags & VIR_DOMAIN_BLOCK_COPY_REUSE_EXT;
+
+            bitmapactions = virJSONValueNewArray();
+
+            if (qemuMonitorTransactionBitmapAdd(bitmapactions,
+                                                disk->mirror->nodeformat,
+                                                "libvirt-tmp-activewrite",
+                                                false,
+                                                false,
+                                                0) < 0)
+                return -1;
+
+            /* Open and install the backing chain of 'mirror' late if we can use
+             * blockdev-snapshot to do it. This is to appease oVirt that wants
+             * to copy data into the backing chain while the top image is being
+             * copied shallow */
+            if (reuse && shallow &&
+                virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY) &&
+                virStorageSourceHasBacking(disk->mirror)) {
+
+                if (!(chainattachdata = qemuBuildStorageSourceChainAttachPrepareBlockdev(disk->mirror->backingStore)))
+                    return -1;
+
+                reopenactions = virJSONValueNewArray();
+
+                if (qemuMonitorTransactionSnapshotBlockdev(reopenactions,
+                                                           disk->mirror->backingStore->nodeformat,
+                                                           disk->mirror->nodeformat))
+                    return -1;
+            }
+
+        }
+        break;
+
+    case QEMU_BLOCKJOB_TYPE_ACTIVE_COMMIT:
+        bitmapactions = virJSONValueNewArray();
+
+        if (qemuMonitorTransactionBitmapAdd(bitmapactions,
+                                            job->data.commit.base->nodeformat,
+                                            "libvirt-tmp-activewrite",
+                                            false,
+                                            false,
+                                            0) < 0)
+            return -1;
+
+        break;
+    }
+
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
+        return -1;
+
+    if (chainattachdata) {
+        if ((rc = qemuBlockStorageSourceChainAttach(priv->mon, chainattachdata)) == 0) {
+            /* install backing images on success, or unplug them on failure */
+            if ((rc = qemuMonitorTransaction(priv->mon, &reopenactions)) != 0)
+                qemuBlockStorageSourceChainDetach(priv->mon, chainattachdata);
+        }
+    }
+
+    if (bitmapactions && rc == 0)
+        ignore_value(qemuMonitorTransaction(priv->mon, &bitmapactions));
+
+    if (rc == 0)
+        ret = qemuMonitorJobComplete(priv->mon, job->name);
+
+    qemuDomainObjExitMonitor(vm);
+
+    /* The pivot failed. The block job in QEMU remains in the synchronised state */
+    if (ret < 0)
+        return -1;
+
+    if (disk && disk->mirror)
+        disk->mirrorState = VIR_DOMAIN_DISK_MIRROR_STATE_PIVOT;
+    job->state = QEMU_BLOCKJOB_STATE_PIVOTING;
+
+    return ret;
+}
+
+
+/**
+ * qemuBlockFinalize:
+ * @vm: domain object
+ * @job: qemu block job data object
+ * @asyncJob: qemu async job type
+ *
+ * When qemu job is started with autofinalize disabled it will wait in pending
+ * state for block job finalize to be called manually in order to finish the
+ * job. This is useful when we are running jobs on multiple disks to make
+ * a synchronization point before we finish.
+ *
+ * Return -1 on error, 0 on success.
+ */
+int
+qemuBlockFinalize(virDomainObj *vm,
+                  qemuBlockJobData *job,
+                  virDomainAsyncJob asyncJob)
+{
+    int ret;
+    qemuDomainObjPrivate *priv = vm->privateData;
+
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
+        return -1;
+
+    ret = qemuMonitorJobFinalize(priv->mon, job->name);
+
+    qemuDomainObjExitMonitor(vm);
+
+    return ret;
 }

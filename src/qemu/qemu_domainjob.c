@@ -647,7 +647,8 @@ qemuDomainObjReleaseAsyncJob(virDomainObj *obj)
     VIR_DEBUG("Releasing ownership of '%s' async job",
               virDomainAsyncJobTypeToString(obj->job->asyncJob));
 
-    if (obj->job->asyncOwner != virThreadSelfID()) {
+    if (obj->job->asyncOwner != 0 &&
+        obj->job->asyncOwner != virThreadSelfID()) {
         VIR_WARN("'%s' async job is owned by thread %llu",
                  virDomainAsyncJobTypeToString(obj->job->asyncJob),
                  obj->job->asyncOwner);
@@ -694,6 +695,8 @@ qemuDomainObjPrivateXMLFormatJob(virBuffer *buf,
     if (vm->job->asyncJob != VIR_ASYNC_JOB_NONE) {
         virBufferAsprintf(&attrBuf, " flags='0x%x'", vm->job->apiFlags);
         virBufferAsprintf(&attrBuf, " asyncStarted='%llu'", vm->job->asyncStarted);
+        if (vm->job->asyncPaused)
+            virBufferAddLit(&attrBuf, " asyncPaused='yes'");
     }
 
     if (vm->job->cb &&
@@ -731,6 +734,7 @@ qemuDomainObjPrivateXMLParseJob(virDomainObj *vm,
 
     if ((tmp = virXPathString("string(@async)", ctxt))) {
         int async;
+        virTristateBool paused;
 
         if ((async = virDomainAsyncJobTypeFromString(tmp)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -756,6 +760,12 @@ qemuDomainObjPrivateXMLParseJob(virDomainObj *vm,
                            _("Invalid async job start"));
             return -1;
         }
+
+        if (virXMLPropTristateBool(ctxt->node, "asyncPaused", VIR_XML_PROP_NONE,
+                                   &paused) < 0)
+            return -1;
+
+        vm->job->asyncPaused = paused == VIR_TRISTATE_BOOL_YES;
     }
 
     if (virXMLPropUInt(ctxt->node, "flags", 16, VIR_XML_PROP_NONE,

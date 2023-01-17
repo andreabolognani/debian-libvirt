@@ -213,7 +213,7 @@ qemuTPMEmulatorCreateStorage(virDomainTPMDef *tpm,
 static void
 qemuTPMEmulatorDeleteStorage(virDomainTPMDef *tpm)
 {
-    g_autofree char *path =  g_path_get_dirname(tpm->data.emulator.storagepath);
+    g_autofree char *path = g_path_get_dirname(tpm->data.emulator.storagepath);
 
     ignore_value(virFileDeleteTree(path));
 }
@@ -265,7 +265,7 @@ qemuTPMSetupEncryption(const unsigned char *secretuuid,
                                  &secret, &secret_len) < 0)
         return -1;
 
-    *fd = virCommandSetSendBuffer(cmd, g_steal_pointer(&secret), secret_len);
+    *fd = virCommandSetSendBuffer(cmd, &secret, secret_len);
     return 0;
 }
 
@@ -926,6 +926,7 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     g_autofree char *pidfile = NULL;
     virTimeBackOffVar timebackoff;
     const unsigned long long timeout = 1000; /* ms */
+    bool setTPMStateLabel = true;
     int cmdret = 0;
     pid_t pid = -1;
 
@@ -955,19 +956,18 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     if (incomingMigration &&
         virFileIsSharedFS(tpm->data.emulator.storagepath) == 1) {
         /* security labels must have been set up on source already */
-        if (qemuSecurityCommandRun(driver, vm, cmd,
-                                   cfg->swtpm_user, cfg->swtpm_group,
-                                   NULL, &cmdret) < 0) {
-            goto error;
-        }
-    } else if (qemuSecurityStartTPMEmulator(driver, vm, cmd,
-                                            cfg->swtpm_user, cfg->swtpm_group,
-                                            NULL, &cmdret) < 0) {
-        goto error;
+        setTPMStateLabel = false;
     }
 
+    if (qemuSecuritySetTPMLabels(driver, vm, setTPMStateLabel) < 0)
+        return -1;
+
+    if (qemuSecurityCommandRun(driver, vm, cmd, cfg->swtpm_user,
+                               cfg->swtpm_group, NULL, &cmdret) < 0)
+        goto error;
+
     if (cmdret < 0) {
-        /* virCommandRun() hidden in qemuSecurityStartTPMEmulator()
+        /* virCommandRun() hidden in qemuSecurityCommandRun()
          * already reported error. */
         goto error;
     }
@@ -1013,6 +1013,7 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
         virProcessKillPainfully(pid, true);
     if (pidfile)
         unlink(pidfile);
+    qemuSecurityRestoreTPMLabels(driver, vm, setTPMStateLabel);
     return -1;
 }
 
@@ -1029,6 +1030,7 @@ qemuTPMHasSharedStorage(virDomainDef *def)
         case VIR_DOMAIN_TPM_TYPE_EMULATOR:
             return virFileIsSharedFS(tpm->data.emulator.storagepath) == 1;
         case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+        case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
         case VIR_DOMAIN_TPM_TYPE_LAST:
             break;
         }
@@ -1049,6 +1051,7 @@ qemuTPMCanMigrateSharedStorage(virDomainDef *def)
         case VIR_DOMAIN_TPM_TYPE_EMULATOR:
             return QEMU_DOMAIN_TPM_PRIVATE(tpm)->swtpm.can_migrate_shared_storage;
         case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+        case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
         case VIR_DOMAIN_TPM_TYPE_LAST:
             break;
         }
@@ -1133,13 +1136,17 @@ qemuExtTPMStop(virQEMUDriver *driver,
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autofree char *shortName = virDomainDefGetShortName(vm->def);
+    bool restoreTPMStateLabel = true;
 
     if (!shortName)
         return;
 
     qemuTPMEmulatorStop(cfg->swtpmStateDir, shortName);
-    if (!(outgoingMigration && qemuTPMHasSharedStorage(vm->def)))
-        qemuSecurityCleanupTPMEmulator(driver, vm);
+    if (outgoingMigration || qemuTPMHasSharedStorage(vm->def))
+        restoreTPMStateLabel = false;
+
+    if (qemuSecurityRestoreTPMLabels(driver, vm, restoreTPMStateLabel) < 0)
+        VIR_WARN("Unable to restore labels on TPM state and/or log file");
 }
 
 

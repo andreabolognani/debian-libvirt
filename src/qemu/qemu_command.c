@@ -27,6 +27,7 @@
 #include "qemu_interface.h"
 #include "qemu_alias.h"
 #include "qemu_security.h"
+#include "qemu_passt.h"
 #include "qemu_slirp.h"
 #include "qemu_block.h"
 #include "qemu_fd.h"
@@ -2147,6 +2148,25 @@ qemuBuildBlockStorageSourceAttachDataCommandline(virCommand *cmd,
 
 
 static int
+qemuBuildDiskSourceCommandLineFDs(virCommand *cmd,
+                                  virDomainDiskDef *disk)
+{
+    virStorageSource *n;
+
+    for (n = disk->src; virStorageSourceIsBacking(n); n = n->backingStore) {
+        qemuDomainStorageSourcePrivate *srcpriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(n);
+
+        if (!srcpriv || !srcpriv->fdpass)
+            continue;
+
+        qemuFDPassTransferCommand(srcpriv->fdpass, cmd);
+    }
+
+    return 0;
+}
+
+
+static int
 qemuBuildDiskSourceCommandLine(virCommand *cmd,
                                virDomainDiskDef *disk,
                                virQEMUCaps *qemuCaps)
@@ -2162,6 +2182,9 @@ qemuBuildDiskSourceCommandLine(virCommand *cmd,
     } else if (!qemuDiskBusIsSD(disk->bus)) {
         if (virStorageSourceIsEmpty(disk->src))
             return 0;
+
+        if (qemuBuildDiskSourceCommandLineFDs(cmd, disk) < 0)
+            return -1;
 
         if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(disk->src)))
             return -1;
@@ -3428,12 +3451,14 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
             return -1;
     }
 
+    /* Make sure the requested nodeset is sensible */
+    if (nodemask && !virNumaNodesetIsAvailable(nodemask))
+        return -1;
+
     /* If mode is "restrictive", we should only use cgroups setting allowed memory
      * nodes, and skip passing the host-nodes and policy parameters to QEMU command
      * line which means we will use system default memory policy. */
     if (nodemask && mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
-        if (!virNumaNodesetIsAvailable(nodemask))
-            return -1;
         if (virJSONValueObjectAdd(&props,
                                   "m:host-nodes", nodemask,
                                   "S:policy", qemuNumaPolicyTypeToString(mode),
@@ -3633,6 +3658,10 @@ qemuBuildThreadContextProps(virJSONValue **tcProps,
     if (!nodemask)
         return 0;
 
+    if (virJSONValueObjectGetBoolean(*memProps, "prealloc", &prealloc) < 0 ||
+        !prealloc)
+        return 0;
+
     memalias = virJSONValueObjectGetString(*memProps, "id");
     if (!memalias) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -3655,11 +3684,8 @@ qemuBuildThreadContextProps(virJSONValue **tcProps,
                               NULL) < 0)
         return -1;
 
-    if (virJSONValueObjectGetBoolean(*memProps, "prealloc", &prealloc) >= 0 &&
-        prealloc) {
-        priv->threadContextAliases = g_slist_prepend(priv->threadContextAliases,
-                                                     g_steal_pointer(&tcAlias));
-    }
+    priv->threadContextAliases = g_slist_prepend(priv->threadContextAliases,
+                                                 g_steal_pointer(&tcAlias));
 
     *tcProps = g_steal_pointer(&props);
     return 0;
@@ -3793,7 +3819,8 @@ qemuBuildNicDevProps(virDomainDef *def,
 
 
 virJSONValue *
-qemuBuildHostNetProps(virDomainNetDef *net)
+qemuBuildHostNetProps(virDomainObj *vm,
+                      virDomainNetDef *net)
 {
     virDomainNetType netType = virDomainNetGetActualType(net);
     size_t i;
@@ -3908,7 +3935,10 @@ qemuBuildHostNetProps(virDomainNetDef *net)
         break;
 
     case VIR_DOMAIN_NET_TYPE_USER:
-        if (netpriv->slirpfd) {
+        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+            if (qemuPasstAddNetProps(vm, net, &netprops) < 0)
+                return NULL;
+        } else if (netpriv->slirpfd) {
             if (virJSONValueObjectAdd(&netprops,
                                       "s:type", "socket",
                                       "s:fd", qemuFDPassDirectGetPath(netpriv->slirpfd),
@@ -5860,7 +5890,10 @@ qemuBuildClockCommandLine(virCommand *cmd,
             break;
 
         case VIR_DOMAIN_TIMER_NAME_HPET:
-            /* the only meaningful attribute for hpet is "present". If present
+            /* Modern qemu versions configure the HPET timer via -machine. See
+             * qemuBuildMachineCommandLine.
+             *
+             * the only meaningful attribute for hpet is "present". If present
              * is VIR_TRISTATE_BOOL_ABSENT, that means it wasn't specified, and
              * should be left at the default for the hypervisor. "default" when
              * -no-hpet exists is VIR_TRISTATE_BOOL_YES, and when -no-hpet
@@ -6744,6 +6777,7 @@ qemuBuildMachineCommandLine(virCommand *cmd,
 {
     virCPUDef *cpu = def->cpu;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    size_t i;
 
     virCommandAddArg(cmd, "-machine");
     virBufferAdd(&buf, def->os.machine, -1);
@@ -6827,6 +6861,29 @@ qemuBuildMachineCommandLine(virCommand *cmd,
      */
     if (def->os.bios.useserial == VIR_TRISTATE_BOOL_YES) {
         virBufferAddLit(&buf, ",graphics=off");
+    }
+
+    for (i = 0; i < def->clock.ntimers; i++) {
+        switch ((virDomainTimerNameType)def->clock.timers[i]->name) {
+        case VIR_DOMAIN_TIMER_NAME_HPET:
+            /* qemuBuildClockCommandLine handles the old-style config via '-no-hpet' */
+            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_HPET) &&
+                def->clock.timers[i]->present != VIR_TRISTATE_BOOL_ABSENT) {
+                virBufferAsprintf(&buf, ",hpet=%s",
+                                  virTristateSwitchTypeToString(def->clock.timers[i]->present));
+            }
+            break;
+
+        case VIR_DOMAIN_TIMER_NAME_PLATFORM:
+        case VIR_DOMAIN_TIMER_NAME_TSC:
+        case VIR_DOMAIN_TIMER_NAME_KVMCLOCK:
+        case VIR_DOMAIN_TIMER_NAME_HYPERVCLOCK:
+        case VIR_DOMAIN_TIMER_NAME_ARMVTIMER:
+        case VIR_DOMAIN_TIMER_NAME_RTC:
+        case VIR_DOMAIN_TIMER_NAME_PIT:
+        case VIR_DOMAIN_TIMER_NAME_LAST:
+            break;
+        }
     }
 
     virCommandAddArgBuffer(cmd, &buf);
@@ -8452,7 +8509,7 @@ qemuBuildInterfaceCommandLine(virQEMUDriver *driver,
     qemuFDPassDirectTransferCommand(netpriv->slirpfd, cmd);
     qemuFDPassTransferCommand(netpriv->vdpafd, cmd);
 
-    if (!(hostnetprops = qemuBuildHostNetProps(net)))
+    if (!(hostnetprops = qemuBuildHostNetProps(vm, net)))
         goto cleanup;
 
     if (qemuBuildNetdevCommandlineFromJSON(cmd, hostnetprops, qemuCaps) < 0)
@@ -9241,7 +9298,10 @@ qemuBuildTPMBackendStr(virDomainTPMDef *tpm,
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
-    virBufferAsprintf(&buf, "%s", virDomainTPMBackendTypeToString(tpm->type));
+    if (tpm->type == VIR_DOMAIN_TPM_TYPE_EXTERNAL)
+        virBufferAddLit(&buf, "emulator");
+    else
+        virBufferAsprintf(&buf, "%s", virDomainTPMBackendTypeToString(tpm->type));
     virBufferAsprintf(&buf, ",id=tpm-%s", tpm->info.alias);
 
     switch (tpm->type) {
@@ -9253,6 +9313,7 @@ qemuBuildTPMBackendStr(virDomainTPMDef *tpm,
         virQEMUBuildBufferEscapeComma(&buf, qemuFDPassGetPath(passcancel));
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
         virBufferAddLit(&buf, ",chardev=chrtpm");
         break;
     case VIR_DOMAIN_TPM_TYPE_LAST:
@@ -9292,6 +9353,11 @@ qemuBuildTPMCommandLine(virCommand *cmd,
 
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
         if (qemuBuildChardevCommand(cmd, tpm->data.emulator.source, "chrtpm", priv->qemuCaps) < 0)
+            return -1;
+        break;
+
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
+        if (qemuBuildChardevCommand(cmd, tpm->data.external.source, "chrtpm", priv->qemuCaps) < 0)
             return -1;
         break;
 
@@ -9834,11 +9900,11 @@ typedef enum {
     QEMU_COMMAND_DEPRECATION_BEHAVIOR_CRASH,
 
     QEMU_COMMAND_DEPRECATION_BEHAVIOR_LAST
-} qemuCommnadDeprecationBehavior;
+} qemuCommandDeprecationBehavior;
 
 
-VIR_ENUM_DECL(qemuCommnadDeprecationBehavior);
-VIR_ENUM_IMPL(qemuCommnadDeprecationBehavior,
+VIR_ENUM_DECL(qemuCommandDeprecationBehavior);
+VIR_ENUM_IMPL(qemuCommandDeprecationBehavior,
               QEMU_COMMAND_DEPRECATION_BEHAVIOR_LAST,
               "none",
               "omit",
@@ -9854,7 +9920,7 @@ qemuBuildCompatDeprecatedCommandLine(virCommand *cmd,
     g_autoptr(virJSONValue) props = NULL;
     g_autofree char *propsstr = NULL;
     qemuDomainXmlNsDef *nsdata = def->namespaceData;
-    qemuCommnadDeprecationBehavior behavior = QEMU_COMMAND_DEPRECATION_BEHAVIOR_NONE;
+    qemuCommandDeprecationBehavior behavior = QEMU_COMMAND_DEPRECATION_BEHAVIOR_NONE;
     const char *behaviorStr = cfg->deprecationBehavior;
     int tmp;
     const char *deprecatedOutput = NULL;
@@ -9863,7 +9929,7 @@ qemuBuildCompatDeprecatedCommandLine(virCommand *cmd,
     if (nsdata && nsdata->deprecationBehavior)
         behaviorStr = nsdata->deprecationBehavior;
 
-    if ((tmp = qemuCommnadDeprecationBehaviorTypeFromString(behaviorStr)) < 0) {
+    if ((tmp = qemuCommandDeprecationBehaviorTypeFromString(behaviorStr)) < 0) {
         VIR_WARN("Unsupported deprecation behavior '%s' for VM '%s'",
                  behaviorStr, def->name);
         return;

@@ -457,6 +457,7 @@ qemuDomainSetupTPM(virDomainTPMDef *dev,
         break;
 
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
     case VIR_DOMAIN_TPM_TYPE_LAST:
         /* nada */
         break;
@@ -774,6 +775,13 @@ qemuDomainUnshareNamespace(virQEMUDriverConfig *cfg,
         if (virFileMoveMount(devMountsPath[i], devMountsSavePath[i]) < 0)
             goto cleanup;
     }
+
+#if defined(__linux__)
+    if (umount("/dev") < 0) {
+        virReportSystemError(errno, "%s", _("failed to umount devfs on /dev"));
+        return -1;
+    }
+#endif /* !defined(__linux__) */
 
     if (virFileMoveMount(devPath, "/dev") < 0)
         goto cleanup;
@@ -1258,9 +1266,11 @@ qemuNamespacePrepareOneItem(qemuNamespaceMknodData *data,
             bool found = false;
 
             for (n = devMountsPath; n && *n; n++) {
+                const char *p;
+
                 if (STREQ(*n, "/dev"))
                     continue;
-                if (STRPREFIX(item.file, *n)) {
+                if ((p = STRSKIP(item.file, *n)) && *p == '/') {
                     found = true;
                     break;
                 }

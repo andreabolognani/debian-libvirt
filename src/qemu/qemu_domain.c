@@ -31,6 +31,7 @@
 #include "qemu_migration_params.h"
 #include "qemu_security.h"
 #include "qemu_slirp.h"
+#include "qemu_snapshot.h"
 #include "qemu_extdevice.h"
 #include "qemu_blockjob.h"
 #include "qemu_checkpoint.h"
@@ -196,6 +197,15 @@ qemuDomainObjPrivateXMLFormatMigrateTempBitmap(virBuffer *buf,
 }
 
 
+static void
+qemuDomainFormatJobPrivateSnapshot(virBuffer *buf,
+                                   qemuDomainJobPrivate *priv)
+{
+    if (priv->snapshotDelete)
+        virBufferAddLit(buf, "<snapshotDelete/>\n");
+}
+
+
 static int
 qemuDomainFormatJobPrivate(virBuffer *buf,
                            virDomainJobObj *job,
@@ -212,6 +222,9 @@ qemuDomainFormatJobPrivate(virBuffer *buf,
 
     if (priv->migParams)
         qemuMigrationParamsFormat(buf, priv->migParams);
+
+    if (job->asyncJob == VIR_ASYNC_JOB_SNAPSHOT)
+        qemuDomainFormatJobPrivateSnapshot(buf, priv);
 
     return 0;
 }
@@ -339,6 +352,15 @@ qemuDomainObjPrivateXMLParseMigrateTempBitmap(qemuDomainJobPrivate *jobPriv,
 }
 
 
+static void
+qemuDomainParseJobPrivateSnapshot(xmlXPathContextPtr ctxt,
+                                  qemuDomainJobPrivate *priv)
+{
+    if (virXPathNode("./snapshotDelete", ctxt))
+        priv->snapshotDelete = true;
+}
+
+
 static int
 qemuDomainParseJobPrivate(xmlXPathContextPtr ctxt,
                           virDomainJobObj *job,
@@ -354,6 +376,8 @@ qemuDomainParseJobPrivate(xmlXPathContextPtr ctxt,
 
     if (qemuMigrationParamsParse(ctxt, &priv->migParams) < 0)
         return -1;
+
+    qemuDomainParseJobPrivateSnapshot(ctxt, priv);
 
     return 0;
 }
@@ -850,6 +874,7 @@ qemuDomainStorageSourcePrivateDispose(void *obj)
     g_clear_pointer(&priv->encinfo, qemuDomainSecretInfoFree);
     g_clear_pointer(&priv->httpcookie, qemuDomainSecretInfoFree);
     g_clear_pointer(&priv->tlsKeySecret, qemuDomainSecretInfoFree);
+    g_clear_pointer(&priv->fdpass, qemuFDPassFree);
 }
 
 
@@ -1201,6 +1226,7 @@ qemuDomainTPMPrivateFormat(const virDomainTPMDef *tpm,
         break;
 
     case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }
@@ -1551,7 +1577,7 @@ qemuDomainSecretGraphicsPrepare(virQEMUDriverConfig *cfg,
  *
  * Removes all unnecessary data which was needed to generate 'secret' objects.
  */
-void
+static void
 qemuDomainSecretDestroy(virDomainObj *vm)
 {
     size_t i;
@@ -1844,6 +1870,7 @@ qemuDomainObjPrivateFree(void *data)
     qemuDomainMasterKeyFree(priv);
 
     g_clear_pointer(&priv->blockjobs, g_hash_table_unref);
+    g_clear_pointer(&priv->fds, g_hash_table_unref);
 
     /* This should never be non-NULL if we get here, but just in case... */
     if (priv->eventThread) {
@@ -1871,6 +1898,7 @@ qemuDomainObjPrivateAlloc(void *opaque)
         return NULL;
 
     priv->blockjobs = virHashNew(virObjectUnref);
+    priv->fds = virHashNew(g_object_unref);
 
     /* agent commands block by default, user can choose different behavior */
     priv->agentTimeout = VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_BLOCK;
@@ -2351,6 +2379,7 @@ qemuDomainGetSlirpHelperOk(virDomainObj *vm)
 
         /* if there is a builtin slirp, prevent slirp-helper */
         if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+            net->backend.type == VIR_DOMAIN_NET_BACKEND_DEFAULT &&
             !QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp)
             return false;
     }
@@ -5998,7 +6027,8 @@ virDomainDefParserConfig virQEMUDriverDomainDefParserConfig = {
                 VIR_DOMAIN_DEF_FEATURE_INDIVIDUAL_VCPUS |
                 VIR_DOMAIN_DEF_FEATURE_USER_ALIAS |
                 VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT |
-                VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING,
+                VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING |
+                VIR_DOMAIN_DEF_FEATURE_DISK_FD,
 };
 
 
@@ -7139,81 +7169,6 @@ qemuDomainSnapshotForEachQcow2(virQEMUDriver *driver,
                                              op, try_all, def->ndisks);
 }
 
-/* Discard one snapshot (or its metadata), without reparenting any children.  */
-int
-qemuDomainSnapshotDiscard(virQEMUDriver *driver,
-                          virDomainObj *vm,
-                          virDomainMomentObj *snap,
-                          bool update_parent,
-                          bool metadata_only)
-{
-    g_autofree char *snapFile = NULL;
-    qemuDomainObjPrivate *priv;
-    virDomainMomentObj *parentsnap = NULL;
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-
-    if (!metadata_only) {
-        if (!virDomainObjIsActive(vm)) {
-            size_t i;
-            /* Ignore any skipped disks */
-
-            /* Prefer action on the disks in use at the time the snapshot was
-             * created; but fall back to current definition if dealing with a
-             * snapshot created prior to libvirt 0.9.5.  */
-            virDomainDef *def = snap->def->dom;
-
-            if (!def)
-                def = vm->def;
-
-            for (i = 0; i < def->ndisks; i++) {
-                if (virDomainDiskTranslateSourcePool(def->disks[i]) < 0)
-                    return -1;
-            }
-
-            if (qemuDomainSnapshotForEachQcow2(driver, def, snap, "-d", true) < 0)
-                return -1;
-        } else {
-            priv = vm->privateData;
-            qemuDomainObjEnterMonitor(vm);
-            /* we continue on even in the face of error */
-            qemuMonitorDeleteSnapshot(priv->mon, snap->def->name);
-            qemuDomainObjExitMonitor(vm);
-        }
-    }
-
-    snapFile = g_strdup_printf("%s/%s/%s.xml", cfg->snapshotDir, vm->def->name,
-                               snap->def->name);
-
-    if (snap == virDomainSnapshotGetCurrent(vm->snapshots)) {
-        virDomainSnapshotSetCurrent(vm->snapshots, NULL);
-        if (update_parent && snap->def->parent_name) {
-            parentsnap = virDomainSnapshotFindByName(vm->snapshots,
-                                                     snap->def->parent_name);
-            if (!parentsnap) {
-                VIR_WARN("missing parent snapshot matching name '%s'",
-                         snap->def->parent_name);
-            } else {
-                virDomainSnapshotSetCurrent(vm->snapshots, parentsnap);
-                if (qemuDomainSnapshotWriteMetadata(vm, parentsnap,
-                                                    driver->xmlopt,
-                                                    cfg->snapshotDir) < 0) {
-                    VIR_WARN("failed to set parent snapshot '%s' as current",
-                             snap->def->parent_name);
-                    virDomainSnapshotSetCurrent(vm->snapshots, NULL);
-                }
-            }
-        }
-    }
-
-    if (unlink(snapFile) < 0)
-        VIR_WARN("Failed to unlink %s", snapFile);
-    if (update_parent)
-        virDomainMomentDropParent(snap);
-    virDomainSnapshotObjListRemove(vm->snapshots, snap);
-
-    return 0;
-}
-
 /* Hash iterator callback to discard multiple snapshots.  */
 int qemuDomainMomentDiscardAll(void *payload,
                                const char *name G_GNUC_UNUSED,
@@ -7232,23 +7187,6 @@ int qemuDomainMomentDiscardAll(void *payload,
     return 0;
 }
 
-int
-qemuDomainSnapshotDiscardAllMetadata(virQEMUDriver *driver,
-                                     virDomainObj *vm)
-{
-    virQEMUMomentRemove rem = {
-        .driver = driver,
-        .vm = vm,
-        .metadata_only = true,
-        .momentDiscard = qemuDomainSnapshotDiscard,
-    };
-
-    virDomainSnapshotForEach(vm->snapshots, qemuDomainMomentDiscardAll, &rem);
-    virDomainSnapshotObjListRemoveAll(vm->snapshots);
-
-    return rem.err;
-}
-
 
 static void
 qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
@@ -7261,7 +7199,7 @@ qemuDomainRemoveInactiveCommon(virQEMUDriver *driver,
     g_autofree char *chkDir = NULL;
 
     /* Remove any snapshot metadata prior to removing the domain */
-    if (qemuDomainSnapshotDiscardAllMetadata(driver, vm) < 0) {
+    if (qemuSnapshotDiscardAllMetadata(driver, vm) < 0) {
         VIR_WARN("unable to remove all snapshots for domain %s",
                  vm->def->name);
     } else {
@@ -7675,15 +7613,19 @@ qemuDomainDetermineDiskChain(virQEMUDriver *driver,
         disksrc->format > VIR_STORAGE_FILE_NONE &&
         disksrc->format < VIR_STORAGE_FILE_BACKING) {
 
+        /* terminate the chain for such images as the code below would do */
+        if (!disksrc->backingStore)
+            disksrc->backingStore = virStorageSourceNew();
+
+        /* we assume that FD-passed disks always exist */
+        if (virStorageSourceIsFD(disksrc))
+            return 0;
+
         if (!virFileExists(disksrc->path)) {
             virStorageSourceReportBrokenChain(errno, disksrc, disksrc);
 
             return -1;
         }
-
-        /* terminate the chain for such images as the code below would do */
-        if (!disksrc->backingStore)
-            disksrc->backingStore = virStorageSourceNew();
 
         /* host cdrom requires special treatment in qemu, so we need to check
          * whether a block device is a cdrom */
@@ -7696,12 +7638,14 @@ qemuDomainDetermineDiskChain(virQEMUDriver *driver,
         return 0;
     }
 
-    src = disksrc;
     /* skip to the end of the chain if there is any */
-    while (virStorageSourceHasBacking(src)) {
-        int rv = virStorageSourceSupportsAccess(src);
+    for (src = disksrc; virStorageSourceHasBacking(src); src = src->backingStore) {
+        int rv;
 
-        if (rv < 0)
+        if (virStorageSourceIsFD(src))
+            continue;
+
+        if ((rv = virStorageSourceSupportsAccess(src)) < 0)
             return -1;
 
         if (rv > 0) {
@@ -7716,7 +7660,6 @@ qemuDomainDetermineDiskChain(virQEMUDriver *driver,
 
             virStorageSourceDeinit(src);
         }
-        src = src->backingStore;
     }
 
     /* We skipped to the end of the chain. Skip detection if there's the
@@ -9799,8 +9742,10 @@ qemuDomainRefreshVcpuInfo(virDomainObj *vm,
         vcpupriv->vcpus = info[i].vcpus;
         VIR_FREE(vcpupriv->type);
         vcpupriv->type = g_steal_pointer(&info[i].type);
-        VIR_FREE(vcpupriv->alias);
-        vcpupriv->alias = g_steal_pointer(&info[i].alias);
+        if (info[i].alias) {
+            VIR_FREE(vcpupriv->alias);
+            vcpupriv->alias = g_steal_pointer(&info[i].alias);
+        }
         virJSONValueFree(vcpupriv->props);
         vcpupriv->props = g_steal_pointer(&info[i].props);
         vcpupriv->enable_id = info[i].id;
@@ -9904,7 +9849,8 @@ qemuDomainSupportsNicdev(virDomainDef *def,
 }
 
 bool
-qemuDomainNetSupportsMTU(virDomainNetType type)
+qemuDomainNetSupportsMTU(virDomainNetType type,
+                         virDomainNetBackendType backend)
 {
     switch (type) {
     case VIR_DOMAIN_NET_TYPE_NETWORK:
@@ -9913,6 +9859,7 @@ qemuDomainNetSupportsMTU(virDomainNetType type)
     case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
         return true;
     case VIR_DOMAIN_NET_TYPE_USER:
+        return backend == VIR_DOMAIN_NET_BACKEND_PASST;
     case VIR_DOMAIN_NET_TYPE_SERVER:
     case VIR_DOMAIN_NET_TYPE_CLIENT:
     case VIR_DOMAIN_NET_TYPE_MCAST:
@@ -10887,6 +10834,61 @@ qemuDomainPrepareDiskSourceLegacy(virDomainDiskDef *disk,
 }
 
 
+static int
+qemuDomainPrepareStorageSourceFDs(virStorageSource *src,
+                                  qemuDomainObjPrivate *priv)
+{
+    qemuDomainStorageSourcePrivate *srcpriv = NULL;
+    virStorageType actualType = virStorageSourceGetActualType(src);
+    virStorageSourceFDTuple *fdt = NULL;
+    size_t i;
+
+    if (actualType != VIR_STORAGE_TYPE_FILE &&
+        actualType != VIR_STORAGE_TYPE_BLOCK)
+        return 0;
+
+    if (!virStorageSourceIsFD(src))
+        return 0;
+
+    if (!(fdt = virHashLookup(priv->fds, src->fdgroup))) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("file descriptor group '%s' was not associated with the domain"),
+                       src->fdgroup);
+        return -1;
+    }
+
+    srcpriv = qemuDomainStorageSourcePrivateFetch(src);
+
+    srcpriv->fdpass = qemuFDPassNew(src->nodestorage, priv);
+
+    for (i = 0; i < fdt->nfds; i++) {
+        g_autofree char *idx = g_strdup_printf("%zu", i);
+        int tmpfd;
+
+        if (fdt->testfds) {
+            /* when testing we want to use stable FD numbers provided by the test
+             * case */
+            tmpfd = dup2(fdt->fds[i], fdt->testfds[i]);
+        } else {
+            tmpfd = dup(fdt->fds[i]);
+        }
+
+        if (tmpfd < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("failed to duplicate file descriptor for fd group '%s'"),
+                           src->fdgroup);
+            return -1;
+        }
+
+        qemuFDPassAddFD(srcpriv->fdpass, &tmpfd, idx);
+    }
+
+    src->fdtuple = g_object_ref(fdt);
+
+    return 0;
+}
+
+
 int
 qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
                                                virStorageSource *src,
@@ -10922,6 +10924,9 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
         return -1;
 
     if (qemuDomainPrepareStorageSourceNFS(src) < 0)
+        return -1;
+
+    if (qemuDomainPrepareStorageSourceFDs(src, priv) < 0)
         return -1;
 
     return 0;
@@ -11159,6 +11164,7 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
         break;
     case QEMU_PROCESS_EVENT_PR_DISCONNECT:
     case QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION:
+    case QEMU_PROCESS_EVENT_RESET:
     case QEMU_PROCESS_EVENT_LAST:
         break;
     }
@@ -11750,6 +11756,9 @@ qemuDomainDeviceBackendChardevForeachOne(virDomainDeviceDef *dev,
         case VIR_DOMAIN_TPM_TYPE_EMULATOR:
             return cb(dev, dev->data.tpm->data.emulator.source, opaque);
 
+        case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
+            return cb(dev, dev->data.tpm->data.external.source, opaque);
+
         case VIR_DOMAIN_TPM_TYPE_LAST:
             return 0;
         }
@@ -12269,4 +12278,44 @@ qemuDomainSchedCoreStop(qemuDomainObjPrivate *priv)
         virProcessAbort(priv->schedCoreChildPID);
         priv->schedCoreChildPID = -1;
     }
+}
+
+
+/**
+ * qemuDomainCleanupStorageSourceFD:
+ * @src: start of the chain to clear
+ *
+ * Cleans up the backing chain starting at @src of FD tuple structures for
+ * all FD-tuples which didn't request explicit relabelling and thus the struct
+ * is no longer needed.
+ */
+void
+qemuDomainCleanupStorageSourceFD(virStorageSource *src)
+{
+    virStorageSource *n;
+
+    for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
+        if (virStorageSourceIsFD(n) && n->fdtuple) {
+            if (!n->fdtuple->tryRestoreLabel)
+                g_clear_pointer(&n->fdtuple, g_object_unref);
+        }
+    }
+}
+
+
+/**
+ * qemuDomainStartupCleanup:
+ *
+ * Performs a cleanup of data which is not required after a startup of a VM
+ * (successful or not).
+ */
+void
+qemuDomainStartupCleanup(virDomainObj *vm)
+{
+    size_t i;
+
+    qemuDomainSecretDestroy(vm);
+
+    for (i = 0; i < vm->def->ndisks; i++)
+        qemuDomainCleanupStorageSourceFD(vm->def->disks[i]->src);
 }
