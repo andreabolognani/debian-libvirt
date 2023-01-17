@@ -913,6 +913,24 @@ virDomainObjListCollectIterator(void *payload,
 }
 
 
+void
+virDomainObjListCollectAll(virDomainObjList *domlist,
+                           virDomainObj ***vms,
+                           size_t *nvms)
+{
+    struct virDomainListData data = { NULL, 0 };
+
+    virObjectRWLockRead(domlist);
+    data.vms = g_new0(virDomainObj *, virHashSize(domlist->objs));
+
+    virHashForEach(domlist->objs, virDomainObjListCollectIterator, &data);
+    virObjectRWUnlock(domlist);
+
+    *nvms = data.nvms;
+    *vms = data.vms;
+}
+
+
 static void
 virDomainObjListFilter(virDomainObj ***list,
                        size_t *nvms,
@@ -946,7 +964,7 @@ virDomainObjListFilter(virDomainObj ***list,
 }
 
 
-int
+void
 virDomainObjListCollect(virDomainObjList *domlist,
                         virConnectPtr conn,
                         virDomainObj ***vms,
@@ -954,20 +972,8 @@ virDomainObjListCollect(virDomainObjList *domlist,
                         virDomainObjListACLFilter filter,
                         unsigned int flags)
 {
-    struct virDomainListData data = { NULL, 0 };
-
-    virObjectRWLockRead(domlist);
-    data.vms = g_new0(virDomainObj *, virHashSize(domlist->objs));
-
-    virHashForEach(domlist->objs, virDomainObjListCollectIterator, &data);
-    virObjectRWUnlock(domlist);
-
-    virDomainObjListFilter(&data.vms, &data.nvms, conn, filter, flags);
-
-    *nvms = data.nvms;
-    *vms = data.vms;
-
-    return 0;
+    virDomainObjListCollectAll(domlist, vms, nvms);
+    virDomainObjListFilter(vms, nvms, conn, filter, flags);
 }
 
 
@@ -1038,8 +1044,7 @@ virDomainObjListExport(virDomainObjList *domlist,
     size_t i;
     int ret = -1;
 
-    if (virDomainObjListCollect(domlist, conn, &vms, &nvms, filter, flags) < 0)
-        return -1;
+    virDomainObjListCollect(domlist, conn, &vms, &nvms, filter, flags);
 
     if (domains) {
         doms = g_new0(virDomainPtr, nvms + 1);

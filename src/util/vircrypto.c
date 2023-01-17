@@ -125,8 +125,8 @@ virCryptoEncryptDataAESgnutls(gnutls_cipher_algorithm_t gnutls_enc_alg,
     int rc;
     size_t i;
     gnutls_cipher_hd_t handle = NULL;
-    gnutls_datum_t enc_key;
-    gnutls_datum_t iv_buf;
+    gnutls_datum_t enc_key = { .data = enckey, .size = enckeylen };
+    gnutls_datum_t iv_buf = { .data = iv, .size = ivlen };
     uint8_t *ciphertext;
     size_t ciphertextlen;
 
@@ -146,13 +146,6 @@ virCryptoEncryptDataAESgnutls(gnutls_cipher_algorithm_t gnutls_enc_alg,
     for (i = datalen; i < ciphertextlen; i++)
         ciphertext[i] = ciphertextlen - datalen;
 
-    /* Initialize the gnutls cipher */
-    enc_key.size = enckeylen;
-    enc_key.data = enckey;
-    if (iv) {
-        iv_buf.size = ivlen;
-        iv_buf.data = iv;
-    }
     if ((rc = gnutls_cipher_init(&handle, gnutls_enc_alg,
                                  &enc_key, &iv_buf)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -164,8 +157,6 @@ virCryptoEncryptDataAESgnutls(gnutls_cipher_algorithm_t gnutls_enc_alg,
     /* Encrypt the data and free the memory for cipher operations */
     rc = gnutls_cipher_encrypt(handle, ciphertext, ciphertextlen);
     gnutls_cipher_deinit(handle);
-    virSecureErase(&enc_key, sizeof(gnutls_datum_t));
-    virSecureErase(&iv_buf, sizeof(gnutls_datum_t));
     if (rc < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to encrypt the data: '%s'"),
@@ -180,8 +171,6 @@ virCryptoEncryptDataAESgnutls(gnutls_cipher_algorithm_t gnutls_enc_alg,
  error:
     virSecureErase(ciphertext, ciphertextlen);
     g_free(ciphertext);
-    virSecureErase(&enc_key, sizeof(gnutls_datum_t));
-    virSecureErase(&iv_buf, sizeof(gnutls_datum_t));
     return -1;
 }
 

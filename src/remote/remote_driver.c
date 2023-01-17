@@ -105,9 +105,17 @@ enum {
 };
 
 
-static void remoteDriverLock(struct private_data *driver)
+/**
+ * remoteDriverLock:
+ * @driver: private data of the remote driver
+ *
+ * Locks the internal mutex of the private driver. Callers may optionally use
+ * the returned virLockGuard struct to automatically unlock the driver.
+ */
+static virLockGuard
+remoteDriverLock(struct private_data *driver)
 {
-    virMutexLock(&driver->lock);
+    return virLockGuardLock(&driver->lock);
 }
 
 static void remoteDriverUnlock(struct private_data *driver)
@@ -3833,23 +3841,19 @@ struct remoteAuthInteractState {
 static int remoteAuthFillFromConfig(virConnectPtr conn,
                                     struct remoteAuthInteractState *state)
 {
-    int ret = -1;
     int ninteract;
     const char *credname;
-    char *path = NULL;
+    g_autofree char *path = NULL;
 
     VIR_DEBUG("Trying to fill auth parameters from config file");
 
     if (!state->config) {
         if (virAuthGetConfigFilePath(conn, &path) < 0)
-            goto cleanup;
-        if (path == NULL) {
-            ret = 0;
-            goto cleanup;
-        }
-
+            return -1;
+        if (path == NULL)
+            return 0;
         if (!(state->config = virAuthConfigNew(path)))
-            goto cleanup;
+            return -1;
     }
 
     for (ninteract = 0; state->interact[ninteract].id != 0; ninteract++) {
@@ -3879,7 +3883,7 @@ static int remoteAuthFillFromConfig(virConnectPtr conn,
                                 VIR_URI_SERVER(conn->uri),
                                 credname,
                                 &value) < 0)
-            goto cleanup;
+            return -1;
 
         if (value) {
             state->interact[ninteract].result = value;
@@ -3887,11 +3891,7 @@ static int remoteAuthFillFromConfig(virConnectPtr conn,
         }
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(path);
-    return ret;
+    return 0;
 }
 
 
@@ -6919,8 +6919,6 @@ remoteDomainMigrateBegin3Params(virDomainPtr domain,
                                 (struct _virTypedParameterRemote **) &args.params.params_val,
                                 &args.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0) {
-        xdr_free((xdrproc_t) xdr_remote_domain_migrate_begin3_params_args,
-                 (char *) &args);
         goto cleanup;
     }
 
@@ -6981,8 +6979,6 @@ remoteDomainMigratePrepare3Params(virConnectPtr dconn,
                                 (struct _virTypedParameterRemote **) &args.params.params_val,
                                 &args.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0) {
-        xdr_free((xdrproc_t) xdr_remote_domain_migrate_prepare3_params_args,
-                 (char *) &args);
         goto cleanup;
     }
 
@@ -7063,8 +7059,6 @@ remoteDomainMigratePrepareTunnel3Params(virConnectPtr dconn,
                                 (struct _virTypedParameterRemote **) &args.params.params_val,
                                 &args.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0) {
-        xdr_free((xdrproc_t) xdr_remote_domain_migrate_prepare_tunnel3_params_args,
-                 (char *) &args);
         goto cleanup;
     }
 
@@ -7149,8 +7143,6 @@ remoteDomainMigratePerform3Params(virDomainPtr dom,
                                 (struct _virTypedParameterRemote **) &args.params.params_val,
                                 &args.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0) {
-        xdr_free((xdrproc_t) xdr_remote_domain_migrate_perform3_params_args,
-                 (char *) &args);
         goto cleanup;
     }
 
@@ -7216,8 +7208,6 @@ remoteDomainMigrateFinish3Params(virConnectPtr dconn,
                                 (struct _virTypedParameterRemote **) &args.params.params_val,
                                 &args.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0) {
-        xdr_free((xdrproc_t) xdr_remote_domain_migrate_finish3_params_args,
-                 (char *) &args);
         goto cleanup;
     }
 
@@ -7284,8 +7274,6 @@ remoteDomainMigrateConfirm3Params(virDomainPtr domain,
                                 (struct _virTypedParameterRemote **) &args.params.params_val,
                                 &args.params.params_len,
                                 VIR_TYPED_PARAM_STRING_OKAY) < 0) {
-        xdr_free((xdrproc_t) xdr_remote_domain_migrate_confirm3_params_args,
-                 (char *) &args);
         goto cleanup;
     }
 
@@ -7970,12 +7958,10 @@ remoteStorageVolGetInfoFlags(virStorageVolPtr vol,
                              virStorageVolInfoPtr result,
                              unsigned int flags)
 {
-    int rv = -1;
     struct private_data *priv = vol->conn->privateData;
     remote_storage_vol_get_info_flags_args args;
     remote_storage_vol_get_info_flags_ret ret;
-
-    remoteDriverLock(priv);
+    VIR_LOCK_GUARD lock = remoteDriverLock(priv);
 
     make_nonnull_storage_vol(&args.vol, vol);
     args.flags = flags;
@@ -7986,18 +7972,14 @@ remoteStorageVolGetInfoFlags(virStorageVolPtr vol,
              (xdrproc_t)xdr_remote_storage_vol_get_info_flags_args,
              (char *)&args,
              (xdrproc_t)xdr_remote_storage_vol_get_info_flags_ret,
-             (char *)&ret) == -1) {
-        goto done;
-    }
+             (char *)&ret) == -1)
+        return -1;
 
     result->type = ret.type;
     result->capacity = ret.capacity;
     result->allocation = ret.allocation;
-    rv = 0;
 
- done:
-    remoteDriverUnlock(priv);
-    return rv;
+    return 0;
 }
 
 
@@ -8135,17 +8117,15 @@ remoteDomainAuthorizedSSHKeysSet(virDomainPtr domain,
                                  unsigned int nkeys,
                                  unsigned int flags)
 {
-    int rv = -1;
     struct private_data *priv = domain->conn->privateData;
     remote_domain_authorized_ssh_keys_set_args args;
-
-    remoteDriverLock(priv);
+    VIR_LOCK_GUARD lock = remoteDriverLock(priv);
 
     if (nkeys > REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX) {
         virReportError(VIR_ERR_RPC, "%s",
                        _("remoteDomainAuthorizedSSHKeysSet: "
                          "returned number of keys exceeds limit"));
-        goto cleanup;
+        return -1;
     }
 
     make_nonnull_domain(&args.dom, domain);
@@ -8156,15 +8136,10 @@ remoteDomainAuthorizedSSHKeysSet(virDomainPtr domain,
 
     if (call(domain->conn, priv, 0, REMOTE_PROC_DOMAIN_AUTHORIZED_SSH_KEYS_SET,
              (xdrproc_t) xdr_remote_domain_authorized_ssh_keys_set_args, (char *)&args,
-             (xdrproc_t) xdr_void, (char *) NULL) == -1) {
-        goto cleanup;
-    }
+             (xdrproc_t) xdr_void, (char *) NULL) == -1)
+        return -1;
 
-    rv = 0;
-
- cleanup:
-    remoteDriverUnlock(priv);
-    return rv;
+    return 0;
 }
 
 
@@ -8210,6 +8185,32 @@ remoteDomainGetMessages(virDomainPtr domain,
              (char *) &ret);
     return rv;
 }
+
+
+static int
+remoteDomainFDAssociate(virDomainPtr domain,
+                        const char *name,
+                        unsigned int nfds,
+                        int *fds,
+                        unsigned int flags)
+{
+    remote_domain_fd_associate_args args;
+    struct private_data *priv = domain->conn->privateData;
+    VIR_LOCK_GUARD lock = remoteDriverLock(priv);
+
+    make_nonnull_domain(&args.dom, domain);
+    args.name = (char *)name;
+    args.flags = flags;
+
+    if (callFull(domain->conn, priv, 0, fds, nfds, NULL, NULL,
+                 REMOTE_PROC_DOMAIN_FD_ASSOCIATE,
+                 (xdrproc_t) xdr_remote_domain_fd_associate_args, (char *) &args,
+                 (xdrproc_t) xdr_void, (char *) NULL) == -1)
+        return -1;
+
+    return 0;
+}
+
 
 /* get_nonnull_domain and get_nonnull_network turn an on-wire
  * (name, uuid) pair into virDomainPtr or virNetworkPtr object.
@@ -8651,6 +8652,7 @@ static virHypervisorDriver hypervisor_driver = {
     .domainGetMessages = remoteDomainGetMessages, /* 7.1.0 */
     .domainStartDirtyRateCalc = remoteDomainStartDirtyRateCalc, /* 7.2.0 */
     .domainSetLaunchSecurityState = remoteDomainSetLaunchSecurityState, /* 8.0.0 */
+    .domainFDAssociate = remoteDomainFDAssociate, /* 8.9.0 */
 };
 
 static virNetworkDriver network_driver = {

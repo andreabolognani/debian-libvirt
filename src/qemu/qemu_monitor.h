@@ -627,8 +627,8 @@ struct _qemuMonitorCPUInfo {
 };
 typedef struct _qemuMonitorCPUInfo qemuMonitorCPUInfo;
 
-void qemuMonitorCPUInfoFree(qemuMonitorCPUInfo *list,
-                            size_t nitems);
+void qemuMonitorCPUInfoFree(qemuMonitorCPUInfo *cpus,
+                            size_t ncpus);
 int qemuMonitorGetCPUInfo(qemuMonitor *mon,
                           qemuMonitorCPUInfo **vcpus,
                           size_t maxvcpus,
@@ -973,7 +973,8 @@ int qemuMonitorBlockCommit(qemuMonitor *mon,
                            const char *topNode,
                            const char *baseNode,
                            const char *backingName,
-                           unsigned long long bandwidth)
+                           unsigned long long bandwidth,
+                           virTristateBool autofinalize)
     ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorArbitraryCommand(qemuMonitor *mon,
@@ -987,6 +988,7 @@ int qemuMonitorInjectNMI(qemuMonitor *mon);
 int qemuMonitorScreendump(qemuMonitor *mon,
                           const char *device,
                           unsigned int head,
+                          const char *format,
                           const char *file);
 
 int qemuMonitorSendKey(qemuMonitor *mon,
@@ -1026,6 +1028,11 @@ GHashTable *qemuMonitorGetAllBlockJobInfo(qemuMonitor *mon,
 
 int qemuMonitorJobDismiss(qemuMonitor *mon,
                           const char *jobname)
+    ATTRIBUTE_NONNULL(2);
+
+int
+qemuMonitorJobFinalize(qemuMonitor *mon,
+                       const char *jobname)
     ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorJobComplete(qemuMonitor *mon,
@@ -1139,6 +1146,7 @@ int qemuMonitorGetCPUModelExpansion(qemuMonitor *mon,
                                     qemuMonitorCPUModelExpansionType type,
                                     virCPUDef *cpu,
                                     bool migratable,
+                                    bool hv_passthrough,
                                     bool fail_no_props,
                                     qemuMonitorCPUModelInfo **model_info);
 
@@ -1184,7 +1192,7 @@ int qemuMonitorNBDServerAdd(qemuMonitor *mon,
                             const char *export,
                             bool writable,
                             const char *bitmap);
-int qemuMonitorNBDServerStop(qemuMonitor *);
+int qemuMonitorNBDServerStop(qemuMonitor *mon);
 
 int qemuMonitorBlockExportAdd(qemuMonitor *mon,
                               virJSONValue **props);

@@ -315,7 +315,8 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
                            const char *topNode,
                            const char *baseNode,
                            const char *backingName,
-                           unsigned long long bandwidth)
+                           unsigned long long bandwidth,
+                           virTristateBool autofinalize)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int
@@ -337,6 +338,7 @@ int
 qemuMonitorJSONScreendump(qemuMonitor *mon,
                           const char *device,
                           unsigned int head,
+                          const char *format,
                           const char *file);
 
 int
@@ -374,6 +376,11 @@ qemuMonitorJSONGetAllBlockJobInfo(qemuMonitor *mon,
 int
 qemuMonitorJSONJobDismiss(qemuMonitor *mon,
                           const char *jobname)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+
+int
+qemuMonitorJSONJobFinalize(qemuMonitor *mon,
+                           const char *jobname)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 int
@@ -448,6 +455,7 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
                                     qemuMonitorCPUModelExpansionType type,
                                     virCPUDef *cpu,
                                     bool migratable,
+                                    bool hv_passthrough,
                                     bool fail_no_props,
                                     qemuMonitorCPUModelInfo **model_info)
     ATTRIBUTE_NONNULL(3) ATTRIBUTE_NONNULL(6);

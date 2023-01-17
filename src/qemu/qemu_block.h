@@ -276,3 +276,25 @@ qemuBlockExportAddNBD(virDomainObj *vm,
                       const char *exportname,
                       bool writable,
                       const char *bitmap);
+
+qemuBlockJobData *
+qemuBlockCommit(virDomainObj *vm,
+                virDomainDiskDef *disk,
+                virStorageSource *baseSource,
+                virStorageSource *topSource,
+                virStorageSource *top_parent,
+                unsigned long long bandwidth,
+                virDomainAsyncJob asyncJob,
+                virTristateBool autofinalize,
+                unsigned int flags);
+
+int
+qemuBlockPivot(virDomainObj *vm,
+               qemuBlockJobData *job,
+               virDomainAsyncJob asyncJob,
+               virDomainDiskDef *disk);
+
+int
+qemuBlockFinalize(virDomainObj *vm,
+                  qemuBlockJobData *job,
+                  virDomainAsyncJob asyncJob);

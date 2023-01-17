@@ -253,6 +253,9 @@ struct _qemuDomainObjPrivate {
     pid_t schedCoreChildFD;
 
     GSList *threadContextAliases; /* List of IDs of thread-context objects */
+
+    /* named file descriptor groups associated with the VM */
+    GHashTable *fds;
 };
 
 #define QEMU_DOMAIN_PRIVATE(vm) \
@@ -302,6 +305,9 @@ struct _qemuDomainStorageSourcePrivate {
 
     /* key for decrypting TLS certificate */
     qemuDomainSecretInfo *tlsKeySecret;
+
+    /* file descriptors if user asks for FDs to be passed */
+    qemuFDPass *fdpass;
 };
 
 virObject *qemuDomainStorageSourcePrivateNew(void);
@@ -448,6 +454,7 @@ typedef enum {
     QEMU_PROCESS_EVENT_GUEST_CRASHLOADED,
     QEMU_PROCESS_EVENT_MEMORY_DEVICE_SIZE_CHANGE,
     QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION,
+    QEMU_PROCESS_EVENT_RESET,
 
     QEMU_PROCESS_EVENT_LAST
 } qemuProcessEventType;
@@ -549,6 +556,8 @@ struct _qemuDomainJobPrivate {
                                          * should wait for it to finish */
     bool spiceMigrated;                 /* spice migration completed */
     bool dumpCompleted;                 /* dump completed */
+    bool snapshotDelete;                /* indicate that snapshot job is
+                                         * deleting snapshot */
     qemuMigrationParams *migParams;
     GSList *migTempBitmaps;  /* temporary block dirty bitmaps - qemuDomainJobPrivateMigrateTempBitmap */
 };
@@ -680,12 +689,6 @@ int qemuDomainSnapshotForEachQcow2(virQEMUDriver *driver,
                                    const char *op,
                                    bool try_all);
 
-int qemuDomainSnapshotDiscard(virQEMUDriver *driver,
-                              virDomainObj *vm,
-                              virDomainMomentObj *snap,
-                              bool update_current,
-                              bool metadata_only);
-
 typedef struct _virQEMUMomentRemove virQEMUMomentRemove;
 struct _virQEMUMomentRemove {
     virQEMUDriver *driver;
@@ -701,9 +704,6 @@ struct _virQEMUMomentRemove {
 int qemuDomainMomentDiscardAll(void *payload,
                                const char *name,
                                void *data);
-
-int qemuDomainSnapshotDiscardAllMetadata(virQEMUDriver *driver,
-                                         virDomainObj *vm);
 
 void qemuDomainRemoveInactive(virQEMUDriver *driver,
                               virDomainObj *vm,
@@ -882,7 +882,8 @@ int qemuDomainRefreshVcpuHalted(virDomainObj *vm,
 bool qemuDomainSupportsNicdev(virDomainDef *def,
                               virDomainNetDef *net);
 
-bool qemuDomainNetSupportsMTU(virDomainNetType type);
+bool qemuDomainNetSupportsMTU(virDomainNetType type,
+                              virDomainNetBackendType backend);
 
 int qemuDomainSetPrivatePaths(virQEMUDriver *driver,
                               virDomainObj *vm);
@@ -928,8 +929,9 @@ int qemuDomainSecretChardevPrepare(virQEMUDriverConfig *cfg,
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3)
     ATTRIBUTE_NONNULL(4);
 
-void qemuDomainSecretDestroy(virDomainObj *vm)
-    ATTRIBUTE_NONNULL(1);
+void qemuDomainCleanupStorageSourceFD(virStorageSource *src);
+
+void qemuDomainStartupCleanup(virDomainObj *vm);
 
 int qemuDomainSecretPrepare(virQEMUDriver *driver,
                             virDomainObj *vm)

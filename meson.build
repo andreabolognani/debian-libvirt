@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '8.10.0',
+  version: '9.0.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -537,6 +537,7 @@ libvirt_export_dynamic = cc.first_supported_link_argument([
 
 functions = [
   'elf_aux_info',
+  'explicit_bzero',
   'fallocate',
   'getauxval',
   'getegid',
@@ -596,7 +597,6 @@ headers = [
   'ifaddrs.h',
   'libtasn1.h',
   'linux/kvm.h',
-  'linux/magic.h',
   'mntent.h',
   'net/ethernet.h',
   'net/if.h',
@@ -613,11 +613,6 @@ headers = [
   'xlocale.h',
 ]
 
-if host_machine.system() == 'linux'
-  # check for DEVLINK_CMD_ESWITCH_GET
-  headers += 'linux/devlink.h'
-endif
-
 if host_machine.system() == 'freebsd'
   headers += 'libutil.h'
 endif
@@ -628,19 +623,11 @@ foreach name : headers
   endif
 endforeach
 
-# check for kernel headers required by src/util/virnetdevbridge.c
+# check for kernel header required by src/util/virnetdevbridge.c
 if host_machine.system() == 'linux'
-  required_headers = [
-    'linux/param.h',
-    'linux/sockios.h',
-    'linux/if_bridge.h',
-    'linux/if_tun.h',
-  ]
-  foreach name : required_headers
-    if not cc.has_header(name)
-      error('You must install kernel-headers in order to compile libvirt with QEMU or LXC support')
-    endif
-  endforeach
+  if not cc.has_header('linux/sockios.h')
+    error('You must install kernel-headers in order to compile libvirt with QEMU or LXC support')
+  endif
 endif
 
 
@@ -650,20 +637,6 @@ symbols = [
   # Check whether endian provides handy macros.
   [ 'endian.h', 'htole64' ],
 
-  [ 'linux/ethtool.h', 'ETH_FLAG_TXVLAN' ],
-  [ 'linux/ethtool.h', 'ETH_FLAG_NTUPLE' ],
-  [ 'linux/ethtool.h', 'ETH_FLAG_RXHASH' ],
-  [ 'linux/ethtool.h', 'ETH_FLAG_LRO' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GGSO' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GGRO' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GFLAGS' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GFEATURES' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_SCOALESCE' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GCOALESCE' ],
-
-  # GET_VLAN_VID_CMD is required for virNetDevGetVLanID
-  [ 'linux/if_vlan.h', 'GET_VLAN_VID_CMD' ],
-
   [ 'unistd.h', 'SEEK_HOLE' ],
 
   # Check for BSD approach for setting MAC addr
@@ -671,23 +644,6 @@ symbols = [
 
   [ 'sched.h', 'cpu_set_t' ],
 ]
-
-if host_machine.system() == 'linux'
-  symbols += [
-    # check for DEVLINK_CMD_ESWITCH_GET
-    # Assume DEVLINK_ESWITCH_MODE_SWITCHDEV is also available, as it was
-    # introudced in kernel 4.8 along with the original spelling of this
-    # constant (DEVLINK_CMD_ESWITCH_MODE_GET, not supported by libvirt).
-    [ 'linux/devlink.h', 'DEVLINK_CMD_ESWITCH_GET' ],
-
-    # check for VHOST_VSOCK_SET_GUEST_CID
-    [ 'linux/vhost.h', 'VHOST_VSOCK_SET_GUEST_CID' ],
-
-    # Check if we have new enough kernel to support BPF devices for cgroups v2
-    [ 'linux/bpf.h', 'BPF_PROG_QUERY' ],
-    [ 'linux/bpf.h', 'BPF_CGROUP_DEVICE' ],
-  ]
-endif
 
 foreach symbol : symbols
   if cc.has_header_symbol(symbol[0], symbol[1], args: '-D_GNU_SOURCE', prefix: symbol.get(2, ''))
@@ -824,6 +780,7 @@ optional_programs = [
   'mm-ctl',
   'modprobe',
   'ovs-vsctl',
+  'passt',
   'pdwtags',
   'rmmod',
   'scrub',
@@ -1103,6 +1060,9 @@ endif
 numactl_dep = cc.find_library('numa', required: get_option('numactl'))
 if numactl_dep.found()
   conf.set('WITH_NUMACTL', 1)
+  if cc.has_function('numa_set_preferred_many', dependencies: numactl_dep)
+    conf.set('WITH_NUMACTL_SET_PREFERRED_MANY', 1)
+  endif
 endif
 
 openwsman_version = '2.6.3'
@@ -1478,8 +1438,8 @@ if not get_option('driver_libxl').disabled() and conf.has('WITH_LIBVIRTD')
   libxl_dep = dependency('xenlight', version: '>=' + libxl_version, required: get_option('driver_libxl'))
 
   if libxl_dep.found()
-    libxl_firmware_dir = libxl_dep.get_variable(pkgconfig : 'xenfirmwaredir')
-    libxl_execbin = libxl_dep.get_variable(pkgconfig : 'libexec_bin')
+    libxl_firmware_dir = libxl_dep.get_variable(pkgconfig : 'xenfirmwaredir', default_value: '')
+    libxl_execbin = libxl_dep.get_variable(pkgconfig : 'libexec_bin', default_value: '')
     if libxl_firmware_dir != ''
       conf.set_quoted('LIBXL_FIRMWARE_DIR', libxl_firmware_dir)
     endif
@@ -1526,34 +1486,7 @@ elif get_option('driver_libxl').enabled()
 endif
 
 if not get_option('driver_lxc').disabled() and host_machine.system() == 'linux' and conf.has('WITH_LIBVIRTD')
-  lxc_support_code = '''
-#include <sched.h>
-#include <linux/loop.h>
-#include <sys/epoll.h>
-
-void main(void) {
-    unshare(!(LO_FLAGS_AUTOCLEAR + EPOLL_CLOEXEC));
-}
-  '''
-  if cc.compiles(lxc_support_code, name: 'lxc support', args: '-D_GNU_SOURCE')
-    conf.set('WITH_LXC', 1)
-    conf.set('WITH_DECL_LO_FLAGS_AUTOCLEAR', 1)
-  elif get_option('driver_lxc').enabled()
-    error('Required kernel features for LXC were not found')
-  endif
-
-  lxc_get_free_code = '''
-#include <sched.h>
-#include <linux/loop.h>
-#include <sys/epoll.h>
-
-void main(void) {
-    unshare(!(LOOP_CTL_GET_FREE));
-}
-  '''
-  if cc.compiles(lxc_get_free_code)
-    conf.set('WITH_DECL_LOOP_CTL_GET_FREE', 1)
-  endif
+  conf.set('WITH_LXC', 1)
 elif get_option('driver_lxc').enabled()
   error('linux and remote_driver are required for LXC')
 endif

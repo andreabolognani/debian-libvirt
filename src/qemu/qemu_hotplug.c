@@ -31,6 +31,7 @@
 #include "qemu_command.h"
 #include "qemu_hostdev.h"
 #include "qemu_interface.h"
+#include "qemu_passt.h"
 #include "qemu_process.h"
 #include "qemu_security.h"
 #include "qemu_block.h"
@@ -1016,6 +1017,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
             ignore_value(qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE));
     }
     qemuDomainSecretDiskDestroy(disk);
+    qemuDomainCleanupStorageSourceFD(disk->src);
 
     return ret;
 }
@@ -1201,8 +1203,16 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         break;
 
     case VIR_DOMAIN_NET_TYPE_USER:
-        if (!priv->disableSlirp &&
-            virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
+        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+
+            if (qemuPasstStart(vm, net) < 0) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               "%s", _("Failed to start passt"));
+                goto cleanup;
+            }
+
+        } else if (!priv->disableSlirp &&
+                   virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DBUS_VMSTATE)) {
 
             if (qemuInterfacePrepareSlirp(driver, net) < 0)
                 goto cleanup;
@@ -1269,7 +1279,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         virNetDevSetMTU(net->ifname, net->mtu) < 0)
         goto cleanup;
 
-    if (!(netprops = qemuBuildHostNetProps(net)))
+    if (!(netprops = qemuBuildHostNetProps(vm, net)))
         goto cleanup;
 
     qemuDomainObjEnterMonitor(vm);
@@ -1417,6 +1427,12 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     netdev_name = g_strdup_printf("host%s", net->info.alias);
     if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp)
         qemuSlirpStop(QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp, vm, driver, net);
+
+    if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+        net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+        qemuPasstStop(vm, net);
+    }
+
     qemuDomainObjEnterMonitor(vm);
     if (charDevPlugged &&
         qemuMonitorDetachCharDev(priv->mon, charDevAlias) < 0)
@@ -4618,6 +4634,11 @@ qemuDomainRemoveNetDevice(virQEMUDriver *driver,
     if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp)
         qemuSlirpStop(QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp, vm, driver, net);
 
+    if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+        net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+        qemuPasstStop(vm, net);
+    }
+
     virDomainAuditNet(vm, net, NULL, "detach", true);
 
     for (i = 0; i < vm->def->nnets; i++) {
@@ -6088,37 +6109,36 @@ qemuDomainRemoveVcpu(virDomainObj *vm,
     qemuDomainVcpuPrivate *vcpupriv = QEMU_DOMAIN_VCPU_PRIVATE(vcpuinfo);
     int oldvcpus = virDomainDefGetVcpus(vm->def);
     unsigned int nvcpus = vcpupriv->vcpus;
-    virErrorPtr save_error = NULL;
     size_t i;
+    ssize_t offlineVcpuWithTid = -1;
 
     if (qemuDomainRefreshVcpuInfo(vm, VIR_ASYNC_JOB_NONE, false) < 0)
         return -1;
 
-    /* validation requires us to set the expected state prior to calling it */
     for (i = vcpu; i < vcpu + nvcpus; i++) {
         vcpuinfo = virDomainDefGetVcpu(vm->def, i);
-        vcpuinfo->online = false;
+        vcpupriv = QEMU_DOMAIN_VCPU_PRIVATE(vcpuinfo);
+
+        if (vcpupriv->tid == 0) {
+            vcpuinfo->online = false;
+            /* Clear the alias as VCPU is now unplugged */
+            VIR_FREE(vcpupriv->alias);
+            ignore_value(virCgroupDelThread(priv->cgroup, VIR_CGROUP_THREAD_VCPU, i));
+        } else {
+            if (offlineVcpuWithTid == -1)
+                offlineVcpuWithTid = i;
+        }
     }
 
-    if (qemuDomainValidateVcpuInfo(vm) < 0) {
-        /* rollback vcpu count if the setting has failed */
+    if (offlineVcpuWithTid != -1) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("qemu reported thread id for inactive vcpu '%zu'"),
+                       offlineVcpuWithTid);
         virDomainAuditVcpu(vm, oldvcpus, oldvcpus - nvcpus, "update", false);
-
-        for (i = vcpu; i < vcpu + nvcpus; i++) {
-            vcpuinfo = virDomainDefGetVcpu(vm->def, i);
-            vcpuinfo->online = true;
-        }
         return -1;
     }
 
     virDomainAuditVcpu(vm, oldvcpus, oldvcpus - nvcpus, "update", true);
-
-    virErrorPreserveLast(&save_error);
-
-    for (i = vcpu; i < vcpu + nvcpus; i++)
-        ignore_value(virCgroupDelThread(priv->cgroup, VIR_CGROUP_THREAD_VCPU, i));
-
-    virErrorRestore(&save_error);
 
     return 0;
 }
@@ -6141,6 +6161,9 @@ qemuDomainRemoveVcpuAlias(virDomainObj *vm,
             return;
         }
     }
+
+    VIR_DEBUG("vcpu '%s' not found in vcpulist of domain '%s'",
+              alias, vm->def->name);
 }
 
 
@@ -6209,6 +6232,7 @@ qemuDomainHotplugAddVcpu(virQEMUDriver *driver,
     int rc;
     int oldvcpus = virDomainDefGetVcpus(vm->def);
     size_t i;
+    bool vcpuTidMissing = false;
 
     if (!qemuDomainSupportsNewVcpuHotplug(vm)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
@@ -6238,20 +6262,26 @@ qemuDomainHotplugAddVcpu(virQEMUDriver *driver,
     if (qemuDomainRefreshVcpuInfo(vm, VIR_ASYNC_JOB_NONE, false) < 0)
         return -1;
 
-    /* validation requires us to set the expected state prior to calling it */
     for (i = vcpu; i < vcpu + nvcpus; i++) {
         vcpuinfo = virDomainDefGetVcpu(vm->def, i);
         vcpupriv = QEMU_DOMAIN_VCPU_PRIVATE(vcpuinfo);
 
         vcpuinfo->online = true;
 
-        if (vcpupriv->tid > 0 &&
-            qemuProcessSetupVcpu(vm, i, true) < 0)
-            return -1;
+        if (vcpupriv->tid > 0) {
+            if (qemuProcessSetupVcpu(vm, i, true) < 0) {
+                return -1;
+            }
+        } else {
+            vcpuTidMissing = true;
+        }
     }
 
-    if (qemuDomainValidateVcpuInfo(vm) < 0)
+    if (vcpuTidMissing && qemuDomainHasVcpuPids(vm)) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("qemu didn't report thread id for vcpu '%zu'"), i);
         return -1;
+    }
 
     qemuDomainVcpuPersistOrder(vm->def);
 

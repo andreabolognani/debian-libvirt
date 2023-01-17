@@ -943,7 +943,7 @@ qemuMonitorInitBalloonObjectPath(qemuMonitor *mon,
             case VIR_DOMAIN_MEMBALLOON_MODEL_XEN:
             case VIR_DOMAIN_MEMBALLOON_MODEL_NONE:
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                        _("invalid model for virtio-balloon-pci"));
+                               _("invalid model for virtio-balloon-pci"));
                 return;
             case VIR_DOMAIN_MEMBALLOON_MODEL_LAST:
             default:
@@ -2053,8 +2053,8 @@ qemuMonitorSetPassword(qemuMonitor *mon,
     if (!protocol)
         return -1;
 
-    VIR_DEBUG("protocol=%s, password=%p, action_if_connected=%s",
-              protocol, password, action_if_connected);
+    VIR_DEBUG("protocol=%s, action_if_connected=%s",
+              protocol, action_if_connected);
 
     QEMU_CHECK_MONITOR(mon);
 
@@ -2795,16 +2795,17 @@ qemuMonitorBlockCommit(qemuMonitor *mon,
                        const char *topNode,
                        const char *baseNode,
                        const char *backingName,
-                       unsigned long long bandwidth)
+                       unsigned long long bandwidth,
+                       virTristateBool autofinalize)
 {
-    VIR_DEBUG("device=%s, jobname=%s, topNode=%s, baseNode=%s, backingName=%s, bandwidth=%llu",
+    VIR_DEBUG("device=%s, jobname=%s, topNode=%s, baseNode=%s, backingName=%s, bandwidth=%llu, autofinalize=%d",
               device, NULLSTR(jobname), NULLSTR(topNode),
-              NULLSTR(baseNode), NULLSTR(backingName), bandwidth);
+              NULLSTR(baseNode), NULLSTR(backingName), bandwidth, autofinalize);
 
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONBlockCommit(mon, device, jobname, topNode, baseNode,
-                                      backingName, bandwidth);
+                                      backingName, bandwidth, autofinalize);
 }
 
 
@@ -2853,13 +2854,15 @@ int
 qemuMonitorScreendump(qemuMonitor *mon,
                       const char *device,
                       unsigned int head,
+                      const char *format,
                       const char *file)
 {
-    VIR_DEBUG("file=%s", file);
+    VIR_DEBUG("device=%s head=%u format=%s file=%s",
+              device, head, NULLSTR(format), file);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONScreendump(mon, device, head, file);
+    return qemuMonitorJSONScreendump(mon, device, head, format, file);
 }
 
 
@@ -2927,6 +2930,18 @@ qemuMonitorJobDismiss(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONJobDismiss(mon, jobname);
+}
+
+
+int
+qemuMonitorJobFinalize(qemuMonitor *mon,
+                       const char *jobname)
+{
+    VIR_DEBUG("jobname=%s", jobname);
+
+    QEMU_CHECK_MONITOR(mon);
+
+    return qemuMonitorJSONJobFinalize(mon, jobname);
 }
 
 
@@ -3179,6 +3194,7 @@ qemuMonitorGetCPUModelExpansion(qemuMonitor *mon,
                                 qemuMonitorCPUModelExpansionType type,
                                 virCPUDef *cpu,
                                 bool migratable,
+                                bool hv_passthrough,
                                 bool fail_no_props,
                                 qemuMonitorCPUModelInfo **model_info)
 {
@@ -3187,8 +3203,8 @@ qemuMonitorGetCPUModelExpansion(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONGetCPUModelExpansion(mon, type, cpu,
-                                               migratable, fail_no_props,
-                                               model_info);
+                                               migratable, hv_passthrough,
+                                               fail_no_props, model_info);
 }
 
 
@@ -3485,7 +3501,7 @@ qemuMonitorBlockExportAdd(qemuMonitor *mon,
 
 int
 qemuMonitorGetTPMModels(qemuMonitor *mon,
-                            char ***tpmmodels)
+                        char ***tpmmodels)
 {
     VIR_DEBUG("tpmmodels=%p", tpmmodels);
 

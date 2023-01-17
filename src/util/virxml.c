@@ -320,7 +320,7 @@ virXMLPropStringRequired(xmlNodePtr node,
 {
     char *ret = virXMLPropString(node, name);
 
-     if (!(*ret))
+     if (!ret)
          virReportError(VIR_ERR_XML_ERROR,
                         _("Missing required attribute '%s' in element '%s'"),
                         name, node->name);
@@ -846,6 +846,29 @@ virXPathBoolean(const char *xpath,
         return -1;
     }
     return obj->boolval;
+}
+
+
+/**
+ * virXMLNodeGetSubelement:
+ * @node: node to get subelement of
+ * @name: name of subelement to fetch
+ *
+ * Find and return a sub-element node of @node named @name.
+ */
+xmlNodePtr
+virXMLNodeGetSubelement(xmlNodePtr node,
+                        const char *name)
+{
+    xmlNodePtr n;
+
+    for (n = node->children; n; n = n->next) {
+        if (n->type == XML_ELEMENT_NODE &&
+            virXMLNodeNameEqual(n, name))
+            return n;
+    }
+
+    return NULL;
 }
 
 

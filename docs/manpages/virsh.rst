@@ -1890,13 +1890,16 @@ domif-setlink
 
 ::
 
-   domif-setlink domain interface-device state [--config]
+   domif-setlink domain interface-device state [--config] [--print-xml]
 
 Modify link state of the domain's virtual interface. Possible values for
 state are "up" and "down". If *--config* is specified, only the persistent
 configuration of the domain is modified, for compatibility purposes,
 *--persistent* is alias of *--config*.
 *interface-device* can be the interface's target name or the MAC address.
+
+If *--print-xml* is specified, then the XML used to update the interface is
+printed instead.
 
 
 domifaddr
@@ -5090,7 +5093,7 @@ detach-interface
 ::
 
    detach-interface domain type [--mac mac]
-      [[[--live] [--config] | [--current]] | [--persistent]]
+      [[[--live] [--config] | [--current]] | [--persistent]] [--print-xml]
 
 Detach a network interface from a domain.
 *type* can be either *network* to indicate a physical network device or
@@ -5111,6 +5114,9 @@ an offline domain, and like *--live* *--config* for a running domain.
 
 Note that older versions of virsh used *--config* as an alias for
 *--persistent*.
+
+If *--print-xml* is specified, then the XML used to detach the interface
+is printed instead.
 
 Please see documentation for ``detach-device`` for known quirks.
 
@@ -5217,6 +5223,25 @@ exclusive. If no flag is specified, behavior is different depending
 on hypervisor.
 If *--print-xml* is specified, the XML that would be used to change media is
 printed instead of changing the media.
+
+
+dom-fd-associate
+----------------
+
+**Syntax:**
+
+::
+
+    dom-fd-associate domain --name FDGROUPNAME --pass-fds M,N,....
+        [--seclabel-writable] [--seclabel-restore]
+
+Associate one or more fds described via *--pass-fds* argument to *domain* as
+*--name*. The lifetime of the passed fd group is the same as the connection, thus
+exitting virsh un-registers them afterwards.
+
+By default security labels are applied if needed but they are not restored after
+use to avoid keeping them open unnecessarily. Best-effort security label restore
+may be requested by using the *--seclabel-restore* flag.
 
 
 NODEDEV COMMANDS
@@ -6713,7 +6738,7 @@ vol-clone
 ::
 
    vol-clone vol-name-or-key-or-path name
-      [--pool pool-or-uuid] [--prealloc-metadata] [--reflink]
+      [--pool pool-or-uuid] [--prealloc-metadata] [--reflink] [--print-xml]
 
 Clone an existing volume within the parent pool.  Less powerful,
 but easier to type, version of ``vol-create-from``.
@@ -6736,6 +6761,9 @@ only slightly higher initial disk space usage.
 When *--reflink* is specified, perform a COW lightweight copy,
 where the data blocks are copied only when modified.
 If this is not possible, the copy fails.
+
+If *--print-xml* is specified, then the XML used to clone the volume is
+printed instead.
 
 
 vol-delete

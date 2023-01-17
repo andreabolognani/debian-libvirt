@@ -28,6 +28,7 @@
 #include "virlog.h"
 #include "virfile.h"
 #include "virutil.h"
+#include "virsecureerase.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
 
@@ -65,6 +66,7 @@ virNetMessageClearPayload(virNetMessage *msg)
 {
     virNetMessageClearFDs(msg);
 
+    virSecureErase(msg->buffer, msg->bufferLength);
     msg->bufferOffset = 0;
     msg->bufferLength = 0;
     VIR_FREE(msg->buffer);
@@ -423,7 +425,7 @@ int virNetMessageDecodePayload(virNetMessage *msg,
     }
 
     /* Get the length stored in buffer. */
-    msg->bufferLength += xdr_getpos(&xdr);
+    msg->bufferOffset += xdr_getpos(&xdr);
     xdr_destroy(&xdr);
     return 0;
 

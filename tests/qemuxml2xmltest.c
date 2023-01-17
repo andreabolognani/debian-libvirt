@@ -459,6 +459,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-vhostuser");
     DO_TEST_NOCAPS("net-user");
     DO_TEST_NOCAPS("net-user-addr");
+    DO_TEST_NOCAPS("net-user-passt");
     DO_TEST_NOCAPS("net-virtio");
     DO_TEST_NOCAPS("net-virtio-device");
     DO_TEST_NOCAPS("net-virtio-disable-offloads");
@@ -744,6 +745,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-enc");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-pstate");
     DO_TEST_CAPS_ARCH_LATEST("aarch64-tpm", "aarch64");
+    DO_TEST_CAPS_LATEST("tpm-external");
 
     DO_TEST_NOCAPS("metadata");
     DO_TEST_NOCAPS("metadata-duplicate");
@@ -905,9 +907,10 @@ mymain(void)
     DO_TEST("panic-no-address", QEMU_CAPS_DEVICE_PANIC);
     DO_TEST_CAPS_ARCH_LATEST("panic-pseries", "ppc64");
 
-    DO_TEST_NOCAPS("disk-backing-chains");
     DO_TEST_NOCAPS("disk-backing-chains-index");
     DO_TEST_NOCAPS("disk-backing-chains-noindex");
+
+    DO_TEST_CAPS_LATEST("disk-source-fd");
 
     DO_TEST_CAPS_LATEST("disk-network-http");
 

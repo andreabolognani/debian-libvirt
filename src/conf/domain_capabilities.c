@@ -100,6 +100,7 @@ virDomainCapsDispose(void *obj)
     virCPUDefFree(caps->cpu.hostModel);
     virSEVCapabilitiesFree(caps->sev);
     virSGXCapabilitiesFree(caps->sgx);
+    g_free(caps->hyperv);
 
     values = &caps->os.loader.values;
     for (i = 0; i < values->nvalues; i++)
@@ -263,24 +264,20 @@ virDomainCapsEnumClear(virDomainCapsEnum *capsEnum)
 }
 
 
-static int
+static void
 virDomainCapsEnumFormat(virBuffer *buf,
                         const virDomainCapsEnum *capsEnum,
                         const char *capsEnumName,
                         virDomainCapsValToStr valToStr)
 {
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
     size_t i;
 
     if (!capsEnum->report)
-        return 0;
+        return;
 
-    virBufferAsprintf(buf, "<enum name='%s'", capsEnumName);
-    if (!capsEnum->values) {
-        virBufferAddLit(buf, "/>\n");
-        return 0;
-    }
-    virBufferAddLit(buf, ">\n");
-    virBufferAdjustIndent(buf, 2);
+    virBufferAsprintf(&attrBuf, " name='%s'", capsEnumName);
 
     for (i = 0; i < sizeof(capsEnum->values) * CHAR_BIT; i++) {
         const char *val;
@@ -289,12 +286,10 @@ virDomainCapsEnumFormat(virBuffer *buf,
             continue;
 
         if ((val = (valToStr)(i)))
-            virBufferAsprintf(buf, "<value>%s</value>\n", val);
+            virBufferAsprintf(&childBuf, "<value>%s</value>\n", val);
     }
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</enum>\n");
 
-    return 0;
+    virXMLFormatElement(buf, "enum", &attrBuf, &childBuf);
 }
 
 
@@ -335,9 +330,9 @@ virDomainCapsStringValuesFormat(virBuffer *buf,
 
 
 static void
-qemuDomainCapsFeatureFormatSimple(virBuffer *buf,
-                                  const char *featurename,
-                                  virTristateBool supported)
+virDomainCapsFeatureFormatSimple(virBuffer *buf,
+                                 const char *featurename,
+                                 virTristateBool supported)
 {
     if (supported == VIR_TRISTATE_BOOL_ABSENT)
         return;
@@ -685,6 +680,20 @@ virDomainCapsFeatureSGXFormat(virBuffer *buf,
 }
 
 static void
+virDomainCapsFeatureHypervFormat(virBuffer *buf,
+                                 const virDomainCapsFeatureHyperv *hyperv)
+{
+    if (!hyperv)
+        return;
+
+    FORMAT_PROLOGUE(hyperv);
+
+    ENUM_PROCESS(hyperv, features, virDomainHypervTypeToString);
+
+    FORMAT_EPILOGUE(hyperv);
+}
+
+static void
 virDomainCapsFormatFeatures(const virDomainCaps *caps,
                             virBuffer *buf)
 {
@@ -697,13 +706,14 @@ virDomainCapsFormatFeatures(const virDomainCaps *caps,
         if (i == VIR_DOMAIN_CAPS_FEATURE_IOTHREADS)
             continue;
 
-        qemuDomainCapsFeatureFormatSimple(&childBuf,
-                                          virDomainCapsFeatureTypeToString(i),
-                                          caps->features[i]);
+        virDomainCapsFeatureFormatSimple(&childBuf,
+                                         virDomainCapsFeatureTypeToString(i),
+                                         caps->features[i]);
     }
 
     virDomainCapsFeatureSEVFormat(&childBuf, caps->sev);
     virDomainCapsFeatureSGXFormat(&childBuf, caps->sgx);
+    virDomainCapsFeatureHypervFormat(&childBuf, caps->hyperv);
 
     virXMLFormatElement(buf, "features", NULL, &childBuf);
 }
@@ -728,8 +738,8 @@ virDomainCapsFormat(const virDomainCaps *caps)
     if (caps->maxvcpus)
         virBufferAsprintf(&buf, "<vcpu max='%d'/>\n", caps->maxvcpus);
 
-    qemuDomainCapsFeatureFormatSimple(&buf, "iothreads",
-                                      caps->features[VIR_DOMAIN_CAPS_FEATURE_IOTHREADS]);
+    virDomainCapsFeatureFormatSimple(&buf, "iothreads",
+                                     caps->features[VIR_DOMAIN_CAPS_FEATURE_IOTHREADS]);
 
     virDomainCapsOSFormat(&buf, &caps->os);
     virDomainCapsCPUFormat(&buf, &caps->cpu);

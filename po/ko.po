@@ -10,13 +10,14 @@
 # SeongHyun Jo <caelus9536@gmail.com>, 2021.
 # jason lee <ppark5237@gmail.com>, 2021.
 # Kim InSoo <simmon@nplob.com>, 2022.
-# 김인수 <simmon@nplob.com>, 2022.
+# 김인수 <simmon@nplob.com>, 2022, 2023.
+# Jan Tomko <jtomko@redhat.com>, 2022.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2022-11-24 14:54+0000\n"
-"PO-Revision-Date: 2022-11-29 08:38+0000\n"
+"POT-Creation-Date: 2023-01-09 14:27+0000\n"
+"PO-Revision-Date: 2023-01-15 04:20+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -25,7 +26,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.14.2\n"
+"X-Generator: Weblate 4.15\n"
 
 msgid ""
 "\n"
@@ -529,20 +530,13 @@ msgstr ""
 msgid ""
 "%s (on destination side) does not support the --migration option needed for "
 "migration with shared storage"
-msgstr "%s (대상 측면에서)는 공유 저장소로 이전을 위해 필요한 --migration 옵션을 "
-"지원하지 않습니다"
+msgstr ""
+"%s (대상 측면에서)는 공유 저장소로 이전을 위해 필요한 --migration 옵션을 지원"
+"하지 않습니다"
 
 #, c-format
 msgid "%s (out of %d)"
 msgstr "%s (%d 의 밖에)"
-
-#, c-format
-msgid "%s array element does not contain a string"
-msgstr "%s 배열 요소는 문자열이 포함되지 않습니다"
-
-#, c-format
-msgid "%s array element is missing item %zu"
-msgstr "%s 배열 요소는 항목 %zu를 누락하고 있습니다"
 
 #, c-format
 msgid "%s can't be empty"
@@ -628,10 +622,6 @@ msgstr "%s에서 %s는 0이면 안됩니다"
 #, c-format
 msgid "%s is missing 'type' property"
 msgstr "%s에는 'type' 속성이 누락되어 있습니다"
-
-#, c-format
-msgid "%s is missing or not an array"
-msgstr "%s가 누락되어 있거나 배열이 아닙니다"
 
 #, c-format
 msgid "%s is not an executable"
@@ -1869,10 +1859,6 @@ msgstr "명시적인 디스크 형식은 지정해야 합니다"
 msgid "Ancestor model %s not found for CPU model %s"
 msgstr "선조 모델 %s를 CPU 모델 %s에 대해 찾을 수 없음"
 
-#, c-format
-msgid "Another close callback is already defined for domain %s"
-msgstr "다른 닫기 콜백은 도메인 %s를 위해 이미 정의되어 있습니다"
-
 msgid "Another relabel transaction is already started"
 msgstr "다른 다시 지정한 이름표 연결은 이미 시작하였습니다"
 
@@ -3006,17 +2992,18 @@ msgid "Cannot get storage controller name"
 msgstr "저장소 제어기의 이름을 가져올 수 없습니다"
 
 msgid "Cannot initialize thread local for current identity"
-msgstr "현재 ID에 대해 로컬 스레드를 초기화할 수 없습니다"
+msgstr "현재 ID에 대해 로컬 스레드를 초기화 할 수 없습니다"
 
 #, c-format
 msgid ""
 "Cannot instantiate filter due to unresolvable variables or unavailable list "
 "elements: %s"
 msgstr ""
-"알수없는 변수 또는 불가용한 리스트 요소들 %s 때문에 필터를 시작할 수 없습니다"
+"알 수 없는 변수 또는 불가용한 목록 요소들 때문에 필터를 시작 할 수 없습니다: "
+"%s"
 
 msgid "Cannot lock resctrl"
-msgstr "resctrl을 잠글수 없습니다"
+msgstr "resctrl을 잠글 수 없습니다"
 
 #, c-format
 msgid "Cannot migrate empty or read-only disk %s"
@@ -3024,7 +3011,7 @@ msgstr "비어있거나 읽기 전용 디스크 %s를 이주시킬 수 없습니
 
 #, c-format
 msgid "Cannot mount filesystem type %s"
-msgstr "파일 시스템 유형 %s을 마운트할 수 없음"
+msgstr "파일 시스템 유형 %s를 적재 할 수 없음"
 
 #, c-format
 msgid "Cannot move fd %d out of the way"
@@ -3034,7 +3021,7 @@ msgid "Cannot obtain CPU count"
 msgstr "CPU 수를 획득 할 수 없습니다"
 
 msgid "Cannot offline enough CPUs"
-msgstr "CPU를 충분히 오프라인할 수 없습니다"
+msgstr "CPU를 충분히 오프라인 할 수 없습니다"
 
 #, c-format
 msgid "Cannot open %s"
@@ -3079,37 +3066,37 @@ msgid "Cannot parse 'memory.stat' cgroup file."
 msgstr "<master> 'startport' 속성을 구문 분석 할 수 없습니다."
 
 msgid "Cannot parse <HardDisk> 'format' attribute"
-msgstr "<HardDisk> '형식' 속성을 구문 분석할 수 없습니다"
+msgstr "<HardDisk> '형식' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <HardDisk> 'location' attribute"
-msgstr "<HardDisk> '위치' 속성을 구문 분석할 수 없습니다"
+msgstr "<HardDisk> '위치' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <HardDisk> 'uuid' attribute"
-msgstr "<HardDisk> 'uuid' 속성을 구문 분석할 수 없습니다"
+msgstr "<HardDisk> 'uuid' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> 'currentSnapshot' attribute"
 msgstr "<Machine> '현재 스냅샷' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> 'lastStateChange' attribute"
-msgstr "<Machine> 'lastStateChange' 속성을 구문 분석할 수 없습니다"
+msgstr "<Machine> 'lastStateChange' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> 'name' attribute"
 msgstr "<Machine> '이름' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> 'snapshotFolder' attribute"
-msgstr "<Machine> 'snapshotFolder' 속성을 구문 분석할 수 없습니다"
+msgstr "<Machine> 'snapshotFolder' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> 'uuid' attribute"
-msgstr "<Machine> 'uuid' 속성을 구문 분석할 수 없습니다"
+msgstr "<Machine> 'uuid' 속성을 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> <Hardware> node"
-msgstr "<Machine> <Hardware> 노드를 구문 분석할 수 없습니다"
+msgstr "<Machine> <Hardware> 노드를 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> <MediaRegistry> node"
-msgstr "<Machine> <MediaRegistry> 노드를 구문 분석할 수 없습니다"
+msgstr "<Machine> <MediaRegistry> 노드를 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Machine> <StorageControllers> node"
-msgstr "<Machine> <StorageControllers> 노드를 구문 분석할 수 없습니다"
+msgstr "<Machine> <StorageControllers> 노드를 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <Snapshot> 'name' attribute"
 msgstr "<Snapshot> '이름' 속성을 구문 분석 할 수 없습니다"
@@ -3124,7 +3111,7 @@ msgid "Cannot parse <Snapshot> <Hardware> node"
 msgstr "<순간찍기><하드웨어>노드 구문 분석을 할 수 없습니다"
 
 msgid "Cannot parse <Snapshot> <StorageControllers> node"
-msgstr "<Snapshot> <StorageControllers> 노드를 구문 분석할 수 없습니다"
+msgstr "<Snapshot> <StorageControllers> 노드를 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse <VirtualBox> <Machine> node"
 msgstr "<버츄얼박스><장비>노드에서 구문 분석을 할 수 없습니다"
@@ -3134,7 +3121,7 @@ msgstr "<address> '포트' 속성을 구문 분석할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse MAC address '%s' in network '%s'"
-msgstr "네트워크 '%s'에서 MAC 주소 '%s'를 구문 분석할 수 없습니다"
+msgstr "MAC 주소 '%s'(네트워크 '%s'에서)를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse USB device version %s"
@@ -3142,23 +3129,23 @@ msgstr "장치 %s를 구문 분석 할 수 없음"
 
 #, c-format
 msgid "Cannot parse UUID '%s'"
-msgstr "UUID '%s'를 구문 분석할 수 없습니다"
+msgstr "UUID '%s'를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse adapter '%s'"
-msgstr "어댑터 '%s'를 구문 분석할 수 없습니다"
+msgstr "어댑터 '%s'를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse byte %sstat '%s'"
-msgstr "바이트 %sstat '%s'를 구문 분석 할 수 없습니다"
+msgstr "바이트 %s 통계 '%s'를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse byte '%s' stat '%s'"
-msgstr "'%s'stat '%s'을 구문 분석 할 수 없습니다"
+msgstr "'%s' 통계 '%s'를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse category in %s"
-msgstr "%s에 있는 범주를 구문 분석할 수 없습니다"
+msgstr "%s에 있는 범주를 구문 분석 할 수 없습니다"
 
 msgid "Cannot parse cbm_mask from resctrl cache info"
 msgstr "rectrl 캐쉬 정보에서 cbm_mask를 구문 분석 할 수 없습니다"
@@ -3180,7 +3167,7 @@ msgstr "소켓 서비스 '%s':%s를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse start time %s for pid %d"
-msgstr "pid %s를 위한 시작 시간 %s를 구문 분석 할 수 없습니다"
+msgstr "시작 시간 %s를(pid %d를 위한) 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse sys stat '%s'"
@@ -3188,7 +3175,7 @@ msgstr "stat '%s'을 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "Cannot parse user stat '%s'"
-msgstr "user stat '%s'을(를) 구문 분석할 수 없음"
+msgstr "사용자 통계 '%s'를 구문 분석 할 수 없음"
 
 msgid "Cannot parse uuid attribute of element <address>"
 msgstr "요소 <address>의 uuid 속성을 구문 분석 할 수 없습니다"
@@ -3198,16 +3185,16 @@ msgid ""
 "Cannot plug '%s' interface into '%s' because new combined inbound floor=%llu "
 "would overcommit average=%llu on network '%s'"
 msgstr ""
-"'%s' 연결장치를 '%s'에 연결 할 수 없습니다, 왜냐하면 새로 결합된 인바운드 "
-"floor=%llu가 네트워크 '%s'에서 평균=%llu를 초과 커밋하기 때문입니다"
+"'%s' 연결장치를 '%s'에 연결 할 수 없으며, 왜냐하면 새로 결합된 인바운드 "
+"floor=%llu는 평균= %llu를 초과 커밋(네트워크 '%s'에서)하기 때문입니다"
 
 #, c-format
 msgid ""
 "Cannot plug '%s' interface into '%s' because new combined inbound floor=%llu "
 "would overcommit peak=%llu on network '%s'"
 msgstr ""
-"네트워크 '%s'에 새로 결합된 층=%llu이 최고사용량=%llu을 초과하기 때문에 '%s' "
-"접속기를 '%s'에 꽂을 수 없습니다"
+"'%s' 연결장치를 '%s'에 연결 할 수 없으며, 왜냐하면 신규 결합된 인바운드 "
+"floor=%llu는 peak=%llu를 오버커밋(네트워크 '%s'에서)하기 때문입니다"
 
 #, c-format
 msgid "Cannot print data type %x"
@@ -3640,11 +3627,6 @@ msgid "Clone an existing volume within the parent pool."
 msgstr "상위 풀 내의 존재하는 볼륨을 복제하십시오."
 
 #, c-format
-msgid ""
-"Close callback for domain %s already registered with another connection %p"
-msgstr "도메인 %s에 대한 콜백을 닫으십시오 (다른 연결 %p에 이미 등록된)"
-
-#, c-format
 msgid "Cloud-Hypervisor doesn't support '%s' device"
 msgstr "Cloud-Hypervisor는 '%s' 장비를 지원하지 않습니다"
 
@@ -3851,10 +3833,6 @@ msgstr "복사가 중단됨"
 
 msgid "Copy failed"
 msgstr "복사가 실패됨"
-
-#, c-format
-msgid "Copying definition of '%d' type is not implemented yet."
-msgstr "'%d' 유형 정의 복사본은 아직 구현되어 있지 않습니다."
 
 msgid "Core dump a domain."
 msgstr "도메인을 코어 덤프함."
@@ -4109,7 +4087,7 @@ msgstr "vport 지원 장치를 찾을 수 없습니다"
 
 #, c-format
 msgid "Could not find auto-added %s controller with index %zu"
-msgstr "색인 %zu과 함께 자동-추가된 %s 제어기를 찾을 수 없습니다"
+msgstr "자동-추가된 %s 제어기(색인 %zu과 함께)를 찾을 수 없습니다"
 
 #, c-format
 msgid "Could not find compute resource specified in '%s'"
@@ -5259,7 +5237,7 @@ msgstr "장치 '%s'를인식할 수 없습니다. 빌드가 필요합니다"
 
 #, c-format
 msgid "Device alias was not set for %s controller with index %d "
-msgstr "장치 별명이 색인 '%d'인 '%s' 제어기에 대한 설정이 없습니다 "
+msgstr "장치 별명이 '%s' 제어기(색인 '%d'인)에 대한 설정이 없습니다 "
 
 #, c-format
 msgid ""
@@ -5617,10 +5595,9 @@ msgstr "도메인에 일시 중단 지원이 없습니다"
 
 #, c-format
 msgid ""
-"Domain has %d interfaces. Please specify which one to detach using --mac"
-msgstr ""
-"도메인에 %d개의 인터페이스가 있습니다. --mac을 사용하여 분리할 것을 지정하십"
-"시오"
+"Domain has %zd interfaces. Please specify which one to detach using --mac"
+msgstr "도메인은 %zd 연결장치를 가지고 있습니다. --mac을 사용하여 분리 하려는 것 "
+"중에 하나를 지정하세요"
 
 #, c-format
 msgid ""
@@ -5725,6 +5702,10 @@ msgstr "도메인 스냅샷 %s가 '%s'에서 생성됨"
 #, c-format
 msgid "Domain snapshot %s deleted\n"
 msgstr "도메인 스냅샷 %s이 삭제됨\n"
+
+#, c-format
+msgid "Domain snapshot %s reverted\n"
+msgstr "도메인 스냅샷 %s가 복귀되었습니다\n"
 
 msgid "Domain snapshot not found"
 msgstr "도메인 스냅샷을 찾을 수 없음"
@@ -6165,8 +6146,8 @@ msgstr ""
 #, c-format
 msgid "Expecting VMX entry '%s' to be 'scsi-hardDisk' or 'disk' but found '%s'"
 msgstr ""
-"예상되는 VMX 진입 '%s'가 'scsi-hardDisk' 또는 'disk' '%s' 이어야 하지만 "
-"'%s'가 검색되었습니다"
+"예상되는 VMX 항목 '%s'가 'scsi-hardDisk' 또는 'disk' 이어야 하지만 '%s'가 검"
+"색되었습니다"
 
 #, c-format
 msgid "Expecting VMX entry '%s' to be 'server' or 'client' but found '%s'"
@@ -6761,6 +6742,9 @@ msgstr "%s로부터 노드 장치를 생성하는 데 실패"
 msgid "Failed to create nvram dir %s"
 msgstr "nvram 디렉토리 %s를 작성하지 못했습니다"
 
+msgid "Failed to create or modify the state XML attribute"
+msgstr "상태 XML 속성을 생성하거나 수정하는데 실패함"
+
 #, c-format
 msgid "Failed to create pool %s"
 msgstr "풀 %s를 생성하는 데 실패"
@@ -7005,7 +6989,7 @@ msgstr ""
 
 #, c-format
 msgid "Failed to disconnect client '%llu' from server %s"
-msgstr "서버 %s에서 클라이언트 '%llu' 연결 끊기 실패"
+msgstr "클라이언트 '%llu' 연결 끊기 실패(서버 %s에서)"
 
 msgid "Failed to disconnect from the admin server"
 msgstr "관리 서버에서 연결을 끊지 못했습니다"
@@ -7144,7 +7128,7 @@ msgstr "uuid 생성에 실패하였습니다"
 
 #, c-format
 msgid "Failed to get %s minor number"
-msgstr "% 부 번호를 가져 오는데 실패"
+msgstr "%s 부 번호를 가져 오는데 실패"
 
 #, c-format
 msgid "Failed to get SRIOV function from device link '%s'"
@@ -7524,7 +7508,7 @@ msgstr "%s를 %s유형 %s에 적재하는데 실패했습니다"
 
 #, c-format
 msgid "Failed to mount %s on %s type %s flags=0x%x"
-msgstr "%s 유형 %s flags=0x%x에서 %s를 적재하는데 실패"
+msgstr "%s (%s 유형 %s flags=0x%x에서)를 적재하는데 실패함"
 
 #, c-format
 msgid "Failed to mount %s on /dev"
@@ -7800,7 +7784,7 @@ msgstr "장치 %s 재부착 실패"
 
 #, c-format
 msgid "Failed to re-mount %s on %s flags=0x%x"
-msgstr "%s 플래그=0x%x에서 %s를 재적재 하는데 실패했습니다"
+msgstr "%s( %s flags=0x%x에서)를 재적재 하는데 실패함"
 
 #, c-format
 msgid "Failed to read %s"
@@ -7944,7 +7928,7 @@ msgstr "포트 %d를 예약하는데 실패"
 
 #, c-format
 msgid "Failed to reserve port %zu"
-msgstr "포트 %z를 예약하는데 실패"
+msgstr "포트 %zu를 예약하는데 실패"
 
 #, c-format
 msgid "Failed to reset PCI device: %s"
@@ -8040,6 +8024,10 @@ msgstr "게스트에서 vCPU 수를 검색하지 못했습니다"
 msgid "Failed to retrieve vcpu state bitmap"
 msgstr "vcpu 상태 비트맵을 검색하는데 실패"
 
+#, c-format
+msgid "Failed to revert snapshot %s"
+msgstr "스냅샷 %s를 되돌리는데 실패함"
+
 msgid "Failed to rollback network config change transaction"
 msgstr "네트워크 구성 변경 연결을 되돌리는데 실패"
 
@@ -8079,7 +8067,7 @@ msgstr "도메인 '%s'를 %s에 저장하지 못했습니다"
 
 #, c-format
 msgid "Failed to seek to %llu bytes to the end in volume with path '%s'"
-msgstr "경로가 '%s'인 볼륨의 끝까지 %llu바이트를 찾지 못했습니다"
+msgstr "볼륨의 끝까지 %llu바이트(경로가 '%s'인)를 찾지 못했습니다"
 
 #, c-format
 msgid "Failed to seek to the start in volume with path '%s'"
@@ -8331,7 +8319,7 @@ msgstr "스냅샷 %s 가져오는데 실패"
 
 #, c-format
 msgid "Failed to terminate process %lld with SIG%s"
-msgstr "SIG%s와 함께 프로세서 %lld를 종료하는데 실패"
+msgstr "프로세서 %lld(SIG%s와 함께)를 종료하는데 실패함"
 
 #, c-format
 msgid "Failed to translate bridge '%s' prefix %d to netmask"
@@ -10392,6 +10380,9 @@ msgstr "JSON 백업 볼륨 정의 '%s'에 드라이버 이름이 없습니다"
 #, c-format
 msgid "JSON backing volume definition '%s' must not have nested format drivers"
 msgstr "JSON 백업 볼륨 정의 '%s'에는 중첩 형식 드라이버가 없어야 합니다"
+
+msgid "JSON string array contains non-string element"
+msgstr "JSON 문자열 배열은 비-문자열 요소를 포함합니다"
 
 #, c-format
 msgid "Job submission failed on interface '%s'"
@@ -14429,6 +14420,9 @@ msgstr "스냅샷 덤프 XML"
 msgid "Snapshot List"
 msgstr "스냅샷 목록"
 
+msgid "Snapshot delete"
+msgstr "스냅샷 삭제"
+
 msgid "Snapshot is Null"
 msgstr "스냅샷이 없습니다"
 
@@ -15611,6 +15605,10 @@ msgid "Thawed %d filesystem(s)\n"
 msgstr "해제된 %d 파일 시스템\n"
 
 #, c-format
+msgid "The %s interface already exists"
+msgstr "%s 연결장치는 이미 존재합니다"
+
+#, c-format
 msgid "The '%s' device is not supported by this QEMU binary"
 msgstr "이 QEMU 바이너리는 '%s' 장치를 지원하지 않습니다"
 
@@ -15829,10 +15827,16 @@ msgstr ""
 "가상 CPU 주소 비트의 수는 호스트 CPU에 의해 지원되는 수를 초과 할 수 없습니다"
 
 msgid ""
-"The overall maximum number of clients must be greater than the maximum "
-"number of clients waiting for authentication"
-msgstr ""
-"전체 최대 클라이언트 수는 인증을 기다리는 최대 클라이언트 수보다 커야 합니다"
+"The overall maximum number of clients must not be less than the number of "
+"clients waiting for authentication"
+msgstr "전체 최대 클라이언트 수는 인증을 기다리는 최대 클라이언트 수보다 작으면 "
+"안됩니다"
+
+msgid ""
+"The overall maximum number of clients waiting for authentication must not be "
+"less than the overall maximum number of clients"
+msgstr "인증을 위해 대기하는 전체 최대 클라이언트의 수는 전체 최대 클라이언트 수보다 "
+"작아서는 안 됩니다"
 
 msgid "The read only disk has no parent"
 msgstr "읽기 전용 디스크에는 상위 항목이 없습니다"
@@ -16189,10 +16193,6 @@ msgstr "아직 사용 중인 SharedCURL 개체를 해제하려 합니다"
 #, c-format
 msgid "Trying to lock unknown SharedCURL lock %d"
 msgstr "알 수 없는 SharedCURL 잠금 %d을 잠금 시도합니다"
-
-#, c-format
-msgid "Trying to remove mismatching close callback for domain %s"
-msgstr "도메인 %s에 대해 일치하지 않는 닫기 콜백을 제거하려고 합니다"
 
 #, c-format
 msgid "Trying to unlock unknown SharedCURL lock %d"
@@ -19446,6 +19446,9 @@ msgstr "VFIO PCI 장치의 할당은 이 QEMU의 버전에서 지원하지 않�
 msgid "VFIO device assignment is currently not supported on this system"
 msgstr "VFIO 장치 할당은 현재 이 시스템에서 지원되지 않습니다"
 
+msgid "VM disk source and snapshot disk source are not the same"
+msgstr "VM 디스크 원천과 스냅샷 디스크 원천은 동일하지 않습니다"
+
 msgid "VM is already active"
 msgstr "VM이 이미 실행중입니다"
 
@@ -20083,6 +20086,9 @@ msgstr "guest-get-users 반환 값에 누락된 배열 요소"
 msgid "array element missing in guest-get-vcpus return value"
 msgstr "guest-get-vcpus 반환 값에 누락된 배열 요소"
 
+msgid "associate a FD with a domain"
+msgstr "FD를 도메인에 연결"
+
 msgid ""
 "at least 1 server is necessary in JSON backing definition for gluster volume"
 msgstr "Gluster 볼륨에 대한 JSON 지원 정의에 최소 1개의 서버가 필요합니다"
@@ -20407,6 +20413,10 @@ msgstr "블록 I/O 스로틀 제한은 QEMU를 사용하는 %llu 이하이어야
 msgid "block I/O throttle limit value must be no more than %llu"
 msgstr "블록 I/O 스로틀 제한 값은 %llu 이하여야 합니다"
 
+#, c-format
+msgid "block commit failed while deleting disk '%s' snapshot: '%s'"
+msgstr "디스크 '%s' 스냅샷을 삭제하는 동안 블록 커밋 실패: '%s'"
+
 msgid "block copy still active"
 msgstr "블럭 복사는 여전히 활성화됨"
 
@@ -20420,6 +20430,9 @@ msgstr "블럭 장치"
 #, c-format
 msgid "block device snapshot target '%s' doesn't exist"
 msgstr "블럭 장치 스냅샷 대상 '%s'가 존재하지 않습니다"
+
+msgid "block info is not supported for FD passed disk image"
+msgstr "블럭 정보는 FD 전달된 디스크 이미지를 지원하지 않습니다"
 
 msgid "block info is not supported for vhostuser disk"
 msgstr "블럭 정보는 vhostuser 디스크를 지원하지 않습니다"
@@ -20676,13 +20689,16 @@ msgstr ""
 "구현 하이퍼바이저 드라이버에 따라 --live 및 --config 중 하나 또는 모두일 수 "
 "있습니다"
 
+msgid "can't add memory backend as guest has no NUMA nodes configured"
+msgstr "게스트는 구성된 NUMA 노드가 없으므로 메모리 백엔드를 추가 할 수 없습니다"
+
 #, c-format
 msgid ""
 "can't add memory backend for guest node '%d' as the guest has only '%zu' "
 "NUMA nodes configured"
 msgstr ""
-"게스트에 '%zu' NUMA 노드만 구성되어 있으므로 게스트 노드 '%d'에 대한 메모리 "
-"백엔드를 추가할 수 없습니다"
+"게스트 노드 '%d'(게스트에 '%zu' NUMA 노드만 구성되어 있으므로)에 대한 메모리 "
+"백엔드를 추가 할 수 없습니다"
 
 msgid "can't change link state: device alias not found"
 msgstr "링크 상태를 변경할 수 없음: 장치 별칭을 찾을 수 없습니다"
@@ -20870,7 +20886,7 @@ msgstr ""
 
 #, c-format
 msgid "cannot allocate %llu bytes in file '%s'"
-msgstr "파일 '%s'에서 %llu 바이트를 할당 할 수 없음"
+msgstr "%llu 바이트(파일 '%s'에서)를 할당 할 수 없음"
 
 msgid "cannot allocate nlhandle for netlink"
 msgstr "netlink의 nlhandle을 할당할 수 없음"
@@ -21124,6 +21140,9 @@ msgstr "비활성 도메인에 대한 체크포인트를 삭제할 수 없습니
 
 msgid "cannot delete domain snapshot for running domain"
 msgstr "동작 중인 도메인에 도메인 스냅샷을 제거 할 수 없습니다"
+
+msgid "cannot delete external snapshots when there is another active block job"
+msgstr "다른 활성 블록 작업이 있을 때 외부 스냅샷을 삭제 할 수 없습니다"
 
 #, c-format
 msgid "cannot delete inactive domain with %d checkpoints"
@@ -21685,7 +21704,7 @@ msgstr "%s CPU 데이터를 구문 분석할 수 없습니다"
 
 #, c-format
 msgid "cannot parse %s version number in '%.*s'"
-msgstr "'%.*s'에서 %s 버전 번호를 구문 분석 할 수 없습니다"
+msgstr "%s 버전 번호('%.*s'에서)를 구문 분석 할 수 없습니다"
 
 #, c-format
 msgid "cannot parse 'dspPolicy' value '%i'"
@@ -22817,6 +22836,9 @@ msgstr "복사 대상은 일반 파일이 아닌 블록 장치입니다"
 msgid "copy of read-only disks is not supported"
 msgstr "읽기 전용 디스크의 복사본은 지원되지 않습니다"
 
+msgid "copy to a FD passed disk source is not yet supported"
+msgstr "FD 전달된 드스크 원천으로 복사는 아직 지원되지 않습니다"
+
 msgid "copy-on-write ploop volumes are not yet supported"
 msgstr "기록중 복사(cow) ploop 볼륨은 아직 지원되지 않습니다"
 
@@ -22919,6 +22941,9 @@ msgstr "도메인에 최대 vcpu를 결정 할 수 없습니다"
 #, c-format
 msgid "could not find backing store index '%u' in chain for '%s'"
 msgstr "백업 저장소 색인 '%u'를(%s를 위한 체인에서) 찾을 수 없습니다"
+
+msgid "could not find base disk source in disk source chain"
+msgstr "디스크 원천 체인에서 기본 디스크 원천을 찾을 수 없습니다"
 
 #, c-format
 msgid "could not find base image in chain for '%s'"
@@ -23533,9 +23558,18 @@ msgstr ""
 msgid "delete the specified network port"
 msgstr "지정된 네트워크 포트를 삭제하세요"
 
-#, c-format
-msgid "deletion of %d external disk snapshots not supported yet"
-msgstr "%d개의 외부 디스크 스냅샷 삭제는 아직 지원되지 않습니다"
+msgid ""
+"deleting external snapshot that has internal snapshot as parent not supported"
+msgstr "내부 스냅샷이 상위로 있는 외부 스냅샷 삭제하기는 지원되지 않음"
+
+msgid "deletion of external and internal children disk snapshots not supported"
+msgstr "외부와 내부 하위 디스크 스냅샷 삭제가 지원되지 않음"
+
+msgid "deletion of external children disk snapshots not supported"
+msgstr "외부 하위 디스크 스냅샷의 삭제는 지원되지 않습니다"
+
+msgid "deletion of external disk snapshots with children not supported"
+msgstr "하위에 있는 외부 디스크 스냅샷의 삭제는 지원되지 않습니다"
 
 #, c-format
 msgid "deprecated configuration: %s"
@@ -23765,7 +23799,7 @@ msgid "disable cpus specified by cpumap"
 msgstr "cpumap에 의해 지정된 CPU 비활성화"
 
 msgid "disabled"
-msgstr "사용 않음"
+msgstr "비활성화됨"
 
 #, c-format
 msgid "discard is not supported for model '%s'"
@@ -23915,6 +23949,13 @@ msgstr "디스크 event_idx 모드는 virtio 버스에 대해서만 지원됩니
 #, c-format
 msgid "disk format %s is not supported"
 msgstr "디스크 형식 %s는 지원되지 않습니다"
+
+#, c-format
+msgid ""
+"disk image '%s' for internal snapshot '%s' is not the same as disk image "
+"currently used by VM"
+msgstr "디스크 이미지 '%s'(내부 스냅샷 '%s'를 위해)는 현재 VM에 의해 사용되는 디스크 "
+"이미지와 동일하지 않습니다"
 
 #, c-format
 msgid "disk image format not supported: %s"
@@ -24346,6 +24387,10 @@ msgstr "완료"
 
 msgid "download volume contents to a file"
 msgstr "파일에 볼륨 내용을 내려받기 함"
+
+#, c-format
+msgid "driver does not support FD passing for disk '%s'"
+msgstr "드라이버는 디스크 '%s'를 위해 FD 전달을 지원하지 않습니다"
 
 #, c-format
 msgid "driver does not support net model '%s'"
@@ -25210,6 +25255,9 @@ msgstr "%s 인터페이스 생성 (시작) 실패: %s%s%s"
 msgid "failed to create RBD snapshot %s@%s"
 msgstr "RBD 스냅샷 %s@%s을(를) 생성하지 못했습니다"
 
+msgid "failed to create XML node"
+msgstr "XML 코드 생성에 실패함"
+
 msgid "failed to create a new XML namespace"
 msgstr "새 XML 네임스페이스를 만들지 못했습니다"
 
@@ -25327,6 +25375,10 @@ msgstr "호스트 이름을 확인하지 못했습니다"
 msgid "failed to determine loop exit status: %s"
 msgstr "루프 종료 상태를 확인하지 못했습니다. %s"
 
+#, c-format
+msgid "failed to duplicate file descriptor for fd group '%s'"
+msgstr "fd 그룹 '%s'를 위해 파일 설명자 복제에 실패함"
+
 msgid "failed to enable IP forwarding"
 msgstr "IP 포워딩을 활성화하는 데 실패"
 
@@ -25378,8 +25430,15 @@ msgid "failed to find disk '%s'"
 msgstr "디스크 '%s'을(를) 찾지 못했습니다"
 
 #, c-format
+msgid "failed to find disk '%s' in snapshot VM XML"
+msgstr "스냅샷 VM XML에서 디스크 '%s'를 찾는데 실패함"
+
+#, c-format
 msgid "failed to find iothread id for '%s'"
 msgstr "'%s'에 대한 iothread ID를 찾지 못했습니다"
+
+msgid "failed to find parent disk source in backing chain"
+msgstr "백업 체인에서 상위 디스크 원천을 찾는데 실패함"
 
 #, c-format
 msgid "failed to find the VID for the VLAN device '%s'"
@@ -26000,7 +26059,7 @@ msgid ""
 "failed to retrieve client identity information for client '%llu' connected "
 "to server '%s'"
 msgstr ""
-"서버 '%s'에 연결된 클라이언트 '%llu'에 대한 클라이언트 ID 정보를 검색하지 못"
+"클라이언트 '%llu'(서버 '%s'에 연결된)에 대한 클라이언트 ID 정보를 검색하지 못"
 "했습니다"
 
 msgid "failed to retrieve credentials"
@@ -26070,10 +26129,6 @@ msgstr "gluster volfile 서버 '%s'을(를) 설정하지 못했습니다"
 msgid "failed to set guest cid"
 msgstr "게스트 cid 설정 실패"
 
-#, c-format
-msgid "failed to set snapshot '%s' as current"
-msgstr "스냅샷 '%s'을(를) 현재로 설정하지 못했습니다"
-
 msgid "failed to setup stderr file handle"
 msgstr "표준 오류 파일 핸들을 설정하는 데 실패했습니다"
 
@@ -26118,6 +26173,9 @@ msgstr "스크린샷을 찍지 못했습니다"
 #, c-format
 msgid "failed to truncate %s"
 msgstr "%s를 자르는 데에 실패"
+
+msgid "failed to umount devfs on /dev"
+msgstr "/dev에서 devfs를 내려 놓는데 실패함"
 
 #, c-format
 msgid "failed to undefine interface %s: %s%s%s"
@@ -26254,6 +26312,9 @@ msgstr "fd %d은(는) 소켓이어야 합니다"
 msgid "fd must be valid"
 msgstr "파일디스크(fd)는 유효해야 합니다"
 
+msgid "fd passed image source not initialized"
+msgstr "fd 전달된 이미지 원천이 초기화 되지 않았습니다"
+
 msgid "fd passing is not supported by this connection"
 msgstr "이 연결은 파일디스크(fd) 전달을 지원하지 않습니다"
 
@@ -26317,6 +26378,13 @@ msgstr "XML 볼륨 설명이 있는 파일"
 
 msgid "file containing secret attributes in XML"
 msgstr "XML의 비밀 특성을 포함하는 파일"
+
+#, c-format
+msgid "file descriptor group '%s' was not associated with the domain"
+msgstr "파일 설명자 그룹 '%s'는 도메인과 연관되지 않았습니다"
+
+msgid "file descriptors N,M,... to associate"
+msgstr "파일 설명자 N,M,...(연관된)"
 
 msgid "file format type raw,bochs,qcow,qcow2,qed,vmdk"
 msgstr "파일 형식 유형 raw,bochs,qcow,qcow2,qed,vmdk"
@@ -26433,6 +26501,10 @@ msgstr "사용가능한 저장소 풀 소스를 찾습니다"
 
 msgid "finish step ignored that migration was cancelled"
 msgstr "이전이 취소된 완료 단계를 무시"
+
+#, c-format
+msgid "finishing block job failed while deleting disk '%s' snapshot: '%s'"
+msgstr "디스크 '%s' 스냅샷을 삭제하는 동안 마무리 블록 작업을 실패함: '%s'"
 
 msgid ""
 "firewalld is set to use the nftables backend, but the required firewalld "
@@ -27390,8 +27462,8 @@ msgid "interface '%s' failing; reopening"
 msgstr "인터페이스 '%s'가 실패했습니다; 다시 엽니다"
 
 #, c-format
-msgid "interface (%s: %s) not found"
-msgstr "연결장치 (%s: %s)를 찾을 수 없음"
+msgid "interface '%s' not found"
+msgstr "연결장치 '%s'를 찾을 수 없음"
 
 msgid "interface device (MAC Address)"
 msgstr "인터페이스 장치 (MAC 주소)"
@@ -29959,6 +30031,9 @@ msgstr "지원되는 덤프 형식의 누락된 항목"
 msgid "missing existing file for disk %s: %s"
 msgstr "디스크 %s에 대한 기존 파일 누락: %s"
 
+msgid "missing external TPM backend type"
+msgstr "누락된 외부 TPM 백엔드 유형"
+
 msgid "missing feature name"
 msgstr "기능 이름 누락"
 
@@ -30277,6 +30352,9 @@ msgstr "JSON 백업 볼륨 정의에서 누락된 소켓 주소 유형"
 msgid "missing socket for unix transport"
 msgstr "unix 전송에 대해 소켓이 누락되어 있음"
 
+msgid "missing socket path for external TPM device"
+msgstr "외부 TPM 장치를 위한 누락된 소켓 경로"
+
 msgid ""
 "missing socket path for udp backing server in JSON backing volume definition"
 msgstr "JSON 백업 볼륨 정의에서 udp 백업 서버에 대한 소켓 경로 누락"
@@ -30456,8 +30534,9 @@ msgstr "mkdir(\"%s\")"
 msgid ""
 "mkfs is not available on this platform: Failed to make filesystem of type "
 "'%s' on device '%s'"
-msgstr "mkfs는 이 기술환경에서 사용 할 수 없습니다. '%s' 장치에서 '%s' 유형의 파일 "
-"시스템을 만들지 못했습니다"
+msgstr ""
+"mkfs는 이 기술환경에서 사용 할 수 없습니다. '%s' 장치에서 '%s' 유형의 파일 시"
+"스템을 만들지 못했습니다"
 
 msgid "mode attribute of <source/> element"
 msgstr "<source/> 요소의 방법(mode) 속성"
@@ -30639,6 +30718,9 @@ msgstr ""
 
 msgid "name of snapshot"
 msgstr "스냅샷 이름"
+
+msgid "name of the FD group"
+msgstr "FD 그룹의 이름"
 
 msgid "name of the inactive domain"
 msgstr "비활성화 도메인명"
@@ -31784,6 +31866,9 @@ msgstr ""
 "핫플러그 방식이 아닌 온라인 vcpus는 핫플러그 방식 vcpus보다 먼저 주문해야 합"
 "니다"
 
+msgid "only 'client' mode is supported for external TPM device"
+msgstr "'클라이언트' 전용 방식은 외부 TPM 장치를 위해 지원됩니다"
+
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
 msgstr "pc-dimm 장치에는 'dimm' 주소만 지원됩니다"
 
@@ -31943,6 +32028,9 @@ msgstr "단일 입력 장치만이 지원됨"
 
 msgid "only snapshot=no is supported with vhostuser disk"
 msgstr "vhostuser 디스크에서는 snapshot=no만 지원됩니다"
+
+msgid "only source type 'unix' is supported for external TPM device"
+msgstr "전용 원천 유형 '유닉스'는 외부 TMP 장치를 위해 지원됩니다"
 
 msgid "only supports mount filesystem type"
 msgstr "적재된 파일 시스템 유형만이 지원됩니다"
@@ -32327,6 +32415,9 @@ msgstr "pci-root 및 pcie-root 컨트롤러에는 주소가 없어야 합니다"
 msgid "pcie-expander-bus controllers are not supported with this machine type"
 msgstr "pcie-expander-bus 컨트롤러는 이 머신 유형에서 지원되지 않습니다"
 
+msgid "peeking is not supported for FD passed images"
+msgstr "엿보기는 FD 전달된 이미지를 위해 지원되지 않습니다"
+
 msgid "peeking is not supported for vhostuser disk"
 msgstr "vhostuser 디스크에는 엿보기가 지원되지 않습니다"
 
@@ -32631,11 +32722,20 @@ msgstr "인터페이스를 첨부하는 대신 XML 문서를 인쇄하십시오"
 msgid "print XML document rather than change media"
 msgstr "미디어를 변경하는 대신 XML 문서 인쇄"
 
+msgid "print XML document rather than clone the volume"
+msgstr "볼륨을 복제하기 보다 XML 문서 출력"
+
 msgid "print XML document rather than create"
 msgstr "XML 문서를 생성하지 않고 출력합니다"
 
 msgid "print XML document rather than detach the disk"
 msgstr "디스크를 분리하지 않고 XML 문서를 인쇄합니다"
+
+msgid "print XML document rather than detach the interface"
+msgstr "연결장치를 분리하기 보다 XML 문서 출력"
+
+msgid "print XML document rather than set the interface link state"
+msgstr "연결장치 연결 상태를 설정하기 보다 XML 문서 출력"
 
 msgid "print XML document, but don't define/create"
 msgstr "XML 문서를 인쇄하되, 정의하거나 만들지는 않습니다"
@@ -33728,7 +33828,7 @@ msgstr "보안 레이블 모델 %s는 selinux에서 지원되지 않습니다"
 
 #, c-format
 msgid "security model exceeds maximum: %zu"
-msgstr "보안 모델이 최대값을 초과함: %zd"
+msgstr "보안 모델이 최대값을 초과함: %zu"
 
 #, c-format
 msgid "security model string exceeds max %d bytes"
@@ -33920,7 +34020,8 @@ msgstr "sgx epc 크기 %lld(호스트 노드 %d에서)는 요청된 크기 %lld 
 
 #, c-format
 msgid "sgx epc size %lld on host node %zd is less than requested size %lld"
-msgstr "sgx epc 크기 %lld(호스트 노드 %zd에서)는 요청된 크기 %lld 보다 작습니다"
+msgstr ""
+"sgx epc 크기 %lld(호스트 노드 %zd에서)는 요청된 크기 %lld 보다 작습니다"
 
 msgid "sgx-epc memory info data is missing 'memdev'"
 msgstr "sgx-epc 메모리 정보 자료는 누락된 'memdev'입니다"
@@ -34100,6 +34201,13 @@ msgstr "스냅샷 '%s'에 상위 항목이 없습니다"
 #, c-format
 msgid "snapshot '%s' lacks domain '%s' rollback info"
 msgstr "스냅샷 '%s'에 도메인 '%s' 롤백 정보가 없습니다"
+
+msgid "snapshot VM disk source and parent disk source are not the same"
+msgstr "스냅샷 VM 디스크 원천과 상위 디스크 원천은 동일하지 않습니다"
+
+#, c-format
+msgid "snapshot disk '%s' was target of not completed snapshot delete"
+msgstr "스냅샷 디스크 '%s'는 미-완료된 스냅샷 삭제의 대상이었습니다"
 
 msgid "snapshot information"
 msgstr "스냅샷 정보"
@@ -35409,6 +35517,9 @@ msgstr "상위 파일의 2단계 활성 커밋 트리거"
 msgid "try harder on risky reverts"
 msgstr "위험한 복귀에 더 열심히 노력하십시오"
 
+msgid "try to restore security label after use if possible"
+msgstr "만약 가능하다면 사용 후에 보안 이름표를 복구하도록 시도하세요"
+
 msgid "tty console"
 msgstr "tty 콘솔"
 
@@ -35902,7 +36013,7 @@ msgstr "보안 문맥 '%s'를 '%s'상에 설정할 수 없음"
 
 #, c-format
 msgid "unable to set security context '%s' on fd %d"
-msgstr "fd %d에서 보안 문맥 '%s를 설정 할 수 없음"
+msgstr "보안 문맥 '%s(fd %d에서)을 설정 할 수 없음"
 
 #, c-format
 msgid "unable to set security context range '%s'"
@@ -36495,6 +36606,10 @@ msgid "unknown backend type '%s' for egd"
 msgstr "egd에 대해 알 수 없는 백엔드 유형 '%s'"
 
 #, c-format
+msgid "unknown backend type '%s' for external TPM"
+msgstr "외부 TPM을 위해 알지 못하는 백엔드 유형 '%s'"
+
+#, c-format
 msgid "unknown backup mode '%s'"
 msgstr "알 수 없는 백업 모드 '%s'"
 
@@ -36999,6 +37114,10 @@ msgid "unsupported audio backend '%s'"
 msgstr "지원되지 않는 오디오 백엔드 '%s'"
 
 #, c-format
+msgid "unsupported audio model %s"
+msgstr "미지원 오디오 모델 %s"
+
+#, c-format
 msgid "unsupported authentication type %d"
 msgstr "지원되지 않는 인증 유형 %d"
 
@@ -37131,12 +37250,12 @@ msgid "unsupported filesystem type '%s'"
 msgstr "지원되지 않는 파일 시스템 유형 '%s'"
 
 #, c-format
-msgid "unsupported flags (0x%lx) in function %s"
-msgstr "지원되지 않는 플래그 (0x%lx) (기능 %s에서)"
-
-#, c-format
 msgid "unsupported flags (0x%x)"
 msgstr "지원되지 않는 플래그 (0x%x)"
+
+#, c-format
+msgid "unsupported flags (0x%x) in function %s"
+msgstr "미지원 플래그 (0x%x) (함수 %s에서)"
 
 #, c-format
 msgid "unsupported flags: (0x%x)"
@@ -37272,6 +37391,10 @@ msgstr "지원되지 않는 유형='%s'를 모델링 '없음'으로 설정"
 msgid "unsupported usb model"
 msgstr "지원되지 않는 USB 모델"
 
+#, c-format
+msgid "unsupported use of long flags in function %s"
+msgstr "함수 %s에서 롱 플래그의 미지원 사용"
+
 msgid "unsupported value"
 msgstr "지원되지 않는 값"
 
@@ -37363,6 +37486,9 @@ msgstr "플래그를 사용하려면 복사 작업이 필요합니다"
 
 msgid "use of host cdrom passthrough"
 msgstr "호스트 cdrom 패스스루 사용"
+
+msgid "use seclabels allowing writes"
+msgstr "쓰기가 허용된 보호-이름표 사용"
 
 msgid "use virDomainMigrateToURI3 for peer-to-peer migration"
 msgstr "장치간 이전을 위해 virDomainMigrateToURI3를 사용합니다"
@@ -38323,6 +38449,53 @@ msgstr ""
 #, c-format
 msgid "{[--%s] <string>}..."
 msgstr "{[--%s] <string>}..."
+
+#~ msgid "%s array element does not contain a string"
+#~ msgstr "%s 배열 요소는 문자열이 포함되지 않습니다"
+
+#~ msgid "%s array element is missing item %zu"
+#~ msgstr "%s 배열 요소는 항목 %zu를 누락하고 있습니다"
+
+#~ msgid "%s is missing or not an array"
+#~ msgstr "%s가 누락되어 있거나 배열이 아닙니다"
+
+#~ msgid "Another close callback is already defined for domain %s"
+#~ msgstr "다른 닫기 콜백은 도메인 %s를 위해 이미 정의되어 있습니다"
+
+#~ msgid ""
+#~ "Close callback for domain %s already registered with another connection %p"
+#~ msgstr "도메인 %s에 대한 콜백을 닫으십시오 (다른 연결 %p에 이미 등록된)"
+
+#~ msgid "Copying definition of '%d' type is not implemented yet."
+#~ msgstr "'%d' 유형 정의 복사본은 아직 구현되어 있지 않습니다."
+
+#~ msgid ""
+#~ "Domain has %d interfaces. Please specify which one to detach using --mac"
+#~ msgstr ""
+#~ "도메인에 %d개의 인터페이스가 있습니다. --mac을 사용하여 분리할 것을 지정하"
+#~ "십시오"
+
+#~ msgid ""
+#~ "The overall maximum number of clients must be greater than the maximum "
+#~ "number of clients waiting for authentication"
+#~ msgstr ""
+#~ "전체 최대 클라이언트 수는 인증을 기다리는 최대 클라이언트 수보다 커야 합니"
+#~ "다"
+
+#~ msgid "Trying to remove mismatching close callback for domain %s"
+#~ msgstr "도메인 %s에 대해 일치하지 않는 닫기 콜백을 제거하려고 합니다"
+
+#~ msgid "deletion of %d external disk snapshots not supported yet"
+#~ msgstr "%d개의 외부 디스크 스냅샷 삭제는 아직 지원되지 않습니다"
+
+#~ msgid "failed to set snapshot '%s' as current"
+#~ msgstr "스냅샷 '%s'을(를) 현재로 설정하지 못했습니다"
+
+#~ msgid "interface (%s: %s) not found"
+#~ msgstr "연결장치 (%s: %s)를 찾을 수 없음"
+
+#~ msgid "unsupported flags (0x%lx) in function %s"
+#~ msgstr "지원되지 않는 플래그 (0x%lx) (기능 %s에서)"
 
 #~ msgid "%s: Invalid metric specified in route definition"
 #~ msgstr "%s: 경로 정의에서 지정된 잘못된 미터법"

@@ -396,15 +396,15 @@ qemuMonitorJSONCheckError(virJSONValue *cmd,
 }
 
 
-static int
-qemuMonitorJSONCheckReply(virJSONValue *cmd,
-                          virJSONValue *reply,
-                          virJSONType type)
+static virJSONValue *
+qemuMonitorJSONGetReply(virJSONValue *cmd,
+                        virJSONValue *reply,
+                        virJSONType type)
 {
     virJSONValue *data;
 
     if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
+        return NULL;
 
     data = virJSONValueObjectGet(reply, "return");
     if (virJSONValueGetType(data) != type) {
@@ -417,8 +417,20 @@ qemuMonitorJSONCheckReply(virJSONValue *cmd,
                        _("unexpected type returned by QEMU command '%s'"),
                        qemuMonitorJSONCommandName(cmd));
 
-        return -1;
+        return NULL;
     }
+
+    return data;
+}
+
+
+static int
+qemuMonitorJSONCheckReply(virJSONValue *cmd,
+                          virJSONValue *reply,
+                          virJSONType type)
+{
+    if (!qemuMonitorJSONGetReply(cmd, reply, type))
+        return -1;
 
     return 0;
 }
@@ -1469,10 +1481,8 @@ qemuMonitorJSONGetStatus(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (virJSONValueObjectGetBoolean(data, "running", running) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1854,10 +1864,8 @@ qemuMonitorJSONGetBalloonInfo(qemuMonitor *mon,
     }
 
     /* See if any other fatal error occurred */
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (virJSONValueObjectGetNumberUlong(data, "actual", &mem) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1952,10 +1960,8 @@ qemuMonitorJSONGetMemoryStats(qemuMonitor *mon,
         }
     }
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return got;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (!(statsdata = virJSONValueObjectGet(data, "stats"))) {
         VIR_DEBUG("data does not include 'stats'");
@@ -3153,10 +3159,8 @@ qemuMonitorJSONGetMigrationBlockers(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (!(jblockers = virJSONValueObjectGetArray(data, "blocked-reasons")))
         return 0;
@@ -3232,10 +3236,8 @@ qemuMonitorJSONQueryDump(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(result = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    result = virJSONValueObjectGetObject(reply, "return");
 
     return qemuMonitorJSONExtractDumpStats(result, stats);
 }
@@ -3258,10 +3260,8 @@ qemuMonitorJSONGetDumpGuestMemoryCapability(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(caps = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    caps = virJSONValueObjectGetObject(reply, "return");
 
     if (!(formats = virJSONValueObjectGetArray(caps, "formats"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -4028,11 +4028,11 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
                            const char *topNode,
                            const char *baseNode,
                            const char *backingName,
-                           unsigned long long speed)
+                           unsigned long long speed,
+                           virTristateBool autofinalize)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
-    virTristateBool autofinalize = VIR_TRISTATE_BOOL_YES;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
 
     cmd = qemuMonitorJSONMakeCommand("block-commit",
@@ -4151,6 +4151,7 @@ int qemuMonitorJSONSendKey(qemuMonitor *mon,
 int qemuMonitorJSONScreendump(qemuMonitor *mon,
                               const char *device,
                               unsigned int head,
+                              const char *format,
                               const char *file)
 {
     g_autoptr(virJSONValue) cmd = NULL;
@@ -4160,6 +4161,7 @@ int qemuMonitorJSONScreendump(qemuMonitor *mon,
                                      "s:filename", file,
                                      "S:device", device,
                                      "p:head", head,
+                                     "S:format", format,
                                      NULL);
 
     if (!cmd)
@@ -4389,6 +4391,28 @@ qemuMonitorJSONJobDismiss(qemuMonitor *mon,
     g_autoptr(virJSONValue) reply = NULL;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("job-dismiss",
+                                           "s:id", jobname,
+                                           NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    if (qemuMonitorJSONBlockJobError(cmd, reply, jobname) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+int
+qemuMonitorJSONJobFinalize(qemuMonitor *mon,
+                           const char *jobname)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("job-finalize",
                                            "s:id", jobname,
                                            NULL)))
         return -1;
@@ -4644,10 +4668,8 @@ int qemuMonitorJSONGetVersion(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (!(qemu = virJSONValueObjectGetObject(data, "qemu"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -4704,10 +4726,9 @@ int qemuMonitorJSONGetMachines(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         goto cleanup;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         goto cleanup;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     /* null-terminated list */
@@ -4832,10 +4853,9 @@ qemuMonitorJSONGetCPUDefinitions(qemuMonitor *mon,
     if (qemuMonitorJSONHasError(reply, "GenericError"))
         return 0;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     ncpus = virJSONValueArraySize(data);
 
     if (!(defs = qemuMonitorCPUDefsNew(ncpus)))
@@ -4845,6 +4865,8 @@ qemuMonitorJSONGetCPUDefinitions(qemuMonitor *mon,
         virJSONValue *child = virJSONValueArrayGet(data, i);
         const char *tmp;
         qemuMonitorCPUDefInfo *cpu = defs->cpus + i;
+        virJSONValue *feat;
+        virJSONValue *deprecated;
 
         if (!(tmp = virJSONValueObjectGetString(child, "name"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -4857,21 +4879,19 @@ qemuMonitorJSONGetCPUDefinitions(qemuMonitor *mon,
         if ((tmp = virJSONValueObjectGetString(child, "typename")) && *tmp)
             cpu->type = g_strdup(tmp);
 
-        if (virJSONValueObjectHasKey(child, "unavailable-features")) {
-            if (!(cpu->blockers = virJSONValueObjectGetStringArray(child,
-                                                                   "unavailable-features")))
-                return -1;
+        if ((feat = virJSONValueObjectGetArray(child, "unavailable-features"))) {
+            if (virJSONValueArraySize(feat) > 0) {
+                if (!(cpu->blockers = virJSONValueArrayToStringList(feat)))
+                    return -1;
 
-            if (g_strv_length(cpu->blockers) == 0) {
-                cpu->usable = VIR_DOMCAPS_CPU_USABLE_YES;
-                g_clear_pointer(&cpu->blockers, g_strfreev);
-            } else {
                 cpu->usable = VIR_DOMCAPS_CPU_USABLE_NO;
+            } else {
+                cpu->usable = VIR_DOMCAPS_CPU_USABLE_YES;
             }
         }
 
-        if (virJSONValueObjectHasKey(child, "deprecated") &&
-            virJSONValueObjectGetBoolean(child, "deprecated", &cpu->deprecated) < 0)
+        if ((deprecated = virJSONValueObjectGet(child, "deprecated")) &&
+            virJSONValueGetBoolean(deprecated, &cpu->deprecated) < 0)
             return -1;
     }
 
@@ -4923,7 +4943,8 @@ qemuMonitorJSONParseCPUModelProperty(const char *key,
 
 static virJSONValue *
 qemuMonitorJSONMakeCPUModel(virCPUDef *cpu,
-                            bool migratable)
+                            bool migratable,
+                            bool hv_passthrough)
 {
     g_autoptr(virJSONValue) model = virJSONValueNewObject();
     size_t i;
@@ -4931,7 +4952,7 @@ qemuMonitorJSONMakeCPUModel(virCPUDef *cpu,
     if (virJSONValueObjectAppendString(model, "name", cpu->model) < 0)
         return NULL;
 
-    if (cpu->nfeatures || !migratable) {
+    if (cpu->nfeatures || !migratable || hv_passthrough) {
         g_autoptr(virJSONValue) props = virJSONValueNewObject();
 
         for (i = 0; i < cpu->nfeatures; i++) {
@@ -4950,6 +4971,11 @@ qemuMonitorJSONMakeCPUModel(virCPUDef *cpu,
 
         if (!migratable &&
             virJSONValueObjectAppendBoolean(props, "migratable", false) < 0) {
+            return NULL;
+        }
+
+        if (hv_passthrough &&
+            virJSONValueObjectAppendBoolean(props, "hv-passthrough", true) < 0) {
             return NULL;
         }
 
@@ -5068,6 +5094,7 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
                                     qemuMonitorCPUModelExpansionType type,
                                     virCPUDef *cpu,
                                     bool migratable,
+                                    bool hv_passthrough,
                                     bool fail_no_props,
                                     qemuMonitorCPUModelInfo **model_info)
 {
@@ -5081,7 +5108,7 @@ qemuMonitorJSONGetCPUModelExpansion(qemuMonitor *mon,
 
     *model_info = NULL;
 
-    if (!(model = qemuMonitorJSONMakeCPUModel(cpu, migratable)))
+    if (!(model = qemuMonitorJSONMakeCPUModel(cpu, migratable, hv_passthrough)))
         return -1;
 
     if ((rc = qemuMonitorJSONQueryCPUModelExpansionOne(mon, type, &model, &data)) <= 0)
@@ -5130,8 +5157,8 @@ qemuMonitorJSONGetCPUModelBaseline(qemuMonitor *mon,
     virJSONValue *cpu_props = NULL;
     const char *cpu_name = "";
 
-    if (!(model_a = qemuMonitorJSONMakeCPUModel(cpu_a, true)) ||
-        !(model_b = qemuMonitorJSONMakeCPUModel(cpu_b, true)))
+    if (!(model_a = qemuMonitorJSONMakeCPUModel(cpu_a, true, false)) ||
+        !(model_b = qemuMonitorJSONMakeCPUModel(cpu_b, true, false)))
         return -1;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("query-cpu-model-baseline",
@@ -5143,10 +5170,8 @@ qemuMonitorJSONGetCPUModelBaseline(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (qemuMonitorJSONParseCPUModelData(data, "query-cpu-model-baseline",
                                          false, &cpu_model, &cpu_props,
@@ -5170,8 +5195,8 @@ qemuMonitorJSONGetCPUModelComparison(qemuMonitor *mon,
     const char *data_result;
     virJSONValue *data;
 
-    if (!(model_a = qemuMonitorJSONMakeCPUModel(cpu_a, true)) ||
-        !(model_b = qemuMonitorJSONMakeCPUModel(cpu_b, true)))
+    if (!(model_a = qemuMonitorJSONMakeCPUModel(cpu_a, true, false)) ||
+        !(model_b = qemuMonitorJSONMakeCPUModel(cpu_b, true, false)))
         return -1;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("query-cpu-model-comparison",
@@ -5218,10 +5243,9 @@ int qemuMonitorJSONGetCommands(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     /* null-terminated list */
@@ -5274,6 +5298,7 @@ qemuMonitorJSONGetCommandLineOptions(qemuMonitor *mon)
     g_autoptr(GHashTable) ret = virHashNew(virJSONValueHashFree);
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("query-command-line-options", NULL)))
         return NULL;
@@ -5281,10 +5306,10 @@ qemuMonitorJSONGetCommandLineOptions(qemuMonitor *mon)
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return NULL;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return NULL;
 
-    if (virJSONValueArrayForeachSteal(virJSONValueObjectGetArray(reply, "return"),
+    if (virJSONValueArrayForeachSteal(data,
                                       qemuMonitorJSONGetCommandLineOptionsWorker,
                                       ret) < 0)
         return NULL;
@@ -5310,10 +5335,8 @@ int qemuMonitorJSONGetKVMState(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (virJSONValueObjectGetBoolean(data, "enabled", enabled) < 0 ||
         virJSONValueObjectGetBoolean(data, "present", present) < 0) {
@@ -5345,10 +5368,9 @@ qemuMonitorJSONGetObjectTypes(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     /* null-terminated list */
@@ -5394,10 +5416,9 @@ int qemuMonitorJSONGetObjectListPaths(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         goto cleanup;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         goto cleanup;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     /* null-terminated list */
@@ -5532,6 +5553,7 @@ qemuMonitorJSONGetStringListProperty(qemuMonitor *mon,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
 
     *strList = NULL;
 
@@ -5544,10 +5566,10 @@ qemuMonitorJSONGetStringListProperty(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    if (!(*strList = virJSONValueObjectGetStringArray(reply, "return")))
+    if (!(*strList = virJSONValueArrayToStringList(data)))
         return -1;
 
     return 0;
@@ -5626,10 +5648,9 @@ qemuMonitorJSONParsePropsList(virJSONValue *cmd,
     size_t count = 0;
     size_t i;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     /* null-terminated list */
@@ -5685,6 +5706,7 @@ qemuMonitorJSONGetDeviceProps(qemuMonitor *mon,
     g_autoptr(GHashTable) props = virHashNew(virJSONValueHashFree);
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("device-list-properties",
                                            "s:typename", device,
@@ -5698,10 +5720,10 @@ qemuMonitorJSONGetDeviceProps(qemuMonitor *mon,
     if (qemuMonitorJSONHasError(reply, "DeviceNotFound"))
         return g_steal_pointer(&props);
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return NULL;
 
-    if (virJSONValueArrayForeachSteal(virJSONValueObjectGetArray(reply, "return"),
+    if (virJSONValueArrayForeachSteal(data,
                                       qemuMonitorJSONGetDevicePropsWorker,
                                       props) < 0)
         return NULL;
@@ -5749,10 +5771,8 @@ qemuMonitorJSONGetTargetArch(qemuMonitor *mon)
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return NULL;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return NULL;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (!(arch = virJSONValueObjectGetString(data, "arch"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -5784,10 +5804,9 @@ qemuMonitorJSONGetMigrationCapabilities(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(caps = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    caps = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(caps);
 
     list = g_new0(char *, n + 1);
@@ -5879,10 +5898,9 @@ qemuMonitorJSONGetGICCapabilities(qemuMonitor *mon,
     if (qemuMonitorJSONHasError(reply, "CommandNotFound"))
         return 0;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(caps = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    caps = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(caps);
 
     /* If the returned array was empty we have to return successfully */
@@ -6311,6 +6329,7 @@ qemuMonitorJSONGetStringArray(qemuMonitor *mon,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
 
     *array = NULL;
 
@@ -6323,10 +6342,10 @@ qemuMonitorJSONGetStringArray(qemuMonitor *mon,
     if (qemuMonitorJSONHasError(reply, "CommandNotFound"))
         return 0;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    if (!(*array = virJSONValueObjectGetStringArray(reply, "return")))
+    if (!(*array = virJSONValueArrayToStringList(data)))
         return -1;
 
     return 0;
@@ -6592,24 +6611,19 @@ qemuMonitorJSONAttachCharDev(qemuMonitor *mon,
         return -1;
 
     if (chr->type == VIR_DOMAIN_CHR_TYPE_PTY) {
-        if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
-            return -1;
-    } else {
-        if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-            return -1;
-    }
+        virJSONValue *data;
 
-    if (chr->type == VIR_DOMAIN_CHR_TYPE_PTY) {
-        virJSONValue *data = virJSONValueObjectGetObject(reply, "return");
-        const char *path;
+        if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
+            return -1;
 
-        if (!(path = virJSONValueObjectGetString(data, "pty"))) {
+        if (!(chr->data.file.path = g_strdup(virJSONValueObjectGetString(data, "pty")))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("chardev-add reply was missing pty path"));
             return -1;
         }
-
-        chr->data.file.path = g_strdup(path);
+    } else {
+        if (qemuMonitorJSONCheckError(cmd, reply) < 0)
+            return -1;
     }
 
     return 0;
@@ -6762,10 +6776,9 @@ qemuMonitorJSONGetCPUx86Data(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     if (!(*cpudata = qemuMonitorJSONParseCPUx86Features(data)))
         return -1;
 
@@ -6803,10 +6816,9 @@ qemuMonitorJSONCheckCPUx86(qemuMonitor *mon,
         }
     }
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     for (i = 0; i < n; i++) {
@@ -7039,10 +7051,9 @@ qemuMonitorJSONGetIOThreads(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         goto cleanup;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         goto cleanup;
 
-    data = virJSONValueObjectGetArray(reply, "return");
     n = virJSONValueArraySize(data);
 
     /* null-terminated list */
@@ -7182,10 +7193,8 @@ qemuMonitorJSONGetMemoryDeviceInfo(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
-
-    data = virJSONValueObjectGetArray(reply, "return");
 
     for (i = 0; i < virJSONValueArraySize(data); i++) {
         virJSONValue *elem = virJSONValueArrayGet(data, i);
@@ -7509,10 +7518,8 @@ qemuMonitorJSONGetRTCTime(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGet(reply, "return");
 
     if (virJSONValueObjectGetNumberInt(data, "tm_year", &tm->tm_year) < 0 ||
         virJSONValueObjectGetNumberInt(data, "tm_mon", &tm->tm_mon) < 0 ||
@@ -7669,10 +7676,9 @@ qemuMonitorJSONGetHotpluggableCPUs(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         goto cleanup;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         goto cleanup;
 
-    data = virJSONValueObjectGet(reply, "return");
     ninfo = virJSONValueArraySize(data);
 
     info = g_new0(struct qemuMonitorQueryHotpluggableCpusEntry, ninfo);
@@ -7961,10 +7967,8 @@ qemuMonitorJSONGetSEVMeasurement(qemuMonitor *mon)
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return NULL;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return NULL;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (!(tmp = virJSONValueObjectGetString(data, "data")))
         return NULL;
@@ -8004,10 +8008,8 @@ qemuMonitorJSONGetSEVInfo(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_OBJECT) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
-
-    data = virJSONValueObjectGetObject(reply, "return");
 
     if (virJSONValueObjectGetNumberUint(data, "api-major", apiMajor) < 0 ||
         virJSONValueObjectGetNumberUint(data, "api-minor", apiMinor) < 0 ||
@@ -8386,10 +8388,8 @@ qemuMonitorJSONGetJobInfo(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return -1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return -1;
-
-    data = virJSONValueObjectGetArray(reply, "return");
 
     for (i = 0; i < virJSONValueArraySize(data); i++) {
         qemuMonitorJobInfo *job = NULL;
@@ -8411,6 +8411,7 @@ qemuMonitorJSONGetCPUMigratable(qemuMonitor *mon,
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
+    virJSONValue *data;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("qom-get",
                                            "s:path", cpuQOMPath,
@@ -8424,11 +8425,10 @@ qemuMonitorJSONGetCPUMigratable(qemuMonitor *mon,
     if (qemuMonitorJSONHasError(reply, "GenericError"))
         return 1;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_BOOLEAN) < 0)
+    if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_BOOLEAN)))
         return -1;
 
-    return virJSONValueGetBoolean(virJSONValueObjectGet(reply, "return"),
-                                  migratable);
+    return virJSONValueGetBoolean(data, migratable);
 }
 
 
@@ -8797,10 +8797,8 @@ qemuMonitorJSONQueryStatsSchema(qemuMonitor *mon,
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
         return NULL;
 
-    if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
+    if (!(ret = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_ARRAY)))
         return NULL;
-
-    ret = virJSONValueObjectGetArray(reply, "return");
 
     return qemuMonitorJSONExtractQueryStatsSchema(ret);
 }

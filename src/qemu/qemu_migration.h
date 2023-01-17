@@ -122,7 +122,7 @@ qemuMigrationSrcBegin(virConnectPtr conn,
                       int *cookieoutlen,
                       size_t nmigrate_disks,
                       const char **migrate_disks,
-                      unsigned long flags);
+                      unsigned int flags);
 
 virDomainDef *
 qemuMigrationAnyPrepareDef(virQEMUDriver *driver,
@@ -142,7 +142,7 @@ qemuMigrationDstPrepareTunnel(virQEMUDriver *driver,
                               virDomainDef **def,
                               const char *origname,
                               qemuMigrationParams *migParams,
-                              unsigned long flags);
+                              unsigned int flags);
 
 int
 qemuMigrationDstPrepareDirect(virQEMUDriver *driver,
@@ -161,7 +161,7 @@ qemuMigrationDstPrepareDirect(virQEMUDriver *driver,
                               int nbdPort,
                               const char *nbdURI,
                               qemuMigrationParams *migParams,
-                              unsigned long flags);
+                              unsigned int flags);
 
 int
 qemuMigrationSrcPerform(virQEMUDriver *driver,
@@ -182,7 +182,7 @@ qemuMigrationSrcPerform(virQEMUDriver *driver,
                         int cookieinlen,
                         char **cookieout,
                         int *cookieoutlen,
-                        unsigned long flags,
+                        unsigned int flags,
                         const char *dname,
                         unsigned long resource,
                         bool v3proto);
@@ -195,7 +195,7 @@ qemuMigrationDstFinish(virQEMUDriver *driver,
                        int cookieinlen,
                        char **cookieout,
                        int *cookieoutlen,
-                       unsigned long flags,
+                       unsigned int flags,
                        int retcode,
                        bool v3proto);
 
@@ -226,8 +226,7 @@ qemuMigrationProcessUnattended(virQEMUDriver *driver,
                                qemuMonitorMigrationStatus status);
 
 bool
-qemuMigrationSrcIsAllowed(virQEMUDriver *driver,
-                          virDomainObj *vm,
+qemuMigrationSrcIsAllowed(virDomainObj *vm,
                           bool remote,
                           int asyncJob,
                           unsigned int flags);

@@ -47,9 +47,6 @@
 VIR_LOG_INIT("security.security_dac");
 
 #define SECURITY_DAC_NAME "dac"
-#define DEV_SEV "/dev/sev"
-#define DEV_SGX_VEPC "/dev/sgx_vepc"
-#define DEV_SGX_PROVISION "/dev/sgx_provision"
 
 typedef struct _virSecurityDACData virSecurityDACData;
 struct _virSecurityDACData {
@@ -881,6 +878,10 @@ virSecurityDACSetImageLabelInternal(virSecurityManager *mgr,
     if (!priv->dynamicOwnership)
         return 0;
 
+    /* Images passed via FD don't need DAC seclabel change */
+    if (virStorageSourceIsFD(src))
+        return 0;
+
     secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
     if (secdef && !secdef->relabel)
         return 0;
@@ -990,6 +991,10 @@ virSecurityDACRestoreImageLabelSingle(virSecurityManager *mgr,
      * not work for clustered filesystems, since we can't see running VMs using
      * the file on other nodes. Safest bet is thus to skip the restore step. */
     if (src->readonly || src->shared)
+        return 0;
+
+    /* Images passed via FD don't need DAC seclabel change */
+    if (virStorageSourceIsFD(src))
         return 0;
 
     secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
@@ -1112,10 +1117,14 @@ virSecurityDACMoveImageMetadata(virSecurityManager *mgr,
     if (!priv->dynamicOwnership)
         return 0;
 
-    if (src && virStorageSourceIsLocalStorage(src))
+    if (src &&
+        virStorageSourceIsLocalStorage(src) &&
+        !virStorageSourceIsFD(src))
         data.src = src->path;
 
-    if (dst && virStorageSourceIsLocalStorage(dst))
+    if (dst &&
+        virStorageSourceIsLocalStorage(dst) &&
+        !virStorageSourceIsFD(dst))
         data.dst = dst->path;
 
     if (!data.src)
@@ -1699,6 +1708,7 @@ virSecurityDACSetTPMFileLabel(virSecurityManager *mgr,
                                                   tpm->data.emulator.source,
                                                   false, false);
         break;
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }
@@ -1722,6 +1732,7 @@ virSecurityDACRestoreTPMFileLabel(virSecurityManager *mgr,
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
         /* swtpm will have removed the Unix socket upon termination */
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }

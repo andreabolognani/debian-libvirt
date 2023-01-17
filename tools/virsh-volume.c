@@ -236,7 +236,7 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
     const char *snapshotStrVol = NULL, *snapshotStrFormat = NULL;
     unsigned long long capacity, allocation = 0;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    unsigned long flags = 0;
+    unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
     if (vshCommandOptBool(cmd, "prealloc-metadata"))
@@ -505,28 +505,22 @@ cmdVolCreateFrom(vshControl *ctl, const vshCmd *cmd)
     return true;
 }
 
-static xmlChar *
+static char *
 virshMakeCloneXML(const char *origxml, const char *newname)
 {
     g_autoptr(xmlDoc) doc = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    g_autoptr(xmlXPathObject) obj = NULL;
-    xmlChar *newxml = NULL;
-    int size;
+    xmlNodePtr node;
 
-    doc = virXMLParseStringCtxt(origxml, _("(volume_definition)"), &ctxt);
-    if (!doc)
+    if (!(doc = virXMLParseStringCtxt(origxml, _("(volume_definition)"), &ctxt)))
         return NULL;
 
-    obj = xmlXPathEval(BAD_CAST "/volume/name", ctxt);
-    if (obj == NULL || obj->nodesetval == NULL ||
-        obj->nodesetval->nodeTab == NULL)
+    if (!(node = virXPathNode("/volume/name", ctxt)))
         return NULL;
 
-    xmlNodeSetContent(obj->nodesetval->nodeTab[0], (const xmlChar *)newname);
-    xmlDocDumpMemory(doc, &newxml, &size);
+    xmlNodeSetContent(node, (const xmlChar *)newname);
 
-    return newxml;
+    return virXMLNodeToString(doc, doc->children);
 }
 
 /*
@@ -559,6 +553,10 @@ static const vshCmdOptDef opts_vol_clone[] = {
      .type = VSH_OT_BOOL,
      .help = N_("use btrfs COW lightweight copy")
     },
+    {.name = "print-xml",
+     .type = VSH_OT_BOOL,
+     .help = N_("print XML document rather than clone the volume")
+    },
     {.name = NULL}
 };
 
@@ -570,12 +568,11 @@ cmdVolClone(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshStorageVol) newvol = NULL;
     const char *name = NULL;
     g_autofree char *origxml = NULL;
-    xmlChar *newxml = NULL;
-    bool ret = false;
+    g_autofree char *newxml = NULL;
     unsigned int flags = 0;
 
     if (!(origvol = virshCommandOptVol(ctl, cmd, "vol", "pool", NULL)))
-        goto cleanup;
+        return false;
 
     if (vshCommandOptBool(cmd, "prealloc-metadata"))
         flags |= VIR_STORAGE_VOL_CREATE_PREALLOC_METADATA;
@@ -586,38 +583,34 @@ cmdVolClone(vshControl *ctl, const vshCmd *cmd)
     origpool = virStoragePoolLookupByVolume(origvol);
     if (!origpool) {
         vshError(ctl, "%s", _("failed to get parent pool"));
-        goto cleanup;
+        return false;
     }
 
     if (vshCommandOptStringReq(ctl, cmd, "newname", &name) < 0)
-        goto cleanup;
+        return false;
 
-    origxml = virStorageVolGetXMLDesc(origvol, 0);
-    if (!origxml)
-        goto cleanup;
+    if (!(origxml = virStorageVolGetXMLDesc(origvol, 0)))
+        return false;
 
-    newxml = virshMakeCloneXML(origxml, name);
-    if (!newxml) {
+    if (!(newxml = virshMakeCloneXML(origxml, name))) {
         vshError(ctl, "%s", _("Failed to allocate XML buffer"));
-        goto cleanup;
+        return false;
     }
 
-    newvol = virStorageVolCreateXMLFrom(origpool, (char *) newxml, origvol, flags);
+    if (vshCommandOptBool(cmd, "print-xml")) {
+        vshPrint(ctl, "%s", newxml);
+        return true;
+    }
 
-    if (newvol != NULL) {
-        vshPrintExtra(ctl, _("Vol %s cloned from %s\n"),
-                      virStorageVolGetName(newvol), virStorageVolGetName(origvol));
-    } else {
+    if (!(newvol = virStorageVolCreateXMLFrom(origpool, newxml, origvol, flags))) {
         vshError(ctl, _("Failed to clone vol from %s"),
                  virStorageVolGetName(origvol));
-        goto cleanup;
+        return false;
     }
 
-    ret = true;
-
- cleanup:
-    xmlFree(newxml);
-    return ret;
+    vshPrintExtra(ctl, _("Vol %s cloned from %s\n"),
+                  virStorageVolGetName(newvol), virStorageVolGetName(origvol));
+    return true;
 }
 
 /*

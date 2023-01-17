@@ -607,7 +607,8 @@ virDomainDefParserConfig virAAHelperDomainDefParserConfig = {
     .features = VIR_DOMAIN_DEF_FEATURE_MEMORY_HOTPLUG |
                 VIR_DOMAIN_DEF_FEATURE_OFFLINE_VCPUPIN |
                 VIR_DOMAIN_DEF_FEATURE_INDIVIDUAL_VCPUS |
-                VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING,
+                VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING |
+                VIR_DOMAIN_DEF_FEATURE_DISK_FD,
 };
 
 static int
@@ -1282,7 +1283,7 @@ get_files(vahControl * ctl)
         for (i = 0; i < ctl->def->nnets; i++) {
             virDomainNetDef *net = ctl->def->nets[i];
             if (net && virDomainNetGetModelString(net)) {
-                if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_QEMU)
+                if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_QEMU)
                     continue;
                 if (!virDomainNetIsVirtioModel(net))
                     continue;

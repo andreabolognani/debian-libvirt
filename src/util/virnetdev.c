@@ -42,6 +42,9 @@
 #ifdef __linux__
 # include <linux/sockios.h>
 # include <linux/if_vlan.h>
+# include <linux/types.h>
+# include <linux/ethtool.h>
+# include <linux/devlink.h>
 # define VIR_NETDEV_FAMILY AF_UNIX
 #elif defined(WITH_STRUCT_IFREQ) && defined(AF_LOCAL)
 # define VIR_NETDEV_FAMILY AF_LOCAL
@@ -49,19 +52,11 @@
 # undef WITH_STRUCT_IFREQ
 #endif
 
-#if defined(SIOCETHTOOL) && defined(WITH_STRUCT_IFREQ)
-# include <linux/types.h>
-# include <linux/ethtool.h>
-#endif
-
 #if WITH_DECL_LINK_ADDR
 # include <sys/sockio.h>
 # include <net/if_dl.h>
 #endif
 
-#if WITH_LINUX_DEVLINK_H
-# include <linux/devlink.h>
-#endif
 
 #ifndef IFNAMSIZ
 # define IFNAMSIZ 16
@@ -89,7 +84,7 @@ VIR_LOG_INIT("util.netdev");
 #endif
 
 #define RESOURCE_FILE_LEN 4096
-#if WITH_DECL_ETHTOOL_GFEATURES
+#ifdef __linux__
 # define TX_UDP_TNL 25
 # define GFEATURES_SIZE 2
 # define FEATURE_WORD(blocks, index, field)  ((blocks)[(index) / 32U].field)
@@ -962,7 +957,7 @@ virNetDevGetMaster(const char *ifname G_GNUC_UNUSED,
 #endif /* defined(WITH_LIBNL) */
 
 
-#if defined(SIOCGIFVLAN) && defined(WITH_STRUCT_IFREQ) && WITH_DECL_GET_VLAN_VID_CMD
+#if __linux__
 int virNetDevGetVLanID(const char *ifname, int *vlanid)
 {
     struct vlan_ioctl_args vlanargs = {
@@ -992,7 +987,7 @@ int virNetDevGetVLanID(const char *ifname, int *vlanid)
     *vlanid = vlanargs.u.VID;
     return 0;
 }
-#else /* ! SIOCGIFVLAN */
+#else /* ! __linux__ */
 int virNetDevGetVLanID(const char *ifname G_GNUC_UNUSED,
                        int *vlanid G_GNUC_UNUSED)
 {
@@ -1000,7 +995,7 @@ int virNetDevGetVLanID(const char *ifname G_GNUC_UNUSED,
                          _("Unable to get VLAN on this platform"));
     return -1;
 }
-#endif /* ! SIOCGIFVLAN */
+#endif /* ! __linux__ */
 
 
 /**
@@ -2958,7 +2953,7 @@ int virNetDevGetRxFilter(const char *ifname,
     return ret;
 }
 
-#if defined(SIOCETHTOOL) && defined(WITH_STRUCT_IFREQ)
+#if __linux__
 
 /**
  * virNetDevRDMAFeature
@@ -3086,32 +3081,18 @@ virNetDevGetEthtoolFeatures(const char *ifname,
         {ETHTOOL_GTXCSUM, VIR_NET_DEV_FEAT_GTXCSUM},
         {ETHTOOL_GSG, VIR_NET_DEV_FEAT_GSG},
         {ETHTOOL_GTSO, VIR_NET_DEV_FEAT_GTSO},
-# if WITH_DECL_ETHTOOL_GGSO
         {ETHTOOL_GGSO, VIR_NET_DEV_FEAT_GGSO},
-# endif
-# if WITH_DECL_ETHTOOL_GGRO
         {ETHTOOL_GGRO, VIR_NET_DEV_FEAT_GGRO},
-# endif
     };
 
-# if WITH_DECL_ETHTOOL_GFLAGS
     /* ethtool masks */
     struct virNetDevEthtoolFeatureCmd flags[] = {
-#  if WITH_DECL_ETH_FLAG_LRO
         {ETH_FLAG_LRO, VIR_NET_DEV_FEAT_LRO},
-#  endif
-#  if WITH_DECL_ETH_FLAG_TXVLAN
         {ETH_FLAG_RXVLAN, VIR_NET_DEV_FEAT_RXVLAN},
         {ETH_FLAG_TXVLAN, VIR_NET_DEV_FEAT_TXVLAN},
-#  endif
-#  if WITH_DECL_ETH_FLAG_NTUBLE
         {ETH_FLAG_NTUPLE, VIR_NET_DEV_FEAT_NTUPLE},
-#  endif
-#  if WITH_DECL_ETH_FLAG_RXHASH
         {ETH_FLAG_RXHASH, VIR_NET_DEV_FEAT_RXHASH},
-#  endif
     };
-# endif
 
     for (i = 0; i < G_N_ELEMENTS(ethtool_cmds); i++) {
         cmd.cmd = ethtool_cmds[i].cmd;
@@ -3119,7 +3100,6 @@ virNetDevGetEthtoolFeatures(const char *ifname,
             ignore_value(virBitmapSetBit(bitmap, ethtool_cmds[i].feat));
     }
 
-# if WITH_DECL_ETHTOOL_GFLAGS
     cmd.cmd = ETHTOOL_GFLAGS;
     if (virNetDevFeatureAvailable(ifname, fd, ifr, &cmd)) {
         for (i = 0; i < G_N_ELEMENTS(flags); i++) {
@@ -3127,11 +3107,10 @@ virNetDevGetEthtoolFeatures(const char *ifname,
                 ignore_value(virBitmapSetBit(bitmap, flags[i].feat));
         }
     }
-# endif
 }
 
 
-# if defined(WITH_LIBNL) && WITH_DECL_DEVLINK_CMD_ESWITCH_GET
+# if defined(WITH_LIBNL)
 
 /**
  * virNetDevGetFamilyId:
@@ -3283,7 +3262,6 @@ virNetDevSwitchdevFeature(const char *ifname G_GNUC_UNUSED,
 # endif
 
 
-# if WITH_DECL_ETHTOOL_GFEATURES
 /**
  * virNetDevGFeatureAvailable
  * This function checks for the availability of a network device gfeature
@@ -3324,19 +3302,8 @@ virNetDevGetEthtoolGFeatures(const char *ifname,
         ignore_value(virBitmapSetBit(bitmap, VIR_NET_DEV_FEAT_TXUDPTNL));
     return 0;
 }
-# else
-static int
-virNetDevGetEthtoolGFeatures(const char *ifname G_GNUC_UNUSED,
-                             virBitmap *bitmap G_GNUC_UNUSED,
-                             int fd G_GNUC_UNUSED,
-                             struct ifreq *ifr G_GNUC_UNUSED)
-{
-    return 0;
-}
-# endif
 
 
-# if WITH_DECL_ETHTOOL_SCOALESCE && WITH_DECL_ETHTOOL_GCOALESCE
 /**
  * virNetDevSetCoalesce:
  * @ifname: interface name to modify
@@ -3432,20 +3399,6 @@ int virNetDevSetCoalesce(const char *ifname,
 
     return 0;
 }
-# else
-int virNetDevSetCoalesce(const char *ifname,
-                         virNetDevCoalesce *coalesce,
-                         bool update)
-{
-    if (!coalesce && !update)
-        return 0;
-
-    virReportSystemError(ENOSYS,
-                         _("Cannot set coalesce info on interface '%s'"),
-                         ifname);
-    return -1;
-}
-# endif
 
 
 /**
@@ -3595,7 +3548,9 @@ virNetDevReserveName(const char *name)
  * Note: if string pointed by @ifname is NOT a template or NULL, leave
  * it unchanged and return it directly.
  *
- * Returns 0 on success, -1 on failure.
+ * Returns: 1 if @ifname already contains a valid name,
+ *          0 on success (@ifname was generated),
+ *         -1 on failure.
  */
 int
 virNetDevGenerateName(char **ifname, virNetDevGenNameType type)
@@ -3609,7 +3564,7 @@ virNetDevGenerateName(char **ifname, virNetDevGenNameType type)
     if (*ifname &&
         (strchr(*ifname, '%') != strrchr(*ifname, '%') ||
          strstr(*ifname, "%d") == NULL)) {
-        return 0;
+        return 1;
     }
 
     if (maxIDd <= (double)INT_MAX)

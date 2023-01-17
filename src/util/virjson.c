@@ -1313,47 +1313,35 @@ virJSONValueObjectStealObject(virJSONValue *object,
 }
 
 
+/**
+ * virJSONValueArrayToStringList:
+ * @data: a JSON array containing strings to convert
+ *
+ * Converts @data a JSON array containing strings to a NULL-terminated string
+ * list. @data must be a JSON array. In case @data is doesn't contain only
+ * strings an error is reported.
+ */
 char **
-virJSONValueObjectGetStringArray(virJSONValue *object, const char *key)
+virJSONValueArrayToStringList(virJSONValue *data)
 {
-    g_auto(GStrv) ret = NULL;
-    virJSONValue *data;
-    size_t n;
+    size_t n = virJSONValueArraySize(data);
+    g_auto(GStrv) ret = g_new0(char *, n + 1);
     size_t i;
 
-    data = virJSONValueObjectGetArray(object, key);
-    if (!data) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("%s is missing or not an array"),
-                       key);
-        return NULL;
-    }
-
-    n = virJSONValueArraySize(data);
-    ret = g_new0(char *, n + 1);
     for (i = 0; i < n; i++) {
         virJSONValue *child = virJSONValueArrayGet(data, i);
-        const char *tmp;
 
-        if (!child) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("%s array element is missing item %zu"),
-                           key, i);
+        if (!child ||
+            !(ret[i] = g_strdup(virJSONValueGetString(child)))) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("JSON string array contains non-string element"));
             return NULL;
         }
-
-        if (!(tmp = virJSONValueGetString(child))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("%s array element does not contain a string"),
-                           key);
-            return NULL;
-        }
-
-        ret[i] = g_strdup(tmp);
     }
 
     return g_steal_pointer(&ret);
 }
+
 
 /**
  * virJSONValueObjectForeachKeyValue:
