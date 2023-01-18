@@ -46,10 +46,10 @@ index ff1d46b..5a50823 100644
    #include <local/usr.lib.libvirt.virt-aa-helper>
  }
 diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
-index 886f1ad..a4ed6ea 100644
+index edb8dd8..741f3b2 100644
 --- a/src/security/apparmor/usr.sbin.libvirtd.in
 +++ b/src/security/apparmor/usr.sbin.libvirtd.in
-@@ -138,4 +138,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
+@@ -139,4 +139,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
  
     /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
    }
