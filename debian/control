@@ -384,7 +384,6 @@ Package: libvirt-daemon-system-sysv
 Section: admin
 Architecture: all
 Depends:
- lsb-base,
  ${misc:Depends},
 Description: Libvirt daemon configuration files (sysv)
  Libvirt is a C toolkit to interact with the virtualization capabilities
