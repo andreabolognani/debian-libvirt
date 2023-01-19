@@ -4,7 +4,7 @@ Source: https://libvirt.org/git/?p=libvirt.git
 Comment: in addition see the upstream maintainer AUTHORS file
 
 Files: *
-Copyright: 2005-2022 Red Hat, Inc
+Copyright: 2005-2023 Red Hat, Inc
 License: LGPL-2.1+
 Comment: Among many source files this also includes many generated, test-data or binary files
 
