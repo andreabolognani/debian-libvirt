@@ -1,0 +1,41 @@
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Fri, 10 Feb 2023 09:47:05 +0100
+Subject: qemu_extdevice: Do cleanup host only for
+ VIR_DOMAIN_TPM_TYPE_EMULATOR
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+We only set up host for VIR_DOMAIN_TPM_TYPE_EMULATOR and thus
+similarly, we should do cleanup for the same type. This also
+fixes a crasher, in which qemuTPMEmulatorCleanupHost() accesses
+tpm->data.emulator.storagepath which is NULL for
+VIR_DOMAIN_TPM_TYPE_EXTERNAL.
+
+Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=2168762
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+(cherry picked from commit 03f76e577d66f8eea6aa7cc513e75026527b4cda)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/03f76e577d66f8eea6aa7cc513e75026527b4cda
+---
+ src/qemu/qemu_extdevice.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/qemu/qemu_extdevice.c b/src/qemu/qemu_extdevice.c
+index f7b2e2e..fdefe59 100644
+--- a/src/qemu/qemu_extdevice.c
++++ b/src/qemu/qemu_extdevice.c
+@@ -162,7 +162,10 @@ qemuExtDevicesCleanupHost(virQEMUDriver *driver,
+         return;
+ 
+     for (i = 0; i < def->ntpms; i++) {
+-        qemuExtTPMCleanupHost(def->tpms[i], flags, outgoingMigration);
++        virDomainTPMDef *tpm = def->tpms[i];
++
++        if (tpm->type == VIR_DOMAIN_TPM_TYPE_EMULATOR)
++            qemuExtTPMCleanupHost(tpm, flags, outgoingMigration);
+     }
+ }
+ 

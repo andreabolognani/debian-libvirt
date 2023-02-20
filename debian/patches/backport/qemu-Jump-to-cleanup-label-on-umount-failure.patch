@@ -1,0 +1,30 @@
+From: Jim Fehlig <jfehlig@suse.com>
+Date: Mon, 6 Feb 2023 10:40:12 -0700
+Subject: qemu: Jump to cleanup label on umount failure
+
+Similar to other error paths in qemuDomainUnshareNamespace(), jump to
+the cleanup label on umount error instead of directly returning -1.
+
+Signed-off-by: Jim Fehlig <jfehlig@suse.com>
+Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
+(cherry picked from commit c3f16cea3bef578c498c720aa90c677ee9511e2f)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/c3f16cea3bef578c498c720aa90c677ee9511e2f
+---
+ src/qemu/qemu_namespace.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/qemu/qemu_namespace.c b/src/qemu/qemu_namespace.c
+index 5769a4d..833313d 100644
+--- a/src/qemu/qemu_namespace.c
++++ b/src/qemu/qemu_namespace.c
+@@ -779,7 +779,7 @@ qemuDomainUnshareNamespace(virQEMUDriverConfig *cfg,
+ #if defined(__linux__)
+     if (umount("/dev") < 0) {
+         virReportSystemError(errno, "%s", _("failed to umount devfs on /dev"));
+-        return -1;
++        goto cleanup;
+     }
+ #endif /* !defined(__linux__) */
+ 

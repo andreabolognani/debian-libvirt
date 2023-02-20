@@ -1,0 +1,114 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Fri, 10 Feb 2023 17:16:43 +0100
+Subject: qemu: blockjob: Handle 'pending' blockjob state only when we need it
+
+The 'pending' state needs to be handled by the blockjob code only when
+the snapshot code requests a block-commit without auto-finalization.
+
+If we always handle it we fail to properly remove the blockjob data for
+the 'blockdev-create' job as that also transitions trhough 'pending' but
+we'd never update it once it reaches 'concluded' as the code already
+thinks that the job has finished and is no longer watching it.
+
+Introduce a 'processPending' property into block job data and set it
+only when we know that we need to process 'pending'.
+
+Fixes: 90d9bc9d74a5157167548b26c00b1a016655e295
+Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=2168769
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Pavel Hrdina <phrdina@redhat.com>
+(cherry picked from commit c433c2434c0459df98ed3355ef615e341acd9009)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/c433c2434c0459df98ed3355ef615e341acd9009
+---
+ src/qemu/qemu_block.c    |  1 +
+ src/qemu/qemu_blockjob.c | 19 ++++++++++---------
+ src/qemu/qemu_blockjob.h |  4 ++++
+ 3 files changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/src/qemu/qemu_block.c b/src/qemu/qemu_block.c
+index e865aa1..b1057e3 100644
+--- a/src/qemu/qemu_block.c
++++ b/src/qemu/qemu_block.c
+@@ -3367,6 +3367,7 @@ qemuBlockCommit(virDomainObj *vm,
+     if (!(job = qemuBlockJobDiskNewCommit(vm, disk, top_parent, topSource,
+                                           baseSource,
+                                           flags & VIR_DOMAIN_BLOCK_COMMIT_DELETE,
++                                          autofinalize,
+                                           flags)))
+         goto cleanup;
+ 
+diff --git a/src/qemu/qemu_blockjob.c b/src/qemu/qemu_blockjob.c
+index cb2d05d..a20cf1d 100644
+--- a/src/qemu/qemu_blockjob.c
++++ b/src/qemu/qemu_blockjob.c
+@@ -274,6 +274,7 @@ qemuBlockJobDiskNewCommit(virDomainObj *vm,
+                           virStorageSource *top,
+                           virStorageSource *base,
+                           bool delete_imgs,
++                          virTristateBool autofinalize,
+                           unsigned int jobflags)
+ {
+     g_autoptr(qemuBlockJobData) job = NULL;
+@@ -290,6 +291,7 @@ qemuBlockJobDiskNewCommit(virDomainObj *vm,
+     job->data.commit.top = top;
+     job->data.commit.base = base;
+     job->data.commit.deleteCommittedImages = delete_imgs;
++    job->processPending = autofinalize == VIR_TRISTATE_BOOL_NO;
+     job->jobflags = jobflags;
+ 
+     if (qemuBlockJobRegister(job, vm, disk, true) < 0)
+@@ -532,8 +534,6 @@ qemuBlockJobRefreshJobs(virDomainObj *vm)
+                 if (job->state == QEMU_BLOCKJOB_STATE_NEW ||
+                     job->state == QEMU_BLOCKJOB_STATE_RUNNING)
+                     job->newstate = newstate;
+-            } else if (newstate == QEMU_BLOCKJOB_STATE_PENDING) {
+-                job->newstate = newstate;
+             }
+             /* don't update the job otherwise */
+         }
+@@ -1568,13 +1568,14 @@ qemuBlockJobEventProcess(virQEMUDriver *driver,
+ 
+     case QEMU_BLOCKJOB_STATE_PENDING:
+         /* Similarly as for 'ready' state we should handle it only when
+-         * previous state was 'new' or 'running' as there are other cases
+-         * when it can be emitted by QEMU. Currently we need this only when
+-         * deleting non-active external snapshots. */
+-        if (job->state == QEMU_BLOCKJOB_STATE_NEW ||
+-            job->state == QEMU_BLOCKJOB_STATE_RUNNING) {
+-            job->state = job->newstate;
+-            qemuDomainSaveStatus(vm);
++         * previous state was 'new' or 'running' and only if the blockjob code
++         * is handling finalization of the job explicitly. */
++        if (job->processPending) {
++            if (job->state == QEMU_BLOCKJOB_STATE_NEW ||
++                job->state == QEMU_BLOCKJOB_STATE_RUNNING) {
++                job->state = job->newstate;
++                qemuDomainSaveStatus(vm);
++            }
+         }
+         job->newstate = -1;
+         break;
+diff --git a/src/qemu/qemu_blockjob.h b/src/qemu/qemu_blockjob.h
+index e9b283d..f1ac43b 100644
+--- a/src/qemu/qemu_blockjob.h
++++ b/src/qemu/qemu_blockjob.h
+@@ -138,6 +138,9 @@ struct _qemuBlockJobData {
+ 
+     int brokentype; /* the previous type of a broken blockjob qemuBlockJobType */
+ 
++    bool processPending; /* process the 'pending' state of the job, if the job
++                            should not be auto-finalized */
++
+     bool invalidData; /* the job data (except name) is not valid */
+     bool reconnected; /* internal field for tracking whether job is live after reconnect to qemu */
+ };
+@@ -175,6 +178,7 @@ qemuBlockJobDiskNewCommit(virDomainObj *vm,
+                           virStorageSource *top,
+                           virStorageSource *base,
+                           bool delete_imgs,
++                          virTristateBool autofinalize,
+                           unsigned int jobflags);
+ 
+ qemuBlockJobData *

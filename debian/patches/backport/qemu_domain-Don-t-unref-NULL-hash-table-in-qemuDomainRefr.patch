@@ -1,0 +1,37 @@
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Thu, 26 Jan 2023 11:56:10 +0100
+Subject: qemu_domain: Don't unref NULL hash table in
+ qemuDomainRefreshStatsSchema()
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+The g_hash_table_unref() function does not accept NULL. Passing
+NULL results in a glib warning being triggered. Check whether the
+hash table is not NULL and unref it only then.
+
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+(cherry picked from commit c3afde9211b550d3900edc5386ab121f5b39fd3e)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/c3afde9211b550d3900edc5386ab121f5b39fd3e
+Bug-Debian: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1030671
+---
+ src/qemu/qemu_domain.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
+index 2eb5653..da7a869 100644
+--- a/src/qemu/qemu_domain.c
++++ b/src/qemu/qemu_domain.c
+@@ -11920,7 +11920,8 @@ qemuDomainRefreshStatsSchema(virDomainObj *dom)
+     if (!schema)
+         return -1;
+ 
+-    g_hash_table_unref(priv->statsSchema);
++    if (priv->statsSchema)
++        g_hash_table_unref(priv->statsSchema);
+     priv->statsSchema = schema;
+ 
+     return 0;

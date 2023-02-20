@@ -1,0 +1,53 @@
+From: Peter Krempa <pkrempa@redhat.com>
+Date: Wed, 15 Feb 2023 10:48:31 +0100
+Subject: rpc: Don't warn about "max_client_requests" in single-threaded
+ daemons
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+The warning about max_client_requests is hit inside virtlogd every time
+a VM starts which spams the logs.
+
+Emit the warning only when the client request limit is not 1 and add a
+warning into the daemon config to not configure it too low instead.
+
+Fixes: 031878c2364
+Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=2145188
+Signed-off-by: Peter Krempa <pkrempa@redhat.com>
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+(cherry picked from commit b3f8e072fe08a6beaf3ec3d27e02efee4358b2ca)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/b3f8e072fe08a6beaf3ec3d27e02efee4358b2ca
+---
+ src/remote/libvirtd.conf.in  | 1 +
+ src/rpc/virnetserverclient.c | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/remote/libvirtd.conf.in b/src/remote/libvirtd.conf.in
+index 80a98b1..32a6803 100644
+--- a/src/remote/libvirtd.conf.in
++++ b/src/remote/libvirtd.conf.in
+@@ -374,6 +374,7 @@
+ # connection. To avoid one client monopolizing the server
+ # this should be a small fraction of the global max_workers
+ # parameter.
++# Setting this too low may cause keepalive timeouts.
+ #max_client_requests = 5
+ 
+ # Same processing controls, but this time for the admin interface.
+diff --git a/src/rpc/virnetserverclient.c b/src/rpc/virnetserverclient.c
+index b5c764b..bdb3552 100644
+--- a/src/rpc/virnetserverclient.c
++++ b/src/rpc/virnetserverclient.c
+@@ -1261,7 +1261,8 @@ static virNetMessage *virNetServerClientDispatchRead(virNetServerClient *client)
+             client->rx->bufferLength = VIR_NET_MESSAGE_LEN_MAX;
+             client->rx->buffer = g_new0(char, client->rx->bufferLength);
+             client->nrequests++;
+-        } else if (!client->nrequests_warning) {
++        } else if (!client->nrequests_warning &&
++                   client->nrequests_max > 1) {
+             client->nrequests_warning = true;
+             VIR_WARN("Client hit max requests limit %zd. This may result "
+                      "in keep-alive timeouts. Consider tuning the "
