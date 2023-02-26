@@ -1,3 +1,22 @@
+libvirt (9.0.0-2) unstable; urgency=medium
+
+  * [de81410] patches: Add backports
+    - backport/qemu_domain-Don-t-unref-NULL-hash-table-in-qemuDomainRefr.patch
+      - Closes: #1030671
+    - backport/qemu-Jump-to-cleanup-label-on-umount-failure.patch
+    - backport/qemu_namespace-Deal-with-nested-mounts-when-umount-ing-de.patch
+    - backport/qemuProcessRefreshDisks-Don-t-skip-filling-of-disk-inform.patch
+    - backport/qemu_extdevice-Do-cleanup-host-only-for-VIR_DOMAIN_TPM_TY.patch
+    - backport/qemu-blockjob-Handle-pending-blockjob-state-only-when-we-.patch
+    - backport/rpc-client-Don-t-check-return-value-of-virNetMessageNew.patch
+    - backport/rpc-Don-t-warn-about-max_client_requests-in-single-thread.patch
+  * [699a828] patches: Disable passt support
+    - debian/patches/debian/Disable-passt-support.patch
+      - The feature is not quite ready for prime time yet, so it will remain
+        disabled in bookworm
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 26 Feb 2023 18:18:30 +0100
+
 libvirt (9.0.0-1) unstable; urgency=medium
 
   * [45d077a] libvirt-daemon-system: Make default files functionally empty
