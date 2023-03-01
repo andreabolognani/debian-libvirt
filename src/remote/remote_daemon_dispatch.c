@@ -2637,13 +2637,11 @@ remoteDispatchDomainGetSecurityLabelList(virNetServer *server G_GNUC_UNUSED,
     if (!(dom = get_nonnull_domain(conn, args->dom)))
         goto cleanup;
 
-    if ((len = virDomainGetSecurityLabelList(dom, &seclabels)) < 0) {
-        ret->ret = len;
-        ret->labels.labels_len = 0;
-        ret->labels.labels_val = NULL;
-        goto done;
-    }
+    if ((len = virDomainGetSecurityLabelList(dom, &seclabels)) < 0)
+        goto cleanup;
 
+    ret->ret = len;
+    ret->labels.labels_len = len;
     ret->labels.labels_val = g_new0(remote_domain_get_security_label_ret, len);
 
     for (i = 0; i < len; i++) {
@@ -2653,9 +2651,7 @@ remoteDispatchDomainGetSecurityLabelList(virNetServer *server G_GNUC_UNUSED,
         cur->label.label_len = label_len;
         cur->enforcing = seclabels[i].enforcing;
     }
-    ret->labels.labels_len = ret->ret = len;
 
- done:
     rv = 0;
 
  cleanup:
@@ -3066,15 +3062,14 @@ remoteDispatchDomainMigratePrepare2(virNetServer *server G_GNUC_UNUSED,
      */
     ret->cookie.cookie_len = cookielen;
     ret->cookie.cookie_val = cookie;
-    ret->uri_out = *uri_out == NULL ? NULL : uri_out;
+    ret->uri_out = *uri_out == NULL ? NULL : g_steal_pointer(&uri_out);
 
     rv = 0;
 
  cleanup:
-    if (rv < 0) {
+    if (rv < 0)
         virNetMessageSaveError(rerr);
-        VIR_FREE(uri_out);
-    }
+    VIR_FREE(uri_out);
     return rv;
 }
 
@@ -3315,11 +3310,6 @@ remoteDispatchNodeGetCPUStats(virNetServer *server G_GNUC_UNUSED,
  cleanup:
     if (rv < 0) {
         virNetMessageSaveError(rerr);
-        if (ret->params.params_val) {
-            for (i = 0; i < nparams; i++)
-                VIR_FREE(ret->params.params_val[i].field);
-            VIR_FREE(ret->params.params_val);
-        }
     }
     VIR_FREE(params);
     return rv;
@@ -3382,11 +3372,6 @@ remoteDispatchNodeGetMemoryStats(virNetServer *server G_GNUC_UNUSED,
  cleanup:
     if (rv < 0) {
         virNetMessageSaveError(rerr);
-        if (ret->params.params_val) {
-            for (i = 0; i < nparams; i++)
-                VIR_FREE(ret->params.params_val[i].field);
-            VIR_FREE(ret->params.params_val);
-        }
     }
     VIR_FREE(params);
     return rv;
@@ -4781,15 +4766,14 @@ remoteDispatchDomainMigratePrepare3(virNetServer *server G_GNUC_UNUSED,
      */
     ret->cookie_out.cookie_out_len = cookieoutlen;
     ret->cookie_out.cookie_out_val = cookieout;
-    ret->uri_out = *uri_out == NULL ? NULL : uri_out;
+    ret->uri_out = *uri_out == NULL ? NULL : g_steal_pointer(&uri_out);
 
     rv = 0;
 
  cleanup:
-    if (rv < 0) {
+    if (rv < 0)
         virNetMessageSaveError(rerr);
-        VIR_FREE(uri_out);
-    }
+    VIR_FREE(uri_out);
     return rv;
 }
 
@@ -5577,16 +5561,15 @@ remoteDispatchDomainMigratePrepare3Params(virNetServer *server G_GNUC_UNUSED,
 
     ret->cookie_out.cookie_out_len = cookieoutlen;
     ret->cookie_out.cookie_out_val = cookieout;
-    ret->uri_out = !*uri_out ? NULL : uri_out;
+    ret->uri_out = !*uri_out ? NULL : g_steal_pointer(&uri_out);
 
     rv = 0;
 
  cleanup:
     virTypedParamsFree(params, nparams);
-    if (rv < 0) {
+    if (rv < 0)
         virNetMessageSaveError(rerr);
-        VIR_FREE(uri_out);
-    }
+    VIR_FREE(uri_out);
     return rv;
 }
 

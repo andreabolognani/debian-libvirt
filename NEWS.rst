@@ -8,6 +8,125 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.1.0 (2023-03-01)
+===================
+
+* **Removed features**
+
+  * vbox: removed support for version 5.2 and 6.0 APIs
+
+    Libvirt no longer supports use of VirtualBox 5.2 and 6.0 since these
+    versions reached their end of life on 2020/07.
+
+* **New features**
+
+  * vbox: added support for version 7.0 API
+
+    Libvirt can now support use of the VirtualBox 7.0, This is compile tested
+    only, so we are looking for feedback from users on how well it works in
+    practice.
+
+  * qemu: Support crypto device
+
+    Support crypto device(virtio crypto only), also add support for QEMU with
+    backend ``builtin`` and ``lkcf``.
+
+  * qemu: added support for pvpanic-pci device
+
+    A pvpanic device can be now defined as a PCI device (the original is an ISA
+    device) with ``<panic model='pvpanic'/>``.
+
+  * qemu: support automatic restart of inadvertently terminated passt process
+
+    If the passt process that is serving as the backend of a -netdev
+    stream is terminated unexpectedly, libvirt now listens to QEMU's
+    notification of this, and starts up a new passt instance, thus
+    preserving network connectivity.
+
+* **Improvements**
+
+  * RPM packaging changes
+
+    The ``libvirt-daemon`` subpackage is split into several new subpackages,
+    allowing installation of a modular daemon configuration without the
+    traditional monolithic libvirtd.
+
+* **Bug fixes**
+
+  * QEMU: iTCO watchdog made operational
+
+    The watchdog was always included when q35 machine type was used, but needed
+    an extra bit of configuration in order to be operational.  This is now done
+    by default when running a QEMU domain with q35 machine type.  This is not a
+    change in the guest ABI, but it is a guest visible behavior change since the
+    watchdog that did not fire before will now fire once used.  To switch to the
+    previous behavior the watchdog action must be set to ``none``.
+
+  * QEMU: fix deleting memory snapshot when deleting external snapshots
+
+    When external snapshot deletion was introduced it did not remove memory
+    snapshot when it existed. In addition when external memory only snapshot
+    was created libvirt failed without producing any error.
+
+  * QEMU: properly report passt startup errors
+
+    Due to how the child passt process was started, the initial
+    support for passt (added in 9.0.0) would not see errors
+    encountered during startup, so libvirt would continue to setup and
+    start the guest; this led to a running guest with no network
+    connectivity.
+
+    (NB: On systems that use them, it is still necessary to disable
+    SELinux/AppArmor to start passt. This is a temporary limitation,
+    and use of the feature in production is strongly discouraged
+    until it has been lifted.)
+
+  * qemu: Fix error when attempting to change media in a CDROM drive
+
+    Due to a logic bug introduced in libvirt-9.0 attempts to change media in a
+    CDROM would previously fail with an error stating that the tray isn't open.
+
+  * qemu: Properly handle block job transitions
+
+    Starting with libvirt-9.0 the block job state machine improperly handled
+    some job transitions, which resulted into some block jobs not being
+    properly terminated. This could cause problems such as errors when
+    detaching a disk after snapshot.
+
+  * virsh: Make domif-setlink work more than once
+
+    There was a bug introduced in the previous release which made ``virsh
+    domif-setlink`` work exactly once over given domain. The bug was fixed and
+    now the command can be run multiple times.
+
+  * qemu: Make domain startup fail if NIC already exists
+
+    When starting a domain with an ``<interface/>`` that's supposed to be
+    managed by libvirt (``managed='yes'``) but corresponding TAP device already
+    exists, report an error and make the startup process fail.
+
+  * qemu: Deal with nested mounts when umount()-ing /dev
+
+    When setting up private ``/dev`` for a domain (also known as ``namespaces``
+    in ``qemu.conf``), libvirt preserves mount points nested under ``/dev``
+    (e.g.  ``/dev/shm``, ``/dev/pts`` and so on). But there was a bug which
+    resulted in inability to construct the namespace when there were two or
+    more filesystems mounted on the same path. This is common scenario with
+    containers and thus the bug was fixed.
+
+  * remote: Pass ``mode`` and ``socket`` URI parameters to virt-ssh-helper
+
+    When connecting to a remote host using SSH transport, ``?mode=`` and
+    ``?socket=`` URI parameters were ignored. This prevented users from
+    connecting to a monolithic daemon running on a remote host.
+
+  * qemu: Various ``swtpm`` related fixes
+
+    There are more cleanups and small bug fixes with regards to emulated
+    ``<tpm/>``. For instance with migration when the ``swtpm`` state is on a
+    shared volume, or seclabel setting/restoring.
+
+
 v9.0.0 (2023-01-16)
 ===================
 

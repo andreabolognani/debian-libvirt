@@ -257,30 +257,40 @@
       <ref name="osexe"/>
     </choice>
   </define>
+
   <define name="osxen">
     <choice>
       <group>
-        <optional>
-          <ref name="bootloader"/>
-        </optional>
-        <element name="os">
-          <ref name="ostypexen"/>
-          <ref name="osbootkernel"/>
-        </element>
+        <interleave>
+          <optional>
+            <ref name="bootloader"/>
+          </optional>
+          <element name="os">
+            <interleave>
+              <ref name="ostypexen"/>
+              <ref name="osbootkernel"/>
+            </interleave>
+          </element>
+        </interleave>
       </group>
       <group>
-        <ref name="bootloader"/>
-        <optional>
-          <element name="os">
-            <ref name="ostypexen"/>
-            <optional>
-              <ref name="osbootkernel"/>
-            </optional>
-          </element>
-        </optional>
+        <interleave>
+          <ref name="bootloader"/>
+          <optional>
+            <element name="os">
+              <interleave>
+                <ref name="ostypexen"/>
+                <optional>
+                  <ref name="osbootkernel"/>
+                </optional>
+              </interleave>
+            </element>
+          </optional>
+        </interleave>
       </group>
     </choice>
   </define>
+
   <define name="oshvm">
     <interleave>
       <optional>
@@ -477,12 +487,14 @@
           </element>
         </optional>
         <optional>
-          <element name="inituser">
-            <ref name="genericName"/>
-          </element>
-          <element name="initgroup">
-            <ref name="genericName"/>
-          </element>
+          <interleave>
+            <element name="inituser">
+              <ref name="genericName"/>
+            </element>
+            <element name="initgroup">
+              <ref name="genericName"/>
+            </element>
+          </interleave>
         </optional>
       </interleave>
     </element>
@@ -5345,6 +5357,7 @@
             <value>i6300esb</value>
             <value>ib700</value>
             <value>diag288</value>
+            <value>itco</value>
           </choice>
         </attribute>
         <optional>
@@ -5558,49 +5571,57 @@
       </interleave>
     </element>
   </define>
+
   <define name="smartcard">
     <element name="smartcard">
-      <choice>
-        <group>
-          <attribute name="mode">
-            <value>host</value>
-          </attribute>
-          <!-- might need to add optional database element here later -->
-        </group>
-        <group>
-          <attribute name="mode">
-            <value>host-certificates</value>
-          </attribute>
-          <ref name="certificate"/>
-          <ref name="certificate"/>
-          <ref name="certificate"/>
-          <optional>
-            <element name="database">
-              <ref name="absDirPath"/>
-            </element>
-          </optional>
-        </group>
-        <group>
-          <attribute name="mode">
-            <value>passthrough</value>
-          </attribute>
-          <ref name="qemucdevSrcType"/>
-          <interleave>
-            <ref name="qemucdevSrcDef"/>
-            <optional>
-              <ref name="qemucdevTgtDef"/>
-            </optional>
-          </interleave>
-        </group>
-      </choice>
-      <optional>
-        <ref name="acpi"/>
-      </optional>
-      <optional>
-        <ref name="address"/>
-      </optional>
+      <interleave>
+        <choice>
+          <group>
+            <attribute name="mode">
+              <value>host</value>
+            </attribute>
+            <!-- might need to add optional database element here later -->
+          </group>
+          <group>
+            <interleave>
+              <attribute name="mode">
+                <value>host-certificates</value>
+              </attribute>
+              <group>
+                <ref name="certificate"/>
+                <ref name="certificate"/>
+                <ref name="certificate"/>
+              </group>
+              <optional>
+                <element name="database">
+                  <ref name="absDirPath"/>
+                </element>
+              </optional>
+            </interleave>
+          </group>
+          <group>
+            <attribute name="mode">
+              <value>passthrough</value>
+            </attribute>
+            <ref name="qemucdevSrcType"/>
+            <interleave>
+              <ref name="qemucdevSrcDef"/>
+              <optional>
+                <ref name="qemucdevTgtDef"/>
+              </optional>
+            </interleave>
+          </group>
+        </choice>
+        <optional>
+          <ref name="acpi"/>
+        </optional>
+        <optional>
+          <ref name="address"/>
+        </optional>
+      </interleave>
     </element>
   </define>
+
   <define name="certificate">
     <element name="certificate">
       <text/>
@@ -6426,11 +6447,12 @@
             <ref name="tpm"/>
             <ref name="shmem"/>
             <ref name="memorydev"/>
+            <ref name="crypto"/>
           </choice>
         </zeroOrMore>
-        <optional>
+        <zeroOrMore>
           <ref name="watchdog"/>
-        </optional>
+        </zeroOrMore>
         <optional>
           <ref name="memballoon"/>
         </optional>
@@ -7195,6 +7217,63 @@
       <empty/>
     </element>
   </define>
+
+  <define name="crypto">
+    <element name="crypto">
+      <attribute name="model">
+        <choice>
+          <value>virtio</value>
+        </choice>
+      </attribute>
+      <attribute name="type">
+        <choice>
+          <value>qemu</value>
+        </choice>
+      </attribute>
+      <interleave>
+        <ref name="crypto-backend"/>
+        <optional>
+          <element name="driver">
+            <ref name="virtioOptions"/>
+          </element>
+        </optional>
+        <optional>
+          <ref name="alias"/>
+        </optional>
+        <optional>
+          <ref name="address"/>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
+  <define name="crypto-backend">
+    <element name="backend">
+      <choice>
+        <group>
+          <attribute name="model">
+            <value>builtin</value>
+          </attribute>
+          <optional>
+            <attribute name="queues">
+              <ref name="positiveInteger"/>
+            </attribute>
+          </optional>
+        </group>
+        <group>
+          <attribute name="model">
+            <value>lkcf</value>
+          </attribute>
+          <optional>
+            <attribute name="queues">
+              <ref name="positiveInteger"/>
+            </attribute>
+          </optional>
+        </group>
+      </choice>
+    </element>
+  </define>
+
 
   <define name="virtioOptions">
     <optional>
@@ -8210,6 +8289,7 @@
             <value>pseries</value>
             <value>hyperv</value>
             <value>s390</value>
+            <value>pvpanic</value>
           </choice>
         </attribute>
       </optional>

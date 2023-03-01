@@ -388,6 +388,7 @@ msg_gen_function += lxcError
 msg_gen_function += regerror
 msg_gen_function += vah_error
 msg_gen_function += vah_warning
+msg_gen_function += vboxReportError
 msg_gen_function += virGenericReportError
 msg_gen_function += virRaiseError
 msg_gen_function += virReportError
@@ -559,6 +560,11 @@ sc_require_enum_last_marker:
 	   | $(GREP) . && \
 	  { echo 'enum impl needs _LAST marker on second line' 1>&2; \
 	    exit 1; } || :
+
+sc_prohibit_python_without_env:
+	@prohibit='#!/usr/.*/py''thon' \
+	 halt='always call python via /usr/bin/env' \
+	   $(_sc_search_regexp)
 
 # We're intentionally ignoring a few warnings
 #

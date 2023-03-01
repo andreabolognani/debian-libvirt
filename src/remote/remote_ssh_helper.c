@@ -354,6 +354,8 @@ int main(int argc, char **argv)
     g_autoptr(virURI) uri = NULL;
     g_autofree char *driver = NULL;
     remoteDriverTransport transport;
+    int mode = REMOTE_DRIVER_MODE_AUTO;
+    const char *mode_str = NULL;
     gboolean version = false;
     gboolean readonly = false;
     g_autofree char *sock_path = NULL;
@@ -367,6 +369,7 @@ int main(int argc, char **argv)
         { NULL, '\0', 0, 0, NULL, NULL, NULL }
     };
     unsigned int flags;
+    size_t i;
 
     context = g_option_context_new("URI - libvirt socket proxy");
     g_option_context_set_summary(context,
@@ -429,11 +432,30 @@ int main(int argc, char **argv)
     if (readonly)
         flags |= REMOTE_DRIVER_OPEN_RO;
 
-    sock_path = remoteGetUNIXSocket(transport,
-                                    REMOTE_DRIVER_MODE_AUTO,
-                                    driver,
-                                    flags,
-                                    &daemon_path);
+    for (i = 0; i < uri->paramsCount; i++) {
+        virURIParam *var = &uri->params[i];
+
+        if (STRCASEEQ(var->name, "mode")) {
+            mode_str = var->value;
+            continue;
+        } else if (STRCASEEQ(var->name, "socket")) {
+            sock_path = g_strdup(var->value);
+            continue;
+        }
+    }
+
+    if (mode_str &&
+        (mode = remoteDriverModeTypeFromString(mode_str)) < 0) {
+        g_printerr(_("%s: unknown remote mode '%s'"), argv[0], mode_str);
+        exit(EXIT_FAILURE);
+    }
+
+    if (!sock_path &&
+        !(sock_path = remoteGetUNIXSocket(transport, mode,
+                                          driver, flags, &daemon_path))) {
+        g_printerr(_("%s: failed to generate UNIX socket path"), argv[0]);
+        exit(EXIT_FAILURE);
+    }
 
     if (virNetSocketNewConnectUNIX(sock_path, daemon_path, &sock) < 0) {
         g_printerr(_("%s: cannot connect to '%s': %s\n"),

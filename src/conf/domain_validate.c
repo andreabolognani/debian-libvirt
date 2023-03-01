@@ -1725,16 +1725,6 @@ virDomainDefOSValidate(const virDomainDef *def,
 static int
 virDomainDefCputuneValidate(const virDomainDef *def)
 {
-    if (def->cputune.shares > 0 &&
-        (def->cputune.shares < VIR_CGROUP_CPU_SHARES_MIN ||
-         def->cputune.shares > VIR_CGROUP_CPU_SHARES_MAX)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Value of cputune 'shares' must be in range [%llu, %llu]"),
-                         VIR_CGROUP_CPU_SHARES_MIN,
-                         VIR_CGROUP_CPU_SHARES_MAX);
-        return -1;
-    }
-
     CPUTUNE_VALIDATE_PERIOD(period);
     CPUTUNE_VALIDATE_PERIOD(global_period);
     CPUTUNE_VALIDATE_PERIOD(emulator_period);
@@ -2443,6 +2433,21 @@ virDomainVsockDefValidate(const virDomainVsockDef *vsock)
 
 
 static int
+virDomainCryptoDefValidate(const virDomainCryptoDef *crypto)
+{
+    switch (crypto->model) {
+    case VIR_DOMAIN_CRYPTO_MODEL_VIRTIO:
+        break;
+    case VIR_DOMAIN_CRYPTO_MODEL_LAST:
+    default:
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virDomainInputDefValidate(const virDomainInputDef *input,
                           const virDomainDef *def)
 {
@@ -2767,7 +2772,7 @@ virDomainTPMDevValidate(const virDomainTPMDef *tpm)
         }
         if (tpm->data.external.source->data.nix.listen) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("only 'client' mode is supported for external TPM device"));
+                           _("only 'connect' mode is supported for external TPM device"));
             return -1;
         }
         if (tpm->data.external.source->data.nix.path == NULL) {
@@ -2865,6 +2870,9 @@ virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
 
     case VIR_DOMAIN_DEVICE_VSOCK:
         return virDomainVsockDefValidate(dev->data.vsock);
+
+    case VIR_DOMAIN_DEVICE_CRYPTO:
+        return virDomainCryptoDefValidate(dev->data.crypto);
 
     case VIR_DOMAIN_DEVICE_INPUT:
         return virDomainInputDefValidate(dev->data.input, def);

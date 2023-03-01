@@ -86,12 +86,13 @@ typedef enum {
     VIR_DOMAIN_DEVICE_IOMMU,
     VIR_DOMAIN_DEVICE_VSOCK,
     VIR_DOMAIN_DEVICE_AUDIO,
+    VIR_DOMAIN_DEVICE_CRYPTO,
 
     VIR_DOMAIN_DEVICE_LAST
 } virDomainDeviceType;
 
 struct _virDomainDeviceDef {
-    int type; /* enum virDomainDeviceType */
+    virDomainDeviceType type;
     union {
         virDomainDiskDef *disk;
         virDomainControllerDef *controller;
@@ -118,6 +119,7 @@ struct _virDomainDeviceDef {
         virDomainIOMMUDef *iommu;
         virDomainVsockDef *vsock;
         virDomainAudioDef *audio;
+        virDomainCryptoDef *crypto;
     } data;
 };
 
@@ -165,28 +167,14 @@ typedef enum {
 } virDomainHyperVMode;
 VIR_ENUM_DECL(virDomainHyperVMode);
 
-struct _virDomainHostdevOrigStates {
-    union {
-        struct {
-            /* Does the device need to unbind from stub when
-             * reattaching to host?
-             */
-            bool unbind_from_stub;
+typedef enum {
+    VIR_DOMAIN_HOSTDEV_PCI_ORIGSTATE_UNBIND = 0, /* device needs to unbind from stub when reattaching */
+    VIR_DOMAIN_HOSTDEV_PCI_ORIGSTATE_REMOVESLOT, /* use remove_slot when reattaching */
+    VIR_DOMAIN_HOSTDEV_PCI_ORIGSTATE_REPROBE, /* reprobe driver for device when reattaching */
 
-            /* Does it need to use remove_slot when reattaching
-             * the device to host?
-             */
-            bool remove_slot;
-
-            /* Does it need to reprobe driver for the device when
-             * reattaching to host?
-             */
-            bool reprobe;
-        } pci;
-
-        /* Perhaps 'usb' in future */
-    } states;
-};
+    VIR_DOMAIN_HOSTDEV_PCI_ORIGSTATE_LAST
+} virDomainHostdevPCIOrigstate;
+VIR_ENUM_DECL(virDomainHostdevPCIOrigstate);
 
 struct _virDomainLeaseDef {
     char *lockspace;
@@ -260,6 +248,8 @@ struct _virDomainHostdevSubsysUSB {
 struct _virDomainHostdevSubsysPCI {
     virPCIDeviceAddress addr; /* host address */
     virDomainHostdevSubsysPCIBackendType backend;
+
+    virBitmap *origstates;
 };
 
 struct _virDomainHostdevSubsysSCSIHost {
@@ -392,7 +382,6 @@ struct _virDomainHostdevDef {
         virDomainHostdevSubsys subsys;
         virDomainHostdevCaps caps;
     } source;
-    virDomainHostdevOrigStates origstates;
     virDomainNetTeamingInfo *teaming;
     virDomainDeviceInfo *info; /* Guest address */
 };
@@ -1072,7 +1061,6 @@ struct _virDomainNetBackend {
     char *vhost;
     /* The following are currently only valid/used when backend type='passt' */
     char *logFile;  /* path to logfile used by passt process */
-    char *upstream; /* host interface to use for traffic egress */
 };
 
 struct _virDomainNetPortForwardRange {
@@ -1745,6 +1733,7 @@ typedef enum {
     VIR_DOMAIN_WATCHDOG_MODEL_I6300ESB,
     VIR_DOMAIN_WATCHDOG_MODEL_IB700,
     VIR_DOMAIN_WATCHDOG_MODEL_DIAG288,
+    VIR_DOMAIN_WATCHDOG_MODEL_ITCO,
 
     VIR_DOMAIN_WATCHDOG_MODEL_LAST
 } virDomainWatchdogModel;
@@ -2687,6 +2676,7 @@ typedef enum {
     VIR_DOMAIN_PANIC_MODEL_PSERIES,
     VIR_DOMAIN_PANIC_MODEL_HYPERV,
     VIR_DOMAIN_PANIC_MODEL_S390,
+    VIR_DOMAIN_PANIC_MODEL_PVPANIC,
 
     VIR_DOMAIN_PANIC_MODEL_LAST
 } virDomainPanicModel;
@@ -2897,6 +2887,34 @@ struct _virDomainVsockDef {
     virDomainVirtioOptions *virtio;
 };
 
+typedef enum {
+    VIR_DOMAIN_CRYPTO_MODEL_VIRTIO,
+
+    VIR_DOMAIN_CRYPTO_MODEL_LAST
+} virDomainCryptoModel;
+
+typedef enum {
+    VIR_DOMAIN_CRYPTO_TYPE_QEMU,
+
+    VIR_DOMAIN_CRYPTO_TYPE_LAST
+} virDomainCryptoType;
+
+typedef enum {
+    VIR_DOMAIN_CRYPTO_BACKEND_BUILTIN,
+    VIR_DOMAIN_CRYPTO_BACKEND_LKCF,
+
+    VIR_DOMAIN_CRYPTO_BACKEND_LAST
+} virDomainCryptoBackend;
+
+struct _virDomainCryptoDef {
+    virDomainCryptoModel model;
+    virDomainCryptoType type;
+    virDomainCryptoBackend backend;
+    unsigned int queues;
+    virDomainDeviceInfo info;
+    virDomainVirtioOptions *virtio;
+};
+
 struct _virDomainVirtioOptions {
     virTristateSwitch iommu;
     virTristateSwitch ats;
@@ -3062,12 +3080,18 @@ struct _virDomainDef {
     size_t nsysinfo;
     virSysinfoDef **sysinfo;
 
+
+    size_t ncryptos;
+    virDomainCryptoDef **cryptos;
+
+    size_t nwatchdogs;
+    virDomainWatchdogDef **watchdogs;
+
     /* At maximum 2 TPMs on the domain if a TPM Proxy is present. */
     size_t ntpms;
     virDomainTPMDef **tpms;
 
     /* Only 1 */
-    virDomainWatchdogDef *watchdog;
     virDomainMemballoonDef *memballoon;
     virDomainNVRAMDef *nvram;
     virCPUDef *cpu;
@@ -3207,6 +3231,7 @@ typedef enum {
     VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT = (1 << 7),
     VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING = (1 << 8),
     VIR_DOMAIN_DEF_FEATURE_DISK_FD = (1 << 9),
+    VIR_DOMAIN_DEF_FEATURE_NO_STUB_CONSOLE = (1 << 10),
 } virDomainDefFeatures;
 
 
@@ -3320,6 +3345,11 @@ typedef int (*virDomainXMLPrivateDataTPMParseFunc)(xmlXPathContextPtr ctxt,
 typedef int (*virDomainXMLPrivateDataTPMFormatFunc)(const virDomainTPMDef *tpm,
                                                     virBuffer *buf);
 
+typedef int (*virDomainXMLPrivateDataNetParseFunc)(xmlXPathContextPtr ctxt,
+                                                   virDomainNetDef *net);
+typedef int (*virDomainXMLPrivateDataNetFormatFunc)(const virDomainNetDef *net,
+                                                    virBuffer *buf);
+
 struct _virDomainXMLPrivateDataCallbacks {
     virDomainXMLPrivateDataAllocFunc  alloc;
     virDomainXMLPrivateDataFreeFunc   free;
@@ -3331,8 +3361,11 @@ struct _virDomainXMLPrivateDataCallbacks {
     virDomainXMLPrivateDataNewFunc    vcpuNew;
     virDomainXMLPrivateDataNewFunc    chrSourceNew;
     virDomainXMLPrivateDataNewFunc    vsockNew;
+    virDomainXMLPrivateDataNewFunc    cryptoNew;
     virDomainXMLPrivateDataNewFunc    graphicsNew;
     virDomainXMLPrivateDataNewFunc    networkNew;
+    virDomainXMLPrivateDataNetParseFunc networkParse;
+    virDomainXMLPrivateDataNetFormatFunc networkFormat;
     virDomainXMLPrivateDataNewFunc    videoNew;
     virDomainXMLPrivateDataNewFunc    fsNew;
     virDomainXMLPrivateDataTPMParseFunc tpmParse;
@@ -3505,6 +3538,8 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainIOMMUDef, virDomainIOMMUDefFree);
 virDomainVsockDef *virDomainVsockDefNew(virDomainXMLOption *xmlopt);
 void virDomainVsockDefFree(virDomainVsockDef *vsock);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVsockDef, virDomainVsockDefFree);
+void virDomainCryptoDefFree(virDomainCryptoDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainCryptoDef, virDomainCryptoDefFree);
 void virDomainNetTeamingInfoFree(virDomainNetTeamingInfo *teaming);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainNetTeamingInfo, virDomainNetTeamingInfoFree);
 void virDomainNetPortForwardFree(virDomainNetPortForward *pf);
@@ -3526,6 +3561,10 @@ virDomainSoundDef *virDomainSoundDefRemove(virDomainDef *def, size_t idx);
 void virDomainAudioDefFree(virDomainAudioDef *def);
 void virDomainMemballoonDefFree(virDomainMemballoonDef *def);
 void virDomainNVRAMDefFree(virDomainNVRAMDef *def);
+ssize_t
+virDomainWatchdogDefFind(const virDomainDef *def,
+                         const virDomainWatchdogDef *watchdog)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 void virDomainWatchdogDefFree(virDomainWatchdogDef *def);
 virDomainVideoDef *virDomainVideoDefNew(virDomainXMLOption *xmlopt);
 void virDomainVideoDefFree(virDomainVideoDef *def);
@@ -3824,6 +3863,8 @@ virDomainNetDef *virDomainNetFindByName(virDomainDef *def, const char *ifname);
 bool virDomainHasNet(virDomainDef *def, virDomainNetDef *net);
 int virDomainNetInsert(virDomainDef *def, virDomainNetDef *net);
 int virDomainNetUpdate(virDomainDef *def, size_t netidx, virDomainNetDef *newnet);
+bool virDomainNetBackendIsEqual(virDomainNetBackend *src,
+                                virDomainNetBackend *dst);
 int virDomainNetDHCPInterfaces(virDomainDef *def, virDomainInterfacePtr **ifaces);
 int virDomainNetARPInterfaces(virDomainDef *def, virDomainInterfacePtr **ifaces);
 virDomainNetDef *virDomainNetRemove(virDomainDef *def, size_t i);
@@ -4159,6 +4200,9 @@ VIR_ENUM_DECL(virDomainMemorySource);
 VIR_ENUM_DECL(virDomainMemoryAllocation);
 VIR_ENUM_DECL(virDomainIOMMUModel);
 VIR_ENUM_DECL(virDomainVsockModel);
+VIR_ENUM_DECL(virDomainCryptoModel);
+VIR_ENUM_DECL(virDomainCryptoType);
+VIR_ENUM_DECL(virDomainCryptoBackend);
 VIR_ENUM_DECL(virDomainShmemModel);
 VIR_ENUM_DECL(virDomainShmemRole);
 VIR_ENUM_DECL(virDomainLaunchSecurity);

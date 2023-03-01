@@ -1,13 +1,13 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the libvirt package.
-# Temuri Doghonadze <temuri.doghonadze@gmail.com>, 2022.
+# Temuri Doghonadze <temuri.doghonadze@gmail.com>, 2022, 2023.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 8.4.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-01-09 14:27+0000\n"
-"PO-Revision-Date: 2022-07-25 06:18+0000\n"
+"POT-Creation-Date: 2023-02-22 13:50+0000\n"
+"PO-Revision-Date: 2023-02-25 10:20+0000\n"
 "Last-Translator: Temuri Doghonadze <temuri.doghonadze@gmail.com>\n"
 "Language-Team: Georgian <https://translate.fedoraproject.org/projects/"
 "libvirt/libvirt/ka/>\n"
@@ -16,7 +16,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 4.13\n"
+"X-Generator: Weblate 4.15.2\n"
 
 msgid ""
 "\n"
@@ -276,7 +276,7 @@ msgid "    Bandwidth limit: %llu bytes/s (%-.3lf %s/s)"
 msgstr ""
 
 msgid "  NAME\n"
-msgstr "  უსახელო\n"
+msgstr "  სახელი\n"
 
 #, c-format
 msgid " %s (help keyword '%s')\n"
@@ -287,16 +287,16 @@ msgid " %s (help keyword '%s'):\n"
 msgstr ""
 
 msgid " Hypervisors:"
-msgstr " ჰაიპერვაიზორი:"
+msgstr " ჰაიპერვაიზორები:"
 
 msgid " Miscellaneous:"
 msgstr " სხვადასხვა:"
 
 msgid " Networking:"
-msgstr ""
+msgstr " ქსელი:"
 
 msgid " Storage:"
-msgstr ""
+msgstr " საცავი:"
 
 #, c-format
 msgid ""
@@ -323,11 +323,11 @@ msgstr ""
 
 #, c-format
 msgid "%s\n"
-msgstr ""
+msgstr "%s\n"
 
 #, c-format
 msgid "%s %s"
-msgstr ""
+msgstr "%s%s"
 
 #, c-format
 msgid "%s %s '%s' has an unsupported type '%s'"
@@ -464,6 +464,15 @@ msgid "%s model of watchdog is allowed for s390 and s390x only"
 msgstr ""
 
 #, c-format
+msgid "%s model of watchdog is only part of q35 machine"
+msgstr ""
+
+#, c-format
+msgid ""
+"%s model of watchdog is part of the machine and cannot have any address set."
+msgstr ""
+
+#, c-format
 msgid "%s model of watchdog is virtual and cannot go on any bus."
 msgstr ""
 
@@ -536,10 +545,12 @@ msgid ""
 "%s:\n"
 "%s%c"
 msgstr ""
+"%s:\n"
+"%s%c"
 
 #, c-format
 msgid "%s: %s"
-msgstr ""
+msgstr "%s: %s"
 
 #, c-format
 msgid "%s: %s: unsupported auth %s"
@@ -547,7 +558,7 @@ msgstr ""
 
 #, c-format
 msgid "%s: '%s' does not exist"
-msgstr ""
+msgstr "%s: '%s' არ არსებობს"
 
 #, c-format
 msgid "%s: Address '%s' in route definition is not a network address"
@@ -723,6 +734,10 @@ msgid "%s: failed to communicate with bridge helper: %s"
 msgstr ""
 
 #, c-format
+msgid "%s: failed to generate UNIX socket path"
+msgstr ""
+
+#, c-format
 msgid "%s: failed to read temporary file: %s"
 msgstr ""
 
@@ -826,6 +841,10 @@ msgid "%s: unexpected URI transport '%s'\n"
 msgstr ""
 
 #, c-format
+msgid "%s: unknown remote mode '%s'"
+msgstr ""
+
+#, c-format
 msgid "%s: unsupported hypervisor name %s\n"
 msgstr ""
 
@@ -859,13 +878,15 @@ msgstr ""
 
 #, c-format
 msgid "%s:%d: %s"
-msgstr ""
+msgstr "%s:%d: %s"
 
 #, c-format
 msgid ""
 "%s:%d: %s%s\n"
 "%s"
 msgstr ""
+"%s:%d: %s%s\n"
+"%s"
 
 #, c-format
 msgid "%s_DEBUG not set with a valid numeric value"
@@ -873,7 +894,7 @@ msgstr ""
 
 #, c-format
 msgid "'%s'"
-msgstr ""
+msgstr "'%s'"
 
 #, c-format
 msgid "'%s' D-Bus address is not handled"
@@ -905,7 +926,7 @@ msgstr ""
 
 #, c-format
 msgid "'%s' does not exist"
-msgstr ""
+msgstr "'%s' არ არსებობს"
 
 #, c-format
 msgid "'%s' file does not fit in memory"
@@ -992,7 +1013,7 @@ msgid ""
 "type instead"
 msgstr ""
 
-msgid "'disk' missing in reply of guest-get-fsinfo"
+msgid "'disk' missing or not an array in reply of guest-get-fsinfo"
 msgstr ""
 
 #, c-format
@@ -1153,7 +1174,7 @@ msgid "'wwnn' and 'wwpn' must be specified for adapter type 'fchost'"
 msgstr ""
 
 msgid "(<null>)"
-msgstr ""
+msgstr "(<null>)"
 
 msgid "(CPU_definition)"
 msgstr ""
@@ -1165,7 +1186,7 @@ msgid "(bridge interface definition)"
 msgstr ""
 
 msgid "(capabilities)"
-msgstr ""
+msgstr "(შესაძლებლობები)"
 
 msgid "(definition_of_secret)"
 msgstr ""
@@ -1219,7 +1240,7 @@ msgid "(node_device_definition)"
 msgstr ""
 
 msgid "(none)"
-msgstr ""
+msgstr "(არცერთი)"
 
 msgid "(nwfilter_definition)"
 msgstr ""
@@ -1234,7 +1255,7 @@ msgid "(qemu_migration_cookie)"
 msgstr ""
 
 msgid "(re)connect to hypervisor"
-msgstr ""
+msgstr "ჰიპერვიზორთან მიერთება"
 
 msgid "(save cookie)"
 msgstr ""
@@ -1529,7 +1550,7 @@ msgid "Active console session exists for this domain"
 msgstr ""
 
 msgid "Active:"
-msgstr ""
+msgstr "აქტიური:"
 
 #, c-format
 msgid "Actual interface '%s' hostdev was not a PCI device"
@@ -1572,7 +1593,7 @@ msgid "Allocation"
 msgstr "გამოყოფა"
 
 msgid "Allocation:"
-msgstr ""
+msgstr "გამოყოფა:"
 
 msgid "Allows setting or modifying the description or title of a domain."
 msgstr ""
@@ -1723,13 +1744,13 @@ msgid "Automatic disk lease mode enabled, but no host ID is set"
 msgstr ""
 
 msgid "Autostart"
-msgstr "ავტოსტარტი"
+msgstr "ავტომატური გაშვება"
 
 msgid "Autostart:"
-msgstr ""
+msgstr "ავტომატური გაშვება:"
 
 msgid "Available"
-msgstr "ხელმისაწვდომია"
+msgstr "ხელმისაწვდომი"
 
 msgid ""
 "Available servers on a daemon. Currently only supports 'libvirtd' or "
@@ -1737,7 +1758,7 @@ msgid ""
 msgstr ""
 
 msgid "Available:"
-msgstr "ხელმისაწვდომი:"
+msgstr "ხელმისაწვდომია:"
 
 msgid "BIOS serial console only supported on x86 architectures"
 msgstr ""
@@ -1847,7 +1868,7 @@ msgid "Bridge interface %s started\n"
 msgstr ""
 
 msgid "Bridge:"
-msgstr ""
+msgstr "ხიდი:"
 
 msgid "Buffer to small for ipset name"
 msgstr ""
@@ -2240,8 +2261,7 @@ msgstr ""
 
 #, c-format
 msgid ""
-"Can't get the UUID of the file to be attached as harddisk/dvd/floppy: %s, rc="
-"%08x"
+"Can't get the UUID of the file to be attached as harddisk/dvd/floppy: %s"
 msgstr ""
 
 msgid "Can't initialize Parallels SDK"
@@ -2309,7 +2329,7 @@ msgid ""
 msgstr ""
 
 msgid "Cancelled"
-msgstr "შეწყვეტილია"
+msgstr "გაუქმებულია"
 
 #, c-format
 msgid "Cannot access '%s'"
@@ -2428,11 +2448,11 @@ msgstr ""
 
 #, c-format
 msgid "Cannot create directory '%s'"
-msgstr ""
+msgstr "საქაღალდის ('%s') შექმნის შეცდომა"
 
 #, c-format
 msgid "Cannot create log directory '%s'"
-msgstr ""
+msgstr "ჟურნალის საქაღალდის (%s) შექმნის შეცდომა"
 
 msgid "Cannot create macvlan devices on this platform"
 msgstr ""
@@ -3005,7 +3025,7 @@ msgstr "%s-ის stat-ის შეცდომა"
 
 #, c-format
 msgid "Cannot stat '%s'"
-msgstr ""
+msgstr "%s-ის stat-ის შეცდომა"
 
 #, c-format
 msgid "Cannot undefine HostVirtualSwitch that has a '%s' port"
@@ -3119,7 +3139,7 @@ msgid "Cgroup backend '%s' already registered."
 msgstr ""
 
 msgid "Chain name contains invalid characters"
-msgstr ""
+msgstr "ჯაჭვის სახელი არასწორ სიმბოლოებს შეიცავს"
 
 msgid "Change bottom limit to number of workers."
 msgstr ""
@@ -3483,13 +3503,13 @@ msgid "Copy aborted"
 msgstr ""
 
 msgid "Copy failed"
-msgstr ""
+msgstr "კოპირების შეცდომა"
 
 msgid "Core dump a domain."
 msgstr ""
 
 msgid "Core(s) per socket:"
-msgstr ""
+msgstr "ბირთვების რაოდენობა თითოეულ სოკეტზე:"
 
 #, c-format
 msgid "Could find volume with name: %s"
@@ -3539,7 +3559,7 @@ msgid "Could not attach serial port %zu"
 msgstr ""
 
 #, c-format
-msgid "Could not attach the file as harddisk/dvd/floppy: %s, rc=%08x"
+msgid "Could not attach the file as harddisk/dvd/floppy: %s"
 msgstr ""
 
 msgid "Could not build CURL header list"
@@ -3877,8 +3897,7 @@ msgstr ""
 msgid "Could not get EPR items"
 msgstr ""
 
-#, c-format
-msgid "Could not get IMedium, rc=%08x"
+msgid "Could not get IMedium"
 msgstr ""
 
 msgid "Could not get Msvm_DiskDrive default InstanceID"
@@ -3908,16 +3927,13 @@ msgstr ""
 msgid "Could not get current time"
 msgstr ""
 
-#, c-format
-msgid "Could not get device port, rc=%08x"
+msgid "Could not get device port"
 msgstr ""
 
-#, c-format
-msgid "Could not get device slot, rc=%08x"
+msgid "Could not get device slot"
 msgstr ""
 
-#, c-format
-msgid "Could not get device type, rc=%08x"
+msgid "Could not get device type"
 msgstr ""
 
 #, c-format
@@ -3955,20 +3971,16 @@ msgstr ""
 msgid "Could not get iterator index for iterator ID %u"
 msgstr ""
 
-#, c-format
-msgid "Could not get list of Defined Domains, rc=%08x"
+msgid "Could not get list of Defined Domains"
 msgstr ""
 
-#, c-format
-msgid "Could not get list of Domains, rc=%08x"
+msgid "Could not get list of Domains"
 msgstr ""
 
-#, c-format
-msgid "Could not get list of domains, rc=%08x"
+msgid "Could not get list of domains"
 msgstr ""
 
-#, c-format
-msgid "Could not get list of machines, rc=%08x"
+msgid "Could not get list of machines"
 msgstr ""
 
 #, c-format
@@ -3976,8 +3988,7 @@ msgid ""
 "Could not get maximum definition of Msvm_ProcessorSettingData for host %s"
 msgstr ""
 
-#, c-format
-msgid "Could not get medium storage location, rc=%08x"
+msgid "Could not get medium storage location"
 msgstr ""
 
 #, c-format
@@ -3991,16 +4002,17 @@ msgstr ""
 msgid "Could not get nth (%u) value of variable '%s'"
 msgstr ""
 
-#, c-format
-msgid "Could not get number of Defined Domains, rc=%08x"
+msgid "Could not get number of Defined Domains"
 msgstr ""
 
-#, c-format
-msgid "Could not get number of Domains, rc=%08x"
+msgid "Could not get number of Domains"
 msgstr ""
 
 #, c-format
 msgid "Could not get parent of '%s'"
+msgstr ""
+
+msgid "Could not get process ID of passt"
 msgstr ""
 
 msgid "Could not get process id of swtpm"
@@ -4009,8 +4021,7 @@ msgstr ""
 msgid "Could not get process id of vhost-user-gpu"
 msgstr ""
 
-#, c-format
-msgid "Could not get read only state, rc=%08x"
+msgid "Could not get read only state"
 msgstr ""
 
 msgid "Could not get response"
@@ -4039,12 +4050,10 @@ msgstr ""
 msgid "Could not get snapshot name"
 msgstr ""
 
-#, c-format
-msgid "Could not get storage controller bus, rc=%08x"
+msgid "Could not get storage controller bus"
 msgstr ""
 
-#, c-format
-msgid "Could not get storage controller by name, rc=%08x"
+msgid "Could not get storage controller by name"
 msgstr ""
 
 #, c-format
@@ -4460,6 +4469,10 @@ msgid "Could not set wsman namespace address for xmlNodeParam"
 msgstr ""
 
 #, c-format
+msgid "Could not start 'passt': %s"
+msgstr ""
+
+#, c-format
 msgid "Could not start 'slirp'. exitstatus: %d"
 msgstr ""
 
@@ -4595,10 +4608,13 @@ msgid "Creating non-file volumes is not supported"
 msgstr ""
 
 msgid "Creation Time"
-msgstr ""
+msgstr "შექმნის დრო"
 
 #, c-format
 msgid "Creation of %s volumes is not supported"
+msgstr ""
+
+msgid "Crypto device is missing alias"
 msgstr ""
 
 msgid "Current memory size too large"
@@ -4888,11 +4904,11 @@ msgid "Device type '%s' is not an integer"
 msgstr ""
 
 msgid "Device updated successfully\n"
-msgstr ""
+msgstr "მოწყობილობა წარმატებით განახლდა\n"
 
 #, c-format
 msgid "Device: %s\n"
-msgstr ""
+msgstr "მოწყობილობა: %s\n"
 
 msgid ""
 "Did not create EK and certificates since this requires privileged mode for a "
@@ -4923,7 +4939,7 @@ msgid "Dirty rate:"
 msgstr ""
 
 msgid "Disabled"
-msgstr "გამოირთო"
+msgstr "გამორთულია"
 
 #, c-format
 msgid "Disallowing client %lld with uid %lld"
@@ -5004,7 +5020,7 @@ msgid "Display the system version information."
 msgstr ""
 
 msgid "Display version information"
-msgstr ""
+msgstr "ვერსიის ჩვენება"
 
 msgid ""
 "Displays the node's total number of CPUs, the number of online CPUs and the "
@@ -5355,7 +5371,7 @@ msgid "Driver state initialization failed"
 msgstr ""
 
 msgid "Dump"
-msgstr ""
+msgstr "დამპი"
 
 msgid "Dump XML for a domain checkpoint"
 msgstr ""
@@ -5495,7 +5511,7 @@ msgid "Emulator '%s' does not support virt type '%s'"
 msgstr ""
 
 msgid "Enabled"
-msgstr "ჩაირთო"
+msgstr "ჩართულია"
 
 msgid "End of file from agent socket"
 msgstr ""
@@ -5567,14 +5583,14 @@ msgid "Error in xmlNewProp"
 msgstr ""
 
 msgid "Error message:"
-msgstr ""
+msgstr "შეცდომის შეტყობინება:"
 
 msgid "Error notify callback must be supplied"
 msgstr ""
 
 #, c-format
 msgid "Error opening file %s"
-msgstr ""
+msgstr "ფაილის გახსნის შეცდომა: %s"
 
 #, c-format
 msgid "Error reading secret: %s"
@@ -5886,7 +5902,7 @@ msgid "Fail to create socket for incoming migration"
 msgstr ""
 
 msgid "Failed"
-msgstr ""
+msgstr "შეცდომა"
 
 msgid "Failed disable mount propagation out of the root filesystem"
 msgstr ""
@@ -5953,7 +5969,7 @@ msgid "Failed to add signal handle watch"
 msgstr ""
 
 #, c-format
-msgid "Failed to add storage controller (name: %s, busType: %d), rc=%08x"
+msgid "Failed to add storage controller (name: %s, busType: %d)"
 msgstr ""
 
 #, c-format
@@ -6060,8 +6076,7 @@ msgstr ""
 msgid "Failed to change size of volume '%s' to %s"
 msgstr ""
 
-#, c-format
-msgid "Failed to change storage controller model, rc=%08x"
+msgid "Failed to change storage controller model"
 msgstr ""
 
 #, c-format
@@ -6139,7 +6154,7 @@ msgstr ""
 
 #, c-format
 msgid "Failed to connect: %s"
-msgstr ""
+msgstr "დაკავშირების შეცდომა: %s"
 
 #, c-format
 msgid "Failed to convert '%s' to int"
@@ -6291,8 +6306,12 @@ msgid "Failed to create or modify the state XML attribute"
 msgstr ""
 
 #, c-format
-msgid "Failed to create pool %s"
+msgid "Failed to create passt state dir %s"
 msgstr ""
+
+#, c-format
+msgid "Failed to create pool %s"
+msgstr "პულის (%s) შექმნა შეუძლებელია"
 
 #, c-format
 msgid "Failed to create pool from %s"
@@ -6373,7 +6392,7 @@ msgstr ""
 
 #, c-format
 msgid "Failed to create vol %s"
-msgstr ""
+msgstr "შეცდომა ტომის (%s) შექმნისას"
 
 #, c-format
 msgid "Failed to create vol from %s"
@@ -6790,8 +6809,7 @@ msgstr ""
 msgid "Failed to get snapshot count"
 msgstr ""
 
-#, c-format
-msgid "Failed to get storage controller name, rc=%08x"
+msgid "Failed to get storage controller name"
 msgstr ""
 
 msgid "Failed to get the number of active networks"
@@ -6971,7 +6989,7 @@ msgid "Failed to load module '%s': %s"
 msgstr ""
 
 msgid "Failed to load nbd module"
-msgstr ""
+msgstr "შეცდომა nbd-ის მოდულის ჩატვირთვისას"
 
 msgid "Failed to load nbd module: administratively prohibited"
 msgstr ""
@@ -7099,7 +7117,7 @@ msgstr "%s-ის გახსნის შეცდომა"
 
 #, c-format
 msgid "Failed to open '%s'"
-msgstr ""
+msgstr "'%s'-ის გახსნის შეცდომა"
 
 #, c-format
 msgid "Failed to open a VPD file '%s'"
@@ -7141,13 +7159,12 @@ msgid "Failed to open storage volume with path '%s'"
 msgstr ""
 
 #, c-format
-msgid ""
-"Failed to open the following disk/dvd/floppy to the machine: %s, rc=%08x"
+msgid "Failed to open the following disk/dvd/floppy to the machine: %s"
 msgstr ""
 
 #, c-format
 msgid "Failed to open tty %s"
-msgstr ""
+msgstr "შეცდომა tty %s-ის გახსნისას"
 
 #, c-format
 msgid "Failed to parse %s: only com1 and com2 supported."
@@ -7238,6 +7255,10 @@ msgstr ""
 
 #, c-format
 msgid "Failed to parse rate '%s'"
+msgstr ""
+
+#, c-format
+msgid "Failed to parse rotated index from '%s'"
 msgstr ""
 
 #, c-format
@@ -7353,7 +7374,7 @@ msgstr ""
 
 #, c-format
 msgid "Failed to read file '%s'"
-msgstr ""
+msgstr "ფაილის ('%s') გახსნის შეცდომა"
 
 msgid "Failed to read from signal pipe"
 msgstr ""
@@ -7582,8 +7603,7 @@ msgstr ""
 msgid "Failed to save '%s' for '%s'"
 msgstr ""
 
-#, c-format
-msgid "Failed to save VM settings, rc=%08x"
+msgid "Failed to save VM settings"
 msgstr ""
 
 #, c-format
@@ -8001,7 +8021,7 @@ msgid "Failed! Volume not removed."
 msgstr ""
 
 msgid "Failed."
-msgstr ""
+msgstr "შეცდომა."
 
 #, c-format
 msgid "Failure action %s is not supported by sanlock"
@@ -8058,7 +8078,7 @@ msgstr ""
 
 #, c-format
 msgid "File '%s' does not exist"
-msgstr ""
+msgstr "ფაილი [%s] არ არსებობს"
 
 #, c-format
 msgid "File '%s' has unknown type"
@@ -8112,7 +8132,7 @@ msgid "Filesystems in VMs are not supported by vz driver"
 msgstr ""
 
 msgid "Filter"
-msgstr ""
+msgstr "ფილტრი"
 
 #, c-format
 msgid "Filter '%s' is in use."
@@ -8572,7 +8592,7 @@ msgid ""
 msgstr ""
 
 msgid "I/O Error"
-msgstr ""
+msgstr "I/O შეცდომა"
 
 msgid "I/O error"
 msgstr "I/O შეცდომა"
@@ -8726,7 +8746,7 @@ msgid "Image file for %s %s '%s' has unsupported suffix, expecting '%s'"
 msgstr ""
 
 msgid "In use"
-msgstr ""
+msgstr "გამოიყენება"
 
 #, c-format
 msgid "Inappropriate new pci controller index %zu exceeds addrs array length"
@@ -9033,6 +9053,10 @@ msgid "Invalid address '%s' in <ip>"
 msgstr ""
 
 #, c-format
+msgid "Invalid address '%s' in <portForward>"
+msgstr ""
+
+#, c-format
 msgid "Invalid address '%s' in network '%s'"
 msgstr ""
 
@@ -9044,7 +9068,7 @@ msgid "Invalid address type '%s' for the disk '%s' with the bus type '%s'"
 msgstr ""
 
 msgid "Invalid address."
-msgstr ""
+msgstr "არასწორი მისამართი."
 
 msgid "Invalid argument"
 msgstr "არასწორი არგუმენტი"
@@ -9134,7 +9158,7 @@ msgid "Invalid capability type"
 msgstr ""
 
 msgid "Invalid certificate"
-msgstr ""
+msgstr "არასწორი სერტიფიკატი"
 
 #, c-format
 msgid ""
@@ -9518,10 +9542,14 @@ msgstr ""
 
 #, c-format
 msgid "Invalid port number: %s"
-msgstr ""
+msgstr "პორტის არასწორი ნომერი: %s"
 
 #, c-format
 msgid "Invalid port range '%u-%u'."
+msgstr ""
+
+#, c-format
+msgid "Invalid portForward proto value %u"
 msgstr ""
 
 #, c-format
@@ -9783,7 +9811,7 @@ msgid "Invoke fstrim on domain's mounted filesystems."
 msgstr ""
 
 msgid "Iteration:"
-msgstr ""
+msgstr "იტერაცია:"
 
 #, c-format
 msgid "Iterator ID exceeds maximum ID of %u"
@@ -9867,7 +9895,7 @@ msgid "Library function returned error but did not set virError"
 msgstr ""
 
 msgid "Libvirt"
-msgstr ""
+msgstr "Libvirt"
 
 #, c-format
 msgid "Lifecycle event '%s' doesn't support '%s' action"
@@ -10070,16 +10098,7 @@ msgstr ""
 msgid "Malformed format for log output '%s'"
 msgstr ""
 
-msgid "Malformed guest-get-fsinfo 'disk' data array"
-msgstr ""
-
-msgid "Malformed guest-get-fsinfo data array"
-msgstr ""
-
 msgid "Malformed id field in JSON state document"
-msgstr ""
-
-msgid "Malformed ip-addresses array"
 msgstr ""
 
 msgid "Malformed lease_entries array"
@@ -10502,9 +10521,6 @@ msgstr ""
 msgid "Missing VIR_CRED_AUTHNAME credential type"
 msgstr ""
 
-msgid "Missing VIR_CRED_PASSPHRASE or VIR_CRED_NOECHOPROMPT credential type"
-msgstr ""
-
 msgid "Missing XPath context"
 msgstr ""
 
@@ -10533,7 +10549,7 @@ msgstr ""
 
 #, c-format
 msgid "Missing argument for '%s'"
-msgstr ""
+msgstr "%s-ს არგუმენტი აკლია"
 
 #, c-format
 msgid "Missing attribute '%s' in element '%s'"
@@ -10923,7 +10939,7 @@ msgid "Model %s too big for destination"
 msgstr ""
 
 msgid "Model name contains invalid characters"
-msgstr ""
+msgstr "მოდელის სახელი არასწორ სიმბოლოებს შეიცავს"
 
 msgid "Modifies an existing IOThread of the guest domain."
 msgstr ""
@@ -10986,6 +11002,9 @@ msgstr ""
 msgid "Multiple graphics devices are not supported"
 msgstr ""
 
+msgid "Multiple iTCO watchdogs are not supported"
+msgstr ""
+
 msgid "Multiple interfaces attached to bridge"
 msgstr ""
 
@@ -11011,7 +11030,7 @@ msgid "Must use --rename or --clone to change %s to %s"
 msgstr ""
 
 msgid "N/A"
-msgstr ""
+msgstr "N/A"
 
 msgid "NBD URI must be supplied when migration URI uses UNIX transport method"
 msgstr ""
@@ -11132,14 +11151,14 @@ msgid "NVRAM template is not permitted when loader is stateless"
 msgstr ""
 
 msgid "Name"
-msgstr ""
+msgstr "სახელი"
 
 #, c-format
 msgid "Name of chain is longer than %u characters"
 msgstr ""
 
 msgid "Name:"
-msgstr ""
+msgstr "სახელი:"
 
 msgid "Namespaces are not supported on this platform"
 msgstr ""
@@ -11717,7 +11736,7 @@ msgid "Non-endpoint PCI devices cannot be assigned to guests"
 msgstr ""
 
 msgid "None"
-msgstr ""
+msgstr "არაფერი"
 
 msgid ""
 "None of the requested authentication methods are supported by the server"
@@ -12047,10 +12066,10 @@ msgstr "ოპერაცია მხარდაუჭერელია"
 
 #, c-format
 msgid "Operation not supported: %s"
-msgstr ""
+msgstr "ოპერაცია მხარდაუჭერელია: %s"
 
 msgid "Operation:"
-msgstr ""
+msgstr "ოპერაცია:"
 
 #, c-format
 msgid ""
@@ -12092,7 +12111,7 @@ msgid "Options --%s and --%s are mutually exclusive"
 msgstr ""
 
 msgid "Options:"
-msgstr ""
+msgstr "პარამეტრები:"
 
 msgid "Other tasks are pending for this domain"
 msgstr ""
@@ -12304,7 +12323,7 @@ msgid "Parent device's JSON object data is not an array"
 msgstr ""
 
 msgid "Parent:"
-msgstr ""
+msgstr "მშობელი:"
 
 #, c-format
 msgid "Parsed JSON reply '%s' isn't an object"
@@ -12324,15 +12343,12 @@ msgstr ""
 msgid "Password may not contain ',' character"
 msgstr ""
 
-msgid "Password request failed"
-msgstr ""
-
 #, c-format
 msgid "Password set successfully for %s in %s"
 msgstr ""
 
 msgid "Path"
-msgstr ""
+msgstr "ბილიკი"
 
 #, c-format
 msgid "Path %s too long for unix socket"
@@ -12396,13 +12412,13 @@ msgid "Persistent"
 msgstr "მუდმივი"
 
 msgid "Persistent:"
-msgstr ""
+msgstr "მუდმივი:"
 
 msgid "Physical"
 msgstr "ფიზიკური"
 
 msgid "Physical:"
-msgstr ""
+msgstr "ფიზიკური:"
 
 msgid "Pin domain IOThreads to host physical CPUs."
 msgstr ""
@@ -12824,14 +12840,14 @@ msgid "Remove managed save of a domain"
 msgstr ""
 
 msgid "Removed"
-msgstr "ამოღებულია"
+msgstr "წაშლილია"
 
 #, c-format
 msgid "Removed managedsave image for domain '%s'"
 msgstr ""
 
 msgid "Renamed"
-msgstr ""
+msgstr "გადარქმეულია"
 
 msgid "Renaming domains on migration not supported"
 msgstr ""
@@ -13265,7 +13281,7 @@ msgid "Sanlock plugin is not initialized"
 msgstr ""
 
 msgid "Save"
-msgstr ""
+msgstr "შენახვა"
 
 msgid ""
 "Save and destroy a running domain, so it can be restarted from\n"
@@ -13602,7 +13618,7 @@ msgid "Setup time:"
 msgstr ""
 
 msgid "Shared memory:\n"
-msgstr ""
+msgstr "გაზიარებული მეხსიერება:\n"
 
 #, c-format
 msgid "Shell '%s' should have absolute path"
@@ -13699,7 +13715,7 @@ msgstr ""
 
 #, c-format
 msgid "Snapshot '%s' already exists"
-msgstr ""
+msgstr "სწრაფი ასლი '%s' უკვე არსებობს"
 
 msgid "Snapshot Delete"
 msgstr ""
@@ -13731,7 +13747,7 @@ msgid "Socket path %s too big for destination"
 msgstr ""
 
 msgid "Sockets:"
-msgstr ""
+msgstr "სოკეტები:"
 
 msgid "Some activation file descriptors are unclaimed"
 msgstr ""
@@ -13827,7 +13843,7 @@ msgid "Start to calculate domain's memory dirty rate successfully.\n"
 msgstr ""
 
 msgid "Started"
-msgstr "დაიწყო"
+msgstr "გაშვებულია"
 
 #, sh-format
 msgid "Starting shutdown on guest: $name"
@@ -13916,10 +13932,10 @@ msgid "Stats types bits 0x%x are not supported by this daemon or QEMU"
 msgstr ""
 
 msgid "Status is unknown"
-msgstr ""
+msgstr "სტატუსი უცნობია"
 
 msgid "Stopped"
-msgstr "შეჩერებულია"
+msgstr "გაჩერებულია"
 
 msgid "Storage Pool Events"
 msgstr ""
@@ -14286,7 +14302,7 @@ msgid "Target active PCR banks doesn't match source"
 msgstr ""
 
 msgid "Target already exists"
-msgstr ""
+msgstr "სამიზნე უკვე არსებობს"
 
 #, c-format
 msgid ""
@@ -14617,7 +14633,7 @@ msgid "Target domain vsock device model '%s' does not match source '%s'"
 msgstr ""
 
 #, c-format
-msgid "Target domain watchdog count %d does not match source %d"
+msgid "Target domain watchdog device count %zu does not match source %zu"
 msgstr ""
 
 msgid "Target filesystem access mode does not match source"
@@ -14879,6 +14895,14 @@ msgid ""
 "'%s' or machine type '%s'"
 msgstr ""
 
+msgid "The 'passt' backend can only be used with interface type='user'"
+msgstr ""
+
+msgid ""
+"The 'range' of a 'portForward' requires 'start' attribute if 'end', 'to', or "
+"'exclude' is specified"
+msgstr ""
+
 #, c-format
 msgid ""
 "The <nat> element can only be used when <forward> 'mode' is 'nat' in network "
@@ -14970,7 +14994,7 @@ msgid "The certificate hasn't got a known issuer."
 msgstr ""
 
 msgid "The certificate is not trusted."
-msgstr ""
+msgstr "სერტიფიკატი სანდო არაა."
 
 msgid "The certificate uses an insecure algorithm"
 msgstr ""
@@ -15053,11 +15077,6 @@ msgstr ""
 msgid ""
 "The overall maximum number of clients must not be less than the number of "
 "clients waiting for authentication"
-msgstr ""
-
-msgid ""
-"The overall maximum number of clients waiting for authentication must not be "
-"less than the overall maximum number of clients"
 msgstr ""
 
 msgid "The read only disk has no parent"
@@ -15186,7 +15205,7 @@ msgid "This type of disk cannot be hot unplugged"
 msgstr ""
 
 msgid "Thread(s) per core:"
-msgstr ""
+msgstr "ნაკადების რიცხვი თითოეულ ბირთვზე:"
 
 #, c-format
 msgid "Time '%lld' is too big for guest agent"
@@ -15372,7 +15391,7 @@ msgid "Too many storage_vols '%d' for limit '%d'"
 msgstr ""
 
 msgid "Total"
-msgstr "ჯამში"
+msgstr "სულ"
 
 msgid "Total downtime:"
 msgstr ""
@@ -15445,7 +15464,7 @@ msgid "Turn xbzrle compression on to tune it"
 msgstr ""
 
 msgid "Type"
-msgstr "ტიპით"
+msgstr "ტიპი"
 
 #, c-format
 msgid "Type mismatch for '%s' migration parameter"
@@ -15801,8 +15820,7 @@ msgstr ""
 msgid "Unable to close %s"
 msgstr ""
 
-#, c-format
-msgid "Unable to close HardDisk, rc=%08x"
+msgid "Unable to close HardDisk"
 msgstr ""
 
 msgid "Unable to close disk children"
@@ -15815,8 +15833,10 @@ msgstr ""
 msgid "Unable to close the VPD file, fd: %d"
 msgstr ""
 
-#, c-format
-msgid "Unable to close the new medium, rc=%08x"
+msgid "Unable to close the new medium"
+msgstr ""
+
+msgid "Unable to compile regex"
 msgstr ""
 
 #, c-format
@@ -15849,8 +15869,7 @@ msgstr ""
 msgid "Unable to create %s"
 msgstr ""
 
-#, c-format
-msgid "Unable to create HardDisk, rc=%08x"
+msgid "Unable to create HardDisk"
 msgstr ""
 
 msgid "Unable to create JSON formatter"
@@ -15867,11 +15886,11 @@ msgstr ""
 
 #, c-format
 msgid "Unable to create RNG parser for %s"
-msgstr ""
+msgstr "RNG დამმუშავებლის %s-სთვის შექმნის შეცდომა"
 
 #, c-format
 msgid "Unable to create RNG validation context %s"
-msgstr ""
+msgstr "RNG-ის გადამოწმების კონტექსტის (%s) შექმნის შეცდომა"
 
 msgid "Unable to create TAP devices on this platform"
 msgstr ""
@@ -16012,8 +16031,7 @@ msgstr ""
 msgid "Unable to delete lockspace resource %s"
 msgstr ""
 
-#, c-format
-msgid "Unable to delete medium, rc=%08x"
+msgid "Unable to delete medium"
 msgstr ""
 
 #, c-format
@@ -16324,7 +16342,7 @@ msgid "Unable to get current process SELinux context"
 msgstr ""
 
 msgid "Unable to get current time"
-msgstr ""
+msgstr "მიმდინარე დროის მიღება შეუძლებელია"
 
 msgid "Unable to get daemon logging filters information"
 msgstr ""
@@ -16376,12 +16394,7 @@ msgstr ""
 msgid "Unable to get hard disk id"
 msgstr ""
 
-#, c-format
-msgid "Unable to get hard disk id, rc=%08x"
-msgstr ""
-
-#, c-format
-msgid "Unable to get hardDisk Id, rc=%08x"
+msgid "Unable to get hardDisk Id"
 msgstr ""
 
 msgid "Unable to get host SEV information"
@@ -16425,8 +16438,7 @@ msgstr ""
 msgid "Unable to get medium location"
 msgstr ""
 
-#, c-format
-msgid "Unable to get medium uuid, rc=%08x"
+msgid "Unable to get medium uuid"
 msgstr ""
 
 msgid "Unable to get memory parameters"
@@ -16659,11 +16671,11 @@ msgstr ""
 
 #, c-format
 msgid "Unable to open %s"
-msgstr ""
+msgstr "%s-ის გახსნის შეცდომა"
 
 #, c-format
 msgid "Unable to open %s (%d)"
-msgstr ""
+msgstr "%s-ის გახსნის შეცდომა (%d)"
 
 #, c-format
 msgid "Unable to open %s, is tun module loaded?"
@@ -16671,7 +16683,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to open '%s'"
-msgstr ""
+msgstr "%s-ის გახსნის შეცდომა"
 
 #, c-format
 msgid "Unable to open '%s' for vdpa device"
@@ -16683,12 +16695,10 @@ msgstr ""
 msgid "Unable to open /proc/mounts"
 msgstr ""
 
-#, c-format
-msgid "Unable to open HardDisk, rc=%08x"
+msgid "Unable to open HardDisk"
 msgstr ""
 
-#, c-format
-msgid "Unable to open Machine, rc=%08x"
+msgid "Unable to open Machine"
 msgstr ""
 
 msgid "Unable to open UNIX socket"
@@ -16719,7 +16729,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to open stream for '%s'"
-msgstr ""
+msgstr "'%s'-სთვის ნაკადის გახსნის შეცდომა"
 
 #, c-format
 msgid "Unable to open system token %s"
@@ -16737,7 +16747,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to parse %s %s"
-msgstr ""
+msgstr "%s-ის დამუშავების შეცდომა %s"
 
 #, c-format
 msgid "Unable to parse '%s' as an integer"
@@ -16756,11 +16766,11 @@ msgstr ""
 
 #, c-format
 msgid "Unable to parse RNG %s: %s"
-msgstr ""
+msgstr "RNG-ის (%s) დამუშავების შეცდომა: %s"
 
 #, c-format
 msgid "Unable to parse URI %s"
-msgstr ""
+msgstr "URI-ის (%s) დამუშავების შეცდომა"
 
 #, c-format
 msgid "Unable to parse UUID '%s'"
@@ -16837,7 +16847,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to parse: %s"
-msgstr ""
+msgstr "დამუშავების შეცდომა: %s"
 
 #, c-format
 msgid "Unable to preserve mac/vlan tag for device = %s, vf = %d"
@@ -16973,8 +16983,7 @@ msgstr ""
 msgid "Unable to read virtiofsd pidfile '%s'"
 msgstr ""
 
-#, c-format
-msgid "Unable to register Machine, rc=%08x"
+msgid "Unable to register Machine"
 msgstr ""
 
 msgid "Unable to register async IO callback"
@@ -17213,15 +17222,15 @@ msgstr ""
 
 #, c-format
 msgid "Unable to set SELinux context MCS '%s'"
-msgstr ""
+msgstr "SELinux-ის კონტექსტის MCS '%s'-ის დაყენების შეცდომა"
 
 #, c-format
 msgid "Unable to set SELinux context role '%s'"
-msgstr ""
+msgstr "SELinux-ის როლის ('%s') დაყენების შეცდომა"
 
 #, c-format
 msgid "Unable to set SELinux context user '%s'"
-msgstr ""
+msgstr "SELinux-ის კონტექსტის მომხმარებლის ('%s') დაყენების შეცდომა"
 
 #, c-format
 msgid "Unable to set SELinux label on %s"
@@ -17374,11 +17383,11 @@ msgstr ""
 
 #, c-format
 msgid "Unable to stat %p"
-msgstr ""
+msgstr "%p-ის აღმოჩენის შეცდომა"
 
 #, c-format
 msgid "Unable to stat %s"
-msgstr ""
+msgstr "%s-ის აღმოჩენის შეცდომა"
 
 #, c-format
 msgid "Unable to stat bind source %s"
@@ -17390,7 +17399,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to stat: %s"
-msgstr ""
+msgstr "%s-ის აღმოჩენის შეცდომა"
 
 #, c-format
 msgid "Unable to symlink directory %s to %s"
@@ -17426,8 +17435,7 @@ msgstr ""
 msgid "Unable to unlink path '%s'"
 msgstr ""
 
-#, c-format
-msgid "Unable to unregister machine, rc=%08x"
+msgid "Unable to unregister machine"
 msgstr ""
 
 msgid "Unable to update server's tls related files."
@@ -17753,7 +17761,7 @@ msgid "Unix file descriptors not supported on this platform"
 msgstr ""
 
 msgid "Unknown"
-msgstr "უცნობია"
+msgstr "უცნობი"
 
 #, c-format
 msgid "Unknown CPU feature %s"
@@ -17777,7 +17785,7 @@ msgstr ""
 
 #, c-format
 msgid "Unknown Command '%i'"
-msgstr ""
+msgstr "უცნობი ბრძანება: '%i'"
 
 msgid "Unknown Error"
 msgstr "უცნობი შეცდომა"
@@ -17994,7 +18002,7 @@ msgstr ""
 
 #, c-format
 msgid "Unknown parameter %s"
-msgstr ""
+msgstr "უცნობი პარამეტრი %s"
 
 msgid "Unknown parameter type"
 msgstr "პარამეტრის უცნობ ტიპი"
@@ -18220,7 +18228,7 @@ msgstr ""
 
 #, c-format
 msgid "Unsupported boot device type: '%s'"
-msgstr ""
+msgstr "მხარდაუჭერელი ჩატვირთვის მოწყობილობის ტიპი: '%s'"
 
 msgid "Unsupported boot order configuration"
 msgstr ""
@@ -18291,7 +18299,7 @@ msgstr ""
 
 #, c-format
 msgid "Unsupported device type '%s'"
-msgstr ""
+msgstr "მხარდაუჭერელი მოწყობილობის ტიპი '%s'"
 
 #, c-format
 msgid "Unsupported device-mapper version. Expected %d got %d"
@@ -18313,14 +18321,14 @@ msgstr ""
 
 #, c-format
 msgid "Unsupported disk device type '%s'"
-msgstr ""
+msgstr "დისკის მოწყობილობის მხარდაუჭერელი ტიპი '%s'"
 
 msgid "Unsupported disk type"
 msgstr "დისკის მხარდაუჭერელი ტიპი"
 
 #, c-format
 msgid "Unsupported disk type %d"
-msgstr ""
+msgstr "დისკის მხარდაუჭერელი ტიპი %d"
 
 #, c-format
 msgid "Unsupported format of disk %s"
@@ -18332,7 +18340,7 @@ msgstr ""
 
 #, c-format
 msgid "Unsupported graphics type '%s'"
-msgstr ""
+msgstr "გრაფიკის მხარდაუჭერელი ტიპი '%s'"
 
 #, c-format
 msgid "Unsupported host device mode %s"
@@ -18340,7 +18348,7 @@ msgstr ""
 
 #, c-format
 msgid "Unsupported host device type %s"
-msgstr ""
+msgstr "მხარდაუჭერელი ჰოსტის მოწყობილობის ტიპი %s"
 
 #, c-format
 msgid "Unsupported hostdev mode %s"
@@ -18423,7 +18431,7 @@ msgstr ""
 
 #, c-format
 msgid "Unsupported video device type '%s'"
-msgstr ""
+msgstr "მხარდაუჭერელი ვიდეო მოწყობილობის ტიპი '%s'"
 
 msgid "Unsupported virt type"
 msgstr ""
@@ -18449,7 +18457,7 @@ msgid "Update values of a memory device of a domain"
 msgstr ""
 
 msgid "Updated"
-msgstr "განახლდა"
+msgstr "განახლებულია"
 
 #, c-format
 msgid "Updated network %s live state"
@@ -18551,13 +18559,6 @@ msgstr ""
 msgid "User namespace support is recommended"
 msgstr ""
 
-msgid ""
-"Username and key file path must be provided for private key authentication"
-msgstr ""
-
-msgid "Username must be provided for ssh agent authentication"
-msgstr ""
-
 msgid "Username request failed"
 msgstr ""
 
@@ -18577,10 +18578,10 @@ msgid "V1 controller '%s' is not wanted, but '%s' is co-mounted"
 msgstr ""
 
 msgid "VCPU"
-msgstr ""
+msgstr "VCPU"
 
 msgid "VCPU:"
-msgstr ""
+msgstr "VCPU:"
 
 #, c-format
 msgid ""
@@ -18672,10 +18673,6 @@ msgstr ""
 msgid "Value of cputune '%s' must be in range [%llu, %llu]"
 msgstr ""
 
-#, c-format
-msgid "Value of cputune 'shares' must be in range [%llu, %llu]"
-msgstr ""
-
 msgid "Variable value contains invalid character"
 msgstr ""
 
@@ -18761,7 +18758,7 @@ msgid "VxHS protocol is not supported with this QEMU binary"
 msgstr ""
 
 msgid "WARN"
-msgstr ""
+msgstr "გაფრთხ"
 
 #, c-format
 msgid "WS-Management fault during %s invocation: %s"
@@ -19183,7 +19180,7 @@ msgid "applyDHCPOnlyRules failed - spoofing not protected!"
 msgstr ""
 
 msgid "architecture"
-msgstr ""
+msgstr "არქტიტექტურა"
 
 #, c-format
 msgid "architecture from emulator '%s' doesn't match given architecture '%s'"
@@ -19333,7 +19330,7 @@ msgid "auth username to be used for underlying storage"
 msgstr ""
 
 msgid "authentication cancelled"
-msgstr ""
+msgstr "ავთენტიკაცია გაუქმდა"
 
 #, c-format
 msgid "authentication cancelled: %s"
@@ -19347,7 +19344,7 @@ msgstr ""
 
 #, c-format
 msgid "authentication failed: %s"
-msgstr ""
+msgstr "ავთენტიკაციის შეცდომა: %s"
 
 #, c-format
 msgid "authentication is not supported for protocol '%s'"
@@ -19357,7 +19354,7 @@ msgid "authentication is supported only for network backed disks"
 msgstr ""
 
 msgid "authentication required"
-msgstr "საჭიროა ავთენტიკაცია"
+msgstr "ავთენტიკაცია აუცილებელია"
 
 msgid "authentication unavailable"
 msgstr ""
@@ -19441,7 +19438,7 @@ msgid ""
 msgstr ""
 
 msgid "backup"
-msgstr ""
+msgstr "მარქაფი"
 
 msgid "backup TLS directory not configured"
 msgstr ""
@@ -19544,7 +19541,7 @@ msgid "blkio weight is valid only for bfq or cfq scheduler"
 msgstr ""
 
 msgid "block"
-msgstr ""
+msgstr "ბლოკი"
 
 #, c-format
 msgid "block I/O throttle limit must be no more than %llu using QEMU"
@@ -19642,7 +19639,7 @@ msgid "blockdev-create job was cancelled"
 msgstr ""
 
 msgid "blocked"
-msgstr ""
+msgstr "დაბლოკილია"
 
 msgid "blockio is not supported with vhostuser disk"
 msgstr ""
@@ -19693,7 +19690,7 @@ msgid "boot order is only supported for virtiofs"
 msgstr ""
 
 msgid "booted"
-msgstr ""
+msgstr "ჩატვირთულია"
 
 msgid ""
 "booting from assigned devices is not supported by mediated devices of model "
@@ -19777,7 +19774,7 @@ msgid "build the pool as normal"
 msgstr ""
 
 msgid "building"
-msgstr ""
+msgstr "აგება"
 
 msgid "bus must be 0 for sata controller"
 msgstr ""
@@ -19786,7 +19783,7 @@ msgid "bypass cache unsupported by this system"
 msgstr ""
 
 msgid "bytes"
-msgstr "ბაიტები"
+msgstr "ბაიტი"
 
 msgid "cache is not supported with vhostuser disk"
 msgstr ""
@@ -20219,7 +20216,7 @@ msgstr ""
 
 #, c-format
 msgid "cannot create log directory %s"
-msgstr ""
+msgstr "ჟურნალის საქაღალდის (%s) შექმნის შეცდომა"
 
 msgid "cannot create logger for libxenlight, disabling driver"
 msgstr ""
@@ -20735,6 +20732,9 @@ msgstr ""
 msgid "cannot modify network device address type"
 msgstr ""
 
+msgid "cannot modify network device backend settings"
+msgstr ""
+
 msgid "cannot modify network device boot index setting"
 msgstr ""
 
@@ -20778,7 +20778,7 @@ msgstr "%s გახსნა ვერ მოხერხდა"
 
 #, c-format
 msgid "cannot open '%s'"
-msgstr ""
+msgstr "'%s'-ის გახსნის შეცდომა"
 
 msgid "cannot open SELinux label_handle"
 msgstr ""
@@ -21243,7 +21243,7 @@ msgstr ""
 
 #, c-format
 msgid "cannot stat '%s'"
-msgstr ""
+msgstr "%s-ის აღმოჩენის შეცდომა"
 
 #, c-format
 msgid "cannot stat fd %d"
@@ -21378,7 +21378,7 @@ msgid "cap for XEN_CREDIT"
 msgstr ""
 
 msgid "capabilities"
-msgstr ""
+msgstr "შესაძლებლობები"
 
 msgid "capability names, separated by comma"
 msgstr ""
@@ -21790,7 +21790,7 @@ msgid "computing baseline hypervisor CPU is not supported for arch %s"
 msgstr ""
 
 msgid "config"
-msgstr ""
+msgstr "კონფიგურაცია"
 
 msgid "config data file to import from"
 msgstr ""
@@ -21826,7 +21826,7 @@ msgid "conn must match stream connection"
 msgstr ""
 
 msgid "connect"
-msgstr ""
+msgstr "დაკავშირება"
 
 msgid "connect to daemon's admin server"
 msgstr ""
@@ -21959,7 +21959,7 @@ msgid "could not allocate memory"
 msgstr ""
 
 #, c-format
-msgid "could not attach shared folder '%s', rc=%08x"
+msgid "could not attach shared folder '%s'"
 msgstr ""
 
 msgid "could not build absolute core file path"
@@ -21972,15 +21972,15 @@ msgid "could not build absolute output file path"
 msgstr ""
 
 #, c-format
-msgid "could not change ACPI status to: %s, rc=%08x"
+msgid "could not change ACPI status to: %s"
 msgstr ""
 
 #, c-format
-msgid "could not change APIC status to: %s, rc=%08x"
+msgid "could not change APIC status to: %s"
 msgstr ""
 
 #, c-format
-msgid "could not change PAE status to: %s, rc=%08x"
+msgid "could not change PAE status to: %s"
 msgstr ""
 
 msgid "could not close handshake fd"
@@ -22015,19 +22015,17 @@ msgstr ""
 msgid "could not create profile"
 msgstr ""
 
-#, c-format
-msgid "could not define a domain, rc=%08x"
+msgid "could not define a domain"
 msgstr ""
 
 msgid "could not delete snapshot"
 msgstr ""
 
-#, c-format
-msgid "could not delete the domain, rc=%08x"
+msgid "could not delete the domain"
 msgstr ""
 
 #, c-format
-msgid "could not detach shared folder '%s', rc=%08x"
+msgid "could not detach shared folder '%s'"
 msgstr ""
 
 msgid "could not determine max vcpus for the domain"
@@ -22175,7 +22173,7 @@ msgid "could not parse XML"
 msgstr ""
 
 msgid "could not parse arguments"
-msgstr ""
+msgstr "არგუმენტების დამუშავების შეცდომა"
 
 #, c-format
 msgid "could not parse read bytes sec %s"
@@ -22222,19 +22220,19 @@ msgid "could not set PATH"
 msgstr ""
 
 #, c-format
-msgid "could not set the memory size of the domain to: %llu Kb, rc=%08x"
+msgid "could not set the memory size of the domain to: %llu Kb"
 msgstr ""
 
 #, c-format
-msgid "could not set the memory size of the domain to: %lu Kb, rc=%08x"
+msgid "could not set the memory size of the domain to: %lu Kb"
 msgstr ""
 
 #, c-format
-msgid "could not set the number of cpus of the domain to: %u, rc=%08x"
+msgid "could not set the number of cpus of the domain to: %u"
 msgstr ""
 
 #, c-format
-msgid "could not set the number of virtual CPUs to: %u, rc=%08x"
+msgid "could not set the number of virtual CPUs to: %u"
 msgstr ""
 
 #, c-format
@@ -22371,7 +22369,7 @@ msgid "crash the domain after core dump"
 msgstr ""
 
 msgid "crashed"
-msgstr ""
+msgstr "ავარიულია"
 
 msgid "create a bridge device and attach an existing network device to it"
 msgstr ""
@@ -22420,7 +22418,7 @@ msgid "creating checkpoint for incremental backup is not supported yet"
 msgstr ""
 
 msgid "creating snapshot"
-msgstr ""
+msgstr "სწრაფი ასლის შექმნა"
 
 msgid "creation of images with slice type='storage' is not supported"
 msgstr ""
@@ -22435,6 +22433,18 @@ msgid "creation of qcow/qcow2 files supports only 'luks' encryption"
 msgstr ""
 
 msgid "creation of qcow2 encrypted image is not supported"
+msgstr ""
+
+#, c-format
+msgid "crypto backend %s is not supported"
+msgstr ""
+
+#, c-format
+msgid "crypto model %s is not supported"
+msgstr ""
+
+#, c-format
+msgid "crypto type %s is not supported"
 msgstr ""
 
 #, c-format
@@ -22500,7 +22510,7 @@ msgid "custom monitor control commands issued"
 msgstr ""
 
 msgid "daemon"
-msgstr ""
+msgstr "დემონი"
 
 msgid "daemon's admin server connection URI"
 msgstr ""
@@ -22534,7 +22544,7 @@ msgid "dbus-daemon died and reported: %s"
 msgstr ""
 
 msgid "debug"
-msgstr ""
+msgstr "გამართვა"
 
 msgid "default"
 msgstr "ნაგულისხმები"
@@ -22650,7 +22660,7 @@ msgid "deprecated configuration: %s"
 msgstr ""
 
 msgid "description"
-msgstr ""
+msgstr "აღწერა"
 
 msgid "description of checkpoint"
 msgstr ""
@@ -22674,7 +22684,7 @@ msgid "destroy a physical host interface (disable it / \"if-down\")"
 msgstr ""
 
 msgid "destroyed"
-msgstr ""
+msgstr "განადგურებულია"
 
 msgid "detach device from an XML file"
 msgstr ""
@@ -22758,7 +22768,7 @@ msgid "device list is not an object"
 msgstr ""
 
 msgid "device name"
-msgstr ""
+msgstr "მოწყობილობის სახელი"
 
 msgid "device name or wwn pair in 'wwnn,wwpn' format"
 msgstr ""
@@ -22818,7 +22828,7 @@ msgid "dimm memory info data is missing 'id'"
 msgstr ""
 
 msgid "dir"
-msgstr ""
+msgstr "dir"
 
 msgid "direct migration"
 msgstr ""
@@ -22881,7 +22891,7 @@ msgid "discarding %llu bytes failed on RBD image %s at offset %llu"
 msgstr ""
 
 msgid "disconnect"
-msgstr ""
+msgstr "გათიშვა"
 
 msgid "disconnected"
 msgstr "გათიშულია"
@@ -23232,9 +23242,6 @@ msgstr ""
 msgid "domain already has a vsock device"
 msgstr ""
 
-msgid "domain already has a watchdog"
-msgstr ""
-
 msgid "domain architecture (/domain/os/type/@arch)"
 msgstr ""
 
@@ -23294,9 +23301,6 @@ msgid "domain has assigned host devices"
 msgstr ""
 
 msgid "domain has no snapshots"
-msgstr ""
-
-msgid "domain has no watchdog"
 msgstr ""
 
 msgid "domain has to be shutoff before renaming"
@@ -23371,7 +23375,7 @@ msgid "domain name or uuid"
 msgstr ""
 
 msgid "domain name, id or uuid"
-msgstr ""
+msgstr "დომენის სახელი, id, ან uuid"
 
 msgid "domain save"
 msgstr ""
@@ -23443,7 +23447,7 @@ msgid "don't start the detached interface immediately (not recommended)"
 msgstr ""
 
 msgid "done"
-msgstr "შესრულებულია"
+msgstr "მზადაა"
 
 msgid "download volume contents to a file"
 msgstr ""
@@ -23481,7 +23485,7 @@ msgid "dumpformat '%d' is not supported"
 msgstr ""
 
 msgid "dumping"
-msgstr ""
+msgstr "დამპის ჩაწერა"
 
 msgid "dup2(stderr) failed"
 msgstr ""
@@ -23607,7 +23611,7 @@ msgid "empty json array"
 msgstr ""
 
 msgid "empty path"
-msgstr ""
+msgstr "ცარიელი ბილიკი"
 
 msgid "empty rbd option name specified"
 msgstr ""
@@ -23625,7 +23629,7 @@ msgid "emulator '%s' not found"
 msgstr ""
 
 msgid "emulator:"
-msgstr ""
+msgstr "ემულატორი:"
 
 msgid "enable"
 msgstr "ჩართვა"
@@ -23691,7 +23695,7 @@ msgid "enumerate devices on this host"
 msgstr ""
 
 msgid "error"
-msgstr ""
+msgstr "შეცდომა"
 
 #, c-format
 msgid "error %d during port-profile setlink on interface %s (%d)"
@@ -23975,7 +23979,7 @@ msgid "event loop timed out\n"
 msgstr ""
 
 msgid "event wakeup"
-msgstr ""
+msgstr "მოვლენის გაღვიძება"
 
 #, c-format
 msgid "eventID in %s must be less than %d"
@@ -24251,7 +24255,7 @@ msgstr ""
 
 #, c-format
 msgid "failed to connect to %s"
-msgstr ""
+msgstr "დაკავშირების შეცდომა: %s"
 
 msgid "failed to connect to agent socket"
 msgstr ""
@@ -24316,7 +24320,7 @@ msgstr ""
 
 #, c-format
 msgid "failed to create directory '%s'"
-msgstr ""
+msgstr "საქაღალდის (%s) შექმნის შეცდომა"
 
 #, c-format
 msgid "failed to create dump dir '%s'"
@@ -24420,6 +24424,10 @@ msgstr ""
 
 #, c-format
 msgid "failed to duplicate file descriptor for fd group '%s'"
+msgstr ""
+
+#, c-format
+msgid "failed to duplicate passed fd with index '%zu'"
 msgstr ""
 
 msgid "failed to enable IP forwarding"
@@ -24802,7 +24810,7 @@ msgid "failed to open domain master key file for write"
 msgstr ""
 
 msgid "failed to open file"
-msgstr ""
+msgstr "ფაილის გახსნის შეცდომა"
 
 #, c-format
 msgid "failed to open logfile %s"
@@ -24814,7 +24822,7 @@ msgstr ""
 
 #, c-format
 msgid "failed to open ns %s"
-msgstr ""
+msgstr "შეცდომა ns-ის (%s) გახსნისას"
 
 msgid "failed to open secret file for write"
 msgstr ""
@@ -25074,7 +25082,7 @@ msgstr ""
 
 #, c-format
 msgid "failed to resolve '%s'"
-msgstr ""
+msgstr "გადაწყვეტის პრობლემა: %s"
 
 msgid ""
 "failed to resolve relative backing name: base image is not in backing chain"
@@ -25102,10 +25110,10 @@ msgstr ""
 msgid "failed to retrieve decision to accept host key"
 msgstr ""
 
-msgid "failed to retrieve keyboard interactive result: callback has failed"
+msgid "failed to retrieve private key passphrase: callback has failed"
 msgstr ""
 
-msgid "failed to retrieve private key passphrase: callback has failed"
+msgid "failed to retrieve user response for authentication callback"
 msgstr ""
 
 #, c-format
@@ -25367,11 +25375,11 @@ msgid "field '%s' is malformed"
 msgstr ""
 
 msgid "file"
-msgstr "file"
+msgstr "ფაილი"
 
 #, c-format
 msgid "file %s does not exist"
-msgstr ""
+msgstr "ფაილი [%s] არ არსებობს"
 
 #, c-format
 msgid "file '%s' for disk '%s' requires use of external snapshot mode"
@@ -25686,7 +25694,7 @@ msgid "freePageReporting is not supported by this QEMU binary"
 msgstr ""
 
 msgid "from snapshot"
-msgstr ""
+msgstr "სწრაფი ასლიდან"
 
 #, c-format
 msgid "fs driver %s is not supported"
@@ -25857,7 +25865,7 @@ msgid "group_name can be configured only together with settings"
 msgstr ""
 
 msgid "guest"
-msgstr ""
+msgstr "სტუმარი"
 
 msgid "guest CIDs must be >= 3"
 msgstr ""
@@ -25923,7 +25931,7 @@ msgstr ""
 msgid "guest unexpectedly quit during hotplug"
 msgstr ""
 
-msgid "guest-get-fsinfo reply was missing return data"
+msgid "guest-get-fsinfo reply was missing or not an array"
 msgstr ""
 
 msgid "guest-get-osinfo reply was missing return data"
@@ -26165,7 +26173,7 @@ msgid "hugetlbfs filesystem is not mounted or disabled by administrator config"
 msgstr ""
 
 msgid "hypervisor"
-msgstr ""
+msgstr "ჰაიპერვაიზორი"
 
 msgid "hypervisor connection URI"
 msgstr ""
@@ -26198,7 +26206,7 @@ msgid "idle"
 msgstr "უქმე"
 
 msgid "idle:"
-msgstr ""
+msgstr "უქმე:"
 
 msgid "ids of vcpus to manipulate"
 msgstr ""
@@ -26216,7 +26224,7 @@ msgid "ifkey \"%s\" has no req"
 msgstr ""
 
 msgid "ignore"
-msgstr ""
+msgstr "იგნორირება"
 
 #, c-format
 msgid "ignoring debug level %d out of range [%d-%d]"
@@ -26336,7 +26344,7 @@ msgid "initial memory size overflowed after alignment"
 msgstr ""
 
 msgid "initialize"
-msgstr ""
+msgstr "ინიციალიზაცია"
 
 msgid "initiator iqn for underlying storage"
 msgstr ""
@@ -26766,7 +26774,7 @@ msgstr ""
 
 #, c-format
 msgid "invalid argument: %s"
-msgstr ""
+msgstr "არასწორი არგუმენტი: %s"
 
 #, c-format
 msgid "invalid backing protocol '%s'"
@@ -27207,7 +27215,7 @@ msgstr ""
 
 #, c-format
 msgid "invalid value %d"
-msgstr ""
+msgstr "არასწორი მნიშვნელობა %d"
 
 #, c-format
 msgid "invalid value '%s' for migration parameter '%s'"
@@ -27318,7 +27326,7 @@ msgid "iowait:"
 msgstr ""
 
 msgid "ipset name contains invalid characters"
-msgstr ""
+msgstr "ipset-ის სახელი არასწორ სიმბოლოებს შეიცავს"
 
 msgid "ipset name is too long"
 msgstr ""
@@ -28226,7 +28234,7 @@ msgid "maxids > REMOTE_DOMAIN_LIST_MAX"
 msgstr ""
 
 msgid "maximum"
-msgstr ""
+msgstr "მაქსიმუმი"
 
 msgid "maximum CPU is not supported by QEMU binary"
 msgstr ""
@@ -28452,13 +28460,13 @@ msgid "migrate_tls_x509_cert_dir directory '%s' does not exist"
 msgstr ""
 
 msgid "migrated"
-msgstr ""
+msgstr "მიგრირებულია"
 
 msgid "migrating"
-msgstr ""
+msgstr "მიგრირება"
 
 msgid "migration"
-msgstr ""
+msgstr "მიგრაცია"
 
 msgid "migration URI is not supported by tunnelled migration"
 msgstr ""
@@ -28470,7 +28478,7 @@ msgid "migration bandwidth limit in MiB/s"
 msgstr ""
 
 msgid "migration canceled"
-msgstr ""
+msgstr "მიგრაცია გაუქმდა"
 
 msgid "migration in"
 msgstr ""
@@ -28599,7 +28607,7 @@ msgid "mismatched header magic"
 msgstr ""
 
 msgid "missing \""
-msgstr ""
+msgstr "აკლია \""
 
 #, c-format
 msgid "missing %s in <virtualport type='%s'>"
@@ -28972,7 +28980,7 @@ msgstr ""
 msgid "missing existing file for disk %s: %s"
 msgstr ""
 
-msgid "missing external TPM backend type"
+msgid "missing external TPM backend source type"
 msgstr ""
 
 msgid "missing feature name"
@@ -29042,7 +29050,7 @@ msgid "missing input volume target path"
 msgstr ""
 
 msgid "missing interface information"
-msgstr ""
+msgstr "ინტერფეისის ინფორმაციის გარეშე"
 
 msgid "missing ivgen info name string"
 msgstr ""
@@ -29492,15 +29500,11 @@ msgstr ""
 msgid "model '%s' shmem device not present in domain configuration"
 msgstr ""
 
-#, c-format
-msgid "model '%s' watchdog device not present in domain configuration"
-msgstr ""
-
 msgid "model resolution is not supported"
 msgstr ""
 
 msgid "model type"
-msgstr ""
+msgstr "მოდელის ტიპი"
 
 msgid "modifies an existing IOThread of the guest domain"
 msgstr ""
@@ -29731,7 +29735,7 @@ msgid "netmask not allowed for IPv6 address '%s' in network '%s'"
 msgstr ""
 
 msgid "network"
-msgstr ""
+msgstr "ქსელი"
 
 #, c-format
 msgid "network %s exists already"
@@ -29888,7 +29892,7 @@ msgid "network is not running"
 msgstr ""
 
 msgid "network name"
-msgstr ""
+msgstr "ქსელის სახელი"
 
 msgid "network name or uuid"
 msgstr ""
@@ -29975,7 +29979,7 @@ msgid "nl_recv returned with error"
 msgstr ""
 
 msgid "no"
-msgstr ""
+msgstr "არა"
 
 msgid "no CPU model specified"
 msgstr ""
@@ -30272,6 +30276,9 @@ msgstr ""
 msgid "no matching redirdev was not found"
 msgstr ""
 
+msgid "no matching watchdog was found"
+msgstr ""
+
 msgid "no medium attachments"
 msgstr ""
 
@@ -30434,13 +30441,10 @@ msgstr ""
 msgid "no such screen ID"
 msgstr ""
 
+msgid "no suitable callback authentication callback was found"
+msgstr ""
+
 msgid "no suitable callback for host key verification"
-msgstr ""
-
-msgid "no suitable callback for input of key passphrase"
-msgstr ""
-
-msgid "no suitable callback for input of keyboard response"
 msgstr ""
 
 msgid "no suitable info found"
@@ -30571,7 +30575,7 @@ msgid "non unique alias detected: %s"
 msgstr ""
 
 msgid "none"
-msgstr ""
+msgstr "არცერთი"
 
 msgid "nonzero ncpus doesn't match with NULL cpus"
 msgstr ""
@@ -30622,7 +30626,7 @@ msgid "numad is not available on this host"
 msgstr ""
 
 msgid "number"
-msgstr "ნომერი"
+msgstr "რიცხვი"
 
 msgid "number of bytes read:"
 msgstr ""
@@ -30760,7 +30764,7 @@ msgid ""
 "online non-hotpluggable vcpus need to be ordered prior to hotplugable vcpus"
 msgstr ""
 
-msgid "only 'client' mode is supported for external TPM device"
+msgid "only 'connect' mode is supported for external TPM device"
 msgstr ""
 
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
@@ -30817,9 +30821,6 @@ msgstr ""
 msgid "only a single vsock device is supported"
 msgstr ""
 
-msgid "only a single watchdog device is supported"
-msgstr ""
-
 msgid "only bus 'virtio' is supported for 'passthrough' input devices"
 msgstr ""
 
@@ -30865,6 +30866,9 @@ msgid "only one TPM backend is supported"
 msgstr ""
 
 msgid "only one backup job is supported"
+msgstr ""
+
+msgid "only one crypto backend is supported"
 msgstr ""
 
 msgid "only one emulatorpin is supported"
@@ -30965,7 +30969,7 @@ msgid "operation '%s' not supported for backend '%s'"
 msgstr ""
 
 msgid "operation aborted"
-msgstr ""
+msgstr "ოპერაცია გაუქმდა"
 
 #, c-format
 msgid "operation aborted: %s"
@@ -31035,7 +31039,7 @@ msgid "optional port to query"
 msgstr ""
 
 msgid "options"
-msgstr ""
+msgstr "მორგება"
 
 msgid "os.type is not defined"
 msgstr ""
@@ -31131,7 +31135,7 @@ msgid "panic is supported only with ISA address type"
 msgstr ""
 
 msgid "panicked"
-msgstr ""
+msgstr "დაპანიკებულია"
 
 msgid "parallel ports are not supported"
 msgstr ""
@@ -31201,7 +31205,7 @@ msgid "parent '%s' specified for vHBA does not exist"
 msgstr ""
 
 msgid "parser error"
-msgstr ""
+msgstr "დამუშავების შეცდომა"
 
 msgid "partial string to autocomplete"
 msgstr ""
@@ -31264,7 +31268,7 @@ msgid "path to secret data file is required"
 msgstr ""
 
 msgid "pause"
-msgstr ""
+msgstr "შეჩერება"
 
 msgid "paused"
 msgstr "შეჩერებული"
@@ -31397,7 +31401,7 @@ msgid "physical address within the guest domain's memory to set the secret"
 msgstr ""
 
 msgid "pid"
-msgstr ""
+msgstr "pid"
 
 #, c-format
 msgid "pid_value in %s is too large"
@@ -31736,6 +31740,9 @@ msgstr ""
 
 #, c-format
 msgid "pull mode backup for disk '%s' requires qcow2 driver"
+msgstr ""
+
+msgid "pvpanic is supported only with PCI address type"
 msgstr ""
 
 #, c-format
@@ -32077,7 +32084,7 @@ msgid "readonly sata disks are not supported"
 msgstr ""
 
 msgid "ready"
-msgstr ""
+msgstr "მზადაა"
 
 msgid "reattach node device to its device driver"
 msgstr ""
@@ -32227,7 +32234,7 @@ msgid "reply was missing return data"
 msgstr ""
 
 msgid "report"
-msgstr ""
+msgstr "ანგარიში"
 
 msgid "report active users"
 msgstr ""
@@ -32359,7 +32366,7 @@ msgid "reservations not supported with this QEMU binary"
 msgstr ""
 
 msgid "reset"
-msgstr "reset"
+msgstr "საწყის მნიშვნელობებზე დაბრუნება"
 
 msgid "reset a domain"
 msgstr ""
@@ -32552,13 +32559,13 @@ msgid "save a domain state to a file"
 msgstr ""
 
 msgid "save canceled"
-msgstr ""
+msgstr "შენახვა გაუქმდა"
 
 msgid "save image is incomplete"
 msgstr ""
 
 msgid "saved"
-msgstr ""
+msgstr "შენახულია"
 
 msgid "saved state domain information in XML"
 msgstr ""
@@ -32573,7 +32580,7 @@ msgid "saved state file to read"
 msgstr ""
 
 msgid "saving"
-msgstr ""
+msgstr "შენახვა"
 
 #, c-format
 msgid "saving domain '%s' failed to allocate space for metadata"
@@ -32986,13 +32993,13 @@ msgid "show timestamp for each printed event"
 msgstr ""
 
 msgid "show version"
-msgstr ""
+msgstr "ვერსიის ჩვენება"
 
 msgid "show/set scheduler parameters"
 msgstr ""
 
 msgid "shut off"
-msgstr ""
+msgstr "გათიშვა"
 
 msgid "shutdown"
 msgstr "გამორთვა"
@@ -33044,7 +33051,7 @@ msgid "slices are not supported with NVRAM"
 msgstr ""
 
 msgid "snapshot"
-msgstr ""
+msgstr "სწრაფი ასლი"
 
 #, c-format
 msgid "snapshot %s disappeared from list"
@@ -33238,7 +33245,7 @@ msgid "start_cpu %d larger than maximum of %d"
 msgstr ""
 
 msgid "started"
-msgstr "გაეშვა"
+msgstr "გაშვებულია"
 
 msgid "starting up"
 msgstr "გაშვება"
@@ -33320,7 +33327,7 @@ msgid "storage pool does not support vol deletion"
 msgstr ""
 
 msgid "storage pool does not support volume creation"
-msgstr ""
+msgstr "საცავის პულს ტომის შექმნის მხარდაჭერა არ გააჩნია"
 
 msgid "storage pool does not support volume creation from an existing volume"
 msgstr ""
@@ -33494,7 +33501,7 @@ msgid "system pages pool can't be modified"
 msgstr ""
 
 msgid "system:"
-msgstr ""
+msgstr "სისტემა:"
 
 #, c-format
 msgid "tainted: %s"
@@ -33590,7 +33597,7 @@ msgid "tb-cache size must be an integer multiple of MiB"
 msgstr ""
 
 msgid "tcp"
-msgstr ""
+msgstr "tcp"
 
 msgid "teaming hostdev devices must have type='transient'"
 msgstr ""
@@ -33640,6 +33647,9 @@ msgid "the MAC address '%s' matches multiple interfaces"
 msgstr ""
 
 msgid "the QEMU binary does not support the ISA panic device"
+msgstr ""
+
+msgid "the QEMU binary does not support the PCI pvpanic device"
 msgstr ""
 
 #, c-format
@@ -33701,6 +33711,9 @@ msgid "the machine has no snapshot"
 msgstr ""
 
 msgid "the new password"
+msgstr ""
+
+msgid "the passt network backend is not supported with this QEMU binary"
 msgstr ""
 
 msgid "the password is already encrypted"
@@ -33933,7 +33946,7 @@ msgid "titles are not supported by vz driver"
 msgstr ""
 
 msgid "tls"
-msgstr ""
+msgstr "tls"
 
 #, c-format
 msgid "too many NUMA cells: %d > %d"
@@ -34596,7 +34609,7 @@ msgstr "%s-ის გახსნის შეცდომა"
 
 #, c-format
 msgid "unable to open '%s'"
-msgstr ""
+msgstr "%s-ის გახსნის შეცდომა"
 
 #, c-format
 msgid "unable to open host cpu perf event for %s"
@@ -34610,11 +34623,11 @@ msgstr ""
 
 #, c-format
 msgid "unable to parse %s"
-msgstr ""
+msgstr "დამუშავების შეცდომა: %s"
 
 #, c-format
 msgid "unable to parse FD: %s"
-msgstr ""
+msgstr "FD-ის დამუშავების შეცდომა: %s"
 
 #, c-format
 msgid "unable to parse URI scheme '%s'"
@@ -34622,7 +34635,7 @@ msgstr ""
 
 #, c-format
 msgid "unable to parse URI: %s"
-msgstr ""
+msgstr "URI-ის დამუშავების შეცდომა: %s"
 
 #, c-format
 msgid "unable to parse blkio device '%s' '%s'"
@@ -34665,7 +34678,7 @@ msgstr ""
 
 #, c-format
 msgid "unable to parse: %s"
-msgstr ""
+msgstr "დამუშავების შეცდომა: %s"
 
 msgid "unable to perform snapshot filtering"
 msgstr ""
@@ -34817,7 +34830,7 @@ msgstr ""
 
 #, c-format
 msgid "unable to stat: %s"
-msgstr ""
+msgstr "აღმოჩენის შეცდომა: %s"
 
 msgid "unable to truncate"
 msgstr ""
@@ -34888,7 +34901,7 @@ msgid "undefine an interface."
 msgstr ""
 
 msgid "undefined"
-msgstr ""
+msgstr "გაურკვეველი"
 
 msgid "undefined hardware architecture"
 msgstr ""
@@ -35267,7 +35280,7 @@ msgid "unix"
 msgstr ""
 
 msgid "unknown"
-msgstr ""
+msgstr "უცნობი"
 
 #, c-format
 msgid "unknown %s action: %s"
@@ -35357,11 +35370,11 @@ msgid "unknown authentication type %s"
 msgstr ""
 
 #, c-format
-msgid "unknown backend type '%s' for egd"
+msgid "unknown backend source type '%s' for external TPM"
 msgstr ""
 
 #, c-format
-msgid "unknown backend type '%s' for external TPM"
+msgid "unknown backend type '%s' for egd"
 msgstr ""
 
 #, c-format
@@ -35416,7 +35429,7 @@ msgstr ""
 
 #, c-format
 msgid "unknown command: '%s'"
-msgstr ""
+msgstr "უცნობი ბრძანება: %s"
 
 #, c-format
 msgid "unknown connected value %s"
@@ -35582,11 +35595,11 @@ msgstr ""
 
 #, c-format
 msgid "unknown parameter '%s'"
-msgstr ""
+msgstr "უცნობი პარამეტრი %s"
 
 #, c-format
 msgid "unknown parameter type: %d"
-msgstr ""
+msgstr "უცნობი პარამეტრის ტიპი: %d"
 
 msgid "unknown partition type"
 msgstr ""
@@ -35772,7 +35785,7 @@ msgid "unmanaged target dev is not supported on interfaces of type '%s'"
 msgstr ""
 
 msgid "unpaused"
-msgstr ""
+msgstr "გაგრძელებულია"
 
 msgid "unplug of device was rejected by the guest"
 msgstr ""
@@ -35798,7 +35811,7 @@ msgid "unrecognized section name '%s'"
 msgstr ""
 
 msgid "unspecified error"
-msgstr ""
+msgstr "მიუთითებელი შეცდომა"
 
 #, c-format
 msgid ""
@@ -35820,6 +35833,10 @@ msgstr ""
 
 #, c-format
 msgid "unsupported HyperV Enlightenment feature: %s"
+msgstr ""
+
+#, c-format
+msgid "unsupported IPv6 address prefix='%u' - must be 64"
 msgstr ""
 
 #, c-format
@@ -35869,7 +35886,7 @@ msgstr ""
 
 #, c-format
 msgid "unsupported authentication type %d"
-msgstr ""
+msgstr "მხარდაუჭერელი ავთენტიკაციის ტიპი %d"
 
 #, c-format
 msgid "unsupported balloon device model '%s'"
@@ -35881,7 +35898,7 @@ msgstr ""
 
 #, c-format
 msgid "unsupported chr device type '%s'"
-msgstr ""
+msgstr "სიმბოლური მოწყობილობის მხარდაუჭერელი ტიპი '%s'"
 
 msgid "unsupported clock adjustment='reset'"
 msgstr ""
@@ -35953,11 +35970,11 @@ msgid "unsupported disk snapshot type '%s'"
 msgstr ""
 
 msgid "unsupported disk type"
-msgstr ""
+msgstr "დისკის მხარდაუჭერელი ტიპი"
 
 #, c-format
 msgid "unsupported disk type %s"
-msgstr ""
+msgstr "დისკის მხარდაუჭერელი ტიპი %s"
 
 #, c-format
 msgid "unsupported driver name '%s'"
@@ -36146,7 +36163,7 @@ msgid "unsupported use of long flags in function %s"
 msgstr ""
 
 msgid "unsupported value"
-msgstr ""
+msgstr "მხარდაუჭერელი მნიშვნელობა"
 
 #, c-format
 msgid "unsupported volume encryption format %d"
@@ -36185,7 +36202,7 @@ msgid "uptime file has unexpected format '%s'"
 msgstr ""
 
 msgid "usage:"
-msgstr ""
+msgstr "გამოყენება:"
 
 #, c-format
 msgid "usb controller type '%s' doesn't support 'ports' with this QEMU binary"
@@ -36258,7 +36275,7 @@ msgid "user to set authorized keys for"
 msgstr ""
 
 msgid "user:"
-msgstr ""
+msgstr "მომხმარებელი:"
 
 #, c-format
 msgid "using '%s' pools for backing 'volume' disks isn't yet supported"
@@ -37012,12 +37029,13 @@ msgid "warning"
 msgstr "გაფრთხილება"
 
 msgid "watchdog"
-msgstr ""
-
-msgid "watchdog device not present in domain configuration"
-msgstr ""
+msgstr "საკონტროლო ტაიმერი"
 
 msgid "watchdog must contain model name"
+msgstr ""
+
+msgid ""
+"watchdogs with different actions are not supported with this QEMU binary"
 msgstr ""
 
 msgid "webSocket"
@@ -37099,7 +37117,7 @@ msgstr ""
 
 #, c-format
 msgid "write failed: %s"
-msgstr ""
+msgstr "ჩაწერის შეცდომა: %s"
 
 msgid "write max, as scaled integer (default bytes)"
 msgstr ""

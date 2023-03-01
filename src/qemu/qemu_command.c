@@ -926,6 +926,12 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
         }
             break;
 
+        case VIR_DOMAIN_DEVICE_CRYPTO: {
+            *baseName = "virtio-crypto";
+            *virtioOptions = device->data.crypto->virtio;
+            break;
+        }
+
         case VIR_DOMAIN_DEVICE_LEASE:
         case VIR_DOMAIN_DEVICE_SOUND:
         case VIR_DOMAIN_DEVICE_WATCHDOG:
@@ -2119,6 +2125,8 @@ qemuBuildBlockStorageSourceAttachDataCommandline(virCommand *cmd,
             return -1;
     }
 
+    qemuFDPassTransferCommand(data->fdpass, cmd);
+
     if (data->storageProps) {
         if (!(tmp = virJSONValueToString(data->storageProps, false)))
             return -1;
@@ -2148,25 +2156,6 @@ qemuBuildBlockStorageSourceAttachDataCommandline(virCommand *cmd,
 
 
 static int
-qemuBuildDiskSourceCommandLineFDs(virCommand *cmd,
-                                  virDomainDiskDef *disk)
-{
-    virStorageSource *n;
-
-    for (n = disk->src; virStorageSourceIsBacking(n); n = n->backingStore) {
-        qemuDomainStorageSourcePrivate *srcpriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(n);
-
-        if (!srcpriv || !srcpriv->fdpass)
-            continue;
-
-        qemuFDPassTransferCommand(srcpriv->fdpass, cmd);
-    }
-
-    return 0;
-}
-
-
-static int
 qemuBuildDiskSourceCommandLine(virCommand *cmd,
                                virDomainDiskDef *disk,
                                virQEMUCaps *qemuCaps)
@@ -2182,9 +2171,6 @@ qemuBuildDiskSourceCommandLine(virCommand *cmd,
     } else if (!qemuDiskBusIsSD(disk->bus)) {
         if (virStorageSourceIsEmpty(disk->src))
             return 0;
-
-        if (qemuBuildDiskSourceCommandLineFDs(cmd, disk) < 0)
-            return -1;
 
         if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(disk->src)))
             return -1;
@@ -4044,26 +4030,44 @@ qemuBuildWatchdogCommandLine(virCommand *cmd,
                              const virDomainDef *def,
                              virQEMUCaps *qemuCaps)
 {
-    virDomainWatchdogDef *watchdog = def->watchdog;
-    g_autoptr(virJSONValue) props = NULL;
+    virDomainWatchdogDef *watchdog = NULL;
     const char *action;
     int actualAction;
+    ssize_t i = 0;
+    bool itco_pin_strap = false;
 
-    if (!def->watchdog)
+    if (def->nwatchdogs == 0)
         return 0;
 
-    if (qemuCommandAddExtDevice(cmd, &def->watchdog->info, def, qemuCaps) < 0)
-        return -1;
+    for (i = 0; i < def->nwatchdogs; i++) {
+        g_autoptr(virJSONValue) props = NULL;
 
-    if (!(props = qemuBuildWatchdogDevProps(def, watchdog)))
-        return -1;
+        watchdog = def->watchdogs[i];
 
-    if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps))
-        return -1;
+        /* iTCO is part of q35 and cannot be added */
+        if (watchdog->model == VIR_DOMAIN_WATCHDOG_MODEL_ITCO) {
+            itco_pin_strap = true;
+            continue;
+        }
+
+        if (qemuCommandAddExtDevice(cmd, &watchdog->info, def, qemuCaps) < 0)
+            return -1;
+
+        if (!(props = qemuBuildWatchdogDevProps(def, watchdog)))
+            return -1;
+
+        if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps))
+            return -1;
+    }
+
+    if (itco_pin_strap)
+        virCommandAddArgList(cmd, "-global", "ICH9-LPC.noreboot=off", NULL);
 
     /* qemu doesn't have a 'dump' action; we tell qemu to 'pause', then
        libvirt listens for the watchdog event, and we perform the dump
-       ourselves. so convert 'dump' to 'pause' for the qemu cli */
+       ourselves. so convert 'dump' to 'pause' for the qemu cli. The
+       validator already checked that all watchdogs have the same action.
+    */
     actualAction = watchdog->action;
     if (watchdog->action == VIR_DOMAIN_WATCHDOG_ACTION_DUMP)
         actualAction = VIR_DOMAIN_WATCHDOG_ACTION_PAUSE;
@@ -9553,6 +9557,23 @@ qemuBuildPanicCommandLine(virCommand *cmd,
             break;
         }
 
+        case VIR_DOMAIN_PANIC_MODEL_PVPANIC: {
+            g_autoptr(virJSONValue) props = NULL;
+
+            if (virJSONValueObjectAdd(&props,
+                                      "s:driver", "pvpanic-pci",
+                                      NULL) < 0)
+                return -1;
+
+            if (qemuBuildDeviceAddressProps(props, def, &def->panics[i]->info) < 0)
+                return -1;
+
+            if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+                return -1;
+
+            break;
+        }
+
         case VIR_DOMAIN_PANIC_MODEL_S390:
         case VIR_DOMAIN_PANIC_MODEL_HYPERV:
         case VIR_DOMAIN_PANIC_MODEL_PSERIES:
@@ -9888,6 +9909,96 @@ qemuBuildVsockCommandLine(virCommand *cmd,
 
     if (qemuBuildDeviceCommandlineFromJSON(cmd, devprops, def, qemuCaps) < 0)
         return -1;
+
+    return 0;
+}
+
+
+VIR_ENUM_DECL(qemuCryptoBackend);
+VIR_ENUM_IMPL(qemuCryptoBackend,
+              VIR_DOMAIN_CRYPTO_BACKEND_LAST,
+              "cryptodev-backend-builtin",
+              "cryptodev-backend-lkcf",
+);
+
+
+static int
+qemuBuildCryptoBackendProps(virDomainCryptoDef *crypto,
+                            virJSONValue **props)
+{
+    g_autofree char *objAlias = NULL;
+
+    objAlias = g_strdup_printf("obj%s", crypto->info.alias);
+
+    if (qemuMonitorCreateObjectProps(props,
+                                     qemuCryptoBackendTypeToString(crypto->backend),
+                                     objAlias,
+                                     "p:queues", crypto->queues,
+                                     NULL) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static virJSONValue *
+qemuBuildCryptoDevProps(const virDomainDef *def,
+                        virDomainCryptoDef *dev,
+                        virQEMUCaps *qemuCaps)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    g_autofree char *crypto = g_strdup_printf("obj%s", dev->info.alias);
+
+    if (!(props = qemuBuildVirtioDevProps(VIR_DOMAIN_DEVICE_CRYPTO, dev, qemuCaps)))
+        return NULL;
+
+    if (virJSONValueObjectAdd(&props,
+                              "s:cryptodev", crypto,
+                              "s:id", dev->info.alias,
+                              NULL) < 0)
+        return NULL;
+
+    if (qemuBuildDeviceAddressProps(props, def, &dev->info) < 0)
+        return NULL;
+
+    return g_steal_pointer(&props);
+}
+
+
+static int
+qemuBuildCryptoCommandLine(virCommand *cmd,
+                           const virDomainDef *def,
+                           virQEMUCaps *qemuCaps)
+{
+    size_t i;
+
+    for (i = 0; i < def->ncryptos; i++) {
+        g_autoptr(virJSONValue) props = NULL;
+        virDomainCryptoDef *crypto = def->cryptos[i];
+        g_autoptr(virJSONValue) devprops = NULL;
+
+        if (!crypto->info.alias) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Crypto device is missing alias"));
+            return -1;
+        }
+
+        if (qemuBuildCryptoBackendProps(crypto, &props) < 0)
+            return -1;
+
+        if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)
+            return -1;
+
+        /* add the device */
+        if (qemuCommandAddExtDevice(cmd, &crypto->info, def, qemuCaps) < 0)
+            return -1;
+
+        if (!(devprops = qemuBuildCryptoDevProps(def, crypto, qemuCaps)))
+            return -1;
+
+        if (qemuBuildDeviceCommandlineFromJSON(cmd, devprops, def, qemuCaps) < 0)
+            return -1;
+    }
 
     return 0;
 }
@@ -10245,6 +10356,9 @@ qemuBuildCommandLine(virDomainObj *vm,
         qemuBuildVsockCommandLine(cmd, def, def->vsock, qemuCaps) < 0)
         return NULL;
 
+    if (qemuBuildCryptoCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
     if (cfg->logTimestamp)
         virCommandAddArgList(cmd, "-msg", "timestamp=on", NULL);
 
@@ -10537,6 +10651,8 @@ qemuBuildStorageSourceAttachPrepareCommon(virStorageSource *src,
 
             tlsKeySecretAlias = srcpriv->tlsKeySecret->alias;
         }
+
+        data->fdpass = srcpriv->fdpass;
     }
 
     if (src->haveTLS == VIR_TRISTATE_BOOL_YES &&

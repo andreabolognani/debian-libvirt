@@ -79,7 +79,7 @@ Application development
 `Language bindings and API modules <bindings.html>`__
    Bindings of the libvirt API for
    `c# <csharp.html>`__,
-   `go <https://pkg.go.dev/libvirt.org/go/libvirt>`__,
+   `go <https://pkg.go.dev/libvirt.org/go/libvirt>`__ (`all go modules <golang.html>`__),
    `java <java.html>`__,
    `ocaml <https://libvirt.org/ocaml/>`__,
    `perl <https://search.cpan.org/dist/Sys-Virt/>`__,
@@ -163,3 +163,6 @@ Project development
 
 `New repo setup <newreposetup.html>`__
    Procedure for configuring new git repositories for libvirt
+
+`Libvirt logos <logos/index.html>`__
+   Libvirt logo files and guideline how to use them

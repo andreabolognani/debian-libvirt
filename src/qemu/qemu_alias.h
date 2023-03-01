@@ -55,14 +55,16 @@ void qemuAssignDeviceRNGAlias(virDomainDef *def,
                               virDomainRNGDef *rng);
 
 int qemuAssignDeviceMemoryAlias(virDomainDef *def,
-                                virDomainMemoryDef *mems,
-                                bool oldAlias);
+                                virDomainMemoryDef *mems);
 
 void qemuAssignDeviceShmemAlias(virDomainDef *def,
                                 virDomainShmemDef *shmem,
                                 int idx);
 
-void qemuAssignDeviceWatchdogAlias(virDomainWatchdogDef *watchdog);
+void
+qemuAssignDeviceWatchdogAlias(virDomainDef *def,
+                              virDomainWatchdogDef *watchdog,
+                              int idx);
 
 void qemuAssignDeviceInputAlias(virDomainDef *def,
                                 virDomainInputDef *input,

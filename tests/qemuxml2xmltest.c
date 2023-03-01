@@ -459,7 +459,7 @@ mymain(void)
     DO_TEST_NOCAPS("net-vhostuser");
     DO_TEST_NOCAPS("net-user");
     DO_TEST_NOCAPS("net-user-addr");
-    DO_TEST_NOCAPS("net-user-passt");
+    DO_TEST_CAPS_LATEST("net-user-passt");
     DO_TEST_NOCAPS("net-virtio");
     DO_TEST_NOCAPS("net-virtio-device");
     DO_TEST_NOCAPS("net-virtio-disable-offloads");
@@ -489,6 +489,7 @@ mymain(void)
             QEMU_CAPS_HDA_DUPLEX,
             QEMU_CAPS_HDA_OUTPUT);
     DO_TEST_NOCAPS("watchdog");
+    DO_TEST_CAPS_LATEST("watchdog-q35-multiple");
     DO_TEST("net-bandwidth", QEMU_CAPS_DEVICE_VGA, QEMU_CAPS_VNC);
     DO_TEST("net-bandwidth2", QEMU_CAPS_DEVICE_VGA, QEMU_CAPS_VNC);
     DO_TEST_NOCAPS("net-mtu");
@@ -907,6 +908,10 @@ mymain(void)
     DO_TEST("panic-no-address", QEMU_CAPS_DEVICE_PANIC);
     DO_TEST_CAPS_ARCH_LATEST("panic-pseries", "ppc64");
 
+    DO_TEST_CAPS_LATEST("pvpanic-pci-x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("pvpanic-pci-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("pvpanic-pci-no-address-aarch64", "aarch64");
+
     DO_TEST_NOCAPS("disk-backing-chains-index");
     DO_TEST_NOCAPS("disk-backing-chains-noindex");
 
@@ -1299,6 +1304,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("channel-qemu-vdagent-features");
 
     DO_TEST_CAPS_VER("sgx-epc", "7.0.0");
+
+    DO_TEST_CAPS_LATEST("crypto-builtin");
 
  cleanup:
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
