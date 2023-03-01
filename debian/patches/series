@@ -15,4 +15,3 @@ debian/Debianize-libvirt-guests.patch
 debian/Debianize-systemd-service-files.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
-debian/Disable-passt-support.patch
