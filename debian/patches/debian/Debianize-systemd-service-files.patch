@@ -37,7 +37,7 @@ index 8ab5478..dd25c7c 100644
  ExecReload=/bin/kill -USR1 $MAINPID
  # Losing the logs is a really bad thing that will
 diff --git a/src/remote/libvirtd.service.in b/src/remote/libvirtd.service.in
-index 954df5d..43eb169 100644
+index 3058827..ad1314d 100644
 --- a/src/remote/libvirtd.service.in
 +++ b/src/remote/libvirtd.service.in
 @@ -28,7 +28,7 @@ Documentation=https://libvirt.org

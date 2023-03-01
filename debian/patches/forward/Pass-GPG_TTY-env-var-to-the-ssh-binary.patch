@@ -13,7 +13,7 @@ require the 'TERM' environment variable to be set to the terminal type.
  1 file changed, 2 insertions(+)
 
 diff --git a/src/rpc/virnetsocket.c b/src/rpc/virnetsocket.c
-index 8280bda..b4c91e0 100644
+index b248ce2..d5cc7b3 100644
 --- a/src/rpc/virnetsocket.c
 +++ b/src/rpc/virnetsocket.c
 @@ -855,6 +855,8 @@ int virNetSocketNewConnectSSH(const char *nodename,
