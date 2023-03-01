@@ -1,3 +1,9 @@
+libvirt (9.1.0-1) UNRELEASED; urgency=medium
+
+  * [92a1704] New upstream version 9.1.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 02 Mar 2023 00:51:36 +0100
+
 libvirt (9.0.0-2) unstable; urgency=medium
 
   * [de81410] patches: Add backports
