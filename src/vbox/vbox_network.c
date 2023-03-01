@@ -429,8 +429,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
      * NULL. (We can't assign a new name to hostonly network, only
      * take the given name, say vboxnet0)
      */
-    gVBoxAPI.UIHost.CreateHostOnlyNetworkInterface(data, host, def->name,
-                                                   &networkInterface);
+    gVBoxAPI.UIHost.CreateHostOnlyNetworkInterface(host, &networkInterface);
 
     if (!networkInterface)
         goto cleanup;
@@ -500,7 +499,6 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
             if (start)
                 gVBoxAPI.UIDHCPServer.Start(dhcpServer,
                                             networkNameUtf16,
-                                            networkInterfaceNameUtf16,
                                             trunkTypeUtf16);
 
             VBOX_UTF16_FREE(ipAddressUtf16);
@@ -741,7 +739,6 @@ static int vboxNetworkCreate(virNetworkPtr network)
 
     gVBoxAPI.UIDHCPServer.Start(dhcpServer,
                                 networkNameUtf16,
-                                networkInterfaceNameUtf16,
                                 trunkTypeUtf16);
 
     VBOX_UTF16_FREE(trunkTypeUtf16);

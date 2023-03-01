@@ -1235,6 +1235,31 @@ qemuDomainTPMPrivateFormat(const virDomainTPMDef *tpm,
 }
 
 
+static int
+qemuDomainNetworkPrivateParse(xmlXPathContextPtr ctxt,
+                              virDomainNetDef *net)
+{
+    qemuDomainNetworkPrivate *priv = QEMU_DOMAIN_NETWORK_PRIVATE(net);
+
+    priv->created = virXPathBoolean("string(./created[@value='yes'])", ctxt);
+
+    return 0;
+}
+
+
+static int
+qemuDomainNetworkPrivateFormat(const virDomainNetDef *net,
+                               virBuffer *buf)
+{
+    qemuDomainNetworkPrivate *priv = QEMU_DOMAIN_NETWORK_PRIVATE(net);
+
+    if (priv->created)
+        virBufferAddLit(buf, "<created value='yes'/>\n");
+
+    return 0;
+}
+
+
 /* qemuDomainSecretInfoSetup:
  * @priv: pointer to domain private object
  * @alias: alias of the secret
@@ -1941,6 +1966,8 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
     g_autofree char *httpcookiealias = NULL;
     g_autofree char *tlskeyalias = NULL;
     g_autofree char *thresholdEventWithIndex = NULL;
+    bool fdsetPresent = false;
+    unsigned int fdSetID;
 
     src->nodestorage = virXPathString("string(./nodenames/nodename[@type='storage']/@name)", ctxt);
     src->nodeformat = virXPathString("string(./nodenames/nodename[@type='format']/@name)", ctxt);
@@ -1957,7 +1984,9 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
     httpcookiealias = virXPathString("string(./objects/secret[@type='httpcookie']/@alias)", ctxt);
     tlskeyalias = virXPathString("string(./objects/secret[@type='tlskey']/@alias)", ctxt);
 
-    if (authalias || encalias || httpcookiealias || tlskeyalias) {
+    fdsetPresent = virXPathUInt("string(./fdsets/fdset[@type='storage']/@id)", ctxt, &fdSetID) == 0;
+
+    if (authalias || encalias || httpcookiealias || tlskeyalias || fdsetPresent) {
         if (!src->privateData &&
             !(src->privateData = qemuDomainStorageSourcePrivateNew()))
             return -1;
@@ -1975,6 +2004,9 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
 
         if (qemuStorageSourcePrivateDataAssignSecinfo(&priv->tlsKeySecret, &tlskeyalias) < 0)
             return -1;
+
+        if (fdsetPresent)
+            priv->fdpass = qemuFDPassNewPassed(fdSetID);
     }
 
     if (virStorageSourcePrivateDataParseRelPath(ctxt, src) < 0)
@@ -2005,9 +2037,10 @@ static int
 qemuStorageSourcePrivateDataFormat(virStorageSource *src,
                                    virBuffer *buf)
 {
-    g_auto(virBuffer) tmp = VIR_BUFFER_INIT_CHILD(buf);
     qemuDomainStorageSourcePrivate *srcPriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
     g_auto(virBuffer) nodenamesChildBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) objectsChildBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) fdsetsChildBuf = VIR_BUFFER_INIT_CHILD(buf);
 
     virBufferEscapeString(&nodenamesChildBuf, "<nodename type='storage' name='%s'/>\n", src->nodestorage);
     virBufferEscapeString(&nodenamesChildBuf, "<nodename type='format' name='%s'/>\n", src->nodeformat);
@@ -2025,16 +2058,23 @@ qemuStorageSourcePrivateDataFormat(virStorageSource *src,
         return -1;
 
     if (srcPriv) {
-        qemuStorageSourcePrivateDataFormatSecinfo(&tmp, srcPriv->secinfo, "auth");
-        qemuStorageSourcePrivateDataFormatSecinfo(&tmp, srcPriv->encinfo, "encryption");
-        qemuStorageSourcePrivateDataFormatSecinfo(&tmp, srcPriv->httpcookie, "httpcookie");
-        qemuStorageSourcePrivateDataFormatSecinfo(&tmp, srcPriv->tlsKeySecret, "tlskey");
+        unsigned int fdSetID;
+
+        qemuStorageSourcePrivateDataFormatSecinfo(&objectsChildBuf, srcPriv->secinfo, "auth");
+        qemuStorageSourcePrivateDataFormatSecinfo(&objectsChildBuf, srcPriv->encinfo, "encryption");
+        qemuStorageSourcePrivateDataFormatSecinfo(&objectsChildBuf, srcPriv->httpcookie, "httpcookie");
+        qemuStorageSourcePrivateDataFormatSecinfo(&objectsChildBuf, srcPriv->tlsKeySecret, "tlskey");
+
+        if (qemuFDPassIsPassed(srcPriv->fdpass, &fdSetID))
+            virBufferAsprintf(&fdsetsChildBuf, "<fdset type='storage' id='%u'/>\n", fdSetID);
     }
 
     if (src->tlsAlias)
-        virBufferAsprintf(&tmp, "<TLSx509 alias='%s'/>\n", src->tlsAlias);
+        virBufferAsprintf(&objectsChildBuf, "<TLSx509 alias='%s'/>\n", src->tlsAlias);
 
-    virXMLFormatElement(buf, "objects", NULL, &tmp);
+    virXMLFormatElement(buf, "objects", NULL, &objectsChildBuf);
+
+    virXMLFormatElement(buf, "fdsets", NULL, &fdsetsChildBuf);
 
     if (src->thresholdEventWithIndex)
         virBufferAddLit(buf, "<thresholdEvent indexUsed='yes'/>\n");
@@ -3313,6 +3353,8 @@ virDomainXMLPrivateDataCallbacks virQEMUDriverPrivateDataCallbacks = {
     .vsockNew = qemuDomainVsockPrivateNew,
     .graphicsNew = qemuDomainGraphicsPrivateNew,
     .networkNew = qemuDomainNetworkPrivateNew,
+    .networkParse = qemuDomainNetworkPrivateParse,
+    .networkFormat = qemuDomainNetworkPrivateFormat,
     .videoNew = qemuDomainVideoPrivateNew,
     .tpmNew = qemuDomainTPMPrivateNew,
     .tpmParse = qemuDomainTPMPrivateParse,
@@ -3996,6 +4038,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     bool addDefaultUSBKBD = false;
     bool addDefaultUSBMouse = false;
     bool addPanicDevice = false;
+    bool addITCOWatchdog = false;
 
     /* add implicit input devices */
     if (qemuDomainDefAddImplicitInputDevice(def) < 0)
@@ -4012,6 +4055,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         if (qemuDomainIsQ35(def)) {
             addPCIeRoot = true;
             addImplicitSATA = true;
+            addITCOWatchdog = true;
 
             /* Prefer adding a USB3 controller if supported, fall back
              * to USB2 if there is no USB3 available, and if that's
@@ -4228,6 +4272,27 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
             virDomainPanicDef *panic = g_new0(virDomainPanicDef, 1);
 
             VIR_APPEND_ELEMENT_COPY(def->panics, def->npanics, panic);
+        }
+    }
+
+    if (addITCOWatchdog) {
+        size_t i = 0;
+
+        for (i = 0; i < def->nwatchdogs; i++) {
+            if (def->watchdogs[i]->model == VIR_DOMAIN_WATCHDOG_MODEL_ITCO)
+                break;
+        }
+
+        if (i == def->nwatchdogs) {
+            virDomainWatchdogDef *watchdog = g_new0(virDomainWatchdogDef, 1);
+
+            watchdog->model = VIR_DOMAIN_WATCHDOG_MODEL_ITCO;
+            if (def->nwatchdogs)
+                watchdog->action = def->watchdogs[0]->action;
+            else
+                watchdog->action = VIR_DOMAIN_WATCHDOG_ACTION_RESET;
+
+            VIR_APPEND_ELEMENT(def->watchdogs, def->nwatchdogs, watchdog);
         }
     }
 
@@ -5945,6 +6010,7 @@ qemuDomainDeviceDefPostParse(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_RNG:
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
         ret = 0;
         break;
 
@@ -6469,6 +6535,27 @@ qemuDomainDefFormatBufInternal(virQEMUDriver *driver,
          */
         if (qemuDomainDefClearDefaultAudioBackend(driver, def) < 0)
             return -1;
+
+        /* Old libvirt did not know about the iTCO watchdog in q35 machine
+         * types, but nevertheless it was always present.  Remove it if it has
+         * the default action set. */
+        if (qemuDomainIsQ35(def)) {
+            virDomainWatchdogDef *watchdog = NULL;
+
+            for (i = 0; i < def->nwatchdogs; i++) {
+                if (def->watchdogs[i]->model == VIR_DOMAIN_WATCHDOG_MODEL_ITCO)
+                    break;
+            }
+
+            if (i < def->nwatchdogs) {
+                watchdog = def->watchdogs[i];
+
+                if (watchdog->action == VIR_DOMAIN_WATCHDOG_ACTION_RESET) {
+                    VIR_DELETE_ELEMENT(def->watchdogs, i, def->nwatchdogs);
+                    virDomainWatchdogDefFree(watchdog);
+                }
+            }
+        }
     }
 
  format:
@@ -9983,6 +10070,7 @@ qemuDomainPrepareChardevSourceOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
         break;
     }
 
@@ -11150,6 +11238,7 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
         break;
     case QEMU_PROCESS_EVENT_WATCHDOG:
     case QEMU_PROCESS_EVENT_DEVICE_DELETED:
+    case QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED:
     case QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED:
     case QEMU_PROCESS_EVENT_SERIAL_CHANGED:
     case QEMU_PROCESS_EVENT_MONITOR_EOF:
@@ -11783,6 +11872,7 @@ qemuDomainDeviceBackendChardevForeachOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
         /* no chardev backend */
         break;
     }
@@ -11920,7 +12010,8 @@ qemuDomainRefreshStatsSchema(virDomainObj *dom)
     if (!schema)
         return -1;
 
-    g_hash_table_unref(priv->statsSchema);
+    if (priv->statsSchema)
+        g_hash_table_unref(priv->statsSchema);
     priv->statsSchema = schema;
 
     return 0;

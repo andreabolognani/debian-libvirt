@@ -849,7 +849,7 @@ CPU Tuning
    There is no unit for the value, it's a relative measure based on the setting
    of other VM, e.g. A VM configured with value 2048 will get twice as much CPU
    time as a VM configured with value 1024. The value should be in range
-   [2, 262144]. :since:`Since 0.9.0`
+   [2, 262144] using cgroups v1, [1, 10000] using cgroups v2. :since:`Since 0.9.0`
 ``period``
    The optional ``period`` element specifies the enforcement interval (unit:
    microseconds). Within ``period``, each vCPU of the domain will not be allowed
@@ -2703,7 +2703,7 @@ paravirtualized driver is specified via the ``disk`` element.
       holding the disk. :since:`Since 0.0.3`
 
       :since:`Since 9.0.0` a new optional attribute ``fdgroup`` can be added
-      instructing to access the disk via file descriptiors associated to the
+      instructing to access the disk via file descriptors associated to the
       domain object via the ``virDomainFDAssociate()`` API rather than opening
       the files. The files do not necessarily have to be accessible by libvirt
       via the filesystem. The filename passed via ``file`` can still be used
@@ -4858,18 +4858,18 @@ ports **with the exception of some subset**.
        <backend type='passt' logFile='/var/log/passt.log'/>
        <mac address="00:11:22:33:44:55"/>
        <source dev='eth0'/>
-       <ip family='ipv4' address='172.17.2.0' prefix='24'/>
-       <ip family='ipv6' address='2001:db8:ac10:fd01::' prefix='64'/>
-       <portForward proto='tcp' address='2001:db8:ac10:fd01::1:10' start='2022'>
-         <port start='22'/>
+       <ip family='ipv4' address='172.17.2.4' prefix='24'/>
+       <ip family='ipv6' address='2001:db8:ac10:fd01::20'/>
+       <portForward proto='tcp'>
+         <range start='2022' to='22'/>
        </portForward>
-       <portForward proto='udp' address='1.2.3.4' start='5000' end='5020'>
-         <port start='6000' end='6020'/>
+       <portForward proto='udp' address='1.2.3.4'>
+         <range start='5000' end='5020' to='6000'/>
+         <range start='5010' end='5015' exclude='yes'/>
        </portForward>
-       <portForward exclude='yes' proto='tcp' address='1.2.3.4' start='5010' end='5015'/>
-       <portForward proto='tcp' start='80'/>
-       <portForward proto='tcp' start='443'>
-         <port start='344'/>
+       <portForward proto='tcp' address='2001:db8:ac10:fd01::1:10'>
+         <range start='80'/>
+         <range start='443' to='344'/>
        </portForward>
      </interface>
    </devices>
@@ -7544,8 +7544,8 @@ defaults to 'WAV' with QEMU.
 
 :since:`Since 7.2.0, qemu`
 
-Watchdog device
-~~~~~~~~~~~~~~~
+Watchdog devices
+~~~~~~~~~~~~~~~~
 
 A virtual hardware watchdog device can be added to the guest via the
 ``watchdog`` element. :since:`Since 0.7.3, QEMU and KVM only`
@@ -7556,6 +7556,11 @@ anything useful on its own.
 
 Currently libvirt does not support notification when the watchdog fires. This
 feature is planned for a future version of libvirt.
+
+Having multiple watchdogs is usually not something very common, but be aware
+that this might happen, for example, when an implicit watchdog device is added
+as part of another device.  For example whe iTCO watchdog being part of the ich9
+southbridge, which is used with the q35 machine type. :since:`Since 9.1.0`
 
 ::
 
@@ -7579,6 +7584,7 @@ feature is planned for a future version of libvirt.
 
    QEMU and KVM support:
 
+   -  'itco' - included by default with q35 machine type :since:`Since 9.1.0`
    -  'i6300esb' - the recommended device, emulating a PCI Intel 6300ESB
    -  'ib700' - emulating an ISA iBase IB700
    -  'diag288' - emulating an S390 DIAG288 device :since:`Since 1.2.17`
@@ -7934,6 +7940,7 @@ Example: usage of panic configuration
    -  'hyperv' - for Hyper-V crash CPU feature. :since:`Since 1.3.0, QEMU and
       KVM only`
    -  's390' - default for S390 guests. :since:`Since 1.3.5`
+   -  'pvpanic' - for PCI pvpanic device :since:`Since 9.1.0, QEMU only`
 
 ``address``
    address of panic. The default ioport is 0x505. Most users don't need to
@@ -8301,6 +8308,27 @@ The optional ``driver`` element allows to specify virtio options, see
      <vsock model='virtio'>
        <cid auto='no' address='3'/>
      </vsock>
+   </devices>
+   ...
+
+
+Crypto
+~~~~~~
+
+A crypto device. The ``model`` attribute defaults to ``virtio``.
+:since:`Since v9.0.0` ``model`` supports ``virtio`` only. The ``type`` attribute
+defaults to ``qemu``. :since:`Since v9.0.0` ``type`` supports ``qemu`` only.
+The optional attribute ``backend`` is required if the ``type`` is ``qemu``, the
+``model`` attribute can be ``builtint`` and ``lkcf``, the optional attribute
+``queues`` specifies the number of virt queues for virtio crypto.
+
+::
+
+   ...
+   <devices>
+     <crypto model='virtio' type='qemu'>
+       <backend model='builtin' queues='1'/>
+     </crypto>
    </devices>
    ...
 

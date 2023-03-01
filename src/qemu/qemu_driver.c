@@ -40,6 +40,7 @@
 #include "qemu_hostdev.h"
 #include "qemu_hotplug.h"
 #include "qemu_monitor.h"
+#include "qemu_passt.h"
 #include "qemu_process.h"
 #include "qemu_migration.h"
 #include "qemu_migration_params.h"
@@ -1355,8 +1356,8 @@ qemuDomainHelperGetVcpus(virDomainObj *vm,
                                       NULL, NULL,
                                       &vcpuinfo->cpu, NULL,
                                       vm->pid, vcpupid) < 0) {
-                virReportSystemError(errno, "%s",
-                                     _("cannot get vCPU placement & pCPU time"));
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("cannot get vCPU placement & pCPU time"));
                 return -1;
             }
         }
@@ -3623,6 +3624,78 @@ processDeviceDeletedEvent(virQEMUDriver *driver,
 
 
 static void
+processNetdevStreamDisconnectedEvent(virDomainObj *vm,
+                                     const char *netdevId)
+{
+    virDomainDeviceDef dev;
+    virDomainNetDef *def;
+    virQEMUCaps *qemuCaps = QEMU_DOMAIN_PRIVATE(vm)->qemuCaps;
+    const char *devAlias = STRSKIP(netdevId, "host");
+
+    /* The event sends us the "netdev-id", but we don't store the
+     * netdev-id in the NetDef and thus can't use it to find the
+     * correct NetDef. We *do* keep the device alias in the NetDef,
+     * and by convention the netdev-id is always "host" + devAlias, so
+     * we just need to remove "host" from the front of netdev-id to
+     * get the alias, which we can then use to find the proper NetDef.
+     */
+
+    if (!devAlias) {
+        VIR_WARN("Received NETDEV_STREAM_DISCONNECTED event for unrecognized netdev %s from domain %p %s",
+                  netdevId, vm, vm->def->name);
+        return;
+    }
+
+    VIR_DEBUG("Received NETDEV_STREAM_DISCONNECTED event for device %s from domain %p %s",
+              devAlias, vm, vm->def->name);
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
+        return;
+
+    if (!virDomainObjIsActive(vm)) {
+        VIR_DEBUG("Domain is not running");
+        goto endjob;
+    }
+
+    if (virDomainDefFindDevice(vm->def, devAlias, &dev, true) < 0) {
+        VIR_WARN("NETDEV_STREAM_DISCONNECTED event received for non-existent device %s in domain %s",
+                 devAlias, vm->def->name);
+        goto endjob;
+    }
+    if (dev.type != VIR_DOMAIN_DEVICE_NET) {
+        VIR_WARN("NETDEV_STREAM_DISCONNECTED event received for non-network device %s in domain %s",
+                 devAlias, vm->def->name);
+        goto endjob;
+    }
+    def = dev.data.net;
+
+    if (def->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
+        VIR_DEBUG("ignore NETDEV_STREAM_DISCONNECTED event for non-passt network device %s in domain %s",
+                  def->info.alias, vm->def->name);
+        goto endjob;
+    }
+
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM_RECONNECT)) {
+        VIR_WARN("ignore NETDEV_STREAM_DISCONNECTED event for passt network device %s in domain %s - QEMU binary does not support reconnect",
+                  def->info.alias, vm->def->name);
+        goto endjob;
+    }
+
+    /* handle the event - restart the passt process with its original
+     * parameters
+     */
+    VIR_DEBUG("process NETDEV_STREAM_DISCONNECTED event for network device %s in domain %s",
+              def->info.alias, vm->def->name);
+
+    if (qemuPasstStart(vm, def) < 0)
+        goto endjob;
+
+ endjob:
+    virDomainObjEndJob(vm);
+}
+
+
+static void
 processNicRxFilterChangedEvent(virDomainObj *vm,
                                const char *devAlias)
 {
@@ -3970,6 +4043,9 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         break;
     case QEMU_PROCESS_EVENT_DEVICE_DELETED:
         processDeviceDeletedEvent(driver, vm, processEvent->data);
+        break;
+    case QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED:
+        processNetdevStreamDisconnectedEvent(vm, processEvent->data);
         break;
     case QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED:
         processNicRxFilterChangedEvent(vm, processEvent->data);
@@ -6768,6 +6844,7 @@ qemuDomainAttachDeviceLive(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("live attach of device '%s' is not supported"),
@@ -7079,6 +7156,7 @@ qemuDomainUpdateDeviceLive(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("live update of device '%s' is not supported"),
@@ -7258,12 +7336,13 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
         break;
 
     case VIR_DOMAIN_DEVICE_WATCHDOG:
-        if (vmdef->watchdog) {
+        if (virDomainWatchdogDefFind(vmdef, dev->data.watchdog) >= 0) {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("domain already has a watchdog"));
+                           _("device is already in the domain configuration"));
             return -1;
         }
-        vmdef->watchdog = g_steal_pointer(&dev->data.watchdog);
+
+        VIR_APPEND_ELEMENT(vmdef->watchdogs, vmdef->nwatchdogs, dev->data.watchdog);
         break;
 
     case VIR_DOMAIN_DEVICE_INPUT:
@@ -7290,6 +7369,7 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
     case VIR_DOMAIN_DEVICE_LAST:
          virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                         _("persistent attach of device '%s' is not supported"),
@@ -7457,12 +7537,13 @@ qemuDomainDetachDeviceConfig(virDomainDef *vmdef,
 
 
     case VIR_DOMAIN_DEVICE_WATCHDOG:
-        if (!vmdef->watchdog) {
+        idx = virDomainWatchdogDefFind(vmdef, dev->data.watchdog);
+        if (idx < 0) {
             virReportError(VIR_ERR_DEVICE_MISSING, "%s",
-                           _("domain has no watchdog"));
+                           _("no matching watchdog was found"));
             return -1;
         }
-        g_clear_pointer(&vmdef->watchdog, virDomainWatchdogDefFree);
+        VIR_DELETE_ELEMENT(vmdef->watchdogs, idx, vmdef->nwatchdogs);
         break;
 
     case VIR_DOMAIN_DEVICE_INPUT:
@@ -7495,6 +7576,7 @@ qemuDomainDetachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("persistent detach of device '%s' is not supported"),
@@ -7620,6 +7702,7 @@ qemuDomainUpdateDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("persistent update of device '%s' is not supported"),
@@ -16009,6 +16092,50 @@ qemuDomainGetMetadata(virDomainPtr dom,
     return ret;
 }
 
+#define QEMU_CPU_STATS_PROC_TOTAL 3
+
+static int
+qemuDomainGetCPUStatsProc(virDomainObj *vm,
+                          virTypedParameterPtr params,
+                          unsigned int nparams)
+{
+    unsigned long long cpuTime = 0;
+    unsigned long long userTime = 0;
+    unsigned long long sysTime = 0;
+
+    if (nparams == 0) {
+        /* return supported number of params */
+        return QEMU_CPU_STATS_PROC_TOTAL;
+    }
+
+    if (virProcessGetStatInfo(&cpuTime, &userTime, &sysTime,
+                              NULL, NULL, vm->pid, 0) < 0) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("cannot read cputime for domain"));
+        return -1;
+    }
+
+    if (virTypedParameterAssign(&params[0], VIR_DOMAIN_CPU_STATS_CPUTIME,
+                                VIR_TYPED_PARAM_ULLONG, cpuTime) < 0)
+        return -1;
+
+    if (nparams > 1 &&
+        virTypedParameterAssign(&params[1], VIR_DOMAIN_CPU_STATS_USERTIME,
+                                VIR_TYPED_PARAM_ULLONG, userTime) < 0)
+        return -1;
+
+    if (nparams > 2 &&
+        virTypedParameterAssign(&params[2], VIR_DOMAIN_CPU_STATS_SYSTEMTIME,
+                                VIR_TYPED_PARAM_ULLONG, sysTime) < 0)
+        return -1;
+
+    if (nparams > 3)
+        nparams = 3;
+
+    return nparams;
+}
+
+#undef QEMU_CPU_STATS_PROC_TOTAL
 
 static int
 qemuDomainGetCPUStats(virDomainPtr domain,
@@ -16037,8 +16164,12 @@ qemuDomainGetCPUStats(virDomainPtr domain,
         goto cleanup;
 
     if (!virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUACCT)) {
-        virReportError(VIR_ERR_OPERATION_INVALID,
-                       "%s", _("cgroup CPUACCT controller is not mounted"));
+        if (start_cpu == -1) {
+            ret = qemuDomainGetCPUStatsProc(vm, params, nparams);
+        } else {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("cgroup CPUACCT controller is not mounted"));
+        }
         goto cleanup;
     }
 
@@ -17530,8 +17661,7 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
     virDomainVcpuDef *vcpu;
     qemuDomainVcpuPrivate *vcpupriv;
     size_t i;
-    int ret = -1;
-    virVcpuInfoPtr cpuinfo = NULL;
+    g_autofree virVcpuInfoPtr cpuinfo = NULL;
     g_autofree unsigned long long *cpuwait = NULL;
     g_autofree unsigned long long *cpudelay = NULL;
     qemuDomainObjPrivate *priv = dom->privateData;
@@ -17560,8 +17690,7 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
                                  virDomainDefGetVcpus(dom->def),
                                  NULL, 0) < 0) {
         virResetLastError();
-        ret = 0; /* it's ok to be silent and go ahead */
-        goto cleanup;
+        return 0;
     }
 
     if (HAVE_JOB(privflags) && qemuDomainRefreshStatsSchema(dom) == 0) {
@@ -17579,7 +17708,7 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
 
         if (virTypedParamListAddInt(params, cpuinfo[i].state,
                                     "vcpu.%u.state", cpuinfo[i].number) < 0)
-            goto cleanup;
+            return -1;
 
         /* stats below are available only if the VM is alive */
         if (!virDomainObjIsActive(dom))
@@ -17587,15 +17716,15 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
 
         if (virTypedParamListAddULLong(params, cpuinfo[i].cpuTime,
                                        "vcpu.%u.time", cpuinfo[i].number) < 0)
-            goto cleanup;
+            return -1;
 
         if (virTypedParamListAddULLong(params, cpuwait[i],
                                        "vcpu.%u.wait", cpuinfo[i].number) < 0)
-            goto cleanup;
+            return -1;
 
         if (virTypedParamListAddULLong(params, cpudelay[i],
                                         "vcpu.%u.delay", cpuinfo[i].number) < 0)
-            goto cleanup;
+            return -1;
 
         /* state below is extracted from the individual vcpu structs */
         if (!(vcpu = virDomainDefGetVcpu(dom->def, cpuinfo[i].number)))
@@ -17608,7 +17737,7 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
                                             vcpupriv->halted == VIR_TRISTATE_BOOL_YES,
                                             "vcpu.%u.halted",
                                             cpuinfo[i].number) < 0)
-                goto cleanup;
+                return -1;
         }
 
         if (!queried_stats)
@@ -17620,11 +17749,7 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
         qemuDomainAddStatsFromHashTable(stats, priv->statsSchema, prefix, params);
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(cpuinfo);
-    return ret;
+    return 0;
 }
 
 #define QEMU_ADD_NET_PARAM(params, num, name, value) \

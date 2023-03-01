@@ -10,9 +10,7 @@ subject prefix.
 
 Alternatively, you may send patches using ``git send-email``.
 
-Also, for code motion patches, you may find that
-``git diff --patience`` provides an easier-to-read
-patch. However, the usual workflow of libvirt developer is:
+The usual workflow of libvirt developer is:
 
 ::
 
@@ -55,11 +53,6 @@ well:
 ::
 
   $ git config sendemail.to libvir-list@redhat.com
-
-As a rule, patches should be sent to the mailing list only: all
-developers are subscribed to libvir-list and read it regularly,
-so **please don't CC individual developers** unless they've
-explicitly asked you to.
 
 Avoid using mail clients for sending patches, as most of them
 will mangle the messages in some way, making them unusable for

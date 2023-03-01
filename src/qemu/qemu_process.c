@@ -287,7 +287,7 @@ qemuProcessEventSubmit(virDomainObj *vm,
     event->data = data;
 
     if (virThreadPoolSendJob(driver->workerPool, 0, event) < 0) {
-        virObjectUnref(vm);
+        virObjectUnref(event->vm);
         qemuProcessEventFree(event);
     }
 }
@@ -804,7 +804,8 @@ qemuProcessHandleWatchdog(qemuMonitor *mon G_GNUC_UNUSED,
         qemuDomainSaveStatus(vm);
     }
 
-    if (vm->def->watchdog->action == VIR_DOMAIN_WATCHDOG_ACTION_DUMP) {
+    if (vm->def->nwatchdogs &&
+        vm->def->watchdogs[0]->action == VIR_DOMAIN_WATCHDOG_ACTION_DUMP) {
         qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_WATCHDOG,
                                VIR_DOMAIN_WATCHDOG_ACTION_DUMP, 0, NULL);
     }
@@ -1361,6 +1362,23 @@ qemuProcessHandleBlockThreshold(qemuMonitor *mon G_GNUC_UNUSED,
 
 
 static void
+qemuProcessHandleNetdevStreamDisconnected(qemuMonitor *mon G_GNUC_UNUSED,
+                                          virDomainObj *vm,
+                                          const char *devAlias)
+{
+    virObjectLock(vm);
+
+    VIR_DEBUG("Device %s Netdev Stream Disconnected in domain %p %s",
+              devAlias, vm, vm->def->name);
+
+    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED,
+                           0, 0, g_strdup(devAlias));
+
+    virObjectUnlock(vm);
+}
+
+
+static void
 qemuProcessHandleNicRxFilterChanged(qemuMonitor *mon G_GNUC_UNUSED,
                                     virDomainObj *vm,
                                     const char *devAlias)
@@ -1801,6 +1819,7 @@ static qemuMonitorCallbacks monitorCallbacks = {
     .domainMemoryFailure = qemuProcessHandleMemoryFailure,
     .domainMemoryDeviceSizeChange = qemuProcessHandleMemoryDeviceSizeChange,
     .domainDeviceUnplugError = qemuProcessHandleDeviceUnplugErr,
+    .domainNetdevStreamDisconnected = qemuProcessHandleNetdevStreamDisconnected,
 };
 
 static void
@@ -3893,28 +3912,6 @@ qemuDomainPerfRestart(virDomainObj *vm)
     }
 
     return 0;
-}
-
-
-static void
-qemuProcessReconnectCheckMemAliasOrderMismatch(virDomainObj *vm)
-{
-    size_t i;
-    int aliasidx;
-    virDomainDef *def = vm->def;
-    qemuDomainObjPrivate *priv = vm->privateData;
-
-    if (!virDomainDefHasMemoryHotplug(def) || def->nmems == 0)
-        return;
-
-    for (i = 0; i < def->nmems; i++) {
-        aliasidx = qemuDomainDeviceAliasIndex(&def->mems[i]->info, "dimm");
-
-        if (def->mems[i]->info.addr.dimm.slot != aliasidx) {
-            priv->memAliasOrderMismatch = true;
-            break;
-        }
-    }
 }
 
 
@@ -7399,11 +7396,17 @@ qemuProcessEnableDomainNamespaces(virQEMUDriver *driver,
                                   virDomainObj *vm)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    const char *state = "disabled";
 
     if (virBitmapIsBitSet(cfg->namespaces, QEMU_DOMAIN_NS_MOUNT) &&
         qemuDomainEnableNamespace(vm, QEMU_DOMAIN_NS_MOUNT) < 0)
         return -1;
 
+    if (qemuDomainNamespaceEnabled(vm, QEMU_DOMAIN_NS_MOUNT))
+        state = "enabled";
+
+    VIR_DEBUG("Mount namespace for domain name=%s is %s",
+              vm->def->name, state);
     return 0;
 }
 
@@ -7642,6 +7645,7 @@ qemuProcessLaunch(virConnectPtr conn,
     size_t nnicindexes = 0;
     g_autofree int *nicindexes = NULL;
     unsigned long long maxMemLock = 0;
+    bool incomingMigrationExtDevices = false;
 
     VIR_DEBUG("conn=%p driver=%p vm=%p name=%s id=%d asyncJob=%d "
               "incoming.uri=%s "
@@ -7696,7 +7700,13 @@ qemuProcessLaunch(virConnectPtr conn,
     if (qemuDomainSchedCoreStart(cfg, vm) < 0)
         goto cleanup;
 
-    if (qemuExtDevicesStart(driver, vm, incoming != NULL) < 0)
+    /* For external devices the rules of incoming migration are a bit stricter,
+     * than plain @incoming != NULL. They need to differentiate between
+     * incoming migration and restore from a save file.  */
+    incomingMigrationExtDevices = incoming &&
+        vmop == VIR_NETDEV_VPORT_PROFILE_OP_MIGRATE_IN_START;
+
+    if (qemuExtDevicesStart(driver, vm, incomingMigrationExtDevices) < 0)
         goto cleanup;
 
     if (!(cmd = qemuBuildCommandLine(vm,
@@ -7719,8 +7729,6 @@ qemuProcessLaunch(virConnectPtr conn,
     qemuDomainObjCheckTaint(driver, vm, logCtxt, incoming != NULL);
 
     qemuDomainLogContextMarkPosition(logCtxt);
-
-    VIR_DEBUG("Building mount namespace");
 
     if (qemuProcessEnableDomainNamespaces(driver, vm) < 0)
         goto cleanup;
@@ -8419,7 +8427,7 @@ void qemuProcessStop(virQEMUDriver *driver,
     qemuDomainCleanupRun(driver, vm);
 
     outgoingMigration = (flags & VIR_QEMU_PROCESS_STOP_MIGRATED) &&
-        (asyncJob != VIR_ASYNC_JOB_MIGRATION_IN);
+        (asyncJob == VIR_ASYNC_JOB_MIGRATION_OUT);
     qemuExtDevicesStop(driver, vm, outgoingMigration);
 
     qemuDBusStop(driver, vm);
@@ -8464,12 +8472,13 @@ void qemuProcessStop(virQEMUDriver *driver,
         vport = virDomainNetGetActualVirtPortProfile(net);
         switch (virDomainNetGetActualType(net)) {
         case VIR_DOMAIN_NET_TYPE_DIRECT:
-            ignore_value(virNetDevMacVLanDeleteWithVPortProfile(
-                             net->ifname, &net->mac,
-                             virDomainNetGetActualDirectDev(net),
-                             virDomainNetGetActualDirectMode(net),
-                             virDomainNetGetActualVirtPortProfile(net),
-                             cfg->stateDir));
+            if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->created) {
+                virNetDevMacVLanDeleteWithVPortProfile(net->ifname, &net->mac,
+                                                       virDomainNetGetActualDirectDev(net),
+                                                       virDomainNetGetActualDirectMode(net),
+                                                       virDomainNetGetActualVirtPortProfile(net),
+                                                       cfg->stateDir);
+            }
             break;
         case VIR_DOMAIN_NET_TYPE_ETHERNET:
             if (net->managed_tap != VIR_TRISTATE_BOOL_NO && net->ifname) {
@@ -8724,16 +8733,13 @@ qemuProcessRefreshDisks(virDomainObj *vm,
             continue;
 
         if (info->removable) {
-            virObjectEvent *event = NULL;
+            bool emitEvent = info->tray_open != disk->tray_status;
             int reason;
 
             if (info->empty)
                 virDomainDiskEmptySource(disk);
 
             if (info->tray) {
-                if (info->tray_open == disk->tray_status)
-                    continue;
-
                 if (info->tray_open) {
                     reason = VIR_DOMAIN_EVENT_TRAY_CHANGE_OPEN;
                     disk->tray_status = VIR_DOMAIN_DISK_TRAY_OPEN;
@@ -8742,8 +8748,10 @@ qemuProcessRefreshDisks(virDomainObj *vm,
                     disk->tray_status = VIR_DOMAIN_DISK_TRAY_CLOSED;
                 }
 
-                event = virDomainEventTrayChangeNewFromObj(vm, disk->info.alias, reason);
-                virObjectEventStateQueue(driver->domainEventState, event);
+                if (emitEvent) {
+                    virObjectEvent *event = virDomainEventTrayChangeNewFromObj(vm, disk->info.alias, reason);
+                    virObjectEventStateQueue(driver->domainEventState, event);
+                }
             }
         }
 
@@ -9090,8 +9098,6 @@ qemuProcessReconnect(void *opaque)
 
     if (qemuProcessRefreshFdsetIndex(obj) < 0)
         goto error;
-
-    qemuProcessReconnectCheckMemAliasOrderMismatch(obj);
 
     if (qemuConnectAgent(driver, obj) < 0)
         goto error;

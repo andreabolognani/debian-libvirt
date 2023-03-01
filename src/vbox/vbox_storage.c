@@ -573,7 +573,7 @@ static int vboxStorageVolDelete(virStorageVolPtr vol, unsigned int flags)
             break;
         }
 
-        if (NS_FAILED(gVBoxAPI.UISession.Open(data, &machineId, machine))) {
+        if (NS_FAILED(gVBoxAPI.UISession.Open(data, machine))) {
             vboxIIDUnalloc(&machineId);
             continue;
         }
@@ -881,12 +881,10 @@ virStorageDriver *vboxGetStorageDriver(uint32_t uVersion)
     /* Install gVBoxAPI according to the vbox API version.
      * Return -1 for unsupported version.
      */
-    if (uVersion >= 5001051 && uVersion < 5002051) {
-        vbox52InstallUniformedAPI(&gVBoxAPI);
-    } else if (uVersion >= 6000000 && uVersion < 6000051) {
-        vbox60InstallUniformedAPI(&gVBoxAPI);
-    } else if (uVersion >= 6000051 && uVersion < 6001051) {
+    if (uVersion >= 6000051 && uVersion < 6001051) {
         vbox61InstallUniformedAPI(&gVBoxAPI);
+    } else if (uVersion >= 7000000 && uVersion < 7000004) {
+        vbox70InstallUniformedAPI(&gVBoxAPI);
     } else {
         return NULL;
     }

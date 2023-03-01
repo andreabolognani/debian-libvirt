@@ -9,41 +9,38 @@
 
   <define name="device">
     <element name="device">
-      <!-- The name of the network, used to refer to it through the API
-         and in virsh -->
-      <element name="name"><text/></element>
-      <optional>
-        <element name="path"><text/></element>
-      </optional>
-      <optional>
-        <element name="devnode">
-          <attribute name="type">
-            <value>dev</value>
-          </attribute>
-          <text/>
-        </element>
-      </optional>
-      <zeroOrMore>
-        <element name="devnode">
-          <attribute name="type">
-            <value>link</value>
-          </attribute>
-          <text/>
-        </element>
-      </zeroOrMore>
-      <optional>
-        <ref name="parent"/>
-      </optional>
+      <interleave>
+        <!-- The name of the network, used to refer to it through the API
+        and in virsh -->
+        <element name="name"><text/></element>
+        <optional>
+          <element name="path"><text/></element>
+        </optional>
+        <zeroOrMore>
+          <element name="devnode">
+            <attribute name="type">
+              <choice>
+                <value>dev</value>
+                <value>link</value>
+              </choice>
+            </attribute>
+            <text/>
+          </element>
+        </zeroOrMore>
+        <optional>
+          <ref name="parent"/>
+        </optional>
 
-      <optional>
-        <element name="driver">
-          <element name="name"><text/></element>
-        </element>
-      </optional>
+        <optional>
+          <element name="driver">
+            <element name="name"><text/></element>
+          </element>
+        </optional>
 
-      <zeroOrMore>
-        <ref name="capability"/>
-      </zeroOrMore>
+        <zeroOrMore>
+          <ref name="capability"/>
+        </zeroOrMore>
+      </interleave>
     </element>
   </define>
 
@@ -659,15 +656,17 @@
   </define>
 
   <define name="capccwaddress">
-    <element name="cssid">
-      <ref name="ccwCssidRange"/>
-    </element>
-    <element name="ssid">
-      <ref name="ccwSsidRange"/>
-    </element>
-    <element name="devno">
-      <ref name="ccwDevnoRange"/>
-    </element>
+    <interleave>
+      <element name="cssid">
+        <ref name="ccwCssidRange"/>
+      </element>
+      <element name="ssid">
+        <ref name="ccwSsidRange"/>
+      </element>
+      <element name="devno">
+        <ref name="ccwDevnoRange"/>
+      </element>
+    </interleave>
   </define>
 
   <define name="capccwdev">
@@ -681,15 +680,17 @@
     <attribute name="type">
       <value>css</value>
     </attribute>
-    <ref name="capccwaddress"/>
-    <optional>
-      <element name="channel_dev_addr">
-        <ref name="capccwaddress"/>
-      </element>
-    </optional>
-    <optional>
-      <ref name="mdev_types"/>
-    </optional>
+    <interleave>
+      <ref name="capccwaddress"/>
+      <optional>
+        <element name="channel_dev_addr">
+          <ref name="capccwaddress"/>
+        </element>
+      </optional>
+      <optional>
+        <ref name="mdev_types"/>
+      </optional>
+    </interleave>
   </define>
 
   <define name="capvdpa">

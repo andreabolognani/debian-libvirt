@@ -453,7 +453,7 @@ virNetworkDHCPRangeDefParseXML(const char *networkName,
                                virNetworkDHCPRangeDef *range)
 {
     virSocketAddrRange *addr = &range->addr;
-    xmlNodePtr cur = node->children;
+    xmlNodePtr lease;
     g_autofree char *start = NULL;
     g_autofree char *end = NULL;
 
@@ -480,15 +480,9 @@ virNetworkDHCPRangeDefParseXML(const char *networkName,
                               virNetworkIPDefPrefix(ipdef)) < 0)
         return -1;
 
-    while (cur != NULL) {
-        if (cur->type == XML_ELEMENT_NODE &&
-            virXMLNodeNameEqual(cur, "lease")) {
-
-            if (virNetworkDHCPLeaseTimeDefParseXML(&range->lease, cur) < 0)
-                return -1;
-        }
-        cur = cur->next;
-    }
+    if ((lease = virXMLNodeGetSubelement(node, "lease")) &&
+        virNetworkDHCPLeaseTimeDefParseXML(&range->lease, lease) < 0)
+        return -1;
 
     return 0;
 }
@@ -507,7 +501,7 @@ virNetworkDHCPHostDefParseXML(const char *networkName,
     g_autofree char *id = NULL;
     virMacAddr addr;
     virSocketAddr inaddr;
-    xmlNodePtr cur = node->children;
+    xmlNodePtr lease;
 
     mac = virXMLPropString(node, "mac");
     if (mac != NULL) {
@@ -599,15 +593,9 @@ virNetworkDHCPHostDefParseXML(const char *networkName,
         }
     }
 
-    while (cur != NULL) {
-        if (cur->type == XML_ELEMENT_NODE &&
-            virXMLNodeNameEqual(cur, "lease")) {
-
-            if (virNetworkDHCPLeaseTimeDefParseXML(&host->lease, cur) < 0)
-                return -1;
-        }
-        cur = cur->next;
-    }
+    if ((lease = virXMLNodeGetSubelement(node, "lease")) &&
+        virNetworkDHCPLeaseTimeDefParseXML(&host->lease, lease) < 0)
+        return -1;
 
     host->mac = g_steal_pointer(&mac);
     host->id = g_steal_pointer(&id);

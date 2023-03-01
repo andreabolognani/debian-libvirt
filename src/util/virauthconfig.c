@@ -35,53 +35,40 @@ struct _virAuthConfig {
 
 VIR_LOG_INIT("util.authconfig");
 
-virAuthConfig *virAuthConfigNew(const char *path)
+virAuthConfig *
+virAuthConfigNew(const char *path)
 {
-    virAuthConfig *auth;
-
-    auth = g_new0(virAuthConfig, 1);
+    g_autoptr(virAuthConfig) auth = g_new0(virAuthConfig, 1);
 
     auth->path = g_strdup(path);
-
-    if (!(auth->keyfile = g_key_file_new()))
-        goto error;
+    auth->keyfile = g_key_file_new();
 
     if (!g_key_file_load_from_file(auth->keyfile, path, 0, NULL))
-        goto error;
+        return NULL;
 
-    return auth;
-
- error:
-    virAuthConfigFree(auth);
-    return NULL;
+    return g_steal_pointer(&auth);
 }
 
 
-virAuthConfig *virAuthConfigNewData(const char *path,
-                                      const char *data,
-                                      size_t len)
+virAuthConfig *
+virAuthConfigNewData(const char *path,
+                     const char *data,
+                     size_t len)
 {
-    virAuthConfig *auth;
-
-    auth = g_new0(virAuthConfig, 1);
+    g_autoptr(virAuthConfig) auth = g_new0(virAuthConfig, 1);
 
     auth->path = g_strdup(path);
-
-    if (!(auth->keyfile = g_key_file_new()))
-        goto error;
+    auth->keyfile = g_key_file_new();
 
     if (!g_key_file_load_from_data(auth->keyfile, data, len, 0, NULL))
-        goto error;
+        return NULL;
 
-    return auth;
-
- error:
-    virAuthConfigFree(auth);
-    return NULL;
+    return g_steal_pointer(&auth);
 }
 
 
-void virAuthConfigFree(virAuthConfig *auth)
+void
+virAuthConfigFree(virAuthConfig *auth)
 {
     if (!auth)
         return;
@@ -92,11 +79,12 @@ void virAuthConfigFree(virAuthConfig *auth)
 }
 
 
-int virAuthConfigLookup(virAuthConfig *auth,
-                        const char *service,
-                        const char *hostname,
-                        const char *credname,
-                        char **value)
+int
+virAuthConfigLookup(virAuthConfig *auth,
+                    const char *service,
+                    const char *hostname,
+                    const char *credname,
+                    char **value)
 {
     g_autofree char *authgroup = NULL;
     g_autofree char *credgroup = NULL;

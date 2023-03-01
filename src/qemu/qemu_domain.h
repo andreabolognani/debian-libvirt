@@ -177,9 +177,6 @@ struct _qemuDomainObjPrivate {
     uint8_t *masterKey;
     size_t masterKeyLen;
 
-    /* note whether memory device alias does not correspond to slot number */
-    bool memAliasOrderMismatch;
-
     /* for migrations using TLS with a secret (not to be saved in our */
     /* private XML). */
     qemuDomainSecretInfo *migSecinfo;
@@ -415,6 +412,11 @@ typedef struct _qemuDomainNetworkPrivate qemuDomainNetworkPrivate;
 struct _qemuDomainNetworkPrivate {
     virObject parent;
 
+    /* True if the device was created by us. Otherwise we should
+     * avoid removing it. Currently only used for
+     * VIR_DOMAIN_NET_TYPE_DIRECT. */
+    bool created;
+
     qemuSlirp *slirp;
 
     /* file descriptor transfer helpers */
@@ -445,6 +447,7 @@ typedef enum {
     QEMU_PROCESS_EVENT_WATCHDOG = 0,
     QEMU_PROCESS_EVENT_GUESTPANIC,
     QEMU_PROCESS_EVENT_DEVICE_DELETED,
+    QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED,
     QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED,
     QEMU_PROCESS_EVENT_SERIAL_CHANGED,
     QEMU_PROCESS_EVENT_JOB_STATUS_CHANGE,

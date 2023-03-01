@@ -116,8 +116,6 @@ typedef struct _virDomainHostdevCaps virDomainHostdevCaps;
 
 typedef struct _virDomainHostdevDef virDomainHostdevDef;
 
-typedef struct _virDomainHostdevOrigStates virDomainHostdevOrigStates;
-
 typedef struct _virDomainHostdevSubsys virDomainHostdevSubsys;
 
 typedef struct _virDomainHostdevSubsysMediatedDev virDomainHostdevSubsysMediatedDev;
@@ -253,6 +251,8 @@ typedef struct _virDomainVirtioOptions virDomainVirtioOptions;
 typedef struct _virDomainVirtioSerialOpts virDomainVirtioSerialOpts;
 
 typedef struct _virDomainVsockDef virDomainVsockDef;
+
+typedef struct _virDomainCryptoDef virDomainCryptoDef;
 
 typedef struct _virDomainWatchdogDef virDomainWatchdogDef;
 

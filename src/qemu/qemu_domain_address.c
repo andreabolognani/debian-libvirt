@@ -405,6 +405,12 @@ qemuDomainPrimeVirtioDeviceAddresses(virDomainDef *def,
             def->vsock->info.type = type;
         }
     }
+
+    for (i = 0; i < def->ncryptos; i++) {
+        /* All <crypto> devices accepted by the qemu driver are virtio */
+        if (def->cryptos[i]->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE)
+            def->cryptos[i]->info.type = type;
+    }
 }
 
 
@@ -544,6 +550,7 @@ qemuDomainDeviceSupportZPCI(virDomainDeviceDef *device)
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
         break;
 
     case VIR_DOMAIN_DEVICE_NONE:
@@ -925,6 +932,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
 
         case VIR_DOMAIN_WATCHDOG_MODEL_IB700:
         case VIR_DOMAIN_WATCHDOG_MODEL_DIAG288:
+        case VIR_DOMAIN_WATCHDOG_MODEL_ITCO:
         case VIR_DOMAIN_WATCHDOG_MODEL_LAST:
             return 0;
         }
@@ -1045,10 +1053,33 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         }
         break;
 
+    case VIR_DOMAIN_DEVICE_CRYPTO:
+        switch (dev->data.crypto->model) {
+        case VIR_DOMAIN_CRYPTO_MODEL_VIRTIO:
+            return pciFlags;
+        case VIR_DOMAIN_CRYPTO_MODEL_LAST:
+            return 0;
+        }
+        break;
+
+    case VIR_DOMAIN_DEVICE_PANIC:
+        switch ((virDomainPanicModel) dev->data.panic->model) {
+        case VIR_DOMAIN_PANIC_MODEL_PVPANIC:
+            return pciFlags | VIR_PCI_CONNECT_INTEGRATED;
+
+        case VIR_DOMAIN_PANIC_MODEL_DEFAULT:
+        case VIR_DOMAIN_PANIC_MODEL_ISA:
+        case VIR_DOMAIN_PANIC_MODEL_PSERIES:
+        case VIR_DOMAIN_PANIC_MODEL_HYPERV:
+        case VIR_DOMAIN_PANIC_MODEL_S390:
+        case VIR_DOMAIN_PANIC_MODEL_LAST:
+            return 0;
+        }
+        break;
+
         /* These devices don't ever connect with PCI */
     case VIR_DOMAIN_DEVICE_NVRAM:
     case VIR_DOMAIN_DEVICE_TPM:
-    case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_HUB:
     case VIR_DOMAIN_DEVICE_REDIRDEV:
     case VIR_DOMAIN_DEVICE_SMARTCARD:
@@ -2326,10 +2357,10 @@ qemuDomainAssignDevicePCISlots(virDomainDef *def,
     }
 
     /* A watchdog - check if it is a PCI device */
-    if (def->watchdog &&
-        def->watchdog->model == VIR_DOMAIN_WATCHDOG_MODEL_I6300ESB &&
-        virDeviceInfoPCIAddressIsWanted(&def->watchdog->info)) {
-        if (qemuDomainPCIAddressReserveNextAddr(addrs, &def->watchdog->info) < 0)
+    for (i = 0; i < def->nwatchdogs; i++) {
+        if (def->watchdogs[i]->model == VIR_DOMAIN_WATCHDOG_MODEL_I6300ESB &&
+            virDeviceInfoPCIAddressIsWanted(&def->watchdogs[i]->info) &&
+            qemuDomainPCIAddressReserveNextAddr(addrs, &def->watchdogs[i]->info) < 0)
             return -1;
     }
 
@@ -2424,6 +2455,34 @@ qemuDomainAssignDevicePCISlots(virDomainDef *def,
         case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
         case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            break;
+        }
+    }
+
+    /* the qemu driver only accepts virtio crypto devices */
+    for (i = 0; i < def->ncryptos; i++) {
+        if (!virDeviceInfoPCIAddressIsWanted(&def->cryptos[i]->info))
+            continue;
+
+        if (qemuDomainPCIAddressReserveNextAddr(addrs, &def->cryptos[i]->info) < 0)
+            return -1;
+    }
+
+    for (i = 0; i < def->npanics; i++) {
+        virDomainPanicDef *panic = def->panics[i];
+
+        switch (panic->model) {
+        case VIR_DOMAIN_PANIC_MODEL_PVPANIC:
+            if (virDeviceInfoPCIAddressIsWanted(&panic->info) &&
+                qemuDomainPCIAddressReserveNextAddr(addrs, &panic->info) < 0)
+                return -1;
+            break;
+        case VIR_DOMAIN_PANIC_MODEL_DEFAULT:
+        case VIR_DOMAIN_PANIC_MODEL_ISA:
+        case VIR_DOMAIN_PANIC_MODEL_PSERIES:
+        case VIR_DOMAIN_PANIC_MODEL_HYPERV:
+        case VIR_DOMAIN_PANIC_MODEL_S390:
+        case VIR_DOMAIN_PANIC_MODEL_LAST:
             break;
         }
     }

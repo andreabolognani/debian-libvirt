@@ -172,6 +172,7 @@ Patches have also been contributed by:
 * Brian Candler <b.candler@pobox.com>
 * Brian Turek <brian.turek@gmail.com>
 * Brijesh Singh <brijesh.singh@amd.com>
+* Brooks Swinnerton <bswinnerton@gmail.com>
 * Bruno Haible <bruno@clisp.org>
 * Bryan Kearney <bkearney@redhat.com>
 * Cao jin <caoj.fnst@cn.fujitsu.com>
@@ -232,6 +233,7 @@ Patches have also been contributed by:
 * Daniel Gollub <gollub@b1-systems.de>
 * Daniel Hansel <daniel.hansel@linux.vnet.ibm.com>
 * Daniel Henrique Barboza <danielhb413@gmail.com>
+* Daniel Henrique Barboza <dbarboza@ventanamicro.com>
 * Daniel J Walsh <dwalsh@redhat.com>
 * Daniel Letai <dani@letai.org.il>
 * Daniel Liu <srwx4096@gmail.com>
@@ -621,6 +623,7 @@ Patches have also been contributed by:
 * Ohad Levy <ohadlevy@gmail.com>
 * Olaf Hering <olaf@aepfle.de>
 * Oleg Strikov <oleg.strikov@canonical.com>
+* Oleg Vasilev <oleg.vasilev@virtuozzo.com>
 * Oleksandr Tyshchenko <oleksandr_tyshchenko@epam.com>
 * Olesya Gerasimenko <gammaray@basealt.ru>
 * Olga Krishtal <okrishtal@virtuozzo.com>
@@ -772,6 +775,7 @@ Patches have also been contributed by:
 * Stefan Schallenberg <infos@nafets.de>
 * Stefan Seyfried <seife@b1-systems.de>
 * Stefan Zimmermann <stzi@linux.vnet.ibm.com>
+* Stefano Brivio <sbrivio@redhat.com>
 * Steve Hodgson <shodgson@solarflare.com>
 * Steve Yarmie <steve.yarmie@gmail.com>
 * Steven McDonald <steven.mcdonald@anchor.net.au>
@@ -898,6 +902,7 @@ Patches have also been contributed by:
 * Zhang Xiaohe <zhangxh@cn.fujitsu.com>
 * Zhangzijian <zhang.zijian@h3c.com>
 * Zheng Chuan <zhengchuan@huawei.com>
+* Zhenguo Yao <yaozhenguo1@gmail.com>
 * Zhenyu Ye <yezhenyu2@huawei.com>
 * Zhenyu Zhang <zhenyzha@redhat.com>
 * Zhenyu Zheng <zheng.zhenyu@outlook.com>

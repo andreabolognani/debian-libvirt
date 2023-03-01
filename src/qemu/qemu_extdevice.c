@@ -162,7 +162,10 @@ qemuExtDevicesCleanupHost(virQEMUDriver *driver,
         return;
 
     for (i = 0; i < def->ntpms; i++) {
-        qemuExtTPMCleanupHost(def->tpms[i], flags, outgoingMigration);
+        virDomainTPMDef *tpm = def->tpms[i];
+
+        if (tpm->type == VIR_DOMAIN_TPM_TYPE_EMULATOR)
+            qemuExtTPMCleanupHost(tpm, flags, outgoingMigration);
     }
 }
 
@@ -293,6 +296,17 @@ qemuExtDevicesHasDevice(virDomainDef *def)
             return true;
     }
 
+    for (i = 0; i < def->nnets; i++) {
+        virDomainNetDef *net = def->nets[i];
+
+        if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp)
+            return true;
+
+        if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+            net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST)
+            return true;
+    }
+
     for (i = 0; i < def->ntpms; i++) {
         if (def->tpms[i]->type == VIR_DOMAIN_TPM_TYPE_EMULATOR)
             return true;
@@ -316,6 +330,9 @@ qemuExtDevicesSetupCgroup(virQEMUDriver *driver,
 {
     virDomainDef *def = vm->def;
     size_t i;
+
+    /* Don't forget to adjust qemuExtDevicesHasDevice() accordingly.
+     * Otherwise, this function might not be called at all. */
 
     if (qemuDBusSetupCgroup(driver, vm, cgroup) < 0)
         return -1;

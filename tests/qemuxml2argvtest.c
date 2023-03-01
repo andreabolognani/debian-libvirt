@@ -1471,6 +1471,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST_FULL("net-user", "x86_64", ARG_FLAGS, FLAG_SLIRP_HELPER);
     DO_TEST_NOCAPS("net-user-addr");
     DO_TEST_CAPS_LATEST("net-user-passt");
+    DO_TEST_CAPS_VER("net-user-passt", "7.2.0");
     DO_TEST_NOCAPS("net-virtio");
     DO_TEST_NOCAPS("net-virtio-device");
     DO_TEST_NOCAPS("net-virtio-disable-offloads");
@@ -1756,6 +1757,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("watchdog-device");
     DO_TEST_CAPS_LATEST("watchdog-dump");
     DO_TEST_CAPS_LATEST("watchdog-injectnmi");
+    DO_TEST_CAPS_LATEST("watchdog-q35-multiple");
     DO_TEST_CAPS_ARCH_LATEST("watchdog-diag288", "s390x");
     DO_TEST_NOCAPS("balloon-device");
     DO_TEST("balloon-device-deflate",
@@ -2614,6 +2616,11 @@ mymain(void)
     DO_TEST_CAPS_LATEST("panic-double");
     DO_TEST_CAPS_LATEST("panic-no-address");
 
+    DO_TEST_CAPS_LATEST("pvpanic-pci-x86_64");
+    DO_TEST_CAPS_ARCH_LATEST("pvpanic-pci-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("pvpanic-pci-invalid-address-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("pvpanic-pci-no-address-aarch64", "aarch64");
+
     DO_TEST_CAPS_ARCH_VER_FULL("fips-enabled", "x86_64", "5.1.0", ARG_FLAGS, FLAG_FIPS_HOST);
     DO_TEST_CAPS_ARCH_LATEST_FULL("fips-enabled", "x86_64", ARG_FLAGS, FLAG_FIPS_HOST);
 
@@ -2982,6 +2989,8 @@ mymain(void)
     DO_TEST_PARSE_ERROR("cpu-phys-bits-passthrough2", QEMU_CAPS_KVM);
 
     DO_TEST_CAPS_VER("sgx-epc", "7.0.0");
+
+    DO_TEST_CAPS_LATEST("crypto-builtin");
 
     if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
         virFileDeleteTree(fakerootdir);

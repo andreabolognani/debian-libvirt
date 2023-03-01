@@ -84,6 +84,7 @@ static void qemuMonitorJSONHandleRdmaGidStatusChanged(qemuMonitor *mon, virJSONV
 static void qemuMonitorJSONHandleMemoryFailure(qemuMonitor *mon, virJSONValue *data);
 static void qemuMonitorJSONHandleMemoryDeviceSizeChange(qemuMonitor *mon, virJSONValue *data);
 static void qemuMonitorJSONHandleDeviceUnplugErr(qemuMonitor *mon, virJSONValue *data);
+static void qemuMonitorJSONHandleNetdevStreamDisconnected(qemuMonitor *mon, virJSONValue *data);
 
 typedef struct {
     const char *type;
@@ -106,6 +107,7 @@ static qemuEventHandler eventHandlers[] = {
     { "MEMORY_FAILURE", qemuMonitorJSONHandleMemoryFailure, },
     { "MIGRATION", qemuMonitorJSONHandleMigrationStatus, },
     { "MIGRATION_PASS", qemuMonitorJSONHandleMigrationPass, },
+    { "NETDEV_STREAM_DISCONNECTED", qemuMonitorJSONHandleNetdevStreamDisconnected, },
     { "NIC_RX_FILTER_CHANGED", qemuMonitorJSONHandleNicRxFilterChanged, },
     { "PR_MANAGER_STATUS_CHANGED", qemuMonitorJSONHandlePRManagerStatusChanged, },
     { "RDMA_GID_STATUS_CHANGED", qemuMonitorJSONHandleRdmaGidStatusChanged, },
@@ -1018,6 +1020,20 @@ qemuMonitorJSONHandleDeviceUnplugErr(qemuMonitor *mon, virJSONValue *data)
     device = virJSONValueObjectGetString(data, "device");
 
     qemuMonitorEmitDeviceUnplugErr(mon, path, device);
+}
+
+
+static void
+qemuMonitorJSONHandleNetdevStreamDisconnected(qemuMonitor *mon, virJSONValue *data)
+{
+    const char *name;
+
+    if (!(name = virJSONValueObjectGetString(data, "netdev-id"))) {
+        VIR_WARN("missing device in NETDEV_STREAM_DISCONNECTED event");
+        return;
+    }
+
+    qemuMonitorEmitNetdevStreamDisconnected(mon, name);
 }
 
 
@@ -3634,11 +3650,9 @@ qemuMonitorJSONQueryRxFilterParse(virJSONValue *msg,
                          "in query-rx-filter response"));
         return -1;
     }
-    if ((!(table = virJSONValueObjectGet(entry, "unicast-table"))) ||
-        (!virJSONValueIsArray(table))) {
+    if ((!(table = virJSONValueObjectGetArray(entry, "unicast-table")))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Missing or invalid 'unicast-table' array "
-                         "in query-rx-filter response"));
+                       _("Missing or invalid 'unicast-table' array in query-rx-filter response"));
         return -1;
     }
     nTable = virJSONValueArraySize(table);
@@ -3675,11 +3689,9 @@ qemuMonitorJSONQueryRxFilterParse(virJSONValue *msg,
                          "in query-rx-filter response"));
         return -1;
     }
-    if ((!(table = virJSONValueObjectGet(entry, "multicast-table"))) ||
-        (!virJSONValueIsArray(table))) {
+    if ((!(table = virJSONValueObjectGetArray(entry, "multicast-table")))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Missing or invalid 'multicast-table' array "
-                         "in query-rx-filter response"));
+                       _("Missing or invalid 'multicast-table' array in query-rx-filter response"));
         return -1;
     }
     nTable = virJSONValueArraySize(table);
@@ -3709,11 +3721,9 @@ qemuMonitorJSONQueryRxFilterParse(virJSONValue *msg,
                          "in query-rx-filter response"));
         return -1;
     }
-    if ((!(table = virJSONValueObjectGet(entry, "vlan-table"))) ||
-        (!virJSONValueIsArray(table))) {
+    if ((!(table = virJSONValueObjectGetArray(entry, "vlan-table")))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Missing or invalid 'vlan-table' array "
-                         "in query-rx-filter response"));
+                       _("Missing or invalid 'vlan-table' array in query-rx-filter response"));
         return -1;
     }
     nTable = virJSONValueArraySize(table);
@@ -6456,7 +6466,7 @@ qemuMonitorJSONAttachCharDevGetProps(const char *chrID,
                     return NULL;
 
                 if (chr->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_YES)
-                    reconnect = chr->data.tcp.reconnect.timeout;
+                    reconnect = chr->data.nix.reconnect.timeout;
                 else if (chr->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_NO)
                     reconnect = 0;
             }
@@ -7233,9 +7243,8 @@ qemuMonitorJSONGetMemoryDeviceInfo(qemuMonitor *mon,
                 return -1;
             }
         } else {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("%s memory device info is not handled yet"), type);
-                return -1;
+            /* type not handled yet */
+            continue;
         }
 
         meminfo = g_new0(qemuMonitorMemoryDeviceInfo, 1);
@@ -8722,9 +8731,7 @@ qemuMonitorJSONExtractQueryStatsSchema(virJSONValue *json)
         if (!virJSONValueIsObject(obj))
             continue;
 
-        stats = virJSONValueObjectGetArray(obj, "stats");
-
-        if (!virJSONValueIsArray(stats))
+        if (!(stats = virJSONValueObjectGetArray(obj, "stats")))
             continue;
 
         target_str = virJSONValueObjectGetString(obj, "target");
@@ -8828,35 +8835,31 @@ qemuMonitorJSONQueryStats(qemuMonitor *mon,
     g_autoptr(virJSONValue) reply = NULL;
     g_autoptr(virJSONValue) vcpu_list = NULL;
     g_autoptr(virJSONValue) provider_list = NULL;
-
     size_t i;
 
     if (providers) {
         provider_list = virJSONValueNewArray();
 
         for (i = 0; i < providers->len; i++) {
-            g_autoptr(virJSONValue) provider_obj = virJSONValueNewObject();
             qemuMonitorQueryStatsProvider *provider = providers->pdata[i];
-            const char *type_str = qemuMonitorQueryStatsProviderTypeToString(provider->type);
-            virBitmap *names = provider->names;
+            g_autoptr(virJSONValue) provider_obj = NULL;
+            g_autoptr(virJSONValue) provider_names = NULL;
+            ssize_t curBit = -1;
 
-            if (virJSONValueObjectAppendString(provider_obj, "provider", type_str) < 0)
-                return NULL;
+            while ((curBit = virBitmapNextSetBit(provider->names, curBit)) != -1) {
+                if (!provider_names)
+                    provider_names = virJSONValueNewArray();
 
-            if (!virBitmapIsAllClear(names)) {
-                g_autoptr(virJSONValue) provider_names = virJSONValueNewArray();
-                ssize_t curBit = -1;
-
-                while ((curBit = virBitmapNextSetBit(names, curBit)) != -1) {
-                    const char *name = qemuMonitorQueryStatsNameTypeToString(curBit);
-
-                    if (virJSONValueArrayAppendString(provider_names, name) < 0)
-                        return NULL;
-                }
-
-                if (virJSONValueObjectAppend(provider_obj, "names", &provider_names) < 0)
+                if (virJSONValueArrayAppendString(provider_names,
+                                                  qemuMonitorQueryStatsNameTypeToString(curBit)) < 0)
                     return NULL;
             }
+
+            if (virJSONValueObjectAdd(&provider_obj,
+                                      "s:provider", qemuMonitorQueryStatsProviderTypeToString(provider->type),
+                                      "A:names", &provider_names,
+                                      NULL) < 0)
+                return NULL;
 
             if (virJSONValueArrayAppend(provider_list, &provider_obj) < 0)
                 return NULL;

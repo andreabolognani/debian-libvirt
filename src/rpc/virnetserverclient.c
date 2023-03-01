@@ -1257,14 +1257,12 @@ static virNetMessage *virNetServerClientDispatchRead(virNetServerClient *client)
 
         /* Possibly need to create another receive buffer */
         if (client->nrequests < client->nrequests_max) {
-            if (!(client->rx = virNetMessageNew(true))) {
-                client->wantClose = true;
-            } else {
-                client->rx->bufferLength = VIR_NET_MESSAGE_LEN_MAX;
-                client->rx->buffer = g_new0(char, client->rx->bufferLength);
-                client->nrequests++;
-            }
-        } else if (!client->nrequests_warning) {
+            client->rx = virNetMessageNew(true);
+            client->rx->bufferLength = VIR_NET_MESSAGE_LEN_MAX;
+            client->rx->buffer = g_new0(char, client->rx->bufferLength);
+            client->nrequests++;
+        } else if (!client->nrequests_warning &&
+                   client->nrequests_max > 1) {
             client->nrequests_warning = true;
             VIR_WARN("Client hit max requests limit %zd. This may result "
                      "in keep-alive timeouts. Consider tuning the "

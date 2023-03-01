@@ -80,6 +80,7 @@ docs_rst_files = [
   'formatstorageencryption',
   'glib-adoption',
   'goals',
+  'golang',
   'governance',
   'hacking',
   'hooks',
@@ -252,7 +253,8 @@ html_xslt_gen += {
 
 html_xslt_gen += {
   'name': '404',
-  'source': 'docs' / '404.html.in',
+  'file': docs_rst2html5_gen.process('404.rst'),
+  'source': 'docs' / '404.rst',
   'href_base': '/',
 }
 
@@ -359,7 +361,7 @@ test(
   python3_prog,
   args: [
     check_html_references_prog.full_path(),
-    '--prefix',
+    '--webroot',
     meson.project_build_root() / 'docs'
   ],
   env: runutf8,

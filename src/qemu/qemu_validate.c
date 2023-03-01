@@ -1146,6 +1146,20 @@ qemuValidateDomainDefPanic(const virDomainDef *def,
             }
             break;
 
+        case VIR_DOMAIN_PANIC_MODEL_PVPANIC:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_PANIC_PCI)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("the QEMU binary does not support the PCI pvpanic device"));
+                return -1;
+            }
+
+            if (def->panics[i]->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("pvpanic is supported only with PCI address type"));
+                return -1;
+            }
+            break;
+
         /* default model value was changed before in post parse */
         case VIR_DOMAIN_PANIC_MODEL_DEFAULT:
         case VIR_DOMAIN_PANIC_MODEL_LAST:
@@ -1181,6 +1195,38 @@ qemuValidateDomainDefTPMs(const virDomainDef *def)
                 return -1;
             }
             regularTPM = tpm;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+qemuValidateDomainDefWatchdogs(const virDomainDef *def)
+{
+    bool found_itco = false;
+    ssize_t i = 0;
+
+    for (i = 1; i < def->nwatchdogs; i++) {
+        /* We could theoretically support different watchdogs having dump and
+         * pause, but let's be honest, we support multiple watchdogs only
+         * because we need to be able to add a second, implicit one, not because
+         * it is a brilliant idea to have multiple watchdogs. */
+        if (def->watchdogs[i]->action != def->watchdogs[0]->action) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("watchdogs with different actions are not supported "
+                             "with this QEMU binary"));
+            return -1;
+        }
+
+        if (def->watchdogs[i]->model == VIR_DOMAIN_WATCHDOG_MODEL_ITCO) {
+            if (found_itco) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("Multiple iTCO watchdogs are not supported"));
+                return -1;
+            }
+            found_itco = true;
         }
     }
 
@@ -1386,6 +1432,9 @@ qemuValidateDomainDef(const virDomainDef *def,
         return -1;
 
     if (qemuValidateDomainDefTPMs(def) < 0)
+        return -1;
+
+    if (qemuValidateDomainDefWatchdogs(def) < 0)
         return -1;
 
     if (def->sec) {
@@ -1788,6 +1837,12 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
     size_t i;
 
     if (net->type == VIR_DOMAIN_NET_TYPE_USER) {
+        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("the passt network backend is not supported with this QEMU binary"));
+            return -1;
+        }
         if (net->guestIP.nroutes) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Invalid attempt to set network interface "
@@ -2380,6 +2435,21 @@ qemuValidateDomainWatchdogDef(const virDomainWatchdogDef *dev,
         if (!(ARCH_IS_S390(def->os.arch))) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("%s model of watchdog is allowed for s390 and s390x only"),
+                           virDomainWatchdogModelTypeToString(dev->model));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_WATCHDOG_MODEL_ITCO:
+        if (dev->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("%s model of watchdog is part of the machine and cannot have any address set."),
+                           virDomainWatchdogModelTypeToString(dev->model));
+            return -1;
+        }
+        if (!qemuDomainIsQ35(def)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("%s model of watchdog is only part of q35 machine"),
                            virDomainWatchdogModelTypeToString(dev->model));
             return -1;
         }
@@ -4512,6 +4582,49 @@ qemuValidateDomainDeviceDefAudio(virDomainAudioDef *audio,
 
 
 static int
+qemuValidateDomainDeviceDefCrypto(virDomainCryptoDef *crypto,
+                                  const virDomainDef *def G_GNUC_UNUSED,
+                                  virQEMUCaps *qemuCaps)
+{
+    virDomainCapsDeviceCrypto cryptoCaps = { 0 };
+
+    switch (crypto->type) {
+    case VIR_DOMAIN_CRYPTO_TYPE_QEMU:
+        virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, &cryptoCaps);
+        break;
+
+    case VIR_DOMAIN_CRYPTO_TYPE_LAST:
+    default:
+        virReportEnumRangeError(virDomainCryptoType, crypto->type);
+        return -1;
+    }
+
+    if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(cryptoCaps.model, crypto->model)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("crypto model %s is not supported"),
+                       virDomainCryptoModelTypeToString(crypto->model));
+        return -1;
+    }
+
+    if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(cryptoCaps.type, crypto->type)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("crypto type %s is not supported"),
+                       virDomainCryptoTypeTypeToString(crypto->type));
+        return -1;
+    }
+
+    if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(cryptoCaps.backendModel, crypto->backend)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("crypto backend %s is not supported"),
+                       virDomainCryptoBackendTypeToString(crypto->backend));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuSoundCodecTypeToCaps(int type)
 {
     switch (type) {
@@ -5217,6 +5330,9 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
 
     case VIR_DOMAIN_DEVICE_AUDIO:
         return qemuValidateDomainDeviceDefAudio(dev->data.audio, def, qemuCaps);
+
+    case VIR_DOMAIN_DEVICE_CRYPTO:
+        return qemuValidateDomainDeviceDefCrypto(dev->data.crypto, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_PANIC:
