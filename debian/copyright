@@ -22,6 +22,14 @@ Files: src/conf/domain_validate.*
 Copyright: 2020 IBM Corp.
 License: LGPL-2.1+
 
+Files: src/cpu/cpu_riscv64.*
+Copyright: 2023 Ventana Micro
+License: LGPL-2.1+
+
+Files: src/logging/log_cleaner.*
+Copyright: 2022 Virtuozzo International GmbH
+License: LGPL-2.1+
+
 Files: src/util/virccw.*
 Copyright: 2022 IBM Corporation
 License: LGPL-2.1+
@@ -69,7 +77,8 @@ License: GPL-2.0+
 
 Files: src/vbox/vbox*
 Copyright: 2008-2009 Sun Microsystems, Inc.
-           2010-2014 Red Hat, Inc.
+           2008-2022 Oracle and/or its affiliates
+           2010-2016 Red Hat, Inc.
 License: LGPL-2.1+
 
 Files: docs/fonts/*
