@@ -96,7 +96,9 @@ Package: libvirt-clients-qemu
 Section: admin
 Architecture: all
 Depends:
+ python3-cryptography,
  python3-libvirt,
+ python3-lxml,
  python3:any,
  ${misc:Depends},
 Description: Programs for the libvirt library (QEMU specific)
