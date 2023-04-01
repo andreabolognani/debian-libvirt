@@ -16,13 +16,13 @@ ARCHES_LXC  = alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel power
 ARCHES_XEN  = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
 
-ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
-    ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
+ifeq ($(DEB_HOST_ARCH_OS), linux)
+    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
         WITH_VBOX             = -Ddriver_vbox=enabled
     else
         WITH_VBOX             = -Ddriver_vbox=disabled
     endif
-    ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_XEN)))
+    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
         WITH_LIBXL            = -Ddriver_libxl=enabled
     else
         WITH_LIBXL            = -Ddriver_libxl=disabled
@@ -247,7 +247,7 @@ execute_after_dh_auto_install:
 	   $(DEB_DESTDIR)/usr/share/libvirt/
 
 execute_after_dh_install:
-ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
+ifeq ($(DEB_HOST_ARCH_OS), linux)
 	# Linux supports more nice things:
 	set -e; for f in $(SRV_MONOLITHIC); do \
 	    dh_install -p libvirt-daemon-system \
@@ -280,7 +280,7 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	               lib/$(DEB_HOST_MULTIARCH)/; \
 	done
 endif
-ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_XEN)))
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-lockd.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-sanlock.conf
