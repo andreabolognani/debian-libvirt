@@ -41,7 +41,6 @@
   <flag name='ich9-intel-hda'/>
   <flag name='usb-kbd'/>
   <flag name='usb-audio'/>
-  <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='VGA.vgamem_mb'/>
   <flag name='pci-serial'/>
@@ -78,7 +77,6 @@
   <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
-  <flag name='iothread.poll-max-ns'/>
   <flag name='memory-backend-file.pmem'/>
   <flag name='virtio-pci-non-transitional'/>
   <flag name='nbd-bitmap'/>
@@ -144,6 +142,7 @@
   <flag name='netdev.stream'/>
   <flag name='virtio-crypto'/>
   <flag name='pvpanic-pci'/>
+  <flag name='virtio-gpu.blob'/>
   <version>7002050</version>
   <kvmVersion>0</kvmVersion>
   <microcodeVersion>0</microcodeVersion>

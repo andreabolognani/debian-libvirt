@@ -363,22 +363,10 @@ testVirPCIDeviceGetVPD(const void *opaque)
     return 0;
 }
 
-# define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
-
 static int
 mymain(void)
 {
     int ret = 0;
-    g_autofree char *fakerootdir = NULL;
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        VIR_TEST_DEBUG("Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
 
 # define DO_TEST(fnc) \
     do { \
@@ -445,9 +433,6 @@ mymain(void)
     DO_TEST_PCI_DRIVER(0, 0x0a, 3, 0, NULL);
 
     DO_TEST_PCI(testVirPCIDeviceGetVPD, 0, 0x03, 0, 0);
-
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

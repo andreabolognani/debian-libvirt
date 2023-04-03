@@ -22,10 +22,7 @@
   <flag name='pci-bridge'/>
   <flag name='vfio-pci'/>
   <flag name='enable-fips'/>
-  <flag name='iothread'/>
   <flag name='migrate-rdma'/>
-  <flag name='aes-key-wrap'/>
-  <flag name='dea-key-wrap'/>
   <flag name='virtio-net'/>
   <flag name='virtio-gpu'/>
   <flag name='virtio-gpu.virgl'/>
@@ -38,7 +35,6 @@
   <flag name='vhost-scsi'/>
   <flag name='query-cpu-model-expansion'/>
   <flag name='query-cpu-definitions'/>
-  <flag name='loadparm'/>
   <flag name='chardev-reconnect'/>
   <flag name='vxhs'/>
   <flag name='sclplmconsole'/>
@@ -57,7 +53,6 @@
   <flag name='zpci'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
-  <flag name='iothread.poll-max-ns'/>
   <flag name='egl-headless.rendernode'/>
   <flag name='memory-backend-file.pmem'/>
   <flag name='virtio-pci-non-transitional'/>

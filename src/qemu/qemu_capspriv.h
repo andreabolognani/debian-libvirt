@@ -66,9 +66,6 @@ virQEMUCapsInitCPUModel(virQEMUCaps *qemuCaps,
                         virCPUDef *cpu,
                         bool migratable);
 
-void
-virQEMUCapsInitQMPBasicArch(virQEMUCaps *qemuCaps);
-
 qemuMonitorCPUModelInfo *
 virQEMUCapsGetCPUModelInfo(virQEMUCaps *qemuCaps,
                            virDomainVirtType type);
@@ -117,4 +114,5 @@ virQEMUCapsAddMachine(virQEMUCaps *qemuCaps,
                       bool isDefault,
                       bool numaMemSupported,
                       const char *defaultRAMid,
-                      bool deprecated);
+                      bool deprecated,
+                      virTristateBool acpi);

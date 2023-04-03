@@ -507,6 +507,7 @@ virDomainLeaseRemoveAt;
 virDomainLifecycleActionTypeFromString;
 virDomainLifecycleActionTypeToString;
 virDomainLoaderDefFree;
+virDomainLoaderDefNew;
 virDomainLoaderTypeFromString;
 virDomainLoaderTypeToString;
 virDomainLockFailureTypeFromString;
@@ -519,6 +520,7 @@ virDomainMemoryFindByDeviceAlias;
 virDomainMemoryFindByDeviceInfo;
 virDomainMemoryFindInactiveByDef;
 virDomainMemoryInsert;
+virDomainMemoryModelTypeFromString;
 virDomainMemoryModelTypeToString;
 virDomainMemoryRemove;
 virDomainMemorySourceTypeFromString;
@@ -793,6 +795,7 @@ virDomainDefPostParse;
 
 # conf/domain_validate.h
 virDomainActualNetDefValidate;
+virDomainDefOSValidate;
 virDomainDefValidate;
 virDomainDeviceValidateAliasForHotplug;
 virDomainDiskDefSourceLUNValidate;
@@ -1092,6 +1095,7 @@ virStorageVolTypeToString;
 
 # conf/storage_encryption_conf.h
 virStorageEncryptionFormat;
+virStorageEncryptionFormatTypeToString;
 virStorageEncryptionFree;
 virStorageEncryptionParseNode;
 
@@ -2088,6 +2092,7 @@ virCommandDryRunTokenNew;
 virCommandExec;
 virCommandFree;
 virCommandGetArgList;
+virCommandGetBinaryPath;
 virCommandGetGID;
 virCommandGetUID;
 virCommandHandshakeNotify;
@@ -2351,6 +2356,7 @@ virFindFileInPath;
 
 
 # util/virfilecache.h
+virFileCacheClear;
 virFileCacheGetPriv;
 virFileCacheInsertData;
 virFileCacheLookup;
@@ -2618,7 +2624,6 @@ virJSONValueObjectAppendNumberLong;
 virJSONValueObjectAppendNumberUint;
 virJSONValueObjectAppendNumberUlong;
 virJSONValueObjectAppendString;
-virJSONValueObjectAppendStringPrintf;
 virJSONValueObjectDeflatten;
 virJSONValueObjectForeachKeyValue;
 virJSONValueObjectGet;
@@ -2972,6 +2977,7 @@ virNodeSuspendGetTargetMask;
 
 
 # util/virnuma.h
+virNumaCPUSetToNodeset;
 virNumaGetAutoPlacementAdvice;
 virNumaGetDistances;
 virNumaGetHostMemoryNodeset;
@@ -2979,6 +2985,7 @@ virNumaGetMaxCPUs;
 virNumaGetMaxNode;
 virNumaGetNodeCPUs;
 virNumaGetNodeMemory;
+virNumaGetNodeOfCPU;
 virNumaGetPageInfo;
 virNumaGetPages;
 virNumaIsAvailable;
@@ -3123,6 +3130,7 @@ virPerfReadEvent;
 # util/virpidfile.h
 virPidFileAcquire;
 virPidFileAcquirePath;
+virPidFileAcquirePathFull;
 virPidFileBuildPath;
 virPidFileConstructPath;
 virPidFileDelete;

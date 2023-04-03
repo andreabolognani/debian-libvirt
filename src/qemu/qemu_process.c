@@ -2350,11 +2350,6 @@ qemuProcessDetectIOThreadPIDs(virDomainObj *vm,
     int ret = -1;
     size_t i;
 
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_IOTHREAD)) {
-        ret = 0;
-        goto cleanup;
-    }
-
     /* Get the list of IOThreads from qemu */
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         goto cleanup;
@@ -2576,13 +2571,8 @@ qemuProcessSetupPid(virDomainObj *vm,
     }
 
     /* Infer which cpumask shall be used. */
-    if (cpumask) {
-        use_cpumask = cpumask;
-    } else if (vm->def->placement_mode == VIR_DOMAIN_CPU_PLACEMENT_MODE_AUTO) {
-        use_cpumask = priv->autoCpuset;
-    } else if (vm->def->cpumask) {
-        use_cpumask = vm->def->cpumask;
-    } else {
+    if (!(use_cpumask = qemuDomainEvaluateCPUMask(vm->def,
+                                                  cpumask, priv->autoCpuset))) {
         /* You may think this is redundant, but we can't assume libvirtd
          * itself is running on all pCPUs, so we need to explicitly set
          * the spawned QEMU instance to all pCPUs if no map is given in
@@ -3057,9 +3047,16 @@ qemuProcessUpdateVideoRamSize(virQEMUDriver *driver,
                     goto error;
             }
             break;
+        case VIR_DOMAIN_VIDEO_TYPE_DEFAULT:
         case VIR_DOMAIN_VIDEO_TYPE_CIRRUS:
         case VIR_DOMAIN_VIDEO_TYPE_XEN:
         case VIR_DOMAIN_VIDEO_TYPE_VBOX:
+        case VIR_DOMAIN_VIDEO_TYPE_PARALLELS:
+        case VIR_DOMAIN_VIDEO_TYPE_VIRTIO:
+        case VIR_DOMAIN_VIDEO_TYPE_GOP:
+        case VIR_DOMAIN_VIDEO_TYPE_NONE:
+        case VIR_DOMAIN_VIDEO_TYPE_BOCHS:
+        case VIR_DOMAIN_VIDEO_TYPE_RAMFB:
         case VIR_DOMAIN_VIDEO_TYPE_LAST:
             break;
         }
@@ -4469,8 +4466,7 @@ qemuProcessUpdateLiveGuestCPU(virDomainObj *vm,
          !def->cpu->model))
         return 0;
 
-    if (!(orig = virCPUDefCopy(def->cpu)))
-        return -1;
+    orig = virCPUDefCopy(def->cpu);
 
     if ((rc = virCPUUpdateLive(def->os.arch, def->cpu, enabled, disabled)) < 0) {
         return -1;
@@ -4601,42 +4597,41 @@ qemuPrepareNVRAM(virQEMUDriver *driver,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     VIR_AUTOCLOSE srcFD = -1;
     virDomainLoaderDef *loader = vm->def->os.loader;
-    const char *master_nvram_path;
     struct qemuPrepareNVRAMHelperData data;
 
-    if (!loader || !loader->nvram ||
-        !virStorageSourceIsLocalStorage(loader->nvram) ||
-        (virFileExists(loader->nvram->path) && !reset_nvram))
+    if (!loader || !loader->nvram)
         return 0;
 
-    master_nvram_path = loader->nvramTemplate;
-    if (!loader->nvramTemplate) {
-        size_t i;
-        for (i = 0; i < cfg->nfirmwares; i++) {
-            if (STREQ(cfg->firmwares[i]->name, loader->path)) {
-                master_nvram_path = cfg->firmwares[i]->nvram;
-                break;
-            }
+    if (!virStorageSourceIsLocalStorage(loader->nvram)) {
+        if (!reset_nvram) {
+            return 0;
+        } else {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                    _("resetting of nvram is not supported with network backed nvram"));
+            return -1;
         }
     }
 
-    if (!master_nvram_path) {
+    if (virFileExists(loader->nvram->path) && !reset_nvram)
+        return 0;
+
+    if (!loader->nvramTemplate) {
         virReportError(VIR_ERR_OPERATION_FAILED,
                        _("unable to find any master var store for "
                          "loader: %s"), loader->path);
         return -1;
     }
 
-    if ((srcFD = virFileOpenAs(master_nvram_path, O_RDONLY,
+    if ((srcFD = virFileOpenAs(loader->nvramTemplate, O_RDONLY,
                                0, -1, -1, 0)) < 0) {
         virReportSystemError(-srcFD,
                              _("Failed to open file '%s'"),
-                             master_nvram_path);
+                             loader->nvramTemplate);
         return -1;
     }
 
     data.srcFD = srcFD;
-    data.srcPath = master_nvram_path;
+    data.srcPath = loader->nvramTemplate;
 
     if (virFileRewrite(loader->nvram->path,
                        S_IRUSR | S_IWUSR,
@@ -5366,21 +5361,6 @@ qemuProcessStartValidateGraphics(virDomainObj *vm)
 
 
 static int
-qemuProcessStartValidateIOThreads(virDomainObj *vm,
-                                  virQEMUCaps *qemuCaps)
-{
-    if (vm->def->niothreadids > 0 &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_IOTHREAD)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("IOThreads not supported for this QEMU"));
-        return -1;
-    }
-
-    return 0;
-}
-
-
-static int
 qemuProcessStartValidateShmem(virDomainObj *vm)
 {
     size_t i;
@@ -5552,9 +5532,6 @@ qemuProcessStartValidate(virQEMUDriver *driver,
         return -1;
 
     if (qemuProcessStartValidateGraphics(vm) < 0)
-        return -1;
-
-    if (qemuProcessStartValidateIOThreads(vm, qemuCaps) < 0)
         return -1;
 
     if (qemuProcessStartValidateShmem(vm) < 0)
@@ -6769,7 +6746,7 @@ qemuProcessPrepareDomain(virQEMUDriver *driver,
         return -1;
 
     VIR_DEBUG("Prepare bios/uefi paths");
-    if (qemuFirmwareFillDomain(driver, vm->def, flags) < 0)
+    if (qemuFirmwareFillDomain(driver, vm->def) < 0)
         return -1;
     if (qemuDomainInitializePflashStorageSource(vm, cfg) < 0)
         return -1;
@@ -7765,7 +7742,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     VIR_DEBUG("Setting up security labelling");
     if (qemuSecuritySetChildProcessLabel(driver->securityManager,
-                                         vm->def, cmd) < 0)
+                                         vm->def, false, cmd) < 0)
         goto cleanup;
 
     virCommandSetOutputFD(cmd, &logfile);
@@ -8853,11 +8830,10 @@ qemuProcessRefreshCPU(virQEMUDriver *driver,
         if (!(hostmig = virCPUCopyMigratable(host->arch, host)))
             return -1;
 
-        if (!(cpu = virCPUDefCopyWithoutModel(hostmig)) ||
-            virCPUDefCopyModelFilter(cpu, hostmig, false,
-                                     virQEMUCapsCPUFilterFeatures,
-                                     &host->arch) < 0)
-            return -1;
+        cpu = virCPUDefCopyWithoutModel(hostmig);
+
+        virCPUDefCopyModelFilter(cpu, hostmig, false, virQEMUCapsCPUFilterFeatures,
+                                 &host->arch);
 
         if (virCPUUpdate(vm->def->os.arch, vm->def->cpu, cpu) < 0)
             return -1;

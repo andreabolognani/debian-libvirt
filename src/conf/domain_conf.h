@@ -1768,7 +1768,7 @@ typedef enum {
 
 
 typedef enum {
-    VIR_DOMAIN_VIDEO_TYPE_DEFAULT,
+    VIR_DOMAIN_VIDEO_TYPE_DEFAULT = 0,
     VIR_DOMAIN_VIDEO_TYPE_VGA,
     VIR_DOMAIN_VIDEO_TYPE_CIRRUS,
     VIR_DOMAIN_VIDEO_TYPE_VMVGA,
@@ -1815,7 +1815,7 @@ struct _virDomainVideoDriverDef {
 struct _virDomainVideoDef {
     virObject *privateData;
 
-    int type;   /* enum virDomainVideoType */
+    virDomainVideoType type;
     unsigned int ram;  /* kibibytes (multiples of 1024) */
     unsigned int vram; /* kibibytes (multiples of 1024) */
     unsigned int vram64; /* kibibytes (multiples of 1024) */
@@ -1824,6 +1824,7 @@ struct _virDomainVideoDef {
     bool primary;
     virDomainVideoAccelDef *accel;
     virDomainVideoResolutionDef *res;
+    virTristateSwitch blob;
     virDomainVideoDriverDef *driver;
     virDomainDeviceInfo info;
     virDomainVirtioOptions *virtio;
@@ -2311,11 +2312,13 @@ struct _virDomainLoaderDef {
     virDomainLoader type;
     virTristateBool secure;
     virTristateBool stateless;
+    virStorageFileFormat format;
     virStorageSource *nvram;
     bool newStyleNVRAM;
     char *nvramTemplate;   /* user override of path to master nvram */
 };
 
+virDomainLoaderDef *virDomainLoaderDefNew(void);
 void virDomainLoaderDefFree(virDomainLoaderDef *loader);
 
 typedef enum {

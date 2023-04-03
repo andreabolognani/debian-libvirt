@@ -95,67 +95,53 @@ virSCSIHostFindByPCI(const char *sysfs_prefix,
     const char *prefix = sysfs_prefix ? sysfs_prefix : SYSFS_SCSI_HOST_PATH;
     struct dirent *entry = NULL;
     g_autoptr(DIR) dir = NULL;
-    char *host_link = NULL;
-    char *host_path = NULL;
-    char *p = NULL;
-    char *ret = NULL;
-    char *buf = NULL;
-    char *unique_path = NULL;
-    unsigned int read_unique_id;
 
     if (virDirOpen(&dir, prefix) < 0)
         return NULL;
 
     while (virDirRead(dir, &entry, prefix) > 0) {
-        if (!virFileIsLink(entry->d_name))
-            continue;
+        g_autofree char *host_link = NULL;
+        g_autofree char *host_path = NULL;
+        g_autofree char *unique_path = NULL;
+        g_autofree char *buf = NULL;
+        char *p = NULL;
+        unsigned int read_unique_id;
 
         host_link = g_strdup_printf("%s/%s", prefix, entry->d_name);
 
+        if (!virFileIsLink(host_link))
+            continue;
+
         if (virFileResolveLink(host_link, &host_path) < 0)
-            goto cleanup;
+            return NULL;
 
         if (!strstr(host_path, parentaddr)) {
-            VIR_FREE(host_link);
-            VIR_FREE(host_path);
             continue;
         }
-        VIR_FREE(host_link);
-        VIR_FREE(host_path);
 
         unique_path = g_strdup_printf("%s/%s/unique_id", prefix, entry->d_name);
 
         if (!virFileExists(unique_path)) {
-            VIR_FREE(unique_path);
             continue;
         }
 
         if (virFileReadAll(unique_path, 1024, &buf) < 0)
-            goto cleanup;
+            return NULL;
 
         if ((p = strchr(buf, '\n')))
             *p = '\0';
 
         if (virStrToLong_ui(buf, NULL, 10, &read_unique_id) < 0)
-            goto cleanup;
-
-        VIR_FREE(buf);
+            return NULL;
 
         if (read_unique_id != unique_id) {
-            VIR_FREE(unique_path);
             continue;
         }
 
-        ret = g_strdup(entry->d_name);
-        break;
+        return g_strdup(entry->d_name);
     }
 
- cleanup:
-    VIR_FREE(unique_path);
-    VIR_FREE(host_link);
-    VIR_FREE(host_path);
-    VIR_FREE(buf);
-    return ret;
+    return NULL;
 }
 
 
@@ -226,7 +212,7 @@ virSCSIHostGetNameByParentaddr(unsigned int domain,
                                unsigned int unique_id)
 {
     char *name = NULL;
-    char *parentaddr = NULL;
+    g_autofree char *parentaddr = NULL;
 
     parentaddr = g_strdup_printf("%04x:%02x:%02x.%01x", domain, bus, slot,
                                  function);
@@ -235,11 +221,9 @@ virSCSIHostGetNameByParentaddr(unsigned int domain,
                        _("Failed to find scsi_host using PCI '%s' "
                          "and unique_id='%u'"),
                        parentaddr, unique_id);
-        goto cleanup;
+        return NULL;
     }
 
- cleanup:
-    VIR_FREE(parentaddr);
     return name;
 }
 

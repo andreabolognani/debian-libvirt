@@ -175,7 +175,7 @@ void
 virCPUDefFree(virCPUDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCPUDef, virCPUDefFree);
 
-int ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
+void ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
 virCPUDefCopyModel(virCPUDef *dst,
                    const virCPUDef *src,
                    bool resetPolicy);
@@ -187,7 +187,7 @@ typedef bool (*virCPUDefFeatureFilter)(const char *name,
                                        virCPUFeaturePolicy policy,
                                        void *opaque);
 
-int
+void
 virCPUDefCopyModelFilter(virCPUDef *dst,
                          const virCPUDef *src,
                          bool resetPolicy,
@@ -201,10 +201,12 @@ virCPUDefStealModel(virCPUDef *dst,
                     bool keepVendor);
 
 virCPUDef *
-virCPUDefCopy(const virCPUDef *cpu);
+virCPUDefCopy(const virCPUDef *cpu)
+    ATTRIBUTE_NONNULL(1);
 
 virCPUDef *
-virCPUDefCopyWithoutModel(const virCPUDef *cpu);
+virCPUDefCopyWithoutModel(const virCPUDef *cpu)
+    ATTRIBUTE_NONNULL(1);
 
 int
 virCPUDefParseXMLString(const char *xml,

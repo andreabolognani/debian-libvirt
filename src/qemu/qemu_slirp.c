@@ -247,9 +247,6 @@ qemuSlirpStart(virDomainObj *vm,
     size_t i;
     pid_t pid = (pid_t) -1;
     int rc;
-    int exitstatus = 0;
-    int cmdret = 0;
-    VIR_AUTOCLOSE errfd = -1;
     bool killDBusDaemon = false;
     g_autofree char *fdname = g_strdup_printf("slirpfd-%s", net->info.alias);
 
@@ -272,7 +269,6 @@ qemuSlirpStart(virDomainObj *vm,
 
     virCommandClearCaps(cmd);
     virCommandSetPidFile(cmd, pidfile);
-    virCommandSetErrorFD(cmd, &errfd);
     virCommandDaemonize(cmd);
 
     virCommandAddArgFormat(cmd, "--fd=%d", slirp->fd[1]);
@@ -329,14 +325,8 @@ qemuSlirpStart(virDomainObj *vm,
     if (qemuExtDeviceLogCommand(driver, vm, cmd, "slirp") < 0)
         goto error;
 
-    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, &exitstatus, &cmdret) < 0)
+    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, false, NULL) < 0)
         goto error;
-
-    if (cmdret < 0 || exitstatus != 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not start 'slirp'. exitstatus: %d"), exitstatus);
-        goto error;
-    }
 
     rc = virPidFileReadPath(pidfile, &pid);
     if (rc < 0) {

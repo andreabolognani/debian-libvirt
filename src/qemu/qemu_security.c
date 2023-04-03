@@ -622,14 +622,13 @@ qemuSecurityDomainRestorePathLabel(virQEMUDriver *driver,
  * @cmd: the command to run
  * @uid: the uid to force
  * @gid: the gid to force
- * @existstatus: pointer to int returning exit status of process
- * @cmdret: pointer to int returning result of virCommandRun
+ * @existstatus: optional pointer to int returning exit status of process
  *
  * Run @cmd with seclabels set on it. If @uid and/or @gid are not
  * -1 then their value is enforced.
  *
  * Returns: 0 on success,
- *         -1 otherwise.
+ *         -1 otherwise (with error reported).
  */
 int
 qemuSecurityCommandRun(virQEMUDriver *driver,
@@ -637,15 +636,18 @@ qemuSecurityCommandRun(virQEMUDriver *driver,
                        virCommand *cmd,
                        uid_t uid,
                        gid_t gid,
-                       int *exitstatus,
-                       int *cmdret)
+                       bool useBinarySpecificLabel,
+                       int *exitstatus)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     qemuDomainObjPrivate *priv = vm->privateData;
+    int ret = -1;
 
     if (virSecurityManagerSetChildProcessLabel(driver->securityManager,
-                                               vm->def, cmd) < 0)
+                                               vm->def, useBinarySpecificLabel,
+                                               cmd) < 0) {
         return -1;
+    }
 
     if (uid != (uid_t) -1)
         virCommandSetUID(cmd, uid);
@@ -663,9 +665,9 @@ qemuSecurityCommandRun(virQEMUDriver *driver,
     if (virSecurityManagerPreFork(driver->securityManager) < 0)
         return -1;
 
-    *cmdret = virCommandRun(cmd, exitstatus);
+    ret = virCommandRun(cmd, exitstatus);
 
     virSecurityManagerPostFork(driver->securityManager);
 
-    return 0;
+    return ret;
 }

@@ -561,11 +561,38 @@ virXMLPropUInt(xmlNodePtr node,
                virXMLPropFlags flags,
                unsigned int *result)
 {
+    return virXMLPropUIntDefault(node, name, base, flags, result, 0);
+}
+
+
+/**
+ * virXMLPropUIntDefault:
+ * @node: XML dom node pointer
+ * @name: Name of the property (attribute) to get
+ * @base: Number base, see strtol
+ * @flags: Bitwise-OR of virXMLPropFlags
+ * @result: The returned value
+ * @defaultResult: Default value of @result in case the property is not found
+ *
+ * Convenience function to return value of an unsigned integer attribute.
+ *
+ * Returns 1 in case of success in which case @result is set,
+ *         or 0 if the attribute is not present,
+ *         or -1 and reports an error on failure.
+ */
+int
+virXMLPropUIntDefault(xmlNodePtr node,
+                      const char *name,
+                      int base,
+                      virXMLPropFlags flags,
+                      unsigned int *result,
+                      unsigned int defaultResult)
+{
     g_autofree char *tmp = NULL;
     int ret;
     unsigned int val;
 
-    *result = 0;
+    *result = defaultResult;
 
     if (!(tmp = virXMLPropString(node, name))) {
         if (!(flags & VIR_XML_PROP_REQUIRED))
@@ -837,7 +864,7 @@ virXPathBoolean(const char *xpath,
 
     if ((ctxt == NULL) || (xpath == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathBoolean()"));
+                       "%s", _("Invalid parameter"));
         return -1;
     }
     obj = xmlXPathEval(BAD_CAST xpath, ctxt);
@@ -890,7 +917,7 @@ virXPathNode(const char *xpath,
 
     if ((ctxt == NULL) || (xpath == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathNode()"));
+                       "%s", _("Invalid parameter"));
         return NULL;
     }
     obj = xmlXPathEval(BAD_CAST xpath, ctxt);
@@ -925,7 +952,7 @@ virXPathNodeSet(const char *xpath,
 
     if ((ctxt == NULL) || (xpath == NULL)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("Invalid parameter to virXPathNodeSet()"));
+                       "%s", _("Invalid parameter"));
         return -1;
     }
 
@@ -1536,7 +1563,7 @@ virXMLValidatorInit(const char *schemafile)
     if (!(validator->rngParser =
           xmlRelaxNGNewParserCtxt(validator->schemafile))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to create RNG parser for %s"),
+                       _("Unable to create RelaxNG parser for schema '%s'"),
                        validator->schemafile);
         return NULL;
     }
@@ -1548,7 +1575,7 @@ virXMLValidatorInit(const char *schemafile)
 
     if (!(validator->rng = xmlRelaxNGParse(validator->rngParser))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse RNG %s: %s"),
+                       _("Unable to parse RelaxNG schema '%s': %s"),
                        validator->schemafile,
                        virBufferCurrentContent(&validator->buf));
         return NULL;
@@ -1556,7 +1583,7 @@ virXMLValidatorInit(const char *schemafile)
 
     if (!(validator->rngValid = xmlRelaxNGNewValidCtxt(validator->rng))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to create RNG validation context %s"),
+                       _("Unable to create RelaxNG validation context for schema '%s'"),
                        validator->schemafile);
         return NULL;
     }

@@ -44,7 +44,7 @@ virCPUs390Update(virCPUDef *guest,
                  const virCPUDef *host,
                  bool relative)
 {
-    g_autoptr(virCPUDef) updated = NULL;
+    g_autoptr(virCPUDef) updated = virCPUDefCopyWithoutModel(guest);
     size_t i;
 
     if (!relative)
@@ -68,12 +68,8 @@ virCPUs390Update(virCPUDef *guest,
         return -1;
     }
 
-    if (!(updated = virCPUDefCopyWithoutModel(guest)))
-        return -1;
-
     updated->mode = VIR_CPU_MODE_CUSTOM;
-    if (virCPUDefCopyModel(updated, host, true) < 0)
-        return -1;
+    virCPUDefCopyModel(updated, host, true);
 
     for (i = 0; i < guest->nfeatures; i++) {
        if (virCPUDefUpdateFeature(updated,

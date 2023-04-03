@@ -576,12 +576,6 @@ virVBoxSnapshotConfLoadVboxFile(const char *filePath,
     ssize_t searchResultSize = 0;
     char *currentSnapshotAttribute = NULL;
 
-    if (filePath == NULL) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Filepath is Null"));
-        goto cleanup;
-    }
-
     machineDescription = g_new0(virVBoxSnapshotConfMachine, 1);
 
     xml = virXMLParse(filePath, NULL, NULL, NULL, &xPathContext, NULL, false);
@@ -956,11 +950,6 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
     if (machine == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Machine is null"));
-        goto cleanup;
-    }
-    if (filePath == NULL) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Filepath is null"));
         goto cleanup;
     }
     xml = xmlNewDoc(BAD_CAST "1.0");

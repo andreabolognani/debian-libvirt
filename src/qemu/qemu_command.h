@@ -22,6 +22,7 @@
 #pragma once
 
 #include "domain_conf.h"
+#include "virbitmap.h"
 #include "vircommand.h"
 #include "virenum.h"
 #include "qemu_block.h"
@@ -140,7 +141,8 @@ int qemuBuildMemoryBackendProps(virJSONValue **backendProps,
                                 const virDomainDef *def,
                                 const virDomainMemoryDef *mem,
                                 bool force,
-                                bool systemMemory);
+                                bool systemMemory,
+                                virBitmap **nodemaskRet);
 
 virJSONValue *
 qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
@@ -151,7 +153,9 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
 int
 qemuBuildThreadContextProps(virJSONValue **tcProps,
                             virJSONValue **memProps,
-                            qemuDomainObjPrivate *priv);
+                            const virDomainDef *def,
+                            qemuDomainObjPrivate *priv,
+                            virBitmap *nodemask);
 
 /* Current, best practice */
 virJSONValue *

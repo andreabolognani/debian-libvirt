@@ -119,6 +119,7 @@ Patches have also been contributed by:
 * Amneesh Singh <natto@weirdnatto.in>
 * Amy Fong <amy.fong@windriver.com>
 * Amy Griffis <amy.griffis@hp.com>
+* Anastasia Belova <abelova@astralinux.ru>
 * Anatole Denis <natolumin@gmail.com>
 * Andika Triwidada <andika@gmail.com>
 * Andrea Bolognani <abologna@redhat.com>
@@ -203,6 +204,7 @@ Patches have also been contributed by:
 * Christian Franke <nobody@nowhere.ws>
 * Christian Kirbach <christian.kirbach@gmail.com>
 * Christian Loehle <cloehle@linutronix.de>
+* Christian Nautze <christian.nautze@exoscale.ch>
 * Christian Schoenebeck <qemu_oss@crudebyte.com>
 * Christoffer Dall <cdall@linaro.org>
 * Christophe Fergeau <cfergeau@redhat.com>
@@ -583,6 +585,7 @@ Patches have also been contributed by:
 * Miguel Ángel Arruga Vivas <rosen644835@gmail.com>
 * Mike Latimer <mlatimer@suse.com>
 * Mike Perez <thingee@gmail.com>
+* Mike Pontillo <mpontillo@digitalocean.com>
 * Mikhail Feoktistov <mfeoktistov@parallels.com>
 * Mikhail Feoktistov <mfeoktistov@virtuozzo.com>
 * Milo Casagrande <milo@milo.name>
@@ -644,6 +647,7 @@ Patches have also been contributed by:
 * Paul Eggert <eggert@cs.ucla.edu>
 * Paulo de Rezende Pinatti <ppinatti@linux.ibm.com>
 * Pavel Boldin <pboldin@mirantis.com>
+* Pavel Borecki <pavel.borecki@gmail.com>
 * Pavel Fedin <p.fedin@samsung.com>
 * Pavel Glushchak <pglushchak@virtuozzo.com>
 * Pavel Hrdina <phrdina@redhat.com>
@@ -920,6 +924,7 @@ Patches have also been contributed by:
 * eater <=@eater.me>
 * gaohaifeng <gaohaifeng.gao@huawei.com>
 * gongwei <gongwei@smartx.com>
+* grimst <grimaitres@gmail.com>
 * hejia hejia <jiakernel@gmail.com>
 * hexin <hexin15@baidu.com>
 * ik.nitk <ik.nitk@gmail.com>

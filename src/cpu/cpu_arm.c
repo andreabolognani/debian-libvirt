@@ -450,7 +450,7 @@ virCPUarmUpdate(virCPUDef *guest,
                 const virCPUDef *host,
                 bool relative)
 {
-    g_autoptr(virCPUDef) updated = NULL;
+    g_autoptr(virCPUDef) updated = virCPUDefCopyWithoutModel(guest);
 
     if (!relative || guest->mode != VIR_CPU_MODE_HOST_MODEL)
         return 0;
@@ -461,12 +461,8 @@ virCPUarmUpdate(virCPUDef *guest,
         return -1;
     }
 
-    if (!(updated = virCPUDefCopyWithoutModel(guest)))
-        return -1;
-
     updated->mode = VIR_CPU_MODE_CUSTOM;
-    if (virCPUDefCopyModel(updated, host, true) < 0)
-        return -1;
+    virCPUDefCopyModel(updated, host, true);
 
     virCPUDefStealModel(guest, updated, false);
     guest->mode = VIR_CPU_MODE_CUSTOM;

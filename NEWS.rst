@@ -8,6 +8,66 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.2.0 (2023-04-01)
+===================
+
+* **New features**
+
+  * qemu: Add support for QCOW2 formatted firmware
+
+    This type of firmware can be picked up either automatically, if the
+    corresponding JSON descriptor has the highest priority, or manually by
+    using ``<loader format='qcow2'/>`` in the domain XML.
+
+* **Improvements**
+
+  * qemu: Make firmware selection persistent
+
+    Up until now, firmware autoselection has been performed at domain startup
+    time: as a result, changes to the JSON firmware descriptors present on the
+    system could have translated to a different firmware being chosen for
+    subsequent startups of the same domain, potentially rendering it unbootable
+    or lowering the security guarantees. Firmware selection now happens once,
+    when the domain is defined, and its results are stored in the domain XML
+    to be reused, unchanged, for all subsequent boots.
+
+  * qemu: passt now works when SELinux/AppArmor is enabled
+
+    In the case of SELinux, this requires passt-specific support code to be
+    present in the host policy, so it might only work with upcoming operating
+    systems and not with existing ones.
+
+  * xen: Support custom UEFI firmware paths
+
+    The Xen libxl driver now supports specifying a custom UEFI firmware path.
+    Previously the Xen default was used in all cases.
+
+* **Bug fixes**
+
+  * qemu: Fix validation of the HPET timer
+
+    Due to a logic bug introduced in libvirt 9.0.0, VM configurations
+    explicitly enabling the HPET timer were rejected.
+
+  * qemu: Fix thread-context .host-nodes generation
+
+    With new enough QEMU, libvirt instructs QEMU to set affinity of memory
+    allocation threads. But this may have resulted in QEMU being unable to do
+    so, as affinity to NUMA nodes inaccessible to emulator thread might have
+    been requested.
+
+  * rpc: fix typo in admin code generation
+
+    Fix the bug in the remote ``virt-admin`` code generator, that resulted
+    in a crash. Introduced in libvirt 9.1.0.
+
+  * qemu: relax shared memory check for vhostuser daemons
+
+    Fix hotplug of virtiofs ``filesystem`` after restarting libvirtd.
+    Before, libvirtd would incorrectly complain about missing shared
+    memory.
+
+
 v9.1.0 (2023-03-01)
 ===================
 
@@ -223,7 +283,7 @@ v8.10.0 (2022-12-01)
 
   * Support for SGX EPC (enclave page cache)
 
-    Users can add a ``<memory model='sgx-epc'>`` device to lauch a VM with
+    Users can add a ``<memory model='sgx-epc'>`` device to launch a VM with
     ``Intel Software Guard Extensions``.
 
   * Support migration of vTPM state of QEMU vms on shared storage
@@ -260,7 +320,7 @@ v8.10.0 (2022-12-01)
 
   * RPM packaging changes
 
-    - add optional dependancy of ``libvirt-daemon`` on ``libvirt-client``
+    - add optional dependency of ``libvirt-daemon`` on ``libvirt-client``
 
       The ``libvirt-guests.`` tool requires the ``virsh`` client to work
       properly, but we don't want to require the installation of the daemon
@@ -286,7 +346,7 @@ v8.10.0 (2022-12-01)
   * Allow incoming connections to guests on routed networks w/firewalld
 
     A change in handling of implicit rules in ``firewalld 1.0.0`` broke
-    incomming connections to VMs when using ``routed`` network. This is fixed
+    incoming connections to VMs when using ``routed`` network. This is fixed
     by adding a new ``libvirt-routed`` zone configured to once again allow
     incoming sessions to guests on routed networks.
 

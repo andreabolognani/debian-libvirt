@@ -228,7 +228,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 9.1.0
+Version: 9.2.0
 Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/
@@ -236,7 +236,7 @@ URL: https://libvirt.org/
 %if %(echo %{version} | grep -q "\.0$"; echo $?) == 1
     %define mainturl stable_updates/
 %endif
-Source: https://libvirt.org/sources/%{?mainturl}libvirt-%{version}.tar.xz
+Source: https://download.libvirt.org/%{?mainturl}libvirt-%{version}.tar.xz
 
 Requires: libvirt-daemon = %{version}-%{release}
 Requires: libvirt-daemon-config-network = %{version}-%{release}
@@ -765,6 +765,7 @@ Requires: numad
     %endif
     %if (0%{?fedora} >= 36) || (0%{?rhel} >= 9)
 Recommends: passt
+Recommends: passt-selinux
     %endif
 
 %description daemon-driver-qemu

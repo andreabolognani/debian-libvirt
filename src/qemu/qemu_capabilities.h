@@ -88,7 +88,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 30 */
     X_QEMU_CAPS_VHOST_NET, /* vhost-net support available */
     X_QEMU_CAPS_RTC_TD_HACK, /* -rtc-td-hack available */
-    QEMU_CAPS_NO_HPET, /* -no-hpet flag is supported */
+    X_QEMU_CAPS_NO_HPET, /* -no-hpet flag is supported */
     X_QEMU_CAPS_NO_KVM_PIT, /* -no-kvm-pit-reinjection supported */
     X_QEMU_CAPS_TDF, /* -tdf flag (user-mode pit catchup) */
 
@@ -150,7 +150,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 75 */
     QEMU_CAPS_ICH9_AHCI, /* -device ich9-ahci */
-    QEMU_CAPS_NO_ACPI, /* -no-acpi */
+    X_QEMU_CAPS_NO_ACPI, /* -no-acpi */
     X_QEMU_CAPS_FSDEV_READONLY, /* -fsdev readonly supported */
     QEMU_CAPS_VIRTIO_BLK_SCSI, /* virtio-blk-pci.scsi */
     X_QEMU_CAPS_VIRTIO_BLK_SG_IO, /* SG_IO commands */
@@ -286,7 +286,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_OBJECT_USB_AUDIO, /* usb-audio device support */
     QEMU_CAPS_RTC_RESET_REINJECTION, /* rtc-reset-reinjection monitor command */
     X_QEMU_CAPS_SPLASH_TIMEOUT, /* -boot splash-time */
-    QEMU_CAPS_OBJECT_IOTHREAD, /* -object iothread */
+    X_QEMU_CAPS_OBJECT_IOTHREAD, /* -object iothread */
 
     /* 175 */
     QEMU_CAPS_MIGRATE_RDMA, /* have rdma migration */
@@ -300,12 +300,12 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_QXL_VGA_VGAMEM, /* -device qxl-vga.vgamem_mb */
     QEMU_CAPS_DEVICE_PC_DIMM, /* pc-dimm device */
     QEMU_CAPS_MACHINE_VMPORT_OPT, /* -machine xxx,vmport=on/off/auto */
-    QEMU_CAPS_AES_KEY_WRAP, /* -machine aes_key_wrap */
+    X_QEMU_CAPS_AES_KEY_WRAP, /* -machine aes_key_wrap */
 
     /* 185 */
-    QEMU_CAPS_DEA_KEY_WRAP, /* -machine dea_key_wrap */
+    X_QEMU_CAPS_DEA_KEY_WRAP, /* -machine dea_key_wrap */
     QEMU_CAPS_DEVICE_PCI_SERIAL, /* -device pci-serial */
-    QEMU_CAPS_CPU_AARCH64_OFF, /* -cpu ...,aarch64=off */
+    X_QEMU_CAPS_CPU_AARCH64_OFF, /* -cpu ...,aarch64=off */
     X_QEMU_CAPS_VHOSTUSER_MULTIQUEUE, /* vhost-user with -netdev queues= */
     X_QEMU_CAPS_MIGRATION_EVENT, /* MIGRATION event */
 
@@ -319,7 +319,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 195 */
     QEMU_CAPS_DEVICE_E1000, /* -device e1000 */
     QEMU_CAPS_DEVICE_VIRTIO_NET, /* -device virtio-net-* */
-    QEMU_CAPS_MACH_VIRT_GIC_VERSION, /* -machine virt,gic-version */
+    X_QEMU_CAPS_MACH_VIRT_GIC_VERSION, /* -machine virt,gic-version */
     X_QEMU_CAPS_INCOMING_DEFER, /* -incoming defer and migrate_incoming */
     QEMU_CAPS_DEVICE_VIRTIO_GPU, /* -device virtio-gpu-* */
 
@@ -410,7 +410,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 260 */
     X_QEMU_CAPS_VIRTIO_PCI_ATS, /* virtio-*-pci.ats */
-    QEMU_CAPS_LOADPARM, /* -machine loadparm */
+    X_QEMU_CAPS_LOADPARM, /* -machine loadparm */
     QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE, /* -device spapr-pci-host-bridge */
     QEMU_CAPS_SPAPR_PCI_HOST_BRIDGE_NUMA_NODE, /* spapr-pci-host-bridge.numa_node= */
     X_QEMU_CAPS_VNC_MULTI_SERVERS, /* -vnc vnc=unix:/path */
@@ -490,7 +490,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_ZPCI, /* -device zpci */
     QEMU_CAPS_OBJECT_MEMORY_MEMFD, /* -object memory-backend-memfd */
     QEMU_CAPS_OBJECT_MEMORY_MEMFD_HUGETLB, /* -object memory-backend-memfd.hugetlb */
-    QEMU_CAPS_IOTHREAD_POLLING, /* -object iothread.poll-max-ns */
+    X_QEMU_CAPS_IOTHREAD_POLLING, /* -object iothread.poll-max-ns */
 
     /* 320 */
     QEMU_CAPS_MACHINE_PSERIES_CAP_NESTED_HV, /* -machine pseries.cap-nested-hv */
@@ -669,6 +669,9 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 445 */
     QEMU_CAPS_NETDEV_STREAM_RECONNECT, /* -netdev stream supports reconnect */
+    QEMU_CAPS_VIRTIO_GPU_BLOB, /* -device virtio-gpu-*.blob= */
+    QEMU_CAPS_RBD_ENCRYPTION_LAYERING, /* layered encryption support for Ceph RBD */
+    QEMU_CAPS_RBD_ENCRYPTION_LUKS_ANY, /* luks-any (LUKS and LUKS2) encryption format for Ceph RBD */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -767,6 +770,9 @@ bool virQEMUCapsIsCPUDeprecated(virQEMUCaps *qemuCaps,
 bool virQEMUCapsIsMachineDeprecated(virQEMUCaps *qemuCaps,
                                     virDomainVirtType type,
                                     const char *machine);
+virTristateBool virQEMUCapsMachineSupportsACPI(virQEMUCaps *qemuCaps,
+                                               virDomainVirtType type,
+                                               const char *machine);
 bool virQEMUCapsGetMachineNumaMemSupported(virQEMUCaps *qemuCaps,
                                            virDomainVirtType virtType,
                                            const char *name);

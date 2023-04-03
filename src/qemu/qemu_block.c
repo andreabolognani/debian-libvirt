@@ -529,6 +529,7 @@ qemuBlockStorageSourceGetNBDProps(virStorageSource *src,
                               "S:export", src->path,
                               "S:tls-creds", tlsAlias,
                               "S:tls-hostname", tlsHostname,
+                              "p:reconnect-delay", src->reconnectDelay,
                               NULL) < 0)
         return NULL;
 
@@ -563,6 +564,8 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
 
     if (src->encryption &&
         src->encryption->engine == VIR_STORAGE_ENCRYPTION_ENGINE_LIBRBD) {
+        size_t i;
+
         switch ((virStorageEncryptionFormatType) src->encryption->format) {
             case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS:
                 encformat = "luks";
@@ -572,6 +575,10 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
                 encformat = "luks2";
                 break;
 
+            case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS_ANY:
+                encformat = "luks-any";
+                break;
+
             case VIR_STORAGE_ENCRYPTION_FORMAT_QCOW:
             case VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT:
             case VIR_STORAGE_ENCRYPTION_FORMAT_LAST:
@@ -579,11 +586,19 @@ qemuBlockStorageSourceGetRBDProps(virStorageSource *src,
                 break;
         }
 
-        if (virJSONValueObjectAdd(&encrypt,
-                                  "s:format", encformat,
-                                  "s:key-secret", srcPriv->encinfo->alias,
-                                  NULL) < 0)
-            return NULL;
+        for (i = src->encryption->nsecrets; i > 0; --i) {
+            g_autoptr(virJSONValue) new = NULL;
+
+            /* we consume the lower layer 'encrypt' into a new object */
+            if (virJSONValueObjectAdd(&new,
+                                      "s:format", encformat,
+                                      "s:key-secret", srcPriv->encinfo[i-1]->alias,
+                                      "A:parent", &encrypt,
+                                      NULL) < 0)
+                return NULL;
+
+            encrypt = g_steal_pointer(&new);
+        }
     }
 
     if (virJSONValueObjectAdd(&ret,
@@ -978,7 +993,8 @@ qemuBlockStorageSourceGetFormatLUKSProps(virStorageSource *src,
 {
     qemuDomainStorageSourcePrivate *srcPriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
 
-    if (!srcPriv || !srcPriv->encinfo || !srcPriv->encinfo->alias) {
+    /* validation ensures that the qemu encryption engine accepts only a single secret */
+    if (!srcPriv || !srcPriv->encinfo || !srcPriv->encinfo[0]->alias) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing secret info for 'luks' driver"));
         return -1;
@@ -986,7 +1002,7 @@ qemuBlockStorageSourceGetFormatLUKSProps(virStorageSource *src,
 
     if (virJSONValueObjectAdd(&props,
                               "s:driver", "luks",
-                              "s:key-secret", srcPriv->encinfo->alias,
+                              "s:key-secret", srcPriv->encinfo[0]->alias,
                               NULL) < 0)
         return -1;
 
@@ -1040,10 +1056,8 @@ qemuBlockStorageSourceGetCryptoProps(virStorageSource *src,
         break;
 
     case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS2:
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("luks2 is currently not supported by the qemu encryption engine"));
-        return -1;
-
+    case VIR_STORAGE_ENCRYPTION_FORMAT_LUKS_ANY:
+        /* validation code asserts the above cases are impossible */
     case VIR_STORAGE_ENCRYPTION_FORMAT_DEFAULT:
     case VIR_STORAGE_ENCRYPTION_FORMAT_LAST:
     default:
@@ -1052,9 +1066,10 @@ qemuBlockStorageSourceGetCryptoProps(virStorageSource *src,
         return -1;
     }
 
+    /* validation ensures that the qemu encryption engine accepts only a single secret */
     return virJSONValueObjectAdd(encprops,
                                  "s:format", encformat,
-                                 "s:key-secret", srcpriv->encinfo->alias,
+                                 "s:key-secret", srcpriv->encinfo[0]->alias,
                                  NULL);
 }
 
@@ -1310,6 +1325,7 @@ qemuBlockStorageSourceGetBlockdevStorageSliceProps(virStorageSource *src)
 void
 qemuBlockStorageSourceAttachDataFree(qemuBlockStorageSourceAttachData *data)
 {
+    size_t i;
     if (!data)
         return;
 
@@ -1319,12 +1335,16 @@ qemuBlockStorageSourceAttachDataFree(qemuBlockStorageSourceAttachData *data)
     virJSONValueFree(data->prmgrProps);
     virJSONValueFree(data->authsecretProps);
     virJSONValueFree(data->httpcookiesecretProps);
-    virJSONValueFree(data->encryptsecretProps);
+    for (i = 0; i < data->encryptsecretCount; ++i) {
+        virJSONValueFree(data->encryptsecretProps[i]);
+        g_free(data->encryptsecretAlias[i]);
+    }
     virJSONValueFree(data->tlsProps);
     virJSONValueFree(data->tlsKeySecretProps);
     g_free(data->tlsAlias);
     g_free(data->tlsKeySecretAlias);
     g_free(data->authsecretAlias);
+    g_free(data->encryptsecretProps);
     g_free(data->encryptsecretAlias);
     g_free(data->httpcookiesecretAlias);
     g_free(data->driveCmd);
@@ -1435,10 +1455,12 @@ static int
 qemuBlockStorageSourceAttachApplyFormatDeps(qemuMonitor *mon,
                                             qemuBlockStorageSourceAttachData *data)
 {
-    if (data->encryptsecretProps &&
-        qemuMonitorAddObject(mon, &data->encryptsecretProps,
-                             &data->encryptsecretAlias) < 0)
-        return -1;
+    size_t i;
+    for (i = 0; i < data->encryptsecretCount; ++i) {
+        if (qemuMonitorAddObject(mon, &data->encryptsecretProps[i],
+                                 &data->encryptsecretAlias[i]) < 0)
+            return -1;
+    }
 
     return 0;
 }
@@ -1524,6 +1546,7 @@ qemuBlockStorageSourceAttachRollback(qemuMonitor *mon,
                                      qemuBlockStorageSourceAttachData *data)
 {
     virErrorPtr orig_err;
+    size_t i;
 
     virErrorPreserveLast(&orig_err);
 
@@ -1549,8 +1572,10 @@ qemuBlockStorageSourceAttachRollback(qemuMonitor *mon,
     if (data->authsecretAlias)
         ignore_value(qemuMonitorDelObject(mon, data->authsecretAlias, false));
 
-    if (data->encryptsecretAlias)
-        ignore_value(qemuMonitorDelObject(mon, data->encryptsecretAlias, false));
+    for (i = 0; i < data->encryptsecretCount; ++i) {
+        if (data->encryptsecretAlias[i])
+            ignore_value(qemuMonitorDelObject(mon, data->encryptsecretAlias[i], false));
+    }
 
     if (data->httpcookiesecretAlias)
         ignore_value(qemuMonitorDelObject(mon, data->httpcookiesecretAlias, false));
@@ -1605,8 +1630,17 @@ qemuBlockStorageSourceDetachPrepare(virStorageSource *src)
         if (srcpriv->secinfo)
             data->authsecretAlias = g_strdup(srcpriv->secinfo->alias);
 
-        if (srcpriv->encinfo)
-            data->encryptsecretAlias = g_strdup(srcpriv->encinfo->alias);
+        if (srcpriv->encinfo) {
+            size_t i;
+
+            data->encryptsecretCount = srcpriv->enccount;
+            data->encryptsecretProps = g_new0(virJSONValue *, srcpriv->enccount);
+            data->encryptsecretAlias = g_new0(char *, srcpriv->enccount);
+
+            for (i = 0; i < srcpriv->enccount; ++i) {
+                data->encryptsecretAlias[i] = g_strdup(srcpriv->encinfo[i]->alias);
+            }
+        }
 
         if (srcpriv->httpcookie)
             data->httpcookiesecretAlias = g_strdup(srcpriv->httpcookie->alias);
@@ -1848,7 +1882,8 @@ qemuBlockGetBackingStoreString(virStorageSource *src,
             src->ncookies == 0 &&
             src->sslverify == VIR_TRISTATE_BOOL_ABSENT &&
             src->timeout == 0 &&
-            src->readahead == 0) {
+            src->readahead == 0 &&
+            src->reconnectDelay == 0) {
 
             switch ((virStorageNetProtocol) src->protocol) {
             case VIR_STORAGE_NET_PROTOCOL_NBD:
@@ -1970,7 +2005,7 @@ qemuBlockStorageSourceCreateGetEncryptionLUKS(virStorageSource *src,
 
     if (srcpriv &&
         srcpriv->encinfo)
-        keysecret = srcpriv->encinfo->alias;
+        keysecret = srcpriv->encinfo[0]->alias;
 
     if (virJSONValueObjectAdd(&props,
                               "s:key-secret", keysecret,
