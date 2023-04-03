@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '9.1.0',
+  version: '9.2.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -404,6 +404,26 @@ cc_flags += [
   '-Wwrite-strings',
 ]
 
+if cc.get_id() == 'clang'
+    # Stop CLang from doing inter-procedural analysis of calls
+    # between functions in the same compilation unit. Such an
+    # optimization has been know to break the test suite by
+    # making assumptions that a return value is a constant.
+    # This makes it impossible to mock certain functions with
+    # replacement definitions via LD_PRELOAD that have different
+    # semantics.
+    #
+    # This is a bit of a big hammer, but alternatives don't work:
+    #
+    #  - 'weak' attribute - weak symbols get dropped from
+    #    when the .a libs are combined into the .so
+    #    see commit 407a281a8e2b6c5078ba1148535663ea64fd9314
+    #
+    #  - 'noipa' attribute - only available with GCC currently
+    #    https://reviews.llvm.org/D101011
+    cc_flags += [ '-fsemantic-interposition' ]
+endif
+
 supported_cc_flags = []
 if get_option('warning_level') == '2'
   supported_cc_flags = cc.get_supported_arguments(cc_flags)
@@ -514,12 +534,7 @@ elif host_machine.system() == 'darwin'
   # macOS libraries don't support symbol versioning
   version_script_flags = ''
 else
-  test_file = '@0@/src/libvirt_qemu.syms'.format(meson.project_source_root())
-  if cc.has_link_argument('-Wl,--version-script=@0@'.format(test_file))
-    version_script_flags = '-Wl,--version-script='
-  else
-    error('No supported version script link argument found.')
-  endif
+  version_script_flags = '-Wl,--version-script='
 endif
 
 libvirt_flat_namespace = []
@@ -2020,8 +2035,18 @@ subdir('src')
 
 subdir('tools')
 
-build_tests = not get_option('tests').disabled()
-if build_tests
+build_tests = [ not get_option('tests').disabled() ]
+if build_tests[0] and \
+   cc.get_id() == 'clang' and \
+   not supported_cc_flags.contains('-fsemantic-interposition') \
+   and get_option('optimization') != '0'
+   # If CLang doesn't support -fsemantic-interposition then our
+   # mocking doesn't work. The best we can do is to not run the
+   # test suite.
+   build_tests = [ false, '!!! Forcibly disabling tests because CLang lacks -fsemantic-interposition. Update CLang or disable optimization !!!' ]
+endif
+
+if build_tests[0]
   subdir('tests')
 endif
 

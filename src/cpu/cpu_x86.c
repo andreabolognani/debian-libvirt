@@ -2935,16 +2935,12 @@ static int
 x86UpdateHostModel(virCPUDef *guest,
                    const virCPUDef *host)
 {
-    g_autoptr(virCPUDef) updated = NULL;
+    g_autoptr(virCPUDef) updated = virCPUDefCopyWithoutModel(host);
     size_t i;
-
-    if (!(updated = virCPUDefCopyWithoutModel(host)))
-        return -1;
 
     updated->type = VIR_CPU_TYPE_GUEST;
     updated->mode = VIR_CPU_MODE_CUSTOM;
-    if (virCPUDefCopyModel(updated, host, true) < 0)
-        return -1;
+    virCPUDefCopyModel(updated, host, true);
 
     if (guest->vendor_id) {
         g_free(updated->vendor_id);
@@ -3170,7 +3166,7 @@ static int
 virCPUx86Translate(virCPUDef *cpu,
                    virDomainCapsCPUModels *models)
 {
-    g_autoptr(virCPUDef) translated = NULL;
+    g_autoptr(virCPUDef) translated = virCPUDefCopyWithoutModel(cpu);
     virCPUx86Map *map;
     g_autoptr(virCPUx86Model) model = NULL;
     size_t i;
@@ -3192,9 +3188,6 @@ virCPUx86Translate(virCPUDef *cpu,
             return -1;
     }
 
-    if (!(translated = virCPUDefCopyWithoutModel(cpu)))
-        return -1;
-
     if (x86Decode(translated, &model->data, models, NULL, false) < 0)
         return -1;
 
@@ -3213,15 +3206,12 @@ static int
 virCPUx86ExpandFeatures(virCPUDef *cpu)
 {
     virCPUx86Map *map;
-    g_autoptr(virCPUDef) expanded = NULL;
+    g_autoptr(virCPUDef) expanded = virCPUDefCopy(cpu);
     g_autoptr(virCPUx86Model) model = NULL;
     bool host = cpu->type == VIR_CPU_TYPE_HOST;
     size_t i;
 
     if (!(map = virCPUx86GetMap()))
-        return -1;
-
-    if (!(expanded = virCPUDefCopy(cpu)))
         return -1;
 
     virCPUDefFreeFeatures(expanded);
@@ -3257,7 +3247,9 @@ virCPUx86ExpandFeatures(virCPUDef *cpu)
 
     virCPUDefFreeModel(cpu);
 
-    return virCPUDefCopyModel(cpu, expanded, false);
+    virCPUDefCopyModel(cpu, expanded, false);
+
+    return 0;
 }
 
 
@@ -3279,12 +3271,11 @@ virCPUx86CopyMigratable(virCPUDef *cpu)
     if (!(map = virCPUx86GetMap()))
         return NULL;
 
-    if (!(copy = virCPUDefCopyWithoutModel(cpu)))
+    if (!cpu)
         return NULL;
 
-    if (virCPUDefCopyModelFilter(copy, cpu, false,
-                                 x86FeatureFilterMigratable, map) < 0)
-        return NULL;
+    copy = virCPUDefCopyWithoutModel(cpu);
+    virCPUDefCopyModelFilter(copy, cpu, false, x86FeatureFilterMigratable, map);
 
     return g_steal_pointer(&copy);
 }

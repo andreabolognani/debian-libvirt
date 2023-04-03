@@ -678,7 +678,7 @@ qemuStateInitialize(bool privileged,
     }
 
     if ((qemu_driver->lockFD =
-         virPidFileAcquire(cfg->stateDir, "driver", false, getpid())) < 0)
+         virPidFileAcquire(cfg->stateDir, "driver", getpid())) < 0)
         goto error;
 
     qemu_driver->qemuImgBinary = virFindFileInPath("qemu-img");
@@ -2727,6 +2727,10 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
                                      virDomainEventLifecycleNewFromObj(vm,
                                          VIR_DOMAIN_EVENT_SUSPENDED,
                                          VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR));
+                if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
+                    virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
+                                         VIR_DOMAIN_PAUSED_API_ERROR);
+                }
             }
             virErrorRestore(&save_err);
         }
@@ -3254,6 +3258,10 @@ qemuDomainCoreDumpWithFormat(virDomainPtr dom,
                 event = virDomainEventLifecycleNewFromObj(vm,
                                                           VIR_DOMAIN_EVENT_SUSPENDED,
                                                           VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+                if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
+                    virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
+                                         VIR_DOMAIN_PAUSED_API_ERROR);
+                }
                 if (virGetLastErrorCode() == VIR_ERR_OK)
                     virReportError(VIR_ERR_OPERATION_FAILED,
                                    "%s", _("resuming after dump failed"));
@@ -4574,14 +4582,9 @@ qemuDomainGetEmulatorPinInfo(virDomainPtr dom,
     if (live)
         autoCpuset = QEMU_DOMAIN_PRIVATE(vm)->autoCpuset;
 
-    if (def->cputune.emulatorpin) {
-        cpumask = def->cputune.emulatorpin;
-    } else if (def->cpumask) {
-        cpumask = def->cpumask;
-    } else if (vm->def->placement_mode == VIR_DOMAIN_CPU_PLACEMENT_MODE_AUTO &&
-               autoCpuset) {
-        cpumask = autoCpuset;
-    } else {
+    if (!(cpumask = qemuDomainEvaluateCPUMask(def,
+                                              def->cputune.emulatorpin,
+                                              autoCpuset))) {
         if (!(bitmap = virHostCPUGetAvailableCPUsBitmap()))
             goto cleanup;
         cpumask = bitmap;
@@ -4728,7 +4731,6 @@ static int
 qemuDomainGetIOThreadsLive(virDomainObj *vm,
                            virDomainIOThreadInfoPtr **info)
 {
-    qemuDomainObjPrivate *priv;
     qemuMonitorIOThreadInfo **iothreads = NULL;
     virDomainIOThreadInfoPtr *info_ret = NULL;
     int niothreads = 0;
@@ -4741,13 +4743,6 @@ qemuDomainGetIOThreadsLive(virDomainObj *vm,
     if (!virDomainObjIsActive(vm)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("cannot list IOThreads for an inactive domain"));
-        goto endjob;
-    }
-
-    priv = vm->privateData;
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_IOTHREAD)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("IOThreads not supported with this binary"));
         goto endjob;
     }
 
@@ -5062,12 +5057,6 @@ qemuDomainHotplugModIOThread(virDomainObj *vm,
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     int rc;
-
-    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_IOTHREAD_POLLING)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("IOThreads polling is not supported for this QEMU"));
-        return -1;
-    }
 
     qemuDomainObjEnterMonitor(vm);
 
@@ -5428,12 +5417,6 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
     }
 
     if (def) {
-        if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_IOTHREAD)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("IOThreads not supported with this binary"));
-            goto endjob;
-        }
-
         switch (action) {
         case VIR_DOMAIN_IOTHREAD_ACTION_ADD:
             if (virDomainDriverAddIOThreadCheck(def, iothread.iothread_id) < 0)
@@ -6646,8 +6629,6 @@ qemuDomainUndefineFlags(virDomainPtr dom,
     if (vm->def->os.loader && vm->def->os.loader->nvram &&
         virStorageSourceIsLocalStorage(vm->def->os.loader->nvram)) {
         nvram_path = g_strdup(vm->def->os.loader->nvram->path);
-    } else if (vm->def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
-        qemuDomainNVRAMPathFormat(cfg, vm->def, &nvram_path);
     }
 
     if (nvram_path && virFileExists(nvram_path)) {
@@ -8251,7 +8232,7 @@ static int qemuDomainSetAutostart(virDomainPtr dom,
 
             if (symlink(configFile, autostartLink) < 0) {
                 virReportSystemError(errno,
-                                     _("Failed to create symlink '%s to '%s'"),
+                                     _("Failed to create symlink '%s' to '%s'"),
                                      autostartLink, configFile);
                 goto endjob;
             }
@@ -12193,13 +12174,10 @@ qemuConnectBaselineCPU(virConnectPtr conn G_GNUC_UNUSED,
                                     !!(flags & VIR_CONNECT_BASELINE_CPU_MIGRATABLE))))
         goto cleanup;
 
-    if (!(cpu = virCPUDefCopyWithoutModel(baseline)))
-        goto cleanup;
+    cpu = virCPUDefCopyWithoutModel(baseline);
 
-    if (virCPUDefCopyModelFilter(cpu, baseline, false,
-                                 virQEMUCapsCPUFilterFeatures,
-                                 &cpus[0]->arch) < 0)
-        goto cleanup;
+    virCPUDefCopyModelFilter(cpu, baseline, false, virQEMUCapsCPUFilterFeatures,
+                             &cpus[0]->arch);
 
     if ((flags & VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES) &&
         virCPUExpandFeatures(cpus[0]->arch, cpu) < 0)
@@ -12295,8 +12273,7 @@ qemuConnectCPUModelBaseline(virQEMUCaps *qemuCaps,
 
     baseline = g_new0(virCPUDef, 1);
 
-    if (virCPUDefCopyModel(baseline, cpus[0], false) < 0)
-        return NULL;
+    virCPUDefCopyModel(baseline, cpus[0], false);
 
     for (i = 1; i < ncpus; i++) {
         if (qemuMonitorGetCPUModelBaseline(proc->mon, baseline,
@@ -18395,11 +18372,6 @@ struct qemuDomainGetStatsWorker {
 };
 
 
-static virQEMUCapsFlags queryIOThreadRequired[] = {
-    QEMU_CAPS_OBJECT_IOTHREAD,
-    QEMU_CAPS_LAST
-};
-
 static virQEMUCapsFlags queryDirtyRateRequired[] = {
     QEMU_CAPS_QUERY_DIRTY_RATE,
     QEMU_CAPS_LAST
@@ -18418,7 +18390,7 @@ static struct qemuDomainGetStatsWorker qemuDomainGetStatsWorkers[] = {
     { qemuDomainGetStatsInterface, VIR_DOMAIN_STATS_INTERFACE, false, NULL },
     { qemuDomainGetStatsBlock, VIR_DOMAIN_STATS_BLOCK, true, NULL },
     { qemuDomainGetStatsPerf, VIR_DOMAIN_STATS_PERF, false, NULL },
-    { qemuDomainGetStatsIOThread, VIR_DOMAIN_STATS_IOTHREAD, true, queryIOThreadRequired },
+    { qemuDomainGetStatsIOThread, VIR_DOMAIN_STATS_IOTHREAD, true, NULL },
     { qemuDomainGetStatsMemory, VIR_DOMAIN_STATS_MEMORY, false, NULL },
     { qemuDomainGetStatsDirtyRate, VIR_DOMAIN_STATS_DIRTYRATE, true, queryDirtyRateRequired },
     { qemuDomainGetStatsVm, VIR_DOMAIN_STATS_VM, true, queryVmRequired },
@@ -18992,7 +18964,7 @@ qemuDomainRenameCallback(virDomainObj *vm,
 
         if (symlink(new_dom_cfg_file, new_dom_autostart_link) < 0) {
             virReportSystemError(errno,
-                                 _("Failed to create symlink '%s to '%s'"),
+                                 _("Failed to create symlink '%s' to '%s'"),
                                  new_dom_autostart_link, new_dom_cfg_file);
             return -1;
         }

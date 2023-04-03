@@ -362,9 +362,10 @@ int virPidFileDelete(const char *dir,
     return virPidFileDeletePath(pidfile);
 }
 
-int virPidFileAcquirePath(const char *path,
-                          bool waitForLock,
-                          pid_t pid)
+int virPidFileAcquirePathFull(const char *path,
+                              bool waitForLock,
+                              bool quiet,
+                              pid_t pid)
 {
     int fd = -1;
     char pidstr[VIR_INT64_STR_BUFLEN];
@@ -375,32 +376,40 @@ int virPidFileAcquirePath(const char *path,
     while (1) {
         struct stat a, b;
         if ((fd = open(path, O_WRONLY|O_CREAT, 0644)) < 0) {
-            virReportSystemError(errno,
-                                 _("Failed to open pid file '%s'"),
-                                 path);
+            if (!quiet) {
+                virReportSystemError(errno,
+                                     _("Failed to open pid file '%s'"),
+                                     path);
+            }
             return -1;
         }
 
         if (virSetCloseExec(fd) < 0) {
-            virReportSystemError(errno,
-                                 _("Failed to set close-on-exec flag '%s'"),
-                                 path);
+            if (!quiet) {
+                virReportSystemError(errno,
+                                     _("Failed to set close-on-exec flag '%s'"),
+                                     path);
+            }
             VIR_FORCE_CLOSE(fd);
             return -1;
         }
 
         if (fstat(fd, &b) < 0) {
-            virReportSystemError(errno,
-                                 _("Unable to check status of pid file '%s'"),
-                                 path);
+            if (!quiet) {
+                virReportSystemError(errno,
+                                     _("Unable to check status of pid file '%s'"),
+                                     path);
+            }
             VIR_FORCE_CLOSE(fd);
             return -1;
         }
 
         if (virFileLock(fd, false, 0, 1, waitForLock) < 0) {
-            virReportSystemError(errno,
-                                 _("Failed to acquire pid file '%s'"),
-                                 path);
+            if (!quiet) {
+                virReportSystemError(errno,
+                                     _("Failed to acquire pid file '%s'"),
+                                     path);
+            }
             VIR_FORCE_CLOSE(fd);
             return -1;
         }
@@ -427,17 +436,21 @@ int virPidFileAcquirePath(const char *path,
     g_snprintf(pidstr, sizeof(pidstr), "%lld", (long long) pid);
 
     if (ftruncate(fd, 0) < 0) {
-        virReportSystemError(errno,
-                             _("Failed to truncate pid file '%s'"),
-                             path);
+        if (!quiet) {
+            virReportSystemError(errno,
+                                 _("Failed to truncate pid file '%s'"),
+                                 path);
+        }
         VIR_FORCE_CLOSE(fd);
         return -1;
     }
 
     if (safewrite(fd, pidstr, strlen(pidstr)) < 0) {
-        virReportSystemError(errno,
-                             _("Failed to write to pid file '%s'"),
-                             path);
+        if (!quiet) {
+            virReportSystemError(errno,
+                                 _("Failed to write to pid file '%s'"),
+                                 path);
+        }
         VIR_FORCE_CLOSE(fd);
     }
 
@@ -445,9 +458,15 @@ int virPidFileAcquirePath(const char *path,
 }
 
 
+int virPidFileAcquirePath(const char *path,
+                          pid_t pid)
+{
+    return virPidFileAcquirePathFull(path, false, false, pid);
+}
+
+
 int virPidFileAcquire(const char *dir,
                       const char *name,
-                      bool waitForLock,
                       pid_t pid)
 {
     g_autofree char *pidfile = NULL;
@@ -458,7 +477,7 @@ int virPidFileAcquire(const char *dir,
     if (!(pidfile = virPidFileBuildPath(dir, name)))
         return -ENOMEM;
 
-    return virPidFileAcquirePath(pidfile, waitForLock, pid);
+    return virPidFileAcquirePath(pidfile, pid);
 }
 
 
@@ -559,10 +578,8 @@ virPidFileForceCleanupPathFull(const char *path, bool group)
     if (virPidFileReadPath(path, &pid) < 0)
         return -1;
 
-    fd = virPidFileAcquirePath(path, false, 0);
+    fd = virPidFileAcquirePathFull(path, false, true, 0);
     if (fd < 0) {
-        virResetLastError();
-
         if (pid > 1 && group)
             pid = virProcessGroupGet(pid);
 

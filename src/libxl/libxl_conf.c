@@ -632,18 +632,14 @@ libxlMakeDomBuildInfo(virDomainDef *def,
         b_info->ramdisk = g_strdup(def->os.initrd);
 
         /*
-         * Currently libxl only allows specifying the type of BIOS.
-         * If automatic firmware selection is enabled or the loader
-         * type is PFLASH, we assume OVMF and set libxl_bios_type
-         * to LIBXL_BIOS_TYPE_OVMF. The path to the OVMF firmware is
-         * configured when building Xen using '--with-system-ovmf='. If
-         * not specified, LIBXL_FIRMWARE_DIR/ovmf.bin is used. In the
-         * future, Xen will support a user-specified firmware path. See
-         * https://lists.xenproject.org/archives/html/xen-devel/2016-03/msg01628.html
+         * libxl allows specifying the type of firmware and an optional path.
+         * If the path is not explicitly specified, a default path for the given
+         * firmware type is used. For EFI, it's LIBXL_FIRMWARE_DIR/ovmf.bin.
+         * Currently libxl does not support specifying nvram for EFI firmwares.
          */
         if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
             if (def->os.loader == NULL)
-                def->os.loader = g_new0(virDomainLoaderDef, 1);
+                def->os.loader = virDomainLoaderDefNew();
             if (def->os.loader->path == NULL)
                 def->os.loader->path = g_strdup(cfg->firmwares[0]->name);
             if (def->os.loader->type == VIR_DOMAIN_LOADER_TYPE_NONE)
@@ -651,9 +647,18 @@ libxlMakeDomBuildInfo(virDomainDef *def,
             if (def->os.loader->readonly == VIR_TRISTATE_BOOL_ABSENT)
                 def->os.loader->readonly = VIR_TRISTATE_BOOL_YES;
             b_info->u.hvm.bios = LIBXL_BIOS_TYPE_OVMF;
+            b_info->u.hvm.system_firmware = g_strdup(def->os.loader->path);
             def->os.firmware = VIR_DOMAIN_OS_DEF_FIRMWARE_NONE;
         } else if (virDomainDefHasOldStyleUEFI(def)) {
             b_info->u.hvm.bios = LIBXL_BIOS_TYPE_OVMF;
+            b_info->u.hvm.system_firmware = g_strdup(def->os.loader->path);
+        }
+
+        if (def->os.loader && def->os.loader->format != VIR_STORAGE_FILE_RAW) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Unsupported loader format '%s'"),
+                           virStorageFileFormatTypeToString(def->os.loader->format));
+            return -1;
         }
 
         if (def->emulator) {
@@ -2371,6 +2376,16 @@ libxlMakeVideo(virDomainDef *def, libxl_domain_config *d_config)
             }
             break;
 
+        case VIR_DOMAIN_VIDEO_TYPE_DEFAULT:
+        case VIR_DOMAIN_VIDEO_TYPE_VMVGA:
+        case VIR_DOMAIN_VIDEO_TYPE_VBOX:
+        case VIR_DOMAIN_VIDEO_TYPE_PARALLELS:
+        case VIR_DOMAIN_VIDEO_TYPE_VIRTIO:
+        case VIR_DOMAIN_VIDEO_TYPE_GOP:
+        case VIR_DOMAIN_VIDEO_TYPE_NONE:
+        case VIR_DOMAIN_VIDEO_TYPE_BOCHS:
+        case VIR_DOMAIN_VIDEO_TYPE_RAMFB:
+        case VIR_DOMAIN_VIDEO_TYPE_LAST:
         default:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("video type %s is not supported by libxl"),

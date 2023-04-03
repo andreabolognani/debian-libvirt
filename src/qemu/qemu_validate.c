@@ -430,15 +430,6 @@ qemuValidateDomainDefCpu(virQEMUDriver *driver,
     if (cpu->model || cpu->mode != VIR_CPU_MODE_CUSTOM) {
         switch ((virCPUMode) cpu->mode) {
         case VIR_CPU_MODE_HOST_PASSTHROUGH:
-            if (def->os.arch == VIR_ARCH_ARMV7L &&
-                driver->hostarch == VIR_ARCH_AARCH64) {
-                if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_AARCH64_OFF)) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("QEMU binary does not support CPU host-passthrough for armv7l on aarch64 host"));
-                    return -1;
-                }
-            }
-
             if (cpu->migratable &&
                 cpu->migratable != VIR_TRISTATE_SWITCH_OFF &&
                 !virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_MIGRATABLE)) {
@@ -608,13 +599,13 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
             break;
 
         case VIR_DOMAIN_TIMER_NAME_HPET:
-            /* no hpet timer available. The only possible action
-              is to raise an error if present="yes" */
-            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NO_HPET) &&
-                timer->present == VIR_TRISTATE_BOOL_YES) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               "%s", _("hpet timer is not supported"));
-                return -1;
+            if (timer->present == VIR_TRISTATE_BOOL_YES) {
+                if (def->os.arch != VIR_ARCH_I686 &&
+                    def->os.arch != VIR_ARCH_X86_64) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("hpet timer is not supported by this architecture"));
+                    return -1;
+                }
             }
             break;
 
@@ -775,6 +766,12 @@ static int
 qemuValidateDomainDefBoot(const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
+    if (def->os.bootloader || def->os.bootloaderArgs) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("bootloader is not supported by QEMU"));
+        return -1;
+    }
+
     if (def->os.loader) {
         if (def->os.loader->secure == VIR_TRISTATE_BOOL_YES) {
             /* These are the QEMU implementation limitations. But we
@@ -1326,6 +1323,14 @@ qemuValidateDomainDef(const virDomainDef *def,
         return -1;
     }
 
+    if (virQEMUCapsMachineSupportsACPI(qemuCaps, def->virtType, def->os.machine) == VIR_TRISTATE_BOOL_NO &&
+        def->features[VIR_DOMAIN_FEATURE_ACPI] == VIR_TRISTATE_SWITCH_ON) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("machine type '%s' does not support ACPI"),
+                       def->os.machine);
+        return -1;
+    }
+
     if (def->mem.min_guarantee) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("Parameter 'min_guarantee' not supported by QEMU."));
@@ -1782,17 +1787,12 @@ qemuValidateNetSupportsCoalesce(virDomainNetType type)
  */
 static int
 qemuValidateDomainDefVhostUserRequireSharedMemory(const virDomainDef *def,
-                                                  const char *name,
-                                                  virQEMUCaps *qemuCaps)
+                                                  const char *name)
 {
-    const char *defaultRAMId = virQEMUCapsGetMachineDefaultRAMid(qemuCaps,
-                                                                 def->virtType,
-                                                                 def->os.machine);
     size_t numa_nodes = virDomainNumaGetNodeCount(def->numa);
     size_t i;
 
-    if (numa_nodes == 0 &&
-        !(defaultRAMId && def->mem.access == VIR_DOMAIN_MEMORY_ACCESS_SHARED)) {
+    if (numa_nodes == 0 && def->mem.access != VIR_DOMAIN_MEMORY_ACCESS_SHARED) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("'%s' requires shared memory"), name);
         return -1;
@@ -2793,6 +2793,15 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
         }
     }
 
+    if (video->type == VIR_DOMAIN_VIDEO_TYPE_VIRTIO) {
+        if (video->blob != VIR_TRISTATE_SWITCH_ABSENT &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_GPU_BLOB)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("this QEMU does not support 'blob' for virtio-gpu devices"));
+            return -1;
+        }
+    }
+
     if (video->type == VIR_DOMAIN_VIDEO_TYPE_RAMFB &&
         video->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -3343,6 +3352,14 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
             return -1;
     }
 
+    if (disk->bus == VIR_DOMAIN_DISK_BUS_SD &&
+        disk->src && disk->src->encryption && disk->src->encryption->nsecrets > 1) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("sd card '%s' does not support multiple encryption secrets"),
+                       disk->dst);
+        return -1;
+    }
+
     if (disk->src->type == VIR_STORAGE_TYPE_VHOST_USER) {
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VHOST_USER_BLK)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -3350,8 +3367,7 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
             return -1;
         }
 
-        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "vhostuser",
-                                                              qemuCaps) < 0) {
+        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "vhostuser") < 0) {
             return -1;
         }
     }
@@ -4517,8 +4533,7 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
                            _("virtiofs does not support fmode and dmode"));
             return -1;
         }
-        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "virtiofs",
-                                                              qemuCaps) < 0) {
+        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "virtiofs") < 0) {
             return -1;
         }
         if (fs->info.bootIndex &&

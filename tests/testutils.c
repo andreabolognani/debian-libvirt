@@ -766,6 +766,34 @@ virTestSetEnvPath(void)
     return 0;
 }
 
+#define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
+
+char*
+virTestFakeRootDirInit(void)
+{
+    g_autofree char *fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
+
+    if (!g_mkdtemp(fakerootdir)) {
+        fprintf(stderr, "Cannot create fakerootdir");
+        return NULL;
+    }
+
+    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
+
+    return g_steal_pointer(&fakerootdir);
+}
+
+void
+virTestFakeRootDirCleanup(char *fakerootdir)
+{
+    g_unsetenv("LIBVIRT_FAKE_ROOT_DIR");
+
+    if (!g_getenv("LIBVIRT_SKIP_CLEANUP"))
+        virFileDeleteTree(fakerootdir);
+    else
+        fprintf(stderr, "Test data ready for inspection: %s\n", fakerootdir);
+}
+
 int virTestMain(int argc,
                 char **argv,
                 int (*func)(void),
@@ -782,6 +810,7 @@ int virTestMain(int argc,
     g_autofree const char **preloads = NULL;
     size_t npreloads = 0;
     g_autofree char *mock = NULL;
+    g_autofree char *fakerootdir = NULL;
 
     if (getenv("VIR_TEST_FILE_ACCESS")) {
         preloads = g_renew(const char *, preloads, npreloads + 2);
@@ -791,6 +820,9 @@ int virTestMain(int argc,
 
     g_setenv("HOME", "/bad-test-used-env-home", TRUE);
     g_setenv("XDG_RUNTIME_DIR", "/bad-test-used-env-xdg-runtime-dir", TRUE);
+    g_setenv("XDG_DATA_HOME", "/bad-test-used-env-xdg-data-home", TRUE);
+    g_setenv("XDG_CACHE_HOME", "/bad-test-used-env-xdg-cache-home", TRUE);
+    g_setenv("XDG_CONFIG_HOME", "/bad-test-used-env-xdg-config-home", TRUE);
 
     va_start(ap, func);
     while ((lib = va_arg(ap, const char *))) {
@@ -862,6 +894,9 @@ int virTestMain(int argc,
 
     failedTests = virBitmapNew(1);
 
+    if (!(fakerootdir = virTestFakeRootDirInit()))
+        return EXIT_FAILURE;
+
     ret = (func)();
 
     virResetLastError();
@@ -870,6 +905,8 @@ int virTestMain(int argc,
             fprintf(stderr, "%*s", 40 - (int)(testCounter % 40), "");
         fprintf(stderr, " %-3zu %s\n", testCounter, ret == 0 ? "OK" : "FAIL");
     }
+
+    virTestFakeRootDirCleanup(fakerootdir);
 
     switch (ret) {
     case EXIT_FAILURE:

@@ -1505,7 +1505,7 @@ static int lxcStateInitialize(bool privileged,
     }
 
     if ((lxc_driver->lockFD =
-         virPidFileAcquire(cfg->stateDir, "driver", false, getpid())) < 0)
+         virPidFileAcquire(cfg->stateDir, "driver", getpid())) < 0)
         goto cleanup;
 
     /* Get all the running persistent or transient configs first */
@@ -2481,7 +2481,7 @@ static int lxcDomainSetAutostart(virDomainPtr dom,
 
         if (symlink(configFile, autostartLink) < 0) {
             virReportSystemError(errno,
-                                 _("Failed to create symlink '%s to '%s'"),
+                                 _("Failed to create symlink '%s' to '%s'"),
                                  autostartLink, configFile);
             goto endjob;
         }

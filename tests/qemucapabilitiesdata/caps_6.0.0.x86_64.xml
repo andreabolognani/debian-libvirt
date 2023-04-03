@@ -5,7 +5,6 @@
   <selfvers>0</selfvers>
   <flag name='kvm'/>
   <flag name='sdl'/>
-  <flag name='no-hpet'/>
   <flag name='spice'/>
   <flag name='hda-duplex'/>
   <flag name='ccid-emulated'/>
@@ -18,7 +17,6 @@
   <flag name='usb-redir'/>
   <flag name='usb-hub'/>
   <flag name='ich9-ahci'/>
-  <flag name='no-acpi'/>
   <flag name='virtio-blk-pci.scsi'/>
   <flag name='scsi-disk.channel'/>
   <flag name='scsi-block'/>
@@ -56,7 +54,6 @@
   <flag name='usb-kbd'/>
   <flag name='usb-audio'/>
   <flag name='rtc-reset-reinjection'/>
-  <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='VGA.vgamem_mb'/>
   <flag name='vmware-svga.vgamem_mb'/>
@@ -121,7 +118,6 @@
   <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
-  <flag name='iothread.poll-max-ns'/>
   <flag name='egl-headless.rendernode'/>
   <flag name='memory-backend-file.pmem'/>
   <flag name='nvdimm.unarmed'/>

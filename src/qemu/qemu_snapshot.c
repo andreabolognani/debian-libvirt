@@ -326,6 +326,10 @@ qemuSnapshotCreateActiveInternal(virQEMUDriver *driver,
         event = virDomainEventLifecycleNewFromObj(vm,
                                          VIR_DOMAIN_EVENT_SUSPENDED,
                                          VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+        if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
+            virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
+                                 VIR_DOMAIN_PAUSED_API_ERROR);
+        }
         if (virGetLastErrorCode() == VIR_ERR_OK) {
             virReportError(VIR_ERR_OPERATION_FAILED, "%s",
                            _("resuming after snapshot failed"));
@@ -1398,6 +1402,10 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
                                          VIR_DOMAIN_EVENT_SUSPENDED,
                                          VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
         virObjectEventStateQueue(driver->domainEventState, event);
+        if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
+            virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
+                                 VIR_DOMAIN_PAUSED_API_ERROR);
+        }
         if (virGetLastErrorCode() == VIR_ERR_OK) {
             virReportError(VIR_ERR_OPERATION_FAILED, "%s",
                            _("resuming after snapshot failed"));
@@ -2314,7 +2322,7 @@ qemuSnapshotDeleteExternalPrepare(virDomainObj *vm,
         g_autofree qemuSnapshotDeleteExternalData *data = NULL;
         virDomainSnapshotDiskDef *snapDisk = &(snapdef->disks[i]);
 
-        if (snapDisk->snapshot == VIR_DOMAIN_SNAPSHOT_LOCATION_NO)
+        if (snapDisk->snapshot != VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL)
             continue;
 
         if (snapDisk->snapshotDeleteInProgress) {
@@ -2331,18 +2339,6 @@ qemuSnapshotDeleteExternalPrepare(virDomainObj *vm,
         if (!data->domDisk)
             return -1;
 
-        data->diskSrc = virStorageSourceChainLookupBySource(data->domDisk->src,
-                                                            data->snapDisk->src,
-                                                            &data->prevDiskSrc);
-        if (!data->diskSrc)
-            return -1;
-
-        if (!virStorageSourceIsSameLocation(data->diskSrc, data->snapDisk->src)) {
-            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                           _("VM disk source and snapshot disk source are not the same"));
-            return -1;
-        }
-
         data->parentDomDisk = virDomainDiskByTarget(snapdef->parent.dom,
                                                     data->snapDisk->name);
         if (!data->parentDomDisk) {
@@ -2353,6 +2349,18 @@ qemuSnapshotDeleteExternalPrepare(virDomainObj *vm,
         }
 
         if (virDomainObjIsActive(vm)) {
+            data->diskSrc = virStorageSourceChainLookupBySource(data->domDisk->src,
+                                                                data->snapDisk->src,
+                                                                &data->prevDiskSrc);
+            if (!data->diskSrc)
+                return -1;
+
+            if (!virStorageSourceIsSameLocation(data->diskSrc, data->snapDisk->src)) {
+                virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                               _("VM disk source and snapshot disk source are not the same"));
+                return -1;
+            }
+
             data->parentDiskSrc = data->diskSrc->backingStore;
             if (!virStorageSourceIsBacking(data->parentDiskSrc)) {
                 virReportError(VIR_ERR_OPERATION_FAILED, "%s",

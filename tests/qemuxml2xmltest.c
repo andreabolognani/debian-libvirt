@@ -41,8 +41,7 @@ testXML2XMLCommon(const struct testQemuInfo *info)
     else
         driver.caps = linuxCaps;
 
-    if (!(info->flags & FLAG_REAL_CAPS))
-        virQEMUCapsInitQMPBasicArch(info->qemuCaps);
+    virFileCacheClear(driver.qemuCapsCache);
 
     if (info->args.hostOS == HOST_OS_MACOS)
         rc = qemuTestCapsCacheInsertMacOS(driver.qemuCapsCache, info->qemuCaps);
@@ -113,13 +112,10 @@ testInfoSetPaths(struct testQemuInfo *info,
 }
 
 
-#define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
-
 static int
 mymain(void)
 {
     int ret = 0;
-    g_autofree char *fakerootdir = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
     g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
@@ -130,16 +126,6 @@ mymain(void)
 
     if (!capslatest)
         return EXIT_FAILURE;
-
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        fprintf(stderr, "Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
 
     /* Required for tpm-emulator tests
      */
@@ -161,7 +147,6 @@ mymain(void)
     macOSCaps = testQemuCapsInitMacOS();
 
     cfg = virQEMUDriverGetConfig(&driver);
-    driver.privileged = true;
 
     if (!(conn = virGetConnect()))
         goto cleanup;
@@ -208,6 +193,11 @@ mymain(void)
 #define DO_TEST_CAPS_ARCH_LATEST(name, arch) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, ARG_END)
 
+#define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE(name, arch) \
+    DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
+                                  ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE, \
+                                  ARG_END)
+
 #define DO_TEST_CAPS_ARCH_VER(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, ARG_END)
 
@@ -242,6 +232,7 @@ mymain(void)
     DO_TEST_NOCAPS("machine-core-off");
     DO_TEST_CAPS_LATEST("machine-smm-on");
     DO_TEST_CAPS_LATEST("machine-smm-off");
+    DO_TEST_CAPS_ARCH_LATEST("machine-loadparm-hostdev", "s390x");
     DO_TEST_NOCAPS("machine-loadparm-multiple-disks-nets-s390");
     DO_TEST_NOCAPS("default-kvm-host-arch");
     DO_TEST_NOCAPS("default-qemu-host-arch");
@@ -339,6 +330,8 @@ mymain(void)
     DO_TEST_NOCAPS("disk-network-gluster");
     DO_TEST_NOCAPS("disk-network-rbd");
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption");
+    DO_TEST_CAPS_LATEST("disk-network-rbd-encryption-layering");
+    DO_TEST_CAPS_LATEST("disk-network-rbd-encryption-luks-any");
     DO_TEST_NOCAPS("disk-network-source-auth");
     DO_TEST_NOCAPS("disk-network-sheepdog");
     DO_TEST_NOCAPS("disk-network-vxhs");
@@ -348,6 +341,7 @@ mymain(void)
     DO_TEST_NOCAPS("disk-network-tlsx509-vxhs");
     DO_TEST_CAPS_LATEST("disk-nvme");
     DO_TEST_CAPS_LATEST("disk-vhostuser");
+    DO_TEST_CAPS_LATEST("disk-sata-device");
     DO_TEST_CAPS_LATEST("disk-scsi");
     DO_TEST("disk-virtio-scsi-reservations",
             QEMU_CAPS_VIRTIO_SCSI,
@@ -570,29 +564,21 @@ mymain(void)
     DO_TEST_NOCAPS("memtune-unlimited");
     DO_TEST_NOCAPS("blkiotune");
     DO_TEST_NOCAPS("blkiotune-device");
-    DO_TEST_NOCAPS("cputune");
-    DO_TEST_NOCAPS("cputune-zero-shares");
-    DO_TEST_NOCAPS("cputune-iothreadsched");
-    DO_TEST_NOCAPS("cputune-iothreadsched-zeropriority");
-    DO_TEST_NOCAPS("cputune-numatune");
-    DO_TEST("vcpu-placement-static",
-            QEMU_CAPS_KVM,
-            QEMU_CAPS_OBJECT_IOTHREAD);
+    DO_TEST_CAPS_LATEST("cputune");
+    DO_TEST_CAPS_LATEST("cputune-zero-shares");
+    DO_TEST_CAPS_LATEST("cputune-numatune");
+    DO_TEST_CAPS_LATEST("vcpu-placement-static");
     DO_TEST_CAPS_LATEST("cputune-cpuset-big-id");
     DO_TEST_CAPS_LATEST("numavcpus-topology-mismatch");
 
     DO_TEST_NOCAPS("smp");
-    DO_TEST_NOCAPS("iothreads");
-    DO_TEST_NOCAPS("iothreads-ids");
+    DO_TEST_CAPS_LATEST("iothreads-ids");
     DO_TEST_CAPS_LATEST("iothreads-ids-pool-sizes");
-    DO_TEST_NOCAPS("iothreads-ids-partial");
-    DO_TEST_NOCAPS("cputune-iothreads");
-    DO_TEST_NOCAPS("iothreads-disk");
-    DO_TEST_NOCAPS("iothreads-disk-virtio-ccw");
-    DO_TEST("iothreads-virtio-scsi-pci",
-            QEMU_CAPS_VIRTIO_SCSI);
-    DO_TEST("iothreads-virtio-scsi-ccw",
-            QEMU_CAPS_VIRTIO_SCSI);
+    DO_TEST_CAPS_LATEST("iothreads-ids-partial");
+    DO_TEST_CAPS_LATEST("iothreads-disk");
+    DO_TEST_CAPS_ARCH_LATEST("iothreads-disk-virtio-ccw", "s390x");
+    DO_TEST_CAPS_LATEST("iothreads-virtio-scsi-pci");
+    DO_TEST_CAPS_ARCH_LATEST("iothreads-virtio-scsi-ccw", "s390x");
     DO_TEST_NOCAPS("lease");
     DO_TEST_NOCAPS("event_idx");
     DO_TEST_NOCAPS("vhost_queues");
@@ -938,23 +924,53 @@ mymain(void)
     DO_TEST("numatune-hmat", QEMU_CAPS_NUMA_HMAT);
     DO_TEST_CAPS_LATEST("numatune-memnode-restrictive-mode");
 
-    DO_TEST_NOCAPS("firmware-manual-bios");
-    DO_TEST_NOCAPS("firmware-manual-bios-stateless");
-    DO_TEST_NOCAPS("firmware-manual-efi");
+    DO_TEST_CAPS_LATEST("firmware-manual-bios");
+    DO_TEST_CAPS_LATEST("firmware-manual-bios-stateless");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-rw");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-implicit");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-loader-secure");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-secboot");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-no-enrolled-keys");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-no-secboot");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-stateless");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-iscsi");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-nbd");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-file");
 
+    DO_TEST_CAPS_ARCH_LATEST("firmware-manual-efi-acpi-aarch64", "aarch64");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-acpi-q35");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-manual-efi-noacpi-aarch64", "aarch64");
+    DO_TEST_CAPS_LATEST("firmware-manual-noefi-acpi-q35");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-manual-noefi-noacpi-aarch64", "aarch64");
+    DO_TEST_CAPS_LATEST("firmware-manual-noefi-noacpi-q35");
+
     DO_TEST_CAPS_LATEST("firmware-auto-bios");
     DO_TEST_CAPS_LATEST("firmware-auto-bios-stateless");
     DO_TEST_CAPS_LATEST("firmware-auto-efi");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-stateless");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-secure");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-insecure");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-path");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-path-nonstandard");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-secboot");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-no-secboot");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-enrolled-keys");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-no-enrolled-keys");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-smm-off");
     DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-aarch64", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("firmware-auto-efi-abi-update-aarch64", "aarch64");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-file");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-nbd");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-iscsi");
+
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-loader-qcow2");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-path");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-network-nbd");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-format-loader-raw", "aarch64");
 
     DO_TEST_NOCAPS("tap-vhost");
     DO_TEST_NOCAPS("tap-vhost-incorrect");
@@ -1116,6 +1132,8 @@ mymain(void)
             QEMU_CAPS_DEVICE_VIRTIO_GPU_CCW);
     DO_TEST("video-none-device", QEMU_CAPS_VNC);
     DO_TEST_CAPS_LATEST("video-virtio-vga-gpu-gl");
+    DO_TEST_CAPS_LATEST("video-virtio-blob-on");
+    DO_TEST_CAPS_LATEST("video-virtio-blob-off");
 
     DO_TEST_CAPS_LATEST("intel-iommu");
     DO_TEST_CAPS_LATEST("intel-iommu-caching-mode");
@@ -1173,10 +1191,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");
     DO_TEST_CAPS_LATEST("vhost-user-fs-sock");
 
-    DO_TEST("riscv64-virt",
-            QEMU_CAPS_DEVICE_VIRTIO_MMIO);
-    DO_TEST("riscv64-virt-pci",
-            QEMU_CAPS_OBJECT_GPEX);
+    DO_TEST_CAPS_ARCH_LATEST("riscv64-virt", "riscv64");
+    DO_TEST_CAPS_ARCH_LATEST("riscv64-virt-pci", "riscv64");
 
     DO_TEST_CAPS_LATEST("x86-kvm-32-on-64");
 
@@ -1308,9 +1324,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("crypto-builtin");
 
  cleanup:
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
-
     qemuTestDriverFree(&driver);
     virFileWrapperClearPrefixes();
 

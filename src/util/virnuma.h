@@ -32,7 +32,7 @@ int virNumaSetupMemoryPolicy(virDomainNumatuneMemMode mode,
                              virBitmap *nodeset);
 
 virBitmap *virNumaGetHostMemoryNodeset(void);
-bool virNumaNodesetIsAvailable(virBitmap *nodeset) G_NO_INLINE;
+bool virNumaNodesetIsAvailable(virBitmap *nodeset);
 bool virNumaIsAvailable(void) G_NO_INLINE;
 int virNumaGetMaxNode(void) G_NO_INLINE;
 bool virNumaNodeIsAvailable(int node) G_NO_INLINE;
@@ -45,7 +45,10 @@ int virNumaGetNodeMemory(int node,
 
 unsigned int virNumaGetMaxCPUs(void) G_NO_INLINE;
 
+int virNumaGetNodeOfCPU(int cpu) G_NO_INLINE;
 int virNumaGetNodeCPUs(int node, virBitmap **cpus) G_NO_INLINE;
+int virNumaCPUSetToNodeset(virBitmap *cpuset,
+                           virBitmap **nodeset);
 int virNumaNodesetToCPUset(virBitmap *nodeset,
                            virBitmap **cpuset);
 

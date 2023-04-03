@@ -26,6 +26,7 @@
 
 #include "virfile.h"
 #include "virgettext.h"
+#include "viridentity.h"
 #include "virthread.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
@@ -133,6 +134,7 @@ qemuShimQuench(void *userData G_GNUC_UNUSED,
 
 int main(int argc, char **argv)
 {
+    g_autoptr(virIdentity) sysident = NULL;
     GThread *eventLoopThread = NULL;
     virConnectPtr conn = NULL;
     virConnectPtr sconn = NULL;
@@ -191,6 +193,9 @@ int main(int argc, char **argv)
 
     virSetErrorFunc(NULL, qemuShimQuench);
 
+    sysident = virIdentityGetSystem();
+    virIdentitySetCurrent(sysident);
+
     if (verbose)
         g_printerr("%s: %lld: initializing signal handlers\n",
                    argv[0], deltams());
@@ -209,10 +214,18 @@ int main(int argc, char **argv)
         }
         tmproot = true;
 
-    } else if (g_mkdir_with_parents(root, 0755) < 0) {
-        g_printerr("%s: cannot create dir: %s\n",
-                   argv[0], g_strerror(errno));
-        goto cleanup;
+    } else {
+        if (!g_path_is_absolute(root)) {
+            g_printerr("%s: the root directory must be an absolute path\n",
+                       argv[0]);
+            goto cleanup;
+        }
+
+        if (g_mkdir_with_parents(root, 0755) < 0) {
+            g_printerr("%s: cannot create dir: %s\n",
+                       argv[0], g_strerror(errno));
+            goto cleanup;
+        }
     }
 
     if (chmod(root, 0755) < 0) {

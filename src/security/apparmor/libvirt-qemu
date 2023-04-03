@@ -91,7 +91,7 @@
   /usr/share/proll/** r,
   /usr/share/qemu-efi/** r,
   /usr/share/qemu-kvm/** r,
-  /usr/share/qemu/** r,
+  /usr/share/qemu/** rk,
   /usr/share/seabios/** r,
   /usr/share/sgabios/** r,
   /usr/share/slof/** r,
@@ -184,6 +184,21 @@
   /{usr/,}bin/swtpm rmpix,
   /usr/{lib,lib64}/libswtpm_libtpms.so mr,
   /usr/lib/@{multiarch}/libswtpm_libtpms.so mr,
+
+  # support for passt network back-end
+  /usr/bin/passt Cx -> passt,
+
+  profile passt {
+    /usr/bin/passt r,
+
+    signal (receive) set=("term") peer=/usr/sbin/libvirtd,
+    signal (receive) set=("term") peer=libvirtd,
+    signal (receive) set=("term") peer=virtqemud,
+
+    owner /{,var/}run/libvirt/qemu/passt/* rw,
+
+    include if exists <abstractions/passt>
+  }
 
   # for save and resume
   /{usr/,}bin/dash rmix,

@@ -15,7 +15,6 @@
   <flag name='rng-random'/>
   <flag name='rng-egd'/>
   <flag name='enable-fips'/>
-  <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='spice-gl'/>
   <flag name='query-hotpluggable-cpus'/>
@@ -28,7 +27,6 @@
   <flag name='egl-headless'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
-  <flag name='iothread.poll-max-ns'/>
   <flag name='egl-headless.rendernode'/>
   <flag name='memory-backend-file.pmem'/>
   <flag name='nbd-bitmap'/>

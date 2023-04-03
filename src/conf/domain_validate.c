@@ -225,9 +225,16 @@ virDomainVideoDefValidate(const virDomainVideoDef *video,
         }
     }
 
-    if (video->type != VIR_DOMAIN_VIDEO_TYPE_VIRTIO &&
-        (virDomainCheckVirtioOptionsAreAbsent(video->virtio) < 0))
-        return -1;
+    if (video->type != VIR_DOMAIN_VIDEO_TYPE_VIRTIO) {
+        if (virDomainCheckVirtioOptionsAreAbsent(video->virtio) < 0)
+            return -1;
+        if (video->blob != VIR_TRISTATE_SWITCH_ABSENT) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("video type '%s' does not support blob resources"),
+                           virDomainVideoTypeToString(video->type));
+            return -1;
+        }
+    }
 
     return 0;
 }
@@ -1586,59 +1593,29 @@ virDomainDefMemtuneValidate(const virDomainDef *def)
 }
 
 
-static int
+int
 virDomainDefOSValidate(const virDomainDef *def,
                        virDomainXMLOption *xmlopt)
 {
     virDomainLoaderDef *loader = def->os.loader;
 
     if (def->os.firmware) {
-        if (!(xmlopt->config.features & VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT)) {
+        if (xmlopt && !(xmlopt->config.features & VIR_DOMAIN_DEF_FEATURE_FW_AUTOSELECT)) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("firmware auto selection not implemented for this driver"));
             return -1;
         }
 
+        if (def->os.firmwareFeatures &&
+            def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_ENROLLED_KEYS] == VIR_TRISTATE_BOOL_YES &&
+            def->os.firmwareFeatures[VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_SECURE_BOOT] == VIR_TRISTATE_BOOL_NO) {
+            virReportError(VIR_ERR_XML_DETAIL, "%s",
+                           _("firmware feature 'enrolled-keys' cannot be enabled when firmware feature 'secure-boot' is disabled"));
+            return -1;
+        }
+
         if (!loader)
             return 0;
-
-        if (loader->readonly) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("loader attribute 'readonly' cannot be specified "
-                             "when firmware autoselection is enabled"));
-            return -1;
-        }
-        if (loader->type) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("loader attribute 'type' cannot be specified "
-                             "when firmware autoselection is enabled"));
-            return -1;
-        }
-        if (loader->path) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("loader path cannot be specified "
-                             "when firmware autoselection is enabled"));
-            return -1;
-        }
-        if (loader->nvramTemplate) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("nvram attribute 'template' cannot be specified "
-                             "when firmware autoselection is enabled"));
-            return -1;
-        }
-
-        /* We need to accept 'yes' here because the initial implementation
-         * of firmware autoselection used it as a way to request a firmware
-         * with Secure Boot support, so the error message is technically
-         * incorrect; however, we want to discourage people from using this
-         * attribute at all, so it's fine to be a bit more aggressive than
-         * it would be strictly required :) */
-        if (loader->secure == VIR_TRISTATE_BOOL_NO) {
-            virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("loader attribute 'secure' cannot be specified "
-                             "when firmware autoselection is enabled"));
-            return -1;
-        }
 
         if (loader->nvram && def->os.firmware != VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
             virReportError(VIR_ERR_XML_DETAIL,

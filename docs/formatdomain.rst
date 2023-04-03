@@ -255,8 +255,14 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    is assumed that there will be a writable NVRAM available. In some cases,
    however, it may be desirable for the loader to run without any NVRAM, discarding
    any config changes on shutdown. The ``stateless`` flag (:since:`Since 8.6.0`)
-   can be used to control this behaviour, when set to ``no`` NVRAM will never
+   can be used to control this behaviour, when set to ``yes`` NVRAM will never
    be created.
+
+   When firmware autoselection is enabled, the ``format`` attribute can be
+   used to tell libvirt to only consider firmware builds that are in a
+   specific format. Supported values are ``raw`` and ``qcow2``.
+   :since:`Since 9.2.0 (QEMU only)`
+
 ``nvram``
    Some UEFI firmwares may want to use a non-volatile memory to store some
    variables. In the host, this is represented as a file and the absolute path
@@ -275,6 +281,10 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
 
    **Note:** ``network`` backed NVRAM the variables are not instantiated from
    the ``template`` and it's user's responsibility to provide a valid NVRAM image.
+
+   This element supports a ``format`` attribute, which has the same semantics
+   as the attribute of the same name for the ``<loader>`` element.
+   :since:`Since 9.2.0 (QEMU only)`
 
    It is not valid to provide this element if the loader is marked as
    stateless.
@@ -1107,7 +1117,9 @@ influence how virtual memory pages are backed by host pages.
    Using the optional ``mode`` attribute, specify when to allocate the memory by
    supplying either "immediate" or "ondemand". :since:`Since 8.2.0` it is
    possible to set the number of threads that hypervisor uses to allocate
-   memory via ``threads`` attribute.
+   memory via ``threads`` attribute. To speed allocation process up, when
+   pinning emulator thread it's recommended to include CPUs from desired NUMA
+   nodes so that allocation threads can have their affinity set.
 ``discard``
    When set and supported by hypervisor the memory content is discarded just
    before guest shuts down (or when DIMM module is unplugged). Please note that
@@ -2946,13 +2958,20 @@ paravirtualized driver is specified via the ``disk`` element.
       are intended to be default, then the entire element may be omitted.
    ``reconnect``
       For disk type ``vhostuser`` configures reconnect timeout if the connection
-      is lost. It has two mandatory attributes:
+      is lost. This is set with the two mandatory attributes ``enabled`` and
+      ``timeout``.
+      For disk type ``network`` and protocol ``nbd`` the QEMU NBD reconnect delay
+      can be set via attribute ``delay``:
 
       ``enabled``
          If the reconnect feature is enabled, accepts ``yes`` and ``no``
       ``timeout``
          The amount of seconds after which hypervisor tries to reconnect.
-
+      ``delay``
+         Only for NBD hosts. The amount of seconds during which all requests are
+         paused and will be rerun after a successful reconnect. After that time, any
+         delayed requests and all future requests before a successful reconnect
+         will immediately fail. If not set the default QEMU value is 0.
 
    For a "file" or "volume" disk type which represents a cdrom or floppy (the
    ``device`` attribute), it is possible to define policy what to do with the
@@ -6427,6 +6446,13 @@ A video device.
    :since:`since 1.3.3` ) extends secondary bar and makes it addressable as
    64bit memory.
 
+   :since:`Since 9.2.0` (QEMU driver only), devices with type "virtio" have an
+   optional ``blob`` attribute that can be set to "on" or "off". Setting
+   ``blob`` to "on" will enable the use of blob resources in the device. This
+   can accelerate the display path by reducing or eliminating copying of pixel
+   data between the guest and host. Note that blob resource support requires
+   QEMU version 6.1 or newer.
+
    :since:`Since 5.9.0` , the ``model`` element may also have an optional
    ``resolution`` sub-element. The ``resolution`` element has attributes ``x``
    and ``y`` to set the minimum resolution for the video device. This
@@ -7559,7 +7585,7 @@ feature is planned for a future version of libvirt.
 
 Having multiple watchdogs is usually not something very common, but be aware
 that this might happen, for example, when an implicit watchdog device is added
-as part of another device.  For example whe iTCO watchdog being part of the ich9
+as part of another device.  For example the iTCO watchdog being part of the ich9
 southbridge, which is used with the q35 machine type. :since:`Since 9.1.0`
 
 ::

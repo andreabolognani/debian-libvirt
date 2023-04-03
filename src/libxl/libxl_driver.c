@@ -751,7 +751,7 @@ libxlStateInitialize(bool privileged,
     }
 
     if ((libxl_driver->lockFD =
-         virPidFileAcquire(cfg->stateDir, "driver", false, getpid())) < 0)
+         virPidFileAcquire(cfg->stateDir, "driver", getpid())) < 0)
         goto error;
 
     if (!(libxl_driver->lockManager =
@@ -4651,7 +4651,7 @@ libxlDomainSetAutostart(virDomainPtr dom, int autostart)
 
             if (symlink(configFile, autostartLink) < 0) {
                 virReportSystemError(errno,
-                                     _("Failed to create symlink '%s to '%s'"),
+                                     _("Failed to create symlink '%s' to '%s'"),
                                      autostartLink, configFile);
                 goto endjob;
             }

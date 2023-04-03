@@ -1753,7 +1753,7 @@ qemuDomainDelChardevTLSObjects(virQEMUDriver *driver,
      * secret UUID and we have a serial TCP chardev, then formulate a
      * secAlias which we'll attempt to destroy. */
     if (cfg->chardevTLSx509secretUUID &&
-        !(secAlias = qemuAliasForSecret(inAlias, NULL)))
+        !(secAlias = qemuAliasForSecret(inAlias, NULL, 0)))
         return -1;
 
     qemuDomainObjEnterMonitor(vm);
@@ -2280,7 +2280,7 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
         goto cleanup;
 
     if (qemuBuildMemoryBackendProps(&props, objalias, cfg,
-                                    priv, vm->def, mem, true, false) < 0)
+                                    priv, vm->def, mem, true, false, NULL) < 0)
         goto cleanup;
 
     if (qemuProcessBuildDestroyMemoryPaths(driver, vm, mem, true) < 0)

@@ -68,10 +68,7 @@ qemuHotplugCreateObjects(virDomainXMLOption *xmlopt,
 
     priv = (*vm)->privateData;
 
-    if (!(priv->qemuCaps = virQEMUCapsNew()))
-        return -1;
-
-    virQEMUCapsInitQMPBasicArch(priv->qemuCaps);
+    priv->qemuCaps = virQEMUCapsNew();
 
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_VIRTIO_SCSI);
     virQEMUCapsSet(priv->qemuCaps, QEMU_CAPS_DEVICE_USB_STORAGE);
@@ -656,8 +653,6 @@ testQemuHotplugCpuIndividual(const void *opaque)
     return ret;
 }
 
-#define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
-
 
 static int
 mymain(void)
@@ -666,17 +661,7 @@ mymain(void)
     int ret = 0;
     struct qemuHotplugTestData data = {0};
     struct testQemuHotplugCpuParams cpudata;
-    g_autofree char *fakerootdir = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        fprintf(stderr, "Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
 
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
@@ -684,11 +669,6 @@ mymain(void)
     cfg = virQEMUDriverGetConfig(&driver);
 
     virEventRegisterDefaultImpl();
-
-    VIR_FREE(driver.config->spiceListen);
-    VIR_FREE(driver.config->vncListen);
-    /* some dummy values from 'config file' */
-    driver.config->spicePassword = g_strdup("123456");
 
     if (!(driver.domainEventState = virObjectEventStateNew()))
         return EXIT_FAILURE;
@@ -1003,9 +983,6 @@ mymain(void)
     DO_TEST_CPU_INDIVIDUAL("ppc64-modern-individual", "16-23", true, true, false);
     DO_TEST_CPU_INDIVIDUAL("ppc64-modern-individual", "16-22", true, true, true);
     DO_TEST_CPU_INDIVIDUAL("ppc64-modern-individual", "17", true, true, true);
-
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
 
     qemuTestDriverFree(&driver);
     virObjectUnref(data.vm);

@@ -1163,6 +1163,7 @@ VIR_ENUM_IMPL(virDomainPausedReason,
               "starting up",
               "post-copy",
               "post-copy failed",
+              "api error",
 );
 
 VIR_ENUM_IMPL(virDomainShutdownReason,
@@ -1915,8 +1916,17 @@ virDomainBlkioDeviceParseXML(xmlNodePtr root,
 }
 
 
-bool virDomainObjTaint(virDomainObj *obj,
-                       virDomainTaintFlags taint)
+/**
+ * virDomainObjTaint:
+ * @obj: domain object
+ * @taint: domain taint flag
+ *
+ * Marks @obj as tainted by @taint. Returns 'false' if @obj already has
+ * been tainted with @taint.
+ */
+bool
+virDomainObjTaint(virDomainObj *obj,
+                  virDomainTaintFlags taint)
 {
     unsigned int flag = (1 << taint);
 
@@ -3374,7 +3384,7 @@ void virDomainHostdevDefClear(virDomainHostdevDef *def)
             VIR_FREE(def->source.subsys.u.scsi_host.wwpn);
             break;
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
-            virBitmapFree(def->source.subsys.u.pci.origstates);
+            g_clear_pointer(&def->source.subsys.u.pci.origstates, virBitmapFree);
             break;
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
@@ -3712,6 +3722,17 @@ virDomainPanicDefFree(virDomainPanicDef *panic)
 
     virDomainDeviceInfoClear(&panic->info);
     g_free(panic);
+}
+
+virDomainLoaderDef *
+virDomainLoaderDefNew(void)
+{
+    virDomainLoaderDef *def = NULL;
+
+    def = g_new0(virDomainLoaderDef, 1);
+    def->format = VIR_STORAGE_FILE_RAW;
+
+    return def;
 }
 
 void
@@ -7146,6 +7167,15 @@ virDomainDiskSourceNetworkParse(xmlNodePtr node,
         src->tlsFromConfig = !!value;
     }
 
+    if (src->protocol == VIR_STORAGE_NET_PROTOCOL_NBD) {
+        xmlNodePtr cur;
+        if ((cur = virXPathNode("./reconnect", ctxt))) {
+            if (virXMLPropUInt(cur, "delay", 10, VIR_XML_PROP_NONE,
+                               &src->reconnectDelay) < 0)
+                return -1;
+        }
+    }
+
     /* for historical reasons we store the volume and image name in one XML
      * element although it complicates thing when attempting to access them. */
     if (src->path &&
@@ -7734,13 +7764,8 @@ virDomainDiskDefGeometryParse(virDomainDiskDef *def,
 
 static int
 virDomainDiskDefDriverParseXML(virDomainDiskDef *def,
-                               xmlNodePtr cur,
-                               xmlXPathContextPtr ctxt)
+                               xmlNodePtr cur)
 {
-    VIR_XPATH_NODE_AUTORESTORE(ctxt)
-
-    ctxt->node = cur;
-
     def->driverName = virXMLPropString(cur, "name");
 
     if (virXMLPropEnum(cur, "cache", virDomainDiskCacheTypeFromString,
@@ -8028,7 +8053,7 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
         if (virDomainVirtioOptionsParseXML(driverNode, &def->virtio) < 0)
             return NULL;
 
-        if (virDomainDiskDefDriverParseXML(def, driverNode, ctxt) < 0)
+        if (virDomainDiskDefDriverParseXML(def, driverNode) < 0)
             return NULL;
 
         if (virDomainDiskDefDriverSourceParseXML(def->src, driverNode, ctxt) < 0)
@@ -12845,6 +12870,56 @@ virDomainVideoDriverDefParseXML(xmlNodePtr node,
     return g_steal_pointer(&def);
 }
 
+static int
+virDomainVideoModelDefParseXML(virDomainVideoDef *def,
+                               xmlNodePtr node,
+                               xmlXPathContextPtr ctxt)
+{
+    xmlNodePtr accel_node;
+    xmlNodePtr res_node;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    virTristateBool primary;
+
+    ctxt->node = node;
+
+    if (virXMLPropTristateBool(node, "primary", VIR_XML_PROP_NONE, &primary) >= 0)
+        def->primary = (primary == VIR_TRISTATE_BOOL_YES);
+
+    if ((accel_node = virXPathNode("./acceleration", ctxt)) &&
+        (def->accel = virDomainVideoAccelDefParseXML(accel_node)) == NULL)
+        return -1;
+
+    if ((res_node = virXPathNode("./resolution", ctxt)) &&
+        (def->res = virDomainVideoResolutionDefParseXML(res_node)) == NULL)
+        return -1;
+
+    if (virXMLPropEnumDefault(node, "type",
+                              virDomainVideoTypeFromString,
+                              VIR_XML_PROP_NONE, &def->type,
+                              VIR_DOMAIN_VIDEO_TYPE_DEFAULT) < 0)
+        return -1;
+
+    if (virXMLPropUInt(node, "ram", 10, VIR_XML_PROP_NONE, &def->ram) < 0)
+        return -1;
+
+    if (virXMLPropUInt(node, "vram", 10, VIR_XML_PROP_NONE, &def->vram) < 0)
+        return -1;
+
+    if (virXMLPropUInt(node, "vram64", 10, VIR_XML_PROP_NONE, &def->vram64) < 0)
+        return -1;
+
+    if (virXMLPropUInt(node, "vgamem", 10, VIR_XML_PROP_NONE, &def->vgamem) < 0)
+        return -1;
+
+    if (virXMLPropUIntDefault(node, "heads", 10, VIR_XML_PROP_NONE, &def->heads, 1) < 0)
+        return -1;
+
+    if (virXMLPropTristateSwitch(node, "blob", VIR_XML_PROP_NONE, &def->blob) < 0)
+        return -1;
+
+    return 0;
+}
+
 static virDomainVideoDef *
 virDomainVideoDefParseXML(virDomainXMLOption *xmlopt,
                           xmlNodePtr node,
@@ -12853,32 +12928,19 @@ virDomainVideoDefParseXML(virDomainXMLOption *xmlopt,
 {
     g_autoptr(virDomainVideoDef) def = NULL;
     xmlNodePtr driver;
-    xmlNodePtr accel_node;
-    xmlNodePtr res_node;
+    xmlNodePtr model;
+
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    g_autofree char *type = NULL;
-    g_autofree char *heads = NULL;
-    g_autofree char *vram = NULL;
-    g_autofree char *vram64 = NULL;
-    g_autofree char *ram = NULL;
-    g_autofree char *vgamem = NULL;
-    g_autofree char *primary = NULL;
 
     if (!(def = virDomainVideoDefNew(xmlopt)))
         return NULL;
 
     ctxt->node = node;
 
-    if ((primary = virXPathString("string(./model/@primary)", ctxt)) != NULL)
-        ignore_value(virStringParseYesNo(primary, &def->primary));
-
-    if ((accel_node = virXPathNode("./model/acceleration", ctxt)) &&
-        (def->accel = virDomainVideoAccelDefParseXML(accel_node)) == NULL)
-        return NULL;
-
-    if ((res_node = virXPathNode("./model/resolution", ctxt)) &&
-        (def->res = virDomainVideoResolutionDefParseXML(res_node)) == NULL)
-        return NULL;
+    if ((model = virXPathNode("./model", ctxt))) {
+        if (virDomainVideoModelDefParseXML(def, model, ctxt) < 0)
+            return NULL;
+    }
 
     if ((driver = virXPathNode("./driver", ctxt))) {
         if (virXMLPropEnum(driver, "name",
@@ -12887,56 +12949,6 @@ virDomainVideoDefParseXML(virDomainXMLOption *xmlopt,
             return NULL;
         if (virDomainVirtioOptionsParseXML(driver, &def->virtio) < 0)
             return NULL;
-    }
-
-    if ((type = virXPathString("string(./model/@type)", ctxt))) {
-        if ((def->type = virDomainVideoTypeFromString(type)) < 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown video model '%s'"), type);
-            return NULL;
-        }
-    } else {
-        def->type = VIR_DOMAIN_VIDEO_TYPE_DEFAULT;
-    }
-
-    if ((ram = virXPathString("string(./model/@ram)", ctxt))) {
-        if (virStrToLong_uip(ram, NULL, 10, &def->ram) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("cannot parse video ram '%s'"), ram);
-            return NULL;
-        }
-    }
-
-    if ((vram = virXPathString("string(./model/@vram)", ctxt))) {
-        if (virStrToLong_uip(vram, NULL, 10, &def->vram) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("cannot parse video vram '%s'"), vram);
-            return NULL;
-        }
-    }
-
-    if ((vram64 = virXPathString("string(./model/@vram64)", ctxt))) {
-        if (virStrToLong_uip(vram64, NULL, 10, &def->vram64) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("cannot parse video vram64 '%s'"), vram64);
-            return NULL;
-        }
-    }
-
-    if ((vgamem = virXPathString("string(./model/@vgamem)", ctxt))) {
-        if (virStrToLong_uip(vgamem, NULL, 10, &def->vgamem) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("cannot parse video vgamem '%s'"), vgamem);
-            return NULL;
-        }
-    }
-
-    if ((heads = virXPathString("string(./model/@heads)", ctxt))) {
-        if (virStrToLong_uip(heads, NULL, 10, &def->heads) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot parse video heads '%s'"), heads);
-            return NULL;
-        }
     }
 
     if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt, &def->info, flags) < 0)
@@ -16745,6 +16757,7 @@ virDomainLoaderDefParseXMLNvram(virDomainLoaderDef *loader,
                                 unsigned int flags)
 {
     g_autoptr(virStorageSource) src = virStorageSourceNew();
+    unsigned int format = 0;
     int typePresent;
 
     if (!nvramNode)
@@ -16752,7 +16765,19 @@ virDomainLoaderDefParseXMLNvram(virDomainLoaderDef *loader,
 
     loader->nvramTemplate = virXMLPropString(nvramNode, "template");
 
-    src->format = VIR_STORAGE_FILE_RAW;
+    if (virXMLPropEnumDefault(nvramNode, "format",
+                              virStorageFileFormatTypeFromString, VIR_XML_PROP_NONE,
+                              &format, VIR_STORAGE_FILE_RAW) < 0) {
+        return -1;
+    }
+    if (format != VIR_STORAGE_FILE_RAW &&
+        format != VIR_STORAGE_FILE_QCOW2) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Unsupported nvram format '%s'"),
+                       virStorageFileFormatTypeToString(format));
+        return -1;
+    }
+    src->format = format;
 
     if ((typePresent = virXMLPropEnum(nvramNode, "type",
                                       virStorageTypeFromString, VIR_XML_PROP_NONE,
@@ -16760,16 +16785,13 @@ virDomainLoaderDefParseXMLNvram(virDomainLoaderDef *loader,
         return -1;
 
     if (!typePresent) {
-        g_autofree char *path = NULL;
-
-        if (!(path = virXMLNodeContentString(nvramNode)))
+        if (!(src->path = virXMLNodeContentString(nvramNode)))
             return -1;
 
-        if (STREQ(path, ""))
-            return 0;
+        if (STREQ(src->path, ""))
+            VIR_FREE(src->path);
 
         src->type = VIR_STORAGE_TYPE_FILE;
-        src->path = g_steal_pointer(&path);
     } else {
         if (!nvramSourceNode)
             return -1;
@@ -16786,21 +16808,29 @@ virDomainLoaderDefParseXMLNvram(virDomainLoaderDef *loader,
 
 
 static int
-virDomainLoaderDefParseXML(virDomainLoaderDef *loader,
-                           xmlNodePtr loaderNode,
-                           xmlNodePtr nvramNode,
-                           xmlNodePtr nvramSourceNode,
-                           xmlXPathContextPtr ctxt,
-                           virDomainXMLOption *xmlopt,
-                           unsigned int flags)
+virDomainLoaderDefParseXMLLoader(virDomainLoaderDef *loader,
+                                 xmlNodePtr loaderNode)
 {
-    if (virDomainLoaderDefParseXMLNvram(loader,
-                                        nvramNode, nvramSourceNode,
-                                        ctxt, xmlopt, flags) < 0)
-        return -1;
+    unsigned int format = 0;
 
-    if (!loaderNode)
+    if (!loaderNode) {
+        /* If there is no <loader> element but the <nvram> element
+         * was present, copy the format from the latter to the
+         * former.
+         *
+         * This ensures that a configuration such as
+         *
+         *   <os>
+         *     <nvram format='foo'/>
+         *   </os>
+         *
+         * behaves as expected, that is, results in a firmware build
+         * with format 'foo' being selected */
+        if (loader->nvram)
+            loader->format = loader->nvram->format;
+
         return 0;
+    }
 
     if (virXMLPropTristateBool(loaderNode, "readonly", VIR_XML_PROP_NONE,
                                &loader->readonly) < 0)
@@ -16823,6 +16853,50 @@ virDomainLoaderDefParseXML(virDomainLoaderDef *loader,
     if (virXMLPropTristateBool(loaderNode, "stateless", VIR_XML_PROP_NONE,
                                &loader->stateless) < 0)
         return -1;
+
+    if (virXMLPropEnumDefault(loaderNode, "format",
+                              virStorageFileFormatTypeFromString, VIR_XML_PROP_NONE,
+                              &format, VIR_STORAGE_FILE_RAW) < 0) {
+        return -1;
+    }
+    if (format != VIR_STORAGE_FILE_RAW &&
+        format != VIR_STORAGE_FILE_QCOW2) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Unsupported loader format '%s'"),
+                       virStorageFileFormatTypeToString(format));
+        return -1;
+    }
+    loader->format = format;
+
+    return 0;
+}
+
+
+static int
+virDomainLoaderDefParseXML(virDomainLoaderDef *loader,
+                           xmlNodePtr loaderNode,
+                           xmlNodePtr nvramNode,
+                           xmlNodePtr nvramSourceNode,
+                           xmlXPathContextPtr ctxt,
+                           virDomainXMLOption *xmlopt,
+                           unsigned int flags)
+{
+    if (virDomainLoaderDefParseXMLNvram(loader,
+                                        nvramNode, nvramSourceNode,
+                                        ctxt, xmlopt, flags) < 0)
+        return -1;
+
+    if (virDomainLoaderDefParseXMLLoader(loader,
+                                         loaderNode) < 0)
+        return -1;
+
+    if (loader->nvram && loader->format != loader->nvram->format) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Format mismatch: loader.format='%s' nvram.format='%s'"),
+                       virStorageFileFormatTypeToString(loader->format),
+                       virStorageFileFormatTypeToString(loader->nvram->format));
+        return -1;
+    }
 
     return 0;
 }
@@ -16989,7 +17063,6 @@ virDomainVcpuParse(virDomainDef *def,
     unsigned int vcpus;
     g_autofree char *tmp = NULL;
     g_autofree xmlNodePtr *nodes = NULL;
-    int rc;
 
     vcpus = maxvcpus = 1;
 
@@ -17004,11 +17077,8 @@ virDomainVcpuParse(virDomainDef *def,
         }
         VIR_FREE(tmp);
 
-        if ((rc = virXMLPropUInt(vcpuNode, "current", 10, VIR_XML_PROP_NONE, &vcpus)) < 0) {
+        if (virXMLPropUIntDefault(vcpuNode, "current", 10, VIR_XML_PROP_NONE, &vcpus, maxvcpus) < 0)
             return -1;
-        } else if (rc == 0) {
-            vcpus = maxvcpus;
-        }
 
         if (virXMLPropEnumDefault(vcpuNode, "placement",
                                   virDomainCpuPlacementModeTypeFromString,
@@ -17224,7 +17294,7 @@ virDomainDefParseBootLoaderOptions(virDomainDef *def,
     if (!loaderNode && !nvramNode)
         return 0;
 
-    def->os.loader = g_new0(virDomainLoaderDef, 1);
+    def->os.loader = virDomainLoaderDefNew();
 
     if (virDomainLoaderDefParseXML(def->os.loader,
                                    loaderNode, nvramNode, nvramSourceNode,
@@ -21756,7 +21826,6 @@ virDomainDefAddImplicitVideo(virDomainDef *def, virDomainXMLOption *xmlopt)
 
     if (!(video = virDomainVideoDefNew(xmlopt)))
         return -1;
-    video->type = VIR_DOMAIN_VIDEO_TYPE_DEFAULT;
     VIR_APPEND_ELEMENT(def->videos, def->nvideos, video);
 
     return 0;
@@ -22087,6 +22156,9 @@ virDomainDiskSourceFormatNetwork(virBuffer *attrBuf,
         virBufferAddLit(childBuf, "/>\n");
     }
 
+    if (src->reconnectDelay) {
+        virBufferAsprintf(childBuf, "<reconnect delay='%u'/>\n", src->reconnectDelay);
+    }
 
     virBufferEscapeString(childBuf, "<snapshot name='%s'/>\n", src->snapshot);
     virBufferEscapeString(childBuf, "<config file='%s'/>\n", src->configFile);
@@ -25224,6 +25296,8 @@ virDomainVideoDefFormat(virBuffer *buf,
         virBufferAsprintf(buf, " heads='%u'", def->heads);
     if (def->primary)
         virBufferAddLit(buf, " primary='yes'");
+    if (def->blob != VIR_TRISTATE_SWITCH_ABSENT)
+        virBufferAsprintf(buf, " blob='%s'", virTristateSwitchTypeToString(def->blob));
     if (def->accel || def->res) {
         virBufferAddLit(buf, ">\n");
         virBufferAdjustIndent(buf, 2);
@@ -26155,6 +26229,11 @@ virDomainLoaderDefFormatNvram(virBuffer *buf,
                                           false, flags, false, false, xmlopt) < 0)
                 return -1;
         }
+
+        if (src->format != VIR_STORAGE_FILE_RAW) {
+            virBufferEscapeString(&attrBuf, " format='%s'",
+                                  virStorageFileFormatTypeToString(src->format));
+        }
     }
 
     virXMLFormatElementInternal(buf, "nvram", &attrBuf, childBuf, false, childNewline);
@@ -26187,6 +26266,11 @@ virDomainLoaderDefFormat(virBuffer *buf,
     if (loader->stateless != VIR_TRISTATE_BOOL_ABSENT) {
         virBufferAsprintf(&loaderAttrBuf, " stateless='%s'",
                           virTristateBoolTypeToString(loader->stateless));
+    }
+
+    if (loader->format != VIR_STORAGE_FILE_RAW) {
+        virBufferEscapeString(&loaderAttrBuf, " format='%s'",
+                              virStorageFileFormatTypeToString(loader->format));
     }
 
     virBufferEscapeString(&loaderChildBuf, "%s", loader->path);
@@ -27298,6 +27382,7 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     const char *type = NULL;
     int n;
     size_t i;
+    bool migratable = !!(flags & VIR_DOMAIN_DEF_FORMAT_MIGRATABLE);
 
     virCheckFlags(VIR_DOMAIN_DEF_FORMAT_COMMON_FLAGS |
                   VIR_DOMAIN_DEF_FORMAT_STATUS |
@@ -27392,7 +27477,7 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     }
 
     virBufferAddLit(buf, "<os");
-    if (def->os.firmware)
+    if (def->os.firmware && !migratable)
         virBufferAsprintf(buf, " firmware='%s'",
                           virDomainOsDefFirmwareTypeToString(def->os.firmware));
     virBufferAddLit(buf, ">\n");
@@ -27415,7 +27500,7 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
         virBufferAsprintf(buf, ">%s</type>\n",
                           virDomainOSTypeToString(def->os.type));
 
-    if (def->os.firmwareFeatures) {
+    if (def->os.firmwareFeatures && !migratable) {
         virBufferAddLit(buf, "<firmware>\n");
         virBufferAdjustIndent(buf, 2);
 
@@ -29484,8 +29569,12 @@ virDomainNetTypeSharesHostView(const virDomainNetDef *net)
     switch (actualType) {
     case VIR_DOMAIN_NET_TYPE_DIRECT:
         return true;
-    case VIR_DOMAIN_NET_TYPE_USER:
     case VIR_DOMAIN_NET_TYPE_ETHERNET:
+        if (net->managed_tap == VIR_TRISTATE_BOOL_NO &&
+            virNetDevMacVLanIsMacvtap(net->ifname))
+            return true;
+        break;
+    case VIR_DOMAIN_NET_TYPE_USER:
     case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
     case VIR_DOMAIN_NET_TYPE_SERVER:
     case VIR_DOMAIN_NET_TYPE_CLIENT:

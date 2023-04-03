@@ -43,7 +43,6 @@
   <flag name='ich9-intel-hda'/>
   <flag name='usb-kbd'/>
   <flag name='usb-audio'/>
-  <flag name='iothread'/>
   <flag name='migrate-rdma'/>
   <flag name='VGA.vgamem_mb'/>
   <flag name='vmware-svga.vgamem_mb'/>
@@ -89,7 +88,6 @@
   <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
-  <flag name='iothread.poll-max-ns'/>
   <flag name='machine.pseries.cap-nested-hv'/>
   <flag name='egl-headless.rendernode'/>
   <flag name='memory-backend-file.pmem'/>

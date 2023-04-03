@@ -84,6 +84,7 @@ struct _qemuDomainUnpluggingDevice {
 #define QEMU_DEV_SGX_VEPVC "/dev/sgx_vepc"
 #define QEMU_DEV_SGX_PROVISION "/dev/sgx_provision"
 #define QEMU_DEVICE_MAPPER_CONTROL_PATH "/dev/mapper/control"
+#define QEMU_DEV_UDMABUF "/dev/udmabuf"
 
 
 #define QEMU_DOMAIN_AES_IV_LEN 16   /* 16 bytes for 128 bit random */
@@ -295,7 +296,8 @@ struct _qemuDomainStorageSourcePrivate {
     qemuDomainSecretInfo *secinfo;
 
     /* data required for decryption of encrypted storage source */
-    qemuDomainSecretInfo *encinfo;
+    size_t enccount;
+    qemuDomainSecretInfo **encinfo;
 
     /* secure passthrough of the http cookie */
     qemuDomainSecretInfo *httpcookie;
@@ -577,9 +579,9 @@ void qemuDomainEventFlush(int timer, void *opaque);
 qemuMonitor *qemuDomainGetMonitor(virDomainObj *vm)
     ATTRIBUTE_NONNULL(1);
 void qemuDomainObjEnterMonitor(virDomainObj *obj)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+    ATTRIBUTE_NONNULL(1);
 void qemuDomainObjExitMonitor(virDomainObj *obj)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+    ATTRIBUTE_NONNULL(1);
 int qemuDomainObjEnterMonitorAsync(virDomainObj *obj,
                                    virDomainAsyncJob asyncJob)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
@@ -628,13 +630,6 @@ void qemuDomainObjTaint(virQEMUDriver *driver,
                         virDomainObj *obj,
                         virDomainTaintFlags taint,
                         qemuDomainLogContext *logCtxt);
-
-void qemuDomainObjTaintMsg(virQEMUDriver *driver,
-                           virDomainObj *obj,
-                           virDomainTaintFlags taint,
-                           qemuDomainLogContext *logCtxt,
-                           const char *msg,
-                           ...) G_GNUC_PRINTF(5, 6);
 
 char **qemuDomainObjGetTainting(virQEMUDriver *driver,
                                 virDomainObj *obj);
@@ -1050,11 +1045,6 @@ qemuDomainRunningReasonToResumeEvent(virDomainRunningReason reason);
 bool
 qemuDomainDiskIsMissingLocalOptional(virDomainDiskDef *disk);
 
-void
-qemuDomainNVRAMPathFormat(virQEMUDriverConfig *cfg,
-                          virDomainDef *def,
-                          char **path);
-
 virDomainEventSuspendedDetailType
 qemuDomainPausedReasonToSuspendedEvent(virDomainPausedReason reason);
 
@@ -1144,3 +1134,8 @@ qemuDomainSchedCoreStart(virQEMUDriverConfig *cfg,
 
 void
 qemuDomainSchedCoreStop(qemuDomainObjPrivate *priv);
+
+virBitmap *
+qemuDomainEvaluateCPUMask(const virDomainDef *def,
+                          virBitmap *cpumask,
+                          virBitmap *autoCpuset);

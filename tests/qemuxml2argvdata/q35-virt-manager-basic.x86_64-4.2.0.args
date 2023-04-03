@@ -1,15 +1,15 @@
 LC_ALL=C \
 PATH=/bin \
-HOME=/tmp/lib/domain--1-virt-manager-basic \
+HOME=/var/lib/libvirt/qemu/domain--1-virt-manager-basic \
 USER=test \
 LOGNAME=test \
-XDG_DATA_HOME=/tmp/lib/domain--1-virt-manager-basic/.local/share \
-XDG_CACHE_HOME=/tmp/lib/domain--1-virt-manager-basic/.cache \
-XDG_CONFIG_HOME=/tmp/lib/domain--1-virt-manager-basic/.config \
+XDG_DATA_HOME=/var/lib/libvirt/qemu/domain--1-virt-manager-basic/.local/share \
+XDG_CACHE_HOME=/var/lib/libvirt/qemu/domain--1-virt-manager-basic/.cache \
+XDG_CONFIG_HOME=/var/lib/libvirt/qemu/domain--1-virt-manager-basic/.config \
 /usr/bin/qemu-system-x86_64 \
 -name guest=virt-manager-basic,debug-threads=on \
 -S \
--object secret,id=masterKey0,format=raw,file=/tmp/lib/domain--1-virt-manager-basic/master-key.aes \
+-object secret,id=masterKey0,format=raw,file=/var/lib/libvirt/qemu/domain--1-virt-manager-basic/master-key.aes \
 -machine pc-q35-4.2,usb=off,vmport=off,dump-guest-core=off \
 -accel kvm \
 -cpu qemu64 \
@@ -23,7 +23,6 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-virt-manager-basic/.config \
 -mon chardev=charmonitor,id=monitor,mode=control \
 -rtc base=utc,driftfix=slew \
 -global kvm-pit.lost_tick_policy=delay \
--no-hpet \
 -no-shutdown \
 -global ICH9-LPC.disable_s3=1 \
 -global ICH9-LPC.disable_s4=1 \
@@ -49,7 +48,7 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-virt-manager-basic/.config \
 -device virtserialport,bus=virtio-serial0.0,nr=2,chardev=charchannel1,id=channel1,name=com.redhat.spice.0 \
 -device usb-tablet,id=input0,bus=usb.0,port=1 \
 -audiodev '{"id":"audio1","driver":"spice"}' \
--spice port=5901,tls-port=5902,addr=127.0.0.1,x509-dir=/etc/pki/libvirt-spice,image-compression=off,seamless-migration=on \
+-spice port=5901,addr=127.0.0.1,image-compression=off,seamless-migration=on \
 -device qxl-vga,id=video0,max_outputs=1,ram_size=67108864,vram_size=67108864,vram64_size_mb=0,vgamem_mb=16,bus=pcie.0,addr=0x1 \
 -device ich9-intel-hda,id=sound0,bus=pcie.0,addr=0x1b \
 -device hda-duplex,id=sound0-codec0,bus=sound0.0,cad=0,audiodev=audio1 \

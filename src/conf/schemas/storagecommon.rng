@@ -14,6 +14,7 @@
           <value>qcow</value>
           <value>luks</value>
           <value>luks2</value>
+          <value>luks-any</value>
         </choice>
       </attribute>
       <optional>
@@ -26,7 +27,9 @@
       </optional>
       <optional>
         <interleave>
-          <ref name="secret"/>
+          <oneOrMore>
+            <ref name="secret"/>
+          </oneOrMore>
           <optional>
             <interleave>
               <element name="cipher">
@@ -55,14 +58,21 @@
 
   <define name="reconnect">
     <element name="reconnect">
-      <attribute name="enabled">
-        <ref name="virYesNo"/>
-      </attribute>
-      <optional>
-        <attribute name="timeout">
+      <choice>
+        <group>
+          <attribute name="enabled">
+            <ref name="virYesNo"/>
+          </attribute>
+          <optional>
+            <attribute name="timeout">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </optional>
+        </group>
+        <attribute name="delay">
           <ref name="unsignedInt"/>
         </attribute>
-      </optional>
+      </choice>
     </element>
   </define>
 

@@ -140,16 +140,16 @@ virCPUDefFree(virCPUDef *def)
 }
 
 
-int ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
+void ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
 virCPUDefCopyModel(virCPUDef *dst,
                    const virCPUDef *src,
                    bool resetPolicy)
 {
-    return virCPUDefCopyModelFilter(dst, src, resetPolicy, NULL, NULL);
+    virCPUDefCopyModelFilter(dst, src, resetPolicy, NULL, NULL);
 }
 
 
-int
+void
 virCPUDefCopyModelFilter(virCPUDef *dst,
                          const virCPUDef *src,
                          bool resetPolicy,
@@ -185,8 +185,6 @@ virCPUDefCopyModelFilter(virCPUDef *dst,
 
         dst->features[n].name = g_strdup(src->features[i].name);
     }
-
-    return 0;
 }
 
 
@@ -235,9 +233,6 @@ virCPUDefCopyWithoutModel(const virCPUDef *cpu)
 {
     g_autoptr(virCPUDef) copy = NULL;
 
-    if (!cpu)
-        return NULL;
-
     copy = virCPUDefNew();
     copy->type = cpu->type;
     copy->mode = cpu->mode;
@@ -276,13 +271,9 @@ virCPUDefCopyWithoutModel(const virCPUDef *cpu)
 virCPUDef *
 virCPUDefCopy(const virCPUDef *cpu)
 {
-    g_autoptr(virCPUDef) copy = NULL;
+    g_autoptr(virCPUDef) copy = virCPUDefCopyWithoutModel(cpu);
 
-    if (!(copy = virCPUDefCopyWithoutModel(cpu)))
-        return NULL;
-
-    if (virCPUDefCopyModel(copy, cpu, false) < 0)
-        return NULL;
+    virCPUDefCopyModel(copy, cpu, false);
 
     return g_steal_pointer(&copy);
 }
@@ -570,7 +561,6 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
     }
 
     if ((topology = virXPathNode("./topology[1]", ctxt))) {
-        int rc;
 
         if (virXMLPropUInt(topology, "sockets", 10,
                            VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
@@ -578,12 +568,10 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
             return -1;
         }
 
-        if ((rc = virXMLPropUInt(topology, "dies", 10,
-                                 VIR_XML_PROP_NONZERO,
-                                 &def->dies)) < 0) {
+        if (virXMLPropUIntDefault(topology, "dies", 10,
+                                  VIR_XML_PROP_NONZERO,
+                                  &def->dies, 1) < 0) {
             return -1;
-        } else if (rc == 0) {
-            def->dies = 1;
         }
 
         if (virXMLPropUInt(topology, "cores", 10,

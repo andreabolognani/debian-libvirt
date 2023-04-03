@@ -311,55 +311,20 @@ virNumaGetNodeCPUs(int node,
 # undef MASK_CPU_ISSET
 # undef n_bits
 
+
 /**
- * virNumaNodesetToCPUset:
- * @nodeset: bitmap containing a set of NUMA nodes
- * @cpuset: return location for a bitmap containing a set of CPUs
+ * virNumaGetNodeOfCPU:
+ * @cpu: CPU ID
  *
- * Convert a set of NUMA node to the set of CPUs they contain.
+ * For given @cpu, return NUMA node which it belongs to.
  *
- * Returns 0 on success, <0 on failure.
+ * Returns: NUMA node # on success,
+ *          -1 on failure (with errno set).
  */
 int
-virNumaNodesetToCPUset(virBitmap *nodeset,
-                       virBitmap **cpuset)
+virNumaGetNodeOfCPU(int cpu)
 {
-    g_autoptr(virBitmap) allNodesCPUs = NULL;
-    size_t nodesetSize;
-    size_t i;
-
-    *cpuset = NULL;
-
-    if (!nodeset)
-        return 0;
-
-    allNodesCPUs = virBitmapNew(0);
-    nodesetSize = virBitmapSize(nodeset);
-
-    for (i = 0; i < nodesetSize; i++) {
-        g_autoptr(virBitmap) nodeCPUs = NULL;
-        int rc;
-
-        if (!virBitmapIsBitSet(nodeset, i))
-            continue;
-
-        rc = virNumaGetNodeCPUs(i, &nodeCPUs);
-        if (rc < 0) {
-            /* Error is reported for cases other than non-existent NUMA node. */
-            if (rc == -2) {
-                virReportError(VIR_ERR_OPERATION_FAILED,
-                               _("NUMA node %zu is not available"),
-                               i);
-            }
-            return -1;
-        }
-
-        virBitmapUnion(allNodesCPUs, nodeCPUs);
-    }
-
-    *cpuset = g_steal_pointer(&allNodesCPUs);
-
-    return 0;
+    return numa_node_of_cpu(cpu);
 }
 
 #else /* !WITH_NUMACTL */
@@ -418,15 +383,12 @@ virNumaGetNodeCPUs(int node G_GNUC_UNUSED,
 }
 
 int
-virNumaNodesetToCPUset(virBitmap *nodeset G_GNUC_UNUSED,
-                       virBitmap **cpuset)
+virNumaGetNodeOfCPU(int cpu G_GNUC_UNUSED)
 {
-    *cpuset = NULL;
-
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("NUMA isn't available on this host"));
+    errno = ENOSYS;
     return -1;
 }
+
 
 #endif /* !WITH_NUMACTL */
 
@@ -1049,4 +1011,92 @@ virNumaGetHostMemoryNodeset(void)
     }
 
     return nodeset;
+}
+
+
+/**
+ * virNumaCPUSetToNodeset:
+ * @cpuset: bitmap containing a set of CPUs
+ * @nodeset: returned bitmap containing a set of NUMA nodes
+ *
+ * Convert a set of CPUs to set of NUMA nodes that contain the CPUs.
+ *
+ * Returns: 0 on success,
+ *          -1 on failure (with error reported)
+ */
+int
+virNumaCPUSetToNodeset(virBitmap *cpuset,
+                       virBitmap **nodeset)
+{
+    g_autoptr(virBitmap) nodes = virBitmapNew(0);
+    ssize_t pos = -1;
+
+    while ((pos = virBitmapNextSetBit(cpuset, pos)) >= 0) {
+        int node = virNumaGetNodeOfCPU(pos);
+
+        if (node < 0) {
+            virReportSystemError(errno,
+                                 _("Unable to get NUMA node of cpu %zd"),
+                                 pos);
+            return -1;
+        }
+
+        virBitmapSetBitExpand(nodes, node);
+    }
+
+    *nodeset = g_steal_pointer(&nodes);
+    return 0;
+}
+
+
+/**
+ * virNumaNodesetToCPUset:
+ * @nodeset: bitmap containing a set of NUMA nodes
+ * @cpuset: return location for a bitmap containing a set of CPUs
+ *
+ * Convert a set of NUMA node to the set of CPUs they contain.
+ *
+ * Returns 0 on success,
+ *         -1 on failure (with error reported).
+ */
+int
+virNumaNodesetToCPUset(virBitmap *nodeset,
+                       virBitmap **cpuset)
+{
+    g_autoptr(virBitmap) allNodesCPUs = NULL;
+    size_t nodesetSize;
+    size_t i;
+
+    *cpuset = NULL;
+
+    if (!nodeset)
+        return 0;
+
+    allNodesCPUs = virBitmapNew(0);
+    nodesetSize = virBitmapSize(nodeset);
+
+    for (i = 0; i < nodesetSize; i++) {
+        g_autoptr(virBitmap) nodeCPUs = NULL;
+        int rc;
+
+        if (!virBitmapIsBitSet(nodeset, i))
+            continue;
+
+        rc = virNumaGetNodeCPUs(i, &nodeCPUs);
+        if (rc < 0) {
+            /* Error is reported for cases other than non-existent NUMA node. */
+            if (rc == -2) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("NUMA node %zu is not available"),
+                               i);
+            }
+            return -1;
+        }
+
+        virBitmapUnion(allNodesCPUs, nodeCPUs);
+    }
+
+    *cpuset = g_steal_pointer(&allNodesCPUs);
+
+    return 0;
 }

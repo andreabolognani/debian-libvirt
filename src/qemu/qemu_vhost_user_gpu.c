@@ -105,8 +105,7 @@ int qemuExtVhostUserGPUStart(virQEMUDriver *driver,
     g_autofree char *pidfile = NULL;
     g_autoptr(virCommand) cmd = NULL;
     int pair[2] = { -1, -1 };
-    int cmdret = 0, rc;
-    int exitstatus = 0;
+    int rc;
     pid_t pid;
     int ret = -1;
 
@@ -153,14 +152,8 @@ int qemuExtVhostUserGPUStart(virQEMUDriver *driver,
             virCommandAddArgFormat(cmd, "--render-node=%s", video->accel->rendernode);
     }
 
-    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, &exitstatus, &cmdret) < 0)
+    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, false, NULL) < 0)
         goto error;
-
-    if (cmdret < 0 || exitstatus != 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not start 'vhost-user-gpu'. exitstatus: %d"), exitstatus);
-        goto cleanup;
-    }
 
     rc = virPidFileReadPath(pidfile, &pid);
     if (rc < 0) {

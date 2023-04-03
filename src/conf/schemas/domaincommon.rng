@@ -350,6 +350,9 @@
                 </attribute>
               </optional>
               <optional>
+                <ref name="pflashFormat"/>
+              </optional>
+              <optional>
                 <ref name="absFilePath"/>
               </optional>
             </element>
@@ -360,6 +363,9 @@
                 <attribute name="template">
                   <ref name="absFilePath"/>
                 </attribute>
+              </optional>
+              <optional>
+                <ref name="pflashFormat"/>
               </optional>
               <optional>
                 <choice>
@@ -2199,6 +2205,9 @@
         </optional>
         <ref name="diskSourceCommon"/>
         <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="reconnect"/>
+        </optional>
         <optional>
           <ref name="encryption"/>
         </optional>
@@ -4491,6 +4500,11 @@
             <optional>
               <attribute name="primary">
                 <ref name="virYesNo"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="blob">
+                <ref name="virOnOff"/>
               </attribute>
             </optional>
             <optional>
@@ -7536,6 +7550,15 @@
         </choice>
       </interleave>
     </element>
+  </define>
+
+  <define name="pflashFormat">
+    <attribute name="format">
+      <choice>
+        <value>raw</value>
+        <value>qcow2</value>
+      </choice>
+    </attribute>
   </define>
 
   <!-- Optional HyperV Enlightenment features -->
