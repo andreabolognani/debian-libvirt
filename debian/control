@@ -17,7 +17,7 @@ Build-Depends:
  libattr1-dev [linux-any],
  libaudit-dev [linux-any],
  libblkid-dev,
- libc6-dev (>= 2.31-14~),
+ libc-dev (>= 2.31-14~),
  libcap-ng-dev [linux-any],
  libcurl4-gnutls-dev,
  libdevmapper-dev [linux-any],
