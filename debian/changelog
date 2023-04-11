@@ -1,3 +1,25 @@
+libvirt (9.2.0-2) experimental; urgency=medium
+
+  [ Andrea Bolognani ]
+  * [4d3b6ff] debconf: Add Spanish translation
+    - Thanks to Jonathan Bustillos (Closes: #986773)
+  * [5dbd337] debconf: Add Italian translation
+    - Thanks to Ceppo (Closes: #1019161)
+  * [23c7d71] debconf: Add Romanian translation
+    - Thanks to Remus-Gabriel Chelu (Closes: #1032335)
+  * [faef0ca] patches: Drop forward/Skip-vircgrouptest.patch
+    - Should no longer be needed
+
+  [ Pino Toscano ]
+  * [351123e] Limit architectures with RBD support
+    - No longer attempt to build the RBD storage driver on Linux
+      architectures where Ceph itself is not built (e.g. ppc64)
+  * [689bbe6] control: switch libc6-dev B-D to libc-dev
+    - Should make libvirt buildable on architectures that don't
+      have libc6-dev (e.g. ia64)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 11 Apr 2023 22:08:24 +0200
+
 libvirt (9.2.0-1) experimental; urgency=medium
 
   * [62fdd34] New upstream version 9.2.0
