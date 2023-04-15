@@ -1,3 +1,16 @@
+libvirt (9.0.0-3) unstable; urgency=medium
+
+  * [56bee71] patches: Add backports
+    - backport/conf-Fix-migration-in-some-firmware-autoselection-scenari.patch
+  * [4cdee74] debconf: Add Spanish translation
+    - Thanks to Jonathan Bustillos (Closes: #986773)
+  * [1e520e5] debconf: Add Italian translation
+    - Thanks to Ceppo (Closes: #1019161)
+  * [12619ec] debconf: Add Romanian translation
+    - Thanks to Remus-Gabriel Chelu (Closes: #1032335)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 15 Apr 2023 18:27:51 +0200
+
 libvirt (9.0.0-2) unstable; urgency=medium
 
   * [de81410] patches: Add backports
