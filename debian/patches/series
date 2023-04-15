@@ -8,6 +8,7 @@ backport/qemu_extdevice-Do-cleanup-host-only-for-VIR_DOMAIN_TPM_TY.patch
 backport/qemu-blockjob-Handle-pending-blockjob-state-only-when-we-.patch
 backport/rpc-client-Don-t-check-return-value-of-virNetMessageNew.patch
 backport/rpc-Don-t-warn-about-max_client_requests-in-single-thread.patch
+backport/conf-Fix-migration-in-some-firmware-autoselection-scenari.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch

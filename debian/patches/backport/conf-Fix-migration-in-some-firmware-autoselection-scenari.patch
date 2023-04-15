@@ -1,0 +1,216 @@
+From: Andrea Bolognani <abologna@redhat.com>
+Date: Tue, 11 Apr 2023 17:56:45 +0200
+Subject: conf: Fix migration in some firmware autoselection scenarios
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Introduce a small kludge in the parser to avoid unnecessarily
+blocking incoming migration from a range of recent libvirt
+releases.
+
+https://bugzilla.redhat.com/show_bug.cgi?id=2184966
+
+Signed-off-by: Andrea Bolognani <abologna@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+(cherry picked from commit f9ad3023355bcbfc692bbe4997fdfa774866a980)
+
+Conflicts:
+
+  * tests/qemuxml2argvtest.c
+  * tests/qemuxml2xmltest.c
+    - missing unrelated changes in the surrounding tests
+
+  * tests/qemuxml2argvdata/firmware-manual-efi-features.x86_64-latest.args
+  * tests/qemuxml2xmloutdata/firmware-manual-efi-features.x86_64-latest.xml
+    - had to be regenerated due to missing changes in
+      the test program
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/f9ad3023355bcbfc692bbe4997fdfa774866a980
+---
+ src/conf/domain_conf.c                             | 39 ++++++++++++++++++++--
+ ...firmware-manual-efi-features.x86_64-latest.args | 35 +++++++++++++++++++
+ tests/qemuxml2argvtest.c                           |  6 +++-
+ .../firmware-manual-efi-features.x86_64-latest.xml | 32 ++++++++++++++++++
+ tests/qemuxml2xmltest.c                            |  1 +
+ 5 files changed, 110 insertions(+), 3 deletions(-)
+ create mode 100644 tests/qemuxml2argvdata/firmware-manual-efi-features.x86_64-latest.args
+ create mode 100644 tests/qemuxml2xmloutdata/firmware-manual-efi-features.x86_64-latest.xml
+
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index 45965fa..3179558 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -17021,11 +17021,13 @@ virDomainDefParseBootKernelOptions(virDomainDef *def,
+ 
+ static int
+ virDomainDefParseBootFirmwareOptions(virDomainDef *def,
+-                                     xmlXPathContextPtr ctxt)
++                                     xmlXPathContextPtr ctxt,
++                                     unsigned int flags)
+ {
+     g_autofree char *firmware = virXPathString("string(./os/@firmware)", ctxt);
+     g_autofree xmlNodePtr *nodes = NULL;
+     g_autofree int *features = NULL;
++    bool abiUpdate = !!(flags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE);
+     int fw = 0;
+     int n = 0;
+     size_t i;
+@@ -17033,6 +17035,39 @@ virDomainDefParseBootFirmwareOptions(virDomainDef *def,
+     if ((n = virXPathNodeSet("./os/firmware/feature", ctxt, &nodes)) < 0)
+         return -1;
+ 
++    /* Migration compatibility kludge.
++     *
++     * Between 8.6.0 and 9.1.0 (extremes included), the migratable
++     * XML produced when feature-based firmware autoselection was
++     * enabled looked like
++     *
++     *   <os>
++     *     <firmware>
++     *       <feature name='foo' enabled='yes'/>
++     *
++     * Notice how there's no firmware='foo' attribute for the <os>
++     * element, meaning that firmware autoselection is disabled, and
++     * yet some <feature> elements, which are used to control the
++     * firmware autoselection process, are present. We don't consider
++     * this to be a valid combination, and want such a configuration
++     * to get rejected when submitted by users.
++     *
++     * In order to achieve that, while at the same time keeping
++     * migration coming from the libvirt versions listed above
++     * working, we can simply stop parsing early and ignore the
++     * <feature> tags when firmware autoselection is not enabled,
++     * *except* if we're defining a new domain.
++     *
++     * This is safe to do because the configuration will either come
++     * from another libvirt instance, in which case it will have a
++     * properly filled in <loader> element that contains enough
++     * information to successfully define and start the domain, or it
++     * will be a random configuration that lacks such information, in
++     * which case a different failure will be reported anyway.
++     */
++    if (n > 0 && !firmware && !abiUpdate)
++        return 0;
++
+     if (n > 0)
+         features = g_new0(int, VIR_DOMAIN_OS_DEF_FIRMWARE_FEATURE_LAST);
+ 
+@@ -17161,7 +17196,7 @@ virDomainDefParseBootOptions(virDomainDef *def,
+     case VIR_DOMAIN_OSTYPE_HVM:
+         virDomainDefParseBootKernelOptions(def, ctxt);
+ 
+-        if (virDomainDefParseBootFirmwareOptions(def, ctxt) < 0)
++        if (virDomainDefParseBootFirmwareOptions(def, ctxt, flags) < 0)
+             return -1;
+ 
+         if (virDomainDefParseBootLoaderOptions(def, ctxt, xmlopt, flags) < 0)
+diff --git a/tests/qemuxml2argvdata/firmware-manual-efi-features.x86_64-latest.args b/tests/qemuxml2argvdata/firmware-manual-efi-features.x86_64-latest.args
+new file mode 100644
+index 0000000..db6c6d0
+--- /dev/null
++++ b/tests/qemuxml2argvdata/firmware-manual-efi-features.x86_64-latest.args
+@@ -0,0 +1,35 @@
++LC_ALL=C \
++PATH=/bin \
++HOME=/tmp/lib/domain--1-test \
++USER=test \
++LOGNAME=test \
++XDG_DATA_HOME=/tmp/lib/domain--1-test/.local/share \
++XDG_CACHE_HOME=/tmp/lib/domain--1-test/.cache \
++XDG_CONFIG_HOME=/tmp/lib/domain--1-test/.config \
++/usr/bin/qemu-system-x86_64 \
++-name guest=test,debug-threads=on \
++-S \
++-object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-test/master-key.aes"}' \
++-blockdev '{"driver":"file","filename":"/usr/share/OVMF/OVMF_CODE.fd","node-name":"libvirt-pflash0-storage","auto-read-only":true,"discard":"unmap"}' \
++-blockdev '{"node-name":"libvirt-pflash0-format","read-only":true,"driver":"raw","file":"libvirt-pflash0-storage"}' \
++-blockdev '{"driver":"file","filename":"/var/lib/libvirt/qemu/nvram/test_VARS.fd","node-name":"libvirt-pflash1-storage","auto-read-only":true,"discard":"unmap"}' \
++-blockdev '{"node-name":"libvirt-pflash1-format","read-only":false,"driver":"raw","file":"libvirt-pflash1-storage"}' \
++-machine pc,usb=off,dump-guest-core=off,memory-backend=pc.ram,pflash0=libvirt-pflash0-format,pflash1=libvirt-pflash1-format \
++-accel tcg \
++-cpu qemu64 \
++-m 1024 \
++-object '{"qom-type":"memory-backend-ram","id":"pc.ram","size":1073741824}' \
++-overcommit mem-lock=off \
++-smp 1,sockets=1,cores=1,threads=1 \
++-uuid 362d1fc1-df7d-193e-5c18-49a71bd1da66 \
++-display none \
++-no-user-config \
++-nodefaults \
++-chardev socket,id=charmonitor,fd=1729,server=on,wait=off \
++-mon chardev=charmonitor,id=monitor,mode=control \
++-rtc base=utc \
++-no-shutdown \
++-boot strict=on \
++-audiodev '{"id":"audio1","driver":"none"}' \
++-sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
++-msg timestamp=on
+diff --git a/tests/qemuxml2argvtest.c b/tests/qemuxml2argvtest.c
+index 8c52feb..bc4cea6 100644
+--- a/tests/qemuxml2argvtest.c
++++ b/tests/qemuxml2argvtest.c
+@@ -1128,7 +1128,11 @@ mymain(void)
+                         QEMU_CAPS_DEVICE_ISA_SERIAL);
+     DO_TEST_NOCAPS("firmware-manual-efi");
+     DO_TEST_PARSE_ERROR_NOCAPS("firmware-manual-efi-no-path");
+-    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-features");
++    DO_TEST_CAPS_LATEST("firmware-manual-efi-features");
++    DO_TEST_CAPS_ARCH_LATEST_FULL("firmware-manual-efi-features", "x86_64",
++                                  ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR,
++                                  ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
++                                  ARG_END);
+     DO_TEST_CAPS_LATEST("firmware-manual-bios-rw");
+     DO_TEST_CAPS_LATEST("firmware-manual-bios-rw-implicit");
+     DO_TEST("firmware-manual-efi-secure",
+diff --git a/tests/qemuxml2xmloutdata/firmware-manual-efi-features.x86_64-latest.xml b/tests/qemuxml2xmloutdata/firmware-manual-efi-features.x86_64-latest.xml
+new file mode 100644
+index 0000000..d142be9
+--- /dev/null
++++ b/tests/qemuxml2xmloutdata/firmware-manual-efi-features.x86_64-latest.xml
+@@ -0,0 +1,32 @@
++<domain type='qemu'>
++  <name>test</name>
++  <uuid>362d1fc1-df7d-193e-5c18-49a71bd1da66</uuid>
++  <memory unit='KiB'>1048576</memory>
++  <currentMemory unit='KiB'>1048576</currentMemory>
++  <vcpu placement='static'>1</vcpu>
++  <os>
++    <type arch='x86_64' machine='pc'>hvm</type>
++    <loader readonly='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE.fd</loader>
++    <nvram>/bad-test-used-env-home/.config/libvirt/qemu/nvram/test_VARS.fd</nvram>
++    <boot dev='hd'/>
++  </os>
++  <features>
++    <acpi/>
++  </features>
++  <cpu mode='custom' match='exact' check='none'>
++    <model fallback='forbid'>qemu64</model>
++  </cpu>
++  <clock offset='utc'/>
++  <on_poweroff>destroy</on_poweroff>
++  <on_reboot>restart</on_reboot>
++  <on_crash>destroy</on_crash>
++  <devices>
++    <emulator>/usr/bin/qemu-system-x86_64</emulator>
++    <controller type='usb' index='0' model='none'/>
++    <controller type='pci' index='0' model='pci-root'/>
++    <input type='mouse' bus='ps2'/>
++    <input type='keyboard' bus='ps2'/>
++    <audio id='1' type='none'/>
++    <memballoon model='none'/>
++  </devices>
++</domain>
+diff --git a/tests/qemuxml2xmltest.c b/tests/qemuxml2xmltest.c
+index 72f724b..66e0385 100644
+--- a/tests/qemuxml2xmltest.c
++++ b/tests/qemuxml2xmltest.c
+@@ -936,6 +936,7 @@ mymain(void)
+     DO_TEST_NOCAPS("firmware-manual-bios");
+     DO_TEST_NOCAPS("firmware-manual-bios-stateless");
+     DO_TEST_NOCAPS("firmware-manual-efi");
++    DO_TEST_CAPS_LATEST("firmware-manual-efi-features");
+     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-iscsi");
+     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-nbd");
+     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-file");
