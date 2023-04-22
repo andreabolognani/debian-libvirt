@@ -12,6 +12,10 @@ DEB_LDFLAGS_MAINT_STRIP = -Wl,-Bsymbolic-functions
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 
+# Fail if the symbols file contains certain mistakes
+DPKG_GENSYMBOLS_CHECK_LEVEL = 4
+export DPKG_GENSYMBOLS_CHECK_LEVEL
+
 ARCHES_CEPH = amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64el riscv64 s390x
 ARCHES_LXC  = alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 ARCHES_XEN  = amd64 arm64 armhf
