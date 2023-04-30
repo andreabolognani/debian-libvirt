@@ -300,9 +300,13 @@ override_dh_installsystemd:
 	dh_installsystemd -p libvirt-daemon-system --no-also libvirtd.service
 	dh_installsystemd -p libvirt-daemon-system --no-stop-on-upgrade $(LIBVIRT_UNITS)
 
+override_dh_installchangelogs:
+	dh_installchangelogs -plibvirt0
+	dh_installchangelogs -plibvirt-doc
+
 override_dh_installdocs:
+	dh_installdocs -plibvirt0
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
-	dh_installdocs -Nlibvirt-doc
 
 # dh_missing can't figure out that some files are skipped on purpose due
 # to the conditionals above, so let's make the error non-fatal for -indep
