@@ -1,4 +1,4 @@
-libvirt (9.3.0-1) UNRELEASED; urgency=medium
+libvirt (9.3.0-1) experimental; urgency=medium
 
   * [45efa38] New upstream version 9.3.0
     - Closes: #1024504
