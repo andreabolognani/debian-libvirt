@@ -37,11 +37,6 @@ enum {
 };
 
 typedef enum {
-    HOST_OS_LINUX = 0,
-    HOST_OS_MACOS,
-} testQemuHostOS;
-
-typedef enum {
     ARG_QEMU_CAPS = QEMU_CAPS_LAST + 1,
     ARG_QEMU_CAPS_DEL,
     ARG_GIC,
@@ -51,8 +46,8 @@ typedef enum {
     ARG_PARSEFLAGS,
     ARG_CAPS_ARCH,
     ARG_CAPS_VER,
+    ARG_CAPS_VARIANT,
     ARG_CAPS_HOST_CPU_MODEL,
-    ARG_HOST_OS,
     ARG_FD_GROUP, /* name, nfds, fd[0], ... fd[n-1] */
     ARG_END,
 } testQemuInfoArgName;
@@ -86,9 +81,9 @@ struct testQemuArgs {
     virBitmap *fakeCapsDel;
     char *capsver;
     char *capsarch;
+    const char *capsvariant;
     qemuTestCPUDef capsHostCPUModel;
     int gic;
-    testQemuHostOS hostOS;
     GHashTable *fds;
     bool invalidarg;
 };
@@ -104,14 +99,13 @@ struct testQemuInfo {
     unsigned int flags;
     unsigned int parseFlags;
     virArch arch;
-    char *schemafile;
+    GHashTable *qmpSchema; /* borrowed pointer from the cache */
 
     struct testQemuArgs args;
     struct testQemuConf *conf;
 };
 
 virCaps *testQemuCapsInit(void);
-virCaps *testQemuCapsInitMacOS(void);
 virDomainXMLOption *testQemuXMLConfInit(void);
 
 
@@ -129,8 +123,6 @@ int qemuTestDriverInit(virQEMUDriver *driver);
 void qemuTestDriverFree(virQEMUDriver *driver);
 int qemuTestCapsCacheInsert(virFileCache *cache,
                             virQEMUCaps *caps);
-int qemuTestCapsCacheInsertMacOS(virFileCache *cache,
-                                 virQEMUCaps *caps);
 
 int testQemuCapsSetGIC(virQEMUCaps *qemuCaps,
                        int gic);
@@ -143,6 +135,7 @@ typedef int (*testQemuCapsIterateCallback)(const char *inputDir,
                                            const char *prefix,
                                            const char *version,
                                            const char *archName,
+                                           const char *variant,
                                            const char *suffix,
                                            void *opaque);
 int testQemuCapsIterate(const char *suffix,
@@ -158,4 +151,13 @@ void testQemuInfoClear(struct testQemuInfo *info);
 int testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
                                          virDomainChrSourceDef *chardev,
                                          void *opaque);
+
+virQEMUCaps *
+testQemuGetRealCaps(const char *arch,
+                    const char *version,
+                    const char *variant,
+                    GHashTable *capsLatestFiles,
+                    GHashTable *capsCache,
+                    GHashTable *schemaCache,
+                    GHashTable **schema);
 #endif

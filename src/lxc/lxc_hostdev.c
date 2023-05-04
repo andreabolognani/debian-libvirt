@@ -78,22 +78,22 @@ int virLXCPrepareHostDevices(virLXCDriver *driver,
                 break;
             default:
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Unsupported hostdev type %s"),
+                               _("Unsupported hostdev type %1$s"),
                                virDomainHostdevSubsysTypeToString(dev->source.subsys.type));
                 return -1;
             }
             break;
 
         case VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES:
-            switch (dev->source.subsys.type) {
+            switch (dev->source.caps.type) {
             case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_STORAGE:
             case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_MISC:
             case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
                 break;
             default:
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Unsupported hostdev type %s"),
-                               virDomainHostdevSubsysTypeToString(dev->source.subsys.type));
+                               _("Unsupported hostdev type %1$s"),
+                               virDomainHostdevSubsysTypeToString(dev->source.caps.type));
                 return -1;
             }
             break;
@@ -101,7 +101,7 @@ int virLXCPrepareHostDevices(virLXCDriver *driver,
 
         default:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unsupported hostdev mode %s"),
+                           _("Unsupported hostdev mode %1$s"),
                            virDomainHostdevModeTypeToString(dev->mode));
             return -1;
         }

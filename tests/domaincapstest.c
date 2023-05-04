@@ -81,7 +81,7 @@ fillQemuCaps(virDomainCaps *domCaps,
     if (fakeHostCPU(domCaps->arch) < 0)
         return -1;
 
-    path = g_strdup_printf("%s/%s.%s.xml", TEST_QEMU_CAPS_PATH, name, arch);
+    path = g_strdup_printf("%s/%s_%s.xml", TEST_QEMU_CAPS_PATH, name, arch);
     if (!(qemuCaps = qemuTestParseCapabilitiesArch(domCaps->arch, path)))
         return -1;
 
@@ -246,25 +246,17 @@ static int
 doTestQemuInternal(const char *version,
                    const char *machine,
                    const char *arch,
+                   const char *variant,
                    virDomainVirtType type,
                    void *opaque)
 {
     g_autofree char *name = NULL;
-    g_autofree char *capsName = NULL;
-    g_autofree char *emulator = NULL;
+    g_autofree char *capsName = g_strdup_printf("caps_%s", version);
+    g_autofree char *emulator = g_strdup_printf("/usr/bin/qemu-system-%s", arch);
+    const char *typestr = NULL;
+    g_autofree char *mach = NULL;
     int rc;
-
-    name = g_strdup_printf("qemu_%s%s%s%s.%s",
-                           version,
-                           (type == VIR_DOMAIN_VIRT_QEMU ? "-tcg" : ""),
-                           (machine ? "-" : ""), (machine ? machine : ""),
-                           arch);
-    capsName = g_strdup_printf("caps_%s", version);
-    emulator = g_strdup_printf("/usr/bin/qemu-system-%s", arch);
-
-    VIR_WARNINGS_NO_DECLARATION_AFTER_STATEMENT
     struct testData data = {
-        .name = name,
         .emulator = emulator,
         .machine = machine,
         .arch = arch,
@@ -273,7 +265,32 @@ doTestQemuInternal(const char *version,
         .capsName = capsName,
         .capsOpaque = opaque,
     };
-    VIR_WARNINGS_RESET
+
+    switch ((unsigned int) type) {
+    case VIR_DOMAIN_VIRT_QEMU:
+        typestr = "-tcg";
+        break;
+
+    case VIR_DOMAIN_VIRT_KVM:
+        typestr = "";
+        break;
+
+    case VIR_DOMAIN_VIRT_HVF:
+        typestr = "-hvf";
+        break;
+
+    default:
+        abort();
+        break;
+    }
+
+    if (machine)
+        mach = g_strdup_printf("-%s", machine);
+    else
+        mach = g_strdup("");
+
+    data.name = name = g_strdup_printf("qemu_%s%s%s.%s%s",
+                                       version, typestr, mach, arch, variant);
 
     if (STRPREFIX(version, "3.") ||
         STRPREFIX(version, "4.") ||
@@ -300,57 +317,84 @@ doTestQemu(const char *inputDir G_GNUC_UNUSED,
            const char *prefix G_GNUC_UNUSED,
            const char *version,
            const char *arch,
+           const char *variant,
            const char *suffix G_GNUC_UNUSED,
            void *opaque)
 {
+    bool hvf = false;
     int ret = 0;
 
+    if (STREQ(variant, "+hvf"))
+        hvf = true;
+    else if (STRNEQ(variant, ""))
+        return 0;
+
     if (STREQ(arch, "x86_64")) {
-        /* For x86_64 we test three combinations:
+        /* For x86_64 based on the test variant we test:
          *
-         *   - KVM with default machine
-         *   - KVM with Q35 machine
+         *   '' (default) variant (KVM):
+         *      - KVM with default machine
+         *      - KVM with Q35 machine
+         *  '+hvf' variant:
+         *      - hvf with default machine
+         *
          *   - TCG with default machine
          */
-        if (doTestQemuInternal(version, NULL, arch,
-                               VIR_DOMAIN_VIRT_KVM, opaque) < 0)
-            ret = -1;
+        if (hvf) {
+            if (doTestQemuInternal(version, NULL, arch, variant,
+                                   VIR_DOMAIN_VIRT_HVF, opaque) < 0)
+                ret = -1;
+        } else {
+            if (doTestQemuInternal(version, NULL, arch, variant,
+                                   VIR_DOMAIN_VIRT_KVM, opaque) < 0)
+                ret = -1;
 
-        if (doTestQemuInternal(version, "q35", arch,
-                               VIR_DOMAIN_VIRT_KVM, opaque) < 0)
-            ret = -1;
+            if (doTestQemuInternal(version, "q35", arch, variant,
+                                   VIR_DOMAIN_VIRT_KVM, opaque) < 0)
+                ret = -1;
+        }
 
-        if (doTestQemuInternal(version, NULL, arch,
+        if (doTestQemuInternal(version, NULL, arch, variant,
                                VIR_DOMAIN_VIRT_QEMU, opaque) < 0)
             ret = -1;
     } else if (STREQ(arch, "aarch64")) {
-        /* For aarch64 we test two combinations:
+        /* For aarch64 based on the test variant we test:
          *
-         *   - KVM with default machine
-         *   - KVM with virt machine
+         *   '' (default) variant (KVM):
+         *      - KVM with default machine
+         *      - KVM with virt machine
+         *
+         *  '+hvf' variant:
+         *    - hvf with default machine
          */
-        if (doTestQemuInternal(version, NULL, arch,
-                               VIR_DOMAIN_VIRT_KVM, opaque) < 0)
-            ret = -1;
+        if (hvf) {
+            if (doTestQemuInternal(version, NULL, arch, variant,
+                                   VIR_DOMAIN_VIRT_HVF, opaque) < 0)
+                ret = -1;
+        } else {
+            if (doTestQemuInternal(version, NULL, arch, variant,
+                                   VIR_DOMAIN_VIRT_KVM, opaque) < 0)
+                ret = -1;
 
-        if (doTestQemuInternal(version, "virt", arch,
-                               VIR_DOMAIN_VIRT_KVM, opaque) < 0)
-            ret = -1;
+            if (doTestQemuInternal(version, "virt", arch, variant,
+                                   VIR_DOMAIN_VIRT_KVM, opaque) < 0)
+                ret = -1;
+        }
     } else if (STRPREFIX(arch, "riscv")) {
         /* For riscv64 we test two combinations:
          *
          *   - KVM with virt machine
          *   - TCG with virt machine
          */
-        if (doTestQemuInternal(version, "virt", arch,
+        if (doTestQemuInternal(version, "virt", arch, variant,
                                VIR_DOMAIN_VIRT_KVM, opaque) < 0)
             ret = -1;
 
-        if (doTestQemuInternal(version, "virt", arch,
+        if (doTestQemuInternal(version, "virt", arch, variant,
                                VIR_DOMAIN_VIRT_QEMU, opaque) < 0)
             ret = -1;
     } else {
-        if (doTestQemuInternal(version, NULL, arch,
+        if (doTestQemuInternal(version, NULL, arch, variant,
                                VIR_DOMAIN_VIRT_KVM, opaque) < 0)
             ret = -1;
     }

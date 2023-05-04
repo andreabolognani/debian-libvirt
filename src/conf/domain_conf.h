@@ -943,6 +943,7 @@ typedef enum {
     VIR_DOMAIN_NET_MODEL_VIRTIO,
     VIR_DOMAIN_NET_MODEL_E1000,
     VIR_DOMAIN_NET_MODEL_E1000E,
+    VIR_DOMAIN_NET_MODEL_IGB,
     VIR_DOMAIN_NET_MODEL_VIRTIO_TRANSITIONAL,
     VIR_DOMAIN_NET_MODEL_VIRTIO_NON_TRANSITIONAL,
     VIR_DOMAIN_NET_MODEL_USB_NET,
@@ -1509,6 +1510,7 @@ typedef enum {
 } virDomainInputType;
 
 typedef enum {
+    VIR_DOMAIN_INPUT_BUS_DEFAULT,
     VIR_DOMAIN_INPUT_BUS_PS2,
     VIR_DOMAIN_INPUT_BUS_USB,
     VIR_DOMAIN_INPUT_BUS_XEN,
@@ -3574,7 +3576,6 @@ void virDomainVideoDefFree(virDomainVideoDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVideoDef, virDomainVideoDefFree);
 void virDomainVideoDefClear(virDomainVideoDef *def);
 virDomainHostdevDef *virDomainHostdevDefNew(void);
-void virDomainHostdevDefClear(virDomainHostdevDef *def);
 void virDomainHostdevDefFree(virDomainHostdevDef *def);
 void virDomainHubDefFree(virDomainHubDef *def);
 void virDomainRedirdevDefFree(virDomainRedirdevDef *def);

@@ -205,7 +205,7 @@ Libraries
 `Ruby Libvirt Object bindings <https://github.com/ohadlevy/virt#readme>`__
    Allows using simple ruby objects to manipulate hypervisors, guests,
    storage, network etc. It is based on top of the `native ruby
-   bindings <https://libvirt.org/ruby>`__.
+   bindings <https://ruby.libvirt.org/>`__.
 
 LiveCD / Appliances
 -------------------
@@ -324,6 +324,14 @@ Web applications
    Cockpit is a web-based graphical interface for servers. With
    `cockpit-machines <https://github.com/cockpit-project/cockpit-machines>`__
    it can create and manage virtual machines via libvirt.
+
+Backup
+------
+
+`virtnbdbackup <https://github.com/abbbi/virtnbdbackup>`__
+   Backup utility for libvirt, using the latest changed block tracking features:
+   Create online, thin provisioned full and incremental or differential backups
+   of your kvm/qemu virtual machines.
 
 Other
 -----

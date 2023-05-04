@@ -67,7 +67,7 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     dev = virJSONValueObjectGet(config, device);
     if (!dev) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing '%s' in 'config' from cloud-hypervisor"),
+                       _("missing '%1$s' in 'config' from cloud-hypervisor"),
                        device);
         return;
     }
@@ -75,7 +75,7 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     file = virJSONValueObjectGet(dev, "file");
     if (!file) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'file' in '%s' from cloud-hypervisor"),
+                       _("missing 'file' in '%1$s' from cloud-hypervisor"),
                        device);
         return;
     }
@@ -83,7 +83,7 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     path = virJSONValueGetString(file);
     if (!path) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to parse contents of 'file' field in '%s' from cloud-hypervisor"),
+                       _("unable to parse contents of 'file' field in '%1$s' from cloud-hypervisor"),
                        device);
         return;
     }
@@ -262,6 +262,12 @@ virCHProcessSetupPid(virDomainObj *vm,
         if (virCgroupNewThread(priv->cgroup, nameval, id, true, &cgroup) < 0)
             goto cleanup;
 
+        /* Move the thread to the sub dir before changing the settings so that
+         * all take effect even with cgroupv2. */
+        VIR_INFO("Adding pid %d to cgroup", pid);
+        if (virCgroupAddThread(cgroup, pid) < 0)
+            goto cleanup;
+
         if (virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUSET)) {
             if (use_cpumask &&
                 virDomainCgroupSetupCpusetCpus(cgroup, use_cpumask) < 0)
@@ -274,12 +280,6 @@ virCHProcessSetupPid(virDomainObj *vm,
 
         if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
             goto cleanup;
-
-        /* Move the thread to the sub dir */
-        VIR_INFO("Adding pid %d to cgroup", pid);
-        if (virCgroupAddThread(cgroup, pid) < 0)
-            goto cleanup;
-
     }
 
     if (!affinity_cpumask)

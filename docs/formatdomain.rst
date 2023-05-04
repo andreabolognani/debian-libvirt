@@ -1207,7 +1207,10 @@ NUMA Node Tuning
    'restrictive', defaults to 'strict'. The value 'restrictive' specifies
    using system default policy and only cgroups is used to restrict the
    memory nodes, and it requires setting mode to 'restrictive' in ``memnode``
-   elements. Attribute ``nodeset`` specifies the NUMA nodes, using the same
+   elements (see quirk below).  This exists solely for the purpose of being able
+   to request movement of such memory for a running domain using ``virsh
+   numatune`` or ``virDomainSetNumaParameters`` and is not guaranteed to happen.
+   Attribute ``nodeset`` specifies the NUMA nodes, using the same
    syntax as attribute ``cpuset`` of element ``vcpu``. Attribute ``placement`` (
    :since:`since 0.9.12` ) can be used to indicate the memory placement mode for
    domain process, its value can be either "static" or "auto", defaults to
@@ -1227,6 +1230,12 @@ NUMA Node Tuning
    addresses guest NUMA node for which the settings are applied. Attributes
    ``mode`` and ``nodeset`` have the same meaning and syntax as in ``memory``
    element. This setting is not compatible with automatic placement.
+   Note that for ``memnode`` this will only guide the memory access for the vCPU
+   threads or similar mechanism and is very hypervisor-specific.  This does not
+   guarantee the placement of the node's memory allocation.  For proper
+   restriction other means should be used (e.g. different mode, preallocated
+   hugepages).
+
    :since:`QEMU Since 1.2.7`
 
 
@@ -1365,7 +1374,7 @@ following collection of elements. :since:`Since 0.7.5`
 
    <cpu mode='host-passthrough' migratable='off'>
      <cache mode='passthrough'/>
-     <maxphysaddr mode='passthrough'/>
+     <maxphysaddr mode='passthrough' limit='39'/>
      <feature policy='disable' name='lahf_lm'/>
    ...
 
@@ -1627,13 +1636,19 @@ In case no restrictions need to be put on CPU model and its features, a simpler
          passed through to the virtual CPUs
       ``emulate``
          The hypervisor will define a specific value for the number of bits
-         of physical addresses via the ``bits`` attribute, which is mandatory.
+         of physical addresses via the ``bits`` attribute, (optional
+         :since:`since 9.2.0`)
 	 The number of bits cannot exceed the number of physical address bits
 	 supported by the hypervisor.
 
    ``bits``
       The ``bits`` attribute is mandatory if the ``mode`` attribute is set to
       ``emulate`` and specifies the virtual CPU address size in bits.
+
+   ``limit``
+     The ``limit`` attribute can be used to restrict the maximum value of
+     address bits for ``passthrough`` mode, i.e. in case the host CPU reports
+     more bits than that, ``limit`` is used. :since:`Since 9.3.0`
 
 Guest NUMA topology can be specified using the ``numa`` element. :since:`Since
 0.9.8`
@@ -3266,28 +3281,26 @@ paravirtualized driver is specified via the ``disk`` element.
       to the ``qemu``
       `qcow2 cache docs <https://git.qemu.org/?p=qemu.git;a=blob;f=docs/qcow2-cache.txt>`__
 
-      **Example:**
+      **Example**::
 
-::
-
-   <disk type='file' device='disk'>
-     <driver name='qemu' type='qcow2'>
-       <metadata_cache>
-         <max_size unit='bytes'>1234</max_size>
-       </metadata_cache>
-     </driver>
-     <source file='/var/lib/libvirt/images/domain.qcow'/>
-     <backingStore type='file'>
-       <format type='qcow2'>
-         <metadata_cache>
-           <max_size unit='bytes'>1234</max_size>
-         </metadata_cache>
-       </format>
-       <source file='/var/lib/libvirt/images/snapshot.qcow'/>
-       <backingStore/>
-     </backingStore>
-     <target dev='vdd' bus='virtio'/>
-   </disk>
+        <disk type='file' device='disk'>
+          <driver name='qemu' type='qcow2'>
+            <metadata_cache>
+              <max_size unit='bytes'>1234</max_size>
+            </metadata_cache>
+          </driver>
+          <source file='/var/lib/libvirt/images/domain.qcow'/>
+          <backingStore type='file'>
+            <format type='qcow2'>
+              <metadata_cache>
+                <max_size unit='bytes'>1234</max_size>
+              </metadata_cache>
+            </format>
+            <source file='/var/lib/libvirt/images/snapshot.qcow'/>
+            <backingStore/>
+          </backingStore>
+          <target dev='vdd' bus='virtio'/>
+        </disk>
 
 ``backenddomain``
    The optional ``backenddomain`` element allows specifying a backend domain
@@ -5409,6 +5422,7 @@ Typical values for QEMU and KVM include: ne2k_isa i82551 i82557b i82559er
 ne2k_pci pcnet rtl8139 e1000 virtio. :since:`Since 5.2.0` ,
 ``virtio-transitional`` and ``virtio-non-transitional`` values are supported.
 See `Virtio transitional devices`_ for more details.
+:since:`Since 9.3.0` igb is also supported.
 
 Setting NIC driver-specific options
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

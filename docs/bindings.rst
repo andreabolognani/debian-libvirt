@@ -12,16 +12,17 @@ other languages:
 -  **Go**: Daniel Berrange develops `Go
    bindings <https://pkg.go.dev/libvirt.org/go/libvirt>`__.
 
--  **Java**: Daniel Veillard develops `Java bindings <java.html>`__.
+-  **Java**: Daniel Veillard develops `Java bindings
+   <https://java.libvirt.org/>`__.
 
 -  **OCaml**: Richard Jones develops `OCaml
-   bindings <https://libvirt.org/ocaml/>`__.
+   bindings <https://ocaml.libvirt.org/>`__.
 
 -  **Perl**: Daniel Berrange develops `Perl
    bindings <https://search.cpan.org/dist/Sys-Virt/>`__.
 
 -  **PHP**: Radek Hladik started developing `PHP
-   bindings <https://libvirt.org/php>`__ in 2010.
+   bindings <https://php.libvirt.org/>`__ in 2010.
 
    In February 2011 the binding development has been moved to the
    libvirt.org website as libvirt-php project.
@@ -29,7 +30,7 @@ other languages:
    The project is now maintained by Michal Novotny and it's heavily
    based on Radek's version. For more information, including information
    on posting patches to libvirt-php, please refer to the `PHP
-   bindings <https://libvirt.org/php>`__ site.
+   bindings <https://php.libvirt.org/>`__ site.
 
 -  **Python**: Libvirt's python bindings are split to a separate
    `package <https://gitlab.com/libvirt/libvirt-python>`__ since version
@@ -47,7 +48,7 @@ other languages:
    page.
 
 -  **Ruby**: Chris Lalancette develops `Ruby
-   bindings <https://libvirt.org/ruby/>`__.
+   bindings <https://ruby.libvirt.org/>`__.
 
 Integration API modules:
 

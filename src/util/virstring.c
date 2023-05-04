@@ -598,13 +598,13 @@ virStringSearch(const char *str,
     regex = g_regex_new(regexp, 0, 0, &err);
     if (!regex) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to compile regex %s"), err->message);
+                       _("Failed to compile regex %1$s"), err->message);
         return -1;
     }
 
     if (g_regex_get_capture_count(regex) != 1) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Regular expression '%s' must have exactly 1 match group, not %d"),
+                       _("Regular expression '%1$s' must have exactly 1 match group, not %2$d"),
                        regexp, g_regex_get_capture_count(regex));
         goto cleanup;
     }
@@ -982,13 +982,13 @@ virStringParsePort(const char *str,
 
     if (virStrToLong_uip(str, NULL, 10, &p) < 0) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("failed to parse port number '%s'"), str);
+                       _("failed to parse port number '%1$s'"), str);
         return -1;
     }
 
     if (p > UINT16_MAX) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("port '%s' out of range"), str);
+                       _("port '%1$s' out of range"), str);
         return -1;
     }
 
@@ -1022,7 +1022,7 @@ int virStringParseYesNo(const char *str, bool *result)
 
 /**
  * virStringParseVersion:
- * @version: unsigned long pointer to output the version number
+ * @version: unsigned long long pointer to output the version number
  * @str: const char pointer to the version string
  * @allowMissing: true to treat 3 like 3.0.0, false to error out on
  * missing minor or micro
@@ -1037,7 +1037,7 @@ int virStringParseYesNo(const char *str, bool *result)
  * Returns the 0 for success, -1 for error.
  */
 int
-virStringParseVersion(unsigned long *version,
+virStringParseVersion(unsigned long long *version,
                       const char *str,
                       bool allowMissing)
 {

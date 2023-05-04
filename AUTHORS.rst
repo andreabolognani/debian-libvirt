@@ -100,6 +100,7 @@ Patches have also been contributed by:
 * Adolfo Jayme Barrientos <fitoschido@gmail.com>
 * Adrian Brzezinski <adrian.brzezinski@eo.pl>
 * Akarshan Biswas <akarshan.biswas@gmail.com>
+* Akihiko Odaki <akihiko.odaki@daynix.com>
 * Alan Pevec <apevec@redhat.com>
 * Aleksandr Alekseev <alexander.alekseev@virtuozzo.com>
 * Aleksei Zakharov <zaharov@selectel.ru>
@@ -461,6 +462,9 @@ Patches have also been contributed by:
 * Justin Clift <jclift@redhat.com>
 * Justin Gatzen <justin.gatzen@gmail.com>
 * Ján Tomko <jtomko@redhat.com>
+* Jérémie Tarot <silopolis@gmail.com>
+* K Shiva <shiva_kr@riseup.net>
+* K Shiva Kiran <shiva_kr@riseup.net>
 * KAMEZAWA Hiroyuki <kamezawa.hiroyu@jp.fujitsu.com>
 * Kai Kang <kai.kang@windriver.com>
 * Karel Zak <kzak@redhat.com>
@@ -567,6 +571,7 @@ Patches have also been contributed by:
 * Mehdi Abaakouk <sileht@redhat.com>
 * Meina Li <meili@redhat.com>
 * Menno Lageman <menno.lageman@oracle.com>
+* Michael Ablassmeier <abi@grinser.de>
 * Michael Avdienko <whitearchey@gmail.com>
 * Michael Chapman <mike@very.puzzling.org>
 * Michael Ellerman <michael@ellerman.id.au>
@@ -689,6 +694,7 @@ Patches have also been contributed by:
 * Rainer Müller <raimue@codingfarm.de>
 * Ramon Medeiros <ramonn@linux.vnet.ibm.com>
 * Reinier Schoof <reinier@transip.nl>
+* Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>
 * Richa Marwaha <rmarwah@linux.vnet.ibm.com>
 * Richard Laager <rlaager@wiktel.com>
 * Richard W.M. Jones <rjones@redhat.com>
@@ -807,6 +813,7 @@ Patches have also been contributed by:
 * Thomas Woerner <twoerner@redhat.com>
 * Thorsten Behrens <tbehrens@suse.com>
 * Tiago M. Vieira <tmv@redhat.com>
+* Tim Shearer <TShearer@adva.com>
 * Tim Wiederhake <twiederh@redhat.com>
 * Tiziano Mueller <dev-zero@gentoo.org>
 * Tobin Feldman-Fitzthum <tobin@linux.vnet.ibm.com>

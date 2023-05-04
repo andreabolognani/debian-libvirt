@@ -272,6 +272,7 @@ vboxExtractVersion(void)
     int ret = -1;
     PRUnichar *versionUtf16 = NULL;
     char *vboxVersion = NULL;
+    unsigned long long version;
     nsresult rc;
 
     if (vbox_driver->version > 0)
@@ -283,8 +284,10 @@ vboxExtractVersion(void)
 
     gVBoxAPI.UPFN.Utf16ToUtf8(vbox_driver->pFuncs, versionUtf16, &vboxVersion);
 
-    if (virStringParseVersion(&vbox_driver->version, vboxVersion, false) >= 0)
+    if (virStringParseVersion(&version, vboxVersion, false) >= 0)
         ret = 0;
+
+    vbox_driver->version = version;
 
     gVBoxAPI.UPFN.Utf8Free(vbox_driver->pFuncs, vboxVersion);
     gVBoxAPI.UPFN.ComUnallocMem(vbox_driver->pFuncs, versionUtf16);
@@ -493,7 +496,7 @@ vboxSetStorageController(virDomainControllerDef *controller,
     case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
     case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
         vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                        _("The vbox driver does not support %s controller type"),
+                        _("The vbox driver does not support %1$s controller type"),
                         virDomainControllerTypeToString(controller->type));
         return -1;
     }
@@ -527,13 +530,13 @@ vboxSetStorageController(virDomainControllerDef *controller,
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DC390:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AM53C974:
             vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                            _("The vbox driver does not support %s SCSI controller model"),
+                            _("The vbox driver does not support %1$s SCSI controller model"),
                             virDomainControllerModelSCSITypeToString(controller->model));
             goto cleanup;
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LAST:
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Unexpected SCSI controller model %d"),
+                            _("Unexpected SCSI controller model %1$d"),
                             controller->model);
             goto cleanup;
         }
@@ -555,7 +558,7 @@ vboxSetStorageController(virDomainControllerDef *controller,
         case VIR_DOMAIN_CONTROLLER_MODEL_IDE_LAST:
         case VIR_DOMAIN_CONTROLLER_MODEL_IDE_DEFAULT:
             vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                            _("Unexpected IDE controller model %d"),
+                            _("Unexpected IDE controller model %1$d"),
                             controller->model);
             goto cleanup;
         }
@@ -570,7 +573,7 @@ vboxSetStorageController(virDomainControllerDef *controller,
 
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("Failed to add storage controller (name: %s, busType: %d)"),
+                        _("Failed to add storage controller (name: %1$s, busType: %2$d)"),
                         debugName, vboxBusType);
         goto cleanup;
     }
@@ -883,7 +886,7 @@ static virDomainPtr vboxDomainLookupByID(virConnectPtr conn, int id)
      * starts from 1, so refuse id == 0, and adjust the rest */
     if (id == 0) {
         vboxReportError(VIR_ERR_NO_DOMAIN,
-                        _("no domain with matching id %d"), id);
+                        _("no domain with matching id %1$d"), id);
         return NULL;
     }
     id = id - 1;
@@ -1163,7 +1166,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
 
         if (type != VIR_STORAGE_TYPE_FILE) {
             vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                            _("Unsupported storage type %s, the only supported type is %s"),
+                            _("Unsupported storage type %1$s, the only supported type is %2$s"),
                             virStorageTypeToString(type),
                             virStorageTypeToString(VIR_STORAGE_TYPE_FILE));
             ret = -1;
@@ -1197,7 +1200,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
         case VIR_DOMAIN_DISK_DEVICE_LUN:
         case VIR_DOMAIN_DISK_DEVICE_LAST:
             vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                            _("The vbox driver does not support %s disk device"),
+                            _("The vbox driver does not support %1$s disk device"),
                             virDomainDiskDeviceTypeToString(disk->device));
             ret = -1;
             goto cleanup;
@@ -1238,7 +1241,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
         case VIR_DOMAIN_DISK_BUS_NONE:
         case VIR_DOMAIN_DISK_BUS_LAST:
             vboxReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                            _("The vbox driver does not support %s bus type"),
+                            _("The vbox driver does not support %1$s bus type"),
                             virDomainDiskBusTypeToString(disk->bus));
             ret = -1;
             goto cleanup;
@@ -1269,7 +1272,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
 
             if (!medium) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Failed to open the following disk/dvd/floppy to the machine: %s"),
+                                _("Failed to open the following disk/dvd/floppy to the machine: %1$s"),
                                 src);
                 ret = -1;
                 goto cleanup;
@@ -1278,7 +1281,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
             rc = gVBoxAPI.UIMedium.GetId(medium, &mediumUUID);
             if (NS_FAILED(rc)) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Can't get the UUID of the file to be attached as harddisk/dvd/floppy: %s"),
+                                _("Can't get the UUID of the file to be attached as harddisk/dvd/floppy: %1$s"),
                                 src);
                 ret = -1;
                 goto cleanup;
@@ -1313,7 +1316,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
 
         if (NS_FAILED(rc)) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Could not attach the file as harddisk/dvd/floppy: %s"),
+                            _("Could not attach the file as harddisk/dvd/floppy: %1$s"),
                             src);
             ret = -1;
             goto cleanup;
@@ -1983,7 +1986,7 @@ vboxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags
                                           VIR_DIV_UP(def->mem.cur_balloon, 1024));
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not set the memory size of the domain to: %llu Kb"),
+                        _("could not set the memory size of the domain to: %1$llu Kb"),
                         def->mem.cur_balloon);
     }
 
@@ -1994,7 +1997,7 @@ vboxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags
     rc = gVBoxAPI.UIMachine.SetCPUCount(machine, virDomainDefGetVcpusMax(def));
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not set the number of virtual CPUs to: %u"),
+                        _("could not set the number of virtual CPUs to: %1$u"),
                         virDomainDefGetVcpusMax(def));
     }
 
@@ -2003,7 +2006,7 @@ vboxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags
                                            VIR_TRISTATE_SWITCH_ON);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not change PAE status to: %s"),
+                        _("could not change PAE status to: %1$s"),
                         (def->features[VIR_DOMAIN_FEATURE_PAE] == VIR_TRISTATE_SWITCH_ON)
                         ? _("Enabled") : _("Disabled"));
     }
@@ -2015,7 +2018,7 @@ vboxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags
                                                     VIR_TRISTATE_SWITCH_ON);
         if (NS_FAILED(rc)) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("could not change ACPI status to: %s"),
+                            _("could not change ACPI status to: %1$s"),
                             (def->features[VIR_DOMAIN_FEATURE_ACPI] == VIR_TRISTATE_SWITCH_ON)
                             ? _("Enabled") : _("Disabled"));
         }
@@ -2024,7 +2027,7 @@ vboxDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags
                                                       VIR_TRISTATE_SWITCH_ON);
         if (NS_FAILED(rc)) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("could not change APIC status to: %s"),
+                            _("could not change APIC status to: %1$s"),
                             (def->features[VIR_DOMAIN_FEATURE_APIC] == VIR_TRISTATE_SWITCH_ON)
                             ? _("Enabled") : _("Disabled"));
         }
@@ -2829,7 +2832,7 @@ static int vboxDomainSetMemory(virDomainPtr dom, unsigned long memory)
             ret = 0;
         } else {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("could not set the memory size of the domain to: %lu Kb"),
+                            _("could not set the memory size of the domain to: %1$lu Kb"),
                             memory);
         }
     }
@@ -2967,7 +2970,7 @@ static int vboxDomainSetVcpusFlags(virDomainPtr dom, unsigned int nvcpus,
         return ret;
 
     if (flags != VIR_DOMAIN_AFFECT_LIVE) {
-        vboxReportError(VIR_ERR_INVALID_ARG, _("unsupported flags: (0x%x)"), flags);
+        vboxReportError(VIR_ERR_INVALID_ARG, _("unsupported flags: (0x%1$x)"), flags);
         return -1;
     }
 
@@ -2984,17 +2987,17 @@ static int vboxDomainSetVcpusFlags(virDomainPtr dom, unsigned int nvcpus,
                 ret = 0;
             } else {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("could not set the number of cpus of the domain to: %u"),
+                                _("could not set the number of cpus of the domain to: %1$u"),
                                 CPUCount);
             }
             VBOX_RELEASE(machine);
         } else {
             vboxReportError(VIR_ERR_NO_DOMAIN,
-                            _("no domain with matching id %d"), dom->id);
+                            _("no domain with matching id %1$d"), dom->id);
         }
     } else {
         vboxReportError(VIR_ERR_NO_DOMAIN,
-                        _("can't open session to the domain with id %d"), dom->id);
+                        _("can't open session to the domain with id %1$d"), dom->id);
     }
     gVBoxAPI.UISession.Close(data->vboxSession);
 
@@ -3018,7 +3021,7 @@ static int vboxDomainGetVcpusFlags(virDomainPtr dom, unsigned int flags)
         return ret;
 
     if (flags != (VIR_DOMAIN_AFFECT_LIVE | VIR_DOMAIN_VCPU_MAXIMUM)) {
-        vboxReportError(VIR_ERR_INVALID_ARG, _("unsupported flags: (0x%x)"), flags);
+        vboxReportError(VIR_ERR_INVALID_ARG, _("unsupported flags: (0x%1$x)"), flags);
         return -1;
     }
 
@@ -3233,7 +3236,7 @@ vboxDumpStorageControllers(virDomainDef *def, IMachine *machine)
             cont = virDomainDefAddController(def, type, -1, model);
             if (!cont) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Failed to add %s controller type definition"),
+                               _("Failed to add %1$s controller type definition"),
                                virDomainControllerTypeToString(type));
                 goto cleanup;
             }
@@ -3391,7 +3394,7 @@ vboxDumpDisks(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
 
         if (!disk->dst) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Could not generate medium name for the disk at: port:%d, slot:%d"),
+                            _("Could not generate medium name for the disk at: port:%1$d, slot:%2$d"),
                             devicePort, deviceSlot);
             goto cleanup;
         }
@@ -3469,7 +3472,7 @@ vboxDumpDisks(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
         case DeviceType_SharedFolder:
         case DeviceType_Null:
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Unsupported vbox device type: %d"), deviceType);
+                            _("Unsupported vbox device type: %1$d"), deviceType);
             goto cleanup;
         }
 
@@ -4351,7 +4354,7 @@ vboxDomainAttachDeviceImpl(virDomainPtr dom,
 
             if (NS_FAILED(rc)) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("could not attach shared folder '%s'"),
+                                _("could not attach shared folder '%1$s'"),
                                 dev->data.fs->dst);
                 ret = -1;
             } else {
@@ -4365,7 +4368,7 @@ vboxDomainAttachDeviceImpl(virDomainPtr dom,
         VBOX_RELEASE(machine);
 
         if (ret == -VIR_ERR_ARGUMENT_UNSUPPORTED) {
-            vboxReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, _("Unsupported device type %d"), dev->type);
+            vboxReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, _("Unsupported device type %1$d"), dev->type);
             ret = -1;
         }
     }
@@ -4469,7 +4472,7 @@ static int vboxDomainDetachDevice(virDomainPtr dom, const char *xml)
 
             if (NS_FAILED(rc)) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("could not detach shared folder '%s'"),
+                                _("could not detach shared folder '%1$s'"),
                                 dev->data.fs->dst);
             } else {
                 ret = 0;
@@ -4481,7 +4484,7 @@ static int vboxDomainDetachDevice(virDomainPtr dom, const char *xml)
         VBOX_RELEASE(machine);
 
         if (ret == -VIR_ERR_ARGUMENT_UNSUPPORTED) {
-            vboxReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, _("Unsupported device type %d"), dev->type);
+            vboxReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, _("Unsupported device type %1$d"), dev->type);
             ret = -1;
         }
     }
@@ -4786,7 +4789,7 @@ vboxSnapshotRedefine(virDomainPtr dom,
          */
         if (unlink(currentSnapshotXmlFilePath) < 0) {
             virReportSystemError(errno,
-                                 _("Unable to delete file %s"), currentSnapshotXmlFilePath);
+                                 _("Unable to delete file %1$s"), currentSnapshotXmlFilePath);
             goto cleanup;
         }
     }
@@ -4942,7 +4945,7 @@ vboxSnapshotRedefine(virDomainPtr dom,
                 gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
                 if (RC_FAILED(resultCode)) {
                     vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("Error while closing medium, rc=%08x"),
+                                    _("Error while closing medium, rc=%1$08x"),
                                     resultCode.uResultCode);
                     VIR_FREE(locationUtf8);
                     goto cleanup;
@@ -5160,7 +5163,7 @@ vboxSnapshotRedefine(virDomainPtr dom,
                                              &searchResultTab);
                 if (resultSize != it + 1) {
                     vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("Unable to find UUID %s"), searchResultTab[it]);
+                                    _("Unable to find UUID %1$s"), searchResultTab[it]);
                     goto cleanup;
                 }
 
@@ -5249,7 +5252,7 @@ vboxSnapshotRedefine(virDomainPtr dom,
             gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
             if (RC_FAILED(resultCode)) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Error while creating diff storage, rc=%08x"),
+                                _("Error while creating diff storage, rc=%1$08x"),
                                 resultCode.uResultCode);
                 goto cleanup;
             }
@@ -5294,7 +5297,7 @@ vboxSnapshotRedefine(virDomainPtr dom,
                                          &searchResultTab);
             if (resultSize != it + 1) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Unable to find UUID %s"), searchResultTab[it]);
+                                _("Unable to find UUID %1$s"), searchResultTab[it]);
                 goto cleanup;
             }
 
@@ -5480,7 +5483,7 @@ vboxDomainSnapshotCreateXML(virDomainPtr dom,
         rc = gVBoxAPI.UISession.GetConsole(data->vboxSession, &console);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not open VirtualBox session with domain %s"),
+                        _("could not open VirtualBox session with domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -5494,7 +5497,7 @@ vboxDomainSnapshotCreateXML(virDomainPtr dom,
     rc = gVBoxAPI.UIConsole.TakeSnapshot(console, name, description, &progress);
     if (NS_FAILED(rc) || !progress) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not take snapshot of domain %s"), dom->name);
+                        _("could not take snapshot of domain %1$s"), dom->name);
         goto cleanup;
     }
 
@@ -5502,14 +5505,14 @@ vboxDomainSnapshotCreateXML(virDomainPtr dom,
     gVBoxAPI.UIProgress.GetResultCode(progress, &result);
     if (RC_FAILED(result)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not take snapshot of domain %s"), dom->name);
+                        _("could not take snapshot of domain %1$s"), dom->name);
         goto cleanup;
     }
 
     rc = gVBoxAPI.UIMachine.GetCurrentSnapshot(machine, &snapshot);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get current snapshot of domain %s"),
+                        _("could not get current snapshot of domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -5544,7 +5547,7 @@ vboxDomainSnapshotGetAll(virDomainPtr dom,
     rc = gVBoxAPI.UIMachine.GetSnapshotCount(machine, &count);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get snapshot count for domain %s"),
+                        _("could not get snapshot count for domain %1$s"),
                         dom->name);
         goto error;
     }
@@ -5557,7 +5560,7 @@ vboxDomainSnapshotGetAll(virDomainPtr dom,
     rc = gVBoxAPI.UIMachine.FindSnapshot(machine, &empty, list);
     if (NS_FAILED(rc) || !list[0]) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get root snapshot for domain %s"),
+                        _("could not get root snapshot for domain %1$s"),
                         dom->name);
         goto error;
     }
@@ -5570,7 +5573,7 @@ vboxDomainSnapshotGetAll(virDomainPtr dom,
 
         if (!list[next]) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("unexpected number of snapshots < %u"), count);
+                            _("unexpected number of snapshots < %1$u"), count);
             goto error;
         }
 
@@ -5587,7 +5590,7 @@ vboxDomainSnapshotGetAll(virDomainPtr dom,
                 continue;
             if (top == count) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("unexpected number of snapshots > %u"), count);
+                                _("unexpected number of snapshots > %1$u"), count);
                 gVBoxAPI.UArray.vboxArrayRelease(&children);
                 goto error;
             }
@@ -5647,7 +5650,7 @@ vboxDomainSnapshotGet(struct _vboxDriver *data,
 
     if (!snapshot) {
         vboxReportError(VIR_ERR_OPERATION_INVALID,
-                        _("domain %s has no snapshots with name %s"),
+                        _("domain %1$s has no snapshots with name %2$s"),
                         dom->name, name);
         goto cleanup;
     }
@@ -6066,7 +6069,7 @@ vboxSnapshotGetReadOnlyDisks(virDomainSnapshotDef *def,
                                                                sdCount);
         if (!defdom->disks[diskCount]->dst) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Could not generate medium name for the disk at: port:%d, slot:%d"), devicePort, deviceSlot);
+                            _("Could not generate medium name for the disk at: port:%1$d, slot:%2$d"), devicePort, deviceSlot);
             ret = -1;
             goto cleanup;
         }
@@ -6188,7 +6191,7 @@ static char *vboxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetDescription(snap, &str16);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get description of snapshot %s"),
+                        _("could not get description of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6202,7 +6205,7 @@ static char *vboxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetTimeStamp(snap, &timestamp);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get creation time of snapshot %s"),
+                        _("could not get creation time of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6212,7 +6215,7 @@ static char *vboxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetParent(snap, &parent);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get parent of snapshot %s"),
+                        _("could not get parent of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6220,7 +6223,7 @@ static char *vboxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
         rc = gVBoxAPI.UISnapshot.GetName(parent, &str16);
         if (NS_FAILED(rc) || !str16) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("could not get name of parent of snapshot %s"),
+                            _("could not get name of parent of snapshot %1$s"),
                             snapshot->name);
             goto cleanup;
         }
@@ -6233,7 +6236,7 @@ static char *vboxDomainSnapshotGetXMLDesc(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetOnline(snap, &online);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get online state of snapshot %s"),
+                        _("could not get online state of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6281,7 +6284,7 @@ static int vboxDomainSnapshotNum(virDomainPtr dom, unsigned int flags)
     rc = gVBoxAPI.UIMachine.GetSnapshotCount(machine, &snapshotCount);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get snapshot count for domain %s"),
+                        _("could not get snapshot count for domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -6331,7 +6334,7 @@ static int vboxDomainSnapshotListNames(virDomainPtr dom, char **names,
         rc = gVBoxAPI.UIMachine.FindSnapshot(machine, &empty, snapshots);
         if (NS_FAILED(rc) || !snapshots[0]) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("could not get root snapshot for domain %s"),
+                            _("could not get root snapshot for domain %1$s"),
                             dom->name);
             goto cleanup;
         }
@@ -6469,13 +6472,13 @@ vboxDomainSnapshotGetParent(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetParent(snap, &parent);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get parent of snapshot %s"),
+                        _("could not get parent of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
     if (!parent) {
         vboxReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
-                        _("snapshot '%s' does not have a parent"),
+                        _("snapshot '%1$s' does not have a parent"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6483,7 +6486,7 @@ vboxDomainSnapshotGetParent(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetName(parent, &nameUtf16);
     if (NS_FAILED(rc) || !nameUtf16) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get name of parent of snapshot %s"),
+                        _("could not get name of parent of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6671,7 +6674,7 @@ static int vboxDomainRevertToSnapshot(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UISnapshot.GetOnline(newSnapshot, &online);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get online state of snapshot %s"),
+                        _("could not get online state of snapshot %1$s"),
                         snapshot->name);
         goto cleanup;
     }
@@ -6679,7 +6682,7 @@ static int vboxDomainRevertToSnapshot(virDomainSnapshotPtr snapshot,
     rc = gVBoxAPI.UIMachine.GetCurrentSnapshot(machine, &prevSnapshot);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not get current snapshot of domain %s"),
+                        _("could not get current snapshot of domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -6976,7 +6979,7 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
                 gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
                 if (RC_FAILED(resultCode)) {
                     vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("Error while creating diff storage, rc=%08x"),
+                                    _("Error while creating diff storage, rc=%1$08x"),
                                     resultCode.uResultCode);
                     goto cleanup;
                 }
@@ -7021,7 +7024,7 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
                                              &searchResultTab);
                 if (resultSize != it + 1) {
                     vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("Unable to find UUID %s"), searchResultTab[it]);
+                                    _("Unable to find UUID %1$s"), searchResultTab[it]);
                     goto cleanup;
                 }
 
@@ -7050,7 +7053,7 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
                                                       def->parent.dom->disks[it]->src->path);
                 if (!uuidRO) {
                     vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("No such disk in media registry %s"),
+                                    _("No such disk in media registry %1$s"),
                                     def->parent.dom->disks[it]->src->path);
                     goto cleanup;
                 }
@@ -7061,7 +7064,7 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
                                              &searchResultTab);
                 if (resultSize != it + 1) {
                     vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                    _("Unable to find UUID %s"),
+                                    _("Unable to find UUID %1$s"),
                                     searchResultTab[it]);
                     goto cleanup;
                 }
@@ -7085,12 +7088,12 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
                                                       def->disks[it].src->path);
         if (!uuidRW) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Unable to find UUID for location %s"), def->disks[it].src->path);
+                            _("Unable to find UUID for location %1$s"), def->disks[it].src->path);
             goto cleanup;
         }
         if (virVBoxSnapshotConfRemoveHardDisk(snapshotMachineDesc->mediaRegistry, uuidRW) < 0) {
             vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                            _("Unable to remove disk from media registry. uuid = %s"), uuidRW);
+                            _("Unable to remove disk from media registry. uuid = %1$s"), uuidRW);
             goto cleanup;
         }
     }
@@ -7102,12 +7105,12 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
                                                           def->parent.dom->disks[it]->src->path);
             if (!uuidRO) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Unable to find UUID for location %s"), def->parent.dom->disks[it]->src->path);
+                                _("Unable to find UUID for location %1$s"), def->parent.dom->disks[it]->src->path);
                 goto cleanup;
             }
             if (virVBoxSnapshotConfRemoveHardDisk(snapshotMachineDesc->mediaRegistry, uuidRO) < 0) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Unable to remove disk from media registry. uuid = %s"), uuidRO);
+                                _("Unable to remove disk from media registry. uuid = %1$s"), uuidRO);
                 goto cleanup;
             }
         }
@@ -7146,7 +7149,7 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
             gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
             if (RC_FAILED(resultCode)) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("Error while closing medium, rc=%08x"),
+                                _("Error while closing medium, rc=%1$08x"),
                                 resultCode.uResultCode);
                 goto cleanup;
             }
@@ -7167,7 +7170,7 @@ vboxDomainSnapshotDeleteMetadataOnly(virDomainSnapshotPtr snapshot)
     /* removing the snapshot */
     if (virVBoxSnapshotConfRemoveSnapshot(snapshotMachineDesc, def->parent.name) < 0) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("Unable to remove snapshot %s"), def->parent.name);
+                        _("Unable to remove snapshot %1$s"), def->parent.name);
         goto cleanup;
     }
 
@@ -7288,7 +7291,7 @@ static int vboxDomainSnapshotDelete(virDomainSnapshotPtr snapshot,
         rc = gVBoxAPI.UISession.GetConsole(data->vboxSession, &console);
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("could not open VirtualBox session with domain %s"),
+                        _("could not open VirtualBox session with domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -7342,7 +7345,7 @@ vboxDomainScreenshot(virDomainPtr dom,
 
     if (screen >= max_screen) {
         vboxReportError(VIR_ERR_INVALID_ARG,
-                        _("screen ID higher than monitor count (%d)"), max_screen);
+                        _("screen ID higher than monitor count (%1$d)"), max_screen);
         VBOX_RELEASE(machine);
         return NULL;
     }
@@ -7356,7 +7359,7 @@ vboxDomainScreenshot(virDomainPtr dom,
     tmp = g_strdup_printf("%s/vbox.screendump.XXXXXX", cacheDir);
 
     if ((tmp_fd = g_mkstemp_full(tmp, O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR)) == -1) {
-        virReportSystemError(errno, _("g_mkstemp(\"%s\") failed"), tmp);
+        virReportSystemError(errno, _("g_mkstemp(\"%1$s\") failed"), tmp);
         VBOX_RELEASE(machine);
         return NULL;
     }
@@ -7399,13 +7402,12 @@ vboxDomainScreenshot(virDomainPtr dom,
 
                 if (safewrite(tmp_fd, (char *) screenData,
                               screenDataSize) < 0) {
-                    virReportSystemError(errno, _("unable to write data "
-                                                  "to '%s'"), tmp);
+                    virReportSystemError(errno, _("unable to write data to '%1$s'"), tmp);
                     goto endjob;
                 }
 
                 if (VIR_CLOSE(tmp_fd) < 0) {
-                    virReportSystemError(errno, _("unable to close %s"), tmp);
+                    virReportSystemError(errno, _("unable to close %1$s"), tmp);
                     goto endjob;
                 }
 
@@ -7764,7 +7766,7 @@ vboxDomainSendKey(virDomainPtr dom,
                                                keyDownCodes[i]);
             if (keycode < 0) {
                 vboxReportError(VIR_ERR_INTERNAL_ERROR,
-                                _("cannot translate keycode %u of %s codeset to xt keycode"),
+                                _("cannot translate keycode %1$u of %2$s codeset to xt keycode"),
                                 keyDownCodes[i],
                                 virKeycodeSetTypeToString(codeset));
                 goto cleanup;
@@ -7782,7 +7784,7 @@ vboxDomainSendKey(virDomainPtr dom,
 
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_OPERATION_FAILED,
-                        _("Unable to open VirtualBox session with domain %s"),
+                        _("Unable to open VirtualBox session with domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -7791,7 +7793,7 @@ vboxDomainSendKey(virDomainPtr dom,
 
     if (NS_FAILED(rc) || !console) {
         vboxReportError(VIR_ERR_OPERATION_FAILED,
-                        _("Unable to get Console object for domain %s"),
+                        _("Unable to get Console object for domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -7800,7 +7802,7 @@ vboxDomainSendKey(virDomainPtr dom,
 
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_OPERATION_FAILED,
-                        _("Unable to get Keyboard object for domain %s"),
+                        _("Unable to get Keyboard object for domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -7810,7 +7812,7 @@ vboxDomainSendKey(virDomainPtr dom,
 
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_OPERATION_FAILED,
-                        _("Unable to send keyboard scancodes for domain %s"),
+                        _("Unable to send keyboard scancodes for domain %1$s"),
                         dom->name);
         goto cleanup;
     }
@@ -7825,7 +7827,7 @@ vboxDomainSendKey(virDomainPtr dom,
 
     if (NS_FAILED(rc)) {
         vboxReportError(VIR_ERR_OPERATION_FAILED,
-                        _("Unable to send keyboard scan codes to domain %s"),
+                        _("Unable to send keyboard scan codes to domain %1$s"),
                         dom->name);
         goto cleanup;
     }

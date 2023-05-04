@@ -32,6 +32,7 @@
 #include "virstring.h"
 #include "virfile.h"
 #include "virenum.h"
+#include "virsh-util.h"
 
 /*
  * "capabilities" command
@@ -43,22 +44,40 @@ static const vshCmdInfo info_capabilities[] = {
     {.name = "desc",
      .data = N_("Returns capabilities of hypervisor/driver.")
     },
+   {.name = NULL}
+};
+
+static const vshCmdOptDef opts_capabilities[] = {
+    {.name = "xpath",
+     .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
+     .completer = virshCompleteEmpty,
+     .help = N_("xpath expression to filter the XML document")
+    },
+    {.name = "wrap",
+     .type = VSH_OT_BOOL,
+     .help = N_("wrap xpath results in an common root element"),
+    },
     {.name = NULL}
 };
 
 static bool
-cmdCapabilities(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
+cmdCapabilities(vshControl *ctl, const vshCmd *cmd)
 {
     g_autofree char *caps = NULL;
     virshControl *priv = ctl->privData;
+    bool wrap = vshCommandOptBool(cmd, "wrap");
+    const char *xpath = NULL;
+
+    if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
+        return false;
 
     if ((caps = virConnectGetCapabilities(priv->conn)) == NULL) {
         vshError(ctl, "%s", _("failed to get capabilities"));
         return false;
     }
-    vshPrint(ctl, "%s\n", caps);
 
-    return true;
+    return virshDumpXML(ctl, caps, "capabilities", xpath, wrap);
 }
 
 /*
@@ -93,6 +112,16 @@ static const vshCmdOptDef opts_domcapabilities[] = {
      .type = VSH_OT_STRING,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
+    {.name = "xpath",
+     .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
+     .completer = virshCompleteEmpty,
+     .help = N_("xpath expression to filter the XML document")
+    },
+    {.name = "wrap",
+     .type = VSH_OT_BOOL,
+     .help = N_("wrap xpath results in an common root element"),
+    },
     {.name = NULL}
 };
 
@@ -104,13 +133,16 @@ cmdDomCapabilities(vshControl *ctl, const vshCmd *cmd)
     const char *emulatorbin = NULL;
     const char *arch = NULL;
     const char *machine = NULL;
+    const char *xpath = NULL;
     const unsigned int flags = 0; /* No flags so far */
+    bool wrap = vshCommandOptBool(cmd, "wrap");
     virshControl *priv = ctl->privData;
 
     if (vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
         vshCommandOptStringReq(ctl, cmd, "emulatorbin", &emulatorbin) < 0 ||
         vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0)
+        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0 ||
+        vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
         return false;
 
     caps = virConnectGetDomainCapabilities(priv->conn, emulatorbin,
@@ -120,9 +152,7 @@ cmdDomCapabilities(vshControl *ctl, const vshCmd *cmd)
         return false;
     }
 
-    vshPrint(ctl, "%s\n", caps);
-
-    return true;
+    return virshDumpXML(ctl, caps, "domcapabilities", xpath, wrap);
 }
 
 /*
@@ -219,8 +249,8 @@ cmdFreecell(vshControl *ctl, const vshCmd *cmd)
         nodes_id[i] = id;
         if (virNodeGetCellsFreeMemory(priv->conn, &(nodes_free[i]),
                                       id, 1) != 1) {
-            vshError(ctl, _("failed to get free memory for NUMA node "
-                            "number: %lu"), id);
+            vshError(ctl, _("failed to get free memory for NUMA node number: %1$lu"),
+                     id);
             return false;
         }
     }
@@ -337,7 +367,7 @@ cmdFreepages(vshControl *ctl, const vshCmd *cmd)
                 g_autofree char *val = virXMLPropString(nodes[i], "size");
 
                 if (virStrToLong_uip(val, NULL, 10, &pagesize[i]) < 0) {
-                    vshError(ctl, _("unable to parse page size: %s"), val);
+                    vshError(ctl, _("unable to parse page size: %1$s"), val);
                     goto cleanup;
                 }
             }
@@ -374,7 +404,7 @@ cmdFreepages(vshControl *ctl, const vshCmd *cmd)
             g_autofree char *val = virXMLPropString(nodes[i], "id");
 
             if (virStrToLong_i(val, NULL, 10, &cell) < 0) {
-                vshError(ctl, _("unable to parse numa node id: %s"), val);
+                vshError(ctl, _("unable to parse numa node id: %1$s"), val);
                 goto cleanup;
             }
 
@@ -382,7 +412,7 @@ cmdFreepages(vshControl *ctl, const vshCmd *cmd)
                                     cell, 1, counts, 0) < 0)
                 goto cleanup;
 
-            vshPrint(ctl, _("Node %d:\n"), cell);
+            vshPrint(ctl, _("Node %1$d:\n"), cell);
             for (j = 0; j < npages; j++)
                 vshPrint(ctl, "%uKiB: %lld\n", pagesize[j], counts[j]);
             vshPrint(ctl, "%c", '\n');
@@ -1135,9 +1165,8 @@ vshExtractCPUDefXMLs(vshControl *ctl,
         return NULL;
 
     if (n == 0) {
-        vshError(ctl, _("File '%s' does not contain any <cpu> element or "
-                        "valid domain XML, host capabilities XML, or "
-                        "domain capabilities XML"), xmlFile);
+        vshError(ctl, _("File '%1$s' does not contain any <cpu> element or valid domain XML, host capabilities XML, or domain capabilities XML"),
+                 xmlFile);
         return NULL;
     }
 
@@ -1219,24 +1248,24 @@ cmdCPUCompare(vshControl *ctl, const vshCmd *cmd)
 
     switch (result) {
     case VIR_CPU_COMPARE_INCOMPATIBLE:
-        vshPrint(ctl, _("CPU described in %s is incompatible with host CPU\n"),
+        vshPrint(ctl, _("CPU described in %1$s is incompatible with host CPU\n"),
                  from);
         return false;
         break;
 
     case VIR_CPU_COMPARE_IDENTICAL:
-        vshPrint(ctl, _("CPU described in %s is identical to host CPU\n"),
+        vshPrint(ctl, _("CPU described in %1$s is identical to host CPU\n"),
                  from);
         break;
 
     case VIR_CPU_COMPARE_SUPERSET:
-        vshPrint(ctl, _("Host CPU is a superset of CPU described in %s\n"),
+        vshPrint(ctl, _("Host CPU is a superset of CPU described in %1$s\n"),
                  from);
         break;
 
     case VIR_CPU_COMPARE_ERROR:
     default:
-        vshError(ctl, _("Failed to compare host CPU with %s"), from);
+        vshError(ctl, _("Failed to compare host CPU with %1$s"), from);
         return false;
     }
 
@@ -1397,7 +1426,7 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     includeVersion %= 1000000;
     minor = includeVersion / 1000;
     rel = includeVersion % 1000;
-    vshPrint(ctl, _("Compiled against library: libvirt %d.%d.%d\n"),
+    vshPrint(ctl, _("Compiled against library: libvirt %1$d.%2$d.%3$d\n"),
              major, minor, rel);
 
     if (virGetVersion(&libVersion, hvType, &apiVersion) < 0) {
@@ -1408,14 +1437,14 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     libVersion %= 1000000;
     minor = libVersion / 1000;
     rel = libVersion % 1000;
-    vshPrint(ctl, _("Using library: libvirt %d.%d.%d\n"),
+    vshPrint(ctl, _("Using library: libvirt %1$d.%2$d.%3$d\n"),
              major, minor, rel);
 
     major = apiVersion / 1000000;
     apiVersion %= 1000000;
     minor = apiVersion / 1000;
     rel = apiVersion % 1000;
-    vshPrint(ctl, _("Using API: %s %d.%d.%d\n"), hvType,
+    vshPrint(ctl, _("Using API: %1$s %2$d.%3$d.%4$d\n"), hvType,
              major, minor, rel);
 
     if (virConnectGetVersion(priv->conn, &hvVersion) < 0) {
@@ -1424,14 +1453,14 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     }
     if (hvVersion == 0) {
         vshPrint(ctl,
-                 _("Cannot extract running %s hypervisor version\n"), hvType);
+                 _("Cannot extract running %1$s hypervisor version\n"), hvType);
     } else {
         major = hvVersion / 1000000;
         hvVersion %= 1000000;
         minor = hvVersion / 1000;
         rel = hvVersion % 1000;
 
-        vshPrint(ctl, _("Running hypervisor: %s %d.%d.%d\n"),
+        vshPrint(ctl, _("Running hypervisor: %1$s %2$d.%3$d.%4$d\n"),
                  hvType, major, minor, rel);
     }
 
@@ -1443,7 +1472,7 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
             daemonVersion %= 1000000;
             minor = daemonVersion / 1000;
             rel = daemonVersion % 1000;
-            vshPrint(ctl, _("Running against daemon: %d.%d.%d\n"),
+            vshPrint(ctl, _("Running against daemon: %1$d.%2$d.%3$d\n"),
                      major, minor, rel);
         }
     }
@@ -1644,29 +1673,26 @@ cmdHypervisorCPUCompare(vshControl *ctl,
     switch (result) {
     case VIR_CPU_COMPARE_INCOMPATIBLE:
         vshPrint(ctl,
-                 _("CPU described in %s is incompatible with the CPU provided "
-                   "by hypervisor on the host\n"),
+                 _("CPU described in %1$s is incompatible with the CPU provided by hypervisor on the host\n"),
                  from);
         return false;
         break;
 
     case VIR_CPU_COMPARE_IDENTICAL:
         vshPrint(ctl,
-                 _("CPU described in %s is identical to the CPU provided by "
-                   "hypervisor on the host\n"),
+                 _("CPU described in %1$s is identical to the CPU provided by hypervisor on the host\n"),
                  from);
         break;
 
     case VIR_CPU_COMPARE_SUPERSET:
         vshPrint(ctl,
-                 _("The CPU provided by hypervisor on the host is a superset "
-                   "of CPU described in %s\n"),
+                 _("The CPU provided by hypervisor on the host is a superset of CPU described in %1$s\n"),
                  from);
         break;
 
     case VIR_CPU_COMPARE_ERROR:
     default:
-        vshError(ctl, _("Failed to compare hypervisor CPU with %s"), from);
+        vshError(ctl, _("Failed to compare hypervisor CPU with %1$s"), from);
         return false;
     }
 
@@ -1789,7 +1815,7 @@ const vshCmdDef hostAndHypervisorCmds[] = {
     },
     {.name = "capabilities",
      .handler = cmdCapabilities,
-     .opts = NULL,
+     .opts = opts_capabilities,
      .info = info_capabilities,
      .flags = 0
     },

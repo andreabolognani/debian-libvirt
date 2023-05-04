@@ -455,6 +455,11 @@ sc_prohibit_diagnostic_without_format:
 	  { echo 'found diagnostic without %' 1>&2; \
 	    exit 1; } || :
 
+sc_require_permutable_format_in_translation:
+	@prohibit='\<N?_ *\("[^"]*%[^%$$ ]*[a-zA-Z][^"]*"' \
+	halt='non-permutable format string(s)' \
+	  $(_sc_search_regexp)
+
 # The strings "" and "%s" should never be marked for translation.
 # Files under tests/ and examples/ should not be translated.
 sc_prohibit_useless_translation:
@@ -1365,7 +1370,7 @@ exclude_file_name_regexp--sc_prohibit_close = \
   (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  (^tests/(nodedevmdevctl|virhostcpu|virpcitest|virstoragetest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
+  (^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
 
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)

@@ -302,6 +302,10 @@ const vshCmdOpt *vshCommandOptArgv(vshControl *ctl, const vshCmd *cmd,
 bool vshCommandArgvParse(vshControl *ctl, int nargs, char **argv);
 int vshCommandOptTimeoutToMs(vshControl *ctl, const vshCmd *cmd, int *timeout);
 
+void vshPrintVa(vshControl *ctl,
+                const char *format,
+                va_list ap)
+    G_GNUC_PRINTF(2, 0);
 void vshPrint(vshControl *ctl, const char *format, ...)
     G_GNUC_PRINTF(2, 3);
 void vshPrintExtra(vshControl *ctl, const char *format, ...)
@@ -486,7 +490,7 @@ void vshReadlineHistoryAdd(const char *cmd);
  */
 #define VSH_EXCLUSIVE_OPTIONS_EXPR(NAME1, EXPR1, NAME2, EXPR2) \
     if ((EXPR1) && (EXPR2)) { \
-        vshError(ctl, _("Options --%s and --%s are mutually exclusive"), \
+        vshError(ctl, _("Options --%1$s and --%2$s are mutually exclusive"), \
                  NAME1, NAME2); \
         return false; \
     }
@@ -541,7 +545,7 @@ void vshReadlineHistoryAdd(const char *cmd);
         bool _expr2 = EXPR2; \
         VSH_EXCLUSIVE_OPTIONS_EXPR(NAME1, _expr1, NAME2, _expr2); \
         if (!_expr1 && !_expr2) { \
-           vshError(ctl, _("Either --%s or --%s must be provided"), \
+           vshError(ctl, _("Either --%1$s or --%2$s must be provided"), \
                     NAME1, NAME2); \
            return false; \
         } \
@@ -565,7 +569,7 @@ void vshReadlineHistoryAdd(const char *cmd);
 #define VSH_REQUIRE_OPTION_EXPR(NAME1, EXPR1, NAME2, EXPR2) \
     do { \
         if ((EXPR1) && !(EXPR2)) { \
-            vshError(ctl, _("Option --%s is required by option --%s"), \
+            vshError(ctl, _("Option --%1$s is required by option --%2$s"), \
                      NAME2, NAME1); \
             return false; \
         } \
