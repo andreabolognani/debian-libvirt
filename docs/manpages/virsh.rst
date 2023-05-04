@@ -541,7 +541,7 @@ capabilities
 
 ::
 
-   capabilities
+   capabilities [--xpath EXPRESSION] [--wrap]
 
 Print an XML document describing the capabilities of the hypervisor
 we are currently connected to. This includes a section on the host
@@ -553,6 +553,13 @@ description see:
 
 The XML also show the NUMA topology information if available.
 
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
+
 
 domcapabilities
 ---------------
@@ -562,6 +569,7 @@ domcapabilities
 ::
 
    domcapabilities [virttype] [emulatorbin] [arch] [machine]
+                   [--xpath EXPRESSION] [--wrap]
 
 
 Print an XML document describing the domain capabilities for the
@@ -595,6 +603,13 @@ For the QEMU hypervisor, a *virttype* of either 'qemu' or 'kvm' must be
 supplied along with either the *emulatorbin* or *arch* in order to
 generate output for the default *machine*.  Supplying a *machine*
 value will generate output for the specific machine.
+
+If the **--xpath** argument provides an XPath expression, it will be
+evaluated against the output XML and only those matching nodes will
+be printed. The default behaviour is to print each matching node as
+a standalone document, however, for ease of additional processing,
+the **--wrap** argument will cause the matching node to be wrapped
+in a common root node.
 
 
 pool-capabilities

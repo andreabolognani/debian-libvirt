@@ -111,9 +111,6 @@ int qemuProcessPrepareDomain(virQEMUDriver *driver,
 
 int qemuProcessOpenVhostVsock(virDomainVsockDef *vsock);
 
-int qemuProcessPrepareHostHostdev(virDomainHostdevDef *hostdev);
-
-
 int qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
                                                 virDomainDeviceDef *dev)
     G_NO_INLINE;
@@ -235,3 +232,6 @@ bool qemuProcessRebootAllowed(const virDomainDef *def);
 
 void qemuProcessCleanupMigrationJob(virQEMUDriver *driver,
                                     virDomainObj *vm);
+
+void qemuProcessRefreshDiskProps(virDomainDiskDef *disk,
+                                 struct qemuDomainDiskInfo *info);

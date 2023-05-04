@@ -197,6 +197,7 @@ vmwareSetSentinal(const char **prog, const char *key)
 int
 vmwareParseVersionStr(int type, const char *verbuf, unsigned long *version)
 {
+    unsigned long long tmpver;
     const char *pattern;
     const char *tmp;
 
@@ -212,27 +213,29 @@ vmwareParseVersionStr(int type, const char *verbuf, unsigned long *version)
             break;
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Invalid driver type: %d"), type);
+                           _("Invalid driver type: %1$d"), type);
             return -1;
     }
 
     if ((tmp = strstr(verbuf, pattern)) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot find version pattern \"%s\""), pattern);
+                       _("cannot find version pattern \"%1$s\""), pattern);
         return -1;
     }
 
     if ((tmp = STRSKIP(tmp, pattern)) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to parse %sversion"), pattern);
+                       _("failed to parse %1$sversion"), pattern);
         return -1;
     }
 
-    if (virStringParseVersion(version, tmp, false) < 0) {
+    if (virStringParseVersion(&tmpver, tmp, false) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("version parsing error"));
         return -1;
     }
+
+    *version = tmpver;
 
     return 0;
 }
@@ -311,7 +314,7 @@ vmwareParsePath(const char *path, char **directory, char **filename)
 
         if (*separator == '\0') {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("path '%s' doesn't reference a file"), path);
+                           _("path '%1$s' doesn't reference a file"), path);
             return -1;
         }
 
@@ -385,8 +388,8 @@ vmwareVmxPath(virDomainDef *vmdef, char **vmxPath)
 
     if (!virStringHasCaseSuffix(fileName, ".vmdk")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expecting source '%s' of first file-based harddisk "
-                         "to be a VMDK image"), src);
+                       _("Expecting source '%1$s' of first file-based harddisk to be a VMDK image"),
+                       src);
         return -1;
     }
 
@@ -401,7 +404,7 @@ vmwareMoveFile(char *srcFile, char *dstFile)
     g_autoptr(virCommand) cmd = NULL;
 
     if (!virFileExists(srcFile)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, _("file %s does not exist"),
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("file %1$s does not exist"),
                        srcFile);
         return -1;
     }
@@ -413,7 +416,7 @@ vmwareMoveFile(char *srcFile, char *dstFile)
 
     if (virCommandRun(cmd, NULL) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to move file to %s "), dstFile);
+                       _("failed to move file to %1$s "), dstFile);
         return -1;
     }
 

@@ -80,12 +80,12 @@ Application development
    Bindings of the libvirt API for
    `c# <csharp.html>`__,
    `go <https://pkg.go.dev/libvirt.org/go/libvirt>`__ (`all go modules <golang.html>`__),
-   `java <java.html>`__,
-   `ocaml <https://libvirt.org/ocaml/>`__,
+   `java <https://java.libvirt.org/>`__,
+   `ocaml <https://ocaml.libvirt.org/>`__,
    `perl <https://search.cpan.org/dist/Sys-Virt/>`__,
    `python <python.html>`__,
-   `php <php.html>`__,
-   `ruby <https://libvirt.org/ruby/>`__
+   `php <https://php.libvirt.org>`__,
+   `ruby <https://ruby.libvirt.org/>`__
    and integration API modules for
    `D-Bus <dbus.html>`__
 

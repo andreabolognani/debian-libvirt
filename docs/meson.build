@@ -85,7 +85,6 @@ docs_rst_files = [
   'hacking',
   'hooks',
   'issue-handling',
-  'java',
   'libvirt-go',
   'libvirt-go-xml',
   'logging',
@@ -95,7 +94,6 @@ docs_rst_files = [
   'nss',
   'pci-addresses',
   'pci-hotplug',
-  'php',
   'platforms',
   'programming-languages',
   'python',
@@ -124,7 +122,7 @@ aclperms_gen = custom_target(
   input: access_perm_h,
   output: 'aclperms.htmlinc',
   command: [
-    meson_python_prog, python3_prog, genaclperms_prog, '@INPUT@',
+    genaclperms_prog, '@INPUT@',
   ],
   capture: true,
 )
@@ -146,7 +144,7 @@ docs_api_generated = custom_target(
     'libvirt-admin-api.xml',
   ],
   command: [
-    meson_python_prog, python3_prog, apibuild_prog,
+    apibuild_prog,
     meson.current_source_dir(),
     meson.current_build_dir(),
   ],
@@ -265,8 +263,6 @@ hvsupport_html_in = custom_target(
   'hvsupport.html.in',
   output: 'hvsupport.html.in',
   command: [
-    meson_python_prog,
-    python3_prog,
     hvsupport_prog,
     meson.project_source_root(),
     meson.project_build_root(),
@@ -345,7 +341,11 @@ subdir('manpages')
 foreach file : docs_assets
   # This hack enables us to view the web pages
   # from within the uninstalled build tree
-  configure_file(input: file, output: file, copy: true)
+  if meson.version().version_compare('>=0.64.0')
+    fs.copyfile(file)
+  else
+    configure_file(input: file, output: file, copy: true)
+  endif
 
   install_web_files += '@0@:@1@'.format(meson.current_source_dir() / file, docs_html_dir)
 endforeach

@@ -64,7 +64,6 @@ virCapabilitiesDomainDataLookup;
 virCapabilitiesDomainSupported;
 virCapabilitiesFormatXML;
 virCapabilitiesFreeGuest;
-virCapabilitiesFreeMachines;
 virCapabilitiesGetNodeInfo;
 virCapabilitiesHostInitIOMMU;
 virCapabilitiesHostNUMAAddCell;
@@ -461,7 +460,6 @@ virDomainGraphicsVNCSharePolicyTypeFromString;
 virDomainGraphicsVNCSharePolicyTypeToString;
 virDomainHasNet;
 virDomainHostdevCapsTypeToString;
-virDomainHostdevDefClear;
 virDomainHostdevDefFree;
 virDomainHostdevDefNew;
 virDomainHostdevFind;
@@ -1829,6 +1827,13 @@ vir_g_fsync;
 vir_g_source_unref;
 vir_g_strdup_printf;
 vir_g_strdup_vprintf;
+
+
+# util/viracpi.c
+virAcpiHasSMMU;
+virAcpiParseIORT;
+virIORTNodeTypeTypeFromString;
+virIORTNodeTypeTypeToString;
 
 
 # util/viralloc.h
