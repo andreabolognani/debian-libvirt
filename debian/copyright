@@ -85,7 +85,7 @@ Files: docs/fonts/*
 Copyright: 2015 Red Hat, Inc
 License: SIL-1.1
 
-Files: src/keycodemapdb/tools/keymap-gen
+Files: subprojects/keycodemapdb/*
 Copyright: 2009-2017 Red Hat, Inc.
 License: GPL-2.0+ or BSD-3-clause
 
