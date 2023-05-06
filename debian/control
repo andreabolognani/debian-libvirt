@@ -96,6 +96,8 @@ Package: libvirt-clients-qemu
 Section: admin
 Architecture: all
 Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  python3-cryptography,
  python3-libvirt,
  python3-lxml,
@@ -335,6 +337,8 @@ Depends:
  libvirt-daemon-config-network (= ${source:Version}),
  libvirt-daemon-config-nwfilter (= ${source:Version}),
  libvirt-daemon-system-systemd (= ${source:Version}) | libvirt-daemon-system-sysv (= ${source:Version}),
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  logrotate,
  polkitd (>= 121+compat0.1-2) [linux-any],
  ${misc:Depends},
@@ -367,6 +371,8 @@ Section: admin
 Architecture: all
 Multi-Arch: foreign
 Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  systemd-container,
  systemd-sysv,
  ${misc:Depends},
@@ -386,6 +392,8 @@ Package: libvirt-daemon-system-sysv
 Section: admin
 Architecture: all
 Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  ${misc:Depends},
 Description: Libvirt daemon configuration files (sysv)
  Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -403,6 +411,8 @@ Package: libvirt-daemon-config-network
 Section: admin
 Architecture: all
 Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  ${misc:Depends},
 Breaks:
  libvirt-daemon-system (<< 6.9.0-2~),
@@ -420,6 +430,8 @@ Package: libvirt-daemon-config-nwfilter
 Section: admin
 Architecture: all
 Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  ${misc:Depends},
 Breaks:
  libvirt-daemon-system (<< 6.9.0-2~),
@@ -452,6 +464,8 @@ Section: localization
 Architecture: all
 Multi-Arch: foreign
 Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
  ${misc:Depends},
 Breaks:
  libvirt0 (<< 8.10.0-2~),
@@ -540,6 +554,7 @@ Section: admin
 Architecture: any
 Multi-Arch: same
 Depends:
+ libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Wireshark dissector for the libvirt protocol
