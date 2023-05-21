@@ -1,3 +1,12 @@
+libvirt (9.3.0-2) experimental; urgency=medium
+
+  * [4e3ec2a] links: Link /usr/share/doc/* to /usr/share/doc/libvirt0
+    - The documentation directory for all binary packages (except
+      for libvirt-doc) is now a symlink to that of libvirt0, which
+      means that we no longer install 20+ copies of the same files
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 21 May 2023 16:14:16 +0200
+
 libvirt (9.3.0-1) experimental; urgency=medium
 
   * [45efa38] New upstream version 9.3.0
