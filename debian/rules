@@ -18,11 +18,17 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL
 
 ARCHES_CEPH = amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64el riscv64 s390x
 ARCHES_GLUSTER = amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64
+ARCHES_QEMU = amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
 ARCHES_LXC  = alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 ARCHES_XEN  = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
+    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+        WITH_QEMU             = -Ddriver_qemu=enabled
+    else
+        WITH_QEMU             = -Ddriver_qemu=disabled
+    endif
     ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
         WITH_VBOX             = -Ddriver_vbox=enabled
     else
@@ -71,6 +77,7 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
         WITH_LOGIN_SHELL      = -Dlogin_shell=disabled
     endif
 else
+    WITH_QEMU                 = -Ddriver_qemu=disabled
     WITH_VBOX                 = -Ddriver_vbox=disabled
     WITH_LIBXL                = -Ddriver_libxl=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
@@ -105,7 +112,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dinitconfdir=/etc/default \
     -Dpackager="$(DEB_VENDOR)" \
     -Dpackager_version="$(DEB_VERSION)" \
-    -Ddriver_qemu=enabled \
+    $(WITH_QEMU) \
     -Ddriver_libvirtd=enabled \
     -Ddriver_remote=enabled \
     -Dremote_default_mode=legacy \

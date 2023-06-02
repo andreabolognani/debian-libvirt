@@ -57,7 +57,7 @@ Build-Depends:
  po-debconf,
  python3-docutils,
  python3:native,
- qemu-utils,
+ qemu-utils [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
  systemtap-sdt-dev [linux-any],
  xsltproc,
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
@@ -177,7 +177,7 @@ Description: Virtualization daemon
 
 Package: libvirt-daemon-driver-qemu
 Section: admin
-Architecture: linux-any
+Architecture: amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
 Multi-Arch: no
 Depends:
  libvirt0 (= ${binary:Version}),
