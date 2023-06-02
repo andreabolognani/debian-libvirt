@@ -57,7 +57,6 @@ Build-Depends:
  po-debconf,
  python3-docutils,
  python3:native,
- qemu-system-common:native,
  qemu-utils,
  systemtap-sdt-dev [linux-any],
  xsltproc,
