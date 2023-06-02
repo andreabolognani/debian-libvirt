@@ -243,6 +243,7 @@ Patches have also been contributed by:
 * Daniel Nicoletti <dantti12@gmail.com>
 * Daniel P. Berrangé <berrange@redhat.com>
 * Daniel Veillard <veillard@redhat.com>
+* Dankaházi (ifj.) István <dankahazi.istvan@gmail.com>
 * Dario Faggioli <dario.faggioli@citrix.com>
 * Dario Faggioli <dfaggioli@suse.com>
 * Darryl L. Pierce <dpierce@redhat.com>

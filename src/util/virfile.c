@@ -1738,19 +1738,53 @@ virFileIsLink(const char *linkpath)
 char *
 virFindFileInPath(const char *file)
 {
+    return virFindFileInPathFull(file, NULL);
+}
+
+/* virFindFileInPathFull:
+ * @file: name of the program
+ * @extraDirs: NULL-terminated list of additional directories
+ *
+ * Like virFindFileInPath(), but in addition to searching $PATH also
+ * looks into all directories listed in @extraDirs. This is useful to
+ * locate helpers that are installed outside of $PATH.
+ *
+ * The returned path must be freed by the caller.
+ *
+ * Returns: absolute path of the program or NULL
+ */
+char *
+virFindFileInPathFull(const char *file,
+                      const char *const *extraDirs)
+{
     g_autofree char *path = NULL;
     if (file == NULL)
         return NULL;
 
     path = g_find_program_in_path(file);
-    if (!path)
-        return NULL;
 
-    /* Workaround for a bug in g_find_program_in_path() not returning absolute
-     * path as documented.  This has been fixed in
-     * https://gitlab.gnome.org/GNOME/glib/-/merge_requests/2127
-     */
-    return g_canonicalize_filename(path, NULL);
+    if (path) {
+        /* Workaround for a bug in g_find_program_in_path() not returning absolute
+         * path as documented. TODO drop it once we require GLib >= 2.69.0
+         */
+        return g_canonicalize_filename(path, NULL);
+    }
+
+    if (extraDirs) {
+        while (*extraDirs) {
+            g_autofree char *extraPath = NULL;
+
+            extraPath = g_strdup_printf("%s/%s", *extraDirs, file);
+
+            if (virFileIsExecutable(extraPath)) {
+                return g_steal_pointer(&extraPath);
+            }
+
+            extraDirs++;
+        }
+    }
+
+    return NULL;
 }
 
 

@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '9.3.0',
+  version: '9.4.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -22,6 +22,11 @@ git = run_command('test', '-d', '.git', check: false).returncode() == 0
 if git and not get_option('no_git')
   run_command('git', 'submodule', 'update', '--init', check: true)
 endif
+
+
+# detect operating system
+
+os_release = run_command('grep', '-E', '^ID(_LIKE)*=', '/etc/os-release', check: false).stdout()
 
 
 # prepare build configuration data
@@ -74,6 +79,20 @@ endif
 runstatedir = get_option('runstatedir')
 if runstatedir == ''
   runstatedir = localstatedir / 'run'
+endif
+
+initconfdir = get_option('initconfdir')
+if initconfdir == ''
+  if (os_release.contains('alpine') or
+      os_release.contains('arch') or
+      os_release.contains('gentoo'))
+    initconfdir = sysconfdir / 'conf.d'
+  # Ubuntu has ID_LIKE=debian
+  elif os_release.contains('debian')
+    initconfdir = sysconfdir / 'default'
+  else
+    initconfdir = sysconfdir / 'sysconfig'
+  endif
 endif
 
 bindir = prefix / get_option('bindir')
@@ -1613,21 +1632,18 @@ if not get_option('driver_qemu').disabled()
         qemu_user = 'root'
         qemu_group = 'wheel'
       else
-        os_release = run_command('grep', '-E', '^ID(_LIKE)*=', '/etc/os-release', check: false).stdout()
-        if os_release.contains('arch')
-          qemu_user = 'nobody'
-          qemu_group = 'nobody'
         # RHEL and CentOS both have ID_LIKE=fedora, SLES has ID_LIKE=suse
-        elif (os_release.contains('fedora') or
-              os_release.contains('gentoo') or
-              os_release.contains('suse'))
+        if (os_release.contains('fedora') or
+            os_release.contains('gentoo') or
+            os_release.contains('suse'))
           qemu_user = 'qemu'
           qemu_group = 'qemu'
         # Ubuntu has ID_LIKE=debian so we need to handle it first
         elif os_release.contains('ubuntu')
           qemu_user = 'libvirt-qemu'
           qemu_group = 'kvm'
-        elif os_release.contains('debian')
+        elif (os_release.contains('arch') or
+              os_release.contains('debian'))
           qemu_user = 'libvirt-qemu'
           qemu_group = 'libvirt-qemu'
         else
@@ -1638,30 +1654,6 @@ if not get_option('driver_qemu').disabled()
     endif
     conf.set_quoted('QEMU_USER', qemu_user)
     conf.set_quoted('QEMU_GROUP', qemu_group)
-
-    qemu_bridge_prog = find_program(
-      'qemu-bridge-helper',
-      dirs: [ '/usr/libexec', '/usr/lib/qemu', '/usr/lib' ],
-      required: false
-    )
-    if qemu_bridge_prog.found()
-      qemu_bridge_path = qemu_bridge_prog.full_path()
-    else
-      qemu_bridge_path = '/usr/libexec/qemu-bridge-helper'
-    endif
-    conf.set_quoted('QEMU_BRIDGE_HELPER', qemu_bridge_path)
-
-    qemu_pr_prog = find_program(
-      'qemu-pr-helper',
-      dirs: [ '/usr/bin', '/usr/libexec' ],
-      required: false
-    )
-    if qemu_pr_prog.found()
-      qemu_pr_path = qemu_pr_prog.full_path()
-    else
-      qemu_pr_path = '/usr/bin/qemu-pr-helper'
-    endif
-    conf.set_quoted('QEMU_PR_HELPER', qemu_pr_path)
 
     qemu_slirp_prog = find_program(
       'slirp-helper',
@@ -1674,18 +1666,6 @@ if not get_option('driver_qemu').disabled()
       qemu_slirp_path = '/usr/bin/slirp-helper'
     endif
     conf.set_quoted('QEMU_SLIRP_HELPER', qemu_slirp_path)
-
-    qemu_dbus_daemon_prog = find_program(
-      'dbus-daemon',
-      dirs: [ '/usr/bin', '/usr/libexec' ],
-      required: false
-    )
-    if qemu_dbus_daemon_prog.found()
-      qemu_dbus_daemon_path = qemu_dbus_daemon_prog.full_path()
-    else
-      qemu_dbus_daemon_path = '/usr/bin/dbus-daemon'
-    endif
-    conf.set_quoted('QEMU_DBUS_DAEMON', qemu_dbus_daemon_path)
   endif
 endif
 

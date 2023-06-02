@@ -3245,7 +3245,7 @@ qemuBuildMemoryGetPagesize(virQEMUDriverConfig *cfg,
  * @def: domain definition object
  * @mem: memory definition object
  * @force: forcibly use one of the backends
- * @nodemaskRet: [out] bitmap used to format .host-nodes attribute
+ * @nodemaskRet: [out] bitmap where the memory should be allocated
  *
  * Creates a configuration object that represents memory backend of given guest
  * NUMA node (domain @def and @mem). Use @priv->autoNodeset to fine tune the
@@ -3458,10 +3458,10 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
                                       "S:policy", qemuNumaPolicyTypeToString(mode),
                                       NULL) < 0)
                 return -1;
-
-            if (nodemaskRet)
-                *nodemaskRet = nodemask;
         }
+
+        if (nodemaskRet)
+            *nodemaskRet = nodemask;
     }
 
     /* If none of the following is requested... */
@@ -3627,6 +3627,7 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
                               "T:unarmed", unarmed,
                               "s:memdev", memdev,
                               "B:prealloc", prealloc,
+                              "P:memaddr", mem->address,
                               "s:id", mem->info.alias,
                               NULL) < 0)
         return NULL;
@@ -4384,6 +4385,7 @@ qemuBuildSoundDevCmd(virCommand *cmd,
     g_autoptr(virJSONValue) props = NULL;
     const char *model = NULL;
     g_autofree char *audioid = NULL;
+    virTristateBool multichannel = VIR_TRISTATE_BOOL_ABSENT;
 
     switch (sound->model) {
     case VIR_DOMAIN_SOUND_MODEL_ES1370:
@@ -4397,6 +4399,7 @@ qemuBuildSoundDevCmd(virCommand *cmd,
         break;
     case VIR_DOMAIN_SOUND_MODEL_USB:
         model = "usb-audio";
+        multichannel = sound->multichannel;
         break;
     case VIR_DOMAIN_SOUND_MODEL_ICH9:
         model = "ich9-intel-hda";
@@ -4419,6 +4422,7 @@ qemuBuildSoundDevCmd(virCommand *cmd,
                               "s:driver", model,
                               "s:id", sound->info.alias,
                               "S:audiodev", audioid,
+                              "T:multi", multichannel,
                               NULL) < 0)
         return -1;
 
@@ -7303,6 +7307,24 @@ qemuBuildIOThreadCommandLine(virCommand *cmd,
                                          "k:thread-pool-min", iothread->thread_pool_min,
                                          "k:thread-pool-max", iothread->thread_pool_max,
                                          NULL) < 0)
+            return -1;
+
+        if (iothread->set_poll_max_ns &&
+            virJSONValueObjectAdd(&props,
+                                  "U:poll-max-ns", iothread->poll_max_ns,
+                                  NULL) < 0)
+            return -1;
+
+        if (iothread->set_poll_grow &&
+            virJSONValueObjectAdd(&props,
+                                  "U:poll-grow", iothread->poll_grow,
+                                  NULL) < 0)
+            return -1;
+
+        if (iothread->set_poll_shrink &&
+            virJSONValueObjectAdd(&props,
+                                  "U:poll-shrink", iothread->poll_shrink,
+                                  NULL) < 0)
             return -1;
 
         if (qemuBuildObjectCommandlineFromJSON(cmd, props, qemuCaps) < 0)

@@ -7128,19 +7128,12 @@ qemuMonitorJSONGetIOThreads(qemuMonitor *mon,
             goto cleanup;
         }
 
-        /* Fetch poll values (since QEMU 2.9 ) if available. QEMU
-         * stores these values as int64_t's; however, the qapi type
-         * is an int. The qapi/misc.json also mis-describes the grow
-         * and shrink values as pure add/remove values. The source
-         * util/aio-posix.c function aio_poll uses them as a factor
-         * or divisor in it's calculation. We will fetch and store
-         * them as defined in our structures. */
         if (virJSONValueObjectGetNumberUlong(child, "poll-max-ns",
                                              &info->poll_max_ns) == 0 &&
-            virJSONValueObjectGetNumberUint(child, "poll-grow",
-                                            &info->poll_grow) == 0 &&
-            virJSONValueObjectGetNumberUint(child, "poll-shrink",
-                                            &info->poll_shrink) == 0)
+            virJSONValueObjectGetNumberUlong(child, "poll-grow",
+                                             &info->poll_grow) == 0 &&
+            virJSONValueObjectGetNumberUlong(child, "poll-shrink",
+                                             &info->poll_shrink) == 0)
             info->poll_valid = true;
     }
 
@@ -7168,18 +7161,20 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
 
     path = g_strdup_printf("/objects/iothread%u", iothreadInfo->iothread_id);
 
-#define VIR_IOTHREAD_SET_PROP(propName, propVal) \
+#define VIR_IOTHREAD_SET_PROP_UL(propName, propVal) \
     if (iothreadInfo->set_##propVal) { \
         memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty)); \
-        prop.type = QEMU_MONITOR_OBJECT_PROPERTY_INT; \
-        prop.val.iv = iothreadInfo->propVal; \
+        prop.type = QEMU_MONITOR_OBJECT_PROPERTY_ULONG; \
+        prop.val.ul = iothreadInfo->propVal; \
         if (qemuMonitorJSONSetObjectProperty(mon, path, propName, &prop) < 0) \
             return -1; \
     }
 
-    VIR_IOTHREAD_SET_PROP("poll-max-ns", poll_max_ns);
-    VIR_IOTHREAD_SET_PROP("poll-grow", poll_grow);
-    VIR_IOTHREAD_SET_PROP("poll-shrink", poll_shrink);
+    VIR_IOTHREAD_SET_PROP_UL("poll-max-ns", poll_max_ns);
+    VIR_IOTHREAD_SET_PROP_UL("poll-grow", poll_grow);
+    VIR_IOTHREAD_SET_PROP_UL("poll-shrink", poll_shrink);
+
+#undef VIR_IOTHREAD_SET_PROP_UL
 
     if (iothreadInfo->set_thread_pool_min &&
         iothreadInfo->set_thread_pool_max) {
@@ -7199,15 +7194,24 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
             setMaxFirst = true;
     }
 
-    if (setMaxFirst) {
-        VIR_IOTHREAD_SET_PROP("thread-pool-max", thread_pool_max);
-        VIR_IOTHREAD_SET_PROP("thread-pool-min", thread_pool_min);
-    } else {
-        VIR_IOTHREAD_SET_PROP("thread-pool-min", thread_pool_min);
-        VIR_IOTHREAD_SET_PROP("thread-pool-max", thread_pool_max);
+#define VIR_IOTHREAD_SET_PROP_INT(propName, propVal) \
+    if (iothreadInfo->set_##propVal) { \
+        memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty)); \
+        prop.type = QEMU_MONITOR_OBJECT_PROPERTY_INT; \
+        prop.val.iv = iothreadInfo->propVal; \
+        if (qemuMonitorJSONSetObjectProperty(mon, path, propName, &prop) < 0) \
+            return -1; \
     }
 
-#undef VIR_IOTHREAD_SET_PROP
+    if (setMaxFirst) {
+        VIR_IOTHREAD_SET_PROP_INT("thread-pool-max", thread_pool_max);
+        VIR_IOTHREAD_SET_PROP_INT("thread-pool-min", thread_pool_min);
+    } else {
+        VIR_IOTHREAD_SET_PROP_INT("thread-pool-min", thread_pool_min);
+        VIR_IOTHREAD_SET_PROP_INT("thread-pool-max", thread_pool_max);
+    }
+
+#undef VIR_IOTHREAD_SET_PROP_INT
 
     return 0;
 }
@@ -7264,6 +7268,7 @@ qemuMonitorJSONGetMemoryDeviceInfo(qemuMonitor *mon,
         case VIR_DOMAIN_MEMORY_MODEL_DIMM:
         case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
             /* While 'id' attribute is marked as optional in QEMU's QAPI
              * specification, Libvirt always sets it. Thus we can fail if not
              * present. */
@@ -7304,11 +7309,19 @@ qemuMonitorJSONGetMemoryDeviceInfo(qemuMonitor *mon,
                     return -1;
 
                 }
-            } else if (model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM) {
+            } else if (model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM ||
+                       model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM) {
                 if (virJSONValueObjectGetNumberUlong(dimminfo, "size",
                                                      &meminfo->size) < 0) {
                     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                    _("malformed/missing size in virtio memory info"));
+                    return -1;
+                }
+
+                if (virJSONValueObjectGetNumberUlong(dimminfo, "memaddr",
+                                                     &meminfo->address) < 0) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                                   _("malformed/missing memaddr in virtio memory info"));
                     return -1;
                 }
             }
@@ -7335,7 +7348,6 @@ qemuMonitorJSONGetMemoryDeviceInfo(qemuMonitor *mon,
             }
             break;
 
-        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
         case VIR_DOMAIN_MEMORY_MODEL_NONE:
         case VIR_DOMAIN_MEMORY_MODEL_LAST:
             /* type not handled yet */

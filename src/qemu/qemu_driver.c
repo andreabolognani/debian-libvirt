@@ -5067,23 +5067,30 @@ qemuDomainHotplugModIOThread(virDomainObj *vm,
 }
 
 
-static int
+static void
 qemuDomainHotplugModIOThreadIDDef(virDomainIOThreadIDDef *def,
                                   qemuMonitorIOThreadInfo mondef)
 {
-    /* These have no representation in domain XML */
-    if (mondef.set_poll_grow ||
-        mondef.set_poll_max_ns ||
-        mondef.set_poll_shrink)
-        return -1;
+    if (mondef.set_poll_max_ns) {
+        def->poll_max_ns = mondef.poll_max_ns;
+        def->set_poll_max_ns = true;
+    }
+
+    if (mondef.set_poll_grow) {
+        def->poll_grow = mondef.poll_grow;
+        def->set_poll_grow = true;
+    }
+
+    if (mondef.set_poll_shrink) {
+        def->poll_shrink = mondef.poll_shrink;
+        def->set_poll_shrink = true;
+    }
 
     if (mondef.set_thread_pool_min)
         def->thread_pool_min = mondef.thread_pool_min;
 
     if (mondef.set_thread_pool_max)
         def->thread_pool_max = mondef.thread_pool_max;
-
-    return 0;
 }
 
 
@@ -5189,9 +5196,9 @@ qemuDomainIOThreadParseParams(virTypedParameterPtr params,
                                VIR_DOMAIN_IOTHREAD_POLL_MAX_NS,
                                VIR_TYPED_PARAM_ULLONG,
                                VIR_DOMAIN_IOTHREAD_POLL_GROW,
-                               VIR_TYPED_PARAM_UINT,
+                               VIR_TYPED_PARAM_UNSIGNED,
                                VIR_DOMAIN_IOTHREAD_POLL_SHRINK,
-                               VIR_TYPED_PARAM_UINT,
+                               VIR_TYPED_PARAM_UNSIGNED,
                                VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN,
                                VIR_TYPED_PARAM_INT,
                                VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX,
@@ -5206,16 +5213,16 @@ qemuDomainIOThreadParseParams(virTypedParameterPtr params,
     if (rc == 1)
         iothread->set_poll_max_ns = true;
 
-    if ((rc = virTypedParamsGetUInt(params, nparams,
-                                    VIR_DOMAIN_IOTHREAD_POLL_GROW,
-                                    &iothread->poll_grow)) < 0)
+    if ((rc = virTypedParamsGetUnsigned(params, nparams,
+                                        VIR_DOMAIN_IOTHREAD_POLL_GROW,
+                                        &iothread->poll_grow)) < 0)
         return -1;
     if (rc == 1)
         iothread->set_poll_grow = true;
 
-    if ((rc = virTypedParamsGetUInt(params, nparams,
-                                    VIR_DOMAIN_IOTHREAD_POLL_SHRINK,
-                                    &iothread->poll_shrink)) < 0)
+    if ((rc = virTypedParamsGetUnsigned(params, nparams,
+                                        VIR_DOMAIN_IOTHREAD_POLL_SHRINK,
+                                        &iothread->poll_shrink)) < 0)
         return -1;
     if (rc == 1)
         iothread->set_poll_shrink = true;
@@ -5233,27 +5240,6 @@ qemuDomainIOThreadParseParams(virTypedParameterPtr params,
         return -1;
     if (rc == 1)
         iothread->set_thread_pool_max = true;
-
-    if (iothread->set_poll_max_ns && iothread->poll_max_ns > INT_MAX) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("poll-max-ns (%1$llu) must be less than or equal to %2$d"),
-                       iothread->poll_max_ns, INT_MAX);
-        return -1;
-    }
-
-    if (iothread->set_poll_grow && iothread->poll_grow > INT_MAX) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("poll-grow (%1$u) must be less than or equal to %2$d"),
-                         iothread->poll_grow, INT_MAX);
-        return -1;
-    }
-
-    if (iothread->set_poll_shrink && iothread->poll_shrink > INT_MAX) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("poll-shrink (%1$u) must be less than or equal to %2$d"),
-                       iothread->poll_shrink, INT_MAX);
-        return -1;
-    }
 
     if (iothread->set_thread_pool_min && iothread->thread_pool_min < -1) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -5401,12 +5387,7 @@ qemuDomainChgIOThread(virQEMUDriver *driver,
             if (qemuDomainIOThreadValidate(iothreaddef, iothread, false) < 0)
                 goto endjob;
 
-            if (qemuDomainHotplugModIOThreadIDDef(iothreaddef, iothread) < 0) {
-                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                               _("configuring persistent polling values is not supported"));
-                goto endjob;
-            }
-
+            qemuDomainHotplugModIOThreadIDDef(iothreaddef, iothread);
             break;
         }
     }
@@ -16507,11 +16488,8 @@ qemuDomainGetStatsState(virQEMUDriver *driver G_GNUC_UNUSED,
                         virTypedParamList *params,
                         unsigned int privflags G_GNUC_UNUSED)
 {
-    if (virTypedParamListAddInt(params, dom->state.state, "state.state") < 0)
-        return -1;
-
-    if (virTypedParamListAddInt(params, dom->state.reason, "state.reason") < 0)
-        return -1;
+    virTypedParamListAddInt(params, dom->state.state, "state.state");
+    virTypedParamListAddInt(params, dom->state.reason, "state.reason");
 
     return 0;
 }
@@ -16670,33 +16648,16 @@ qemuDomainGetStatsMemoryBandwidth(virQEMUDriver *driver,
     if (nresdata == 0)
         return 0;
 
-    if (virTypedParamListAddUInt(params, nresdata,
-                                 "memory.bandwidth.monitor.count") < 0)
-        goto cleanup;
+    virTypedParamListAddUInt(params, nresdata, "memory.bandwidth.monitor.count");
 
     for (i = 0; i < nresdata; i++) {
-        if (virTypedParamListAddString(params, resdata[i]->name,
-                                       "memory.bandwidth.monitor.%zu.name",
-                                       i) < 0)
-            goto cleanup;
-
-        if (virTypedParamListAddString(params, resdata[i]->vcpus,
-                                       "memory.bandwidth.monitor.%zu.vcpus",
-                                       i) < 0)
-            goto cleanup;
-
-        if (virTypedParamListAddUInt(params, resdata[i]->nstats,
-                                     "memory.bandwidth.monitor.%zu.node.count",
-                                     i) < 0)
-            goto cleanup;
-
+        virTypedParamListAddString(params, resdata[i]->name, "memory.bandwidth.monitor.%zu.name", i);
+        virTypedParamListAddString(params, resdata[i]->vcpus, "memory.bandwidth.monitor.%zu.vcpus", i);
+        virTypedParamListAddUInt(params, resdata[i]->nstats, "memory.bandwidth.monitor.%zu.node.count", i);
 
         for (j = 0; j < resdata[i]->nstats; j++) {
-            if (virTypedParamListAddUInt(params, resdata[i]->stats[j]->id,
-                                         "memory.bandwidth.monitor.%zu."
-                                         "node.%zu.id",
-                                         i, j) < 0)
-                goto cleanup;
+            virTypedParamListAddUInt(params, resdata[i]->stats[j]->id,
+                                     "memory.bandwidth.monitor.%zu.node.%zu.id", i, j);
 
 
             features = resdata[i]->stats[j]->features;
@@ -16704,23 +16665,15 @@ qemuDomainGetStatsMemoryBandwidth(virQEMUDriver *driver,
                 if (STREQ(features[k], "mbm_local_bytes")) {
                     /* The accumulative data passing through local memory
                      * controller is recorded with 64 bit counter. */
-                    if (virTypedParamListAddULLong(params,
-                                                   resdata[i]->stats[j]->vals[k],
-                                                   "memory.bandwidth.monitor."
-                                                   "%zu.node.%zu.bytes.local",
-                                                   i, j) < 0)
-                        goto cleanup;
+                    virTypedParamListAddULLong(params, resdata[i]->stats[j]->vals[k],
+                                               "memory.bandwidth.monitor.%zu.node.%zu.bytes.local", i, j);
                 }
 
                 if (STREQ(features[k], "mbm_total_bytes")) {
                     /* The accumulative data passing through local and remote
                      * memory controller is recorded with 64 bit counter. */
-                    if (virTypedParamListAddULLong(params,
-                                                   resdata[i]->stats[j]->vals[k],
-                                                   "memory.bandwidth.monitor."
-                                                   "%zu.node.%zu.bytes.total",
-                                                   i, j) < 0)
-                        goto cleanup;
+                    virTypedParamListAddULLong(params, resdata[i]->stats[j]->vals[k],
+                                               "memory.bandwidth.monitor.%zu.node.%zu.bytes.total", i, j);
                 }
             }
         }
@@ -16753,26 +16706,16 @@ qemuDomainGetStatsCpuCache(virQEMUDriver *driver,
                                     VIR_RESCTRL_MONITOR_TYPE_CACHE) < 0)
         goto cleanup;
 
-    if (virTypedParamListAddUInt(params, nresdata, "cpu.cache.monitor.count") < 0)
-        goto cleanup;
+    virTypedParamListAddUInt(params, nresdata, "cpu.cache.monitor.count");
 
     for (i = 0; i < nresdata; i++) {
-        if (virTypedParamListAddString(params, resdata[i]->name,
-                                       "cpu.cache.monitor.%zu.name", i) < 0)
-            goto cleanup;
-
-        if (virTypedParamListAddString(params, resdata[i]->vcpus,
-                                       "cpu.cache.monitor.%zu.vcpus", i) < 0)
-            goto cleanup;
-
-        if (virTypedParamListAddUInt(params, resdata[i]->nstats,
-                                     "cpu.cache.monitor.%zu.bank.count", i) < 0)
-            goto cleanup;
+        virTypedParamListAddString(params, resdata[i]->name, "cpu.cache.monitor.%zu.name", i);
+        virTypedParamListAddString(params, resdata[i]->vcpus, "cpu.cache.monitor.%zu.vcpus", i);
+        virTypedParamListAddUInt(params, resdata[i]->nstats, "cpu.cache.monitor.%zu.bank.count", i);
 
         for (j = 0; j < resdata[i]->nstats; j++) {
-            if (virTypedParamListAddUInt(params, resdata[i]->stats[j]->id,
-                                         "cpu.cache.monitor.%zu.bank.%zu.id", i, j) < 0)
-                goto cleanup;
+            virTypedParamListAddUInt(params, resdata[i]->stats[j]->id,
+                                     "cpu.cache.monitor.%zu.bank.%zu.id", i, j);
 
             /* 'resdata[i]->stats[j]->vals[0]' keeps the value of how many last
              * level cache in bank j currently occupied by the vcpus listed in
@@ -16783,11 +16726,8 @@ qemuDomainGetStatsCpuCache(virQEMUDriver *driver,
              * than 4G bytes in size, to keep the 'domstats' interface
              * historically consistent, it is safe to report the value with a
              * truncated 'UInt' data type here. */
-            if (virTypedParamListAddUInt(params,
-                                         (unsigned int)resdata[i]->stats[j]->vals[0],
-                                         "cpu.cache.monitor.%zu.bank.%zu.bytes",
-                                         i, j) < 0)
-                goto cleanup;
+            virTypedParamListAddUInt(params, (unsigned int)resdata[i]->stats[j]->vals[0],
+                                     "cpu.cache.monitor.%zu.bank.%zu.bytes", i, j);
         }
     }
 
@@ -16808,20 +16748,17 @@ qemuDomainGetStatsCpuCgroup(virDomainObj *dom,
     unsigned long long cpu_time = 0;
     unsigned long long user_time = 0;
     unsigned long long sys_time = 0;
-    int err = 0;
 
     if (!priv->cgroup)
         return 0;
 
-    err = virCgroupGetCpuacctUsage(priv->cgroup, &cpu_time);
-    if (!err && virTypedParamListAddULLong(params, cpu_time, "cpu.time") < 0)
-        return -1;
+    if (virCgroupGetCpuacctUsage(priv->cgroup, &cpu_time) == 0)
+        virTypedParamListAddULLong(params, cpu_time, "cpu.time");
 
-    err = virCgroupGetCpuacctStat(priv->cgroup, &user_time, &sys_time);
-    if (!err && virTypedParamListAddULLong(params, user_time, "cpu.user") < 0)
-        return -1;
-    if (!err && virTypedParamListAddULLong(params, sys_time, "cpu.system") < 0)
-        return -1;
+    if (virCgroupGetCpuacctStat(priv->cgroup, &user_time, &sys_time) == 0) {
+        virTypedParamListAddULLong(params, user_time, "cpu.user");
+        virTypedParamListAddULLong(params, sys_time, "cpu.system");
+    }
 
     return 0;
 }
@@ -16841,10 +16778,9 @@ qemuDomainGetStatsCpuProc(virDomainObj *vm,
         return 0;
     }
 
-    if (virTypedParamListAddULLong(params, cpuTime, "cpu.time") < 0 ||
-        virTypedParamListAddULLong(params, userTime, "cpu.user") < 0 ||
-        virTypedParamListAddULLong(params, sysTime, "cpu.system") < 0)
-        return -1;
+    virTypedParamListAddULLong(params, cpuTime, "cpu.time");
+    virTypedParamListAddULLong(params, userTime, "cpu.user");
+    virTypedParamListAddULLong(params, sysTime, "cpu.system");
 
     return 0;
 }
@@ -16932,9 +16868,8 @@ qemuDomainGetStatsCpuHaltPollTime(virDomainObj *dom,
         virHostCPUGetHaltPollTime(dom->pid, &haltPollSuccess, &haltPollFail) < 0)
         return 0;
 
-    if (virTypedParamListAddULLong(params, haltPollSuccess, "cpu.haltpoll.success.time") < 0 ||
-        virTypedParamListAddULLong(params, haltPollFail, "cpu.haltpoll.fail.time") < 0)
-        return -1;
+    virTypedParamListAddULLong(params, haltPollSuccess, "cpu.haltpoll.success.time");
+    virTypedParamListAddULLong(params, haltPollFail, "cpu.haltpoll.fail.time");
 
     return 0;
 }
@@ -16993,12 +16928,8 @@ qemuDomainGetStatsBalloon(virQEMUDriver *driver G_GNUC_UNUSED,
         cur_balloon = dom->def->mem.cur_balloon;
     }
 
-    if (virTypedParamListAddULLong(params, cur_balloon, "balloon.current") < 0)
-        return -1;
-
-    if (virTypedParamListAddULLong(params, virDomainDefGetMemoryTotal(dom->def),
-                                   "balloon.maximum") < 0)
-        return -1;
+    virTypedParamListAddULLong(params, cur_balloon, "balloon.current");
+    virTypedParamListAddULLong(params, virDomainDefGetMemoryTotal(dom->def), "balloon.maximum");
 
     if (!HAVE_JOB(privflags) || !virDomainObjIsActive(dom))
         return 0;
@@ -17010,8 +16941,7 @@ qemuDomainGetStatsBalloon(virQEMUDriver *driver G_GNUC_UNUSED,
 
 #define STORE_MEM_RECORD(TAG, NAME) \
     if (stats[i].tag == VIR_DOMAIN_MEMORY_STAT_ ##TAG) \
-        if (virTypedParamListAddULLong(params, stats[i].val, "balloon." NAME) < 0) \
-            return -1;
+        virTypedParamListAddULLong(params, stats[i].val, "balloon." NAME);
 
     for (i = 0; i < nr_stats; i++) {
         STORE_MEM_RECORD(SWAP_IN, "swap_in")
@@ -17080,16 +17010,14 @@ qemuDomainAddStatsFromHashTable(GHashTable *stats,
             if (virJSONValueGetBoolean(value, &stat) < 0)
                 continue;
 
-            ignore_value(virTypedParamListAddBoolean(params, stat, "%s.%s.%s",
-                                                     prefix, key, type));
+            virTypedParamListAddBoolean(params, stat, "%s.%s.%s", prefix, key, type);
         } else {
             unsigned long long stat;
 
             if (virJSONValueGetNumberUlong(value, &stat) < 0)
                 continue;
 
-            ignore_value(virTypedParamListAddULLong(params, stat, "%s.%s.%s",
-                                                    prefix, key, type));
+            virTypedParamListAddULLong(params, stat, "%s.%s.%s", prefix, key, type);
         }
     }
 }
@@ -17110,13 +17038,8 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
     qemuDomainObjPrivate *priv = dom->privateData;
     g_autoptr(virJSONValue) queried_stats = NULL;
 
-    if (virTypedParamListAddUInt(params, virDomainDefGetVcpus(dom->def),
-                                 "vcpu.current") < 0)
-        return -1;
-
-    if (virTypedParamListAddUInt(params, virDomainDefGetVcpusMax(dom->def),
-                                 "vcpu.maximum") < 0)
-        return -1;
+    virTypedParamListAddUInt(params, virDomainDefGetVcpus(dom->def), "vcpu.current");
+    virTypedParamListAddUInt(params, virDomainDefGetVcpusMax(dom->def), "vcpu.maximum");
 
     cpuinfo = g_new0(virVcpuInfo, virDomainDefGetVcpus(dom->def));
     cpuwait = g_new0(unsigned long long, virDomainDefGetVcpus(dom->def));
@@ -17149,25 +17072,15 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
         g_autoptr(GHashTable) stats = NULL;
         g_autofree char *prefix = g_strdup_printf("vcpu.%u", cpuinfo[i].number);
 
-        if (virTypedParamListAddInt(params, cpuinfo[i].state,
-                                    "vcpu.%u.state", cpuinfo[i].number) < 0)
-            return -1;
+        virTypedParamListAddInt(params, cpuinfo[i].state, "vcpu.%u.state", cpuinfo[i].number);
 
         /* stats below are available only if the VM is alive */
         if (!virDomainObjIsActive(dom))
             continue;
 
-        if (virTypedParamListAddULLong(params, cpuinfo[i].cpuTime,
-                                       "vcpu.%u.time", cpuinfo[i].number) < 0)
-            return -1;
-
-        if (virTypedParamListAddULLong(params, cpuwait[i],
-                                       "vcpu.%u.wait", cpuinfo[i].number) < 0)
-            return -1;
-
-        if (virTypedParamListAddULLong(params, cpudelay[i],
-                                        "vcpu.%u.delay", cpuinfo[i].number) < 0)
-            return -1;
+        virTypedParamListAddULLong(params, cpuinfo[i].cpuTime, "vcpu.%u.time", cpuinfo[i].number);
+        virTypedParamListAddULLong(params, cpuwait[i], "vcpu.%u.wait", cpuinfo[i].number);
+        virTypedParamListAddULLong(params, cpudelay[i], "vcpu.%u.delay", cpuinfo[i].number);
 
         /* state below is extracted from the individual vcpu structs */
         if (!(vcpu = virDomainDefGetVcpu(dom->def, cpuinfo[i].number)))
@@ -17176,11 +17089,8 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
         vcpupriv = QEMU_DOMAIN_VCPU_PRIVATE(vcpu);
 
         if (vcpupriv->halted != VIR_TRISTATE_BOOL_ABSENT) {
-            if (virTypedParamListAddBoolean(params,
-                                            vcpupriv->halted == VIR_TRISTATE_BOOL_YES,
-                                            "vcpu.%u.halted",
-                                            cpuinfo[i].number) < 0)
-                return -1;
+            virTypedParamListAddBoolean(params, vcpupriv->halted == VIR_TRISTATE_BOOL_YES,
+                                        "vcpu.%u.halted", cpuinfo[i].number);
         }
 
         if (!queried_stats)
@@ -17196,9 +17106,8 @@ qemuDomainGetStatsVcpu(virQEMUDriver *driver G_GNUC_UNUSED,
 }
 
 #define QEMU_ADD_NET_PARAM(params, num, name, value) \
-    if (value >= 0 && \
-        virTypedParamListAddULLong((params), (value), "net.%zu.%s", (num), (name)) < 0) \
-        return -1;
+    if (value >= 0)\
+        virTypedParamListAddULLong((params), (value), "net.%zu.%s", (num), (name));
 
 static int
 qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
@@ -17212,8 +17121,7 @@ qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
     if (!virDomainObjIsActive(dom))
         return 0;
 
-    if (virTypedParamListAddUInt(params, dom->def->nnets, "net.count") < 0)
-        return -1;
+    virTypedParamListAddUInt(params, dom->def->nnets, "net.count");
 
     /* Check the path is one of the domain's network interfaces. */
     for (i = 0; i < dom->def->nnets; i++) {
@@ -17227,8 +17135,7 @@ qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
 
         actualType = virDomainNetGetActualType(net);
 
-        if (virTypedParamListAddString(params, net->ifname, "net.%zu.name", i) < 0)
-            return -1;
+        virTypedParamListAddString(params, net->ifname, "net.%zu.name", i);
 
         if (actualType == VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
             if (virNetDevOpenvswitchInterfaceStats(net->ifname, &tmp) < 0) {
@@ -17243,22 +17150,14 @@ qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
             }
         }
 
-        QEMU_ADD_NET_PARAM(params, i,
-                           "rx.bytes", tmp.rx_bytes);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "rx.pkts", tmp.rx_packets);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "rx.errs", tmp.rx_errs);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "rx.drop", tmp.rx_drop);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "tx.bytes", tmp.tx_bytes);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "tx.pkts", tmp.tx_packets);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "tx.errs", tmp.tx_errs);
-        QEMU_ADD_NET_PARAM(params, i,
-                           "tx.drop", tmp.tx_drop);
+        QEMU_ADD_NET_PARAM(params, i, "rx.bytes", tmp.rx_bytes);
+        QEMU_ADD_NET_PARAM(params, i, "rx.pkts", tmp.rx_packets);
+        QEMU_ADD_NET_PARAM(params, i, "rx.errs", tmp.rx_errs);
+        QEMU_ADD_NET_PARAM(params, i, "rx.drop", tmp.rx_drop);
+        QEMU_ADD_NET_PARAM(params, i, "tx.bytes", tmp.tx_bytes);
+        QEMU_ADD_NET_PARAM(params, i, "tx.pkts", tmp.tx_packets);
+        QEMU_ADD_NET_PARAM(params, i, "tx.errs", tmp.tx_errs);
+        QEMU_ADD_NET_PARAM(params, i, "tx.drop", tmp.tx_drop);
     }
 
     return 0;
@@ -17286,20 +17185,14 @@ qemuDomainGetStatsOneBlockFallback(virQEMUDriver *driver,
         return 0;
     }
 
-    if (src->allocation &&
-        virTypedParamListAddULLong(params, src->allocation,
-                                   "block.%zu.allocation", block_idx) < 0)
-        return -1;
+    if (src->allocation)
+        virTypedParamListAddULLong(params, src->allocation, "block.%zu.allocation", block_idx);
 
-    if (src->capacity &&
-        virTypedParamListAddULLong(params, src->capacity,
-                                   "block.%zu.capacity", block_idx) < 0)
-        return -1;
+    if (src->capacity)
+        virTypedParamListAddULLong(params, src->capacity, "block.%zu.capacity", block_idx);
 
-    if (src->physical &&
-        virTypedParamListAddULLong(params, src->physical,
-                                   "block.%zu.physical", block_idx) < 0)
-        return -1;
+    if (src->physical)
+        virTypedParamListAddULLong(params, src->physical, "block.%zu.physical", block_idx);
 
     return 0;
 }
@@ -17330,24 +17223,16 @@ qemuDomainGetStatsOneBlock(virQEMUDriver *driver,
     if (!stats || !entryname || !(entry = virHashLookup(stats, entryname)))
         return 0;
 
-    if (virTypedParamListAddULLong(params, entry->wr_highest_offset,
-                                   "block.%zu.allocation", block_idx) < 0)
-        return -1;
+    virTypedParamListAddULLong(params, entry->wr_highest_offset, "block.%zu.allocation", block_idx);
 
-    if (entry->capacity &&
-        virTypedParamListAddULLong(params, entry->capacity,
-                                   "block.%zu.capacity", block_idx) < 0)
-        return -1;
+    if (entry->capacity)
+        virTypedParamListAddULLong(params, entry->capacity, "block.%zu.capacity", block_idx);
 
     if (entry->physical) {
-        if (virTypedParamListAddULLong(params, entry->physical,
-                                       "block.%zu.physical", block_idx) < 0)
-            return -1;
+        virTypedParamListAddULLong(params, entry->physical, "block.%zu.physical", block_idx);
     } else {
         if (qemuDomainStorageUpdatePhysical(driver, cfg, dom, src) == 0) {
-            if (virTypedParamListAddULLong(params, src->physical,
-                                           "block.%zu.physical", block_idx) < 0)
-                return -1;
+            virTypedParamListAddULLong(params, src->physical, "block.%zu.physical", block_idx);
         }
     }
 
@@ -17366,10 +17251,8 @@ qemuDomainGetStatsBlockExportBackendStorage(const char *entryname,
     if (!stats || !entryname || !(entry = virHashLookup(stats, entryname)))
         return 0;
 
-    if (entry->write_threshold &&
-        virTypedParamListAddULLong(params, entry->write_threshold,
-                                   "block.%zu.threshold", recordnr) < 0)
-        return -1;
+    if (entry->write_threshold)
+        virTypedParamListAddULLong(params, entry->write_threshold, "block.%zu.threshold", recordnr);
 
     return 0;
 }
@@ -17389,15 +17272,14 @@ qemuDomainGetStatsBlockExportFrontend(const char *frontendname,
     if (!stats || !frontendname || !(en = virHashLookup(stats, frontendname)))
         return 0;
 
-    if (virTypedParamListAddULLong(par, en->rd_req, "block.%zu.rd.reqs", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->rd_bytes, "block.%zu.rd.bytes", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->rd_total_times, "block.%zu.rd.times", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->wr_req, "block.%zu.wr.reqs", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->wr_bytes, "block.%zu.wr.bytes", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->wr_total_times, "block.%zu.wr.times", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->flush_req, "block.%zu.fl.reqs", idx) < 0 ||
-        virTypedParamListAddULLong(par, en->flush_total_times, "block.%zu.fl.times", idx) < 0)
-        return -1;
+    virTypedParamListAddULLong(par, en->rd_req, "block.%zu.rd.reqs", idx);
+    virTypedParamListAddULLong(par, en->rd_bytes, "block.%zu.rd.bytes", idx);
+    virTypedParamListAddULLong(par, en->rd_total_times, "block.%zu.rd.times", idx);
+    virTypedParamListAddULLong(par, en->wr_req, "block.%zu.wr.reqs", idx);
+    virTypedParamListAddULLong(par, en->wr_bytes, "block.%zu.wr.bytes", idx);
+    virTypedParamListAddULLong(par, en->wr_total_times, "block.%zu.wr.times", idx);
+    virTypedParamListAddULLong(par, en->flush_req, "block.%zu.fl.reqs", idx);
+    virTypedParamListAddULLong(par, en->flush_total_times, "block.%zu.fl.times", idx);
 
     return 0;
 }
@@ -17409,16 +17291,13 @@ qemuDomainGetStatsBlockExportHeader(virDomainDiskDef *disk,
                                     size_t recordnr,
                                     virTypedParamList *params)
 {
-    if (virTypedParamListAddString(params, disk->dst, "block.%zu.name", recordnr) < 0)
-        return -1;
+    virTypedParamListAddString(params, disk->dst, "block.%zu.name", recordnr);
 
-    if (virStorageSourceIsLocalStorage(src) && src->path &&
-        virTypedParamListAddString(params, src->path, "block.%zu.path", recordnr) < 0)
-        return -1;
+    if (virStorageSourceIsLocalStorage(src) && src->path)
+        virTypedParamListAddString(params, src->path, "block.%zu.path", recordnr);
 
-    if (src->id &&
-        virTypedParamListAddUInt(params, src->id, "block.%zu.backingIndex", recordnr) < 0)
-        return -1;
+    if (src->id)
+        virTypedParamListAddUInt(params, src->id, "block.%zu.backingIndex", recordnr);
 
     return 0;
 }
@@ -17594,9 +17473,9 @@ qemuDomainGetStatsBlock(virQEMUDriver *driver,
     g_autoptr(GHashTable) stats = NULL;
     qemuDomainObjPrivate *priv = dom->privateData;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    int count_index = -1;
     size_t visited = 0;
     bool visitBacking = !!(privflags & QEMU_DOMAIN_STATS_BACKING);
+    g_autoptr(virTypedParamList) blockparams = virTypedParamListNew();
 
     if (HAVE_JOB(privflags) && virDomainObjIsActive(dom)) {
         qemuDomainObjEnterMonitor(dom);
@@ -17613,21 +17492,15 @@ qemuDomainGetStatsBlock(virQEMUDriver *driver,
             virResetLastError();
     }
 
-    /* When listing backing chains, it's easier to fix up the count
-     * after the iteration than it is to iterate twice; but we still
-     * want count listed first.  */
-    count_index = params->npar;
-    if (virTypedParamListAddUInt(params, 0, "block.count") < 0)
-        return -1;
-
     for (i = 0; i < dom->def->ndisks; i++) {
         if (qemuDomainGetStatsBlockExportDisk(dom->def->disks[i], stats,
-                                              params, &visited,
+                                              blockparams, &visited,
                                               visitBacking, driver, cfg, dom) < 0)
             return -1;
     }
 
-    params->par[count_index].value.ui = visited;
+    virTypedParamListAddUInt(params, visited, "block.count");
+    virTypedParamListConcat(params, &blockparams);
 
     return 0;
 }
@@ -17657,23 +17530,19 @@ qemuDomainGetStatsIOThread(virQEMUDriver *driver G_GNUC_UNUSED,
         goto cleanup;
     }
 
-    if (virTypedParamListAddUInt(params, niothreads, "iothread.count") < 0)
-        goto cleanup;
+    virTypedParamListAddUInt(params, niothreads, "iothread.count");
 
     for (i = 0; i < niothreads; i++) {
         if (iothreads[i]->poll_valid) {
-            if (virTypedParamListAddULLong(params, iothreads[i]->poll_max_ns,
-                                           "iothread.%u.poll-max-ns",
-                                           iothreads[i]->iothread_id) < 0)
-                goto cleanup;
-            if (virTypedParamListAddUInt(params, iothreads[i]->poll_grow,
+            virTypedParamListAddULLong(params, iothreads[i]->poll_max_ns,
+                                       "iothread.%u.poll-max-ns",
+                                       iothreads[i]->iothread_id);
+            virTypedParamListAddUnsigned(params, iothreads[i]->poll_grow,
                                          "iothread.%u.poll-grow",
-                                         iothreads[i]->iothread_id) < 0)
-                goto cleanup;
-            if (virTypedParamListAddUInt(params, iothreads[i]->poll_shrink,
+                                         iothreads[i]->iothread_id);
+            virTypedParamListAddUnsigned(params, iothreads[i]->poll_shrink,
                                          "iothread.%u.poll-shrink",
-                                         iothreads[i]->iothread_id) < 0)
-                goto cleanup;
+                                         iothreads[i]->iothread_id);
         }
     }
 
@@ -17698,9 +17567,7 @@ qemuDomainGetStatsPerfOneEvent(virPerf *perf,
     if (virPerfReadEvent(perf, type, &value) < 0)
         return -1;
 
-    if (virTypedParamListAddULLong(params, value, "perf.%s",
-                                   virPerfEventTypeToString(type)) < 0)
-        return -1;
+    virTypedParamListAddULLong(params, value, "perf.%s", virPerfEventTypeToString(type));
 
     return 0;
 }
@@ -17753,35 +17620,21 @@ qemuDomainGetStatsDirtyRate(virQEMUDriver *driver G_GNUC_UNUSED,
     if (qemuDomainGetStatsDirtyRateMon(dom, &info) < 0)
         return -1;
 
-    if (virTypedParamListAddInt(params, info.status,
-                                "dirtyrate.calc_status") < 0)
-        return -1;
-
-    if (virTypedParamListAddLLong(params, info.startTime,
-                                  "dirtyrate.calc_start_time") < 0)
-        return -1;
-
-    if (virTypedParamListAddInt(params, info.calcTime,
-                                "dirtyrate.calc_period") < 0)
-        return -1;
-
-    if (virTypedParamListAddString(params,
-                                   qemuMonitorDirtyRateCalcModeTypeToString(info.mode),
-                                   "dirtyrate.calc_mode") < 0)
-        return -1;
+    virTypedParamListAddInt(params, info.status, "dirtyrate.calc_status");
+    virTypedParamListAddLLong(params, info.startTime, "dirtyrate.calc_start_time");
+    virTypedParamListAddInt(params, info.calcTime, "dirtyrate.calc_period");
+    virTypedParamListAddString(params, qemuMonitorDirtyRateCalcModeTypeToString(info.mode),
+                               "dirtyrate.calc_mode");
 
     if (info.status == VIR_DOMAIN_DIRTYRATE_MEASURED) {
-        if (virTypedParamListAddLLong(params, info.dirtyRate,
-                                      "dirtyrate.megabytes_per_second") < 0)
-            return -1;
+        virTypedParamListAddLLong(params, info.dirtyRate, "dirtyrate.megabytes_per_second");
 
         if (info.mode == QEMU_MONITOR_DIRTYRATE_CALC_MODE_DIRTY_RING) {
             size_t i;
             for (i = 0; i < info.nvcpus; i++) {
-                if (virTypedParamListAddULLong(params, info.rates[i].value,
-                                               "dirtyrate.vcpu.%d.megabytes_per_second",
-                                               info.rates[i].idx) < 0)
-                    return -1;
+                virTypedParamListAddULLong(params, info.rates[i].value,
+                                           "dirtyrate.vcpu.%d.megabytes_per_second",
+                                           info.rates[i].idx);
             }
         }
     }
@@ -17934,7 +17787,7 @@ qemuDomainGetStats(virConnectPtr conn,
     g_autoptr(virTypedParamList) params = NULL;
     size_t i;
 
-    params = g_new0(virTypedParamList, 1);
+    params = virTypedParamListNew();
 
     for (i = 0; qemuDomainGetStatsWorkers[i].func; i++) {
         if (stats & qemuDomainGetStatsWorkers[i].stats) {
@@ -17950,7 +17803,9 @@ qemuDomainGetStats(virConnectPtr conn,
                                   dom->def->uuid, dom->def->id)))
         return -1;
 
-    tmp->nparams = virTypedParamListStealParams(params, &tmp->params);
+    if (virTypedParamListSteal(params, &tmp->params, &tmp->nparams) < 0)
+        return -1;
+
     *record = g_steal_pointer(&tmp);
     return 0;
 }

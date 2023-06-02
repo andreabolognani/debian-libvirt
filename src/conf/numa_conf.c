@@ -116,7 +116,7 @@ struct _virDomainNuma {
 
 
 bool
-virDomainNumatuneNodeSpecified(virDomainNuma *numatune,
+virDomainNumatuneNodeSpecified(const virDomainNuma *numatune,
                                int cellid)
 {
     if (numatune &&
@@ -190,14 +190,6 @@ virDomainNumatuneNodeParseXML(virDomainNuma *numa,
                                   VIR_XML_PROP_NONE, &mem_node->mode,
                                   VIR_DOMAIN_NUMATUNE_MEM_STRICT) < 0)
             return -1;
-
-        if (numa->memory.mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE &&
-            mem_node->mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("'restrictive' mode is required in memnode element "
-                             "when mode is 'restrictive' in memory element"));
-            return -1;
-        }
 
         tmp = virXMLPropString(cur_node, "nodeset");
         if (!tmp) {
@@ -815,68 +807,36 @@ virDomainNumaDefNodeCacheParseXML(virDomainNuma *def,
     for (i = 0; i < n; i++) {
         VIR_XPATH_NODE_AUTORESTORE(ctxt)
         virNumaCache *cache = &def->mem_nodes[cur_cell].caches[i];
-        g_autofree char *tmp = NULL;
-        unsigned int level;
-        int associativity;
-        int policy;
-        unsigned long long size;
         unsigned long long line;
 
-        if (!(tmp = virXMLPropString(nodes[i], "level"))) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Missing 'level' attribute in cache element for NUMA node %1$d"),
-                           cur_cell);
+        if (virXMLPropUInt(nodes[i], "level", 10,
+                           VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
+                           &cache->level) < 0)
             return -1;
-        }
 
-        if (virStrToLong_uip(tmp, NULL, 10, &level) < 0 ||
-            level == 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid 'level' attribute in cache element for NUMA node %1$d"),
-                           cur_cell);
+        if (virXMLPropEnum(nodes[i], "associativity",
+                           virNumaCacheAssociativityTypeFromString,
+                           VIR_XML_PROP_REQUIRED,
+                           &cache->associativity) < 0)
             return -1;
-        }
-        VIR_FREE(tmp);
 
-        if (!(tmp = virXMLPropString(nodes[i], "associativity"))) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Missing 'associativity' attribute in cache element for NUMA node %1$d"),
-                           cur_cell);
+        if (virXMLPropEnum(nodes[i], "policy",
+                           virNumaCachePolicyTypeFromString,
+                           VIR_XML_PROP_REQUIRED,
+                           &cache->policy) < 0)
             return -1;
-        }
-
-        if ((associativity = virNumaCacheAssociativityTypeFromString(tmp)) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid cache associativity '%1$s'"),
-                           tmp);
-            return -1;
-        }
-        VIR_FREE(tmp);
-
-        if (!(tmp = virXMLPropString(nodes[i], "policy"))) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Missing 'policy' attribute in cache element for NUMA node %1$d"),
-                           cur_cell);
-        }
-
-        if ((policy = virNumaCachePolicyTypeFromString(tmp)) < 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid cache policy '%1$s'"),
-                           tmp);
-            return -1;
-        }
-        VIR_FREE(tmp);
 
         ctxt->node = nodes[i];
         if (virDomainParseMemory("./size/@value", "./size/unit",
-                                 ctxt, &size, true, false) < 0)
+                                 ctxt, &cache->size, true, false) < 0)
             return -1;
 
         if (virParseScaledValue("./line/@value", "./line/unit",
                                 ctxt, &line, 1, ULLONG_MAX, true) < 0)
             return -1;
 
-        *cache = (virNumaCache){level, size, line, associativity, policy};
+        cache->line = line;
+
         def->mem_nodes[cur_cell].ncaches++;
     }
 
@@ -1114,6 +1074,22 @@ virDomainNumaDefValidate(const virDomainNuma *def)
     for (i = 0; i < def->nmem_nodes; i++) {
         const virDomainNumaNode *node = &def->mem_nodes[i];
         g_autoptr(virBitmap) levelsSeen = virBitmapNew(0);
+
+        if (virDomainNumatuneNodeSpecified(def, i)) {
+            if (def->memory.mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE &&
+                node->mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("'restrictive' mode is required in memnode element when mode is 'restrictive' in memory element"));
+                return -1;
+            }
+
+            if (node->mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE &&
+                def->memory.mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("'restrictive' mode is required in memory element when mode is 'restrictive' in memnode element"));
+                return -1;
+            }
+        }
 
         for (j = 0; j < node->ncaches; j++) {
             const virNumaCache *cache = &node->caches[j];
@@ -1740,15 +1716,10 @@ virNumaCacheFormat(virBuffer *buf,
         g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
         virBufferAsprintf(&attrBuf, " level='%u'", cache->level);
-        if (cache->associativity) {
-            virBufferAsprintf(&attrBuf, " associativity='%s'",
-                              virNumaCacheAssociativityTypeToString(cache->associativity));
-        }
-
-        if (cache->policy) {
-            virBufferAsprintf(&attrBuf, " policy='%s'",
-                              virNumaCachePolicyTypeToString(cache->policy));
-        }
+        virBufferAsprintf(&attrBuf, " associativity='%s'",
+                          virNumaCacheAssociativityTypeToString(cache->associativity));
+        virBufferAsprintf(&attrBuf, " policy='%s'",
+                          virNumaCachePolicyTypeToString(cache->policy));
 
         virBufferAsprintf(&childBuf,
                           "<size value='%llu' unit='KiB'/>\n",

@@ -921,9 +921,6 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
     if (virDomainDiskTranslateSourcePool(disk) < 0)
         goto cleanup;
 
-    if (qemuDomainDetermineDiskChain(driver, vm, disk, NULL) < 0)
-        goto cleanup;
-
     for (i = 0; i < vm->def->ndisks; i++) {
         if (virDomainDiskDefCheckDuplicateInfo(vm->def->disks[i], disk) < 0)
             goto cleanup;
@@ -1005,6 +1002,9 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         goto cleanup;
 
     if (qemuDomainPrepareDiskSource(disk, priv, cfg) < 0)
+        goto cleanup;
+
+    if (qemuDomainDetermineDiskChain(driver, vm, disk, NULL) < 0)
         goto cleanup;
 
     if (qemuHotplugAttachManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE) < 0)
@@ -1244,7 +1244,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         break;
 
     case VIR_DOMAIN_NET_TYPE_VDPA:
-        if (qemuDomainAdjustMaxMemLock(vm, false) < 0)
+        if (qemuDomainAdjustMaxMemLock(vm) < 0)
             goto cleanup;
         adjustmemlock = true;
         break;
@@ -1417,7 +1417,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
          * after all
          */
         if (adjustmemlock)
-            qemuDomainAdjustMaxMemLock(vm, false);
+            qemuDomainAdjustMaxMemLock(vm);
 
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             if (conn)
@@ -1564,7 +1564,7 @@ qemuDomainAttachHostPCIDevice(virQEMUDriver *driver,
     if (teardowndevice &&
         qemuDomainNamespaceTeardownHostdev(vm, hostdev) < 0)
         VIR_WARN("Unable to remove host device from /dev");
-    if (teardownmemlock && qemuDomainAdjustMaxMemLock(vm, false) < 0)
+    if (teardownmemlock && qemuDomainAdjustMaxMemLock(vm) < 0)
         VIR_WARN("Unable to reset maximum locked memory on hotplug fail");
 
     if (releaseaddr)
@@ -2247,6 +2247,7 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
     bool teardownlabel = false;
     bool teardowncgroup = false;
     bool teardowndevice = false;
+    bool restoreemulatorcgroup = false;
     g_autoptr(virJSONValue) props = NULL;
     virObjectEvent *event;
     int id;
@@ -2291,8 +2292,12 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
     if (virDomainMemoryInsert(vm->def, mem) < 0)
         goto cleanup;
 
-    if (qemuDomainAdjustMaxMemLock(vm, false) < 0)
+    if (qemuDomainAdjustMaxMemLock(vm) < 0)
         goto removedef;
+
+    if (qemuProcessSetupEmulator(vm, true) < 0)
+        goto removedef;
+    restoreemulatorcgroup = true;
 
     qemuDomainObjEnterMonitor(vm);
     if (qemuMonitorAddObject(priv->mon, &props, NULL) < 0)
@@ -2333,6 +2338,9 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
             qemuDomainReleaseMemoryDeviceSlot(vm, mem);
     }
 
+    if (restoreemulatorcgroup)
+        qemuProcessSetupEmulator(vm, false);
+
     virDomainMemoryDefFree(mem);
     return ret;
 
@@ -2357,7 +2365,7 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
 
     /* reset the mlock limit */
     virErrorPreserveLast(&orig_err);
-    ignore_value(qemuDomainAdjustMaxMemLock(vm, false));
+    ignore_value(qemuDomainAdjustMaxMemLock(vm));
     virErrorRestore(&orig_err);
 
     goto audit;
@@ -2720,7 +2728,7 @@ qemuDomainAttachMediatedDevice(virQEMUDriver *driver,
     ret = 0;
  cleanup:
     if (ret < 0) {
-        if (teardownmemlock && qemuDomainAdjustMaxMemLock(vm, false) < 0)
+        if (teardownmemlock && qemuDomainAdjustMaxMemLock(vm) < 0)
             VIR_WARN("Unable to reset maximum locked memory on hotplug fail");
         if (teardowncgroup && qemuTeardownHostdevCgroup(vm, hostdev) < 0)
             VIR_WARN("Unable to remove host device cgroup ACL on hotplug fail");
@@ -4583,7 +4591,7 @@ qemuDomainRemoveMemoryDevice(virQEMUDriver *driver,
     ignore_value(qemuProcessRefreshBalloonState(vm, VIR_ASYNC_JOB_NONE));
 
     /* decrease the mlock limit after memory unplug if necessary */
-    ignore_value(qemuDomainAdjustMaxMemLock(vm, false));
+    ignore_value(qemuDomainAdjustMaxMemLock(vm));
 
     return 0;
 }
@@ -4690,7 +4698,7 @@ qemuDomainRemoveHostDevice(virQEMUDriver *driver,
         qemuDomainRemovePCIHostDevice(driver, vm, hostdev);
         /* QEMU might no longer need to lock as much memory, eg. we just
          * detached the last VFIO device, so adjust the limit here */
-        if (qemuDomainAdjustMaxMemLock(vm, false) < 0)
+        if (qemuDomainAdjustMaxMemLock(vm) < 0)
             VIR_WARN("Failed to adjust locked memory limit");
         break;
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:

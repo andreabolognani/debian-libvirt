@@ -11654,16 +11654,15 @@ virDomainSoundDefParseXML(virDomainXMLOption *xmlopt,
                           xmlXPathContextPtr ctxt,
                           unsigned int flags)
 {
-    virDomainSoundDef *def;
+    g_autoptr(virDomainSoundDef) def = g_new0(virDomainSoundDef, 1);
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr audioNode;
 
-    def = g_new0(virDomainSoundDef, 1);
     ctxt->node = node;
 
     if (virXMLPropEnum(node, "model", virDomainSoundModelTypeFromString,
                        VIR_XML_PROP_REQUIRED, &def->model) < 0)
-        goto error;
+        return NULL;
 
     if (virDomainSoundModelSupportsCodecs(def)) {
         int ncodecs;
@@ -11672,7 +11671,7 @@ virDomainSoundDefParseXML(virDomainXMLOption *xmlopt,
         /* parse the <codec> subelements for sound models that support it */
         ncodecs = virXPathNodeSet("./codec", ctxt, &codecNodes);
         if (ncodecs < 0)
-            goto error;
+            return NULL;
 
         if (ncodecs > 0) {
             size_t i;
@@ -11682,7 +11681,7 @@ virDomainSoundDefParseXML(virDomainXMLOption *xmlopt,
             for (i = 0; i < ncodecs; i++) {
                 virDomainSoundCodecDef *codec = virDomainSoundCodecDefParseXML(codecNodes[i]);
                 if (codec == NULL)
-                    goto error;
+                    return NULL;
 
                 codec->cad = def->ncodecs; /* that will do for now */
                 def->codecs[def->ncodecs++] = codec;
@@ -11690,22 +11689,24 @@ virDomainSoundDefParseXML(virDomainXMLOption *xmlopt,
         }
     }
 
+    if (def->model == VIR_DOMAIN_SOUND_MODEL_USB) {
+        if (virXMLPropTristateBool(node, "multichannel", VIR_XML_PROP_NONE,
+                                   &def->multichannel) < 0)
+            return NULL;
+    }
+
     audioNode = virXPathNode("./audio", ctxt);
     if (audioNode) {
         if (virXMLPropUInt(audioNode, "id", 10,
                            VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
                            &def->audioId) < 0)
-            goto error;
+            return NULL;
     }
 
     if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt, &def->info, flags) < 0)
-        goto error;
+        return NULL;
 
-    return def;
-
- error:
-    virDomainSoundDefFree(def);
-    return NULL;
+    return g_steal_pointer(&def);
 }
 
 
@@ -11725,6 +11726,9 @@ virDomainSoundDefEquals(const virDomainSoundDef *a,
         if (a->codecs[i]->type != b->codecs[i]->type)
             return false;
     }
+
+    if (a->multichannel != b->multichannel)
+        return false;
 
     if (a->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
         !virDomainDeviceInfoAddressIsEqual(&a->info, &b->info))
@@ -13314,6 +13318,7 @@ virDomainMemoryTargetDefParseXML(xmlNodePtr node,
                                  virDomainMemoryDef *def)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    xmlNodePtr addrNode = NULL;
     int rv;
 
     ctxt->node = node;
@@ -13359,14 +13364,25 @@ virDomainMemoryTargetDefParseXML(xmlNodePtr node,
         if (virDomainParseMemory("./requested", "./requested/@unit", ctxt,
                                  &def->requestedsize, false, false) < 0)
             return -1;
+
+        addrNode = virXPathNode("./address", ctxt);
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        addrNode = virXPathNode("./address", ctxt);
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
-    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
         break;
+    }
+
+    if (addrNode &&
+        virXMLPropULongLong(addrNode, "base", 16,
+                            VIR_XML_PROP_NONE, &def->address) < 0) {
+        return -1;
     }
 
     return 0;
@@ -15721,6 +15737,7 @@ static virDomainIOThreadIDDef *
 virDomainIOThreadIDDefParseXML(xmlNodePtr node)
 {
     g_autoptr(virDomainIOThreadIDDef) iothrid = virDomainIOThreadIDDefNew();
+    xmlNodePtr pollNode;
 
     if (virXMLPropUInt(node, "id", 10,
                        VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
@@ -15736,6 +15753,28 @@ virDomainIOThreadIDDefParseXML(xmlNodePtr node)
                       VIR_XML_PROP_NONNEGATIVE,
                       &iothrid->thread_pool_max, -1) < 0)
         return NULL;
+
+    if ((pollNode = virXMLNodeGetSubelement(node, "poll"))) {
+        int rc;
+
+        if ((rc = virXMLPropULongLong(pollNode, "max", 10, VIR_XML_PROP_NONE,
+                                      &iothrid->poll_max_ns)) < 0)
+            return NULL;
+
+        iothrid->set_poll_max_ns = rc == 1;
+
+        if ((rc = virXMLPropULongLong(pollNode, "grow", 10, VIR_XML_PROP_NONE,
+                                      &iothrid->poll_grow)) < 0)
+            return NULL;
+
+        iothrid->set_poll_grow = rc == 1;
+
+        if ((rc = virXMLPropULongLong(pollNode, "shrink", 10, VIR_XML_PROP_NONE,
+                                      &iothrid->poll_shrink)) < 0)
+            return NULL;
+
+        iothrid->set_poll_shrink = rc == 1;
+    }
 
     return g_steal_pointer(&iothrid);
 }
@@ -19992,6 +20031,14 @@ virDomainSoundDefCheckABIStability(virDomainSoundDef *src,
         return false;
     }
 
+    if (src->multichannel != dst->multichannel) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target sound card multichannel setting '%1$s' does not match source '%2$s'"),
+                       virTristateBoolTypeToString(dst->multichannel),
+                       virTristateBoolTypeToString(src->multichannel));
+        return false;
+    }
+
     if (!virDomainDeviceInfoCheckABIStability(&src->info, &dst->info))
         return false;
 
@@ -20914,6 +20961,13 @@ virDomainMemoryDefCheckABIStability(virDomainMemoryDef *src,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Target memory device requested size '%1$llu' doesn't match source memory device requested size '%2$llu'"),
                        dst->requestedsize, src->requestedsize);
+        return false;
+    }
+
+    if (src->address != dst->address) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target memory device address '0x%1$llx' doesn't match source memory device address '0x%2$llx'"),
+                       dst->address, src->address);
         return false;
     }
 
@@ -24513,6 +24567,12 @@ virDomainSoundDefFormat(virBuffer *buf,
 
     virBufferAsprintf(&attrBuf, " model='%s'",  model);
 
+    if (def->model == VIR_DOMAIN_SOUND_MODEL_USB &&
+        def->multichannel != VIR_TRISTATE_BOOL_ABSENT) {
+        virBufferAsprintf(&attrBuf, " multichannel='%s'",
+                          virTristateBoolTypeToString(def->multichannel));
+    }
+
     virXMLFormatElement(buf,  "sound", &attrBuf, &childBuf);
 
     return 0;
@@ -25078,6 +25138,9 @@ virDomainMemoryTargetDefFormat(virBuffer *buf,
                               def->currentsize);
         }
     }
+
+    if (def->address)
+        virBufferAsprintf(&childBuf, "<address base='0x%llx'/>\n", def->address);
 
     virXMLFormatElement(buf, "target", NULL, &childBuf);
 }
@@ -26630,6 +26693,9 @@ virDomainDefIothreadShouldFormat(const virDomainDef *def)
 
     for (i = 0; i < def->niothreadids; i++) {
         if (!def->iothreadids[i]->autofill ||
+            def->iothreadids[i]->set_poll_max_ns ||
+            def->iothreadids[i]->set_poll_grow ||
+            def->iothreadids[i]->set_poll_shrink ||
             def->iothreadids[i]->thread_pool_min >= 0 ||
             def->iothreadids[i]->thread_pool_max >= 0)
             return true;
@@ -26678,6 +26744,8 @@ virDomainDefIOThreadsFormat(virBuffer *buf,
         for (i = 0; i < def->niothreadids; i++) {
             virDomainIOThreadIDDef *iothread = def->iothreadids[i];
             g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+            g_auto(virBuffer) iothreadChildBuf = VIR_BUFFER_INIT_CHILD(&childrenBuf);
+            g_auto(virBuffer) pollAttrBuf = VIR_BUFFER_INITIALIZER;
 
             virBufferAsprintf(&attrBuf, " id='%u'",
                               iothread->iothread_id);
@@ -26692,7 +26760,18 @@ virDomainDefIOThreadsFormat(virBuffer *buf,
                                   iothread->thread_pool_max);
             }
 
-            virXMLFormatElement(&childrenBuf, "iothread", &attrBuf, NULL);
+            if (iothread->set_poll_max_ns)
+                virBufferAsprintf(&pollAttrBuf, " max='%llu'", iothread->poll_max_ns);
+
+            if (iothread->set_poll_grow)
+                virBufferAsprintf(&pollAttrBuf, " grow='%llu'", iothread->poll_grow);
+
+            if (iothread->set_poll_shrink)
+                virBufferAsprintf(&pollAttrBuf, " shrink='%llu'", iothread->poll_shrink);
+
+            virXMLFormatElement(&iothreadChildBuf, "poll", &pollAttrBuf, NULL);
+
+            virXMLFormatElement(&childrenBuf, "iothread", &attrBuf, &iothreadChildBuf);
         }
 
         virXMLFormatElement(buf, "iothreadids", NULL, &childrenBuf);

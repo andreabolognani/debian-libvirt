@@ -97,6 +97,11 @@ VIR_ONCE_GLOBAL_INIT(virQEMUConfig);
 #endif
 
 
+#define QEMU_BRIDGE_HELPER "qemu-bridge-helper"
+#define QEMU_PR_HELPER "qemu-pr-helper"
+#define QEMU_DBUS_DAEMON "dbus-daemon"
+
+
 virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
                                             const char *root)
 {
