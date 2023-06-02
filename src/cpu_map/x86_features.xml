@@ -399,6 +399,9 @@
   <feature name='stibp'>
     <cpuid eax_in='0x07' ecx_in='0x00' edx='0x08000000'/>
   </feature>
+  <feature name='flush-l1d'>
+    <cpuid eax_in='0x07' ecx_in='0x00' edx='0x10000000'/>
+  </feature>
   <feature name='arch-capabilities'>
     <alias name='arch_capabilities' source='linux'/>
     <cpuid eax_in='0x07' ecx_in='0x00' edx='0x20000000'/>
@@ -416,6 +419,9 @@
   <feature name='avx512-bf16'>
     <cpuid eax_in='0x07' ecx_in='0x01' eax='0x00000020'/>
   </feature>
+  <feature name='cmpccxadd'>
+    <cpuid eax_in='0x07' ecx_in='0x01' eax='0x00000080'/>
+  </feature>
   <feature name='fzrm'>
     <cpuid eax_in='0x07' ecx_in='0x01' eax='0x00000400'/>
   </feature>
@@ -424,6 +430,22 @@
   </feature>
   <feature name='fsrc'>
     <cpuid eax_in='0x07' ecx_in='0x01' eax='0x00001000'/>
+  </feature>
+  <feature name='amx-fp16'>
+    <cpuid eax_in='0x07' ecx_in='0x01' eax='0x00200000'/>
+  </feature>
+  <feature name='avx-ifma'>
+    <cpuid eax_in='0x07' ecx_in='0x01' eax='0x00800000'/>
+  </feature>
+
+  <feature name='avx-vnni-int8'>
+    <cpuid eax_in='0x07' ecx_in='0x01' edx='0x00000010'/>
+  </feature>
+  <feature name='avx-ne-convert'>
+    <cpuid eax_in='0x07' ecx_in='0x01' edx='0x00000020'/>
+  </feature>
+  <feature name='prefetchiti'>
+    <cpuid eax_in='0x07' ecx_in='0x01' edx='0x00004000'/>
   </feature>
 
   <!-- Processor Extended State Enumeration sub leaf 1 -->
@@ -624,6 +646,9 @@
   <feature name='amd-stibp'>
     <cpuid eax_in='0x80000008' ebx='0x00008000'/>
   </feature>
+  <feature name='stibp-always-on'>
+    <cpuid eax_in='0x80000008' ebx='0x00020000'/>
+  </feature>
   <feature name='amd-ssbd'>
     <cpuid eax_in='0x80000008' ebx='0x01000000'/>
   </feature>
@@ -632,6 +657,9 @@
   </feature>
   <feature name='amd-no-ssb'>
     <cpuid eax_in='0x80000008' ebx='0x04000000'/>
+  </feature>
+  <feature name='amd-psfd'>
+    <cpuid eax_in='0x80000008' ebx='0x10000000'/>
   </feature>
 
   <!-- SVM features -->
@@ -679,8 +707,25 @@
   <feature name='vgif'>
     <cpuid eax_in='0x8000000a' edx='0x00010000'/>
   </feature>
+  <feature name='vnmi'>
+    <cpuid eax_in='0x8000000a' edx='0x02000000'/>
+  </feature>
   <feature name='svme-addr-chk'>
     <cpuid eax_in='0x8000000a' edx='0x10000000'/>
+  </feature>
+
+  <!-- cpuid level 0x80000021 ecx 0x0 features -->
+  <feature name='no-nested-data-bp'>
+    <cpuid eax_in='0x80000021' eax='0x00000001'/>
+  </feature>
+  <feature name='lfence-always-serializing'>
+    <cpuid eax_in='0x80000021' eax='0x00000004'/>
+  </feature>
+  <feature name='null-sel-clr-base'>
+    <cpuid eax_in='0x80000021' eax='0x00000040'/>
+  </feature>
+  <feature name='auto-ibrs'>
+    <cpuid eax_in='0x80000021' eax='0x00000100'/>
   </feature>
 
   <!-- IA32_ARCH_CAPABILITIES features -->
@@ -710,6 +755,9 @@
   </feature>
   <feature name='taa-no'>
     <msr index='0x10a' edx='0x00000000' eax='0x00000100'/>
+  </feature>
+  <feature name='fb-clear'>
+    <msr index='0x10a' edx='0x00000000' eax='0x00020000'/>
   </feature>
 
   <!-- IA32_CORE_CAPABILITIES features -->

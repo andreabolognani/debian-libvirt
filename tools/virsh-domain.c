@@ -1722,23 +1722,22 @@ static void
 virshPrintJobProgress(const char *label, unsigned long long remaining,
                       unsigned long long total)
 {
-    int progress;
+    double progress = 100.00;
 
-    if (remaining == 0) {
-        /* migration has completed */
-        progress = 100;
-    } else {
-        /* use float to avoid overflow */
-        progress = (int)(100.0 - remaining * 100.0 / total);
-        if (progress >= 100) {
+    /* if remaining == 0 migration has completed */
+    if (remaining != 0) {
+        /* use double to avoid overflow */
+        progress = 100.00 - remaining * 100.00 / total;
+        if (progress >= 100.00) {
             /* migration has not completed, do not print [100 %] */
-            progress = 99;
+            progress = 99.99;
         }
     }
 
     /* see comments in vshError about why we must flush */
     fflush(stdout);
-    fprintf(stderr, "\r%s: [%3d %%]", label, progress);
+    /* avoid auto-round-off of double by keeping only 2 decimals */
+    fprintf(stderr, "\r%s: [%5.2f %%]", label, (int)(progress*100)/100.0);
     fflush(stderr);
 }
 
@@ -7846,16 +7845,14 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
 {
     g_autoptr(virshDomain) dom = NULL;
     int id = 0;
-    bool ret = false;
     bool current = vshCommandOptBool(cmd, "current");
     bool config = vshCommandOptBool(cmd, "config");
     bool live = vshCommandOptBool(cmd, "live");
     unsigned int flags = VIR_DOMAIN_AFFECT_CURRENT;
-    virTypedParameterPtr params = NULL;
-    int nparams = 0;
-    int maxparams = 0;
-    unsigned long long poll_max;
-    unsigned int poll_val;
+    g_autoptr(virTypedParamList) params = virTypedParamListNew();
+    virTypedParameterPtr par;
+    size_t npar = 0;
+    unsigned long long poll_val;
     int thread_val;
     int rc;
 
@@ -7871,64 +7868,49 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (vshCommandOptInt(ctl, cmd, "id", &id) < 0)
-        goto cleanup;
+        return false;
     if (id <= 0) {
         vshError(ctl, _("Invalid IOThread id value: '%1$d'"), id);
-        goto cleanup;
+        return false;
     }
 
-    poll_val = 0;
-    if ((rc = vshCommandOptULongLong(ctl, cmd, "poll-max-ns", &poll_max)) < 0)
-        goto cleanup;
-    if (rc > 0 && virTypedParamsAddULLong(&params, &nparams, &maxparams,
-                                          VIR_DOMAIN_IOTHREAD_POLL_MAX_NS,
-                                          poll_max) < 0)
-        goto save_error;
+    if ((rc = vshCommandOptULongLong(ctl, cmd, "poll-max-ns", &poll_val)) < 0)
+        return false;
+    if (rc > 0)
+        virTypedParamListAddULLong(params, poll_val, VIR_DOMAIN_IOTHREAD_POLL_MAX_NS);
 
-#define VSH_IOTHREAD_SET_UINT_PARAMS(opt, param) \
-    poll_val = 0; \
-    if ((rc = vshCommandOptUInt(ctl, cmd, opt, &poll_val)) < 0) \
-        goto cleanup; \
-    if (rc > 0 && \
-        virTypedParamsAddUInt(&params, &nparams, &maxparams, \
-                              param, poll_val) < 0) \
-        goto save_error;
+    if ((rc = vshCommandOptULongLong(ctl, cmd, "poll-grow", &poll_val)) < 0)
+        return false;
+    if (rc > 0)
+        virTypedParamListAddUnsigned(params, poll_val, VIR_DOMAIN_IOTHREAD_POLL_GROW);
 
-    VSH_IOTHREAD_SET_UINT_PARAMS("poll-grow", VIR_DOMAIN_IOTHREAD_POLL_GROW)
-    VSH_IOTHREAD_SET_UINT_PARAMS("poll-shrink", VIR_DOMAIN_IOTHREAD_POLL_SHRINK)
+    if ((rc = vshCommandOptULongLong(ctl, cmd, "poll-shrink", &poll_val)) < 0)
+        return false;
+    if (rc > 0)
+        virTypedParamListAddUnsigned(params, poll_val, VIR_DOMAIN_IOTHREAD_POLL_SHRINK);
 
-#undef VSH_IOTHREAD_SET_UINT_PARAMS
+    if ((rc = vshCommandOptInt(ctl, cmd, "thread-pool-min", &thread_val)) < 0)
+        return false;
+    if (rc > 0)
+        virTypedParamListAddInt(params, thread_val, VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN);
 
-#define VSH_IOTHREAD_SET_INT_PARAMS(opt, param) \
-    thread_val = -1; \
-    if ((rc = vshCommandOptInt(ctl, cmd, opt, &thread_val)) < 0) \
-        goto cleanup; \
-    if (rc > 0 && \
-        virTypedParamsAddInt(&params, &nparams, &maxparams, \
-                             param, thread_val) < 0) \
-        goto save_error;
+    if ((rc = vshCommandOptInt(ctl, cmd, "thread-pool-max", &thread_val)) < 0)
+        return false;
+    if (rc > 0)
+        virTypedParamListAddInt(params, thread_val, VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX);
 
-    VSH_IOTHREAD_SET_INT_PARAMS("thread-pool-min", VIR_DOMAIN_IOTHREAD_THREAD_POOL_MIN)
-    VSH_IOTHREAD_SET_INT_PARAMS("thread-pool-max", VIR_DOMAIN_IOTHREAD_THREAD_POOL_MAX)
-#undef VSH_IOTHREAD_SET_INT_PARAMS
+    if (virTypedParamListFetch(params, &par, &npar) < 0)
+        return false;
 
-    if (nparams == 0) {
+    if (npar == 0) {
         vshError(ctl, _("Not enough arguments passed, nothing to set"));
-        goto cleanup;
+        return false;
     }
 
-    if (virDomainSetIOThreadParams(dom, id, params, nparams, flags) < 0)
-        goto cleanup;
+    if (virDomainSetIOThreadParams(dom, id, par, npar, flags) < 0)
+        return false;
 
-    ret = true;
-
- cleanup:
-    virTypedParamsFree(params, nparams);
-    return ret;
-
- save_error:
-    vshSaveLibvirtError();
-    goto cleanup;
+    return true;
 }
 
 
@@ -11094,6 +11076,14 @@ static const vshCmdOptDef opts_migrate[] = {
      .completer = virshCompleteEmpty,
      .help = N_("override the destination host name used for TLS verification")
     },
+    {.name = "comp-zlib-level",
+     .type = VSH_OT_INT,
+     .help = N_("compress level for zlib compression")
+    },
+    {.name = "comp-zstd-level",
+     .type = VSH_OT_INT,
+     .help = N_("compress level for zstd compression")
+    },
     {.name = NULL}
 };
 
@@ -11302,6 +11292,24 @@ doMigrate(void *opaque)
     } else if (rv > 0) {
         if (virTypedParamsAddInt(&params, &nparams, &maxparams,
                                  VIR_MIGRATE_PARAM_PARALLEL_CONNECTIONS,
+                                 intOpt) < 0)
+            goto save_error;
+    }
+
+    if ((rv = vshCommandOptInt(ctl, cmd, "comp-zlib-level", &intOpt)) < 0) {
+        goto out;
+    } else if (rv > 0) {
+        if (virTypedParamsAddInt(&params, &nparams, &maxparams,
+                                 VIR_MIGRATE_PARAM_COMPRESSION_ZLIB_LEVEL,
+                                 intOpt) < 0)
+            goto save_error;
+    }
+
+    if ((rv = vshCommandOptInt(ctl, cmd, "comp-zstd-level", &intOpt)) < 0) {
+        goto out;
+    } else if (rv > 0) {
+        if (virTypedParamsAddInt(&params, &nparams, &maxparams,
+                                 VIR_MIGRATE_PARAM_COMPRESSION_ZSTD_LEVEL,
                                  intOpt) < 0)
             goto save_error;
     }

@@ -41,6 +41,7 @@
 #include "virdomainmomentobjlist.h"
 #include "virenum.h"
 #include "vireventthread.h"
+#include "storage_source_conf.h"
 
 #define QEMU_DOMAIN_FORMAT_LIVE_FLAGS \
     (VIR_DOMAIN_XML_SECURE)
@@ -853,12 +854,12 @@ bool qemuDomainSupportsPCI(virDomainDef *def,
 
 void qemuDomainUpdateCurrentMemorySize(virDomainObj *vm);
 
-unsigned long long qemuDomainGetMemLockLimitBytes(virDomainDef *def,
-                                                  bool forceVFIO);
-int qemuDomainAdjustMaxMemLock(virDomainObj *vm,
-                               bool forceVFIO);
+unsigned long long qemuDomainGetMemLockLimitBytes(virDomainDef *def);
+int qemuDomainAdjustMaxMemLock(virDomainObj *vm);
 int qemuDomainAdjustMaxMemLockHostdev(virDomainObj *vm,
                                       virDomainHostdevDef *hostdev);
+int qemuDomainAdjustMaxMemLockNVMe(virDomainObj *vm,
+                                   virStorageSource *src);
 int qemuDomainSetMaxMemLock(virDomainObj *vm,
                             unsigned long long limit,
                             unsigned long long *origPtr);
@@ -1139,3 +1140,8 @@ virBitmap *
 qemuDomainEvaluateCPUMask(const virDomainDef *def,
                           virBitmap *cpumask,
                           virBitmap *autoCpuset);
+
+void
+qemuDomainNumatuneMaybeFormatNodesetUnion(virDomainObj *vm,
+                                          virBitmap **nodeset,
+                                          char **nodesetStr);

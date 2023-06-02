@@ -885,6 +885,25 @@
                   <ref name="unsignedInt"/>
                 </attribute>
               </optional>
+              <optional>
+                <element name="poll">
+                  <optional>
+                    <attribute name="max">
+                      <ref name="unsignedInt"/>
+                    </attribute>
+                  </optional>
+                  <optional>
+                    <attribute name="grow">
+                      <ref name="unsignedInt"/>
+                    </attribute>
+                  </optional>
+                  <optional>
+                    <attribute name="shrink">
+                      <ref name="unsignedInt"/>
+                    </attribute>
+                  </optional>
+                </element>
+              </optional>
             </element>
           </zeroOrMore>
         </element>
@@ -4950,6 +4969,11 @@
           <value>usb</value>
         </choice>
       </attribute>
+      <optional>
+        <attribute name="multichannel">
+          <ref name="virYesNo"/>
+        </attribute>
+      </optional>
       <interleave>
         <optional>
           <ref name="alias"/>
@@ -7151,6 +7175,13 @@
         <optional>
           <element name="readonly">
             <empty/>
+          </element>
+        </optional>
+        <optional>
+          <element name="address">
+            <attribute name="base">
+              <ref name="hexuint"/>
+            </attribute>
           </element>
         </optional>
       </interleave>

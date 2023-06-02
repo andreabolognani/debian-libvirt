@@ -995,19 +995,19 @@ mymain(void)
     /* Validate auto-creation of <audio> for legacy compat */
     g_setenv("QEMU_AUDIO_DRV", "sdl", TRUE);
     g_setenv("SDL_AUDIODRIVER", "esd", TRUE);
-    DO_TEST("audio-default-sdl", QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_SDL);
+    DO_TEST_CAPS_VER("audio-default-sdl", "4.2.0");
     DO_TEST_CAPS_LATEST("audio-default-sdl");
     g_unsetenv("QEMU_AUDIO_DRV");
     g_unsetenv("SDL_AUDIODRIVER");
 
     g_setenv("QEMU_AUDIO_DRV", "alsa", TRUE);
     driver.config->vncAllowHostAudio = true;
-    DO_TEST("audio-default-vnc",  QEMU_CAPS_VNC, QEMU_CAPS_DEVICE_CIRRUS_VGA);
+    DO_TEST_CAPS_VER("audio-default-vnc", "4.2.0");
     DO_TEST_CAPS_LATEST("audio-default-vnc");
     driver.config->vncAllowHostAudio = false;
     g_unsetenv("QEMU_AUDIO_DRV");
 
-    DO_TEST("audio-default-spice",  QEMU_CAPS_SPICE, QEMU_CAPS_DEVICE_CIRRUS_VGA);
+    DO_TEST_CAPS_VER("audio-default-spice", "4.2.0");
     DO_TEST_CAPS_LATEST("audio-default-spice");
 
     g_setenv("QEMU_AUDIO_DRV", "alsa", TRUE);
@@ -1691,12 +1691,8 @@ mymain(void)
             QEMU_CAPS_VIRTIO_BALLOON_AUTODEFLATE);
     DO_TEST_NOCAPS("balloon-device-auto");
     DO_TEST_NOCAPS("balloon-device-period");
-    DO_TEST_NOCAPS("sound");
-    DO_TEST("sound-device",
-            QEMU_CAPS_HDA_DUPLEX, QEMU_CAPS_HDA_MICRO,
-            QEMU_CAPS_HDA_OUTPUT,
-            QEMU_CAPS_DEVICE_ICH9_INTEL_HDA,
-            QEMU_CAPS_OBJECT_USB_AUDIO);
+    DO_TEST_CAPS_VER("sound-device", "4.2.0");
+    DO_TEST_CAPS_LATEST("sound-device");
     DO_TEST_CAPS_LATEST("fs9p");
     DO_TEST_CAPS_ARCH_LATEST("fs9p-ccw", "s390x");
 
@@ -1872,6 +1868,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("numatune-memnode");
     DO_TEST_PARSE_ERROR_NOCAPS("numatune-memnode-invalid-mode");
     DO_TEST_CAPS_LATEST("numatune-memnode-restrictive-mode");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("numatune-memnode-restrictive-mode-err-mixed");
     DO_TEST_CAPS_LATEST("numatune-system-memory");
 
     DO_TEST_NOCAPS("numatune-memnode-no-memory");
@@ -1879,6 +1876,7 @@ mymain(void)
     DO_TEST_NOCAPS("numatune-distances");
     DO_TEST_NOCAPS("numatune-no-vcpu");
     DO_TEST_CAPS_LATEST("numatune-hmat");
+    DO_TEST_CAPS_LATEST("numatune-hmat-none");
 
     DO_TEST_NOCAPS("numatune-auto-nodeset-invalid");
     DO_TEST_NOCAPS("numatune-auto-prefer");

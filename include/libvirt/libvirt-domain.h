@@ -709,7 +709,8 @@ typedef virDomainInterfaceStatsStruct *virDomainInterfaceStatsPtr;
 /**
  * virDomainMemoryStatTags:
  *
- * Memory Statistics Tags:
+ * These represent values from inside of the guest (e.g. the same value would
+ * be read from '/proc/meminfo' and/or other files from inside the guest).
  *
  * Since: 0.7.5
  */
@@ -1270,9 +1271,11 @@ typedef enum {
  * VIR_MIGRATE_PARAM_COMPRESSION:
  *
  * virDomainMigrate* params multiple field: name of the method used to
- * compress migration traffic. Supported compression methods: xbzrle, mt.
- * The parameter may be specified multiple times if more than one method
- * should be used.
+ * compress migration traffic. Supported compression methods: xbzrle, mt,
+ * zlib, zstd. The parameter may be specified multiple times if more than
+ * one method should be used. Not all combinations of compression methods
+ * and migration options may be allowed. Parallel migration of QEMU domains
+ * is only compatible with either zlib or zstd method.
  *
  * Since: 1.3.4
  */
@@ -1318,6 +1321,28 @@ typedef enum {
  * Since: 1.3.4
  */
 # define VIR_MIGRATE_PARAM_COMPRESSION_XBZRLE_CACHE "compression.xbzrle.cache"
+
+/**
+ * VIR_MIGRATE_PARAM_COMPRESSION_ZLIB_LEVEL:
+ *
+ * virDomainMigrate* params field: the level of compression for zlib as
+ * VIR_TYPED_PARAM_INT. Accepted values are in range 0-9. 0 is no compression,
+ * 1 is maximum speed and 9 is maximum compression.
+ *
+ * Since: 9.4.0
+ */
+# define VIR_MIGRATE_PARAM_COMPRESSION_ZLIB_LEVEL      "compression.zlib.level"
+
+/**
+ * VIR_MIGRATE_PARAM_COMPRESSION_ZSTD_LEVEL:
+ *
+ * virDomainMigrate* params field: the level of compression for zstd as
+ * VIR_TYPED_PARAM_INT. Accepted values are in range 0-20. 0 is no compression,
+ * 1 is maximum speed and 20 is maximum compression.
+ *
+ * Since: 9.4.0
+ */
+# define VIR_MIGRATE_PARAM_COMPRESSION_ZSTD_LEVEL      "compression.zstd.level"
 
 /**
  * VIR_MIGRATE_PARAM_AUTO_CONVERGE_INITIAL:
@@ -2482,7 +2507,7 @@ int                  virDomainDelIOThread(virDomainPtr domain,
  * poll_grow and poll_shrink parameters provided. A value set too large
  * will cause more CPU time to be allocated the guest. A value set too
  * small will not provide enough cycles for the guest to process data.
- * The polling interval is not available for statistical purposes.
+ * Accepted type is VIR_TYPED_PARAM_ULLONG.
  *
  * Since: 4.10.0
  */
@@ -2495,6 +2520,7 @@ int                  virDomainDelIOThread(virDomainPtr domain,
  * use to grow its polling interval up to the poll_max_ns value. A value
  * of 0 (zero) allows the hypervisor to choose its own value. The algorithm
  * to use for adjustment is hypervisor specific.
+ * Accepted type is VIR_TYPED_PARAM_UINT or since 9.3.0 VIR_TYPED_PARAM_ULLONG.
  *
  * Since: 4.10.0
  */
@@ -2508,6 +2534,7 @@ int                  virDomainDelIOThread(virDomainPtr domain,
  * the poll_max_ns value. A value of 0 (zero) allows the hypervisor to
  * choose its own value. The algorithm to use for adjustment is hypervisor
  * specific.
+ * Accepted type is VIR_TYPED_PARAM_UINT or since 9.3.0 VIR_TYPED_PARAM_ULLONG.
  *
  * Since: 4.10.0
  */

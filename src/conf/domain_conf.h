@@ -1596,6 +1596,10 @@ struct _virDomainSoundDef {
     size_t ncodecs;
     virDomainSoundCodecDef **codecs;
 
+    /* VIR_DOMAIN_SOUND_MODEL_USB can be optionally switched to
+     * multi-channel mode */
+    virTristateBool multichannel;
+
     unsigned int audioId;
 };
 
@@ -2648,6 +2652,8 @@ struct _virDomainMemoryDef {
     unsigned long long currentsize; /* kibibytes, valid for VIRTIO_MEM and
                                        active domain only, only to report never
                                        parse */
+    unsigned long long address; /* address where memory is mapped, valid for
+                                   VIRTIO_PMEM and VIRTIO_MEM only. */
     bool readonly; /* valid only for NVDIMM */
 
     /* required for QEMU NVDIMM ppc64 support */
@@ -2714,6 +2720,13 @@ struct _virDomainIOThreadIDDef {
     virBitmap *cpumask;
 
     virDomainThreadSchedParam sched;
+
+    unsigned long long poll_max_ns;
+    bool set_poll_max_ns;
+    unsigned long long poll_grow;
+    bool set_poll_grow;
+    unsigned long long poll_shrink;
+    bool set_poll_shrink;
 
     int thread_pool_min;
     int thread_pool_max;
@@ -3562,6 +3575,7 @@ void virDomainSoundCodecDefFree(virDomainSoundCodecDef *def);
 ssize_t virDomainSoundDefFind(const virDomainDef *def,
                               const virDomainSoundDef *sound);
 void virDomainSoundDefFree(virDomainSoundDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainSoundDef, virDomainSoundDefFree);
 virDomainSoundDef *virDomainSoundDefRemove(virDomainDef *def, size_t idx);
 void virDomainAudioDefFree(virDomainAudioDef *def);
 void virDomainMemballoonDefFree(virDomainMemballoonDef *def);

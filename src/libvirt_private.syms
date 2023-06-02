@@ -2358,6 +2358,7 @@ virFileWrapperFdFree;
 virFileWrapperFdNew;
 virFileWriteStr;
 virFindFileInPath;
+virFindFileInPathFull;
 
 
 # util/virfilecache.h
@@ -3555,14 +3556,19 @@ virTypedParamListAddLLong;
 virTypedParamListAddString;
 virTypedParamListAddUInt;
 virTypedParamListAddULLong;
+virTypedParamListAddUnsigned;
+virTypedParamListConcat;
+virTypedParamListFetch;
 virTypedParamListFree;
 virTypedParamListFromParams;
-virTypedParamListStealParams;
+virTypedParamListNew;
+virTypedParamListSteal;
 virTypedParamsCheck;
 virTypedParamsCopy;
 virTypedParamsDeserialize;
 virTypedParamsFilter;
 virTypedParamsGetStringList;
+virTypedParamsGetUnsigned;
 virTypedParamsRemoteFree;
 virTypedParamsReplaceString;
 virTypedParamsSerialize;

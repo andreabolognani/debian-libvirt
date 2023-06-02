@@ -2550,9 +2550,11 @@ qemuProcessSetupPid(virDomainObj *vm,
                     virBitmap *cpumask,
                     unsigned long long period,
                     long long quota,
-                    virDomainThreadSchedParam *sched)
+                    virDomainThreadSchedParam *sched,
+                    bool unionMems)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    virDomainNuma *numatune = vm->def->numa;
     virDomainNumatuneMemMode mem_mode;
     virCgroup *cgroup = NULL;
     virBitmap *use_cpumask = NULL;
@@ -2589,20 +2591,30 @@ qemuProcessSetupPid(virDomainObj *vm,
     if (virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPU) ||
         virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUSET)) {
 
-        if (virDomainNumatuneGetMode(vm->def->numa, -1, &mem_mode) == 0 &&
+        if (virDomainNumatuneGetMode(numatune, -1, &mem_mode) == 0 &&
             (mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT ||
-             mem_mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) &&
-            virDomainNumatuneMaybeFormatNodeset(vm->def->numa,
-                                                priv->autoNodeset,
-                                                &mem_mask, -1) < 0)
-            goto cleanup;
+             mem_mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE)) {
+
+            /* QEMU allocates its memory from the emulator thread. Thus it
+             * needs to access union of all host nodes configured. This is
+             * going to be replaced with proper value later in the startup
+             * process. */
+            if (unionMems &&
+                nameval == VIR_CGROUP_THREAD_EMULATOR &&
+                mem_mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
+                qemuDomainNumatuneMaybeFormatNodesetUnion(vm, NULL, &mem_mask);
+            } else {
+                if (virDomainNumatuneMaybeFormatNodeset(numatune,
+                                                        priv->autoNodeset,
+                                                        &mem_mask, -1) < 0)
+                    goto cleanup;
+            }
+        }
 
         /* For restrictive numatune mode we need to set cpuset.mems for vCPU
          * threads based on the node they are in as there is nothing else uses
          * for such restriction (e.g. numa_set_membind). */
         if (nameval == VIR_CGROUP_THREAD_VCPU) {
-            virDomainNuma *numatune = vm->def->numa;
-
             /* Look for the guest NUMA node of this vCPU */
             for (i = 0; i < virDomainNumaGetNodeCount(numatune); i++) {
                 virBitmap *node_cpus = virDomainNumaGetNodeCpumask(numatune, i);
@@ -2689,14 +2701,16 @@ qemuProcessSetupPid(virDomainObj *vm,
 }
 
 
-static int
-qemuProcessSetupEmulator(virDomainObj *vm)
+int
+qemuProcessSetupEmulator(virDomainObj *vm,
+                         bool unionMems)
 {
     return qemuProcessSetupPid(vm, vm->pid, VIR_CGROUP_THREAD_EMULATOR,
                                0, vm->def->cputune.emulatorpin,
                                vm->def->cputune.emulator_period,
                                vm->def->cputune.emulator_quota,
-                               vm->def->cputune.emulatorsched);
+                               vm->def->cputune.emulatorsched,
+                               unionMems);
 }
 
 
@@ -2818,10 +2832,15 @@ qemuProcessStartPRDaemonHook(void *opaque)
 int
 qemuProcessStartManagedPRDaemon(virDomainObj *vm)
 {
+    const char *const prHelperDirs[] = {
+        "/usr/libexec",
+        NULL,
+    };
     qemuDomainObjPrivate *priv = vm->privateData;
     virQEMUDriver *driver = priv->driver;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     int errfd = -1;
+    g_autofree char *prHelperPath = NULL;
     g_autofree char *pidfile = NULL;
     g_autofree char *socketPath = NULL;
     pid_t cpid = -1;
@@ -2832,11 +2851,15 @@ qemuProcessStartManagedPRDaemon(virDomainObj *vm)
 
     cfg = virQEMUDriverGetConfig(driver);
 
-    if (!virFileIsExecutable(cfg->prHelperName)) {
+    prHelperPath = virFindFileInPathFull(cfg->prHelperName, prHelperDirs);
+
+    if (!prHelperPath) {
         virReportSystemError(errno, _("'%1$s' is not a suitable pr helper"),
                              cfg->prHelperName);
         goto cleanup;
     }
+
+    VIR_DEBUG("Using qemu-pr-helper: %s", prHelperPath);
 
     if (!(pidfile = qemuProcessBuildPRHelperPidfilePath(vm)))
         goto cleanup;
@@ -2853,7 +2876,7 @@ qemuProcessStartManagedPRDaemon(virDomainObj *vm)
         goto cleanup;
     }
 
-    if (!(cmd = virCommandNewArgList(cfg->prHelperName,
+    if (!(cmd = virCommandNewArgList(prHelperPath,
                                      "-k", socketPath,
                                      NULL)))
         goto cleanup;
@@ -2881,7 +2904,7 @@ qemuProcessStartManagedPRDaemon(virDomainObj *vm)
     if (virPidFileReadPath(pidfile, &cpid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("pr helper %1$s didn't show up"),
-                       cfg->prHelperName);
+                       prHelperPath);
         goto cleanup;
     }
 
@@ -2899,7 +2922,7 @@ qemuProcessStartManagedPRDaemon(virDomainObj *vm)
         if (saferead(errfd, errbuf, sizeof(errbuf) - 1) < 0) {
             virReportSystemError(errno,
                                  _("pr helper %1$s died unexpectedly"),
-                                 cfg->prHelperName);
+                                 prHelperPath);
         } else {
             virReportError(VIR_ERR_OPERATION_FAILED,
                            _("pr helper died and reported: %1$s"), errbuf);
@@ -5883,7 +5906,8 @@ qemuProcessSetupVcpu(virDomainObj *vm,
                             vcpuid, vcpu->cpumask,
                             vm->def->cputune.period,
                             vm->def->cputune.quota,
-                            &vcpu->sched) < 0)
+                            &vcpu->sched,
+                            false) < 0)
         return -1;
 
     if (schedCore &&
@@ -6038,7 +6062,8 @@ qemuProcessSetupIOThread(virDomainObj *vm,
                                iothread->cpumask,
                                vm->def->cputune.iothread_period,
                                vm->def->cputune.iothread_quota,
-                               &iothread->sched);
+                               &iothread->sched,
+                               false);
 }
 
 
@@ -7656,7 +7681,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     /* In some situations, eg. VFIO passthrough, QEMU might need to lock a
      * significant amount of memory, so we need to set the limit accordingly */
-    maxMemLock = qemuDomainGetMemLockLimitBytes(vm->def, false);
+    maxMemLock = qemuDomainGetMemLockLimitBytes(vm->def);
 
     /* For all these settings, zero indicates that the limit should
      * not be set explicitly and the default/inherited limit should
@@ -7738,7 +7763,7 @@ qemuProcessLaunch(virConnectPtr conn,
         goto cleanup;
 
     VIR_DEBUG("Setting emulator tuning/settings");
-    if (qemuProcessSetupEmulator(vm) < 0)
+    if (qemuProcessSetupEmulator(vm, true) < 0)
         goto cleanup;
 
     VIR_DEBUG("Setting cgroup for external devices (if required)");
@@ -7799,6 +7824,10 @@ qemuProcessLaunch(virConnectPtr conn,
         goto cleanup;
 
     if (qemuConnectAgent(driver, vm) < 0)
+        goto cleanup;
+
+    VIR_DEBUG("Fixing up emulator tuning/settings");
+    if (qemuProcessSetupEmulator(vm, false) < 0)
         goto cleanup;
 
     VIR_DEBUG("setting up hotpluggable cpus");

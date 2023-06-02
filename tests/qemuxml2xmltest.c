@@ -449,13 +449,7 @@ mymain(void)
     DO_TEST("net-hostdev-vfio", QEMU_CAPS_DEVICE_VFIO_PCI);
     DO_TEST_NOCAPS("net-midonet");
     DO_TEST_NOCAPS("net-openvswitch");
-    DO_TEST_NOCAPS("sound");
-    DO_TEST("sound-device",
-            QEMU_CAPS_DEVICE_ICH9_INTEL_HDA,
-            QEMU_CAPS_OBJECT_USB_AUDIO,
-            QEMU_CAPS_HDA_MICRO,
-            QEMU_CAPS_HDA_DUPLEX,
-            QEMU_CAPS_HDA_OUTPUT);
+    DO_TEST_CAPS_LATEST("sound-device");
     DO_TEST_NOCAPS("watchdog");
     DO_TEST_CAPS_LATEST("watchdog-q35-multiple");
     DO_TEST("net-bandwidth", QEMU_CAPS_DEVICE_VGA, QEMU_CAPS_VNC);
@@ -861,6 +855,7 @@ mymain(void)
     DO_TEST_NOCAPS("numatune-distances");
     DO_TEST_NOCAPS("numatune-no-vcpu");
     DO_TEST("numatune-hmat", QEMU_CAPS_NUMA_HMAT);
+    DO_TEST_CAPS_LATEST("numatune-hmat-none");
     DO_TEST_CAPS_LATEST("numatune-memnode-restrictive-mode");
 
     DO_TEST_CAPS_LATEST("firmware-manual-bios");
@@ -1176,41 +1171,35 @@ mymain(void)
     DO_TEST_NOCAPS("downscript");
 
     /* Simplest possible <audio>, all supported with ENV */
-    DO_TEST_NOCAPS("audio-none-minimal");
-    DO_TEST_NOCAPS("audio-alsa-minimal");
-    DO_TEST_NOCAPS("audio-coreaudio-minimal");
-    DO_TEST_NOCAPS("audio-oss-minimal");
-    DO_TEST_NOCAPS("audio-pulseaudio-minimal");
-    DO_TEST_NOCAPS("audio-sdl-minimal");
-    DO_TEST("audio-spice-minimal",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST_NOCAPS("audio-file-minimal");
+    DO_TEST_CAPS_LATEST("audio-none-minimal");
+    DO_TEST_CAPS_LATEST("audio-alsa-minimal");
+    DO_TEST_CAPS_LATEST("audio-coreaudio-minimal");
+    DO_TEST_CAPS_LATEST("audio-oss-minimal");
+    DO_TEST_CAPS_LATEST("audio-pulseaudio-minimal");
+    DO_TEST_CAPS_LATEST("audio-sdl-minimal");
+    DO_TEST_CAPS_LATEST("audio-spice-minimal");
+    DO_TEST_CAPS_LATEST("audio-file-minimal");
 
     /* Best <audio> still compat with old ENV */
-    DO_TEST_NOCAPS("audio-none-best");
-    DO_TEST_NOCAPS("audio-alsa-best");
-    DO_TEST_NOCAPS("audio-coreaudio-best");
-    DO_TEST_NOCAPS("audio-oss-best");
-    DO_TEST_NOCAPS("audio-pulseaudio-best");
-    DO_TEST_NOCAPS("audio-sdl-best");
-    DO_TEST("audio-spice-best",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST_NOCAPS("audio-file-best");
+    DO_TEST_CAPS_LATEST("audio-none-best");
+    DO_TEST_CAPS_LATEST("audio-alsa-best");
+    DO_TEST_CAPS_LATEST("audio-coreaudio-best");
+    DO_TEST_CAPS_LATEST("audio-oss-best");
+    DO_TEST_CAPS_LATEST("audio-pulseaudio-best");
+    DO_TEST_CAPS_LATEST("audio-sdl-best");
+    DO_TEST_CAPS_LATEST("audio-spice-best");
+    DO_TEST_CAPS_LATEST("audio-file-best");
 
     /* Full <audio> only compat with new QEMU -audiodev args */
-    DO_TEST_NOCAPS("audio-none-full");
-    DO_TEST_NOCAPS("audio-alsa-full");
-    DO_TEST_NOCAPS("audio-coreaudio-full");
-    DO_TEST_NOCAPS("audio-jack-full");
-    DO_TEST_NOCAPS("audio-oss-full");
-    DO_TEST_NOCAPS("audio-pulseaudio-full");
-    DO_TEST_NOCAPS("audio-sdl-full");
-    DO_TEST("audio-spice-full",
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    DO_TEST_NOCAPS("audio-file-full");
+    DO_TEST_CAPS_LATEST("audio-none-full");
+    DO_TEST_CAPS_LATEST("audio-alsa-full");
+    DO_TEST_CAPS_LATEST("audio-coreaudio-full");
+    DO_TEST_CAPS_LATEST("audio-jack-full");
+    DO_TEST_CAPS_LATEST("audio-oss-full");
+    DO_TEST_CAPS_LATEST("audio-pulseaudio-full");
+    DO_TEST_CAPS_LATEST("audio-sdl-full");
+    DO_TEST_CAPS_LATEST("audio-spice-full");
+    DO_TEST_CAPS_LATEST("audio-file-full");
 
     DO_TEST_CAPS_LATEST("audio-many-backends");
 

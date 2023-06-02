@@ -59,12 +59,14 @@ int
 virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
 {
     va_list ap;
-    int ret = -1;
-    size_t i, j;
-    const char *name, *last_name = NULL;
-    int type;
-    size_t nkeys = 0, nkeysalloc = 0;
-    virTypedParameterPtr sorted = NULL, keys = NULL;
+    size_t i;
+    size_t j;
+    const char *name;
+    const char *last_name = NULL;
+    size_t nkeys = 0;
+    size_t nkeysalloc = 0;
+    g_autofree virTypedParameterPtr sorted = NULL;
+    g_autofree virTypedParameterPtr keys = NULL;
 
     va_start(ap, nparams);
 
@@ -76,13 +78,14 @@ virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
 
     name = va_arg(ap, const char *);
     while (name) {
-        type = va_arg(ap, int);
+        int type = va_arg(ap, int);
         VIR_RESIZE_N(keys, nkeysalloc, nkeys, 1);
 
         if (virStrcpyStatic(keys[nkeys].field, name) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Field name '%1$s' too long"), name);
-            goto cleanup;
+            va_end(ap);
+            return -1;
         }
 
         keys[nkeys].type = type & ~VIR_TYPED_PARAM_MULTIPLE;
@@ -93,20 +96,33 @@ virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
         name = va_arg(ap, const char *);
     }
 
+    va_end(ap);
+
     qsort(keys, nkeys, sizeof(*keys), virTypedParamsSortName);
 
     for (i = 0, j = 0; i < nparams && j < nkeys;) {
         if (STRNEQ(sorted[i].field, keys[j].field)) {
             j++;
         } else {
+            const char *expecttype = virTypedParameterTypeToString(keys[j].type);
+            int type = sorted[i].type;
+
             if (STREQ_NULLABLE(last_name, sorted[i].field) &&
                 !(keys[j].value.i & VIR_TYPED_PARAM_MULTIPLE)) {
                 virReportError(VIR_ERR_INVALID_ARG,
                                _("parameter '%1$s' occurs multiple times"),
                                sorted[i].field);
-                goto cleanup;
+                return -1;
             }
-            if (sorted[i].type != keys[j].type) {
+
+            if (keys[j].type == VIR_TYPED_PARAM_UNSIGNED &&
+                (type == VIR_TYPED_PARAM_UINT ||
+                 type == VIR_TYPED_PARAM_ULLONG)) {
+                type = VIR_TYPED_PARAM_UNSIGNED;
+                expecttype = "uint, ullong";
+            }
+
+            if (type != keys[j].type) {
                 const char *badtype;
 
                 badtype = virTypedParameterTypeToString(sorted[i].type);
@@ -114,9 +130,8 @@ virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
                     badtype = virTypedParameterTypeToString(0);
                 virReportError(VIR_ERR_INVALID_ARG,
                                _("invalid type '%1$s' for parameter '%2$s', expected '%3$s'"),
-                               badtype, sorted[i].field,
-                               virTypedParameterTypeToString(keys[j].type));
-                goto cleanup;
+                               badtype, sorted[i].field, expecttype);
+                return -1;
             }
             last_name = sorted[i].field;
             i++;
@@ -127,15 +142,10 @@ virTypedParamsValidate(virTypedParameterPtr params, int nparams, ...)
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
                        _("parameter '%1$s' not supported"),
                        sorted[i].field);
-        goto cleanup;
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    va_end(ap);
-    VIR_FREE(sorted);
-    VIR_FREE(keys);
-    return ret;
+    return 0;
 }
 
 
@@ -170,7 +180,7 @@ virTypedParameterToString(virTypedParameterPtr param)
 {
     char *value = NULL;
 
-    switch (param->type) {
+    switch ((virTypedParameterType) param->type) {
     case VIR_TYPED_PARAM_INT:
         value = g_strdup_printf("%d", param->value.i);
         break;
@@ -192,6 +202,7 @@ virTypedParameterToString(virTypedParameterPtr param)
     case VIR_TYPED_PARAM_STRING:
         value = g_strdup(param->value.s);
         break;
+    case VIR_TYPED_PARAM_LAST:
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unexpected type %1$d for field %2$s"),
@@ -202,9 +213,9 @@ virTypedParameterToString(virTypedParameterPtr param)
 }
 
 
-static int
+static void
 virTypedParameterAssignValueVArgs(virTypedParameterPtr param,
-                                  int type,
+                                  virTypedParameterType type,
                                   va_list ap,
                                   bool copystr)
 {
@@ -238,31 +249,22 @@ virTypedParameterAssignValueVArgs(virTypedParameterPtr param,
         if (!param->value.s)
             param->value.s = g_strdup("");
         break;
-    default:
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected type %1$d for field %2$s"), type,
-                       NULLSTR(param->field));
-        return -1;
+    case VIR_TYPED_PARAM_LAST:
+        break;
     }
-
-    return 0;
 }
 
 
-static int
+static void
 virTypedParameterAssignValue(virTypedParameterPtr param,
-                             bool copystr,
-                             int type,
+                             virTypedParameterType type,
                              ...)
 {
-    int ret;
     va_list ap;
 
     va_start(ap, type);
-    ret = virTypedParameterAssignValueVArgs(param, type, ap, copystr);
+    virTypedParameterAssignValueVArgs(param, type, ap, true);
     va_end(ap);
-
-    return ret;
 }
 
 
@@ -275,7 +277,6 @@ virTypedParameterAssign(virTypedParameterPtr param, const char *name,
                         int type, ...)
 {
     va_list ap;
-    int ret = -1;
 
     if (virStrcpyStatic(param->field, name) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, _("Field name '%1$s' too long"),
@@ -283,11 +284,18 @@ virTypedParameterAssign(virTypedParameterPtr param, const char *name,
         return -1;
     }
 
+    if (type < VIR_TYPED_PARAM_INT ||
+        type >= VIR_TYPED_PARAM_LAST) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("unexpected type %1$d for field %2$s"), type, name);
+        return -1;
+    }
+
     va_start(ap, type);
-    ret = virTypedParameterAssignValueVArgs(param, type, ap, false);
+    virTypedParameterAssignValueVArgs(param, type, ap, false);
     va_end(ap);
 
-    return ret;
+    return 0;
 }
 
 
@@ -459,6 +467,57 @@ virTypedParamsGetStringList(virTypedParameterPtr params,
 
 
 /**
+ * virTypedParamsGetUnsigned:
+ * @params: array of typed parameters
+ * @nparams: number of parameters in the @params array
+ * @name: name of the parameter to find
+ * @value: where to store the parameter's value
+ *
+ * Finds typed parameter called @name and store its 'unsigned long long' or
+ * 'unsigned int' value in @value.
+ *
+ * This is an internal variand which expects that the typed parameters were
+ * already validated by calling virTypedParamsValidate and the appropriate
+ * parameter has the expected type.
+ *
+ * Returns 1 on success, 0 when the parameter does not exist in @params, or
+ * -1 on invalid usage.
+ */
+int
+virTypedParamsGetUnsigned(virTypedParameterPtr params,
+                          int nparams,
+                          const char *name,
+                          unsigned long long *value)
+{
+    virTypedParameterPtr param;
+
+    if (!(param = virTypedParamsGet(params, nparams, name)))
+        return 0;
+
+    switch ((virTypedParameterType) param->type) {
+    case VIR_TYPED_PARAM_UINT:
+        *value = param->value.ui;
+        break;
+
+    case VIR_TYPED_PARAM_ULLONG:
+        *value = param->value.ul;
+        break;
+
+    case VIR_TYPED_PARAM_INT:
+    case VIR_TYPED_PARAM_LLONG:
+    case VIR_TYPED_PARAM_DOUBLE:
+    case VIR_TYPED_PARAM_BOOLEAN:
+    case VIR_TYPED_PARAM_STRING:
+    case VIR_TYPED_PARAM_LAST:
+    default:
+        return -1;
+    }
+
+    return 1;
+}
+
+
+/**
  * virTypedParamsRemoteFree:
  * @remote_params_val: array of typed parameters as specified by
  *                     (remote|admin)_protocol.h
@@ -560,34 +619,29 @@ virTypedParamsDeserialize(struct _virTypedParameterRemote *remote_params,
         }
 
         param->type = remote_param->value.type;
-        switch (param->type) {
+        switch ((virTypedParameterType) param->type) {
         case VIR_TYPED_PARAM_INT:
-            param->value.i =
-                remote_param->value.remote_typed_param_value.i;
+            param->value.i = remote_param->value.remote_typed_param_value.i;
             break;
         case VIR_TYPED_PARAM_UINT:
-            param->value.ui =
-                remote_param->value.remote_typed_param_value.ui;
+            param->value.ui = remote_param->value.remote_typed_param_value.ui;
             break;
         case VIR_TYPED_PARAM_LLONG:
-            param->value.l =
-                remote_param->value.remote_typed_param_value.l;
+            param->value.l = remote_param->value.remote_typed_param_value.l;
             break;
         case VIR_TYPED_PARAM_ULLONG:
-            param->value.ul =
-                remote_param->value.remote_typed_param_value.ul;
+            param->value.ul = remote_param->value.remote_typed_param_value.ul;
             break;
         case VIR_TYPED_PARAM_DOUBLE:
-            param->value.d =
-                remote_param->value.remote_typed_param_value.d;
+            param->value.d = remote_param->value.remote_typed_param_value.d;
             break;
         case VIR_TYPED_PARAM_BOOLEAN:
-            param->value.b =
-                remote_param->value.remote_typed_param_value.b;
+            param->value.b = remote_param->value.remote_typed_param_value.b;
             break;
         case VIR_TYPED_PARAM_STRING:
             param->value.s = g_strdup(remote_param->value.remote_typed_param_value.s);
             break;
+        case VIR_TYPED_PARAM_LAST:
         default:
             virReportError(VIR_ERR_RPC, _("unknown parameter type: %1$d"),
                            param->type);
@@ -671,7 +725,7 @@ virTypedParamsSerialize(virTypedParameterPtr params,
          * depending on the calling side, i.e. server or client */
         val->field = g_strdup(param->field);
         val->value.type = param->type;
-        switch (param->type) {
+        switch ((virTypedParameterType) param->type) {
         case VIR_TYPED_PARAM_INT:
             val->value.remote_typed_param_value.i = param->value.i;
             break;
@@ -693,6 +747,7 @@ virTypedParamsSerialize(virTypedParameterPtr params,
         case VIR_TYPED_PARAM_STRING:
             val->value.remote_typed_param_value.s = g_strdup(param->value.s);
             break;
+        case VIR_TYPED_PARAM_LAST:
         default:
             virReportError(VIR_ERR_RPC, _("unknown parameter type: %1$d"),
                            param->type);
@@ -711,6 +766,48 @@ virTypedParamsSerialize(virTypedParameterPtr params,
 }
 
 
+struct _virTypedParamList {
+    virTypedParameterPtr par;
+    size_t npar;
+    size_t par_alloc;
+
+    char *err_name; /* overly long field name for error message */
+};
+
+
+virTypedParamList *
+virTypedParamListNew(void)
+{
+    return g_new0(virTypedParamList, 1);
+}
+
+
+/**
+ * virTypedParamListConcat:
+ * @to: typed param list to concatenate into
+ * @fromptr: pointer to pointer to a typed param list to concatenate into @to
+ *
+ * Concatenates all params from the virTypedParamList pointed to by @fromptr
+ * into @to and deallocates the list pointed to by @fromptr and clears the
+ * variable.
+ */
+void
+virTypedParamListConcat(virTypedParamList *to,
+                        virTypedParamList **fromptr)
+{
+    g_autoptr(virTypedParamList) from = g_steal_pointer(fromptr);
+
+    VIR_RESIZE_N(to->par, to->par_alloc, to->npar, from->npar);
+
+    memcpy(to->par + to->npar, from->par, sizeof(*(to->par)) * from->npar);
+    to->npar += from->npar;
+    from->npar = 0;
+
+    if (!to->err_name)
+        to->err_name = g_steal_pointer(&from->err_name);
+}
+
+
 void
 virTypedParamListFree(virTypedParamList *list)
 {
@@ -718,28 +815,69 @@ virTypedParamListFree(virTypedParamList *list)
         return;
 
     virTypedParamsFree(list->par, list->npar);
+    g_free(list->err_name);
     g_free(list);
 }
 
 
-size_t
-virTypedParamListStealParams(virTypedParamList *list,
-                             virTypedParameterPtr *params)
+/**
+ * virTypedParamListFetch:
+ *
+ * @list: virTypedParamList object
+ * @par: if not NULL filled with the typed parameters stored in @list
+ * @npar: if not NULL filled with the number of typed parameters stored in @list
+ *
+ * Checks that @list has no errors stored and optionally fills @par and @npar
+ * with a valid list of typed parameters. The typed parameters still belong to
+ * @list and will be freed together.
+ */
+int
+virTypedParamListFetch(virTypedParamList *list,
+                       virTypedParameterPtr *par,
+                       size_t *npar)
 {
-    size_t ret = list->npar;
+    if (list->err_name) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("Field name '%1$s' too long"),
+                       list->err_name);
+        return -1;
+    }
 
-    *params = g_steal_pointer(&list->par);
+    if (par)
+        *par = list->par;
+
+    if (npar)
+        *npar = list->npar;
+
+    return 0;
+}
+
+
+int
+virTypedParamListSteal(virTypedParamList *list,
+                       virTypedParameterPtr *par,
+                       int *npar)
+{
+    size_t nparams;
+
+    if (virTypedParamListFetch(list, par, &nparams) < 0)
+        return -1;
+
+    /* most callers expect 'int', so help them out */
+    *npar = nparams;
+
+    list->par = NULL;
     list->npar = 0;
     list->par_alloc = 0;
 
-    return ret;
+    return 0;
 }
+
 
 virTypedParamList *
 virTypedParamListFromParams(virTypedParameterPtr *params,
                             size_t nparams)
 {
-    virTypedParamList *l = g_new0(virTypedParamList, 1);
+    virTypedParamList *l = virTypedParamListNew();
 
     l->par = g_steal_pointer(params);
     l->npar = nparams;
@@ -749,17 +887,18 @@ virTypedParamListFromParams(virTypedParameterPtr *params,
 }
 
 
-static int G_GNUC_PRINTF(2, 0)
-virTypedParamSetNameVPrintf(virTypedParameterPtr par,
+static void G_GNUC_PRINTF(3, 0)
+virTypedParamSetNameVPrintf(virTypedParamList *list,
+                            virTypedParameterPtr par,
                             const char *fmt,
                             va_list ap)
 {
-    if (g_vsnprintf(par->field, VIR_TYPED_PARAM_FIELD_LENGTH, fmt, ap) > VIR_TYPED_PARAM_FIELD_LENGTH) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Field name too long"));
-        return -1;
-    }
+    g_autofree char *name = g_strdup_vprintf(fmt, ap);
 
-    return 0;
+    if (virStrcpyStatic(par->field, name) < 0) {
+        if (!list->err_name)
+            list->err_name = g_steal_pointer(&name);
+    }
 }
 
 
@@ -774,155 +913,156 @@ virTypedParamListExtend(virTypedParamList *list)
 }
 
 
-int
+void
 virTypedParamListAddInt(virTypedParamList *list,
                         int value,
                         const char *namefmt,
                         ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_INT, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_INT, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }
 
 
-int
+void
 virTypedParamListAddUInt(virTypedParamList *list,
                          unsigned int value,
                          const char *namefmt,
                          ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_UINT, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_UINT, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }
 
 
-int
+void
 virTypedParamListAddLLong(virTypedParamList *list,
                           long long value,
                           const char *namefmt,
                           ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_LLONG, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_LLONG, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }
 
 
-int
+void
 virTypedParamListAddULLong(virTypedParamList *list,
                            unsigned long long value,
                            const char *namefmt,
                            ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_ULLONG, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_ULLONG, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }
 
 
-int
+/**
+ * virTypedParamListAddUnsigned:
+ * @list: typed parameter list
+ * @value: value to add  (see below on details)
+ * @namefmt: formatting string for constructing the name of the added value
+ * @...: additional parameters to format the name
+ *
+ * Adds a new typed parameter to @list. The name of the parameter is formatted
+ * from @fmt.
+ *
+ * @value is added as VIR_TYPED_PARAM_UINT, unless it doesn't fit into the data
+ * type in which case it's added as VIR_TYPED_PARAM_ULLONG.
+ */
+void
+virTypedParamListAddUnsigned(virTypedParamList *list,
+                             unsigned long long value,
+                             const char *namefmt,
+                             ...)
+{
+    virTypedParameterPtr par = virTypedParamListExtend(list);
+    va_list ap;
+
+    if (value > UINT_MAX) {
+        virTypedParameterAssignValue(par, VIR_TYPED_PARAM_ULLONG, value);
+    } else {
+        unsigned int ival = value;
+
+        virTypedParameterAssignValue(par, VIR_TYPED_PARAM_UINT, ival);
+    }
+
+    va_start(ap, namefmt);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
+    va_end(ap);
+}
+
+
+void
 virTypedParamListAddString(virTypedParamList *list,
                            const char *value,
                            const char *namefmt,
                            ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_STRING, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_STRING, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }
 
 
-int
+void
 virTypedParamListAddBoolean(virTypedParamList *list,
                             bool value,
                             const char *namefmt,
                             ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_BOOLEAN, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_BOOLEAN, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }
 
 
-int
+void
 virTypedParamListAddDouble(virTypedParamList *list,
                            double value,
                            const char *namefmt,
                            ...)
 {
-    virTypedParameterPtr par;
+    virTypedParameterPtr par = virTypedParamListExtend(list);
     va_list ap;
-    int ret;
 
-    if (!(par = virTypedParamListExtend(list)) ||
-        virTypedParameterAssignValue(par, true, VIR_TYPED_PARAM_DOUBLE, value) < 0)
-        return -1;
+    virTypedParameterAssignValue(par, VIR_TYPED_PARAM_DOUBLE, value);
 
     va_start(ap, namefmt);
-    ret = virTypedParamSetNameVPrintf(par, namefmt, ap);
+    virTypedParamSetNameVPrintf(list, par, namefmt, ap);
     va_end(ap);
-
-    return ret;
 }

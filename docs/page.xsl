@@ -15,63 +15,8 @@
     </xsl:copy>
   </xsl:template>
 
-
-  <xsl:template match="html:ul[@id='toc']" mode="content">
-    <xsl:call-template name="toc"/>
-  </xsl:template>
-
   <xsl:template match="html:div[@id='include']" mode="content">
     <xsl:call-template name="include"/>
-  </xsl:template>
-
-  <xsl:template name="toc">
-    <ul>
-      <xsl:for-each select="/html:html/html:body/html:h2[count(html:a) = 1]">
-        <xsl:variable name="thish2" select="."/>
-        <li>
-          <a href="#{html:a/@id}"><xsl:value-of select="html:a/text()"/></a>
-          <xsl:if test="count(./following-sibling::html:h3[preceding-sibling::html:h2[1] = $thish2 and count(html:a) = 1]) > 0">
-            <ul>
-              <xsl:for-each select="./following-sibling::html:h3[preceding-sibling::html:h2[1] = $thish2 and count(html:a) = 1]">
-                <xsl:variable name="thish3" select="."/>
-                <li>
-                  <a href="#{html:a/@id}"><xsl:value-of select="html:a/text()"/></a>
-                  <xsl:if test="count(./following-sibling::html:h4[preceding-sibling::html:h3[1] = $thish3 and count(html:a) = 1]) > 0">
-                    <ul>
-                      <xsl:for-each select="./following-sibling::html:h4[preceding-sibling::html:h3[1] = $thish3 and count(html:a) = 1]">
-                        <xsl:variable name="thish4" select="."/>
-                        <li>
-                          <a href="#{html:a/@id}"><xsl:value-of select="html:a/text()"/></a>
-                          <xsl:if test="count(./following-sibling::html:h5[preceding-sibling::html:h4[1] = $thish4 and count(html:a) = 1]) > 0">
-                            <ul>
-                              <xsl:for-each select="./following-sibling::html:h5[preceding-sibling::html:h4[1] = $thish4 and count(html:a) = 1]">
-                                <xsl:variable name="thish5" select="."/>
-                                <li>
-                                  <a href="#{html:a/@id}"><xsl:value-of select="html:a/text()"/></a>
-                                  <xsl:if test="count(./following-sibling::html:h6[preceding-sibling::html:h5[1] = $thish5 and count(html:a) = 1]) > 0">
-                                    <ul>
-                                      <xsl:for-each select="./following-sibling::html:h6[preceding-sibling::html:h5[1] = $thish5 and count(html:a) = 1]">
-                                        <li>
-                                          <a href="#{html:a/@id}"><xsl:value-of select="html:a/text()"/></a>
-                                        </li>
-                                      </xsl:for-each>
-                                    </ul>
-                                  </xsl:if>
-                                </li>
-                              </xsl:for-each>
-                            </ul>
-                          </xsl:if>
-                        </li>
-                      </xsl:for-each>
-                    </ul>
-                  </xsl:if>
-                </li>
-              </xsl:for-each>
-            </ul>
-          </xsl:if>
-        </li>
-      </xsl:for-each>
-    </ul>
   </xsl:template>
 
   <!-- This is the master page structure -->
@@ -128,17 +73,6 @@
             <xsl:when test="html:html/html:body/html:main">
               <xsl:apply-templates select="/html:html/html:body/*" mode="content"/>
             </xsl:when>
-            <!-- for our older html-only files -->
-            <xsl:otherwise>
-              <div class="document">
-                <xsl:if test="html:html/html:body/@id">
-                  <xsl:attribute name="id">
-                    <xsl:value-of select="html:html/html:body/@id"/>
-                  </xsl:attribute>
-                </xsl:if>
-                <xsl:apply-templates select="/html:html/html:body/*" mode="content"/>
-              </div>
-            </xsl:otherwise>
           </xsl:choose>
         </div>
         <div id="nav">

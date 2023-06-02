@@ -8026,7 +8026,7 @@ qemuDomainStorageSourceAccessModifyNVMe(virQEMUDriver *driver,
         goto revoke;
     }
 
-    if (qemuDomainAdjustMaxMemLock(vm, true) < 0)
+    if (qemuDomainAdjustMaxMemLockNVMe(vm, src) < 0)
         goto revoke;
 
     revoke_maxmemlock = true;
@@ -8040,7 +8040,7 @@ qemuDomainStorageSourceAccessModifyNVMe(virQEMUDriver *driver,
 
  revoke:
     if (revoke_maxmemlock) {
-        if (qemuDomainAdjustMaxMemLock(vm, false) < 0)
+        if (qemuDomainAdjustMaxMemLock(vm) < 0)
             VIR_WARN("Unable to change max memlock limit");
     }
 
@@ -8544,7 +8544,11 @@ qemuDomainUpdateMemoryDeviceInfo(virDomainObj *vm,
 
         switch (mem->model) {
         case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-            mem->currentsize = VIR_DIV_UP(dimm->size, 1024);
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+            if (mem->model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM) {
+                mem->currentsize = VIR_DIV_UP(dimm->size, 1024);
+            }
+            mem->address = dimm->address;
             break;
 
         case VIR_DOMAIN_MEMORY_MODEL_DIMM:
@@ -8554,7 +8558,6 @@ qemuDomainUpdateMemoryDeviceInfo(virDomainObj *vm,
             mem->info.addr.dimm.base = dimm->address;
             break;
 
-        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
         case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
         case VIR_DOMAIN_MEMORY_MODEL_NONE:
         case VIR_DOMAIN_MEMORY_MODEL_LAST:
@@ -9403,14 +9406,12 @@ ppc64VFIODeviceIsNV2Bridge(const char *device)
 /**
  * getPPC64MemLockLimitBytes:
  * @def: domain definition
- * @forceVFIO: force VFIO usage
  *
  * A PPC64 helper that calculates the memory locking limit in order for
  * the guest to operate properly.
  */
 static unsigned long long
-getPPC64MemLockLimitBytes(virDomainDef *def,
-                          bool forceVFIO)
+getPPC64MemLockLimitBytes(virDomainDef *def)
 {
     unsigned long long memKB = 0;
     unsigned long long baseLimit = 0;
@@ -9472,10 +9473,10 @@ getPPC64MemLockLimitBytes(virDomainDef *def,
                 8192;
 
     /* NVLink2 support in QEMU is a special case of the passthrough
-     * mechanics explained in the forceVFIO case below. The GPU RAM
-     * is placed with a gap after maxMemory. The current QEMU
-     * implementation puts the NVIDIA RAM above the PCI MMIO, which
-     * starts at 32TiB and is the MMIO reserved for the guest main RAM.
+     * mechanics explained below. The GPU RAM is placed with a gap after
+     * maxMemory. The current QEMU implementation puts the NVIDIA RAM
+     * above the PCI MMIO, which starts at 32TiB and is the MMIO
+     * reserved for the guest main RAM.
      *
      * This window ends at 64TiB, and this is where the GPUs are being
      * placed. The next available window size is at 128TiB, and
@@ -9496,7 +9497,7 @@ getPPC64MemLockLimitBytes(virDomainDef *def,
         passthroughLimit = maxMemory +
                            128 * (1ULL<<30) / 512 * nPCIHostBridges +
                            8192;
-    } else if (forceVFIO || qemuDomainNeedsVFIO(def) || virDomainDefHasVDPANet(def)) {
+    } else if (qemuDomainNeedsVFIO(def) || virDomainDefHasVDPANet(def)) {
         /* For regular (non-NVLink2 present) VFIO passthrough, the value
          * of passthroughLimit is:
          *
@@ -9580,20 +9581,16 @@ qemuDomainGetNumVDPANetDevices(const virDomainDef *def)
 /**
  * qemuDomainGetMemLockLimitBytes:
  * @def: domain definition
- * @forceVFIO: force VFIO calculation
  *
  * Calculate the memory locking limit that needs to be set in order for
  * the guest to operate properly. The limit depends on a number of factors,
  * including certain configuration options and less immediately apparent ones
  * such as the guest architecture or the use of certain devices.
- * The @forceVFIO argument can be used to tell this function will use VFIO even
- * though @def doesn't indicates so right now.
  *
  * Returns: the memory locking limit, or 0 if setting the limit is not needed
  */
 unsigned long long
-qemuDomainGetMemLockLimitBytes(virDomainDef *def,
-                               bool forceVFIO)
+qemuDomainGetMemLockLimitBytes(virDomainDef *def)
 {
     unsigned long long memKB = 0;
     int nvfio;
@@ -9615,7 +9612,7 @@ qemuDomainGetMemLockLimitBytes(virDomainDef *def,
         return VIR_DOMAIN_MEMORY_PARAM_UNLIMITED;
 
     if (ARCH_IS_PPC64(def->os.arch) && def->virtType == VIR_DOMAIN_VIRT_KVM)
-        return getPPC64MemLockLimitBytes(def, forceVFIO);
+        return getPPC64MemLockLimitBytes(def);
 
     nvfio = qemuDomainGetNumVFIOHostdevs(def);
     nnvme = qemuDomainGetNumNVMeDisks(def);
@@ -9638,7 +9635,7 @@ qemuDomainGetMemLockLimitBytes(virDomainDef *def,
      *
      * Note that this may not be valid for all platforms.
      */
-    if (forceVFIO || nvfio || nnvme || nvdpa) {
+    if (nvfio || nnvme || nvdpa) {
         /* At present, the full memory needs to be locked for each VFIO / VDPA
          * NVMe device. For VFIO devices, this only applies when there is a
          * vIOMMU present. Yes, this may result in a memory limit that is
@@ -9650,8 +9647,8 @@ qemuDomainGetMemLockLimitBytes(virDomainDef *def,
          */
         int factor = nvdpa + nnvme;
 
-        if (nvfio || forceVFIO) {
-            if (nvfio && def->iommu)
+        if (nvfio) {
+            if (def->iommu)
                 factor += nvfio;
             else
                 factor += 1;
@@ -9726,12 +9723,9 @@ qemuDomainSetMaxMemLock(virDomainObj *vm,
 /**
  * qemuDomainAdjustMaxMemLock:
  * @vm: domain
- * @forceVFIO: apply VFIO requirements even if vm's def doesn't require it
  *
  * Adjust the memory locking limit for the QEMU process associated to @vm, in
- * order to comply with VFIO or architecture requirements. If @forceVFIO is
- * true then the limit is changed even if nothing in @vm's definition indicates
- * so.
+ * order to comply with VFIO or architecture requirements.
  *
  * The limit will not be changed unless doing so is needed; the first time
  * the limit is changed, the original (default) limit is stored in @vm and
@@ -9741,11 +9735,10 @@ qemuDomainSetMaxMemLock(virDomainObj *vm,
  * Returns: 0 on success, <0 on failure
  */
 int
-qemuDomainAdjustMaxMemLock(virDomainObj *vm,
-                           bool forceVFIO)
+qemuDomainAdjustMaxMemLock(virDomainObj *vm)
 {
     return qemuDomainSetMaxMemLock(vm,
-                                   qemuDomainGetMemLockLimitBytes(vm->def, forceVFIO),
+                                   qemuDomainGetMemLockLimitBytes(vm->def),
                                    &QEMU_DOMAIN_PRIVATE(vm)->originalMemlock);
 }
 
@@ -9770,10 +9763,43 @@ qemuDomainAdjustMaxMemLockHostdev(virDomainObj *vm,
     int ret = 0;
 
     vm->def->hostdevs[vm->def->nhostdevs++] = hostdev;
-    if (qemuDomainAdjustMaxMemLock(vm, false) < 0)
+    if (qemuDomainAdjustMaxMemLock(vm) < 0)
         ret = -1;
 
     vm->def->hostdevs[--(vm->def->nhostdevs)] = NULL;
+
+    return ret;
+}
+
+
+/**
+ * qemuDomainAdjustMaxMemLockNVMe:
+ * @vm: domain object
+ * @src: disk source
+ *
+ * Temporarily add the disk source to the domain definition,
+ * adjust the max memlock based in this new definition and
+ * restore the original definition.
+ *
+ * Returns: 0 on success,
+ *         -1 on failure.
+ */
+int
+qemuDomainAdjustMaxMemLockNVMe(virDomainObj *vm,
+                               virStorageSource *src)
+{
+    g_autofree virDomainDiskDef *disk = NULL;
+    int ret = 0;
+
+    disk = g_new0(virDomainDiskDef, 1);
+    disk->src = src;
+
+    VIR_APPEND_ELEMENT_COPY(vm->def->disks, vm->def->ndisks, disk);
+
+    if (qemuDomainAdjustMaxMemLock(vm) < 0)
+        ret = -1;
+
+    VIR_DELETE_ELEMENT_INPLACE(vm->def->disks, vm->def->ndisks - 1, vm->def->ndisks);
 
     return ret;
 }
@@ -12650,4 +12676,30 @@ qemuDomainEvaluateCPUMask(const virDomainDef *def,
     }
 
     return NULL;
+}
+
+
+void
+qemuDomainNumatuneMaybeFormatNodesetUnion(virDomainObj *vm,
+                                          virBitmap **nodeset,
+                                          char **nodesetStr)
+{
+    virDomainNuma *numatune = vm->def->numa;
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virBitmap) unionMask = virBitmapNew(0);
+    ssize_t i;
+
+    for (i = -1; i < (ssize_t)virDomainNumaGetNodeCount(numatune); i++) {
+        virBitmap *tmp;
+
+        tmp = virDomainNumatuneGetNodeset(numatune, priv->autoNodeset, i);
+        if (tmp)
+            virBitmapUnion(unionMask, tmp);
+    }
+
+    if (nodesetStr)
+        *nodesetStr = virBitmapFormat(unionMask);
+
+    if (nodeset)
+        *nodeset = g_steal_pointer(&unionMask);
 }
