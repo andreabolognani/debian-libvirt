@@ -6910,6 +6910,7 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
     for (i = 0; i < n; i++) {
         g_autofree char *model = NULL;
         g_autofree char *label = NULL;
+        int relabelSpecified;
         virTristateBool t;
 
         /* get model associated to this override */
@@ -6926,7 +6927,9 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
             seclabels[i]->model = g_steal_pointer(&model);
         }
 
-        if (virXMLPropTristateBool(list[i], "relabel", VIR_XML_PROP_NONE, &t) < 0)
+        relabelSpecified = virXMLPropTristateBool(list[i], "relabel",
+                                                  VIR_XML_PROP_NONE, &t);
+        if (relabelSpecified < 0)
             goto error;
 
         seclabels[i]->relabel = true;
@@ -6950,6 +6953,15 @@ virSecurityDeviceLabelDefParseXML(virSecurityDeviceLabelDef ***seclabels_rtn,
         if (seclabels[i]->label && !seclabels[i]->relabel) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("Cannot specify a label if relabelling is turned off. model=%1$s"),
+                           NULLSTR(seclabels[i]->model));
+            goto error;
+        }
+
+        if (relabelSpecified > 0 &&
+            flags & VIR_DOMAIN_DEF_PARSE_INACTIVE &&
+            seclabels[i]->relabel && !seclabels[i]->label) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("Cannot specify relabel if label is missing. model=%1$s"),
                            NULLSTR(seclabels[i]->model));
             goto error;
         }
@@ -7812,6 +7824,10 @@ virDomainDiskDefDriverParseXML(virDomainDiskDef *def,
         return -1;
 
     if (virXMLPropUInt(cur, "queue_size", 10, VIR_XML_PROP_NONE, &def->queue_size) < 0)
+        return -1;
+
+    if (virXMLPropTristateSwitch(cur, "discard_no_unref", VIR_XML_PROP_NONE,
+                                 &def->discard_no_unref) < 0)
         return -1;
 
     return 0;
@@ -22489,6 +22505,10 @@ virDomainDiskDefFormatDriver(virBuffer *buf,
         virBufferAsprintf(&attrBuf, " detect_zeroes='%s'",
                           virDomainDiskDetectZeroesTypeToString(disk->detect_zeroes));
 
+    if (disk->discard_no_unref)
+        virBufferAsprintf(&attrBuf, " discard_no_unref='%s'",
+                          virTristateSwitchTypeToString(disk->discard_no_unref));
+
     if (disk->queues)
         virBufferAsprintf(&attrBuf, " queues='%u'", disk->queues);
 
@@ -27404,9 +27424,16 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
         return -1;
 
     if (virDomainDefHasMemoryHotplug(def)) {
-        virBufferAsprintf(buf,
-                          "<maxMemory slots='%u' unit='KiB'>%llu</maxMemory>\n",
-                          def->mem.memory_slots, def->mem.max_memory);
+        g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+        g_auto(virBuffer) contentBuf = VIR_BUFFER_INITIALIZER;
+
+        if (def->mem.memory_slots > 0)
+            virBufferAsprintf(&attrBuf, " slots='%u'", def->mem.memory_slots);
+
+        virBufferAddLit(&attrBuf, " unit='KiB'");
+        virBufferAsprintf(&contentBuf, "%llu", def->mem.max_memory);
+
+        virXMLFormatElementInternal(buf, "maxMemory", &attrBuf, &contentBuf, false, false);
     }
 
     virBufferAddLit(buf, "<memory");

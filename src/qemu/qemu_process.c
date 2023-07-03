@@ -1601,11 +1601,11 @@ qemuProcessHandleDumpCompleted(qemuMonitor *mon G_GNUC_UNUSED,
               vm, vm->def->name, stats, NULLSTR(error));
 
     jobPriv = vm->job->privateData;
-    privJobCurrent = vm->job->current->privateData;
     if (vm->job->asyncJob == VIR_ASYNC_JOB_NONE) {
         VIR_DEBUG("got DUMP_COMPLETED event without a dump_completed job");
         goto cleanup;
     }
+    privJobCurrent = vm->job->current->privateData;
     jobPriv->dumpCompleted = true;
     privJobCurrent->stats.dump = *stats;
     vm->job->error = g_strdup(error);
@@ -2550,8 +2550,7 @@ qemuProcessSetupPid(virDomainObj *vm,
                     virBitmap *cpumask,
                     unsigned long long period,
                     long long quota,
-                    virDomainThreadSchedParam *sched,
-                    bool unionMems)
+                    virDomainThreadSchedParam *sched)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     virDomainNuma *numatune = vm->def->numa;
@@ -2591,23 +2590,16 @@ qemuProcessSetupPid(virDomainObj *vm,
     if (virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPU) ||
         virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUSET)) {
 
-        if (virDomainNumatuneGetMode(numatune, -1, &mem_mode) == 0 &&
-            (mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT ||
-             mem_mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE)) {
-
+        if (virDomainNumatuneGetMode(numatune, -1, &mem_mode) == 0) {
             /* QEMU allocates its memory from the emulator thread. Thus it
-             * needs to access union of all host nodes configured. This is
-             * going to be replaced with proper value later in the startup
-             * process. */
-            if (unionMems &&
-                nameval == VIR_CGROUP_THREAD_EMULATOR &&
-                mem_mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
+             * needs to access union of all host nodes configured. */
+            if (mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
                 qemuDomainNumatuneMaybeFormatNodesetUnion(vm, NULL, &mem_mask);
-            } else {
-                if (virDomainNumatuneMaybeFormatNodeset(numatune,
-                                                        priv->autoNodeset,
-                                                        &mem_mask, -1) < 0)
-                    goto cleanup;
+            } else if (mem_mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE &&
+                       virDomainNumatuneMaybeFormatNodeset(numatune,
+                                                           priv->autoNodeset,
+                                                           &mem_mask, -1) < 0) {
+                goto cleanup;
             }
         }
 
@@ -2702,15 +2694,13 @@ qemuProcessSetupPid(virDomainObj *vm,
 
 
 int
-qemuProcessSetupEmulator(virDomainObj *vm,
-                         bool unionMems)
+qemuProcessSetupEmulator(virDomainObj *vm)
 {
     return qemuProcessSetupPid(vm, vm->pid, VIR_CGROUP_THREAD_EMULATOR,
                                0, vm->def->cputune.emulatorpin,
                                vm->def->cputune.emulator_period,
                                vm->def->cputune.emulator_quota,
-                               vm->def->cputune.emulatorsched,
-                               unionMems);
+                               vm->def->cputune.emulatorsched);
 }
 
 
@@ -5834,6 +5824,13 @@ qemuProcessNetworkPrepareDevices(virQEMUDriver *driver,
                                net->data.network.name, def->name);
                 return -1;
             }
+
+            /* For hostdev present in qemuProcessPrepareDomain() phase this was
+             * done already, but this code runs after that, so we have to call
+             * it ourselves. */
+            if (qemuDomainPrepareHostdev(hostdev, priv) < 0)
+                return -1;
+
             if (virDomainHostdevInsert(def, hostdev) < 0)
                 return -1;
         } else if (actualType == VIR_DOMAIN_NET_TYPE_USER &&
@@ -5906,8 +5903,7 @@ qemuProcessSetupVcpu(virDomainObj *vm,
                             vcpuid, vcpu->cpumask,
                             vm->def->cputune.period,
                             vm->def->cputune.quota,
-                            &vcpu->sched,
-                            false) < 0)
+                            &vcpu->sched) < 0)
         return -1;
 
     if (schedCore &&
@@ -6062,8 +6058,7 @@ qemuProcessSetupIOThread(virDomainObj *vm,
                                iothread->cpumask,
                                vm->def->cputune.iothread_period,
                                vm->def->cputune.iothread_quota,
-                               &iothread->sched,
-                               false);
+                               &iothread->sched);
 }
 
 
@@ -7300,13 +7295,6 @@ qemuProcessSetupDiskThrottling(virDomainObj *vm,
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDef *disk = vm->def->disks[i];
-        qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
-        g_autofree char *drivealias = NULL;
-
-        if (!QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName) {
-            if (!(drivealias = qemuAliasDiskDriveFromDisk(disk)))
-                goto cleanup;
-        }
 
         /* Setting throttling for empty drives fails */
         if (virStorageSourceIsEmpty(disk->src))
@@ -7315,8 +7303,9 @@ qemuProcessSetupDiskThrottling(virDomainObj *vm,
         if (!qemuDiskConfigBlkdeviotuneEnabled(disk))
             continue;
 
-        if (qemuMonitorSetBlockIoThrottle(qemuDomainGetMonitor(vm), drivealias,
-                                          diskPriv->qomName, &disk->blkdeviotune) < 0)
+        if (qemuMonitorSetBlockIoThrottle(qemuDomainGetMonitor(vm),
+                                          QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName,
+                                          &disk->blkdeviotune) < 0)
             goto cleanup;
     }
 
@@ -7763,7 +7752,7 @@ qemuProcessLaunch(virConnectPtr conn,
         goto cleanup;
 
     VIR_DEBUG("Setting emulator tuning/settings");
-    if (qemuProcessSetupEmulator(vm, true) < 0)
+    if (qemuProcessSetupEmulator(vm) < 0)
         goto cleanup;
 
     VIR_DEBUG("Setting cgroup for external devices (if required)");
@@ -7824,10 +7813,6 @@ qemuProcessLaunch(virConnectPtr conn,
         goto cleanup;
 
     if (qemuConnectAgent(driver, vm) < 0)
-        goto cleanup;
-
-    VIR_DEBUG("Fixing up emulator tuning/settings");
-    if (qemuProcessSetupEmulator(vm, false) < 0)
         goto cleanup;
 
     VIR_DEBUG("setting up hotpluggable cpus");

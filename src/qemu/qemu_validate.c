@@ -3094,6 +3094,14 @@ qemuValidateDomainDeviceDefDiskBlkdeviotune(const virDomainDiskDef *disk,
         return -1;
     }
 
+    /* setting throttling for the SD card didn't work, refuse it explicitly */
+    if (disk->bus == VIR_DOMAIN_DISK_BUS_SD &&
+        qemuDiskConfigBlkdeviotuneEnabled(disk)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("<iotune> is not supported with bus='sd'"));
+        return -1;
+    }
+
     /* checking def here is only for calling from tests */
     if (disk->blkdeviotune.group_name) {
         size_t i;
@@ -3255,6 +3263,13 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("invalid disk target '%1$s', partitions can't appear in disk targets"),
                        disk->dst);
+        return -1;
+    }
+
+    if (disk->discard_no_unref != VIR_TRISTATE_SWITCH_ABSENT &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_QCOW2_DISCARD_NO_UNREF)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("'discard_no_unref' is not supported by this QEMU binary"));
         return -1;
     }
 

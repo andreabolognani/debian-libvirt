@@ -1052,12 +1052,10 @@ int qemuMonitorOpenGraphics(qemuMonitor *mon,
                             bool skipauth);
 
 int qemuMonitorSetBlockIoThrottle(qemuMonitor *mon,
-                                  const char *drivealias,
                                   const char *qomid,
                                   virDomainBlockIoTuneInfo *info);
 
 int qemuMonitorGetBlockIoThrottle(qemuMonitor *mon,
-                                  const char *drivealias,
                                   const char *qdevid,
                                   virDomainBlockIoTuneInfo *reply);
 

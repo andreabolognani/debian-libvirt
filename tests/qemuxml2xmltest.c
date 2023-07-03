@@ -599,6 +599,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("disk-discard");
     DO_TEST_CAPS_LATEST("disk-detect-zeroes");
+    DO_TEST_CAPS_LATEST("disk-discard_no_unref");
 
     DO_TEST_NOCAPS("disk-serial");
 
@@ -1013,6 +1014,7 @@ mymain(void)
                  ARG_CAPS_ARCH, "ppc64", ARG_CAPS_VER, "latest", ARG_END);
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-pmem");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-mem");
+    DO_TEST_CAPS_LATEST("memory-hotplug-multiple");
 
     DO_TEST_NOCAPS("net-udp");
 

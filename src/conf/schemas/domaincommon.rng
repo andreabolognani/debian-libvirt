@@ -721,9 +721,11 @@
       <optional>
         <element name="maxMemory">
           <ref name="scaledInteger"/>
-          <attribute name="slots">
-            <ref name="unsignedInt"/>
-          </attribute>
+          <optional>
+            <attribute name="slots">
+              <ref name="unsignedInt"/>
+            </attribute>
+          </optional>
         </element>
       </optional>
       <optional>
@@ -2513,6 +2515,11 @@
       </optional>
       <optional>
         <ref name="detect_zeroes"/>
+      </optional>
+      <optional>
+        <attribute name="discard_no_unref">
+          <ref name="virOnOff"/>
+        </attribute>
       </optional>
       <optional>
         <attribute name="queues">

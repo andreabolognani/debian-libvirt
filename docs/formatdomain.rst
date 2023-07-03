@@ -3284,6 +3284,13 @@ paravirtualized driver is specified via the ``disk`` element.
       format driver of the ``qemu`` hypervisor can be controlled via the
       ``max_size`` subelement (see example below).
 
+      The optional ``discard_no_unref`` attribute can be set to control the way
+      the ``qemu`` hypervisor handles guest discard commands inside the qcow2
+      image. When enabled, a discard request from within the guest will mark the
+      qcow2 cluster as zero, but will keep the reference/offset of that cluster.
+      But it will still pass the discard further to the lower layer.
+      This will resolve fragmentation within the qcow2 image. :since:`Since 9.5.0`
+
       In the majority of cases the default configuration used by the hypervisor
       is sufficient so modifying this setting should not be necessary. For
       specifics on how the metadata cache of ``qcow2`` in ``qemu`` behaves refer
@@ -4896,7 +4903,7 @@ ports **with the exception of some subset**.
    <devices>
      ...
      <interface type='user'>
-       <backend type='passt' logFile='/var/log/passt.log'/>
+       <backend type='passt' logFile='/tmp/passt.log'/>
        <mac address="00:11:22:33:44:55"/>
        <source dev='eth0'/>
        <ip family='ipv4' address='172.17.2.4' prefix='24'/>

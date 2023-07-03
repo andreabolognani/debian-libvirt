@@ -9937,7 +9937,7 @@ qemuDomainMemoryStatsInternal(virDomainObj *vm,
 
 {
     int ret = -1;
-    long rss;
+    unsigned long long rss;
 
     if (virDomainObjCheckActive(vm) < 0)
         return -1;
@@ -11778,6 +11778,8 @@ qemuConnectBaselineHypervisorCPU(virConnectPtr conn,
     virCPUDef *cpu = NULL;
     char *cpustr = NULL;
     g_auto(GStrv) features = NULL;
+    unsigned int physAddrSize = 0;
+    size_t i;
 
     virCheckFlags(VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES |
                   VIR_CONNECT_BASELINE_CPU_MIGRATABLE, NULL);
@@ -11844,6 +11846,21 @@ qemuConnectBaselineHypervisorCPU(virConnectPtr conn,
     if ((flags & VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES) &&
         virCPUExpandFeatures(arch, cpu) < 0)
         goto cleanup;
+
+    for (i = 0; i < ncpus; i++) {
+        if (!cpus[i]->addr || cpus[i]->addr->limit == 0)
+            continue;
+
+        if (physAddrSize == 0 || cpus[i]->addr->limit < physAddrSize)
+            physAddrSize = cpus[i]->addr->limit;
+    }
+
+    if (physAddrSize > 0) {
+        cpu->addr = g_new0(virCPUMaxPhysAddrDef, 1);
+        cpu->addr->mode = VIR_CPU_MAX_PHYS_ADDR_MODE_PASSTHROUGH;
+        cpu->addr->limit = physAddrSize;
+        cpu->addr->bits = -1;
+    }
 
     cpustr = virCPUDefFormat(cpu, NULL);
 
@@ -14225,8 +14242,10 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
      * into the topmost virStorage source of the disk chain.
      * Since 'mirror' has the ambition to replace it we need to propagate
      * it into the mirror too. We do it directly as otherwise we'd need
-     * to modify all callers of 'qemuDomainPrepareStorageSourceBlockdev' */
+     * to modify all callers of 'qemuDomainPrepareStorageSourceBlockdev'
+     * Same for discard_no_unref */
     mirror->detect_zeroes = disk->detect_zeroes;
+    mirror->discard_no_unref = disk->discard_no_unref;
 
     /* If reusing an external image that includes a backing file but the user
      * did not enumerate the chain in the XML we need to detect the chain */
@@ -14764,11 +14783,12 @@ typedef enum {
 
 
 static bool
-qemuDomainDiskBlockIoTuneIsSupported(virStorageSource *src)
+qemuDomainDiskBlockIoTuneIsSupported(virDomainDiskDef *disk)
 {
-    if (virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_VHOST_USER) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("a block I/O throttling is not supported for vhostuser disk"));
+    if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_VHOST_USER ||
+        disk->bus == VIR_DOMAIN_DISK_BUS_SD) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("block I/O throttling is not supported for disk '%1$s'"), disk->dst);
         return false;
     }
 
@@ -14913,8 +14933,6 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
     virDomainDef *persistentDef = NULL;
     virDomainBlockIoTuneInfo info;
     virDomainBlockIoTuneInfo conf_info;
-    g_autofree char *drivealias = NULL;
-    const char *qdevid = NULL;
     int ret = -1;
     size_t i;
     virDomainDiskDef *conf_disk = NULL;
@@ -15107,15 +15125,8 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
         if (!(disk = qemuDomainDiskByName(def, path)))
             goto endjob;
 
-        if (!qemuDomainDiskBlockIoTuneIsSupported(disk->src))
+        if (!qemuDomainDiskBlockIoTuneIsSupported(disk))
             goto endjob;
-
-        if (QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName) {
-            qdevid = QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName;
-        } else {
-            if (!(drivealias = qemuAliasDiskDriveFromDisk(disk)))
-                goto endjob;
-        }
 
         cur_info = qemuDomainFindGroupBlockIoTune(def, disk, &info);
 
@@ -15166,7 +15177,9 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
             int rc = 0;
 
             qemuDomainObjEnterMonitor(vm);
-            rc = qemuMonitorSetBlockIoThrottle(priv->mon, drivealias, qdevid, &info);
+            rc = qemuMonitorSetBlockIoThrottle(priv->mon,
+                                               QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName,
+                                               &info);
             qemuDomainObjExitMonitor(vm);
 
             if (rc < 0)
@@ -15193,7 +15206,7 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
             goto endjob;
         }
 
-        if (!qemuDomainDiskBlockIoTuneIsSupported(conf_disk->src))
+        if (!qemuDomainDiskBlockIoTuneIsSupported(conf_disk))
             goto endjob;
 
         conf_cur_info = qemuDomainFindGroupBlockIoTune(persistentDef, conf_disk, &info);
@@ -15239,8 +15252,6 @@ qemuDomainGetBlockIoTune(virDomainPtr dom,
     virDomainDef *def = NULL;
     virDomainDef *persistentDef = NULL;
     virDomainBlockIoTuneInfo reply = {0};
-    g_autofree char *drivealias = NULL;
-    const char *qdevid = NULL;
     int ret = -1;
     int maxparams;
 
@@ -15284,17 +15295,11 @@ qemuDomainGetBlockIoTune(virDomainPtr dom,
         if (!(disk = qemuDomainDiskByName(def, path)))
             goto endjob;
 
-        if (!qemuDomainDiskBlockIoTuneIsSupported(disk->src))
+        if (!qemuDomainDiskBlockIoTuneIsSupported(disk))
             goto endjob;
 
-        if (QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName) {
-            qdevid = QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName;
-        } else {
-            if (!(drivealias = qemuAliasDiskDriveFromDisk(disk)))
-                goto endjob;
-        }
         qemuDomainObjEnterMonitor(vm);
-        rc = qemuMonitorGetBlockIoThrottle(priv->mon, drivealias, qdevid, &reply);
+        rc = qemuMonitorGetBlockIoThrottle(priv->mon, QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName, &reply);
         qemuDomainObjExitMonitor(vm);
 
         if (rc < 0)
@@ -15309,7 +15314,7 @@ qemuDomainGetBlockIoTune(virDomainPtr dom,
             goto endjob;
         }
 
-        if (!qemuDomainDiskBlockIoTuneIsSupported(disk->src))
+        if (!qemuDomainDiskBlockIoTuneIsSupported(disk))
             goto endjob;
 
         reply = disk->blkdeviotune;

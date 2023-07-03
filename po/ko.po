@@ -16,8 +16,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-05-26 06:46+0000\n"
-"PO-Revision-Date: 2023-05-30 05:20+0000\n"
+"POT-Creation-Date: 2023-06-27 11:10+0000\n"
+"PO-Revision-Date: 2023-06-29 04:20+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -26,7 +26,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.17\n"
+"X-Generator: Weblate 4.18.1\n"
 
 msgid ""
 "\n"
@@ -1250,15 +1250,21 @@ msgstr ""
 "'디렉토리' 저장소 형식은 QEMU에서 직접 지원하지 않으며, 대신에 'dir' 디스크 "
 "유형을 사용합니다"
 
+msgid "'discard_no_unref' is not compatible with read-only disk"
+msgstr "'discard_no_unref'는 읽기-전용 디스크와 호환되지 않습니다"
+
+msgid "'discard_no_unref' is not supported by this QEMU binary"
+msgstr "'discard_no_unref'는 이 QEMU 바이너리에서 지원되지 않습니다"
+
+msgid "'discard_no_unref' only works with qcow2 disk format"
+msgstr "'discard_no_unref'는 qcow2 디스크 형식에서만 동작합니다"
+
 msgid "'disk' missing or not an array in reply of guest-get-fsinfo"
 msgstr "'disk' 누락이거나 guest-get-fsinfo의 응답에서 배열이 아님"
 
 #, c-format
 msgid "'extended_l2' not supported with compat level %1$s"
 msgstr "'extended_l2'는 호환 수준 %1$s에서 지원되지 않습니다"
-
-msgid "'floor' attribute allowed only in <inbound> element"
-msgstr "'floor' 속성은 <inbound> 요소에만 허용됩니다"
 
 msgid "'gluster' command line tool not found"
 msgstr "`gluster`명령 줄 도구를 찾을 수 없음"
@@ -1373,14 +1379,16 @@ msgstr ""
 msgid ""
 "'restrictive' mode is required in memnode element when mode is 'restrictive' "
 "in memory element"
-msgstr "'제한적' 방식은 방식이 메모리 요소에서 '제한적' 일 때 memnode 요소에서 "
-"필요합니다"
+msgstr ""
+"'제한적' 방식은 방식이 메모리 요소에서 '제한적' 일 때 memnode 요소에서 필요합"
+"니다"
 
 msgid ""
 "'restrictive' mode is required in memory element when mode is 'restrictive' "
 "in memnode element"
-msgstr "'제한적' 방식은 방식이 memnode 요소에서 '제한적' 일 때 메모리 요소에서 "
-"필요합니다"
+msgstr ""
+"'제한적' 방식은 방식이 memnode 요소에서 '제한적' 일 때 메모리 요소에서 필요합"
+"니다"
 
 #, c-format
 msgid ""
@@ -1669,6 +1677,9 @@ msgstr ""
 msgid "<hostdev> attribute 'display' is only supported with model='vfio-pci'"
 msgstr ""
 "<hostdev>의 'display'(표시) 요소는 오직 'vfio-pci' 모델에서만 지원됩니다"
+
+msgid "<iotune> is not supported with bus='sd'"
+msgstr "<iotune>는 bus='sd'를 지원하지 않습니다"
 
 msgid "<reservations/> allowed only for lun devices"
 msgstr ""
@@ -3378,6 +3389,10 @@ msgstr "초기화하지 않은 CURL 핸들을 공유할 수 없습니다"
 msgid "Cannot specify a label if relabelling is turned off. model=%1$s"
 msgstr ""
 "재레이블이 비활성화되어 있을 경우 레이블을 지정할 수 없습니다. model=%1$s"
+
+#, c-format
+msgid "Cannot specify relabel if label is missing. model=%1$s"
+msgstr "만약 이름표가 누락되었으면 이름표 재지정을 지정 할 수 없습니다. 모델=%1$s"
 
 #, c-format
 msgid "Cannot stat %1$s"
@@ -5392,6 +5407,9 @@ msgstr "디스크가 성공적으로 탈착되었습니다\n"
 #, c-format
 msgid "Disk device '%1$s' does not support snapshotting"
 msgstr "디스크 장치 %1$s가 스냅샷을 지원하지 않습니다"
+
+msgid "Disk discard_no_unref is not supported by vz driver."
+msgstr "Disk discard_no_unref는 vz 드라이버에서 지원되지 않습니다."
 
 #, c-format
 msgid "Disk iothread '%1$u' not defined in iothreadid"
@@ -12368,7 +12386,7 @@ msgid "Normal pages:"
 msgstr "평범한 페이지:"
 
 msgid "Not a download stream"
-msgstr "다운로드 스트림이 아닙니다"
+msgstr "내려받기 스트림이 아닙니다"
 
 msgid "Not all servers restored, cannot run server"
 msgstr "일부 서버가 복원되지 않아 서버를 실행할 수 없습니다"
@@ -12620,12 +12638,6 @@ msgstr "--table, --name 및 --uuid에서 오직 하나의 인수만 지정할 �
 
 msgid "Only one boot device is supported"
 msgstr "하나의 부팅 장치만 지원됩니다"
-
-msgid "Only one child <inbound> element allowed"
-msgstr "오직 하나의 자식 <inbound> 요소만이 허용됨"
-
-msgid "Only one child <outbound> element allowed"
-msgstr "오직 하나의 자식 <outbound> 요소만이 허용됨"
 
 msgid ""
 "Only one compression method could be specified with parallel compression"
@@ -15472,6 +15484,13 @@ msgid "Target maximum memory size '%1$llu' doesn't match source '%2$llu'"
 msgstr "대상 최대 메모리 크기 '%1$llu'이(가) 소스 '%2$llu'와 일치하지 않습니다"
 
 #, c-format
+msgid ""
+"Target memory device address '0x%1$llx' doesn't match source memory device "
+"address '0x%2$llx'"
+msgstr "대상 메모리 장치 주소 '0x%1$llx'는 원천 메모리 장치 주소 '0x%2$llx'와 "
+"일치하지 않습니다"
+
+#, c-format
 msgid "Target memory device alias '%1$s' doesn't match source alias '%2$s'"
 msgstr ""
 "대상 메모리 장치 별칭 '%1$s'이(가) 소스 별칭 '%2$s'과(와) 일치하지 않습니다"
@@ -15597,7 +15616,8 @@ msgstr "대상 사운드 카드 모델 %1$s이 소스 %2$s와 일치하지 않�
 #, c-format
 msgid ""
 "Target sound card multichannel setting '%1$s' does not match source '%2$s'"
-msgstr "대상 사운드 카드 다중채널 설정 '%1$s'가 원천 '%2$s'와 일치하지 않습니다"
+msgstr ""
+"대상 사운드 카드 다중채널 설정 '%1$s'가 원천 '%2$s'와 일치하지 않습니다"
 
 #, c-format
 msgid "Target sysinfo %1$s %2$s does not match source %3$s"
@@ -19875,9 +19895,6 @@ msgstr ""
 "PCI 컨트롤러 모델='%1$s'를 연결하려면 PCI 슬롯이 필요하지만 사용할 수 없으며 "
 "자동으로 추가할 수 없습니다"
 
-msgid "a block I/O throttling is not supported for vhostuser disk"
-msgstr "블록 I/O 조절은 vhostuser 디스크에 대해 지원되지 않습니다"
-
 msgid "a device with the same address already exists "
 msgstr "동일한 주소를 가진 장치가 이미 존재합니다 "
 
@@ -20525,6 +20542,10 @@ msgid "block I/O throttle limit value must be no more than %1$llu"
 msgstr "블록 I/O 스로틀 제한 값은 %1$llu 이하여야 합니다"
 
 #, c-format
+msgid "block I/O throttling is not supported for disk '%1$s'"
+msgstr "블록 I/O 조절은 디스크 '%1$s'를 위해 지원되지 않습니다"
+
+#, c-format
 msgid "block commit failed while deleting disk '%1$s' snapshot: '%2$s'"
 msgstr "디스크 '%1$s' 스냅샷을 삭제하는 동안 블록 커밋 실패: '%2$s'"
 
@@ -20690,9 +20711,6 @@ msgstr "부트로더은 QEMU에서 지원되지 않습니다"
 
 msgid "both interface name and type must not be NULL"
 msgstr "연결장치 이름과 유형 모두 비워두지 않아야 합니다"
-
-msgid "both maximum memory size and memory slot count must be specified"
-msgstr "최대 메모리 크기와 메모리 슬롯 수를 모두 지정해야 합니다"
 
 #, c-format
 msgid "bridge %1$s doesn't exist"
@@ -23020,22 +23038,6 @@ msgstr "Xen Store에 연결할 수 없음"
 msgid "could not connect to Xen Store %1$s"
 msgstr "Xen Store %1$s에 연결할 수 없음"
 
-#, c-format
-msgid "could not convert bandwidth average value '%1$s'"
-msgstr "대역폭 평균 값 '%1$s'을 변환 할 수 없습니다"
-
-#, c-format
-msgid "could not convert bandwidth burst value '%1$s'"
-msgstr "대역폭 한계치 값 '%1$s'를 변환 할 수 없습니다"
-
-#, c-format
-msgid "could not convert bandwidth floor value '%1$s'"
-msgstr "대역폭 최저 값 '%1$s'를 변환 할 수 없습니다"
-
-#, c-format
-msgid "could not convert bandwidth peak value '%1$s'"
-msgstr "대역폭 최대 값 '%1$s'를 변환 할 수 없습니다"
-
 msgid "could not create profile"
 msgstr "프로파일을 생성 할 수 없습니다"
 
@@ -23367,6 +23369,12 @@ msgstr ""
 #, c-format
 msgid "couldn't write dnsmasq config file '%1$s'"
 msgstr "dnsmasq 구성 파일 '%1$s'을(를) 쓸 수 없습니다"
+
+#, c-format
+msgid ""
+"count of memory devices requiring memory slots '%1$zu' exceeds slots count "
+"'%2$u'"
+msgstr "메모리 슬롯 '%1$zu'가 필요한 메모리 장치 수는 슬롯 수 '%2$u'를 초과합니다"
 
 msgid "cow feature may only be used for 'fs' and 'dir' pools"
 msgstr "소 기능은 'fs' 및 'dir' 풀에만 사용할 수 있습니다"
@@ -25561,7 +25569,7 @@ msgid "failed to create udev enumerate thread"
 msgstr "udev 열거 스레드를 생성하지 못했습니다"
 
 msgid "failed to create udev handler thread"
-msgstr "udev 핸들러 스레드를 생성하지 못했습니다"
+msgstr "udev 핸들러 쓰레드를 생성하지 못했습니다"
 
 #, c-format
 msgid "failed to create volume '%1$s/%2$s'"
@@ -27998,9 +28006,6 @@ msgstr "'%1$s'에 대한 잘못된 ap-도메인 값 '%2$s'"
 msgid "invalid argument"
 msgstr "잘못된 인수"
 
-msgid "invalid argument supplied"
-msgstr "잘못된 인수가 제공됨"
-
 #, c-format
 msgid "invalid argument: %1$s"
 msgstr "잘못된 인수: %1$s"
@@ -29410,6 +29415,9 @@ msgstr "dimm 메모리 정보의 핫플러그 형식이 잘못되었거나 누�
 msgid "malformed/missing memaddr in sgx-epc memory info"
 msgstr "sgx-epc 메모리 정보에서 잘못된/누락된 메모리주소"
 
+msgid "malformed/missing memaddr in virtio memory info"
+msgstr "virtio 메모리 정보에서 잘못된/누락된 메모리주소"
+
 msgid "malformed/missing size in sgx-epc memory info"
 msgstr "sgx-epc 메모리 정보에서 잘못된/누락된 크기"
 
@@ -29481,6 +29489,10 @@ msgstr "복사 중 최대 인플라이트 데이터 양"
 msgid ""
 "maximum memory size must be equal or greater than the actual memory size"
 msgstr "최대 메모리 크기는 실제 메모리 크기보다 크거나 같아야 합니다"
+
+msgid ""
+"maximum memory size must be specified when specifying number of memory slots"
+msgstr "최대 메모리 크기는 메모리 슬롯의 수를 지정 할 때에 지정되어야 합니다"
 
 msgid "maximum memory size overflowed after alignment"
 msgstr "정렬 후 최대 메모리 크기가 오버플로됨"
@@ -29568,6 +29580,9 @@ msgstr "메모리 속성: [file=]name[,snapshot=type]"
 msgid "memory device address is not supported for model '%1$s'"
 msgstr "메모리 장치 주소가 모델 '%1$s'를 위해 지원되지 않습니다"
 
+msgid "memory device address must be aligned to blocksize"
+msgstr "메모리 장치 주소는 블록크기로 맞게 정렬되어야 합니다"
+
 msgid "memory device alias"
 msgstr "메모리 장치 별칭"
 
@@ -29578,10 +29593,6 @@ msgstr "메모리 장치 별칭이 할당되지 않았습니다"
 msgid ""
 "memory device base '0x%1$llx' is already being used by another memory device"
 msgstr "메모리 장치 기반 '0x%1$llx'는 이미 다른 메모리 장치에서 사용 중입니다"
-
-#, c-format
-msgid "memory device count '%1$u' exceeds slots count '%2$u'"
-msgstr "메모리 장치 수 '%1$u'가 슬롯 수 '%2$u'를 초과합니다"
 
 #, c-format
 msgid "memory device slot '%1$u' exceeds slots count '%2$u'"
@@ -33845,12 +33856,6 @@ msgstr "회전 속도는 SCSI/IDE/SATA 버스에만 유효합니다"
 msgid "rotation rate is only valid for disk device"
 msgstr "회전 속도는 디스크 장치에만 유효합니다"
 
-msgid "rule node requires action attribute"
-msgstr "규칙 노드에는 동작 속성이 필요함"
-
-msgid "rule node requires direction attribute"
-msgstr "규칙 노드에는 방향 속성이 필요함"
-
 msgid ""
 "run action specified by --timeout-* option (suspend by default) if live "
 "migration exceeds timeout (in seconds)"
@@ -37108,12 +37113,6 @@ msgstr "알 수 없는 redirdev 문자 장치 유형 '%1$s'"
 msgid "unknown rng-random backend"
 msgstr "알 수 없는 rng 무작위 백엔드"
 
-msgid "unknown rule action attribute value"
-msgstr "알 수 없는 규칙 작업 속성 값"
-
-msgid "unknown rule direction attribute value"
-msgstr "알 수 없는 규칙 방향 속성 값"
-
 #, c-format
 msgid "unknown secret type '%1$s'"
 msgstr "알 수 없는 비밀 유형 '%1$s'"
@@ -37613,6 +37612,9 @@ msgstr "지원되지 않는 상태 값"
 #, c-format
 msgid "unsupported storage pool event ID %1$d"
 msgstr "지원되지 않는 저장소 풀 이벤트 ID %1$d"
+
+msgid "unsupported storage type for this code path"
+msgstr "이 코드 경로를 위해 미지원되는 저장소 유형"
 
 #, c-format
 msgid "unsupported timer type (name) '%1$s'"
@@ -38706,6 +38708,56 @@ msgstr ""
 #, c-format
 msgid "{[--%1$s] <string>}..."
 msgstr "{[--%1$s] <string>}..."
+
+#~ msgid "'floor' attribute allowed only in <inbound> element"
+#~ msgstr "'floor' 속성은 <inbound> 요소에만 허용됩니다"
+
+#~ msgid "Only one child <inbound> element allowed"
+#~ msgstr "오직 하나의 자식 <inbound> 요소만이 허용됨"
+
+#~ msgid "Only one child <outbound> element allowed"
+#~ msgstr "오직 하나의 자식 <outbound> 요소만이 허용됨"
+
+#~ msgid "a block I/O throttling is not supported for vhostuser disk"
+#~ msgstr "블록 I/O 조절은 vhostuser 디스크에 대해 지원되지 않습니다"
+
+#~ msgid "both maximum memory size and memory slot count must be specified"
+#~ msgstr "최대 메모리 크기와 메모리 슬롯 수를 모두 지정해야 합니다"
+
+#, c-format
+#~ msgid "could not convert bandwidth average value '%1$s'"
+#~ msgstr "대역폭 평균 값 '%1$s'을 변환 할 수 없습니다"
+
+#, c-format
+#~ msgid "could not convert bandwidth burst value '%1$s'"
+#~ msgstr "대역폭 한계치 값 '%1$s'를 변환 할 수 없습니다"
+
+#, c-format
+#~ msgid "could not convert bandwidth floor value '%1$s'"
+#~ msgstr "대역폭 최저 값 '%1$s'를 변환 할 수 없습니다"
+
+#, c-format
+#~ msgid "could not convert bandwidth peak value '%1$s'"
+#~ msgstr "대역폭 최대 값 '%1$s'를 변환 할 수 없습니다"
+
+#~ msgid "invalid argument supplied"
+#~ msgstr "잘못된 인수가 제공됨"
+
+#, c-format
+#~ msgid "memory device count '%1$u' exceeds slots count '%2$u'"
+#~ msgstr "메모리 장치 수 '%1$u'가 슬롯 수 '%2$u'를 초과합니다"
+
+#~ msgid "rule node requires action attribute"
+#~ msgstr "규칙 노드에는 동작 속성이 필요함"
+
+#~ msgid "rule node requires direction attribute"
+#~ msgstr "규칙 노드에는 방향 속성이 필요함"
+
+#~ msgid "unknown rule action attribute value"
+#~ msgstr "알 수 없는 규칙 작업 속성 값"
+
+#~ msgid "unknown rule direction attribute value"
+#~ msgstr "알 수 없는 규칙 방향 속성 값"
 
 #, c-format
 #~ msgid "DBus daemon %1$s didn't show up"
