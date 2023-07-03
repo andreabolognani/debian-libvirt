@@ -197,10 +197,11 @@ testQemuAgentFSTrim(const void *data)
     if (qemuMonitorTestAddAgentSyncResponse(test) < 0)
         return -1;
 
-    if (qemuMonitorTestAddItemParams(test, "guest-fstrim",
-                                     "{ \"return\" : {} }",
-                                     "minimum", "1337",
-                                     NULL) < 0)
+    if (qemuMonitorTestAddItemVerbatim(test,
+                                       "{\"execute\":\"guest-fstrim\","
+                                       " \"arguments\": {\"minimum\":1337}}",
+                                       NULL,
+                                       "{ \"return\" : {}}") < 0)
         return -1;
 
     if (qemuAgentFSTrim(qemuMonitorTestGetAgent(test), 1337) < 0)
@@ -475,10 +476,9 @@ testQemuAgentShutdown(const void *data)
     priv.event = QEMU_AGENT_EVENT_SHUTDOWN;
     priv.mode = "halt";
 
-    if (qemuMonitorTestAddHandler(test, "guest-shutdown",
-                                  qemuAgentShutdownTestMonitorHandler,
-                                  &priv, NULL) < 0)
-        return -1;
+    qemuMonitorTestAddHandler(test, "guest-shutdown",
+                              qemuAgentShutdownTestMonitorHandler,
+                              &priv, NULL);
 
     if (qemuAgentShutdown(qemuMonitorTestGetAgent(test),
                           QEMU_AGENT_SHUTDOWN_HALT) < 0)
@@ -487,10 +487,9 @@ testQemuAgentShutdown(const void *data)
     priv.event = QEMU_AGENT_EVENT_SHUTDOWN;
     priv.mode = "powerdown";
 
-    if (qemuMonitorTestAddHandler(test, "guest-shutdown",
-                                  qemuAgentShutdownTestMonitorHandler,
-                                  &priv, NULL) < 0)
-        return -1;
+    qemuMonitorTestAddHandler(test, "guest-shutdown",
+                              qemuAgentShutdownTestMonitorHandler,
+                              &priv, NULL);
 
     if (qemuAgentShutdown(qemuMonitorTestGetAgent(test),
                           QEMU_AGENT_SHUTDOWN_POWERDOWN) < 0)
@@ -499,11 +498,10 @@ testQemuAgentShutdown(const void *data)
     priv.event = QEMU_AGENT_EVENT_RESET;
     priv.mode = "reboot";
 
-    if (qemuMonitorTestAddHandler(test,
-                                  "guest-shutdown",
-                                  qemuAgentShutdownTestMonitorHandler,
-                                  &priv, NULL) < 0)
-        return -1;
+    qemuMonitorTestAddHandler(test,
+                              "guest-shutdown",
+                              qemuAgentShutdownTestMonitorHandler,
+                              &priv, NULL);
 
     if (qemuAgentShutdown(qemuMonitorTestGetAgent(test),
                           QEMU_AGENT_SHUTDOWN_REBOOT) < 0)
@@ -555,16 +553,6 @@ static const char testQemuAgentCPUResponse[] =
     "   ]"
     "}";
 
-static const char testQemuAgentCPUArguments1[] =
-    "[{\"logical-id\":1,\"online\":false}]";
-
-static const char testQemuAgentCPUArguments2[] =
-    "[{\"logical-id\":1,\"online\":true},"
-     "{\"logical-id\":3,\"online\":true}]";
-
-static const char testQemuAgentCPUArguments3[] =
-    "[{\"logical-id\":3,\"online\":true}]";
-
 static int
 testQemuAgentCPU(const void *data)
 {
@@ -598,26 +586,36 @@ testQemuAgentCPU(const void *data)
     if (qemuAgentUpdateCPUInfo(2, cpuinfo, nvcpus) < 0)
         return -1;
 
-    if (qemuMonitorTestAddItemParams(test, "guest-set-vcpus",
-                                     "{ \"return\" : 1 }",
-                                     "vcpus", testQemuAgentCPUArguments1,
-                                     NULL) < 0)
+    if (qemuMonitorTestAddItemVerbatim(test,
+                                       "{\"execute\":\"guest-set-vcpus\","
+                                       " \"arguments\": {"
+                                       "     \"vcpus\":[{\"logical-id\":1,\"online\":false}]"
+                                       "}}",
+                                       NULL,
+                                       "{ \"return\" : 1 }") < 0)
         return -1;
 
     if (qemuAgentSetVCPUs(qemuMonitorTestGetAgent(test), cpuinfo, nvcpus) < 0)
         return -1;
 
     /* try to hotplug two, second one will fail */
-    if (qemuMonitorTestAddItemParams(test, "guest-set-vcpus",
-                                     "{ \"return\" : 1 }",
-                                     "vcpus", testQemuAgentCPUArguments2,
-                                     NULL) < 0)
+    if (qemuMonitorTestAddItemVerbatim(test,
+                                       "{\"execute\":\"guest-set-vcpus\","
+                                       " \"arguments\": {"
+                                       "     \"vcpus\":[{\"logical-id\":1,\"online\":true},"
+                                       "                {\"logical-id\":3,\"online\":true}]"
+                                       "}}",
+                                       NULL,
+                                       "{ \"return\" : 1 }") < 0)
         return -1;
 
-    if (qemuMonitorTestAddItemParams(test, "guest-set-vcpus",
-                                     "{ \"error\" : \"random error\" }",
-                                     "vcpus", testQemuAgentCPUArguments3,
-                                     NULL) < 0)
+    if (qemuMonitorTestAddItemVerbatim(test,
+                                       "{\"execute\":\"guest-set-vcpus\","
+                                       " \"arguments\": {"
+                                       "     \"vcpus\":[{\"logical-id\":3,\"online\":true}]"
+                                       "}}",
+                                       NULL,
+                                       "{ \"error\" : \"random error\" }") < 0)
         return -1;
 
     if (qemuAgentUpdateCPUInfo(4, cpuinfo, nvcpus) < 0)
@@ -691,10 +689,9 @@ testQemuAgentTimeout(const void *data)
     if (virTestGetExpensive() == 0)
         return EXIT_AM_SKIP;
 
-    if (qemuMonitorTestAddHandler(test, NULL,
-                                  qemuAgentTimeoutTestMonitorHandler,
-                                  NULL, NULL) < 0)
-        return -1;
+    qemuMonitorTestAddHandler(test, NULL,
+                              qemuAgentTimeoutTestMonitorHandler,
+                              NULL, NULL);
 
     if (qemuAgentFSFreeze(qemuMonitorTestGetAgent(test), NULL, 0) != -1) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -706,11 +703,10 @@ testQemuAgentTimeout(const void *data)
     if (qemuMonitorTestAddAgentSyncResponse(test) < 0)
         return -1;
 
-    if (qemuMonitorTestAddHandler(test,
-                                  NULL,
-                                  qemuAgentTimeoutTestMonitorHandler,
-                                  NULL, NULL) < 0)
-        return -1;
+    qemuMonitorTestAddHandler(test,
+                              NULL,
+                              qemuAgentTimeoutTestMonitorHandler,
+                              NULL, NULL);
 
     if (qemuAgentArbitraryCommand(qemuMonitorTestGetAgent(test),
                                   "{\"execute\":\"ble\"}",

@@ -298,7 +298,7 @@ virNWFilterIncludeDefFree(virNWFilterIncludeDef *inc)
     g_free(inc->filterref);
     g_free(inc);
 }
-
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNWFilterIncludeDef, virNWFilterIncludeDefFree);
 
 static void
 virNWFilterEntryFree(virNWFilterEntry *entry)
@@ -2031,27 +2031,15 @@ virNWFilterRuleDetailsParse(xmlNodePtr node,
 static virNWFilterIncludeDef *
 virNWFilterIncludeParse(xmlNodePtr cur)
 {
-    virNWFilterIncludeDef *ret;
+    g_autoptr(virNWFilterIncludeDef) ret = g_new0(virNWFilterIncludeDef, 1);
 
-    ret = g_new0(virNWFilterIncludeDef, 1);
+    if (!(ret->filterref = virXMLPropStringRequired(cur, "filter")))
+        return NULL;
 
-    ret->filterref = virXMLPropString(cur, "filter");
-    if (!ret->filterref) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s",
-                       _("rule node requires action attribute"));
-        goto err_exit;
-    }
+    if (!(ret->params = virNWFilterParseParamAttributes(cur)))
+        return NULL;
 
-    ret->params = virNWFilterParseParamAttributes(cur);
-    if (!ret->params)
-        goto err_exit;
-
-    return ret;
-
- err_exit:
-    virNWFilterIncludeDefFree(ret);
-    return NULL;
+    return g_steal_pointer(&ret);
 }
 
 
@@ -2373,103 +2361,70 @@ virNWFilterRuleDefFixup(virNWFilterRuleDef *rule)
 static virNWFilterRuleDef *
 virNWFilterRuleParse(xmlNodePtr node)
 {
-    g_autofree char *action = NULL;
-    g_autofree char *direction = NULL;
-    g_autofree char *prio = NULL;
     g_autofree char *statematch = NULL;
-    bool found;
-    int found_i = 0;
-    int priority;
-
-    xmlNodePtr cur;
+    g_autofree xmlNodePtr *attrNodes = NULL;
+    size_t nattrNodes = 0;
     g_autoptr(virNWFilterRuleDef) ret = NULL;
 
     ret = g_new0(virNWFilterRuleDef, 1);
 
-    action     = virXMLPropString(node, "action");
-    direction  = virXMLPropString(node, "direction");
-    prio       = virXMLPropString(node, "priority");
     statematch = virXMLPropString(node, "statematch");
 
-    if (!action) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s",
-                       _("rule node requires action attribute"));
+    if (virXMLPropEnum(node, "action", virNWFilterRuleActionTypeFromString,
+                       VIR_XML_PROP_REQUIRED, &ret->action) < 0)
         return NULL;
-    }
 
-    if ((ret->action = virNWFilterRuleActionTypeFromString(action)) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       "%s",
-                       _("unknown rule action attribute value"));
+    if (virXMLPropEnum(node, "direction", virNWFilterRuleDirectionTypeFromString,
+                       VIR_XML_PROP_REQUIRED, &ret->tt) < 0)
         return NULL;
-    }
 
-    if (!direction) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s",
-                       _("rule node requires direction attribute"));
+    if (virXMLPropInt(node, "priority", 10, VIR_XML_PROP_NONE, &ret->priority,
+                      MAX_RULE_PRIORITY / 2) < 0)
         return NULL;
-    }
 
-    if ((ret->tt = virNWFilterRuleDirectionTypeFromString(direction)) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       "%s",
-                       _("unknown rule direction attribute value"));
-        return NULL;
-    }
-
-    ret->priority = MAX_RULE_PRIORITY / 2;
-
-    if (prio) {
-        if (virStrToLong_i(prio, NULL, 10, &priority) >= 0) {
-            if (priority <= MAX_RULE_PRIORITY &&
-                priority >= MIN_RULE_PRIORITY)
-                ret->priority = priority;
-        }
-    }
+    if (ret->priority > MAX_RULE_PRIORITY || ret->priority < MIN_RULE_PRIORITY)
+        ret->priority = MAX_RULE_PRIORITY / 2;
 
     if (statematch &&
         (STREQ(statematch, "0") || STRCASEEQ(statematch, "false")))
         ret->flags |= RULE_FLAG_NO_STATEMATCH;
 
-    cur = node->children;
+    nattrNodes = virXMLNodeGetSubelementList(node, NULL, &attrNodes);
 
-    found = false;
+    if (nattrNodes > 0) {
+        size_t i;
+        size_t attr = 0;
 
-    while (cur != NULL) {
-        if (cur->type == XML_ELEMENT_NODE) {
-            size_t i = 0;
-            while (1) {
-                if (found)
-                    i = found_i;
-
-                if (virXMLNodeNameEqual(cur, virAttr[i].id)) {
-
-                    found_i = i;
-                    found = true;
-                    ret->prtclType = virAttr[i].prtclType;
-
-                    if (virNWFilterRuleDetailsParse(cur,
-                                                    ret,
-                                                    virAttr[i].att) < 0) {
-                        return NULL;
-                    }
-                    if (virNWFilterRuleValidate(ret) < 0)
-                        return NULL;
+        /* First we look up the type of the first valid element. The rest of
+         * the parsing then only considers elements with same name. */
+        for (i = 0; i < nattrNodes; i++) {
+            for (attr = 0; virAttr[attr].id; attr++) {
+                if (virXMLNodeNameEqual(attrNodes[i], virAttr[attr].id)) {
+                    ret->prtclType = virAttr[attr].prtclType;
                     break;
                 }
-                if (!found) {
-                    i++;
-                    if (!virAttr[i].id)
-                        break;
-                } else {
-                   break;
-                }
             }
+
+            /* if we've found the first correct element end the search */
+            if (virAttr[attr].id)
+                break;
         }
 
-        cur = cur->next;
+        /* parse the correct subelements now */
+        for (i = 0; i < nattrNodes; i++) {
+            /* no valid elements */
+            if (!virAttr[attr].id)
+                break;
+
+            if (!virXMLNodeNameEqual(attrNodes[i], virAttr[attr].id))
+                continue;
+
+            if (virNWFilterRuleDetailsParse(attrNodes[i], ret, virAttr[attr].att) < 0)
+                return NULL;
+        }
+
+        if (virNWFilterRuleValidate(ret) < 0)
+            return NULL;
     }
 
     virNWFilterRuleDefFixup(ret);
@@ -2734,186 +2689,154 @@ static void
 virNWFilterRuleDefDetailsFormat(virBuffer *buf,
                                 const char *type,
                                 const virXMLAttr2Struct *att,
-                                virNWFilterRuleDef *def)
+                                virNWFilterRuleDef *def,
+                                bool negative,
+                                bool *hasAttrs)
 {
-    size_t i = 0, j;
-    bool typeShown = false;
-    bool neverShown = true;
-    bool asHex;
-    enum match {
-        MATCH_NONE = 0,
-        MATCH_YES,
-        MATCH_NO
-    } matchShown = MATCH_NONE;
-    nwItemDesc *item;
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    bool present = false;
+    size_t i;
+    size_t j;
 
-    while (att[i].name) {
-        virNWFilterEntryItemFlags flags;
+    if (negative)
+        virBufferAddLit(&attrBuf, " match='no'");
+
+    for (i = 0; att[i].name; i++) {
+        nwItemDesc *item;
 
         VIR_WARNINGS_NO_CAST_ALIGN
         item = (nwItemDesc *)((char *)def + att[i].dataIdx);
         VIR_WARNINGS_RESET
 
-        flags = item->flags;
-        if ((flags & NWFILTER_ENTRY_ITEM_FLAG_EXISTS)) {
-            if (!typeShown) {
-                virBufferAsprintf(buf, "<%s", type);
-                typeShown = true;
-                neverShown = false;
+        if (!(item->flags & NWFILTER_ENTRY_ITEM_FLAG_EXISTS))
+            continue;
+
+        if (negative != !!(item->flags & NWFILTER_ENTRY_ITEM_FLAG_IS_NEG))
+            continue;
+
+        present = true;
+        *hasAttrs = true;
+
+        virBufferAsprintf(&attrBuf, " %s='", att[i].name);
+
+        if (att[i].formatter && !(item->flags & NWFILTER_ENTRY_ITEM_FLAG_HAS_VAR)) {
+            if (!att[i].formatter(&attrBuf, def, item)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR,
+                               _("formatter for %1$s %2$s reported error"),
+                               type, att[i].name);
+                return;
             }
+        } else if ((item->flags & NWFILTER_ENTRY_ITEM_FLAG_HAS_VAR)) {
+            virBufferAddChar(&attrBuf, '$');
+            virNWFilterVarAccessPrint(item->varAccess, &attrBuf);
+        } else {
 
-            if ((flags & NWFILTER_ENTRY_ITEM_FLAG_IS_NEG)) {
-                if (matchShown == MATCH_NONE) {
-                    virBufferAddLit(buf, " match='no'");
-                    matchShown = MATCH_NO;
-                } else if (matchShown == MATCH_YES) {
-                    virBufferAddLit(buf, "/>\n");
-                    typeShown = false;
-                    matchShown = MATCH_NONE;
-                    continue;
-                }
-            } else {
-                if (matchShown == MATCH_NO) {
-                    virBufferAddLit(buf, "/>\n");
-                    typeShown = false;
-                    matchShown = MATCH_NONE;
-                    continue;
-                }
-                matchShown = MATCH_YES;
+            switch (item->datatype) {
+
+            case DATATYPE_UINT8_HEX:
+                virBufferAsprintf(&attrBuf, "0x%x", item->u.u8);
+                break;
+
+            case DATATYPE_IPMASK:
+            case DATATYPE_IPV6MASK:
+                /* display all masks in CIDR format */
+            case DATATYPE_UINT8:
+                virBufferAsprintf(&attrBuf, "%d", item->u.u8);
+                break;
+
+            case DATATYPE_UINT16_HEX:
+                virBufferAsprintf(&attrBuf, "0x%x", item->u.u16);
+                break;
+
+            case DATATYPE_UINT16:
+                virBufferAsprintf(&attrBuf, "%d", item->u.u16);
+                break;
+
+            case DATATYPE_UINT32_HEX:
+                virBufferAsprintf(&attrBuf, "0x%x", item->u.u32);
+                break;
+
+            case DATATYPE_UINT32:
+                virBufferAsprintf(&attrBuf, "%u", item->u.u32);
+                break;
+
+            case DATATYPE_IPADDR:
+            case DATATYPE_IPV6ADDR:
+                virNWIPAddressFormat(&attrBuf, &item->u.ipaddr);
+                break;
+
+            case DATATYPE_MACMASK:
+            case DATATYPE_MACADDR:
+                for (j = 0; j < 6; j++)
+                    virBufferAsprintf(&attrBuf, "%02x%s",
+                                      item->u.macaddr.addr[j],
+                                      (j < 5) ? ":" : "");
+                break;
+
+            case DATATYPE_STRINGCOPY:
+                virBufferEscapeString(&attrBuf, "%s", item->u.string);
+                break;
+
+            case DATATYPE_BOOLEAN:
+                if (item->u.boolean)
+                    virBufferAddLit(&attrBuf, "true");
+                else
+                    virBufferAddLit(&attrBuf, "false");
+                break;
+
+            case DATATYPE_IPSETNAME:
+            case DATATYPE_IPSETFLAGS:
+            case DATATYPE_STRING:
+            case DATATYPE_LAST:
+            default:
+                virBufferAsprintf(&attrBuf,
+                                  "UNSUPPORTED DATATYPE 0x%02x\n",
+                                  att[i].datatype);
             }
-
-            virBufferAsprintf(buf, " %s='",
-                              att[i].name);
-            if (att[i].formatter && !(flags & NWFILTER_ENTRY_ITEM_FLAG_HAS_VAR)) {
-               if (!att[i].formatter(buf, def, item)) {
-                  virReportError(VIR_ERR_INTERNAL_ERROR,
-                                 _("formatter for %1$s %2$s reported error"),
-                                 type,
-                                 att[i].name);
-                   return;
-               }
-            } else if ((flags & NWFILTER_ENTRY_ITEM_FLAG_HAS_VAR)) {
-                virBufferAddChar(buf, '$');
-                virNWFilterVarAccessPrint(item->varAccess, buf);
-            } else {
-               asHex = false;
-
-               switch (item->datatype) {
-
-               case DATATYPE_UINT8_HEX:
-                   asHex = true;
-                   G_GNUC_FALLTHROUGH;
-               case DATATYPE_IPMASK:
-               case DATATYPE_IPV6MASK:
-                   /* display all masks in CIDR format */
-               case DATATYPE_UINT8:
-                   virBufferAsprintf(buf, asHex ? "0x%x" : "%d",
-                                     item->u.u8);
-               break;
-
-               case DATATYPE_UINT16_HEX:
-                   asHex = true;
-                   G_GNUC_FALLTHROUGH;
-               case DATATYPE_UINT16:
-                   virBufferAsprintf(buf, asHex ? "0x%x" : "%d",
-                                     item->u.u16);
-               break;
-
-               case DATATYPE_UINT32_HEX:
-                   asHex = true;
-                   G_GNUC_FALLTHROUGH;
-               case DATATYPE_UINT32:
-                   virBufferAsprintf(buf, asHex ? "0x%x" : "%u",
-                                     item->u.u32);
-               break;
-
-               case DATATYPE_IPADDR:
-               case DATATYPE_IPV6ADDR:
-                   virNWIPAddressFormat(buf,
-                                        &item->u.ipaddr);
-               break;
-
-               case DATATYPE_MACMASK:
-               case DATATYPE_MACADDR:
-                   for (j = 0; j < 6; j++)
-                       virBufferAsprintf(buf, "%02x%s",
-                                         item->u.macaddr.addr[j],
-                                         (j < 5) ? ":" : "");
-               break;
-
-               case DATATYPE_STRINGCOPY:
-                   virBufferEscapeString(buf, "%s", item->u.string);
-               break;
-
-               case DATATYPE_BOOLEAN:
-                   if (item->u.boolean)
-                       virBufferAddLit(buf, "true");
-                   else
-                       virBufferAddLit(buf, "false");
-               break;
-
-               case DATATYPE_IPSETNAME:
-               case DATATYPE_IPSETFLAGS:
-               case DATATYPE_STRING:
-               case DATATYPE_LAST:
-               default:
-                   virBufferAsprintf(buf,
-                                     "UNSUPPORTED DATATYPE 0x%02x\n",
-                                     att[i].datatype);
-               }
-            }
-            virBufferAddLit(buf, "'");
         }
-        i++;
+
+        virBufferAddLit(&attrBuf, "'");
     }
-    if (typeShown)
-       virBufferAddLit(buf, "/>\n");
 
-    if (neverShown)
-       virBufferAsprintf(buf,
-                         "<%s/>\n", type);
+    if (!present)
+        return;
 
-    return;
+    virXMLFormatElement(buf, type, &attrBuf, NULL);
 }
 
 
-static int
+static void
 virNWFilterRuleDefFormat(virBuffer *buf,
                          virNWFilterRuleDef *def)
 {
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
     size_t i;
-    bool subelement = false;
 
-    virBufferAsprintf(buf, "<rule action='%s' direction='%s' priority='%d'",
+    virBufferAsprintf(&attrBuf, " action='%s' direction='%s' priority='%d'",
                       virNWFilterRuleActionTypeToString(def->action),
                       virNWFilterRuleDirectionTypeToString(def->tt),
                       def->priority);
 
     if ((def->flags & RULE_FLAG_NO_STATEMATCH))
-        virBufferAddLit(buf, " statematch='false'");
+        virBufferAddLit(&attrBuf, " statematch='false'");
 
-    virBufferAdjustIndent(buf, 2);
-    i = 0;
-    while (virAttr[i].id) {
-        if (virAttr[i].prtclType == def->prtclType) {
-            if (!subelement)
-                virBufferAddLit(buf, ">\n");
-            virNWFilterRuleDefDetailsFormat(buf,
-                                            virAttr[i].id,
-                                            virAttr[i].att,
-                                            def);
-            subelement = true;
-            break;
-        }
-        i++;
+    for (i = 0; virAttr[i].id; i++) {
+        bool hasAttrs = false;
+
+        if (virAttr[i].prtclType != def->prtclType)
+            continue;
+
+        virNWFilterRuleDefDetailsFormat(&childBuf, virAttr[i].id, virAttr[i].att, def, false, &hasAttrs);
+        virNWFilterRuleDefDetailsFormat(&childBuf, virAttr[i].id, virAttr[i].att, def, true, &hasAttrs);
+
+        if (!hasAttrs)
+            virBufferAsprintf(&childBuf, "<%s/>\n", virAttr[i].id);
+
+        break;
     }
 
-    virBufferAdjustIndent(buf, -2);
-    if (subelement)
-        virBufferAddLit(buf, "</rule>\n");
-    else
-        virBufferAddLit(buf, "/>\n");
-    return 0;
+    virXMLFormatElement(buf, "rule", &attrBuf, &childBuf);
 }
 
 
@@ -2921,8 +2844,11 @@ static int
 virNWFilterEntryFormat(virBuffer *buf,
                        virNWFilterEntry *entry)
 {
-    if (entry->rule)
-        return virNWFilterRuleDefFormat(buf, entry->rule);
+    if (entry->rule) {
+        virNWFilterRuleDefFormat(buf, entry->rule);
+        return 0;
+    }
+
     return virNWFilterFormatParamAttributes(buf, entry->include->params,
                                             entry->include->filterref);
 }

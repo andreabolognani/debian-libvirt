@@ -17,13 +17,14 @@
 # Christian Kirbach <christian.kirbach@gmail.com>, 2021.
 # Tom Wieczorek <tom@bibbu.net>, 2022.
 # Ettore Atalan <atalanttore@googlemail.com>, 2022.
+# Malte Linke <malte.linke@outlook.com>, 2023.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-05-26 06:46+0000\n"
-"PO-Revision-Date: 2022-12-24 15:20+0000\n"
-"Last-Translator: Ettore Atalan <atalanttore@googlemail.com>\n"
+"POT-Creation-Date: 2023-06-27 11:10+0000\n"
+"PO-Revision-Date: 2023-06-09 13:20+0000\n"
+"Last-Translator: Malte Linke <malte.linke@outlook.com>\n"
 "Language-Team: German <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/de/>\n"
 "Language: de\n"
@@ -31,7 +32,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 4.15\n"
+"X-Generator: Weblate 4.17\n"
 
 msgid ""
 "\n"
@@ -83,7 +84,6 @@ msgstr ""
 "      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
 "\n"
 
-#, fuzzy
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -111,7 +111,7 @@ msgstr ""
 "      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -130,16 +130,16 @@ msgstr ""
 "  Standard Pfade:\n"
 "\n"
 "    Konfigurationsdatei (sofern nicht mit -f überschrieben):\n"
-"      $XDG_CONFIG_HOME/libvirt/virtlockd.conf\n"
+"      %1$s/libvirt/virtlockd.conf\n"
 "\n"
 "    Sockets:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd-sock\n"
+"      %2$s/libvirt/virtlockd-sock\n"
 "\n"
 "    PID Datei:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
+"      %3$s/libvirt/virtlockd.pid\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -158,13 +158,13 @@ msgstr ""
 "  Standard Pfade:\n"
 "\n"
 "    Konfigurationsdatei (sofern nicht mit -f überschrieben):\n"
-"      $XDG_CONFIG_HOME/libvirt/virtlockd.conf\n"
+"      %1$s/libvirt/virtlockd.conf\n"
 "\n"
 "    Sockets:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd-sock\n"
+"      %2$s/libvirt/virtlockd-sock\n"
 "\n"
 "    PID Datei:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
+"      %3$s/libvirt/virtlockd.pid\n"
 "\n"
 
 msgid ""
@@ -263,18 +263,24 @@ msgid ""
 "\n"
 "Domain '%1$s' dumped to %2$s\n"
 msgstr ""
+"\n"
+"Domäne '%1$s' nach %2$s gedumpt\n"
 
 #, c-format
 msgid ""
 "\n"
 "Domain '%1$s' saved to %2$s\n"
 msgstr ""
+"\n"
+"Domäne '%1$s' gespeichert unter %2$s\n"
 
 #, c-format
 msgid ""
 "\n"
 "Domain '%1$s' state saved by libvirt\n"
 msgstr ""
+"\n"
+"Domänenstatus '%1$s' von libvirt gespeichert\n"
 
 #, c-format
 msgid ""
@@ -358,9 +364,7 @@ msgstr " %1$s (Hilfe Stichwort '%2$s')\n"
 
 #, c-format
 msgid " %1$s (help keyword '%2$s'):\n"
-msgstr ""
-" %1$s (Hilfe Stichwort '%2$s'):\n"
-"\n"
+msgstr " %1$s (Hilfe Stichwort '%2$s'):\n"
 
 msgid " Hypervisors:"
 msgstr " Hypervisors:"
@@ -395,7 +399,7 @@ msgstr ""
 
 #, c-format
 msgid "$%1$s value should be between 0 and %2$d"
-msgstr ""
+msgstr "%1$s Wert sollte zwischen 0 und %2$d liegen"
 
 #, c-format
 msgid "%1$6s: Checking %2$-60s: "
@@ -426,7 +430,7 @@ msgstr ""
 
 #, c-format
 msgid "%1$s (out of %2$d)"
-msgstr ""
+msgstr "%1$s (von %2$d)"
 
 #, c-format
 msgid "%1$s can't be empty"
@@ -492,13 +496,13 @@ msgstr "%1$s hat unerwarteten '*' vor letzter Zeile"
 msgid "%1$s in %2$s must be NULL"
 msgstr "%1$s in %2$s muss NULL sein"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s in %2$s must be greater than zero"
-msgstr "%1$s in %2$s muss Null oder größer sein"
+msgstr "%1$s in %2$s muss größer als Null sein"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s in %2$s must be zero"
-msgstr "%1$s in %2$s darf nicht Null sein"
+msgstr "%1$s in %2$s muss Null sein"
 
 #, c-format
 msgid "%1$s in %2$s must be zero or greater"
@@ -516,13 +520,13 @@ msgstr "%1$s in %2$s darf nicht Null sein"
 msgid "%1$s is missing 'type' property"
 msgstr "%1$s fehlt die 'type' Eigenschaft"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s is not an executable"
-msgstr "QEMU Programmdatei %1$s ist nicht ausführbar"
+msgstr "%1$s ist keine ausführbare Datei"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s is not supported by this QEMU binary"
-msgstr "discard wird von dieser QEMU-Programmdatei nicht unterstützt"
+msgstr "%1$s in dieser QEMU-Binärdatei nicht unterstützt"
 
 #, c-format
 msgid "%1$s length greater than maximum: %2$d > %3$d"
@@ -566,9 +570,9 @@ msgstr ""
 msgid "%1$s namespace is not available"
 msgstr "System ist nicht verfügbar"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s not found in %2$s"
-msgstr "Platte %s nicht gefunden"
+msgstr "%1$s wurde nicht in %2$s gefunden"
 
 #, c-format
 msgid "%1$s not implemented on Win32"
@@ -594,17 +598,17 @@ msgstr "%1$s Objekt hat ungültigen dynamischen Typ"
 msgid "%1$s object is missing the required '%2$s' property"
 msgstr "Dem %1$s Objekt fehlt die erforderliche '%2$s' Eigenschaft"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s reply data was missing 'model'"
-msgstr "qom-list Antwort-Daten fehlt 'name'"
+msgstr "%1$s Antwortdaten fehlten 'model'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s reply data was missing 'name'"
-msgstr "qom-list Antwort-Daten fehlt 'name'"
+msgstr "%1$s Antwortdaten fehlten 'name'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s reply data was missing 'props'"
-msgstr "qom-list Antwort-Daten fehlt 'name'"
+msgstr "%1$s Antwortdaten fehlten 'props'"
 
 #, c-format
 msgid ""
@@ -638,31 +642,25 @@ msgstr "%1$s: %2$s"
 msgid "%1$s: %2$s: unsupported auth %3$s"
 msgstr "Nicht unterstützte Funktion %s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: '%2$s' does not exist"
-msgstr "'%s' existiert nicht"
+msgstr "%1$s: '%2$s' existiert nicht"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Address '%2$s' in route definition is not a network address"
-msgstr "Fehlende IP-Addresse in statischer Host-Definition für Netzwerk »%s«"
+msgstr "%1$s: Adresse '%2$s' in der Routendefinition ist keine Netzwerkadresse"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Bad gateway address '%2$s' in route definition"
-msgstr ""
-"Netzwerk '%s' hat eine ungültige Netzmaske oder IP-Adresse in der Route-"
-"Definition"
+msgstr "%1$s: Ungültige Gateway-Adresse '%2$s' in der Route-Definition"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Bad netmask address '%2$s' in route definition"
-msgstr ""
-"Netzwerk '%s' hat eine ungültige Netzmaske oder IP-Adresse in der Route-"
-"Definition"
+msgstr "%1$s: Ungültige Netzmaske '%2$s' in der Route-Definition"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s: Bad network address '%2$s' in route definition"
-msgstr ""
-"Netzwerk '%s' hat eine ungültige Netzmaske oder IP-Adresse in der Route-"
-"Definition"
+msgstr "%1$s: Ungültige Netzwerkadresse '%2$s' in der Route-Definition"
 
 #, c-format
 msgid "%1$s: Cannot request read and write flags together"
@@ -684,7 +682,7 @@ msgstr ""
 
 #, c-format
 msgid "%1$s: File '%2$s' is too large\n"
-msgstr ""
+msgstr "%1$s: Die Datei '%2$s' ist zu groß\n"
 
 #, fuzzy, c-format
 msgid ""
@@ -1146,15 +1144,21 @@ msgid ""
 "type instead"
 msgstr ""
 
+msgid "'discard_no_unref' is not compatible with read-only disk"
+msgstr ""
+
+msgid "'discard_no_unref' is not supported by this QEMU binary"
+msgstr ""
+
+msgid "'discard_no_unref' only works with qcow2 disk format"
+msgstr ""
+
 msgid "'disk' missing or not an array in reply of guest-get-fsinfo"
 msgstr ""
 
 #, c-format
 msgid "'extended_l2' not supported with compat level %1$s"
 msgstr ""
-
-msgid "'floor' attribute allowed only in <inbound> element"
-msgstr "'floor'-Attribut nur im <inbound> Element erlaubt"
 
 #, fuzzy
 msgid "'gluster' command line tool not found"
@@ -1570,6 +1574,9 @@ msgstr ""
 "%3$s übereinstimmen"
 
 msgid "<hostdev> attribute 'display' is only supported with model='vfio-pci'"
+msgstr ""
+
+msgid "<iotune> is not supported with bus='sd'"
 msgstr ""
 
 msgid "<reservations/> allowed only for lun devices"
@@ -3320,6 +3327,10 @@ msgid "Cannot specify a label if relabelling is turned off. model=%1$s"
 msgstr ""
 "Label kann nicht angegeben werden wenn Neuetikettierung ausgeschaltet ist. "
 "model=%1$s"
+
+#, c-format
+msgid "Cannot specify relabel if label is missing. model=%1$s"
+msgstr ""
 
 #, c-format
 msgid "Cannot stat %1$s"
@@ -5429,6 +5440,9 @@ msgstr "Platten erfolgreich abgehängt\n"
 #, c-format
 msgid "Disk device '%1$s' does not support snapshotting"
 msgstr "Laufwerkgerät »%1$s« unterstützt keine Snapshot-Erstellung"
+
+msgid "Disk discard_no_unref is not supported by vz driver."
+msgstr ""
 
 #, c-format
 msgid "Disk iothread '%1$u' not defined in iothreadid"
@@ -12935,12 +12949,6 @@ msgstr "Nur ein Argument von --table, --name und --uuid kann angegeben werden."
 msgid "Only one boot device is supported"
 msgstr "Nur eine Primär-Video-Einheit wird unterstützt"
 
-msgid "Only one child <inbound> element allowed"
-msgstr "Nur ein untergeordnetes <inbound> Element erlaubt"
-
-msgid "Only one child <outbound> element allowed"
-msgstr "Nur ein untergeordnetes <outbound> Element erlaubt"
-
 msgid ""
 "Only one compression method could be specified with parallel compression"
 msgstr ""
@@ -15958,6 +15966,12 @@ msgstr "Ziel-CPU Modell %1$s stimmt nicht mit der Quelle %2$s überein"
 msgid "Target maximum memory size '%1$llu' doesn't match source '%2$llu'"
 msgstr ""
 "Ziel Domain maximaler Speicher %lld stimmt nicht mit der Quelle %lld überein"
+
+#, c-format
+msgid ""
+"Target memory device address '0x%1$llx' doesn't match source memory device "
+"address '0x%2$llx'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Target memory device alias '%1$s' doesn't match source alias '%2$s'"
@@ -20505,9 +20519,6 @@ msgid ""
 "available, and it cannot be automatically added"
 msgstr ""
 
-msgid "a block I/O throttling is not supported for vhostuser disk"
-msgstr ""
-
 #, fuzzy
 msgid "a device with the same address already exists "
 msgstr "Einheit %s existiert bereits"
@@ -21201,6 +21212,10 @@ msgid "block I/O throttle limit value must be no more than %1$llu"
 msgstr ""
 
 #, c-format
+msgid "block I/O throttling is not supported for disk '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "block commit failed while deleting disk '%1$s' snapshot: '%2$s'"
 msgstr ""
 
@@ -21366,9 +21381,6 @@ msgstr ""
 #, fuzzy
 msgid "both interface name and type must not be NULL"
 msgstr "Argument virt_type darf nicht NULL sein"
-
-msgid "both maximum memory size and memory slot count must be specified"
-msgstr ""
 
 #, c-format
 msgid "bridge %1$s doesn't exist"
@@ -23792,22 +23804,6 @@ msgstr "Verbindung mit Xen-Store schlug fehl"
 msgid "could not connect to Xen Store %1$s"
 msgstr "Verbindung mit Xen-Store %1$s schlug fehl"
 
-#, c-format
-msgid "could not convert bandwidth average value '%1$s'"
-msgstr "Konnte Bandbreiten Durchschnitts-Wert '%1$s' nicht konvertieren"
-
-#, c-format
-msgid "could not convert bandwidth burst value '%1$s'"
-msgstr "Konnte Bandbreiten Burst-Wert '%1$s' nicht konvertieren"
-
-#, c-format
-msgid "could not convert bandwidth floor value '%1$s'"
-msgstr "Konnte Bandbreiten Untergrenzen-Wert '%1$s' nicht konvertieren"
-
-#, c-format
-msgid "could not convert bandwidth peak value '%1$s'"
-msgstr "Konnte Bandbreiten Spitzen-Wert '%1$s' nicht konvertieren"
-
 msgid "could not create profile"
 msgstr "Profil konnte nicht erstellt werden"
 
@@ -24152,6 +24148,12 @@ msgstr ""
 #, c-format
 msgid "couldn't write dnsmasq config file '%1$s'"
 msgstr "konnte dnsmasq Konfigurationsdatei '%1$s' nicht schreiben"
+
+#, c-format
+msgid ""
+"count of memory devices requiring memory slots '%1$zu' exceeds slots count "
+"'%2$u'"
+msgstr ""
 
 msgid "cow feature may only be used for 'fs' and 'dir' pools"
 msgstr ""
@@ -28935,9 +28937,6 @@ msgstr ""
 msgid "invalid argument"
 msgstr "Ungültiges Argument"
 
-msgid "invalid argument supplied"
-msgstr "Ungültiges Argument angegeben"
-
 #, c-format
 msgid "invalid argument: %1$s"
 msgstr "Ungültiges Argument: %1$s"
@@ -30410,6 +30409,9 @@ msgstr ""
 msgid "malformed/missing memaddr in sgx-epc memory info"
 msgstr ""
 
+msgid "malformed/missing memaddr in virtio memory info"
+msgstr ""
+
 msgid "malformed/missing size in sgx-epc memory info"
 msgstr ""
 
@@ -30484,6 +30486,10 @@ msgstr ""
 
 msgid ""
 "maximum memory size must be equal or greater than the actual memory size"
+msgstr ""
+
+msgid ""
+"maximum memory size must be specified when specifying number of memory slots"
 msgstr ""
 
 #, fuzzy
@@ -30575,6 +30581,9 @@ msgstr "Speicher Attribute: [file=]Name[,snapshot=Typ]"
 msgid "memory device address is not supported for model '%1$s'"
 msgstr ""
 
+msgid "memory device address must be aligned to blocksize"
+msgstr ""
+
 msgid "memory device alias"
 msgstr ""
 
@@ -30585,10 +30594,6 @@ msgstr "PCI Einheit %s kann nicht zugeordnet werden"
 #, c-format
 msgid ""
 "memory device base '0x%1$llx' is already being used by another memory device"
-msgstr ""
-
-#, c-format
-msgid "memory device count '%1$u' exceeds slots count '%2$u'"
 msgstr ""
 
 #, c-format
@@ -35129,12 +35134,6 @@ msgstr ""
 msgid "rotation rate is only valid for disk device"
 msgstr ""
 
-msgid "rule node requires action attribute"
-msgstr "Regel-Knoten benötigt Aktions-Attribut"
-
-msgid "rule node requires direction attribute"
-msgstr "Regel-Knoten benötigt Richtungs-Attribut"
-
 msgid ""
 "run action specified by --timeout-* option (suspend by default) if live "
 "migration exceeds timeout (in seconds)"
@@ -38454,12 +38453,6 @@ msgstr "Fehlender redirdev Zeichen Einheit Typ '%1$s'"
 msgid "unknown rng-random backend"
 msgstr ""
 
-msgid "unknown rule action attribute value"
-msgstr "unbekannter Regel-Aktions Attributwert"
-
-msgid "unknown rule direction attribute value"
-msgstr "unbekannter Regel-Richtungs Attributwert"
-
 #, fuzzy, c-format
 msgid "unknown secret type '%1$s'"
 msgstr "Unbekannter Einheiten Typ '%1$s'"
@@ -38962,6 +38955,9 @@ msgstr "Nicht unterstützte Funktion %s"
 #, fuzzy, c-format
 msgid "unsupported storage pool event ID %1$d"
 msgstr "Nicht unterstützte Ereignis-ID %1$d"
+
+msgid "unsupported storage type for this code path"
+msgstr ""
 
 #, c-format
 msgid "unsupported timer type (name) '%1$s'"
@@ -40057,7 +40053,7 @@ msgid "xsd:dateTime value '%1$s' has unexpected format"
 msgstr "xsd:dateTime Wert '%1$s' hat unerwartetes Format"
 
 msgid "y - yes, start editor again"
-msgstr "y - ja, starten Editor wieder"
+msgstr "y - ja, Editor erneut starten"
 
 msgid "yes"
 msgstr "ja"
@@ -40076,6 +40072,46 @@ msgstr ""
 #, c-format
 msgid "{[--%1$s] <string>}..."
 msgstr "{[--%1$s] <string>}..."
+
+#~ msgid "'floor' attribute allowed only in <inbound> element"
+#~ msgstr "'floor'-Attribut nur im <inbound> Element erlaubt"
+
+#~ msgid "Only one child <inbound> element allowed"
+#~ msgstr "Nur ein untergeordnetes <inbound> Element erlaubt"
+
+#~ msgid "Only one child <outbound> element allowed"
+#~ msgstr "Nur ein untergeordnetes <outbound> Element erlaubt"
+
+#, c-format
+#~ msgid "could not convert bandwidth average value '%1$s'"
+#~ msgstr "Konnte Bandbreiten Durchschnitts-Wert '%1$s' nicht konvertieren"
+
+#, c-format
+#~ msgid "could not convert bandwidth burst value '%1$s'"
+#~ msgstr "Konnte Bandbreiten Burst-Wert '%1$s' nicht konvertieren"
+
+#, c-format
+#~ msgid "could not convert bandwidth floor value '%1$s'"
+#~ msgstr "Konnte Bandbreiten Untergrenzen-Wert '%1$s' nicht konvertieren"
+
+#, c-format
+#~ msgid "could not convert bandwidth peak value '%1$s'"
+#~ msgstr "Konnte Bandbreiten Spitzen-Wert '%1$s' nicht konvertieren"
+
+#~ msgid "invalid argument supplied"
+#~ msgstr "Ungültiges Argument angegeben"
+
+#~ msgid "rule node requires action attribute"
+#~ msgstr "Regel-Knoten benötigt Aktions-Attribut"
+
+#~ msgid "rule node requires direction attribute"
+#~ msgstr "Regel-Knoten benötigt Richtungs-Attribut"
+
+#~ msgid "unknown rule action attribute value"
+#~ msgstr "unbekannter Regel-Aktions Attributwert"
+
+#~ msgid "unknown rule direction attribute value"
+#~ msgstr "unbekannter Regel-Richtungs Attributwert"
 
 #, fuzzy, c-format
 #~ msgid "DBus daemon %1$s didn't show up"

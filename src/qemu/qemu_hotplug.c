@@ -517,7 +517,7 @@ qemuDomainChangeMediaBlockdev(virDomainObj *vm,
     if (rc == 0 &&
         !virStorageSourceIsEmpty(newsrc) &&
         qemuDiskConfigBlkdeviotuneEnabled(disk)) {
-        rc = qemuMonitorSetBlockIoThrottle(priv->mon, NULL,
+        rc = qemuMonitorSetBlockIoThrottle(priv->mon,
                                            diskPriv->qomName,
                                            &disk->blkdeviotune);
     }
@@ -734,7 +734,7 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
         g_autoptr(GHashTable) blockinfo = NULL;
 
         if (qemuDiskConfigBlkdeviotuneEnabled(disk)) {
-            if (qemuMonitorSetBlockIoThrottle(priv->mon, NULL, diskPriv->qomName,
+            if (qemuMonitorSetBlockIoThrottle(priv->mon, diskPriv->qomName,
                                               &disk->blkdeviotune) < 0)
                 VIR_WARN("failed to set blkdeviotune for '%s' of '%s'", disk->dst, vm->def->name);
         }
@@ -2295,7 +2295,7 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
     if (qemuDomainAdjustMaxMemLock(vm) < 0)
         goto removedef;
 
-    if (qemuProcessSetupEmulator(vm, true) < 0)
+    if (qemuProcessSetupEmulator(vm) < 0)
         goto removedef;
     restoreemulatorcgroup = true;
 
@@ -2336,10 +2336,9 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
             VIR_WARN("Unable to remove memory device from /dev");
         if (releaseaddr)
             qemuDomainReleaseMemoryDeviceSlot(vm, mem);
+        if (restoreemulatorcgroup)
+            qemuProcessSetupEmulator(vm);
     }
-
-    if (restoreemulatorcgroup)
-        qemuProcessSetupEmulator(vm, false);
 
     virDomainMemoryDefFree(mem);
     return ret;
@@ -5392,21 +5391,27 @@ qemuDomainWaitForDeviceRemoval(virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     unsigned long long until;
-    int rc;
 
     if (virTimeMillisNow(&until) < 0)
         return 1;
     until += qemuDomainGetUnplugTimeout(vm);
 
-    while (priv->unplug.alias) {
-        if ((rc = virDomainObjWaitUntil(vm, until)) == 1)
-            return 0;
+    while (true) {
+        int rc;
 
-        if (rc < 0) {
-            VIR_WARN("Failed to wait on unplug condition for domain '%s' "
-                     "device '%s'", vm->def->name, priv->unplug.alias);
+        if ((rc = virDomainObjWaitUntil(vm, until)) < 0) {
+            VIR_WARN("Failed to wait on unplug condition for domain '%s' device '%s'",
+                     vm->def->name, priv->unplug.alias);
             return 1;
         }
+
+        /* unplug event for this device was received, check the status */
+        if (!priv->unplug.alias)
+            break;
+
+        /* timeout */
+        if (rc == 1)
+            return 0;
     }
 
     if (priv->unplug.status == QEMU_DOMAIN_UNPLUGGING_DEVICE_STATUS_GUEST_REJECTED) {

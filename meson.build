@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '9.4.0',
+  version: '9.5.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -871,8 +871,7 @@ endif
 
 # generic build dependencies
 
-# FIXME rewrite to use dependency()
-acl_dep = cc.find_library('acl', required: false)
+acl_dep = dependency('libacl', required: false)
 if acl_dep.found()
   conf.set('WITH_LIBACL', 1)
 endif
@@ -899,8 +898,7 @@ if not get_option('apparmor_profiles').disabled()
   endif
 endif
 
-# FIXME rewrite to use dependency() once we can use 2.4.48
-attr_dep = cc.find_library('attr', required: get_option('attr'))
+attr_dep = dependency('libattr', required: get_option('attr'))
 if attr_dep.found()
   conf.set('WITH_LIBATTR', 1)
 endif
@@ -1097,8 +1095,7 @@ else
   intl_dep = dependency('', required: false)
 endif
 
-# FIXME rewrite to use dependency() once we can use 2.0.14
-numactl_dep = cc.find_library('numa', required: get_option('numactl'))
+numactl_dep = dependency('numa', required: get_option('numactl'))
 if numactl_dep.found()
   conf.set('WITH_NUMACTL', 1)
   if cc.has_function('numa_set_preferred_many', dependencies: numactl_dep)
@@ -1178,6 +1175,8 @@ if not get_option('sanlock').disabled()
       conf.set('WITH_SANLOCK_STRERROR', 1)
     endif
   endif
+else
+  sanlock_dep = dependency('', required: false)
 endif
 
 sasl_version = '2.1.26'
@@ -2212,7 +2211,7 @@ libs_summary = {
   'libssh': libssh_dep.found(),
   'libssh2': libssh2_dep.found(),
   'libutil': libutil_dep.found(),
-  'netcf': conf.has('WITH_NETCF'),
+  'netcf': netcf_dep.found(),
   'NLS': have_gnu_gettext_tools,
   'numactl': numactl_dep.found(),
   'openwsman': openwsman_dep.found(),
@@ -2221,7 +2220,7 @@ libs_summary = {
   'polkit': conf.has('WITH_POLKIT'),
   'rbd': rbd_dep.found(),
   'readline': readline_dep.found(),
-  'sanlock': conf.has('WITH_SANLOCK'),
+  'sanlock': sanlock_dep.found(),
   'sasl': sasl_dep.found(),
   'selinux': selinux_dep.found(),
   'udev': udev_dep.found(),

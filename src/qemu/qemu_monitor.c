@@ -2973,31 +2973,27 @@ qemuMonitorJobComplete(qemuMonitor *mon,
 
 int
 qemuMonitorSetBlockIoThrottle(qemuMonitor *mon,
-                              const char *drivealias,
                               const char *qomid,
                               virDomainBlockIoTuneInfo *info)
 {
-    VIR_DEBUG("drivealias=%s, qomid=%s, info=%p",
-              NULLSTR(drivealias), NULLSTR(qomid), info);
+    VIR_DEBUG("qomid=%s, info=%p", NULLSTR(qomid), info);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONSetBlockIoThrottle(mon, drivealias, qomid, info);
+    return qemuMonitorJSONSetBlockIoThrottle(mon, qomid, info);
 }
 
 
 int
 qemuMonitorGetBlockIoThrottle(qemuMonitor *mon,
-                              const char *drivealias,
                               const char *qdevid,
                               virDomainBlockIoTuneInfo *reply)
 {
-    VIR_DEBUG("drivealias=%s, qdevid=%s, reply=%p",
-              NULLSTR(drivealias), NULLSTR(qdevid), reply);
+    VIR_DEBUG("qdevid=%s, reply=%p", NULLSTR(qdevid), reply);
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONGetBlockIoThrottle(mon, drivealias, qdevid, reply);
+    return qemuMonitorJSONGetBlockIoThrottle(mon, qdevid, reply);
 }
 
 

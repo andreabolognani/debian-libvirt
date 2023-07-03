@@ -921,6 +921,20 @@ virDomainDiskDefValidate(const virDomainDef *def,
         return -1;
     }
 
+    if (disk->discard_no_unref == VIR_TRISTATE_SWITCH_ON) {
+        if (disk->src->format != VIR_STORAGE_FILE_QCOW2) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'discard_no_unref' only works with qcow2 disk format"));
+            return -1;
+        }
+
+        if (disk->src->readonly) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'discard_no_unref' is not compatible with read-only disk"));
+            return -1;
+        }
+    }
+
     return 0;
 }
 
@@ -1736,33 +1750,6 @@ virDomainDefIOMMUValidate(const virDomainDef *def)
 
 
 static int
-virDomainDefFSValidate(const virDomainDef *def)
-{
-    size_t i;
-    g_autoptr(GHashTable) dsts = virHashNew(NULL);
-
-    for (i = 0; i < def->nfss; i++) {
-        const virDomainFSDef *fs = def->fss[i];
-
-        if (fs->fsdriver != VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
-            continue;
-
-        if (virHashHasEntry(dsts, fs->dst)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("filesystem target '%1$s' specified twice"),
-                           fs->dst);
-            return -1;
-        }
-
-        if (virHashAddEntry(dsts, fs->dst, (void *) 0x1) < 0)
-            return -1;
-    }
-
-    return 0;
-}
-
-
-static int
 virDomainDefValidateIOThreadsThreadPool(int thread_pool_min,
                                         int thread_pool_max)
 {
@@ -1854,9 +1841,6 @@ virDomainDefValidateInternal(const virDomainDef *def,
         return -1;
 
     if (virDomainNumaDefValidate(def->numa) < 0)
-        return -1;
-
-    if (virDomainDefFSValidate(def) < 0)
         return -1;
 
     if (virDomainDefValidateIOThreads(def) < 0)
@@ -2573,8 +2557,13 @@ virDomainShmemDefValidate(const virDomainShmemDef *shmem)
 }
 
 static int
-virDomainFSDefValidate(const virDomainFSDef *fs)
+virDomainFSDefValidate(const virDomainDef *def,
+                       const virDomainFSDef *fs)
 {
+    g_autoptr(GHashTable) dsts = virHashNew(NULL);
+    const virDomainFSDef *lookup;
+    size_t i;
+
     if (fs->dst == NULL) {
         const char *source = fs->src->path;
         if (!source)
@@ -2589,6 +2578,31 @@ virDomainFSDefValidate(const virDomainFSDef *fs)
         fs->fsdriver != VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("boot order is only supported for virtiofs"));
+        return -1;
+    }
+
+    for (i = 0; i < def->nfss; i++) {
+        const virDomainFSDef *iter = def->fss[i];
+
+        if (iter->fsdriver != VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS)
+            continue;
+
+        if (virHashHasEntry(dsts, iter->dst)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("filesystem target '%1$s' specified twice"),
+                           iter->dst);
+            return -1;
+        }
+
+        if (virHashAddEntry(dsts, iter->dst, (void *) iter) < 0)
+            return -1;
+    }
+
+    lookup = g_hash_table_lookup(dsts, fs->dst);
+    if (lookup && lookup != fs) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("filesystem target '%1$s' specified twice"),
+                       fs->dst);
         return -1;
     }
 
@@ -2885,7 +2899,7 @@ virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
         return virDomainShmemDefValidate(dev->data.shmem);
 
     case VIR_DOMAIN_DEVICE_FS:
-        return virDomainFSDefValidate(dev->data.fs);
+        return virDomainFSDefValidate(def, dev->data.fs);
 
     case VIR_DOMAIN_DEVICE_AUDIO:
         return virDomainAudioDefValidate(def, dev->data.audio);

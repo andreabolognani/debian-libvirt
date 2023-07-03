@@ -30,7 +30,7 @@ typedef int (*qemuMonitorTestResponseCallback)(qemuMonitorTest *test,
                                                qemuMonitorTestItem *item,
                                                const char *message);
 
-int
+void
 qemuMonitorTestAddHandler(qemuMonitorTest *test,
                           const char *identifier,
                           qemuMonitorTestResponseCallback cb,
@@ -73,20 +73,6 @@ qemuMonitorTestAddItemVerbatim(qemuMonitorTest *test,
 
 int
 qemuMonitorTestAddAgentSyncResponse(qemuMonitorTest *test);
-
-int
-qemuMonitorTestAddItemParams(qemuMonitorTest *test,
-                             const char *cmdname,
-                             const char *response,
-                             ...)
-    G_GNUC_NULL_TERMINATED;
-
-int
-qemuMonitorTestAddItemExpect(qemuMonitorTest *test,
-                             const char *cmdname,
-                             const char *cmdargs,
-                             bool apostrophe,
-                             const char *response);
 
 #define qemuMonitorTestNewSimple(xmlopt) \
     qemuMonitorTestNew(xmlopt, NULL, NULL, NULL)

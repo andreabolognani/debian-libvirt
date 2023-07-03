@@ -414,6 +414,7 @@ Patches have also been contributed by:
 * Jasper Lievisse Adriaanse <jasper@openbsd.org>
 * Jean-Baptiste Holcroft <jean-baptiste@holcroft.fr>
 * Jean-Baptiste Rouault <jean-baptiste.rouault@diateam.net>
+* Jean-Louis Dupond <jean-louis@dupond.be>
 * Jean-Marc Liger <jean-marc.liger@parisdescartes.fr>
 * Jens Petersen <petersen@redhat.com>
 * Jeremy Fitzhardinge <jeremy@goop.org>
@@ -525,6 +526,7 @@ Patches have also been contributed by:
 * MORITA Kazutaka <morita.kazutaka@lab.ntt.co.jp>
 * Maciej Wolny <maciej.wolny@codethink.co.uk>
 * Malina Salina <malina.salina@protonmail.com>
+* Malte Linke <malte.linke@outlook.com>
 * Manuel VIVES <manuel.vives@diateam.net>
 * Mao Zhongyi <maozhongyi@cmss.chinamobile.com>
 * Marc Hartmayer <mhartmay@linux.ibm.com>
@@ -619,6 +621,7 @@ Patches have also been contributed by:
 * Nicolas Brignone <nmbrignone@gmail.com>
 * Nicolas Lécureuil <neoclust@mageia.org>
 * Niels de Vos <ndevos@redhat.com>
+* Nikolai Barybin <nikolai.barybin@virtuozzo.com>
 * Nikolay Shirokovskiy <nshirokovskiy@openvz.org>
 * Nikolay Shirokovskiy <nshirokovskiy@virtuozzo.com>
 * Nikos Mavrogiannopoulos <nmav@redhat.com>
@@ -967,6 +970,7 @@ Patches have also been contributed by:
 * zhangjl02 <zhangjl02@inspur.com>
 * zhanglei <zhanglei@smartx.com>
 * zhenwei pi <pizhenwei@bytedance.com>
+* zuoboqun <zuoboqun@baidu.com>
 * Дамјан Георгиевски <gdamjan@gmail.com>
 * Марк Коренберг <socketpair@gmail.com>
 * 김인수 <simmon@nplob.com>
