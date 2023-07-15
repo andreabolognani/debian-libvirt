@@ -23,7 +23,7 @@ Build-Depends:
  libdevmapper-dev [linux-any],
  libfuse3-dev [linux-any],
  libglib2.0-dev,
- libglusterfs-dev [linux-any],
+ libglusterfs-dev [amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libgnutls28-dev,
  libiscsi-dev [linux-any],
  libnl-3-dev [linux-any],
@@ -256,7 +256,7 @@ Description: Virtualization daemon Xen connection driver
 
 Package: libvirt-daemon-driver-storage-gluster
 Section: admin
-Architecture: linux-any
+Architecture: amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),

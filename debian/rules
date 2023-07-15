@@ -17,6 +17,7 @@ DPKG_GENSYMBOLS_CHECK_LEVEL = 4
 export DPKG_GENSYMBOLS_CHECK_LEVEL
 
 ARCHES_CEPH = amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64el riscv64 s390x
+ARCHES_GLUSTER = amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 ARCHES_LXC  = alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 ARCHES_XEN  = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
@@ -41,7 +42,11 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     else
         WITH_STORAGE_RBD      = -Dstorage_rbd=disabled
     endif
-    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
+    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_GLUSTER)))
+        WITH_STORAGE_GLUSTER  = -Dstorage_gluster=enabled
+    else
+        WITH_STORAGE_GLUSTER  = -Dstorage_gluster=disabled
+    endif
     WITH_UDEV                 = -Dudev=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
