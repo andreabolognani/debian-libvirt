@@ -1,3 +1,10 @@
+libvirt (9.5.0-2) unstable; urgency=medium
+
+  [ Pino Toscano ]
+  * [2adb625] Enable the glusterfs storage driver only on 64bit architectures
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 25 Jul 2023 20:04:51 +0200
+
 libvirt (9.5.0-1) unstable; urgency=medium
 
   * [cd75481] New upstream version 9.5.0
