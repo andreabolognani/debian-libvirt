@@ -226,6 +226,7 @@ enum {
     VIR_FILE_SHFS_QB = (1 << 8), /* Quobyte shared filesystem */
     VIR_FILE_SHFS_ACFS = (1 << 9), /* Oracle ASM Cluster File System */
     VIR_FILE_SHFS_GLUSTERFS = (1 << 10), /* gluster's FUSE-based client */
+    VIR_FILE_SHFS_BEEGFS = (1 << 11), /* BeeGFS/fhGFS */
 };
 
 int virFileIsSharedFSType(const char *path, unsigned int fstypes) ATTRIBUTE_NONNULL(1);
@@ -283,6 +284,9 @@ int virDirRead(DIR *dirp, struct dirent **ent, const char *dirname)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 void virDirClose(DIR *dirp);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DIR, virDirClose);
+int virDirIsEmpty(const char *path,
+                  bool hidden)
+    ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
 int virFileMakeParentPath(const char *path) G_GNUC_WARN_UNUSED_RESULT;
 

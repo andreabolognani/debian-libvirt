@@ -4807,6 +4807,60 @@ qemuDomainDefTsegPostParse(virDomainDef *def,
 }
 
 
+static int
+qemuDomainDefNumaAutoAdd(virDomainDef *def,
+                         unsigned int parseFlags)
+{
+    bool abiUpdate = !!(parseFlags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE);
+    unsigned long long nodeMem;
+    size_t i;
+
+    if (!abiUpdate ||
+        !virDomainDefHasMemoryHotplug(def) ||
+        virDomainNumaGetNodeCount(def->numa) > 0) {
+        return 0;
+    }
+
+    nodeMem = virDomainDefGetMemoryTotal(def);
+
+    if (!def->numa)
+        def->numa = virDomainNumaNew();
+
+    virDomainNumaSetNodeCount(def->numa, 1);
+
+    for (i = 0; i < def->nmems; i++) {
+        virDomainMemoryDef *mem = def->mems[i];
+
+        if (mem->size > nodeMem) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("Total size of memory devices exceeds the total memory size"));
+            return -1;
+        }
+
+        nodeMem -= mem->size;
+
+        switch (mem->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            if (mem->targetNode == -1)
+                mem->targetNode = 0;
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            break;
+        }
+    }
+
+    virDomainNumaSetNodeMemorySize(def->numa, 0, nodeMem);
+
+    return 0;
+}
+
+
 /**
  * qemuDomainDefNumaCPUsRectify:
  * @numa: pointer to numa definition
@@ -4841,8 +4895,12 @@ qemuDomainDefNumaCPUsRectify(virDomainDef *def,
 
 static int
 qemuDomainDefNumaCPUsPostParse(virDomainDef *def,
-                               virQEMUCaps *qemuCaps)
+                               virQEMUCaps *qemuCaps,
+                               unsigned int parseFlags)
 {
+    if (qemuDomainDefNumaAutoAdd(def, parseFlags) < 0)
+        return -1;
+
     return qemuDomainDefNumaCPUsRectify(def, qemuCaps);
 }
 
@@ -4914,7 +4972,7 @@ qemuDomainDefPostParse(virDomainDef *def,
     if (qemuDomainDefTsegPostParse(def, qemuCaps) < 0)
         return -1;
 
-    if (qemuDomainDefNumaCPUsPostParse(def, qemuCaps) < 0)
+    if (qemuDomainDefNumaCPUsPostParse(def, qemuCaps, parseFlags) < 0)
         return -1;
 
     return 0;
@@ -7841,8 +7899,10 @@ qemuDomainDetermineDiskChain(virQEMUDriver *driver,
         disksrc->format < VIR_STORAGE_FILE_BACKING) {
 
         /* terminate the chain for such images as the code below would do */
-        if (!disksrc->backingStore)
+        if (!disksrc->backingStore) {
             disksrc->backingStore = virStorageSourceNew();
+            disksrc->backingStore->detected = true;
+        }
 
         /* we assume that FD-passed disks always exist */
         if (virStorageSourceIsFD(disksrc))
@@ -9187,15 +9247,6 @@ qemuDomainDefValidateMemoryHotplugDevice(const virDomainMemoryDef *mem,
                            _("only 'dimm' addresses are supported for the "
                              "pc-dimm device"));
             return -1;
-        }
-
-        if (virDomainNumaGetNodeCount(def->numa) != 0) {
-            if (mem->targetNode == -1) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("target NUMA node needs to be specified for "
-                                 "memory device"));
-                return -1;
-            }
         }
 
         if (mem->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM) {

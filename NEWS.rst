@@ -8,6 +8,57 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.6.0 (2023-08-01)
+===================
+
+* **Security**
+
+  * ``CVE-2023-3750``: Fix race condition in storage driver leading to a crash
+
+   In **libvirt-8.3** a bug was introduced which in rare cases could cause
+   ``libvirtd`` or ``virtstoraged`` to crash if multiple clients attempted to
+   look up a storage volume by key, path or target path, while other clients
+   attempted to access something from the same storage pool.
+
+* **Improvements**
+
+  * apparmor: All profiles and abstractions now support local overrides
+
+    This has long been the case for the ``virt-aa-helper`` profile, but has
+    now been extended to all other profiles and abstractions. The mechanism
+    used is the standard AppArmor 3.x one, where the contents of ``foo`` and
+    ``abstractions/foo`` can be overridden by creating ``local/foo`` and
+    ``abstractions/foo.d`` respectively.
+
+  * qemu: Support ``removable`` attribute for scsi disk
+
+    Now the scsi disk device (``/disk@device='disk'`` and
+    ``/disk/target@bus='scsi'``) supports the ``removable`` attribute at
+    ``/disk/target@removable```.
+
+  * qemu: Add NUMA node automatically for memory hotplug
+
+    Users no longer need to specify guest NUMA node in the domain XML when
+    enabling memory hotplug, libvirt automatically adds one when it is missing.
+
+  * qemu: Consider ``BeeGFS`` as a shared filesystem
+
+    Allow migration with non-shared storage for VMs accessing storage via
+    ``BeeGFS``.
+
+* **Bug fixes**
+
+  * qemu: Adapt to new way of specifying PC speaker
+
+    PC speaker is now usable again with newer QEMU since the change of how it
+    is specified on the command line.
+
+  * qemu_tpm: Try harder to create emulator state
+
+    Libvirt no longer considers empty directory valid SWTPM state and setup is
+    now run properly in such case.
+
+
 v9.5.0 (2023-07-03)
 ===================
 
@@ -64,7 +115,6 @@ v9.5.0 (2023-07-03)
     to access all configured NUMA nodes of the VM rather than just the one where
     it's supposed to be pinned.
 
-
   * qemu: Fix setup of ``hostdev`` backed ``<interface>``
 
     The proper steps to initialize the host device were skipped for interfaces
@@ -79,6 +129,10 @@ v9.4.0 (2023-06-01)
   * qemu: Support compression for parallel migration
 
     QEMU supports parallel migration to be compressed using either zstd or zlib.
+
+  * cpu_map: Add SapphireRapids cpu model
+
+    This model is introduced since QEMU 8.0.
 
 * **Improvements**
 
@@ -200,6 +254,11 @@ v9.2.0 (2023-04-01)
     This type of firmware can be picked up either automatically, if the
     corresponding JSON descriptor has the highest priority, or manually by
     using ``<loader format='qcow2'/>`` in the domain XML.
+
+  * qemu: Implement QEMU NBD reconnect delay attribute
+
+    Support the nbd reconnect-delay of QEMU. It will set the delay time for
+    reconnect after an unexpected disconnect or a serious error.
 
 * **Improvements**
 
@@ -537,6 +596,7 @@ v8.10.0 (2022-12-01)
     Certain udev entries might be of a size that makes libudev emit EINVAL
     which caused a busy loop burning CPU. Fix it by ignoring the return code.
 
+
 v8.9.0 (2022-11-01)
 ===================
 
@@ -714,6 +774,7 @@ v8.6.0 (2022-08-01)
 
     The firmware autoselection feature now behaves more intuitively, reports
     better error messages on failure and comes with high-level documentation.
+
 
 v8.5.0 (2022-07-01)
 ===================

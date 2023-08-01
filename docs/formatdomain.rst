@@ -2000,6 +2000,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      <tcg>
        <tb-cache unit='MiB'>128</tb-cache>
      </tcg>
+     <async-teardown enabled='yes'/>
    </features>
    ...
 
@@ -2229,6 +2230,11 @@ are:
    =========== ============================================== =================================================== ==============
    tb-cache    The size of translation block cache size       an integer (a multiple of MiB)                      :since:`8.0.0`
    =========== ============================================== =================================================== ==============
+
+``async-teardown``
+   Depending on the ``enabled`` attribute (values ``yes``, ``no``) enable or
+   disable QEMU asynchronous teardown to improve memory reclaiming on a guest.
+   :since:`Since 9.6.0` (QEMU only)
 
 Time keeping
 ------------
@@ -3094,7 +3100,7 @@ paravirtualized driver is specified via the ``disk`` element.
    CDROM or Floppy disk), the value can be either "open" or "closed", defaults
    to "closed". NB, the value of ``tray`` could be updated while the domain is
    running. The optional attribute ``removable`` sets the removable flag for USB
-   disks, and its value can be either "on" or "off", defaulting to "off".
+   or SCSI disks, and its value can be either "on" or "off", defaulting to "off".
    The optional attribute ``rotation_rate`` sets the rotation rate of the
    storage for disks on a SCSI, IDE, or SATA bus. Values in the range 1025 to
    65534 are used to indicate rotational media speed in revolutions per minute.
@@ -3269,9 +3275,10 @@ paravirtualized driver is specified via the ``disk`` element.
       "virtio" ``bus`` and "pci" or "ccw" ``address`` types. :since:`Since 1.2.8
       (QEMU 2.1)`
    -  The optional ``queues`` attribute specifies the number of virt queues for
-      virtio-blk. ( :since:`Since 3.9.0` )
+      virtio-blk ( :since:`Since 3.9.0` ) or vhost-user-blk
+      ( :since `Since 7.1.0` )
    -  The optional ``queue_size`` attribute specifies the size of each virt
-      queue for virtio-blk. ( :since:`Since 7.8.0` )
+      queue for virtio-blk or vhost-user-blk. ( :since:`Since 7.8.0` )
    -  For virtio disks, `Virtio-related options`_ can also
       be set. ( :since:`Since 3.5.0` )
    -  The optional ``metadata_cache`` subelement controls aspects related to the
@@ -3289,7 +3296,8 @@ paravirtualized driver is specified via the ``disk`` element.
       image. When enabled, a discard request from within the guest will mark the
       qcow2 cluster as zero, but will keep the reference/offset of that cluster.
       But it will still pass the discard further to the lower layer.
-      This will resolve fragmentation within the qcow2 image. :since:`Since 9.5.0`
+      This will resolve fragmentation within the qcow2 image. :since:`Since 9.5.0
+      (QEMU 8.1)`
 
       In the majority of cases the default configuration used by the hypervisor
       is sufficient so modifying this setting should not be necessary. For

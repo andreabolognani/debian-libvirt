@@ -537,6 +537,7 @@ Patches have also been contributed by:
 * Marcos Paulo de Souza <marcos.souza.org@gmail.com>
 * Marek Marczykowski <marmarek@invisiblethingslab.com>
 * Marek Marczykowski-Górecki <marmarek@invisiblethingslab.com>
+* Mariam Low-Ghelaghutashvili <mariamlow@zusmail.xyz>
 * Marian Neagul <marian@info.uvt.ro>
 * Mark Asselstine <mark.asselstine@windriver.com>
 * Mark McLoughlin <markmc@redhat.com>
@@ -553,6 +554,7 @@ Patches have also been contributed by:
 * Masayoshi Mizuma <m.mizuma@jp.fujitsu.com>
 * Matej Cepl <mcepl@cepl.eu>
 * Matt Coleman <matt@datto.com>
+* Matt Low <matt@mlow.ca>
 * Matthew Booth <mbooth@redhat.com>
 * Matthew Rosato <mjrosato@linux.vnet.ibm.com>
 * Matthias Bolte <matthias.bolte@googlemail.com>
@@ -818,6 +820,7 @@ Patches have also been contributed by:
 * Thorsten Behrens <tbehrens@suse.com>
 * Tiago M. Vieira <tmv@redhat.com>
 * Tim Shearer <TShearer@adva.com>
+* Tim Small <tim@seoss.co.uk>
 * Tim Wiederhake <twiederh@redhat.com>
 * Tiziano Mueller <dev-zero@gentoo.org>
 * Tobin Feldman-Fitzthum <tobin@linux.vnet.ibm.com>

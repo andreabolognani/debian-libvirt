@@ -593,7 +593,7 @@ mymain(void)
     DO_TEST_NOCAPS("numad-static-vcpu-no-numatune");
 
     DO_TEST("disk-scsi-disk-vpd",
-            QEMU_CAPS_SCSI_LSI, QEMU_CAPS_VIRTIO_SCSI, QEMU_CAPS_SCSI_DISK_WWN);
+            QEMU_CAPS_SCSI_LSI, QEMU_CAPS_VIRTIO_SCSI);
     DO_TEST_NOCAPS("disk-source-pool");
     DO_TEST_NOCAPS("disk-source-pool-mode");
 
@@ -1240,6 +1240,12 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("cpu-phys-bits-limit");
     DO_TEST_CAPS_LATEST("cpu-phys-bits-emulate-bare");
+
+    DO_TEST_CAPS_LATEST("async-teardown");
+    DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown-no-attrib", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown-disabled", "s390x");
+    DO_TEST_CAPS_ARCH_VER("s390-async-teardown-disabled", "s390x", "6.0.0");
 
  cleanup:
     qemuTestDriverFree(&driver);

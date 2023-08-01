@@ -8,9 +8,8 @@
   <os supported='yes'>
     <enum name='firmware'/>
     <loader supported='yes'>
-      <value>/usr/share/AAVMF/AAVMF_CODE.fd</value>
-      <value>/usr/share/AAVMF/AAVMF32_CODE.fd</value>
-      <value>/usr/share/OVMF/OVMF_CODE.fd</value>
+      <value>/obviously/fake/firmware1.fd</value>
+      <value>/obviously/fake/firmware2.fd</value>
       <enum name='type'>
         <value>rom</value>
         <value>pflash</value>
@@ -38,7 +37,6 @@
     </mode>
     <mode name='host-model' supported='yes'>
       <model fallback='forbid'>gen15a-base</model>
-      <maxphysaddr mode='passthrough' limit='64'/>
       <feature policy='require' name='aen'/>
       <feature policy='require' name='cmmnt'/>
       <feature policy='require' name='vxpdeh'/>
@@ -271,6 +269,7 @@
     <genid supported='no'/>
     <backingStoreInput supported='yes'/>
     <backup supported='no'/>
+    <async-teardown supported='no'/>
     <s390-pv supported='yes'/>
     <sev supported='no'/>
     <sgx supported='no'/>

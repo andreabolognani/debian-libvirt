@@ -191,8 +191,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_USB_REDIR_FILTER, /* usb-redir.filter */
 
     /* 105 */
-    QEMU_CAPS_IDE_DRIVE_WWN, /* Is ide-drive.wwn available? */
-    QEMU_CAPS_SCSI_DISK_WWN, /* Is scsi-disk.wwn available? */
+    X_QEMU_CAPS_IDE_DRIVE_WWN, /* Is ide-drive.wwn available? */
+    X_QEMU_CAPS_SCSI_DISK_WWN, /* Is scsi-disk.wwn available? */
     QEMU_CAPS_SECCOMP_SANDBOX, /* -sandbox */
     X_QEMU_CAPS_REBOOT_TIMEOUT, /* -boot reboot-timeout */
     X_QEMU_CAPS_DUMP_GUEST_CORE, /* dump-guest-core-parameter */
@@ -258,7 +258,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_I440FX_PCI_HOLE64_SIZE, /* i440FX-pcihost.pci-hole64-size */
     X_QEMU_CAPS_Q35_PCI_HOLE64_SIZE, /* q35-pcihost.pci-hole64-size */
     QEMU_CAPS_DEVICE_USB_STORAGE, /* -device usb-storage */
-    QEMU_CAPS_USB_STORAGE_REMOVABLE, /* usb-storage.removable */
+    X_QEMU_CAPS_USB_STORAGE_REMOVABLE, /* usb-storage.removable */
 
     /* 155 */
     QEMU_CAPS_DEVICE_VIRTIO_MMIO, /* -device virtio-mmio */
@@ -673,6 +673,9 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_RBD_ENCRYPTION_LAYERING, /* layered encryption support for Ceph RBD */
     QEMU_CAPS_RBD_ENCRYPTION_LUKS_ANY, /* luks-any (LUKS and LUKS2) encryption format for Ceph RBD */
     QEMU_CAPS_QCOW2_DISCARD_NO_UNREF, /* qcow2 block driver allows discards without unrefing the sector */
+
+    /* 450 */
+    QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN, /* asynchronous teardown -run-with async-teardown=on|off */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;

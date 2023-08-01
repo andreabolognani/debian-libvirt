@@ -219,6 +219,15 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
             }
             break;
 
+        case VIR_DOMAIN_FEATURE_ASYNC_TEARDOWN:
+            if (def->features[i] == VIR_TRISTATE_BOOL_YES &&
+                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                              _("asynchronous teardown is not available with this QEMU binary"));
+                return -1;
+            }
+            break;
+
         case VIR_DOMAIN_FEATURE_SMM:
         case VIR_DOMAIN_FEATURE_KVM:
         case VIR_DOMAIN_FEATURE_XEN:
@@ -2589,6 +2598,7 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
 
 static int
 qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
+                                 const virDomainDef *def,
                                  virQEMUCaps *qemuCaps)
 {
     virDomainCapsDeviceVideo videoCaps = { 0 };
@@ -2705,11 +2715,18 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
     }
 
     if (video->type == VIR_DOMAIN_VIDEO_TYPE_VIRTIO) {
-        if (video->blob != VIR_TRISTATE_SWITCH_ABSENT &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_GPU_BLOB)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this QEMU does not support 'blob' for virtio-gpu devices"));
-            return -1;
+        if (video->blob != VIR_TRISTATE_SWITCH_ABSENT) {
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_GPU_BLOB)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("this QEMU does not support 'blob' for virtio-gpu devices"));
+                return -1;
+            }
+            if (video->blob == VIR_TRISTATE_SWITCH_ON
+                && def->mem.source != VIR_DOMAIN_MEMORY_SOURCE_MEMFD) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("'blob' support for virtio-gpu devices requires a memfd memory backend"));
+                return -1;
+            }
         }
     }
 
@@ -2843,38 +2860,12 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
                            _("Only ide and scsi disk support wwn"));
             return -1;
         }
-
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_IDE &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_IDE_DRIVE_WWN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Setting wwn for ide disk is not supported "
-                             "by this QEMU"));
-            return -1;
-        }
-
-        if (disk->bus != VIR_DOMAIN_DISK_BUS_SCSI &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_DISK_WWN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Setting wwn for scsi disk is not supported "
-                             "by this QEMU"));
-            return -1;
-        }
     }
 
     if (disk->vendor || disk->product) {
         if (disk->bus != VIR_DOMAIN_DISK_BUS_SCSI) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Only scsi disk supports vendor and product"));
-            return -1;
-        }
-
-        /* Properties wwn, vendor and product were introduced in the
-         * same QEMU release (1.2.0).
-         */
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_DISK_WWN)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Setting vendor or product for scsi disk is not "
-                             "supported by this QEMU"));
             return -1;
         }
     }
@@ -2994,14 +2985,6 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
             disk->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("unexpected address type for usb disk"));
-            return -1;
-        }
-
-        if (disk->removable != VIR_TRISTATE_SWITCH_ABSENT &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_USB_STORAGE_REMOVABLE)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support setting the "
-                             "removable flag of USB storage devices"));
             return -1;
         }
 
@@ -5208,7 +5191,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
                                                  qemuCaps);
 
     case VIR_DOMAIN_DEVICE_VIDEO:
-        return qemuValidateDomainDeviceDefVideo(dev->data.video, qemuCaps);
+        return qemuValidateDomainDeviceDefVideo(dev->data.video, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_DISK:
         return qemuValidateDomainDeviceDefDisk(dev->data.disk, def, qemuCaps);

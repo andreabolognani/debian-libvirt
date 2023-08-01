@@ -22,7 +22,9 @@
 #include <gio/gio.h>
 #include <libudev.h>
 #include <pciaccess.h>
-#include <scsi/scsi.h>
+#ifdef __linux__
+# include <scsi/scsi.h>
+#endif
 
 #include "node_device_conf.h"
 #include "node_device_event.h"
@@ -678,6 +680,8 @@ udevGetSCSIType(virNodeDeviceDef *def G_GNUC_UNUSED,
 
     *typestring = NULL;
 
+#ifdef __linux__
+    /* These values are Linux specific. */
     switch (type) {
     case TYPE_DISK:
         *typestring = g_strdup("disk");
@@ -714,6 +718,10 @@ udevGetSCSIType(virNodeDeviceDef *def G_GNUC_UNUSED,
         foundtype = 0;
         break;
     }
+#else
+    /* Implement me. */
+    foundtype = 0;
+#endif
 
     if (*typestring == NULL) {
         if (foundtype == 1) {
@@ -1443,6 +1451,9 @@ udevGetDeviceDetails(struct udev_device *device,
 }
 
 
+static void scheduleMdevctlUpdate(udevEventData *data, bool force);
+
+
 static int
 udevRemoveOneDeviceSysPath(const char *path)
 {
@@ -1475,8 +1486,7 @@ udevRemoveOneDeviceSysPath(const char *path)
     virNodeDeviceObjEndAPI(&obj);
 
     /* cannot check for mdev_types since they have already been removed */
-    if (nodeDeviceUpdateMediatedDevices() < 0)
-        VIR_WARN("mdevctl failed to update mediated devices");
+    scheduleMdevctlUpdate(driver->privateData, false);
 
     virObjectEventStateQueue(driver->nodeDeviceEventState, event);
     return 0;
@@ -1604,8 +1614,8 @@ udevAddOneDevice(struct udev_device *device)
     has_mdev_types = virNodeDeviceObjHasCap(obj, VIR_NODE_DEV_CAP_MDEV_TYPES);
     virNodeDeviceObjEndAPI(&obj);
 
-    if (has_mdev_types && nodeDeviceUpdateMediatedDevices() < 0)
-        VIR_WARN("mdevctl failed to update mediated devices");
+    if (has_mdev_types)
+        scheduleMdevctlUpdate(driver->privateData, false);
 
     ret = 0;
 
@@ -1757,12 +1767,19 @@ nodeStateCleanup(void)
 static int
 udevHandleOneDevice(struct udev_device *device)
 {
+    virNodeDevCapType dev_cap_type;
     const char *action = udev_device_get_action(device);
 
     VIR_DEBUG("udev action: '%s': %s", action, udev_device_get_syspath(device));
 
-    if (STREQ(action, "add") || STREQ(action, "change"))
-        return udevAddOneDevice(device);
+    if (STREQ(action, "add") || STREQ(action, "change")) {
+        int ret = udevAddOneDevice(device);
+        if (ret == 0 &&
+            udevGetDeviceType(device, &dev_cap_type) == 0 &&
+            dev_cap_type == VIR_NODE_DEV_CAP_MDEV)
+            scheduleMdevctlUpdate(driver->privateData, false);
+        return ret;
+    }
 
     if (STREQ(action, "remove"))
         return udevRemoveOneDevice(device);
@@ -2067,7 +2084,7 @@ udevPCITranslateInit(bool privileged G_GNUC_UNUSED)
 
 
 static void
-mdevctlHandlerThread(void *opaque G_GNUC_UNUSED)
+mdevctlUpdateThreadFunc(void *opaque G_GNUC_UNUSED)
 {
     udevEventData *priv = driver->privateData;
     VIR_LOCK_GUARD lock = virLockGuardLock(&priv->mdevctlLock);
@@ -2078,7 +2095,7 @@ mdevctlHandlerThread(void *opaque G_GNUC_UNUSED)
 
 
 static void
-scheduleMdevctlHandler(int timer G_GNUC_UNUSED, void *opaque)
+launchMdevctlUpdateThread(int timer G_GNUC_UNUSED, void *opaque)
 {
     udevEventData *priv = opaque;
     virThread thread;
@@ -2088,7 +2105,7 @@ scheduleMdevctlHandler(int timer G_GNUC_UNUSED, void *opaque)
         priv->mdevctlTimeout = -1;
     }
 
-    if (virThreadCreateFull(&thread, false, mdevctlHandlerThread,
+    if (virThreadCreateFull(&thread, false, mdevctlUpdateThreadFunc,
                             "mdevctl-thread", false, NULL) < 0) {
         virReportSystemError(errno, "%s",
                              _("failed to create mdevctl thread"));
@@ -2184,6 +2201,26 @@ mdevctlEnableMonitor(udevEventData *priv)
 }
 
 
+/* Schedules an mdevctl update for 100ms in the future, canceling any existing
+ * timeout that may have been set. In this way, multiple update requests in
+ * quick succession can be collapsed into a single update. if @force is true,
+ * an update thread will be spawned immediately. */
+static void
+scheduleMdevctlUpdate(udevEventData *data,
+                      bool force)
+{
+    if (!force) {
+        if (data->mdevctlTimeout > 0)
+            virEventRemoveTimeout(data->mdevctlTimeout);
+        data->mdevctlTimeout = virEventAddTimeout(100, launchMdevctlUpdateThread,
+                                                  data, NULL);
+        return;
+    }
+
+    launchMdevctlUpdateThread(-1, data);
+}
+
+
 static void
 mdevctlEventHandleCallback(GFileMonitor *monitor G_GNUC_UNUSED,
                            GFile *file,
@@ -2214,15 +2251,7 @@ mdevctlEventHandleCallback(GFileMonitor *monitor G_GNUC_UNUSED,
      * configuration change, try to coalesce these changes by waiting for the
      * CHANGES_DONE_HINT event. As a fallback,  add a timeout to trigger the
      * signal if that event never comes */
-    if (event_type != G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT) {
-        if (priv->mdevctlTimeout > 0)
-            virEventRemoveTimeout(priv->mdevctlTimeout);
-        priv->mdevctlTimeout = virEventAddTimeout(100, scheduleMdevctlHandler,
-                                                  priv, NULL);
-        return;
-    }
-
-    scheduleMdevctlHandler(-1, priv);
+    scheduleMdevctlUpdate(priv, (event_type == G_FILE_MONITOR_EVENT_CHANGES_DONE_HINT));
 }
 
 

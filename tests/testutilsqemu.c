@@ -428,7 +428,6 @@ int qemuTestDriverInit(virQEMUDriver *driver)
     virSecurityManager *mgr = NULL;
     char statedir[] = STATEDIRTEMPLATE;
     char configdir[] = CONFIGDIRTEMPLATE;
-    g_autoptr(virQEMUCaps) emptyCaps = NULL;
 
     memset(driver, 0, sizeof(*driver));
 
@@ -497,11 +496,6 @@ int qemuTestDriverInit(virQEMUDriver *driver)
 
     driver->xmlopt = virQEMUDriverCreateXMLConf(driver, "none");
     if (!driver->xmlopt)
-        goto error;
-
-    /* Populate the capabilities cache with fake empty caps */
-    emptyCaps = virQEMUCapsNew();
-    if (qemuTestCapsCacheInsert(driver->qemuCapsCache, emptyCaps) < 0)
         goto error;
 
     if (!(mgr = virSecurityManagerNew("none", "qemu",
@@ -876,6 +870,68 @@ testQemuInfoSetArgs(struct testQemuInfo *info,
 
 
 /**
+ * See testQemuGetRealCaps, this helper returns the pointer to the virQEMUCaps
+ * object as stored in the cache hash table.
+ */
+static virQEMUCaps *
+testQemuGetRealCapsInternal(const char *arch,
+                            const char *version,
+                            const char *variant,
+                            GHashTable *capsLatestFiles,
+                            GHashTable *capsCache,
+                            GHashTable *schemaCache,
+                            GHashTable **schema)
+{
+    g_autofree char *capsfile = NULL;
+    bool stripmachinealiases = false;
+    virQEMUCaps *cachedcaps = NULL;
+
+    if (STREQ(version, "latest")) {
+        g_autofree char *archvariant = g_strdup_printf("%s%s", arch, variant);
+        struct testQemuCapsFile *f = g_hash_table_lookup(capsLatestFiles, archvariant);
+
+        if (!f) {
+            VIR_TEST_VERBOSE("'latest' caps for '%s' were not found\n", arch);
+            return NULL;
+        }
+
+        capsfile = g_strdup(f->path);
+        stripmachinealiases = true;
+    } else {
+        capsfile = g_strdup_printf("%s/caps_%s_%s%s.xml",
+                                   TEST_QEMU_CAPS_PATH,
+                                   version, arch, variant);
+    }
+
+    if (!g_hash_table_lookup_extended(capsCache, capsfile, NULL, (void **) &cachedcaps)) {
+        if (!(cachedcaps = qemuTestParseCapabilitiesArch(virArchFromString(arch), capsfile))) {
+            VIR_TEST_VERBOSE("Failed to parse qemu capabilities file '%s'", capsfile);
+            return NULL;
+        }
+
+        if (stripmachinealiases)
+            virQEMUCapsStripMachineAliases(cachedcaps);
+
+        g_hash_table_insert(capsCache, g_strdup(capsfile), cachedcaps);
+    }
+
+    /* strip 'xml' suffix so that we can format the file to '.replies' */
+    capsfile[strlen(capsfile) - 3] = '\0';
+
+    if (schemaCache && schema) {
+        g_autofree char *schemafile = g_strdup_printf("%sreplies", capsfile);
+
+        if (!g_hash_table_lookup_extended(schemaCache, schemafile, NULL, (void **) schema)) {
+            *schema = testQEMUSchemaLoad(schemafile);
+            g_hash_table_insert(schemaCache, g_strdup(schemafile), *schema);
+        }
+    }
+
+    return cachedcaps;
+}
+
+
+/**
  * testQemuGetRealCaps:
  *
  * @arch: architecture to fetch caps for
@@ -903,55 +959,59 @@ testQemuGetRealCaps(const char *arch,
                     GHashTable *schemaCache,
                     GHashTable **schema)
 {
-    g_autofree char *capsfile = NULL;
-    bool stripmachinealiases = false;
-    virQEMUCaps *cachedcaps = NULL;
-    virQEMUCaps *ret = NULL;
+    virQEMUCaps *cachedcaps;
 
-    if (STREQ(version, "latest")) {
-        g_autofree char *archvariant = g_strdup_printf("%s%s", arch, variant);
-        struct testQemuCapsFile *f = g_hash_table_lookup(capsLatestFiles, archvariant);
+    if (!(cachedcaps = testQemuGetRealCapsInternal(arch, version, variant,
+                                                  capsLatestFiles, capsCache,
+                                                  schemaCache, schema)))
+        return NULL;
 
-        if (!f) {
-            VIR_TEST_VERBOSE("'latest' caps for '%s' were not found\n", arch);
-            return NULL;
-        }
+    return virQEMUCapsNewCopy(cachedcaps);
+}
 
-        capsfile = g_strdup(f->path);
-        stripmachinealiases = true;
-    } else {
-        capsfile = g_strdup_printf("%s/caps_%s_%s%s.xml",
-                                   TEST_QEMU_CAPS_PATH,
-                                   version, arch, variant);
-    }
 
-    if (!g_hash_table_lookup_extended(capsCache, capsfile, NULL, (void **) &cachedcaps)) {
-        if (!(cachedcaps = qemuTestParseCapabilitiesArch(virArchFromString(arch), capsfile))) {
-            VIR_TEST_VERBOSE("Failed to parse qemu capabilities file '%s'", capsfile);
-            return NULL;
-        }
+/**
+ * testQemuInsertRealCaps:
+ *
+ * @arch: architecture to fetch caps for
+ * @version: qemu version to fetch caps for ("latest" for fetching the latest version from @capsLatestFiles)
+ * @variant: capabilities variant to fetch caps for
+ * @capsLatestFiles: hash table containing latest version of capabilities for the  @arch+@variant tuple
+ * @capsCache: hash table filled with the cache of capabilities
+ * @schemaCache: hash table for caching QMP schemas (may be NULL, see below)
+ * @schema: Filled with the QMP schema (hash table) (may be NULL, see below)
+ *
+ * Fetches and inserts into the test capability cache the appropriate virQEMUCaps
+ * for the @arch+@version+@variant tuple. Note that the data inserted into
+ * the cache is borrowed from the cache thus must not be further modified.
+ *
+ * If @schemaCache and @schema are non-NULL, @schema is filled with with a
+ * pointer (borrowed from the cache) to the hash table representing the QEMU QMP
+ * schema used for validation of the monitor traffic.
+ */
+int
+testQemuInsertRealCaps(virFileCache *cache,
+                       const char *arch,
+                       const char *version,
+                       const char *variant,
+                       GHashTable *capsLatestFiles,
+                       GHashTable *capsCache,
+                       GHashTable *schemaCache,
+                       GHashTable **schema)
+{
+    virQEMUCaps *cachedcaps;
 
-        g_hash_table_insert(capsCache, g_strdup(capsfile), cachedcaps);
-    }
+    virFileCacheClear(cache);
 
-    ret = virQEMUCapsNewCopy(cachedcaps);
+    if (!(cachedcaps = testQemuGetRealCapsInternal(arch, version, variant,
+                                                  capsLatestFiles, capsCache,
+                                                  schemaCache, schema)))
+        return -1;
 
-    if (stripmachinealiases)
-        virQEMUCapsStripMachineAliases(ret);
+    if (qemuTestCapsCacheInsertData(cache, virQEMUCapsGetBinary(cachedcaps), cachedcaps) < 0)
+        return -1;
 
-    /* strip 'xml' suffix so that we can format the file to '.replies' */
-    capsfile[strlen(capsfile) - 3] = '\0';
-
-    if (schemaCache && schema) {
-        g_autofree char *schemafile = g_strdup_printf("%sreplies", capsfile);
-
-        if (!g_hash_table_lookup_extended(schemaCache, schemafile, NULL, (void **) schema)) {
-            *schema = testQEMUSchemaLoad(schemafile);
-            g_hash_table_insert(schemaCache, g_strdup(schemafile), *schema);
-        }
-    }
-
-    return ret;
+    return 0;
 }
 
 

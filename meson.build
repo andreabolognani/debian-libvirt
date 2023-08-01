@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '9.5.0',
+  version: '9.6.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -879,6 +879,9 @@ endif
 apparmor_dep = dependency('libapparmor', required: get_option('apparmor'))
 if apparmor_dep.found()
   conf.set('WITH_APPARMOR', 1)
+  if apparmor_dep.version().version_compare('>=3.0.0')
+    conf.set('WITH_APPARMOR_3', 1)
+  endif
   conf.set_quoted('APPARMOR_DIR', sysconfdir / 'apparmor.d')
   conf.set_quoted('APPARMOR_PROFILES_PATH', '/sys/kernel/security/apparmor/profiles')
 endif
@@ -898,7 +901,8 @@ if not get_option('apparmor_profiles').disabled()
   endif
 endif
 
-attr_dep = dependency('libattr', required: get_option('attr'))
+# FIXME rewrite to use dependency() once we can use 2.4.48
+attr_dep = cc.find_library('attr', required: get_option('attr'))
 if attr_dep.found()
   conf.set('WITH_LIBATTR', 1)
 endif
