@@ -737,24 +737,6 @@ virProcessPrLimit(pid_t pid G_GNUC_UNUSED,
 #endif
 
 #if WITH_GETRLIMIT
-static int
-virProcessGetRLimit(int resource,
-                    struct rlimit *old_limit)
-{
-    return getrlimit(resource, old_limit);
-}
-#endif /* WITH_GETRLIMIT */
-
-#if WITH_SETRLIMIT
-static int
-virProcessSetRLimit(int resource,
-                    const struct rlimit *new_limit)
-{
-    return setrlimit(resource, new_limit);
-}
-#endif /* WITH_SETRLIMIT */
-
-#if WITH_GETRLIMIT
 static const char*
 virProcessLimitResourceToLabel(int resource)
 {
@@ -876,7 +858,7 @@ virProcessGetLimit(pid_t pid,
     if (virProcessGetLimitFromProc(pid, resource, old_limit) == 0)
         return 0;
 
-    if (same_process && virProcessGetRLimit(resource, old_limit) == 0)
+    if (same_process && getrlimit(resource, old_limit) == 0)
         return 0;
 
     return -1;
@@ -895,7 +877,7 @@ virProcessSetLimit(pid_t pid,
     if (virProcessPrLimit(pid, resource, new_limit, NULL) == 0)
         return 0;
 
-    if (same_process && virProcessSetRLimit(resource, new_limit) == 0)
+    if (same_process && setrlimit(resource, new_limit) == 0)
         return 0;
 
     return -1;
@@ -1066,6 +1048,35 @@ virProcessSetMaxFiles(pid_t pid, unsigned int files)
 
     return 0;
 }
+
+void
+virProcessActivateMaxFiles(void)
+{
+    struct rlimit maxfiles = {0};
+
+    /*
+     * Ignore errors since we might be inside a container with seccomp
+     * filters and limits preset to suitable values.
+     */
+    if (getrlimit(RLIMIT_NOFILE, &maxfiles) < 0) {
+        VIR_DEBUG("Unable to fetch process max files limit: %s",
+                  g_strerror(errno));
+        return;
+    }
+
+    VIR_DEBUG("Initial max files was %llu", (unsigned long long)maxfiles.rlim_cur);
+
+    maxfiles.rlim_cur = maxfiles.rlim_max;
+
+    if (setrlimit(RLIMIT_NOFILE, &maxfiles) < 0) {
+        VIR_DEBUG("Unable to set process max files limit to %llu: %s",
+                  (unsigned long long)maxfiles.rlim_cur, g_strerror(errno));
+        return;
+    }
+
+    VIR_DEBUG("Raised max files to %llu", (unsigned long long)maxfiles.rlim_cur);
+}
+
 #else /* ! (WITH_SETRLIMIT && defined(RLIMIT_NOFILE)) */
 int
 virProcessSetMaxFiles(pid_t pid G_GNUC_UNUSED,
@@ -1073,6 +1084,11 @@ virProcessSetMaxFiles(pid_t pid G_GNUC_UNUSED,
 {
     virReportSystemError(ENOSYS, "%s", _("Not supported on this platform"));
     return -1;
+}
+
+void
+virProcessActivateMaxFiles(void)
+{
 }
 #endif /* ! (WITH_SETRLIMIT && defined(RLIMIT_NOFILE)) */
 

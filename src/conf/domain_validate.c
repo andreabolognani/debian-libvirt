@@ -784,7 +784,13 @@ virDomainDiskDefValidate(const virDomainDef *def,
 
         if (disk->queues) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("queues attribute in disk driver element is only supported by virtio-blk"));
+                           _("queues attribute in disk driver element is only supported for virtio bus"));
+            return -1;
+        }
+
+        if (disk->queue_size) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("queue_size attribute in disk driver is only supported for virtio bus"));
             return -1;
         }
 
@@ -881,9 +887,11 @@ virDomainDiskDefValidate(const virDomainDef *def,
     }
 
     if (disk->removable != VIR_TRISTATE_SWITCH_ABSENT &&
-        disk->bus != VIR_DOMAIN_DISK_BUS_USB) {
+        disk->bus != VIR_DOMAIN_DISK_BUS_USB &&
+        !(disk->bus == VIR_DOMAIN_DISK_BUS_SCSI &&
+          disk->device == VIR_DOMAIN_DISK_DEVICE_DISK)) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("removable is only valid for usb disks"));
+                       _("removable is only valid for usb or scsi disks"));
         return -1;
     }
 

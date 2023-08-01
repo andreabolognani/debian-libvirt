@@ -32,6 +32,7 @@ docs_rst_files = [
   'ci',
   'ci-dashboard',
   'ci-runners',
+  'clangd',
   'coding-style',
   'committer-guidelines',
   'compiling',
@@ -359,4 +360,5 @@ test(
     meson.project_build_root() / 'docs'
   ],
   env: runutf8,
+  suite: 'script'
 )

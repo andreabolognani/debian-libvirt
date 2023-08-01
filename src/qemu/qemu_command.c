@@ -1782,10 +1782,12 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
         if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
             driver = "scsi-block";
         } else {
-            if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM)
+            if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
                 driver = "scsi-cd";
-            else
+            } else {
                 driver = "scsi-hd";
+                removable = disk->removable;
+            }
 
             /* qemu historically used the name of -drive as one of the device
              * ids in the Vital Product Data Device Identification page if
@@ -1840,12 +1842,10 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     case VIR_DOMAIN_DISK_BUS_USB:
         driver = "usb-storage";
 
-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_USB_STORAGE_REMOVABLE)) {
-            if (disk->removable == VIR_TRISTATE_SWITCH_ABSENT)
-                removable = VIR_TRISTATE_SWITCH_OFF;
-            else
-                removable = disk->removable;
-        }
+        if (disk->removable == VIR_TRISTATE_SWITCH_ABSENT)
+            removable = VIR_TRISTATE_SWITCH_OFF;
+        else
+            removable = disk->removable;
 
         break;
 
@@ -4478,31 +4478,30 @@ qemuBuildSoundCommandLine(virCommand *cmd,
     for (i = 0; i < def->nsounds; i++) {
         virDomainSoundDef *sound = def->sounds[i];
 
-        /* Sadly pcspk device doesn't use -device syntax. Fortunately
-         * we don't need to set any PCI address on it, so we don't
-         * mind too much */
-        if (sound->model == VIR_DOMAIN_SOUND_MODEL_PCSPK) {
-            virCommandAddArgList(cmd, "-soundhw", "pcspk", NULL);
-        } else {
-            if (qemuCommandAddExtDevice(cmd, &sound->info, def, qemuCaps) < 0)
-                return -1;
+        /* Sadly pcspk device doesn't use -device syntax. And it
+         * was handled already in qemuBuildMachineCommandLine().
+         */
+        if (sound->model == VIR_DOMAIN_SOUND_MODEL_PCSPK)
+            continue;
 
-            if (qemuBuildSoundDevCmd(cmd, def, sound, qemuCaps) < 0)
-                return -1;
+        if (qemuCommandAddExtDevice(cmd, &sound->info, def, qemuCaps) < 0)
+            return -1;
 
-            if (virDomainSoundModelSupportsCodecs(sound)) {
-                for (j = 0; j < sound->ncodecs; j++) {
-                    if (qemuBuildSoundCodecCmd(cmd, def, sound, sound->codecs[j],
-                                               qemuCaps) < 0)
-                        return -1;
-                }
+        if (qemuBuildSoundDevCmd(cmd, def, sound, qemuCaps) < 0)
+            return -1;
 
-                if (j == 0) {
-                    virDomainSoundCodecDef codec = { VIR_DOMAIN_SOUND_CODEC_TYPE_DUPLEX, 0 };
+        if (virDomainSoundModelSupportsCodecs(sound)) {
+            for (j = 0; j < sound->ncodecs; j++) {
+                if (qemuBuildSoundCodecCmd(cmd, def, sound, sound->codecs[j],
+                                           qemuCaps) < 0)
+                    return -1;
+            }
 
-                    if (qemuBuildSoundCodecCmd(cmd, def, sound, &codec, qemuCaps) < 0)
-                        return -1;
-                }
+            if (j == 0) {
+                virDomainSoundCodecDef codec = { VIR_DOMAIN_SOUND_CODEC_TYPE_DUPLEX, 0 };
+
+                if (qemuBuildSoundCodecCmd(cmd, def, sound, &codec, qemuCaps) < 0)
+                    return -1;
             }
         }
     }
@@ -7028,6 +7027,22 @@ qemuBuildMachineCommandLine(virCommand *cmd,
         case VIR_DOMAIN_TIMER_NAME_LAST:
             break;
         }
+    }
+
+    /* PC speaker is a bit different than the rest of sound cards
+     * which are handled in qemuBuildSoundCommandLine(). */
+    for (i = 0; i < def->nsounds; i++) {
+        const virDomainSoundDef *sound = def->sounds[i];
+        g_autofree char *audioid = NULL;
+
+        if (sound->model != VIR_DOMAIN_SOUND_MODEL_PCSPK)
+            continue;
+
+        if (!(audioid = qemuGetAudioIDString(def, sound->audioId)))
+            return -1;
+
+        virBufferAsprintf(&buf, ",pcspk-audiodev=%s", audioid);
+        break;
     }
 
     qemuBuildMachineACPI(&buf, def, qemuCaps);
@@ -10175,6 +10190,25 @@ qemuBuildCryptoCommandLine(virCommand *cmd,
 }
 
 
+static int
+qemuBuildAsyncTeardownCommandLine(virCommand *cmd,
+                                  const virDomainDef *def,
+                                  virQEMUCaps *qemuCaps)
+{
+    g_autofree char *async = NULL;
+    virTristateBool enabled = def->features[VIR_DOMAIN_FEATURE_ASYNC_TEARDOWN];
+
+    if (enabled != VIR_TRISTATE_BOOL_ABSENT &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN)) {
+        async = g_strdup_printf("async-teardown=%s",
+                                virTristateSwitchTypeToString(enabled));
+        virCommandAddArgList(cmd, "-run-with", async, NULL);
+    }
+
+    return 0;
+}
+
+
 typedef enum {
     QEMU_COMMAND_DEPRECATION_BEHAVIOR_NONE = 0,
     QEMU_COMMAND_DEPRECATION_BEHAVIOR_OMIT,
@@ -10528,6 +10562,9 @@ qemuBuildCommandLine(virDomainObj *vm,
         return NULL;
 
     if (qemuBuildCryptoCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
+    if (qemuBuildAsyncTeardownCommandLine(cmd, def, qemuCaps) < 0)
         return NULL;
 
     if (cfg->logTimestamp)

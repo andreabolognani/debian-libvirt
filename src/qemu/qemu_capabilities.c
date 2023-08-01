@@ -213,8 +213,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "usb-redir.filter", /* QEMU_CAPS_USB_REDIR_FILTER */
 
               /* 105 */
-              "ide-drive.wwn", /* QEMU_CAPS_IDE_DRIVE_WWN */
-              "scsi-disk.wwn", /* QEMU_CAPS_SCSI_DISK_WWN */
+              "ide-drive.wwn", /* X_QEMU_CAPS_IDE_DRIVE_WWN */
+              "scsi-disk.wwn", /* X_QEMU_CAPS_SCSI_DISK_WWN */
               "seccomp-sandbox", /* QEMU_CAPS_SECCOMP_SANDBOX */
               "reboot-timeout", /* X_QEMU_CAPS_REBOOT_TIMEOUT */
               "dump-guest-core", /* X_QEMU_CAPS_DUMP_GUEST_CORE */
@@ -280,7 +280,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "i440fx-pci-hole64-size", /* X_QEMU_CAPS_I440FX_PCI_HOLE64_SIZE */
               "q35-pci-hole64-size", /* X_QEMU_CAPS_Q35_PCI_HOLE64_SIZE */
               "usb-storage", /* QEMU_CAPS_DEVICE_USB_STORAGE */
-              "usb-storage.removable", /* QEMU_CAPS_USB_STORAGE_REMOVABLE */
+              "usb-storage.removable", /* X_QEMU_CAPS_USB_STORAGE_REMOVABLE */
 
               /* 155 */
               "virtio-mmio", /* QEMU_CAPS_DEVICE_VIRTIO_MMIO */
@@ -694,6 +694,9 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "rbd-encryption-layering", /* QEMU_CAPS_RBD_ENCRYPTION_LAYERING */
               "rbd-encryption-luks-any", /* QEMU_CAPS_RBD_ENCRYPTION_LUKS_ANY */
               "qcow2-discard-no-unref", /* QEMU_CAPS_QCOW2_DISCARD_NO_UNREF */
+
+              /* 450 */
+              "run-with.async-teardown", /* QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN */
     );
 
 
@@ -1449,12 +1452,10 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVfioPCI[] = {
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsSCSIDisk[] = {
     { "channel", QEMU_CAPS_SCSI_DISK_CHANNEL, NULL },
-    { "wwn", QEMU_CAPS_SCSI_DISK_WWN, NULL },
     { "rotation_rate", QEMU_CAPS_ROTATION_RATE, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsIDEDrive[] = {
-    { "wwn", QEMU_CAPS_IDE_DRIVE_WWN, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsPiix4PM[] = {
@@ -1468,7 +1469,6 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsUSBRedir[] = {
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsUSBStorage[] = {
-    { "removable", QEMU_CAPS_USB_STORAGE_REMOVABLE, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsKVMPit[] = {
@@ -2602,24 +2602,6 @@ virQEMUCapsGetSGXCapabilities(virQEMUCaps *qemuCaps)
 
 
 static int
-virQEMUCapsProbeQMPCommands(virQEMUCaps *qemuCaps,
-                            qemuMonitor *mon)
-{
-    g_auto(GStrv) commands = NULL;
-
-    if (qemuMonitorGetCommands(mon, &commands) < 0)
-        return -1;
-
-    virQEMUCapsProcessStringFlags(qemuCaps,
-                                  G_N_ELEMENTS(virQEMUCapsCommands),
-                                  virQEMUCapsCommands,
-                                  commands);
-
-    return 0;
-}
-
-
-static int
 virQEMUCapsProbeQMPObjectTypes(virQEMUCaps *qemuCaps,
                                qemuMonitor *mon)
 {
@@ -3369,6 +3351,7 @@ static struct virQEMUCapsCommandLineProps virQEMUCapsCommandLine[] = {
     { "spice", "gl", QEMU_CAPS_SPICE_GL },
     { "spice", "rendernode", QEMU_CAPS_SPICE_RENDERNODE },
     { "vnc", "power-control", QEMU_CAPS_VNC_POWER_CONTROL },
+    { "run-with", "async-teardown", QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN },
 };
 
 static int
@@ -3907,7 +3890,7 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
     }
 
     if (virQEMUCapsTypeIsAccelerated(type))
-        virHostCPUGetPhysAddrSize(&physAddrSize);
+        virHostCPUGetPhysAddrSize(hostArch, &physAddrSize);
 
     virQEMUCapsSetHostModel(qemuCaps, type, physAddrSize, cpu, migCPU, fullCPU);
 
@@ -5519,7 +5502,6 @@ static int
 virQEMUCapsProbeQMPSchemaCapabilities(virQEMUCaps *qemuCaps,
                                       qemuMonitor *mon)
 {
-    struct virQEMUCapsStringFlags *entry;
     virJSONValue *schemareply;
     g_autoptr(GHashTable) schema = NULL;
     size_t i;
@@ -5532,10 +5514,17 @@ virQEMUCapsProbeQMPSchemaCapabilities(virQEMUCaps *qemuCaps,
     schemareply = NULL;
 
     for (i = 0; i < G_N_ELEMENTS(virQEMUCapsQMPSchemaQueries); i++) {
-        entry = virQEMUCapsQMPSchemaQueries + i;
+        struct virQEMUCapsStringFlags *entry = virQEMUCapsQMPSchemaQueries + i;
 
         if (virQEMUQAPISchemaPathExists(entry->value, schema))
             virQEMUCapsSet(qemuCaps, entry->flag);
+    }
+
+    for (i = 0; i < G_N_ELEMENTS(virQEMUCapsCommands); i++) {
+        struct virQEMUCapsStringFlags *cmd = virQEMUCapsCommands + i;
+
+        if (virQEMUQAPISchemaPathExists(cmd->value, schema))
+            virQEMUCapsSet(qemuCaps, cmd->flag);
     }
 
     return 0;
@@ -5596,8 +5585,6 @@ virQEMUCapsInitQMPMonitor(virQEMUCaps *qemuCaps,
     virQEMUCapsInitQMPVersionCaps(qemuCaps);
 
     if (virQEMUCapsProbeQMPSchemaCapabilities(qemuCaps, mon) < 0)
-        return -1;
-    if (virQEMUCapsProbeQMPCommands(qemuCaps, mon) < 0)
         return -1;
 
     /* Some capabilities may differ depending on KVM state */
@@ -6292,6 +6279,7 @@ static const struct virQEMUCapsDomainFeatureCapabilityTuple domCapsTuples[] = {
     { VIR_DOMAIN_CAPS_FEATURE_GENID, QEMU_CAPS_DEVICE_VMGENID },
     { VIR_DOMAIN_CAPS_FEATURE_BACKING_STORE_INPUT, QEMU_CAPS_LAST },
     { VIR_DOMAIN_CAPS_FEATURE_BACKUP, QEMU_CAPS_INCREMENTAL_BACKUP },
+    { VIR_DOMAIN_CAPS_FEATURE_ASYNC_TEARDOWN, QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN },
 };
 
 

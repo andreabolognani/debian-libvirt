@@ -124,6 +124,7 @@ virRandomBytes(unsigned char *buf,
 #define VMWARE_OUI "000569"
 #define MICROSOFT_OUI "0050f2"
 #define XEN_OUI "00163e"
+#define TEST_DRIVER_OUI "100000"
 
 
 int
@@ -138,7 +139,13 @@ virRandomGenerateWWN(char **wwn,
         return -1;
     }
 
-    if (STREQ(virt_type, "QEMU")) {
+    /* In case of split daemon we don't really see the hypervisor
+     * driver that just re-routed the nodedev driver API. There
+     * might not be any hypervisor driver even. Yet, we have to
+     * pick OUI. Pick "QEMU". */
+
+    if (STREQ(virt_type, "QEMU") ||
+        STREQ(virt_type, "nodedev")) {
         oui = QUMRANET_OUI;
     } else if (STREQ(virt_type, "Xen") ||
                STREQ(virt_type, "xenlight")) {
@@ -148,14 +155,15 @@ virRandomGenerateWWN(char **wwn,
         oui = VMWARE_OUI;
     } else if (STREQ(virt_type, "HYPER-V")) {
         oui = MICROSOFT_OUI;
+    } else if (STREQ(virt_type, "TEST")) {
+        oui = TEST_DRIVER_OUI;
     } else {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Unsupported virt type"));
         return -1;
     }
 
-    *wwn = g_strdup_printf("5" "%s%09llx", oui,
-                           (unsigned long long)virRandomBits(36));
+    *wwn = g_strdup_printf("5%s%09" PRIx64, oui, virRandomBits(36));
     return 0;
 }
 

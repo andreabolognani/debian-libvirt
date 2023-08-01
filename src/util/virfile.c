@@ -3036,6 +3036,45 @@ void virDirClose(DIR *dirp)
     closedir(dirp); /* exempt from syntax-check */
 }
 
+/**
+ * virDirIsEmpty:
+ * @path: path to the directory
+ * @hidden: whether hidden files matter
+ *
+ * Check whether given directory (@path) is empty, i.e. it
+ * contains just the usual entries '.' and '..'. Hidden files are
+ * ignored unless @hidden is true. IOW, a directory containing
+ * nothing but hidden files is considered empty if @hidden is
+ * false and not empty if @hidden is true.
+ *
+ * Returns: 1 if the directory is empty,
+ *          0 if the directory is not empty,
+ *         -1 otherwise (no error reported).
+ */
+int virDirIsEmpty(const char *path,
+                  bool hidden)
+{
+    g_autoptr(DIR) dir = NULL;
+    struct dirent *ent;
+    int direrr;
+
+    if (virDirOpenQuiet(&dir, path) < 0)
+        return -1;
+
+    while ((direrr = virDirRead(dir, &ent, NULL)) > 0) {
+        /* virDirRead() skips over '.' and '..' so here we have
+         * actual directory entry. */
+        if (!hidden ||
+            (hidden && ent->d_name[0] != '.'))
+            return 0;
+    }
+
+    if (direrr < 0)
+        return -1;
+
+    return 1;
+}
+
 
 /*
  * virFileChownFiles:
@@ -3343,6 +3382,8 @@ virFileRemoveLastComponent(char *path)
 # endif
 
 # define VIR_ACFS_MAGIC 0x61636673
+/* https://git.beegfs.io/pub/v7/-/blob/master/client_module/source/filesystem/FhgfsOpsSuper.h#L14 */
+# define VIR_BEEGFS_MAGIC 0x19830326 /* formerly fhgfs */
 
 # define PROC_MOUNTS "/proc/mounts"
 
@@ -3430,6 +3471,7 @@ static const struct virFileSharedFsData virFileSharedFs[] = {
     { .fstype = VIR_FILE_SHFS_CEPH, .magic = CEPH_SUPER_MAGIC },
     { .fstype = VIR_FILE_SHFS_GPFS, .magic = GPFS_SUPER_MAGIC },
     { .fstype = VIR_FILE_SHFS_ACFS, .magic = VIR_ACFS_MAGIC },
+    { .fstype = VIR_FILE_SHFS_BEEGFS, .magic = VIR_BEEGFS_MAGIC },
 };
 
 
@@ -3680,7 +3722,8 @@ int virFileIsSharedFS(const char *path)
                                  VIR_FILE_SHFS_GPFS|
                                  VIR_FILE_SHFS_QB |
                                  VIR_FILE_SHFS_ACFS |
-                                 VIR_FILE_SHFS_GLUSTERFS);
+                                 VIR_FILE_SHFS_GLUSTERFS |
+                                 VIR_FILE_SHFS_BEEGFS);
 }
 
 
