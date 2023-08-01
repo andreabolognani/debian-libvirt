@@ -1,3 +1,10 @@
+libvirt (9.6.0-1) UNRELEASED; urgency=medium
+
+  * [74213a2] New upstream version 9.6.0
+    - Fixes CVE-2023-3750 (Closes: #1041811)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 01 Aug 2023 20:24:24 +0200
+
 libvirt (9.5.0-2) unstable; urgency=medium
 
   [ Pino Toscano ]
