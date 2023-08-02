@@ -1,3 +1,14 @@
+libvirt (9.6.0-1) unstable; urgency=medium
+
+  Local overrides for AppArmor abstractions are now expected to
+  be /etc/apparmor.d/abstractions/libvirt-{qemu,lxc}.d/... instead
+  of /etc/apparmor.d/local/abstractions/libvirt-{qemu,lxc}.
+
+  The old locations are still accepted for now, but support for
+  them will be dropped in a future release.
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 02 Aug 2023 21:41:19 +0200
+
 libvirt (8.10.0-2) experimental; urgency=medium
 
   Localization for libvirt has been moved to the libvirt-l10n
