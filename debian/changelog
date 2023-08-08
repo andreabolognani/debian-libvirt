@@ -1,4 +1,4 @@
-libvirt (9.6.0-1) UNRELEASED; urgency=medium
+libvirt (9.6.0-1) unstable; urgency=medium
 
   * [74213a2] New upstream version 9.6.0
     - Fixes CVE-2023-3750 (Closes: #1041811)
