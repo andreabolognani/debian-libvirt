@@ -1,3 +1,13 @@
+libvirt (9.6.0-2) experimental; urgency=medium
+
+  * [6456ab6] control: Drop Build-Depends on qemu-system-common
+    - No longer needed
+  * [cd2ed06] rules: Introduce ARCHES_QEMU
+    - Only build the QEMU hypervisor driver on architectures where
+      QEMU system emulator binaries are available
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 20 Aug 2023 21:00:40 +0200
+
 libvirt (9.6.0-1) unstable; urgency=medium
 
   * [74213a2] New upstream version 9.6.0
