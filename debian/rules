@@ -200,8 +200,13 @@ NSS_PLUGINS = \
 SYSTEMTAP_TAPSETS = \
     libvirt_functions \
     libvirt_probes \
-    libvirt_qemu_probes \
     $(NULL)
+
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+    SYSTEMTAP_TAPSETS += \
+        libvirt_qemu_probes \
+        $(NULL)
+endif
 
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
@@ -284,13 +289,21 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	                   usr/share/systemtap/tapset/$${f}.stp; \
 	    done; \
 	fi
-	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
 	set -e; for f in $(NSS_PLUGINS); do \
 	    dh_install -p libnss-libvirt \
 	               usr/lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2 \
 	               lib/$(DEB_HOST_MULTIARCH)/; \
 	done
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+	dh_install -p libvirt-daemon-system etc/libvirt/qemu.conf
+	dh_install -p libvirt-daemon-system etc/libvirt/qemu-lockd.conf
+	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
+	dh_install -p libvirt-daemon usr/share/augeas/lenses/tests/test_libvirt_lockd.aug
+	dh_install -p libvirt-daemon usr/share/augeas/lenses/tests/test_libvirt_sanlock.aug
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_LXC)))
+	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl.conf
