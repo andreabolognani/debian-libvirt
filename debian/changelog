@@ -1,3 +1,9 @@
+libvirt (9.7.0-1) UNRELEASED; urgency=medium
+
+  * [4864e4d] New upstream version 9.7.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 01 Sep 2023 20:04:12 +0200
+
 libvirt (9.6.0-3) experimental; urgency=medium
 
   * [e380ddb] rules: Fix handling of ARCHES_{QEMU,LXC}
