@@ -31,12 +31,12 @@ index f27eaad..62b279c 100644
    Action taken on host shutdown
  
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 0160142..0141f05 100644
+index 344b543..9ea221c 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
-@@ -21,19 +21,19 @@ localstatedir="@localstatedir@"
+@@ -20,19 +20,19 @@ sysconfdir="@sysconfdir@"
+ localstatedir="@localstatedir@"
  initconfdir="@initconfdir@"
- libvirtd="@sbindir@"/libvirtd
  
 -# Source function library.
 -test ! -r "$sysconfdir"/rc.d/init.d/functions ||
@@ -60,7 +60,7 @@ index 0160142..0141f05 100644
  SHUTDOWN_TIMEOUT=300
  PARALLEL_SHUTDOWN=0
  START_DELAY=0
-@@ -44,7 +44,7 @@ test -f "$initconfdir"/libvirt-guests &&
+@@ -43,7 +43,7 @@ test -f "$initconfdir"/libvirt-guests &&
      . "$initconfdir"/libvirt-guests
  
  LISTFILE="$localstatedir"/lib/libvirt/libvirt-guests
@@ -69,7 +69,7 @@ index 0160142..0141f05 100644
  
  RETVAL=0
  
-@@ -563,8 +563,7 @@ gueststatus() {
+@@ -562,8 +562,7 @@ gueststatus() {
  
  # rh_status
  # Display current status: whether saved state exists, and whether start
