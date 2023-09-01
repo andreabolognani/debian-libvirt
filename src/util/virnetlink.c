@@ -250,7 +250,7 @@ virNetlinkSendRequest(struct nl_msg *nl_msg, uint32_t src_pid,
     int fd;
     int n;
     virNetlinkHandle *nlhandle = NULL;
-    struct pollfd fds[1];
+    struct pollfd fds[1] = { 0 };
     struct nlmsghdr *nlmsg = nlmsg_hdr(nl_msg);
 
     if (protocol >= MAX_LINKS) {
@@ -285,8 +285,6 @@ virNetlinkSendRequest(struct nl_msg *nl_msg, uint32_t src_pid,
                              "%s", _("cannot send to netlink socket"));
         goto error;
     }
-
-    memset(fds, 0, sizeof(fds));
 
     fds[0].fd = fd;
     fds[0].events = POLLIN;
@@ -333,12 +331,9 @@ int virNetlinkCommand(struct nl_msg *nl_msg,
             .nl_pid    = dst_pid,
             .nl_groups = 0,
     };
-    struct pollfd fds[1];
     g_autofree struct nlmsghdr *temp_resp = NULL;
     g_autoptr(virNetlinkHandle) nlhandle = NULL;
     int len = 0;
-
-    memset(fds, 0, sizeof(fds));
 
     if (!(nlhandle = virNetlinkSendRequest(nl_msg, src_pid, nladdr,
                                            protocol, groups)))

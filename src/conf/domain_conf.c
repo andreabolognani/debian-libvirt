@@ -3490,9 +3490,28 @@ void virDomainMemoryDefFree(virDomainMemoryDef *def)
     if (!def)
         return;
 
-    g_free(def->nvdimmPath);
-    virBitmapFree(def->sourceNodes);
-    g_free(def->uuid);
+    switch (def->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        virBitmapFree(def->source.dimm.nodes);
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        g_free(def->source.nvdimm.path);
+        g_free(def->target.nvdimm.uuid);
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        g_free(def->source.virtio_pmem.path);
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        virBitmapFree(def->source.virtio_mem.nodes);
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        virBitmapFree(def->source.sgx_epc.nodes);
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
+
     virDomainDeviceInfoClear(&def->info);
     g_free(def);
 }
@@ -3728,7 +3747,6 @@ virDomainLoaderDefNew(void)
     virDomainLoaderDef *def = NULL;
 
     def = g_new0(virDomainLoaderDef, 1);
-    def->format = VIR_STORAGE_FILE_RAW;
 
     return def;
 }
@@ -8054,6 +8072,10 @@ virDomainDiskDefParseXML(virDomainXMLOption *xmlopt,
 
         if (virXMLPropUInt(blockioNode, "physical_block_size", 10, VIR_XML_PROP_NONE,
                            &def->blockio.physical_block_size) < 0)
+            return NULL;
+
+        if (virXMLPropUInt(blockioNode, "discard_granularity", 10, VIR_XML_PROP_NONE,
+                           &def->blockio.discard_granularity) < 0)
             return NULL;
     }
 
@@ -13267,22 +13289,33 @@ virDomainMemorySourceDefParseXML(xmlNodePtr node,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autofree char *nodemask = NULL;
+    unsigned long long *pagesize;
+    virBitmap **sourceNodes = NULL;
 
     ctxt->node = node;
 
     switch (def->model) {
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+
+        if (def->model == VIR_DOMAIN_MEMORY_MODEL_DIMM) {
+            pagesize = &def->source.dimm.pagesize;
+            sourceNodes = &def->source.dimm.nodes;
+        } else {
+            pagesize = &def->source.virtio_mem.pagesize;
+            sourceNodes = &def->source.virtio_mem.nodes;
+        }
+
         if (virDomainParseMemory("./pagesize", "./pagesize/@unit", ctxt,
-                                 &def->pagesize, false, false) < 0)
+                                 pagesize, false, false) < 0)
             return -1;
 
         if ((nodemask = virXPathString("string(./nodemask)", ctxt))) {
-            if (virBitmapParse(nodemask, &def->sourceNodes,
+            if (virBitmapParse(nodemask, sourceNodes,
                                VIR_DOMAIN_CPUMASK_LEN) < 0)
                 return -1;
 
-            if (virBitmapIsAllClear(def->sourceNodes)) {
+            if (virBitmapIsAllClear(*sourceNodes)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("Invalid value of 'nodemask': %1$s"), nodemask);
                 return -1;
@@ -13291,28 +13324,28 @@ virDomainMemorySourceDefParseXML(xmlNodePtr node,
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
-        def->nvdimmPath = virXPathString("string(./path)", ctxt);
+        def->source.nvdimm.path = virXPathString("string(./path)", ctxt);
 
         if (virDomainParseMemory("./alignsize", "./alignsize/@unit", ctxt,
-                                 &def->alignsize, false, false) < 0)
+                                 &def->source.nvdimm.alignsize, false, false) < 0)
             return -1;
 
         if (virXPathBoolean("boolean(./pmem)", ctxt))
-            def->nvdimmPmem = true;
+            def->source.nvdimm.pmem = true;
 
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-        def->nvdimmPath = virXPathString("string(./path)", ctxt);
+        def->source.virtio_pmem.path = virXPathString("string(./path)", ctxt);
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
         if ((nodemask = virXPathString("string(./nodemask)", ctxt))) {
-            if (virBitmapParse(nodemask, &def->sourceNodes,
+            if (virBitmapParse(nodemask, &def->source.sgx_epc.nodes,
                                VIR_DOMAIN_CPUMASK_LEN) < 0)
                 return -1;
 
-            if (virBitmapIsAllClear(def->sourceNodes)) {
+            if (virBitmapIsAllClear(def->source.sgx_epc.nodes)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("Invalid value of 'nodemask': %1$s"), nodemask);
                 return -1;
@@ -13336,6 +13369,7 @@ virDomainMemoryTargetDefParseXML(xmlNodePtr node,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr addrNode = NULL;
+    unsigned long long *addr;
     int rv;
 
     ctxt->node = node;
@@ -13354,39 +13388,41 @@ virDomainMemoryTargetDefParseXML(xmlNodePtr node,
     switch (def->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         if (virDomainParseMemory("./label/size", "./label/size/@unit", ctxt,
-                                 &def->labelsize, false, false) < 0)
+                                 &def->target.nvdimm.labelsize, false, false) < 0)
             return -1;
 
-        if (def->labelsize && def->labelsize < 128) {
+        if (def->target.nvdimm.labelsize && def->target.nvdimm.labelsize < 128) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("nvdimm label must be at least 128KiB"));
             return -1;
         }
 
-        if (def->labelsize >= def->size) {
+        if (def->target.nvdimm.labelsize >= def->size) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("label size must be smaller than NVDIMM size"));
             return -1;
         }
 
         if (virXPathBoolean("boolean(./readonly)", ctxt))
-            def->readonly = true;
+            def->target.nvdimm.readonly = true;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
         if (virDomainParseMemory("./block", "./block/@unit", ctxt,
-                                 &def->blocksize, false, false) < 0)
+                                 &def->target.virtio_mem.blocksize, false, false) < 0)
             return -1;
 
         if (virDomainParseMemory("./requested", "./requested/@unit", ctxt,
-                                 &def->requestedsize, false, false) < 0)
+                                 &def->target.virtio_mem.requestedsize, false, false) < 0)
             return -1;
 
         addrNode = virXPathNode("./address", ctxt);
+        addr = &def->target.virtio_mem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
         addrNode = virXPathNode("./address", ctxt);
+        addr = &def->target.virtio_pmem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
@@ -13398,7 +13434,7 @@ virDomainMemoryTargetDefParseXML(xmlNodePtr node,
 
     if (addrNode &&
         virXMLPropULongLong(addrNode, "base", 16,
-                            VIR_XML_PROP_NONE, &def->address) < 0) {
+                            VIR_XML_PROP_NONE, addr) < 0) {
         return -1;
     }
 
@@ -13532,9 +13568,9 @@ virDomainMemoryDefParseXML(virDomainXMLOption *xmlopt,
     /* Extract NVDIMM UUID. */
     if (def->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
         (tmp = virXPathString("string(./uuid[1])", ctxt))) {
-        def->uuid = g_new0(unsigned char, VIR_UUID_BUFLEN);
+        def->target.nvdimm.uuid = g_new0(unsigned char, VIR_UUID_BUFLEN);
 
-        if (virUUIDParse(tmp, def->uuid) < 0) {
+        if (virUUIDParse(tmp, def->target.nvdimm.uuid) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            "%s", _("malformed uuid element"));
             return NULL;
@@ -15252,34 +15288,45 @@ virDomainMemoryFindByDefInternal(virDomainDef *def,
         /* target info -> always present */
         if (tmp->model != mem->model ||
             tmp->targetNode != mem->targetNode ||
-            tmp->size != mem->size ||
-            tmp->blocksize != mem->blocksize ||
-            tmp->requestedsize != mem->requestedsize)
+            tmp->size != mem->size)
             continue;
 
         switch (mem->model) {
         case VIR_DOMAIN_MEMORY_MODEL_DIMM:
-        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-            /* source stuff -> match with device */
-            if (tmp->pagesize != mem->pagesize)
+            if (tmp->source.dimm.pagesize != mem->source.dimm.pagesize)
                 continue;
 
-            if (!virBitmapEqual(tmp->sourceNodes, mem->sourceNodes))
+            if (!virBitmapEqual(tmp->source.dimm.nodes,
+                                mem->source.dimm.nodes))
+                continue;
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            if (tmp->source.virtio_mem.pagesize != mem->source.virtio_mem.pagesize ||
+                tmp->target.virtio_mem.blocksize != mem->target.virtio_mem.blocksize ||
+                tmp->target.virtio_mem.requestedsize != mem->target.virtio_mem.requestedsize ||
+                tmp->target.virtio_mem.address != mem->target.virtio_mem.address)
+                continue;
+
+            if (!virBitmapEqual(tmp->source.virtio_mem.nodes,
+                                mem->source.virtio_mem.nodes))
                 continue;
             break;
 
         case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
-            if (STRNEQ(tmp->nvdimmPath, mem->nvdimmPath))
+            if (STRNEQ(tmp->source.nvdimm.path, mem->source.nvdimm.path))
                 continue;
             break;
 
         case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-            if (STRNEQ(tmp->nvdimmPath, mem->nvdimmPath))
+            if (STRNEQ(tmp->source.virtio_pmem.path,
+                       mem->source.virtio_pmem.path) ||
+                tmp->target.virtio_pmem.address != mem->target.virtio_pmem.address)
                 continue;
             break;
 
         case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
-            if (!virBitmapEqual(tmp->sourceNodes, mem->sourceNodes))
+            if (!virBitmapEqual(tmp->source.sgx_epc.nodes,
+                                mem->source.sgx_epc.nodes))
                 continue;
             break;
 
@@ -16771,10 +16818,11 @@ virDomainLoaderDefParseXMLNvram(virDomainLoaderDef *loader,
 
     if (virXMLPropEnumDefault(nvramNode, "format",
                               virStorageFileFormatTypeFromString, VIR_XML_PROP_NONE,
-                              &format, VIR_STORAGE_FILE_RAW) < 0) {
+                              &format, VIR_STORAGE_FILE_NONE) < 0) {
         return -1;
     }
-    if (format != VIR_STORAGE_FILE_RAW &&
+    if (format &&
+        format != VIR_STORAGE_FILE_RAW &&
         format != VIR_STORAGE_FILE_QCOW2) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Unsupported nvram format '%1$s'"),
@@ -16860,10 +16908,11 @@ virDomainLoaderDefParseXMLLoader(virDomainLoaderDef *loader,
 
     if (virXMLPropEnumDefault(loaderNode, "format",
                               virStorageFileFormatTypeFromString, VIR_XML_PROP_NONE,
-                              &format, VIR_STORAGE_FILE_RAW) < 0) {
+                              &format, VIR_STORAGE_FILE_NONE) < 0) {
         return -1;
     }
-    if (format != VIR_STORAGE_FILE_RAW &&
+    if (format &&
+        format != VIR_STORAGE_FILE_RAW &&
         format != VIR_STORAGE_FILE_QCOW2) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Unsupported loader format '%1$s'"),
@@ -16894,7 +16943,9 @@ virDomainLoaderDefParseXML(virDomainLoaderDef *loader,
                                          loaderNode) < 0)
         return -1;
 
-    if (loader->nvram && loader->format != loader->nvram->format) {
+    if (loader->nvram &&
+        loader->format && loader->nvram->format &&
+        loader->format != loader->nvram->format) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Format mismatch: loader.format='%1$s' nvram.format='%2$s'"),
                        virStorageFileFormatTypeToString(loader->format),
@@ -19773,6 +19824,35 @@ virDomainVirtioOptionsCheckABIStability(virDomainVirtioOptions *src,
 
 
 static bool
+virDomainDiskBlockIoCheckABIStability(virDomainDiskDef *src,
+                                      virDomainDiskDef *dst)
+{
+    if (src->blockio.logical_block_size != dst->blockio.logical_block_size) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target disk logical_block_size %1$u does not match source %2$u"),
+                       dst->blockio.logical_block_size, src->blockio.logical_block_size);
+        return false;
+    }
+
+    if (src->blockio.physical_block_size != dst->blockio.physical_block_size) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target disk physical_block_size %1$u does not match source %2$u"),
+                       dst->blockio.physical_block_size, src->blockio.physical_block_size);
+        return false;
+    }
+
+    if (src->blockio.discard_granularity != dst->blockio.discard_granularity) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target disk discard_granularity %1$u does not match source %2$u"),
+                       dst->blockio.discard_granularity, src->blockio.discard_granularity);
+        return false;
+    }
+    return true;
+}
+
+
+
+static bool
 virDomainDiskDefCheckABIStability(virDomainDiskDef *src,
                                   virDomainDiskDef *dst)
 {
@@ -19853,6 +19933,9 @@ virDomainDiskDefCheckABIStability(virDomainDiskDef *src,
         return false;
 
     if (!virDomainDeviceInfoCheckABIStability(&src->info, &dst->info))
+        return false;
+
+    if (!virDomainDiskBlockIoCheckABIStability(src, dst))
         return false;
 
     return true;
@@ -20982,63 +21065,88 @@ virDomainMemoryDefCheckABIStability(virDomainMemoryDef *src,
         return false;
     }
 
-    if (src->blocksize != dst->blocksize) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Target memory device block size '%1$llu' doesn't match source memory device block size '%2$llu'"),
-                       dst->blocksize, src->blocksize);
-        return false;
-    }
-
-    if (src->requestedsize != dst->requestedsize) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Target memory device requested size '%1$llu' doesn't match source memory device requested size '%2$llu'"),
-                       dst->requestedsize, src->requestedsize);
-        return false;
-    }
-
-    if (src->address != dst->address) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Target memory device address '0x%1$llx' doesn't match source memory device address '0x%2$llx'"),
-                       dst->address, src->address);
-        return false;
-    }
-
-    if (src->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
-        if (src->labelsize != dst->labelsize) {
+    switch (src->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        if (src->target.nvdimm.labelsize != dst->target.nvdimm.labelsize) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Target NVDIMM label size '%1$llu' doesn't match source NVDIMM label size '%2$llu'"),
-                           src->labelsize, dst->labelsize);
+                           src->target.nvdimm.labelsize,
+                           dst->target.nvdimm.labelsize);
             return false;
         }
 
-        if (src->alignsize != dst->alignsize) {
+        if (src->source.nvdimm.alignsize != dst->source.nvdimm.alignsize) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Target NVDIMM alignment '%1$llu' doesn't match source NVDIMM alignment '%2$llu'"),
-                           src->alignsize, dst->alignsize);
+                           src->source.nvdimm.alignsize,
+                           dst->source.nvdimm.alignsize);
             return false;
         }
 
-        if (src->nvdimmPmem != dst->nvdimmPmem) {
+        if (src->source.nvdimm.pmem != dst->source.nvdimm.pmem) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Target NVDIMM pmem flag doesn't match "
                              "source NVDIMM pmem flag"));
             return false;
         }
 
-        if (src->readonly != dst->readonly) {
+        if (src->target.nvdimm.readonly != dst->target.nvdimm.readonly) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Target NVDIMM readonly flag doesn't match "
                              "source NVDIMM readonly flag"));
             return false;
         }
 
-        if ((src->uuid || dst->uuid) &&
-            !(src->uuid && dst->uuid &&
-              memcmp(src->uuid, dst->uuid, VIR_UUID_BUFLEN) == 0)) {
+        if ((src->target.nvdimm.uuid || dst->target.nvdimm.uuid) &&
+            !(src->target.nvdimm.uuid && dst->target.nvdimm.uuid &&
+              memcmp(src->target.nvdimm.uuid, dst->target.nvdimm.uuid, VIR_UUID_BUFLEN) == 0)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Target NVDIMM UUID doesn't match source NVDIMM"));
             return false;
         }
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        if (src->target.virtio_pmem.address != dst->target.virtio_pmem.address) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Target memory device address '0x%1$llx' doesn't match source memory device address '0x%2$llx'"),
+                           dst->target.virtio_pmem.address,
+                           src->target.virtio_pmem.address);
+            return false;
+        }
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        if (src->target.virtio_mem.blocksize != dst->target.virtio_mem.blocksize) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Target memory device block size '%1$llu' doesn't match source memory device block size '%2$llu'"),
+                           dst->target.virtio_mem.blocksize,
+                           src->target.virtio_mem.blocksize);
+            return false;
+        }
+
+        if (src->target.virtio_mem.requestedsize != dst->target.virtio_mem.requestedsize) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Target memory device requested size '%1$llu' doesn't match source memory device requested size '%2$llu'"),
+                           dst->target.virtio_mem.requestedsize,
+                           src->target.virtio_mem.requestedsize);
+            return false;
+        }
+
+        if (src->target.virtio_mem.address != dst->target.virtio_mem.address) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Target memory device address '0x%1$llx' doesn't match source memory device address '0x%2$llx'"),
+                           dst->target.virtio_mem.address,
+                           src->target.virtio_mem.address);
+            return false;
+        }
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
     }
 
     return virDomainDeviceInfoCheckABIStability(&src->info, &dst->info);
@@ -22035,7 +22143,8 @@ virDomainDiskBlockIoDefFormat(virBuffer *buf,
                               virDomainDiskDef *def)
 {
     if (def->blockio.logical_block_size > 0 ||
-        def->blockio.physical_block_size > 0) {
+        def->blockio.physical_block_size > 0 ||
+        def->blockio.discard_granularity > 0) {
         virBufferAddLit(buf, "<blockio");
         if (def->blockio.logical_block_size > 0) {
             virBufferAsprintf(buf,
@@ -22046,6 +22155,11 @@ virDomainDiskBlockIoDefFormat(virBuffer *buf,
             virBufferAsprintf(buf,
                               " physical_block_size='%u'",
                               def->blockio.physical_block_size);
+        }
+        if (def->blockio.discard_granularity > 0) {
+            virBufferAsprintf(buf,
+                              " discard_granularity='%u'",
+                              def->blockio.discard_granularity);
         }
         virBufferAddLit(buf, "/>\n");
     }
@@ -25096,37 +25210,48 @@ virDomainMemorySourceDefFormat(virBuffer *buf,
 
     switch (def->model) {
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
-    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-        if (def->sourceNodes) {
-            if (!(bitmap = virBitmapFormat(def->sourceNodes)))
+        if (def->source.dimm.nodes) {
+            if (!(bitmap = virBitmapFormat(def->source.dimm.nodes)))
                 return -1;
 
             virBufferAsprintf(&childBuf, "<nodemask>%s</nodemask>\n", bitmap);
         }
 
-        if (def->pagesize)
+        if (def->source.dimm.pagesize)
             virBufferAsprintf(&childBuf, "<pagesize unit='KiB'>%llu</pagesize>\n",
-                              def->pagesize);
+                              def->source.dimm.pagesize);
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        if (def->source.virtio_mem.nodes) {
+            if (!(bitmap = virBitmapFormat(def->source.virtio_mem.nodes)))
+                return -1;
+
+            virBufferAsprintf(&childBuf, "<nodemask>%s</nodemask>\n", bitmap);
+        }
+
+        if (def->source.virtio_mem.pagesize)
+            virBufferAsprintf(&childBuf, "<pagesize unit='KiB'>%llu</pagesize>\n",
+                              def->source.virtio_mem.pagesize);
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
-        virBufferEscapeString(&childBuf, "<path>%s</path>\n", def->nvdimmPath);
+        virBufferEscapeString(&childBuf, "<path>%s</path>\n", def->source.nvdimm.path);
 
-        if (def->alignsize)
+        if (def->source.nvdimm.alignsize)
             virBufferAsprintf(&childBuf, "<alignsize unit='KiB'>%llu</alignsize>\n",
-                              def->alignsize);
+                              def->source.nvdimm.alignsize);
 
-        if (def->nvdimmPmem)
+        if (def->source.nvdimm.pmem)
             virBufferAddLit(&childBuf, "<pmem/>\n");
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-        virBufferEscapeString(&childBuf, "<path>%s</path>\n", def->nvdimmPath);
+        virBufferEscapeString(&childBuf, "<path>%s</path>\n", def->source.virtio_pmem.path);
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
-        if (def->sourceNodes) {
-            if (!(bitmap = virBitmapFormat(def->sourceNodes)))
+        if (def->source.sgx_epc.nodes) {
+            if (!(bitmap = virBitmapFormat(def->source.sgx_epc.nodes)))
                 return -1;
 
             virBufferAsprintf(&childBuf, "<nodemask>%s</nodemask>\n", bitmap);
@@ -25154,29 +25279,49 @@ virDomainMemoryTargetDefFormat(virBuffer *buf,
     virBufferAsprintf(&childBuf, "<size unit='KiB'>%llu</size>\n", def->size);
     if (def->targetNode >= 0)
         virBufferAsprintf(&childBuf, "<node>%d</node>\n", def->targetNode);
-    if (def->labelsize) {
-        g_auto(virBuffer) labelChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
 
-        virBufferAsprintf(&labelChildBuf, "<size unit='KiB'>%llu</size>\n", def->labelsize);
-        virXMLFormatElement(&childBuf, "label", NULL, &labelChildBuf);
-    }
-    if (def->readonly)
-        virBufferAddLit(&childBuf, "<readonly/>\n");
+    switch (def->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        if (def->target.nvdimm.labelsize) {
+            g_auto(virBuffer) labelChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
 
-    if (def->blocksize) {
-        virBufferAsprintf(&childBuf, "<block unit='KiB'>%llu</block>\n",
-                          def->blocksize);
-
-        virBufferAsprintf(&childBuf, "<requested unit='KiB'>%llu</requested>\n",
-                          def->requestedsize);
-        if (!(flags & VIR_DOMAIN_DEF_FORMAT_INACTIVE)) {
-            virBufferAsprintf(&childBuf, "<current unit='KiB'>%llu</current>\n",
-                              def->currentsize);
+            virBufferAsprintf(&labelChildBuf, "<size unit='KiB'>%llu</size>\n",
+                              def->target.nvdimm.labelsize);
+            virXMLFormatElement(&childBuf, "label", NULL, &labelChildBuf);
         }
-    }
+        if (def->target.nvdimm.readonly)
+            virBufferAddLit(&childBuf, "<readonly/>\n");
+        break;
 
-    if (def->address)
-        virBufferAsprintf(&childBuf, "<address base='0x%llx'/>\n", def->address);
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        if (def->target.virtio_pmem.address)
+            virBufferAsprintf(&childBuf, "<address base='0x%llx'/>\n",
+                              def->target.virtio_pmem.address);
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        if (def->target.virtio_mem.blocksize) {
+            virBufferAsprintf(&childBuf, "<block unit='KiB'>%llu</block>\n",
+                              def->target.virtio_mem.blocksize);
+
+            virBufferAsprintf(&childBuf, "<requested unit='KiB'>%llu</requested>\n",
+                              def->target.virtio_mem.requestedsize);
+            if (!(flags & VIR_DOMAIN_DEF_FORMAT_INACTIVE)) {
+                virBufferAsprintf(&childBuf, "<current unit='KiB'>%llu</current>\n",
+                                  def->target.virtio_mem.currentsize);
+            }
+        }
+        if (def->target.virtio_mem.address)
+            virBufferAsprintf(&childBuf, "<address base='0x%llx'/>\n",
+                              def->target.virtio_mem.address);
+        break;
+
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
 
     virXMLFormatElement(buf, "target", NULL, &childBuf);
 }
@@ -25198,10 +25343,11 @@ virDomainMemoryDefFormat(virBuffer *buf,
     virBufferAddLit(buf, ">\n");
     virBufferAdjustIndent(buf, 2);
 
-    if (def->uuid) {
+    if (def->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+        def->target.nvdimm.uuid) {
         char uuidstr[VIR_UUID_STRING_BUFLEN];
 
-        virUUIDFormat(def->uuid, uuidstr);
+        virUUIDFormat(def->target.nvdimm.uuid, uuidstr);
         virBufferAsprintf(buf, "<uuid>%s</uuid>\n", uuidstr);
     }
 
@@ -26224,7 +26370,8 @@ virDomainLoaderDefFormatNvram(virBuffer *buf,
                 return -1;
         }
 
-        if (src->format != VIR_STORAGE_FILE_RAW) {
+        if (src->format &&
+            src->format != VIR_STORAGE_FILE_RAW) {
             virBufferEscapeString(&attrBuf, " format='%s'",
                                   virStorageFileFormatTypeToString(src->format));
         }
@@ -26262,7 +26409,8 @@ virDomainLoaderDefFormat(virBuffer *buf,
                           virTristateBoolTypeToString(loader->stateless));
     }
 
-    if (loader->format != VIR_STORAGE_FILE_RAW) {
+    if (loader->format &&
+        loader->format != VIR_STORAGE_FILE_RAW) {
         virBufferEscapeString(&loaderAttrBuf, " format='%s'",
                               virStorageFileFormatTypeToString(loader->format));
     }
@@ -28859,9 +29007,7 @@ int
 virDomainGraphicsListenAppendAddress(virDomainGraphicsDef *def,
                                      const char *address)
 {
-    virDomainGraphicsListenDef glisten;
-
-    memset(&glisten, 0, sizeof(glisten));
+    virDomainGraphicsListenDef glisten = { 0 };
 
     glisten.type = VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_ADDRESS;
 
@@ -28877,9 +29023,7 @@ int
 virDomainGraphicsListenAppendSocket(virDomainGraphicsDef *def,
                                     const char *socketPath)
 {
-    virDomainGraphicsListenDef glisten;
-
-    memset(&glisten, 0, sizeof(glisten));
+    virDomainGraphicsListenDef glisten = { 0 };
 
     glisten.type = VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_SOCKET;
 

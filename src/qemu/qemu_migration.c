@@ -1503,11 +1503,6 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
         for (i = 0; i < vm->def->nshmems; i++) {
             virDomainShmemDef *shmem = vm->def->shmems[i];
 
-            if (shmem->model == VIR_DOMAIN_SHMEM_MODEL_IVSHMEM) {
-                virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                               _("migration with legacy shmem device is not supported"));
-                return false;
-            }
             if (shmem->role != VIR_DOMAIN_SHMEM_ROLE_MASTER) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
                                _("shmem device '%1$s' cannot be migrated, only shmem with role='%2$s' can be migrated"),
@@ -2617,6 +2612,7 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
         if (flags & VIR_MIGRATE_TUNNELLED) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                            _("migration of non-shared storage is not supported with tunnelled migration and this QEMU"));
+            return NULL;
         }
 
         if (nmigrate_disks) {
@@ -2643,6 +2639,12 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
                                                      migrate_disks,
                                                      nmigrate_disks))
             cookieFlags |= QEMU_MIGRATION_COOKIE_NBD;
+    } else {
+        if (nmigrate_disks > 0) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("use of 'VIR_MIGRATE_PARAM_MIGRATE_DISKS' requires use of 'VIR_MIGRATE_NON_SHARED_DISK' or 'VIR_MIGRATE_NON_SHARED_INC' flag"));
+            return NULL;
+        }
     }
 
     if (virDomainDefHasMemoryHotplug(vm->def) ||

@@ -244,9 +244,9 @@ virHostdevGetPCIHostDevice(const virDomainHostdevDef *hostdev,
     virPCIDeviceSetManaged(actual, hostdev->managed);
 
     if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
-        virPCIDeviceSetStubDriver(actual, VIR_PCI_STUB_DRIVER_VFIO);
+        virPCIDeviceSetStubDriverType(actual, VIR_PCI_STUB_DRIVER_VFIO);
     } else if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN) {
-        virPCIDeviceSetStubDriver(actual, VIR_PCI_STUB_DRIVER_XEN);
+        virPCIDeviceSetStubDriverType(actual, VIR_PCI_STUB_DRIVER_XEN);
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("pci backend driver '%1$s' is not supported"),
@@ -679,7 +679,7 @@ virHostdevPreparePCIDevicesImpl(virHostdevManager *mgr,
     for (i = 0; i < virPCIDeviceListCount(pcidevs); i++) {
         virPCIDevice *pci = virPCIDeviceListGet(pcidevs, i);
         bool strict_acs_check = !!(flags & VIR_HOSTDEV_STRICT_ACS_CHECK);
-        bool usesVFIO = (virPCIDeviceGetStubDriver(pci) == VIR_PCI_STUB_DRIVER_VFIO);
+        bool usesVFIO = (virPCIDeviceGetStubDriverType(pci) == VIR_PCI_STUB_DRIVER_VFIO);
         struct virHostdevIsPCINodeDeviceUsedData data = {mgr, drv_name, dom_name, false};
         int hdrType = -1;
 
@@ -743,9 +743,8 @@ virHostdevPreparePCIDevicesImpl(virHostdevManager *mgr,
                                    mgr->inactivePCIHostdevs) < 0)
                 goto reattachdevs;
         } else {
-            g_autofree char *driverPath = NULL;
-            g_autofree char *driverName = NULL;
-            int stub;
+            g_autofree char *drvName = NULL;
+            virPCIStubDriver drvType;
 
             /* Unmanaged devices should already have been marked as
              * inactive: if that's the case, we can simply move on */
@@ -765,18 +764,17 @@ virHostdevPreparePCIDevicesImpl(virHostdevManager *mgr,
              *       information about active / inactive device across
              *       daemon restarts has been implemented */
 
-            if (virPCIDeviceGetDriverPathAndName(pci,
-                                                 &driverPath, &driverName) < 0)
+            if (virPCIDeviceGetCurrentDriverNameAndType(pci, &drvName,
+                                                        &drvType) < 0) {
                 goto reattachdevs;
+            }
 
-            stub = virPCIStubDriverTypeFromString(driverName);
-
-            if (stub > VIR_PCI_STUB_DRIVER_NONE &&
-                stub < VIR_PCI_STUB_DRIVER_LAST) {
+            if (drvType > VIR_PCI_STUB_DRIVER_NONE) {
 
                 /* The device is bound to a known stub driver: store this
                  * information and add a copy to the inactive list */
-                virPCIDeviceSetStubDriver(pci, stub);
+                virPCIDeviceSetStubDriverType(pci, drvType);
+                virPCIDeviceSetStubDriverName(pci, drvName);
 
                 VIR_DEBUG("Adding PCI device %s to inactive list",
                           virPCIDeviceGetName(pci));
@@ -2290,18 +2288,13 @@ virHostdevPrepareOneNVMeDevice(virHostdevManager *hostdev_mgr,
     /* Let's check if all PCI devices are NVMe disks. */
     for (i = 0; i < virPCIDeviceListCount(pciDevices); i++) {
         virPCIDevice *pci = virPCIDeviceListGet(pciDevices, i);
-        g_autofree char *drvPath = NULL;
         g_autofree char *drvName = NULL;
-        int stub = VIR_PCI_STUB_DRIVER_NONE;
+        virPCIStubDriver drvType;
 
-        if (virPCIDeviceGetDriverPathAndName(pci, &drvPath, &drvName) < 0)
+        if (virPCIDeviceGetCurrentDriverNameAndType(pci, &drvName, &drvType) < 0)
             goto cleanup;
 
-        if (drvName)
-            stub = virPCIStubDriverTypeFromString(drvName);
-
-        if (stub == VIR_PCI_STUB_DRIVER_VFIO ||
-            STREQ_NULLABLE(drvName, "nvme"))
+        if (drvType == VIR_PCI_STUB_DRIVER_VFIO || STREQ_NULLABLE(drvName, "nvme"))
             continue;
 
         VIR_WARN("Suspicious NVMe disk assignment. PCI device "

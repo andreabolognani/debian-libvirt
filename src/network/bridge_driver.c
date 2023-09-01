@@ -3210,18 +3210,10 @@ networkUpdate(virNetworkPtr net,
         }
     }
 
-    /* VIR_NETWORK_UPDATE_AFFECT_CURRENT means "change LIVE if network
-     * is active, else change CONFIG
-     */
+    if (virNetworkObjUpdateModificationImpact(obj, &flags) < 0)
+        goto cleanup;
+
     isActive = virNetworkObjIsActive(obj);
-    if ((flags & (VIR_NETWORK_UPDATE_AFFECT_LIVE |
-                  VIR_NETWORK_UPDATE_AFFECT_CONFIG)) ==
-        VIR_NETWORK_UPDATE_AFFECT_CURRENT) {
-        if (isActive)
-            flags |= VIR_NETWORK_UPDATE_AFFECT_LIVE;
-        else
-            flags |= VIR_NETWORK_UPDATE_AFFECT_CONFIG;
-    }
 
     if (isActive && (flags & VIR_NETWORK_UPDATE_AFFECT_LIVE)) {
         /* Take care of anything that must be done before updating the
@@ -5127,6 +5119,68 @@ networkListAllPorts(virNetworkPtr net,
 }
 
 
+static int
+networkSetMetadata(virNetworkPtr net,
+                   int type,
+                   const char *metadata,
+                   const char *key,
+                   const char *uri,
+                   unsigned int flags)
+{
+    virNetworkDriverState *driver = networkGetDriver();
+    virNetworkObj *obj = NULL;
+    virNetworkDef *def = NULL;
+    g_autoptr(virNetworkDriverConfig) cfg = NULL;
+    int ret = -1;
+
+    virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
+                  VIR_NETWORK_UPDATE_AFFECT_CONFIG, -1);
+
+    if (!(obj = networkObjFromNetwork(net)))
+        return -1;
+
+    cfg = virNetworkDriverGetConfig(driver);
+    def = virNetworkObjGetDef(obj);
+
+    if (virNetworkSetMetadataEnsureACL(net->conn, def, flags) < 0)
+        goto cleanup;
+
+    ret = virNetworkObjSetMetadata(obj, type, metadata, key, uri,
+                                   driver->xmlopt, cfg->stateDir,
+                                   cfg->networkConfigDir, flags);
+
+ cleanup:
+    virNetworkObjEndAPI(&obj);
+    return ret;
+}
+
+
+static char *
+networkGetMetadata(virNetworkPtr net,
+                   int type,
+                   const char *uri,
+                   unsigned int flags)
+{
+    virNetworkObj *obj = NULL;
+    virNetworkDef *def = NULL;
+    char *ret = NULL;
+
+    if (!(obj = networkObjFromNetwork(net)))
+        return NULL;
+
+    def = virNetworkObjGetDef(obj);
+
+    if (virNetworkGetMetadataEnsureACL(net->conn, def) < 0)
+        goto cleanup;
+
+    ret = virNetworkObjGetMetadata(obj, type, uri, flags);
+
+ cleanup:
+    virNetworkObjEndAPI(&obj);
+    return ret;
+}
+
+
 static virNetworkDriver networkDriver = {
     .name = "bridge",
     .connectNumOfNetworks = networkConnectNumOfNetworks, /* 0.2.0 */
@@ -5160,6 +5214,8 @@ static virNetworkDriver networkDriver = {
     .networkListAllPorts = networkListAllPorts, /* 5.5.0 */
     .networkPortGetParameters = networkPortGetParameters, /* 5.5.0 */
     .networkPortSetParameters = networkPortSetParameters, /* 5.5.0 */
+    .networkGetMetadata = networkGetMetadata, /* 9.7.0 */
+    .networkSetMetadata = networkSetMetadata, /* 9.7.0 */
 };
 
 

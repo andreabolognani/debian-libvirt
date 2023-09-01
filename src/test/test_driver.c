@@ -633,6 +633,25 @@ static int testStoragePoolObjSetDefaults(virStoragePoolObj *obj);
 static int testNodeGetInfo(virConnectPtr conn, virNodeInfoPtr info);
 static virNetworkObj *testNetworkObjFindByName(testDriver *privconn, const char *name);
 
+static virNetworkObj *
+testNetworkObjFromNetwork(virNetworkPtr network)
+{
+    virNetworkObj *net;
+    testDriver *driver = network->conn->privateData;
+    char uuidstr[VIR_UUID_STRING_BUFLEN];
+
+    net = virNetworkObjFindByUUID(driver->networks, network->uuid);
+    if (!net) {
+        virUUIDFormat(network->uuid, uuidstr);
+        virReportError(VIR_ERR_NO_NETWORK,
+                       _("no network with matching uuid '%1$s' (%2$s)"),
+                       uuidstr, network->name);
+    }
+
+    return net;
+}
+
+
 static virDomainObj *
 testDomObjFromDomain(virDomainPtr domain)
 {
@@ -4826,7 +4845,7 @@ static int testDomainGetDiskErrors(virDomainPtr dom,
 
     if (errors) {
         /* sanitize input */
-        memset(errors, 0, sizeof(virDomainDiskError) * nerrors);
+        memset(errors, 0, sizeof(*errors) * nerrors);
 
         for (i = 0; i < nerrors; i++) {
             errors[i].disk = g_strdup(vm->def->disks[i]->dst);
@@ -5658,7 +5677,7 @@ testNetworkUpdate(virNetworkPtr net,
 {
     testDriver *privconn = net->conn->privateData;
     virNetworkObj *obj = NULL;
-    int isActive, ret = -1;
+    int ret = -1;
 
     virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
                   VIR_NETWORK_UPDATE_AFFECT_CONFIG,
@@ -5667,18 +5686,8 @@ testNetworkUpdate(virNetworkPtr net,
     if (!(obj = testNetworkObjFindByUUID(privconn, net->uuid)))
         goto cleanup;
 
-    /* VIR_NETWORK_UPDATE_AFFECT_CURRENT means "change LIVE if network
-     * is active, else change CONFIG
-    */
-    isActive = virNetworkObjIsActive(obj);
-    if ((flags & (VIR_NETWORK_UPDATE_AFFECT_LIVE
-                   | VIR_NETWORK_UPDATE_AFFECT_CONFIG)) ==
-        VIR_NETWORK_UPDATE_AFFECT_CURRENT) {
-        if (isActive)
-            flags |= VIR_NETWORK_UPDATE_AFFECT_LIVE;
-        else
-            flags |= VIR_NETWORK_UPDATE_AFFECT_CONFIG;
-    }
+    if (virNetworkObjUpdateModificationImpact(obj, &flags) < 0)
+        goto cleanup;
 
     /* update the network config in memory/on disk */
     if (virNetworkObjUpdate(obj, command, section,
@@ -6878,7 +6887,7 @@ testStoragePoolGetInfo(virStoragePoolPtr pool,
         return -1;
     def = virStoragePoolObjGetDef(obj);
 
-    memset(info, 0, sizeof(virStoragePoolInfo));
+    memset(info, 0, sizeof(*info));
     if (virStoragePoolObjIsActive(obj))
         info->state = VIR_STORAGE_POOL_RUNNING;
     else
@@ -8724,7 +8733,7 @@ testDomainSnapshotAlignDisks(virDomainObj *vm,
                       VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL;
     }
 
-    return virDomainSnapshotAlignDisks(def, NULL, align_location, true);
+    return virDomainSnapshotAlignDisks(def, NULL, align_location, true, false);
 }
 
 
@@ -9951,6 +9960,52 @@ testConnectGetAllDomainStats(virConnectPtr conn,
     return ret;
 }
 
+static char *
+testNetworkGetMetadata(virNetworkPtr net,
+                       int type,
+                       const char *uri,
+                       unsigned int flags)
+{
+    virNetworkObj *privnet;
+    char *ret;
+
+    virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
+                  VIR_NETWORK_UPDATE_AFFECT_CONFIG, NULL);
+
+    if (!(privnet = testNetworkObjFromNetwork(net)))
+        return NULL;
+
+    ret = virNetworkObjGetMetadata(privnet, type, uri, flags);
+
+    virNetworkObjEndAPI(&privnet);
+    return ret;
+}
+
+static int
+testNetworkSetMetadata(virNetworkPtr net,
+                       int type,
+                       const char *metadata,
+                       const char *key,
+                       const char *uri,
+                       unsigned int flags)
+{
+    virNetworkObj *privnet;
+    int ret;
+
+    virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
+                  VIR_NETWORK_UPDATE_AFFECT_CONFIG, -1);
+
+    if (!(privnet = testNetworkObjFromNetwork(net)))
+        return -1;
+
+    ret = virNetworkObjSetMetadata(privnet, type, metadata,
+                                   key, uri, NULL,
+                                   NULL, NULL, flags);
+
+    virNetworkObjEndAPI(&privnet);
+    return ret;
+}
+
 /*
  * Test driver
  */
@@ -10144,6 +10199,8 @@ static virNetworkDriver testNetworkDriver = {
     .networkSetAutostart = testNetworkSetAutostart, /* 0.3.2 */
     .networkIsActive = testNetworkIsActive, /* 0.7.3 */
     .networkIsPersistent = testNetworkIsPersistent, /* 0.7.3 */
+    .networkSetMetadata = testNetworkSetMetadata, /* 9.7.0 */
+    .networkGetMetadata = testNetworkGetMetadata, /* 9.7.0 */
 };
 
 static virInterfaceDriver testInterfaceDriver = {

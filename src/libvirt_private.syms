@@ -807,6 +807,10 @@ virInterfaceDefParseString;
 virInterfaceDefParseXML;
 
 
+# conf/moment_conf.h
+virDomainMomentDefPostParse;
+
+
 # conf/netdev_bandwidth_conf.h
 virDomainClearNetBandwidth;
 virNetDevBandwidthFormat;
@@ -1033,6 +1037,7 @@ virDomainSnapshotDefFormat;
 virDomainSnapshotDefIsExternal;
 virDomainSnapshotDefNew;
 virDomainSnapshotDefParseString;
+virDomainSnapshotDiskDefClear;
 virDomainSnapshotDiskDefFree;
 virDomainSnapshotDiskDefParseXML;
 virDomainSnapshotFormatConvertXMLFlags;
@@ -1216,6 +1221,7 @@ virDomainMomentDropChildren;
 virDomainMomentDropParent;
 virDomainMomentForEachChild;
 virDomainMomentForEachDescendant;
+virDomainMomentIsAncestor;
 virDomainMomentMoveChildren;
 virDomainMomentObjFree;
 virDomainMomentObjNew;
@@ -1291,6 +1297,7 @@ virNetworkObjGetDef;
 virNetworkObjGetDnsmasqPid;
 virNetworkObjGetFloorSum;
 virNetworkObjGetMacMap;
+virNetworkObjGetMetadata;
 virNetworkObjGetNewDef;
 virNetworkObjGetPersistentDef;
 virNetworkObjGetPortStatusDir;
@@ -1321,11 +1328,13 @@ virNetworkObjSetDefTransient;
 virNetworkObjSetDnsmasqPid;
 virNetworkObjSetFloorSum;
 virNetworkObjSetMacMap;
+virNetworkObjSetMetadata;
 virNetworkObjTaint;
 virNetworkObjUnrefMacMap;
 virNetworkObjUnsetDefTransient;
 virNetworkObjUpdate;
 virNetworkObjUpdateAssignDef;
+virNetworkObjUpdateModificationImpact;
 
 
 # conf/virnetworkportdef.h
@@ -2269,6 +2278,10 @@ saferead;
 safewrite;
 safezero;
 virBuildPathInternal;
+virCloseFrom;
+virCloseRange;
+virCloseRangeInit;
+virCloseRangeIsSupported;
 virDirClose;
 virDirCreate;
 virDirIsEmpty;
@@ -3064,7 +3077,8 @@ virPCIDeviceFileIterate;
 virPCIDeviceFree;
 virPCIDeviceGetAddress;
 virPCIDeviceGetConfigPath;
-virPCIDeviceGetDriverPathAndName;
+virPCIDeviceGetCurrentDriverNameAndType;
+virPCIDeviceGetCurrentDriverPathAndName;
 virPCIDeviceGetIOMMUGroupDev;
 virPCIDeviceGetIOMMUGroupList;
 virPCIDeviceGetLinkCapSta;
@@ -3072,7 +3086,8 @@ virPCIDeviceGetManaged;
 virPCIDeviceGetName;
 virPCIDeviceGetRemoveSlot;
 virPCIDeviceGetReprobe;
-virPCIDeviceGetStubDriver;
+virPCIDeviceGetStubDriverName;
+virPCIDeviceGetStubDriverType;
 virPCIDeviceGetUnbindFromStub;
 virPCIDeviceGetUsedBy;
 virPCIDeviceGetVPD;
@@ -3098,7 +3113,8 @@ virPCIDeviceReset;
 virPCIDeviceSetManaged;
 virPCIDeviceSetRemoveSlot;
 virPCIDeviceSetReprobe;
-virPCIDeviceSetStubDriver;
+virPCIDeviceSetStubDriverName;
+virPCIDeviceSetStubDriverType;
 virPCIDeviceSetUnbindFromStub;
 virPCIDeviceSetUsedBy;
 virPCIDeviceUnbind;

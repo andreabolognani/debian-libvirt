@@ -87,6 +87,7 @@
 #include "virlog.h"
 #include "virprocess.h"
 #include "virstring.h"
+#include "virthread.h"
 #include "virutil.h"
 #include "virsocket.h"
 
@@ -108,6 +109,9 @@ VIR_LOG_INIT("util.file");
 #ifndef O_DIRECT
 # define O_DIRECT 0
 #endif
+
+static virOnceControl virCloseRangeOnce = VIR_ONCE_CONTROL_INITIALIZER;
+static bool virCloseRangeSupported;
 
 int virFileClose(int *fdptr, virFileCloseFlags flags)
 {
@@ -173,6 +177,112 @@ FILE *virFileFdopen(int *fdptr, const char *mode)
     }
 
     return file;
+}
+
+
+static int
+virCloseRangeImpl(unsigned int first G_GNUC_UNUSED,
+                  unsigned int last G_GNUC_UNUSED)
+{
+#if defined(WITH_SYS_SYSCALL_H) && defined(__NR_close_range)
+    return syscall(__NR_close_range, first, last, 0);
+#endif
+
+    errno = ENOSYS;
+    return -1;
+}
+
+
+static void
+virCloseRangeOnceInit(void)
+{
+    int fd[2] = {-1, -1};
+
+    if (virPipeQuiet(fd) < 0)
+        return;
+
+    VIR_FORCE_CLOSE(fd[1]);
+    if (virCloseRangeImpl(fd[0], fd[0]) < 0) {
+        VIR_FORCE_CLOSE(fd[0]);
+        return;
+    }
+
+    virCloseRangeSupported = true;
+}
+
+
+/**
+ * virCloseRange:
+ *
+ * Closes all open file descriptors from @first to @last (included).
+ *
+ * Returns: 0 on success,
+ *         -1 on failure (with errno set).
+ */
+int
+virCloseRange(unsigned int first,
+              unsigned int last)
+{
+    if (virCloseRangeInit() < 0)
+        return -1;
+
+    if (!virCloseRangeSupported) {
+        errno = ENOSYS;
+        return -1;
+    }
+
+    return virCloseRangeImpl(first, last);
+}
+
+
+/**
+ * virCloseRangeInit:
+ *
+ * Detects whether close_range() is available and cache the result.
+ */
+int
+virCloseRangeInit(void)
+{
+    if (virOnce(&virCloseRangeOnce, virCloseRangeOnceInit) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+/**
+ * virCloseRangeIsSupported:
+ *
+ * Returns whether close_range() is supported or not.
+ */
+bool
+virCloseRangeIsSupported(void)
+{
+    if (virCloseRangeInit() < 0)
+        return false;
+
+    return virCloseRangeSupported;
+}
+
+
+/**
+ * virCloseFrom:
+ *
+ * Closes all open file descriptors greater than or equal to @fromfd.
+ *
+ * Returns: 0 on success,
+ *         -1 on error (with errno set).
+ */
+int
+virCloseFrom(int fromfd)
+{
+#ifdef __FreeBSD__
+    /* FreeBSD has closefrom() since FreeBSD-8.0, i.e. since 2009. */
+    closefrom(fromfd);
+    return 0;
+#else /* !__FreeBSD__ */
+    return virCloseRange(fromfd, ~0U);
+#endif /* !__FreeBSD__ */
 }
 
 
@@ -876,14 +986,13 @@ int virFileLoopDeviceAssociate(const char *file,
 {
     int lofd = -1;
     int fsfd = -1;
-    struct loop_info64 lo;
+    struct loop_info64 lo = { 0 };
     g_autofree char *loname = NULL;
     int ret = -1;
 
     if ((lofd = virFileLoopDeviceOpen(&loname)) < 0)
         return -1;
 
-    memset(&lo, 0, sizeof(lo));
     lo.lo_flags = LO_FLAGS_AUTOCLEAR;
 
     /* Set backing file name for LOOP_GET_STATUS64 queries */

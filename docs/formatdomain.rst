@@ -2588,7 +2588,7 @@ paravirtualized driver is specified via the ``disk`` element.
        <driver name='qemu' type='raw'/>
        <source dev='/dev/sda'/>
        <geometry cyls='16383' heads='16' secs='63' trans='lba'/>
-       <blockio logical_block_size='512' physical_block_size='4096'/>
+       <blockio logical_block_size='512' physical_block_size='4096' discard_granularity='4096'/>
        <target dev='hdj' bus='ide'/>
      </disk>
      <disk type='volume' device='disk'>
@@ -2633,6 +2633,12 @@ paravirtualized driver is specified via the ``disk`` element.
          </initiator>
        </source>
        <target dev='sdb' bus='scsi'/>
+     </disk>
+     <disk type='dir' device='floppy'>
+       <driver name='qemu' type='fat'/>
+       <source dir='/var/somefiles'>
+       <target dev='fda'/>
+       <readonly/>
      </disk>
      <disk type='volume' device='disk'>
        <driver name='qemu' type='raw'/>
@@ -2757,6 +2763,18 @@ paravirtualized driver is specified via the ``disk`` element.
    ``dir``
       The ``dir`` attribute specifies the fully-qualified path to the directory
       to use as the disk. :since:`Since 0.7.5`
+
+      Note that most hypervisors that support ``dir`` disks do that by exposing
+      an emulated block device with an emulated filesystem populated with
+      contents of the configured directory. As guest operating system may cache
+      the filesystem metadata, outside changes to the directory may not appear
+      in the guest and/or may result in corrupted data being observable from
+      the VM.
+
+      The format of the emulated filesystem is controlled by the ``format``
+      attribute of the ``<driver>`` driver element. Currently only the ``fat``
+      format is supported. Hypervisors may only support ``<readonly/>`` mode.
+
    ``network``
       The ``protocol`` attribute specifies the protocol to access to the
       requested image. Possible values are "nbd", "iscsi", "rbd", "sheepdog",
@@ -3435,6 +3453,11 @@ paravirtualized driver is specified via the ``disk`` element.
       this would be the value returned by the BLKPBSZGET ioctl and describes the
       disk's hardware sector size which can be relevant for the alignment of
       disk data.
+   ``discard_granularity``
+      The smallest amount of data that can be discarded in a single operation.
+      It impacts the unmap operations and it must be a multiple of a
+      ``logical_block_size``. This is usually properly configured by the
+      hypervisor.
 
 Filesystems
 ~~~~~~~~~~~

@@ -1147,10 +1147,23 @@ get_files(vahControl * ctl)
     }
 
     for (i = 0; i < ctl->def->nmems; i++) {
-        if (ctl->def->mems[i] &&
-                ctl->def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
-            if (vah_add_file(&buf, ctl->def->mems[i]->nvdimmPath, "rw") != 0)
+        virDomainMemoryDef *mem = ctl->def->mems[i];
+
+        switch (mem->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+            if (vah_add_file(&buf, mem->source.nvdimm.path, "rw") != 0)
                 goto cleanup;
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+            if (vah_add_file(&buf, mem->source.virtio_pmem.path, "rw") != 0)
+                goto cleanup;
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            break;
         }
     }
 
@@ -1433,7 +1446,8 @@ vahParseArgv(vahControl * ctl, int argc, char **argv)
 int
 main(int argc, char **argv)
 {
-    vahControl _ctl, *ctl = &_ctl;
+    vahControl _ctl = { 0 };
+    vahControl *ctl = &_ctl;
     int rc = -1;
     char *profile = NULL;
     char *include_file = NULL;
@@ -1465,8 +1479,6 @@ main(int argc, char **argv)
         progname = argv[0];
     else
         progname++;
-
-    memset(ctl, 0, sizeof(vahControl));
 
     if (vahParseArgv(ctl, argc, argv) != 0)
         vah_error(ctl, 1, _("could not parse arguments"));

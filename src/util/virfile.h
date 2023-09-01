@@ -61,6 +61,11 @@ static inline void virForceCloseHelper(int *fd)
     ignore_value(virFileClose(fd, VIR_FILE_CLOSE_PRESERVE_ERRNO));
 }
 
+int virCloseRange(unsigned int from, unsigned int to);
+int virCloseRangeInit(void);
+bool virCloseRangeIsSupported(void);
+int virCloseFrom(int fromfd);
+
 /* For use on normal paths; caller must check return value,
    and failure sets errno per close. */
 #define VIR_CLOSE(FD) virFileClose(&(FD), 0)

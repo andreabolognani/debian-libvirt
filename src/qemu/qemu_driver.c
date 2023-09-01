@@ -70,7 +70,6 @@
 #include "domain_driver.h"
 #include "domain_postparse.h"
 #include "domain_validate.h"
-#include "virpci.h"
 #include "virpidfile.h"
 #include "virprocess.h"
 #include "libvirt_internal.h"
@@ -3781,20 +3780,19 @@ processSerialChangedEvent(virQEMUDriver *driver,
 
     if (newstate == VIR_DOMAIN_CHR_DEVICE_STATE_DISCONNECTED &&
         virDomainObjIsActive(vm) && priv->agent) {
+        virDomainDeviceDef agentDev;
+
         /* peek into the domain definition to find the channel */
-        if (virDomainDefFindDevice(vm->def, devAlias, &dev, true) == 0 &&
-            dev.type == VIR_DOMAIN_DEVICE_CHR &&
-            dev.data.chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CHANNEL &&
-            dev.data.chr->targetType == VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_VIRTIO &&
-            STREQ_NULLABLE(dev.data.chr->target.name, "org.qemu.guest_agent.0"))
+        if (virDomainDefFindDevice(vm->def, devAlias, &agentDev, true) == 0 &&
+            agentDev.type == VIR_DOMAIN_DEVICE_CHR &&
+            agentDev.data.chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CHANNEL &&
+            agentDev.data.chr->targetType == VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_VIRTIO &&
+            STREQ_NULLABLE(agentDev.data.chr->target.name, "org.qemu.guest_agent.0")) {
             /* Close agent monitor early, so that other threads
              * waiting for the agent to reply can finish and our
              * job we acquire below can succeed. */
             qemuAgentNotifyClose(priv->agent);
-
-        /* now discard the data, since it may possibly change once we unlock
-         * while entering the job */
-        memset(&dev, 0, sizeof(dev));
+        }
     }
 
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY_MIGRATION_SAFE) < 0)
@@ -3999,19 +3997,26 @@ processMemoryDeviceSizeChange(virQEMUDriver *driver,
         goto endjob;
     }
 
+    if (mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM) {
+        VIR_DEBUG("Received MEMORY_DEVICE_SIZE_CHANGE event for unexpected memory model (%s), expected %s",
+                  virDomainMemoryModelTypeToString(mem->model),
+                  virDomainMemoryModelTypeToString(VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM));
+        goto endjob;
+    }
+
     /* If this looks weird it's because it is. The balloon size
      * as reported by QEMU does not include any of @currentsize.
      * It really contains just the balloon size. But in domain
      * definition we want to report also sum of @currentsize. Do
      * a bit of math to fix the domain definition. */
-    balloon = vm->def->mem.cur_balloon - mem->currentsize;
-    mem->currentsize = VIR_DIV_UP(info->size, 1024);
-    balloon += mem->currentsize;
+    balloon = vm->def->mem.cur_balloon - mem->target.virtio_mem.currentsize;
+    mem->target.virtio_mem.currentsize = VIR_DIV_UP(info->size, 1024);
+    balloon += mem->target.virtio_mem.currentsize;
     vm->def->mem.cur_balloon = balloon;
 
     event = virDomainEventMemoryDeviceSizeChangeNewFromObj(vm,
                                                            info->devAlias,
-                                                           mem->currentsize);
+                                                           mem->target.virtio_mem.currentsize);
 
  endjob:
     virDomainObjEndJob(vm);
@@ -11401,34 +11406,38 @@ qemuNodeDeviceDetachFlags(virNodeDevicePtr dev,
 
     virCheckFlags(0, -1);
 
-    if (!driverName)
-        driverName = "vfio";
+    /* For historical reasons, if driverName is "vfio", that is the
+     * same as NULL, i.e. the default vfio driver for this device
+     */
+    if (STREQ_NULLABLE(driverName, "vfio"))
+        driverName = NULL;
 
-    /* Only the 'vfio' driver is supported and a special error message for
-     * the previously supported 'kvm' driver is provided below. */
-    if (STRNEQ(driverName, "vfio") && STRNEQ(driverName, "kvm")) {
-        virReportError(VIR_ERR_INVALID_ARG,
-                       _("unknown driver name '%1$s'"), driverName);
-        return -1;
-    }
-
-    if (STREQ(driverName, "kvm")) {
+    /* the "kvm" driver name was used a very long time ago to force
+     * "legacy KVM device assignment", which hasn't been supported in
+     * over 10 years.
+     */
+    if (STREQ_NULLABLE(driverName, "kvm")) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
-                       _("KVM device assignment is no longer "
-                         "supported on this system"));
+                       _("'legacy KVM' device assignment is no longer supported on this system"));
         return -1;
     }
+
+    /* for any other driver, we can't know whether or not it is a VFIO
+     * driver until the device has been bound to it, so we will defer
+     * further validation until then.
+     */
 
     if (!qemuHostdevHostSupportsPassthroughVFIO()) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
-                       _("VFIO device assignment is currently not "
-                         "supported on this system"));
+                       _("VFIO device assignment is currently not supported on this system"));
          return -1;
     }
 
     /* virNodeDeviceDetachFlagsEnsureACL() is being called by
      * virDomainDriverNodeDeviceDetachFlags() */
-    return virDomainDriverNodeDeviceDetachFlags(dev, hostdev_mgr, driverName);
+    return virDomainDriverNodeDeviceDetachFlags(dev, hostdev_mgr,
+                                                VIR_PCI_STUB_DRIVER_VFIO,
+                                                driverName);
 }
 
 static int
@@ -14934,8 +14943,8 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
     qemuDomainObjPrivate *priv;
     virDomainDef *def = NULL;
     virDomainDef *persistentDef = NULL;
-    virDomainBlockIoTuneInfo info;
-    virDomainBlockIoTuneInfo conf_info;
+    virDomainBlockIoTuneInfo info = { 0 };
+    virDomainBlockIoTuneInfo conf_info = { 0 };
     int ret = -1;
     size_t i;
     virDomainDiskDef *conf_disk = NULL;
@@ -14995,9 +15004,6 @@ qemuDomainSetBlockIoTune(virDomainPtr dom,
                                VIR_TYPED_PARAM_ULLONG,
                                NULL) < 0)
         return -1;
-
-    memset(&info, 0, sizeof(info));
-    memset(&conf_info, 0, sizeof(conf_info));
 
     if (!(vm = qemuDomainObjFromDomain(dom)))
         return -1;
@@ -17124,7 +17130,6 @@ qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
                             unsigned int privflags G_GNUC_UNUSED)
 {
     size_t i;
-    struct _virDomainInterfaceStats tmp;
 
     if (!virDomainObjIsActive(dom))
         return 0;
@@ -17135,11 +17140,10 @@ qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
     for (i = 0; i < dom->def->nnets; i++) {
         virDomainNetDef *net = dom->def->nets[i];
         virDomainNetType actualType;
+        struct _virDomainInterfaceStats tmp = { 0 };
 
         if (!net->ifname)
             continue;
-
-        memset(&tmp, 0, sizeof(tmp));
 
         actualType = virDomainNetGetActualType(net);
 

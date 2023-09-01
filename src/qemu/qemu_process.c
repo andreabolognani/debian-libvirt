@@ -1096,7 +1096,7 @@ qemuProcessHandleBalloonChange(qemuMonitor *mon G_GNUC_UNUSED,
     VIR_DEBUG("balloon size before fix is %lld", actual);
     for (i = 0; i < vm->def->nmems; i++) {
         if (vm->def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM)
-            actual += vm->def->mems[i]->currentsize;
+            actual += vm->def->mems[i]->target.virtio_mem.currentsize;
     }
 
     VIR_DEBUG("Updating balloon from %lld to %lld kb",
@@ -2226,14 +2226,13 @@ qemuRefreshRTC(virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     time_t now, then;
-    struct tm thenbits;
+    struct tm thenbits = { 0 };
     long localOffset;
     int rv;
 
     if (vm->def->clock.offset != VIR_DOMAIN_CLOCK_OFFSET_VARIABLE)
         return;
 
-    memset(&thenbits, 0, sizeof(thenbits));
     qemuDomainObjEnterMonitor(vm);
     now = time(NULL);
     rv = qemuMonitorGetRTCTime(priv->mon, &thenbits);
@@ -2287,7 +2286,7 @@ qemuProcessRefreshBalloonState(virDomainObj *vm,
     VIR_DEBUG("balloon size before fix is %lld", balloon);
     for (i = 0; i < vm->def->nmems; i++) {
         if (vm->def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM)
-            balloon += vm->def->mems[i]->currentsize;
+            balloon += vm->def->mems[i]->target.virtio_mem.currentsize;
     }
     VIR_DEBUG("Updating balloon from %lld to %lld kb",
               vm->def->mem.cur_balloon, balloon);
@@ -3928,11 +3927,15 @@ static bool
 qemuProcessDomainMemoryDefNeedHugepagesPath(const virDomainMemoryDef *mem,
                                             const long system_pagesize)
 {
+    unsigned long long pagesize = 0;
+
     switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        pagesize = mem->source.dimm.pagesize;
+        break;
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-        return mem->pagesize && mem->pagesize != system_pagesize;
-
+        pagesize = mem->source.virtio_mem.pagesize;
+        break;
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
@@ -3942,7 +3945,7 @@ qemuProcessDomainMemoryDefNeedHugepagesPath(const virDomainMemoryDef *mem,
         return false;
     }
 
-    return false;
+    return pagesize != 0 && pagesize != system_pagesize;
 }
 
 
@@ -5069,7 +5072,7 @@ qemuProcessGraphicsSetupListen(virQEMUDriver *driver,
                  * *_auto_unix_socket set we should use unix socket as
                  * default instead of tcp listen. */
                 if (useSocket) {
-                    memset(glisten, 0, sizeof(virDomainGraphicsListenDef));
+                    memset(glisten, 0, sizeof(*glisten));
                     glisten->socket = g_strdup_printf("%s/%s.sock", priv->libDir,
                                                       type);
                     glisten->fromConfig = true;
@@ -6706,7 +6709,7 @@ qemuProcessPrepareDomain(virQEMUDriver *driver,
         return -1;
 
     VIR_DEBUG("Prepare bios/uefi paths");
-    if (qemuFirmwareFillDomain(driver, vm->def) < 0)
+    if (qemuFirmwareFillDomain(driver, vm->def, false) < 0)
         return -1;
     if (qemuDomainInitializePflashStorageSource(vm, cfg) < 0)
         return -1;
@@ -7613,8 +7616,7 @@ qemuProcessLaunch(virConnectPtr conn,
     hookData.cfg = cfg;
 
     VIR_DEBUG("Creating domain log file");
-    if (!(logCtxt = qemuDomainLogContextNew(driver, vm,
-                                            QEMU_DOMAIN_LOG_CONTEXT_MODE_START))) {
+    if (!(logCtxt = qemuDomainLogContextNew(driver, vm))) {
         virLastErrorPrefixMessage("%s", _("can't connect to virtlogd"));
         goto cleanup;
     }

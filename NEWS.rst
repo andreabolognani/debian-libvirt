@@ -8,6 +8,31 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.7.0 (2023-09-01)
+===================
+
+* **New features**
+
+  * qemu: basic support for use of "VFIO variant" drivers
+
+    A VFIO variant driver is a device-specific driver that can
+    be used in place of the generic vfio-pci driver, and provides
+    extra functionality to support things like live migration of
+    guests with vfio-assigned devices. It can currently be used by:
+
+    1) setting ``managed='no'`` in the XML configuration for the device
+    2) pre-binding the variant driver using the ``--driver`` option of
+       ``virsh nodedev-detach``.
+
+* **Bug fixes**
+
+  * qemu: Various fixes to firmware selection
+
+    The changes made to firmware selection in libvirt 9.2.0 have unfortunately
+    introduced a number of regressions. All known issues in this area have now
+    been resolved.
+
+
 v9.6.0 (2023-08-01)
 ===================
 

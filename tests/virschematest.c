@@ -48,7 +48,9 @@ static int
 testSchemaValidateXML(const void *args)
 {
     const struct testSchemaData *data = args;
-    bool shouldFail = virStringHasSuffix(data->xml_path, "-invalid.xml");
+    /* invalid XMLs have a '-invalid.' suffix, but not necessarily at the end
+     * of the file name e.g. in case of qemuxml2xmltest with real capabilities */
+    bool shouldFail = !!strstr(data->xml_path, "-invalid.");
     g_autoptr(xmlDoc) xml = NULL;
 
     if (!(xml = virXMLParseFileCtxt(data->xml_path, NULL)))
@@ -235,6 +237,8 @@ static const struct testSchemaEntry schemaDomain[] = {
     { .dir = "tests/xml2vmxdata" },
     { .dir = "tests/bhyveargv2xmldata" },
     { .dir = "tests/qemuagentdata" },
+    { .dir = "tests/chxml2xmlin" },
+    { .dir = "tests/chxml2xmlout" },
 };
 
 static const struct testSchemaEntry schemaDomainCaps[] = {

@@ -895,7 +895,7 @@ testQemuMonitorJSONGetObjectProperty(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    qemuMonitorJSONObjectProperty prop;
+    qemuMonitorJSONObjectProperty prop = { 0 };
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
@@ -906,7 +906,6 @@ testQemuMonitorJSONGetObjectProperty(const void *opaque)
         return -1;
 
     /* Present with path and property */
-    memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty));
     prop.type = QEMU_MONITOR_OBJECT_PROPERTY_BOOLEAN;
     if (qemuMonitorJSONGetObjectProperty(qemuMonitorTestGetMonitor(test),
                                          "/machine/i440fx",
@@ -935,7 +934,7 @@ testQemuMonitorJSONSetObjectProperty(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    qemuMonitorJSONObjectProperty prop;
+    qemuMonitorJSONObjectProperty prop = { 0 };
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
@@ -949,7 +948,6 @@ testQemuMonitorJSONSetObjectProperty(const void *opaque)
         return -1;
 
     /* Let's attempt the setting */
-    memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty));
     prop.type = QEMU_MONITOR_OBJECT_PROPERTY_BOOLEAN;
     prop.val.b = true;
     if (qemuMonitorJSONSetObjectProperty(qemuMonitorTestGetMonitor(test),
@@ -1593,14 +1591,13 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationStats(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    qemuMonitorMigrationStats stats, expectedStats;
+    qemuMonitorMigrationStats stats;
+    qemuMonitorMigrationStats expectedStats = { 0 };
     g_autofree char *error = NULL;
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
-
-    memset(&expectedStats, 0, sizeof(expectedStats));
 
     expectedStats.status = QEMU_MONITOR_MIGRATION_STATUS_ACTIVE;
     expectedStats.total_time = 47;

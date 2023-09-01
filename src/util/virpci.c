@@ -87,7 +87,8 @@ struct _virPCIDevice {
 
     bool          managed;
 
-    virPCIStubDriver stubDriver;
+    virPCIStubDriver stubDriverType;
+    char            *stubDriverName; /* if blank, use default for type */
 
     /* used by reattach function */
     bool          unbind_from_stub;
@@ -227,7 +228,7 @@ virPCIFile(const char *device, const char *file)
 }
 
 
-/* virPCIDeviceGetDriverPathAndName - put the path to the driver
+/* virPCIDeviceGetCurrentDriverPathAndName - put the path to the driver
  * directory of the driver in use for this device in @path and the
  * name of the driver in @name. Both could be NULL if it's not bound
  * to any driver.
@@ -235,7 +236,9 @@ virPCIFile(const char *device, const char *file)
  * Return 0 for success, -1 for error.
  */
 int
-virPCIDeviceGetDriverPathAndName(virPCIDevice *dev, char **path, char **name)
+virPCIDeviceGetCurrentDriverPathAndName(virPCIDevice *dev,
+                                        char **path,
+                                        char **name)
 {
     int ret = -1;
     g_autofree char *drvlink = NULL;
@@ -274,6 +277,73 @@ virPCIDeviceGetDriverPathAndName(virPCIDevice *dev, char **path, char **name)
         VIR_FREE(*name);
     }
     return ret;
+}
+
+
+/**
+ * virPCIDeviceGetCurrentDriverNameAndType:
+ * @dev: virPCIDevice object to examine
+ * @drvName: returns name of driver bound to this device (if any)
+ * @drvType: returns type of driver if it is a known stub driver type
+ *
+ * Find the name of the driver bound to @dev (if any) and the type of
+ * the driver if it is a known/recognized "stub" driver (based on the
+ * driver name).
+ *
+ * There are vfio "variant" drivers that provide all the basic
+ * functionality of the standard vfio-pci driver as well as additional
+ * stuff. As of kernel 6.1, the vfio-pci driver and all vfio variant
+ * drivers can be identified (once the driver has been bound to a
+ * device) by looking for the subdirectory "vfio-dev" in the device's
+ * sysfs directory; for example, if the directory
+ * /sys/bus/pci/devices/0000:04:11.4/vfio-dev exists, then the driver
+ * that is currently bound to PCI device 0000:04:11.4 is either
+ * vfio-pci, or a vfio-pci variant driver.
+ *
+ * Return 0 on success, -1 on failure. If -1 is returned, then an error
+ * message has been logged.
+ */
+int
+virPCIDeviceGetCurrentDriverNameAndType(virPCIDevice *dev,
+                                        char **drvName,
+                                        virPCIStubDriver *drvType)
+{
+    g_autofree char *drvPath = NULL;
+    g_autofree char *vfioDevDir = NULL;
+    int tmpType;
+
+    if (virPCIDeviceGetCurrentDriverPathAndName(dev, &drvPath, drvName) < 0)
+        return -1;
+
+    if (!*drvName) {
+        *drvType = VIR_PCI_STUB_DRIVER_NONE;
+        return 0;
+    }
+
+    tmpType = virPCIStubDriverTypeFromString(*drvName);
+
+    if (tmpType > VIR_PCI_STUB_DRIVER_NONE) {
+        *drvType = tmpType;
+        return 0; /* exact match of a known driver name (or no name) */
+    }
+
+    /* If the sysfs directory of this device contains a directory
+     * named "vfio-dev" then the currently-bound driver is a vfio
+     * variant driver.
+     */
+
+    vfioDevDir = virPCIFile(dev->name, "vfio-dev");
+
+    if (virFileIsDir(vfioDevDir)) {
+        VIR_DEBUG("Driver %s is a vfio_pci driver", *drvName);
+        *drvType = VIR_PCI_STUB_DRIVER_VFIO;
+    } else {
+        VIR_DEBUG("Driver %s is NOT a vfio_pci driver, or kernel is too old",
+                  *drvName);
+        *drvType = VIR_PCI_STUB_DRIVER_NONE;
+    }
+
+    return 0;
 }
 
 
@@ -1004,8 +1074,8 @@ virPCIDeviceReset(virPCIDevice *dev,
                   virPCIDeviceList *activeDevs,
                   virPCIDeviceList *inactiveDevs)
 {
-    g_autofree char *drvPath = NULL;
     g_autofree char *drvName = NULL;
+    virPCIStubDriver drvType;
     int ret = -1;
     int fd = -1;
     int hdrType = -1;
@@ -1031,15 +1101,16 @@ virPCIDeviceReset(virPCIDevice *dev,
      * reset it whenever appropriate, so doing it ourselves would just
      * be redundant.
      */
-    if (virPCIDeviceGetDriverPathAndName(dev, &drvPath, &drvName) < 0)
+    if (virPCIDeviceGetCurrentDriverNameAndType(dev, &drvName, &drvType) < 0)
         goto cleanup;
 
-    if (virPCIStubDriverTypeFromString(drvName) == VIR_PCI_STUB_DRIVER_VFIO) {
-        VIR_DEBUG("Device %s is bound to vfio-pci - skip reset",
-                  dev->name);
+    if (drvType == VIR_PCI_STUB_DRIVER_VFIO) {
+
+        VIR_DEBUG("Device %s is bound to %s - skip reset", dev->name, drvName);
         ret = 0;
         goto cleanup;
     }
+
     VIR_DEBUG("Resetting device %s", dev->name);
 
     if ((fd = virPCIDeviceConfigOpenWrite(dev)) < 0)
@@ -1083,28 +1154,19 @@ virPCIDeviceReset(virPCIDevice *dev,
 
 
 static int
-virPCIProbeStubDriver(virPCIStubDriver driver)
+virPCIProbeDriver(const char *driverName)
 {
-    const char *drvname = NULL;
     g_autofree char *drvpath = NULL;
     g_autofree char *errbuf = NULL;
 
-    if (driver == VIR_PCI_STUB_DRIVER_NONE ||
-        !(drvname = virPCIStubDriverTypeToString(driver))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s",
-                       _("Attempting to use unknown stub driver"));
-        return -1;
-    }
-
-    drvpath = virPCIDriverDir(drvname);
+    drvpath = virPCIDriverDir(driverName);
 
     /* driver previously loaded, return */
     if (virFileExists(drvpath))
         return 0;
 
-    if ((errbuf = virKModLoad(drvname))) {
-        VIR_WARN("failed to load driver %s: %s", drvname, errbuf);
+    if ((errbuf = virKModLoad(driverName))) {
+        VIR_WARN("failed to load driver %s: %s", driverName, errbuf);
         goto cleanup;
     }
 
@@ -1116,14 +1178,14 @@ virPCIProbeStubDriver(virPCIStubDriver driver)
     /* If we know failure was because of admin config, let's report that;
      * otherwise, report a more generic failure message
      */
-    if (virKModIsProhibited(drvname)) {
+    if (virKModIsProhibited(driverName)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to load PCI stub module %1$s: administratively prohibited"),
-                       drvname);
+                       _("Failed to load PCI driver module %1$s: administratively prohibited"),
+                       driverName);
     } else {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to load PCI stub module %1$s"),
-                       drvname);
+                       _("Failed to load PCI driver module %1$s"),
+                       driverName);
     }
 
     return -1;
@@ -1136,7 +1198,7 @@ virPCIDeviceUnbind(virPCIDevice *dev)
     g_autofree char *drvpath = NULL;
     g_autofree char *driver = NULL;
 
-    if (virPCIDeviceGetDriverPathAndName(dev, &drvpath, &driver) < 0)
+    if (virPCIDeviceGetCurrentDriverPathAndName(dev, &drvpath, &driver) < 0)
         return -1;
 
     if (!driver)
@@ -1228,22 +1290,28 @@ virPCIDeviceUnbindFromStub(virPCIDevice *dev)
 static int
 virPCIDeviceBindToStub(virPCIDevice *dev)
 {
-    const char *stubDriverName;
+    const char *stubDriverName = dev->stubDriverName;
     g_autofree char *stubDriverPath = NULL;
     g_autofree char *driverLink = NULL;
 
-    /* Check the device is configured to use one of the known stub drivers */
-    if (dev->stubDriver == VIR_PCI_STUB_DRIVER_NONE) {
+
+    if (dev->stubDriverType == VIR_PCI_STUB_DRIVER_NONE) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("No stub driver configured for PCI device %1$s"),
                        dev->name);
         return -1;
-    } else if (!(stubDriverName = virPCIStubDriverTypeToString(dev->stubDriver))) {
+    }
+
+    if (!stubDriverName
+        && !(stubDriverName = virPCIStubDriverTypeToString(dev->stubDriverType))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unknown stub driver configured for PCI device %1$s"),
                        dev->name);
         return -1;
     }
+
+    if (virPCIProbeDriver(stubDriverName) < 0)
+        return -1;
 
     stubDriverPath = virPCIDriverDir(stubDriverName);
     driverLink = virPCIFile(dev->name, "driver");
@@ -1267,9 +1335,10 @@ virPCIDeviceBindToStub(virPCIDevice *dev)
 /* virPCIDeviceDetach:
  *
  * Detach this device from the host driver, attach it to the stub
- * driver (previously set with virPCIDeviceSetStubDriver(), and add *a
- * copy* of the object to the inactiveDevs list (if provided). This
- * function will *never* consume dev, so the caller should free it.
+ * driver (previously set with virPCIDeviceSetStubDriverType(), and
+ * add *a copy* of the object to the inactiveDevs list (if provided).
+ * This function will *never* consume dev, so the caller should free
+ * it.
  *
  * Returns 0 on success, -1 on failure (will fail if the device is
  * already in the activeDevs list, but will be a NOP if the device is
@@ -1287,9 +1356,6 @@ virPCIDeviceDetach(virPCIDevice *dev,
                    virPCIDeviceList *activeDevs,
                    virPCIDeviceList *inactiveDevs)
 {
-    if (virPCIProbeStubDriver(dev->stubDriver) < 0)
-        return -1;
-
     if (activeDevs && virPCIDeviceListFind(activeDevs, &dev->address)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Not detaching active device %1$s"), dev->name);
@@ -1507,6 +1573,7 @@ virPCIDeviceCopy(virPCIDevice *dev)
     copy->path = g_strdup(dev->path);
     copy->used_by_drvname = g_strdup(dev->used_by_drvname);
     copy->used_by_domname = g_strdup(dev->used_by_domname);
+    copy->stubDriverName = g_strdup(dev->stubDriverName);
     return copy;
 }
 
@@ -1521,6 +1588,7 @@ virPCIDeviceFree(virPCIDevice *dev)
     g_free(dev->path);
     g_free(dev->used_by_drvname);
     g_free(dev->used_by_domname);
+    g_free(dev->stubDriverName);
     g_free(dev);
 }
 
@@ -1569,15 +1637,29 @@ virPCIDeviceGetManaged(virPCIDevice *dev)
 }
 
 void
-virPCIDeviceSetStubDriver(virPCIDevice *dev, virPCIStubDriver driver)
+virPCIDeviceSetStubDriverType(virPCIDevice *dev, virPCIStubDriver driverType)
 {
-    dev->stubDriver = driver;
+    dev->stubDriverType = driverType;
 }
 
 virPCIStubDriver
-virPCIDeviceGetStubDriver(virPCIDevice *dev)
+virPCIDeviceGetStubDriverType(virPCIDevice *dev)
 {
-    return dev->stubDriver;
+    return dev->stubDriverType;
+}
+
+void
+virPCIDeviceSetStubDriverName(virPCIDevice *dev,
+                                   const char *driverName)
+{
+    g_free(dev->stubDriverName);
+    dev->stubDriverName = g_strdup(driverName);
+}
+
+const char *
+virPCIDeviceGetStubDriverName(virPCIDevice *dev)
+{
+    return dev->stubDriverName;
 }
 
 bool

@@ -2817,19 +2817,7 @@ qemuDomainAttachShmemDevice(virDomainObj *vm,
     qemuDomainObjPrivate *priv = vm->privateData;
     virDomainDeviceDef dev = { VIR_DOMAIN_DEVICE_SHMEM, { .shmem = shmem } };
 
-    switch (shmem->model) {
-    case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM_PLAIN:
-    case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM_DOORBELL:
-        break;
-
-    case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM:
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("live attach of shmem model '%1$s' is not supported"),
-                       virDomainShmemModelTypeToString(shmem->model));
-        G_GNUC_FALLTHROUGH;
-    case VIR_DOMAIN_SHMEM_MODEL_LAST:
-        return -1;
-    }
+    /* validation ensures that the legacy 'ivshmem' device is rejected */
 
     qemuAssignDeviceShmemAlias(vm->def, shmem, -1);
 
@@ -7022,40 +7010,18 @@ qemuDomainChangeMemoryLiveValidateChange(const virDomainMemoryDef *oldDef,
         return false;
     }
 
-    if (!virBitmapEqual(oldDef->sourceNodes,
-                        newDef->sourceNodes)) {
+    if (!virBitmapEqual(oldDef->source.virtio_mem.nodes,
+                        newDef->source.virtio_mem.nodes)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("cannot modify memory source nodes"));
         return false;
     }
 
-    if (oldDef->pagesize != newDef->pagesize) {
+    if (oldDef->source.virtio_mem.pagesize != newDef->source.virtio_mem.pagesize) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("cannot modify memory pagesize from '%1$llu' to '%2$llu'"),
-                       oldDef->pagesize,
-                       newDef->pagesize);
-        return false;
-    }
-
-    if (STRNEQ_NULLABLE(oldDef->nvdimmPath, newDef->nvdimmPath)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("cannot modify memory path from '%1$s' to '%2$s'"),
-                       NULLSTR(oldDef->nvdimmPath),
-                       NULLSTR(newDef->nvdimmPath));
-        return false;
-    }
-
-    if (oldDef->alignsize != newDef->alignsize) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("cannot modify memory align size from '%1$llu' to '%2$llu'"),
-                       oldDef->alignsize, newDef->alignsize);
-        return false;
-    }
-
-    if (oldDef->nvdimmPmem != newDef->nvdimmPmem) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("cannot modify memory pmem from '%1$d' to '%2$d'"),
-                       oldDef->nvdimmPmem, newDef->nvdimmPmem);
+                       oldDef->source.virtio_mem.pagesize,
+                       newDef->source.virtio_mem.pagesize);
         return false;
     }
 
@@ -7073,32 +7039,22 @@ qemuDomainChangeMemoryLiveValidateChange(const virDomainMemoryDef *oldDef,
         return false;
     }
 
-    if (oldDef->labelsize != newDef->labelsize) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("cannot modify memory label size from '%1$llu' to '%2$llu'"),
-                       oldDef->labelsize, newDef->labelsize);
-        return false;
-    }
-    if (oldDef->blocksize != newDef->blocksize) {
+    if (oldDef->target.virtio_mem.blocksize != newDef->target.virtio_mem.blocksize) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("cannot modify memory block size from '%1$llu' to '%2$llu'"),
-                       oldDef->blocksize, newDef->blocksize);
+                       oldDef->target.virtio_mem.blocksize,
+                       newDef->target.virtio_mem.blocksize);
         return false;
     }
 
     /* requestedsize can change */
 
-    if (oldDef->readonly != newDef->readonly) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("cannot modify memory pmem flag"));
-        return false;
-    }
 
-    if ((oldDef->uuid || newDef->uuid) &&
-        !(oldDef->uuid && newDef->uuid &&
-          memcmp(oldDef->uuid, newDef->uuid, VIR_UUID_BUFLEN) == 0)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("cannot modify memory UUID"));
+    if (oldDef->target.virtio_mem.address != newDef->target.virtio_mem.address) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("cannot modify memory address from '0x%1$llx' to '0x%2$llx'"),
+                       oldDef->target.virtio_mem.address,
+                       newDef->target.virtio_mem.address);
         return false;
     }
 
@@ -7133,10 +7089,10 @@ qemuDomainChangeMemoryLive(virQEMUDriver *driver G_GNUC_UNUSED,
         return -1;
 
     if (qemuDomainChangeMemoryRequestedSize(vm, newDef->info.alias,
-                                            newDef->requestedsize) < 0)
+                                            newDef->target.virtio_mem.requestedsize) < 0)
         return -1;
 
-    oldDef->requestedsize = newDef->requestedsize;
+    oldDef->target.virtio_mem.requestedsize = newDef->target.virtio_mem.requestedsize;
     return 0;
 }
 

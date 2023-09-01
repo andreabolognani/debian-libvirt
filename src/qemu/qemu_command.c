@@ -1760,6 +1760,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     unsigned int bootindex = 0;
     unsigned int logical_block_size = disk->blockio.logical_block_size;
     unsigned int physical_block_size = disk->blockio.physical_block_size;
+    unsigned int discard_granularity = disk->blockio.discard_granularity;
     g_autoptr(virJSONValue) wwn = NULL;
     g_autofree char *serial = NULL;
     virTristateSwitch removable = VIR_TRISTATE_SWITCH_ABSENT;
@@ -1939,6 +1940,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "p:bootindex", bootindex,
                               "p:logical_block_size", logical_block_size,
                               "p:physical_block_size", physical_block_size,
+                              "p:discard_granularity", discard_granularity,
                               "A:wwn", &wwn,
                               "p:rotation_rate", disk->rotation_rate,
                               "S:vendor", disk->vendor,
@@ -3146,10 +3148,33 @@ qemuBuildMemoryGetPagesize(virQEMUDriverConfig *cfg,
                            bool *preallocRet)
 {
     const long system_page_size = virGetSystemPageSizeKB();
-    unsigned long long pagesize = mem->pagesize;
-    bool needHugepage = !!pagesize;
-    bool useHugepage = !!pagesize;
+    unsigned long long pagesize = 0;
+    const char *nvdimmPath = NULL;
+    bool needHugepage = false;
+    bool useHugepage = false;
     bool prealloc = false;
+
+    switch (mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        pagesize = mem->source.dimm.pagesize;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        pagesize = mem->source.virtio_mem.pagesize;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        nvdimmPath = mem->source.nvdimm.path;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        nvdimmPath = mem->source.virtio_pmem.path;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
+
+    needHugepage = !!pagesize;
+    useHugepage = !!pagesize;
 
     if (pagesize == 0) {
         virDomainHugePage *master_hugepage = NULL;
@@ -3216,10 +3241,11 @@ qemuBuildMemoryGetPagesize(virQEMUDriverConfig *cfg,
     /* If the NVDIMM is a real device then there's nothing to prealloc.
      * If anything, we would be only wearing off the device.
      * Similarly, virtio-pmem-pci doesn't need prealloc either. */
-    if (mem->nvdimmPath) {
-        if (!mem->nvdimmPmem &&
-            mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM)
+    if (nvdimmPath) {
+        if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+            !mem->source.nvdimm.pmem) {
             prealloc = true;
+        }
     } else if (useHugepage) {
         prealloc = true;
     }
@@ -3286,6 +3312,8 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
     unsigned long long pagesize = 0;
     bool needHugepage = false;
     bool useHugepage = false;
+    bool hasSourceNodes = false;
+    const char *nvdimmPath = NULL;
     int discard = mem->discard;
     bool disableCanonicalPath = false;
 
@@ -3324,12 +3352,36 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
 
     props = virJSONValueNewObject();
 
+    switch (mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        nodemask = mem->source.dimm.nodes;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        nodemask = mem->source.virtio_mem.nodes;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        nodemask = mem->source.sgx_epc.nodes;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        nvdimmPath = mem->source.nvdimm.path;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        nvdimmPath = mem->source.virtio_pmem.path;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
+
+    hasSourceNodes = !!nodemask;
+
     if (mem->model == VIR_DOMAIN_MEMORY_MODEL_SGX_EPC) {
         backendType = "memory-backend-epc";
         if (!priv->memPrealloc)
             prealloc = true;
-    } else if (!mem->nvdimmPath &&
-        def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_MEMFD) {
+
+    } else if (!nvdimmPath &&
+               def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_MEMFD) {
         backendType = "memory-backend-memfd";
 
         if (useHugepage &&
@@ -3343,11 +3395,11 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
 
         if (systemMemory)
             disableCanonicalPath = true;
-    } else if (useHugepage || mem->nvdimmPath || memAccess ||
-        def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_FILE) {
+    } else if (useHugepage || nvdimmPath || memAccess ||
+               def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_FILE) {
 
-        if (mem->nvdimmPath) {
-            memPath = g_strdup(mem->nvdimmPath);
+        if (nvdimmPath) {
+            memPath = g_strdup(nvdimmPath);
         } else if (useHugepage) {
             if (qemuGetDomainHupageMemPath(priv->driver, def, pagesize, &memPath) < 0)
                 return -1;
@@ -3363,7 +3415,7 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
                                   NULL) < 0)
             return -1;
 
-        if (!mem->nvdimmPath &&
+        if (!nvdimmPath &&
             virJSONValueObjectAdd(&props,
                                   "T:discard-data", discard,
                                   NULL) < 0) {
@@ -3423,10 +3475,13 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
     if (virJSONValueObjectAdd(&props, "U:size", mem->size * 1024, NULL) < 0)
         return -1;
 
-    if (virJSONValueObjectAdd(&props, "P:align", mem->alignsize * 1024, NULL) < 0)
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+        virJSONValueObjectAdd(&props, "P:align",
+                              mem->source.nvdimm.alignsize * 1024, NULL) < 0)
         return -1;
 
-    if (mem->nvdimmPmem) {
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM &&
+        mem->source.nvdimm.pmem) {
         if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE_PMEM)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("nvdimm pmem property is not available "
@@ -3437,12 +3492,10 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
             return -1;
     }
 
-    if (mem->sourceNodes) {
-        nodemask = mem->sourceNodes;
-    } else {
-        if (virDomainNumatuneMaybeGetNodeset(def->numa, priv->autoNodeset,
-                                             &nodemask, mem->targetNode) < 0)
-            return -1;
+    if (!hasSourceNodes &&
+        virDomainNumatuneMaybeGetNodeset(def->numa, priv->autoNodeset,
+                                         &nodemask, mem->targetNode) < 0) {
+        return -1;
     }
 
     if (nodemask) {
@@ -3466,8 +3519,8 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
     }
 
     /* If none of the following is requested... */
-    if (!needHugepage && !mem->sourceNodes && !nodeSpecified &&
-        !mem->nvdimmPath &&
+    if (!needHugepage && !hasSourceNodes && !nodeSpecified &&
+        !nvdimmPath &&
         memAccess == VIR_DOMAIN_MEMORY_ACCESS_DEFAULT &&
         def->mem.source != VIR_DOMAIN_MEMORY_SOURCE_FILE &&
         def->mem.source != VIR_DOMAIN_MEMORY_SOURCE_MEMFD &&
@@ -3571,6 +3624,10 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
     g_autofree char *uuidstr = NULL;
     virTristateBool unarmed = VIR_TRISTATE_BOOL_ABSENT;
     g_autofree char *memdev = NULL;
+    unsigned long long labelsize = 0;
+    unsigned long long blocksize = 0;
+    unsigned long long requestedsize = 0;
+    unsigned long long address = 0;
     bool prealloc = false;
 
     if (!mem->info.alias) {
@@ -3587,10 +3644,20 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
         break;
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
         device = "nvdimm";
+        if (mem->target.nvdimm.readonly)
+            unarmed = VIR_TRISTATE_BOOL_YES;
+
+        if (mem->target.nvdimm.uuid) {
+            uuidstr = g_new0(char, VIR_UUID_STRING_BUFLEN);
+            virUUIDFormat(mem->target.nvdimm.uuid, uuidstr);
+        }
+
+        labelsize = mem->target.nvdimm.labelsize;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
         device = "virtio-pmem-pci";
+        address = mem->target.virtio_pmem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
@@ -3599,6 +3666,10 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
         if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_PREALLOC) &&
             qemuBuildMemoryGetPagesize(cfg, def, mem, NULL, NULL, NULL, &prealloc) < 0)
             return NULL;
+
+        blocksize = mem->target.virtio_mem.blocksize;
+        requestedsize = mem->target.virtio_mem.requestedsize;
+        address = mem->target.virtio_mem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
@@ -3610,25 +3681,17 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
         break;
     }
 
-    if (mem->readonly)
-        unarmed = VIR_TRISTATE_BOOL_YES;
-
-    if (mem->uuid) {
-        uuidstr = g_new0(char, VIR_UUID_STRING_BUFLEN);
-        virUUIDFormat(mem->uuid, uuidstr);
-    }
-
     if (virJSONValueObjectAdd(&props,
                               "s:driver", device,
                               "k:node", mem->targetNode,
-                              "P:label-size", mem->labelsize * 1024,
-                              "P:block-size", mem->blocksize * 1024,
-                              "P:requested-size", mem->requestedsize * 1024,
+                              "P:label-size", labelsize * 1024,
+                              "P:block-size", blocksize * 1024,
+                              "P:requested-size", requestedsize * 1024,
                               "S:uuid", uuidstr,
                               "T:unarmed", unarmed,
                               "s:memdev", memdev,
                               "B:prealloc", prealloc,
-                              "P:memaddr", mem->address,
+                              "P:memaddr", address,
                               "s:id", mem->info.alias,
                               NULL) < 0)
         return NULL;
@@ -4868,7 +4931,7 @@ qemuBuildSCSIHostdevDevProps(const virDomainDef *def,
 int
 qemuOpenChrChardevUNIXSocket(const virDomainChrSourceDef *dev)
 {
-    struct sockaddr_un addr;
+    struct sockaddr_un addr = { 0 };
     socklen_t addrlen = sizeof(addr);
     int fd;
 
@@ -4878,7 +4941,6 @@ qemuOpenChrChardevUNIXSocket(const virDomainChrSourceDef *dev)
         goto error;
     }
 
-    memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     if (virStrcpyStatic(addr.sun_path, dev->data.nix.path) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -8874,44 +8936,6 @@ qemuBuildSmartcardCommandLine(virCommand *cmd,
 }
 
 
-static virJSONValue *
-qemuBuildShmemDevLegacyProps(virDomainDef *def,
-                             virDomainShmemDef *shmem)
-{
-    g_autoptr(virJSONValue) props = NULL;
-    g_autofree char *size = NULL;
-    const char *shm = NULL;
-    g_autofree char *chardev = NULL;
-
-    /* while this would result in a type error with newer qemus, the 'ivshmem'
-     * device was removed in qemu-4.0, so for the sake of not changing the
-     * commandline we do this hack */
-    size = g_strdup_printf("%llum", shmem->size >> 20);
-
-    if (shmem->server.enabled)
-        chardev = g_strdup_printf("char%s", shmem->info.alias);
-    else
-        shm = shmem->name;
-
-    if (virJSONValueObjectAdd(&props,
-                              "s:driver", "ivshmem",
-                              "s:id", shmem->info.alias,
-                              "s:size", size,
-                              "S:shm", shm,
-                              "S:chardev", chardev,
-                              "B:msi", shmem->msi.enabled,
-                              "p:vectors", shmem->msi.vectors,
-                              "T:ioeventfd", shmem->msi.ioeventfd,
-                              NULL) < 0)
-        return NULL;
-
-    if (qemuBuildDeviceAddressProps(props, def, &shmem->info) < 0)
-        return NULL;
-
-    return g_steal_pointer(&props);
-}
-
-
 virJSONValue *
 qemuBuildShmemDevProps(virDomainDef *def,
                        virDomainShmemDef *shmem)
@@ -9015,7 +9039,7 @@ qemuBuildShmemCommandLine(virCommand *cmd,
 
     switch (shmem->model) {
     case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM:
-        devProps = qemuBuildShmemDevLegacyProps(def, shmem);
+        /* unreachable, rejected by validation */
         break;
 
     case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM_PLAIN:

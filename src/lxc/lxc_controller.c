@@ -1359,11 +1359,13 @@ virLXCControllerSetupUsernsMap(virDomainIdMapEntry *map,
         return -1;
     }
 
-    for (i = 0; i < num; i++)
+    VIR_DEBUG("Set '%s' mappings to:", path);
+
+    for (i = 0; i < num; i++) {
+        VIR_DEBUG("%u %u %u", map[i].start, map[i].target, map[i].count);
         virBufferAsprintf(&map_value, "%u %u %u\n",
                           map[i].start, map[i].target, map[i].count);
-
-    VIR_DEBUG("Set '%s' to '%s'", path, virBufferCurrentContent(&map_value));
+    }
 
     if (virFileWriteStr(path, virBufferCurrentContent(&map_value), 0) < 0) {
         virReportSystemError(errno, _("unable write to %1$s"), path);
@@ -2235,10 +2237,9 @@ static int
 virLXCControllerEventSendExit(virLXCController *ctrl,
                               int exitstatus)
 {
-    virLXCMonitorExitEventMsg msg;
+    virLXCMonitorExitEventMsg msg = { 0 };
 
     VIR_DEBUG("Exit status %d (client=%p)", exitstatus, ctrl->client);
-    memset(&msg, 0, sizeof(msg));
     switch (exitstatus) {
     case 0:
         msg.status = VIR_LXC_MONITOR_EXIT_STATUS_SHUTDOWN;
@@ -2272,10 +2273,9 @@ static int
 virLXCControllerEventSendInit(virLXCController *ctrl,
                               pid_t initpid)
 {
-    virLXCMonitorInitEventMsg msg;
+    virLXCMonitorInitEventMsg msg = { 0 };
 
     VIR_DEBUG("Init pid %lld", (long long)initpid);
-    memset(&msg, 0, sizeof(msg));
     msg.initpid = initpid;
 
     virLXCControllerEventSend(ctrl,

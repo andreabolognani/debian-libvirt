@@ -491,6 +491,7 @@ Patches have also been contributed by:
 * Laine Stump <laine@redhat.com>
 * LanceLiu <liu.lance.89@gmail.com>
 * Laszlo Ersek <lersek@redhat.com>
+* Laura Hild <lsh@jlab.org>
 * Laurent Bigonville <bigon@bigon.be>
 * Laurent Léonard <laurent@open-minds.org>
 * Lee Yarwood <lyarwood@redhat.com>
@@ -974,6 +975,7 @@ Patches have also been contributed by:
 * zhanglei <zhanglei@smartx.com>
 * zhenwei pi <pizhenwei@bytedance.com>
 * zuoboqun <zuoboqun@baidu.com>
+* Анастасия Белова <abelova@astralinux.ru>
 * Дамјан Георгиевски <gdamjan@gmail.com>
 * Марк Коренберг <socketpair@gmail.com>
 * 김인수 <simmon@nplob.com>
