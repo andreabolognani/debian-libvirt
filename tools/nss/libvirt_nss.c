@@ -484,13 +484,12 @@ aiforaf(const char *name, int af, struct addrinfo *pai, struct addrinfo **aip)
             struct sockaddr sa;
             struct sockaddr_in sin;
             struct sockaddr_in6 sin6;
-        } sa;
+        } sa = { 0 };
         socklen_t salen;
         void *address = *addrList;
         char host[NI_MAXHOST];
         char port[NI_MAXSERV];
 
-        memset(&sa, 0, sizeof(sa));
         if (resolved.h_addrtype == AF_INET) {
             sa.sin.sin_family = AF_INET;
             memcpy(&sa.sin.sin_addr.s_addr,
@@ -539,14 +538,13 @@ _nss_compat_getaddrinfo(void *retval,
                         void *mdata __attribute__((unused)),
                         va_list ap)
 {
-    struct addrinfo sentinel, *cur, *ai;
+    struct addrinfo sentinel = { 0 };
+    struct addrinfo *cur = &sentinel;
+    struct addrinfo *ai;
     const char *name;
 
     name  = va_arg(ap, char *);
     ai = va_arg(ap, struct addrinfo *);
-
-    memset(&sentinel, 0, sizeof(sentinel));
-    cur = &sentinel;
 
     if ((ai->ai_family == AF_UNSPEC) || (ai->ai_family == AF_INET6))
         aiforaf(name, AF_INET6, ai, &cur);

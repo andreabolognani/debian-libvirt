@@ -1184,10 +1184,9 @@ doRemoteOpen(virConnectPtr conn,
 
     /* Now try and find out what URI the daemon used */
     if (conn->uri == NULL) {
-        remote_connect_get_uri_ret uriret;
+        remote_connect_get_uri_ret uriret = { 0 };
 
         VIR_DEBUG("Trying to query remote URI");
-        memset(&uriret, 0, sizeof(uriret));
         if (call(conn, priv, 0,
                  REMOTE_PROC_CONNECT_GET_URI,
                  (xdrproc_t) xdr_void, (char *) NULL,
@@ -2139,7 +2138,7 @@ remoteDomainGetVcpus(virDomainPtr domain,
         goto cleanup;
     }
 
-    memset(info, 0, sizeof(virVcpuInfo) * maxinfo);
+    memset(info, 0, sizeof(*info) * maxinfo);
     memset(cpumaps, 0, maxinfo * maplen);
 
     for (i = 0; i < ret.info.info_len; ++i) {
@@ -3725,11 +3724,9 @@ static int
 remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
                virConnectAuthPtr auth, const char *wantmech)
 {
-    remote_auth_sasl_init_ret iret;
+    remote_auth_sasl_init_ret iret = { 0 };
     remote_auth_sasl_start_args sargs = {0};
-    remote_auth_sasl_start_ret sret;
-    remote_auth_sasl_step_args pargs = {0};
-    remote_auth_sasl_step_ret pret;
+    remote_auth_sasl_start_ret sret = { 0 };
     const char *clientout;
     char *serverin = NULL;
     size_t clientoutlen, serverinlen;
@@ -3741,9 +3738,7 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
     const char *mechlist;
     virNetSASLContext *saslCtxt;
     virNetSASLSession *sasl = NULL;
-    struct remoteAuthInteractState state;
-
-    memset(&state, 0, sizeof(state));
+    struct remoteAuthInteractState state = { 0 };
 
     VIR_DEBUG("Client initialize SASL authentication");
 
@@ -3789,7 +3784,6 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
         goto cleanup;
 
     /* First call is to inquire about supported mechanisms in the server */
-    memset(&iret, 0, sizeof(iret));
     if (call(conn, priv, 0, REMOTE_PROC_AUTH_SASL_INIT,
              (xdrproc_t) xdr_void, (char *)NULL,
              (xdrproc_t) xdr_remote_auth_sasl_init_ret, (char *) &iret) != 0)
@@ -3835,7 +3829,6 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
         goto cleanup;
     }
     /* NB, distinction of NULL vs "" is *critical* in SASL */
-    memset(&sargs, 0, sizeof(sargs));
     sargs.nil = clientout ? 0 : 1;
     sargs.data.data_val = (char*)clientout;
     sargs.data.data_len = clientoutlen;
@@ -3844,7 +3837,6 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
               mech, clientoutlen, clientout);
 
     /* Now send the initial auth data to the server */
-    memset(&sret, 0, sizeof(sret));
     if (call(conn, priv, 0, REMOTE_PROC_AUTH_SASL_START,
              (xdrproc_t) xdr_remote_auth_sasl_start_args, (char *) &sargs,
              (xdrproc_t) xdr_remote_auth_sasl_start_ret, (char *) &sret) != 0)
@@ -3866,6 +3858,9 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
      * Even if the server has completed, the client must *always* do at least one step
      * in this loop to verify the server isn't lying about something. Mutual auth */
     for (;;) {
+        remote_auth_sasl_step_args pargs = { 0 };
+        remote_auth_sasl_step_ret pret = { 0 };
+
         if ((err = virNetSASLSessionClientStep(sasl,
                                                serverin,
                                                serverinlen,
@@ -3893,14 +3888,12 @@ remoteAuthSASL(virConnectPtr conn, struct private_data *priv,
 
         /* Not done, prepare to talk with the server for another iteration */
         /* NB, distinction of NULL vs "" is *critical* in SASL */
-        memset(&pargs, 0, sizeof(pargs));
         pargs.nil = clientout ? 0 : 1;
         pargs.data.data_val = (char*)clientout;
         pargs.data.data_len = clientoutlen;
         VIR_DEBUG("Server step with %zu bytes %p",
                   clientoutlen, clientout);
 
-        memset(&pret, 0, sizeof(pret));
         if (call(conn, priv, 0, REMOTE_PROC_AUTH_SASL_STEP,
                  (xdrproc_t) xdr_remote_auth_sasl_step_args, (char *) &pargs,
                  (xdrproc_t) xdr_remote_auth_sasl_step_ret, (char *) &pret) != 0)
@@ -8160,6 +8153,8 @@ static virNetworkDriver network_driver = {
     .networkPortSetParameters = remoteNetworkPortSetParameters, /* 5.5.0 */
     .networkPortGetParameters = remoteNetworkPortGetParameters, /* 5.5.0 */
     .networkPortDelete = remoteNetworkPortDelete, /* 5.5.0 */
+    .networkSetMetadata = remoteNetworkSetMetadata, /* 9.7.0 */
+    .networkGetMetadata = remoteNetworkGetMetadata, /* 9.7.0 */
 };
 
 static virInterfaceDriver interface_driver = {

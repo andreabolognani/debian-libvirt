@@ -1780,7 +1780,7 @@ qemuDomainSetPrivatePaths(virQEMUDriver *driver,
         priv->libDir = g_strdup_printf("%s/domain-%s", cfg->libDir, domname);
 
     if (!priv->channelTargetDir)
-        priv->channelTargetDir = g_strdup_printf("%s/domain-%s",
+        priv->channelTargetDir = g_strdup_printf("%s/%s",
                                                  cfg->channelTargetDir, domname);
 
     return 0;
@@ -4505,7 +4505,7 @@ qemuDomainDefBootPostParse(virDomainDef *def,
      * to start the domain, qemuFirmwareFillDomain() will be run
      * again, fail in the same way, and at that point we'll have a
      * chance to inform the user of any issues */
-    if (qemuFirmwareFillDomain(driver, def) < 0) {
+    if (qemuFirmwareFillDomain(driver, def, abiUpdate) < 0) {
         if (abiUpdate) {
             return -1;
         } else {
@@ -5401,31 +5401,57 @@ qemuDomainDefaultNetModel(const virDomainDef *def,
 }
 
 
+
+static bool
+qemuDomainChrMatchDefaultPath(const char *prefix,
+                              const char *infix,
+                              const char *target,
+                              const char *path)
+{
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    g_autofree char *regexp = NULL;
+
+    virBufferEscapeRegex(&buf, "^%s", prefix);
+    if (infix)
+        virBufferEscapeRegex(&buf, "%s", infix);
+    virBufferAddLit(&buf, "/(target/)?([^/]+\\.)|(domain-[^/]+/)|([0-9]+-[^/]+/)");
+    virBufferEscapeRegex(&buf, "%s$", target);
+
+    regexp = virBufferContentAndReset(&buf);
+
+    return virStringMatch(path, regexp);
+}
+
+
 /*
  * Clear auto generated unix socket paths:
  *
  * libvirt 1.2.18 and older:
- *     {cfg->channelTargetDir}/{dom-name}.{target-name}
+ *     {cfg->channelTargetDir}/target/{dom-name}.{target-name}
  *
  * libvirt 1.2.19 - 1.3.2:
- *     {cfg->channelTargetDir}/domain-{dom-name}/{target-name}
+ *     {cfg->channelTargetDir}/target/domain-{dom-name}/{target-name}
  *
- * libvirt 1.3.3 and newer:
- *     {cfg->channelTargetDir}/domain-{dom-id}-{short-dom-name}/{target-name}
+ * libvirt 1.3.3 - 9.7.0:
+ *     {cfg->channelTargetDir}/target/domain-{dom-id}-{short-dom-name}/{target-name}
+ *
+ * libvirt 9.7.0 and newer:
+ *     {cfg->channelTargetDir}/{dom-id}-{short-dom-name}/{target-name}
  *
  * The unix socket path was stored in config XML until libvirt 1.3.0.
  * If someone specifies the same path as we generate, they shouldn't do it.
  *
  * This function clears the path for migration as well, so we need to clear
  * the path even if we are not storing it in the XML.
+ *
+ * Please note, as of libvirt 9.7.0 the channelTargetDir is no longer derived
+ * from cfg->libDir but rather cfg->stateDir.
  */
 static void
 qemuDomainChrDefDropDefaultPath(virDomainChrDef *chr,
                                 virQEMUDriver *driver)
 {
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    g_autofree char *regexp = NULL;
 
     if (chr->deviceType != VIR_DOMAIN_CHR_DEVICE_TYPE_CHANNEL ||
         chr->targetType != VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_VIRTIO ||
@@ -5436,14 +5462,31 @@ qemuDomainChrDefDropDefaultPath(virDomainChrDef *chr,
 
     cfg = virQEMUDriverGetConfig(driver);
 
-    virBufferEscapeRegex(&buf, "^%s", cfg->channelTargetDir);
-    virBufferAddLit(&buf, "/([^/]+\\.)|(domain-[^/]+/)");
-    virBufferEscapeRegex(&buf, "%s$", chr->target.name);
-
-    regexp = virBufferContentAndReset(&buf);
-
-    if (virStringMatch(chr->source->data.nix.path, regexp))
+    if (qemuDomainChrMatchDefaultPath(cfg->channelTargetDir,
+                                      NULL,
+                                      chr->target.name,
+                                      chr->source->data.nix.path)) {
         VIR_FREE(chr->source->data.nix.path);
+        return;
+    }
+
+    /* Previously, channelTargetDir was derived from cfg->libdir, or
+     * cfg->configBaseDir even. Try them too. */
+    if (qemuDomainChrMatchDefaultPath(cfg->libDir,
+                                      "/channel",
+                                      chr->target.name,
+                                      chr->source->data.nix.path)) {
+        VIR_FREE(chr->source->data.nix.path);
+        return;
+    }
+
+    if (qemuDomainChrMatchDefaultPath(cfg->configBaseDir,
+                                      "/qemu/channel",
+                                      chr->target.name,
+                                      chr->source->data.nix.path)) {
+        VIR_FREE(chr->source->data.nix.path);
+        return;
+    }
 }
 
 
@@ -6080,7 +6123,7 @@ qemuDomainNVDimmAlignSizePseries(virDomainMemoryDef *mem)
      * target_size = AlignDown(target_size - label_size) + label_size
      */
     unsigned long long ppc64AlignSize =  256 * 1024;
-    unsigned long long guestArea = mem->size - mem->labelsize;
+    unsigned long long guestArea = mem->size - mem->target.nvdimm.labelsize;
 
     /* Align down guestArea. We can't align down if guestArea is
      * smaller than the 256MiB alignment. */
@@ -6092,7 +6135,7 @@ qemuDomainNVDimmAlignSizePseries(virDomainMemoryDef *mem)
     }
 
     guestArea = (guestArea/ppc64AlignSize) * ppc64AlignSize;
-    mem->size = guestArea + mem->labelsize;
+    mem->size = guestArea + mem->target.nvdimm.labelsize;
 
     return 0;
 }
@@ -7075,8 +7118,7 @@ void qemuDomainObjCheckNetTaint(virQEMUDriver *driver,
 
 
 qemuDomainLogContext *qemuDomainLogContextNew(virQEMUDriver *driver,
-                                                virDomainObj *vm,
-                                                qemuDomainLogContextMode mode)
+                                              virDomainObj *vm)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     qemuDomainLogContext *ctxt = QEMU_DOMAIN_LOG_CONTEXT(g_object_new(QEMU_TYPE_DOMAIN_LOG_CONTEXT, NULL));
@@ -7117,25 +7159,22 @@ qemuDomainLogContext *qemuDomainLogContextNew(virQEMUDriver *driver,
         /* For unprivileged startup we must truncate the file since
          * we can't rely on logrotate. We don't use O_TRUNC since
          * it is better for SELinux policy if we truncate afterwards */
-        if (mode == QEMU_DOMAIN_LOG_CONTEXT_MODE_START &&
-            !driver->privileged &&
+        if (!driver->privileged &&
             ftruncate(ctxt->writefd, 0) < 0) {
             virReportSystemError(errno, _("failed to truncate %1$s"),
                                  ctxt->path);
             goto error;
         }
 
-        if (mode == QEMU_DOMAIN_LOG_CONTEXT_MODE_START) {
-            if ((ctxt->readfd = open(ctxt->path, O_RDONLY)) < 0) {
-                virReportSystemError(errno, _("failed to open logfile %1$s"),
-                                     ctxt->path);
-                goto error;
-            }
-            if (virSetCloseExec(ctxt->readfd) < 0) {
-                virReportSystemError(errno, _("failed to set close-on-exec flag on %1$s"),
-                                     ctxt->path);
-                goto error;
-            }
+        if ((ctxt->readfd = open(ctxt->path, O_RDONLY)) < 0) {
+            virReportSystemError(errno, _("failed to open logfile %1$s"),
+                                 ctxt->path);
+            goto error;
+        }
+        if (virSetCloseExec(ctxt->readfd) < 0) {
+            virReportSystemError(errno, _("failed to set close-on-exec flag on %1$s"),
+                                 ctxt->path);
+            goto error;
         }
 
         if ((ctxt->pos = lseek(ctxt->writefd, 0, SEEK_END)) < 0) {
@@ -7719,7 +7758,7 @@ qemuDomainCleanupRun(virQEMUDriver *driver,
 
 void
 qemuDomainGetImageIds(virQEMUDriverConfig *cfg,
-                      virDomainObj *vm,
+                      virDomainDef *def,
                       virStorageSource *src,
                       virStorageSource *parentSrc,
                       uid_t *uid, gid_t *gid)
@@ -7740,7 +7779,7 @@ qemuDomainGetImageIds(virQEMUDriverConfig *cfg,
             *gid = cfg->group;
     }
 
-    if (vm && (vmlabel = virDomainDefGetSecurityLabelDef(vm->def, "dac")) &&
+    if ((vmlabel = virDomainDefGetSecurityLabelDef(def, "dac")) &&
         vmlabel->label)
         virParseOwnershipIds(vmlabel->label, uid, gid);
 
@@ -7765,7 +7804,7 @@ qemuDomainStorageFileInit(virQEMUDriver *driver,
     uid_t uid;
     gid_t gid;
 
-    qemuDomainGetImageIds(cfg, vm, src, parent, &uid, &gid);
+    qemuDomainGetImageIds(cfg, vm->def, src, parent, &uid, &gid);
 
     if (virStorageSourceInitAs(src, uid, gid) < 0)
         return -1;
@@ -7958,7 +7997,7 @@ qemuDomainDetermineDiskChain(virQEMUDriver *driver,
         return 0;
     }
 
-    qemuDomainGetImageIds(cfg, vm, src, disksrc, &uid, &gid);
+    qemuDomainGetImageIds(cfg, vm->def, src, disksrc, &uid, &gid);
 
     if (virStorageSourceGetMetadata(src, uid, gid,
                                     QEMU_DOMAIN_STORAGE_SOURCE_CHAIN_MAX_DEPTH,
@@ -8387,6 +8426,8 @@ qemuDomainDiskChangeSupported(virDomainDiskDef *disk,
              "blockio logical_block_size", false);
     CHECK_EQ(blockio.physical_block_size,
              "blockio physical_block_size", false);
+    CHECK_EQ(blockio.discard_granularity,
+             "blockio discard_granularity", false);
 
     CHECK_EQ(blkdeviotune.total_bytes_sec,
              "blkdeviotune total_bytes_sec",
@@ -8604,11 +8645,12 @@ qemuDomainUpdateMemoryDeviceInfo(virDomainObj *vm,
 
         switch (mem->model) {
         case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            mem->target.virtio_mem.currentsize = VIR_DIV_UP(dimm->size, 1024);
+            mem->target.virtio_mem.address = dimm->address;
+            break;
+
         case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-            if (mem->model == VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM) {
-                mem->currentsize = VIR_DIV_UP(dimm->size, 1024);
-            }
-            mem->address = dimm->address;
+            mem->target.virtio_pmem.address = dimm->address;
             break;
 
         case VIR_DOMAIN_MEMORY_MODEL_DIMM:

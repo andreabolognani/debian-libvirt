@@ -579,6 +579,7 @@ struct _virDomainDiskDef {
     struct {
         unsigned int logical_block_size;
         unsigned int physical_block_size;
+        unsigned int discard_granularity;
     } blockio;
 
     virDomainBlockIoTuneInfo blkdeviotune;
@@ -2634,32 +2635,58 @@ typedef enum {
 } virDomainMemoryModel;
 
 struct _virDomainMemoryDef {
+    virDomainMemoryModel model;
     virDomainMemoryAccess access;
     virTristateBool discard;
 
-    /* source */
-    virBitmap *sourceNodes;
-    unsigned long long pagesize; /* kibibytes */
-    char *nvdimmPath; /* valid for NVDIMM an VIRTIO_PMEM */
-    unsigned long long alignsize; /* kibibytes; valid only for NVDIMM */
-    bool nvdimmPmem; /* valid only for NVDIMM */
-
-    /* target */
-    virDomainMemoryModel model;
-    int targetNode;
     unsigned long long size; /* kibibytes */
-    unsigned long long labelsize; /* kibibytes; valid only for NVDIMM */
-    unsigned long long blocksize; /* kibibytes; valid only for VIRTIO_MEM */
-    unsigned long long requestedsize; /* kibibytes; valid only for VIRTIO_MEM */
-    unsigned long long currentsize; /* kibibytes, valid for VIRTIO_MEM and
-                                       active domain only, only to report never
-                                       parse */
-    unsigned long long address; /* address where memory is mapped, valid for
-                                   VIRTIO_PMEM and VIRTIO_MEM only. */
-    bool readonly; /* valid only for NVDIMM */
+    int targetNode;
 
-    /* required for QEMU NVDIMM ppc64 support */
-    unsigned char *uuid; /* VIR_UUID_BUFLEN bytes long */
+    union {
+        struct {
+            unsigned long long pagesize; /* kibibytes */
+            virBitmap *nodes; /* source NUMA nodes */
+        } dimm;
+        struct {
+            char *path;
+            bool pmem;
+            unsigned long long alignsize; /* kibibytes */
+        } nvdimm;
+        struct {
+            char *path;
+        } virtio_pmem;
+        struct {
+            unsigned long long pagesize; /* kibibytes */
+            virBitmap *nodes; /* source NUMA nodes */
+        } virtio_mem;
+        struct {
+            virBitmap *nodes; /* source NUMA nodes */
+        } sgx_epc;
+    } source;
+
+    union {
+        struct {
+        } dimm;
+        struct {
+            unsigned long long labelsize; /* kibibytes */
+            bool readonly;
+
+            /* required for QEMU NVDIMM ppc64 support */
+            unsigned char *uuid; /* VIR_UUID_BUFLEN bytes long */
+        } nvdimm;
+        struct {
+            unsigned long long address; /* address where memory is mapped */
+        } virtio_pmem;
+        struct {
+            unsigned long long blocksize; /* kibibytes */
+            unsigned long long requestedsize; /* kibibytes */
+            unsigned long long currentsize; /* kibibytes, valid for an active
+                                               domain only and parsed */
+            unsigned long long address; /* address where memory is mapped */
+        } virtio_mem;
+        struct {
+        } sgx_epc;
+    } target;
 
     virDomainDeviceInfo info;
 };

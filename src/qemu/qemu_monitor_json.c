@@ -259,12 +259,10 @@ qemuMonitorJSONCommandWithFd(qemuMonitor *mon,
                              virJSONValue **reply)
 {
     int ret = -1;
-    qemuMonitorMessage msg;
+    qemuMonitorMessage msg = { 0 };
     g_auto(virBuffer) cmdbuf = VIR_BUFFER_INITIALIZER;
 
     *reply = NULL;
-
-    memset(&msg, 0, sizeof(msg));
 
     if (virJSONValueObjectHasKey(cmd, "execute")) {
         g_autofree char *id = qemuMonitorNextCommandID(mon);
@@ -2035,10 +2033,9 @@ qemuMonitorJSONSetMemoryStatsPeriod(qemuMonitor *mon,
                                     char *balloonpath,
                                     int period)
 {
-    qemuMonitorJSONObjectProperty prop;
+    qemuMonitorJSONObjectProperty prop = { 0 };
 
     /* Set to the value in memballoon (could enable or disable) */
-    memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty));
     prop.type = QEMU_MONITOR_OBJECT_PROPERTY_INT;
     prop.val.iv = period;
     if (qemuMonitorJSONSetObjectProperty(mon, balloonpath,
@@ -7115,7 +7112,7 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
 
 #define VIR_IOTHREAD_SET_PROP_UL(propName, propVal) \
     if (iothreadInfo->set_##propVal) { \
-        memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty)); \
+        memset(&prop, 0, sizeof(prop)); \
         prop.type = QEMU_MONITOR_OBJECT_PROPERTY_ULONG; \
         prop.val.ul = iothreadInfo->propVal; \
         if (qemuMonitorJSONSetObjectProperty(mon, path, propName, &prop) < 0) \
@@ -7148,7 +7145,7 @@ qemuMonitorJSONSetIOThread(qemuMonitor *mon,
 
 #define VIR_IOTHREAD_SET_PROP_INT(propName, propVal) \
     if (iothreadInfo->set_##propVal) { \
-        memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty)); \
+        memset(&prop, 0, sizeof(prop)); \
         prop.type = QEMU_MONITOR_OBJECT_PROPERTY_INT; \
         prop.val.iv = iothreadInfo->propVal; \
         if (qemuMonitorJSONSetObjectProperty(mon, path, propName, &prop) < 0) \

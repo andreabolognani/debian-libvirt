@@ -74,7 +74,7 @@ VIR_ENUM_IMPL(virDomainSnapshotState,
 );
 
 /* Snapshot Def functions */
-static void
+void
 virDomainSnapshotDiskDefClear(virDomainSnapshotDiskDef *disk)
 {
     VIR_FREE(disk->name);
@@ -112,6 +112,9 @@ virDomainSnapshotDefDispose(void *obj)
     for (i = 0; i < def->ndisks; i++)
         virDomainSnapshotDiskDefClear(&def->disks[i]);
     g_free(def->disks);
+    for (i = 0; i < def->nrevertdisks; i++)
+        virDomainSnapshotDiskDefClear(&def->revertdisks[i]);
+    g_free(def->revertdisks);
     virObjectUnref(def->cookie);
 }
 
@@ -376,6 +379,22 @@ virDomainSnapshotDefParse(xmlXPathContextPtr ctxt,
             return NULL;
     }
 
+    if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE) {
+        g_autofree xmlNodePtr *revertDiskNodes = NULL;
+
+        if ((n = virXPathNodeSet("./revertDisks/*", ctxt, &revertDiskNodes)) < 0)
+            return NULL;
+        if (n)
+            def->revertdisks = g_new0(virDomainSnapshotDiskDef, n);
+        def->nrevertdisks = n;
+        for (i = 0; i < def->nrevertdisks; i++) {
+            if (virDomainSnapshotDiskDefParseXML(revertDiskNodes[i], ctxt,
+                                                 &def->revertdisks[i],
+                                                 flags, xmlopt) < 0)
+                return NULL;
+        }
+    }
+
     if (flags & VIR_DOMAIN_SNAPSHOT_PARSE_INTERNAL) {
         int active;
 
@@ -486,12 +505,14 @@ virDomainSnapshotRedefineValidate(virDomainSnapshotDef *def,
 /**
  * virDomainSnapshotDefAssignExternalNames:
  * @def: snapshot def object
+ * @domdef: domain def object
  *
  * Generate default external file names for snapshot targets. Returns 0 on
  * success, -1 on error.
  */
 static int
-virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDef *def)
+virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDef *def,
+                                        virDomainDef *domdef)
 {
     const char *origpath;
     char *tmppath;
@@ -514,7 +535,7 @@ virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDef *def)
             return -1;
         }
 
-        if (!(origpath = virDomainDiskGetSource(def->parent.dom->disks[i]))) {
+        if (!(origpath = virDomainDiskGetSource(domdef->disks[i]))) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("cannot generate external snapshot name for disk '%1$s' without source"),
                            disk->name);
@@ -560,6 +581,8 @@ virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDef *def)
  * @default_snapshot: snapshot location to assign to disks which don't have any
  * @uniform_internal_snapshot: Require that for an internal snapshot all disks
  *                             take part in the internal snapshot
+ * @force_default_location: Always use @default_snapshot even if domain def
+ *                          has different default value
  *
  * Align snapdef->disks to domain definition, filling in any missing disks or
  * snapshot state defaults given by the domain, with a fallback to
@@ -577,6 +600,10 @@ virDomainSnapshotDefAssignExternalNames(virDomainSnapshotDef *def)
  * in the internal snapshot. This is for hypervisors where granularity of an
  * internal snapshot can't be controlled.
  *
+ * When @force_default_location is true we will always use @default_snapshot
+ * even if domain definition has different default set. This is required to
+ * create new snapshot definition when reverting external snapshots.
+ *
  * Convert paths to disk targets for uniformity.
  *
  * On error -1 is returned and a libvirt error is reported.
@@ -585,7 +612,8 @@ int
 virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
                             virDomainDef *existingDomainDef,
                             virDomainSnapshotLocation default_snapshot,
-                            bool uniform_internal_snapshot)
+                            bool uniform_internal_snapshot,
+                            bool force_default_location)
 {
     virDomainDef *domdef = snapdef->parent.dom;
     g_autoptr(GHashTable) map = virHashNew(NULL);
@@ -693,7 +721,7 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
         /* Don't snapshot empty drives */
         if (virStorageSourceIsEmpty(domdef->disks[i]->src))
             snapdisk->snapshot = VIR_DOMAIN_SNAPSHOT_LOCATION_NO;
-        else
+        else if (!force_default_location)
             snapdisk->snapshot = domdef->disks[i]->snapshot;
 
         snapdisk->src->type = VIR_STORAGE_TYPE_FILE;
@@ -702,7 +730,7 @@ virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapdef,
     }
 
     /* Generate default external file names for external snapshot locations */
-    if (virDomainSnapshotDefAssignExternalNames(snapdef) < 0)
+    if (virDomainSnapshotDefAssignExternalNames(snapdef, domdef) < 0)
         return -1;
 
     return 0;
@@ -832,6 +860,17 @@ virDomainSnapshotDefFormatInternal(virBuffer *buf,
         virBufferAddLit(buf, "</disks>\n");
     }
 
+    if (def->nrevertdisks > 0) {
+        g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+
+        for (i = 0; i < def->nrevertdisks; i++) {
+            if (virDomainSnapshotDiskDefFormat(&childBuf, &def->revertdisks[i], xmlopt) < 0)
+                return -1;
+        }
+
+        virXMLFormatElement(buf, "revertDisks", NULL, &childBuf);
+    }
+
     if (def->parent.dom) {
         if (virDomainDefFormatInternal(def->parent.dom, xmlopt,
                                        buf, domainflags) < 0)
@@ -938,8 +977,10 @@ virDomainSnapshotRedefinePrep(virDomainObj *vm,
         virDomainSnapshotDefIsExternal(snapdef))
         align_location = VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL;
 
-    if (virDomainSnapshotAlignDisks(snapdef, otherDomDef, align_location, true) < 0)
+    if (virDomainSnapshotAlignDisks(snapdef, otherDomDef, align_location,
+                                    true, false) < 0) {
         return -1;
+    }
 
     return 0;
 }

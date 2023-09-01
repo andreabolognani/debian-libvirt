@@ -444,7 +444,6 @@ cmdDomblkinfoGet(const virDomainBlockInfo *info,
 static bool
 cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
 {
-    virDomainBlockInfo info;
     g_autoptr(virshDomain) dom = NULL;
     bool human = false;
     bool all = false;
@@ -491,6 +490,7 @@ cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
             g_autofree char *cap = NULL;
             g_autofree char *alloc = NULL;
             g_autofree char *phy = NULL;
+            virDomainBlockInfo info = { 0 };
 
             ctxt->node = disks[i];
             protocol = virXPathString("string(./source/@protocol)", ctxt);
@@ -513,10 +513,6 @@ cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
                         return false;
                     }
                 }
-            } else {
-                /* if we don't call virDomainGetBlockInfo() who clears 'info'
-                 * we have to do it manually */
-                memset(&info, 0, sizeof(info));
             }
 
             if (!cmdDomblkinfoGet(&info, &cap, &alloc, &phy, human))
@@ -531,6 +527,7 @@ cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
         g_autofree char *cap = NULL;
         g_autofree char *alloc = NULL;
         g_autofree char *phy = NULL;
+        virDomainBlockInfo info = { 0 };
 
         if (virDomainGetBlockInfo(dom, device, &info, 0) < 0)
             return false;
@@ -1213,7 +1210,7 @@ cmdDominfo(vshControl *ctl, const vshCmd *cmd)
 {
     virDomainInfo info;
     g_autoptr(virshDomain) dom = NULL;
-    virSecurityModel secmodel;
+    virSecurityModel secmodel = { 0 };
     int persistent = 0;
     bool ret = true;
     int autostart;
@@ -1291,7 +1288,6 @@ cmdDominfo(vshControl *ctl, const vshCmd *cmd)
                  has_managed_save ? _("yes") : _("no"));
 
     /* Security model and label information */
-    memset(&secmodel, 0, sizeof(secmodel));
     if (virNodeGetSecurityModel(priv->conn, &secmodel) == -1) {
         if (last_error->code != VIR_ERR_NO_SUPPORT) {
             return false;

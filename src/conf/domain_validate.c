@@ -466,7 +466,8 @@ virDomainDiskVhostUserValidate(const virDomainDiskDef *disk)
     }
 
     if (disk->blockio.logical_block_size > 0 ||
-        disk->blockio.physical_block_size > 0) {
+        disk->blockio.physical_block_size > 0 ||
+        disk->blockio.discard_granularity > 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("blockio is not supported with vhostuser disk"));
         return -1;
@@ -2260,7 +2261,7 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
 
     switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
-        if (!mem->nvdimmPath) {
+        if (!mem->source.nvdimm.path) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("path is required for model 'nvdimm'"));
             return -1;
@@ -2273,12 +2274,12 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
         }
 
         if (ARCH_IS_PPC64(def->os.arch)) {
-            if (mem->labelsize == 0) {
+            if (mem->target.nvdimm.labelsize == 0) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("label size is required for NVDIMM device"));
                 return -1;
             }
-        } else if (mem->uuid) {
+        } else if (mem->target.nvdimm.uuid) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("UUID is not supported for NVDIMM device"));
             return -1;
@@ -2286,7 +2287,7 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-        if (!mem->nvdimmPath) {
+        if (!mem->source.virtio_pmem.path) {
             virReportError(VIR_ERR_XML_DETAIL,
                            _("path is required for model '%1$s'"),
                            virDomainMemoryModelTypeToString(mem->model));
@@ -2314,14 +2315,14 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-        if (mem->requestedsize > mem->size) {
+        if (mem->target.virtio_mem.requestedsize > mem->size) {
             virReportError(VIR_ERR_XML_DETAIL,
                            _("requested size must be smaller than or equal to @size (%1$lluKiB)"),
                            mem->size);
             return -1;
         }
 
-        if (!VIR_IS_POW2(mem->blocksize)) {
+        if (!VIR_IS_POW2(mem->target.virtio_mem.blocksize)) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("block size must be a power of two"));
             return -1;
@@ -2335,20 +2336,20 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
             thpSize = 2048;
         }
 
-        if (mem->blocksize < thpSize) {
+        if (mem->target.virtio_mem.blocksize < thpSize) {
             virReportError(VIR_ERR_XML_DETAIL,
                            _("block size too small, must be at least %1$lluKiB"),
                            thpSize);
             return -1;
         }
 
-        if (mem->requestedsize % mem->blocksize != 0) {
+        if (mem->target.virtio_mem.requestedsize % mem->target.virtio_mem.blocksize != 0) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("requested size must be an integer multiple of block size"));
             return -1;
         }
 
-        if (mem->address % mem->blocksize != 0) {
+        if (mem->target.virtio_mem.address % mem->target.virtio_mem.blocksize != 0) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
                            _("memory device address must be aligned to blocksize"));
             return -1;

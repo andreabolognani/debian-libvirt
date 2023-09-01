@@ -60,6 +60,9 @@ struct _virDomainSnapshotDiskDef {
 };
 
 void
+virDomainSnapshotDiskDefClear(virDomainSnapshotDiskDef *disk);
+
+void
 virDomainSnapshotDiskDefFree(virDomainSnapshotDiskDef *disk);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainSnapshotDiskDef, virDomainSnapshotDiskDefFree);
@@ -76,6 +79,11 @@ struct _virDomainSnapshotDef {
 
     size_t ndisks; /* should not exceed dom->ndisks */
     virDomainSnapshotDiskDef *disks;
+
+    /* When we revert to non-leaf snapshot we need to
+     * store the new overlay disks. */
+    size_t nrevertdisks;
+    virDomainSnapshotDiskDef *revertdisks;
 
     virObject *cookie;
 };
@@ -118,7 +126,8 @@ char *virDomainSnapshotDefFormat(const char *uuidstr,
 int virDomainSnapshotAlignDisks(virDomainSnapshotDef *snapshot,
                                 virDomainDef *existingDomainDef,
                                 virDomainSnapshotLocation default_snapshot,
-                                bool uniform_internal_snapshot);
+                                bool uniform_internal_snapshot,
+                                bool force_default_location);
 
 bool virDomainSnapshotDefIsExternal(virDomainSnapshotDef *def);
 bool virDomainSnapshotIsExternal(virDomainMomentObj *snap);

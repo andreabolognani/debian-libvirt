@@ -43,6 +43,7 @@
 #include "virutil.h"
 #include "vircommand.h"
 #include "virlog.h"
+#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NODEDEV
 
@@ -1176,6 +1177,12 @@ nodeDeviceParseMdevctlJSON(const char *jsonstring,
     size_t j;
     virJSONValue *obj;
 
+    if (virStringIsEmpty(jsonstring)) {
+        VIR_DEBUG("mdevctl has no defined mediated devices");
+        *devs = NULL;
+        return 0;
+    }
+
     json_devicelist = virJSONValueFromString(jsonstring);
 
     if (!json_devicelist || !virJSONValueIsArray(json_devicelist)) {
@@ -1629,40 +1636,19 @@ nodeDeviceGenerateName(virNodeDeviceDef *def,
 
 
 static int
-virMdevctlListDefined(virNodeDeviceDef ***devs, char **errmsg)
+virMdevctlList(bool defined,
+               virNodeDeviceDef ***devs,
+               char **errmsg)
 {
     int status;
     g_autofree char *output = NULL;
     g_autofree char *errbuf = NULL;
-    g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlListCommand(true, &output, &errbuf);
+    g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlListCommand(defined, &output, &errbuf);
 
     if (virCommandRun(cmd, &status) < 0 || status != 0) {
         *errmsg = g_steal_pointer(&errbuf);
         return -1;
     }
-
-    if (!output)
-        return -1;
-
-    return nodeDeviceParseMdevctlJSON(output, devs);
-}
-
-
-static int
-virMdevctlListActive(virNodeDeviceDef ***devs, char **errmsg)
-{
-    int status;
-    g_autofree char *output = NULL;
-    g_autofree char *errbuf = NULL;
-    g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlListCommand(false, &output, &errbuf);
-
-    if (virCommandRun(cmd, &status) < 0 || status != 0) {
-        *errmsg = g_steal_pointer(&errbuf);
-        return -1;
-    }
-
-    if (!output)
-        return -1;
 
     return nodeDeviceParseMdevctlJSON(output, devs);
 }
@@ -1743,7 +1729,7 @@ nodeDeviceUpdateMediatedDevices(void)
         return 0;
     }
 
-    if ((data.ndefs = virMdevctlListDefined(&defs, &errmsg)) < 0) {
+    if ((data.ndefs = virMdevctlList(true, &defs, &errmsg)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to query mdevs from mdevctl: %1$s"), errmsg);
         return -1;
@@ -1760,7 +1746,7 @@ nodeDeviceUpdateMediatedDevices(void)
             return -1;
 
     /* Update active/transient mdev devices */
-    if ((act_ndefs = virMdevctlListActive(&act_defs, &errmsg)) < 0) {
+    if ((act_ndefs = virMdevctlList(false, &act_defs, &errmsg)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to query mdevs from mdevctl: %1$s"), errmsg);
         return -1;

@@ -759,6 +759,8 @@ qemuValidateDomainVCpuTopology(const virDomainDef *def, virQEMUCaps *qemuCaps)
 {
     unsigned int maxCpus = virQEMUCapsGetMachineMaxCpus(qemuCaps, def->virtType,
                                                         def->os.machine);
+    unsigned int topologycpus;
+    unsigned int granularity;
 
     if (virDomainDefGetVcpus(def) == 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -773,40 +775,22 @@ qemuValidateDomainVCpuTopology(const virDomainDef *def, virQEMUCaps *qemuCaps)
         return -1;
     }
 
-    /* QEMU 2.7 (detected via the availability of query-hotpluggable-cpus)
-     * enforces stricter rules than previous versions when it comes to guest
-     * CPU topology. Verify known constraints are respected */
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS)) {
-        unsigned int topologycpus;
-        unsigned int granularity;
-        unsigned int numacpus;
-
-        /* Starting from QEMU 2.5, max vCPU count and overall vCPU topology
-         * must agree. We only actually enforce this with QEMU 2.7+, due
-         * to the capability check above */
-        if (virDomainDefGetVcpusTopology(def, &topologycpus) == 0) {
-            if (topologycpus != virDomainDefGetVcpusMax(def)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("CPU topology doesn't match maximum vcpu count"));
-                return -1;
-            }
-
-            numacpus = virDomainNumaGetCPUCountTotal(def->numa);
-            if ((numacpus != 0) && (topologycpus != numacpus)) {
-                VIR_WARN("CPU topology doesn't match numa CPU count; "
-                         "partial NUMA mapping is obsoleted and will "
-                         "be removed in future");
-            }
-        }
-
-        /* vCPU hotplug granularity must be respected */
-        granularity = qemuValidateDefGetVcpuHotplugGranularity(def);
-        if ((virDomainDefGetVcpus(def) % granularity) != 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("vCPUs count must be a multiple of the vCPU hotplug granularity (%1$u)"),
-                           granularity);
+    /* Starting from QEMU 2.5, max vCPU count and overall vCPU topology must agree. */
+    if (virDomainDefGetVcpusTopology(def, &topologycpus) == 0) {
+        if (topologycpus != virDomainDefGetVcpusMax(def)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("CPU topology doesn't match maximum vcpu count"));
             return -1;
         }
+    }
+
+    /* vCPU hotplug granularity must be respected */
+    granularity = qemuValidateDefGetVcpuHotplugGranularity(def);
+    if ((virDomainDefGetVcpus(def) % granularity) != 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("vCPUs count must be a multiple of the vCPU hotplug granularity (%1$u)"),
+                       granularity);
+        return -1;
     }
 
     if (ARCH_IS_X86(def->os.arch) &&
@@ -5034,7 +5018,7 @@ qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
             return -1;
         }
 
-        if (mem->readonly &&
+        if (mem->target.nvdimm.readonly &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVDIMM_UNARMED)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("nvdimm readonly property is not available "
@@ -5074,8 +5058,8 @@ qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
             return -1;
         }
 
-        if (mem->sourceNodes) {
-            while ((node = virBitmapNextSetBit(mem->sourceNodes, node)) >= 0) {
+        if (mem->source.sgx_epc.nodes) {
+            while ((node = virBitmapNextSetBit(mem->source.sgx_epc.nodes, node)) >= 0) {
                 if (mem->size > sgxCaps->sgxSections[node].size) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                    _("sgx epc size %1$lld on host node %2$zd is less than requested size %3$lld"),
@@ -5111,13 +5095,9 @@ qemuValidateDomainDeviceDefShmem(virDomainShmemDef *shmem,
 {
     switch (shmem->model) {
     case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM:
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_IVSHMEM)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("ivshmem device is not supported "
-                             "with this QEMU binary"));
-            return -1;
-        }
-        break;
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("ivshmem device is no longer supported"));
+        return -1;
 
     case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM_PLAIN:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_IVSHMEM_PLAIN)) {

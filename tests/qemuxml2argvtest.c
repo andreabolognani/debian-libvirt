@@ -546,7 +546,7 @@ testCompareXMLToArgv(const void *data)
     unsigned int parseFlags = info->parseFlags;
     int ret = -1;
     virDomainObj *vm = NULL;
-    virDomainChrSourceDef monitor_chr;
+    virDomainChrSourceDef monitor_chr = { 0 };
     g_autoptr(virConnect) conn = NULL;
     virError *err = NULL;
     g_autofree char *log = NULL;
@@ -557,8 +557,6 @@ testCompareXMLToArgv(const void *data)
     g_autofree char *archstr = NULL;
     virArch arch = VIR_ARCH_NONE;
     g_autoptr(virIdentity) sysident = virIdentityGetSystem();
-
-    memset(&monitor_chr, 0, sizeof(monitor_chr));
 
     if (testQemuInfoInitArgs((struct testQemuInfo *) info) < 0)
         goto cleanup;
@@ -836,6 +834,9 @@ mymain(void)
 # define DO_TEST_CAPS_LATEST(name) \
     DO_TEST_CAPS_ARCH_LATEST(name, "x86_64")
 
+# define DO_TEST_CAPS_LATEST_ABI_UPDATE(name) \
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE(name, "x86_64")
+
 # define DO_TEST_CAPS_VER(name, ver) \
     DO_TEST_CAPS_ARCH_VER(name, "x86_64", ver)
 
@@ -855,12 +856,20 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
                                   ARG_FLAGS, FLAG_EXPECT_FAILURE)
 
+# define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_FAILURE(name, arch) \
+    DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
+                                  ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE, \
+                                  ARG_FLAGS, FLAG_EXPECT_FAILURE)
+
 # define DO_TEST_CAPS_ARCH_VER_FAILURE(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, \
                                ARG_FLAGS, FLAG_EXPECT_FAILURE)
 
 # define DO_TEST_CAPS_LATEST_FAILURE(name) \
     DO_TEST_CAPS_ARCH_LATEST_FAILURE(name, "x86_64")
+
+# define DO_TEST_CAPS_LATEST_ABI_UPDATE_FAILURE(name) \
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_FAILURE(name, "x86_64")
 
 # define DO_TEST_CAPS_VER_FAILURE(name, ver) \
     DO_TEST_CAPS_ARCH_VER_FAILURE(name, "x86_64", ver)
@@ -869,12 +878,20 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
                                   ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR)
 
+# define DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR(name, arch) \
+    DO_TEST_CAPS_ARCH_LATEST_FULL(name, arch, \
+                                  ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE, \
+                                  ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR)
+
 # define DO_TEST_CAPS_ARCH_VER_PARSE_ERROR(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, \
                                ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR)
 
 # define DO_TEST_CAPS_LATEST_PARSE_ERROR(name) \
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR(name, "x86_64")
+
+# define DO_TEST_CAPS_LATEST_ABI_UPDATE_PARSE_ERROR(name) \
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR(name, "x86_64")
 
 # define DO_TEST_CAPS_VER_PARSE_ERROR(name, ver) \
     DO_TEST_CAPS_ARCH_VER_PARSE_ERROR(name, "x86_64", ver)
@@ -1029,14 +1046,18 @@ mymain(void)
                                   ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
                                   ARG_END);
     DO_TEST_CAPS_LATEST("firmware-manual-efi-rw");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-legacy-paths");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-modern-paths");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-rw-implicit");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-loader-secure");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-loader-no-path");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-loader-path-nonstandard");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-secboot");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-no-enrolled-keys");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-no-secboot");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-stateless");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-template-nonstandard");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-manual-efi-nvram-template-stateless");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-iscsi");
     DO_TEST_CAPS_LATEST("firmware-manual-efi-nvram-network-nbd");
@@ -1053,14 +1074,23 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("firmware-manual-noefi-noacpi-aarch64", "aarch64");
     DO_TEST_CAPS_LATEST("firmware-manual-noefi-noacpi-q35");
 
+    /* Ensure that legacy firmware paths keep working */
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-secboot-legacy-paths");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-no-enrolled-keys-legacy-paths");
+    DO_TEST_CAPS_LATEST("firmware-manual-efi-no-secboot-legacy-paths");
+    DO_TEST_CAPS_ARCH_LATEST("firmware-manual-efi-aarch64-legacy-paths", "aarch64");
+
     DO_TEST_CAPS_LATEST("firmware-auto-bios");
     DO_TEST_CAPS_LATEST("firmware-auto-bios-stateless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-not-stateless");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-bios-nvram");
     DO_TEST_CAPS_LATEST("firmware-auto-efi");
+    DO_TEST_CAPS_LATEST_ABI_UPDATE("firmware-auto-efi-abi-update");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-stateless");
-    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram");
+    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-efi-rw");
+    DO_TEST_CAPS_LATEST_ABI_UPDATE_PARSE_ERROR("firmware-auto-efi-rw-abi-update");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-secure");
+    DO_TEST_CAPS_LATEST_ABI_UPDATE("firmware-auto-efi-loader-secure-abi-update");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-insecure");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-loader-path");
     DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-efi-loader-path-nonstandard");
@@ -1072,15 +1102,20 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-efi-smm-off");
     DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-aarch64", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("firmware-auto-efi-abi-update-aarch64", "aarch64");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-path");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-template");
+    DO_TEST_CAPS_LATEST_FAILURE("firmware-auto-efi-nvram-template-nonstandard");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-file");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-nbd");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-nvram-network-iscsi");
 
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-loader-qcow2");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-loader-qcow2-nvram-path");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-path");
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-network-nbd");
     DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-format-loader-raw", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("firmware-auto-efi-format-loader-raw-abi-update", "aarch64");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-format-mismatch");
 
     DO_TEST_NOCAPS("clock-utc");
@@ -1094,7 +1129,7 @@ mymain(void)
     DO_TEST_NOCAPS("cpu-host-kvmclock");
     DO_TEST("kvmclock", QEMU_CAPS_KVM);
     DO_TEST("clock-timer-hyperv-rtc", QEMU_CAPS_KVM);
-    DO_TEST_NOCAPS("clock-realtime");
+    DO_TEST_CAPS_LATEST("clock-realtime");
     DO_TEST_CAPS_LATEST("clock-absolute");
 
     DO_TEST_CAPS_LATEST("controller-usb-order");
@@ -1125,8 +1160,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hyperv-passthrough");
     DO_TEST_CAPS_LATEST("hyperv-stimer-direct");
 
-    DO_TEST_NOCAPS("kvm-features");
-    DO_TEST_NOCAPS("kvm-features-off");
+    DO_TEST_CAPS_LATEST("kvm-features");
+    DO_TEST_CAPS_LATEST("kvm-features-off");
 
     DO_TEST_NOCAPS("pmu-feature");
     DO_TEST_NOCAPS("pmu-feature-off");
@@ -1349,22 +1384,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("graphics-spice-gl-auto-rendernode");
     driver.config->spiceTLS = 0;
 
-    DO_TEST("graphics-dbus",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_DISPLAY_DBUS);
-    DO_TEST("graphics-dbus-address",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_DISPLAY_DBUS);
-    DO_TEST("graphics-dbus-p2p",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_DISPLAY_DBUS);
-    DO_TEST("graphics-dbus-audio",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA, QEMU_CAPS_DISPLAY_DBUS);
-    DO_TEST("graphics-dbus-chardev",
-            QEMU_CAPS_DEVICE_ISA_SERIAL,
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_DISPLAY_DBUS);
-    DO_TEST("graphics-dbus-usbredir",
-            QEMU_CAPS_DEVICE_CIRRUS_VGA,
-            QEMU_CAPS_DISPLAY_DBUS,
-            QEMU_CAPS_USB_REDIR);
+    DO_TEST_CAPS_LATEST("graphics-dbus");
+    DO_TEST_CAPS_LATEST("graphics-dbus-address");
+    DO_TEST_CAPS_LATEST("graphics-dbus-p2p");
+    DO_TEST_CAPS_LATEST("graphics-dbus-audio");
+    DO_TEST_CAPS_LATEST("graphics-dbus-chardev");
+    DO_TEST_CAPS_LATEST("graphics-dbus-usbredir");
 
     DO_TEST_NOCAPS("input-usbmouse");
     DO_TEST_NOCAPS("input-usbtablet");
@@ -1376,47 +1401,44 @@ mymain(void)
     DO_TEST_CAPS_VER("misc-no-reboot", "5.2.0");
     DO_TEST_CAPS_LATEST("misc-no-reboot");
     DO_TEST_NOCAPS("misc-uuid");
+
     DO_TEST_PARSE_ERROR_NOCAPS("vhost_queues-invalid");
-    DO_TEST_NOCAPS("net-vhostuser");
+
     DO_TEST_CAPS_LATEST("net-vhostuser");
-    DO_TEST_NOCAPS("net-vhostuser-multiq");
-    DO_TEST_FAILURE_NOCAPS("net-vhostuser-fail");
-    DO_TEST_NOCAPS("net-user");
+    DO_TEST_CAPS_LATEST("net-vhostuser");
+    DO_TEST_CAPS_LATEST("net-vhostuser-multiq");
+    DO_TEST_CAPS_LATEST_FAILURE("net-vhostuser-fail");
+    DO_TEST_CAPS_LATEST("net-user");
     DO_TEST_CAPS_ARCH_LATEST_FULL("net-user", "x86_64", ARG_FLAGS, FLAG_SLIRP_HELPER);
-    DO_TEST_NOCAPS("net-user-addr");
+    DO_TEST_CAPS_LATEST("net-user-addr");
     DO_TEST_CAPS_LATEST("net-user-passt");
     DO_TEST_CAPS_VER("net-user-passt", "7.2.0");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("net-user-slirp-portforward");
-    DO_TEST_NOCAPS("net-virtio");
-    DO_TEST_NOCAPS("net-virtio-device");
-    DO_TEST_NOCAPS("net-virtio-disable-offloads");
-    DO_TEST_NOCAPS("net-virtio-netdev");
+    DO_TEST_CAPS_LATEST("net-virtio");
+    DO_TEST_CAPS_LATEST("net-virtio-device");
+    DO_TEST_CAPS_LATEST("net-virtio-disable-offloads");
+    DO_TEST_CAPS_LATEST("net-virtio-netdev");
     DO_TEST_CAPS_ARCH_LATEST("net-virtio-ccw", "s390x");
-    DO_TEST_NOCAPS("net-virtio-rxtxqueuesize");
-    DO_TEST_PARSE_ERROR_NOCAPS("net-virtio-rxqueuesize-invalid-size");
-    DO_TEST("net-virtio-teaming",
-            QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST("net-virtio-teaming-hostdev",
-            QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST_NOCAPS("net-eth");
-    DO_TEST_NOCAPS("net-eth-ifname");
-    DO_TEST_NOCAPS("net-eth-names");
-    DO_TEST_NOCAPS("net-eth-hostip");
-    DO_TEST_NOCAPS("net-eth-unmanaged-tap");
-    DO_TEST_NOCAPS("net-client");
-    DO_TEST_NOCAPS("net-server");
-    DO_TEST_NOCAPS("net-many-models");
-    DO_TEST_NOCAPS("net-mcast");
-    DO_TEST_NOCAPS("net-udp");
-    DO_TEST("net-hostdev", QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST("net-hostdev-bootorder", QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST("net-hostdev-multidomain", QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST("net-hostdev-vfio",
-            QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST("net-hostdev-vfio-multidomain",
-            QEMU_CAPS_DEVICE_VFIO_PCI);
-    DO_TEST_FAILURE("net-hostdev-fail",
-                    QEMU_CAPS_DEVICE_VFIO_PCI);
+    DO_TEST_CAPS_LATEST("net-virtio-rxtxqueuesize");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("net-virtio-rxqueuesize-invalid-size");
+    DO_TEST_CAPS_LATEST("net-virtio-teaming");
+    DO_TEST_CAPS_LATEST("net-virtio-teaming-hostdev");
+    DO_TEST_CAPS_LATEST("net-eth");
+    DO_TEST_CAPS_LATEST("net-eth-ifname");
+    DO_TEST_CAPS_LATEST("net-eth-names");
+    DO_TEST_CAPS_LATEST("net-eth-hostip");
+    DO_TEST_CAPS_LATEST("net-eth-unmanaged-tap");
+    DO_TEST_CAPS_LATEST("net-client");
+    DO_TEST_CAPS_LATEST("net-server");
+    DO_TEST_CAPS_LATEST("net-many-models");
+    DO_TEST_CAPS_LATEST("net-mcast");
+    DO_TEST_CAPS_LATEST("net-udp");
+    DO_TEST_CAPS_LATEST("net-hostdev");
+    DO_TEST_CAPS_LATEST("net-hostdev-bootorder");
+    DO_TEST_CAPS_LATEST("net-hostdev-multidomain");
+    DO_TEST_CAPS_LATEST("net-hostdev-vfio");
+    DO_TEST_CAPS_LATEST("net-hostdev-vfio-multidomain");
+    DO_TEST_CAPS_LATEST_FAILURE("net-hostdev-fail");
     DO_TEST_CAPS_LATEST("net-vdpa");
     DO_TEST_CAPS_LATEST("net-vdpa-multiqueue");
     DO_TEST_CAPS_LATEST("net-virtio-rss");
@@ -1490,8 +1512,6 @@ mymain(void)
             QEMU_CAPS_DEVICE_ISA_SERIAL);
     DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-chardev-verify");
     driver.config->chardevTLSx509verify = 0;
-    DO_TEST("serial-tcp-tlsx509-chardev-notls",
-            QEMU_CAPS_DEVICE_ISA_SERIAL);
     DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-chardev-notls");
     driver.config->chardevTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
     DO_TEST("serial-tcp-tlsx509-secret-chardev",
@@ -1669,7 +1689,7 @@ mymain(void)
     DO_TEST_NOCAPS("smbios");
     DO_TEST_PARSE_ERROR_NOCAPS("smbios-date");
     DO_TEST_PARSE_ERROR_NOCAPS("smbios-uuid-match");
-    DO_TEST_NOCAPS("smbios-type-fwcfg");
+    DO_TEST_CAPS_LATEST("smbios-type-fwcfg");
 
     DO_TEST_CAPS_LATEST("watchdog");
     DO_TEST_CAPS_LATEST("watchdog-device");
@@ -1875,7 +1895,7 @@ mymain(void)
     DO_TEST_NOCAPS("numatune-memnode-no-memory");
 
     DO_TEST_NOCAPS("numatune-distances");
-    DO_TEST_NOCAPS("numatune-no-vcpu");
+    DO_TEST_CAPS_LATEST("numatune-no-vcpu");
     DO_TEST_CAPS_LATEST("numatune-hmat");
     DO_TEST_CAPS_LATEST("numatune-hmat-none");
 
@@ -1985,70 +2005,41 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("mach-virt-console-virtio", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("mach-virt-serial-invalid-machine", "x86_64");
 
-    DO_TEST("video-device-pciaddr-default",
-            QEMU_CAPS_KVM,
-            QEMU_CAPS_VNC,
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("video-vga-device", QEMU_CAPS_DEVICE_VGA);
-    DO_TEST("video-vga-device-vgamem", QEMU_CAPS_DEVICE_VGA,
-            QEMU_CAPS_VGA_VGAMEM);
-    DO_TEST("video-qxl-device",
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("video-qxl-device-vgamem",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_QXL_VGAMEM);
+    DO_TEST_CAPS_LATEST("video-device-pciaddr-default");
+    DO_TEST_CAPS_LATEST("video-vga-device");
+    DO_TEST_CAPS_LATEST("video-vga-device-vgamem");
+    DO_TEST_CAPS_LATEST("video-qxl-device");
+    DO_TEST_CAPS_LATEST("video-qxl-device-vgamem");
     DO_TEST_CAPS_LATEST("video-qxl-device-vram64");
-    DO_TEST("video-qxl-sec-device",
-            QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("video-qxl-sec-device-vgamem",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_QXL_VGAMEM);
+    DO_TEST_CAPS_LATEST("video-qxl-sec-device");
+    DO_TEST_CAPS_LATEST("video-qxl-sec-device-vgamem");
     DO_TEST_CAPS_LATEST("video-qxl-sec-device-vram64");
-    DO_TEST("video-qxl-heads", QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("video-vga-qxl-heads", QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("video-qxl-noheads", QEMU_CAPS_DEVICE_QXL);
-    DO_TEST("video-qxl-resolution",
-            QEMU_CAPS_DEVICE_QXL,
-            QEMU_CAPS_QXL_VGAMEM);
-    DO_TEST("video-virtio-gpu-device",
-            QEMU_CAPS_DEVICE_VIRTIO_GPU);
-    DO_TEST("video-virtio-gpu-virgl",
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL);
-    DO_TEST("video-virtio-gpu-spice-gl",
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_SPICE,
-            QEMU_CAPS_SPICE_GL,
-            QEMU_CAPS_SPICE_RENDERNODE);
-    DO_TEST("video-virtio-gpu-sdl-gl",
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_VIRTIO_GPU_VIRGL,
-            QEMU_CAPS_SDL);
-    DO_TEST("video-virtio-gpu-secondary",
-            QEMU_CAPS_DEVICE_VIRTIO_GPU);
-    DO_TEST("video-virtio-vga",
-            QEMU_CAPS_DEVICE_VIRTIO_GPU,
-            QEMU_CAPS_DEVICE_VIRTIO_VGA);
+    DO_TEST_CAPS_LATEST("video-qxl-heads");
+    DO_TEST_CAPS_LATEST("video-vga-qxl-heads");
+    DO_TEST_CAPS_LATEST("video-qxl-noheads");
+    DO_TEST_CAPS_LATEST("video-qxl-resolution");
+    DO_TEST_CAPS_LATEST("video-virtio-gpu-device");
+    DO_TEST_CAPS_LATEST("video-virtio-gpu-virgl");
+    DO_TEST_CAPS_LATEST("video-virtio-gpu-spice-gl");
+    DO_TEST_CAPS_LATEST("video-virtio-gpu-sdl-gl");
+    DO_TEST_CAPS_LATEST("video-virtio-gpu-secondary");
+    DO_TEST_CAPS_LATEST("video-virtio-vga");
     DO_TEST_CAPS_LATEST("video-virtio-blob-on");
     DO_TEST_CAPS_LATEST("video-virtio-blob-off");
     DO_TEST_CAPS_LATEST("video-virtio-vga-gpu-gl");
     DO_TEST_CAPS_LATEST("video-bochs-display-device");
     DO_TEST_CAPS_LATEST("video-ramfb-display-device");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("video-ramfb-display-device-pci-address");
-    DO_TEST("video-none-device",
-            QEMU_CAPS_VNC);
-    DO_TEST_PARSE_ERROR_NOCAPS("video-invalid-multiple-devices");
-    DO_TEST_PARSE_ERROR_NOCAPS("default-video-type-x86_64-caps-test-0");
+    DO_TEST_CAPS_LATEST("video-none-device");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("video-invalid-multiple-devices");
+    DO_TEST_CAPS_LATEST("default-video-type-x86_64");
 
     DO_TEST_CAPS_ARCH_LATEST("default-video-type-aarch64", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST("default-video-type-ppc64", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("default-video-type-riscv64", "riscv64");
     DO_TEST_CAPS_ARCH_LATEST("default-video-type-s390x", "s390x");
 
-    DO_TEST_PARSE_ERROR("video-multiple-primaries",
-                        QEMU_CAPS_DEVICE_QXL,
-                        QEMU_CAPS_DEVICE_VGA);
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("video-multiple-primaries");
 
     DO_TEST("virtio-rng-default",
             QEMU_CAPS_DEVICE_VIRTIO_RNG,
@@ -2418,18 +2409,11 @@ mymain(void)
     DO_TEST_CAPS_ARCH_VER_FULL("fips-enabled", "x86_64", "5.1.0", ARG_FLAGS, FLAG_FIPS_HOST);
     DO_TEST_CAPS_ARCH_LATEST_FULL("fips-enabled", "x86_64", ARG_FLAGS, FLAG_FIPS_HOST);
 
-    DO_TEST("shmem", QEMU_CAPS_DEVICE_IVSHMEM);
-    DO_TEST("shmem-plain-doorbell", QEMU_CAPS_DEVICE_IVSHMEM,
-            QEMU_CAPS_DEVICE_IVSHMEM_PLAIN,
-            QEMU_CAPS_DEVICE_IVSHMEM_DOORBELL);
-    DO_TEST_PARSE_ERROR_NOCAPS("shmem");
-    DO_TEST_FAILURE("shmem-invalid-size",
-                    QEMU_CAPS_DEVICE_IVSHMEM);
-    DO_TEST_FAILURE("shmem-invalid-address",
-                    QEMU_CAPS_DEVICE_IVSHMEM);
-    DO_TEST_FAILURE("shmem-small-size",
-                    QEMU_CAPS_DEVICE_IVSHMEM);
-    DO_TEST_PARSE_ERROR_NOCAPS("shmem-msi-only");
+    DO_TEST_CAPS_LATEST("shmem-plain-doorbell");
+    DO_TEST_CAPS_LATEST_FAILURE("shmem-invalid-size");
+    DO_TEST_CAPS_LATEST_FAILURE("shmem-invalid-address");
+    DO_TEST_CAPS_LATEST_FAILURE("shmem-small-size");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("shmem-msi-only");
     DO_TEST("cpu-host-passthrough-features", QEMU_CAPS_KVM);
 
     DO_TEST_FAILURE_NOCAPS("memory-align-fail");
@@ -2440,10 +2424,7 @@ mymain(void)
     DO_TEST("memory-hotplug-dimm", QEMU_CAPS_DEVICE_PC_DIMM);
     DO_TEST_CAPS_LATEST("memory-hotplug-dimm-addr");
     DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-ppc64-nonuma", "ppc64");
-    DO_TEST_FULL("memory-hotplug-ppc64-nonuma-abi-update", "",
-                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
-                 ARG_CAPS_ARCH, "ppc64", ARG_CAPS_VER, "latest",
-                 ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("memory-hotplug-ppc64-nonuma-abi-update", "ppc64");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-access");
     DO_TEST_CAPS_VER("memory-hotplug-nvdimm-label", "5.2.0");
@@ -2455,10 +2436,7 @@ mymain(void)
     DO_TEST_CAPS_VER("memory-hotplug-nvdimm-readonly", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-readonly");
     DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-nvdimm-ppc64", "ppc64");
-    DO_TEST_FULL("memory-hotplug-nvdimm-ppc64-abi-update", "",
-                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
-                 ARG_CAPS_ARCH, "ppc64", ARG_CAPS_VER, "latest",
-                 ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("memory-hotplug-nvdimm-ppc64-abi-update", "ppc64");
     DO_TEST_CAPS_VER("memory-hotplug-virtio-pmem", "5.2.0");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-pmem");
     DO_TEST_CAPS_LATEST("memory-hotplug-virtio-mem");
@@ -2497,10 +2475,7 @@ mymain(void)
 
     DO_TEST_CAPS_ARCH_LATEST("ppc64-usb-controller", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-usb-controller-legacy", "ppc64");
-    DO_TEST_FULL("ppc64-usb-controller-qemu-xhci", "",
-                 ARG_PARSEFLAGS, VIR_DOMAIN_DEF_PARSE_ABI_UPDATE,
-                 ARG_CAPS_ARCH, "ppc64", ARG_CAPS_VER, "latest",
-                 ARG_END);
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("ppc64-usb-controller-qemu-xhci", "ppc64");
 
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("ppc64-tpmproxy-double", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("ppc64-tpm-double", "ppc64");
@@ -2516,7 +2491,6 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("name-escape");
 
-    DO_TEST_NOCAPS("master-key");
     DO_TEST("usb-long-port-path",
             QEMU_CAPS_USB_HUB);
     DO_TEST_PARSE_ERROR("usb-too-long-port-path-invalid",
@@ -2570,12 +2544,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("virtio-options-video-packed");
     DO_TEST_PARSE_ERROR_NOCAPS("virtio-options-memballoon-freepage-reporting");
 
-    DO_TEST("fd-memory-numa-topology", QEMU_CAPS_KVM);
-    DO_TEST("fd-memory-numa-topology2", QEMU_CAPS_KVM);
-    DO_TEST("fd-memory-numa-topology3", QEMU_CAPS_KVM);
+    DO_TEST_CAPS_LATEST("fd-memory-numa-topology");
+    DO_TEST_CAPS_LATEST("fd-memory-numa-topology2");
+    DO_TEST_CAPS_LATEST("fd-memory-numa-topology3");
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology4");
 
-    DO_TEST("fd-memory-no-numa-topology", QEMU_CAPS_KVM);
+    DO_TEST_CAPS_LATEST("fd-memory-no-numa-topology");
 
     DO_TEST_CAPS_LATEST("memfd-memory-numa");
     DO_TEST_CAPS_LATEST("memfd-memory-default-hugepage");

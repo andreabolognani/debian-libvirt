@@ -134,7 +134,7 @@ virNetDaemonNew(void)
 {
     virNetDaemon *dmn;
 #ifndef WIN32
-    struct sigaction sig_action;
+    struct sigaction sig_action = { 0 };
 #endif /* !WIN32 */
 
     if (virNetDaemonInitialize() < 0)
@@ -160,7 +160,6 @@ virNetDaemonNew(void)
     dmn->autoShutdownTimerID = -1;
 
 #ifndef WIN32
-    memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sig_action, NULL);
 #endif /* !WIN32 */
@@ -599,12 +598,10 @@ virNetDaemonSignalHandler(int sig, siginfo_t * siginfo,
 {
     int origerrno;
     int r;
-    siginfo_t tmp;
+    siginfo_t tmp = { 0 };
 
     if (SA_SIGINFO)
         tmp = *siginfo;
-    else
-        memset(&tmp, 0, sizeof(tmp));
 
     /* set the sig num in the struct */
     tmp.si_signo = sig;
@@ -695,7 +692,7 @@ virNetDaemonAddSignalHandler(virNetDaemon *dmn,
                              void *opaque)
 {
     g_autofree virNetDaemonSignal *sigdata = NULL;
-    struct sigaction sig_action;
+    struct sigaction sig_action = { 0 };
     VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     if (virNetDaemonSignalSetup(dmn) < 0)
@@ -709,7 +706,6 @@ virNetDaemonAddSignalHandler(virNetDaemon *dmn,
     sigdata->func = func;
     sigdata->opaque = opaque;
 
-    memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_sigaction = virNetDaemonSignalHandler;
     sig_action.sa_flags = SA_SIGINFO;
     sigemptyset(&sig_action.sa_mask);
