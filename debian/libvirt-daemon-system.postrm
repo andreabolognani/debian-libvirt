@@ -85,6 +85,15 @@ case "$1" in
         rm -rf /var/log/libvirt \
                /var/cache/libvirt/qemu/capabilities
 
+        # Clean up obsolete runtime data
+        rm -rf /var/lib/libvirt/qemu/channel/target/domain-*
+        if [ -d /var/lib/libvirt/qemu/channel/target ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel/target
+        fi
+        if [ -d /var/lib/libvirt/qemu/channel ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel
+        fi
+
         # Clean up created dirs if existent and empty, they contain precious
         # data otherwise
         for dir in /var/lib/libvirt/qemu/save \
@@ -94,7 +103,6 @@ case "$1" in
                    /var/lib/libvirt/qemu/ram/libvirt/qemu \
                    /var/lib/libvirt/qemu/ram/libvirt \
                    /var/lib/libvirt/qemu/ram \
-                   /var/lib/libvirt/qemu/channel \
                    /var/lib/libvirt/qemu \
                    /var/cache/libvirt/qemu; do
             [ ! -d $dir ] || rmdir --ignore-fail-on-non-empty $dir
