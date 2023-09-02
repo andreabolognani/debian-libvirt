@@ -74,8 +74,6 @@ add_statoverrides()
 
     QEMU_DIRS="
         /var/lib/libvirt/qemu/
-        /var/lib/libvirt/qemu/channel/
-        /var/lib/libvirt/qemu/channel/target/
     "
 
     SANLOCK_DIR="/var/lib/libvirt/sanlock"
@@ -122,6 +120,14 @@ case "$1" in
         rm -f /var/log/libvirt/uml/.placeholder
         if [ -d /var/log/libvirt/uml ]; then
             rmdir --ignore-fail-on-non-empty /var/log/libvirt/uml
+        fi
+
+        # Directories used for channels until 9.7.0-1
+        if [ -d /var/lib/libvirt/qemu/channel/target ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel/target
+        fi
+        if [ -d /var/lib/libvirt/qemu/channel ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel
         fi
 
         # Force refresh of capabilities (#731815)
