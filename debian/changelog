@@ -1,8 +1,13 @@
-libvirt (9.7.0-1) UNRELEASED; urgency=medium
+libvirt (9.7.0-1) unstable; urgency=medium
 
   * [4864e4d] New upstream version 9.7.0
+  * [c25e497] patches: Drop backports
+  * [fa6ecf6] dirs: Don't ship channels directory
+    - The sockets used to implement channels for QEMU domains are
+      ephemeral runtime data, and are now correctly created
+      under /run/libvirt instead of /var/lib/libvirt
 
- -- Andrea Bolognani <eof@kiyuko.org>  Fri, 01 Sep 2023 20:04:12 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 13 Sep 2023 21:47:40 +0200
 
 libvirt (9.6.0-3) experimental; urgency=medium
 
