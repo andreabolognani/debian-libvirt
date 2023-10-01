@@ -32,8 +32,8 @@ Build-Depends:
  libparted-dev,
  libpcap0.8-dev,
  libpciaccess-dev,
- librados-dev [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64el riscv64 s390x],
- librbd-dev [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64el riscv64 s390x],
+ librados-dev [amd64 arm64 mips64el ppc64el riscv64 s390x],
+ librbd-dev [amd64 arm64 mips64el ppc64el riscv64 s390x],
  libreadline-dev,
  libsanlock-dev [linux-any],
  libsasl2-dev,
@@ -292,7 +292,7 @@ Description: Virtualization daemon iSCSI (libiscsi) storage driver
 
 Package: libvirt-daemon-driver-storage-rbd
 Section: admin
-Architecture: amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64el riscv64 s390x
+Architecture: amd64 arm64 mips64el ppc64el riscv64 s390x
 Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
