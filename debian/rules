@@ -23,6 +23,9 @@ ARCHES_LXC  = alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel power
 ARCHES_XEN  = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
 
+# Keep this list empty until we have AppArmor support
+ARCHES_NBDKIT =
+
 ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
@@ -99,6 +102,11 @@ ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
 else
     WITH_VBOX                 = -Ddriver_vbox=disabled
 endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_NBDKIT)))
+    WITH_NBDKIT               = -Dnbdkit=enabled
+else
+    WITH_NBDKIT               = -Dnbdkit=disabled
+endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
@@ -154,6 +162,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_FIREWALLD) \
     $(WITH_ATTR) \
     $(WITH_NSS_PLUGIN) \
+    $(WITH_NBDKIT) \
     -Dwireshark_dissector=enabled \
     $(NULL)
 
