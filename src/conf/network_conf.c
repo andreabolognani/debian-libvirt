@@ -432,8 +432,7 @@ virNetworkDHCPLeaseTimeDefParseXML(virNetworkDHCPLeaseTimeDef **lease,
         if ((unit == VIR_NETWORK_DHCP_LEASETIME_UNIT_SECONDS && expiry < 120) ||
             (unit == VIR_NETWORK_DHCP_LEASETIME_UNIT_MINUTES && expiry < 2)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("The minimum lease time should be greater "
-                             "than 2 minutes"));
+                           _("The minimum lease time should be greater than 2 minutes"));
             return -1;
         }
     }
@@ -656,63 +655,61 @@ virNetworkDNSHostDefParseXML(const char *networkName,
                              virNetworkDNSHostDef *def,
                              bool partialOkay)
 {
-    xmlNodePtr cur;
-    g_autofree char *ip = NULL;
+    g_autofree xmlNodePtr *hostnameNodes = NULL;
+    size_t nhostnameNodes = virXMLNodeGetSubelementList(node, "hostname", &hostnameNodes);
+    size_t i;
+    g_auto(GStrv) hostnames = NULL;
+    g_autofree char *ip = virXMLPropString(node, "ip");
 
-    if (!(ip = virXMLPropString(node, "ip")) && !partialOkay) {
-        virReportError(VIR_ERR_XML_DETAIL,
-                       _("Missing IP address in network '%1$s' DNS HOST record"),
-                       networkName);
-        goto error;
-    }
+    if (nhostnameNodes > 0) {
+        hostnames = g_new0(char *, nhostnameNodes + 1);
 
-    if (ip && (virSocketAddrParse(&def->ip, ip, AF_UNSPEC) < 0)) {
-        virReportError(VIR_ERR_XML_DETAIL,
-                       _("Invalid IP address in network '%1$s' DNS HOST record"),
-                       networkName);
-        goto error;
-    }
+        for (i = 0; i < nhostnameNodes; i++) {
+            if (!(hostnames[i] = virXMLNodeContentString(hostnameNodes[i])))
+                return -1;
 
-    cur = node->children;
-    while (cur != NULL) {
-        if (cur->type == XML_ELEMENT_NODE &&
-            virXMLNodeNameEqual(cur, "hostname")) {
-              if (cur->children != NULL) {
-                  g_autofree char *name = virXMLNodeContentString(cur);
-
-                  if (!name)
-                      goto error;
-
-                  if (!name[0]) {
-                      virReportError(VIR_ERR_XML_DETAIL,
-                                     _("Missing hostname in network '%1$s' DNS HOST record"),
-                                     networkName);
-                      goto error;
-                  }
-                  VIR_APPEND_ELEMENT(def->names, def->nnames, name);
-              }
+            if (*hostnames[i] == '\0') {
+                virReportError(VIR_ERR_XML_DETAIL,
+                               _("Missing hostname in network '%1$s' DNS HOST record"),
+                               networkName);
+                return -1;
+            }
         }
-        cur = cur->next;
-    }
-    if (def->nnames == 0 && !partialOkay) {
-        virReportError(VIR_ERR_XML_DETAIL,
-                       _("Missing hostname in network '%1$s' DNS HOST record"),
-                       networkName);
-        goto error;
-    }
-
-    if (!VIR_SOCKET_ADDR_VALID(&def->ip) && def->nnames == 0) {
-        virReportError(VIR_ERR_XML_DETAIL,
-                       _("Missing ip and hostname in network '%1$s' DNS HOST record"),
-                       networkName);
-        goto error;
+    } else {
+        if (!partialOkay) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Missing hostname in network '%1$s' DNS HOST record"),
+                           networkName);
+            return -1;
+        }
     }
 
+    if (ip) {
+        if (virSocketAddrParse(&def->ip, ip, AF_UNSPEC) < 0) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Invalid IP address in network '%1$s' DNS HOST record"),
+                           networkName);
+            return -1;
+        }
+    } else {
+        if (!partialOkay) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Missing IP address in network '%1$s' DNS HOST record"),
+                           networkName);
+            return -1;
+        }
+
+        if (nhostnameNodes == 0) {
+            virReportError(VIR_ERR_XML_DETAIL,
+                           _("Missing ip and hostname in network '%1$s' DNS HOST record"),
+                           networkName);
+            return -1;
+        }
+    }
+
+    def->names = g_steal_pointer(&hostnames);
+    def->nnames = nhostnameNodes;
     return 0;
-
- error:
-    virNetworkDNSHostDefClear(def);
-    return -1;
 }
 
 
@@ -922,8 +919,7 @@ virNetworkDNSDefParseXML(const char *networkName,
             def->forwarders[i].domain = virXMLPropString(fwdNodes[i], "domain");
             if (!(addr || def->forwarders[i].domain)) {
                 virReportError(VIR_ERR_XML_ERROR, "%s",
-                               _("Invalid forwarder element, must contain "
-                                 "at least one of addr or domain"));
+                               _("Invalid forwarder element, must contain at least one of addr or domain"));
                 return -1;
             }
             def->nfwds++;
@@ -2787,8 +2783,7 @@ virNetworkDefUpdateIPDHCPHost(virNetworkDef *def,
         VIR_SOCKET_ADDR_FAMILY(&ipdef->address)
         != VIR_SOCKET_ADDR_FAMILY(&host.ip)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("the address family of a host entry IP must match "
-                         "the address family of the dhcp element's parent"));
+                       _("the address family of a host entry IP must match the address family of the dhcp element's parent"));
         goto cleanup;
     }
 
@@ -2913,8 +2908,7 @@ virNetworkDefUpdateIPDHCPRange(virNetworkDef *def,
     if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
 
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("dhcp ranges cannot be modified, "
-                         "only added or deleted"));
+                       _("dhcp ranges cannot be modified, only added or deleted"));
         return -1;
     }
 
@@ -2924,8 +2918,7 @@ virNetworkDefUpdateIPDHCPRange(virNetworkDef *def,
     if (VIR_SOCKET_ADDR_FAMILY(&ipdef->address)
         != VIR_SOCKET_ADDR_FAMILY(&range.addr.start)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("the address family of a dhcp range must match "
-                         "the address family of the dhcp element's parent"));
+                       _("the address family of a dhcp range must match the address family of the dhcp element's parent"));
         return -1;
     }
 
@@ -3014,8 +3007,7 @@ virNetworkDefUpdateForwardInterface(virNetworkDef *def,
 
     if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("forward interface entries cannot be modified, "
-                         "only added or deleted"));
+                       _("forward interface entries cannot be modified, only added or deleted"));
         goto cleanup;
     }
 
@@ -3204,8 +3196,7 @@ virNetworkDefUpdateDNSHost(virNetworkDef *def,
 
     if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("DNS HOST records cannot be modified, "
-                         "only added or deleted"));
+                       _("DNS HOST records cannot be modified, only added or deleted"));
         goto cleanup;
     }
 
@@ -3301,8 +3292,7 @@ virNetworkDefUpdateDNSSrv(virNetworkDef *def,
 
     if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("DNS SRV records cannot be modified, "
-                         "only added or deleted"));
+                       _("DNS SRV records cannot be modified, only added or deleted"));
         goto cleanup;
     }
 
@@ -3383,8 +3373,7 @@ virNetworkDefUpdateDNSTxt(virNetworkDef *def,
 
     if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("DNS TXT records cannot be modified, "
-                         "only added or deleted"));
+                       _("DNS TXT records cannot be modified, only added or deleted"));
         goto cleanup;
     }
 

@@ -522,7 +522,7 @@ qemuDomainAssignVirtioMMIOAddresses(virDomainDef *def,
 static bool
 qemuDomainDeviceSupportZPCI(virDomainDeviceDef *device)
 {
-    switch ((virDomainDeviceType)device->type) {
+    switch (device->type) {
     case VIR_DOMAIN_DEVICE_CHR:
         return false;
 
@@ -604,11 +604,11 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
     virDomainPCIConnectFlags pciFlags = (VIR_PCI_CONNECT_TYPE_PCI_DEVICE |
                                          VIR_PCI_CONNECT_AUTOASSIGN);
 
-    switch ((virDomainDeviceType)dev->type) {
+    switch (dev->type) {
     case VIR_DOMAIN_DEVICE_CONTROLLER: {
         virDomainControllerDef *cont = dev->data.controller;
 
-        switch ((virDomainControllerType)cont->type) {
+        switch (cont->type) {
         case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
             return virDomainPCIControllerModelToConnectType(cont->model);
 
@@ -707,7 +707,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_DEVICE_FS:
-        switch ((virDomainFSDriverType) dev->data.fs->fsdriver) {
+        switch (dev->data.fs->fsdriver) {
         case VIR_DOMAIN_FS_DRIVER_TYPE_DEFAULT:
         case VIR_DOMAIN_FS_DRIVER_TYPE_PATH:
         case VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE:
@@ -790,10 +790,10 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_DEVICE_DISK:
-        switch ((virDomainDiskBus) dev->data.disk->bus) {
+        switch (dev->data.disk->bus) {
         case VIR_DOMAIN_DISK_BUS_VIRTIO:
             /* only virtio disks use PCI */
-            switch ((virDomainDiskModel) dev->data.disk->model) {
+            switch (dev->data.disk->model) {
             case VIR_DOMAIN_DISK_MODEL_VIRTIO_TRANSITIONAL:
                 /* Transitional devices only work in conventional PCI slots */
                 return pciFlags;
@@ -864,7 +864,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
          * are the same as virtio-scsi, so they should follow virtio logic
          */
         if (hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST) {
-            switch ((virDomainHostdevSubsysSCSIVHostModelType) hostdev->source.subsys.u.scsi_host.model) {
+            switch (hostdev->source.subsys.u.scsi_host.model) {
             case VIR_DOMAIN_HOSTDEV_SUBSYS_SCSI_VHOST_MODEL_TYPE_VIRTIO_TRANSITIONAL:
                 /* Transitional devices only work in conventional PCI slots */
                 return pciFlags;
@@ -912,7 +912,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
         break;
 
     case VIR_DOMAIN_DEVICE_RNG:
-        switch ((virDomainRNGModel) dev->data.rng->model) {
+        switch (dev->data.rng->model) {
         case VIR_DOMAIN_RNG_MODEL_VIRTIO_TRANSITIONAL:
             /* Transitional devices only work in conventional PCI slots */
             return pciFlags;
@@ -927,7 +927,7 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
 
     case VIR_DOMAIN_DEVICE_WATCHDOG:
         /* only one model connects using PCI */
-        switch ((virDomainWatchdogModel) dev->data.watchdog->model) {
+        switch (dev->data.watchdog->model) {
         case VIR_DOMAIN_WATCHDOG_MODEL_I6300ESB:
             return pciFlags;
 
@@ -1633,8 +1633,7 @@ qemuDomainCollectPCIAddress(virDomainDef *def G_GNUC_UNUSED,
             if (addrs->nbuses > 0 &&
                 !(addrs->buses[0].flags & VIR_PCI_CONNECT_TYPE_PCI_DEVICE)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("Bus 0 must be PCI for integrated PIIX3 "
-                                 "USB or IDE controllers"));
+                               _("Bus 0 must be PCI for integrated PIIX3 USB or IDE controllers"));
                 return -1;
             }
             return 0;
@@ -1809,8 +1808,7 @@ qemuDomainValidateDevicePCISlotsPIIX3(virDomainDef *def,
                 if (!virPCIDeviceAddressEqual(&cont->info.addr.pci,
                                               &primaryIDEAddr)) {
                     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                   _("Primary IDE controller must have PCI "
-                                     "address 0:0:1.1"));
+                                   _("Primary IDE controller must have PCI address 0:0:1.1"));
                     return -1;
                 }
             } else {
@@ -1825,8 +1823,7 @@ qemuDomainValidateDevicePCISlotsPIIX3(virDomainDef *def,
                 if (!virPCIDeviceAddressEqual(&cont->info.addr.pci,
                                               &piix3USBAddr)) {
                     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                   _("PIIX3 USB controller at index 0 must "
-                                     "have PCI address 0:0:1.2"));
+                                   _("PIIX3 USB controller at index 0 must have PCI address 0:0:1.2"));
                     return -1;
                 }
             } else {
@@ -1919,8 +1916,7 @@ qemuDomainValidateDevicePCISlotsQ35(virDomainDef *def,
                     if (!virPCIDeviceAddressEqual(&cont->info.addr.pci,
                                                   &primarySATAAddr)) {
                         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                       _("Primary SATA controller must have "
-                                         "PCI address 0:0:1f.2"));
+                                       _("Primary SATA controller must have PCI address 0:0:1f.2"));
                         return -1;
                     }
                 } else {
@@ -1987,6 +1983,16 @@ qemuDomainValidateDevicePCISlotsQ35(virDomainDef *def,
                     cont->info.addr.pci.function = 0;
                 }
             }
+            break;
+
+        case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
+        case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
+        case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
+        case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
+        case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
+        case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+        case VIR_DOMAIN_CONTROLLER_TYPE_ISA:
+        case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
             break;
         }
     }
@@ -3053,8 +3059,7 @@ qemuDomainUSBAddressAddHubs(virDomainDef *def)
 
     if (data.count > 0 && !virDomainDefHasUSB(def)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("USB is disabled for this domain, but USB devices "
-                         "are present in the domain XML"));
+                       _("USB is disabled for this domain, but USB devices are present in the domain XML"));
         return -1;
     }
 

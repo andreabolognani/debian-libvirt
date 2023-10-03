@@ -197,6 +197,7 @@ virCHMonitorBuildDiskJson(virJSONValue *disks, virDomainDiskDef *diskdef)
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_LAST:
     default:
         virReportEnumRangeError(virStorageType, diskdef->src->type);
@@ -637,8 +638,7 @@ virCHMonitorCurlPerform(CURL *handle)
 
     if (responseCode < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("curl_easy_getinfo(CURLINFO_RESPONSE_CODE) returned a "
-                         "negative response code"));
+                       _("curl_easy_getinfo(CURLINFO_RESPONSE_CODE) returned a negative response code"));
         return -1;
     }
 
@@ -938,7 +938,7 @@ virCHMonitorGetIOThreads(virCHMonitor *mon,
                          virDomainIOThreadInfo ***iothreads)
 {
     size_t nthreads = 0;
-    size_t niothreads = 0;
+    int niothreads = 0;
     int thd_index;
     virDomainIOThreadInfo **iothreadinfolist = NULL;
     virDomainIOThreadInfo *iothreadinfo = NULL;
@@ -970,7 +970,7 @@ virCHMonitorGetIOThreads(virCHMonitor *mon,
         }
     }
 
-    VIR_DEBUG("niothreads = %ld", niothreads);
+    VIR_DEBUG("niothreads = %d", niothreads);
     *iothreads = g_steal_pointer(&iothreadinfolist);
     return niothreads;
 

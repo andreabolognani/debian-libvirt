@@ -186,8 +186,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 100 */
     QEMU_CAPS_VIRTIO_SCSI, /* -device virtio-scsi-* */
     X_QEMU_CAPS_BLOCKIO, /* -device ...logical_block_size & co */
-    QEMU_CAPS_PIIX_DISABLE_S3, /* -M pc S3 BIOS Advertisement on/off */
-    QEMU_CAPS_PIIX_DISABLE_S4, /* -M pc S4 BIOS Advertisement on/off */
+    X_QEMU_CAPS_PIIX_DISABLE_S3, /* -M pc S3 BIOS Advertisement on/off */
+    X_QEMU_CAPS_PIIX_DISABLE_S4, /* -M pc S4 BIOS Advertisement on/off */
     QEMU_CAPS_USB_REDIR_FILTER, /* usb-redir.filter */
 
     /* 105 */
@@ -332,8 +332,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 205 */
     X_QEMU_CAPS_CHARDEV_FILE_APPEND, /* -chardev file,append=on|off */
-    QEMU_CAPS_ICH9_DISABLE_S3, /* -M q35 S3 BIOS Advertisement on/off */
-    QEMU_CAPS_ICH9_DISABLE_S4, /* -M q35 S4 BIOS Advertisement on/off */
+    X_QEMU_CAPS_ICH9_DISABLE_S3, /* -M q35 S3 BIOS Advertisement on/off */
+    X_QEMU_CAPS_ICH9_DISABLE_S4, /* -M q35 S4 BIOS Advertisement on/off */
     X_QEMU_CAPS_VSERPORT_CHANGE, /* VSERPORT_CHANGE event */
     QEMU_CAPS_VIRTIO_BALLOON_AUTODEFLATE, /* virtio-balloon-{device,pci,ccw}.
                                            * deflate-on-oom */
@@ -369,7 +369,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 230 */
     X_QEMU_CAPS_MACHINE_SMM_OPT, /* -machine xxx,smm=on/off/auto */
     X_QEMU_CAPS_VIRTIO_PCI_DISABLE_LEGACY, /* virtio-*pci.disable-legacy */
-    QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS, /* qmp command query-hotpluggable-cpus */
+    X_QEMU_CAPS_QUERY_HOTPLUGGABLE_CPUS, /* qmp command query-hotpluggable-cpus */
     X_QEMU_CAPS_VIRTIO_NET_RX_QUEUE_SIZE, /* virtio-net-*.rx_queue_size */
     X_QEMU_CAPS_MACHINE_IOMMU, /* -machine iommu=on */
 
@@ -396,7 +396,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 250 */
     X_QEMU_CAPS_QUERY_NAMED_BLOCK_NODES, /* qmp query-named-block-nodes */
-    QEMU_CAPS_CPU_CACHE, /* -cpu supports host-cache-info and l3-cache properties */
+    X_QEMU_CAPS_CPU_CACHE, /* -cpu supports host-cache-info and l3-cache properties */
     QEMU_CAPS_DEVICE_QEMU_XHCI, /* -device qemu-xhci */
     X_QEMU_CAPS_MACHINE_KERNEL_IRQCHIP, /* -machine kernel_irqchip */
     X_QEMU_CAPS_MACHINE_KERNEL_IRQCHIP_SPLIT, /* -machine kernel_irqchip=split */
@@ -482,7 +482,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_MACHINE_PSERIES_CAP_HTM, /* -machine pseries.cap-htm */
     X_QEMU_CAPS_USB_STORAGE_WERROR, /* -device usb-storage,werror=..,rerror=.. */
     QEMU_CAPS_EGL_HEADLESS, /* -display egl-headless */
-    QEMU_CAPS_VFIO_PCI_DISPLAY, /* -device vfio-pci.display */
+    X_QEMU_CAPS_VFIO_PCI_DISPLAY, /* -device vfio-pci.display */
     X_QEMU_CAPS_BLOCKDEV, /* -blockdev and blockdev-add are supported */
 
     /* 315 */
@@ -676,6 +676,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 450 */
     QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN, /* asynchronous teardown -run-with async-teardown=on|off */
+    QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA, /* virtio-blk-vhost-vdpa block driver */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -708,11 +709,6 @@ virArch virQEMUCapsGetArch(virQEMUCaps *qemuCaps);
 unsigned int virQEMUCapsGetVersion(virQEMUCaps *qemuCaps);
 const char *virQEMUCapsGetPackage(virQEMUCaps *qemuCaps);
 
-int virQEMUCapsAddCPUDefinitions(virQEMUCaps *qemuCaps,
-                                 virDomainVirtType type,
-                                 const char **name,
-                                 size_t count,
-                                 virDomainCapsCPUUsable usable);
 virDomainCapsCPUModels *virQEMUCapsGetCPUModels(virQEMUCaps *qemuCaps,
                                                   virDomainVirtType type,
                                                   const char **modelAllowed,
@@ -783,9 +779,6 @@ const char *virQEMUCapsGetMachineDefaultRAMid(virQEMUCaps *qemuCaps,
                                               virDomainVirtType virtType,
                                               const char *name);
 
-void virQEMUCapsFilterByMachineType(virQEMUCaps *qemuCaps,
-                                    virDomainVirtType virtType,
-                                    const char *machineType);
 char * virQEMUCapsGetDefaultEmulator(virArch hostarch,
                                      virArch guestarch);
 
@@ -796,9 +789,7 @@ virFileCache *virQEMUCapsCacheNew(const char *libDir,
 virQEMUCaps *virQEMUCapsCacheLookup(virFileCache *cache,
                                       const char *binary);
 virQEMUCaps *virQEMUCapsCacheLookupCopy(virFileCache *cache,
-                                          virDomainVirtType virtType,
-                                          const char *binary,
-                                          const char *machineType);
+                                          const char *binary);
 virQEMUCaps *virQEMUCapsCacheLookupDefault(virFileCache *cache,
                                              const char *binary,
                                              const char *archStr,
@@ -895,3 +886,12 @@ virQEMUCapsProbeHVF(virQEMUCaps *qemuCaps) G_NO_INLINE;
 
 virArch virQEMUCapsArchFromString(const char *arch);
 const char *virQEMUCapsArchToString(virArch arch);
+
+int
+virQEMUCapsInitQMPArch(virQEMUCaps *qemuCaps,
+                       qemuMonitor *mon);
+
+int
+virQEMUCapsProbeQMPMachineTypes(virQEMUCaps *qemuCaps,
+                                virDomainVirtType virtType,
+                                qemuMonitor *mon);

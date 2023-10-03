@@ -861,6 +861,8 @@ virPortGroupFindByName;
 
 # conf/network_event.h
 virNetworkEventLifecycleNew;
+virNetworkEventMetadataChangeNewFromNet;
+virNetworkEventMetadataChangeNewFromObj;
 virNetworkEventStateRegisterID;
 
 
@@ -2117,6 +2119,7 @@ virCommandNewArgs;
 virCommandNewVAList;
 virCommandNonblockingFDs;
 virCommandPassFD;
+virCommandPeekSendBuffers;
 virCommandRawStatus;
 virCommandRequireHandshake;
 virCommandRun;
@@ -2743,6 +2746,7 @@ virMacAddrCompare;
 virMacAddrFormat;
 virMacAddrGenerate;
 virMacAddrGetRaw;
+virMacAddrIsAllClear;
 virMacAddrIsBroadcastRaw;
 virMacAddrIsMulticast;
 virMacAddrIsUnicast;

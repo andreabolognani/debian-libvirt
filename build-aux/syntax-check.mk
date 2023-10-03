@@ -440,6 +440,14 @@ sc_prohibit_newline_at_end_of_diagnostic:
 	  && { echo 'newline at end of message(s)' 1>&2; \
 	    exit 1; } || :
 
+# Disallow translated messages on multiple lines, except when
+# they end with '\n'.
+sc_prohibit_error_message_on_multiple_lines:
+	@prohibit='[^N]_\(".*"$$' \
+    exclude='\\n"$$' \
+	halt='found error message on multiple lines' \
+	$(_sc_search_regexp)
+
 # Look for diagnostics that lack a % in the format string, except that we
 # allow VIR_ERROR to do this, and ignore functions that take a single
 # string rather than a format argument.
@@ -1193,15 +1201,6 @@ sc_prohibit_double_semicolon:
 	halt="Double semicolon detected" \
 	  $(_sc_search_regexp)
 
-_ptm1 = use "test C1 && test C2", not "test C1 -''a C2"
-_ptm2 = use "test C1 || test C2", not "test C1 -''o C2"
-# Using test's -a and -o operators is not portable.
-# We prefer test over [, since the latter is spelled [[ in configure.ac.
-sc_prohibit_test_minus_ao:
-	@prohibit='(\<test| \[+) .+ -[ao] ' \
-	halt='$(_ptm1); $(_ptm2)' \
-	  $(_sc_search_regexp)
-
 # Avoid a test bashism.
 sc_prohibit_test_double_equal:
 	@prohibit='(\<test| \[+) .+ == ' \
@@ -1370,7 +1369,7 @@ exclude_file_name_regexp--sc_prohibit_close = \
   (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  (^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
+  (^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
 
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
@@ -1385,6 +1384,9 @@ exclude_file_name_regexp--sc_prohibit_raw_virclassnew = \
 
 exclude_file_name_regexp--sc_prohibit_newline_at_end_of_diagnostic = \
   ^src/rpc/gendispatch\.pl$$
+
+exclude_file_name_regexp--sc_prohibit_error_message_on_multiple_lines = \
+  ^(build-aux/syntax-check\.mk|docs/coding-style.rst)
 
 exclude_file_name_regexp--sc_prohibit_nonreentrant = \
   ^((po|tests|examples)/|docs/.*(py|js|html\.in|.rst)|run.in$$|tools/wireshark/util/genxdrstub\.pl|tools/virt-login-shell\.c$$)

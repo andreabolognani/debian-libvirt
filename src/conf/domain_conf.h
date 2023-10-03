@@ -273,7 +273,7 @@ typedef enum {
 } virDomainDeviceSGIO;
 
 struct _virDomainHostdevSubsysSCSI {
-    int protocol; /* enum virDomainHostdevSCSIProtocolType */
+    virDomainHostdevSCSIProtocolType protocol;
     virDomainDeviceSGIO sgio;
     virTristateBool rawio;
     union {
@@ -290,7 +290,7 @@ struct _virDomainHostdevSubsysMediatedDev {
 };
 
 typedef enum {
-    VIR_DOMAIN_HOSTDEV_SUBSYS_SCSI_HOST_PROTOCOL_TYPE_NONE,
+    VIR_DOMAIN_HOSTDEV_SUBSYS_SCSI_HOST_PROTOCOL_TYPE_NONE = 0,
     VIR_DOMAIN_HOSTDEV_SUBSYS_SCSI_HOST_PROTOCOL_TYPE_VHOST,
 
     VIR_DOMAIN_HOSTDEV_SUBSYS_SCSI_HOST_PROTOCOL_TYPE_LAST,
@@ -310,13 +310,13 @@ typedef enum {
 VIR_ENUM_DECL(virDomainHostdevSubsysSCSIVHostModel);
 
 struct _virDomainHostdevSubsysSCSIVHost {
-    int protocol; /* enum virDomainHostdevSubsysSCSIHostProtocolType */
+    virDomainHostdevSubsysSCSIHostProtocolType protocol;
     char *wwpn;
     virDomainHostdevSubsysSCSIVHostModelType model;
 };
 
 struct _virDomainHostdevSubsys {
-    int type; /* enum virDomainHostdevSubsysType */
+    virDomainHostdevSubsysType type;
     union {
         virDomainHostdevSubsysUSB usb;
         virDomainHostdevSubsysPCI pci;
@@ -336,7 +336,7 @@ typedef enum {
 } virDomainHostdevCapsType;
 
 struct _virDomainHostdevCaps {
-    int type; /* enum virDOmainHostdevCapsType */
+    virDomainHostdevCapsType type;
     union {
         struct {
             char *block;
@@ -371,7 +371,7 @@ struct _virDomainHostdevDef {
      */
     virDomainNetDef *parentnet;
 
-    int mode; /* enum virDomainHostdevMode */
+    virDomainHostdevMode mode;
     virDomainStartupPolicy startupPolicy;
     bool managed;
     bool missing;
@@ -784,7 +784,7 @@ struct _virDomainXenbusControllerOpts {
 
 /* Stores the virtual disk controller configuration */
 struct _virDomainControllerDef {
-    int type;
+    virDomainControllerType type;
     int idx;
     int model; /* -1 == undef */
     unsigned int queues;
@@ -1759,8 +1759,8 @@ typedef enum {
 } virDomainWatchdogAction;
 
 struct _virDomainWatchdogDef {
-    int model;
-    int action;
+    virDomainWatchdogModel model;
+    virDomainWatchdogAction action;
     virDomainDeviceInfo info;
 };
 
@@ -2609,8 +2609,8 @@ typedef enum {
 } virDomainRNGBackend;
 
 struct _virDomainRNGDef {
-    int model;
-    int backend;
+    virDomainRNGModel model;
+    virDomainRNGBackend backend;
     unsigned int rate; /* bytes per period */
     unsigned int period; /* milliseconds */
 
@@ -3194,6 +3194,7 @@ typedef enum {
     VIR_DOMAIN_TAINT_CUSTOM_HYPERVISOR_FEATURE, /* custom hypervisor feature control */
     VIR_DOMAIN_TAINT_DEPRECATED_CONFIG,  /* Configuration that is marked deprecated */
     VIR_DOMAIN_TAINT_CUSTOM_DEVICE, /* hypervisor device config customized */
+    VIR_DOMAIN_TAINT_NBDKIT_RESTART,    /* nbdkit could not be restarted */
 
     VIR_DOMAIN_TAINT_LAST
 } virDomainTaintFlags;
@@ -4280,12 +4281,15 @@ VIR_ENUM_DECL(virDomainCpuPlacementMode);
 VIR_ENUM_DECL(virDomainStartupPolicy);
 
 virDomainControllerDef *
-virDomainDefAddController(virDomainDef *def, int type, int idx, int model);
+virDomainDefAddController(virDomainDef *def,
+                          virDomainControllerType type,
+                          int idx,
+                          int model);
 int
 virDomainDefAddUSBController(virDomainDef *def, int idx, int model);
 int
 virDomainDefMaybeAddController(virDomainDef *def,
-                               int type,
+                               virDomainControllerType type,
                                int idx,
                                int model);
 int

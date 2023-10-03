@@ -409,7 +409,7 @@ qemuBuildDeviceAddresDriveProps(virJSONValue *props,
     virDomainControllerDef *controller = NULL;
     const char *controllerAlias = NULL;
 
-    switch ((virDomainDiskBus) info->addr.drive.diskbus) {
+    switch (info->addr.drive.diskbus) {
     case VIR_DOMAIN_DISK_BUS_IDE:
         /* When domain has builtin IDE controller we don't put it onto cmd
          * line. Therefore we can't set its alias. In that case, use the
@@ -541,7 +541,7 @@ qemuBuildDeviceAddressProps(virJSONValue *props,
                             const virDomainDef *domainDef,
                             const virDomainDeviceInfo *info)
 {
-    switch ((virDomainDeviceAddressType) info->type) {
+    switch (info->type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI: {
         g_autofree char *pciaddr = NULL;
         g_autofree char *bus = qemuBuildDeviceAddressPCIGetBus(domainDef, info);
@@ -796,7 +796,7 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
                                bool *has_ntmodel,
                                bool *useBusSuffix)
 {
-    switch ((virDomainDeviceType) device->type) {
+    switch (device->type) {
         case VIR_DOMAIN_DEVICE_DISK:
             if (virStorageSourceGetActualType(device->data.disk->src) == VIR_STORAGE_TYPE_VHOST_USER)
                 *baseName = "vhost-user-blk";
@@ -831,7 +831,7 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
             break;
 
         case VIR_DOMAIN_DEVICE_FS:
-            switch ((virDomainFSDriverType) device->data.fs->fsdriver) {
+            switch (device->data.fs->fsdriver) {
             case VIR_DOMAIN_FS_DRIVER_TYPE_DEFAULT:
             case VIR_DOMAIN_FS_DRIVER_TYPE_PATH:
             case VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE:
@@ -981,7 +981,7 @@ qemuBuildVirtioDevGetConfig(const virDomainDeviceDef *device,
 
     virBufferAdd(&buf, baseName, -1);
 
-    switch ((virDomainDeviceAddressType) info->type) {
+    switch (info->type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI:
         implName = "pci";
         break;
@@ -1636,6 +1636,7 @@ qemuBuildDriveSourceStr(virDomainDiskDef *disk,
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1769,7 +1770,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     const char *wpolicy = NULL;
     const char *rpolicy = NULL;
 
-    switch ((virDomainDiskBus) disk->bus) {
+    switch (disk->bus) {
     case VIR_DOMAIN_DISK_BUS_IDE:
     case VIR_DOMAIN_DISK_BUS_SATA:
         if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM)
@@ -2433,7 +2434,7 @@ qemuBuildFilesystemCommandLine(virCommand *cmd,
     size_t i;
 
     for (i = 0; i < def->nfss; i++) {
-        switch ((virDomainFSDriverType) def->fss[i]->fsdriver) {
+        switch (def->fss[i]->fsdriver) {
         case VIR_DOMAIN_FS_DRIVER_TYPE_DEFAULT:
         case VIR_DOMAIN_FS_DRIVER_TYPE_PATH:
         case VIR_DOMAIN_FS_DRIVER_TYPE_HANDLE:
@@ -2801,7 +2802,7 @@ qemuBuildControllerDevProps(const virDomainDef *domainDef,
 
     *devprops = NULL;
 
-    switch ((virDomainControllerType)def->type) {
+    switch (def->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
         if (!(props = qemuBuildControllerSCSIDevProps(def, qemuCaps)))
             return -1;
@@ -2912,8 +2913,7 @@ qemuBuildLegacyUSBControllerCommandLine(virCommand *cmd,
 
     if (nlegacy > 1) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Multiple legacy USB controllers are "
-                         "not supported"));
+                       _("Multiple legacy USB controllers are not supported"));
         return -1;
     }
 
@@ -3124,9 +3124,8 @@ qemuBuildMemoryGetDefaultPagesize(virQEMUDriverConfig *cfg,
     virHugeTLBFS *p;
 
     if (!cfg->nhugetlbfs) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("hugetlbfs filesystem is not mounted "
-                               "or disabled by administrator config"));
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("hugetlbfs filesystem is not mounted or disabled by administrator config"));
         return -1;
     }
 
@@ -3484,8 +3483,7 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
         mem->source.nvdimm.pmem) {
         if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_MEMORY_FILE_PMEM)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("nvdimm pmem property is not available "
-                             "with this QEMU binary"));
+                           _("nvdimm pmem property is not available with this QEMU binary"));
             return -1;
         }
         if (virJSONValueObjectAdd(&props, "b:pmem", true, NULL) < 0)
@@ -5035,7 +5033,7 @@ qemuBuildHostdevSCSIDetachPrepare(virDomainHostdevDef *hostdev,
     virStorageSource *src;
     qemuDomainStorageSourcePrivate *srcpriv;
 
-    switch ((virDomainHostdevSCSIProtocolType) scsisrc->protocol) {
+    switch (scsisrc->protocol) {
     case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE:
         src = scsisrc->u.host.src;
         break;
@@ -5070,7 +5068,7 @@ qemuBuildHostdevSCSIAttachPrepare(virDomainHostdevDef *hostdev,
     g_autoptr(qemuBlockStorageSourceAttachData) ret = g_new0(qemuBlockStorageSourceAttachData, 1);
     virStorageSource *src = NULL;
 
-    switch ((virDomainHostdevSCSIProtocolType) scsisrc->protocol) {
+    switch (scsisrc->protocol) {
     case VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE:
         src = scsisrc->u.host.src;
         break;
@@ -5143,7 +5141,7 @@ qemuBuildHostdevCommandLine(virCommand *cmd,
         if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
             continue;
 
-        switch ((virDomainHostdevSubsysType) subsys->type) {
+        switch (subsys->type) {
         /* USB */
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
             if (!(devprops = qemuBuildUSBHostdevDevProps(def, hostdev, qemuCaps)))
@@ -5363,7 +5361,7 @@ qemuBuildRNGBackendChrdev(virCommand *cmd,
 {
     g_autofree char *charAlias = qemuAliasChardevFromDevAlias(rng->info.alias);
 
-    switch ((virDomainRNGBackend) rng->backend) {
+    switch (rng->backend) {
     case VIR_DOMAIN_RNG_BACKEND_RANDOM:
     case VIR_DOMAIN_RNG_BACKEND_BUILTIN:
     case VIR_DOMAIN_RNG_BACKEND_LAST:
@@ -5392,7 +5390,7 @@ qemuBuildRNGBackendProps(virDomainRNGDef *rng,
 
     objAlias = g_strdup_printf("obj%s", rng->info.alias);
 
-    switch ((virDomainRNGBackend) rng->backend) {
+    switch (rng->backend) {
     case VIR_DOMAIN_RNG_BACKEND_RANDOM:
         if (qemuMonitorCreateObjectProps(props, "rng-random", objAlias,
                                          "s:filename", rng->source.file,
@@ -5749,8 +5747,7 @@ qemuBuildSmbiosCommandLine(virCommand *cmd,
 
         if (source->nbaseBoard > 1) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("qemu does not support more than "
-                             "one entry to Type 2 in SMBIOS table"));
+                           _("qemu does not support more than one entry to Type 2 in SMBIOS table"));
             return -1;
         }
 
@@ -6051,7 +6048,7 @@ qemuBuildClockCommandLine(virCommand *cmd,
 }
 
 
-static int
+static void
 qemuBuildPMCommandLine(virCommand *cmd,
                        const virDomainDef *def,
                        qemuDomainObjPrivate *priv)
@@ -6079,35 +6076,24 @@ qemuBuildPMCommandLine(virCommand *cmd,
             virCommandAddArg(cmd, "-no-acpi");
     }
 
-    /* We fall back to PIIX4_PM even for q35, since it's what we did
-       pre-q35-pm support. QEMU starts up fine (with a warning) if
-       mixing PIIX PM and -M q35. Starting to reject things here
-       could mean we refuse to start existing configs in the wild.*/
-    if (def->pm.s3) {
+    if (def->pm.s3 || def->pm.s4) {
         const char *pm_object = "PIIX4_PM";
 
-        if (qemuDomainIsQ35(def) &&
-            virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_DISABLE_S3))
+        if (qemuDomainIsQ35(def))
             pm_object = "ICH9-LPC";
 
-        virCommandAddArg(cmd, "-global");
-        virCommandAddArgFormat(cmd, "%s.disable_s3=%d",
-                               pm_object, def->pm.s3 == VIR_TRISTATE_BOOL_NO);
+        if (def->pm.s3) {
+            virCommandAddArg(cmd, "-global");
+            virCommandAddArgFormat(cmd, "%s.disable_s3=%d",
+                                   pm_object, def->pm.s3 == VIR_TRISTATE_BOOL_NO);
+        }
+
+        if (def->pm.s4) {
+            virCommandAddArg(cmd, "-global");
+            virCommandAddArgFormat(cmd, "%s.disable_s4=%d",
+                                   pm_object, def->pm.s4 == VIR_TRISTATE_BOOL_NO);
+        }
     }
-
-    if (def->pm.s4) {
-        const char *pm_object = "PIIX4_PM";
-
-        if (qemuDomainIsQ35(def) &&
-            virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_DISABLE_S4))
-            pm_object = "ICH9-LPC";
-
-        virCommandAddArg(cmd, "-global");
-        virCommandAddArgFormat(cmd, "%s.disable_s4=%d",
-                               pm_object, def->pm.s4 == VIR_TRISTATE_BOOL_NO);
-    }
-
-    return 0;
 }
 
 
@@ -6244,8 +6230,7 @@ qemuBuildGlobalControllerCommandLine(virCommand *cmd,
 
             default:
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("64-bit PCI hole setting is only for root"
-                                 " PCI controllers"));
+                               _("64-bit PCI hole setting is only for root PCI controllers"));
                 return -1;
             }
 
@@ -6576,12 +6561,10 @@ qemuBuildCpuCommandLine(virCommand *cmd,
 
         if (hostOff &&
             (def->cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH ||
-             def->cpu->mode == VIR_CPU_MODE_MAXIMUM) &&
-            virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_CACHE))
+             def->cpu->mode == VIR_CPU_MODE_MAXIMUM))
             virBufferAddLit(&buf, ",host-cache-info=off");
 
-        if (l3Off &&
-            virQEMUCapsGet(qemuCaps, QEMU_CAPS_CPU_CACHE))
+        if (l3Off)
             virBufferAddLit(&buf, ",l3-cache=off");
     }
 
@@ -6784,8 +6767,7 @@ qemuAppendDomainFeaturesMachineParam(virBuffer *buf,
         case VIR_GIC_VERSION_HOST:
             if (!hasGICVersionOption) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("gic-version option is not available "
-                                 "with this QEMU binary"));
+                               _("gic-version option is not available with this QEMU binary"));
                 return -1;
             }
 
@@ -8254,9 +8236,7 @@ qemuBuildGraphicsSPICECommandLine(virQEMUDriverConfig *cfg,
     case VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_MODE_SECURE:
         if (!hasSecure) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("spice defaultMode secure requested in XML "
-                             "configuration, but TLS connection is not "
-                             "available"));
+                           _("spice defaultMode secure requested in XML configuration, but TLS connection is not available"));
             return -1;
         }
         virBufferAddLit(&opt, "tls-channel=default,");
@@ -8264,9 +8244,7 @@ qemuBuildGraphicsSPICECommandLine(virQEMUDriverConfig *cfg,
     case VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_MODE_INSECURE:
         if (!hasInsecure) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("spice defaultMode insecure requested in XML "
-                             "configuration, but plaintext connection is not "
-                             "available"));
+                           _("spice defaultMode insecure requested in XML configuration, but plaintext connection is not available"));
             return -1;
         }
         virBufferAddLit(&opt, "plaintext-channel=default,");
@@ -8282,9 +8260,7 @@ qemuBuildGraphicsSPICECommandLine(virQEMUDriverConfig *cfg,
         case VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_MODE_SECURE:
             if (!hasSecure) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("spice secure channels set in XML "
-                                 "configuration, but TLS connection is not "
-                                 "available"));
+                               _("spice secure channels set in XML configuration, but TLS connection is not available"));
                 return -1;
             }
             virBufferAsprintf(&opt, "tls-channel=%s,",
@@ -8294,9 +8270,7 @@ qemuBuildGraphicsSPICECommandLine(virQEMUDriverConfig *cfg,
         case VIR_DOMAIN_GRAPHICS_SPICE_CHANNEL_MODE_INSECURE:
             if (!hasInsecure) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("spice insecure channels set in XML "
-                                 "configuration, but plaintext connection "
-                                 "is not available"));
+                               _("spice insecure channels set in XML configuration, but plaintext connection is not available"));
                 return -1;
             }
             virBufferAsprintf(&opt, "plaintext-channel=%s,",
@@ -8559,7 +8533,7 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
         break;
 
     case VIR_DOMAIN_NET_TYPE_VDPA:
-        if ((vdpafd = qemuInterfaceVDPAConnect(net)) < 0)
+        if ((vdpafd = qemuVDPAConnect(net->data.vdpa.devicepath)) < 0)
             return -1;
 
         netpriv->vdpafd = qemuFDPassNew(net->info.alias, priv);
@@ -9032,8 +9006,7 @@ qemuBuildShmemCommandLine(virCommand *cmd,
 
     if (shmem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("only 'pci' addresses are supported for the "
-                         "shared memory device"));
+                       _("only 'pci' addresses are supported for the shared memory device"));
         return -1;
     }
 
@@ -10029,8 +10002,7 @@ qemuBuildCommandLineValidate(virQEMUDriver *driver,
 
     if (sdl > 1 || vnc > 1 || spice > 1 || egl_headless > 1 || dbus > 1) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("only 1 graphics device of each type "
-                         "(sdl, vnc, spice, headless, dbus) is supported"));
+                       _("only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is supported"));
         return -1;
     }
 
@@ -10460,8 +10432,7 @@ qemuBuildCommandLine(virDomainObj *vm,
     if (qemuBuildClockCommandLine(cmd, def, qemuCaps) < 0)
         return NULL;
 
-    if (qemuBuildPMCommandLine(cmd, def, priv) < 0)
-        return NULL;
+    qemuBuildPMCommandLine(cmd, def, priv);
 
     if (qemuBuildBootCommandLine(cmd, def) < 0)
         return NULL;
@@ -11021,4 +10992,25 @@ qemuBuildStorageSourceChainAttachPrepareBlockdevTop(virStorageSource *top,
         return NULL;
 
     return g_steal_pointer(&data);
+}
+
+
+/* qemuVDPAConnect:
+ * @devicepath: the path to the vdpa device
+ *
+ * returns: file descriptor of the vdpa device
+ */
+int
+qemuVDPAConnect(const char *devicepath)
+{
+    int fd;
+
+    if ((fd = open(devicepath, O_RDWR)) < 0) {
+        virReportSystemError(errno,
+                             _("Unable to open '%1$s' for vdpa device"),
+                             devicepath);
+        return -1;
+    }
+
+    return fd;
 }

@@ -275,6 +275,7 @@ Patches have also been contributed by:
 * Divya Garg <divya.garg@nutanix.com>
 * Dmitrii Shcherbakov <dmitrii.shcherbakov@canonical.com>
 * Dmitry Andreev <dandreev@virtuozzo.com>
+* Dmitry Frolov <frolov@swemel.ru>
 * Dmitry Guryanov <dguryanov@parallels.com>
 * Dmitry Mishin <dim@virtuozzo.com>
 * Dmitry Nesterenko <dmitry.nesterenko@virtuozzo.com>

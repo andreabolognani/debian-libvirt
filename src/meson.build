@@ -196,7 +196,7 @@ guest_unit_files = []
 #   * service - name of the service (required)
 #   * service_in - service source file (required)
 #   * name - socket description (required)
-#   * sockprefix - socket prefix name (required)
+#   * sockprefix - socket prefix name (optional, default unit['service'])
 #   * sockets - array of additional sockets (optional, default [ 'main', 'ro', 'admin' ])
 #   * socket_$name_in - additional socket source files (optional, default remote/libvirtd.socket.in )
 #   * deps - socket dependencies (optional, default '')
@@ -797,13 +797,13 @@ if conf.has('WITH_LIBVIRTD')
       install_dir: systemd_unit_dir,
     )
 
-    foreach unit : virt_daemon_units
-      if conf.has('WITH_POLKIT')
-        mode = '0666'
-      else
-        mode = '0600'
-      endif
+    if conf.has('WITH_POLKIT')
+      sockmode = '0666'
+    else
+      sockmode = '0600'
+    endif
 
+    foreach unit : virt_daemon_units
       unit_conf = configuration_data({
         'runstatedir': runstatedir,
         'sbindir': sbindir,
@@ -811,9 +811,9 @@ if conf.has('WITH_LIBVIRTD')
         'initconfdir': initconfdir,
         'name': unit['name'],
         'service': unit['service'],
-        'sockprefix': unit['sockprefix'],
+        'sockprefix': unit.get('sockprefix', unit['service']),
         'deps': unit.get('deps', ''),
-        'mode': mode,
+        'sockmode': sockmode,
       })
 
       configure_file(
@@ -826,12 +826,12 @@ if conf.has('WITH_LIBVIRTD')
 
       foreach socket : unit.get('sockets', [ 'main', 'ro', 'admin' ])
         if socket == 'main'
-          socket_in_def = 'remote' / 'libvirtd.socket.in'
-          socket_in = unit.get('socket_in', socket_in_def)
+          socket_in_default = 'remote' / 'libvirtd.socket.in'
+          socket_in = unit.get('socket_in', socket_in_default)
           socket_out = '@0@.socket'.format(unit['service'])
         else
-          socket_in_def = 'remote' / 'libvirtd-@0@.socket.in'.format(socket)
-          socket_in = unit.get('socket_@0@_in'.format(socket), socket_in_def)
+          socket_in_default = 'remote' / 'libvirtd-@0@.socket.in'.format(socket)
+          socket_in = unit.get('socket_@0@_in'.format(socket), socket_in_default)
           socket_out = '@0@-@1@.socket'.format(unit['service'], socket)
         endif
         configure_file(

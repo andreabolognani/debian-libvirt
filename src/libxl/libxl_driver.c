@@ -2904,8 +2904,7 @@ libxlDomainUndefineFlags(virDomainPtr dom,
             }
         } else {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("Refusing to undefine while domain managed "
-                             "save image exists"));
+                           _("Refusing to undefine while domain managed save image exists"));
             goto cleanup;
         }
     }
@@ -3212,8 +3211,7 @@ libxlDomainAttachHostUSBDevice(libxlDriverPrivate *driver,
 
         if (libxlDomainAttachControllerDevice(driver, vm, controller) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("No available USB controller and port, and "
-                             "failed to attach a new one"));
+                           _("No available USB controller and port, and failed to attach a new one"));
             virDomainControllerDefFree(controller);
             goto cleanup;
         }
@@ -3273,6 +3271,10 @@ libxlDomainAttachHostDevice(libxlDriverPrivate *driver,
             return -1;
         break;
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("hostdev subsys type '%1$s' not supported"),
@@ -3563,6 +3565,10 @@ libxlDomainAttachDeviceConfig(virDomainDef *vmdef, virDomainDeviceDef *dev)
             case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
             case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
                 return -1;
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+                break;
             }
 
             if (virDomainHostdevFind(vmdef, hostdev, &found) >= 0) {
@@ -3837,6 +3843,10 @@ libxlDomainDetachHostDevice(libxlDriverPrivate *driver,
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
             return libxlDomainDetachHostUSBDevice(driver, vm, hostdev);
 
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unexpected hostdev type %1$d"), subsys->type);

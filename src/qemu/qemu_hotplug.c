@@ -926,7 +926,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
             goto cleanup;
     }
 
-    switch ((virDomainDiskBus) disk->bus) {
+    switch (disk->bus) {
     case VIR_DOMAIN_DISK_BUS_USB:
         if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -1010,6 +1010,9 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
     if (qemuHotplugAttachManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE) < 0)
         goto cleanup;
 
+    if (qemuNbdkitStartStorageSource(driver, vm, disk->src) < 0)
+        goto cleanup;
+
     ret = qemuDomainAttachDiskGeneric(vm, disk, VIR_ASYNC_JOB_NONE);
 
     virDomainAuditDisk(vm, NULL, disk->src, "attach", ret == 0);
@@ -1032,6 +1035,8 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
 
         if (virStorageSourceChainHasManagedPR(disk->src))
             ignore_value(qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE));
+
+        qemuNbdkitStopStorageSource(disk->src, vm);
     }
     qemuDomainSecretDiskDestroy(disk);
     qemuDomainCleanupStorageSourceFD(disk->src);
@@ -2791,6 +2796,7 @@ qemuDomainAttachHostDevice(virQEMUDriver *driver,
             return -1;
         break;
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("hotplug is not supported for hostdev subsys type '%1$s'"),
@@ -3307,7 +3313,7 @@ qemuDomainAttachDeviceLive(virDomainObj *vm,
                                                  &chardevBackendData) < 0)
         return -1;
 
-    switch ((virDomainDeviceType)dev->type) {
+    switch (dev->type) {
     case VIR_DOMAIN_DEVICE_DISK:
         qemuDomainObjCheckDiskTaint(driver, vm, dev->data.disk, NULL);
         ret = qemuDomainAttachDeviceDiskLive(driver, vm, dev);
@@ -4491,6 +4497,8 @@ qemuDomainRemoveDiskDevice(virQEMUDriver *driver,
         qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE) < 0)
         goto cleanup;
 
+    qemuNbdkitStopStorageSource(disk->src, vm);
+
     if (disk->transient) {
         VIR_DEBUG("Removing transient overlay '%s' of disk '%s'",
                   disk->src->path, disk->dst);
@@ -4680,7 +4688,7 @@ qemuDomainRemoveHostDevice(virQEMUDriver *driver,
     if (qemuDomainNamespaceTeardownHostdev(vm, hostdev) < 0)
         VIR_WARN("Unable to remove host device from /dev");
 
-    switch ((virDomainHostdevSubsysType)hostdev->source.subsys.type) {
+    switch (hostdev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
         qemuDomainRemovePCIHostDevice(driver, vm, hostdev);
         /* QEMU might no longer need to lock as much memory, eg. we just
@@ -5150,7 +5158,7 @@ qemuDomainRemoveAuditDevice(virDomainObj *vm,
                             virDomainDeviceDef *detach,
                             bool success)
 {
-    switch ((virDomainDeviceType)detach->type) {
+    switch (detach->type) {
     case VIR_DOMAIN_DEVICE_DISK:
         virDomainAuditDisk(vm, detach->data.disk->src, NULL, "detach", success);
         break;
@@ -5231,7 +5239,7 @@ qemuDomainRemoveDevice(virQEMUDriver *driver,
         alias = g_strdup(info->alias);
     info = NULL;
 
-    switch ((virDomainDeviceType)dev->type) {
+    switch (dev->type) {
     case VIR_DOMAIN_DEVICE_CHR:
         /* We must return directly after calling
          * qemuDomainRemoveChrDevice because it is called directly
@@ -5468,7 +5476,7 @@ qemuDomainDetachPrepDisk(virDomainObj *vm,
     case VIR_DOMAIN_DISK_DEVICE_DISK:
     case VIR_DOMAIN_DISK_DEVICE_LUN:
 
-        switch ((virDomainDiskBus) disk->bus) {
+        switch (disk->bus) {
         case VIR_DOMAIN_DISK_BUS_VIRTIO:
         case VIR_DOMAIN_DISK_BUS_USB:
         case VIR_DOMAIN_DISK_BUS_SCSI:
@@ -5533,7 +5541,7 @@ qemuDomainDiskControllerIsBusy(virDomainObj *vm,
             continue;
 
         /* check whether the disk uses this type controller */
-        switch ((virDomainControllerType) detach->type) {
+        switch (detach->type) {
         case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
             if (disk->bus != VIR_DOMAIN_DISK_BUS_IDE)
                 continue;
@@ -5598,7 +5606,7 @@ static bool
 qemuDomainControllerIsBusy(virDomainObj *vm,
                            virDomainControllerDef *detach)
 {
-    switch ((virDomainControllerType) detach->type) {
+    switch (detach->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
@@ -5726,6 +5734,7 @@ qemuDomainDetachPrepHostdev(virDomainObj *vm,
             break;
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
             break;
+        case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
         default:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("unexpected hostdev type %1$d"), subsys->type);
@@ -6058,7 +6067,7 @@ qemuDomainDetachDeviceLive(virDomainObj *vm,
     int ret = -1;
     int rc;
 
-    switch ((virDomainDeviceType)match->type) {
+    switch (match->type) {
         /*
          * lease and chr devices don't follow the standard pattern of
          * the others, so they must have their own self-contained
@@ -6363,8 +6372,7 @@ qemuDomainHotplugDelVcpu(virQEMUDriver *driver,
     if ((rc = qemuDomainWaitForDeviceRemoval(vm)) <= 0) {
         if (rc == 0)
             virReportError(VIR_ERR_OPERATION_TIMEOUT, "%s",
-                           _("vcpu unplug request timed out. Unplug result "
-                             "must be manually inspected in the domain"));
+                           _("vcpu unplug request timed out. Unplug result must be manually inspected in the domain"));
 
         goto cleanup;
     }
@@ -6400,7 +6408,7 @@ qemuDomainHotplugAddVcpu(virQEMUDriver *driver,
     size_t i;
     bool vcpuTidMissing = false;
 
-    if (!qemuDomainSupportsNewVcpuHotplug(vm)) {
+    if (!qemuDomainSupportsVcpuHotplug(vm)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("cpu hotplug is not supported"));
         return -1;
@@ -6502,8 +6510,7 @@ qemuDomainSelectHotplugVcpuEntities(virDomainDef *def,
 
             if (curvcpus > nvcpus) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("target vm vcpu granularity does not allow the "
-                                 "desired vcpu count"));
+                               _("target vm vcpu granularity does not allow the desired vcpu count"));
                 return NULL;
             }
 
@@ -6529,8 +6536,7 @@ qemuDomainSelectHotplugVcpuEntities(virDomainDef *def,
 
             if (curvcpus < nvcpus) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("target vm vcpu granularity does not allow the "
-                                 "desired vcpu count"));
+                               _("target vm vcpu granularity does not allow the desired vcpu count"));
                 return NULL;
             }
 
@@ -6540,8 +6546,7 @@ qemuDomainSelectHotplugVcpuEntities(virDomainDef *def,
 
     if (curvcpus != nvcpus) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("failed to find appropriate hotpluggable vcpus to "
-                         "reach the desired target vcpu count"));
+                       _("failed to find appropriate hotpluggable vcpus to reach the desired target vcpu count"));
         return NULL;
     }
 
@@ -6846,10 +6851,9 @@ qemuDomainSetVcpuInternal(virQEMUDriver *driver,
     g_autoptr(virBitmap) livevcpus = NULL;
 
     if (def) {
-        if (!qemuDomainSupportsNewVcpuHotplug(vm)) {
+        if (!qemuDomainSupportsVcpuHotplug(vm)) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("this qemu version does not support specific "
-                             "vCPU hotplug"));
+                           _("this qemu version does not support specific vCPU hotplug"));
             return -1;
         }
 
@@ -6935,8 +6939,7 @@ qemuDomainChangeDiskLive(virDomainObj *vm,
         if (disk->device != VIR_DOMAIN_DISK_DEVICE_CDROM &&
             disk->device != VIR_DOMAIN_DISK_DEVICE_FLOPPY) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("disk source can be changed only in removable "
-                             "drives"));
+                           _("disk source can be changed only in removable drives"));
             return -1;
         }
 
@@ -7106,7 +7109,7 @@ qemuDomainUpdateDeviceLive(virDomainObj *vm,
     virDomainDeviceDef oldDev = { .type = dev->type };
     int idx;
 
-    switch ((virDomainDeviceType)dev->type) {
+    switch (dev->type) {
     case VIR_DOMAIN_DEVICE_DISK:
         qemuDomainObjCheckDiskTaint(driver, vm, dev->data.disk, NULL);
         return qemuDomainChangeDiskLive(vm, dev, driver, force);

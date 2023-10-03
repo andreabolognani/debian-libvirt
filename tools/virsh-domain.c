@@ -2143,14 +2143,12 @@ cmdBlockcommit(vshControl *ctl, const vshCmd *cmd)
 
     if (!blocking) {
         if (verbose) {
-            vshError(ctl, "%s", _("--verbose requires at least one of --timeout, "
-                                  "--wait, --pivot, or --keep-overlay"));
+            vshError(ctl, "%s", _("--verbose requires at least one of --timeout, --wait, --pivot, or --keep-overlay"));
             return false;
         }
 
         if (async) {
-            vshError(ctl, "%s", _("--async requires at least one of --timeout, "
-                                  "--wait, --pivot, or --keep-overlay"));
+            vshError(ctl, "%s", _("--async requires at least one of --timeout, --wait, --pivot, or --keep-overlay"));
             return false;
         }
     }
@@ -2214,8 +2212,7 @@ cmdBlockcommit(vshControl *ctl, const vshCmd *cmd)
                 goto cleanup;
             }
 
-            vshPrintExtra(ctl, "\n%s", _("Commit complete, overlay "
-                                         "image kept"));
+            vshPrintExtra(ctl, "\n%s", _("Commit complete, overlay image kept"));
         } else {
             vshPrintExtra(ctl, "\n%s", _("Now in synchronized phase"));
         }
@@ -2411,14 +2408,12 @@ cmdBlockcopy(vshControl *ctl, const vshCmd *cmd)
 
     if (!blocking) {
         if (verbose) {
-            vshError(ctl, "%s", _("--verbose requires at least one of --timeout, "
-                                  "--wait, --pivot, or --finish"));
+            vshError(ctl, "%s", _("--verbose requires at least one of --timeout, --wait, --pivot, or --finish"));
             return false;
         }
 
         if (async) {
-            vshError(ctl, "%s", _("--async requires at least one of --timeout, "
-                                  "--wait, --pivot, or --finish"));
+            vshError(ctl, "%s", _("--async requires at least one of --timeout, --wait, --pivot, or --finish"));
             return false;
         }
     }
@@ -3703,8 +3698,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
 
     if (!(vol_string || remove_all_storage) && wipe_storage) {
         vshError(ctl,
-                 _("'--wipe-storage' requires '--storage <string>' or "
-                   "'--remove-all-storage'"));
+                 _("'--wipe-storage' requires '--storage <string>' or '--remove-all-storage'"));
         return false;
     }
 
@@ -3789,8 +3783,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
     if (vol_string || remove_all_storage) {
         if (running) {
             vshError(ctl,
-                     _("Storage volume deletion is supported only on "
-                       "stopped domains"));
+                     _("Storage volume deletion is supported only on stopped domains"));
             goto cleanup;
         }
 
@@ -3927,8 +3920,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
     if (has_managed_save) {
         if (!managed_save) {
             vshError(ctl, "%s",
-                     _("Refusing to undefine while domain managed save "
-                       "image exists"));
+                     _("Refusing to undefine while domain managed save image exists"));
             goto cleanup;
         }
         if (virDomainManagedSaveRemove(dom, 0) < 0) {
@@ -5149,8 +5141,7 @@ cmdSchedInfoUpdate(vshControl *ctl, const vshCmd *cmd,
         g_autofree char *set_field = g_strdup(opt->data);
 
         if (!(set_val = strchr(set_field, '='))) {
-            vshError(ctl, "%s", _("Invalid syntax for --set, "
-                                  "expecting name=value"));
+            vshError(ctl, "%s", _("Invalid syntax for --set, expecting name=value"));
             goto cleanup;
         }
 
@@ -7400,8 +7391,7 @@ cmdGuestvcpus(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (cpulist && !(enable || disable)) {
-        vshError(ctl, _("One of options --enable or --disable is required by "
-                        "option --cpulist"));
+        vshError(ctl, _("One of options --enable or --disable is required by option --cpulist"));
         return false;
     }
 
@@ -12528,8 +12518,7 @@ virshDomainDetachInterface(char *doc,
                 if (virMacAddrCompare(tmp_mac, mac) == 0) {
                     if (matchNode) {
                         /* this is the 2nd match, so it's ambiguous */
-                        vshError(ctl, _("Domain has multiple interfaces matching MAC address %1$s. "
-                                        "You must use detach-device and specify the device pci address to remove it."),
+                        vshError(ctl, _("Domain has multiple interfaces matching MAC address %1$s. You must use detach-device and specify the device pci address to remove it."),
                                  mac);
                         return false;
                     }
@@ -12641,19 +12630,13 @@ cmdDetachInterface(vshControl *ctl, const vshCmd *cmd)
 static void
 virshDiskDropBackingStore(xmlNodePtr disk_node)
 {
-    xmlNodePtr tmp;
+    xmlNodePtr tmp = virXMLNodeGetSubelement(disk_node, "backingStore");
 
-    for (tmp = disk_node->children; tmp; tmp = tmp->next) {
-        if (tmp->type != XML_ELEMENT_NODE)
-            continue;
+    if (!tmp)
+        return;
 
-        if (virXMLNodeNameEqual(tmp, "backingStore")) {
-            xmlUnlinkNode(tmp);
-            xmlFreeNode(tmp);
-
-            return;
-        }
-    }
+    xmlUnlinkNode(tmp);
+    xmlFreeNode(tmp);
 }
 
 
@@ -12753,10 +12736,7 @@ virshUpdateDiskXML(xmlNodePtr disk_node,
                    const char *target,
                    virshUpdateDiskXMLType type)
 {
-    xmlNodePtr tmp = NULL;
     xmlNodePtr source = NULL;
-    xmlNodePtr target_node = NULL;
-    xmlNodePtr text_node = NULL;
     g_autofree char *device_type = NULL;
     char *ret = NULL;
     g_autofree char *startupPolicy = NULL;
@@ -12773,33 +12753,7 @@ virshUpdateDiskXML(xmlNodePtr disk_node,
         return NULL;
     }
 
-    /* find the current source subelement */
-    for (tmp = disk_node->children; tmp; tmp = tmp->next) {
-        /*
-         * Save the last text node before the <target/>.  The
-         * reasoning behind this is that the target node will be
-         * present in this case and also has a proper indentation.
-         */
-        if (!target_node && tmp->type == XML_TEXT_NODE)
-            text_node = tmp;
-
-        /*
-         * We need only element nodes from now on.
-         */
-        if (tmp->type != XML_ELEMENT_NODE)
-            continue;
-
-        if (!source && virXMLNodeNameEqual(tmp, "source"))
-            source = tmp;
-        else if (!target_node && virXMLNodeNameEqual(tmp, "target"))
-            target_node = tmp;
-
-        /*
-         * We've found all we needed.
-         */
-        if (source && target_node)
-            break;
-    }
+    source = virXMLNodeGetSubelement(disk_node, "source");
 
     if (type == VIRSH_UPDATE_DISK_XML_EJECT) {
         if (!source) {
@@ -12852,21 +12806,7 @@ virshUpdateDiskXML(xmlNodePtr disk_node,
         if (startupPolicy)
             xmlNewProp(source, BAD_CAST "startupPolicy", BAD_CAST startupPolicy);
 
-        /*
-         * So that the output XML looks nice in case anyone calls
-         * 'change-media' with '--print-xml', let's attach the source
-         * before target...
-         */
-        xmlAddPrevSibling(target_node, source);
-
-        /*
-         * ... and duplicate the text node doing the indentation just
-         * so it's more easily readable.  And don't make it fatal.
-         */
-        if ((tmp = xmlCopyNode(text_node, 0))) {
-            if (!xmlAddPrevSibling(target_node, tmp))
-                xmlFreeNode(tmp);
-        }
+        xmlAddChild(disk_node, source);
     }
 
     if (!(ret = virXMLNodeToString(NULL, disk_node))) {
@@ -13787,8 +13727,7 @@ cmdDomDirtyRateCalc(vshControl *ctl, const vshCmd *cmd)
     if (virDomainStartDirtyRateCalc(dom, seconds, flags) < 0)
         return false;
 
-    vshPrintExtra(ctl, _("Start to calculate domain's memory "
-                         "dirty rate successfully.\n"));
+    vshPrintExtra(ctl, _("Start to calculate domain's memory dirty rate successfully.\n"));
 
     return true;
 }

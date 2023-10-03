@@ -130,7 +130,7 @@ qemuBlockStorageSourceBuildJSONSocketAddress(virStorageNetHostDef *host)
     g_autoptr(virJSONValue) server = NULL;
     g_autofree char *port = NULL;
 
-    switch ((virStorageNetHostTransport) host->transport) {
+    switch (host->transport) {
     case VIR_STORAGE_NET_HOST_TRANS_TCP:
         port = g_strdup_printf("%u", host->port);
 
@@ -433,6 +433,32 @@ qemuBlockStorageSourceGetCURLProps(virStorageSource *src,
                                        "P:timeout", src->timeout,
                                        "P:readahead", src->readahead,
                                        NULL));
+
+    return ret;
+}
+
+
+static virJSONValue *
+qemuBlockStorageSourceGetNbdkitProps(virStorageSource *src)
+{
+    qemuDomainStorageSourcePrivate *srcPriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
+    virJSONValue *ret = NULL;
+    g_autoptr(virJSONValue) serverprops = NULL;
+    virStorageNetHostDef host = { .transport = VIR_STORAGE_NET_HOST_TRANS_UNIX };
+
+    /* srcPriv->nbdkitProcess will already be initialized if we can use nbdkit
+     * to proxy this storage source */
+    if (!(srcPriv  && srcPriv->nbdkitProcess))
+        return NULL;
+
+    host.socket = srcPriv->nbdkitProcess->socketfile;
+    serverprops = qemuBlockStorageSourceBuildJSONSocketAddress(&host);
+
+    if (!serverprops)
+        return NULL;
+
+    if (virJSONValueObjectAdd(&ret, "a:server", &serverprops, NULL) < 0)
+        return NULL;
 
     return ret;
 }
@@ -778,6 +804,20 @@ qemuBlockStorageSourceGetNVMeProps(virStorageSource *src)
 }
 
 
+static virJSONValue *
+qemuBlockStorageSourceGetVhostVdpaProps(virStorageSource *src)
+{
+    virJSONValue *ret = NULL;
+    qemuDomainStorageSourcePrivate *srcpriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
+
+    ignore_value(virJSONValueObjectAdd(&ret,
+                                       "s:driver", "virtio-blk-vhost-vdpa",
+                                       "s:path", qemuFDPassGetPath(srcpriv->fdpass),
+                                       NULL));
+    return ret;
+}
+
+
 static int
 qemuBlockStorageSourceGetBlockdevGetCacheProps(virStorageSource *src,
                                                virJSONValue *props)
@@ -873,6 +913,11 @@ qemuBlockStorageSourceGetBackendProps(virStorageSource *src,
             return NULL;
         break;
 
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
+        if (!(fileprops = qemuBlockStorageSourceGetVhostVdpaProps(src)))
+            return NULL;
+        break;
+
     case VIR_STORAGE_TYPE_VHOST_USER:
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("unable to create blockdev props for vhostuser disk type"));
@@ -890,69 +935,75 @@ qemuBlockStorageSourceGetBackendProps(virStorageSource *src,
         return NULL;
 
     case VIR_STORAGE_TYPE_NETWORK:
-        switch ((virStorageNetProtocol) src->protocol) {
-        case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
-            driver = "gluster";
-            if (!(fileprops = qemuBlockStorageSourceGetGlusterProps(src, onlytarget)))
-                return NULL;
-            break;
-
-        case VIR_STORAGE_NET_PROTOCOL_VXHS:
-            driver = "vxhs";
-            if (!(fileprops = qemuBlockStorageSourceGetVxHSProps(src, onlytarget)))
-                return NULL;
-            break;
-
-        case VIR_STORAGE_NET_PROTOCOL_HTTP:
-        case VIR_STORAGE_NET_PROTOCOL_HTTPS:
-        case VIR_STORAGE_NET_PROTOCOL_FTP:
-        case VIR_STORAGE_NET_PROTOCOL_FTPS:
-        case VIR_STORAGE_NET_PROTOCOL_TFTP:
-            driver = virStorageNetProtocolTypeToString(src->protocol);
-            if (!(fileprops = qemuBlockStorageSourceGetCURLProps(src, onlytarget)))
-                return NULL;
-            break;
-
-        case VIR_STORAGE_NET_PROTOCOL_ISCSI:
-            driver = "iscsi";
-            if (!(fileprops = qemuBlockStorageSourceGetISCSIProps(src, onlytarget)))
-                return NULL;
-            break;
-
-        case VIR_STORAGE_NET_PROTOCOL_NBD:
+        /* prefer using nbdkit for sources that are supported */
+        if ((fileprops = qemuBlockStorageSourceGetNbdkitProps(src))) {
             driver = "nbd";
-            if (!(fileprops = qemuBlockStorageSourceGetNBDProps(src, onlytarget)))
-                return NULL;
             break;
+        } else {
+            switch ((virStorageNetProtocol) src->protocol) {
+                case VIR_STORAGE_NET_PROTOCOL_GLUSTER:
+                    driver = "gluster";
+                    if (!(fileprops = qemuBlockStorageSourceGetGlusterProps(src, onlytarget)))
+                        return NULL;
+                    break;
 
-        case VIR_STORAGE_NET_PROTOCOL_RBD:
-            driver = "rbd";
-            if (!(fileprops = qemuBlockStorageSourceGetRBDProps(src, onlytarget)))
-                return NULL;
-            break;
+                case VIR_STORAGE_NET_PROTOCOL_VXHS:
+                    driver = "vxhs";
+                    if (!(fileprops = qemuBlockStorageSourceGetVxHSProps(src, onlytarget)))
+                        return NULL;
+                    break;
 
-        case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
-            driver = "sheepdog";
-            if (!(fileprops = qemuBlockStorageSourceGetSheepdogProps(src)))
-                return NULL;
-            break;
+                case VIR_STORAGE_NET_PROTOCOL_HTTP:
+                case VIR_STORAGE_NET_PROTOCOL_HTTPS:
+                case VIR_STORAGE_NET_PROTOCOL_FTP:
+                case VIR_STORAGE_NET_PROTOCOL_FTPS:
+                case VIR_STORAGE_NET_PROTOCOL_TFTP:
+                    driver = virStorageNetProtocolTypeToString(src->protocol);
+                    if (!(fileprops = qemuBlockStorageSourceGetCURLProps(src, onlytarget)))
+                        return NULL;
+                    break;
 
-        case VIR_STORAGE_NET_PROTOCOL_SSH:
-            driver = "ssh";
-            if (!(fileprops = qemuBlockStorageSourceGetSshProps(src)))
-                return NULL;
-            break;
+                case VIR_STORAGE_NET_PROTOCOL_ISCSI:
+                    driver = "iscsi";
+                    if (!(fileprops = qemuBlockStorageSourceGetISCSIProps(src, onlytarget)))
+                        return NULL;
+                    break;
 
-        case VIR_STORAGE_NET_PROTOCOL_NFS:
-            driver = "nfs";
-            if (!(fileprops = qemuBlockStorageSourceGetNFSProps(src)))
-                return NULL;
-            break;
+                case VIR_STORAGE_NET_PROTOCOL_NBD:
+                    driver = "nbd";
+                    if (!(fileprops = qemuBlockStorageSourceGetNBDProps(src, onlytarget)))
+                        return NULL;
+                    break;
 
-        case VIR_STORAGE_NET_PROTOCOL_NONE:
-        case VIR_STORAGE_NET_PROTOCOL_LAST:
-            virReportEnumRangeError(virStorageNetProtocol, src->protocol);
-            return NULL;
+                case VIR_STORAGE_NET_PROTOCOL_RBD:
+                    driver = "rbd";
+                    if (!(fileprops = qemuBlockStorageSourceGetRBDProps(src, onlytarget)))
+                        return NULL;
+                    break;
+
+                case VIR_STORAGE_NET_PROTOCOL_SHEEPDOG:
+                    driver = "sheepdog";
+                    if (!(fileprops = qemuBlockStorageSourceGetSheepdogProps(src)))
+                        return NULL;
+                    break;
+
+                case VIR_STORAGE_NET_PROTOCOL_SSH:
+                    driver = "ssh";
+                    if (!(fileprops = qemuBlockStorageSourceGetSshProps(src)))
+                        return NULL;
+                    break;
+
+                case VIR_STORAGE_NET_PROTOCOL_NFS:
+                    driver = "nfs";
+                    if (!(fileprops = qemuBlockStorageSourceGetNFSProps(src)))
+                        return NULL;
+                    break;
+
+                case VIR_STORAGE_NET_PROTOCOL_NONE:
+                case VIR_STORAGE_NET_PROTOCOL_LAST:
+                    virReportEnumRangeError(virStorageNetProtocol, src->protocol);
+                    return NULL;
+            }
         }
         break;
     }
@@ -2261,6 +2312,7 @@ qemuBlockStorageSourceCreateGetStorageProps(virStorageSource *src,
     g_autoptr(virJSONValue) location = NULL;
     const char *driver = NULL;
     const char *filename = NULL;
+    qemuDomainStorageSourcePrivate *srcPriv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
 
     switch (actualType) {
     case VIR_STORAGE_TYPE_FILE:
@@ -2289,6 +2341,13 @@ qemuBlockStorageSourceCreateGetStorageProps(virStorageSource *src,
             break;
 
         case VIR_STORAGE_NET_PROTOCOL_SSH:
+            if (srcPriv->nbdkitProcess) {
+                /* disk creation not yet supported with nbdkit, and even if it
+                 * was supported, it would not be done with blockdev-create
+                 * props */
+                return 0;
+            }
+
             driver = "ssh";
             if (!(location = qemuBlockStorageSourceGetSshProps(src)))
                 return -1;
@@ -2320,6 +2379,7 @@ qemuBlockStorageSourceCreateGetStorageProps(virStorageSource *src,
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
         return 0;
 
     case VIR_STORAGE_TYPE_NONE:

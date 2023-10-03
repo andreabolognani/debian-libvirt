@@ -8,6 +8,48 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.8.0 (2023-10-02)
+===================
+
+* **New features**
+
+  * network: New metadata change event
+
+    The network object now has a new event ID ``VIR_NETWORK_EVENT_ID_METADATA_CHANGE``
+    that can be used to get notifications upon changes in any of ``<title>``,
+    ``<description>`` or ``<metadata>``.
+
+  * qemu: Add support for vDPA block devices
+
+    With a new enough version of qemu, libvirt will allow you to assign vDPA block
+    devices to a domain. This is configured with::
+
+      <disk type='vhostvdpa'>
+        <source dev='/dev/vhost-vdpa-0'>
+        ...
+
+* **Improvements**
+
+  * qemu: add nbdkit backend for network disks
+
+    Up until now, libvirt supported network disks (http, ftp, ssh) by passing
+    the URL to qemu and having the appropriate qemu block drivers handle the
+    disk I/O. However, by handling the network I/O outside of the qemu process,
+    we get several advantages, such as reduced attack surface and improved
+    stability of qemu. Therefore, when available, libvirt will use nbdkit as a
+    backend for these network disks and export an NBD disk to qemu.
+
+  * virnetdevopenvswitch: Propagate OVS error messages
+
+    When configuring OVS interfaces/bridges libvirt used to report its own
+    error messages instead of passing (more accurate) error messages from
+    `ovs-vsctl`. This is now changed.
+
+  * Various virtio-mem/virtio-pmem fixes
+
+    Now libvirt validates more values of virtio-mem and virtio-pmem devices,
+    e.g. overlapping memory addresses or alignment.
+
 v9.7.0 (2023-09-01)
 ===================
 
@@ -23,6 +65,17 @@ v9.7.0 (2023-09-01)
     1) setting ``managed='no'`` in the XML configuration for the device
     2) pre-binding the variant driver using the ``--driver`` option of
        ``virsh nodedev-detach``.
+
+  * network: Support for ``<title>`` and ``<description>`` fields in Network XML
+
+    The network object adds two more user defined metadata fields ``<title>``
+    and ``<description>``.
+    Two new APIs ``virNetworkGetMetadata()`` and ``virNetworkSetMetadata()`` can be
+    used to view and modify the above including the existing ``<metadata>`` field.
+
+    virsh adds two new commands ``net-desc`` and ``net-metadata`` to view/modify the same.
+    ``net-list`` adds a new option ``--title`` that prints the content of ``<title>``
+    in an extra column within the default ``--table`` output.
 
 * **Bug fixes**
 

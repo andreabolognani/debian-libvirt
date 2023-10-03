@@ -2184,7 +2184,7 @@ virSecuritySELinuxSetHostdevSubsysLabel(virSecurityManager *mgr,
         scsisrc->protocol == VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI)
         return 0;
 
-    switch ((virDomainHostdevSubsysType)dev->source.subsys.type) {
+    switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
         g_autoptr(virUSBDevice) usb = NULL;
 
@@ -2315,6 +2315,8 @@ virSecuritySELinuxSetHostdevCapsLabel(virSecurityManager *mgr,
         break;
     }
 
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
     default:
         ret = 0;
         break;
@@ -2345,6 +2347,7 @@ virSecuritySELinuxSetHostdevLabel(virSecurityManager *mgr,
         return virSecuritySELinuxSetHostdevCapsLabel(mgr, def, dev, vroot);
 
     default:
+    case VIR_DOMAIN_HOSTDEV_MODE_LAST:
         return 0;
     }
 }
@@ -2417,7 +2420,7 @@ virSecuritySELinuxRestoreHostdevSubsysLabel(virSecurityManager *mgr,
         scsisrc->protocol == VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI)
         return 0;
 
-    switch ((virDomainHostdevSubsysType)dev->source.subsys.type) {
+    switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
         g_autoptr(virUSBDevice) usb = NULL;
 
@@ -2537,6 +2540,8 @@ virSecuritySELinuxRestoreHostdevCapsLabel(virSecurityManager *mgr,
         break;
     }
 
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
     default:
         ret = 0;
         break;
@@ -2567,6 +2572,7 @@ virSecuritySELinuxRestoreHostdevLabel(virSecurityManager *mgr,
         return virSecuritySELinuxRestoreHostdevCapsLabel(mgr, dev, vroot);
 
     default:
+    case VIR_DOMAIN_HOSTDEV_MODE_LAST:
         return 0;
     }
 }

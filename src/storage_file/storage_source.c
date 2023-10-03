@@ -583,6 +583,7 @@ virStorageSourceUpdatePhysicalSize(virStorageSource *src,
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         return -1;
@@ -762,8 +763,7 @@ virStorageSourceGetRelativeBackingPath(virStorageSource *top,
 
     if (next != base) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to resolve relative backing name: "
-                         "base image is not in backing chain"));
+                       _("failed to resolve relative backing name: base image is not in backing chain"));
         return -1;
     }
 
