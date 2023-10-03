@@ -876,17 +876,17 @@
                 <element name="poll">
                   <optional>
                     <attribute name="max">
-                      <ref name="unsignedInt"/>
+                      <ref name="unsignedLong"/>
                     </attribute>
                   </optional>
                   <optional>
                     <attribute name="grow">
-                      <ref name="unsignedInt"/>
+                      <ref name="unsignedLong"/>
                     </attribute>
                   </optional>
                   <optional>
                     <attribute name="shrink">
-                      <ref name="unsignedInt"/>
+                      <ref name="unsignedLong"/>
                     </attribute>
                   </optional>
                 </element>
@@ -1811,6 +1811,7 @@
       <ref name="diskSourceVolume"/>
       <ref name="diskSourceNvme"/>
       <ref name="diskSourceVhostUser"/>
+      <ref name="diskSourceVhostVdpa"/>
     </choice>
   </define>
 
@@ -2172,6 +2173,60 @@
     </element>
   </define>
 
+  <define name="diskSourceNetworkProtocolSSHHostVerify">
+    <element name="knownHosts">
+      <attribute name="path">
+        <ref name="absFilePath"/>
+      </attribute>
+    </element>
+  </define>
+
+  <define name="diskSourceNetworkProtocolSSHKeyDef">
+    <element name="identity">
+      <interleave>
+        <attribute name="username">
+          <ref name="genericName"/>
+        </attribute>
+        <choice>
+          <attribute name="keyfile">
+            <ref name="absFilePath"/>
+          </attribute>
+          <attribute name="agentsock">
+            <ref name="absFilePath"/>
+          </attribute>
+        </choice>
+      </interleave>
+    </element>
+  </define>
+
+  <define name="diskSourceNetworkProtocolSSH">
+    <element name="source">
+      <interleave>
+        <attribute name="protocol">
+          <choice>
+            <value>ssh</value>
+          </choice>
+        </attribute>
+        <attribute name="name"/>
+        <ref name="diskSourceCommon"/>
+        <ref name="diskSourceNetworkHost"/>
+        <optional>
+          <ref name="encryption"/>
+        </optional>
+        <ref name="diskSourceNetworkProtocolPropsCommon"/>
+        <optional>
+          <ref name="diskSourceNetworkProtocolSSHHostVerify"/>
+        </optional>
+        <optional>
+          <choice>
+            <ref name="diskSourceNetworkProtocolSSHKeyDef"/>
+            <ref name="diskAuth"/>
+          </choice>
+        </optional>
+      </interleave>
+    </element>
+  </define>
+
   <define name="diskSourceNetworkProtocolSimple">
     <element name="source">
       <interleave>
@@ -2288,6 +2343,7 @@
       <ref name="diskSourceNetworkProtocolHTTPS"/>
       <ref name="diskSourceNetworkProtocolFTPS"/>
       <ref name="diskSourceNetworkProtocolFTP"/>
+      <ref name="diskSourceNetworkProtocolSSH"/>
       <ref name="diskSourceNetworkProtocolSimple"/>
       <ref name="diskSourceNetworkProtocolVxHS"/>
       <ref name="diskSourceNetworkProtocolNFS"/>
@@ -2377,6 +2433,18 @@
       <optional>
          <ref name="reconnect"/>
       </optional>
+      <empty/>
+    </element>
+  </define>
+
+  <define name="diskSourceVhostVdpa">
+    <attribute name="type">
+      <value>vhostvdpa</value>
+    </attribute>
+    <element name="source">
+      <attribute name="dev">
+        <ref name="absFilePath"/>
+      </attribute>
       <empty/>
     </element>
   </define>

@@ -24,8 +24,6 @@
   <flag name='nec-usb-xhci'/>
   <flag name='lsi'/>
   <flag name='virtio-scsi-pci'/>
-  <flag name='disable-s3'/>
-  <flag name='disable-s4'/>
   <flag name='usb-redir.filter'/>
   <flag name='seccomp-sandbox'/>
   <flag name='vnc'/>
@@ -71,8 +69,6 @@
   <flag name='virtio-mouse'/>
   <flag name='virtio-tablet'/>
   <flag name='virtio-input-host'/>
-  <flag name='ich9-disable-s3'/>
-  <flag name='ich9-disable-s4'/>
   <flag name='virtio-balloon-pci.deflate-on-oom'/>
   <flag name='mptsas1068'/>
   <flag name='spice-gl'/>
@@ -80,7 +76,6 @@
   <flag name='pxb'/>
   <flag name='pxb-pcie'/>
   <flag name='intel-iommu'/>
-  <flag name='query-hotpluggable-cpus'/>
   <flag name='virtio-vga'/>
   <flag name='ivshmem-plain'/>
   <flag name='ivshmem-doorbell'/>
@@ -90,7 +85,6 @@
   <flag name='nvdimm'/>
   <flag name='pcie-root-port'/>
   <flag name='query-cpu-definitions'/>
-  <flag name='cpu-cache'/>
   <flag name='qemu-xhci'/>
   <flag name='intel-iommu.intremap'/>
   <flag name='intel-iommu.caching-mode'/>
@@ -112,7 +106,6 @@
   <flag name='mch.extended-tseg-mbytes'/>
   <flag name='sev-guest'/>
   <flag name='egl-headless'/>
-  <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
   <flag name='egl-headless.rendernode'/>

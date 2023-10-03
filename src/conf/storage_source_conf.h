@@ -43,6 +43,7 @@ typedef enum {
     VIR_STORAGE_TYPE_VOLUME,
     VIR_STORAGE_TYPE_NVME,
     VIR_STORAGE_TYPE_VHOST_USER,
+    VIR_STORAGE_TYPE_VHOST_VDPA,
 
     VIR_STORAGE_TYPE_LAST
 } virStorageType;
@@ -150,7 +151,7 @@ typedef struct _virStorageNetHostDef virStorageNetHostDef;
 struct _virStorageNetHostDef {
     char *name;
     unsigned int port;
-    int transport; /* virStorageNetHostTransport */
+    virStorageNetHostTransport transport;
     char *socket;  /* path to unix socket */
 };
 
@@ -299,6 +300,7 @@ struct _virStorageSource {
     char *configFile; /* some storage systems use config file as part of
                          the source definition */
     char *query; /* query string for HTTP based protocols */
+    char *vdpadev;
     size_t nhosts;
     virStorageNetHostDef *hosts;
     size_t ncookies;
@@ -406,10 +408,12 @@ struct _virStorageSource {
 
     bool hostcdrom; /* backing device is a cdrom */
 
-    /* passthrough variables for the ssh driver which we don't handle properly */
-    /* these must not be used apart from formatting the output JSON in the qemu driver */
+    /* ssh variables */
     char *ssh_user;
     bool ssh_host_key_check_disabled;
+    char *ssh_known_hosts_file;
+    char *ssh_keyfile;
+    char *ssh_agent;
 
     /* nfs_user and nfs_group store the strings passed in by the user for NFS params.
      * nfs_uid and nfs_gid represent the converted/looked up ID numbers which are used

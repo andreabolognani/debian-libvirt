@@ -112,8 +112,7 @@ vah_usage(void)
             "    -F | --append-file <file>      append file to an existing profile\n"
             "\n"), progname);
 
-    puts(_("This command is intended to be used by libvirtd "
-           "and not used directly.\n"));
+    puts(_("This command is intended to be used by libvirtd and not used directly.\n"));
     return;
 }
 
@@ -1050,6 +1049,10 @@ get_files(vahControl * ctl)
         if (ctl->def->hostdevs[i]) {
             virDomainHostdevDef *dev = ctl->def->hostdevs[i];
             virDomainHostdevSubsysUSB *usbsrc = &dev->source.subsys.u.usb;
+
+            if (dev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
+                continue;
+
             switch (dev->source.subsys.type) {
             case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
                 virUSBDevice *usb =
@@ -1103,6 +1106,9 @@ get_files(vahControl * ctl)
                 break;
             }
 
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
             default:
                 rc = 0;
                 break;

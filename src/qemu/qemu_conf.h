@@ -36,6 +36,7 @@
 #include "virthreadpool.h"
 #include "locking/lock_manager.h"
 #include "qemu_capabilities.h"
+#include "qemu_nbdkit.h"
 #include "virclosecallbacks.h"
 #include "virhostdev.h"
 #include "virfile.h"
@@ -317,6 +318,9 @@ struct _virQEMUDriver {
 
     /* Immutable pointer, self-locking APIs */
     virHashAtomic *migrationErrors;
+
+    /* Immutable pointer, self-locking APIs */
+    virFileCache *nbdkitCapsCache;
 };
 
 virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
@@ -373,3 +377,5 @@ int qemuGetMemoryBackingPath(virQEMUDriver *driver,
 
 int qemuHugepageMakeBasedir(virQEMUDriver *driver,
                             virHugeTLBFS *hugepage);
+
+qemuNbdkitCaps* qemuGetNbdkitCaps(virQEMUDriver *driver);

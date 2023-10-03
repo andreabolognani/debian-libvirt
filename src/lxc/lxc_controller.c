@@ -1776,6 +1776,11 @@ virLXCControllerSetupHostdevSubsys(virDomainDef *vmDef,
                                                      def,
                                                      securityDriver);
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device mode %1$s"),
@@ -1804,10 +1809,11 @@ virLXCControllerSetupHostdevCaps(virDomainDef *vmDef,
     case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
         return 0; /* case is handled in virLXCControllerMoveInterfaces */
 
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device mode %1$s"),
-                       virDomainHostdevCapsTypeToString(def->source.subsys.type));
+                       virDomainHostdevCapsTypeToString(def->source.caps.type));
         return -1;
     }
 }
@@ -1837,6 +1843,7 @@ virLXCControllerSetupAllHostdevs(virLXCController *ctrl)
                 return -1;
             break;
         default:
+        case VIR_DOMAIN_HOSTDEV_MODE_LAST:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Unsupported host device mode %1$s"),
                            virDomainHostdevModeTypeToString(def->mode));

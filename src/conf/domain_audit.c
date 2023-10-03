@@ -215,7 +215,7 @@ virDomainAuditRNG(virDomainObj *vm,
     const char *oldsrcpath = NULL;
 
     if (newDef) {
-        switch ((virDomainRNGBackend) newDef->backend) {
+        switch (newDef->backend) {
         case VIR_DOMAIN_RNG_BACKEND_RANDOM:
             newsrcpath = newDef->source.file;
             break;
@@ -231,7 +231,7 @@ virDomainAuditRNG(virDomainObj *vm,
     }
 
     if (oldDef) {
-        switch ((virDomainRNGBackend) oldDef->backend) {
+        switch (oldDef->backend) {
         case VIR_DOMAIN_RNG_BACKEND_RANDOM:
             oldsrcpath = oldDef->source.file;
             break;
@@ -351,9 +351,9 @@ virDomainAuditHostdev(virDomainObj *vm, virDomainHostdevDef *hostdev,
         return;
     }
 
-    switch ((virDomainHostdevMode) hostdev->mode) {
+    switch (hostdev->mode) {
     case VIR_DOMAIN_HOSTDEV_MODE_SUBSYS:
-        switch ((virDomainHostdevSubsysType) hostdev->source.subsys.type) {
+        switch (hostdev->source.subsys.type) {
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
             address = virPCIDeviceAddressAsString(&pcisrc->addr);
             break;
@@ -428,6 +428,8 @@ virDomainAuditHostdev(virDomainObj *vm, virDomainHostdevDef *hostdev,
                       virt, reason, vmname, uuidstr, device);
             break;
 
+        case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
+        case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
         default:
             VIR_WARN("Unexpected hostdev type while encoding audit message: %d",
                      hostdev->source.caps.type);

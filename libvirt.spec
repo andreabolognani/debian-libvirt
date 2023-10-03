@@ -128,7 +128,6 @@
     %define with_vmware 0
     %define with_libxl 0
     %define with_hyperv 0
-    %define with_vz 0
     %define with_lxc 0
 %endif
 
@@ -228,7 +227,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 9.7.0
+Version: 9.8.0
 Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/
@@ -249,6 +248,7 @@ Requires: libvirt-daemon-driver-lxc = %{version}-%{release}
 %endif
 %if %{with_qemu}
 Requires: libvirt-daemon-driver-qemu = %{version}-%{release}
+Requires: libvirt-client-qemu = %{version}-%{release}
 %endif
 # We had UML driver, but we've removed it.
 Obsoletes: libvirt-daemon-driver-uml <= 5.0.0
@@ -312,6 +312,7 @@ BuildRequires: util-linux
 BuildRequires: libacl-devel
 # From QEMU RPMs, used by virstoragetest
 BuildRequires: /usr/bin/qemu-img
+BuildRequires: libnbd-devel
 %endif
 # For LVM drivers
 BuildRequires: lvm2
@@ -768,6 +769,9 @@ Requires: numad
 Recommends: passt
 Recommends: passt-selinux
     %endif
+Recommends: nbdkit
+Recommends: nbdkit-curl-plugin
+Recommends: nbdkit-ssh-plugin
 
 %description daemon-driver-qemu
 The qemu driver plugin for the libvirtd daemon, providing
@@ -1074,8 +1078,10 @@ exit 1
 
 %if %{with_qemu}
     %define arg_qemu -Ddriver_qemu=enabled
+    %define arg_libnbd -Dlibnbd=enabled
 %else
     %define arg_qemu -Ddriver_qemu=disabled
+    %define arg_libnbd -Dlibnbd=disabled
 %endif
 
 %if %{with_openvz}
@@ -1264,6 +1270,7 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
            -Dyajl=enabled \
            %{?arg_sanlock} \
            -Dlibpcap=enabled \
+           %{?arg_libnbd} \
            -Dlibnl=enabled \
            -Daudit=enabled \
            -Ddtrace=enabled \
@@ -1327,6 +1334,7 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
   -Dglusterfs=disabled \
   -Dhost_validate=disabled \
   -Dlibiscsi=disabled \
+  -Dlibnbd=disabled \
   -Dlibnl=disabled \
   -Dlibpcap=disabled \
   -Dlibssh2=disabled \

@@ -47,7 +47,8 @@ VIR_ENUM_IMPL(virStorage,
               "network",
               "volume",
               "nvme",
-              "vhostuser"
+              "vhostuser",
+              "vhostvdpa"
 );
 
 
@@ -834,6 +835,7 @@ virStorageSourceCopy(const virStorageSource *src,
     def->tlsCertdir = g_strdup(src->tlsCertdir);
     def->tlsHostname = g_strdup(src->tlsHostname);
     def->query = g_strdup(src->query);
+    def->vdpadev = g_strdup(src->vdpadev);
 
     if (src->sliceStorage)
         def->sliceStorage = virStorageSourceSliceCopy(src->sliceStorage);
@@ -895,6 +897,9 @@ virStorageSourceCopy(const virStorageSource *src,
     /* ssh config passthrough for libguestfs */
     def->ssh_host_key_check_disabled = src->ssh_host_key_check_disabled;
     def->ssh_user = g_strdup(src->ssh_user);
+    def->ssh_known_hosts_file = g_strdup(src->ssh_known_hosts_file);
+    def->ssh_keyfile = g_strdup(src->ssh_keyfile);
+    def->ssh_agent = g_strdup(src->ssh_agent);
 
     def->nfs_user = g_strdup(src->nfs_user);
     def->nfs_group = g_strdup(src->nfs_group);
@@ -958,6 +963,7 @@ virStorageSourceIsSameLocation(virStorageSource *a,
         break;
 
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_FILE:
     case VIR_STORAGE_TYPE_BLOCK:
@@ -1054,6 +1060,7 @@ virStorageSourceIsLocalStorage(const virStorageSource *src)
          * Therefore, we have to return false here. */
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_LAST:
     case VIR_STORAGE_TYPE_NONE:
         return false;
@@ -1139,6 +1146,7 @@ virStorageSourceClear(virStorageSource *def)
     VIR_FREE(def->path);
     VIR_FREE(def->fdgroup);
     VIR_FREE(def->volume);
+    VIR_FREE(def->vdpadev);
     VIR_FREE(def->snapshot);
     VIR_FREE(def->configFile);
     VIR_FREE(def->query);
@@ -1170,6 +1178,9 @@ virStorageSourceClear(virStorageSource *def)
     VIR_FREE(def->tlsHostname);
 
     VIR_FREE(def->ssh_user);
+    VIR_FREE(def->ssh_known_hosts_file);
+    VIR_FREE(def->ssh_keyfile);
+    VIR_FREE(def->ssh_agent);
 
     VIR_FREE(def->nfs_user);
     VIR_FREE(def->nfs_group);
@@ -1246,6 +1257,7 @@ virStorageSourceIsRelative(virStorageSource *src)
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         return false;

@@ -24,8 +24,6 @@
   <flag name='nec-usb-xhci'/>
   <flag name='lsi'/>
   <flag name='virtio-scsi-pci'/>
-  <flag name='disable-s3'/>
-  <flag name='disable-s4'/>
   <flag name='usb-redir.filter'/>
   <flag name='seccomp-sandbox'/>
   <flag name='vnc'/>
@@ -64,7 +62,6 @@
   <flag name='virtio-input-host'/>
   <flag name='virtio-balloon-pci.deflate-on-oom'/>
   <flag name='mptsas1068'/>
-  <flag name='query-hotpluggable-cpus'/>
   <flag name='virtio-vga'/>
   <flag name='ivshmem-plain'/>
   <flag name='ivshmem-doorbell'/>
@@ -86,7 +83,6 @@
   <flag name='vhost-vsock'/>
   <flag name='tpm-emulator'/>
   <flag name='egl-headless'/>
-  <flag name='vfio-pci.display'/>
   <flag name='memory-backend-memfd'/>
   <flag name='memory-backend-memfd.hugetlb'/>
   <flag name='egl-headless.rendernode'/>

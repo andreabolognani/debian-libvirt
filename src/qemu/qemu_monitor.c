@@ -954,6 +954,18 @@ qemuMonitorInitBalloonObjectPath(qemuMonitor *mon,
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
         name = "virtio-balloon-ccw";
         break;
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCID:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_MMIO:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_ISA:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_UNASSIGNED:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_LAST:
     default:
         return;
     }
@@ -976,8 +988,7 @@ qemuMonitorInitBalloonObjectPath(qemuMonitor *mon,
 
     /* If we get here, we found the path, but not the property */
     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("Property 'guest-stats-polling-interval' "
-                     "not found on memory balloon driver."));
+                   _("Property 'guest-stats-polling-interval' not found on memory balloon driver."));
 
  cleanup:
     for (i = 0; i < nprops; i++)

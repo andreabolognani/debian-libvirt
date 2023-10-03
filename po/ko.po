@@ -16,8 +16,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-08-25 19:26+0000\n"
-"PO-Revision-Date: 2023-08-30 12:21+0000\n"
+"POT-Creation-Date: 2023-09-25 20:10+0000\n"
+"PO-Revision-Date: 2023-10-01 02:35+0000\n"
 "Last-Translator: 김인수 <simmon@nplob.com>\n"
 "Language-Team: Korean <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/ko/>\n"
@@ -26,7 +26,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 4.18.2\n"
+"X-Generator: Weblate 5.0.2\n"
 
 msgid ""
 "\n"
@@ -557,6 +557,10 @@ msgid "%1$s cannot parse UID '%2$s'"
 msgstr "%1$s는 UID '%2$s'를 구문 분석 할 수 없습니다"
 
 #, c-format
+msgid "%1$s disk is not supported with this QEMU binary"
+msgstr "%1$s 디스크는 이 QEMU 바이너리에서 지원되지 않습니다"
+
+#, c-format
 msgid "%1$s does not support passing a passphrase using a file descriptor"
 msgstr "%1$s는 파일 설명자 사용에 암호문 전달을 지원하지 않습니다"
 
@@ -919,6 +923,10 @@ msgstr "%1$s: 비밀 %2$s: %3$s에 대한 사건 '수명주기'\n"
 #, c-format
 msgid "%1$s: event 'lifecycle' for storage pool %2$s: %3$s\n"
 msgstr "%1$s: 저장소 풀 %2$s: %3$s에 대한 사건 '수명주기'\n"
+
+#, c-format
+msgid "%1$s: event 'metadata-change' for network %2$s: type %3$s, uri %4$s\n"
+msgstr "%1$s: 네트워크 %2$s를 위한 사건 'metadata-change': 유형 %3$s, uri %4$s\n"
 
 #, c-format
 msgid "%1$s: expected a bool for '%2$s' parameter"
@@ -1919,7 +1927,7 @@ msgid "Allows setting or modifying the description or title of a domain."
 msgstr "도메인의 영구 설정을 변경 할 수 없음."
 
 msgid "Allows setting or modifying the description or title of a network."
-msgstr ""
+msgstr "네트워크의 설명이나 제목을 설정하거나 수정 할 수 있도록 허용합니다."
 
 msgid "An error occurred, but the cause is unknown"
 msgstr "오류가 발생하였으나 원인은 알지 못합니다"
@@ -4253,10 +4261,6 @@ msgid "Could not find storage volume with key '%1$s'"
 msgstr "키 '%1$s'의 저장소 볼륨을 찾을 수 없음"
 
 #, c-format
-msgid "Could not find typefile '%1$s'"
-msgstr "타입파일 '%1$s'를 찾을 수 없음"
-
-#, c-format
 msgid "Could not find value for variable '%1$s'"
 msgstr "변수 '%1$s'의 값을 찾을 수 없음"
 
@@ -4746,10 +4750,6 @@ msgid "Could not read type information"
 msgstr "유형 정보를 읽을 수 없습니다"
 
 #, c-format
-msgid "Could not read typefile '%1$s'"
-msgstr "타입파일 '%1$s'를 읽을 수 없음"
-
-#, c-format
 msgid "Could not resume domain: %1$s"
 msgstr "도메인을 다시 시작할 수 없음: %1$s"
 
@@ -4896,6 +4896,10 @@ msgstr "파일시스템을 위해 원천 디렉토리를 설정 할 수 없음"
 msgid "Could not set wsman namespace address for xmlNodeParam"
 msgstr ""
 "xmlNodeParam에 대한 wsman 명칭공간 주소 (namespace) 를 설정할 수 없습니다"
+
+#, c-format
+msgid "Could not start 'nbdkit'. exitstatus: %1$d"
+msgstr "'nbdkit'를 시작 할 수 없습니다. 종료상태: %1$d"
 
 msgid "Could not start 'virtiofsd'"
 msgstr "'virtiofsd'를 시작할 수 없습니다"
@@ -5327,10 +5331,6 @@ msgstr "장비가 이미 활성화되어 있는 상태입니다"
 
 msgid "Device is not a fibre channel HBA"
 msgstr "장치가 광 채널 HBA가 아닙니다"
-
-#, c-format
-msgid "Device type '%1$s' is not an integer"
-msgstr "장치 유형 '%1$s'가 정수가 아닙니다"
 
 msgid "Device updated successfully\n"
 msgstr "장치가 성공적으로 최신화 되었습니다\n"
@@ -6656,6 +6656,10 @@ msgstr "나무 목록을 완료하지 못했습니다"
 msgid "Failed to connect socket to '%1$s'"
 msgstr "소켓을 '%1$s'에 연결하지 못했습니다"
 
+#, c-format
+msgid "Failed to connect to nbdkit for '%1$s': %2$s"
+msgstr "'%1$s': %2$s를 위해 nbdkit으로 연결하는데 실패함"
+
 msgid "Failed to connect to ssh agent"
 msgstr "SSH 에이전트에 연결하지 못했습니다"
 
@@ -7089,13 +7093,13 @@ msgstr "XML에 대한 암호를 이스케이프하지 못했습니다"
 
 #, c-format
 msgid "Failed to execute symbol '%1$s' in module '%2$s'"
-msgstr "모듈 '%1$s'에서 기호 '%2$s'을(를) 실행하지 못했습니다"
+msgstr "모듈 '%1$s'에서 기호 '%2$s'를 실행하지 못했습니다"
 
 msgid "Failed to extract interface information"
-msgstr "인터페이스 정보를 추출하는데 실패"
+msgstr "연결장치 정보를 추출하는데 실패함"
 
 msgid "Failed to extract interface information or no interfaces found"
-msgstr "인터페이스 정보를 추출하지 못하거나 인터페이스를 찾을 수 없습니다"
+msgstr "연결장치 정보를 추출하지 못하거나 연결장치를 찾을 수 없습니다"
 
 #, c-format
 msgid "Failed to find QOM Object path for device '%1$s'"
@@ -7140,7 +7144,7 @@ msgstr "gid '%1$u'의 그룹 기록을 찾는데 실패했습니다"
 
 #, c-format
 msgid "Failed to find module '%1$s'"
-msgstr "모듈 '%1$s'을(를) 찾지 못했습니다"
+msgstr "모듈 '%1$s'를 찾지 못했습니다"
 
 #, c-format
 msgid "Failed to find parent device for %1$s"
@@ -7186,7 +7190,7 @@ msgstr "분리된 인터페이스 %1$s에 대한 새 xml 문서의 형식을 지
 
 #, c-format
 msgid "Failed to fully read directory %1$s"
-msgstr "디렉토리 %1$s을(를) 완전히 읽지 못했습니다"
+msgstr "디렉토리 %1$s를 완전히 읽지 못했습니다"
 
 msgid "Failed to generate UUID"
 msgstr "UUID 생성 실패"
@@ -7242,6 +7246,10 @@ msgstr "클라이언트 소켓 PID를 가져오지 못했습니다"
 msgid "Failed to get client socket identity"
 msgstr "클라이언트 소켓 ID를 가져오지 못했습니다"
 
+#, c-format
+msgid "Failed to get current process capabilities: %1$d"
+msgstr "현재 프로세스 기능을 가져오는데 실패함: %1$d"
+
 msgid "Failed to get disk information"
 msgstr "디스크 정보 보기 실패"
 
@@ -7287,7 +7295,7 @@ msgid "Failed to get network autostart state"
 msgstr "네트워크 자동 시작 상태를 가져오지 못했습니다"
 
 msgid "Failed to get network description xml"
-msgstr ""
+msgstr "네트워크 설명 xml을 가져오는데 실패함"
 
 msgid "Failed to get network persistence info"
 msgstr "네트워크 지속성 정보를 가져오지 못했습니다"
@@ -7484,11 +7492,11 @@ msgstr "볼륨 목록화에 실패"
 
 #, c-format
 msgid "Failed to load PCI driver module %1$s"
-msgstr ""
+msgstr "pci 드라이버 모듈 %1$s을 적재하는데 실패함"
 
 #, c-format
 msgid "Failed to load PCI driver module %1$s: administratively prohibited"
-msgstr ""
+msgstr "PCI 드라이버 모듈 %1$s를 적재하는데 실패함: 관리상 금지"
 
 #, c-format
 msgid "Failed to load config for binding '%1$s'"
@@ -7757,7 +7765,7 @@ msgid "Failed to parse mode '%1$s'"
 msgstr "모드 '%1$s'의 구문분석에 실패했습니다"
 
 msgid "Failed to parse network description xml"
-msgstr ""
+msgstr "네트워크 설명 xml을 구문 분석하는데 실패함"
 
 #, c-format
 msgid "Failed to parse network device name from '%1$s'"
@@ -8259,10 +8267,10 @@ msgid "Failed to set new domain title"
 msgstr "새 도메인 제목을 설정하지 못했습니다"
 
 msgid "Failed to set new network description"
-msgstr ""
+msgstr "신규 네트워크 설명을 설정하는데 실패함"
 
 msgid "Failed to set new network title"
-msgstr ""
+msgstr "신규 네트워크 이름을 설정하는데 실패함"
 
 msgid "Failed to set non-blocking file descriptor flag"
 msgstr "비-블러킹 파일 디스크립터 플래그를 설정하는 데 실패했습니다"
@@ -8730,6 +8738,8 @@ msgid ""
 "Flags 'VIR_NETWORK_UPDATE_AFFECT_LIVE' and "
 "'VIR_NETWORK_UPDATE_AFFECT_CONFIG' are mutually exclusive"
 msgstr ""
+"플래그 'VIR_NETWORK_UPDATE_AFFECT_LIVE' and "
+"'VIR_NETWORK_UPDATE_AFFECT_CONFIG'는 상호 배타적입니다"
 
 #, c-format
 msgid "Floppy '%1$s' has unsupported type '%2$s', expecting '%3$s' or '%4$s'"
@@ -11525,9 +11535,6 @@ msgstr "JSON 문서에 제한된 자료가 누락되어 있습니다"
 msgid "Missing scsi_host PCI address element"
 msgstr "scsi_host PCI 주소 요소 누락"
 
-msgid "Missing scsi_host subsystem protocol"
-msgstr "scsi_host 하위 시스템 프로토콜 누락"
-
 #, c-format
 msgid "Missing separator in sched info '%1$s'"
 msgstr "스케쥴 정보 '%1$s'에서 구분자 누락"
@@ -11887,10 +11894,10 @@ msgstr ""
 "네트워크 설정 파일 이름 '%1$s'은 네트워크 이름 '%2$s'에 부합하지 않습니다ㅓ"
 
 msgid "Network description not changed\n"
-msgstr ""
+msgstr "네트워크 설명이 변경되지 않았습니다\n"
 
 msgid "Network description updated successfully"
-msgstr ""
+msgstr "네트워크 설명이 성공적으로 최신화 되었습니다"
 
 #, c-format
 msgid "Network device %1$s already exists"
@@ -11978,13 +11985,13 @@ msgid "Network port with UUID %1$s does not exist"
 msgstr "UUID %1$s와 함께 네트워크 포트가 존재하지 않습니다"
 
 msgid "Network title can't contain newlines"
-msgstr ""
+msgstr "네트워크 이름은 줄바꿈 문자(개행 문자)을 포함 할 수 없습니다"
 
 msgid "Network title not changed\n"
-msgstr ""
+msgstr "네트워크 이름이 변경되지 않았습니다\n"
 
 msgid "Network title updated successfully"
-msgstr ""
+msgstr "네트워크 이름이 성공적으로 최신화 되었습니다"
 
 #, c-format
 msgid "Network type %1$d is not supported"
@@ -12106,7 +12113,7 @@ msgstr "도메인 설명이 없음: %1$s"
 
 #, c-format
 msgid "No description for network: %1$s"
-msgstr ""
+msgstr "네트워크를 위한 설명이 없습니다: %1$s"
 
 msgid "No device model command-line argument specified"
 msgstr "장치 모델 명령줄 인수가 지정되지 않았습니다"
@@ -12324,16 +12331,13 @@ msgstr "도메인 제목 없음: %1$s"
 
 #, c-format
 msgid "No title for network: %1$s"
-msgstr ""
+msgstr "네트워크를 위한 이름이 없습니다: %1$s"
 
 msgid "No total stats available"
 msgstr "사용 가능한 총 통계가 없습니다"
 
 msgid "No transaction is set"
 msgstr "거래가 설정되지 않았습니다"
-
-msgid "No type specified for device address"
-msgstr "장치 주소 유형이 지정되지 않았습니다"
 
 #, c-format
 msgid "No usable Vf's present on SRIOV PF %1$s"
@@ -14437,7 +14441,7 @@ msgid "Shows or modifies the XML metadata of a domain."
 msgstr "도메인의 XML 메타데이터를 표시하거나 수정합니다."
 
 msgid "Shows or modifies the XML metadata of a network."
-msgstr ""
+msgstr "네트워크의 XML 메타자료를 표시하거나 수정합니다."
 
 msgid "Shutdown"
 msgstr "종료"
@@ -15254,11 +15258,11 @@ msgstr "대상 디스크 장치 %1$s가 소스%2$s와 일치하지 않음"
 
 #, c-format
 msgid "Target disk discard_granularity %1$u does not match source %2$u"
-msgstr ""
+msgstr "대상 디스크 discard_granularity %1$u가 원천 %2$u와 일치하지 않습니다"
 
 #, c-format
 msgid "Target disk logical_block_size %1$u does not match source %2$u"
-msgstr ""
+msgstr "대상 디스크 논리_블록_크기 %1$u가 원천 %2$u와 일치하지 않습니다"
 
 #, c-format
 msgid "Target disk model %1$s does not match source %2$s"
@@ -15266,7 +15270,7 @@ msgstr "대상 디스크 모델 %1$s가 소스 %2$s와 일치하지 않습니다
 
 #, c-format
 msgid "Target disk physical_block_size %1$u does not match source %2$u"
-msgstr ""
+msgstr "대상 디스크 물리_블록_크기 %1$u가 원천 %2$u와 일치하지 않습니다"
 
 #, c-format
 msgid "Target disk queue count %1$u does not match source %2$u"
@@ -16609,8 +16613,8 @@ msgid "Unable to add media registry other media"
 msgstr "미디어 레지스트리 다른 미디어를 추가 할 수 없습니다"
 
 #, c-format
-msgid "Unable to add port %1$s to OVS bridge %2$s"
-msgstr "포트 %1$s를 OVS 브릿지 %2$s에 추가 할 수 없습니다"
+msgid "Unable to add port %1$s to OVS bridge %2$s: %3$s"
+msgstr "OVS 브릿지에 포트 %1$s를 추가 할 수 없음 %2$s: %3$s"
 
 msgid "Unable to add storage controller"
 msgstr "저장소 제어기를 추가 할 수 없습니다"
@@ -16645,7 +16649,7 @@ msgid "Unable to allocate lockspace %1$s"
 msgstr "잠금공간 %1$s를 할당 할 수 없습니다"
 
 msgid "Unable to allocate stack"
-msgstr ""
+msgstr "스택을 할당 할 수 없습니다"
 
 #, c-format
 msgid "Unable to allocate x509 credentials: %1$s"
@@ -16854,8 +16858,8 @@ msgid "Unable to create UNIX socket"
 msgstr "유닉스 소켓을 생성 할 수 없습니다"
 
 #, c-format
-msgid "Unable to create and set qos configuration on port %1$s"
-msgstr "포트 %1$s에서 QOS 구성을 만들고 설정할 수 없습니다"
+msgid "Unable to create and set qos configuration on port %1$s: %2$s"
+msgstr "포트에서 qos 구성을 생성하거나 설정 할 수 없음 %1$s: %2$s"
 
 msgid "Unable to create blkid library handle"
 msgstr "blkid 라이브러리 핸들을 생성 할 수 없습니다"
@@ -16994,8 +16998,8 @@ msgid "Unable to delete medium"
 msgstr "미디어를 삭제 할 수 없습니다"
 
 #, c-format
-msgid "Unable to delete port %1$s from OVS"
-msgstr "OVS에서 포트 %1$s을(를) 삭제할 수 없습니다"
+msgid "Unable to delete port %1$s from OVS: %2$s"
+msgstr "OVS에서 포트 port %1$s를 삭제 할 수 없음: %2$s"
 
 #, c-format
 msgid "Unable to destroy '%1$s': %2$s"
@@ -17077,6 +17081,12 @@ msgid "Unable to find '%1$s' binary in $PATH"
 msgstr "$PATH에서 '%1$s' 바이너리를 찾을 수 없습니다"
 
 #, c-format
+msgid ""
+"Unable to find '%1$s' firmware that is compatible with the current "
+"configuration"
+msgstr "현재 구성에 호환하는 %1$s' 펌웨어를 찾을 수 없음"
+
+#, c-format
 msgid "Unable to find '%1$s' limit for block device '%2$s'"
 msgstr "블록 장치 '%1$s'에 '제한 %2$s'를 찾는데 실패했습니다"
 
@@ -17136,10 +17146,6 @@ msgstr "범위 '%1$s'(%2$d-%3$d)에서 사용하지 않는 포트를 찾을 수 
 
 msgid "Unable to find any /dev mount"
 msgstr "/dev 적재를 찾을 수 없습니다"
-
-#, c-format
-msgid "Unable to find any firmware to satisfy '%1$s'"
-msgstr "'%1$s'를 만족 할만한 어떤 펌웨어도 찾을 수 없습니다"
 
 #, c-format
 msgid "Unable to find any usable hugetlbfs mount for %1$llu KiB"
@@ -17601,11 +17607,11 @@ msgstr "루프 장치를 자동 지우기로 표시할 수 없음"
 
 #, c-format
 msgid "Unable to mass close FDs (first=%1$zd, last=%2$d"
-msgstr ""
+msgstr "FD를 일괄 종료 할 수 없음 (처음=%1$zd, 마지막=%2$d"
 
 #, c-format
 msgid "Unable to mass close FDs (first=%1$zd, last=%2$zd)"
-msgstr ""
+msgstr "FD를 일괄 종료 할 수 없음 (처음=%1$zd, 마지막=%2$zd)"
 
 msgid "Unable to modify live devices"
 msgstr "라이브 장치를 수정 할 수 없습니다"
@@ -17941,6 +17947,10 @@ msgid "Unable to read net device config on this platform"
 msgstr "이 기술환경에서 네트 장치 환경구성을 읽을 수 없습니다"
 
 #, c-format
+msgid "Unable to read pidfile '%1$s'"
+msgstr "pidfile '%1$s'을 읽을 수 없음"
+
+#, c-format
 msgid "Unable to read slirp pidfile '%1$s'"
 msgstr "slirp pidfile '%1$s'을(를) 읽을 수 없습니다"
 
@@ -18043,8 +18053,8 @@ msgid "Unable to reset PCI device %1$s: %2$s"
 msgstr "PCI 장치 %1$s를 리셋할 수 없음: %2$s"
 
 #, c-format
-msgid "Unable to reset ingress on port %1$s"
-msgstr "포트 %1$s에서 수신을 재시작 할 수 없습니다"
+msgid "Unable to reset ingress on port %1$s: %2$s"
+msgstr "포트에서 수신을 재설정 할 수 없습니다 %1$s: %2$s"
 
 #, c-format
 msgid "Unable to resolve address '%1$s' service '%2$s': %3$s"
@@ -18084,8 +18094,8 @@ msgid "Unable to run among %1$llu"
 msgstr "%1$llu 사이에서 실행 할 수 없음"
 
 #, c-format
-msgid "Unable to run command to get OVS master for interface %1$s"
-msgstr "인터페이스 %1$s에 대한 OVS 마스터를 가져오는 명령을 실행할 수 없습니다"
+msgid "Unable to run command to get OVS master for interface %1$s: %2$s"
+msgstr ""
 
 #, c-format
 msgid "Unable to run command to get OVS port data for interface %1$s"
@@ -18093,9 +18103,17 @@ msgstr ""
 "연결장치 %1$s를 위한 OVS 포트 자료를 가져오는 명령을 실행 할 수 없습니다"
 
 #, c-format
+msgid "Unable to run command to get OVS port data for interface %1$s: %2$s"
+msgstr ""
+
+#, c-format
 msgid "Unable to run command to set OVS port data for interface %1$s"
 msgstr ""
 "연결장치 %1$s를 위한 OVS 포트 자료를 설정하는 명령을 실행 할 수 없습니다"
+
+#, c-format
+msgid "Unable to run command to set OVS port data for interface %1$s: %2$s"
+msgstr ""
 
 msgid "Unable to run one time GDBus initializer"
 msgstr "GDBus 이니셜라이저를 한 번 실행할 수 없습니다"
@@ -18305,12 +18323,12 @@ msgid "Unable to set port profile on direct interfaces"
 msgstr "직접 인터페이스에서 포트 프로필을 설정할 수 없음"
 
 #, c-format
-msgid "Unable to set qos configuration on port %1$s"
-msgstr "포트 %1$s에서 qos 구성을 설정할 수 없습니다"
+msgid "Unable to set qos configuration on port %1$s: %2$s"
+msgstr ""
 
 #, c-format
-msgid "Unable to set queue configuration on port %1$s"
-msgstr "포트 %1$s에서 대기열 구성을 설정할 수 없습니다"
+msgid "Unable to set queue configuration on port %1$s: %2$s"
+msgstr ""
 
 msgid "Unable to set socket reuse addr flag"
 msgstr "소켓 재사용 addr 플래그를 설정할 수 없습니다"
@@ -18326,8 +18344,8 @@ msgid "Unable to set thread local variable"
 msgstr "스레드 로컬 변수를 설정할 수 없습니다"
 
 #, c-format
-msgid "Unable to set vlan configuration on port %1$s"
-msgstr "포트 %1$s에서 VLAN 구성을 설정할 수 없습니다"
+msgid "Unable to set vlan configuration on port %1$s: %2$s"
+msgstr ""
 
 #, c-format
 msgid "Unable to set x509 CA certificate: %1$s: %2$s"
@@ -18797,10 +18815,6 @@ msgid "Unknown SCSI controller model %1$s"
 msgstr "알 수 없는 SCSI 컨트롤러 모델 %1$s"
 
 #, c-format
-msgid "Unknown SCSI subsystem protocol '%1$s'"
-msgstr "알 수 없는 SCSI 하위 시스템 프로토콜 '%1$s'"
-
-#, c-format
 msgid "Unknown URI parameter '%1$s'"
 msgstr "알 수 없는 URI 매개변수 '%1$s'"
 
@@ -19008,10 +19022,6 @@ msgstr "알 수 없는 반환 코드"
 #, c-format
 msgid "Unknown sched_core value %1$s"
 msgstr "알지 못하는 sched_core 값 %1$s"
-
-#, c-format
-msgid "Unknown scsi_host subsystem protocol '%1$s'"
-msgstr "알 수 없는 scsi_host 하위 시스템 프로토콜 '%1$s'"
 
 #, c-format
 msgid "Unknown serial type: %1$X"
@@ -21091,6 +21101,10 @@ msgstr "netlink에 대한 자리 표시자 nlhandle을 할당할 수 없습니�
 msgid "cannot apply process capabilities %1$d"
 msgstr "프로세스 기능 %1$d을(를) 적용할 수 없습니다"
 
+#, c-format
+msgid "cannot apply process capabilities: %1$d"
+msgstr "처리 기능을 적용 할 수 없습니다: %1$d"
+
 msgid "cannot become session leader"
 msgstr "세션 리더가 되는 데 실패"
 
@@ -21784,7 +21798,7 @@ msgstr "'%1$s'에서 '%2$s'로 메모리 접근을 수정 할 수 없습니다"
 
 #, c-format
 msgid "cannot modify memory address from '0x%1$llx' to '0x%2$llx'"
-msgstr ""
+msgstr "'0x%1$llx'에서 '0x%2$llx'로 메모리 주소를 수정 할 수 없습니다"
 
 #, c-format
 msgid "cannot modify memory block size from '%1$llu' to '%2$llu'"
@@ -23748,7 +23762,7 @@ msgstr "내부 스냅샷이 상위로 있는 외부 스냅샷 삭제하기는 �
 msgid ""
 "deletion of active external snapshot that is not a leaf snapshot is not "
 "supported"
-msgstr ""
+msgstr "리프 스냅샷이 아닌 활성화된 외부 스냅샷 삭제는 지원되지 않습니다"
 
 msgid "deletion of external and internal children disk snapshots not supported"
 msgstr "외부와 내부 하위 디스크 스냅샷 삭제가 지원되지 않음"
@@ -23759,7 +23773,7 @@ msgstr "외부 하위 디스크 스냅샷의 삭제는 지원되지 않습니다
 msgid ""
 "deletion of external disk snapshot with multiple children snapshots not "
 "supported"
-msgstr ""
+msgstr "다중 하위 스냅샷이 있는 외부 디스크 스냅샷의 삭제는 지원되지 않습니다"
 
 msgid "deletion of external disk snapshots with children not supported"
 msgstr "하위에 있는 외부 디스크 스냅샷의 삭제는 지원되지 않습니다"
@@ -23767,7 +23781,7 @@ msgstr "하위에 있는 외부 디스크 스냅샷의 삭제는 지원되지 �
 msgid ""
 "deletion of non-leaf external snapshot that is not in active chain is not "
 "supported"
-msgstr ""
+msgstr "활성화된 체인에 있지 않은 비-리프 외부 스냅샷 삭제는 지원되지 않습니다"
 
 #, c-format
 msgid "deprecated configuration: %1$s"
@@ -24227,6 +24241,10 @@ msgid "disk target %1$s not found"
 msgstr "디스크 대상 %1$s을(를) 찾을 수 없습니다"
 
 #, c-format
+msgid "disk type '%1$s' requires cache mode '%2$s' or '%3$s'"
+msgstr ""
+
+#, c-format
 msgid "disk type of '%1$s' does not support ejectable media"
 msgstr "디스크 유형 '%1$s'은(는) 꺼낼 수 있는 미디어를 지원하지 않습니다"
 
@@ -24263,10 +24281,6 @@ msgstr "풀을 위해 확장된 상세 정보를 표시"
 
 msgid "display extended details for volumes"
 msgstr "볼륨의 확장된 상세 정보를 표시"
-
-msgid ""
-"display property of device vfio-pci is not supported by this version of QEMU"
-msgstr "장치 vfio-pic의 표시 특성은 이 QUMU 버전에서 지원하지 않습니다"
 
 msgid "display the progress of dump"
 msgstr "덤프 진행 상황 표시"
@@ -24607,7 +24621,7 @@ msgid "driver serial '%1$s' contains unsafe characters"
 msgstr "드라이브 시리얼 '%1$s'에 안전하지 않은 문자가 포함되어 있습니다"
 
 msgid "driver type not set"
-msgstr ""
+msgstr "드라이버 유형이 설정되지 않았습니다"
 
 msgid "dropped"
 msgstr "드랍됨"
@@ -24742,6 +24756,10 @@ msgstr "비밀 uuid 또는 예상 사용량"
 
 msgid "element"
 msgstr "요소"
+
+#, c-format
+msgid "element '%1$s' requires either 'keyfile' or 'agentsock' attribute"
+msgstr ""
 
 msgid "element 'genid' can only appear once"
 msgstr "요소 'genid'는 한 번만 나타날 수 있습니다"
@@ -25118,6 +25136,10 @@ msgstr ""
 #, c-format
 msgid "event 'metadata-change' for domain '%1$s': type %2$s, uri %3$s\n"
 msgstr "도메인 '%1$s'를 위한 사건 '메타자료-변경': 유형 %2$s, uri %3$s\n"
+
+#, c-format
+msgid "event 'metadata-change' for network %1$s: type %2$s, uri %3$s\n"
+msgstr ""
 
 #, c-format
 msgid "event 'migration-iteration' for domain '%1$s': iteration: '%2$d'\n"
@@ -26020,6 +26042,10 @@ msgid "failed to mark pool %1$s as autostarted"
 msgstr "자동 시작으로 %1$s 풀을 표시하기 실패"
 
 #, c-format
+msgid "failed to monitor nbdkit process %1$i"
+msgstr ""
+
+#, c-format
 msgid "failed to move file to %1$s "
 msgstr "파일을 %1$s로 이동하는데 실패 "
 
@@ -26691,6 +26717,9 @@ msgstr "파일시스템 유형이 'template'나 'mount'가 아닙니다"
 #, c-format
 msgid "filesystem target '%1$s' specified twice"
 msgstr "파일 시스템 대상 '%1$s'이(가) 두 번 지정되었습니다"
+
+msgid "filesystem usage limits are not supported with QEMU"
+msgstr ""
 
 #, c-format
 msgid "filter '%1$s' already exists with uuid %2$s"
@@ -28651,7 +28680,7 @@ msgid "ivgen element found, but cipher is missing"
 msgstr "ivgen 요소를 찾았지만 암호가 없습니다"
 
 msgid "ivshmem device is no longer supported"
-msgstr ""
+msgstr "ivshmem 장치는 더 이상 지원되지 않습니다"
 
 #, c-format
 msgid "job '%1$s' canceled by client"
@@ -28786,8 +28815,9 @@ msgstr "libvirt 관리 데몬:"
 msgid "libvirt was built without the '%1$s' driver"
 msgstr "libvirt가 '%1$s' 드라이버 없이 제작(빌드)되었습니다"
 
-msgid "libvirt was not compiled with libpcap and \""
-msgstr "libvirt가 libcap과 \"로 컴파일되지 않았습니다"
+#, c-format
+msgid "libvirt was not compiled with libpcap and \"%1$s\" requires it"
+msgstr ""
 
 msgid "libvirt will automatically detach/attach the device from/to host"
 msgstr "libvirt는 호스트에서 자동으로 장치를 분리/연결합니다"
@@ -29374,10 +29404,6 @@ msgid "malformed mtu size"
 msgstr "잘못된 mtu 크기"
 
 #, c-format
-msgid "malformed namespace '%1$s'"
-msgstr "형식이 잘못된 네임스페이스 '%1$s'"
-
-#, c-format
 msgid "malformed namespace name: %1$s"
 msgstr "잘못된 네임스페이스 이름: %1$s"
 
@@ -29630,8 +29656,18 @@ msgstr "메모리 '%1$s'를 찾지 못했습니다"
 msgid "memory access mode '%1$s' not supported without guest numa node"
 msgstr "이 버전의 qemu에서는 메모리 부울 장치 유형 '%1$s'를 지원하지 않습니다"
 
+#, c-format
+msgid "memory address must be aligned to %1$ld bytes"
+msgstr ""
+
 msgid "memory attributes: [file=]name[,snapshot=type]"
 msgstr "메모리 속성: [file=]name[,snapshot=type]"
+
+#, c-format
+msgid ""
+"memory device address [0x%1$llx:0x%2$llx] overlaps with other memory device "
+"(0x%3$llx)"
+msgstr ""
 
 #, c-format
 msgid "memory device address is not supported for model '%1$s'"
@@ -29994,9 +30030,6 @@ msgstr "QEMU 기능 캐시에서 호스트 CPU 모델 속성에 대한 '이름' 
 msgid "missing 'name' attribute for qemu:property"
 msgstr "qemu를 위해 누락된 'name' 속성:property"
 
-msgid "missing 'namespace' attribute to disk source"
-msgstr "디스크 원천에 대한 '이름공간' 속성 누락"
-
 #, c-format
 msgid "missing 'nvram-template' in '%1$s'"
 msgstr "'%1$s'에 'nvram-template'이 없습니다"
@@ -30095,12 +30128,6 @@ msgstr "QEMU 기능 캐시에 GIC 버전 누락"
 
 msgid "missing IFLA_VF_INFO in netlink response"
 msgstr "넷링크 응답에서 IFLA_VF_INFO 누락"
-
-msgid "missing RNG device backend model"
-msgstr "RNG 장치 백엔드 모델이 누락되어 있음"
-
-msgid "missing RNG device model"
-msgstr "RNG 장치 모델이 누락되어 있음"
 
 #, c-format
 msgid "missing SCSI host capability type for '%1$s'"
@@ -30439,6 +30466,12 @@ msgstr "이름 정보 부재"
 msgid "missing name information in %1$s"
 msgstr "%1$s에 이름 정보가 없습니다"
 
+msgid "missing nbdkit pidfile"
+msgstr ""
+
+msgid "missing nbdkit socketfile"
+msgstr ""
+
 msgid "missing network device feature name"
 msgstr "누락된 네트워크 장치 기능 이름"
 
@@ -30517,6 +30550,9 @@ msgstr "JSON 백업 볼륨 드라이버 '%1$s'에 대한 구문 분석기 구현
 
 msgid "missing path for <reservations/>"
 msgstr "<reservations/>를 위한 경로 누락"
+
+msgid "missing path in nbdkit capabilities cache"
+msgstr ""
 
 msgid "missing path to restore from"
 msgstr "복원하려는 경로가 누락됨"
@@ -30631,9 +30667,6 @@ msgstr "외부 TPM 장치를 위한 누락된 소켓 경로"
 msgid ""
 "missing socket path for udp backing server in JSON backing volume definition"
 msgstr "JSON 백업 볼륨 정의에서 udp 백업 서버에 대한 소켓 경로 누락"
-
-msgid "missing source address type"
-msgstr "원천 주소 유형이 누락됨"
 
 msgid "missing source device"
 msgstr "원천 장치 누락"
@@ -31014,6 +31047,12 @@ msgstr "nbd 프로토콜은 하나의 호스트만 허용합니다"
 #, c-format
 msgid "nbd_tls_x509_cert_dir directory '%1$s' does not exist"
 msgstr "nbd_tls_x509_cert_dir 디렉토리 '%1$s'가 존재하지 않습니다"
+
+msgid "nbdkit restart failed"
+msgstr ""
+
+msgid "nbdkit support is not enabled"
+msgstr ""
 
 msgid "ncpumaps > REMOTE_VCPUINFO_MAX"
 msgstr "ncpumaps > REMOTE_VCPUINFO_MAX"
@@ -32788,6 +32827,10 @@ msgstr "pid"
 msgid "pid_value in %1$s is too large"
 msgstr "%1$s에 있는 pid_value가 너무 큽니다"
 
+#, c-format
+msgid "pidfd_open failed for %1$i"
+msgstr ""
+
 msgid "pin all memory before starting RDMA live migration"
 msgstr "RDMA 실시간 이전을 시작하기 전에 모든 메모리 고정합니다"
 
@@ -33091,6 +33134,10 @@ msgstr "이름 'id'를 갖는 특성은 재지정 할 수 없습니다"
 #, c-format
 msgid "protocol '%1$s' accepts only one host"
 msgstr "프로토콜 '%1$s'는 하나의 호스트만 허용합니다"
+
+#, c-format
+msgid "protocol '%1$s' is not supported by nbdkit"
+msgstr ""
 
 msgid "protocol misses the family attribute"
 msgstr "프로토콜에 패밀리 특성이 빠졌습니다"
@@ -34221,11 +34268,8 @@ msgid ""
 msgstr ""
 "'qemu:property'의 'value' 속성 설정은 'remove' 유형에서 의미가 없습니다"
 
-msgid "setting ACPI S3 not supported"
-msgstr "ACPI S3 설정이 지원되지 않음"
-
-msgid "setting ACPI S4 not supported"
-msgstr "ACPI S4 설정이 지원되지 않음"
+msgid "setting ACPI S3/S4 not supported"
+msgstr ""
 
 #, c-format
 msgid "setting MTU on interface type %1$s is not supported yet"
@@ -34389,7 +34433,7 @@ msgid "show inactive defined XML"
 msgstr "비활성화로 정의된 XML을 보여줌"
 
 msgid "show network title"
-msgstr ""
+msgstr "네트워크 명칭을 표시합니다"
 
 msgid "show or set domain's custom XML metadata"
 msgstr "도메인의 사용자 지정 XML 메타데이터 표시 또는 설정"
@@ -34398,10 +34442,10 @@ msgid "show or set domain's description or title"
 msgstr "도메인 설명 또는 제목 보기 또는 설정"
 
 msgid "show or set network's custom XML metadata"
-msgstr ""
+msgstr "네트워크의 사용자 정의 XML 메타자료를 보여주거나 설정합니다"
 
 msgid "show or set network's description or title"
-msgstr ""
+msgstr "네트워크의 설명 또는 명칭을 보여주거나 설정합니다"
 
 msgid "show timestamp for each printed event"
 msgstr "인쇄된 각 이벤트에 대한 타임스탬프 표시"
@@ -36861,14 +36905,6 @@ msgid "unknown QEMU_AUDIO_DRV setting %1$s"
 msgstr "알 수 없는 QEMU_AUDIO_DRV 설정 %1$s"
 
 #, c-format
-msgid "unknown RNG backend model '%1$s'"
-msgstr "알 수 없는 RNG 백엔드 모델 '%1$s'"
-
-#, c-format
-msgid "unknown RNG model '%1$s'"
-msgstr "알 수 없는 RNG 모델 '%1$s'"
-
-#, c-format
 msgid "unknown SCSI host capability type '%1$s' for '%2$s'"
 msgstr "SCSI 호스트 기능 유형 '%1$s'가('%2$s'에 대한) 알려져 있지 않음"
 
@@ -36879,10 +36915,6 @@ msgstr "'%1$s'을 위해 알려지지 않은 SCSI 대상 기능 유형 '%2$s'"
 #, c-format
 msgid "unknown SDL_AUDIODRIVER setting %1$s"
 msgstr "알 수 없는 SDL_AUDIODRIVER 설정 %1$s"
-
-#, c-format
-msgid "unknown address type '%1$s'"
-msgstr "알 수 없는 주소 유형 '%1$s'"
 
 #, c-format
 msgid "unknown address type '%1$s' in network %2$s"
@@ -37039,10 +37071,6 @@ msgid "unknown host device source address type '%1$s'"
 msgstr "알 수 없는 호스트 장치 원천 주소 유형 '%1$s'"
 
 #, c-format
-msgid "unknown hostdev mode '%1$s'"
-msgstr "알려지지 않은 hostdev 모드 '%1$s'"
-
-#, c-format
 msgid "unknown hub device type '%1$s'"
 msgstr "알 수 없는 허브 장치 유형 '%1$s'"
 
@@ -37154,10 +37182,6 @@ msgstr "알 수 없는 풀 포맷 형식 %1$s"
 #, c-format
 msgid "unknown procedure: %1$d"
 msgstr "알지 못하는 절차: %1$d"
-
-#, c-format
-msgid "unknown protocol transport type '%1$s'"
-msgstr "알 수 없는 프로토콜 전송 유형 '%1$s'"
 
 #, c-format
 msgid "unknown redirdev bus '%1$s'"
@@ -37289,14 +37313,6 @@ msgstr "알려지지 않은 볼륨 형식 유형 %1$s"
 #, c-format
 msgid "unknown volume type '%1$s'"
 msgstr "알 수 없는 볼륨 유형 '%1$s'"
-
-#, c-format
-msgid "unknown watchdog action '%1$s'"
-msgstr "알려지지 않은 와치독 동작 '%1$s'"
-
-#, c-format
-msgid "unknown watchdog model '%1$s'"
-msgstr "알려지지 않은 와치독 방식 '%1$s'"
 
 #, c-format
 msgid "unknown write_policy value '%1$u'"
@@ -37468,6 +37484,9 @@ msgstr "<reservations/>: %1$s를 위한 연결 유형 미지원"
 #, c-format
 msgid "unsupported console target type %1$s"
 msgstr "지원되지 않는 콘솔 대상 유형 %1$s"
+
+msgid "unsupported controller device"
+msgstr ""
 
 #, c-format
 msgid "unsupported cpu feature '%1$s'"
@@ -37777,6 +37796,8 @@ msgid ""
 "use of 'VIR_MIGRATE_PARAM_MIGRATE_DISKS' requires use of "
 "'VIR_MIGRATE_NON_SHARED_DISK' or 'VIR_MIGRATE_NON_SHARED_INC' flag"
 msgstr ""
+"'VIR_MIGRATE_PARAM_MIGRATE_DISKS'의 사용은 'VIR_MIGRATE_NON_SHARED_DISK' 또"
+"는 'VIR_MIGRATE_NON_SHARED_INC' 플래그의 사용이 필요합니다"
 
 msgid "use of <server> requires pull mode backup"
 msgstr "<server>를 사용하려면 풀 모드 백업이 필요합니다"
@@ -38123,9 +38144,6 @@ msgstr "vhost-user-gpu를 시작하지 못했습니다"
 msgid "vhost_user type support UNIX socket in this CH"
 msgstr "vhost_user 유형은 이 CH에서 UNIX 소켓을 지원합니다"
 
-msgid "vhostuser disk is not supported with this QEMU binary"
-msgstr "vhostuser 디스크는 이 QEMU 바이너리에서 지원되지 않습니다"
-
 msgid "vhostuser disk supports only virtio bus"
 msgstr "vhostuser 디스크는 virtio 버스만 지원합니다"
 
@@ -38360,6 +38378,9 @@ msgstr "virtiofs는 모델을 지원하지 않습니다"
 
 msgid "virtiofs does not support multidevs"
 msgstr "virtiofs는 multidevs를 지원하지 않습니다"
+
+msgid "virtiofs does not support read-only access"
+msgstr ""
 
 msgid "virtiofs does not support wrpolicy"
 msgstr "virtiofs는 wrpolicy를 지원하지 않습니다"
@@ -38613,9 +38634,6 @@ msgstr "경고"
 msgid "watchdog"
 msgstr "와치독"
 
-msgid "watchdog must contain model name"
-msgstr "와치독에는 모델명이 포함되어야 합니다"
-
 msgid ""
 "watchdogs with different actions are not supported with this QEMU binary"
 msgstr ""
@@ -38770,6 +38788,133 @@ msgstr ""
 #, c-format
 msgid "{[--%1$s] <string>}..."
 msgstr "{[--%1$s] <string>}..."
+
+#, c-format
+#~ msgid "Could not find typefile '%1$s'"
+#~ msgstr "타입파일 '%1$s'를 찾을 수 없음"
+
+#, c-format
+#~ msgid "Could not read typefile '%1$s'"
+#~ msgstr "타입파일 '%1$s'를 읽을 수 없음"
+
+#, c-format
+#~ msgid "Device type '%1$s' is not an integer"
+#~ msgstr "장치 유형 '%1$s'가 정수가 아닙니다"
+
+#~ msgid "Missing scsi_host subsystem protocol"
+#~ msgstr "scsi_host 하위 시스템 프로토콜 누락"
+
+#~ msgid "No type specified for device address"
+#~ msgstr "장치 주소 유형이 지정되지 않았습니다"
+
+#, c-format
+#~ msgid "Unable to add port %1$s to OVS bridge %2$s"
+#~ msgstr "포트 %1$s를 OVS 브릿지 %2$s에 추가 할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to create and set qos configuration on port %1$s"
+#~ msgstr "포트 %1$s에서 QOS 구성을 만들고 설정할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to delete port %1$s from OVS"
+#~ msgstr "OVS에서 포트 %1$s을(를) 삭제할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to find any firmware to satisfy '%1$s'"
+#~ msgstr "'%1$s'를 만족 할만한 어떤 펌웨어도 찾을 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to reset ingress on port %1$s"
+#~ msgstr "포트 %1$s에서 수신을 재시작 할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to run command to get OVS master for interface %1$s"
+#~ msgstr ""
+#~ "인터페이스 %1$s에 대한 OVS 마스터를 가져오는 명령을 실행할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to set qos configuration on port %1$s"
+#~ msgstr "포트 %1$s에서 qos 구성을 설정할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to set queue configuration on port %1$s"
+#~ msgstr "포트 %1$s에서 대기열 구성을 설정할 수 없습니다"
+
+#, c-format
+#~ msgid "Unable to set vlan configuration on port %1$s"
+#~ msgstr "포트 %1$s에서 VLAN 구성을 설정할 수 없습니다"
+
+#, c-format
+#~ msgid "Unknown SCSI subsystem protocol '%1$s'"
+#~ msgstr "알 수 없는 SCSI 하위 시스템 프로토콜 '%1$s'"
+
+#, c-format
+#~ msgid "Unknown scsi_host subsystem protocol '%1$s'"
+#~ msgstr "알 수 없는 scsi_host 하위 시스템 프로토콜 '%1$s'"
+
+#~ msgid ""
+#~ "display property of device vfio-pci is not supported by this version of "
+#~ "QEMU"
+#~ msgstr "장치 vfio-pic의 표시 특성은 이 QUMU 버전에서 지원하지 않습니다"
+
+#~ msgid "libvirt was not compiled with libpcap and \""
+#~ msgstr "libvirt가 libcap과 \"로 컴파일되지 않았습니다"
+
+#, c-format
+#~ msgid "malformed namespace '%1$s'"
+#~ msgstr "형식이 잘못된 네임스페이스 '%1$s'"
+
+#~ msgid "missing 'namespace' attribute to disk source"
+#~ msgstr "디스크 원천에 대한 '이름공간' 속성 누락"
+
+#~ msgid "missing RNG device backend model"
+#~ msgstr "RNG 장치 백엔드 모델이 누락되어 있음"
+
+#~ msgid "missing RNG device model"
+#~ msgstr "RNG 장치 모델이 누락되어 있음"
+
+#~ msgid "missing source address type"
+#~ msgstr "원천 주소 유형이 누락됨"
+
+#~ msgid "setting ACPI S3 not supported"
+#~ msgstr "ACPI S3 설정이 지원되지 않음"
+
+#~ msgid "setting ACPI S4 not supported"
+#~ msgstr "ACPI S4 설정이 지원되지 않음"
+
+#, c-format
+#~ msgid "unknown RNG backend model '%1$s'"
+#~ msgstr "알 수 없는 RNG 백엔드 모델 '%1$s'"
+
+#, c-format
+#~ msgid "unknown RNG model '%1$s'"
+#~ msgstr "알 수 없는 RNG 모델 '%1$s'"
+
+#, c-format
+#~ msgid "unknown address type '%1$s'"
+#~ msgstr "알 수 없는 주소 유형 '%1$s'"
+
+#, c-format
+#~ msgid "unknown hostdev mode '%1$s'"
+#~ msgstr "알려지지 않은 hostdev 모드 '%1$s'"
+
+#, c-format
+#~ msgid "unknown protocol transport type '%1$s'"
+#~ msgstr "알 수 없는 프로토콜 전송 유형 '%1$s'"
+
+#, c-format
+#~ msgid "unknown watchdog action '%1$s'"
+#~ msgstr "알려지지 않은 와치독 동작 '%1$s'"
+
+#, c-format
+#~ msgid "unknown watchdog model '%1$s'"
+#~ msgstr "알려지지 않은 와치독 방식 '%1$s'"
+
+#~ msgid "vhostuser disk is not supported with this QEMU binary"
+#~ msgstr "vhostuser 디스크는 이 QEMU 바이너리에서 지원되지 않습니다"
+
+#~ msgid "watchdog must contain model name"
+#~ msgstr "와치독에는 모델명이 포함되어야 합니다"
 
 #~ msgid "Attempting to use unknown stub driver"
 #~ msgstr "알수없는 스텁 드라이버 (stub driver)를 사용하려고 시도하고 있습니다"

@@ -466,7 +466,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("cputune-cpuset-big-id");
     DO_TEST_CAPS_LATEST("numavcpus-topology-mismatch");
 
-    DO_TEST_CAPS_LATEST("smp");
     DO_TEST_CAPS_LATEST("iothreads-ids");
     DO_TEST_CAPS_LATEST("iothreads-ids-pool-sizes");
     DO_TEST_CAPS_LATEST("iothreads-ids-partial");
@@ -482,10 +481,16 @@ mymain(void)
     DO_TEST_CAPS_LATEST("virtio-lun");
 
     DO_TEST_CAPS_LATEST("usb-none");
-    DO_TEST_CAPS_LATEST("usb-controller");
-    DO_TEST_CAPS_LATEST("usb-piix3-controller");
+    DO_TEST_CAPS_LATEST("usb-controller-implicit-isapc");
+    DO_TEST_CAPS_LATEST("usb-controller-implicit-i440fx");
+    DO_TEST_CAPS_LATEST("usb-controller-implicit-q35");
+    DO_TEST_CAPS_LATEST("usb-controller-default-i440fx");
     DO_TEST_CAPS_LATEST("usb-controller-default-q35");
-    DO_TEST_CAPS_LATEST("usb-controller-explicit-q35");
+    DO_TEST_CAPS_LATEST("usb-controller-piix3");
+    DO_TEST_CAPS_LATEST("usb-controller-ich9-ehci-addr");
+    DO_TEST_CAPS_LATEST("usb-controller-nec-xhci");
+    DO_TEST_CAPS_ARCH_LATEST_FULL("usb-controller-default-unavailable-i440fx", "x86_64",
+                                  ARG_QEMU_CAPS_DEL, QEMU_CAPS_PIIX3_USB_UHCI, QEMU_CAPS_LAST);
     DO_TEST_CAPS_ARCH_LATEST("ppc64-usb-controller", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-usb-controller-legacy", "ppc64");
     DO_TEST_CAPS_LATEST("usb-port-missing");
@@ -573,7 +578,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("numad-auto-vcpu-no-numatune");
     DO_TEST_CAPS_LATEST("numad-auto-memory-vcpu-no-cpuset-and-placement");
     DO_TEST_CAPS_LATEST("numad-auto-memory-vcpu-cpuset");
-    DO_TEST_CAPS_LATEST("usb-ich9-ehci-addr");
     DO_TEST_CAPS_LATEST("disk-copy_on_read");
     DO_TEST_CAPS_LATEST("tpm-passthrough");
     DO_TEST_CAPS_LATEST("tpm-passthrough-crb");

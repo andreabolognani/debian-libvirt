@@ -1548,9 +1548,8 @@ qemuGetDomainHupageMemPath(virQEMUDriver *driver,
     size_t i = 0;
 
     if (!cfg->nhugetlbfs) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("hugetlbfs filesystem is not mounted "
-                               "or disabled by administrator config"));
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("hugetlbfs filesystem is not mounted or disabled by administrator config"));
         return -1;
     }
 
@@ -1655,4 +1654,26 @@ qemuHugepageMakeBasedir(virQEMUDriver *driver,
         return -1;
 
     return 0;
+}
+
+
+/*
+ * qemuGetNbdkitCaps:
+ * @driver: the qemu driver
+ *
+ * Gets the capabilities for Nbdkit for the specified driver. These can be used
+ * to determine whether a particular disk source can be served by nbdkit or
+ * not.
+ *
+ * Returns: a reference to qemuNbdkitCaps or NULL
+ */
+qemuNbdkitCaps*
+qemuGetNbdkitCaps(virQEMUDriver *driver)
+{
+    g_autofree char *nbdkitBinary = virFindFileInPath("nbdkit");
+
+    if (!nbdkitBinary)
+        return NULL;
+
+    return virFileCacheLookup(driver->nbdkitCapsCache, nbdkitBinary);
 }

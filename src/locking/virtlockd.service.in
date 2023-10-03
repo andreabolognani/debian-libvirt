@@ -7,6 +7,7 @@ Documentation=man:virtlockd(8)
 Documentation=https://libvirt.org
 
 [Service]
+Type=notify
 Environment=VIRTLOCKD_ARGS=
 EnvironmentFile=-@initconfdir@/virtlockd
 ExecStart=@sbindir@/virtlockd $VIRTLOCKD_ARGS
@@ -21,4 +22,6 @@ OOMScoreAdjust=-900
 LimitNOFILE=1024:524288
 
 [Install]
+WantedBy=multi-user.target
 Also=virtlockd.socket
+Also=virtlockd-admin.socket

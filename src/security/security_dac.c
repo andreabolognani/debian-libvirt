@@ -1230,7 +1230,7 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
     if (cbdata.secdef && !cbdata.secdef->relabel)
         return 0;
 
-    switch ((virDomainHostdevSubsysType)dev->source.subsys.type) {
+    switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
         g_autoptr(virUSBDevice) usb = NULL;
 
@@ -1393,7 +1393,7 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         scsisrc->protocol == VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI)
         return 0;
 
-    switch ((virDomainHostdevSubsysType)dev->source.subsys.type) {
+    switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
         g_autoptr(virUSBDevice) usb = NULL;
 
@@ -2320,8 +2320,7 @@ virSecurityDACGenLabel(virSecurityManager *mgr,
 
     if (seclabel->imagelabel) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("security image label already "
-                         "defined for VM"));
+                       _("security image label already defined for VM"));
         return rc;
     }
 

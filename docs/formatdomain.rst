@@ -2678,6 +2678,11 @@ paravirtualized driver is specified via the ``disk`` element.
        </source>
        <target dev='vdf' bus='virtio'/>
      </disk>
+     <disk type='vhostvdpa' device='disk'>
+       <driver name='qemu' type='raw'/>
+       <source dev='/dev/vhost-vdpa-0' />
+       <target dev='vdg' bus='virtio'/>
+     </disk>
    </devices>
    ...
 
@@ -2688,8 +2693,9 @@ paravirtualized driver is specified via the ``disk`` element.
    ``type``
       Valid values are "file", "block", "dir" ( :since:`since 0.7.5` ),
       "network" ( :since:`since 0.8.7` ), or "volume" ( :since:`since 1.0.5` ),
-      or "nvme" ( :since:`since 6.0.0` ), or "vhostuser" ( :since:`since 7.1.0` )
-      and refer to the underlying source for the disk. :since:`Since 0.0.3`
+      or "nvme" ( :since:`since 6.0.0` ), or "vhostuser" ( :since:`since 7.1.0` ),
+      or "vhostvdpa" ( :since:`since 9.8.0 (QEMU 8.1.0)`) and refer to the
+      underlying source for the disk. :since:`Since 0.0.3`
    ``device``
       Indicates how the disk is to be exposed to the guest OS. Possible values
       for this attribute are "floppy", "disk", "cdrom", and "lun", defaulting to
@@ -2778,7 +2784,7 @@ paravirtualized driver is specified via the ``disk`` element.
    ``network``
       The ``protocol`` attribute specifies the protocol to access to the
       requested image. Possible values are "nbd", "iscsi", "rbd", "sheepdog",
-      "gluster", "vxhs", "nfs", "http", "https", "ftp", ftps", or "tftp".
+      "gluster", "vxhs", "nfs", "http", "https", "ftp", ftps", "tftp", or "ssh".
 
       For any ``protocol`` other than ``nbd`` an additional attribute ``name``
       is mandatory to specify which volume/image will be used.
@@ -2879,6 +2885,15 @@ paravirtualized driver is specified via the ``disk`` element.
       ``<disk>`` XML for this disk type. Additionally features such as blockjobs,
       incremental backups and snapshots are not supported for this disk type.
 
+   ``vhostvdpa``
+      Enables the hypervisor to connect to a vDPA block device. Requires shared
+      memory configured for the VM, for more details see ``access`` mode for
+      ``memoryBacking`` element (See `Memory Backing`_).
+
+      The ``source`` element has a mandatory attribute ``dev`` that specifies
+      the fully-qualified path to the vhost-vdpa character device (e.g.
+      ``/dev/vhost-vdpa-0``).
+
    With "file", "block", and "volume", one or more optional sub-elements
    ``seclabel`` (See `Security label`_) can be used to override the domain
    security labeling policy for just that source file.
@@ -2930,18 +2945,19 @@ paravirtualized driver is specified via the ``disk`` element.
    ``auth``
       :since:`Since libvirt 3.9.0` , the ``auth`` element is supported for a
       disk ``type`` "network" that is using a ``source`` element with the
-      ``protocol`` attributes "rbd" or "iscsi". If present, the ``auth`` element
-      provides the authentication credentials needed to access the source. It
-      includes a mandatory attribute ``username``, which identifies the username
-      to use during authentication, as well as a sub-element ``secret`` with
-      mandatory attribute ``type``, to tie back to a `libvirt secret
-      object <formatsecret.html>`__ that holds the actual password or other
-      credentials (the domain XML intentionally does not expose the password,
-      only the reference to the object that does manage the password). Known
-      secret types are "ceph" for Ceph RBD network sources and "iscsi" for CHAP
-      authentication of iSCSI targets. Both will require either a ``uuid``
-      attribute with the UUID of the secret object or a ``usage`` attribute
-      matching the key that was specified in the secret object.
+      ``protocol`` attributes "rbd", "iscsi", or "ssh". If present, the
+      ``auth`` element provides the authentication credentials needed to access
+      the source. It includes a mandatory attribute ``username``, which
+      identifies the username to use during authentication, as well as a
+      sub-element ``secret`` with mandatory attribute ``type``, to tie back to
+      a `libvirt secret object <formatsecret.html>`__ that holds the actual
+      password or other credentials (the domain XML intentionally does not
+      expose the password, only the reference to the object that does manage
+      the password). Known secret types are "ceph" for Ceph RBD network sources
+      and "iscsi" for CHAP authentication of iSCSI targets. Both will require
+      either a ``uuid`` attribute with the UUID of the secret object or a
+      ``usage`` attribute matching the key that was specified in the secret
+      object.
    ``encryption``
       :since:`Since libvirt 3.9.0` , the ``encryption`` can be a sub-element of
       the ``source`` element for encrypted storage sources. If present,
@@ -3004,6 +3020,16 @@ paravirtualized driver is specified via the ``disk`` element.
       of these attributes is omitted, then that field is assumed to be the
       default value for the current system. If both ``user`` and ``group``
       are intended to be default, then the entire element may be omitted.
+
+      When using an ``ssh`` protocol, this element is used to enable
+      authentication via ssh keys. In this configuration, the element has three
+      possible attributes. The ``username`` attribute is required and specifies
+      the name of the user on the remote server. ssh keys can be specified in
+      one of two ways. The first way is by adding them to an ssh-agent and
+      providing the path to the ssh-agent socket in the ``agentsock``
+      attribute. This method works for ssh keys with or without password
+      protection. Alternatively, for ssh keys without a password, the ssh key
+      can be specified directly by setting the ``keyfile`` attribute.
    ``reconnect``
       For disk type ``vhostuser`` configures reconnect timeout if the connection
       is lost. This is set with the two mandatory attributes ``enabled`` and
@@ -3020,6 +3046,14 @@ paravirtualized driver is specified via the ``disk`` element.
          paused and will be rerun after a successful reconnect. After that time, any
          delayed requests and all future requests before a successful reconnect
          will immediately fail. If not set the default QEMU value is 0.
+   ``knownHosts``
+      For storage accessed via the ``ssh`` protocol, this element configures a
+      path to a file that will be used to verify the remote host. This file
+      must contain the expected host key for the remote host or the connection
+      will fail. The location of the file is specified via the ``path``
+      attribute.
+      :since:`Since 9.8.0`
+
 
    For a "file" or "volume" disk type which represents a cdrom or floppy (the
    ``device`` attribute), it is possible to define policy what to do with the
@@ -3652,13 +3686,16 @@ A directory on the host that can be accessed directly from the guest.
    tag that is exported to the guest as a hint for where to mount.
 ``readonly``
    Enables exporting filesystem as a readonly mount for guest, by default
-   read-write access is given (currently only works for QEMU/KVM driver).
+   read-write access is given (currently only works for QEMU/KVM driver; not
+   with virtiofs).
 ``space_hard_limit``
    Maximum space available to this guest's filesystem. :since:`Since 0.9.13`
+   Only supported by the OpenVZ driver.
 ``space_soft_limit``
    Maximum space available to this guest's filesystem. The container is
    permitted to exceed its soft limits for a grace period of time. Afterwards
    the hard limit is enforced. :since:`Since 0.9.13`
+   Only supported by the OpenVZ driver.
 
 
 Device Addresses
@@ -4902,14 +4939,23 @@ When the passt backend is used, the ``<backend>`` attribute
 ``logFile`` can be used to tell the passt process for this interface
 where to write its message log, and the ``<source>`` attribute ``dev``
 can tell it to use a particular host interface to derive the routes
-given to the guest for forwarding traffic upstream.
+given to the guest for forwarding traffic upstream.  Due to the design
+decisions of passt, if using SELinux, the log file is recommended to
+reside in the runtime directory of a user under which the passt
+process will run, most probably ``/run/user/$UID`` where ``$UID`` is
+the UID of the user, e.g. ``qemu``.  Beware that libvirt does not
+create this directory if it does not already exist to avoid possible,
+however unlikely, issues, especially since this logfile attribute is
+meant mostly for debugging.
 
 Additionally, when passt is used, multiple ``<portForward>`` elements
 can be added to forward incoming network traffic for the host to this
 guest interface. Each ``<portForward>`` must have a ``proto``
-attribute (set to ``tcp`` or ``udp``) and optional original
-``address`` (if not specified, then all incoming sessions to any host
-IP for the given proto/port(s) will be forwarded to the guest).
+attribute (set to ``tcp`` or ``udp``), optional original ``address``
+(if not specified, then all incoming sessions to any host IP for the
+given proto/port(s) will be forwarded to the guest), and an optional
+``dev`` attribute to limit the forwarded traffic to a specific host
+interface.
 
 The decision of which ports to forward is described with zero or more
 ``<range>`` subelements of ``<portForward>`` (if there is no
@@ -4934,7 +4980,7 @@ ports **with the exception of some subset**.
    <devices>
      ...
      <interface type='user'>
-       <backend type='passt' logFile='/tmp/passt.log'/>
+       <backend type='passt' logFile='/run/user/$UID/passt-domain.log'/>
        <mac address="00:11:22:33:44:55"/>
        <source dev='eth0'/>
        <ip family='ipv4' address='172.17.2.4' prefix='24'/>
@@ -4946,7 +4992,7 @@ ports **with the exception of some subset**.
          <range start='5000' end='5020' to='6000'/>
          <range start='5010' end='5015' exclude='yes'/>
        </portForward>
-       <portForward proto='tcp' address='2001:db8:ac10:fd01::1:10'>
+       <portForward proto='tcp' address='2001:db8:ac10:fd01::1:10' dev='eth0'>
          <range start='80'/>
          <range start='443' to='344'/>
        </portForward>

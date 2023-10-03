@@ -1831,7 +1831,7 @@ qemuProcessMonitorReportLogError(qemuMonitor *mon,
 static void
 qemuProcessMonitorLogFree(void *opaque)
 {
-    qemuDomainLogContext *logCtxt = opaque;
+    qemuLogContext *logCtxt = opaque;
     g_clear_object(&logCtxt);
 }
 
@@ -1857,7 +1857,7 @@ static int
 qemuConnectMonitor(virQEMUDriver *driver,
                    virDomainObj *vm,
                    int asyncJob,
-                   qemuDomainLogContext *logCtxt,
+                   qemuLogContext *logCtxt,
                    bool reconnect)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -1908,79 +1908,14 @@ qemuConnectMonitor(virQEMUDriver *driver,
 }
 
 
-/**
- * qemuProcessReadLog: Read log file of a qemu VM
- * @logCtxt: the domain log context
- * @msg: pointer to buffer to store the read messages in
- * @max: maximum length of the message returned in @msg
- *
- * Reads log of a qemu VM. Skips messages not produced by qemu or irrelevant
- * messages. If @max is not zero, @msg will contain at most @max characters
- * from the end of the log and @msg will start after a new line if possible.
- *
- * Returns 0 on success or -1 on error
- */
 static int
-qemuProcessReadLog(qemuDomainLogContext *logCtxt,
-                   char **msg,
-                   size_t max)
-{
-    char *buf;
-    ssize_t got;
-    char *eol;
-    char *filter_next;
-    size_t skip;
-
-    if ((got = qemuDomainLogContextRead(logCtxt, &buf)) < 0)
-        return -1;
-
-    /* Filter out debug messages from intermediate libvirt process */
-    filter_next = buf;
-    while ((eol = strchr(filter_next, '\n'))) {
-        *eol = '\0';
-        if (virLogProbablyLogMessage(filter_next) ||
-            strstr(filter_next, "char device redirected to")) {
-            skip = (eol + 1) - filter_next;
-            memmove(filter_next, eol + 1, buf + got - eol);
-            got -= skip;
-        } else {
-            filter_next = eol + 1;
-            *eol = '\n';
-        }
-    }
-
-    if (got > 0 &&
-        buf[got - 1] == '\n') {
-        buf[got - 1] = '\0';
-        got--;
-    }
-
-    if (max > 0 && got > max) {
-        skip = got - max;
-
-        if (buf[skip - 1] != '\n' &&
-            (eol = strchr(buf + skip, '\n')) &&
-            !virStringIsEmpty(eol + 1))
-            skip = eol + 1 - buf;
-
-        memmove(buf, buf + skip, got - skip + 1);
-        got -= skip;
-    }
-
-    buf = g_renew(char, buf, got + 1);
-    *msg = buf;
-    return 0;
-}
-
-
-static int
-qemuProcessReportLogError(qemuDomainLogContext *logCtxt,
+qemuProcessReportLogError(qemuLogContext *logCtxt,
                           const char *msgprefix)
 {
     g_autofree char *logmsg = NULL;
 
     /* assume that 1024 chars of qemu log is the right balance */
-    if (qemuProcessReadLog(logCtxt, &logmsg, 1024) < 0)
+    if (qemuLogContextReadFiltered(logCtxt, &logmsg, 1024) < 0)
         return -1;
 
     virResetLastError();
@@ -1999,7 +1934,7 @@ qemuProcessMonitorReportLogError(qemuMonitor *mon G_GNUC_UNUSED,
                                  const char *msg,
                                  void *opaque)
 {
-    qemuDomainLogContext *logCtxt = opaque;
+    qemuLogContext *logCtxt = opaque;
     qemuProcessReportLogError(logCtxt, msg);
 }
 
@@ -2300,7 +2235,7 @@ static int
 qemuProcessWaitForMonitor(virQEMUDriver *driver,
                           virDomainObj *vm,
                           int asyncJob,
-                          qemuDomainLogContext *logCtxt)
+                          qemuLogContext *logCtxt)
 {
     int ret = -1;
     g_autoptr(GHashTable) info = NULL;
@@ -4237,8 +4172,7 @@ qemuProcessSPICEAllocatePorts(virQEMUDriver *driver,
     if (needTLSPort || graphics->data.spice.tlsPort == -1) {
         if (!cfg->spiceTLS) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Auto allocation of spice TLS port requested "
-                             "but spice TLS is disabled in qemu.conf"));
+                           _("Auto allocation of spice TLS port requested but spice TLS is disabled in qemu.conf"));
             return -1;
         }
 
@@ -4664,7 +4598,7 @@ static void
 qemuLogOperation(virDomainObj *vm,
                  const char *msg,
                  virCommand *cmd,
-                 qemuDomainLogContext *logCtxt)
+                 qemuLogContext *logCtxt)
 {
     g_autofree char *timestamp = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -4678,20 +4612,20 @@ qemuLogOperation(virDomainObj *vm,
     if ((timestamp = virTimeStringNow()) == NULL)
         return;
 
-    if (qemuDomainLogContextWrite(logCtxt,
-                                  "%s: %s %s, qemu version: %d.%d.%d%s, kernel: %s, hostname: %s\n",
-                                  timestamp, msg, VIR_LOG_VERSION_STRING,
-                                  (qemuVersion / 1000000) % 1000,
-                                  (qemuVersion / 1000) % 1000,
-                                  qemuVersion % 1000,
-                                  NULLSTR_EMPTY(package),
-                                  uts.release,
-                                  NULLSTR_EMPTY(hostname)) < 0)
+    if (qemuLogContextWrite(logCtxt,
+                            "%s: %s %s, qemu version: %d.%d.%d%s, kernel: %s, hostname: %s\n",
+                            timestamp, msg, VIR_LOG_VERSION_STRING,
+                            (qemuVersion / 1000000) % 1000,
+                            (qemuVersion / 1000) % 1000,
+                            qemuVersion % 1000,
+                            NULLSTR_EMPTY(package),
+                            uts.release,
+                            NULLSTR_EMPTY(hostname)) < 0)
         return;
 
     if (cmd) {
         g_autofree char *args = virCommandToString(cmd, true);
-        qemuDomainLogContextWrite(logCtxt, "%s\n", args);
+        qemuLogContextWrite(logCtxt, "%s\n", args);
     }
 }
 
@@ -5003,8 +4937,7 @@ qemuProcessGraphicsSetupNetworkAddress(virDomainGraphicsListenDef *glisten,
     rc = qemuProcessGetNetworkAddress(glisten->network, &glisten->address);
     if (rc <= -2) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("network-based listen isn't possible, "
-                         "network driver isn't present"));
+                       _("network-based listen isn't possible, network driver isn't present"));
         return -1;
     }
     if (rc < 0)
@@ -5355,8 +5288,7 @@ qemuProcessStartValidateGraphics(virDomainObj *vm)
         case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
             if (graphics->nListens > 1) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("QEMU does not support multiple listens for "
-                                 "one graphics device."));
+                               _("QEMU does not support multiple listens for one graphics device."));
                 return -1;
             }
             break;
@@ -5412,8 +5344,7 @@ qemuProcessStartValidateDisks(virDomainObj *vm,
             src->protocol == VIR_STORAGE_NET_PROTOCOL_VXHS &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VXHS)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("VxHS protocol is not supported with this "
-                             "QEMU binary"));
+                           _("VxHS protocol is not supported with this QEMU binary"));
             return -1;
         }
 
@@ -5527,10 +5458,7 @@ qemuProcessStartValidate(virQEMUDriver *driver,
             VIR_DEBUG("Checking for KVM availability");
             if (!virFileExists("/dev/kvm")) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Domain requires KVM, but it is not available. "
-                                 "Check that virtualization is enabled in the "
-                                 "host BIOS, and host configuration is setup to "
-                                 "load the kvm modules."));
+                               _("Domain requires KVM, but it is not available. Check that virtualization is enabled in the host BIOS, and host configuration is setup to load the kvm modules."));
                 return -1;
             }
         }
@@ -5659,9 +5587,7 @@ qemuProcessPrepareQEMUCaps(virDomainObj *vm,
 
     virObjectUnref(priv->qemuCaps);
     if (!(priv->qemuCaps = virQEMUCapsCacheLookupCopy(qemuCapsCache,
-                                                      vm->def->virtType,
-                                                      vm->def->emulator,
-                                                      vm->def->os.machine)))
+                                                      vm->def->emulator)))
         return -1;
 
     /* Update qemu capabilities according to lists passed in via namespace */
@@ -6830,6 +6756,28 @@ qemuProcessPrepareLaunchSecurityGuestInput(virDomainObj *vm)
 
 
 static int
+qemuProcessPrepareHostStorageSourceVDPA(virStorageSource *src,
+                                        qemuDomainObjPrivate *priv)
+{
+    qemuDomainStorageSourcePrivate *srcpriv = NULL;
+    virStorageType actualType = virStorageSourceGetActualType(src);
+    int vdpafd = -1;
+
+    if (actualType != VIR_STORAGE_TYPE_VHOST_VDPA)
+        return 0;
+
+    if ((vdpafd = qemuVDPAConnect(src->vdpadev)) < 0)
+        return -1;
+
+    srcpriv = qemuDomainStorageSourcePrivateFetch(src);
+
+    srcpriv->fdpass = qemuFDPassNew(src->nodestorage, priv);
+    qemuFDPassAddFD(srcpriv->fdpass, &vdpafd, "-vdpa");
+    return 0;
+}
+
+
+static int
 qemuProcessPrepareHostStorage(virQEMUDriver *driver,
                               virDomainObj *vm,
                               unsigned int flags)
@@ -6863,6 +6811,18 @@ qemuProcessPrepareHostStorage(virQEMUDriver *driver,
             continue;
 
         return -1;
+    }
+
+    /* connect to any necessary vdpa block devices */
+    for (i = vm->def->ndisks; i > 0; i--) {
+        size_t idx = i - 1;
+        virDomainDiskDef *disk = vm->def->disks[idx];
+        virStorageSource *src;
+
+        for (src = disk->src; virStorageSourceIsBacking(src); src = src->backingStore) {
+            if (qemuProcessPrepareHostStorageSourceVDPA(src, vm->privateData) < 0)
+                return -1;
+        }
     }
 
     return 0;
@@ -7566,7 +7526,7 @@ qemuProcessLaunch(virConnectPtr conn,
     int ret = -1;
     int rv;
     int logfile = -1;
-    g_autoptr(qemuDomainLogContext) logCtxt = NULL;
+    g_autoptr(qemuLogContext) logCtxt = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virCommand) cmd = NULL;
     struct qemuProcessHookData hookData;
@@ -7616,11 +7576,11 @@ qemuProcessLaunch(virConnectPtr conn,
     hookData.cfg = cfg;
 
     VIR_DEBUG("Creating domain log file");
-    if (!(logCtxt = qemuDomainLogContextNew(driver, vm))) {
+    if (!(logCtxt = qemuLogContextNew(driver, vm, vm->def->name))) {
         virLastErrorPrefixMessage("%s", _("can't connect to virtlogd"));
         goto cleanup;
     }
-    logfile = qemuDomainLogContextGetWriteFD(logCtxt);
+    logfile = qemuLogContextGetWriteFD(logCtxt);
 
     if (qemuProcessGenID(vm, flags) < 0)
         goto cleanup;
@@ -7656,7 +7616,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     qemuDomainObjCheckTaint(driver, vm, logCtxt, incoming != NULL);
 
-    qemuDomainLogContextMarkPosition(logCtxt);
+    qemuLogContextMarkPosition(logCtxt);
 
     if (qemuProcessEnableDomainNamespaces(driver, vm) < 0)
         goto cleanup;
@@ -8816,6 +8776,38 @@ qemuProcessRefreshCPU(virQEMUDriver *driver,
 }
 
 
+/**
+ * qemuProcessReloadMachineTypes:
+ *
+ * Reload machine type information into the 'qemuCaps' object from the current
+ * qemu.
+ */
+static int
+qemuProcessReloadMachineTypes(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    bool fail = false;
+
+    qemuDomainObjEnterMonitor(vm);
+
+    if (virQEMUCapsInitQMPArch(priv->qemuCaps, priv->mon) < 0)
+        fail = true;
+
+    if (!fail &&
+        virQEMUCapsProbeQMPMachineTypes(priv->qemuCaps,
+                                        vm->def->virtType,
+                                        priv->mon) < 0)
+        fail = true;
+
+    qemuDomainObjExitMonitor(vm);
+
+    if (fail)
+        return -1;
+
+    return 0;
+}
+
+
 struct qemuProcessReconnectData {
     virQEMUDriver *driver;
     virDomainObj *obj;
@@ -8950,6 +8942,11 @@ qemuProcessReconnect(void *opaque)
         goto error;
     }
 
+    /* Reload and populate machine type data into 'qemuCaps' as that is not
+     * serialized into the status XML. */
+    if (qemuProcessReloadMachineTypes(obj) < 0)
+        goto error;
+
     if (qemuDomainAssignAddresses(obj->def, priv->qemuCaps,
                                   driver, obj, false) < 0) {
         goto error;
@@ -9057,6 +9054,14 @@ qemuProcessReconnect(void *opaque)
         }
     }
 
+    for (i = 0; i < obj->def->ndisks; i++)
+        if (qemuNbdkitStorageSourceManageProcess(obj->def->disks[i]->src, obj) < 0)
+            goto error;
+
+    if (obj->def->os.loader && obj->def->os.loader->nvram)
+        if (qemuNbdkitStorageSourceManageProcess(obj->def->os.loader->nvram, obj) < 0)
+            goto error;
+
     /* update domain state XML with possibly updated state in virDomainObj */
     if (virDomainObjSave(obj, driver->xmlopt, cfg->stateDir) < 0)
         goto error;
@@ -9149,8 +9154,7 @@ qemuProcessReconnectHelper(virDomainObj *obj,
     if (virThreadCreateFull(&thread, false, qemuProcessReconnect,
                             name, false, data) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Could not create thread. QEMU initialization "
-                         "might be incomplete"));
+                       _("Could not create thread. QEMU initialization might be incomplete"));
         /* We can't spawn a thread and thus connect to monitor. Kill qemu.
          * It's safe to call qemuProcessStop without a job here since there
          * is no thread that could be doing anything else with the same domain
@@ -9509,4 +9513,15 @@ qemuProcessQMPStart(qemuProcessQMP *proc)
         return -1;
 
     return 0;
+}
+
+
+void
+qemuProcessHandleNbdkitExit(qemuNbdkitProcess *nbdkit,
+                            virDomainObj *vm)
+{
+    virObjectLock(vm);
+    VIR_DEBUG("nbdkit process %i died", nbdkit->pid);
+    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_NBDKIT_EXITED, 0, 0, nbdkit);
+    virObjectUnlock(vm);
 }

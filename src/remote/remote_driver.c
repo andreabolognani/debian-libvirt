@@ -379,6 +379,11 @@ remoteNetworkBuildEventLifecycle(virNetClientProgram *prog G_GNUC_UNUSED,
                                  void *evdata, void *opaque);
 
 static void
+remoteNetworkBuildEventCallbackMetadataChange(virNetClientProgram *prog,
+                                              virNetClient *client,
+                                              void *evdata, void *opaque);
+
+static void
 remoteStoragePoolBuildEventLifecycle(virNetClientProgram *prog G_GNUC_UNUSED,
                                      virNetClient *client G_GNUC_UNUSED,
                                      void *evdata, void *opaque);
@@ -505,6 +510,10 @@ static virNetClientProgramEvent remoteEvents[] = {
       remoteNetworkBuildEventLifecycle,
       sizeof(remote_network_event_lifecycle_msg),
       (xdrproc_t)xdr_remote_network_event_lifecycle_msg },
+    { REMOTE_PROC_NETWORK_EVENT_CALLBACK_METADATA_CHANGE,
+      remoteNetworkBuildEventCallbackMetadataChange,
+      sizeof(remote_network_event_callback_metadata_change_msg),
+      (xdrproc_t)xdr_remote_network_event_callback_metadata_change_msg },
     { REMOTE_PROC_DOMAIN_EVENT_CALLBACK_LIFECYCLE,
       remoteDomainBuildEventCallbackLifecycle,
       sizeof(remote_domain_event_callback_lifecycle_msg),
@@ -1103,8 +1112,7 @@ doRemoteOpen(virConnectPtr conn,
     case REMOTE_DRIVER_TRANSPORT_SSH:
     case REMOTE_DRIVER_TRANSPORT_EXT:
         virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("transport methods unix, ssh and ext are not supported "
-                         "under Windows"));
+                       _("transport methods unix, ssh and ext are not supported under Windows"));
         goto error;
 
 #endif /* WIN32 */
@@ -1478,8 +1486,7 @@ remoteNodeGetCPUStats(virConnectPtr conn,
     if (ret.params.params_len > REMOTE_NODE_CPU_STATS_MAX ||
         ret.params.params_len > *nparams) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteNodeGetCPUStats: "
-                         "returned number of stats exceeds limit"));
+                       _("remoteNodeGetCPUStats: returned number of stats exceeds limit"));
         goto cleanup;
     }
     /* Handle the case when the caller does not know the number of stats
@@ -1538,8 +1545,7 @@ remoteNodeGetMemoryStats(virConnectPtr conn,
     if (ret.params.params_len > REMOTE_NODE_MEMORY_STATS_MAX ||
         ret.params.params_len > *nparams) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteNodeGetMemoryStats: "
-                         "returned number of stats exceeds limit"));
+                       _("remoteNodeGetMemoryStats: returned number of stats exceeds limit"));
         goto cleanup;
     }
     /* Handle the case when the caller does not know the number of stats
@@ -1703,8 +1709,7 @@ remoteDomainBlockStatsFlags(virDomainPtr domain,
     if (ret.params.params_len > REMOTE_DOMAIN_BLOCK_STATS_PARAMETERS_MAX ||
         ret.params.params_len > *nparams) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteDomainBlockStatsFlags: "
-                         "returned number of stats exceeds limit"));
+                       _("remoteDomainBlockStatsFlags: returned number of stats exceeds limit"));
         goto cleanup;
     }
 
@@ -2760,8 +2765,7 @@ static int remoteDomainGetCPUStats(virDomainPtr domain,
         (ret.params.params_len &&
          ((ret.params.params_len % ret.nparams) || ret.nparams > nparams))) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteDomainGetCPUStats: "
-                         "returned number of stats exceeds limit"));
+                       _("remoteDomainGetCPUStats: returned number of stats exceeds limit"));
         memset(params, 0, sizeof(*params) * nparams * ncpus);
         goto cleanup;
     }
@@ -4945,6 +4949,28 @@ remoteNetworkBuildEventLifecycle(virNetClientProgram *prog G_GNUC_UNUSED,
 }
 
 static void
+remoteNetworkBuildEventCallbackMetadataChange(virNetClientProgram *prog G_GNUC_UNUSED,
+                                              virNetClient *client G_GNUC_UNUSED,
+                                              void *evdata, void *opaque)
+{
+    virConnectPtr conn = opaque;
+    remote_network_event_callback_metadata_change_msg *msg = evdata;
+    struct private_data *priv = conn->privateData;
+    virNetworkPtr net;
+    virObjectEvent *event = NULL;
+
+    if (!(net = get_nonnull_network(conn, msg->net)))
+        return;
+
+    event = virNetworkEventMetadataChangeNewFromNet(net, msg->type, msg->nsuri ? *msg->nsuri : NULL);
+
+    virObjectUnref(net);
+
+    virObjectEventStateQueueRemote(priv->eventState, event, msg->callbackID);
+}
+
+
+static void
 remoteStoragePoolBuildEventLifecycle(virNetClientProgram *prog G_GNUC_UNUSED,
                                      virNetClient *client G_GNUC_UNUSED,
                                      void *evdata, void *opaque)
@@ -6114,8 +6140,7 @@ remoteConnectSetKeepAlive(virConnectPtr conn, int interval, unsigned int count)
 
     if (!virNetClientKeepAliveIsSupported(priv->client)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("the caller doesn't support keepalive protocol;"
-                         " perhaps it's missing event loop implementation"));
+                       _("the caller doesn't support keepalive protocol; perhaps it's missing event loop implementation"));
         return -1;
     }
 
@@ -7562,8 +7587,7 @@ remoteDomainAuthorizedSSHKeysGet(virDomainPtr domain,
 
     if (ret.keys.keys_len > REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteDomainAuthorizedSSHKeysGet: "
-                         "returned number of keys exceeds limit"));
+                       _("remoteDomainAuthorizedSSHKeysGet: returned number of keys exceeds limit"));
         goto cleanup;
     }
 
@@ -7592,8 +7616,7 @@ remoteDomainAuthorizedSSHKeysSet(virDomainPtr domain,
 
     if (nkeys > REMOTE_DOMAIN_AUTHORIZED_SSH_KEYS_MAX) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteDomainAuthorizedSSHKeysSet: "
-                         "returned number of keys exceeds limit"));
+                       _("remoteDomainAuthorizedSSHKeysSet: returned number of keys exceeds limit"));
         return -1;
     }
 
@@ -7635,8 +7658,7 @@ remoteDomainGetMessages(virDomainPtr domain,
 
     if (ret.msgs.msgs_len > REMOTE_DOMAIN_MESSAGES_MAX) {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("remoteDomainGetMessages: "
-                         "returned number of msgs exceeds limit"));
+                       _("remoteDomainGetMessages: returned number of msgs exceeds limit"));
         goto cleanup;
     }
 

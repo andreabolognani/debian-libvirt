@@ -21,6 +21,7 @@ qemu_driver_sources = [
   'qemu_hotplug.c',
   'qemu_interface.c',
   'qemu_interop_config.c',
+  'qemu_logcontext.c',
   'qemu_migration.c',
   'qemu_migration_cookie.c',
   'qemu_migration_params.c',
@@ -28,6 +29,7 @@ qemu_driver_sources = [
   'qemu_monitor_json.c',
   'qemu_monitor_text.c',
   'qemu_namespace.c',
+  'qemu_nbdkit.c',
   'qemu_passt.c',
   'qemu_process.c',
   'qemu_qapi.c',
@@ -97,6 +99,7 @@ if conf.has('WITH_QEMU')
       access_dep,
       capng_dep,
       gnutls_dep,
+      libnbd_dep,
       libnl_dep,
       log_dep,
       selinux_dep,
@@ -182,8 +185,6 @@ if conf.has('WITH_QEMU')
     'service': 'virtqemud',
     'service_in': files('virtqemud.service.in'),
     'name': 'Libvirt qemu',
-    'sockprefix': 'virtqemud',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   openrc_init_files += {

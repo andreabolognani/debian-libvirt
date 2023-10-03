@@ -69,12 +69,12 @@ VIR_LOG_INIT("util.netdevvportprofile");
 # define LLDPAD_PID_FILE  "/var/run/lldpad.pid"
 
 
-enum virNetDevVPortProfileLinkOp {
+typedef enum {
     VIR_NETDEV_VPORT_PROFILE_LINK_OP_ASSOCIATE = 0x1,
     VIR_NETDEV_VPORT_PROFILE_LINK_OP_DISASSOCIATE = 0x2,
     VIR_NETDEV_VPORT_PROFILE_LINK_OP_PREASSOCIATE = 0x3,
     VIR_NETDEV_VPORT_PROFILE_LINK_OP_PREASSOCIATE_RR = 0x4,
-};
+} virNetDevVPortProfileLinkOp;
 
 #endif
 
@@ -530,8 +530,7 @@ virNetDevVPortProfileGetStatus(struct nlattr **tb, int32_t vf,
 
                 if (nla_type(tb_vf_ports) != IFLA_VF_PORT) {
                     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                   _("error while iterating over "
-                                     "IFLA_VF_PORTS part"));
+                                   _("error while iterating over IFLA_VF_PORTS part"));
                     return -1;
                 }
 
@@ -584,8 +583,7 @@ virNetDevVPortProfileGetStatus(struct nlattr **tb, int32_t vf,
                     if (nla_parse_nested(tb_port, IFLA_PORT_MAX, tb_vf_ports,
                                          ifla_port_policy)) {
                         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                       _("error parsing IFLA_VF_PORT "
-                                         "during error reporting"));
+                                       _("error parsing IFLA_VF_PORT during error reporting"));
                         return -1;
                     }
                     if (tb_port[IFLA_PORT_INSTANCE_UUID]) {
@@ -1026,7 +1024,7 @@ virNetDevVPortProfileOp8021Qbg(const char *ifname,
                                const virMacAddr *macaddr,
                                int vf,
                                const virNetDevVPortProfile *virtPort,
-                               enum virNetDevVPortProfileLinkOp virtPortOp,
+                               virNetDevVPortProfileLinkOp virtPortOp,
                                bool setlink_only)
 {
     int op = PORT_REQUEST_ASSOCIATE;
@@ -1095,7 +1093,7 @@ virNetDevVPortProfileOp8021Qbh(const char *ifname,
                                int32_t vf,
                                const virNetDevVPortProfile *virtPort,
                                const unsigned char *vm_uuid,
-                               enum virNetDevVPortProfileLinkOp virtPortOp)
+                               virNetDevVPortProfileLinkOp virtPortOp)
 {
     int rc = 0;
     char *physfndev = NULL;
@@ -1184,7 +1182,7 @@ virNetDevVPortProfileOp8021Qbh(const char *ifname,
         rc = -1;
         break;
     default:
-        virReportEnumRangeError(virNetDevVPortProfileType, virtPortOp);
+        virReportEnumRangeError(virNetDevVPortProfileLinkOp, virtPortOp);
         rc = -1;
         break;
     }

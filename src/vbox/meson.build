@@ -59,8 +59,6 @@ if conf.has('WITH_VBOX')
     'service': 'virtvboxd',
     'service_in': files('virtvboxd.service.in'),
     'name': 'Libvirt vbox',
-    'sockprefix': 'virtvboxd',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   openrc_init_files += {

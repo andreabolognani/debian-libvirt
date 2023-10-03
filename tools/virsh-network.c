@@ -1093,8 +1093,7 @@ cmdNetworkList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 
     if (optTable + optName + optUUID > 1) {
         vshError(ctl, "%s",
-                 _("Only one argument from --table, --name and --uuid "
-                   "may be specified."));
+                 _("Only one argument from --table, --name and --uuid may be specified."));
         return false;
     }
 
@@ -1582,7 +1581,8 @@ typedef struct virshNetEventData virshNetEventData;
 VIR_ENUM_DECL(virshNetworkEventId);
 VIR_ENUM_IMPL(virshNetworkEventId,
               VIR_NETWORK_EVENT_ID_LAST,
-              "lifecycle");
+              "lifecycle",
+              "metadata-change");
 
 static void
 vshEventLifecyclePrint(virConnectPtr conn G_GNUC_UNUSED,
@@ -1615,9 +1615,52 @@ vshEventLifecyclePrint(virConnectPtr conn G_GNUC_UNUSED,
         vshEventDone(data->ctl);
 }
 
+VIR_ENUM_DECL(virshNetworkEventMetadataChangeType);
+VIR_ENUM_IMPL(virshNetworkEventMetadataChangeType,
+              VIR_NETWORK_METADATA_LAST,
+              N_("description"),
+              N_("title"),
+              N_("element"));
+
+#define UNKNOWNSTR(str) (str ? str : N_("unsupported value"))
+
+static void
+vshEventMetadataChangePrint(virConnectPtr conn G_GNUC_UNUSED,
+                            virNetworkPtr net,
+                            int type,
+                            const char *nsuri,
+                            void *opaque)
+{
+    virshNetEventData *data = opaque;
+
+    if (!data->loop && data->count)
+        return;
+
+    if (data->timestamp) {
+        char timestamp[VIR_TIME_STRING_BUFLEN];
+
+        if (virTimeStringNowRaw(timestamp) < 0)
+            timestamp[0] = '\0';
+
+        vshPrint(data->ctl, _("%1$s: event 'metadata-change' for network %2$s: type %3$s, uri %4$s\n"),
+                 timestamp, virNetworkGetName(net),
+                 UNKNOWNSTR(virshNetworkEventMetadataChangeTypeTypeToString(type)), NULLSTR(nsuri));
+    } else {
+        vshPrint(data->ctl, _("event 'metadata-change' for network %1$s: type %2$s, uri %3$s\n"),
+                 virNetworkGetName(net),
+                 UNKNOWNSTR(virshNetworkEventMetadataChangeTypeTypeToString(type)), NULLSTR(nsuri));
+    }
+
+    data->count++;
+    if (!data->loop)
+        vshEventDone(data->ctl);
+}
+
 virshNetworkEventCallback virshNetworkEventCallbacks[] = {
     { "lifecycle",
       VIR_NETWORK_EVENT_CALLBACK(vshEventLifecyclePrint), },
+    { "metadata-change",
+      VIR_NETWORK_EVENT_CALLBACK(vshEventMetadataChangePrint), },
 };
 G_STATIC_ASSERT(VIR_NETWORK_EVENT_ID_LAST == G_N_ELEMENTS(virshNetworkEventCallbacks));
 
@@ -2140,8 +2183,7 @@ cmdNetworkPortList(vshControl *ctl, const vshCmd *cmd)
 
     if (optTable + optUUID > 1) {
         vshError(ctl, "%s",
-                 _("Only one argument from --table and --uuid "
-                   "may be specified."));
+                 _("Only one argument from --table and --uuid may be specified."));
         return false;
     }
 

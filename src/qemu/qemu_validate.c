@@ -139,8 +139,7 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
                 !virQEMUCapsSupportsVmport(qemuCaps, def)) {
 
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("vmport is not available "
-                                 "with this QEMU binary"));
+                               _("vmport is not available with this QEMU binary"));
                 return -1;
             }
             break;
@@ -149,8 +148,7 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
             if (def->features[i] == VIR_TRISTATE_SWITCH_ON &&
                 !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VMCOREINFO)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                              _("vmcoreinfo is not available "
-                                "with this QEMU binary"));
+                              _("vmcoreinfo is not available with this QEMU binary"));
                 return -1;
             }
             break;
@@ -591,38 +589,6 @@ qemuValidateDomainDefClockTimers(const virDomainDef *def,
 
 
 static int
-qemuValidateDomainDefPM(const virDomainDef *def,
-                        virQEMUCaps *qemuCaps)
-{
-    bool q35Dom = qemuDomainIsQ35(def);
-
-    if (def->pm.s3) {
-        bool q35ICH9_S3 = q35Dom &&
-                          virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_DISABLE_S3);
-
-        if (!q35ICH9_S3 && !virQEMUCapsGet(qemuCaps, QEMU_CAPS_PIIX_DISABLE_S3)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           "%s", _("setting ACPI S3 not supported"));
-            return -1;
-        }
-    }
-
-    if (def->pm.s4) {
-        bool q35ICH9_S4 = q35Dom &&
-                          virQEMUCapsGet(qemuCaps, QEMU_CAPS_ICH9_DISABLE_S4);
-
-        if (!q35ICH9_S4 && !virQEMUCapsGet(qemuCaps, QEMU_CAPS_PIIX_DISABLE_S4)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           "%s", _("setting ACPI S4 not supported"));
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
 qemuValidateDomainDefNvram(const virDomainDef *def,
                            virQEMUCaps *qemuCaps)
 {
@@ -641,6 +607,7 @@ qemuValidateDomainDefNvram(const virDomainDef *def,
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unsupported nvram disk type '%1$s'"),
                        virStorageTypeToString(src->type));
@@ -828,8 +795,7 @@ qemuValidateDomainDefMemory(const virDomainDef *def,
 
     if (mem->allocation == VIR_DOMAIN_MEMORY_ALLOCATION_ONDEMAND) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("hugepages are not allowed with memory "
-                         "allocation ondemand"));
+                       _("hugepages are not allowed with memory allocation ondemand"));
         return -1;
     }
 
@@ -842,8 +808,7 @@ qemuValidateDomainDefMemory(const virDomainDef *def,
 
     if (mem->source == VIR_DOMAIN_MEMORY_SOURCE_ANONYMOUS) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("hugepages are not allowed with anonymous "
-                         "memory source"));
+                       _("hugepages are not allowed with anonymous memory source"));
         return -1;
     }
 
@@ -970,15 +935,13 @@ qemuValidateDomainDefPanic(const virDomainDef *def,
              * cannot be configured by the user */
             if (!ARCH_IS_S390(def->os.arch)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("only S390 guests support "
-                                 "panic device of model 's390'"));
+                               _("only S390 guests support panic device of model 's390'"));
                 return -1;
             }
             if (def->panics[i]->info.type !=
                 VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("setting the panic device address is not "
-                                 "supported for model 's390'"));
+                               _("setting the panic device address is not supported for model 's390'"));
                 return -1;
             }
             break;
@@ -989,15 +952,13 @@ qemuValidateDomainDefPanic(const virDomainDef *def,
              * cannot be configured by the user */
             if (!ARCH_IS_X86(def->os.arch)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("only i686 and x86_64 guests support "
-                                 "panic device of model 'hyperv'"));
+                               _("only i686 and x86_64 guests support panic device of model 'hyperv'"));
                 return -1;
             }
             if (def->panics[i]->info.type !=
                 VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("setting the panic device address is not "
-                                 "supported for model 'hyperv'"));
+                               _("setting the panic device address is not supported for model 'hyperv'"));
                 return -1;
             }
             break;
@@ -1008,15 +969,13 @@ qemuValidateDomainDefPanic(const virDomainDef *def,
              * cannot be configured by the user */
             if (!qemuDomainIsPSeries(def)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("only pSeries guests support panic device "
-                                 "of model 'pseries'"));
+                               _("only pSeries guests support panic device of model 'pseries'"));
                 return -1;
             }
             if (def->panics[i]->info.type !=
                 VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("setting the panic device address is not "
-                                 "supported for model 'pseries'"));
+                               _("setting the panic device address is not supported for model 'pseries'"));
                 return -1;
             }
             break;
@@ -1024,16 +983,14 @@ qemuValidateDomainDefPanic(const virDomainDef *def,
         case VIR_DOMAIN_PANIC_MODEL_ISA:
             if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_PANIC)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("the QEMU binary does not support the "
-                                 "ISA panic device"));
+                               _("the QEMU binary does not support the ISA panic device"));
                 return -1;
             }
 
             if (def->panics[i]->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
                 def->panics[i]->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_ISA) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("panic is supported only "
-                                 "with ISA address type"));
+                               _("panic is supported only with ISA address type"));
                 return -1;
             }
             break;
@@ -1291,8 +1248,11 @@ qemuValidateDomainDef(const virDomainDef *def,
     if (qemuValidateDomainDefClockTimers(def, qemuCaps) < 0)
         return -1;
 
-    if (qemuValidateDomainDefPM(def, qemuCaps) < 0)
+    if ((def->pm.s3 || def->pm.s4) && !ARCH_IS_X86(def->os.arch)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("setting ACPI S3/S4 not supported"));
         return -1;
+    }
 
     if (qemuValidateDomainDefBoot(def, qemuCaps) < 0)
         return -1;
@@ -1338,8 +1298,7 @@ qemuValidateDomainDef(const virDomainDef *def,
         case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
             if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("SEV launch security is not supported with "
-                                 "this QEMU binary"));
+                               _("SEV launch security is not supported with this QEMU binary"));
                 return -1;
             }
 
@@ -1412,7 +1371,7 @@ qemuValidateDomainDeviceDefAddressDrive(virDomainDeviceInfo *info,
 {
     virDomainControllerDef *controller = NULL;
 
-    switch ((virDomainDiskBus) info->addr.drive.diskbus) {
+    switch (info->addr.drive.diskbus) {
     case VIR_DOMAIN_DISK_BUS_SCSI:
         /* Setting bus= attr for SCSI drives, causes a controller
          * to be created. Yes this is slightly odd. It is not possible
@@ -1520,7 +1479,7 @@ qemuValidateDomainDeviceDefAddress(const virDomainDeviceDef *dev,
                                    const virDomainDef *def,
                                    virQEMUCaps *qemuCaps)
 {
-    switch ((virDomainDeviceAddressType) info->type) {
+    switch (info->type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI:
         if (qemuValidateDomainDeviceDefZPCIAddress(info, qemuCaps) < 0)
             return -1;
@@ -1734,8 +1693,7 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
         }
         if (net->guestIP.nroutes) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Invalid attempt to set network interface "
-                             "guest-side IP route, not supported by QEMU"));
+                           _("Invalid attempt to set network interface guest-side IP route, not supported by QEMU"));
             return -1;
         }
 
@@ -1751,8 +1709,7 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
             if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET)) {
                 if (hasIPv4) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("Only one IPv4 address per "
-                                     "interface is allowed"));
+                                   _("Only one IPv4 address per interface is allowed"));
                     return -1;
                 }
                 hasIPv4 = true;
@@ -1768,8 +1725,7 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
             if (VIR_SOCKET_ADDR_IS_FAMILY(&ip->address, AF_INET6)) {
                 if (hasIPv6) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("Only one IPv6 address per "
-                                     "interface is allowed"));
+                                   _("Only one IPv6 address per interface is allowed"));
                     return -1;
                 }
                 hasIPv6 = true;
@@ -1804,9 +1760,7 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
         }
     } else if (net->guestIP.nroutes || net->guestIP.nips) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Invalid attempt to set network interface "
-                         "guest-side IP route and/or address info, "
-                         "not supported by QEMU"));
+                       _("Invalid attempt to set network interface guest-side IP route and/or address info, not supported by QEMU"));
         return -1;
     }
 
@@ -2200,12 +2154,11 @@ qemuValidateDomainRNGDef(const virDomainRNGDef *def,
 {
     virDomainCapsDeviceRNG rngCaps = { 0 };
 
-    switch ((virDomainRNGBackend) def->backend) {
+    switch (def->backend) {
     case VIR_DOMAIN_RNG_BACKEND_RANDOM:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_RNG_RANDOM)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this qemu doesn't support the rng-random "
-                             "backend"));
+                           _("this qemu doesn't support the rng-random backend"));
             return -1;
         }
         break;
@@ -2213,8 +2166,7 @@ qemuValidateDomainRNGDef(const virDomainRNGDef *def,
     case VIR_DOMAIN_RNG_BACKEND_EGD:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_RNG_EGD)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this qemu doesn't support the rng-egd "
-                             "backend"));
+                           _("this qemu doesn't support the rng-egd backend"));
             return -1;
         }
 
@@ -2228,8 +2180,7 @@ qemuValidateDomainRNGDef(const virDomainRNGDef *def,
     case VIR_DOMAIN_RNG_BACKEND_BUILTIN:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_RNG_BUILTIN)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("this qemu doesn't support the rng-builtin "
-                             "backend"));
+                           _("this qemu doesn't support the rng-builtin backend"));
             return -1;
         }
         break;
@@ -2270,16 +2221,14 @@ qemuValidateDomainRedirdevDef(const virDomainRedirdevDef *dev,
 
     if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_USB_REDIR)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("USB redirection is not supported "
-                         "by this version of QEMU"));
+                       _("USB redirection is not supported by this version of QEMU"));
         return -1;
     }
 
     if (def->redirfilter && def->redirfilter->nusbdevs &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_USB_REDIR_FILTER)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("USB redirection filter is not "
-                         "supported by this version of QEMU"));
+                       _("USB redirection filter is not supported by this version of QEMU"));
         return -1;
     }
 
@@ -2298,12 +2247,11 @@ qemuValidateDomainWatchdogDef(const virDomainWatchdogDef *dev,
     if (def->nwatchdogs &&
         def->watchdogs[0]->action != dev->action) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("watchdogs with different actions are not supported "
-                         "with this QEMU binary"));
+                       _("watchdogs with different actions are not supported with this QEMU binary"));
         return -1;
     }
 
-    switch ((virDomainWatchdogModel) dev->model) {
+    switch (dev->model) {
     case VIR_DOMAIN_WATCHDOG_MODEL_I6300ESB:
         if (dev->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
             dev->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
@@ -2379,17 +2327,14 @@ qemuValidateDomainMdevDefVFIOPCI(const virDomainHostdevDef *hostdev,
 
     if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("VFIO PCI device assignment is not "
-                         "supported by this version of QEMU"));
+                       _("VFIO PCI device assignment is not supported by this version of QEMU"));
         return -1;
     }
 
     /* VFIO-PCI does not support boot */
     if (hostdev->info->bootIndex) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("booting from assigned devices is not "
-                         "supported by mediated devices of "
-                         "model vfio-pci"));
+                       _("booting from assigned devices is not supported by mediated devices of model vfio-pci"));
         return -1;
     }
 
@@ -2397,17 +2342,9 @@ qemuValidateDomainMdevDefVFIOPCI(const virDomainHostdevDef *hostdev,
     if (dev->display == VIR_TRISTATE_SWITCH_ABSENT)
         return 0;
 
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VFIO_PCI_DISPLAY)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("display property of device vfio-pci is "
-                         "not supported by this version of QEMU"));
-        return -1;
-    }
-
     if (dev->model != VIR_MDEV_MODEL_TYPE_VFIO_PCI) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("<hostdev> attribute 'display' is only supported"
-                         " with model='vfio-pci'"));
+                       _("<hostdev> attribute 'display' is only supported with model='vfio-pci'"));
 
         return -1;
     }
@@ -2415,8 +2352,7 @@ qemuValidateDomainMdevDefVFIOPCI(const virDomainHostdevDef *hostdev,
     if (dev->display == VIR_TRISTATE_SWITCH_ON) {
         if (def->ngraphics == 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("graphics device is needed for attribute value "
-                             "'display=on' in <hostdev>"));
+                           _("graphics device is needed for attribute value 'display=on' in <hostdev>"));
             return -1;
         }
     }
@@ -2435,17 +2371,14 @@ qemuValidateDomainMdevDefVFIOAP(const virDomainHostdevDef *hostdev,
 
     if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_AP)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("VFIO AP device assignment is not "
-                         "supported by this version of QEMU"));
+                       _("VFIO AP device assignment is not supported by this version of QEMU"));
         return -1;
     }
 
     /* VFIO-AP does not support boot */
     if (hostdev->info->bootIndex) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("booting from assigned devices is not "
-                         "supported by mediated devices of "
-                         "model vfio-ap"));
+                       _("booting from assigned devices is not supported by mediated devices of model vfio-ap"));
         return -1;
     }
 
@@ -2457,8 +2390,7 @@ qemuValidateDomainMdevDefVFIOAP(const virDomainHostdevDef *hostdev,
             hdev->source.subsys.u.mdev.model == VIR_MDEV_MODEL_TYPE_VFIO_AP) {
             if (vfioap_found) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Only one hostdev of model vfio-ap is "
-                                 "supported"));
+                               _("Only one hostdev of model vfio-ap is supported"));
                 return -1;
             }
             vfioap_found = true;
@@ -2485,8 +2417,7 @@ qemuValidateDomainMdevDef(const virDomainHostdevDef *hostdev,
     case VIR_MDEV_MODEL_TYPE_VFIO_CCW:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_CCW)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("VFIO CCW device assignment is not "
-                             "supported by this version of QEMU"));
+                           _("VFIO CCW device assignment is not supported by this version of QEMU"));
             return -1;
         }
         break;
@@ -2517,7 +2448,7 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
     }
 
     if (hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS) {
-        switch ((virDomainHostdevSubsysType) hostdev->source.subsys.type) {
+        switch (hostdev->source.subsys.type) {
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
             if (hostdev->source.subsys.u.usb.guestReset &&
                 !virQEMUCapsGet(qemuCaps, QEMU_CAPS_USB_HOST_GUESTS_RESETS_ALL)) {
@@ -2536,16 +2467,14 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
             if (backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
                 if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                   _("VFIO PCI device assignment is not "
-                                     "supported by this version of qemu"));
+                                   _("VFIO PCI device assignment is not supported by this version of qemu"));
                     return -1;
                 }
             }
 
             if (hostdev->writeFiltering != VIR_TRISTATE_BOOL_ABSENT) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Write filtering of PCI device configuration "
-                                 "space is not supported by qemu"));
+                               _("Write filtering of PCI device configuration space is not supported by qemu"));
                 return -1;
             }
             break;
@@ -2553,8 +2482,7 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
             if (hostdev->info->bootIndex) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("booting from assigned devices is not "
-                                 "supported by vhost SCSI devices"));
+                               _("booting from assigned devices is not supported by vhost SCSI devices"));
                 return -1;
             }
 
@@ -2639,8 +2567,7 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
         if (video->vgamem) {
             if (video->vgamem < 1024) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("value for 'vgamem' must be at least 1 MiB "
-                                 "(1024 KiB)"));
+                               _("value for 'vgamem' must be at least 1 MiB (1024 KiB)"));
                 return -1;
             }
 
@@ -2666,9 +2593,8 @@ qemuValidateDomainDeviceDefVideo(const virDomainVideoDef *video,
     if (video->type == VIR_DOMAIN_VIDEO_TYPE_VGA ||
         video->type == VIR_DOMAIN_VIDEO_TYPE_VMVGA) {
         if (video->vram && video->vram < 1024) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           "%s", _("value for 'vram' must be at least "
-                                   "1 MiB (1024 KiB)"));
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("value for 'vram' must be at least 1 MiB (1024 KiB)"));
             return -1;
         }
     }
@@ -2747,7 +2673,7 @@ static bool
 qemuValidateDomainDeviceDefDiskIOThreads(const virDomainDef *def,
                                          const virDomainDiskDef *disk)
 {
-    switch ((virDomainDiskBus)disk->bus) {
+    switch (disk->bus) {
     case VIR_DOMAIN_DISK_BUS_VIRTIO:
         break;
 
@@ -2867,8 +2793,7 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_BLOCK)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support scsi-block for "
-                             "lun passthrough"));
+                           _("This QEMU doesn't support scsi-block for lun passthrough"));
             return -1;
         }
 
@@ -2887,8 +2812,7 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         }
         if (disk->vendor || disk->product) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Setting vendor or product is not supported "
-                             "for lun device"));
+                           _("Setting vendor or product is not supported for lun device"));
             return -1;
         }
     }
@@ -2960,8 +2884,7 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
     case VIR_DOMAIN_DISK_BUS_USB:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_STORAGE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support '-device "
-                             "usb-storage'"));
+                           _("This QEMU doesn't support '-device usb-storage'"));
             return -1;
         }
 
@@ -3025,8 +2948,7 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         disk->bus == VIR_DOMAIN_DISK_BUS_SCSI &&
         disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("scsi-block 'lun' devices do not support the "
-                         "serial property"));
+                       _("scsi-block 'lun' devices do not support the serial property"));
         return -1;
     }
 
@@ -3056,8 +2978,7 @@ qemuValidateDomainDeviceDefDiskBlkdeviotune(const virDomainDiskDef *disk,
     if (disk->blkdeviotune.group_name &&
         !virDomainBlockIoTuneInfoHasAny(&disk->blkdeviotune)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("group_name can be configured only together with "
-                         "settings"));
+                       _("group_name can be configured only together with settings"));
         return -1;
     }
 
@@ -3254,13 +3175,39 @@ qemuValidateDomainDeviceDefDisk(const virDomainDiskDef *disk,
     }
 
     if (disk->src->type == VIR_STORAGE_TYPE_VHOST_USER) {
+        const char *vhosttype = virStorageTypeToString(disk->src->type);
+
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VHOST_USER_BLK)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("vhostuser disk is not supported with this QEMU binary"));
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("%1$s disk is not supported with this QEMU binary"),
+                           vhosttype);
             return -1;
         }
 
-        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "vhostuser") < 0) {
+        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, vhosttype) < 0)
+            return -1;
+    }
+
+    if (disk->src->type == VIR_STORAGE_TYPE_VHOST_VDPA) {
+        const char *vhosttype = virStorageTypeToString(disk->src->type);
+
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("%1$s disk is not supported with this QEMU binary"),
+                           vhosttype);
+            return -1;
+        }
+
+        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, vhosttype) < 0)
+            return -1;
+
+        if (disk->cachemode != VIR_DOMAIN_DISK_CACHE_DIRECTSYNC &&
+            disk->cachemode != VIR_DOMAIN_DISK_CACHE_DISABLE) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("disk type '%1$s' requires cache mode '%2$s' or '%3$s'"),
+                           virStorageTypeToString(disk->src->type),
+                           virDomainDiskCacheTypeToString(VIR_DOMAIN_DISK_CACHE_DIRECTSYNC),
+                           virDomainDiskCacheTypeToString(VIR_DOMAIN_DISK_CACHE_DISABLE));
             return -1;
         }
     }
@@ -3285,8 +3232,7 @@ qemuValidateCheckSCSIControllerModel(virQEMUCaps *qemuCaps,
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the LSI 53C895A SCSI controller"));
+                           _("This QEMU doesn't support the LSI 53C895A SCSI controller"));
             return false;
         }
         break;
@@ -3295,8 +3241,7 @@ qemuValidateCheckSCSIControllerModel(virQEMUCaps *qemuCaps,
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_NON_TRANSITIONAL:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "virtio scsi controller"));
+                           _("This QEMU doesn't support virtio scsi controller"));
             return false;
         }
         break;
@@ -3306,24 +3251,21 @@ qemuValidateCheckSCSIControllerModel(virQEMUCaps *qemuCaps,
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSISAS1068:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_MPTSAS1068)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the LSI SAS1068 (MPT Fusion) controller"));
+                           _("This QEMU doesn't support the LSI SAS1068 (MPT Fusion) controller"));
             return false;
         }
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSISAS1078:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_MEGASAS)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the LSI SAS1078 (MegaRAID) controller"));
+                           _("This QEMU doesn't support the LSI SAS1078 (MegaRAID) controller"));
             return false;
         }
         break;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VMPVSCSI:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_PVSCSI)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the pvscsi (VMware paravirtual SCSI) controller"));
+                           _("This QEMU doesn't support the pvscsi (VMware paravirtual SCSI) controller"));
             return false;
         }
         break;
@@ -3336,22 +3278,19 @@ qemuValidateCheckSCSIControllerModel(virQEMUCaps *qemuCaps,
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_NCR53C90)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the NCR53C90 (ESP) controller"));
+                           _("This QEMU doesn't support the NCR53C90 (ESP) controller"));
         }
         return true;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DC390:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_DC390)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the DC390 (ESP) controller"));
+                           _("This QEMU doesn't support the DC390 (ESP) controller"));
         }
         return true;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AM53C974:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_AM53C974)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support "
-                             "the AM53C974 (ESP) controller"));
+                           _("This QEMU doesn't support the AM53C974 (ESP) controller"));
         }
         return true;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
@@ -3401,12 +3340,10 @@ qemuValidateDomainDeviceDefControllerIDE(const virDomainControllerDef *controlle
      */
     if (qemuDomainHasBuiltinIDE(def))
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Only a single IDE controller is supported "
-                         "for this machine type"));
+                       _("Only a single IDE controller is supported for this machine type"));
     else
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("IDE controllers are unsupported for "
-                         "this QEMU binary or machine type"));
+                       _("IDE controllers are unsupported for this QEMU binary or machine type"));
     return -1;
 }
 
@@ -3432,8 +3369,7 @@ qemuValidateCheckSCSIControllerIOThreads(const virDomainControllerDef *controlle
         controller->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI &&
         controller->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW) {
        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("virtio-scsi IOThreads only available for virtio "
-                         "pci and virtio ccw controllers"));
+                       _("virtio-scsi IOThreads only available for virtio pci and virtio ccw controllers"));
        return false;
     }
 
@@ -4100,7 +4036,7 @@ qemuValidateDomainDeviceDefController(const virDomainControllerDef *controller,
     if (qemuValidateDomainDeviceDefControllerAttributes(controller) < 0)
         return -1;
 
-    switch ((virDomainControllerType)controller->type) {
+    switch (controller->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
         ret = qemuValidateDomainDeviceDefControllerIDE(controller, def);
         break;
@@ -4154,8 +4090,7 @@ qemuValidateDomainDeviceDefSPICEGraphics(const virDomainGraphicsDef *graphics,
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_NETWORK:
         if (tlsPort > 0 && !cfg->spiceTLS) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("spice TLS port set in XML configuration, "
-                             "but TLS is disabled in qemu.conf"));
+                           _("spice TLS port set in XML configuration, but TLS is disabled in qemu.conf"));
             return -1;
         }
         break;
@@ -4262,8 +4197,7 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
             graphics->type != VIR_DOMAIN_GRAPHICS_TYPE_VNC &&
             graphics->type != VIR_DOMAIN_GRAPHICS_TYPE_SPICE) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("graphics type 'egl-headless' is only supported "
-                             "with one of: 'vnc', 'spice' graphics types"));
+                           _("graphics type 'egl-headless' is only supported with one of: 'vnc', 'spice' graphics types"));
             return -1;
         }
 
@@ -4273,8 +4207,7 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
         if (graphics->type == VIR_DOMAIN_GRAPHICS_TYPE_SPICE &&
             graphics->data.spice.gl == VIR_TRISTATE_BOOL_YES) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("multiple OpenGL displays are not supported "
-                             "by QEMU"));
+                           _("multiple OpenGL displays are not supported by QEMU"));
             return -1;
         }
     }
@@ -4291,8 +4224,7 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
         if (graphics->data.egl_headless.rendernode &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_EGL_HEADLESS_RENDERNODE)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support OpenGL rendernode "
-                             "with egl-headless graphics type"));
+                           _("This QEMU doesn't support OpenGL rendernode with egl-headless graphics type"));
             return -1;
         }
 
@@ -4332,6 +4264,13 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
                        _("only supports mount filesystem type"));
         return -1;
     }
+
+    if (fs->space_hard_limit > 0 || fs->space_soft_limit > 0) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("filesystem usage limits are not supported with QEMU"));
+        return -1;
+    }
+
     if (fs->multidevs != VIR_DOMAIN_FS_MULTIDEVS_DEFAULT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_FSDEV_MULTIDEVS)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -4354,7 +4293,7 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
         return -1;
     }
 
-    switch ((virDomainFSDriverType) fs->fsdriver) {
+    switch (fs->fsdriver) {
     case VIR_DOMAIN_FS_DRIVER_TYPE_DEFAULT:
     case VIR_DOMAIN_FS_DRIVER_TYPE_PATH:
         break;
@@ -4377,25 +4316,31 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
     case VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS:
         if (!fs->sock) {
             if (fs->readonly) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("virtiofs does not yet support read-only mode"));
-            return -1;
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("virtiofs does not yet support read-only mode"));
+                return -1;
             }
             if (!driver->privileged) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("virtiofs is not yet supported in session mode"));
-            return -1;
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("virtiofs is not yet supported in session mode"));
+                return -1;
             }
             if (fs->accessmode != VIR_DOMAIN_FS_ACCESSMODE_PASSTHROUGH) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("virtiofs only supports passthrough accessmode"));
-            return -1;
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("virtiofs only supports passthrough accessmode"));
+                return -1;
             }
             if (fs->wrpolicy != VIR_DOMAIN_FS_WRPOLICY_DEFAULT) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("virtiofs does not support wrpolicy"));
-            return -1;
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("virtiofs does not support wrpolicy"));
+                return -1;
             }
+        }
+
+        if (fs->readonly) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("virtiofs does not support read-only access"));
+            return -1;
         }
 
         if (fs->model != VIR_DOMAIN_FS_MODEL_DEFAULT) {
@@ -4555,16 +4500,14 @@ qemuValidateDomainDeviceDefSound(virDomainSoundDef *sound,
     case VIR_DOMAIN_SOUND_MODEL_USB:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_USB_AUDIO)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("usb-audio controller is not supported "
-                             "by this QEMU binary"));
+                           _("usb-audio controller is not supported by this QEMU binary"));
             return -1;
         }
         break;
     case VIR_DOMAIN_SOUND_MODEL_ICH9:
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_ICH9_INTEL_HDA)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("The ich9-intel-hda audio controller "
-                             "is not supported in this QEMU binary"));
+                           _("The ich9-intel-hda audio controller is not supported in this QEMU binary"));
             return -1;
         }
         break;
@@ -4609,8 +4552,7 @@ qemuValidateDomainDeviceDefVsock(virQEMUCaps *qemuCaps)
 {
     if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VHOST_VSOCK)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("vsock device is not supported "
-                         "with this QEMU binary"));
+                       _("vsock device is not supported with this QEMU binary"));
         return -1;
     }
 
@@ -4716,8 +4658,7 @@ qemuValidateDomainDeviceDefInput(const virDomainInputDef *input,
         input->type == VIR_DOMAIN_INPUT_TYPE_KBD &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_USB_KBD)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("usb keyboard is not supported by this "
-                         "QEMU binary"));
+                       _("usb keyboard is not supported by this QEMU binary"));
         return -1;
     }
 
@@ -4904,36 +4845,31 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
     if (iommu->intremap != VIR_TRISTATE_SWITCH_ABSENT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_INTREMAP)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("iommu: interrupt remapping is not supported "
-                         "with this QEMU binary"));
+                       _("iommu: interrupt remapping is not supported with this QEMU binary"));
         return -1;
     }
     if (iommu->caching_mode != VIR_TRISTATE_SWITCH_ABSENT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_CACHING_MODE))  {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("iommu: caching mode is not supported "
-                         "with this QEMU binary"));
+                       _("iommu: caching mode is not supported with this QEMU binary"));
         return -1;
     }
     if (iommu->eim != VIR_TRISTATE_SWITCH_ABSENT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_EIM))  {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("iommu: eim is not supported "
-                         "with this QEMU binary"));
+                       _("iommu: eim is not supported with this QEMU binary"));
         return -1;
     }
     if (iommu->iotlb != VIR_TRISTATE_SWITCH_ABSENT &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_DEVICE_IOTLB)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("iommu: device IOTLB is not supported "
-                         "with this QEMU binary"));
+                       _("iommu: device IOTLB is not supported with this QEMU binary"));
         return -1;
     }
     if (iommu->aw_bits > 0 &&
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_AW_BITS)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("iommu: aw_bits is not supported "
-                         "with this QEMU binary"));
+                       _("iommu: aw_bits is not supported with this QEMU binary"));
         return -1;
     }
 
@@ -4952,8 +4888,7 @@ qemuValidateDomainDeviceDefNVRAM(virDomainNVRAMDef *nvram,
     if (qemuDomainIsPSeries(def)) {
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVRAM)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("nvram device is not supported by "
-                             "this QEMU binary"));
+                           _("nvram device is not supported by this QEMU binary"));
             return -1;
         }
     } else {
@@ -5021,8 +4956,7 @@ qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
         if (mem->target.nvdimm.readonly &&
             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_NVDIMM_UNARMED)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("nvdimm readonly property is not available "
-                             "with this QEMU binary"));
+                           _("nvdimm readonly property is not available with this QEMU binary"));
             return -1;
         }
         break;
@@ -5147,7 +5081,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
     if (qemuValidateDomainDeviceInfo(dev, def, qemuCaps) < 0)
         return -1;
 
-    switch ((virDomainDeviceType)dev->type) {
+    switch (dev->type) {
     case VIR_DOMAIN_DEVICE_NET:
         return qemuValidateDomainDeviceDefNetwork(dev->data.net, qemuCaps);
 

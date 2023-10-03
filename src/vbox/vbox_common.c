@@ -467,7 +467,7 @@ vboxSetStorageController(virDomainControllerDef *controller,
     int ret = -1;
 
     /* libvirt controller type => vbox bus type */
-    switch ((virDomainControllerType) controller->type) {
+    switch (controller->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
         VBOX_UTF8_TO_UTF16(VBOX_CONTROLLER_FLOPPY_NAME, &controllerName);
         vboxBusType = StorageBus_Floppy;
@@ -1206,7 +1206,7 @@ vboxAttachDrives(virDomainDef *def, struct _vboxDriver *data, IMachine *machine)
             goto cleanup;
         }
 
-        switch ((virDomainDiskBus) disk->bus) {
+        switch (disk->bus) {
         case VIR_DOMAIN_DISK_BUS_IDE:
             VBOX_UTF8_TO_UTF16(VBOX_CONTROLLER_IDE_NAME, &storageCtlName);
             devicePort = def->disks[i]->info.addr.drive.bus;

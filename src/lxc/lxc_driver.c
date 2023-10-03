@@ -654,8 +654,7 @@ static int lxcDomainSetMemoryFlags(virDomainPtr dom, unsigned long newmem,
     if (flags & VIR_DOMAIN_MEM_MAXIMUM) {
         if (def) {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("Cannot resize the max memory "
-                             "on an active domain"));
+                           _("Cannot resize the max memory on an active domain"));
             goto endjob;
         }
 
@@ -3849,6 +3848,11 @@ lxcDomainAttachDeviceHostdevSubsysLive(virLXCDriver *driver,
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
         return lxcDomainAttachDeviceHostdevSubsysUSBLive(driver, vm, dev);
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device type %1$s"),
@@ -3870,6 +3874,8 @@ lxcDomainAttachDeviceHostdevCapsLive(virLXCDriver *driver,
     case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_MISC:
         return lxcDomainAttachDeviceHostdevMiscLive(driver, vm, dev);
 
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device type %1$s"),
@@ -3906,6 +3912,7 @@ lxcDomainAttachDeviceHostdevLive(virLXCDriver *driver,
         return lxcDomainAttachDeviceHostdevCapsLive(driver, vm, dev);
 
     default:
+    case VIR_DOMAIN_HOSTDEV_MODE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device mode %1$s"),
                        virDomainHostdevModeTypeToString(dev->data.hostdev->mode));
@@ -4279,6 +4286,11 @@ lxcDomainDetachDeviceHostdevSubsysLive(virLXCDriver *driver,
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
         return lxcDomainDetachDeviceHostdevUSBLive(driver, vm, dev);
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device type %1$s"),
@@ -4299,6 +4311,8 @@ lxcDomainDetachDeviceHostdevCapsLive(virDomainObj *vm,
     case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_MISC:
         return lxcDomainDetachDeviceHostdevMiscLive(vm, dev);
 
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device type %1$s"),
@@ -4329,6 +4343,7 @@ lxcDomainDetachDeviceHostdevLive(virLXCDriver *driver,
         return lxcDomainDetachDeviceHostdevCapsLive(vm, dev);
 
     default:
+    case VIR_DOMAIN_HOSTDEV_MODE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported host device mode %1$s"),
                        virDomainHostdevModeTypeToString(dev->data.hostdev->mode));

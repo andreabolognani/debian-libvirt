@@ -54,6 +54,7 @@
 #include "virpidfile.h"
 #include "virprocess.h"
 #include "virbuffer.h"
+#include "virsecureerase.h"
 #include "virthread.h"
 #include "virstring.h"
 
@@ -75,14 +76,6 @@ typedef struct _virCommandFD virCommandFD;
 struct _virCommandFD {
     int fd;
     unsigned int flags;
-};
-
-typedef struct _virCommandSendBuffer virCommandSendBuffer;
-struct _virCommandSendBuffer {
-    int fd;
-    unsigned char *buffer;
-    size_t buflen;
-    off_t offset;
 };
 
 struct _virCommand {
@@ -1697,6 +1690,7 @@ virCommandFreeSendBuffers(virCommand *cmd)
 
     for (i = 0; i < virCommandGetNumSendBuffers(cmd); i++) {
         VIR_FORCE_CLOSE(cmd->sendBuffers[i].fd);
+        virSecureErase(cmd->sendBuffers[i].buffer, cmd->sendBuffers[i].buflen);
         VIR_FREE(cmd->sendBuffers[i].buffer);
     }
     VIR_FREE(cmd->sendBuffers);
@@ -2691,8 +2685,7 @@ virCommandRunAsync(virCommand *cmd, pid_t *pid)
                                 virCommandDoAsyncIOHelper,
                                 "cmd-async-io", false, cmd) < 0) {
             virReportSystemError(errno, "%s",
-                                 _("Unable to create thread "
-                                   "to process command's IO"));
+                                 _("Unable to create thread to process command's IO"));
             VIR_FREE(cmd->asyncioThread);
             virCommandAbort(cmd);
             ret = -1;
@@ -3512,4 +3505,13 @@ virCommandSetRunAmong(virCommand *cmd,
     }
 
     cmd->schedCore = pid;
+}
+
+void
+virCommandPeekSendBuffers(virCommand *cmd,
+                          virCommandSendBuffer **buffers,
+                          int *nbuffers)
+{
+    *buffers = cmd->sendBuffers;
+    *nbuffers = cmd->numSendBuffers;
 }
