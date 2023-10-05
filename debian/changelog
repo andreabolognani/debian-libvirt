@@ -1,4 +1,4 @@
-libvirt (9.8.0-1) UNRELEASED; urgency=medium
+libvirt (9.8.0-1) unstable; urgency=medium
 
   [ Pino Toscano ]
   * [a3a1f2e] Enable the rbd/ceph storage driver only on 64bit architectures
@@ -6,8 +6,12 @@ libvirt (9.8.0-1) UNRELEASED; urgency=medium
 
   [ Andrea Bolognani ]
   * [c52c885] New upstream version 9.8.0
+  * [9c190ce] patches: Add backports
+    - backport/meson-Improve-nbdkit-configurability.patch
+  * [c24237a] rules: Temporarily disable nbdkit support
+    - AppArmor support is not ready yet
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 03 Oct 2023 22:46:39 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 05 Oct 2023 23:27:45 +0200
 
 libvirt (9.7.0-1) unstable; urgency=medium
 
