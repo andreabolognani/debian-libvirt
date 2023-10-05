@@ -24,35 +24,10 @@ ARCHES_XEN  = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
-    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
-        WITH_QEMU             = -Ddriver_qemu=enabled
-    else
-        WITH_QEMU             = -Ddriver_qemu=disabled
-    endif
-    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
-        WITH_VBOX             = -Ddriver_vbox=enabled
-    else
-        WITH_VBOX             = -Ddriver_vbox=disabled
-    endif
-    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
-        WITH_LIBXL            = -Ddriver_libxl=enabled
-    else
-        WITH_LIBXL            = -Ddriver_libxl=disabled
-    endif
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled
     WITH_STORAGE_DISK         = -Dstorage_disk=enabled
-    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_CEPH)))
-        WITH_STORAGE_RBD      = -Dstorage_rbd=enabled
-    else
-        WITH_STORAGE_RBD      = -Dstorage_rbd=disabled
-    endif
-    ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_GLUSTER)))
-        WITH_STORAGE_GLUSTER  = -Dstorage_gluster=enabled
-    else
-        WITH_STORAGE_GLUSTER  = -Dstorage_gluster=disabled
-    endif
     WITH_UDEV                 = -Dudev=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
@@ -69,23 +44,11 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_NSS_PLUGIN           = -Dnss=enabled
     WITH_DTRACE               = -Ddtrace=enabled
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
-    ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_LXC)))
-        WITH_LXC              = -Ddriver_lxc=enabled
-        WITH_LOGIN_SHELL      = -Dlogin_shell=enabled
-    else
-        WITH_LXC              = -Ddriver_lxc=disabled
-        WITH_LOGIN_SHELL      = -Dlogin_shell=disabled
-    endif
 else
-    WITH_QEMU                 = -Ddriver_qemu=disabled
-    WITH_VBOX                 = -Ddriver_vbox=disabled
-    WITH_LIBXL                = -Ddriver_libxl=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled
     WITH_STORAGE_DISK         = -Dstorage_disk=disabled
-    WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
-    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
     WITH_UDEV                 = -Dudev=disabled
     WITH_CAPNG                = -Dcapng=disabled
     WITH_LIBNL                = -Dlibnl=disabled
@@ -102,8 +65,39 @@ else
     WITH_NSS_PLUGIN           = -Dnss=disabled
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
+endif
+
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_CEPH)))
+    WITH_STORAGE_RBD          = -Dstorage_rbd=enabled
+else
+    WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_GLUSTER)))
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
+else
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+    WITH_QEMU                 = -Ddriver_qemu=enabled
+else
+    WITH_QEMU                 = -Ddriver_qemu=disabled
+endif
+ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_LXC)))
+    WITH_LXC                  = -Ddriver_lxc=enabled
+    WITH_LOGIN_SHELL          = -Dlogin_shell=enabled
+else
     WITH_LXC                  = -Ddriver_lxc=disabled
     WITH_LOGIN_SHELL          = -Dlogin_shell=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
+    WITH_LIBXL                = -Ddriver_libxl=enabled
+else
+    WITH_LIBXL                = -Ddriver_libxl=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
+    WITH_VBOX                 = -Ddriver_vbox=enabled
+else
+    WITH_VBOX                 = -Ddriver_vbox=disabled
 endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
