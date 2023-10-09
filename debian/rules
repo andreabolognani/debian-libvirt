@@ -27,16 +27,16 @@ ARCHES_VBOX = amd64 i386
 ARCHES_NBDKIT =
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
-    WITH_DAEMONS              = -Ddriver_libvirtd=enabled
-    WITH_ESX                  = -Ddriver_esx=enabled
+    WITH_DAEMONS              = -Ddriver_libvirtd=enabled -Dhost_validate=enabled
+    WITH_ESX                  = -Ddriver_esx=enabled -Dcurl=enabled
     WITH_STORAGE_FS           = -Dstorage_fs=enabled
     WITH_STORAGE_DIR          = -Dstorage_dir=enabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
-    WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled
+    WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled -Dlibiscsi=enabled
     WITH_STORAGE_DISK         = -Dstorage_disk=enabled
     WITH_STORAGE_ZFS          = -Dstorage_zfs=enabled
-    WITH_UDEV                 = -Dudev=enabled
+    WITH_UDEV                 = -Dudev=enabled -Dpciaccess=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
     WITH_NETWORK              = -Ddriver_network=enabled
@@ -55,16 +55,16 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
     WITH_WIRESHARK            = -Dwireshark_dissector=enabled
 else
-    WITH_DAEMONS              = -Ddriver_libvirtd=disabled
-    WITH_ESX                  = -Ddriver_esx=disabled
+    WITH_DAEMONS              = -Ddriver_libvirtd=disabled -Dhost_validate=disabled
+    WITH_ESX                  = -Ddriver_esx=disabled -Dcurl=disabled
     WITH_STORAGE_FS           = -Dstorage_fs=disabled
     WITH_STORAGE_DIR          = -Dstorage_dir=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
-    WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled
+    WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled -Dlibiscsi=disabled
     WITH_STORAGE_DISK         = -Dstorage_disk=disabled
     WITH_STORAGE_ZFS          = -Dstorage_zfs=disabled
-    WITH_UDEV                 = -Dudev=disabled
+    WITH_UDEV                 = -Dudev=disabled -Dpciaccess=disabled
     WITH_CAPNG                = -Dcapng=disabled
     WITH_LIBNL                = -Dlibnl=disabled
     WITH_NETWORK              = -Ddriver_network=disabled
@@ -90,9 +90,9 @@ else
     WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_GLUSTER)))
-    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled -Dglusterfs=enabled
 else
-    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled -Dglusterfs=disabled
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
     WITH_QEMU                 = -Ddriver_qemu=enabled
@@ -323,6 +323,8 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	               usr/lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2 \
 	               lib/$(DEB_HOST_MULTIARCH)/; \
 	done
+	dh_install -p libvirt-clients usr/bin/virt-host-validate
+	dh_install -p libvirt-clients usr/share/man/man1/virt-host-validate.1
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
 	dh_install -p libvirt-daemon-system etc/libvirt/qemu.conf
