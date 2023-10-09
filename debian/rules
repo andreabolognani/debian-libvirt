@@ -129,9 +129,11 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dqemu_moddir=/usr/lib/$(DEB_HOST_MULTIARCH)/qemu \
     -Dqemu_datadir=/usr/share/qemu \
     -Ddocs=enabled \
+    -Ddocdir=/usr/share/doc/libvirt \
     -Dtests=enabled \
     -Drpath=disabled \
     -Dnls=enabled \
+    -Dtls_priority=NORMAL \
     $(WITH_OPENVZ) \
     -Dsasl=enabled \
     -Dyajl=enabled \
@@ -139,6 +141,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dlibssh=enabled \
     -Dreadline=enabled \
     -Dbash_completion=enabled \
+    -Dbash_completion_dir=/usr/share/bash-completion/completions \
     $(WITH_POLKIT) \
     $(WITH_SANLOCK) \
     $(WITH_UDEV) \
