@@ -29,17 +29,24 @@ ARCHES_NBDKIT =
 ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_DAEMONS              = -Ddriver_libvirtd=enabled -Dhost_validate=enabled
     WITH_ESX                  = -Ddriver_esx=enabled -Dcurl=enabled
+    WITH_VMWARE               = -Ddriver_vmware=enabled
     WITH_STORAGE_FS           = -Dstorage_fs=enabled
     WITH_STORAGE_DIR          = -Dstorage_dir=enabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
+    WITH_STORAGE_SCSI         = -Dstorage_scsi=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled -Dlibiscsi=enabled
     WITH_STORAGE_DISK         = -Dstorage_disk=enabled
+    WITH_STORAGE_MPATH        = -Dstorage_mpath=enabled
     WITH_STORAGE_ZFS          = -Dstorage_zfs=enabled
+    WITH_BLKID                = -Dblkid=enabled
+    WITH_FUSE                 = -Dfuse=enabled
     WITH_UDEV                 = -Dudev=enabled -Dpciaccess=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
     WITH_NETWORK              = -Ddriver_network=enabled
+    WITH_INTERFACE            = -Ddriver_interface=enabled
+    WITH_SECRETS              = -Ddriver_secrets=enabled
     WITH_OPENVZ               = -Ddriver_openvz=enabled
     WITH_YAJL                 = -Dyajl=enabled
     WITH_POLKIT               = -Dpolkit=enabled
@@ -48,26 +55,35 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_FIREWALLD            = -Dfirewalld=enabled
     WITH_ATTR                 = -Dattr=enabled
     WITH_AUDIT                = -Daudit=enabled
+    WITH_LIBPCAP              = -Dlibpcap=enabled
     WITH_SELINUX              = -Dselinux=enabled -Dsecdriver_selinux=enabled -Dselinux_mount=/sys/fs/selinux
     WITH_APPARMOR             = -Dapparmor=enabled -Dsecdriver_apparmor=enabled -Dapparmor_profiles=enabled
     WITH_NSS_PLUGIN           = -Dnss=enabled
     WITH_DTRACE               = -Ddtrace=enabled
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
+    WITH_SYSCTL               = -Dsysctl_config=enabled
     WITH_WIRESHARK            = -Dwireshark_dissector=enabled
 else
     WITH_DAEMONS              = -Ddriver_libvirtd=disabled -Dhost_validate=disabled
     WITH_ESX                  = -Ddriver_esx=disabled -Dcurl=disabled
+    WITH_VMWARE               = -Ddriver_vmware=disabled
     WITH_STORAGE_FS           = -Dstorage_fs=disabled
     WITH_STORAGE_DIR          = -Dstorage_dir=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
+    WITH_STORAGE_SCSI         = -Dstorage_scsi=disabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled -Dlibiscsi=disabled
     WITH_STORAGE_DISK         = -Dstorage_disk=disabled
+    WITH_STORAGE_MPATH        = -Dstorage_mpath=enabled
     WITH_STORAGE_ZFS          = -Dstorage_zfs=disabled
+    WITH_BLKID                = -Dblkid=disabled
+    WITH_FUSE                 = -Dfuse=disabled
     WITH_UDEV                 = -Dudev=disabled -Dpciaccess=disabled
     WITH_CAPNG                = -Dcapng=disabled
     WITH_LIBNL                = -Dlibnl=disabled
     WITH_NETWORK              = -Ddriver_network=disabled
+    WITH_INTERFACE            = -Ddriver_interface=disabled
+    WITH_SECRETS              = -Ddriver_secrets=disabled
     WITH_OPENVZ               = -Ddriver_openvz=disabled
     WITH_POLKIT               = -Dpolkit=disabled
     WITH_YAJL                 = -Dyajl=disabled
@@ -76,11 +92,13 @@ else
     WITH_FIREWALLD            = -Dfirewalld=disabled
     WITH_ATTR                 = -Dattr=disabled
     WITH_AUDIT                = -Daudit=disabled
+    WITH_LIBPCAP              = -Dlibpcap=disabled
     WITH_SELINUX              = -Dselinux=disabled -Dsecdriver_selinux=disabled -Dselinux_mount=
     WITH_APPARMOR             = -Dapparmor=disabled -Dsecdriver_apparmor=disabled -Dapparmor_profiles=disabled
     WITH_NSS_PLUGIN           = -Dnss=disabled
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
+    WITH_SYSCTL               = -Dsysctl_config=disabled
     WITH_WIRESHARK            = -Dwireshark_dissector=disabled
 endif
 
@@ -162,28 +180,37 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_STORAGE_FS) \
     $(WITH_STORAGE_DIR) \
     $(WITH_STORAGE_LVM) \
+    $(WITH_STORAGE_SCSI) \
     $(WITH_STORAGE_ISCSI) \
     $(WITH_STORAGE_ISCSI_DIRECT) \
     $(WITH_STORAGE_DISK) \
     $(WITH_STORAGE_RBD) \
     $(WITH_STORAGE_GLUSTER) \
+    $(WITH_STORAGE_MPATH) \
     $(WITH_STORAGE_ZFS) \
     -Dstorage_vstorage=disabled \
+    $(WITH_BLKID) \
+    $(WITH_FUSE) \
     $(WITH_INIT_SCRIPT) \
     $(WITH_NUMA) \
+    $(WITH_SYSCTL) \
     $(WITH_SELINUX) \
     $(WITH_APPARMOR) \
     $(WITH_ESX) \
+    $(WITH_VMWARE) \
     $(WITH_CAPNG) \
     $(WITH_LIBNL) \
     $(WITH_NETWORK) \
     -Dnetcf=disabled \
+    $(WITH_INTERFACE) \
+    $(WITH_SECRETS) \
     $(WITH_LIBXL) \
     $(WITH_VBOX) \
     $(WITH_LXC) \
     $(WITH_LOGIN_SHELL) \
     $(WITH_DTRACE) \
     $(WITH_AUDIT) \
+    $(WITH_LIBPCAP) \
     $(WITH_FIREWALLD) \
     $(WITH_ATTR) \
     $(WITH_NSS_PLUGIN) \
