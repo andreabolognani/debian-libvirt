@@ -27,15 +27,21 @@ ARCHES_VBOX = amd64 i386
 ARCHES_NBDKIT =
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
+    WITH_DAEMONS              = -Ddriver_libvirtd=enabled
+    WITH_ESX                  = -Ddriver_esx=enabled
+    WITH_STORAGE_FS           = -Dstorage_fs=enabled
+    WITH_STORAGE_DIR          = -Dstorage_dir=enabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled
     WITH_STORAGE_DISK         = -Dstorage_disk=enabled
+    WITH_STORAGE_ZFS          = -Dstorage_zfs=enabled
     WITH_UDEV                 = -Dudev=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
     WITH_NETWORK              = -Ddriver_network=enabled
     WITH_OPENVZ               = -Ddriver_openvz=enabled
+    WITH_YAJL                 = -Dyajl=enabled
     WITH_POLKIT               = -Dpolkit=enabled
     WITH_SANLOCK              = -Dsanlock=enabled
     WITH_INIT_SCRIPT          = -Dinit_script=systemd
@@ -47,17 +53,24 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_NSS_PLUGIN           = -Dnss=enabled
     WITH_DTRACE               = -Ddtrace=enabled
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
+    WITH_WIRESHARK            = -Dwireshark_dissector=enabled
 else
+    WITH_DAEMONS              = -Ddriver_libvirtd=disabled
+    WITH_ESX                  = -Ddriver_esx=disabled
+    WITH_STORAGE_FS           = -Dstorage_fs=disabled
+    WITH_STORAGE_DIR          = -Dstorage_dir=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled
     WITH_STORAGE_DISK         = -Dstorage_disk=disabled
+    WITH_STORAGE_ZFS          = -Dstorage_zfs=disabled
     WITH_UDEV                 = -Dudev=disabled
     WITH_CAPNG                = -Dcapng=disabled
     WITH_LIBNL                = -Dlibnl=disabled
     WITH_NETWORK              = -Ddriver_network=disabled
     WITH_OPENVZ               = -Ddriver_openvz=disabled
     WITH_POLKIT               = -Dpolkit=disabled
+    WITH_YAJL                 = -Dyajl=disabled
     WITH_SANLOCK              = -Dsanlock=disabled
     WITH_INIT_SCRIPT          = -Dinit_script=none
     WITH_FIREWALLD            = -Dfirewalld=disabled
@@ -68,6 +81,7 @@ else
     WITH_NSS_PLUGIN           = -Dnss=disabled
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
+    WITH_WIRESHARK            = -Dwireshark_dissector=disabled
 endif
 
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_CEPH)))
@@ -114,8 +128,8 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dinitconfdir=/etc/default \
     -Dpackager="$(DEB_VENDOR)" \
     -Dpackager_version="$(DEB_VERSION)" \
+    $(WITH_DAEMONS) \
     $(WITH_QEMU) \
-    -Ddriver_libvirtd=enabled \
     -Ddriver_remote=enabled \
     -Dremote_default_mode=legacy \
     -Ddriver_test=enabled \
@@ -136,30 +150,30 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dtls_priority=NORMAL \
     $(WITH_OPENVZ) \
     -Dsasl=enabled \
-    -Dyajl=enabled \
     -Dlibssh2=enabled \
     -Dlibssh=enabled \
     -Dreadline=enabled \
     -Dbash_completion=enabled \
     -Dbash_completion_dir=/usr/share/bash-completion/completions \
+    $(WITH_YAJL) \
     $(WITH_POLKIT) \
     $(WITH_SANLOCK) \
     $(WITH_UDEV) \
-    -Dstorage_fs=enabled \
-    -Dstorage_dir=enabled \
+    $(WITH_STORAGE_FS) \
+    $(WITH_STORAGE_DIR) \
     $(WITH_STORAGE_LVM) \
     $(WITH_STORAGE_ISCSI) \
     $(WITH_STORAGE_ISCSI_DIRECT) \
     $(WITH_STORAGE_DISK) \
     $(WITH_STORAGE_RBD) \
     $(WITH_STORAGE_GLUSTER) \
+    $(WITH_STORAGE_ZFS) \
     -Dstorage_vstorage=disabled \
-    -Dstorage_zfs=enabled \
     $(WITH_INIT_SCRIPT) \
     $(WITH_NUMA) \
     $(WITH_SELINUX) \
     $(WITH_APPARMOR) \
-    -Ddriver_esx=enabled \
+    $(WITH_ESX) \
     $(WITH_CAPNG) \
     $(WITH_LIBNL) \
     $(WITH_NETWORK) \
@@ -174,7 +188,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_ATTR) \
     $(WITH_NSS_PLUGIN) \
     $(WITH_NBDKIT) \
-    -Dwireshark_dissector=enabled \
+    $(WITH_WIRESHARK) \
     -Dpm_utils=disabled \
     $(NULL)
 
