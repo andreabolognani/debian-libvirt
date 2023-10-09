@@ -294,22 +294,10 @@ override_dh_auto_test:
 # various dh_* tools will work optimally. This target is the perfect place
 # to perform such operations
 execute_after_dh_auto_install:
+ifeq ($(DEB_HOST_ARCH_OS), linux)
 	# Move upstream files where dh_* can find them
 	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/ \
 	   $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl;
-
-	# Copy the release notes where dh_installdocs can find them
-	cp NEWS.rst \
-	   $(DEB_DESTDIR)/usr/share/doc/libvirt/NEWS
-
-	# Rename the upstream polkit rule so that it matches the name used
-	# historically in Debian
-	mv $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/50-libvirt.rules \
-	   $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/60-libvirt.rules
-
-	# Don't ship the CI dashboard, which is not useful as documentation
-	# triggers the privacy-breach-generic Lintian tag
-	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci-dashboard.html
 
 	# Disable network autostart
 	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
@@ -318,6 +306,20 @@ execute_after_dh_auto_install:
 	mv $(DEB_DESTDIR)/etc/libvirt/qemu/networks/ \
 	   $(DEB_DESTDIR)/etc/libvirt/nwfilter/ \
 	   $(DEB_DESTDIR)/usr/share/libvirt/
+
+	# Rename the upstream polkit rule so that it matches the name used
+	# historically in Debian
+	mv $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/50-libvirt.rules \
+	   $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/60-libvirt.rules
+endif
+
+	# Copy the release notes where dh_installdocs can find them
+	cp NEWS.rst \
+	   $(DEB_DESTDIR)/usr/share/doc/libvirt/NEWS
+
+	# Don't ship the CI dashboard, which is not useful as documentation
+	# triggers the privacy-breach-generic Lintian tag
+	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci-dashboard.html
 
 execute_after_dh_install:
 ifeq ($(DEB_HOST_ARCH_OS), linux)
@@ -369,6 +371,7 @@ ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-sanlock.conf
 endif
 
+ifeq ($(DEB_HOST_ARCH_OS), linux)
 override_dh_installinit:
 	# Install SysV init scripts
 	dh_installinit -p libvirt-daemon-system-sysv --name=virtlogd --no-stop-on-upgrade
@@ -384,6 +387,7 @@ override_dh_installinit:
 override_dh_installsystemd:
 	dh_installsystemd -p libvirt-daemon-system --no-also libvirtd.service
 	dh_installsystemd -p libvirt-daemon-system --no-stop-on-upgrade $(LIBVIRT_UNITS)
+endif
 
 override_dh_installchangelogs:
 	dh_installchangelogs -plibvirt0
