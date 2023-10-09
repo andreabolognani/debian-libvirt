@@ -134,7 +134,7 @@ Description: Isolate user sessions using LXC containers
 
 Package: libvirt-daemon
 Section: admin
-Architecture: any
+Architecture: linux-any
 Depends:
  libvirt-daemon-driver-qemu (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -145,7 +145,7 @@ Recommends:
  libvirt-daemon-driver-vbox (= ${binary:Version}),
  libvirt-daemon-driver-xen (= ${binary:Version}),
  libxml2-utils,
- lvm2 [linux-any],
+ lvm2,
  mount,
  netcat-openbsd,
  qemu-kvm | qemu-system,
@@ -326,11 +326,11 @@ Description: Virtualization daemon ZFS storage driver
 
 Package: libvirt-daemon-system
 Section: admin
-Architecture: any
+Architecture: linux-any
 Depends:
  adduser,
  gettext-base,
- iptables [linux-any] | firewalld,
+ iptables | firewalld,
  libvirt-clients (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt-daemon-config-network (= ${source:Version}),
@@ -339,7 +339,7 @@ Depends:
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  logrotate,
- polkitd (>= 121+compat0.1-2) [linux-any],
+ polkitd (>= 121+compat0.1-2),
  ${misc:Depends},
 Recommends:
  dmidecode,
@@ -351,7 +351,7 @@ Suggests:
  apparmor,
  auditd,
  nfs-common,
- open-iscsi [linux-any],
+ open-iscsi,
  pm-utils,
  systemd,
  systemtap,
@@ -550,7 +550,7 @@ Description: nss plugins providing IP address resolution for virtual machines
 
 Package: libvirt-wireshark
 Section: admin
-Architecture: any
+Architecture: linux-any
 Multi-Arch: same
 Depends:
  libvirt0 (= ${binary:Version}),
