@@ -131,11 +131,14 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Ddocs=enabled \
     -Dtests=enabled \
     -Drpath=disabled \
+    -Dnls=enabled \
     $(WITH_OPENVZ) \
     -Dsasl=enabled \
     -Dyajl=enabled \
     -Dlibssh2=enabled \
     -Dlibssh=enabled \
+    -Dreadline=enabled \
+    -Dbash_completion=enabled \
     $(WITH_POLKIT) \
     $(WITH_SANLOCK) \
     $(WITH_UDEV) \
