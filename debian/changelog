@@ -1,3 +1,19 @@
+libvirt (9.8.0-2) unstable; urgency=medium
+
+  [ Michal Maloszewski ]
+  * [03d707d] libvirtd.default: Document TCP/TLS usage
+    - Closes: #1050464
+    - LP: #1960937
+
+  [ Andrea Bolognani ]
+  * [53f248b] control: Make more packages Linux-only
+    - Among the packages that are currently arch:any only libvirt0,
+      libvirt-dev and libvirt-clients make sense on non-Linux
+  * [f1f8713] patches: Add forward/meson-Fix-XDR-check-for-GNU-Hurd.patch
+    - Make it possible to build on hurd-i386
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 13 Oct 2023 13:55:07 +0200
+
 libvirt (9.8.0-1) unstable; urgency=medium
 
   [ Pino Toscano ]
