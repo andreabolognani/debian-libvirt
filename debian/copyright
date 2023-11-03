@@ -13,6 +13,10 @@ Copyright: 2008-2019 Red Hat, Inc.
            2001-2022 Free Software Foundation, Inc.
 License: GPL-3.0+
 
+Files: src/ch/ch_capabilities.*
+Copyright: 2023 Microsoft Corp.
+License: LGPL-2.1+
+
 Files: src/conf/*
 Copyright: 2005-2019 Red Hat, Inc
            2015 SUSE LINUX Products GmbH, Nuernberg, Germany.
