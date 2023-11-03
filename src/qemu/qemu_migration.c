@@ -1011,8 +1011,8 @@ qemuMigrationSrcNBDStorageCopyBlockdevPrepareSource(virDomainDiskDef *disk,
     copysrc->tlsAlias = g_strdup(tlsAlias);
     copysrc->tlsHostname = g_strdup(tlsHostname);
 
-    copysrc->nodestorage = g_strdup_printf("migration-%s-storage", disk->dst);
-    copysrc->nodeformat = g_strdup_printf("migration-%s-format", disk->dst);
+    qemuBlockStorageSourceSetStorageNodename(copysrc, g_strdup_printf("migration-%s-storage", disk->dst));
+    qemuBlockStorageSourceSetFormatNodename(copysrc, g_strdup_printf("migration-%s-format", disk->dst));
 
     return g_steal_pointer(&copysrc);
 }
@@ -1045,11 +1045,8 @@ qemuMigrationSrcNBDStorageCopyBlockdev(virDomainObj *vm,
                                                                         tlsAlias, tlsHostname)))
         return -1;
 
-    /* Migration via blockdev-mirror was supported sooner than the auto-read-only
-     * feature was added to qemu */
     if (!(data = qemuBlockStorageSourceAttachPrepareBlockdev(copysrc,
-                                                             copysrc->backingStore,
-                                                             false)))
+                                                             copysrc->backingStore)))
         return -1;
 
     if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_MIGRATION_OUT) < 0)
@@ -1060,7 +1057,7 @@ qemuMigrationSrcNBDStorageCopyBlockdev(virDomainObj *vm,
     if (mon_ret == 0)
         mon_ret = qemuMonitorBlockdevMirror(qemuDomainGetMonitor(vm), diskAlias, true,
                                             qemuDomainDiskGetTopNodename(disk),
-                                            copysrc->nodeformat,
+                                            qemuBlockStorageSourceGetEffectiveNodename(copysrc),
                                             mirror_speed, 0, 0, mirror_shallow,
                                             syncWrites);
 
@@ -2393,7 +2390,8 @@ qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(qemuMigrationCookie *mig,
         qemuMigrationBlockDirtyBitmapsDisk *disk;
         GSList *bitmaps = NULL;
         virDomainDiskDef *diskdef = vm->def->disks[i];
-        qemuBlockNamedNodeData *nodedata = virHashLookup(blockNamedNodeData, diskdef->src->nodeformat);
+        qemuBlockNamedNodeData *nodedata = virHashLookup(blockNamedNodeData,
+                                                         qemuBlockStorageSourceGetEffectiveNodename(diskdef->src));
         size_t j;
 
         if (!nodedata)
@@ -4456,7 +4454,7 @@ qemuMigrationSrcRunPrepareBlockDirtyBitmapsMerge(virDomainObj *vm,
                     granularity = b->granularity;
 
                 if (qemuMonitorTransactionBitmapMergeSourceAddBitmap(merge,
-                                                                     n->nodeformat,
+                                                                     qemuBlockStorageSourceGetEffectiveNodename(n),
                                                                      b->name) < 0)
                     return -1;
             }
@@ -4465,19 +4463,19 @@ qemuMigrationSrcRunPrepareBlockDirtyBitmapsMerge(virDomainObj *vm,
             bitmap->persistent = VIR_TRISTATE_BOOL_YES;
 
             if (qemuMonitorTransactionBitmapAdd(actions,
-                                                disk->disk->src->nodeformat,
+                                                qemuBlockStorageSourceGetEffectiveNodename(disk->disk->src),
                                                 bitmap->sourcebitmap,
                                                 false, false, granularity) < 0)
                 return -1;
 
             if (qemuMonitorTransactionBitmapMerge(actions,
-                                                  disk->disk->src->nodeformat,
+                                                  qemuBlockStorageSourceGetEffectiveNodename(disk->disk->src),
                                                   bitmap->sourcebitmap,
                                                   &merge) < 0)
                 return -1;
 
             tmpbmp = g_new0(qemuDomainJobPrivateMigrateTempBitmap, 1);
-            tmpbmp->nodename = g_strdup(disk->disk->src->nodeformat);
+            tmpbmp->nodename = g_strdup(qemuBlockStorageSourceGetEffectiveNodename(disk->disk->src));
             tmpbmp->bitmapname = g_strdup(bitmap->sourcebitmap);
             tmpbitmaps = g_slist_prepend(tmpbitmaps, tmpbmp);
         }

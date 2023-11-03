@@ -2600,8 +2600,8 @@ testQemuMonitorJSONBlockdevReopen(const void *opaque)
 
     src->format = VIR_STORAGE_FILE_QCOW2;
     src->readonly = true;
-    src->nodeformat = g_strdup("test node");
-    src->nodestorage = g_strdup("backing nodename");
+    qemuBlockStorageSourceSetFormatNodename(src, g_strdup("test node"));
+    qemuBlockStorageSourceSetStorageNodename(src, g_strdup("backing nodename"));
     src->backingStore = virStorageSourceNew();
 
     if (qemuMonitorTestAddItem(test, "blockdev-reopen", "{\"return\":{}}") < 0)

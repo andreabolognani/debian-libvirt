@@ -321,6 +321,7 @@ Patches have also been contributed by:
 * Felix Geyer <debfx@fobos.de>
 * Felix Geyer <fgeyer@debian.org>
 * Filip Alac <filipalac@gmail.com>
+* Fima Shevrin <efim.shevrin@virtuozzo.com>
 * Florian Vichot <florian.vichot@diateam.net>
 * Francesc Guasch <frankie@etsetb.upc.edu>
 * Francesco Romani <fromani@redhat.com>
@@ -612,6 +613,7 @@ Patches have also been contributed by:
 * Muha Aliss <muhaaliss@gmail.com>
 * Nan Zhang <nzhang@redhat.com>
 * Naoya Horiguchi <n-horiguchi@ah.jp.nec.com>
+* Narayana Murty N <nnmlinux@linux.ibm.com>
 * Natanael Copa <ncopa@alpinelinux.org>
 * Nathan <nathan95@live.it>
 * Neal Gompa <ngompa13@gmail.com>
@@ -755,6 +757,7 @@ Patches have also been contributed by:
 * Sergey A <sw@atrus.ru>
 * Sergey Bronnikov <sergeyb@openvz.org>
 * Sergey Fionov <fionov@gmail.com>
+* Sergey Mironov <mironov@fintech.ru>
 * Shahar Klein <shaharklein@yahoo.com>
 * Shaleen Bathla <shaleen.bathla@oracle.com>
 * Shalini Chellathurai Saroja <shalini@linux.ibm.com>
@@ -975,6 +978,7 @@ Patches have also been contributed by:
 * zhangjl02 <zhangjl02@inspur.com>
 * zhanglei <zhanglei@smartx.com>
 * zhenwei pi <pizhenwei@bytedance.com>
+* zhujun2 <zhujun2@cmss.chinamobile.com>
 * zuoboqun <zuoboqun@baidu.com>
 * Анастасия Белова <abelova@astralinux.ru>
 * Дамјан Георгиевски <gdamjan@gmail.com>

@@ -1442,7 +1442,7 @@ console
 
 ::
 
-   console domain [devname] [--safe] [--force]
+   console domain [devname] [--safe] [--force] [--resume]
 
 Connect the virtual serial console for the guest. The optional
 *devname* parameter refers to the device alias of an alternate
@@ -1454,6 +1454,9 @@ if the driver supports safe console handling. This flag specifies that
 the server has to ensure exclusive access to console devices. Optionally
 the *--force* flag may be specified, requesting to disconnect any existing
 sessions, such as in a case of a broken connection.
+
+If the flag *--resume* is specified then the guest is resumed after connecting
+to the console.
 
 
 cpu-stats
@@ -5267,7 +5270,7 @@ dom-fd-associate
 
 Associate one or more fds described via *--pass-fds* argument to *domain* as
 *--name*. The lifetime of the passed fd group is the same as the connection, thus
-exitting virsh un-registers them afterwards.
+exiting virsh un-registers them afterwards.
 
 By default security labels are applied if needed but they are not restored after
 use to avoid keeping them open unnecessarily. Best-effort security label restore

@@ -26,6 +26,27 @@
 #include "virjson.h"
 #include "viruri.h"
 
+void
+qemuBlockStorageSourceSetStorageNodename(virStorageSource *src,
+                                         char *nodename);
+
+void
+qemuBlockStorageSourceSetFormatNodename(virStorageSource *src,
+                                        char *nodename);
+
+const char *
+qemuBlockStorageSourceGetEffectiveStorageNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetStorageNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetFormatNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetEffectiveNodename(virStorageSource *src);
+
+
 typedef struct qemuBlockNodeNameBackingChainData qemuBlockNodeNameBackingChainData;
 struct qemuBlockNodeNameBackingChainData {
     char *qemufilename; /* name of the image from qemu */
@@ -57,8 +78,8 @@ virURI *
 qemuBlockStorageSourceGetURI(virStorageSource *src);
 
 virJSONValue *
-qemuBlockStorageSourceGetBlockdevProps(virStorageSource *src,
-                                       virStorageSource *backingStore);
+qemuBlockStorageSourceGetFormatProps(virStorageSource *src,
+                                     virStorageSource *backingStore);
 
 virJSONValue *
 qemuBlockStorageGetCopyOnReadProps(virDomainDiskDef *disk);
@@ -113,8 +134,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuBlockStorageSourceAttachData,
 
 qemuBlockStorageSourceAttachData *
 qemuBlockStorageSourceAttachPrepareBlockdev(virStorageSource *src,
-                                            virStorageSource *backingStore,
-                                            bool autoreadonly);
+                                            virStorageSource *backingStore);
 
 qemuBlockStorageSourceAttachData *
 qemuBlockStorageSourceDetachPrepare(virStorageSource *src);

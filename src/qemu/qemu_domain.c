@@ -2000,8 +2000,8 @@ qemuStorageSourcePrivateDataParse(xmlXPathContextPtr ctxt,
     int enccount;
     xmlNodePtr nbdkitnode = NULL;
 
-    src->nodestorage = virXPathString("string(./nodenames/nodename[@type='storage']/@name)", ctxt);
-    src->nodeformat = virXPathString("string(./nodenames/nodename[@type='format']/@name)", ctxt);
+    qemuBlockStorageSourceSetStorageNodename(src, virXPathString("string(./nodenames/nodename[@type='storage']/@name)", ctxt));
+    qemuBlockStorageSourceSetFormatNodename(src, virXPathString("string(./nodenames/nodename[@type='format']/@name)", ctxt));
     src->tlsAlias = virXPathString("string(./objects/TLSx509/@alias)", ctxt);
 
     if (src->sliceStorage)
@@ -2111,8 +2111,8 @@ qemuStorageSourcePrivateDataFormat(virStorageSource *src,
     g_auto(virBuffer) objectsChildBuf = VIR_BUFFER_INIT_CHILD(buf);
     g_auto(virBuffer) fdsetsChildBuf = VIR_BUFFER_INIT_CHILD(buf);
 
-    virBufferEscapeString(&nodenamesChildBuf, "<nodename type='storage' name='%s'/>\n", src->nodestorage);
-    virBufferEscapeString(&nodenamesChildBuf, "<nodename type='format' name='%s'/>\n", src->nodeformat);
+    virBufferEscapeString(&nodenamesChildBuf, "<nodename type='storage' name='%s'/>\n", qemuBlockStorageSourceGetStorageNodename(src));
+    virBufferEscapeString(&nodenamesChildBuf, "<nodename type='format' name='%s'/>\n", qemuBlockStorageSourceGetFormatNodename(src));
 
     if (src->sliceStorage)
         virBufferEscapeString(&nodenamesChildBuf, "<nodename type='slice-storage' name='%s'/>\n",
@@ -2288,13 +2288,16 @@ qemuDomainPrivateBlockJobFormatCommit(qemuBlockJobData *job,
     g_auto(virBuffer) disabledBitmapsBuf = VIR_BUFFER_INIT_CHILD(buf);
 
     if (job->data.commit.base)
-        virBufferAsprintf(buf, "<base node='%s'/>\n", job->data.commit.base->nodeformat);
+        virBufferAsprintf(buf, "<base node='%s'/>\n",
+                          qemuBlockStorageSourceGetStorageNodename(job->data.commit.base));
 
     if (job->data.commit.top)
-        virBufferAsprintf(buf, "<top node='%s'/>\n", job->data.commit.top->nodeformat);
+        virBufferAsprintf(buf, "<top node='%s'/>\n",
+                          qemuBlockStorageSourceGetStorageNodename(job->data.commit.top));
 
     if (job->data.commit.topparent)
-        virBufferAsprintf(buf, "<topparent node='%s'/>\n", job->data.commit.topparent->nodeformat);
+        virBufferAsprintf(buf, "<topparent node='%s'/>\n",
+                          qemuBlockStorageSourceGetStorageNodename(job->data.commit.topparent));
 
     if (job->data.commit.deleteCommittedImages)
         virBufferAddLit(buf, "<deleteCommittedImages/>\n");
@@ -2357,7 +2360,8 @@ qemuDomainObjPrivateXMLFormatBlockjobIterator(void *payload,
     switch ((qemuBlockJobType) job->type) {
         case QEMU_BLOCKJOB_TYPE_PULL:
             if (job->data.pull.base)
-                virBufferAsprintf(&childBuf, "<base node='%s'/>\n", job->data.pull.base->nodeformat);
+                virBufferAsprintf(&childBuf, "<base node='%s'/>\n",
+                                  qemuBlockStorageSourceGetStorageNodename(job->data.pull.base));
             break;
 
         case QEMU_BLOCKJOB_TYPE_COMMIT:
@@ -2812,8 +2816,11 @@ qemuDomainVirStorageSourceFindByNodeName(virStorageSource *top,
     virStorageSource *tmp;
 
     for (tmp = top; virStorageSourceIsBacking(tmp); tmp = tmp->backingStore) {
-        if ((tmp->nodeformat && STREQ(tmp->nodeformat, nodeName)) ||
-            (tmp->nodestorage && STREQ(tmp->nodestorage, nodeName)))
+        const char *nodestorage = qemuBlockStorageSourceGetStorageNodename(tmp);
+        const char *nodeformat = qemuBlockStorageSourceGetFormatNodename(tmp);
+
+        if ((nodeformat && STREQ(nodeformat, nodeName)) ||
+            (nodestorage && STREQ(nodestorage, nodeName)))
             return tmp;
     }
 
@@ -6058,8 +6065,8 @@ qemuDomainDeviceHostdevDefPostParseRestoreBackendAlias(virDomainHostdevDef *host
         return -1;
     }
 
-    if (!src->nodestorage)
-        src->nodestorage = g_strdup_printf("libvirt-%s-backend", hostdev->info->alias);
+    if (!qemuBlockStorageSourceGetStorageNodename(src))
+        qemuBlockStorageSourceSetStorageNodename(src, g_strdup_printf("libvirt-%s-backend", hostdev->info->alias));
 
     return 0;
 }
@@ -7884,7 +7891,7 @@ qemuDomainDiskGetTopNodename(virDomainDiskDef *disk)
     if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON)
         return priv->nodeCopyOnRead;
 
-    return disk->src->nodeformat;
+    return qemuBlockStorageSourceGetEffectiveNodename(disk->src);
 }
 
 
@@ -11100,7 +11107,7 @@ qemuDomainPrepareStorageSourceFDs(virStorageSource *src,
 
     srcpriv = qemuDomainStorageSourcePrivateFetch(src);
 
-    srcpriv->fdpass = qemuFDPassNew(src->nodestorage, priv);
+    srcpriv->fdpass = qemuFDPassNew(qemuBlockStorageSourceGetStorageNodename(src), priv);
 
     for (i = 0; i < fdt->nfds; i++) {
         g_autofree char *idx = g_strdup_printf("%zu", i);
@@ -11137,8 +11144,12 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
                                                qemuDomainObjPrivate *priv,
                                                virQEMUDriverConfig *cfg)
 {
-    src->nodestorage = g_strdup_printf("%s-storage", nodenameprefix);
-    src->nodeformat = g_strdup_printf("%s-format", nodenameprefix);
+    char *nodestorage = g_strdup_printf("%s-storage", nodenameprefix);
+    char *nodeformat = g_strdup_printf("%s-format", nodenameprefix);
+
+    /* qemuBlockStorageSourceSetStorageNodename steals 'nodestorage' */
+    qemuBlockStorageSourceSetStorageNodename(src, nodestorage);
+    qemuBlockStorageSourceSetFormatNodename(src, nodeformat);
 
     if (qemuBlockStorageSourceNeedsStorageSliceLayer(src))
         src->sliceStorage->nodename = g_strdup_printf("libvirt-%u-slice-sto", src->id);
@@ -11152,22 +11163,20 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
     qemuDomainPrepareStorageSourceConfig(src, cfg);
     qemuDomainPrepareDiskSourceData(disk, src);
 
-    if (qemuDomainSecretStorageSourcePrepareEncryption(priv, src,
-                                                       src->nodeformat) < 0)
+    if (qemuDomainSecretStorageSourcePrepareEncryption(priv, src, nodeformat) < 0)
         return -1;
 
-    if (!qemuDomainPrepareStorageSourceNbdkit(src, cfg, src->nodestorage, priv)) {
+    if (!qemuDomainPrepareStorageSourceNbdkit(src, cfg, nodestorage, priv)) {
         /* If we're using nbdkit to serve the storage source, we don't pass
          * authentication secrets to qemu, but will pass them to nbdkit instead */
-        if (qemuDomainSecretStorageSourcePrepareAuth(priv, src,
-                                                     src->nodestorage) < 0)
+        if (qemuDomainSecretStorageSourcePrepareAuth(priv, src, nodestorage) < 0)
             return -1;
     }
 
-    if (qemuDomainPrepareStorageSourcePR(src, priv, src->nodestorage) < 0)
+    if (qemuDomainPrepareStorageSourcePR(src, priv, nodestorage) < 0)
         return -1;
 
-    if (qemuDomainPrepareStorageSourceTLS(src, cfg, src->nodestorage,
+    if (qemuDomainPrepareStorageSourceTLS(src, cfg, nodestorage,
                                           priv) < 0)
         return -1;
 
@@ -11291,12 +11300,14 @@ qemuDomainPrepareHostdevSCSI(virDomainHostdevDef *hostdev,
     }
 
     if (src) {
-        const char *backendalias = hostdev->info->alias;
+        char *backendalias;
 
         src->readonly = hostdev->readonly;
         src->id = qemuDomainStorageIDNew(priv);
-        src->nodestorage = g_strdup_printf("libvirt-%d-backend", src->id);
-        backendalias = src->nodestorage;
+        backendalias = g_strdup_printf("libvirt-%d-backend", src->id);
+
+        /* 'src' takes ownership of 'backendalias' */
+        qemuBlockStorageSourceSetStorageNodename(src, backendalias);
 
         if (src->auth) {
             virSecretUsageType usageType = VIR_SECRET_USAGE_TYPE_ISCSI;
@@ -11395,13 +11406,18 @@ qemuDomainPrepareHostdev(virDomainHostdevDef *hostdev,
 
 /**
  * qemuDomainDiskCachemodeFlags:
+ * @cachemode: aggregated cache mode
+ * @writeback: populated with 'writeback' component of @cachemode (may be NULL)
+ * @direct: populated with 'direct' component of @cachemode (may be NULL)
+ * @noflush: populated with 'noflush' component of @cachemode (may be NULL)
  *
- * Converts disk cachemode to the cache mode options for qemu. Returns -1 for
- * invalid @cachemode values and fills the flags and returns 0 on success.
- * Flags may be NULL.
+ * Converts disk @cachemode to the cache mode options for qemu according to the
+ * table below.
+ *
+ * Returns true if @cachemode is a relevant cache mode setting.
  */
-int
-qemuDomainDiskCachemodeFlags(int cachemode,
+bool
+qemuDomainDiskCachemodeFlags(virDomainDiskCache cachemode,
                              bool *writeback,
                              bool *direct,
                              bool *noflush)
@@ -11426,45 +11442,43 @@ qemuDomainDiskCachemodeFlags(int cachemode,
      * directsync   │ false             true           false
      * unsafe       │ true              false          true
      */
-    switch ((virDomainDiskCache) cachemode) {
+    switch (cachemode) {
     case VIR_DOMAIN_DISK_CACHE_DISABLE: /* 'none' */
         *writeback = true;
         *direct = true;
         *noflush = false;
-        break;
+        return true;
 
     case VIR_DOMAIN_DISK_CACHE_WRITETHRU:
         *writeback = false;
         *direct = false;
         *noflush = false;
-        break;
+        return true;
 
     case VIR_DOMAIN_DISK_CACHE_WRITEBACK:
         *writeback = true;
         *direct = false;
         *noflush = false;
-        break;
+        return true;
 
     case VIR_DOMAIN_DISK_CACHE_DIRECTSYNC:
         *writeback = false;
         *direct = true;
         *noflush = false;
-        break;
+        return true;
 
     case VIR_DOMAIN_DISK_CACHE_UNSAFE:
         *writeback = true;
         *direct = false;
         *noflush = true;
-        break;
+        return true;
 
     case VIR_DOMAIN_DISK_CACHE_DEFAULT:
     case VIR_DOMAIN_DISK_CACHE_LAST:
-    default:
-        virReportEnumRangeError(virDomainDiskCache, cachemode);
-        return -1;
+        return false;
     }
 
-    return 0;
+    return false;
 }
 
 
@@ -11688,9 +11702,8 @@ qemuDomainInitializePflashStorageSource(virDomainObj *vm,
     pflash0->path = g_strdup(def->os.loader->path);
     pflash0->readonly = false;
     virTristateBoolToBool(def->os.loader->readonly, &pflash0->readonly);
-    pflash0->nodeformat = g_strdup("libvirt-pflash0-format");
-    pflash0->nodestorage = g_strdup("libvirt-pflash0-storage");
-
+    qemuBlockStorageSourceSetFormatNodename(pflash0, g_strdup("libvirt-pflash0-format"));
+    qemuBlockStorageSourceSetStorageNodename(pflash0, g_strdup("libvirt-pflash0-storage"));
 
     if (def->os.loader->nvram) {
         if (qemuDomainPrepareStorageSourceBlockdevNodename(NULL,

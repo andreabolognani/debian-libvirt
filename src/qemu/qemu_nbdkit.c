@@ -19,7 +19,7 @@
 
 #include <config.h>
 #include <glib.h>
-#if WITH_LIBNBD
+#if WITH_NBDKIT
 # include <libnbd.h>
 #endif
 #include <sys/syscall.h>
@@ -923,7 +923,7 @@ qemuNbdkitStopStorageSource(virStorageSource *src,
 
         if (priv && priv->nbdkitProcess &&
             qemuNbdkitProcessStop(priv->nbdkitProcess, vm) < 0)
-            VIR_WARN("Unable to stop nbdkit for storage source '%s'", src->nodestorage);
+            VIR_WARN("Unable to stop nbdkit for storage source '%s'", qemuBlockStorageSourceGetStorageNodename(src));
     }
 }
 
@@ -1159,7 +1159,7 @@ qemuNbdkitProcessStart(qemuNbdkitProcess *proc,
     g_autofree char *basename = g_strdup_printf("%s-nbdkit-%i", vm->def->name, proc->source->id);
     int logfd = -1;
     g_autoptr(qemuLogContext) logContext = NULL;
-#if WITH_LIBNBD
+#if WITH_NBDKIT
     struct nbd_handle *nbd = NULL;
 #endif
 
@@ -1173,7 +1173,7 @@ qemuNbdkitProcessStart(qemuNbdkitProcess *proc,
 
     logfd = qemuLogContextGetWriteFD(logContext);
 
-    VIR_DEBUG("starting nbdkit process for %s", proc->source->nodestorage);
+    VIR_DEBUG("starting nbdkit process for %s", qemuBlockStorageSourceGetStorageNodename(proc->source));
     virCommandSetErrorFD(cmd, &logfd);
     virCommandSetOutputFD(cmd, &logfd);
     virCommandSetPidFile(cmd, proc->pidfile);
@@ -1214,7 +1214,7 @@ qemuNbdkitProcessStart(qemuNbdkitProcess *proc,
 
     while (virTimeBackOffWait(&timebackoff)) {
         if (virFileExists(proc->socketfile)) {
-#if WITH_LIBNBD
+#if WITH_NBDKIT
             /* if the disk source was misconfigured, nbdkit will not produce an error
              * until somebody connects to the socket and tries to access the nbd
              * export. This results in poor user experience because the only error we
