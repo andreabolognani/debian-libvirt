@@ -143,11 +143,19 @@ if conf.has('WITH_LIBVIRTD')
 
   virt_daemon_units += {
     'service': 'virtlockd',
+    'name': 'locking',
     'service_in': files('virtlockd.service.in'),
-    'name': 'Libvirt locking',
+    'service_extra_in': [
+      files('virtlockd.service.extra.in'),
+      systemd_service_oomscoreadjust_extra_in,
+      systemd_service_limitnofile_extra_in,
+    ],
     'sockets': [ 'main', 'admin' ],
     'socket_in': files('virtlockd.socket.in'),
     'socket_admin_in': files('virtlockd-admin.socket.in'),
+    'socket_extra_in': [
+      files('virtlockd.socket.extra.in'),
+    ],
   }
 
   openrc_init_files += {

@@ -7209,6 +7209,7 @@ qemuDomainAttachDeviceLiveAndConfig(virDomainObj *vm,
                                     unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    virObjectEvent *event = NULL;
     g_autoptr(virDomainDef) vmdef = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     g_autoptr(virDomainDeviceDef) devConf = NULL;
@@ -7292,6 +7293,12 @@ qemuDomainAttachDeviceLiveAndConfig(virDomainObj *vm,
             return -1;
 
         virDomainObjAssignDef(vm, &vmdef, false, NULL);
+
+        /* Event sending if persistent config has changed */
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                                  VIR_DOMAIN_EVENT_DEFINED,
+                                                  VIR_DOMAIN_EVENT_DEFINED_UPDATED);
+        virObjectEventStateQueue(driver->domainEventState, event);
     }
 
     return 0;
@@ -7348,6 +7355,7 @@ qemuDomainUpdateDeviceFlags(virDomainPtr dom,
     virQEMUDriver *driver = dom->conn->privateData;
     virDomainObj *vm = NULL;
     qemuDomainObjPrivate *priv;
+    virObjectEvent *event = NULL;
     g_autoptr(virDomainDef) vmdef = NULL;
     g_autoptr(virDomainDeviceDef) dev_config = NULL;
     g_autoptr(virDomainDeviceDef) dev_live = NULL;
@@ -7419,8 +7427,16 @@ qemuDomainUpdateDeviceFlags(virDomainPtr dom,
     /* Finally, if no error until here, we can save config. */
     if (flags & VIR_DOMAIN_AFFECT_CONFIG) {
         ret = virDomainDefSave(vmdef, driver->xmlopt, cfg->configDir);
-        if (!ret)
+        if (!ret) {
             virDomainObjAssignDef(vm, &vmdef, false, NULL);
+
+            /* Event sending if persistent config has changed */
+            event = virDomainEventLifecycleNewFromObj(vm,
+                                                     VIR_DOMAIN_EVENT_DEFINED,
+                                                     VIR_DOMAIN_EVENT_DEFINED_UPDATED);
+
+            virObjectEventStateQueue(driver->domainEventState, event);
+        }
     }
 
  endjob:
@@ -7438,6 +7454,7 @@ qemuDomainDetachDeviceLiveAndConfig(virQEMUDriver *driver,
                                     unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    virObjectEvent *event = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     g_autoptr(virDomainDeviceDef) dev_config = NULL;
     g_autoptr(virDomainDeviceDef) dev_live = NULL;
@@ -7495,6 +7512,12 @@ qemuDomainDetachDeviceLiveAndConfig(virQEMUDriver *driver,
             return -1;
 
         virDomainObjAssignDef(vm, &vmdef, false, NULL);
+
+        /* Event sending if persistent config has changed */
+        event = virDomainEventLifecycleNewFromObj(vm,
+                                                  VIR_DOMAIN_EVENT_DEFINED,
+                                                  VIR_DOMAIN_EVENT_DEFINED_UPDATED);
+        virObjectEventStateQueue(driver->domainEventState, event);
     }
 
     return 0;
@@ -9252,7 +9275,7 @@ qemuDomainBlockResize(virDomainPtr dom,
     }
 
     if (!qemuDiskBusIsSD(disk->bus)) {
-        nodename = disk->src->nodeformat;
+        nodename = qemuBlockStorageSourceGetEffectiveNodename(disk->src);
     } else {
         if (!(device = qemuAliasDiskDriveFromDisk(disk)))
             goto endjob;
@@ -9368,7 +9391,7 @@ qemuDomainBlocksStatsGather(virDomainObj *vm,
 
         /* capacity are reported only per node-name so we need to transfer them */
         if (disk && disk->src &&
-            (capstats = virHashLookup(blockstats, disk->src->nodeformat))) {
+            (capstats = virHashLookup(blockstats, qemuBlockStorageSourceGetEffectiveNodename(disk->src)))) {
             (*retstats)->capacity = capstats->capacity;
             (*retstats)->physical = capstats->physical;
             (*retstats)->wr_highest_offset = capstats->wr_highest_offset;
@@ -13634,7 +13657,7 @@ qemuDomainBlockPullCommon(virDomainObj *vm,
         goto endjob;
 
     if (baseSource) {
-        nodebase = baseSource->nodeformat;
+        nodebase = qemuBlockStorageSourceGetEffectiveNodename(baseSource);
         if (!backingPath &&
             !(backingPath = qemuBlockGetBackingStoreString(baseSource, false)))
             goto endjob;
@@ -13642,7 +13665,7 @@ qemuDomainBlockPullCommon(virDomainObj *vm,
 
     qemuDomainObjEnterMonitor(vm);
     ret = qemuMonitorBlockStream(priv->mon,
-                                 disk->src->nodeformat,
+                                 qemuBlockStorageSourceGetEffectiveNodename(disk->src),
                                  job->name,
                                  nodebase,
                                  backingPath,
@@ -14267,10 +14290,16 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
         if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY)) {
             g_autoptr(virStorageSource) terminator = virStorageSourceNew();
 
+            if (qemuProcessPrepareHostStorageSource(vm, mirror) < 0)
+                goto endjob;
+
             if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdevTop(mirror,
                                                                              terminator)))
                 goto endjob;
         } else {
+            if (qemuProcessPrepareHostStorageSourceChain(vm, mirror) < 0)
+                goto endjob;
+
             if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(mirror)))
                 goto endjob;
         }
@@ -14285,6 +14314,9 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
         if (mirror_shallow) {
             /* if external backing store is populated we'll need to open it */
             if (virStorageSourceHasBacking(mirror)) {
+                if (qemuProcessPrepareHostStorageSourceChain(vm, mirror->backingStore) < 0)
+                    goto endjob;
+
                 if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(mirror->backingStore)))
                     goto endjob;
 
@@ -14297,6 +14329,9 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
         } else {
             mirrorBacking = mirror->backingStore;
         }
+
+        if (qemuProcessPrepareHostStorageSource(vm, mirror) < 0)
+            goto endjob;
 
         if (!(crdata = qemuBuildStorageSourceChainAttachPrepareBlockdevTop(mirror,
                                                                            mirrorBacking)))
@@ -14327,7 +14362,8 @@ qemuDomainBlockCopyCommon(virDomainObj *vm,
 
     ret = qemuMonitorBlockdevMirror(priv->mon, job->name, true,
                                     qemuDomainDiskGetTopNodename(disk),
-                                    mirror->nodeformat, bandwidth,
+                                    qemuBlockStorageSourceGetEffectiveNodename(mirror),
+                                    bandwidth,
                                     granularity, buf_size, mirror_shallow,
                                     syncWrites);
 
@@ -17348,8 +17384,8 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
 
         if (QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName) {
             frontendalias = QEMU_DOMAIN_DISK_PRIVATE(disk)->qomName;
-            backendalias = n->nodeformat;
-            backendstoragealias = n->nodestorage;
+            backendalias = qemuBlockStorageSourceGetEffectiveNodename(n);
+            backendstoragealias = qemuBlockStorageSourceGetStorageNodename(n);
         } else {
             /* alias may be NULL if the VM is not running */
             if (disk->info.alias &&
@@ -17402,13 +17438,13 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
                 return -1;
 
             if (qemuDomainGetStatsOneBlock(driver, cfg, dom, params,
-                                           disk->mirror->nodeformat,
+                                           qemuBlockStorageSourceGetEffectiveNodename(disk->mirror),
                                            disk->mirror,
                                            *recordnr,
                                            stats) < 0)
                 return -1;
 
-            if (qemuDomainGetStatsBlockExportBackendStorage(disk->mirror->nodestorage,
+            if (qemuDomainGetStatsBlockExportBackendStorage(qemuBlockStorageSourceGetStorageNodename(disk->mirror),
                                                             stats, *recordnr,
                                                             params) < 0)
                 return -1;
@@ -17431,13 +17467,13 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
                         return -1;
 
                     if (qemuDomainGetStatsOneBlock(driver, cfg, dom, params,
-                                                   backupdisk->store->nodeformat,
+                                                   qemuBlockStorageSourceGetEffectiveNodename(backupdisk->store),
                                                    backupdisk->store,
                                                    *recordnr,
                                                    stats) < 0)
                         return -1;
 
-                    if (qemuDomainGetStatsBlockExportBackendStorage(backupdisk->store->nodestorage,
+                    if (qemuDomainGetStatsBlockExportBackendStorage(qemuBlockStorageSourceGetStorageNodename(backupdisk->store),
                                                                     stats, *recordnr,
                                                                     params) < 0)
                         return -1;
@@ -18396,7 +18432,6 @@ qemuDomainGetGuestVcpusParams(virTypedParameterPtr *params,
     g_autoptr(virBitmap) vcpus = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID);
     g_autoptr(virBitmap) online = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID);
     g_autoptr(virBitmap) offlinable = virBitmapNew(QEMU_GUEST_VCPU_MAX_ID);
-    g_autofree char *tmp = NULL;
     size_t i;
     int ret = -1;
 
@@ -18416,11 +18451,13 @@ qemuDomainGetGuestVcpusParams(virTypedParameterPtr *params,
     }
 
 #define ADD_BITMAP(name) \
-    if (!(tmp = virBitmapFormat(name))) \
-        goto cleanup; \
-    if (virTypedParamsAddString(&par, &npar, &maxpar, #name, tmp) < 0) \
-        goto cleanup; \
-    VIR_FREE(tmp)
+    do { \
+        g_autofree char *tmp = NULL; \
+        if (!(tmp = virBitmapFormat(name))) \
+            goto cleanup; \
+        if (virTypedParamsAddString(&par, &npar, &maxpar, #name, tmp) < 0) \
+            goto cleanup; \
+    } while (0)
 
     ADD_BITMAP(vcpus);
     ADD_BITMAP(online);
@@ -18681,7 +18718,7 @@ qemuDomainSetBlockThreshold(virDomainPtr dom,
         goto endjob;
     }
 
-    nodename = g_strdup(src->nodestorage);
+    nodename = g_strdup(qemuBlockStorageSourceGetStorageNodename(src));
 
     qemuDomainObjEnterMonitor(vm);
     rc = qemuMonitorSetBlockThreshold(priv->mon, nodename, threshold);

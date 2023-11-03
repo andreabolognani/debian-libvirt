@@ -6771,8 +6771,71 @@ qemuProcessPrepareHostStorageSourceVDPA(virStorageSource *src,
 
     srcpriv = qemuDomainStorageSourcePrivateFetch(src);
 
-    srcpriv->fdpass = qemuFDPassNew(src->nodestorage, priv);
+    srcpriv->fdpass = qemuFDPassNew(qemuBlockStorageSourceGetStorageNodename(src), priv);
     qemuFDPassAddFD(srcpriv->fdpass, &vdpafd, "-vdpa");
+    return 0;
+}
+
+
+/**
+ * See qemuProcessPrepareHostStorageSourceChain
+ */
+int
+qemuProcessPrepareHostStorageSource(virDomainObj *vm,
+                                    virStorageSource *src)
+{
+    /* connect to any necessary vdpa block devices */
+    if (qemuProcessPrepareHostStorageSourceVDPA(src, vm->privateData) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+/**
+ * qemuProcessPrepareHostStorageSourceChain:
+ *
+ * @vm: domain object
+ * @chain: source chain
+ *
+ * Prepare the host side of a disk for use with the VM. Note that this function
+ * accesses host resources.
+ */
+int
+qemuProcessPrepareHostStorageSourceChain(virDomainObj *vm,
+                                         virStorageSource *chain)
+{
+    virStorageSource *n;
+
+    for (n = chain; virStorageSourceIsBacking(n); n = n->backingStore) {
+        if (qemuProcessPrepareHostStorageSource(vm, n) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+
+/**
+ * qemuProcessPrepareHostStorageDisk:
+ *
+ * @vm: domain object
+ * @disk: disk definition object
+ *
+ * Prepare the host side of a disk for use with the VM. Note that this function
+ * accesses host resources.
+ *
+ * Note that this function does not call qemuDomainDetermineDiskChain as that is
+ * needed in qemuProcessPrepareHostStorage to remove disks based on the startup
+ * policy, thus other callers need to call it explicitly.
+ */
+int
+qemuProcessPrepareHostStorageDisk(virDomainObj *vm,
+                                  virDomainDiskDef *disk)
+{
+    if (qemuProcessPrepareHostStorageSourceChain(vm, disk->src) < 0)
+        return -1;
+
     return 0;
 }
 
@@ -6813,16 +6876,11 @@ qemuProcessPrepareHostStorage(virQEMUDriver *driver,
         return -1;
     }
 
-    /* connect to any necessary vdpa block devices */
-    for (i = vm->def->ndisks; i > 0; i--) {
-        size_t idx = i - 1;
-        virDomainDiskDef *disk = vm->def->disks[idx];
-        virStorageSource *src;
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDef *disk = vm->def->disks[i];
 
-        for (src = disk->src; virStorageSourceIsBacking(src); src = src->backingStore) {
-            if (qemuProcessPrepareHostStorageSourceVDPA(src, vm->privateData) < 0)
-                return -1;
-        }
+        if (qemuProcessPrepareHostStorageDisk(vm, disk) < 0)
+            return -1;
     }
 
     return 0;
@@ -8089,6 +8147,101 @@ qemuProcessStart(virConnectPtr conn,
         qemuMonitorSetDomainLog(priv->mon, NULL, NULL, NULL);
     qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED, asyncJob, stopFlags);
     goto cleanup;
+}
+
+
+/**
+ * qemuProcessStartWithMemoryState:
+ * @conn: connection object
+ * @driver: qemu driver object
+ * @vm: domain object
+ * @fd: FD pointer of memory state file
+ * @path: path to memory state file
+ * @snapshot: internal snapshot to load when starting QEMU process or NULL
+ * @data: data from memory state file or NULL
+ * @asyncJob: type of asynchronous job
+ * @start_flags: flags to start QEMU process with
+ * @reason: audit log reason
+ * @started: boolean to store if QEMU process was started
+ *
+ * Start VM with existing memory state. Make sure that the stored memory state
+ * is correctly decompressed so it can be loaded by QEMU process.
+ *
+ * When reverting to internal snapshot caller needs to pass @snapshot
+ * to correctly start QEMU process, @fd, @path, @data needs to be NULL.
+ *
+ * When restoring VM from saved image caller needs to pass @fd, @path and
+ * @data to correctly start QEMU process, @snapshot needs to be NULL.
+ *
+ * For audit purposes the expected @reason is one of `restored` or `from-snapshot`.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int
+qemuProcessStartWithMemoryState(virConnectPtr conn,
+                                virQEMUDriver *driver,
+                                virDomainObj *vm,
+                                int *fd,
+                                const char *path,
+                                virDomainMomentObj *snapshot,
+                                virQEMUSaveData *data,
+                                virDomainAsyncJob asyncJob,
+                                unsigned int start_flags,
+                                const char *reason,
+                                bool *started)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(qemuDomainSaveCookie) cookie = NULL;
+    VIR_AUTOCLOSE intermediatefd = -1;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *errbuf = NULL;
+    int rc = 0;
+
+    if (data) {
+        if (virSaveCookieParseString(data->cookie, (virObject **)&cookie,
+                                     virDomainXMLOptionGetSaveCookie(driver->xmlopt)) < 0)
+            return -1;
+
+        if (qemuSaveImageDecompressionStart(data, fd, &intermediatefd,
+                                            &errbuf, &cmd) < 0) {
+            return -1;
+        }
+    }
+
+    if (qemuSaveImageDecompressionStart(data, fd, &intermediatefd, &errbuf, &cmd) < 0)
+        return -1;
+
+    /* No cookie means libvirt which saved the domain was too old to mess up
+     * the CPU definitions.
+     */
+    if (cookie &&
+        qemuDomainFixupCPUs(vm, &cookie->cpu) < 0)
+        return -1;
+
+    if (cookie && !cookie->slirpHelper)
+        priv->disableSlirp = true;
+
+    if (qemuProcessStart(conn, driver, vm, cookie ? cookie->cpu : NULL,
+                         asyncJob, "stdio", *fd, path, snapshot,
+                         VIR_NETDEV_VPORT_PROFILE_OP_RESTORE,
+                         start_flags) == 0)
+        *started = true;
+
+    if (data) {
+        rc = qemuSaveImageDecompressionStop(cmd, fd, &intermediatefd, errbuf,
+                                            *started, path);
+    }
+
+    virDomainAuditStart(vm, reason, *started);
+    if (!*started || rc < 0)
+        return -1;
+
+    /* qemuProcessStart doesn't unset the qemu error reporting infrastructure
+     * in case of migration (which is used in this case) so we need to reset it
+     * so that the handle to virtlogd is not held open unnecessarily */
+    qemuMonitorSetDomainLog(qemuDomainGetMonitor(vm), NULL, NULL, NULL);
+
+    return 0;
 }
 
 

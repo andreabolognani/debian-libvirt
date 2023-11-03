@@ -8,6 +8,36 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v9.9.0 (2023-11-01)
+===================
+
+* **New features**
+
+  * QEMU: implement reverting external snapshots
+
+    Reverting external snapshots is now possible using the existing API
+    ``virDomainSnapshotRevert()``. Management application can check host
+    capabilities for ``<externalSnapshot/>`` element within the list of
+    guest features to see if the current libvirt supports both deleting
+    and reverting external snapshots.
+
+  * virsh: add ``console --resume`` support
+
+    The ``virsh console`` subcommand now accepts a ``--resume`` option. This
+    will resume a paused guest after connecting to the console.
+
+* **Improvements**
+
+  * virsh: Improve ``virsh start --console`` behavior
+
+    The ``virsh start --console`` now tries to connect to the guest console
+    before starting the vCPUs.
+
+  * virsh: Improve ``virsh create --console`` behavior
+
+    The ``virsh create --console`` now tries to connect to the guest console
+    before starting the vCPUs.
+
 v9.8.0 (2023-10-02)
 ===================
 

@@ -7005,48 +7005,40 @@ virDomainLeaseDefParseXML(xmlNodePtr node,
     return NULL;
 }
 
-static int
+static virStorageSourcePoolDef *
 virDomainDiskSourcePoolDefParse(xmlNodePtr node,
-                                virStorageSourcePoolDef **srcpool)
+                                virDomainDefParseFlags flags)
 {
-    virStorageSourcePoolDef *source;
-    int ret = -1;
-    g_autofree char *mode = NULL;
-
-    *srcpool = NULL;
-
-    source = g_new0(virStorageSourcePoolDef, 1);
+    g_autoptr(virStorageSourcePoolDef) source = g_new0(virStorageSourcePoolDef, 1);
 
     source->pool = virXMLPropString(node, "pool");
     source->volume = virXMLPropString(node, "volume");
-    mode = virXMLPropString(node, "mode");
 
-    /* CD-ROM and Floppy allows no source */
-    if (!source->pool && !source->volume) {
-        ret = 0;
-        goto cleanup;
-    }
+    /* CD-ROM and Floppy allows no source -> empty pool */
+    if (!source->pool && !source->volume)
+        return g_steal_pointer(&source);
 
     if (!source->pool || !source->volume) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("'pool' and 'volume' must be specified together for 'pool' type source"));
-        goto cleanup;
+        return NULL;
     }
 
-    if (mode &&
-        (source->mode = virStorageSourcePoolModeTypeFromString(mode)) <= 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown source mode '%1$s' for volume type disk"),
-                       mode);
-        goto cleanup;
+    if (virXMLPropEnum(node, "mode",
+                       virStorageSourcePoolModeTypeFromString,
+                       VIR_XML_PROP_NONZERO,
+                       &source->mode) < 0)
+        return NULL;
+
+    if (flags & VIR_DOMAIN_DEF_PARSE_VOLUME_TRANSLATED) {
+        if (virXMLPropEnum(node, "actualType",
+                           virStorageTypeFromString,
+                           VIR_XML_PROP_NONZERO,
+                           &source->actualtype) < 0)
+            return NULL;
     }
 
-    *srcpool = g_steal_pointer(&source);
-    ret = 0;
-
- cleanup:
-    virStorageSourcePoolDefFree(source);
-    return ret;
+    return g_steal_pointer(&source);
 }
 
 
@@ -7465,12 +7457,22 @@ virDomainStorageSourceParse(xmlNodePtr node,
                             unsigned int flags,
                             virDomainXMLOption *xmlopt)
 {
+    virStorageType actualType = src->type;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     xmlNodePtr tmp;
 
     ctxt->node = node;
 
-    switch (src->type) {
+    if (src->type == VIR_STORAGE_TYPE_VOLUME) {
+        if (!(src->srcpool = virDomainDiskSourcePoolDefParse(node, flags)))
+            return -1;
+
+        /* If requested we need to also parse the translated volume runtime data */
+        if (flags & VIR_DOMAIN_DEF_PARSE_VOLUME_TRANSLATED)
+            actualType = virStorageSourceGetActualType(src);
+    }
+
+    switch (actualType) {
     case VIR_STORAGE_TYPE_FILE:
         src->path = virXMLPropString(node, "file");
         src->fdgroup = virXMLPropString(node, "fdgroup");
@@ -7486,8 +7488,7 @@ virDomainStorageSourceParse(xmlNodePtr node,
             return -1;
         break;
     case VIR_STORAGE_TYPE_VOLUME:
-        if (virDomainDiskSourcePoolDefParse(node, &src->srcpool) < 0)
-            return -1;
+        /* parsed above */
         break;
     case VIR_STORAGE_TYPE_NVME:
         if (virDomainDiskSourceNVMeParse(node, ctxt, src) < 0)
@@ -7505,7 +7506,7 @@ virDomainStorageSourceParse(xmlNodePtr node,
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unexpected disk type %1$s"),
-                       virStorageTypeToString(src->type));
+                       virStorageTypeToString(actualType));
         return -1;
     }
 
@@ -8664,7 +8665,7 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
             units = virXMLPropString(source_node, "units");
         } else if (def->type == VIR_DOMAIN_FS_TYPE_VOLUME) {
             def->src->type = VIR_STORAGE_TYPE_VOLUME;
-            if (virDomainDiskSourcePoolDefParse(source_node, &def->src->srcpool) < 0)
+            if (!(def->src->srcpool = virDomainDiskSourcePoolDefParse(source_node, flags)))
                 goto error;
         }
     }
@@ -22352,10 +22353,28 @@ virDomainDiskSourceFormat(virBuffer *buf,
                           bool skipEnc,
                           virDomainXMLOption *xmlopt)
 {
+    virStorageType actualType = src->type;
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
-    switch (src->type) {
+    if (src->type == VIR_STORAGE_TYPE_VOLUME) {
+        if (src->srcpool) {
+            virBufferEscapeString(&attrBuf, " pool='%s'", src->srcpool->pool);
+            virBufferEscapeString(&attrBuf, " volume='%s'", src->srcpool->volume);
+            if (src->srcpool->mode)
+                virBufferAsprintf(&attrBuf, " mode='%s'",
+                                  virStorageSourcePoolModeTypeToString(src->srcpool->mode));
+        }
+
+        if (flags & VIR_DOMAIN_DEF_FORMAT_VOLUME_TRANSLATED &&
+            src->srcpool->actualtype != VIR_STORAGE_TYPE_NONE) {
+            virBufferAsprintf(&attrBuf, " actualType='%s'",
+                              virStorageTypeToString(src->srcpool->actualtype));
+            actualType = virStorageSourceGetActualType(src);
+        }
+    }
+
+    switch (actualType) {
     case VIR_STORAGE_TYPE_FILE:
         virBufferEscapeString(&attrBuf, " file='%s'", src->path);
         virBufferEscapeString(&attrBuf, " fdgroup='%s'", src->fdgroup);
@@ -22374,15 +22393,7 @@ virDomainDiskSourceFormat(virBuffer *buf,
         break;
 
     case VIR_STORAGE_TYPE_VOLUME:
-        if (src->srcpool) {
-            virBufferEscapeString(&attrBuf, " pool='%s'", src->srcpool->pool);
-            virBufferEscapeString(&attrBuf, " volume='%s'",
-                                  src->srcpool->volume);
-            if (src->srcpool->mode)
-                virBufferAsprintf(&attrBuf, " mode='%s'",
-                                  virStorageSourcePoolModeTypeToString(src->srcpool->mode));
-        }
-
+        /* formatted above */
         break;
 
     case VIR_STORAGE_TYPE_NVME:
@@ -22400,13 +22411,13 @@ virDomainDiskSourceFormat(virBuffer *buf,
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected disk type %1$d"), src->type);
+                       _("unexpected disk type %1$d"), actualType);
         return -1;
     }
 
     virDomainDiskSourceFormatSlices(&childBuf, src);
 
-    if (src->type != VIR_STORAGE_TYPE_NETWORK)
+    if (actualType != VIR_STORAGE_TYPE_NETWORK)
         virDomainSourceDefFormatSeclabel(&childBuf, src->nseclabels,
                                          src->seclabels, flags);
 
@@ -22425,7 +22436,7 @@ virDomainDiskSourceFormat(virBuffer *buf,
     if (src->pr)
         virStoragePRDefFormat(&childBuf, src->pr,
                               flags & VIR_DOMAIN_DEF_FORMAT_MIGRATABLE);
-    if (policy && src->type != VIR_STORAGE_TYPE_NETWORK)
+    if (policy && actualType != VIR_STORAGE_TYPE_NETWORK)
         virBufferEscapeString(&attrBuf, " startupPolicy='%s'",
                               virDomainStartupPolicyTypeToString(policy));
 
@@ -27529,7 +27540,8 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
                   VIR_DOMAIN_DEF_FORMAT_STATUS |
                   VIR_DOMAIN_DEF_FORMAT_ACTUAL_NET |
                   VIR_DOMAIN_DEF_FORMAT_PCI_ORIG_STATES |
-                  VIR_DOMAIN_DEF_FORMAT_CLOCK_ADJUST,
+                  VIR_DOMAIN_DEF_FORMAT_CLOCK_ADJUST |
+                  VIR_DOMAIN_DEF_FORMAT_VOLUME_TRANSLATED,
                   -1);
 
     if (!(type = virDomainVirtTypeToString(def->virtType))) {
@@ -28235,7 +28247,8 @@ virDomainObjSave(virDomainObj *obj,
                           VIR_DOMAIN_DEF_FORMAT_STATUS |
                           VIR_DOMAIN_DEF_FORMAT_ACTUAL_NET |
                           VIR_DOMAIN_DEF_FORMAT_PCI_ORIG_STATES |
-                          VIR_DOMAIN_DEF_FORMAT_CLOCK_ADJUST);
+                          VIR_DOMAIN_DEF_FORMAT_CLOCK_ADJUST |
+                          VIR_DOMAIN_DEF_FORMAT_VOLUME_TRANSLATED);
 
     g_autofree char *xml = NULL;
 
@@ -30546,7 +30559,7 @@ virDomainDiskTranslateSourcePool(virDomainDiskDef *def)
     virStorageSource *n;
 
     for (n = def->src; virStorageSourceIsBacking(n); n = n->backingStore) {
-        if (n->type != VIR_STORAGE_TYPE_VOLUME || !n->srcpool)
+        if (n->type != VIR_STORAGE_TYPE_VOLUME || !n->srcpool || n->srcpool->actualtype != VIR_STORAGE_TYPE_NONE)
             continue;
 
         if (!conn) {

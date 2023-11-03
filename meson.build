@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '9.8.0',
+  version: '9.9.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -148,23 +148,6 @@ endif
 
 if packager_version != ''
   conf.set_quoted('PACKAGER_VERSION', packager_version)
-endif
-
-
-# test options
-
-if get_option('expensive_tests').auto()
-  use_expensive_tests = not git
-else
-  use_expensive_tests = get_option('expensive_tests').enabled()
-endif
-
-coverage_flags = []
-if get_option('test_coverage')
-  coverage_flags = [
-    '-fprofile-arcs',
-    '-ftest-coverage',
-  ]
 endif
 
 
@@ -867,7 +850,7 @@ if not get_option('driver_remote').disabled()
   # use extra library as it's provided by libc directly.
   if host_machine.system() == 'windows'
     xdr_dep = cc.find_library('portablexdr', required: get_option('driver_remote'))
-  elif host_machine.system() == 'linux'
+  elif host_machine.system() in [ 'linux', 'gnu' ]
     xdr_dep = dependency('libtirpc', required: get_option('driver_remote'))
   elif host_machine.system() in [ 'freebsd', 'darwin' ]
     xdr_dep = cc.find_library('c', required: get_option('driver_remote'))
@@ -1011,10 +994,27 @@ endif
 libiscsi_version = '1.18.0'
 libiscsi_dep = dependency('libiscsi', version: '>=' + libiscsi_version, required: get_option('libiscsi'))
 
-libnbd_version = '1.0'
-libnbd_dep = dependency('libnbd', version: '>=' + libnbd_version, required: get_option('libnbd'))
-if libnbd_dep.found()
-  conf.set('WITH_LIBNBD', 1)
+if not get_option('nbdkit').disabled()
+  libnbd_version = '1.0'
+  libnbd_dep = dependency('libnbd', version: '>=' + libnbd_version, required: false)
+
+  nbdkit_requested = get_option('nbdkit').enabled()
+  nbdkit_syscall_ok = conf.has('WITH_DECL_SYS_PIDFD_OPEN')
+  nbdkit_libnbd_ok = libnbd_dep.found()
+
+  if not nbdkit_syscall_ok and nbdkit_requested
+    error('nbdkit support requires pidfd_open(2)')
+  endif
+  if not nbdkit_libnbd_ok and nbdkit_requested
+    error('nbdkit support requires libnbd')
+  endif
+
+  if nbdkit_syscall_ok and nbdkit_libnbd_ok
+    conf.set('WITH_NBDKIT', 1)
+  endif
+endif
+if not conf.has('WITH_NBDKIT')
+  libnbd_dep = dependency('', required: false)
 endif
 
 libnl_version = '3.0'
@@ -2024,9 +2024,41 @@ endif
 
 conf.set_quoted('TLS_PRIORITY', get_option('tls_priority'))
 
-if conf.has('WITH_DECL_SYS_PIDFD_OPEN')
-  conf.set('WITH_NBDKIT', 1)
+
+# test options
+
+tests_enabled = [ not get_option('tests').disabled() ]
+if tests_enabled[0] and \
+   cc.get_id() == 'clang' and \
+   not supported_cc_flags.contains('-fsemantic-interposition') \
+   and get_option('optimization') != '0'
+   # If CLang doesn't support -fsemantic-interposition then our
+   # mocking doesn't work. The best we can do is to not run the
+   # test suite.
+   msg = 'Forcibly disabling tests because CLang lacks -fsemantic-interposition. Update CLang or disable optimization'
+   if get_option('tests').enabled()
+     error(msg)
+   endif
+   tests_enabled = [ false, '!!! @0@ !!!'.format(msg) ]
 endif
+
+if get_option('expensive_tests').auto()
+  use_expensive_tests = not git and tests_enabled[0]
+else
+  use_expensive_tests = get_option('expensive_tests').enabled()
+  if use_expensive_tests and not tests_enabled[0]
+    error('cannot enable expensive tests when tests are disabled')
+  endif
+endif
+
+coverage_flags = []
+if get_option('test_coverage')
+  coverage_flags = [
+    '-fprofile-arcs',
+    '-ftest-coverage',
+  ]
+endif
+
 
 # Various definitions
 
@@ -2051,19 +2083,15 @@ subdir('src')
 
 subdir('tools')
 
-build_tests = [ not get_option('tests').disabled() ]
-if build_tests[0] and \
-   cc.get_id() == 'clang' and \
-   not supported_cc_flags.contains('-fsemantic-interposition') \
-   and get_option('optimization') != '0'
-   # If CLang doesn't support -fsemantic-interposition then our
-   # mocking doesn't work. The best we can do is to not run the
-   # test suite.
-   build_tests = [ false, '!!! Forcibly disabling tests because CLang lacks -fsemantic-interposition. Update CLang or disable optimization !!!' ]
-endif
-
-if build_tests[0]
+if tests_enabled[0]
   subdir('tests')
+else
+  # Ensure that 'meson test' fails when tests are disabled, as opposed to
+  # misleadingly succeeding at doing absolutely nothing
+  test(
+    'tests-are-disabled',
+    python3_prog, args: [ '-c', 'raise Exception("tests are disabled")' ],
+  )
 endif
 
 subdir('examples')
@@ -2279,7 +2307,7 @@ endif
 misc_summary = {
   'Warning Flags': supported_cc_flags,
   'docs': gen_docs,
-  'tests': build_tests,
+  'tests': tests_enabled,
   'DTrace': conf.has('WITH_DTRACE_PROBES'),
   'firewalld': conf.has('WITH_FIREWALLD'),
   'firewalld-zone': conf.has('WITH_FIREWALLD_ZONE'),

@@ -183,8 +183,16 @@ if conf.has('WITH_QEMU')
 
   virt_daemon_units += {
     'service': 'virtqemud',
-    'service_in': files('virtqemud.service.in'),
-    'name': 'Libvirt qemu',
+    'name': 'QEMU',
+    'service_extra_in': [
+      files('virtqemud.service.extra.in'),
+      systemd_service_limitnofile_extra_in,
+      systemd_service_tasksmax_extra_in,
+      systemd_service_limitmemlock_extra_in,
+    ],
+    'socket_extra_in': [
+      files('virtqemud.socket.extra.in'),
+    ],
   }
 
   openrc_init_files += {
