@@ -188,6 +188,7 @@ Breaks:
 Replaces:
  libvirt-clients (<< 6.9.0-2~),
 Recommends:
+ passt,
  swtpm,
  swtpm-tools,
 Description: Virtualization daemon QEMU connection driver
