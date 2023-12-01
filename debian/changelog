@@ -1,3 +1,9 @@
+libvirt (9.10.0-1) UNRELEASED; urgency=medium
+
+  * [520e93f] New upstream version 9.10.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 01 Dec 2023 23:34:57 +0100
+
 libvirt (9.9.0-1) unstable; urgency=medium
 
   * [df62dc1] New upstream version 9.9.0
