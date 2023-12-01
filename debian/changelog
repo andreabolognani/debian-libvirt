@@ -1,8 +1,11 @@
-libvirt (9.10.0-1) UNRELEASED; urgency=medium
+libvirt (9.10.0-1) unstable; urgency=medium
 
   * [520e93f] New upstream version 9.10.0
+  * [59b48a9] patches: Drop obsolete patches
+    - forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
+  * [1aa8420] control: Recommend passt with QEMU driver
 
- -- Andrea Bolognani <eof@kiyuko.org>  Fri, 01 Dec 2023 23:34:57 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 02 Dec 2023 00:13:16 +0100
 
 libvirt (9.9.0-1) unstable; urgency=medium
 
