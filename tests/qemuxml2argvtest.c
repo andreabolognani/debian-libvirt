@@ -869,6 +869,9 @@ mymain(void)
     g_unsetenv("DYLD_FORCE_FLAT_NAMESPACE");
     g_unsetenv("QEMU_AUDIO_DRV");
     g_unsetenv("SDL_AUDIODRIVER");
+    g_unsetenv("PIPEWIRE_CORE");
+    g_unsetenv("PIPEWIRE_REMOTE");
+    g_unsetenv("PIPEWIRE_RUNTIME_DIR");
 
     DO_TEST_CAPS_LATEST("minimal");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("minimal-no-memory");
@@ -909,6 +912,9 @@ mymain(void)
     DO_TEST_CAPS_LATEST("audio-jack-minimal");
     DO_TEST_CAPS_LATEST("audio-oss-minimal");
     DO_TEST_CAPS_LATEST("audio-pulseaudio-minimal");
+    g_setenv("PIPEWIRE_RUNTIME_DIR", "/run/user/1000", TRUE);
+    DO_TEST_CAPS_LATEST("audio-pipewire-minimal");
+    g_unsetenv("PIPEWIRE_RUNTIME_DIR");
     DO_TEST_CAPS_LATEST("audio-sdl-minimal");
     DO_TEST_CAPS_LATEST("audio-spice-minimal");
     DO_TEST_CAPS_LATEST("audio-file-minimal");
@@ -918,6 +924,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("audio-coreaudio-best");
     DO_TEST_CAPS_LATEST("audio-oss-best");
     DO_TEST_CAPS_LATEST("audio-pulseaudio-best");
+    DO_TEST_CAPS_LATEST("audio-pipewire-best");
     DO_TEST_CAPS_LATEST("audio-sdl-best");
     DO_TEST_CAPS_LATEST("audio-spice-best");
     DO_TEST_CAPS_LATEST("audio-file-best");
@@ -928,11 +935,14 @@ mymain(void)
     DO_TEST_CAPS_LATEST("audio-jack-full");
     DO_TEST_CAPS_LATEST("audio-oss-full");
     DO_TEST_CAPS_LATEST("audio-pulseaudio-full");
+    DO_TEST_CAPS_LATEST("audio-pipewire-full");
     DO_TEST_CAPS_LATEST("audio-sdl-full");
     DO_TEST_CAPS_LATEST("audio-spice-full");
     DO_TEST_CAPS_LATEST("audio-file-full");
 
+    g_setenv("PIPEWIRE_RUNTIME_DIR", "/run/user/1000", TRUE);
     DO_TEST_CAPS_LATEST("audio-many-backends");
+    g_unsetenv("PIPEWIRE_RUNTIME_DIR");
 
     /* Validate auto-creation of <audio> for legacy compat */
     g_setenv("QEMU_AUDIO_DRV", "sdl", TRUE);
@@ -1629,47 +1639,93 @@ mymain(void)
 
     /* host-model cpu expansion depends on the cpu reported by qemu and thus
      * we invoke it for all real capability dumps we have */
-    DO_TEST_CAPS_VER("cpu-host-model", "4.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "5.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "5.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "6.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "7.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "7.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "4.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "5.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "5.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "5.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "6.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "7.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-kvm", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "4.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "5.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "5.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "6.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "7.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "7.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-fallback", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "4.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "5.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "5.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "5.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "6.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "7.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-tcg", "8.1.0");
 
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "4.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "5.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "5.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "5.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "6.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "6.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "6.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "7.0.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "7.1.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "7.2.0");
-    DO_TEST_CAPS_VER("cpu-host-model-nofallback", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "4.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "5.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "5.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "5.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "6.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "7.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-kvm", "8.1.0");
+
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "4.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "5.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "5.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "5.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "6.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "7.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-fallback-tcg", "8.1.0");
+
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "4.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "5.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "5.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "5.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "6.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "7.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-kvm", "8.1.0");
+
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "4.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "5.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "5.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "5.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "6.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.1.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "7.2.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.0.0");
+    DO_TEST_CAPS_VER("cpu-host-model-nofallback-tcg", "8.1.0");
 
     /* For this specific test we accept the increased likelihood of changes
      * if qemu updates the CPU model */
-    DO_TEST_CAPS_LATEST("cpu-host-model");
-    DO_TEST_CAPS_LATEST("cpu-host-model-fallback");
-    DO_TEST_CAPS_LATEST("cpu-host-model-nofallback");
+    DO_TEST_CAPS_LATEST("cpu-host-model-kvm");
+    DO_TEST_CAPS_LATEST("cpu-host-model-fallback-kvm");
+    DO_TEST_CAPS_LATEST("cpu-host-model-nofallback-kvm");
+
+    DO_TEST_CAPS_LATEST("cpu-host-model-tcg");
+    DO_TEST_CAPS_LATEST("cpu-host-model-fallback-tcg");
+    DO_TEST_CAPS_LATEST("cpu-host-model-nofallback-tcg");
 
     /* this test case uses 'cpu="host-model"', run it with Haswell host cpu to prevent test case churn */
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-host-model-vendor", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);

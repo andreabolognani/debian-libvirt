@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-09-25 20:10+0000\n"
+"POT-Creation-Date: 2023-11-27 09:22+0000\n"
 "PO-Revision-Date: 2015-02-27 01:03+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: Marathi (http://www.transifex.com/projects/p/libvirt/language/"
@@ -2176,6 +2176,10 @@ msgstr "व्यस्थ"
 #, fuzzy
 msgid "CA certificate:"
 msgstr "अवैध प्रमाणपत्र"
+
+#, c-format
+msgid "CCW addresses are not supported by machine type '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "CHS geometry can not be set for '%1$s' bus"
@@ -5288,6 +5292,10 @@ msgstr "USB डिव्हाइस बस:%u साधन:%u शोधणे �
 #, c-format
 msgid "Did not find USB device bus:%1$u device:%2$u"
 msgstr "USB डिव्हाइस बस:%1$u साधन:%2$u शोधणे अशक्य"
+
+#, c-format
+msgid "Did not get all free page data for node %1$d"
+msgstr ""
 
 #, fuzzy
 msgid ""
@@ -15221,6 +15229,12 @@ msgstr "लक्ष्य कंट्रोलर वेक्टर्स् 
 
 #, c-format
 msgid ""
+"Target device CCW address %1$x.%2$x.%3$04x does not match source %4$x.%5$x."
+"%6$04x"
+msgstr ""
+
+#, c-format
+msgid ""
 "Target device PCI address %1$04x:%2$02x:%3$02x.%4$d does not match source "
 "%5$04x:%6$02x:%7$02x.%8$d"
 msgstr ""
@@ -22496,10 +22510,6 @@ msgstr ""
 msgid "cannot upload to volume %1$s"
 msgstr "खंड '%1$s' अपलोड करणे अशक्य"
 
-#, fuzzy, c-format
-msgid "cannot use CCW address type for device '%1$s' using machine type '%2$s'"
-msgstr "नेटवर्क '%1$s' मध्ये MAC पत्ता '%2$s' वाचणे अशक्य"
-
 #, fuzzy
 msgid "cannot use custom tap device in session mode"
 msgstr "सत्र प्रतिनिधी बनणे शक्य नाही"
@@ -27852,10 +27862,8 @@ msgstr "नवीन पूल आकार सेट करण्याऐव�
 #, c-format
 msgid ""
 "integer overflow on %1$s. Please contact the libvirt development team at "
-"libvir-list@redhat.com"
+"devel@lists.libvirt.org"
 msgstr ""
-"%1$s वरील इंटिजर ओवरफ्लो. कृपया libvirt डेव्हलपमेंट समूहाशी libvir-list@redhat.com "
-"येथे संपर्क साधा"
 
 #, fuzzy, c-format
 msgid ""
@@ -29874,11 +29882,6 @@ msgstr ""
 #, fuzzy
 msgid "memory device alias is not assigned"
 msgstr "PCI साधन %s लागू करण्याजोगी नाही"
-
-#, c-format
-msgid ""
-"memory device base '0x%1$llx' is already being used by another memory device"
-msgstr ""
 
 #, c-format
 msgid "memory device slot '%1$u' exceeds slots count '%2$u'"
@@ -34188,6 +34191,9 @@ msgstr "परिणाम खूप मोठे आहे: %1$llu"
 msgid "resume a domain"
 msgstr "डोमेन पुन्हा चालू करा"
 
+msgid "resume a paused guest after connecting to console"
+msgstr ""
+
 msgid "resume failed post-copy migration"
 msgstr ""
 
@@ -37532,10 +37538,6 @@ msgid "unknown smbios mode '%1$s'"
 msgstr "अपरिचीत smbios मोड '%1$s'"
 
 #, c-format
-msgid "unknown source mode '%1$s' for volume type disk"
-msgstr "वॉल्युम प्रकार डिस्ककरिता अपरिचीत स्रोत मोड '%1$s'"
-
-#, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr "'%2$s' करिता अपरिचीत साठा क्षमता प्रकार '%1$s'"
 
@@ -39109,6 +39111,23 @@ msgstr ""
 #, c-format
 msgid "{[--%1$s] <string>}..."
 msgstr "{[--%1$s] <string>}..."
+
+#, fuzzy, c-format
+#~ msgid ""
+#~ "cannot use CCW address type for device '%1$s' using machine type '%2$s'"
+#~ msgstr "नेटवर्क '%1$s' मध्ये MAC पत्ता '%2$s' वाचणे अशक्य"
+
+#, c-format
+#~ msgid ""
+#~ "integer overflow on %1$s. Please contact the libvirt development team at "
+#~ "libvir-list@redhat.com"
+#~ msgstr ""
+#~ "%1$s वरील इंटिजर ओवरफ्लो. कृपया libvirt डेव्हलपमेंट समूहाशी libvir-list@redhat."
+#~ "com येथे संपर्क साधा"
+
+#, c-format
+#~ msgid "unknown source mode '%1$s' for volume type disk"
+#~ msgstr "वॉल्युम प्रकार डिस्ककरिता अपरिचीत स्रोत मोड '%1$s'"
 
 #, c-format
 #~ msgid "Could not find typefile '%1$s'"

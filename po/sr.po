@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-09-25 20:10+0000\n"
+"POT-Creation-Date: 2023-11-27 09:22+0000\n"
 "PO-Revision-Date: 2015-03-03 07:52+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: Serbian (http://www.transifex.com/projects/p/fedora/language/"
@@ -1991,6 +1991,10 @@ msgid "Busy"
 msgstr ""
 
 msgid "CA certificate:"
+msgstr ""
+
+#, c-format
+msgid "CCW addresses are not supported by machine type '%1$s'"
 msgstr ""
 
 #, c-format
@@ -5062,6 +5066,10 @@ msgstr ""
 
 #, c-format
 msgid "Did not find USB device bus:%1$u device:%2$u"
+msgstr ""
+
+#, c-format
+msgid "Did not get all free page data for node %1$d"
 msgstr ""
 
 msgid ""
@@ -14909,6 +14917,12 @@ msgstr ""
 
 #, c-format
 msgid ""
+"Target device CCW address %1$x.%2$x.%3$04x does not match source %4$x.%5$x."
+"%6$04x"
+msgstr ""
+
+#, c-format
+msgid ""
 "Target device PCI address %1$04x:%2$02x:%3$02x.%4$d does not match source "
 "%5$04x:%6$02x:%7$02x.%8$d"
 msgstr ""
@@ -22205,10 +22219,6 @@ msgstr ""
 msgid "cannot upload to volume %1$s"
 msgstr ""
 
-#, c-format
-msgid "cannot use CCW address type for device '%1$s' using machine type '%2$s'"
-msgstr ""
-
 msgid "cannot use custom tap device in session mode"
 msgstr ""
 
@@ -27578,7 +27588,7 @@ msgstr ""
 #, c-format
 msgid ""
 "integer overflow on %1$s. Please contact the libvirt development team at "
-"libvir-list@redhat.com"
+"devel@lists.libvirt.org"
 msgstr ""
 
 #, c-format
@@ -29633,11 +29643,6 @@ msgid "memory device alias"
 msgstr ""
 
 msgid "memory device alias is not assigned"
-msgstr ""
-
-#, c-format
-msgid ""
-"memory device base '0x%1$llx' is already being used by another memory device"
 msgstr ""
 
 #, c-format
@@ -33901,6 +33906,9 @@ msgstr "nparams превелики"
 msgid "resume a domain"
 msgstr "настави домен"
 
+msgid "resume a paused guest after connecting to console"
+msgstr ""
+
 msgid "resume failed post-copy migration"
 msgstr ""
 
@@ -37236,10 +37244,6 @@ msgid "unknown smbios mode '%1$s'"
 msgstr "непознат „%1$s“ уређај за покретање"
 
 #, fuzzy, c-format
-msgid "unknown source mode '%1$s' for volume type disk"
-msgstr "непозната врста %d диска за складиштење"
-
-#, fuzzy, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr "непозната врста %d диска за складиштење"
 
@@ -38802,6 +38806,10 @@ msgstr ""
 #, fuzzy, c-format
 msgid "{[--%1$s] <string>}..."
 msgstr "--%1$s <ниска>"
+
+#, fuzzy, c-format
+#~ msgid "unknown source mode '%1$s' for volume type disk"
+#~ msgstr "непозната врста %d диска за складиштење"
 
 #, fuzzy, c-format
 #~ msgid "Could not find typefile '%1$s'"

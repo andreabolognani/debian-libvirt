@@ -6,6 +6,7 @@ LOGNAME=test \
 XDG_DATA_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.local/share \
 XDG_CACHE_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.cache \
 XDG_CONFIG_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.config \
+PIPEWIRE_RUNTIME_DIR=/run/user/1000 \
 /usr/bin/qemu-system-x86_64 \
 -name guest=QEMUGuest1,debug-threads=on \
 -S \
@@ -32,6 +33,7 @@ XDG_CONFIG_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.config \
 -audiodev '{"id":"audio1","driver":"none"}' \
 -audiodev '{"id":"audio2","driver":"alsa"}' \
 -audiodev '{"id":"audio3","driver":"pa"}' \
+-audiodev '{"id":"audio4","driver":"pipewire"}' \
 -vnc 127.0.0.1:0,audiodev=audio2 \
 -device '{"driver":"cirrus-vga","id":"video0","bus":"pci.0","addr":"0x2"}' \
 -device '{"driver":"AC97","id":"sound0","audiodev":"audio1","bus":"pci.0","addr":"0x3"}' \

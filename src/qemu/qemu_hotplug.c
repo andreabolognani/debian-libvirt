@@ -662,53 +662,55 @@ qemuDomainAttachDiskGeneric(virDomainObj *vm,
     g_autoptr(qemuSnapshotDiskContext) transientDiskSnapshotCtxt = NULL;
     bool origReadonly = disk->src->readonly;
 
-    if (disk->transient)
-        disk->src->readonly = true;
+    if (!virStorageSourceIsEmpty(disk->src)) {
+        if (disk->transient)
+            disk->src->readonly = true;
 
-    if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_VHOST_USER) {
-        if (!(data = qemuBuildStorageSourceChainAttachPrepareChardev(disk)))
-            return -1;
-    } else {
-        if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(disk->src)))
-            return -1;
-
-        if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON) {
-            if (!(data->copyOnReadProps = qemuBlockStorageGetCopyOnReadProps(disk)))
+        if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_VHOST_USER) {
+            if (!(data = qemuBuildStorageSourceChainAttachPrepareChardev(disk)))
+                return -1;
+        } else {
+            if (!(data = qemuBuildStorageSourceChainAttachPrepareBlockdev(disk->src)))
                 return -1;
 
-            data->copyOnReadNodename = g_strdup(QEMU_DOMAIN_DISK_PRIVATE(disk)->nodeCopyOnRead);
+            if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON) {
+                if (!(data->copyOnReadProps = qemuBlockStorageGetCopyOnReadProps(disk)))
+                    return -1;
+
+                data->copyOnReadNodename = g_strdup(QEMU_DOMAIN_DISK_PRIVATE(disk)->nodeCopyOnRead);
+            }
         }
-    }
 
-    disk->src->readonly = origReadonly;
+        disk->src->readonly = origReadonly;
 
-    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
-        return -1;
+        if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
+            return -1;
 
-    rc = qemuBlockStorageSourceChainAttach(priv->mon, data);
+        rc = qemuBlockStorageSourceChainAttach(priv->mon, data);
 
-    qemuDomainObjExitMonitor(vm);
+        qemuDomainObjExitMonitor(vm);
 
-    if (rc < 0)
-        goto rollback;
-
-    if (disk->transient) {
-        g_autoptr(qemuBlockStorageSourceAttachData) backend = NULL;
-        g_autoptr(GHashTable) blockNamedNodeData = NULL;
-
-        if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
+        if (rc < 0)
             goto rollback;
 
-        if (!(transientDiskSnapshotCtxt = qemuDomainAttachDiskGenericTransient(vm, disk, blockNamedNodeData, asyncJob)))
-            goto rollback;
+        if (disk->transient) {
+            g_autoptr(qemuBlockStorageSourceAttachData) backend = NULL;
+            g_autoptr(GHashTable) blockNamedNodeData = NULL;
+
+            if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, asyncJob)))
+                goto rollback;
+
+            if (!(transientDiskSnapshotCtxt = qemuDomainAttachDiskGenericTransient(vm, disk, blockNamedNodeData, asyncJob)))
+                goto rollback;
 
 
-        if (qemuSnapshotDiskCreate(transientDiskSnapshotCtxt) < 0)
-            goto rollback;
+            if (qemuSnapshotDiskCreate(transientDiskSnapshotCtxt) < 0)
+                goto rollback;
 
-        QEMU_DOMAIN_DISK_PRIVATE(disk)->transientOverlayCreated = true;
-        backend = qemuBlockStorageSourceDetachPrepare(disk->src);
-        ignore_value(VIR_INSERT_ELEMENT(data->srcdata, 0, data->nsrcdata, backend));
+            QEMU_DOMAIN_DISK_PRIVATE(disk)->transientOverlayCreated = true;
+            backend = qemuBlockStorageSourceDetachPrepare(disk->src);
+            ignore_value(VIR_INSERT_ELEMENT(data->srcdata, 0, data->nsrcdata, backend));
+        }
     }
 
     if (!(devprops = qemuBuildDiskDeviceProps(vm->def, disk, priv->qemuCaps)))
@@ -931,7 +933,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("disk device='lun' is not supported for usb bus"));
-            break;
+            goto cleanup;
         }
 
         if (virDomainUSBAddressEnsure(priv->usbaddrs, &disk->info) < 0)
@@ -944,6 +946,7 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                            _("cdrom device with virtio bus isn't supported"));
+            goto cleanup;
         }
         if (qemuDomainEnsureVirtioAddress(&releaseVirtio, vm, dev) < 0)
             goto cleanup;
@@ -991,30 +994,33 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("disk bus '%1$s' cannot be hotplugged."),
                        virDomainDiskBusTypeToString(disk->bus));
-    }
-
-    if (qemuDomainStorageSourceChainAccessAllow(driver, vm, disk->src) < 0)
         goto cleanup;
-
-    releaseSeclabel = true;
+    }
 
     if (qemuAssignDeviceDiskAlias(vm->def, disk) < 0)
         goto cleanup;
 
-    if (qemuDomainPrepareDiskSource(disk, priv, cfg) < 0)
-        goto cleanup;
+    if (!virStorageSourceIsEmpty(disk->src)) {
+        if (qemuDomainPrepareDiskSource(disk, priv, cfg) < 0)
+            goto cleanup;
 
-    if (qemuDomainDetermineDiskChain(driver, vm, disk, NULL) < 0)
-        goto cleanup;
+        if (qemuDomainDetermineDiskChain(driver, vm, disk, NULL) < 0)
+            goto cleanup;
 
-    if (qemuProcessPrepareHostStorageDisk(vm, disk) < 0)
-        goto cleanup;
+        if (qemuDomainStorageSourceChainAccessAllow(driver, vm, disk->src) < 0)
+            goto cleanup;
 
-    if (qemuHotplugAttachManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE) < 0)
-        goto cleanup;
+        releaseSeclabel = true;
 
-    if (qemuNbdkitStartStorageSource(driver, vm, disk->src) < 0)
-        goto cleanup;
+        if (qemuProcessPrepareHostStorageDisk(vm, disk) < 0)
+            goto cleanup;
+
+        if (qemuHotplugAttachManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE) < 0)
+            goto cleanup;
+
+        if (qemuNbdkitStartStorageSource(driver, vm, disk->src) < 0)
+            goto cleanup;
+    }
 
     ret = qemuDomainAttachDiskGeneric(vm, disk, VIR_ASYNC_JOB_NONE);
 

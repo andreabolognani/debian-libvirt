@@ -7607,7 +7607,8 @@ qemuMonitorJSONProcessHotpluggableCpusReply(virJSONValue *vcpu,
 
 static int
 qemuMonitorQueryHotpluggableCpusEntrySort(const void *p1,
-                                          const void *p2)
+                                          const void *p2,
+                                          void *opaque G_GNUC_UNUSED)
 {
     const struct qemuMonitorQueryHotpluggableCpusEntry *a = p1;
     const struct qemuMonitorQueryHotpluggableCpusEntry *b = p2;
@@ -7659,7 +7660,8 @@ qemuMonitorJSONGetHotpluggableCPUs(qemuMonitor *mon,
             goto cleanup;
     }
 
-    qsort(info, ninfo, sizeof(*info), qemuMonitorQueryHotpluggableCpusEntrySort);
+    g_qsort_with_data(info, ninfo, sizeof(*info),
+                      qemuMonitorQueryHotpluggableCpusEntrySort, NULL);
 
     *entries = g_steal_pointer(&info);
     *nentries = ninfo;
@@ -7783,12 +7785,14 @@ qemuMonitorJSONBlockdevAdd(qemuMonitor *mon,
 
 int
 qemuMonitorJSONBlockdevReopen(qemuMonitor *mon,
-                              virJSONValue **props)
+                              virJSONValue **options)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
 
-    if (!(cmd = qemuMonitorJSONMakeCommandInternal("blockdev-reopen", props)))
+    if (!(cmd = qemuMonitorJSONMakeCommand("blockdev-reopen",
+                                           "a:options", options,
+                                           NULL)))
         return -1;
 
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
