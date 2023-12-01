@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '9.9.0',
+  version: '9.10.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -542,6 +542,10 @@ libvirt_no_indirect = cc.get_supported_link_arguments([
   '-Wl,--no-copy-dt-needed-entries',
 ])
 
+libvirt_no_warn_duplicate_libraries = cc.get_supported_link_arguments([
+  '-Wl,-no_warn_duplicate_libraries',
+])
+
 if host_machine.system() == 'windows'
   version_script_flags = '-Wl,'
 elif host_machine.system() == 'darwin'
@@ -783,10 +787,6 @@ required_programs = [
   'xsltproc',
 ]
 
-required_programs_groups = [
-  { 'name': 'rpcgen', 'prog': [ 'rpcgen', 'portable-rpcgen' ] },
-]
-
 if host_machine.system() == 'freebsd'
   required_programs += 'ifconfig'
 endif
@@ -798,17 +798,11 @@ foreach name : required_programs
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
-foreach item : required_programs_groups
-  prog = find_program(item.get('prog'), dirs: libvirt_sbin_path)
-  varname = item.get('name').underscorify()
-  conf.set_quoted(varname.to_upper(), prog.full_path())
-  set_variable('@0@_prog'.format(varname), prog)
-endforeach
-
 # optional programs
 
 optional_programs = [
   'augparse',
+  'black',
   'dmidecode',
   'ebtables',
   'flake8',
@@ -822,6 +816,7 @@ optional_programs = [
   'ovs-vsctl',
   'passt',
   'pdwtags',
+  'pytest',
   'rmmod',
   'scrub',
   'tc',

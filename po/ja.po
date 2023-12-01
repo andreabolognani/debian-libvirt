@@ -20,7 +20,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2023-09-25 20:10+0000\n"
+"POT-Creation-Date: 2023-11-27 09:22+0000\n"
 "PO-Revision-Date: 2023-03-22 15:20+0000\n"
 "Last-Translator: Jiri Denemark <jdenemar@redhat.com>\n"
 "Language-Team: Japanese <https://translate.fedoraproject.org/projects/"
@@ -2303,6 +2303,10 @@ msgstr "ビジー"
 
 msgid "CA certificate:"
 msgstr "CA 証明書:"
+
+#, c-format
+msgid "CCW addresses are not supported by machine type '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "CHS geometry can not be set for '%1$s' bus"
@@ -5442,6 +5446,10 @@ msgstr ""
 #, c-format
 msgid "Did not find USB device bus:%1$u device:%2$u"
 msgstr "USB デバイスのバスを見つけられませんでした:%1$u デバイス:%2$u"
+
+#, c-format
+msgid "Did not get all free page data for node %1$d"
+msgstr ""
 
 msgid ""
 "Different bind and connect parameters for udp character device is not "
@@ -15517,6 +15525,12 @@ msgstr "ターゲットコントローラーベクトル %1$d がソース %2$d 
 
 #, c-format
 msgid ""
+"Target device CCW address %1$x.%2$x.%3$04x does not match source %4$x.%5$x."
+"%6$04x"
+msgstr ""
+
+#, c-format
+msgid ""
 "Target device PCI address %1$04x:%2$02x:%3$02x.%4$d does not match source "
 "%5$04x:%6$02x:%7$02x.%8$d"
 msgstr ""
@@ -22934,12 +22948,6 @@ msgstr ""
 msgid "cannot upload to volume %1$s"
 msgstr "ボリューム %1$s にアップロードできませんでした"
 
-#, c-format
-msgid "cannot use CCW address type for device '%1$s' using machine type '%2$s'"
-msgstr ""
-"マシンタイプ '%1$s' を使用しているデバイス '%2$s' に対して CCW アドレスタイプ"
-"を使用することはできません"
-
 msgid "cannot use custom tap device in session mode"
 msgstr "セッションモードでカスタムタップデバイスを使用することはできません"
 
@@ -28300,10 +28308,8 @@ msgstr "新しいプールサイズを設定する代わりに、それにペー
 #, c-format
 msgid ""
 "integer overflow on %1$s. Please contact the libvirt development team at "
-"libvir-list@redhat.com"
+"devel@lists.libvirt.org"
 msgstr ""
-"%1$s で整数のオーバーフローが発生しました。libvirt 開発チーム (libvir-"
-"list@redhat.com) までご連絡ください"
 
 #, c-format
 msgid ""
@@ -30338,13 +30344,6 @@ msgstr "メモリーデバイスのエイリアス"
 
 msgid "memory device alias is not assigned"
 msgstr "メモリーデバイスのエイリアスが割り当てられていません"
-
-#, c-format
-msgid ""
-"memory device base '0x%1$llx' is already being used by another memory device"
-msgstr ""
-"メモリーデバイスベース '0x%1$llx' は、すでに別のメモリーデバイスによって使用"
-"されています"
 
 #, c-format
 msgid "memory device slot '%1$u' exceeds slots count '%2$u'"
@@ -34662,6 +34661,9 @@ msgstr "結果が大きすぎます: %1$llu"
 msgid "resume a domain"
 msgstr "ドメインを再開します"
 
+msgid "resume a paused guest after connecting to console"
+msgstr ""
+
 msgid "resume failed post-copy migration"
 msgstr "レジュームポストコピーのマイグレーションに失敗"
 
@@ -38081,10 +38083,6 @@ msgid "unknown smbios mode '%1$s'"
 msgstr "不明な smbios モード '%1$s'"
 
 #, c-format
-msgid "unknown source mode '%1$s' for volume type disk"
-msgstr "ボリュームタイプディスクに対する不明なソースモード '%1$s'"
-
-#, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr "'%1$s' に対する不明なストレージケイパビリティータイプ '%2$s'"
 
@@ -39700,6 +39698,33 @@ msgstr ""
 #, c-format
 msgid "{[--%1$s] <string>}..."
 msgstr "{[--%1$s] <string>}..."
+
+#, c-format
+#~ msgid ""
+#~ "cannot use CCW address type for device '%1$s' using machine type '%2$s'"
+#~ msgstr ""
+#~ "マシンタイプ '%1$s' を使用しているデバイス '%2$s' に対して CCW アドレスタ"
+#~ "イプを使用することはできません"
+
+#, c-format
+#~ msgid ""
+#~ "integer overflow on %1$s. Please contact the libvirt development team at "
+#~ "libvir-list@redhat.com"
+#~ msgstr ""
+#~ "%1$s で整数のオーバーフローが発生しました。libvirt 開発チーム (libvir-"
+#~ "list@redhat.com) までご連絡ください"
+
+#, c-format
+#~ msgid ""
+#~ "memory device base '0x%1$llx' is already being used by another memory "
+#~ "device"
+#~ msgstr ""
+#~ "メモリーデバイスベース '0x%1$llx' は、すでに別のメモリーデバイスによって使"
+#~ "用されています"
+
+#, c-format
+#~ msgid "unknown source mode '%1$s' for volume type disk"
+#~ msgstr "ボリュームタイプディスクに対する不明なソースモード '%1$s'"
 
 #, c-format
 #~ msgid "Could not find typefile '%1$s'"

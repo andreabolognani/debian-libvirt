@@ -248,6 +248,13 @@ sc_prohibit_canonicalize_file_name:
 	halt='use virFileCanonicalizePath() instead of canonicalize_file_name()' \
 	  $(_sc_search_regexp)
 
+# qsort from glibc has unstable sort ordering for "equal" members
+sc_prohibit_qsort:
+	@prohibit='\<(qsort|qsort_r) *\(' \
+	exclude='exempt from syntax-check' \
+	halt='use g_qsort_with_data instead of qsort' \
+	  $(_sc_search_regexp)
+
 # Insist on correct types for [pug]id.
 sc_correct_id_types:
 	@prohibit='\<(int|long) *[pug]id\>' \
@@ -380,7 +387,7 @@ sc_prohibit_unsigned_pid:
 # Many of the function names below came from this filter:
 # git grep -B2 '\<_('|grep -E '\.c- *[[:alpha:]_][[:alnum:]_]* ?\(.*[,;]$' \
 # |sed 's/.*\.c-  *//'|perl -pe 's/ ?\(.*//'|sort -u \
-# |grep -vE '^(qsort|if|close|assert|fputc|free|N_|vir.*GetName|.*Unlock|virNodeListDevices|virHashRemoveEntry|freeaddrinfo|.*[fF]ree|xdrmem_create|xmlXPathFreeObject|virUUIDFormat|openvzSetProgramSentinal|polkit_action_unref)$'
+# |grep -vE '^(if|close|assert|fputc|free|N_|vir.*GetName|.*Unlock|virNodeListDevices|virHashRemoveEntry|freeaddrinfo|.*[fF]ree|xdrmem_create|xmlXPathFreeObject|virUUIDFormat|openvzSetProgramSentinal|polkit_action_unref)$'
 
 msg_gen_function =
 msg_gen_function += VIR_ERROR
@@ -581,15 +588,22 @@ sc_prohibit_python_without_env:
 
 # We're intentionally ignoring a few warnings
 #
+# E302: whitespace before ':'. This is something that is
+# desirable when indexing array slices and is used by the
+# 'black' formatting tool
+#
 # E501: Force breaking lines at < 80 characters results in
 # some really unnatural code formatting which harms
 # readability.
+#
+# W503: line break before binary operator, because this
+# is contrary to what 'black' formatting tool wants
 #
 # W504: Knuth code style requires the operators "or" and "and" etc
 # to be at the start of line in a multi-line conditional.
 # This the opposite to what is normal libvirt practice.
 #
-FLAKE8_IGNORE = E501,W504
+FLAKE8_IGNORE = E203,E501,W503,W504
 
 sc_flake8:
 	@if [ -n "$(FLAKE8)" ]; then \
@@ -599,6 +613,16 @@ sc_flake8:
 		echo "$$ALL_PY" | xargs $(FLAKE8) --ignore $(FLAKE8_IGNORE) --show-source; \
 	else \
 		echo 'skipping test $@: flake8 not installed' 1>&2; \
+	fi
+
+sc_black:
+	if [ -n "$(BLACK)" ]; then \
+		DOT_PY=$$($(VC_LIST_EXCEPT) | $(GREP) '\.py$$'); \
+		BANG_PY=$$($(VC_LIST_EXCEPT) | xargs grep -l '^#!/usr/bin/env python3$$'); \
+		ALL_PY=$$(printf "%s\n%s" "$$DOT_PY" "$$BANG_PY" | sort -u); \
+		echo "$$ALL_PY" | xargs --no-run-if-empty $(BLACK) --check; \
+	else \
+		echo 'skipping test $@: black not installed' 1>&2; \
 	fi
 
 # mymain() in test files should use return, not exit, for nicer output
@@ -1300,6 +1324,11 @@ syntax-check: sc_spacing-check \
 		echo "* flake8 not installed, sc_flake8 has been skipped  *" >&2; \
 		echo "*****************************************************" >&2; \
 	fi
+	if [ -z "$(BLACK)" ]; then \
+		echo "*****************************************************" >&2; \
+		echo "* black not installed, sc_black has been skipped    *" >&2; \
+		echo "*****************************************************" >&2; \
+	fi
 endif
 
 # Don't include duplicate header in the source (either *.c or *.h)
@@ -1340,7 +1369,7 @@ exclude_file_name_regexp--sc_avoid_strcase = ^tools/(vsh\.h|nss/libvirt_nss_(lea
 exclude_file_name_regexp--sc_avoid_write = ^src/libvirt-stream\.c$$
 
 exclude_file_name_regexp--sc_gettext_init = \
-	^((tests|examples)/|tools/virt-login-shell.c)
+	^((tests|examples)/|tools/virt-login-shell\.c$$|scripts/rpcgen/tests/test_demo\.c$$)
 
 exclude_file_name_regexp--sc_copyright_usage = \
   ^COPYING(|\.LESSER)$$
@@ -1369,7 +1398,7 @@ exclude_file_name_regexp--sc_prohibit_close = \
   (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  (^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
+  ((^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)|\.bin)
 
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
@@ -1414,10 +1443,10 @@ exclude_file_name_regexp--sc_prohibit_xmlURI = ^src/util/viruri\.c$$
 exclude_file_name_regexp--sc_prohibit_return_as_function = \.py$$
 
 exclude_file_name_regexp--sc_require_config_h = \
-	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers.c)
+	^(examples/c/.*/.*\.c|tools/virsh-edit\.c|tests/virmockstathelpers\.c|scripts/rpcgen/tests/(test_)?demo\.c)$$
 
 exclude_file_name_regexp--sc_require_config_h_first = \
-	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers.c)
+	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers\.c$$|scripts/rpcgen/tests/test_demo\.c$$)
 
 exclude_file_name_regexp--sc_trailing_blank = \
   /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo$$
@@ -1449,7 +1478,7 @@ exclude_file_name_regexp--sc_prohibit_mixed_case_abbreviations = \
   ^src/(vbox/vbox_CAPI.*.h|esx/esx_vi.(c|h)|esx/esx_storage_backend_iscsi.c)$$
 
 exclude_file_name_regexp--sc_prohibit_empty_first_line = \
-  ^tests/vmwareverdata/fusion-5.0.3.txt$$
+  ^tests/vmwareverdata/fusion-5.0.3.txt|scripts/rpcgen/tests/demo\.c$$
 
 exclude_file_name_regexp--sc_prohibit_useless_translation = \
   ^tests/virpolkittest.c
@@ -1478,6 +1507,14 @@ exclude_file_name_regexp--sc_prohibit_strcmp = \
 exclude_file_name_regexp--sc_prohibit_select = \
   ^build-aux/syntax-check\.mk|src/util/vireventglibwatch\.c|tests/meson\.build$$
 
+exclude_file_name_regexp--sc_header-ifdef = \
+  ^scripts/rpcgen/tests/demo\.[ch]$$
+
+exclude_file_name_regexp--sc_black = \
+  ^tools/|src/|tests/|ci/|run\.in|scripts/[^/]*\.py
+
+exclude_file_name_regexp--sc_spacing-check = \
+  ^scripts/rpcgen/tests/test_demo\.[ch]$$
 
 ## -------------- ##
 ## Implementation ##

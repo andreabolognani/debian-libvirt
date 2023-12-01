@@ -791,6 +791,7 @@ VIR_ENUM_IMPL(virDomainAudioType,
               "spice",
               "file",
               "dbus",
+              "pipewire",
 );
 
 VIR_ENUM_IMPL(virDomainAudioSDLDriver,
@@ -3230,6 +3231,13 @@ virDomainAudioIOPulseAudioFree(virDomainAudioIOPulseAudio *def)
     g_free(def->streamName);
 }
 
+static void
+virDomainAudioIOPipewireAudioFree(virDomainAudioIOPipewireAudio *def)
+{
+    g_free(def->name);
+    g_free(def->streamName);
+}
+
 void
 virDomainAudioDefFree(virDomainAudioDef *def)
 {
@@ -3272,6 +3280,12 @@ virDomainAudioDefFree(virDomainAudioDef *def)
 
     case VIR_DOMAIN_AUDIO_TYPE_FILE:
         g_free(def->backend.file.path);
+        break;
+
+    case VIR_DOMAIN_AUDIO_TYPE_PIPEWIRE:
+        virDomainAudioIOPipewireAudioFree(&def->backend.pipewire.input);
+        virDomainAudioIOPipewireAudioFree(&def->backend.pipewire.output);
+        g_free(def->backend.pipewire.runtimeDir);
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_DBUS:
@@ -11920,6 +11934,21 @@ virDomainAudioSDLParse(virDomainAudioIOSDL *def,
 }
 
 
+static int
+virDomainAudioPipewireAudioParse(virDomainAudioIOPipewireAudio *def,
+                                 xmlNodePtr node)
+{
+    def->name = virXMLPropString(node, "name");
+    def->streamName = virXMLPropString(node, "streamName");
+
+    if (virXMLPropUInt(node, "latency", 10, VIR_XML_PROP_NONZERO,
+                       &def->latency) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 static virDomainAudioDef *
 virDomainAudioDefParseXML(virDomainXMLOption *xmlopt G_GNUC_UNUSED,
                           xmlNodePtr node,
@@ -12048,6 +12077,16 @@ virDomainAudioDefParseXML(virDomainXMLOption *xmlopt G_GNUC_UNUSED,
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_DBUS:
+        break;
+
+    case VIR_DOMAIN_AUDIO_TYPE_PIPEWIRE:
+        if (inputNode &&
+            virDomainAudioPipewireAudioParse(&def->backend.pipewire.input, inputNode) < 0)
+            goto error;
+        if (outputNode &&
+            virDomainAudioPipewireAudioParse(&def->backend.pipewire.output, outputNode) < 0)
+            goto error;
+        def->backend.pipewire.runtimeDir = virXMLPropString(node, "runtimeDir");
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -15703,7 +15742,9 @@ virDomainDefParseBootXML(xmlXPathContextPtr ctxt,
 }
 
 
-static int virDomainIdMapEntrySort(const void *a, const void *b)
+static int virDomainIdMapEntrySort(const void *a,
+                                   const void *b,
+                                   void *opaque G_GNUC_UNUSED)
 {
     const virDomainIdMapEntry *entrya = a;
     const virDomainIdMapEntry *entryb = b;
@@ -15746,7 +15787,7 @@ virDomainIdmapDefParseXML(xmlXPathContextPtr ctxt,
         }
     }
 
-    qsort(idmap, num, sizeof(idmap[0]), virDomainIdMapEntrySort);
+    g_qsort_with_data(idmap, num, sizeof(idmap[0]), virDomainIdMapEntrySort, NULL);
 
     return idmap;
 }
@@ -19503,13 +19544,10 @@ virDomainDefParse(const char *xmlStr,
 {
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    int keepBlanksDefault = xmlKeepBlanksDefault(0);
     bool validate = flags & VIR_DOMAIN_DEF_PARSE_VALIDATE_SCHEMA;
 
-    xml = virXMLParse(filename, xmlStr, _("(domain_definition)"),
-                      "domain", &ctxt, "domain.rng", validate);
-
-    xmlKeepBlanksDefault(keepBlanksDefault);
+    xml = virXMLParseWithIndent(filename, xmlStr, _("(domain_definition)"),
+                                "domain", &ctxt, "domain.rng", validate);
 
     if (!xml)
         return NULL;
@@ -19566,10 +19604,8 @@ virDomainObjParseFile(const char *filename,
 {
     g_autoptr(xmlDoc) xml = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
-    int keepBlanksDefault = xmlKeepBlanksDefault(0);
 
-    xml = virXMLParse(filename, NULL, NULL, "domstatus", &ctxt, NULL, false);
-    xmlKeepBlanksDefault(keepBlanksDefault);
+    xml = virXMLParseWithIndent(filename, NULL, NULL, "domstatus", &ctxt, NULL, false);
 
     if (!xml)
         return NULL;
@@ -19719,10 +19755,21 @@ virDomainDeviceInfoCheckABIStability(virDomainDeviceInfo *src,
         }
         break;
 
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
+        if (src->addr.ccw.cssid != dst->addr.ccw.cssid ||
+            src->addr.ccw.ssid != dst->addr.ccw.ssid ||
+            src->addr.ccw.devno != dst->addr.ccw.devno) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Target device CCW address %1$x.%2$x.%3$04x does not match source %4$x.%5$x.%6$04x"),
+                           dst->addr.ccw.cssid, dst->addr.ccw.ssid, dst->addr.ccw.devno,
+                           src->addr.ccw.cssid, src->addr.ccw.ssid, src->addr.ccw.devno);
+            return false;
+        }
+        break;
+
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB:
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO:
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_S390:
-    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_MMIO:
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE:
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_UNASSIGNED:
@@ -22357,14 +22404,12 @@ virDomainDiskSourceFormat(virBuffer *buf,
     g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
-    if (src->type == VIR_STORAGE_TYPE_VOLUME) {
-        if (src->srcpool) {
-            virBufferEscapeString(&attrBuf, " pool='%s'", src->srcpool->pool);
-            virBufferEscapeString(&attrBuf, " volume='%s'", src->srcpool->volume);
-            if (src->srcpool->mode)
-                virBufferAsprintf(&attrBuf, " mode='%s'",
-                                  virStorageSourcePoolModeTypeToString(src->srcpool->mode));
-        }
+    if (src->type == VIR_STORAGE_TYPE_VOLUME && src->srcpool) {
+        virBufferEscapeString(&attrBuf, " pool='%s'", src->srcpool->pool);
+        virBufferEscapeString(&attrBuf, " volume='%s'", src->srcpool->volume);
+        if (src->srcpool->mode)
+            virBufferAsprintf(&attrBuf, " mode='%s'",
+                              virStorageSourcePoolModeTypeToString(src->srcpool->mode));
 
         if (flags & VIR_DOMAIN_DEF_FORMAT_VOLUME_TRANSLATED &&
             src->srcpool->actualtype != VIR_STORAGE_TYPE_NONE) {
@@ -24833,6 +24878,18 @@ virDomainAudioSDLFormat(virDomainAudioIOSDL *def,
 }
 
 
+static void
+virDomainAudioPipewireAudioFormat(virDomainAudioIOPipewireAudio *def,
+                                  virBuffer *buf)
+{
+    virBufferEscapeString(buf, " name='%s'", def->name);
+    virBufferEscapeString(buf, " streamName='%s'", def->streamName);
+    if (def->latency)
+        virBufferAsprintf(buf, " latency='%u'", def->latency);
+
+}
+
+
 static int
 virDomainAudioDefFormat(virBuffer *buf,
                         virDomainAudioDef *def)
@@ -24913,6 +24970,12 @@ virDomainAudioDefFormat(virBuffer *buf,
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_DBUS:
+        break;
+
+    case VIR_DOMAIN_AUDIO_TYPE_PIPEWIRE:
+        virDomainAudioPipewireAudioFormat(&def->backend.pipewire.input, &inputBuf);
+        virDomainAudioPipewireAudioFormat(&def->backend.pipewire.output, &outputBuf);
+        virBufferEscapeString(&attrBuf, " runtimeDir='%s'", def->backend.pipewire.runtimeDir);
         break;
 
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -29268,6 +29331,16 @@ virDomainAudioIOSDLIsEqual(virDomainAudioIOSDL *this,
 
 
 static bool
+virDomainAudioIOPipewireAudioIsEqual(virDomainAudioIOPipewireAudio *this,
+                                     virDomainAudioIOPipewireAudio *that)
+{
+    return STREQ_NULLABLE(this->name, that->name) &&
+        STREQ_NULLABLE(this->streamName, that->streamName) &&
+        this->latency == that->latency;
+}
+
+
+static bool
 virDomainAudioBackendIsEqual(virDomainAudioDef *this,
                              virDomainAudioDef *that)
 {
@@ -29326,6 +29399,12 @@ virDomainAudioBackendIsEqual(virDomainAudioDef *this,
 
     case VIR_DOMAIN_AUDIO_TYPE_FILE:
         return STREQ_NULLABLE(this->backend.file.path, that->backend.file.path);
+
+    case VIR_DOMAIN_AUDIO_TYPE_PIPEWIRE:
+        return virDomainAudioIOPipewireAudioIsEqual(&this->backend.pipewire.input,
+                                                    &that->backend.pipewire.input) &&
+            virDomainAudioIOPipewireAudioIsEqual(&this->backend.pipewire.output,
+                                                 &that->backend.pipewire.output);
 
     case VIR_DOMAIN_AUDIO_TYPE_DBUS:
     case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -30592,7 +30671,7 @@ virDomainDiskTranslateSourcePool(virDomainDiskDef *def)
  * don't change it in the XML for easier adjustments.  This behaviour is
  * documented.
  */
-int
+virDomainDiskDetectZeroes
 virDomainDiskGetDetectZeroesMode(virDomainDiskDiscard discard,
                                  virDomainDiskDetectZeroes detect_zeroes)
 {
