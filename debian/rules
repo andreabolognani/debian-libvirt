@@ -135,9 +135,9 @@ else
     WITH_VBOX                 = -Ddriver_vbox=disabled
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_NBDKIT)))
-    WITH_NBDKIT               = -Dnbdkit=enabled
+    WITH_NBDKIT               = -Dnbdkit=enabled -Dnbdkit_config_default=enabled
 else
-    WITH_NBDKIT               = -Dnbdkit=disabled
+    WITH_NBDKIT               = -Dnbdkit=disabled -Dnbdkit_config_default=disabled
 endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
