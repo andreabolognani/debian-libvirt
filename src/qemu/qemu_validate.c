@@ -2437,7 +2437,7 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
                                    const virDomainDef *def,
                                    virQEMUCaps *qemuCaps)
 {
-    int backend;
+    virDeviceHostdevPCIDriverName driverName;
 
     /* forbid capabilities mode hostdev in this kind of hypervisor */
     if (hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES) {
@@ -2462,9 +2462,9 @@ qemuValidateDomainDeviceDefHostdev(const virDomainHostdevDef *hostdev,
             break;
 
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
-            backend = hostdev->source.subsys.u.pci.backend;
+            driverName = hostdev->source.subsys.u.pci.driver.name;
 
-            if (backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
+            if (driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
                 if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                    _("VFIO PCI device assignment is not supported by this version of qemu"));
@@ -2669,12 +2669,24 @@ qemuValidateDomainDeviceDefDiskSerial(const char *value)
 }
 
 
-static bool
+static int
 qemuValidateDomainDeviceDefDiskIOThreads(const virDomainDef *def,
-                                         const virDomainDiskDef *disk)
+                                         const virDomainDiskDef *disk,
+                                         virQEMUCaps *qemuCaps)
 {
+    if (disk->iothread == 0 && !disk->iothreads)
+        return 0;
+
     switch (disk->bus) {
     case VIR_DOMAIN_DISK_BUS_VIRTIO:
+        if (disk->iothreads) {
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_BLK_IOTHREAD_MAPPING)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("IOThread mapping for disk '%1$s' is not available with this QEMU binary"),
+                               disk->dst);
+                return -1;
+            }
+        }
         break;
 
     case VIR_DOMAIN_DISK_BUS_IDE:
@@ -2690,18 +2702,101 @@ qemuValidateDomainDeviceDefDiskIOThreads(const virDomainDef *def,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("IOThreads not available for bus %1$s target %2$s"),
                        virDomainDiskBusTypeToString(disk->bus), disk->dst);
-        return false;
+        return -1;
     }
 
-    /* Can we find the disk iothread in the iothreadid list? */
-    if (!virDomainIOThreadIDFind(def, disk->iothread)) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Disk iothread '%1$u' not defined in iothreadid"),
-                       disk->iothread);
-        return false;
+    if (disk->iothreads) {
+        virDomainDiskIothreadDef *first_ioth = disk->iothreads->data;
+        g_autoptr(virBitmap) queueMap = NULL;
+        g_autoptr(GHashTable) iothreads = virHashNew(NULL);
+        ssize_t unused;
+        GSList *n;
+
+        if (first_ioth->queues) {
+            if (disk->queues == 0) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("disk 'queue' count must be configured for explicit iothread to queue mapping"));
+                return -1;
+            }
+
+            queueMap = virBitmapNew(disk->queues);
+        }
+
+        /* we are validating that:
+         * - there are no duplicate iothreads
+         * - there are only valid iothreads
+         * - if queue mapping is provided
+         *    - queue is in range
+         *    - it must be provided for all assigned iothreads
+         *    - it must be provided for all queues
+         *    - queue must be assigned only once
+         */
+        for (n = disk->iothreads; n; n = n->next) {
+            virDomainDiskIothreadDef *ioth = n->data;
+            g_autofree char *alias = g_strdup_printf("iothread%u", ioth->id);
+            size_t i;
+
+            if (g_hash_table_contains(iothreads, alias)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("Duplicate mapping for iothread '%1$u'"), ioth->id);
+                return -1;
+            }
+
+            g_hash_table_insert(iothreads, g_steal_pointer(&alias), NULL);
+
+            if (!virDomainIOThreadIDFind(def, ioth->id)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("Disk iothread '%1$u' not defined in iothreadid"),
+                               ioth->id);
+                return -1;
+            }
+
+            if (!!queueMap != !!ioth->queues) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("iothread to queue mapping must be provided for all iothreads or for none"));
+                return -1;
+            }
+
+            for (i = 0; i < ioth->nqueues; i++) {
+                bool hasMapping;
+
+                if (virBitmapGetBit(queueMap, ioth->queues[i], &hasMapping) < 0) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                   _("disk iothread queue '%1$u' mapping out of range"),
+                                   ioth->queues[i]);
+                    return -1;
+                }
+
+                if (hasMapping) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                   _("disk iothread queue '%1$u' is already assigned"),
+                                   ioth->queues[i]);
+                    return -1;
+                }
+
+                ignore_value(virBitmapSetBit(queueMap, ioth->queues[i]));
+
+            }
+        }
+
+        if (queueMap) {
+            if ((unused = virBitmapNextClearBit(queueMap, -1)) >= 0) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("missing iothread mapping for queue '%1$zd'"),
+                               unused);
+                return -1;
+            }
+        }
+    } else {
+        if (!virDomainIOThreadIDFind(def, disk->iothread)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Disk iothread '%1$u' not defined in iothreadid"),
+                           disk->iothread);
+            return -1;
+        }
     }
 
-    return true;
+    return 0;
 }
 
 
@@ -2956,7 +3051,7 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         qemuValidateDomainDeviceDefDiskSerial(disk->serial) < 0)
         return -1;
 
-    if (disk->iothread && !qemuValidateDomainDeviceDefDiskIOThreads(def, disk))
+    if (qemuValidateDomainDeviceDefDiskIOThreads(def, disk, qemuCaps) < 0)
         return -1;
 
     return 0;
@@ -4256,7 +4351,7 @@ qemuValidateDomainDeviceDefGraphics(const virDomainGraphicsDef *graphics,
 static int
 qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
                               const virDomainDef *def,
-                              virQEMUDriver *driver,
+                              virQEMUDriver *driver G_GNUC_UNUSED,
                               virQEMUCaps *qemuCaps)
 {
     if (fs->type != VIR_DOMAIN_FS_TYPE_MOUNT) {
@@ -4318,11 +4413,6 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
             if (fs->readonly) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("virtiofs does not yet support read-only mode"));
-                return -1;
-            }
-            if (!driver->privileged) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("virtiofs is not yet supported in session mode"));
                 return -1;
             }
             if (fs->accessmode != VIR_DOMAIN_FS_ACCESSMODE_PASSTHROUGH) {

@@ -383,6 +383,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("net-virtio");
     DO_TEST_CAPS_LATEST("net-virtio-device");
     DO_TEST_CAPS_LATEST("net-virtio-disable-offloads");
+    DO_TEST_CAPS_LATEST("net-virtio-vhost");
+    DO_TEST_CAPS_LATEST("net-linkstate");
     DO_TEST_CAPS_LATEST("net-eth");
     DO_TEST_CAPS_LATEST("net-eth-ifname");
     DO_TEST_CAPS_LATEST("net-eth-hostip");
@@ -475,8 +477,6 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("iothreads-virtio-scsi-ccw", "s390x");
     DO_TEST_CAPS_LATEST("lease");
     DO_TEST_CAPS_LATEST("event_idx");
-    DO_TEST_CAPS_LATEST("vhost_queues");
-    DO_TEST_CAPS_LATEST("interface-driver");
     DO_TEST_CAPS_LATEST("net-server");
     DO_TEST_CAPS_LATEST("virtio-lun");
 
@@ -574,7 +574,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-scsi-device-auto");
     DO_TEST_CAPS_LATEST("console-virtio");
     DO_TEST_CAPS_LATEST("serial-target-port-auto");
-    DO_TEST_CAPS_LATEST("graphics-listen-network2");
     DO_TEST_CAPS_LATEST("numad-auto-vcpu-no-numatune");
     DO_TEST_CAPS_LATEST("numad-auto-memory-vcpu-no-cpuset-and-placement");
     DO_TEST_CAPS_LATEST("numad-auto-memory-vcpu-cpuset");
@@ -761,7 +760,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tap-vhost-incorrect");
     DO_TEST_CAPS_LATEST("shmem-plain-doorbell");
     DO_TEST_CAPS_LATEST("smbios");
-    DO_TEST_CAPS_LATEST("smbios-multiple-type2");
     DO_TEST_CAPS_LATEST("smbios-type-fwcfg");
 
     DO_TEST_CAPS_ARCH_LATEST("aarch64-aavmf-virtio-mmio", "aarch64");

@@ -126,6 +126,7 @@ virCPUModeTypeToString;
 
 # conf/device_conf.h
 virCCWDeviceAddressParseXML;
+virDeviceHostdevPCIDriverNameTypeToString;
 virDeviceInfoPCIAddressExtensionIsPresent;
 virDeviceInfoPCIAddressExtensionIsWanted;
 virDeviceInfoPCIAddressIsPresent;
@@ -339,11 +340,11 @@ virDomainDefHasMemoryHotplug;
 virDomainDefHasNVMeDisk;
 virDomainDefHasOldStyleROUEFI;
 virDomainDefHasOldStyleUEFI;
+virDomainDefHasPCIHostdev;
 virDomainDefHasSpiceGraphics;
 virDomainDefHasUSB;
 virDomainDefHasVcpusOffline;
 virDomainDefHasVDPANet;
-virDomainDefHasVFIOHostdev;
 virDomainDefLifecycleActionAllowed;
 virDomainDefMaybeAddController;
 virDomainDefMaybeAddInput;
@@ -467,7 +468,6 @@ virDomainHostdevInsert;
 virDomainHostdevMatch;
 virDomainHostdevModeTypeToString;
 virDomainHostdevRemove;
-virDomainHostdevSubsysPCIBackendTypeToString;
 virDomainHostdevSubsysSCSIVHostModelTypeFromString;
 virDomainHostdevSubsysSCSIVHostModelTypeToString;
 virDomainHostdevSubsysTypeToString;
@@ -777,8 +777,8 @@ virDomainEventWatchdogNewFromObj;
 virDomainQemuMonitorEventNew;
 virDomainQemuMonitorEventStateRegisterID;
 virHostdevIsMdevDevice;
+virHostdevIsPCIDevice;
 virHostdevIsSCSIDevice;
-virHostdevIsVFIODevice;
 
 
 # conf/domain_nwfilter.h
@@ -1161,6 +1161,7 @@ virStorageSourcePoolModeTypeFromString;
 virStorageSourcePoolModeTypeToString;
 virStorageSourcePrivateDataFormatRelPath;
 virStorageSourcePrivateDataParseRelPath;
+virStorageSourceSliceFree;
 virStorageTypeFromString;
 virStorageTypeToString;
 
@@ -1641,7 +1642,6 @@ virCloseCallbacksDomainRunForConn;
 
 # hypervisor/virhostdev.h
 virHostdevFindUSBDevice;
-virHostdevIsPCIDevice;
 virHostdevManagerGetDefault;
 virHostdevPCINodeDeviceDetach;
 virHostdevPCINodeDeviceReAttach;
@@ -3077,6 +3077,7 @@ virPCIDeviceCopy;
 virPCIDeviceDetach;
 virPCIDeviceExists;
 virPCIDeviceFileIterate;
+virPCIDeviceFindBestVFIOVariant;
 virPCIDeviceFree;
 virPCIDeviceGetAddress;
 virPCIDeviceGetConfigPath;
@@ -3640,6 +3641,7 @@ virGetHostname;
 virGetHostnameQuiet;
 virGetPassword;
 virGetSelfLastChanged;
+virGetSubIDs;
 virGetSystemPageSize;
 virGetSystemPageSizeKB;
 virGetUserCacheDirectory;
@@ -3670,6 +3672,7 @@ virSetNonBlock;
 virSetSockReuseAddr;
 virSetUIDGID;
 virSetUIDGIDWithCaps;
+virSubIDsFree;
 virUpdateSelfLastChanged;
 virValidateWWN;
 virWaitForDevices;

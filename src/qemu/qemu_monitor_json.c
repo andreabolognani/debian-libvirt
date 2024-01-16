@@ -3753,7 +3753,8 @@ qemuMonitorJSONQueryRxFilter(qemuMonitor *mon, const char *alias,
     if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
         return -1;
 
-    if (qemuMonitorJSONQueryRxFilterParse(reply, filter) < 0)
+    if (filter &&
+        qemuMonitorJSONQueryRxFilterParse(reply, filter) < 0)
         return -1;
 
     return 0;
@@ -6701,9 +6702,11 @@ qemuMonitorJSONParseCPUx86Features(virJSONValue *data)
     item.type = VIR_CPU_X86_DATA_CPUID;
     for (i = 0; i < virJSONValueArraySize(data); i++) {
         if (qemuMonitorJSONParseCPUx86FeatureWord(virJSONValueArrayGet(data, i),
-                                                  &item.data.cpuid) < 0 ||
-            virCPUx86DataAdd(cpudata, &item) < 0)
+                                                  &item.data.cpuid) < 0) {
             return NULL;
+        }
+
+        virCPUx86DataAdd(cpudata, &item);
     }
 
     return g_steal_pointer(&cpudata);

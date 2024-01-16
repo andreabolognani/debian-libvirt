@@ -275,6 +275,7 @@ struct _qemuDomainDiskPrivate {
 
     bool migrating; /* the disk is being migrated */
     virStorageSource *migrSource; /* disk source object used for NBD migration */
+    bool migrationslice; /* storage slice was added for migration purposes */
 
     /* information about the device */
     bool tray; /* device has tray */
@@ -1129,3 +1130,18 @@ void
 qemuDomainNumatuneMaybeFormatNodesetUnion(virDomainObj *vm,
                                           virBitmap **nodeset,
                                           char **nodesetStr);
+
+int
+qemuDomainStorageOpenStat(virQEMUDriverConfig *cfg,
+                          virDomainObj *vm,
+                          virStorageSource *src,
+                          int *ret_fd,
+                          struct stat *ret_sb,
+                          bool skipInaccessible);
+void
+qemuDomainStorageCloseStat(virStorageSource *src,
+                           int *fd);
+int
+qemuDomainStorageUpdatePhysical(virQEMUDriverConfig *cfg,
+                                virDomainObj *vm,
+                                virStorageSource *src);

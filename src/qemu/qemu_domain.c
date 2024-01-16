@@ -5447,7 +5447,7 @@ qemuDomainChrMatchDefaultPath(const char *prefix,
     virBufferEscapeRegex(&buf, "^%s", prefix);
     if (infix)
         virBufferEscapeRegex(&buf, "%s", infix);
-    virBufferAddLit(&buf, "/(target/)?([^/]+\\.)|(domain-[^/]+/)|([0-9]+-[^/]+/)");
+    virBufferAddLit(&buf, "/(target/)?(([^/]+\\.)|(domain-[^/]+/)|([0-9]+-[^/]+/))");
     virBufferEscapeRegex(&buf, "%s$", target);
 
     regexp = virBufferContentAndReset(&buf);
@@ -9343,7 +9343,7 @@ getPPC64MemLockLimitBytes(virDomainDef *def)
     for (i = 0; i < def->nhostdevs; i++) {
         virDomainHostdevDef *dev = def->hostdevs[i];
 
-        if (virHostdevIsVFIODevice(dev)) {
+        if (virHostdevIsPCIDevice(dev)) {
 
             pciAddr = &dev->source.subsys.u.pci.addr;
             if (virPCIDeviceAddressIsValid(pciAddr, false)) {
@@ -9448,7 +9448,7 @@ qemuDomainGetNumVFIOHostdevs(const virDomainDef *def)
     int n = 0;
 
     for (i = 0; i < def->nhostdevs; i++) {
-        if (virHostdevIsVFIODevice(def->hostdevs[i]) ||
+        if (virHostdevIsPCIDevice(def->hostdevs[i]) ||
             virHostdevIsMdevDevice(def->hostdevs[i]))
             n++;
     }
@@ -10296,6 +10296,9 @@ qemuDomainPrepareStorageSourceNbdkit(virStorageSource *src,
 {
     g_autoptr(qemuNbdkitCaps) nbdkit = NULL;
 
+    if (!cfg->storageUseNbdkit)
+        return false;
+
     if (virStorageSourceGetActualType(src) != VIR_STORAGE_TYPE_NETWORK)
         return false;
 
@@ -10489,7 +10492,7 @@ qemuDomainSupportsVideoVga(const virDomainVideoDef *video,
 bool
 qemuDomainNeedsVFIO(const virDomainDef *def)
 {
-    return virDomainDefHasVFIOHostdev(def) ||
+    return virDomainDefHasPCIHostdev(def) ||
         virDomainDefHasMdevHostdev(def) ||
         virDomainDefHasNVMeDisk(def);
 }
@@ -10531,7 +10534,7 @@ qemuDomainGetHostdevPath(virDomainHostdevDef *dev,
     case VIR_DOMAIN_HOSTDEV_MODE_SUBSYS:
         switch (dev->source.subsys.type) {
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
-            if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
+            if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
                 if (!(tmpPath = virPCIDeviceAddressGetIOMMUGroupDev(&pcisrc->addr)))
                     return -1;
 
@@ -11302,14 +11305,14 @@ qemuDomainPrepareHostdevPCI(virDomainHostdevDef *hostdev,
                             virQEMUCaps *qemuCaps)
 {
     bool supportsPassthroughVFIO = qemuHostdevHostSupportsPassthroughVFIO();
-    virDomainHostdevSubsysPCIBackendType *backend = &hostdev->source.subsys.u.pci.backend;
+    virDeviceHostdevPCIDriverName *driverName = &hostdev->source.subsys.u.pci.driver.name;
 
     /* assign defaults for hostdev passthrough */
-    switch (*backend) {
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT:
+    switch (*driverName) {
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT:
         if (supportsPassthroughVFIO) {
             if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
-                *backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
+                *driverName = VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO;
             } else {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("VFIO PCI device assignment is not supported by this version of QEMU"));
@@ -11322,7 +11325,7 @@ qemuDomainPrepareHostdevPCI(virDomainHostdevDef *hostdev,
         }
         break;
 
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO:
         if (!supportsPassthroughVFIO) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("host doesn't support VFIO PCI passthrough"));
@@ -11330,20 +11333,20 @@ qemuDomainPrepareHostdevPCI(virDomainHostdevDef *hostdev,
         }
         break;
 
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_KVM:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_KVM:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("host doesn't support legacy PCI passthrough"));
         return false;
 
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("QEMU does not support device assignment mode '%1$s'"),
-                       virDomainHostdevSubsysPCIBackendTypeToString(*backend));
+                       virDeviceHostdevPCIDriverNameTypeToString(*driverName));
         return false;
 
     default:
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_TYPE_LAST:
-        virReportEnumRangeError(virDomainHostdevSubsysPCIBackendType, *backend);
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_LAST:
+        virReportEnumRangeError(virDeviceHostdevPCIDriverName, *driverName);
         break;
     }
 
@@ -11470,7 +11473,6 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
     case QEMU_PROCESS_EVENT_NETDEV_STREAM_DISCONNECTED:
     case QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED:
     case QEMU_PROCESS_EVENT_SERIAL_CHANGED:
-    case QEMU_PROCESS_EVENT_MONITOR_EOF:
     case QEMU_PROCESS_EVENT_GUEST_CRASHLOADED:
         g_free(event->data);
         break;
@@ -11484,6 +11486,7 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
     case QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION:
     case QEMU_PROCESS_EVENT_RESET:
     case QEMU_PROCESS_EVENT_NBDKIT_EXITED:
+    case QEMU_PROCESS_EVENT_MONITOR_EOF:
     case QEMU_PROCESS_EVENT_LAST:
         break;
     }
@@ -12674,4 +12677,118 @@ qemuDomainNumatuneMaybeFormatNodesetUnion(virDomainObj *vm,
 
     if (nodeset)
         *nodeset = g_steal_pointer(&unionMask);
+}
+
+
+/**
+ * @cfg: driver configuration data
+ * @vm: domain object
+ * @src: storage source data
+ * @ret_fd: pointer to return open'd file descriptor
+ * @ret_sb: pointer to return stat buffer (local or remote)
+ * @skipInaccessible: Don't report error if files are not accessible
+ *
+ * For local storage, open the file using qemuDomainOpenFile and then use
+ * fstat() to grab the stat struct data for the caller.
+ *
+ * For remote storage, attempt to access the file and grab the stat
+ * struct data if the remote connection supports it.
+ *
+ * Returns 1 if @src was successfully opened (@ret_fd and @ret_sb is populated),
+ * 0 if @src can't be opened and @skipInaccessible is true (no errors are
+ * reported) or -1 otherwise (errors are reported).
+ */
+int
+qemuDomainStorageOpenStat(virQEMUDriverConfig *cfg,
+                          virDomainObj *vm,
+                          virStorageSource *src,
+                          int *ret_fd,
+                          struct stat *ret_sb,
+                          bool skipInaccessible)
+{
+    if (virStorageSourceIsLocalStorage(src)) {
+        if (skipInaccessible && !virFileExists(src->path))
+            return 0;
+
+        if ((*ret_fd = qemuDomainOpenFile(cfg, vm->def, src->path, O_RDONLY,
+                                          NULL)) < 0)
+            return -1;
+
+        if (fstat(*ret_fd, ret_sb) < 0) {
+            virReportSystemError(errno, _("cannot stat file '%1$s'"), src->path);
+            VIR_FORCE_CLOSE(*ret_fd);
+            return -1;
+        }
+    } else {
+        if (skipInaccessible && virStorageSourceSupportsBackingChainTraversal(src) <= 0)
+            return 0;
+
+        if (virStorageSourceInitAs(src, cfg->user, cfg->group) < 0)
+            return -1;
+
+        if (virStorageSourceStat(src, ret_sb) < 0) {
+            virStorageSourceDeinit(src);
+            virReportSystemError(errno, _("failed to stat remote file '%1$s'"),
+                                 NULLSTR(src->path));
+            return -1;
+        }
+    }
+
+    return 1;
+}
+
+
+/**
+ * @src: storage source data
+ * @fd: file descriptor to close for local
+ *
+ * If local, then just close the file descriptor.
+ * else remote, then tear down the storage driver backend connection.
+ */
+void
+qemuDomainStorageCloseStat(virStorageSource *src,
+                           int *fd)
+{
+    if (virStorageSourceIsLocalStorage(src))
+        VIR_FORCE_CLOSE(*fd);
+    else
+        virStorageSourceDeinit(src);
+}
+
+
+/**
+ * qemuDomainStorageUpdatePhysical:
+ * @cfg: qemu driver configuration object
+ * @vm: domain object
+ * @src: storage source to update
+ *
+ * Update the physical size of the disk by reading the actual size of the image
+ * on disk.
+ *
+ * Returns 0 on successful update and -1 otherwise (some uncommon errors may be
+ * reported but are reset (thus only logged)).
+ */
+int
+qemuDomainStorageUpdatePhysical(virQEMUDriverConfig *cfg,
+                                virDomainObj *vm,
+                                virStorageSource *src)
+{
+    int ret;
+    int fd = -1;
+    struct stat sb;
+
+    if (virStorageSourceIsEmpty(src))
+        return 0;
+
+    if ((ret = qemuDomainStorageOpenStat(cfg, vm, src, &fd, &sb, true)) <= 0) {
+        if (ret < 0)
+            virResetLastError();
+        return -1;
+    }
+
+    ret = virStorageSourceUpdatePhysicalSize(src, fd, &sb);
+
+    qemuDomainStorageCloseStat(src, &fd);
+
+    return ret;
 }

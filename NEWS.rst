@@ -8,6 +8,104 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.0.0 (2024-01-15)
+====================
+
+* **New features**
+
+  * qemu: Enable ``postcopy-preempt`` migration capability
+
+    Post-copy migrations are now started with ``postcopy-preempt``
+    capability enabled as long as it is supported by both sides of migration.
+    This should enable faster migration of memory pages that the destination
+    tries to read before they are migrated from the source.
+
+  * qemu: Add support for mapping iothreads to virtqueues of ``virtio-blk`` devices
+
+    QEMU added the possibility to map multiple ``iothreads`` to a single
+    ``virtio-blk`` device and map them even to specific virtqueues. Libvirt
+    adds a ``<iothreads>`` subelement of the ``<disk> <driver>`` element that
+    users can use to configure the mapping.
+
+  * qemu: Allow automatic resize of block-device-backed disk to full size of the device
+
+    The new flag ``VIR_DOMAIN_BLOCK_RESIZE_CAPACITY`` for
+    ``virDomainBlockResize`` allows resizing a block-device backed ``raw`` disk
+    of a VM without the need to specify the full size of the block device.
+
+  * qemu: automatic selection/binding of VFIO variant drivers
+
+    When a device is assigned to a guest using VFIO with ``<hostdev
+    managed='yes'>``, libvirt will now search the running kernel's
+    modules.alias file for the most specific match to that device for
+    a VFIO driver, and bind that driver to the device rather than
+    vfio-pci. A specific driver can also be forced, using the
+    ``<driver model='plugh'/>`` attribute.
+
+  * qemu: add runtime configuration option for nbdkit
+
+    Since the new nbdkit support requires a recent selinux policy that is not
+    widely available yet, it is now possible to build libvirt with nbdkit
+    support for remote disks but disabled at runtime. This behavior is
+    controlled via the storage_use_nbdkit option of the qemu driver
+    configuration file. The option will default to being disabled, but this may
+    change in a future release and can be customized with the
+    nbdkit_config_default build option.
+
+* **Improvements**
+
+  * qemu: Improve migration XML use when persisting VM on destination
+
+    When migrating a VM with a custom migration XML, use it as a base for
+    persisting it on the destination as users could have changed non-ABI
+    breaking facts which would prevent subsequent start if the old XML were used.
+
+  * qemu: Simplify non-shared storage migration to ``raw`` block devices
+
+    The phase of copying storage during migration without shared storage
+    requires that both the source and destination image are identical in size.
+    This may not be possible if the destination is backed by a block device
+    and the source image size is not a multiple of the block device block size.
+
+    Libvirt aleviates this by automatically adding a ``<slice>`` to match the
+    size of the source image rather than failing the migration.
+
+  * test driver: Support for hotplug/hotunplug of PCI devices
+
+    The test driver now supports basic hotplug and hotunplug of PCI devices.
+
+* **Bug fixes**
+
+  * qemu: Various migration bug fixes and debuggability improvement
+
+    This release fixes multiple bugs in virsh and libvirt in handling of
+    migration arguments and XMLs and modifies error reporting for better
+    debugging.
+
+  * conf: Restore setting default bus for input devices
+
+    Because of a regression, starting from 9.3.0 libvirt did not autofill bus
+    for input devices. With this release the regression was identified and
+    fixed.
+
+  * qemu: Relax check for memory device coldplug
+
+    Because of a check that was too aggressive, a virtio-mem memory device
+    could not be cold plugged. This is now fixed.
+
+  * qemu: Be less aggressive when dropping channel source paths
+
+    Another regression is resolved, (introduced in 9.7.0) when libvirt was too
+    aggressive when dropping parsed paths for <channel/> sources
+
+  * qemuDomainChangeNet: Reflect trustGuestRxFilters change
+
+    On device-update, when a user requested change of trustGuestRxFilters for a
+    domain's <interface/> libvirt did nothing. It did not throw an error nor
+    did it reflect the change. Starting with this release, the change is
+    reflected.
+
+
 v9.10.0 (2023-12-01)
 ====================
 
@@ -75,6 +173,7 @@ v9.9.0 (2023-11-01)
     The ``virsh create --console`` now tries to connect to the guest console
     before starting the vCPUs.
 
+
 v9.8.0 (2023-10-02)
 ===================
 
@@ -116,6 +215,7 @@ v9.8.0 (2023-10-02)
 
     Now libvirt validates more values of virtio-mem and virtio-pmem devices,
     e.g. overlapping memory addresses or alignment.
+
 
 v9.7.0 (2023-09-01)
 ===================
@@ -160,10 +260,10 @@ v9.6.0 (2023-08-01)
 
   * ``CVE-2023-3750``: Fix race condition in storage driver leading to a crash
 
-   In **libvirt-8.3** a bug was introduced which in rare cases could cause
-   ``libvirtd`` or ``virtstoraged`` to crash if multiple clients attempted to
-   look up a storage volume by key, path or target path, while other clients
-   attempted to access something from the same storage pool.
+    In **libvirt-8.3** a bug was introduced which in rare cases could cause
+    ``libvirtd`` or ``virtstoraged`` to crash if multiple clients attempted to
+    look up a storage volume by key, path or target path, while other clients
+    attempted to access something from the same storage pool.
 
 * **Improvements**
 
@@ -1967,17 +2067,17 @@ v7.1.0 (2021-03-01)
 
   * qemu: Fix disk quiescing rollback when creating external snapshots
 
-   If the qemu guest agent call to freeze filesystems failed when creating
-   an external snapshot with ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` flag the
-   filesystems would be unconditionally thawed. This could cause problems when
-   the filesystems were frozen by an explicit call to ``virDomainFSFreeze``
-   since the guest agent then rejects any further freeze attempts once are
-   filesystems frozen, an explicit freeze followed by a quiesced snapshot
-   would fail and thaw filesystems.
+    If the qemu guest agent call to freeze filesystems failed when creating
+    an external snapshot with ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` flag the
+    filesystems would be unconditionally thawed. This could cause problems when
+    the filesystems were frozen by an explicit call to ``virDomainFSFreeze``
+    since the guest agent then rejects any further freeze attempts once are
+    filesystems frozen, an explicit freeze followed by a quiesced snapshot
+    would fail and thaw filesystems.
 
-   Users are also encouraged to use ``virDomainFSFreeze/Thaw`` manually instead
-   of relying on ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` if they need finer
-   grained control.
+    Users are also encouraged to use ``virDomainFSFreeze/Thaw`` manually instead
+    of relying on ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` if they need finer
+    grained control.
 
   * cgroups: Fix how we setup and configure cgroups on hosts with systemd
 
@@ -2139,11 +2239,12 @@ v6.10.0 (2020-12-01)
   * qemu: Enable client TLS certificate validation by default for ``chardev``,
     ``migration``, and ``backup`` servers.
 
-  The default value if qemu.conf options ``chardev_tls_x509_verify``,
-  ``migrate_tls_x509_verify``, or  ``backup_tls_x509_verify`` are not specified
-  explicitly in the config file and also the ``default_tls_x509_verify`` config
-  option is missing are now '1'. This ensures that only legitimate clients
-  access servers, which don't have any additional form of authentication.
+    The default value if qemu.conf options ``chardev_tls_x509_verify``,
+    ``migrate_tls_x509_verify``, or  ``backup_tls_x509_verify`` are not
+    specified explicitly in the config file and also the
+    ``default_tls_x509_verify`` config option is missing are now '1'. This
+    ensures that only legitimate clients access servers, which don't have any
+    additional form of authentication.
 
   * qemu: Introduce "migrate_tls_force" qemu.conf option
 
@@ -2535,7 +2636,6 @@ v6.6.0 (2020-08-02)
     management applications may wish to override this behaviour. This is now
     possible via new ``cow`` element.
 
-
 * **Improvements**
 
   * esx: Change the NIC limit for recent virtualHW versions
@@ -2559,7 +2659,6 @@ v6.6.0 (2020-08-02)
     in the case of domains with static vcpu placement, all available CPUs
     instead of all possible CPUs are returned making these APIs consistent with
     the behavior of ``vcpuinfo``.
-
 
 * **Bug fixes**
 

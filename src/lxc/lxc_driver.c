@@ -3084,8 +3084,7 @@ lxcDomainUpdateDeviceConfig(virDomainDef *vmdef,
                                          false) < 0)
             return -1;
 
-        if (virDomainNetUpdate(vmdef, idx, net) < 0)
-            return -1;
+        virDomainNetUpdate(vmdef, idx, net);
 
         virDomainNetDefFree(oldDev.data.net);
         dev->data.net = NULL;
@@ -4692,8 +4691,7 @@ static int lxcDomainLxcOpenNamespace(virDomainPtr dom,
         goto endjob;
     }
 
-    if (virProcessGetNamespaces(priv->initpid, &nfds, fdlist) < 0)
-        goto endjob;
+    virProcessGetNamespaces(priv->initpid, &nfds, fdlist);
 
     ret = nfds;
 

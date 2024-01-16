@@ -56,13 +56,6 @@ VIR_ENUM_IMPL(virNetworkForwardHostdevDevice,
               "none", "pci", "netdev",
 );
 
-VIR_ENUM_IMPL(virNetworkForwardDriverName,
-              VIR_NETWORK_FORWARD_DRIVER_NAME_LAST,
-              "default",
-              "kvm",
-              "vfio",
-);
-
 VIR_ENUM_IMPL(virNetworkTaint,
               VIR_NETWORK_TAINT_LAST,
               "hook-script",
@@ -235,6 +228,8 @@ static void
 virNetworkForwardDefClear(virNetworkForwardDef *def)
 {
     size_t i;
+
+    virDeviceHostdevPCIDriverInfoClear(&def->driver);
 
     for (i = 0; i < def->npfs && def->pfs; i++)
         virNetworkForwardPfDefClear(&def->pfs[i]);
@@ -606,26 +601,28 @@ virNetworkDHCPDefParseXML(const char *networkName,
                           xmlNodePtr node,
                           virNetworkIPDef *def)
 {
-    g_autofree xmlNodePtr *rangeNodes = NULL;
-    size_t nrangeNodes = virXMLNodeGetSubelementList(node, "range", &rangeNodes);
-    g_autofree xmlNodePtr *hostNodes = NULL;
-    size_t nhostNodes = virXMLNodeGetSubelementList(node, "host", &hostNodes);
+
+    g_autoptr(GPtrArray) rangeNodes = virXMLNodeGetSubelementList(node, "range");
+    g_autoptr(GPtrArray) hostNodes = virXMLNodeGetSubelementList(node, "host");
     xmlNodePtr bootp = virXMLNodeGetSubelement(node, "bootp");
     size_t i;
 
-    for (i = 0; i < nrangeNodes; i++) {
+    for (i = 0; i < rangeNodes->len; i++) {
         virNetworkDHCPRangeDef range = { 0 };
 
-        if (virNetworkDHCPRangeDefParseXML(networkName, def, rangeNodes[i], &range) < 0)
+        if (virNetworkDHCPRangeDefParseXML(networkName, def,
+                                           g_ptr_array_index(rangeNodes, i),
+                                           &range) < 0)
             return -1;
 
         VIR_APPEND_ELEMENT(def->ranges, def->nranges, range);
     }
 
-    for (i = 0; i < nhostNodes; i++) {
+    for (i = 0; i < hostNodes->len; i++) {
         virNetworkDHCPHostDef host = { 0 };
 
-        if (virNetworkDHCPHostDefParseXML(networkName, def, hostNodes[i],
+        if (virNetworkDHCPHostDefParseXML(networkName, def,
+                                          g_ptr_array_index(hostNodes, i),
                                           &host, false) < 0)
             return -1;
 
@@ -655,17 +652,16 @@ virNetworkDNSHostDefParseXML(const char *networkName,
                              virNetworkDNSHostDef *def,
                              bool partialOkay)
 {
-    g_autofree xmlNodePtr *hostnameNodes = NULL;
-    size_t nhostnameNodes = virXMLNodeGetSubelementList(node, "hostname", &hostnameNodes);
+    g_autoptr(GPtrArray) hostnameNodes = virXMLNodeGetSubelementList(node, "hostname");
     size_t i;
     g_auto(GStrv) hostnames = NULL;
     g_autofree char *ip = virXMLPropString(node, "ip");
 
-    if (nhostnameNodes > 0) {
-        hostnames = g_new0(char *, nhostnameNodes + 1);
+    if (hostnameNodes->len > 0) {
+        hostnames = g_new0(char *, hostnameNodes->len + 1);
 
-        for (i = 0; i < nhostnameNodes; i++) {
-            if (!(hostnames[i] = virXMLNodeContentString(hostnameNodes[i])))
+        for (i = 0; i < hostnameNodes->len; i++) {
+            if (!(hostnames[i] = virXMLNodeContentString(g_ptr_array_index(hostnameNodes, i))))
                 return -1;
 
             if (*hostnames[i] == '\0') {
@@ -699,7 +695,7 @@ virNetworkDNSHostDefParseXML(const char *networkName,
             return -1;
         }
 
-        if (nhostnameNodes == 0) {
+        if (hostnameNodes->len == 0) {
             virReportError(VIR_ERR_XML_DETAIL,
                            _("Missing ip and hostname in network '%1$s' DNS HOST record"),
                            networkName);
@@ -708,7 +704,7 @@ virNetworkDNSHostDefParseXML(const char *networkName,
     }
 
     def->names = g_steal_pointer(&hostnames);
-    def->nnames = nhostnameNodes;
+    def->nnames = hostnameNodes->len;
     return 0;
 }
 
@@ -1334,8 +1330,8 @@ virNetworkForwardDefParseXML(const char *networkName,
     g_autofree xmlNodePtr *forwardNatNodes = NULL;
     g_autofree char *forwardDev = NULL;
     g_autofree char *forwardManaged = NULL;
-    g_autofree char *forwardDriverName = NULL;
     g_autofree char *type = NULL;
+    xmlNodePtr driverNode = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
     ctxt->node = node;
@@ -1356,18 +1352,9 @@ virNetworkForwardDefParseXML(const char *networkName,
         def->managed = true;
     }
 
-    forwardDriverName = virXPathString("string(./driver/@name)", ctxt);
-    if (forwardDriverName) {
-        int driverName
-            = virNetworkForwardDriverNameTypeFromString(forwardDriverName);
-
-        if (driverName <= 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unknown forward <driver name='%1$s'/> in network %2$s"),
-                           forwardDriverName, networkName);
+    if ((driverNode = virXPathNode("./driver", ctxt)) &&
+        virDeviceHostdevPCIDriverInfoParseXML(driverNode, &def->driver) < 0) {
             return -1;
-        }
-        def->driverName = driverName;
     }
 
     /* bridge and hostdev modes can use a pool of physical interfaces */
@@ -2353,24 +2340,14 @@ virNetworkDefFormatBuf(virBuffer *buf,
                          || VIR_SOCKET_ADDR_VALID(&def->forward.addr.end)
                          || def->forward.port.start
                          || def->forward.port.end
-                         || (def->forward.driverName
-                             != VIR_NETWORK_FORWARD_DRIVER_NAME_DEFAULT)
+                         || (def->forward.driver.name != VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT)
                          || def->forward.natIPv6);
         virBufferAsprintf(buf, "%s>\n", shortforward ? "/" : "");
         virBufferAdjustIndent(buf, 2);
 
-        if (def->forward.driverName
-            != VIR_NETWORK_FORWARD_DRIVER_NAME_DEFAULT) {
-            const char *driverName
-                = virNetworkForwardDriverNameTypeToString(def->forward.driverName);
-            if (!driverName) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("unexpected hostdev driver name type %1$d "),
-                               def->forward.driverName);
-                return -1;
-            }
-            virBufferAsprintf(buf, "<driver name='%s'/>\n", driverName);
-        }
+       if (virDeviceHostdevPCIDriverInfoFormat(buf, &def->forward.driver) < 0)
+            return -1;
+
         if (def->forward.type == VIR_NETWORK_FORWARD_NAT) {
             if (virNetworkForwardNatDefFormat(buf, &def->forward) < 0)
                 return -1;

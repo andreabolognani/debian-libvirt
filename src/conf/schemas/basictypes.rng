@@ -656,4 +656,24 @@
     </choice>
   </define>
 
+  <define name="hostdevDriver">
+    <element name="driver">
+      <optional>
+        <attribute name="name">
+          <choice>
+            <value>kvm</value>
+            <value>vfio</value>
+            <value>xen</value>
+          </choice>
+        </attribute>
+      </optional>
+      <optional>
+        <attribute name="model">
+          <ref name="genericName"/>
+        </attribute>
+      </optional>
+      <empty/>
+    </element>
+  </define>
+
 </grammar>

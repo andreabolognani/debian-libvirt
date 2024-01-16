@@ -2949,8 +2949,11 @@ static const vshCmdOptDef opts_blockresize[] = {
     },
     {.name = "size",
      .type = VSH_OT_INT,
-     .flags = VSH_OFLAG_REQ,
      .help = N_("New size of the block device, as scaled integer (default KiB)")
+    },
+    {.name = "capacity",
+     .type = VSH_OT_BOOL,
+     .help = N_("resize to capacity of source (block device)")
     },
     {.name = NULL}
 };
@@ -2963,17 +2966,23 @@ cmdBlockresize(vshControl *ctl, const vshCmd *cmd)
     unsigned long long size = 0;
     unsigned int flags = 0;
 
+    VSH_ALTERNATIVE_OPTIONS("size", "capacity");
+
     if (vshCommandOptStringReq(ctl, cmd, "path", (const char **) &path) < 0)
         return false;
 
     if (vshCommandOptScaledInt(ctl, cmd, "size", &size, 1024, ULLONG_MAX) < 0)
         return false;
 
-    /* Prefer the older interface of KiB.  */
-    if (size % 1024 == 0)
-        size /= 1024;
-    else
-        flags |= VIR_DOMAIN_BLOCK_RESIZE_BYTES;
+    if (vshCommandOptBool(cmd, "capacity")) {
+        flags |= VIR_DOMAIN_BLOCK_RESIZE_CAPACITY;
+    } else {
+        /* Prefer the older interface of KiB.  */
+        if (size % 1024 == 0)
+            size /= 1024;
+        else
+            flags |= VIR_DOMAIN_BLOCK_RESIZE_BYTES;
+    }
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
@@ -11194,7 +11203,7 @@ doMigrate(void *opaque)
     }
 
     if (flags & VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES &&
-        !(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_DISK))) {
+        !(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC))) {
         vshError(ctl, "'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', '--copy-storage-inc'");
         goto out;
     }
@@ -11518,6 +11527,7 @@ cmdMigrate(vshControl *ctl, const vshCmd *cmd)
 
     VSH_EXCLUSIVE_OPTIONS("live", "offline");
     VSH_EXCLUSIVE_OPTIONS("timeout-suspend", "timeout-postcopy");
+    VSH_EXCLUSIVE_OPTIONS("copy-storage-all", "copy-storage-inc");
     VSH_REQUIRE_OPTION("postcopy-after-precopy", "postcopy");
     VSH_REQUIRE_OPTION("postcopy-resume", "postcopy");
     VSH_REQUIRE_OPTION("timeout-postcopy", "postcopy");

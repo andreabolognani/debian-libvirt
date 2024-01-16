@@ -1054,13 +1054,6 @@ VIR_ENUM_IMPL(virDomainHostdevSubsys,
               "mdev",
 );
 
-VIR_ENUM_IMPL(virDomainHostdevSubsysPCIBackend,
-              VIR_DOMAIN_HOSTDEV_PCI_BACKEND_TYPE_LAST,
-              "default",
-              "kvm",
-              "vfio",
-              "xen",
-);
 
 VIR_ENUM_IMPL(virDomainHostdevSubsysSCSIProtocol,
               VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_LAST,
@@ -2337,6 +2330,17 @@ virDomainDefGetVcpusTopology(const virDomainDef *def,
 }
 
 
+void
+virDomainDiskIothreadDefFree(virDomainDiskIothreadDef *def)
+{
+    if (!def)
+        return;
+
+    g_free(def->queues);
+    g_free(def);
+}
+
+
 static virDomainDiskDef *
 virDomainDiskDefNewSource(virDomainXMLOption *xmlopt,
                           virStorageSource **src)
@@ -2385,6 +2389,7 @@ virDomainDiskDefFree(virDomainDiskDef *def)
     g_free(def->virtio);
     virDomainDeviceInfoClear(&def->info);
     virObjectUnref(def->privateData);
+    g_slist_free_full(def->iothreads, (GDestroyNotify) virDomainDiskIothreadDefFree);
 
     g_free(def);
 }
@@ -2588,6 +2593,8 @@ void virDomainFSDefFree(virDomainFSDef *def)
     virObjectUnref(def->privateData);
     g_free(def->binary);
     g_free(def->sock);
+    g_free(def->idmap.uidmap);
+    g_free(def->idmap.gidmap);
 
     g_free(def);
 }
@@ -2643,6 +2650,7 @@ virDomainHostdevDefClear(virDomainHostdevDef *def)
             VIR_FREE(def->source.subsys.u.scsi_host.wwpn);
             break;
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+            virDeviceHostdevPCIDriverInfoClear(&def->source.subsys.u.pci.driver);
             g_clear_pointer(&def->source.subsys.u.pci.origstates, virBitmapFree);
             break;
         case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
@@ -6288,13 +6296,10 @@ virDomainHostdevDefParseXMLSubsys(xmlNodePtr node,
         if (virDomainHostdevSubsysPCIDefParseXML(sourcenode, ctxt, def, flags) < 0)
             return -1;
 
-        driver_node = virXPathNode("./driver", ctxt);
-        if (virXMLPropEnum(driver_node, "name",
-                           virDomainHostdevSubsysPCIBackendTypeFromString,
-                           VIR_XML_PROP_NONZERO,
-                           &pcisrc->backend) < 0)
+        if ((driver_node = virXPathNode("./driver", ctxt)) &&
+            virDeviceHostdevPCIDriverInfoParseXML(driver_node, &pcisrc->driver) < 0) {
             return -1;
-
+        }
         break;
 
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB:
@@ -7773,6 +7778,8 @@ static int
 virDomainDiskDefDriverParseXML(virDomainDiskDef *def,
                                xmlNodePtr cur)
 {
+    xmlNodePtr iothreadsNode;
+
     def->driverName = virXMLPropString(cur, "name");
 
     if (virXMLPropEnum(cur, "cache", virDomainDiskCacheTypeFromString,
@@ -7818,6 +7825,44 @@ virDomainDiskDefDriverParseXML(virDomainDiskDef *def,
 
     if (virXMLPropUInt(cur, "iothread", 10, VIR_XML_PROP_NONZERO, &def->iothread) < 0)
         return -1;
+
+    if ((iothreadsNode = virXMLNodeGetSubelement(cur, "iothreads"))) {
+        g_autoslist(virDomainDiskIothreadDef) ioth = NULL;
+        g_autoptr(GPtrArray) iothreadNodes = NULL;
+
+        if ((iothreadNodes = virXMLNodeGetSubelementList(iothreadsNode, "iothread"))) {
+            size_t i;
+
+            for (i = 0; i < iothreadNodes->len; i++) {
+                xmlNodePtr iothNode = g_ptr_array_index(iothreadNodes, i);
+                g_autoptr(virDomainDiskIothreadDef) iothdef = g_new0(virDomainDiskIothreadDef, 1);
+                g_autoptr(GPtrArray) queueNodes = NULL;
+
+                if (virXMLPropUInt(iothNode, "id", 10, VIR_XML_PROP_REQUIRED,
+                                   &iothdef->id) < 0)
+                    return -1;
+
+                if ((queueNodes = virXMLNodeGetSubelementList(iothNode, "queue"))) {
+                    size_t q;
+
+                    iothdef->queues = g_new0(unsigned int, queueNodes->len);
+                    iothdef->nqueues = queueNodes->len;
+
+                    for (q = 0; q < queueNodes->len; q++) {
+                        xmlNodePtr queueNode = g_ptr_array_index(queueNodes, q);
+
+                        if (virXMLPropUInt(queueNode, "id", 10, VIR_XML_PROP_REQUIRED,
+                                           &(iothdef->queues[q])) < 0)
+                            return -1;
+                    }
+                }
+
+                ioth = g_slist_prepend(ioth, g_steal_pointer(&iothdef));
+            }
+
+            def->iothreads = g_slist_reverse(g_steal_pointer(&ioth));
+        }
+    }
 
     if (virXMLPropEnum(cur, "detect_zeroes",
                        virDomainDiskDetectZeroesTypeFromString,
@@ -8521,7 +8566,7 @@ virDomainControllerDefParseXML(virDomainXMLOption *xmlopt,
             unsigned long long bytes;
             if ((rc = virParseScaledValue("./pcihole64", NULL,
                                           ctxt, &bytes, 1024,
-                                          1024ULL * ULONG_MAX, false)) < 0)
+                                          ULLONG_MAX, false)) < 0)
                 return NULL;
 
             if (rc == 1)
@@ -8579,6 +8624,58 @@ virDomainNetGenerateMAC(virDomainXMLOption *xmlopt,
                         virMacAddr *mac)
 {
     virMacAddrGenerate(xmlopt->config.macPrefix, mac);
+}
+
+
+static int virDomainIdMapEntrySort(const void *a,
+                                   const void *b,
+                                   void *opaque G_GNUC_UNUSED)
+{
+    const virDomainIdMapEntry *entrya = a;
+    const virDomainIdMapEntry *entryb = b;
+
+    if (entrya->start > entryb->start)
+        return 1;
+    else if (entrya->start < entryb->start)
+        return -1;
+    else
+        return 0;
+}
+
+
+/* Parse the XML definition for user namespace id map.
+ *
+ * idmap has the form of
+ *
+ *   <uid start='0' target='1000' count='10'/>
+ *   <gid start='0' target='1000' count='10'/>
+ */
+static virDomainIdMapEntry *
+virDomainIdmapDefParseXML(xmlXPathContextPtr ctxt,
+                          xmlNodePtr *node,
+                          size_t num)
+{
+    size_t i;
+    virDomainIdMapEntry *idmap = NULL;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+
+    idmap = g_new0(virDomainIdMapEntry, num);
+
+    for (i = 0; i < num; i++) {
+        ctxt->node = node[i];
+        if (virXPathUInt("string(./@start)", ctxt, &idmap[i].start) < 0 ||
+            virXPathUInt("string(./@target)", ctxt, &idmap[i].target) < 0 ||
+            virXPathUInt("string(./@count)", ctxt, &idmap[i].count) < 0) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("invalid idmap start/target/count settings"));
+            VIR_FREE(idmap);
+            return NULL;
+        }
+    }
+
+    g_qsort_with_data(idmap, num, sizeof(idmap[0]), virDomainIdMapEntrySort, NULL);
+
+    return idmap;
 }
 
 
@@ -8719,6 +8816,9 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
         xmlNodePtr binary_lock_node = virXPathNode("./binary/lock", ctxt);
         xmlNodePtr binary_cache_node = virXPathNode("./binary/cache", ctxt);
         xmlNodePtr binary_sandbox_node = virXPathNode("./binary/sandbox", ctxt);
+        ssize_t n;
+        g_autofree xmlNodePtr *uid_nodes = NULL;
+        g_autofree xmlNodePtr *gid_nodes = NULL;
 
         if (queue_size && virStrToLong_ull(queue_size, NULL, 10, &def->queue_size) < 0) {
             virReportError(VIR_ERR_XML_ERROR,
@@ -8764,6 +8864,28 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
                            VIR_XML_PROP_NONZERO,
                            &def->sandbox) < 0)
             goto error;
+
+        if ((n = virXPathNodeSet("./idmap/uid", ctxt, &uid_nodes)) < 0)
+            goto error;
+
+        if (n) {
+            def->idmap.uidmap = virDomainIdmapDefParseXML(ctxt, uid_nodes, n);
+            if (!def->idmap.uidmap)
+                goto error;
+
+            def->idmap.nuidmap = n;
+        }
+
+        if ((n = virXPathNodeSet("./idmap/gid", ctxt, &gid_nodes)) < 0)
+            goto error;
+
+        if (n) {
+            def->idmap.gidmap = virDomainIdmapDefParseXML(ctxt, gid_nodes, n);
+            if (!def->idmap.gidmap)
+                goto error;
+
+            def->idmap.ngidmap = n;
+        }
     }
 
     if (source == NULL && def->type != VIR_DOMAIN_FS_TYPE_RAM
@@ -14611,7 +14733,7 @@ virDomainNetRemoveByObj(virDomainDef *def, virDomainNetDef *net)
 }
 
 
-int
+void
 virDomainNetUpdate(virDomainDef *def,
                    size_t netidx,
                    virDomainNetDef *newnet)
@@ -14646,7 +14768,6 @@ virDomainNetUpdate(virDomainDef *def,
     }
 
     def->nets[netidx] = newnet;
-    return 0;
 }
 
 
@@ -15742,56 +15863,6 @@ virDomainDefParseBootXML(xmlXPathContextPtr ctxt,
 }
 
 
-static int virDomainIdMapEntrySort(const void *a,
-                                   const void *b,
-                                   void *opaque G_GNUC_UNUSED)
-{
-    const virDomainIdMapEntry *entrya = a;
-    const virDomainIdMapEntry *entryb = b;
-
-    if (entrya->start > entryb->start)
-        return 1;
-    else if (entrya->start < entryb->start)
-        return -1;
-    else
-        return 0;
-}
-
-/* Parse the XML definition for user namespace id map.
- *
- * idmap has the form of
- *
- *   <uid start='0' target='1000' count='10'/>
- *   <gid start='0' target='1000' count='10'/>
- */
-static virDomainIdMapEntry *
-virDomainIdmapDefParseXML(xmlXPathContextPtr ctxt,
-                          xmlNodePtr *node,
-                          size_t num)
-{
-    size_t i;
-    virDomainIdMapEntry *idmap = NULL;
-    VIR_XPATH_NODE_AUTORESTORE(ctxt)
-
-    idmap = g_new0(virDomainIdMapEntry, num);
-
-    for (i = 0; i < num; i++) {
-        ctxt->node = node[i];
-        if (virXPathUInt("string(./@start)", ctxt, &idmap[i].start) < 0 ||
-            virXPathUInt("string(./@target)", ctxt, &idmap[i].target) < 0 ||
-            virXPathUInt("string(./@count)", ctxt, &idmap[i].count) < 0) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("invalid idmap start/target/count settings"));
-            VIR_FREE(idmap);
-            return NULL;
-        }
-    }
-
-    g_qsort_with_data(idmap, num, sizeof(idmap[0]), virDomainIdMapEntrySort, NULL);
-
-    return idmap;
-}
-
 /* Parse the XML definition for an IOThread ID
  *
  * Format is :
@@ -16367,23 +16438,23 @@ virDomainFeaturesKVMDefParse(virDomainDef *def,
                              xmlNodePtr node)
 {
     g_autofree virDomainFeatureKVM *kvm = g_new0(virDomainFeatureKVM, 1);
-    g_autofree xmlNodePtr *feats = NULL;
-    size_t nfeats = virXMLNodeGetSubelementList(node, NULL, &feats);
+    g_autoptr(GPtrArray) feats = virXMLNodeGetSubelementList(node, NULL);
     size_t i;
 
-    for (i = 0; i < nfeats; i++) {
+    for (i = 0; i < feats->len; i++) {
+        xmlNodePtr feat = g_ptr_array_index(feats, i);
         int feature;
         virTristateSwitch value;
 
-        feature = virDomainKVMTypeFromString((const char *)feats[i]->name);
+        feature = virDomainKVMTypeFromString((const char *)feat->name);
         if (feature < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unsupported KVM feature: %1$s"),
-                           feats[i]->name);
+                           feat->name);
             return -1;
         }
 
-        if (virXMLPropTristateSwitch(feats[i], "state", VIR_XML_PROP_REQUIRED,
+        if (virXMLPropTristateSwitch(feat, "state", VIR_XML_PROP_REQUIRED,
                                      &value) < 0)
             return -1;
 
@@ -16393,7 +16464,7 @@ virDomainFeaturesKVMDefParse(virDomainDef *def,
         if (feature == VIR_DOMAIN_KVM_DIRTY_RING &&
             value == VIR_TRISTATE_SWITCH_ON) {
 
-            if (virXMLPropUInt(feats[i], "size", 0, VIR_XML_PROP_REQUIRED,
+            if (virXMLPropUInt(feat, "size", 0, VIR_XML_PROP_REQUIRED,
                                &kvm->dirty_ring_size) < 0) {
                 return -1;
             }
@@ -16420,25 +16491,25 @@ static int
 virDomainFeaturesXENDefParse(virDomainDef *def,
                              xmlNodePtr node)
 {
-    g_autofree xmlNodePtr *feats = NULL;
-    size_t nfeats = virXMLNodeGetSubelementList(node, NULL, &feats);
+    g_autoptr(GPtrArray) feats = virXMLNodeGetSubelementList(node, NULL);
     size_t i;
 
     def->features[VIR_DOMAIN_FEATURE_XEN] = VIR_TRISTATE_SWITCH_ON;
 
-    for (i = 0; i < nfeats; i++) {
+    for (i = 0; i < feats->len; i++) {
+        xmlNodePtr feat = g_ptr_array_index(feats, i);
         int feature;
         virTristateSwitch value;
 
-        feature = virDomainXenTypeFromString((const char *)feats[i]->name);
+        feature = virDomainXenTypeFromString((const char *)feat->name);
         if (feature < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unsupported Xen feature: %1$s"),
-                           feats[i]->name);
+                           feat->name);
             return -1;
         }
 
-        if (virXMLPropTristateSwitch(feats[i], "state",
+        if (virXMLPropTristateSwitch(feat, "state",
                                      VIR_XML_PROP_REQUIRED, &value) < 0)
             return -1;
 
@@ -16452,7 +16523,7 @@ virDomainFeaturesXENDefParse(virDomainDef *def,
             if (value != VIR_TRISTATE_SWITCH_ON)
                 break;
 
-            if (virXMLPropEnum(feats[i], "mode",
+            if (virXMLPropEnum(feat, "mode",
                                virDomainXenPassthroughModeTypeFromString,
                                VIR_XML_PROP_NONZERO,
                                &def->xen_passthrough_mode) < 0)
@@ -16472,8 +16543,7 @@ static int
 virDomainFeaturesCapabilitiesDefParse(virDomainDef *def,
                                       xmlNodePtr node)
 {
-    g_autofree xmlNodePtr *caps = NULL;
-    size_t ncaps = virXMLNodeGetSubelementList(node, NULL, &caps);
+    g_autoptr(GPtrArray) caps = virXMLNodeGetSubelementList(node, NULL);
     virDomainCapabilitiesPolicy policy;
     size_t i;
 
@@ -16485,17 +16555,18 @@ virDomainFeaturesCapabilitiesDefParse(virDomainDef *def,
 
     def->features[VIR_DOMAIN_FEATURE_CAPABILITIES] = policy;
 
-    for (i = 0; i < ncaps; i++) {
+    for (i = 0; i < caps->len; i++) {
+        xmlNodePtr cap = g_ptr_array_index(caps, i);
         virTristateSwitch state;
-        int val = virDomainProcessCapsFeatureTypeFromString((const char *)caps[i]->name);
+        int val = virDomainProcessCapsFeatureTypeFromString((const char *)cap->name);
         if (val < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unexpected capability feature '%1$s'"), caps[i]->name);
+                           _("unexpected capability feature '%1$s'"), cap->name);
             return -1;
         }
 
 
-        if (virXMLPropTristateSwitch(caps[i], "state", VIR_XML_PROP_NONE, &state) < 0)
+        if (virXMLPropTristateSwitch(cap, "state", VIR_XML_PROP_NONE, &state) < 0)
             return -1;
 
         if (state == VIR_TRISTATE_SWITCH_ABSENT)
@@ -22686,6 +22757,30 @@ virDomainDiskDefFormatDriver(virBuffer *buf,
         virXMLFormatElement(&childBuf, "metadata_cache", NULL, &metadataCacheChildBuf);
     }
 
+    if (disk->iothreads) {
+        g_auto(virBuffer) iothreadsChildBuf = VIR_BUFFER_INIT_CHILD(&childBuf);
+        GSList *n;
+
+        for (n = disk->iothreads; n; n = n->next) {
+            virDomainDiskIothreadDef *iothDef = n->data;
+            g_auto(virBuffer) iothreadAttrBuf = VIR_BUFFER_INITIALIZER;
+            g_auto(virBuffer) iothreadChildBuf = VIR_BUFFER_INIT_CHILD(&iothreadsChildBuf);
+
+            virBufferAsprintf(&iothreadAttrBuf, " id='%u'", iothDef->id);
+
+            if (iothDef->queues) {
+                size_t q;
+
+                for (q = 0; q < iothDef->nqueues; q++)
+                    virBufferAsprintf(&iothreadChildBuf, "<queue id='%u'/>\n", iothDef->queues[q]);
+            }
+
+            virXMLFormatElement(&iothreadsChildBuf, "iothread", &iothreadAttrBuf, &iothreadChildBuf);
+        }
+
+        virXMLFormatElement(&childBuf, "iothreads", NULL, &iothreadsChildBuf);
+    }
+
     virXMLFormatElement(buf, "driver", &attrBuf, &childBuf);
 }
 
@@ -23094,8 +23189,8 @@ virDomainControllerDefFormat(virBuffer *buf,
 
     if (def->type == VIR_DOMAIN_CONTROLLER_TYPE_PCI &&
         def->opts.pciopts.pcihole64) {
-        virBufferAsprintf(&childBuf, "<pcihole64 unit='KiB'>%lu</"
-                          "pcihole64>\n", def->opts.pciopts.pcihole64size);
+        virBufferAsprintf(&childBuf, "<pcihole64 unit='KiB'>%llu</pcihole64>\n",
+                          def->opts.pciopts.pcihole64size);
     }
 
     virXMLFormatElement(buf, "controller", &attrBuf, &childBuf);
@@ -23230,6 +23325,29 @@ virDomainFSDefFormat(virBuffer *buf,
 
     virXMLFormatElement(buf, "driver", &driverAttrBuf, &driverBuf);
     virXMLFormatElement(buf, "binary", &binaryAttrBuf, &binaryBuf);
+
+    if (def->idmap.uidmap) {
+        size_t i;
+
+        virBufferAddLit(buf, "<idmap>\n");
+        virBufferAdjustIndent(buf, 2);
+        for (i = 0; i < def->idmap.nuidmap; i++) {
+            virBufferAsprintf(buf,
+                              "<uid start='%u' target='%u' count='%u'/>\n",
+                              def->idmap.uidmap[i].start,
+                              def->idmap.uidmap[i].target,
+                              def->idmap.uidmap[i].count);
+        }
+        for (i = 0; i < def->idmap.ngidmap; i++) {
+            virBufferAsprintf(buf,
+                              "<gid start='%u' target='%u' count='%u'/>\n",
+                              def->idmap.gidmap[i].start,
+                              def->idmap.gidmap[i].target,
+                              def->idmap.gidmap[i].count);
+        }
+        virBufferAdjustIndent(buf, -2);
+        virBufferAddLit(buf, "</idmap>\n");
+    }
 
     switch (def->type) {
     case VIR_DOMAIN_FS_TYPE_MOUNT:
@@ -23383,22 +23501,12 @@ virDomainHostdevDefFormatSubsysPCI(virBuffer *buf,
     g_auto(virBuffer) sourceChildBuf = VIR_BUFFER_INIT_CHILD(buf);
     virDomainHostdevSubsysPCI *pcisrc = &def->source.subsys.u.pci;
 
+    if (virDeviceHostdevPCIDriverInfoFormat(buf, &pcisrc->driver) < 0)
+        return -1;
+
     if (def->writeFiltering != VIR_TRISTATE_BOOL_ABSENT)
             virBufferAsprintf(&sourceAttrBuf, " writeFiltering='%s'",
                               virTristateBoolTypeToString(def->writeFiltering));
-
-    if (pcisrc->backend != VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT) {
-        const char *backend = virDomainHostdevSubsysPCIBackendTypeToString(pcisrc->backend);
-
-        if (!backend) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unexpected pci hostdev driver name type %1$d"),
-                           pcisrc->backend);
-            return -1;
-        }
-
-        virBufferAsprintf(buf, "<driver name='%s'/>\n", backend);
-    }
 
     virPCIDeviceAddressFormat(&sourceChildBuf, pcisrc->addr, includeTypeInAddr);
 
@@ -29917,29 +30025,8 @@ virDomainNetDefActualFromNetworkPort(virDomainNetDef *iface,
         }
         actual->data.hostdev.def.source.subsys.type = VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
         actual->data.hostdev.def.source.subsys.u.pci.addr = port->plug.hostdevpci.addr;
-        switch ((virNetworkForwardDriverNameType)port->plug.hostdevpci.driver) {
-        case VIR_NETWORK_FORWARD_DRIVER_NAME_DEFAULT:
-            actual->data.hostdev.def.source.subsys.u.pci.backend =
-                VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT;
-            break;
-
-        case VIR_NETWORK_FORWARD_DRIVER_NAME_KVM:
-            actual->data.hostdev.def.source.subsys.u.pci.backend =
-                VIR_DOMAIN_HOSTDEV_PCI_BACKEND_KVM;
-            break;
-
-        case VIR_NETWORK_FORWARD_DRIVER_NAME_VFIO:
-            actual->data.hostdev.def.source.subsys.u.pci.backend =
-                VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
-            break;
-
-        case VIR_NETWORK_FORWARD_DRIVER_NAME_LAST:
-        default:
-            virReportEnumRangeError(virNetworkForwardDriverNameType,
-                                    port->plug.hostdevpci.driver);
-            goto error;
-        }
-
+        actual->data.hostdev.def.source.subsys.u.pci.driver.name = port->plug.hostdevpci.driver.name;
+        actual->data.hostdev.def.source.subsys.u.pci.driver.model = g_strdup(port->plug.hostdevpci.driver.model);
         break;
 
     case VIR_NETWORK_PORT_PLUG_TYPE_LAST:
@@ -30040,31 +30127,8 @@ virDomainNetDefActualToNetworkPort(virDomainDef *dom,
         }
         port->plug.hostdevpci.managed = virTristateBoolFromBool(actual->data.hostdev.def.managed);
         port->plug.hostdevpci.addr = actual->data.hostdev.def.source.subsys.u.pci.addr;
-        switch (actual->data.hostdev.def.source.subsys.u.pci.backend) {
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT:
-            port->plug.hostdevpci.driver = VIR_NETWORK_FORWARD_DRIVER_NAME_DEFAULT;
-            break;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_KVM:
-            port->plug.hostdevpci.driver = VIR_NETWORK_FORWARD_DRIVER_NAME_KVM;
-            break;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO:
-            port->plug.hostdevpci.driver = VIR_NETWORK_FORWARD_DRIVER_NAME_VFIO;
-            break;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN:
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Unexpected PCI backend 'xen'"));
-            break;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_TYPE_LAST:
-        default:
-            virReportEnumRangeError(virDomainHostdevSubsysPCIBackendType,
-                                    actual->data.hostdev.def.source.subsys.u.pci.backend);
-            return NULL;
-        }
-
+        port->plug.hostdevpci.driver.name = actual->data.hostdev.def.source.subsys.u.pci.driver.name;
+        port->plug.hostdevpci.driver.model = g_strdup(actual->data.hostdev.def.source.subsys.u.pci.driver.model);
         break;
 
     case VIR_DOMAIN_NET_TYPE_CLIENT:
@@ -30719,12 +30783,12 @@ virDomainDefHasNVMeDisk(const virDomainDef *def)
 
 
 bool
-virDomainDefHasVFIOHostdev(const virDomainDef *def)
+virDomainDefHasPCIHostdev(const virDomainDef *def)
 {
     size_t i;
 
     for (i = 0; i < def->nhostdevs; i++) {
-        if (virHostdevIsVFIODevice(def->hostdevs[i]))
+        if (virHostdevIsPCIDevice(def->hostdevs[i]))
             return true;
     }
 
@@ -30995,17 +31059,16 @@ virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
 
 
 /**
- * virHostdevIsVFIODevice:
+ * virHostdevIsPCIDevice:
  * @hostdev: host device to check
  *
- * Returns true if @hostdev is a PCI device with VFIO backend, false otherwise.
+ * Returns true if @hostdev is a PCI device, false otherwise.
  */
 bool
-virHostdevIsVFIODevice(const virDomainHostdevDef *hostdev)
+virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
 {
     return hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
-        hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI &&
-        hostdev->source.subsys.u.pci.backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
+        hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
 }
 
 

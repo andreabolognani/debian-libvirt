@@ -177,7 +177,7 @@ bool
 qemuBlockStorageSourceSupportsConcurrentAccess(virStorageSource *src)
 {
     /* no need to check in backing chain since only RAW storage supports this */
-    return src->format == VIR_STORAGE_FILE_RAW;
+    return qemuBlockStorageSourceIsRaw(src);
 }
 
 
@@ -1204,27 +1204,6 @@ qemuBlockStorageSourceGetFormatLUKSProps(virStorageSource *src,
 
 
 static int
-qemuBlockStorageSourceGetFormatRawProps(virStorageSource *src,
-                                        virJSONValue *props)
-{
-    if (virJSONValueObjectAdd(&props, "s:driver", "raw", NULL) < 0)
-        return -1;
-
-    /* Currently only storage slices are supported. We'll have to calculate
-     * the union of the slices here if we don't want to be adding needless
-     * 'raw' nodes. */
-    if (src->sliceStorage &&
-        virJSONValueObjectAdd(&props,
-                              "U:offset", src->sliceStorage->offset,
-                              "U:size", src->sliceStorage->size,
-                              NULL) < 0)
-        return -1;
-
-    return 0;
-}
-
-
-static int
 qemuBlockStorageSourceGetCryptoProps(virStorageSource *src,
                                      virJSONValue **encprops)
 {
@@ -1336,15 +1315,15 @@ qemuBlockStorageSourceGetBlockdevFormatProps(virStorageSource *src)
     case VIR_STORAGE_FILE_FAT:
         /* The fat layer is emulated by the storage access layer, so we need to
          * put a raw layer on top */
+        driver = "raw";
+        break;
+
     case VIR_STORAGE_FILE_RAW:
-        if (src->encryption &&
-            src->encryption->engine == VIR_STORAGE_ENCRYPTION_ENGINE_QEMU &&
-            src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS) {
+        if (qemuBlockStorageSourceIsLUKS(src)) {
             if (qemuBlockStorageSourceGetFormatLUKSProps(src, props) < 0)
                 return NULL;
         } else {
-            if (qemuBlockStorageSourceGetFormatRawProps(src, props) < 0)
-                return NULL;
+            driver = "raw";
         }
         break;
 
@@ -1455,22 +1434,31 @@ qemuBlockStorageSourceGetFormatProps(virStorageSource *src,
  * qemuBlockStorageSourceGetBlockdevStorageSliceProps:
  * @src: storage source object
  * @effective: Whether this blockdev will be the 'effective' layer of @src
+ * @resize: If true, the 'size' and 'offset' parameters are not formatted
  *
  * Formats the JSON object representing -blockdev configuration required to
  * configure a 'slice' of @src. If @effective is true, the slice layer is the
- * topmost/effective blockdev layer of @src.
+ * topmost/effective blockdev layer of @src. If @resize is true the 'size' and
+ * 'offset' are not formatted, which is used to remove a slice restriction
+ * to resize the image.
  */
 static virJSONValue *
 qemuBlockStorageSourceGetBlockdevStorageSliceProps(virStorageSource *src,
-                                                   bool effective)
+                                                   bool effective,
+                                                   bool resize)
 {
     g_autoptr(virJSONValue) props = NULL;
 
     if (virJSONValueObjectAdd(&props,
                               "s:driver", "raw",
+                              "s:file", qemuBlockStorageSourceGetStorageNodename(src),
+                              NULL) < 0)
+        return NULL;
+
+    if (!resize &&
+        virJSONValueObjectAdd(&props,
                               "U:offset", src->sliceStorage->offset,
                               "U:size", src->sliceStorage->size,
-                              "s:file", qemuBlockStorageSourceGetStorageNodename(src),
                               NULL) < 0)
         return NULL;
 
@@ -1551,7 +1539,7 @@ qemuBlockStorageSourceAttachPrepareBlockdev(virStorageSource *src,
     }
 
     if ((data->storageSliceNodeName = qemuBlockStorageSourceGetSliceNodename(src))) {
-        if (!(data->storageSliceProps = qemuBlockStorageSourceGetBlockdevStorageSliceProps(src, effective)))
+        if (!(data->storageSliceProps = qemuBlockStorageSourceGetBlockdevStorageSliceProps(src, effective, false)))
             return NULL;
 
         effective = false;
@@ -2080,9 +2068,7 @@ qemuBlockStorageSourceCreateAddBacking(virStorageSource *backing,
         return 0;
 
     if (format) {
-        if (backing->format == VIR_STORAGE_FILE_RAW &&
-            backing->encryption &&
-            backing->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS)
+        if (qemuBlockStorageSourceIsLUKS(backing))
             backingFormatStr = "luks";
         else
             backingFormatStr = virStorageFileFormatTypeToString(backing->format);
@@ -2313,8 +2299,7 @@ qemuBlockStorageSourceCreateGetFormatProps(virStorageSource *src,
 {
     switch ((virStorageFileFormat) src->format) {
     case VIR_STORAGE_FILE_RAW:
-        if (!src->encryption ||
-            src->encryption->format != VIR_STORAGE_ENCRYPTION_FORMAT_LUKS)
+        if (!qemuBlockStorageSourceIsLUKS(src))
             return 0;
 
         return qemuBlockStorageSourceCreateGetFormatPropsLUKS(src, props);
@@ -2584,8 +2569,8 @@ qemuBlockStorageSourceCreateFormat(virDomainObj *vm,
     g_autoptr(virJSONValue) createformatprops = NULL;
     int ret;
 
-    if (src->format == VIR_STORAGE_FILE_RAW &&
-        !src->encryption)
+    /* we don't bother creating only a true 'raw' image */
+    if (qemuBlockStorageSourceIsRaw(src))
         return 0;
 
     if (qemuBlockStorageSourceCreateGetFormatProps(src, backingStore,
@@ -2743,7 +2728,7 @@ qemuBlockStorageSourceCreateDetectSize(GHashTable *blockNamedNodeData,
         }
     }
 
-    if (src->format == VIR_STORAGE_FILE_RAW) {
+    if (qemuBlockStorageSourceIsRaw(src)) {
         src->physical = entry->capacity;
     } else {
         src->physical = entry->physical;
@@ -3174,7 +3159,7 @@ qemuBlockReopenAccess(virDomainObj *vm,
         if (!(srcprops = qemuBlockStorageSourceGetFormatProps(src, src->backingStore)))
             return -1;
     } else if (qemuBlockStorageSourceGetSliceNodename(src)) {
-        if (!(srcprops = qemuBlockStorageSourceGetBlockdevStorageSliceProps(src, true)))
+        if (!(srcprops = qemuBlockStorageSourceGetBlockdevStorageSliceProps(src, true, false)))
             return -1;
     } else {
         if (!(srcprops = qemuBlockStorageSourceGetBackendProps(src,
@@ -3237,6 +3222,114 @@ qemuBlockReopenReadOnly(virDomainObj *vm,
     return qemuBlockReopenAccess(vm, src, true, asyncJob);
 }
 
+
+/**
+ * qemuBlockStorageSourceIsLUKS:
+ * @src: storage source object
+ *
+ * Returns true if @src is an image in 'luks' format, which is to be decrypted
+ * in qemu (rather than transparently by the transport layer or host's kernel).
+ */
+bool
+qemuBlockStorageSourceIsLUKS(const virStorageSource *src)
+{
+    if (src->format != VIR_STORAGE_FILE_RAW)
+        return false;
+
+    if (src->encryption &&
+        src->encryption->engine == VIR_STORAGE_ENCRYPTION_ENGINE_QEMU &&
+        src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS)
+        return true;
+
+    return false;
+}
+
+
+/**
+ * qemuBlockStorageSourceIsRaw:
+ * @src: storage source object
+ *
+ * Returns true if @src is a true 'raw' image. This specifically excludes
+ * LUKS encrypted images to be decrypted by qemu.
+ */
+bool
+qemuBlockStorageSourceIsRaw(const virStorageSource *src)
+{
+    if (src->format != VIR_STORAGE_FILE_RAW)
+        return false;
+
+    if (qemuBlockStorageSourceIsLUKS(src))
+        return false;
+
+    return true;
+}
+
+
+/**
+ * qemuBlockReopenSliceExpand:
+ * @vm: domain object
+ * @src: storage source to reopen
+ *
+ * Reopen @src image to remove its storage slice. Note that this currently
+ * works only for 'raw' disks.
+ *
+ * Note: This changes transforms the definition such that the 'raw' driver
+ *       becomes the 'format' layer rather than the 'slice' layer, to be able
+ *       to free the slice definition.
+ */
+int
+qemuBlockReopenSliceExpand(virDomainObj *vm,
+                           virStorageSource *src)
+{
+    g_autoptr(virJSONValue) reopenoptions = virJSONValueNewArray();
+    g_autoptr(virJSONValue) srcprops = NULL;
+    int rc;
+
+    /* If we are lacking the object here, qemu might have opened an image with
+     * a node name unknown to us */
+    /* Note: This is currently dead code, as only 'raw' images are supported */
+    if (!src->backingStore) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("can't reopen image with unknown presence of backing store"));
+        return -1;
+    }
+
+    /* If there is an explicit storage slice 'raw' driver layer we need to modify that */
+    if (qemuBlockStorageSourceGetSliceNodename(src)) {
+        /* we need to know whether the slice layer is the "effective" layer */
+        bool isEffective = !qemuBlockStorageSourceGetSliceNodename(src);
+
+        if (!(srcprops = qemuBlockStorageSourceGetBlockdevStorageSliceProps(src, isEffective, true)))
+            return -1;
+    } else {
+        if (!(srcprops = qemuBlockStorageSourceGetFormatProps(src, src->backingStore)))
+            return -1;
+    }
+
+    if (virJSONValueArrayAppend(reopenoptions, &srcprops) < 0)
+        return -1;
+
+    if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_NONE) < 0)
+        return -1;
+
+    rc = qemuMonitorBlockdevReopen(qemuDomainGetMonitor(vm), &reopenoptions);
+
+    qemuDomainObjExitMonitor(vm);
+    if (rc < 0)
+        return -1;
+
+    /* transform the 'slice' raw driver into a 'format' driver so that we don't
+     * have to add extra code */
+    if (qemuBlockStorageSourceGetSliceNodename(src))
+        qemuBlockStorageSourceSetFormatNodename(src, g_strdup(qemuBlockStorageSourceGetSliceNodename(src)));
+
+    /* get rid of the slice */
+    g_clear_pointer(&src->sliceStorage, virStorageSourceSliceFree);
+
+    return 0;
+}
+
+
 /**
  * qemuBlockStorageSourceNeedSliceLayer:
  * @src: source to inspect
@@ -3253,17 +3346,7 @@ qemuBlockReopenReadOnly(virDomainObj *vm,
 bool
 qemuBlockStorageSourceNeedsStorageSliceLayer(const virStorageSource *src)
 {
-    if (!src->sliceStorage)
-        return false;
-
-    if (src->format != VIR_STORAGE_FILE_RAW)
-        return true;
-
-    if (src->encryption &&
-        src->encryption->format == VIR_STORAGE_ENCRYPTION_FORMAT_LUKS)
-        return true;
-
-    return false;
+    return !!src->sliceStorage;
 }
 
 
@@ -3279,9 +3362,13 @@ qemuBlockStorageSourceNeedsStorageSliceLayer(const virStorageSource *src)
  * existence of the format layer nodename.
  */
 bool
-qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src G_GNUC_UNUSED)
+qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src)
 {
-    /* Currently we always create a 'format' layer */
+    /* Skip 'format' layer, when a storage slice for a raw image is in use */
+    if (qemuBlockStorageSourceIsRaw(src) &&
+        src->sliceStorage)
+        return false;
+
     return true;
 }
 

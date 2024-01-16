@@ -3338,7 +3338,28 @@ paravirtualized driver is specified via the ``disk`` element.
       assigned to the same IOThread and are numbered from 1 to the domain
       iothreads value. Available for a disk device ``target`` configured to use
       "virtio" ``bus`` and "pci" or "ccw" ``address`` types. :since:`Since 1.2.8
-      (QEMU 2.1)`
+      (QEMU 2.1)` *Note:* ``iothread`` is mutually exclusive with ``iothreads``.
+   -  The optional ``iothreads`` sub-element allows specifying multiple IOThreads
+      via the ``iothread`` sub-element with attribute ``id``  the disk will use
+      for I/O operations. Optionally the ``iothread`` element can have multiple
+      ``queue`` subelements specifying that given iothread should be used to
+      handle given queues. :since:`Since 10.0.0 (QEMU 9.0, virtio disks only)`.
+      Example::
+
+        <driver name='qemu' queues='2'>
+          <iothreads>
+            <iothread id='1'>
+              <queue id='1'/>
+            </iothread>
+            <iothread id='2'>
+              <queue id='1'/>
+            </iothread>
+            <iothread id='3'>
+              <queue id='2'/>
+            </iothread>
+          </iothreads>
+        </driver>
+
    -  The optional ``queues`` attribute specifies the number of virt queues for
       virtio-blk ( :since:`Since 3.9.0` ) or vhost-user-blk
       ( :since `Since 7.1.0` )
@@ -3548,6 +3569,10 @@ A directory on the host that can be accessed directly from the guest.
          </binary>
          <source dir='/path'/>
          <target dir='mount_tag'/>
+         <idmap>
+             <uid start='0' target='100000' count='65535'/>
+             <gid start='0' target='100000' count='65535'/>
+         </idmap>
      </filesystem>
      <filesystem type='mount'>
          <driver type='virtiofs' queue='1024'/>
@@ -3697,6 +3722,10 @@ A directory on the host that can be accessed directly from the guest.
    Where the ``source`` can be accessed in the guest. For most drivers this is
    an automatic mount point, but for QEMU/KVM this is merely an arbitrary string
    tag that is exported to the guest as a hint for where to mount.
+``idmap``
+   For ``virtiofs``, an ``idmap`` element can be specified to map IDs in the user
+   namespace. See the `Container boot`_ section for the syntax of the element.
+   :since:`Since 10.0.0`
 ``readonly``
    Enables exporting filesystem as a readonly mount for guest, by default
    read-write access is given (currently only works for QEMU/KVM driver; not
@@ -4500,17 +4529,39 @@ or:
    an error. See the `Device Addresses`_ section for more details on the address
    element.
 ``driver``
-   PCI devices can have an optional ``driver`` subelement that specifies which
-   backend driver to use for PCI device assignment. Use the ``name`` attribute
-   to select either "vfio" (for the new VFIO device assignment backend, which is
-   compatible with UEFI SecureBoot) or "kvm" (the legacy device assignment
-   handled directly by the KVM kernel module) :since:`Since 1.0.5 (QEMU and KVM
-   only, requires kernel 3.6 or newer)` . When specified, device assignment will
-   fail if the requested method of device assignment isn't available on the
-   host. When not specified, the default is "vfio" on systems where the VFIO
-   driver is available and loaded, and "kvm" on older systems, or those where
-   the VFIO driver hasn't been loaded :since:`Since 1.1.3` (prior to that the
-   default was always "kvm").
+   PCI hostdev devices can have an optional ``driver`` subelement that
+   specifies which host driver to bind to the device when preparing it
+   for assignment to a guest. :since:`Since 10.0.0 (useful for QEMU and
+   KVM only)`. This is done by setting the ``<driver>`` element's ``model``
+   attribute, for example::
+
+     ...
+       <hostdev mode='subsystem' type='pci' managed='yes'>
+         <driver model='vfio-pci-igb'/>
+     ...
+
+   tells libvirt to bind the driver "vfio-pci-igb" to the device on
+   the host before handing it off to QEMU for assignment to the
+   guest. Normally libvirt will bind the device to the "best match"
+   VFIO-type driver that it finds in the kernel's modules.alias file
+   (based on matching the corresponding fields of the device's
+   modalias file in sysfs) or to the generic "vfio-pci" driver if no
+   better match is found (vfio-pci is always used prior to libvirt
+   10.0.0), but in cases when the correct driver isn't listed in
+   modules.alias then the desired device-specific driver can be forced
+   by setting driver name, or if the device-specific driver that is
+   found is "problematic" in some way, the generic vfio-pci driver
+   similarly be forced.
+
+   (Note: :since:`Since 1.0.5, the ``name`` attribute has been
+   described to be used to select the type of PCI device assignment
+   ("vfio", "kvm", or "xen"), but those values have been mostly
+   useless, since the type of device assignment is actually determined
+   by which hypservisor is in use. This means that you may
+   occasionally see ``<driver name='vfio'/>`` or ``<driver
+   name='xen'/>`` in a domain's status XML, or more rarely in config,
+   but those specific values are essentially ignored.)
+
 ``readonly``
    Indicates that the device is readonly, only supported by SCSI host device
    now. :since:`Since 1.0.6 (QEMU and KVM only)`
@@ -5224,7 +5275,6 @@ or stopping the guest.
    ...
    <devices>
      <interface type='hostdev' managed='yes'>
-       <driver name='vfio'/>
        <source>
          <address type='pci' domain='0x0000' bus='0x00' slot='0x07' function='0x0'/>
        </source>
