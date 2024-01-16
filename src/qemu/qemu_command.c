@@ -1631,7 +1631,7 @@ qemuBuildDriveSourceStr(virDomainDiskDef *disk,
     virBufferAddLit(buf, ",");
 
     if (encinfo) {
-        if (disk->src->format == VIR_STORAGE_FILE_RAW) {
+        if (qemuBlockStorageSourceIsLUKS(disk->src)) {
             virBufferAsprintf(buf, "key-secret=%s,", encinfo[0]->alias);
             rawluks = true;
         } else if (disk->src->format == VIR_STORAGE_FILE_QCOW2 &&
@@ -1731,6 +1731,45 @@ qemuBuildDriveStr(virDomainDiskDef *disk)
 }
 
 
+static virJSONValue *
+qemuBuildDiskDeviceIothreadMappingProps(GSList *iothreads)
+{
+    g_autoptr(virJSONValue) ret = virJSONValueNewArray();
+    GSList *n;
+
+    for (n = iothreads; n; n = n->next) {
+        virDomainDiskIothreadDef *ioth = n->data;
+        g_autoptr(virJSONValue) props = NULL;
+        g_autoptr(virJSONValue) queues = NULL;
+        g_autofree char *alias = g_strdup_printf("iothread%u", ioth->id);
+        size_t i;
+
+        if (ioth->nqueues > 0) {
+            queues = virJSONValueNewArray();
+
+            for (i = 0; i < ioth->nqueues; i++) {
+                g_autoptr(virJSONValue) vq = virJSONValueNewNumberUint(ioth->queues[i]);
+
+                if (virJSONValueArrayAppend(queues, &vq))
+                    return NULL;
+            }
+        }
+
+        if (virJSONValueObjectAdd(&props,
+                                  "s:iothread", alias,
+                                  "A:vqs", &queues,
+                                  NULL) < 0)
+            return NULL;
+
+
+        if (virJSONValueArrayAppend(ret, &props))
+            return NULL;
+    }
+
+    return g_steal_pointer(&ret);
+}
+
+
 virJSONValue *
 qemuBuildDiskDeviceProps(const virDomainDef *def,
                          virDomainDiskDef *disk,
@@ -1792,10 +1831,15 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
 
     case VIR_DOMAIN_DISK_BUS_VIRTIO: {
         virTristateSwitch scsi = VIR_TRISTATE_SWITCH_ABSENT;
+        g_autoptr(virJSONValue) iothreadMapping = NULL;
         g_autofree char *iothread = NULL;
 
         if (disk->iothread > 0)
             iothread = g_strdup_printf("iothread%u", disk->iothread);
+
+        if (disk->iothreads &&
+            !(iothreadMapping = qemuBuildDiskDeviceIothreadMappingProps(disk->iothreads)))
+            return NULL;
 
         if (virStorageSourceGetActualType(disk->src) != VIR_STORAGE_TYPE_VHOST_USER &&
             virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_BLK_SCSI)) {
@@ -1820,6 +1864,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                                   "T:scsi", scsi,
                                   "p:num-queues", disk->queues,
                                   "p:queue-size", disk->queue_size,
+                                  "A:iothread-vq-mapping", &iothreadMapping,
                                   NULL) < 0)
             return NULL;
     }
@@ -4704,25 +4749,21 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
     g_autoptr(virJSONValue) props = NULL;
     virDomainHostdevSubsysPCI *pcisrc = &dev->source.subsys.u.pci;
     virDomainNetTeamingInfo *teaming;
-    g_autofree char *host = g_strdup_printf(VIR_PCI_DEVICE_ADDRESS_FMT,
-                                            pcisrc->addr.domain,
-                                            pcisrc->addr.bus,
-                                            pcisrc->addr.slot,
-                                            pcisrc->addr.function);
+    g_autofree char *host = virPCIDeviceAddressAsString(&pcisrc->addr);
     const char *failover_pair_id = NULL;
 
-    /* caller has to assign proper passthrough backend type */
-    switch (pcisrc->backend) {
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO:
+    /* caller has to assign proper passthrough driver name */
+    switch (pcisrc->driver.name) {
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO:
         break;
 
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_KVM:
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT:
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN:
-    case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_TYPE_LAST:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_KVM:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN:
+    case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("invalid PCI passthrough type '%1$s'"),
-                       virDomainHostdevSubsysPCIBackendTypeToString(pcisrc->backend));
+                       virDeviceHostdevPCIDriverNameTypeToString(pcisrc->driver.name));
         return NULL;
     }
 
@@ -6215,7 +6256,7 @@ qemuBuildGlobalControllerCommandLine(virCommand *cmd,
             }
 
             virCommandAddArg(cmd, "-global");
-            virCommandAddArgFormat(cmd, "%s.pci-hole64-size=%luK", hoststr,
+            virCommandAddArgFormat(cmd, "%s.pci-hole64-size=%lluK", hoststr,
                                    cont->opts.pciopts.pcihole64size);
         }
     }
@@ -8208,7 +8249,7 @@ qemuBuildGraphicsSPICECommandLine(virQEMUDriverConfig *cfg,
 
     switch (glisten->type) {
     case VIR_DOMAIN_GRAPHICS_LISTEN_TYPE_SOCKET:
-        virBufferAddLit(&opt, "unix,addr=");
+        virBufferAddLit(&opt, "unix=on,addr=");
         virQEMUBuildBufferEscapeComma(&opt, glisten->socket);
         virBufferAddLit(&opt, ",");
         hasInsecure = true;

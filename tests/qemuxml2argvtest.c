@@ -257,6 +257,105 @@ static virNWFilterDriver fakeNWFilterDriver = {
 };
 
 
+/* name of the fake network shall be constructed as:
+ *  NETWORKXMLNAME;NETWORKPORTXMLNAME
+ *  where:
+ *  NETWORKXMLNAME resolves to abs_srcdir/networkxml2xmlin/NETWORKXMLNAME.xml
+ *  NETWORKPORTXMLNAME resolves to abs_srcdir/virnetworkportxml2xmldata/NETWORKPORTXMLNAME.xml
+ */
+static virNetworkPtr
+fakeNetworkLookupByName(virConnectPtr conn,
+                        const char *name)
+{
+    unsigned char uuid[VIR_UUID_BUFLEN];
+    g_autofree char *netname = g_strdup(name);
+    g_autofree char *path = NULL;
+    char *tmp;
+
+    memset(uuid, 0, VIR_UUID_BUFLEN);
+
+    if ((tmp = strchr(netname, ';'))) {
+        *tmp = '\0';
+    } else {
+        virReportError(VIR_ERR_NO_NETWORK,
+                       "Malformed fake network name '%s'. See fakeNetworkLookupByName.",
+                       name);
+        return NULL;
+    }
+
+    path = g_strdup_printf(abs_srcdir "/networkxml2xmlin/%s.xml", netname);
+
+    if (!virFileExists(path)) {
+        virReportError(VIR_ERR_NO_NETWORK, "fake network '%s' not found", path);
+        return NULL;
+    }
+
+    return virGetNetwork(conn, name, uuid);
+}
+
+
+static char *
+fakeNetworkGetXMLDesc(virNetworkPtr network,
+                      unsigned int noflags G_GNUC_UNUSED)
+{
+    g_autofree char *netname = g_strdup(network->name);
+    g_autofree char *path = NULL;
+    char *xml = NULL;
+
+    *(strchr(netname, ';')) = '\0';
+
+    path = g_strdup_printf(abs_srcdir "/networkxml2xmlin/%s.xml", netname);
+
+    if (virFileReadAll(path, 4 * 1024, &xml) < 0)
+        return NULL;
+
+    return xml;
+}
+
+
+static virNetworkPortPtr
+fakeNetworkPortCreateXML(virNetworkPtr net,
+                         const char *xmldesc G_GNUC_UNUSED,
+                         unsigned int noflags G_GNUC_UNUSED)
+{
+    unsigned char uuid[VIR_UUID_BUFLEN];
+    g_autofree char *portname = g_strdup(strchr(net->name, ';') + 1);
+    g_autofree char *path = g_strdup_printf(abs_srcdir "/virnetworkportxml2xmldata/%s.xml", portname);
+
+    memset(uuid, 0, VIR_UUID_BUFLEN);
+
+    if (!virFileExists(path)) {
+        virReportError(VIR_ERR_NO_NETWORK_PORT, "fake network port '%s' not found", path);
+        return NULL;
+    }
+
+    return virGetNetworkPort(net, uuid);
+}
+
+
+static char *
+fakeNetworkPortGetXMLDesc(virNetworkPortPtr port,
+                          unsigned int noflags G_GNUC_UNUSED)
+{
+    g_autofree char *portname = g_strdup(strchr(port->net->name, ';') + 1);
+    g_autofree char *path = g_strdup_printf(abs_srcdir "/virnetworkportxml2xmldata/%s.xml", portname);
+    char *xml = NULL;
+
+    if (virFileReadAll(path, 4 * 1024, &xml) < 0)
+        return NULL;
+
+    return xml;
+}
+
+
+static virNetworkDriver fakeNetworkDriver = {
+    .networkLookupByName = fakeNetworkLookupByName,
+    .networkGetXMLDesc = fakeNetworkGetXMLDesc,
+    .networkPortCreateXML = fakeNetworkPortCreateXML,
+    .networkPortGetXMLDesc = fakeNetworkPortGetXMLDesc,
+};
+
+
 static void
 testUpdateQEMUCapsHostCPUModel(virQEMUCaps *qemuCaps, virArch hostArch)
 {
@@ -273,6 +372,8 @@ testCheckExclusiveFlags(int flags)
                   FLAG_FIPS_HOST |
                   FLAG_REAL_CAPS |
                   FLAG_SLIRP_HELPER |
+                  FLAG_ALLOW_DUPLICATE_OUTPUT |
+                  FLAG_SKIP_CONFIG_ACTIVE |
                   0, -1);
 
     return 0;
@@ -478,6 +579,28 @@ testCompareXMLToArgvValidateSchema(virCommand *cmd,
 
 
 static int
+testInfoCheckDuplicate(struct testQemuInfo *info)
+{
+    const char *path = info->outfile;
+
+    if (info->flags & FLAG_ALLOW_DUPLICATE_OUTPUT)
+        return 0;
+
+    if (info->flags & (FLAG_EXPECT_FAILURE | FLAG_EXPECT_PARSE_ERROR))
+        path = info->errfile;
+
+    if (g_hash_table_contains(info->conf->duplicateTests, path)) {
+        fprintf(stderr, "\nduplicate invocation of test case: %s\n'", path);
+        return -1;
+    }
+
+    g_hash_table_insert(info->conf->duplicateTests, g_strdup(path), NULL);
+
+    return 0;
+}
+
+
+static int
 testCompareXMLToArgv(const void *data)
 {
     struct testQemuInfo *info = (void *) data;
@@ -500,8 +623,23 @@ testCompareXMLToArgv(const void *data)
     virArch arch = VIR_ARCH_NONE;
     g_autoptr(virIdentity) sysident = virIdentityGetSystem();
 
+    /* mark test case as used */
+    ignore_value(g_hash_table_remove(info->conf->existingTestCases, info->infile));
+
     if (testQemuInfoInitArgs((struct testQemuInfo *) info) < 0)
         goto cleanup;
+
+    if (testInfoCheckDuplicate(info) < 0)
+        goto cleanup;
+
+# if !WITH_NBDKIT
+    /* when compiled without nbdkit support we want to skip the test after
+     * marking it as used */
+    if (info->args.fakeNbdkitCaps) {
+        ret = EXIT_AM_SKIP;
+        goto cleanup;
+    }
+# endif /* !WITH_NBDKIT */
 
     if (info->arch != VIR_ARCH_NONE && info->arch != VIR_ARCH_X86_64)
         qemuTestSetHostArch(&driver, info->arch);
@@ -519,6 +657,7 @@ testCompareXMLToArgv(const void *data)
     conn->secretDriver = &fakeSecretDriver;
     conn->storageDriver = &fakeStorageDriver;
     conn->nwfilterDriver = &fakeNWFilterDriver;
+    conn->networkDriver = &fakeNetworkDriver;
 
     virSetConnectInterface(conn);
     virSetConnectNetwork(conn);
@@ -684,18 +823,74 @@ testInfoSetPaths(struct testQemuInfo *info,
                                       abs_srcdir, info->name, suffix ? suffix : "");
 }
 
+
+static int
+testConfXMLCheck(GHashTable *existingTestCases)
+{
+    g_autofree virHashKeyValuePair *items = virHashGetItems(existingTestCases, NULL, true);
+    size_t i;
+    int ret = 0;
+
+    for (i = 0; items[i].key; i++) {
+        if (ret == 0)
+            fprintf(stderr, "\n");
+
+        fprintf(stderr, "unused input file: %s\n", (const char *) items[i].key);
+        ret = -1;
+    }
+
+    return ret;
+}
+
+
+static int
+testConfXMLEnumerate(GHashTable *existingTestCases)
+{
+    struct dirent *ent;
+    g_autoptr(DIR) dir = NULL;
+    int rc;
+
+    /* If VIR_TEST_RANGE is in use don't bother filling in the data, which
+     * also makes testConfXMLCheck succeed. */
+    if (virTestHasRangeBitmap())
+        return 0;
+
+    if (virDirOpen(&dir, abs_srcdir "/qemuxml2argvdata") < 0)
+        return -1;
+
+    while ((rc = virDirRead(dir, &ent, abs_srcdir "/qemuxml2argvdata")) > 0) {
+        if (virStringHasSuffix(ent->d_name, ".xml")) {
+            g_hash_table_insert(existingTestCases,
+                                g_strdup_printf(abs_srcdir "/qemuxml2argvdata/%s", ent->d_name),
+                                NULL);
+        }
+    }
+
+    return rc;
+}
+
+
 static int
 mymain(void)
 {
     int ret = 0;
+    g_autoptr(GHashTable) duplicateTests = virHashNew(NULL);
+    g_autoptr(GHashTable) existingTestCases = virHashNew(NULL);
     g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
     g_autoptr(GHashTable) qapiSchemaCache = virHashNew((GDestroyNotify) g_hash_table_unref);
     g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
     struct testQemuConf testConf = { .capslatest = capslatest,
                                      .capscache = capscache,
-                                     .qapiSchemaCache = qapiSchemaCache };
+                                     .qapiSchemaCache = qapiSchemaCache,
+                                     .duplicateTests = duplicateTests,
+                                     .existingTestCases = existingTestCases };
 
     if (!capslatest)
+        return EXIT_FAILURE;
+
+    /* enumerate and store all available test cases to verify at the end that
+     * all of them were invoked */
+    if (testConfXMLEnumerate(existingTestCases) < 0)
         return EXIT_FAILURE;
 
     /* Set the timezone because we are mocking the time() function.
@@ -779,12 +974,8 @@ mymain(void)
 # define DO_TEST_CAPS_ARCH_VER(name, arch, ver) \
     DO_TEST_CAPS_ARCH_VER_FULL(name, arch, ver, ARG_END)
 
-# if WITH_NBDKIT
-#  define DO_TEST_CAPS_LATEST_NBDKIT(name, ...) \
+# define DO_TEST_CAPS_LATEST_NBDKIT(name, ...) \
     DO_TEST_CAPS_ARCH_LATEST_FULL(name, "x86_64", ARG_NBDKIT_CAPS, __VA_ARGS__, QEMU_NBDKIT_CAPS_LAST, ARG_END)
-# else
-#  define DO_TEST_CAPS_LATEST_NBDKIT(name, ...)
-# endif /* WITH_NBDKIT */
 
 # define DO_TEST_CAPS_LATEST(name) \
     DO_TEST_CAPS_ARCH_LATEST(name, "x86_64")
@@ -852,7 +1043,7 @@ mymain(void)
     DO_TEST_CAPS_ARCH_VER_PARSE_ERROR(name, "x86_64", ver)
 
 # define DO_TEST_GIC(name, ver, gic) \
-    DO_TEST_CAPS_ARCH_VER_FULL(name, "aarch64", ver, ARG_GIC, gic, ARG_END)
+    DO_TEST_CAPS_ARCH_VER_FULL(name, "aarch64", ver, ARG_GIC, gic, ARG_FLAGS, FLAG_ALLOW_DUPLICATE_OUTPUT, ARG_END)
 
     /* Unset or set all envvars here that are copied in qemudBuildCommandLine
      * using ADD_ENV_COPY, otherwise these tests may fail due to unexpected
@@ -1125,7 +1316,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-cdrom-empty-network-invalid");
     DO_TEST_CAPS_LATEST("disk-cdrom-bus-other");
     DO_TEST_CAPS_LATEST("disk-cdrom-network");
-    DO_TEST_CAPS_LATEST_NBDKIT("disk-cdrom-network-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
     DO_TEST_CAPS_LATEST("disk-cdrom-tray");
     DO_TEST_CAPS_LATEST("disk-floppy");
     DO_TEST_CAPS_LATEST("disk-floppy-q35");
@@ -1171,8 +1361,6 @@ mymain(void)
     DO_TEST_CAPS_VER("disk-network-sheepdog", "6.0.0");
     DO_TEST_CAPS_LATEST("disk-network-source-auth");
     DO_TEST_CAPS_LATEST("disk-network-source-curl");
-    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-source-curl-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
-    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-source-curl-nbdkit-backing", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
     DO_TEST_CAPS_LATEST("disk-network-nfs");
     driver.config->vxhsTLS = 1;
     driver.config->nbdTLSx509secretUUID = g_strdup("6fd3f62d-9fe7-4a4e-a869-7acd6376d8ea");
@@ -1183,13 +1371,10 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-network-tlsx509-nbd-hostname");
     DO_TEST_CAPS_VER("disk-network-tlsx509-vxhs", "5.0.0");
     DO_TEST_CAPS_LATEST("disk-network-http");
-    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-http-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
     VIR_FREE(driver.config->nbdTLSx509secretUUID);
     VIR_FREE(driver.config->vxhsTLSx509secretUUID);
     driver.config->vxhsTLS = 0;
     DO_TEST_CAPS_LATEST("disk-network-ssh");
-    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-ssh-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_SSH);
-    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-ssh-password", QEMU_NBDKIT_CAPS_PLUGIN_SSH);
     DO_TEST_CAPS_LATEST("disk-no-boot");
     DO_TEST_CAPS_LATEST("disk-nvme");
     DO_TEST_CAPS_VER("disk-vhostuser-numa", "4.2.0");
@@ -1258,6 +1443,16 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-ide-wwn");
     DO_TEST_CAPS_LATEST("disk-geometry");
     DO_TEST_CAPS_LATEST("disk-blockio");
+
+    driver.config->storageUseNbdkit = 1;
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-cdrom-network-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-source-curl-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-source-curl-nbdkit-backing", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-http-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_CURL);
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-ssh-nbdkit", QEMU_NBDKIT_CAPS_PLUGIN_SSH);
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-ssh-password", QEMU_NBDKIT_CAPS_PLUGIN_SSH);
+    DO_TEST_CAPS_LATEST_NBDKIT("disk-network-ssh-key", QEMU_NBDKIT_CAPS_PLUGIN_SSH);
+    driver.config->storageUseNbdkit = 0;
 
     DO_TEST_CAPS_VER("disk-virtio-scsi-reservations", "5.2.0");
     DO_TEST_CAPS_LATEST("disk-virtio-scsi-reservations");
@@ -1340,7 +1535,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("net-vhostuser-multiq");
     DO_TEST_CAPS_LATEST_FAILURE("net-vhostuser-fail");
     DO_TEST_CAPS_LATEST("net-user");
-    DO_TEST_CAPS_ARCH_LATEST_FULL("net-user", "x86_64", ARG_FLAGS, FLAG_SLIRP_HELPER);
+    DO_TEST_CAPS_ARCH_LATEST_FULL("net-user", "x86_64", ARG_FLAGS, FLAG_SLIRP_HELPER | FLAG_ALLOW_DUPLICATE_OUTPUT);
     DO_TEST_CAPS_LATEST("net-user-addr");
     DO_TEST_CAPS_LATEST("net-user-passt");
     DO_TEST_CAPS_VER("net-user-passt", "7.2.0");
@@ -1349,11 +1544,13 @@ mymain(void)
     DO_TEST_CAPS_LATEST("net-virtio-device");
     DO_TEST_CAPS_LATEST("net-virtio-disable-offloads");
     DO_TEST_CAPS_LATEST("net-virtio-netdev");
+    DO_TEST_CAPS_LATEST("net-virtio-vhost");
     DO_TEST_CAPS_ARCH_LATEST("net-virtio-ccw", "s390x");
     DO_TEST_CAPS_LATEST("net-virtio-rxtxqueuesize");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("net-virtio-rxqueuesize-invalid-size");
     DO_TEST_CAPS_LATEST("net-virtio-teaming");
     DO_TEST_CAPS_LATEST("net-virtio-teaming-hostdev");
+    DO_TEST_CAPS_LATEST("net-linkstate");
     DO_TEST_CAPS_LATEST("net-eth");
     DO_TEST_CAPS_LATEST("net-eth-ifname");
     DO_TEST_CAPS_LATEST("net-eth-names");
@@ -1407,12 +1604,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("serial-tcp-tlsx509-secret-chardev");
     VIR_FREE(driver.config->chardevTLSx509secretUUID);
     driver.config->chardevTLS = 0;
-    DO_TEST_CAPS_LATEST("parallel-tcp-chardev");
-    DO_TEST_CAPS_LATEST("parallel-parport-chardev");
     DO_TEST_CAPS_LATEST("serial-many-chardev");
     DO_TEST_CAPS_LATEST("parallel-tcp-chardev");
     DO_TEST_CAPS_LATEST("parallel-parport-chardev");
     DO_TEST_CAPS_LATEST("parallel-unix-chardev");
+    DO_TEST_CAPS_LATEST("console-compat-chardev");
+    DO_TEST_CAPS_LATEST("pci-serial-dev-chardev");
 
     DO_TEST_CAPS_LATEST("channel-guestfwd");
     DO_TEST_CAPS_LATEST("channel-unix-guestfwd");
@@ -1591,7 +1788,8 @@ mymain(void)
                                   ARG_MIGRATE_FD, 7);
     DO_TEST_CAPS_ARCH_LATEST_FULL("restore-v2-fd", "x86_64",
                                   ARG_MIGRATE_FROM, "fd:7",
-                                  ARG_MIGRATE_FD, 7);
+                                  ARG_MIGRATE_FD, 7,
+                                  ARG_FLAGS, FLAG_ALLOW_DUPLICATE_OUTPUT);
     DO_TEST_CAPS_ARCH_LATEST_FULL("migrate", "x86_64",
                                   ARG_MIGRATE_FROM, "tcp:10.0.0.1:5000");
     DO_TEST_CAPS_ARCH_LATEST_FULL("migrate-numa-unaligned", "x86_64",
@@ -1808,6 +2006,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST_PPC64("pseries-basic");
     DO_TEST_CAPS_LATEST_PPC64("pseries-vio");
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("pseries-vio-address-clash", "ppc64");
     DO_TEST_CAPS_LATEST_PPC64("pseries-usb-default");
     DO_TEST_CAPS_LATEST_PPC64("pseries-usb-multi");
     DO_TEST_CAPS_LATEST_PPC64("pseries-vio-user-assigned");
@@ -2409,6 +2608,58 @@ mymain(void)
     DO_TEST_CAPS_ARCH_VER_PARSE_ERROR("s390-async-teardown", "s390x", "6.0.0");
     DO_TEST_CAPS_ARCH_LATEST("s390-async-teardown-disabled", "s390x");
     DO_TEST_CAPS_ARCH_VER("s390-async-teardown-disabled", "s390x", "6.0.0");
+
+    DO_TEST_CAPS_LATEST("boot-menu-disable-with-timeout");
+    DO_TEST_CAPS_LATEST("channel-unix-source-path");
+    DO_TEST_CAPS_LATEST("chardev-label");
+    DO_TEST_CAPS_LATEST("console-compat2");
+    DO_TEST_CAPS_LATEST("cpu-empty");
+    DO_TEST_CAPS_LATEST("cpu-host-model-features");
+    DO_TEST_CAPS_LATEST("cpu-numa-disordered");
+    DO_TEST_CAPS_LATEST("disk-active-commit");
+    DO_TEST_CAPS_LATEST("disk-mirror-old");
+    DO_TEST_CAPS_LATEST("disk-mirror");
+    DO_TEST_CAPS_VER("disk-network-vxhs", "5.0.0");
+    DO_TEST_CAPS_LATEST("downscript");
+    DO_TEST_CAPS_LATEST("hostdev-mdev-display");
+    DO_TEST_CAPS_LATEST("hostdev-scsi-autogen-address");
+    DO_TEST_CAPS_LATEST("hostdev-scsi-large-unit");
+    DO_TEST_CAPS_LATEST("hostdev-scsi-shareable");
+    DO_TEST_CAPS_LATEST("lease");
+    DO_TEST_CAPS_LATEST("memorybacking-set");
+    DO_TEST_CAPS_LATEST("memorybacking-unset");
+    DO_TEST_CAPS_LATEST("metadata-duplicate");
+    DO_TEST_CAPS_LATEST("metadata");
+    DO_TEST_CAPS_LATEST("net-midonet");
+    DO_TEST_CAPS_LATEST("numad-auto-vcpu-no-numatune");
+    DO_TEST_CAPS_LATEST("numad-static-vcpu-no-numatune");
+    DO_TEST_CAPS_LATEST("numavcpus-topology-mismatch");
+    DO_TEST_CAPS_ARCH_LATEST("panic-pseries", "ppc64");
+    DO_TEST_CAPS_LATEST("pcihole64-gib");
+    DO_TEST_CAPS_ARCH_LATEST("s390-defaultconsole", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("s390-panic", "s390x");
+    DO_TEST_CAPS_LATEST("seclabel-device-multiple");
+    DO_TEST_CAPS_ARCH_LATEST_FULL("seclabel-dynamic-none-relabel", "x86_64", ARG_FLAGS, FLAG_SKIP_CONFIG_ACTIVE, ARG_END);
+    DO_TEST_CAPS_LATEST("seclabel-dynamic-none");
+    DO_TEST_CAPS_LATEST("serial-target-port-auto");
+    DO_TEST_CAPS_LATEST("vhost-user-fs-sock");
+    DO_TEST_CAPS_ARCH_LATEST("video-virtio-gpu-ccw-auto", "s390x");
+
+    DO_TEST_CAPS_LATEST("graphics-listen-network");
+    DO_TEST_CAPS_LATEST("net-bandwidth");
+    DO_TEST_CAPS_LATEST("net-bandwidth2");
+    DO_TEST_CAPS_LATEST("net-coalesce");
+    DO_TEST_CAPS_LATEST("net-isolated-port");
+    DO_TEST_CAPS_LATEST("net-mtu");
+    DO_TEST_CAPS_LATEST("net-openvswitch");
+    DO_TEST_CAPS_LATEST("net-virtio-network-portgroup");
+    DO_TEST_CAPS_LATEST("net-virtio-teaming-network");
+    DO_TEST_CAPS_LATEST("tap-vhost-incorrect");
+    DO_TEST_CAPS_LATEST("tap-vhost");
+
+    /* check that all input files were actually used here */
+    if (testConfXMLCheck(existingTestCases) < 0)
+        ret = -1;
 
     qemuTestDriverFree(&driver);
     virFileWrapperClearPrefixes();
