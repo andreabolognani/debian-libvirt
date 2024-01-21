@@ -409,3 +409,11 @@ override_dh_installdocs:
 # is enabled and whether the corresponding files are installed
 override_dh_missing-indep:
 	dh_missing --list-missing
+
+execute_before_dh_auto_clean:
+	if test "$(DEB_LIBVIRT_MAINTAINER)"; then \
+	    debian/scripts/process-templates.py --mode verify; \
+	fi
+	debian/scripts/process-templates.py --mode build \
+	                                    --arch $(DEB_HOST_ARCH) \
+	                                    --os $(DEB_HOST_ARCH_OS)
