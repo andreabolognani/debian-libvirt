@@ -226,38 +226,9 @@ LIBVIRT_UNITS = \
     virtlockd-admin.socket \
     $(NULL)
 
-APPARMOR_ABSTRACTIONS = \
-    libvirt-lxc \
-    libvirt-qemu \
-    $(NULL)
-
-APPARMOR_TEMPLATES = \
-    TEMPLATE.lxc \
-    TEMPLATE.qemu \
-    $(NULL)
-
-APPARMOR_SERVICES = \
-    usr.lib.libvirt.virt-aa-helper \
-    usr.sbin.libvirtd \
-    $(NULL)
-
-SYSTEMTAP_TAPSETS = \
-    libvirt_functions \
-    libvirt_probes \
-    $(NULL)
-
-ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
-    SYSTEMTAP_TAPSETS += \
-        libvirt_qemu_probes \
-        $(NULL)
-endif
-
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
-SRV_MONOLITHIC = libvirt-guests virtlogd virtlockd libvirtd libvirtd-tcp libvirtd-tls virt-guest-shutdown
-# For split daemons later, as of 6.0 the remaining elments are
-#SRV_SPLIT = virtnwfilterd virtinterfaced virtlxcd virtnetworkd virtnodedevd virtproxyd virtqemud virtsecretd virtstoraged virtvboxd virtxend virtproxyd-tcp virtproxyd-tls
 
 %:
 	dh $@ --builddirectory=$(DEB_BUILDDIR)
@@ -338,43 +309,8 @@ endif
 
 execute_after_dh_install:
 ifeq ($(DEB_HOST_ARCH_OS), linux)
-	# Linux supports more nice things:
-	set -e; for f in $(SRV_MONOLITHIC); do \
-	    dh_install -p libvirt-daemon-system \
-	               lib/systemd/system/$${f}*; \
-	done
-	dh_install -p libvirt-daemon usr/lib/libvirt/virt-aa-helper
-	set -e; for f in $(APPARMOR_ABSTRACTIONS); do \
-	    dh_install -p libvirt-daemon-system etc/apparmor.d/abstractions/$${f}; \
-	done
-	set -e; for f in $(APPARMOR_TEMPLATES); do \
-	    dh_install -p libvirt-daemon-system etc/apparmor.d/libvirt/$${f}; \
-	done
-	set -e; for f in $(APPARMOR_SERVICES); do \
-	    dh_install -p libvirt-daemon-system etc/apparmor.d/$${f}; \
-	    dh_apparmor -p libvirt-daemon-system --profile-name=$${f}; \
-	done
-	set -e; for f in $(SYSTEMTAP_TAPSETS); do \
-	    dh_install -p libvirt-daemon-system \
-	               usr/share/systemtap/tapset/$${f}.stp; \
-	done; \
-	dh_install -p libvirt-clients usr/bin/virt-host-validate
-	dh_install -p libvirt-clients usr/share/man/man1/virt-host-validate.1
-endif
-ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
-	dh_install -p libvirt-daemon-system etc/libvirt/qemu.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/qemu-lockd.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
-	dh_install -p libvirt-daemon usr/share/augeas/lenses/tests/test_libvirt_lockd.aug
-	dh_install -p libvirt-daemon usr/share/augeas/lenses/tests/test_libvirt_sanlock.aug
-endif
-ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_LXC)))
-	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
-endif
-ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
-	dh_install -p libvirt-daemon-system etc/libvirt/libxl.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/libxl-lockd.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/libxl-sanlock.conf
+	dh_apparmor -p libvirt-daemon-system --profile-name=usr.lib.libvirt.virt-aa-helper
+	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
 endif
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
