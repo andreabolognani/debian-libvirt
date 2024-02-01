@@ -1,4 +1,5 @@
 backport/scripts-Make-check-symfile.py-work-on-alpha.patch
+backport/apparmor-Add-user-session-path-for-PID-and-socket-files-u.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
