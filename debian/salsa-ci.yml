@@ -2,12 +2,6 @@
 include:
   - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/recipes/debian.yml
 
-# libvirt is unfortunately not reproducible at the moment. Upstream work is
-# needed to resolve this issue, and until that happens it's better to keep the
-# reprotest job disabled and avoid pointlessly consuming resources
-variables:
-  SALSA_CI_DISABLE_REPROTEST: 1
-
 # The cross-build job is currently allowed to fail in the default
 # configuration, but we want to make sure libvirt remains cross-buildable and
 # so we mark it as required instead
