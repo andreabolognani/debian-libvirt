@@ -281,10 +281,16 @@ override_dh_auto_configure:
 # The default timeout for tests in Meson is 30s, which is not enough
 # for architectures with slow buildds: make the timeout 10 times
 # larger (5m) to account for those
+#
+# Additionally, disable the syntax-check tests, as failures there don't
+# indicate functional issues, plus they get tripped up by the fact that
+# there are additional files in debian/ that they don't expect
 override_dh_auto_test:
 	export LD_PRELOAD=""; \
 	export VIR_TEST_DEBUG=1; \
-	if ! dh_auto_test -- --timeout-multiplier 10; then \
+	if ! dh_auto_test -- --timeout-multiplier 10 \
+	                     --no-suite syntax-check; \
+	then \
 	    cat $(DEB_BUILDDIR)/meson-logs/testlog.txt; \
 	    exit 1; \
 	fi
