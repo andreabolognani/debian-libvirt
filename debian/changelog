@@ -1,3 +1,15 @@
+libvirt (10.0.0-2) unstable; urgency=medium
+
+  * [9a4ad47] patches: Add backport/scripts-Make-check-symfile[...]
+    - Fixes compilation on alpha
+  * [aa930a3] patches: Add backport/apparmor-Add-user-session-path[...]
+    - Fixes use of passt with qemu:///session and AppArmor enabled
+    - Closes: #1061678
+  * [8810281] rules: Don't attempt to update git submodules
+  * [bf4fab1] rules: Don't run syntax-check tests
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 04 Feb 2024 10:54:58 +0100
+
 libvirt (10.0.0-1) unstable; urgency=medium
 
   * [c80339d] New upstream version 10.0.0
