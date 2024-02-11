@@ -249,11 +249,6 @@ APPARMOR_SERVICES = \
     usr.sbin.libvirtd \
     $(NULL)
 
-NSS_PLUGINS = \
-    libvirt \
-    libvirt_guest \
-    $(NULL)
-
 SYSTEMTAP_TAPSETS = \
     libvirt_functions \
     libvirt_probes \
@@ -371,10 +366,6 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	    dh_install -p libvirt-daemon-system \
 	               usr/share/systemtap/tapset/$${f}.stp; \
 	done; \
-	set -e; for f in $(NSS_PLUGINS); do \
-	    dh_install -p libnss-libvirt \
-	               lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2; \
-	done
 	dh_install -p libvirt-clients usr/bin/virt-host-validate
 	dh_install -p libvirt-clients usr/share/man/man1/virt-host-validate.1
 endif
