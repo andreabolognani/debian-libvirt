@@ -347,13 +347,10 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	    dh_install -p libvirt-daemon-system etc/apparmor.d/$${f}; \
 	    dh_apparmor -p libvirt-daemon-system --profile-name=$${f}; \
 	done
-	# Not all linux arches have systemtap yet
-	if test -d $(DEB_DESTDIR)/usr/share/systemtap; then \
-	    set -e; for f in $(SYSTEMTAP_TAPSETS); do \
-	        dh_install -p libvirt-daemon-system \
-	                   usr/share/systemtap/tapset/$${f}.stp; \
-	    done; \
-	fi
+	set -e; for f in $(SYSTEMTAP_TAPSETS); do \
+	    dh_install -p libvirt-daemon-system \
+	               usr/share/systemtap/tapset/$${f}.stp; \
+	done; \
 	set -e; for f in $(NSS_PLUGINS); do \
 	    dh_install -p libnss-libvirt \
 	               usr/lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2 \
