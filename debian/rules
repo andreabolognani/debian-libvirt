@@ -302,22 +302,43 @@ override_dh_auto_test:
 # to perform such operations
 execute_after_dh_auto_install:
 ifeq ($(DEB_HOST_ARCH_OS), linux)
-	# Move upstream files where dh_* can find them
-	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/ \
-	   $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl;
-
 	# Disable network autostart
 	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
 
-	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/
-	mv $(DEB_DESTDIR)/etc/libvirt/qemu/networks/ \
-	   $(DEB_DESTDIR)/etc/libvirt/nwfilter/ \
-	   $(DEB_DESTDIR)/usr/share/libvirt/
+	# Move systemd units
+	mkdir -p $(DEB_DESTDIR)/lib/systemd/system/
+	mv $(DEB_DESTDIR)/usr/lib/systemd/system/* \
+	   $(DEB_DESTDIR)/lib/systemd/system/
+
+	# Move systcl files (we consider them examples)
+	mkdir -p $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl/
+	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/* \
+	   $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl/
+
+	# Move networks (installed in /etc/ via maintscripts)
+	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/networks/
+	mv $(DEB_DESTDIR)/etc/libvirt/qemu/networks/* \
+	   $(DEB_DESTDIR)/usr/share/libvirt/networks/
+
+	# Move nwfilters (installed in /etc/ via maintscripts)
+	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/nwfilter/
+	mv $(DEB_DESTDIR)/etc/libvirt/nwfilter/* \
+	   $(DEB_DESTDIR)/usr/share/libvirt/nwfilter/
+
+	# Move NSS modules
+	mkdir -p $(DEB_DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
+	mv $(DEB_DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* \
+	   $(DEB_DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
 
 	# Rename the upstream polkit rule so that it matches the name used
 	# historically in Debian
 	mv $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/50-libvirt.rules \
 	   $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/60-libvirt.rules
+
+	# Prepare Debian-specific configuration files to be installed
+	mkdir -p $(DEB_DESTDIR)/etc/apt/apt.conf.d/
+	cp debian/apt/* \
+	   $(DEB_DESTDIR)/etc/apt/apt.conf.d/
 endif
 
 	# Copy the release notes where dh_installdocs can find them
@@ -333,8 +354,7 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	# Linux supports more nice things:
 	set -e; for f in $(SRV_MONOLITHIC); do \
 	    dh_install -p libvirt-daemon-system \
-	               usr/lib/systemd/system/$${f}* \
-	               lib/systemd/system/; \
+	               lib/systemd/system/$${f}*; \
 	done
 	dh_install -p libvirt-daemon usr/lib/libvirt/virt-aa-helper
 	set -e; for f in $(APPARMOR_ABSTRACTIONS); do \
@@ -353,8 +373,7 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	done; \
 	set -e; for f in $(NSS_PLUGINS); do \
 	    dh_install -p libnss-libvirt \
-	               usr/lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2 \
-	               lib/$(DEB_HOST_MULTIARCH)/; \
+	               lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2; \
 	done
 	dh_install -p libvirt-clients usr/bin/virt-host-validate
 	dh_install -p libvirt-clients usr/share/man/man1/virt-host-validate.1
