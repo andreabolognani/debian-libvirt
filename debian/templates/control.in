@@ -75,9 +75,9 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Suggests:
- libvirt-clients-qemu (= ${binary:Version}),
+ libvirt-clients-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt-daemon (= ${binary:Version}),
- libvirt-login-shell (= ${binary:Version}),
+ libvirt-login-shell (= ${binary:Version}) [${ARCHES_LXC}],
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
@@ -136,23 +136,23 @@ Package: libvirt-daemon
 Section: admin
 Architecture: linux-any
 Depends:
- libvirt-daemon-driver-qemu (= ${binary:Version}),
+ libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
- libvirt-daemon-driver-lxc (= ${binary:Version}),
- libvirt-daemon-driver-vbox (= ${binary:Version}),
- libvirt-daemon-driver-xen (= ${binary:Version}),
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
+ libvirt-daemon-driver-vbox (= ${binary:Version}) [${ARCHES_VBOX}],
+ libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
  libxml2-utils,
  lvm2,
  mount,
  netcat-openbsd,
  qemu-kvm | qemu-system,
 Suggests:
- libvirt-daemon-driver-storage-gluster (= ${binary:Version}),
+ libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [${ARCHES_GLUSTER}],
  libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
- libvirt-daemon-driver-storage-rbd (= ${binary:Version}),
+ libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [${ARCHES_CEPH}],
  libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
  libvirt-daemon-system (= ${binary:Version}),
  numad,
