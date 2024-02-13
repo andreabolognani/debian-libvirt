@@ -501,7 +501,7 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
 Recommends:
- pkg-config,
+ pkgconf,
 Description: development files for the libvirt library
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
