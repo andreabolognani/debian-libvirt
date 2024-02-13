@@ -8,6 +8,11 @@ include:
 test-crossbuild-arm64:
   allow_failure: false
 
+# libvirt itself is supposedly reproducible, but the reprotest job seems to
+# be flaky. Don't waste precious CI minutes until it passes consistently
+variables:
+  SALSA_CI_DISABLE_REPROTEST: 1
+
 verify-wrap-and-sort:
   image: debian:unstable
   stage: test
