@@ -19,15 +19,12 @@ etc/logrotate.d/libvirtd
 etc/logrotate.d/libvirtd.libxl
 etc/logrotate.d/libvirtd.lxc
 etc/logrotate.d/libvirtd.qemu
-etc/sasl2/libvirt.conf
-lib/systemd/system/libvirt-guests.service
 lib/systemd/system/libvirtd-admin.socket
 lib/systemd/system/libvirtd-ro.socket
 lib/systemd/system/libvirtd-tcp.socket
 lib/systemd/system/libvirtd-tls.socket
 lib/systemd/system/libvirtd.service
 lib/systemd/system/libvirtd.socket
-lib/systemd/system/virt-guest-shutdown.target
 lib/systemd/system/virtlockd-admin.socket
 lib/systemd/system/virtlockd.service
 lib/systemd/system/virtlockd.socket
@@ -39,6 +36,3 @@ usr/lib/firewalld/policies/libvirt-routed-out.xml
 usr/lib/firewalld/policies/libvirt-to-host.xml
 usr/lib/firewalld/zones/libvirt-routed.xml
 usr/lib/firewalld/zones/libvirt.xml
-usr/share/polkit-1/actions/org.libvirt.api.policy
-usr/share/polkit-1/actions/org.libvirt.unix.policy
-usr/share/polkit-1/rules.d/60-libvirt.rules

@@ -70,6 +70,7 @@ Section: admin
 Architecture: any
 Depends:
  libvirt-common (= ${binary:Version}),
+ libvirt-daemon-common (= ${binary:Version}) [linux-any],
  libvirt0 (= ${binary:Version}),
  sensible-utils,
  ${misc:Depends},
@@ -140,6 +141,7 @@ Section: admin
 Architecture: linux-any
 Depends:
  libvirt-common (= ${binary:Version}),
+ libvirt-daemon-common (= ${binary:Version}),
  libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -178,6 +180,32 @@ Description: Virtualization daemon
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the daemon libvirtd to manage the hypervisors.
+
+Package: libvirt-daemon-common
+Section: admin
+Architecture: linux-any
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-clients (<< 10.6.0-2~),
+ libvirt-daemon (<< 10.6.0-2~),
+ libvirt-daemon-system (<< 10.6.0-2~),
+ libvirt-daemon-system-sysv (<< 10.6.0-2~),
+Replaces:
+ libvirt-clients (<< 10.6.0-2~),
+ libvirt-daemon (<< 10.6.0-2~),
+ libvirt-daemon-system (<< 10.6.0-2~),
+ libvirt-daemon-system-sysv (<< 10.6.0-2~),
+Description: Virtualization daemon common files
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains files needed by the various libvirt daemons.
 
 Package: libvirt-daemon-driver-qemu
 Section: admin
@@ -347,6 +375,7 @@ Depends:
  libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-common (= ${binary:Version}),
  libvirt-daemon-config-network (= ${source:Version}),
  libvirt-daemon-config-nwfilter (= ${source:Version}),
  libvirt-daemon-system-systemd (= ${source:Version}) | libvirt-daemon-system-sysv (= ${source:Version}),
@@ -406,6 +435,8 @@ Architecture: all
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
+ libvirt-daemon-common (<< ${source:Version}.1~),
+ libvirt-daemon-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},

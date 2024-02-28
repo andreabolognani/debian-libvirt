@@ -39,6 +39,11 @@ NWFILTERS="
     qemu-announce-self-rarp
 "
 
+DAEMON_SYSTEM_TO_DAEMON_COMMON="
+    /etc/default/libvirt-guests
+    /etc/sasl2/libvirt.conf
+"
+
 case "$1" in
     purge)
         if getent group libvirt >/dev/null; then
@@ -114,6 +119,16 @@ case "$1" in
                 "6.9.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-config-nwfilter" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_COMMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-common" \
                 -- \
                 "$@"
         done
