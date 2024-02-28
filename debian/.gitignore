@@ -1,3 +1,1 @@
-libvirt-clients.install
-libvirt-daemon-system.install
-libvirt-daemon.install
+*.install
