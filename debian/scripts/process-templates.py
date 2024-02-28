@@ -144,11 +144,10 @@ def main():
     template_ext = ".in"
     debian_dir = Path("debian")
     vars_file = Path(debian_dir, "arches.mk")
-    templates_dir = Path(debian_dir, "templates")
 
     values = load_values(vars_file)
 
-    for infile in templates_dir.glob("*" + template_ext):
+    for infile in debian_dir.glob("*" + template_ext):
         basename = infile.name[:-len(template_ext)]
         outfile = Path(debian_dir, basename)
 

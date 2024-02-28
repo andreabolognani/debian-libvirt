@@ -26,10 +26,12 @@ git-pbuilder(1) manpage. In short:
     cd libvirt
     gbp buildpackage --git-pbuilder
 
-Some of the files in debian/ are generated from the corresponding
-template in debian/templates/. Specifically, debian/control needs
-to be regenerated after changes are made to its template: this can
-be achieved by running
+Some of the files in debian/ are generated from templates. When
+making changes, edit debian/foo.in, not debian/foo; in most cases,
+the latter is not even included in the repository.
+
+As a special case, debian/control needs to be regenerated after
+changes are made to its template: this can be achieved by running
 
     debian/scripts/process-templates.py
 
