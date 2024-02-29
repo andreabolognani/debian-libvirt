@@ -58,9 +58,8 @@ case "$1" in
             delgroup libvirt-qemu >/dev/null || true
         fi
 
-        # Clean up logs and cached capabilities
-        rm -rf /var/log/libvirt \
-               /var/cache/libvirt/qemu/capabilities
+        # Clean up cached capabilities
+        rm -rf /var/cache/libvirt/qemu/capabilities
 
         # Clean up obsolete runtime data
         rm -rf /var/lib/libvirt/qemu/channel/target/domain-*

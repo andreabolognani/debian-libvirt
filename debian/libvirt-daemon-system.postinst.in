@@ -66,9 +66,6 @@ add_users_groups()
 add_statoverrides()
 {
     ROOT_DIRS="
-        /var/lib/libvirt/images/
-        /var/lib/libvirt/boot/
-        /var/cache/libvirt/
         /var/cache/libvirt/qemu/
     "
 
@@ -115,12 +112,6 @@ case "$1" in
         for dir in qemu lxc; do
             touch /var/log/libvirt/"${dir}"/.placeholder
         done
-
-        # Obsolete UML stuff included until 9.0.0-1
-        rm -f /var/log/libvirt/uml/.placeholder
-        if [ -d /var/log/libvirt/uml ]; then
-            rmdir --ignore-fail-on-non-empty /var/log/libvirt/uml
-        fi
 
         # Directories used for channels until 9.7.0-1
         if [ -d /var/lib/libvirt/qemu/channel/target ]; then
