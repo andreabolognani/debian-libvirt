@@ -17,7 +17,7 @@ usr/lib/libvirt/libvirt-guests.sh
 usr/lib/libvirt/libvirt_iohelper
 usr/lib/libvirt/libvirt_leaseshelper
 usr/lib/libvirt/libvirt_parthelper
-[linux-any] usr/lib/libvirt/virt-aa-helper
+usr/lib/libvirt/virt-aa-helper
 usr/sbin/libvirtd
 usr/sbin/virtlockd
 usr/sbin/virtlogd
