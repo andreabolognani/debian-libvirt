@@ -24,6 +24,9 @@ DAEMON_SYSTEM_SYSV_TO_DAEMON_COMMON="
 DAEMON_SYSTEM_SYSV_TO_DAEMON="
     /etc/init.d/libvirtd
 "
+DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG="
+    /etc/init.d/virtlogd
+"
 
 case "$1" in
     abort-install|abort-upgrade)
@@ -44,6 +47,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system-sysv" \
                 "libvirt-daemon" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system-sysv" \
+                "libvirt-daemon-log" \
                 -- \
                 "$@"
         done

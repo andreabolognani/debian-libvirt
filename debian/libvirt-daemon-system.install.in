@@ -13,16 +13,12 @@ etc/libvirt/network.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu-sanlock.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu.conf
 etc/libvirt/virtlockd.conf
-etc/libvirt/virtlogd.conf
 etc/logrotate.d/libvirtd.libxl
 etc/logrotate.d/libvirtd.lxc
 etc/logrotate.d/libvirtd.qemu
 lib/systemd/system/virtlockd-admin.socket
 lib/systemd/system/virtlockd.service
 lib/systemd/system/virtlockd.socket
-lib/systemd/system/virtlogd-admin.socket
-lib/systemd/system/virtlogd.service
-lib/systemd/system/virtlogd.socket
 usr/lib/firewalld/policies/libvirt-routed-in.xml
 usr/lib/firewalld/policies/libvirt-routed-out.xml
 usr/lib/firewalld/policies/libvirt-to-host.xml

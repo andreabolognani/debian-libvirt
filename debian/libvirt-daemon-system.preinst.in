@@ -44,6 +44,10 @@ DAEMON_SYSTEM_TO_DAEMON="
     /etc/libvirt/libvirtd.conf
     /etc/logrotate.d/libvirtd
 "
+DAEMON_SYSTEM_TO_DAEMON_LOG="
+    /etc/default/virtlogd
+    /etc/libvirt/virtlogd.conf
+"
 
 case "$1" in
     install|upgrade)
@@ -82,6 +86,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOG; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-log" \
                 -- \
                 "$@"
         done
