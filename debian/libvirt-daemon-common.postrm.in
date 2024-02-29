@@ -18,6 +18,10 @@ set -e
 
 case "$1" in
     purge)
+        if getent group libvirt >/dev/null; then
+            delgroup libvirt >/dev/null || true
+        fi
+
         # Clean up logs
         rm -rf /var/log/libvirt
     ;;

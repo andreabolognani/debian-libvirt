@@ -46,10 +46,6 @@ DAEMON_SYSTEM_TO_DAEMON_COMMON="
 
 case "$1" in
     purge)
-        if getent group libvirt >/dev/null; then
-            delgroup libvirt >/dev/null || true
-        fi
-
         if getent passwd libvirt-qemu >/dev/null; then
             deluser libvirt-qemu >/dev/null || true
         fi

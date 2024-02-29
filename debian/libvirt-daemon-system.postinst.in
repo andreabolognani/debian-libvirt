@@ -22,10 +22,6 @@ LIBVIRT_QEMU_GID=64055
 
 add_users_groups()
 {
-    if ! getent group libvirt >/dev/null; then
-        addgroup --quiet --system libvirt
-    fi
-
     if ! getent group kvm >/dev/null; then
         addgroup --quiet --system kvm
     fi

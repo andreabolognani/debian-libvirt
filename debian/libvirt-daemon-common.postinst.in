@@ -16,6 +16,13 @@ set -e
 
 #FINISH_CONFFILE_TRANSFER#
 
+add_users_groups()
+{
+    if ! getent group libvirt >/dev/null; then
+        addgroup --quiet --system libvirt
+    fi
+}
+
 add_statoverrides()
 {
     ROOT_DIRS="
@@ -42,6 +49,7 @@ DAEMON_SYSTEM_SYSV_TO_DAEMON_COMMON="
 
 case "$1" in
     configure)
+        add_users_groups
         add_statoverrides
 
         # Obsolete UML stuff included until 9.0.0-1
