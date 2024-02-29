@@ -43,6 +43,11 @@ DAEMON_SYSTEM_TO_DAEMON_COMMON="
     /etc/default/libvirt-guests
     /etc/sasl2/libvirt.conf
 "
+DAEMON_SYSTEM_TO_DAEMON="
+    /etc/default/libvirtd
+    /etc/libvirt/libvirtd.conf
+    /etc/logrotate.d/libvirtd
+"
 
 case "$1" in
     purge)
@@ -124,6 +129,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-common" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon" \
                 -- \
                 "$@"
         done

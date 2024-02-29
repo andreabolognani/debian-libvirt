@@ -4,7 +4,6 @@ etc/apparmor.d/libvirt/TEMPLATE.lxc
 etc/apparmor.d/libvirt/TEMPLATE.qemu
 etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
 etc/apparmor.d/usr.sbin.libvirtd
-etc/libvirt/libvirtd.conf
 [${ARCHES_XEN}] etc/libvirt/libxl-lockd.conf
 [${ARCHES_XEN}] etc/libvirt/libxl-sanlock.conf
 [${ARCHES_XEN}] etc/libvirt/libxl.conf
@@ -15,16 +14,9 @@ etc/libvirt/network.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu.conf
 etc/libvirt/virtlockd.conf
 etc/libvirt/virtlogd.conf
-etc/logrotate.d/libvirtd
 etc/logrotate.d/libvirtd.libxl
 etc/logrotate.d/libvirtd.lxc
 etc/logrotate.d/libvirtd.qemu
-lib/systemd/system/libvirtd-admin.socket
-lib/systemd/system/libvirtd-ro.socket
-lib/systemd/system/libvirtd-tcp.socket
-lib/systemd/system/libvirtd-tls.socket
-lib/systemd/system/libvirtd.service
-lib/systemd/system/libvirtd.socket
 lib/systemd/system/virtlockd-admin.socket
 lib/systemd/system/virtlockd.service
 lib/systemd/system/virtlockd.socket

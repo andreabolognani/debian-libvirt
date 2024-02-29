@@ -17,6 +17,9 @@ set -e
 DAEMON_SYSTEM_SYSV_TO_DAEMON_COMMON="
     /etc/init.d/libvirt-guests
 "
+DAEMON_SYSTEM_SYSV_TO_DAEMON="
+    /etc/init.d/libvirtd
+"
 
 case "$1" in
     install|upgrade)
@@ -27,6 +30,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system-sysv" \
                 "libvirt-daemon-common" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_SYSV_TO_DAEMON; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system-sysv" \
+                "libvirt-daemon" \
                 -- \
                 "$@"
         done

@@ -1,3 +1,11 @@
+etc/libvirt/libvirtd.conf
+etc/logrotate.d/libvirtd
+lib/systemd/system/libvirtd-admin.socket
+lib/systemd/system/libvirtd-ro.socket
+lib/systemd/system/libvirtd-tcp.socket
+lib/systemd/system/libvirtd-tls.socket
+lib/systemd/system/libvirtd.service
+lib/systemd/system/libvirtd.socket
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_interface.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_network.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_nodedev.so
