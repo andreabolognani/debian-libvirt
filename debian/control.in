@@ -276,6 +276,7 @@ Architecture: ${ARCHES_QEMU}
 Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
+ libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
