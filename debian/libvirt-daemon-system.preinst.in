@@ -48,6 +48,10 @@ DAEMON_SYSTEM_TO_DAEMON_LOG="
     /etc/default/virtlogd
     /etc/libvirt/virtlogd.conf
 "
+DAEMON_SYSTEM_TO_DAEMON_LOCK="
+    /etc/default/virtlockd
+    /etc/libvirt/virtlockd.conf
+"
 
 case "$1" in
     install|upgrade)
@@ -96,6 +100,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOCK; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-lock" \
                 -- \
                 "$@"
         done
