@@ -6,7 +6,6 @@ lib/systemd/system/libvirtd-tcp.socket
 lib/systemd/system/libvirtd-tls.socket
 lib/systemd/system/libvirtd.service
 lib/systemd/system/libvirtd.socket
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_interface.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_nodedev.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_secret.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/lock-driver/lockd.so
