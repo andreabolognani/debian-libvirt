@@ -144,6 +144,7 @@ Depends:
  libvirt-daemon-common (= ${binary:Version}),
  libvirt-daemon-driver-interface (= ${binary:Version}),
  libvirt-daemon-driver-network (= ${binary:Version}),
+ libvirt-daemon-driver-nodedev (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
  libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt-daemon-driver-storage (= ${binary:Version}),
@@ -633,6 +634,28 @@ Description: Virtualization daemon interface driver
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the libvirtd interface driver.
+
+Package: libvirt-daemon-driver-nodedev
+Section: admin
+Architecture: linux-any
+Multi-arch: no
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-daemon (<< 10.6.0-2~),
+Replaces:
+ libvirt-daemon (<< 10.6.0-2~),
+Description: Virtualization daemon nodedev driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd node device (nodedev) driver.
 
 Package: libvirt-daemon-system
 Section: admin
