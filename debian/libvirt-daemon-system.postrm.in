@@ -75,14 +75,6 @@ DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
 
 case "$1" in
     purge)
-        if getent passwd libvirt-qemu >/dev/null; then
-            deluser libvirt-qemu >/dev/null || true
-        fi
-
-        if getent group libvirt-qemu >/dev/null; then
-            delgroup libvirt-qemu >/dev/null || true
-        fi
-
         # Obsolete AppArmor stuff included until 9.6.0-1
         ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
         LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"

@@ -1,4 +1,4 @@
-Template: libvirt-daemon-system/id_warning
+Template: libvirt-daemon-driver-qemu/id_warning
 Type: boolean
 Default: true
 _Description: Continue with incorrect libvirt-qemu user/group ID(s)?

@@ -18,6 +18,14 @@ set -e
 
 case "$1" in
     purge)
+        if getent passwd libvirt-qemu >/dev/null; then
+            deluser libvirt-qemu >/dev/null || true
+        fi
+
+        if getent group libvirt-qemu >/dev/null; then
+            delgroup libvirt-qemu >/dev/null || true
+        fi
+
         # Clean up cached capabilities
         rm -rf /var/cache/libvirt/qemu/capabilities
 
