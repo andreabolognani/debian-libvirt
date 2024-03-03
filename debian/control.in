@@ -332,6 +332,10 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
+Breaks:
+ libvirt-daemon-system (<< 10.6.0-2~),
+Replaces:
+ libvirt-daemon-system (<< 10.6.0-2~),
 Description: Virtualization daemon Xen connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -428,6 +432,7 @@ Depends:
  libvirt-daemon-common (= ${binary:Version}),
  libvirt-daemon-config-network (= ${source:Version}),
  libvirt-daemon-config-nwfilter (= ${source:Version}),
+ libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),

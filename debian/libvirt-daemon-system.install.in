@@ -4,15 +4,11 @@ etc/apparmor.d/libvirt/TEMPLATE.lxc
 etc/apparmor.d/libvirt/TEMPLATE.qemu
 etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
 etc/apparmor.d/usr.sbin.libvirtd
-[${ARCHES_XEN}] etc/libvirt/libxl-lockd.conf
-[${ARCHES_XEN}] etc/libvirt/libxl-sanlock.conf
-[${ARCHES_XEN}] etc/libvirt/libxl.conf
 [${ARCHES_LXC}] etc/libvirt/lxc.conf
 etc/libvirt/network.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu-lockd.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu-sanlock.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu.conf
-etc/logrotate.d/libvirtd.libxl
 etc/logrotate.d/libvirtd.lxc
 etc/logrotate.d/libvirtd.qemu
 usr/lib/firewalld/policies/libvirt-routed-in.xml
