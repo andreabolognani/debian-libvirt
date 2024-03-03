@@ -9,16 +9,12 @@ lib/systemd/system/libvirtd.socket
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_interface.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_nodedev.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_secret.so
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_storage.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/lock-driver/lockd.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_disk.so
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_fs.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_iscsi.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_logical.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_mpath.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_scsi.so
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-file/libvirt_storage_file_fs.so
-usr/lib/libvirt/libvirt_parthelper
 usr/lib/libvirt/virt-aa-helper
 usr/sbin/libvirtd
 usr/share/augeas/lenses/libvirt_sanlock.aug

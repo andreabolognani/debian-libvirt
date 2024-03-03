@@ -145,6 +145,7 @@ Depends:
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
  libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -349,6 +350,28 @@ Description: Virtualization daemon Xen connection driver
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the libvirtd connection driver for Xen.
+
+Package: libvirt-daemon-driver-storage
+Section: admin
+Architecture: linux-any
+Multi-arch: no
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-daemon (<< 10.6.0-2~),
+Replaces:
+ libvirt-daemon (<< 10.6.0-2~),
+Description: Virtualization daemon storage driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd storage driver.
 
 Package: libvirt-daemon-driver-storage-gluster
 Section: admin
