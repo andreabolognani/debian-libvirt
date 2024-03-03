@@ -819,6 +819,8 @@ Architecture: all
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
+ libvirt-daemon-driver-network (<< ${source:Version}.1~),
+ libvirt-daemon-driver-network (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
