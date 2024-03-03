@@ -7,7 +7,6 @@ lib/systemd/system/libvirtd-tls.socket
 lib/systemd/system/libvirtd.service
 lib/systemd/system/libvirtd.socket
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_interface.so
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_network.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_nodedev.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_nwfilter.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_secret.so
@@ -20,14 +19,11 @@ usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_lo
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_mpath.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_scsi.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-file/libvirt_storage_file_fs.so
-usr/lib/libvirt/libvirt_leaseshelper
 usr/lib/libvirt/libvirt_parthelper
 usr/lib/libvirt/virt-aa-helper
 usr/sbin/libvirtd
 usr/share/augeas/lenses/libvirt_sanlock.aug
 usr/share/augeas/lenses/libvirtd.aug
-usr/share/augeas/lenses/libvirtd_network.aug
 [${ARCHES_QEMU}] usr/share/augeas/lenses/tests/test_libvirt_sanlock.aug
 usr/share/augeas/lenses/tests/test_libvirtd.aug
-usr/share/augeas/lenses/tests/test_libvirtd_network.aug
 usr/share/man/man8/libvirtd.8

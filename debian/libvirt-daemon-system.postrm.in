@@ -72,6 +72,9 @@ DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
     /etc/libvirt/qemu.conf
     /etc/logrotate.d/libvirtd.qemu
 "
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK="
+    /etc/libvirt/network.conf
+"
 
 case "$1" in
     purge)
@@ -179,6 +182,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-driver-qemu" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK; do
+            abort_conffile_transfer \
+                "$conf" \
+                "10.4.0-1~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-network" \
                 -- \
                 "$@"
         done

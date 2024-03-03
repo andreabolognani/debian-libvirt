@@ -4,9 +4,3 @@ etc/apparmor.d/libvirt/TEMPLATE.lxc
 etc/apparmor.d/libvirt/TEMPLATE.qemu
 etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
 etc/apparmor.d/usr.sbin.libvirtd
-etc/libvirt/network.conf
-usr/lib/firewalld/policies/libvirt-routed-in.xml
-usr/lib/firewalld/policies/libvirt-routed-out.xml
-usr/lib/firewalld/policies/libvirt-to-host.xml
-usr/lib/firewalld/zones/libvirt-routed.xml
-usr/lib/firewalld/zones/libvirt.xml
