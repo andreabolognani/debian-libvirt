@@ -62,6 +62,12 @@ DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
     /etc/libvirt/lxc.conf
     /etc/logrotate.d/libvirtd.lxc
 "
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
+    /etc/libvirt/qemu-lockd.conf
+    /etc/libvirt/qemu-sanlock.conf
+    /etc/libvirt/qemu.conf
+    /etc/logrotate.d/libvirtd.qemu
+"
 
 case "$1" in
     install|upgrade)
@@ -140,6 +146,16 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-driver-lxc" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-qemu" \
                 -- \
                 "$@"
         done

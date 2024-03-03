@@ -5,10 +5,6 @@ etc/apparmor.d/libvirt/TEMPLATE.qemu
 etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
 etc/apparmor.d/usr.sbin.libvirtd
 etc/libvirt/network.conf
-[${ARCHES_QEMU}] etc/libvirt/qemu-lockd.conf
-[${ARCHES_QEMU}] etc/libvirt/qemu-sanlock.conf
-[${ARCHES_QEMU}] etc/libvirt/qemu.conf
-etc/logrotate.d/libvirtd.qemu
 usr/lib/firewalld/policies/libvirt-routed-in.xml
 usr/lib/firewalld/policies/libvirt-routed-out.xml
 usr/lib/firewalld/policies/libvirt-to-host.xml

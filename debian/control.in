@@ -272,8 +272,10 @@ Recommends:
  swtpm-tools,
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
+ libvirt-daemon-system (<< 10.6.0-2~),
 Replaces:
  libvirt-clients (<< 6.9.0-2~),
+ libvirt-daemon-system (<< 10.6.0-2~),
 Description: Virtualization daemon QEMU connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -435,6 +437,7 @@ Depends:
  libvirt-daemon-config-network (= ${source:Version}),
  libvirt-daemon-config-nwfilter (= ${source:Version}),
  libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
+ libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
