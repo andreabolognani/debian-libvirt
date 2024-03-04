@@ -33,6 +33,10 @@ case "$1" in
                 -- \
                 "$@"
         done
+
+        # Make sure the log directory doesn't get removed on package removal
+        # since logrotate chokes otherwise
+        touch /var/log/libvirt/lxc/.placeholder
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

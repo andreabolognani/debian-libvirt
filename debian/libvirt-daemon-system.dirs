@@ -4,5 +4,4 @@ etc/libvirt/qemu/networks/autostart
 var/cache/libvirt/qemu
 var/lib/libvirt/qemu
 var/lib/libvirt/sanlock
-var/log/libvirt/lxc
 var/log/libvirt/qemu
