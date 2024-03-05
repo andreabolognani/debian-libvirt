@@ -60,11 +60,97 @@ def load_values(path):
     return values
 
 
+# Parse a file that looks like
+#
+#   #BEGIN FOO
+#   foo() { touch foo }
+#   #END FOO
+#
+#   #BEGIN BAR
+#   bar() { rm -f bar }
+#   #END BAR
+#
+# into a dictionary that looks like
+#
+#   {
+#     "#FOO#": "foo() { touch foo }",
+#     "#BAR#": "bar() { rm -f bar }",
+#   }
+#
+def load_snippets(path):
+    snippets = {}
+
+    with open(path) as f:
+        lineno = 0
+        current = "NONE"
+        snippet = []
+
+        for line in f:
+            lineno += 1
+
+            # Only strip trailing whitespace to preserve indentation
+            line = line.rstrip()
+
+            # Currently not inside a snippet
+            if current == "NONE":
+
+                # Skip empty lines
+                if line == "":
+                    continue
+
+                # Start of a new snippet
+                if line.startswith("#BEGIN "):
+                    current = "#" + line[len("#BEGIN "):] + "#"
+                    continue
+
+                # The only thing accepted outside of a snippet is the
+                # start of a snippet
+                print(f"{path}:{lineno}: Invalid syntax")
+                sys.exit(1)
+
+            # Currently inside a snippet
+            else:
+
+                # End of the current snippet
+                if line.startswith("#END "):
+                    name = "#" + line[len("#END "):] + "#"
+
+                    # Prevent mismatched BEGIN/END
+                    if name != current:
+                        print(f"{path}:{lineno}: Expected {current}, got {name}")
+                        sys.exit(1)
+
+                    # Save the current snippet and start fresh
+                    snippets[current] = "\n".join(snippet)
+                    current = "NONE"
+                    snippet = []
+                    continue
+
+                # The rest of the snippet is taken verbatim
+                snippet.append(line)
+
+        # Final sanity check
+        if len(snippet) != 0 or current != "NONE":
+            print(f"{path}: Last snippet was not terminated")
+            sys.exit(1)
+
+    return snippets
+
+
 def process_control(path, arches):
     output = read_file(path)
 
     for arch in arches:
         output = output.replace(arch, " ".join(arches[arch]))
+
+    return output
+
+
+def process_maintscript(path, snippets):
+    output = read_file(path)
+
+    for snippet in snippets:
+        output = output.replace(snippet, snippets[snippet])
 
     return output
 
@@ -141,14 +227,22 @@ def main():
         print("--arch and --os are required for --mode=build")
         sys.exit(1)
 
+    maintscript_exts = [
+        ".postinst",
+        ".postrm",
+        ".preinst",
+        ".prerm",
+    ]
     debhelper_exts = [
         ".install",
     ]
     template_ext = ".in"
     debian_dir = Path("debian")
     arches_file = Path(debian_dir, "arches.mk")
+    snippets_file = Path(debian_dir, "snippets.sh")
 
     arches = load_values(arches_file)
+    snippets = load_snippets(snippets_file)
 
     for infile in sorted(debian_dir.glob("*")):
         infile = Path(infile)
@@ -175,6 +269,8 @@ def main():
 
         if outfile.name == "control":
             output = process_control(infile, arches)
+        elif outfile.suffix in maintscript_exts:
+            output = process_maintscript(infile, snippets)
         elif outfile.suffix in debhelper_exts:
             output = process_debhelper(infile, arches, mode, arch, os)
         else:
