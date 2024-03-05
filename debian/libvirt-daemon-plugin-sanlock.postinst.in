@@ -16,12 +16,24 @@ set -e
 
 #FINISH_CONFFILE_TRANSFER#
 
+add_statoverrides()
+{
+    SANLOCK_DIR="/var/lib/libvirt/sanlock"
+
+    if ! dpkg-statoverride --list "${SANLOCK_DIR}" >/dev/null 2>&1; then
+        [ ! -e "${SANLOCK_DIR}" ] || chown root:root "${SANLOCK_DIR}"
+        [ ! -e "${SANLOCK_DIR}" ] || chmod 0700 "${SANLOCK_DIR}"
+    fi
+}
+
 SANLOCK_TO_DAEMON_PLUGIN_SANLOCK="
     /etc/cron.weekly/libvirt-sanlock
 "
 
 case "$1" in
     configure)
+        add_statoverrides
+
         for conf in $SANLOCK_TO_DAEMON_PLUGIN_SANLOCK; do
             finish_conffile_transfer \
                 "$conf" \

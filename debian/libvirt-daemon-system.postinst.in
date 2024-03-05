@@ -14,20 +14,8 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-add_statoverrides()
-{
-    SANLOCK_DIR="/var/lib/libvirt/sanlock"
-
-    if ! dpkg-statoverride --list "${SANLOCK_DIR}" >/dev/null 2>&1; then
-        [ ! -e "${SANLOCK_DIR}" ] || chown root:root "${SANLOCK_DIR}"
-        [ ! -e "${SANLOCK_DIR}" ] || chmod 0700 "${SANLOCK_DIR}"
-    fi
-}
-
 case "$1" in
     configure)
-        add_statoverrides
-
         # Obsolete AppArmor stuff included until 9.6.0-1
         ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
         LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
