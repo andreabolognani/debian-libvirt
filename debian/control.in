@@ -709,6 +709,7 @@ Section: admin
 Architecture: linux-any
 Multi-arch: no
 Depends:
+ augeas-tools,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -948,23 +949,13 @@ Package: libvirt-sanlock
 Section: admin
 Architecture: linux-any
 Depends:
- augeas-tools,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-plugin-sanlock (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-daemon (<< 6.9.0-2~),
-Replaces:
- libvirt-daemon (<< 6.9.0-2~),
-Description: Sanlock plugin for virtlockd
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
- .
- This package contains the sanlock plugin for libvirt's locking daemon.
+Description: transitional dummy package
+ This is a transitional dummy package and can be safely removed.
 
 Package: libnss-libvirt
 Section: admin
