@@ -689,6 +689,7 @@ Multi-arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-lock (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
