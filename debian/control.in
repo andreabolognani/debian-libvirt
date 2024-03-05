@@ -156,6 +156,7 @@ Depends:
  libvirt-daemon-driver-storage-scsi (= ${binary:Version}),
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
+ libvirt-daemon-plugin-lockd (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -679,6 +680,28 @@ Description: Virtualization daemon secret driver
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
  This package contains the libvirtd secret driver.
+
+Package: libvirt-daemon-plugin-lockd
+Section: admin
+Architecture: linux-any
+Multi-arch: no
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-daemon (<< 10.6.0-2~),
+Replaces:
+ libvirt-daemon (<< 10.6.0-2~),
+Description: Virtualization daemon lockd plugin
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the plugin that implements disk locking using virtlockd.
 
 Package: libvirt-daemon-system
 Section: admin
