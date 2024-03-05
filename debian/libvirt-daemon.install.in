@@ -8,8 +8,6 @@ lib/systemd/system/libvirtd.service
 lib/systemd/system/libvirtd.socket
 usr/lib/libvirt/virt-aa-helper
 usr/sbin/libvirtd
-usr/share/augeas/lenses/libvirt_sanlock.aug
 usr/share/augeas/lenses/libvirtd.aug
-[${ARCHES_QEMU}] usr/share/augeas/lenses/tests/test_libvirt_sanlock.aug
 usr/share/augeas/lenses/tests/test_libvirtd.aug
 usr/share/man/man8/libvirtd.8
