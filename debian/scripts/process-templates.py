@@ -141,6 +141,9 @@ def main():
         print("--arch and --os are required for --mode=build")
         sys.exit(1)
 
+    debhelper_exts = [
+        ".install",
+    ]
     template_ext = ".in"
     debian_dir = Path("debian")
     arches_file = Path(debian_dir, "arches.mk")
@@ -172,8 +175,11 @@ def main():
 
         if outfile.name == "control":
             output = process_control(infile, arches)
-        else:
+        elif outfile.suffix in debhelper_exts:
             output = process_debhelper(infile, arches, mode, arch, os)
+        else:
+            print(f"Unknown file type {outfile.suffix}")
+            sys.exit(1)
 
         write_file(outfile, output)
 
