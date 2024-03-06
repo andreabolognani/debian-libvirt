@@ -143,9 +143,9 @@ def main():
 
     template_ext = ".in"
     debian_dir = Path("debian")
-    vars_file = Path(debian_dir, "arches.mk")
+    arches_file = Path(debian_dir, "arches.mk")
 
-    values = load_values(vars_file)
+    arches = load_values(arches_file)
 
     for infile in debian_dir.glob("*" + template_ext):
         basename = infile.name[:-len(template_ext)]
@@ -166,9 +166,9 @@ def main():
             old_output = read_file(outfile)
 
         if basename == "control":
-            output = process_control(infile, values)
+            output = process_control(infile, arches)
         else:
-            output = process_debhelper(infile, values, mode, arch, os)
+            output = process_debhelper(infile, arches, mode, arch, os)
 
         write_file(outfile, output)
 
