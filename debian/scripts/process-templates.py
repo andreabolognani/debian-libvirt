@@ -147,14 +147,19 @@ def main():
 
     arches = load_values(arches_file)
 
-    for infile in debian_dir.glob("*" + template_ext):
-        basename = infile.name[:-len(template_ext)]
-        outfile = Path(debian_dir, basename)
+    for infile in debian_dir.glob("*"):
+        infile = Path(infile)
+
+        # Only process templates
+        if infile.suffix != template_ext:
+            continue
+
+        outfile = Path(debian_dir, infile.stem)
 
         # Generate mode is for maintainers, and is used to keep
         # debian/control in sync with its template.
         # All other files are ignored
-        if mode == "generate" and basename != "control":
+        if mode == "generate" and outfile.name != "control":
             continue
 
         print(f"  GEN {outfile}")
@@ -162,10 +167,10 @@ def main():
         # When building the package, debian/control should already be
         # in sync with its template. To confirm that is the case,
         # save the contents of the output file before regenerating it
-        if mode in ["build", "verify"] and basename == "control":
+        if mode in ["build", "verify"] and outfile.name == "control":
             old_output = read_file(outfile)
 
-        if basename == "control":
+        if outfile.name == "control":
             output = process_control(infile, arches)
         else:
             output = process_debhelper(infile, arches, mode, arch, os)
@@ -177,7 +182,7 @@ def main():
         # the file and its template have gone out of sync, and we
         # don't know which one should be used.
         # Abort the build and let the user fix things
-        if mode in ["build", "verify"] and basename == "control":
+        if mode in ["build", "verify"] and outfile.name == "control":
             if output != old_output:
                 print(f"{outfile}: Needs to be regenerated from template")
                 sys.exit(1)
