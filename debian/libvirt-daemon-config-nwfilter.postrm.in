@@ -16,49 +16,9 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-remove_config_from_template() {
-    local config="$1"
-    local template="$2"
-    local lastver="$3"
-
-    if [ "$4" != "--" ]; then
-        echo "remove_config_from_template called with the wrong number of arguments" >&2
-        return 1
-    fi
-    for _ in $(seq 1 4); do
-        shift
-    done
-
-    if [ "$1" = "remove" ] && [ -e "$config" ]; then
-        # When removing the package, move the configuration file to the side
-        # so that the daemon no longer sees it, but we can still restore it
-        # at a later time if the package is reinstalled
-        mv -f "$config" "$config.dpkg-backup"
-        return 0
-    fi
-
-    if [ "$1" = "purge" ]; then
-        # When purging the package, remove all traces of the configuration
-        rm -f "$config" "$config.dpkg-backup"
-        return 0
-    fi
-}
-
-systemd_daemon_reload() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        systemctl --system daemon-reload >/dev/null || true
-    fi
-}
-
-systemd_unit_restart_if_active() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        for unit in "$@"; do
-            if systemctl is-active -q "$unit"; then
-                deb-systemd-invoke restart "$unit" >/dev/null || true
-            fi
-        done
-    fi
-}
+#REMOVE_CONFIG_FROM_TEMPLATE#
+#SYSTEMD_DAEMON_RELOAD#
+#SYSTEMD_UNIT_RESTART_IF_ACTIVE#
 
 NWFILTERS="
     allow-arp
