@@ -147,7 +147,7 @@ def main():
 
     arches = load_values(arches_file)
 
-    for infile in debian_dir.glob("*"):
+    for infile in sorted(debian_dir.glob("*")):
         infile = Path(infile)
 
         # Only process templates
