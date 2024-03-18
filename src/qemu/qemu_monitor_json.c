@@ -4036,6 +4036,10 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
+    virTristateBool backingProtocol = VIR_TRISTATE_BOOL_ABSENT;
+
+    if (mon->blockjobMaskProtocol)
+        backingProtocol = VIR_TRISTATE_BOOL_YES;
 
     cmd = qemuMonitorJSONMakeCommand("block-commit",
                                      "s:device", device,
@@ -4046,6 +4050,7 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
                                      "S:backing-file", backingName,
                                      "T:auto-finalize", autofinalize,
                                      "T:auto-dismiss", autodismiss,
+                                     "T:backing-mask-protocol", backingProtocol,
                                      NULL);
     if (!cmd)
         return -1;
@@ -4315,6 +4320,10 @@ qemuMonitorJSONBlockStream(qemuMonitor *mon,
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autofinalize = VIR_TRISTATE_BOOL_YES;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
+    virTristateBool backingProtocol = VIR_TRISTATE_BOOL_ABSENT;
+
+    if (mon->blockjobMaskProtocol)
+        backingProtocol = VIR_TRISTATE_BOOL_YES;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("block-stream",
                                            "s:device", device,
@@ -4324,6 +4333,7 @@ qemuMonitorJSONBlockStream(qemuMonitor *mon,
                                            "S:backing-file", backingName,
                                            "T:auto-finalize", autofinalize,
                                            "T:auto-dismiss", autodismiss,
+                                           "T:backing-mask-protocol", backingProtocol,
                                            NULL)))
         return -1;
 
@@ -7579,12 +7589,14 @@ qemuMonitorJSONProcessHotpluggableCpusReply(virJSONValue *vcpu,
     entry->node_id = -1;
     entry->socket_id = -1;
     entry->die_id = -1;
+    entry->cluster_id = -1;
     entry->core_id = -1;
     entry->thread_id = -1;
 
     ignore_value(virJSONValueObjectGetNumberInt(props, "node-id", &entry->node_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "socket-id", &entry->socket_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "die-id", &entry->die_id));
+    ignore_value(virJSONValueObjectGetNumberInt(props, "cluster-id", &entry->cluster_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "core-id", &entry->core_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "thread-id", &entry->thread_id));
 
@@ -7621,6 +7633,9 @@ qemuMonitorQueryHotpluggableCpusEntrySort(const void *p1,
 
     if (a->die_id != b->die_id)
         return a->die_id - b->die_id;
+
+    if (a->cluster_id != b->cluster_id)
+        return a->cluster_id - b->cluster_id;
 
     if (a->core_id != b->core_id)
         return a->core_id - b->core_id;

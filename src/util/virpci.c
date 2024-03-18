@@ -3081,17 +3081,12 @@ virPCIGetVirtualFunctionInfo(const char *vf_sysfs_device_path,
 bool
 virPCIDeviceHasVPD(virPCIDevice *dev)
 {
-    g_autofree char *vpdPath = NULL;
+    g_autofree char *vpdPath = virPCIFile(dev->name, "vpd");
+    bool ret = virFileIsRegular(vpdPath);
 
-    vpdPath = virPCIFile(dev->name, "vpd");
-    if (!virFileExists(vpdPath)) {
-        VIR_INFO("Device VPD file does not exist %s", vpdPath);
-        return false;
-    } else if (!virFileIsRegular(vpdPath)) {
-        VIR_WARN("VPD path does not point to a regular file %s", vpdPath);
-        return false;
-    }
-    return true;
+    VIR_DEBUG("path='%s', exists='%d'", vpdPath, ret);
+
+    return ret;
 }
 
 /**
@@ -3108,28 +3103,21 @@ virPCIDeviceHasVPD(virPCIDevice *dev)
 virPCIVPDResource *
 virPCIDeviceGetVPD(virPCIDevice *dev)
 {
-    g_autofree char *vpdPath = NULL;
-    int fd;
-    g_autoptr(virPCIVPDResource) res = NULL;
+    g_autofree char *vpdPath = virPCIFile(dev->name, "vpd");
+    VIR_AUTOCLOSE fd = -1;
 
-    vpdPath = virPCIFile(dev->name, "vpd");
     if (!virPCIDeviceHasVPD(dev)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, _("Device %1$s does not have a VPD"),
-                virPCIDeviceGetName(dev));
+                       virPCIDeviceGetName(dev));
         return NULL;
     }
+
     if ((fd = open(vpdPath, O_RDONLY)) < 0) {
-        virReportSystemError(-fd, _("Failed to open a VPD file '%1$s'"), vpdPath);
-        return NULL;
-    }
-    res = virPCIVPDParse(fd);
-
-    if (VIR_CLOSE(fd) < 0) {
-        virReportSystemError(errno, _("Unable to close the VPD file, fd: %1$d"), fd);
+        virReportSystemError(errno, _("Failed to open a VPD file '%1$s'"), vpdPath);
         return NULL;
     }
 
-    return g_steal_pointer(&res);
+    return virPCIVPDParse(fd);
 }
 
 #else

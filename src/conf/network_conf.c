@@ -892,13 +892,9 @@ virNetworkDNSDefParseXML(const char *networkName,
                                &def->forwardPlainNames) < 0)
         return -1;
 
-    nfwds = virXPathNodeSet("./forwarder", ctxt, &fwdNodes);
-    if (nfwds < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <forwarder> element found in <dns> of network %1$s"),
-                       networkName);
+    if ((nfwds = virXPathNodeSet("./forwarder", ctxt, &fwdNodes)) < 0)
         return -1;
-    }
+
     if (nfwds > 0) {
         def->forwarders = g_new0(virNetworkDNSForwarder, nfwds);
 
@@ -922,13 +918,9 @@ virNetworkDNSDefParseXML(const char *networkName,
         }
     }
 
-    nhosts = virXPathNodeSet("./host", ctxt, &hostNodes);
-    if (nhosts < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <host> element found in <dns> of network %1$s"),
-                       networkName);
+    if ((nhosts = virXPathNodeSet("./host", ctxt, &hostNodes)) < 0)
         return -1;
-    }
+
     if (nhosts > 0) {
         def->hosts = g_new0(virNetworkDNSHostDef, nhosts);
 
@@ -941,13 +933,9 @@ virNetworkDNSDefParseXML(const char *networkName,
         }
     }
 
-    nsrvs = virXPathNodeSet("./srv", ctxt, &srvNodes);
-    if (nsrvs < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <srv> element found in <dns> of network %1$s"),
-                       networkName);
+    if ((nsrvs = virXPathNodeSet("./srv", ctxt, &srvNodes)) < 0)
         return -1;
-    }
+
     if (nsrvs > 0) {
         def->srvs = g_new0(virNetworkDNSSrvDef, nsrvs);
 
@@ -960,13 +948,9 @@ virNetworkDNSDefParseXML(const char *networkName,
         }
     }
 
-    ntxts = virXPathNodeSet("./txt", ctxt, &txtNodes);
-    if (ntxts < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <txt> element found in <dns> of network %1$s"),
-                       networkName);
+    if ((ntxts = virXPathNodeSet("./txt", ctxt, &txtNodes)) < 0)
         return -1;
-    }
+
     if (ntxts > 0) {
         def->txts = g_new0(virNetworkDNSTxtDef, ntxts);
 
@@ -1222,13 +1206,10 @@ virNetworkForwardNatDefParseXML(const char *networkName,
         return -1;
 
     /* addresses for SNAT */
-    nNatAddrs = virXPathNodeSet("./address", ctxt, &natAddrNodes);
-    if (nNatAddrs < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <address> element found in <forward> of network %1$s"),
-                       networkName);
+    if ((nNatAddrs = virXPathNodeSet("./address", ctxt, &natAddrNodes)) < 0)
         return -1;
-    } else if (nNatAddrs > 1) {
+
+    if (nNatAddrs > 1) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Only one <address> element is allowed in <nat> in <forward> in network %1$s"),
                        networkName);
@@ -1284,13 +1265,10 @@ virNetworkForwardNatDefParseXML(const char *networkName,
     }
 
     /* ports for SNAT and MASQUERADE */
-    nNatPorts = virXPathNodeSet("./port", ctxt, &natPortNodes);
-    if (nNatPorts < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <port> element found in <forward> of network %1$s"),
-                       networkName);
+    if ((nNatPorts = virXPathNodeSet("./port", ctxt, &natPortNodes)) < 0)
         return -1;
-    } else if (nNatPorts > 1) {
+
+    if (nNatPorts > 1) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Only one <port> element is allowed in <nat> in <forward> in network %1$s"),
                        networkName);
@@ -1358,37 +1336,19 @@ virNetworkForwardDefParseXML(const char *networkName,
     }
 
     /* bridge and hostdev modes can use a pool of physical interfaces */
-    nForwardIfs = virXPathNodeSet("./interface", ctxt, &forwardIfNodes);
-    if (nForwardIfs < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <interface> element found in <forward> of network %1$s"),
-                       networkName);
+    if ((nForwardIfs = virXPathNodeSet("./interface", ctxt, &forwardIfNodes)) < 0)
         return -1;
-    }
 
-    nForwardAddrs = virXPathNodeSet("./address", ctxt, &forwardAddrNodes);
-    if (nForwardAddrs < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <address> element found in <forward> of network %1$s"),
-                       networkName);
+    if ((nForwardAddrs = virXPathNodeSet("./address", ctxt, &forwardAddrNodes)) < 0)
         return -1;
-    }
 
-    nForwardPfs = virXPathNodeSet("./pf", ctxt, &forwardPfNodes);
-    if (nForwardPfs < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <pf> element found in <forward> of network %1$s"),
-                       networkName);
+    if ((nForwardPfs = virXPathNodeSet("./pf", ctxt, &forwardPfNodes)) < 0)
         return -1;
-    }
 
-    nForwardNats = virXPathNodeSet("./nat", ctxt, &forwardNatNodes);
-    if (nForwardNats < 0) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("invalid <nat> element found in <forward> of network %1$s"),
-                       networkName);
+    if ((nForwardNats = virXPathNodeSet("./nat", ctxt, &forwardNatNodes)) < 0)
         return -1;
-    } else if (nForwardNats > 1) {
+
+    if (nForwardNats > 1) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Only one <nat> element is allowed in <forward> of network %1$s"),
                        networkName);
@@ -1402,8 +1362,9 @@ virNetworkForwardDefParseXML(const char *networkName,
 
     forwardDev = virXPathString("string(./@dev)", ctxt);
     if (forwardDev && (nForwardAddrs > 0 || nForwardPfs > 0)) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("the <forward> 'dev' attribute cannot be used when <address> or <pf> sub-elements are present in network %1$s"));
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("the <forward> 'dev' attribute cannot be used when <address> or <pf> sub-elements are present in network %1$s"),
+                       networkName);
         return -1;
     }
 
@@ -1620,6 +1581,19 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
                                VIR_XML_PROP_NONE,
                                &def->domainLocalOnly) < 0)
         return NULL;
+
+    if (virXMLPropTristateBool(domain_node, "register",
+                               VIR_XML_PROP_NONE,
+                               &def->domainRegister) < 0)
+        return NULL;
+
+    if (def->domainRegister == VIR_TRISTATE_BOOL_YES &&
+        def->domainLocalOnly != VIR_TRISTATE_BOOL_YES) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("attribute 'register=yes' in <domain> element requires 'localOnly=yes' in network %1$s"),
+                       def->name);
+        return NULL;
+    }
 
     if ((bandwidthNode = virXPathNode("./bandwidth", ctxt)) &&
         virNetDevBandwidthParse(&def->bandwidth, NULL, bandwidthNode, false) < 0)
@@ -2213,8 +2187,8 @@ virPortGroupDefFormat(virBuffer *buf,
     virBufferAdjustIndent(buf, 2);
     if (virNetDevVlanFormat(&def->vlan, buf) < 0)
         return -1;
-    if (virNetDevVPortProfileFormat(def->virtPortProfile, buf) < 0)
-        return -1;
+    virNetDevVPortProfileFormat(def->virtPortProfile, buf);
+
     virNetDevBandwidthFormat(def->bandwidth, 0, buf);
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</portgroup>\n");
@@ -2444,6 +2418,11 @@ virNetworkDefFormatBuf(virBuffer *buf,
             virBufferAsprintf(buf, " localOnly='%s'", local);
         }
 
+        if (def->domainRegister) {
+            virBufferAsprintf(buf, " register='%s'",
+                              virTristateBoolTypeToString(def->domainRegister));
+        }
+
         virBufferAddLit(buf, "/>\n");
     }
 
@@ -2466,8 +2445,7 @@ virNetworkDefFormatBuf(virBuffer *buf,
             return -1;
     }
 
-    if (virNetDevVPortProfileFormat(def->virtPortProfile, buf) < 0)
-        return -1;
+    virNetDevVPortProfileFormat(def->virtPortProfile, buf);
 
     for (i = 0; i < def->nPortGroups; i++)
         if (virPortGroupDefFormat(buf, &def->portGroups[i]) < 0)

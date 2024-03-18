@@ -1669,9 +1669,9 @@ qemuBlockStorageSourceAttachApply(qemuMonitor *mon,
                                   qemuBlockStorageSourceAttachData *data)
 {
     if (qemuBlockStorageSourceAttachApplyStorageDeps(mon, data) < 0 ||
+        qemuBlockStorageSourceAttachApplyFormatDeps(mon, data) < 0 ||
         qemuBlockStorageSourceAttachApplyStorage(mon, data) < 0 ||
         qemuBlockStorageSourceAttachApplyStorageSlice(mon, data) < 0 ||
-        qemuBlockStorageSourceAttachApplyFormatDeps(mon, data) < 0 ||
         qemuBlockStorageSourceAttachApplyFormat(mon, data) < 0)
         return -1;
 
@@ -2636,6 +2636,8 @@ qemuBlockStorageSourceCreate(virDomainObj *vm,
         goto cleanup;
 
     rc = qemuBlockStorageSourceAttachApplyStorageDeps(priv->mon, data);
+    if (rc == 0)
+        rc = qemuBlockStorageSourceAttachApplyFormatDeps(priv->mon, data);
 
     qemuDomainObjExitMonitor(vm);
     if (rc < 0)
@@ -2648,9 +2650,6 @@ qemuBlockStorageSourceCreate(virDomainObj *vm,
         goto cleanup;
 
     rc = qemuBlockStorageSourceAttachApplyStorage(priv->mon, data);
-
-    if (rc == 0)
-        rc = qemuBlockStorageSourceAttachApplyFormatDeps(priv->mon, data);
 
     qemuDomainObjExitMonitor(vm);
     if (rc < 0)
@@ -3362,14 +3361,30 @@ qemuBlockStorageSourceNeedsStorageSliceLayer(const virStorageSource *src)
  * existence of the format layer nodename.
  */
 bool
-qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src)
+qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src,
+                                       virQEMUCaps *qemuCaps)
 {
-    /* Skip 'format' layer, when a storage slice for a raw image is in use */
-    if (qemuBlockStorageSourceIsRaw(src) &&
-        src->sliceStorage)
-        return false;
+    virStorageType actualType = virStorageSourceGetActualType(src);
 
-    return true;
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL))
+        return true;
+
+    if (!qemuBlockStorageSourceIsRaw(src))
+        return true;
+
+    /* when passing a FD to qemu via the /dev/fdset mechanism qemu
+     * fetches the appropriate FD from the fdset by checking that it has
+     * the correct accessmode. Now if a user passes an explicitly read-write fd
+     * but intends to use the disk in read-only mode we need to install a
+     * read-only raw driver on top as qemu wouldn't be able to pick the correct
+     * fd. */
+    if ((actualType == VIR_STORAGE_TYPE_FILE || actualType == VIR_STORAGE_TYPE_BLOCK) &&
+        src->fdtuple &&
+        src->fdtuple->nfds == 1 &&
+        src->fdtuple->writable)
+        return true;
+
+    return false;
 }
 
 

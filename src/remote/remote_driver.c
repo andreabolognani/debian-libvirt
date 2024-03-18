@@ -2570,7 +2570,7 @@ static int remoteDomainGetBlockIoTune(virDomainPtr domain,
      */
     if (*nparams == 0) {
         *nparams = ret.nparams;
-        return -1;
+        return 0;
     }
 
     if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) ret.params.params_val,
@@ -7983,6 +7983,7 @@ static virNodeDeviceDriver node_device_driver = {
     .nodeDeviceSetAutostart = remoteNodeDeviceSetAutostart, /* 7.8.0 */
     .nodeDeviceIsPersistent = remoteNodeDeviceIsPersistent, /* 7.8.0 */
     .nodeDeviceIsActive = remoteNodeDeviceIsActive, /* 7.8.0 */
+    .nodeDeviceUpdate = remoteNodeDeviceUpdate, /* 10.1.0 */
 };
 
 static virNWFilterDriver nwfilter_driver = {

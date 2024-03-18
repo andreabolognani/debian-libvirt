@@ -310,7 +310,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_MIGRATION_EVENT, /* MIGRATION event */
 
     /* 190 */
-    QEMU_CAPS_OBJECT_GPEX, /* have generic PCI host controller */
+    X_QEMU_CAPS_OBJECT_GPEX, /* have generic PCI host controller */
     QEMU_CAPS_DEVICE_IOH3420, /* -device ioh3420 */
     QEMU_CAPS_DEVICE_X3130_UPSTREAM, /* -device x3130-upstream */
     QEMU_CAPS_DEVICE_XIO3130_DOWNSTREAM, /* -device xio3130-downstream */
@@ -678,6 +678,11 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN, /* asynchronous teardown -run-with async-teardown=on|off */
     QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA, /* virtio-blk-vhost-vdpa block driver */
     QEMU_CAPS_VIRTIO_BLK_IOTHREAD_MAPPING, /* virtio-blk supports per-virtqueue iothread mapping */
+    QEMU_CAPS_SMP_CLUSTERS, /* -smp clusters= */
+    QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_DYNAMIC_MEMSLOTS, /* -device virtio-mem-pci.dynamic-memslots= */
+
+    /* 455 */
+    QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL, /* backing-mask-protocol of block-commit/block-stream */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -699,8 +704,6 @@ bool virQEMUCapsGet(virQEMUCaps *qemuCaps,
                     virQEMUCapsFlags flag);
 
 void virQEMUCapsInitProcessCapsInterlock(virQEMUCaps *qemuCaps);
-
-bool virQEMUCapsHasPCIMultiBus(const virDomainDef *def);
 
 bool virQEMUCapsSupportsVmport(virQEMUCaps *qemuCaps,
                                const virDomainDef *def);

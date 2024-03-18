@@ -39,6 +39,7 @@
 #include "qemu_virtiofs.h"
 #include "domain_audit.h"
 #include "domain_cgroup.h"
+#include "domain_interface.h"
 #include "netdev_bandwidth_conf.h"
 #include "domain_nwfilter.h"
 #include "virlog.h"
@@ -873,13 +874,18 @@ qemuDomainFindOrCreateSCSIDiskController(virDomainObj *vm,
 
     /* No SCSI controller present, for backward compatibility we
      * now hotplug a controller */
-    cont = g_new0(virDomainControllerDef, 1);
-    cont->type = VIR_DOMAIN_CONTROLLER_TYPE_SCSI;
+    cont = virDomainControllerDefNew(VIR_DOMAIN_CONTROLLER_TYPE_SCSI);
     cont->idx = controller;
+
     if (model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT)
         cont->model = qemuDomainGetSCSIControllerModel(vm->def, cont, priv->qemuCaps);
     else
         cont->model = model;
+
+    if (cont->model < 0) {
+        VIR_FREE(cont);
+        return NULL;
+    }
 
     VIR_INFO("No SCSI controller present, hotplugging one model=%s",
              virDomainControllerModelSCSITypeToString(cont->model));
@@ -1017,9 +1023,6 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
 
         if (qemuHotplugAttachManagedPR(vm, disk->src, VIR_ASYNC_JOB_NONE) < 0)
             goto cleanup;
-
-        if (qemuNbdkitStartStorageSource(driver, vm, disk->src) < 0)
-            goto cleanup;
     }
 
     ret = qemuDomainAttachDiskGeneric(vm, disk, VIR_ASYNC_JOB_NONE);
@@ -1044,8 +1047,6 @@ qemuDomainAttachDeviceDiskLiveInternal(virQEMUDriver *driver,
 
         if (virStorageSourceChainHasManagedPR(disk->src))
             ignore_value(qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE));
-
-        qemuNbdkitStopStorageSource(disk->src, vm);
     }
     qemuDomainSecretDiskDestroy(disk);
     qemuDomainCleanupStorageSourceFD(disk->src);
@@ -1278,7 +1279,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
     }
 
     /* Set device online immediately */
-    if (qemuInterfaceStartDevice(net) < 0)
+    if (virDomainInterfaceStartDevice(net) < 0)
         goto cleanup;
 
     qemuDomainInterfaceSetDefaultQDisc(driver, net);
@@ -1435,7 +1436,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
 
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             if (conn)
-                virDomainNetReleaseActualDevice(conn, vm->def, net);
+                virDomainNetReleaseActualDevice(conn, net);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
         }
@@ -4162,10 +4163,15 @@ qemuDomainChangeNet(virQEMUDriver *driver,
          * no need to change the pointer in the hostdev structure */
         if (olddev->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             if (conn || (conn = virGetConnectNetwork()))
-                virDomainNetReleaseActualDevice(conn, vm->def, olddev);
+                virDomainNetReleaseActualDevice(conn, olddev);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(olddev->ifname));
         }
+
+        /* Carry over fact whether we created the device or not. */
+        QEMU_DOMAIN_NETWORK_PRIVATE(newdev)->created =
+            QEMU_DOMAIN_NETWORK_PRIVATE(olddev)->created;
+
         virDomainNetDefFree(olddev);
         /* move newdev into the nets list, and NULL it out from the
          * virDomainDeviceDef that we were given so that the caller
@@ -4198,7 +4204,7 @@ qemuDomainChangeNet(virQEMUDriver *driver,
      * replace the entire device object.
      */
     if (newdev && newdev->type == VIR_DOMAIN_NET_TYPE_NETWORK && conn)
-        virDomainNetReleaseActualDevice(conn, vm->def, newdev);
+        virDomainNetReleaseActualDevice(conn, newdev);
     virErrorRestore(&save_err);
 
     return ret;
@@ -4557,7 +4563,7 @@ qemuDomainRemoveDiskDevice(virQEMUDriver *driver,
         qemuHotplugRemoveManagedPR(vm, VIR_ASYNC_JOB_NONE) < 0)
         goto cleanup;
 
-    qemuNbdkitStopStorageSource(disk->src, vm);
+    qemuNbdkitStopStorageSource(disk->src, vm, true);
 
     if (disk->transient) {
         VIR_DEBUG("Removing transient overlay '%s' of disk '%s'",
@@ -4778,7 +4784,7 @@ qemuDomainRemoveHostDevice(virQEMUDriver *driver,
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             g_autoptr(virConnect) conn = virGetConnectNetwork();
             if (conn)
-                virDomainNetReleaseActualDevice(conn, vm->def, net);
+                virDomainNetReleaseActualDevice(conn, net);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
         }
@@ -4829,7 +4835,7 @@ qemuDomainRemoveNetDevice(virQEMUDriver *driver,
      * affect the parent device (e.g. macvtap passthrough mode sets
      * the parent device offline)
      */
-    ignore_value(qemuInterfaceStopDevice(net));
+    ignore_value(virDomainInterfaceStopDevice(net));
 
     qemuDomainObjEnterMonitor(vm);
     if (qemuMonitorRemoveNetdev(priv->mon, hostnet_name) < 0) {
@@ -4896,7 +4902,7 @@ qemuDomainRemoveNetDevice(virQEMUDriver *driver,
     if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
         g_autoptr(virConnect) conn = virGetConnectNetwork();
         if (conn)
-            virDomainNetReleaseActualDevice(conn, vm->def, net);
+            virDomainNetReleaseActualDevice(conn, net);
         else
             VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
     } else if (net->type == VIR_DOMAIN_NET_TYPE_ETHERNET) {

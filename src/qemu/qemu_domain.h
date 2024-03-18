@@ -420,6 +420,8 @@ typedef struct _qemuDomainNetworkPrivate qemuDomainNetworkPrivate;
 struct _qemuDomainNetworkPrivate {
     virObject parent;
 
+    /* Don't forget to possibly copy these members in qemuDomainChangeNet(). */
+
     /* True if the device was created by us. Otherwise we should
      * avoid removing it. Currently only used for
      * VIR_DOMAIN_NET_TYPE_DIRECT. */
@@ -834,8 +836,11 @@ bool qemuDomainHasPCIeRoot(const virDomainDef *def);
 bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
 bool qemuDomainHasBuiltinESP(const virDomainDef *def);
 bool qemuDomainNeedsFDC(const virDomainDef *def);
-bool qemuDomainSupportsPCI(virDomainDef *def,
-                           virQEMUCaps *qemuCaps);
+bool qemuDomainSupportsPCI(const virDomainDef *def);
+bool qemuDomainSupportsPCIMultibus(const virDomainDef *def);
+int qemuDomainGetSCSIControllerModel(const virDomainDef *def,
+                                     const virDomainControllerDef *cont,
+                                     virQEMUCaps *qemuCaps);
 
 void qemuDomainUpdateCurrentMemorySize(virDomainObj *vm);
 

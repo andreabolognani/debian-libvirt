@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.0.0',
+  version: '10.1.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -442,22 +442,17 @@ supported_cc_flags = []
 if get_option('warning_level') == '2'
   supported_cc_flags = cc.get_supported_arguments(cc_flags)
 
-  # on aarch64 error: -fstack-protector not supported for this target
-  if host_machine.cpu_family() != 'aarch64'
-    if host_machine.system() in [ 'linux', 'freebsd', 'windows' ]
-      # we prefer -fstack-protector-strong but fallback to -fstack-protector-all
-      fstack_cflags = cc.first_supported_argument([
-        '-fstack-protector-strong',
-        '-fstack-protector-all',
-      ])
-      supported_cc_flags += fstack_cflags
+  # we prefer -fstack-protector-strong but fallback to -fstack-protector-all
+  fstack_cflags = cc.first_supported_argument([
+    '-fstack-protector-strong',
+    '-fstack-protector-all',
+  ])
+  supported_cc_flags += fstack_cflags
 
-      # When building with mingw using -fstack-protector requires libssp library
-      # which is included by using -fstack-protector with linker.
-      if fstack_cflags.length() == 1 and host_machine.system() == 'windows'
-        add_project_link_arguments(fstack_cflags, language: 'c')
-      endif
-    endif
+  # When building with mingw using -fstack-protector requires libssp library
+  # which is included by using -fstack-protector with linker.
+  if fstack_cflags.length() == 1 and host_machine.system() == 'windows'
+    add_project_link_arguments(fstack_cflags, language: 'c')
   endif
 
   if supported_cc_flags.contains('-Wlogical-op')
@@ -800,12 +795,17 @@ endforeach
 
 # optional programs
 
-optional_programs = [
+optional_test_programs = [
   'augparse',
   'black',
+  'flake8',
+  'pdwtags',
+  'pytest',
+]
+
+optional_programs = [
   'dmidecode',
   'ebtables',
-  'flake8',
   'ip',
   'ip6tables',
   'iptables',
@@ -814,12 +814,11 @@ optional_programs = [
   'mm-ctl',
   'modprobe',
   'ovs-vsctl',
-  'pdwtags',
-  'pytest',
   'rmmod',
   'tc',
-]
+] + optional_test_programs
 
+missing_optional_programs = []
 foreach name : optional_programs
   prog = find_program(name, required: false, dirs: libvirt_sbin_path)
   varname = name.underscorify()
@@ -827,6 +826,9 @@ foreach name : optional_programs
     prog_path = prog.full_path()
   else
     prog_path = name
+    if name in optional_test_programs
+      missing_optional_programs += [ name ]
+    endif
   endif
 
   conf.set_quoted(varname.to_upper(), prog_path)
@@ -2024,6 +2026,12 @@ elif get_option('sysctl_config').enabled()
   error('sysctl configuration is supported only on linux')
 endif
 
+if not get_option('userfaultfd_sysctl').disabled() and conf.has('WITH_SYSCTL')
+  conf.set('WITH_USERFAULTFD_SYSCTL', 1)
+elif get_option('userfaultfd_sysctl').enabled()
+  error('userfaultfd_sysctl option requires sysctl_config to be enabled')
+endif
+
 conf.set_quoted('TLS_PRIORITY', get_option('tls_priority'))
 
 
@@ -2323,6 +2331,8 @@ misc_summary = {
   'virt-login-shell': conf.has('WITH_LOGIN_SHELL'),
   'virt-host-validate': conf.has('WITH_HOST_VALIDATE'),
   'TLS priority': conf.get_unquoted('TLS_PRIORITY'),
+  'sysctl config': conf.has('WITH_SYSCTL'),
+  'userfaultfd sysctl': conf.has('WITH_USERFAULTFD_SYSCTL'),
 }
 summary(misc_summary, section: 'Miscellaneous', bool_yn: true, list_sep: ' ')
 
@@ -2330,6 +2340,15 @@ devtools_summary = {
   'wireshark_dissector': wireshark_dep.found(),
 }
 summary(devtools_summary, section: 'Developer Tools', bool_yn: true)
+
+if missing_optional_programs.length() > 0
+  missing_list = ' '.join(missing_optional_programs)
+  missing_warn = ' (some tests will be skipped!)'
+  test_programs_summary = {
+    'Missing': missing_list + missing_warn,
+  }
+  summary(test_programs_summary, section: 'Optional programs', bool_yn: true)
+endif
 
 if conf.has('WITH_QEMU')
   qemu_warn = ''

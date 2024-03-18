@@ -441,7 +441,6 @@ if conf.has('WITH_QEMU')
     { 'name': 'qemuagenttest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemublocktest', 'include': [ storage_file_inc_dir ], 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemucapabilitiestest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
-    { 'name': 'qemucapabilitiesnumbering', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemucaps2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemucommandutiltest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemudomaincheckpointxml2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
@@ -453,10 +452,9 @@ if conf.has('WITH_QEMU')
     { 'name': 'qemumigrationcookiexmltest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
     { 'name': 'qemumonitorjsontest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib ] },
     { 'name': 'qemusecuritytest', 'sources': [ 'qemusecuritytest.c', 'qemusecuritymock.c' ], 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib ] },
-    { 'name': 'qemustatusxml2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
+    { 'name': 'qemuxmlactivetest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
     { 'name': 'qemuvhostusertest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_file_wrapper_lib ] },
-    { 'name': 'qemuxml2argvtest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
-    { 'name': 'qemuxml2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
+    { 'name': 'qemuxmlconftest', 'timeout': 90, 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
   ]
   if conf.has('WITH_NBDKIT')
     tests += [
@@ -596,21 +594,27 @@ foreach data : tests
     ],
     export_dynamic: true,
   )
-  if data['name'] == 'qemuxml2argvtest'
-    timeout = 90
-  else
-    # default meson timeout
-    timeout = 30
-  endif
   test(
     data['name'],
     test_bin,
     env: tests_env,
-    timeout: timeout,
+    timeout: data.get('timeout', 30),
     depends: tests_deps,
     suite: 'bin'
   )
 endforeach
+
+test(
+  'qemu replies check',
+  python3_prog,
+  args: [
+    qemu_replies_tool_prog.full_path(),
+    '--repliesdir',
+    meson.project_source_root() / 'tests' / 'qemucapabilitiesdata'
+  ],
+  env: runutf8,
+  suite: 'script',
+)
 
 
 # helpers:

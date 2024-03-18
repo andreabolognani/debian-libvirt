@@ -5331,6 +5331,25 @@ If *--validate* is specified, validates the format of the XML document against
 an internal RNG schema.
 
 
+nodedev-update
+--------------
+
+**Syntax:**
+
+::
+
+   nodedev-update device FILE [[--live] [--config] | [--current]]
+
+Update a device on the host. *device* can be either device name or wwn pair
+in "wwnn,wwpn" format (only works for vHBA currently).  *file*
+contains xml for a top-level <device> description of the node device.
+*--current* can be either or both of *live* and *config*, depends on
+the hypervisor's implementation.
+Both *--live* and *--config* flags may be given, but *--current* is
+exclusive. If no flag is specified, behavior is different depending
+on hypervisor.
+
+
 nodedev-destroy
 ---------------
 
@@ -5422,14 +5441,17 @@ nodedev-dumpxml
 
 ::
 
-   nodedev-dumpxml [--xpath EXPRESSION] [--wrap] device
+   nodedev-dumpxml [--inactive] [--xpath EXPRESSION] [--wrap] device
 
 Dump a <device> XML representation for the given node device, including
 such information as the device name, which bus owns the device, the
 vendor and product id, and any capabilities of the device usable by
 libvirt (such as whether device reset is supported). *device* can
 be either device name or wwn pair in "wwnn,wwpn" format (only works
-for HBA).
+for HBA). An additional option affecting the XML dump may be
+used. *--inactive* tells virsh to dump the node device configuration
+that will be used on next start of the node device as opposed to the
+current node device configuration.
 
 If the **--xpath** argument provides an XPath expression, it will be
 evaluated against the output XML and only those matching nodes will
@@ -5458,7 +5480,7 @@ nodedev-list
 
 ::
 
-   nodedev-list [--cap capability] [--tree] [--inactive | --all]
+   nodedev-list [--cap capability] [--tree] [--inactive | --all] [--persistent | --transient]
 
 List all of the devices available on the node that are known by libvirt.
 *cap* is used to filter the list by capability types, the types must be
@@ -5467,9 +5489,13 @@ separated by comma, e.g. --cap pci,scsi. Valid capability types include
 'scsi', 'storage', 'fc_host', 'vports', 'scsi_generic', 'drm', 'mdev',
 'mdev_types', 'ccw', 'css', 'ap_card', 'ap_queue', 'ap_matrix'. By default,
 only active devices are listed. *--inactive* is used to list only inactive
-devices, and *-all* is used to list both active and inactive devices.
+devices, and *--all* is used to list both active and inactive devices.
+*--persistent* is used to list only persistent devices, and *--transient* is
+used to list only transient devices. Not providing *--persistent* or
+*--transient* will list all devices unless filtered otherwise. *--transient*
+is mutually exclusive with *--persistent* and *--inactive*.
 If *--tree* is used, the output is formatted in a tree representing parents of
-each node.  *--tree* is mutually exclusive with all other options.
+each node. *--tree* is mutually exclusive with all other options but *--all*.
 
 
 nodedev-reattach

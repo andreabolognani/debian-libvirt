@@ -2316,6 +2316,7 @@ virDomainDefGetVcpusTopology(const virDomainDef *def,
 
     /* multiplication of 32bit numbers fits into a 64bit variable */
     if ((tmp *= def->cpu->dies) > UINT_MAX ||
+        (tmp *= def->cpu->clusters) > UINT_MAX ||
         (tmp *= def->cpu->cores) > UINT_MAX ||
         (tmp *= def->cpu->threads) > UINT_MAX) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -4957,6 +4958,7 @@ virDomainDefHasDeviceAddress(virDomainDef *def,
 static int
 virDomainDefAddConsoleCompat(virDomainDef *def)
 {
+    bool renumber_consoles = false;
     size_t i;
 
     /*
@@ -5023,6 +5025,8 @@ virDomainDefAddConsoleCompat(virDomainDef *def)
             /* Create an console alias for the serial port */
             def->consoles[0]->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE;
             def->consoles[0]->targetType = VIR_DOMAIN_CHR_CONSOLE_TARGET_TYPE_SERIAL;
+
+            renumber_consoles = true;
         }
     } else if (def->os.type == VIR_DOMAIN_OSTYPE_HVM && def->nserials > 0 &&
                def->serials[0]->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL) {
@@ -5050,6 +5054,8 @@ virDomainDefAddConsoleCompat(virDomainDef *def)
                 return -1;
             }
 
+            renumber_consoles = true;
+
             def->consoles[0]->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE;
             def->consoles[0]->targetType = VIR_DOMAIN_CHR_CONSOLE_TARGET_TYPE_SERIAL;
 
@@ -5063,6 +5069,16 @@ virDomainDefAddConsoleCompat(virDomainDef *def)
             /* Nothing to do */
             break;
         }
+    }
+
+    /* When consoles are parsed in 'virDomainDefParseXML' the value of
+     * 'target.port' is overriden by the index of the console in the
+     * 'def->consoles' array. Thus if we are modifying the list here we
+     * must ensure that the numbering will be identical as if we've parsed
+     * this definition */
+    if (renumber_consoles) {
+        for (i = 0; i < def->nconsoles; i++)
+            def->consoles[i]->target.port = i;
     }
 
     return 0;
@@ -13542,6 +13558,10 @@ virDomainMemoryTargetDefParseXML(xmlNodePtr node,
                                  &def->target.virtio_mem.requestedsize, false, false) < 0)
             return -1;
 
+        if (virXMLPropTristateBool(node, "dynamicMemslots", VIR_XML_PROP_NONE,
+                                   &def->target.virtio_mem.dynamicMemslots) < 0)
+            return -1;
+
         addrNode = virXPathNode("./address", ctxt);
         addr = &def->target.virtio_mem.address;
         break;
@@ -16149,7 +16169,7 @@ virDomainDefAddController(virDomainDef *def,
     cont->idx = idx;
     cont->model = model;
 
-    VIR_APPEND_ELEMENT_COPY(def->controllers, def->ncontrollers, cont);
+    virDomainControllerInsert(def, cont);
 
     return cont;
 }
@@ -17760,11 +17780,8 @@ virDomainResctrlMonDefParse(virDomainDef *def,
 
     ctxt->node = node;
 
-    if ((n = virXPathNodeSet("./monitor", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot extract monitor nodes"));
+    if ((n = virXPathNodeSet("./monitor", ctxt, &nodes)) < 0)
         goto cleanup;
-    }
 
     for (i = 0; i < n; i++) {
         domresmon = g_new0(virDomainResctrlMonDef, 1);
@@ -17892,11 +17909,8 @@ virDomainCachetuneDefParse(virDomainDef *def,
     if (virBitmapIsAllClear(vcpus))
         return 0;
 
-    if ((n = virXPathNodeSet("./cache", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot extract cache nodes under cachetune"));
+    if ((n = virXPathNodeSet("./cache", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     if (virDomainResctrlVcpuMatch(def, vcpus, &resctrl) < 0)
         return -1;
@@ -18162,11 +18176,8 @@ virDomainDefParseMemory(virDomainDef *def,
 
     if (virXPathNode("./memoryBacking/hugepages", ctxt)) {
         /* hugepages will be used */
-        if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("cannot extract hugepages nodes"));
+        if ((n = virXPathNodeSet("./memoryBacking/hugepages/page", ctxt, &nodes)) < 0)
             return -1;
-        }
 
         if (n) {
             def->mem.hugepages = g_new0(virDomainHugePage, n);
@@ -18250,11 +18261,8 @@ virDomainMemorytuneDefParse(virDomainDef *def,
     if (virBitmapIsAllClear(vcpus))
         return 0;
 
-    if ((n = virXPathNodeSet("./node", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot extract memory nodes under memorytune"));
+    if ((n = virXPathNodeSet("./node", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     if (virDomainResctrlVcpuMatch(def, vcpus, &resctrl) < 0)
         return -1;
@@ -18321,11 +18329,9 @@ virDomainDefTunablesParse(virDomainDef *def,
                      &def->blkio.weight) < 0)
         def->blkio.weight = 0;
 
-    if ((n = virXPathNodeSet("./blkiotune/device", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("cannot extract blkiotune nodes"));
+    if ((n = virXPathNodeSet("./blkiotune/device", ctxt, &nodes)) < 0)
         return -1;
-    }
+
     if (n)
         def->blkio.devices = g_new0(virBlkioDevice, n);
 
@@ -18436,11 +18442,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./cputune/emulatorpin", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract emulatorpin nodes"));
+    if ((n = virXPathNodeSet("./cputune/emulatorpin", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     if (n) {
         if (n > 1) {
@@ -18455,11 +18458,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     VIR_FREE(nodes);
 
 
-    if ((n = virXPathNodeSet("./cputune/iothreadpin", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract iothreadpin nodes"));
+    if ((n = virXPathNodeSet("./cputune/iothreadpin", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     for (i = 0; i < n; i++) {
         if (virDomainIOThreadPinDefParseXML(nodes[i], def) < 0)
@@ -18467,11 +18467,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./cputune/vcpusched", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract vcpusched nodes"));
+    if ((n = virXPathNodeSet("./cputune/vcpusched", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     for (i = 0; i < n; i++) {
         if (virDomainVcpuThreadSchedParse(nodes[i], def) < 0)
@@ -18479,11 +18476,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./cputune/iothreadsched", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract iothreadsched nodes"));
+    if ((n = virXPathNodeSet("./cputune/iothreadsched", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     for (i = 0; i < n; i++) {
         if (virDomainIOThreadSchedParse(nodes[i], def) < 0)
@@ -18491,11 +18485,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./cputune/emulatorsched", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract emulatorsched nodes"));
+    if ((n = virXPathNodeSet("./cputune/emulatorsched", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     if (n) {
         if (n > 1) {
@@ -18509,11 +18500,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./cputune/cachetune", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract cachetune nodes"));
+    if ((n = virXPathNodeSet("./cputune/cachetune", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     for (i = 0; i < n; i++) {
         if (virDomainCachetuneDefParse(def, ctxt, nodes[i], flags) < 0)
@@ -18521,11 +18509,8 @@ virDomainDefTunablesParse(virDomainDef *def,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./cputune/memorytune", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("cannot extract memorytune nodes"));
+    if ((n = virXPathNodeSet("./cputune/memorytune", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     for (i = 0; i < n; i++) {
         if (virDomainMemorytuneDefParse(def, ctxt, nodes[i], flags) < 0)
@@ -18829,11 +18814,8 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         !virDomainIOThreadIDArrayHasPin(def))
         def->placement_mode = VIR_DOMAIN_CPU_PLACEMENT_MODE_AUTO;
 
-    if ((n = virXPathNodeSet("./resource", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("cannot extract resource nodes"));
+    if ((n = virXPathNodeSet("./resource", ctxt, &nodes)) < 0)
         return NULL;
-    }
 
     if (n > 1) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -18881,11 +18863,9 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
         return NULL;
 
     /* analysis of the resource leases */
-    if ((n = virXPathNodeSet("./devices/lease", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("cannot extract device leases"));
+    if ((n = virXPathNodeSet("./devices/lease", ctxt, &nodes)) < 0)
         return NULL;
-    }
+
     if (n)
         def->leases = g_new0(virDomainLeaseDef *, n);
     for (i = 0; i < n; i++) {
@@ -19004,11 +18984,9 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./devices/console", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("cannot extract console devices"));
+    if ((n = virXPathNodeSet("./devices/console", ctxt, &nodes)) < 0)
         return NULL;
-    }
+
     if (n)
         def->consoles = g_new0(virDomainChrDef *, n);
 
@@ -21216,6 +21194,12 @@ virDomainMemoryDefCheckABIStability(virDomainMemoryDef *src,
                            src->target.virtio_mem.address);
             return false;
         }
+
+        if (src->target.virtio_mem.dynamicMemslots != dst->target.virtio_mem.dynamicMemslots) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Target memory device 'dynamicMemslots' property doesn't match source memory device"));
+            return false;
+        }
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
@@ -21874,7 +21858,8 @@ virDomainDefMaybeAddVirtioSerialController(virDomainDef *def)
                 idx = channel->info.addr.vioserial.controller;
 
             if (virDomainDefMaybeAddController(def,
-                VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL, idx, -1) < 0)
+                                               VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL,
+                                               idx, -1) < 0)
                 return -1;
         }
     }
@@ -21884,12 +21869,12 @@ virDomainDefMaybeAddVirtioSerialController(virDomainDef *def)
 
         if (console->targetType == VIR_DOMAIN_CHR_CONSOLE_TARGET_TYPE_VIRTIO) {
             int idx = 0;
-            if (console->info.type ==
-                VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL)
+            if (console->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL)
                 idx = console->info.addr.vioserial.controller;
 
             if (virDomainDefMaybeAddController(def,
-                VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL, idx, -1) < 0)
+                                               VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL,
+                                               idx, -1) < 0)
                 return -1;
         }
     }
@@ -23766,8 +23751,8 @@ virDomainActualNetDefContentsFormat(virBuffer *buf,
 
     if (virNetDevVlanFormat(virDomainNetGetActualVlan(def), buf) < 0)
         return -1;
-    if (virNetDevVPortProfileFormat(virDomainNetGetActualVirtPortProfile(def), buf) < 0)
-        return -1;
+    virNetDevVPortProfileFormat(virDomainNetGetActualVirtPortProfile(def), buf);
+
     if (virNetDevBandwidthFormat(virDomainNetGetActualBandwidth(def), 0, buf) < 0)
         return -1;
     virNetworkPortOptionsFormat(virDomainNetGetActualPortOptionsIsolated(def), buf);
@@ -24240,8 +24225,8 @@ virDomainNetDefFormat(virBuffer *buf,
 
         if (virNetDevVlanFormat(&def->vlan, buf) < 0)
             return -1;
-        if (virNetDevVPortProfileFormat(def->virtPortProfile, buf) < 0)
-            return -1;
+        virNetDevVPortProfileFormat(def->virtPortProfile, buf);
+
         if (virNetDevBandwidthFormat(def->bandwidth, 0, buf) < 0)
             return -1;
         virNetworkPortOptionsFormat(def->isolatedPort, buf);
@@ -25431,6 +25416,7 @@ virDomainMemoryTargetDefFormat(virBuffer *buf,
                                unsigned int flags)
 {
     g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
 
     virBufferAsprintf(&childBuf, "<size unit='KiB'>%llu</size>\n", def->size);
     if (def->targetNode >= 0)
@@ -25470,6 +25456,11 @@ virDomainMemoryTargetDefFormat(virBuffer *buf,
         if (def->target.virtio_mem.address)
             virBufferAsprintf(&childBuf, "<address base='0x%llx'/>\n",
                               def->target.virtio_mem.address);
+
+        if (def->target.virtio_mem.dynamicMemslots) {
+            virBufferAsprintf(&attrBuf, " dynamicMemslots='%s'",
+                              virTristateBoolTypeToString(def->target.virtio_mem.dynamicMemslots));
+        }
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
@@ -25479,7 +25470,7 @@ virDomainMemoryTargetDefFormat(virBuffer *buf,
         break;
     }
 
-    virXMLFormatElement(buf, "target", NULL, &childBuf);
+    virXMLFormatElement(buf, "target", &attrBuf, &childBuf);
 }
 
 static int
@@ -27721,6 +27712,8 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
         return -1;
     }
 
+    /* When changing this condition, beware that tests such as qemuxml*test
+     * were optimized based on this predicate and may need to be fixed. */
     if (def->id == -1)
         flags |= VIR_DOMAIN_DEF_FORMAT_INACTIVE;
 
@@ -30275,7 +30268,6 @@ virDomainNetNotifyActualDevice(virConnectPtr conn,
 
 int
 virDomainNetReleaseActualDevice(virConnectPtr conn,
-                                virDomainDef *dom G_GNUC_UNUSED,
                                 virDomainNetDef *iface)
 {
     virNetworkPtr net = NULL;

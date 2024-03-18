@@ -38,93 +38,6 @@ VIR_LOG_INIT("qemu.qemu_domain_address");
 #define VIO_ADDR_TPM 0x4000ul
 
 
-/**
- * @def: Domain definition
- * @cont: Domain controller def
- * @qemuCaps: qemu capabilities
- *
- * If the controller model is already defined, return it immediately;
- * otherwise, based on the @qemuCaps return a default model value.
- *
- * Returns model on success, -1 on failure with error set.
- */
-int
-qemuDomainGetSCSIControllerModel(const virDomainDef *def,
-                                 const virDomainControllerDef *cont,
-                                 virQEMUCaps *qemuCaps)
-{
-    if (cont->model > 0)
-        return cont->model;
-
-    if (qemuDomainIsPSeries(def))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
-    if (ARCH_IS_S390(def->os.arch))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
-    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
-    if (qemuDomainHasBuiltinESP(def))
-        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90;
-
-    virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Unable to determine model for SCSI controller idx=%1$d"),
-                   cont->idx);
-    return -1;
-}
-
-
-/**
- * @def: Domain definition
- * @cont: Domain controller def
- * @qemuCaps: qemu capabilities
- *
- * Set the controller model based on the existing value and the
- * capabilities if possible.
- *
- * Returns 0 on success, -1 on failure with error set.
- */
-int
-qemuDomainSetSCSIControllerModel(const virDomainDef *def,
-                                 virDomainControllerDef *cont,
-                                 virQEMUCaps *qemuCaps)
-{
-    int model = qemuDomainGetSCSIControllerModel(def, cont, qemuCaps);
-
-    if (model < 0)
-        return -1;
-
-    cont->model = model;
-    return 0;
-}
-
-
-/**
- * @def: Domain definition
- * @info: Domain device info
- *
- * Using the device info, find the controller related to the
- * device by index and use that controller to return the model.
- *
- * Returns the model if found, -1 if not with an error message set
- */
-int
-qemuDomainFindSCSIControllerModel(const virDomainDef *def,
-                                  virDomainDeviceInfo *info)
-{
-    virDomainControllerDef *cont;
-
-    if (!(cont = virDomainDeviceFindSCSIController(def, &info->addr.drive))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to find a SCSI controller for idx=%1$d"),
-                       info->addr.drive.controller);
-        return -1;
-    }
-
-    return cont->model;
-}
-
-
 static int
 qemuDomainAssignVirtioSerialAddresses(virDomainDef *def)
 {
@@ -654,7 +567,6 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
 
         case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
             switch ((virDomainControllerModelSCSI) cont->model) {
-            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90:
                 return 0;
 
@@ -664,7 +576,6 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
 
             /* Transitional devices only work in conventional PCI slots */
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_TRANSITIONAL:
-            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_BUSLOGIC:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSISAS1068:
@@ -675,6 +586,8 @@ qemuDomainDeviceCalculatePCIConnectFlags(virDomainDeviceDef *dev,
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AM53C974:
                 return pciFlags;
 
+            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
+            case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
             case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LAST:
                 return 0;
             }
@@ -2829,10 +2742,16 @@ qemuDomainAssignPCIAddresses(virDomainDef *def,
              * controllers don't plug into any other PCI controller, hence
              * they should skip this step */
             if (bus->model != VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT &&
-                bus->model != VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT &&
-                qemuDomainPCIAddressReserveNextAddr(addrs,
-                                                    &dev.data.controller->info) < 0) {
-                goto cleanup;
+                bus->model != VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT) {
+                if (qemuDomainPCIAddressReserveNextAddr(addrs,
+                                                        &dev.data.controller->info) < 0)
+                    goto cleanup;
+
+                if (qemuDomainFillDevicePCIExtensionFlagsIter(NULL, &dev, &dev.data.controller->info, qemuCaps) < 0)
+                    goto cleanup;
+
+                if (qemuDomainAssignPCIAddressExtension(NULL, NULL, &dev.data.controller->info, addrs) < 0)
+                    goto cleanup;
             }
         }
 
@@ -2843,7 +2762,7 @@ qemuDomainAssignPCIAddresses(virDomainDef *def,
     if (!(addrs = qemuDomainPCIAddressSetCreate(def, qemuCaps, nbuses, false)))
         goto cleanup;
 
-    if (qemuDomainSupportsPCI(def, qemuCaps)) {
+    if (qemuDomainSupportsPCI(def)) {
         if (qemuDomainValidateDevicePCISlotsChipsets(def, addrs) < 0)
             goto cleanup;
 

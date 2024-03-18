@@ -43,6 +43,7 @@
 #include "domain_nwfilter.h"
 #include "domain_addr.h"
 #include "domain_conf.h"
+#include "domain_interface.h"
 #include "netdev_bandwidth_conf.h"
 #include "virnetdevopenvswitch.h"
 #include "device_conf.h"
@@ -366,10 +367,27 @@ qemuBuildDeviceAddressPCIGetBus(const virDomainDef *domainDef,
             if (virDomainDeviceAliasIsUserAlias(contAlias)) {
                 /* When domain has builtin pci-root controller we don't put it
                  * onto cmd line. Therefore we can't set its alias. In that
-                 * case, use the default one. */
-                if (!qemuDomainIsPSeries(domainDef) &&
-                    cont->model == VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT) {
-                    if (virQEMUCapsHasPCIMultiBus(domainDef))
+                 * case, use the default one.
+                 *
+                 * Note that we have to check the value of targetIndex here,
+                 * because we need to handle three different cases:
+                 *
+                 *   non-pSeries guest (targetIndex == -1)
+                 *     => must use default alias
+                 *
+                 *   pSeries guest, default PHB (targetIndex == 0)
+                 *     => must use default alias
+                 *
+                 *   pSeries guest, non-default PHB (targetIndex > 0)
+                 *     => can use actual alias
+                 *
+                 * The last one is due to non-default PHBs beind created
+                 * through the spapr-pci-host-bridge device, which supports
+                 * custom device IDs and thus custom bus names.
+                 * */
+                if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT &&
+                    contTargetIndex <= 0) {
+                    if (qemuDomainSupportsPCIMultibus(domainDef))
                         contAlias = "pci.0";
                     else
                         contAlias = "pci";
@@ -488,7 +506,6 @@ qemuBuildDeviceAddresDriveProps(virJSONValue *props,
 
             break;
 
-        case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_BUSLOGIC:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSISAS1068:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VMPVSCSI:
@@ -510,6 +527,7 @@ qemuBuildDeviceAddresDriveProps(virJSONValue *props,
             break;
 
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
+        case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LAST:
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("Unexpected SCSI controller model %1$d"),
@@ -2668,7 +2686,6 @@ qemuBuildControllerSCSIDevProps(virDomainControllerDef *def,
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DC390:
         driver = "dc-390";
         break;
-    case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_BUSLOGIC:
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90: /* It is built-in dev */
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -2676,6 +2693,7 @@ qemuBuildControllerSCSIDevProps(virDomainControllerDef *def,
                        virDomainControllerModelSCSITypeToString(def->model));
         return NULL;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
+    case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unexpected SCSI controller model %1$d"),
@@ -2800,7 +2818,7 @@ qemuBuildControllerPCIDevProps(virDomainControllerDef *def,
 
 
 /**
- * qemuBuildControllerDevStr:
+ * qemuBuildControllerDevProps:
  * @domainDef: domain definition
  * @def: controller definition
  * @qemuCaps: QEMU binary capabilities
@@ -3053,10 +3071,10 @@ qemuBuildControllersByTypeCommandLine(virCommand *cmd,
              *
              * Note that we *don't* want to end up with the legacy USB
              * controller for q35 and virt machines, so we go ahead and
-             * fail in qemuBuildControllerDevStr(); on the other hand,
+             * fail in qemuBuildControllerDevProps(); on the other hand,
              * for s390 machines we want to ignore any USB controller
              * (see 548ba43028 for the full story), so we skip
-             * qemuBuildControllerDevStr() but we don't ultimately end
+             * qemuBuildControllerDevProps() but we don't ultimately end
              * up adding the legacy USB controller */
             continue;
         }
@@ -3653,6 +3671,7 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
     unsigned long long requestedsize = 0;
     unsigned long long address = 0;
     bool prealloc = false;
+    virTristateBool dynamicMemslots = VIR_TRISTATE_BOOL_ABSENT;
 
     if (!mem->info.alias) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -3694,6 +3713,7 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
         blocksize = mem->target.virtio_mem.blocksize;
         requestedsize = mem->target.virtio_mem.requestedsize;
         address = mem->target.virtio_mem.address;
+        dynamicMemslots = mem->target.virtio_mem.dynamicMemslots;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
@@ -3716,6 +3736,7 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
                               "s:memdev", memdev,
                               "B:prealloc", prealloc,
                               "P:memaddr", address,
+                              "T:dynamic-memslots", dynamicMemslots,
                               "s:id", mem->info.alias,
                               NULL) < 0)
         return NULL;
@@ -7226,9 +7247,17 @@ qemuBuildSmpCommandLine(virCommand *cmd,
                            _("Only 1 die per socket is supported"));
             return -1;
         }
+        if (def->cpu->clusters != 1 &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SMP_CLUSTERS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only 1 cluster per die is supported"));
+            return -1;
+        }
         virBufferAsprintf(&buf, ",sockets=%u", def->cpu->sockets);
         if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SMP_DIES))
             virBufferAsprintf(&buf, ",dies=%u", def->cpu->dies);
+        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SMP_CLUSTERS))
+            virBufferAsprintf(&buf, ",clusters=%u", def->cpu->clusters);
         virBufferAsprintf(&buf, ",cores=%u", def->cpu->cores);
         virBufferAsprintf(&buf, ",threads=%u", def->cpu->threads);
     } else {
@@ -8616,8 +8645,11 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
         break;
 
     case VIR_DOMAIN_NET_TYPE_ETHERNET:
-        if (qemuInterfaceEthernetConnect(vm->def, priv->driver, net,
-                                         tapfd, tapfdSize) < 0)
+        if (virDomainInterfaceEthernetConnect(vm->def, net,
+                                              priv->driver->ebtables,
+                                              priv->driver->config->macFilter,
+                                              priv->driver->privileged,
+                                              tapfd, tapfdSize) < 0)
             return -1;
         vhostfd = true;
         break;
@@ -9077,25 +9109,6 @@ qemuBuildShmemCommandLine(virCommand *cmd,
 {
     g_autoptr(virJSONValue) memProps = NULL;
     g_autoptr(virJSONValue) devProps = NULL;
-
-    if (shmem->size) {
-        /*
-         * Thanks to our parsing code, we have a guarantee that the
-         * size is power of two and is at least a mebibyte in size.
-         * But because it may change in the future, the checks are
-         * doubled in here.
-         */
-        if (shmem->size & (shmem->size - 1)) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("shmem size must be a power of two"));
-            return -1;
-        }
-        if (shmem->size < 1024 * 1024) {
-            virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("shmem size must be at least 1 MiB (1024 KiB)"));
-            return -1;
-        }
-    }
 
     if (shmem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",

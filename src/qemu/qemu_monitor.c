@@ -308,32 +308,9 @@ qemuMonitorIOWriteWithFD(qemuMonitor *mon,
                          size_t len,
                          int fd)
 {
-    struct msghdr msg = { 0 };
-    struct iovec iov[1];
-    int ret;
-    char control[CMSG_SPACE(sizeof(int))] = { 0 };
-    struct cmsghdr *cmsg;
+    int fds[] = { fd };
 
-    iov[0].iov_base = (void *)data;
-    iov[0].iov_len = len;
-
-    msg.msg_iov = iov;
-    msg.msg_iovlen = 1;
-
-    msg.msg_control = control;
-    msg.msg_controllen = sizeof(control);
-
-    cmsg = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    memcpy(CMSG_DATA(cmsg), &fd, sizeof(int));
-
-    do {
-        ret = sendmsg(mon->fd, &msg, 0);
-    } while (ret < 0 && errno == EINTR);
-
-    return ret;
+    return virSocketSendMsgWithFDs(mon->fd, data, len, fds, G_N_ELEMENTS(fds));
 }
 
 
@@ -624,6 +601,7 @@ qemuMonitorOpenInternal(virDomainObj *vm,
     if (priv) {
         mon->objectAddNoWrap = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_OBJECT_JSON);
         mon->queryNamedBlockNodesFlat = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_QMP_QUERY_NAMED_BLOCK_NODES_FLAT);
+        mon->blockjobMaskProtocol = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL);
     }
 
     if (virSetCloseExec(mon->fd) < 0) {
@@ -1501,6 +1479,7 @@ qemuMonitorCPUInfoClear(qemuMonitorCPUInfo *cpus,
         cpus[i].qemu_id = -1;
         cpus[i].socket_id = -1;
         cpus[i].die_id = -1;
+        cpus[i].cluster_id = -1;
         cpus[i].core_id = -1;
         cpus[i].thread_id = -1;
         cpus[i].node_id = -1;
@@ -1658,6 +1637,7 @@ qemuMonitorGetCPUInfoHotplug(struct qemuMonitorQueryHotpluggableCpusEntry *hotpl
                                          !vcpus[mainvcpu].online;
         vcpus[mainvcpu].socket_id = hotplugvcpus[i].socket_id;
         vcpus[mainvcpu].die_id = hotplugvcpus[i].die_id;
+        vcpus[mainvcpu].cluster_id = hotplugvcpus[i].cluster_id;
         vcpus[mainvcpu].core_id = hotplugvcpus[i].core_id;
         vcpus[mainvcpu].thread_id = hotplugvcpus[i].thread_id;
         vcpus[mainvcpu].node_id = hotplugvcpus[i].node_id;

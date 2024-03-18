@@ -3364,7 +3364,6 @@ qemuValidateCheckSCSIControllerModel(virQEMUCaps *qemuCaps,
             return false;
         }
         break;
-    case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_BUSLOGIC:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Unsupported controller model: %1$s"),
@@ -3389,6 +3388,7 @@ qemuValidateCheckSCSIControllerModel(virQEMUCaps *qemuCaps,
         }
         return true;
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_DEFAULT:
+    case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_AUTO:
     case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unexpected SCSI controller model %1$d"),
@@ -5066,6 +5066,13 @@ qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
                            _("virtio-mem isn't supported by this QEMU binary"));
             return -1;
         }
+
+        if (mem->target.virtio_mem.dynamicMemslots == VIR_TRISTATE_BOOL_YES &&
+            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_DYNAMIC_MEMSLOTS)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("virtio-mem does not support dynamicMemslots"));
+            return -1;
+        }
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
@@ -5118,6 +5125,15 @@ static int
 qemuValidateDomainDeviceDefShmem(virDomainShmemDef *shmem,
                                  virQEMUCaps *qemuCaps)
 {
+    if (shmem->size > 0) {
+        if (shmem->size < 1024 * 1024 ||
+            !VIR_IS_POW2(shmem->size)) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("shmem size must be a power of 2 and at least 1 MiB (1024 KiB)"));
+            return -1;
+        }
+    }
+
     switch (shmem->model) {
     case VIR_DOMAIN_SHMEM_MODEL_IVSHMEM:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",

@@ -277,12 +277,11 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
                               virDomainDiskDef *disk,
                               unsigned long long capacity)
 {
-    int ret = -1;
-    virStoragePoolPtr pool = NULL;
-    virStorageVolPtr vol = NULL;
-    char *volName = NULL, *basePath = NULL;
-    char *volStr = NULL;
+    g_autoptr(virStoragePool) pool = NULL;
+    g_autoptr(virStorageVol) vol = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    char *volName = NULL;
+    g_autofree char *basePath = NULL;
     const char *format = NULL;
     const char *compat = NULL;
     unsigned int flags = 0;
@@ -303,7 +302,7 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
             virReportError(VIR_ERR_INVALID_ARG,
                            _("malformed disk path: %1$s"),
                            disk->src->path);
-            goto cleanup;
+            return -1;
         }
 
         *volName = '\0';
@@ -311,11 +310,11 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
 
         if (!*conn) {
             if (!(*conn = virGetConnectStorage()))
-                goto cleanup;
+                return -1;
         }
 
         if (!(pool = virStoragePoolLookupByTargetPath(*conn, basePath)))
-            goto cleanup;
+            return -1;
         format = virStorageFileFormatTypeToString(disk->src->format);
         if (disk->src->format == VIR_STORAGE_FILE_QCOW2) {
             flags |= VIR_STORAGE_VOL_CREATE_PREALLOC_METADATA;
@@ -327,11 +326,11 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
     case VIR_STORAGE_TYPE_VOLUME:
         if (!*conn) {
             if (!(*conn = virGetConnectStorage()))
-                goto cleanup;
+                return -1;
         }
 
         if (!(pool = virStoragePoolLookupByName(*conn, disk->src->srcpool->pool)))
-            goto cleanup;
+            return -1;
         format = virStorageFileFormatTypeToString(disk->src->format);
         volName = disk->src->srcpool->volume;
         if (disk->src->format == VIR_STORAGE_FILE_QCOW2)
@@ -339,10 +338,6 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
         break;
 
     case VIR_STORAGE_TYPE_NETWORK:
-        VIR_DEBUG("Skipping creation of network disk '%s'",
-                  disk->dst);
-        return 0;
-
     case VIR_STORAGE_TYPE_BLOCK:
     case VIR_STORAGE_TYPE_DIR:
     case VIR_STORAGE_TYPE_NVME:
@@ -353,14 +348,13 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("cannot precreate storage for disk type '%1$s'"),
                        virStorageTypeToString(disk->src->type));
-        goto cleanup;
+        return -1;
     }
 
     if ((vol = virStorageVolLookupByName(pool, volName))) {
         VIR_DEBUG("Skipping creation of already existing volume of name '%s'",
                   volName);
-        ret = 0;
-        goto cleanup;
+        return 0;
     }
 
     virBufferAddLit(&buf, "<volume>\n");
@@ -377,22 +371,10 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
     virBufferAdjustIndent(&buf, -2);
     virBufferAddLit(&buf, "</volume>\n");
 
-    if (!(volStr = virBufferContentAndReset(&buf))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("unable to create volume XML"));
-        goto cleanup;
-    }
+    if (!(vol = virStorageVolCreateXML(pool, virBufferCurrentContent(&buf), flags)))
+        return -1;
 
-    if (!(vol = virStorageVolCreateXML(pool, volStr, flags)))
-        goto cleanup;
-
-    ret = 0;
- cleanup:
-    VIR_FREE(basePath);
-    VIR_FREE(volStr);
-    virObjectUnref(vol);
-    virObjectUnref(pool);
-    return ret;
+    return 0;
 }
 
 static bool
@@ -448,8 +430,7 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
 
     for (i = 0; i < nbd->ndisks; i++) {
         virDomainDiskDef *disk;
-        const char *diskSrcPath = NULL;
-        g_autofree char *nvmePath = NULL;
+        bool exists = false;
 
         VIR_DEBUG("Looking up disk target '%s' (capacity=%llu)",
                   nbd->disks[i].target, nbd->disks[i].capacity);
@@ -465,21 +446,14 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
         if (!qemuMigrationAnyCopyDisk(disk, nmigrate_disks, migrate_disks))
             continue;
 
-        if (disk->src->type == VIR_STORAGE_TYPE_NVME) {
-            virPCIDeviceAddressGetSysfsFile(&disk->src->nvme->pciAddr, &nvmePath);
-            diskSrcPath = nvmePath;
-        } else if (virStorageSourceIsLocalStorage(disk->src)) {
-            diskSrcPath = virDomainDiskGetSource(disk);
-        }
-
-        if (diskSrcPath) {
+        switch (virStorageSourceGetActualType(disk->src)) {
+        case VIR_STORAGE_TYPE_BLOCK:
             /* In case the destination of the storage migration is a block
              * device it might be possible that for various reasons the size
              * will not be identical. Since qemu refuses to do a blockdev-mirror
              * into an image which doesn't have the exact same size we need to
              * install a slice on top of the top image */
-            if (virStorageSourceIsBlockLocal(disk->src) &&
-                disk->src->format == VIR_STORAGE_FILE_RAW &&
+            if (disk->src->format == VIR_STORAGE_FILE_RAW &&
                 disk->src->sliceStorage == NULL) {
                 qemuDomainObjPrivate *priv = vm->privateData;
                 g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
@@ -493,19 +467,60 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
                 }
             }
 
-            /* don't pre-create existing disks */
-            if (virFileExists(diskSrcPath)) {
-                VIR_DEBUG("Skipping pre-create of existing source for disk '%s'", disk->dst);
-                continue;
-            }
+            exists = virFileExists(disk->src->path);
+            break;
+
+        case VIR_STORAGE_TYPE_FILE:
+            exists = virFileExists(disk->src->path);
+            break;
+
+        case VIR_STORAGE_TYPE_NVME: {
+            /* While NVMe disks are local, they are not accessible via src->path */
+            g_autofree char *nvmePath = NULL;
+
+            virPCIDeviceAddressGetSysfsFile(&disk->src->nvme->pciAddr, &nvmePath);
+
+            exists = virFileExists(nvmePath);
+            break;
         }
+
+        case VIR_STORAGE_TYPE_VHOST_VDPA:
+            exists = virFileExists(disk->src->vdpadev);
+            break;
+
+        case VIR_STORAGE_TYPE_NETWORK:
+            /* For network disks we always assume they exist as the storage drivec
+             * can't create them */
+            exists = true;
+            break;
+
+        case VIR_STORAGE_TYPE_VHOST_USER:
+        case VIR_STORAGE_TYPE_DIR:
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                           _("non-shared storage migration into '%1$s' target is not supported"),
+                           virStorageTypeToString(virStorageSourceGetActualType(disk->src)));
+            return -1;
+
+        case VIR_STORAGE_TYPE_VOLUME:
+            /* Existance of 'volume' type disks are handled when pre-creating them */
+            break;
+
+        case VIR_STORAGE_TYPE_LAST:
+        case VIR_STORAGE_TYPE_NONE:
+            break;
+        }
+
+        VIR_DEBUG("target='%s' exists='%d'", disk->dst, exists);
+
+        if (exists)
+            continue;
 
         /* create the storage - if supported */
 
         if (incremental) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("pre-creation of storage target '%1$s' for incremental storage migration of disk '%2$s' is not supported"),
-                           NULLSTR(diskSrcPath), nbd->disks[i].target);
+                           _("pre-creation of storage target for incremental storage migration of disk '%1$s' is not supported"),
+                           nbd->disks[i].target);
             return -1;
         }
 
@@ -527,6 +542,8 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
  * arguments in 'migrate' monitor command.
  * Error is reported here.
  *
+ * Caller is responsible for releasing 'priv->nbdPort' from the port allocator.
+ *
  * Returns 0 on success, -1 otherwise.
  */
 static int
@@ -539,7 +556,6 @@ qemuMigrationDstStartNBDServer(virQEMUDriver *driver,
                                const char *nbdURI,
                                const char *tls_alias)
 {
-    int ret = -1;
     qemuDomainObjPrivate *priv = vm->privateData;
     size_t i;
     virStorageNetHostDef server = {
@@ -608,29 +624,32 @@ qemuMigrationDstStartNBDServer(virQEMUDriver *driver,
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                            _("Cannot migrate empty or read-only disk %1$s"),
                            disk->dst);
-            goto cleanup;
+            return -1;
         }
 
         if (!(diskAlias = qemuAliasDiskDriveFromDisk(disk)))
-            goto cleanup;
+            return -1;
 
         if (!server_started &&
             server.transport == VIR_STORAGE_NET_HOST_TRANS_TCP) {
             if (server.port) {
                 if (virPortAllocatorSetUsed(server.port) < 0)
-                    goto cleanup;
+                    return -1;
             } else {
                 unsigned short port = 0;
 
                 if (virPortAllocatorAcquire(driver->migrationPorts, &port) < 0)
-                    goto cleanup;
+                    return -1;
 
                 server.port = port;
             }
+
+            /* caller will release the port */
+            priv->nbdPort = server.port;
         }
 
         if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_MIGRATION_IN) < 0)
-            goto cleanup;
+            return -1;
 
         if (!server_started) {
             if (qemuMonitorNBDServerStart(priv->mon, &server, tls_alias) < 0)
@@ -643,19 +662,11 @@ qemuMigrationDstStartNBDServer(virQEMUDriver *driver,
         qemuDomainObjExitMonitor(vm);
     }
 
-    if (server.transport == VIR_STORAGE_NET_HOST_TRANS_TCP)
-        priv->nbdPort = server.port;
-
-    ret = 0;
-
- cleanup:
-    if (ret < 0)
-        virPortAllocatorRelease(server.port);
-    return ret;
+    return 0;
 
  exit_monitor:
     qemuDomainObjExitMonitor(vm);
-    goto cleanup;
+    return -1;
 }
 
 
@@ -3261,11 +3272,7 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
         virDomainAuditStart(vm, "migrated", false);
         qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED,
                         VIR_ASYNC_JOB_MIGRATION_IN, stopFlags);
-        /* release if port is auto selected which is not the case if
-         * it is given in parameters
-         */
-        if (nbdPort == 0)
-            virPortAllocatorRelease(priv->nbdPort);
+        virPortAllocatorRelease(priv->nbdPort);
         priv->nbdPort = 0;
     }
     goto cleanup;
@@ -3425,11 +3432,7 @@ qemuMigrationDstPrepareFresh(virQEMUDriver *driver,
 
     if (autoPort)
         priv->migrationPort = port;
-    /* in this case port is not auto selected and we don't need to manage it
-     * anymore after cookie is baked
-     */
-    if (nbdPort != 0)
-        priv->nbdPort = 0;
+
     ret = 0;
 
  cleanup:

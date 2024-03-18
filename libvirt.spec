@@ -90,6 +90,7 @@
 
 # Other optional features
 %define with_numactl          0%{!?_without_numactl:1}
+%define with_userfaultfd_sysctl 0%{!?_without_userfaultfd_sysctl:1}
 
 # A few optional bits off by default, we enable later
 %define with_fuse             0
@@ -246,6 +247,12 @@
     %define enable_werror -Dwerror=false -Dgit_werror=disabled
 %endif
 
+# Fedora and RHEL-9 are new enough to support /dev/userfaultfd, which
+# does not require enabling vm.unprivileged_userfaultfd sysctl.
+%if 0%{?fedora} || 0%{?rhel} >= 9
+    %define with_userfaultfd_sysctl 0
+%endif
+
 %define tls_priority "@LIBVIRT,SYSTEM"
 
 # libvirt 8.1.0 stops distributing any sysconfig files.
@@ -269,12 +276,12 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 10.0.0
+Version: 10.1.0
 Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/
 
-%if %(echo %{version} | grep -q "\.0$"; echo $?) == 1
+%if %(echo %{version} | grep "\.0$" >/dev/null; echo $?) == 1
     %define mainturl stable_updates/
 %endif
 Source: https://download.libvirt.org/%{?mainturl}libvirt-%{version}.tar.xz
@@ -332,7 +339,7 @@ BuildRequires: xen-devel
 BuildRequires: glib2-devel >= 2.56
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
-BuildRequires: bash-completion >= 2.0
+BuildRequires: pkgconfig(bash-completion) >= 2.0
 BuildRequires: libtasn1-devel
 BuildRequires: gnutls-devel
 BuildRequires: libattr-devel
@@ -613,6 +620,7 @@ Requires: libvirt-libs = %{version}-%{release}
 # needed for device enumeration
 Requires: systemd >= 185
 # For managing persistent mediated devices
+# Note: for nodedev-update support at least mdevctl v1.3.0 is required
 Requires: mdevctl
 # for modprobe of pci devices
 Requires: module-init-tools
@@ -1276,6 +1284,12 @@ exit 1
     %define arg_remote_mode -Dremote_default_mode=legacy
 %endif
 
+%if %{with_userfaultfd_sysctl}
+    %define arg_userfaultfd_sysctl -Duserfaultfd_sysctl=enabled
+%else
+    %define arg_userfaultfd_sysctl -Duserfaultfd_sysctl=disabled
+%endif
+
 %define when  %(date +"%%F-%%T")
 %define where %(hostname)
 %define who   %{?packager}%{!?packager:Unknown}
@@ -1355,6 +1369,8 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
            -Dqemu_moddir=%{qemu_moddir} \
            -Dqemu_datadir=%{qemu_datadir} \
            -Dtls_priority=%{tls_priority} \
+           -Dsysctl_config=enabled \
+           %{?arg_userfaultfd_sysctl} \
            %{?enable_werror} \
            -Dexpensive_tests=enabled \
            -Dinit_script=systemd \
@@ -1438,6 +1454,7 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
   -Dstorage_vstorage=disabled \
   -Dstorage_zfs=disabled \
   -Dsysctl_config=disabled \
+  -Duserfaultfd_sysctl=disabled \
   -Dtests=disabled \
   -Dudev=disabled \
   -Dwireshark_dissector=disabled \
@@ -1473,6 +1490,7 @@ chmod 600 $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/nwfilter/*.xml
     %if ! %{with_qemu}
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/libvirtd_qemu.aug
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
+rm -f $RPM_BUILD_ROOT%{_sysusersdir}/libvirt-qemu.conf
     %endif
 %find_lang %{name}
 
@@ -1834,16 +1852,19 @@ exit 0
 %pre daemon-driver-qemu
 %libvirt_sysconfig_pre virtqemud
 %libvirt_systemd_unix_pre virtqemud
+
 # We want soft static allocation of well-known ids, as disk images
-# are commonly shared across NFS mounts by id rather than name; see
-# https://fedoraproject.org/wiki/Packaging:UsersAndGroups
-getent group kvm >/dev/null || groupadd -f -g 36 -r kvm
-getent group qemu >/dev/null || groupadd -f -g 107 -r qemu
-if ! getent passwd qemu >/dev/null; then
-  if ! getent passwd 107 >/dev/null; then
-    useradd -r -u 107 -g qemu -G kvm -d / -s /sbin/nologin -c "qemu user" qemu
+# are commonly shared across NFS mounts by id rather than name.
+# See https://docs.fedoraproject.org/en-US/packaging-guidelines/UsersAndGroups/
+# We can not use the sysusers_create_compat macro here as we want to keep the
+# specfile standalone and not relying on additionnal files.
+getent group 'kvm' >/dev/null || groupadd -f -g '36' -r 'kvm' || :
+getent group 'qemu' >/dev/null || groupadd -f -g '107' -r 'qemu' || :
+if ! getent passwd 'qemu' >/dev/null; then
+  if ! getent passwd '107' >/dev/null; then
+    useradd -r -u '107' -g 'qemu' -G 'kvm' -d '/' -s '/sbin/nologin' -c 'qemu user' 'qemu' || :
   else
-    useradd -r -g qemu -G kvm -d / -s /sbin/nologin -c "qemu user" qemu
+    useradd -r -g 'qemu' -G 'kvm' -d '/' -s '/sbin/nologin' -c 'qemu user' 'qemu' || :
   fi
 fi
 exit 0
@@ -2211,7 +2232,9 @@ exit 0
     %if %{with_qemu}
 %files daemon-driver-qemu
 %config(noreplace) %{_sysconfdir}/libvirt/virtqemud.conf
+        %if %{with_userfaultfd_sysctl}
 %config(noreplace) %{_prefix}/lib/sysctl.d/60-qemu-postcopy-migration.conf
+        %endif
 %{_datadir}/augeas/lenses/virtqemud.aug
 %{_datadir}/augeas/lenses/tests/test_virtqemud.aug
 %{_unitdir}/virtqemud.service
@@ -2246,6 +2269,7 @@ exit 0
 %{_bindir}/virt-qemu-run
 %{_mandir}/man1/virt-qemu-run.1*
 %{_mandir}/man8/virtqemud.8*
+%{_sysusersdir}/libvirt-qemu.conf
     %endif
 
     %if %{with_lxc}

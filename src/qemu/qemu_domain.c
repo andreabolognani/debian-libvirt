@@ -3155,11 +3155,8 @@ qemuDomainObjPrivateXMLParseSlirpFeatures(xmlNodePtr featuresNode,
 
     ctxt->node = featuresNode;
 
-    if ((n = virXPathNodeSet("./feature", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("failed to parse slirp-helper features"));
+    if ((n = virXPathNodeSet("./feature", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     for (i = 0; i < n; i++) {
         g_autofree char *str = virXMLPropString(nodes[i], "name");
@@ -3273,11 +3270,9 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./qemuCaps/flag", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("failed to parse qemu capabilities flags"));
+    if ((n = virXPathNodeSet("./qemuCaps/flag", ctxt, &nodes)) < 0)
         return -1;
-    }
+
     if (n > 0) {
         qemuCaps = virQEMUCapsNew();
 
@@ -3305,11 +3300,9 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
 
     priv->fakeReboot = virXPathBoolean("boolean(./fakereboot)", ctxt) == 1;
 
-    if ((n = virXPathNodeSet("./devices/device", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to parse qemu device list"));
+    if ((n = virXPathNodeSet("./devices/device", ctxt, &nodes)) < 0)
         return -1;
-    }
+
     if (n > 0) {
         /* NULL-terminated list */
         priv->qemuDevices = g_new0(char *, n + 1);
@@ -3325,11 +3318,9 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
     }
     VIR_FREE(nodes);
 
-    if ((n = virXPathNodeSet("./slirp/helper", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to parse slirp helper list"));
+    if ((n = virXPathNodeSet("./slirp/helper", ctxt, &nodes)) < 0)
         return -1;
-    }
+
     for (i = 0; i < n; i++) {
         g_autofree char *alias = virXMLPropString(nodes[i], "alias");
         g_autofree char *pid = virXMLPropString(nodes[i], "pid");
@@ -4104,18 +4095,55 @@ qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
     return 0;
 }
 
+
+/**
+ * @def: Domain definition
+ * @cont: Domain controller def
+ * @qemuCaps: qemu capabilities
+ *
+ * If the controller model is already defined, return it immediately;
+ * otherwise, based on the @qemuCaps return a default model value.
+ *
+ * Returns model on success, -1 on failure with error set.
+ */
+int
+qemuDomainGetSCSIControllerModel(const virDomainDef *def,
+                                 const virDomainControllerDef *cont,
+                                 virQEMUCaps *qemuCaps)
+{
+    if (cont->model > 0)
+        return cont->model;
+
+    if (qemuDomainIsPSeries(def))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
+    if (ARCH_IS_S390(def->os.arch))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_SCSI))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
+    if (qemuDomainHasBuiltinESP(def))
+        return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_NCR53C90;
+
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("Unable to determine model for SCSI controller idx=%1$d"),
+                   cont->idx);
+    return -1;
+}
+
+
 static int
 qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
                                virDomainDef *def,
                                virQEMUCaps *qemuCaps)
 {
-    bool addDefaultUSB = true;
+    bool addDefaultUSB = false;
     int usbModel = -1; /* "default for machinetype" */
     int pciRoot;       /* index within def->controllers */
     bool addImplicitSATA = false;
     bool addPCIRoot = false;
     bool addPCIeRoot = false;
-    bool addDefaultMemballoon = true;
+    bool addDefaultMemballoon = false;
     bool addDefaultUSBKBD = false;
     bool addDefaultUSBMouse = false;
     bool addPanicDevice = false;
@@ -4129,10 +4157,14 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     switch (def->os.arch) {
     case VIR_ARCH_I686:
     case VIR_ARCH_X86_64:
+        addDefaultMemballoon = true;
+
         if (STREQ(def->os.machine, "isapc")) {
-            addDefaultUSB = false;
             break;
         }
+
+        addDefaultUSB = true;
+
         if (qemuDomainIsQ35(def)) {
             addPCIeRoot = true;
             addImplicitSATA = true;
@@ -4157,25 +4189,23 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         break;
 
     case VIR_ARCH_ARMV6L:
-        addDefaultUSB = false;
-        addDefaultMemballoon = false;
         if (STREQ(def->os.machine, "versatilepb"))
             addPCIRoot = true;
         break;
 
     case VIR_ARCH_ARMV7L:
     case VIR_ARCH_AARCH64:
-        addDefaultUSB = false;
-        addDefaultMemballoon = false;
         if (qemuDomainIsARMVirt(def))
-            addPCIeRoot = virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_GPEX);
+            addPCIeRoot = true;
         break;
 
     case VIR_ARCH_PPC64:
     case VIR_ARCH_PPC64LE:
         addPCIRoot = true;
+        addDefaultUSB = true;
         addDefaultUSBKBD = true;
         addDefaultUSBMouse = true;
+        addDefaultMemballoon = true;
         /* For pSeries guests, the firmware provides the same
          * functionality as the pvpanic device, so automatically
          * add the definition if not already present */
@@ -4188,29 +4218,28 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     case VIR_ARCH_PPCEMB:
     case VIR_ARCH_SH4:
     case VIR_ARCH_SH4EB:
+        addDefaultUSB = true;
+        addDefaultMemballoon = true;
         addPCIRoot = true;
         break;
 
     case VIR_ARCH_RISCV32:
     case VIR_ARCH_RISCV64:
-        addDefaultUSB = false;
+        addDefaultMemballoon = true;
         if (qemuDomainIsRISCVVirt(def))
-            addPCIeRoot = virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_GPEX);
+            addPCIeRoot = true;
         break;
 
     case VIR_ARCH_S390:
     case VIR_ARCH_S390X:
-        addDefaultUSB = false;
+        addDefaultMemballoon = true;
         addPanicDevice = true;
         addPCIRoot = virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_ZPCI);
         break;
 
-    case VIR_ARCH_SPARC:
-        addDefaultUSB = false;
-        addDefaultMemballoon = false;
-        break;
-
     case VIR_ARCH_SPARC64:
+        addDefaultUSB = true;
+        addDefaultMemballoon = true;
         addPCIRoot = true;
         break;
 
@@ -4218,6 +4247,8 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     case VIR_ARCH_MIPSEL:
     case VIR_ARCH_MIPS64:
     case VIR_ARCH_MIPS64EL:
+        addDefaultUSB = true;
+        addDefaultMemballoon = true;
         if (qemuDomainIsMipsMalta(def))
             addPCIRoot = true;
         break;
@@ -4233,6 +4264,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     case VIR_ARCH_PARISC:
     case VIR_ARCH_PARISC64:
     case VIR_ARCH_PPCLE:
+    case VIR_ARCH_SPARC:
     case VIR_ARCH_UNICORE32:
     case VIR_ARCH_XTENSA:
     case VIR_ARCH_XTENSAEB:
@@ -5392,12 +5424,14 @@ static int
 qemuDomainDefaultNetModel(const virDomainDef *def,
                           virQEMUCaps *qemuCaps)
 {
-    if (ARCH_IS_S390(def->os.arch))
+    /* When there are no backwards compatibility concerns getting in
+     * the way, virtio is a good default */
+    if (ARCH_IS_S390(def->os.arch) ||
+        qemuDomainIsRISCVVirt(def)) {
         return VIR_DOMAIN_NET_MODEL_VIRTIO;
+    }
 
-    if (def->os.arch == VIR_ARCH_ARMV6L ||
-        def->os.arch == VIR_ARCH_ARMV7L ||
-        def->os.arch == VIR_ARCH_AARCH64) {
+    if (ARCH_IS_ARM(def->os.arch)) {
         if (STREQ(def->os.machine, "versatilepb"))
             return VIR_DOMAIN_NET_MODEL_SMC91C111;
 
@@ -5409,10 +5443,6 @@ qemuDomainDefaultNetModel(const virDomainDef *def,
         return VIR_DOMAIN_NET_MODEL_LAN9118;
     }
 
-    /* virtio is a sensible default for RISC-V virt guests */
-    if (qemuDomainIsRISCVVirt(def))
-        return VIR_DOMAIN_NET_MODEL_VIRTIO;
-
     /* In all other cases the model depends on the capabilities. If they were
      * not provided don't report any default. */
     if (!qemuCaps)
@@ -5423,9 +5453,11 @@ qemuDomainDefaultNetModel(const virDomainDef *def,
      * system than the previous one */
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_RTL8139))
         return VIR_DOMAIN_NET_MODEL_RTL8139;
-    else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_E1000))
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_E1000))
         return VIR_DOMAIN_NET_MODEL_E1000;
-    else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_NET))
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_NET))
         return VIR_DOMAIN_NET_MODEL_VIRTIO;
 
     /* We've had no luck detecting support for any network device,
@@ -5582,7 +5614,9 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
     switch (cont->type) {
     case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
         /* Set the default SCSI controller model if not already set */
-        if (qemuDomainSetSCSIControllerModel(def, cont, qemuCaps) < 0)
+        cont->model = qemuDomainGetSCSIControllerModel(def, cont, qemuCaps);
+
+        if (cont->model < 0)
             return -1;
         break;
 
@@ -5597,7 +5631,7 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
              * chance we will get away with using the legacy USB controller
              * when the relevant device is not available.
              *
-             * See qemuBuildControllerDevCommandLine() */
+             * See qemuBuildControllersCommandLine() */
 
             /* Default USB controller is piix3-uhci if available. */
             if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PIIX3_USB_UHCI))
@@ -8026,6 +8060,7 @@ qemuDomainStorageSourceAccessModify(virQEMUDriver *driver,
     bool revoke_namespace = false;
     bool revoke_nvme = false;
     bool revoke_lockspace = false;
+    bool revoke_nbdkit = false;
 
     VIR_DEBUG("src='%s' readonly=%d force_ro=%d force_rw=%d revoke=%d chain=%d",
               NULLSTR(src->path), src->readonly, force_ro, force_rw, revoke, chain);
@@ -8044,6 +8079,7 @@ qemuDomainStorageSourceAccessModify(virQEMUDriver *driver,
         revoke_namespace = true;
         revoke_nvme = true;
         revoke_lockspace = true;
+        revoke_nbdkit = true;
         ret = 0;
         goto revoke;
     }
@@ -8058,6 +8094,11 @@ qemuDomainStorageSourceAccessModify(virQEMUDriver *driver,
             goto revoke;
 
         revoke_nvme = true;
+
+        if (qemuNbdkitStartStorageSource(driver, vm, src, chain) < 0)
+            goto revoke;
+
+        revoke_nbdkit = true;
 
         if (qemuDomainNamespaceSetupDisk(vm, src, &revoke_namespace) < 0)
             goto revoke;
@@ -8112,6 +8153,9 @@ qemuDomainStorageSourceAccessModify(virQEMUDriver *driver,
         if (virDomainLockImageDetach(driver->lockManager, vm, src) < 0)
             VIR_WARN("Unable to release lock on %s", srcstr);
     }
+
+    if (revoke_nbdkit)
+        qemuNbdkitStopStorageSource(src, vm, chain);
 
  cleanup:
     src->readonly = was_readonly;
@@ -9059,22 +9103,47 @@ qemuDomainNeedsFDC(const virDomainDef *def)
 
 
 bool
-qemuDomainSupportsPCI(virDomainDef *def,
-                      virQEMUCaps *qemuCaps)
+qemuDomainSupportsPCI(const virDomainDef *def)
 {
-    if (def->os.arch != VIR_ARCH_ARMV6L &&
-        def->os.arch != VIR_ARCH_ARMV7L &&
-        def->os.arch != VIR_ARCH_AARCH64 &&
-        !ARCH_IS_RISCV(def->os.arch)) {
+    /* On Arm architectures, only the virt and versatilepb
+     * machine types support PCI */
+    if (ARCH_IS_ARM(def->os.arch)) {
+        if (qemuDomainIsARMVirt(def) ||
+            STREQ(def->os.machine, "versatilepb")) {
+            return true;
+        }
+        return false;
+    }
+
+    /* On RISC-V, only the virt machine type supports PCI */
+    if (ARCH_IS_RISCV(def->os.arch)) {
+        if (qemuDomainIsRISCVVirt(def)) {
+            return true;
+        }
+        return false;
+    }
+
+    /* On all other architectures, PCI support is assumed to
+     * be present */
+    return true;
+}
+
+
+bool
+qemuDomainSupportsPCIMultibus(const virDomainDef *def)
+{
+    /* Most architectures support multibus for all machine types on
+     * all supported QEMU versions */
+    if (ARCH_IS_X86(def->os.arch) ||
+        ARCH_IS_PPC(def->os.arch) ||
+        ARCH_IS_S390(def->os.arch)) {
         return true;
     }
 
-    if (STREQ(def->os.machine, "versatilepb"))
-        return true;
-
-    if ((qemuDomainIsARMVirt(def) ||
-         qemuDomainIsRISCVVirt(def)) &&
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_GPEX)) {
+    /* In some cases, support for multibus is limited to some machine
+     * types */
+    if (qemuDomainIsARMVirt(def) ||
+        qemuDomainIsRISCVVirt(def)) {
         return true;
     }
 
@@ -9900,11 +9969,12 @@ qemuDomainRefreshVcpuInfo(virDomainObj *vm,
 
         if (validTIDs)
             VIR_DEBUG("vCPU[%zu] PID %llu is valid "
-                      "(node=%d socket=%d die=%d core=%d thread=%d)",
+                      "(node=%d socket=%d die=%d cluster=%d core=%d thread=%d)",
                       i, (unsigned long long)info[i].tid,
                       info[i].node_id,
                       info[i].socket_id,
                       info[i].die_id,
+                      info[i].cluster_id,
                       info[i].core_id,
                       info[i].thread_id);
     }
@@ -11116,7 +11186,7 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
     /* qemuBlockStorageSourceSetStorageNodename steals 'nodestorage' */
     qemuBlockStorageSourceSetStorageNodename(src, nodestorage);
 
-    if (qemuBlockStorageSourceNeedsFormatLayer(src)) {
+    if (qemuBlockStorageSourceNeedsFormatLayer(src, priv->qemuCaps)) {
         char *nodeformat = g_strdup_printf("%s-format", nodenameprefix);
 
         qemuBlockStorageSourceSetFormatNodename(src, nodeformat);

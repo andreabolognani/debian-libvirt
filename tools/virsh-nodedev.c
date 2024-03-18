@@ -390,6 +390,14 @@ static const vshCmdOptDef opts_node_list_devices[] = {
      .type = VSH_OT_BOOL,
      .help = N_("list inactive & active devices")
     },
+    {.name = "persistent",
+     .type = VSH_OT_BOOL,
+     .help = N_("list persistent devices")
+    },
+    {.name = "transient",
+     .type = VSH_OT_BOOL,
+     .help = N_("list transient devices")
+    },
     {.name = NULL}
 };
 
@@ -407,6 +415,8 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     int cap_type = -1;
     bool inactive = vshCommandOptBool(cmd, "inactive");
     bool all = vshCommandOptBool(cmd, "all");
+    bool persistent = vshCommandOptBool(cmd, "persistent");
+    bool transient = vshCommandOptBool(cmd, "transient");
 
     ignore_value(vshCommandOptStringQuiet(ctl, cmd, "cap", &cap_str));
 
@@ -420,8 +430,13 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
         return false;
     }
 
-    if (tree && (cap_str || inactive)) {
-        vshError(ctl, "%s", _("Option --tree is incompatible with --cap and --inactive"));
+    if (transient && (persistent || inactive)) {
+        vshError(ctl, "%s", _("Option --transient is incompatible with --persistent and --inactive"));
+        return false;
+    }
+
+    if (tree && (cap_str || inactive || persistent || transient)) {
+        vshError(ctl, "%s", _("Option --tree is incompatible with --cap, --inactive, --persistent and --transient"));
         return false;
     }
 
@@ -509,6 +524,11 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     if (!inactive)
         flags |= VIR_CONNECT_LIST_NODE_DEVICES_ACTIVE;
 
+    if (persistent)
+        flags |= VIR_CONNECT_LIST_NODE_DEVICES_PERSISTENT;
+    if (transient)
+        flags |= VIR_CONNECT_LIST_NODE_DEVICES_TRANSIENT;
+
     if (!(list = virshNodeDeviceListCollect(ctl, caps, ncaps, flags))) {
         ret = false;
         goto cleanup;
@@ -575,6 +595,10 @@ static const vshCmdOptDef opts_node_device_dumpxml[] = {
      .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
      .completer = virshNodeDeviceNameCompleter,
     },
+    {.name = "inactive",
+     .type = VSH_OT_BOOL,
+     .help = N_("show inactive defined XML"),
+    },
     {.name = "xpath",
      .type = VSH_OT_STRING,
      .flags = VSH_OFLAG_REQ_OPT,
@@ -594,6 +618,7 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshNodeDevice) device = NULL;
     g_autofree char *xml = NULL;
     const char *device_value = NULL;
+    unsigned int flags = 0;
     bool wrap = vshCommandOptBool(cmd, "wrap");
     const char *xpath = NULL;
 
@@ -608,7 +633,10 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
     if (!device)
         return false;
 
-    if (!(xml = virNodeDeviceGetXMLDesc(device, 0)))
+    if (vshCommandOptBool(cmd, "inactive"))
+        flags |= VIR_NODE_DEVICE_XML_INACTIVE;
+
+    if (!(xml = virNodeDeviceGetXMLDesc(device, flags)))
         return false;
 
     return virshDumpXML(ctl, xml, "node-device", xpath, wrap);
@@ -1055,12 +1083,12 @@ cmdNodeDeviceUndefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
  */
 static const vshCmdInfo info_node_device_define[] = {
     {.name = "help",
-     .data = N_("Define a device by an xml file on a node")
+     .data = N_("Define or modify a device by an xml file on a node")
     },
     {.name = "desc",
-     .data = N_("Defines a persistent device on the node that can be "
-                "assigned to a domain. The device must be started before "
-                "it can be assigned to a domain.")
+     .data = N_("Defines or modifies a persistent device on the node that "
+                "can be assigned to a domain. The device must be started "
+                "before it can be assigned to a domain.")
     },
     {.name = NULL}
 };
@@ -1271,6 +1299,101 @@ cmdNodeDeviceInfo(vshControl *ctl, const vshCmd *cmd)
 }
 
 
+/*
+ * "nodedev-update" command
+ */
+static const vshCmdInfo info_node_device_update[] = {
+    {.name = "help",
+     .data = N_("Update a active and/or inactive node device")
+    },
+    {.name = "desc",
+     .data = N_("Updates the configuration of a node device")
+    },
+    {.name = NULL}
+};
+
+static const vshCmdOptDef opts_node_device_update[] = {
+    {.name = "device",
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
+     .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
+     .completer = virshNodeDeviceNameCompleter,
+    },
+    VIRSH_COMMON_OPT_FILE(N_("file containing an XML description "
+                             "of the device")),
+    VIRSH_COMMON_OPT_CONFIG(N_("affect next node device startup")),
+    VIRSH_COMMON_OPT_LIVE(N_("affect running node device")),
+    VIRSH_COMMON_OPT_CURRENT(N_("affect current state of node device")),
+    {.name = NULL}
+};
+
+static bool
+cmdNodeDeviceUpdate(vshControl *ctl, const vshCmd *cmd)
+{
+    bool ret = false;
+    g_autoptr(virshNodeDevice) device = NULL;
+    const char *device_value = NULL;
+    const char *from = NULL;
+    g_autofree char *xml = NULL;
+    bool config = vshCommandOptBool(cmd, "config");
+    bool live = vshCommandOptBool(cmd, "live");
+    unsigned int flags = VIR_NODE_DEVICE_UPDATE_AFFECT_CURRENT;
+
+    VSH_EXCLUSIVE_OPTIONS("current", "live");
+    VSH_EXCLUSIVE_OPTIONS("current", "config");
+
+    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+         return false;
+
+    device = vshFindNodeDevice(ctl, device_value);
+
+    if (!device)
+        return false;
+
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+        goto cleanup;
+
+    if (virFileReadAll(from, VSH_MAX_XML_FILE, &xml) < 0)
+        goto cleanup;
+
+    if (config)
+        flags |= VIR_NODE_DEVICE_UPDATE_AFFECT_CONFIG;
+    if (live)
+        flags |= VIR_NODE_DEVICE_UPDATE_AFFECT_LIVE;
+
+    if (virNodeDeviceUpdate(device, xml, flags) < 0) {
+        vshError(ctl, _("Failed to update node device %1$s from '%2$s'"),
+                 virNodeDeviceGetName(device), from);
+        goto cleanup;
+    }
+
+    if (config) {
+        if (live) {
+            vshPrintExtra(ctl,
+                          _("Updated node device %1$s persistent config and live state"),
+                          virNodeDeviceGetName(device));
+        } else {
+            vshPrintExtra(ctl,
+                          _("Updated node device %1$s persistent config"),
+                          virNodeDeviceGetName(device));
+        }
+    } else if (live) {
+        vshPrintExtra(ctl, _("Updated node device %1$s live state"),
+                      virNodeDeviceGetName(device));
+    } else if (virNodeDeviceIsActive(device)) {
+        vshPrintExtra(ctl, _("Updated node device %1$s live state"),
+                      virNodeDeviceGetName(device));
+    } else {
+        vshPrintExtra(ctl, _("Updated node device %1$s persistent config"),
+                      virNodeDeviceGetName(device));
+    }
+
+    ret = true;
+ cleanup:
+    vshReportError(ctl);
+    return ret;
+}
+
 
 const vshCmdDef nodedevCmds[] = {
     {.name = "nodedev-create",
@@ -1353,6 +1476,12 @@ const vshCmdDef nodedevCmds[] = {
      .handler = cmdNodeDeviceInfo,
      .opts = opts_node_device_info,
      .info = info_node_device_info,
+     .flags = 0
+    },
+    {.name = "nodedev-update",
+     .handler = cmdNodeDeviceUpdate,
+     .opts = opts_node_device_update,
+     .info = info_node_device_update,
      .flags = 0
     },
     {.name = NULL}
