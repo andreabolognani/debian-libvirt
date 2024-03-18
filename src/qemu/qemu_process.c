@@ -74,6 +74,7 @@
 #include "virhostcpu.h"
 #include "domain_audit.h"
 #include "domain_cgroup.h"
+#include "domain_interface.h"
 #include "domain_nwfilter.h"
 #include "domain_postparse.h"
 #include "domain_validate.h"
@@ -2882,6 +2883,40 @@ qemuProcessStartManagedPRDaemon(virDomainObj *vm)
 
 
 static int
+qemuProcessAllowPostCopyMigration(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    const char *const *devices = (const char *const *) cfg->cgroupDeviceACL;
+    const char *uffd = "/dev/userfaultfd";
+    int rc;
+
+    if (!virFileExists(uffd)) {
+        VIR_DEBUG("%s is not supported by the host", uffd);
+        return 0;
+    }
+
+    if (!devices)
+        devices = defaultDeviceACL;
+
+    if (!g_strv_contains(devices, uffd)) {
+        VIR_DEBUG("%s is not allowed by device ACL", uffd);
+        return 0;
+    }
+
+    VIR_DEBUG("Labeling %s in mount namespace", uffd);
+    if ((rc = qemuSecurityDomainSetMountNSPathLabel(driver, vm, uffd)) < 0)
+        return -1;
+
+    if (rc == 1)
+        VIR_DEBUG("Mount namespace is not enabled, leaving %s as is", uffd);
+
+    return 0;
+}
+
+
+static int
 qemuProcessInitPasswords(virQEMUDriver *driver,
                          virDomainObj *vm,
                          int asyncJob)
@@ -3120,7 +3155,7 @@ qemuProcessStartCPUs(virQEMUDriver *driver, virDomainObj *vm,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
 
     /* Bring up netdevs before starting CPUs */
-    if (qemuInterfaceStartDevices(vm->def) < 0)
+    if (virDomainInterfaceStartDevices(vm->def) < 0)
        return -1;
 
     VIR_DEBUG("Using lock state '%s'", NULLSTR(priv->lockState));
@@ -3183,7 +3218,7 @@ int qemuProcessStopCPUs(virQEMUDriver *driver,
         goto cleanup;
 
     /* de-activate netdevs after stopping CPUs */
-    ignore_value(qemuInterfaceStopDevices(vm->def));
+    ignore_value(virDomainInterfaceStopDevices(vm->def));
 
     if (vm->job->current)
         ignore_value(virTimeMillisNow(&vm->job->current->stopped));
@@ -7801,6 +7836,10 @@ qemuProcessLaunch(virConnectPtr conn,
         qemuProcessStartManagedPRDaemon(vm) < 0)
         goto cleanup;
 
+    VIR_DEBUG("Setting up permissions to allow post-copy migration");
+    if (qemuProcessAllowPostCopyMigration(vm) < 0)
+        goto cleanup;
+
     VIR_DEBUG("Setting domain security labels");
     if (qemuSecuritySetAllLabel(driver,
                                 vm,
@@ -7957,6 +7996,33 @@ qemuProcessRefreshRxFilters(virDomainObj *vm,
 
         if (!virDomainNetGetActualTrustGuestRxFilters(def))
             continue;
+
+        /* rx-filters are supported only for virtio model and TUN/TAP based
+         * types. */
+        if (def->model != VIR_DOMAIN_NET_MODEL_VIRTIO)
+            continue;
+
+        switch (virDomainNetGetActualType(def)) {
+        case VIR_DOMAIN_NET_TYPE_ETHERNET:
+        case VIR_DOMAIN_NET_TYPE_NETWORK:
+        case VIR_DOMAIN_NET_TYPE_BRIDGE:
+        case VIR_DOMAIN_NET_TYPE_DIRECT:
+            break;
+        case VIR_DOMAIN_NET_TYPE_USER:
+        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+        case VIR_DOMAIN_NET_TYPE_SERVER:
+        case VIR_DOMAIN_NET_TYPE_CLIENT:
+        case VIR_DOMAIN_NET_TYPE_MCAST:
+        case VIR_DOMAIN_NET_TYPE_INTERNAL:
+        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+        case VIR_DOMAIN_NET_TYPE_UDP:
+        case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
+        case VIR_DOMAIN_NET_TYPE_LAST:
+        default:
+            continue;
+        }
 
         if (qemuDomainSyncRxFilter(vm, def, asyncJob) < 0)
             return -1;
@@ -8377,11 +8443,9 @@ void qemuProcessStop(virQEMUDriver *driver,
     qemuDomainObjPrivate *priv = vm->privateData;
     virErrorPtr orig_err;
     virDomainDef *def = vm->def;
-    const virNetDevVPortProfile *vport = NULL;
     size_t i;
     g_autofree char *timestamp = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    g_autoptr(virConnect) conn = NULL;
     bool outgoingMigration;
 
     VIR_DEBUG("Shutting down vm=%p name=%s id=%d pid=%lld, "
@@ -8520,69 +8584,12 @@ void qemuProcessStop(virQEMUDriver *driver,
     }
 
     qemuHostdevReAttachDomainDevices(driver, vm->def);
-
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDef *net = def->nets[i];
-        vport = virDomainNetGetActualVirtPortProfile(net);
-        switch (virDomainNetGetActualType(net)) {
-        case VIR_DOMAIN_NET_TYPE_DIRECT:
-            if (QEMU_DOMAIN_NETWORK_PRIVATE(net)->created) {
-                virNetDevMacVLanDeleteWithVPortProfile(net->ifname, &net->mac,
-                                                       virDomainNetGetActualDirectDev(net),
-                                                       virDomainNetGetActualDirectMode(net),
-                                                       virDomainNetGetActualVirtPortProfile(net),
-                                                       cfg->stateDir);
-            }
-            break;
-        case VIR_DOMAIN_NET_TYPE_ETHERNET:
-            if (net->managed_tap != VIR_TRISTATE_BOOL_NO && net->ifname) {
-                ignore_value(virNetDevTapDelete(net->ifname, net->backend.tap));
-                VIR_FREE(net->ifname);
-            }
-            break;
-        case VIR_DOMAIN_NET_TYPE_BRIDGE:
-        case VIR_DOMAIN_NET_TYPE_NETWORK:
-#ifdef VIR_NETDEV_TAP_REQUIRE_MANUAL_CLEANUP
-            if (!(vport && vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH))
-                ignore_value(virNetDevTapDelete(net->ifname, net->backend.tap));
-#endif
-            break;
-        case VIR_DOMAIN_NET_TYPE_USER:
-        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
-        case VIR_DOMAIN_NET_TYPE_SERVER:
-        case VIR_DOMAIN_NET_TYPE_CLIENT:
-        case VIR_DOMAIN_NET_TYPE_MCAST:
-        case VIR_DOMAIN_NET_TYPE_INTERNAL:
-        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
-        case VIR_DOMAIN_NET_TYPE_UDP:
-        case VIR_DOMAIN_NET_TYPE_VDPA:
-        case VIR_DOMAIN_NET_TYPE_NULL:
-        case VIR_DOMAIN_NET_TYPE_VDS:
-        case VIR_DOMAIN_NET_TYPE_LAST:
-            /* No special cleanup procedure for these types. */
-            break;
-        }
-        /* release the physical device (or any other resources used by
-         * this interface in the network driver
-         */
-        if (vport) {
-            if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_MIDONET) {
-                ignore_value(virNetDevMidonetUnbindPort(vport));
-            } else if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH) {
-                ignore_value(virNetDevOpenvswitchRemovePort(
-                                 virDomainNetGetActualBridgeName(net),
-                                 net->ifname));
-            }
-        }
-
-        /* kick the device out of the hostdev list too */
-        virDomainNetRemoveHostdev(def, net);
-        if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            if (conn || (conn = virGetConnectNetwork()))
-                virDomainNetReleaseActualDevice(conn, vm->def, net);
-            else
-                VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
-        }
+        virDomainInterfaceDeleteDevice(def,
+                                       net,
+                                       QEMU_DOMAIN_NETWORK_PRIVATE(net)->created,
+                                       cfg->stateDir);
     }
 
  retry:

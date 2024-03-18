@@ -95,6 +95,7 @@ Patches have also been contributed by:
 * Takahashi Tomohiro <takatom@jp.fujitsu.com>
 * Tatsuro Enokura <fj7716hz@aa.jp.fujitsu.com>
 
+* Adam Julis <ajulis@redhat.com>
 * Adam Litke <agl@us.ibm.com>
 * Adam Walters <adam@pandorasboxen.com>
 * Adolfo Jayme Barrientos <fitoschido@gmail.com>
@@ -111,6 +112,7 @@ Patches have also been contributed by:
 * Alexander Nusov <alexander.nusov@nfvexpress.com>
 * Alexander Todorov <atodorov@otb.bg>
 * Alexander Vasilenko <kaperang07@gmail.com>
+* Alexandra Diupina <adiupina@astralinux.ru>
 * Alex Jia <ajia@redhat.com>
 * Alex Williamson <alex.williamson@redhat.com>
 * Aline Manera <alinefm@br.ibm.com>
@@ -165,6 +167,7 @@ Patches have also been contributed by:
 * Binfeng Wu <wubinfeng@huawei.com>
 * Bing Bu Cao <mars@linux.vnet.ibm.com>
 * Bing Niu <bing.niu@intel.com>
+* Biswapriyo Nath <nathbappai@gmail.com>
 * Bjoern Walk <bwalk@linux.ibm.com>
 * Bjoern Walk <bwalk@linux.vnet.ibm.com>
 * Bob Liu <bob.liu@oracle.com>
@@ -723,6 +726,7 @@ Patches have also been contributed by:
 * Praveen K Paladugu <prapal@linux.microsoft.com>
 * Prerna Saxena <prerna@linux.vnet.ibm.com>
 * Pritesh Kothari <pritesh.kothari@sun.com>
+* Purna Pavan Chandra Aekkaladevi <paekkaladevi@linux.microsoft.com>
 * Qiao Nuohan <qiaonuohan@cn.fujitsu.com>
 * Qiaowei Ren <qiaowei.ren@intel.com>
 * Radoslaw Biernacki <radoslaw.biernacki@linaro.org>
@@ -732,6 +736,7 @@ Patches have also been contributed by:
 * Rainer Müller <raimue@codingfarm.de>
 * Ramon Medeiros <ramonn@linux.vnet.ibm.com>
 * ramyelkest <ramyelkest@gmail.com>
+* ray <honglei.wang@smartx.com>
 * Reinier Schoof <reinier@transip.nl>
 * Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>
 * Richa Marwaha <rmarwah@linux.vnet.ibm.com>
@@ -860,6 +865,7 @@ Patches have also been contributed by:
 * Thomas Woerner <twoerner@redhat.com>
 * Thorsten Behrens <tbehrens@suse.com>
 * Tiago M. Vieira <tmv@redhat.com>
+* Timothée Ravier <tim@siosm.fr>
 * Tim Shearer <TShearer@adva.com>
 * Tim Small <tim@seoss.co.uk>
 * Tim Wiederhake <twiederh@redhat.com>
@@ -888,6 +894,7 @@ Patches have also been contributed by:
 * Ville Skyttä <ville.skytta@iki.fi>
 * Vinayak Kale <vkale@nvidia.com>
 * Vincent Bernat <vincent@bernat.im>
+* Vincent Vanlaer <libvirt-e6954efa@volkihar.be>
 * Vineeth Pillai <viremana@linux.microsoft.com>
 * Vitaly Kuznetsov <vkuznets@redhat.com>
 * Vitor de Lima <vitor.lima@eldorado.org.br>

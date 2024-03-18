@@ -160,6 +160,13 @@ if conf.has('WITH_QEMU')
     configuration: qemu_user_group_hack_conf,
   )
 
+  # Install the sysuser config for the qemu driver
+  install_data(
+    'libvirt-qemu.sysusers.conf',
+    install_dir: prefix / 'lib' / 'sysusers.d',
+    rename: [ 'libvirt-qemu.conf' ],
+  )
+
   virt_conf_files += qemu_conf
   virt_aug_files += files('libvirtd_qemu.aug')
   virt_test_aug_files += {
@@ -202,7 +209,7 @@ if conf.has('WITH_QEMU')
     'in_file': files('virtqemud.init.in'),
   }
 
-  if conf.has('WITH_SYSCTL')
+  if conf.has('WITH_USERFAULTFD_SYSCTL')
     install_data(
       'postcopy-migration.sysctl',
       install_dir: prefix / 'lib' / 'sysctl.d',

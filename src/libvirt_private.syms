@@ -1373,6 +1373,7 @@ virNodeDeviceObjListRemoveLocked;
 virNodeDeviceObjSetActive;
 virNodeDeviceObjSetAutostart;
 virNodeDeviceObjSetPersistent;
+virNodeDeviceObjUpdateModificationImpact;
 
 
 # conf/virnwfilterbindingdef.h
@@ -1630,6 +1631,15 @@ virDomainDriverNodeDeviceReAttach;
 virDomainDriverNodeDeviceReset;
 virDomainDriverParseBlkioDeviceStr;
 virDomainDriverSetupPersistentDefBlkioParams;
+
+# hypervisor/domain_interface.h
+virDomainInterfaceDeleteDevice;
+virDomainInterfaceEthernetConnect;
+virDomainInterfaceIsVnetCompatModel;
+virDomainInterfaceStartDevice;
+virDomainInterfaceStartDevices;
+virDomainInterfaceStopDevice;
+virDomainInterfaceStopDevices;
 
 
 # hypervisor/virclosecallbacks.h
@@ -2665,7 +2675,6 @@ virJSONValueObjectHasKey;
 virJSONValueObjectKeysNumber;
 virJSONValueObjectPrependString;
 virJSONValueObjectRemoveKey;
-virJSONValueObjectReplaceValue;
 virJSONValueObjectStealArray;
 virJSONValueObjectStealObject;
 virJSONValueToBuffer;
@@ -3364,11 +3373,13 @@ virSecureEraseString;
 # util/virsocket.h
 virSocketRecvFD;
 virSocketSendFD;
+virSocketSendMsgWithFDs;
 
 
 # util/virsocketaddr.h
 virSocketAddrBroadcast;
 virSocketAddrBroadcastByPrefix;
+virSocketAddrBytes;
 virSocketAddrCheckNetmask;
 virSocketAddrEqual;
 virSocketAddrFormat;
@@ -3480,9 +3491,12 @@ virSystemdHasLogind;
 virSystemdHasLogindResetCachedValue;
 virSystemdHasMachined;
 virSystemdHasMachinedResetCachedValue;
+virSystemdHasResolved;
+virSystemdHasResolvedResetCachedValue;
 virSystemdMakeScopeName;
 virSystemdMakeSliceName;
 virSystemdNotifyStartup;
+virSystemdResolvedRegisterNameServer;
 virSystemdTerminateMachine;
 
 
@@ -3700,9 +3714,6 @@ virVHBAPathExists;
 # util/virpcivpd.h
 
 virPCIVPDParse;
-virPCIVPDParseVPDLargeResourceFields;
-virPCIVPDParseVPDLargeResourceString;
-virPCIVPDReadVPDBytes;
 virPCIVPDResourceCustomCompareIndex;
 virPCIVPDResourceCustomFree;
 virPCIVPDResourceCustomUpsertValue;

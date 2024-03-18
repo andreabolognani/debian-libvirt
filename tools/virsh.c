@@ -67,18 +67,13 @@ static int disconnected; /* we may have been disconnected */
  * handler, just save the fact it was raised.
  */
 static void
-virshCatchDisconnect(virConnectPtr conn,
+virshCatchDisconnect(virConnectPtr conn G_GNUC_UNUSED,
                      int reason,
                      void *opaque)
 {
     if (reason != VIR_CONNECT_CLOSE_REASON_CLIENT) {
         vshControl *ctl = opaque;
         const char *str = "unknown reason";
-        virErrorPtr error;
-        g_autofree char *uri = NULL;
-
-        virErrorPreserveLast(&error);
-        uri = virConnectGetURI(conn);
 
         switch ((virConnectCloseReason) reason) {
         case VIR_CONNECT_CLOSE_REASON_ERROR:
@@ -94,9 +89,8 @@ virshCatchDisconnect(virConnectPtr conn,
         case VIR_CONNECT_CLOSE_REASON_LAST:
             break;
         }
-        vshError(ctl, _(str), NULLSTR(uri));
+        vshError(ctl, _(str), NULLSTR(ctl->connname));
 
-        virErrorRestore(&error);
         disconnected++;
         vshEventDone(ctl);
     }
@@ -224,6 +218,9 @@ virshReconnect(vshControl *ctl, const char *name, bool readonly, bool force)
             VIR_FREE(ctl->connname);
             ctl->connname = g_strdup(name);
         }
+
+        if (!ctl->connname)
+            ctl->connname = virConnectGetURI(priv->conn);
 
         priv->readonly = readonly;
 

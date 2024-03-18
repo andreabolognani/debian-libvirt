@@ -56,7 +56,6 @@
   <flag name='pc-dimm'/>
   <flag name='machine-vmport-opt'/>
   <flag name='pci-serial'/>
-  <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
   <flag name='xio3130-downstream'/>
@@ -199,6 +198,8 @@
   <flag name='qcow2-discard-no-unref'/>
   <flag name='run-with.async-teardown'/>
   <flag name='virtio-blk-vhost-vdpa'/>
+  <flag name='smp-clusters'/>
+  <flag name='virtio-mem-pci.dynamic-memslots'/>
   <version>8002000</version>
   <microcodeVersion>43100246</microcodeVersion>
   <package>v8.2.0</package>

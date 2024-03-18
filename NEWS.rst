@@ -8,6 +8,131 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.1.0 (2024-03-01)
+====================
+
+* **Security**
+
+  * ``CVE-2024-1441``: Fix off-by-one error leading to a crash
+
+    In **libvirt-1.0.0** there were couple of interface listing APIs
+    introduced which had an off-by-one error.  That error could lead to a
+    very rare crash if an array was passed to those functions which did
+    not fit all the interfaces.
+
+    In **libvirt-5.10** a check for non-NULL arrays has been adjusted to
+    allow for NULL arrays with size 0 instead of rejecting all NULL
+    arrays.  However that made the above issue significantly worse since
+    that off-by-one error now did not write beyond an array, but
+    dereferenced said NULL pointer making the crash certain in a
+    specific scenario in which a NULL array of size 0 was passed to the
+    aforementioned functions.
+
+* **New features**
+
+  * nodedev: Support updating mdevs
+
+    The node device driver has been extended to allow updating mediated node
+    devices. Options are available to target the update against the persistent,
+    active or both configurations of a mediated device.
+    **Note:** The support is only available with at least mdevctl v1.3.0 installed.
+
+  * qemu: Add support for /dev/userfaultfd
+
+    On hosts with new enough kernel which supports /dev/userfaultfd libvirt will
+    now automatically grant QEMU access to this device. It's no longer needed to
+    set vm.unprivileged_userfaultfd sysctl.
+
+  * qemu: Support clusters in CPU topology
+
+    It is now possible to configure the guest CPU topology to use clusters.
+    Additionally, if CPU clusters are present in the host topology, they will
+    be reported as part of the capabilities XML.
+
+  * network: Make virtual domains resolvable from the host
+
+    When starting a virtual network with a new ``register='yes'`` attribute
+    in the ``<domain>`` element, libvirt will configure ``systemd-resolved``
+    to resolve names of the connected guests using the name server started
+    for this network.
+
+  * qemu: Introduce dynamicMemslots attribute for virtio-mem
+
+    QEMU now allows setting ``.dynamic-memslots`` attribute for virtio-mem-pci
+    devices. When turned on, it allows memory exposed to guest to be split into
+    multiple memory slots and thus smaller memory footprint (see the original
+    commit for detailed explanation).
+
+* **Improvements**
+
+  * nodedev: Add ability to update persistent mediated devices by defining them
+
+    Existing persistent mediated devices can now also be updated by
+    ``virNodeDeviceDefineXML()`` as long as parent and UUID remain unchanged.
+
+  * ch: Enable ``ethernet`` interface mode support
+
+    ``<interface type='ethernet'/>`` can now be used for CH domains.
+
+  * viraccessdriverpolkit: Add missing vtpm case
+
+    Secrets with ``<usage type='vtpm'>`` were left unable to be checked for in
+    the access driver, i.e. in ACL rules. Missing code was provided.
+
+  * virt-admin: Notify users to use explicit URI if connection fails
+
+    ``virt-admin`` doesn't try to guess the URI of the daemon to manage so a
+    failure to connect may be confusing for users if modular daemons are used.
+    Add a hint to use the URI of the dameon to manage.
+
+* **Bug fixes**
+
+  * qemu_process: Skip over non-virtio non-TAP NIC models when refreshing rx-filter
+
+    If ``trustGuestRxFilters`` is enabled for a vNIC that doesn't support it,
+    libvirt may throw an error when such domain is being started, loaded from a
+    saved state, migrated, etc. These errors are now silenced, but make sure to
+    fix such configurations (after previous release it is even possible to
+    change ``trustGuestRxFilters`` value on live domains via
+    ``virDomainUpdateDeviceFlags()`` or ``virsh device-update``).
+
+  * domain: Fix check for overlapping ``<memory/>`` devices
+
+    A bug was identified which caused libvirt to report two NVDIMMs as
+    overlapping even though they weren't. This now fixed.
+
+  * vmx: Accept empty fileName for cdrom-image
+
+    Turns out, ``fileName`` attribute (which contains path to CDROM image) can
+    be set to an empty string (``""``) to denote a state in which the CDROM has
+    no medium in it. Libvirt used to reject such configuration file, but not
+    anymore.
+
+  * qemu_hotplug: Don't lose 'created' flag in qemuDomainChangeNet()
+
+    When starting a domain, libvirt tracks what resources it created for it and
+    which were pre-existing and uses this information to preserve pre-existing
+    resources when cleaning up after said domain is shut off. But for macvtaps
+    this information was lost after the macvtap device was changed (e.g. via
+    ``virsh update-device``).
+
+  * Fix virStream hole handling
+
+    When a client sent multiple holes into a virStream it may have caused
+    daemon hangup as the daemon stopped processing RPC from the client
+    temporarily. This is now fixed.
+
+  * nodedev: Don't generate broken XML with certain hardware
+
+    A broken node device XML would be generated in a rare case when a hardware
+    device had certain characters in the VPD fields.
+
+  * qemu: Fix reservation of manually specified port for disk migration
+
+    A manually specified port would not be relased after disk migration making
+    it impossible to use it again.
+
+
 v10.0.0 (2024-01-15)
 ====================
 
@@ -52,6 +177,12 @@ v10.0.0 (2024-01-15)
     change in a future release and can be customized with the
     nbdkit_config_default build option.
 
+  * qemu: add ID mapping support for virtiofsd
+
+    New ``<idmap>`` element was added for virtiofsd-based ``<filesystem>``
+    devices. It can be used to set up UID and GID mapping between host
+    and guest, making running virtiofsd unprivileged much more useful.
+
 * **Improvements**
 
   * qemu: Improve migration XML use when persisting VM on destination
@@ -73,6 +204,11 @@ v10.0.0 (2024-01-15)
   * test driver: Support for hotplug/hotunplug of PCI devices
 
     The test driver now supports basic hotplug and hotunplug of PCI devices.
+
+  * qemu: allow virtiofsd to run unprivileged
+
+    Nowadays virtiofsd no longer requires to run with root privileges, so the
+    restriction to always run as root is now removed from libvirt too.
 
 * **Bug fixes**
 

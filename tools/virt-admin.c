@@ -72,14 +72,9 @@ vshAdmCatchDisconnect(virAdmConnectPtr conn G_GNUC_UNUSED,
 {
     vshControl *ctl = opaque;
     const char *str = "unknown reason";
-    virErrorPtr error;
-    g_autofree char *uri = NULL;
 
     if (reason == VIR_CONNECT_CLOSE_REASON_CLIENT)
         return;
-
-    virErrorPreserveLast(&error);
-    uri = virAdmConnectGetURI(conn);
 
     switch ((virConnectCloseReason) reason) {
     case VIR_CONNECT_CLOSE_REASON_ERROR:
@@ -96,8 +91,7 @@ vshAdmCatchDisconnect(virAdmConnectPtr conn G_GNUC_UNUSED,
         break;
     }
 
-    vshError(ctl, _(str), NULLSTR(uri));
-    virErrorRestore(&error);
+    vshError(ctl, _(str), NULLSTR(ctl->connname));
 }
 
 static int
@@ -108,6 +102,9 @@ vshAdmConnect(vshControl *ctl, unsigned int flags)
     priv->conn = virAdmConnectOpen(ctl->connname, flags);
 
     if (!priv->conn) {
+        if (!ctl->connname)
+            vshPrintExtra(ctl, "%s", _("NOTE: Connecting to default daemon. Specify daemon using '-c' (e.g. virtqemud:///system)\n"));
+
         if (priv->wantReconnect)
             vshError(ctl, "%s", _("Failed to reconnect to the admin server"));
         else
@@ -120,6 +117,9 @@ vshAdmConnect(vshControl *ctl, unsigned int flags)
 
         if (priv->wantReconnect)
             vshPrint(ctl, "%s\n", _("Reconnected to the admin server"));
+
+        if (!ctl->connname)
+            ctl->connname = virAdmConnectGetURI(priv->conn);
     }
 
     return 0;

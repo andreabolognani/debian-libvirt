@@ -2676,6 +2676,7 @@ struct _virDomainMemoryDef {
             unsigned long long currentsize; /* kibibytes, valid for an active
                                                domain only and parsed */
             unsigned long long address; /* address where memory is mapped */
+            virTristateBool dynamicMemslots;
         } virtio_mem;
         struct {
         } sgx_epc;
@@ -4406,9 +4407,8 @@ virDomainNetNotifyActualDevice(virConnectPtr conn,
 
 int
 virDomainNetReleaseActualDevice(virConnectPtr conn,
-                                virDomainDef *dom,
                                 virDomainNetDef *iface)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+    ATTRIBUTE_NONNULL(1);
 
 int
 virDomainNetBandwidthUpdate(virDomainNetDef *iface,
