@@ -1,3 +1,9 @@
+libvirt (10.1.0-1) UNRELEASED; urgency=medium
+
+  * [517918e] New upstream version 10.1.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 18 Mar 2024 23:11:28 +0100
+
 libvirt (10.0.0-3) experimental; urgency=medium
 
   * [e31fc9e] control: Recommend pkgconf instead of pkg-config
