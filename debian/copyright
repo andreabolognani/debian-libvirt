@@ -10,10 +10,11 @@ Comment: Among many source files this also includes many generated, test-data or
 
 Files: build-aux/syntax-check.mk
 Copyright: 2008-2019 Red Hat, Inc.
-           2001-2022 Free Software Foundation, Inc.
+           2001-2024 Free Software Foundation, Inc.
 License: GPL-3.0+
 
 Files: src/ch/ch_capabilities.*
+       src/ch/ch_interface.*
 Copyright: 2023 Microsoft Corp.
 License: LGPL-2.1+
 
