@@ -70,6 +70,7 @@ lib/systemd/system/virtxend-admin.socket
 lib/systemd/system/virtxend-ro.socket
 lib/systemd/system/virtxend.service
 lib/systemd/system/virtxend.socket
+usr/lib/sysusers.d/libvirt-qemu.conf
 usr/sbin/virtinterfaced
 usr/sbin/virtlxcd
 usr/sbin/virtnetworkd
