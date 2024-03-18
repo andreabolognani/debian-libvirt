@@ -53,7 +53,7 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_NSS_PLUGIN           = -Dnss=enabled
     WITH_DTRACE               = -Ddtrace=enabled
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
-    WITH_SYSCTL               = -Dsysctl_config=enabled
+    WITH_SYSCTL               = -Dsysctl_config=enabled -Duserfaultfd_sysctl=enabled
     WITH_WIRESHARK            = -Dwireshark_dissector=enabled
 else
     WITH_DAEMONS              = -Ddriver_libvirtd=disabled -Dhost_validate=disabled
@@ -90,7 +90,7 @@ else
     WITH_NSS_PLUGIN           = -Dnss=disabled
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
-    WITH_SYSCTL               = -Dsysctl_config=disabled
+    WITH_SYSCTL               = -Dsysctl_config=disabled -Duserfaultfd_sysctl=disabled
     WITH_WIRESHARK            = -Dwireshark_dissector=disabled
 endif
 
