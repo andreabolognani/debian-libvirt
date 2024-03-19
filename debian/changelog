@@ -1,8 +1,10 @@
-libvirt (10.1.0-1) UNRELEASED; urgency=medium
+libvirt (10.1.0-1) unstable; urgency=medium
 
   * [517918e] New upstream version 10.1.0
+    - Fixes CVE-2024-1441 (Closes: #1066058)
+  * [84128fe] patches: Drop backports
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 18 Mar 2024 23:11:28 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 20 Mar 2024 00:18:12 +0100
 
 libvirt (10.0.0-3) experimental; urgency=medium
 
