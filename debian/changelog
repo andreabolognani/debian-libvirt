@@ -1,8 +1,9 @@
-libvirt (10.2.0-1) UNRELEASED; urgency=medium
+libvirt (10.2.0-1) unstable; urgency=medium
 
   * [c1118d1] New upstream version 10.2.0
+    - Fixes CVE-2024-2494 (Closes: #1067461)
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 02 Apr 2024 23:00:05 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 02 Apr 2024 23:42:38 +0200
 
 libvirt (10.1.0-1) unstable; urgency=medium
 
