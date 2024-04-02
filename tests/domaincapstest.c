@@ -379,8 +379,8 @@ doTestQemu(const char *inputDir G_GNUC_UNUSED,
                                    VIR_DOMAIN_VIRT_KVM, opaque) < 0)
                 ret = -1;
         }
-    } else if (STRPREFIX(arch, "riscv")) {
-        /* For riscv64 we test two combinations:
+    } else if (STRPREFIX(arch, "riscv") || STRPREFIX(arch, "loongarch64")) {
+        /* For riscv64 or loongarch64 we test two combinations:
          *
          *   - KVM with virt machine
          *   - TCG with virt machine
@@ -483,9 +483,8 @@ mymain(void)
      * Run "tests/qemucapsprobe /path/to/qemu/binary >foo.replies"
      * to generate updated or new *.replies data files.
      *
-     * If you manually edit replies files you can run
-     * VIR_TEST_REGENERATE_OUTPUT=1 tests/qemucapabilitiesnumbering
-     * to fix the replies ids.
+     * If you manually edit replies files or want to edit them programmaticaly
+     * use scripts/qemu-replies-tool --regenerate
      *
      * Once a replies file has been generated and tweaked if necessary,
      * you can drop it into tests/qemucapabilitiesdata/ (with a sensible

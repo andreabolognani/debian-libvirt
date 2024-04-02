@@ -704,6 +704,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 455 */
               "blockjob.backing-mask-protocol", /* QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL */
+              "display-reload", /* QEMU_CAPS_DISPLAY_RELOAD */
+              "usb-mtp", /* QEMU_CAPS_DEVICE_USB_MTP */
     );
 
 
@@ -1144,7 +1146,8 @@ virQEMUCapsInitGuestFromBinary(virCaps *caps,
                                       NULL, NULL, 0, NULL);
     }
 
-    if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64))
+    if (ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64 ||
+        ARCH_IS_LOONGARCH(guestarch))
         virCapabilitiesAddGuestFeatureWithToggle(guest, VIR_CAPS_GUEST_FEATURE_TYPE_ACPI,
                                                  true, true);
 
@@ -1228,6 +1231,7 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "calc-dirty-rate", QEMU_CAPS_CALC_DIRTY_RATE },
     { "query-stats", QEMU_CAPS_QUERY_STATS },
     { "query-stats-schemas", QEMU_CAPS_QUERY_STATS_SCHEMAS },
+    { "display-reload", QEMU_CAPS_DISPLAY_RELOAD },
 };
 
 struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
@@ -1390,6 +1394,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "virtio-crypto-device", QEMU_CAPS_DEVICE_VIRTIO_CRYPTO },
     { "cryptodev-backend-lkcf", QEMU_CAPS_OBJECT_CRYPTO_LKCF },
     { "pvpanic-pci", QEMU_CAPS_DEVICE_PANIC_PCI },
+    { "usb-mtp", QEMU_CAPS_DEVICE_USB_MTP },
 };
 
 
@@ -1782,11 +1787,11 @@ int virQEMUCapsGetDefaultVersion(virCaps *caps,
 
     hostarch = virArchFromHost();
     if (!(capsdata = virCapabilitiesDomainDataLookup(caps,
-            VIR_DOMAIN_OSTYPE_HVM, hostarch, VIR_DOMAIN_VIRT_NONE,
-            NULL, NULL))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Cannot find suitable emulator for %1$s"),
-                       virArchToString(hostarch));
+                                                     VIR_DOMAIN_OSTYPE_HVM,
+                                                     hostarch,
+                                                     VIR_DOMAIN_VIRT_NONE,
+                                                     NULL, NULL,
+                                                     true))) {
         return -1;
     }
 
@@ -2433,6 +2438,53 @@ virQEMUCapsIsCPUDeprecated(virQEMUCaps *qemuCaps,
 }
 
 
+/**
+ * virQEMUCapsIsCPUUsable:
+ * @qemuCaps: QEMU capabilities
+ * @type: virtualization type (kvm vs tcg)
+ * @cpu: CPU definition to check, including explicitly configured features
+ *
+ * Checks whether @cpu is considered usable by QEMU, i.e., all features
+ * required by the CPU model are supported and can be enabled. If so, we can
+ * avoid checking the CPU according to its definition in the CPU map when
+ * starting a domain with check='partial'. Our checks could be inaccurate
+ * anyway because QEMU might have changed the definition of the CPU model
+ * since we added it into the CPU map.
+ *
+ * The CPU is considered usable based on the QEMU capabilities if QEMU reports
+ * it as such and @cpu would only request removal of features.
+ *
+ * Returns true iff @cpu is usable.
+ */
+bool
+virQEMUCapsIsCPUUsable(virQEMUCaps *qemuCaps,
+                       virDomainVirtType type,
+                       virCPUDef *cpu)
+{
+    qemuMonitorCPUDefs *defs;
+    size_t i;
+
+    if (!cpu->model ||
+        !(defs = virQEMUCapsGetAccel(qemuCaps, type)->cpuModels))
+        return false;
+
+    /* CPU model usability is valid only when CPU def does not contain any
+     * features or all features are disabled.
+     */
+    for (i = 0; i < cpu->nfeatures; i++) {
+        if (cpu->features[i].policy != VIR_CPU_FEATURE_DISABLE)
+            return false;
+    }
+
+    for (i = 0; i < defs->ncpus; i++) {
+        if (STREQ(defs->cpus[i].name, cpu->model))
+            return defs->cpus[i].usable == VIR_DOMCAPS_CPU_USABLE_YES;
+    }
+
+    return false;
+}
+
+
 bool
 virQEMUCapsIsMachineDeprecated(virQEMUCaps *qemuCaps,
                                virDomainVirtType type,
@@ -2645,36 +2697,37 @@ static const char *preferredMachines[] =
     NULL, /* VIR_ARCH_ITANIUM (doesn't exist in QEMU any more) */
     "lm32-evr", /* VIR_ARCH_LM32 */
 
+    "virt", /* VIR_ARCH_LOONGARCH64 */
     "mcf5208evb", /* VIR_ARCH_M68K */
     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZE */
     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZEEL */
     "malta", /* VIR_ARCH_MIPS */
-    "malta", /* VIR_ARCH_MIPSEL */
 
+    "malta", /* VIR_ARCH_MIPSEL */
     "malta", /* VIR_ARCH_MIPS64 */
     "malta", /* VIR_ARCH_MIPS64EL */
     "or1k-sim", /* VIR_ARCH_OR32 */
     NULL, /* VIR_ARCH_PARISC (no QEMU impl) */
-    NULL, /* VIR_ARCH_PARISC64 (no QEMU impl) */
 
+    NULL, /* VIR_ARCH_PARISC64 (no QEMU impl) */
     "g3beige", /* VIR_ARCH_PPC */
     "g3beige", /* VIR_ARCH_PPCLE */
     "pseries", /* VIR_ARCH_PPC64 */
     "pseries", /* VIR_ARCH_PPC64LE */
-    "bamboo", /* VIR_ARCH_PPCEMB */
 
+    "bamboo", /* VIR_ARCH_PPCEMB */
     "virt", /* VIR_ARCH_RISCV32 */
     "virt", /* VIR_ARCH_RISCV64 */
     NULL, /* VIR_ARCH_S390 (no QEMU impl) */
     "s390-ccw-virtio", /* VIR_ARCH_S390X */
-    "shix", /* VIR_ARCH_SH4 */
 
+    "shix", /* VIR_ARCH_SH4 */
     "shix", /* VIR_ARCH_SH4EB */
     "SS-5", /* VIR_ARCH_SPARC */
     "sun4u", /* VIR_ARCH_SPARC64 */
     "puv3", /* VIR_ARCH_UNICORE32 */
-    "pc", /* VIR_ARCH_X86_64 */
 
+    "pc", /* VIR_ARCH_X86_64 */
     "sim", /* VIR_ARCH_XTENSA */
     "sim", /* VIR_ARCH_XTENSAEB */
 };
@@ -3719,7 +3772,7 @@ virQEMUCapsInitCPUModel(virQEMUCaps *qemuCaps,
     } else if (ARCH_IS_X86(qemuCaps->arch)) {
         ret = virQEMUCapsInitCPUModelX86(qemuCaps, type, modelInfo,
                                          cpu, migratable);
-    } else if (ARCH_IS_ARM(qemuCaps->arch)) {
+    } else if (ARCH_IS_ARM(qemuCaps->arch) || ARCH_IS_LOONGARCH(qemuCaps->arch)) {
         ret = 2;
     }
 

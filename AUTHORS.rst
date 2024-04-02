@@ -95,6 +95,7 @@ Patches have also been contributed by:
 * Takahashi Tomohiro <takatom@jp.fujitsu.com>
 * Tatsuro Enokura <fj7716hz@aa.jp.fujitsu.com>
 
+* Abhiram Tilak <atp.exp@gmail.com>
 * Adam Julis <ajulis@redhat.com>
 * Adam Litke <agl@us.ibm.com>
 * Adam Walters <adam@pandorasboxen.com>
@@ -494,6 +495,7 @@ Patches have also been contributed by:
 * Kai Kang <kai.kang@windriver.com>
 * KAMEZAWA Hiroyuki <kamezawa.hiroyu@jp.fujitsu.com>
 * Karel Zak <kzak@redhat.com>
+* Karim Taha <kariem.taha2.7@gmail.com>
 * Kashyap Chamarthy <kchamart@redhat.com>
 * Katerina Koukiou <kkoukiou@redhat.com>
 * Kay Schubert <kayegypt@web.de>
@@ -526,6 +528,7 @@ Patches have also been contributed by:
 * Lei Yang <yanglei209@huawei.com>
 * Lénaïc Huard <lenaic@lhuard.fr.eu.org>
 * Lena Voytek <lena.voytek@canonical.com>
+* Lennart Fricke <lennart.fricke@drehpunkt.com>
 * Leno Hou <houqy@linux.vnet.ibm.com>
 * Leonid Bloch <lb.workbox@gmail.com>
 * Liang Yan <lyan@digitalocean.com>
@@ -724,6 +727,7 @@ Patches have also been contributed by:
 * Prasanna Kumar Kalever <prasanna.kalever@redhat.com>
 * Prathamesh Chavan <pc44800@gmail.com>
 * Praveen K Paladugu <prapal@linux.microsoft.com>
+* Praveen K Paladugu <praveenkpaladugu@gmail.com>
 * Prerna Saxena <prerna@linux.vnet.ibm.com>
 * Pritesh Kothari <pritesh.kothari@sun.com>
 * Purna Pavan Chandra Aekkaladevi <paekkaladevi@linux.microsoft.com>
@@ -736,6 +740,7 @@ Patches have also been contributed by:
 * Rainer Müller <raimue@codingfarm.de>
 * Ramon Medeiros <ramonn@linux.vnet.ibm.com>
 * ramyelkest <ramyelkest@gmail.com>
+* Rayhan Faizel <rayhan.faizel@gmail.com>
 * ray <honglei.wang@smartx.com>
 * Reinier Schoof <reinier@transip.nl>
 * Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>
@@ -911,6 +916,7 @@ Patches have also been contributed by:
 * Wang Yufei (James) <james.wangyufei@huawei.com>
 * Weblate <noreply-mt-weblate@weblate.org>
 * Weblate <noreply@weblate.org>
+* Wei Gong <gongwei833x@gmail.com>
 * Wei Huang <wei@redhat.com>
 * Wei Jiangang <weijg.fnst@cn.fujitsu.com>
 * Wei Liu <wei.liu2@citrix.com>
@@ -930,6 +936,7 @@ Patches have also been contributed by:
 * Wout Mertens <wout.mertens@gmail.com>
 * Wout Mertens <Wout.Mertens@gmail.com>
 * Wu Zongyong <cordius.wu@huawei.com>
+* Xianglai Li <lixianglai@loongson.cn>
 * Xian Han Yu <xhyubj@linux.vnet.ibm.com>
 * Xiao Feng Ren <renxiaof@linux.vnet.ibm.com>
 * Xing Lin <xinglin@cs.utah.edu>
@@ -983,6 +990,7 @@ Patches have also been contributed by:
 * Zhangzijian <zhang.zijian@h3c.com>
 * Zheng Chuan <zhengchuan@huawei.com>
 * Zhenguo Yao <yaozhenguo1@gmail.com>
+* Zheng Yan <yanzheng759@huawei.com>
 * zhenwei pi <pizhenwei@bytedance.com>
 * Zhenyu Ye <yezhenyu2@huawei.com>
 * Zhenyu Zhang <zhenyzha@redhat.com>

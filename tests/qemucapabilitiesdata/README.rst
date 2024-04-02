@@ -109,7 +109,7 @@ file on a code change causing a change to the actual QMP query process.
 
 In such case a careful manual modification of the ``.replies`` is tolerated.
 
-To aid such modification the tool ``tests/qemucapabilitiesnumbering`` can be
+To aid such modification the tool ``scripts/qemu-replies-tool.py`` can be
 used.
 
 The tool validates and updates the numbering of the entries in the QMP dump in
@@ -117,4 +117,20 @@ case something was modified.
 
 The tool also allows programatic modification of the ``.replies`` file.
 
-See ``tests/qemucapabilitiesnumbering.c``.
+Fake test data dumps for certain architectures
+==============================================
+
+For some architectures it was impossible or impractical to fetch real capability
+dumps. To ensure coverate of certain cases the dumps were collected from
+corresponding binaries running on a different architecture.
+
+Capabilities dumps for the following architectures are usually produced on real
+hardware:
+
+  - x86_64
+  - aarch64
+  - ppc64
+  - s390x
+
+In most other cases, x86_64 will be used as the host architecture. A fake caps
+dump can be usually spotted by absence of KVM support.

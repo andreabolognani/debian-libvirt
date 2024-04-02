@@ -309,13 +309,15 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
                                 virArch arch,
                                 int domaintype,
                                 const char *emulator,
-                                const char *machinetype);
+                                const char *machinetype,
+                                bool reportError);
 
 bool
 virCapabilitiesDomainSupported(virCaps *caps,
                                int ostype,
                                virArch arch,
-                               int domaintype);
+                               int domaintype,
+                               bool reportError);
 
 
 void

@@ -66,6 +66,7 @@
 #include "backup_conf.h"
 #include "virutil.h"
 #include "virsecureerase.h"
+#include "cpu/cpu_x86.h"
 
 #include <sys/time.h>
 #include <fcntl.h>
@@ -4116,7 +4117,7 @@ qemuDomainGetSCSIControllerModel(const virDomainDef *def,
 
     if (qemuDomainIsPSeries(def))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_IBMVSCSI;
-    if (ARCH_IS_S390(def->os.arch))
+    if (ARCH_IS_S390(def->os.arch) || qemuDomainIsLoongArchVirt(def))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI;
     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_LSI))
         return VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC;
@@ -4189,14 +4190,23 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         break;
 
     case VIR_ARCH_ARMV6L:
+    case VIR_ARCH_ARMV7L:
+    case VIR_ARCH_ARMV7B:
+    case VIR_ARCH_AARCH64:
         if (STREQ(def->os.machine, "versatilepb"))
             addPCIRoot = true;
-        break;
 
-    case VIR_ARCH_ARMV7L:
-    case VIR_ARCH_AARCH64:
+        /* Add default USB for the two machine types which historically
+         * supported -usb */
+        if (STREQ(def->os.machine, "versatilepb") ||
+            STRPREFIX(def->os.machine, "realview")) {
+            addDefaultUSB = true;
+            usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
+        }
+
         if (qemuDomainIsARMVirt(def))
             addPCIeRoot = true;
+
         break;
 
     case VIR_ARCH_PPC64:
@@ -4253,7 +4263,10 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
             addPCIRoot = true;
         break;
 
-    case VIR_ARCH_ARMV7B:
+    case VIR_ARCH_LOONGARCH64:
+        addPCIeRoot = true;
+        break;
+
     case VIR_ARCH_CRIS:
     case VIR_ARCH_ITANIUM:
     case VIR_ARCH_LM32:
@@ -5427,6 +5440,7 @@ qemuDomainDefaultNetModel(const virDomainDef *def,
     /* When there are no backwards compatibility concerns getting in
      * the way, virtio is a good default */
     if (ARCH_IS_S390(def->os.arch) ||
+        qemuDomainIsLoongArchVirt(def) ||
         qemuDomainIsRISCVVirt(def)) {
         return VIR_DOMAIN_NET_MODEL_VIRTIO;
     }
@@ -5633,9 +5647,14 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
              *
              * See qemuBuildControllersCommandLine() */
 
-            /* Default USB controller is piix3-uhci if available. */
+            /* Default USB controller is piix3-uhci if available. Fall back to
+             * 'pci-ohci' otherwise which is the default for non-x86 machines
+             * which honour -usb */
             if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_PIIX3_USB_UHCI))
                 cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_PIIX3_UHCI;
+            else if (!ARCH_IS_X86(def->os.arch) &&
+                     virQEMUCapsGet(qemuCaps, QEMU_CAPS_PCI_OHCI))
+                cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
 
             if (ARCH_IS_S390(def->os.arch)) {
                 if (cont->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
@@ -5658,13 +5677,16 @@ qemuDomainControllerDefPostParse(virDomainControllerDef *cont,
                     cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_PCI_OHCI;
                 } else {
                     /* Explicitly fallback to legacy USB controller for PPC64. */
-                    cont->model = -1;
+                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT;
                 }
             } else if (def->os.arch == VIR_ARCH_AARCH64) {
                 if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
                     cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
                 else if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NEC_USB_XHCI))
                     cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_NEC_XHCI;
+            } else if (ARCH_IS_LOONGARCH(def->os.arch)) {
+                if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+                    cont->model = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
             }
         }
         /* forbid usb model 'qusb1' and 'qusb2' in this kind of hyperviosr */
@@ -5764,7 +5786,9 @@ qemuDomainChrDefPostParse(virDomainChrDef *chr,
             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_ISA;
         } else if (qemuDomainIsPSeries(def)) {
             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SPAPR_VIO;
-        } else if (qemuDomainIsARMVirt(def) || qemuDomainIsRISCVVirt(def)) {
+        } else if (qemuDomainIsARMVirt(def) ||
+                   qemuDomainIsLoongArchVirt(def) ||
+                   qemuDomainIsRISCVVirt(def)) {
             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM;
         } else if (ARCH_IS_S390(def->os.arch)) {
             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SCLP;
@@ -5790,7 +5814,8 @@ qemuDomainChrDefPostParse(virDomainChrDef *chr,
         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM:
             if (qemuDomainIsARMVirt(def)) {
                 chr->targetModel = VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_PL011;
-            } else if (qemuDomainIsRISCVVirt(def)) {
+            } else if (qemuDomainIsLoongArchVirt(def) ||
+                       qemuDomainIsRISCVVirt(def)) {
                 chr->targetModel = VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_16550A;
             }
             break;
@@ -5962,6 +5987,7 @@ qemuDomainDefaultVideoDevice(const virDomainDef *def,
     if (ARCH_IS_PPC64(def->os.arch))
         return VIR_DOMAIN_VIDEO_TYPE_VGA;
     if (qemuDomainIsARMVirt(def) ||
+        qemuDomainIsLoongArchVirt(def) ||
         qemuDomainIsRISCVVirt(def) ||
         ARCH_IS_S390(def->os.arch)) {
         return VIR_DOMAIN_VIDEO_TYPE_VIRTIO;
@@ -6630,11 +6656,42 @@ qemuDomainDefCopy(virQEMUDriver *driver,
 }
 
 
-int
-qemuDomainMakeCPUMigratable(virCPUDef *cpu)
+typedef struct {
+    const char * const *added;
+    GStrv keep;
+} qemuDomainDropAddedCPUFeaturesData;
+
+
+static bool
+qemuDomainDropAddedCPUFeatures(const char *name,
+                               virCPUFeaturePolicy policy G_GNUC_UNUSED,
+                               void *opaque)
 {
-    if (cpu->mode == VIR_CPU_MODE_CUSTOM &&
-        STREQ_NULLABLE(cpu->model, "Icelake-Server")) {
+    qemuDomainDropAddedCPUFeaturesData *data = opaque;
+
+    if (!g_strv_contains(data->added, name))
+        return true;
+
+    if (data->keep && g_strv_contains((const char **) data->keep, name))
+        return true;
+
+    return false;
+}
+
+
+int
+qemuDomainMakeCPUMigratable(virArch arch,
+                            virCPUDef *cpu,
+                            virCPUDef *origCPU)
+{
+    qemuDomainDropAddedCPUFeaturesData data = { 0 };
+
+    if (cpu->mode != VIR_CPU_MODE_CUSTOM ||
+        !cpu->model ||
+        !ARCH_IS_X86(arch))
+        return 0;
+
+    if (STREQ(cpu->model, "Icelake-Server")) {
         /* Originally Icelake-Server CPU model contained pconfig CPU feature.
          * It was never actually enabled and thus it was removed. To enable
          * migration to QEMU 3.1.0 (with both new and old libvirt), we
@@ -6643,6 +6700,25 @@ qemuDomainMakeCPUMigratable(virCPUDef *cpu)
          * will drop it from the XML before starting the domain on new QEMU.
          */
         if (virCPUDefUpdateFeature(cpu, "pconfig", VIR_CPU_FEATURE_DISABLE) < 0)
+            return -1;
+    }
+
+    if (virCPUx86GetAddedFeatures(cpu->model, &data.added) < 0)
+        return -1;
+
+    /* Drop features marked as added in a cpu model, but only
+     * when they are not mentioned in origCPU, i.e., when they were not
+     * explicitly mentioned by the user.
+     */
+    if (data.added) {
+        g_auto(GStrv) keep = NULL;
+
+        if (origCPU) {
+            keep = virCPUDefListExplicitFeatures(origCPU);
+            data.keep = keep;
+        }
+
+        if (virCPUDefFilterFeatures(cpu, qemuDomainDropAddedCPUFeatures, &data) < 0)
             return -1;
     }
 
@@ -6824,7 +6900,8 @@ qemuDomainDefFormatBufInternal(virQEMUDriver *driver,
                 return -1;
         }
 
-        if (def->cpu && qemuDomainMakeCPUMigratable(def->cpu) < 0)
+        if (def->cpu &&
+            qemuDomainMakeCPUMigratable(def->os.arch, def->cpu, origCPU) < 0)
             return -1;
 
         /* Old libvirt doesn't understand <audio> elements so
@@ -8965,6 +9042,22 @@ qemuDomainMachineIsPSeries(const char *machine,
 
 
 static bool
+qemuDomainMachineIsLoongArchVirt(const char *machine,
+                                 const virArch arch)
+{
+    if (!ARCH_IS_LOONGARCH(arch))
+        return false;
+
+    if (STREQ(machine, "virt") ||
+        STRPREFIX(machine, "virt-")) {
+        return true;
+    }
+
+    return false;
+}
+
+
+static bool
 qemuDomainMachineIsMipsMalta(const char *machine,
                              const virArch arch)
 {
@@ -9058,6 +9151,13 @@ qemuDomainIsMipsMalta(const virDomainDef *def)
 
 
 bool
+qemuDomainIsLoongArchVirt(const virDomainDef *def)
+{
+    return qemuDomainMachineIsLoongArchVirt(def->os.machine, def->os.arch);
+}
+
+
+bool
 qemuDomainHasPCIRoot(const virDomainDef *def)
 {
     int root = virDomainControllerFind(def, VIR_DOMAIN_CONTROLLER_TYPE_PCI, 0);
@@ -9143,6 +9243,7 @@ qemuDomainSupportsPCIMultibus(const virDomainDef *def)
     /* In some cases, support for multibus is limited to some machine
      * types */
     if (qemuDomainIsARMVirt(def) ||
+        qemuDomainIsLoongArchVirt(def) ||
         qemuDomainIsRISCVVirt(def)) {
         return true;
     }

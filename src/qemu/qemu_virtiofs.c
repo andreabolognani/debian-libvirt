@@ -102,7 +102,7 @@ qemuVirtioFSOpenChardev(virQEMUDriver *driver,
     chrdev->data.nix.listen = true;
     chrdev->data.nix.path = g_strdup(socket_path);
 
-    if (qemuSecuritySetDaemonSocketLabel(driver->securityManager, vm->def) < 0)
+    if (qemuSecuritySetSocketLabel(driver->securityManager, vm->def) < 0)
         goto cleanup;
     fd = qemuOpenChrChardevUNIXSocket(chrdev);
     if (fd < 0) {
@@ -353,6 +353,9 @@ qemuVirtioFSSetupCgroup(virDomainObj *vm,
     pid_t pid = -1;
     int rc;
 
+    if (!cgroup)
+        return 0;
+
     if (!(pidfile = qemuVirtioFSCreatePidFilename(vm, fs->info.alias)))
         return -1;
 
@@ -384,6 +387,9 @@ qemuVirtioFSPrepareIdMap(virDomainFSDef *fs)
 
     username = virGetUserName(euid);
     groupname = virGetGroupName(egid);
+
+    if (!username || !groupname)
+        return -1;
 
     fs->idmap.uidmap = g_new0(virDomainIdMapEntry, 2);
     fs->idmap.gidmap = g_new0(virDomainIdMapEntry, 2);

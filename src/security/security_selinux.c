@@ -1774,10 +1774,10 @@ virSecuritySELinuxRestoreTPMFileLabelInt(virSecurityManager *mgr,
 
 
 static int
-virSecuritySELinuxRestoreImageLabelSingle(virSecurityManager *mgr,
-                                          virDomainDef *def,
-                                          virStorageSource *src,
-                                          bool migrated)
+virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
+                                       virDomainDef *def,
+                                       virStorageSource *src,
+                                       bool migrated)
 {
     virSecurityLabelDef *seclabel;
     virSecurityDeviceLabelDef *disk_seclabel;
@@ -1860,19 +1860,6 @@ virSecuritySELinuxRestoreImageLabelSingle(virSecurityManager *mgr,
     }
 
     return virSecuritySELinuxRestoreFileLabel(mgr, path, true);
-}
-
-
-static int
-virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
-                                       virDomainDef *def,
-                                       virStorageSource *src,
-                                       bool migrated)
-{
-    if (virSecuritySELinuxRestoreImageLabelSingle(mgr, def, src, migrated) < 0)
-        return -1;
-
-    return 0;
 }
 
 
@@ -1993,12 +1980,12 @@ virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
 
 
 static int
-virSecuritySELinuxSetImageLabelRelative(virSecurityManager *mgr,
-                                        virDomainDef *def,
-                                        virStorageSource *src,
-                                        virStorageSource *parent,
-                                        virSecurityDomainImageLabelFlags flags)
+virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
+                               virDomainDef *def,
+                               virStorageSource *src,
+                               virSecurityDomainImageLabelFlags flags)
 {
+    virStorageSource *parent = src;
     virStorageSource *n;
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
@@ -2016,15 +2003,6 @@ virSecuritySELinuxSetImageLabelRelative(virSecurityManager *mgr,
     return 0;
 }
 
-
-static int
-virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
-                                virDomainDef *def,
-                                virStorageSource *src,
-                                virSecurityDomainImageLabelFlags flags)
-{
-    return virSecuritySELinuxSetImageLabelRelative(mgr, def, src, src, flags);
-}
 
 struct virSecuritySELinuxMoveImageMetadataData {
     virSecurityManager *mgr;

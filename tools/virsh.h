@@ -57,8 +57,9 @@
  */
 #define VIRSH_COMMON_OPT_POOL(_helpstr, cflags) \
     {.name = "pool", \
-     .type = VSH_OT_DATA, \
-     .flags = VSH_OFLAG_REQ, \
+     .type = VSH_OT_STRING, \
+     .positional = true, \
+     .required = true, \
      .help = _helpstr, \
      .completer = virshStoragePoolNameCompleter, \
      .completer_flags = cflags, \
@@ -66,8 +67,9 @@
 
 #define VIRSH_COMMON_OPT_DOMAIN(_helpstr, cflags) \
     {.name = "domain", \
-     .type = VSH_OT_DATA, \
-     .flags = VSH_OFLAG_REQ, \
+     .type = VSH_OT_STRING, \
+     .positional = true, \
+     .required = true, \
      .help = _helpstr, \
      .completer = virshDomainNameCompleter, \
      .completer_flags = cflags, \
@@ -98,10 +100,11 @@
 #define VIRSH_COMMON_OPT_FILE(_helpstr) \
     VIRSH_COMMON_OPT_FILE_FULL(_helpstr, true)
 
-#define VIRSH_COMMON_OPT_FILE_FULL(_helpstr, required) \
+#define VIRSH_COMMON_OPT_FILE_FULL(_helpstr, required_) \
     {.name = "file", \
-     .type = required ? VSH_OT_DATA : VSH_OT_STRING, \
-     .flags = required ? VSH_OFLAG_REQ : VSH_OFLAG_NONE, \
+     .type = VSH_OT_STRING, \
+     .required = required_, \
+     .positional = required_, \
      .completer = virshCompletePathLocalExisting, \
      .help = _helpstr \
     }
@@ -118,18 +121,6 @@
 #define VIRSH_COMMON_OPT_DOMAIN_OT_STRING_FULL(oflags, cflags) \
     VIRSH_COMMON_OPT_DOMAIN_OT_STRING(N_("domain name, id or uuid"), \
                                       oflags, cflags)
-
-#define VIRSH_COMMON_OPT_DOMAIN_OT_ARGV(_helpstr, cflags) \
-    {.name = "domain", \
-     .type = VSH_OT_ARGV, \
-     .flags = VSH_OFLAG_NONE, \
-     .help = _helpstr, \
-     .completer = virshDomainNameCompleter, \
-     .completer_flags = cflags, \
-    }
-
-#define VIRSH_COMMON_OPT_DOMAIN_OT_ARGV_FULL(cflags) \
-    VIRSH_COMMON_OPT_DOMAIN_OT_ARGV(N_("domain name, id or uuid"), cflags)
 
 typedef struct _virshControl virshControl;
 

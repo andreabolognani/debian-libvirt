@@ -37,6 +37,7 @@ struct _virCHDriverConfig {
 
     char *stateDir;
     char *logDir;
+    char *saveDir;
 
     int cgroupControllers;
 
@@ -79,6 +80,17 @@ struct _virCHDriver
 
     /* Immutable pointer, lockless APIs. Pointless abstraction */
     ebtablesContext *ebtables;
+};
+
+#define CH_SAVE_MAGIC "libvirt-xml\n \0 \r"
+#define CH_SAVE_XML "libvirt-save.xml"
+
+typedef struct _CHSaveXMLHeader CHSaveXMLHeader;
+struct _CHSaveXMLHeader {
+    char magic[sizeof(CH_SAVE_MAGIC)-1];
+    uint32_t xmlLen;
+    /* 20 bytes used, pad up to 64 bytes */
+    uint32_t unused[11];
 };
 
 virCaps *virCHDriverCapsInit(void);

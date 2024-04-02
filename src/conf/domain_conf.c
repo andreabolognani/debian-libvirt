@@ -517,6 +517,7 @@ VIR_ENUM_IMPL(virDomainFSDriver,
               "nbd",
               "ploop",
               "virtiofs",
+              "mtp",
 );
 
 VIR_ENUM_IMPL(virDomainFSAccessMode,
@@ -15811,8 +15812,11 @@ virDomainDefGetDefaultEmulator(virDomainDef *def,
     g_autofree virCapsDomainData *capsdata = NULL;
 
     if (!(capsdata = virCapabilitiesDomainDataLookup(caps, def->os.type,
-            def->os.arch, def->virtType, NULL, NULL)))
+                                                     def->os.arch,
+                                                     def->virtType, NULL, NULL,
+                                                     true))) {
         return NULL;
+    }
 
     retemu = g_strdup(capsdata->emulator);
 
@@ -28717,6 +28721,15 @@ virDomainUSBDeviceDefForeach(virDomainDef *def,
         virDomainRedirdevDef *redirdev = def->redirdevs[i];
         if (redirdev->bus == VIR_DOMAIN_REDIRDEV_BUS_USB) {
             if (iter(&redirdev->info, opaque) < 0)
+                return -1;
+        }
+    }
+
+    /* usb-mtp */
+    for (i = 0; i < def->nfss; i++) {
+        virDomainFSDef *fsdev = def->fss[i];
+        if (fsdev->fsdriver == VIR_DOMAIN_FS_DRIVER_TYPE_MTP) {
+            if (iter(&fsdev->info, opaque) < 0)
                 return -1;
         }
     }
