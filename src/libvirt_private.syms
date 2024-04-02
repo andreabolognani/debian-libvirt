@@ -111,6 +111,7 @@ virCPUDefFree;
 virCPUDefFreeFeatures;
 virCPUDefFreeModel;
 virCPUDefIsEqual;
+virCPUDefListExplicitFeatures;
 virCPUDefListFree;
 virCPUDefListParse;
 virCPUDefNew;
@@ -1544,6 +1545,7 @@ virCPUx86DataSetSignature;
 virCPUx86DataSetVendor;
 virCPUx86FeatureFilterDropMSR;
 virCPUx86FeatureFilterSelectMSR;
+virCPUx86GetAddedFeatures;
 
 # datatypes.h
 virConnectClass;
@@ -3105,7 +3107,6 @@ virPCIDeviceGetUnbindFromStub;
 virPCIDeviceGetUsedBy;
 virPCIDeviceGetVPD;
 virPCIDeviceHasPCIExpressLink;
-virPCIDeviceHasVPD;
 virPCIDeviceIsAssignable;
 virPCIDeviceIsPCIExpress;
 virPCIDeviceListAdd;

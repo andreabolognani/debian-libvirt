@@ -683,6 +683,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 455 */
     QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL, /* backing-mask-protocol of block-commit/block-stream */
+    QEMU_CAPS_DISPLAY_RELOAD, /* 'display-reload' qmp command is supported */
+    QEMU_CAPS_DEVICE_USB_MTP, /* -device usb-mtp */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -770,6 +772,9 @@ const char *virQEMUCapsGetMachineDefaultCPU(virQEMUCaps *qemuCaps,
 bool virQEMUCapsIsCPUDeprecated(virQEMUCaps *qemuCaps,
                                 virDomainVirtType type,
                                 const char *model);
+bool virQEMUCapsIsCPUUsable(virQEMUCaps *qemuCaps,
+                            virDomainVirtType type,
+                            virCPUDef *cpu);
 bool virQEMUCapsIsMachineDeprecated(virQEMUCaps *qemuCaps,
                                     virDomainVirtType type,
                                     const char *machine);

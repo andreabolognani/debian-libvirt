@@ -790,7 +790,7 @@ qemuProcessHandleWatchdog(qemuMonitor *mon G_GNUC_UNUSED,
     if (action == VIR_DOMAIN_EVENT_WATCHDOG_PAUSE &&
         virDomainObjGetState(vm, NULL) == VIR_DOMAIN_RUNNING) {
         qemuDomainObjPrivate *priv = vm->privateData;
-        VIR_DEBUG("Transitioned guest %s to paused state due to watchdog", vm->def->name);
+        VIR_WARN("Transitioned guest %s to paused state due to watchdog", vm->def->name);
 
         virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PAUSED_WATCHDOG);
         lifecycleEvent = virDomainEventLifecycleNewFromObj(vm,
@@ -860,7 +860,7 @@ qemuProcessHandleIOError(qemuMonitor *mon G_GNUC_UNUSED,
     if (action == VIR_DOMAIN_EVENT_IO_ERROR_PAUSE &&
         virDomainObjGetState(vm, NULL) == VIR_DOMAIN_RUNNING) {
         qemuDomainObjPrivate *priv = vm->privateData;
-        VIR_DEBUG("Transitioned guest %s to paused state due to IO error", vm->def->name);
+        VIR_WARN("Transitioned guest %s to paused state due to IO error", vm->def->name);
 
         if (priv->signalIOError)
             virDomainObjBroadcast(vm);
@@ -6288,6 +6288,7 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
         g_autoptr(virDomainCapsCPUModels) cpuModels = NULL;
 
         if (def->cpu->check == VIR_CPU_CHECK_PARTIAL &&
+            !virQEMUCapsIsCPUUsable(qemuCaps, def->virtType, def->cpu) &&
             virCPUCompare(hostarch,
                           virQEMUCapsGetHostModel(qemuCaps, def->virtType,
                                                   VIR_QEMU_CAPS_HOST_CPU_FULL),

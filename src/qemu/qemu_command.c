@@ -861,6 +861,7 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
                 *baseName = "vhost-user-fs";
                 break;
 
+            case VIR_DOMAIN_FS_DRIVER_TYPE_MTP:
             case VIR_DOMAIN_FS_DRIVER_TYPE_LOOP:
             case VIR_DOMAIN_FS_DRIVER_TYPE_NBD:
             case VIR_DOMAIN_FS_DRIVER_TYPE_PLOOP:
@@ -2310,6 +2311,33 @@ qemuBuildDisksCommandLine(virCommand *cmd,
 }
 
 
+static int
+qemuBuildMTPCommandLine(virCommand *cmd,
+                          virDomainFSDef *fs,
+                          const virDomainDef *def,
+                          virQEMUCaps *qemuCaps)
+{
+    g_autoptr(virJSONValue) props = NULL;
+
+    if (virJSONValueObjectAdd(&props,
+                              "s:driver", "usb-mtp",
+                              "s:id", fs->info.alias,
+                              "s:rootdir", fs->src->path,
+                              "s:desc", fs->dst,
+                              "b:readonly", fs->readonly,
+                              NULL) < 0)
+        return -1;
+
+    if (qemuBuildDeviceAddressProps(props, def, &fs->info) < 0)
+        return -1;
+
+    if (qemuBuildDeviceCommandlineFromJSON(cmd, props, def, qemuCaps) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 virJSONValue *
 qemuBuildVHostUserFsDevProps(virDomainFSDef *fs,
                              const virDomainDef *def,
@@ -2490,6 +2518,12 @@ qemuBuildFilesystemCommandLine(virCommand *cmd,
         case VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS:
             /* vhost-user-fs-pci */
             if (qemuBuildVHostUserFsCommandLine(cmd, def->fss[i], def, priv) < 0)
+                return -1;
+            break;
+
+        case VIR_DOMAIN_FS_DRIVER_TYPE_MTP:
+            /* Media Transfer Protocol over USB */
+            if (qemuBuildMTPCommandLine(cmd, def->fss[i], def, qemuCaps) < 0)
                 return -1;
             break;
 
@@ -2919,61 +2953,6 @@ qemuBuildControllerDevProps(const virDomainDef *domainDef,
 }
 
 
-static bool
-qemuBuildDomainForbidLegacyUSBController(const virDomainDef *def)
-{
-    if (qemuDomainIsQ35(def) ||
-        qemuDomainIsARMVirt(def) ||
-        qemuDomainIsRISCVVirt(def))
-        return true;
-
-    return false;
-}
-
-
-static int
-qemuBuildLegacyUSBControllerCommandLine(virCommand *cmd,
-                                        const virDomainDef *def)
-{
-    size_t i;
-    size_t nlegacy = 0;
-    size_t nusb = 0;
-
-    for (i = 0; i < def->ncontrollers; i++) {
-        virDomainControllerDef *cont = def->controllers[i];
-
-        if (cont->type != VIR_DOMAIN_CONTROLLER_TYPE_USB)
-            continue;
-
-        /* If we have mode='none', there are no other USB controllers */
-        if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
-            return 0;
-
-        if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT)
-            nlegacy++;
-        else
-            nusb++;
-    }
-
-    if (nlegacy > 1) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Multiple legacy USB controllers are not supported"));
-        return -1;
-    }
-
-    if (nusb == 0 &&
-        !qemuBuildDomainForbidLegacyUSBController(def) &&
-        !ARCH_IS_S390(def->os.arch)) {
-        /* We haven't added any USB controller yet, but we haven't been asked
-         * not to add one either. Add a legacy USB controller, unless we're
-         * creating a kind of guest we want to keep legacy-free */
-        virCommandAddArg(cmd, "-usb");
-    }
-
-    return 0;
-}
-
-
 /**
  * qemuBuildSkipController:
  * @controller: Controller to check
@@ -3054,29 +3033,16 @@ qemuBuildControllersByTypeCommandLine(virCommand *cmd,
         if (qemuBuildSkipController(cont, def))
             continue;
 
-        /* skip USB controllers with type none.*/
-        if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_USB &&
-            cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE) {
-            continue;
-        }
+        if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_USB) {
 
-        if (cont->type == VIR_DOMAIN_CONTROLLER_TYPE_USB &&
-            cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT &&
-            !qemuBuildDomainForbidLegacyUSBController(def)) {
+            /* skip USB controllers with type none*/
+            if (cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_NONE)
+                continue;
 
-            /* An appropriate default USB controller model should already
-             * have been selected in qemuDomainDeviceDefPostParse(); if
-             * we still have no model by now, we have to fall back to the
-             * legacy USB controller.
-             *
-             * Note that we *don't* want to end up with the legacy USB
-             * controller for q35 and virt machines, so we go ahead and
-             * fail in qemuBuildControllerDevProps(); on the other hand,
-             * for s390 machines we want to ignore any USB controller
-             * (see 548ba43028 for the full story), so we skip
-             * qemuBuildControllerDevProps() but we don't ultimately end
-             * up adding the legacy USB controller */
-            continue;
+            /* skip 'default' controllers on s390 for legacy reasons */
+            if (ARCH_IS_S390(def->os.arch) &&
+                cont->model == VIR_DOMAIN_CONTROLLER_MODEL_USB_DEFAULT)
+                continue;
         }
 
         if (qemuBuildControllerDevProps(def, cont, qemuCaps, &props) < 0)
@@ -3133,9 +3099,6 @@ qemuBuildControllersCommandLine(virCommand *cmd,
         if (qemuBuildControllersByTypeCommandLine(cmd, def, qemuCaps, contOrder[i]) < 0)
             return -1;
     }
-
-    if (qemuBuildLegacyUSBControllerCommandLine(cmd, def) < 0)
-        return -1;
 
     return 0;
 }
@@ -9223,9 +9186,11 @@ qemuChrIsPlatformDevice(const virDomainDef *def,
         }
     }
 
-    if (ARCH_IS_RISCV(def->os.arch)) {
+    if (ARCH_IS_RISCV(def->os.arch) ||
+        ARCH_IS_LOONGARCH(def->os.arch)) {
 
-        /* 16550a (used by riscv/virt guests) is a platform device */
+        /* 16550a (used by the virt machine type on some architectures)
+         * is a platform device */
         if (chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL &&
             chr->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM &&
             chr->targetModel == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_16550A) {

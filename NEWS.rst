@@ -8,6 +8,77 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.2.0 (2024-04-02)
+====================
+
+* **New features**
+
+  * ch: Basic save and restore support for ch driver
+
+    The ch driver now supports basic save and restore operations. This is
+    functional on domains without any network, host device config defined.
+    The `path` parameter for save and restore should be a directory.
+
+  * qemu: Support for driver type ``mtp`` in ``<filesystem/>`` devices
+
+    The ``mtp`` driver type exposes the ``usb-mtp`` device in QEMU. The
+    guest can access files on this driver through the Media Transfer
+    Protocol (MTP).
+
+  * qemu: Added support for the loongarch64 architecture
+
+    It is now possible for libvirt to run loongarch64 guests, including on
+    other architectures via TCG. For the best results, it is recommended to
+    use the upcoming QEMU 9.0.0 release together with the development version
+    of edk2.
+
+  * qemu: Introduce virDomainGraphicsReload API
+
+    Reloading the graphics display is now supported for QEMU guests using
+    VNC. This is useful to make QEMU reload the TLS certificates without
+    restarting the guest. Available via the ``virDomainGraphicsReload`` API
+    and the ``domdisplay-reload`` virsh command.
+
+* **Bug fixes**
+
+  * qemu: Fix migration from libvirt older than 9.10.0 when vmx is enabled
+
+    A domain with vmx feature enabled (which may be even done automatically
+    with ``mode='host-model'``) started by libvirt 9.9.0 or older cannot be
+    migrated to libvirt 9.10.0, 10.0.0, and 10.1.0 as the target host would
+    complain about a lot of extra ``vmx-*`` features. Migration of similar
+    domains started by the affected releases to libvirt 9.9.0 and older
+    does not work either. Since libvirt 10.2.0 migration works again with
+    libvirt 9.9.0 and older in both directions. Migration from the affected
+    releases to 10.2.0 works as well, but the other direction remains broken
+    unless the fix is backported.
+
+  * node_device: Don't report spurious errors from PCI VPD parsing
+
+    In last release the PCI Vital Product Data parser was enhanced to report
+    errors but that effort failed as some kernels have the file but don't allow
+    reading it causing logs to be spammed with::
+
+      libvirtd[21055]: operation failed: failed to read the PCI VPD data
+
+    Since the data is used only in the node device XML and errors are ignored if
+    the parsing failed, this release removes all the error reporting.
+
+  * qemu: set correct SELinux label for unprivileged virtiofsd
+
+    It is now possible to use virtiofsd-based ``<filesystem>`` shares even
+    if the guest is confined using SELinux.
+
+  * qemu: fix a crash on unprivileged virtiofsd hotplug
+
+    Hotplugging virtiofsd-based filesystems works now.
+
+  * virt-admin: Fix segfault when libvirtd dies
+
+    ``virt-admin`` no longer crashes when ``libvirtd`` unexpectedly closes
+    the connection.
+
+
 v10.1.0 (2024-03-01)
 ====================
 

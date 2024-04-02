@@ -939,12 +939,12 @@ virSecurityDACSetImageLabelInternal(virSecurityManager *mgr,
 
 
 static int
-virSecurityDACSetImageLabelRelative(virSecurityManager *mgr,
-                                    virDomainDef *def,
-                                    virStorageSource *src,
-                                    virStorageSource *parent,
-                                    virSecurityDomainImageLabelFlags flags)
+virSecurityDACSetImageLabel(virSecurityManager *mgr,
+                            virDomainDef *def,
+                            virStorageSource *src,
+                            virSecurityDomainImageLabelFlags flags)
 {
+    virStorageSource *parent = src;
     virStorageSource *n;
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
@@ -963,19 +963,10 @@ virSecurityDACSetImageLabelRelative(virSecurityManager *mgr,
 }
 
 static int
-virSecurityDACSetImageLabel(virSecurityManager *mgr,
-                            virDomainDef *def,
-                            virStorageSource *src,
-                            virSecurityDomainImageLabelFlags flags)
-{
-    return virSecurityDACSetImageLabelRelative(mgr, def, src, src, flags);
-}
-
-static int
-virSecurityDACRestoreImageLabelSingle(virSecurityManager *mgr,
-                                      virDomainDef *def,
-                                      virStorageSource *src,
-                                      bool migrated)
+virSecurityDACRestoreImageLabelInt(virSecurityManager *mgr,
+                                   virDomainDef *def,
+                                   virStorageSource *src,
+                                   bool migrated)
 {
     virSecurityDACData *priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityLabelDef *secdef;
@@ -1044,19 +1035,6 @@ virSecurityDACRestoreImageLabelSingle(virSecurityManager *mgr,
     }
 
     return virSecurityDACRestoreFileLabelInternal(mgr, src, NULL, true);
-}
-
-
-static int
-virSecurityDACRestoreImageLabelInt(virSecurityManager *mgr,
-                                   virDomainDef *def,
-                                   virStorageSource *src,
-                                   bool migrated)
-{
-    if (virSecurityDACRestoreImageLabelSingle(mgr, def, src, migrated) < 0)
-        return -1;
-
-    return 0;
 }
 
 
@@ -1671,7 +1649,7 @@ virSecurityDACRestoreChardevLabel(virSecurityManager *mgr,
 }
 
 
-struct _virSecuritySELinuxChardevCallbackData {
+struct _virSecurityDACChardevCallbackData {
     virSecurityManager *mgr;
     bool chardevStdioLogd;
 };
@@ -1682,7 +1660,7 @@ virSecurityDACRestoreChardevCallback(virDomainDef *def,
                                      virDomainChrDef *dev G_GNUC_UNUSED,
                                      void *opaque)
 {
-    struct _virSecuritySELinuxChardevCallbackData *data = opaque;
+    struct _virSecurityDACChardevCallbackData *data = opaque;
 
     return virSecurityDACRestoreChardevLabel(data->mgr, def, dev->source,
                                              data->chardevStdioLogd);
@@ -1916,7 +1894,7 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
     size_t i;
     int rc = 0;
 
-    struct _virSecuritySELinuxChardevCallbackData chardevData = {
+    struct _virSecurityDACChardevCallbackData chardevData = {
         .mgr = mgr,
         .chardevStdioLogd = chardevStdioLogd,
     };
@@ -2018,7 +1996,7 @@ virSecurityDACSetChardevCallback(virDomainDef *def,
                                  virDomainChrDef *dev G_GNUC_UNUSED,
                                  void *opaque)
 {
-    struct _virSecuritySELinuxChardevCallbackData *data = opaque;
+    struct _virSecurityDACChardevCallbackData *data = opaque;
 
     return virSecurityDACSetChardevLabel(data->mgr, def, dev->source,
                                          data->chardevStdioLogd);
@@ -2141,7 +2119,7 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
     uid_t user;
     gid_t group;
 
-    struct _virSecuritySELinuxChardevCallbackData chardevData = {
+    struct _virSecurityDACChardevCallbackData chardevData = {
         .mgr = mgr,
         .chardevStdioLogd = chardevStdioLogd,
     };

@@ -85,10 +85,10 @@ typedef enum {
  * vshCmdOptType - command option type
  */
 typedef enum {
+    VSH_OT_NONE = 0, /* cannary to catch programming errors */
     VSH_OT_BOOL,     /* optional boolean option */
     VSH_OT_STRING,   /* optional string option */
     VSH_OT_INT,      /* optional or mandatory int option */
-    VSH_OT_DATA,     /* string data (as non-option) */
     VSH_OT_ARGV,     /* remaining arguments */
     VSH_OT_ALIAS,    /* alternate spelling for a later argument */
 } vshCmdOptType;
@@ -98,7 +98,6 @@ typedef enum {
  */
 enum {
     VSH_OFLAG_NONE     = 0,        /* without flags */
-    VSH_OFLAG_REQ      = (1 << 0), /* option required */
     VSH_OFLAG_EMPTY_OK = (1 << 1), /* empty string option allowed */
     VSH_OFLAG_REQ_OPT  = (1 << 2), /* --optionname required */
 };
@@ -118,15 +117,12 @@ typedef char **(*vshCompleter)(vshControl *ctl,
                                unsigned int flags);
 
 /*
- * vshCmdInfo -- name/value pair for information about command
- *
- * Commands should have at least the following names:
  * "help" - short description of command
  * "desc" - description of command, or empty string
  */
 struct _vshCmdInfo {
-    const char *name;           /* name of information, or NULL for list end */
-    const char *data;           /* non-NULL information */
+    const char *help;           /* short description of command */
+    const char *desc;           /* description of command */
 };
 
 /*
@@ -135,6 +131,8 @@ struct _vshCmdInfo {
 struct _vshCmdOptDef {
     const char *name;           /* the name of option, or NULL for list end */
     vshCmdOptType type;         /* option type */
+    bool required;              /* option is required */
+    bool positional;            /* option is a positional option (not requiring '--optionname') */
     unsigned int flags;         /* flags */
     const char *help;           /* non-NULL help string; or for VSH_OT_ALIAS
                                  * the name of a later public option */
@@ -161,8 +159,7 @@ struct _vshCmdOpt {
  */
 enum {
     VSH_CMD_FLAG_NOCONNECT = (1 << 0),  /* no prior connection needed */
-    VSH_CMD_FLAG_ALIAS     = (1 << 1),  /* command is an alias */
-    VSH_CMD_FLAG_HIDDEN    = (1 << 2),  /* command is hidden/internal */
+    VSH_CMD_FLAG_HIDDEN    = (1 << 1),  /* command is hidden/internal */
 };
 
 /*
@@ -248,7 +245,6 @@ void vshOutputLogFile(vshControl *ctl, int log_level, const char *format,
     G_GNUC_PRINTF(3, 0);
 void vshCloseLogFile(vshControl *ctl);
 
-const char *vshCmddefGetInfo(const vshCmdDef *cmd, const char *info);
 const vshCmdDef *vshCmddefSearch(const char *cmdname);
 const vshCmdGrp *vshCmdGrpSearch(const char *grpname);
 bool vshCmdGrpHelp(vshControl *ctl, const vshCmdGrp *grp);
@@ -310,7 +306,7 @@ void vshPrint(vshControl *ctl, const char *format, ...)
     G_GNUC_PRINTF(2, 3);
 void vshPrintExtra(vshControl *ctl, const char *format, ...)
     G_GNUC_PRINTF(2, 3);
-bool vshInit(vshControl *ctl, const vshCmdGrp *groups, const vshCmdDef *set);
+bool vshInit(vshControl *ctl, const vshCmdGrp *groups);
 bool vshInitReload(vshControl *ctl);
 void vshDeinit(vshControl *ctl);
 void vshDebug(vshControl *ctl, int level, const char *format, ...)
@@ -350,6 +346,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(vshTempFile, vshEditUnlinkTempfile);
 char *vshEditWriteToTempFile(vshControl *ctl, const char *doc);
 int vshEditFile(vshControl *ctl, const char *filename);
 char *vshEditReadBackFile(vshControl *ctl, const char *filename);
+int vshEditString(vshControl *ctl, char **output, const char *string);
 int vshAskReedit(vshControl *ctl, const char *msg, bool relax_avail);
 
 /* terminal modifications */
@@ -374,17 +371,17 @@ int vshEventWait(vshControl *ctl);
 
 /* generic commands */
 extern const vshCmdOptDef opts_help[];
-extern const vshCmdInfo info_help[];
+extern const vshCmdInfo info_help;
 extern const vshCmdOptDef opts_cd[];
-extern const vshCmdInfo info_cd[];
+extern const vshCmdInfo info_cd;
 extern const vshCmdOptDef opts_echo[];
-extern const vshCmdInfo info_echo[];
-extern const vshCmdInfo info_pwd[];
-extern const vshCmdInfo info_quit[];
+extern const vshCmdInfo info_echo;
+extern const vshCmdInfo info_pwd;
+extern const vshCmdInfo info_quit;
 extern const vshCmdOptDef opts_selftest[];
-extern const vshCmdInfo info_selftest[];
+extern const vshCmdInfo info_selftest;
 extern const vshCmdOptDef opts_complete[];
-extern const vshCmdInfo info_complete[];
+extern const vshCmdInfo info_complete;
 
 bool cmdHelp(vshControl *ctl, const vshCmd *cmd);
 bool cmdCd(vshControl *ctl, const vshCmd *cmd);
@@ -399,7 +396,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "cd", \
         .handler = cmdCd, \
         .opts = opts_cd, \
-        .info = info_cd, \
+        .info = &info_cd, \
         .flags = VSH_CMD_FLAG_NOCONNECT \
     }
 
@@ -408,7 +405,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "echo", \
         .handler = cmdEcho, \
         .opts = opts_echo, \
-        .info = info_echo, \
+        .info = &info_echo, \
         .flags = VSH_CMD_FLAG_NOCONNECT \
     }
 
@@ -417,7 +414,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "exit", \
         .handler = cmdQuit, \
         .opts = NULL, \
-        .info = info_quit, \
+        .info = &info_quit, \
         .flags = VSH_CMD_FLAG_NOCONNECT \
     }
 
@@ -426,7 +423,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "help", \
         .handler = cmdHelp, \
         .opts = opts_help, \
-        .info = info_help, \
+        .info = &info_help, \
         .flags = VSH_CMD_FLAG_NOCONNECT \
     }
 
@@ -435,7 +432,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "pwd", \
         .handler = cmdPwd, \
         .opts = NULL, \
-        .info = info_pwd, \
+        .info = &info_pwd, \
         .flags = VSH_CMD_FLAG_NOCONNECT \
     }
 
@@ -444,7 +441,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "quit", \
         .handler = cmdQuit, \
         .opts = NULL, \
-        .info = info_quit, \
+        .info = &info_quit, \
         .flags = VSH_CMD_FLAG_NOCONNECT \
     }
 
@@ -453,7 +450,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "self-test", \
         .handler = cmdSelfTest, \
         .opts = opts_selftest, \
-        .info = info_selftest, \
+        .info = &info_selftest, \
         .flags = VSH_CMD_FLAG_NOCONNECT | VSH_CMD_FLAG_HIDDEN, \
     }
 
@@ -462,7 +459,7 @@ bool cmdComplete(vshControl *ctl, const vshCmd *cmd);
         .name = "complete", \
         .handler = cmdComplete, \
         .opts = opts_complete, \
-        .info = info_complete, \
+        .info = &info_complete, \
         .flags = VSH_CMD_FLAG_NOCONNECT | VSH_CMD_FLAG_HIDDEN, \
     }
 

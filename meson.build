@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.1.0',
+  version: '10.2.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -584,6 +584,8 @@ functions = [
   'posix_fallocate',
   'posix_memalign',
   'prlimit',
+  'sched_get_priority_min',
+  'sched_getaffinity',
   'sched_setscheduler',
   'setgroups',
   'setrlimit',
@@ -604,6 +606,12 @@ stat_functions = [
 
 functions += stat_functions
 
+open_functions = [
+  '__open_2',
+]
+
+functions += open_functions
+
 foreach function : functions
   if cc.has_function(function)
     conf.set('WITH_@0@'.format(function.to_upper()), 1)
@@ -613,6 +621,13 @@ endforeach
 
 foreach function : stat_functions
   if cc.has_header_symbol('sys/stat.h', function)
+    conf.set('WITH_@0@_DECL'.format(function.to_upper()), 1)
+  endif
+endforeach
+
+
+foreach function : open_functions
+  if cc.has_header_symbol('fcntl.h', function)
     conf.set('WITH_@0@_DECL'.format(function.to_upper()), 1)
   endif
 endforeach
@@ -669,8 +684,6 @@ symbols = [
 
   # Check for BSD approach for setting MAC addr
   [ 'net/if_dl.h', 'link_addr', '#include <sys/types.h>\n#include <sys/socket.h>' ],
-
-  [ 'sched.h', 'cpu_set_t' ],
 ]
 
 if host_machine.system() == 'linux'

@@ -256,15 +256,10 @@ static const vshCmdOptDef opts_connect[] = {
     {.name = NULL}
 };
 
-static const vshCmdInfo info_connect[] = {
-    {.name = "help",
-     .data = N_("(re)connect to hypervisor")
-    },
-    {.name = "desc",
-     .data = N_("Connect to local hypervisor. This is built-in "
-                "command after shell start up.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_connect = {
+     .help = N_("(re)connect to hypervisor"),
+     .desc = N_("Connect to local hypervisor. This is built-in "
+                "command after shell start up."),
 };
 
 static bool
@@ -460,12 +455,11 @@ virshUsage(void)
         fprintf(stdout, _(" %1$s (help keyword '%2$s')\n"),
                 grp->name, grp->keyword);
         for (cmd = grp->commands; cmd->name; cmd++) {
-            if (cmd->flags & VSH_CMD_FLAG_ALIAS ||
+            if (cmd->alias ||
                 cmd->flags & VSH_CMD_FLAG_HIDDEN)
                 continue;
             fprintf(stdout,
-                    "    %-30s %s\n", cmd->name,
-                    _(vshCmddefGetInfo(cmd, "help")));
+                    "    %-30s %s\n", cmd->name, _(cmd->info->help));
         }
         fprintf(stdout, "\n");
     }
@@ -795,7 +789,7 @@ static const vshCmdDef virshCmds[] = {
     {.name = "connect",
      .handler = cmdConnect,
      .opts = opts_connect,
-     .info = info_connect,
+     .info = &info_connect,
      .flags = VSH_CMD_FLAG_NOCONNECT
     },
     {.name = NULL}
@@ -878,7 +872,7 @@ main(int argc, char **argv)
 
     virFileActivateDirOverrideForProg(argv[0]);
 
-    if (!vshInit(ctl, cmdGroups, NULL))
+    if (!vshInit(ctl, cmdGroups))
         exit(EXIT_FAILURE);
 
     if (!virshParseArgv(ctl, argc, argv) ||
