@@ -27,6 +27,10 @@ Files: src/conf/domain_validate.*
 Copyright: 2020 IBM Corp.
 License: LGPL-2.1+
 
+Files: src/cpu/cpu_loongarch.*
+Copyright: 2024 Loongson Technology.
+License: LGPL-2.1+
+
 Files: src/cpu/cpu_riscv64.*
 Copyright: 2023 Ventana Micro
 License: LGPL-2.1+
