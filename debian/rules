@@ -216,21 +216,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dpm_utils=disabled \
     $(NULL)
 
-# Those have to stay up through upgrades to avoid interruptions
-LIBVIRT_UNITS = \
-    virtlogd.service \
-    virtlockd.service \
-    libvirt-guests.service \
-    libvirtd.socket \
-    libvirtd-ro.socket \
-    libvirtd-admin.socket \
-    virtlogd.socket \
-    virtlogd-admin.socket \
-    virtlockd.socket \
-    virtlockd-admin.socket \
-    $(NULL)
-
-
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
 
@@ -317,20 +302,17 @@ execute_after_dh_install:
 	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
 
 override_dh_installinit:
-	# Install SysV init scripts
-	dh_installinit -p libvirt-daemon-system-sysv --name=virtlogd --no-stop-on-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=virtlockd --no-stop-on-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=libvirtd --restart-after-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=libvirt-guests --no-start
-	# Install default files, which are used by both systemd and SysV init
-	dh_installinit -p libvirt-daemon-system --name=virtlogd --no-scripts
-	dh_installinit -p libvirt-daemon-system --name=virtlockd --no-scripts
-	dh_installinit -p libvirt-daemon-system --name=libvirtd --no-scripts
-	dh_installinit -p libvirt-daemon-system --name=libvirt-guests --no-scripts
+	dh_installinit -p libvirt-daemon --name=libvirtd --restart-after-upgrade
+	dh_installinit -p libvirt-daemon-log --name=virtlogd --no-stop-on-upgrade
+	dh_installinit -p libvirt-daemon-lock --name=virtlockd --no-stop-on-upgrade
+	dh_installinit -p libvirt-daemon-common --name=libvirt-guests --no-start
 
 override_dh_installsystemd:
-	dh_installsystemd -p libvirt-daemon-system --no-also libvirtd.service
-	dh_installsystemd -p libvirt-daemon-system --no-stop-on-upgrade $(LIBVIRT_UNITS)
+	dh_installsystemd -p libvirt-daemon --no-also libvirtd.service
+	dh_installsystemd -p libvirt-daemon --no-stop-on-upgrade libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket
+	dh_installsystemd -p libvirt-daemon-log --no-stop-on-upgrade virtlogd.service virtlogd.socket virtlogd-admin.socket
+	dh_installsystemd -p libvirt-daemon-lock --no-stop-on-upgrade virtlockd.service virtlockd.socket virtlockd-admin.socket
+	dh_installsystemd -p libvirt-daemon-common --no-stop-on-upgrade libvirt-guests.service
 endif
 
 override_dh_installchangelogs:
