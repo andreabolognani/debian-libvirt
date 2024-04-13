@@ -430,10 +430,11 @@ Depends:
  libvirt-daemon-config-nwfilter (= ${source:Version}),
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
- libvirt-daemon-system-systemd (= ${source:Version}) | libvirt-daemon-system-sysv (= ${source:Version}),
  libvirt0 (= ${binary:Version}),
  logrotate,
  polkitd (>= 121+compat0.1-2),
+ systemd-container | sysvinit-core,
+ systemd-sysv | sysvinit-core,
  ${misc:Depends},
 Recommends:
  dmidecode,
@@ -464,22 +465,13 @@ Multi-Arch: foreign
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
+ libvirt-daemon-system (<< ${source:Version}.1~),
+ libvirt-daemon-system (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
- systemd-container,
- systemd-sysv,
  ${misc:Depends},
-Conflicts:
- libvirt-daemon-system-sysv,
-Description: Libvirt daemon configuration files (systemd)
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
- .
- This package contains the dependencies to make libvirt work with systemd.
- (this is the default). This package is useless without the
- libvirt-daemon-system package installed.
+Description: transitional dummy package
+ This is a transitional dummy package and can be safely removed.
 
 Package: libvirt-daemon-system-sysv
 Section: admin
@@ -493,20 +485,13 @@ Depends:
  libvirt-daemon-common (>= ${source:Version}),
  libvirt-daemon-log (<< ${source:Version}.1~),
  libvirt-daemon-log (>= ${source:Version}),
+ libvirt-daemon-system (<< ${source:Version}.1~),
+ libvirt-daemon-system (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
-Description: Libvirt daemon configuration files (sysv)
- Libvirt is a C toolkit to interact with the virtualization capabilities
- of recent versions of Linux (and other OSes). The library aims at providing
- a long term stable C API for different virtualization mechanisms. It currently
- supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
- .
- This package contains dependencies and init scripts to make libvirt work with
- sysv based init systems. Using libvirt-daemon-systemd is preferred since the
- init scripts are incomplete.
- .
- This package is useless without the libvirt-daemon-system package installed.
+Description: transitional dummy package
+ This is a transitional dummy package and can be safely removed.
 
 Package: libvirt-daemon-config-network
 Section: admin
