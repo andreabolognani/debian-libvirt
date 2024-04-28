@@ -1,7 +1,4 @@
 etc/libvirt/nwfilter
 etc/libvirt/qemu/networks
 etc/libvirt/qemu/networks/autostart
-var/cache/libvirt/qemu
-var/lib/libvirt/qemu
 var/lib/libvirt/sanlock
-var/log/libvirt/qemu
