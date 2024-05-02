@@ -72,15 +72,6 @@ Copyright: 2020-2021 Microsoft Corp.
 License: LGPL-2.1+
 
 Files: tests/pkix_asn1_tab.c
-       tests/virsh-cpuset
-       tests/virsh-optparse
-       tests/virsh-read-bufsiz
-       tests/virsh-read-non-seekable
-       tests/virsh-schedinfo
-       tests/virsh-self-test
-       tests/virsh-start
-       tests/virsh-undefine
-       tests/virsh-vcpupin
 Copyright: 2008-2019 Red Hat, Inc.
 License: GPL-2.0+
 
