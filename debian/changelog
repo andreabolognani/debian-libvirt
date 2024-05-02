@@ -1,8 +1,10 @@
-libvirt (10.3.0-1) UNRELEASED; urgency=medium
+libvirt (10.3.0-1) unstable; urgency=medium
 
   * [7845089] New upstream version 10.3.0
+  * [be65bee] patches: Add backport/rpc-ensure-temporary-GSource[...]
+    - Fixes CVE-2024-4418 (Closes: #1070330)
 
- -- Andrea Bolognani <eof@kiyuko.org>  Thu, 02 May 2024 23:31:28 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 04 May 2024 00:16:21 +0200
 
 libvirt (10.2.0-1) unstable; urgency=medium
 
