@@ -298,7 +298,7 @@ tests += [
   { 'name': 'virportallocatortest' },
   { 'name': 'virrotatingfiletest' },
   { 'name': 'virschematest' },
-  { 'name': 'virshtest' },
+  { 'name': 'virshtest', 'depends': [ virsh_prog ] },
   { 'name': 'virstringtest' },
   { 'name': 'virsystemdtest' },
   { 'name': 'virtimetest' },
@@ -602,7 +602,7 @@ foreach data : tests
     test_bin,
     env: tests_env,
     timeout: data.get('timeout', 30),
-    depends: tests_deps,
+    depends: tests_deps + data.get('depends', []),
     suite: 'bin'
   )
 endforeach
@@ -619,6 +619,20 @@ test(
   suite: 'script',
 )
 
+# vsh based client self-test, which can be run directly from meson
+test('virsh self-test',
+  virsh_prog,
+  args: [ '-q', '-c', 'test:///default', 'self-test' ],
+  suite: 'bin',
+)
+
+if conf.has('WITH_REMOTE')
+  test('virt-admin self-test',
+    virt_admin_prog,
+    args: [ '-q', 'self-test' ],
+    suite: 'bin',
+  )
+endif
 
 # helpers:
 #   each entry is a dictionary with following items:
@@ -687,26 +701,15 @@ endforeach
 test_scripts = []
 
 if conf.has('WITH_LIBVIRTD')
+  test('libvirtd fail with missing config',
+    libvirtd_prog,
+    args: [ '--config=no-such-conf', '--timeout=5' ],
+    should_fail: true,
+    suite: 'bin',
+  )
+
   test_scripts += [
-    'libvirtd-fail',
-    'libvirtd-pool',
     'virsh-auth',
-    'virsh-checkpoint',
-    'virsh-cpuset',
-    'virsh-define-dev-segfault',
-    'virsh-int-overflow',
-    'virsh-optparse',
-    'virsh-output',
-    'virsh-read-bufsiz',
-    'virsh-read-non-seekable',
-    'virsh-schedinfo',
-    'virsh-self-test',
-    'virsh-snapshot',
-    'virsh-start',
-    'virsh-undefine',
-    'virsh-uriprecedence',
-    'virsh-vcpupin',
-    'virt-admin-self-test',
   ]
 
   if conf.has('WITH_SECDRIVER_APPARMOR')

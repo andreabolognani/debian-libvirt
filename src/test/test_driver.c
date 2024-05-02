@@ -1269,7 +1269,10 @@ testParseNodedevs(testDriver *privconn,
             return -1;
         }
 
+        virNodeDeviceObjSetPersistent(obj, true);
+        virNodeDeviceObjSetActive(obj, true);
         virNodeDeviceObjSetSkipUpdateCaps(obj, true);
+        virNodeDeviceSyncMdevActiveConfig(def);
         virNodeDeviceObjEndAPI(&obj);
     }
 
@@ -7481,7 +7484,7 @@ testConnectListAllNodeDevices(virConnectPtr conn,
 {
     testDriver *driver = conn->privateData;
 
-    virCheckFlags(VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_CAP, -1);
+    virCheckFlags(VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ALL, -1);
 
     return virNodeDeviceObjListExport(conn, driver->devs, devices,
                                       NULL, flags);
@@ -7512,15 +7515,30 @@ testNodeDeviceGetXMLDesc(virNodeDevicePtr dev,
 {
     testDriver *driver = dev->conn->privateData;
     virNodeDeviceObj *obj;
+    virNodeDeviceDef *def;
     char *ret = NULL;
 
     virCheckFlags(VIR_NODE_DEVICE_XML_INACTIVE, NULL);
 
     if (!(obj = testNodeDeviceObjFindByName(driver, dev->name)))
         return NULL;
+    def = virNodeDeviceObjGetDef(obj);
 
-    ret = virNodeDeviceDefFormat(virNodeDeviceObjGetDef(obj), flags);
+    if (flags & VIR_NODE_DEVICE_XML_INACTIVE) {
+        if (!virNodeDeviceObjIsPersistent(obj)) {
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           _("node device '%1$s' is not persistent"),
+                           def->name);
+            goto cleanup;
+        }
+    } else {
+        if (!virNodeDeviceObjIsActive(obj))
+            flags |= VIR_NODE_DEVICE_XML_INACTIVE;
+    }
 
+    ret = virNodeDeviceDefFormat(def, flags);
+
+ cleanup:
     virNodeDeviceObjEndAPI(&obj);
     return ret;
 }
@@ -7776,6 +7794,36 @@ testNodeDeviceDestroy(virNodeDevicePtr dev)
  cleanup:
     virNodeDeviceObjEndAPI(&obj);
     virObjectEventStateQueue(driver->eventState, event);
+    return ret;
+}
+
+static int
+testNodeDeviceIsActive(virNodeDevicePtr dev)
+{
+    testDriver *privconn = dev->conn->privateData;
+    virNodeDeviceObj *obj = NULL;
+    int ret = -1;
+
+    if (!(obj = testNodeDeviceObjFindByName(privconn, dev->name)))
+        return -1;
+
+    ret = virNodeDeviceObjIsActive(obj);
+    virNodeDeviceObjEndAPI(&obj);
+    return ret;
+}
+
+static int
+testNodeDeviceIsPersistent(virNodeDevicePtr dev)
+{
+    testDriver *privconn = dev->conn->privateData;
+    virNodeDeviceObj *obj = NULL;
+    int ret = -1;
+
+    if (!(obj = testNodeDeviceObjFindByName(privconn, dev->name)))
+        return -1;
+
+    ret = virNodeDeviceObjIsPersistent(obj);
+    virNodeDeviceObjEndAPI(&obj);
     return ret;
 }
 
@@ -10657,6 +10705,8 @@ static virNodeDeviceDriver testNodeDeviceDriver = {
     .nodeDeviceListCaps = testNodeDeviceListCaps, /* 0.7.2 */
     .nodeDeviceCreateXML = testNodeDeviceCreateXML, /* 0.7.3 */
     .nodeDeviceDestroy = testNodeDeviceDestroy, /* 0.7.3 */
+    .nodeDeviceIsActive = testNodeDeviceIsActive, /* 10.3.0 */
+    .nodeDeviceIsPersistent = testNodeDeviceIsPersistent, /* 10.3.0 */
 };
 
 static virConnectDriver testConnectDriver = {

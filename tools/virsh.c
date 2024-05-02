@@ -245,7 +245,8 @@ virshReconnect(vshControl *ctl, const char *name, bool readonly, bool force)
 static const vshCmdOptDef opts_connect[] = {
     {.name = "name",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_EMPTY_OK,
+     .positional = true,
+     .allowEmpty = true,
      .completer = virshCompleteEmpty,
      .help = N_("hypervisor connection URI")
     },
@@ -268,7 +269,7 @@ cmdConnect(vshControl *ctl, const vshCmd *cmd)
     bool ro = vshCommandOptBool(cmd, "readonly");
     const char *name = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
     if (virshReconnect(ctl, name, ro, true) < 0)
@@ -769,7 +770,7 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
         ctl->imode = false;
         if (argc - optind == 1) {
             vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
-            return vshCommandStringParse(ctl, argv[optind], NULL, 0);
+            return vshCommandStringParse(ctl, argv[optind], NULL);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);
         }
@@ -907,7 +908,7 @@ main(int argc, char **argv)
             if (*ctl->cmdstr) {
                 vshReadlineHistoryAdd(ctl->cmdstr);
 
-                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL, 0))
+                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL))
                     vshCommandRun(ctl, ctl->cmd);
             }
             VIR_FREE(ctl->cmdstr);

@@ -49,6 +49,7 @@
 #define VIRSH_COMMON_OPT_POOL_OPTIONAL \
     {.name = "pool", \
      .type = VSH_OT_STRING, \
+     .positional = true, \
      .help = N_("pool name or uuid"), \
      .completer = virshStoragePoolNameCompleter, \
      .completer_flags = VIR_CONNECT_LIST_STORAGE_POOLS_ACTIVE, \
@@ -91,11 +92,11 @@ virshCommandOptVolBy(vshControl *ctl, const vshCmd *cmd,
 
     virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     if (pooloptname != NULL &&
-        vshCommandOptStringReq(ctl, cmd, pooloptname, &p) < 0)
+        vshCommandOptString(ctl, cmd, pooloptname, &p) < 0)
         return NULL;
 
     if (p) {
@@ -189,19 +190,23 @@ static const vshCmdOptDef opts_vol_create_as[] = {
     },
     {.name = "allocation",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("initial allocation size, as scaled integer (default bytes)")
     },
     {.name = "format",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("file format type raw,bochs,qcow,qcow2,qed,vmdk")
     },
     {.name = "backing-vol",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("the backing volume if taking a snapshot")
     },
     {.name = "backing-vol-format",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("format of backing volume if taking a snapshot")
     },
     {.name = "prealloc-metadata",
@@ -244,10 +249,10 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
     if (!(pool = virshCommandOptPool(ctl, cmd, "pool", NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "capacity", &capacityStr) < 0)
+    if (vshCommandOptString(ctl, cmd, "capacity", &capacityStr) < 0)
         return false;
 
     if (virshVolSize(capacityStr, &capacity) < 0) {
@@ -261,10 +266,9 @@ cmdVolCreateAs(vshControl *ctl, const vshCmd *cmd)
         return false;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "format", &format) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "backing-vol", &snapshotStrVol) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "backing-vol-format",
-                               &snapshotStrFormat) < 0)
+    if (vshCommandOptString(ctl, cmd, "format", &format) < 0 ||
+        vshCommandOptString(ctl, cmd, "backing-vol", &snapshotStrVol) < 0 ||
+        vshCommandOptString(ctl, cmd, "backing-vol-format", &snapshotStrFormat) < 0)
         return false;
 
     virBufferAddLit(&buf, "<volume>\n");
@@ -399,7 +403,7 @@ cmdVolCreate(vshControl *ctl, const vshCmd *cmd)
     if (!(pool = virshCommandOptPool(ctl, cmd, "pool", NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0) {
@@ -431,6 +435,7 @@ static const vshCmdOptDef opts_vol_create_from[] = {
     VIRSH_COMMON_OPT_VOL_FULL,
     {.name = "inputpool",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshStoragePoolNameCompleter,
      .help = N_("pool name or uuid of the input volume's pool")
     },
@@ -471,7 +476,7 @@ cmdVolCreateFrom(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "validate"))
         flags |= VIR_STORAGE_VOL_CREATE_VALIDATE;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (!(inputvol = virshCommandOptVol(ctl, cmd, "vol", "inputpool", NULL)))
@@ -571,7 +576,7 @@ cmdVolClone(vshControl *ctl, const vshCmd *cmd)
         return false;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "newname", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "newname", &name) < 0)
         return false;
 
     if (!(origxml = virStorageVolGetXMLDesc(origvol, 0)))
@@ -612,10 +617,12 @@ static const vshCmdOptDef opts_vol_upload[] = {
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "offset",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("volume offset to upload to")
     },
     {.name = "length",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("amount of data to upload")
     },
     {.name = "sparse",
@@ -648,7 +655,7 @@ cmdVolUpload(vshControl *ctl, const vshCmd *cmd)
     if (!(vol = virshCommandOptVol(ctl, cmd, "vol", "pool", &name)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &file) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &file) < 0)
         return false;
 
     if ((fd = open(file, O_RDONLY)) < 0) {
@@ -720,10 +727,12 @@ static const vshCmdOptDef opts_vol_download[] = {
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "offset",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("volume offset to download from")
     },
     {.name = "length",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("amount of data to download")
     },
     {.name = "sparse",
@@ -758,7 +767,7 @@ cmdVolDownload(vshControl *ctl, const vshCmd *cmd)
     if (!(vol = virshCommandOptVol(ctl, cmd, "vol", "pool", &name)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &file) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &file) < 0)
         goto cleanup;
 
     if (vshCommandOptBool(cmd, "sparse"))
@@ -874,6 +883,7 @@ static const vshCmdOptDef opts_vol_wipe[] = {
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "algorithm",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshStorageVolWipeAlgorithmCompleter,
      .help = N_("perform selected wiping algorithm")
     },
@@ -897,7 +907,7 @@ cmdVolWipe(vshControl *ctl, const vshCmd *cmd)
     if (!(vol = virshCommandOptVol(ctl, cmd, "vol", "pool", &name)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "algorithm", &algorithm_str) < 0)
+    if (vshCommandOptString(ctl, cmd, "algorithm", &algorithm_str) < 0)
         return false;
 
     if (algorithm_str &&
@@ -1067,7 +1077,7 @@ cmdVolResize(vshControl *ctl, const vshCmd *cmd)
     if (!(vol = virshCommandOptVol(ctl, cmd, "vol", "pool", NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "capacity", &capacityStr) < 0)
+    if (vshCommandOptString(ctl, cmd, "capacity", &capacityStr) < 0)
         return false;
     virSkipSpaces(&capacityStr);
     if (*capacityStr == '-') {
@@ -1119,7 +1129,6 @@ static const vshCmdOptDef opts_vol_dumpxml[] = {
     VIRSH_COMMON_OPT_POOL_OPTIONAL,
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },

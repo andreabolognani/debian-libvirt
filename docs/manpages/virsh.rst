@@ -326,8 +326,6 @@ Will change current directory to *directory*.  The default directory
 for the ``cd`` command is the home directory or, if there is no *HOME*
 variable in the environment, the root directory.
 
-This command is only available in interactive mode.
-
 
 pwd
 ---
@@ -7673,9 +7671,11 @@ If *--parent* is specified, add a column to the output table giving
 the name of the parent of each snapshot.  If *--roots* is specified,
 the list will be filtered to just snapshots that have no parents.
 If *--tree* is specified, the output will be in a tree format, listing
-just snapshot names.  These three options are mutually exclusive. If
-*--name* is specified only the snapshot name is printed. This option is
-mutually exclusive with *--tree*.
+just snapshot names.  These three options are mutually exclusive.
+
+If *--name* is specified only the snapshot name is printed optionally
+followed by a tab-separated name of the parent snapshot if *--parent* is used
+as well. This option is mutually exclusive with *--tree*.
 
 If *--from* is provided, filter the list to snapshots which are
 children of the given ``snapshot``; or if *--current* is provided,
@@ -7989,8 +7989,11 @@ the name of the parent of each checkpoint.  If *--roots* is
 specified, the list will be filtered to just checkpoints that have no
 parents.  If *--tree* is specified, the output will be in a tree
 format, listing just checkpoint names.  These three options are
-mutually exclusive. If *--name* is specified only the checkpoint name
-is printed. This option is mutually exclusive with *--tree*.
+mutually exclusive.
+
+If *--name* is specified only the checkpoint name is printed optionally
+followed by a tab-separated name of the parent checkpoint if *--parent* is used
+as well. This option is mutually exclusive with *--tree*.
 
 If *--from* is provided, filter the list to checkpoints which are
 children of the given ``checkpoint``.  When used in isolation or with

@@ -125,6 +125,7 @@ Patches have also been contributed by:
 * Amy Griffis <amy.griffis@hp.com>
 * Anastasia Belova <abelova@astralinux.ru>
 * Anatole Denis <natolumin@gmail.com>
+* Andi Chandler <andi@gowling.com>
 * Andika Triwidada <andika@gmail.com>
 * Andrea Bolognani <abologna@redhat.com>
 * Andres Lagar-Cavilla <andres@lagarcavilla.org>
@@ -162,6 +163,7 @@ Patches have also been contributed by:
 * Beat Jörg <Beat.Joerg@ssatr.ch>
 * Ben Gray <ben.r.gray@gmail.com>
 * Benjamin Cama <benoar@dolka.fr>
+* Benjamin Taubmann <benjamin.taubmann@nutanix.com>
 * Bharata B Rao <bharata@linux.vnet.ibm.com>
 * BiaoXiang Ye <yebiaoxiang@huawei.com>
 * Bihong Yu <yubihong@huawei.com>
@@ -177,6 +179,7 @@ Patches have also been contributed by:
 * Boris Fiuczynski <fiuczy@linux.ibm.com>
 * Boris Fiuczynski <fiuczy@linux.vnet.ibm.com>
 * Brandon Bennett <bbennett@fb.com>
+* Brett Holman <brett.holman@canonical.com>
 * Brian Candler <b.candler@pobox.com>
 * Brian Turek <brian.turek@gmail.com>
 * Brijesh Singh <brijesh.singh@amd.com>
@@ -272,6 +275,7 @@ Patches have also been contributed by:
 * Dawid Zamirski <dzrudy@gmail.com>
 * Deepak C Shetty <dpkshetty@gmail.com>
 * Denis Kondratenko <denis.kondratenko@gmail.com>
+* Denis V. Lunev <den@openvz.org>
 * Dennis Chen <xschen@tnsoft.com.cn>
 * Derbyshev Dmitry <dderbyshev@virtuozzo.com>
 * Didik Supriadi <didiksupriadi41@gmail.com>

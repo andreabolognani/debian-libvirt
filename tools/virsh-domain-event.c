@@ -865,10 +865,15 @@ static const vshCmdInfo info_event = {
 };
 
 static const vshCmdOptDef opts_event[] = {
-    VIRSH_COMMON_OPT_DOMAIN_OT_STRING(N_("filter by domain name, id or uuid"),
-                                      0, 0),
+    {.name = "domain",
+     .type = VSH_OT_STRING,
+     .unwanted_positional = true,
+     .help = N_("filter by domain name, id or uuid"),
+     .completer = virshDomainNameCompleter,
+    },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshDomainEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -882,6 +887,7 @@ static const vshCmdOptDef opts_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -921,7 +927,7 @@ cmdEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
 
     if (!eventName && !all) {

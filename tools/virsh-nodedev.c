@@ -61,7 +61,7 @@ cmdNodeDeviceCreate(vshControl *ctl, const vshCmd *cmd)
     virshControl *priv = ctl->privData;
     unsigned int flags = 0;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
@@ -142,7 +142,7 @@ cmdNodeDeviceDestroy(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshNodeDevice) dev = NULL;
     const char *device_value = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
         return false;
 
     dev = vshFindNodeDevice(ctl, device_value);
@@ -365,6 +365,7 @@ static const vshCmdOptDef opts_node_list_devices[] = {
     },
     {.name = "cap",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshNodeDeviceCapabilityNameCompleter,
      .help = N_("capability names, separated by comma")
     },
@@ -583,7 +584,6 @@ static const vshCmdOptDef opts_node_device_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -604,7 +604,7 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
     bool wrap = vshCommandOptBool(cmd, "wrap");
     const char *xpath = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
          return false;
 
     if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
@@ -643,6 +643,7 @@ static const vshCmdOptDef opts_node_device_detach[] = {
     },
     {.name = "driver",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshNodeDevicePCIBackendCompleter,
      .help = N_("pci device assignment backend driver (e.g. 'vfio' or 'xen')")
     },
@@ -658,7 +659,7 @@ cmdNodeDeviceDetach(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
         return false;
 
     ignore_value(vshCommandOptStringQuiet(ctl, cmd, "driver", &driverName));
@@ -715,7 +716,7 @@ cmdNodeDeviceReAttach(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
         return false;
 
     if (!(device = virNodeDeviceLookupByName(priv->conn, name))) {
@@ -761,7 +762,7 @@ cmdNodeDeviceReset(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
         return false;
 
     if (!(device = virNodeDeviceLookupByName(priv->conn, name))) {
@@ -884,11 +885,13 @@ static const vshCmdInfo info_node_device_event = {
 static const vshCmdOptDef opts_node_device_event[] = {
     {.name = "device",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("filter by node device name"),
      .completer = virshNodeDeviceNameCompleter,
     },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshNodeDeviceEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -898,6 +901,7 @@ static const vshCmdOptDef opts_node_device_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -932,7 +936,7 @@ cmdNodeDeviceEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
     if (!eventName) {
         vshError(ctl, "%s", _("either --list or --event <type> is required"));
@@ -954,7 +958,7 @@ cmdNodeDeviceEvent(vshControl *ctl, const vshCmd *cmd)
     data.cb = &virshNodeDeviceEventCallbacks[event];
     if (vshCommandOptTimeoutToMs(ctl, cmd, &timeout) < 0)
         return false;
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
         return false;
 
     if (device_value) {
@@ -1021,7 +1025,7 @@ cmdNodeDeviceUndefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     g_autoptr(virshNodeDevice) dev = NULL;
     const char *device_value = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
         return false;
 
     dev = vshFindNodeDevice(ctl, device_value);
@@ -1068,7 +1072,7 @@ cmdNodeDeviceDefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     virshControl *priv = ctl->privData;
     unsigned int flags = 0;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
@@ -1115,7 +1119,7 @@ cmdNodeDeviceStart(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
         return false;
 
     if (!(device = virNodeDeviceLookupByName(priv->conn, name))) {
@@ -1164,7 +1168,7 @@ cmdNodeDeviceAutostart(vshControl *ctl, const vshCmd *cmd)
     const char *name = NULL;
     int autostart;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
         return false;
 
     dev = vshFindNodeDevice(ctl, name);
@@ -1219,7 +1223,7 @@ cmdNodeDeviceInfo(vshControl *ctl, const vshCmd *cmd)
     int autostart;
     const char *parent = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
          return false;
 
     device = vshFindNodeDevice(ctl, device_value);
@@ -1282,7 +1286,7 @@ cmdNodeDeviceUpdate(vshControl *ctl, const vshCmd *cmd)
     VSH_EXCLUSIVE_OPTIONS("current", "live");
     VSH_EXCLUSIVE_OPTIONS("current", "config");
 
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
          return false;
 
     device = vshFindNodeDevice(ctl, device_value);
@@ -1290,7 +1294,7 @@ cmdNodeDeviceUpdate(vshControl *ctl, const vshCmd *cmd)
     if (!device)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         goto cleanup;
 
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &xml) < 0)

@@ -1799,6 +1799,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("console-compat");
     DO_TEST_CAPS_LATEST("console-compat-auto");
+    DO_TEST_CAPS_LATEST("console-compat-crash");
 
     DO_TEST_CAPS_LATEST("serial-vc-chardev");
     DO_TEST_CAPS_LATEST("serial-pty-chardev");
@@ -2075,6 +2076,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("hostdev-pci-address");
     DO_TEST_CAPS_LATEST("hostdev-pci-address-device");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-pci-duplicate");
+    DO_TEST_CAPS_LATEST("hostdev-pci-display-ramfb");
     DO_TEST_CAPS_LATEST("hostdev-vfio");
     DO_TEST_CAPS_LATEST("hostdev-vfio-multidomain");
     DO_TEST_CAPS_LATEST("hostdev-mdev-precreated");
@@ -2287,6 +2289,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("cputune-numatune");
     DO_TEST_CAPS_LATEST("vcpu-placement-static");
     DO_TEST_CAPS_LATEST("cputune-cpuset-big-id");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("cpuset-invalid");
 
     DO_TEST_CAPS_LATEST_PARSE_ERROR("numatune-memory-invalid-nodeset");
     DO_TEST_CAPS_VER("numatune-memnode", "5.2.0");
@@ -2851,6 +2854,9 @@ mymain(void)
     DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("vhost-user-fs-readonly");
 
+    DO_TEST_CAPS_ARCH_LATEST("vhost-user-fs-ccw", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("vhost-user-fs-ccw-bootindex", "s390x");
+
     DO_TEST_CAPS_LATEST("virtio-transitional");
     DO_TEST_CAPS_LATEST("virtio-non-transitional");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-transitional-not-supported");
@@ -2976,6 +2982,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tap-vhost");
 
     DO_TEST_CAPS_LATEST("mtp-usb-device")
+    DO_TEST_CAPS_LATEST("net-usb")
 
     /* check that all input files were actually used here */
     if (testConfXMLCheck(existingTestCases) < 0)

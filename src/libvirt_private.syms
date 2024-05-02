@@ -813,7 +813,6 @@ virDomainMomentDefPostParse;
 
 
 # conf/netdev_bandwidth_conf.h
-virDomainClearNetBandwidth;
 virNetDevBandwidthFormat;
 virNetDevBandwidthHasFloor;
 virNetDevBandwidthParse;
@@ -889,6 +888,7 @@ virNodeDeviceGetPCIDynamicCaps;
 virNodeDeviceGetSCSIHostCaps;
 virNodeDeviceGetSCSITargetCaps;
 virNodeDeviceGetWWNs;
+virNodeDeviceSyncMdevActiveConfig;
 virNodeDeviceUpdateCaps;
 
 
@@ -1635,6 +1635,8 @@ virDomainDriverParseBlkioDeviceStr;
 virDomainDriverSetupPersistentDefBlkioParams;
 
 # hypervisor/domain_interface.h
+virDomainClearNetBandwidth;
+virDomainInterfaceClearQoS;
 virDomainInterfaceDeleteDevice;
 virDomainInterfaceEthernetConnect;
 virDomainInterfaceIsVnetCompatModel;
@@ -1642,6 +1644,7 @@ virDomainInterfaceStartDevice;
 virDomainInterfaceStartDevices;
 virDomainInterfaceStopDevice;
 virDomainInterfaceStopDevices;
+virDomainInterfaceVportRemove;
 
 
 # hypervisor/virclosecallbacks.h

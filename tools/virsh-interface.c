@@ -58,7 +58,7 @@ virshCommandOptInterfaceBy(vshControl *ctl, const vshCmd *cmd,
     if (!optname)
        optname = "interface";
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_INFO, "%s: found option <%s>: %s\n",
@@ -453,7 +453,6 @@ static const vshCmdOptDef opts_interface_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -516,7 +515,7 @@ cmdInterfaceDefine(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -736,6 +735,7 @@ static const vshCmdOptDef opts_interface_bridge[] = {
     },
     {.name = "delay",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("number of seconds to squelch traffic on newly connected ports")
     },
     {.name = "no-start",
@@ -770,7 +770,7 @@ cmdInterfaceBridge(vshControl *ctl, const vshCmd *cmd)
     }
 
     /* Name for new bridge device */
-    if (vshCommandOptStringReq(ctl, cmd, "bridge", &br_name) < 0)
+    if (vshCommandOptString(ctl, cmd, "bridge", &br_name) < 0)
         goto cleanup;
 
     /* make sure "new" device doesn't already exist */

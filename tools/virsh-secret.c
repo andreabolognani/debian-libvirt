@@ -41,7 +41,7 @@ virshCommandOptSecret(vshControl *ctl, const vshCmd *cmd, const char **name)
     const char *optname = "secret";
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_DEBUG,
@@ -86,7 +86,7 @@ cmdSecretDefine(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -131,7 +131,6 @@ static const vshCmdOptDef opts_secret_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -187,7 +186,6 @@ static const vshCmdOptDef opts_secret_set_value[] = {
     },
     {.name = "file",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompletePathLocalExisting,
      .help = N_("read secret from file"),
     },
@@ -201,6 +199,7 @@ static const vshCmdOptDef opts_secret_set_value[] = {
     },
     {.name = "base64",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("base64-encoded secret value")
     },
@@ -228,10 +227,10 @@ cmdSecretSetValue(vshControl *ctl, const vshCmd *cmd)
     if (!(secret = virshCommandOptSecret(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "base64", &base64) < 0)
+    if (vshCommandOptString(ctl, cmd, "base64", &base64) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &filename) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &filename) < 0)
         return false;
 
     if (base64) {
@@ -714,11 +713,13 @@ static const vshCmdInfo info_secret_event = {
 static const vshCmdOptDef opts_secret_event[] = {
     {.name = "secret",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("filter by secret name or uuid"),
      .completer = virshSecretUUIDCompleter,
     },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshSecretEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -728,6 +729,7 @@ static const vshCmdOptDef opts_secret_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -761,7 +763,7 @@ cmdSecretEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
     if (!eventName) {
         vshError(ctl, "%s", _("either --list or --event <type> is required"));

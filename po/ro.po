@@ -1,19 +1,24 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the libvirt package.
-# Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>, 2023.
+# Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>, 2023, 2024.
+# Weblate <noreply-mt-weblate@weblate.org>, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 9.3.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-03-22 09:54+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
+"POT-Creation-Date: 2024-04-26 08:00+0000\n"
+"PO-Revision-Date: 2024-04-28 05:54+0000\n"
+"Last-Translator: Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>\n"
+"Language-Team: Romanian <https://translate.fedoraproject.org/projects/"
+"libvirt/libvirt/ro/>\n"
 "Language: ro\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < "
+"20)) ? 1 : 2;\n"
+"X-Generator: Weblate 5.5.2\n"
 
 msgid ""
 "\n"
@@ -279,8 +284,12 @@ msgstr ""
 msgid " %1$s (help keyword '%2$s'):\n"
 msgstr ""
 
-msgid " Hypervisors:"
+#, c-format
+msgid " --%1$s <string>..."
 msgstr ""
+
+msgid " Hypervisors:"
+msgstr " Hipervizor:"
 
 msgid " Miscellaneous:"
 msgstr ""
@@ -292,7 +301,7 @@ msgid " Storage:"
 msgstr ""
 
 #, c-format
-msgid " [[--%1$s] <string>]..."
+msgid " [--%1$s <string>]..."
 msgstr ""
 
 #, c-format
@@ -301,10 +310,6 @@ msgid ""
 " bandwidth=%2$lu\n"
 " cur=%3$llu\n"
 " end=%4$llu\n"
-msgstr ""
-
-#, c-format
-msgid " {[--%1$s] <string>}..."
 msgstr ""
 
 #, c-format
@@ -440,7 +445,7 @@ msgstr ""
 
 #, c-format
 msgid "%1$s is not an executable"
-msgstr ""
+msgstr "%1$s nu este un executabil"
 
 #, c-format
 msgid "%1$s is not supported by this QEMU binary"
@@ -1281,9 +1286,6 @@ msgstr ""
 msgid "(node_device_definition)"
 msgstr ""
 
-msgid "(none)"
-msgstr ""
-
 msgid "(nwfilter_definition)"
 msgstr ""
 
@@ -1332,15 +1334,15 @@ msgid "--%1$s <string>"
 msgstr ""
 
 #, c-format
+msgid "--%1$s <string>..."
+msgstr ""
+
+#, c-format
 msgid "--%1$s and --current are mutually exclusive"
 msgstr ""
 
 #, c-format
 msgid "--%1$s and --tree are mutually exclusive"
-msgstr ""
-
-#, c-format
-msgid "--%1$s is required"
 msgstr ""
 
 #, c-format
@@ -1554,7 +1556,7 @@ msgid "Accept SSH host key with hash '%1$s' for host '%2$s:%3$d' (%4$s/%5$s)?"
 msgstr ""
 
 msgid "Access denied"
-msgstr ""
+msgstr "Acces refuzat"
 
 #, c-format
 msgid "Activation of snoop request failed on interface '%1$s'"
@@ -1593,7 +1595,7 @@ msgid "Added"
 msgstr ""
 
 msgid "Address"
-msgstr ""
+msgstr "Adresă"
 
 msgid "Advice from numad is needed in case of automatic numa placement"
 msgstr ""
@@ -1901,7 +1903,7 @@ msgid "Bridge interface %1$s started\n"
 msgstr ""
 
 msgid "Bridge:"
-msgstr ""
+msgstr "Punte acces:"
 
 msgid "Buffer to small for ipset name"
 msgstr ""
@@ -1932,7 +1934,7 @@ msgid "Bus 0 must be PCI for integrated PIIX3 USB or IDE controllers"
 msgstr ""
 
 msgid "Busy"
-msgstr ""
+msgstr "Ocupat"
 
 msgid "CA certificate:"
 msgstr ""
@@ -2361,7 +2363,7 @@ msgid ""
 msgstr ""
 
 msgid "Cancelled"
-msgstr ""
+msgstr "Anulat"
 
 #, c-format
 msgid "Cannot access '%1$s'"
@@ -3116,10 +3118,10 @@ msgid "Cannot write pid in tasks file '%1$s'"
 msgstr ""
 
 msgid "Capacity"
-msgstr ""
+msgstr "Capacitate"
 
 msgid "Capacity:"
-msgstr ""
+msgstr "Capacitate:"
 
 msgid ""
 "Cardinality of list items must be the same for processing them in parallel"
@@ -4809,7 +4811,7 @@ msgid "Detach node device from its device driver before assigning to a domain."
 msgstr ""
 
 msgid "Device"
-msgstr ""
+msgstr "Dispozitiv"
 
 #, c-format
 msgid "Device %1$s already exists"
@@ -4817,10 +4819,6 @@ msgstr ""
 
 #, c-format
 msgid "Device %1$s detached\n"
-msgstr ""
-
-#, c-format
-msgid "Device %1$s does not have a VPD"
 msgstr ""
 
 #, c-format
@@ -4947,7 +4945,7 @@ msgid "Dirty rate:"
 msgstr ""
 
 msgid "Disabled"
-msgstr ""
+msgstr "Dezactivat"
 
 #, c-format
 msgid "Disallowing client %1$lld with uid %2$lld"
@@ -4970,7 +4968,7 @@ msgid "Disconnected from %1$s due to keepalive timeout"
 msgstr ""
 
 msgid "Disk"
-msgstr ""
+msgstr "Disc"
 
 #, c-format
 msgid "Disk address %1$d:%2$d:%3$d doesn't match target device '%4$s'"
@@ -5361,7 +5359,7 @@ msgid "Domain-0 does not support requested operation"
 msgstr ""
 
 msgid "Domain:"
-msgstr ""
+msgstr "Domeniu:"
 
 msgid "Done.\n"
 msgstr ""
@@ -5533,7 +5531,7 @@ msgid "Emulator '%1$s' does not support virt type '%2$s'"
 msgstr ""
 
 msgid "Enabled"
-msgstr ""
+msgstr "Activat"
 
 msgid "End of file from agent socket"
 msgstr ""
@@ -7035,7 +7033,7 @@ msgid "Failed to load module '%1$s': %2$s"
 msgstr ""
 
 msgid "Failed to load nbd module"
-msgstr ""
+msgstr "Eșec la încărcarea modulului „nbd”"
 
 msgid "Failed to load nbd module: administratively prohibited"
 msgstr ""
@@ -7166,10 +7164,6 @@ msgid "Failed to open '%1$s'"
 msgstr ""
 
 msgid "Failed to open a UNIX socket"
-msgstr ""
-
-#, c-format
-msgid "Failed to open a VPD file '%1$s'"
 msgstr ""
 
 #, c-format
@@ -8214,7 +8208,7 @@ msgid "Filesystems in VMs are not supported by vz driver"
 msgstr ""
 
 msgid "Filter"
-msgstr ""
+msgstr "Filtru"
 
 #, c-format
 msgid "Filter '%1$s' is in use."
@@ -8762,7 +8756,7 @@ msgid "IOThreads not available for bus %1$s target %2$s"
 msgstr ""
 
 msgid "IP address"
-msgstr ""
+msgstr "Adresă IP"
 
 #, c-format
 msgid "IP address lookup for host '%1$s' failed: %2$s"
@@ -8909,7 +8903,7 @@ msgid "Integrity error in watchdog models"
 msgstr ""
 
 msgid "Interface"
-msgstr ""
+msgstr "Interfață"
 
 #, c-format
 msgid "Interface %1$s XML configuration edited.\n"
@@ -9997,7 +9991,7 @@ msgid "Load the 'vhost_net' module to improve performance of virtio networking"
 msgstr ""
 
 msgid "Location:"
-msgstr ""
+msgstr "Locație:"
 
 #, c-format
 msgid "Lockspace for path %1$s already exists"
@@ -10964,7 +10958,7 @@ msgid "Missing vendor string for CPU vendor %1$s"
 msgstr ""
 
 msgid "Model"
-msgstr ""
+msgstr "Model"
 
 #, c-format
 msgid "Model %1$s too big for destination"
@@ -11182,14 +11176,14 @@ msgid "NVRAM template is not permitted when loader is stateless"
 msgstr ""
 
 msgid "Name"
-msgstr ""
+msgstr "Nume"
 
 #, c-format
 msgid "Name of chain is longer than %1$u characters"
 msgstr ""
 
 msgid "Name:"
-msgstr ""
+msgstr "Nume:"
 
 msgid "Namespaces are not supported on this platform"
 msgstr ""
@@ -11833,6 +11827,10 @@ msgstr ""
 msgid "Not resetting active device %1$s"
 msgstr ""
 
+#, sh-format
+msgid "Not shutting down transient guests on URI: $uri: "
+msgstr ""
+
 msgid "Not supported"
 msgstr ""
 
@@ -12178,7 +12176,7 @@ msgid "Our own certificate %1$s failed validation against %2$s: %3$s"
 msgstr ""
 
 msgid "Out of memory"
-msgstr ""
+msgstr "Memorie epuizată"
 
 #, c-format
 msgid "Out of space while reading log output: %1$s"
@@ -12238,9 +12236,6 @@ msgid "Overlay file '%1$s' for transient disk '%2$s' already exists"
 msgstr ""
 
 msgid "PASS"
-msgstr ""
-
-msgid "PCI VPD reporting not available on this platform"
 msgstr ""
 
 #, c-format
@@ -12366,7 +12361,7 @@ msgid "Parameter 'min_guarantee' not supported by QEMU."
 msgstr ""
 
 msgid "Parent"
-msgstr ""
+msgstr "Părinte"
 
 #, c-format
 msgid ""
@@ -12382,7 +12377,7 @@ msgid "Parent device's JSON object data is not an array"
 msgstr ""
 
 msgid "Parent:"
-msgstr ""
+msgstr "Părinte:"
 
 #, c-format
 msgid "Parsed JSON reply '%1$s' isn't an object"
@@ -12441,7 +12436,7 @@ msgid "Path has to specify the datacenter and compute resource"
 msgstr ""
 
 msgid "Paused"
-msgstr ""
+msgstr "În pauză"
 
 #, c-format
 msgid ""
@@ -12657,7 +12652,7 @@ msgid ""
 msgstr ""
 
 msgid "Protocol"
-msgstr ""
+msgstr "Protocol"
 
 #, c-format
 msgid "Protocol '%1$s' is not supported for tcp character device."
@@ -13361,7 +13356,7 @@ msgid "Sanlock plugin is not initialized"
 msgstr ""
 
 msgid "Save"
-msgstr ""
+msgstr "Salvează"
 
 msgid ""
 "Save and destroy a running domain, so it can be restarted from\n"
@@ -13848,7 +13843,7 @@ msgid "Sound devices emulation is not supported by given bhyve binary"
 msgstr ""
 
 msgid "Source"
-msgstr ""
+msgstr "Sursa"
 
 #, c-format
 msgid "Source device does not exist when formatting pool '%1$s'"
@@ -13929,7 +13924,7 @@ msgid "Starts an inactive node device that was previously defined"
 msgstr ""
 
 msgid "State"
-msgstr ""
+msgstr "Stare"
 
 #, c-format
 msgid "State file %1$s edited.\n"
@@ -13989,7 +13984,7 @@ msgid ""
 msgstr ""
 
 msgid "State:"
-msgstr ""
+msgstr "Stare:"
 
 #, c-format
 msgid ""
@@ -14014,10 +14009,10 @@ msgid "Stats types bits 0x%1$x are not supported by this daemon or QEMU"
 msgstr ""
 
 msgid "Status is unknown"
-msgstr ""
+msgstr "Stare necunoscută"
 
 msgid "Stopped"
-msgstr ""
+msgstr "Oprit"
 
 msgid "Storage Pool Events"
 msgstr ""
@@ -14234,7 +14229,7 @@ msgid "Table row cannot be empty"
 msgstr ""
 
 msgid "Target"
-msgstr ""
+msgstr "Ținta"
 
 #, c-format
 msgid "Target ACPI index '%1$u' does not match source '%2$u'"
@@ -15374,7 +15369,7 @@ msgid "Timed out while reading log output: %1$s"
 msgstr ""
 
 msgid "Timeout"
-msgstr ""
+msgstr "Timpul de așteptare"
 
 #, sh-format
 msgid "Timeout expired while shutting down domains"
@@ -15604,14 +15599,14 @@ msgid "Turn zstd compression on to tune it"
 msgstr ""
 
 msgid "Type"
-msgstr ""
+msgstr "Tip"
 
 #, c-format
 msgid "Type mismatch for '%1$s' migration parameter"
 msgstr ""
 
 msgid "Type:"
-msgstr ""
+msgstr "Tip:"
 
 msgid ""
 "Type:  'help' for help with commands\n"
@@ -15714,7 +15709,7 @@ msgid "UTS namespace support is required"
 msgstr ""
 
 msgid "UUID"
-msgstr ""
+msgstr "UUID"
 
 msgid "UUID in config file malformed"
 msgstr ""
@@ -15726,7 +15721,7 @@ msgid "UUID mismatch between <uuid> and <sysinfo>"
 msgstr ""
 
 msgid "UUID:"
-msgstr ""
+msgstr "UUID:"
 
 msgid "Unable to accept client"
 msgstr ""
@@ -16381,7 +16376,7 @@ msgid "Unable to get ACLs on %1$s"
 msgstr ""
 
 msgid "Unable to get Capabilities"
-msgstr ""
+msgstr "Nu s-au putut obține capacitățile"
 
 #, c-format
 msgid "Unable to get Console object for domain %1$s"
@@ -16828,7 +16823,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to open %1$s"
-msgstr ""
+msgstr "Nu se poate deschide %1$s"
 
 #, c-format
 msgid "Unable to open %1$s (%2$d)"
@@ -16840,7 +16835,7 @@ msgstr ""
 
 #, c-format
 msgid "Unable to open '%1$s'"
-msgstr ""
+msgstr "Nu se poate deschide „%1$s”"
 
 #, c-format
 msgid "Unable to open '%1$s' for vdpa device"
@@ -17934,7 +17929,7 @@ msgid "Unix file descriptors not supported on this platform"
 msgstr ""
 
 msgid "Unknown"
-msgstr ""
+msgstr "Necunoscut"
 
 #, c-format
 msgid "Unknown CPU feature %1$s"
@@ -17961,7 +17956,7 @@ msgid "Unknown Command '%1$i'"
 msgstr ""
 
 msgid "Unknown Error"
-msgstr ""
+msgstr "Eroare necunoscută"
 
 #, c-format
 msgid "Unknown IP address data source %1$d"
@@ -18091,7 +18086,7 @@ msgid "Unknown enable type %1$d in network"
 msgstr ""
 
 msgid "Unknown error"
-msgstr ""
+msgstr "Eroare necunoscută"
 
 msgid "Unknown error value"
 msgstr ""
@@ -18672,7 +18667,7 @@ msgid "Upload file contents to a volume"
 msgstr ""
 
 msgid "Usage"
-msgstr ""
+msgstr "Utilizare"
 
 msgid ""
 "Usage of listen-address is forbidden when migration URI uses UNIX transport "
@@ -18680,7 +18675,7 @@ msgid ""
 msgstr ""
 
 msgid "Usage:"
-msgstr ""
+msgstr "Utilizare:"
 
 #, c-format
 msgid ""
@@ -18837,7 +18832,7 @@ msgid "VMX entry 'sched.cpu.affinity' contains a %1$d, this value is too large"
 msgstr ""
 
 msgid "VNC"
-msgstr ""
+msgstr "VNC"
 
 msgid "VNC Password authentication not supported by bhyve"
 msgstr ""
@@ -19094,6 +19089,10 @@ msgstr ""
 msgid "[--%1$s] <string>"
 msgstr ""
 
+#, c-format
+msgid "[--%1$s] <string>..."
+msgstr ""
+
 msgid ""
 "a 'none' video type must be the only video device defined for the domain"
 msgstr ""
@@ -19151,7 +19150,7 @@ msgid "absolute path must be used as block copy target"
 msgstr ""
 
 msgid "access denied"
-msgstr ""
+msgstr "acces refuzat"
 
 msgid "access denied by policy"
 msgstr ""
@@ -19360,7 +19359,7 @@ msgid "applyDHCPOnlyRules failed - spoofing not protected!"
 msgstr ""
 
 msgid "architecture"
-msgstr ""
+msgstr "arhitectură"
 
 #, c-format
 msgid ""
@@ -19534,7 +19533,7 @@ msgid "authentication cancelled: %1$s"
 msgstr ""
 
 msgid "authentication failed"
-msgstr ""
+msgstr "autentificare eșuată"
 
 msgid "authentication failed, see test XML for the correct username/password"
 msgstr ""
@@ -19551,7 +19550,7 @@ msgid "authentication is supported only for network backed disks"
 msgstr ""
 
 msgid "authentication required"
-msgstr ""
+msgstr "este necesară autentificarea"
 
 msgid "authentication unavailable"
 msgstr ""
@@ -19885,9 +19884,6 @@ msgstr ""
 msgid "bond interface misses the bond element"
 msgstr ""
 
-msgid "bool"
-msgstr ""
-
 #, c-format
 msgid "boot order %1$u is already used by another device"
 msgstr ""
@@ -20143,7 +20139,7 @@ msgid "can't upload volume, all existing snapshots will be lost"
 msgstr ""
 
 msgid "canceled"
-msgstr ""
+msgstr "anulat"
 
 msgid "canceled by client"
 msgstr ""
@@ -21552,9 +21548,6 @@ msgstr ""
 msgid "cd: %1$s: %2$s"
 msgstr ""
 
-msgid "cd: command valid only in interactive mode"
-msgstr ""
-
 msgid "cdrom device with virtio bus isn't supported"
 msgstr ""
 
@@ -21951,7 +21944,7 @@ msgid "connect to the guest console"
 msgstr ""
 
 msgid "connected"
-msgstr ""
+msgstr "conectat"
 
 msgid ""
 "connection URI of the destination host as seen from the client(normal "
@@ -21965,7 +21958,7 @@ msgid "connection closed due to keepalive timeout"
 msgstr ""
 
 msgid "connection not open"
-msgstr ""
+msgstr "conexiunea nu este deschisă"
 
 msgid "connection vcpu maximum"
 msgstr ""
@@ -22525,7 +22518,7 @@ msgid "creating checkpoint for incremental backup is not supported yet"
 msgstr ""
 
 msgid "creating snapshot"
-msgstr ""
+msgstr "se creează instantanea"
 
 msgid "creation of images with slice type='storage' is not supported"
 msgstr ""
@@ -22654,7 +22647,7 @@ msgid "dbus-daemon died and reported: %1$s"
 msgstr ""
 
 msgid "default"
-msgstr ""
+msgstr "implicit"
 
 #, c-format
 msgid "default_tls_x509_cert_dir directory '%1$s' does not exist"
@@ -22782,7 +22775,7 @@ msgid "deprecated configuration: %1$s"
 msgstr ""
 
 msgid "description"
-msgstr ""
+msgstr "descriere"
 
 msgid "description of checkpoint"
 msgstr ""
@@ -22993,7 +22986,7 @@ msgid "dirty-ring calculation mode requires dirty-ring feature enabled."
 msgstr ""
 
 msgid "disable"
-msgstr ""
+msgstr "dezactivează"
 
 msgid "disable autostarting"
 msgstr ""
@@ -23005,7 +22998,7 @@ msgid "disable cpus specified by cpumap"
 msgstr ""
 
 msgid "disabled"
-msgstr ""
+msgstr "dezactivat"
 
 #, c-format
 msgid "discard is not supported for model '%1$s'"
@@ -23025,7 +23018,7 @@ msgid "disconnect"
 msgstr ""
 
 msgid "disconnected"
-msgstr ""
+msgstr "deconectat"
 
 msgid "discover potential storage pool sources"
 msgstr ""
@@ -23751,7 +23744,7 @@ msgid "either secret uuid or usage expected"
 msgstr ""
 
 msgid "element"
-msgstr ""
+msgstr "element"
 
 #, c-format
 msgid "element '%1$s' requires either 'keyfile' or 'agentsock' attribute"
@@ -23788,7 +23781,7 @@ msgid "emulator:"
 msgstr ""
 
 msgid "enable"
-msgstr ""
+msgstr "activează"
 
 msgid "enable cpus specified by cpulist"
 msgstr ""
@@ -23803,7 +23796,7 @@ msgid "enable post-copy migration; switch to it using migrate-postcopy command"
 msgstr ""
 
 msgid "enabled"
-msgstr ""
+msgstr "activat"
 
 #, c-format
 msgid "encountered an error on interface %1$s index %2$d"
@@ -23851,7 +23844,7 @@ msgid "enumerate devices on this host"
 msgstr ""
 
 msgid "error"
-msgstr ""
+msgstr "eroare"
 
 #, c-format
 msgid "error %1$d during port-profile setlink on interface %2$s (%3$d)"
@@ -24246,7 +24239,11 @@ msgid "expected protocol '%1$s' but got '%2$s' in URI JSON volume definition"
 msgstr ""
 
 #, c-format
-msgid "expected syntax: --%1$s <%2$s>"
+msgid "expected syntax: --%1$s <number>"
+msgstr ""
+
+#, c-format
+msgid "expected syntax: --%1$s <string>"
 msgstr ""
 
 #, c-format
@@ -25063,9 +25060,6 @@ msgstr ""
 msgid "failed to parse %1$sversion"
 msgstr ""
 
-msgid "failed to parse PCI VPD string value with invalid characters"
-msgstr ""
-
 #, c-format
 msgid "failed to parse SCSI host '%1$s'"
 msgstr ""
@@ -25241,35 +25235,6 @@ msgstr ""
 
 #, c-format
 msgid "failed to read temporary file created with template %1$s"
-msgstr ""
-
-msgid "failed to read the PCI VPD data"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: data field length invalid"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: invalid checksum"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: malformed data"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: missing mandatory checksum"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: missing read-only section"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: parsing ended prematurely"
-msgstr ""
-
-msgid ""
-"failed to read the PCI VPD data: unexpected RV keyword in read-write section"
-msgstr ""
-
-msgid ""
-"failed to read the PCI VPD data: unexpected RW keyword in read-only section"
 msgstr ""
 
 msgid "failed to reboot domain"
@@ -26434,7 +26399,7 @@ msgid "hugetlbfs filesystem is not mounted or disabled by administrator config"
 msgstr ""
 
 msgid "hypervisor"
-msgstr ""
+msgstr "hipervizor"
 
 msgid "hypervisor connection URI"
 msgstr ""
@@ -26483,7 +26448,7 @@ msgid "ifkey \"%1$s\" has no req"
 msgstr ""
 
 msgid "ignore"
-msgstr ""
+msgstr "ignoră"
 
 #, c-format
 msgid "ignoring debug level %1$d out of range [%2$d-%3$d]"
@@ -26781,7 +26746,7 @@ msgid "internal command for testing virt shells"
 msgstr ""
 
 msgid "internal error"
-msgstr ""
+msgstr "eroare internă"
 
 #, c-format
 msgid "internal error: %1$s"
@@ -28652,7 +28617,7 @@ msgid "memory-only dump failed: %1$s"
 msgstr ""
 
 msgid "message"
-msgstr ""
+msgstr "mesaj"
 
 msgid "metadata cache max size control is supported only with qcow2 images"
 msgstr ""
@@ -29042,7 +29007,7 @@ msgid "missing arch in QEMU capabilities cache"
 msgstr ""
 
 msgid "missing argument"
-msgstr ""
+msgstr "argument lipsă"
 
 msgid "missing array element"
 msgstr ""
@@ -29972,7 +29937,7 @@ msgid "netmask not allowed for IPv6 address '%1$s' in network '%2$s'"
 msgstr ""
 
 msgid "network"
-msgstr ""
+msgstr "rețea"
 
 #, c-format
 msgid "network %1$s exists already"
@@ -30139,7 +30104,7 @@ msgid "network is not running"
 msgstr ""
 
 msgid "network name"
-msgstr ""
+msgstr "nume de rețea"
 
 msgid "network name or uuid"
 msgstr ""
@@ -30841,7 +30806,7 @@ msgid "not a hugetlbfs mount: '%1$s'"
 msgstr ""
 
 msgid "not specified"
-msgstr ""
+msgstr "nespecificat"
 
 msgid "not supported on non-linux platforms"
 msgstr ""
@@ -30879,9 +30844,6 @@ msgid "numa parameters are not supported by vz driver"
 msgstr ""
 
 msgid "numad is not available on this host"
-msgstr ""
-
-msgid "number"
 msgstr ""
 
 msgid "number of bytes read:"
@@ -31245,9 +31207,6 @@ msgstr ""
 msgid "operation type %1$d not supported"
 msgstr ""
 
-msgid "optdata"
-msgstr ""
-
 #, c-format
 msgid "option %1$s requires a positive integer argument"
 msgstr ""
@@ -31301,7 +31260,7 @@ msgid "out of bounds index - count %1$zu at %2$zu"
 msgstr ""
 
 msgid "out of memory"
-msgstr ""
+msgstr "memorie epuizată"
 
 #, c-format
 msgid "out of memory: %1$s"
@@ -31506,7 +31465,7 @@ msgid "path to secret data file is required"
 msgstr ""
 
 msgid "paused"
-msgstr ""
+msgstr "în pauză"
 
 #, c-format
 msgid "pcap_compile: %1$s"
@@ -31821,6 +31780,9 @@ msgstr ""
 msgid "preallocation threads are unsupported with this QEMU"
 msgstr ""
 
+msgid "prefix the message"
+msgstr ""
+
 msgid "prefix too long"
 msgstr ""
 
@@ -31873,9 +31835,6 @@ msgid "print domain's time in human readable form"
 msgstr ""
 
 msgid "print help"
-msgstr ""
-
-msgid "print help for this function"
 msgstr ""
 
 msgid "print lease info for a given network"
@@ -32609,7 +32568,7 @@ msgid "reservations not supported with this QEMU binary"
 msgstr ""
 
 msgid "reset"
-msgstr ""
+msgstr "reinițializare"
 
 msgid "reset a domain"
 msgstr ""
@@ -32778,7 +32737,7 @@ msgid ""
 msgstr ""
 
 msgid "running"
-msgstr ""
+msgstr "rulând"
 
 msgid "running with undesirable elevated privileges"
 msgstr ""
@@ -33121,6 +33080,9 @@ msgstr ""
 msgid "setting virtiofs boot order is not supported with this QEMU binary"
 msgstr ""
 
+msgid "setting virtiofs boot order is supported only with PCI bus"
+msgstr ""
+
 msgid "setuid or setgid failed"
 msgstr ""
 
@@ -33253,7 +33215,7 @@ msgid "show timestamp for each printed event"
 msgstr ""
 
 msgid "show version"
-msgstr ""
+msgstr "afișează versiunea"
 
 msgid "show/set scheduler parameters"
 msgstr ""
@@ -33684,9 +33646,6 @@ msgstr ""
 
 #, c-format
 msgid "stream must match connection of domain '%1$s'"
-msgstr ""
-
-msgid "string"
 msgstr ""
 
 #, c-format
@@ -34844,7 +34803,7 @@ msgid "unable to get monitor count"
 msgstr ""
 
 msgid "unable to get node capabilities"
-msgstr ""
+msgstr "Nu s-au putut obține capacitățile nodului"
 
 msgid "unable to get numa affinity"
 msgstr ""
@@ -34894,11 +34853,11 @@ msgstr ""
 
 #, c-format
 msgid "unable to open %1$s"
-msgstr ""
+msgstr "nu se poate deschide %1$s"
 
 #, c-format
 msgid "unable to open '%1$s'"
-msgstr ""
+msgstr "nu se poate deschide „%1$s”"
 
 #, c-format
 msgid "unable to open host cpu perf event for %1$s"
@@ -35567,7 +35526,7 @@ msgid "unix"
 msgstr ""
 
 msgid "unknown"
-msgstr ""
+msgstr "necunoscut"
 
 #, c-format
 msgid "unknown %1$s action: %2$s"
@@ -35727,7 +35686,7 @@ msgid "unknown dumpformat '%1$d'"
 msgstr ""
 
 msgid "unknown error"
-msgstr ""
+msgstr "eroare necunoscută"
 
 #, c-format
 msgid "unknown event type %1$s"
@@ -35838,7 +35797,7 @@ msgid "unknown network device feature '%1$s'"
 msgstr ""
 
 msgid "unknown option"
-msgstr ""
+msgstr "opțiune necunoscută"
 
 #, c-format
 msgid "unknown panic info type '%1$s'"
@@ -36422,7 +36381,7 @@ msgid "uptime file has unexpected format '%1$s'"
 msgstr ""
 
 msgid "usage:"
-msgstr ""
+msgstr "utilizare:"
 
 #, c-format
 msgid ""
@@ -36489,7 +36448,7 @@ msgid "use zero-copy mechanism for migrating memory pages"
 msgstr ""
 
 msgid "user"
-msgstr ""
+msgstr "utilizator"
 
 msgid "user cancelled authentication process"
 msgstr ""
@@ -36501,7 +36460,7 @@ msgid "user to set authorized keys for"
 msgstr ""
 
 msgid "user:"
-msgstr ""
+msgstr "utilizator:"
 
 #, c-format
 msgid "using '%1$s' pools for backing 'volume' disks isn't yet supported"
@@ -37262,7 +37221,7 @@ msgid "wakeup a domain from pmsuspended state"
 msgstr ""
 
 msgid "warning"
-msgstr ""
+msgstr "avertisment"
 
 msgid "watchdog"
 msgstr ""
@@ -37402,7 +37361,7 @@ msgid "y - yes, start editor again"
 msgstr ""
 
 msgid "yes"
-msgstr ""
+msgstr "da"
 
 #, c-format
 msgid "zPCI %1$s %2$o is already reserved"

@@ -27,6 +27,7 @@
 #include "domain_driver.h"
 #include "domain_interface.h"
 #include "domain_nwfilter.h"
+#include "netdev_bandwidth_conf.h"
 #include "network_conf.h"
 #include "viralloc.h"
 #include "virconftypes.h"
@@ -374,6 +375,30 @@ virDomainInterfaceStopDevices(virDomainDef *def)
     return 0;
 }
 
+
+/**
+ * virDomainInterfaceVportRemove:
+ * @net: a net definition in the VM
+ *
+ * Removes vport profile from corresponding bridge.
+ * NOP if no vport profile is present in @net.
+ */
+void
+virDomainInterfaceVportRemove(virDomainNetDef *net)
+{
+    const virNetDevVPortProfile *vport = virDomainNetGetActualVirtPortProfile(net);
+
+    if (!vport)
+        return;
+
+    if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_MIDONET) {
+        ignore_value(virNetDevMidonetUnbindPort(vport));
+    } else if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH) {
+        ignore_value(virNetDevOpenvswitchRemovePort(net->ifname));
+    }
+}
+
+
 /**
  * virDomainInterfaceDeleteDevice:
  * @def: domain definition
@@ -390,10 +415,8 @@ virDomainInterfaceDeleteDevice(virDomainDef *def,
                                bool priv_net_created,
                                char *stateDir)
 {
-    const virNetDevVPortProfile *vport = NULL;
     g_autoptr(virConnect) conn = NULL;
 
-    vport = virDomainNetGetActualVirtPortProfile(net);
     switch (virDomainNetGetActualType(net)) {
     case VIR_DOMAIN_NET_TYPE_DIRECT:
         if (priv_net_created) {
@@ -411,11 +434,14 @@ virDomainInterfaceDeleteDevice(virDomainDef *def,
         }
         break;
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
-    case VIR_DOMAIN_NET_TYPE_NETWORK:
+    case VIR_DOMAIN_NET_TYPE_NETWORK: {
 #ifdef VIR_NETDEV_TAP_REQUIRE_MANUAL_CLEANUP
+        const virNetDevVPortProfile *vport = virDomainNetGetActualVirtPortProfile(net);
+
         if (!(vport && vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH))
             ignore_value(virNetDevTapDelete(net->ifname, net->backend.tap));
 #endif
+        }
         break;
     case VIR_DOMAIN_NET_TYPE_USER:
     case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
@@ -435,15 +461,7 @@ virDomainInterfaceDeleteDevice(virDomainDef *def,
     /* release the physical device (or any other resources used by
         * this interface in the network driver
         */
-    if (vport) {
-        if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_MIDONET) {
-            ignore_value(virNetDevMidonetUnbindPort(vport));
-        } else if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH) {
-            ignore_value(virNetDevOpenvswitchRemovePort(
-                                virDomainNetGetActualBridgeName(net),
-                                net->ifname));
-        }
-    }
+    virDomainInterfaceVportRemove(net);
 
     /* kick the device out of the hostdev list too */
     virDomainNetRemoveHostdev(def, net);
@@ -454,4 +472,45 @@ virDomainInterfaceDeleteDevice(virDomainDef *def,
             VIR_WARN("Unable to release network device '%s'", NULLSTR(net->ifname));
     }
 
+}
+
+
+/**
+ * virDomainInterfaceClearQoS
+ * @def: domain definition
+ * @net: a net definition in the VM
+ *
+ * For given interface @net clear its QoS settings in the
+ * host. NOP if @net has no QoS or is of a type that doesn't
+ * support QoS.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise (with appropriate error reported)
+ */
+int
+virDomainInterfaceClearQoS(virDomainDef *def,
+                           virDomainNetDef *net)
+{
+    if (!virDomainNetGetActualBandwidth(net))
+        return 0;
+
+    if (!virNetDevSupportsBandwidth(virDomainNetGetActualType(net)))
+        return 0;
+
+    if (virDomainNetDefIsOvsport(net)) {
+        return virNetDevOpenvswitchInterfaceClearQos(net->ifname, def->uuid);
+    }
+
+    return virNetDevBandwidthClear(net->ifname);
+}
+
+
+void
+virDomainClearNetBandwidth(virDomainDef *def)
+{
+    size_t i;
+
+    for (i = 0; i < def->nnets; i++) {
+        virDomainInterfaceClearQoS(def, def->nets[i]);
+    }
 }

@@ -109,6 +109,7 @@ static const vshCmdOptDef opts_snapshot_create[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "xmlfile",
      .type = VSH_OT_STRING,
+     .positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("domain snapshot XML")
     },
@@ -181,7 +182,7 @@ cmdSnapshotCreate(vshControl *ctl, const vshCmd *cmd)
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "xmlfile", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "xmlfile", &from) < 0)
         return false;
     if (!from) {
         buffer = g_strdup("<domainsnapshot/>");
@@ -313,11 +314,13 @@ static const vshCmdOptDef opts_snapshot_create_as[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "name",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("name of snapshot")
     },
     {.name = "description",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("description of snapshot")
     },
@@ -356,11 +359,11 @@ static const vshCmdOptDef opts_snapshot_create_as[] = {
     },
     {.name = "memspec",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .help = N_("memory attributes: [file=]name[,snapshot=type]")
     },
     {.name = "diskspec",
      .type = VSH_OT_ARGV,
+     .unwanted_positional = true,
      .help = N_("disk attributes: disk[,snapshot=type][,driver=type][,stype=type][,file=name]")
     },
     {.name = NULL}
@@ -376,7 +379,7 @@ cmdSnapshotCreateAs(vshControl *ctl, const vshCmd *cmd)
     const char *memspec = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     unsigned int flags = 0;
-    const vshCmdOpt *opt = NULL;
+    const char **diskspec;
 
     if (vshCommandOptBool(cmd, "no-metadata"))
         flags |= VIR_DOMAIN_SNAPSHOT_CREATE_NO_METADATA;
@@ -398,8 +401,8 @@ cmdSnapshotCreateAs(vshControl *ctl, const vshCmd *cmd)
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "description", &desc) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0 ||
+        vshCommandOptString(ctl, cmd, "description", &desc) < 0)
         return false;
 
     virBufferAddLit(&buf, "<domainsnapshot>\n");
@@ -407,17 +410,18 @@ cmdSnapshotCreateAs(vshControl *ctl, const vshCmd *cmd)
     virBufferEscapeString(&buf, "<name>%s</name>\n", name);
     virBufferEscapeString(&buf, "<description>%s</description>\n", desc);
 
-    if (vshCommandOptStringReq(ctl, cmd, "memspec", &memspec) < 0)
+    if (vshCommandOptString(ctl, cmd, "memspec", &memspec) < 0)
         return false;
 
     if (memspec && virshParseSnapshotMemspec(ctl, &buf, memspec) < 0)
         return false;
 
-    if (vshCommandOptBool(cmd, "diskspec")) {
+    if ((diskspec = vshCommandOptArgv(cmd, "diskspec"))) {
         virBufferAddLit(&buf, "<disks>\n");
         virBufferAdjustIndent(&buf, 2);
-        while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {
-            if (virshParseSnapshotDiskspec(ctl, &buf, opt->data) < 0)
+
+        for (; *diskspec; diskspec++) {
+            if (virshParseSnapshotDiskspec(ctl, &buf, *diskspec) < 0)
                 return false;
         }
         virBufferAdjustIndent(&buf, -2);
@@ -448,7 +452,7 @@ virshLookupSnapshot(vshControl *ctl, const vshCmd *cmd,
     bool current = vshCommandOptBool(cmd, "current");
     const char *snapname = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, arg, &snapname) < 0)
+    if (vshCommandOptString(ctl, cmd, arg, &snapname) < 0)
         return -1;
 
     if (exclusive && current && snapname) {
@@ -485,6 +489,7 @@ static const vshCmdOptDef opts_snapshot_edit[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_SNAPSHOT),
     {.name = "snapshotname",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("snapshot name"),
      .completer = virshSnapshotNameCompleter,
     },
@@ -598,6 +603,7 @@ static const vshCmdOptDef opts_snapshot_current[] = {
     },
     {.name = "snapshotname",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("name of existing snapshot to make current"),
      .completer = virshSnapshotNameCompleter,
     },
@@ -624,7 +630,7 @@ cmdSnapshotCurrent(vshControl *ctl, const vshCmd *cmd)
     if (!(dom = virshCommandOptDomain(ctl, cmd, &domname)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "snapshotname", &snapshotname) < 0)
+    if (vshCommandOptString(ctl, cmd, "snapshotname", &snapshotname) < 0)
         goto cleanup;
 
     if (snapshotname) {
@@ -797,6 +803,7 @@ static const vshCmdOptDef opts_snapshot_info[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_SNAPSHOT),
     {.name = "snapshotname",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("snapshot name"),
      .completer = virshSnapshotNameCompleter,
     },
@@ -1374,6 +1381,7 @@ static const vshCmdOptDef opts_snapshot_list[] = {
     },
     {.name = "from",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshSnapshotNameCompleter,
      .help = N_("limit list to children of given snapshot")
     },
@@ -1509,12 +1517,6 @@ cmdSnapshotList(vshControl *ctl, const vshCmd *cmd)
         snap_name = virDomainSnapshotGetName(snapshot);
         assert(snap_name);
 
-        if (name) {
-            /* just print the snapshot name */
-            vshPrint(ctl, "%s\n", snap_name);
-            continue;
-        }
-
         if (!(doc = virDomainSnapshotGetXMLDesc(snapshot, 0)))
             continue;
 
@@ -1524,6 +1526,18 @@ cmdSnapshotList(vshControl *ctl, const vshCmd *cmd)
         if (parent)
             parent_snap = virXPathString("string(/domainsnapshot/parent/name)",
                                          ctxt);
+
+        if (name) {
+            vshPrint(ctl, "%s", snap_name);
+
+            if (parent_snap)
+                vshPrint(ctl, "\t%s", parent_snap);
+
+            vshPrint(ctl, "\n");
+
+            /* just print the snapshot name */
+            continue;
+        }
 
         if (!(state = virXPathString("string(/domainsnapshot/state)", ctxt)))
             continue;
@@ -1579,7 +1593,6 @@ static const vshCmdOptDef opts_snapshot_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -1604,7 +1617,7 @@ cmdSnapshotDumpXML(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "security-info"))
         flags |= VIR_DOMAIN_XML_SECURE;
 
-    if (vshCommandOptStringReq(ctl, cmd, "snapshotname", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "snapshotname", &name) < 0)
         return false;
 
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
@@ -1634,6 +1647,7 @@ static const vshCmdOptDef opts_snapshot_parent[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_SNAPSHOT),
     {.name = "snapshotname",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("find parent of snapshot name"),
      .completer = virshSnapshotNameCompleter,
     },
@@ -1681,6 +1695,7 @@ static const vshCmdOptDef opts_snapshot_revert[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_SNAPSHOT),
     {.name = "snapshotname",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("snapshot name"),
      .completer = virshSnapshotNameCompleter,
     },
@@ -1762,6 +1777,7 @@ static const vshCmdOptDef opts_snapshot_delete[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_SNAPSHOT),
     {.name = "snapshotname",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("snapshot name"),
      .completer = virshSnapshotNameCompleter,
     },

@@ -37,21 +37,18 @@
 #define VIRSH_COMMON_OPT_POOL_BUILD \
     {.name = "build", \
      .type = VSH_OT_BOOL, \
-     .flags = 0, \
      .help = N_("build the pool as normal") \
     }
 
 #define VIRSH_COMMON_OPT_POOL_NO_OVERWRITE \
     {.name = "no-overwrite", \
      .type = VSH_OT_BOOL, \
-     .flags = 0, \
      .help = N_("do not overwrite any existing data") \
     }
 
 #define VIRSH_COMMON_OPT_POOL_OVERWRITE \
     {.name = "overwrite", \
      .type = VSH_OT_BOOL, \
-     .flags = 0, \
      .help = N_("overwrite any existing data") \
     }
 
@@ -76,80 +73,99 @@
     }, \
     {.name = "source-host", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("source-host for underlying storage") \
     }, \
     {.name = "source-path", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("source path for underlying storage") \
     }, \
     {.name = "source-dev", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("source device for underlying storage") \
     }, \
     {.name = "source-name", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("source name for underlying storage") \
     }, \
     {.name = "target", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("target for underlying storage") \
     }, \
     {.name = "source-format", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("format for underlying storage") \
     }, \
     {.name = "auth-type", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("auth type to be used for underlying storage") \
     }, \
     {.name = "auth-username", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("auth username to be used for underlying storage") \
     }, \
     {.name = "secret-usage", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("auth secret usage to be used for underlying storage") \
     }, \
     {.name = "secret-uuid", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("auth secret UUID to be used for underlying storage") \
     }, \
     {.name = "adapter-name", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter name to be used for underlying storage") \
     }, \
     {.name = "adapter-wwnn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter wwnn to be used for underlying storage") \
     }, \
     {.name = "adapter-wwpn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter wwpn to be used for underlying storage") \
     }, \
     {.name = "adapter-parent", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN to be used for underlying vHBA storage") \
     }, \
     {.name = "adapter-parent-wwnn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN wwnn to be used for underlying vHBA storage") \
     }, \
     {.name = "adapter-parent-wwpn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN wwpn to be used for underlying vHBA storage") \
     }, \
     {.name = "adapter-parent-fabric-wwn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN fabric_wwn to be used for underlying vHBA storage") \
     }, \
     {.name = "source-protocol-ver", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("nfsvers value for NFS pool mount option") \
     }, \
     {.name = "source-initiator", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("initiator iqn for underlying storage") \
     }
@@ -164,7 +180,7 @@ virshCommandOptPoolBy(vshControl *ctl, const vshCmd *cmd, const char *optname,
 
     virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     if (cmd->skipChecks && !n)
@@ -270,7 +286,7 @@ cmdPoolCreate(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     build = vshCommandOptBool(cmd, "build");
@@ -324,31 +340,31 @@ virshBuildPoolXML(vshControl *ctl,
 
     VSH_EXCLUSIVE_OPTIONS("secret-usage", "secret-uuid");
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "source-host", &srcHost) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-path", &srcPath) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-dev", &srcDev) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-name", &srcName) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-format", &srcFormat) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "target", &target) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "auth-type", &authType) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "auth-username", &authUsername) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "secret-usage", &secretUsage) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "secret-uuid", &secretUUID) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-name", &adapterName) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-wwnn", &adapterWwnn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-wwpn", &adapterWwpn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent", &adapterParent) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent-wwnn", &adapterParentWwnn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent-wwpn", &adapterParentWwpn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent-fabric-wwn", &adapterParentFabricWwn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-protocol-ver", &protoVer) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-initiator", &srcInitiator) < 0) {
+    if (vshCommandOptString(ctl, cmd, "source-host", &srcHost) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-path", &srcPath) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-dev", &srcDev) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-name", &srcName) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-format", &srcFormat) < 0 ||
+        vshCommandOptString(ctl, cmd, "target", &target) < 0 ||
+        vshCommandOptString(ctl, cmd, "auth-type", &authType) < 0 ||
+        vshCommandOptString(ctl, cmd, "auth-username", &authUsername) < 0 ||
+        vshCommandOptString(ctl, cmd, "secret-usage", &secretUsage) < 0 ||
+        vshCommandOptString(ctl, cmd, "secret-uuid", &secretUUID) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-name", &adapterName) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-wwnn", &adapterWwnn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-wwpn", &adapterWwpn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent", &adapterParent) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent-wwnn", &adapterParentWwnn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent-wwpn", &adapterParentWwpn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent-fabric-wwn", &adapterParentFabricWwn) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-protocol-ver", &protoVer) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-initiator", &srcInitiator) < 0) {
         return false;
     }
 
@@ -514,7 +530,7 @@ cmdPoolDefine(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -729,7 +745,6 @@ static const vshCmdOptDef opts_pool_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -1036,6 +1051,7 @@ static const vshCmdOptDef opts_pool_list[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
      .completer = virshPoolTypeCompleter,
+     .unwanted_positional = true,
      .completer_flags = VIRSH_POOL_TYPE_COMPLETER_COMMA,
      .help = N_("only list pool of specified type(s) (if supported)")
     },
@@ -1108,7 +1124,7 @@ cmdPoolList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     if (vshCommandOptBool(cmd, "name"))
         name = true;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
     VSH_EXCLUSIVE_OPTIONS("details", "uuid");
@@ -1363,16 +1379,19 @@ static const vshCmdOptDef opts_find_storage_pool_sources_as[] = {
     },
     {.name = "host",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("optional host to query")
     },
     {.name = "port",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("optional port to query")
     },
     {.name = "initiator",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("optional initiator IQN to use for query")
     },
@@ -1388,16 +1407,16 @@ cmdPoolDiscoverSourcesAs(vshControl * ctl, const vshCmd * cmd G_GNUC_UNUSED)
     const char *initiator = NULL;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "host", &host) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "initiator", &initiator) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0 ||
+        vshCommandOptString(ctl, cmd, "host", &host) < 0 ||
+        vshCommandOptString(ctl, cmd, "initiator", &initiator) < 0)
         return false;
 
     if (host) {
         const char *port = NULL;
         g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
-        if (vshCommandOptStringReq(ctl, cmd, "port", &port) < 0) {
+        if (vshCommandOptString(ctl, cmd, "port", &port) < 0) {
             vshError(ctl, "%s", _("missing argument"));
             return false;
         }
@@ -1447,6 +1466,7 @@ static const vshCmdOptDef opts_find_storage_pool_sources[] = {
     },
     {.name = "srcSpec",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("optional file of source xml to query for pools")
     },
@@ -1460,10 +1480,10 @@ cmdPoolDiscoverSources(vshControl * ctl, const vshCmd * cmd G_GNUC_UNUSED)
     char *srcSpec = NULL, *srcList;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "srcSpec", &srcSpecFile) < 0)
+    if (vshCommandOptString(ctl, cmd, "srcSpec", &srcSpecFile) < 0)
         return false;
 
     if (srcSpecFile && virFileReadAll(srcSpecFile, VSH_MAX_XML_FILE,
@@ -1882,11 +1902,13 @@ static const vshCmdInfo info_pool_event = {
 static const vshCmdOptDef opts_pool_event[] = {
     {.name = "pool",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshStoragePoolNameCompleter,
      .help = N_("filter by storage pool name or uuid")
     },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshPoolEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -1896,6 +1918,7 @@ static const vshCmdOptDef opts_pool_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -1929,7 +1952,7 @@ cmdPoolEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
     if (!eventName) {
         vshError(ctl, "%s", _("either --list or --event <type> is required"));

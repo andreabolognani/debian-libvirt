@@ -39,7 +39,12 @@ int virDomainInterfaceStartDevice(virDomainNetDef *net);
 int virDomainInterfaceStartDevices(virDomainDef *def);
 int virDomainInterfaceStopDevice(virDomainNetDef *net);
 int virDomainInterfaceStopDevices(virDomainDef *def);
+void virDomainInterfaceVportRemove(virDomainNetDef *net);
 void virDomainInterfaceDeleteDevice(virDomainDef *def,
                                 virDomainNetDef *net,
                                 bool priv_net_created,
                                 char *stateDir);
+int virDomainInterfaceClearQoS(virDomainDef *def,
+                               virDomainNetDef *net);
+void virDomainClearNetBandwidth(virDomainDef *def)
+    ATTRIBUTE_NONNULL(1);
