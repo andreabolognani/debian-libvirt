@@ -7,21 +7,22 @@
 # Bastien Nocera <hadess@hadess.net>, 2007
 # Daniel <veillard@redhat.com>, 2011
 # readmanr <robert_readman@hotmail.com>, 2013
+# Andi Chandler <andi@gowling.com>, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-03-22 09:54+0000\n"
-"PO-Revision-Date: 2015-02-24 06:05+0000\n"
-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
-"Language-Team: English (United Kingdom) (http://www.transifex.com/projects/p/"
-"fedora/language/en_GB/)\n"
+"POT-Creation-Date: 2024-04-26 08:00+0000\n"
+"PO-Revision-Date: 2024-04-18 20:36+0000\n"
+"Last-Translator: Andi Chandler <andi@gowling.com>\n"
+"Language-Team: English (United Kingdom) <https://translate.fedoraproject.org/"
+"projects/libvirt/libvirt/en_GB/>\n"
 "Language: en_GB\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Zanata 4.6.2\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.4\n"
 
 msgid ""
 "\n"
@@ -73,7 +74,6 @@ msgstr ""
 "      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
 "\n"
 
-#, fuzzy
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -92,16 +92,16 @@ msgstr ""
 "  Default paths:\n"
 "\n"
 "    Configuration file (unless overridden by -f):\n"
-"      $XDG_CONFIG_HOME/libvirt/virtlockd.conf\n"
+"      $XDG_CONFIG_HOME/libvirt/virtlogd.conf\n"
 "\n"
 "    Sockets:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd-sock\n"
+"      $XDG_RUNTIME_DIR/libvirt/virtlogd-sock\n"
 "\n"
 "    PID file:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
+"      $XDG_RUNTIME_DIR/libvirt/virtlogd.pid\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -120,16 +120,16 @@ msgstr ""
 "  Default paths:\n"
 "\n"
 "    Configuration file (unless overridden by -f):\n"
-"      $XDG_CONFIG_HOME/libvirt/virtlockd.conf\n"
+"      %1$s/libvirt/virtlockd.conf\n"
 "\n"
 "    Sockets:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd-sock\n"
+"      %2$s/libvirt/virtlockd-sock\n"
 "\n"
-"    PID file:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
+"    PID file (unless overridden by -p):\n"
+"      %3$s/virtlockd.pid\n"
 "\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "\n"
 "  Default paths:\n"
@@ -148,13 +148,13 @@ msgstr ""
 "  Default paths:\n"
 "\n"
 "    Configuration file (unless overridden by -f):\n"
-"      $XDG_CONFIG_HOME/libvirt/virtlockd.conf\n"
+"      %1$s/libvirt/virtlogd.conf\n"
 "\n"
 "    Sockets:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd-sock\n"
+"      %2$s/libvirt/virtlogd-sock\n"
 "\n"
-"    PID file:\n"
-"      $XDG_RUNTIME_DIR/libvirt/virtlockd.pid\n"
+"    PID file (unless overridden by -p):\n"
+"      %3$s/virtlogd.pid\n"
 "\n"
 
 msgid ""
@@ -189,6 +189,21 @@ msgid ""
 "  commands (non interactive mode):\n"
 "\n"
 msgstr ""
+"\n"
+"%1$s [options]... [<command_string>]\n"
+"%2$s [options]... <command> [args...]\n"
+"\n"
+"  options:\n"
+"    -c | --connect=URI      daemon admin connection URI\n"
+"    -d | --debug=NUM        debug level [0-4]\n"
+"    -h | --help             this help\n"
+"    -l | --log=FILE         output logging to file\n"
+"    -q | --quiet            quiet mode\n"
+"    -v                      short version\n"
+"    -V                      long version\n"
+"         --version[=TYPE]   version, TYPE is short or long (default short)\n"
+"  commands (non interactive mode):\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -215,6 +230,28 @@ msgid ""
 "  commands (non interactive mode):\n"
 "\n"
 msgstr ""
+"\n"
+"%1$s [options]... [<command_string>]\n"
+"%2$s [options]... <command> [args...]\n"
+"\n"
+"  options:\n"
+"    -c | --connect=URI      hypervisor connection URI\n"
+"    -d | --debug=NUM        debug level [0-4]\n"
+"    -e | --escape <char>    set escape sequence for console\n"
+"    -h | --help             this help\n"
+"    -k | --keepalive-interval=NUM\n"
+"                            keepalive interval in seconds, 0 for disable\n"
+"    -K | --keepalive-count=NUM\n"
+"                            number of possible missed keepalive messages\n"
+"    -l | --log=FILE         output logging to file\n"
+"    -q | --quiet            quiet mode\n"
+"    -r | --readonly         connect readonly\n"
+"    -t | --timing           print timing information\n"
+"    -v                      short version\n"
+"    -V                      long version\n"
+"         --version[=TYPE]   version, TYPE is short or long (default short)\n"
+"  commands (non interactive mode):\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -237,6 +274,24 @@ msgid ""
 "    -F | --append-file <file>      append file to an existing profile\n"
 "\n"
 msgstr ""
+"\n"
+"%1$s mode [options] [extra file] [< def.xml]\n"
+"\n"
+"  Modes:\n"
+"    -a | --add                     load profile\n"
+"    -c | --create                  create profile from template\n"
+"    -D | --delete                  unload profile and delete generated "
+"rules\n"
+"    -r | --replace                 reload profile\n"
+"    -R | --remove                  unload profile\n"
+"  Options:\n"
+"    -d | --dryrun                  dry run\n"
+"    -u | --uuid <uuid>             uuid (profile name)\n"
+"    -h | --help                    this help\n"
+"  Extra File:\n"
+"    -f | --add-file <file>         add file to a profile generated from XML\n"
+"    -F | --append-file <file>      append file to an existing profile\n"
+"\n"
 
 #, c-format
 msgid ""
@@ -253,18 +308,24 @@ msgid ""
 "\n"
 "Domain '%1$s' dumped to %2$s\n"
 msgstr ""
+"\n"
+"Domain '%1$s' dumped to %2$s\n"
 
 #, c-format
 msgid ""
 "\n"
 "Domain '%1$s' saved to %2$s\n"
 msgstr ""
+"\n"
+"Domain '%1$s' saved to %2$s\n"
 
 #, c-format
 msgid ""
 "\n"
 "Domain '%1$s' state saved by libvirt\n"
 msgstr ""
+"\n"
+"Domain '%1$s' state saved by libvirt\n"
 
 #, c-format
 msgid ""
@@ -279,6 +340,16 @@ msgid ""
 "\n"
 "libvirt login shell\n"
 msgstr ""
+"\n"
+"Usage:\n"
+"  %1$s [option]\n"
+"\n"
+"Options:\n"
+"  -h | --help            Display program help\n"
+"  -V | --version         Display program version\n"
+"  -c CMD                 Run CMD via shell\n"
+"\n"
+"libvirt login shell\n"
 
 #, c-format
 msgid ""
@@ -297,6 +368,20 @@ msgid ""
 "\n"
 "libvirt lock management daemon:\n"
 msgstr ""
+"\n"
+"Usage:\n"
+"  %1$s [options]\n"
+"\n"
+"Options:\n"
+"  -h | --help            Display program help:\n"
+"  -v | --verbose         Verbose messages.\n"
+"  -d | --daemon          Run as a daemon & write PID file.\n"
+"  -t | --timeout <secs>  Exit after timeout period.\n"
+"  -f | --config <file>   Configuration file.\n"
+"  -V | --version         Display version information.\n"
+"  -p | --pid-file <file> Change name of PID file.\n"
+"\n"
+"libvirt lock management daemon:\n"
 
 #, c-format
 msgid ""
@@ -315,6 +400,20 @@ msgid ""
 "\n"
 "libvirt log management daemon:\n"
 msgstr ""
+"\n"
+"Usage:\n"
+"  %1$s [options]\n"
+"\n"
+"Options:\n"
+"  -h | --help            Display program help:\n"
+"  -v | --verbose         Verbose messages.\n"
+"  -d | --daemon          Run as a daemon & write PID file.\n"
+"  -t | --timeout <secs>  Exit after timeout period.\n"
+"  -f | --config <file>   Configuration file.\n"
+"  -V | --version         Display version information.\n"
+"  -p | --pid-file <file> Change name of PID file.\n"
+"\n"
+"libvirt log management daemon:\n"
 
 #, c-format
 msgid ""
@@ -334,10 +433,25 @@ msgid ""
 "   -q, --quiet    Don't display progress information\n"
 "\n"
 msgstr ""
+"\n"
+"syntax: %1$s [OPTIONS] [HVTYPE]\n"
+"\n"
+" Hypervisor types:\n"
+"\n"
+"   - qemu\n"
+"   - lxc\n"
+"   - bhyve\n"
+"   - ch\n"
+"\n"
+" Options:\n"
+"   -h, --help     Display command line help\n"
+"   -v, --version  Display command version\n"
+"   -q, --quiet    Don't display progress information\n"
+"\n"
 
 #, c-format
 msgid "    Bandwidth limit: %1$llu bytes/s (%2$-.3lf %3$s/s)"
-msgstr ""
+msgstr "    Bandwidth limit: %1$llu bytes/s (%2$-.3lf %3$s/s)"
 
 msgid "  NAME\n"
 msgstr "  NAME\n"
@@ -349,6 +463,10 @@ msgstr " %1$s (help keyword '%2$s')\n"
 #, c-format
 msgid " %1$s (help keyword '%2$s'):\n"
 msgstr " %1$s (help keyword '%2$s'):\n"
+
+#, c-format
+msgid " --%1$s <string>..."
+msgstr ""
 
 msgid " Hypervisors:"
 msgstr " Hypervisors:"
@@ -363,7 +481,7 @@ msgid " Storage:"
 msgstr " Storage:"
 
 #, c-format
-msgid " [[--%1$s] <string>]..."
+msgid " [--%1$s <string>]..."
 msgstr ""
 
 #, c-format
@@ -373,10 +491,10 @@ msgid ""
 " cur=%3$llu\n"
 " end=%4$llu\n"
 msgstr ""
-
-#, c-format
-msgid " {[--%1$s] <string>}..."
-msgstr ""
+" type=%1$s\n"
+" bandwidth=%2$lu\n"
+" cur=%3$llu\n"
+" end=%4$llu\n"
 
 #, c-format
 msgid ""
@@ -390,7 +508,7 @@ msgstr ""
 
 #, c-format
 msgid "$%1$s value should be between 0 and %2$d"
-msgstr ""
+msgstr "$%1$s value should be between 0 and %2$d"
 
 #, c-format
 msgid "%1$6s: Checking %2$-60s: "
@@ -402,7 +520,7 @@ msgstr "%1$s\n"
 
 #, c-format
 msgid "%1$s %2$s"
-msgstr ""
+msgstr "%1$s %2$s"
 
 #, c-format
 msgid "%1$s %2$s '%3$s' has an unsupported type '%4$s'"
@@ -419,10 +537,12 @@ msgid ""
 "%1$s (on destination side) does not support the --migration option needed "
 "for migration with shared storage"
 msgstr ""
+"%1$s (on destination side) does not support the --migration option needed "
+"for migration with shared storage"
 
 #, c-format
 msgid "%1$s (out of %2$d)"
-msgstr ""
+msgstr "%1$s (out of %2$d)"
 
 #, c-format
 msgid "%1$s can't be empty"
@@ -430,35 +550,35 @@ msgstr "%1$s can't be empty"
 
 #, c-format
 msgid "%1$s cannot be set higher than %2$s"
-msgstr ""
+msgstr "%1$s cannot be set higher than %2$s"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s cannot parse GID '%2$s'"
-msgstr "cannot parse bus '%s'"
+msgstr "%1$s cannot parse GID '%2$s'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s cannot parse UID '%2$s'"
-msgstr "cannot parse bus '%s'"
+msgstr "%1$s cannot parse UID '%2$s'"
 
 #, c-format
 msgid "%1$s disk is not supported with this QEMU binary"
-msgstr ""
+msgstr "%1$s disk is not supported with this QEMU binary"
 
 #, c-format
 msgid "%1$s does not support passing a passphrase using a file descriptor"
-msgstr ""
+msgstr "%1$s does not support passing a passphrase using a file descriptor"
 
 #, c-format
 msgid "%1$s does not support passing passphrase via file descriptor"
-msgstr ""
+msgstr "%1$s does not support passing passphrase via file descriptor"
 
 #, c-format
 msgid "%1$s expects UID and GID parameters"
-msgstr ""
+msgstr "%1$s expects UID and GID parameters"
 
 #, c-format
 msgid "%1$s failed new mode for target '%2$s' with status '%3$d'"
-msgstr ""
+msgstr "%1$s failed new mode for target '%2$s' with status '%3$d'"
 
 #, c-format
 msgid "%1$s family specified for non-IPv4 address '%2$s' in network '%3$s'"
@@ -472,7 +592,7 @@ msgstr ""
 
 #, c-format
 msgid "%1$s graphics are not supported with this QEMU"
-msgstr ""
+msgstr "%1$s graphics are not supported with this QEMU"
 
 #, c-format
 msgid "%1$s harddisk '%2$s' has unsupported cache mode '%3$s'"
@@ -490,9 +610,9 @@ msgstr "%1$s has unexpected '*' before last line"
 msgid "%1$s in %2$s must be NULL"
 msgstr "%1$s in %2$s must be NULL"
 
-#, fuzzy, c-format
+#, c-format
 msgid "%1$s in %2$s must be greater than zero"
-msgstr "%1$s in %2$s must be zero or greater"
+msgstr "%1$s in %2$s must be greater than zero"
 
 #, fuzzy, c-format
 msgid "%1$s in %2$s must be zero"
@@ -1404,9 +1524,6 @@ msgstr "(network_definition)"
 msgid "(node_device_definition)"
 msgstr "(node_device_definition)"
 
-msgid "(none)"
-msgstr "(none)"
-
 msgid "(nwfilter_definition)"
 msgstr "(nwfilter_definition)"
 
@@ -1458,16 +1575,16 @@ msgid "--%1$s <string>"
 msgstr "--%1$s <string>"
 
 #, c-format
+msgid "--%1$s <string>..."
+msgstr ""
+
+#, c-format
 msgid "--%1$s and --current are mutually exclusive"
 msgstr "--%1$s and --current are mutually exclusive"
 
 #, c-format
 msgid "--%1$s and --tree are mutually exclusive"
 msgstr "--%1$s and --tree are mutually exclusive"
-
-#, fuzzy, c-format
-msgid "--%1$s is required"
-msgstr "--%1$s or --current is required"
 
 #, c-format
 msgid "--%1$s or --current is required"
@@ -5146,10 +5263,6 @@ msgid "Device %1$s detached\n"
 msgstr "Device %1$s detached\n"
 
 #, c-format
-msgid "Device %1$s does not have a VPD"
-msgstr ""
-
-#, c-format
 msgid "Device %1$s is already in use"
 msgstr "Device %1$s is already in use"
 
@@ -7608,10 +7721,6 @@ msgid "Failed to open '%1$s'"
 msgstr "Failed to open '%1$s'"
 
 msgid "Failed to open a UNIX socket"
-msgstr ""
-
-#, c-format
-msgid "Failed to open a VPD file '%1$s'"
 msgstr ""
 
 #, c-format
@@ -12515,6 +12624,10 @@ msgstr "Not reattaching active device %1$s"
 msgid "Not resetting active device %1$s"
 msgstr "Not resetting active device %1$s"
 
+#, sh-format
+msgid "Not shutting down transient guests on URI: $uri: "
+msgstr ""
+
 msgid "Not supported"
 msgstr "Not supported"
 
@@ -12955,9 +13068,6 @@ msgstr ""
 
 msgid "PASS"
 msgstr "PASS"
-
-msgid "PCI VPD reporting not available on this platform"
-msgstr ""
 
 #, c-format
 msgid ""
@@ -20204,6 +20314,10 @@ msgstr "[--%1$s] <number>"
 msgid "[--%1$s] <string>"
 msgstr "[--%1$s] <string>"
 
+#, c-format
+msgid "[--%1$s] <string>..."
+msgstr ""
+
 msgid ""
 "a 'none' video type must be the only video device defined for the domain"
 msgstr ""
@@ -21035,9 +21149,6 @@ msgstr "bond interface miimon updelay invalid"
 
 msgid "bond interface misses the bond element"
 msgstr "bond interface misses the bond element"
-
-msgid "bool"
-msgstr "bool"
 
 #, fuzzy, c-format
 msgid "boot order %1$u is already used by another device"
@@ -22770,9 +22881,6 @@ msgstr "capture disk state but not vm state"
 #, c-format
 msgid "cd: %1$s: %2$s"
 msgstr "cd: %1$s: %2$s"
-
-msgid "cd: command valid only in interactive mode"
-msgstr "cd: command valid only in interactive mode"
 
 msgid "cdrom device with virtio bus isn't supported"
 msgstr ""
@@ -25591,8 +25699,12 @@ msgid "expected protocol '%1$s' but got '%2$s' in URI JSON volume definition"
 msgstr ""
 
 #, c-format
-msgid "expected syntax: --%1$s <%2$s>"
-msgstr "expected syntax: --%1$s <%2$s>"
+msgid "expected syntax: --%1$s <number>"
+msgstr ""
+
+#, c-format
+msgid "expected syntax: --%1$s <string>"
+msgstr ""
 
 #, c-format
 msgid "expected unicast mac address, found multicast '%1$s'"
@@ -26454,9 +26566,6 @@ msgstr "failed to parse %1$s"
 msgid "failed to parse %1$sversion"
 msgstr "failed to parse %1$sversion"
 
-msgid "failed to parse PCI VPD string value with invalid characters"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "failed to parse SCSI host '%1$s'"
 msgstr "Failed to parse mode '%1$s'"
@@ -26640,35 +26749,6 @@ msgstr "failed to read qemu header"
 #, c-format
 msgid "failed to read temporary file created with template %1$s"
 msgstr "failed to read temporary file created with template %1$s"
-
-msgid "failed to read the PCI VPD data"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: data field length invalid"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: invalid checksum"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: malformed data"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: missing mandatory checksum"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: missing read-only section"
-msgstr ""
-
-msgid "failed to read the PCI VPD data: parsing ended prematurely"
-msgstr ""
-
-msgid ""
-"failed to read the PCI VPD data: unexpected RV keyword in read-write section"
-msgstr ""
-
-msgid ""
-"failed to read the PCI VPD data: unexpected RW keyword in read-only section"
-msgstr ""
 
 msgid "failed to reboot domain"
 msgstr ""
@@ -32613,9 +32693,6 @@ msgstr "Parameter '%s' is not supported by this kernel"
 msgid "numad is not available on this host"
 msgstr "numad is not available on this host"
 
-msgid "number"
-msgstr "number"
-
 msgid "number of bytes read:"
 msgstr "number of bytes read:"
 
@@ -33004,9 +33081,6 @@ msgstr "operation failed: %1$s"
 #, c-format
 msgid "operation type %1$d not supported"
 msgstr "operation type %1$d not supported"
-
-msgid "optdata"
-msgstr "optdata"
 
 #, fuzzy, c-format
 msgid "option %1$s requires a positive integer argument"
@@ -33609,6 +33683,9 @@ msgstr "preallocate metadata (for qcow2 instead of full allocation)"
 msgid "preallocation threads are unsupported with this QEMU"
 msgstr ""
 
+msgid "prefix the message"
+msgstr ""
+
 #, fuzzy
 msgid "prefix too long"
 msgstr "ipset name is too long"
@@ -33668,9 +33745,6 @@ msgstr "print a more human readable output"
 
 msgid "print help"
 msgstr "print help"
-
-msgid "print help for this function"
-msgstr "print help for this function"
 
 #, fuzzy
 msgid "print lease info for a given network"
@@ -34994,6 +35068,9 @@ msgstr "Setting the 64-bit PCI hole size is not supported for machine '%s'"
 msgid "setting virtiofs boot order is not supported with this QEMU binary"
 msgstr ""
 
+msgid "setting virtiofs boot order is supported only with PCI bus"
+msgstr ""
+
 msgid "setuid or setgid failed"
 msgstr "setuid or setgid failed"
 
@@ -35590,9 +35667,6 @@ msgstr "stream is not open"
 #, c-format
 msgid "stream must match connection of domain '%1$s'"
 msgstr ""
-
-msgid "string"
-msgstr "string"
 
 #, fuzzy, c-format
 msgid "string %1$s in %2$s must not be empty"
@@ -39456,6 +39530,43 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
+
+#, c-format
+#~ msgid " [[--%1$s] <string>]..."
+#~ msgstr " [[--%1$s] <string>]..."
+
+#, c-format
+#~ msgid " {[--%1$s] <string>}..."
+#~ msgstr " {[--%1$s] <string>}..."
+
+#~ msgid "(none)"
+#~ msgstr "(none)"
+
+#, fuzzy, c-format
+#~ msgid "--%1$s is required"
+#~ msgstr "--%1$s or --current is required"
+
+#~ msgid "bool"
+#~ msgstr "bool"
+
+#~ msgid "cd: command valid only in interactive mode"
+#~ msgstr "cd: command valid only in interactive mode"
+
+#, c-format
+#~ msgid "expected syntax: --%1$s <%2$s>"
+#~ msgstr "expected syntax: --%1$s <%2$s>"
+
+#~ msgid "number"
+#~ msgstr "number"
+
+#~ msgid "optdata"
+#~ msgstr "optdata"
+
+#~ msgid "print help for this function"
+#~ msgstr "print help for this function"
+
+#~ msgid "string"
+#~ msgstr "string"
 
 #, c-format
 #~ msgid "<%1$s>"

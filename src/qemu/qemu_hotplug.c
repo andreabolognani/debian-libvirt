@@ -1091,24 +1091,6 @@ qemuDomainAttachDeviceDiskLive(virQEMUDriver *driver,
 }
 
 
-static void
-qemuDomainNetDeviceVportRemove(virDomainNetDef *net)
-{
-    const virNetDevVPortProfile *vport = virDomainNetGetActualVirtPortProfile(net);
-    const char *brname;
-
-    if (!vport)
-        return;
-
-    if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_MIDONET) {
-        ignore_value(virNetDevMidonetUnbindPort(vport));
-    } else if (vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH) {
-        brname = virDomainNetGetActualBridgeName(net);
-        ignore_value(virNetDevOpenvswitchRemovePort(brname, net->ifname));
-    }
-}
-
-
 static int
 qemuDomainAttachNetDevice(virQEMUDriver *driver,
                           virDomainObj *vm,
@@ -1414,7 +1396,7 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
                                                        cfg->stateDir);
             }
 
-            qemuDomainNetDeviceVportRemove(net);
+            virDomainInterfaceVportRemove(net);
         }
 
         if (teardownlabel &&
@@ -4077,11 +4059,8 @@ qemuDomainChangeNet(virQEMUDriver *driver,
                 goto cleanup;
             }
         } else {
-            /*
-             * virNetDevBandwidthSet() doesn't clear any existing
-             * setting unless something new is being set.
-             */
-            virNetDevBandwidthClear(newdev->ifname);
+            if (virDomainInterfaceClearQoS(vm->def, newdev) < 0)
+                goto cleanup;
         }
 
         /* If the old bandwidth was cleared out, restore qdisc. */
@@ -4818,16 +4797,7 @@ qemuDomainRemoveNetDevice(virQEMUDriver *driver,
     if (!(charDevAlias = qemuAliasChardevFromDevAlias(net->info.alias)))
         return -1;
 
-    if (virNetDevSupportsBandwidth(virDomainNetGetActualType(net))) {
-        if (virDomainNetDefIsOvsport(net)) {
-            if (virNetDevOpenvswitchInterfaceClearQos(net->ifname, vm->def->uuid) < 0)
-                VIR_WARN("cannot clear bandwidth setting for ovs device : %s",
-                         net->ifname);
-        } else if (virNetDevBandwidthClear(net->ifname) < 0) {
-            VIR_WARN("cannot clear bandwidth setting for device : %s",
-                     net->ifname);
-        }
-    }
+    virDomainInterfaceClearQoS(vm->def, net);
 
     /* deactivate the tap/macvtap device on the host, which could also
      * affect the parent device (e.g. macvtap passthrough mode sets
@@ -4895,7 +4865,7 @@ qemuDomainRemoveNetDevice(virQEMUDriver *driver,
             VIR_WARN("Unable to restore security label on vhostuser char device");
     }
 
-    qemuDomainNetDeviceVportRemove(net);
+    virDomainInterfaceVportRemove(net);
 
     if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
         g_autoptr(virConnect) conn = virGetConnectNetwork();

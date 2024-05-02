@@ -277,7 +277,6 @@ static const vshCmdOptDef opts_dommemstat[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "period",
      .type = VSH_OT_INT,
-     .flags = VSH_OFLAG_REQ_OPT,
      .help = N_("period in seconds to set collection")
     },
     VIRSH_COMMON_OPT_CONFIG(N_("affect next boot")),
@@ -385,6 +384,7 @@ static const vshCmdOptDef opts_domblkinfo[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(0),
     {.name = "device",
      .type = VSH_OT_STRING,
+     .positional = true,
      .completer = virshDomainDiskTargetCompleter,
      .help = N_("block device")
     },
@@ -765,7 +765,7 @@ cmdDomIfGetLink(vshControl *ctl, const vshCmd *cmd)
     int ninterfaces;
     unsigned int flags = 0;
 
-    if (vshCommandOptStringReq(ctl, cmd, "interface", &iface) < 0)
+    if (vshCommandOptString(ctl, cmd, "interface", &iface) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "config"))
@@ -864,7 +864,8 @@ static const vshCmdOptDef opts_domblkstat[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "device",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_EMPTY_OK,
+     .positional = true,
+     .allowEmpty = true,
      .completer = virshDomainDiskTargetCompleter,
      .help = N_("block device")
     },
@@ -933,7 +934,7 @@ cmdDomblkstat(vshControl *ctl, const vshCmd *cmd)
        string to denote 'all devices'. A NULL device arg would violate
        API contract.
      */
-    if (vshCommandOptStringReq(ctl, cmd, "device", &device) < 0)
+    if (vshCommandOptString(ctl, cmd, "device", &device) < 0)
         return false;
 
     if (!device)
@@ -1057,7 +1058,7 @@ cmdDomIfstat(vshControl *ctl, const vshCmd *cmd)
     if (!(dom = virshCommandOptDomain(ctl, cmd, &name)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "interface", &device) < 0)
+    if (vshCommandOptString(ctl, cmd, "interface", &device) < 0)
         return false;
 
     if (virDomainInterfaceStats(dom, device, &stats, sizeof(stats)) == -1) {
@@ -1347,6 +1348,7 @@ static const vshCmdOptDef opts_domtime[] = {
     },
     {.name = "time",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("time to set")
     },
     {.name = NULL}
@@ -2094,7 +2096,7 @@ cmdDomstats(vshControl *ctl, const vshCmd *cmd)
     virDomainStatsRecordPtr *next;
     bool raw = vshCommandOptBool(cmd, "raw");
     int flags = 0;
-    const vshCmdOpt *opt = NULL;
+    const char **doms;
     bool ret = false;
     virshControl *priv = ctl->privData;
 
@@ -2164,12 +2166,12 @@ cmdDomstats(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "nowait"))
         flags |= VIR_CONNECT_GET_ALL_DOMAINS_STATS_NOWAIT;
 
-    if (vshCommandOptBool(cmd, "domain")) {
+    if ((doms = vshCommandOptArgv(cmd, "domain"))) {
         domlist = g_new0(virDomainPtr, 1);
         ndoms = 1;
 
-        while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {
-            if (!(dom = virshLookupDomainBy(ctl, opt->data,
+        for (; *doms; doms++) {
+            if (!(dom = virshLookupDomainBy(ctl, *doms,
                                             VIRSH_BYID |
                                             VIRSH_BYUUID | VIRSH_BYNAME)))
                 goto cleanup;
@@ -2219,16 +2221,15 @@ static const vshCmdOptDef opts_domifaddr[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "interface",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_NONE,
+     .positional = true,
      .completer = virshDomainInterfaceCompleter,
      .help = N_("network interface name")},
     {.name = "full",
      .type = VSH_OT_BOOL,
-     .flags = VSH_OFLAG_NONE,
      .help = N_("always display names and MACs of interfaces")},
     {.name = "source",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_NONE,
+     .unwanted_positional = true,
      .completer = virshDomainInterfaceAddrSourceCompleter,
      .help = N_("address source: 'lease', 'agent', or 'arp'")},
     {.name = NULL}
@@ -2253,9 +2254,9 @@ cmdDomIfAddr(vshControl *ctl, const vshCmd *cmd)
     const char *sourcestr = NULL;
     int source = VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE;
 
-    if (vshCommandOptStringReq(ctl, cmd, "interface", &ifacestr) < 0)
+    if (vshCommandOptString(ctl, cmd, "interface", &ifacestr) < 0)
         return false;
-    if (vshCommandOptStringReq(ctl, cmd, "source", &sourcestr) < 0)
+    if (vshCommandOptString(ctl, cmd, "source", &sourcestr) < 0)
         return false;
 
     if (sourcestr &&

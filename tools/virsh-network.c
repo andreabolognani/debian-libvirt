@@ -43,17 +43,6 @@
 #define VIRSH_COMMON_OPT_NETWORK_FULL(cflags) \
     VIRSH_COMMON_OPT_NETWORK(N_("network name or uuid"), cflags)
 
-#define VIRSH_COMMON_OPT_NETWORK_OT_STRING(_helpstr, cflags) \
-    {.name = "network", \
-     .type = VSH_OT_STRING, \
-     .help = _helpstr, \
-     .completer = virshNetworkNameCompleter, \
-     .completer_flags = cflags, \
-    }
-
-#define VIRSH_COMMON_OPT_NETWORK_OT_STRING_FULL(cflags) \
-    VIRSH_COMMON_OPT_NETWORK_OT_STRING(N_("network name or uuid"), cflags)
-
 #define VIRSH_COMMON_OPT_NETWORK_PORT(cflags) \
     {.name = "port", \
      .type = VSH_OT_STRING, \
@@ -76,7 +65,7 @@ virshCommandOptNetworkBy(vshControl *ctl, const vshCmd *cmd,
 
     virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_INFO, "%s: found option <%s>: %s\n",
@@ -114,7 +103,7 @@ virshCommandOptNetworkPort(vshControl *ctl, const vshCmd *cmd,
     const char *n = NULL;
     const char *optname = "port";
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_INFO, "%s: found option <%s>: %s\n",
@@ -204,7 +193,7 @@ cmdNetworkCreate(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -255,7 +244,7 @@ cmdNetworkDefine(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -335,6 +324,7 @@ static const vshCmdOptDef opts_network_desc[] = {
     },
     {.name = "new-desc",
      .type = VSH_OT_ARGV,
+     .positional = true,
      .help = N_("message")
     },
     {.name = NULL}
@@ -398,8 +388,6 @@ cmdNetworkDesc(vshControl *ctl, const vshCmd *cmd)
 
     int type;
     g_autofree char *descArg = NULL;
-    const vshCmdOpt *opt = NULL;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     unsigned int flags = VIR_NETWORK_UPDATE_AFFECT_CURRENT;
     unsigned int queryflags = 0;
 
@@ -421,12 +409,7 @@ cmdNetworkDesc(vshControl *ctl, const vshCmd *cmd)
     else
         type = VIR_NETWORK_METADATA_DESCRIPTION;
 
-    while ((opt = vshCommandOptArgv(ctl, cmd, opt)))
-        virBufferAsprintf(&buf, "%s ", opt->data);
-
-    virBufferTrim(&buf, " ");
-
-    descArg = virBufferContentAndReset(&buf);
+    descArg = g_strdup(vshCommandOptArgvString(cmd, "new-desc"));
 
     if (edit || descArg) {
         g_autofree char *descNet = NULL;
@@ -516,11 +499,13 @@ static const vshCmdOptDef opts_network_metadata[] = {
      .help = N_("use an editor to change the metadata")
     },
     {.name = "key",
+     .unwanted_positional = true,
      .type = VSH_OT_STRING,
      .help = N_("key to be used as a namespace identifier"),
     },
     {.name = "set",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("new metadata to set"),
     },
@@ -578,9 +563,9 @@ cmdNetworkMetadata(vshControl *ctl, const vshCmd *cmd)
     if (!(net = virshCommandOptNetwork(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "uri", &uri) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "key", &key) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "set", &set) < 0)
+    if (vshCommandOptString(ctl, cmd, "uri", &uri) < 0 ||
+        vshCommandOptString(ctl, cmd, "key", &key) < 0 ||
+        vshCommandOptString(ctl, cmd, "set", &set) < 0)
         return false;
 
     if ((set || edit) && !key) {
@@ -647,7 +632,6 @@ static const vshCmdOptDef opts_network_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -1250,6 +1234,7 @@ static const vshCmdOptDef opts_network_update[] = {
     },
     {.name = "parent-index",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("which parent object to search through")
     },
     VIRSH_COMMON_OPT_CONFIG(N_("affect next network startup")),
@@ -1289,7 +1274,7 @@ cmdNetworkUpdate(vshControl *ctl, const vshCmd *cmd)
     if (!(network = virshCommandOptNetwork(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "command", &commandStr) < 0)
+    if (vshCommandOptString(ctl, cmd, "command", &commandStr) < 0)
         goto cleanup;
 
     if (STREQ(commandStr, "add")) {
@@ -1303,7 +1288,7 @@ cmdNetworkUpdate(vshControl *ctl, const vshCmd *cmd)
         }
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "section", &sectionStr) < 0)
+    if (vshCommandOptString(ctl, cmd, "section", &sectionStr) < 0)
         goto cleanup;
 
     section = virshNetworkSectionTypeFromString(sectionStr);
@@ -1322,7 +1307,7 @@ cmdNetworkUpdate(vshControl *ctl, const vshCmd *cmd)
      * the desired xml.
      */
 
-    if (vshCommandOptStringReq(ctl, cmd, "xml", &xml) < 0)
+    if (vshCommandOptString(ctl, cmd, "xml", &xml) < 0)
         goto cleanup;
 
     if (*xml != '<') {
@@ -1587,9 +1572,15 @@ static const vshCmdInfo info_network_event = {
 };
 
 static const vshCmdOptDef opts_network_event[] = {
-    VIRSH_COMMON_OPT_NETWORK_OT_STRING(N_("filter by network name or uuid"), 0),
+    {.name = "network",
+     .type = VSH_OT_STRING,
+     .unwanted_positional = true,
+     .help = N_("filter by network name or uuid"),
+     .completer = virshNetworkNameCompleter,
+    },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshNetworkEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -1599,6 +1590,7 @@ static const vshCmdOptDef opts_network_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -1632,7 +1624,7 @@ cmdNetworkEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
     if (!eventName) {
         vshError(ctl, "%s", _("either --list or --event <type> is required"));
@@ -1700,7 +1692,7 @@ static const vshCmdOptDef opts_network_dhcp_leases[] = {
     VIRSH_COMMON_OPT_NETWORK_FULL(VIR_CONNECT_LIST_NETWORKS_ACTIVE),
     {.name = "mac",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_NONE,
+     .unwanted_positional = true,
      .help = N_("MAC address"),
      .completer = virshNetworkDhcpMacCompleter,
     },
@@ -1737,7 +1729,7 @@ cmdNetworkDHCPLeases(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshNetwork) network = NULL;
     g_autoptr(vshTable) table = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "mac", &mac) < 0)
+    if (vshCommandOptString(ctl, cmd, "mac", &mac) < 0)
         return false;
 
     if (!(network = virshCommandOptNetwork(ctl, cmd, &name)))
@@ -1830,7 +1822,7 @@ cmdNetworkPortCreate(vshControl *ctl, const vshCmd *cmd)
     if (network == NULL)
         goto cleanup;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         goto cleanup;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -1873,7 +1865,6 @@ static const vshCmdOptDef opts_network_port_dumpxml[] = {
     VIRSH_COMMON_OPT_NETWORK_PORT(0),
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },

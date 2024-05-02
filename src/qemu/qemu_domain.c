@@ -10995,16 +10995,15 @@ virSaveCookieCallbacks virQEMUDriverDomainSaveCookie = {
  * @vm: domain which is being started
  * @cpu: CPU updated when the domain was running previously (before migration,
  *       snapshot, or save)
- * @origCPU: where to store the original CPU from vm->def in case @cpu was
- *           used instead
+ * @origCPU: where to store the original CPU from vm->def
  *
- * Replace the CPU definition with the updated one when QEMU is new enough to
- * allow us to check extra features it is about to enable or disable when
- * starting a domain. The original CPU is stored in @origCPU.
- *
- * Returns 0 on success, -1 on error.
+ * Save the original CPU definition from inactive XML in @origCPU so that we
+ * can safely update it and still be able to check what exactly a user asked
+ * for. The domain definition will either contain a copy of the original CPU
+ * definition or a copy of @cpu in case the domain was already running and
+ * we're just restoring a saved state or preparing for incoming migration.
  */
-int
+void
 qemuDomainUpdateCPU(virDomainObj *vm,
                     virCPUDef *cpu,
                     virCPUDef **origCPU)
@@ -11013,20 +11012,24 @@ qemuDomainUpdateCPU(virDomainObj *vm,
 
     *origCPU = NULL;
 
-    if (!cpu || !vm->def->cpu ||
-        !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION) ||
-        virCPUDefIsEqual(vm->def->cpu, cpu, false))
-        return 0;
+    if (!vm->def->cpu)
+        return;
 
-    if (!(cpu = virCPUDefCopy(cpu)))
-        return -1;
+    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION))
+        return;
 
-    VIR_DEBUG("Replacing CPU def with the updated one");
+    /* nothing to do if only topology part of CPU def is used */
+    if (vm->def->cpu->mode == VIR_CPU_MODE_CUSTOM && !vm->def->cpu->model)
+        return;
 
-    *origCPU = vm->def->cpu;
-    vm->def->cpu = cpu;
+    VIR_DEBUG("Replacing CPU definition");
 
-    return 0;
+    *origCPU = g_steal_pointer(&vm->def->cpu);
+
+    if (cpu)
+        vm->def->cpu = virCPUDefCopy(cpu);
+    else
+        vm->def->cpu = virCPUDefCopy(*origCPU);
 }
 
 
@@ -11047,29 +11050,27 @@ qemuDomainUpdateCPU(virDomainObj *vm,
  *
  * This function can only be used on an active domain or when restoring a
  * domain which was running.
- *
- * Returns 0 on success, -1 on error.
  */
-int
+void
 qemuDomainFixupCPUs(virDomainObj *vm,
                     virCPUDef **origCPU)
 {
     virArch arch = vm->def->os.arch;
 
     if (!ARCH_IS_X86(arch))
-        return 0;
+        return;
 
     if (!vm->def->cpu ||
         vm->def->cpu->mode != VIR_CPU_MODE_CUSTOM ||
         !vm->def->cpu->model)
-        return 0;
+        return;
 
     /* Missing origCPU means QEMU created exactly the same virtual CPU which
      * we asked for or libvirt was too old to mess up the translation from
      * host-model.
      */
     if (!*origCPU)
-        return 0;
+        return;
 
     if (virCPUDefFindFeature(vm->def->cpu, "cmt")) {
         g_autoptr(virCPUDef) fixedCPU = virCPUDefCopyWithoutModel(vm->def->cpu);
@@ -11090,8 +11091,6 @@ qemuDomainFixupCPUs(virDomainObj *vm,
         virCPUDefFree(*origCPU);
         *origCPU = g_steal_pointer(&fixedOrig);
     }
-
-    return 0;
 }
 
 

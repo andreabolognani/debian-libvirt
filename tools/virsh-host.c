@@ -45,7 +45,6 @@ static const vshCmdInfo info_capabilities = {
 static const vshCmdOptDef opts_capabilities[] = {
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -86,25 +85,28 @@ static const vshCmdInfo info_domcapabilities = {
 static const vshCmdOptDef opts_domcapabilities[] = {
     {.name = "virttype",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulatorbin",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("path to emulator binary (/domain/devices/emulator)"),
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshArchCompleter,
      .help = N_("domain architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -128,10 +130,10 @@ cmdDomCapabilities(vshControl *ctl, const vshCmd *cmd)
     bool wrap = vshCommandOptBool(cmd, "wrap");
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "emulatorbin", &emulatorbin) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0 ||
+    if (vshCommandOptString(ctl, cmd, "virttype", &virttype) < 0 ||
+        vshCommandOptString(ctl, cmd, "emulatorbin", &emulatorbin) < 0 ||
+        vshCommandOptString(ctl, cmd, "arch", &arch) < 0 ||
+        vshCommandOptString(ctl, cmd, "machine", &machine) < 0 ||
         vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
         return false;
 
@@ -156,6 +158,7 @@ static const vshCmdInfo info_freecell = {
 static const vshCmdOptDef opts_freecell[] = {
     {.name = "cellno",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .completer = virshCellnoCompleter,
      .help = N_("NUMA cell number")
     },
@@ -264,11 +267,13 @@ static const vshCmdInfo info_freepages = {
 static const vshCmdOptDef opts_freepages[] = {
     {.name = "cellno",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .completer = virshCellnoCompleter,
      .help = N_("NUMA cell number")
     },
     {.name = "pagesize",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .completer = virshAllocpagesPagesizeCompleter,
      .help = N_("page size (in kibibytes)")
     },
@@ -481,6 +486,7 @@ static const vshCmdOptDef opts_allocpages[] = {
     },
     {.name = "cellno",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .completer = virshCellnoCompleter,
      .help = N_("NUMA cell number")
     },
@@ -582,6 +588,7 @@ static const vshCmdInfo info_maxvcpus = {
 static const vshCmdOptDef opts_maxvcpus[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("domain type")
     },
@@ -598,7 +605,7 @@ cmdMaxvcpus(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(xmlXPathContext) ctxt = NULL;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
     if ((caps = virConnectGetDomainCapabilities(priv->conn, NULL, NULL, NULL,
@@ -712,6 +719,7 @@ static const vshCmdInfo info_nodecpustats = {
 static const vshCmdOptDef opts_node_cpustats[] = {
     {.name = "cpu",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .completer = virshNodeCpuCompleter,
      .help = N_("prints specified cpu statistics only.")
     },
@@ -850,6 +858,7 @@ static const vshCmdInfo info_nodememstats = {
 static const vshCmdOptDef opts_node_memstats[] = {
     {.name = "cell",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("prints specified cell statistics only.")
     },
     {.name = NULL}
@@ -968,7 +977,7 @@ cmdNodeSuspend(vshControl *ctl, const vshCmd *cmd)
     long long duration;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "target", &target) < 0)
+    if (vshCommandOptString(ctl, cmd, "target", &target) < 0)
         return false;
 
     if (vshCommandOptLongLong(ctl, cmd, "duration", &duration) < 0)
@@ -1180,7 +1189,7 @@ cmdCPUCompare(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "validate"))
         flags |= VIR_CONNECT_COMPARE_CPU_VALIDATE_XML;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (!(cpus = vshExtractCPUDefXMLs(ctl, from)))
@@ -1249,7 +1258,7 @@ cmdCPUBaseline(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "migratable"))
         flags |= VIR_CONNECT_BASELINE_CPU_MIGRATABLE;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (!(list = vshExtractCPUDefXMLs(ctl, from)))
@@ -1291,7 +1300,7 @@ cmdCPUModelNames(vshControl *ctl, const vshCmd *cmd)
     const char *arch = NULL;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0)
+    if (vshCommandOptString(ctl, cmd, "arch", &arch) < 0)
         return false;
 
     nmodels = virConnectGetCPUModelNames(priv->conn, arch, &models, 0);
@@ -1421,16 +1430,19 @@ static const vshCmdInfo info_node_memory_tune = {
 static const vshCmdOptDef opts_node_memory_tune[] = {
     {.name = "shm-pages-to-scan",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help =  N_("number of pages to scan before the shared memory service "
                  "goes to sleep")
     },
     {.name = "shm-sleep-millisecs",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help =  N_("number of millisecs the shared memory service should "
                  "sleep before next scan")
     },
     {.name = "shm-merge-across-nodes",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help =  N_("Specifies if pages from different numa nodes can be merged")
     },
     {.name = NULL}
@@ -1535,20 +1547,24 @@ static const vshCmdOptDef opts_hypervisor_cpu_compare[] = {
     VIRSH_COMMON_OPT_FILE(N_("file containing an XML CPU description")),
     {.name = "virttype",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulator",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("path to emulator binary (/domain/devices/emulator)"),
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshArchCompleter,
      .help = N_("CPU architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
     {.name = "error",
@@ -1582,11 +1598,11 @@ cmdHypervisorCPUCompare(vshControl *ctl,
     if (vshCommandOptBool(cmd, "validate"))
         flags |= VIR_CONNECT_COMPARE_CPU_VALIDATE_XML;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "emulator", &emulator) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0 ||
+        vshCommandOptString(ctl, cmd, "virttype", &virttype) < 0 ||
+        vshCommandOptString(ctl, cmd, "emulator", &emulator) < 0 ||
+        vshCommandOptString(ctl, cmd, "arch", &arch) < 0 ||
+        vshCommandOptString(ctl, cmd, "machine", &machine) < 0)
         return false;
 
     if (!(cpus = vshExtractCPUDefXMLs(ctl, from)))
@@ -1635,24 +1651,32 @@ static const vshCmdInfo info_hypervisor_cpu_baseline = {
 };
 
 static const vshCmdOptDef opts_hypervisor_cpu_baseline[] = {
-    VIRSH_COMMON_OPT_FILE_FULL(N_("file containing XML CPU descriptions"),
-                               false),
+    {.name = "file",
+     .type = VSH_OT_STRING,
+     .unwanted_positional = true,
+     .completer = virshCompletePathLocalExisting,
+     .help = N_("file containing XML CPU descriptions"),
+    },
     {.name = "virttype",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulator",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("path to emulator binary (/domain/devices/emulator)"),
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshArchCompleter,
      .help = N_("CPU architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
     {.name = "features",
@@ -1665,6 +1689,7 @@ static const vshCmdOptDef opts_hypervisor_cpu_baseline[] = {
     },
     {.name = "model",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCPUModelCompleter,
      .help = N_("Shortcut for calling the command with a single CPU model "
                 "and no additional features")
@@ -1693,12 +1718,12 @@ cmdHypervisorCPUBaseline(vshControl *ctl,
     if (vshCommandOptBool(cmd, "migratable"))
         flags |= VIR_CONNECT_BASELINE_CPU_MIGRATABLE;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "emulator", &emulator) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "model", &model) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0 ||
+        vshCommandOptString(ctl, cmd, "virttype", &virttype) < 0 ||
+        vshCommandOptString(ctl, cmd, "emulator", &emulator) < 0 ||
+        vshCommandOptString(ctl, cmd, "arch", &arch) < 0 ||
+        vshCommandOptString(ctl, cmd, "machine", &machine) < 0 ||
+        vshCommandOptString(ctl, cmd, "model", &model) < 0)
         return false;
 
     VSH_ALTERNATIVE_OPTIONS_EXPR("file", from, "model", model);

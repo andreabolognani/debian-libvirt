@@ -93,15 +93,6 @@ typedef enum {
     VSH_OT_ALIAS,    /* alternate spelling for a later argument */
 } vshCmdOptType;
 
-/*
- * Command Option Flags
- */
-enum {
-    VSH_OFLAG_NONE     = 0,        /* without flags */
-    VSH_OFLAG_EMPTY_OK = (1 << 1), /* empty string option allowed */
-    VSH_OFLAG_REQ_OPT  = (1 << 2), /* --optionname required */
-};
-
 /* forward declarations */
 typedef struct _vshClientHooks vshClientHooks;
 typedef struct _vshCmd vshCmd;
@@ -133,7 +124,14 @@ struct _vshCmdOptDef {
     vshCmdOptType type;         /* option type */
     bool required;              /* option is required */
     bool positional;            /* option is a positional option (not requiring '--optionname') */
-    unsigned int flags;         /* flags */
+
+    /* Historically the command parser in virsh allowed many optional arguments
+     * which were documented as non-positional to be filled positionally. To
+     * preserve this functionality those need to be annotated with the
+     * 'unwanted_positional' flag. New options must not use this flag */
+    bool unwanted_positional;
+
+    bool allowEmpty;            /* allow empty string */
     const char *help;           /* non-NULL help string; or for VSH_OT_ALIAS
                                  * the name of a later public option */
     vshCompleter completer;         /* option completer */
@@ -148,10 +146,11 @@ struct _vshCmdOptDef {
  */
 struct _vshCmdOpt {
     const vshCmdOptDef *def;    /* non-NULL pointer to option definition */
+    bool present;               /* true if option was present on command line */
     char *data;                 /* allocated data, or NULL for bool option */
-    bool completeThis;          /* true if this is the option user's wishing to
-                                   autocomplete */
-    vshCmdOpt *next;
+    char **argv;                /* for VSH_OT_ARGV, the list of options */
+    size_t nargv;
+    char *argvstr;              /* space-joined @argv */
 };
 
 /*
@@ -180,8 +179,10 @@ struct _vshCmdDef {
 struct _vshCmd {
     const vshCmdDef *def;       /* command definition */
     vshCmdOpt *opts;            /* list of command arguments */
+    vshCmdOpt *lastopt;         /* last option of the commandline */
     vshCmd *next;               /* next command */
     bool skipChecks;            /* skip validity checks when retrieving opts */
+    bool helpOptionSeen;        /* The '--help' option was seen when persing the command */
 };
 
 /*
@@ -245,10 +246,6 @@ void vshOutputLogFile(vshControl *ctl, int log_level, const char *format,
     G_GNUC_PRINTF(3, 0);
 void vshCloseLogFile(vshControl *ctl);
 
-const vshCmdDef *vshCmddefSearch(const char *cmdname);
-const vshCmdGrp *vshCmdGrpSearch(const char *grpname);
-bool vshCmdGrpHelp(vshControl *ctl, const vshCmdGrp *grp);
-
 int vshCommandOptInt(vshControl *ctl, const vshCmd *cmd,
                      const char *name, int *value)
     ATTRIBUTE_NONNULL(4) G_GNUC_WARN_UNUSED_RESULT;
@@ -267,8 +264,8 @@ int vshCommandOptULWrap(vshControl *ctl, const vshCmd *cmd,
 int vshCommandOptStringQuiet(vshControl *ctl, const vshCmd *cmd,
                              const char *name, const char **value)
     ATTRIBUTE_NONNULL(4) G_GNUC_WARN_UNUSED_RESULT;
-int vshCommandOptStringReq(vshControl *ctl, const vshCmd *cmd,
-                           const char *name, const char **value)
+int vshCommandOptString(vshControl *ctl, const vshCmd *cmd,
+                        const char *name, const char **value)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3)
     ATTRIBUTE_NONNULL(4) G_GNUC_WARN_UNUSED_RESULT;
 int vshCommandOptLongLong(vshControl *ctl, const vshCmd *cmd,
@@ -291,10 +288,14 @@ int vshBlockJobOptionBandwidth(vshControl *ctl,
 bool vshCommandOptBool(const vshCmd *cmd, const char *name);
 bool vshCommandRun(vshControl *ctl, const vshCmd *cmd);
 bool vshCommandStringParse(vshControl *ctl, char *cmdstr,
-                           vshCmd **partial, size_t point);
+                           vshCmd **partial);
 
-const vshCmdOpt *vshCommandOptArgv(vshControl *ctl, const vshCmd *cmd,
-                                   const vshCmdOpt *opt);
+const char **
+vshCommandOptArgv(const vshCmd *cmd,
+                  const char *name);
+const char *
+vshCommandOptArgvString(const vshCmd *cmd,
+                        const char *name);
 bool vshCommandArgvParse(vshControl *ctl, int nargs, char **argv);
 int vshCommandOptTimeoutToMs(vshControl *ctl, const vshCmd *cmd, int *timeout);
 
@@ -316,9 +317,6 @@ void vshDebug(vshControl *ctl, int level, const char *format, ...)
 #define vshStrcasecmp(S1, S2) strcasecmp(S1, S2)
 int vshNameSorter(const void *a, const void *b);
 
-virTypedParameterPtr vshFindTypedParamByName(const char *name,
-                                             virTypedParameterPtr list,
-                                             int count);
 char *vshGetTypedParamValue(vshControl *ctl, virTypedParameterPtr item)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 

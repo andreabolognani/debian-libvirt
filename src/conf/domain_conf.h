@@ -236,6 +236,8 @@ struct _virDomainHostdevSubsysUSB {
 struct _virDomainHostdevSubsysPCI {
     virPCIDeviceAddress addr; /* host address */
     virDeviceHostdevPCIDriverInfo driver;
+    virTristateSwitch display;
+    virTristateSwitch ramfb;
 
     virBitmap *origstates;
 };
@@ -736,6 +738,9 @@ struct _virDomainPCIControllerOpts {
      */
     int numaNode;
     virTristateSwitch hotplug; /* 'off' to prevent hotplug/unplug, default 'on' */
+
+    unsigned long long memReserve; /* used by pci-bridge and pcie-root-port,
+                                      0 == undef, KiB */
 };
 
 struct _virDomainUSBControllerOpts {

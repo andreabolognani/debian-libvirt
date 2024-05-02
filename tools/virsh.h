@@ -98,29 +98,13 @@
 
 /* Use this only for files which are existing and used locally by virsh */
 #define VIRSH_COMMON_OPT_FILE(_helpstr) \
-    VIRSH_COMMON_OPT_FILE_FULL(_helpstr, true)
-
-#define VIRSH_COMMON_OPT_FILE_FULL(_helpstr, required_) \
     {.name = "file", \
      .type = VSH_OT_STRING, \
-     .required = required_, \
-     .positional = required_, \
+     .required = true, \
+     .positional = true, \
      .completer = virshCompletePathLocalExisting, \
      .help = _helpstr \
     }
-
-#define VIRSH_COMMON_OPT_DOMAIN_OT_STRING(_helpstr, oflags, cflags) \
-    {.name = "domain", \
-     .type = VSH_OT_STRING, \
-     .flags = oflags, \
-     .help = _helpstr, \
-     .completer = virshDomainNameCompleter, \
-     .completer_flags = cflags, \
-    }
-
-#define VIRSH_COMMON_OPT_DOMAIN_OT_STRING_FULL(oflags, cflags) \
-    VIRSH_COMMON_OPT_DOMAIN_OT_STRING(N_("domain name, id or uuid"), \
-                                      oflags, cflags)
 
 typedef struct _virshControl virshControl;
 

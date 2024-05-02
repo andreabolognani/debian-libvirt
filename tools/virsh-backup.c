@@ -34,11 +34,13 @@ static const vshCmdOptDef opts_backup_begin[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "backupxml",
      .type = VSH_OT_STRING,
+     .positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("domain backup XML"),
     },
     {.name = "checkpointxml",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("domain checkpoint XML"),
     },
@@ -66,7 +68,7 @@ cmdBackupBegin(vshControl *ctl,
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "backupxml", &backup_from) < 0)
+    if (vshCommandOptString(ctl, cmd, "backupxml", &backup_from) < 0)
         return false;
 
     if (!backup_from) {
@@ -78,7 +80,7 @@ cmdBackupBegin(vshControl *ctl,
         }
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "checkpointxml", &check_from) < 0)
+    if (vshCommandOptString(ctl, cmd, "checkpointxml", &check_from) < 0)
         return false;
     if (check_from) {
         if (virFileReadAll(check_from, VSH_MAX_XML_FILE, &check_buffer) < 0) {
@@ -107,7 +109,6 @@ static const vshCmdOptDef opts_backup_dumpxml[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },

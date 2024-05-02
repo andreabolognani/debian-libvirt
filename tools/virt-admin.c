@@ -254,7 +254,8 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 static const vshCmdOptDef opts_connect[] = {
     {.name = "name",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_EMPTY_OK,
+     .positional = true,
+     .allowEmpty = true,
      .help = N_("daemon's admin server connection URI")
     },
     {.name = NULL}
@@ -272,7 +273,7 @@ cmdConnect(vshControl *ctl, const vshCmd *cmd)
     vshAdmControl *priv = ctl->privData;
     bool connected = priv->conn;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
     if (name) {
@@ -378,7 +379,7 @@ cmdSrvThreadpoolInfo(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -424,14 +425,17 @@ static const vshCmdOptDef opts_srv_threadpool_set[] = {
     },
     {.name = "min-workers",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change bottom limit to number of workers."),
     },
     {.name = "max-workers",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change upper limit to number of workers."),
     },
     {.name = "priority-workers",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change the current number of priority workers"),
     },
     {.name = NULL}
@@ -450,7 +454,7 @@ cmdSrvThreadpoolSet(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
 #define PARSE_CMD_TYPED_PARAM(NAME, FIELD) \
@@ -541,7 +545,7 @@ cmdSrvClientsList(vshControl *ctl, const vshCmd *cmd)
     vshAdmControl *priv = ctl->privData;
     g_autoptr(vshTable) table = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -634,7 +638,7 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptULongLong(ctl, cmd, "client", &id) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)) ||
@@ -710,7 +714,7 @@ cmdClientDisconnect(vshControl *ctl, const vshCmd *cmd)
     virAdmClientPtr client = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (vshCommandOptULongLongWrap(ctl, cmd, "client", &id) < 0)
@@ -768,7 +772,7 @@ cmdSrvClientsInfo(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -811,11 +815,13 @@ static const vshCmdOptDef opts_srv_clients_set[] = {
     },
     {.name = "max-clients",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change the upper limit to overall number of clients "
                 "connected to the server."),
     },
     {.name = "max-unauth-clients",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change the upper limit to number of clients waiting for "
                 "authentication to be connected to the server"),
     },
@@ -835,7 +841,7 @@ cmdSrvClientsSet(vshControl *ctl, const vshCmd *cmd)
     virTypedParameterPtr params = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
 #define PARSE_CMD_TYPED_PARAM(NAME, FIELD) \
@@ -919,7 +925,7 @@ cmdSrvUpdateTlsFiles(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -953,8 +959,9 @@ static const vshCmdInfo info_daemon_log_filters = {
 static const vshCmdOptDef opts_daemon_log_filters[] = {
     {.name = "filters",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("redefine the existing set of logging filters"),
-     .flags = VSH_OFLAG_EMPTY_OK
+     .allowEmpty = true
     },
     {.name = NULL}
 };
@@ -966,7 +973,7 @@ cmdDaemonLogFilters(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptBool(cmd, "filters")) {
         const char *filters = NULL;
-        if ((vshCommandOptStringReq(ctl, cmd, "filters", &filters) < 0 ||
+        if ((vshCommandOptString(ctl, cmd, "filters", &filters) < 0 ||
              virAdmConnectSetLoggingFilters(priv->conn, filters, 0) < 0)) {
             vshError(ctl, _("Unable to change daemon logging settings"));
             return false;
@@ -1003,7 +1010,6 @@ static const vshCmdOptDef opts_daemon_timeout[] = {
      .type = VSH_OT_INT,
      .required = true,
      .help = N_("number of seconds the daemon will run without any active connection"),
-     .flags = VSH_OFLAG_REQ_OPT
     },
     {.name = NULL}
 };
@@ -1036,8 +1042,9 @@ static const vshCmdInfo info_daemon_timeout = {
 static const vshCmdOptDef opts_daemon_log_outputs[] = {
     {.name = "outputs",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("redefine the existing set of logging outputs"),
-     .flags = VSH_OFLAG_EMPTY_OK
+     .allowEmpty = true
     },
     {.name = NULL}
 };
@@ -1049,7 +1056,7 @@ cmdDaemonLogOutputs(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptBool(cmd, "outputs")) {
         const char *outputs = NULL;
-        if ((vshCommandOptStringReq(ctl, cmd, "outputs", &outputs) < 0 ||
+        if ((vshCommandOptString(ctl, cmd, "outputs", &outputs) < 0 ||
              virAdmConnectSetLoggingOutputs(priv->conn, outputs, 0) < 0)) {
             vshError(ctl, _("Unable to change daemon logging settings"));
             return false;
@@ -1324,7 +1331,7 @@ vshAdmParseArgv(vshControl *ctl, int argc, char **argv)
         ctl->imode = false;
         if (argc - optind == 1) {
             vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
-            return vshCommandStringParse(ctl, argv[optind], NULL, 0);
+            return vshCommandStringParse(ctl, argv[optind], NULL);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);
         }
@@ -1551,7 +1558,7 @@ main(int argc, char **argv)
             if (*ctl->cmdstr) {
                 vshReadlineHistoryAdd(ctl->cmdstr);
 
-                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL, 0))
+                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL))
                     vshCommandRun(ctl, ctl->cmd);
             }
             VIR_FREE(ctl->cmdstr);

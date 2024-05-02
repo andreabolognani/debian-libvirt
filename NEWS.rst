@@ -8,6 +8,71 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.3.0 (2024-05-02)
+====================
+
+* **New features**
+
+  * qemu: Proper support for USB network device
+
+    USB address is now automatically assigned to USB network devices thus they
+    can be used without manual configuration.
+
+  * conf: Introduce memReserve attribute to <controller/>
+
+    Some PCI devices have large non-prefetchable memory. This can be a problem
+    in case when such device needs to be hotplugged as the firmware can't
+    foresee such situation. The user thus can override the value calculated at
+    start to accomodate for such devices.
+
+* **Improvements**
+
+  * Improve validation of USB devices
+
+    Certain USB device types ('sound', 'fs', 'chr', 'ccid' and 'net') were not
+    properly handled in the check whether the VM config supports USB and thus
+    would result in poor error messages.
+
+  * virsh: Fix behaviour of ``--name`` and ``--parent`` used together when listing checkpoint and snapshots
+
+    The ``checkpoint-list`` and ``snapshot-list`` commands would ignore the
+    ``--name`` option to print only the name when used with ``--parent``.
+
+  * Extend libvirt-guests to shutdown only persistent VMs
+
+    Users can now choose to shutdown only persistent VMs when the host is being
+    shut down.
+
+* **Bug fixes**
+
+  * qemu: Fix migration with custom XML
+
+    Libvirt 10.2.0 would sometimes complain about incompatible CPU definition
+    when trying to migrate or save a domain and passing a custom XML even
+    though such XML was properly generated as migratable. Hitting this bug
+    depends on the guest CPU definition and the host on which a particular
+    domain was running.
+
+  * qemu: Fix TLS hostname verification failure in certain non-shared storage migration scenarios
+
+    In certain scenarios (parallel migration, newly also post-copy migration)
+    libvirt would wrongly pass an empty hostname to QEMU to be used for TLS
+    certificate hostname validation, which would result into failure of the
+    non-shared storage migration step::
+
+     error: internal error: unable to execute QEMU command 'blockdev-add': Certificate does not match the hostname
+
+  * Create OVS ports as transient
+
+    Libvirt now creates OVS ports as transient which prevents them from
+    reappearing or going stale on sudden reboots.
+
+  * Clear OVS QoS settings when domain shuts down
+
+    Libvirt now clears QoS settings on domain shutdown, so they no longer pile
+    up in OVS database.
+
+
 v10.2.0 (2024-04-02)
 ====================
 
@@ -17,7 +82,7 @@ v10.2.0 (2024-04-02)
 
     The ch driver now supports basic save and restore operations. This is
     functional on domains without any network, host device config defined.
-    The `path` parameter for save and restore should be a directory.
+    The ``path`` parameter for save and restore should be a directory.
 
   * qemu: Support for driver type ``mtp`` in ``<filesystem/>`` devices
 
