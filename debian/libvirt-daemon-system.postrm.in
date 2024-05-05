@@ -79,6 +79,21 @@ case "$1" in
                    /var/cache/libvirt/qemu; do
             [ ! -d $dir ] || rmdir --ignore-fail-on-non-empty $dir
         done
+
+        # Obsolete AppArmor stuff included until 9.6.0-1
+        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
+        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
+        LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
+
+        for name in $LIBVIRT_ABSTRACTIONS; do
+            abstraction="$ABSTRACTIONS_DIR/$name"
+            local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
+
+            if [ ! -e "$abstraction" ]; then
+                rm -f "$local_abstraction"
+                rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR" 2>/dev/null
+            fi
+        done
     ;;
 
     abort-install|abort-upgrade)
@@ -99,20 +114,6 @@ case "$1" in
                 "libvirt-daemon-config-nwfilter" \
                 -- \
                 "$@"
-        done
-
-        # dh_apparmor can't work with dir/file profile filenames yet (#979500)
-        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
-        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
-        LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
-        for name in $LIBVIRT_ABSTRACTIONS; do
-            abstraction="$ABSTRACTIONS_DIR/$name"
-            local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
-
-            if [ ! -e "$abstraction" ] ; then
-                rm -f "$local_abstraction"
-                rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR" 2>/dev/null
-            fi
         done
     ;;
 
