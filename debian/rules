@@ -311,13 +311,11 @@ endif
 	# triggers the privacy-breach-generic Lintian tag
 	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci-dashboard.html
 
-execute_after_dh_install:
 ifeq ($(DEB_HOST_ARCH_OS), linux)
+execute_after_dh_install:
 	dh_apparmor -p libvirt-daemon-system --profile-name=usr.lib.libvirt.virt-aa-helper
 	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
-endif
 
-ifeq ($(DEB_HOST_ARCH_OS), linux)
 override_dh_installinit:
 	# Install SysV init scripts
 	dh_installinit -p libvirt-daemon-system-sysv --name=virtlogd --no-stop-on-upgrade
