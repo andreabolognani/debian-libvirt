@@ -1,3 +1,10 @@
+libvirt (10.3.0-2) unstable; urgency=medium
+
+  * [13f1f61] patches: Add backport/vsh-Don-t-init-history[...]
+    - Fixes FTBFS (Closes: #1070498)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 07 May 2024 00:04:24 +0200
+
 libvirt (10.3.0-1) unstable; urgency=medium
 
   * [7845089] New upstream version 10.3.0
