@@ -1,4 +1,5 @@
 backport/rpc-ensure-temporary-GSource-is-removed-from-client-event.patch
+backport/vsh-Don-t-init-history-in-cmdComplete.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
