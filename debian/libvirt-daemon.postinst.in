@@ -17,6 +17,7 @@ set -e
 #FINISH_CONFFILE_TRANSFER#
 
 DAEMON_SYSTEM_TO_DAEMON="
+    /etc/apparmor.d/usr.sbin.libvirtd
     /etc/default/libvirtd
     /etc/libvirt/libvirtd.conf
     /etc/logrotate.d/libvirtd

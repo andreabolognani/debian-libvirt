@@ -298,8 +298,8 @@ endif
 
 ifeq ($(DEB_HOST_ARCH_OS), linux)
 execute_after_dh_install:
-	dh_apparmor -p libvirt-daemon-system --profile-name=usr.lib.libvirt.virt-aa-helper
-	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
+	dh_apparmor -p libvirt-daemon --profile-name=usr.sbin.libvirtd
+	dh_apparmor -p libvirt-daemon-common --profile-name=usr.lib.libvirt.virt-aa-helper
 
 override_dh_installinit:
 	dh_installinit -p libvirt-daemon --name=libvirtd --restart-after-upgrade

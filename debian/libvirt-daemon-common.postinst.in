@@ -40,6 +40,7 @@ add_statoverrides()
 }
 
 DAEMON_SYSTEM_TO_DAEMON_COMMON="
+    /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
     /etc/default/libvirt-guests
     /etc/sasl2/libvirt.conf
 "

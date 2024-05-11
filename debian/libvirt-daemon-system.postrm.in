@@ -40,10 +40,12 @@ NWFILTERS="
 "
 
 DAEMON_SYSTEM_TO_DAEMON_COMMON="
+    /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
     /etc/default/libvirt-guests
     /etc/sasl2/libvirt.conf
 "
 DAEMON_SYSTEM_TO_DAEMON="
+    /etc/apparmor.d/usr.sbin.libvirtd
     /etc/default/libvirtd
     /etc/libvirt/libvirtd.conf
     /etc/logrotate.d/libvirtd
@@ -63,10 +65,14 @@ DAEMON_SYSTEM_TO_DAEMON_DRIVER_XEN="
     /etc/logrotate.d/libvirtd.libxl
 "
 DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
+    /etc/apparmor.d/abstractions/libvirt-lxc
+    /etc/apparmor.d/libvirt/TEMPLATE.lxc
     /etc/libvirt/lxc.conf
     /etc/logrotate.d/libvirtd.lxc
 "
 DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
+    /etc/apparmor.d/abstractions/libvirt-qemu
+    /etc/apparmor.d/libvirt/TEMPLATE.qemu
     /etc/libvirt/qemu-lockd.conf
     /etc/libvirt/qemu-sanlock.conf
     /etc/libvirt/qemu.conf
@@ -77,25 +83,6 @@ DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK="
 "
 
 case "$1" in
-    purge)
-        # Obsolete AppArmor stuff included until 9.6.0-1
-        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
-        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
-        LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
-
-        for name in $LIBVIRT_ABSTRACTIONS; do
-            abstraction="$ABSTRACTIONS_DIR/$name"
-            local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
-
-            if [ ! -e "$abstraction" ]; then
-                rm -f "$local_abstraction"
-                if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
-                    rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
-                fi
-            fi
-        done
-    ;;
-
     abort-install|abort-upgrade)
         abort_conffile_transfer \
             "/etc/libvirt/qemu/networks/default.xml" \
@@ -197,7 +184,7 @@ case "$1" in
         done
     ;;
 
-    remove|upgrade|disappear|failed-upgrade)
+    remove|purge|upgrade|disappear|failed-upgrade)
     ;;
 
     *)

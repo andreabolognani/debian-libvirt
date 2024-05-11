@@ -1,3 +1,4 @@
+etc/apparmor.d/usr.sbin.libvirtd
 etc/libvirt/libvirtd.conf
 etc/logrotate.d/libvirtd
 lib/systemd/system/libvirtd-admin.socket

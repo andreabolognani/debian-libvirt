@@ -17,6 +17,8 @@ set -e
 #FINISH_CONFFILE_TRANSFER#
 
 DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
+    /etc/apparmor.d/abstractions/libvirt-lxc
+    /etc/apparmor.d/libvirt/TEMPLATE.lxc
     /etc/libvirt/lxc.conf
     /etc/logrotate.d/libvirtd.lxc
 "
@@ -33,6 +35,27 @@ case "$1" in
                 -- \
                 "$@"
         done
+
+        # Obsolete AppArmor stuff included until 9.6.0-1
+        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
+        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
+        pkg="libvirt-daemon-driver-lxc"
+        name="libvirt-lxc"
+
+        abstraction="$ABSTRACTIONS_DIR/$name"
+        local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
+
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkg" | grep -E "^ $abstraction " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$abstraction" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        # Delete the local abstraction if it's empty and the abstraction
+        # itself contains no customizations
+        if [ ! -s "$local_abstraction" ] && [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$local_abstraction"
+        fi
+        if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
+            rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
+        fi
 
         # Make sure the log directory doesn't get removed on package removal
         # since logrotate chokes otherwise

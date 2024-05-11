@@ -36,10 +36,12 @@ NWFILTERS="
 "
 
 DAEMON_SYSTEM_TO_DAEMON_COMMON="
+    /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
     /etc/default/libvirt-guests
     /etc/sasl2/libvirt.conf
 "
 DAEMON_SYSTEM_TO_DAEMON="
+    /etc/apparmor.d/usr.sbin.libvirtd
     /etc/default/libvirtd
     /etc/libvirt/libvirtd.conf
     /etc/logrotate.d/libvirtd
@@ -59,10 +61,14 @@ DAEMON_SYSTEM_TO_DAEMON_DRIVER_XEN="
     /etc/logrotate.d/libvirtd.libxl
 "
 DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
+    /etc/apparmor.d/abstractions/libvirt-lxc
+    /etc/apparmor.d/libvirt/TEMPLATE.lxc
     /etc/libvirt/lxc.conf
     /etc/logrotate.d/libvirtd.lxc
 "
 DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
+    /etc/apparmor.d/abstractions/libvirt-qemu
+    /etc/apparmor.d/libvirt/TEMPLATE.qemu
     /etc/libvirt/qemu-lockd.conf
     /etc/libvirt/qemu-sanlock.conf
     /etc/libvirt/qemu.conf
