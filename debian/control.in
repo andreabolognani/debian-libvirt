@@ -75,7 +75,7 @@ Depends:
  ${shlibs:Depends},
 Suggests:
  libvirt-clients-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
- libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon (= ${binary:Version}) [linux-any],
  libvirt-login-shell (= ${binary:Version}) [${ARCHES_LXC}],
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
