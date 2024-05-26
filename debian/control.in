@@ -182,14 +182,14 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
-Breaks:
- libvirt-clients (<< 6.9.0-2~),
-Replaces:
- libvirt-clients (<< 6.9.0-2~),
 Recommends:
  passt,
  swtpm,
  swtpm-tools,
+Breaks:
+ libvirt-clients (<< 6.9.0-2~),
+Replaces:
+ libvirt-clients (<< 6.9.0-2~),
 Description: Virtualization daemon QEMU connection driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
