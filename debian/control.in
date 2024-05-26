@@ -71,6 +71,7 @@ Architecture: any
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ libxml2-utils,
  sensible-utils,
  ${misc:Depends},
  ${shlibs:Depends},
@@ -142,6 +143,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ logrotate,
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
@@ -164,18 +166,12 @@ Recommends:
  libvirt-daemon-log (= ${binary:Version}),
  libvirt-daemon-plugin-lockd (= ${binary:Version}),
  libvirt-daemon-plugin-sanlock (= ${binary:Version}),
- libxml2-utils,
- lvm2,
- mount,
- netcat-openbsd,
- qemu-kvm | qemu-system,
 Suggests:
  libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [${ARCHES_GLUSTER}],
  libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
  libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [${ARCHES_CEPH}],
  libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
  libvirt-daemon-system (= ${binary:Version}),
- numad,
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
@@ -197,11 +193,23 @@ Package: libvirt-daemon-common
 Section: admin
 Architecture: linux-any
 Depends:
+ adduser,
+ dmidecode,
+ gettext-base,
+ iproute2,
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ polkitd (>= 121+compat0.1-2),
  sensible-utils,
  ${misc:Depends},
  ${shlibs:Depends},
+Recommends:
+ netcat-openbsd,
+ systemd-sysv | sysvinit-core,
+Suggests:
+ apparmor,
+ auditd,
+ systemtap,
 Breaks:
  libvirt-clients (<< 10.6.0-2~),
  libvirt-daemon (<< 10.6.0-2~),
@@ -271,15 +279,21 @@ Section: admin
 Architecture: ${ARCHES_QEMU}
 Multi-Arch: no
 Depends:
+ adduser,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ logrotate,
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
  passt,
+ qemu-kvm | qemu-system,
  swtpm,
  swtpm-tools,
+ systemd-container | sysvinit-core,
+Suggests:
+ numad,
 Enhances:
  qemu-kvm,
  qemu-system,
@@ -305,6 +319,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ logrotate,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -347,6 +362,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ logrotate,
  ${misc:Depends},
  ${shlibs:Depends},
 Enhances:
@@ -371,6 +387,8 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ mount,
+ nfs-common,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -393,6 +411,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ parted,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -434,6 +453,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ open-iscsi,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -477,6 +497,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ lvm2,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -564,6 +585,8 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
+Recommends:
+ zfsutils,
 Description: Virtualization daemon ZFS storage driver
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -577,6 +600,8 @@ Section: admin
 Architecture: linux-any
 Multi-arch: no
 Depends:
+ dnsmasq-base,
+ iptables | firewalld,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -601,6 +626,7 @@ Section: admin
 Architecture: linux-any
 Multi-arch: no
 Depends:
+ iptables,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -648,6 +674,7 @@ Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ mdevctl,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
@@ -738,9 +765,6 @@ Package: libvirt-daemon-system
 Section: admin
 Architecture: linux-any
 Depends:
- adduser,
- gettext-base,
- iptables | firewalld,
  libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
@@ -752,26 +776,10 @@ Depends:
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
- logrotate,
- polkitd (>= 121+compat0.1-2),
- systemd-container | sysvinit-core,
- systemd-sysv | sysvinit-core,
  ${misc:Depends},
 Recommends:
- dmidecode,
- dnsmasq-base,
- iproute2,
  libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
  libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
- mdevctl,
- parted,
-Suggests:
- apparmor,
- auditd,
- nfs-common,
- open-iscsi,
- systemtap,
- zfsutils,
 Description: Libvirt daemon configuration files
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
