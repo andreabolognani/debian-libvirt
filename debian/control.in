@@ -176,10 +176,6 @@ Suggests:
  libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
  libvirt-daemon-system (= ${binary:Version}),
  numad,
-Enhances:
- qemu-kvm,
- qemu-system,
- xen,
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
@@ -284,6 +280,9 @@ Recommends:
  passt,
  swtpm,
  swtpm-tools,
+Enhances:
+ qemu-kvm,
+ qemu-system,
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-system (<< 10.6.0-2~),
@@ -350,6 +349,8 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
+Enhances:
+ xen,
 Breaks:
  libvirt-daemon-system (<< 10.6.0-2~),
 Replaces:
