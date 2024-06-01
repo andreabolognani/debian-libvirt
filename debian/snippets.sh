@@ -53,9 +53,9 @@ finish_conffile_transfer() {
         shift
     done
 
-    # If we're upgrading rather than installing from scratch, we can assume
+    # If we're upgrading from a new enough version of the package, we can assume
     # the transfer must have happened at some point in the past and stop here
-    if [ -n "$2" ]; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
         return 0
     fi
 
