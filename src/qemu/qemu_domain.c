@@ -6699,8 +6699,7 @@ qemuDomainMakeCPUMigratable(virArch arch,
          * would think it was implicitly enabled on the source). New libvirt
          * will drop it from the XML before starting the domain on new QEMU.
          */
-        if (virCPUDefUpdateFeature(cpu, "pconfig", VIR_CPU_FEATURE_DISABLE) < 0)
-            return -1;
+        virCPUDefUpdateFeature(cpu, "pconfig", VIR_CPU_FEATURE_DISABLE);
     }
 
     if (virCPUx86GetAddedFeatures(cpu->model, &data.added) < 0)
@@ -6764,7 +6763,8 @@ qemuDomainDefFormatBufInternal(virQEMUDriver *driver,
 
         if (virCPUUpdate(def->os.arch, def->cpu,
                          virQEMUCapsGetHostModel(qCaps, def->virtType,
-                                                 VIR_QEMU_CAPS_HOST_CPU_MIGRATABLE)) < 0)
+                                                 VIR_QEMU_CAPS_HOST_CPU_MIGRATABLE),
+                         VIR_CPU_FEATURE_DISABLE) < 0)
             return -1;
     }
 

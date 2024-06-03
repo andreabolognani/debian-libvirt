@@ -298,6 +298,7 @@ Patches have also been contributed by:
 * Don Dugger <n0ano@n0ano.com>
 * Doug Goldstein <cardoe@cardoe.com>
 * Douglas Schilling Landgraf <dougsland@redhat.com>
+* Dr. David Alan Gilbert <dave@treblig.org>
 * Duncan Rance <libvirt@dunquino.com>
 * Dustin Kirkland <kirkland@canonical.com>
 * Dustin Xiong <x_k_123@hotmail.com>
@@ -679,6 +680,7 @@ Patches have also been contributed by:
 * Ohad Levy <ohadlevy@gmail.com>
 * Olaf Hering <olaf@aepfle.de>
 * Oleg Strikov <oleg.strikov@canonical.com>
+* Oleg Sviridov <oleg.sviridov@red-soft.ru>
 * Oleg Vasilev <oleg.vasilev@virtuozzo.com>
 * Oleksandr Tyshchenko <oleksandr_tyshchenko@epam.com>
 * Olesya Gerasimenko <gammaray@basealt.ru>

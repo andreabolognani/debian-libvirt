@@ -40,6 +40,7 @@
 #include "domain_audit.h"
 #include "domain_cgroup.h"
 #include "domain_interface.h"
+#include "domain_validate.h"
 #include "netdev_bandwidth_conf.h"
 #include "domain_nwfilter.h"
 #include "virlog.h"
@@ -1159,8 +1160,11 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         goto cleanup;
     }
 
-    if (qemuDomainIsS390CCW(vm->def) &&
-        net->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+    if (net->model == VIR_DOMAIN_NET_MODEL_USB_NET) {
+        if (virDomainUSBAddressEnsure(priv->usbaddrs, &net->info) < 0)
+            goto cleanup;
+    } else if (qemuDomainIsS390CCW(vm->def) &&
+               net->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
         net->info.type = VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW;
         if (!(ccwaddrs = virDomainCCWAddressSetCreateFromDomain(vm->def)))
             goto cleanup;
@@ -3013,36 +3017,40 @@ qemuDomainAttachInputDevice(virDomainObj *vm,
     bool teardowncgroup = false;
 
     qemuAssignDeviceInputAlias(vm->def, input, -1);
+    if (input->type == VIR_DOMAIN_INPUT_TYPE_EVDEV) {
+        if (!(devprops = qemuBuildInputEvdevProps(input)))
+            goto cleanup;
+    } else {
+        switch ((virDomainInputBus) input->bus) {
+        case VIR_DOMAIN_INPUT_BUS_USB:
+            if (virDomainUSBAddressEnsure(priv->usbaddrs, &input->info) < 0)
+                return -1;
 
-    switch ((virDomainInputBus) input->bus) {
-    case VIR_DOMAIN_INPUT_BUS_USB:
-        if (virDomainUSBAddressEnsure(priv->usbaddrs, &input->info) < 0)
+            releaseaddr = true;
+
+            if (!(devprops = qemuBuildInputUSBDevProps(vm->def, input)))
+                goto cleanup;
+            break;
+
+        case VIR_DOMAIN_INPUT_BUS_VIRTIO:
+            if (qemuDomainEnsureVirtioAddress(&releaseaddr, vm, &dev) < 0)
+                goto cleanup;
+
+            if (!(devprops = qemuBuildInputVirtioDevProps(vm->def, input, priv->qemuCaps)))
+                goto cleanup;
+            break;
+
+        case VIR_DOMAIN_INPUT_BUS_DEFAULT:
+        case VIR_DOMAIN_INPUT_BUS_PS2:
+        case VIR_DOMAIN_INPUT_BUS_XEN:
+        case VIR_DOMAIN_INPUT_BUS_PARALLELS:
+        case VIR_DOMAIN_INPUT_BUS_NONE:
+        case VIR_DOMAIN_INPUT_BUS_LAST:
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                        _("input device on bus '%1$s' cannot be hot plugged."),
+                        virDomainInputBusTypeToString(input->bus));
             return -1;
-
-        releaseaddr = true;
-
-        if (!(devprops = qemuBuildInputUSBDevProps(vm->def, input)))
-            goto cleanup;
-        break;
-
-    case VIR_DOMAIN_INPUT_BUS_VIRTIO:
-        if (qemuDomainEnsureVirtioAddress(&releaseaddr, vm, &dev) < 0)
-            goto cleanup;
-
-        if (!(devprops = qemuBuildInputVirtioDevProps(vm->def, input, priv->qemuCaps)))
-            goto cleanup;
-        break;
-
-    case VIR_DOMAIN_INPUT_BUS_DEFAULT:
-    case VIR_DOMAIN_INPUT_BUS_PS2:
-    case VIR_DOMAIN_INPUT_BUS_XEN:
-    case VIR_DOMAIN_INPUT_BUS_PARALLELS:
-    case VIR_DOMAIN_INPUT_BUS_NONE:
-    case VIR_DOMAIN_INPUT_BUS_LAST:
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("input device on bus '%1$s' cannot be hot plugged."),
-                       virDomainInputBusTypeToString(input->bus));
-        return -1;
+        }
     }
 
     if (qemuDomainNamespaceSetupInput(vm, input, &teardowndevice) < 0)
@@ -3063,9 +3071,14 @@ qemuDomainAttachInputDevice(virDomainObj *vm,
     if (qemuDomainAttachExtensionDevice(priv->mon, &input->info) < 0)
         goto exit_monitor;
 
-    if (qemuMonitorAddDeviceProps(priv->mon, &devprops) < 0) {
-        ignore_value(qemuDomainDetachExtensionDevice(priv->mon, &input->info));
-        goto exit_monitor;
+    if (input->type == VIR_DOMAIN_INPUT_TYPE_EVDEV) {
+        if (qemuMonitorAddObject(priv->mon, &devprops, NULL) < 0)
+            goto exit_monitor;
+    } else {
+        if (qemuMonitorAddDeviceProps(priv->mon, &devprops) < 0) {
+            ignore_value(qemuDomainDetachExtensionDevice(priv->mon, &input->info));
+            goto exit_monitor;
+        }
     }
 
     qemuDomainObjExitMonitor(vm);
@@ -3203,6 +3216,9 @@ qemuDomainAttachFSDevice(virQEMUDriver *driver,
         return -1;
 
     qemuAssignDeviceFSAlias(vm->def, fs);
+
+    if (virDomainDeviceDefValidate(&dev, vm->def, 0, driver->xmlopt, priv->qemuCaps) < 0)
+        goto cleanup;
 
     chardev = virDomainChrSourceDefNew(priv->driver->xmlopt);
     chardev->type = VIR_DOMAIN_CHR_TYPE_UNIX;
@@ -4059,7 +4075,7 @@ qemuDomainChangeNet(virQEMUDriver *driver,
                 goto cleanup;
             }
         } else {
-            if (virDomainInterfaceClearQoS(vm->def, newdev) < 0)
+            if (virDomainInterfaceClearQoS(vm->def, olddev) < 0)
                 goto cleanup;
         }
 
@@ -6090,6 +6106,29 @@ qemuDomainDetachDeviceLease(virQEMUDriver *driver,
 }
 
 
+static int
+qemuDomainDetachDeviceInputEvdev(virQEMUDriver *driver,
+                                 virDomainObj *vm,
+                                 virDomainDeviceDef *detach)
+{
+    int rc;
+    virDomainInputDef *input = detach->data.input;
+    qemuDomainObjPrivate *priv = vm->privateData;
+
+    qemuDomainObjEnterMonitor(vm);
+    rc = qemuMonitorDelObject(priv->mon, input->info.alias, true);
+    qemuDomainObjExitMonitor(vm);
+
+    if (rc < 0)
+        return -1;
+
+    if (qemuDomainRemoveDevice(driver, vm, detach) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 int
 qemuDomainDetachDeviceLive(virDomainObj *vm,
                            virDomainDeviceDef *match,
@@ -6173,6 +6212,13 @@ qemuDomainDetachDeviceLive(virDomainObj *vm,
                                       &detach.data.input) < 0) {
             return -1;
         }
+
+        /*
+         * Input devices of type 'evdev' are regular QOM objects
+         * (-object instead of -device), so it must be handled differently.
+         */
+        if (detach.data.input->type == VIR_DOMAIN_INPUT_TYPE_EVDEV)
+            return qemuDomainDetachDeviceInputEvdev(driver, vm, &detach);
         break;
     case VIR_DOMAIN_DEVICE_REDIRDEV:
         if (qemuDomainDetachPrepRedirdev(vm, match->data.redirdev,

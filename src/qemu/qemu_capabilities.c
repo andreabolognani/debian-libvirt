@@ -706,6 +706,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "blockjob.backing-mask-protocol", /* QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL */
               "display-reload", /* QEMU_CAPS_DISPLAY_RELOAD */
               "usb-mtp", /* QEMU_CAPS_DEVICE_USB_MTP */
+              "machine.virt.ras", /* QEMU_CAPS_MACHINE_VIRT_RAS */
+              "virtio-sound", /* QEMU_CAPS_DEVICE_VIRTIO_SOUND */
     );
 
 
@@ -798,12 +800,6 @@ struct _virQEMUCaps {
     virQEMUCapsAccel hvf;
     virQEMUCapsAccel tcg;
 };
-
-struct virQEMUCapsSearchData {
-    virArch arch;
-    const char *binaryFilter;
-};
-
 
 static virClass *virQEMUCapsClass;
 static void virQEMUCapsDispose(void *obj);
@@ -1395,6 +1391,8 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "cryptodev-backend-lkcf", QEMU_CAPS_OBJECT_CRYPTO_LKCF },
     { "pvpanic-pci", QEMU_CAPS_DEVICE_PANIC_PCI },
     { "usb-mtp", QEMU_CAPS_DEVICE_USB_MTP },
+    { "virtio-sound-pci", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
+    { "virtio-sound-device", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
 };
 
 
@@ -1733,6 +1731,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsPSeries[] = {
 
 static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsVirt[] = {
     { "iommu", QEMU_CAPS_MACHINE_VIRT_IOMMU },
+    { "ras", QEMU_CAPS_MACHINE_VIRT_RAS },
 };
 
 static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsGeneric[] = {
@@ -3846,10 +3845,9 @@ virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
             goto error;
 
         for (i = 0; i < cpuExpanded->nfeatures; i++) {
-            if (cpuExpanded->features[i].policy == VIR_CPU_FEATURE_REQUIRE &&
+            if (cpuExpanded->features[i].policy == VIR_CPU_FEATURE_REQUIRE)
                 virCPUDefUpdateFeature(fullCPU, cpuExpanded->features[i].name,
-                                       VIR_CPU_FEATURE_REQUIRE) < 0)
-                goto error;
+                                       VIR_CPU_FEATURE_REQUIRE);
         }
     }
 
