@@ -143,6 +143,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_QEMU) \
     -Ddriver_remote=enabled \
     -Dremote_default_mode=legacy \
+    -Dssh_proxy=disabled \
     -Ddriver_test=enabled \
     -Ddriver_ch=disabled \
     -Ddriver_bhyve=disabled \
