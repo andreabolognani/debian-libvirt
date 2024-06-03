@@ -36,7 +36,7 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_UDEV                 = -Dudev=enabled -Dpciaccess=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
-    WITH_NETWORK              = -Ddriver_network=enabled
+    WITH_NETWORK              = -Ddriver_network=enabled -Dfirewall_backend_priority=iptables,nftables
     WITH_INTERFACE            = -Ddriver_interface=enabled
     WITH_SECRETS              = -Ddriver_secrets=enabled
     WITH_OPENVZ               = -Ddriver_openvz=enabled
@@ -73,7 +73,7 @@ else
     WITH_UDEV                 = -Dudev=disabled -Dpciaccess=disabled
     WITH_CAPNG                = -Dcapng=disabled
     WITH_LIBNL                = -Dlibnl=disabled
-    WITH_NETWORK              = -Ddriver_network=disabled
+    WITH_NETWORK              = -Ddriver_network=disabled -Dfirewall_backend_priority=iptables,nftables
     WITH_INTERFACE            = -Ddriver_interface=disabled
     WITH_SECRETS              = -Ddriver_secrets=disabled
     WITH_OPENVZ               = -Ddriver_openvz=disabled
