@@ -9,6 +9,7 @@ etc/libvirt/libvirtd.conf
 [${ARCHES_XEN}] etc/libvirt/libxl-sanlock.conf
 [${ARCHES_XEN}] etc/libvirt/libxl.conf
 [${ARCHES_LXC}] etc/libvirt/lxc.conf
+etc/libvirt/network.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu-lockd.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu-sanlock.conf
 [${ARCHES_QEMU}] etc/libvirt/qemu.conf
