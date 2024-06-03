@@ -1,8 +1,9 @@
-libvirt (10.4.0-1) UNRELEASED; urgency=medium
+libvirt (10.4.0-1) unstable; urgency=medium
 
   * [7ed6608] New upstream version 10.4.0
+  * [d8acf23] patches: Drop backports
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 03 Jun 2024 22:46:59 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 04 Jun 2024 00:19:48 +0200
 
 libvirt (10.3.0-3) unstable; urgency=medium
 
