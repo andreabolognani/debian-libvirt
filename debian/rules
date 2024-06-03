@@ -136,6 +136,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
     -Drunstatedir=/run \
     -Dinitconfdir=/etc/default \
+    -Dsshconfdir=/etc/ssh/ssh_config.d \
     -Dno_git=true \
     -Dpackager="$(DEB_VENDOR)" \
     -Dpackager_version="$(DEB_VERSION)" \
