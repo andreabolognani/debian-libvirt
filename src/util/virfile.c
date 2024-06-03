@@ -2285,8 +2285,6 @@ virFileAccessibleAs(const char *path, int mode,
         return access(path, mode);
 
     ngroups = virGetGroupList(uid, gid, &groups);
-    if (ngroups < 0)
-        return -1;
 
     pid = virFork();
 
@@ -2330,8 +2328,12 @@ virFileAccessibleAs(const char *path, int mode,
  * opened as "fd" if it's not correct AND the flags say it should be
  * forced. */
 static int
-virFileOpenForceOwnerMode(const char *path, int fd, mode_t mode,
-                          uid_t uid, gid_t gid, unsigned int flags)
+virFileOpenForceOwnerMode(const char *path,
+                          int fd,
+                          mode_t mode,
+                          uid_t uid,
+                          gid_t gid,
+                          unsigned int flags)
 {
     int ret = 0;
     struct stat st;
@@ -2381,11 +2383,16 @@ virFileOpenForceOwnerMode(const char *path, int fd, mode_t mode,
  * buildVol backend function expects the file to be deleted on error.
  */
 static int
-virFileOpenForked(const char *path, int openflags, mode_t mode,
-                  uid_t uid, gid_t gid, unsigned int flags)
+virFileOpenForked(const char *path,
+                  int openflags,
+                  mode_t mode,
+                  uid_t uid,
+                  gid_t gid,
+                  unsigned int flags)
 {
     pid_t pid;
-    int status = 0, ret = 0;
+    int status = 0;
+    int ret = 0;
     int recvfd_errno = 0;
     int fd = -1;
     int pair[2] = { -1, -1 };
@@ -2399,8 +2406,6 @@ virFileOpenForked(const char *path, int openflags, mode_t mode,
      * NFS servers. */
 
     ngroups = virGetGroupList(uid, gid, &groups);
-    if (ngroups < 0)
-        return -errno;
 
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, pair) < 0) {
         ret = -errno;
@@ -2436,8 +2441,7 @@ virFileOpenForked(const char *path, int openflags, mode_t mode,
             created = true;
 
         /* File is successfully open. Set permissions if requested. */
-        ret = virFileOpenForceOwnerMode(path, fd, mode, uid, gid, flags);
-        if (ret < 0) {
+        if (virFileOpenForceOwnerMode(path, fd, mode, uid, gid, flags) < 0) {
             ret = -errno;
             virReportSystemError(errno,
                                  _("child process failed to force owner mode file '%1$s'"),
@@ -2445,9 +2449,7 @@ virFileOpenForked(const char *path, int openflags, mode_t mode,
             goto childerror;
         }
 
-        ret = virSocketSendFD(pair[1], fd);
-
-        if (ret < 0) {
+        if (virSocketSendFD(pair[1], fd) < 0) {
             ret = -errno;
             virReportSystemError(errno, "%s",
                                  _("child process failed to send fd to parent"));
@@ -2546,10 +2548,15 @@ virFileOpenForked(const char *path, int openflags, mode_t mode,
  * expects the file to be deleted on error.
  */
 int
-virFileOpenAs(const char *path, int openflags, mode_t mode,
-              uid_t uid, gid_t gid, unsigned int flags)
+virFileOpenAs(const char *path,
+              int openflags,
+              mode_t mode,
+              uid_t uid,
+              gid_t gid,
+              unsigned int flags)
 {
-    int ret = 0, fd = -1;
+    int ret = 0;
+    int fd = -1;
     bool created = false;
 
     /* allow using -1 to mean "current value" */
@@ -2563,9 +2570,9 @@ virFileOpenAs(const char *path, int openflags, mode_t mode,
     if (!(flags & (VIR_FILE_OPEN_NOFORK|VIR_FILE_OPEN_FORK)))
         flags |= VIR_FILE_OPEN_NOFORK|VIR_FILE_OPEN_FORK;
 
-    if ((flags & VIR_FILE_OPEN_NOFORK)
-        || (geteuid() != 0)
-        || ((uid == 0) && (gid == 0))) {
+    if ((flags & VIR_FILE_OPEN_NOFORK) ||
+        (geteuid() != 0) ||
+        ((uid == 0) && (gid == 0))) {
 
         if ((fd = open(path, openflags, mode)) < 0) {
             ret = -errno;
@@ -2695,8 +2702,6 @@ virFileRemove(const char *path,
         gid = getegid();
 
     ngroups = virGetGroupList(uid, gid, &groups);
-    if (ngroups < 0)
-        return -errno;
 
     pid = virFork();
 
@@ -2869,8 +2874,6 @@ virDirCreate(const char *path,
         gid = getegid();
 
     ngroups = virGetGroupList(uid, gid, &groups);
-    if (ngroups < 0)
-        return -errno;
 
     pid = virFork();
 
@@ -4365,26 +4368,12 @@ virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
  * used for small, interface-like files, so it should not be huge (subjective) */
 #define VIR_FILE_READ_VALUE_STRING_MAX 4096
 
-/**
- * virFileReadValueBitmap:
- * @value: pointer to virBitmap * to be allocated and filled in with the value
- * @format, ...: file to read from
- *
- * Read int from @format and put it into @value.
- *
- * Return -2 for non-existing file, -1 on other errors and 0 if everything went
- * fine.
- */
-int
-virFileReadValueBitmap(virBitmap **value, const char *format, ...)
+static int
+virFileReadValueBitmapImpl(virBitmap **value,
+                           const char *path,
+                           bool allowEmpty)
 {
     g_autofree char *str = NULL;
-    g_autofree char *path = NULL;
-    va_list ap;
-
-    va_start(ap, format);
-    path = g_strdup_vprintf(format, ap);
-    va_end(ap);
 
     if (!virFileExists(path))
         return -2;
@@ -4394,12 +4383,69 @@ virFileReadValueBitmap(virBitmap **value, const char *format, ...)
 
     virStringTrimOptionalNewline(str);
 
-    *value = virBitmapParseUnlimited(str);
+    if (allowEmpty) {
+        *value = virBitmapParseUnlimitedAllowEmpty(str);
+    } else {
+        *value = virBitmapParseUnlimited(str);
+    }
+
     if (!*value)
         return -1;
 
     return 0;
 }
+
+
+/**
+ * virFileReadValueBitmap:
+ * @value: pointer to virBitmap * to be allocated and filled in with the value
+ * @format, ...: file to read from
+ *
+ * Read int from @format and put it into @value.
+ *
+ * Returns: -2 for non-existing file,
+ *          -1 on other errors (with error reported),
+ *           0 otherwise.
+ */
+int
+virFileReadValueBitmap(virBitmap **value, const char *format, ...)
+{
+    g_autofree char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    path = g_strdup_vprintf(format, ap);
+    va_end(ap);
+
+    return virFileReadValueBitmapImpl(value, path, false);
+}
+
+
+/**
+ * virFileReadValueBitmapAllowEmpty:
+ * @value: pointer to virBitmap * to be allocated and filled in with the value
+ * @format, ...: file to read from
+ *
+ * Just like virFileReadValueBitmap(), except if the file is empty or contains
+ * nothing but spaces an empty bitmap is returned instead of an error.
+ *
+ * Returns: -2 for non-existing file,
+ *          -1 on other errors (with error reported),
+ *           0 otherwise.
+ */
+int
+virFileReadValueBitmapAllowEmpty(virBitmap **value, const char *format, ...)
+{
+    g_autofree char *path = NULL;
+    va_list ap;
+
+    va_start(ap, format);
+    path = g_strdup_vprintf(format, ap);
+    va_end(ap);
+
+    return virFileReadValueBitmapImpl(value, path, true);
+}
+
 
 /**
  * virFileReadValueString:

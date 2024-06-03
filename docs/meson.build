@@ -97,6 +97,7 @@ docs_rst_files = [
   'python',
   'remote',
   'securityprocess',
+  'ssh-proxy',
   'storage',
   'strategy',
   'styleguide',
@@ -360,6 +361,7 @@ if tests_enabled[0]
       '--webroot',
       meson.project_build_root() / 'docs'
     ],
+    depends: install_web_deps,
     env: runutf8,
     suite: 'script'
   )

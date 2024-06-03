@@ -796,6 +796,7 @@ virDomainDefPostParse;
 virDomainActualNetDefValidate;
 virDomainDefOSValidate;
 virDomainDefValidate;
+virDomainDeviceDefValidate;
 virDomainDeviceValidateAliasForHotplug;
 virDomainDiskDefSourceLUNValidate;
 virDomainDiskDefValidateStartupPolicy;
@@ -1300,6 +1301,7 @@ virNetworkObjGetClassIdMap;
 virNetworkObjGetDef;
 virNetworkObjGetDnsmasqPid;
 virNetworkObjGetFloorSum;
+virNetworkObjGetFwRemoval;
 virNetworkObjGetMacMap;
 virNetworkObjGetMetadata;
 virNetworkObjGetNewDef;
@@ -1331,6 +1333,7 @@ virNetworkObjSetDef;
 virNetworkObjSetDefTransient;
 virNetworkObjSetDnsmasqPid;
 virNetworkObjSetFloorSum;
+virNetworkObjSetFwRemoval;
 virNetworkObjSetMacMap;
 virNetworkObjSetMetadata;
 virNetworkObjTaint;
@@ -1848,7 +1851,6 @@ virStorageSourceUpdatePhysicalSize;
 
 
 # util/glibcompat.h
-vir_g_canonicalize_filename;
 vir_g_fsync;
 vir_g_source_unref;
 vir_g_strdup_printf;
@@ -1936,6 +1938,7 @@ virBitmapNextSetBit;
 virBitmapOverlaps;
 virBitmapParse;
 virBitmapParseUnlimited;
+virBitmapParseUnlimitedAllowEmpty;
 virBitmapSetAll;
 virBitmapSetBit;
 virBitmapSetBitExpand;
@@ -2360,6 +2363,7 @@ virFileReadHeaderFD;
 virFileReadHeaderQuiet;
 virFileReadLimFD;
 virFileReadValueBitmap;
+virFileReadValueBitmapAllowEmpty;
 virFileReadValueInt;
 virFileReadValueScaledInt;
 virFileReadValueString;
@@ -2403,17 +2407,26 @@ virFileCacheSetPriv;
 
 
 # util/virfirewall.h
-virFirewallAddRuleFull;
+virFirewallAddCmdFull;
+virFirewallAddRollbackCmd;
 virFirewallApply;
+virFirewallBackendTypeFromString;
+virFirewallBackendTypeToString;
+virFirewallCmdAddArg;
+virFirewallCmdAddArgFormat;
+virFirewallCmdAddArgList;
+virFirewallCmdAddArgSet;
+virFirewallCmdGetArgCount;
+virFirewallCmdToString;
+virFirewallFormat;
 virFirewallFree;
+virFirewallGetBackend;
+virFirewallGetName;
 virFirewallNew;
-virFirewallRemoveRule;
-virFirewallRuleAddArg;
-virFirewallRuleAddArgFormat;
-virFirewallRuleAddArgList;
-virFirewallRuleAddArgSet;
-virFirewallRuleGetArgCount;
-virFirewallRuleToString;
+virFirewallNewFromRollback;
+virFirewallParseXML;
+virFirewallRemoveCmd;
+virFirewallSetName;
 virFirewallStartRollback;
 virFirewallStartTransaction;
 
@@ -2503,6 +2516,7 @@ virHostCPUGetCount;
 virHostCPUGetCPUID;
 virHostCPUGetHaltPollTime;
 virHostCPUGetInfo;
+virHostCPUGetIsolated;
 virHostCPUGetKVMMaxVCPUs;
 virHostCPUGetMap;
 virHostCPUGetMicrocodeVersion;
@@ -2573,37 +2587,6 @@ virIdentitySetX509DName;
 # util/virinitctl.h
 virInitctlFifos;
 virInitctlSetRunLevel;
-
-
-# util/viriptables.h
-iptablesAddDontMasquerade;
-iptablesAddForwardAllowCross;
-iptablesAddForwardAllowIn;
-iptablesAddForwardAllowOut;
-iptablesAddForwardAllowRelatedIn;
-iptablesAddForwardMasquerade;
-iptablesAddForwardRejectIn;
-iptablesAddForwardRejectOut;
-iptablesAddOutputFixUdpChecksum;
-iptablesAddTcpInput;
-iptablesAddTcpOutput;
-iptablesAddUdpInput;
-iptablesAddUdpOutput;
-iptablesRemoveDontMasquerade;
-iptablesRemoveForwardAllowCross;
-iptablesRemoveForwardAllowIn;
-iptablesRemoveForwardAllowOut;
-iptablesRemoveForwardAllowRelatedIn;
-iptablesRemoveForwardMasquerade;
-iptablesRemoveForwardRejectIn;
-iptablesRemoveForwardRejectOut;
-iptablesRemoveOutputFixUdpChecksum;
-iptablesRemoveTcpInput;
-iptablesRemoveTcpOutput;
-iptablesRemoveUdpInput;
-iptablesRemoveUdpOutput;
-iptablesSetupPrivateChains;
-
 
 # util/viriscsi.h
 virISCSIConnectionLogin;

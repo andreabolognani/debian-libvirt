@@ -2334,6 +2334,8 @@ qemuProcessDetectIOThreadPIDs(virDomainObj *vm,
 static int
 qemuProcessGetAllCpuAffinity(virBitmap **cpumapRet)
 {
+    g_autoptr(virBitmap) isolCpus = NULL;
+
     *cpumapRet = NULL;
 
     if (!virHostCPUHasBitmap())
@@ -2341,6 +2343,13 @@ qemuProcessGetAllCpuAffinity(virBitmap **cpumapRet)
 
     if (!(*cpumapRet = virHostCPUGetOnlineBitmap()))
         return -1;
+
+    if (virHostCPUGetIsolated(&isolCpus) < 0)
+        return -1;
+
+    if (isolCpus) {
+        virBitmapSubtract(*cpumapRet, isolCpus);
+    }
 
     return 0;
 }
@@ -6270,6 +6279,7 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
     if (def->cpu->mode != VIR_CPU_MODE_HOST_PASSTHROUGH &&
         def->cpu->mode != VIR_CPU_MODE_MAXIMUM) {
         g_autoptr(virDomainCapsCPUModels) cpuModels = NULL;
+        virCPUFeaturePolicy removedPolicy = VIR_CPU_FEATURE_DISABLE;
 
         if (def->cpu->check == VIR_CPU_CHECK_PARTIAL &&
             !virQEMUCapsIsCPUUsable(qemuCaps, def->virtType, def->cpu) &&
@@ -6279,9 +6289,22 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
                           def->cpu, true) < 0)
             return -1;
 
+        /* When starting a fresh domain we disable all features removed from
+         * the specified CPU model to make sure they are only used if
+         * explicitly requested. But when we are restoring a previously running
+         * domain (migration, snapshot, ...) all removed features were already
+         * explicitly listed in the CPU definition and if we found a removed
+         * feature which is missing it must have been removed later and must be
+         * enabled rather than disabled here match the state described by older
+         * libvirt.
+         */
+        if (!(flags & VIR_QEMU_PROCESS_START_NEW))
+            removedPolicy = VIR_CPU_FEATURE_REQUIRE;
+
         if (virCPUUpdate(def->os.arch, def->cpu,
                          virQEMUCapsGetHostModel(qemuCaps, def->virtType,
-                                                 VIR_QEMU_CAPS_HOST_CPU_MIGRATABLE)) < 0)
+                                                 VIR_QEMU_CAPS_HOST_CPU_MIGRATABLE),
+                         removedPolicy) < 0)
             return -1;
 
         cpuModels = virQEMUCapsGetCPUModels(qemuCaps, def->virtType, NULL, NULL);
@@ -8876,11 +8899,25 @@ qemuProcessRefreshCPU(virQEMUDriver *driver,
     g_autoptr(virCPUDef) host = NULL;
     g_autoptr(virCPUDef) hostmig = NULL;
     g_autoptr(virCPUDef) cpu = NULL;
+    virCPUFeaturePolicy removedPolicy;
 
-    if (!virQEMUCapsGuestIsNative(driver->hostarch, vm->def->os.arch))
-        return 0;
+    /* When reconnecting to a running domain, we know all features marked as
+     * removed from a CPU model were already explicitly mentioned in the
+     * definition. If any removed features are missing, they must have been
+     * removed after the domain was started and thus they have to be enabled
+     * (otherwise they would be explicitly listed as disabled).
+     */
+    removedPolicy = VIR_CPU_FEATURE_REQUIRE;
 
     if (!vm->def->cpu)
+        return 0;
+
+    if (vm->def->cpu->mode == VIR_CPU_MODE_CUSTOM &&
+        vm->def->cpu->model &&
+        virCPUUpdate(vm->def->os.arch, vm->def->cpu, NULL, removedPolicy) < 0)
+        return -1;
+
+    if (!virQEMUCapsGuestIsNative(driver->hostarch, vm->def->os.arch))
         return 0;
 
     if (qemuProcessRefreshCPUMigratability(vm, VIR_ASYNC_JOB_NONE) < 0)
@@ -8914,7 +8951,7 @@ qemuProcessRefreshCPU(virQEMUDriver *driver,
         virCPUDefCopyModelFilter(cpu, hostmig, false, virQEMUCapsCPUFilterFeatures,
                                  &host->arch);
 
-        if (virCPUUpdate(vm->def->os.arch, vm->def->cpu, cpu) < 0)
+        if (virCPUUpdate(vm->def->os.arch, vm->def->cpu, cpu, removedPolicy) < 0)
             return -1;
 
         if (qemuProcessUpdateCPU(vm, VIR_ASYNC_JOB_NONE) < 0)

@@ -8,6 +8,94 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.4.0 (2024-06-03)
+====================
+
+* **New features**
+
+  * qemu: Support for ras feature for virt machine type
+
+    It is now possible to set on/off ``ras`` feature in the domain XML for virt
+    (Arm) machine type as ``<ras state='on'/>``.
+
+  * SSH proxy for VM
+
+    Libvirt now installs a binary helper that allows connecting to QEMU domains
+    via SSH using the following scheme: ``ssh user@qemu/virtualMachine``.
+
+  * qemu: Support for ``virtio`` sound model
+
+    Sound devices can now be configured to use the virtio model with
+    ``<sound model='virtio'/>``. This model is available from QEMU 8.2.0
+    onwards.
+
+  * network: use nftables to setup virtual network firewall rules
+
+    The network driver can now use nftables rules for the virtual
+    network firewalls, rather than iptables. With the standard build
+    options, nftables is preferred over iptables (with fallback to
+    iptables if nftables isn't installed), but this can be modified at
+    build time, or at runtime via the firewall_backend setting in
+    network.conf. (NB: the nwfilter driver still uses
+    ebtables/iptables).
+
+* **Improvements**
+
+  * qemu: add zstd to supported compression formats
+
+    Extend the list of supported formats of QEMU save image by adding zstd
+    compression.
+
+  * qemu: Implement support for hotplugging evdev input devices
+
+    As of this release, hotplug and hotunplug of evdev ``<input/>`` devices is
+    supported.
+
+* **Bug fixes**
+
+  * virsh/virt-admin: Fix ``--help`` option for all commands
+
+    A bug introduced in `v10.3.0 (2024-05-02)`_ caused that the attempt to print
+    help for any command by using the ``--help`` option in ``virsh`` and
+    ``virt-admin`` would print::
+
+      $ virsh list --help
+      error: command 'list' doesn't support option --help
+
+    instead of the help output. A workaround for the affected version is to use
+    the help command::
+
+      $ virsh help list
+
+  * qemu: Fix ``virsh save`` and migration when storage in question is root_squashed NFS
+
+    Attempting to save a VM to a root_squash NFS mount or migrating with disks
+    hosted on such mount could, in some scenarios, result in error stating::
+
+      'Unknown error 255'
+
+    The bug was introduced in `v10.1.0 (2024-03-01)`_.
+
+  * qemu: Don't set affinity for isolcpus unless explicitly requested
+
+    When starting a domain, by default libvirt sets affinity of QEMU process to
+    all online CPUs. This also included isolated CPUs (``isolcpus=``) which is
+    wrong. As of this release, isolated CPUs are left untouched, unless
+    explicitly configured in domain XML.
+
+  * qemu_hotplug: Properly assign USB address to hotplugged usb-net device
+
+    Previously, the network device hotplug logic would try to ensure only CCW
+    or PCI addresses. With recent support for the usb-net model, USB addresses
+    for usb-net network devices are assigned automatically.
+
+  * qemu: Fix hotplug of ``virtiofs`` filesystem device with ``<boot order=`` set
+
+    The bug was introduced in `v10.3.0 (2024-05-02)`_ when attempting to reject
+    unsupported configurations. During hotplug the addresses are
+    assigned after validation and thus errorneously reject valid configs.
+
+
 v10.3.0 (2024-05-02)
 ====================
 

@@ -336,7 +336,7 @@ BuildRequires: gcc
     %if %{with_libxl}
 BuildRequires: xen-devel
     %endif
-BuildRequires: glib2-devel >= 2.56
+BuildRequires: glib2-devel >= 2.58
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
 BuildRequires: pkgconfig(bash-completion) >= 2.0
@@ -356,8 +356,6 @@ BuildRequires: sanlock-devel >= 2.4
 BuildRequires: libpcap-devel >= 1.5.0
 BuildRequires: libnl3-devel
 BuildRequires: libselinux-devel
-BuildRequires: iptables
-BuildRequires: ebtables
 # For modprobe
 BuildRequires: kmod
 BuildRequires: cyrus-sasl-devel
@@ -594,7 +592,11 @@ Summary: Network driver plugin for the libvirtd daemon
 Requires: libvirt-daemon-common = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
 Requires: dnsmasq >= 2.41
+    %if 0%{?rhel} >= 10 || 0%{?fedora} >= 41
+Requires: nftables
+    %else
 Requires: iptables
+    %endif
 
 %description daemon-driver-network
 The network driver plugin for the libvirtd daemon, providing
@@ -815,6 +817,7 @@ Requires: gzip
 Requires: bzip2
 Requires: lzop
 Requires: xz
+Requires: zstd
 Requires: systemd-container
 Requires: swtpm-tools
         %if %{with_numad}
@@ -902,6 +905,7 @@ Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
 Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
 Requires: libvirt-daemon-driver-secret = %{version}-%{release}
 Requires: libvirt-daemon-driver-storage = %{version}-%{release}
+Requires: libvirt-ssh-proxy = %{version}-%{release}
 Requires: qemu
 
 %description daemon-qemu
@@ -930,6 +934,7 @@ Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
 Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
 Requires: libvirt-daemon-driver-secret = %{version}-%{release}
 Requires: libvirt-daemon-driver-storage = %{version}-%{release}
+Requires: libvirt-ssh-proxy = %{version}-%{release}
 Requires: qemu-kvm
 
 %description daemon-kvm
@@ -1098,6 +1103,13 @@ Requires: libvirt-daemon-driver-network = %{version}-%{release}
 %description nss
 Libvirt plugin for NSS for translating domain names into IP addresses.
 %endif
+
+%package ssh-proxy
+Summary: Libvirt SSH proxy
+Requires: libvirt-libs = %{version}-%{release}
+
+%description ssh-proxy
+Allows SSH into domains via VSOCK without need for network.
 
 %if %{with_mingw32}
 %package -n mingw32-libvirt
@@ -1371,9 +1383,11 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
            -Dtls_priority=%{tls_priority} \
            -Dsysctl_config=enabled \
            %{?arg_userfaultfd_sysctl} \
+           -Dssh_proxy=enabled \
            %{?enable_werror} \
            -Dexpensive_tests=enabled \
            -Dinit_script=systemd \
+           -Dfirewall_backend_priority=nftables,iptables \
            -Ddocs=enabled \
            -Dtests=enabled \
            -Drpath=disabled \
@@ -1455,6 +1469,7 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
   -Dstorage_zfs=disabled \
   -Dsysctl_config=disabled \
   -Duserfaultfd_sysctl=disabled \
+  -Dssh_proxy=disabled \
   -Dtests=disabled \
   -Dudev=disabled \
   -Dwireshark_dissector=disabled \
@@ -2108,6 +2123,9 @@ exit 0
 %config(noreplace) %{_sysconfdir}/libvirt/virtnetworkd.conf
 %{_datadir}/augeas/lenses/virtnetworkd.aug
 %{_datadir}/augeas/lenses/tests/test_virtnetworkd.aug
+%config(noreplace) %{_sysconfdir}/libvirt/network.conf
+%{_datadir}/augeas/lenses/libvirtd_network.aug
+%{_datadir}/augeas/lenses/tests/test_libvirtd_network.aug
 %{_unitdir}/virtnetworkd.service
 %{_unitdir}/virtnetworkd.socket
 %{_unitdir}/virtnetworkd-ro.socket
@@ -2424,6 +2442,10 @@ exit 0
 %files nss
 %{_libdir}/libnss_libvirt.so.2
 %{_libdir}/libnss_libvirt_guest.so.2
+
+%files ssh-proxy
+%config(noreplace) %{_sysconfdir}/ssh/ssh_config.d/30-libvirt-ssh-proxy.conf
+%{_libexecdir}/libvirt-ssh-proxy
 
     %if %{with_lxc}
 %files login-shell

@@ -830,27 +830,31 @@ x86DataAddSignature(virCPUx86Data *data,
 
 
 /*
+ * Adds features removed from the CPU @model to @cpu with a specified @policy
+ * unless the features were already explicitly mentioned in @cpu.
+ */
+static void
+virCPUx86AddRemovedFeatures(virCPUDef *cpu,
+                            virCPUx86Model *model,
+                            virCPUFeaturePolicy policy)
+{
+    char **feat;
+
+    for (feat = model->removedFeatures; feat && *feat; feat++)
+        virCPUDefAddFeatureIfMissing(cpu, *feat, policy);
+}
+
+
+/*
  * Disables features removed from the CPU @model unless they are already
  * mentioned in @cpu to make sure these features will always be explicitly
  * listed in the CPU definition.
  */
-static int
+static void
 virCPUx86DisableRemovedFeatures(virCPUDef *cpu,
                                 virCPUx86Model *model)
 {
-    char **feat = model->removedFeatures;
-
-    if (!feat)
-        return 0;
-
-    while (*feat) {
-        if (virCPUDefAddFeatureIfMissing(cpu, *feat, VIR_CPU_FEATURE_DISABLE) < 0)
-            return -1;
-
-        feat++;
-    }
-
-    return 0;
+    virCPUx86AddRemovedFeatures(cpu, model, VIR_CPU_FEATURE_DISABLE);
 }
 
 
@@ -901,10 +905,8 @@ x86DataToCPU(const virCPUx86Data *data,
         x86DataToCPUFeatures(cpu, VIR_CPU_FEATURE_DISABLE, &modelData, map))
         return NULL;
 
-    if (cpuType == VIR_CPU_TYPE_GUEST) {
-        if (virCPUx86DisableRemovedFeatures(cpu, model) < 0)
-            return NULL;
-    }
+    if (cpuType == VIR_CPU_TYPE_GUEST)
+        virCPUx86DisableRemovedFeatures(cpu, model);
 
     cpu->type = cpuType;
 
@@ -2914,7 +2916,7 @@ virCPUx86Baseline(virCPUDef **cpus,
 }
 
 
-static int
+static void
 x86UpdateHostModel(virCPUDef *guest,
                    const virCPUDef *host)
 {
@@ -2931,25 +2933,23 @@ x86UpdateHostModel(virCPUDef *guest,
     }
 
     for (i = 0; i < guest->nfeatures; i++) {
-        if (virCPUDefUpdateFeature(updated,
-                                   guest->features[i].name,
-                                   guest->features[i].policy) < 0)
-            return -1;
+        virCPUDefUpdateFeature(updated,
+                               guest->features[i].name,
+                               guest->features[i].policy);
     }
 
     virCPUDefStealModel(guest, updated,
                         guest->mode == VIR_CPU_MODE_CUSTOM);
     guest->mode = VIR_CPU_MODE_CUSTOM;
     guest->match = VIR_CPU_MATCH_EXACT;
-
-    return 0;
 }
 
 
 static int
 virCPUx86Update(virCPUDef *guest,
                 const virCPUDef *host,
-                bool relative)
+                bool relative,
+                virCPUFeaturePolicy removedPolicy)
 {
     g_autoptr(virCPUx86Model) model = NULL;
     virCPUx86Model *guestModel;
@@ -2984,8 +2984,7 @@ virCPUx86Update(virCPUDef *guest,
 
         if (guest->mode == VIR_CPU_MODE_HOST_MODEL ||
             guest->match == VIR_CPU_MATCH_MINIMUM) {
-            if (x86UpdateHostModel(guest, host) < 0)
-                return -1;
+            x86UpdateHostModel(guest, host);
         }
     }
 
@@ -2995,8 +2994,7 @@ virCPUx86Update(virCPUDef *guest,
         return -1;
     }
 
-    if (virCPUx86DisableRemovedFeatures(guest, guestModel) < 0)
-        return -1;
+    virCPUx86AddRemovedFeatures(guest, guestModel, removedPolicy);
 
     return 0;
 }
@@ -3065,9 +3063,8 @@ virCPUx86UpdateLive(virCPUDef *cpu,
             if (cpu->check == VIR_CPU_CHECK_FULL &&
                 !g_strv_contains((const char **) model->addedFeatures, feature->name)) {
                 virBufferAsprintf(&bufAdded, "%s,", feature->name);
-            } else if (virCPUDefUpdateFeature(cpu, feature->name,
-                                              VIR_CPU_FEATURE_REQUIRE) < 0) {
-                return -1;
+            } else {
+                virCPUDefUpdateFeature(cpu, feature->name, VIR_CPU_FEATURE_REQUIRE);
             }
         }
 
@@ -3077,14 +3074,12 @@ virCPUx86UpdateLive(virCPUDef *cpu,
             VIR_DEBUG("Feature '%s' disabled by the hypervisor", feature->name);
             if (cpu->check == VIR_CPU_CHECK_FULL)
                 virBufferAsprintf(&bufRemoved, "%s,", feature->name);
-            else if (virCPUDefUpdateFeature(cpu, feature->name,
-                                            VIR_CPU_FEATURE_DISABLE) < 0)
-                return -1;
+            else
+                virCPUDefUpdateFeature(cpu, feature->name, VIR_CPU_FEATURE_DISABLE);
         }
     }
 
-    if (virCPUx86DisableRemovedFeatures(cpu, model) < 0)
-        return -1;
+    virCPUx86DisableRemovedFeatures(cpu, model);
 
     virBufferTrim(&bufAdded, ",");
     virBufferTrim(&bufRemoved, ",");
@@ -3186,8 +3181,7 @@ virCPUx86Translate(virCPUDef *cpu,
 
     for (i = 0; i < cpu->nfeatures; i++) {
         virCPUFeatureDef *f = cpu->features + i;
-        if (virCPUDefUpdateFeature(translated, f->name, f->policy) < 0)
-            return -1;
+        virCPUDefUpdateFeature(translated, f->name, f->policy);
     }
 
     virCPUDefStealModel(cpu, translated, true);
@@ -3229,14 +3223,11 @@ virCPUx86ExpandFeatures(virCPUDef *cpu)
             f->policy != VIR_CPU_FEATURE_DISABLE)
             continue;
 
-        if (virCPUDefUpdateFeature(expanded, f->name, f->policy) < 0)
-            return -1;
+        virCPUDefUpdateFeature(expanded, f->name, f->policy);
     }
 
-    if (!host) {
-        if (virCPUx86DisableRemovedFeatures(expanded, model) < 0)
-            return -1;
-    }
+    if (!host)
+        virCPUx86DisableRemovedFeatures(expanded, model);
 
     virCPUDefFreeModel(cpu);
 

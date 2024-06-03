@@ -2643,6 +2643,8 @@ mymain(void)
     /* SVE aarch64 CPU features work on modern QEMU */
     DO_TEST_CAPS_ARCH_LATEST("aarch64-features-sve", "aarch64");
 
+    DO_TEST_CAPS_ARCH_LATEST("aarch64-features-ras", "aarch64");
+
     DO_TEST_CAPS_ARCH_LATEST("clock-timer-armvtimer", "aarch64");
 
     qemuTestSetHostArch(&driver, VIR_ARCH_NONE);
@@ -2983,6 +2985,7 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("mtp-usb-device")
     DO_TEST_CAPS_LATEST("net-usb")
+    DO_TEST_CAPS_LATEST("sound-device-virtio")
 
     /* check that all input files were actually used here */
     if (testConfXMLCheck(existingTestCases) < 0)

@@ -69,6 +69,7 @@ qemuValidateDomainDefPSeriesFeature(const virDomainDef *def,
     case VIR_DOMAIN_FEATURE_HTM:
     case VIR_DOMAIN_FEATURE_NESTED_HV:
     case VIR_DOMAIN_FEATURE_CCF_ASSIST:
+    case VIR_DOMAIN_FEATURE_RAS:
         if (!virTristateSwitchTypeToString(def->features[feature])) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("Invalid setting for pseries feature '%1$s'"),
@@ -222,6 +223,21 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
                 !virQEMUCapsGet(qemuCaps, QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                               _("asynchronous teardown is not available with this QEMU binary"));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_FEATURE_RAS:
+            if (def->features[i] != VIR_TRISTATE_SWITCH_ABSENT &&
+                !qemuDomainIsARMVirt(def)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("ras feature is only supported with ARM Virt machines"));
+                return -1;
+            }
+            if (def->features[i] != VIR_TRISTATE_SWITCH_ABSENT &&
+                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_VIRT_RAS)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                              _("ras feature is not available with this QEMU binary"));
                 return -1;
             }
             break;
@@ -4503,7 +4519,10 @@ qemuValidateDomainDeviceDefFS(virDomainFSDef *fs,
                 return -1;
             }
 
-            if (fs->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+            /* Address type may be _NONE when validating and will be assigned
+             * later during hotplug */
+            if (fs->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+                fs->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("setting virtiofs boot order is supported only with PCI bus"));
                 return -1;
@@ -4655,6 +4674,14 @@ qemuValidateDomainDeviceDefSound(virDomainSoundDef *sound,
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_ICH9_INTEL_HDA)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("The ich9-intel-hda audio controller is not supported in this QEMU binary"));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_SOUND_MODEL_VIRTIO:
+        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_SOUND)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("virtio-sound controller is not supported in this QEMU binary"));
             return -1;
         }
         break;

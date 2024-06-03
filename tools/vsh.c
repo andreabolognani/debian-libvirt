@@ -1655,7 +1655,10 @@ vshCommandParse(vshControl *ctl,
 
             /* lookup the option. Note that vshCmdGetOption also resolves aliases
              * and thus the value possibly contained in the alias */
-            if (!(opt = vshCmdGetOption(ctl, cmd, optionname, &optionvalue, report))) {
+            if (STREQ(optionname, "help")) {
+                cmd->helpOptionSeen = true;
+                g_clear_pointer(&optionvalue, g_free);
+            } else if (!(opt = vshCmdGetOption(ctl, cmd, optionname, &optionvalue, report))) {
                 if (STRNEQ(cmd->def->name, "help"))
                     goto out;
 
@@ -2817,7 +2820,7 @@ vshCompleterFilter(char ***list,
     newList = g_new0(char *, list_len + 1);
 
     for (i = 0; i < list_len; i++) {
-        if (!STRPREFIX((*list)[i], text)) {
+        if (text && !STRPREFIX((*list)[i], text)) {
             g_clear_pointer(&(*list)[i], g_free);
             continue;
         }
@@ -2973,7 +2976,7 @@ vshReadlineInit(vshControl *ctl)
     const char *quote_characters = "\"'";
 
     /* initialize readline stuff only once */
-    if (ctl->historydir)
+    if (autoCompleteOpaque)
         return 0;
 
     /* Opaque data for autocomplete callbacks. */
@@ -2988,6 +2991,11 @@ vshReadlineInit(vshControl *ctl)
 
     rl_completer_quote_characters = quote_characters;
     rl_char_is_quoted_p = vshReadlineCharIsQuoted;
+
+    /* Stuff below is needed only for interactive mode. */
+    if (!ctl->imode) {
+        return 0;
+    }
 
     histsize_env = g_strdup_printf("%s_HISTSIZE", ctl->env_prefix);
 
@@ -3149,7 +3157,7 @@ vshInit(vshControl *ctl, const vshCmdGrp *groups)
     cmdGroups = groups;
 
     if (vshInitDebug(ctl) < 0 ||
-        (ctl->imode && vshReadlineInit(ctl) < 0))
+        vshReadlineInit(ctl) < 0)
         return false;
 
     return true;
@@ -3168,7 +3176,7 @@ vshInitReload(vshControl *ctl)
 
     if (ctl->imode)
         vshReadlineDeinit(ctl);
-    if (ctl->imode && vshReadlineInit(ctl) < 0)
+    if (vshReadlineInit(ctl) < 0)
         return false;
 
     return true;
@@ -3480,17 +3488,20 @@ const vshCmdInfo info_complete = {
 
 #ifdef WITH_READLINE
 
-static virOnceControl vshCmdCompleteCloseStdinOnce = VIR_ONCE_CONTROL_INITIALIZER;
+static virOnceControl vshCmdCompleteCloseStdinStderrOnce = VIR_ONCE_CONTROL_INITIALIZER;
 
 static void
-vshCmdCompleteCloseStdin(void)
+vshCmdCompleteCloseStdinStderr(void)
 {
     /* In non-interactive mode which is how the 'complete' command is intended
      * to be used we need to ensure that any authentication callback will not
-     * attempt to read any input which would break the completion */
+     * attempt to read any input which would break the completion. Similarly,
+     * printing anything onto stderr should be avoided. */
     int stdin_fileno = STDIN_FILENO;
+    int stderr_fileno = STDERR_FILENO;
 
     VIR_FORCE_CLOSE(stdin_fileno);
+    VIR_FORCE_CLOSE(stderr_fileno);
 }
 
 
@@ -3500,6 +3511,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
     const vshClientHooks *hooks = ctl->hooks;
     const char *lastArg = NULL;
     const char **args = NULL;
+    char *old_rl_line_buffer = NULL;
     g_auto(GStrv) matches = NULL;
     char **iter;
 
@@ -3511,7 +3523,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
      * need to prevent auth hooks reading any input. Therefore, we
      * have to close stdin and then connect ourselves. */
     if (!ctl->imode) {
-        if (virOnce(&vshCmdCompleteCloseStdinOnce, vshCmdCompleteCloseStdin) < 0)
+        if (virOnce(&vshCmdCompleteCloseStdinStderrOnce, vshCmdCompleteCloseStdinStderr) < 0)
             return false;
     }
 
@@ -3520,6 +3532,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
 
     vshReadlineInit(ctl);
 
+    old_rl_line_buffer = g_steal_pointer(&rl_line_buffer);
     if (!(rl_line_buffer = g_strdup(vshCommandOptArgvString(cmd, "string"))))
         rl_line_buffer = g_strdup("");
 
@@ -3529,6 +3542,7 @@ cmdComplete(vshControl *ctl, const vshCmd *cmd)
 
     matches = vshReadlineCompletion(lastArg, 0, 0);
     g_clear_pointer(&rl_line_buffer, g_free);
+    rl_line_buffer = g_steal_pointer(&old_rl_line_buffer);
 
     if (!matches)
         return false;

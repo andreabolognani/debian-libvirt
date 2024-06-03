@@ -2021,6 +2021,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
        <tb-cache unit='MiB'>128</tb-cache>
      </tcg>
      <async-teardown enabled='yes'/>
+     <ras state='on'/>
    </features>
    ...
 
@@ -2256,6 +2257,11 @@ are:
    Depending on the ``enabled`` attribute (values ``yes``, ``no``) enable or
    disable QEMU asynchronous teardown to improve memory reclaiming on a guest.
    :since:`Since 9.6.0` (QEMU only)
+``ras``
+   Report host memory errors to a guest using ACPI and guest external abort
+   exceptions when enabled (``on``). If the attribute is not defined, the
+   hypervisor default will be used.
+   :since:`Since 10.4.0` (QEMU/KVM and ARM virt guests only)
 
 Time keeping
 ------------
@@ -7399,8 +7405,9 @@ A virtual sound card can be attached to the host via the ``sound`` element.
    what real sound device is emulated. Valid values are specific to the
    underlying hypervisor, though typical choices are ``sb16``, ``es1370``,
    ``pcspk``, ``ac97`` (:since:`Since 0.6.0`), ``ich6`` (:since:`Since 0.8.8`),
-   ``ich9`` (:since:`Since 1.1.3`), ``usb`` (:since:`Since 1.2.8`) and ``ich7``
-   (:since:`Since 6.7.0`, bhyve only).
+   ``ich9`` (:since:`Since 1.1.3`), ``usb`` (:since:`Since 1.2.8`), ``ich7``
+   (:since:`Since 6.7.0`, bhyve only) and ``virtio``
+   (:since:`Since 10.4.0 and QEMU 8.2.0`).
 
 :since:`Since 0.9.13`, a sound element with ``ich6`` or ``ich9`` models can have
 optional sub-elements ``<codec>`` to attach various audio codecs to the audio
@@ -7427,6 +7434,12 @@ Valid values are:
 multi-channel mode by using the ``multichannel`` attribute::
 
   <sound model='usb' multichannel='yes'/>
+
+:since:`Since 10.4.0 and QEMU 8.2.0` the number of PCM streams in a ``virtio``
+sound device can be configured by using the ``streams`` attribute, which
+defaults to ``2`` if left unspecified::
+
+  <sound model='virtio' streams='2'/>
 
 Each ``sound`` element has an optional sub-element ``<address>`` which can tie
 the device to a particular PCI slot. See `Device Addresses`_.
