@@ -10,7 +10,6 @@ Build-Depends:
  bash-completion,
  debhelper-compat (= 13),
  dh-apparmor [linux-any],
- iptables [linux-any],
  kmod [linux-any],
  libacl1-dev [linux-any],
  libapparmor-dev (>= 3.0.0) [linux-any],
