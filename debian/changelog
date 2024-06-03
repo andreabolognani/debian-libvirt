@@ -1,3 +1,9 @@
+libvirt (10.4.0-1) UNRELEASED; urgency=medium
+
+  * [7ed6608] New upstream version 10.4.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 03 Jun 2024 22:46:59 +0200
+
 libvirt (10.3.0-3) unstable; urgency=medium
 
   * [aa7ed20] patches: Add backport/tests-fix-hang-in-virshtest[...]
