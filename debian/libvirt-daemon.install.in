@@ -10,7 +10,6 @@ usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_interface
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_nodedev.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_secret.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/lock-driver/lockd.so
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_disk.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_iscsi.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_mpath.so
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_scsi.so
