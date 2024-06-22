@@ -352,7 +352,6 @@ Suggests:
  auditd,
  nfs-common,
  open-iscsi,
- pm-utils,
  systemd,
  systemtap,
  zfsutils,
