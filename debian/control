@@ -352,7 +352,6 @@ Suggests:
  auditd,
  nfs-common,
  open-iscsi,
- systemd,
  systemtap,
  zfsutils,
 Description: Libvirt daemon configuration files
