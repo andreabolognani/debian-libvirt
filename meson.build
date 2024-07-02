@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.4.0',
+  version: '10.5.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -93,6 +93,16 @@ if initconfdir == ''
   else
     initconfdir = sysconfdir / 'sysconfig'
   endif
+endif
+
+unitdir = get_option('unitdir')
+if unitdir == ''
+  unitdir = prefix / 'lib' / 'systemd' / 'system'
+endif
+
+sysusersdir = get_option('sysusersdir')
+if sysusersdir == ''
+  sysusersdir = prefix / 'lib' / 'sysusers.d'
 endif
 
 bindir = prefix / get_option('bindir')
@@ -1637,15 +1647,27 @@ if not get_option('driver_network').disabled() and conf.has('WITH_LIBVIRTD')
   conf.set('WITH_NETWORK', 1)
 
   firewall_backend_priority = get_option('firewall_backend_priority')
-  if (not firewall_backend_priority.contains('nftables') or
-      not firewall_backend_priority.contains('iptables') or
-      firewall_backend_priority.length() != 2)
-    error('invalid value for firewall_backend_priority option')
+  if firewall_backend_priority.length() == 0
+      if host_machine.system() == 'linux'
+          firewall_backend_priority = ['nftables', 'iptables']
+      else
+          # No firewall impl on non-Linux so far, so force 'none'
+          # as placeholder
+          firewall_backend_priority = ['none']
+      endif
+  else
+      if host_machine.system() != 'linux'
+          error('firewall backend priority only supported on linux hosts')
+      endif
   endif
 
-  conf.set('FIREWALL_BACKEND_PRIORITY_0', 'VIR_FIREWALL_BACKEND_' + firewall_backend_priority[0].to_upper())
-  conf.set('FIREWALL_BACKEND_PRIORITY_1', 'VIR_FIREWALL_BACKEND_' + firewall_backend_priority[1].to_upper())
-  conf.set('FIREWALL_BACKEND_PRIORITY_NUM', firewall_backend_priority.length())
+  backends = []
+  foreach backend: firewall_backend_priority
+      backend = 'VIR_FIREWALL_BACKEND_' + backend.to_upper()
+      backends += backend
+  endforeach
+
+  conf.set('FIREWALL_BACKENDS', ', '.join(backends))
 elif get_option('driver_network').enabled()
   error('libvirtd must be enabled to build the network driver')
 endif

@@ -688,6 +688,9 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_MACHINE_VIRT_RAS, /* -machine virt,ras= */
     QEMU_CAPS_DEVICE_VIRTIO_SOUND, /* -device virtio-sound-* */
 
+    /* 460 */
+    QEMU_CAPS_SEV_SNP_GUEST, /* -object sev-snp-guest */
+
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
 
@@ -863,6 +866,9 @@ void virQEMUCapsFillDomainDeviceChannelCaps(virQEMUCaps *qemuCaps,
 
 void virQEMUCapsFillDomainDeviceCryptoCaps(virQEMUCaps *qemuCaps,
                                            virDomainCapsDeviceCrypto *crypto);
+
+void virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
+                                         virDomainCapsLaunchSecurity *launchSecurity);
 
 bool virQEMUCapsGuestIsNative(virArch host,
                               virArch guest);

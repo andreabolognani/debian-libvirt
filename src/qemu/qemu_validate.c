@@ -1310,28 +1310,32 @@ qemuValidateDomainDef(const virDomainDef *def,
         return -1;
 
     if (def->sec) {
-        switch ((virDomainLaunchSecurity) def->sec->sectype) {
-        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
-            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("SEV launch security is not supported with this QEMU binary"));
-                return -1;
-            }
+        virDomainCapsLaunchSecurity launchSecurity = { };
 
-            if (def->sec->data.sev.kernel_hashes != VIR_TRISTATE_BOOL_ABSENT &&
+        virQEMUCapsFillDomainLaunchSecurity(qemuCaps, &launchSecurity);
+
+        if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(launchSecurity.sectype,
+                                         def->sec->sectype)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("'%1$s' launch security is not supported with this QEMU binary"),
+                           virDomainLaunchSecurityTypeToString(def->sec->sectype));
+            return -1;
+        }
+
+        switch (def->sec->sectype) {
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+            if (def->sec->data.sev.common.kernel_hashes != VIR_TRISTATE_BOOL_ABSENT &&
                 !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST_KERNEL_HASHES)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("SEV measured direct kernel boot is not supported with this QEMU binary"));
                 return -1;
             }
             break;
+
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+            break;
+
         case VIR_DOMAIN_LAUNCH_SECURITY_PV:
-            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT) ||
-                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_S390_PV_GUEST)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("S390 PV launch security is not supported with this QEMU binary"));
-                return -1;
-            }
             if (!virQEMUCapsGetKVMSupportsSecureGuest(qemuCaps)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                                _("S390 PV launch security is not supported by this host or kernel"));
@@ -2901,22 +2905,41 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
     }
 
     if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
-        /* make sure that both the bus supports type='lun' (SG_IO). */
-        if (disk->bus != VIR_DOMAIN_DISK_BUS_VIRTIO &&
-            disk->bus != VIR_DOMAIN_DISK_BUS_SCSI) {
+
+        switch (disk->bus) {
+        case VIR_DOMAIN_DISK_BUS_SCSI:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_BLOCK)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("This QEMU doesn't support scsi-block for lun passthrough"));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_DISK_BUS_VIRTIO:
+            if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_VIRTIO_BLK_SCSI)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("This QEMU doesn't support SCSI emulation with 'virtio-blk' device"));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_DISK_BUS_NONE:
+        case VIR_DOMAIN_DISK_BUS_IDE:
+        case VIR_DOMAIN_DISK_BUS_FDC:
+        case VIR_DOMAIN_DISK_BUS_XEN:
+        case VIR_DOMAIN_DISK_BUS_USB:
+        case VIR_DOMAIN_DISK_BUS_UML:
+        case VIR_DOMAIN_DISK_BUS_SATA:
+        case VIR_DOMAIN_DISK_BUS_SD:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("disk device='lun' is not supported for bus='%1$s'"),
                            virDomainDiskBusTypeToString(disk->bus));
             return -1;
-        }
 
-        if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SCSI_BLOCK)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("This QEMU doesn't support scsi-block for lun passthrough"));
+        case VIR_DOMAIN_DISK_BUS_LAST:
+            virReportEnumRangeError(virDomainDiskBus, disk->bus);
             return -1;
         }
-
 
         if (disk->copy_on_read == VIR_TRISTATE_SWITCH_ON) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
@@ -4755,23 +4778,19 @@ qemuValidateDomainDeviceDefTPM(virDomainTPMDef *tpm,
 
         switch (version) {
         case VIR_DOMAIN_TPM_VERSION_1_2:
-            /* TPM 1.2 + CRB do not work */
-            if (tpm->model == VIR_DOMAIN_TPM_MODEL_CRB) {
+            /* Only tpm-tis supports TPM 1.2, and even that is only
+             * on x86: for all other models and architectures, we
+             * want TPM 2.0 */
+            if (tpm->model != VIR_DOMAIN_TPM_MODEL_TIS) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Unsupported interface '%1$s' for TPM 1.2"),
+                               _("TPM 1.2 is not supported for model '%1$s'"),
                                virDomainTPMModelTypeToString(tpm->model));
                 return -1;
             }
-            /* TPM 1.2 + SPAPR do not work with any 'type' (backend) */
-            if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("TPM 1.2 is not supported with the SPAPR device model"));
-                return -1;
-            }
-            /* TPM 1.2 + ARM does not work */
-            if (qemuDomainIsARMVirt(def)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("TPM 1.2 is not supported on ARM"));
+            if (!ARCH_IS_X86(def->os.arch)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("TPM 1.2 is not supported on architecture '%1$s'"),
+                               virArchToString(def->os.arch));
                 return -1;
             }
             break;
