@@ -708,6 +708,9 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "usb-mtp", /* QEMU_CAPS_DEVICE_USB_MTP */
               "machine.virt.ras", /* QEMU_CAPS_MACHINE_VIRT_RAS */
               "virtio-sound", /* QEMU_CAPS_DEVICE_VIRTIO_SOUND */
+
+              /* 460 */
+              "sev-snp-guest", /* QEMU_CAPS_SEV_SNP_GUEST */
     );
 
 
@@ -1393,6 +1396,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "usb-mtp", QEMU_CAPS_DEVICE_USB_MTP },
     { "virtio-sound-pci", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
     { "virtio-sound-device", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
+    { "sev-snp-guest", QEMU_CAPS_SEV_SNP_GUEST },
 };
 
 
@@ -3461,7 +3465,8 @@ virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
     int rc = -1;
     virSEVCapability *caps = NULL;
 
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST))
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST) &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_SNP_GUEST))
         return 0;
 
     if ((rc = qemuMonitorGetSEVCapabilities(mon, &caps)) < 0)
@@ -3470,6 +3475,7 @@ virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
     /* SEV isn't actually supported */
     if (rc == 0) {
         virQEMUCapsClear(qemuCaps, QEMU_CAPS_SEV_GUEST);
+        virQEMUCapsClear(qemuCaps, QEMU_CAPS_SEV_SNP_GUEST);
         return 0;
     }
 
@@ -6508,6 +6514,27 @@ virQEMUCapsFillDomainDeviceCryptoCaps(virQEMUCaps *qemuCaps,
 }
 
 
+void
+virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
+                                    virDomainCapsLaunchSecurity *launchSecurity)
+{
+    launchSecurity->supported = VIR_TRISTATE_BOOL_YES;
+    launchSecurity->sectype.report = true;
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_SEV);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_SNP_GUEST))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_S390_PV_GUEST) &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_PV);
+
+    if (launchSecurity->sectype.values == 0) {
+        launchSecurity->supported = VIR_TRISTATE_BOOL_NO;
+    }
+}
+
+
 /**
  * virQEMUCapsSupportsGICVersion:
  * @qemuCaps: QEMU capabilities
@@ -6672,6 +6699,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virDomainCapsDeviceChannel *channel = &domCaps->channel;
     virDomainCapsMemoryBacking *memoryBacking = &domCaps->memoryBacking;
     virDomainCapsDeviceCrypto *crypto = &domCaps->crypto;
+    virDomainCapsLaunchSecurity *launchSecurity = &domCaps->launchSecurity;
 
     virQEMUCapsFillDomainFeaturesFromQEMUCaps(qemuCaps, domCaps);
 
@@ -6711,6 +6739,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainFeatureSGXCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureHypervCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, crypto);
+    virQEMUCapsFillDomainLaunchSecurity(qemuCaps, launchSecurity);
 
     return 0;
 }

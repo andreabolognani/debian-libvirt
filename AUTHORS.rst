@@ -360,6 +360,7 @@ Patches have also been contributed by:
 * Gene Czarcinski <gene@czarc.net>
 * Geoff Hickey <ghickey@datagravity.com>
 * George Dunlap <george.dunlap@citrix.com>
+* Georgia Garcia <georgia.garcia@canonical.com>
 * Gerd Hoffmann <kraxel@redhat.com>
 * Gerd v. Egidy <gerd@egidy.de>
 * Gerhard Stenzel <gerhard.stenzel@de.ibm.com>
@@ -487,6 +488,7 @@ Patches have also been contributed by:
 * Jonathan Watt <jwatt@jwatt.org>
 * Jonathan Wright <jonathan@almalinux.org>
 * Jonathon Jongsma <jjongsma@redhat.com>
+* Jon Kohler <jon@nutanix.com>
 * Josh Durgin <josh.durgin@inktank.com>
 * Josh Stone <jistone@redhat.com>
 * Jovanka Gulicoska <jovanka.gulicoska@gmail.com>
@@ -856,6 +858,7 @@ Patches have also been contributed by:
 * Sukrit Bhatnagar <skrtbhtngr@gmail.com>
 * Supriya Kannery <supriyak@linux.vnet.ibm.com>
 * Suyang Chen <dawson0xff@gmail.com>
+* Swapnil Ingle <swapnil.ingle@nutanix.com>
 * Syed Humaid <syedhumaidbinharoon@gmail.com>
 * Szymon Scholz <szymonscholz@gmail.com>
 * Taisuke Yamada <tai@rakugaki.org>

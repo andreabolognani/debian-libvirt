@@ -2860,16 +2860,14 @@ struct _virDomainKeyWrapDef {
 typedef enum {
     VIR_DOMAIN_LAUNCH_SECURITY_NONE,
     VIR_DOMAIN_LAUNCH_SECURITY_SEV,
+    VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP,
     VIR_DOMAIN_LAUNCH_SECURITY_PV,
 
     VIR_DOMAIN_LAUNCH_SECURITY_LAST,
 } virDomainLaunchSecurity;
 
 
-struct _virDomainSEVDef {
-    char *dh_cert;
-    char *session;
-    unsigned int policy;
+struct _virDomainSEVCommonDef {
     bool haveCbitpos;
     unsigned int cbitpos;
     bool haveReducedPhysBits;
@@ -2877,10 +2875,32 @@ struct _virDomainSEVDef {
     virTristateBool kernel_hashes;
 };
 
+
+struct _virDomainSEVDef {
+    virDomainSEVCommonDef common;
+    char *dh_cert;
+    char *session;
+    unsigned int policy;
+};
+
+
+struct _virDomainSEVSNPDef {
+    virDomainSEVCommonDef common;
+    unsigned long long policy;
+    char *guest_visible_workarounds;
+    char *id_block;
+    char *id_auth;
+    char *host_data;
+    virTristateBool author_key;
+    virTristateBool vcek;
+};
+
+
 struct _virDomainSecDef {
     virDomainLaunchSecurity sectype;
     union {
         virDomainSEVDef sev;
+        virDomainSEVSNPDef sev_snp;
     } data;
 };
 
@@ -3558,10 +3578,6 @@ void virDomainDiskSetFormat(virDomainDiskDef *def, int format);
 virDomainControllerDef *
 virDomainDeviceFindSCSIController(const virDomainDef *def,
                                   const virDomainDeviceDriveAddress *addr);
-virDomainDiskDef *virDomainDiskFindByBusAndDst(virDomainDef *def,
-                                               int bus,
-                                               char *dst);
-
 virDomainControllerDef *virDomainControllerDefNew(virDomainControllerType type);
 void virDomainControllerDefFree(virDomainControllerDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainControllerDef, virDomainControllerDefFree);

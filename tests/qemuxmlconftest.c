@@ -1627,7 +1627,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-hostdev-scsi-address-conflict");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdevs-drive-address-conflict");
     DO_TEST_CAPS_LATEST("event_idx");
-    DO_TEST_CAPS_LATEST("virtio-lun");
+    DO_TEST_CAPS_VER("virtio-lun", "9.0.0");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-lun");
     DO_TEST_CAPS_LATEST("disk-scsi-lun-passthrough");
     DO_TEST_CAPS_LATEST("disk-serial");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-fdc-incompatible-address");
@@ -2482,8 +2483,6 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-enc");
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-pstate");
-    DO_TEST_CAPS_LATEST_PPC64("tpm-emulator-spapr");
-    DO_TEST_CAPS_ARCH_LATEST("aarch64-tpm", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("aarch64-tpm-wrong-model", "aarch64");
     DO_TEST_CAPS_LATEST("tpm-external");
 
@@ -2850,6 +2849,12 @@ mymain(void)
                                   QEMU_CAPS_SEV_GUEST,
                                   QEMU_CAPS_LAST);
 
+    DO_TEST_CAPS_ARCH_LATEST_FULL("launch-security-sev-snp",
+                                  "x86_64",
+                                  ARG_QEMU_CAPS,
+                                  QEMU_CAPS_SEV_SNP_GUEST,
+                                  QEMU_CAPS_LAST);
+
     DO_TEST_CAPS_ARCH_LATEST("launch-security-s390-pv", "s390x");
 
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-memory");
@@ -2986,6 +2991,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("mtp-usb-device")
     DO_TEST_CAPS_LATEST("net-usb")
     DO_TEST_CAPS_LATEST("sound-device-virtio")
+
+    DO_TEST_CAPS_LATEST_FAILURE("disk-network-iscsi-zero-hosts-invalid")
 
     /* check that all input files were actually used here */
     if (testConfXMLCheck(existingTestCases) < 0)

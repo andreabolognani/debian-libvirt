@@ -8,6 +8,65 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.5.0 (2024-07-01)
+====================
+
+* **New features**
+
+  * Introduce SEV-SNP support
+
+    SEV-SNP is introduced as another type of ``<launchSecurity/>``. Its support
+    is reported in both domain capabilities and ``virt-host-validate``.
+
+* **Improvements**
+
+  * tools: virt-pki-validate has been rewritten in C
+
+    The ``virt-pki-validate`` shell script has been rewritten as a C program,
+    providing an output format that matches ``virt-host-validate``, removing
+    the dependency on ``certtool`` and providing more comprehensive checks
+    of the certificate properties.
+
+  * qemu: implement iommu coldplug/unplug
+
+    The ``<iommu/>`` device can be now cold plugged and/or cold unplugged.
+
+  * Pass shutoff reason to release hook
+
+    Sometimes in release hook it is useful to know if the VM shutdown was
+    graceful or not. This is especially useful to do cleanup based on the VM
+    shutdown failure reason in release hook. Starting with this release the
+    last argument 'extra' is used to pass VM shutoff reason in the call to
+    release hook.
+
+  * nodedev: improve DASD detection
+
+    In newer DASD driver versions the ID_TYPE tag is supported. This tag is
+    missing after a system reboot but when the ccw device is set offline and
+    online the tag is included. To fix this version independently we need to
+    check if a device detected as type disk is actually a DASD to maintain the
+    node object consistency and not end up with multiple node objects for
+    DASDs.
+
+* **Bug fixes**
+
+  * remote_daemon_dispatch: Unref sasl session when closing client connection
+
+    A memory leak was identified when a client started SASL but then suddenly
+    closed connection. This is now fixed.
+
+  * qemu: Fix migration with disabled vmx-* CPU features
+
+    Migrating a domain with some vmx-* CPU features marked as disabled could
+    have failed as the destination would incorrectly expect those features to
+    be enabled after starting QEMU.
+
+  * qemu: Fix ``libvirtd``/``virtqemud`` crash when VM shuts down during migration
+
+    The libvirt daemon could crash when a VM was shut down while being migrated
+    to another host.
+
+
 v10.4.0 (2024-06-03)
 ====================
 

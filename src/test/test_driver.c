@@ -7674,8 +7674,9 @@ testNodeDeviceMockCreateVport(testDriver *driver,
 
     if (!(obj = virNodeDeviceObjListAssignDef(driver->devs, def)))
         goto cleanup;
-    virNodeDeviceObjSetSkipUpdateCaps(obj, true);
+    /* @def is now owned by @obj */
     def = NULL;
+    virNodeDeviceObjSetSkipUpdateCaps(obj, true);
     objdef = virNodeDeviceObjGetDef(obj);
 
     event = virNodeDeviceEventLifecycleNew(objdef->name,
@@ -7767,10 +7768,10 @@ testNodeDeviceDestroy(virNodeDevicePtr dev)
     if (virNodeDeviceGetWWNs(def, &wwnn, &wwpn) == -1)
         goto cleanup;
 
-    /* Unlike the real code we cannot run into the udevAddOneDevice race
-     * which would replace obj->def, so no need to save off the parent,
-     * but do need to drop the @obj lock so that the FindByName code doesn't
-     * deadlock on ourselves */
+    /* Unlike the real code we cannot run into the
+     * processNodeDeviceAddAndChangeEvent race which would replace obj->def, so
+     * no need to save off the parent, but do need to drop the @obj lock so that
+     * the FindByName code doesn't deadlock on ourselves */
     virObjectUnlock(obj);
 
     /* We do this just for basic validation and throw away the parentobj

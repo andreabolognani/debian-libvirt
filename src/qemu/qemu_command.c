@@ -4760,12 +4760,14 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
     g_autofree char *host = virPCIDeviceAddressAsString(&pcisrc->addr);
     const char *failover_pair_id = NULL;
     const char *driver = NULL;
+    /* 'ramfb' property must be omitted unless it's to be enabled */
+    bool ramfb = pcisrc->ramfb == VIR_TRISTATE_SWITCH_ON;
 
     /* caller has to assign proper passthrough driver name */
     switch (pcisrc->driver.name) {
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO:
         /* ramfb support requires the nohotplug variant */
-        if (pcisrc->ramfb == VIR_TRISTATE_SWITCH_ON)
+        if (ramfb)
             driver = "vfio-pci-nohotplug";
         else
             driver = "vfio-pci";
@@ -4798,7 +4800,7 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
                               "p:bootindex", dev->info->effectiveBootIndex,
                               "S:failover_pair_id", failover_pair_id,
                               "S:display", qemuOnOffAuto(pcisrc->display),
-                              "T:ramfb", pcisrc->ramfb,
+                              "B:ramfb", ramfb,
                               NULL) < 0)
         return NULL;
 
@@ -7054,8 +7056,9 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     qemuAppendLoadparmMachineParm(&buf, def);
 
     if (def->sec) {
-        switch ((virDomainLaunchSecurity) def->sec->sectype) {
+        switch (def->sec->sectype) {
         case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
             if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT)) {
                 virBufferAddLit(&buf, ",confidential-guest-support=lsec0");
             } else {
@@ -9728,7 +9731,7 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
     g_autofree char *sessionpath = NULL;
 
     VIR_DEBUG("policy=0x%x cbitpos=%d reduced_phys_bits=%d",
-              sev->policy, sev->cbitpos, sev->reduced_phys_bits);
+              sev->policy, sev->common.cbitpos, sev->common.reduced_phys_bits);
 
     if (sev->dh_cert)
         dhpath = g_strdup_printf("%s/dh_cert.base64", priv->libDir);
@@ -9737,12 +9740,52 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
         sessionpath = g_strdup_printf("%s/session.base64", priv->libDir);
 
     if (qemuMonitorCreateObjectProps(&props, "sev-guest", "lsec0",
-                                     "u:cbitpos", sev->cbitpos,
-                                     "u:reduced-phys-bits", sev->reduced_phys_bits,
+                                     "u:cbitpos", sev->common.cbitpos,
+                                     "u:reduced-phys-bits", sev->common.reduced_phys_bits,
                                      "u:policy", sev->policy,
                                      "S:dh-cert-file", dhpath,
                                      "S:session-file", sessionpath,
-                                     "T:kernel-hashes", sev->kernel_hashes,
+                                     "T:kernel-hashes", sev->common.kernel_hashes,
+                                     NULL) < 0)
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+qemuBuildSEVSNPCommandLine(virDomainObj *vm,
+                           virCommand *cmd,
+                           virDomainSEVSNPDef *def)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virTristateBool vcek_disabled = VIR_TRISTATE_BOOL_ABSENT;
+
+    VIR_DEBUG("policy=0x%llx cbitpos=%d reduced_phys_bits=%d",
+              def->policy, def->common.cbitpos, def->common.reduced_phys_bits);
+
+    /* On QEMU cmd line, there's vcek-disabled which is an inverted boolean. */
+    if (def->vcek == VIR_TRISTATE_BOOL_YES) {
+        vcek_disabled = VIR_TRISTATE_BOOL_NO;
+    } else if (def->vcek == VIR_TRISTATE_BOOL_NO) {
+        vcek_disabled = VIR_TRISTATE_BOOL_YES;
+    }
+
+    if (qemuMonitorCreateObjectProps(&props, "sev-snp-guest", "lsec0",
+                                     "u:cbitpos", def->common.cbitpos,
+                                     "u:reduced-phys-bits", def->common.reduced_phys_bits,
+                                     "T:kernel-hashes", def->common.kernel_hashes,
+                                     "U:policy", def->policy,
+                                     "S:guest-visible-workarounds", def->guest_visible_workarounds,
+                                     "S:id-block", def->id_block,
+                                     "S:id-auth", def->id_auth,
+                                     "S:host-data", def->host_data,
+                                     "T:author-key-enabled", def->author_key,
+                                     "T:vcek-disabled", vcek_disabled,
                                      NULL) < 0)
         return -1;
 
@@ -9777,9 +9820,12 @@ qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
     if (!sec)
         return 0;
 
-    switch ((virDomainLaunchSecurity) sec->sectype) {
+    switch (sec->sectype) {
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
         return qemuBuildSEVCommandLine(vm, cmd, &sec->data.sev);
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+        return qemuBuildSEVSNPCommandLine(vm, cmd, &sec->data.sev_snp);
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
         return qemuBuildPVCommandLine(vm, cmd);

@@ -798,7 +798,13 @@ qemuDomainDiskPrivateDispose(void *obj)
     virObjectUnref(priv->migrSource);
     g_free(priv->qomName);
     g_free(priv->nodeCopyOnRead);
-    virObjectUnref(priv->blockjob);
+    if (priv->blockjob) {
+        /* Prevent dangling 'disk' pointer, as the disk object will be freed
+         * right after this function returns if any of the blockjob instance
+         * outlives this for any reason. */
+        priv->blockjob->disk = NULL;
+        virObjectUnref(priv->blockjob);
+    }
 }
 
 static virClass *qemuDomainStorageSourcePrivateClass;
@@ -6180,12 +6186,15 @@ qemuDomainTPMDefPostParse(virDomainTPMDef *tpm,
     /* TPM 1.2 and 2 are not compatible, so we choose a specific version here */
     if (tpm->type == VIR_DOMAIN_TPM_TYPE_EMULATOR &&
         tpm->data.emulator.version == VIR_DOMAIN_TPM_VERSION_DEFAULT) {
-        if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR ||
-            tpm->model == VIR_DOMAIN_TPM_MODEL_CRB ||
-            qemuDomainIsARMVirt(def))
-            tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
-        else
+        /* tpm-tis on x86 defaults to TPM 1.2 to preserve the
+         * historical behavior, but in all other scenarios we want
+         * TPM 2.0 instead */
+        if (tpm->model == VIR_DOMAIN_TPM_MODEL_TIS &&
+            ARCH_IS_X86(def->os.arch)) {
             tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_1_2;
+        } else {
+            tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
+        }
     }
 
     return 0;
@@ -8450,6 +8459,7 @@ qemuDomainDiskChangeSupported(virDomainDiskDef *disk,
     CHECK_EQ(ioeventfd, "ioeventfd", true);
     CHECK_EQ(event_idx, "event_idx", true);
     CHECK_EQ(copy_on_read, "copy_on_read", true);
+    CHECK_EQ(discard_no_unref, "discard_no_unref", true);
     /* "snapshot" is a libvirt internal field and thus can be changed */
     /* startupPolicy is allowed to be updated. Therefore not checked here. */
     CHECK_EQ(transient, "transient", true);
@@ -12293,7 +12303,7 @@ qemuDomainDeviceBackendChardevIter(virDomainDef *def G_GNUC_UNUSED,
 
 
 /**
- * qemuDomainDeviceBackendChardevForeach:a
+ * qemuDomainDeviceBackendChardevForeach:
  * @def: domain definition
  * @cb: callback
  * @opqaue: data for @cb
@@ -12359,6 +12369,18 @@ qemuDomainRemoveLogs(virQEMUDriver *driver,
 }
 
 
+/**
+ * qemuDomainObjWait:
+ * @vm: domain object
+ *
+ * Wait for a signal on the main domain condition. Take into account internal
+ * qemu state in addition to what virDomainObjWait checks. Code in the qemu
+ * driver must use this function exclusively instead of virDomainObjWait.
+ *
+ * Returns:
+ *  0 on successful wait AND VM is guaranteed to be running
+ *  -1 on failure to wait or VM was terminated while waiting
+ */
 int
 qemuDomainObjWait(virDomainObj *vm)
 {
@@ -12373,6 +12395,24 @@ qemuDomainObjWait(virDomainObj *vm)
     }
 
     return 0;
+}
+
+
+/**
+ * qemuDomainObjIsActive:
+ * @vm: domain object
+ *
+ * Return whether @vm is active. Take qemu-driver specifics into account.
+ */
+bool
+qemuDomainObjIsActive(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+
+    if (priv->beingDestroyed)
+        return false;
+
+    return virDomainObjIsActive(vm);
 }
 
 
