@@ -1,8 +1,9 @@
-libvirt (10.5.0-1) UNRELEASED; urgency=medium
+libvirt (10.5.0-1) unstable; urgency=medium
 
   * [a8c62f5] New upstream version 10.5.0
+    - Fixes qemu:///session (Closes: #1072723, #1072769)
 
- -- Andrea Bolognani <eof@kiyuko.org>  Tue, 02 Jul 2024 21:00:01 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 04 Jul 2024 00:44:29 +0200
 
 libvirt (10.4.0-1) unstable; urgency=medium
 
