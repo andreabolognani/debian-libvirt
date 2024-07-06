@@ -1,0 +1,45 @@
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Mon, 30 Jan 2023 10:55:22 +0100
+Subject: virsh: Make domif-setlink work more than once
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+In virsh, we have this convenient domif-setlink command, which is
+just a wrapper over virDomainUpdateDeviceFlags() and which allows
+setting link state of given guest NIC. It does so by fetching
+corresponding <interface/> XML snippet and either putting <link
+state=''/> into it, OR if the element already exists setting the
+attribute to desired value. The XML is then fed into the update
+API.
+
+There's, however, a small bug in detecting the pre-existence of
+the element and its attribute. The code looks at "link"
+attribute, while in fact, the attribute is called "state".
+
+Resolves: https://gitlab.com/libvirt/libvirt/-/issues/426
+Fixes: e575bf082ed4889280be07c986375f1ca15bb7ee
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Ján Tomko <jtomko@redhat.com>
+(cherry-picked from commit 6f3f6c0f763b9ffd8ef93eb124c88dd0b79138fc)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/6f3f6c0f763b9ffd8ef93eb124c88dd0b79138fc
+Bug-Debian: https://bugs.debian.org/1075718
+---
+ tools/virsh-domain.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/virsh-domain.c b/tools/virsh-domain.c
+index 6b431bd..59b2b3c 100644
+--- a/tools/virsh-domain.c
++++ b/tools/virsh-domain.c
+@@ -3209,7 +3209,7 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
+         }
+     }
+ 
+-    if (xmlHasProp(linkNode, BAD_CAST "link"))
++    if (xmlHasProp(linkNode, BAD_CAST "state"))
+         stateAttr = xmlSetProp(linkNode, BAD_CAST "state", BAD_CAST state);
+     else
+         stateAttr = xmlNewProp(linkNode, BAD_CAST "state", BAD_CAST state);
