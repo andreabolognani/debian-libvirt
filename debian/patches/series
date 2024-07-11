@@ -11,6 +11,10 @@ backport/rpc-Don-t-warn-about-max_client_requests-in-single-thread.patch
 backport/conf-Fix-migration-in-some-firmware-autoselection-scenari.patch
 backport/virpci-Resolve-leak-in-virPCIVirtualFunctionList-cleanup.patch
 backport/virsh-Make-domif-setlink-work-more-than-once.patch
+backport/storage-Fix-returning-of-locked-objects-from-virStoragePo.patch
+backport/Fix-off-by-one-error-in-udevListInterfacesByStatus.patch
+backport/remote-check-for-negative-array-lengths-before-allocation.patch
+backport/interface-fix-udev_device_get_sysattr_value-return-value-.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
