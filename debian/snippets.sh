@@ -1,15 +1,16 @@
 #BEGIN PREPARE_CONFFILE_TRANSFER
 prepare_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "prepare_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -27,13 +28,21 @@ prepare_conffile_transfer() {
     # more importanly, $pkgto's postinst, where the transfer process is completed,
     # will be able to figure out the original state of the conffile and make sure
     # it is restored
+
     if [ -e "$conffile" ]; then
         echo "Preparing transfer of config file $conffile (from $pkgfrom to $pkgto) ..."
         mv -f "$conffile" "$conffile.dpkg-transfer"
-    else
-        # If the conffile is no longer present on the disk, it means the admin
-        # has deleted it, and we should preserve this local modification
+        return 0
+    fi
+
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        # If we are performing an upgrade from a version that's newer than the
+        # one which originally introduced the conffile ($firstver), we expect
+        # it to be present on disk; if that's not the case, that means that
+        # the admin  must have explicitly deleted it and we should preserve
+        # this local modification
         touch "$conffile.dpkg-disappear"
+        return 0
     fi
 }
 #END PREPARE_CONFFILE_TRANSFER
@@ -41,15 +50,16 @@ prepare_conffile_transfer() {
 #BEGIN FINISH_CONFFILE_TRANSFER
 finish_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "finish_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -79,15 +89,16 @@ finish_conffile_transfer() {
 #BEGIN ABORT_CONFFILE_TRANSFER
 abort_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "abort_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 

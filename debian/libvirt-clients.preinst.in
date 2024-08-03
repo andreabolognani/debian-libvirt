@@ -18,6 +18,7 @@ case "$1" in
     install|upgrade)
         prepare_conffile_transfer \
             "/etc/libvirt/virt-login-shell.conf" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-clients" \
             "libvirt-login-shell" \
