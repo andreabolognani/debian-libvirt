@@ -1705,12 +1705,18 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
     size_t i;
 
     if (net->type == VIR_DOMAIN_NET_TYPE_USER) {
-        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("the passt network backend is not supported with this QEMU binary"));
+        virDomainCapsDeviceNet netCaps = { };
+
+        virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, &netCaps);
+
+        if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(netCaps.backendType,
+                                         net->backend.type)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("the '%1$s' network backend is not supported with this QEMU binary"),
+                           virDomainNetBackendTypeToString(net->backend.type));
             return -1;
         }
+
         if (net->guestIP.nroutes) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Invalid attempt to set network interface guest-side IP route, not supported by QEMU"));
@@ -4664,6 +4670,29 @@ qemuValidateDomainDeviceDefCrypto(virDomainCryptoDef *crypto,
 
 
 static int
+qemuValidateDomainDeviceDefPstore(virDomainPstoreDef *pstore,
+                                  const virDomainDef *def G_GNUC_UNUSED,
+                                  virQEMUCaps *qemuCaps)
+{
+    if (pstore->backend == VIR_DOMAIN_PSTORE_BACKEND_ACPI_ERST &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_ACPI_ERST)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("acpi-erst backend of pstore device is not supported"));
+        return -1;
+    }
+
+    if (pstore->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
+        pstore->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("ACPI ERST device must reside on a PCI bus"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuSoundCodecTypeToCaps(int type)
 {
     switch (type) {
@@ -5365,6 +5394,9 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
 
     case VIR_DOMAIN_DEVICE_CRYPTO:
         return qemuValidateDomainDeviceDefCrypto(dev->data.crypto, def, qemuCaps);
+
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        return qemuValidateDomainDeviceDefPstore(dev->data.pstore, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_PANIC:

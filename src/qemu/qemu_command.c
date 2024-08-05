@@ -973,6 +973,7 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
         case VIR_DOMAIN_DEVICE_MEMORY:
         case VIR_DOMAIN_DEVICE_IOMMU:
         case VIR_DOMAIN_DEVICE_AUDIO:
+        case VIR_DOMAIN_DEVICE_PSTORE:
         case VIR_DOMAIN_DEVICE_LAST:
         default:
             break;
@@ -10341,6 +10342,53 @@ qemuBuildCryptoCommandLine(virCommand *cmd,
 
 
 static int
+qemuBuildPstoreCommandLine(virCommand *cmd,
+                           const virDomainDef *def,
+                           virDomainPstoreDef *pstore,
+                           virQEMUCaps *qemuCaps)
+{
+    g_autoptr(virJSONValue) devProps = NULL;
+    g_autoptr(virJSONValue) memProps = NULL;
+    g_autofree char *memAlias = NULL;
+
+    if (!pstore->info.alias) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("pstore device is missing alias"));
+        return -1;
+    }
+
+    memAlias = g_strdup_printf("mem%s", pstore->info.alias);
+
+    if (qemuMonitorCreateObjectProps(&memProps,
+                                     "memory-backend-file",
+                                     memAlias,
+                                     "s:mem-path", pstore->path,
+                                     "U:size", pstore->size * 1024,
+                                     "b:share", true,
+                                     NULL) < 0) {
+        return -1;
+    }
+
+    if (virJSONValueObjectAdd(&devProps,
+                              "s:driver", "acpi-erst",
+                              "s:id", pstore->info.alias,
+                              "s:memdev", memAlias,
+                              NULL) < 0) {
+        return -1;
+    }
+
+    if (qemuBuildDeviceAddressProps(devProps, def, &pstore->info) < 0)
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(cmd, memProps, qemuCaps) < 0 ||
+        qemuBuildDeviceCommandlineFromJSON(cmd, devProps, def, qemuCaps) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 qemuBuildAsyncTeardownCommandLine(virCommand *cmd,
                                   const virDomainDef *def,
                                   virQEMUCaps *qemuCaps)
@@ -10511,21 +10559,6 @@ qemuBuildCommandLine(virDomainObj *vm,
 
     if (qemuBuildPflashBlockdevCommandLine(cmd, vm) < 0)
         return NULL;
-
-    /* QEMU 1.2 and later have a binary flag -enable-fips that must be
-     * used for VNC auth to obey FIPS settings; but the flag only
-     * exists on Linux, and with no way to probe for it via QMP.  Our
-     * solution: if FIPS mode is required, then unconditionally use the flag.
-     *
-     * In QEMU 5.2.0, use of -enable-fips was deprecated. In scenarios
-     * where FIPS is required, QEMU must be built against libgcrypt
-     * which automatically enforces FIPS compliance.
-     *
-     * Note this is the only use of driver->hostFips.
-     */
-    if (driver->hostFips &&
-        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ENABLE_FIPS))
-        virCommandAddArg(cmd, "-enable-fips");
 
     if (qemuBuildMachineCommandLine(cmd, cfg, def, qemuCaps, priv) < 0)
         return NULL;
@@ -10711,6 +10744,10 @@ qemuBuildCommandLine(virDomainObj *vm,
         return NULL;
 
     if (qemuBuildCryptoCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
+    if (def->pstore &&
+        qemuBuildPstoreCommandLine(cmd, def, def->pstore, qemuCaps) < 0)
         return NULL;
 
     if (qemuBuildAsyncTeardownCommandLine(cmd, def, qemuCaps) < 0)

@@ -3138,18 +3138,14 @@ virNetworkDefUpdateDNSHost(virNetworkDef *def,
                            unsigned int fflags G_GNUC_UNUSED)
 {
     size_t i, j, k;
-    int foundIdx = -1, ret = -1;
+    int foundIdx = -1;
+    int foundIdxModify = -1;
+    int ret = -1;
     virNetworkDNSDef *dns = &def->dns;
     virNetworkDNSHostDef host = { 0 };
     bool isAdd = (command == VIR_NETWORK_UPDATE_COMMAND_ADD_FIRST ||
                   command == VIR_NETWORK_UPDATE_COMMAND_ADD_LAST);
     int foundCt = 0;
-
-    if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("DNS HOST records cannot be modified, only added or deleted"));
-        goto cleanup;
-    }
 
     if (virNetworkDefUpdateCheckElementName(def, ctxt->node, "host") < 0)
         goto cleanup;
@@ -3162,6 +3158,12 @@ virNetworkDefUpdateDNSHost(virNetworkDef *def,
 
         if (virSocketAddrEqual(&host.ip, &dns->hosts[i].ip))
             foundThisTime = true;
+
+        /* modify option required index of matching ip-address, the loop under
+         * this comment could affect results of found index foundThisTime,
+         * so the foundIdxModify is there used instead */
+        if (foundThisTime)
+            foundIdxModify = i;
 
         /* when adding we want to only check duplicates of address since having
          * multiple addresses with the same hostname is a legitimate configuration */
@@ -3212,6 +3214,20 @@ virNetworkDefUpdateDNSHost(virNetworkDef *def,
         /* remove it */
         virNetworkDNSHostDefClear(&dns->hosts[foundIdx]);
         VIR_DELETE_ELEMENT(dns->hosts, foundIdx, dns->nhosts);
+
+    } else if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
+
+        if (foundCt == 0) {
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           _("couldn't locate a matching DNS HOST record in network %1$s"),
+                           def->name);
+            goto cleanup;
+        }
+
+        virNetworkDNSHostDefClear(&dns->hosts[foundIdxModify]);
+
+        memcpy(&dns->hosts[foundIdxModify], &host, sizeof(virNetworkDNSHostDef));
+        memset(&host, 0, sizeof(virNetworkDNSHostDef));
 
     } else {
         virNetworkDefUpdateUnknownCommand(command);
@@ -3322,12 +3338,6 @@ virNetworkDefUpdateDNSTxt(virNetworkDef *def,
     bool isAdd = (command == VIR_NETWORK_UPDATE_COMMAND_ADD_FIRST ||
                   command == VIR_NETWORK_UPDATE_COMMAND_ADD_LAST);
 
-    if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("DNS TXT records cannot be modified, only added or deleted"));
-        goto cleanup;
-    }
-
     if (virNetworkDefUpdateCheckElementName(def, ctxt->node, "txt") < 0)
         goto cleanup;
 
@@ -3365,6 +3375,18 @@ virNetworkDefUpdateDNSTxt(virNetworkDef *def,
         /* remove it */
         virNetworkDNSTxtDefClear(&dns->txts[foundIdx]);
         VIR_DELETE_ELEMENT(dns->txts, foundIdx, dns->ntxts);
+
+    } else if (command == VIR_NETWORK_UPDATE_COMMAND_MODIFY) {
+
+        if (foundIdx == dns->ntxts) {
+            virReportError(VIR_ERR_OPERATION_INVALID,
+                           _("couldn't locate a matching DNS TXT record in network %1$s"),
+                           def->name);
+            goto cleanup;
+        }
+
+        VIR_FREE(dns->txts[foundIdx].value);
+        dns->txts[foundIdx].value = g_steal_pointer(&txt.value);
 
     } else {
         virNetworkDefUpdateUnknownCommand(command);

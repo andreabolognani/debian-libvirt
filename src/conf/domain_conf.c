@@ -337,6 +337,7 @@ VIR_ENUM_IMPL(virDomainDevice,
               "vsock",
               "audio",
               "crypto",
+              "pstore",
 );
 
 VIR_ENUM_IMPL(virDomainDiskDevice,
@@ -1513,6 +1514,11 @@ VIR_ENUM_IMPL(virDomainLaunchSecurity,
               "s390-pv",
 );
 
+VIR_ENUM_IMPL(virDomainPstoreBackend,
+              VIR_DOMAIN_PSTORE_BACKEND_LAST,
+              "acpi-erst",
+);
+
 typedef enum {
     VIR_DOMAIN_NET_VHOSTUSER_MODE_NONE,
     VIR_DOMAIN_NET_VHOSTUSER_MODE_CLIENT,
@@ -2600,6 +2606,7 @@ void virDomainFSDefFree(virDomainFSDef *def)
     g_free(def->sock);
     g_free(def->idmap.uidmap);
     g_free(def->idmap.gidmap);
+    virBitmapFree(def->caps);
 
     g_free(def);
 }
@@ -3547,6 +3554,16 @@ void virDomainMemoryDefFree(virDomainMemoryDef *def)
     g_free(def);
 }
 
+void virDomainPstoreDefFree(virDomainPstoreDef *def)
+{
+    if (!def)
+        return;
+
+    g_free(def->path);
+    virDomainDeviceInfoClear(&def->info);
+    g_free(def);
+}
+
 void virDomainDeviceDefFree(virDomainDeviceDef *def)
 {
     if (!def)
@@ -3630,6 +3647,9 @@ void virDomainDeviceDefFree(virDomainDeviceDef *def)
         break;
     case VIR_DOMAIN_DEVICE_CRYPTO:
         virDomainCryptoDefFree(def->data.crypto);
+        break;
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        virDomainPstoreDefFree(def->data.pstore);
         break;
     case VIR_DOMAIN_DEVICE_LAST:
     case VIR_DOMAIN_DEVICE_NONE:
@@ -3995,6 +4015,8 @@ void virDomainDefFree(virDomainDef *def)
     g_free(def->cryptos);
 
     virDomainIOMMUDefFree(def->iommu);
+
+    virDomainPstoreDefFree(def->pstore);
 
     g_free(def->idmap.uidmap);
     g_free(def->idmap.gidmap);
@@ -4449,7 +4471,7 @@ virDomainObjGetDefs(virDomainObj *vm,
  * @live: set to true if live config was returned (may be omitted)
  *
  * Helper function to resolve @flags and return the correct domain pointer
- * object. This function returns one of @vm->def or @vm->persistentDef
+ * object. This function returns one of @vm->def or @vm->newDef
  * according to @flags. @live is set to true if the live vm config will be
  * returned. This helper should be used only in APIs that guarantee
  * that @flags contains exactly one of VIR_DOMAIN_AFFECT_LIVE or
@@ -4489,7 +4511,7 @@ virDomainObjGetOneDefState(virDomainObj *vm,
  * @flags: for virDomainModificationImpact
  *
  * Helper function to resolve @flags and return the correct domain pointer
- * object. This function returns one of @vm->def or @vm->persistentDef
+ * object. This function returns one of @vm->def or @vm->newDef
  * according to @flags. This helper should be used only in APIs that guarantee
  * that @flags contains exactly one of VIR_DOMAIN_AFFECT_LIVE or
  * VIR_DOMAIN_AFFECT_CONFIG and not both.
@@ -4553,6 +4575,8 @@ virDomainDeviceGetInfo(const virDomainDeviceDef *device)
         return &device->data.vsock->info;
     case VIR_DOMAIN_DEVICE_CRYPTO:
         return &device->data.crypto->info;
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        return &device->data.pstore->info;
 
     /* The following devices do not contain virDomainDeviceInfo */
     case VIR_DOMAIN_DEVICE_LEASE:
@@ -4657,6 +4681,9 @@ virDomainDeviceSetData(virDomainDeviceDef *device,
         break;
     case VIR_DOMAIN_DEVICE_CRYPTO:
         device->data.crypto = devicedata;
+        break;
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        device->data.pstore = devicedata;
         break;
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LAST:
@@ -4876,6 +4903,13 @@ virDomainDeviceInfoIterateFlags(virDomainDef *def,
             return rc;
     }
 
+    device.type = VIR_DOMAIN_DEVICE_PSTORE;
+    if (def->pstore) {
+        device.data.pstore = def->pstore;
+        if ((rc = cb(def, &device, &def->pstore->info, opaque)) != 0)
+            return rc;
+    }
+
     /* If the flag below is set, make sure @cb can handle @info being NULL */
     if (iteratorFlags & DOMAIN_DEVICE_ITERATE_MISSING_INFO) {
         device.type = VIR_DOMAIN_DEVICE_GRAPHICS;
@@ -4935,6 +4969,7 @@ virDomainDeviceInfoIterateFlags(virDomainDef *def,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
         break;
     }
 #endif
@@ -6220,6 +6255,8 @@ virDomainHostdevDefParseXMLSubsys(xmlNodePtr node,
     virDomainHostdevSubsysMediatedDev *mdevsrc = &def->source.subsys.u.mdev;
     virTristateBool managed;
     g_autofree char *model = NULL;
+    virDomainDeviceSGIO sgio;
+    virTristateBool rawio;
     int rv;
 
     /* @managed can be read from the xml document - it is always an
@@ -6259,7 +6296,7 @@ virDomainHostdevDefParseXMLSubsys(xmlNodePtr node,
     if ((rv = virXMLPropEnum(node, "sgio",
                              virDomainDeviceSGIOTypeFromString,
                              VIR_XML_PROP_NONZERO,
-                             &scsisrc->sgio)) < 0) {
+                             &sgio)) < 0) {
         return -1;
     }
 
@@ -6269,18 +6306,30 @@ virDomainHostdevDefParseXMLSubsys(xmlNodePtr node,
                            _("sgio is only supported for scsi host device"));
             return -1;
         }
+
+        /* Set sgio only after checking if hostdev type is 'scsi' to avoid
+         * clobbering other union structures.
+         */
+        scsisrc->sgio = sgio;
     }
 
     if ((rv = virXMLPropTristateBool(node, "rawio",
                                      VIR_XML_PROP_NONE,
-                                     &scsisrc->rawio)) < 0) {
+                                     &rawio)) < 0) {
         return -1;
     }
 
-    if (rv > 0 && def->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("rawio is only supported for scsi host device"));
-        return -1;
+    if (rv > 0) {
+        if (def->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                        _("rawio is only supported for scsi host device"));
+            return -1;
+        }
+
+        /* Set rawio only after checking if hostdev type is 'scsi' to avoid
+         * clobbering other union structures.
+         */
+        scsisrc->rawio = rawio;
     }
 
     if (def->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV &&
@@ -8853,6 +8902,7 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
         g_autofree char *queue_size = virXPathString("string(./driver/@queue)", ctxt);
         g_autofree char *binary = virXPathString("string(./binary/@path)", ctxt);
         g_autofree char *thread_pool_size = virXPathString("string(./binary/thread_pool/@size)", ctxt);
+        g_autofree char *openfiles = virXPathString("string(./binary/openfiles/@max)", ctxt);
         xmlNodePtr binary_node = virXPathNode("./binary", ctxt);
         xmlNodePtr binary_lock_node = virXPathNode("./binary/lock", ctxt);
         xmlNodePtr binary_cache_node = virXPathNode("./binary/cache", ctxt);
@@ -8873,6 +8923,14 @@ virDomainFSDefParseXML(virDomainXMLOption *xmlopt,
             virReportError(VIR_ERR_XML_ERROR,
                            _("cannot parse thread pool size '%1$s' for virtiofs"),
                            thread_pool_size);
+            goto error;
+        }
+
+        if (openfiles &&
+            virStrToLong_ull(openfiles, NULL, 10, &def->openfiles) < 0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("cannot parse openfiles '%1$s' for virtiofs"),
+                           openfiles);
             goto error;
         }
 
@@ -9320,8 +9378,11 @@ virDomainNetBackendParseXML(xmlNodePtr node,
     g_autofree char *tap = virXMLPropString(node, "tap");
     g_autofree char *vhost = virXMLPropString(node, "vhost");
 
+    /* The VIR_DOMAIN_NET_BACKEND_DEFAULT really means 'use hypervisor's
+     * builtin SLIRP'. It's reported in domain caps and thus we need to accept
+     * it. Hence VIR_XML_PROP_NONE instead of VIR_XML_PROP_NONZERO. */
     if (virXMLPropEnum(node, "type", virDomainNetBackendTypeFromString,
-                       VIR_XML_PROP_NONZERO, &def->backend.type) < 0) {
+                       VIR_XML_PROP_NONE, &def->backend.type) < 0) {
         return -1;
     }
 
@@ -9576,15 +9637,14 @@ virDomainNetDefParseXML(virDomainXMLOption *xmlopt,
                            def->data.vds.switch_id) < 0)
             return NULL;
 
-        if (virXMLPropLongLong(source_node, "portid", 0, VIR_XML_PROP_REQUIRED,
-                               &def->data.vds.port_id, def->data.vds.port_id) < 0)
+        if (virXMLPropLongLong(source_node, "portid", 0, VIR_XML_PROP_NONE,
+                               &def->data.vds.port_id, 0) < 0)
             return NULL;
 
-        if (!(def->data.vds.portgroup_id = virXMLPropStringRequired(source_node, "portgroupid")))
-            return NULL;
+        def->data.vds.portgroup_id = virXMLPropString(source_node, "portgroupid");
 
-        if (virXMLPropLongLong(source_node, "connectionid", 0, VIR_XML_PROP_REQUIRED,
-                               &def->data.vds.connection_id, def->data.vds.connection_id) < 0)
+        if (virXMLPropLongLong(source_node, "connectionid", 0, VIR_XML_PROP_NONE,
+                               &def->data.vds.connection_id, 0) < 0)
             return NULL;
 
         break;
@@ -10781,6 +10841,10 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
                            virDomainTPMVersionTypeFromString,
                            VIR_XML_PROP_NONZERO,
                            &def->data.emulator.version) < 0)
+            goto error;
+
+        if (virXMLPropUInt(backends[0], "debug", 10, VIR_XML_PROP_NONE,
+                           &def->data.emulator.debug) < 0)
             goto error;
 
         if (!(def->data.emulator.source = virDomainChrSourceDefNew(xmlopt)))
@@ -13976,6 +14040,40 @@ virDomainCryptoDefParseXML(virDomainXMLOption *xmlopt,
 }
 
 
+static virDomainPstoreDef *
+virDomainPstoreDefParseXML(virDomainXMLOption *xmlopt,
+                           xmlNodePtr node,
+                           xmlXPathContextPtr ctxt,
+                           unsigned int flags)
+{
+    g_autoptr(virDomainPstoreDef) def = NULL;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+
+        def = g_new0(virDomainPstoreDef, 1);
+
+    ctxt->node = node;
+
+    if (virXMLPropEnum(node, "backend",
+                       virDomainPstoreBackendTypeFromString,
+                       VIR_XML_PROP_REQUIRED,
+                       &def->backend) < 0) {
+        return NULL;
+    }
+
+    def->path = virXPathString("string(./path)", ctxt);
+
+    if (virDomainParseMemory("./size", "./size/@unit", ctxt,
+                             &def->size, true, false) < 0) {
+        return NULL;
+    }
+
+    if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt, &def->info, flags) < 0)
+        return NULL;
+
+    return g_steal_pointer(&def);
+}
+
+
 static int
 virDomainDeviceDefParseType(const char *typestr,
                             virDomainDeviceType *type)
@@ -14154,6 +14252,12 @@ virDomainDeviceDefParse(const char *xmlStr,
         if (!(dev->data.crypto = virDomainCryptoDefParseXML(xmlopt, node, ctxt,
                                                             flags)))
             return NULL;
+        break;
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        if (!(dev->data.pstore = virDomainPstoreDefParseXML(xmlopt, node,
+                                                            ctxt, flags))) {
+            return NULL;
+        }
         break;
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LAST:
@@ -19502,6 +19606,22 @@ virDomainDefParseXML(xmlXPathContextPtr ctxt,
     }
     VIR_FREE(nodes);
 
+    if ((n = virXPathNodeSet("./devices/pstore", ctxt, &nodes)) < 0)
+        return NULL;
+
+    if (n > 1) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("only a single pstore device is supported"));
+        return NULL;
+    }
+
+    if (n > 0) {
+        if (!(def->pstore = virDomainPstoreDefParseXML(xmlopt, nodes[0],
+                                                       ctxt, flags)))
+            return NULL;
+    }
+    VIR_FREE(nodes);
+
     /* analysis of the user namespace mapping */
     if ((n = virXPathNodeSet("./idmap/uid", ctxt, &nodes)) < 0)
         return NULL;
@@ -21375,6 +21495,33 @@ virDomainVsockDefCheckABIStability(virDomainVsockDef *src,
 
 
 static bool
+virDomainPstoreDefCheckABIStability(virDomainPstoreDef *src,
+                                    virDomainPstoreDef *dst)
+{
+    if (src->backend != dst->backend) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target pstore device backend '%1$s' does not match source '%2$s'"),
+                       virDomainPstoreBackendTypeToString(dst->backend),
+                       virDomainPstoreBackendTypeToString(src->backend));
+        return false;
+    }
+
+    if (src->size != dst->size) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target pstore size '%1$llu' does not match source '%2$llu'"),
+                       dst->size,
+                       src->size);
+        return false;
+    }
+
+    if (!virDomainDeviceInfoCheckABIStability(&src->info, &dst->info))
+        return false;
+
+    return true;
+}
+
+
+static bool
 virDomainDefVcpuCheckAbiStability(virDomainDef *src,
                                   virDomainDef *dst)
 {
@@ -21833,6 +21980,17 @@ virDomainDefCheckABIStabilityFlags(virDomainDef *src,
         !virDomainVsockDefCheckABIStability(src->vsock, dst->vsock))
         goto error;
 
+    if (!!src->pstore != !!dst->pstore) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Target domain pstore device count does not match source"));
+        goto error;
+    }
+
+    if (src->pstore &&
+        !virDomainPstoreDefCheckABIStability(src->pstore, dst->pstore)) {
+        goto error;
+    }
+
     if (xmlopt && xmlopt->abi.domain &&
         !xmlopt->abi.domain(src, dst))
         goto error;
@@ -21873,6 +22031,7 @@ virDomainDefCheckABIStabilityFlags(virDomainDef *src,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
         break;
     }
 #endif
@@ -23394,6 +23553,9 @@ virDomainFSDefFormat(virBuffer *buf,
         if (def->thread_pool_size >= 0)
             virBufferAsprintf(&binaryBuf, "<thread_pool size='%d'/>\n", def->thread_pool_size);
 
+        if (def->openfiles > 0)
+            virBufferAsprintf(&binaryBuf, "<openfiles max='%lld'/>\n", def->openfiles);
+
     }
 
     virDomainVirtioOptionsFormat(&driverAttrBuf, def->virtio);
@@ -24865,6 +25027,9 @@ virDomainTPMDefFormat(virBuffer *buf,
         }
         if (def->data.emulator.persistent_state)
             virBufferAddLit(&backendAttrBuf, " persistent_state='yes'");
+        if (def->data.emulator.debug != 0)
+            virBufferAsprintf(&backendAttrBuf, " debug='%u'",
+                              def->data.emulator.debug);
         if (def->data.emulator.hassecretuuid) {
             char uuidstr[VIR_UUID_STRING_BUFLEN];
 
@@ -27813,6 +27978,26 @@ virDomainDefFormatFeatures(virBuffer *buf,
     return 0;
 }
 
+static int
+virDomainPstoreDefFormat(virBuffer *buf,
+                         virDomainPstoreDef *pstore,
+                         unsigned int flags)
+{
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+
+    virBufferAsprintf(&attrBuf, " backend='%s'",
+                      virDomainPstoreBackendTypeToString(pstore->backend));
+
+    virBufferAsprintf(&childBuf, "<path>%s</path>\n", pstore->path);
+    virBufferAsprintf(&childBuf, "<size unit='KiB'>%llu</size>\n", pstore->size);
+    virDomainDeviceInfoFormat(&childBuf, &pstore->info, flags);
+
+    virXMLFormatElement(buf, "pstore", &attrBuf, &childBuf);
+    return 0;
+}
+
+
 int
 virDomainDefFormatInternal(virDomainDef *def,
                            virDomainXMLOption *xmlopt,
@@ -28284,6 +28469,9 @@ virDomainDefFormatInternalSetRootName(virDomainDef *def,
     if (def->vsock)
         virDomainVsockDefFormat(buf, def->vsock);
 
+    if (def->pstore)
+        virDomainPstoreDefFormat(buf, def->pstore, flags);
+
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</devices>\n");
 
@@ -28443,6 +28631,7 @@ virDomainDeviceIsUSB(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     break;
     }
 

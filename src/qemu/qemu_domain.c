@@ -1889,6 +1889,11 @@ qemuDomainObjPrivateFree(void *data)
 
     virChrdevFree(priv->devs);
 
+    if (priv->pidMonitored >= 0) {
+        virEventRemoveHandle(priv->pidMonitored);
+        priv->pidMonitored = -1;
+    }
+
     /* This should never be non-NULL if we get here, but just in case... */
     if (priv->mon) {
         VIR_ERROR(_("Unexpected QEMU monitor still active during domain deletion"));
@@ -1933,6 +1938,8 @@ qemuDomainObjPrivateAlloc(void *opaque)
 
     priv->blockjobs = virHashNew(virObjectUnref);
     priv->fds = virHashNew(g_object_unref);
+
+    priv->pidMonitored = -1;
 
     /* agent commands block by default, user can choose different behavior */
     priv->agentTimeout = VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_BLOCK;
@@ -5975,12 +5982,25 @@ qemuDomainDeviceNetDefPostParse(virDomainNetDef *net,
                                 virQEMUCaps *qemuCaps)
 {
     if (net->type == VIR_DOMAIN_NET_TYPE_VDPA &&
-        !virDomainNetGetModelString(net))
+        !virDomainNetGetModelString(net)) {
         net->model = VIR_DOMAIN_NET_MODEL_VIRTIO;
-    else if (net->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
+    } else if (net->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
         !virDomainNetGetModelString(net) &&
-        virDomainNetResolveActualType(net) != VIR_DOMAIN_NET_TYPE_HOSTDEV)
+        virDomainNetResolveActualType(net) != VIR_DOMAIN_NET_TYPE_HOSTDEV) {
         net->model = qemuDomainDefaultNetModel(def, qemuCaps);
+    }
+
+    if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+        net->backend.type == VIR_DOMAIN_NET_BACKEND_DEFAULT) {
+        virDomainCapsDeviceNet netCaps = { };
+
+        virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, &netCaps);
+
+        if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(netCaps.backendType, VIR_DOMAIN_NET_BACKEND_DEFAULT) &&
+            VIR_DOMAIN_CAPS_ENUM_IS_SET(netCaps.backendType, VIR_DOMAIN_NET_BACKEND_PASST)) {
+            net->backend.type = VIR_DOMAIN_NET_BACKEND_PASST;
+        }
+    }
 
     return 0;
 }
@@ -6270,6 +6290,28 @@ qemuDomainMemoryDefPostParse(virDomainMemoryDef *mem, virArch arch,
 
 
 static int
+qemuDomainPstoreDefPostParse(virDomainPstoreDef *pstore,
+                             const virDomainDef *def,
+                             virQEMUDriver *driver)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
+    switch (pstore->backend) {
+    case VIR_DOMAIN_PSTORE_BACKEND_ACPI_ERST:
+        if (!pstore->path)
+            pstore->path = g_strdup_printf("%s/%s_PSTORE.raw",
+                                           cfg->nvramDir, def->name);
+        break;
+
+    case VIR_DOMAIN_PSTORE_BACKEND_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuDomainDeviceDefPostParse(virDomainDeviceDef *dev,
                              const virDomainDef *def,
                              unsigned int parseFlags,
@@ -6328,6 +6370,10 @@ qemuDomainDeviceDefPostParse(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_MEMORY:
         ret = qemuDomainMemoryDefPostParse(dev->data.memory, def->os.arch,
                                            parseFlags);
+        break;
+
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        ret = qemuDomainPstoreDefPostParse(dev->data.pstore, def, driver);
         break;
 
     case VIR_DOMAIN_DEVICE_LEASE:
@@ -10347,6 +10393,7 @@ qemuDomainPrepareChardevSourceOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
         break;
     }
 
@@ -11667,6 +11714,7 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
     case QEMU_PROCESS_EVENT_RESET:
     case QEMU_PROCESS_EVENT_NBDKIT_EXITED:
     case QEMU_PROCESS_EVENT_MONITOR_EOF:
+    case QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED:
     case QEMU_PROCESS_EVENT_LAST:
         break;
     }
@@ -12277,6 +12325,7 @@ qemuDomainDeviceBackendChardevForeachOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
         /* no chardev backend */
         break;
     }

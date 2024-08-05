@@ -3734,6 +3734,10 @@ A directory on the host that can be accessed directly from the guest.
    The thread pool helps increase the number of requests in flight when used with
    storage that has a higher latency.  However, it has an overhead, and so for
    fast, low latency filesystems, it may be best to turn it off. ( :since:`Since 8.5.0` )
+   Element ``openfiles`` accepts one attribute ``max`` which defines the
+   maximum number of file descriptors. Non-positive values are forbidden.
+   The upper bound on the number of open files is implementation defined.
+   ( :since:`Since 10.6.0` )
 ``source``
    The resource on the host that is being accessed in the guest. The ``name``
    attribute must be used with ``type='template'``, and the ``dir`` attribute
@@ -8097,7 +8101,7 @@ Example: usage of the TPM Emulator
      ...
      <devices>
        <tpm model='tpm-tis'>
-         <backend type='emulator' version='2.0'>
+         <backend type='emulator' version='2.0' debug='5'>
            <encryption secret='6dd3e4a5-1d76-44ce-961f-f119f5aad935'/>
            <active_pcr_banks>
                <sha256/>
@@ -8141,7 +8145,9 @@ Example: usage of the TPM Emulator
    ``emulator``
       For this backend type the 'swtpm' TPM Emulator must be installed on the
       host. Libvirt will automatically start an independent TPM emulator for
-      each QEMU guest requesting access to it.
+      each QEMU guest requesting access to it. :since:`10.6.0`, the ``debug``
+      parameter can be used to enable logging in the emulator backend, and
+      accepts non-zero integer values.
 
 ``version``
    The ``version`` attribute indicates the version of the TPM. This attribute
@@ -8651,6 +8657,37 @@ The optional attribute ``backend`` is required if the ``type`` is ``qemu``, the
      </crypto>
    </devices>
    ...
+
+
+Pstore
+~~~~~~~~~
+
+Pstore is an oops/panic logger that writes its logs to a block device and
+non-block device before the system crashes. Currently only ACPI Error Record
+Serialization Table, ERST, is supported. This feature is designed for storing
+error records in persistent storage for future reference and/or debugging.
+:since:`Since v10.6.0`
+
+::
+
+  ...
+  <pstore backend='acpi-erst'>
+    <path>/tmp/guest_acpi_esrt</path>
+    <size unit='KiB'>8</size>
+    <address type='pci' domain='0x0000' bus='0x02' slot='0x01' function='0x0'/>
+  </pstore>
+  ...
+
+The ``pstore`` element has one mandatory attribute ``backend`` which selects
+desired backend (only ``acpi-erst`` is accepted for now). Then it has the
+following child elements:
+
+``path``
+  Represents a path in the host that backs the pstore device in the guest.
+
+``size``
+  Configures the size of the persistent storage available to the guest. It is
+  mandatory.
 
 
 Security label

@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.5.0',
+  version: '10.6.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -17,7 +17,7 @@ endif
 
 # figure out if we are building from git
 
-git = run_command('test', '-d', '.git', check: false).returncode() == 0
+git = run_command('test', '-e', '.git', check: false).returncode() == 0
 
 if git and not get_option('no_git')
   run_command('git', 'submodule', 'update', '--init', check: true)
