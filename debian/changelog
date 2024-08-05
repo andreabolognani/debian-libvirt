@@ -1,3 +1,9 @@
+libvirt (10.6.0-1) UNRELEASED; urgency=medium
+
+  * [65e5d2b] New upstream version 10.6.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 05 Aug 2024 19:35:39 +0200
+
 libvirt (10.5.0-1) unstable; urgency=medium
 
   * [a8c62f5] New upstream version 10.5.0
