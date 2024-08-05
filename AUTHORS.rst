@@ -364,6 +364,7 @@ Patches have also been contributed by:
 * Gerd Hoffmann <kraxel@redhat.com>
 * Gerd v. Egidy <gerd@egidy.de>
 * Gerhard Stenzel <gerhard.stenzel@de.ibm.com>
+* Gildasio Junior <gildasiojunior@riseup.net>
 * Giuseppe Scrivano <gscrivan@redhat.com>
 * Gogo Gogsi <linux.hr@protonmail.com>
 * gongwei <gongwei@smartx.com>
@@ -399,6 +400,7 @@ Patches have also been contributed by:
 * hexin <hexin15@baidu.com>
 * Hiroki Narukawa <hnarukaw@yahoo-corp.jp>
 * Hongbin Lu <hongbin034@gmail.com>
+* hongmianquan <hongmianquan@bytedance.com>
 * Hongwei Bi <hwbi2008@gmail.com>
 * Huanle Han <hanxueluo@gmail.com>
 * Huaqiang <huaqiang.wang@intel.com>
@@ -517,6 +519,7 @@ Patches have also been contributed by:
 * Konstantin Neumoin <kneumoin@virtuozzo.com>
 * Kothapally Madhu Pavan <kmp@linux.vnet.ibm.com>
 * Kristina Hanicova <khanicov@redhat.com>
+* Kshitij Jha <kshitij.jha@nutanix.com>
 * K Shiva Kiran <shiva_kr@riseup.net>
 * K Shiva <shiva_kr@riseup.net>
 * Kyle DeFrancia <kdef@linux.vnet.ibm.com>
@@ -644,6 +647,8 @@ Patches have also been contributed by:
 * Milos Vyletel <milos.vyletel@sde.cz>
 * minglei.liu <minglei.liu@smartx.com>
 * Minoru Usui <usui@mxm.nes.nec.co.jp>
+* Miroslav Los <mirlos@cisco.com>
+* Miroslav Los via Devel <devel@lists.libvirt.org>
 * Mooli Tayer <mtayer@redhat.com>
 * MORITA Kazutaka <morita.kazutaka@lab.ntt.co.jp>
 * Moshe Levi <moshele@mellanox.com>

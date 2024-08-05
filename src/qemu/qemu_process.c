@@ -25,6 +25,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/stat.h>
+#if WITH_SYS_SYSCALL_H
+# include <sys/syscall.h>
+#endif
 #if defined(__linux__)
 # include <linux/capability.h>
 #elif defined(__FreeBSD__)
@@ -5380,8 +5383,7 @@ qemuProcessStartValidateDisks(virDomainObj *vm,
          * option exists, but we cannot determine whether the running QEMU
          * was build with '--enable-vxhs'. */
         if (src->type == VIR_STORAGE_TYPE_NETWORK &&
-            src->protocol == VIR_STORAGE_NET_PROTOCOL_VXHS &&
-            !virQEMUCapsGet(qemuCaps, QEMU_CAPS_VXHS)) {
+            src->protocol == VIR_STORAGE_NET_PROTOCOL_VXHS) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("VxHS protocol is not supported with this QEMU binary"));
             return -1;
@@ -6834,6 +6836,48 @@ qemuProcessPrepareLaunchSecurityGuestInput(virDomainObj *vm)
 
 
 static int
+qemuProcessPreparePstore(virDomainObj *vm)
+{
+    virDomainPstoreDef *pstore = vm->def->pstore;
+    VIR_AUTOCLOSE fd = -1;
+
+    if (!pstore)
+        return 0;
+
+    switch (pstore->backend) {
+    case VIR_DOMAIN_PSTORE_BACKEND_ACPI_ERST:
+        if ((fd = open(pstore->path, O_WRONLY | O_CREAT, 0600)) < 0) {
+            virReportSystemError(errno,
+                                 _("cannot create file '%1$s'"),
+                                 pstore->path);
+            return -1;
+        }
+
+        if (ftruncate(fd, pstore->size * 1024) < 0) {
+            virReportSystemError(errno,
+                                 _("Failed to truncate file '%1$s'"),
+                                 pstore->path);
+            return -1;
+        }
+
+        if (VIR_CLOSE(fd) < 0) {
+            virReportSystemError(errno,
+                                 _("Unable to save '%1$s'"),
+                                 pstore->path);
+            return -1;
+        }
+
+        break;
+
+    case VIR_DOMAIN_PSTORE_BACKEND_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuProcessPrepareHostStorageSourceVDPA(virStorageSource *src,
                                         qemuDomainObjPrivate *priv)
 {
@@ -7329,6 +7373,9 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
         return -1;
 
     if (qemuProcessPrepareLaunchSecurityGuestInput(vm) < 0)
+        return -1;
+
+    if (qemuProcessPreparePstore(vm) < 0)
         return -1;
 
     return 0;
@@ -8388,9 +8435,114 @@ qemuProcessCreatePretendCmdBuild(virDomainObj *vm,
 }
 
 
+#if WITH_SYS_SYSCALL_H && defined(SYS_pidfd_open)
+typedef struct {
+    virDomainObj *vm;
+    int pidfd;
+} qemuProcessInShutdownEventData;
+
+
+static qemuProcessInShutdownEventData*
+qemuProcessInShutdownEventDataNew(virDomainObj *vm, int pidfd)
+{
+    qemuProcessInShutdownEventData *d = g_new(qemuProcessInShutdownEventData, 1);
+    d->vm = virObjectRef(vm);
+    d->pidfd = pidfd;
+    return d;
+}
+
+
+static void
+qemuProcessInShutdownEventDataFree(qemuProcessInShutdownEventData *d)
+{
+    virObjectUnref(d->vm);
+    VIR_FORCE_CLOSE(d->pidfd);
+    g_free(d);
+}
+
+
+static void
+qemuProcessInShutdownPidfdCb(int watch,
+                             int fd,
+                             int events G_GNUC_UNUSED,
+                             void *opaque)
+{
+    qemuProcessInShutdownEventData *data = opaque;
+    virDomainObj *vm = data->vm;
+
+    VIR_DEBUG("vm=%p name=%s pid=%lld fd=%d",
+              vm, vm->def->name, (long long)vm->pid, fd);
+
+    virEventRemoveHandle(watch);
+
+    virObjectLock(vm);
+
+    VIR_INFO("QEMU process %lld finally completed termination",
+             (long long)vm->pid);
+
+    QEMU_DOMAIN_PRIVATE(vm)->pidMonitored = -1;
+    qemuProcessEventSubmit(vm, QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED,
+                           0, 0, NULL);
+
+    virObjectUnlock(vm);
+}
+#endif /* WITH_SYS_SYSCALL_H && defined(SYS_pidfd_open) */
+
+
+static int
+qemuProcessInShutdownStartMonitor(virDomainObj *vm)
+{
+#if WITH_SYS_SYSCALL_H && defined(SYS_pidfd_open)
+    qemuDomainObjPrivate *priv = vm->privateData;
+    qemuProcessInShutdownEventData *data;
+    int pidfd;
+    int ret = -1;
+
+    VIR_DEBUG("vm=%p name=%s pid=%lld pidMonitored=%d",
+              vm, vm->def->name, (long long)vm->pid,
+              priv->pidMonitored);
+
+    if (priv->pidMonitored >= 0) {
+        VIR_DEBUG("Monitoring qemu in-shutdown process %i already set up", vm->pid);
+        goto cleanup;
+    }
+
+    pidfd = syscall(SYS_pidfd_open, vm->pid, 0);
+    if (pidfd < 0) {
+        if (errno == ESRCH) /* process has already terminated */
+            ret = 1;
+        goto cleanup;
+    }
+
+    data = qemuProcessInShutdownEventDataNew(vm, pidfd);
+    if ((priv->pidMonitored = virEventAddHandle(pidfd,
+                                                VIR_EVENT_HANDLE_READABLE,
+                                                qemuProcessInShutdownPidfdCb,
+                                                data,
+                                                (virFreeCallback)qemuProcessInShutdownEventDataFree)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                    _("failed to monitor qemu in-shutdown process %1$i"),
+                    vm->pid);
+        qemuProcessInShutdownEventDataFree(data);
+        goto cleanup;
+    }
+    VIR_DEBUG("Monitoring qemu in-shutdown process %i for termination", vm->pid);
+    ret = 0;
+
+ cleanup:
+    return ret;
+#else /* !WITH_SYS_SYSCALL_H || !defined(SYS_pidfd_open) */
+    VIR_DEBUG("Monitoring qemu process %i not implemented", vm->pid);
+    return -1;
+#endif /* !WITH_SYS_SYSCALL_H || !defined(SYS_pidfd_open) */
+}
+
+
 int
 qemuProcessKill(virDomainObj *vm, unsigned int flags)
 {
+    int ret = -1;
+
     VIR_DEBUG("vm=%p name=%s pid=%lld flags=0x%x",
               vm, vm->def->name,
               (long long)vm->pid, flags);
@@ -8411,10 +8563,19 @@ qemuProcessKill(virDomainObj *vm, unsigned int flags)
 
     /* Request an extra delay of two seconds per current nhostdevs
      * to be safe against stalls by the kernel freeing up the resources */
-    return virProcessKillPainfullyDelay(vm->pid,
-                                        !!(flags & VIR_QEMU_PROCESS_KILL_FORCE),
-                                        vm->def->nhostdevs * 2,
-                                        false);
+    ret = virProcessKillPainfullyDelay(vm->pid,
+                                       !!(flags & VIR_QEMU_PROCESS_KILL_FORCE),
+                                       vm->def->nhostdevs * 2,
+                                       false);
+
+    if (ret < 0 && (flags & VIR_QEMU_PROCESS_KILL_MONITOR_ON_ERROR)) {
+        if (qemuProcessInShutdownStartMonitor(vm) == 1) {
+            /* process termination detected */
+            return 0;
+        }
+    }
+
+    return ret;
 }
 
 
@@ -8422,7 +8583,8 @@ qemuProcessKill(virDomainObj *vm, unsigned int flags)
  * qemuProcessBeginStopJob:
  *
  * Stop all current jobs by killing the domain and start a new one for
- * qemuProcessStop.
+ * qemuProcessStop. The caller has to make sure qemuProcessEndStopJob is
+ * called to properly cleanup the job.
  */
 int
 qemuProcessBeginStopJob(virDomainObj *vm,
@@ -8438,7 +8600,7 @@ qemuProcessBeginStopJob(virDomainObj *vm,
      * cleared inside qemuProcessStop */
     priv->beingDestroyed = true;
 
-    if (qemuProcessKill(vm, killFlags) < 0)
+    if (qemuProcessKill(vm, killFlags|VIR_QEMU_PROCESS_KILL_MONITOR_ON_ERROR) < 0)
         goto error;
 
     /* Wake up anything waiting on domain condition */
@@ -8449,13 +8611,24 @@ qemuProcessBeginStopJob(virDomainObj *vm,
         goto error;
 
     /* priv->beingDestroyed is deliberately left set to 'true' here. Caller
-     * is supposed to call qemuProcessStop, which will reset it after
-     * 'vm->def->id' is set to -1 */
+     * is supposed to call qemuProcessStop (which will reset it after
+     * 'vm->def->id' is set to -1) and/or qemuProcessEndStopJob to do proper
+     * cleanup. */
     return 0;
 
  error:
     priv->beingDestroyed = false;
     return -1;
+}
+
+
+void
+qemuProcessEndStopJob(virDomainObj *vm)
+{
+    if (!virDomainObjIsActive(vm))
+        QEMU_DOMAIN_PRIVATE(vm)->beingDestroyed = false;
+
+    virDomainObjEndJob(vm);
 }
 
 
@@ -8801,7 +8974,7 @@ qemuProcessAutoDestroy(virDomainObj *dom,
 
     qemuDomainRemoveInactive(driver, dom, 0, false);
 
-    virDomainObjEndJob(dom);
+    qemuProcessEndStopJob(dom);
 
     virObjectEventStateQueue(driver->domainEventState, event);
 }

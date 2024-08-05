@@ -290,7 +290,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "pvpanic", /* QEMU_CAPS_DEVICE_PANIC */
 
               /* 160 */
-              "enable-fips", /* QEMU_CAPS_ENABLE_FIPS */
+              "enable-fips", /* X_QEMU_CAPS_ENABLE_FIPS */
               "spice-file-xfer-disable", /* X_QEMU_CAPS_SPICE_FILE_XFER_DISABLE */
               "spiceport", /* X_QEMU_CAPS_CHARDEV_SPICEPORT */
               "usb-kbd", /* QEMU_CAPS_DEVICE_USB_KBD */
@@ -440,7 +440,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "virtio-net.tx_queue_size", /* X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE */
               "chardev-reconnect", /* QEMU_CAPS_CHARDEV_RECONNECT */
               "virtio-gpu.max_outputs", /* X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS */
-              "vxhs", /* QEMU_CAPS_VXHS */
+              "vxhs", /* X_QEMU_CAPS_VXHS */
               "virtio-blk.num-queues", /* X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES */
 
               /* 270 */
@@ -711,6 +711,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
 
               /* 460 */
               "sev-snp-guest", /* QEMU_CAPS_SEV_SNP_GUEST */
+              "netdev.user", /* QEMU_CAPS_NETDEV_USER */
+              "acpi-erst", /* QEMU_CAPS_DEVICE_ACPI_ERST */
     );
 
 
@@ -1397,6 +1399,7 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "virtio-sound-pci", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
     { "virtio-sound-device", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
     { "sev-snp-guest", QEMU_CAPS_SEV_SNP_GUEST },
+    { "acpi-erst", QEMU_CAPS_DEVICE_ACPI_ERST },
 };
 
 
@@ -1538,7 +1541,6 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioIOMMU[] = 
 
 /* see documentation for virQEMUQAPISchemaPathGet for the query format */
 static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
-    { "blockdev-add/arg-type/+vxhs", QEMU_CAPS_VXHS},
     { "blockdev-add/arg-type/+file/drop-cache", QEMU_CAPS_MIGRATION_FILE_DROP_CACHE },
     { "blockdev-add/arg-type/+nvme", QEMU_CAPS_DRIVE_NVME },
     { "blockdev-add/arg-type/+file/aio/^io_uring", QEMU_CAPS_AIO_IO_URING },
@@ -1575,6 +1577,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "object-add/arg-type/+iothread/thread-pool-max", QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX },
     { "query-migrate/ret-type/blocked-reasons", QEMU_CAPS_MIGRATION_BLOCKED_REASONS },
     { "screendump/arg-type/format/^png", QEMU_CAPS_SCREENSHOT_FORMAT_PNG },
+    { "netdev_add/arg-type/+user", QEMU_CAPS_NETDEV_USER },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -5396,14 +5399,8 @@ virQEMUCapsInitQMPArch(virQEMUCaps *qemuCaps,
  * Add all QEMU capabilities based on version of QEMU.
  */
 static void
-virQEMUCapsInitQMPVersionCaps(virQEMUCaps *qemuCaps)
+virQEMUCapsInitQMPVersionCaps(virQEMUCaps *qemuCaps G_GNUC_UNUSED)
 {
-    /* -enable-fips is deprecated in QEMU 5.2.0, and QEMU
-     * should be built with gcrypt to achieve FIPS compliance
-     * automatically / implicitly
-     */
-    if (qemuCaps->version < 5002000)
-        virQEMUCapsSet(qemuCaps, QEMU_CAPS_ENABLE_FIPS);
 }
 
 
@@ -5492,7 +5489,7 @@ virQEMUCapsProbeQMPSchemaCapabilities(virQEMUCaps *qemuCaps,
     return 0;
 }
 
-#define QEMU_MIN_MAJOR 4
+#define QEMU_MIN_MAJOR 5
 #define QEMU_MIN_MINOR 2
 #define QEMU_MIN_MICRO 0
 
@@ -6535,6 +6532,20 @@ virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
 }
 
 
+void
+virQEMUCapsFillDomainDeviceNetCaps(virQEMUCaps *qemuCaps,
+                                   virDomainCapsDeviceNet *net)
+{
+    net->supported = VIR_TRISTATE_BOOL_YES;
+    net->backendType.report = true;
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_USER))
+        VIR_DOMAIN_CAPS_ENUM_SET(net->backendType, VIR_DOMAIN_NET_BACKEND_DEFAULT);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM))
+        VIR_DOMAIN_CAPS_ENUM_SET(net->backendType, VIR_DOMAIN_NET_BACKEND_PASST);
+}
+
+
 /**
  * virQEMUCapsSupportsGICVersion:
  * @qemuCaps: QEMU capabilities
@@ -6700,6 +6711,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virDomainCapsMemoryBacking *memoryBacking = &domCaps->memoryBacking;
     virDomainCapsDeviceCrypto *crypto = &domCaps->crypto;
     virDomainCapsLaunchSecurity *launchSecurity = &domCaps->launchSecurity;
+    virDomainCapsDeviceNet *net = &domCaps->net;
 
     virQEMUCapsFillDomainFeaturesFromQEMUCaps(qemuCaps, domCaps);
 
@@ -6740,6 +6752,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainFeatureHypervCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, crypto);
     virQEMUCapsFillDomainLaunchSecurity(qemuCaps, launchSecurity);
+    virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, net);
 
     return 0;
 }

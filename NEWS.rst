@@ -8,6 +8,61 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.6.0 (2024-08-05)
+====================
+
+* **Removed features**
+
+  * qemu: Require QEMU-5.2.0 or newer
+
+    The minimal required version of QEMU was bumped to 5.2.0.
+
+* **New features**
+
+  * qemu: Add support for the 'pauth' Arm CPU feature
+
+  * Introduce pstore device
+
+    The aim of pstore device is to provide a bit of NVRAM storage for guest
+    kernel to record oops/panic logs just before it crashes. Typical usage
+    includes usage in combination with a watchdog so that the logs can be
+    inspected after the watchdog rebooted the machine.
+
+* **Improvements**
+
+  * qemu: Set 'passt' net backend if 'default' is unsupported
+
+    If QEMU is compiled without SLIRP support, and if domain XML allows it,
+    starting from this release libvirt will use passt as the default backend
+    instead. Also, supported backends are now reported in the domain
+    capabilities XML.
+
+  * qemu: add a monitor to /proc/$pid when killing times out
+
+    In cases when a QEMU process takes longer to be killed, libvirt might have
+    skipped cleaning up after it. But now a /proc/$pid watch is installed so
+    this does not happen ever again.
+
+* **Bug fixes**
+
+  * virt-aa-helper: Allow RO access to /usr/share/edk2-ovmf
+
+    When binary version of edk2 is distributed, the files reside under
+    /usr/share/edk2-ovmf. Allow virt-aa-helper to generate paths under that
+    directory.
+
+  * virt-host-validate: Allow longer list of CPU flags
+
+    During its run, virt-host-validate parses /proc/cpuinfo to learn about CPU
+    flags. But due to a bug it parsed only the first 1024 bytes worth of CPU
+    flags leading to unexpected results. The file is now parsed properly.
+
+  * capabilities: Be more forgiving when decoding OEM strings
+
+    On some systems, OEM strings are scattered in multiple sections. This
+    confused libvirt when generating capabilities XML. Not anymore.
+
+
 v10.5.0 (2024-07-01)
 ====================
 

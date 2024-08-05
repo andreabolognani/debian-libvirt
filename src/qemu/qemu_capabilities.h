@@ -268,7 +268,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_PANIC, /* -device pvpanic */
 
     /* 160 */
-    QEMU_CAPS_ENABLE_FIPS, /* -enable-fips */
+    X_QEMU_CAPS_ENABLE_FIPS, /* -enable-fips */
     X_QEMU_CAPS_SPICE_FILE_XFER_DISABLE, /* -spice disable-agent-file-xfer */
     X_QEMU_CAPS_CHARDEV_SPICEPORT, /* -chardev spiceport */
     QEMU_CAPS_DEVICE_USB_KBD, /* -device usb-kbd */
@@ -419,7 +419,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, /* virtio-net-*.tx_queue_size */
     QEMU_CAPS_CHARDEV_RECONNECT, /* -chardev reconnect */
     X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS, /* -device virtio-(vga|gpu-*),max-outputs= */
-    QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
+    X_QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
     X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
 
     /* 270 */
@@ -690,6 +690,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
 
     /* 460 */
     QEMU_CAPS_SEV_SNP_GUEST, /* -object sev-snp-guest */
+    QEMU_CAPS_NETDEV_USER, /* -netdev user */
+    QEMU_CAPS_DEVICE_ACPI_ERST, /* -device acpi-erst */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -869,6 +871,9 @@ void virQEMUCapsFillDomainDeviceCryptoCaps(virQEMUCaps *qemuCaps,
 
 void virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
                                          virDomainCapsLaunchSecurity *launchSecurity);
+
+void virQEMUCapsFillDomainDeviceNetCaps(virQEMUCaps *qemuCaps,
+                                        virDomainCapsDeviceNet *net);
 
 bool virQEMUCapsGuestIsNative(virArch host,
                               virArch guest);
