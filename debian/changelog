@@ -1,8 +1,18 @@
-libvirt (10.6.0-1) UNRELEASED; urgency=medium
+libvirt (10.6.0-1) unstable; urgency=medium
 
   * [65e5d2b] New upstream version 10.6.0
+  * [cca0f9c] control: Drop Build-Depends on pm-utils
+    - Support is explicitly disabled
+  * [963bd56] control: Drop Build-Depends on systemd
+    - It's not used
+  * [7c418f9] control: Suggest daemon on Linux only
+    - It doesn't get built elsewhere
+  * [664a6db] control: Enable more features on loong64.
+    - Start building the QEMU and LXC hypervisor drivers as
+      well as the glusterfs and ceph storage drivers
+    - Thanks to Dandan Zhang (Closes: #1075758)
 
- -- Andrea Bolognani <eof@kiyuko.org>  Mon, 05 Aug 2024 19:35:39 +0200
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 07 Aug 2024 02:50:03 +0200
 
 libvirt (10.5.0-1) unstable; urgency=medium
 
