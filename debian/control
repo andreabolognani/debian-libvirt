@@ -22,7 +22,7 @@ Build-Depends:
  libdevmapper-dev [linux-any],
  libfuse3-dev [linux-any],
  libglib2.0-dev,
- libglusterfs-dev [amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
+ libglusterfs-dev [amd64 arm64 ia64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libgnutls28-dev,
  libiscsi-dev [linux-any],
  libnl-3-dev [linux-any],
@@ -31,8 +31,8 @@ Build-Depends:
  libparted-dev [linux-any],
  libpcap0.8-dev [linux-any],
  libpciaccess-dev [linux-any],
- librados-dev [amd64 arm64 mips64el ppc64el riscv64 s390x],
- librbd-dev [amd64 arm64 mips64el ppc64el riscv64 s390x],
+ librados-dev [amd64 arm64 loong64 mips64el ppc64el riscv64 s390x],
+ librbd-dev [amd64 arm64 loong64 mips64el ppc64el riscv64 s390x],
  libreadline-dev,
  libsanlock-dev [linux-any],
  libsasl2-dev,
@@ -56,7 +56,7 @@ Build-Depends:
  po-debconf,
  python3-docutils,
  python3:native,
- qemu-utils [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ qemu-utils [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
  systemtap-sdt-dev [linux-any],
  xsltproc,
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
@@ -74,9 +74,9 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Suggests:
- libvirt-clients-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ libvirt-clients-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
  libvirt-daemon (= ${binary:Version}) [linux-any],
- libvirt-login-shell (= ${binary:Version}) [alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32],
+ libvirt-login-shell (= ${binary:Version}) [alpha amd64 arm64 armel armhf hppa i386 loong64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32],
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
@@ -111,7 +111,7 @@ Description: Programs for the libvirt library (QEMU specific)
 
 Package: libvirt-login-shell
 Section: admin
-Architecture: alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
+Architecture: alpha amd64 arm64 armel armhf hppa i386 loong64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 Depends:
  libvirt-clients (= ${binary:Version}),
  libvirt-daemon-driver-lxc (= ${binary:Version}),
@@ -135,12 +135,12 @@ Package: libvirt-daemon
 Section: admin
 Architecture: linux-any
 Depends:
- libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
- libvirt-daemon-driver-lxc (= ${binary:Version}) [alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32],
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [alpha amd64 arm64 armel armhf hppa i386 loong64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32],
  libvirt-daemon-driver-vbox (= ${binary:Version}) [amd64 i386],
  libvirt-daemon-driver-xen (= ${binary:Version}) [amd64 arm64 armhf],
  libxml2-utils,
@@ -149,9 +149,9 @@ Recommends:
  netcat-openbsd,
  qemu-kvm | qemu-system,
 Suggests:
- libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
+ libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [amd64 arm64 ia64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
- libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [amd64 arm64 mips64el ppc64el riscv64 s390x],
+ libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [amd64 arm64 loong64 mips64el ppc64el riscv64 s390x],
  libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
  libvirt-daemon-system (= ${binary:Version}),
  numad,
@@ -176,7 +176,7 @@ Description: Virtualization daemon
 
 Package: libvirt-daemon-driver-qemu
 Section: admin
-Architecture: amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
+Architecture: amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
 Multi-Arch: no
 Depends:
  libvirt0 (= ${binary:Version}),
@@ -200,7 +200,7 @@ Description: Virtualization daemon QEMU connection driver
 
 Package: libvirt-daemon-driver-lxc
 Section: admin
-Architecture: alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
+Architecture: alpha amd64 arm64 armel armhf hppa i386 loong64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
@@ -255,7 +255,7 @@ Description: Virtualization daemon Xen connection driver
 
 Package: libvirt-daemon-driver-storage-gluster
 Section: admin
-Architecture: amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64
+Architecture: amd64 arm64 ia64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64
 Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
@@ -292,7 +292,7 @@ Description: Virtualization daemon iSCSI (libiscsi) storage driver
 
 Package: libvirt-daemon-driver-storage-rbd
 Section: admin
-Architecture: amd64 arm64 mips64el ppc64el riscv64 s390x
+Architecture: amd64 arm64 loong64 mips64el ppc64el riscv64 s390x
 Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
