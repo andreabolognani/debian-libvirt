@@ -123,7 +123,7 @@ abort_conffile_transfer() {
 create_config_from_template() {
     local config="$1"
     local template="$2"
-    local lastver="$3"
+    local firstver="$3"
 
     if [ "$4" != "--" ]; then
         echo "create_config_from_template called with the wrong number of arguments" >&2
@@ -133,7 +133,7 @@ create_config_from_template() {
         shift
     done
 
-    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
         # The package is already configured, and the version that's been
         # configured is new enough to contain the config file
         if [ -e "$config.dpkg-backup" ]; then
@@ -160,7 +160,7 @@ create_config_from_template() {
 remove_config_from_template() {
     local config="$1"
     local template="$2"
-    local lastver="$3"
+    local firstver="$3"
 
     if [ "$4" != "--" ]; then
         echo "remove_config_from_template called with the wrong number of arguments" >&2
