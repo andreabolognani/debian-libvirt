@@ -30,6 +30,14 @@ prepare_conffile_transfer() {
     # it is restored
 
     if [ -e "$conffile" ]; then
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkgfrom" | grep -E "^ $conffile " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$conffile" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        if [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$conffile"
+            return 0
+        fi
+
         echo "Preparing transfer of config file $conffile (from $pkgfrom to $pkgto) ..."
         mv -f "$conffile" "$conffile.dpkg-transfer"
         return 0
