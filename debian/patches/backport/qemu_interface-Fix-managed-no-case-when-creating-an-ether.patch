@@ -21,7 +21,7 @@ Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
 Reviewed-by: Martin Kletzander <mkletzan@redhat.com>
 (cherry picked from commit d6a8b9eef70887e01fa5fd292580e14ca5eab08c)
 
-Forwarded: non-needed
+Forwarded: not-needed
 Origin: https://gitlab.com/libvirt/libvirt/-/commit/d6a8b9eef70887e01fa5fd292580e14ca5eab08c
 ---
  src/qemu/qemu_interface.c | 5 +++--

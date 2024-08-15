@@ -24,7 +24,7 @@ Reviewed-by: Michal Privoznik <mprivozn@redhat.com>
 Reviewed-by: Jim Fehlig <jfehlig@suse.com>
 (cherry picked from commit ef4829510549ec68cf80774e98b200a3e7bbe51f)
 
-Forwarded: non-needed
+Forwarded: not-needed
 Origin: https://gitlab.com/libvirt/libvirt/-/commit/ef4829510549ec68cf80774e98b200a3e7bbe51f
 ---
  src/security/apparmor/usr.sbin.libvirtd.in  | 1 +
