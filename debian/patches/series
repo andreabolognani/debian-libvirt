@@ -15,6 +15,7 @@ backport/storage-Fix-returning-of-locked-objects-from-virStoragePo.patch
 backport/Fix-off-by-one-error-in-udevListInterfacesByStatus.patch
 backport/remote-check-for-negative-array-lengths-before-allocation.patch
 backport/interface-fix-udev_device_get_sysattr_value-return-value-.patch
+backport/qemu-domain-Fix-logic-when-tainting-domain.patch
 forward/Skip-vircgrouptest.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
