@@ -134,14 +134,21 @@ case "$1" in
         rm -f /var/cache/libvirt/qemu/capabilities/*.xml
 
         # Obsolete AppArmor stuff included until 9.6.0-1
+        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
         LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
         LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
+        pkg="libvirt-daemon-system"
 
         for name in $LIBVIRT_ABSTRACTIONS; do
+            abstraction="$ABSTRACTIONS_DIR/$name"
             local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
 
-            # Delete the file if it's empty, leave it alone otherwise
-            if [ ! -s "$local_abstraction" ]; then
+            expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkg" | grep -E "^ $abstraction " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+            actual=$(md5sum "$abstraction" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+            # Delete the local abstraction if it's empty and the abstraction
+            # itself contains no customizations
+            if [ ! -s "$local_abstraction" ] && [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
                 rm -f "$local_abstraction"
             fi
         done
