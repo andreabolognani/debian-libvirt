@@ -203,6 +203,7 @@ Architecture: linux-any
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ sensible-utils,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
