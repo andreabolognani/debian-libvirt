@@ -252,11 +252,6 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	# Disable network autostart
 	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
 
-	# Move systemd units
-	mkdir -p $(DEB_DESTDIR)/lib/systemd/system/
-	mv $(DEB_DESTDIR)/usr/lib/systemd/system/* \
-	   $(DEB_DESTDIR)/lib/systemd/system/
-
 	# Move systcl files (we consider them examples)
 	mkdir -p $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl/
 	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/* \
@@ -271,11 +266,6 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/nwfilter/
 	mv $(DEB_DESTDIR)/etc/libvirt/nwfilter/* \
 	   $(DEB_DESTDIR)/usr/share/libvirt/nwfilter/
-
-	# Move NSS modules
-	mkdir -p $(DEB_DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
-	mv $(DEB_DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* \
-	   $(DEB_DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
 
 	# Rename the upstream polkit rule so that it matches the name used
 	# historically in Debian
