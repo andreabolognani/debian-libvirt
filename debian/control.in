@@ -780,14 +780,15 @@ Depends:
 Recommends:
  libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
  libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
-Description: Libvirt daemon configuration files
+Description: Virtualization daemon typical deployment
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
  a long term stable C API for different virtualization mechanisms. It currently
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
  .
- This package contains the configuration files to run the libvirt daemon as a
- system service.
+ This package doesn't contain any files on its own, and is intended as a
+ convenient way to create the most common type of libvirt setup (local QEMU
+ hypervisor) in one go.
 
 Package: libvirt-daemon-system-systemd
 Section: admin
