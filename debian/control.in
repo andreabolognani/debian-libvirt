@@ -69,6 +69,7 @@ Package: libvirt-clients
 Section: admin
 Architecture: any
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  sensible-utils,
  ${misc:Depends},
@@ -94,6 +95,8 @@ Package: libvirt-clients-qemu
 Section: admin
 Architecture: all
 Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  python3-cryptography,
@@ -114,6 +117,7 @@ Section: admin
 Architecture: ${ARCHES_LXC}
 Depends:
  libvirt-clients (= ${binary:Version}),
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon-driver-lxc (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -135,6 +139,7 @@ Package: libvirt-daemon
 Section: admin
 Architecture: linux-any
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -179,6 +184,7 @@ Section: admin
 Architecture: ${ARCHES_QEMU}
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -203,6 +209,7 @@ Section: admin
 Architecture: ${ARCHES_LXC}
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -224,6 +231,7 @@ Section: admin
 Architecture: ${ARCHES_VBOX}
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -241,6 +249,7 @@ Section: admin
 Architecture: ${ARCHES_XEN}
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -258,6 +267,7 @@ Section: admin
 Architecture: ${ARCHES_GLUSTER}
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -275,6 +285,7 @@ Section: admin
 Architecture: linux-any
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -295,6 +306,7 @@ Section: admin
 Architecture: ${ARCHES_CEPH}
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -312,6 +324,7 @@ Section: admin
 Architecture: linux-any
 Multi-Arch: no
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
@@ -332,6 +345,7 @@ Depends:
  gettext-base,
  iptables | firewalld,
  libvirt-clients (= ${binary:Version}),
+ libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt-daemon-config-network (= ${source:Version}),
  libvirt-daemon-config-nwfilter (= ${source:Version}),
@@ -367,6 +381,8 @@ Section: admin
 Architecture: all
 Multi-Arch: foreign
 Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  systemd-container,
@@ -388,6 +404,8 @@ Package: libvirt-daemon-system-sysv
 Section: admin
 Architecture: all
 Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
@@ -407,6 +425,8 @@ Package: libvirt-daemon-config-network
 Section: admin
 Architecture: all
 Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
@@ -426,6 +446,8 @@ Package: libvirt-daemon-config-nwfilter
 Section: admin
 Architecture: all
 Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
@@ -445,6 +467,7 @@ Package: libvirt0
 Architecture: any
 Multi-Arch: same
 Depends:
+ libvirt-common (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
@@ -455,11 +478,35 @@ Description: library for interfacing with different virtualization systems
  a long term stable C API for different virtualization mechanisms. It currently
  supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
 
+Package: libvirt-common
+Architecture: any
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-clients (<< 10.6.0-2~),
+ libvirt-daemon-system (<< 10.6.0-2~),
+ libvirt0 (<< 10.6.0-2~),
+Replaces:
+ libvirt-clients (<< 10.6.0-2~),
+ libvirt-daemon-system (<< 10.6.0-2~),
+ libvirt0 (<< 10.6.0-2~),
+Description: data files for the libvirt library
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains data files needed by the library.
+
 Package: libvirt-l10n
 Section: localization
 Architecture: all
 Multi-Arch: foreign
 Depends:
+ libvirt-common (<< ${source:Version}.1~),
+ libvirt-common (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
@@ -494,6 +541,7 @@ Section: libdevel
 Architecture: any
 Multi-Arch: same
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
 Recommends:
@@ -512,6 +560,7 @@ Section: admin
 Architecture: linux-any
 Depends:
  augeas-tools,
+ libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -532,6 +581,7 @@ Section: admin
 Architecture: linux-any
 Multi-Arch: same
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -550,6 +600,7 @@ Section: admin
 Architecture: linux-any
 Multi-Arch: same
 Depends:
+ libvirt-common (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},

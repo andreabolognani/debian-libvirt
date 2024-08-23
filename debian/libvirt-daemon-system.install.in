@@ -42,6 +42,3 @@ usr/lib/firewalld/zones/libvirt.xml
 usr/share/polkit-1/actions/org.libvirt.api.policy
 usr/share/polkit-1/actions/org.libvirt.unix.policy
 usr/share/polkit-1/rules.d/60-libvirt.rules
-usr/share/systemtap/tapset/libvirt_functions.stp
-usr/share/systemtap/tapset/libvirt_probes.stp
-[${ARCHES_QEMU}] usr/share/systemtap/tapset/libvirt_qemu_probes.stp

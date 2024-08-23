@@ -1,5 +1,3 @@
-etc/libvirt/libvirt-admin.conf
-etc/libvirt/libvirt.conf
 usr/bin/virsh
 usr/bin/virt-admin
 [linux-any] usr/bin/virt-host-validate

@@ -334,11 +334,11 @@ override_dh_installsystemd:
 endif
 
 override_dh_installchangelogs:
-	dh_installchangelogs -plibvirt0
+	dh_installchangelogs -plibvirt-common
 	dh_installchangelogs -plibvirt-doc
 
 override_dh_installdocs:
-	dh_installdocs -plibvirt0
+	dh_installdocs -plibvirt-common
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
 
 # dh_missing can't figure out that some files are skipped on purpose due

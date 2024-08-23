@@ -14,6 +14,11 @@ set -e
 
 #PREPARE_CONFFILE_TRANSFER#
 
+CLIENTS_TO_COMMON="
+    /etc/libvirt/libvirt-admin.conf
+    /etc/libvirt/libvirt.conf
+"
+
 case "$1" in
     install|upgrade)
         prepare_conffile_transfer \
@@ -24,6 +29,16 @@ case "$1" in
             "libvirt-login-shell" \
             -- \
             "$@"
+        for conf in $CLIENTS_TO_COMMON; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-clients" \
+                "libvirt-common" \
+                -- \
+                "$@"
+        done
     ;;
 
     abort-upgrade)
