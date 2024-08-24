@@ -1,3 +1,28 @@
+libvirt (9.0.0-4+deb12u1) bookworm; urgency=medium
+
+  [ Cyril Brulebois ]
+  * [6a7f95a] patches: Add backports
+    - backport/virsh-Make-domif-setlink-work-more-than-once.patch
+      - Closes: #1075718
+
+  [ Andrea Bolognani ]
+  * [56f1ae3] patches: Add backports
+    - backport/Fix-off-by-one-error-in-udevListInterfacesByStatus.patch
+      - Fixes CVE-2024-1441
+    - backport/interface-fix-udev_device_get_sysattr_value-return-value-.patch
+      - Fixes CVE-2024-2496
+    - backport/remote-check-for-negative-array-lengths-before-allocation.patch
+      - Fixes CVE-2024-2494
+    - backport/storage-Fix-returning-of-locked-objects-from-virStoragePo.patch
+      - Fixes CVE-2023-3750
+
+  [ Lee Garrett ]
+  * [7dc22f9] patches: Add backports
+    - backport/qemu-domain-Fix-logic-when-tainting-domain.patch
+      - Closes: #1052405
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 24 Aug 2024 16:05:45 +0200
+
 libvirt (9.0.0-4) unstable; urgency=medium
 
   * [79f6669] patches: Add backports
