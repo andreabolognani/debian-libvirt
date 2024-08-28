@@ -777,13 +777,13 @@ Depends:
  libvirt-daemon-driver-qemu (= ${binary:Version}) [amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
  libvirt-daemon-driver-secret (= ${binary:Version}),
  libvirt-daemon-driver-storage (= ${binary:Version}),
- libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
 Recommends:
  libvirt-daemon-driver-lxc (= ${binary:Version}) [alpha amd64 arm64 armel armhf hppa i386 loong64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32],
  libvirt-daemon-driver-xen (= ${binary:Version}) [amd64 arm64 armhf],
+ libvirt-daemon-lock (= ${binary:Version}),
 Description: Virtualization daemon typical deployment
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing

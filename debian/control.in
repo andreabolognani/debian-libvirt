@@ -777,13 +777,13 @@ Depends:
  libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
  libvirt-daemon-driver-secret (= ${binary:Version}),
  libvirt-daemon-driver-storage (= ${binary:Version}),
- libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
 Recommends:
  libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
  libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
+ libvirt-daemon-lock (= ${binary:Version}),
 Description: Virtualization daemon typical deployment
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
