@@ -194,6 +194,58 @@ remove_config_from_template() {
 }
 #END REMOVE_CONFIG_FROM_TEMPLATE
 
+#BEGIN CREATE_PROTECTIVE_DIVERSION
+create_protective_diversion() {
+    local usrfile="$1"
+    local firstver="$2"
+
+    if [ "$3" != "--" ]; then
+        echo "create_protective_diversion called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 3); do
+        shift
+    done
+
+    # If we're upgrading from a new enough version of the package, it means
+    # that usr-merge has already happened and we don't need to mess with
+    # diversions at all
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        return 0
+    fi
+
+    dpkg-divert \
+        --no-rename \
+        --divert "$usrfile.usr-is-merged" \
+        --add "$usrfile"
+}
+#END CREATE_PROTECTIVE_DIVERSION
+
+#BEGIN DELETE_PROTECTIVE_DIVERSION
+delete_protective_diversion() {
+    local usrfile="$1"
+    local firstver="$2"
+
+    if [ "$3" != "--" ]; then
+        echo "delete_protective_diversion called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 3); do
+        shift
+    done
+
+    # If the diversion doesn't exist there's nothing to clean up
+    if [ -z "$(dpkg-divert --list "$usrfile")" ]; then
+        return 0
+    fi
+
+    dpkg-divert \
+        --no-rename \
+        --divert "$usrfile.usr-is-merged" \
+        --remove "$usrfile"
+}
+#END DELETE_PROTECTIVE_DIVERSION
+
 #BEGIN SYSTEMD_DAEMON_RELOAD
 systemd_daemon_reload() {
     if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
