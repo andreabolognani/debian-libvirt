@@ -16,6 +16,13 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+#DELETE_PROTECTIVE_DIVERSION#
+
+DAEMON_COMMON_UNITS="
+    libvirt-guests.service
+    virt-guest-shutdown.target
+"
+
 case "$1" in
     purge)
         if getent group libvirt >/dev/null; then
@@ -26,7 +33,17 @@ case "$1" in
         rm -rf /var/log/libvirt
     ;;
 
-    remove|upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
+    failed-upgrade|abort-install|abort-upgrade)
+        for unit in $DAEMON_COMMON_UNITS; do
+            delete_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    remove|upgrade|disappear)
     ;;
 
     *)

@@ -15,6 +15,7 @@ set -e
 # the debian-policy package
 
 #FINISH_CONFFILE_TRANSFER#
+#DELETE_PROTECTIVE_DIVERSION#
 
 add_users_groups()
 {
@@ -48,6 +49,11 @@ DAEMON_SYSTEM_SYSV_TO_DAEMON_COMMON="
     /etc/init.d/libvirt-guests
 "
 
+DAEMON_COMMON_UNITS="
+    libvirt-guests.service
+    virt-guest-shutdown.target
+"
+
 case "$1" in
     configure)
         add_users_groups
@@ -76,6 +82,14 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system-sysv" \
                 "libvirt-daemon-common" \
+                -- \
+                "$@"
+        done
+
+        for unit in $DAEMON_COMMON_UNITS; do
+            delete_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
                 -- \
                 "$@"
         done
