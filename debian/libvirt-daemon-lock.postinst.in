@@ -15,10 +15,17 @@ set -e
 # the debian-policy package
 
 #FINISH_CONFFILE_TRANSFER#
+#DELETE_PROTECTIVE_DIVERSION#
 
 DAEMON_SYSTEM_TO_DAEMON_LOCK="
     /etc/default/virtlockd
     /etc/libvirt/virtlockd.conf
+"
+
+DAEMON_LOCK_UNITS="
+    virtlockd-admin.socket
+    virtlockd.service
+    virtlockd.socket
 "
 
 case "$1" in
@@ -30,6 +37,14 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-lock" \
+                -- \
+                "$@"
+        done
+
+        for unit in $DAEMON_LOCK_UNITS; do
+            delete_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
                 -- \
                 "$@"
         done
