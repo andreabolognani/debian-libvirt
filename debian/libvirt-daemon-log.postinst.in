@@ -15,6 +15,7 @@ set -e
 # the debian-policy package
 
 #FINISH_CONFFILE_TRANSFER#
+#DELETE_PROTECTIVE_DIVERSION#
 
 DAEMON_SYSTEM_TO_DAEMON_LOG="
     /etc/default/virtlogd
@@ -22,6 +23,12 @@ DAEMON_SYSTEM_TO_DAEMON_LOG="
 "
 DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG="
     /etc/init.d/virtlogd
+"
+
+DAEMON_LOG_UNITS="
+    virtlogd-admin.socket
+    virtlogd.service
+    virtlogd.socket
 "
 
 case "$1" in
@@ -43,6 +50,14 @@ case "$1" in
                 "10.6.0-2~" \
                 "libvirt-daemon-system-sysv" \
                 "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+
+        for unit in $DAEMON_LOG_UNITS; do
+            delete_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
                 -- \
                 "$@"
         done
