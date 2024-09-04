@@ -1,3 +1,11 @@
+libvirt (10.7.0-1) UNRELEASED; urgency=medium
+
+  * [a84ccbd] New upstream version 10.7.0
+    - Update for qemu-bridge-helper's new location (Closes: #1077915)
+    - Fixes CVE-2024-8235 (Closes: #1080218)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 04 Sep 2024 20:43:54 +0200
+
 libvirt (10.6.0-3) experimental; urgency=medium
 
   * [01e7456] control: Bump Standards-Version to 4.7.0
