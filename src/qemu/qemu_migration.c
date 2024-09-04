@@ -1802,6 +1802,10 @@ qemuMigrationUpdateJobType(virDomainJobData *jobData)
         jobData->status = VIR_DOMAIN_JOB_STATUS_POSTCOPY;
         break;
 
+    case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER_SETUP:
+        jobData->status = VIR_DOMAIN_JOB_STATUS_POSTCOPY_RECOVER;
+        break;
+
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_PAUSED:
         jobData->status = VIR_DOMAIN_JOB_STATUS_POSTCOPY_PAUSED;
         break;
@@ -1943,6 +1947,7 @@ qemuMigrationJobCheckStatus(virDomainObj *vm,
     case VIR_DOMAIN_JOB_STATUS_MIGRATING:
     case VIR_DOMAIN_JOB_STATUS_HYPERVISOR_COMPLETED:
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
+    case VIR_DOMAIN_JOB_STATUS_POSTCOPY_RECOVER:
     case VIR_DOMAIN_JOB_STATUS_PAUSED:
         break;
     }
@@ -1957,6 +1962,7 @@ enum qemuMigrationCompletedFlags {
     QEMU_MIGRATION_COMPLETED_CHECK_STORAGE  = (1 << 1),
     QEMU_MIGRATION_COMPLETED_POSTCOPY       = (1 << 2),
     QEMU_MIGRATION_COMPLETED_PRE_SWITCHOVER = (1 << 3),
+    QEMU_MIRGATION_COMPLETED_RECOVERY       = (1 << 4),
 };
 
 
@@ -2018,6 +2024,16 @@ qemuMigrationAnyCompleted(virDomainObj *vm,
         return 1;
     }
 
+    /* When QEMU is new enough to enter postcopy-recover-setup state during
+     * post-copy recovery, the source waits for the recovery to start
+     * before letting the destination wait for migration to complete.
+     */
+    if (flags & QEMU_MIRGATION_COMPLETED_RECOVERY &&
+        jobData->status == VIR_DOMAIN_JOB_STATUS_POSTCOPY) {
+        VIR_DEBUG("Post-copy recovery active");
+        return 1;
+    }
+
     if (jobData->status == VIR_DOMAIN_JOB_STATUS_HYPERVISOR_COMPLETED)
         return 1;
     else
@@ -2028,6 +2044,7 @@ qemuMigrationAnyCompleted(virDomainObj *vm,
     case VIR_DOMAIN_JOB_STATUS_MIGRATING:
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
     case VIR_DOMAIN_JOB_STATUS_PAUSED:
+    case VIR_DOMAIN_JOB_STATUS_POSTCOPY_RECOVER:
         /* The migration was aborted by us rather than QEMU itself. */
         jobData->status = VIR_DOMAIN_JOB_STATUS_FAILED;
         return -2;
@@ -4669,6 +4686,7 @@ qemuMigrationSrcIsCanceled(virDomainObj *vm)
 
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY:
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER:
+    case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER_SETUP:
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_PAUSED:
     case QEMU_MONITOR_MIGRATION_STATUS_PRE_SWITCHOVER:
     case QEMU_MONITOR_MIGRATION_STATUS_DEVICE:
@@ -5108,6 +5126,7 @@ qemuMigrationSrcResume(virDomainObj *vm,
                        char **cookieout,
                        int *cookieoutlen,
                        qemuMigrationSpec *spec,
+                       virConnectPtr dconn,
                        unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -5137,6 +5156,17 @@ qemuMigrationSrcResume(virDomainObj *vm,
     qemuDomainObjExitMonitor(vm);
     if (rc < 0)
         return -1;
+
+    /* Wait for postcopy recovery to start (or fail) if QEMU is new enough to
+     * support postcopy-recover-setup migration state. */
+    if (priv->migrationRecoverSetup) {
+        VIR_DEBUG("Waiting for post-copy recovery to start");
+        if (qemuMigrationSrcWaitForCompletion(vm, VIR_ASYNC_JOB_MIGRATION_OUT, dconn,
+                                              QEMU_MIRGATION_COMPLETED_RECOVERY) < 0)
+            return -1;
+    } else {
+        VIR_WARN("QEMU is too old, we may report a failure in post-copy phase even though the migration may be running just fine");
+    }
 
     if (qemuMigrationCookieFormat(mig, driver, vm,
                                   QEMU_MIGRATION_SOURCE,
@@ -5242,7 +5272,7 @@ qemuMigrationSrcPerformNative(virQEMUDriver *driver,
 
     if (flags & VIR_MIGRATE_POSTCOPY_RESUME) {
         ret = qemuMigrationSrcResume(vm, migParams, cookiein, cookieinlen,
-                                     cookieout, cookieoutlen, &spec, flags);
+                                     cookieout, cookieoutlen, &spec, dconn, flags);
     } else {
         ret = qemuMigrationSrcRun(driver, vm, xmlin, persist_xml, cookiein, cookieinlen,
                                   cookieout, cookieoutlen, flags, resource,

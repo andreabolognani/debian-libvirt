@@ -143,6 +143,13 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
                                _("vmport is not available with this QEMU binary"));
                 return -1;
             }
+
+            if (def->features[i] == VIR_TRISTATE_SWITCH_ON &&
+                def->features[VIR_DOMAIN_FEATURE_PS2] == VIR_TRISTATE_SWITCH_OFF) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("vmport feature requires the ps2 feature not to be disabled"));
+                return -1;
+            }
             break;
 
         case VIR_DOMAIN_FEATURE_VMCOREINFO:
@@ -238,6 +245,22 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
                 !virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_VIRT_RAS)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                               _("ras feature is not available with this QEMU binary"));
+                return -1;
+            }
+            break;
+
+        case VIR_DOMAIN_FEATURE_PS2:
+            if (def->features[i] != VIR_TRISTATE_SWITCH_ABSENT &&
+                !virQEMUCapsSupportsI8042(qemuCaps, def)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("ps2 feature is not available with this QEMU binary"));
+                return -1;
+            }
+
+            if (def->features[i] != VIR_TRISTATE_SWITCH_ABSENT &&
+                !virQEMUCapsSupportsI8042Toggle(qemuCaps, def->os.machine, def->os.arch)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("ps2 feature state cannot be controlled with this QEMU binary"));
                 return -1;
             }
             break;
@@ -3037,6 +3060,12 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
             return -1;
         }
 
+        if (virStorageSourceIsEmpty(disk->src)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'usb' disk must not be empty"));
+            return -1;
+        }
+
         if (disk->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
             disk->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -4868,8 +4897,8 @@ qemuValidateDomainDeviceDefInput(const virDomainInputDef *input,
     int cap;
     int ccwCap;
 
-    if (input->bus == VIR_DOMAIN_INPUT_BUS_PS2 && !ARCH_IS_X86(def->os.arch) &&
-        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_I8042)) {
+    if (input->bus == VIR_DOMAIN_INPUT_BUS_PS2 &&
+        !virQEMUCapsSupportsI8042(qemuCaps, def)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("%1$s is not supported by this QEMU binary"),
                        virDomainInputBusTypeToString(input->bus));
@@ -5092,6 +5121,12 @@ qemuValidateDomainDeviceDefIOMMU(const virDomainIOMMUDef *iommu,
         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_AW_BITS)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("iommu: aw_bits is not supported with this QEMU binary"));
+        return -1;
+    }
+    if (iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION))  {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("iommu: updating dma translation is not supported with this QEMU binary"));
         return -1;
     }
 

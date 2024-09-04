@@ -372,6 +372,7 @@ testCheckExclusiveFlags(int flags)
                   FLAG_REAL_CAPS |
                   FLAG_SLIRP_HELPER |
                   FLAG_ALLOW_DUPLICATE_OUTPUT |
+                  FLAG_ALLOW_MISSING_INPUT |
                   0, -1);
 
     return 0;
@@ -671,7 +672,8 @@ testQemuConfXMLCommon(testQemuInfo *info,
     if (qemuTestCapsCacheInsert(driver.qemuCapsCache, info->qemuCaps) < 0)
         goto cleanup;
 
-    if (!virFileExists(info->infile)) {
+    if (!(info->flags & FLAG_ALLOW_MISSING_INPUT) &&
+        !virFileExists(info->infile)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        "Input file '%s' not found", info->infile);
         goto cleanup;
@@ -687,8 +689,12 @@ testQemuConfXMLCommon(testQemuInfo *info,
         }
 
         if (info->flags & FLAG_EXPECT_PARSE_ERROR) {
-            g_autofree char *tmperr = g_strdup_printf("%s\n", NULLSTR(err->message));
-            if (virTestCompareToFile(tmperr, info->errfile) >= 0) {
+            g_autoptr(GString) errstr = g_string_new(NULLSTR(err->message));
+
+            g_string_replace(errstr, abs_srcdir, "ABS_SRCDIR", 0);
+            g_string_append_c(errstr, '\n');
+
+            if (virTestCompareToFile(errstr->str, info->errfile) >= 0) {
                 info->prep_skip = true;
             }
         }
@@ -1233,6 +1239,10 @@ mymain(void)
     g_unsetenv("PIPEWIRE_REMOTE");
     g_unsetenv("PIPEWIRE_RUNTIME_DIR");
 
+    DO_TEST_CAPS_ARCH_LATEST_FULL("nonexistent-file", "x86_64",
+                                  ARG_FLAGS, FLAG_EXPECT_PARSE_ERROR | FLAG_ALLOW_MISSING_INPUT);
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("broken-xml-invalid");
+
     DO_TEST_CAPS_LATEST("x86_64-pc-minimal");
     DO_TEST_CAPS_LATEST_ABI_UPDATE("x86_64-pc-minimal");
     DO_TEST_CAPS_LATEST("x86_64-q35-minimal");
@@ -1294,6 +1304,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("machine-smm-on");
     DO_TEST_CAPS_LATEST("machine-smm-off");
     DO_TEST_CAPS_LATEST("machine-vmport-opt");
+    DO_TEST_CAPS_LATEST("machine-i8042-on");
+    DO_TEST_CAPS_VER_PARSE_ERROR("machine-i8042-on", "6.2.0");
+    DO_TEST_CAPS_LATEST("machine-i8042-off");
+    DO_TEST_CAPS_VER_PARSE_ERROR("machine-i8042-off", "6.2.0");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("machine-i8042-off-vmport-on");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("machine-i8042-off-explicit-ps2-inputs");
     DO_TEST_CAPS_LATEST("default-kvm-host-arch");
     DO_TEST_CAPS_LATEST("default-qemu-host-arch");
     DO_TEST_CAPS_LATEST("x86-kvm-32-on-64");
@@ -1526,6 +1542,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-cdrom");
     DO_TEST_CAPS_LATEST("disk-cdrom-empty-network-invalid");
     DO_TEST_CAPS_LATEST("disk-cdrom-bus-other");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-cdrom-usb-empty");
     DO_TEST_CAPS_LATEST("disk-cdrom-network");
     DO_TEST_CAPS_LATEST("disk-cdrom-tray");
     DO_TEST_CAPS_LATEST("disk-floppy");
@@ -1732,7 +1749,23 @@ mymain(void)
 
     DO_TEST_CAPS_LATEST("input-usbmouse");
     DO_TEST_CAPS_LATEST("input-usbtablet");
-    DO_TEST_CAPS_LATEST("misc-acpi");
+
+    /* tests for ACPI support handling:
+     *  - existing positive test cases enabling ACPI for aarch64/x86_64/loongarch:
+     *     - firmware-manual-efi-acpi-q35
+     *     - firmware-manual-efi-acpi-aarch64
+     *     - firmware-auto-efi-loongarch64
+     *
+     *  - negative case for aarch64 with 'borzoi' machine not supporting ACPI
+     *
+     *  - s390x has hack to strip ACPI to preserve migration of old configs,
+     *    but should produce error when ABI_UPDATE is requested
+     */
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("aarch64-noacpi-acpi", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST("riscv64-virt-acpi", "riscv64");
+    DO_TEST_CAPS_ARCH_LATEST("s390x-ccw-acpi", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE_PARSE_ERROR("s390x-ccw-acpi", "s390x");
+
     DO_TEST_CAPS_LATEST("misc-disable-s3");
     DO_TEST_CAPS_LATEST("misc-disable-suspends");
     DO_TEST_CAPS_LATEST("misc-enable-s4");
@@ -2158,6 +2191,7 @@ mymain(void)
     DO_TEST_CAPS_VER("cpu-fallback", "8.0.0");
 
     DO_TEST_CAPS_LATEST("cpu-numa1");
+    DO_TEST_CAPS_LATEST("cpu-numa-memory-oldstyle");
     DO_TEST_CAPS_LATEST("cpu-numa2");
     DO_TEST_CAPS_LATEST("cpu-numa-no-memory-element");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("cpu-numa3");
@@ -2713,6 +2747,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("intel-iommu-eim");
     DO_TEST_CAPS_LATEST("intel-iommu-device-iotlb");
     DO_TEST_CAPS_LATEST("intel-iommu-aw-bits");
+    DO_TEST_CAPS_LATEST("intel-iommu-dma-translation");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("intel-iommu-wrong-machine");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");

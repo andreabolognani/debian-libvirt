@@ -14,8 +14,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-07-29 07:45+0000\n"
-"PO-Revision-Date: 2024-08-05 08:39+0000\n"
+"POT-Creation-Date: 2024-08-27 08:20+0000\n"
+"PO-Revision-Date: 2024-08-14 07:40+0000\n"
 "Last-Translator: Göran Uddeborg <goeran@uddeborg.se>\n"
 "Language-Team: Swedish <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/sv/>\n"
@@ -1493,6 +1493,9 @@ msgstr "algoritmen ”trim” stödjs inte"
 
 msgid "'type' missing in reply of guest-get-fsinfo"
 msgstr "”type” saknas i svar från guest-get-fsinfo"
+
+msgid "'usb' disk must not be empty"
+msgstr ""
 
 msgid "'user' missing in reply of guest-get-users"
 msgstr "”user” saknas i svaret på guest-get-users"
@@ -5303,6 +5306,9 @@ msgstr ""
 "DNS SRV prioritetsattribut är inte tillåtet utan mål för tjänsten ”%1$s” i "
 "nätverket ”%2$s”"
 
+msgid "DNS SRV records cannot be modified, only added or deleted"
+msgstr "DNS SRV-poster kan inte ändras, endast läggas till eller tas bort"
+
 #, c-format
 msgid ""
 "DNS SRV weight attribute not permitted without target for service '%1$s' in "
@@ -8488,6 +8494,9 @@ msgstr "Misslyckades att skicka en net-add-begäran till CH"
 msgid "Failed to send request to init control %1$s"
 msgstr "Misslyckades med att skicka begäranden till initieringskontrollen %1$s"
 
+msgid "Failed to send restore request to CH"
+msgstr ""
+
 msgid "Failed to serialize snapshot"
 msgstr "Misslyckades med att serialisera ögonblicksbilden"
 
@@ -11570,6 +11579,9 @@ msgstr "Saknade tilläggsdata i utdatadefinitionen"
 #, c-format
 msgid "Missing backend %1$d"
 msgstr "Saknad bakände %1$d"
+
+msgid "Missing bridge helper name"
+msgstr ""
 
 msgid "Missing bridge name"
 msgstr "Saknat bryggnamn"
@@ -15759,6 +15771,12 @@ msgstr "Måldomänens IOMMU-enhetsantal stämmer inte med källan"
 
 #, c-format
 msgid ""
+"Target domain IOMMU device dma translation '%1$s' does not match source "
+"'%2$s'"
+msgstr ""
+
+#, c-format
+msgid ""
 "Target domain IOMMU device eim value '%1$s' does not match source '%2$s'"
 msgstr ""
 "Måldomänens IOMMU-enhets eim-värde ”%1$s” stämmer inte med källan ”%2$s”"
@@ -19386,8 +19404,8 @@ msgid "Unexpected protocol %1$d"
 msgstr "Oväntat protokoll %1$d"
 
 #, c-format
-msgid "Unexpected response from CH: %1$d"
-msgstr "Oväntat svar från CH: %1$d"
+msgid "Unexpected response from CH: %1$s"
+msgstr ""
 
 msgid "Unexpected root filesystem without loop device"
 msgstr "Oväntat rotfilsystem utan slingenhet"
@@ -21611,6 +21629,9 @@ msgstr "bryggamnet ”%1$s” används redan."
 msgid "bridge name not allowed in %1$s mode (network '%2$s')"
 msgstr "bryggnamn är inte tillåtna i %1$s-läge (nätverket ”%2$s”)"
 
+msgid "bridge port creation is not supported on this platform"
+msgstr ""
+
 #, c-format
 msgid "bridge zone not allowed in %1$s mode (network '%2$s')"
 msgstr "bryggzoner är inte tillåtna i %1$s-läge (nätverket ”%2$s”)"
@@ -22991,15 +23012,15 @@ msgstr "kan inte hämta vcpu-information för en inaktiv domän"
 msgid "cannot revert snapshot of running domain"
 msgstr "kan inte återställa en ögonblicksbild av en körande domän"
 
-msgid "cannot save domain with host devices"
-msgstr "kan inte spara en domän med värdenheter"
-
-msgid "cannot save domain with network interfaces"
-msgstr "kan inte spara en domän med nätverksgränssnitt"
-
 #, c-format
 msgid "cannot save file '%1$s'"
 msgstr "kan inte spara filen ”%1$s”"
+
+msgid "cannot save/restore domain with host devices"
+msgstr ""
+
+msgid "cannot save/restore domain with network devices"
+msgstr ""
 
 #, c-format
 msgid "cannot seek in '%1$s'"
@@ -29449,6 +29470,9 @@ msgstr "iommu: eim stödjs inte med denna QEMU-binär"
 msgid "iommu: interrupt remapping is not supported with this QEMU binary"
 msgstr "iommu: avbrottsomkoppling stödjs inte med denna QEMU-binär"
 
+msgid "iommu: updating dma translation is not supported with this QEMU binary"
+msgstr ""
+
 #, c-format
 msgid "iothread %1$d not found"
 msgstr "iothread %1$d finns inte"
@@ -31660,6 +31684,10 @@ msgstr "värdet saknas på kakan ”%1$s”"
 msgid "missing value for migration parameter '%1$s'"
 msgstr "värdet saknas på migreringsparametern ”%1$s”"
 
+#, c-format
+msgid "missing value of modifying DNS TXT record in network %1$s"
+msgstr ""
+
 msgid "missing values for acceleration"
 msgstr "värdet på accelerationen saknas"
 
@@ -32653,51 +32681,49 @@ msgid "no prefix found"
 msgstr "inget prefix finns"
 
 msgid "no rbd option name specified"
-msgstr ""
+msgstr "inget rbd-flaggenamn angivet"
 
 #, c-format
 msgid "no rbd option value specified for name '%1$s'"
-msgstr ""
+msgstr "inget rbd-flaggevärde angivet för namnet ”%1$s”"
 
 #, c-format
 msgid "no removable media size supplied for '%1$s'"
-msgstr ""
+msgstr "ingen storlek på löstagbart medium för givet ”%1$s”"
 
 msgid "no replacement string in template"
-msgstr ""
+msgstr "ingen ersättningssträng i mallen"
 
 msgid "no running guests."
-msgstr ""
+msgstr "inga körande gäster."
 
 msgid "no screens to take screenshot from"
-msgstr ""
+msgstr "inga skärmar att ta skärmbilder ifrån"
 
 msgid "no secret provided for luks encryption"
-msgstr ""
+msgstr "ingen hemlighet gavs för luks-kryptering"
 
-#, fuzzy, c-format
+#, c-format
 msgid "no secret with matching usage '%1$s'"
-msgstr "det finns ingen server med namn som matchar ”%1$s”"
+msgstr "ingen hemlighet med matchande användning ”%1$s”"
 
-#, fuzzy, c-format
+#, c-format
 msgid "no secret with matching uuid '%1$s'"
-msgstr "det finns ingen server med namn som matchar ”%1$s”"
+msgstr "ingen hemlighet med matchande uuid ”%1$s”"
 
 #, c-format
 msgid "no server with matching name '%1$s' found"
 msgstr "det finns ingen server med namn som matchar ”%1$s”"
 
-#, fuzzy, c-format
+#, c-format
 msgid "no size supplied for '%1$s'"
-msgstr "ingen konfigurationsfil för %1$s"
+msgstr "ingen storlek angiven på ”%1$s”"
 
-#, fuzzy
 msgid "no sockets found"
-msgstr "Domän hittades inte"
+msgstr "inga uttag finns"
 
-#, fuzzy
 msgid "no space"
-msgstr "inget tillstånd"
+msgstr "inget utrymme"
 
 msgid "no state"
 msgstr "inget tillstånd"
@@ -32722,9 +32748,9 @@ msgstr "ingen lagringspool med matchande uuid ”%1$s”"
 msgid "no storage pool with matching uuid '%1$s' (%2$s)"
 msgstr "ingen lagringspool med matchande uuid ”%1$s” (%2$s)"
 
-#, fuzzy, c-format
+#, c-format
 msgid "no storage pools were found on host '%1$s'"
-msgstr "ingen lagringspool med matchande namn ”%1$s”"
+msgstr "inga lagringspooler fanns på värden ”%1$s”"
 
 #, c-format
 msgid "no storage vol with matching key %1$s"
@@ -32747,567 +32773,564 @@ msgid "no storage vol with matching path '%1$s' (%2$s)"
 msgstr "ingen lagringsvolym med matchande sökväg ”%1$s” (%2$s)"
 
 msgid "no stream callback registered"
-msgstr ""
+msgstr "inget strömåteranrop registrerat"
 
 msgid "no such screen ID"
-msgstr ""
+msgstr "ingen sådan skärm-ID"
 
 msgid "no suitable callback authentication callback was found"
-msgstr ""
+msgstr "inget passande återanrop för återanropsautentisering fanns"
 
 msgid "no suitable callback for host key verification"
-msgstr ""
+msgstr "inget lämpligt återanrop för värdnyckelverifiering"
 
 msgid "no suitable info found"
-msgstr ""
+msgstr "ingen lämplig information finns"
 
 msgid "no suitable method to retrieve authentication credentials"
-msgstr ""
+msgstr "ingen lämplig metod att hämta autentiseringskreditiv"
 
 msgid "no suitable method to retrieve key passphrase"
-msgstr ""
+msgstr "ingen lämplig metod att hämta nyckellösenfrasen"
 
 #, c-format
 msgid "no system UUID supplied for '%1$s'"
-msgstr ""
+msgstr "inget system-UUID angivet för ”%1$s”"
 
-#, fuzzy, c-format
+#, c-format
 msgid "no target device %1$s"
-msgstr "målenhetstyp"
+msgstr "ingen målenhet %1$s"
 
 #, c-format
 msgid "no target name supplied for '%1$s'"
-msgstr ""
+msgstr "inget målnamn angivet för ”%1$s”"
 
 msgid "no threads found"
-msgstr ""
+msgstr "inga trådar finns"
 
 msgid "no tls service found, unable to update tls files"
-msgstr ""
+msgstr "ingen tls-tjänst finns, kan inte uppdatera tls-filer"
 
 msgid "no transaction running, nothing to be committed."
-msgstr ""
+msgstr "ingen transaktion körs, inget att fastställa."
 
 msgid "no transaction running, nothing to rollback."
-msgstr ""
+msgstr "ingen transaktion kör, inget att rulla tillbaka."
 
 #, c-format
 msgid "no unused %1$s names available"
-msgstr ""
+msgstr "inga oanvända %1$s-namn tillgängliga"
 
 msgid "no valid connection"
 msgstr "ingen giltig anslutning"
 
 msgid "no valid netlink response was received"
-msgstr ""
+msgstr "inget giltigt netlink-svar mottogs"
 
 msgid "no vcpus selected for modification"
-msgstr ""
+msgstr "inga vcpu:er valda för ändring"
 
 msgid "no virtio-serial controllers are available"
-msgstr ""
+msgstr "inga virtio-serial-styrenheter är tillgängliga"
 
 msgid "no x86 CPU data found"
-msgstr ""
+msgstr "inga x86 CPU-data finns"
 
 #, c-format
 msgid ""
 "node '%1$s' has unexpected NULL content. This could be caused by malformed "
 "input, or a memory allocation failure"
 msgstr ""
+"noden ”%1$s” har oväntat NULL-innehåll. Detta kan orsakas av felformaterad "
+"indata, eller ett minnesallokeringsmisslyckande"
 
 #, c-format
 msgid "node '%1$s' has unexpected type %2$d"
-msgstr ""
+msgstr "noden ”%1$s” har oväntad typ %2$d"
 
-#, fuzzy
 msgid "node CPU stats not implemented on this platform"
-msgstr "UNIX-uttag stödjs inte på denna plattform"
+msgstr "nod-CPU-statistik är inte implementerat på denna plattform"
 
 msgid "node SEV information"
-msgstr ""
+msgstr "nod-SEV-information"
 
-#, fuzzy
 msgid "node cpu info not implemented on this platform"
-msgstr "Extrahering av värdend stödjs inte på denna plattform"
+msgstr "nod-cpu-information är inte implementerat på denna plattform"
 
 msgid "node cpu map"
-msgstr ""
+msgstr "nod-cpu-avbildning"
 
 #, c-format
 msgid "node device '%1$s' in %2$s must match connection"
-msgstr ""
+msgstr "nodenheten ”%1$s” i %2$s måste matcha anslutningen"
 
 #, c-format
 msgid "node device '%1$s' is not persistent"
-msgstr ""
+msgstr "nodenheten ”%1$s” är inte varaktig"
 
 msgid "node device details in XML"
-msgstr ""
+msgstr "nodenhetsdetaljer i XML"
 
-#, fuzzy, c-format
+#, c-format
 msgid "node device event callback %1$d not registered"
-msgstr "domänhändelse %1$d är inte registrerad"
+msgstr "händelseåteranropet för nodenheten %1$d är inte registrerat"
 
 msgid "node device information"
-msgstr ""
+msgstr "nodenhetsinformation"
 
 msgid "node device is not active"
-msgstr ""
+msgstr "nodenheten är inte aktiv"
 
-#, fuzzy
 msgid "node get memory parameters not implemented on this platform"
-msgstr "UNIX-uttag stödjs inte på denna plattform"
+msgstr ""
+"nodens parametrar för att hämta minne är inte implementerade på denna "
+"plattform"
 
-#, fuzzy
 msgid "node info not implemented on this platform"
-msgstr "Extrahering av värdend stödjs inte på denna plattform"
+msgstr "nodinformation är inte implementerat på denna plattform"
 
 msgid "node information"
 msgstr "nodinformation"
 
-#, fuzzy
 msgid "node memory stats not implemented on this platform"
-msgstr "Extrahering av värdend stödjs inte på denna plattform"
+msgstr "nodminnesstatistik är inte implementerat på denna plattform"
 
-#, fuzzy
 msgid "node online CPU map not implemented on this platform"
-msgstr "UNIX-uttag stödjs inte på denna plattform"
+msgstr ""
+"nodens avbildning för online-CPU är inte implementerad på denna plattform"
 
-#, fuzzy
 msgid "node present CPU map not implemented on this platform"
-msgstr "UNIX-uttag stödjs inte på denna plattform"
+msgstr ""
+"nodens avbildning för närvarande CPU är inte implementerad på denna plattform"
 
-#, fuzzy
 msgid "node set memory parameters not implemented on this platform"
-msgstr "UNIX-uttag stödjs inte på denna plattform"
+msgstr ""
+"nodens parametrar för att sätta minne är inte implementerade på denna "
+"plattform"
 
 #, c-format
 msgid "node-name '%1$s' too long for qemu"
-msgstr ""
+msgstr "nodnamnet ”%1$s” är för långt för qemu"
 
-#, fuzzy
 msgid "nodedev state driver is not active"
-msgstr "nätverket %s är inte aktivt"
+msgstr "nodenhetens tillståndsdrivrutin är inte aktiv"
 
 #, c-format
 msgid "nodeset attribute of hugepages of sizes %1$llu and %2$llu intersect"
 msgstr ""
+"attributet nodeset på hugepages av storlekarna %1$llu och %2$llu skär "
+"varandra"
 
 msgid "nodeset for NUMA memory tuning must be set if 'placement' is 'static'"
 msgstr ""
+"nodeset för NUMA-minnestrimning måste vara satt om ”placement” är ”static”"
 
 #, c-format
 msgid "non unique alias detected: %1$s"
-msgstr ""
+msgstr "icke-unikt alias upptäckt: %1$s"
 
 #, c-format
 msgid "non-shared storage migration into '%1$s' target is not supported"
-msgstr ""
+msgstr "odelad lagringsmigrering till målet ”%1$s” stödjs inte"
 
 msgid "nonzero ncpus doesn't match with NULL cpus"
-msgstr ""
+msgstr "nollskild ncpus matchar inte med NULL cpus"
 
 msgid "nonzero ncpus doesn't match with NULL xmlCPUs"
-msgstr ""
+msgstr "nollskild ncpus matchar inte med NULL xmlCPUs"
 
 #, c-format
 msgid "not a hugetlbfs mount: '%1$s'"
-msgstr ""
+msgstr "inte en hugetlbfs-montering: ”%1$s”"
 
 msgid "not specified"
 msgstr "ej angivet"
 
-#, fuzzy
 msgid "not supported on non-linux platforms"
-msgstr "UNIX-uttag stödjs inte på denna plattform"
+msgstr "stödjs inte på andra plattformar än linux"
 
 msgid "nothing selected for snapshot"
-msgstr ""
+msgstr "inget valt till ögonblicksbild"
 
 msgid "notify server to update TLS related files online."
-msgstr ""
+msgstr "notifiera servern att uppdatera TLS-relaterade filer uppkopplat."
 
 msgid ""
 "notify server to update the CA cert, CA CRL, server cert / key without "
 "restarts. See OPTIONS for currently supported attributes."
 msgstr ""
+"notifiera servern att uppdatera CA-certifikatet, CA CRL, servercertifikat/-"
+"nyckel utan omstarter. Se FLAGGOR för nu stödda attribut."
 
 #, c-format
 msgid "nparams count exceeds maximum: %1$u > %2$u"
-msgstr ""
+msgstr "nparams-antalet överskrider maximum: %1$u > %2$u"
 
 #, c-format
 msgid "nparams in %1$s must be %2$d"
-msgstr ""
+msgstr "nparams i %1$s måste vara %2$d"
 
 #, c-format
 msgid "nparams in %1$s must be equal to %2$d"
-msgstr ""
+msgstr "nparams i %1$s måste vara lika med %2$d"
 
 msgid "nparams must be non-negative"
-msgstr ""
+msgstr "nparams får inte vara negativt"
 
 msgid "nparams too large"
 msgstr "nparams är för stor"
 
 msgid "numa parameters are not supported by vz driver"
-msgstr ""
+msgstr "numa-parametrar stödjs inte av vz-drivrutinen"
 
 msgid "numad is not available on this host"
-msgstr ""
+msgstr "numad är inte tillgänglig på denna värd"
 
 msgid "number of bytes read:"
-msgstr ""
+msgstr "antal lästa byte:"
 
 msgid "number of bytes written:"
-msgstr ""
+msgstr "antal skrivna byte:"
 
 msgid "number of compression threads for multithread compression"
-msgstr ""
+msgstr "antal komprimeringstrådar vid multitrådad komprimering"
 
 msgid "number of connections for parallel migration"
-msgstr ""
+msgstr "antal anslutningar vid parallell migrering"
 
 msgid "number of decompression threads for multithread compression"
-msgstr ""
+msgstr "antal dekomprimeringstrådar vid multitrådad komprimering"
 
 msgid "number of flush operations:"
-msgstr ""
+msgstr "antal flush-åtgärder:"
 
 msgid ""
 "number of millisecs the shared memory service should sleep before next scan"
 msgstr ""
+"antal millisekunder tjänsten för delat minne skall sova före nästa skanning"
 
 msgid "number of pages to scan before the shared memory service goes to sleep"
 msgstr ""
+"antal sidor att skanna före tjänsten för delat minne lägger sig att sova"
 
 msgid "number of read operations:"
-msgstr ""
+msgstr "antal läsåtgärder:"
 
 msgid "number of seconds the daemon will run without any active connection"
-msgstr ""
+msgstr "antal sekunder demonen kommer köra utan någon aktiv anslutning"
 
 msgid "number of seconds to squelch traffic on newly connected ports"
-msgstr ""
+msgstr "antal sekunder att tysta trafik på nyss anslutna portar"
 
 msgid "number of virtual CPUs"
 msgstr "antal virtuella CPU:er"
 
 msgid "number of write operations:"
-msgstr ""
+msgstr "antal skrivåtgärder:"
 
 msgid "numbers not allowed in VMX format"
-msgstr ""
+msgstr "siffror är inte tillåtna i VMX-format"
 
 msgid "numerical overflow"
-msgstr ""
+msgstr "numeriskt spill"
 
 #, c-format
 msgid "numerical overflow: %1$s"
-msgstr ""
+msgstr "numeriskt spill: %1$s"
 
 msgid "nvcpus is zero"
-msgstr ""
+msgstr "nvcpus är noll"
 
 msgid "nvdimm isn't supported by this QEMU binary"
 msgstr "nvdimm stödjs inte av denna QEMU-binär"
 
 msgid "nvdimm label must be at least 128KiB"
-msgstr ""
+msgstr "nvdimm-etiketten måste vara åtminstone 128 KiB"
 
 msgid "nvdimm pmem property is not available with this QEMU binary"
-msgstr ""
+msgstr "nvdimm-egenskapen pmem är inte tillgänglig med denna QEMU-binär"
 
 msgid "nvdimm readonly property is not available with this QEMU binary"
-msgstr ""
+msgstr "nvdimm-egenskapen readonly är inte tillgänglig med denna QEMU-binär"
 
 msgid "nvram address type must be spaprvio"
-msgstr ""
+msgstr "nvram-adresstypen måste vara spaprvio"
 
 msgid "nvram device is not supported by this QEMU binary"
-msgstr ""
+msgstr "nvram-enheten stödjs inte av denna QEMU-binär"
 
-#, fuzzy
 msgid "nvram device is only supported for PPC64"
-msgstr "spicevmc-enhetstyp stödjer bara virtio"
+msgstr "nvram-enheten stödjs bara för PPC64"
 
 msgid "nwfilter is in use"
-msgstr ""
+msgstr "nwfilter används"
 
-#, fuzzy
 msgid "nwfilter state driver is not active"
-msgstr "nätverket %s är inte aktivt"
+msgstr "nwfilter-tillståndsdrivrutinen är inte aktiv"
 
 msgid "object props can't be NULL"
-msgstr ""
+msgstr "objektegenskaper kan inte vara NULL"
 
 #, c-format
 msgid "object size %1$zu of %2$s is not larger than parent class %3$zu"
-msgstr ""
+msgstr "objektstorleken %1$zu av %2$s är inte större än föräldraklassen %3$zu"
 
 msgid "occupied"
-msgstr ""
+msgstr "uppdagen"
 
 msgid "offline"
 msgstr "oansluten"
 
-#, fuzzy
 msgid "offline migration"
-msgstr "live-migrering"
+msgstr "frånkopplad migrering"
 
 msgid "offline migration cannot handle non-shared storage"
-msgstr ""
+msgstr "frånkopplad migrering kan inte hantera odelad lagring"
 
 msgid "offline migration is not supported by the destination host"
-msgstr ""
+msgstr "frånkopplad migrering stödjs inte av målvärden"
 
 msgid "offline migration is not supported by the source host"
-msgstr ""
+msgstr "frånkopplad migrering stödjs inte av källvärden"
 
 msgid "offline migration must be specified with the persistent flag set"
-msgstr ""
+msgstr "frånkopplad migrering måste anges med flaggan beständighet satt"
 
 msgid "ok"
-msgstr ""
+msgstr "ok"
 
 msgid "old qcow/qcow2 encryption is not supported"
-msgstr ""
+msgstr "gammal qcow-/qcow2-kryptering stödjs inte"
 
 msgid ""
 "on_reboot, on_poweroff and on_crash parameters are not supported by vz driver"
 msgstr ""
+"parametrarna on_reboot, on_poweroff och on_crash stödjs inte av vz-"
+"drivrutinen"
 
 msgid "one of --enable, --disable is required"
-msgstr ""
+msgstr "en av --enable, --disable krävs"
 
 msgid "one of --list, --all, or --event <type> is required"
-msgstr ""
+msgstr "en av --list, --all eller --event <typ> krävs"
 
 msgid "online non-hotpluggable vcpus must be ordered in ascending order"
-msgstr ""
+msgstr "uppkopplade ej urkopplingsbara vcpu:er måste ordnas i stigande ordning"
 
 msgid ""
 "online non-hotpluggable vcpus need to be ordered prior to hotplugable vcpus"
 msgstr ""
+"uppkopplade ej urkopplingsbara vcpu:er behöver ordnas före urkopplingsbara "
+"vcpu:er"
 
 msgid "only 'connect' mode is supported for external TPM device"
-msgstr ""
+msgstr "endast läget ”connect” stödjs för en extern TPM-enhet"
 
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
-msgstr ""
+msgstr "endast ”dimm”-adresser stödjs för enheten pc-dimm"
 
 #, c-format
 msgid "only 'pci' addresses are supported for the %1$s device"
-msgstr ""
+msgstr "endast ”pci”-adresser stödjs för enheten %1$s"
 
 msgid "only 'pci' addresses are supported for the shared memory device"
-msgstr ""
+msgstr "endast ”pci”-adresser stödjs för delat minnes-enheten"
 
 msgid "only 'pci' addresses are supported for the virtio-pmem device"
-msgstr ""
+msgstr "endast ”pci”-adresser stödjs för virtio-pmem-enheten"
 
 msgid ""
 "only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is "
 "supported"
 msgstr ""
+"endast 1 grafisk enhet av varje typ (sdl, vnc, spice, headless, dbus) stödjs"
 
 msgid "only JSON objects can be top level"
-msgstr ""
+msgstr "endast JSON-objekt kan vara toppnivå"
 
 msgid "only RAW volumes are supported by this storage pool"
-msgstr ""
+msgstr "endast RAW-volymer stödjs av denna lagringspool"
 
 msgid "only S390 guests support panic device of model 's390'"
-msgstr ""
+msgstr "endast S390-gäster stödjer panikenheter av modellen ”s390”"
 
 msgid "only TCP protocol can be converted to InetSocketAddress"
-msgstr ""
+msgstr "endast TCP-protokoll kan konverteras till InetSocketAddress"
 
 msgid "only TCP transport is supported for iSCSI volumes"
-msgstr ""
+msgstr "endast TCP-transport stödjs till iSCSI-volymer"
 
-#, fuzzy
 msgid "only USB input devices are supported"
-msgstr "Endast x509-certifikat stöds"
+msgstr "endast USB-inmatningsenheter stödjs"
 
 msgid "only a single IOMMU device is supported"
-msgstr ""
+msgstr "bara en enda IOMMU-enhet stödjs"
 
 msgid "only a single TPM Proxy device is supported"
-msgstr ""
+msgstr "bara en enda TPM-Proxy-enhet stödjs"
 
 msgid "only a single TPM non-proxy device is supported"
-msgstr ""
+msgstr "bara en enda TPM-icke-proxy-enhet stödjs"
 
 msgid "only a single memory balloon device is supported"
-msgstr ""
+msgstr "bara en enda minnesballongsenhet stödjs"
 
 msgid "only a single nvram device is supported"
-msgstr ""
+msgstr "bara en enda nvram-enhet stödjs"
 
 msgid "only a single pstore device is supported"
-msgstr ""
+msgstr "bara en enda pstore-enhet stödjs"
 
 msgid "only a single vsock device is supported"
-msgstr ""
+msgstr "bara en enda vsock-enhet stödjs"
 
 msgid "only bus 'virtio' is supported for 'passthrough' input devices"
-msgstr ""
+msgstr "endast bussen ”virtio” stödjs till ”passthrough”-inmatningsenheter"
 
 #, c-format
 msgid "only bus 'virtio' is supported for input model '%1$s'"
-msgstr ""
+msgstr "endast bussen ”virtio” stödjs till inmatningsmodellen ”%1$s”"
 
 msgid "only can reboot running/paused domain"
-msgstr ""
+msgstr "det går bara att starta om en körande/pausad domän"
 
 msgid "only can resume paused domain"
-msgstr ""
+msgstr "det går bara att återuppta en pausad domän"
 
 msgid "only can save running/paused domain"
-msgstr ""
+msgstr "det går bara att spara en körande/pausad domän"
 
 msgid "only can shutdown running/paused domain"
-msgstr ""
+msgstr "det går bara att stänga av en körande/pausad domän"
 
 msgid "only can suspend running domain"
-msgstr ""
+msgstr "det går bara att vila en körande domän"
 
 msgid "only connect if safe console handling is supported"
-msgstr ""
+msgstr "anslut endast om säker konsolhantering stödjs"
 
 #, c-format
 msgid ""
 "only cpu feature policies 'require' and 'disable' are supported for %1$s"
-msgstr ""
+msgstr "endast cpu-funktionspolicyerna ”require” och ”disable” stödjs för %1$s"
 
 msgid "only i686 and x86_64 guests support panic device of model 'hyperv'"
-msgstr ""
+msgstr "endast i686- och x86_64-gäster stödjer panikenheten av modell ”hyperv”"
 
 msgid "only list pool of specified type(s) (if supported)"
-msgstr ""
+msgstr "lista endast pooler av angivna typer (om det stödjs)"
 
 msgid "only model 'netfront' is supported for Xen PV(H) domains"
-msgstr ""
+msgstr "endast modellen ”netfront” stödjs för Xen PV(H)-domäner"
 
-#, fuzzy
 msgid "only nmdm console types are supported"
-msgstr "Endast x509-certifikat stöds"
+msgstr "endast nmdm-konsoltyper stödjs"
 
 msgid "only one RNG backend is supported"
-msgstr ""
+msgstr "bara en RNG-bakände stödjs"
 
 msgid "only one TPM backend is supported"
-msgstr ""
+msgstr "bara en TPM-bakände stödjs"
 
 msgid "only one backup job is supported"
-msgstr ""
+msgstr "bara ett säkerhetskopieringsjobb stödjs"
 
 msgid "only one crypto backend is supported"
-msgstr ""
+msgstr "bara en kryptobakände stödjs"
 
 msgid "only one emulatorpin is supported"
-msgstr ""
+msgstr "bara en emulatorpin stödjs"
 
 msgid "only one emulatorsched is supported"
-msgstr ""
+msgstr "bara en emulatorsched stödjs"
 
-#, fuzzy
 msgid "only one filesystem supported"
-msgstr "Endast x509-certifikat stöds"
+msgstr "bara ett filsystem stödjs"
 
 msgid "only one hotpluggable entity can be selected"
-msgstr ""
+msgstr "bara en urkopplingsbar enhet kan väljas"
 
-#, fuzzy
 msgid "only one log element is allowed for character device"
-msgstr "okänd typ presenterad för värd för teckenenhet: %s"
+msgstr "bara ett loggelement tillåts som teckenenhet"
 
 msgid "only one numatune is supported"
-msgstr ""
+msgstr "bara en numatune stödjs"
 
-#, fuzzy
 msgid "only one protocol element is allowed for character device"
-msgstr "okänd typ presenterad för värd för teckenenhet: %s"
+msgstr "bara ett protokollelement tillåts som teckenenhet"
 
 msgid "only one resource element is supported"
-msgstr ""
+msgstr "bara ett resurselement stödjs"
 
 msgid "only one set of redirection filter rule is supported"
-msgstr ""
+msgstr "bara en uppsättning omdirigeringsfilterregler stödjs"
 
-#, fuzzy
 msgid "only one source element is allowed for character device"
-msgstr "okänd typ presenterad för värd för teckenenhet: %s"
+msgstr "endast ett källelement tillåts som teckenenhet"
 
 msgid "only one source host address may be specified for the iSCSI hostdev"
-msgstr ""
+msgstr "bara en källvärdadress kan anges för iSCSI-värdenheten"
 
 msgid "only pSeries guests support panic device of model 'pseries'"
-msgstr ""
+msgstr "endast pSeries-gäster stödjer panikenheter av modellen ”pseries”"
 
 #, c-format
 msgid "only scheme, host and port are supported in vz migration URI: %1$s"
-msgstr ""
+msgstr "endast schema, värd och port stödjs i vz-migrerings-URI:n: %1$s"
 
 msgid "only sending a signal to pid 1 is supported"
-msgstr ""
+msgstr "endast att skicka en signal till pid 1 stödjs"
 
 msgid "only single ISA controller is supported"
-msgstr ""
+msgstr "bara en enda ISA-styrenhet stödjs"
 
 msgid "only single USB controller is supported"
-msgstr ""
+msgstr "bara en enda USB-styrenhet stödjs"
 
 msgid "only single input device is supported"
-msgstr ""
+msgstr "bara en enda indataenhet stödjs"
 
 msgid "only snapshot=no is supported with vhostuser disk"
-msgstr ""
+msgstr "endast snapshot=no stödjs med en vhostuser-disken"
 
 msgid "only source type 'unix' is supported for external TPM device"
-msgstr ""
+msgstr "endast källtypen ”unix” stödjs för en extern TPM-enhet"
 
-#, fuzzy
 msgid "only supports mount filesystem type"
-msgstr "okänd filsystemstyp ”%s”"
+msgstr "stödjer endast monteringsfilsystemstypen"
 
 msgid "only supports passthrough accessmode"
-msgstr ""
+msgstr "stödjer endast åtkomstmetoden genomgång"
 
-#, fuzzy
 msgid "only tablet input devices are supported"
-msgstr "Endast x509-certifikat stöds"
+msgstr "endast inmatningsenheten platta stödjs"
 
 msgid "only the 'qemu' driver can be used with network disks"
-msgstr ""
+msgstr "endast drivrutinen ”qemu” kan användas med nätverksdiskar"
 
-#, fuzzy
 msgid "only two serial ports are supported"
-msgstr "Endast x509-certifikat stöds"
+msgstr "endast två serieportar stödjs"
 
-#, fuzzy
 msgid "only two source elements are allowed for character device"
-msgstr "okänd typ presenterad för värd för teckenenhet: %s"
+msgstr "endast två källelement tillåts för en teckenenhet"
 
 msgid "only virtiofs filesystems can be hotplugged"
-msgstr ""
+msgstr "endast virtiofs-filsystem kan kopplas om under drift"
 
 msgid "open an editor to modify the description"
-msgstr ""
+msgstr "öppna en redigerare för att ändra beskrivningen"
 
 #, c-format
 msgid "open(\"%1$s\")"
-msgstr ""
+msgstr "open(\"%1$s\")"
 
 #, c-format
 msgid "openwsman: %1$s"
-msgstr ""
+msgstr "openwsman: %1$s"
 
 #, c-format
 msgid "operation '%1$s' not supported for backend '%2$s'"
-msgstr ""
+msgstr "åtgärden ”%1$s” stödjs inte för bakänden ”%2$s”"
 
 msgid "operation aborted"
 msgstr "åtgärden avbruten"
@@ -33326,33 +33349,33 @@ msgstr "operation misslyckades: %1$s"
 msgid "operation forbidden for read only access"
 msgstr "operation ej tillåten vid skrivskyddad åtkomst"
 
-#, fuzzy, c-format
+#, c-format
 msgid "operation forbidden: %1$s"
-msgstr "operation misslyckades: %1$s"
+msgstr "åtgärden förbjuden: %1$s"
 
 #, c-format
 msgid "operation type %1$d not supported"
-msgstr ""
+msgstr "åtgärdstyp %1$d stödjs inte"
 
-#, fuzzy, c-format
+#, c-format
 msgid "option %1$s requires a positive integer argument"
-msgstr "sndbuf måste vara ett positivt heltal"
+msgstr "flaggan %1$s måste ha ett positivt heltalsargument"
 
 #, c-format
 msgid "option %1$s takes a numeric argument"
-msgstr ""
+msgstr "flaggan %1$s tar ett numeriskt argument"
 
 #, c-format
 msgid "option '-%1$c' requires an argument"
-msgstr ""
+msgstr "flaggan ”-%1$c” kräver ett argument"
 
 #, c-format
 msgid "option '-%1$c'/'--%2$s' requires an argument"
-msgstr ""
+msgstr "flaggan ”%1$c”/”--%2$s” kräver ett argument"
 
-#, fuzzy, c-format
+#, c-format
 msgid "option --%1$s already seen"
-msgstr "anslutningen redan öppen"
+msgstr "flaggan --%1$s har redan setts"
 
 #, c-format
 msgid "option parsing failed: %1$s\n"
@@ -34069,6 +34092,15 @@ msgstr ""
 
 #, c-format
 msgid "ps2 bus does not support %1$s input device"
+msgstr ""
+
+msgid "ps2 bus inputs require the ps2 feature not to be disabled"
+msgstr ""
+
+msgid "ps2 feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "ps2 feature state cannot be controlled with this QEMU binary"
 msgstr ""
 
 msgid "pstore device is missing alias"
@@ -38847,6 +38879,10 @@ msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
+msgid "value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"
+msgstr ""
+
+#, c-format
 msgid "value '%1$llu' is too big for coalesce parameter, maximum is '%2$lu'"
 msgstr ""
 
@@ -39371,6 +39407,9 @@ msgid ""
 "operation "
 msgstr ""
 
+msgid "vmport feature requires the ps2 feature not to be disabled"
+msgstr ""
+
 msgid "vmport is not available with this QEMU binary"
 msgstr "vmport är inte tillgängligt med denna QEMU-binär"
 
@@ -39695,11 +39734,18 @@ msgstr ""
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 
+#, c-format
+#~ msgid "Unexpected response from CH: %1$d"
+#~ msgstr "Oväntat svar från CH: %1$d"
+
+#~ msgid "cannot save domain with host devices"
+#~ msgstr "kan inte spara en domän med värdenheter"
+
+#~ msgid "cannot save domain with network interfaces"
+#~ msgstr "kan inte spara en domän med nätverksgränssnitt"
+
 #~ msgid "DNS HOST records cannot be modified, only added or deleted"
 #~ msgstr "DNS HOST-poster kan inte ändras, endast läggas till eller tas bort"
-
-#~ msgid "DNS SRV records cannot be modified, only added or deleted"
-#~ msgstr "DNS SRV-poster kan inte ändras, endast läggas till eller tas bort"
 
 #~ msgid "DNS TXT records cannot be modified, only added or deleted"
 #~ msgstr "DNS TXT-poster kan inte ändras, endast läggas till eller tas bort"

@@ -6100,6 +6100,11 @@
                 <ref name="uint8"/>
               </attribute>
             </optional>
+            <optional>
+              <attribute name="dma_translation">
+                <ref name="virOnOff"/>
+              </attribute>
+            </optional>
           </element>
         </optional>
         <optional>
@@ -6909,6 +6914,11 @@
           </optional>
           <optional>
             <element name="ras">
+              <ref name="featurestate"/>
+            </element>
+          </optional>
+          <optional>
+            <element name="ps2">
               <ref name="featurestate"/>
             </element>
           </optional>
@@ -7954,6 +7964,16 @@
             </optional>
             <optional>
               <element name="avic">
+                <ref name="featurestate"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="emsr_bitmap">
+                <ref name="featurestate"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="xmm_input">
                 <ref name="featurestate"/>
               </element>
             </optional>

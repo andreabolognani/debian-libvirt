@@ -185,6 +185,7 @@ VIR_ENUM_IMPL(virDomainFeature,
               "tcg",
               "async-teardown",
               "ras",
+              "ps2",
 );
 
 VIR_ENUM_IMPL(virDomainCapabilitiesPolicy,
@@ -211,6 +212,8 @@ VIR_ENUM_IMPL(virDomainHyperv,
               "ipi",
               "evmcs",
               "avic",
+              "emsr_bitmap",
+              "xmm_input",
 );
 
 VIR_ENUM_IMPL(virDomainKVM,
@@ -13931,6 +13934,10 @@ virDomainIOMMUDefParseXML(virDomainXMLOption *xmlopt,
         if (virXMLPropUInt(driver, "aw_bits", 10, VIR_XML_PROP_NONE,
                            &iommu->aw_bits) < 0)
             return NULL;
+
+        if (virXMLPropTristateSwitch(driver, "dma_translation", VIR_XML_PROP_NONE,
+                                     &iommu->dma_translation) < 0)
+            return NULL;
     }
 
     if (virDomainDeviceInfoParseXML(xmlopt, node, ctxt,
@@ -16570,6 +16577,8 @@ virDomainFeaturesHyperVDefParse(virDomainDef *def,
         case VIR_DOMAIN_HYPERV_IPI:
         case VIR_DOMAIN_HYPERV_EVMCS:
         case VIR_DOMAIN_HYPERV_AVIC:
+        case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+        case VIR_DOMAIN_HYPERV_XMM_INPUT:
             break;
 
         case VIR_DOMAIN_HYPERV_STIMER:
@@ -17015,7 +17024,8 @@ virDomainFeaturesDefParse(virDomainDef *def,
         case VIR_DOMAIN_FEATURE_HTM:
         case VIR_DOMAIN_FEATURE_NESTED_HV:
         case VIR_DOMAIN_FEATURE_CCF_ASSIST:
-        case VIR_DOMAIN_FEATURE_RAS: {
+        case VIR_DOMAIN_FEATURE_RAS:
+        case VIR_DOMAIN_FEATURE_PS2: {
             virTristateSwitch state;
 
             if (virXMLPropTristateSwitch(nodes[i], "state",
@@ -20879,6 +20889,7 @@ virDomainDefFeaturesCheckABIStability(virDomainDef *src,
         case VIR_DOMAIN_FEATURE_NESTED_HV:
         case VIR_DOMAIN_FEATURE_CCF_ASSIST:
         case VIR_DOMAIN_FEATURE_RAS:
+        case VIR_DOMAIN_FEATURE_PS2:
             if (src->features[i] != dst->features[i]) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                _("State of feature '%1$s' differs: source: '%2$s', destination: '%3$s'"),
@@ -21016,6 +21027,8 @@ virDomainDefFeaturesCheckABIStability(virDomainDef *src,
             case VIR_DOMAIN_HYPERV_IPI:
             case VIR_DOMAIN_HYPERV_EVMCS:
             case VIR_DOMAIN_HYPERV_AVIC:
+            case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+            case VIR_DOMAIN_HYPERV_XMM_INPUT:
                 if (src->hyperv_features[i] != dst->hyperv_features[i]) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                                    _("State of HyperV enlightenment feature '%1$s' differs: source: '%2$s', destination: '%3$s'"),
@@ -21465,6 +21478,13 @@ virDomainIOMMUDefCheckABIStability(virDomainIOMMUDef *src,
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Target domain IOMMU device aw_bits value '%1$d' does not match source '%2$d'"),
                        dst->aw_bits, src->aw_bits);
+        return false;
+    }
+    if (src->dma_translation != dst->dma_translation) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Target domain IOMMU device dma translation '%1$s' does not match source '%2$s'"),
+                       virTristateSwitchTypeToString(dst->dma_translation),
+                       virTristateSwitchTypeToString(src->dma_translation));
         return false;
     }
 
@@ -27451,6 +27471,10 @@ virDomainIOMMUDefFormat(virBuffer *buf,
         virBufferAsprintf(&driverAttrBuf, " aw_bits='%d'",
                           iommu->aw_bits);
     }
+    if (iommu->dma_translation != VIR_TRISTATE_SWITCH_ABSENT) {
+        virBufferAsprintf(&driverAttrBuf, " dma_translation='%s'",
+                          virTristateSwitchTypeToString(iommu->dma_translation));
+    }
 
     virXMLFormatElement(&childBuf, "driver", &driverAttrBuf, NULL);
 
@@ -27670,6 +27694,7 @@ virDomainDefFormatFeatures(virBuffer *buf,
         case VIR_DOMAIN_FEATURE_NESTED_HV:
         case VIR_DOMAIN_FEATURE_CCF_ASSIST:
         case VIR_DOMAIN_FEATURE_RAS:
+        case VIR_DOMAIN_FEATURE_PS2:
             switch ((virTristateSwitch) def->features[i]) {
             case VIR_TRISTATE_SWITCH_LAST:
             case VIR_TRISTATE_SWITCH_ABSENT:
@@ -27746,6 +27771,8 @@ virDomainDefFormatFeatures(virBuffer *buf,
                 case VIR_DOMAIN_HYPERV_IPI:
                 case VIR_DOMAIN_HYPERV_EVMCS:
                 case VIR_DOMAIN_HYPERV_AVIC:
+                case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+                case VIR_DOMAIN_HYPERV_XMM_INPUT:
                     virBufferAddLit(&childBuf, "/>\n");
                     break;
 

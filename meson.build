@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.6.0',
+  version: '10.7.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -1096,6 +1096,9 @@ if conf.has('WITH_REMOTE')
   libssh_dep = dependency('libssh', version: '>=' + libssh_version, required: get_option('libssh'))
   if libssh_dep.found()
     conf.set('WITH_LIBSSH', 1)
+    if cc.has_function('ssh_channel_get_exit_state', dependencies: libssh_dep)
+      conf.set('WITH_SSH_CHANNEL_GET_EXIT_STATE', 1)
+    endif
   endif
 else
   libssh_dep = dependency('', required: false)

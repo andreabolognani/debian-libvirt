@@ -8,6 +8,43 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.7.0 (2024-09-02)
+====================
+
+* **Security**
+
+  * CVE-2024-8235: Crash of ``virtinterfaced`` via ``virConnectListInterfaces()``
+
+    A refactor of the code fetching the list of interfaces for multiple APIs
+    introduced corner case on platforms where allocating 0 bytes of memory
+    results in a NULL pointer.
+
+    This corner case would lead to a NULL-pointer dereference and subsequent
+    crash of ``virtinterfaced`` if ``virConnectListInterfaces()`` is called
+    requesting 0 networks to be filled.
+
+    The bug was introduced in libvirt-10.4.0
+
+* **New features**
+
+  * qemu: Introduce the ability to disable the built-in PS/2 controller
+
+    It is now possible to control the state of the ``ps2`` feature in the
+    domain XML for descendants of the generic PC machine type (``i440fx``,
+    ``q35``, ``xenfv`` and ``isapc``).
+
+* **Improvements**
+
+  * ch: support restore with network devices
+
+    Cloud-Hypervisor starting from V40.0 supports restoring file descriptor
+    backed network devices. So, create new net fds and pass them via
+    SCM_RIGHTS to CH during restore operation.
+
+  * ch: support basic networking modes
+    Cloud-Hypervisor driver now supports Ethernet, Network (NAT) and Bridge
+    networking modes.
+
 v10.6.0 (2024-08-05)
 ====================
 

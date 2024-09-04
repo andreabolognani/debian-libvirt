@@ -111,6 +111,7 @@
       <model usable='no' vendor='Intel'>Haswell-noTSX</model>
       <model usable='no' vendor='Intel'>Haswell-IBRS</model>
       <model usable='no' vendor='Intel'>Haswell</model>
+      <model usable='no' vendor='Intel'>GraniteRapids</model>
       <model usable='no' vendor='AMD'>EPYC-Rome</model>
       <model usable='no' vendor='AMD'>EPYC-Milan</model>
       <model usable='no' vendor='AMD'>EPYC-IBPB</model>
@@ -270,6 +271,7 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <async-teardown supported='yes'/>
+    <ps2 supported='yes'/>
     <sev supported='no'/>
     <sgx supported='no'/>
     <hyperv supported='yes'>
@@ -288,6 +290,8 @@
         <value>tlbflush</value>
         <value>ipi</value>
         <value>avic</value>
+        <value>emsr_bitmap</value>
+        <value>xmm_input</value>
       </enum>
     </hyperv>
     <launchSecurity supported='no'/>

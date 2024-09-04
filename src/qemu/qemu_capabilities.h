@@ -535,7 +535,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_SMP_DIES, /*  -smp dies= */
 
     /* 350 */
-    QEMU_CAPS_DEVICE_I8042, /* PS/2 controller */
+    QEMU_CAPS_DEVICE_I8042, /* PS/2 controller, use virQEMUCapsSupportsI8042() to query this capability */
     QEMU_CAPS_OBJECT_RNG_BUILTIN, /* -object rng-builtin */
     X_QEMU_CAPS_VIRTIO_NET_FAILOVER, /* virtio-net-*.failover */
     QEMU_CAPS_DEVICE_TPM_SPAPR, /* -device tpm-spapr */
@@ -692,6 +692,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_SEV_SNP_GUEST, /* -object sev-snp-guest */
     QEMU_CAPS_NETDEV_USER, /* -netdev user */
     QEMU_CAPS_DEVICE_ACPI_ERST, /* -device acpi-erst */
+    QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION, /* intel-iommu.dma-translation */
+    QEMU_CAPS_MACHINE_I8042_OPT, /* -machine xxx,i8042=on/off; use virQEMUCapsSupportsI8042Toggle() to query this capability */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -716,6 +718,13 @@ void virQEMUCapsInitProcessCapsInterlock(virQEMUCaps *qemuCaps);
 
 bool virQEMUCapsSupportsVmport(virQEMUCaps *qemuCaps,
                                const virDomainDef *def);
+
+bool virQEMUCapsSupportsI8042(virQEMUCaps *qemuCaps,
+                              const virDomainDef *def);
+
+bool virQEMUCapsSupportsI8042Toggle(virQEMUCaps *qemuCaps,
+                                    const char *machine,
+                                    const virArch arch);
 
 const char *virQEMUCapsGetBinary(virQEMUCaps *qemuCaps);
 virArch virQEMUCapsGetArch(virQEMUCaps *qemuCaps);
