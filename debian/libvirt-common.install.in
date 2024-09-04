@@ -113,6 +113,6 @@ usr/share/libvirt/schemas/storagepool.rng
 usr/share/libvirt/schemas/storagepoolcaps.rng
 usr/share/libvirt/schemas/storagevol.rng
 usr/share/libvirt/test-screenshot.png
-usr/share/systemtap/tapset/libvirt_functions.stp
-usr/share/systemtap/tapset/libvirt_probes.stp
+[linux-any] usr/share/systemtap/tapset/libvirt_functions.stp
+[linux-any] usr/share/systemtap/tapset/libvirt_probes.stp
 [${ARCHES_QEMU}] usr/share/systemtap/tapset/libvirt_qemu_probes.stp
