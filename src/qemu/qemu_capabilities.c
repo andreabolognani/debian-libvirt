@@ -713,6 +713,8 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "sev-snp-guest", /* QEMU_CAPS_SEV_SNP_GUEST */
               "netdev.user", /* QEMU_CAPS_NETDEV_USER */
               "acpi-erst", /* QEMU_CAPS_DEVICE_ACPI_ERST */
+              "intel-iommu.dma-translation", /* QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION */
+              "machine-i8042-opt", /* QEMU_CAPS_MACHINE_I8042_OPT */
     );
 
 
@@ -1516,6 +1518,7 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsIntelIOMMU[] = {
     { "eim", QEMU_CAPS_INTEL_IOMMU_EIM, NULL },
     { "device-iotlb", QEMU_CAPS_INTEL_IOMMU_DEVICE_IOTLB, NULL },
     { "aw-bits", QEMU_CAPS_INTEL_IOMMU_AW_BITS, NULL },
+    { "dma-translation", QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsMCH[] = {
@@ -1745,6 +1748,10 @@ static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsGeneric[] = {
     { "confidential-guest-support", QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT },
 };
 
+static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsGenericPC[] = {
+    { "i8042", QEMU_CAPS_MACHINE_I8042_OPT },
+};
+
 static virQEMUCapsObjectTypeProps virQEMUCapsMachineProps[] = {
     { "pseries", virQEMUCapsMachinePropsPSeries,
       G_N_ELEMENTS(virQEMUCapsMachinePropsPSeries),
@@ -1754,6 +1761,9 @@ static virQEMUCapsObjectTypeProps virQEMUCapsMachineProps[] = {
       -1 },
     { "none", virQEMUCapsMachinePropsGeneric,
       G_N_ELEMENTS(virQEMUCapsMachinePropsGeneric),
+      -1 },
+    { "generic-pc", virQEMUCapsMachinePropsGenericPC,
+      G_N_ELEMENTS(virQEMUCapsMachinePropsGenericPC),
       -1 },
 };
 
@@ -2891,6 +2901,7 @@ virQEMUCapsProbeQMPMachineProps(virQEMUCaps *qemuCaps,
         g_auto(GStrv) values = NULL;
 
         if (STRNEQ(canon, "none") &&
+            (!ARCH_IS_X86(qemuCaps->arch) || STRNEQ(canon, "generic-pc")) &&
             !virQEMUCapsIsMachineSupported(qemuCaps, virtType, canon)) {
             continue;
         }
@@ -6006,6 +6017,33 @@ virQEMUCapsSupportsVmport(virQEMUCaps *qemuCaps,
         STREQ(def->os.machine, "isapc");
 }
 
+bool
+virQEMUCapsSupportsI8042(virQEMUCaps *qemuCaps,
+                         const virDomainDef *def)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_I8042))
+        return false;
+
+    return qemuDomainIsI440FX(def) ||
+        qemuDomainIsQ35(def) ||
+        qemuDomainIsXenFV(def) ||
+        STREQ(def->os.machine, "isapc");
+}
+
+bool
+virQEMUCapsSupportsI8042Toggle(virQEMUCaps *qemuCaps,
+                               const char *machine,
+                               const virArch arch)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_I8042_OPT))
+        return false;
+
+    return qemuDomainMachineIsI440FX(machine, arch) ||
+           qemuDomainMachineIsQ35(machine, arch) ||
+           qemuDomainMachineIsXenFV(machine, arch) ||
+           STREQ(machine, "isapc");
+}
+
 
 /*
  * The preferred machine to use if none is listed explicitly
@@ -6664,6 +6702,18 @@ virQEMUCapsFillDomainFeatureS390PVCaps(virQEMUCaps *qemuCaps,
     }
 }
 
+
+static void
+virQEMUCapsFillDomainFeaturePS2Caps(virQEMUCaps *qemuCaps,
+                                    virDomainCaps *domCaps)
+{
+    if (virQEMUCapsSupportsI8042Toggle(qemuCaps, domCaps->machine, domCaps->arch))
+        domCaps->features[VIR_DOMAIN_CAPS_FEATURE_PS2] = VIR_TRISTATE_BOOL_YES;
+    else
+        domCaps->features[VIR_DOMAIN_CAPS_FEATURE_PS2] = VIR_TRISTATE_BOOL_NO;
+}
+
+
 /**
  * virQEMUCapsFillDomainFeatureSGXCaps:
  * @qemuCaps: QEMU capabilities
@@ -6748,6 +6798,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainFeatureGICCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSEVCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureS390PVCaps(qemuCaps, domCaps);
+    virQEMUCapsFillDomainFeaturePS2Caps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSGXCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureHypervCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, crypto);

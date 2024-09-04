@@ -199,6 +199,10 @@ struct _qemuDomainObjPrivate {
      * private XML. */
     virBitmap *migrationCaps;
 
+    /* True if QEMU supports "postcopy-recover-setup" migration state. Checked
+     * QEMU enters the state, not to be stored in private XML. */
+    bool migrationRecoverSetup;
+
     /* true if qemu-pr-helper process is running for the domain */
     bool prDaemonRunning;
 
@@ -819,10 +823,16 @@ virDomainChrDef *qemuFindAgentConfig(virDomainDef *def);
 
 /* You should normally avoid these functions and use the variant that
  * doesn't have "Machine" in the name instead. */
+bool qemuDomainMachineIsQ35(const char *machine,
+                            const virArch arch);
+bool qemuDomainMachineIsI440FX(const char *machine,
+                               const virArch arch);
 bool qemuDomainMachineIsARMVirt(const char *machine,
                                 const virArch arch);
 bool qemuDomainMachineIsPSeries(const char *machine,
                                 const virArch arch);
+bool qemuDomainMachineIsXenFV(const char *machine,
+                              const virArch arch);
 bool qemuDomainMachineHasBuiltinIDE(const char *machine,
                                     const virArch arch);
 
@@ -834,6 +844,7 @@ bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
 bool qemuDomainIsRISCVVirt(const virDomainDef *def);
 bool qemuDomainIsPSeries(const virDomainDef *def);
 bool qemuDomainIsMipsMalta(const virDomainDef *def);
+bool qemuDomainIsXenFV(const virDomainDef *def);
 bool qemuDomainHasPCIRoot(const virDomainDef *def);
 bool qemuDomainHasPCIeRoot(const virDomainDef *def);
 bool qemuDomainHasBuiltinIDE(const virDomainDef *def);

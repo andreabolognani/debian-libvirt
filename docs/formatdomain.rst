@@ -1989,6 +1989,8 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
        <tlbflush state='on'/>
        <ipi state='on'/>
        <evmcs state='on'/>
+       <emsr_bitmap state='on'/>
+       <xmm_input state='on'/>
      </hyperv>
      <kvm>
        <hidden state='on'/>
@@ -2022,6 +2024,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      </tcg>
      <async-teardown enabled='yes'/>
      <ras state='on'/>
+     <ps2 state='on'/>
    </features>
    ...
 
@@ -2076,6 +2079,8 @@ are:
    ipi             Enable PV IPI support                                                  on, off                                      :since:`4.10.0 (QEMU 3.1)`
    evmcs           Enable Enlightened VMCS                                                on, off                                      :since:`4.10.0 (QEMU 3.1)`
    avic            Enable use Hyper-V SynIC with hardware APICv/AVIC                      on, off                                      :since:`8.10.0 (QEMU 6.2)`
+   emsr_bitmap     Avoid unnecessary updates to L2 MSR Bitmap upon vmexits.               on, off                                      :since:`10.7.0 (QEMU 7.1)`
+   xmm_input       Enable XMM Fast Hypercall Input                                        on, off                                      :since:`10.7.0 (QEMU 7.1)`
    =============== ====================================================================== ============================================ =======================================================
 
    :since:`Since 8.0.0`, the hypervisor can be configured further by setting
@@ -2262,6 +2267,11 @@ are:
    exceptions when enabled (``on``). If the attribute is not defined, the
    hypervisor default will be used.
    :since:`Since 10.4.0` (QEMU/KVM and ARM virt guests only)
+``ps2``
+   Depending on the ``state`` attribute (values ``on``, ``off``) enable or
+   disable the emulation of a PS/2 controller used by ``ps2`` bus input devices.
+   If the attribute is not defined, the hypervisor default will be used.
+   :since:`Since 10.7.0` (QEMU only)
 
 Time keeping
 ------------
@@ -8610,6 +8620,13 @@ Example:
       The ``aw_bits`` attribute can be used to set the address width to allow
       mapping larger iova addresses in the guest. :since:`Since 6.5.0` (QEMU/KVM
       only)
+
+   ``dma_translation``
+      The ``dma_translation`` attribute with possible values ``on`` and ``off`` can
+      be used to turn off the dma translation for IOMMU. It is useful when only
+      interrupt remapping is required but dma translation overhead is unwanted, for
+      example to efficiently enable more than 255 vCPUs.
+      :since:`Since 10.7.0` (QEMU/KVM only)
 
 The ``virtio`` IOMMU devices can further have ``address`` element as described
 in `Device addresses`_ (address has to by type of ``pci``).

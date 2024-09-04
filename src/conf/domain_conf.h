@@ -2181,6 +2181,7 @@ typedef enum {
     VIR_DOMAIN_FEATURE_TCG,
     VIR_DOMAIN_FEATURE_ASYNC_TEARDOWN,
     VIR_DOMAIN_FEATURE_RAS,
+    VIR_DOMAIN_FEATURE_PS2,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -2203,6 +2204,8 @@ typedef enum {
     VIR_DOMAIN_HYPERV_IPI,
     VIR_DOMAIN_HYPERV_EVMCS,
     VIR_DOMAIN_HYPERV_AVIC,
+    VIR_DOMAIN_HYPERV_EMSR_BITMAP,
+    VIR_DOMAIN_HYPERV_XMM_INPUT,
 
     VIR_DOMAIN_HYPERV_LAST
 } virDomainHyperv;
@@ -2928,6 +2931,7 @@ struct _virDomainIOMMUDef {
     virTristateSwitch iotlb;
     unsigned int aw_bits;
     virDomainDeviceInfo info;
+    virTristateSwitch dma_translation;
 };
 
 typedef enum {

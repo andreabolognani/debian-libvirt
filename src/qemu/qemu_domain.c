@@ -1873,6 +1873,8 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
     virHashRemoveAll(priv->statsSchema);
 
     g_slist_free_full(g_steal_pointer(&priv->threadContextAliases), g_free);
+
+    priv->migrationRecoverSetup = false;
 }
 
 
@@ -3923,9 +3925,11 @@ virXMLNamespace virQEMUDriverDomainXMLNamespace = {
 
 
 static int
-qemuDomainDefAddImplicitInputDevice(virDomainDef *def)
+qemuDomainDefAddImplicitInputDevice(virDomainDef *def,
+                                    virQEMUCaps *qemuCaps)
 {
-    if (ARCH_IS_X86(def->os.arch)) {
+    if (virQEMUCapsSupportsI8042(qemuCaps, def) &&
+        def->features[VIR_DOMAIN_FEATURE_PS2] != VIR_TRISTATE_SWITCH_OFF) {
         if (virDomainDefMaybeAddInput(def,
                                       VIR_DOMAIN_INPUT_TYPE_MOUSE,
                                       VIR_DOMAIN_INPUT_BUS_PS2) < 0)
@@ -4164,7 +4168,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     bool addITCOWatchdog = false;
 
     /* add implicit input devices */
-    if (qemuDomainDefAddImplicitInputDevice(def) < 0)
+    if (qemuDomainDefAddImplicitInputDevice(def, qemuCaps) < 0)
         return -1;
 
     /* Add implicit PCI root controller if the machine has one */
@@ -5020,6 +5024,53 @@ qemuDomainDefPostParseBasic(virDomainDef *def,
 }
 
 
+/**
+ * qemuDomainDefACPIPostParse:
+ * @def: domain definition
+ * @qemuCaps: qemu capabilities object
+ *
+ * Fixup the use of ACPI flag on certain architectures that never supported it
+ * and users for some reason used it, which would break migration to newer
+ * libvirt versions which check whether given machine type supports ACPI.
+ *
+ * The fixup is done in post-parse as it's hard to update the ABI stability
+ * check on source of the migration.
+ */
+static void
+qemuDomainDefACPIPostParse(virDomainDef *def,
+                           virQEMUCaps *qemuCaps,
+                           unsigned int parseFlags)
+{
+    /* Only cases when ACPI is enabled need to be fixed up */
+    if (def->features[VIR_DOMAIN_FEATURE_ACPI] != VIR_TRISTATE_SWITCH_ON)
+        return;
+
+    /* Strip the <acpi/> feature only for non-fresh configs, in order to still
+     * produce an error if the feature is present in a newly defined one.
+     *
+     * The use of the VIR_DOMAIN_DEF_PARSE_ABI_UPDATE looks counter-intuitive,
+     * but it's used only in qemuDomainCreateXML/qemuDomainDefineXMLFlags APIs
+     * */
+    if (parseFlags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE)
+        return;
+
+    /* This fixup is applicable _only_ on architectures which were present as of
+     * libvirt-9.2 and *never* supported ACPI. The fixup is currently done only
+     * for existing users of s390(x) to fix migration for configs which had
+     * <acpi/> despite being ignored.
+     */
+    if (def->os.arch != VIR_ARCH_S390 &&
+        def->os.arch != VIR_ARCH_S390X)
+        return;
+
+    /* To be sure, we only strip ACPI if given machine type doesn't support it */
+    if (virQEMUCapsMachineSupportsACPI(qemuCaps, def->virtType, def->os.machine) != VIR_TRISTATE_BOOL_NO)
+        return;
+
+    def->features[VIR_DOMAIN_FEATURE_ACPI] = VIR_TRISTATE_SWITCH_ABSENT;
+}
+
+
 static int
 qemuDomainDefPostParse(virDomainDef *def,
                        unsigned int parseFlags,
@@ -5039,6 +5090,8 @@ qemuDomainDefPostParse(virDomainDef *def,
 
     if (qemuDomainDefMachinePostParse(def, qemuCaps) < 0)
         return -1;
+
+    qemuDomainDefACPIPostParse(def, qemuCaps, parseFlags);
 
     if (qemuDomainDefBootPostParse(def, driver, parseFlags) < 0)
         return -1;
@@ -8992,8 +9045,9 @@ qemuFindAgentConfig(virDomainDef *def)
     return NULL;
 }
 
-
-static bool
+/* You should normally avoid this function and use
+ * qemuDomainIsQ35() instead. */
+bool
 qemuDomainMachineIsQ35(const char *machine,
                        const virArch arch)
 {
@@ -9009,7 +9063,9 @@ qemuDomainMachineIsQ35(const char *machine,
 }
 
 
-static bool
+/* You should normally avoid this function and use
+ * qemuDomainIsI440FX() instead. */
+bool
 qemuDomainMachineIsI440FX(const char *machine,
                           const virArch arch)
 {
@@ -9128,6 +9184,24 @@ qemuDomainMachineIsMipsMalta(const char *machine,
 
 
 /* You should normally avoid this function and use
+ * qemuDomainIsXenFV() instead. */
+bool
+qemuDomainMachineIsXenFV(const char *machine,
+                         const virArch arch)
+{
+    if (!ARCH_IS_X86(arch))
+        return false;
+
+    if (STREQ(machine, "xenfv") ||
+        STRPREFIX(machine, "xenfv-")) {
+        return true;
+    }
+
+    return false;
+}
+
+
+/* You should normally avoid this function and use
  * qemuDomainHasBuiltinIDE() instead. */
 bool
 qemuDomainMachineHasBuiltinIDE(const char *machine,
@@ -9210,6 +9284,12 @@ bool
 qemuDomainIsLoongArchVirt(const virDomainDef *def)
 {
     return qemuDomainMachineIsLoongArchVirt(def->os.machine, def->os.arch);
+}
+
+bool
+qemuDomainIsXenFV(const virDomainDef *def)
+{
+    return qemuDomainMachineIsXenFV(def->os.machine, def->os.arch);
 }
 
 

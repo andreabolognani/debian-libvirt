@@ -6209,6 +6209,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
                                   "S:eim", qemuOnOffAuto(iommu->eim),
                                   "T:device-iotlb", iommu->iotlb,
                                   "z:aw-bits", iommu->aw_bits,
+                                  "T:dma-translation", iommu->dma_translation,
                                   NULL) < 0)
             return -1;
 
@@ -6520,6 +6521,16 @@ qemuBuildCpuCommandLine(virCommand *cmd,
                 if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
                     virBufferAsprintf(&buf, ",hv-vendor-id=%s",
                                       def->hyperv_vendor_id);
+                break;
+
+            case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
+                    virBufferAsprintf(&buf, ",%s=on", "hv-emsr-bitmap");
+                break;
+
+            case VIR_DOMAIN_HYPERV_XMM_INPUT:
+                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
+                    virBufferAsprintf(&buf, ",%s=on", "hv-xmm-input");
                 break;
 
             case VIR_DOMAIN_HYPERV_LAST:
@@ -6885,6 +6896,11 @@ qemuAppendDomainFeaturesMachineParam(virBuffer *buf,
     if (def->features[VIR_DOMAIN_FEATURE_RAS] != VIR_TRISTATE_SWITCH_ABSENT) {
         const char *str = virTristateSwitchTypeToString(def->features[VIR_DOMAIN_FEATURE_RAS]);
         virBufferAsprintf(buf, ",ras=%s", str);
+    }
+
+    if (def->features[VIR_DOMAIN_FEATURE_PS2] != VIR_TRISTATE_SWITCH_ABSENT) {
+        const char *str = virTristateSwitchTypeToString(def->features[VIR_DOMAIN_FEATURE_PS2]);
+        virBufferAsprintf(buf, ",i8042=%s", str);
     }
 
     return 0;
@@ -8626,6 +8642,7 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
     bool vhostfd = false; /* also used to signal processing of tapfds */
     size_t tapfdSize = net->driver.virtio.queues;
     g_autofree int *tapfd = g_new0(int, tapfdSize + 1);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
 
     memset(tapfd, -1, (tapfdSize + 1) * sizeof(*tapfd));
 
@@ -8636,8 +8653,12 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
     case VIR_DOMAIN_NET_TYPE_NETWORK:
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
         vhostfd = true;
-        if (qemuInterfaceBridgeConnect(vm->def, priv->driver, net,
-                                       tapfd, &tapfdSize) < 0)
+        if (virDomainInterfaceBridgeConnect(vm->def, net,
+                                            tapfd, &tapfdSize,
+                                            priv->driver->privileged,
+                                            priv->driver->ebtables,
+                                            priv->driver->config->macFilter,
+                                            cfg->bridgeHelperName) < 0)
             return -1;
         break;
 
