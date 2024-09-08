@@ -1,3 +1,12 @@
+libvirt (10.7.0-2) unstable; urgency=medium
+
+  * [6fb4103] control: Turn dmidecode back into a Recommends
+    - It was accidentally made it into a Depends in 10.6.0-2,
+      which has resulted in libvirt-daemon being uninstallable on
+      architectures that don't have dmidecode (e.g. ppc64el)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 08 Sep 2024 15:15:11 +0200
+
 libvirt (10.7.0-1) unstable; urgency=medium
 
   * [a84ccbd] New upstream version 10.7.0
