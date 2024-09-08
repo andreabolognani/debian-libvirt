@@ -194,7 +194,6 @@ Section: admin
 Architecture: linux-any
 Depends:
  adduser,
- dmidecode,
  gettext-base,
  iproute2,
  libvirt-common (= ${binary:Version}),
@@ -204,6 +203,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
+ dmidecode,
  netcat-openbsd,
  systemd-sysv | sysvinit-core,
 Suggests:
