@@ -1,3 +1,11 @@
+libvirt (10.7.0-3) unstable; urgency=medium
+
+  * [70a5d8d] patches: Add backport/apparmor-Don-t-check-for[...]
+    - Ensures that AppArmor doesn't get disabled for QEMU domains
+      just because the LXC driver is not installed (Closes: #1081396)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 16 Sep 2024 21:41:15 +0200
+
 libvirt (10.7.0-2) unstable; urgency=medium
 
   * [6fb4103] control: Turn dmidecode back into a Recommends
