@@ -1,3 +1,10 @@
+libvirt (10.8.0-1) UNRELEASED; urgency=medium
+
+  * [d22a732] New upstream version 10.8.0
+    - Update for qemu-bridge-helper's new location (Closes: #1082530)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 01 Oct 2024 22:06:02 +0200
+
 libvirt (10.7.0-3) unstable; urgency=medium
 
   * [70a5d8d] patches: Add backport/apparmor-Don-t-check-for[...]
