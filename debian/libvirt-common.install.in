@@ -60,6 +60,7 @@ usr/share/libvirt/cpu_map/x86_Penryn.xml
 usr/share/libvirt/cpu_map/x86_SandyBridge-IBRS.xml
 usr/share/libvirt/cpu_map/x86_SandyBridge.xml
 usr/share/libvirt/cpu_map/x86_SapphireRapids.xml
+usr/share/libvirt/cpu_map/x86_SierraForest.xml
 usr/share/libvirt/cpu_map/x86_Skylake-Client-IBRS.xml
 usr/share/libvirt/cpu_map/x86_Skylake-Client-noTSX-IBRS.xml
 usr/share/libvirt/cpu_map/x86_Skylake-Client.xml
