@@ -230,9 +230,16 @@ int virNetDevTapCreate(char **ifname,
         }
 
         if (ioctl(fd, TUNSETIFF, &ifr) < 0) {
-            virReportSystemError(errno,
-                                 _("Unable to create tap device %1$s"),
-                                 NULLSTR(*ifname));
+            if (flags & VIR_NETDEV_TAP_CREATE_ALLOW_EXISTING &&
+                tapfdSize > 0) {
+                virReportSystemError(errno,
+                                     _("Unable to create multiple fds for tap device %1$s (maybe existing device was created without multi_queue flag)"),
+                                     *ifname);
+            } else {
+                virReportSystemError(errno,
+                                     _("Unable to create tap device %1$s"),
+                                     *ifname);
+            }
             goto cleanup;
         }
 
@@ -247,7 +254,7 @@ int virNetDevTapCreate(char **ifname,
             ioctl(fd, TUNSETPERSIST, 1) < 0) {
             virReportSystemError(errno,
                                  _("Unable to set tap device %1$s to persistent"),
-                                 NULLSTR(*ifname));
+                                 *ifname);
             goto cleanup;
         }
         tapfd[i] = fd;
@@ -503,6 +510,9 @@ virNetDevTapAttachBridge(const char *tapname,
  * @virtVlan: vlan tag info
  * @mtu: requested MTU for port (or 0 for "default")
  * @actualMTU: MTU actually set for port (after accounting for bridge's MTU)
+ * @force: set true to force detach/reattach even if the bridge name is unchanged
+ *         (this can be useful if, for example, the profileid of the
+ *         <virtualport> changes)
  *
  * Ensures that the tap device (@tapname) is connected to the bridge
  * (@brname), potentially removing it from any existing bridge that
@@ -519,7 +529,8 @@ virNetDevTapReattachBridge(const char *tapname,
                            const virNetDevVlan *virtVlan,
                            virTristateBool isolatedPort,
                            unsigned int mtu,
-                           unsigned int *actualMTU)
+                           unsigned int *actualMTU,
+                           bool force)
 {
     bool useOVS = false;
     g_autofree char *master = NULL;
@@ -535,7 +546,7 @@ virNetDevTapReattachBridge(const char *tapname,
     }
 
     /* Nothing more todo if we're on the right bridge already */
-    if (STREQ_NULLABLE(brname, master))
+    if (STREQ_NULLABLE(brname, master) && !force)
         return 0;
 
     /* disconnect from current (incorrect) bridge, if any  */

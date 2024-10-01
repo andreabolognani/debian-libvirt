@@ -8,6 +8,93 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.8.0 (2024-10-01)
+====================
+
+* **Improvements**
+
+  * network: make networks with ``<forward mode='open'/>`` more useful
+
+    It is now permissable to have a ``<forward mode='open'>`` network that
+    has no IP address assigned to the host's port of the bridge. This
+    is the only way to create a libvirt network where guests are
+    unreachable from the host (and vice versa) and also 0 firewall
+    rules are added on the host.
+
+    It is now also possible for a ``<forward mode='open'/>`` network to
+    use the ``zone`` attribute of ``<bridge>`` to set the firewalld zone of
+    the bridge interface (normally it would not be set, as is done
+    with other forward modes).
+
+  * storage: Lessen dependancy on the ``showmount`` program
+
+    Libvirt now automatically detects presence of ``showmount`` during runtime
+    as we do with other helper programs and also the
+    ``daemon-driver-storage-core`` RPM package now doesn't strongly depend on it
+    if the users wish for a more minimal deployment.
+
+  * Switch from YAJL to json-c for JSON parsing and formatting
+
+    The parser and formatter in the libvirt library, as well
+    as the parsers in the nss plugin were rewritten to use json-c
+    instead of YAJL, which is effectively dead upstream.
+
+  * Relax restrictions for memorytune settings
+
+    It should now be possible to use resctrl on AMD CPUs as well as Intel CPUs
+    when the resctrl filesystem is mounted with ``mba_MBps`` option.
+
+* **Bug fixes**
+
+  * virsh: Fix script-friedly output of ``virsh list --uuid``
+
+    The script-friendly output of just 1 UUID per line was mistakenly replaced
+    by the full human-targetted table view full of redundant information
+    and very hard to parse. Users who wish to see the UUIDs in the tabular
+    output need to use ``virsh list --table --uuid`` as old behaviour was
+    reverted.
+
+    Note that this also broke the ``libvirt-guests`` script. The bug was
+    introduced in `v10.7.0 (2024-09-02)`_.
+
+  * network/qemu: fix some cases where ``device-update`` of a network
+    interface was failing:
+
+    * If the interface was connected to a libvirt network that was
+      providing a pool of VFs to be used with macvtap passthrough
+      mode, then *any* update to the interface would fail, even
+      changing the link state. Updating (the updateable parts of) a
+      macvtap passthrough interface will now succeed.
+
+    * It previously was not possible to move an interface from a Linux
+      host bridge to an OVS bridge. This (and the opposite direction)
+      now works.
+
+  * qemu: backup: Fix possible crashes when running monitoring commands during backup job
+
+    The qemu monitor code was fixed to not crash in specific cases when
+    monitoing APIs are called during a backup job.
+
+  * Fix various memleaks and overflows
+
+    Multiple memory leaks and overflows in corner cases were fixed based on
+    upstream issues reported.
+
+  * network: Better cleanup after disappeared networks
+
+    If a network disappeared while virtnetworkd was not running not all clean up
+    was done properly once the daemon was started, especially when only the
+    network interface disappeared.  This could have in some cases resulted in
+    the network being shown as inactive, but not being able to start.
+
+  * qemu: Remember memory backing directory for domains
+
+    If ``memory_backing_dir`` is changed during the lifetime of a domain with
+    file backed memory, files in the old directory would not be cleaned up once
+    the domain is shut down.  Now the directory that was used during startup is
+    remembered for each running domain.
+
+
 v10.7.0 (2024-09-02)
 ====================
 

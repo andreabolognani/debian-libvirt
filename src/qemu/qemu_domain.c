@@ -1735,8 +1735,67 @@ qemuDomainSecretPrepare(virQEMUDriver *driver,
 }
 
 
+static int
+qemuDomainGenerateMemoryBackingPath(qemuDomainObjPrivate *priv,
+                                    const virDomainDef *def)
+{
+    virQEMUDriver *driver = priv->driver;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    const char *root = driver->embeddedRoot;
+    g_autofree char *shortName = NULL;
+
+    if (priv->memoryBackingDir)
+        return 0;
+
+    if (!(shortName = virDomainDefGetShortName(def)))
+        return -1;
+
+    if (root && !STRPREFIX(cfg->memoryBackingDir, root)) {
+        g_autofree char * hash = virDomainDriverGenerateRootHash("qemu", root);
+        priv->memoryBackingDir = g_strdup_printf("%s/%s-%s",
+                                                 cfg->memoryBackingDir,
+                                                 hash, shortName);
+    } else {
+        priv->memoryBackingDir = g_strdup_printf("%s/%s",
+                                                 cfg->memoryBackingDir,
+                                                 shortName);
+    }
+
+    return 0;
+}
+
+
+/**
+ * qemuDomainGetMemoryBackingPath:
+ * @priv: domain private data
+ * @alias: memory object alias
+ * @memPath: constructed path
+ *
+ * Constructs path to memory backing dir and stores it at @memPath.
+ *
+ * Returns: 0 on success,
+ *          -1 otherwise (with error reported).
+ */
+int
+qemuDomainGetMemoryBackingPath(qemuDomainObjPrivate *priv,
+                               const char *alias,
+                               char **memPath)
+{
+    if (!alias) {
+        /* This should never happen (TM) */
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("memory device alias is not assigned"));
+        return -1;
+    }
+
+    *memPath = g_strdup_printf("%s/%s", priv->memoryBackingDir, alias);
+
+    return 0;
+}
+
+
 /* This is the old way of setting up per-domain directories */
-static void
+static int
 qemuDomainSetPrivatePathsOld(virQEMUDriver *driver,
                              virDomainObj *vm)
 {
@@ -1749,6 +1808,8 @@ qemuDomainSetPrivatePathsOld(virQEMUDriver *driver,
     if (!priv->channelTargetDir)
         priv->channelTargetDir = g_strdup_printf("%s/domain-%s",
                                                  cfg->channelTargetDir, vm->def->name);
+
+    return qemuDomainGenerateMemoryBackingPath(priv, vm->def);
 }
 
 
@@ -1770,7 +1831,7 @@ qemuDomainSetPrivatePaths(virQEMUDriver *driver,
         priv->channelTargetDir = g_strdup_printf("%s/%s",
                                                  cfg->channelTargetDir, domname);
 
-    return 0;
+    return qemuDomainGenerateMemoryBackingPath(priv, vm->def);
 }
 
 
@@ -1875,6 +1936,8 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
     g_slist_free_full(g_steal_pointer(&priv->threadContextAliases), g_free);
 
     priv->migrationRecoverSetup = false;
+
+    g_clear_pointer(&priv->memoryBackingDir, g_free);
 }
 
 
@@ -2649,6 +2712,7 @@ qemuDomainObjPrivateXMLFormat(virBuffer *buf,
     virBufferEscapeString(buf, "<libDir path='%s'/>\n", priv->libDir);
     virBufferEscapeString(buf, "<channelTargetDir path='%s'/>\n",
                           priv->channelTargetDir);
+    virBufferEscapeString(buf, "<memoryBackingDir path='%s'/>\n", priv->memoryBackingDir);
 
     virCPUDefFormatBufFull(buf, priv->origCPU, NULL);
 
@@ -3370,7 +3434,10 @@ qemuDomainObjPrivateXMLParse(xmlXPathContextPtr ctxt,
         priv->channelTargetDir = tmp;
     tmp = NULL;
 
-    qemuDomainSetPrivatePathsOld(driver, vm);
+    priv->memoryBackingDir = virXPathString("string(./memoryBackingDir/@path)", ctxt);
+
+    if (qemuDomainSetPrivatePathsOld(driver, vm) < 0)
+        return -1;
 
     if (virCPUDefParseXML(ctxt, "./cpu", VIR_CPU_TYPE_GUEST, &priv->origCPU,
                           false) < 0)
@@ -4150,6 +4217,25 @@ qemuDomainGetSCSIControllerModel(const virDomainDef *def,
 }
 
 
+static virDomainPanicModel
+qemuDomainDefaultPanicModel(const virDomainDef *def)
+{
+    if (qemuDomainIsPSeries(def))
+        return VIR_DOMAIN_PANIC_MODEL_PSERIES;
+
+    if (ARCH_IS_S390(def->os.arch))
+        return VIR_DOMAIN_PANIC_MODEL_S390;
+
+    if (ARCH_IS_X86(def->os.arch))
+        return VIR_DOMAIN_PANIC_MODEL_ISA;
+
+    if (qemuDomainIsARMVirt(def))
+        return VIR_DOMAIN_PANIC_MODEL_PVPANIC;
+
+    return VIR_DOMAIN_PANIC_MODEL_DEFAULT;
+}
+
+
 static int
 qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
                                virDomainDef *def,
@@ -4397,13 +4483,12 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
         return -1;
 
     if (addPanicDevice) {
+        virDomainPanicModel defaultModel = qemuDomainDefaultPanicModel(def);
         size_t j;
+
         for (j = 0; j < def->npanics; j++) {
             if (def->panics[j]->model == VIR_DOMAIN_PANIC_MODEL_DEFAULT ||
-                (ARCH_IS_PPC64(def->os.arch) &&
-                     def->panics[j]->model == VIR_DOMAIN_PANIC_MODEL_PSERIES) ||
-                (ARCH_IS_S390(def->os.arch) &&
-                     def->panics[j]->model == VIR_DOMAIN_PANIC_MODEL_S390))
+                def->panics[j]->model == defaultModel)
                 break;
         }
 
@@ -6100,14 +6185,8 @@ static int
 qemuDomainDevicePanicDefPostParse(virDomainPanicDef *panic,
                                   const virDomainDef *def)
 {
-    if (panic->model == VIR_DOMAIN_PANIC_MODEL_DEFAULT) {
-        if (qemuDomainIsPSeries(def))
-            panic->model = VIR_DOMAIN_PANIC_MODEL_PSERIES;
-        else if (ARCH_IS_S390(def->os.arch))
-            panic->model = VIR_DOMAIN_PANIC_MODEL_S390;
-        else
-            panic->model = VIR_DOMAIN_PANIC_MODEL_ISA;
-    }
+    if (panic->model == VIR_DOMAIN_PANIC_MODEL_DEFAULT)
+        panic->model = qemuDomainDefaultPanicModel(def);
 
     return 0;
 }

@@ -2128,7 +2128,9 @@ virCapabilitiesInitResctrlMemory(virCaps *caps)
         node = g_new0(virCapsHostMemBWNode, 1);
 
         if (virResctrlInfoGetMemoryBandwidth(caps->host.resctrl,
-                                             bank->level, &node->control) > 0) {
+                                             bank->level,
+                                             bank->id,
+                                             &node->control) > 0) {
             node->id = bank->id;
             node->cpus = virBitmapNewCopy(bank->cpus);
 
@@ -2161,7 +2163,7 @@ virCapabilitiesInitCaches(virCaps *caps)
     /* Minimum level to expose in capabilities.  Can be lowered or removed (with
      * the appropriate code below), but should not be increased, because we'd
      * lose information. */
-    const int cache_min_level = 3;
+    const int cache_min_level = 2;
 
     if (virCapabilitiesInitResctrl(caps) < 0)
         return -1;
@@ -2269,6 +2271,7 @@ virCapabilitiesInitCaches(virCaps *caps)
             if (i == caps->host.cache.nbanks) {
                 /* If it is a new cache, then update its resctrl information. */
                 if (virResctrlInfoGetCache(caps->host.resctrl,
+                                           bank->id,
                                            bank->level,
                                            bank->size,
                                            &bank->ncontrols,

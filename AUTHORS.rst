@@ -428,6 +428,7 @@ Patches have also been contributed by:
 * Jaak Ristioja <jaak@ristioja.ee>
 * Jakob Meng <jakobmeng@web.de>
 * Jakub Kuczys <me@jacken.men>
+* Jakub Palacky <jpalacky@redhat.com>
 * James Chapman <james.p.chapman@intel.com>
 * James Cowgill <james410@cowgill.org.uk>
 * james robson <jrobson@websense.com>
@@ -864,6 +865,7 @@ Patches have also been contributed by:
 * Stefan Seyfried <seife@b1-systems.de>
 * Stefan Zimmermann <stzi@linux.vnet.ibm.com>
 * Stef Walter <stefw@gnome.org>
+* Stepan Zobal <szobal@redhat.com>
 * Steve Hodgson <shodgson@solarflare.com>
 * Steven McDonald <steven.mcdonald@anchor.net.au>
 * Steve Yarmie <steve.yarmie@gmail.com>
@@ -903,6 +905,7 @@ Patches have also been contributed by:
 * Tomas Meszaros <exo@tty.sk>
 * Tomáš Ryšavý <tom.rysavy.0@gmail.com>
 * Tomasz Flendrich <t.flendrich@gmail.com>
+* Tom <libvirt-patch@douile.com>
 * Tomoki Sekiyama <tomoki.sekiyama@hds.com>
 * Tom Vijlbrief <tom.vijlbrief@xs4all.nl>
 * Tom Wieczorek <tom@bibbu.net>

@@ -504,6 +504,7 @@ static const struct testValidateSchemaCommandData commands[] = {
     { "-netdev", "netdev_add", false },
     { "-object", "object-add", false },
     { "-device", "device_add", true },
+    { "-chardev", "chardev-add", false },
 };
 
 static int
@@ -1622,6 +1623,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("controller-virtio-scsi");
     DO_TEST_CAPS_LATEST("controller-scsi-auto");
     DO_TEST_CAPS_LATEST("disk-sata-device");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-target-overflow");
     DO_TEST_CAPS_LATEST("disk-aio");
     DO_TEST_CAPS_LATEST("disk-aio-io_uring");
     DO_TEST_CAPS_LATEST("disk-source-pool");
@@ -1829,6 +1831,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("console-compat-auto");
     DO_TEST_CAPS_LATEST("console-compat-crash");
 
+    DO_TEST_CAPS_LATEST("chardev-backends");
+    /* As qemu doesn't yet support JSON syntax for -chardev we use the
+     * QEMU_CAPS_CHARDEV_JSON capability just in the tests to have QMP schema
+     * validation also for the QMP mode of the -chardev props generator */
+    DO_TEST_CAPS_ARCH_LATEST_FULL("chardev-backends-json", "x86_64", ARG_QEMU_CAPS, QEMU_CAPS_CHARDEV_JSON, QEMU_CAPS_LAST);
+
     DO_TEST_CAPS_LATEST("serial-vc-chardev");
     DO_TEST_CAPS_LATEST("serial-pty-chardev");
     DO_TEST_CAPS_LATEST("serial-dev-chardev");
@@ -1837,6 +1845,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("serial-unix-chardev");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("serial-unix-missing-source");
     DO_TEST_CAPS_LATEST("serial-tcp-chardev");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("serial-tcp-chardev-telnets");
     DO_TEST_CAPS_LATEST("serial-udp-chardev");
     DO_TEST_CAPS_LATEST("serial-tcp-telnet-chardev");
     driver.config->chardevTLS = 1;
@@ -2648,7 +2657,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("panic");
     DO_TEST_CAPS_LATEST("panic-double");
     DO_TEST_CAPS_LATEST("panic-no-address");
-    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("aarch64-panic-no-model", "aarch64");
+    DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("riscv64-panic-no-model", "riscv64");
 
     DO_TEST_CAPS_LATEST("pvpanic-pci-x86_64");
     DO_TEST_CAPS_ARCH_LATEST("pvpanic-pci-aarch64", "aarch64");

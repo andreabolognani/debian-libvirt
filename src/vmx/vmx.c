@@ -794,7 +794,7 @@ virVMXConvertToUTF8(const char *encoding, const char *string)
         goto cleanup;
     }
 
-    result = (char *)g_steal_pointer(&utf8->content);
+    result = (char *)xmlBufferDetach(utf8);
 
  cleanup:
     xmlCharEncCloseFunc(handler);
@@ -4203,10 +4203,9 @@ virVMXFormatSerial(virVMXContext *ctx, virDomainChrDef *def,
             break;
 
           default:
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unsupported character device TCP protocol '%1$s'"),
-                           virDomainChrTcpProtocolTypeToString(
-                               def->source->data.tcp.protocol));
+          case VIR_DOMAIN_CHR_TCP_PROTOCOL_LAST:
+            virReportEnumRangeError(virDomainChrTcpProtocol,
+                                    def->source->data.tcp.protocol);
             return -1;
         }
 

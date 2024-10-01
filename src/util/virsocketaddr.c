@@ -28,7 +28,11 @@
  * Helpers to extract the IP arrays from the virSocketAddr *
  * That part is the less portable of the module
  */
-typedef unsigned char virSocketAddrIPv4[4];
+typedef union {
+    uint32_t val;
+    unsigned char bytes[4];
+} virSocketAddrIPv4;
+
 typedef unsigned short virSocketAddrIPv6[8];
 typedef unsigned char virSocketAddrIPv6Bytes[16];
 typedef unsigned char virSocketAddrIPv6Nibbles[32];
@@ -37,18 +41,10 @@ static int
 virSocketAddrGetIPv4Addr(const virSocketAddr *addr,
                          virSocketAddrIPv4 *tab)
 {
-    unsigned long val;
-    size_t i;
-
     if (!addr || !tab || addr->data.stor.ss_family != AF_INET)
         return -1;
 
-    val = ntohl(addr->data.inet4.sin_addr.s_addr);
-
-    for (i = 0; i < 4; i++) {
-        (*tab)[3 - i] = val & 0xFF;
-        val >>= 8;
-    }
+    tab->val = addr->data.inet4.sin_addr.s_addr;
 
     return 0;
 }
@@ -685,31 +681,34 @@ virSocketAddrMask(const virSocketAddr *addr,
                   const virSocketAddr *netmask,
                   virSocketAddr *network)
 {
-    memset(network, 0, sizeof(*network));
+    virSocketAddr tmp = { 0 };
+
     if (addr->data.stor.ss_family != netmask->data.stor.ss_family) {
         network->data.stor.ss_family = AF_UNSPEC;
         return -1;
     }
 
     if (addr->data.stor.ss_family == AF_INET) {
-        network->data.inet4.sin_addr.s_addr
+        tmp.data.inet4.sin_addr.s_addr
             = (addr->data.inet4.sin_addr.s_addr
                & netmask->data.inet4.sin_addr.s_addr);
-        network->data.inet4.sin_port = 0;
-        network->data.stor.ss_family = AF_INET;
-        network->len = addr->len;
+        tmp.data.inet4.sin_port = 0;
+        tmp.data.stor.ss_family = AF_INET;
+        tmp.len = addr->len;
+        *network = tmp;
         return 0;
     }
     if (addr->data.stor.ss_family == AF_INET6) {
         size_t i;
         for (i = 0; i < 16; i++) {
-            network->data.inet6.sin6_addr.s6_addr[i]
+            tmp.data.inet6.sin6_addr.s6_addr[i]
                 = (addr->data.inet6.sin6_addr.s6_addr[i]
                    & netmask->data.inet6.sin6_addr.s6_addr[i]);
         }
-        network->data.inet6.sin6_port = 0;
-        network->data.stor.ss_family = AF_INET6;
-        network->len = addr->len;
+        tmp.data.inet6.sin6_port = 0;
+        tmp.data.stor.ss_family = AF_INET6;
+        tmp.len = addr->len;
+        *network = tmp;
         return 0;
     }
     network->data.stor.ss_family = AF_UNSPEC;
@@ -834,10 +833,8 @@ int virSocketAddrCheckNetmask(virSocketAddr *addr1, virSocketAddr *addr2,
             (virSocketAddrGetIPv4Addr(netmask, &tm) < 0))
             return -1;
 
-        for (i = 0; i < 4; i++) {
-            if ((t1[i] & tm[i]) != (t2[i] & tm[i]))
-                return 0;
-        }
+        if ((t1.val & tm.val) != (t2.val & tm.val))
+            return 0;
 
     } else if (addr1->data.stor.ss_family == AF_INET6) {
         virSocketAddrIPv6 t1, t2, tm;
@@ -969,35 +966,35 @@ virSocketAddrGetRange(virSocketAddr *start, virSocketAddr *end,
     }
 
     if (VIR_SOCKET_ADDR_IS_FAMILY(start, AF_INET)) {
-        virSocketAddrIPv4 t1, t2;
+        virSocketAddrIPv4 startv4, endv4;
+        uint32_t startHost, endHost;
 
-        if (virSocketAddrGetIPv4Addr(start, &t1) < 0 ||
-            virSocketAddrGetIPv4Addr(end, &t2) < 0) {
+        if (virSocketAddrGetIPv4Addr(start, &startv4) < 0 ||
+            virSocketAddrGetIPv4Addr(end, &endv4) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("failed to get IPv4 address for start or end of range %1$s - %2$s"),
                            startStr, endStr);
             return -1;
         }
 
-        /* legacy check that everything except the last two bytes
-         * are the same
-         */
-        for (i = 0; i < 2; i++) {
-            if (t1[i] != t2[i]) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("range %1$s - %2$s is too large (> 65535)"),
-                               startStr, endStr);
-                return -1;
-            }
-        }
-        ret = (t2[2] - t1[2]) * 256 + (t2[3] - t1[3]);
-        if (ret < 0) {
+        startHost = ntohl(startv4.val);
+        endHost = ntohl(endv4.val);
+
+        if (endHost < startHost) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
                            _("range %1$s - %2$s is reversed "),
                            startStr, endStr);
             return -1;
         }
-        ret++;
+
+        if (endHost - startHost > 65535) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("range %1$s - %2$s is too large (> 65535)"),
+                           startStr, endStr);
+            return -1;
+        }
+
+        ret = endHost - startHost + 1;
     } else if (VIR_SOCKET_ADDR_IS_FAMILY(start, AF_INET6)) {
         virSocketAddrIPv6 t1, t2;
 
@@ -1061,7 +1058,7 @@ int virSocketAddrGetNumNetmaskBits(const virSocketAddr *netmask)
             return -1;
 
         for (i = 0; i < 4; i++)
-            if (tm[i] == 0xff)
+            if (tm.bytes[i] == 0xff)
                 c += 8;
             else
                 break;
@@ -1072,7 +1069,7 @@ int virSocketAddrGetNumNetmaskBits(const virSocketAddr *netmask)
         j = i << 3;
         while (j < (8 * 4)) {
             bit = 1 << (7 - (j & 7));
-            if ((tm[j >> 3] & bit))
+            if ((tm.bytes[j >> 3] & bit))
                 c++;
             else
                 break;
@@ -1081,7 +1078,7 @@ int virSocketAddrGetNumNetmaskBits(const virSocketAddr *netmask)
 
         while (j < (8 * 4)) {
             bit = 1 << (7 - (j & 7));
-            if ((tm[j >> 3] & bit))
+            if ((tm.bytes[j >> 3] & bit))
                 return -1;
             j++;
         }
@@ -1323,7 +1320,7 @@ virSocketAddrPTRDomain(const virSocketAddr *addr,
             return -1;
 
         for (i = prefix / 8; i > 0; i--)
-            virBufferAsprintf(&buf, "%u.", ip[i - 1]);
+            virBufferAsprintf(&buf, "%u.", ip.bytes[i - 1]);
 
         virBufferAddLit(&buf, VIR_SOCKET_ADDR_IPV4_ARPA);
     } else if (VIR_SOCKET_ADDR_IS_FAMILY(addr, AF_INET6)) {
@@ -1386,7 +1383,7 @@ virSocketAddrBytes(const virSocketAddr *addr,
             return 0;
 
         virSocketAddrGetIPv4Addr(addr, &ip);
-        memcpy(bytes, ip, sizeof(ip));
+        memcpy(bytes, &ip, sizeof(ip));
         return sizeof(ip);
     }
 

@@ -31,6 +31,7 @@
 #include "qemu_slirp.h"
 #include "qemu_block.h"
 #include "qemu_fd.h"
+#include "qemu_chardev.h"
 #include "viralloc.h"
 #include "virlog.h"
 #include "virarch.h"
@@ -1292,203 +1293,6 @@ qemuBuildTLSx509CommandLine(virCommand *cmd,
 }
 
 
-static void
-qemuBuildChrChardevReconnectStr(virBuffer *buf,
-                                const virDomainChrSourceReconnectDef *def)
-{
-    if (def->enabled == VIR_TRISTATE_BOOL_YES) {
-        virBufferAsprintf(buf, ",reconnect=%u", def->timeout);
-    } else if (def->enabled == VIR_TRISTATE_BOOL_NO) {
-        virBufferAddLit(buf, ",reconnect=0");
-    }
-}
-
-
-static char *
-qemuBuildChardevStr(const virDomainChrSourceDef *dev,
-                    const char *charAlias)
-{
-
-    qemuDomainChrSourcePrivate *chrSourcePriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(dev);
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    const char *path;
-    virTristateSwitch append;
-
-    switch ((virDomainChrType) dev->type) {
-    case VIR_DOMAIN_CHR_TYPE_NULL:
-        virBufferAsprintf(&buf, "null,id=%s", charAlias);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_VC:
-        virBufferAsprintf(&buf, "vc,id=%s", charAlias);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_PTY:
-        virBufferAsprintf(&buf, "pty,id=%s", charAlias);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_DEV: {
-        const char *backend = "serial";
-
-        if (STRPREFIX(charAlias, "charparallel"))
-            backend = "parallel";
-
-        virBufferAsprintf(&buf, "%s,id=%s,path=", backend, charAlias);
-        virQEMUBuildBufferEscapeComma(&buf, dev->data.file.path);
-        break;
-    }
-
-    case VIR_DOMAIN_CHR_TYPE_FILE:
-        virBufferAsprintf(&buf, "file,id=%s", charAlias);
-        path = dev->data.file.path;
-        append = dev->data.file.append;
-
-        if (chrSourcePriv->sourcefd) {
-            path = qemuFDPassGetPath(chrSourcePriv->sourcefd);
-            append = VIR_TRISTATE_SWITCH_ON;
-        }
-
-        virBufferAddLit(&buf, ",path=");
-        virQEMUBuildBufferEscapeComma(&buf, path);
-        if (append != VIR_TRISTATE_SWITCH_ABSENT) {
-            virBufferAsprintf(&buf, ",append=%s",
-                              virTristateSwitchTypeToString(append));
-        }
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_PIPE:
-        virBufferAsprintf(&buf, "pipe,id=%s,path=", charAlias);
-        virQEMUBuildBufferEscapeComma(&buf, dev->data.file.path);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_STDIO:
-        virBufferAsprintf(&buf, "stdio,id=%s", charAlias);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_UDP: {
-        const char *connectHost = dev->data.udp.connectHost;
-        const char *bindHost = dev->data.udp.bindHost;
-        const char *bindService = dev->data.udp.bindService;
-
-        if (connectHost == NULL)
-            connectHost = "";
-        if (bindHost == NULL)
-            bindHost = "";
-        if (bindService == NULL)
-            bindService = "0";
-
-        virBufferAsprintf(&buf,
-                          "udp,id=%s,host=%s,port=%s,localaddr=%s,"
-                          "localport=%s",
-                          charAlias,
-                          connectHost,
-                          dev->data.udp.connectService,
-                          bindHost, bindService);
-        break;
-    }
-
-    case VIR_DOMAIN_CHR_TYPE_TCP:
-        virBufferAsprintf(&buf,
-                          "socket,id=%s,host=%s,port=%s",
-                          charAlias,
-                          dev->data.tcp.host,
-                          dev->data.tcp.service);
-
-        if (dev->data.tcp.protocol == VIR_DOMAIN_CHR_TCP_PROTOCOL_TELNET)
-            virBufferAddLit(&buf, ",telnet=on");
-
-        if (dev->data.tcp.listen) {
-            virBufferAddLit(&buf, ",server=on");
-            if (!chrSourcePriv->wait)
-                virBufferAddLit(&buf, ",wait=off");
-        }
-
-        qemuBuildChrChardevReconnectStr(&buf, &dev->data.tcp.reconnect);
-
-        if (chrSourcePriv->tlsCredsAlias)
-            virBufferAsprintf(&buf, ",tls-creds=%s", chrSourcePriv->tlsCredsAlias);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_UNIX:
-        virBufferAsprintf(&buf, "socket,id=%s", charAlias);
-        if (chrSourcePriv->directfd) {
-            virBufferAsprintf(&buf, ",fd=%s", qemuFDPassDirectGetPath(chrSourcePriv->directfd));
-        } else {
-            virBufferAddLit(&buf, ",path=");
-            virQEMUBuildBufferEscapeComma(&buf, dev->data.nix.path);
-        }
-
-        if (dev->data.nix.listen) {
-            virBufferAddLit(&buf, ",server=on");
-            if (!chrSourcePriv->wait)
-                virBufferAddLit(&buf, ",wait=off");
-        }
-
-        qemuBuildChrChardevReconnectStr(&buf, &dev->data.nix.reconnect);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
-        virBufferAsprintf(&buf, "spicevmc,id=%s,name=%s", charAlias,
-                          virDomainChrSpicevmcTypeToString(dev->data.spicevmc));
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
-        virBufferAsprintf(&buf, "spiceport,id=%s,name=%s", charAlias,
-                          dev->data.spiceport.channel);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
-        virBufferAsprintf(&buf, "qemu-vdagent,id=%s,name=vdagent",
-                          charAlias);
-        if (dev->data.qemuVdagent.clipboard != VIR_TRISTATE_BOOL_ABSENT)
-            virBufferAsprintf(&buf, ",clipboard=%s",
-                              virTristateSwitchTypeToString(dev->data.qemuVdagent.clipboard));
-        switch (dev->data.qemuVdagent.mouse) {
-            case VIR_DOMAIN_MOUSE_MODE_CLIENT:
-                virBufferAddLit(&buf, ",mouse=on");
-                break;
-            case VIR_DOMAIN_MOUSE_MODE_SERVER:
-                virBufferAddLit(&buf, ",mouse=off");
-                break;
-            case VIR_DOMAIN_MOUSE_MODE_DEFAULT:
-            case VIR_DOMAIN_MOUSE_MODE_LAST:
-            default:
-                break;
-        }
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_DBUS:
-        virBufferAsprintf(&buf, "dbus,id=%s,name=%s", charAlias,
-                          dev->data.dbus.channel);
-        break;
-
-    case VIR_DOMAIN_CHR_TYPE_NMDM:
-    case VIR_DOMAIN_CHR_TYPE_LAST:
-    default:
-        break;
-    }
-
-    if (dev->logfile) {
-        path = dev->logfile;
-        append = dev->logappend;
-
-        if (chrSourcePriv->logfd) {
-            path = qemuFDPassGetPath(chrSourcePriv->logfd);
-            append = VIR_TRISTATE_SWITCH_ON;
-        }
-
-        virBufferAddLit(&buf, ",logfile=");
-        virQEMUBuildBufferEscapeComma(&buf, path);
-        if (append != VIR_TRISTATE_SWITCH_ABSENT) {
-            virBufferAsprintf(&buf, ",logappend=%s",
-                              virTristateSwitchTypeToString(append));
-        }
-    }
-
-    return virBufferContentAndReset(&buf);
-}
-
-
 static int
 qemuBuildChardevCommand(virCommand *cmd,
                         const virDomainChrSourceDef *dev,
@@ -1496,7 +1300,6 @@ qemuBuildChardevCommand(virCommand *cmd,
                         virQEMUCaps *qemuCaps)
 {
     qemuDomainChrSourcePrivate *chrSourcePriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(dev);
-    g_autofree char *charstr = NULL;
 
     switch ((virDomainChrType) dev->type) {
     case VIR_DOMAIN_CHR_TYPE_TCP:
@@ -1564,10 +1367,8 @@ qemuBuildChardevCommand(virCommand *cmd,
 
     qemuFDPassTransferCommand(chrSourcePriv->logfd, cmd);
 
-    if (!(charstr = qemuBuildChardevStr(dev, charAlias)))
+    if (qemuChardevBuildCommandline(cmd, dev, charAlias, qemuCaps) < 0)
         return -1;
-
-    virCommandAddArgList(cmd, "-chardev", charstr, NULL);
 
     qemuDomainChrSourcePrivateClearFDPass(chrSourcePriv);
 
@@ -3421,7 +3222,8 @@ qemuBuildMemoryBackendProps(virJSONValue **backendProps,
         } else {
             /* We can have both pagesize and mem source. If that's the case,
              * prefer hugepages as those are more specific. */
-            if (qemuGetMemoryBackingPath(priv->driver, def, mem->info.alias, &memPath) < 0)
+            if (qemuDomainGetMemoryBackingPath(priv, mem->info.alias,
+                                               &memPath) < 0)
                 return -1;
         }
 
@@ -7315,7 +7117,7 @@ qemuBuildMemPathStr(const virDomainDef *def,
             return -1;
         prealloc = true;
     } else if (def->mem.source == VIR_DOMAIN_MEMORY_SOURCE_FILE) {
-        if (qemuGetMemoryBackingPath(priv->driver, def, "ram", &mem_path) < 0)
+        if (qemuDomainGetMemoryBackingPath(priv, "ram", &mem_path) < 0)
             return -1;
     }
 

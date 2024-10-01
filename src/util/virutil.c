@@ -31,6 +31,10 @@
 # include <conio.h>
 #endif /* WIN32 */
 
+#ifdef WITH_LIBBSD
+# include <bsd/readpassphrase.h>
+#endif
+
 #ifdef __linux__
 # include <sys/sysmacros.h>
 #endif
@@ -338,11 +342,17 @@ int virDiskNameParse(const char *name, int *disk, int *partition)
         return -1;
 
     for (i = 0; *ptr; i++) {
+        int c = *ptr - 'a';
+
         if (!g_ascii_islower(*ptr))
             break;
 
-        idx = (idx + (i < 1 ? 0 : 1)) * 26;
-        idx += *ptr - 'a';
+        idx = (idx + (i < 1 ? 0 : 1));
+
+        if (VIR_MULTIPLY_ADD_IS_OVERFLOW(INT_MAX, idx, 26, c))
+            return -1;
+
+        idx = idx * 26 + c;
         ptr++;
     }
 
@@ -1767,6 +1777,19 @@ char *virGetPassword(void)
     }
 
     return g_string_free(pw, FALSE);
+#elif WITH_LIBBSD /* !WIN32 */
+# ifndef PASS_MAX
+#  define PASS_MAX 1024
+# endif
+    char *pass = NULL;
+    g_autofree char *buffer = g_new0(char, PASS_MAX);
+
+    pass = readpassphrase("", buffer, PASS_MAX, 0);
+    if (pass == NULL) {
+        return NULL;
+    }
+
+    return g_steal_pointer(&buffer);
 #else /* !WIN32 */
     return g_strdup(getpass(""));
 #endif /* ! WIN32 */

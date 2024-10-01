@@ -1018,8 +1018,11 @@ CPU Tuning
       ``id``
          Host node id from which to allocate memory bandwidth.
       ``bandwidth``
-         The memory bandwidth to allocate from this node. The value by default
-         is in percentage.
+         The memory bandwidth to allocate from this node. The value is usually
+         in percent (Intel) but can also be in MB/s (if resctrl is mounted with
+         the ``mba_MBps`` option) or in 1/8 GB/s increments (AMD).  The user is
+         responsible for making sure the value makes sense on their system and
+         configuration.
 
 
 Memory Allocation
@@ -6205,10 +6208,10 @@ hypervisor tries to reconnect.
 Traffic filtering with NWFilter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:since:`Since 0.8.0` an ``nwfilter`` profile can be assigned to a domain
-interface, which allows configuring traffic filter rules for the virtual
-machine. See the `nwfilter <formatnwfilter.html>`__ documentation for more
-complete details.
+:since:`Since 0.8.0 (QEMU), 0.9.3 (LXC), 10.1.0 (Cloud Hypervisor)` an
+``nwfilter`` profile can be assigned to a domain interface, which allows
+configuring network traffic filter rules for the virtual machine. See the
+`nwfilter <formatnwfilter.html>`__ documentation for more complete details.
 
 ::
 

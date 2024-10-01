@@ -2451,6 +2451,7 @@ virFirewallDGetPolicies;
 virFirewallDGetVersion;
 virFirewallDGetZones;
 virFirewallDInterfaceSetZone;
+virFirewallDInterfaceUnsetZone;
 virFirewallDIsRegistered;
 virFirewallDPolicyExists;
 virFirewallDSynchronize;
@@ -2612,6 +2613,7 @@ virISCSIScanTargets;
 
 
 # util/virjson.h
+virJSONStringPrettifyBlanks;
 virJSONStringReformat;
 virJSONValueArrayAppend;
 virJSONValueArrayAppendString;
