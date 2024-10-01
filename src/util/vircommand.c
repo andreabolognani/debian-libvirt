@@ -473,17 +473,12 @@ virExecCommon(virCommand *cmd, gid_t *groups, int ngroups)
 }
 
 # ifdef __linux__
-/* On Linux, we can utilize procfs and read the table of opened
- * FDs and selectively close only those FDs we don't want to pass
- * onto child process (well, the one we will exec soon since this
- * is called from the child). */
 static int
-virCommandMassCloseGetFDsLinux(virCommand *cmd G_GNUC_UNUSED,
-                               virBitmap *fds)
+virCommandMassCloseGetFDsDir(virBitmap *fds,
+                             const char *dirName)
 {
     g_autoptr(DIR) dp = NULL;
     struct dirent *entry;
-    const char *dirName = "/proc/self/fd";
     int rc;
 
     if (virDirOpen(&dp, dirName) < 0)
@@ -499,7 +494,7 @@ virCommandMassCloseGetFDsLinux(virCommand *cmd G_GNUC_UNUSED,
             return -1;
         }
 
-        ignore_value(virBitmapSetBit(fds, fd));
+        virBitmapSetBitExpand(fds, fd);
     }
 
     if (rc < 0)
@@ -507,17 +502,22 @@ virCommandMassCloseGetFDsLinux(virCommand *cmd G_GNUC_UNUSED,
 
     return 0;
 }
-
-# else /* !__linux__ */
+# endif /* __linux__ */
 
 static int
-virCommandMassCloseGetFDsGeneric(virCommand *cmd G_GNUC_UNUSED,
-                                 virBitmap *fds)
+virCommandMassCloseGetFDs(virBitmap *fds)
 {
+# ifdef __linux__
+    /* On Linux, we can utilize procfs and read the table of opened
+     * FDs and selectively close only those FDs we don't want to pass
+     * onto child process (well, the one we will exec soon since this
+     * is called from the child). */
+    return virCommandMassCloseGetFDsDir(fds, "/proc/self/fd");
+# else
     virBitmapSetAll(fds);
     return 0;
+# endif
 }
-# endif /* !__linux__ */
 
 static int
 virCommandMassCloseFrom(virCommand *cmd,
@@ -539,20 +539,17 @@ virCommandMassCloseFrom(virCommand *cmd,
      * Therefore we can safely allocate memory here (and transitively call
      * opendir/readdir) without a deadlock. */
 
-    if (openmax < 0) {
-        virReportSystemError(errno, "%s", _("sysconf(_SC_OPEN_MAX) failed"));
-        return -1;
+    if (openmax <= 0) {
+        /* Darwin defaults to 10240. Start with a generous value.
+         * virCommandMassCloseGetFDsDir() uses virBitmapSetBitExpand() anyways.
+         */
+        openmax = 10240;
     }
 
     fds = virBitmapNew(openmax);
 
-# ifdef __linux__
-    if (virCommandMassCloseGetFDsLinux(cmd, fds) < 0)
+    if (virCommandMassCloseGetFDs(fds) < 0)
         return -1;
-# else
-    if (virCommandMassCloseGetFDsGeneric(cmd, fds) < 0)
-        return -1;
-# endif
 
     lastfd = MAX(lastfd, childin);
     lastfd = MAX(lastfd, childout);

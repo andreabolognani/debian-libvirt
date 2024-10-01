@@ -347,7 +347,15 @@ virConfParseLong(virConfParserCtxt *ctxt, long long *val)
         return -1;
     }
     while ((ctxt->cur < ctxt->end) && (g_ascii_isdigit(CUR))) {
-        l = l * 10 + (CUR - '0');
+        long long c = (CUR - '0');
+
+        if (VIR_MULTIPLY_ADD_IS_OVERFLOW(LLONG_MAX, l, 10, c)) {
+            virConfError(ctxt, VIR_ERR_OVERFLOW,
+                         _("numeric overflow in conf value"));
+            return -1;
+        }
+
+        l = l * 10 + c;
         NEXT;
     }
     if (neg)
@@ -545,7 +553,7 @@ virConfParseName(virConfParserCtxt *ctxt)
     while ((ctxt->cur < ctxt->end) &&
            (g_ascii_isalnum(CUR) || (CUR == '_') ||
             ((ctxt->conf->flags & VIR_CONF_FLAG_VMX_FORMAT) &&
-             ((CUR == ':') || (CUR == '.') || (CUR == '-'))) ||
+             ((CUR == ':') || (CUR == '.') || (CUR == '-') || (CUR == '*'))) ||
             ((ctxt->conf->flags & VIR_CONF_FLAG_LXC_FORMAT) &&
              (CUR == '.'))))
         NEXT;

@@ -12,8 +12,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-08-27 08:20+0000\n"
-"PO-Revision-Date: 2024-09-01 21:38+0000\n"
+"POT-Creation-Date: 2024-09-25 07:59+0000\n"
+"PO-Revision-Date: 2024-09-22 12:38+0000\n"
 "Last-Translator: Andi Chandler <andi@gowling.com>\n"
 "Language-Team: English (United Kingdom) <https://translate.fedoraproject.org/"
 "projects/libvirt/libvirt/en_GB/>\n"
@@ -22,7 +22,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.7.1\n"
+"X-Generator: Weblate 5.7.2\n"
 
 msgid ""
 "\n"
@@ -1728,13 +1728,13 @@ msgstr "<snapshot> element is currently supported only with 'rbd' disks"
 msgid "<uuid> does not match secret file name '%1$s'"
 msgstr "<uuid> does not match secret file name '%1$s'"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "<virtualport type='%1$s'> not supported for network '%2$s' which uses IP "
 "forwarding"
 msgstr ""
-"<virtualport type='%1$s'> not supported for network '%2$s' which uses a "
-"bridge device"
+"<virtualport type='%1$s'> not supported for network '%2$s' which uses IP "
+"forwarding"
 
 #, c-format
 msgid ""
@@ -1793,18 +1793,16 @@ msgstr "A different callback was requested"
 msgid ""
 "A domain definition can have no more than one cipher node with name %1$s"
 msgstr ""
+"A domain definition can have no more than one cipher node with name %1$s"
 
-#, fuzzy
 msgid "A interface driver is already registered"
-msgstr "A close callback is already registered"
+msgstr "A interface driver is already registered"
 
-#, fuzzy
 msgid "A network driver is already registered"
-msgstr "Network device %s already exists"
+msgstr "A network driver is already registered"
 
-#, fuzzy
 msgid "A network filter driver is already registered"
-msgstr "A close callback is already registered"
+msgstr "A network filter driver is already registered"
 
 #, c-format
 msgid ""
@@ -1814,46 +1812,44 @@ msgstr ""
 "A network with forward mode='%1$s' can specify a bridge name or a forward "
 "dev, but not both (network '%2$s')"
 
-#, fuzzy
 msgid "A node device driver is already registered"
-msgstr "A close callback is already registered"
+msgstr "A node device driver is already registered"
 
-#, fuzzy
 msgid "A secret driver is already registered"
-msgstr "A close callback is already registered"
+msgstr "A secret driver is already registered"
 
 msgid ""
 "A single <secret type='passphrase'...> element is expected in encryption "
 "description"
 msgstr ""
+"A single <secret type='passphrase'...> element is expected in encryption "
+"description"
 
-#, fuzzy
 msgid "A storage driver is already registered"
-msgstr "A close callback is already registered"
+msgstr "A storage driver is already registered"
 
 msgid "ACPI ERST device must reside on a PCI bus"
-msgstr ""
+msgstr "ACPI ERST device must reside on a PCI bus"
 
 msgid "ACPI index is not supported with this QEMU"
-msgstr ""
+msgstr "ACPI index is not supported with this QEMU"
 
 msgid "ACPI index is only supported for PCI devices"
-msgstr ""
+msgstr "ACPI index is only supported for PCI devices"
 
 msgid "ACPI requires UEFI on this architecture"
-msgstr ""
+msgstr "ACPI requires UEFI on this architecture"
 
 #, c-format
 msgid "AES256CBC encryption invalid keylen=%1$zu"
-msgstr ""
+msgstr "AES256CBC encryption invalid keylen=%1$zu"
 
 #, c-format
 msgid "AES256CBC initialization vector invalid len=%1$zu"
-msgstr ""
+msgstr "AES256CBC initialisation vector invalid len=%1$zu"
 
-#, fuzzy
 msgid "API error"
-msgstr "I/O error"
+msgstr "API error"
 
 msgid "Aborts the currently running domain job"
 msgstr "Aborts the currently running domain job"
@@ -1873,13 +1869,11 @@ msgstr "Activation of snoop request failed on interface '%1$s'"
 msgid "Active %1$s devices on bus with %2$s, not doing bus reset"
 msgstr "Active %1$s devices on bus with %2$s, not doing bus reset"
 
-#, fuzzy
 msgid "Active Block Commit"
-msgstr "Block Commit"
+msgstr "Active Block Commit"
 
-#, fuzzy
 msgid "Active Block Commit started"
-msgstr "Block Commit started"
+msgstr "Active Block Commit started"
 
 msgid "Active channel stream exists for this domain"
 msgstr "Active channel stream exists for this domain"
@@ -1890,36 +1884,34 @@ msgstr "Active console session exists for this domain"
 msgid "Active:"
 msgstr "Active:"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Actual interface '%1$s' hostdev was not a PCI device"
-msgstr "device %1$s is not a PCI device"
+msgstr "Actual interface '%1$s' hostdev was not a PCI device"
 
-#, fuzzy
 msgid "Add an IOThread to the guest domain."
-msgstr "Inject NMI to the guest domain."
+msgstr "Add an IOThread to the guest domain."
 
 msgid "Add or remove vcpus"
-msgstr ""
+msgstr "Add or remove vCPUs"
 
 msgid "Added"
-msgstr ""
+msgstr "Added"
 
-#, fuzzy
 msgid "Address"
-msgstr "MAC Address"
+msgstr "Address"
 
 msgid "Advice from numad is needed in case of automatic numa placement"
-msgstr ""
+msgstr "Advice from numad is needed in case of automatic NUMA placement"
 
 #, c-format
 msgid "After dumping core, failed to resume domain '%1$d' with libxenlight"
 msgstr "After dumping core, failed to resume domain '%1$d' with libxenlight"
 
 msgid "Agent authentication is not supported on this host"
-msgstr ""
+msgstr "Agent authentication is not supported on this host"
 
 msgid "Ain't nobody heard of that much cache level"
-msgstr ""
+msgstr "Ain't nobody heard of that much cache level"
 
 msgid "All identities provided by the SSH Agent were rejected"
 msgstr "All identities provided by the SSH Agent were rejected"
@@ -1932,7 +1924,7 @@ msgstr ""
 "server"
 
 msgid "Allocate or free some pages in the pool for NUMA cell."
-msgstr ""
+msgstr "Allocate or free some pages in the pool for NUMA cell."
 
 msgid "Allocation"
 msgstr "Allocation"
@@ -1940,18 +1932,17 @@ msgstr "Allocation"
 msgid "Allocation:"
 msgstr "Allocation:"
 
-#, fuzzy
 msgid "Allows setting or modifying the description or title of a domain."
-msgstr "Shows or modifies the XML metadata of a domain."
+msgstr "Allows setting or modifying the description or title of a domain."
 
 msgid "Allows setting or modifying the description or title of a network."
-msgstr ""
+msgstr "Allows setting or modifying the description or title of a network."
 
 msgid "An error occurred, but the cause is unknown"
 msgstr "An error occurred, but the cause is unknown"
 
 msgid "An event loop implementation must be registered"
-msgstr ""
+msgstr "An event loop implementation must be registered"
 
 msgid "An explicit disk format must be specified"
 msgstr "An explicit disk format must be specified"
@@ -1960,9 +1951,8 @@ msgstr "An explicit disk format must be specified"
 msgid "Ancestor model %1$s not found for CPU model %2$s"
 msgstr "Ancestor model %1$s not found for CPU model %2$s"
 
-#, fuzzy
 msgid "Another relabel transaction is already started"
-msgstr "Cannot share CURL handle that is already shared"
+msgstr "Another relabel transaction is already started"
 
 msgid "AnyType is missing 'type' property"
 msgstr "AnyType is missing 'type' property"
@@ -1971,15 +1961,19 @@ msgid ""
 "Append, reset or remove specified key from the authorized keys file for "
 "given user"
 msgstr ""
+"Append, reset or remove specified key from the authorised keys file for "
+"given user"
 
 msgid ""
 "Argument 'cellid' in memnode element must correspond to existing guest's "
 "NUMA cell"
 msgstr ""
+"Argument 'cellid' in memnode element must correspond to existing guest's "
+"NUMA cell"
 
 #, c-format
 msgid "Argument 'node' %1$zu outranges defined number of NUMA nodes"
-msgstr ""
+msgstr "Argument 'node' %1$zu outranges defined number of NUMA nodes"
 
 msgid "Arguments must be non null"
 msgstr "Arguments must be non null"
@@ -1988,13 +1982,14 @@ msgid ""
 "Arguments under memnode element do not correspond with existing guest's NUMA "
 "cell"
 msgstr ""
+"Arguments under memnode element do not correspond with existing guest's NUMA "
+"cell"
 
 msgid "At least one NUMA node has to have CPUs"
-msgstr ""
+msgstr "At least one NUMA node has to have CPUs"
 
-#, fuzzy
 msgid "At least one PTY console is required"
-msgstr "At least one cgroup controller is required"
+msgstr "At least one PTY console is required"
 
 msgid "At least one cgroup controller is required"
 msgstr "At least one cgroup controller is required"
@@ -2002,25 +1997,30 @@ msgstr "At least one cgroup controller is required"
 msgid ""
 "At least one numa node has to be configured when enabling memory hotplug"
 msgstr ""
+"At least one NUMA node has to be configured when enabling memory hotplug"
 
 #, c-format
 msgid ""
 "At least one of name, mac, or ip attribute must be specified for static host "
 "definition in network '%1$s'"
 msgstr ""
+"At least one of name, MAC, or IP attribute must be specified for static host "
+"definition in network '%1$s'"
 
 msgid ""
 "At least one of options --max-clients, --max-unauth-clients is mandatory"
 msgstr ""
+"At least one of options --max-clients, --max-unauth-clients is mandatory"
 
 msgid ""
 "At least one of options --min-workers, --max-workers, --priority-workers is "
 "mandatory"
 msgstr ""
+"At least one of options --min-workers, --max-workers, --priority-workers is "
+"mandatory"
 
-#, fuzzy
 msgid "At least one tty is required"
-msgstr "At least one cgroup controller is required"
+msgstr "At least one tty is required"
 
 msgid "Attach device from an XML <file>."
 msgstr "Attach device from an XML <file>."
@@ -2037,21 +2037,22 @@ msgstr "Attached device %1$s has no type"
 
 #, c-format
 msgid "Attaching devices of type %1$d is not implemented"
-msgstr ""
+msgstr "Attaching devices of type %1$d is not implemented"
 
 #, c-format
 msgid ""
 "Attaching memory device with size '%1$llu' would exceed domain's maxMemory "
 "config size '%2$llu'"
 msgstr ""
+"Attaching memory device with size '%1$llu' would exceed domain's maxMemory "
+"config size '%2$llu'"
 
 #, c-format
 msgid "Attempt to create %1$s without specifying mode"
 msgstr "Attempt to create %1$s without specifying mode"
 
-#, fuzzy
 msgid "Attempt to migrate guest to the same host"
-msgstr "Attempt to migrate guest to the same host %s"
+msgstr "Attempt to migrate guest to the same host"
 
 #, c-format
 msgid "Attempt to migrate guest to the same host %1$s"
@@ -2059,7 +2060,7 @@ msgstr "Attempt to migrate guest to the same host %1$s"
 
 #, c-format
 msgid "Attempt to overwrite resctrlid='%1$s' with id='%2$s'"
-msgstr ""
+msgstr "Attempt to overwrite resctrlid='%1$s' with id='%2$s'"
 
 msgid "Attempt to send a non-blocking message with a synchronous reply"
 msgstr "Attempt to send a non-blocking message with a synchronous reply"
@@ -2072,19 +2073,20 @@ msgid "Attempted double use of PCI Address %1$s"
 msgstr "Attempted double use of PCI Address %1$s"
 
 msgid "Attempting to start nbdkit twice"
-msgstr ""
+msgstr "Attempting to start nbdkit twice"
 
 msgid ""
 "Attribute migratable is only allowed for 'host-passthrough' / 'maximum' CPU "
 "mode"
 msgstr ""
+"Attribute migratable is only allowed for 'host-passthrough' / 'maximum' CPU "
+"mode"
 
 msgid "Attribute mode is only allowed for guest CPU"
 msgstr "Attribute mode is only allowed for guest CPU"
 
-#, fuzzy
 msgid "Audit is not supported by the kernel"
-msgstr "unpriv_sgio is not supported by this kernel"
+msgstr "Audit is not supported by the kernel"
 
 msgid ""
 "Auto allocation of spice TLS port requested but spice TLS is disabled in "
@@ -2094,7 +2096,7 @@ msgstr ""
 "qemu.conf"
 
 msgid "Auto converge throttle:"
-msgstr ""
+msgstr "Auto converge throttle:"
 
 msgid "Automatic disk lease mode enabled, but no host ID is set"
 msgstr "Automatic disk lease mode enabled, but no host ID is set"
@@ -2112,19 +2114,20 @@ msgid ""
 "Available servers on a daemon. Currently only supports 'libvirtd' or "
 "'virtproxyd'."
 msgstr ""
+"Available servers on a daemon. Currently only supports 'libvirtd' or "
+"'virtproxyd'."
 
 msgid "Available:"
 msgstr "Available:"
 
 msgid "BIOS serial console only supported on x86 architectures"
-msgstr ""
+msgstr "BIOS serial console only supported on x86 architectures"
 
 msgid "Backup"
-msgstr ""
+msgstr "Backup"
 
-#, fuzzy
 msgid "Backup Dump XML"
-msgstr "Snapshot Dump XML"
+msgstr "Backup Dump XML"
 
 msgid "Backup started\n"
 msgstr "Backup started\n"
@@ -2143,25 +2146,23 @@ msgstr "Bad ipv4 start address '%1$s' in <nat> in <forward> in network '%2$s'"
 
 #, c-format
 msgid "Bad prefix name '%1$s' for resctrl monitor"
-msgstr ""
+msgstr "Bad prefix name '%1$s' for resctrl monitor"
 
 msgid "Bad usage"
-msgstr ""
+msgstr "Bad usage"
 
 msgid "Bad value for nativeMode"
 msgstr "Bad value for nativeMode"
 
-#, fuzzy
 msgid "Bandwidth rate limiting is not supported"
-msgstr "disk format %s is not supported"
+msgstr "Bandwidth rate limiting is not supported"
 
 #, c-format
 msgid "Before dumping core, failed to suspend domain '%1$d' with libxenlight"
 msgstr "Before dumping core, failed to suspend domain '%1$d' with libxenlight"
 
-#, fuzzy
 msgid "Bhyve version does not support framebuffer"
-msgstr "Kernel does not support private devpts"
+msgstr "Bhyve version does not support framebuffer"
 
 #, c-format
 msgid ""
@@ -11129,9 +11130,6 @@ msgstr ""
 msgid "Memory Bandwidth already defined for node %1$u"
 msgstr "security label already defined for VM"
 
-msgid "Memory Bandwidth value exceeding 100 is invalid."
-msgstr ""
-
 #, c-format
 msgid ""
 "Memory balloon device type '%1$s' is not supported by this version of qemu"
@@ -11624,10 +11622,6 @@ msgid "Missing or inconsistent resctrl info for level '%1$u' type '%2$s'"
 msgstr ""
 
 msgid "Missing or inconsistent resctrl info for memory bandwidth allocation"
-msgstr ""
-
-#, c-format
-msgid "Missing or inconsistent resctrl info for memory bandwidth node '%1$u'"
 msgstr ""
 
 msgid "Missing or invalid 'broadcast-allowed' in query-rx-filter response"
@@ -16696,6 +16690,9 @@ msgstr ""
 msgid "This host is not managed by a vCenter"
 msgstr "This host is not managed by a vCentre"
 
+msgid "This platform does not support setting the bridge device zone"
+msgstr ""
+
 msgid "This snapshot has children, please delete these snapshots before"
 msgstr ""
 
@@ -17409,12 +17406,6 @@ msgstr "Unable to create %1$s"
 msgid "Unable to create HardDisk"
 msgstr ""
 
-msgid "Unable to create JSON formatter"
-msgstr "Unable to create JSON formatter"
-
-msgid "Unable to create JSON parser"
-msgstr "Unable to create JSON parser"
-
 #, fuzzy
 msgid "Unable to create KVM VM for TSC probing"
 msgstr "Unable to create JSON formatter"
@@ -17500,6 +17491,12 @@ msgstr ""
 
 msgid "Unable to create migration thread"
 msgstr "Unable to create migration thread"
+
+#, c-format
+msgid ""
+"Unable to create multiple fds for tap device %1$s (maybe existing device was "
+"created without multi_queue flag)"
+msgstr ""
 
 #, fuzzy
 msgid "Unable to create pipes"
@@ -19695,10 +19692,6 @@ msgid "Unknown parameter type"
 msgstr "unknown parameter type: %d"
 
 #, c-format
-msgid "Unknown protocol '%1$s'"
-msgstr "Unknown protocol '%1$s'"
-
-#, c-format
 msgid "Unknown qemu capabilities flag %1$s"
 msgstr "Unknown qemu capabilities flag %1$s"
 
@@ -19938,10 +19931,6 @@ msgstr "Unsupported bus type '%1$s' for device type '%2$s'"
 
 msgid "Unsupported capacity-to-allocation relation"
 msgstr "Unsupported capacity-to-allocation relation"
-
-#, c-format
-msgid "Unsupported character device TCP protocol '%1$s'"
-msgstr "Unsupported character device TCP protocol '%1$s'"
 
 #, c-format
 msgid "Unsupported character device type '%1$s'"
@@ -21275,9 +21264,9 @@ msgid ""
 "by this API"
 msgstr ""
 
-#, fuzzy, c-format
-msgid "bandwidth controller id %1$zd does not exist, max controller id %2$u"
-msgstr "Target controller index %d does not match source %d"
+#, c-format
+msgid "bandwidth controller id %1$zd does not exist"
+msgstr ""
 
 msgid "bandwidth limit in MiB/s"
 msgstr "bandwidth limit in MiB/s"
@@ -21523,10 +21512,6 @@ msgid "both interface name and type must not be NULL"
 msgstr "argument virt_type must not be NULL"
 
 #, c-format
-msgid "bridge %1$s doesn't exist"
-msgstr "bridge %1$s doesn't exist"
-
-#, c-format
 msgid "bridge '%1$s' has an invalid netmask or IP address"
 msgstr "bridge '%1$s' has an invalid netmask or IP address"
 
@@ -21537,11 +21522,11 @@ msgstr "bridge '%1$s' has an invalid prefix"
 msgid "bridge an existing network device"
 msgstr "bridge an existing network device"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
-"bridge delay/stp/zone options only allowed in route, nat, and isolated mode, "
-"not in %1$s (network '%2$s')"
-msgstr "bridge name not allowed in %1$s mode (network '%2$s')"
+"bridge delay/stp/zone options only allowed in open, route, nat, and isolated "
+"mode, not in %1$s (network '%2$s')"
+msgstr ""
 
 msgid "bridge interface misses the bridge element"
 msgstr "bridge interface misses the bridge element"
@@ -21815,6 +21800,10 @@ msgstr "cannot acquire state change lock due to max_queued limit"
 
 msgid "cannot acquire state change lock due to max_queued limit"
 msgstr "cannot acquire state change lock due to max_queued limit"
+
+#, c-format
+msgid "cannot add domain %1$s device %2$s to nonexistent bridge %3$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "cannot add guest CPU feature for %1$s architecture"
@@ -22678,14 +22667,6 @@ msgstr "cannot parse instanceid parameter as a uuid"
 
 msgid "cannot parse interfaceid parameter as a uuid"
 msgstr "cannot parse interfaceid parameter as a uuid"
-
-#, c-format
-msgid "cannot parse json %1$s: %2$s"
-msgstr "cannot parse json %1$s: %2$s"
-
-#, fuzzy, c-format
-msgid "cannot parse json %1$s: unterminated string/map/array"
-msgstr "cannot parse json %s: %s"
 
 #, c-format
 msgid "cannot parse openfiles '%1$s' for virtiofs"
@@ -25132,6 +25113,10 @@ msgid "domain '%1$s' is already defined with uuid %2$s"
 msgstr "domain '%1$s' is already defined with uuid %2$s"
 
 #, c-format
+msgid "domain '%1$s' is being migrated out"
+msgstr ""
+
+#, c-format
 msgid "domain '%1$s' is not being migrated"
 msgstr "domain '%1$s' is not being migrated"
 
@@ -26335,9 +26320,6 @@ msgstr "failed to get secret '%1$s'"
 msgid "failed to convert the XML node tree"
 msgstr "failed to convert the XML node tree"
 
-msgid "failed to convert virJSONValue to yajl data"
-msgstr ""
-
 #, fuzzy
 msgid "failed to copy all device rules"
 msgstr "failed to parse qemu device list"
@@ -26550,9 +26532,6 @@ msgstr "failed to find the VID for the VLAN device '%1$s'"
 #, c-format
 msgid "failed to finish job for disk %1$s"
 msgstr "failed to finish job for disk %1$s"
-
-msgid "failed to format JSON"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "failed to format image: '%1$s'"
@@ -27662,11 +27641,8 @@ msgid "finishing block job failed while deleting disk '%1$s' snapshot: '%2$s'"
 msgstr ""
 
 msgid ""
-"firewalld is set to use the nftables backend, but the required firewalld "
-"'libvirt' zone is missing. Either set the firewalld backend to 'iptables', "
-"or ensure that firewalld has a 'libvirt' zone by upgrading firewalld to a "
-"version supporting rule priorities (0.7.0+) and/or rebuilding libvirt with --"
-"with-firewalld-zone"
+"firewalld can't find the 'libvirt' zone that should have been installed with "
+"libvirt"
 msgstr ""
 
 #, fuzzy
@@ -32717,6 +32693,10 @@ msgstr "no nwfilter with matching name '%1$s'"
 msgid "no nwfilter with matching uuid '%1$s'"
 msgstr "no nwfilter with matching name '%1$s'"
 
+msgid ""
+"no panic model provided, and no default for the architecture and machine type"
+msgstr ""
+
 msgid "no parent for this device"
 msgstr "no parent for this device"
 
@@ -33082,6 +33062,9 @@ msgstr "number of write operations:"
 
 msgid "numbers not allowed in VMX format"
 msgstr "numbers not allowed in VMX format"
+
+msgid "numeric overflow in conf value"
+msgstr ""
 
 msgid "numerical overflow"
 msgstr "numerical overflow"
@@ -36218,6 +36201,10 @@ msgstr ""
 msgid "tcp"
 msgstr ""
 
+#, c-format
+msgid "tcp chardev protocol '%1$s' not supported"
+msgstr ""
+
 msgid "teaming hostdev devices must have type='transient'"
 msgstr ""
 
@@ -36230,10 +36217,6 @@ msgstr ""
 #, c-format
 msgid "teaming persistent attribute not allowed if teaming type is '%1$s'"
 msgstr ""
-
-#, c-format
-msgid "template '%1$s' does not exist"
-msgstr "template '%1$s' does not exist"
 
 msgid "template does not exist"
 msgstr "template does not exist"
@@ -39935,6 +39918,46 @@ msgstr "zero-copy is only available for parallel migration"
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr "zone %1$s requested for network %2$s but firewalld is not active"
+
+#~ msgid "Unable to create JSON formatter"
+#~ msgstr "Unable to create JSON formatter"
+
+#~ msgid "Unable to create JSON parser"
+#~ msgstr "Unable to create JSON parser"
+
+#, c-format
+#~ msgid "Unknown protocol '%1$s'"
+#~ msgstr "Unknown protocol '%1$s'"
+
+#, c-format
+#~ msgid "Unsupported character device TCP protocol '%1$s'"
+#~ msgstr "Unsupported character device TCP protocol '%1$s'"
+
+#, fuzzy, c-format
+#~ msgid "bandwidth controller id %1$zd does not exist, max controller id %2$u"
+#~ msgstr "Target controller index %d does not match source %d"
+
+#, c-format
+#~ msgid "bridge %1$s doesn't exist"
+#~ msgstr "bridge %1$s doesn't exist"
+
+#, fuzzy, c-format
+#~ msgid ""
+#~ "bridge delay/stp/zone options only allowed in route, nat, and isolated "
+#~ "mode, not in %1$s (network '%2$s')"
+#~ msgstr "bridge name not allowed in %1$s mode (network '%2$s')"
+
+#, c-format
+#~ msgid "cannot parse json %1$s: %2$s"
+#~ msgstr "cannot parse json %1$s: %2$s"
+
+#, fuzzy, c-format
+#~ msgid "cannot parse json %1$s: unterminated string/map/array"
+#~ msgstr "cannot parse json %s: %s"
+
+#, c-format
+#~ msgid "template '%1$s' does not exist"
+#~ msgstr "template '%1$s' does not exist"
 
 #~ msgid "DNS HOST records cannot be modified, only added or deleted"
 #~ msgstr "DNS HOST records cannot be modified, only added or deleted"

@@ -333,28 +333,8 @@ int networkCheckRouteCollision(virNetworkDef *def)
 
 
 int
-networkAddFirewallRules(virNetworkDef *def,
-                        virFirewallBackend firewallBackend,
-                        virFirewall **fwRemoval)
+networkSetBridgeZone(virNetworkDef *def)
 {
-
-    networkSetupPrivateChains(firewallBackend, false);
-
-    if (errInitV4 &&
-        (virNetworkDefGetIPByIndex(def, AF_INET, 0) ||
-         virNetworkDefGetRouteByIndex(def, AF_INET, 0))) {
-        virSetError(errInitV4);
-        return -1;
-    }
-
-    if (errInitV6 &&
-        (virNetworkDefGetIPByIndex(def, AF_INET6, 0) ||
-         virNetworkDefGetRouteByIndex(def, AF_INET6, 0) ||
-         def->ipv6nogw)) {
-        virSetError(errInitV6);
-        return -1;
-    }
-
     if (def->bridgeZone) {
 
         /* if a firewalld zone has been specified, fail/log an error
@@ -370,12 +350,14 @@ networkAddFirewallRules(virNetworkDef *def,
         if (virFirewallDInterfaceSetZone(def->bridge, def->bridgeZone) < 0)
             return -1;
 
-    } else {
+    } else if (def->forward.type != VIR_NETWORK_FORWARD_OPEN) {
 
-        /* if firewalld is active, try to set the "libvirt" zone. This is
-         * desirable (for consistency) if firewalld is using the iptables
-         * backend, but is necessary (for basic network connectivity) if
-         * firewalld is using the nftables backend
+        /* if firewalld is active, try to set the "libvirt" zone by
+         * default (forward mode='open' networks have no zone set by
+         * default, but we honor it if one is specified). This is
+         * desirable (for consistency) if firewalld is using the
+         * iptables backend, but is necessary (for basic network
+         * connectivity) if firewalld is using the nftables backend
          */
         if (virFirewallDIsRegistered() == 0) {
 
@@ -399,26 +381,52 @@ networkAddFirewallRules(virNetworkDef *def,
                 if (virFirewallDInterfaceSetZone(def->bridge, "libvirt") < 0)
                     return -1;
             } else {
-                unsigned long long version;
-                int vresult = virFirewallDGetVersion(&version);
-
-                if (vresult < 0)
-                    return -1;
-
-                /* Support for nftables backend was added in firewalld
-                 * 0.6.0. Support for rule priorities (required by the
-                 * 'libvirt' zone, which should be installed by a
-                 * libvirt package, *not* by firewalld) was not added
-                 * until firewalld 0.7.0 (unless it was backported).
-                 */
-                if (version >= 6000 &&
-                    virFirewallDGetBackend() == VIR_FIREWALLD_BACKEND_NFTABLES) {
-                    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                   _("firewalld is set to use the nftables backend, but the required firewalld 'libvirt' zone is missing. Either set the firewalld backend to 'iptables', or ensure that firewalld has a 'libvirt' zone by upgrading firewalld to a version supporting rule priorities (0.7.0+) and/or rebuilding libvirt with --with-firewalld-zone"));
-                    return -1;
-                }
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("firewalld can't find the 'libvirt' zone that should have been installed with libvirt"));
+                return -1;
             }
         }
+    }
+
+    return 0;
+}
+
+
+void
+networkUnsetBridgeZone(virNetworkDef *def)
+{
+    /* If there is a libvirt-managed bridge device remove it from any
+     * zone it had been placed in as a part of deleting the bridge.
+     * DO NOT CALL THIS FOR 'bridge' forward mode, since that
+     * bridge is not managed by libvirt.
+     */
+    if (def->bridge && def->forward.type != VIR_NETWORK_FORWARD_BRIDGE
+        && virFirewallDIsRegistered() == 0) {
+        virFirewallDInterfaceUnsetZone(def->bridge);
+    }
+}
+
+int
+networkAddFirewallRules(virNetworkDef *def,
+                        virFirewallBackend firewallBackend,
+                        virFirewall **fwRemoval)
+{
+
+    networkSetupPrivateChains(firewallBackend, false);
+
+    if (errInitV4 &&
+        (virNetworkDefGetIPByIndex(def, AF_INET, 0) ||
+         virNetworkDefGetRouteByIndex(def, AF_INET, 0))) {
+        virSetError(errInitV4);
+        return -1;
+    }
+
+    if (errInitV6 &&
+        (virNetworkDefGetIPByIndex(def, AF_INET6, 0) ||
+         virNetworkDefGetRouteByIndex(def, AF_INET6, 0) ||
+         def->ipv6nogw)) {
+        virSetError(errInitV6);
+        return -1;
     }
 
     switch (firewallBackend) {

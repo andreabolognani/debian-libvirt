@@ -325,10 +325,10 @@ networkDnsmasqConfigFileName(virNetworkDriverConfig *cfg,
 }
 
 
-/* do needed cleanup steps and remove the network from the list */
+/* do needed cleanup steps */
 static int
-networkRemoveInactive(virNetworkDriverState *driver,
-                      virNetworkObj *obj)
+networkCleanupInactive(virNetworkDriverState *driver,
+                       virNetworkObj *obj)
 {
     g_autoptr(virNetworkDriverConfig) cfg = virNetworkDriverGetConfig(driver);
     g_autofree char *leasefile = NULL;
@@ -371,6 +371,18 @@ networkRemoveInactive(virNetworkDriverState *driver,
 
     /* remove status file */
     unlink(statusfile);
+
+    return 0;
+}
+
+
+/* do needed cleanup steps and remove the network from the list */
+static int
+networkRemoveInactive(virNetworkDriverState *driver,
+                      virNetworkObj *obj)
+{
+    if (networkCleanupInactive(driver, obj) < 0)
+        return -1;
 
     /* remove the network definition */
     virNetworkObjRemoveInactive(driver->networks, obj);
@@ -489,10 +501,12 @@ networkUpdateState(virNetworkObj *obj,
         return -1;
     }
 
-    virNetworkObjPortForEach(obj, networkUpdatePort, obj);
+    if (virNetworkObjIsActive(obj))
+        virNetworkObjPortForEach(obj, networkUpdatePort, obj);
 
-    /* Try and read dnsmasq pids of active networks */
-    if (virNetworkObjIsActive(obj) && def->ips && (def->nips > 0)) {
+    /* Try and read dnsmasq pids of both active and inactive networks, just in
+     * case a network became inactive and we need to clean up. */
+    if (def->ips && (def->nips > 0)) {
         const char *binpath = NULL;
         pid_t dnsmasqPid;
 
@@ -507,6 +521,29 @@ networkUpdateState(virNetworkObj *obj,
                                            &dnsmasqPid,
                                            binpath));
         virNetworkObjSetDnsmasqPid(obj, dnsmasqPid);
+    }
+
+    /* Clean up after networks which were active but we have found out they are
+     * actually down */
+    if (!virNetworkObjIsActive(obj)) {
+        networkShutdownNetwork(driver, obj);
+    }
+
+    return 0;
+}
+
+
+static int
+networkCleanupTransientInactive(virNetworkObj *obj,
+                                void *opaque)
+{
+    virNetworkDriverState *driver = opaque;
+
+    if (!virNetworkObjIsActive(obj) &&
+        !virNetworkObjIsPersistent(obj)) {
+        /* We can only do a cleanup here so that this can be called from an
+         * iterator over the networks */
+        networkCleanupInactive(driver, obj);
     }
 
     return 0;
@@ -638,6 +675,11 @@ networkStateInitialize(bool privileged,
      * network's state file). */
     virNetworkObjListForEach(network_driver->networks,
                              networkUpdateState,
+                             network_driver);
+    /* Before removing inactive transient networks from the list make sure we
+     * clean up after them as well */
+    virNetworkObjListForEach(network_driver->networks,
+                             networkCleanupTransientInactive,
                              network_driver);
     virNetworkObjListPrune(network_driver->networks,
                            VIR_CONNECT_LIST_NETWORKS_INACTIVE |
@@ -1957,6 +1999,10 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
     if (networkSetIPv6Sysctls(obj) < 0)
         goto error;
 
+    /* set the firewall zone for the bridge device on the host */
+    if (networkSetBridgeZone(def) < 0)
+        goto error;
+
     /* Add "once per network" rules */
     if (def->forward.type != VIR_NETWORK_FORWARD_OPEN &&
         networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval) < 0) {
@@ -2081,6 +2127,8 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
         def->forward.type != VIR_NETWORK_FORWARD_OPEN)
         networkRemoveFirewallRules(obj);
 
+    networkUnsetBridgeZone(def);
+
     virNetworkObjUnrefMacMap(obj);
 
     ignore_value(virNetDevBridgeDelete(def->bridge));
@@ -2118,6 +2166,8 @@ networkShutdownNetworkVirtual(virNetworkObj *obj)
 
     if (def->forward.type != VIR_NETWORK_FORWARD_OPEN)
         networkRemoveFirewallRules(obj);
+
+    networkUnsetBridgeZone(def);
 
     ignore_value(virNetDevBridgeDelete(def->bridge));
 
@@ -2386,7 +2436,6 @@ networkStartNetwork(virNetworkDriverState *driver,
         virErrorPtr save_err;
 
         virErrorPreserveLast(&save_err);
-        virNetworkObjUnsetDefTransient(obj);
         networkShutdownNetwork(driver, obj);
         virErrorRestore(&save_err);
     }
@@ -2404,9 +2453,6 @@ networkShutdownNetwork(virNetworkDriverState *driver,
     g_autofree char *stateFile = NULL;
 
     VIR_INFO("Shutting down network '%s'", def->name);
-
-    if (!virNetworkObjIsActive(obj))
-        return 0;
 
     stateFile = virNetworkConfigFile(cfg->stateDir, def->name);
     if (!stateFile)
@@ -2446,6 +2492,8 @@ networkShutdownNetwork(virNetworkDriverState *driver,
         virReportEnumRangeError(virNetworkForwardType, def->forward.type);
         return -1;
     }
+
+    virNetworkObjDeleteAllPorts(obj, cfg->stateDir);
 
     /* now that we know it's stopped call the hook if present */
     networkRunHook(obj, NULL, VIR_HOOK_NETWORK_OP_STOPPED,
@@ -3435,7 +3483,6 @@ static int
 networkDestroy(virNetworkPtr net)
 {
     virNetworkDriverState *driver = networkGetDriver();
-    g_autoptr(virNetworkDriverConfig) cfg = virNetworkDriverGetConfig(driver);
     virNetworkObj *obj;
     virNetworkDef *def;
     int ret = -1;
@@ -3457,8 +3504,6 @@ networkDestroy(virNetworkPtr net)
 
     if ((ret = networkShutdownNetwork(driver, obj)) < 0)
         goto cleanup;
-
-    virNetworkObjDeleteAllPorts(obj, cfg->stateDir);
 
     /* @def replaced in virNetworkObjUnsetDefTransient */
     def = virNetworkObjGetDef(obj);

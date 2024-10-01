@@ -4094,12 +4094,9 @@ qemuProcessBuildDestroyMemoryPaths(virQEMUDriver *driver,
     }
 
     if (!build || shouldBuildMB) {
-        g_autofree char *path = NULL;
-        if (qemuGetMemoryBackingDomainPath(driver, vm->def, &path) < 0)
-            return -1;
-
         if (qemuProcessBuildDestroyMemoryPathsImpl(driver, vm,
-                                                   path, build) < 0)
+                                                   QEMU_DOMAIN_PRIVATE(vm)->memoryBackingDir,
+                                                   build) < 0)
             return -1;
     }
 
@@ -4108,13 +4105,13 @@ qemuProcessBuildDestroyMemoryPaths(virQEMUDriver *driver,
 
 
 int
-qemuProcessDestroyMemoryBackingPath(virQEMUDriver *driver,
-                                    virDomainObj *vm,
+qemuProcessDestroyMemoryBackingPath(virDomainObj *vm,
                                     virDomainMemoryDef *mem)
 {
     g_autofree char *path = NULL;
 
-    if (qemuGetMemoryBackingPath(driver, vm->def, mem->info.alias, &path) < 0)
+    if (qemuDomainGetMemoryBackingPath(QEMU_DOMAIN_PRIVATE(vm),
+                                       mem->info.alias, &path) < 0)
         return -1;
 
     if (unlink(path) < 0 &&
@@ -5183,7 +5180,6 @@ qemuProcessSetupRawIO(virDomainObj *vm,
 {
     bool rawio = false;
     size_t i;
-    int ret = -1;
 
     /* in case a certain disk is desirous of CAP_SYS_RAWIO, add this */
     for (i = 0; i < vm->def->ndisks; i++) {
@@ -5191,9 +5187,7 @@ qemuProcessSetupRawIO(virDomainObj *vm,
 
         if (disk->rawio == VIR_TRISTATE_BOOL_YES) {
             rawio = true;
-#ifndef CAP_SYS_RAWIO
             break;
-#endif
         }
     }
 
@@ -5213,18 +5207,16 @@ qemuProcessSetupRawIO(virDomainObj *vm,
         }
     }
 
-    ret = 0;
-
     if (rawio) {
 #ifdef CAP_SYS_RAWIO
         virCommandAllowCap(cmd, CAP_SYS_RAWIO);
 #else
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("Raw I/O is not supported on this platform"));
-        ret = -1;
+        return -1;
 #endif
     }
-    return ret;
+    return 0;
 }
 
 

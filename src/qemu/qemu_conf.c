@@ -26,6 +26,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#ifdef WITH_SYS_MMAN_H
+# include <sys/mman.h>
+#endif
+
 #include "virerror.h"
 #include "qemu_conf.h"
 #include "qemu_capabilities.h"
@@ -286,6 +290,14 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
 
     cfg->deprecationBehavior = g_strdup("none");
     cfg->storageUseNbdkit = USE_NBDKIT_DEFAULT;
+
+#ifndef MADV_DONTDUMP
+    /* QEMU uses Linux extensions to madvise() (MADV_DODUMP/MADV_DONTDUMP) to
+     * include/exclude guest memory from core dump. These might be unavailable
+     * on some systems. Provide sane default. */
+    VIR_INFO("Host kernel doesn't support MADV_DONTDUMP. Enabling dump_guest_core");
+    cfg->dumpGuestCore = true;
+#endif
 
     return g_steal_pointer(&cfg);
 }
@@ -1599,64 +1611,6 @@ qemuGetDomainHupageMemPath(virQEMUDriver *driver,
     if (!(*memPath = qemuGetDomainHugepagePath(driver, def, &cfg->hugetlbfs[i])))
         return -1;
 
-    return 0;
-}
-
-
-int
-qemuGetMemoryBackingDomainPath(virQEMUDriver *driver,
-                               const virDomainDef *def,
-                               char **path)
-{
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    const char *root = driver->embeddedRoot;
-    g_autofree char *shortName = NULL;
-
-    if (!(shortName = virDomainDefGetShortName(def)))
-        return -1;
-
-    if (root && !STRPREFIX(cfg->memoryBackingDir, root)) {
-        g_autofree char * hash = virDomainDriverGenerateRootHash("qemu", root);
-        *path = g_strdup_printf("%s/%s-%s", cfg->memoryBackingDir, hash, shortName);
-    } else {
-        *path = g_strdup_printf("%s/%s", cfg->memoryBackingDir, shortName);
-    }
-
-    return 0;
-}
-
-
-/**
- * qemuGetMemoryBackingPath:
- * @driver: the qemu driver
- * @def: domain definition
- * @alias: memory object alias
- * @memPath: constructed path
- *
- * Constructs path to memory backing dir and stores it at @memPath.
- *
- * Returns: 0 on success,
- *          -1 otherwise (with error reported).
- */
-int
-qemuGetMemoryBackingPath(virQEMUDriver *driver,
-                         const virDomainDef *def,
-                         const char *alias,
-                         char **memPath)
-{
-    g_autofree char *domainPath = NULL;
-
-    if (!alias) {
-        /* This should never happen (TM) */
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("memory device alias is not assigned"));
-        return -1;
-    }
-
-    if (qemuGetMemoryBackingDomainPath(driver, def, &domainPath) < 0)
-        return -1;
-
-    *memPath = g_strdup_printf("%s/%s", domainPath, alias);
     return 0;
 }
 

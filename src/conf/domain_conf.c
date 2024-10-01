@@ -10282,18 +10282,13 @@ static int
 virDomainChrSourceDefParseProtocol(virDomainChrSourceDef *def,
                                    xmlNodePtr protocol)
 {
-    g_autofree char *prot = NULL;
-
     if (def->type != VIR_DOMAIN_CHR_TYPE_TCP)
         return 0;
 
-    if ((prot = virXMLPropString(protocol, "type")) &&
-        (def->data.tcp.protocol =
-         virDomainChrTcpProtocolTypeFromString(prot)) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Unknown protocol '%1$s'"), prot);
+    if (virXMLPropEnum(protocol, "type",
+                       virDomainChrTcpProtocolTypeFromString,
+                       VIR_XML_PROP_NONE, &def->data.tcp.protocol) < 0)
         return -1;
-    }
 
     return 0;
 }
@@ -16621,6 +16616,8 @@ virDomainFeaturesHyperVDefParse(virDomainDef *def,
             if (value != VIR_TRISTATE_SWITCH_ON)
                 break;
 
+            g_clear_pointer(&def->hyperv_vendor_id, g_free);
+
             if (!(def->hyperv_vendor_id = virXMLPropString(node, "value"))) {
                 virReportError(VIR_ERR_XML_ERROR, "%s",
                                _("missing 'value' attribute for HyperV feature 'vendor_id'"));
@@ -16657,9 +16654,11 @@ static int
 virDomainFeaturesKVMDefParse(virDomainDef *def,
                              xmlNodePtr node)
 {
-    g_autofree virDomainFeatureKVM *kvm = g_new0(virDomainFeatureKVM, 1);
     g_autoptr(GPtrArray) feats = virXMLNodeGetSubelementList(node, NULL);
     size_t i;
+
+    if (!def->kvm_features)
+        def->kvm_features = g_new0(virDomainFeatureKVM, 1);
 
     for (i = 0; i < feats->len; i++) {
         xmlNodePtr feat = g_ptr_array_index(feats, i);
@@ -16678,20 +16677,20 @@ virDomainFeaturesKVMDefParse(virDomainDef *def,
                                      &value) < 0)
             return -1;
 
-        kvm->features[feature] = value;
+        def->kvm_features->features[feature] = value;
 
         /* dirty ring feature should parse size property */
         if (feature == VIR_DOMAIN_KVM_DIRTY_RING &&
             value == VIR_TRISTATE_SWITCH_ON) {
 
             if (virXMLPropUInt(feat, "size", 0, VIR_XML_PROP_REQUIRED,
-                               &kvm->dirty_ring_size) < 0) {
+                               &def->kvm_features->dirty_ring_size) < 0) {
                 return -1;
             }
 
-            if (!VIR_IS_POW2(kvm->dirty_ring_size) ||
-                kvm->dirty_ring_size < 1024 ||
-                kvm->dirty_ring_size > 65536) {
+            if (!VIR_IS_POW2(def->kvm_features->dirty_ring_size) ||
+                def->kvm_features->dirty_ring_size < 1024 ||
+                def->kvm_features->dirty_ring_size > 65536) {
                 virReportError(VIR_ERR_XML_ERROR, "%s",
                                _("dirty ring must be power of 2 and ranges [1024, 65536]"));
 
@@ -16701,7 +16700,6 @@ virDomainFeaturesKVMDefParse(virDomainDef *def,
     }
 
     def->features[VIR_DOMAIN_FEATURE_KVM] = VIR_TRISTATE_SWITCH_ON;
-    def->kvm_features = g_steal_pointer(&kvm);
 
     return 0;
 }
@@ -16804,21 +16802,25 @@ virDomainFeaturesTCGDefParse(virDomainDef *def,
                              xmlXPathContextPtr ctxt,
                              xmlNodePtr node)
 {
-    g_autofree virDomainFeatureTCG *tcg = NULL;
+    unsigned long long tb_cache;
     VIR_XPATH_NODE_AUTORESTORE(ctxt);
 
-    tcg = g_new0(virDomainFeatureTCG, 1);
     ctxt->node = node;
 
     if (virDomainParseMemory("./tb-cache", "./tb-cache/@unit",
-                             ctxt, &tcg->tb_cache, false, false) < 0)
+                             ctxt, &tb_cache, false, false) < 0)
         return -1;
 
-    if (tcg->tb_cache == 0)
+    if (tb_cache == 0)
         return 0;
 
+    if (!def->tcg_features)
+        def->tcg_features = g_new0(virDomainFeatureTCG, 1);
+
+    def->tcg_features->tb_cache = tb_cache;
+
+
     def->features[VIR_DOMAIN_FEATURE_TCG] = VIR_TRISTATE_SWITCH_ON;
-    def->tcg_features = g_steal_pointer(&tcg);
     return 0;
 }
 
@@ -16842,6 +16844,8 @@ virDomainFeaturesDefParse(virDomainDef *def,
             return -1;
         }
 
+        /* Beware that users can specify the given feature multiple times, so
+         * the parser must be able to handle that */
         switch ((virDomainFeature) val) {
         case VIR_DOMAIN_FEATURE_ACPI:
         case VIR_DOMAIN_FEATURE_PAE:
@@ -17517,7 +17521,6 @@ static int
 virDomainDefParseBootInitOptions(virDomainDef *def,
                                  xmlXPathContextPtr ctxt)
 {
-    char *name = NULL;
     size_t i;
     int n;
     g_autofree xmlNodePtr *nodes = NULL;
@@ -17549,6 +17552,8 @@ virDomainDefParseBootInitOptions(virDomainDef *def,
 
     def->os.initenv = g_new0(virDomainOSEnv *, n + 1);
     for (i = 0; i < n; i++) {
+        g_autofree char *name = NULL;
+
         if (!(name = virXMLPropString(nodes[i], "name"))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("No name supplied for <initenv> element"));
@@ -17564,7 +17569,7 @@ virDomainDefParseBootInitOptions(virDomainDef *def,
         }
 
         def->os.initenv[i] = g_new0(virDomainOSEnv, 1);
-        def->os.initenv[i]->name = name;
+        def->os.initenv[i]->name = g_steal_pointer(&name);
         def->os.initenv[i]->value = g_strdup((const char *)nodes[i]->children->content);
     }
     def->os.initenv[n] = NULL;
@@ -30620,7 +30625,7 @@ virDomainNetNotifyActualDevice(virConnectPtr conn,
                                                 virDomainNetGetActualVirtPortProfile(iface),
                                                 virDomainNetGetActualVlan(iface),
                                                 virDomainNetGetActualPortOptionsIsolated(iface),
-                                                iface->mtu, NULL));
+                                                iface->mtu, NULL, false));
     }
 }
 

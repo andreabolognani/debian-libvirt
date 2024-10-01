@@ -32,8 +32,12 @@ void networkPostReloadFirewallRules(bool startup);
 
 int networkCheckRouteCollision(virNetworkDef *def);
 
+int networkSetBridgeZone(virNetworkDef *def);
+
 int networkAddFirewallRules(virNetworkDef *def,
                             virFirewallBackend firewallBackend,
                             virFirewall **fwRemoval);
+
+void networkUnsetBridgeZone(virNetworkDef *def);
 
 void networkRemoveFirewallRules(virNetworkObj *obj);

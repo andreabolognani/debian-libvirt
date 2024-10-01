@@ -261,6 +261,8 @@ struct _qemuDomainObjPrivate {
 
     /* named file descriptor groups associated with the VM */
     GHashTable *fds;
+
+    char *memoryBackingDir;
 };
 
 #define QEMU_DOMAIN_PRIVATE(vm) \
@@ -935,6 +937,11 @@ int qemuDomainSecretChardevPrepare(virQEMUDriverConfig *cfg,
 void qemuDomainCleanupStorageSourceFD(virStorageSource *src);
 
 void qemuDomainStartupCleanup(virDomainObj *vm);
+
+
+int qemuDomainGetMemoryBackingPath(qemuDomainObjPrivate *priv,
+                                   const char *alias,
+                                   char **memPath);
 
 int qemuDomainSecretPrepare(virQEMUDriver *driver,
                             virDomainObj *vm)

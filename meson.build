@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.7.0',
+  version: '10.8.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -676,6 +676,7 @@ headers = [
   'sched.h',
   'sys/auxv.h',
   'sys/ioctl.h',
+  'sys/mman.h',
   'sys/mount.h',
   'sys/syscall.h',
   'sys/ucred.h',
@@ -954,6 +955,11 @@ if blkid_dep.found()
   conf.set('WITH_BLKID', 1)
 endif
 
+libbsd_dep = dependency('libbsd', required: false)
+if libbsd_dep.found()
+  conf.set('WITH_LIBBSD', 1)
+endif
+
 capng_dep = dependency('libcap-ng', required: get_option('capng'))
 if capng_dep.found()
   conf.set('WITH_CAPNG', 1)
@@ -1017,6 +1023,13 @@ glusterfs_dep = dependency('glusterfs-api', version: '>=' + glusterfs_version, r
 
 gnutls_version = '3.6.0'
 gnutls_dep = dependency('gnutls', version: '>=' + gnutls_version)
+
+json_c_version = '0.14'
+json_c_dep = dependency('json-c', version: '>=' + json_c_version, required: get_option('json_c'))
+if json_c_dep.found()
+  conf.set('WITH_JSON_C', 1)
+  conf.set('WITH_JSON', 1)
+endif
 
 # Check for BSD kvm (kernel memory interface)
 if host_machine.system() == 'freebsd'
@@ -1371,47 +1384,6 @@ if wireshark_dep.found()
   endif
 endif
 
-yajl_version = '2.0.3'
-yajl_dep = dependency('yajl', version: '>=' + yajl_version, required: get_option('yajl'))
-if yajl_dep.found()
-  # Kludge for yajl include path on non-Linux
-  #
-  # As of 2.1.0, upstream yajl.pc has -I${includedir}/yajl among
-  # its Cflags, which is clearly wrong. This does not affect Linux
-  # because ${includedir} is already part of the default include path,
-  # but on other platforms that's not the case and the result is that
-  # <yajl/yajl.h> can't be located, causing the build to fail.
-  #
-  # Since upstream development for yajl has stopped years ago, there's
-  # little hope of this issue getting fixed by a new upstream release.
-  # Some non-Linux operating systems such as FreeBSD have elected to
-  # carry a small downstream patch, but in the case of Homebrew on
-  # macOS this approach has been rejected[1] and so we're left with no
-  # choice but to work around the issue ourselves.
-  #
-  # [1] https://github.com/Homebrew/homebrew-core/pull/74516
-  if host_machine.system() != 'linux'
-    yajl_includedir = yajl_dep.get_variable(pkgconfig : 'includedir')
-    if yajl_includedir.contains('include/yajl')
-      rc = run_command(
-        'python3', '-c',
-        'print("@0@".replace("@1@", "@2@"))'.format(
-          yajl_includedir, 'include/yajl', 'include',
-        ),
-        check: true,
-      )
-      yajl_includedir = rc.stdout().strip()
-      yajl_dep = declare_dependency(
-        compile_args: [ '-I' + yajl_includedir ],
-        dependencies: [ yajl_dep ],
-      )
-    endif
-  endif
-
-  conf.set('WITH_YAJL', 1)
-endif
-
-
 # generic build dependencies checks
 
 if bash_completion_dep.found() and not readline_dep.found()
@@ -1614,10 +1586,10 @@ if not get_option('driver_ch').disabled() and host_machine.system() == 'linux' a
     endif
   endif
 
-  if not yajl_dep.found()
+  if not json_c_dep.found()
     use_ch = false
     if get_option('driver_ch').enabled()
-      error('YAJL 2 is required to build Cloud-Hypervisor driver')
+      error('json-c is required to build Cloud-Hypervisor driver')
     endif
   endif
 
@@ -1688,10 +1660,10 @@ endif
 if not get_option('driver_qemu').disabled()
   use_qemu = true
 
-  if not yajl_dep.found()
+  if not json_c_dep.found()
     use_qemu = false
     if get_option('driver_qemu').enabled()
-      error('YAJL 2 is required to build QEMU driver')
+      error('json-c is required to build QEMU driver')
     endif
   endif
 
@@ -1855,13 +1827,6 @@ if conf.has('WITH_LIBVIRTD')
       conf.set_quoted('MOUNT', mount_prog.full_path())
       conf.set_quoted('UMOUNT', umount_prog.full_path())
       conf.set_quoted('MKFS', mkfs_prog.full_path())
-
-      showmount_prog = find_program('showmount', required: false, dirs: libvirt_sbin_path)
-      showmount_path = ''
-      if showmount_prog.found()
-        showmount_path = showmount_prog.full_path()
-      endif
-      conf.set_quoted('SHOWMOUNT', showmount_path)
     endif
   endif
 
@@ -2021,9 +1986,9 @@ endif
 
 if not get_option('nss').disabled()
   use_nss = true
-  if not yajl_dep.found()
+  if not json_c_dep.found()
     if get_option('nss').enabled()
-      error('Can\'t build nss plugin without yajl')
+      error('Can\'t build nss plugin without json-c')
     else
       use_nss = false
     endif
@@ -2282,45 +2247,45 @@ run_command('chmod', 'a+x', meson.current_build_dir() / 'run', check: true)
 # print configuration summary
 
 driver_summary = {
-  'QEMU': conf.has('WITH_QEMU'),
-  'OpenVZ': conf.has('WITH_OPENVZ'),
-  'VMware': conf.has('WITH_VMWARE'),
-  'VBox': conf.has('WITH_VBOX'),
-  'libxl': conf.has('WITH_LIBXL'),
-  'LXC': conf.has('WITH_LXC'),
+  'Bhyve': conf.has('WITH_BHYVE'),
   'Cloud-Hypervisor': conf.has('WITH_CH'),
   'ESX': conf.has('WITH_ESX'),
   'Hyper-V': conf.has('WITH_HYPERV'),
-  'vz': conf.has('WITH_VZ'),
-  'Bhyve': conf.has('WITH_BHYVE'),
-  'Test': conf.has('WITH_TEST'),
-  'Remote': conf.has('WITH_REMOTE'),
-  'Network': conf.has('WITH_NETWORK'),
-  'Libvirtd': conf.has('WITH_LIBVIRTD'),
   'Interface': conf.has('WITH_INTERFACE'),
+  'Libvirtd': conf.has('WITH_LIBVIRTD'),
+  'libxl': conf.has('WITH_LIBXL'),
+  'LXC': conf.has('WITH_LXC'),
+  'Network': conf.has('WITH_NETWORK'),
+  'OpenVZ': conf.has('WITH_OPENVZ'),
+  'QEMU': conf.has('WITH_QEMU'),
+  'Remote': conf.has('WITH_REMOTE'),
+  'Test': conf.has('WITH_TEST'),
+  'VBox': conf.has('WITH_VBOX'),
+  'VMware': conf.has('WITH_VMWARE'),
+  'vz': conf.has('WITH_VZ'),
 }
 summary(driver_summary, section: 'Drivers', bool_yn: true)
 
 storagedriver_summary = {
   'Dir': conf.has('WITH_STORAGE_DIR'),
+  'Disk': conf.has('WITH_STORAGE_DISK'),
   'FS': conf.has('WITH_STORAGE_FS'),
-  'NetFS': conf.has('WITH_STORAGE_FS'),
-  'LVM': conf.has('WITH_STORAGE_LVM'),
+  'Gluster': conf.has('WITH_STORAGE_GLUSTER'),
   'iSCSI': conf.has('WITH_STORAGE_ISCSI'),
   'iscsi-direct': conf.has('WITH_STORAGE_ISCSI_DIRECT'),
-  'SCSI': conf.has('WITH_STORAGE_SCSI'),
+  'LVM': conf.has('WITH_STORAGE_LVM'),
   'mpath': conf.has('WITH_STORAGE_MPATH'),
-  'Disk': conf.has('WITH_STORAGE_DISK'),
+  'NetFS': conf.has('WITH_STORAGE_FS'),
   'RBD': conf.has('WITH_STORAGE_RBD'),
-  'Gluster': conf.has('WITH_STORAGE_GLUSTER'),
-  'ZFS': conf.has('WITH_STORAGE_ZFS'),
+  'SCSI': conf.has('WITH_STORAGE_SCSI'),
   'Virtuozzo storage': conf.has('WITH_STORAGE_VSTORAGE'),
+  'ZFS': conf.has('WITH_STORAGE_ZFS'),
 }
 summary(storagedriver_summary, section: 'Storage Drivers', bool_yn: true)
 
 secdriver_summary = {
-  'SELinux': conf.has('WITH_SECDRIVER_SELINUX'),
   'AppArmor': conf.has('WITH_SECDRIVER_APPARMOR'),
+  'SELinux': conf.has('WITH_SECDRIVER_SELINUX'),
 }
 summary(secdriver_summary, section: 'Security Drivers', bool_yn: true)
 
@@ -2342,6 +2307,8 @@ libs_summary = {
   'dlopen': dlopen_dep.found(),
   'fuse': fuse_dep.found(),
   'glusterfs': glusterfs_dep.found(),
+  'json-c': json_c_dep.found(),
+  'libbsd': libbsd_dep.found(),
   'libiscsi': libiscsi_dep.found(),
   'libkvm': libkvm_dep.found(),
   'libnbd': libnbd_dep.found(),
@@ -2365,7 +2332,6 @@ libs_summary = {
   'selinux': selinux_dep.found(),
   'udev': udev_dep.found(),
   'xdr': xdr_dep.found(),
-  'yajl': yajl_dep.found(),
 }
 summary(libs_summary, section: 'Libraries', bool_yn: true)
 
@@ -2387,25 +2353,25 @@ else
   loader_res = ''
 endif
 misc_summary = {
-  'Warning Flags': supported_cc_flags,
+  'Char device locks': chrdev_lock_files,
   'docs': gen_docs,
-  'tests': tests_enabled,
   'DTrace': conf.has('WITH_DTRACE_PROBES'),
   'firewalld': conf.has('WITH_FIREWALLD'),
   'firewalld-zone': conf.has('WITH_FIREWALLD_ZONE'),
+  'Init script': init_script,
+  'Loader/NVRAM': loader_res,
+  'nbdkit': conf.has('WITH_NBDKIT'),
   'nss': conf.has('WITH_NSS'),
   'numad': conf.has('WITH_NUMAD'),
-  'nbdkit': conf.has('WITH_NBDKIT'),
-  'Init script': init_script,
-  'Char device locks': chrdev_lock_files,
-  'Loader/NVRAM': loader_res,
   'pm_utils': conf.has('WITH_PM_UTILS'),
-  'virt-login-shell': conf.has('WITH_LOGIN_SHELL'),
-  'virt-host-validate': conf.has('WITH_HOST_VALIDATE'),
-  'TLS priority': conf.get_unquoted('TLS_PRIORITY'),
   'SSH proxy': conf.has('WITH_SSH_PROXY'),
   'sysctl config': conf.has('WITH_SYSCTL'),
+  'tests': tests_enabled,
+  'TLS priority': conf.get_unquoted('TLS_PRIORITY'),
   'userfaultfd sysctl': conf.has('WITH_USERFAULTFD_SYSCTL'),
+  'virt-host-validate': conf.has('WITH_HOST_VALIDATE'),
+  'virt-login-shell': conf.has('WITH_LOGIN_SHELL'),
+  'Warning Flags': supported_cc_flags,
 }
 if conf.has('WITH_NETWORK')
   misc_summary += {

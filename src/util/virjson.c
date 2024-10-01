@@ -32,10 +32,8 @@
 #include "virenum.h"
 #include "virbitmap.h"
 
-#if WITH_YAJL
-# include <yajl/yajl_gen.h>
-# include <yajl/yajl_parse.h>
-
+#if WITH_JSON_C
+# include <json.h>
 #endif
 
 /* XXX fixme */
@@ -1390,371 +1388,145 @@ virJSONValueCopy(const virJSONValue *in)
 }
 
 
-#if WITH_YAJL
-static int
-virJSONParserInsertValue(virJSONParser *parser,
-                         virJSONValue **value)
+#if WITH_JSON_C
+static virJSONValue *
+virJSONValueFromJsonC(json_object *jobj)
 {
-    if (!parser->head) {
-        parser->head = g_steal_pointer(value);
-    } else {
-        virJSONParserState *state;
-        if (!parser->nstate) {
-            VIR_DEBUG("got a value to insert without a container");
-            return -1;
-        }
-
-        state = &parser->state[parser->nstate-1];
-
-        switch (state->value->type) {
-        case VIR_JSON_TYPE_OBJECT: {
-            if (!state->key) {
-                VIR_DEBUG("missing key when inserting object value");
-                return -1;
-            }
-
-            if (virJSONValueObjectAppend(state->value,
-                                         state->key,
-                                         value) < 0)
-                return -1;
-
-            VIR_FREE(state->key);
-        }   break;
-
-        case VIR_JSON_TYPE_ARRAY: {
-            if (state->key) {
-                VIR_DEBUG("unexpected key when inserting array value");
-                return -1;
-            }
-
-            if (virJSONValueArrayAppend(state->value,
-                                        value) < 0)
-                return -1;
-        }   break;
-
-        default:
-            VIR_DEBUG("unexpected value type, not a container");
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-static int
-virJSONParserHandleNull(void *ctx)
-{
-    virJSONParser *parser = ctx;
-    g_autoptr(virJSONValue) value = virJSONValueNewNull();
-
-    VIR_DEBUG("parser=%p", parser);
-
-    if (virJSONParserInsertValue(parser, &value) < 0)
-        return 0;
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleBoolean(void *ctx,
-                           int boolean_)
-{
-    virJSONParser *parser = ctx;
-    g_autoptr(virJSONValue) value = virJSONValueNewBoolean(boolean_);
-
-    VIR_DEBUG("parser=%p boolean=%d", parser, boolean_);
-
-    if (virJSONParserInsertValue(parser, &value) < 0)
-        return 0;
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleNumber(void *ctx,
-                          const char *s,
-                          size_t l)
-{
-    virJSONParser *parser = ctx;
-    g_autoptr(virJSONValue) value = virJSONValueNewNumber(g_strndup(s, l));
-
-    VIR_DEBUG("parser=%p str=%s", parser, value->data.number);
-
-    if (virJSONParserInsertValue(parser, &value) < 0)
-        return 0;
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleString(void *ctx,
-                          const unsigned char *stringVal,
-                          size_t stringLen)
-{
-    virJSONParser *parser = ctx;
-    g_autoptr(virJSONValue) value = virJSONValueNewString(g_strndup((const char *)stringVal, stringLen));
-
-    VIR_DEBUG("parser=%p str=%p", parser, (const char *)stringVal);
-
-    if (virJSONParserInsertValue(parser, &value) < 0)
-        return 0;
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleMapKey(void *ctx,
-                          const unsigned char *stringVal,
-                          size_t stringLen)
-{
-    virJSONParser *parser = ctx;
-    virJSONParserState *state;
-
-    VIR_DEBUG("parser=%p key=%p", parser, (const char *)stringVal);
-
-    if (!parser->nstate)
-        return 0;
-
-    state = &parser->state[parser->nstate-1];
-    if (state->key)
-        return 0;
-    state->key = g_strndup((const char *)stringVal, stringLen);
-    return 1;
-}
-
-
-static int
-virJSONParserHandleStartMap(void *ctx)
-{
-    virJSONParser *parser = ctx;
-    g_autoptr(virJSONValue) value = virJSONValueNewObject();
-    virJSONValue *tmp = value;
-
-    VIR_DEBUG("parser=%p", parser);
-
-    if (virJSONParserInsertValue(parser, &value) < 0)
-        return 0;
-
-    VIR_REALLOC_N(parser->state, parser->nstate + 1);
-
-    parser->state[parser->nstate].value = tmp;
-    parser->state[parser->nstate].key = NULL;
-    parser->nstate++;
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleEndMap(void *ctx)
-{
-    virJSONParser *parser = ctx;
-    virJSONParserState *state;
-
-    VIR_DEBUG("parser=%p", parser);
-
-    if (!parser->nstate)
-        return 0;
-
-    state = &(parser->state[parser->nstate-1]);
-    if (state->key) {
-        VIR_FREE(state->key);
-        return 0;
-    }
-
-    VIR_DELETE_ELEMENT(parser->state, parser->nstate - 1, parser->nstate);
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleStartArray(void *ctx)
-{
-    virJSONParser *parser = ctx;
-    g_autoptr(virJSONValue) value = virJSONValueNewArray();
-    virJSONValue *tmp = value;
-
-    VIR_DEBUG("parser=%p", parser);
-
-    if (virJSONParserInsertValue(parser, &value) < 0)
-        return 0;
-
-    VIR_REALLOC_N(parser->state, parser->nstate + 1);
-
-    parser->state[parser->nstate].value = tmp;
-    parser->state[parser->nstate].key = NULL;
-    parser->nstate++;
-
-    return 1;
-}
-
-
-static int
-virJSONParserHandleEndArray(void *ctx)
-{
-    virJSONParser *parser = ctx;
-    virJSONParserState *state;
-
-    VIR_DEBUG("parser=%p", parser);
-
-    if (!(parser->nstate - parser->wrap))
-        return 0;
-
-    state = &(parser->state[parser->nstate-1]);
-    if (state->key) {
-        VIR_FREE(state->key);
-        return 0;
-    }
-
-    VIR_DELETE_ELEMENT(parser->state, parser->nstate - 1, parser->nstate);
-
-    return 1;
-}
-
-
-static const yajl_callbacks parserCallbacks = {
-    virJSONParserHandleNull,
-    virJSONParserHandleBoolean,
-    NULL,
-    NULL,
-    virJSONParserHandleNumber,
-    virJSONParserHandleString,
-    virJSONParserHandleStartMap,
-    virJSONParserHandleMapKey,
-    virJSONParserHandleEndMap,
-    virJSONParserHandleStartArray,
-    virJSONParserHandleEndArray
-};
-
-
-/* XXX add an incremental streaming parser - yajl trivially supports it */
-virJSONValue *
-virJSONValueFromString(const char *jsonstring)
-{
-    yajl_handle hand;
-    virJSONParser parser = { NULL, NULL, 0, 0 };
+    enum json_type type = json_object_get_type(jobj);
     virJSONValue *ret = NULL;
-    int rc;
-    size_t len = strlen(jsonstring);
 
-    VIR_DEBUG("string=%s", jsonstring);
-
-    hand = yajl_alloc(&parserCallbacks, NULL, &parser);
-    if (!hand) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Unable to create JSON parser"));
-        return NULL;
+    switch (type) {
+    case json_type_null:
+        ret = virJSONValueNewNull();
+        break;
+    case json_type_boolean:
+        ret = virJSONValueNewBoolean(json_object_get_boolean(jobj));
+        break;
+    case json_type_double:
+    case json_type_int: {
+        ret = virJSONValueNewNumber(g_strdup(json_object_get_string(jobj)));
+        break;
     }
+    case json_type_object: {
+        json_object_iter iter;
 
-    /* Yajl 2 is nice enough to default to rejecting trailing garbage. */
-    rc = yajl_parse(hand, (const unsigned char *)jsonstring, len);
-    if (rc != yajl_status_ok ||
-        yajl_complete_parse(hand) != yajl_status_ok) {
-        unsigned char *errstr = yajl_get_error(hand, 1,
-                                               (const unsigned char*)jsonstring,
-                                               strlen(jsonstring));
+        ret = virJSONValueNewObject();
 
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot parse json %1$s: %2$s"),
-                       jsonstring, (const char*) errstr);
-        yajl_free_error(hand, errstr);
-        virJSONValueFree(parser.head);
-        goto cleanup;
+        json_object_object_foreachC(jobj, iter) {
+            virJSONValue *cur = virJSONValueFromJsonC(iter.val);
+
+            if (virJSONValueObjectAppend(ret, iter.key, &cur) < 0) {
+                g_free(ret);
+                return NULL;
+            }
+        }
+        break;
     }
-
-    if (parser.nstate != 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot parse json %1$s: unterminated string/map/array"),
-                       jsonstring);
-        virJSONValueFree(parser.head);
-    } else {
-        ret = parser.head;
-    }
-
- cleanup:
-    yajl_free(hand);
-
-    if (parser.nstate) {
+    case json_type_array: {
+        size_t len;
         size_t i;
-        for (i = 0; i < parser.nstate; i++)
-            VIR_FREE(parser.state[i].key);
-        VIR_FREE(parser.state);
-    }
 
-    VIR_DEBUG("result=%p", ret);
+        ret = virJSONValueNewArray();
+        len = json_object_array_length(jobj);
+
+        for (i = 0; i < len; i++) {
+            virJSONValue *cur = NULL;
+            json_object *val = NULL;
+
+            val = json_object_array_get_idx(jobj, i);
+
+            cur = virJSONValueFromJsonC(val);
+
+            virJSONValueArrayAppend(ret, &cur);
+        }
+        break;
+    }
+    case json_type_string:
+        ret = virJSONValueNewString(g_strdup(json_object_get_string(jobj)));
+        break;
+    }
 
     return ret;
 }
 
 
-static int
-virJSONValueToStringOne(virJSONValue *object,
-                        yajl_gen g)
+virJSONValue *
+virJSONValueFromString(const char *jsonstring)
 {
+    json_object *jobj = NULL;
+    virJSONValue *ret = NULL;
+    json_tokener *tok = NULL;
+    enum json_tokener_error jerr;
+    int jsonflags = JSON_TOKENER_STRICT | JSON_TOKENER_VALIDATE_UTF8;
+
+    VIR_DEBUG("string=%s", jsonstring);
+
+    tok = json_tokener_new();
+    json_tokener_set_flags(tok, jsonflags);
+    jobj = json_tokener_parse_ex(tok, jsonstring, strlen(jsonstring));
+    jerr = json_tokener_get_error(tok);
+    if (jerr != json_tokener_success) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       "%s", json_tokener_error_desc(jerr));
+        goto cleanup;
+    }
+    ret = virJSONValueFromJsonC(jobj);
+
+ cleanup:
+    json_object_put(jobj);
+    json_tokener_free(tok);
+    return ret;
+}
+
+static json_object *
+virJSONValueToJsonC(virJSONValue *object)
+{
+    json_object *ret = NULL;
     size_t i;
 
-    VIR_DEBUG("object=%p type=%d gen=%p", object, object->type, g);
+    VIR_DEBUG("object=%p type=%d", object, object->type);
 
     switch (object->type) {
     case VIR_JSON_TYPE_OBJECT:
-        if (yajl_gen_map_open(g) != yajl_gen_status_ok)
-            return -1;
+        ret = json_object_new_object();
         for (i = 0; i < object->data.object.npairs; i++) {
-            if (yajl_gen_string(g,
-                                (unsigned char *)object->data.object.pairs[i].key,
-                                strlen(object->data.object.pairs[i].key))
-                != yajl_gen_status_ok)
-                return -1;
-            if (virJSONValueToStringOne(object->data.object.pairs[i].value, g) < 0)
-                return -1;
+            json_object *child = virJSONValueToJsonC(object->data.object.pairs[i].value);
+            json_object_object_add(ret, object->data.object.pairs[i].key, child);
         }
-        if (yajl_gen_map_close(g) != yajl_gen_status_ok)
-            return -1;
-        break;
+        return ret;
     case VIR_JSON_TYPE_ARRAY:
-        if (yajl_gen_array_open(g) != yajl_gen_status_ok)
-            return -1;
+        /* json_object_new_array_ext was introduced in json-c 0.16 */
+# if JSON_C_VERSION_NUM < ((0 << 16) | (16 << 8))
+        ret = json_object_new_array();
+# else
+        ret = json_object_new_array_ext(object->data.array.nvalues);
+# endif
         for (i = 0; i < object->data.array.nvalues; i++) {
-            if (virJSONValueToStringOne(object->data.array.values[i], g) < 0)
-                return -1;
+            json_object_array_add(ret,
+                                  virJSONValueToJsonC(object->data.array.values[i]));
         }
-        if (yajl_gen_array_close(g) != yajl_gen_status_ok)
-            return -1;
-        break;
+        return ret;
 
     case VIR_JSON_TYPE_STRING:
-        if (yajl_gen_string(g, (unsigned char *)object->data.string,
-                            strlen(object->data.string)) != yajl_gen_status_ok)
-            return -1;
-        break;
+        return json_object_new_string(object->data.string);
 
-    case VIR_JSON_TYPE_NUMBER:
-        if (yajl_gen_number(g, object->data.number,
-                            strlen(object->data.number)) != yajl_gen_status_ok)
-            return -1;
-        break;
-
+    case VIR_JSON_TYPE_NUMBER: {
+        /* Yes. That's a random value. json-c will use the provided
+           string representation in the JSON document it outputs. The
+           'json_object' tree created here is not used for anything
+           else besides the JSON string output, thus the actual numeric
+           value doesn't matter. */
+        return json_object_new_double_s(299792458, object->data.number);
+    }
     case VIR_JSON_TYPE_BOOLEAN:
-        if (yajl_gen_bool(g, object->data.boolean) != yajl_gen_status_ok)
-            return -1;
-        break;
+        return json_object_new_boolean(object->data.boolean);
 
     case VIR_JSON_TYPE_NULL:
-        if (yajl_gen_null(g) != yajl_gen_status_ok)
-            return -1;
-        break;
-
+        return json_object_new_null();
     default:
-        return -1;
+        return NULL;
     }
-
-    return 0;
+    return NULL;
 }
 
 
@@ -1763,42 +1535,24 @@ virJSONValueToBuffer(virJSONValue *object,
                      virBuffer *buf,
                      bool pretty)
 {
-    yajl_gen g;
-    const unsigned char *str;
+    json_object *jobj = NULL;
+    const char *str;
     size_t len;
-    int ret = -1;
+    int jsonflags = JSON_C_TO_STRING_NOSLASHESCAPE;
 
-    VIR_DEBUG("object=%p", object);
+    if (pretty)
+        jsonflags |= JSON_C_TO_STRING_PRETTY | JSON_C_TO_STRING_SPACED;
 
-    g = yajl_gen_alloc(NULL);
-    if (!g) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Unable to create JSON formatter"));
-        goto cleanup;
-    }
-    yajl_gen_config(g, yajl_gen_beautify, pretty ? 1 : 0);
-    yajl_gen_config(g, yajl_gen_indent_string, pretty ? "  " : " ");
-    yajl_gen_config(g, yajl_gen_validate_utf8, 1);
+    jobj = virJSONValueToJsonC(object);
 
-    if (virJSONValueToStringOne(object, g) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to convert virJSONValue to yajl data"));
-        goto cleanup;
-    }
+    str = json_object_to_json_string_length(jobj, jsonflags, &len);
 
-    if (yajl_gen_get_buf(g, &str, &len) != yajl_gen_status_ok) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                      _("failed to format JSON"));
-        goto cleanup;
-    }
+    virBufferAdd(buf, str, len);
+    if (pretty)
+        virBufferAddLit(buf, "\n");
 
-    virBufferAdd(buf, (const char *) str, len);
-    ret = 0;
-
- cleanup:
-    yajl_gen_free(g);
-
-    return ret;
+    json_object_put(jobj);
+    return 0;
 }
 
 
@@ -1861,6 +1615,40 @@ virJSONStringReformat(const char *jsonstr,
     return virJSONValueToString(json, pretty);
 }
 
+/**
+ * virJSONStringPrettifyBlanks:
+ * @jsonstr: string to prettify
+ *
+ * In the pretty mode of printing, various versions of JSON libraries
+ * format empty arrays and objects differently.
+ *
+ * Unify this to "[]" and "{}" which are used by json-c 0.17 and newer.
+ * https://github.com/json-c/json-c/issues/778
+ *
+ * This format is also used by Python's 'json.dump' method.
+ *
+ * Returns the reformatted JSON string on success.
+ */
+char *virJSONStringPrettifyBlanks(const char *jsonstr)
+{
+    virBuffer buf = VIR_BUFFER_INITIALIZER;
+    const char *p;
+
+    for (p = jsonstr; *p && p[1]; p++) {
+        virBufferAddChar(&buf, *p);
+
+        if ((p[0] == '{' || p[0] == '[') && p[1] == '\n') {
+            const char *q = p + 1;
+
+            virSkipSpaces(&q);
+
+            if (*q == '}' || *q == ']')
+                p = q - 1;
+        }
+    }
+
+    return virBufferContentAndReset(&buf);
+}
 
 static virJSONValue *
 virJSONValueObjectDeflattenKeys(virJSONValue *json);

@@ -37,6 +37,7 @@
 #include "qemu_block.h"
 #include "qemu_snapshot.h"
 #include "qemu_virtiofs.h"
+#include "qemu_chardev.h"
 #include "domain_audit.h"
 #include "domain_cgroup.h"
 #include "domain_interface.h"
@@ -55,6 +56,7 @@
 #include "virnetdevbridge.h"
 #include "virnetdevopenvswitch.h"
 #include "virnetdevmidonet.h"
+#include "virnetdevtap.h"
 #include "device_conf.h"
 #include "storage_source.h"
 #include "storage_source_conf.h"
@@ -243,7 +245,55 @@ qemuHotplugChardevAttach(qemuMonitor *mon,
                          const char *alias,
                          virDomainChrSourceDef *def)
 {
-    return qemuMonitorAttachCharDev(mon, alias, def);
+    g_autoptr(virJSONValue) props = NULL;
+    g_autofree char *ptypath = NULL;
+
+    switch ((virDomainChrType) def->type) {
+    case VIR_DOMAIN_CHR_TYPE_NULL:
+    case VIR_DOMAIN_CHR_TYPE_VC:
+    case VIR_DOMAIN_CHR_TYPE_PTY:
+    case VIR_DOMAIN_CHR_TYPE_FILE:
+    case VIR_DOMAIN_CHR_TYPE_DEV:
+    case VIR_DOMAIN_CHR_TYPE_UNIX:
+    case VIR_DOMAIN_CHR_TYPE_TCP:
+    case VIR_DOMAIN_CHR_TYPE_UDP:
+    case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
+        break;
+
+    case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
+    case VIR_DOMAIN_CHR_TYPE_PIPE:
+    case VIR_DOMAIN_CHR_TYPE_STDIO:
+    case VIR_DOMAIN_CHR_TYPE_NMDM:
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("Hotplug unsupported for char device type '%1$s'"),
+                       virDomainChrTypeToString(def->type));
+        return -1;
+
+    case VIR_DOMAIN_CHR_TYPE_LAST:
+    default:
+        virReportEnumRangeError(virDomainChrType, def->type);
+        return -1;
+    }
+
+    if (qemuChardevGetBackendProps(def, false, alias, NULL, &props) < 0)
+        return -1;
+
+    if (qemuMonitorAttachCharDev(mon, &props, &ptypath) < 0)
+        return -1;
+
+    if (def->type == VIR_DOMAIN_CHR_TYPE_PTY) {
+        if (!ptypath) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("chardev-add reply was missing pty path"));
+            return -1;
+        }
+
+        def->data.file.path = g_steal_pointer(&ptypath);
+    }
+
+    return 0;
 }
 
 
@@ -2354,7 +2404,7 @@ qemuDomainAttachMemory(virQEMUDriver *driver,
     qemuDomainObjExitMonitor(vm);
 
     if (objAdded && mem)
-        ignore_value(qemuProcessDestroyMemoryBackingPath(driver, vm, mem));
+        ignore_value(qemuProcessDestroyMemoryBackingPath(vm, mem));
 
     virErrorRestore(&orig_err);
     if (!mem)
@@ -3484,7 +3534,6 @@ qemuDomainChangeNetBridge(virDomainObj *vm,
                           virDomainNetDef *olddev,
                           virDomainNetDef *newdev)
 {
-    int ret = -1;
     const char *oldbridge = virDomainNetGetActualBridgeName(olddev);
     const char *newbridge = virDomainNetGetActualBridgeName(newdev);
 
@@ -3498,50 +3547,21 @@ qemuDomainChangeNetBridge(virDomainObj *vm,
 
     if (virNetDevExists(newbridge) != 1) {
         virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("bridge %1$s doesn't exist"), newbridge);
+                       _("cannot add domain %1$s device %2$s to nonexistent bridge %3$s"),
+                       vm->def->name, newdev->ifname, newbridge);
         return -1;
     }
 
-    ret = virNetDevBridgeRemovePort(oldbridge, olddev->ifname);
-    virDomainAuditNet(vm, olddev, NULL, "detach", ret == 0);
-    if (ret < 0) {
-        /* warn but continue - possibly the old network
-         * had been destroyed and reconstructed, leaving the
-         * tap device orphaned.
-         */
-        VIR_WARN("Unable to detach device %s from bridge %s",
-                 olddev->ifname, oldbridge);
-    }
-
-    ret = virNetDevBridgeAddPort(newbridge, olddev->ifname);
-    if (ret == 0 &&
-        virDomainNetGetActualPortOptionsIsolated(newdev) == VIR_TRISTATE_BOOL_YES) {
-
-        ret = virNetDevBridgePortSetIsolated(newbridge, olddev->ifname, true);
-        if (ret < 0) {
-            virErrorPtr err;
-
-            virErrorPreserveLast(&err);
-            ignore_value(virNetDevBridgeRemovePort(newbridge, olddev->ifname));
-            virErrorRestore(&err);
-        }
-    }
-    virDomainAuditNet(vm, NULL, newdev, "attach", ret == 0);
-    if (ret < 0) {
-        virErrorPtr err;
-
-        virErrorPreserveLast(&err);
-        ret = virNetDevBridgeAddPort(oldbridge, olddev->ifname);
-        if (ret == 0 &&
-            virDomainNetGetActualPortOptionsIsolated(olddev) == VIR_TRISTATE_BOOL_YES) {
-            ignore_value(virNetDevBridgePortSetIsolated(newbridge, olddev->ifname, true));
-        }
-        virDomainAuditNet(vm, NULL, olddev, "attach", ret == 0);
-        virErrorRestore(&err);
-        return -1;
-    }
-    /* caller will replace entire olddev with newdev in domain nets list */
-    return 0;
+    /* force the detach/reattach (final arg) to make sure we pick up virtualport changes
+     * even if the bridge name hasn't changed
+     */
+    return virNetDevTapReattachBridge(newdev->ifname,
+                                      virDomainNetGetActualBridgeName(newdev),
+                                      &newdev->mac, vm->def->uuid,
+                                      virDomainNetGetActualVirtPortProfile(newdev),
+                                      virDomainNetGetActualVlan(newdev),
+                                      virDomainNetGetActualPortOptionsIsolated(newdev),
+                                      newdev->mtu, NULL, true);
 }
 
 static int
@@ -3675,6 +3695,9 @@ qemuDomainChangeNet(virQEMUDriver *driver,
     virDomainNetDef **devslot = NULL;
     virDomainNetDef *olddev;
     virDomainNetType oldType, newType;
+    const char *oldBridgeName = NULL;
+    const char *newBridgeName = NULL;
+    bool actualSame = false;
     bool needReconnect = false;
     bool needBridgeChange = false;
     bool needFilterChange = false;
@@ -3895,17 +3918,61 @@ qemuDomainChangeNet(virQEMUDriver *driver,
      * free it if we fail for any reason
      */
     if (newdev->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-        if (!(conn = virGetConnectNetwork()))
-            goto cleanup;
-        if (virDomainNetAllocateActualDevice(conn, vm->def, newdev) < 0)
-            goto cleanup;
+        if (olddev->type == VIR_DOMAIN_NET_TYPE_NETWORK &&
+            oldType == VIR_DOMAIN_NET_TYPE_DIRECT &&
+            virDomainNetGetActualDirectMode(olddev) == VIR_NETDEV_MACVLAN_MODE_PASSTHRU &&
+            STREQ(olddev->data.network.name, newdev->data.network.name)) {
+            /* old and new are type='network', and the network name
+             * hasn't changed *and* this is a network where each
+             * connection is allocated exclusive use of a VF
+             * device. In this case we *don't* want to get a new port
+             * ("actual device") from the network because attempting
+             * to allocate a new device would also allocate a
+             * new/different VF, causing the update to fail. And
+             * anyway we can use olddev's actualNetDef (since it
+             * hasn't changed).
+             *
+             * So instead we just duplicate *the pointer to* the
+             * actualNetDef from olddev to newdev so that comparisons
+             * of actualNetDef will show no change. If the update is
+             * successful, we will clear the actualNetDef pointer from
+             * olddev before destroying it (or if the update fails,
+             * then we need to clear the pointer from newdev before
+             * destroying it)
+             */
+            newdev->data.network.actual = olddev->data.network.actual;
+            memcpy(newdev->data.network.portid, olddev->data.network.portid,
+                   sizeof(newdev->data.network.portid));
+            actualSame = true; /* old and new actual are pointing to same object */
+        } else {
+            /* either the olddev wasn't type='network', or else the
+             * name of the network changed. In this case we *do* want
+             * to get a new port from the new network (because we know
+             * that it *will* change), and then if the update is
+             * successful, we will release the port ("actual device")
+             * in olddev. Or if the update is a failure, we will
+             * release this new port
+             */
+            if (!(conn = virGetConnectNetwork()) ||
+                virDomainNetAllocateActualDevice(conn, vm->def, newdev) < 0) {
+                goto cleanup;
+            }
+
+            /* final validation now that we have full info on the type */
+            if (qemuDomainValidateActualNetDef(newdev, priv->qemuCaps) < 0)
+                goto cleanup;
+
+            /* since there is a new actual, we definitely will want to
+             * replace olddev with newdev in the domain
+             */
+            needReplaceDevDef = true;
+        }
     }
 
-    /* final validation now that we have full info on the type */
-    if (qemuDomainValidateActualNetDef(newdev, priv->qemuCaps) < 0)
-        goto cleanup;
-
     newType = virDomainNetGetActualType(newdev);
+
+    oldBridgeName = virDomainNetGetActualBridgeName(olddev);
+    newBridgeName = virDomainNetGetActualBridgeName(newdev);
 
     if (newType == VIR_DOMAIN_NET_TYPE_HOSTDEV ||
         newType == VIR_DOMAIN_NET_TYPE_VDPA) {
@@ -3938,13 +4005,6 @@ qemuDomainChangeNet(virQEMUDriver *driver,
             break;
 
         case VIR_DOMAIN_NET_TYPE_NETWORK:
-            if (STRNEQ(olddev->data.network.name, newdev->data.network.name)) {
-                if (virDomainNetGetActualVirtPortProfile(newdev))
-                    needReconnect = true;
-                else
-                    needBridgeChange = true;
-            }
-
             if (STRNEQ_NULLABLE(olddev->data.network.portgroup,
                                 newdev->data.network.portgroup)) {
                 virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
@@ -3985,59 +4045,85 @@ qemuDomainChangeNet(virQEMUDriver *driver,
             goto cleanup;
         }
     } else {
-        /* interface type has changed. There are a few special cases
-         * where this can only require a minor (or even no) change,
-         * but in most cases we need to do a full reconnection.
+        /* The interface type has changed. The only times when this
+         * wouldn't *always* require completely recreating the backend
+         * of the netdev (aka needReconnect, which QEMU doesn't
+         * support anyway) are:
          *
-         * As long as both the new and old types use a tap device
-         * connected to a host bridge (ie VIR_DOMAIN_NET_TYPE_NETWORK
-         * or VIR_DOMAIN_NET_TYPE_BRIDGE), we just need to connect to
-         * the new bridge.
+         * 1) if oldType and newType are both either _NETWORK or
+         *    _BRIDGE (because both of those end up connecting the tap
+         *    device to a bridge, and that is something that *can* be
+         *    redone without recreating the backend (and will be
+         *    handled below where needBridgeChange is set).
+         *
+         *    (NB: if either of these is _NETWORK or _BRIDGE, the
+         *    corresponding oldBridgeName/newBridgeName will be
+         *    non-null - this is simpler to check for than checking
+         *    each for both _NETWORK and _BRIDGE)
+         *
+         * 2) if oldType and newType are both _DIRECT (and presumably
+         *    will end up specifying the same link device, which is
+         *    checked further down where ActualDirectDev is checked)
+         *
+         * These two cases we'll allow through (for further checks
+         * below)...
          */
-        if ((oldType == VIR_DOMAIN_NET_TYPE_NETWORK ||
-             oldType == VIR_DOMAIN_NET_TYPE_BRIDGE) &&
-            (newType == VIR_DOMAIN_NET_TYPE_NETWORK ||
-             newType == VIR_DOMAIN_NET_TYPE_BRIDGE)) {
+        if (!((oldBridgeName && newBridgeName)
+              || (oldType == VIR_DOMAIN_NET_TYPE_DIRECT &&
+                  newType == VIR_DOMAIN_NET_TYPE_DIRECT))) {
 
+            /* ...for all other combinations, we need a full reconnect
+             * (which currently isn't, and perhaps probably never will
+             * be, supported by QEMU, so needReconnect is effectively
+             * "NOT SUPPORTED")
+             */
+            needReconnect = true;
+        }
+
+        /* whatever else is done, when the interface type has changed,
+         * we need to replace olddev with newdev
+         */
+        needReplaceDevDef = true;
+    }
+
+    /* tests that need to be done whether or not type or actualType changes */
+
+    /* if both new and old use a bridge device */
+    if (newBridgeName) {
+
+        if (STRNEQ_NULLABLE(oldBridgeName, newBridgeName))
             needBridgeChange = true;
 
-        } else if (oldType == VIR_DOMAIN_NET_TYPE_DIRECT &&
-                   newType == VIR_DOMAIN_NET_TYPE_DIRECT) {
-
-            /* this is the case of switching from type='direct' to
-             * type='network' for a network that itself uses direct
-             * (macvtap) devices. If the physical device and mode are
-             * the same, this doesn't require any actual setup
-             * change. If the physical device or mode *does* change,
-             * that will be caught in the common section below */
-
-        } else {
-
-            /* for all other combinations, we'll need a full reconnect */
-            needReconnect = true;
-
+        /* A change in virtportprofile also indicates we probably need
+         * to re-attach the bridge, e.g. if the profileid or type
+         * changed.
+         */
+        if (!virNetDevVPortProfileEqual(virDomainNetGetActualVirtPortProfile(olddev),
+                                        virDomainNetGetActualVirtPortProfile(newdev))) {
+            needBridgeChange = true;
         }
     }
 
-    /* now several things that are in multiple (but not all)
-     * different types, and can be safely compared even for those
-     * cases where they don't apply to a particular type.
+    /* if the newType is DIRECT then we've already set needReconnect
+     * if oldType was anything other than DIRECT. We also need to set
+     * it if the direct mode or anything in the virtportprofile has
+     * changed.
      */
-    if (STRNEQ_NULLABLE(virDomainNetGetActualBridgeName(olddev),
-                        virDomainNetGetActualBridgeName(newdev))) {
-        if (virDomainNetGetActualVirtPortProfile(newdev))
+    if (newType == VIR_DOMAIN_NET_TYPE_DIRECT) {
+        if (STRNEQ_NULLABLE(virDomainNetGetActualDirectDev(olddev),
+                            virDomainNetGetActualDirectDev(newdev)) ||
+            virDomainNetGetActualDirectMode(olddev) != virDomainNetGetActualDirectMode(newdev) ||
+            !virNetDevVPortProfileEqual(virDomainNetGetActualVirtPortProfile(olddev),
+                                        virDomainNetGetActualVirtPortProfile(newdev))) {
+            /* you really can't change much about a macvtap device once it's been created */
             needReconnect = true;
-        else
-            needBridgeChange = true;
+        }
     }
 
-    if (STRNEQ_NULLABLE(virDomainNetGetActualDirectDev(olddev),
-                        virDomainNetGetActualDirectDev(newdev)) ||
-        virDomainNetGetActualDirectMode(olddev) != virDomainNetGetActualDirectMode(newdev) ||
-        !virNetDevVPortProfileEqual(virDomainNetGetActualVirtPortProfile(olddev),
-                                    virDomainNetGetActualVirtPortProfile(newdev))) {
-        needReconnect = true;
-    }
+    /* now several things that are in multiple (but not all) different
+     * types, and can be safely compared even for those cases where
+     * they don't apply to a particular type.
+     */
 
     if (!virNetDevVlanEqual(virDomainNetGetActualVlan(olddev),
                              virDomainNetGetActualVlan(newdev))) {
@@ -4169,7 +4255,21 @@ qemuDomainChangeNet(virQEMUDriver *driver,
 
         /* this function doesn't work with HOSTDEV networks yet, thus
          * no need to change the pointer in the hostdev structure */
-        if (olddev->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
+        if (actualSame) {
+            /* olddev and newdev have both been pointing at the
+             * same actual device object. Now that we know we're
+             * going to use newdev and dispose of olddev, we clear
+             * olddev->...actual so it doesn't get freed by upcoming
+             * virDomainNetDefFree(olddev) (which would be
+             * catastrophic because it is still being used by
+             * newdev)
+             */
+            olddev->data.network.actual = NULL;
+
+        } else if (olddev->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
+            /* olddev had a port (actual device) and we aren't
+             * reusing it in newdev, so we need to release it
+             */
             if (conn || (conn = virGetConnectNetwork()))
                 virDomainNetReleaseActualDevice(conn, olddev);
             else
@@ -4211,10 +4311,29 @@ qemuDomainChangeNet(virQEMUDriver *driver,
      * that the changes were minor enough that we didn't need to
      * replace the entire device object.
      */
-    if (newdev && newdev->type == VIR_DOMAIN_NET_TYPE_NETWORK && conn)
-        virDomainNetReleaseActualDevice(conn, newdev);
-    virErrorRestore(&save_err);
+    if (newdev) {
+        if (actualSame) {
+            /* newdev->...actual was previously pointing to the
+             * olddev->...actual, but we've decided to free newdev and
+             * continue using olddev. So we need to clear
+             * newdev->...actual to avoid freeing the actualNetDef while
+             * olddev is still using it.
+             */
+            newdev->data.network.actual = NULL;
 
+        } else if (newdev->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
+            /* we had allocated a new port (actual device) for newdev,
+             * but now we're not going to use it, so release it back to
+             * the network
+             */
+            if (conn || (conn = virGetConnectNetwork()))
+                virDomainNetReleaseActualDevice(conn, newdev);
+            else
+                VIR_WARN("Unable to release network device '%s'", NULLSTR(newdev->ifname));
+        }
+    }
+
+    virErrorRestore(&save_err);
     return ret;
 }
 
@@ -4649,7 +4768,7 @@ qemuDomainRemoveMemoryDevice(virQEMUDriver *driver,
     if (qemuDomainNamespaceTeardownMemory(vm, mem) <  0)
         VIR_WARN("Unable to remove memory device from /dev");
 
-    if (qemuProcessDestroyMemoryBackingPath(driver, vm, mem) < 0)
+    if (qemuProcessDestroyMemoryBackingPath(vm, mem) < 0)
         VIR_WARN("Unable to destroy memory backing path");
 
     qemuDomainReleaseMemoryDeviceSlot(vm, mem);
