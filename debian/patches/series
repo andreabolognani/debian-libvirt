@@ -1,3 +1,8 @@
+backport/Revert-network-un-set-the-firewalld-zone-while-shutting-d.patch
+backport/Revert-network-support-setting-firewalld-zone-for-bridge-.patch
+backport/network-call-network-Add-Remove-FirewallRules-for-forward.patch
+backport/network-a-different-way-of-supporting-firewalld-zone-for-.patch
+backport/network-a-different-implementation-of-un-setting-firewall.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch

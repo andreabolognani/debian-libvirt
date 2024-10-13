@@ -1,0 +1,131 @@
+From: Laine Stump <laine@redhat.com>
+Date: Fri, 4 Oct 2024 18:43:02 -0400
+Subject: network: a different implementation of *un*setting firewalld zone
+ when network is destroyed
+
+(this is a remake of commit v10.7.0-78-g200f60b2e1, which was reverted
+due to a regression in another patch it was dependent on. The new
+implementation just adds the call to virFirewallDInterfaceUnsetZone()
+into the existing networkRemoveFirewallRules() (but only if we had set
+a zone when the network was first started).
+
+Replaces: 200f60b2e12e68d618f6d59f0173bb507b678838
+Resolves: https://issues.redhat.com/browse/RHEL-61576
+Signed-off-by: Laine Stump <laine@redhat.com>
+Reviewed-by: Jiri Denemark <jdenemar@redhat.com>
+(cherry picked from commit c0ba3ed69d14a4b9a03475d1ba1d734b27a141f8)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/c0ba3ed69d14a4b9a03475d1ba1d734b27a141f8
+---
+ src/libvirt_private.syms          |  1 +
+ src/network/bridge_driver_linux.c | 30 ++++++++++++++++++++++++------
+ src/util/virfirewalld.c           | 23 +++++++++++++++++++++++
+ src/util/virfirewalld.h           |  2 ++
+ 4 files changed, 50 insertions(+), 6 deletions(-)
+
+diff --git a/src/libvirt_private.syms b/src/libvirt_private.syms
+index d186dc4..02dacea 100644
+--- a/src/libvirt_private.syms
++++ b/src/libvirt_private.syms
+@@ -2451,6 +2451,7 @@ virFirewallDGetPolicies;
+ virFirewallDGetVersion;
+ virFirewallDGetZones;
+ virFirewallDInterfaceSetZone;
++virFirewallDInterfaceUnsetZone;
+ virFirewallDIsRegistered;
+ virFirewallDPolicyExists;
+ virFirewallDSynchronize;
+diff --git a/src/network/bridge_driver_linux.c b/src/network/bridge_driver_linux.c
+index 8956d38..6c3ec40 100644
+--- a/src/network/bridge_driver_linux.c
++++ b/src/network/bridge_driver_linux.c
+@@ -459,19 +459,37 @@ networkRemoveFirewallRules(virNetworkObj *obj)
+     } else {
+ 
+         if ((fw = virNetworkObjGetFwRemoval(obj)) == NULL) {
++
+             /* No information about firewall rules in the network status,
+              * so we assume the old iptables-based rules from 10.2.0 and
+              * earlier.
+              */
+             VIR_DEBUG("No firewall info in status of network '%s', assuming old-style iptables", def->name);
+             iptablesRemoveFirewallRules(def);
+-            return;
++
++        } else {
++
++            /* fwRemoval info was stored in the network status, so use that to
++             * remove the firewall
++             */
++            VIR_DEBUG("Removing firewall rules of network '%s' using commands saved in status", def->name);
++            virFirewallApply(fw);
+         }
++    }
+ 
+-        /* fwRemoval info was stored in the network status, so use that to
+-         * remove the firewall
+-         */
+-        VIR_DEBUG("Removing firewall rules of network '%s' using commands saved in status", def->name);
+-        virFirewallApply(fw);
++    /* all forward modes could have had a zone set, even 'open' mode
++     * iff it was specified in the config. firewalld preserves the
++     * name of an interface in a zone's list even after the interface
++     * has been deleted, which is problematic if the next use of that
++     * same interface name wants *no* zone set. To avoid this, we must
++     * "unset" the zone if we set it when the network was started.
++     */
++    if (virFirewallDIsRegistered() == 0 &&
++        (def->forward.type != VIR_NETWORK_FORWARD_OPEN ||
++         def->bridgeZone)) {
++
++        VIR_DEBUG("unsetting zone for '%s' (current zone is '%s')",
++                  def->bridge, def->bridgeZone);
++        virFirewallDInterfaceUnsetZone(def->bridge);
+     }
+ }
+diff --git a/src/util/virfirewalld.c b/src/util/virfirewalld.c
+index 827e201..ca61ed5 100644
+--- a/src/util/virfirewalld.c
++++ b/src/util/virfirewalld.c
+@@ -449,6 +449,29 @@ virFirewallDInterfaceSetZone(const char *iface,
+ }
+ 
+ 
++int
++virFirewallDInterfaceUnsetZone(const char *iface)
++{
++    GDBusConnection *sysbus = virGDBusGetSystemBus();
++    g_autoptr(GVariant) message = NULL;
++
++    if (!sysbus)
++        return -1;
++
++    message = g_variant_new("(ss)", "", iface);
++
++    return virGDBusCallMethod(sysbus,
++                              NULL,
++                              NULL,
++                              NULL,
++                              VIR_FIREWALL_FIREWALLD_SERVICE,
++                              "/org/fedoraproject/FirewallD1",
++                              "org.fedoraproject.FirewallD1.zone",
++                              "removeInterface",
++                              message);
++}
++
++
+ void
+ virFirewallDSynchronize(void)
+ {
+diff --git a/src/util/virfirewalld.h b/src/util/virfirewalld.h
+index 0e94d35..0dbe66d 100644
+--- a/src/util/virfirewalld.h
++++ b/src/util/virfirewalld.h
+@@ -46,4 +46,6 @@ int virFirewallDApplyRule(virFirewallLayer layer,
+ int virFirewallDInterfaceSetZone(const char *iface,
+                                  const char *zone);
+ 
++int virFirewallDInterfaceUnsetZone(const char *iface);
++
+ void virFirewallDSynchronize(void);

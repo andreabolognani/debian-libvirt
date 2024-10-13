@@ -1,0 +1,173 @@
+From: Laine Stump <laine@redhat.com>
+Date: Fri, 4 Oct 2024 13:46:20 -0400
+Subject: Revert "network: support setting firewalld zone for bridge device of
+ open networks"
+
+This reverts commit 1a72b83d566df952033529001b0f88a66d7f4393. That
+patch had made the incorrect assumption that the firewalld zone of a
+bridge would not be changed/removed when firewalld reloaded its rules
+(e.g. with "killall -HUP firewalld"). It turns out my memory was
+faulty, and this *does* remove the bridge interface's zone, which
+results in guest networking failure after a firewalld reload, until
+the virtual network is restarted.
+
+The functionality reverted as a result of this patch reversion will be
+added back in an upcoming patch that keeps the zone setting in
+networkAddFirewallRules() (rather than moving it into a separate
+function) so that it is called every time the network's firewall rules
+are reloaded (including the reload that happens in response to a
+reload notification from firewalld).
+
+Signed-off-by: Laine Stump
+Reviewed-by: Jiri Denemark <jdenemar@redhat.com>
+(cherry picked from commit ef760a413361a8992a3e56884a1ec09290954c71)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/ef760a413361a8992a3e56884a1ec09290954c71
+---
+ src/network/bridge_driver.c          |  4 ---
+ src/network/bridge_driver_linux.c    | 61 +++++++++++++++---------------------
+ src/network/bridge_driver_nop.c      | 13 --------
+ src/network/bridge_driver_platform.h |  2 --
+ 4 files changed, 26 insertions(+), 54 deletions(-)
+
+diff --git a/src/network/bridge_driver.c b/src/network/bridge_driver.c
+index c9c6fcb..fe053f4 100644
+--- a/src/network/bridge_driver.c
++++ b/src/network/bridge_driver.c
+@@ -1999,10 +1999,6 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
+     if (networkSetIPv6Sysctls(obj) < 0)
+         goto error;
+ 
+-    /* set the firewall zone for the bridge device on the host */
+-    if (networkSetBridgeZone(def) < 0)
+-        goto error;
+-
+     /* Add "once per network" rules */
+     if (def->forward.type != VIR_NETWORK_FORWARD_OPEN &&
+         networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval) < 0) {
+diff --git a/src/network/bridge_driver_linux.c b/src/network/bridge_driver_linux.c
+index af758d4..5981e3b 100644
+--- a/src/network/bridge_driver_linux.c
++++ b/src/network/bridge_driver_linux.c
+@@ -333,8 +333,28 @@ int networkCheckRouteCollision(virNetworkDef *def)
+ 
+ 
+ int
+-networkSetBridgeZone(virNetworkDef *def)
++networkAddFirewallRules(virNetworkDef *def,
++                        virFirewallBackend firewallBackend,
++                        virFirewall **fwRemoval)
+ {
++
++    networkSetupPrivateChains(firewallBackend, false);
++
++    if (errInitV4 &&
++        (virNetworkDefGetIPByIndex(def, AF_INET, 0) ||
++         virNetworkDefGetRouteByIndex(def, AF_INET, 0))) {
++        virSetError(errInitV4);
++        return -1;
++    }
++
++    if (errInitV6 &&
++        (virNetworkDefGetIPByIndex(def, AF_INET6, 0) ||
++         virNetworkDefGetRouteByIndex(def, AF_INET6, 0) ||
++         def->ipv6nogw)) {
++        virSetError(errInitV6);
++        return -1;
++    }
++
+     if (def->bridgeZone) {
+ 
+         /* if a firewalld zone has been specified, fail/log an error
+@@ -350,14 +370,12 @@ networkSetBridgeZone(virNetworkDef *def)
+         if (virFirewallDInterfaceSetZone(def->bridge, def->bridgeZone) < 0)
+             return -1;
+ 
+-    } else if (def->forward.type != VIR_NETWORK_FORWARD_OPEN) {
++    } else {
+ 
+-        /* if firewalld is active, try to set the "libvirt" zone by
+-         * default (forward mode='open' networks have no zone set by
+-         * default, but we honor it if one is specified). This is
+-         * desirable (for consistency) if firewalld is using the
+-         * iptables backend, but is necessary (for basic network
+-         * connectivity) if firewalld is using the nftables backend
++        /* if firewalld is active, try to set the "libvirt" zone. This is
++         * desirable (for consistency) if firewalld is using the iptables
++         * backend, but is necessary (for basic network connectivity) if
++         * firewalld is using the nftables backend
+          */
+         if (virFirewallDIsRegistered() == 0) {
+ 
+@@ -388,33 +406,6 @@ networkSetBridgeZone(virNetworkDef *def)
+         }
+     }
+ 
+-    return 0;
+-}
+-
+-
+-int
+-networkAddFirewallRules(virNetworkDef *def,
+-                        virFirewallBackend firewallBackend,
+-                        virFirewall **fwRemoval)
+-{
+-
+-    networkSetupPrivateChains(firewallBackend, false);
+-
+-    if (errInitV4 &&
+-        (virNetworkDefGetIPByIndex(def, AF_INET, 0) ||
+-         virNetworkDefGetRouteByIndex(def, AF_INET, 0))) {
+-        virSetError(errInitV4);
+-        return -1;
+-    }
+-
+-    if (errInitV6 &&
+-        (virNetworkDefGetIPByIndex(def, AF_INET6, 0) ||
+-         virNetworkDefGetRouteByIndex(def, AF_INET6, 0) ||
+-         def->ipv6nogw)) {
+-        virSetError(errInitV6);
+-        return -1;
+-    }
+-
+     switch (firewallBackend) {
+     case VIR_FIREWALL_BACKEND_NONE:
+         virReportError(VIR_ERR_NO_SUPPORT, "%s",
+diff --git a/src/network/bridge_driver_nop.c b/src/network/bridge_driver_nop.c
+index 20c7a2a..8bf3367 100644
+--- a/src/network/bridge_driver_nop.c
++++ b/src/network/bridge_driver_nop.c
+@@ -38,19 +38,6 @@ int networkCheckRouteCollision(virNetworkDef *def G_GNUC_UNUSED)
+     return 0;
+ }
+ 
+-
+-int
+-networkSetBridgeZone(virNetworkDef *def)
+-{
+-    if (def->bridgeZone) {
+-        virReportError(VIR_ERR_NO_SUPPORT, "%s",
+-                       _("This platform does not support setting the bridge device zone"));
+-        return -1;
+-    }
+-    return 0;
+-}
+-
+-
+ int networkAddFirewallRules(virNetworkDef *def G_GNUC_UNUSED,
+                             virFirewallBackend firewallBackend,
+                             virFirewall **fwRemoval G_GNUC_UNUSED)
+diff --git a/src/network/bridge_driver_platform.h b/src/network/bridge_driver_platform.h
+index 02abdc1..cd2e3fa 100644
+--- a/src/network/bridge_driver_platform.h
++++ b/src/network/bridge_driver_platform.h
+@@ -32,8 +32,6 @@ void networkPostReloadFirewallRules(bool startup);
+ 
+ int networkCheckRouteCollision(virNetworkDef *def);
+ 
+-int networkSetBridgeZone(virNetworkDef *def);
+-
+ int networkAddFirewallRules(virNetworkDef *def,
+                             virFirewallBackend firewallBackend,
+                             virFirewall **fwRemoval);
