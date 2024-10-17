@@ -142,6 +142,7 @@ Architecture: linux-any
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-common (= ${binary:Version}),
+ libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  logrotate,
  ${misc:Depends},
@@ -163,7 +164,6 @@ Recommends:
  libvirt-daemon-driver-vbox (= ${binary:Version}) [amd64 i386],
  libvirt-daemon-driver-xen (= ${binary:Version}) [amd64 arm64 armhf],
  libvirt-daemon-lock (= ${binary:Version}),
- libvirt-daemon-log (= ${binary:Version}),
  libvirt-daemon-plugin-lockd (= ${binary:Version}),
  libvirt-daemon-plugin-sanlock (= ${binary:Version}),
 Suggests:
