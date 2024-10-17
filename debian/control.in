@@ -76,7 +76,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Suggests:
- libvirt-clients-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
+ libvirt-clients-qemu (= ${source:Version}) [${ARCHES_QEMU}],
  libvirt-daemon (= ${binary:Version}) [linux-any],
  libvirt-login-shell (= ${binary:Version}) [${ARCHES_LXC}],
 Breaks:
@@ -893,7 +893,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
- libvirt-l10n (= ${binary:Version}),
+ libvirt-l10n (= ${source:Version}),
 Description: library for interfacing with different virtualization systems
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
