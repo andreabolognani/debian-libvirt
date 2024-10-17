@@ -389,9 +389,10 @@ Depends:
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  mount,
- nfs-common,
  ${misc:Depends},
  ${shlibs:Depends},
+Suggests:
+ nfs-common,
 Breaks:
  libvirt-daemon (<< 10.6.0-2~),
 Replaces:
