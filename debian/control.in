@@ -205,7 +205,6 @@ Depends:
 Recommends:
  dmidecode,
  netcat-openbsd,
- systemd-sysv | sysvinit-core,
 Suggests:
  apparmor,
  auditd,
