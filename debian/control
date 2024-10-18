@@ -612,7 +612,7 @@ Architecture: linux-any
 Multi-arch: no
 Depends:
  dnsmasq-base,
- iptables | firewalld,
+ iptables,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
