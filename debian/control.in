@@ -194,6 +194,7 @@ Section: admin
 Architecture: linux-any
 Depends:
  adduser,
+ dmidecode [${ARCHES_DMIDECODE}],
  gettext-base,
  iproute2,
  libvirt-common (= ${binary:Version}),
@@ -203,7 +204,6 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
- dmidecode,
  netcat-openbsd,
 Suggests:
  apparmor,

@@ -4,6 +4,7 @@ ARCHES_QEMU = amd64 arm64 armel armhf i386 loong64 mips64el mipsel powerpc ppc64
 ARCHES_LXC = alpha amd64 arm64 armel armhf hppa i386 loong64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 ARCHES_XEN = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
+ARCHES_DMIDECODE = amd64 arm64 armhf i386 riscv64 loong64 x32
 
 # Keep this list empty until we have AppArmor support
 ARCHES_NBDKIT =
