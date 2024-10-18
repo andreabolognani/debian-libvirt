@@ -411,6 +411,7 @@ Multi-arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  parted,
  ${misc:Depends},
@@ -435,6 +436,7 @@ Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -453,6 +455,7 @@ Multi-arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  open-iscsi,
  ${misc:Depends},
@@ -476,6 +479,7 @@ Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -497,6 +501,7 @@ Multi-arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  lvm2,
  ${misc:Depends},
@@ -521,6 +526,7 @@ Multi-arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -543,6 +549,7 @@ Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -561,6 +568,7 @@ Multi-arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -583,6 +591,7 @@ Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-storage (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
