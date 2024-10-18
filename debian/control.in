@@ -320,6 +320,7 @@ Depends:
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  logrotate,
+ systemd-container | sysvinit-core,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:
