@@ -283,12 +283,12 @@ Depends:
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  logrotate,
+ qemu-kvm | qemu-system,
  systemd-container | sysvinit-core,
  ${misc:Depends},
  ${shlibs:Depends},
 Recommends:
  passt,
- qemu-kvm | qemu-system,
  swtpm,
  swtpm-tools,
 Suggests:
