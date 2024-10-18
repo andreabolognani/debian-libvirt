@@ -318,6 +318,7 @@ Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  logrotate,
  ${misc:Depends},
