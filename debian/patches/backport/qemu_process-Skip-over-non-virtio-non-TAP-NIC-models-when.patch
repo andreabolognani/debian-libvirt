@@ -1,0 +1,80 @@
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Tue, 23 Jan 2024 17:20:42 +0100
+Subject: qemu_process: Skip over non-virtio non-TAP NIC models when
+ refreshing rx-filter
+
+After guest is started, or we are reconnecting to already running
+one (after daemon restart), qemuProcessRefreshRxFilters() is
+called to refresh rx-filters (basically MAC addresses of guest
+NICs) as they might have changed while we were not running (for
+the case when reconnecting to an already running guest), or we
+need to enable them by running a command (for freshly started
+guest - see processNicRxFilterChangedEvent()).
+
+Now, our XML parser allowed trustGuestRxFilters attribute for all
+types and models of <interface/> while in reality, only virtio
+model AND TUN/TAP based types can see MAC address changes. For
+other combinations, QEMU reports an error.
+
+This all means that when the daemon is restarted and it
+reconnects to a guest with, well invalid configuration, or when
+such guest is restored from a saved image, or migrated then we
+issue the monitor command, to which QEMU replies with an error
+which is then propagated to users:
+
+  error: internal error: unable to execute QEMU command 'query-rx-filter': invalid net client name: hostdev0
+
+While on one hand users should fix their configuration (and after
+v10.0.0-rc1~123 they can do that even on live domains), libvirt
+can also has some logic built in that prevent issuing the command
+in the first place (for obviously wrong cases).
+
+Fixes: 060d4c83ef436cf56abfad51a4d64c39448e199d
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Peter Krempa <pkrempa@redhat.com>
+(cherry picked from commit bee5301afa55a28090c0262f34c84762120bf878)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/bee5301afa55a28090c0262f34c84762120bf878
+---
+ src/qemu/qemu_process.c | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/src/qemu/qemu_process.c b/src/qemu/qemu_process.c
+index 0c408ee..9ca3bdb 100644
+--- a/src/qemu/qemu_process.c
++++ b/src/qemu/qemu_process.c
+@@ -7991,6 +7991,33 @@ qemuProcessRefreshRxFilters(virDomainObj *vm,
+         if (!virDomainNetGetActualTrustGuestRxFilters(def))
+             continue;
+ 
++        /* rx-filters are supported only for virtio model and TUN/TAP based
++         * types. */
++        if (def->model != VIR_DOMAIN_NET_MODEL_VIRTIO)
++            continue;
++
++        switch (virDomainNetGetActualType(def)) {
++        case VIR_DOMAIN_NET_TYPE_ETHERNET:
++        case VIR_DOMAIN_NET_TYPE_NETWORK:
++        case VIR_DOMAIN_NET_TYPE_BRIDGE:
++        case VIR_DOMAIN_NET_TYPE_DIRECT:
++            break;
++        case VIR_DOMAIN_NET_TYPE_USER:
++        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
++        case VIR_DOMAIN_NET_TYPE_SERVER:
++        case VIR_DOMAIN_NET_TYPE_CLIENT:
++        case VIR_DOMAIN_NET_TYPE_MCAST:
++        case VIR_DOMAIN_NET_TYPE_INTERNAL:
++        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
++        case VIR_DOMAIN_NET_TYPE_UDP:
++        case VIR_DOMAIN_NET_TYPE_VDPA:
++        case VIR_DOMAIN_NET_TYPE_NULL:
++        case VIR_DOMAIN_NET_TYPE_VDS:
++        case VIR_DOMAIN_NET_TYPE_LAST:
++        default:
++            continue;
++        }
++
+         if (qemuDomainSyncRxFilter(vm, def, asyncJob) < 0)
+             return -1;
+     }

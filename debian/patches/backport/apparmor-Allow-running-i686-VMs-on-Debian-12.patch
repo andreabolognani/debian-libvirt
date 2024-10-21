@@ -1,0 +1,37 @@
+From: Andrea Bolognani <abologna@redhat.com>
+Date: Tue, 15 Oct 2024 11:50:36 +0200
+Subject: apparmor: Allow running i686 VMs on Debian 12
+
+In Debian 12, the qemu-system-i386 binary in /usr/bin is a wrapper
+script, with the actual executable living in /usr/libexec instead.
+This makes it impossible to run i686 VMs when AppArmor is enabled.
+
+Allow running the actual binary.
+
+https://bugs.debian.org/1030926
+
+Signed-off-by: Andrea Bolognani <abologna@redhat.com>
+Reviewed-by: Jim Fehlig <jfehlig@suse.com>
+(cherry picked from commit 81493d8eb6ec5d3f063b0b5770df33ed656d6766)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/81493d8eb6ec5d3f063b0b5770df33ed656d6766
+Bugs-Debian: https://bugs.debian.org/1030926
+---
+ src/security/apparmor/libvirt-qemu | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
+index d0289b8..ed96f6e 100644
+--- a/src/security/apparmor/libvirt-qemu
++++ b/src/security/apparmor/libvirt-qemu
+@@ -171,6 +171,9 @@
+   /usr/bin/qemu-system-xtensaeb rmix,
+   /usr/bin/qemu-unicore32 rmix,
+   /usr/bin/qemu-x86_64 rmix,
++  # Debian 12 has a wrapper script in /usr/bin while the actual
++  # binary lives in /usr/libexec (Debian: #1030926)
++  /usr/libexec/qemu-system-i386 rmix,
+   # for Debian/Ubuntu qemu-block-extra / RPMs qemu-block-* (LP: #1554761)
+   /usr/{lib,lib64}/qemu/*.so mr,
+   /usr/lib/@{multiarch}/qemu/*.so mr,
