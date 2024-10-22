@@ -1,4 +1,3 @@
-forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
