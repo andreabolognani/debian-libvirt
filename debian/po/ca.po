@@ -1,0 +1,74 @@
+# Catalan translation of libvirt's debconf messages
+# Copyright © 2024 Free Software Foundation, Inc.
+# This file is distributed under the same license as the libvirt package.
+# poc senderi <pocsenderi@protonmail.com>, 2024.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: libvirt\n"
+"Report-Msgid-Bugs-To: libvirt@packages.debian.org\n"
+"POT-Creation-Date: 2016-12-22 14:20+0100\n"
+"PO-Revision-Date: 2024-08-22 08:38+0200\n"
+"Last-Translator: poc senderi <pocsenderi@protonmail.com>\n"
+"Language-Team: Catalan <debian-l10n-catalan@lists.debian.org>\n"
+"Language: ca\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 2.4.2\n"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid "Continue with incorrect libvirt-qemu user/group ID(s)?"
+msgstr ""
+"Voleu continuar amb un identificador d'usuari/grup de «libvirt-qemu» "
+"incorrecte?"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" The user/group ID (uid/gid) allocated for libvirt-qemu (64055)\n"
+" seems to be taken by another user/group, thus it is not possible\n"
+" to create the user/group with this numeric ID."
+msgstr ""
+" L'identificador d'usuari/grup (uid/gid) assignat a «libvirt-qemu» (64055)\n"
+" sembla que està assignat a un altre usuari/grup, així doncs no és possible\n"
+" crear l'usuari/grup amb aquest identificador numèric."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" The migration of guests with disk image files shared over NFS\n"
+" requires a static libvirt-qemu user and group ID (uid and gid)\n"
+" between the source and destination host systems."
+msgstr ""
+" La migració de convidats amb fitxers d'imatge de disc compartits a través "
+"de NFS\n"
+" requereix identificadors estàtics d'usuari i de grup «libvirt-qemu» (uid i "
+"gid)\n"
+" entre els sistemes amfitrions d'origen i de destí."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" If guest migration over NFS is not required, you can continue\n"
+" the installation."
+msgstr ""
+" Si no es requereix la migració de convidats sobre NFS, podeu continuar\n"
+" la instal·lació."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-driver-qemu.templates:1001
+msgid ""
+" In order to resolve this problem, do not continue the installation,\n"
+" release the 64055 uid/gid (which might involve permission changes),\n"
+" then install this package again."
+msgstr ""
+" Per resoldre aquest problema, no continueu la instal·lació,\n"
+" allibereu l'uid/gid 64055 (fet que podria implicar canvis de permisos),\n"
+" i després instal·leu aquest paquet de nou."
