@@ -695,6 +695,10 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION, /* intel-iommu.dma-translation */
     QEMU_CAPS_MACHINE_I8042_OPT, /* -machine xxx,i8042=on/off; use virQEMUCapsSupportsI8042Toggle() to query this capability */
 
+    /* 465 */
+    QEMU_CAPS_SNAPSHOT_INTERNAL_QMP, /* internal snapshot support via QMP commands 'snapshot-save'/'snapshot-delete' */
+    QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS, /* 'reconnect-ms' option for chardevs supported */
+
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
 
@@ -791,6 +795,10 @@ bool virQEMUCapsIsCPUDeprecated(virQEMUCaps *qemuCaps,
 bool virQEMUCapsIsCPUUsable(virQEMUCaps *qemuCaps,
                             virDomainVirtType type,
                             virCPUDef *cpu);
+int virQEMUCapsGetCPUBlockers(virQEMUCaps *qemuCaps,
+                              virDomainVirtType type,
+                              const char *cpu,
+                              char ***blockers);
 bool virQEMUCapsIsMachineDeprecated(virQEMUCaps *qemuCaps,
                                     virDomainVirtType type,
                                     const char *machine);

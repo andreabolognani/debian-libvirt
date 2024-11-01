@@ -538,6 +538,7 @@ qemuTPMEmulatorReconfigure(const char *storagepath,
  * @privileged: whether we are running in privileged mode
  * @swtpm_user: The uid for the swtpm to run as (drop privileges to from root)
  * @swtpm_group: The gid for the swtpm to run as
+ * @sharedFilesystems: list of filesystem to consider shared
  * @incomingMigration: whether we have an incoming migration
  *
  * Create the virCommand use for starting the emulator
@@ -551,6 +552,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
                             bool privileged,
                             uid_t swtpm_user,
                             gid_t swtpm_group,
+                            char *const *sharedFilesystems,
                             bool incomingMigration)
 {
     g_autoptr(virCommand) cmd = NULL;
@@ -568,7 +570,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     /* Do not create storage and run swtpm_setup on incoming migration over
      * shared storage
      */
-    on_shared_storage = virFileIsSharedFS(tpm->data.emulator.storagepath) == 1;
+    on_shared_storage = virFileIsSharedFS(tpm->data.emulator.storagepath, sharedFilesystems) == 1;
     if (incomingMigration && on_shared_storage)
         create_storage = false;
 
@@ -738,6 +740,7 @@ qemuTPMEmulatorInitPaths(virDomainTPMDef *tpm,
 
 /**
  * qemuTPMEmulatorCleanupHost:
+ * @driver: QEMU driver
  * @tpm: TPM definition
  * @flags: flags indicating whether to keep or remove TPM persistent state
  * @outgoingMigration: whether cleanup is due to an outgoing migration
@@ -745,15 +748,18 @@ qemuTPMEmulatorInitPaths(virDomainTPMDef *tpm,
  * Clean up persistent storage for the swtpm.
  */
 static void
-qemuTPMEmulatorCleanupHost(virDomainTPMDef *tpm,
+qemuTPMEmulatorCleanupHost(virQEMUDriver *driver,
+                           virDomainTPMDef *tpm,
                            virDomainUndefineFlagsValues flags,
                            bool outgoingMigration)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
     /* Never remove the state in case of outgoing migration with shared
      * storage.
      */
     if (outgoingMigration &&
-        virFileIsSharedFS(tpm->data.emulator.storagepath) == 1)
+        virFileIsSharedFS(tpm->data.emulator.storagepath, cfg->sharedFilesystems) == 1)
         return;
 
     /*
@@ -927,8 +933,8 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     g_autofree char *pidfile = NULL;
     virTimeBackOffVar timebackoff;
     const unsigned long long timeout = 1000; /* ms */
-    bool setTPMStateLabel = true;
     pid_t pid = -1;
+    bool lockMetadataException = false;
 
     cfg = virQEMUDriverGetConfig(driver);
 
@@ -939,6 +945,7 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
                                             driver->privileged,
                                             cfg->swtpm_user,
                                             cfg->swtpm_group,
+                                            cfg->sharedFilesystems,
                                             incomingMigration)))
         return -1;
 
@@ -953,13 +960,21 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     virCommandSetPidFile(cmd, pidfile);
     virCommandSetErrorFD(cmd, &errfd);
 
-    if (incomingMigration &&
-        virFileIsSharedFS(tpm->data.emulator.storagepath) == 1) {
-        /* security labels must have been set up on source already */
-        setTPMStateLabel = false;
+    if (incomingMigration && qemuTPMHasSharedStorage(driver, vm->def)) {
+        /* If the TPM is being migrated over shared storage, we can't
+         * lock all files before labeling them: the source swtpm
+         * process is still holding on to the lock file, and it will
+         * only release it after negotiation with the target swtpm
+         * process, which we can't start until labeling has been
+         * performed.
+         *
+         * So we explicity request for the lock file not to be locked
+         * before labeling in this specific, narrow scenario in order
+         * to make migration possible at all */
+        lockMetadataException = true;
     }
 
-    if (qemuSecuritySetTPMLabels(driver, vm, setTPMStateLabel) < 0)
+    if (qemuSecuritySetTPMLabels(driver, vm, true, lockMetadataException) < 0)
         return -1;
 
     if (qemuSecurityCommandRun(driver, vm, cmd, cfg->swtpm_user,
@@ -1008,14 +1023,16 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
         virProcessKillPainfully(pid, true);
     if (pidfile)
         unlink(pidfile);
-    qemuSecurityRestoreTPMLabels(driver, vm, setTPMStateLabel);
+    qemuSecurityRestoreTPMLabels(driver, vm, true, lockMetadataException);
     return -1;
 }
 
 
 bool
-qemuTPMHasSharedStorage(virDomainDef *def)
+qemuTPMHasSharedStorage(virQEMUDriver *driver,
+                        virDomainDef *def)
 {
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     size_t i;
 
     for (i = 0; i < def->ntpms; i++) {
@@ -1023,7 +1040,8 @@ qemuTPMHasSharedStorage(virDomainDef *def)
 
         switch (tpm->type) {
         case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-            return virFileIsSharedFS(tpm->data.emulator.storagepath) == 1;
+            return virFileIsSharedFS(tpm->data.emulator.storagepath,
+                                     cfg->sharedFilesystems) == 1;
         case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
         case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
         case VIR_DOMAIN_TPM_TYPE_LAST:
@@ -1101,11 +1119,12 @@ qemuExtTPMPrepareHost(virQEMUDriver *driver,
 
 
 void
-qemuExtTPMCleanupHost(virDomainTPMDef *tpm,
+qemuExtTPMCleanupHost(virQEMUDriver *driver,
+                      virDomainTPMDef *tpm,
                       virDomainUndefineFlagsValues flags,
                       bool outgoingMigration)
 {
-    qemuTPMEmulatorCleanupHost(tpm, flags, outgoingMigration);
+    qemuTPMEmulatorCleanupHost(driver, tpm, flags, outgoingMigration);
 }
 
 
@@ -1137,10 +1156,10 @@ qemuExtTPMStop(virQEMUDriver *driver,
         return;
 
     qemuTPMEmulatorStop(cfg->swtpmStateDir, shortName);
-    if (outgoingMigration && qemuTPMHasSharedStorage(vm->def))
+    if (outgoingMigration && qemuTPMHasSharedStorage(driver, vm->def))
         restoreTPMStateLabel = false;
 
-    if (qemuSecurityRestoreTPMLabels(driver, vm, restoreTPMStateLabel) < 0)
+    if (qemuSecurityRestoreTPMLabels(driver, vm, restoreTPMStateLabel, false) < 0)
         VIR_WARN("Unable to restore labels on TPM state and/or log file");
 }
 

@@ -2478,6 +2478,11 @@ qemuDomainObjPrivateXMLFormatBlockjobIterator(void *payload,
             }
             break;
 
+        case QEMU_BLOCKJOB_TYPE_SNAPSHOT_SAVE:
+        case QEMU_BLOCKJOB_TYPE_SNAPSHOT_DELETE:
+            /* No private data for internal snapshot jobs */
+            break;
+
         case QEMU_BLOCKJOB_TYPE_BROKEN:
         case QEMU_BLOCKJOB_TYPE_NONE:
         case QEMU_BLOCKJOB_TYPE_INTERNAL:
@@ -3028,6 +3033,11 @@ qemuDomainObjPrivateXMLParseBlockjobDataSpecific(qemuBlockJobData *job,
             if (!(tmp = virXPathNode("./store", ctxt)) ||
                 !(job->data.backup.store = qemuDomainObjPrivateXMLParseBlockjobChain(tmp, ctxt, xmlopt)))
                 goto broken;
+            break;
+
+        case QEMU_BLOCKJOB_TYPE_SNAPSHOT_SAVE:
+        case QEMU_BLOCKJOB_TYPE_SNAPSHOT_DELETE:
+            /* No extra data for internal snapshot jobs. */
             break;
 
         case QEMU_BLOCKJOB_TYPE_BROKEN:
@@ -6889,23 +6899,21 @@ qemuDomainMakeCPUMigratable(virArch arch,
         virCPUDefUpdateFeature(cpu, "pconfig", VIR_CPU_FEATURE_DISABLE);
     }
 
-    if (virCPUx86GetAddedFeatures(cpu->model, &data.added) < 0)
-        return -1;
-
-    /* Drop features marked as added in a cpu model, but only
-     * when they are not mentioned in origCPU, i.e., when they were not
-     * explicitly mentioned by the user.
-     */
-    if (data.added) {
-        g_auto(GStrv) keep = NULL;
-
-        if (origCPU) {
-            keep = virCPUDefListExplicitFeatures(origCPU);
-            data.keep = keep;
-        }
-
-        if (virCPUDefFilterFeatures(cpu, qemuDomainDropAddedCPUFeatures, &data) < 0)
+    if (origCPU) {
+        if (virCPUx86GetAddedFeatures(cpu->model, &data.added) < 0)
             return -1;
+
+        /* Drop features marked as added in a cpu model, but only
+         * when they are not mentioned in origCPU, i.e., when they were not
+         * explicitly mentioned by the user.
+         */
+        if (data.added) {
+            g_auto(GStrv) keep = virCPUDefListExplicitFeatures(origCPU);
+            data.keep = keep;
+
+            if (virCPUDefFilterFeatures(cpu, qemuDomainDropAddedCPUFeatures, &data) < 0)
+                return -1;
+        }
     }
 
     return 0;
@@ -12129,7 +12137,12 @@ virQEMUFileOpenAs(uid_t fallback_uid,
     bool need_unlink = false;
     unsigned int vfoflags = 0;
     int fd = -1;
-    int path_shared = virFileIsSharedFS(path);
+    /* Note that it would be pointless to pass
+     * virQEMUDriverConfig.sharedFilesystems here, since those
+     * listed there are by definition paths that can be accessed
+     * as local from the current host. Thus, a second attempt at
+     * opening the file would not make a difference */
+    int path_shared = virFileIsSharedFS(path, NULL);
     uid_t uid = geteuid();
     gid_t gid = getegid();
 
@@ -13209,4 +13222,69 @@ qemuDomainStorageUpdatePhysical(virQEMUDriverConfig *cfg,
     qemuDomainStorageCloseStat(src, &fd);
 
     return ret;
+}
+
+
+/**
+ * qemuDomainCheckCPU:
+ * @arch: CPU architecture
+ * @virtType: domain type (KVM vs. TCG)
+ * @qemuCaps: QEMU capabilities
+ * @cpu: CPU definition to check against "host CPU"
+ * @compatCPU: type of CPU used for old style check
+ * @failIncompatible: return an error instead of VIR_CPU_COMPARE_INCOMPATIBLE
+ *
+ * Perform a "partial" check of the @cpu against a "host CPU".
+ *
+ * Old style check used with all existing CPU models uses cpu_map definition of
+ * the model in @cpu and compares it to the host CPU fetched @qemuCaps
+ * according to @compatCPU.
+ *
+ * For future CPU models (without <check partial='compat'/>) only explicitly
+ * requested features are checked against the host CPU definition provided by
+ * QEMU and the usability (with a list of blocking features) info for the base
+ * CPU model. Our definition of the mode in cpu_map is ignored completely.
+ *
+ * Returns VIR_CPU_COMPARE_ERROR on error, VIR_CPU_COMPARE_INCOMPATIBLE when
+ * the two CPUs are incompatible, VIR_CPU_COMPARE_IDENTICAL when the two CPUs
+ * are identical, VIR_CPU_COMPARE_SUPERSET when the @cpu CPU is a superset of
+ * the @host CPU. If @failIncompatible is true, the function will return
+ * VIR_CPU_COMPARE_ERROR (and set VIR_ERR_CPU_INCOMPATIBLE error) when the
+ * two CPUs are incompatible.
+ */
+virCPUCompareResult
+qemuDomainCheckCPU(virArch arch,
+                   virDomainVirtType virtType,
+                   virQEMUCaps *qemuCaps,
+                   virCPUDef *cpu,
+                   virQEMUCapsHostCPUType compatCPU,
+                   bool failIncompatible)
+{
+    virCPUDef *hypervisorCPU;
+    bool compat = false;
+    char **blockers = NULL;
+
+    if (virQEMUCapsIsCPUUsable(qemuCaps, virtType, cpu))
+        return VIR_CPU_COMPARE_SUPERSET;
+
+    hypervisorCPU = virQEMUCapsGetHostModel(qemuCaps, virtType,
+                                            VIR_QEMU_CAPS_HOST_CPU_REPORTED);
+
+    /* Force compat check if the CPU model is not found in qemuCaps or
+     * we don't have host CPU data from QEMU */
+    if (!cpu->model ||
+        hypervisorCPU->fallback != VIR_CPU_FALLBACK_FORBID ||
+        virQEMUCapsGetCPUBlockers(qemuCaps, virtType,
+                                  cpu->model, &blockers) < 0)
+        compat = true;
+    else if (virCPUGetCheckMode(arch, cpu, &compat) < 0)
+        return VIR_CPU_COMPARE_ERROR;
+
+    if (compat) {
+        virCPUDef *host = virQEMUCapsGetHostModel(qemuCaps, virtType, compatCPU);
+        return virCPUCompare(arch, host, cpu, failIncompatible);
+    }
+
+    return virCPUCompareUnusable(arch, hypervisorCPU, cpu,
+                                 blockers, failIncompatible);
 }

@@ -68,6 +68,8 @@ VIR_ENUM_IMPL(qemuBlockjob,
               "backup",
               "",
               "create",
+              "snapshot-save",
+              "snapshot-delete",
               "broken");
 
 static virClass *qemuBlockJobDataClass;
@@ -1218,6 +1220,8 @@ qemuBlockJobProcessEventConcludedCopyPivot(virQEMUDriver *driver,
                                            virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virStorageSource) src = NULL;
+
     VIR_DEBUG("copy job '%s' on VM '%s' pivoted", job->name, vm->def->name);
 
     /* mirror may be NULL for copy job corresponding to migration */
@@ -1241,9 +1245,11 @@ qemuBlockJobProcessEventConcludedCopyPivot(virQEMUDriver *driver,
 
     qemuBlockJobRewriteConfigDiskSource(vm, job->disk, job->disk->mirror);
 
-    qemuBlockJobEventProcessConcludedRemoveChain(driver, vm, asyncJob, job->disk->src);
-    virObjectUnref(job->disk->src);
+    src = g_steal_pointer(&job->disk->src);
+
     job->disk->src = g_steal_pointer(&job->disk->mirror);
+
+    qemuBlockJobEventProcessConcludedRemoveChain(driver, vm, asyncJob, src);
 }
 
 
@@ -1254,6 +1260,7 @@ qemuBlockJobProcessEventConcludedCopyAbort(virQEMUDriver *driver,
                                            virDomainAsyncJob asyncJob)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virStorageSource) mirror = NULL;
 
     VIR_DEBUG("copy job '%s' on VM '%s' aborted", job->name, vm->def->name);
 
@@ -1277,9 +1284,10 @@ qemuBlockJobProcessEventConcludedCopyAbort(virQEMUDriver *driver,
             g_clear_pointer(&job->disk->mirror->backingStore, virObjectUnref);
     }
 
+    mirror = g_steal_pointer(&job->disk->mirror);
+
     /* activeWrite bitmap is removed automatically here */
-    qemuBlockJobEventProcessConcludedRemoveChain(driver, vm, asyncJob, job->disk->mirror);
-    g_clear_pointer(&job->disk->mirror, virObjectUnref);
+    qemuBlockJobEventProcessConcludedRemoveChain(driver, vm, asyncJob, mirror);
 }
 
 
@@ -1449,6 +1457,11 @@ qemuBlockJobEventProcessConcludedTransition(qemuBlockJobData *job,
                                                 progressTotal);
         break;
 
+    case QEMU_BLOCKJOB_TYPE_SNAPSHOT_SAVE:
+    case QEMU_BLOCKJOB_TYPE_SNAPSHOT_DELETE:
+        /* The internal snapshot jobs don't need any extra handling */
+        break;
+
     case QEMU_BLOCKJOB_TYPE_BROKEN:
     case QEMU_BLOCKJOB_TYPE_NONE:
     case QEMU_BLOCKJOB_TYPE_INTERNAL:
@@ -1555,12 +1568,18 @@ qemuBlockJobEventProcess(virQEMUDriver *driver,
     case QEMU_BLOCKJOB_STATE_COMPLETED:
     case QEMU_BLOCKJOB_STATE_FAILED:
     case QEMU_BLOCKJOB_STATE_CANCELLED:
-    case QEMU_BLOCKJOB_STATE_CONCLUDED:
-        if (job->disk) {
-            job->disk->mirrorState = VIR_DOMAIN_DISK_MIRROR_STATE_NONE;
-            job->disk->mirrorJob = VIR_DOMAIN_BLOCK_JOB_TYPE_UNKNOWN;
-        }
+    case QEMU_BLOCKJOB_STATE_CONCLUDED: {
+        virDomainDiskDef *disk = job->disk;
+
         qemuBlockJobEventProcessConcluded(job, driver, vm, asyncJob);
+
+        /* Job was unregistered from the disk but we must ensure that the
+         * data is cleared */
+        if (disk) {
+            disk->mirrorState = VIR_DOMAIN_DISK_MIRROR_STATE_NONE;
+            disk->mirrorJob = VIR_DOMAIN_BLOCK_JOB_TYPE_UNKNOWN;
+        }
+    }
         break;
 
     case QEMU_BLOCKJOB_STATE_READY:

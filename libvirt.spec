@@ -19,7 +19,7 @@
 %define arches_x86              %{ix86} x86_64
 
 %define arches_systemtap_64bit  %{arches_64bit}
-%define arches_dmidecode        %{arches_x86}
+%define arches_dmidecode        %{arches_x86} aarch64 riscv64
 %define arches_xen              %{arches_x86} aarch64
 %if 0%{?fedora}
     %define arches_xen          x86_64 aarch64
@@ -288,7 +288,7 @@
 
 Summary: Library providing a simple virtualization API
 Name: libvirt
-Version: 10.8.0
+Version: 10.9.0
 Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/
@@ -993,7 +993,6 @@ Requires: libvirt-daemon-driver-libxl = %{version}-%{release}
 Requires: libvirt-daemon-driver-interface = %{version}-%{release}
 Requires: libvirt-daemon-driver-network = %{version}-%{release}
 Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
-Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
 Requires: libvirt-daemon-driver-secret = %{version}-%{release}
 Requires: libvirt-daemon-driver-storage = %{version}-%{release}
 Requires: xen
@@ -2039,7 +2038,7 @@ exit 0
 %config(noreplace) %{_sysconfdir}/sasl2/libvirt.conf
 %dir %{_datadir}/libvirt/
 %ghost %dir %{_rundir}/libvirt/
-%ghost %dir %{_rundir}/libvirt/common/
+%ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/common/
 %dir %attr(0755, root, root) %{_localstatedir}/lib/libvirt/
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/images/
 %dir %attr(0711, root, root) %{_localstatedir}/lib/libvirt/filesystems/
@@ -2125,7 +2124,7 @@ exit 0
 %{_unitdir}/virtinterfaced-ro.socket
 %{_unitdir}/virtinterfaced-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtinterfaced
-%ghost %dir %{_rundir}/libvirt/interface/
+%ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/interface/
 %{_libdir}/libvirt/connection-driver/libvirt_driver_interface.so
 %{_mandir}/man8/virtinterfaced.8*
 
@@ -2167,7 +2166,7 @@ exit 0
 %{_unitdir}/virtnodedevd-ro.socket
 %{_unitdir}/virtnodedevd-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtnodedevd
-%ghost %dir %{_rundir}/libvirt/nodedev/
+%ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/nodedev/
 %{_libdir}/libvirt/connection-driver/libvirt_driver_nodedev.so
 %{_mandir}/man8/virtnodedevd.8*
 
@@ -2182,8 +2181,8 @@ exit 0
 %attr(0755, root, root) %{_sbindir}/virtnwfilterd
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/nwfilter/
 %ghost %dir %{_rundir}/libvirt/network/
-%ghost %dir %{_rundir}/libvirt/nwfilter-binding/
-%ghost %dir %{_rundir}/libvirt/nwfilter/
+%ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/nwfilter-binding/
+%ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/nwfilter/
 %{_libdir}/libvirt/connection-driver/libvirt_driver_nwfilter.so
 %{_mandir}/man8/virtnwfilterd.8*
 
@@ -2197,7 +2196,7 @@ exit 0
 %{_unitdir}/virtsecretd-admin.socket
 %attr(0755, root, root) %{_sbindir}/virtsecretd
 %dir %attr(0700, root, root) %{_sysconfdir}/libvirt/secrets/
-%ghost %dir %{_rundir}/libvirt/secrets/
+%ghost %dir %attr(0700, root, root) %{_rundir}/libvirt/secrets/
 %{_libdir}/libvirt/connection-driver/libvirt_driver_secret.so
 %{_mandir}/man8/virtsecretd.8*
 
@@ -2276,11 +2275,11 @@ exit 0
 %config(noreplace) %{_sysconfdir}/libvirt/qemu.conf
 %config(noreplace) %{_sysconfdir}/libvirt/qemu-lockd.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/libvirtd.qemu
-%ghost %dir %{_rundir}/libvirt/qemu/
-%ghost %dir %{_rundir}/libvirt/qemu/dbus/
-%ghost %dir %{_rundir}/libvirt/qemu/passt/
-%ghost %dir %{_rundir}/libvirt/qemu/slirp/
-%ghost %dir %{_rundir}/libvirt/qemu/swtpm/
+%ghost %dir %attr(0770, %{qemu_user}, %{qemu_group}) %{_rundir}/libvirt/qemu/
+%ghost %dir %attr(0770, %{qemu_user}, %{qemu_group}) %{_rundir}/libvirt/qemu/dbus/
+%ghost %dir %attr(0770, %{qemu_user}, %{qemu_group}) %{_rundir}/libvirt/qemu/passt/
+%ghost %dir %attr(0770, %{qemu_user}, %{qemu_group}) %{_rundir}/libvirt/qemu/slirp/
+%ghost %dir %attr(0770, %{qemu_user}, %{qemu_group}) %{_rundir}/libvirt/qemu/swtpm/
 %dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/
 %dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/checkpoint/
 %dir %attr(0751, %{qemu_user}, %{qemu_group}) %{_localstatedir}/lib/libvirt/qemu/dump/

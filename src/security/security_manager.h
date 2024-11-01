@@ -81,10 +81,12 @@ virSecurityManager *virSecurityManagerNewDAC(const char *virtDriver,
 int virSecurityManagerPreFork(virSecurityManager *mgr);
 void virSecurityManagerPostFork(virSecurityManager *mgr);
 
-int virSecurityManagerTransactionStart(virSecurityManager *mgr);
+int virSecurityManagerTransactionStart(virSecurityManager *mgr,
+                                       char *const *sharedFilesystems);
 int virSecurityManagerTransactionCommit(virSecurityManager *mgr,
                                         pid_t pid,
-                                        bool lock);
+                                        bool lock,
+                                        bool lockMetadataException);
 void virSecurityManagerTransactionAbort(virSecurityManager *mgr);
 
 void *virSecurityManagerGetPrivateData(virSecurityManager *mgr);
@@ -129,11 +131,13 @@ int virSecurityManagerReleaseLabel(virSecurityManager *mgr,
 int virSecurityManagerCheckAllLabel(virSecurityManager *mgr,
                                     virDomainDef *sec);
 int virSecurityManagerSetAllLabel(virSecurityManager *mgr,
+                                  char *const *sharedFilesystems,
                                   virDomainDef *sec,
                                   const char *incomingPath,
                                   bool chardevStdioLogd,
                                   bool migrated);
 int virSecurityManagerRestoreAllLabel(virSecurityManager *mgr,
+                                      char *const *sharedFilesystems,
                                       virDomainDef *def,
                                       bool migrated,
                                       bool chardevStdioLogd);
@@ -170,14 +174,17 @@ typedef enum {
 } virSecurityDomainImageLabelFlags;
 
 int virSecurityManagerSetImageLabel(virSecurityManager *mgr,
+                                    char *const *sharedFilesystems,
                                     virDomainDef *vm,
                                     virStorageSource *src,
                                     virSecurityDomainImageLabelFlags flags);
 int virSecurityManagerRestoreImageLabel(virSecurityManager *mgr,
+                                        char *const *sharedFilesystems,
                                         virDomainDef *vm,
                                         virStorageSource *src,
                                         virSecurityDomainImageLabelFlags flags);
 int virSecurityManagerMoveImageMetadata(virSecurityManager *mgr,
+                                        char *const *sharedFilesystems,
                                         pid_t pid,
                                         virStorageSource *src,
                                         virStorageSource *dst);
@@ -246,8 +253,10 @@ struct _virSecurityManagerMetadataLockState {
 
 virSecurityManagerMetadataLockState *
 virSecurityManagerMetadataLock(virSecurityManager *mgr,
+                               char *const *sharedFilesystems,
                                const char **paths,
-                               size_t npaths);
+                               size_t npaths,
+                               bool lockMetadataException);
 
 void
 virSecurityManagerMetadataUnlock(virSecurityManager *mgr,

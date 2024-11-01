@@ -38,25 +38,6 @@ int networkCheckRouteCollision(virNetworkDef *def G_GNUC_UNUSED)
     return 0;
 }
 
-
-int
-networkSetBridgeZone(virNetworkDef *def)
-{
-    if (def->bridgeZone) {
-        virReportError(VIR_ERR_NO_SUPPORT, "%s",
-                       _("This platform does not support setting the bridge device zone"));
-        return -1;
-    }
-    return 0;
-}
-
-
-void
-networkUnsetBridgeZone(virNetworkDef *def G_GNUC_UNUSED)
-{
-}
-
-
 int networkAddFirewallRules(virNetworkDef *def G_GNUC_UNUSED,
                             virFirewallBackend firewallBackend,
                             virFirewall **fwRemoval G_GNUC_UNUSED)
@@ -75,6 +56,8 @@ int networkAddFirewallRules(virNetworkDef *def G_GNUC_UNUSED,
     return 0;
 }
 
-void networkRemoveFirewallRules(virNetworkObj *obj G_GNUC_UNUSED)
+void
+networkRemoveFirewallRules(virNetworkObj *obj G_GNUC_UNUSED,
+                           bool unsetZone G_GNUC_UNUSED)
 {
 }

@@ -333,8 +333,15 @@ int networkCheckRouteCollision(virNetworkDef *def)
 
 
 int
-networkSetBridgeZone(virNetworkDef *def)
+networkAddFirewallRules(virNetworkDef *def,
+                        virFirewallBackend firewallBackend,
+                        virFirewall **fwRemoval)
 {
+    /* If firewalld is running on the system, a firewalld zone is
+     * always set for the bridge device of all bridge-based managed
+     * networks of all forward modes *except* 'open', which is only
+     * set if specifically requested in the config.
+     */
     if (def->bridgeZone) {
 
         /* if a firewalld zone has been specified, fail/log an error
@@ -388,85 +395,103 @@ networkSetBridgeZone(virNetworkDef *def)
         }
     }
 
-    return 0;
-}
+    if (def->forward.type == VIR_NETWORK_FORWARD_OPEN) {
 
+        VIR_DEBUG("No firewall rules to add for mode='open' network '%s'", def->name);
 
-void
-networkUnsetBridgeZone(virNetworkDef *def)
-{
-    /* If there is a libvirt-managed bridge device remove it from any
-     * zone it had been placed in as a part of deleting the bridge.
-     * DO NOT CALL THIS FOR 'bridge' forward mode, since that
-     * bridge is not managed by libvirt.
-     */
-    if (def->bridge && def->forward.type != VIR_NETWORK_FORWARD_BRIDGE
-        && virFirewallDIsRegistered() == 0) {
-        virFirewallDInterfaceUnsetZone(def->bridge);
-    }
-}
+    } else {
 
-int
-networkAddFirewallRules(virNetworkDef *def,
-                        virFirewallBackend firewallBackend,
-                        virFirewall **fwRemoval)
-{
+        VIR_DEBUG("Adding firewall rules for mode='%s' network '%s' using %s",
+                  virNetworkForwardTypeToString(def->forward.type),
+                  def->name,
+                  virFirewallBackendTypeToString(firewallBackend));
 
-    networkSetupPrivateChains(firewallBackend, false);
+        /* one-time (per system boot) initialization */
+        networkSetupPrivateChains(firewallBackend, false);
 
-    if (errInitV4 &&
-        (virNetworkDefGetIPByIndex(def, AF_INET, 0) ||
-         virNetworkDefGetRouteByIndex(def, AF_INET, 0))) {
-        virSetError(errInitV4);
-        return -1;
-    }
+        if (errInitV4 &&
+            (virNetworkDefGetIPByIndex(def, AF_INET, 0) ||
+             virNetworkDefGetRouteByIndex(def, AF_INET, 0))) {
+            virSetError(errInitV4);
+            return -1;
+        }
 
-    if (errInitV6 &&
-        (virNetworkDefGetIPByIndex(def, AF_INET6, 0) ||
-         virNetworkDefGetRouteByIndex(def, AF_INET6, 0) ||
-         def->ipv6nogw)) {
-        virSetError(errInitV6);
-        return -1;
-    }
+        if (errInitV6 &&
+            (virNetworkDefGetIPByIndex(def, AF_INET6, 0) ||
+             virNetworkDefGetRouteByIndex(def, AF_INET6, 0) ||
+             def->ipv6nogw)) {
+            virSetError(errInitV6);
+            return -1;
+        }
 
-    switch (firewallBackend) {
-    case VIR_FIREWALL_BACKEND_NONE:
-        virReportError(VIR_ERR_NO_SUPPORT, "%s",
-                       _("No firewall backend is available"));
-        return -1;
+        /* now actually add the rules */
+        switch (firewallBackend) {
+        case VIR_FIREWALL_BACKEND_NONE:
+            virReportError(VIR_ERR_NO_SUPPORT, "%s",
+                           _("No firewall backend is available"));
+            return -1;
 
-    case VIR_FIREWALL_BACKEND_IPTABLES:
-        return iptablesAddFirewallRules(def, fwRemoval);
+        case VIR_FIREWALL_BACKEND_IPTABLES:
+            return iptablesAddFirewallRules(def, fwRemoval);
 
-    case VIR_FIREWALL_BACKEND_NFTABLES:
-        return nftablesAddFirewallRules(def, fwRemoval);
+        case VIR_FIREWALL_BACKEND_NFTABLES:
+            return nftablesAddFirewallRules(def, fwRemoval);
 
-    case VIR_FIREWALL_BACKEND_LAST:
-        virReportEnumRangeError(virFirewallBackend, firewallBackend);
-        return -1;
+        case VIR_FIREWALL_BACKEND_LAST:
+            virReportEnumRangeError(virFirewallBackend, firewallBackend);
+            return -1;
+        }
     }
     return 0;
 }
 
 
 void
-networkRemoveFirewallRules(virNetworkObj *obj)
+networkRemoveFirewallRules(virNetworkObj *obj,
+                           bool unsetZone)
 {
+    virNetworkDef *def = virNetworkObjGetDef(obj);
     virFirewall *fw;
 
-    if ((fw = virNetworkObjGetFwRemoval(obj)) == NULL) {
-        /* No information about firewall rules in the network status,
-         * so we assume the old iptables-based rules from 10.2.0 and
-         * earlier.
-         */
-        VIR_DEBUG("No firewall info in network status, assuming old-style iptables");
-        iptablesRemoveFirewallRules(virNetworkObjGetDef(obj));
-        return;
+    if (def->forward.type == VIR_NETWORK_FORWARD_OPEN) {
+
+        VIR_DEBUG("No firewall rules to remove for mode='open' network '%s'", def->name);
+
+    } else {
+
+        if ((fw = virNetworkObjGetFwRemoval(obj)) == NULL) {
+
+            /* No information about firewall rules in the network status,
+             * so we assume the old iptables-based rules from 10.2.0 and
+             * earlier.
+             */
+            VIR_DEBUG("No firewall info in status of network '%s', assuming old-style iptables", def->name);
+            iptablesRemoveFirewallRules(def);
+
+        } else {
+
+            /* fwRemoval info was stored in the network status, so use that to
+             * remove the firewall
+             */
+            VIR_DEBUG("Removing firewall rules of network '%s' using commands saved in status", def->name);
+            virFirewallApply(fw);
+        }
     }
 
-    /* fwRemoval info was stored in the network status, so use that to
-     * remove the firewall
+    /* all forward modes could have had a zone set, even 'open' mode
+     * iff it was specified in the config. firewalld preserves the
+     * name of an interface in a zone's list even after the interface
+     * has been deleted, which is problematic if the next use of that
+     * same interface name wants *no* zone set. To avoid this, we must
+     * "unset" the zone if we set it when the network was started.
      */
-    VIR_DEBUG("Removing firewall rules with commands saved in network status");
-    virFirewallApply(fw);
+    if (unsetZone
+        && virFirewallDIsRegistered() == 0
+        && (def->forward.type != VIR_NETWORK_FORWARD_OPEN
+            || def->bridgeZone)) {
+
+        VIR_DEBUG("unsetting zone for '%s' (current zone is '%s')",
+                  def->bridge, def->bridgeZone);
+        virFirewallDInterfaceUnsetZone(def->bridge);
+    }
 }

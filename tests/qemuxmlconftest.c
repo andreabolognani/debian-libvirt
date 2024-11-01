@@ -1576,7 +1576,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-iscsi-auth-secrettype-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-iscsi-auth-wrong-secrettype");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-network-source-auth-both");
-    DO_TEST_CAPS_LATEST("disk-network-gluster");
+    /* 'gluster' protocol backend was deprecated in qemu-9.2 */
+    DO_TEST_CAPS_VER("disk-network-gluster", "9.1.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd");
     DO_TEST_CAPS_VER_PARSE_ERROR("disk-network-rbd-encryption", "6.0.0");
     DO_TEST_CAPS_LATEST("disk-network-rbd-encryption");
@@ -1831,10 +1832,13 @@ mymain(void)
     DO_TEST_CAPS_LATEST("console-compat-auto");
     DO_TEST_CAPS_LATEST("console-compat-crash");
 
+    /* 'qemu-9.2' deprecated 'reconnect' in favor of 'reconnect-ms' */
+    DO_TEST_CAPS_VER("chardev-backends", "9.1.0");
     DO_TEST_CAPS_LATEST("chardev-backends");
     /* As qemu doesn't yet support JSON syntax for -chardev we use the
      * QEMU_CAPS_CHARDEV_JSON capability just in the tests to have QMP schema
      * validation also for the QMP mode of the -chardev props generator */
+    DO_TEST_CAPS_ARCH_VER_FULL("chardev-backends-json", "x86_64", "9.1.0", ARG_QEMU_CAPS, QEMU_CAPS_CHARDEV_JSON, QEMU_CAPS_LAST);
     DO_TEST_CAPS_ARCH_LATEST_FULL("chardev-backends-json", "x86_64", ARG_QEMU_CAPS, QEMU_CAPS_CHARDEV_JSON, QEMU_CAPS_LAST);
 
     DO_TEST_CAPS_LATEST("serial-vc-chardev");
@@ -1893,6 +1897,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("smartcard-controller");
     DO_TEST_CAPS_LATEST("smartcard-passthrough-unix");
 
+    /* 'qemu-9.2' deprecated 'reconnect' in favor of 'reconnect-ms' */
+    DO_TEST_CAPS_VER("chardev-reconnect", "9.1.0");
     DO_TEST_CAPS_LATEST("chardev-reconnect");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("chardev-reconnect-invalid-timeout");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("chardev-reconnect-generated-path");
@@ -2766,6 +2772,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-no-acpi");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-invalid-address-type");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-invalid-address");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("virtio-iommu-dma-translation");
 
     DO_TEST_CAPS_LATEST("cpu-hotplug-startup");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("cpu-hotplug-granularity", "ppc64");

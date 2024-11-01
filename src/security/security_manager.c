@@ -31,6 +31,7 @@
 #include "virobject.h"
 #include "virlog.h"
 #include "virfile.h"
+#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -244,6 +245,7 @@ virSecurityManagerPostFork(virSecurityManager *mgr)
 /**
  * virSecurityManagerTransactionStart:
  * @mgr: security manager
+ * @sharedFilesystems: list of filesystem to consider shared
  *
  * Starts a new transaction. In transaction nothing is changed security
  * label until virSecurityManagerTransactionCommit() is called.
@@ -252,14 +254,15 @@ virSecurityManagerPostFork(virSecurityManager *mgr)
  *        -1 otherwise.
  */
 int
-virSecurityManagerTransactionStart(virSecurityManager *mgr)
+virSecurityManagerTransactionStart(virSecurityManager *mgr,
+                                   char *const *sharedFilesystems)
 {
     VIR_LOCK_GUARD lock = virObjectLockGuard(mgr);
 
     if (!mgr->drv->transactionStart)
         return 0;
 
-    return mgr->drv->transactionStart(mgr);
+    return mgr->drv->transactionStart(mgr, sharedFilesystems);
 }
 
 
@@ -268,6 +271,7 @@ virSecurityManagerTransactionStart(virSecurityManager *mgr)
  * @mgr: security manager
  * @pid: domain's PID
  * @lock: lock and unlock paths that are relabeled
+ * @lockMetadataException: don't lock metadata for lock files
  *
  * If @pid is not -1 then enter the @pid namespace (usually @pid refers
  * to a domain) and perform all the operations on the transaction list.
@@ -288,14 +292,15 @@ virSecurityManagerTransactionStart(virSecurityManager *mgr)
 int
 virSecurityManagerTransactionCommit(virSecurityManager *mgr,
                                     pid_t pid,
-                                    bool lock)
+                                    bool lock,
+                                    bool lockMetadataException)
 {
     VIR_LOCK_GUARD lockguard = virObjectLockGuard(mgr);
 
     if (!mgr->drv->transactionCommit)
         return 0;
 
-    return mgr->drv->transactionCommit(mgr, pid, lock);
+    return mgr->drv->transactionCommit(mgr, pid, lock, lockMetadataException);
 }
 
 
@@ -402,6 +407,7 @@ virSecurityManagerGetPrivileged(virSecurityManager *mgr)
 /**
  * virSecurityManagerRestoreImageLabel:
  * @mgr: security manager object
+ * @sharedFilesystems: list of filesystem to consider shared
  * @vm: domain definition object
  * @src: disk source definition to operate on
  * @flags: bitwise or of 'virSecurityDomainImageLabelFlags'
@@ -412,6 +418,7 @@ virSecurityManagerGetPrivileged(virSecurityManager *mgr)
  */
 int
 virSecurityManagerRestoreImageLabel(virSecurityManager *mgr,
+                                    char *const *sharedFilesystems,
                                     virDomainDef *vm,
                                     virStorageSource *src,
                                     virSecurityDomainImageLabelFlags flags)
@@ -423,13 +430,15 @@ virSecurityManagerRestoreImageLabel(virSecurityManager *mgr,
         return -1;
     }
 
-    return mgr->drv->domainRestoreSecurityImageLabel(mgr, vm, src, flags);
+    return mgr->drv->domainRestoreSecurityImageLabel(mgr, sharedFilesystems,
+                                                     vm, src, flags);
 }
 
 
 /**
  * virSecurityManagerMoveImageMetadata:
  * @mgr: security manager
+ * @sharedFilesystems: list of filesystem to consider shared
  * @pid: domain's PID
  * @src: source of metadata
  * @dst: destination to move metadata to
@@ -449,6 +458,7 @@ virSecurityManagerRestoreImageLabel(virSecurityManager *mgr,
  */
 int
 virSecurityManagerMoveImageMetadata(virSecurityManager *mgr,
+                                    char *const *sharedFilesystems,
                                     pid_t pid,
                                     virStorageSource *src,
                                     virStorageSource *dst)
@@ -458,7 +468,8 @@ virSecurityManagerMoveImageMetadata(virSecurityManager *mgr,
     if (!mgr->drv->domainMoveImageMetadata)
         return 0;
 
-    return mgr->drv->domainMoveImageMetadata(mgr, pid, src, dst);
+    return mgr->drv->domainMoveImageMetadata(mgr, sharedFilesystems,
+                                             pid, src, dst);
 }
 
 
@@ -510,6 +521,7 @@ virSecurityManagerClearSocketLabel(virSecurityManager *mgr,
 /**
  * virSecurityManagerSetImageLabel:
  * @mgr: security manager object
+ * @sharedFilesystems: list of filesystem to consider shared
  * @vm: domain definition object
  * @src: disk source definition to operate on
  * @flags: bitwise or of 'virSecurityDomainImageLabelFlags'
@@ -520,6 +532,7 @@ virSecurityManagerClearSocketLabel(virSecurityManager *mgr,
  */
 int
 virSecurityManagerSetImageLabel(virSecurityManager *mgr,
+                                char *const *sharedFilesystems,
                                 virDomainDef *vm,
                                 virStorageSource *src,
                                 virSecurityDomainImageLabelFlags flags)
@@ -531,7 +544,8 @@ virSecurityManagerSetImageLabel(virSecurityManager *mgr,
         return -1;
     }
 
-    return mgr->drv->domainSetSecurityImageLabel(mgr, vm, src, flags);
+    return mgr->drv->domainSetSecurityImageLabel(mgr, sharedFilesystems,
+                                                 vm, src, flags);
 }
 
 
@@ -816,6 +830,7 @@ int virSecurityManagerCheckAllLabel(virSecurityManager *mgr,
 
 int
 virSecurityManagerSetAllLabel(virSecurityManager *mgr,
+                              char *const *sharedFilesystems,
                               virDomainDef *vm,
                               const char *incomingPath,
                               bool chardevStdioLogd,
@@ -828,13 +843,15 @@ virSecurityManagerSetAllLabel(virSecurityManager *mgr,
         return -1;
     }
 
-    return mgr->drv->domainSetSecurityAllLabel(mgr, vm, incomingPath,
+    return mgr->drv->domainSetSecurityAllLabel(mgr, sharedFilesystems,
+                                               vm, incomingPath,
                                                chardevStdioLogd, migrated);
 }
 
 
 int
 virSecurityManagerRestoreAllLabel(virSecurityManager *mgr,
+                                  char *const *sharedFilesystems,
                                   virDomainDef *vm,
                                   bool migrated,
                                   bool chardevStdioLogd)
@@ -846,7 +863,8 @@ virSecurityManagerRestoreAllLabel(virSecurityManager *mgr,
         return -1;
     }
 
-    return mgr->drv->domainRestoreSecurityAllLabel(mgr, vm, migrated,
+    return mgr->drv->domainRestoreSecurityAllLabel(mgr, sharedFilesystems,
+                                                   vm, migrated,
                                                    chardevStdioLogd);
 }
 
@@ -1292,8 +1310,10 @@ cmpstringp(const void *p1,
 /**
  * virSecurityManagerMetadataLock:
  * @mgr: security manager object
+ * @sharedFilesystems: list of filesystem to consider shared
  * @paths: paths to lock
  * @npaths: number of items in @paths array
+ * @lockMetadataException: don't lock metadata for lock files
  *
  * Lock passed @paths for metadata change. The returned state
  * should be passed to virSecurityManagerMetadataUnlock.
@@ -1307,8 +1327,10 @@ cmpstringp(const void *p1,
  */
 virSecurityManagerMetadataLockState *
 virSecurityManagerMetadataLock(virSecurityManager *mgr G_GNUC_UNUSED,
+                               char *const *sharedFilesystems,
                                const char **paths,
-                               size_t npaths)
+                               size_t npaths,
+                               bool lockMetadataException)
 {
     size_t i = 0;
     size_t nfds = 0;
@@ -1354,6 +1376,16 @@ virSecurityManagerMetadataLock(virSecurityManager *mgr G_GNUC_UNUSED,
         if (i != j)
             continue;
 
+        /* Any attempt to lock a lock file is likely to go very
+         * poorly. This is a problem for TPM persistent storage,
+         * since on migration we need to relabel it while the swtpm
+         * process is still holding on to its lock file. As a way to
+         * resolve the conundrum, skip metadata locking for paths
+         * that look like they might be referring to lock files, if
+         * we have also been explicitly asked to make this exception */
+        if (lockMetadataException && virStringHasSuffix(p, ".lock"))
+            continue;
+
         if (stat(p, &sb) < 0)
             continue;
 
@@ -1377,7 +1409,7 @@ virSecurityManagerMetadataLock(virSecurityManager *mgr G_GNUC_UNUSED,
             }
 #endif /* !WIN32 */
 
-            if (virFileIsSharedFS(p)) {
+            if (virFileIsSharedFS(p, sharedFilesystems)) {
                 /* Probably a root squashed NFS. */
                 continue;
             }

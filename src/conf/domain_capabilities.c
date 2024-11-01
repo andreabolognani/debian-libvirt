@@ -23,6 +23,7 @@
 #include "domain_capabilities.h"
 #include "domain_conf.h"
 #include "viralloc.h"
+#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_CAPABILITIES
 
@@ -232,6 +233,41 @@ virDomainCapsCPUModelsGet(virDomainCapsCPUModels *cpuModels,
 }
 
 
+static int
+virDomainCapsCPUModelsCompare(const void *m1,
+                              const void *m2,
+                              void *opaque G_GNUC_UNUSED)
+{
+    const virDomainCapsCPUModel *model1 = m1;
+    const virDomainCapsCPUModel *model2 = m2;
+
+    return strcmp(model1->name, model2->name);
+}
+
+
+void
+virDomainCapsCPUModelsSort(virDomainCapsCPUModels *cpuModels)
+{
+    size_t i;
+
+    g_qsort_with_data(cpuModels->models, cpuModels->nmodels,
+                      sizeof(*cpuModels->models),
+                      virDomainCapsCPUModelsCompare, NULL);
+
+    for (i = 0; i < cpuModels->nmodels; i++) {
+        virDomainCapsCPUModel *model = cpuModels->models + i;
+
+        if (!model->blockers)
+            continue;
+
+        g_qsort_with_data(model->blockers, g_strv_length(model->blockers),
+                          sizeof(*model->blockers),
+                          virStringSortCompare, NULL);
+        virStringListRemoveDuplicates(&model->blockers);
+    }
+}
+
+
 int
 virDomainCapsEnumSet(virDomainCapsEnum *capsEnum,
                      const char *capsEnumName,
@@ -395,6 +431,19 @@ virDomainCapsCPUCustomFormat(virBuffer *buf,
             virBufferAddLit(buf, " vendor='unknown'");
 
         virBufferAsprintf(buf, ">%s</model>\n", model->name);
+
+        if (model->blockers) {
+            char **blocker;
+
+            virBufferAsprintf(buf, "<blockers model='%s'>\n", model->name);
+            virBufferAdjustIndent(buf, 2);
+
+            for (blocker = model->blockers; *blocker; blocker++)
+                virBufferAsprintf(buf, "<feature name='%s'/>\n", *blocker);
+
+            virBufferAdjustIndent(buf, -2);
+            virBufferAddLit(buf, "</blockers>\n");
+        }
     }
 
     virBufferAdjustIndent(buf, -2);

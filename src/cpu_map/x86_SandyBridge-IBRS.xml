@@ -1,5 +1,6 @@
 <cpus>
   <model name='SandyBridge-IBRS'>
+    <check partial='compat'/>
     <decode host='on' guest='on'/>
     <signature family='6' model='42'/> <!-- 0206a0 -->
     <signature family='6' model='45'/> <!-- 0206d0 -->
@@ -58,7 +59,6 @@
     <feature name='vmx-ept-1gb' added='yes'/>
     <feature name='vmx-ept-2mb' added='yes'/>
     <feature name='vmx-ept-execonly' added='yes'/>
-    <feature name='vmx-ept-wb' added='yes'/>
     <feature name='vmx-exit-ack-intr' added='yes'/>
     <feature name='vmx-exit-load-efer' added='yes'/>
     <feature name='vmx-exit-load-pat' added='yes'/>
@@ -78,7 +78,6 @@
     <feature name='vmx-invvpid' added='yes'/>
     <feature name='vmx-invvpid-all-context' added='yes'/>
     <feature name='vmx-invvpid-single-addr' added='yes'/>
-    <feature name='vmx-invvpid-single-context' added='yes'/>
     <feature name='vmx-invvpid-single-context-noglobals' added='yes'/>
     <feature name='vmx-io-bitmap' added='yes'/>
     <feature name='vmx-io-exit' added='yes'/>

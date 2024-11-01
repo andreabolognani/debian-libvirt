@@ -29,8 +29,13 @@ struct testQEMUSchemaValidateCtxt {
 };
 
 
+/**
+ * Validate that the schema member doesn't have some significant features:
+ * - 'deprecated' - schema member is deprecated
+ * - 'unstable' - schema member is considered unstable
+ */
 static int
-testQEMUSchemaValidateDeprecated(virJSONValue *root,
+testQEMUSchemaValidateFeatures(virJSONValue *root,
                                  const char *name,
                                  struct testQEMUSchemaValidateCtxt *ctxt)
 {
@@ -51,6 +56,11 @@ testQEMUSchemaValidateDeprecated(virJSONValue *root,
             !(curstr = virJSONValueGetString(cur))) {
             virBufferAsprintf(ctxt->debug, "ERROR: features of '%s' are malformed", name);
             return -2;
+        }
+
+        if (STREQ(curstr, "unstable")) {
+            virBufferAsprintf(ctxt->debug, "ERROR: '%s' is unstable", name);
+            return -1;
         }
 
         if (STREQ(curstr, "deprecated")) {
@@ -187,8 +197,8 @@ testQEMUSchemaValidateObjectMember(const char *key,
         return -1;
     }
 
-    /* validate that the member is not deprecated */
-    if ((rc = testQEMUSchemaValidateDeprecated(keymember, key, data->ctxt)) < 0)
+    /* validate that the member doesn't have some of the significant features */
+    if ((rc = testQEMUSchemaValidateFeatures(keymember, key, data->ctxt)) < 0)
         return rc;
 
     /* lookup schema entry for keytype */
@@ -387,8 +397,8 @@ testQEMUSchemaValidateEnum(virJSONValue *obj,
             if (STREQ_NULLABLE(objstr, virJSONValueObjectGetString(member, "name"))) {
                 int rc;
 
-                /* the new 'members' array allows us to check deprecations */
-                if ((rc = testQEMUSchemaValidateDeprecated(member, objstr, ctxt)) < 0)
+                /* the new 'members' array allows us to check features */
+                if ((rc = testQEMUSchemaValidateFeatures(member, objstr, ctxt)) < 0)
                     return rc;
 
                 virBufferAsprintf(ctxt->debug, "'%s' OK", NULLSTR(objstr));
@@ -526,7 +536,7 @@ testQEMUSchemaValidateRecurse(virJSONValue *obj,
     const char *t = virJSONValueObjectGetString(root, "meta-type");
     int rc;
 
-    if ((rc = testQEMUSchemaValidateDeprecated(root, n, ctxt)) < 0)
+    if ((rc = testQEMUSchemaValidateFeatures(root, n, ctxt)) < 0)
         return rc;
 
     if (STREQ_NULLABLE(t, "builtin")) {
@@ -626,7 +636,7 @@ testQEMUSchemaValidateCommand(const char *command,
         return -1;
     }
 
-    if ((rc = testQEMUSchemaValidateDeprecated(schemarootcommand, command, &ctxt)) < 0)
+    if ((rc = testQEMUSchemaValidateFeatures(schemarootcommand, command, &ctxt)) < 0)
         return rc;
 
     if (!arguments)

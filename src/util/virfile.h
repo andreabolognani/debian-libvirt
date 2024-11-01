@@ -234,8 +234,11 @@ enum {
     VIR_FILE_SHFS_BEEGFS = (1 << 11), /* BeeGFS/fhGFS */
 };
 
+bool virFileIsSharedFSOverride(const char *path,
+                               char *const *overrides);
 int virFileIsSharedFSType(const char *path, unsigned int fstypes) ATTRIBUTE_NONNULL(1);
-int virFileIsSharedFS(const char *path) ATTRIBUTE_NONNULL(1);
+int virFileIsSharedFS(const char *path,
+                      char *const *overrides) ATTRIBUTE_NONNULL(1);
 int virFileIsClusterFS(const char *path) ATTRIBUTE_NONNULL(1);
 int virFileIsMountPoint(const char *file) ATTRIBUTE_NONNULL(1);
 int virFileIsCDROM(const char *path)

@@ -709,6 +709,9 @@ struct _qemuBlockNamedNodeData {
     qemuBlockNamedNodeDataBitmap **bitmaps;
     size_t nbitmaps;
 
+    /* NULL terminated string list of internal snapshot names */
+    char **snapshots;
+
     /* the cluster size of the image is valid only when > 0 */
     unsigned long long clusterSize;
 
@@ -1618,3 +1621,17 @@ int
 qemuMonitorDisplayReload(qemuMonitor *mon,
                          const char *type,
                          bool tlsCerts);
+
+
+int
+qemuMonitorSnapshotSave(qemuMonitor *mon,
+                        const char *jobname,
+                        const char *snapshotname,
+                        const char *vmstate_disk,
+                        const char **disks);
+
+int
+qemuMonitorSnapshotDelete(qemuMonitor *mon,
+                          const char *jobname,
+                          const char *snapshotname,
+                          const char **disks);

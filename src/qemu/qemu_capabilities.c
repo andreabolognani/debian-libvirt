@@ -715,6 +715,10 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "acpi-erst", /* QEMU_CAPS_DEVICE_ACPI_ERST */
               "intel-iommu.dma-translation", /* QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION */
               "machine-i8042-opt", /* QEMU_CAPS_MACHINE_I8042_OPT */
+
+              /* 465 */
+              "snapshot-internal-qmp", /* QEMU_CAPS_SNAPSHOT_INTERNAL_QMP */
+              "chardev-reconnect-miliseconds", /* QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS */
     );
 
 
@@ -1235,6 +1239,7 @@ struct virQEMUCapsStringFlags virQEMUCapsCommands[] = {
     { "query-stats", QEMU_CAPS_QUERY_STATS },
     { "query-stats-schemas", QEMU_CAPS_QUERY_STATS_SCHEMAS },
     { "display-reload", QEMU_CAPS_DISPLAY_RELOAD },
+    { "snapshot-save", QEMU_CAPS_SNAPSHOT_INTERNAL_QMP },
 };
 
 struct virQEMUCapsStringFlags virQEMUCapsMigration[] = {
@@ -1555,6 +1560,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "blockdev-add/arg-type/+virtio-blk-vhost-vdpa/$fdset", QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA},
     { "blockdev-snapshot/$allow-write-only-overlay", QEMU_CAPS_BLOCKDEV_SNAPSHOT_ALLOW_WRITE_ONLY },
     { "chardev-add/arg-type/backend/+socket/data/reconnect", QEMU_CAPS_CHARDEV_RECONNECT },
+    { "chardev-add/arg-type/backend/+socket/data/reconnect-ms", QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS },
     { "device_add/$json-cli-hotplug", QEMU_CAPS_DEVICE_JSON },
     { "migrate-set-parameters/arg-type/block-bitmap-mapping/bitmaps/transform", QEMU_CAPS_MIGRATION_PARAM_BLOCK_BITMAP_MAPPING },
     { "nbd-server-start/arg-type/tls-creds", QEMU_CAPS_NBD_TLS },
@@ -2153,6 +2159,7 @@ virQEMUCapsCPUDefsToModels(virArch arch,
                                   cpu->blockers, cpu->deprecated, vendor);
     }
 
+    virDomainCapsCPUModelsSort(cpuModels);
     return cpuModels;
 }
 
@@ -2498,6 +2505,44 @@ virQEMUCapsIsCPUUsable(virQEMUCaps *qemuCaps,
     }
 
     return false;
+}
+
+
+/**
+ * virQEMUCapsGetCPUBlockers:
+ * @qemuCaps: QEMU capabilities
+ * @type: virtualization type
+ * @cpu: CPU model
+ * @blockers: where to store the list of features
+ *
+ * Get a list of features that prevent @cpu from being usable. The pointer to
+ * the list will be stored in @blockers and the caller must not free it. The
+ * pointer is valid as long as there is an active reference to @qemuCaps.
+ *
+ * Returns 0 on success, -1 when @cpu is not found in @qemuCaps.
+ */
+int
+virQEMUCapsGetCPUBlockers(virQEMUCaps *qemuCaps,
+                          virDomainVirtType type,
+                          const char *cpu,
+                          char ***blockers)
+{
+    qemuMonitorCPUDefs *defs;
+    size_t i;
+
+    defs = virQEMUCapsGetAccel(qemuCaps, type)->cpuModels;
+
+    if (!defs)
+        return -1;
+
+    for (i = 0; i < defs->ncpus; i++) {
+        if (STREQ(defs->cpus[i].name, cpu)) {
+            *blockers = defs->cpus[i].blockers;
+            return 0;
+        }
+    }
+
+    return -1;
 }
 
 
@@ -3531,22 +3576,28 @@ virQEMUCapsProbeQMPSGXCapabilities(virQEMUCaps *qemuCaps,
  * QEMU never supported them or they were dropped as they never did anything
  * useful.
  */
+const char *ignoredFeatures[] = {
+    "cmt", "mbm_total", "mbm_local", /* never supported by QEMU */
+    "osxsave", "ospke",              /* dropped from QEMU */
+    "vmx-ept-uc", "vmx-ept-wb",      /* never supported by QEMU */
+    "vmx-invvpid-single-context",    /* never supported by QEMU */
+};
+
 bool
 virQEMUCapsCPUFilterFeatures(const char *name,
                              virCPUFeaturePolicy policy G_GNUC_UNUSED,
                              void *opaque)
 {
     virArch *arch = opaque;
+    size_t i;
 
     if (!ARCH_IS_X86(*arch))
         return true;
 
-    if (STREQ(name, "cmt") ||
-        STREQ(name, "mbm_total") ||
-        STREQ(name, "mbm_local") ||
-        STREQ(name, "osxsave") ||
-        STREQ(name, "ospke"))
-        return false;
+    for (i = 0; i < G_N_ELEMENTS(ignoredFeatures); i++) {
+        if (STREQ(name, ignoredFeatures[i]))
+            return false;
+    }
 
     return true;
 }
@@ -3570,6 +3621,10 @@ virQEMUCapsCPUFeatureTranslationTable virQEMUCapsCPUFeaturesX86[] = {
     {"perfctr_core", "perfctr-core"},
     {"perfctr_nb", "perfctr-nb"},
     {"tsc_adjust", "tsc-adjust"},
+    {"vmx-invvpid-single-context-noglobals", "vmx-invept-single-context-noglobals"},
+    {"hv-vendor_id", "hv-vendor-id"},
+    {"hv-emsr_bitmap", "hv-emsr-bitmap"},
+    {"hv-xmm_input", "hv-xmm-input"},
     {NULL, NULL}
 };
 

@@ -1,5 +1,6 @@
 <cpus>
   <model name='SapphireRapids'>
+    <check partial='compat'/>
     <decode host='on' guest='on'/>
     <signature family='6' model='143'/>
     <vendor name='Intel'/>
@@ -122,7 +123,6 @@
     <feature name='vmx-ept-1gb' added='yes'/>
     <feature name='vmx-ept-2mb' added='yes'/>
     <feature name='vmx-ept-execonly' added='yes'/>
-    <feature name='vmx-ept-wb' added='yes'/>
     <feature name='vmx-eptad' added='yes'/>
     <feature name='vmx-eptp-switching' added='yes'/>
     <feature name='vmx-exit-ack-intr' added='yes'/>
@@ -145,7 +145,6 @@
     <feature name='vmx-invvpid' added='yes'/>
     <feature name='vmx-invvpid-all-context' added='yes'/>
     <feature name='vmx-invvpid-single-addr' added='yes'/>
-    <feature name='vmx-invvpid-single-context' added='yes'/>
     <feature name='vmx-invvpid-single-context-noglobals' added='yes'/>
     <feature name='vmx-io-bitmap' added='yes'/>
     <feature name='vmx-io-exit' added='yes'/>
