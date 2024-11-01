@@ -1,5 +1,6 @@
 <cpus>
   <model name='GraniteRapids'>
+    <check partial='compat'/>
     <decode host='on' guest='on'/>
     <signature family='6' model='173'/>
     <vendor name='Intel'/>
@@ -129,7 +130,6 @@
     <feature name='vmx-ept-1gb'/>
     <feature name='vmx-ept-2mb'/>
     <feature name='vmx-ept-execonly'/>
-    <feature name='vmx-ept-wb'/>
     <feature name='vmx-eptad'/>
     <feature name='vmx-eptp-switching'/>
     <feature name='vmx-exit-ack-intr'/>
@@ -152,7 +152,6 @@
     <feature name='vmx-invvpid'/>
     <feature name='vmx-invvpid-all-context'/>
     <feature name='vmx-invvpid-single-addr'/>
-    <feature name='vmx-invvpid-single-context'/>
     <feature name='vmx-invvpid-single-context-noglobals'/>
     <feature name='vmx-io-bitmap'/>
     <feature name='vmx-io-exit'/>

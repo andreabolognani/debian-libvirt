@@ -8,6 +8,54 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.9.0 (2024-11-01)
+====================
+
+* **New features**
+
+  * qemu: zero block detection for non-shared-storage migration
+
+    Users can now request that all-zero blocks are not transferred when migrating
+    non-shared disk data without actually enabling zero detection on the disk
+    itself. This allows sparsifying images during migration where the source
+    has no access to the allocation state of blocks at the cost of CPU overhead.
+
+    This feature is available via the ``--migrate-disks-detect-zeroes`` option
+    for ``virsh migrate`` or ``VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES``
+    migration parameter. See the documentation for caveats.
+
+* **Improvements**
+
+  * qemu: internal snapshot improvements
+
+    The qemu internal snapshot handling code was updated to use modern commands
+    which avoid the problems the old ones had, preventing use of internal
+    snapshots on VMs with UEFI NVRAM. Internal snapshots of VMs using UEFI are
+    now possible provided that the NVRAM is in ``qcow2`` format.
+
+    The new code also allows better control when deleting snapshots. To prevent
+    possible regressions no strict checking is done, but in case inconsistent
+    state is encountered a log message is added::
+
+      warning : qemuSnapshotActiveInternalDeleteGetDevices:3841 : inconsistent internal snapshot state (deletion): VM='snap' snapshot='1727959843' missing='vda ' unexpected='' extra=''
+
+    Users are encouraged to report any occurence of the above message along
+    with steps they took to the upstream tracker.
+
+  * qemu: improve documentation of image format settings
+
+    The documentation of the various ``*_image_format`` settings in ``qemu.conf``
+    imply they can only be used to control compression of the image. The
+    documentation has been improved to clarify the settings describe the
+    representation of guest memory blocks on disk, which includes compression
+    among other possible layouts.
+
+  * Report CPU model blockers in domain capabilities
+
+    When a CPU model is reported as usable='no' an additional
+    ``<blockers model='...'>`` element is added for that CPU model listing
+    features required by the CPU model, but not supported on the host.
+
 v10.8.0 (2024-10-01)
 ====================
 

@@ -2605,7 +2605,7 @@ static int
 qemuDomainSaveInternal(virQEMUDriver *driver,
                        virDomainObj *vm,
                        const char *path,
-                       int compressed,
+                       int format,
                        virCommand *compressor,
                        const char *xmlin,
                        unsigned int flags)
@@ -2683,7 +2683,7 @@ qemuDomainSaveInternal(virQEMUDriver *driver,
     if (!(cookie = qemuDomainSaveCookieNew(vm)))
         goto endjob;
 
-    if (!(data = virQEMUSaveDataNew(xml, cookie, was_running, compressed,
+    if (!(data = virQEMUSaveDataNew(xml, cookie, was_running, format,
                                     driver->xmlopt)))
         goto endjob;
     xml = NULL;
@@ -2749,7 +2749,7 @@ qemuDomainManagedSaveHelper(virQEMUDriver *driver,
     g_autoptr(virQEMUDriverConfig) cfg = NULL;
     g_autoptr(virCommand) compressor = NULL;
     g_autofree char *path = NULL;
-    int compressed;
+    int format;
 
     if (virDomainObjCheckActive(vm) < 0)
         return -1;
@@ -2761,16 +2761,16 @@ qemuDomainManagedSaveHelper(virQEMUDriver *driver,
     }
 
     cfg = virQEMUDriverGetConfig(driver);
-    if ((compressed = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
-                                                         &compressor,
-                                                         "save", false)) < 0)
+    if ((format = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
+                                                     &compressor,
+                                                     "save", false)) < 0)
         return -1;
 
     path = qemuDomainManagedSavePath(driver, vm);
 
     VIR_INFO("Saving state of domain '%s' to '%s'", vm->def->name, path);
 
-    if (qemuDomainSaveInternal(driver, vm, path, compressed,
+    if (qemuDomainSaveInternal(driver, vm, path, format,
                                compressor, dxml, flags) < 0)
         return -1;
 
@@ -2784,7 +2784,7 @@ qemuDomainSaveFlags(virDomainPtr dom, const char *path, const char *dxml,
                     unsigned int flags)
 {
     virQEMUDriver *driver = dom->conn->privateData;
-    int compressed;
+    int format;
     g_autoptr(virCommand) compressor = NULL;
     int ret = -1;
     virDomainObj *vm = NULL;
@@ -2795,9 +2795,9 @@ qemuDomainSaveFlags(virDomainPtr dom, const char *path, const char *dxml,
                   VIR_DOMAIN_SAVE_PAUSED, -1);
 
     cfg = virQEMUDriverGetConfig(driver);
-    if ((compressed = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
-                                                         &compressor,
-                                                         "save", false)) < 0)
+    if ((format = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
+                                                     &compressor,
+                                                     "save", false)) < 0)
         goto cleanup;
 
     if (!(vm = qemuDomainObjFromDomain(dom)))
@@ -2809,7 +2809,7 @@ qemuDomainSaveFlags(virDomainPtr dom, const char *path, const char *dxml,
     if (virDomainObjCheckActive(vm) < 0)
         goto cleanup;
 
-    ret = qemuDomainSaveInternal(driver, vm, path, compressed,
+    ret = qemuDomainSaveInternal(driver, vm, path, format,
                                  compressor, dxml, flags);
 
  cleanup:
@@ -2835,7 +2835,7 @@ qemuDomainSaveParams(virDomainPtr dom,
     g_autoptr(virCommand) compressor = NULL;
     const char *to = NULL;
     const char *dxml = NULL;
-    int compressed;
+    int format;
     int ret = -1;
 
     virCheckFlags(VIR_DOMAIN_SAVE_BYPASS_CACHE |
@@ -2869,15 +2869,15 @@ qemuDomainSaveParams(virDomainPtr dom,
     }
 
     cfg = virQEMUDriverGetConfig(driver);
-    if ((compressed = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
-                                                         &compressor,
-                                                         "save", false)) < 0)
+    if ((format = qemuSaveImageGetCompressionProgram(cfg->saveImageFormat,
+                                                     &compressor,
+                                                     "save", false)) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
         goto cleanup;
 
-    ret = qemuDomainSaveInternal(driver, vm, to, compressed,
+    ret = qemuDomainSaveInternal(driver, vm, to, format,
                                  compressor, dxml, flags);
 
  cleanup:
@@ -10732,7 +10732,7 @@ qemuDomainMigratePrepare2(virConnectPtr dconn,
     return qemuMigrationDstPrepareDirect(driver, dconn,
                                          NULL, 0, NULL, NULL, /* No cookies */
                                          uri_in, uri_out,
-                                         &def, origname, NULL, 0, NULL, 0, NULL,
+                                         &def, origname, NULL, NULL, 0, NULL,
                                          migParams, flags);
 }
 
@@ -10782,7 +10782,7 @@ qemuDomainMigratePerform(virDomainPtr dom,
      * Consume any cookie we were able to decode though
      */
     ret = qemuMigrationSrcPerform(driver, dom->conn, vm, NULL,
-                                  NULL, dconnuri, uri, NULL, NULL, 0, NULL, 0,
+                                  NULL, dconnuri, uri, NULL, NULL, NULL, NULL, 0,
                                   NULL,
                                   migParams, cookie, cookielen,
                                   NULL, NULL, /* No output cookies in v2 */
@@ -10858,7 +10858,7 @@ qemuDomainMigrateBegin3(virDomainPtr domain,
     }
 
     return qemuMigrationSrcBegin(domain->conn, vm, xmlin, dname,
-                                 cookieout, cookieoutlen, 0, NULL, flags);
+                                 cookieout, cookieoutlen, NULL, NULL, flags);
 }
 
 static char *
@@ -10872,7 +10872,7 @@ qemuDomainMigrateBegin3Params(virDomainPtr domain,
     const char *xmlin = NULL;
     const char *dname = NULL;
     g_autofree const char **migrate_disks = NULL;
-    int nmigrate_disks;
+    g_autofree const char **migrate_disks_detect_zeroes = NULL;
     virDomainObj *vm;
 
     virCheckFlags(QEMU_MIGRATION_FLAGS, NULL);
@@ -10887,12 +10887,12 @@ qemuDomainMigrateBegin3Params(virDomainPtr domain,
                                 &dname) < 0)
         return NULL;
 
-    nmigrate_disks = virTypedParamsGetStringList(params, nparams,
-                                                 VIR_MIGRATE_PARAM_MIGRATE_DISKS,
-                                                 &migrate_disks);
+    virTypedParamsGetStringList(params, nparams, VIR_MIGRATE_PARAM_MIGRATE_DISKS,
+                                &migrate_disks);
 
-    if (nmigrate_disks < 0)
-        return NULL;
+    virTypedParamsGetStringList(params, nparams,
+                                VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES,
+                                &migrate_disks_detect_zeroes);
 
     if (!(vm = qemuDomainObjFromDomain(domain)))
         return NULL;
@@ -10904,7 +10904,8 @@ qemuDomainMigrateBegin3Params(virDomainPtr domain,
 
     return qemuMigrationSrcBegin(domain->conn, vm, xmlin, dname,
                                  cookieout, cookieoutlen,
-                                 nmigrate_disks, migrate_disks, flags);
+                                 migrate_disks, migrate_disks_detect_zeroes,
+                                 flags);
 }
 
 
@@ -10951,7 +10952,7 @@ qemuDomainMigratePrepare3(virConnectPtr dconn,
                                          cookiein, cookieinlen,
                                          cookieout, cookieoutlen,
                                          uri_in, uri_out,
-                                         &def, origname, NULL, 0, NULL, 0,
+                                         &def, origname, NULL, NULL, 0,
                                          NULL, migParams, flags);
 }
 
@@ -10974,7 +10975,6 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
     const char *uri_in = NULL;
     const char *listenAddress = NULL;
     int nbdPort = 0;
-    int nmigrate_disks;
     g_autofree const char **migrate_disks = NULL;
     g_autofree char *origname = NULL;
     g_autoptr(qemuMigrationParams) migParams = NULL;
@@ -11004,19 +11004,15 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
                              &nbdPort) < 0)
         return -1;
 
-    nmigrate_disks = virTypedParamsGetStringList(params, nparams,
-                                                 VIR_MIGRATE_PARAM_MIGRATE_DISKS,
-                                                 &migrate_disks);
-
-    if (nmigrate_disks < 0)
-        return -1;
+    virTypedParamsGetStringList(params, nparams, VIR_MIGRATE_PARAM_MIGRATE_DISKS,
+                                &migrate_disks);
 
     if (!(migParams = qemuMigrationParamsFromFlags(params, nparams, flags,
                                                    QEMU_MIGRATION_DESTINATION)))
         return -1;
 
     if (flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC) ||
-        nmigrate_disks > 0) {
+        migrate_disks) {
         if (uri_in && STRPREFIX(uri_in, "unix:") && !nbdURI) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
                            _("NBD URI must be supplied when migration URI uses UNIX transport method"));
@@ -11060,7 +11056,7 @@ qemuDomainMigratePrepare3Params(virConnectPtr dconn,
                                          cookieout, cookieoutlen,
                                          uri_in, uri_out,
                                          &def, origname, listenAddress,
-                                         nmigrate_disks, migrate_disks, nbdPort,
+                                         migrate_disks, nbdPort,
                                          nbdURI, migParams, flags);
 }
 
@@ -11190,7 +11186,7 @@ qemuDomainMigratePerform3(virDomainPtr dom,
         goto cleanup;
 
     ret = qemuMigrationSrcPerform(driver, dom->conn, vm, xmlin, NULL,
-                                  dconnuri, uri, NULL, NULL, 0, NULL, 0,
+                                  dconnuri, uri, NULL, NULL, NULL, NULL, 0,
                                   NULL, migParams,
                                   cookiein, cookieinlen,
                                   cookieout, cookieoutlen,
@@ -11220,8 +11216,8 @@ qemuDomainMigratePerform3Params(virDomainPtr dom,
     const char *uri = NULL;
     const char *graphicsuri = NULL;
     const char *listenAddress = NULL;
-    int nmigrate_disks;
     g_autofree const char **migrate_disks = NULL;
+    g_autofree const char **migrate_disks_detect_zeroes = NULL;
     unsigned long long bandwidth = 0;
     int nbdPort = 0;
     g_autoptr(qemuMigrationParams) migParams = NULL;
@@ -11276,15 +11272,14 @@ qemuDomainMigratePerform3Params(virDomainPtr dom,
         }
     }
 
-    nmigrate_disks = virTypedParamsGetStringList(params, nparams,
-                                                 VIR_MIGRATE_PARAM_MIGRATE_DISKS,
-                                                 &migrate_disks);
-
-    if (nmigrate_disks < 0)
-        goto cleanup;
+    virTypedParamsGetStringList(params, nparams, VIR_MIGRATE_PARAM_MIGRATE_DISKS,
+                                &migrate_disks);
+    virTypedParamsGetStringList(params, nparams,
+                                VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES,
+                                &migrate_disks_detect_zeroes);
 
     if (flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC) ||
-        nmigrate_disks > 0) {
+        migrate_disks) {
         if (uri && STRPREFIX(uri, "unix:") && !nbdURI) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
                            _("NBD URI must be supplied when migration URI uses UNIX transport method"));
@@ -11304,7 +11299,7 @@ qemuDomainMigratePerform3Params(virDomainPtr dom,
 
     ret = qemuMigrationSrcPerform(driver, dom->conn, vm, dom_xml, persist_xml,
                                   dconnuri, uri, graphicsuri, listenAddress,
-                                  nmigrate_disks, migrate_disks, nbdPort,
+                                  migrate_disks, migrate_disks_detect_zeroes, nbdPort,
                                   nbdURI, migParams,
                                   cookiein, cookieinlen, cookieout, cookieoutlen,
                                   flags, dname, bandwidth, true);
@@ -11602,14 +11597,13 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
                                 const char *xmlCPU,
                                 unsigned int flags)
 {
-    int ret = VIR_CPU_COMPARE_ERROR;
     virQEMUDriver *driver = conn->privateData;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(virQEMUCaps) qemuCaps = NULL;
     bool failIncompatible;
     bool validateXML;
     virCPUDef *hvCPU;
-    virCPUDef *cpu = NULL;
+    g_autoptr(virCPUDef) cpu = NULL;
     virArch arch;
     virDomainVirtType virttype;
 
@@ -11618,7 +11612,7 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
                   VIR_CPU_COMPARE_ERROR);
 
     if (virConnectCompareHypervisorCPUEnsureACL(conn) < 0)
-        goto cleanup;
+        return VIR_CPU_COMPARE_ERROR;
 
     failIncompatible = !!(flags & VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE);
     validateXML = !!(flags & VIR_CONNECT_COMPARE_CPU_VALIDATE_XML);
@@ -11630,7 +11624,7 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
                                              machine,
                                              &arch, &virttype, NULL);
     if (!qemuCaps)
-        goto cleanup;
+        return VIR_CPU_COMPARE_ERROR;
 
     hvCPU = virQEMUCapsGetHostModel(qemuCaps, virttype,
                                     VIR_QEMU_CAPS_HOST_CPU_REPORTED);
@@ -11640,18 +11634,21 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
                        _("QEMU '%1$s' does not support reporting CPU model for virttype '%2$s'"),
                        virQEMUCapsGetBinary(qemuCaps),
                        virDomainVirtTypeToString(virttype));
-        goto cleanup;
+        return VIR_CPU_COMPARE_ERROR;
     }
 
-    if (ARCH_IS_X86(arch)) {
-        ret = virCPUCompareXML(arch, hvCPU, xmlCPU, failIncompatible,
-                               validateXML);
-    } else if (ARCH_IS_S390(arch) &&
-               virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON)) {
-        if (virCPUDefParseXMLString(xmlCPU, VIR_CPU_TYPE_AUTO, &cpu,
-                                    validateXML) < 0)
-            goto cleanup;
+    if (virCPUDefParseXMLString(xmlCPU, VIR_CPU_TYPE_AUTO, &cpu,
+                                validateXML) < 0)
+        return VIR_CPU_COMPARE_ERROR;
 
+    if (ARCH_IS_X86(arch)) {
+        return qemuDomainCheckCPU(arch, virttype, qemuCaps, cpu,
+                                  VIR_QEMU_CAPS_HOST_CPU_REPORTED,
+                                  failIncompatible);
+    }
+
+    if (ARCH_IS_S390(arch) &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_COMPARISON)) {
         if (!cpu->model) {
             if (cpu->mode == VIR_CPU_MODE_HOST_PASSTHROUGH) {
                 cpu->model = g_strdup("host");
@@ -11660,21 +11657,18 @@ qemuConnectCompareHypervisorCPU(virConnectPtr conn,
             } else {
                 virReportError(VIR_ERR_INVALID_ARG, "%s",
                                _("cpu parameter is missing a model name"));
-                goto cleanup;
+                return VIR_CPU_COMPARE_ERROR;
             }
         }
-        ret = qemuConnectCPUModelComparison(qemuCaps, cfg->libDir,
-                                            cfg->user, cfg->group,
-                                            hvCPU, cpu, failIncompatible);
-    } else {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("comparing with the hypervisor CPU is not supported for arch %1$s"),
-                       virArchToString(arch));
+        return qemuConnectCPUModelComparison(qemuCaps, cfg->libDir,
+                                             cfg->user, cfg->group,
+                                             hvCPU, cpu, failIncompatible);
     }
 
- cleanup:
-    virCPUDefFree(cpu);
-    return ret;
+    virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                   _("comparing with the hypervisor CPU is not supported for arch %1$s"),
+                   virArchToString(arch));
+    return VIR_CPU_COMPARE_ERROR;
 }
 
 

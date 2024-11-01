@@ -50,6 +50,22 @@ struct _virBitmap {
 
 
 /**
+ * Calculates and returns the number of elements in the bitmap buffer to fit @bits.
+ */
+static size_t
+virBitmapBuffsize(size_t nbits)
+{
+    if (SIZE_MAX - VIR_BITMAP_BITS_PER_UNIT < nbits) {
+        /* VIR_DIV_UP would overflow, let's overallocate by 1 entry instead of
+         * the potential overflow */
+        return (nbits / VIR_BITMAP_BITS_PER_UNIT) + 1;
+    }
+
+    return VIR_DIV_UP(nbits, VIR_BITMAP_BITS_PER_UNIT);
+}
+
+
+/**
  * virBitmapNew:
  * @size: number of bits
  *
@@ -61,15 +77,7 @@ virBitmap *
 virBitmapNew(size_t size)
 {
     virBitmap *bitmap;
-    size_t sz;
-
-    if (SIZE_MAX - VIR_BITMAP_BITS_PER_UNIT < size) {
-        /* VIR_DIV_UP would overflow, let's overallocate by 1 entry instead of
-         * the potential overflow */
-        sz = (size / VIR_BITMAP_BITS_PER_UNIT) + 1;
-    } else {
-        sz = VIR_DIV_UP(size, VIR_BITMAP_BITS_PER_UNIT);
-    }
+    size_t sz = virBitmapBuffsize(size);
 
     bitmap = g_new0(virBitmap, 1);
 
@@ -133,7 +141,7 @@ static void
 virBitmapExpand(virBitmap *map,
                 size_t b)
 {
-    size_t new_len = VIR_DIV_UP(b + 1, VIR_BITMAP_BITS_PER_UNIT);
+    size_t new_len = virBitmapBuffsize(b + 1);
 
     /* resize the memory if necessary */
     if (map->map_len < new_len) {
@@ -582,7 +590,7 @@ virBitmapNewCopy(virBitmap *src)
 {
     virBitmap *dst = virBitmapNew(src->nbits);
 
-    memcpy(dst->map, src->map, src->map_len * sizeof(src->map[0]));
+    memcpy(dst->map, src->map, dst->map_len * sizeof(src->map[0]));
 
     return dst;
 }
@@ -750,6 +758,19 @@ virBitmapSize(virBitmap *bitmap)
 
 
 /**
+ * Internal helper that clears the unused bits at the end of the last bitmap unit.
+ */
+static void
+virBitmapClearTail(virBitmap *bitmap)
+{
+    size_t tail = bitmap->nbits % VIR_BITMAP_BITS_PER_UNIT;
+
+    if (tail)
+        bitmap->map[bitmap->map_len - 1] &= -1UL >> (VIR_BITMAP_BITS_PER_UNIT - tail);
+}
+
+
+/**
  * virBitmapSetAll:
  * @bitmap: the bitmap
  *
@@ -757,15 +778,10 @@ virBitmapSize(virBitmap *bitmap)
  */
 void virBitmapSetAll(virBitmap *bitmap)
 {
-    int tail = bitmap->nbits % VIR_BITMAP_BITS_PER_UNIT;
-
     memset(bitmap->map, 0xff,
            bitmap->map_len * (VIR_BITMAP_BITS_PER_UNIT / CHAR_BIT));
 
-    /* Ensure tail bits are clear.  */
-    if (tail)
-        bitmap->map[bitmap->map_len - 1] &=
-            -1UL >> (VIR_BITMAP_BITS_PER_UNIT - tail);
+    virBitmapClearTail(bitmap);
 }
 
 
@@ -1171,33 +1187,13 @@ void
 virBitmapShrink(virBitmap *map,
                 size_t b)
 {
-    size_t toremove;
-    size_t nl = 0;
-    size_t nb = 0;
-
-    if (!map)
+    if (!map ||
+        map->nbits <= b)
         return;
 
-    if (map->nbits >= b)
-        map->nbits = b;
-
-    nl = map->nbits / VIR_BITMAP_BITS_PER_UNIT;
-    nb = map->nbits % VIR_BITMAP_BITS_PER_UNIT;
-
-    /* If we're at the end of the allocation the attempt to clear 'map->nbit'
-     * and further would be beyond the end of the bitmap */
-    if (nl >= map->map_alloc)
-        return;
-
-    map->map[nl] &= ((1UL << nb) - 1);
-
-    toremove = map->map_alloc - (nl + 1);
-
-    if (toremove == 0)
-        return;
-
-    VIR_SHRINK_N(map->map, map->map_alloc, toremove);
-
-    /* length needs to be fixed as well */
-    map->map_len = map->map_alloc;
+    map->nbits = b;
+    map->map_len = virBitmapBuffsize(b);
+    map->map = g_renew(unsigned long, map->map, map->map_len);
+    map->map_alloc = map->map_len;
+    virBitmapClearTail(map);
 }

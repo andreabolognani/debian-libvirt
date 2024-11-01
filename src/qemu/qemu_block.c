@@ -1685,7 +1685,7 @@ qemuBlockStorageSourceAttachApply(qemuMonitor *mon,
     if (data->chardevDef) {
         g_autoptr(virJSONValue) props = NULL;
 
-        if (qemuChardevGetBackendProps(data->chardevDef, false,
+        if (qemuChardevGetBackendProps(data->chardevDef, false, data->qemuCaps,
                                        data->chardevAlias, NULL, &props) < 0)
             return -1;
 
@@ -3775,6 +3775,8 @@ qemuBlockPivot(virDomainObj *vm,
     case QEMU_BLOCKJOB_TYPE_BACKUP:
     case QEMU_BLOCKJOB_TYPE_INTERNAL:
     case QEMU_BLOCKJOB_TYPE_CREATE:
+    case QEMU_BLOCKJOB_TYPE_SNAPSHOT_SAVE:
+    case QEMU_BLOCKJOB_TYPE_SNAPSHOT_DELETE:
     case QEMU_BLOCKJOB_TYPE_BROKEN:
         virReportError(VIR_ERR_OPERATION_INVALID,
                        _("job type '%1$s' does not support pivot"),

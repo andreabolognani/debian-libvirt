@@ -170,7 +170,7 @@ static void virLXCProcessCleanup(virLXCDriver *driver,
     }
 
     if (flags & VIR_LXC_PROCESS_CLEANUP_RESTORE_SECLABEL) {
-        virSecurityManagerRestoreAllLabel(driver->securityManager,
+        virSecurityManagerRestoreAllLabel(driver->securityManager, NULL,
                                           vm->def, false, false);
     }
 
@@ -203,7 +203,7 @@ static void virLXCProcessCleanup(virLXCDriver *driver,
     vm->pid = 0;
     vm->def->id = -1;
 
-    if (!!g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
+    if (g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
         driver->inhibitCallback(false, driver->inhibitOpaque);
 
     virLXCDomainReAttachHostDevices(driver, vm->def);
@@ -271,6 +271,7 @@ virLXCProcessSetupInterfaceTap(virDomainDef *vm,
 {
     g_autofree char *parentVeth = NULL;
     g_autofree char *containerVeth = NULL;
+    g_autofree char *backupIfname = NULL;
     const virNetDevVPortProfile *vport = virDomainNetGetActualVirtPortProfile(net);
 
     VIR_DEBUG("calling vethCreate()");
@@ -315,13 +316,16 @@ virLXCProcessSetupInterfaceTap(virDomainDef *vm,
             return NULL;
     }
 
-    if (net->filter &&
-        virDomainConfNWFilterInstantiate(vm->name, vm->uuid, net, false) < 0)
-        return NULL;
-
-    /* success is guaranteed, so update the interface object */
-    g_free(net->ifname);
+    /* success almost guaranteed, next function needs updated net->ifname */
+    backupIfname = g_steal_pointer(&net->ifname);
     net->ifname = g_steal_pointer(&parentVeth);
+
+    if (net->filter &&
+        virDomainConfNWFilterInstantiate(vm->name, vm->uuid, net, false) < 0) {
+        g_free(net->ifname);
+        net->ifname = g_steal_pointer(&backupIfname);
+        return NULL;
+    }
 
     return g_steal_pointer(&containerVeth);
 }
@@ -1320,7 +1324,7 @@ int virLXCProcessStart(virLXCDriver * driver,
     stopFlags |= VIR_LXC_PROCESS_CLEANUP_RELEASE_SECLABEL;
 
     VIR_DEBUG("Setting domain security labels");
-    if (virSecurityManagerSetAllLabel(driver->securityManager,
+    if (virSecurityManagerSetAllLabel(driver->securityManager, NULL,
                                       vm->def, NULL, false, false) < 0)
         goto cleanup;
     stopFlags |= VIR_LXC_PROCESS_CLEANUP_RESTORE_SECLABEL;

@@ -358,6 +358,10 @@ if tests_enabled[0]
     python3_prog,
     args: [
       check_html_references_prog.full_path(),
+      '--require-https',
+      '--project-uri', 'https://libvirt.org',
+      '--project-uri-exceptions', 'docs/manpages/',
+      '--project-uri-exceptions', 'docs/html/',
       '--webroot',
       meson.project_build_root() / 'docs'
     ],

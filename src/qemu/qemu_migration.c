@@ -361,6 +361,8 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
     virBufferAddLit(&buf, "<volume>\n");
     virBufferAdjustIndent(&buf, 2);
     virBufferEscapeString(&buf, "<name>%s</name>\n", volName);
+    if (disk->src->format == VIR_STORAGE_FILE_QCOW2)
+        virBufferAddLit(&buf, "<allocation>0</allocation>\n");
     virBufferAsprintf(&buf, "<capacity>%llu</capacity>\n", capacity);
     virBufferAddLit(&buf, "<target>\n");
     virBufferAdjustIndent(&buf, 2);
@@ -380,18 +382,11 @@ qemuMigrationDstPrecreateDisk(virConnectPtr *conn,
 
 static bool
 qemuMigrationAnyCopyDisk(virDomainDiskDef const *disk,
-                         size_t nmigrate_disks, const char **migrate_disks)
+                         const char **migrate_disks)
 {
-    size_t i;
-
-    /* Check if the disk alias is in the list */
-    if (nmigrate_disks) {
-        for (i = 0; i < nmigrate_disks; i++) {
-            if (STREQ(disk->dst, migrate_disks[i]))
-                return true;
-        }
-        return false;
-    }
+    /* List of disks to migrate takes priority if present */
+    if (migrate_disks)
+        return g_strv_contains(migrate_disks, disk->dst);
 
     /* Default is to migrate only non-shared non-readonly disks
      * with source */
@@ -402,13 +397,12 @@ qemuMigrationAnyCopyDisk(virDomainDiskDef const *disk,
 
 static bool
 qemuMigrationHasAnyStorageMigrationDisks(virDomainDef *def,
-                                         const char **migrate_disks,
-                                         size_t nmigrate_disks)
+                                         const char **migrate_disks)
 {
     size_t i;
 
     for (i = 0; i < def->ndisks; i++) {
-        if (qemuMigrationAnyCopyDisk(def->disks[i], nmigrate_disks, migrate_disks))
+        if (qemuMigrationAnyCopyDisk(def->disks[i], migrate_disks))
             return true;
     }
 
@@ -419,7 +413,6 @@ qemuMigrationHasAnyStorageMigrationDisks(virDomainDef *def,
 static int
 qemuMigrationDstPrepareStorage(virDomainObj *vm,
                                qemuMigrationCookieNBD *nbd,
-                               size_t nmigrate_disks,
                                const char **migrate_disks,
                                bool incremental)
 {
@@ -444,7 +437,7 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
         }
 
         /* Skip disks we don't want to migrate. */
-        if (!qemuMigrationAnyCopyDisk(disk, nmigrate_disks, migrate_disks))
+        if (!qemuMigrationAnyCopyDisk(disk, migrate_disks))
             continue;
 
         switch (virStorageSourceGetActualType(disk->src)) {
@@ -533,6 +526,66 @@ qemuMigrationDstPrepareStorage(virDomainObj *vm,
 }
 
 
+static void
+qemuMigrationDstPrepareDiskSeclabelOne(virStorageSource *src,
+                                       char *const *sharedFilesystems)
+{
+    if (!virStorageSourceIsLocalStorage(src))
+        return;
+
+    /* We care only about existing local storage */
+    if (virStorageSourceIsEmpty(src))
+        return;
+
+    /* Only paths which are on local filesystem but shared elsewhere are relevant */
+    if (!virFileIsSharedFSOverride(src->path, sharedFilesystems))
+        return;
+
+    src->seclabelSkipRemember = true;
+}
+
+
+static void
+qemuMigrationDstPrepareDiskSeclabels(virDomainObj *vm,
+                                     const char **migrate_disks,
+                                     unsigned int flags)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
+    size_t i;
+
+    /* In case when storage is exported from this host, security label
+     * remembering would behave differently compared to the host which mounts
+     * the exported filesystem. Specifically for incoming migration remembering
+     * a seclabel would remember a seclabel already allowing access to the image,
+     * which is not desired. Thus we skip remembering of seclabels for images
+     * which are local to this host but accessed in a shared way from another
+     * host.
+     */
+    if (!cfg->sharedFilesystems ||
+        cfg->sharedFilesystems[0] == NULL)
+        return;
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDef *disk = vm->def->disks[i];
+
+        /* Any storage that was migrated via NBD is technically fully local so
+         * we want seclabels remembered */
+        if (flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC)) {
+            if (qemuMigrationAnyCopyDisk(disk, migrate_disks))
+                continue;
+        }
+
+        qemuMigrationDstPrepareDiskSeclabelOne(disk->src, cfg->sharedFilesystems);
+    }
+
+    if (vm->def->os.loader && vm->def->os.loader->nvram) {
+        qemuMigrationDstPrepareDiskSeclabelOne(vm->def->os.loader->nvram,
+                                               cfg->sharedFilesystems);
+    }
+}
+
+
 /**
  * qemuMigrationDstStartNBDServer:
  * @driver: qemu driver
@@ -551,7 +604,6 @@ static int
 qemuMigrationDstStartNBDServer(virQEMUDriver *driver,
                                virDomainObj *vm,
                                const char *listenAddr,
-                               size_t nmigrate_disks,
                                const char **migrate_disks,
                                int nbdPort,
                                const char *nbdURI,
@@ -618,7 +670,7 @@ qemuMigrationDstStartNBDServer(virQEMUDriver *driver,
         g_autofree char *diskAlias = NULL;
 
         /* check whether disk should be migrated */
-        if (!qemuMigrationAnyCopyDisk(disk, nmigrate_disks, migrate_disks))
+        if (!qemuMigrationAnyCopyDisk(disk, migrate_disks))
             continue;
 
         if (disk->src->readonly || virStorageSourceIsEmpty(disk->src)) {
@@ -1030,7 +1082,8 @@ qemuMigrationSrcNBDStorageCopyBlockdevPrepareSource(virDomainDiskDef *disk,
                                                     int port,
                                                     const char *socket,
                                                     const char *tlsAlias,
-                                                    const char *tlsHostname)
+                                                    const char *tlsHostname,
+                                                    bool detect_zeroes)
 {
     g_autoptr(virStorageSource) copysrc = NULL;
 
@@ -1038,6 +1091,15 @@ qemuMigrationSrcNBDStorageCopyBlockdevPrepareSource(virDomainDiskDef *disk,
     copysrc->type = VIR_STORAGE_TYPE_NETWORK;
     copysrc->protocol = VIR_STORAGE_NET_PROTOCOL_NBD;
     copysrc->format = VIR_STORAGE_FILE_RAW;
+
+    if (detect_zeroes) {
+        /* We need to use both VIR_DOMAIN_DISK_DETECT_ZEROES_UNMAP and
+         * VIR_DOMAIN_DISK_DISCARD_UNMAP as the qemu NBD client otherwise singals
+         * to the server to fully allocate the zero blocks
+         */
+        copysrc->detect_zeroes = VIR_DOMAIN_DISK_DETECT_ZEROES_UNMAP;
+        copysrc->discard = VIR_DOMAIN_DISK_DISCARD_UNMAP;
+    }
 
     copysrc->backingStore = virStorageSourceNew();
 
@@ -1075,7 +1137,8 @@ qemuMigrationSrcNBDStorageCopyBlockdev(virDomainObj *vm,
                                        unsigned int mirror_shallow,
                                        const char *tlsAlias,
                                        const char *tlsHostname,
-                                       bool syncWrites)
+                                       bool syncWrites,
+                                       bool detect_zeroes)
 {
     g_autoptr(qemuBlockStorageSourceAttachData) data = NULL;
     qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
@@ -1089,7 +1152,8 @@ qemuMigrationSrcNBDStorageCopyBlockdev(virDomainObj *vm,
     VIR_DEBUG("starting blockdev mirror for disk=%s to host=%s", disk->dst, host);
 
     if (!(copysrc = qemuMigrationSrcNBDStorageCopyBlockdevPrepareSource(disk, host, port, socket,
-                                                                        tlsAlias, tlsHostname)))
+                                                                        tlsAlias, tlsHostname,
+                                                                        detect_zeroes)))
         return -1;
 
     if (!(data = qemuBlockStorageSourceAttachPrepareBlockdev(copysrc,
@@ -1131,6 +1195,7 @@ qemuMigrationSrcNBDStorageCopyOne(virDomainObj *vm,
                                   bool mirror_shallow,
                                   const char *tlsAlias,
                                   const char *tlsHostname,
+                                  bool detect_zeroes,
                                   unsigned int flags)
 {
     qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
@@ -1155,7 +1220,8 @@ qemuMigrationSrcNBDStorageCopyOne(virDomainObj *vm,
                                                 mirror_shallow,
                                                 tlsAlias,
                                                 tlsHostname,
-                                                syncWrites);
+                                                syncWrites,
+                                                detect_zeroes);
 
     if (rc == 0) {
         diskPriv->migrating = true;
@@ -1190,8 +1256,8 @@ qemuMigrationSrcNBDStorageCopy(virQEMUDriver *driver,
                                qemuMigrationCookie *mig,
                                const char *host,
                                unsigned long speed,
-                               size_t nmigrate_disks,
                                const char **migrate_disks,
+                               const char **migrate_disks_detect_zeroes,
                                virConnectPtr dconn,
                                const char *tlsAlias,
                                const char *tlsHostname,
@@ -1263,15 +1329,20 @@ qemuMigrationSrcNBDStorageCopy(virQEMUDriver *driver,
 
     for (i = 0; i < vm->def->ndisks; i++) {
         virDomainDiskDef *disk = vm->def->disks[i];
+        bool detect_zeroes = false;
 
         /* check whether disk should be migrated */
-        if (!qemuMigrationAnyCopyDisk(disk, nmigrate_disks, migrate_disks))
+        if (!qemuMigrationAnyCopyDisk(disk, migrate_disks))
             continue;
+
+        if (migrate_disks_detect_zeroes)
+            detect_zeroes = g_strv_contains(migrate_disks_detect_zeroes, disk->dst);
 
         if (qemuMigrationSrcNBDStorageCopyOne(vm, disk, host, port,
                                               socket,
                                               mirror_speed, mirror_shallow,
-                                              tlsAlias, tlsHostname, flags) < 0)
+                                              tlsAlias, tlsHostname, detect_zeroes,
+                                              flags) < 0)
             return -1;
 
         if (virDomainObjSave(vm, driver->xmlopt, cfg->stateDir) < 0) {
@@ -1430,6 +1501,7 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
                           unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUDriver *driver = priv->driver;
     int nsnapshots;
     int pauseReason;
     size_t i;
@@ -1604,7 +1676,7 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
             }
         }
 
-        if (qemuTPMHasSharedStorage(vm->def)&&
+        if (qemuTPMHasSharedStorage(driver, vm->def) &&
             !qemuTPMCanMigrateSharedStorage(vm->def)) {
             virReportError(VIR_ERR_NO_SUPPORT, "%s",
                            _("the running swtpm does not support migration with shared storage"));
@@ -1616,20 +1688,22 @@ qemuMigrationSrcIsAllowed(virDomainObj *vm,
 }
 
 static bool
-qemuMigrationSrcIsSafe(virDomainDef *def,
-                       virQEMUCaps *qemuCaps,
-                       size_t nmigrate_disks,
+qemuMigrationSrcIsSafe(virDomainObj *vm,
                        const char **migrate_disks,
                        unsigned int flags)
 
 {
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virQEMUCaps *qemuCaps = priv->qemuCaps;
+    virQEMUDriver *driver = priv->driver;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     bool storagemigration = flags & (VIR_MIGRATE_NON_SHARED_DISK |
                                      VIR_MIGRATE_NON_SHARED_INC);
     size_t i;
     int rc;
 
-    for (i = 0; i < def->ndisks; i++) {
-        virDomainDiskDef *disk = def->disks[i];
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDef *disk = vm->def->disks[i];
         const char *src = virDomainDiskGetSource(disk);
         virStorageType actualType = virStorageSourceGetActualType(disk->src);
         bool unsafe = false;
@@ -1642,13 +1716,13 @@ qemuMigrationSrcIsSafe(virDomainDef *def,
 
         /* Disks which are migrated by qemu are safe too. */
         if (storagemigration &&
-            qemuMigrationAnyCopyDisk(disk, nmigrate_disks, migrate_disks))
+            qemuMigrationAnyCopyDisk(disk, migrate_disks))
             continue;
 
         /* However, disks on local FS (e.g. ext4) are not safe. */
         switch (actualType) {
         case VIR_STORAGE_TYPE_FILE:
-            if ((rc = virFileIsSharedFS(src)) < 0) {
+            if ((rc = virFileIsSharedFS(src, cfg->sharedFilesystems)) < 0) {
                 return false;
             } else if (rc == 0) {
                 unsafe = true;
@@ -2441,8 +2515,7 @@ qemuMigrationAnyConnectionClosed(virDomainObj *vm,
 static int
 qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(qemuMigrationCookie *mig,
                                             virDomainObj *vm,
-                                            const char **migrate_disks,
-                                            size_t nmigrate_disks)
+                                            const char **migrate_disks)
 
 {
     GSList *disks = NULL;
@@ -2464,19 +2537,8 @@ qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(qemuMigrationCookie *mig,
         if (!nodedata)
             continue;
 
-        if (migrate_disks) {
-            bool migrating = false;
-
-            for (j = 0; j < nmigrate_disks; j++) {
-                if (STREQ(migrate_disks[j], diskdef->dst)) {
-                    migrating = true;
-                    break;
-                }
-            }
-
-            if (!migrating)
-                continue;
-        }
+        if (!qemuMigrationAnyCopyDisk(diskdef, migrate_disks))
+            continue;
 
         for (j = 0; j < nodedata->nbitmaps; j++) {
             qemuMigrationBlockDirtyBitmapsDiskBitmap *bitmap;
@@ -2545,7 +2607,6 @@ qemuMigrationSrcBeginXML(virDomainObj *vm,
                          int *cookieoutlen,
                          unsigned int cookieFlags,
                          const char **migrate_disks,
-                         size_t nmigrate_disks,
                          unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -2563,8 +2624,7 @@ qemuMigrationSrcBeginXML(virDomainObj *vm,
 
     if (cookieFlags & QEMU_MIGRATION_COOKIE_NBD &&
         virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_BLOCK_BITMAP_MAPPING) &&
-        qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(mig, vm, migrate_disks,
-                                                    nmigrate_disks) < 0)
+        qemuMigrationSrcBeginPhaseBlockDirtyBitmaps(mig, vm, migrate_disks) < 0)
         return NULL;
 
     if (qemuMigrationCookieFormat(mig, driver, vm,
@@ -2591,6 +2651,37 @@ qemuMigrationSrcBeginXML(virDomainObj *vm,
 }
 
 
+/**
+ * qemuMigrationSrcBeginPhaseValidateDiskTargetList:
+ * @vm: domain object
+ * @disks: NULL-terminated list of disk 'dst' strings to validate
+ *
+ * Validates that all members of the @disk list are valid disk targets.
+ */
+static int
+qemuMigrationSrcBeginPhaseValidateDiskTargetList(virDomainObj *vm,
+                                                 const char **disks)
+{
+    size_t i;
+    const char **d;
+
+    for (d = disks; *d; d++) {
+        for (i = 0; i < vm->def->ndisks; i++) {
+            if (STREQ(vm->def->disks[i]->dst, *d))
+                break;
+        }
+
+        if (i == vm->def->ndisks) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("disk target %1$s not found"), *d);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 /* The caller is supposed to lock the vm and start a migration job. */
 static char *
 qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
@@ -2599,8 +2690,8 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
                            const char *dname,
                            char **cookieout,
                            int *cookieoutlen,
-                           size_t nmigrate_disks,
                            const char **migrate_disks,
+                           const char **migrate_disks_detect_zeroes,
                            unsigned int flags)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -2608,10 +2699,10 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
 
     VIR_DEBUG("driver=%p, vm=%p, xmlin=%s, dname=%s,"
               " cookieout=%p, cookieoutlen=%p,"
-              " nmigrate_disks=%zu, migrate_disks=%p, flags=0x%x",
+              " migrate_disks=%p, migrate_disks_detect_zeroes=%p, flags=0x%x",
               driver, vm, NULLSTR(xmlin), NULLSTR(dname),
-              cookieout, cookieoutlen, nmigrate_disks,
-              migrate_disks, flags);
+              cookieout, cookieoutlen,
+              migrate_disks, migrate_disks_detect_zeroes, flags);
 
     /* Only set the phase if we are inside VIR_ASYNC_JOB_MIGRATION_OUT.
      * Otherwise we will start the async job later in the perform phase losing
@@ -2625,8 +2716,7 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
         return NULL;
 
     if (!(flags & (VIR_MIGRATE_UNSAFE | VIR_MIGRATE_OFFLINE)) &&
-        !qemuMigrationSrcIsSafe(vm->def, priv->qemuCaps,
-                                nmigrate_disks, migrate_disks, flags))
+        !qemuMigrationSrcIsSafe(vm, migrate_disks, flags))
         return NULL;
 
     if (flags & VIR_MIGRATE_POSTCOPY &&
@@ -2675,36 +2765,31 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
             return NULL;
         }
 
-        if (nmigrate_disks) {
-            size_t i, j;
-            /* Check user requested only known disk targets. */
-            for (i = 0; i < nmigrate_disks; i++) {
-                for (j = 0; j < vm->def->ndisks; j++) {
-                    if (STREQ(vm->def->disks[j]->dst, migrate_disks[i]))
-                        break;
-                }
+        if (migrate_disks &&
+            qemuMigrationSrcBeginPhaseValidateDiskTargetList(vm, migrate_disks) < 0)
+            return NULL;
 
-                if (j == vm->def->ndisks) {
-                    virReportError(VIR_ERR_INVALID_ARG,
-                                   _("disk target %1$s not found"),
-                                   migrate_disks[i]);
-                    return NULL;
-                }
-            }
-        }
+        if (migrate_disks_detect_zeroes &&
+            qemuMigrationSrcBeginPhaseValidateDiskTargetList(vm, migrate_disks_detect_zeroes) < 0)
+            return NULL;
 
         priv->nbdPort = 0;
 
-        if (qemuMigrationHasAnyStorageMigrationDisks(vm->def,
-                                                     migrate_disks,
-                                                     nmigrate_disks))
+        if (qemuMigrationHasAnyStorageMigrationDisks(vm->def, migrate_disks))
             cookieFlags |= QEMU_MIGRATION_COOKIE_NBD;
     } else {
-        if (nmigrate_disks > 0) {
+        if (migrate_disks) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                            _("use of 'VIR_MIGRATE_PARAM_MIGRATE_DISKS' requires use of 'VIR_MIGRATE_NON_SHARED_DISK' or 'VIR_MIGRATE_NON_SHARED_INC' flag"));
             return NULL;
         }
+
+        if (migrate_disks_detect_zeroes) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("use of 'VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES' requires use of 'VIR_MIGRATE_NON_SHARED_DISK' or 'VIR_MIGRATE_NON_SHARED_INC' flag"));
+            return NULL;
+        }
+
     }
 
     if (virDomainDefHasMemoryHotplug(vm->def) ||
@@ -2719,8 +2804,7 @@ qemuMigrationSrcBeginPhase(virQEMUDriver *driver,
 
     return qemuMigrationSrcBeginXML(vm, xmlin,
                                     cookieout, cookieoutlen, cookieFlags,
-                                    migrate_disks, nmigrate_disks,
-                                    flags);
+                                    migrate_disks, flags);
 }
 
 
@@ -2810,7 +2894,7 @@ qemuMigrationSrcBeginResume(virDomainObj *vm,
     }
 
     return qemuMigrationSrcBeginXML(vm, xmlin,
-                                    cookieout, cookieoutlen, 0, NULL, 0, flags);
+                                    cookieout, cookieoutlen, 0, NULL, flags);
 }
 
 
@@ -2855,8 +2939,8 @@ qemuMigrationSrcBegin(virConnectPtr conn,
                       const char *dname,
                       char **cookieout,
                       int *cookieoutlen,
-                      size_t nmigrate_disks,
                       const char **migrate_disks,
+                      const char **migrate_disks_detect_zeroes,
                       unsigned int flags)
 {
     virQEMUDriver *driver = conn->privateData;
@@ -2906,7 +2990,9 @@ qemuMigrationSrcBegin(virConnectPtr conn,
 
     if (!(xml = qemuMigrationSrcBeginPhase(driver, vm, xmlin, dname,
                                            cookieout, cookieoutlen,
-                                           nmigrate_disks, migrate_disks, flags)))
+                                           migrate_disks,
+                                           migrate_disks_detect_zeroes,
+                                           flags)))
         goto endjob;
 
     if ((flags & VIR_MIGRATE_CHANGE_PROTECTION)) {
@@ -3119,7 +3205,6 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
                               const char *protocol,
                               unsigned short port,
                               const char *listenAddress,
-                              size_t nmigrate_disks,
                               const char **migrate_disks,
                               int nbdPort,
                               const char *nbdURI,
@@ -3147,8 +3232,7 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
         goto error;
     }
 
-    if (qemuMigrationDstPrepareStorage(vm, mig->nbd,
-                                       nmigrate_disks, migrate_disks,
+    if (qemuMigrationDstPrepareStorage(vm, mig->nbd, migrate_disks,
                                        !!(flags & VIR_MIGRATE_NON_SHARED_INC)) < 0)
         goto error;
 
@@ -3167,6 +3251,8 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
                                              listenAddress, port,
                                              dataFD[0])))
         goto error;
+
+    qemuMigrationDstPrepareDiskSeclabels(vm, migrate_disks, flags);
 
     if (qemuProcessPrepareDomain(driver, vm, startFlags) < 0)
         goto error;
@@ -3243,7 +3329,7 @@ qemuMigrationDstPrepareActive(virQEMUDriver *driver,
         }
 
         if (qemuMigrationDstStartNBDServer(driver, vm, incoming->address,
-                                           nmigrate_disks, migrate_disks,
+                                           migrate_disks,
                                            nbdPort, nbdURI,
                                            nbdTLSAlias) < 0) {
             goto error;
@@ -3314,7 +3400,6 @@ qemuMigrationDstPrepareFresh(virQEMUDriver *driver,
                              unsigned short port,
                              bool autoPort,
                              const char *listenAddress,
-                             size_t nmigrate_disks,
                              const char **migrate_disks,
                              int nbdPort,
                              const char *nbdURI,
@@ -3424,7 +3509,7 @@ qemuMigrationDstPrepareFresh(virQEMUDriver *driver,
     if (!(flags & VIR_MIGRATE_OFFLINE)) {
         if (qemuMigrationDstPrepareActive(driver, vm, dconn, mig, st,
                                           protocol, port, listenAddress,
-                                          nmigrate_disks, migrate_disks,
+                                          migrate_disks,
                                           nbdPort, nbdURI,
                                           migParams, flags) < 0) {
             goto stopjob;
@@ -3587,7 +3672,6 @@ qemuMigrationDstPrepareAny(virQEMUDriver *driver,
                            unsigned short port,
                            bool autoPort,
                            const char *listenAddress,
-                           size_t nmigrate_disks,
                            const char **migrate_disks,
                            int nbdPort,
                            const char *nbdURI,
@@ -3650,7 +3734,7 @@ qemuMigrationDstPrepareAny(virQEMUDriver *driver,
                                         cookieout, cookieoutlen,
                                         def, origname, st, protocol,
                                         port, autoPort, listenAddress,
-                                        nmigrate_disks, migrate_disks,
+                                        migrate_disks,
                                         nbdPort, nbdURI,
                                         migParams, flags);
 }
@@ -3687,7 +3771,7 @@ qemuMigrationDstPrepareTunnel(virQEMUDriver *driver,
 
     return qemuMigrationDstPrepareAny(driver, dconn, cookiein, cookieinlen,
                                       cookieout, cookieoutlen, def, origname,
-                                      st, NULL, 0, false, NULL, 0, NULL, 0,
+                                      st, NULL, 0, false, NULL, NULL, 0,
                                       NULL, migParams, flags);
 }
 
@@ -3726,7 +3810,6 @@ qemuMigrationDstPrepareDirect(virQEMUDriver *driver,
                               virDomainDef **def,
                               const char *origname,
                               const char *listenAddress,
-                              size_t nmigrate_disks,
                               const char **migrate_disks,
                               int nbdPort,
                               const char *nbdURI,
@@ -3744,12 +3827,12 @@ qemuMigrationDstPrepareDirect(virQEMUDriver *driver,
     VIR_DEBUG("driver=%p, dconn=%p, cookiein=%s, cookieinlen=%d, "
               "cookieout=%p, cookieoutlen=%p, uri_in=%s, uri_out=%p, "
               "def=%p, origname=%s, listenAddress=%s, "
-              "nmigrate_disks=%zu, migrate_disks=%p, nbdPort=%d, "
+              "migrate_disks=%p, nbdPort=%d, "
               "nbdURI=%s, flags=0x%x",
               driver, dconn, NULLSTR(cookiein), cookieinlen,
               cookieout, cookieoutlen, NULLSTR(uri_in), uri_out,
               *def, origname, NULLSTR(listenAddress),
-              nmigrate_disks, migrate_disks, nbdPort, NULLSTR(nbdURI),
+              migrate_disks, nbdPort, NULLSTR(nbdURI),
               flags);
 
     *uri_out = NULL;
@@ -3857,7 +3940,7 @@ qemuMigrationDstPrepareDirect(virQEMUDriver *driver,
                                      cookieout, cookieoutlen, def, origname,
                                      NULL, uri ? uri->scheme : "tcp",
                                      port, autoPort, listenAddress,
-                                     nmigrate_disks, migrate_disks, nbdPort,
+                                     migrate_disks, nbdPort,
                                      nbdURI, migParams, flags);
  cleanup:
     if (ret != 0) {
@@ -4757,8 +4840,8 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
                     qemuMigrationSpec *spec,
                     virConnectPtr dconn,
                     const char *graphicsuri,
-                    size_t nmigrate_disks,
                     const char **migrate_disks,
+                    const char **migrate_disks_detect_zeroes,
                     qemuMigrationParams *migParams,
                     const char *nbdURI)
 {
@@ -4784,16 +4867,15 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
     VIR_DEBUG("driver=%p, vm=%p, cookiein=%s, cookieinlen=%d, "
               "cookieout=%p, cookieoutlen=%p, flags=0x%x, resource=%lu, "
               "spec=%p (dest=%d, fwd=%d), dconn=%p, graphicsuri=%s, "
-              "nmigrate_disks=%zu, migrate_disks=%p",
+              "migrate_disks=%p, migrate_disks_detect_zeroes=%p",
               driver, vm, NULLSTR(cookiein), cookieinlen,
               cookieout, cookieoutlen, flags, resource,
               spec, spec->destType, spec->fwdType, dconn,
-              NULLSTR(graphicsuri), nmigrate_disks, migrate_disks);
+              NULLSTR(graphicsuri), migrate_disks, migrate_disks_detect_zeroes);
 
     if (storageMigration)
         storageMigration = qemuMigrationHasAnyStorageMigrationDisks(vm->def,
-                                                                    migrate_disks,
-                                                                    nmigrate_disks);
+                                                                    migrate_disks);
 
     if (storageMigration) {
         cookieFlags |= QEMU_MIGRATION_COOKIE_NBD;
@@ -4926,8 +5008,8 @@ qemuMigrationSrcRun(virQEMUDriver *driver,
         if (qemuMigrationSrcNBDStorageCopy(driver, vm, mig,
                                            host,
                                            priv->migMaxBandwidth,
-                                           nmigrate_disks,
                                            migrate_disks,
+                                           migrate_disks_detect_zeroes,
                                            dconn, tlsAlias, tlsHostname,
                                            nbdURI, flags) < 0) {
             goto error;
@@ -5196,8 +5278,8 @@ qemuMigrationSrcPerformNative(virQEMUDriver *driver,
                               unsigned long resource,
                               virConnectPtr dconn,
                               const char *graphicsuri,
-                              size_t nmigrate_disks,
                               const char **migrate_disks,
+                              const char **migrate_disks_detect_zeroes,
                               qemuMigrationParams *migParams,
                               const char *nbdURI)
 {
@@ -5208,10 +5290,10 @@ qemuMigrationSrcPerformNative(virQEMUDriver *driver,
 
     VIR_DEBUG("driver=%p, vm=%p, uri=%s, cookiein=%s, cookieinlen=%d, "
               "cookieout=%p, cookieoutlen=%p, flags=0x%x, resource=%lu, "
-              "graphicsuri=%s, nmigrate_disks=%zu migrate_disks=%p",
+              "graphicsuri=%s, migrate_disks=%p, migrate_disks_detect_zeroes=%p",
               driver, vm, uri, NULLSTR(cookiein), cookieinlen,
               cookieout, cookieoutlen, flags, resource,
-              NULLSTR(graphicsuri), nmigrate_disks, migrate_disks);
+              NULLSTR(graphicsuri), migrate_disks, migrate_disks_detect_zeroes);
 
     if (!(uribits = qemuMigrationAnyParseURI(uri, NULL)))
         return -1;
@@ -5277,7 +5359,7 @@ qemuMigrationSrcPerformNative(virQEMUDriver *driver,
         ret = qemuMigrationSrcRun(driver, vm, xmlin, persist_xml, cookiein, cookieinlen,
                                   cookieout, cookieoutlen, flags, resource,
                                   &spec, dconn, graphicsuri,
-                                  nmigrate_disks, migrate_disks,
+                                  migrate_disks, migrate_disks_detect_zeroes,
                                   migParams, nbdURI);
     }
 
@@ -5302,7 +5384,6 @@ qemuMigrationSrcPerformTunnel(virQEMUDriver *driver,
                               unsigned long resource,
                               virConnectPtr dconn,
                               const char *graphicsuri,
-                              size_t nmigrate_disks,
                               const char **migrate_disks,
                               qemuMigrationParams *migParams)
 {
@@ -5312,10 +5393,10 @@ qemuMigrationSrcPerformTunnel(virQEMUDriver *driver,
 
     VIR_DEBUG("driver=%p, vm=%p, st=%p, cookiein=%s, cookieinlen=%d, "
               "cookieout=%p, cookieoutlen=%p, flags=0x%x, resource=%lu, "
-              "graphicsuri=%s, nmigrate_disks=%zu, migrate_disks=%p",
+              "graphicsuri=%s, migrate_disks=%p",
               driver, vm, st, NULLSTR(cookiein), cookieinlen,
               cookieout, cookieoutlen, flags, resource,
-              NULLSTR(graphicsuri), nmigrate_disks, migrate_disks);
+              NULLSTR(graphicsuri), migrate_disks);
 
     spec.fwdType = MIGRATION_FWD_STREAM;
     spec.fwd.stream = st;
@@ -5339,9 +5420,11 @@ qemuMigrationSrcPerformTunnel(virQEMUDriver *driver,
         goto cleanup;
     }
 
+    /* Migration with NBD is not supported with _TUNNELLED, thus
+     * 'migrate_disks_detect_zeroes' is NULL here */
     ret = qemuMigrationSrcRun(driver, vm, xmlin, persist_xml, cookiein, cookieinlen,
                               cookieout, cookieoutlen, flags, resource, &spec,
-                              dconn, graphicsuri, nmigrate_disks, migrate_disks,
+                              dconn, graphicsuri, migrate_disks, NULL,
                               migParams, NULL);
 
  cleanup:
@@ -5381,7 +5464,7 @@ qemuMigrationSrcPerformResume(virQEMUDriver *driver,
     ret = qemuMigrationSrcPerformNative(driver, vm, NULL, NULL, uri,
                                         cookiein, cookieinlen,
                                         cookieout, cookieoutlen, flags,
-                                        0, NULL, NULL, 0, NULL, migParams, NULL);
+                                        0, NULL, NULL, NULL, NULL, migParams, NULL);
 
     virCloseCallbacksDomainAdd(vm, conn, qemuMigrationAnyConnectionClosed);
 
@@ -5483,13 +5566,13 @@ qemuMigrationSrcPerformPeer2Peer2(virQEMUDriver *driver,
         ret = qemuMigrationSrcPerformTunnel(driver, vm, st, NULL, NULL,
                                             NULL, 0, NULL, NULL,
                                             flags, resource, dconn,
-                                            NULL, 0, NULL, migParams);
+                                            NULL, NULL, migParams);
     else
         ret = qemuMigrationSrcPerformNative(driver, vm, NULL, NULL, uri_out,
                                             cookie, cookielen,
                                             NULL, NULL, /* No out cookie with v2 migration */
-                                            flags, resource, dconn, NULL, 0, NULL,
-                                            migParams, NULL);
+                                            flags, resource, dconn, NULL, NULL,
+                                            NULL, migParams, NULL);
 
     /* Perform failed. Make sure Finish doesn't overwrite the error */
     if (ret < 0)
@@ -5551,8 +5634,8 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriver *driver,
                                   const char *uri,
                                   const char *graphicsuri,
                                   const char *listenAddress,
-                                  size_t nmigrate_disks,
                                   const char **migrate_disks,
+                                  const char **migrate_disks_detect_zeroes,
                                   int nbdPort,
                                   const char *nbdURI,
                                   qemuMigrationParams *migParams,
@@ -5575,16 +5658,15 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriver *driver,
     virTypedParameterPtr params = NULL;
     int nparams = 0;
     int maxparams = 0;
-    size_t i;
     bool offline = !!(flags & VIR_MIGRATE_OFFLINE);
 
     VIR_DEBUG("driver=%p, sconn=%p, dconn=%p, dconnuri=%s, vm=%p, xmlin=%s, "
               "dname=%s, uri=%s, graphicsuri=%s, listenAddress=%s, "
-              "nmigrate_disks=%zu, migrate_disks=%p, nbdPort=%d, nbdURI=%s, "
+              "migrate_disks=%p, migrate_disks_detect_zeroes=%p, nbdPort=%d, nbdURI=%s, "
               "bandwidth=%llu, useParams=%d, flags=0x%x",
               driver, sconn, dconn, NULLSTR(dconnuri), vm, NULLSTR(xmlin),
               NULLSTR(dname), NULLSTR(uri), NULLSTR(graphicsuri),
-              NULLSTR(listenAddress), nmigrate_disks, migrate_disks, nbdPort,
+              NULLSTR(listenAddress), migrate_disks, migrate_disks_detect_zeroes, nbdPort,
               NULLSTR(nbdURI), bandwidth, useParams, flags);
 
     /* Unlike the virDomainMigrateVersion3 counterpart, we don't need
@@ -5598,7 +5680,9 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriver *driver,
     } else {
         dom_xml = qemuMigrationSrcBeginPhase(driver, vm, xmlin, dname,
                                              &cookieout, &cookieoutlen,
-                                             nmigrate_disks, migrate_disks, flags);
+                                             migrate_disks,
+                                             migrate_disks_detect_zeroes,
+                                             flags);
     }
     if (!dom_xml)
         goto cleanup;
@@ -5634,11 +5718,24 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriver *driver,
                                     VIR_MIGRATE_PARAM_LISTEN_ADDRESS,
                                     listenAddress) < 0)
             goto cleanup;
-        for (i = 0; i < nmigrate_disks; i++)
-            if (virTypedParamsAddString(&params, &nparams, &maxparams,
-                                        VIR_MIGRATE_PARAM_MIGRATE_DISKS,
-                                        migrate_disks[i]) < 0)
-                goto cleanup;
+        if (migrate_disks) {
+            const char **d;
+
+            for (d = migrate_disks; *d; d++)
+                if (virTypedParamsAddString(&params, &nparams, &maxparams,
+                                            VIR_MIGRATE_PARAM_MIGRATE_DISKS,
+                                            *d) < 0)
+                    goto cleanup;
+        }
+        if (migrate_disks_detect_zeroes) {
+            const char **d;
+
+            for (d = migrate_disks_detect_zeroes; *d; d++)
+                if (virTypedParamsAddString(&params, &nparams, &maxparams,
+                                            VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES,
+                                            *d) < 0)
+                    goto cleanup;
+        }
         if (nbdPort &&
             virTypedParamsAddInt(&params, &nparams, &maxparams,
                                  VIR_MIGRATE_PARAM_DISKS_PORT,
@@ -5745,14 +5842,14 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriver *driver,
                                                 cookiein, cookieinlen,
                                                 &cookieout, &cookieoutlen,
                                                 flags, bandwidth, dconn, graphicsuri,
-                                                nmigrate_disks, migrate_disks,
+                                                migrate_disks,
                                                 migParams);
         } else {
             ret = qemuMigrationSrcPerformNative(driver, vm, xmlin, persist_xml, uri,
                                                 cookiein, cookieinlen,
                                                 &cookieout, &cookieoutlen,
                                                 flags, bandwidth, dconn, graphicsuri,
-                                                nmigrate_disks, migrate_disks,
+                                                migrate_disks, migrate_disks_detect_zeroes,
                                                 migParams, nbdURI);
         }
 
@@ -5925,8 +6022,8 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriver *driver,
                                  const char *uri,
                                  const char *graphicsuri,
                                  const char *listenAddress,
-                                 size_t nmigrate_disks,
                                  const char **migrate_disks,
+                                 const char **migrate_disks_detect_zeroes,
                                  int nbdPort,
                                  const char *nbdURI,
                                  qemuMigrationParams *migParams,
@@ -5946,12 +6043,12 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriver *driver,
     int rc;
 
     VIR_DEBUG("driver=%p, sconn=%p, vm=%p, xmlin=%s, dconnuri=%s, uri=%s, "
-              "graphicsuri=%s, listenAddress=%s, nmigrate_disks=%zu, "
+              "graphicsuri=%s, listenAddress=%s, "
               "migrate_disks=%p, nbdPort=%d, nbdURI=%s, flags=0x%x, "
               "dname=%s, resource=%lu",
               driver, sconn, vm, NULLSTR(xmlin), NULLSTR(dconnuri),
               NULLSTR(uri), NULLSTR(graphicsuri), NULLSTR(listenAddress),
-              nmigrate_disks, migrate_disks, nbdPort, NULLSTR(nbdURI),
+              migrate_disks, nbdPort, NULLSTR(nbdURI),
               flags, NULLSTR(dname), resource);
 
     if (flags & VIR_MIGRATE_TUNNELLED && uri) {
@@ -6029,7 +6126,7 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriver *driver,
 
     /* Only xmlin, dname, uri, and bandwidth parameters can be used with
      * old-style APIs. */
-    if (!useParams && (graphicsuri || listenAddress || nmigrate_disks)) {
+    if (!useParams && (graphicsuri || listenAddress || migrate_disks)) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
                        _("Migration APIs with extensible parameters are not supported but extended parameters were passed"));
         goto cleanup;
@@ -6051,7 +6148,7 @@ qemuMigrationSrcPerformPeer2Peer(virQEMUDriver *driver,
     if (*v3proto) {
         ret = qemuMigrationSrcPerformPeer2Peer3(driver, sconn, dconn, dconnuri, vm, xmlin,
                                                 persist_xml, dname, uri, graphicsuri,
-                                                listenAddress, nmigrate_disks, migrate_disks,
+                                                listenAddress, migrate_disks, migrate_disks_detect_zeroes,
                                                 nbdPort, nbdURI, migParams, resource,
                                                 !!useParams, flags);
     } else {
@@ -6087,8 +6184,8 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
                            const char *uri,
                            const char *graphicsuri,
                            const char *listenAddress,
-                           size_t nmigrate_disks,
                            const char **migrate_disks,
+                           const char **migrate_disks_detect_zeroes,
                            int nbdPort,
                            const char *nbdURI,
                            qemuMigrationParams *migParams,
@@ -6105,7 +6202,6 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
     int ret = -1;
     virErrorPtr orig_err = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
-    qemuDomainObjPrivate *priv = vm->privateData;
     qemuDomainJobPrivate *jobPriv = vm->job->privateData;
 
     if (flags & VIR_MIGRATE_POSTCOPY_RESUME) {
@@ -6130,8 +6226,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
             goto endjob;
 
         if (!(flags & (VIR_MIGRATE_UNSAFE | VIR_MIGRATE_OFFLINE)) &&
-            !qemuMigrationSrcIsSafe(vm->def, priv->qemuCaps,
-                                    nmigrate_disks, migrate_disks, flags))
+            !qemuMigrationSrcIsSafe(vm, migrate_disks, flags))
             goto endjob;
 
         qemuMigrationSrcStoreDomainState(vm);
@@ -6140,7 +6235,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
     if ((flags & (VIR_MIGRATE_TUNNELLED | VIR_MIGRATE_PEER2PEER))) {
         ret = qemuMigrationSrcPerformPeer2Peer(driver, conn, vm, xmlin, persist_xml,
                                                dconnuri, uri, graphicsuri, listenAddress,
-                                               nmigrate_disks, migrate_disks, nbdPort,
+                                               migrate_disks, migrate_disks_detect_zeroes, nbdPort,
                                                nbdURI,
                                                migParams, flags, dname, resource,
                                                &v3proto);
@@ -6150,7 +6245,7 @@ qemuMigrationSrcPerformJob(virQEMUDriver *driver,
 
         ret = qemuMigrationSrcPerformNative(driver, vm, xmlin, persist_xml, uri, cookiein, cookieinlen,
                                             cookieout, cookieoutlen,
-                                            flags, resource, NULL, NULL, 0, NULL,
+                                            flags, resource, NULL, NULL, NULL, NULL,
                                             migParams, nbdURI);
     }
     if (ret < 0)
@@ -6217,8 +6312,8 @@ qemuMigrationSrcPerformPhase(virQEMUDriver *driver,
                              const char *persist_xml,
                              const char *uri,
                              const char *graphicsuri,
-                             size_t nmigrate_disks,
                              const char **migrate_disks,
+                             const char **migrate_disks_detect_zeroes,
                              qemuMigrationParams *migParams,
                              const char *cookiein,
                              int cookieinlen,
@@ -6254,7 +6349,8 @@ qemuMigrationSrcPerformPhase(virQEMUDriver *driver,
     if (qemuMigrationSrcPerformNative(driver, vm, xmlin, persist_xml, uri, cookiein, cookieinlen,
                                       cookieout, cookieoutlen,
                                       flags, resource, NULL, graphicsuri,
-                                      nmigrate_disks, migrate_disks, migParams, nbdURI) < 0)
+                                      migrate_disks, migrate_disks_detect_zeroes,
+                                      migParams, nbdURI) < 0)
         goto cleanup;
 
     virCloseCallbacksDomainAdd(vm, conn, qemuMigrationAnyConnectionClosed);
@@ -6295,8 +6391,8 @@ qemuMigrationSrcPerform(virQEMUDriver *driver,
                         const char *uri,
                         const char *graphicsuri,
                         const char *listenAddress,
-                        size_t nmigrate_disks,
                         const char **migrate_disks,
+                        const char **migrate_disks_detect_zeroes,
                         int nbdPort,
                         const char *nbdURI,
                         qemuMigrationParams *migParams,
@@ -6313,13 +6409,13 @@ qemuMigrationSrcPerform(virQEMUDriver *driver,
 
     VIR_DEBUG("driver=%p, conn=%p, vm=%p, xmlin=%s, dconnuri=%s, "
               "uri=%s, graphicsuri=%s, listenAddress=%s, "
-              "nmigrate_disks=%zu, migrate_disks=%p, nbdPort=%d, "
+              "migrate_disks=%p, nbdPort=%d, "
               "nbdURI=%s, "
               "cookiein=%s, cookieinlen=%d, cookieout=%p, cookieoutlen=%p, "
               "flags=0x%x, dname=%s, resource=%lu, v3proto=%d",
               driver, conn, vm, NULLSTR(xmlin), NULLSTR(dconnuri),
               NULLSTR(uri), NULLSTR(graphicsuri), NULLSTR(listenAddress),
-              nmigrate_disks, migrate_disks, nbdPort, NULLSTR(nbdURI),
+              migrate_disks, nbdPort, NULLSTR(nbdURI),
               NULLSTR(cookiein), cookieinlen, cookieout, cookieoutlen,
               flags, NULLSTR(dname), resource, v3proto);
 
@@ -6340,7 +6436,7 @@ qemuMigrationSrcPerform(virQEMUDriver *driver,
 
         return qemuMigrationSrcPerformJob(driver, conn, vm, xmlin, persist_xml, dconnuri, uri,
                                           graphicsuri, listenAddress,
-                                          nmigrate_disks, migrate_disks, nbdPort,
+                                          migrate_disks, migrate_disks_detect_zeroes, nbdPort,
                                           nbdURI, migParams,
                                           cookiein, cookieinlen,
                                           cookieout, cookieoutlen,
@@ -6356,7 +6452,7 @@ qemuMigrationSrcPerform(virQEMUDriver *driver,
     if (v3proto) {
         return qemuMigrationSrcPerformPhase(driver, conn, vm, xmlin, persist_xml, uri,
                                             graphicsuri,
-                                            nmigrate_disks, migrate_disks,
+                                            migrate_disks, migrate_disks_detect_zeroes,
                                             migParams,
                                             cookiein, cookieinlen,
                                             cookieout, cookieoutlen,
@@ -6365,7 +6461,7 @@ qemuMigrationSrcPerform(virQEMUDriver *driver,
 
     return qemuMigrationSrcPerformJob(driver, conn, vm, xmlin, persist_xml, NULL,
                                       uri, graphicsuri, listenAddress,
-                                      nmigrate_disks, migrate_disks, nbdPort,
+                                      migrate_disks, migrate_disks_detect_zeroes, nbdPort,
                                       nbdURI, migParams,
                                       cookiein, cookieinlen,
                                       cookieout, cookieoutlen, flags,

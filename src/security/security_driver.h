@@ -46,10 +46,12 @@ typedef const char *(*virSecurityDriverGetBaseLabel) (virSecurityManager *mgr,
 
 typedef int (*virSecurityDriverPreFork) (virSecurityManager *mgr);
 
-typedef int (*virSecurityDriverTransactionStart) (virSecurityManager *mgr);
+typedef int (*virSecurityDriverTransactionStart) (virSecurityManager *mgr,
+                                                  char *const *sharedFilesystems);
 typedef int (*virSecurityDriverTransactionCommit) (virSecurityManager *mgr,
                                                    pid_t pid,
-                                                   bool lock);
+                                                   bool lock,
+                                                   bool lockMetadataException);
 typedef void (*virSecurityDriverTransactionAbort) (virSecurityManager *mgr);
 
 typedef int (*virSecurityDomainSetDaemonSocketLabel)(virSecurityManager *mgr,
@@ -80,11 +82,13 @@ typedef int (*virSecurityDomainReserveLabel) (virSecurityManager *mgr,
 typedef int (*virSecurityDomainReleaseLabel) (virSecurityManager *mgr,
                                               virDomainDef *sec);
 typedef int (*virSecurityDomainSetAllLabel) (virSecurityManager *mgr,
+                                             char *const *sharedFilesystems,
                                              virDomainDef *sec,
                                              const char *incomingPath,
                                              bool chardevStdioLogd,
                                              bool migrated);
 typedef int (*virSecurityDomainRestoreAllLabel) (virSecurityManager *mgr,
+                                                 char *const *sharedFilesystems,
                                                  virDomainDef *def,
                                                  bool migrated,
                                                  bool chardevStdioLogd);
@@ -113,14 +117,17 @@ typedef int (*virSecurityDomainSetHugepages) (virSecurityManager *mgr,
                                               const char *path);
 
 typedef int (*virSecurityDomainSetImageLabel) (virSecurityManager *mgr,
+                                               char *const *sharedFilesystems,
                                                virDomainDef *def,
                                                virStorageSource *src,
                                                virSecurityDomainImageLabelFlags flags);
 typedef int (*virSecurityDomainRestoreImageLabel) (virSecurityManager *mgr,
+                                                   char *const *sharedFilesystems,
                                                    virDomainDef *def,
                                                    virStorageSource *src,
                                                    virSecurityDomainImageLabelFlags flags);
 typedef int (*virSecurityDomainMoveImageMetadata) (virSecurityManager *mgr,
+                                                   char *const *sharedFilesystems,
                                                    pid_t pid,
                                                    virStorageSource *src,
                                                    virStorageSource *dst);

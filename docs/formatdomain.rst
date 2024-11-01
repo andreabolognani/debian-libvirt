@@ -3479,6 +3479,13 @@ paravirtualized driver is specified via the ``disk`` element.
    ``shareBacking`` attribute should be set to ``yes``. Note that hypervisor
    drivers may need to hotplug such disk and thus it works only with
    configurations supporting hotplug. :since:`Since 7.4.0`
+
+   Hypervisors may need to store a temporary file containing the data written
+   by the domain while running, which may be stored in the same location
+   as the original source of the disk (The ``qemu`` driver stores the temporary
+   files as ``$(origsource).TRANSIENT-$(vmname)``, where ``$(origsource)`` is
+   the full original path of the disk source and ``$(vmname)`` is the name of the
+   domain).
 ``serial``
    If present, this specify serial number of virtual hard drive. For example, it
    may look like ``<serial>WD-WMAP9A966149</serial>``. Not supported for
@@ -7914,7 +7921,8 @@ southbridge, which is used with the q35 machine type. :since:`Since 9.1.0`
    -  'poweroff' - forcefully power off the guest
    -  'pause' - pause the guest
    -  'none' - do nothing
-   -  'dump' - automatically dump the guest :since:`Since 0.8.7`
+   -  'dump' - automatically dump the guest, beware that after the
+      dump the guest will be resumed :since:`Since 0.8.7`
    -  'inject-nmi' - inject a non-maskable interrupt into the guest
       :since:`Since 1.2.17`
 

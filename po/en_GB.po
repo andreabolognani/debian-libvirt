@@ -12,8 +12,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-09-25 07:59+0000\n"
-"PO-Revision-Date: 2024-09-22 12:38+0000\n"
+"POT-Creation-Date: 2024-10-25 06:15+0000\n"
+"PO-Revision-Date: 2024-10-11 20:38+0000\n"
 "Last-Translator: Andi Chandler <andi@gowling.com>\n"
 "Language-Team: English (United Kingdom) <https://translate.fedoraproject.org/"
 "projects/libvirt/libvirt/en_GB/>\n"
@@ -2184,9 +2184,8 @@ msgstr "Block Copy"
 msgid "Block Copy started"
 msgstr "Block Copy started"
 
-#, fuzzy
 msgid "Block I/O tuning is not available in session mode"
-msgstr "Block I/O tuning is not available on this host"
+msgstr "Block I/O tuning is not available in session mode"
 
 msgid "Block I/O tuning is not available on this host"
 msgstr "Block I/O tuning is not available on this host"
@@ -2197,29 +2196,28 @@ msgstr "Block Pull"
 msgid "Block Pull started"
 msgstr "Block Pull started"
 
-#, fuzzy
 msgid "Block commit"
-msgstr "Block Commit"
+msgstr "Block commit"
 
 #, c-format
 msgid "Block device '%1$s' is resized"
 msgstr "Block device '%1$s' is resized"
 
-#, fuzzy
 msgid "Booted"
-msgstr "booted"
+msgstr "Booted"
 
-#, fuzzy
 msgid ""
 "Both 'name' and 'parent' cannot be specified for the 'scsi_host' adapter"
-msgstr "'adapter' and 'address' must be specified for scsi hostdev source"
+msgstr ""
+"Both 'name' and 'parent' cannot be specified for the 'scsi_host' adapter"
 
 msgid ""
 "Both port and URI requested for disk migration while being mutually exclusive"
 msgstr ""
+"Both port and URI requested for disk migration while being mutually exclusive"
 
 msgid "Both secret and the secret header are required"
-msgstr ""
+msgstr "Both secret and the secret header are required"
 
 msgid "Bounded"
 msgstr "Bounded"
@@ -2276,19 +2274,19 @@ msgstr "CA certificate:"
 
 #, c-format
 msgid "CCW addresses are not supported by machine type '%1$s'"
-msgstr ""
+msgstr "CCW addresses are not supported by machine type '%1$s'"
 
 #, c-format
 msgid "CHS geometry can not be set for '%1$s' bus"
-msgstr ""
+msgstr "CHS geometry can not be set for '%1$s' bus"
 
 #, c-format
 msgid "CHS translation mode can only be set for 'ide' bus not '%1$s'"
-msgstr ""
+msgstr "CHS translation mode can only be set for 'ide' bus not '%1$s'"
 
 #, c-format
 msgid "CPU %1$d in cpulist '%2$s' exceed the maxcpu %3$d"
-msgstr ""
+msgstr "CPU %1$d in cpulist '%2$s' exceed the maxcpu %3$d"
 
 msgid "CPU Affinity"
 msgstr "CPU Affinity"
@@ -2296,9 +2294,8 @@ msgstr "CPU Affinity"
 msgid "CPU Affinity:"
 msgstr "CPU Affinity:"
 
-#, fuzzy
 msgid "CPU IDs in <numa> exceed the <vcpu> count"
-msgstr "Number of CPUs in <numa> exceeds the <vcpu> count"
+msgstr "CPU IDs in <numa> exceed the <vcpu> count"
 
 #, c-format
 msgid "CPU Model %1$s too long for destination"
@@ -2309,19 +2306,19 @@ msgid "CPU arch %1$s does not match host arch"
 msgstr "CPU arch %1$s does not match host arch"
 
 msgid "CPU architecture (/domain/os/type/@arch)"
-msgstr ""
+msgstr "CPU architecture (/domain/os/type/@arch)"
 
 #, c-format
 msgid "CPU cache mode '%1$s' can only be used with '%2$s' / '%3$s' CPUs"
-msgstr ""
+msgstr "CPU cache mode '%1$s' can only be used with '%2$s' / '%3$s' CPUs"
 
 #, c-format
 msgid "CPU cache mode '%1$s' can only be used with level='3'"
-msgstr ""
+msgstr "CPU cache mode '%1$s' can only be used with level='3'"
 
-#, fuzzy, c-format
+#, c-format
 msgid "CPU cache specification is not supported for '%1$s' architecture"
-msgstr "Operation is not supported for device: %1$s"
+msgstr "CPU cache specification is not supported for '%1$s' architecture"
 
 msgid "CPU data"
 msgstr "CPU data"
@@ -2330,41 +2327,45 @@ msgstr "CPU data"
 msgid "CPU described in %1$s is identical to host CPU\n"
 msgstr "CPU described in %1$s is identical to host CPU\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "CPU described in %1$s is identical to the CPU provided by hypervisor on the "
 "host\n"
-msgstr "CPU described in %1$s is identical to host CPU\n"
+msgstr ""
+"CPU described in %1$s is identical to the CPU provided by hypervisor on the "
+"host\n"
 
 #, c-format
 msgid "CPU described in %1$s is incompatible with host CPU\n"
 msgstr "CPU described in %1$s is incompatible with host CPU\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "CPU described in %1$s is incompatible with the CPU provided by hypervisor on "
 "the host\n"
-msgstr "CPU described in %1$s is incompatible with host CPU\n"
+msgstr ""
+"CPU described in %1$s is incompatible with the CPU provided by hypervisor on "
+"the host\n"
 
-#, fuzzy, c-format
+#, c-format
 msgid "CPU driver '%1$s' does not exist"
-msgstr "'%1$s' does not exist"
+msgstr "CPU driver '%1$s' does not exist"
 
 #, c-format
 msgid "CPU feature %1$s already defined"
 msgstr "CPU feature %1$s already defined"
 
-#, fuzzy, c-format
+#, c-format
 msgid "CPU feature '%1$s' specified more than once"
-msgstr "boot order '%1$s' used for more than one device"
+msgstr "CPU feature '%1$s' specified more than once"
 
-#, fuzzy, c-format
+#, c-format
 msgid "CPU features not supported by hypervisor for %1$s architecture"
-msgstr "CPU model %1$s is not supported by hypervisor"
+msgstr "CPU features not supported by hypervisor for %1$s architecture"
 
 #, c-format
 msgid "CPU flags requested but can't determine default CPU for arch %1$s"
-msgstr ""
+msgstr "CPU flags requested but can't determine default CPU for arch %1$s"
 
 msgid "CPU frequency:"
 msgstr "CPU frequency:"
@@ -2377,18 +2378,24 @@ msgid ""
 "CPU maximum physical address bits number specification cannot be used with "
 "mode='%1$s'"
 msgstr ""
+"CPU maximum physical address bits number specification cannot be used with "
+"mode='%1$s'"
 
 #, c-format
 msgid ""
 "CPU maximum physical address bits specification is not supported for '%1$s' "
 "architecture"
 msgstr ""
+"CPU maximum physical address bits specification is not supported for '%1$s' "
+"architecture"
 
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "CPU mode '%1$s' for %2$s %3$s domain on %4$s host is not supported by "
 "hypervisor"
-msgstr "CPU model %s is not supported by hypervisor"
+msgstr ""
+"CPU mode '%1$s' for %2$s %3$s domain on %4$s host is not supported by "
+"hypervisor"
 
 #, c-format
 msgid "CPU model %1$s already defined"
@@ -2404,11 +2411,11 @@ msgstr "CPU model %1$s too long for destination"
 
 #, c-format
 msgid "CPU model '%1$s'"
-msgstr ""
+msgstr "CPU model '%1$s'"
 
 #, c-format
 msgid "CPU model '%1$s' not supported by hypervisor"
-msgstr ""
+msgstr "CPU model '%1$s' not supported by hypervisor"
 
 msgid "CPU model:"
 msgstr "CPU model:"
@@ -2423,7 +2430,7 @@ msgid "CPU socket(s):"
 msgstr "CPU socket(s):"
 
 msgid "CPU throttling rate increment for auto-convergence"
-msgstr ""
+msgstr "CPU throttling rate increment for auto-convergence"
 
 msgid "CPU time"
 msgstr "CPU time"
@@ -2431,16 +2438,14 @@ msgstr "CPU time"
 msgid "CPU time:"
 msgstr "CPU time:"
 
-#, fuzzy
 msgid "CPU topology doesn't match maximum vcpu count"
-msgstr "Failed to retrieve maximum vcpu count"
+msgstr "CPU topology doesn't match maximum vcpu count"
 
 msgid "CPU topology doesn't match the desired vcpu count"
-msgstr ""
+msgstr "CPU topology doesn't match the desired vCPU count"
 
-#, fuzzy
 msgid "CPU tuning is not available in session mode"
-msgstr "CPU tuning is not available on this host"
+msgstr "CPU tuning is not available in session mode"
 
 msgid "CPU tuning is not available on this host"
 msgstr "CPU tuning is not available on this host"
@@ -2462,7 +2467,7 @@ msgstr "CPU vendor specified without CPU model"
 
 #, c-format
 msgid "CPU vendor value 0x%1$2llx already defined"
-msgstr ""
+msgstr "CPU vendor value 0x%1$2llx already defined"
 
 msgid "CPU vendors do not match"
 msgstr "CPU vendors do not match"
@@ -2473,9 +2478,8 @@ msgstr "CPU(s):"
 msgid "CPU:"
 msgstr "CPU:"
 
-#, fuzzy
 msgid "CPUID registers unavailable"
-msgstr "No PCI buses available"
+msgstr "CPUID registers unavailable"
 
 msgid "CPUs are incompatible"
 msgstr "CPUs are incompatible"
@@ -2497,20 +2501,24 @@ msgid ""
 "Cache allocation for the whole cache is not possible, specify size smaller "
 "than %1$llu"
 msgstr ""
+"Cache allocation for the whole cache is not possible, specify size smaller "
+"than %1$llu"
 
 #, c-format
 msgid "Cache allocation of size %1$llu is not divisible by granularity %2$llu"
-msgstr ""
+msgstr "Cache allocation of size %1$llu is not divisible by granularity %2$llu"
 
 #, c-format
 msgid ""
 "Cache allocation of size %1$llu is smaller than the minimum allowed "
 "allocation %2$llu"
 msgstr ""
+"Cache allocation of size %1$llu is smaller than the minimum allowed "
+"allocation %2$llu"
 
-#, fuzzy, c-format
+#, c-format
 msgid "Cache level %1$d does not support tuning"
-msgstr "Disk device '%s' does not support snapshotting"
+msgstr "Cache level %1$d does not support tuning"
 
 #, fuzzy, c-format
 msgid "Cache level %1$d does not support tuning for scope type '%2$s'"
@@ -7186,6 +7194,10 @@ msgid "Failed to delete network port %1$s"
 msgstr "Failed to update network %1$s"
 
 #, c-format
+msgid "Failed to delete overlay file '%1$s' for transient disk '%2$s'"
+msgstr ""
+
+#, c-format
 msgid "Failed to delete pool %1$s"
 msgstr "Failed to delete pool %1$s"
 
@@ -9311,6 +9323,10 @@ msgstr "Hook script execution failed: %1$s"
 msgid "Host CPU does not provide required features"
 msgstr "Host CPU does not provide required features"
 
+#, c-format
+msgid "Host CPU does not provide required features: %1$s"
+msgstr ""
+
 msgid "Host CPU does not strictly match guest CPU: Extra features"
 msgstr "Host CPU does not strictly match guest CPU: Extra features"
 
@@ -10026,6 +10042,10 @@ msgstr "Invalid character '%1$c' in id '%2$s' of network '%3$s'"
 #, fuzzy
 msgid "Invalid character in source channel for char device"
 msgstr "Missing source host attribute for char device"
+
+#, c-format
+msgid "Invalid check/@partial value '%1$s' in CPU model %2$s"
+msgstr ""
 
 #, c-format
 msgid "Invalid class ID %1$d"
@@ -11492,6 +11512,10 @@ msgstr "missing timer name"
 #, fuzzy
 msgid "Missing capability type"
 msgstr "missing capability type"
+
+#, c-format
+msgid "Missing check/@partial in CPU model %1$s"
+msgstr ""
 
 msgid "Missing client data in JSON document"
 msgstr "Missing client data in JSON document"
@@ -13225,10 +13249,6 @@ msgid "Output the vol information as an XML dump to stdout."
 msgstr "Output the vol information as an XML dump to stdout."
 
 msgid "Overlapping vcpus in resctrls"
-msgstr ""
-
-#, c-format
-msgid "Overlay file '%1$s' for transient disk '%2$s' already exists"
 msgstr ""
 
 msgid "PASS"
@@ -16689,9 +16709,6 @@ msgstr ""
 
 msgid "This host is not managed by a vCenter"
 msgstr "This host is not managed by a vCentre"
-
-msgid "This platform does not support setting the bridge device zone"
-msgstr ""
 
 msgid "This snapshot has children, please delete these snapshots before"
 msgstr ""
@@ -23490,6 +23507,10 @@ msgstr ""
 msgid "comma separated list of disks to be migrated"
 msgstr ""
 
+msgid ""
+"comma separated list of disks to be migrated with zero detection enabled"
+msgstr ""
+
 msgid "command"
 msgstr "command"
 
@@ -24496,6 +24517,10 @@ msgid ""
 msgstr ""
 
 msgid "deletion of external disk snapshots with children not supported"
+msgstr ""
+
+#, c-format
+msgid "deletion of internal snapshot '%1$s' job failed: %2$s"
 msgstr ""
 
 msgid ""
@@ -27617,6 +27642,10 @@ msgid "filter would introduce a loop"
 msgstr "filter would introduce a loop"
 
 #, c-format
+msgid "filterref is not supported in %1$s"
+msgstr ""
+
+#, c-format
 msgid "filters not supported on interfaces of type %1$s"
 msgstr "filters not supported on interfaces of type %1$s"
 
@@ -28671,7 +28700,14 @@ msgstr "internal snapshot for disk %1$s unsupported for storage type %2$s"
 msgid "internal snapshot of a running VM must include the memory state"
 msgstr ""
 
-msgid "internal snapshots of a VM with pflash based firmware are not supported"
+msgid ""
+"internal snapshots of a VM with pflash based firmware are not supported with "
+"this qemu"
+msgstr ""
+
+msgid ""
+"internal snapshots of a VM with pflash based firmware require QCOW2 nvram "
+"format"
 msgstr ""
 
 #, fuzzy
@@ -30048,6 +30084,10 @@ msgstr "live attach of device '%1$s' is not supported"
 #, c-format
 msgid "live detach of device '%1$s' is not supported"
 msgstr "live detach of device '%1$s' is not supported"
+
+#, c-format
+msgid "live detach of interface type %1$s is not implemented yet"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "live detach of shmem model '%1$s' is not supported"
@@ -35659,6 +35699,10 @@ msgid ""
 "strongly recommended to avoid corruption"
 msgstr ""
 
+#, c-format
+msgid "snapshot-save job failed: %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "snapshotName is null"
 msgstr "list snapshot names only"
@@ -38706,6 +38750,10 @@ msgstr "unsupported feature %1$s"
 msgid "unsupported gluster lookup"
 msgstr "unsupported disk type %s"
 
+#, c-format
+msgid "unsupported graphics type %1$s"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "unsupported guest information types '0x%1$x'"
 msgstr "unsupported authentication type %d"
@@ -38917,6 +38965,11 @@ msgstr "use multifunction pci under specified address"
 
 msgid ""
 "use of 'VIR_MIGRATE_PARAM_MIGRATE_DISKS' requires use of "
+"'VIR_MIGRATE_NON_SHARED_DISK' or 'VIR_MIGRATE_NON_SHARED_INC' flag"
+msgstr ""
+
+msgid ""
+"use of 'VIR_MIGRATE_PARAM_MIGRATE_DISKS_DETECT_ZEROES' requires use of "
 "'VIR_MIGRATE_NON_SHARED_DISK' or 'VIR_MIGRATE_NON_SHARED_INC' flag"
 msgstr ""
 

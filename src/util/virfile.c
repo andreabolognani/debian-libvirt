@@ -2604,8 +2604,14 @@ virFileOpenAs(const char *path,
                 goto error;
 
             /* On Linux we can also verify the FS-type of the
-             * directory.  (this is a NOP on other platforms). */
-            if (virFileIsSharedFS(path) <= 0)
+             * directory.  (this is a NOP on other platforms).
+             *
+             * Note that it would be pointless to pass
+             * virQEMUDriverConfig.sharedFilesystems here, since those
+             * listed there are by definition paths that can be accessed
+             * as local from the current host. Thus, a second attempt at
+             * opening the file would not make a difference */
+            if (virFileIsSharedFS(path, NULL) <= 0)
                 goto error;
         }
 
@@ -3798,8 +3804,59 @@ virFileGetDefaultHugepage(virHugeTLBFS *fs,
     return NULL;
 }
 
-int virFileIsSharedFS(const char *path)
+
+/**
+ * virFileIsSharedFSOverride:
+ * @path: Path to check
+ * @overrides: string list of path overrides
+ *
+ * Checks whether @path is inside any of the shared filesystem override
+ * directories passed as @overrides.
+ */
+bool
+virFileIsSharedFSOverride(const char *path,
+                          char *const *overrides)
 {
+    g_autofree char *dirpath = NULL;
+    char *p = NULL;
+
+    if (!path || path[0] != '/' || !overrides)
+        return false;
+
+    if (g_strv_contains((const char *const *) overrides, path))
+        return true;
+
+    dirpath = g_strdup(path);
+
+    /* Continue until we've scanned the entire path */
+    while (p != dirpath) {
+
+        /* Find the last slash */
+        if ((p = strrchr(dirpath, '/')) == NULL)
+            break;
+
+        /* Truncate the path by overwriting the slash that we've just
+         * found with a null byte. If it is the very first slash in
+         * the path, we need to handle things slightly differently */
+        if (p == dirpath)
+            *(p+1) = '\0';
+        else
+            *p = '\0';
+
+        if (g_strv_contains((const char *const *) overrides, dirpath))
+            return true;
+    }
+
+    return false;
+}
+
+
+int virFileIsSharedFS(const char *path,
+                      char *const *overrides)
+{
+    if (virFileIsSharedFSOverride(path, overrides))
+        return 1;
+
     return virFileIsSharedFSType(path,
                                  VIR_FILE_SHFS_NFS |
                                  VIR_FILE_SHFS_GFS2 |

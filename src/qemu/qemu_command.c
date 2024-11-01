@@ -2027,7 +2027,7 @@ qemuBuildDiskSourceCommandLine(virCommand *cmd,
     size_t i;
 
     if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_VHOST_USER) {
-        if (!(data = qemuBuildStorageSourceChainAttachPrepareChardev(disk)))
+        if (!(data = qemuBuildStorageSourceChainAttachPrepareChardev(disk, qemuCaps)))
             return -1;
     } else if (!qemuDiskBusIsSD(disk->bus)) {
         if (virStorageSourceIsEmpty(disk->src))
@@ -6095,6 +6095,7 @@ qemuBuildCpuModelArgStr(virQEMUDriver *driver,
 {
     size_t i;
     virCPUDef *cpu = def->cpu;
+    g_auto(GStrv) knownFeatures = NULL;
 
     switch ((virCPUMode) cpu->mode) {
     case VIR_CPU_MODE_HOST_PASSTHROUGH:
@@ -6153,9 +6154,14 @@ qemuBuildCpuModelArgStr(virQEMUDriver *driver,
     if (cpu->vendor_id)
         virBufferAsprintf(buf, ",vendor=%s", cpu->vendor_id);
 
+    if (ARCH_IS_X86(def->os.arch) &&
+        virQEMUCapsGetCPUFeatures(qemuCaps, def->virtType, false, &knownFeatures) < 0)
+        return -1;
+
     for (i = 0; i < cpu->nfeatures; i++) {
         const char *featname =
             virQEMUCapsCPUFeatureToQEMU(def->os.arch, cpu->features[i].name);
+
         switch ((virCPUFeaturePolicy) cpu->features[i].policy) {
         case VIR_CPU_FEATURE_FORCE:
         case VIR_CPU_FEATURE_REQUIRE:
@@ -6164,7 +6170,12 @@ qemuBuildCpuModelArgStr(virQEMUDriver *driver,
 
         case VIR_CPU_FEATURE_DISABLE:
         case VIR_CPU_FEATURE_FORBID:
-            virBufferAsprintf(buf, ",%s=off", featname);
+            /* Features unknown to QEMU are implicitly disabled and we can just
+             * skip them. */
+            if (!knownFeatures ||
+                g_strv_contains((const char **) knownFeatures, cpu->features[i].name)) {
+                virBufferAsprintf(buf, ",%s=off", featname);
+            }
             break;
 
         case VIR_CPU_FEATURE_OPTIONAL:
@@ -6304,9 +6315,15 @@ qemuBuildCpuCommandLine(virCommand *cmd,
             case VIR_DOMAIN_HYPERV_IPI:
             case VIR_DOMAIN_HYPERV_EVMCS:
             case VIR_DOMAIN_HYPERV_AVIC:
-                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
-                    virBufferAsprintf(&buf, ",hv-%s=on",
-                                      virDomainHypervTypeToString(i));
+            case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+            case VIR_DOMAIN_HYPERV_XMM_INPUT:
+                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON) {
+                    const char *name = virDomainHypervTypeToString(i);
+                    g_autofree char *full_name = g_strdup_printf("hv-%s", name);
+                    const char *qemu_name = virQEMUCapsCPUFeatureToQEMU(def->os.arch,
+                                                                        full_name);
+                    virBufferAsprintf(&buf, ",%s=on", qemu_name);
+                }
                 if ((i == VIR_DOMAIN_HYPERV_STIMER) &&
                     (def->hyperv_stimer_direct == VIR_TRISTATE_SWITCH_ON))
                     virBufferAsprintf(&buf, ",%s=on", VIR_CPU_x86_HV_STIMER_DIRECT);
@@ -6323,16 +6340,6 @@ qemuBuildCpuCommandLine(virCommand *cmd,
                 if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
                     virBufferAsprintf(&buf, ",hv-vendor-id=%s",
                                       def->hyperv_vendor_id);
-                break;
-
-            case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
-                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
-                    virBufferAsprintf(&buf, ",%s=on", "hv-emsr-bitmap");
-                break;
-
-            case VIR_DOMAIN_HYPERV_XMM_INPUT:
-                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
-                    virBufferAsprintf(&buf, ",%s=on", "hv-xmm-input");
                 break;
 
             case VIR_DOMAIN_HYPERV_LAST:
@@ -10813,18 +10820,21 @@ qemuBuildStorageSourceAttachPrepareDrive(virDomainDiskDef *disk)
 /**
  * qemuBuildStorageSourceAttachPrepareChardev:
  * @src: disk source to prepare
+ * @qemuCaps: qemu capabilities object borrowed for chardev backend generation
  *
  * Prepare qemuBlockStorageSourceAttachData *for vhost-user disk
  * to be used with -chardev.
  */
 static qemuBlockStorageSourceAttachData *
-qemuBuildStorageSourceAttachPrepareChardev(virDomainDiskDef *disk)
+qemuBuildStorageSourceAttachPrepareChardev(virDomainDiskDef *disk,
+                                           virQEMUCaps *qemuCaps)
 {
     g_autoptr(qemuBlockStorageSourceAttachData) data = NULL;
 
     data = g_new0(qemuBlockStorageSourceAttachData, 1);
 
     data->chardevDef = disk->src->vhostuser;
+    data->qemuCaps = qemuCaps;
     data->chardevAlias = qemuDomainGetVhostUserChrAlias(disk->info.alias);
 
     return g_steal_pointer(&data);
@@ -10926,14 +10936,15 @@ qemuBuildStorageSourceChainAttachPrepareDrive(virDomainDiskDef *disk)
  * disk's backend via -chardev.
  */
 qemuBlockStorageSourceChainData *
-qemuBuildStorageSourceChainAttachPrepareChardev(virDomainDiskDef *disk)
+qemuBuildStorageSourceChainAttachPrepareChardev(virDomainDiskDef *disk,
+                                                virQEMUCaps *qemuCaps)
 {
     g_autoptr(qemuBlockStorageSourceAttachData) elem = NULL;
     g_autoptr(qemuBlockStorageSourceChainData) data = NULL;
 
     data = g_new0(qemuBlockStorageSourceChainData, 1);
 
-    if (!(elem = qemuBuildStorageSourceAttachPrepareChardev(disk)))
+    if (!(elem = qemuBuildStorageSourceAttachPrepareChardev(disk, qemuCaps)))
         return NULL;
 
     VIR_APPEND_ELEMENT(data->srcdata, data->nsrcdata, elem);

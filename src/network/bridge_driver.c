@@ -501,8 +501,12 @@ networkUpdateState(virNetworkObj *obj,
         return -1;
     }
 
-    if (virNetworkObjIsActive(obj))
+    if (virNetworkObjIsActive(obj)) {
         virNetworkObjPortForEach(obj, networkUpdatePort, obj);
+
+        if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
+            driver->inhibitCallback(true, driver->inhibitOpaque);
+    }
 
     /* Try and read dnsmasq pids of both active and inactive networks, just in
      * case a network became inactive and we need to clean up. */
@@ -617,8 +621,8 @@ static virDrvStateInitResult
 networkStateInitialize(bool privileged,
                        const char *root,
                        bool monolithic G_GNUC_UNUSED,
-                       virStateInhibitCallback callback G_GNUC_UNUSED,
-                       void *opaque G_GNUC_UNUSED)
+                       virStateInhibitCallback callback,
+                       void *opaque)
 {
     virNetworkDriverConfig *cfg;
     bool autostart = true;
@@ -639,6 +643,9 @@ networkStateInitialize(bool privileged,
         g_clear_pointer(&network_driver, g_free);
         goto error;
     }
+
+    network_driver->inhibitCallback = callback;
+    network_driver->inhibitOpaque = opaque;
 
     network_driver->privileged = privileged;
 
@@ -1735,18 +1742,22 @@ networkReloadFirewallRulesHelper(virNetworkObj *obj,
         case VIR_NETWORK_FORWARD_NONE:
         case VIR_NETWORK_FORWARD_NAT:
         case VIR_NETWORK_FORWARD_ROUTE:
-            /* Only three of the L3 network types that are configured by
-             * libvirt need to have iptables rules reloaded. The 4th L3
-             * network type, forward='open', doesn't need this because it
-             * has no iptables rules.
+        case VIR_NETWORK_FORWARD_OPEN:
+            /* even 'open' forward type networks need to call
+             * networkAdd/RemoveFirewallRules() in spite of the fact
+             * that, by definition, libvirt doesn't add any firewall
+             * rules for those networks.. This is because libvirt
+             * *does* support explicitly naming (in the config) a
+             * firewalld zone the network's bridge should be added to,
+             * and this functionality is also handled by
+             * networkAdd/RemoveFirewallRules()
              */
-            networkRemoveFirewallRules(obj);
+            networkRemoveFirewallRules(obj, false);
             ignore_value(networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval));
             virNetworkObjSetFwRemoval(obj, fwRemoval);
             saveStatus = true;
             break;
 
-        case VIR_NETWORK_FORWARD_OPEN:
         case VIR_NETWORK_FORWARD_BRIDGE:
         case VIR_NETWORK_FORWARD_PRIVATE:
         case VIR_NETWORK_FORWARD_VEPA:
@@ -1999,15 +2010,9 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
     if (networkSetIPv6Sysctls(obj) < 0)
         goto error;
 
-    /* set the firewall zone for the bridge device on the host */
-    if (networkSetBridgeZone(def) < 0)
-        goto error;
-
     /* Add "once per network" rules */
-    if (def->forward.type != VIR_NETWORK_FORWARD_OPEN &&
-        networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval) < 0) {
+    if (networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval) < 0)
         goto error;
-    }
 
     virNetworkObjSetFwRemoval(obj, fwRemoval);
     firewalRulesAdded = true;
@@ -2123,11 +2128,8 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
     if (devOnline)
         ignore_value(virNetDevSetOnline(def->bridge, false));
 
-    if (firewalRulesAdded &&
-        def->forward.type != VIR_NETWORK_FORWARD_OPEN)
-        networkRemoveFirewallRules(obj);
-
-    networkUnsetBridgeZone(def);
+    if (firewalRulesAdded)
+        networkRemoveFirewallRules(obj, true);
 
     virNetworkObjUnrefMacMap(obj);
 
@@ -2164,10 +2166,7 @@ networkShutdownNetworkVirtual(virNetworkObj *obj)
 
     ignore_value(virNetDevSetOnline(def->bridge, false));
 
-    if (def->forward.type != VIR_NETWORK_FORWARD_OPEN)
-        networkRemoveFirewallRules(obj);
-
-    networkUnsetBridgeZone(def);
+    networkRemoveFirewallRules(obj, true);
 
     ignore_value(virNetDevBridgeDelete(def->bridge));
 
@@ -2427,6 +2426,9 @@ networkStartNetwork(virNetworkDriverState *driver,
                                 obj, network_driver->xmlopt) < 0)
         goto cleanup;
 
+    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
+        driver->inhibitCallback(true, driver->inhibitOpaque);
+
     virNetworkObjSetActive(obj, true);
     VIR_INFO("Network '%s' started up", def->name);
     ret = 0;
@@ -2500,6 +2502,10 @@ networkShutdownNetwork(virNetworkDriverState *driver,
                    VIR_HOOK_SUBOP_END);
 
     virNetworkObjSetActive(obj, false);
+
+    if (g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
+        driver->inhibitCallback(false, driver->inhibitOpaque);
+
     virNetworkObjUnsetDefTransient(obj);
     return ret;
 }
@@ -3315,6 +3321,7 @@ networkUpdate(virNetworkPtr net,
         case VIR_NETWORK_FORWARD_NONE:
         case VIR_NETWORK_FORWARD_NAT:
         case VIR_NETWORK_FORWARD_ROUTE:
+        case VIR_NETWORK_FORWARD_OPEN:
             switch (section) {
             case VIR_NETWORK_SECTION_FORWARD:
             case VIR_NETWORK_SECTION_FORWARD_INTERFACE:
@@ -3325,7 +3332,7 @@ networkUpdate(virNetworkPtr net,
                  * old rules (and remember to load new ones after the
                  * update).
                  */
-                networkRemoveFirewallRules(obj);
+                networkRemoveFirewallRules(obj, false);
                 needFirewallRefresh = true;
                 break;
             default:
@@ -3333,7 +3340,6 @@ networkUpdate(virNetworkPtr net,
             }
             break;
 
-        case VIR_NETWORK_FORWARD_OPEN:
         case VIR_NETWORK_FORWARD_BRIDGE:
         case VIR_NETWORK_FORWARD_PRIVATE:
         case VIR_NETWORK_FORWARD_VEPA:

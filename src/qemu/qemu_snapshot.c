@@ -309,6 +309,99 @@ qemuSnapshotCreateInactiveExternal(virQEMUDriver *driver,
 }
 
 
+static char **
+qemuSnapshotActiveInternalCreateGetDevices(virDomainObj *vm,
+                                           virDomainSnapshotDef *snapdef)
+{
+    g_auto(GStrv) devices = g_new0(char *, vm->def->ndisks + 2);
+    size_t ndevs = 0;
+    size_t i = 0;
+
+    /* This relies on @snapdef being aligned and validated via
+     * virDomainSnapshotAlignDisks() and qemuSnapshotPrepare(), which also
+     * ensures that all disks are backed by qcow2. */
+    for (i = 0; i < snapdef->ndisks; i++) {
+        virDomainSnapshotDiskDef *snapdisk = snapdef->disks + i;
+        virDomainDiskDef *domdisk = vm->def->disks[i];
+
+        switch (snapdisk->snapshot) {
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL:
+            devices[ndevs++] = g_strdup(qemuBlockStorageSourceGetFormatNodename(domdisk->src));
+            break;
+
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_MANUAL:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_NO:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_LAST:
+            continue;
+        }
+    }
+
+    if (vm->def->os.loader &&
+        vm->def->os.loader->nvram &&
+        vm->def->os.loader->nvram->format == VIR_STORAGE_FILE_QCOW2) {
+        devices[ndevs++] = g_strdup(qemuBlockStorageSourceGetFormatNodename(vm->def->os.loader->nvram));
+    }
+
+    return g_steal_pointer(&devices);
+}
+
+
+static int
+qemuSnapshotCreateActiveInternalDone(virDomainObj *vm,
+                                     qemuBlockJobData *job)
+{
+    qemuBlockJobUpdate(vm, job, VIR_ASYNC_JOB_SNAPSHOT);
+
+    if (job->state == VIR_DOMAIN_BLOCK_JOB_FAILED) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("snapshot-save job failed: %1$s"), NULLSTR(job->errmsg));
+        return -1;
+    }
+
+    return job->state == VIR_DOMAIN_BLOCK_JOB_COMPLETED ? 1 : 0;
+}
+
+
+static qemuBlockJobData *
+qemuSnapshotCreateActiveInternalStart(virDomainObj *vm,
+                                      virDomainSnapshotDef *snapdef)
+{
+    g_autofree char *jobname = g_strdup_printf("internal-snapshot-save-%s", snapdef->parent.name);
+    qemuBlockJobData *job = NULL;
+    g_auto(GStrv) devices = NULL;
+    int rc = 0;
+
+    if (!(devices = qemuSnapshotActiveInternalCreateGetDevices(vm, snapdef)))
+        return NULL;
+
+    if (!(job = qemuBlockJobDiskNew(vm, NULL, QEMU_BLOCKJOB_TYPE_SNAPSHOT_SAVE,
+                                    jobname)))
+        return NULL;
+
+    qemuBlockJobSyncBegin(job);
+
+    if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0)
+        goto error;
+
+    rc = qemuMonitorSnapshotSave(qemuDomainGetMonitor(vm), jobname, snapdef->parent.name,
+                                 devices[0], (const char **) devices);
+    qemuDomainObjExitMonitor(vm);
+
+    if (rc < 0)
+        goto error;
+
+    qemuBlockJobStarted(job, vm);
+
+    return job;
+
+ error:
+    qemuBlockJobStartupFinalize(vm, job);
+    return NULL;
+}
+
+
 /* The domain is expected to be locked and active. */
 static int
 qemuSnapshotCreateActiveInternal(virQEMUDriver *driver,
@@ -321,6 +414,7 @@ qemuSnapshotCreateActiveInternal(virQEMUDriver *driver,
     bool resume = false;
     virDomainSnapshotDef *snapdef = virDomainSnapshotObjGetDef(snap);
     int ret = -1;
+    int rv = 0;
 
     if (!qemuMigrationSrcIsAllowed(vm, false, VIR_ASYNC_JOB_SNAPSHOT, 0))
         goto cleanup;
@@ -342,15 +436,29 @@ qemuSnapshotCreateActiveInternal(virQEMUDriver *driver,
         }
     }
 
-    if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0) {
-        resume = false;
-        goto cleanup;
-    }
+    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SNAPSHOT_INTERNAL_QMP)) {
+        g_autoptr(qemuBlockJobData) job = NULL;
 
-    ret = qemuMonitorCreateSnapshot(priv->mon, snap->def->name);
-    qemuDomainObjExitMonitor(vm);
-    if (ret < 0)
-        goto cleanup;
+        if (!(job = qemuSnapshotCreateActiveInternalStart(vm, snapdef)))
+            goto cleanup;
+
+        while ((rv = qemuSnapshotCreateActiveInternalDone(vm, job)) != 1) {
+            if (rv < 0 || qemuDomainObjWait(vm) < 0)
+                goto cleanup;
+        }
+
+        ret = 0;
+    } else {
+        if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0) {
+            resume = false;
+            goto cleanup;
+        }
+
+        ret = qemuMonitorCreateSnapshot(priv->mon, snap->def->name);
+        qemuDomainObjExitMonitor(vm);
+        if (ret < 0)
+            goto cleanup;
+    }
 
     if (!(snapdef->cookie = (virObject *) qemuDomainSaveCookieNew(vm)))
         goto cleanup;
@@ -690,6 +798,7 @@ qemuSnapshotPrepare(virDomainObj *vm,
                     bool *has_manual,
                     unsigned int *flags)
 {
+    qemuDomainObjPrivate *priv = vm->privateData;
     size_t i;
     bool active = virDomainObjIsActive(vm);
     bool reuse = (*flags & VIR_DOMAIN_SNAPSHOT_CREATE_REUSE_EXT) != 0;
@@ -791,7 +900,8 @@ qemuSnapshotPrepare(virDomainObj *vm,
         return -1;
     }
 
-    /* internal snapshots + pflash based loader have the following problems:
+    /* internal snapshots + pflash based loader have the following problems when
+     * using the old HMP 'savevm' command:
      * - if the variable store is raw, the snapshot fails
      * - allowing a qcow2 image as the varstore would make it eligible to receive
      *   the vmstate dump, which would make it huge
@@ -802,14 +912,28 @@ qemuSnapshotPrepare(virDomainObj *vm,
      * not an issue. Allow this as there are existing users of this case.
      *
      * Avoid the issues by forbidding internal snapshot with pflash if the
-     * VM is active.
+     * VM is active when using 'savevm'.
+     *
+     * With the new QMP commands we can control where the VM state (memory)
+     * image goes and thus can allow snapshots, but we'll still require that the
+     * varstore is in qcow2 format.
      */
-    if (active &&
-        found_internal &&
-        virDomainDefHasOldStyleUEFI(vm->def)) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("internal snapshots of a VM with pflash based firmware are not supported"));
-        return -1;
+    if (active && found_internal) {
+        if (virDomainDefHasOldStyleUEFI(vm->def) &&
+            !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SNAPSHOT_INTERNAL_QMP)) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("internal snapshots of a VM with pflash based firmware are not supported with this qemu"));
+            return -1;
+        }
+
+        if (vm->def->os.loader &&
+            vm->def->os.loader->nvram &&
+            vm->def->os.loader->nvram->format != VIR_STORAGE_FILE_QCOW2) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("internal snapshots of a VM with pflash based firmware require QCOW2 nvram format"));
+            return -1;
+        }
+
     }
 
     /* Alter flags to let later users know what we learned.  */
@@ -1163,10 +1287,12 @@ qemuSnapshotGetTransientDiskDef(virDomainDiskDef *domdisk,
                                           domdisk->src->path, suffix);
 
     if (virFileExists(snapdisk->src->path)) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("Overlay file '%1$s' for transient disk '%2$s' already exists"),
-                       snapdisk->src->path, domdisk->dst);
-        return NULL;
+        if (unlink(snapdisk->src->path) != 0) {
+            virReportSystemError(errno,
+                                 _("Failed to delete overlay file '%1$s' for transient disk '%2$s'"),
+                                 snapdisk->src->path, domdisk->dst);
+            return NULL;
+        }
     }
 
     return g_steal_pointer(&snapdisk);
@@ -1302,7 +1428,7 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
     bool memory_existing = false;
     bool thaw = false;
     bool pmsuspended = false;
-    int compressed;
+    int format;
     g_autoptr(virCommand) compressor = NULL;
     virQEMUSaveData *data = NULL;
     g_autoptr(GHashTable) blockNamedNodeData = NULL;
@@ -1379,9 +1505,9 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
                                           JOB_MASK(VIR_JOB_SUSPEND) |
                                           JOB_MASK(VIR_JOB_MIGRATION_OP)));
 
-        if ((compressed = qemuSaveImageGetCompressionProgram(cfg->snapshotImageFormat,
-                                                             &compressor,
-                                                             "snapshot", false)) < 0)
+        if ((format = qemuSaveImageGetCompressionProgram(cfg->snapshotImageFormat,
+                                                         &compressor,
+                                                         "snapshot", false)) < 0)
             goto cleanup;
 
         if (!(xml = qemuDomainDefFormatLive(driver, priv->qemuCaps,
@@ -1392,7 +1518,7 @@ qemuSnapshotCreateActiveExternal(virQEMUDriver *driver,
 
         if (!(data = virQEMUSaveDataNew(xml,
                                         (qemuDomainSaveCookie *) snapdef->cookie,
-                                        resume, compressed, driver->xmlopt)))
+                                        resume, format, driver->xmlopt)))
             goto cleanup;
         xml = NULL;
 
@@ -3179,7 +3305,7 @@ qemuSnapshotDeleteUpdateDisks(void *payload,
 /* Deleting external snapshot is started by running qemu block-commit job.
  * We need to wait for all block-commit jobs to be 'ready' or 'pending' to
  * continue with external snapshot deletion. */
-static int
+static bool
 qemuSnapshotDeleteBlockJobIsRunning(qemuBlockjobState state)
 {
     switch (state) {
@@ -3187,7 +3313,7 @@ qemuSnapshotDeleteBlockJobIsRunning(qemuBlockjobState state)
     case QEMU_BLOCKJOB_STATE_RUNNING:
     case QEMU_BLOCKJOB_STATE_ABORTING:
     case QEMU_BLOCKJOB_STATE_PIVOTING:
-        return 1;
+        return true;
 
     case QEMU_BLOCKJOB_STATE_COMPLETED:
     case QEMU_BLOCKJOB_STATE_FAILED:
@@ -3199,7 +3325,7 @@ qemuSnapshotDeleteBlockJobIsRunning(qemuBlockjobState state)
         break;
     }
 
-    return 0;
+    return false;
 }
 
 
@@ -3235,17 +3361,13 @@ static int
 qemuSnapshotDeleteBlockJobRunning(virDomainObj *vm,
                                   qemuBlockJobData *job)
 {
-    int rc;
     qemuBlockJobUpdate(vm, job, VIR_ASYNC_JOB_SNAPSHOT);
 
-    while ((rc = qemuSnapshotDeleteBlockJobIsRunning(job->state)) > 0) {
+    while (qemuSnapshotDeleteBlockJobIsRunning(job->state)) {
         if (qemuDomainObjWait(vm) < 0)
             return -1;
         qemuBlockJobUpdate(vm, job, VIR_ASYNC_JOB_SNAPSHOT);
     }
-
-    if (rc < 0)
-        return -1;
 
     return 0;
 }
@@ -3603,6 +3725,187 @@ qemuSnapshotDiscardMetadata(virDomainObj *vm,
 }
 
 
+static char **
+qemuSnapshotActiveInternalDeleteGetDevices(virDomainObj *vm,
+                                           virDomainSnapshotDef *snapdef)
+{
+    /* In contrast to internal snapshot *creation* we can't always rely on the
+     * metadata to give us the full status of the disk images we'd need to
+     * delete the snapshot from, as users might have edited the VM XML,
+     * unplugged or plugged in disks and/or did many other kinds of modification.
+     *
+     * In order for this code to behave the same as it did with the 'delvm' HMP
+     * command, which simply deleted the snapshot where it found them and
+     * ignored any failures we'll detect the images in qemu first and use
+     * that information as source of truth for now instead of introducing
+     * other failure scenarios.
+     */
+    g_autoptr(GHashTable) blockNamedNodeData = NULL;
+    const char *snapname = snapdef->parent.name;
+    g_auto(GStrv) devices = g_new0(char *, vm->def->ndisks + 2);
+    size_t ndevs = 0;
+    size_t i = 0;
+    /* variables below are used for checking of corner cases */
+    g_autoptr(GHashTable) foundDisks = virHashNew(NULL);
+    g_auto(virBuffer) errMissingSnap = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) errUnexpectedSnap = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) errExtraDisks = VIR_BUFFER_INITIALIZER;
+    GHashTableIter htitr;
+    void *key;
+    bool warn = false;
+
+    if (!(blockNamedNodeData = qemuBlockGetNamedNodeData(vm, VIR_ASYNC_JOB_SNAPSHOT)))
+        return NULL;
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        virDomainDiskDef *domdisk = vm->def->disks[i];
+        const char *format_nodename;
+        qemuBlockNamedNodeData *d;
+
+        /* readonly disks will not have permissions to delete the snapshot, and
+         * in fact should not have an internal snapshot */
+        if (domdisk->src->readonly)
+            continue;
+
+        /* This effectively filters out empty and 'raw' disks */
+        if (!(format_nodename = qemuBlockStorageSourceGetFormatNodename(domdisk->src)))
+            continue;
+
+        /* the data should always be present */
+        if (!(d = virHashLookup(blockNamedNodeData, format_nodename)))
+            continue;
+
+        /* there might be no snapshot for given disk  with given name */
+        if (!d->snapshots ||
+            !g_strv_contains((const char **) d->snapshots, snapname))
+            continue;
+
+        devices[ndevs++] = g_strdup(format_nodename);
+        g_hash_table_insert(foundDisks, g_strdup(domdisk->dst), NULL);
+    }
+
+    if (vm->def->os.loader &&
+        vm->def->os.loader->nvram &&
+        vm->def->os.loader->nvram->format == VIR_STORAGE_FILE_QCOW2) {
+        const char *format_nodename;
+        qemuBlockNamedNodeData *d;
+
+        if ((format_nodename = qemuBlockStorageSourceGetFormatNodename(vm->def->os.loader->nvram)) &&
+            (d = virHashLookup(blockNamedNodeData, format_nodename)) &&
+            d->snapshots &&
+            g_strv_contains((const char **) d->snapshots, snapname)) {
+            devices[ndevs++] = g_strdup(format_nodename);
+        }
+    }
+
+    /* We currently don't want this code to become stricter than what 'delvm'
+     * did thus we'll report if the on-disk state mismatches the snapshot
+     * definition only as a warning */
+    for (i = 0; i < snapdef->ndisks; i++) {
+        virDomainSnapshotDiskDef *snapdisk = snapdef->disks + i;
+
+        switch (snapdisk->snapshot) {
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_INTERNAL:
+            if (g_hash_table_contains(foundDisks, snapdisk->name)) {
+                g_hash_table_remove(foundDisks, snapdisk->name);
+            } else {
+                virBufferAsprintf(&errMissingSnap, "%s ", snapdisk->name);
+                warn = true;
+            }
+            break;
+
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_EXTERNAL:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_MANUAL:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_NO:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_DEFAULT:
+        case VIR_DOMAIN_SNAPSHOT_LOCATION_LAST:
+            if (g_hash_table_contains(foundDisks, snapdisk->name)) {
+                virBufferAsprintf(&errUnexpectedSnap, "%s ", snapdisk->name);
+                warn = true;
+                g_hash_table_remove(foundDisks, snapdisk->name);
+            }
+        }
+    }
+
+    g_hash_table_iter_init(&htitr, foundDisks);
+
+    while (g_hash_table_iter_next(&htitr, &key, NULL)) {
+        warn = true;
+        virBufferAsprintf(&errExtraDisks, "%s ", (const char *) key);
+    }
+
+    if (warn) {
+        VIR_WARN("inconsistent internal snapshot state (deletion): VM='%s' snapshot='%s' missing='%s' unexpected='%s' extra='%s",
+                 vm->def->name, snapname,
+                 virBufferCurrentContent(&errMissingSnap),
+                 virBufferCurrentContent(&errUnexpectedSnap),
+                 virBufferCurrentContent(&errExtraDisks));
+    }
+
+    return g_steal_pointer(&devices);
+}
+
+
+static int
+qemuSnapshotDiscardActiveInternal(virDomainObj *vm,
+                                  virDomainSnapshotDef *snapdef)
+{
+    g_autofree char *jobname = g_strdup_printf("internal-snapshot-delete-%s", snapdef->parent.name);
+    qemuBlockJobData *job = NULL;
+    g_auto(GStrv) devices = NULL;
+    int ret = -1;
+    int rc = 0;
+
+    if (!(devices = qemuSnapshotActiveInternalDeleteGetDevices(vm, snapdef)))
+        return -1;
+
+    /* It's possible that no devices were selected */
+    if (devices[0] == NULL)
+        return 0;
+
+    if (!(job = qemuBlockJobDiskNew(vm, NULL, QEMU_BLOCKJOB_TYPE_SNAPSHOT_DELETE,
+                                    jobname)))
+        return -1;
+
+    qemuBlockJobSyncBegin(job);
+
+    if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0)
+        goto cleanup;
+
+    rc = qemuMonitorSnapshotDelete(qemuDomainGetMonitor(vm), job->name,
+                                   snapdef->parent.name, (const char **) devices);
+    qemuDomainObjExitMonitor(vm);
+
+    if (rc < 0)
+        goto cleanup;
+
+    qemuBlockJobStarted(job, vm);
+
+    while (true) {
+        qemuBlockJobUpdate(vm, job, VIR_ASYNC_JOB_SNAPSHOT);
+
+        if (job->state == VIR_DOMAIN_BLOCK_JOB_FAILED) {
+            virReportError(VIR_ERR_OPERATION_FAILED,
+                           _("deletion of internal snapshot '%1$s' job failed: %2$s"),
+                           snapdef->parent.name, NULLSTR(job->errmsg));
+            goto cleanup;
+        }
+
+        if (job->state == VIR_DOMAIN_BLOCK_JOB_COMPLETED)
+            break;
+
+        if (qemuDomainObjWait(vm) < 0)
+            goto cleanup;
+    }
+
+    ret = 0;
+
+ cleanup:
+    qemuBlockJobStartupFinalize(vm, job);
+    return ret;
+}
+
+
 /* Discard one snapshot (or its metadata), without reparenting any children.  */
 static int
 qemuSnapshotDiscardImpl(virQEMUDriver *driver,
@@ -3642,14 +3945,24 @@ qemuSnapshotDiscardImpl(virQEMUDriver *driver,
                 if (qemuSnapshotDiscardExternal(vm, snap, externalData) < 0)
                     return -1;
             } else {
+                virDomainSnapshotDef *snapdef = virDomainSnapshotObjGetDef(snap);
+                qemuDomainObjPrivate *priv = vm->privateData;
+
                 /* Similarly as internal snapshot creation we would use a regular job
                  * here so set a mask to forbid any other job. */
                 qemuDomainObjSetAsyncJobMask(vm, VIR_JOB_NONE);
-                if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0)
-                    return -1;
-                /* we continue on even in the face of error */
-                qemuMonitorDeleteSnapshot(qemuDomainGetMonitor(vm), snap->def->name);
-                qemuDomainObjExitMonitor(vm);
+
+                if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SNAPSHOT_INTERNAL_QMP)) {
+                    if (qemuSnapshotDiscardActiveInternal(vm, snapdef) < 0)
+                        return -1;
+                } else {
+                    if (qemuDomainObjEnterMonitorAsync(vm, VIR_ASYNC_JOB_SNAPSHOT) < 0)
+                        return -1;
+                    /* we continue on even in the face of error */
+                    qemuMonitorDeleteSnapshot(qemuDomainGetMonitor(vm), snap->def->name);
+                    qemuDomainObjExitMonitor(vm);
+                }
+
                 qemuDomainObjSetAsyncJobMask(vm, VIR_JOB_DEFAULT_MASK);
             }
         }

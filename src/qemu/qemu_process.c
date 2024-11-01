@@ -6212,26 +6212,6 @@ qemuProcessSetupHotpluggableVcpus(virDomainObj *vm,
 }
 
 
-static bool
-qemuProcessDropUnknownCPUFeatures(const char *name,
-                                  virCPUFeaturePolicy policy,
-                                  void *opaque)
-{
-    const char **features = opaque;
-
-    if (policy != VIR_CPU_FEATURE_DISABLE &&
-        policy != VIR_CPU_FEATURE_FORBID)
-        return true;
-
-    if (g_strv_contains(features, name))
-        return true;
-
-    /* Features unknown to QEMU are implicitly disabled, we can just drop them
-     * from the definition. */
-    return false;
-}
-
-
 static int
 qemuProcessUpdateGuestCPU(virDomainDef *def,
                           virQEMUCaps *qemuCaps,
@@ -6288,11 +6268,8 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
         virCPUFeaturePolicy removedPolicy = VIR_CPU_FEATURE_DISABLE;
 
         if (def->cpu->check == VIR_CPU_CHECK_PARTIAL &&
-            !virQEMUCapsIsCPUUsable(qemuCaps, def->virtType, def->cpu) &&
-            virCPUCompare(hostarch,
-                          virQEMUCapsGetHostModel(qemuCaps, def->virtType,
-                                                  VIR_QEMU_CAPS_HOST_CPU_FULL),
-                          def->cpu, true) < 0)
+            qemuDomainCheckCPU(hostarch, def->virtType, qemuCaps, def->cpu,
+                               VIR_QEMU_CAPS_HOST_CPU_FULL, true) < 0)
             return -1;
 
         /* When starting a fresh domain we disable all features removed from
@@ -6324,18 +6301,6 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
     if (virCPUDefFilterFeatures(def->cpu, virQEMUCapsCPUFilterFeatures,
                                 &def->os.arch) < 0)
         return -1;
-
-    if (ARCH_IS_X86(def->os.arch)) {
-        g_auto(GStrv) features = NULL;
-
-        if (virQEMUCapsGetCPUFeatures(qemuCaps, def->virtType, false, &features) < 0)
-            return -1;
-
-        if (features &&
-            virCPUDefFilterFeatures(def->cpu, qemuProcessDropUnknownCPUFeatures,
-                                    features) < 0)
-            return -1;
-    }
 
     return 0;
 }
@@ -8743,7 +8708,7 @@ void qemuProcessStop(virQEMUDriver *driver,
     if (priv->eventThread)
         g_object_unref(g_steal_pointer(&priv->eventThread));
 
-    if (!!g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
+    if (g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
         driver->inhibitCallback(false, driver->inhibitOpaque);
 
     /* Clear network bandwidth */

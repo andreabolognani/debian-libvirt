@@ -1002,10 +1002,10 @@ qemuNamespaceMknodOne(qemuNamespaceMknodItem *data)
     bool isDev = S_ISCHR(data->sb.st_mode) || S_ISBLK(data->sb.st_mode);
     bool isReg = S_ISREG(data->sb.st_mode) || S_ISFIFO(data->sb.st_mode) || S_ISSOCK(data->sb.st_mode);
     bool isDir = S_ISDIR(data->sb.st_mode);
-    bool exists = false;
+    bool existed = false;
 
     if (virFileExists(data->file))
-        exists = true;
+        existed = true;
 
     if (virFileMakeParentPath(data->file) < 0) {
         virReportSystemError(errno,
@@ -1022,6 +1022,7 @@ qemuNamespaceMknodOne(qemuNamespaceMknodItem *data)
                       data->file, data->target);
         } else {
             VIR_DEBUG("Creating symlink %s -> %s", data->file, data->target);
+            existed = false;
 
             /* First, unlink the symlink target. Symlinks change and
              * therefore we have no guarantees that pre-existing
@@ -1053,6 +1054,7 @@ qemuNamespaceMknodOne(qemuNamespaceMknodItem *data)
         } else {
             VIR_DEBUG("Creating dev %s (%d,%d)",
                       data->file, major(data->sb.st_rdev), minor(data->sb.st_rdev));
+            existed = false;
             unlink(data->file);
             if (mknod(data->file, data->sb.st_mode, data->sb.st_rdev) < 0) {
                 virReportSystemError(errno,
@@ -1088,50 +1090,52 @@ qemuNamespaceMknodOne(qemuNamespaceMknodItem *data)
         goto cleanup;
     }
 
-    if (lchown(data->file, data->sb.st_uid, data->sb.st_gid) < 0) {
-        virReportSystemError(errno,
-                             _("Failed to chown device %1$s"),
-                             data->file);
-        goto cleanup;
-    }
-
-    /* Symlinks don't have mode */
-    if (!isLink &&
-        chmod(data->file, data->sb.st_mode) < 0) {
-        virReportSystemError(errno,
-                             _("Failed to set permissions for device %1$s"),
-                             data->file);
-        goto cleanup;
-    }
-
-    if (data->acl &&
-        virFileSetACLs(data->file, data->acl) < 0 &&
-        errno != ENOTSUP) {
-        virReportSystemError(errno,
-                             _("Unable to set ACLs on %1$s"), data->file);
-        goto cleanup;
-    }
-
-# ifdef WITH_SELINUX
-    if (data->tcon &&
-        lsetfilecon_raw(data->file, (const char *)data->tcon) < 0) {
-        VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
-        if (errno != EOPNOTSUPP && errno != ENOTSUP) {
-        VIR_WARNINGS_RESET
+    if (!existed) {
+        if (lchown(data->file, data->sb.st_uid, data->sb.st_gid) < 0) {
             virReportSystemError(errno,
-                                 _("Unable to set SELinux label on %1$s"),
+                                 _("Failed to chown device %1$s"),
                                  data->file);
             goto cleanup;
         }
-    }
+
+        /* Symlinks don't have mode */
+        if (!isLink &&
+            chmod(data->file, data->sb.st_mode) < 0) {
+            virReportSystemError(errno,
+                                 _("Failed to set permissions for device %1$s"),
+                                 data->file);
+            goto cleanup;
+        }
+
+        if (data->acl &&
+            virFileSetACLs(data->file, data->acl) < 0 &&
+            errno != ENOTSUP) {
+            virReportSystemError(errno,
+                                 _("Unable to set ACLs on %1$s"), data->file);
+            goto cleanup;
+        }
+
+# ifdef WITH_SELINUX
+        if (data->tcon &&
+            lsetfilecon_raw(data->file, (const char *)data->tcon) < 0) {
+            VIR_WARNINGS_NO_WLOGICALOP_EQUAL_EXPR
+            if (errno != EOPNOTSUPP && errno != ENOTSUP) {
+            VIR_WARNINGS_RESET
+                virReportSystemError(errno,
+                                     _("Unable to set SELinux label on %1$s"),
+                                     data->file);
+                goto cleanup;
+            }
+        }
 # endif
+    }
 
     /* Finish mount process started earlier. */
     if ((isReg || isDir) &&
         virFileMoveMount(data->target, data->file) < 0)
         goto cleanup;
 
-    ret = exists;
+    ret = existed;
  cleanup:
     if (ret < 0 && delDevice) {
         if (isDir)

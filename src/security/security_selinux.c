@@ -77,9 +77,11 @@ struct _virSecuritySELinuxContextItem {
 typedef struct _virSecuritySELinuxContextList virSecuritySELinuxContextList;
 struct _virSecuritySELinuxContextList {
     virSecurityManager *manager;
+    char **sharedFilesystems;
     virSecuritySELinuxContextItem **items;
     size_t nItems;
     bool lock;
+    bool lockMetadataException;
 };
 
 #define SECURITY_SELINUX_VOID_DOI       "0"
@@ -141,6 +143,7 @@ virSecuritySELinuxContextListFree(void *opaque)
 
     g_free(list->items);
     virObjectUnref(list->manager);
+    g_strfreev(list->sharedFilesystems);
     g_free(list);
 }
 
@@ -208,6 +211,48 @@ virSecuritySELinuxRecallLabel(const char *path,
 }
 
 
+/**
+ * virSecuritySELinuxForgetLabels:
+ * @path: file or directory to work on
+ *
+ * Forgets rememebered SELinux labels for @path, including its
+ * children if it is a directory.
+ *
+ * This is intended to be used in cleanup paths, so failure to forget
+ * a single label is not considered fatal; instead, a best-effort
+ * attempt to continue and forget as many labels as possible will be
+ * made.
+ */
+static void
+virSecuritySELinuxForgetLabels(const char *path)
+{
+    struct dirent *ent;
+    g_autoptr(DIR) dir = NULL;
+    g_autofree char *con = NULL;
+
+    if (virSecuritySELinuxRecallLabel(path, &con) < 0)
+        VIR_WARN("Failed to forget remembered SELinux labels for %s, ignoring", path);
+
+    if (!virFileIsDir(path))
+        return;
+
+    if (virDirOpen(&dir, path) < 0)
+        return;
+
+    while (virDirRead(dir, &ent, NULL) > 0) {
+        g_autofree char *spath = NULL;
+        g_autofree char *scon = NULL;
+
+        spath = g_strdup_printf("%s/%s", path, ent->d_name);
+
+        if (virSecuritySELinuxRecallLabel(spath, &scon) < 0)
+            VIR_WARN("Failed to forget remembered SELinux labels for %s, ignoring", spath);
+    }
+
+    return;
+}
+
+
 static int virSecuritySELinuxSetFilecon(virSecurityManager *mgr,
                                         const char *path,
                                         const char *tcon,
@@ -254,7 +299,10 @@ virSecuritySELinuxTransactionRun(pid_t pid G_GNUC_UNUSED,
                 VIR_APPEND_ELEMENT_COPY_INPLACE(paths, npaths, p);
         }
 
-        if (!(state = virSecurityManagerMetadataLock(list->manager, paths, npaths)))
+        if (!(state = virSecurityManagerMetadataLock(list->manager,
+                                                     list->sharedFilesystems,
+                                                     paths, npaths,
+                                                     list->lockMetadataException)))
             goto cleanup;
 
         for (i = 0; i < list->nItems; i++) {
@@ -1102,6 +1150,7 @@ virSecuritySELinuxGetDOI(virSecurityManager *mgr G_GNUC_UNUSED)
 /**
  * virSecuritySELinuxTransactionStart:
  * @mgr: security manager
+ * @sharedFilesystems: list of filesystem to consider shared
  *
  * Starts a new transaction. In transaction nothing is changed context
  * until TransactionCommit() is called. This is implemented as a list
@@ -1114,7 +1163,8 @@ virSecuritySELinuxGetDOI(virSecurityManager *mgr G_GNUC_UNUSED)
  *        -1 otherwise.
  */
 static int
-virSecuritySELinuxTransactionStart(virSecurityManager *mgr)
+virSecuritySELinuxTransactionStart(virSecurityManager *mgr,
+                                   char *const *sharedFilesystems)
 {
     virSecuritySELinuxContextList *list;
 
@@ -1128,6 +1178,7 @@ virSecuritySELinuxTransactionStart(virSecurityManager *mgr)
     list = g_new0(virSecuritySELinuxContextList, 1);
 
     list->manager = virObjectRef(mgr);
+    list->sharedFilesystems = g_strdupv((char **) sharedFilesystems);
 
     if (virThreadLocalSet(&contextList, list) < 0) {
         virReportSystemError(errno, "%s",
@@ -1144,6 +1195,7 @@ virSecuritySELinuxTransactionStart(virSecurityManager *mgr)
  * @mgr: security manager
  * @pid: domain's PID
  * @lock: lock and unlock paths that are relabeled
+ * @lockMetadataException: don't lock metadata for lock files
  *
  * If @pis is not -1 then enter the @pid namespace (usually @pid refers
  * to a domain) and perform all the sefilecon()-s on the list. If @pid
@@ -1164,7 +1216,8 @@ virSecuritySELinuxTransactionStart(virSecurityManager *mgr)
 static int
 virSecuritySELinuxTransactionCommit(virSecurityManager *mgr G_GNUC_UNUSED,
                                     pid_t pid,
-                                    bool lock)
+                                    bool lock,
+                                    bool lockMetadataException)
 {
     virSecuritySELinuxContextList *list;
     int rc;
@@ -1184,6 +1237,7 @@ virSecuritySELinuxTransactionCommit(virSecurityManager *mgr G_GNUC_UNUSED,
     }
 
     list->lock = lock;
+    list->lockMetadataException = lockMetadataException;
 
     if (pid != -1) {
         rc = virProcessRunInMountNamespace(pid,
@@ -1777,6 +1831,7 @@ virSecuritySELinuxRestoreTPMFileLabelInt(virSecurityManager *mgr,
 
 static int
 virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
+                                       char *const *sharedFilesystems,
                                        virDomainDef *def,
                                        virStorageSource *src,
                                        bool migrated)
@@ -1811,10 +1866,38 @@ virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
     if (src->readonly || src->shared)
         return 0;
 
-    if (virStorageSourceIsFD(src)) {
-        if (migrated)
+    /* If we have a shared FS and are doing migration, we must not change
+     * ownership, because that kills access on the destination host which is
+     * sub-optimal for the guest VM's I/O attempts :-) */
+    if (migrated) {
+        int rc = 1;
+
+        if (virStorageSourceIsFD(src))
             return 0;
 
+        if (virStorageSourceIsLocalStorage(src)) {
+            if (!src->path)
+                return 0;
+
+            if ((rc = virFileIsSharedFS(src->path, sharedFilesystems)) < 0)
+                return -1;
+        }
+
+        if (rc == 1) {
+            g_autofree char *oldlabel = NULL;
+
+            VIR_DEBUG("Skipping image label restore on %s because FS is shared",
+                      src->path);
+
+            /* We still want to remove the local reference of the remembered
+             * seclabel. The destination will take its own reference when
+             * starting the migrated VM */
+            ignore_value(virSecuritySELinuxRecallLabel(src->path, &oldlabel));
+            return 0;
+        }
+    }
+
+    if (virStorageSourceIsFD(src)) {
         if (!src->fdtuple ||
             !src->fdtuple->selinuxLabel ||
             src->fdtuple->nfds == 0)
@@ -1823,27 +1906,6 @@ virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
         ignore_value(virSecuritySELinuxFSetFilecon(src->fdtuple->fds[0],
                                                    src->fdtuple->selinuxLabel));
         return 0;
-    }
-
-    /* If we have a shared FS and are doing migration, we must not change
-     * ownership, because that kills access on the destination host which is
-     * sub-optimal for the guest VM's I/O attempts :-) */
-    if (migrated) {
-        int rc = 1;
-
-        if (virStorageSourceIsLocalStorage(src)) {
-            if (!src->path)
-                return 0;
-
-            if ((rc = virFileIsSharedFS(src->path)) < 0)
-                return -1;
-        }
-
-        if (rc == 1) {
-            VIR_DEBUG("Skipping image label restore on %s because FS is shared",
-                      src->path);
-            return 0;
-        }
     }
 
     /* This is not very clean. But so far we don't have NVMe
@@ -1867,16 +1929,19 @@ virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
 
 static int
 virSecuritySELinuxRestoreImageLabel(virSecurityManager *mgr,
+                                    char *const *sharedFilesystems,
                                     virDomainDef *def,
                                     virStorageSource *src,
                                     virSecurityDomainImageLabelFlags flags G_GNUC_UNUSED)
 {
-    return virSecuritySELinuxRestoreImageLabelInt(mgr, def, src, false);
+    return virSecuritySELinuxRestoreImageLabelInt(mgr, sharedFilesystems,
+                                                  def, src, false);
 }
 
 
 static int
 virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
+                                        char *const *sharedFilesystems G_GNUC_UNUSED,
                                         virDomainDef *def,
                                         virStorageSource *src,
                                         virStorageSource *parent,
@@ -1974,6 +2039,9 @@ virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
 
         ret = virSecuritySELinuxFSetFilecon(src->fdtuple->fds[0], use_label);
     } else {
+        if (src->seclabelSkipRemember)
+            remember = false;
+
         ret = virSecuritySELinuxSetFilecon(mgr, path, use_label, remember);
     }
 
@@ -1983,9 +2051,10 @@ virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
 
 static int
 virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
-                               virDomainDef *def,
-                               virStorageSource *src,
-                               virSecurityDomainImageLabelFlags flags)
+                                char *const *sharedFilesystems,
+                                virDomainDef *def,
+                                virStorageSource *src,
+                                virSecurityDomainImageLabelFlags flags)
 {
     virStorageSource *parent = src;
     virStorageSource *n;
@@ -1993,7 +2062,9 @@ virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
         const bool isChainTop = flags & VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP;
 
-        if (virSecuritySELinuxSetImageLabelInternal(mgr, def, n, parent, isChainTop) < 0)
+        if (virSecuritySELinuxSetImageLabelInternal(mgr, sharedFilesystems,
+                                                    def, n, parent,
+                                                    isChainTop) < 0)
             return -1;
 
         if (!(flags & VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN))
@@ -2008,6 +2079,7 @@ virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
 
 struct virSecuritySELinuxMoveImageMetadataData {
     virSecurityManager *mgr;
+    char **sharedFilesystems;
     const char *src;
     const char *dst;
 };
@@ -2022,7 +2094,10 @@ virSecuritySELinuxMoveImageMetadataHelper(pid_t pid G_GNUC_UNUSED,
     virSecurityManagerMetadataLockState *state;
     int ret;
 
-    if (!(state = virSecurityManagerMetadataLock(data->mgr, paths, G_N_ELEMENTS(paths))))
+    if (!(state = virSecurityManagerMetadataLock(data->mgr,
+                                                 data->sharedFilesystems,
+                                                 paths, G_N_ELEMENTS(paths),
+                                                 false)))
         return -1;
 
     ret = virSecurityMoveRememberedLabel(SECURITY_SELINUX_NAME, data->src, data->dst);
@@ -2039,11 +2114,16 @@ virSecuritySELinuxMoveImageMetadataHelper(pid_t pid G_GNUC_UNUSED,
 
 static int
 virSecuritySELinuxMoveImageMetadata(virSecurityManager *mgr,
+                                    char *const *sharedFilesystems,
                                     pid_t pid,
                                     virStorageSource *src,
                                     virStorageSource *dst)
 {
-    struct virSecuritySELinuxMoveImageMetadataData data = { .mgr = mgr, 0 };
+    struct virSecuritySELinuxMoveImageMetadataData data = {
+        .mgr = mgr,
+        .sharedFilesystems = (char **) sharedFilesystems,
+        0
+    };
     int rc;
 
     if (src && virStorageSourceIsLocalStorage(src))
@@ -2820,6 +2900,7 @@ virSecuritySELinuxRestoreSysinfoLabel(virSecurityManager *mgr,
 
 static int
 virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
+                                  char *const *sharedFilesystems,
                                   virDomainDef *def,
                                   bool migrated,
                                   bool chardevStdioLogd)
@@ -2844,7 +2925,8 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
     for (i = 0; i < def->ndisks; i++) {
         virDomainDiskDef *disk = def->disks[i];
 
-        if (virSecuritySELinuxRestoreImageLabelInt(mgr, def, disk->src,
+        if (virSecuritySELinuxRestoreImageLabelInt(mgr, sharedFilesystems,
+                                                   def, disk->src,
                                                    migrated) < 0)
             rc = -1;
     }
@@ -2890,7 +2972,8 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
     }
 
     if (def->os.loader && def->os.loader->nvram) {
-        if (virSecuritySELinuxRestoreImageLabelInt(mgr, def, def->os.loader->nvram,
+        if (virSecuritySELinuxRestoreImageLabelInt(mgr, sharedFilesystems,
+                                                   def, def->os.loader->nvram,
                                                    migrated) < 0)
             rc = -1;
     }
@@ -3236,6 +3319,7 @@ virSecuritySELinuxSetSysinfoLabel(virSecurityManager *mgr,
 
 static int
 virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
+                              char *const *sharedFilesystems,
                               virDomainDef *def,
                               const char *incomingPath G_GNUC_UNUSED,
                               bool chardevStdioLogd,
@@ -3263,7 +3347,8 @@ virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
                      def->disks[i]->dst);
             continue;
         }
-        if (virSecuritySELinuxSetImageLabel(mgr, def, def->disks[i]->src,
+        if (virSecuritySELinuxSetImageLabel(mgr, sharedFilesystems,
+                                            def, def->disks[i]->src,
                                             VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN |
                                             VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP) < 0)
             return -1;
@@ -3313,7 +3398,8 @@ virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
     }
 
     if (def->os.loader && def->os.loader->nvram) {
-        if (virSecuritySELinuxSetImageLabel(mgr, def, def->os.loader->nvram,
+        if (virSecuritySELinuxSetImageLabel(mgr, sharedFilesystems,
+                                            def, def->os.loader->nvram,
                                             VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN |
                                             VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP) < 0)
             return -1;
@@ -3671,6 +3757,13 @@ virSecuritySELinuxRestoreTPMLabels(virSecurityManager *mgr,
         if (restoreTPMStateLabel) {
             ret = virSecuritySELinuxRestoreFileLabels(mgr,
                                                       def->tpms[i]->data.emulator.storagepath);
+        } else {
+            /* Even if we're not restoring the original label for the
+             * TPM state directory, we should still forget any
+             * remembered label so that a subsequent attempt at TPM
+             * startup will not fail due to the state directory being
+             * considered as still in use */
+            virSecuritySELinuxForgetLabels(def->tpms[i]->data.emulator.storagepath);
         }
 
         if (ret == 0 &&

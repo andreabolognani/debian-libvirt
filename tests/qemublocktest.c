@@ -39,7 +39,7 @@ VIR_LOG_INIT("tests.storagetest");
 struct testBackingXMLjsonXMLdata {
     int type;
     const char *xml;
-    bool legacy;
+    bool deprecated;
     GHashTable *schema;
     virJSONValue *schemaroot;
 };
@@ -80,7 +80,7 @@ testBackingXMLjsonXML(const void *args)
     }
 
     if (testQEMUSchemaValidate(backendprops, data->schemaroot,
-                               data->schema, false, &debug) < 0) {
+                               data->schema, data->deprecated, &debug) < 0) {
         g_autofree char *debugmsg = virBufferContentAndReset(&debug);
         g_autofree char *debugprops = virJSONValueToString(backendprops, true);
 
@@ -455,6 +455,8 @@ struct testQemuImageCreateData {
     virJSONValue *schemaroot;
     virQEMUDriver *driver;
     virQEMUCaps *qemuCaps;
+
+    bool deprecated;
 };
 
 static const char *testQemuImageCreatePath = abs_srcdir "/qemublocktestdata/imagecreate/";
@@ -528,7 +530,7 @@ testQemuImageCreate(const void *opaque)
             return -1;
 
         if (testQEMUSchemaValidate(formatprops, data->schemaroot, data->schema,
-                                   false, &debug) < 0) {
+                                   data->deprecated, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             VIR_TEST_VERBOSE("blockdev-create format json does not conform to QAPI schema");
             VIR_TEST_DEBUG("json:\n%s\ndoes not match schema. Debug output:\n %s",
@@ -543,7 +545,7 @@ testQemuImageCreate(const void *opaque)
             return -1;
 
         if (testQEMUSchemaValidate(protocolprops, data->schemaroot, data->schema,
-                                   false, &debug) < 0) {
+                                   data->deprecated, &debug) < 0) {
             g_autofree char *debugmsg = virBufferContentAndReset(&debug);
             VIR_TEST_VERBOSE("blockdev-create protocol json does not conform to QAPI schema");
             VIR_TEST_DEBUG("json:\n%s\ndoes not match schema. Debug output:\n %s",
@@ -592,6 +594,15 @@ testQemuDetectBitmapsWorker(GHashTable *nodedata,
                           bitmap->name, bitmap->recording, bitmap->busy,
                           bitmap->persistent, bitmap->inconsistent,
                           bitmap->granularity, bitmap->dirtybytes);
+    }
+
+    if (data->snapshots) {
+        char **sn;
+
+        virBufferAddLit(buf, "internal snapshots:");
+
+        for (sn = data->snapshots; *sn; sn++)
+            virBufferAsprintf(buf, " '%s'", *sn);
     }
 
     virBufferAdjustIndent(buf, -1);
@@ -1044,6 +1055,8 @@ mymain(void)
                          "  <readahead size='1024'/>\n"
                          "  <timeout seconds='1337'/>\n"
                          "</source>\n");
+    /* 'gluster' is deprecated as of qemu-9.2, once removed this tests can be dropped too */
+    xmljsonxmldata.deprecated = true;
     TEST_JSON_FORMAT_NET("<source protocol='gluster' name='vol/file'>\n"
                          "  <host name='example.com' port='24007'/>\n"
                          "</source>\n");
@@ -1052,6 +1065,7 @@ mymain(void)
                          "  <host transport='unix' socket='/path/socket'/>\n"
                          "  <host name='example.com' port='24007'/>\n"
                          "</source>\n");
+    xmljsonxmldata.deprecated = false;
     TEST_JSON_FORMAT_NET("<source protocol='nbd'>\n"
                          "  <host transport='unix' socket='/path/to/socket'/>\n"
                          "</source>\n");
@@ -1197,10 +1211,14 @@ mymain(void)
     TEST_IMAGE_CREATE("qcow2-backing-raw-slice", "raw-slice");
     TEST_IMAGE_CREATE("qcow2-backing-qcow2-slice", "qcow2-slice");
 
+    /* 'gluster' is deprecated as of qemu-9.2, once removed this tests can be dropped too */
+    imagecreatedata.deprecated = true;
     TEST_IMAGE_CREATE("network-gluster-qcow2", NULL);
+    imagecreatedata.deprecated = false;
     TEST_IMAGE_CREATE("network-rbd-qcow2", NULL);
     TEST_IMAGE_CREATE("network-ssh-qcow2", NULL);
 
+    /* The following group also tests internal snapshot detection */
 #define TEST_BITMAP_DETECT(testname) \
     do { \
         if (virTestRun("bitmap detect " testname, \
@@ -1213,6 +1231,7 @@ mymain(void)
     TEST_BITMAP_DETECT("basic");
     TEST_BITMAP_DETECT("snapshots");
     TEST_BITMAP_DETECT("synthetic");
+    TEST_BITMAP_DETECT("snapshots-internal");
 
 #define TEST_BACKUP_BITMAP_CALCULATE(testname, source, incrbackup, named) \
     do { \
