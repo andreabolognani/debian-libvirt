@@ -1,3 +1,39 @@
+libvirt (10.9.0-2) experimental; urgency=medium
+
+  * [49e8455] patches: Drop forward/Reduce-udevadm-settle-timeout-[...]
+    - This workaround should no longer be needed
+  * [c1978c6] control: daemon Depends on daemon-log
+    - libvirtd.service can't start if virtlogd.socket is not present
+  * [81015c2] control: daemon-driver-lxc Depends on daemon-driver-network
+    - The LXC driver uses the network driver directly
+  * [f73bb3c] control: daemon-driver-storage-* Depends on daemon-driver-storage
+    - The drivers for the various storage technologies are completely
+      useless if the main storage driver is not present
+  * [8b727e3] control: Fix Depends between arch:any and arch:all packages
+    - In a few cases, the relationship was declared incorrectly
+    - Closes: #1056988
+  * [f316a89] control: daemon-driver-storage only Suggests nfs-common
+    - It was accidentally turned into a Recommends in 10.6.0-2
+    - Closes: #1081981
+  * [7d61238] control: Drop Recommends on init system
+    - Daemons generally don't declare this kind of relationship towards
+      init systems in Debian
+  * [3785ee5] control: daemon-driver-qemu Depends on systemd-container
+    - The QEMU driver talks to systemd-machined
+    - The dependency already existed, but it was a Recommends until now
+  * [96d3775] control: daemon-driver-lxc Depends on systemd-container
+    - The LXC driver talks to systemd-machined
+  * [527cf92] control: Drop Depends on firewalld
+    - libvirt talks to firewalld if it's installed, but doesn't need it
+      to implement any of its functionality
+  * [d9fb1b0] control: daemon-driver-qemu Depends on QEMU itself
+    - The QEMU driver can't do anything useful without it
+  * [e994d4c] control: Introduce ARCHES_DMIDECODE
+    - daemon-common now Depends on dmidecode on all architectures where
+      the latter is getting built
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 14 Nov 2024 00:38:07 +0100
+
 libvirt (10.9.0-1) unstable; urgency=medium
 
   * [d7c9487] New upstream version 10.9.0
