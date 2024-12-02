@@ -93,7 +93,6 @@ qemuBuildNicDevProps(virDomainDef *def,
                      virDomainNetDef *net,
                      virQEMUCaps *qemuCaps);
 
-char *qemuDeviceDriveHostAlias(virDomainDiskDef *disk);
 bool qemuDiskBusIsSD(int bus);
 
 int
@@ -179,7 +178,8 @@ qemuBuildUSBHostdevDevProps(const virDomainDef *def,
 virJSONValue *
 qemuBuildSCSIHostdevDevProps(const virDomainDef *def,
                              virDomainHostdevDef *dev,
-                             const char *backendAlias);
+                             const char *backendAlias,
+                             virQEMUCaps *qemuCaps);
 
 qemuBlockStorageSourceAttachData *
 qemuBuildHostdevSCSIAttachPrepare(virDomainHostdevDef *hostdev,
@@ -197,7 +197,8 @@ qemuBuildSCSIVHostHostdevDevProps(const virDomainDef *def,
 
 virJSONValue *
 qemuBuildHostdevMediatedDevProps(const virDomainDef *def,
-                                 virDomainHostdevDef *dev);
+                                 virDomainHostdevDef *dev,
+                                 virQEMUCaps *qemuCaps);
 
 virJSONValue *
 qemuBuildRedirdevDevProps(const virDomainDef *def,
@@ -205,8 +206,6 @@ qemuBuildRedirdevDevProps(const virDomainDef *def,
 
 virJSONValue *
 qemuBuildZPCIDevProps(virDomainDeviceInfo *dev);
-
-int qemuNetworkPrepareDevices(virDomainDef *def);
 
 bool
 qemuDiskConfigBlkdeviotuneEnabled(const virDomainDiskDef *disk);
@@ -216,6 +215,11 @@ virJSONValue *qemuBuildHotpluggableCPUProps(const virDomainVcpuDef *vcpu)
 
 virJSONValue *qemuBuildShmemBackendMemProps(virDomainShmemDef *shmem)
     ATTRIBUTE_NONNULL(1);
+
+bool
+qemuChrIsPlatformDevice(const virDomainDef *def,
+                        virDomainChrDef *chr)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
 virJSONValue *
 qemuBuildShmemDevProps(virDomainDef *def,

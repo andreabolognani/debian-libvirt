@@ -232,3 +232,8 @@ virHostdevUpdateActiveNVMeDevices(virHostdevManager *hostdev_mgr,
                                   const char *dom_name,
                                   virDomainDiskDef **disks,
                                   size_t ndisks);
+
+bool
+virHostdevNeedsVFIO(const virDomainHostdevDef *hostdev);
+
+bool virHostdevHostSupportsPassthroughVFIO(void);

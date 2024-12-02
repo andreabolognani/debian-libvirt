@@ -837,7 +837,8 @@ qemuDomainAttachControllerDevice(virDomainObj *vm,
                                { .controller = controller } };
     bool releaseaddr = false;
 
-    if (controller->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI) {
+    if (controller->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI && \
+        controller->type != VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("'%1$s' controller cannot be hot plugged."),
                        virDomainControllerTypeToString(controller->type));
@@ -1330,9 +1331,14 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
                                                         vm->def->uuid,
                                                         !virDomainNetTypeSharesHostView(net)) < 0)
                     goto cleanup;
-            } else if (virNetDevBandwidthSet(net->ifname, actualBandwidth, false,
-                                             !virDomainNetTypeSharesHostView(net)) < 0) {
-                goto cleanup;
+            } else {
+                int flags = VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL;
+
+                if (!virDomainNetTypeSharesHostView(net))
+                    flags |= VIR_NETDEV_BANDWIDTH_SET_DIR_SWAPPED;
+
+                if (virNetDevBandwidthSet(net->ifname, actualBandwidth, flags) < 0)
+                    goto cleanup;
             }
         } else {
             VIR_WARN("setting bandwidth on interfaces of "
@@ -2063,6 +2069,12 @@ qemuDomainAttachChrDevice(virQEMUDriver *driver,
     bool need_release = false;
     bool guestfwd = false;
 
+    if (qemuChrIsPlatformDevice(vmdef, chr)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Cannot hotplug platform device"));
+        return -1;
+    }
+
     if (chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CHANNEL) {
         guestfwd = chr->targetType == VIR_DOMAIN_CHR_CHANNEL_TARGET_TYPE_GUESTFWD;
 
@@ -2541,7 +2553,8 @@ qemuDomainAttachHostSCSIDevice(virQEMUDriver *driver,
                                                    priv->qemuCaps)))
         goto cleanup;
 
-    if (!(devprops = qemuBuildSCSIHostdevDevProps(vm->def, hostdev, backendalias)))
+    if (!(devprops = qemuBuildSCSIHostdevDevProps(vm->def, hostdev, backendalias,
+                                                  priv->qemuCaps)))
         goto cleanup;
 
     VIR_REALLOC_N(vm->def->hostdevs, vm->def->nhostdevs + 1);
@@ -2761,7 +2774,8 @@ qemuDomainAttachMediatedDevice(virQEMUDriver *driver,
 
     qemuAssignDeviceHostdevAlias(vm->def, &hostdev->info->alias, -1);
 
-    if (!(devprops = qemuBuildHostdevMediatedDevProps(vm->def, hostdev)))
+    if (!(devprops = qemuBuildHostdevMediatedDevProps(vm->def, hostdev,
+                                                      priv->qemuCaps)))
         goto cleanup;
 
     VIR_REALLOC_N(vm->def->hostdevs, vm->def->nhostdevs + 1);
@@ -4172,9 +4186,14 @@ qemuDomainChangeNet(virQEMUDriver *driver,
                                                         vm->def->uuid,
                                                         !virDomainNetTypeSharesHostView(newdev)) < 0)
                     goto cleanup;
-            } else if (virNetDevBandwidthSet(newdev->ifname, newb, false,
-                                             !virDomainNetTypeSharesHostView(newdev)) < 0) {
-                goto cleanup;
+            } else {
+                int flags = VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL;
+
+                if (!virDomainNetTypeSharesHostView(newdev))
+                    flags |= VIR_NETDEV_BANDWIDTH_SET_DIR_SWAPPED;
+
+                if (virNetDevBandwidthSet(newdev->ifname, newb, flags) < 0)
+                    goto cleanup;
             }
         } else {
             if (virDomainInterfaceClearQoS(vm->def, olddev) < 0)
@@ -6049,6 +6068,12 @@ qemuDomainDetachDeviceChr(virQEMUDriver *driver,
         goto cleanup;
     }
 
+    if (qemuChrIsPlatformDevice(vmdef, tmpChr)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Cannot detach platform device"));
+        return -1;
+    }
+
     if (vmdef->os.type == VIR_DOMAIN_OSTYPE_HVM &&
         tmpChr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&
         (tmpChr->targetType == VIR_DOMAIN_CHR_CONSOLE_TARGET_TYPE_SERIAL ||
@@ -6076,8 +6101,12 @@ qemuDomainDetachDeviceChr(virQEMUDriver *driver,
         if (rc < 0)
             goto cleanup;
     } else {
-        if (qemuDomainDeleteDevice(vm, tmpChr->info.alias) < 0)
+        ret = qemuDomainDeleteDevice(vm, tmpChr->info.alias);
+        if (ret < 0) {
+            if (ret == -2)
+                ret = qemuDomainRemoveChrDevice(driver, vm, tmpChr, true);
             goto cleanup;
+        }
     }
 
     if (guestfwd) {
@@ -6581,18 +6610,20 @@ qemuDomainHotplugDelVcpu(virQEMUDriver *driver,
 
     qemuDomainMarkDeviceAliasForRemoval(vm, vcpupriv->alias);
 
-    if (qemuDomainDeleteDevice(vm, vcpupriv->alias) < 0) {
-        if (virDomainObjIsActive(vm))
-            virDomainAuditVcpu(vm, oldvcpus, oldvcpus - nvcpus, "update", false);
-        goto cleanup;
-    }
-
-    if ((rc = qemuDomainWaitForDeviceRemoval(vm)) <= 0) {
-        if (rc == 0)
-            virReportError(VIR_ERR_OPERATION_TIMEOUT, "%s",
-                           _("vcpu unplug request timed out. Unplug result must be manually inspected in the domain"));
-
-        goto cleanup;
+    rc = qemuDomainDeleteDevice(vm, vcpupriv->alias);
+    if (rc < 0) {
+        if (rc != -2) {
+            if (virDomainObjIsActive(vm))
+                virDomainAuditVcpu(vm, oldvcpus, oldvcpus - nvcpus, "update", false);
+            goto cleanup;
+        }
+    } else {
+        if ((rc = qemuDomainWaitForDeviceRemoval(vm)) <= 0) {
+            if (rc == 0)
+                virReportError(VIR_ERR_OPERATION_TIMEOUT, "%s",
+                               _("vcpu unplug request timed out. Unplug result must be manually inspected in the domain"));
+            goto cleanup;
+        }
     }
 
     if (qemuDomainRemoveVcpu(vm, vcpu) < 0)

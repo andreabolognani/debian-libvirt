@@ -147,13 +147,24 @@ struct _virCPUx86Signatures {
 
 typedef struct _virCPUx86Model virCPUx86Model;
 struct _virCPUx86Model {
+    /* Not inherited from ancestor */
     char *name;
+    /* Not inherited from ancestor */
     bool decodeHost;
+    /* Not inherited from ancestor */
     bool decodeGuest;
+    /* Not inherited from ancestor */
     bool compatCheck;
+    /* Inherited from ancestor */
     virCPUx86Vendor *vendor;
+    /* Inherited from ancestor */
     virCPUx86Signatures *signatures;
+    /* Inherited from ancestor */
     virCPUx86Data data;
+
+    /* Not inherited from ancestor.
+     * The corresponding features are removed from the new model data.
+     */
     GStrv removedFeatures;
 
     /* Features added to the CPU model after its original version was released.
@@ -164,8 +175,22 @@ struct _virCPUx86Model {
      * included in the CPU model by the hypervisor, but libvirt didn't support
      * them when introducing the CPU model. In other words, they were enabled,
      * but we ignored them.
+     *
+     * Not inherited from ancestor.
+     * The corresponding features are a genuine part of the new model.
      */
     GStrv addedFeatures;
+
+    /* Pinter to the model this one was derived from. */
+    virCPUx86Model *ancestor;
+
+    /* Pointer to the canonical model if this model is just an alias.
+     * Because the aliases were actually added to the CPU map before their
+     * canonical models, we store this relation in the XML reversed. That is,
+     * this model contains all the data and the canonical model is defined
+     * using this model as an ancestor without adding any additional data.
+     */
+    const virCPUx86Model *canonical;
 };
 
 typedef struct _virCPUx86Map virCPUx86Map;
@@ -1533,6 +1558,7 @@ x86ModelParseAncestor(virCPUx86Model *model,
     g_autofree char *name = NULL;
     virCPUx86Model *ancestor;
     int rc;
+    char **removed;
 
     if ((rc = virXPathBoolean("boolean(./model)", ctxt)) <= 0)
         return rc;
@@ -1552,17 +1578,27 @@ x86ModelParseAncestor(virCPUx86Model *model,
         return -1;
     }
 
+    model->ancestor = ancestor;
     model->vendor = ancestor->vendor;
     model->signatures = virCPUx86SignaturesCopy(ancestor->signatures);
     x86DataCopy(&model->data, &ancestor->data);
+
+    for (removed = ancestor->removedFeatures; removed && *removed; removed++) {
+        virCPUx86Feature *feat;
+
+        if ((feat = x86FeatureFind(map, *removed)))
+            x86DataSubtract(&model->data, &feat->data);
+    }
 
     return 0;
 }
 
 
+/* Updates @changed if signatures are set. */
 static int
 x86ModelParseSignatures(virCPUx86Model *model,
-                        xmlXPathContextPtr ctxt)
+                        xmlXPathContextPtr ctxt,
+                        bool *changed)
 {
     g_autofree xmlNodePtr *nodes = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
@@ -1606,14 +1642,17 @@ x86ModelParseSignatures(virCPUx86Model *model,
             return -1;
     }
 
+    *changed = true;
     return 0;
 }
 
 
+/* Updates @changed if vendor changes. */
 static int
 x86ModelParseVendor(virCPUx86Model *model,
                     xmlXPathContextPtr ctxt,
-                    virCPUx86Map *map)
+                    virCPUx86Map *map,
+                    bool *changed)
 {
     g_autofree char *vendor = NULL;
     int rc;
@@ -1636,14 +1675,17 @@ x86ModelParseVendor(virCPUx86Model *model,
         return -1;
     }
 
+    *changed = true;
     return 0;
 }
 
 
+/* Updates @changed if features are added. */
 static int
 x86ModelParseFeatures(virCPUx86Model *model,
                       xmlXPathContextPtr ctxt,
-                      virCPUx86Map *map)
+                      virCPUx86Map *map,
+                      bool *changed)
 {
     g_autofree xmlNodePtr *nodes = NULL;
     size_t i;
@@ -1703,6 +1745,7 @@ x86ModelParseFeatures(virCPUx86Model *model,
     model->removedFeatures = g_renew(char *, model->removedFeatures, nremoved + 1);
     model->addedFeatures = g_renew(char *, model->addedFeatures, nadded + 1);
 
+    *changed = true;
     return 0;
 }
 
@@ -1714,6 +1757,7 @@ x86ModelParse(xmlXPathContextPtr ctxt,
 {
     virCPUx86Map *map = data;
     g_autoptr(virCPUx86Model) model = NULL;
+    bool changed = false;
 
     if (x86ModelFind(map, name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -1733,14 +1777,27 @@ x86ModelParse(xmlXPathContextPtr ctxt,
     if (x86ModelParseAncestor(model, ctxt, map) < 0)
         return -1;
 
-    if (x86ModelParseSignatures(model, ctxt) < 0)
+    if (x86ModelParseSignatures(model, ctxt, &changed) < 0)
         return -1;
 
-    if (x86ModelParseVendor(model, ctxt, map) < 0)
+    if (x86ModelParseVendor(model, ctxt, map, &changed) < 0)
         return -1;
 
-    if (x86ModelParseFeatures(model, ctxt, map) < 0)
+    if (x86ModelParseFeatures(model, ctxt, map, &changed) < 0)
         return -1;
+
+    if (model->ancestor && !changed) {
+        if (model->ancestor->canonical) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("Cannot set CPU model '%1$s' as canonical name of '%2$s' which is already an alias of '%3$s'"),
+                           model->name,
+                           model->ancestor->name,
+                           model->ancestor->canonical->name);
+            return -1;
+        }
+
+        model->ancestor->canonical = model;
+    }
 
     VIR_APPEND_ELEMENT(map->models, map->nmodels, model);
 
@@ -3640,6 +3697,24 @@ virCPUx86GetCheckMode(const char *modelName,
 }
 
 
+static const char *
+virCPUx86GetCanonicalModel(const char *modelName)
+{
+    virCPUx86Map *map;
+    virCPUx86Model *model;
+
+    if (!(map = virCPUx86GetMap()))
+        return NULL;
+
+    model = x86ModelFind(map, modelName);
+
+    if (!model || !model->canonical)
+        return NULL;
+
+    return model->canonical->name;
+}
+
+
 struct cpuArchDriver cpuDriverX86 = {
     .name = "x86",
     .arch = archs,
@@ -3673,4 +3748,5 @@ struct cpuArchDriver cpuDriverX86 = {
     .dataGetHost = virCPUx86DataGetHost,
 #endif
     .getCheckMode = virCPUx86GetCheckMode,
+    .getCanonicalModel = virCPUx86GetCanonicalModel,
 };

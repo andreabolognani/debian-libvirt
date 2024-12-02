@@ -538,6 +538,7 @@ Patches have also been contributed by:
 * Laurent Bigonville <bigon@bigon.be>
 * Laurent Léonard <laurent@open-minds.org>
 * lawrancejing <lawrancejing@gmail.com>
+* Léane GRASSER <leane.grasser@proton.me>
 * Lee Yarwood <lyarwood@redhat.com>
 * Lei Li <lilei@linux.vnet.ibm.com>
 * Lei Yang <yanglei209@huawei.com>
@@ -831,6 +832,7 @@ Patches have also been contributed by:
 * ShaoHe Feng <shaohe.feng@intel.com>
 * Shaojun Yang <yangshaojun@phytium.com.cn>
 * Sharadha Prabhakar <sharadha.prabhakar@citrix.com>
+* shenjiatong <yshxxsjt715@163.com>
 * shenjiatong <yshxxsjt715@gmail.com>
 * Shichangkuo <shi.changkuo@h3c.com>
 * Shi Lei <shi_lei@massclouds.com>
@@ -944,6 +946,7 @@ Patches have also been contributed by:
 * Wei Gong <gongwei833x@gmail.com>
 * Wei Huang <wei@redhat.com>
 * Wei Jiangang <weijg.fnst@cn.fujitsu.com>
+* Wei Liu <liuwe@microsoft.com>
 * Wei Liu <wei.liu2@citrix.com>
 * Wei Liu <wei.liu@kernel.org>
 * Weilun Zhu <zhuweilun@huawei.com>
@@ -1028,6 +1031,7 @@ Patches have also been contributed by:
 * Zhou Yimin <zhouyimin@huawei.com>
 * Zhuang Yanying <ann.zhuangyanying@huawei.com>
 * zhujun2 <zhujun2@cmss.chinamobile.com>
+* zk dc <zkdc2345@qq.com>
 * zuoboqun <zuoboqun@baidu.com>
 * Анастасия Белова <abelova@astralinux.ru>
 * Дамјан Георгиевски <gdamjan@gmail.com>

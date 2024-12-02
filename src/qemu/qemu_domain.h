@@ -588,8 +588,6 @@ virDomainObj *qemuDomainObjFromDomain(virDomainPtr domain);
 
 qemuDomainSaveCookie *qemuDomainSaveCookieNew(virDomainObj *vm);
 
-void qemuDomainEventFlush(int timer, void *opaque);
-
 qemuMonitor *qemuDomainGetMonitor(virDomainObj *vm)
     ATTRIBUTE_NONNULL(1);
 void qemuDomainObjEnterMonitor(virDomainObj *obj)
@@ -645,9 +643,6 @@ void qemuDomainObjTaint(virQEMUDriver *driver,
                         virDomainTaintFlags taint,
                         qemuLogContext *logCtxt);
 
-char **qemuDomainObjGetTainting(virQEMUDriver *driver,
-                                virDomainObj *obj);
-
 void qemuDomainObjCheckTaint(virQEMUDriver *driver,
                              virDomainObj *obj,
                              qemuLogContext *logCtxt,
@@ -670,18 +665,10 @@ int qemuDomainLogAppendMessage(virQEMUDriver *driver,
                                const char *fmt,
                                ...) G_GNUC_PRINTF(3, 4);
 
-const char *qemuFindQemuImgBinary(virQEMUDriver *driver);
-
 int qemuDomainSnapshotWriteMetadata(virDomainObj *vm,
                                     virDomainMomentObj *snapshot,
                                     virDomainXMLOption *xmlopt,
                                     const char *snapshotDir);
-
-int qemuDomainSnapshotForEachQcow2(virQEMUDriver *driver,
-                                   virDomainDef *def,
-                                   virDomainMomentObj *snap,
-                                   const char *op,
-                                   bool try_all);
 
 typedef struct _virQEMUMomentRemove virQEMUMomentRemove;
 struct _virQEMUMomentRemove {
@@ -715,10 +702,6 @@ int qemuDomainCheckDiskStartupPolicy(virQEMUDriver *driver,
                                      virDomainObj *vm,
                                      size_t diskIndex,
                                      bool cold_boot);
-
-int qemuDomainCheckDiskPresence(virQEMUDriver *driver,
-                                virDomainObj *vm,
-                                unsigned int flags);
 
 int qemuDomainStorageSourceValidateDepth(virStorageSource *src,
                                          int add,
@@ -789,6 +772,9 @@ void qemuDomainCleanupRun(virQEMUDriver *driver,
 
 void qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv);
 
+int qemuStorageSourcePrivateDataAssignSecinfo(qemuDomainSecretInfo **secinfo,
+                                              char **alias);
+
 extern virDomainXMLPrivateDataCallbacks virQEMUDriverPrivateDataCallbacks;
 extern virXMLNamespace virQEMUDriverDomainXMLNamespace;
 extern virDomainDefParserConfig virQEMUDriverDomainDefParserConfig;
@@ -857,6 +843,11 @@ bool qemuDomainSupportsPCIMultibus(const virDomainDef *def);
 int qemuDomainGetSCSIControllerModel(const virDomainDef *def,
                                      const virDomainControllerDef *cont,
                                      virQEMUCaps *qemuCaps);
+
+int qemuDomainDefAddDefaultAudioBackend(virQEMUDriver *driver,
+                                        virDomainDef *def);
+
+virDomainPanicModel qemuDomainDefaultPanicModel(const virDomainDef *def);
 
 void qemuDomainUpdateCurrentMemorySize(virDomainObj *vm);
 
@@ -947,11 +938,12 @@ int qemuDomainSecretPrepare(virQEMUDriver *driver,
                             virDomainObj *vm)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
 
-int qemuDomainDeviceDefValidateDisk(const virDomainDiskDef *disk,
-                                    virQEMUCaps *qemuCaps);
+void
+qemuDomainChrDefDropDefaultPath(virDomainChrDef *chr,
+                                virQEMUDriver *driver);
 
-int qemuDomainDeviceDiskDefPostParse(virDomainDiskDef *disk,
-                                     unsigned int parseFlags);
+int
+qemuDomainNVDimmAlignSizePseries(virDomainMemoryDef *mem);
 
 int qemuDomainPrepareChannel(virDomainChrDef *chr,
                              const char *domainChannelTargetDir)

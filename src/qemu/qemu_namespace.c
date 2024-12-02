@@ -272,6 +272,10 @@ qemuDomainSetupDisk(virStorageSource *src,
         } else {
             GSList *targetPaths = NULL;
 
+            if (next->dataFileStore &&
+                virStorageSourceIsLocalStorage(next->dataFileStore))
+                *paths = g_slist_prepend(*paths, g_strdup(next->dataFileStore->path));
+
             if (virStorageSourceIsEmpty(next) ||
                 !virStorageSourceIsLocalStorage(next)) {
                 /* Not creating device. Just continue. */
@@ -339,7 +343,7 @@ qemuDomainSetupHostdev(virDomainObj *vm,
     if (path)
         *paths = g_slist_prepend(*paths, g_steal_pointer(&path));
 
-    if (qemuHostdevNeedsVFIO(hostdev) &&
+    if (virHostdevNeedsVFIO(hostdev) &&
         (!hotplug || !qemuDomainNeedsVFIO(vm->def)))
         *paths = g_slist_prepend(*paths, g_strdup(QEMU_DEV_VFIO));
 

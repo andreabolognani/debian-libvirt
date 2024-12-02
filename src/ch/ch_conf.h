@@ -21,9 +21,11 @@
 #pragma once
 
 #include "virdomainobjlist.h"
+#include "virhostdev.h"
 #include "virthread.h"
 #include "ch_capabilities.h"
 #include "virebtables.h"
+#include "object_event.h"
 
 #define CH_DRIVER_NAME "CH"
 #define CH_CMD "cloud-hypervisor"
@@ -80,6 +82,12 @@ struct _virCHDriver
 
     /* Immutable pointer, lockless APIs. Pointless abstraction */
     ebtablesContext *ebtables;
+
+    /* Immutable pointer to host device manager */
+    virHostdevManager *hostdevMgr;
+
+    /* Immutable pointer, self-locking APIs */
+    virObjectEventState *domainEventState;
 };
 
 #define CH_SAVE_MAGIC "libvirt-xml\n \0 \r"

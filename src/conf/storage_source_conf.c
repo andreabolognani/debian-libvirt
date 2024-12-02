@@ -69,6 +69,7 @@ VIR_ENUM_IMPL(virStorageFileFeature,
               VIR_STORAGE_FILE_FEATURE_LAST,
               "lazy_refcounts",
               "extended_l2",
+              "data_file",
 );
 
 
@@ -829,6 +830,7 @@ virStorageSourceCopy(const virStorageSource *src,
     def->relPath = g_strdup(src->relPath);
     def->backingStoreRaw = g_strdup(src->backingStoreRaw);
     def->backingStoreRawFormat = src->backingStoreRawFormat;
+    def->dataFileRaw = g_strdup(src->dataFileRaw);
     def->snapshot = g_strdup(src->snapshot);
     def->configFile = g_strdup(src->configFile);
     def->nodenameformat = g_strdup(src->nodenameformat);
@@ -891,6 +893,12 @@ virStorageSourceCopy(const virStorageSource *src,
     if (backingChain && src->backingStore) {
         if (!(def->backingStore = virStorageSourceCopy(src->backingStore,
                                                        true)))
+            return NULL;
+    }
+
+    if (src->dataFileStore) {
+        if (!(def->dataFileStore = virStorageSourceCopy(src->dataFileStore,
+                                                        false)))
             return NULL;
     }
 
@@ -1173,6 +1181,9 @@ virStorageSourceClear(virStorageSource *def)
 
     VIR_FREE(def->nodenamestorage);
     VIR_FREE(def->nodenameformat);
+
+    VIR_FREE(def->dataFileRaw);
+    g_clear_pointer(&def->dataFileStore, virObjectUnref);
 
     virStorageSourceBackingStoreClear(def);
 

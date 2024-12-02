@@ -72,7 +72,7 @@
     </mode>
     <mode name='custom' supported='yes'>
       <model usable='yes' vendor='unknown'>486</model>
-      <model usable='no' vendor='Intel'>Broadwell</model>
+      <model usable='no' vendor='Intel' canonical='Broadwell-v1'>Broadwell</model>
       <blockers model='Broadwell'>
         <feature name='hle'/>
         <feature name='invpcid'/>
@@ -81,7 +81,7 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Broadwell-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Broadwell-v3'>Broadwell-IBRS</model>
       <blockers model='Broadwell-IBRS'>
         <feature name='hle'/>
         <feature name='invpcid'/>
@@ -91,14 +91,14 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Broadwell-noTSX</model>
+      <model usable='no' vendor='Intel' canonical='Broadwell-v2'>Broadwell-noTSX</model>
       <blockers model='Broadwell-noTSX'>
         <feature name='invpcid'/>
         <feature name='pcid'/>
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Broadwell-noTSX-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Broadwell-v4'>Broadwell-noTSX-IBRS</model>
       <blockers model='Broadwell-noTSX-IBRS'>
         <feature name='invpcid'/>
         <feature name='pcid'/>
@@ -106,7 +106,41 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Cascadelake-Server</model>
+      <model usable='no' vendor='Intel'>Broadwell-v1</model>
+      <blockers model='Broadwell-v1'>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Broadwell-v2</model>
+      <blockers model='Broadwell-v2'>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Broadwell-v3</model>
+      <blockers model='Broadwell-v3'>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Broadwell-v4</model>
+      <blockers model='Broadwell-v4'>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Cascadelake-Server-v1'>Cascadelake-Server</model>
       <blockers model='Cascadelake-Server'>
         <feature name='avx512bw'/>
         <feature name='avx512cd'/>
@@ -124,7 +158,7 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Cascadelake-Server-noTSX</model>
+      <model usable='no' vendor='Intel' canonical='Cascadelake-Server-v3'>Cascadelake-Server-noTSX</model>
       <blockers model='Cascadelake-Server-noTSX'>
         <feature name='arch-capabilities'/>
         <feature name='avx512bw'/>
@@ -141,8 +175,97 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
+      <model usable='no' vendor='Intel'>Cascadelake-Server-v1</model>
+      <blockers model='Cascadelake-Server-v1'>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Cascadelake-Server-v2</model>
+      <blockers model='Cascadelake-Server-v2'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Cascadelake-Server-v3</model>
+      <blockers model='Cascadelake-Server-v3'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Cascadelake-Server-v4</model>
+      <blockers model='Cascadelake-Server-v4'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Cascadelake-Server-v5</model>
+      <blockers model='Cascadelake-Server-v5'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
       <model usable='yes' vendor='Intel'>Conroe</model>
-      <model usable='no' vendor='Intel'>Cooperlake</model>
+      <model usable='no' vendor='Intel' canonical='Cooperlake-v1'>Cooperlake</model>
       <blockers model='Cooperlake'>
         <feature name='arch-capabilities'/>
         <feature name='avx512-bf16'/>
@@ -163,7 +286,87 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Hygon'>Dhyana</model>
+      <model usable='no' vendor='Intel'>Cooperlake-v1</model>
+      <blockers model='Cooperlake-v1'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512-bf16'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='stibp'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Cooperlake-v2</model>
+      <blockers model='Cooperlake-v2'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512-bf16'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='stibp'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Denverton-v1'>Denverton</model>
+      <blockers model='Denverton'>
+        <feature name='arch-capabilities'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Denverton-v1</model>
+      <blockers model='Denverton-v1'>
+        <feature name='arch-capabilities'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Denverton-v2</model>
+      <blockers model='Denverton-v2'>
+        <feature name='arch-capabilities'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Denverton-v3</model>
+      <blockers model='Denverton-v3'>
+        <feature name='arch-capabilities'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Hygon' canonical='Dhyana-v1'>Dhyana</model>
       <blockers model='Dhyana'>
         <feature name='fxsr_opt'/>
         <feature name='ibpb'/>
@@ -173,7 +376,28 @@
         <feature name='topoext'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='AMD'>EPYC</model>
+      <model usable='no' vendor='Hygon'>Dhyana-v1</model>
+      <blockers model='Dhyana-v1'>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Hygon'>Dhyana-v2</model>
+      <blockers model='Dhyana-v2'>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD' canonical='EPYC-v1'>EPYC</model>
       <blockers model='EPYC'>
         <feature name='fxsr_opt'/>
         <feature name='misalignsse'/>
@@ -221,7 +445,7 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
-      <model usable='no' vendor='AMD'>EPYC-IBPB</model>
+      <model usable='no' vendor='AMD' canonical='EPYC-v2'>EPYC-IBPB</model>
       <blockers model='EPYC-IBPB'>
         <feature name='fxsr_opt'/>
         <feature name='ibpb'/>
@@ -231,7 +455,7 @@
         <feature name='topoext'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='AMD'>EPYC-Milan</model>
+      <model usable='no' vendor='AMD' canonical='EPYC-Milan-v1'>EPYC-Milan</model>
       <blockers model='EPYC-Milan'>
         <feature name='amd-ssbd'/>
         <feature name='amd-stibp'/>
@@ -249,7 +473,49 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
-      <model usable='no' vendor='AMD'>EPYC-Rome</model>
+      <model usable='no' vendor='AMD'>EPYC-Milan-v1</model>
+      <blockers model='EPYC-Milan-v1'>
+        <feature name='amd-ssbd'/>
+        <feature name='amd-stibp'/>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='ibrs'/>
+        <feature name='invpcid'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='pcid'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Milan-v2</model>
+      <blockers model='EPYC-Milan-v2'>
+        <feature name='amd-psfd'/>
+        <feature name='amd-ssbd'/>
+        <feature name='amd-stibp'/>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='ibrs'/>
+        <feature name='invpcid'/>
+        <feature name='lfence-always-serializing'/>
+        <feature name='misalignsse'/>
+        <feature name='no-nested-data-bp'/>
+        <feature name='nrip-save'/>
+        <feature name='null-sel-clr-base'/>
+        <feature name='osvw'/>
+        <feature name='pcid'/>
+        <feature name='perfctr_core'/>
+        <feature name='stibp-always-on'/>
+        <feature name='topoext'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD' canonical='EPYC-Rome-v1'>EPYC-Rome</model>
       <blockers model='EPYC-Rome'>
         <feature name='amd-stibp'/>
         <feature name='clzero'/>
@@ -263,7 +529,113 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
-      <model usable='no' vendor='Intel'>GraniteRapids</model>
+      <model usable='no' vendor='AMD'>EPYC-Rome-v1</model>
+      <blockers model='EPYC-Rome-v1'>
+        <feature name='amd-stibp'/>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Rome-v2</model>
+      <blockers model='EPYC-Rome-v2'>
+        <feature name='amd-ssbd'/>
+        <feature name='amd-stibp'/>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='ibrs'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Rome-v3</model>
+      <blockers model='EPYC-Rome-v3'>
+        <feature name='amd-ssbd'/>
+        <feature name='amd-stibp'/>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='ibrs'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-Rome-v4</model>
+      <blockers model='EPYC-Rome-v4'>
+        <feature name='amd-ssbd'/>
+        <feature name='amd-stibp'/>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='ibrs'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-v1</model>
+      <blockers model='EPYC-v1'>
+        <feature name='fxsr_opt'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-v2</model>
+      <blockers model='EPYC-v2'>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-v3</model>
+      <blockers model='EPYC-v3'>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='AMD'>EPYC-v4</model>
+      <blockers model='EPYC-v4'>
+        <feature name='clzero'/>
+        <feature name='fxsr_opt'/>
+        <feature name='ibpb'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='osvw'/>
+        <feature name='perfctr_core'/>
+        <feature name='topoext'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='GraniteRapids-v1'>GraniteRapids</model>
       <blockers model='GraniteRapids'>
         <feature name='amx-bf16'/>
         <feature name='amx-fp16'/>
@@ -303,7 +675,47 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Haswell</model>
+      <model usable='no' vendor='Intel'>GraniteRapids-v1</model>
+      <blockers model='GraniteRapids-v1'>
+        <feature name='amx-bf16'/>
+        <feature name='amx-fp16'/>
+        <feature name='amx-int8'/>
+        <feature name='amx-tile'/>
+        <feature name='arch-capabilities'/>
+        <feature name='avx-vnni'/>
+        <feature name='avx512-bf16'/>
+        <feature name='avx512-fp16'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512ifma'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='bus-lock-detect'/>
+        <feature name='gfni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='mcdt-no'/>
+        <feature name='pcid'/>
+        <feature name='prefetchiti'/>
+        <feature name='rtm'/>
+        <feature name='serialize'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='tsx-ldtrk'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xfd'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Haswell-v1'>Haswell</model>
       <blockers model='Haswell'>
         <feature name='hle'/>
         <feature name='invpcid'/>
@@ -312,7 +724,7 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Haswell-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Haswell-v3'>Haswell-IBRS</model>
       <blockers model='Haswell-IBRS'>
         <feature name='hle'/>
         <feature name='invpcid'/>
@@ -322,14 +734,14 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Haswell-noTSX</model>
+      <model usable='no' vendor='Intel' canonical='Haswell-v2'>Haswell-noTSX</model>
       <blockers model='Haswell-noTSX'>
         <feature name='invpcid'/>
         <feature name='pcid'/>
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Haswell-noTSX-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Haswell-v4'>Haswell-noTSX-IBRS</model>
       <blockers model='Haswell-noTSX-IBRS'>
         <feature name='invpcid'/>
         <feature name='pcid'/>
@@ -337,7 +749,41 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Icelake-Server</model>
+      <model usable='no' vendor='Intel'>Haswell-v1</model>
+      <blockers model='Haswell-v1'>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Haswell-v2</model>
+      <blockers model='Haswell-v2'>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Haswell-v3</model>
+      <blockers model='Haswell-v3'>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Haswell-v4</model>
+      <blockers model='Haswell-v4'>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Icelake-Server-v1'>Icelake-Server</model>
       <blockers model='Icelake-Server'>
         <feature name='avx512-vpopcntdq'/>
         <feature name='avx512bitalg'/>
@@ -361,7 +807,7 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Icelake-Server-noTSX</model>
+      <model usable='no' vendor='Intel' canonical='Icelake-Server-v2'>Icelake-Server-noTSX</model>
       <blockers model='Icelake-Server-noTSX'>
         <feature name='avx512-vpopcntdq'/>
         <feature name='avx512bitalg'/>
@@ -383,20 +829,191 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>IvyBridge</model>
+      <model usable='no' vendor='Intel'>Icelake-Server-v1</model>
+      <blockers model='Icelake-Server-v1'>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='gfni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Icelake-Server-v2</model>
+      <blockers model='Icelake-Server-v2'>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='gfni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Icelake-Server-v3</model>
+      <blockers model='Icelake-Server-v3'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='gfni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Icelake-Server-v4</model>
+      <blockers model='Icelake-Server-v4'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512ifma'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='gfni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Icelake-Server-v5</model>
+      <blockers model='Icelake-Server-v5'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512ifma'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='gfni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Icelake-Server-v6</model>
+      <blockers model='Icelake-Server-v6'>
+        <feature name='arch-capabilities'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512ifma'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='gfni'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='IvyBridge-v1'>IvyBridge</model>
       <blockers model='IvyBridge'>
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>IvyBridge-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='IvyBridge-v2'>IvyBridge-IBRS</model>
       <blockers model='IvyBridge-IBRS'>
         <feature name='spec-ctrl'/>
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='yes' vendor='Intel'>Nehalem</model>
-      <model usable='no' vendor='Intel'>Nehalem-IBRS</model>
+      <model usable='no' vendor='Intel'>IvyBridge-v1</model>
+      <blockers model='IvyBridge-v1'>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>IvyBridge-v2</model>
+      <blockers model='IvyBridge-v2'>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>KnightsMill</model>
+      <blockers model='KnightsMill'>
+        <feature name='avx512-4fmaps'/>
+        <feature name='avx512-4vnniw'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512er'/>
+        <feature name='avx512f'/>
+        <feature name='avx512pf'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='yes' vendor='Intel' canonical='Nehalem-v1'>Nehalem</model>
+      <model usable='no' vendor='Intel' canonical='Nehalem-v2'>Nehalem-IBRS</model>
       <blockers model='Nehalem-IBRS'>
+        <feature name='spec-ctrl'/>
+      </blockers>
+      <model usable='yes' vendor='Intel'>Nehalem-v1</model>
+      <model usable='no' vendor='Intel'>Nehalem-v2</model>
+      <blockers model='Nehalem-v2'>
         <feature name='spec-ctrl'/>
       </blockers>
       <model usable='yes' vendor='AMD'>Opteron_G1</model>
@@ -421,18 +1038,29 @@
         <feature name='xop'/>
       </blockers>
       <model usable='yes' vendor='Intel'>Penryn</model>
-      <model usable='no' vendor='Intel'>SandyBridge</model>
+      <model usable='no' vendor='Intel' canonical='SandyBridge-v1'>SandyBridge</model>
       <blockers model='SandyBridge'>
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>SandyBridge-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='SandyBridge-v2'>SandyBridge-IBRS</model>
       <blockers model='SandyBridge-IBRS'>
         <feature name='spec-ctrl'/>
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>SapphireRapids</model>
+      <model usable='no' vendor='Intel'>SandyBridge-v1</model>
+      <blockers model='SandyBridge-v1'>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>SandyBridge-v2</model>
+      <blockers model='SandyBridge-v2'>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='SapphireRapids-v1'>SapphireRapids</model>
       <blockers model='SapphireRapids'>
         <feature name='amx-bf16'/>
         <feature name='amx-int8'/>
@@ -469,7 +1097,81 @@
         <feature name='xsavec'/>
         <feature name='xsaves'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Skylake-Client</model>
+      <model usable='no' vendor='Intel'>SapphireRapids-v1</model>
+      <blockers model='SapphireRapids-v1'>
+        <feature name='amx-bf16'/>
+        <feature name='amx-int8'/>
+        <feature name='amx-tile'/>
+        <feature name='arch-capabilities'/>
+        <feature name='avx-vnni'/>
+        <feature name='avx512-bf16'/>
+        <feature name='avx512-fp16'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512ifma'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='bus-lock-detect'/>
+        <feature name='gfni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='serialize'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='tsx-ldtrk'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xfd'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>SapphireRapids-v2</model>
+      <blockers model='SapphireRapids-v2'>
+        <feature name='amx-bf16'/>
+        <feature name='amx-int8'/>
+        <feature name='amx-tile'/>
+        <feature name='arch-capabilities'/>
+        <feature name='avx-vnni'/>
+        <feature name='avx512-bf16'/>
+        <feature name='avx512-fp16'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512bitalg'/>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512ifma'/>
+        <feature name='avx512vbmi'/>
+        <feature name='avx512vbmi2'/>
+        <feature name='avx512vl'/>
+        <feature name='avx512vnni'/>
+        <feature name='bus-lock-detect'/>
+        <feature name='gfni'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='serialize'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='tsx-ldtrk'/>
+        <feature name='vpclmulqdq'/>
+        <feature name='x2apic'/>
+        <feature name='xfd'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Skylake-Client-v1'>Skylake-Client</model>
       <blockers model='Skylake-Client'>
         <feature name='hle'/>
         <feature name='invpcid'/>
@@ -479,7 +1181,7 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Skylake-Client-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Skylake-Client-v2'>Skylake-Client-IBRS</model>
       <blockers model='Skylake-Client-IBRS'>
         <feature name='hle'/>
         <feature name='invpcid'/>
@@ -490,7 +1192,7 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Skylake-Client-noTSX-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Skylake-Client-v3'>Skylake-Client-noTSX-IBRS</model>
       <blockers model='Skylake-Client-noTSX-IBRS'>
         <feature name='invpcid'/>
         <feature name='pcid'/>
@@ -499,7 +1201,47 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Skylake-Server</model>
+      <model usable='no' vendor='Intel'>Skylake-Client-v1</model>
+      <blockers model='Skylake-Client-v1'>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Client-v2</model>
+      <blockers model='Skylake-Client-v2'>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Client-v3</model>
+      <blockers model='Skylake-Client-v3'>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Client-v4</model>
+      <blockers model='Skylake-Client-v4'>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Skylake-Server-v1'>Skylake-Server</model>
       <blockers model='Skylake-Server'>
         <feature name='avx512bw'/>
         <feature name='avx512cd'/>
@@ -514,7 +1256,7 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Skylake-Server-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Skylake-Server-v2'>Skylake-Server-IBRS</model>
       <blockers model='Skylake-Server-IBRS'>
         <feature name='avx512bw'/>
         <feature name='avx512cd'/>
@@ -530,7 +1272,7 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Skylake-Server-noTSX-IBRS</model>
+      <model usable='no' vendor='Intel' canonical='Skylake-Server-v3'>Skylake-Server-noTSX-IBRS</model>
       <blockers model='Skylake-Server-noTSX-IBRS'>
         <feature name='avx512bw'/>
         <feature name='avx512cd'/>
@@ -544,7 +1286,81 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='no' vendor='Intel'>Snowridge</model>
+      <model usable='no' vendor='Intel'>Skylake-Server-v1</model>
+      <blockers model='Skylake-Server-v1'>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Server-v2</model>
+      <blockers model='Skylake-Server-v2'>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='hle'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='rtm'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Server-v3</model>
+      <blockers model='Skylake-Server-v3'>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Server-v4</model>
+      <blockers model='Skylake-Server-v4'>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Skylake-Server-v5</model>
+      <blockers model='Skylake-Server-v5'>
+        <feature name='avx512bw'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512dq'/>
+        <feature name='avx512f'/>
+        <feature name='avx512vl'/>
+        <feature name='invpcid'/>
+        <feature name='pcid'/>
+        <feature name='spec-ctrl'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel' canonical='Snowridge-v1'>Snowridge</model>
       <blockers model='Snowridge'>
         <feature name='arch-capabilities'/>
         <feature name='cldemote'/>
@@ -559,9 +1375,74 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='yes' vendor='Intel'>Westmere</model>
-      <model usable='no' vendor='Intel'>Westmere-IBRS</model>
+      <model usable='no' vendor='Intel'>Snowridge-v1</model>
+      <blockers model='Snowridge-v1'>
+        <feature name='arch-capabilities'/>
+        <feature name='cldemote'/>
+        <feature name='core-capability'/>
+        <feature name='gfni'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='spec-ctrl'/>
+        <feature name='split-lock-detect'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Snowridge-v2</model>
+      <blockers model='Snowridge-v2'>
+        <feature name='arch-capabilities'/>
+        <feature name='cldemote'/>
+        <feature name='core-capability'/>
+        <feature name='gfni'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='spec-ctrl'/>
+        <feature name='split-lock-detect'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Snowridge-v3</model>
+      <blockers model='Snowridge-v3'>
+        <feature name='arch-capabilities'/>
+        <feature name='cldemote'/>
+        <feature name='core-capability'/>
+        <feature name='gfni'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='spec-ctrl'/>
+        <feature name='split-lock-detect'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>Snowridge-v4</model>
+      <blockers model='Snowridge-v4'>
+        <feature name='arch-capabilities'/>
+        <feature name='cldemote'/>
+        <feature name='gfni'/>
+        <feature name='movdir64b'/>
+        <feature name='movdiri'/>
+        <feature name='spec-ctrl'/>
+        <feature name='ssbd'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+        <feature name='xsavec'/>
+        <feature name='xsaves'/>
+      </blockers>
+      <model usable='yes' vendor='Intel' canonical='Westmere-v1'>Westmere</model>
+      <model usable='no' vendor='Intel' canonical='Westmere-v2'>Westmere-IBRS</model>
       <blockers model='Westmere-IBRS'>
+        <feature name='spec-ctrl'/>
+      </blockers>
+      <model usable='yes' vendor='Intel'>Westmere-v1</model>
+      <model usable='no' vendor='Intel'>Westmere-v2</model>
+      <blockers model='Westmere-v2'>
         <feature name='spec-ctrl'/>
       </blockers>
       <model usable='yes' vendor='AMD'>athlon</model>
@@ -715,6 +1596,13 @@
         <value>passt</value>
       </enum>
     </interface>
+    <panic supported='yes'>
+      <enum name='model'>
+        <value>isa</value>
+        <value>hyperv</value>
+        <value>pvpanic</value>
+      </enum>
+    </panic>
   </devices>
   <features>
     <gic supported='no'/>

@@ -698,6 +698,8 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 465 */
     QEMU_CAPS_SNAPSHOT_INTERNAL_QMP, /* internal snapshot support via QMP commands 'snapshot-save'/'snapshot-delete' */
     QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS, /* 'reconnect-ms' option for chardevs supported */
+    QEMU_CAPS_VIRTIO_CCW_DEVICE_LOADPARM, /* loadparm available on CCW device for multi device boot */
+    QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS, /* 'reconnect-ms' option for netdev stream supported */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -891,6 +893,10 @@ void virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
 
 void virQEMUCapsFillDomainDeviceNetCaps(virQEMUCaps *qemuCaps,
                                         virDomainCapsDeviceNet *net);
+
+void virQEMUCapsFillDomainDevicePanicCaps(virQEMUCaps *qemuCaps,
+                                          const char *machine,
+                                          virDomainCapsDevicePanic *panic);
 
 bool virQEMUCapsGuestIsNative(virArch host,
                               virArch guest);

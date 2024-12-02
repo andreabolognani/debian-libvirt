@@ -7,7 +7,7 @@
 # dibalaj <dibalaj@dibalaj.cz>, 2013
 # Milan Kerslager <kerslage@linux.cz>, 2007
 # Zdenek <chmelarz@gmail.com>, 2016
-# Pavel Borecki <pavel.borecki@gmail.com>, 2018, 2019, 2023.
+# Pavel Borecki <pavel.borecki@gmail.com>, 2018, 2019, 2023, 2024.
 # Daniel Berrange <dan-zanata@berrange.com>, 2019
 # Matej Cepl <mcepl@cepl.eu>, 2021.
 # Daniel P. Berrange <berrange@redhat.com>, 2023.
@@ -16,8 +16,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-10-25 06:15+0000\n"
-"PO-Revision-Date: 2023-07-27 16:21+0000\n"
+"POT-Creation-Date: 2024-11-26 14:19+0000\n"
+"PO-Revision-Date: 2024-11-13 20:38+0000\n"
 "Last-Translator: Pavel Borecki <pavel.borecki@gmail.com>\n"
 "Language-Team: Czech <https://translate.fedoraproject.org/projects/libvirt/"
 "libvirt/cs/>\n"
@@ -26,7 +26,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
-"X-Generator: Weblate 4.18.2\n"
+"X-Generator: Weblate 5.8.2\n"
 
 msgid ""
 "\n"
@@ -491,7 +491,7 @@ msgstr " %1$s (klíčové slovo nápovědy „%2$s“):\n"
 
 #, c-format
 msgid " --%1$s <string>..."
-msgstr ""
+msgstr " --%1$s <řetězec>..."
 
 msgid " Hypervisors:"
 msgstr " Hypervizory:"
@@ -584,6 +584,10 @@ msgstr "%1$s se nedaří zpracovat identifikátor uživatele (UID) „%2$s“"
 
 #, c-format
 msgid "%1$s disk is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
+msgid "%1$s does not support file storage"
 msgstr ""
 
 #, c-format
@@ -1299,6 +1303,10 @@ msgid "'blob' support for virtio-gpu devices requires a memfd memory backend"
 msgstr ""
 "podpora 'blob' pro virtio-gpu zařízení vyžaduje podpůrnou vrtsvu paměti memfd"
 
+#, c-format
+msgid "'block' nvram backing device '%1$s' doesn't exist"
+msgstr ""
+
 msgid "'cache' refers to a non-existent NUMA node cache"
 msgstr "„cache“ odkazuje na neexistující mezipaměť NUMA uzlu"
 
@@ -1723,6 +1731,9 @@ msgstr ""
 msgid "<config> element is currently supported only with 'rbd' disks"
 msgstr "prvek <config> je zatím podporován pouze s 'rbd' disky"
 
+msgid "<dataStore> feature available only with qcow2 images"
+msgstr ""
+
 msgid "<domainbackup> must specify TCP port for now"
 msgstr "pro teď je třeba, aby <domainbackup> určovalo TCP port"
 
@@ -1738,6 +1749,10 @@ msgstr "atribut 'display' v <hostdev> je podporován pouze s model='vfio-pci'"
 
 msgid "<iotune> is not supported with bus='sd'"
 msgstr "<iotune> není podporováno s bus='sd'"
+
+#, c-format
+msgid "<profile/> requires TPM version '%1$s'"
+msgstr ""
 
 msgid "<reservations/> allowed only for lun devices"
 msgstr "<reservations/> umožněno pouze pro lun zařízení"
@@ -1847,7 +1862,7 @@ msgid "A storage driver is already registered"
 msgstr "Ovladač úložiště už je zaregistrován"
 
 msgid "ACPI ERST device must reside on a PCI bus"
-msgstr ""
+msgstr "Je třeba, aby se ACPI ERST zařízení nacházelo na PCI sběrnici"
 
 msgid "ACPI index is not supported with this QEMU"
 msgstr "ACPI rejstřík není v tomto QEMU podporován"
@@ -1958,7 +1973,7 @@ msgid "Allows setting or modifying the description or title of a domain."
 msgstr "Umožňuje nastavení nebo změnu popisu či názvu domény."
 
 msgid "Allows setting or modifying the description or title of a network."
-msgstr ""
+msgstr "Umožňuje nastavit nebo změnit popis nebo název sítě."
 
 msgid "An error occurred, but the cause is unknown"
 msgstr "Došlo k chybě, ale příčina není známa"
@@ -2095,7 +2110,7 @@ msgid "Attempted double use of PCI Address %1$s"
 msgstr "Pokus o použití PCI adresy %1$s dvakrát"
 
 msgid "Attempting to start nbdkit twice"
-msgstr ""
+msgstr "Pokus o spuštění nbdkit dvakrát"
 
 msgid ""
 "Attribute migratable is only allowed for 'host-passthrough' / 'maximum' CPU "
@@ -2174,7 +2189,7 @@ msgid "Bad prefix name '%1$s' for resctrl monitor"
 msgstr "Chybný název předpony „%1$s“ pro resctrl monitor"
 
 msgid "Bad usage"
-msgstr ""
+msgstr "Nesprávné použití"
 
 msgid "Bad value for nativeMode"
 msgstr "Chybná hodnota pro nativeMode"
@@ -2303,6 +2318,10 @@ msgstr "Certifikát cert. autority:"
 
 #, c-format
 msgid "CCW addresses are not supported by machine type '%1$s'"
+msgstr "CCW adresy nejsou strojem typu „%1$s“ podporovány"
+
+#, c-format
+msgid "CH does not support device assignment mode '%1$s'"
 msgstr ""
 
 #, c-format
@@ -2633,7 +2652,7 @@ msgid "Can't add host USB device: USB is disabled in this host"
 msgstr "Není možné přidat USB zařízení. USB je v tomto hostiteli vypnuto"
 
 msgid "Can't apply empty firewall command"
-msgstr ""
+msgstr "Není možné uplatnit prázdný příkaz brány firewall"
 
 msgid "Can't change domain configuration in managed save state"
 msgstr "Není možné změnit nastavení domény ve stavu spravovaného uložení"
@@ -2916,7 +2935,7 @@ msgstr "Nedaří se vytvořit resctrl složku „%1$s“"
 
 #, c-format
 msgid "Cannot create save directory '%1$s'"
-msgstr ""
+msgstr "Není možné vytvořit složku pro ukládání „%1$s“"
 
 #, c-format
 msgid "Cannot create socket '%1$s'"
@@ -2947,6 +2966,9 @@ msgstr "Nedaří se smazat soubor „%1$s“"
 #, c-format
 msgid "Cannot detach %1$s device with no alias"
 msgstr "Není možné odpojit zařízení %1$s bez alternativního názvu"
+
+msgid "Cannot detach platform device"
+msgstr ""
 
 msgid "Cannot determine balloon device path"
 msgstr "Nedaří se zjistit popis umístění zařízení výplně v operační paměti"
@@ -3134,6 +3156,9 @@ msgstr "Nedaří se získat řadič úložiště dle názvu"
 
 msgid "Cannot get storage controller name"
 msgstr "Nedaří se získat název řadiče úložiště"
+
+msgid "Cannot hotplug platform device"
+msgstr ""
 
 msgid "Cannot initialize thread local for current identity"
 msgstr "Nedaří se inicializovat lokální vláknu pro stávající identitu"
@@ -3393,6 +3418,12 @@ msgstr "Nedaří se přeložit adresu %1$s: %2$s"
 msgid "Cannot run interactive console without a controlling TTY"
 msgstr "Není možné spustit interaktivní konzoli bez ovládání TTY"
 
+#, c-format
+msgid ""
+"Cannot set CPU model '%1$s' as canonical name of '%2$s' which is already an "
+"alias of '%3$s'"
+msgstr ""
+
 msgid "Cannot set a base label with AppArmour"
 msgstr "Nedaří se nastavit základní štítek s AppArmour"
 
@@ -3514,14 +3545,20 @@ msgid ""
 "Cannot update device '%1$s', parent address mismatch (current parent address "
 "'%2$s')"
 msgstr ""
+"Není možné zaktualizovat zařízení „%1$s“ – neshoda v nadřazené adrese "
+"(stávající nadřazená adresa „%2$s“)"
 
 #, c-format
 msgid "Cannot update device '%1$s', type mismatch (current type '%2$s')"
 msgstr ""
+"Není možné zaktualizovat zařízení „%1$s“ – neshoda v typu (stávající typ "
+"„%2$s“)"
 
 #, c-format
 msgid "Cannot update device '%1$s, uuid mismatch (current uuid '%2$s')"
 msgstr ""
+"Není možné zaktualizovat zařízení „%1$s“ – neshoda v uuid (stávající uuid "
+"„%2$s“)"
 
 #, c-format
 msgid "Cannot use direct socket mode for %1$s transport"
@@ -3715,49 +3752,53 @@ msgstr ""
 "nastaveného na 2 způsobí že je jádro vyprázdní, čímž se rozbije síťování."
 
 msgid "Checking CA cert access"
-msgstr ""
+msgstr "Kontrola přístupu k certifikátům cert. autority"
 
 msgid "Checking cert access"
-msgstr ""
+msgstr "Kontrola přístupu k certifikátům"
 
 msgid "Checking cert hostname match"
-msgstr ""
+msgstr "Kontrola shody názvu stroje certifikátu"
 
 msgid "Checking cert properties"
-msgstr ""
+msgstr "Kontrola vlastností certifikátu"
 
 msgid "Checking custom PKI base dir access"
 msgstr ""
 
 #, c-format
 msgid "Checking for %1$s module"
-msgstr ""
+msgstr "Kontrola modulu %1$s"
 
 msgid ""
 "Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
 msgstr ""
+"Zjišťování přítomnosti AMD Secure Encrypted Virtualization-Encrypted State "
+"(SEV-ES)"
 
 msgid ""
 "Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
 "SNP)"
 msgstr ""
+"Zjišťování přítomnosti AMD Secure Encrypted Virtualization-Secure Nested "
+"Paging (SEV-SNP)"
 
 #, c-format
 msgid "Checking for Linux >= %1$d.%2$d.%3$d"
-msgstr ""
+msgstr "Zjišťování přítomnosti Linux >= %1$d.%2$d.%3$d"
 
 msgid "Checking for PowerPC KVM module loaded"
-msgstr ""
+msgstr "Kontrola zda je načten PowerPC KVM modul"
 
 #, c-format
 msgid "Checking for cgroup '%1$s' controller support"
-msgstr ""
+msgstr "Kontrola podpory řadiče cgroup „%1$s“"
 
 msgid "Checking for device assignment IOMMU support"
 msgstr ""
 
 msgid "Checking for hardware virtualization"
-msgstr ""
+msgstr "Kontrola hardwarové virtualizace"
 
 #, c-format
 msgid "Checking for namespace '%1$s'"
@@ -3767,30 +3808,30 @@ msgid "Checking for secure guest support"
 msgstr ""
 
 msgid "Checking if CA cert exists"
-msgstr ""
+msgstr "Zjišťování zda existuje certifikát cert. autority"
 
 msgid "Checking if IOMMU is enabled by kernel"
-msgstr ""
+msgstr "Zjišťování zda je IOMMU zapnuté jádrem systému"
 
 msgid "Checking if cert exists"
-msgstr ""
+msgstr "Zjišťování zda existuje certifikát"
 
 msgid "Checking if custom PKI base dir exists"
 msgstr ""
 
 #, c-format
 msgid "Checking if device '%1$s' exists"
-msgstr ""
+msgstr "Zjišťování zda existuje zařízení „%1$s“"
 
 #, c-format
 msgid "Checking if device '%1$s' is accessible"
-msgstr ""
+msgstr "Zjišťování zda je zařízení „%1$s“ přístupné"
 
 msgid "Checking if key exists"
-msgstr ""
+msgstr "Zjišťování zda klíč existuje"
 
 msgid "Checking if system CA dir exists"
-msgstr ""
+msgstr "Zjišťování zda složka systémové cert. autority existuje"
 
 msgid "Checking if system PKI dir exists"
 msgstr ""
@@ -3799,13 +3840,13 @@ msgid "Checking if system cert dir exists"
 msgstr ""
 
 msgid "Checking if system key dir exists"
-msgstr ""
+msgstr "Zjišťování zda existuje systémová složka s klíči"
 
 msgid "Checking if user PKI base dir exists"
 msgstr ""
 
 msgid "Checking key access"
-msgstr ""
+msgstr "Kontrola přístupu ke klíčům"
 
 msgid "Checking system CA dir access"
 msgstr ""
@@ -4097,7 +4138,7 @@ msgid "Connections from inside daemon must be direct"
 msgstr "Je třeba, aby spojení zevnitř procesu služby byla přímá"
 
 msgid "Console only works in PTY mode"
-msgstr ""
+msgstr "Konzole funguje pouze v režimu PTY"
 
 msgid "Constant pages:"
 msgstr "Konstantní stránky:"
@@ -5048,6 +5089,10 @@ msgid "Could not revert to snapshot '%1$s': %2$s"
 msgstr "Nepodařilo se navrátit k zachycenému stavu „%1$s“: %2$s"
 
 #, c-format
+msgid "Could not run '%1$s --print-info'. exitstatus: %2$d; stderr: %3$s"
+msgstr ""
+
+#, c-format
 msgid ""
 "Could not run '%1$s --reconfigure'. exitstatus: %2$d; Check error log '%3$s' "
 "for details."
@@ -5129,7 +5174,7 @@ msgstr "Nedaří se nastavit adresu jmenného prostoru vsman pro xmlNodeParam"
 
 #, c-format
 msgid "Could not start 'nbdkit'. exitstatus: %1$d"
-msgstr ""
+msgstr "Nepodařilo se spustit „nbdkit“. Návratový stav: %1$d"
 
 msgid "Could not start 'virtiofsd'"
 msgstr "Nepodařilo se spustit „virtiofsd“"
@@ -5253,7 +5298,7 @@ msgstr "Vytvořit svazek."
 
 #, c-format
 msgid "Create the dir %1$s"
-msgstr ""
+msgstr "Vytvořit složku %1$s"
 
 msgid "Created"
 msgstr "Vytvořeno"
@@ -6760,7 +6805,7 @@ msgid "Failed to add storage controller (name: %1$s, busType: %2$d)"
 msgstr "Nepodařilo se přidat řadič úložiště (název: %1$s, busType: %2$d)"
 
 msgid "Failed to allocate AF_VSOCK socket"
-msgstr ""
+msgstr "Nepodařilo se přidělit AF_VSOCK soket"
 
 #, c-format
 msgid "Failed to allocate PCI device list: %1$s"
@@ -6782,7 +6827,7 @@ msgstr "Nepodařilo se uplatnit schopnosti: %1$d"
 
 #, c-format
 msgid "Failed to apply firewall command '%1$s': %2$s"
-msgstr ""
+msgstr "Nepodařilo se uplatnit příkaz brány firewall „%1$s“:%2$s"
 
 #, c-format
 msgid "Failed to attach device from %1$s"
@@ -9134,10 +9179,6 @@ msgstr "Vynutit zastavení dané sítě."
 
 msgid "Forcefully stop a given pool. Raw data in the pool is untouched"
 msgstr "Vynutit zastavení daného fondu. Holá data ve fondu zůstanou nedotčena"
-
-#, c-format
-msgid "Format mismatch: loader.format='%1$s' nvram.format='%2$s'"
-msgstr "Neshoda formátu: loader.format='%1$s' nvram.format='%2$s'"
 
 #, c-format
 msgid "Format of device '%1$s' does not match the expected format '%2$s'"
@@ -16390,6 +16431,11 @@ msgstr ""
 "Prvek <portForward> je možné použít pouze s <interface type='user'> a jeho "
 "podpůrnou vrstvou 'passt'"
 
+msgid ""
+"The <source> of <dataStore> can't have another nested <dataStore> or "
+"<backingStore> element"
+msgstr ""
+
 #, c-format
 msgid "The CA certificate %1$s has expired"
 msgstr "Platnost certifikátu cert. autority „%1$s“ skončila"
@@ -20164,6 +20210,10 @@ msgid "Unsupported nvram format '%1$s'"
 msgstr "Nepodporovaný formát nvram „%1$s“"
 
 #, c-format
+msgid "Unsupported nvram template format '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "Unsupported object type %1$d"
 msgstr "Nepodporovaný typ objektu %1$d"
 
@@ -20439,6 +20489,10 @@ msgstr ""
 
 msgid "VM disk source and snapshot disk source are not the same"
 msgstr "Zdroj disku virt. stroje a zdroj disku zachyceného stavu nejsou stejné"
+
+#, c-format
+msgid "VM doesn't have disk '%1$s' referenced by snapshot '%2$s'"
+msgstr ""
 
 msgid "VM is already active"
 msgstr "virt. stroj už je aktivní"
@@ -21884,6 +21938,10 @@ msgid "can't upload volume, all existing snapshots will be lost"
 msgstr ""
 "svazek se nedaří nahrát, všechny existující zachycené stavy budou ztraceny"
 
+#, c-format
+msgid "can't use data file definition '%1$s'"
+msgstr ""
+
 msgid "canceled"
 msgstr "zrušeno"
 
@@ -22647,6 +22705,9 @@ msgstr "MTU není možné měnit"
 #, c-format
 msgid "cannot modify field '%1$s' of the disk"
 msgstr "nedaří se změnit kolonku „%1$s“ disku"
+
+msgid "cannot modify field '<iothreads>' (or it's parts) of the disk"
+msgstr ""
 
 #, c-format
 msgid "cannot modify memory access from '%1$s' to '%2$s'"
@@ -23826,6 +23887,10 @@ msgstr "přetečení při převodu z hyper na %1$s"
 msgid "conversion from string failed"
 msgstr "převod z řetězce se nezdařil"
 
+msgid ""
+"conversion of the nvram template to another target format is not supported"
+msgstr ""
+
 msgid "convert a domain id or UUID to domain name"
 msgstr "převést (nikde se neopakující) identifikátor domény na název domény"
 
@@ -24398,6 +24463,9 @@ msgstr "vytvoření qcow/qcow2 souborů podporuje pouze šifrování 'luks'"
 
 msgid "creation of qcow2 encrypted image is not supported"
 msgstr "vytvoření šifrovaného qcow2 obrazu není podporováno"
+
+msgid "creation of storage images with <dataStore> feature is not supported"
+msgstr ""
 
 #, c-format
 msgid "crypto backend %1$s is not supported"
@@ -26482,6 +26550,9 @@ msgstr "nepodařilo se vytvořit %1$s"
 msgid "failed to create (start) interface %1$s: %2$s%3$s%4$s"
 msgstr "nepodařilo se vytvořit (spustit) rozhraní %1$s: %2$s%3$s%4$s"
 
+msgid "failed to create JSON tokener"
+msgstr ""
+
 #, c-format
 msgid "failed to create RBD snapshot %1$s@%2$s"
 msgstr "nepodařilo se vytvořit RBD zachycený stav %1$s@%2$s"
@@ -27026,6 +27097,10 @@ msgstr "nepodařilo se zpracovat %1$s"
 #, c-format
 msgid "failed to parse %1$sversion"
 msgstr "nepodařilo se zpracovat %1$sversion"
+
+#, c-format
+msgid "failed to parse JSON: %1$s"
+msgstr ""
 
 #, c-format
 msgid "failed to parse SCSI host '%1$s'"
@@ -28478,6 +28553,10 @@ msgstr ""
 
 msgid "image magic is incorrect"
 msgstr "image magic není správné"
+
+#, c-format
+msgid "image of disk '%1$s' does not have internal snapshot '%2$s'"
+msgstr ""
 
 #, c-format
 msgid "image version is not supported (%1$d > %2$d)"
@@ -30210,6 +30289,10 @@ msgid "live update of device '%1$s' is not supported"
 msgstr "aktualizace zařízení „%1$s“ za chodu není podporována"
 
 #, c-format
+msgid "load of internal snapshot '%1$s' job failed: %2$s"
+msgstr ""
+
+#, c-format
 msgid "loadparm value '%1$s' must be between 1 and 8 characters"
 msgstr "je třeba, aby hodnota loadparm '%1$s' byla z rozmezí 1 až 8 znaků"
 
@@ -31177,6 +31260,9 @@ msgstr "v mezipaměti schopností QEMU chybí data o SGX platformě"
 msgid "missing TPM device backend"
 msgstr "chybí podpůrná vrstva TPM zařízení"
 
+msgid "missing TPM source path"
+msgstr ""
+
 msgid "missing Xen migration stream version"
 msgstr "chybí verze Xen migračního proudu"
 
@@ -31277,6 +31363,9 @@ msgstr "v existujícím obrazu chybí čas vytvoření (creationTime)"
 msgid "missing cssid value for '%1$s'"
 msgstr "chybí hodnota cssid pro „%1$s“"
 
+msgid "missing data file store format"
+msgstr ""
+
 #, c-format
 msgid "missing decode element in CPU model %1$s"
 msgstr "u modelu procesoru %1$s chybí prvek decode"
@@ -31309,6 +31398,9 @@ msgstr "chybí formát úložiště disku"
 
 msgid "missing disk backing store source"
 msgstr "chybí zdroj úložiště, na kterém je disk založen"
+
+msgid "missing disk data file store source"
+msgstr ""
 
 #, c-format
 msgid "missing disk device alias name for %1$s"
@@ -31863,6 +31955,10 @@ msgstr "chybí model video zařízení a nelze zjistit výchozí"
 
 msgid "missing vlan tag data"
 msgstr "chybí údaje o vlan štítku"
+
+#, c-format
+msgid "missing vmstate section when reverting active internal snapshot '%1$s'"
+msgstr ""
 
 msgid "missing volume name and path for gluster volume"
 msgstr "chybí název svazku a popis umístění gluster svazku"
@@ -33320,6 +33416,12 @@ msgstr "pro zařízení sdílené paměti je podporována pouze 'pci' adresa"
 
 msgid "only 'pci' addresses are supported for the virtio-pmem device"
 msgstr "pro zařízení virtio-pmem jsou podporovány pouze 'pci' adresy"
+
+msgid "only 'qcow2' formatted 'block' nvram backing can be formatted"
+msgstr ""
+
+msgid "only 'raw' images supported as <dataStore>"
+msgstr ""
 
 msgid ""
 "only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is "
@@ -35029,8 +35131,9 @@ msgstr "resetovat zařízení uzlu"
 msgid "reset the domain after core dump"
 msgstr "po vypsání obsahu paměti doménu restartovat"
 
-msgid "resetting of nvram is not supported with network backed nvram"
-msgstr "resetování nvram není v případě nvram založené na síti podporováno"
+#, c-format
+msgid "resetting of nvram is not supported with nvram device backed by '%1$s'"
+msgstr ""
 
 msgid "resize a vol"
 msgstr "změnit velikost svazku"
@@ -35761,6 +35864,9 @@ msgstr "přeskočen neúplný popis umístění"
 msgid "skipped restricted file"
 msgstr "přeskočen omezený soubor"
 
+msgid "slices are not supported for <dataStore>"
+msgstr ""
+
 msgid "slices are not supported with NVRAM"
 msgstr "slices nejsou v případě NVRAM podporovány"
 
@@ -36222,6 +36328,9 @@ msgstr "swtpm neočekávaně skončilo"
 
 msgid "swtpm socket did not show up"
 msgstr "soket od swtpm se neukázal"
+
+msgid "swtpm_setup has no support for profiles"
+msgstr ""
 
 #, c-format
 msgid "syntax: %1$s DEVICE [-g]|[-p]\n"
@@ -37173,6 +37282,10 @@ msgid "tunnelled offline migration does not make sense"
 msgstr "tunelovaná migrace ve vypnutém stavu nedává smysl"
 
 #, c-format
+msgid "two disks images contain vm state section for internal snapshot '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "two master hugepages detected: %1$llu and %2$llu"
 msgstr "zjištěny dva hlavní hugepages: %1$llu a %2$llu"
 
@@ -37367,6 +37480,9 @@ msgstr "nedaří se nalézt zvukovou podpůrnou vrstvu pro zvukové zařízení"
 
 #, c-format
 msgid "unable to find disk target '%1$s' for non-shared-storage migration"
+msgstr ""
+
+msgid "unable to find nvram template image"
 msgstr ""
 
 #, c-format
@@ -40125,6 +40241,13 @@ msgstr "zero-copy není k dispozici pro paralelní stěhování"
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr "zóna %1$s vyžadována pro sít %2$s, ale firewalld není aktivní"
+
+#, c-format
+#~ msgid "Format mismatch: loader.format='%1$s' nvram.format='%2$s'"
+#~ msgstr "Neshoda formátu: loader.format='%1$s' nvram.format='%2$s'"
+
+#~ msgid "resetting of nvram is not supported with network backed nvram"
+#~ msgstr "resetování nvram není v případě nvram založené na síti podporováno"
 
 #, c-format
 #~ msgid "Overlay file '%1$s' for transient disk '%2$s' already exists"

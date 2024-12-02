@@ -268,12 +268,17 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    Some UEFI firmwares may want to use a non-volatile memory to store some
    variables. In the host, this is represented as a file and the absolute path
    to the file is stored in this element. Moreover, when the domain is started
-   up libvirt copies so called master NVRAM store file defined in ``qemu.conf``.
-   If needed, the ``template`` attribute can be used to per domain override map
-   of master NVRAM stores from the config file. Note, that for transient domains
-   if the NVRAM file has been created by libvirt it is left behind and it is
-   management application's responsibility to save and remove file (if needed to
-   be persistent). :since:`Since 1.2.8`
+   up libvirt copies so called master NVRAM store file either selected by the
+   firmware autoselection process or defined in ``qemu.conf``.
+   If needed, the ``template`` attribute can be used to override the
+   automatically chosen NVRAM template and ``templateFormat`` to specify the
+   format for the template file (currently supported are ``raw`` and ``qcow2``).
+   When firmware auto-selection is in use the ``templateFormat`` field reflects
+   the format of the picked template. :since:`Since 10.10.0 (QEMU only)`
+
+   Note, that for transient domains if the NVRAM file has been created by
+   libvirt it is left behind and it is management application's responsibility
+   to save and remove file (if needed to be persistent). :since:`Since 1.2.8`
 
    :since:`Since 8.5.0`,  it's possible for the element to have ``type`` attribute
    (accepts values ``file``, ``block`` and ``network``) in that case the NVRAM
@@ -283,9 +288,8 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    **Note:** ``network`` backed NVRAM the variables are not instantiated from
    the ``template`` and it's user's responsibility to provide a valid NVRAM image.
 
-   This element supports a ``format`` attribute, which has the same semantics
-   as the attribute of the same name for the ``<loader>`` element.
-   :since:`Since 9.2.0 (QEMU only)`
+   This element supports a ``format`` attribute, which specifies the format
+   of the NVRAM image. :since:`Since 9.2.0 (QEMU only)`
 
    It is not valid to provide this element if the loader is marked as
    stateless.
@@ -2723,6 +2727,25 @@ paravirtualized driver is specified via the ``disk`` element.
        <source dev='/dev/vhost-vdpa-0' />
        <target dev='vdg' bus='virtio'/>
      </disk>
+     <disk type='file' device='disk'>
+       <driver name='qemu' type='qcow2'/>
+       <source file='/path/to/datastore.qcow2'>
+         <dataStore type='file'>
+           <format type='raw'/>
+           <source file='/path/to/datastore'/>
+         <dataStore/>
+       </source>
+       <backingStore type='file'>
+         <format type='qcow2'/>
+         <source file='/var/lib/libvirt/images/base-with-data-file.qcow'>
+           <dataStore type='block'>
+             <format type='raw'/>
+             <source dev='/dev/mapper/base2'/>
+           <dataStore/>
+         </source>
+       </backingStore>
+       <target dev='vdh' bus='virtio'/>
+     </disk>
    </devices>
    ...
 
@@ -2756,8 +2779,8 @@ paravirtualized driver is specified via the ``disk`` element.
    ``model``
       Indicates the emulated device model of the disk. Typically this is
       indicated solely by the ``bus`` property but for ``bus`` "virtio" the
-      model can be specified further with "virtio-transitional",
-      "virtio-non-transitional", or "virtio". See `Virtio transitional devices`_
+      model can be specified further with "virtio", "virtio-transitional" or
+      "virtio-non-transitional". See `virtio device models`_
       for more details. :since:`Since 5.2.0`
    ``rawio``
       Indicates whether the disk needs rawio capability. Valid settings are
@@ -2767,14 +2790,13 @@ paravirtualized driver is specified via the ``disk`` element.
       per-process basis). This attribute is only valid when device is "lun". NB,
       ``rawio`` intends to confine the capability per-device, however, current
       QEMU implementation gives the domain process broader capability than that
-      (per-process basis, affects all the domain disks). To confine the
-      capability as much as possible for QEMU driver as this stage, ``sgio`` is
-      recommended, it's more secure than ``rawio``. :since:`Since 0.9.10`
+      (per-process basis, affects all the domain disks). :since:`Since 0.9.10`
    ``sgio``
       If supported by the hypervisor and OS, indicates whether unprivileged
       SG_IO commands are filtered for the disk. Valid settings are "filtered" or
       "unfiltered" where the default is "filtered". Only available when the
-      ``device`` is 'lun'. :since:`Since 1.0.2`
+      ``device`` is 'lun'. The attribute exists :since:`Since 1.0.2`, although
+      currently it's no longer supported by any hypervisor.
    ``snapshot``
       Indicates the default behavior of the disk during disk snapshots:
       ``internal`` requires a file format such as qcow2 that can store both
@@ -3094,6 +3116,28 @@ paravirtualized driver is specified via the ``disk`` element.
       attribute.
       :since:`Since 9.8.0`
 
+   ``dataStore``
+      This element describes external data store, which is storage holding the
+      actual data blocks of the given storage image. In such case the disk source
+      image holds only the metadata. This feature is currently supported only
+      by the ``qcow2`` format. :since:`Since 10.10.0`
+
+      The following attribute is supported in ``dataStore``:
+
+      ``type``
+         The ``type`` attribute represents the type of storage used by the data store,
+         see disk type attribute above for more details and possible values.
+
+      Moreover, ``dataStore`` supports the following sub-elements:
+
+      ``format``
+         The ``format`` element contains ``type`` attribute which specifies the
+         internal format of the data store. Only ``raw`` value is supported.
+
+      ``source``
+         This element has the same structure as the ``source`` element in ``disk``.
+         It specifies which file, device, or network location contains the data of
+         the described data store.
 
    For a "file" or "volume" disk type which represents a cdrom or floppy (the
    ``device`` attribute), it is possible to define policy what to do with the
@@ -3681,9 +3725,8 @@ A directory on the host that can be accessed directly from the guest.
       info <https://lists.gnu.org/archive/html/qemu-devel/2010-09/msg00121.html>`__
 
    :since:`Since 5.2.0`, the filesystem element has an optional attribute
-   ``model`` with supported values "virtio-transitional",
-   "virtio-non-transitional", or "virtio". See `Virtio transitional devices`_
-   for more details.
+   ``model`` with supported values "virtio", "virtio-transitional" or
+   "virtio-non-transitional". See `virtio device models`_ for more details.
 
    The filesystem element has optional attributes ``fmode`` and ``dmode``.
    These two attributes control the creation mode for files and directories
@@ -3911,11 +3954,20 @@ Note: In general you should leave this option alone, unless you are very certain
 you know what you are doing.
 
 
-Virtio transitional devices
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Virtio device models
+~~~~~~~~~~~~~~~~~~~~
 
-:since:`Since 5.2.0`, some of QEMU's virtio devices, when used with PCI/PCIe
-machine types, accept the following ``model`` values:
+Virtio devices come in several variants, some of which are only applicable to
+certain machine types or scenarios. The variant can be chosen via the ``model``
+attribute, which supports the following values:
+
+``virtio``
+   This is the recommended choice in the absence of guest OS specific
+   constraints, as it will will generally work correctly across a large range
+   of architectures, machine types and libvirt versions.
+
+:since:`Since 5.2.0`, the following values can additionally be used with machine
+types based on PCI (either conventional PCI or PCI Express):
 
 ``virtio-transitional``
    This device can work both with virtio 0.9 and virtio 1.0 guest drivers, so
@@ -3927,12 +3979,6 @@ machine types, accept the following ``model`` values:
    necessary. libvirt will plug the device into either a PCI Express slot or a
    conventional PCI slot based on the machine type, resulting in a more
    optimized PCI topology.
-``virtio``
-   This device will work like a ``virtio-non-transitional`` device when plugged
-   into a PCI Express slot, and like a ``virtio-transitional`` device otherwise;
-   libvirt will pick one or the other based on the machine type. This is the
-   best choice when compatibility with libvirt versions older than 5.2.0 is
-   necessary, but it's otherwise not recommended to use it.
 
 While the information outlined above applies to most virtio devices, there are a
 few exceptions:
@@ -3993,14 +4039,14 @@ specific features, such as:
    The ``virtio-serial`` controller has two additional optional attributes
    ``ports`` and ``vectors``, which control how many devices can be connected
    through the controller. :since:`Since 5.2.0`, it supports an optional
-   attribute ``model`` which can be 'virtio', 'virtio-transitional', or
-   'virtio-non-transitional'. See `Virtio transitional devices`_ for more details.
+   attribute ``model`` which can be 'virtio', 'virtio-transitional' or
+   'virtio-non-transitional'. See `virtio device models`_ for more details.
 ``scsi``
    A ``scsi`` controller has an optional attribute ``model``, which is one of
    'auto', 'buslogic', 'ibmvscsi', 'lsilogic', 'lsisas1068', 'lsisas1078',
    'virtio-scsi', 'vmpvscsi', 'virtio-transitional', 'virtio-non-transitional',
    'ncr53c90' (as builtin implicit controller only), 'am53c974', 'dc390'.
-   See `Virtio transitional devices`_ for more details.
+   See `virtio device models`_ for more details.
 ``usb``
    A ``usb`` controller has an optional attribute ``model``, which is one of
    "piix3-uhci", "piix4-uhci", "ehci", "ich9-ehci1", "ich9-uhci1", "ich9-uhci2",
@@ -4346,7 +4392,7 @@ or:
 
    ...
    <devices>
-     <hostdev mode='subsystem' type='scsi' sgio='filtered' rawio='yes'>
+     <hostdev mode='subsystem' type='scsi' rawio='yes'>
        <source>
          <adapter name='scsi_host0'/>
          <address bus='0' target='0' unit='0'/>
@@ -4402,9 +4448,9 @@ or:
        </source>
        </hostdev>
        <hostdev mode='subsystem' type='mdev' model='vfio-ccw'>
-       <source>
-         <address uuid='9063cba3-ecef-47b6-abcf-3fef4fdcad85'/>
-       </source>
+         <source>
+           <address uuid='9063cba3-ecef-47b6-abcf-3fef4fdcad85'/>
+         </source>
        <address type='ccw' cssid='0xfe' ssid='0x0' devno='0x0001'/>
        </hostdev>
      </devices>
@@ -4436,21 +4482,25 @@ or:
       ``display`` attribute to be set to ``on``.
    ``scsi``
       For SCSI devices, user is responsible to make sure the device is not used
-      by host. If supported by the hypervisor and OS, the optional ``sgio`` (
-      :since:`since 1.0.6` ) attribute indicates whether unprivileged SG_IO
-      commands are filtered for the disk. Valid settings are "filtered" or
-      "unfiltered", where the default is "filtered". The optional ``rawio`` (
-      :since:`since 1.2.9` ) attribute indicates whether the lun needs the rawio
-      capability. Valid settings are "yes" or "no". See the rawio description
-      within the `Hard drives, floppy disks, CDROMs`_ section. If a disk lun in the domain
-      already has the rawio capability, then this setting not required.
+      by host.
+
+      If supported by the hypervisor and OS, the optional ``sgio`` (
+      :since:`since 1.0.6`, but currently no longer supported by any hypervisor
+      driver ) attribute indicates whether unprivileged SG_IO commands are
+      filtered for the disk. Valid settings are "filtered" or
+      "unfiltered", where the default is "filtered".
+
+      The optional ``rawio`` (:since:`since 1.2.9` ) attribute indicates whether
+      the lun needs the rawio capability. Valid settings are "yes" or "no".
+      See the rawio description within the `Hard drives, floppy disks, CDROMs`_
+      section. If a disk lun in the domain already has the rawio capability,
+      then this setting not required.
    ``scsi_host``
       :since:`since 2.5.0` For SCSI devices, user is responsible to make sure
       the device is not used by host. This ``type`` passes all LUNs presented by
       a single HBA to the guest. :since:`Since 5.2.0`, the ``model`` attribute
-      can be specified further with "virtio-transitional",
-      "virtio-non-transitional", or "virtio". `Virtio transitional devices`_
-      for more details.
+      can be specified further with "virtio", "virtio-transitional" or
+      "virtio-non-transitional". See `virtio device models`_ for more details.
    ``mdev``
       For mediated devices ( :since:`Since 3.2.0` ) the ``model`` attribute
       specifies the device API which determines how the host's vfio driver will
@@ -5664,7 +5714,7 @@ Setting NIC driver-specific options
          <host csum='off' gso='off' tso4='off' tso6='off' ecn='off' ufo='off' mrg_rxbuf='off'/>
          <guest csum='off' tso4='off' tso6='off' ecn='off' ufo='off'/>
        </driver>
-       </interface>
+     </interface>
    </devices>
    ...
 
@@ -6296,8 +6346,8 @@ value 'all' which when enabled grabs all input devices instead of just one,
 change the grab key combination.
 ``input`` type ``evdev`` is currently supported only on linux devices.
 (KVM only) :since:`Since 5.2.0`, the ``input`` element accepts a
-``model`` attribute which has the values 'virtio', 'virtio-transitional' and
-'virtio-non-transitional'. See `Virtio transitional devices`_ for more details.
+``model`` attribute which has the values 'virtio', 'virtio-transitional' or
+'virtio-non-transitional'. See `virtio device models`_ for more details.
 
 The subelement ``driver`` can be used to tune the virtio options of the device:
 `Virtio-related options`_ can also be set. ( :since:`Since 3.5.0` )
@@ -6408,7 +6458,7 @@ interaction with the admin.
       ::
 
          <graphics type='vnc' ...>
-           <audio id='1'>
+           <audio id='1'/>
          </graphics>
 
       Where ``1`` is an id of the audio device (See `Audio backends`_). If no
@@ -6565,7 +6615,7 @@ interaction with the admin.
       ::
 
          <graphics type='dbus' ...>
-           <audio id='1'>
+           <audio id='1'/>
          </graphics>
 
       Where ``1`` is an id of the audio device (See `Audio backends`_).
@@ -7476,7 +7526,7 @@ backend using the ``<audio>`` sub-element:
    ...
    <devices>
      <sound model='ich7'>
-        <audio id='1'>
+        <audio id='1'/>
      </sound>
    </devices>
    ...
@@ -7978,7 +8028,7 @@ Example: manually added device with static PCI slot 2 requested
    -  'virtio-non-transitional' :since:`Since 5.2.0`
    -  'xen' - default with Xen
 
-   See `Virtio transitional devices`_ for more details.
+   See `virtio device models`_ for more details.
 
 ``autodeflate``
    The optional ``autodeflate`` attribute allows to enable/disable (values
@@ -8044,7 +8094,7 @@ Example: usage of the RNG device:
    -  'virtio-transitional' :since:`Since 5.2.0`
    -  'virtio-non-transitional' :since:`Since 5.2.0`
 
-   See `Virtio transitional devices`_ for more details.
+   See `virtio device models`_ for more details.
 
 ``rate``
    The optional ``rate`` element allows limiting the rate at which entropy can
@@ -8127,6 +8177,21 @@ Example: usage of the TPM Emulator
            <active_pcr_banks>
                <sha256/>
            </active_pcr_banks>
+           <profile source='local:restricted' removeDisabled='check' name='custom:restricted'/>
+         </backend>
+       </tpm>
+     </devices>
+     ...
+
+Example: usage of external TPM emulator :since:`Since 9.0.0`
+
+::
+
+     ...
+     <devices>
+       <tpm model='tpm-tis'>
+         <backend type='external'>
+           <source type='unix' mode='connect' path='/tmp/path.sock'/>
          </backend>
        </tpm>
      </devices>
@@ -8170,6 +8235,12 @@ Example: usage of the TPM Emulator
       parameter can be used to enable logging in the emulator backend, and
       accepts non-zero integer values.
 
+   ``external``
+      For this backend, libvirt expects the TPM emulator to be started externally.
+      The path to the unix socket where the emulator is listening is passed
+      via the ``source`` element. Other ``backend`` sub-elements do not apply
+      in this case, since they are controlled by the emulator command line.
+
 ``version``
    The ``version`` attribute indicates the version of the TPM. This attribute
    only works with the ``emulator`` backend. The following versions are
@@ -8180,6 +8251,37 @@ Example: usage of the TPM Emulator
 
    The default version used depends on the combination of hypervisor, guest
    architecture, TPM model and backend.
+
+``source``
+   For the ``emulator`` backend, the ``source`` element specifies the location
+   of the TPM state storage. :since:`Since v10.10.0`
+
+   For the ``external`` backend, it specifies the socket of the externally
+   started TPM emulator. :since:`Since v9.0.0`
+
+   This element does not work with the ``passthrough`` backend.
+
+   When specified, it is the user's responsability to prevent files from being
+   used by multiple VMs or emulators (swtpm will also use advisory locking). If
+   not specified, the storage configuration is left to libvirt discretion.
+
+   This element requires that swtpm v0.7 or later is installed.
+
+   The following attributes are supported:
+
+   ``type``
+      For ``external`` backend, only type ``unix`` is supported.
+      For ``emulator`` backend, it's possible to provide ``file`` to utilize
+      a single file or block device where the TPM state will be stored,
+      or ``dir`` for the directory where the files will be stored.
+
+   ``mode``
+      Connection mode for the ``unix`` socket. Only ``connect`` is supported.
+      Can be omitted.
+
+   ``path``
+      The path to the TPM state storage, or the unix socket.
+
 
 ``persistent_state``
    The ``persistent_state`` attribute indicates whether 'swtpm' TPM state is
@@ -8198,6 +8300,37 @@ Example: usage of the TPM Emulator
    This attribute requires that swtpm_setup v0.7 or later is installed
    and may not have any effect otherwise. The selection of PCR banks only works
    with the ``emulator`` backend. :since:`Since 7.10.0`
+
+``profile``
+   The ``profile`` node is used to set a profile for a TPM 2.0 given in the
+   source attribute. This profile will be set when the TPM is initially
+   created and after that cannot be changed anymore. Once a profile has been
+   set the name attribute will be updated with the name of the profile that
+   is running. If no profile is provided, then swtpm will use the latest
+   built-in 'default' profile or the default profile set in swtpm_setup.conf.
+   Otherwise swtpm_setup will search for a profile with the given name with
+   appended .json suffix in a configurable local and then in a distro
+   directory. If none could be found in either, it will fall back trying to
+   use a built-in one.
+
+   The built-in 'null' profile provides backwards compatibility with
+   libtpms v0.9 but also restricts the user to use only TPM features that were
+   available at the time of libtpms v0.9. The built-in 'custom' profile is the
+   only profile that a user can modify and where the ``removeDisabled``
+   attribute has any effect. This attribute is particularly useful when a host
+   is running in FIPS mode and therefore some crypto algorithms (camellia,
+   tdes, unpadded RSA encryption, 1024-bit RSA keys, and others) are
+   disabled. When it is set to ``check`` (recommended) then only those
+   algorithms that are currently disabled will automatically be removed from
+   the 'custom' profile, while when it is set to ``fips-host`` then all
+   potentially disabled algorithms will be removed. :since:`Since 10.??.0`
+
+   TPM profiles provided by a distro can be referenced with the 'distro:'
+   prefix. Locally created TPM profiles can be referenced with the
+   'local:' prefix.
+
+   For further information about TPM profiles see the man pages for ``swtpm``
+   (swtpm v0.10).
 
 ``encryption``
    The ``encryption`` element allows the state of a TPM emulator to be
@@ -8647,8 +8780,8 @@ Vsock
 ~~~~~
 
 A vsock host/guest interface. The ``model`` attribute defaults to ``virtio``.
-:since:`Since 5.2.0` ``model`` can also be 'virtio-transitional' and
-'virtio-non-transitional', see `Virtio transitional devices`_  for more details.
+:since:`Since 5.2.0` ``model`` can also be 'virtio-transitional' or
+'virtio-non-transitional', see `virtio device models`_ for more details.
 The optional attribute ``address`` of the ``cid`` element specifies the CID
 assigned to the guest. If the attribute ``auto`` is set to ``yes``, libvirt will
 assign a free CID automatically on domain startup. :since:`Since 4.4.0`
@@ -8949,7 +9082,7 @@ attributes and elements with ``type='sev'`` but differs in others. Example confi
       <guestVisibleWorkarounds>...</guestVisibleWorkarounds>
       <idBlock>...</idBlock>
       <idAuth>...</idAuth>
-      <hostData>.../hostData>
+      <hostData>...</hostData>
     </launchSecurity>
     ...
   </domain>

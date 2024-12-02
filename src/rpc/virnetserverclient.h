@@ -48,7 +48,7 @@ typedef int (*virNetServerClientFilterFunc)(virNetServerClient *client,
                                             void *opaque);
 
 /*
- * @data: value allocated by virNetServerClintPrivNew(PostExecRestart) callback
+ * @data: value allocated by virNetServerClientPrivNew(PostExecRestart) callback
  */
 typedef virJSONValue *(*virNetServerClientPrivPreExecRestart)(virNetServerClient *client,
                                                                 void *data);
@@ -152,8 +152,6 @@ int virNetServerClientInit(virNetServerClient *client);
 int virNetServerClientInitKeepAlive(virNetServerClient *client,
                                     int interval,
                                     unsigned int count);
-bool virNetServerClientCheckKeepAlive(virNetServerClient *client,
-                                      virNetMessage *msg);
 int virNetServerClientStartKeepAlive(virNetServerClient *client);
 
 const char *virNetServerClientLocalAddrStringSASL(virNetServerClient *client);

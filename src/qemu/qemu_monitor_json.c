@@ -2569,7 +2569,7 @@ qemuMonitorJSONBlockNamedNodeDataFree(qemuBlockNamedNodeData *data)
 
     for (i = 0; i < data->nbitmaps; i++)
         qemuMonitorJSONBlockNamedNodeDataBitmapFree(data->bitmaps[i]);
-    g_strfreev(data->snapshots);
+    g_clear_pointer(&data->snapshots, g_hash_table_unref);
     g_free(data->bitmaps);
     g_free(data);
 }
@@ -2658,19 +2658,29 @@ qemuMonitorJSONBlockGetNamedNodeDataWorker(size_t pos G_GNUC_UNUSED,
 
     if ((snapshots = virJSONValueObjectGetArray(img, "snapshots"))) {
         size_t nsnapshots = virJSONValueArraySize(snapshots);
-        size_t nsnapnames = 0;
         size_t i;
 
-        ent->snapshots = g_new0(char *, nsnapshots + 1);
+        ent->snapshots = virHashNew(g_free);
 
         for (i = 0; i < nsnapshots; i++) {
             virJSONValue *snapshot = virJSONValueArrayGet(snapshots, i);
             const char *name = virJSONValueObjectGetString(snapshot, "name");
+            unsigned long long vmstate_size = 0;
+            qemuBlockNamedNodeDataSnapshot *snd;
 
             if (!name)
                 continue;
 
-            ent->snapshots[nsnapnames++] = g_strdup(name);
+            ignore_value(virJSONValueObjectGetNumberUlong(snapshot,
+                                                          "vm-state-size",
+                                                          &vmstate_size));
+
+            snd = g_new0(qemuBlockNamedNodeDataSnapshot, 1);
+
+            if (vmstate_size > 0)
+                snd->vmstate = true;
+
+            g_hash_table_insert(ent->snapshots, g_strdup(name), snd);
         }
     }
 
@@ -8740,6 +8750,37 @@ qemuMonitorJSONSnapshotSave(qemuMonitor *mon,
     }
 
     if (!(cmd = qemuMonitorJSONMakeCommand("snapshot-save",
+                                           "s:job-id", jobname,
+                                           "s:tag", snapshotname,
+                                           "s:vmstate", vmstate_disk,
+                                           "a:devices", &devices,
+                                           NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    return qemuMonitorJSONCheckError(cmd, reply);
+}
+
+
+int
+qemuMonitorJSONSnapshotLoad(qemuMonitor *mon,
+                            const char *jobname,
+                            const char *snapshotname,
+                            const char *vmstate_disk,
+                            const char **disks)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+    g_autoptr(virJSONValue) devices = virJSONValueNewArray();
+
+    for (; *disks; disks++) {
+        if (virJSONValueArrayAppendString(devices, *disks) < 0)
+            return -1;
+    }
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("snapshot-load",
                                            "s:job-id", jobname,
                                            "s:tag", snapshotname,
                                            "s:vmstate", vmstate_disk,

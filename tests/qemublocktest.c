@@ -27,6 +27,7 @@
 #include "qemu/qemu_monitor_json.h"
 #include "qemu/qemu_backup.h"
 #include "qemu/qemu_checkpoint.h"
+#include "qemu/qemu_postparse.h"
 #include "qemu/qemu_validate.h"
 
 #define LIBVIRT_SNAPSHOT_CONF_PRIV_H_ALLOW
@@ -597,12 +598,20 @@ testQemuDetectBitmapsWorker(GHashTable *nodedata,
     }
 
     if (data->snapshots) {
-        char **sn;
+        g_autofree virHashKeyValuePair *snaps = virHashGetItems(data->snapshots, NULL, true);
+        virHashKeyValuePair *n;
 
         virBufferAddLit(buf, "internal snapshots:");
 
-        for (sn = data->snapshots; *sn; sn++)
-            virBufferAsprintf(buf, " '%s'", *sn);
+        for (n = snaps; n->key; n++) {
+            const qemuBlockNamedNodeDataSnapshot *d = n->value;
+            const char *vms = "";
+
+            if (d->vmstate)
+                vms = "(*)";
+
+            virBufferAsprintf(buf, " '%s'%s", (const char *) n->key, vms);
+        }
     }
 
     virBufferAdjustIndent(buf, -1);

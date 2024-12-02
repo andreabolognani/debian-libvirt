@@ -88,6 +88,7 @@ VIR_ENUM_DECL(virStorageFileFormat);
 typedef enum {
     VIR_STORAGE_FILE_FEATURE_LAZY_REFCOUNTS = 0,
     VIR_STORAGE_FILE_FEATURE_EXTENDED_L2,
+    VIR_STORAGE_FILE_FEATURE_DATA_FILE,
 
     VIR_STORAGE_FILE_FEATURE_LAST
 } virStorageFileFeature;
@@ -359,6 +360,9 @@ struct _virStorageSource {
     /* backing chain of the storage source */
     virStorageSource *backingStore;
 
+    /* qcow2 data file source */
+    virStorageSource *dataFileStore;
+
     /* metadata for storage driver access to remote and local volumes */
     void *drv;
 
@@ -369,6 +373,7 @@ struct _virStorageSource {
     /* Name of the child backing store recorded in metadata of the
      * current file.  */
     char *backingStoreRaw;
+    char *dataFileRaw;
     virStorageFileFormat backingStoreRawFormat;
 
     /* metadata that allows identifying given storage source */

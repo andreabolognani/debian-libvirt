@@ -8,6 +8,86 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.10.0 (2024-12-02)
+=====================
+
+* **New features**
+
+  * qemu: add multi boot device support on s390x
+
+    For classical mainframe guests (i.e. LPAR or z/VM installations), you
+    always have to explicitly specify the disk where you want to boot from (or
+    "IPL" from, in s390x-speak -- IPL means "Initial Program Load").
+
+    In the past QEMU only used the first device in the boot order to IPL from.
+    With the new multi boot device support on s390x that is available with QEMU
+    version 9.2 and newer, this limitation is lifted. If the IPL fails for the
+    first device with the lowest boot index, the device with the second lowest
+    boot index will be tried and so on until IPL is successful or there are no
+    remaining boot devices to try.
+
+    Limitation: The s390x BIOS will try to IPL up to 8 total devices, any
+    number of which may be disks or network devices.
+
+  * qemu: Add support for versioned CPU models
+
+    Updates to QEMU CPU models with -vN suffix can now be used in libvirt just
+    like any other CPU model.
+
+  * qemu: Support for the 'data-file' QCOW2 image feature
+
+    The QEMU hypervisor driver now supports QCOW2 images with 'data-file'
+    feature present (both when probing form the image itself and when specified
+    explicitly via ``<dataStore>`` element). This can be useful when it's
+    required to keep data "raw" on disk, but the use case requires features
+    of the QCOW2 format such as incremental backups.
+
+  * swtpm: Add support for profiles
+
+    Upcoming swtpm release will have TPM profile support that allows to
+    restrict a TPM's provided set of crypto algorithms and commands. Users can
+    now select profile by using ``<profile/>`` in their TPM XML definition.
+
+* **Improvements**
+
+  * qemu: Support UEFI NVRAM images on block storage
+
+    Libvirt now allows users to use block storage as backend for UEFI NVRAM
+    images and allows them to be in format different than the template. When
+    qcow2 is used as the format, the images are now also auto-populated from the
+    template.
+
+  * qemu: Automatically add IOMMU when needed
+
+    When domain of 'qemu' or 'kvm' type has more than 255 vCPUs IOMMU with EIM
+    mode is required. Starting with this release libvirt automatically adds one
+    (or turns on the EIM mode if there's IOMMU without it).
+
+  * ch: allow hostdevs in domain definition
+
+    The Cloud Hypervisor driver (ch) now supports ``<hostdev/>``-s.
+
+  * ch: Enable callbacks for ch domain events
+
+    The Cloud Hypervisor driver (ch) now supports emitting events on domain
+    define, undefine, start, boot, stop and destroy.
+
+* **Bug fixes**
+
+  * qemu: Fix reversion and inactive deletion of internal snapshots with UEFI NVRAM
+
+    In `v10.9.0 (2024-11-01)`_ creation of internal snapshots of VMs with UEFI
+    firmware was allowed, but certain operations such as reversion or inactive
+    deletion didn't work properly as they didn't consider the NVRAM qcow2 file.
+
+  * virnetdevopenvswitch: Warn on unsupported QoS settings
+
+    For OpenVSwitch vNICs libivrt does not set QoS directly using 'tc' but
+    offloads setting to OVS. But OVS is not as feature full as libvirt in this
+    regard and setting different 'peak' than 'average' results in vNIC always
+    sticking with 'peak'. Produce a warning if that's the case.
+
+
 v10.9.0 (2024-11-01)
 ====================
 
@@ -168,6 +248,17 @@ v10.7.0 (2024-09-02)
     domain XML for descendants of the generic PC machine type (``i440fx``,
     ``q35``, ``xenfv`` and ``isapc``).
 
+  * qemu: Add support for hyperv enlightenment feature ``hv-emsr-bitmap``
+
+    It is introduced since ``QEMU 7.10``, allowing L0 (KVM) and L1 (Hyper-V)
+    hypervisors to collaborate to avoid unnecessary updates to L2 MSR-Bitmap
+    upon vmexits.
+
+  * qemu: Add support for hyperv enlightenment feature ``hv-xmm-input``
+
+    It is introduced since ``QEMU 7.10``, allowing to pass parameters for
+    certain hypercalls using XMM registers (“XMM Fast Hypercall Input”).
+
 * **Improvements**
 
   * ch: support restore with network devices
@@ -296,6 +387,18 @@ v10.5.0 (2024-07-01)
 
 v10.4.0 (2024-06-03)
 ====================
+
+* **Security**
+
+  * ``CVE-2024-4418``: Fix stack use-after-free in virNetClientIOEventLoop()
+
+    Fix race condition leading to a stack use-after-free bug was found in libvirt.
+    Due to a bad assumption in the virNetClientIOEventLoop() method, the data
+    pointer to a stack-allocated virNetClientIOEventData structure ended up being
+    used in the virNetClientIOEventFD callback while the data pointer's stack frame
+    was concurrently being "freed" when returning from virNetClientIOEventLoop().
+    This flaw allows a local, unprivileged user to access virtproxyd without
+    authenticating.
 
 * **New features**
 
@@ -449,6 +552,18 @@ v10.3.0 (2024-05-02)
 
 v10.2.0 (2024-04-02)
 ====================
+
+* **Security**
+
+  * ``CVE-2024-2494``: remote: check for negative array lengths before allocation
+
+   Fix the flaw of the RPC library APIs of libvirt. The RPC server
+   de-serialization code allocates memory for arrays before the non-negative
+   length check is performed by the C API entry points. Passing a negative length
+   to the g_new0 function results in a crash due to the negative length being
+   treated as a huge positive number. A local unprivileged user could use this
+   flaw to perform a denial of service attack by causing the libvirt daemon to
+   crash.
 
 * **New features**
 
@@ -839,6 +954,10 @@ v9.8.0 (2023-10-02)
       <disk type='vhostvdpa'>
         <source dev='/dev/vhost-vdpa-0'>
         ...
+
+  * cpu_map: Add the EPYC-Genoa cpu model
+
+    This model is introduced since ``QEMU 8.1``.
 
 * **Improvements**
 

@@ -4,7 +4,7 @@ import argparse
 import copy
 import os
 import re
-import xml.etree.ElementTree
+import lxml.etree
 
 import lark
 
@@ -19,7 +19,7 @@ def translate_vendor(name):
     if name in T:
         return T[name]
 
-    print("warning: Unknown vendor '{}'".format(name))
+    print(f"warning: Unknown vendor '{name}'")
     return name
 
 
@@ -318,7 +318,7 @@ def translate_feature(name):
         if name.replace("-", "_") == v.replace("-", "_"):
             return v
 
-    print("warning: Unknown feature '{}'".format(name))
+    print(f"warning: Unknown feature '{name}'")
     return name
 
 
@@ -429,7 +429,30 @@ def transform(item):
     raise RuntimeError("unexpected item type")
 
 
-def expand_model(model):
+def get_signature(outdir, model):
+    file = os.path.join(outdir, f"x86_{model}.xml")
+
+    if not os.path.isfile(file):
+        return None
+
+    xml = lxml.etree.parse(file)
+
+    signature = []
+    for sig in xml.xpath("//signature"):
+        attr = sig.attrib
+        family = attr["family"]
+        model = attr["model"]
+        if "stepping" in attr:
+            stepping = attr["stepping"]
+        else:
+            stepping = None
+
+        signature.append((family, model, stepping))
+
+    return signature
+
+
+def expand_model(outdir, model):
     """Expand a qemu cpu model description that has its feature split up into
     different fields and may have differing versions into several libvirt-
     friendly cpu models."""
@@ -438,11 +461,14 @@ def expand_model(model):
         "name": model.pop(".name"),
         "vendor": translate_vendor(model.pop(".vendor")),
         "features": set(),
-        "extra": dict()}
+        "extra": dict(),
+        "signature": list(),
+    }
 
     if ".family" in model and ".model" in model:
-        result["family"] = model.pop(".family")
-        result["model"] = model.pop(".model")
+        result["signature"].append((model.pop(".family"),
+                                    model.pop(".model"),
+                                    None))
 
     for k in [k for k in model if k.startswith(".features")]:
         v = model.pop(k)
@@ -454,11 +480,25 @@ def expand_model(model):
     versions = model.pop(".versions", [])
     for k, v in model.items():
         result["extra"]["model" + k] = v
+
+    print(result['name'])
     yield result
 
+    name = result["name"]
     for version in versions:
         result = copy.deepcopy(result)
-        result["name"] = version.pop(".alias", result["name"])
+
+        ver = int(version.pop(".version"))
+        result["name"] = f"{name}-v{ver}"
+        result["base"] = name
+
+        alias = version.pop(".alias", None)
+        if not alias and ver == 1:
+            alias = name
+
+            sig = get_signature(outdir, name)
+            if sig:
+                result["signature"] = sig
 
         props = version.pop(".props", dict())
         for k, v in props:
@@ -477,34 +517,91 @@ def expand_model(model):
         for k, v in version.items():
             result["extra"]["version" + k] = v
 
-        yield result
+        if alias:
+            print(f"v{ver}: {result['name']} => {alias}")
+            yield {
+                "vendor": result["vendor"],
+                "name": result["name"],
+                "base": result["base"],
+                "alias": alias,
+                "extra": None,
+                "features": [],
+            }
+
+            if ver != 1:
+                result["name"] = alias
+                print(f"v{ver}: {result['name']}")
+                yield result
+        else:
+            print(f"v{ver}: {result['name']}")
+            yield result
 
 
-def output_model(f, model):
+def output_model(f, extra, model):
     if model["extra"]:
-        f.write("<!-- extra info from qemu:\n")
-        for k, v in model["extra"].items():
-            f.write("  '{}': '{}'\n".format(k, v))
-        f.write("-->\n")
+        with open(extra, "wt") as ex:
+            ex.write("# THIS FILE SHOULD NEVER BE ADDED TO A COMMIT\n")
+            ex.write("extra info from qemu:\n")
+            for k, v in model["extra"].items():
+                ex.write(f"  {k}: {v}\n")
+
+    decode = "off" if "base" in model else "on"
 
     f.write("<cpus>\n")
-    f.write("  <model name='{}'>\n".format(model["name"]))
-    f.write("    <decode host='on' guest='on'/>\n")
-    f.write("    <signature family='{}' model='{}'/>\n".format(
-        model["family"], model["model"]))
-    f.write("    <vendor name='{}'/>\n".format(model["vendor"]))
+    f.write(f"  <model name='{model['name']}'>\n")
+    f.write(f"    <decode host='on' guest='{decode}'/>\n")
+
+    if "alias" in model:
+        f.write(f"    <model name='{model['alias']}'/>\n")
+    else:
+        for sig_family, sig_model, sig_stepping in model['signature']:
+            f.write(f"    <signature family='{sig_family}' model='{sig_model}'")
+            if sig_stepping:
+                f.write(f" stepping='{sig_stepping}'")
+            f.write("/>\n")
+        f.write(f"    <vendor name='{model['vendor']}'/>\n")
+
     for feature in sorted(model["features"]):
-        f.write("    <feature name='{}'/>\n".format(feature))
+        f.write(f"    <feature name='{feature}'/>\n")
     f.write("  </model>\n")
     f.write("</cpus>\n")
+
+
+def update_index(outdir, models):
+    index = os.path.join(outdir, "index.xml")
+    xml = lxml.etree.parse(index)
+
+    for vendor, files in models.items():
+        groups = xml.xpath(f"//arch[@name='x86']/group[@name='{vendor} CPU models']")
+        if not groups:
+            continue
+
+        group = groups[-1]
+        last = group.getchildren()[-1]
+        group_indent = last.tail
+        indent = f"{group_indent}  "
+        last.tail = indent
+
+        for file in files:
+            include = lxml.etree.SubElement(group, "include", filename=file)
+            include.tail = indent
+
+        group.getchildren()[-1].tail = group_indent
+
+    out = lxml.etree.tostring(xml, encoding="UTF-8")
+    out = out.decode("UTF-8").replace('"', "'")
+
+    with open(index, "w") as f:
+        f.write(out)
+        f.write("\n")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Synchronize x86 cpu models from QEMU i386 target.")
     parser.add_argument(
-        "cpufile",
-        help="Path to 'target/i386/cpu.c' file in the QEMU repository",
+        "qemu",
+        help="Path to QEMU source code",
         type=os.path.realpath)
     parser.add_argument(
         "outdir",
@@ -513,7 +610,12 @@ def main():
 
     args = parser.parse_args()
 
-    builtin_x86_defs = read_builtin_x86_defs(args.cpufile)
+    cpufile = os.path.join(args.qemu, 'target/i386/cpu.c')
+    if not os.path.isfile(cpufile):
+        parser.print_help()
+        exit("QEMU source directory not found")
+
+    builtin_x86_defs = read_builtin_x86_defs(cpufile)
 
     ast = lark.Lark(r"""
         list: value ( "," value )* ","?
@@ -532,12 +634,30 @@ def main():
 
     models = list()
     for model in models_json:
-        models.extend(expand_model(model))
+        models.extend(expand_model(args.outdir, model))
+
+    files = dict()
 
     for model in models:
-        name = os.path.join(args.outdir, "x86_{}.xml".format(model["name"]))
-        with open(name, "wt") as f:
-            output_model(f, model)
+        name = f"x86_{model['name']}.xml"
+        path = os.path.join(args.outdir, name)
+
+        if os.path.isfile(path):
+            # Ignore existing models as CPU models in libvirt should never
+            # change once released.
+            continue
+
+        vendor = model['vendor']
+        if vendor:
+            if vendor not in files:
+                files[vendor] = []
+            files[vendor].append(name)
+
+        extra = os.path.join(args.outdir, f"x86_{model['name']}.extra")
+        with open(path, "wt") as f:
+            output_model(f, extra, model)
+
+    update_index(args.outdir, files)
 
     features = set()
     for model in models:
@@ -545,15 +665,15 @@ def main():
 
     try:
         filename = os.path.join(args.outdir, "x86_features.xml")
-        dom = xml.etree.ElementTree.parse(filename)
+        dom = lxml.etree.parse(filename)
         known = [x.attrib["name"] for x in dom.getroot().iter("feature")]
         unknown = [x for x in features if x not in known and x is not None]
     except Exception as e:
         unknown = []
-        print("warning: Unable to read libvirt x86_features.xml: {}".format(e))
+        print(f"warning: Unable to read libvirt x86_features.xml: {e}")
 
     for x in unknown:
-        print("warning: Feature unknown to libvirt: {}".format(x))
+        print(f"warning: Feature unknown to libvirt: {x}")
 
 
 if __name__ == "__main__":

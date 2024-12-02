@@ -490,6 +490,7 @@ virDomainInputSourceGrabTypeFromString;
 virDomainInputSourceGrabTypeToString;
 virDomainInputTypeToString;
 virDomainIOMMUDefFree;
+virDomainIOMMUDefNew;
 virDomainIOMMUModelTypeFromString;
 virDomainIOMMUModelTypeToString;
 virDomainIOThreadIDAdd;
@@ -691,6 +692,8 @@ virDomainTPMModelTypeFromString;
 virDomainTPMModelTypeToString;
 virDomainTPMPcrBankTypeFromString;
 virDomainTPMPcrBankTypeToString;
+virDomainTPMProfileRemoveDisabledTypeFromString;
+virDomainTPMProfileRemoveDisabledTypeToString;
 virDomainTPMVersionTypeFromString;
 virDomainTPMVersionTypeToString;
 virDomainUSBDeviceDefForeach;
@@ -1540,6 +1543,7 @@ virCPUDataNewCopy;
 virCPUDataParse;
 virCPUDataParseNode;
 virCPUExpandFeatures;
+virCPUGetCanonicalModel;
 virCPUGetCheckMode;
 virCPUGetHost;
 virCPUGetHostIsSupported;
@@ -1672,7 +1676,9 @@ virCloseCallbacksDomainRunForConn;
 
 # hypervisor/virhostdev.h
 virHostdevFindUSBDevice;
+virHostdevHostSupportsPassthroughVFIO;
 virHostdevManagerGetDefault;
+virHostdevNeedsVFIO;
 virHostdevPCINodeDeviceDetach;
 virHostdevPCINodeDeviceReAttach;
 virHostdevPCINodeDeviceReset;
@@ -2869,6 +2875,7 @@ virNetDevVFInterfaceStats;
 
 
 # util/virnetdevbandwidth.h
+virNetDevBandWidthAddTxFilterParentQdisc;
 virNetDevBandwidthClear;
 virNetDevBandwidthCopy;
 virNetDevBandwidthEqual;
