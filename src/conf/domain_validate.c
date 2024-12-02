@@ -542,6 +542,32 @@ virDomainDiskDefValidateSourceChainOne(const virStorageSource *src)
         }
     }
 
+    if (src->dataFileStore) {
+        if (src->format != VIR_STORAGE_FILE_QCOW2) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("<dataStore> feature available only with qcow2 images"));
+            return -1;
+        }
+
+        if (src->dataFileStore->format != VIR_STORAGE_FILE_RAW) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("only 'raw' images supported as <dataStore>"));
+            return -1;
+        }
+
+        if (src->dataFileStore->dataFileStore || src->backingStore) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("The <source> of <dataStore> can't have another nested <dataStore> or <backingStore> element"));
+            return -1;
+        }
+
+        if (src->dataFileStore->sliceStorage) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("slices are not supported for <dataStore>"));
+            return -1;
+        }
+    }
+
     /* internal snapshots and config files are currently supported only with rbd: */
     if (virStorageSourceGetActualType(src) != VIR_STORAGE_TYPE_NETWORK &&
         src->protocol != VIR_STORAGE_NET_PROTOCOL_RBD) {
@@ -3023,6 +3049,13 @@ virDomainTPMDevValidate(const virDomainTPMDef *tpm)
             tpm->data.emulator.version != VIR_DOMAIN_TPM_VERSION_2_0) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("<active_pcr_banks/> requires TPM version '%1$s'"),
+                           virDomainTPMVersionTypeToString(VIR_DOMAIN_TPM_VERSION_2_0));
+            return -1;
+        }
+        if (tpm->data.emulator.profile.source &&
+            tpm->data.emulator.version != VIR_DOMAIN_TPM_VERSION_2_0) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("<profile/> requires TPM version '%1$s'"),
                            virDomainTPMVersionTypeToString(VIR_DOMAIN_TPM_VERSION_2_0));
             return -1;
         }

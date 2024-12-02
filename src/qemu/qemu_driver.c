@@ -679,8 +679,6 @@ qemuStateInitialize(bool privileged,
          virPidFileAcquire(cfg->stateDir, "driver", getpid())) < 0)
         goto error;
 
-    qemu_driver->qemuImgBinary = virFindFileInPath("qemu-img");
-
     if (!(qemu_driver->lockManager =
           virLockManagerPluginNew(cfg->lockManagerName ?
                                   cfg->lockManagerName : "nop",
@@ -1065,7 +1063,6 @@ qemuStateCleanup(void)
     virCPUDefFree(qemu_driver->hostcpu);
     virObjectUnref(qemu_driver->caps);
     ebtablesContextFree(qemu_driver->ebtables);
-    VIR_FREE(qemu_driver->qemuImgBinary);
     virObjectUnref(qemu_driver->domains);
     virObjectUnref(qemu_driver->nbdkitCapsCache);
 
@@ -9886,6 +9883,9 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
     if (!bandwidth->out->average)
         VIR_FREE(bandwidth->out);
 
+    if (!virNetDevBandwidthValidate(bandwidth))
+        goto endjob;
+
     if (net) {
         newBandwidth = g_new0(virNetDevBandwidth, 1);
 
@@ -9941,21 +9941,22 @@ qemuDomainSetInterfaceParameters(virDomainPtr dom,
                 virErrorRestore(&orig_err);
                 goto endjob;
             }
-        } else if (virNetDevBandwidthSet(net->ifname, newBandwidth, false,
-                                         !virDomainNetTypeSharesHostView(net)) < 0) {
-            virErrorPtr orig_err;
+        } else {
+            unsigned int bwflags = VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL;
 
-            virErrorPreserveLast(&orig_err);
-            ignore_value(virNetDevBandwidthSet(net->ifname,
-                                               net->bandwidth,
-                                               false,
-                                               !virDomainNetTypeSharesHostView(net)));
-            if (net->bandwidth) {
-                ignore_value(virDomainNetBandwidthUpdate(net,
-                                                         net->bandwidth));
+            if (!virDomainNetTypeSharesHostView(net))
+                bwflags |= VIR_NETDEV_BANDWIDTH_SET_DIR_SWAPPED;
+
+            if (virNetDevBandwidthSet(net->ifname, newBandwidth, bwflags) < 0) {
+                virErrorPtr orig_err;
+
+                virErrorPreserveLast(&orig_err);
+                ignore_value(virNetDevBandwidthSet(net->ifname, net->bandwidth, bwflags));
+                if (net->bandwidth)
+                    ignore_value(virDomainNetBandwidthUpdate(net, net->bandwidth));
+                virErrorRestore(&orig_err);
+                goto endjob;
             }
-            virErrorRestore(&orig_err);
-            goto endjob;
         }
 
         /* If the old bandwidth was cleared out, restore qdisc. */
@@ -11482,7 +11483,7 @@ qemuNodeDeviceDetachFlags(virNodeDevicePtr dev,
      * further validation until then.
      */
 
-    if (!qemuHostdevHostSupportsPassthroughVFIO()) {
+    if (!virHostdevHostSupportsPassthroughVFIO()) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
                        _("VFIO device assignment is currently not supported on this system"));
          return -1;
@@ -11914,10 +11915,12 @@ qemuConnectBaselineHypervisorCPU(virConnectPtr conn,
         goto cleanup;
 
     for (i = 0; i < ncpus; i++) {
-        if (!cpus[i]->addr || cpus[i]->addr->limit == 0)
+        if (!cpus[i]->addr || cpus[i]->addr->limit == 0) {
+            physAddrSize = 0;
             continue;
+        }
 
-        if (physAddrSize == 0 || cpus[i]->addr->limit < physAddrSize)
+        if (i == 0 || cpus[i]->addr->limit < physAddrSize)
             physAddrSize = cpus[i]->addr->limit;
     }
 

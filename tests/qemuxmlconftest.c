@@ -1471,7 +1471,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("firmware-auto-efi-format-nvram-qcow2-network-nbd");
     DO_TEST_CAPS_ARCH_LATEST("firmware-auto-efi-format-loader-raw", "aarch64");
     DO_TEST_CAPS_ARCH_LATEST_ABI_UPDATE("firmware-auto-efi-format-loader-raw", "aarch64");
-    DO_TEST_CAPS_LATEST_PARSE_ERROR("firmware-auto-efi-format-mismatch");
+    DO_TEST_CAPS_LATEST("firmware-auto-efi-format-mismatch");
 
     DO_TEST_CAPS_LATEST("clock-utc");
     DO_TEST_CAPS_LATEST("clock-localtime");
@@ -1651,6 +1651,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-incompatible-address");
     DO_TEST_CAPS_LATEST("disk-backing-chains-index");
     DO_TEST_CAPS_LATEST("disk-backing-chains-noindex");
+    DO_TEST_CAPS_LATEST("disk-qcow2-datafile-store");
     DO_TEST_CAPS_ARCH_LATEST_FULL("disk-source-fd", "x86_64",
                                   ARG_FD_GROUP, "testgroup2", 2, 200, 205,
                                   ARG_FD_GROUP, "testgroup5", 1, 204,
@@ -2508,6 +2509,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tpm-emulator-tpm2-pstate");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("aarch64-tpm-wrong-model", "aarch64");
     DO_TEST_CAPS_LATEST("tpm-external");
+    DO_TEST_CAPS_LATEST("tpm-emulator-crb-profile");
 
     g_setenv(TEST_TPM_ENV_VAR, TPM_VER_2_0, true);
     DO_TEST_CAPS_LATEST_PARSE_ERROR("tpm-emulator");
@@ -2721,9 +2723,13 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("machine-keywrap-none", "s390x");
 
     DO_TEST_CAPS_ARCH_LATEST("machine-loadparm-s390", "s390x");
+    DO_TEST_CAPS_ARCH_VER("machine-loadparm-s390", "s390x", "9.1.0");
     DO_TEST_CAPS_ARCH_LATEST("machine-loadparm-net-s390", "s390x");
+    DO_TEST_CAPS_ARCH_VER("machine-loadparm-net-s390", "s390x", "9.1.0");
     DO_TEST_CAPS_ARCH_LATEST("machine-loadparm-hostdev", "s390x");
+    DO_TEST_CAPS_ARCH_VER("machine-loadparm-hostdev", "s390x", "9.1.0");
     DO_TEST_CAPS_ARCH_LATEST("machine-loadparm-multiple-disks-nets-s390", "s390x");
+    DO_TEST_CAPS_ARCH_VER("machine-loadparm-multiple-disks-nets-s390", "s390x", "9.1.0");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("machine-loadparm-s390-char-invalid");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("machine-loadparm-s390-len-invalid");
 
@@ -2764,6 +2770,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("intel-iommu-aw-bits");
     DO_TEST_CAPS_LATEST("intel-iommu-dma-translation");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("intel-iommu-wrong-machine");
+    DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
     DO_TEST_CAPS_VER_PARSE_ERROR("virtio-iommu-x86_64", "6.1.0");

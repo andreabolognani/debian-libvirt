@@ -10223,6 +10223,172 @@ testDomainAttachHostDevice(testDriver *driver,
 }
 
 
+/**
+ * @def: Domain definition
+ * @info: Domain device info
+ *
+ * Using the device info, find the controller related to the
+ * device by index and use that controller to return the model.
+ *
+ * Returns the model if found, -1 if not with an error message set
+ */
+static int
+testDomainFindSCSIControllerModel(const virDomainDef *def,
+                                  virDomainDeviceInfo *info)
+{
+    virDomainControllerDef *cont;
+
+    if (!(cont = virDomainDeviceFindSCSIController(def, &info->addr.drive))) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("unable to find a SCSI controller for idx=%1$d"),
+                       info->addr.drive.controller);
+        return -1;
+    }
+
+    return cont->model;
+}
+
+
+static int
+testAssignDeviceDiskAlias(virDomainDef *def,
+                          virDomainDiskDef *disk)
+{
+    const char *prefix = virDomainDiskBusTypeToString(disk->bus);
+    int controllerModel = -1;
+
+    if (!disk->info.alias) {
+        if (disk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE) {
+            if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI) {
+                controllerModel = testDomainFindSCSIControllerModel(def,
+                                                                    &disk->info);
+                if (controllerModel < 0)
+                    return -1;
+            }
+
+            if (disk->bus != VIR_DOMAIN_DISK_BUS_SCSI ||
+                controllerModel == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_LSILOGIC) {
+                disk->info.alias = g_strdup_printf("%s%d-%d-%d", prefix,
+                                                   disk->info.addr.drive.controller,
+                                                   disk->info.addr.drive.bus,
+                                                   disk->info.addr.drive.unit);
+            } else {
+                disk->info.alias = g_strdup_printf("%s%d-%d-%d-%d", prefix,
+                                                   disk->info.addr.drive.controller,
+                                                   disk->info.addr.drive.bus,
+                                                   disk->info.addr.drive.target,
+                                                   disk->info.addr.drive.unit);
+            }
+        } else {
+            int idx = virDiskNameToIndex(disk->dst);
+            disk->info.alias = g_strdup_printf("%s-disk%d", prefix, idx);
+        }
+    }
+
+    return 0;
+}
+
+
+static int
+testDomainAttachDeviceDiskLiveInternal(testDriver *driver G_GNUC_UNUSED,
+                                       virDomainObj *vm,
+                                       virDomainDeviceDef *dev)
+{
+    size_t i;
+    virDomainDiskDef *disk = dev->data.disk;
+    int ret = -1;
+
+    if (disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("floppy device hotplug isn't supported"));
+        return -1;
+    }
+
+    if (virDomainDiskTranslateSourcePool(disk) < 0)
+        goto cleanup;
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        if (virDomainDiskDefCheckDuplicateInfo(vm->def->disks[i], disk) < 0)
+            goto cleanup;
+    }
+
+    switch (disk->bus) {
+    case VIR_DOMAIN_DISK_BUS_USB:
+        if (disk->device == VIR_DOMAIN_DISK_DEVICE_LUN) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("disk device='lun' is not supported for usb bus"));
+            goto cleanup;
+        }
+
+        break;
+
+    case VIR_DOMAIN_DISK_BUS_VIRTIO:
+        if (disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("cdrom device with virtio bus isn't supported"));
+            goto cleanup;
+        }
+        break;
+
+    case VIR_DOMAIN_DISK_BUS_SCSI:
+    case VIR_DOMAIN_DISK_BUS_IDE:
+    case VIR_DOMAIN_DISK_BUS_FDC:
+    case VIR_DOMAIN_DISK_BUS_XEN:
+    case VIR_DOMAIN_DISK_BUS_UML:
+    case VIR_DOMAIN_DISK_BUS_SATA:
+    case VIR_DOMAIN_DISK_BUS_SD:
+    case VIR_DOMAIN_DISK_BUS_NONE:
+    case VIR_DOMAIN_DISK_BUS_LAST:
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("disk bus '%1$s' cannot be hotplugged."),
+                       virDomainDiskBusTypeToString(disk->bus));
+        goto cleanup;
+    }
+
+    if (testAssignDeviceDiskAlias(vm->def, disk) < 0)
+        goto cleanup;
+
+    virDomainDiskInsert(vm->def, disk);
+
+    ret = 0;
+
+ cleanup:
+    return ret;
+}
+
+
+/**
+ * testDomainAttachDeviceDiskLive:
+ * @driver: test driver struct
+ * @vm: domain object
+ * @dev: device to attach (expected type is DISK)
+ *
+ * Attach a new disk or in case of cdroms/floppies change the media in the drive.
+ * This function handles all the necessary steps to attach a new storage source
+ * to the VM.
+ */
+static int
+testDomainAttachDeviceDiskLive(testDriver *driver,
+                               virDomainObj *vm,
+                               virDomainDeviceDef *dev)
+{
+    virDomainDiskDef *disk = dev->data.disk;
+    virDomainDiskDef *orig_disk = NULL;
+
+    /* this API overloads media change semantics on disk hotplug
+     * for devices supporting media changes */
+    if ((disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM ||
+         disk->device == VIR_DOMAIN_DISK_DEVICE_FLOPPY) &&
+        (orig_disk = virDomainDiskByTarget(vm->def, disk->dst))) {
+        virObjectUnref(orig_disk->src);
+        orig_disk->src = g_steal_pointer(&disk->src);
+        virDomainDiskDefFree(disk);
+        return 0;
+    }
+
+    return testDomainAttachDeviceDiskLiveInternal(driver, vm, dev);
+}
+
+
 static int
 testDomainAttachDeviceLive(virDomainObj *vm,
                            virDomainDeviceDef *dev,
@@ -10251,8 +10417,16 @@ testDomainAttachDeviceLive(virDomainObj *vm,
         }
         break;
 
-    case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_DISK:
+        testDomainObjCheckDiskTaint(vm, dev->data.disk);
+        ret = testDomainAttachDeviceDiskLive(driver, vm, dev);
+        if (!ret) {
+            alias = dev->data.disk->info.alias;
+            dev->data.disk = NULL;
+        }
+        break;
+
+    case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_FS:
     case VIR_DOMAIN_DEVICE_INPUT:
@@ -10582,6 +10756,71 @@ testDomainDetachPrepNet(virDomainObj *vm,
 
 
 static int
+testDomainDetachPrepDisk(virDomainObj *vm,
+                         virDomainDiskDef *match,
+                         virDomainDiskDef **detach)
+{
+    virDomainDiskDef *disk;
+
+    if (!(disk = virDomainDiskByTarget(vm->def, match->dst))) {
+        virReportError(VIR_ERR_DEVICE_MISSING,
+                       _("disk %1$s not found"), match->dst);
+        return -1;
+    }
+
+    switch ((virDomainDiskDevice) disk->device) {
+    case VIR_DOMAIN_DISK_DEVICE_DISK:
+    case VIR_DOMAIN_DISK_DEVICE_LUN:
+
+        switch (disk->bus) {
+        case VIR_DOMAIN_DISK_BUS_VIRTIO:
+        case VIR_DOMAIN_DISK_BUS_USB:
+        case VIR_DOMAIN_DISK_BUS_SCSI:
+            break;
+
+        case VIR_DOMAIN_DISK_BUS_IDE:
+        case VIR_DOMAIN_DISK_BUS_FDC:
+        case VIR_DOMAIN_DISK_BUS_XEN:
+        case VIR_DOMAIN_DISK_BUS_UML:
+        case VIR_DOMAIN_DISK_BUS_SATA:
+        case VIR_DOMAIN_DISK_BUS_SD:
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                           _("This type of disk cannot be hot unplugged"));
+            return -1;
+
+        case VIR_DOMAIN_DISK_BUS_NONE:
+        case VIR_DOMAIN_DISK_BUS_LAST:
+        default:
+            virReportEnumRangeError(virDomainDiskBus, disk->bus);
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_DISK_DEVICE_CDROM:
+        if (disk->bus == VIR_DOMAIN_DISK_BUS_USB ||
+            disk->bus == VIR_DOMAIN_DISK_BUS_SCSI) {
+            break;
+        }
+        G_GNUC_FALLTHROUGH;
+
+    case VIR_DOMAIN_DISK_DEVICE_FLOPPY:
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("disk device type '%1$s' cannot be detached"),
+                       virDomainDiskDeviceTypeToString(disk->device));
+        return -1;
+
+    case VIR_DOMAIN_DISK_DEVICE_LAST:
+    default:
+        virReportEnumRangeError(virDomainDiskDevice, disk->device);
+        return -1;
+    }
+
+    *detach = disk;
+    return 0;
+}
+
+
+static int
 testDomainRemoveHostDevice(testDriver *driver G_GNUC_UNUSED,
                            virDomainObj *vm,
                            virDomainHostdevDef *hostdev)
@@ -10650,6 +10889,28 @@ testDomainRemoveNetDevice(testDriver *driver G_GNUC_UNUSED,
     return 0;
 }
 
+
+static int
+testDomainRemoveDiskDevice(testDriver *driver G_GNUC_UNUSED,
+                           virDomainObj *vm,
+                           virDomainDiskDef *disk)
+{
+    size_t i;
+
+    VIR_DEBUG("Removing disk %s from domain %p %s",
+              disk->info.alias, vm, vm->def->name);
+
+    for (i = 0; i < vm->def->ndisks; i++) {
+        if (vm->def->disks[i] == disk) {
+            virDomainDiskRemove(vm->def, i);
+            break;
+        }
+    }
+
+    virDomainDiskDefFree(disk);
+    return 0;
+}
+
 static int
 testDomainRemoveDevice(testDriver *driver,
                        virDomainObj *vm,
@@ -10675,8 +10936,11 @@ testDomainRemoveDevice(testDriver *driver,
         if (testDomainRemoveHostDevice(driver, vm, dev->data.hostdev) < 0)
             return -1;
         break;
-    case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_DISK:
+        if (testDomainRemoveDiskDevice(driver, vm, dev->data.disk) < 0)
+            return -1;
+        break;
+    case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_FS:
     case VIR_DOMAIN_DEVICE_INPUT:
@@ -10740,8 +11004,14 @@ testDomainDetachDeviceLive(testDriver *driver,
         }
         break;
 
-    case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_DISK:
+        if (testDomainDetachPrepDisk(vm, match->data.disk,
+                                     &detach.data.disk) < 0) {
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_FS:
     case VIR_DOMAIN_DEVICE_INPUT:

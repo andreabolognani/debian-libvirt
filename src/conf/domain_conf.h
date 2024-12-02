@@ -1463,7 +1463,41 @@ typedef enum {
     VIR_DOMAIN_TPM_PCR_BANK_LAST
 } virDomainPcrBank;
 
+typedef enum {
+    VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT = 0,
+    VIR_DOMAIN_TPM_SOURCE_TYPE_FILE,
+    VIR_DOMAIN_TPM_SOURCE_TYPE_DIR,
+
+    VIR_DOMAIN_TPM_SOURCE_TYPE_LAST
+} virDomainTPMSourceType;
+
+typedef enum {
+    VIR_DOMAIN_TPM_PROFILE_REMOVE_DISABLED_NONE = 0,
+    VIR_DOMAIN_TPM_PROFILE_REMOVE_DISABLED_CHECK,
+    VIR_DOMAIN_TPM_PROFILE_REMOVE_DISABLED_FIPS_HOST,
+
+    VIR_DOMAIN_TPM_PROFILE_REMOVE_DISABLED_LAST
+} virDomainTPMProfileRemoveDisabled;
+
 #define VIR_DOMAIN_TPM_DEFAULT_DEVICE "/dev/tpm0"
+
+struct _virDomainTPMEmulatorDef {
+    virDomainTPMVersion version;
+    virDomainChrSourceDef *source;
+    virDomainTPMSourceType source_type;
+    char *source_path;
+    char *logfile;
+    unsigned int debug;
+    unsigned char secretuuid[VIR_UUID_BUFLEN];
+    bool hassecretuuid;
+    bool persistent_state;
+    virBitmap *activePcrBanks;
+    struct {
+        char *source; /* 'source' profile was created from */
+        char *name;   /* name read from active profile */
+        virDomainTPMProfileRemoveDisabled removeDisabled;
+    } profile;
+};
 
 struct _virDomainTPMDef {
     virObject *privateData;
@@ -1475,17 +1509,7 @@ struct _virDomainTPMDef {
         struct {
             virDomainChrSourceDef *source;
         } passthrough;
-        struct {
-            virDomainTPMVersion version;
-            virDomainChrSourceDef *source;
-            char *storagepath;
-            char *logfile;
-            unsigned int debug;
-            unsigned char secretuuid[VIR_UUID_BUFLEN];
-            bool hassecretuuid;
-            bool persistent_state;
-            virBitmap *activePcrBanks;
-        } emulator;
+        virDomainTPMEmulatorDef emulator;
         struct {
             virDomainChrSourceDef *source;
         } external;
@@ -2337,6 +2361,7 @@ struct _virDomainLoaderDef {
     virStorageSource *nvram;
     bool newStyleNVRAM;
     char *nvramTemplate;   /* user override of path to master nvram */
+    virStorageFileFormat nvramTemplateFormat;
 };
 
 virDomainLoaderDef *virDomainLoaderDefNew(void);
@@ -4277,7 +4302,9 @@ VIR_ENUM_DECL(virDomainRNGBackend);
 VIR_ENUM_DECL(virDomainTPMModel);
 VIR_ENUM_DECL(virDomainTPMBackend);
 VIR_ENUM_DECL(virDomainTPMVersion);
+VIR_ENUM_DECL(virDomainTPMSourceType);
 VIR_ENUM_DECL(virDomainTPMPcrBank);
+VIR_ENUM_DECL(virDomainTPMProfileRemoveDisabled);
 VIR_ENUM_DECL(virDomainMemoryModel);
 VIR_ENUM_DECL(virDomainMemoryBackingModel);
 VIR_ENUM_DECL(virDomainMemorySource);

@@ -173,30 +173,50 @@ virNetDevBandwidthManipulateFilter(const char *ifname,
  * virNetDevBandwidthSet:
  * @ifname: on which interface
  * @bandwidth: rates to set (may be NULL)
- * @hierarchical_class: whether to create hierarchical class
- * @swapped: true if IN/OUT should be set contrariwise
+ * @flags: bits indicating certain optional actions
  *
+
  * This function enables QoS on specified interface
  * and set given traffic limits for both, incoming
- * and outgoing traffic. Any previous setting get
- * overwritten. If @hierarchical_class is TRUE, create
- * hierarchical class. It is used to guarantee minimal
- * throughput ('floor' attribute in NIC).
+ * and outgoing traffic.
  *
- * If @swapped is set, the IN part of @bandwidth is set on
- * @ifname's TX, and vice versa. If it is not set, IN is set on
- * RX and OUT on TX. This is because for some types of interfaces
- * domain and the host live on the same side of the interface (so
- * domain's RX/TX is host's RX/TX), and for some it's swapped
- * (domain's RX/TX is hosts's TX/RX).
+ * @flags bits and their meanings:
+ *
+ *   VIR_NETDEV_BANDWIDTH_SET_HIERARCHICAL_CLASS
+ *     whether to create a hierarchical class
+ *     A hiearchical class structure is used to implement a minimal
+ *     throughput guarantee ('floor' attribute in NIC).
+ *
+ *   VIR_NETDEV_BANDWIDTH_SET_DIR_SWAPPED
+ *     set if IN/OUT should be set backwards from what's indicated in
+ *     the bandwidth, i.e. the IN part of @bandwidth is set on
+ *     @ifname's TX, and the OUT part of @bandwidth is set on
+ *     @ifname's RX.  This is needed because for some types of
+ *     interfaces the domain and the host live on the same side of the
+ *     interface (so domain's RX/TX is host's RX/TX), and for some
+ *     it's swapped (domain's RX/TX is hosts's TX/RX).
+ *
+ *   VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL
+ *     If VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL is set, then the root
+ *     qdisc is deleted before adding any new qdisc/class/filter,
+ *     which causes any pre-existing filters to also be deleted. If
+ *     not set, then it's assumed that there are no existing rules (or
+ *     that those already there need to be kept). The caller should
+ *     set this flag for an existing interface that is having its
+ *     bandwidth settings modified, but can leave it unset if the
+ *     interface was newly created and this is the first time
+ *     bandwidth has been set, but someone else might have already
+ *     added the qdisc (e.g. this is the case when the network driver
+ *     is setting bandwidth for a virtual network bridge device - the
+ *     nftables backend may have already added qdisc handle 1:0 and a
+ *     filter, and we don't want to delete them)
  *
  * Return 0 on success, -1 otherwise.
  */
 int
 virNetDevBandwidthSet(const char *ifname,
                       const virNetDevBandwidth *bandwidth,
-                      bool hierarchical_class,
-                      bool swapped)
+                      unsigned int flags)
 {
     int ret = -1;
     virNetDevBandwidthRate *rx = NULL; /* From domain POV */
@@ -205,6 +225,7 @@ virNetDevBandwidthSet(const char *ifname,
     char *average = NULL;
     char *peak = NULL;
     char *burst = NULL;
+    bool hierarchical_class = flags & VIR_NETDEV_BANDWIDTH_SET_HIERARCHICAL_CLASS;
 
     if (!bandwidth) {
         /* nothing to be enabled */
@@ -224,7 +245,7 @@ virNetDevBandwidthSet(const char *ifname,
         return -1;
     }
 
-    if (swapped) {
+    if (flags & VIR_NETDEV_BANDWIDTH_SET_DIR_SWAPPED) {
         rx = bandwidth->out;
         tx = bandwidth->in;
     } else {
@@ -232,7 +253,11 @@ virNetDevBandwidthSet(const char *ifname,
         tx = bandwidth->out;
     }
 
-    virNetDevBandwidthClear(ifname);
+    /* Only if the caller requests, clear everything including root
+     * qdisc and all filters before adding everything.
+     */
+    if (flags & VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL)
+        virNetDevBandwidthClear(ifname);
 
     if (tx && tx->average) {
         average = g_strdup_printf("%llukbps", tx->average);
@@ -241,11 +266,7 @@ virNetDevBandwidthSet(const char *ifname,
         if (tx->burst)
             burst = g_strdup_printf("%llukb", tx->burst);
 
-        cmd = virCommandNew(TC);
-        virCommandAddArgList(cmd, "qdisc", "add", "dev", ifname, "root",
-                             "handle", "1:", "htb", "default",
-                             hierarchical_class ? "2" : "1", NULL);
-        if (virCommandRun(cmd, NULL) < 0)
+        if (virNetDevBandWidthAddTxFilterParentQdisc(ifname, hierarchical_class) < 0)
             goto cleanup;
 
         /* If we are creating a hierarchical class, all non guaranteed traffic
@@ -765,6 +786,53 @@ virNetDevBandwidthSetRootQDisc(const char *ifname,
     if (status != 0) {
         VIR_DEBUG("Setting qdisc failed: output='%s' err='%s'", outbuf, errbuf);
         return -2;
+    }
+
+    return 0;
+}
+
+/**
+ * virNetDevBandwidthAddTxFilterParentQdisc:
+ * @ifname: name of interface that needs a qdisc to attach tx filters to
+ * @hierarchical_class: true if hierarchical classes will be used on this interface
+ *
+ * Add a root Qdisc (Queueing Discipline) for attaching Tx filters to
+ * @ifname.
+ *
+ * returns 0 on success, -1 on failure
+ */
+int
+virNetDevBandWidthAddTxFilterParentQdisc(const char *ifname,
+                                         bool hierarchical_class)
+{
+    g_autoptr(virCommand) testCmd = NULL;
+    g_autofree char *testResult = NULL;
+
+    /* first check it the qdisc with handle 1: was already added for
+     * this interface by someone else
+     */
+    testCmd = virCommandNew(TC);
+    virCommandAddArgList(testCmd, "qdisc", "show", "dev", ifname,
+                         "handle", "1:", NULL);
+    virCommandSetOutputBuffer(testCmd, &testResult);
+
+    if (virCommandRun(testCmd, NULL) < 0)
+        return -1;
+
+    /* output will be something like: "qdisc htb 1: root refcnt ..."
+     * if the qdisc was already added. We just search for "qdisc" and
+     * " 1: " anywhere in the output to allow for tc changing its
+     * output format.
+     */
+    if (!(testResult && strstr(testResult, "qdisc") && strstr(testResult, " 1: "))) {
+        /* didn't find qdisc in output, so we need to add one */
+        g_autoptr(virCommand) addCmd = virCommandNew(TC);
+
+        virCommandAddArgList(addCmd, "qdisc", "add", "dev", ifname, "root",
+                             "handle", "1:", "htb", "default",
+                             hierarchical_class ? "2" : "1", NULL);
+
+        return virCommandRun(addCmd, NULL);
     }
 
     return 0;

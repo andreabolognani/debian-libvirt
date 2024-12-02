@@ -622,11 +622,12 @@ void virCHMonitorClose(virCHMonitor *mon)
         curl_easy_cleanup(mon->handle);
 
     if (mon->socketpath) {
-        if (virFileRemove(mon->socketpath, -1, -1) < 0) {
-            VIR_WARN("Unable to remove CH socket file '%s'",
-                     mon->socketpath);
+        if (virFileRemove(mon->socketpath, -1, -1) < 0 &&
+            errno != ENOENT) {
+            VIR_WARN("Unable to remove CH socket file '%s': %s",
+                     mon->socketpath, g_strerror(errno));
         }
-        g_free(mon->socketpath);
+        g_clear_pointer(&mon->socketpath, g_free);
     }
 
     virObjectUnref(mon);
@@ -684,6 +685,7 @@ virCHMonitorPutNoContent(virCHMonitor *mon, const char *endpoint)
     curl_easy_setopt(mon->handle, CURLOPT_URL, url);
     curl_easy_setopt(mon->handle, CURLOPT_UPLOAD, 1L);
     curl_easy_setopt(mon->handle, CURLOPT_HTTPHEADER, NULL);
+    curl_easy_setopt(mon->handle, CURLOPT_INFILESIZE, 0L);
 
     responseCode = virCHMonitorCurlPerform(mon->handle);
 
@@ -1002,7 +1004,8 @@ virCHMonitorBuildRestoreJson(virDomainDef *vmdef,
                 return -1;
             if (virJSONValueObjectAppendNumberInt(net_json, "num_fds", vmdef->nets[i]->driver.virtio.queues))
                 return -1;
-            virJSONValueArrayAppend(nets, &net_json);
+            if (virJSONValueArrayAppend(nets, &net_json) < 0)
+                return -1;
         }
         if (virJSONValueObjectAppend(restore_json, "net_fds", &nets))
             return -1;

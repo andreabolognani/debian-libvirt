@@ -37,6 +37,7 @@
 #include "virnuma.h"
 #include "virstring.h"
 #include "ch_interface.h"
+#include "ch_hostdev.h"
 
 #define VIR_FROM_THIS VIR_FROM_CH
 
@@ -808,6 +809,67 @@ virCHProcessStartValidate(virCHDriver *driver,
     return 0;
 }
 
+static int
+virCHProcessPrepareDomainHostdevs(virDomainObj *vm)
+{
+    size_t i;
+
+    for (i = 0; i < vm->def->nhostdevs; i++) {
+        virDomainHostdevDef *hostdev = vm->def->hostdevs[i];
+
+        if (virCHDomainPrepareHostdev(hostdev) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+/**
+ * virCHProcessPrepareHost:
+ * @driver: ch driver
+ * @vm: domain object
+ *
+ * This function groups all code that modifies host system to prepare
+ * environment for a domain which is about to start.
+ *
+ * This function MUST be called only after virCHProcessPrepareDomain().
+ */
+static int
+virCHProcessPrepareHost(virCHDriver *driver, virDomainObj *vm)
+{
+    unsigned int hostdev_flags = 0;
+    virCHDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(driver);
+
+    if (virCHHostdevPrepareDomainDevices(driver, vm->def, hostdev_flags) < 0)
+        return -1;
+
+    /* Ensure no historical cgroup for this VM is lying around */
+    VIR_DEBUG("Ensuring no historical cgroup is lying around");
+    virDomainCgroupRemoveCgroup(vm, priv->cgroup, priv->machineName);
+
+    return 0;
+}
+
+/**
+ * virCHProcessPrepareDomain:
+ * @vm: domain object
+ *
+ * This function groups all code that modifies only live XML of a domain which
+ * is about to start and it's the only place to do those modifications.
+ *
+ * This function MUST be called before virCHProcessPrepareHost().
+ *
+ */
+static int
+virCHProcessPrepareDomain(virDomainObj *vm)
+{
+    if (virCHProcessPrepareDomainHostdevs(vm) < 0)
+        return -1;
+
+    return 0;
+}
+
 /**
  * virCHProcessStart:
  * @driver: pointer to driver structure
@@ -838,6 +900,13 @@ virCHProcessStart(virCHDriver *driver,
     if (virCHProcessStartValidate(driver, vm) < 0) {
         return -1;
     }
+
+    if (virCHProcessPrepareDomain(vm) < 0) {
+        return -1;
+    }
+
+    if (virCHProcessPrepareHost(driver, vm) < 0)
+        return -1;
 
     if (!priv->monitor) {
         /* And we can get the first monitor connection now too */
@@ -902,12 +971,13 @@ virCHProcessStart(virCHDriver *driver,
 }
 
 int
-virCHProcessStop(virCHDriver *driver G_GNUC_UNUSED,
+virCHProcessStop(virCHDriver *driver,
                  virDomainObj *vm,
                  virDomainShutoffReason reason)
 {
     int ret;
     int retries = 0;
+    unsigned int hostdev_flags = VIR_HOSTDEV_SP_PCI;
     virCHDomainObjPrivate *priv = vm->privateData;
     virCHDriverConfig *cfg = virCHDriverGetConfig(driver);
     virDomainDef *def = vm->def;
@@ -946,6 +1016,8 @@ virCHProcessStop(virCHDriver *driver G_GNUC_UNUSED,
 
     virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, reason);
 
+    virHostdevReAttachDomainDevices(driver->hostdevMgr, CH_DRIVER_NAME, def,
+                                    hostdev_flags);
     return 0;
 }
 

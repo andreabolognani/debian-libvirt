@@ -101,6 +101,7 @@
 #include "virutil.h"
 #include "storage_source.h"
 #include "backup_conf.h"
+#include "storage_file_probe.h"
 
 #include "logging/log_manager.h"
 #include "logging/log_protocol.h"
@@ -4584,27 +4585,78 @@ qemuPrepareNVRAMHelper(int dstFD,
 
 
 static int
-qemuPrepareNVRAM(virQEMUDriver *driver,
-                 virDomainObj *vm,
-                 bool reset_nvram)
+qemuPrepareNVRAMBlock(virDomainObj *vm,
+                      bool reset_nvram)
 {
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    virDomainLoaderDef *loader = vm->def->os.loader;
+    g_autoptr(virCommand) qemuimg = NULL;
+    const char *templateFormatStr = "raw";
+
+    if (!virFileExists(loader->nvram->path)) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("'block' nvram backing device '%1$s' doesn't exist"),
+                       loader->nvram->path);
+        return -1;
+    }
+
+    if (!reset_nvram) {
+        int format;
+
+        if (loader->nvram->format == VIR_STORAGE_FILE_RAW) {
+            /* For 'raw' image libvirt can't check if the image is correct */
+            return 0;
+        }
+
+        if ((format = virStorageFileProbeFormat(loader->nvram->path, 0, 0)) < 0)
+            return -1;
+
+        /* If we find a qcow2 image assume it's correct */
+        if (format == VIR_STORAGE_FILE_QCOW2)
+            return 0;
+    }
+
+    /* The PFLASH device backing the NVRAM must have the exact size the
+     * firmware expects. This is almost impossible to achieve using a block
+     * device. Avoid headaches -> force users to use qcow2 which can
+     * restrict the size if libvirt is to format the image. */
+    if (loader->nvram->format != VIR_STORAGE_FILE_QCOW2) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("only 'qcow2' formatted 'block' nvram backing can be formatted"));
+        return -1;
+    }
+
+    if (!loader->nvramTemplate) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("unable to find nvram template image"));
+        return -1;
+    }
+
+    if (loader->nvramTemplateFormat != VIR_STORAGE_FILE_NONE)
+        templateFormatStr = virStorageFileFormatTypeToString(loader->nvramTemplateFormat);
+
+    qemuimg = virCommandNewArgList("qemu-img", "convert",
+                                   "-f", templateFormatStr,
+                                   "-O", "qcow2",
+                                   loader->nvramTemplate,
+                                   loader->nvram->path,
+                                   NULL);
+
+    if (virCommandRun(qemuimg, NULL) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+qemuPrepareNVRAMFile(virDomainObj *vm,
+                     bool reset_nvram)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
     VIR_AUTOCLOSE srcFD = -1;
     virDomainLoaderDef *loader = vm->def->os.loader;
     struct qemuPrepareNVRAMHelperData data;
-
-    if (!loader || !loader->nvram)
-        return 0;
-
-    if (!virStorageSourceIsLocalStorage(loader->nvram)) {
-        if (!reset_nvram) {
-            return 0;
-        } else {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                    _("resetting of nvram is not supported with network backed nvram"));
-            return -1;
-        }
-    }
 
     if (virFileExists(loader->nvram->path) && !reset_nvram)
         return 0;
@@ -4613,6 +4665,12 @@ qemuPrepareNVRAM(virQEMUDriver *driver,
         virReportError(VIR_ERR_OPERATION_FAILED,
                        _("unable to find any master var store for loader: %1$s"),
                        loader->path);
+        return -1;
+    }
+
+    if (loader->nvram->format != loader->nvramTemplateFormat) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("conversion of the nvram template to another target format is not supported"));
         return -1;
     }
 
@@ -4633,6 +4691,45 @@ qemuPrepareNVRAM(virQEMUDriver *driver,
                        qemuPrepareNVRAMHelper,
                        &data) < 0) {
         return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+qemuPrepareNVRAM(virDomainObj *vm,
+                 bool reset_nvram)
+{
+    virDomainLoaderDef *loader = vm->def->os.loader;
+
+    if (!loader || !loader->nvram)
+        return 0;
+
+    switch (virStorageSourceGetActualType(loader->nvram)) {
+    case VIR_STORAGE_TYPE_FILE:
+        return qemuPrepareNVRAMFile(vm, reset_nvram);
+
+    case VIR_STORAGE_TYPE_BLOCK:
+        return qemuPrepareNVRAMBlock(vm, reset_nvram);
+
+    case VIR_STORAGE_TYPE_DIR:
+    case VIR_STORAGE_TYPE_NETWORK:
+    case VIR_STORAGE_TYPE_VOLUME:
+    case VIR_STORAGE_TYPE_NVME:
+    case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_LAST:
+    case VIR_STORAGE_TYPE_NONE:
+        if (reset_nvram) {
+            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                    _("resetting of nvram is not supported with nvram device backed by '%1$s'"),
+                    virStorageTypeToString(virStorageSourceGetActualType(loader->nvram)));
+            return -1;
+        }
+
+        /* otherwise we just assume that the user did set up stuff correctly */
+        break;
     }
 
     return 0;
@@ -7269,7 +7366,7 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
         qemuProcessMakeDir(driver, vm, priv->channelTargetDir) < 0)
         return -1;
 
-    if (qemuPrepareNVRAM(driver, vm, !!(flags & VIR_QEMU_PROCESS_START_RESET_NVRAM)) < 0)
+    if (qemuPrepareNVRAM(vm, !!(flags & VIR_QEMU_PROCESS_START_RESET_NVRAM)) < 0)
         return -1;
 
     if (vm->def->vsock) {
@@ -7943,6 +8040,13 @@ qemuProcessLaunch(virConnectPtr conn,
         goto cleanup;
 
     qemuDomainVcpuPersistOrder(vm->def);
+
+    if (snapshot &&
+        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_SNAPSHOT_INTERNAL_QMP)) {
+        VIR_DEBUG("reverting internal snapshot via QMP");
+        if (qemuSnapshotInternalRevert(vm, snapshot, asyncJob) < 0)
+            goto cleanup;
+    }
 
     VIR_DEBUG("Verifying and updating provided guest CPU");
     if (qemuProcessUpdateAndVerifyCPU(vm, asyncJob) < 0)

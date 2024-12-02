@@ -173,8 +173,8 @@ qemuTPMEmulatorCreateStorage(virDomainTPMDef *tpm,
                              uid_t swtpm_user,
                              gid_t swtpm_group)
 {
-    const char *storagepath = tpm->data.emulator.storagepath;
-    g_autofree char *swtpmStorageDir = g_path_get_dirname(storagepath);
+    const char *source_path = tpm->data.emulator.source_path;
+    g_autofree char *swtpmStorageDir = g_path_get_dirname(source_path);
 
     /* allow others to cd into this dir */
     if (g_mkdir_with_parents(swtpmStorageDir, 0711) < 0) {
@@ -186,19 +186,19 @@ qemuTPMEmulatorCreateStorage(virDomainTPMDef *tpm,
 
     *created = false;
 
-    if (!virFileExists(storagepath) ||
-        virDirIsEmpty(storagepath, true) > 0)
+    if (!virFileExists(source_path) ||
+        virDirIsEmpty(source_path, true) > 0)
         *created = true;
 
-    if (virDirCreate(storagepath, 0700, swtpm_user, swtpm_group,
+    if (virDirCreate(source_path, 0700, swtpm_user, swtpm_group,
                      VIR_DIR_CREATE_ALLOW_EXIST) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not create directory %1$s as %2$u:%3$d"),
-                       storagepath, swtpm_user, swtpm_group);
+                       source_path, swtpm_user, swtpm_group);
         return -1;
     }
 
-    if (virFileChownFiles(storagepath, swtpm_user, swtpm_group) < 0)
+    if (virFileChownFiles(source_path, swtpm_user, swtpm_group) < 0)
         return -1;
 
     return 0;
@@ -214,7 +214,7 @@ qemuTPMEmulatorCreateStorage(virDomainTPMDef *tpm,
 static void
 qemuTPMEmulatorDeleteStorage(virDomainTPMDef *tpm)
 {
-    g_autofree char *path = g_path_get_dirname(tpm->data.emulator.storagepath);
+    g_autofree char *path = g_path_get_dirname(tpm->data.emulator.source_path);
 
     ignore_value(virFileDeleteTree(path));
 }
@@ -340,34 +340,86 @@ qemuTPMVirCommandAddEncryption(virCommand *cmd,
 }
 
 
+static char *
+qemuTPMGetSwtpmSetupStateArg(const virDomainTPMSourceType source_type,
+                             const char *source_path)
+{
+    const char *lock = ",lock";
+
+    if (!virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_TPMSTATE_OPT_LOCK)) {
+        VIR_WARN("This swtpm version doesn't support explicit locking");
+        lock = "";
+    }
+
+    switch (source_type) {
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_FILE:
+        /* the file:// prefix is supported since swtpm_setup 0.7.0 */
+        /* assume the capability check for swtpm is redundant. */
+        return g_strdup_printf("file://%s%s", source_path, lock);
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_DIR:
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT:
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_LAST:
+    default:
+        return g_strdup_printf("%s%s", source_path, lock);
+    }
+}
+
+
+/*
+ * Add a (optional) profile to the swtpm_setup command line.
+ *
+ * @cmd: virCommand to add options to
+ * @emulator: emulator parameters
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+static int
+qemuTPMVirCommandAddProfile(virCommand *cmd,
+                            const virDomainTPMEmulatorDef *emulator)
+{
+    if (!emulator->profile.source)
+        return 0;
+
+    if (!virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_CMDARG_PROFILE)) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                       _("swtpm_setup has no support for profiles"));
+        return -1;
+    }
+
+    virCommandAddArgList(cmd,
+                         "--profile-name", emulator->profile.source,
+                         NULL);
+
+    if (emulator->profile.removeDisabled) {
+        virCommandAddArgList(cmd,
+                             "--profile-remove-disable",
+                             virDomainTPMProfileRemoveDisabledTypeToString(emulator->profile.removeDisabled),
+                             NULL);
+    }
+    return 0;
+}
+
+
 /*
  * qemuTPMEmulatorRunSetup
  *
- * @storagepath: path to the directory for TPM state
+ * @emulator: emulator parameters
  * @vmname: the name of the VM
  * @vmuuid: the UUID of the VM
  * @privileged: whether we are running in privileged mode
- * @swtpm_user: The userid to switch to when setting up the TPM;
- *              typically this should be the uid of 'tss' or 'root'
- * @swtpm_group: The group id to switch to
- * @logfile: The file to write the log into; it must be writable
- *           for the user given by userid or 'tss'
- * @tpmversion: The version of the TPM, either a TPM 1.2 or TPM 2
- * @encryption: pointer to virStorageEncryption holding secret
+ * @cfg: virQEMUDriverConfig
+ * @secretuuid: UUID describing virStorageEncryption holding secret
  * @incomingMigration: whether we have an incoming migration
  *
  * Setup the external swtpm by creating endorsement key and
  * certificates for it.
  */
 static int
-qemuTPMEmulatorRunSetup(const char *storagepath,
+qemuTPMEmulatorRunSetup(const virDomainTPMEmulatorDef *emulator,
                         const char *vmname,
                         const unsigned char *vmuuid,
                         bool privileged,
-                        uid_t swtpm_user,
-                        gid_t swtpm_group,
-                        const char *logfile,
-                        const virDomainTPMVersion tpmversion,
+                        const virQEMUDriverConfig *cfg,
                         const unsigned char *secretuuid,
                         bool incomingMigration)
 {
@@ -376,13 +428,15 @@ qemuTPMEmulatorRunSetup(const char *storagepath,
     char uuid[VIR_UUID_STRING_BUFLEN];
     g_autofree char *vmid = NULL;
     g_autofree char *swtpm_setup = virTPMGetSwtpmSetup();
+    g_autofree char *tpm_state = qemuTPMGetSwtpmSetupStateArg(emulator->source_type,
+                                                              emulator->source_path);
 
     if (!swtpm_setup)
         return -1;
 
-    if (!privileged && tpmversion == VIR_DOMAIN_TPM_VERSION_1_2 &&
+    if (!privileged && emulator->version == VIR_DOMAIN_TPM_VERSION_1_2 &&
         !virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_TPM12_NOT_NEED_ROOT)) {
-        return virFileWriteStr(logfile,
+        return virFileWriteStr(emulator->logfile,
                                _("Did not create EK and certificates since this requires privileged mode for a TPM 1.2\n"), 0600);
     }
 
@@ -394,10 +448,10 @@ qemuTPMEmulatorRunSetup(const char *storagepath,
     virUUIDFormat(vmuuid, uuid);
     vmid = g_strdup_printf("%s:%s", vmname, uuid);
 
-    virCommandSetUID(cmd, swtpm_user);
-    virCommandSetGID(cmd, swtpm_group);
+    virCommandSetUID(cmd, cfg->swtpm_user); /* should be uid of 'tss' or 'root' */
+    virCommandSetGID(cmd, cfg->swtpm_group);
 
-    switch (tpmversion) {
+    switch (emulator->version) {
     case VIR_DOMAIN_TPM_VERSION_1_2:
         break;
     case VIR_DOMAIN_TPM_VERSION_2_0:
@@ -413,19 +467,21 @@ qemuTPMEmulatorRunSetup(const char *storagepath,
 
     if (!incomingMigration) {
         virCommandAddArgList(cmd,
-                             "--tpm-state", storagepath,
+                             "--tpm-state", tpm_state,
                              "--vmid", vmid,
-                             "--logfile", logfile,
+                             "--logfile", emulator->logfile,
                              "--createek",
                              "--create-ek-cert",
                              "--create-platform-cert",
                              "--lock-nvram",
                              "--not-overwrite",
                              NULL);
+        if (qemuTPMVirCommandAddProfile(cmd, emulator) < 0)
+            return -1;
     } else {
         virCommandAddArgList(cmd,
-                             "--tpm-state", storagepath,
-                             "--logfile", logfile,
+                             "--tpm-state", tpm_state,
+                             "--logfile", emulator->logfile,
                              "--overwrite",
                              NULL);
     }
@@ -435,7 +491,7 @@ qemuTPMEmulatorRunSetup(const char *storagepath,
     if (virCommandRun(cmd, &exitstatus) < 0 || exitstatus != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not run '%1$s'. exitstatus: %2$d; Check error log '%3$s' for details."),
-                          swtpm_setup, exitstatus, logfile);
+                          swtpm_setup, exitstatus, emulator->logfile);
         return -1;
     }
 
@@ -464,45 +520,36 @@ qemuTPMPcrBankBitmapToStr(virBitmap *activePcrBanks)
 /*
  * qemuTPMEmulatorReconfigure
  *
- *
- * @storagepath: path to the directory for TPM state
- * @swtpm_user: The userid to switch to when setting up the TPM;
- *              typically this should be the uid of 'tss' or 'root'
- * @swtpm_group: The group id to switch to
- * @activePcrBanks: The string describing the active PCR banks
- * @logfile: The file to write the log into; it must be writable
- *           for the user given by userid or 'tss'
- * @tpmversion: The version of the TPM, either a TPM 1.2 or TPM 2
+ * @emulator: emulator parameters
+ * @cfg: virQEMUDriverConfig
  * @secretuuid: The secret's UUID needed for state encryption
  *
  * Reconfigure the active PCR banks of a TPM 2.
  */
 static int
-qemuTPMEmulatorReconfigure(const char *storagepath,
-                           uid_t swtpm_user,
-                           gid_t swtpm_group,
-                           virBitmap *activePcrBanks,
-                           const char *logfile,
-                           const virDomainTPMVersion tpmversion,
+qemuTPMEmulatorReconfigure(const virDomainTPMEmulatorDef *emulator,
+                           const virQEMUDriverConfig *cfg,
                            const unsigned char *secretuuid)
 {
     g_autoptr(virCommand) cmd = NULL;
     int exitstatus;
     g_autofree char *activePcrBanksStr = NULL;
     g_autofree char *swtpm_setup = virTPMGetSwtpmSetup();
+    g_autofree char *tpm_state = qemuTPMGetSwtpmSetupStateArg(emulator->source_type,
+                                                              emulator->source_path);
 
     if (!swtpm_setup)
         return -1;
 
-    if (tpmversion != VIR_DOMAIN_TPM_VERSION_2_0 ||
-        (activePcrBanksStr = qemuTPMPcrBankBitmapToStr(activePcrBanks)) == NULL ||
+    if (emulator->version != VIR_DOMAIN_TPM_VERSION_2_0 ||
+        (activePcrBanksStr = qemuTPMPcrBankBitmapToStr(emulator->activePcrBanks)) == NULL ||
         !virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_CMDARG_RECONFIGURE_PCR_BANKS))
         return 0;
 
     cmd = virCommandNew(swtpm_setup);
 
-    virCommandSetUID(cmd, swtpm_user);
-    virCommandSetGID(cmd, swtpm_group);
+    virCommandSetUID(cmd, cfg->swtpm_user); /* should be uid of 'tss' or 'root' */
+    virCommandSetGID(cmd, cfg->swtpm_group);
 
     virCommandAddArgList(cmd, "--tpm2", NULL);
 
@@ -510,8 +557,8 @@ qemuTPMEmulatorReconfigure(const char *storagepath,
         return -1;
 
     virCommandAddArgList(cmd,
-                         "--tpm-state", storagepath,
-                         "--logfile", logfile,
+                         "--tpm-state", tpm_state,
+                         "--logfile", emulator->logfile,
                          "--pcr-banks", activePcrBanksStr,
                          "--reconfigure",
                          NULL);
@@ -521,25 +568,149 @@ qemuTPMEmulatorReconfigure(const char *storagepath,
     if (virCommandRun(cmd, &exitstatus) < 0 || exitstatus != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Could not run '%1$s --reconfigure'. exitstatus: %2$d; Check error log '%3$s' for details."),
-                          swtpm_setup, exitstatus, logfile);
+                          swtpm_setup, exitstatus, emulator->logfile);
         return -1;
     }
 
     return 0;
 }
 
+static int
+qemuTPMVirCommandSwtpmAddEncryption(virCommand *cmd,
+                                    const virDomainTPMEmulatorDef *emulator,
+                                    const char *swtpm)
+{
+    int pwdfile_fd = -1;
+    int migpwdfile_fd = -1;
+
+    if (!emulator->hassecretuuid)
+        return 0;
+
+    if (!virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_CMDARG_PWD_FD)) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
+                       _("%1$s does not support passing passphrase via file descriptor"),
+                       swtpm);
+        return -1;
+    }
+
+    if (qemuTPMSetupEncryption(emulator->secretuuid,
+                               cmd, &pwdfile_fd) < 0)
+        return -1;
+
+    if (qemuTPMSetupEncryption(emulator->secretuuid,
+                               cmd, &migpwdfile_fd) < 0)
+        return -1;
+
+    virCommandAddArg(cmd, "--key");
+    virCommandAddArgFormat(cmd, "pwdfd=%d,mode=aes-256-cbc", pwdfile_fd);
+
+    virCommandAddArg(cmd, "--migration-key");
+    virCommandAddArgFormat(cmd, "pwdfd=%d,mode=aes-256-cbc", migpwdfile_fd);
+    return 0;
+}
+
+static void
+qemuTPMVirCommandSwtpmAddTPMState(virCommand *cmd,
+                                  const virDomainTPMEmulatorDef *emulator)
+{
+    virCommandAddArg(cmd, "--tpmstate");
+    switch (emulator->source_type) {
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_FILE:
+        virCommandAddArgFormat(cmd, "backend-uri=file://%s",
+                               emulator->source_path);
+        break;
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_DIR:
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT:
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_LAST:
+        virCommandAddArgFormat(cmd, "dir=%s,mode=0600",
+                               emulator->source_path);
+        break;
+    }
+}
+
+/* qemuTPMEmulatorUpdateProfileName:
+ *
+ * @emulator: TPM emulator definition
+ * @persistentTPMDef: TPM definition from the persistent domain definition
+ * @cfg: virQEMUDriverConfig
+ * @saveDef: whether caller should save the persistent domain def
+ */
+static int
+qemuTPMEmulatorUpdateProfileName(virDomainTPMEmulatorDef *emulator,
+                                 virDomainTPMDef *persistentTPMDef,
+                                 const virQEMUDriverConfig *cfg,
+                                 bool *saveDef)
+{
+    g_autoptr(virJSONValue) object = NULL;
+    g_autofree char *stderr_buf = NULL;
+    g_autofree char *stdout_buf = NULL;
+    g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *swtpm = NULL;
+    virJSONValue *active_profile;
+    const char *profile_name;
+    int exitstatus;
+
+    if (emulator->version != VIR_DOMAIN_TPM_VERSION_2_0 ||
+        !virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_CMDARG_PRINT_INFO))
+        return 0;
+
+    swtpm = virTPMGetSwtpm();
+    if (!swtpm)
+        return -1;
+
+    cmd = virCommandNew(swtpm);
+
+    virCommandSetUID(cmd, cfg->swtpm_user); /* should be uid of 'tss' or 'root' */
+    virCommandSetGID(cmd, cfg->swtpm_group);
+
+    virCommandAddArgList(cmd, "socket", "--print-info", "0x20", "--tpm2", NULL);
+
+    qemuTPMVirCommandSwtpmAddTPMState(cmd, emulator);
+
+    if (qemuTPMVirCommandSwtpmAddEncryption(cmd, emulator, swtpm) < 0)
+        return -1;
+
+    virCommandClearCaps(cmd);
+
+    virCommandSetOutputBuffer(cmd, &stdout_buf);
+    virCommandSetErrorBuffer(cmd, &stderr_buf);
+
+    if (virCommandRun(cmd, &exitstatus) < 0 || exitstatus != 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("Could not run '%1$s --print-info'. exitstatus: %2$d; stderr: %3$s"),
+                          swtpm, exitstatus, stderr_buf);
+        return -1;
+    }
+
+    if (!(object = virJSONValueFromString(stdout_buf)))
+        return -1;
+
+    if (!(active_profile = virJSONValueObjectGetObject(object, "ActiveProfile")))
+        return -1;
+
+    profile_name = virJSONValueObjectGetString(active_profile, "Name");
+
+    g_free(emulator->profile.name);
+    emulator->profile.name = g_strdup(profile_name);
+
+    *saveDef = true;
+    g_free(persistentTPMDef->data.emulator.profile.name);
+    persistentTPMDef->data.emulator.profile.name = g_strdup(profile_name);
+
+    return 0;
+}
 
 /*
  * qemuTPMEmulatorBuildCommand:
  *
  * @tpm: TPM definition
+ * @persistentTPMDef: TPM definition from the persistent domain definition
  * @vmname: The name of the VM
  * @vmuuid: The UUID of the VM
  * @privileged: whether we are running in privileged mode
- * @swtpm_user: The uid for the swtpm to run as (drop privileges to from root)
- * @swtpm_group: The gid for the swtpm to run as
- * @sharedFilesystems: list of filesystem to consider shared
+ * @cfg: virQEMUDriverConfig
  * @incomingMigration: whether we have an incoming migration
+ * @saveDef: whether caller should save the persistent domain def
  *
  * Create the virCommand use for starting the emulator
  * Do some initializations on the way, such as creation of storage
@@ -547,19 +718,18 @@ qemuTPMEmulatorReconfigure(const char *storagepath,
  */
 static virCommand *
 qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
+                            virDomainTPMDef *persistentTPMDef,
                             const char *vmname,
                             const unsigned char *vmuuid,
                             bool privileged,
-                            uid_t swtpm_user,
-                            gid_t swtpm_group,
-                            char *const *sharedFilesystems,
-                            bool incomingMigration)
+                            const virQEMUDriverConfig *cfg,
+                            bool incomingMigration,
+                            bool *saveDef)
 {
     g_autoptr(virCommand) cmd = NULL;
     bool created = false;
+    bool run_setup = false;
     g_autofree char *swtpm = virTPMGetSwtpm();
-    int pwdfile_fd = -1;
-    int migpwdfile_fd = -1;
     const unsigned char *secretuuid = NULL;
     bool create_storage = true;
     bool on_shared_storage;
@@ -567,35 +737,49 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     if (!swtpm)
         return NULL;
 
+    if (tpm->data.emulator.source_type == VIR_DOMAIN_TPM_SOURCE_TYPE_FILE) {
+        if (!virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_NVRAM_BACKEND_DIR)) {
+            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
+                           _("%1$s does not support file storage"),
+                           swtpm);
+            goto error;
+        }
+        create_storage = false;
+        /* setup is run with --not-overwrite */
+        run_setup = true;
+    }
+
     /* Do not create storage and run swtpm_setup on incoming migration over
      * shared storage
      */
-    on_shared_storage = virFileIsSharedFS(tpm->data.emulator.storagepath, sharedFilesystems) == 1;
+    on_shared_storage = virFileIsSharedFS(tpm->data.emulator.source_path,
+                                          cfg->sharedFilesystems) == 1;
     if (incomingMigration && on_shared_storage)
         create_storage = false;
 
-    if (create_storage &&
-        qemuTPMEmulatorCreateStorage(tpm, &created, swtpm_user, swtpm_group) < 0)
-        return NULL;
+    if (create_storage) {
+        if (qemuTPMEmulatorCreateStorage(tpm, &created,
+                                         cfg->swtpm_user, cfg->swtpm_group) < 0)
+            return NULL;
+        run_setup = created;
+    }
 
     if (tpm->data.emulator.hassecretuuid)
         secretuuid = tpm->data.emulator.secretuuid;
 
-    if (created &&
-        qemuTPMEmulatorRunSetup(tpm->data.emulator.storagepath, vmname, vmuuid,
-                                privileged, swtpm_user, swtpm_group,
-                                tpm->data.emulator.logfile,
-                                tpm->data.emulator.version,
-                                secretuuid, incomingMigration) < 0)
+    if (run_setup &&
+        qemuTPMEmulatorRunSetup(&tpm->data.emulator, vmname, vmuuid,
+                                privileged, cfg,  secretuuid,
+                                incomingMigration) < 0)
+        goto error;
+
+    if (run_setup && !incomingMigration &&
+        qemuTPMEmulatorUpdateProfileName(&tpm->data.emulator, persistentTPMDef,
+                                         cfg, saveDef) < 0)
         goto error;
 
     if (!incomingMigration &&
-        qemuTPMEmulatorReconfigure(tpm->data.emulator.storagepath,
-                                   swtpm_user, swtpm_group,
-                                   tpm->data.emulator.activePcrBanks,
-                                   tpm->data.emulator.logfile,
-                                   tpm->data.emulator.version,
-                                   secretuuid) < 0)
+        qemuTPMEmulatorReconfigure(&tpm->data.emulator, cfg, secretuuid) < 0)
         goto error;
 
     unlink(tpm->data.emulator.source->data.nix.path);
@@ -608,9 +792,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
     virCommandAddArgFormat(cmd, "type=unixio,path=%s,mode=0600",
                            tpm->data.emulator.source->data.nix.path);
 
-    virCommandAddArg(cmd, "--tpmstate");
-    virCommandAddArgFormat(cmd, "dir=%s,mode=0600",
-                           tpm->data.emulator.storagepath);
+    qemuTPMVirCommandSwtpmAddTPMState(cmd, &tpm->data.emulator);
 
     virCommandAddArg(cmd, "--log");
     if (tpm->data.emulator.debug != 0)
@@ -621,8 +803,8 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
 
     virCommandAddArg(cmd, "--terminate");
 
-    virCommandSetUID(cmd, swtpm_user);
-    virCommandSetGID(cmd, swtpm_group);
+    virCommandSetUID(cmd, cfg->swtpm_user);
+    virCommandSetGID(cmd, cfg->swtpm_group);
 
     switch (tpm->data.emulator.version) {
     case VIR_DOMAIN_TPM_VERSION_1_2:
@@ -635,28 +817,10 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
         break;
     }
 
-    if (tpm->data.emulator.hassecretuuid) {
-        if (!virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_CMDARG_PWD_FD)) {
-            virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
-                           _("%1$s does not support passing passphrase via file descriptor"),
-                           swtpm);
-            goto error;
-        }
-
-        if (qemuTPMSetupEncryption(tpm->data.emulator.secretuuid,
-                                   cmd, &pwdfile_fd) < 0)
-            goto error;
-
-        if (qemuTPMSetupEncryption(tpm->data.emulator.secretuuid,
-                                   cmd, &migpwdfile_fd) < 0)
-            goto error;
-
-        virCommandAddArg(cmd, "--key");
-        virCommandAddArgFormat(cmd, "pwdfd=%d,mode=aes-256-cbc", pwdfile_fd);
-
-        virCommandAddArg(cmd, "--migration-key");
-        virCommandAddArgFormat(cmd, "pwdfd=%d,mode=aes-256-cbc", migpwdfile_fd);
-    }
+    if (qemuTPMVirCommandSwtpmAddEncryption(cmd,
+                                            &tpm->data.emulator,
+                                            swtpm) < 0)
+        goto error;
 
     /* If swtpm supports it and the TPM state is stored on shared storage,
      * start swtpm with --migration release-lock-outgoing so it can migrate
@@ -723,8 +887,8 @@ qemuTPMEmulatorInitPaths(virDomainTPMDef *tpm,
 
     virUUIDFormat(uuid, uuidstr);
 
-    if (!tpm->data.emulator.storagepath &&
-        !(tpm->data.emulator.storagepath =
+    if (!tpm->data.emulator.source_path &&
+        !(tpm->data.emulator.source_path =
             qemuTPMEmulatorStorageBuildPath(swtpmStorageDir, uuidstr,
                                             tpm->data.emulator.version)))
         return -1;
@@ -759,7 +923,7 @@ qemuTPMEmulatorCleanupHost(virQEMUDriver *driver,
      * storage.
      */
     if (outgoingMigration &&
-        virFileIsSharedFS(tpm->data.emulator.storagepath, cfg->sharedFilesystems) == 1)
+        virFileIsSharedFS(tpm->data.emulator.source_path, cfg->sharedFilesystems) == 1)
         return;
 
     /*
@@ -913,6 +1077,7 @@ qemuExtTPMEmulatorSetupCgroup(const char *swtpmStateDir,
  * @driver: QEMU driver
  * @vm: the domain object
  * @tpm: TPM definition
+ * @persistentTPMDef: TPM definition from persistent domain definition
  * @shortName: short and unique name of the domain
  * @incomingMigration: whether we have an incoming migration
  *
@@ -925,6 +1090,7 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
                      virDomainObj *vm,
                      const char *shortName,
                      virDomainTPMDef *tpm,
+                     virDomainTPMDef *persistentTPMDef,
                      bool incomingMigration)
 {
     g_autoptr(virCommand) cmd = NULL;
@@ -933,6 +1099,7 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     g_autofree char *pidfile = NULL;
     virTimeBackOffVar timebackoff;
     const unsigned long long timeout = 1000; /* ms */
+    bool saveDef = false;
     pid_t pid = -1;
     bool lockMetadataException = false;
 
@@ -941,13 +1108,17 @@ qemuTPMEmulatorStart(virQEMUDriver *driver,
     /* stop any left-over TPM emulator for this VM */
     qemuTPMEmulatorStop(cfg->swtpmStateDir, shortName);
 
-    if (!(cmd = qemuTPMEmulatorBuildCommand(tpm, vm->def->name, vm->def->uuid,
+    if (!(cmd = qemuTPMEmulatorBuildCommand(tpm, persistentTPMDef,
+                                            vm->def->name, vm->def->uuid,
                                             driver->privileged,
-                                            cfg->swtpm_user,
-                                            cfg->swtpm_group,
-                                            cfg->sharedFilesystems,
-                                            incomingMigration)))
+                                            cfg,
+                                            incomingMigration,
+                                            &saveDef)))
         return -1;
+
+    if (saveDef &&
+        virDomainDefSave(vm->newDef, driver->xmlopt, cfg->configDir) < 0)
+        goto error;
 
     if (qemuExtDeviceLogCommand(driver, vm, cmd, "TPM Emulator") < 0)
         return -1;
@@ -1040,7 +1211,7 @@ qemuTPMHasSharedStorage(virQEMUDriver *driver,
 
         switch (tpm->type) {
         case VIR_DOMAIN_TPM_TYPE_EMULATOR:
-            return virFileIsSharedFS(tpm->data.emulator.storagepath,
+            return virFileIsSharedFS(tpm->data.emulator.source_path,
                                      cfg->sharedFilesystems) == 1;
         case VIR_DOMAIN_TPM_TYPE_PASSTHROUGH:
         case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
@@ -1132,6 +1303,7 @@ int
 qemuExtTPMStart(virQEMUDriver *driver,
                 virDomainObj *vm,
                 virDomainTPMDef *tpm,
+                virDomainTPMDef *persistentTPMDef,
                 bool incomingMigration)
 {
     g_autofree char *shortName = virDomainDefGetShortName(vm->def);
@@ -1139,7 +1311,8 @@ qemuExtTPMStart(virQEMUDriver *driver,
     if (!shortName)
         return -1;
 
-    return qemuTPMEmulatorStart(driver, vm, shortName, tpm, incomingMigration);
+    return qemuTPMEmulatorStart(driver, vm, shortName, tpm, persistentTPMDef,
+                                incomingMigration);
 }
 
 

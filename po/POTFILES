@@ -21,6 +21,7 @@ src/bhyve/bhyve_process.c
 src/ch/ch_conf.c
 src/ch/ch_domain.c
 src/ch/ch_driver.c
+src/ch/ch_hostdev.c
 src/ch/ch_interface.c
 src/ch/ch_monitor.c
 src/ch/ch_process.c
@@ -189,6 +190,7 @@ src/qemu/qemu_monitor_text.c
 src/qemu/qemu_namespace.c
 src/qemu/qemu_nbdkit.c
 src/qemu/qemu_passt.c
+src/qemu/qemu_postparse.c
 src/qemu/qemu_process.c
 src/qemu/qemu_qapi.c
 src/qemu/qemu_saveimage.c

@@ -1302,6 +1302,13 @@ qemuBlockStorageSourceGetFormatQcow2Props(virStorageSource *src,
                               NULL) < 0)
         return -1;
 
+    if (src->dataFileStore) {
+        if (virJSONValueObjectAdd(&props,
+                                  "s:data-file", qemuBlockStorageSourceGetEffectiveNodename(src->dataFileStore),
+                                  NULL) < 0)
+        return -1;
+    }
+
     return 0;
 }
 
@@ -1859,6 +1866,13 @@ qemuBlockStorageSourceChainDetachPrepareBlockdev(virStorageSource *src)
             return NULL;
 
         VIR_APPEND_ELEMENT(data->srcdata, data->nsrcdata, backend);
+
+        if (n->dataFileStore) {
+            if (!(backend = qemuBlockStorageSourceDetachPrepare(n->dataFileStore)))
+                return NULL;
+
+            VIR_APPEND_ELEMENT(data->srcdata, data->nsrcdata, backend);
+        }
     }
 
     return g_steal_pointer(&data);
@@ -2589,6 +2603,12 @@ qemuBlockStorageSourceCreateFormat(virDomainObj *vm,
     if (qemuBlockStorageSourceIsRaw(src))
         return 0;
 
+    if (src->dataFileStore) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("creation of storage images with <dataStore> feature is not supported"));
+        return -1;
+    }
+
     if (qemuBlockStorageSourceCreateGetFormatProps(src, backingStore,
                                                    &createformatprops) < 0)
         return -1;
@@ -3152,53 +3172,56 @@ qemuBlockReopenAccess(virDomainObj *vm,
     g_autoptr(virJSONValue) reopenoptions = virJSONValueNewArray();
     g_autoptr(virJSONValue) srcprops = NULL;
     int rc;
-    int ret = -1;
+
+    VIR_DEBUG("nodename:'%s' current-ro:'%d requested-ro='%d'",
+              qemuBlockStorageSourceGetEffectiveNodename(src),
+              src->readonly, readonly);
 
     if (src->readonly == readonly)
         return 0;
 
     /* If we are lacking the object here, qemu might have opened an image with
      * a node name unknown to us */
-    if (!src->backingStore) {
+    if (src->format >= VIR_STORAGE_FILE_BACKING && !src->backingStore) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("can't reopen image with unknown presence of backing store"));
         return -1;
     }
 
     src->readonly = readonly;
-    /* from now on all error paths must use 'goto cleanup' */
+    /* from now on all error paths must use 'goto error' which restores the original state */
 
     /* based on which is the current 'effecitve' layer we must reopen the
      * appropriate blockdev */
     if (qemuBlockStorageSourceGetFormatNodename(src)) {
         if (!(srcprops = qemuBlockStorageSourceGetFormatProps(src, src->backingStore)))
-            return -1;
+            goto error;
     } else if (qemuBlockStorageSourceGetSliceNodename(src)) {
         if (!(srcprops = qemuBlockStorageSourceGetBlockdevStorageSliceProps(src, true, false)))
-            return -1;
+            goto error;
     } else {
         if (!(srcprops = qemuBlockStorageSourceGetBackendProps(src,
                                                                QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_EFFECTIVE_NODE)))
-            return -1;
+            goto error;
     }
 
     if (virJSONValueArrayAppend(reopenoptions, &srcprops) < 0)
-        return -1;
+        goto error;
 
     if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
-        goto cleanup;
+        goto error;
 
     rc = qemuMonitorBlockdevReopen(qemuDomainGetMonitor(vm), &reopenoptions);
 
     qemuDomainObjExitMonitor(vm);
     if (rc < 0)
-        goto cleanup;
+        goto error;
 
-    ret = 0;
+    return 0;
 
- cleanup:
+ error:
     src->readonly = !readonly;
-    return ret;
+    return -1;
 }
 
 
@@ -3673,6 +3696,15 @@ qemuBlockCommit(virDomainObj *vm,
                                            false, false, false) < 0)
         goto cleanup;
 
+    if (baseSource->dataFileStore) {
+        if (qemuDomainStorageSourceAccessAllow(driver, vm, baseSource->dataFileStore,
+                                               false, false, false) < 0)
+            goto cleanup;
+
+        if (qemuBlockReopenReadWrite(vm, baseSource->dataFileStore, asyncJob) < 0)
+            goto cleanup;
+    }
+
     if (top_parent && top_parent != disk->src) {
         /* While top_parent is topmost image, we don't need to remember its
          * owner as it will be overwritten upon finishing the commit. Hence,
@@ -3680,6 +3712,15 @@ qemuBlockCommit(virDomainObj *vm,
         if (qemuDomainStorageSourceAccessAllow(driver, vm, top_parent,
                                                false, false, false) < 0)
             goto cleanup;
+
+        if (top_parent->dataFileStore) {
+            if (qemuDomainStorageSourceAccessAllow(driver, vm, top_parent->dataFileStore,
+                                                   false, false, false) < 0)
+                goto cleanup;
+
+            if (qemuBlockReopenReadWrite(vm, top_parent->dataFileStore, asyncJob) < 0)
+                goto cleanup;
+        }
     }
 
     if (!(job = qemuBlockJobDiskNewCommit(vm, disk, top_parent, topSource,
@@ -3725,12 +3766,25 @@ qemuBlockCommit(virDomainObj *vm,
     if (rc < 0 && clean_access) {
         virErrorPtr orig_err;
         virErrorPreserveLast(&orig_err);
+
         /* Revert access to read-only, if possible.  */
+        if (baseSource->dataFileStore) {
+            qemuDomainStorageSourceAccessAllow(driver, vm, baseSource->dataFileStore,
+                                               true, false, false);
+            qemuBlockReopenReadOnly(vm, baseSource->dataFileStore, asyncJob);
+        }
         qemuDomainStorageSourceAccessAllow(driver, vm, baseSource,
                                            true, false, false);
-        if (top_parent && top_parent != disk->src)
+        if (top_parent && top_parent != disk->src) {
+            if (top_parent->dataFileStore) {
+                qemuDomainStorageSourceAccessAllow(driver, vm, top_parent->dataFileStore,
+                                                   true, false, false);
+
+                qemuBlockReopenReadWrite(vm, top_parent->dataFileStore, asyncJob);
+            }
             qemuDomainStorageSourceAccessAllow(driver, vm, top_parent,
                                                true, false, false);
+        }
 
         virErrorRestore(&orig_err);
     }
@@ -3777,6 +3831,7 @@ qemuBlockPivot(virDomainObj *vm,
     case QEMU_BLOCKJOB_TYPE_CREATE:
     case QEMU_BLOCKJOB_TYPE_SNAPSHOT_SAVE:
     case QEMU_BLOCKJOB_TYPE_SNAPSHOT_DELETE:
+    case QEMU_BLOCKJOB_TYPE_SNAPSHOT_LOAD:
     case QEMU_BLOCKJOB_TYPE_BROKEN:
         virReportError(VIR_ERR_OPERATION_INVALID,
                        _("job type '%1$s' does not support pivot"),

@@ -82,8 +82,15 @@ testVirNetDevBandwidthSet(const void *data)
         if (virNetDevOpenvswitchInterfaceSetQos(iface, band, info->uuid, true) < 0)
             return -1;
     } else {
+        unsigned int flags = VIR_NETDEV_BANDWIDTH_SET_DIR_SWAPPED |
+                             VIR_NETDEV_BANDWIDTH_SET_CLEAR_ALL;
+
+        if (info->hierarchical_class)
+            flags |= VIR_NETDEV_BANDWIDTH_SET_HIERARCHICAL_CLASS;
+
         exp_cmd = info->exp_cmd_tc;
-        if (virNetDevBandwidthSet(iface, band, info->hierarchical_class, true) < 0)
+
+        if (virNetDevBandwidthSet(iface, band, flags) < 0)
             return -1;
     }
 
@@ -140,6 +147,7 @@ mymain(void)
                 "</bandwidth>",
                 TC " qdisc del dev eth0 root\n"
                 TC " qdisc del dev eth0 ingress\n"
+                TC " qdisc show dev eth0 handle 1:\n"
                 TC " qdisc add dev eth0 root handle 1: htb default 1\n"
                 TC " class add dev eth0 parent 1: classid 1:1 htb rate 1024kbps quantum 87\n"
                 TC " qdisc add dev eth0 parent 1:1 handle 2: sfq perturb 10\n"
@@ -170,6 +178,7 @@ mymain(void)
                 "</bandwidth>",
                 TC " qdisc del dev eth0 root\n"
                 TC " qdisc del dev eth0 ingress\n"
+                TC " qdisc show dev eth0 handle 1:\n"
                 TC " qdisc add dev eth0 root handle 1: htb default 1\n"
                 TC " class add dev eth0 parent 1: classid 1:1 htb rate 1kbps ceil 2kbps burst 4kb quantum 1\n"
                 TC " qdisc add dev eth0 parent 1:1 handle 2: sfq perturb 10\n"
@@ -192,6 +201,7 @@ mymain(void)
                 "</bandwidth>",
                 TC " qdisc del dev eth0 root\n"
                 TC " qdisc del dev eth0 ingress\n"
+                TC " qdisc show dev eth0 handle 1:\n"
                 TC " qdisc add dev eth0 root handle 1: htb default 1\n"
                 TC " class add dev eth0 parent 1: classid 1:1 htb rate 4294967295kbps quantum 366503875\n"
                 TC " qdisc add dev eth0 parent 1:1 handle 2: sfq perturb 10\n"

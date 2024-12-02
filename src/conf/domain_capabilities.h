@@ -189,6 +189,7 @@ struct _virDomainCapsCPUModel {
     char **blockers; /* NULL-terminated list of usability blockers */
     bool deprecated;
     char *vendor;
+    char *canonical;
 };
 
 typedef struct _virDomainCapsCPUModels virDomainCapsCPUModels;
@@ -257,6 +258,13 @@ struct _virDomainCapsDeviceNet {
     virDomainCapsEnum backendType; /* virDomainNetBackendType */
 };
 
+STATIC_ASSERT_ENUM(VIR_DOMAIN_PANIC_MODEL_LAST);
+typedef struct _virDomainCapsDevicePanic virDomainCapsDevicePanic;
+struct _virDomainCapsDevicePanic {
+    virTristateBool supported;
+    virDomainCapsEnum model;   /* virDomainPanicModel */
+};
+
 typedef enum {
     VIR_DOMAIN_CAPS_FEATURE_IOTHREADS = 0,
     VIR_DOMAIN_CAPS_FEATURE_VMCOREINFO,
@@ -295,6 +303,7 @@ struct _virDomainCaps {
     virDomainCapsDeviceChannel channel;
     virDomainCapsDeviceCrypto crypto;
     virDomainCapsDeviceNet net;
+    virDomainCapsDevicePanic panic;
     /* add new domain devices here */
 
     virDomainCapsFeatureGIC gic;
@@ -323,7 +332,8 @@ virDomainCapsCPUModelsAdd(virDomainCapsCPUModels *cpuModels,
                           virDomainCapsCPUUsable usable,
                           char **blockers,
                           bool deprecated,
-                          const char *vendor);
+                          const char *vendor,
+                          const char *canonical);
 virDomainCapsCPUModel *
 virDomainCapsCPUModelsGet(virDomainCapsCPUModels *cpuModels,
                           const char *name);

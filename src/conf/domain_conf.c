@@ -1322,12 +1322,26 @@ VIR_ENUM_IMPL(virDomainTPMVersion,
               "2.0",
 );
 
+VIR_ENUM_IMPL(virDomainTPMSourceType,
+              VIR_DOMAIN_TPM_SOURCE_TYPE_LAST,
+              "default",
+              "file",
+              "dir",
+);
+
 VIR_ENUM_IMPL(virDomainTPMPcrBank,
               VIR_DOMAIN_TPM_PCR_BANK_LAST,
               "sha1",
               "sha256",
               "sha384",
               "sha512",
+);
+
+VIR_ENUM_IMPL(virDomainTPMProfileRemoveDisabled,
+              VIR_DOMAIN_TPM_PROFILE_REMOVE_DISABLED_LAST,
+              "none",
+              "check",
+              "fips-host",
 );
 
 VIR_ENUM_IMPL(virDomainIOMMUModel,
@@ -3461,9 +3475,11 @@ void virDomainTPMDefFree(virDomainTPMDef *def)
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
         virObjectUnref(def->data.emulator.source);
-        g_free(def->data.emulator.storagepath);
+        g_free(def->data.emulator.source_path);
         g_free(def->data.emulator.logfile);
         virBitmapFree(def->data.emulator.activePcrBanks);
+        g_free(def->data.emulator.profile.source);
+        g_free(def->data.emulator.profile.name);
         break;
     case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
         virObjectUnref(def->data.external.source);
@@ -7545,6 +7561,53 @@ virDomainStorageSourceParseSlices(virStorageSource *src,
 }
 
 
+static int
+virDomainDiskDataStoreParse(xmlXPathContextPtr ctxt,
+                            virStorageSource *src,
+                            unsigned int flags,
+                            virDomainXMLOption *xmlopt)
+{
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
+    xmlNodePtr source;
+    g_autofree char *type = NULL;
+    g_autofree char *format = NULL;
+    g_autofree char *idx = NULL;
+    g_autoptr(virStorageSource) dataFileStore = NULL;
+
+    if (!(ctxt->node = virXPathNode("./dataStore", ctxt)))
+        return 0;
+
+    if (!(type = virXMLPropStringRequired(ctxt->node, "type")))
+        return -1;
+
+    if (!(format = virXPathString("string(./format/@type)", ctxt))) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing data file store format"));
+        return -1;
+    }
+
+    if (!(source = virXPathNode("./source", ctxt))) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing disk data file store source"));
+        return -1;
+    }
+
+    if (!(flags & VIR_DOMAIN_DEF_PARSE_INACTIVE))
+        idx = virXMLPropString(source, "index");
+
+    if (!(dataFileStore = virDomainStorageSourceParseBase(type, format, idx)))
+        return -1;
+
+    if (virDomainStorageSourceParse(source, ctxt, dataFileStore, flags, xmlopt) < 0)
+        return -1;
+
+    dataFileStore->readonly = src->readonly;
+    src->dataFileStore = g_steal_pointer(&dataFileStore);
+
+    return 0;
+}
+
+
 /**
  * virDomainStorageSourceParse:
  * @node: XML node pointing to the source element to parse
@@ -7635,6 +7698,9 @@ virDomainStorageSourceParse(xmlNodePtr node,
                                           ctxt, flags) < 0)
         return -1;
 
+    if (virDomainDiskDataStoreParse(ctxt, src, flags, xmlopt) < 0)
+        return -1;
+
     /* People sometimes pass a bogus '' source path when they mean to omit the
      * source element completely (e.g. CDROM without media). This is just a
      * little compatibility check to help those broken apps */
@@ -7704,6 +7770,7 @@ virDomainDiskBackingStoreParse(xmlXPathContextPtr ctxt,
     backingStore->readonly = true;
 
     if (virDomainStorageSourceParse(source, ctxt, backingStore, flags, xmlopt) < 0 ||
+        virDomainDiskDataStoreParse(ctxt, backingStore, flags, xmlopt) < 0 ||
         virDomainDiskBackingStoreParse(ctxt, backingStore, flags, xmlopt) < 0)
         return -1;
 
@@ -10772,6 +10839,15 @@ virDomainSmartcardDefParseXML(virDomainXMLOption *xmlopt,
  * <tpm model='tpm-tis'>
  *   <backend type='emulator' version='2.0' persistent_state='yes'>
  * </tpm>
+ *
+ * A profile for a TPM 2.0 can be added like this:
+ *
+ * <tpm model='tpm-crb'>
+ *   <backend type='emulator' version='2.0'>
+ *     <profile source='local:restricted' removeDisabled='check'/>
+ *   </backend>
+ * </tpm>
+ *
  */
 static virDomainTPMDef *
 virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
@@ -10784,12 +10860,14 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
     int nbackends;
     int nnodes;
     size_t i;
+    xmlNodePtr source_node = NULL;
     g_autofree char *path = NULL;
     g_autofree char *secretuuid = NULL;
     g_autofree char *persistent_state = NULL;
     g_autofree xmlNodePtr *backends = NULL;
     g_autofree xmlNodePtr *nodes = NULL;
     g_autofree char *type = NULL;
+    xmlNodePtr profile;
     int bank;
 
     if (!(def = virDomainTPMDefNew(xmlopt)))
@@ -10857,6 +10935,22 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
             def->data.emulator.hassecretuuid = true;
         }
 
+        source_node = virXPathNode("./backend/source", ctxt);
+        if (source_node) {
+            if (virXMLPropEnum(source_node, "type",
+                               virDomainTPMSourceTypeTypeFromString,
+                               VIR_XML_PROP_NONZERO,
+                               &def->data.emulator.source_type) < 0)
+                goto error;
+            path = virXMLPropString(source_node, "path");
+            if (!path) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                               _("missing TPM source path"));
+                goto error;
+            }
+            def->data.emulator.source_path = g_steal_pointer(&path);
+        }
+
         persistent_state = virXMLPropString(backends[0], "persistent_state");
         if (persistent_state) {
             if (virStringParseYesNo(persistent_state,
@@ -10879,6 +10973,16 @@ virDomainTPMDefParseXML(virDomainXMLOption *xmlopt,
                 goto error;
             }
             virBitmapSetBitExpand(def->data.emulator.activePcrBanks, bank);
+        }
+
+        if ((profile = virXPathNode("./backend/profile[1]", ctxt))) {
+            def->data.emulator.profile.source = virXMLPropString(profile, "source");
+            def->data.emulator.profile.name = virXMLPropString(profile, "name");
+            if (virXMLPropEnum(profile, "removeDisabled",
+                               virDomainTPMProfileRemoveDisabledTypeFromString,
+                               VIR_XML_PROP_NONZERO,
+                               &def->data.emulator.profile.removeDisabled) < 0)
+                goto error;
         }
         break;
     case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
@@ -17124,20 +17228,37 @@ virDomainLoaderDefParseXMLNvram(virDomainLoaderDef *loader,
 
     loader->nvramTemplate = virXMLPropString(nvramNode, "template");
 
+    if (virXMLPropEnumDefault(nvramNode, "templateFormat",
+                              virStorageFileFormatTypeFromString, VIR_XML_PROP_NONE,
+                              &format, VIR_STORAGE_FILE_NONE) < 0) {
+        return -1;
+    }
+    loader->nvramTemplateFormat = format;
+
+    if (loader->nvramTemplateFormat != VIR_STORAGE_FILE_NONE &&
+        loader->nvramTemplateFormat != VIR_STORAGE_FILE_RAW &&
+        loader->nvramTemplateFormat != VIR_STORAGE_FILE_QCOW2) {
+        virReportError(VIR_ERR_XML_ERROR,
+                       _("Unsupported nvram template format '%1$s'"),
+                       virStorageFileFormatTypeToString(loader->nvramTemplateFormat));
+        return -1;
+    }
+
     if (virXMLPropEnumDefault(nvramNode, "format",
                               virStorageFileFormatTypeFromString, VIR_XML_PROP_NONE,
                               &format, VIR_STORAGE_FILE_NONE) < 0) {
         return -1;
     }
-    if (format &&
-        format != VIR_STORAGE_FILE_RAW &&
-        format != VIR_STORAGE_FILE_QCOW2) {
+    src->format = format;
+
+    if (src->format != VIR_STORAGE_FILE_NONE &&
+        src->format != VIR_STORAGE_FILE_RAW &&
+        src->format != VIR_STORAGE_FILE_QCOW2) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Unsupported nvram format '%1$s'"),
-                       virStorageFileFormatTypeToString(format));
+                       virStorageFileFormatTypeToString(src->format));
         return -1;
     }
-    src->format = format;
 
     if ((typePresent = virXMLPropEnum(nvramNode, "type",
                                       virStorageTypeFromString, VIR_XML_PROP_NONE,
@@ -17219,15 +17340,17 @@ virDomainLoaderDefParseXMLLoader(virDomainLoaderDef *loader,
                               &format, VIR_STORAGE_FILE_NONE) < 0) {
         return -1;
     }
-    if (format &&
-        format != VIR_STORAGE_FILE_RAW &&
-        format != VIR_STORAGE_FILE_QCOW2) {
+
+    loader->format = format;
+
+    if (loader->format != VIR_STORAGE_FILE_NONE &&
+        loader->format != VIR_STORAGE_FILE_RAW &&
+        loader->format != VIR_STORAGE_FILE_QCOW2) {
         virReportError(VIR_ERR_XML_ERROR,
                        _("Unsupported loader format '%1$s'"),
-                       virStorageFileFormatTypeToString(format));
+                       virStorageFileFormatTypeToString(loader->format));
         return -1;
     }
-    loader->format = format;
 
     return 0;
 }
@@ -17250,16 +17373,6 @@ virDomainLoaderDefParseXML(virDomainLoaderDef *loader,
     if (virDomainLoaderDefParseXMLLoader(loader,
                                          loaderNode) < 0)
         return -1;
-
-    if (loader->nvram &&
-        loader->format && loader->nvram->format &&
-        loader->format != loader->nvram->format) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("Format mismatch: loader.format='%1$s' nvram.format='%2$s'"),
-                       virStorageFileFormatTypeToString(loader->format),
-                       virStorageFileFormatTypeToString(loader->nvram->format));
-        return -1;
-    }
 
     return 0;
 }
@@ -22700,6 +22813,39 @@ virDomainDiskSourceFormatSlices(virBuffer *buf,
 }
 
 
+static int
+virDomainDiskDataStoreFormat(virBuffer *buf,
+                             virStorageSource *src,
+                             virDomainXMLOption *xmlopt,
+                             unsigned int flags)
+{
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) formatAttrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    bool inactive = flags & VIR_DOMAIN_DEF_FORMAT_INACTIVE;
+
+    if (!src->dataFileStore)
+        return 0;
+
+    /* don't write detected data file member to inactive xml */
+    if (inactive && src->dataFileStore->detected)
+        return 0;
+
+    virBufferAsprintf(&attrBuf, " type='%s'",
+                      virStorageTypeToString(src->dataFileStore->type));
+
+    virBufferAsprintf(&formatAttrBuf, " type='%s'", "raw");
+    virXMLFormatElement(&childBuf, "format", &formatAttrBuf, NULL);
+
+    if (virDomainDiskSourceFormat(&childBuf, src->dataFileStore, "source", 0,
+                                  true, flags, false, false, xmlopt) < 0)
+        return -1;
+
+    virXMLFormatElement(buf, "dataStore", &attrBuf, &childBuf);
+    return 0;
+}
+
+
 /**
  * virDomainDiskSourceFormat:
  * @buf: output buffer
@@ -22814,6 +22960,9 @@ virDomainDiskSourceFormat(virBuffer *buf,
 
     if (attrIndex && src->id != 0)
         virBufferAsprintf(&attrBuf, " index='%u'", src->id);
+
+    if (virDomainDiskDataStoreFormat(&childBuf, src, xmlopt, flags) < 0)
+        return -1;
 
     if (virDomainDiskSourceFormatPrivateData(&childBuf, src, flags, xmlopt) < 0)
         return -1;
@@ -25070,6 +25219,30 @@ virDomainTPMDefFormat(virBuffer *buf,
 
             virXMLFormatElement(&backendChildBuf, "active_pcr_banks", NULL, &activePcrBanksBuf);
         }
+        if (def->data.emulator.source_type != VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT) {
+            virBufferAsprintf(&backendChildBuf, "<source type='%s'",
+                              virDomainTPMSourceTypeTypeToString(def->data.emulator.source_type));
+            virBufferEscapeString(&backendChildBuf, " path='%s'/>\n", def->data.emulator.source_path);
+        }
+        if (def->data.emulator.profile.source ||
+            def->data.emulator.profile.name) {
+            g_auto(virBuffer) profileAttrBuf = VIR_BUFFER_INITIALIZER;
+
+            if (def->data.emulator.profile.source) {
+                virBufferAsprintf(&profileAttrBuf, " source='%s'",
+                                  def->data.emulator.profile.source);
+            }
+            if (def->data.emulator.profile.removeDisabled) {
+               virBufferAsprintf(&profileAttrBuf, " removeDisabled='%s'",
+                                 virDomainTPMProfileRemoveDisabledTypeToString(def->data.emulator.profile.removeDisabled));
+            }
+
+            if (def->data.emulator.profile.name) {
+                virBufferAsprintf(&profileAttrBuf, " name='%s'",
+                                  def->data.emulator.profile.name);
+            }
+            virXMLFormatElement(&backendChildBuf, "profile", &profileAttrBuf, NULL);
+        }
         break;
     case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
         if (def->data.external.source->type == VIR_DOMAIN_CHR_TYPE_UNIX) {
@@ -26793,6 +26966,11 @@ virDomainLoaderDefFormatNvram(virBuffer *buf,
 
     virBufferEscapeString(&attrBuf, " template='%s'", loader->nvramTemplate);
 
+    if (loader->nvramTemplateFormat > VIR_STORAGE_FILE_NONE) {
+        virBufferAsprintf(&attrBuf, " templateFormat='%s'",
+                          virStorageFileFormatTypeToString(loader->nvramTemplateFormat));
+    }
+
     if (loader->nvram) {
         virStorageSource *src = loader->nvram;
 
@@ -26809,8 +26987,7 @@ virDomainLoaderDefFormatNvram(virBuffer *buf,
                 return -1;
         }
 
-        if (src->format &&
-            src->format != VIR_STORAGE_FILE_RAW) {
+        if (src->format != VIR_STORAGE_FILE_NONE) {
             virBufferEscapeString(&attrBuf, " format='%s'",
                                   virStorageFileFormatTypeToString(src->format));
         }
@@ -26848,9 +27025,8 @@ virDomainLoaderDefFormat(virBuffer *buf,
                           virTristateBoolTypeToString(loader->stateless));
     }
 
-    if (loader->format &&
-        loader->format != VIR_STORAGE_FILE_RAW) {
-        virBufferEscapeString(&loaderAttrBuf, " format='%s'",
+    if (loader->format > VIR_STORAGE_FILE_NONE) {
+        virBufferAsprintf(&loaderAttrBuf, " format='%s'",
                               virStorageFileFormatTypeToString(loader->format));
     }
 

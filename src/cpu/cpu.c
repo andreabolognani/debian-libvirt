@@ -201,11 +201,13 @@ virCPUCompareUnusable(virArch arch,
     char **blocker;
     size_t i;
 
-    for (blocker = blockers; *blocker; blocker++) {
-        if (!(feat = virCPUDefFindFeature(cpu, *blocker)) ||
-            feat->policy != VIR_CPU_FEATURE_DISABLE) {
-            virBufferAddStr(&features, *blocker);
-            virBufferAddLit(&features, ", ");
+    if (blockers) {
+        for (blocker = blockers; *blocker; blocker++) {
+            if (!(feat = virCPUDefFindFeature(cpu, *blocker)) ||
+                feat->policy != VIR_CPU_FEATURE_DISABLE) {
+                virBufferAddStr(&features, *blocker);
+                virBufferAddLit(&features, ", ");
+            }
         }
     }
 
@@ -1342,6 +1344,31 @@ virCPUGetCheckMode(virArch arch,
     }
 
     return driver->getCheckMode(cpu->model, compat);
+}
+
+
+/** virCPUGetCanonicalModel:
+ *
+ * @arch: CPU architecture
+ * @model: CPU model to be checked
+ *
+ * Returns @model's canonical name if @model is an alias or NULL otherwise.
+ */
+const char *
+virCPUGetCanonicalModel(virArch arch,
+                        const char *model)
+{
+    struct cpuArchDriver *driver;
+
+    VIR_DEBUG("arch=%s model=%s", virArchToString(arch), model);
+
+    if (!(driver = cpuGetSubDriver(arch)))
+        return NULL;
+
+    if (!driver->getCanonicalModel)
+        return NULL;
+
+    return driver->getCanonicalModel(model);
 }
 
 

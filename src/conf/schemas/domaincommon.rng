@@ -348,6 +348,11 @@
                 <attribute name="template">
                   <ref name="absFilePath"/>
                 </attribute>
+                <optional>
+                  <attribute name="templateFormat">
+                    <ref name="pflashFormatTypes"/>
+                  </attribute>
+                </optional>
               </optional>
               <optional>
                 <ref name="pflashFormat"/>
@@ -1852,6 +1857,15 @@
         </element>
       </element>
     </optional>
+    <optional>
+      <element name="dataStore">
+        <interleave>
+          <ref name="diskFormat"/>
+          <ref name="diskSource"/>
+        </interleave>
+      </element>
+    </optional>
+
     <ref name="privateDataStorageSource"/>
   </define>
 
@@ -1996,18 +2010,20 @@
   </define>
 
   <define name="diskSourceNetworkNFS">
-    <element name="identity">
-      <optional>
-        <attribute name="user">
-          <ref name="genericName"/>
-        </attribute>
-      </optional>
-      <optional>
-        <attribute name="group">
-          <ref name="genericName"/>
-        </attribute>
-      </optional>
-    </element>
+    <optional>
+      <element name="identity">
+        <optional>
+          <attribute name="user">
+            <ref name="genericName"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="group">
+            <ref name="genericName"/>
+          </attribute>
+        </optional>
+      </element>
+    </optional>
   </define>
 
   <define name="diskSourceNetworkProtocolRBD">
@@ -5923,6 +5939,8 @@
           <interleave>
             <ref name="tpm-backend-emulator-encryption"/>
             <ref name="tpm-backend-emulator-active-pcr-banks"/>
+            <ref name="tpm-backend-emulator-source"/>
+            <ref name="tpm-backend-emulator-profile"/>
           </interleave>
           <optional>
             <attribute name="persistent_state">
@@ -5981,6 +5999,31 @@
     </optional>
   </define>
 
+  <define name="tpm-backend-emulator-source">
+    <optional>
+      <element name="source">
+        <choice>
+          <group>
+            <attribute name="type">
+              <value>file</value>
+            </attribute>
+            <attribute name="path">
+              <ref name="absFilePath"/>
+            </attribute>
+          </group>
+          <group>
+            <attribute name="type">
+              <value>dir</value>
+            </attribute>
+            <attribute name="path">
+              <ref name="absDirPath"/>
+            </attribute>
+          </group>
+        </choice>
+      </element>
+    </optional>
+  </define>
+
   <define name="tpm-backend-emulator-encryption">
     <optional>
       <element name="encryption">
@@ -6016,6 +6059,37 @@
             </element>
           </optional>
         </interleave>
+      </element>
+    </optional>
+  </define>
+
+  <define name="profileName">
+    <data type="string">
+      <param name="pattern">[A-Za-z0-9.\-:]+</param>
+    </data>
+  </define>
+
+  <define name="tpm-backend-emulator-profile">
+    <optional>
+      <element name="profile">
+        <optional>
+          <attribute name="source">
+            <ref name="profileName"/>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="removeDisabled">
+            <choice>
+              <value>check</value>
+              <value>fips-host</value>
+            </choice>
+          </attribute>
+        </optional>
+        <optional>
+          <attribute name="name">
+            <ref name="profileName"/>
+          </attribute>
+        </optional>
       </element>
     </optional>
   </define>
@@ -7857,12 +7931,16 @@
     </element>
   </define>
 
+  <define name="pflashFormatTypes">
+    <choice>
+      <value>raw</value>
+      <value>qcow2</value>
+    </choice>
+  </define>
+
   <define name="pflashFormat">
     <attribute name="format">
-      <choice>
-        <value>raw</value>
-        <value>qcow2</value>
-      </choice>
+      <ref name="pflashFormatTypes"/>
     </attribute>
   </define>
 
