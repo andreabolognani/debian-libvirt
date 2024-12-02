@@ -1,3 +1,9 @@
+libvirt (10.10.0-1) UNRELEASED; urgency=medium
+
+  * [24c4515] New upstream version 10.10.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 02 Dec 2024 23:32:32 +0100
+
 libvirt (10.9.0-2) experimental; urgency=medium
 
   * [49e8455] patches: Drop forward/Reduce-udevadm-settle-timeout-[...]
