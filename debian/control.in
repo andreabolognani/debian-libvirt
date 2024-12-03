@@ -1009,6 +1009,26 @@ Description: nss plugins providing IP address resolution for virtual machines
  managed virtual machines: the 'libvirt_guest' plugin uses libvirt's domain
  names while the 'libvirt' plugin looks at the guest's hostname.
 
+Package: libvirt-ssh-proxy
+Section: admin
+Architecture: linux-any
+Multi-Arch: no
+Depends:
+ libvirt-common (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: ssh proxy for connecting to virtual machines via VSOCK
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ When this package is installed, ssh will be able to connect to locally
+ running libvirt domains via VSOCK.
+ .
+ See https://libvirt.org/ssh-proxy.html for information.
+
 Package: libvirt-wireshark
 Section: admin
 Architecture: linux-any
