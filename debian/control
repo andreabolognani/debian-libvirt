@@ -612,10 +612,10 @@ Architecture: linux-any
 Multi-arch: no
 Depends:
  dnsmasq-base,
- iptables,
  libvirt-common (= ${binary:Version}),
  libvirt-daemon (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
+ nftables | iptables,
  ${misc:Depends},
  ${shlibs:Depends},
 Breaks:

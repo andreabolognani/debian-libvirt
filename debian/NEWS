@@ -1,3 +1,27 @@
+libvirt (10.10.0-2) experimental; urgency=medium
+
+  nftables is now used by default in the network driver.
+
+  This makes it finally possible to use libvirt without having
+  iptables installed on the system, but there are still a couple
+  of caveats:
+
+    * the nwfilter driver hasn't been converted to nftables yet,
+      so if that's installed iptables will be dragged in;
+
+    * the libvirt-daemon-system package, now a convenient way to
+      quickly bring up a reasonably featured QEMU-based hypervisor,
+      depends on both the network and nwfilter drivers, which means
+      that going that route will cause iptables to be installed and
+      used for both.
+
+  If not having iptables present on the system is a hard
+  requirement, individual libvirt components (obviously excluding
+  the nwfilter driver) will have to be selected and installed
+  manually.
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 05 Dec 2024 23:38:13 +0100
+
 libvirt (10.6.0-2) experimental; urgency=medium
 
   The package has been reworked significantly.
