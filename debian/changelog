@@ -1,3 +1,15 @@
+libvirt (10.10.0-2) experimental; urgency=medium
+
+  [ Carles Pina i Estany ]
+  * [571578c] debconf: Add Catalan translation
+
+  [ Andrea Bolognani ]
+  * [4a7c66d] control: Prefer nftables for the network driver
+    - Closes: #938929
+  * [065cbe9] control: Introduce ssh-proxy package
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 05 Dec 2024 23:39:07 +0100
+
 libvirt (10.10.0-1) unstable; urgency=medium
 
   * [24c4515] New upstream version 10.10.0
