@@ -1,3 +1,15 @@
+libvirt (10.10.0-3) unstable; urgency=medium
+
+  [ Heinrich Schuchardt ]
+  * [7e373ad] virt-aa-helper: allow riscv64 EDK II
+
+  [ Andrea Bolognani ]
+  * [117e0da] patches: Add backport/qemu-tpm-do-not-update-[...]
+    - Fixes daemon crash when transient domains with TPM are defined
+    - Closes: #1089616
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 13 Dec 2024 22:27:38 +0100
+
 libvirt (10.10.0-2) experimental; urgency=medium
 
   [ Carles Pina i Estany ]
