@@ -55,6 +55,8 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
     WITH_SYSCTL               = -Dsysctl_config=enabled -Duserfaultfd_sysctl=enabled
     WITH_WIRESHARK            = -Dwireshark_dissector=enabled
+    WITH_LXC                  = -Ddriver_lxc=enabled
+    WITH_LOGIN_SHELL          = -Dlogin_shell=enabled
 else
     WITH_DAEMONS              = -Ddriver_libvirtd=disabled -Dhost_validate=disabled -Dssh_proxy=disabled
     WITH_ESX                  = -Ddriver_esx=disabled -Dcurl=disabled
@@ -92,6 +94,8 @@ else
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
     WITH_SYSCTL               = -Dsysctl_config=disabled -Duserfaultfd_sysctl=disabled
     WITH_WIRESHARK            = -Dwireshark_dissector=disabled
+    WITH_LXC                  = -Ddriver_lxc=disabled
+    WITH_LOGIN_SHELL          = -Dlogin_shell=disabled
 endif
 
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_CEPH)))
@@ -108,13 +112,6 @@ ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
     WITH_QEMU                 = -Ddriver_qemu=enabled
 else
     WITH_QEMU                 = -Ddriver_qemu=disabled
-endif
-ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_LXC)))
-    WITH_LXC                  = -Ddriver_lxc=enabled
-    WITH_LOGIN_SHELL          = -Dlogin_shell=enabled
-else
-    WITH_LXC                  = -Ddriver_lxc=disabled
-    WITH_LOGIN_SHELL          = -Dlogin_shell=disabled
 endif
 ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
     WITH_LIBXL                = -Ddriver_libxl=enabled

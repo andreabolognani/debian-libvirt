@@ -78,7 +78,7 @@ Depends:
 Suggests:
  libvirt-clients-qemu (= ${source:Version}) [${ARCHES_QEMU}],
  libvirt-daemon (= ${binary:Version}) [linux-any],
- libvirt-login-shell (= ${binary:Version}) [${ARCHES_LXC}],
+ libvirt-login-shell (= ${binary:Version}) [linux-any],
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
@@ -115,7 +115,7 @@ Description: Programs for the libvirt library (QEMU specific)
 
 Package: libvirt-login-shell
 Section: admin
-Architecture: ${ARCHES_LXC}
+Architecture: linux-any
 Depends:
  libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
@@ -149,7 +149,7 @@ Depends:
  ${shlibs:Depends},
 Recommends:
  libvirt-daemon-driver-interface (= ${binary:Version}),
- libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt-daemon-driver-nodedev (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
@@ -312,7 +312,7 @@ Description: Virtualization daemon QEMU connection driver
 
 Package: libvirt-daemon-driver-lxc
 Section: admin
-Architecture: ${ARCHES_LXC}
+Architecture: linux-any
 Multi-Arch: no
 Depends:
  libvirt-common (= ${binary:Version}),
@@ -792,7 +792,7 @@ Depends:
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
 Recommends:
- libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
  libvirt-daemon-lock (= ${binary:Version}),
 Description: Virtualization daemon typical deployment
