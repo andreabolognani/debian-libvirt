@@ -1,3 +1,29 @@
+libvirt (10.10.0-4) unstable; urgency=medium
+
+  [ Pino Toscano ]
+  * [38ace20] Unconditionally enable LXC support on all Linux architectures
+    - Previously we had to explicitly avoid enabling it on ia64, but now that
+      the architecture has been dropped from Debian we can simplify things
+
+  [ Maximilian Engelhardt ]
+  * [c8f1b0f] Remove armhf from ARCHES_XEN
+    - As of 4.19.1-1, Xen is no longer being built on armhf
+    - Closes: #1090990
+
+  [ Andrea Bolognani ]
+  * [db8e6b7] patches: Add backport/lxc-remove-no-longer-working-netns-[...]
+    - Closes: #1088929
+  * [a0ba9b4] control: Once again prefer iptables for the network driver
+    - Undoes the change introduced in 10.10.0-2
+    - Unfortunately there are serious compatibility issues between the
+      nftables backend and popular software such as Docker and ufw, so it's
+      not a suitable default for Debian
+    - It's still possible for users to manually switch to the nftables
+      backend and uninstall iptables if they so desire
+    - Closes: #1090355
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 27 Dec 2024 15:33:23 +0100
+
 libvirt (10.10.0-3) unstable; urgency=medium
 
   [ Heinrich Schuchardt ]
