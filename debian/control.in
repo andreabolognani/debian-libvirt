@@ -6,10 +6,10 @@ Uploaders:
  Guido Günther <agx@sigxcpu.org>,
  Andrea Bolognani <eof@kiyuko.org>,
 Build-Depends:
- augeas-tools [linux-any],
- bash-completion,
  debhelper-compat (= 13),
  dh-apparmor [linux-any],
+ augeas-tools [linux-any],
+ bash-completion,
  kmod [linux-any],
  libacl1-dev [linux-any],
  libapparmor-dev (>= 3.0.0) [linux-any],
