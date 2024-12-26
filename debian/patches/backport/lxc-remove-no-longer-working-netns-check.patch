@@ -1,0 +1,112 @@
+From: Leigh Brown <leigh@solinno.co.uk>
+Date: Tue, 3 Dec 2024 16:02:08 +0000
+Subject: lxc: remove no longer working netns check
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Since iproute2 v6.12.0, the command "ip link set lo netns -1" can
+no longer be used to check for netns support, as it now validates
+PIDs are not less than zero.
+
+Since every kernel we care about has the support, just remove the
+check.
+
+Reviewed-by: Daniel P. Berrangé <berrange@redhat.com>
+Signed-off-by: Leigh Brown <leigh@solinno.co.uk>
+(cherry picked from commit dd217cd9382cb7d67b26c5b3b4be07e5ce88ef86)
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/dd217cd9382cb7d67b26c5b3b4be07e5ce88ef86
+---
+ src/lxc/lxc_conf.h   |  1 -
+ src/lxc/lxc_driver.c | 36 ------------------------------------
+ 2 files changed, 37 deletions(-)
+
+diff --git a/src/lxc/lxc_conf.h b/src/lxc/lxc_conf.h
+index c0967ac..a639e39 100644
+--- a/src/lxc/lxc_conf.h
++++ b/src/lxc/lxc_conf.h
+@@ -49,7 +49,6 @@ struct _virLXCDriverConfig {
+     char *stateDir;
+     char *logDir;
+     bool log_libvirtd;
+-    int have_netns;
+ 
+     char *securityDriverName;
+     bool securityDefaultConfined;
+diff --git a/src/lxc/lxc_driver.c b/src/lxc/lxc_driver.c
+index d682e71..2488940 100644
+--- a/src/lxc/lxc_driver.c
++++ b/src/lxc/lxc_driver.c
+@@ -422,12 +422,6 @@ lxcDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
+     if (virSecurityManagerVerify(driver->securityManager, def) < 0)
+         goto cleanup;
+ 
+-    if ((def->nets != NULL) && !(cfg->have_netns)) {
+-        virReportError(VIR_ERR_OPERATION_INVALID,
+-                       "%s", _("System lacks NETNS support"));
+-        goto cleanup;
+-    }
+-
+     if (!(vm = virDomainObjListAdd(driver->domains, &def,
+                                    driver->xmlopt,
+                                    0, &oldDef)))
+@@ -974,12 +968,6 @@ static int lxcDomainCreateWithFiles(virDomainPtr dom,
+     if (virDomainCreateWithFilesEnsureACL(dom->conn, vm->def) < 0)
+         goto cleanup;
+ 
+-    if ((vm->def->nets != NULL) && !(cfg->have_netns)) {
+-        virReportError(VIR_ERR_OPERATION_INVALID,
+-                       "%s", _("System lacks NETNS support"));
+-        goto cleanup;
+-    }
+-
+     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+         goto cleanup;
+ 
+@@ -1088,13 +1076,6 @@ lxcDomainCreateXMLWithFiles(virConnectPtr conn,
+     if (virSecurityManagerVerify(driver->securityManager, def) < 0)
+         goto cleanup;
+ 
+-    if ((def->nets != NULL) && !(cfg->have_netns)) {
+-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+-                       "%s", _("System lacks NETNS support"));
+-        goto cleanup;
+-    }
+-
+-
+     if (!(vm = virDomainObjListAdd(driver->domains, &def,
+                                    driver->xmlopt,
+                                    VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
+@@ -1386,22 +1367,6 @@ lxcDomainDestroy(virDomainPtr dom)
+     return lxcDomainDestroyFlags(dom, 0);
+ }
+ 
+-static int lxcCheckNetNsSupport(void)
+-{
+-    g_autoptr(virCommand) cmd = virCommandNewArgList("ip", "link", "set", "lo",
+-                                                     "netns", "-1", NULL);
+-    int ip_rc;
+-
+-    if (virCommandRun(cmd, &ip_rc) < 0 || ip_rc == 255)
+-        return 0;
+-
+-    if (virProcessNamespaceAvailable(VIR_PROCESS_NAMESPACE_NET) < 0)
+-        return 0;
+-
+-    return 1;
+-}
+-
+-
+ static virSecurityManager *
+ lxcSecurityInit(virLXCDriverConfig *cfg)
+ {
+@@ -1481,7 +1446,6 @@ lxcStateInitialize(bool privileged,
+         goto cleanup;
+ 
+     cfg->log_libvirtd = false; /* by default log to container logfile */
+-    cfg->have_netns = lxcCheckNetNsSupport();
+ 
+     /* Call function to load lxc driver configuration information */
+     if (virLXCLoadDriverConfig(cfg, SYSCONFDIR "/libvirt/lxc.conf") < 0)
