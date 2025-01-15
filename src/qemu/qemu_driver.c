@@ -573,9 +573,6 @@ qemuStateInitialize(bool privileged,
         return VIR_DRV_STATE_INIT_ERROR;
     }
 
-    qemu_driver->inhibitCallback = callback;
-    qemu_driver->inhibitOpaque = opaque;
-
     qemu_driver->privileged = privileged;
     qemu_driver->hostarch = virArchFromHost();
     if (root != NULL)
@@ -674,6 +671,14 @@ qemuStateInitialize(bool privileged,
                              cfg->dbusStateDir);
         goto error;
     }
+
+    qemu_driver->inhibitor = virInhibitorNew(
+        VIR_INHIBITOR_WHAT_SHUTDOWN,
+        _("Libvirt QEMU"),
+        _("QEMU/KVM virtual machines are running"),
+        VIR_INHIBITOR_MODE_DELAY,
+        callback,
+        opaque);
 
     if ((qemu_driver->lockFD =
          virPidFileAcquire(cfg->stateDir, "driver", getpid())) < 0)
@@ -1065,6 +1070,7 @@ qemuStateCleanup(void)
     ebtablesContextFree(qemu_driver->ebtables);
     virObjectUnref(qemu_driver->domains);
     virObjectUnref(qemu_driver->nbdkitCapsCache);
+    virInhibitorFree(qemu_driver->inhibitor);
 
     if (qemu_driver->lockFD != -1)
         virPidFileRelease(qemu_driver->config->stateDir, "driver", qemu_driver->lockFD);
@@ -6163,6 +6169,9 @@ static char
     if (virDomainGetXMLDescEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
+    if (virDomainObjBeginJob(vm, VIR_JOB_QUERY) < 0)
+        goto cleanup;
+
     qemuDomainUpdateCurrentMemorySize(vm);
 
     if ((flags & VIR_DOMAIN_XML_MIGRATABLE))
@@ -6176,6 +6185,8 @@ static char
         flags &= ~VIR_DOMAIN_XML_UPDATE_CPU;
 
     ret = qemuDomainFormatXML(driver, vm, flags);
+
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -7779,12 +7790,8 @@ static int qemuDomainSetAutostart(virDomainPtr dom,
         if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
             goto cleanup;
 
-        if (!(configFile = virDomainConfigFile(cfg->configDir, vm->def->name)))
-            goto endjob;
-
-        if (!(autostartLink = virDomainConfigFile(cfg->autostartDir,
-                                                  vm->def->name)))
-            goto endjob;
+        configFile = virDomainConfigFile(cfg->configDir, vm->def->name);
+        autostartLink = virDomainConfigFile(cfg->autostartDir, vm->def->name);
 
         if (autostart) {
             if (g_mkdir_with_parents(cfg->autostartDir, 0777) < 0) {
@@ -16525,7 +16532,8 @@ qemuConnectGetDomainCapabilities(virConnectPtr conn,
     virDomainVirtType virttype;
     g_autoptr(virDomainCaps) domCaps = NULL;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES,
+                  NULL);
 
     if (virConnectGetDomainCapabilitiesEnsureACL(conn) < 0)
         return NULL;
@@ -16543,6 +16551,11 @@ qemuConnectGetDomainCapabilities(virConnectPtr conn,
                                                        qemuCaps, machine,
                                                        arch, virttype)))
         return NULL;
+
+    if (flags & VIR_CONNECT_GET_DOMAIN_CAPABILITIES_DISABLE_DEPRECATED_FEATURES) {
+        virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, virttype,
+                                               domCaps->cpu.hostModel);
+    }
 
     return virDomainCapsFormat(domCaps);
 }
@@ -18328,21 +18341,15 @@ qemuDomainRenameCallback(virDomainObj *vm,
 
     new_dom_name = g_strdup(new_name);
 
-    if (!(new_dom_cfg_file = virDomainConfigFile(cfg->configDir,
-                                                 new_dom_name)) ||
-        !(old_dom_cfg_file = virDomainConfigFile(cfg->configDir,
-                                                 vm->def->name)))
-        return -1;
+    new_dom_cfg_file = virDomainConfigFile(cfg->configDir, new_dom_name);
+    old_dom_cfg_file = virDomainConfigFile(cfg->configDir, vm->def->name);
 
     if (qemuDomainNamePathsCleanup(cfg, new_name, false) < 0)
         goto cleanup;
 
     if (vm->autostart) {
-        if (!(new_dom_autostart_link = virDomainConfigFile(cfg->autostartDir,
-                                                          new_dom_name)) ||
-            !(old_dom_autostart_link = virDomainConfigFile(cfg->autostartDir,
-                                                          vm->def->name)))
-            return -1;
+        new_dom_autostart_link = virDomainConfigFile(cfg->autostartDir, new_dom_name);
+        old_dom_autostart_link = virDomainConfigFile(cfg->autostartDir, vm->def->name);
 
         if (symlink(new_dom_cfg_file, new_dom_autostart_link) < 0) {
             virReportSystemError(errno,

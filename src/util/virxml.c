@@ -46,6 +46,7 @@
 /* Internal data to be passed to SAX parser and used by error handler. */
 struct virParserData {
     int domcode;
+    const char *filename;
 };
 
 
@@ -1022,7 +1023,7 @@ static void
 catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
 {
     xmlParserCtxtPtr ctxt = (xmlParserCtxtPtr) ctx;
-
+    struct virParserData *private = ctxt->_private;
     const xmlChar *cur, *base;
     unsigned int n, col;        /* GCC warns if signed, because compared with sizeof() */
     int domcode = VIR_FROM_XML;
@@ -1030,6 +1031,10 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
     g_autofree char *contextstr = NULL;
     g_autofree char *pointerstr = NULL;
     const xmlError *lastError = xmlCtxtGetLastError(ctxt);
+    const char *filename = NULL;
+
+    if (private)
+        filename = private->filename;
 
     /* conditions for error printing */
     if (!ctxt ||
@@ -1040,12 +1045,16 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
         lastError->message == NULL)
         return;
 
-    if (ctxt->_private)
-        domcode = ((struct virParserData *) ctxt->_private)->domcode;
-
+    if (private)
+        domcode = private->domcode;
 
     cur = ctxt->input->cur;
     base = ctxt->input->base;
+
+    /* skip backwards over NUL terminator, in case we failed
+     * parsing at the EOF position */
+    if ((cur > base) && *cur == '\0')
+        cur--;
 
     /* skip backwards over any end-of-lines */
     while ((cur > base) && ((*(cur) == '\n') || (*(cur) == '\r')))
@@ -1079,10 +1088,10 @@ catchXMLError(void *ctx, const char *msg G_GNUC_UNUSED, ...)
 
     pointerstr = virBufferContentAndReset(&buf);
 
-    if (lastError->file) {
+    if (filename) {
         virGenericReportError(domcode, VIR_ERR_XML_DETAIL,
                               _("%1$s:%2$d: %3$s%4$s\n%5$s"),
-                              lastError->file,
+                              filename,
                               lastError->line,
                               lastError->message,
                               contextstr,
@@ -1134,6 +1143,7 @@ virXMLParseHelper(int domcode,
     xmlNodePtr rootnode;
     const char *docname;
     int parseFlags = XML_PARSE_NONET | XML_PARSE_NOWARNING;
+    g_autofree char *xmlStrPtr = NULL;
 
     if (filename)
         docname = filename;
@@ -1148,6 +1158,7 @@ virXMLParseHelper(int domcode,
         abort();
 
     private.domcode = domcode;
+    private.filename = filename;
     pctxt->_private = &private;
     pctxt->sax->error = catchXMLError;
 
@@ -1156,10 +1167,11 @@ virXMLParseHelper(int domcode,
     }
 
     if (filename) {
-        xml = xmlCtxtReadFile(pctxt, filename, NULL, parseFlags);
-    } else {
-        xml = xmlCtxtReadDoc(pctxt, BAD_CAST xmlStr, url, NULL, parseFlags);
+        if (virFileReadAll(filename, 1024*1024*10, &xmlStrPtr) < 0)
+            return NULL;
+        xmlStr = xmlStrPtr;
     }
+    xml = xmlCtxtReadDoc(pctxt, BAD_CAST xmlStr, url, NULL, parseFlags);
 
     if (!xml) {
         if (virGetLastErrorCode() == VIR_ERR_OK) {

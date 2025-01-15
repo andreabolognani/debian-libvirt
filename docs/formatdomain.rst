@@ -1482,38 +1482,46 @@ In case no restrictions need to be put on CPU model and its features, a simpler
       presented to the guest. This is the default when no ``mode`` attribute is
       specified. This mode makes it so that a persistent guest will see the same
       hardware no matter what host the guest is booted on.
+
    ``host-model``
-      The ``host-model`` mode is essentially a shortcut to copying host CPU
-      definition from capabilities XML into domain XML. Since the CPU definition
-      is copied just before starting a domain, exactly the same XML can be used
-      on different hosts while still providing the best guest CPU each host
-      supports. The ``match`` attribute can't be used in this mode. Specifying
-      CPU model is not supported either, but ``model``'s ``fallback`` attribute
-      may still be used. Using the ``feature`` element, specific flags may be
-      enabled or disabled specifically in addition to the host model. This may
-      be used to fine tune features that can be emulated. :since:`(Since 1.1.1)`
-      . Libvirt does not model every aspect of each CPU so the guest CPU will
-      not match the host CPU exactly. On the other hand, the ABI provided to the
+      The ``host-model`` mode is essentially a shortcut to copying host-model
+      CPU definition from `domain capabilities XML
+      <formatdomaincaps.html#cpu-configuration>`__ into domain XML. Since the
+      CPU definition is copied just before starting a domain, exactly the same
+      XML can be used on different hosts while still providing the best guest
+      CPU each host supports. The ``match`` attribute can't be used in this
+      mode. Specifying CPU model is not supported either, but ``model``'s
+      ``fallback`` attribute may still be used. Using the ``feature`` element,
+      specific flags may be enabled or disabled specifically in addition to the
+      host model. This may be used to fine tune features that can be emulated.
+      :since:`(Since 1.1.1)`
+
+      Libvirt does not model every aspect of each CPU so the guest CPU will not
+      match the host CPU exactly. On the other hand, the ABI provided to the
       guest is reproducible. During migration, complete CPU model definition is
-      transferred to the destination host so the migrated guest will see exactly
-      the same CPU model for the running instance of the guest, even if the
-      destination host contains more capable CPUs or newer kernel; but shutting
-      down and restarting the guest may present different hardware to the guest
-      according to the capabilities of the new host. Prior to libvirt 3.2.0 and
-      QEMU 2.9.0 detection of the host CPU model via QEMU is not supported. Thus
-      the CPU configuration created using ``host-model`` may not work as
-      expected. :since:`Since 3.2.0 and QEMU 2.9.0` this mode works the way it
-      was designed and it is indicated by the ``fallback`` attribute set to
-      ``forbid`` in the host-model CPU definition advertised in `domain
-      capabilities XML <formatdomaincaps.html#cpu-configuration>`__. When
-      ``fallback`` attribute is set to ``allow`` in the domain capabilities
-      XML, it is recommended to use ``custom`` mode with just the CPU model
-      from the host capabilities XML. :since:`Since 1.2.11` PowerISA allows
-      processors to run VMs in binary compatibility mode supporting an older
-      version of ISA.  Libvirt on PowerPC architecture uses the ``host-model``
-      to signify a guest mode CPU running in binary compatibility mode.
-      Example: When a user needs a power7 VM to run in compatibility mode on a
-      Power8 host, this can be described in XML as follows :
+      transferred to the destination host so the migrated guest will see
+      exactly the same CPU model for the running instance of the guest, even if
+      the destination host contains more capable CPUs or newer kernel; but
+      shutting down and restarting the guest may present different hardware to
+      the guest according to the capabilities of the new host.
+
+      Prior to libvirt 3.2.0 and QEMU 2.9.0 detection of the host CPU model via
+      QEMU is not supported. Thus the CPU configuration created using
+      ``host-model`` may not work as expected. :since:`Since 3.2.0 and QEMU
+      2.9.0` this mode works the way it was designed and it is indicated by the
+      ``fallback`` attribute set to ``forbid`` in the host-model CPU definition
+      advertised in `domain capabilities XML
+      <formatdomaincaps.html#cpu-configuration>`__. When ``fallback`` attribute
+      is set to ``allow`` in the domain capabilities XML, it is recommended to
+      use ``custom`` mode with just the CPU model from the host capabilities
+      XML.
+
+      :since:`Since 1.2.11` PowerISA allows processors to run VMs in binary
+      compatibility mode supporting an older version of ISA.  Libvirt on
+      PowerPC architecture uses the ``host-model`` to signify a guest mode CPU
+      running in binary compatibility mode. Example: When a user needs a power7
+      VM to run in compatibility mode on a Power8 host, this can be described
+      in XML as follows:
 
       ::
 
@@ -1993,7 +2001,10 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
        <vendor_id state='on' value='KVM Hv'/>
        <frequencies state='on'/>
        <reenlightenment state='on'/>
-       <tlbflush state='on'/>
+       <tlbflush state='on'>
+         <direct state='on'/>
+         <extended state='on'/>
+       </tlbflush>
        <ipi state='on'/>
        <evmcs state='on'/>
        <emsr_bitmap state='on'/>
@@ -2068,9 +2079,9 @@ are:
    Enable various features improving behavior of guests running Microsoft
    Windows.
 
-   =============== ====================================================================== ============================================ =======================================================
+   =============== ====================================================================== ============================================ ========================================================================
    Feature         Description                                                            Value                                        Since
-   =============== ====================================================================== ============================================ =======================================================
+   =============== ====================================================================== ============================================ ========================================================================
    relaxed         Relax constraints on timers                                            on, off                                      :since:`1.0.0 (QEMU 2.0)`
    vapic           Enable virtual APIC                                                    on, off                                      :since:`1.1.0 (QEMU 2.0)`
    spinlocks       Enable spinlock support                                                on, off; retries - at least 4095             :since:`1.1.0 (QEMU 2.0)`
@@ -2082,13 +2093,13 @@ are:
    vendor_id       Set hypervisor vendor id                                               on, off; value - string, up to 12 characters :since:`1.3.3 (QEMU 2.5)`
    frequencies     Expose frequency MSRs                                                  on, off                                      :since:`4.7.0 (QEMU 2.12)`
    reenlightenment Enable re-enlightenment notification on migration                      on, off                                      :since:`4.7.0 (QEMU 3.0)`
-   tlbflush        Enable PV TLB flush support                                            on, off                                      :since:`4.7.0 (QEMU 3.0)`
+   tlbflush        Enable PV TLB flush support                                            on, off; direct - on,off; extended - on,off  :since:`4.7.0 (QEMU 3.0), direct and extended modes 11.0.0 (QEMU 7.1.0)`
    ipi             Enable PV IPI support                                                  on, off                                      :since:`4.10.0 (QEMU 3.1)`
    evmcs           Enable Enlightened VMCS                                                on, off                                      :since:`4.10.0 (QEMU 3.1)`
    avic            Enable use Hyper-V SynIC with hardware APICv/AVIC                      on, off                                      :since:`8.10.0 (QEMU 6.2)`
    emsr_bitmap     Avoid unnecessary updates to L2 MSR Bitmap upon vmexits.               on, off                                      :since:`10.7.0 (QEMU 7.1)`
    xmm_input       Enable XMM Fast Hypercall Input                                        on, off                                      :since:`10.7.0 (QEMU 7.1)`
-   =============== ====================================================================== ============================================ =======================================================
+   =============== ====================================================================== ============================================ ========================================================================
 
    :since:`Since 8.0.0`, the hypervisor can be configured further by setting
    the ``mode`` attribute to one of the following values:
@@ -3821,8 +3832,8 @@ A directory on the host that can be accessed directly from the guest.
    :since:`Since 10.0.0`
 ``readonly``
    Enables exporting filesystem as a readonly mount for guest, by default
-   read-write access is given (currently only works for QEMU/KVM driver; not
-   with virtiofs).
+   read-write access is given (works for QEMU/KVM driver, :since:`Since 11.0.0,
+   requires virtiofs 1.13.0` ).
 ``space_hard_limit``
    Maximum space available to this guest's filesystem. :since:`Since 0.9.13`
    Only supported by the OpenVZ driver.
@@ -6036,28 +6047,29 @@ VLAN tags to apply to the guest's network traffic :since:`Since 0.10.0`.
 
 Network connections that support guest-transparent VLAN tagging include
 ``type='bridge'`` interfaces connected to an Open vSwitch bridge, SRIOV
-Virtual Functions (VF) used via ``type='hostdev'`` (direct device assignment)
-and, :since:`since 1.3.5`, SRIOV VFs used via ``type='direct'`` with
-``mode='passthrough'`` (macvtap "passthru" mode). All other
-connection types, including standard linux bridges and libvirt's own virtual
+Virtual Functions (VF) used via ``type='hostdev'`` (direct device assignment),
+:since:`since 1.3.5`, SRIOV VFs used via ``type='direct'`` with
+``mode='passthrough'`` (macvtap "passthru" mode) and, :since:`since 11.0.0`
+standard linux bridges. Other connection types, including libvirt's own virtual
 networks, **do not** support it. 802.1Qbh (vn-link) and 802.1Qbg (VEPA) switches
 provide their own way (outside of libvirt) to tag guest traffic onto a specific
 VLAN. Each tag is given in a separate ``<tag>`` subelement of ``<vlan>`` (for
 example: ``<tag id='42'/>``). For VLAN trunking of multiple tags (which is
-supported only on Open vSwitch connections), multiple ``<tag>`` subelements can
-be specified, which implies that the user wants to do VLAN trunking on the
-interface for all the specified tags. In the case that VLAN trunking of a single
-tag is desired, the optional attribute ``trunk='yes'`` can be added to the
-toplevel ``<vlan>`` element to differentiate trunking of a single tag from
-normal tagging.
+supported on Open vSwitch connections and standard linux bridges), multiple
+``<tag>`` subelements can be specified, which implies that the user wants to do
+VLAN trunking on the interface for all the specified tags. In the case that VLAN
+trunking of a single tag is desired, the optional attribute ``trunk='yes'`` can
+be added to the toplevel ``<vlan>`` element to differentiate trunking of a
+single tag from normal tagging.
 
-For network connections using Open vSwitch it is also possible to configure
-'native-tagged' and 'native-untagged' VLAN modes :since:`Since 1.1.0`. This is
-done with the optional ``nativeMode`` attribute on the ``<tag>`` subelement:
-``nativeMode`` may be set to 'tagged' or 'untagged'. The ``id`` attribute of the
-``<tag>`` subelement containing ``nativeMode`` sets which VLAN is considered to
-be the "native" VLAN for this interface, and the ``nativeMode`` attribute
-determines whether or not traffic for that VLAN will be tagged.
+For network connections using Open vSwitch and standard linux bridges it is also
+possible to configure 'native-tagged' and 'native-untagged' VLAN modes
+:since:`Since 1.1.0`. This is done with the optional ``nativeMode`` attribute on
+the ``<tag>`` subelement: ``nativeMode`` may be set to 'tagged' or 'untagged'.
+The ``id`` attribute of the ``<tag>`` subelement containing ``nativeMode`` sets
+which VLAN is considered to be the "native" VLAN for this interface, and the
+``nativeMode`` attribute determines whether or not traffic for that VLAN will be
+tagged.
 
 
 Isolating guests' network traffic from each other

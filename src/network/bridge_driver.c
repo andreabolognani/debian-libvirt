@@ -504,8 +504,7 @@ networkUpdateState(virNetworkObj *obj,
     if (virNetworkObjIsActive(obj)) {
         virNetworkObjPortForEach(obj, networkUpdatePort, obj);
 
-        if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
-            driver->inhibitCallback(true, driver->inhibitOpaque);
+        virInhibitorHold(driver->inhibitor);
     }
 
     /* Try and read dnsmasq pids of both active and inactive networks, just in
@@ -644,9 +643,6 @@ networkStateInitialize(bool privileged,
         goto error;
     }
 
-    network_driver->inhibitCallback = callback;
-    network_driver->inhibitOpaque = opaque;
-
     network_driver->privileged = privileged;
 
     if (!(network_driver->xmlopt = networkDnsmasqCreateXMLConf()))
@@ -654,6 +650,14 @@ networkStateInitialize(bool privileged,
 
     if (!(network_driver->config = cfg = virNetworkDriverConfigNew(privileged)))
         goto error;
+
+    network_driver->inhibitor = virInhibitorNew(
+        VIR_INHIBITOR_WHAT_NONE,
+        _("Libvirt Network"),
+        _("Virtual networks are active"),
+        VIR_INHIBITOR_MODE_DELAY,
+        callback,
+        opaque);
 
     if ((network_driver->lockFD =
          virPidFileAcquire(cfg->stateDir, "driver", getpid())) < 0)
@@ -2432,8 +2436,7 @@ networkStartNetwork(virNetworkDriverState *driver,
                                 obj, network_driver->xmlopt) < 0)
         goto cleanup;
 
-    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
-        driver->inhibitCallback(true, driver->inhibitOpaque);
+    virInhibitorHold(driver->inhibitor);
 
     virNetworkObjSetActive(obj, true);
     VIR_INFO("Network '%s' started up", def->name);
@@ -2509,8 +2512,7 @@ networkShutdownNetwork(virNetworkDriverState *driver,
 
     virNetworkObjSetActive(obj, false);
 
-    if (g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
-        driver->inhibitCallback(false, driver->inhibitOpaque);
+    virInhibitorRelease(driver->inhibitor);
 
     virNetworkObjUnsetDefTransient(obj);
     return ret;
@@ -2997,7 +2999,8 @@ networkValidate(virNetworkDriverState *driver,
 
     /* The only type of networks that currently support transparent
      * vlan configuration are those using hostdev sr-iov devices from
-     * a pool, and those using an Open vSwitch bridge.
+     * a pool, those using an Open vSwitch bridge, and standard linux
+     * bridges.
      */
 
     vlanAllowed = (def->forward.type == VIR_NETWORK_FORWARD_HOSTDEV ||
@@ -3005,15 +3008,17 @@ networkValidate(virNetworkDriverState *driver,
                    (def->forward.type == VIR_NETWORK_FORWARD_BRIDGE &&
                     def->virtPortProfile &&
                     def->virtPortProfile->virtPortType
-                    == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH));
+                    == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH) ||
+                   (def->forward.type == VIR_NETWORK_FORWARD_BRIDGE &&
+                    !def->virtPortProfile));
 
     vlanUsed = def->vlan.nTags > 0;
     for (i = 0; i < def->nPortGroups; i++) {
         if (vlanUsed || def->portGroups[i].vlan.nTags > 0) {
             /* anyone using this portgroup will get a vlan tag. Verify
-             * that they will also be using an openvswitch connection,
-             * as that is the only type of network that currently
-             * supports a vlan tag.
+             * that they will also be using an openvswitch connection
+             * or a standard linux bridge as they are the only types of
+             * network that currently support a vlan tag.
              */
             if (def->portGroups[i].virtPortProfile) {
                 if (def->forward.type != VIR_NETWORK_FORWARD_BRIDGE ||

@@ -214,9 +214,31 @@ qemuTPMEmulatorCreateStorage(virDomainTPMDef *tpm,
 static void
 qemuTPMEmulatorDeleteStorage(virDomainTPMDef *tpm)
 {
-    g_autofree char *path = g_path_get_dirname(tpm->data.emulator.source_path);
+    const char *source_path = tpm->data.emulator.source_path;
 
-    ignore_value(virFileDeleteTree(path));
+    switch (tpm->data.emulator.source_type) {
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_FILE: {
+        if (unlink(source_path) && errno != ENOENT)
+            virReportSystemError(errno,
+                                 _("Cannot delete file '%1$s'"),
+                                 source_path);
+        break;
+    }
+
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_DIR: {
+        ignore_value(virFileDeleteTree(source_path));
+        break;
+    }
+
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT:
+    case VIR_DOMAIN_TPM_SOURCE_TYPE_LAST:
+    default: {
+        g_autofree char *vm_uuid_dir = g_path_get_dirname(source_path);
+
+        ignore_value(virFileDeleteTree(vm_uuid_dir));
+    }
+
+    }
 }
 
 
@@ -344,23 +366,16 @@ static char *
 qemuTPMGetSwtpmSetupStateArg(const virDomainTPMSourceType source_type,
                              const char *source_path)
 {
-    const char *lock = ",lock";
-
-    if (!virTPMSwtpmSetupCapsGet(VIR_TPM_SWTPM_SETUP_FEATURE_TPMSTATE_OPT_LOCK)) {
-        VIR_WARN("This swtpm version doesn't support explicit locking");
-        lock = "";
-    }
-
     switch (source_type) {
     case VIR_DOMAIN_TPM_SOURCE_TYPE_FILE:
         /* the file:// prefix is supported since swtpm_setup 0.7.0 */
         /* assume the capability check for swtpm is redundant. */
-        return g_strdup_printf("file://%s%s", source_path, lock);
+        return g_strdup_printf("file://%s", source_path);
     case VIR_DOMAIN_TPM_SOURCE_TYPE_DIR:
     case VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT:
     case VIR_DOMAIN_TPM_SOURCE_TYPE_LAST:
     default:
-        return g_strdup_printf("%s%s", source_path, lock);
+        return g_strdup_printf("%s", source_path);
     }
 }
 
@@ -613,17 +628,24 @@ static void
 qemuTPMVirCommandSwtpmAddTPMState(virCommand *cmd,
                                   const virDomainTPMEmulatorDef *emulator)
 {
+    const char *lock = ",lock";
+
+    if (!virTPMSwtpmCapsGet(VIR_TPM_SWTPM_FEATURE_TPMSTATE_OPT_LOCK)) {
+        VIR_WARN("This swtpm version doesn't support explicit locking");
+        lock = "";
+    }
+
     virCommandAddArg(cmd, "--tpmstate");
     switch (emulator->source_type) {
     case VIR_DOMAIN_TPM_SOURCE_TYPE_FILE:
-        virCommandAddArgFormat(cmd, "backend-uri=file://%s",
-                               emulator->source_path);
+        virCommandAddArgFormat(cmd, "backend-uri=file://%s%s",
+                               emulator->source_path, lock);
         break;
     case VIR_DOMAIN_TPM_SOURCE_TYPE_DIR:
     case VIR_DOMAIN_TPM_SOURCE_TYPE_DEFAULT:
     case VIR_DOMAIN_TPM_SOURCE_TYPE_LAST:
-        virCommandAddArgFormat(cmd, "dir=%s,mode=0600",
-                               emulator->source_path);
+        virCommandAddArgFormat(cmd, "dir=%s,mode=0600%s",
+                               emulator->source_path, lock);
         break;
     }
 }
@@ -773,7 +795,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
                                 incomingMigration) < 0)
         goto error;
 
-    if (run_setup && !incomingMigration &&
+    if (run_setup && !incomingMigration && persistentTPMDef &&
         qemuTPMEmulatorUpdateProfileName(&tpm->data.emulator, persistentTPMDef,
                                          cfg, saveDef) < 0)
         goto error;

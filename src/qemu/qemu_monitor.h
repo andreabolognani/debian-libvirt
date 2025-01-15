@@ -558,7 +558,6 @@ typedef enum {
 VIR_ENUM_DECL(qemuMonitorVMStatus);
 int qemuMonitorVMStatusToPausedReason(const char *status);
 
-int qemuMonitorCheck(qemuMonitor *mon);
 int qemuMonitorGetStatus(qemuMonitor *mon,
                          bool *running,
                          virDomainPausedReason *reason)
@@ -1150,6 +1149,7 @@ struct _qemuMonitorCPUModelInfo {
     char *name;
     size_t nprops;
     qemuMonitorCPUProperty *props;
+    GStrv deprecated_props;
     bool migratability;
 };
 
@@ -1294,7 +1294,8 @@ int qemuMonitorGetMemoryDeviceInfo(qemuMonitor *mon,
     ATTRIBUTE_NONNULL(2);
 
 int qemuMonitorMigrateIncoming(qemuMonitor *mon,
-                               const char *uri);
+                               const char *uri,
+                               virTristateBool exitOnError);
 
 int qemuMonitorMigrateStartPostCopy(qemuMonitor *mon);
 

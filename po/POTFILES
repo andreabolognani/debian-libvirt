@@ -1,6 +1,7 @@
 src/access/viraccessapicheck.c
 src/access/viraccessapichecklxc.c
 src/access/viraccessapicheckqemu.c
+src/access/org.libvirt.api.policy.in
 src/admin/admin_client.h
 src/admin/admin_server_dispatch_stubs.h
 src/remote/remote_client_bodies.h
@@ -94,6 +95,7 @@ src/hyperv/hyperv_util.c
 src/hyperv/hyperv_wmi.c
 src/hypervisor/domain_cgroup.c
 src/hypervisor/domain_driver.c
+src/hypervisor/domain_logcontext.c
 src/hypervisor/domain_interface.c
 src/hypervisor/virhostdev.c
 src/interface/interface_backend_netcf.c
@@ -180,7 +182,6 @@ src/qemu/qemu_hostdev.c
 src/qemu/qemu_hotplug.c
 src/qemu/qemu_interface.c
 src/qemu/qemu_interop_config.c
-src/qemu/qemu_logcontext.c
 src/qemu/qemu_migration.c
 src/qemu/qemu_migration_cookie.c
 src/qemu/qemu_migration_params.c
@@ -201,6 +202,7 @@ src/qemu/qemu_validate.c
 src/qemu/qemu_vhost_user.c
 src/qemu/qemu_vhost_user_gpu.c
 src/qemu/qemu_virtiofs.c
+src/remote/libvirtd.policy.in
 src/remote/remote_daemon.c
 src/remote/remote_daemon_config.c
 src/remote/remote_daemon_dispatch.c
@@ -293,6 +295,7 @@ src/util/virhostcpu.c
 src/util/virhostmem.c
 src/util/virhostuptime.c
 src/util/viridentity.c
+src/util/virinhibitor.c
 src/util/virinitctl.c
 src/util/viriscsi.c
 src/util/virjson.c

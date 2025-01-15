@@ -115,37 +115,28 @@ profile_loaded(const char *str)
 static int
 profile_status_file(const char *str)
 {
-    char *profile = NULL;
-    char *content = NULL;
-    char *tmp = NULL;
-    int rc = -1;
+    g_autofree char *profile = NULL;
+    g_autofree char *content = NULL;
+    g_autofree char *tmp = NULL;
     int len;
 
     profile = g_strdup_printf("%s/%s", APPARMOR_DIR "/libvirt", str);
 
     if (!virFileExists(profile))
-        goto failed;
+        return -1;
 
     if ((len = virFileReadAll(profile, MAX_FILE_LEN, &content)) < 0) {
         virReportSystemError(errno,
                              _("Failed to read \'%1$s\'"), profile);
-        goto failed;
+        return -1;
     }
 
     /* create string that is ' <str> flags=(complain)\0' */
     tmp = g_strdup_printf(" %s flags=(complain)", str);
 
     if (strstr(content, tmp) != NULL)
-        rc = 0;
-    else
-        rc = 1;
-
- failed:
-    VIR_FREE(tmp);
-    VIR_FREE(profile);
-    VIR_FREE(content);
-
-    return rc;
+        return 0;
+    return 1;
 }
 
 /*
@@ -218,7 +209,7 @@ static int
 use_apparmor(void)
 {
     int rc = -1;
-    char *libvirt_daemon = NULL;
+    g_autofree char *libvirt_daemon = NULL;
 
     if (virFileResolveLink("/proc/self/exe", &libvirt_daemon) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
@@ -232,21 +223,21 @@ use_apparmor(void)
         return 1;
 
     if (access(APPARMOR_PROFILES_PATH, R_OK) != 0)
-        goto cleanup;
+        return rc;
 
     /* First check profile status using full binary path. If that fails
      * check using profile name.
      */
     rc = profile_status(libvirt_daemon, 1);
     if (rc < 0) {
-        rc = profile_status("libvirtd", 1);
+        g_autofree char *basename = g_path_get_basename(libvirt_daemon);
+
+        rc = profile_status(basename, 1);
         /* Error or unconfined should all result in -1 */
         if (rc < 0)
             rc = -1;
     }
 
- cleanup:
-    VIR_FREE(libvirt_daemon);
     return rc;
 }
 
@@ -374,7 +365,7 @@ AppArmorGenSecurityLabel(virSecurityManager *mgr G_GNUC_UNUSED,
 
     if (secdef->baselabel) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       "%s", _("Cannot set a base label with AppArmour"));
+                       "%s", _("Cannot set a base label with AppArmor"));
         return -1;
     }
 
@@ -948,7 +939,8 @@ AppArmorSetChardevLabel(virSecurityManager *mgr,
                         virDomainChrSourceDef *dev_source,
                         bool chardevStdioLogd G_GNUC_UNUSED)
 {
-    char *in = NULL, *out = NULL;
+    g_autofree char *in = NULL;
+    g_autofree char *out = NULL;
     int ret = -1;
     virSecurityLabelDef *secdef;
 
@@ -969,11 +961,11 @@ AppArmorSetChardevLabel(virSecurityManager *mgr,
         out = g_strdup_printf("%s.out", dev_source->data.file.path);
         if (virFileExists(in)) {
             if (reload_profile(mgr, def, in, true) < 0)
-                goto done;
+                return ret;
         }
         if (virFileExists(out)) {
             if (reload_profile(mgr, def, out, true) < 0)
-                goto done;
+                return ret;
         }
         ret = reload_profile(mgr, def, dev_source->data.file.path, true);
         break;
@@ -993,9 +985,6 @@ AppArmorSetChardevLabel(virSecurityManager *mgr,
         break;
     }
 
- done:
-    VIR_FREE(in);
-    VIR_FREE(out);
     return ret;
 }
 
@@ -1081,12 +1070,11 @@ AppArmorSetPathLabel(virSecurityManager *mgr,
                            bool allowSubtree)
 {
     int rc = -1;
-    char *full_path = NULL;
+    g_autofree char *full_path = NULL;
 
     if (allowSubtree) {
         full_path = g_strdup_printf("%s/{,**}", path);
         rc = reload_profile(mgr, def, full_path, true);
-        VIR_FREE(full_path);
     } else {
         rc = reload_profile(mgr, def, path, true);
     }
@@ -1107,8 +1095,8 @@ AppArmorSetFDLabel(virSecurityManager *mgr,
                    virDomainDef *def,
                    int fd)
 {
-    char *proc = NULL;
-    char *fd_path = NULL;
+    g_autofree char *proc = NULL;
+    g_autofree char *fd_path = NULL;
 
     virSecurityLabelDef *secdef =
         virDomainDefGetSecurityLabelDef(def, SECURITY_APPARMOR_NAME);

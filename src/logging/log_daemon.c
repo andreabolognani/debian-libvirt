@@ -692,14 +692,10 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    /* No explicit config, so try and find a default one */
+    /* No explicit config, so find a default one */
     if (remote_config_file == NULL) {
         implicit_conf = true;
-        if (virLogDaemonConfigFilePath(privileged,
-                                       &remote_config_file) < 0) {
-            VIR_ERROR(_("Can't determine config path"));
-            exit(EXIT_FAILURE);
-        }
+        virLogDaemonConfigFilePath(privileged, &remote_config_file);
     }
 
     /* Read the config file if it exists */
@@ -868,10 +864,7 @@ int main(int argc, char **argv) {
         ret = VIR_DAEMON_ERR_INIT;
         goto cleanup;
     }
-    if (virNetServerAddProgram(logSrv, logProgram) < 0) {
-        ret = VIR_DAEMON_ERR_INIT;
-        goto cleanup;
-    }
+    virNetServerAddProgram(logSrv, logProgram);
 
     if (adminSrv != NULL) {
         if (!(adminProgram = virNetServerProgramNew(ADMIN_PROGRAM,
@@ -881,10 +874,7 @@ int main(int argc, char **argv) {
             ret = VIR_DAEMON_ERR_INIT;
             goto cleanup;
         }
-        if (virNetServerAddProgram(adminSrv, adminProgram) < 0) {
-            ret = VIR_DAEMON_ERR_INIT;
-            goto cleanup;
-        }
+        virNetServerAddProgram(adminSrv, adminProgram);
     }
 
     /* Disable error func, now logging is setup */

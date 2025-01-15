@@ -5,30 +5,43 @@
 
     <group name='generic'>
       <include filename='x86_486.xml'/>
+      <include filename='x86_486-v1.xml'/>
     </group>
 
     <group name='Intel-based QEMU generic CPU models'>
       <include filename='x86_pentium.xml'/>
+      <include filename='x86_pentium-v1.xml'/>
       <include filename='x86_pentium2.xml'/>
+      <include filename='x86_pentium2-v1.xml'/>
       <include filename='x86_pentium3.xml'/>
+      <include filename='x86_pentium3-v1.xml'/>
       <include filename='x86_pentiumpro.xml'/>
       <include filename='x86_coreduo.xml'/>
+      <include filename='x86_coreduo-v1.xml'/>
       <include filename='x86_n270.xml'/>
+      <include filename='x86_n270-v1.xml'/>
       <include filename='x86_core2duo.xml'/>
+      <include filename='x86_core2duo-v1.xml'/>
     </group>
 
     <group name='Generic QEMU CPU models'>
       <include filename='x86_qemu32.xml'/>
+      <include filename='x86_qemu32-v1.xml'/>
       <include filename='x86_kvm32.xml'/>
+      <include filename='x86_kvm32-v1.xml'/>
       <include filename='x86_cpu64-rhel5.xml'/>
       <include filename='x86_cpu64-rhel6.xml'/>
       <include filename='x86_qemu64.xml'/>
+      <include filename='x86_qemu64-v1.xml'/>
       <include filename='x86_kvm64.xml'/>
+      <include filename='x86_kvm64-v1.xml'/>
     </group>
 
     <group name='Intel CPU models'>
       <include filename='x86_Conroe.xml'/>
+      <include filename='x86_Conroe-v1.xml'/>
       <include filename='x86_Penryn.xml'/>
+      <include filename='x86_Penryn-v1.xml'/>
       <include filename='x86_Nehalem.xml'/>
       <include filename='x86_Nehalem-IBRS.xml'/>
       <include filename='x86_Nehalem-v1.xml'/>
@@ -108,6 +121,7 @@
       <include filename='x86_SapphireRapids-v3.xml'/>
       <include filename='x86_GraniteRapids.xml'/>
       <include filename='x86_GraniteRapids-v1.xml'/>
+      <include filename='x86_GraniteRapids-v2.xml'/>
       <include filename='x86_SierraForest.xml'/>
       <include filename='x86_SierraForest-v1.xml'/>
       <include filename='x86_Denverton.xml'/>
@@ -115,16 +129,24 @@
       <include filename='x86_Denverton-v2.xml'/>
       <include filename='x86_Denverton-v3.xml'/>
       <include filename='x86_KnightsMill.xml'/>
+      <include filename='x86_KnightsMill-v1.xml'/>
     </group>
 
     <group name='AMD CPU models'>
       <include filename='x86_athlon.xml'/>
+      <include filename='x86_athlon-v1.xml'/>
       <include filename='x86_phenom.xml'/>
+      <include filename='x86_phenom-v1.xml'/>
       <include filename='x86_Opteron_G1.xml'/>
+      <include filename='x86_Opteron_G1-v1.xml'/>
       <include filename='x86_Opteron_G2.xml'/>
+      <include filename='x86_Opteron_G2-v1.xml'/>
       <include filename='x86_Opteron_G3.xml'/>
+      <include filename='x86_Opteron_G3-v1.xml'/>
       <include filename='x86_Opteron_G4.xml'/>
+      <include filename='x86_Opteron_G4-v1.xml'/>
       <include filename='x86_Opteron_G5.xml'/>
+      <include filename='x86_Opteron_G5-v1.xml'/>
       <include filename='x86_EPYC.xml'/>
       <include filename='x86_EPYC-IBPB.xml'/>
       <include filename='x86_EPYC-v1.xml'/>
@@ -140,6 +162,7 @@
       <include filename='x86_EPYC-Milan-v1.xml'/>
       <include filename='x86_EPYC-Milan-v2.xml'/>
       <include filename='x86_EPYC-Genoa.xml'/>
+      <include filename='x86_EPYC-Genoa-v1.xml'/>
     </group>
 
     <group name='Hygon CPU models'>
