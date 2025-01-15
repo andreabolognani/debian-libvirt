@@ -1,10 +1,10 @@
-libvirt (11.0.0-1) UNRELEASED; urgency=medium
+libvirt (11.0.0-1) unstable; urgency=medium
 
   * [e2a1251] New upstream version 11.0.0
     - Closes: #1089607
     - Closes: #1092220
 
- -- Andrea Bolognani <eof@kiyuko.org>  Thu, 16 Jan 2025 00:10:51 +0100
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 17 Jan 2025 23:39:10 +0100
 
 libvirt (10.10.0-4) unstable; urgency=medium
 
