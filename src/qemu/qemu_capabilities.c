@@ -721,6 +721,10 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "chardev-reconnect-miliseconds", /* QEMU_CAPS_CHARDEV_RECONNECT_MILISECONDS */
               "virtio-ccw.loadparm", /* QEMU_CAPS_VIRTIO_CCW_DEVICE_LOADPARM */
               "netdev-stream-reconnect-miliseconds", /* QEMU_CAPS_NETDEV_STREAM_RECONNECT_MILISECONDS */
+              "query-cpu-model-expansion.deprecated-props", /* QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS */
+
+              /* 470 */
+              "migrate-incoming.exit-on-error", /* QEMU_CAPS_MIGRATE_INCOMING_EXIT_ON_ERROR */
     );
 
 
@@ -1594,6 +1598,8 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "screendump/arg-type/device", QEMU_CAPS_SCREENDUMP_DEVICE },
     { "screendump/arg-type/format/^png", QEMU_CAPS_SCREENSHOT_FORMAT_PNG },
     { "set-numa-node/arg-type/+hmat-lb", QEMU_CAPS_NUMA_HMAT },
+    { "query-cpu-model-expansion/ret-type/deprecated-props", QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS },
+    { "migrate-incoming/arg-type/exit-on-error", QEMU_CAPS_MIGRATE_INCOMING_EXIT_ON_ERROR },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -3150,6 +3156,38 @@ virQEMUCapsProbeHypervCapabilities(virQEMUCaps *qemuCaps,
 }
 
 
+/**
+ * virQEMUCapsProbeFullDeprecatedProperties
+ * @mon: QEMU monitor
+ * @cpu: CPU definition to be expanded
+ * @props: the array to be filled with deprecated features
+ *
+ * Performs a full CPU model expansion to retrieve an array of deprecated
+ * properties. If the expansion succeeds, then data previously stored in
+ * @props is freed.
+ *
+ * Returns: -1 if the expansion failed; otherwise 0.
+ */
+static int
+virQEMUCapsProbeFullDeprecatedProperties(qemuMonitor *mon,
+                                         virCPUDef *cpu,
+                                         GStrv *props)
+{
+    g_autoptr(qemuMonitorCPUModelInfo) propsInfo = NULL;
+
+    if (qemuMonitorGetCPUModelExpansion(mon, QEMU_MONITOR_CPU_MODEL_EXPANSION_FULL,
+                                        cpu, true, false, false, &propsInfo) < 0)
+        return -1;
+
+    if (propsInfo && propsInfo->deprecated_props) {
+        g_strfreev(*props);
+        *props = g_steal_pointer(&propsInfo->deprecated_props);
+    }
+
+    return 0;
+}
+
+
 static int
 virQEMUCapsProbeQMPHostCPU(virQEMUCaps *qemuCaps,
                            virQEMUCapsAccel *accel,
@@ -3231,6 +3269,10 @@ virQEMUCapsProbeQMPHostCPU(virQEMUCaps *qemuCaps,
         modelInfo->migratability = true;
     }
 
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS) &&
+        virQEMUCapsProbeFullDeprecatedProperties(mon, cpu, &modelInfo->deprecated_props) < 0)
+        return -1;
+
     if (virQEMUCapsTypeIsAccelerated(virtType) &&
         (ARCH_IS_X86(qemuCaps->arch) || ARCH_IS_ARM(qemuCaps->arch))) {
         g_autoptr(qemuMonitorCPUModelInfo) fullQEMU = NULL;
@@ -3289,6 +3331,26 @@ virQEMUCapsGetCPUFeatures(virQEMUCaps *qemuCaps,
     if (migratable && !modelInfo->migratability)
         return 1;
     return 0;
+}
+
+
+void
+virQEMUCapsUpdateCPUDeprecatedFeatures(virQEMUCaps *qemuCaps,
+                                       virDomainVirtType virtType,
+                                       virCPUDef *cpu)
+{
+    qemuMonitorCPUModelInfo *modelInfo;
+    size_t i;
+
+    modelInfo = virQEMUCapsGetCPUModelInfo(qemuCaps, virtType);
+
+    if (!modelInfo || !modelInfo->deprecated_props)
+        return;
+
+    for (i = 0; i < g_strv_length(modelInfo->deprecated_props); i++) {
+        virCPUDefUpdateFeature(cpu, modelInfo->deprecated_props[i],
+                               VIR_CPU_FEATURE_DISABLE);
+    }
 }
 
 
@@ -4019,6 +4081,7 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                                 const char *typeStr)
 {
     xmlNodePtr hostCPUNode;
+    xmlNodePtr deprecated_props;
     g_autofree xmlNodePtr *nodes = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autoptr(qemuMonitorCPUModelInfo) hostCPU = NULL;
@@ -4108,6 +4171,24 @@ virQEMUCapsLoadHostCPUModelInfo(virQEMUCapsAccel *caps,
                                        &prop->migratable) < 0)
                 return -1;
 
+        }
+    }
+
+    ctxt->node = hostCPUNode;
+
+    if ((deprecated_props = virXPathNode("./deprecatedFeatures", ctxt))) {
+        g_autoptr(GPtrArray) props = virXMLNodeGetSubelementList(deprecated_props, NULL);
+
+        hostCPU->deprecated_props = g_new0(char *, props->len + 1);
+
+        for (i = 0; i < props->len; i++) {
+            xmlNodePtr prop = g_ptr_array_index(props, i);
+
+            if (!(hostCPU->deprecated_props[i] = virXMLPropString(prop, "name"))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("missing 'name' attribute for a host CPU model deprecated property in QEMU capabilities cache"));
+                return -1;
+            }
         }
     }
 
@@ -4841,6 +4922,18 @@ virQEMUCapsFormatHostCPUModelInfo(virQEMUCapsAccel *caps,
                               virTristateBoolTypeToString(prop->migratable));
 
         virBufferAddLit(buf, "/>\n");
+    }
+
+    if (model->deprecated_props) {
+        virBufferAddLit(buf, "<deprecatedFeatures>\n");
+        virBufferAdjustIndent(buf, 2);
+
+        for (i = 0; i < g_strv_length(model->deprecated_props); i++)
+            virBufferAsprintf(buf, "<property name='%s'/>\n",
+                              model->deprecated_props[i]);
+
+        virBufferAdjustIndent(buf, -2);
+        virBufferAddLit(buf, "</deprecatedFeatures>\n");
     }
 
     virBufferAdjustIndent(buf, -2);

@@ -28,6 +28,7 @@
 #include <wsman-soap.h>
 #include <wsman-xml.h>
 #include <wsman-xml-binding.h>
+#include <u/syslog.h>
 
 #include "internal.h"
 #include "virerror.h"
@@ -46,6 +47,8 @@
 #define HYPERV_JOB_TIMEOUT_MS 300000
 
 VIR_LOG_INIT("hyperv.hyperv_wmi");
+
+int facility = LOG_DAEMON;
 
 int
 hypervGetWmiClassList(hypervPrivate *priv, hypervWmiClassInfo *wmiInfo,
@@ -184,14 +187,12 @@ hypervFreeInvokeParams(hypervInvokeParamsList *params)
 }
 
 
-static inline int
+static inline void
 hypervCheckParams(hypervInvokeParamsList *params)
 {
     if (params->nbParams + 1 > params->nbAvailParams) {
         VIR_EXPAND_N(params->params, params->nbAvailParams, 5);
     }
-
-    return 0;
 }
 
 
@@ -212,8 +213,7 @@ hypervAddSimpleParam(hypervInvokeParamsList *params, const char *name,
 {
     hypervParam *p = NULL;
 
-    if (hypervCheckParams(params) < 0)
-        return -1;
+    hypervCheckParams(params);
 
     p = &params->params[params->nbParams];
     p->type = HYPERV_SIMPLE_PARAM;
@@ -245,8 +245,7 @@ hypervAddEprParam(hypervInvokeParamsList *params,
 {
     hypervParam *p = NULL;
 
-    if (hypervCheckParams(params) < 0)
-        return -1;
+    hypervCheckParams(params);
 
     p = &params->params[params->nbParams];
     p->type = HYPERV_EPR_PARAM;
@@ -333,8 +332,7 @@ hypervAddEmbeddedParam(hypervInvokeParamsList *params,
 {
     hypervParam *p = NULL;
 
-    if (hypervCheckParams(params) < 0)
-        return -1;
+    hypervCheckParams(params);
 
     p = &params->params[params->nbParams];
     p->type = HYPERV_EMBEDDED_PARAM;

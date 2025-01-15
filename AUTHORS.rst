@@ -109,6 +109,7 @@ Patches have also been contributed by:
 * Ales Musil <amusil@redhat.com>
 * Alexander Burluka <aburluka@parallels.com>
 * Alexander Burluka <aburluka@virtuozzo.com>
+* Alexander Kuznetsov <kuznetsovam@altlinux.org>
 * Alexander Larsson <alexl@redhat.com>
 * Alexander Nusov <alexander.nusov@nfvexpress.com>
 * Alexander Todorov <atodorov@otb.bg>
@@ -125,6 +126,7 @@ Patches have also been contributed by:
 * Amy Griffis <amy.griffis@hp.com>
 * Anastasia Belova <abelova@astralinux.ru>
 * Anatole Denis <natolumin@gmail.com>
+* Anders Jonsson <anders.jonsson@norsjovallen.se>
 * Andi Chandler <andi@gowling.com>
 * Andika Triwidada <andika@gmail.com>
 * Andrea Bolognani <abologna@redhat.com>
@@ -392,6 +394,7 @@ Patches have also been contributed by:
 * Harsh Prateek Bora <harsh@linux.vnet.ibm.com>
 * Haruka Ohata <ohata.haruka@fujitsu.com>
 * Heath Petersen <HeathPetersen@Kandre.com>
+* Heinrich Schuchardt <heinrich.schuchardt@canonical.com>
 * hejia hejia <jiakernel@gmail.com>
 * Hela Basa <r45xveza@pm.me>
 * Helmut Grohne <helmut@subdivi.de>
@@ -540,6 +543,7 @@ Patches have also been contributed by:
 * lawrancejing <lawrancejing@gmail.com>
 * Léane GRASSER <leane.grasser@proton.me>
 * Lee Yarwood <lyarwood@redhat.com>
+* Leigh Brown <leigh@solinno.co.uk>
 * Lei Li <lilei@linux.vnet.ibm.com>
 * Lei Yang <yanglei209@huawei.com>
 * Lénaïc Huard <lenaic@lhuard.fr.eu.org>
@@ -675,6 +679,8 @@ Patches have also been contributed by:
 * Nick Shyrokovskiy <nshyrokovskiy@gmail.com>
 * Nickys Music Group <nickys.music.group@gmail.com>
 * Nicolas Brignone <nmbrignone@gmail.com>
+* Nicolas Gal <nialegal@yandex.com>
+* Nicolas Gal <snowcrash79@users.noreply.translate.fedoraproject.org>
 * Nicolas Lécureuil <neoclust@mageia.org>
 * Nico Pache <npache@redhat.com>
 * Niels de Vos <ndevos@redhat.com>
@@ -862,6 +868,7 @@ Patches have also been contributed by:
 * Stefan Hajnoczi <stefanha@gmail.com>
 * Stefan Hajnoczi <stefanha@linux.vnet.ibm.com>
 * Stefan Hajnoczi <stefanha@redhat.com>
+* Stefan Hellermann <stefan@the2masters.de>
 * Stefano Brivio <sbrivio@redhat.com>
 * Stefan Schallenberg <infos@nafets.de>
 * Stefan Seyfried <seife@b1-systems.de>

@@ -3935,25 +3935,29 @@ qemuDomainChangeNet(virQEMUDriver *driver,
     if (newdev->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
         if (olddev->type == VIR_DOMAIN_NET_TYPE_NETWORK &&
             oldType == VIR_DOMAIN_NET_TYPE_DIRECT &&
-            virDomainNetGetActualDirectMode(olddev) == VIR_NETDEV_MACVLAN_MODE_PASSTHRU &&
             STREQ(olddev->data.network.name, newdev->data.network.name)) {
             /* old and new are type='network', and the network name
-             * hasn't changed *and* this is a network where each
-             * connection is allocated exclusive use of a VF
-             * device. In this case we *don't* want to get a new port
-             * ("actual device") from the network because attempting
-             * to allocate a new device would also allocate a
-             * new/different VF, causing the update to fail. And
-             * anyway we can use olddev's actualNetDef (since it
-             * hasn't changed).
+             * hasn't changed *and* this is a "direct" network (a pool
+             * of 1 or more host ethernet devices where each guest
+             * interface is allocated one of those physical devices
+             * that it then connects to via macvtap). In this case we
+             * *don't* want to get a new port ("actual device") from
+             * the network because attempting to allocate a new port
+             * would also allocate a new/different ethernet (physical
+             * device), causing the update to fail (because the
+             * physical device of a macvtap-based interface can't be
+             * changed without completely unplugging and re-plugging
+             * the guest NIC).
              *
-             * So instead we just duplicate *the pointer to* the
-             * actualNetDef from olddev to newdev so that comparisons
-             * of actualNetDef will show no change. If the update is
-             * successful, we will clear the actualNetDef pointer from
-             * olddev before destroying it (or if the update fails,
-             * then we need to clear the pointer from newdev before
-             * destroying it)
+             * We can work around this issue by just re-using olddev's
+             * actualNetDef (since it hasn't changed) rather than
+             * allocating a new one.  We just duplicate *the pointer
+             * to* the actualNetDef from olddev to newdev so that
+             * comparisons of actualNetDef will show no change. If the
+             * update is successful, we will clear the actualNetDef
+             * pointer from olddev before destroying it (or if the
+             * update fails, then we need to clear the pointer from
+             * newdev before destroying it)
              */
             newdev->data.network.actual = olddev->data.network.actual;
             memcpy(newdev->data.network.portid, olddev->data.network.portid,
@@ -4140,8 +4144,13 @@ qemuDomainChangeNet(virQEMUDriver *driver,
      * they don't apply to a particular type.
      */
 
-    if (!virNetDevVlanEqual(virDomainNetGetActualVlan(olddev),
-                             virDomainNetGetActualVlan(newdev))) {
+    /* since attaching to a new bridge will re-do the vlan setup,
+     * we don't need to separately do that in the case that we're
+     * already switching to a different bridge
+     */
+    if (!(needBridgeChange ||
+          virNetDevVlanEqual(virDomainNetGetActualVlan(olddev),
+                             virDomainNetGetActualVlan(newdev)))) {
         needVlanUpdate = true;
     }
 
@@ -4211,6 +4220,23 @@ qemuDomainChangeNet(virQEMUDriver *driver,
         needReplaceDevDef = true;
     }
 
+    if (needVlanUpdate) {
+        if (virDomainNetDefIsOvsport(olddev) && virDomainNetDefIsOvsport(newdev)) {
+            /* optimization if we're attached to an OVS bridge. This
+             * will redo vlan setup without needing to re-attach the
+             * tap device to the bridge
+             */
+            if (virNetDevOpenvswitchUpdateVlan(newdev->ifname, &newdev->vlan) < 0)
+                goto cleanup;
+        } else {
+             /* vlan setup is done as a part of reconnecting the tap
+              * device to a new bridge (either OVS or Linux host bridge).
+              */
+            needBridgeChange = true;
+        }
+        needReplaceDevDef = true;
+    }
+
     if (needBridgeChange) {
         if (qemuDomainChangeNetBridge(vm, olddev, newdev) < 0)
             goto cleanup;
@@ -4260,12 +4286,6 @@ qemuDomainChangeNet(virQEMUDriver *driver,
     if (needLinkStateChange &&
         qemuDomainChangeNetLinkState(vm, olddev, newdev->linkstate) < 0) {
         goto cleanup;
-    }
-
-    if (needVlanUpdate) {
-        if (virNetDevOpenvswitchUpdateVlan(newdev->ifname, &newdev->vlan) < 0)
-            goto cleanup;
-        needReplaceDevDef = true;
     }
 
     if (needReplaceDevDef) {

@@ -2295,6 +2295,9 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("cpu-s390-zEC12", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("cpu-s390-features", "s390x");
 
+    DO_TEST_CAPS_ARCH_VER_FAILURE("cpu-model-deprecated-features-off", "s390x", "8.2.0");
+    DO_TEST_CAPS_ARCH_LATEST("cpu-model-deprecated-features-off", "s390x");
+
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-Haswell", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-Haswell2", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);
     DO_TEST_CAPS_ARCH_LATEST_FULL("cpu-Haswell3", "x86_64", ARG_CAPS_HOST_CPU_MODEL, QEMU_CPU_DEF_HASWELL);
@@ -2771,6 +2774,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("intel-iommu-dma-translation");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("intel-iommu-wrong-machine");
     DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd");
+    DO_TEST_CAPS_LATEST_ABI_UPDATE("intel-iommu-eim-autoadd-v2");
     DO_TEST_CAPS_ARCH_LATEST("iommu-smmuv3", "aarch64");
     DO_TEST_CAPS_LATEST("virtio-iommu-x86_64");
     DO_TEST_CAPS_VER_PARSE_ERROR("virtio-iommu-x86_64", "6.1.0");
@@ -2876,7 +2880,7 @@ mymain(void)
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-memory");
     DO_TEST_CAPS_LATEST("vhost-user-fs-fd-openfiles");
     DO_TEST_CAPS_LATEST("vhost-user-fs-hugepages");
-    DO_TEST_CAPS_LATEST_PARSE_ERROR("vhost-user-fs-readonly");
+    DO_TEST_CAPS_LATEST("vhost-user-fs-readonly");
 
     DO_TEST_CAPS_ARCH_LATEST("vhost-user-fs-ccw", "s390x");
     DO_TEST_CAPS_ARCH_LATEST_PARSE_ERROR("vhost-user-fs-ccw-bootindex", "s390x");

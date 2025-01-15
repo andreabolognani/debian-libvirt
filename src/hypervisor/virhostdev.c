@@ -1131,8 +1131,7 @@ virHostdevUpdateActivePCIDevices(virHostdevManager *mgr,
         if (!actual)
             continue;
 
-        if (virPCIDeviceSetUsedBy(actual, drv_name, dom_name) < 0)
-            goto cleanup;
+        virPCIDeviceSetUsedBy(actual, drv_name, dom_name);
 
         /* Setup the original states for the PCI device */
         virPCIDeviceSetUnbindFromStub(actual, virBitmapIsBitSet(orig, VIR_DOMAIN_HOSTDEV_PCI_ORIGSTATE_UNBIND));
@@ -1213,11 +1212,10 @@ virHostdevUpdateActiveSCSIHostDevices(virHostdevManager *mgr,
         return -1;
 
     if ((tmp = virSCSIDeviceListFind(mgr->activeSCSIHostdevs, scsi))) {
-        if (virSCSIDeviceSetUsedBy(tmp, drv_name, dom_name) < 0)
-            return -1;
+        virSCSIDeviceSetUsedBy(tmp, drv_name, dom_name);
     } else {
-        if (virSCSIDeviceSetUsedBy(scsi, drv_name, dom_name) < 0 ||
-            virSCSIDeviceListAdd(mgr->activeSCSIHostdevs, scsi) < 0)
+        virSCSIDeviceSetUsedBy(scsi, drv_name, dom_name);
+        if (virSCSIDeviceListAdd(mgr->activeSCSIHostdevs, scsi) < 0)
             return -1;
         scsi = NULL;
     }
@@ -1598,11 +1596,9 @@ virHostdevPrepareSCSIDevices(virHostdevManager *mgr,
                 goto error;
             }
 
-            if (virSCSIDeviceSetUsedBy(tmp, drv_name, dom_name) < 0)
-                goto error;
+            virSCSIDeviceSetUsedBy(tmp, drv_name, dom_name);
         } else {
-            if (virSCSIDeviceSetUsedBy(scsi, drv_name, dom_name) < 0)
-                goto error;
+            virSCSIDeviceSetUsedBy(scsi, drv_name, dom_name);
 
             VIR_DEBUG("Adding %s to activeSCSIHostdevs", virSCSIDeviceGetName(scsi));
 
@@ -1671,8 +1667,7 @@ virHostdevPrepareSCSIVHostDevices(virHostdevManager *mgr,
         if (!(host = virSCSIVHostDeviceNew(hostsrc->wwpn)))
             return -1;
 
-        if (virSCSIVHostDeviceSetUsedBy(host, drv_name, dom_name) < 0)
-            return -1;
+        virSCSIVHostDeviceSetUsedBy(host, drv_name, dom_name);
 
         if (virSCSIVHostDeviceListAdd(list, host) < 0)
             return -1;
@@ -2480,8 +2475,7 @@ virHostdevUpdateActiveNVMeDevices(virHostdevManager *hostdev_mgr,
 
         /* We must restore some attributes that were lost on daemon restart. */
         virPCIDeviceSetUnbindFromStub(actual, true);
-        if (virPCIDeviceSetUsedBy(actual, drv_name, dom_name) < 0)
-            goto rollback;
+        virPCIDeviceSetUsedBy(actual, drv_name, dom_name);
 
         if (virPCIDeviceListAddCopy(hostdev_mgr->activePCIHostdevs, actual) < 0)
             goto rollback;

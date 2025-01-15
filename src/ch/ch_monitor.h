@@ -25,6 +25,7 @@
 #include "virobject.h"
 #include "virjson.h"
 #include "domain_conf.h"
+#include "domain_logcontext.h"
 #include "ch_conf.h"
 
 #define URL_ROOT "http://localhost/api/v1"
@@ -103,13 +104,14 @@ struct _virCHMonitor {
     virCHMonitorThreadInfo *threads;
 };
 
-virCHMonitor *virCHMonitorNew(virDomainObj *vm, virCHDriverConfig *cfg);
+virCHMonitor *virCHMonitorNew(virDomainObj *vm, virCHDriverConfig *cfg,
+                              int logfile);
 void virCHMonitorClose(virCHMonitor *mon);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCHMonitor, virCHMonitorClose);
 
 
 int virCHMonitorCreateVM(virCHDriver *driver, virCHMonitor *mon);
-int virCHMonitorBootVM(virCHMonitor *mon);
+int virCHMonitorBootVM(virCHMonitor *mon, domainLogContext *logCtxt);
 int virCHMonitorShutdownVM(virCHMonitor *mon);
 int virCHMonitorRebootVM(virCHMonitor *mon);
 int virCHMonitorSuspendVM(virCHMonitor *mon);

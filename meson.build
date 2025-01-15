@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.10.0',
+  version: '11.0.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -14,6 +14,10 @@ project(
 if meson.version().version_compare('>=0.64.0')
   fs = import('fs')
 endif
+
+i18n = import('i18n')
+
+po_dir = meson.project_source_root() / 'po'
 
 # figure out if we are building from git
 
@@ -114,6 +118,8 @@ localedir = prefix / get_option('localedir')
 mandir = prefix / get_option('mandir')
 sbindir = prefix / get_option('sbindir')
 sharedstatedir = prefix / get_option('sharedstatedir')
+polkitactionsdir = datadir / 'polkit-1' / 'actions'
+polkitrulesdir = datadir / 'polkit-1' / 'rules.d'
 
 docdir = get_option('docdir')
 if docdir == ''
@@ -1787,11 +1793,11 @@ if conf.has('WITH_LIBVIRTD')
     conf.set('WITH_STORAGE_DIR', 1)
   endif
 
-  if not get_option('storage_disk').disabled() and devmapper_dep.found() and libparted_dep.found()
+  if not get_option('storage_disk').disabled() and libparted_dep.found()
     use_storage = true
     conf.set('WITH_STORAGE_DISK', 1)
   elif get_option('storage_disk').enabled()
-    error('You must install libparted and libdevmapper to compile libvirt with disk storage driver')
+    error('You must install libparted to compile libvirt with disk storage driver')
   endif
 
   if not get_option('storage_fs').disabled()

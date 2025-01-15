@@ -8,6 +8,83 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.0.0 (2025-01-15)
+====================
+
+* **New features**
+
+  * network/qemu/lxc: support vlans on standard Linux host bridges
+
+    The network, qemu, and lxc drivers now support (using the
+    ``<vlan>`` subelement) vlan tagging and trunking on network
+    interfaces connected to a standard Linux host bridge.
+
+  * qemu: Add support for direct and extended tlbflush features
+
+    Domains can now utilise more tlbflush hyperv features.
+
+* **Improvements**
+
+  * ch: Enable user aliases
+
+    User can now specify custom aliases for devices in domain XML
+
+  * qemu: Grab a QUERY job when formatting domain XML
+
+    Under some specific conditions it might have happened that domain XML did
+    not contain runtime information or returned an XML that's in process of
+    changing (e.g. by a thread that's hotplugging a device). Formatting domain
+    XML now serializes properly with other threads.
+
+  * virtiofs: Allow read only mode
+
+    The ``<filesystem/>`` with `virtiofsd` backend can now use ``<readonly/>``
+    tag to export underlying filesystem in read only mode.
+
+  * qemu: allow migration of vGPU from mdev device <-> SRIOV VF device
+
+    Some GPU vendors are switching from using vGPUs creating using
+    mdev and identified with a uuid, to vGPUs created as SRIOV VFs and
+    identified by their PCI address, and want to support live
+    migration from a host using one type of vGPU to the other
+    type. This is now possible.
+
+* **Bug fixes**
+
+  * qemu: tpm: do not update profile name for transient domains
+
+    Fix a possible crash when starting a transient domain which was
+    introduced in the previous release.
+
+  * qemu: Fix snapshot to not delete disk image with internal snapshot
+
+    When a VM has internal snapshot that is parent to external snapshot and user
+    reverts to the internal snapshot and deletes the external snapshot libvirt
+    would delete the disk image containing the internal snapshot. This would
+    result in data loss.
+
+  * qemu: Do not format invalid XML with hyperv features in passthrough mode
+
+    When hyperv features were specified together with ``mode="passthrough"``
+    libvirt parsed and formatted such features in the domain XML even though
+    they were not used at all, resulting in XML that is not valid based on our
+    schema.  This is now fixed by not parsing any specified features when the
+    passthrough mode is used.
+
+  * qemu: Fix a crash when starting a domain with ovs bridge and QOS
+
+  * cpu: Add missing -v1 variants for CPU models
+
+    Some CPU models (mostly old ones) were missed when versioned CPU model
+    names were introduced in the previous release.
+
+  * qemu: Fix false error when recovering failed post-copy migration
+
+    In some cases libvirt would report a failure to recover post-copy migration
+    even though the recovery started just fine and migration would eventually
+    successfully finish.
+
+
 v10.10.0 (2024-12-02)
 =====================
 

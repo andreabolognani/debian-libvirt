@@ -74,7 +74,8 @@
       <feature policy='disable' name='misalignsse'/>
     </mode>
     <mode name='custom' supported='yes'>
-      <model usable='yes' vendor='unknown'>486</model>
+      <model usable='yes' vendor='unknown' canonical='486-v1'>486</model>
+      <model usable='yes' vendor='unknown'>486-v1</model>
       <model usable='no' vendor='Intel' canonical='Broadwell-v1'>Broadwell</model>
       <blockers model='Broadwell'>
         <feature name='3dnowprefetch'/>
@@ -349,7 +350,8 @@
         <feature name='x2apic'/>
         <feature name='xsavec'/>
       </blockers>
-      <model usable='yes' vendor='Intel'>Conroe</model>
+      <model usable='yes' vendor='Intel' canonical='Conroe-v1'>Conroe</model>
+      <model usable='yes' vendor='Intel'>Conroe-v1</model>
       <model usable='no' vendor='Intel' canonical='Cooperlake-v1'>Cooperlake</model>
       <blockers model='Cooperlake'>
         <feature name='3dnowprefetch'/>
@@ -1019,8 +1021,26 @@
         <feature name='tsc-deadline'/>
         <feature name='x2apic'/>
       </blockers>
-      <model usable='no' vendor='Intel'>KnightsMill</model>
+      <model usable='no' vendor='Intel' canonical='KnightsMill-v1'>KnightsMill</model>
       <blockers model='KnightsMill'>
+        <feature name='3dnowprefetch'/>
+        <feature name='avx'/>
+        <feature name='avx2'/>
+        <feature name='avx512-4fmaps'/>
+        <feature name='avx512-4vnniw'/>
+        <feature name='avx512-vpopcntdq'/>
+        <feature name='avx512cd'/>
+        <feature name='avx512er'/>
+        <feature name='avx512f'/>
+        <feature name='avx512pf'/>
+        <feature name='f16c'/>
+        <feature name='fma'/>
+        <feature name='rdseed'/>
+        <feature name='tsc-deadline'/>
+        <feature name='x2apic'/>
+      </blockers>
+      <model usable='no' vendor='Intel'>KnightsMill-v1</model>
+      <blockers model='KnightsMill-v1'>
         <feature name='3dnowprefetch'/>
         <feature name='avx'/>
         <feature name='avx2'/>
@@ -1047,13 +1067,19 @@
       <blockers model='Nehalem-v2'>
         <feature name='spec-ctrl'/>
       </blockers>
-      <model usable='yes' vendor='AMD'>Opteron_G1</model>
-      <model usable='yes' vendor='AMD'>Opteron_G2</model>
-      <model usable='no' vendor='AMD'>Opteron_G3</model>
+      <model usable='yes' vendor='AMD' canonical='Opteron_G1-v1'>Opteron_G1</model>
+      <model usable='yes' vendor='AMD'>Opteron_G1-v1</model>
+      <model usable='yes' vendor='AMD' canonical='Opteron_G2-v1'>Opteron_G2</model>
+      <model usable='yes' vendor='AMD'>Opteron_G2-v1</model>
+      <model usable='no' vendor='AMD' canonical='Opteron_G3-v1'>Opteron_G3</model>
       <blockers model='Opteron_G3'>
         <feature name='misalignsse'/>
       </blockers>
-      <model usable='no' vendor='AMD'>Opteron_G4</model>
+      <model usable='no' vendor='AMD'>Opteron_G3-v1</model>
+      <blockers model='Opteron_G3-v1'>
+        <feature name='misalignsse'/>
+      </blockers>
+      <model usable='no' vendor='AMD' canonical='Opteron_G4-v1'>Opteron_G4</model>
       <blockers model='Opteron_G4'>
         <feature name='3dnowprefetch'/>
         <feature name='avx'/>
@@ -1062,7 +1088,16 @@
         <feature name='nrip-save'/>
         <feature name='xop'/>
       </blockers>
-      <model usable='no' vendor='AMD'>Opteron_G5</model>
+      <model usable='no' vendor='AMD'>Opteron_G4-v1</model>
+      <blockers model='Opteron_G4-v1'>
+        <feature name='3dnowprefetch'/>
+        <feature name='avx'/>
+        <feature name='fma4'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='xop'/>
+      </blockers>
+      <model usable='no' vendor='AMD' canonical='Opteron_G5-v1'>Opteron_G5</model>
       <blockers model='Opteron_G5'>
         <feature name='3dnowprefetch'/>
         <feature name='avx'/>
@@ -1074,7 +1109,20 @@
         <feature name='tbm'/>
         <feature name='xop'/>
       </blockers>
-      <model usable='yes' vendor='Intel'>Penryn</model>
+      <model usable='no' vendor='AMD'>Opteron_G5-v1</model>
+      <blockers model='Opteron_G5-v1'>
+        <feature name='3dnowprefetch'/>
+        <feature name='avx'/>
+        <feature name='f16c'/>
+        <feature name='fma'/>
+        <feature name='fma4'/>
+        <feature name='misalignsse'/>
+        <feature name='nrip-save'/>
+        <feature name='tbm'/>
+        <feature name='xop'/>
+      </blockers>
+      <model usable='yes' vendor='Intel' canonical='Penryn-v1'>Penryn</model>
+      <model usable='yes' vendor='Intel'>Penryn-v1</model>
       <model usable='no' vendor='Intel' canonical='SandyBridge-v1'>SandyBridge</model>
       <blockers model='SandyBridge'>
         <feature name='avx'/>
@@ -1410,21 +1458,36 @@
       <blockers model='Westmere-v2'>
         <feature name='spec-ctrl'/>
       </blockers>
-      <model usable='yes' vendor='AMD'>athlon</model>
-      <model usable='yes' vendor='Intel'>core2duo</model>
-      <model usable='yes' vendor='Intel'>coreduo</model>
-      <model usable='yes' vendor='unknown'>kvm32</model>
-      <model usable='yes' vendor='unknown'>kvm64</model>
-      <model usable='yes' vendor='Intel'>n270</model>
-      <model usable='yes' vendor='unknown'>pentium</model>
-      <model usable='yes' vendor='unknown'>pentium2</model>
-      <model usable='yes' vendor='unknown'>pentium3</model>
-      <model usable='no' vendor='AMD'>phenom</model>
+      <model usable='yes' vendor='AMD' canonical='athlon-v1'>athlon</model>
+      <model usable='yes' vendor='AMD'>athlon-v1</model>
+      <model usable='yes' vendor='Intel' canonical='core2duo-v1'>core2duo</model>
+      <model usable='yes' vendor='Intel'>core2duo-v1</model>
+      <model usable='yes' vendor='Intel' canonical='coreduo-v1'>coreduo</model>
+      <model usable='yes' vendor='Intel'>coreduo-v1</model>
+      <model usable='yes' vendor='unknown' canonical='kvm32-v1'>kvm32</model>
+      <model usable='yes' vendor='unknown'>kvm32-v1</model>
+      <model usable='yes' vendor='unknown' canonical='kvm64-v1'>kvm64</model>
+      <model usable='yes' vendor='unknown'>kvm64-v1</model>
+      <model usable='yes' vendor='Intel' canonical='n270-v1'>n270</model>
+      <model usable='yes' vendor='Intel'>n270-v1</model>
+      <model usable='yes' vendor='unknown' canonical='pentium-v1'>pentium</model>
+      <model usable='yes' vendor='unknown'>pentium-v1</model>
+      <model usable='yes' vendor='unknown' canonical='pentium2-v1'>pentium2</model>
+      <model usable='yes' vendor='unknown'>pentium2-v1</model>
+      <model usable='yes' vendor='unknown' canonical='pentium3-v1'>pentium3</model>
+      <model usable='yes' vendor='unknown'>pentium3-v1</model>
+      <model usable='no' vendor='AMD' canonical='phenom-v1'>phenom</model>
       <blockers model='phenom'>
         <feature name='fxsr_opt'/>
       </blockers>
-      <model usable='yes' vendor='unknown'>qemu32</model>
-      <model usable='yes' vendor='unknown'>qemu64</model>
+      <model usable='no' vendor='AMD'>phenom-v1</model>
+      <blockers model='phenom-v1'>
+        <feature name='fxsr_opt'/>
+      </blockers>
+      <model usable='yes' vendor='unknown' canonical='qemu32-v1'>qemu32</model>
+      <model usable='yes' vendor='unknown'>qemu32-v1</model>
+      <model usable='yes' vendor='unknown' canonical='qemu64-v1'>qemu64</model>
+      <model usable='yes' vendor='unknown'>qemu64-v1</model>
     </mode>
   </cpu>
   <memoryBacking supported='yes'>

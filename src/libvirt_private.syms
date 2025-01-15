@@ -1665,6 +1665,12 @@ virDomainInterfaceStopDevice;
 virDomainInterfaceStopDevices;
 virDomainInterfaceVportRemove;
 
+# hypervisor/domain_logcontext.h
+domainLogContextGetWriteFD;
+domainLogContextMarkPosition;
+domainLogContextNew;
+domainLogContextReadFiltered;
+domainLogContextWrite;
 
 # hypervisor/virclosecallbacks.h
 virCloseCallbacksDomainAdd;
@@ -2606,6 +2612,13 @@ virIdentitySetUNIXGroupID;
 virIdentitySetUNIXUserID;
 virIdentitySetUserName;
 virIdentitySetX509DName;
+
+
+# util/virinhibitor.h
+virInhibitorFree;
+virInhibitorHold;
+virInhibitorNew;
+virInhibitorRelease;
 
 
 # util/virinitctl.h

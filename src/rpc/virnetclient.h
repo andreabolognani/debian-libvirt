@@ -117,11 +117,11 @@ int virNetClientDupFD(virNetClient *client, bool cloexec);
 
 bool virNetClientHasPassFD(virNetClient *client);
 
-int virNetClientAddProgram(virNetClient *client,
-                           virNetClientProgram *prog);
+void virNetClientAddProgram(virNetClient *client,
+                            virNetClientProgram *prog);
 
-int virNetClientAddStream(virNetClient *client,
-                          virNetClientStream *st);
+void virNetClientAddStream(virNetClient *client,
+                           virNetClientStream *st);
 
 void virNetClientRemoveStream(virNetClient *client,
                               virNetClientStream *st);

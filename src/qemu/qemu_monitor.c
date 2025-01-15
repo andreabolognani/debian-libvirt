@@ -1431,14 +1431,6 @@ qemuMonitorStopCPUs(qemuMonitor *mon)
 
 
 int
-qemuMonitorCheck(qemuMonitor *mon)
-{
-    bool running;
-    return qemuMonitorGetStatus(mon, &running, NULL);
-}
-
-
-int
 qemuMonitorGetStatus(qemuMonitor *mon,
                      bool *running,
                      virDomainPausedReason *reason)
@@ -3306,6 +3298,7 @@ qemuMonitorCPUModelInfoFree(qemuMonitorCPUModelInfo *model_info)
             g_free(model_info->props[i].value.string);
     }
 
+    g_strfreev(model_info->deprecated_props);
     g_free(model_info->props);
     g_free(model_info->name);
     g_free(model_info);
@@ -3349,6 +3342,8 @@ qemuMonitorCPUModelInfoCopy(const qemuMonitorCPUModelInfo *orig)
             break;
         }
     }
+
+    copy->deprecated_props = g_strdupv(orig->deprecated_props);
 
     return copy;
 }
@@ -3816,13 +3811,15 @@ qemuMonitorGetMemoryDeviceInfo(qemuMonitor *mon,
 
 int
 qemuMonitorMigrateIncoming(qemuMonitor *mon,
-                           const char *uri)
+                           const char *uri,
+                           virTristateBool exitOnError)
 {
-    VIR_DEBUG("uri=%s", uri);
+    VIR_DEBUG("uri=%s, exitOnError=%s",
+              uri, virTristateBoolTypeToString(exitOnError));
 
     QEMU_CHECK_MONITOR(mon);
 
-    return qemuMonitorJSONMigrateIncoming(mon, uri);
+    return qemuMonitorJSONMigrateIncoming(mon, uri, exitOnError);
 }
 
 

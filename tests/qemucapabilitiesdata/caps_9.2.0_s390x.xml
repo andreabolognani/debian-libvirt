@@ -136,6 +136,8 @@
   <flag name='chardev-reconnect-miliseconds'/>
   <flag name='virtio-ccw.loadparm'/>
   <flag name='netdev-stream-reconnect-miliseconds'/>
+  <flag name='query-cpu-model-expansion.deprecated-props'/>
+  <flag name='migrate-incoming.exit-on-error'/>
   <version>9001050</version>
   <microcodeVersion>39100247</microcodeVersion>
   <package>v9.1.0-1348-g11b8920ed2</package>
@@ -196,6 +198,12 @@
     <property name='te' type='boolean' value='true'/>
     <property name='cmm' type='boolean' value='true'/>
     <property name='vxpdeh2' type='boolean' value='true'/>
+    <deprecatedFeatures>
+      <property name='bpb'/>
+      <property name='te'/>
+      <property name='cte'/>
+      <property name='csske'/>
+    </deprecatedFeatures>
   </hostCPU>
   <cpu type='kvm' name='z13' typename='z13-s390x-cpu' usable='yes'/>
   <cpu type='kvm' name='z990.3' typename='z990.3-s390x-cpu' usable='yes'/>
@@ -354,6 +362,12 @@
     <property name='msa3-base' type='boolean' value='true'/>
     <property name='msa5-base' type='boolean' value='true'/>
     <property name='tods' type='boolean' value='false'/>
+    <deprecatedFeatures>
+      <property name='bpb'/>
+      <property name='te'/>
+      <property name='cte'/>
+      <property name='csske'/>
+    </deprecatedFeatures>
   </hostCPU>
   <cpu type='tcg' name='z13' typename='z13-s390x-cpu' usable='no'>
     <blocker name='ppno-sha-512-drng'/>

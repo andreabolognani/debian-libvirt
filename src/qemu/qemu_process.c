@@ -1840,7 +1840,7 @@ qemuProcessMonitorReportLogError(qemuMonitor *mon,
 static void
 qemuProcessMonitorLogFree(void *opaque)
 {
-    qemuLogContext *logCtxt = opaque;
+    domainLogContext *logCtxt = opaque;
     g_clear_object(&logCtxt);
 }
 
@@ -1866,7 +1866,7 @@ static int
 qemuConnectMonitor(virQEMUDriver *driver,
                    virDomainObj *vm,
                    int asyncJob,
-                   qemuLogContext *logCtxt,
+                   domainLogContext *logCtxt,
                    bool reconnect)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -1918,13 +1918,13 @@ qemuConnectMonitor(virQEMUDriver *driver,
 
 
 static int
-qemuProcessReportLogError(qemuLogContext *logCtxt,
+qemuProcessReportLogError(domainLogContext *logCtxt,
                           const char *msgprefix)
 {
     g_autofree char *logmsg = NULL;
 
     /* assume that 1024 chars of qemu log is the right balance */
-    if (qemuLogContextReadFiltered(logCtxt, &logmsg, 1024) < 0)
+    if (domainLogContextReadFiltered(logCtxt, &logmsg, 1024) < 0)
         return -1;
 
     virResetLastError();
@@ -1943,7 +1943,7 @@ qemuProcessMonitorReportLogError(qemuMonitor *mon G_GNUC_UNUSED,
                                  const char *msg,
                                  void *opaque)
 {
-    qemuLogContext *logCtxt = opaque;
+    domainLogContext *logCtxt = opaque;
     qemuProcessReportLogError(logCtxt, msg);
 }
 
@@ -2244,7 +2244,7 @@ static int
 qemuProcessWaitForMonitor(virQEMUDriver *driver,
                           virDomainObj *vm,
                           int asyncJob,
-                          qemuLogContext *logCtxt)
+                          domainLogContext *logCtxt)
 {
     int ret = -1;
     g_autoptr(GHashTable) info = NULL;
@@ -4281,6 +4281,30 @@ qemuProcessVerifyHypervFeatures(virDomainDef *def,
                                "direct");
                 return -1;
             }
+            if (i == VIR_DOMAIN_HYPERV_TLBFLUSH) {
+                if (def->hyperv_tlbflush_direct == VIR_TRISTATE_SWITCH_ON) {
+                    rc = virCPUDataCheckFeature(cpu, VIR_CPU_x86_HV_TLBFLUSH_DIRECT);
+                    if (rc < 0)
+                        return -1;
+                    if (rc == 0) {
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                       _("host doesn't support hyperv tlbflush '%1$s' feature"),
+                                       "direct");
+                        return -1;
+                    }
+                }
+                if (def->hyperv_tlbflush_extended == VIR_TRISTATE_SWITCH_ON) {
+                    rc = virCPUDataCheckFeature(cpu, VIR_CPU_x86_HV_TLBFLUSH_EXT);
+                    if (rc < 0)
+                        return -1;
+                    if (rc == 0) {
+                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                                       _("host doesn't support hyperv tlbflush '%1$s' feature"),
+                                       "extended");
+                        return -1;
+                    }
+                }
+            }
             continue;
         }
 
@@ -4740,7 +4764,7 @@ static void
 qemuLogOperation(virDomainObj *vm,
                  const char *msg,
                  virCommand *cmd,
-                 qemuLogContext *logCtxt)
+                 domainLogContext *logCtxt)
 {
     g_autofree char *timestamp = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
@@ -4754,20 +4778,20 @@ qemuLogOperation(virDomainObj *vm,
     if ((timestamp = virTimeStringNow()) == NULL)
         return;
 
-    if (qemuLogContextWrite(logCtxt,
-                            "%s: %s %s, qemu version: %d.%d.%d%s, kernel: %s, hostname: %s\n",
-                            timestamp, msg, VIR_LOG_VERSION_STRING,
-                            (qemuVersion / 1000000) % 1000,
-                            (qemuVersion / 1000) % 1000,
-                            qemuVersion % 1000,
-                            NULLSTR_EMPTY(package),
-                            uts.release,
-                            NULLSTR_EMPTY(hostname)) < 0)
+    if (domainLogContextWrite(logCtxt,
+                              "%s: %s %s, qemu version: %d.%d.%d%s, kernel: %s, hostname: %s\n",
+                              timestamp, msg, VIR_LOG_VERSION_STRING,
+                              (qemuVersion / 1000000) % 1000,
+                              (qemuVersion / 1000) % 1000,
+                              qemuVersion % 1000,
+                              NULLSTR_EMPTY(package),
+                              uts.release,
+                              NULLSTR_EMPTY(hostname)) < 0)
         return;
 
     if (cmd) {
         g_autofree char *args = virCommandToString(cmd, true);
-        qemuLogContextWrite(logCtxt, "%s\n", args);
+        domainLogContextWrite(logCtxt, "%s\n", args);
     }
 }
 
@@ -5809,8 +5833,7 @@ qemuProcessInit(virQEMUDriver *driver,
         qemuDomainSetFakeReboot(vm, false);
         virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PAUSED_STARTING_UP);
 
-        if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
-            driver->inhibitCallback(true, driver->inhibitOpaque);
+        virInhibitorHold(driver->inhibitor);
 
         /* Run an early hook to set-up missing devices */
         if (qemuProcessStartHook(driver, vm,
@@ -6398,6 +6421,17 @@ qemuProcessUpdateGuestCPU(virDomainDef *def,
     if (virCPUDefFilterFeatures(def->cpu, virQEMUCapsCPUFilterFeatures,
                                 &def->os.arch) < 0)
         return -1;
+
+    if (def->cpu->deprecated_feats &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_QUERY_CPU_MODEL_EXPANSION_DEPRECATED_PROPS)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("toggling deprecated features for CPU model is unsupported"));
+        return -1;
+    }
+
+    if (def->cpu->deprecated_feats == VIR_TRISTATE_SWITCH_OFF) {
+        virQEMUCapsUpdateCPUDeprecatedFeatures(qemuCaps, def->virtType, def->cpu);
+    }
 
     return 0;
 }
@@ -7765,7 +7799,7 @@ qemuProcessLaunch(virConnectPtr conn,
     int ret = -1;
     int rv;
     int logfile = -1;
-    g_autoptr(qemuLogContext) logCtxt = NULL;
+    g_autoptr(domainLogContext) logCtxt = NULL;
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virCommand) cmd = NULL;
     struct qemuProcessHookData hookData;
@@ -7815,11 +7849,14 @@ qemuProcessLaunch(virConnectPtr conn,
     hookData.cfg = cfg;
 
     VIR_DEBUG("Creating domain log file");
-    if (!(logCtxt = qemuLogContextNew(driver, vm, vm->def->name))) {
+    if (!(logCtxt = domainLogContextNew(cfg->stdioLogD, cfg->logDir,
+                                        QEMU_DRIVER_NAME,
+                                        vm, driver->privileged,
+                                        vm->def->name))) {
         virLastErrorPrefixMessage("%s", _("can't connect to virtlogd"));
         goto cleanup;
     }
-    logfile = qemuLogContextGetWriteFD(logCtxt);
+    logfile = domainLogContextGetWriteFD(logCtxt);
 
     if (qemuProcessGenID(vm, flags) < 0)
         goto cleanup;
@@ -7855,7 +7892,7 @@ qemuProcessLaunch(virConnectPtr conn,
 
     qemuDomainObjCheckTaint(driver, vm, logCtxt, incoming != NULL);
 
-    qemuLogContextMarkPosition(logCtxt);
+    domainLogContextMarkPosition(logCtxt);
 
     if (qemuProcessEnableDomainNamespaces(driver, vm) < 0)
         goto cleanup;
@@ -8812,8 +8849,7 @@ void qemuProcessStop(virQEMUDriver *driver,
     if (priv->eventThread)
         g_object_unref(g_steal_pointer(&priv->eventThread));
 
-    if (g_atomic_int_dec_and_test(&driver->nactive) && driver->inhibitCallback)
-        driver->inhibitCallback(false, driver->inhibitOpaque);
+    virInhibitorRelease(driver->inhibitor);
 
     /* Clear network bandwidth */
     virDomainClearNetBandwidth(vm->def);
@@ -9571,8 +9607,7 @@ qemuProcessReconnect(void *opaque)
             goto error;
     }
 
-    if (g_atomic_int_add(&driver->nactive, 1) == 0 && driver->inhibitCallback)
-        driver->inhibitCallback(true, driver->inhibitOpaque);
+    virInhibitorHold(driver->inhibitor);
 
  cleanup:
     if (jobStarted)

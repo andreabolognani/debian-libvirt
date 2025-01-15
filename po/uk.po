@@ -8,15 +8,15 @@
 # Maxim Dziumanenko <dziumanenko@gmail.com>, 2007
 # Rax Garfield <admin@dvizho.ks.ua>, 2012
 # Sergey <dmytserg@gmail.com>, 2011
-# Yuri Chornoivan <yurchor@ukr.net>, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024.
+# Yuri Chornoivan <yurchor@ukr.net>, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025.
 # Данило Коростіль <ted.korostiled@gmail.com>, 2011
 # Daniel Berrange <dan-zanata@berrange.com>, 2018
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-11-26 14:19+0000\n"
-"PO-Revision-Date: 2024-10-26 14:02+0000\n"
+"POT-Creation-Date: 2025-01-09 09:28+0000\n"
+"PO-Revision-Date: 2025-01-14 14:38+0000\n"
 "Last-Translator: Yuri Chornoivan <yurchor@ukr.net>\n"
 "Language-Team: Ukrainian <https://translate.fedoraproject.org/projects/"
 "libvirt/libvirt/uk/>\n"
@@ -26,7 +26,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.7.2\n"
+"X-Generator: Weblate 5.9.2\n"
 
 msgid ""
 "\n"
@@ -599,7 +599,7 @@ msgstr "Підтримки диска %1$s у цьому виконуваном�
 
 #, c-format
 msgid "%1$s does not support file storage"
-msgstr ""
+msgstr "У %1$s не передбачено підтримки файлового сховища даних"
 
 #, c-format
 msgid "%1$s does not support passing a passphrase using a file descriptor"
@@ -1347,7 +1347,7 @@ msgstr ""
 
 #, c-format
 msgid "'block' nvram backing device '%1$s' doesn't exist"
-msgstr ""
+msgstr "резервного пристрою nvram «block» «'%1$s» не існує"
 
 msgid "'cache' refers to a non-existent NUMA node cache"
 msgstr "«cache» посилається на кеш вузлів NUMA, якого не існує"
@@ -1785,7 +1785,7 @@ msgstr ""
 "«rbd»"
 
 msgid "<dataStore> feature available only with qcow2 images"
-msgstr ""
+msgstr "можливість <dataStore> доступна лише з образами qcow2"
 
 msgid "<domainbackup> must specify TCP port for now"
 msgstr "<domainbackup> зараз має вказувати порт TCP"
@@ -1806,7 +1806,7 @@ msgstr "підтримки <iotune> з bus='sd' не передбачено"
 
 #, c-format
 msgid "<profile/> requires TPM version '%1$s'"
-msgstr ""
+msgstr "<profile/> потребує версії TPM «%1$s»"
 
 msgid "<reservations/> allowed only for lun devices"
 msgstr "<reservations/> можна використовувати лише для пристроїв lun"
@@ -1952,8 +1952,68 @@ msgid "Accept SSH host key with hash '%1$s' for host '%2$s:%3$d' (%4$s/%5$s)?"
 msgstr ""
 "Прийняти основний ключ SSH з хешем «%1$s» для вузла «%2$s:%3$d» (%4$s/%5$s)?"
 
+msgid "Access connection"
+msgstr "З'єднання доступу"
+
 msgid "Access denied"
 msgstr "Доступ заборонено"
+
+msgid "Access domain"
+msgstr "Домен доступу"
+
+msgid "Access interface"
+msgstr "Інтерфейс доступу"
+
+msgid "Access network"
+msgstr "Мережа доступу"
+
+msgid "Access network filter"
+msgstr "Фільтр мереж доступу"
+
+msgid "Access network port"
+msgstr "Порт мережі доступу"
+
+msgid "Access node device"
+msgstr "Пристрій вузла доступу"
+
+msgid "Access secret"
+msgstr "Пароль доступу"
+
+msgid "Access storage pool"
+msgstr "Буфер сховища доступу"
+
+msgid "Access storage volume"
+msgstr "Том сховища доступу"
+
+msgid "Accessing interface requires authorization"
+msgstr "Інтерфейс доступу потребує уповноваження"
+
+msgid "Accessing network filter requires authorization"
+msgstr "Доступ до фільтра мережі потребує уповноваження"
+
+msgid "Accessing network port requires authorization"
+msgstr "Доступ до порту мережі потребує уповноваження"
+
+msgid "Accessing network requires authorization"
+msgstr "Доступ до мережі потребує уповноваження"
+
+msgid "Accessing node device requires authorization"
+msgstr "Доступ до пристрою вузла потребує уповноваження"
+
+msgid "Accessing secret requires authorization"
+msgstr "Доступ до пароля потребує уповноваження"
+
+msgid "Accessing storage pool requires authorization"
+msgstr "Доступ до буфера сховища даних потребує уповноваження"
+
+msgid "Accessing storage volume requires authorization"
+msgstr "Доступ до тому сховища потребує уповноваження"
+
+msgid "Accessing the connection requires authorization"
+msgstr "Доступ до з'єднання потребує уповноваження"
+
+msgid "Accessing the domain requires authorization"
+msgstr "Доступ до домену потребує уповноваження"
 
 #, c-format
 msgid "Activation of snoop request failed on interface '%1$s'"
@@ -2397,7 +2457,7 @@ msgstr "Підтримки адрес CCW для типу машин «%1$s» н
 
 #, c-format
 msgid "CH does not support device assignment mode '%1$s'"
-msgstr ""
+msgstr "У CH не передбачено підтримки режиму призначення пристроїв «%1$s»"
 
 #, c-format
 msgid "CHS geometry can not be set for '%1$s' bus"
@@ -3065,7 +3125,7 @@ msgid "Cannot detach %1$s device with no alias"
 msgstr "Не можна від'єднувати пристрій %1$s без альтернативної назви"
 
 msgid "Cannot detach platform device"
-msgstr ""
+msgstr "Не можна від'єднати пристрій платформи"
 
 msgid "Cannot determine balloon device path"
 msgstr "Не вдалося визначити шлях до пристрою допоміжної пам'яті"
@@ -3255,7 +3315,7 @@ msgid "Cannot get storage controller name"
 msgstr "Не вдалося отримати назву контролера сховища даних"
 
 msgid "Cannot hotplug platform device"
-msgstr ""
+msgstr "Не можна під'єднати пристрій платформи"
 
 msgid "Cannot initialize thread local for current identity"
 msgstr ""
@@ -3522,9 +3582,11 @@ msgid ""
 "Cannot set CPU model '%1$s' as canonical name of '%2$s' which is already an "
 "alias of '%3$s'"
 msgstr ""
+"Не можна встановити модель процесора «%1$s» як канонічну назву «%2$s», яка "
+"вже є альтернативною назвою «%3$s»"
 
-msgid "Cannot set a base label with AppArmour"
-msgstr "Не вдалося встановити базову мітку за допомогою AppArmour"
+msgid "Cannot set a base label with AppArmor"
+msgstr "Не можна встановити базову мітку за допомогою AppArmor"
 
 msgid "Cannot set an empty mem_nodes set"
 msgstr "Не можна встановлювати порожжній набір mem_nodes"
@@ -4008,6 +4070,12 @@ msgstr "Дамп XML контрольної точки"
 msgid "Checkpoint List"
 msgstr "Список контрольних точок"
 
+msgid "Checkpoint domain"
+msgstr "Домен контрольної точки"
+
+msgid "Checkpointing domain requires authorization"
+msgstr "Створення контрольної точки домену потребує уповноваження"
+
 #, c-format
 msgid "Checkpoints have inconsistent relations for domain %1$s"
 msgstr "Некоректний взаємозв'язок між контрольними точками домену %1$s"
@@ -4287,6 +4355,9 @@ msgstr "На цій платформі не передбачено підтри�
 
 msgid "Controllers must use the 'ccid' address type"
 msgstr "Контролери мають використовувати тип адреси «ccid»"
+
+msgid "Controlling domain init process requires authorization"
+msgstr "Керування процесом ініціалізації домену потребує уповноваження"
 
 msgid "Convert domain XML config to a native guest configuration format."
 msgstr ""
@@ -5228,6 +5299,7 @@ msgstr "Не вдалося повернутися до знімка «%1$s»: %
 #, c-format
 msgid "Could not run '%1$s --print-info'. exitstatus: %2$d; stderr: %3$s"
 msgstr ""
+"Не вдалося запустити «%1$s --print-info». Стан виходу: %2$d; stderr: %3$s"
 
 #, c-format
 msgid ""
@@ -5440,6 +5512,15 @@ msgstr "Створити том на основі вже створеного т
 msgid "Create a vol."
 msgstr "Створити том."
 
+msgid "Create network filter binding"
+msgstr "Створити прив'язку фільтра мережі"
+
+msgid "Create network port"
+msgstr "Створити порт мережі"
+
+msgid "Create storage volume"
+msgstr "Створити том сховища даних"
+
 #, c-format
 msgid "Create the dir %1$s"
 msgstr "Створити каталог %1$s"
@@ -5451,8 +5532,17 @@ msgstr "Створено"
 msgid "Created bridge %1$s with attached device %2$s\n"
 msgstr "Створено місток %1$s з долученим пристроєм %2$s\n"
 
+msgid "Creating network filter binding requires authorization"
+msgstr "Створення прив'язки фільтра мережі потребує уповноваження"
+
+msgid "Creating network port configuration requires authorization"
+msgstr "Створення налаштувань порту мережі потребує уповноваження"
+
 msgid "Creating non-file volumes is not supported"
 msgstr "Створення нефайлових томів не підтримується"
+
+msgid "Creating storage volume requires authorization"
+msgstr "Створення тому сховища потребує уповноваження"
 
 msgid "Creation Time"
 msgstr "Час створення"
@@ -5597,11 +5687,71 @@ msgstr "Вилучити вказаний том."
 msgid "Delete an IOThread from the guest domain."
 msgstr "Вилучити потік введення-виведення з гостьового домену."
 
+msgid "Delete domain"
+msgstr "Вилучити домен"
+
+msgid "Delete interface"
+msgstr "Вилучити інтерфейс"
+
+msgid "Delete network"
+msgstr "Вилучити мережу"
+
+msgid "Delete network filter"
+msgstr "Вилучити фільтр мережі"
+
+msgid "Delete network filter binding"
+msgstr "Вилучити прив'язку фільтра мережі"
+
+msgid "Delete network port"
+msgstr "Вилучити порт мережі"
+
+msgid "Delete node device"
+msgstr "Вилучити пристрій вузла"
+
+msgid "Delete secret"
+msgstr "Вилучити пароль"
+
+msgid "Delete storage pool"
+msgstr "Вилучити буфер сховища"
+
+msgid "Delete storage volume"
+msgstr "Вилучити том сховища"
+
 msgid "Delete the specified network port."
 msgstr "Вилучити вказаний порт мережі."
 
 msgid "Deleted"
 msgstr "Вилучено"
+
+msgid "Deleting domain configuration requires authorization"
+msgstr "Вилучення налаштувань домену потребує уповноваження"
+
+msgid "Deleting interface configuration requires authorization"
+msgstr "Вилучення налаштувань інтерфейсу потребує уповноваження"
+
+msgid "Deleting network configuration requires authorization"
+msgstr "Вилучення налаштувань мережі потребує уповноваження"
+
+msgid "Deleting network filter binding requires authorization"
+msgstr "Вилучення прив'язки фільтра мережі потребує уповноваження"
+
+msgid "Deleting network filter configuration requires authorization"
+msgstr "Вилучення налаштувань фільтра мережі потребує уповноваження"
+
+msgid "Deleting network port configuration requires authorization"
+msgstr "Вилучення налаштувань порту мережі потребує уповноваження"
+
+msgid "Deleting node device driver requires authorization"
+msgstr "Вилучення драйвера пристрою вузла потребує уповноваження"
+
+msgid "Deleting secret configuration requires authorization"
+msgstr "Вилучення налаштувань пароля потребує уповноваження"
+
+msgid "Deleting storage pool configuration requires authorization"
+msgstr "Вилучення налаштувань буфера сховища потребує уповноваження"
+
+msgid "Deleting storage volume requires authorization"
+msgstr "Вилучення тому сховища потребує уповноваження"
 
 msgid ""
 "Depending on whether run with or without options, the command fetches or "
@@ -5656,10 +5806,22 @@ msgstr "Від'єднати дисковий пристрій."
 msgid "Detach network interface."
 msgstr "Від'єднати мережний пристрій."
 
+msgid "Detach node device"
+msgstr "Від'єднати пристрій вузла"
+
 msgid "Detach node device from its device driver before assigning to a domain."
 msgstr ""
 "Від'єднати пристрій вузла від його драйвера пристрою перед прив'язкою до "
 "домену."
+
+msgid "Detaching node device driver requires authorization"
+msgstr "Від'єднання драйвера пристрою вузла потребує уповноваження"
+
+msgid "Detect storage pools"
+msgstr "Виявити буфери сховища"
+
+msgid "Detecting storage pools requires authorization"
+msgstr "Виявлення буферів сховища потребує уповноваження"
 
 msgid "Device"
 msgstr "Пристрій"
@@ -6133,6 +6295,9 @@ msgstr "Пристрій hostdev домену"
 msgid "Domain information of managed save state file in XML"
 msgstr "Дані домену файла XML керованого збереженого стану"
 
+msgid "Domain init control"
+msgstr "Керування ініціалізацією домену"
+
 msgid "Domain interface"
 msgstr "Інтерфейс домену"
 
@@ -6258,8 +6423,8 @@ msgstr "Домен:"
 msgid "Done.\n"
 msgstr "Виконано.\n"
 
-msgid "Download length it too large"
-msgstr "Обсяг даних для отримання є надто великим"
+msgid "Download length is too large"
+msgstr "Об'єм отриманих даних є надто великим"
 
 msgid "Download volume contents to a file"
 msgstr "Отримати вміст тому до файла"
@@ -6302,8 +6467,14 @@ msgstr ""
 msgid "Dump XML of domain information for a saved state file to stdout."
 msgstr "Вивести дамп даних XML домену для збереженого файла стану до stdout."
 
+msgid "Dump domain"
+msgstr "Створити дамп домену"
+
 msgid "Dump failed"
 msgstr "Спроба створення дампу зазнала невдачі"
+
+msgid "Dumping domain corefile requires authorization"
+msgstr "Створення дампу файла ядра домену потребує уповноваження"
 
 #, c-format
 msgid "Duplicate NUMA cell info for cell id '%1$u'"
@@ -6476,6 +6647,9 @@ msgstr "Вкажіть ім'я користувача %1$s"
 #, c-format
 msgid "Enter username for %1$s [%2$s]"
 msgstr "Вкажіть ім'я користувача %1$s [%2$s]"
+
+msgid "Ephemeral secrets are loaded"
+msgstr "Завантажено тимчасові реєстраційні дані"
 
 #, c-format
 msgid "Error adding route to %1$s"
@@ -6918,6 +7092,10 @@ msgstr "Не вдалося прийняти з'єднання для перен
 #, c-format
 msgid "Failed to access '%1$s'"
 msgstr "Не вдалося отримати доступ «%1$s»"
+
+#, c-format
+msgid "Failed to acquire inhibitor: %1$s"
+msgstr "Не вдалося отримати уповільнювач: %1$s"
 
 msgid "Failed to acquire lock"
 msgstr "Не вдалося отримати блокування"
@@ -9403,10 +9581,22 @@ msgstr ""
 "Форматування пристрою «%1$s» не відповідає очікуваному форматуванню «%2$s», "
 "потрібен примусовий перезапис"
 
+msgid "Format storage pool"
+msgstr "Форматувати буфер сховища"
+
+msgid "Format storage volume"
+msgstr "Форматувати том сховища"
+
 #, c-format
 msgid "Formatting IP address for host '%1$s' failed: %2$s"
 msgstr ""
 "Спроба форматування IP-адреси для вузла «%1$s» завершилася невдало: %2$s"
+
+msgid "Formatting storage pool data requires authorization"
+msgstr "Форматування буфера сховища даних потребує уповноваження"
+
+msgid "Formatting storage volume data requires authorization"
+msgstr "Форматування тому сховища даних потребує уповноваження"
 
 msgid "Found additional probes to run, probing may be incorrect"
 msgstr ""
@@ -9429,8 +9619,14 @@ msgid "Found unexpected controller model '%1$s' for disk '%2$s'"
 msgstr ""
 "Виявлено неочікуване значення моделі контролера «%1$s» для диска «%2$s»"
 
+msgid "Freeze and thaw domain filesystems"
+msgstr "Замерзання і танення файлових систем домену"
+
 msgid "Freeze domain's mounted filesystems."
 msgstr "Заморозити змонтовані файлові системи домену."
+
+msgid "Freezing and thawing domain filesystems requires authorization"
+msgstr "Для замерзання і танення файлових систем домену потрібне уповноваження"
 
 #, c-format
 msgid "Froze %1$d filesystem(s)\n"
@@ -9657,6 +9853,9 @@ msgstr "Встановлення з'єднання вже завершено"
 
 msgid "Hard disk is null"
 msgstr "Значення жорсткого диска є порожнім"
+
+msgid "Hibernate domain"
+msgstr "Присипляння домену"
 
 msgid "Holes are not supported with this stream"
 msgstr "Для цього потоку даних «дірок» не передбачено"
@@ -10053,6 +10252,12 @@ msgstr "Вставити NMI до гостьової системи"
 msgid "Inject NMI to the guest domain."
 msgstr "Вставити NMI до гостьового домену."
 
+msgid "Inject domain NMI"
+msgstr "Вставлення NMI домену"
+
+msgid "Injecting interrupt requires authorization"
+msgstr "Вставлення переривання потребує уповноваження"
+
 msgid "Input devices are not supported by this virtualization driver."
 msgstr "Цим драйвером віртуалізації не передбачено пристроїв введення даних."
 
@@ -10148,6 +10353,9 @@ msgstr "Не знайдено інтерфейсу"
 #, c-format
 msgid "Interface not found: %1$s"
 msgstr "Не знайдено інтерфейсу: %1$s"
+
+msgid "Interface transactions"
+msgstr "Операції з інтерфейсом"
 
 msgid ""
 "Interface type hostdev is currently supported on SR-IOV Virtual Functions "
@@ -11110,6 +11318,10 @@ msgid "Invalid virNetSSHSession *"
 msgstr "Некоректне значення virNetSSHSession *"
 
 #, c-format
+msgid "Invalid vlan filter command %1$d"
+msgstr "Некоректна команда фільтрування vlan %1$d"
+
+#, c-format
 msgid "Invalid vnuma configuration for vnode %1$zu"
 msgstr "Некоректне налаштування vnuma для віртуального вузла %1$zu"
 
@@ -11199,6 +11411,9 @@ msgstr ""
 msgid "LXC Guest Enter Namespace"
 msgstr "Простір назв входу гостьової системи LXC"
 
+msgid "LXC containers are running"
+msgstr "Запущено контейнери LXC"
+
 #, c-format
 msgid "Lease %1$s in lockspace %2$s already exists"
 msgstr "Зняття %1$s у просторі блокування %2$s вже створено"
@@ -11220,8 +11435,20 @@ msgstr ""
 "Функцією бібліотеки повернуто повідомлення про помилку, але не встановлено "
 "virError"
 
-msgid "Libvirt"
-msgstr "Libvirt"
+msgid "Libvirt LXC"
+msgstr "LXC Libvirt"
+
+msgid "Libvirt Network"
+msgstr "Мережа Libvirt"
+
+msgid "Libvirt QEMU"
+msgstr "QEMU Libvirt"
+
+msgid "Libvirt Secret"
+msgstr "Пароль Libvirt"
+
+msgid "Libvirt Xen"
+msgstr "Xen Libvirt"
 
 #, c-format
 msgid "Lifecycle event '%1$s' doesn't support '%2$s' action"
@@ -11240,6 +11467,9 @@ msgstr "Показати список усіх керованих сервері
 msgid "List checkpoints for a domain"
 msgstr "Список контрольних точок домену"
 
+msgid "List domains"
+msgstr "Вивести список доменів"
+
 msgid "List event types, or wait for domain events to occur"
 msgstr "Показати список типів подій або очікувати на події домену"
 
@@ -11255,14 +11485,73 @@ msgstr "Показати список типів подій або зачека�
 msgid "List event types, or wait for storage pool events to occur"
 msgstr "Показати список типів подій або чекати на події сховища даних"
 
+msgid "List interfaces"
+msgstr "Вивести список інтерфейсів"
+
+msgid "List network filter bindings"
+msgstr "Вивести список прив'язок фільтрів мережі"
+
+msgid "List network filters"
+msgstr "Вивести список фільтрів мережі"
+
+msgid "List network ports"
+msgstr "Вивести список портів мережі"
+
+msgid "List networks"
+msgstr "Вивести список мереж"
+
+msgid "List node devices"
+msgstr "Вивести список пристроїв вузла"
+
+msgid "List secrets"
+msgstr "Вивести список паролів"
+
 msgid "List snapshots for a domain"
 msgstr "Показати список знімків домену"
+
+msgid "List storage pool volumes"
+msgstr "Вивести список томів буфера сховища даних"
+
+msgid "List storage pools"
+msgstr "Вивести список буферів сховища даних"
 
 msgid "Listen for QEMU Monitor Events"
 msgstr "Очікувати на події монітора QEMU"
 
 msgid "Listen for TCP/IP connections"
 msgstr "Очікувати на з'єднання TCP/IP"
+
+msgid "Listing domains or using domain events requires authorization"
+msgstr ""
+"Виведення списку доменів або використання подій домену потребує уповноваження"
+
+msgid "Listing interfaces requires authorization"
+msgstr "Виведення списку інтерфейсів потребує уповноваження"
+
+msgid "Listing network filter bindings requires authorization"
+msgstr "Виведення списку прив'язок фільтрів мережі потребує уповноваження"
+
+msgid "Listing network filters requires authorization"
+msgstr "Виведення списку фільтрів мережі потребує уповноваження"
+
+msgid "Listing network ports requires authorization"
+msgstr "Виведення списку портів мережі потребує уповноваження"
+
+msgid "Listing networks or using network events requires authorization"
+msgstr ""
+"Виведення списку мереж або використання подій мережі потребує уповноваження"
+
+msgid "Listing node devices requires authorization"
+msgstr "Виведення списку пристроїв вузла потребує уповноваження"
+
+msgid "Listing secrets requires authorization"
+msgstr "Виведення списку паролів потребує уповноваження"
+
+msgid "Listing storage pool volumes requires authorization"
+msgstr "Виведення списку томів буфера сховища даних потребує уповноваження"
+
+msgid "Listing storage pools requires authorization"
+msgstr "Виведення списку буферів сховища даних потребує уповноваження"
 
 msgid "Load kvm_hv for better performance"
 msgstr "Завантажити kvm_hv для збільшення швидкодії"
@@ -11489,6 +11778,9 @@ msgstr "Помилкове форматування wwn: %1$s"
 msgid "Manage active block operations"
 msgstr "Керування активними діями з блоками"
 
+msgid "Manage local virtualized systems"
+msgstr "Керування локальними віртуалізованими системами"
+
 #, c-format
 msgid "Managed save image of Domain '%1$s' XML configuration edited.\n"
 msgstr ""
@@ -11650,11 +11942,17 @@ msgstr ""
 "Підтримки атрибута «migratable» для процесорів із передаванням до основної "
 "системи у цьому виконуваному файлі QEMU не передбачено"
 
+msgid "Migrate domain"
+msgstr "Перенесення домену"
+
 msgid "Migrate domain to another host.  Add --live for live migration."
 msgstr "Міграція домену на інший вузол. Додати --live до живої міграції."
 
 msgid "Migrated"
 msgstr "Перенесено"
+
+msgid "Migrating domain requires authorization"
+msgstr "Перенесення домену потребує уповноваження"
 
 msgid "Migration"
 msgstr "Перенесення"
@@ -12348,6 +12646,9 @@ msgstr "Назва моделі містить неправильні симво
 
 msgid "Modifies an existing IOThread of the guest domain."
 msgstr "Вносить зміни до наявного IOThread гостьового домену."
+
+msgid "Monitor local virtualized systems"
+msgstr "Спостереження за локальними віртуалізованими системами"
 
 #, c-format
 msgid "Monitor path %1$s too big for destination"
@@ -13578,6 +13879,15 @@ msgstr "Підтримуються лише адреси перенесення 
 msgid "Only x509 certificates are supported"
 msgstr "Передбачено підтримку лише сертифікатів x509"
 
+msgid "Open domain device"
+msgstr "Відкриття пристрою домену"
+
+msgid "Open domain graphics"
+msgstr "Відкриття графіки домену"
+
+msgid "Open domain namespace"
+msgstr "Відкриття простору назв домену"
+
 msgid "OpenRemoteSession/LaunchVMProcess failed, domain can't be started"
 msgstr "помилка OpenRemoteSession/LaunchVMProcess, домен не може бути запущено"
 
@@ -13586,6 +13896,15 @@ msgstr "Керівний файл OpenVZ «/proc/vz» не існує"
 
 msgid "OpenVZ control file /proc/vz is not accessible"
 msgstr "Керівний файл OpenVZ «/proc/vz» недоступний"
+
+msgid "Opening domain devices requires authorization"
+msgstr "Відкриття пристроїв домену потребує уповноваження"
+
+msgid "Opening domain graphics console requires authorization"
+msgstr "Відкриття консолі графіки домену потребує уповноваження"
+
+msgid "Opening domain namespaces requires authorization"
+msgstr "Відкриття просторів назв домену потребує уповноваження"
 
 msgid "Operation cancelled by client"
 msgstr "Дію скасовано клієнтом"
@@ -14294,6 +14613,9 @@ msgid "QEMU version >= %1$d.%2$d.%3$d is required, but %4$d.%5$d.%6$d found"
 msgstr ""
 "потрібна версія QEMU >= %1$d.%2$d.%3$d, а маємо лише версію %4$d.%5$d.%6$d"
 
+msgid "QEMU/KVM virtual machines are running"
+msgstr "Запущено віртуальні машини QEMU/KVM"
+
 #, c-format
 msgid "QOM Object '%1$s' has no property 'ram_size'"
 msgstr "Об'єкт QOM «%1$s» не має властивості «ram_size»"
@@ -14403,6 +14725,54 @@ msgid "Raw I/O is not supported on this platform"
 msgstr ""
 "Підтримки введення-виведення без обробки для цієї платформи не передбачено"
 
+msgid "Read domain"
+msgstr "Читання домену"
+
+msgid "Read domain block"
+msgstr "Читання блоку домену"
+
+msgid "Read domain memory"
+msgstr "Читання пам'яті домену"
+
+msgid "Read host"
+msgstr "Читання вузла"
+
+msgid "Read interface"
+msgstr "Читання інтерфейсу"
+
+msgid "Read network"
+msgstr "Читання мережі"
+
+msgid "Read network filter"
+msgstr "Читання фільтра мережі"
+
+msgid "Read network filter binding"
+msgstr "Читання прив'язки фільтрів мережі"
+
+msgid "Read network port"
+msgstr "Читання порту мережі"
+
+msgid "Read node device"
+msgstr "Читання пристрою вузла"
+
+msgid "Read secret"
+msgstr "Читання пароля"
+
+msgid "Read secure domain"
+msgstr "Читання безпечного домену"
+
+msgid "Read secure secret"
+msgstr "Читання безпечного пароля"
+
+msgid "Read storage pool"
+msgstr "Читання буфера сховища"
+
+msgid "Read storage volume"
+msgstr "Читання тому сховища"
+
+msgid "Read storage volume data"
+msgstr "Читання даних тому сховища"
+
 msgid ""
 "Read/write, exclusive access, disks were present, but no leases specified"
 msgstr ""
@@ -14414,6 +14784,51 @@ msgstr "На цій платформі не передбачено можлив�
 
 msgid "Reading MSRs is not supported on this platform"
 msgstr "На цій платформі не передбачено можливості читання MSR"
+
+msgid "Reading domain block devices requires authorization"
+msgstr "Читання блокових пристроїв домену потребує уповноваження"
+
+msgid "Reading domain configuration requires authorization"
+msgstr "Читання налаштувань домену потребує уповноваження"
+
+msgid "Reading domain memory requires authorization"
+msgstr "Читання пам'яті домену потребує уповноваження"
+
+msgid "Reading interface configuration requires authorization"
+msgstr "Читання налаштувань інтерфейсу потребує уповноваження"
+
+msgid "Reading network configuration requires authorization"
+msgstr "Читання налаштувань мережі потребує уповноваження"
+
+msgid "Reading network filter configuration requires authorization"
+msgstr "Читання налаштувань фільтрів мережі потребує уповноваження"
+
+msgid "Reading network port configuration requires authorization"
+msgstr "Читання налаштувань порту мережі потребує уповноваження"
+
+msgid "Reading node device configuration requires authorization"
+msgstr "Читання налаштувань пристрою вузла потребує уповноваження"
+
+msgid "Reading secret configuration requires authorization"
+msgstr "Читання налаштувань паролів потребує уповноваження"
+
+msgid "Reading secure domain configuration requires authorization"
+msgstr "Читання налаштувань безпечного домену потребує уповноваження"
+
+msgid "Reading secure secret configuration requires authorization"
+msgstr "Читання налаштувань безпечного пароля потребує уповноваження"
+
+msgid "Reading storage pool configuration requires authorization"
+msgstr "Читання налаштувань буфера сховища потребує уповноваження"
+
+msgid "Reading storage volume configuration requires authorization"
+msgstr "Читання налаштувань тому сховища потребує уповноваження"
+
+msgid "Reading storage volume data requires authorization"
+msgstr "Читання даних тому сховища потребує уповноваження"
+
+msgid "Reading the host configuration requires authorization"
+msgstr "Читання налаштувань вузла потребує уповноваження"
 
 msgid "Reattach node device to its device driver once released by the domain."
 msgstr ""
@@ -14441,6 +14856,12 @@ msgstr "Канал переспрямування %1$s не підтримуєт
 
 msgid "Refresh a given pool."
 msgstr "Оновити вказаний буфер даних."
+
+msgid "Refresh storage pool"
+msgstr "Оновлення буфера сховища"
+
+msgid "Refreshing storage pool volumes requires authorization"
+msgstr "Оновлення томів буфера сховища даних потребує уповноваження"
 
 #, c-format
 msgid "Refusing to undefine while %1$d snapshots exist"
@@ -14578,6 +14999,9 @@ msgstr "Для шляху розподілу resctrl вже встановлен
 msgid "Resctrl monitor path is already set to '%1$s'"
 msgstr "Для шляху засобу спостереження resctrl вже встановлено значення «%1$s»"
 
+msgid "Reset domain"
+msgstr "Скидання домену"
+
 msgid "Reset node device before or after assigning to a domain."
 msgstr ""
 "Відновити початковий стан пристрою вузла перед або після прив'язки до домену."
@@ -14587,8 +15011,14 @@ msgstr ""
 "Відновити початковий стан домену-цілі, якого він набуває після натискання "
 "кнопки вмикання живлення"
 
+msgid "Resetting the domain requires authorization"
+msgstr "Скидання до початкових налаштувань домену потребує уповноваження"
+
 msgid "Resize block device of domain."
 msgstr "Змінити розмір блокового пристрою домену."
+
+msgid "Resize storage volume"
+msgstr "Зміна розмірів тому сховища"
 
 msgid ""
 "Resizes a storage volume. This is safe only for storage volumes not in use "
@@ -14598,6 +15028,9 @@ msgstr ""
 "Змінити розмір тому сховища даних. Ця дія є безпечною, лише для томів "
 "сховища даних, які не використовуються активною гостьовою системою.\n"
 "Див. blockresize, щоб дізнатися як змінювати розмір у «гарячому» режимі."
+
+msgid "Resizing storage volume requires authorization"
+msgstr "Зміна розмірів тому сховища потребує уповноваження"
 
 msgid "Resolved device mapper name too long"
 msgstr "Визначена назва прив'язки пристрою є надто довгою"
@@ -14982,6 +15415,27 @@ msgstr ""
 "    наступного виклику команди virsh 'start' для домену домен\n"
 "    буде автоматично запущено у збереженому стані."
 
+msgid "Save domain"
+msgstr "Збереження домену"
+
+msgid "Save interface"
+msgstr "Збереження інтерфейсу"
+
+msgid "Save network"
+msgstr "Збереження мережі"
+
+msgid "Save network filter"
+msgstr "Збереження фільтра мережі"
+
+msgid "Save node device"
+msgstr "Збереження пристрою вузла"
+
+msgid "Save secret"
+msgstr "Збереження пароля"
+
+msgid "Save storage pool"
+msgstr "Збереження буфера сховища"
+
 msgid "Save the RAM state of a running domain."
 msgstr "Зберегти стан оперативної пам'яті запущеного домену."
 
@@ -14991,6 +15445,30 @@ msgstr "Збережено"
 #, c-format
 msgid "Saved image %1$s XML configuration not changed.\n"
 msgstr "Налаштування XML збереженого образу %1$s не змінено.\n"
+
+msgid "Saving domain configuration requires authorization"
+msgstr "Збереження налаштувань домену потребує уповноваження"
+
+msgid "Saving domain state requires authorization"
+msgstr "Збереження стану домену потребує уповноваження"
+
+msgid "Saving interface configuration requires authorization"
+msgstr "Збереження налаштувань інтерфейсу потребує уповноваження"
+
+msgid "Saving network configuration requires authorization"
+msgstr "Збереження налаштувань мережі потребує уповноваження"
+
+msgid "Saving network filter configuration requires authorization"
+msgstr "Збереження налаштувань фільтра мережі потребує уповноваження"
+
+msgid "Saving node device driver requires authorization"
+msgstr "Збереження драйвера пристрою вузла потребує уповноваження"
+
+msgid "Saving secret configuration requires authorization"
+msgstr "Збереження налаштувань пароля потребує уповноваження"
+
+msgid "Saving storage pool configuration requires authorization"
+msgstr "Збереження налаштувань буфера сховища потребує уповноваження"
 
 #, c-format
 msgid ""
@@ -15111,6 +15589,12 @@ msgstr ""
 "Адреса сайта: %1$s\n"
 "\n"
 
+msgid "Send domain input"
+msgstr "Надсилання вхідних даних домену"
+
+msgid "Send domain signal"
+msgstr "Надсилання сигналу домену"
+
 msgid "Send keycodes (integers or symbolic names) to the guest"
 msgstr ""
 "Надіслати коди ключів (цілі числа або символічні назви) гостьовій системі"
@@ -15126,6 +15610,12 @@ msgstr "Надсилання сигналів процесам гостьово�
 
 msgid "Sending file descriptors is not supported on this socket"
 msgstr "Надсилання дескрипторів файлів не підтримується цим сокетом"
+
+msgid "Sending input events to domain requires authorization"
+msgstr "Надсилання вхідних подій на домен потребує уповноваження"
+
+msgid "Sending signals to processes in domain requires authorization"
+msgstr "Надсилання сигналів процесам у домені потребує уповноваження"
 
 #, c-format
 msgid ""
@@ -15210,6 +15700,9 @@ msgid "Set or query disk I/O parameters such as block throttling."
 msgstr ""
 "Встановити або визначити параметри введення-виведення даних диска, зокрема "
 "регулювання передавання блоків."
+
+msgid "Set password of the domain's account"
+msgstr "Встановлення пароля до облікового запису домену"
 
 msgid "Set the guest agent timeout"
 msgstr "Встановити час очікування на дані від агента гостьової системи"
@@ -15332,6 +15825,12 @@ msgid "Setting the 64-bit PCI hole size is not supported for machine '%1$s'"
 msgstr ""
 "Для архітектури «%1$s» не передбачено можливості встановлення розміру 64-"
 "бітового обмеження PCI"
+
+msgid "Setting the domain accounts' password requires authorization"
+msgstr "Встановлення пароля до облікового запису домену потребує уповноваження"
+
+msgid "Setting the domain time requires authorization"
+msgstr "Встановлення часу домену потребує уповноваження"
 
 msgid "Setting up disk discard parameter is not supported by vz driver."
 msgstr ""
@@ -15485,6 +15984,9 @@ msgstr "Список знімків"
 msgid "Snapshot delete"
 msgstr "Вилучення знімка"
 
+msgid "Snapshot domain"
+msgstr "Знімок домену"
+
 msgid "Snapshot is Null"
 msgstr "Значення Snapshot є порожнім"
 
@@ -15497,6 +15999,9 @@ msgstr "Для томів «pool» підтримки знімків ще не �
 #, c-format
 msgid "Snapshots have inconsistent relations for domain %1$s"
 msgstr "Некоректний взаємозв'язок між знімками домену %1$s"
+
+msgid "Snapshotting domain requires authorization"
+msgstr "Створення знімка домену потребує уповноваження"
 
 #, c-format
 msgid "Socket path %1$s too big for destination"
@@ -15611,15 +16116,45 @@ msgstr "Запустити буфер."
 msgid "Start an inactive node device"
 msgstr "Запустити неактивний пристрій вузла"
 
+msgid "Start domain"
+msgstr "Запуск домену"
+
+msgid "Start interface"
+msgstr "Запуск інтерфейсу"
+
+msgid "Start network"
+msgstr "Запуск мережі"
+
+msgid "Start node device"
+msgstr "Запуск пристрою вузла"
+
+msgid "Start storage pool"
+msgstr "Запуск буфера сховища"
+
 msgid "Start to calculate domain's memory dirty rate successfully.\n"
 msgstr "Успішний початок обчислення частки «зіпсованої» пам'яті домену.\n"
 
 msgid "Started"
 msgstr "Почато"
 
+msgid "Starting interface requires authorization"
+msgstr "Запуск інтерфейсу потребує уповноваження"
+
+msgid "Starting network requires authorization"
+msgstr "Запуск мережі потребує уповноваження"
+
+msgid "Starting node device requires authorization"
+msgstr "Запуск пристрою вузла потребує уповноваження"
+
 #, sh-format
 msgid "Starting shutdown on guest: $name"
 msgstr "Розпочинаємо завершення роботи гостьової системи: $name"
+
+msgid "Starting storage pool configuration requires authorization"
+msgstr "Запуск налаштувань буфера сховища потребує уповноваження"
+
+msgid "Starting the domain requires authorization"
+msgstr "Запуск домену потребує уповноваження"
 
 msgid "Starts an inactive node device that was previously defined"
 msgstr "Запускає неактивний пристрій вузла, який було визначено раніше"
@@ -15735,8 +16270,38 @@ msgstr ""
 msgid "Status is unknown"
 msgstr "Невідомий стан"
 
+msgid "Stop domain"
+msgstr "Зупинення домену"
+
+msgid "Stop interface"
+msgstr "Зупинення роботи інтерфейсу"
+
+msgid "Stop network"
+msgstr "Зупинення роботи мережі"
+
+msgid "Stop node device"
+msgstr "Зупинення роботи пристрою вузла"
+
+msgid "Stop storage pool"
+msgstr "Зупинення роботи буфера сховища"
+
 msgid "Stopped"
 msgstr "Зупинено"
+
+msgid "Stopping interface requires authorization"
+msgstr "Зупинення роботи інтерфейсу потребує уповноваження"
+
+msgid "Stopping network requires authorization"
+msgstr "Зупинення роботи мережі потребує уповноваження"
+
+msgid "Stopping node device requires authorization"
+msgstr "Зупинення роботи пристрою вузла потребує уповноваження"
+
+msgid "Stopping storage pool configuration requires authorization"
+msgstr "Зупинення роботи налаштувань буфера сховища потребує уповноваження"
+
+msgid "Stopping the domain requires authorization"
+msgstr "Зупинення роботи домену потребує уповноваження"
 
 msgid "Storage Pool Events"
 msgstr "Події сховища даних"
@@ -15856,6 +16421,9 @@ msgstr "Підтримка лише одного типового шлюзу IPv
 msgid "Suspend a running domain."
 msgstr "Перевести запущений домен в стан очікування."
 
+msgid "Suspend domain"
+msgstr "Призупинення роботи домену"
+
 msgid "Suspend duration in seconds, at least 60"
 msgstr "Тривалість призупинки роботи у секундах, не менше 60"
 
@@ -15890,6 +16458,9 @@ msgstr "Приспано"
 msgid "Suspending $name: "
 msgstr "Зупиняється $name: "
 
+msgid "Suspending domain CPUs requires authorization"
+msgstr "Призупинення роботи процесорів домену потребує уповноваження"
+
 #, sh-format
 msgid "Suspending guests on $uri URI..."
 msgstr "Призупинка сеансів гостів для URI $uri…"
@@ -15920,8 +16491,14 @@ msgstr "Система використовується"
 msgid "System is not available"
 msgstr "Система недоступна"
 
-msgid "System lacks NETNS support"
-msgstr "Відсутня підтримка NETNS"
+msgid "System policy prevents management of local virtualized systems"
+msgstr ""
+"Правила системи забороняють керування локальними віртуалізованими системами"
+
+msgid "System policy prevents monitoring of local virtualized systems"
+msgstr ""
+"Правила системи забороняють спостереження за локальними віртуалізованими "
+"системами"
 
 #, c-format
 msgid "System token in %1$s was corrupt"
@@ -15971,6 +16548,12 @@ msgstr "Підтримки версії TPM «%1$s» не передбачено
 
 msgid "Table row cannot be empty"
 msgstr "Рядок таблиці не може бути порожнім"
+
+msgid "Take domain screenshot"
+msgstr "Створення знімка домену"
+
+msgid "Taking domain screenshots requires authorization"
+msgstr "Створення знімків домену потребує уповноваження"
 
 msgid "Target"
 msgstr "Призначення"
@@ -16682,10 +17265,12 @@ msgstr ""
 "%2$s"
 
 #, c-format
-msgid "Target host device subsystem %1$s does not match source %2$s"
+msgid ""
+"Target host device subsystem type %1$s is not compatible with source "
+"subsystem type %2$s"
 msgstr ""
-"Підсистема основного пристрою призначення, %1$s, не відповідає підсистемі "
-"джерела, %2$s"
+"Тип підсистеми %1$s пристрою основної системи призначення є несумісним із "
+"типом підсистеми джерела %2$s"
 
 #, c-format
 msgid "Target hub device type %1$s does not match source %2$s"
@@ -17057,6 +17642,8 @@ msgid ""
 "The <source> of <dataStore> can't have another nested <dataStore> or "
 "<backingStore> element"
 msgstr ""
+"<source> з <dataStore> не може мати іншого вкладеного елемента <dataStore> "
+"або <backingStore>"
 
 #, c-format
 msgid "The CA certificate %1$s has expired"
@@ -17807,6 +18394,12 @@ msgstr "Помилка передавання даних під час %1$s: %2$
 
 msgid "Tried to write socket in error state"
 msgstr "Спроба запису до сокета у стані помилки"
+
+msgid "Trim domain filesystems"
+msgstr "Обрізання файлових систем домену"
+
+msgid "Trimming domain filesystems requires authorization"
+msgstr "Обрізання файлових систем домену потребує уповноваження"
 
 msgid "Try again?"
 msgstr "Повторити спробу?"
@@ -20947,7 +21540,7 @@ msgstr "Непідтримуваний формат nvram «%1$s»"
 
 #, c-format
 msgid "Unsupported nvram template format '%1$s'"
-msgstr ""
+msgstr "Непідтримуваний формат шаблону nvram «%1$s»"
 
 #, c-format
 msgid "Unsupported object type %1$d"
@@ -21148,6 +21741,12 @@ msgstr ""
 "Використати XML для запуску повного або нарощувального резервного копіювання "
 "запущеного домену із необов'язковим створенням контрольної точки"
 
+msgid "Use domain power management"
+msgstr "Користування керування живленням домену"
+
+msgid "Use host power management"
+msgstr "Використання керування живленням основної системи"
+
 msgid "Use of 'parentaddr' element requires use of the adapter 'type'"
 msgstr ""
 "Використання елемента «parentaddr» потребує використання адаптера «type»"
@@ -21192,6 +21791,16 @@ msgstr "Невдала спроба запиту щодо імені корис�
 #, c-format
 msgid "Using API: %1$s %2$d.%3$d.%4$d\n"
 msgstr "Використовується API: %1$s %2$d.%3$d.%4$d\n"
+
+msgid "Using domain power management requires authorization"
+msgstr "Користування керуванням живленням домену потребує уповноваження"
+
+msgid "Using host power management requires authorization"
+msgstr ""
+"Користування керуванням живленням основної системи потребує уповноваження"
+
+msgid "Using interface transactions requires authorization"
+msgstr "Користування перенесенням інтерфейсів потребує уповноваження"
 
 #, c-format
 msgid "Using library: libvirt %1$d.%2$d.%3$d\n"
@@ -21245,7 +21854,7 @@ msgstr "Джерело диска ВМ і джерело диска знімка
 
 #, c-format
 msgid "VM doesn't have disk '%1$s' referenced by snapshot '%2$s'"
-msgstr ""
+msgstr "У ВМ немає диска «%1$s», на який посилається знімок «%2$s»"
 
 msgid "VM is already active"
 msgstr "Віртуальна машина вже активна"
@@ -21309,7 +21918,7 @@ msgstr "У значенні змінної міститься некоректн
 msgid "Verbose messages"
 msgstr "Режим докладних повідомлень"
 
-msgid "Video adapters are not supported int containers."
+msgid "Video adapters are not supported in containers."
 msgstr "У контейнерах не передбачено підтримки відеоадаптерів."
 
 #, c-format
@@ -21323,11 +21932,11 @@ msgstr ""
 "Програма для керування libvirt %1$s за допомогою командного рядка — Virt-"
 "admin\n"
 
-msgid "Virtual machines need to be saved"
-msgstr "Віртуальні машини слід зберігати"
-
 msgid "Virtual network portgroups are not supported by vz driver."
 msgstr "У драйвері vz не передбачено підтримки груп портів віртуальної мережі."
+
+msgid "Virtual networks are active"
+msgstr "Віртуальні мережі активовано"
 
 msgid "Virtual port profile association not supported on this platform"
 msgstr ""
@@ -21448,11 +22057,35 @@ msgstr ""
 msgid "Wiping volume '%1$s'(%2$s) ... "
 msgstr "Витирання тому «%1$s»(%2$s) ... "
 
+msgid "Write domain"
+msgstr "Запис домену"
+
+msgid "Write domain block"
+msgstr "Запис блоку домену"
+
+msgid "Write domain time"
+msgstr "Запис часу домену"
+
 msgid ""
 "Write filtering of PCI device configuration space is not supported by qemu"
 msgstr ""
 "У QEMU не передбачено підтримки фільтрування запису у просторі налаштувань "
 "пристрою PCI"
+
+msgid "Write host"
+msgstr "Запис основної системи"
+
+msgid "Write interface"
+msgstr "Запис інтерфейсу"
+
+msgid "Write network"
+msgstr "Запис мережі"
+
+msgid "Write network filter"
+msgstr "Запис фільтра мережі"
+
+msgid "Write node device"
+msgstr "Запис пристрою вузла"
 
 #, c-format
 msgid "Write of '%1$s' to '%2$s' during vport create/delete failed"
@@ -21460,11 +22093,53 @@ msgstr ""
 "Помилка під час запису «%1$s» до «%2$s» у процесі створення/видалення "
 "віртуального порту"
 
+msgid "Write secret"
+msgstr "Запис пароля"
+
+msgid "Write storage pool"
+msgstr "Запис буфера сховища"
+
+msgid "Write storage volume data"
+msgstr "Запис даних тому сховища"
+
 #, c-format
 msgid "Write to '%1$s' to trigger host scan failed"
 msgstr ""
 "Спроба запису до «%1$s» для вмикання перевірки основної системи зазнала "
 "невдачі"
+
+msgid "Writing domain block devices requires authorization"
+msgstr "Запис блокових пристроїв домену потребує уповноваження"
+
+msgid "Writing domain configuration requires authorization"
+msgstr "Запис налаштувань домену потребує уповноваження"
+
+msgid "Writing interface configuration requires authorization"
+msgstr "Запис налаштування інтерфейсу потребує уповноваження"
+
+msgid "Writing network configuration requires authorization"
+msgstr "Запис налаштувань мережі потребує уповноваження"
+
+msgid "Writing network filter configuration requires authorization"
+msgstr "Запис налаштувань фільтра мережі потребує уповноваження"
+
+msgid "Writing network port configuration requires authorization"
+msgstr "Запис налаштувань порту мережі потребує уповноваження"
+
+msgid "Writing node device configuration requires authorization"
+msgstr "Запис налаштувань пристрою вузла потребує уповноваження"
+
+msgid "Writing secret configuration requires authorization"
+msgstr "Запис налаштувань пароля потребує уповноваження"
+
+msgid "Writing storage pool configuration requires authorization"
+msgstr "Запис налаштувань буфера сховища потребує уповноваження"
+
+msgid "Writing storage volume data requires authorization"
+msgstr "Запис даних тому сховища потребує уповноваження"
+
+msgid "Writing the host configuration requires authorization"
+msgstr "Запис налаштувань основної системи потребує уповноваження"
 
 msgid "Wrong MAC address"
 msgstr "Неправильна MAC-адреса"
@@ -21545,6 +22220,9 @@ msgstr ""
 
 msgid "Xen only supports 'xenpv', 'xenpvh' and 'xenfv' machines"
 msgstr "У Xen передбачено підтримку лише машин «xenpv», «xenpvh» і «xenfv»"
+
+msgid "Xen virtual machines are running"
+msgstr "Запущено віртуальні машини Xen"
 
 msgid "You are trying to remove a snapshot which does not exists"
 msgstr "Ви намагаєтеся вилучити знімок, якого не існує"
@@ -22739,7 +23417,7 @@ msgstr "не вдалося вивантажити том, усі наявні �
 
 #, c-format
 msgid "can't use data file definition '%1$s'"
-msgstr ""
+msgstr "не вдалося скористатися визначенням з файла даних «%1$s»"
 
 msgid "canceled"
 msgstr "скасовано"
@@ -23528,15 +24206,15 @@ msgstr ""
 "не можна одночасно виконувати введення-виведення рядків з запуском фонової "
 "служби"
 
+msgid "cannot modify '<iothreads>' configuration of the disk"
+msgstr "неможливо змінити налаштування «<iothreads>» диска"
+
 msgid "cannot modify MTU"
 msgstr "не можна змінювати MTU"
 
 #, c-format
 msgid "cannot modify field '%1$s' of the disk"
 msgstr "не вдалося внести зміни до поля «%1$s» диска"
-
-msgid "cannot modify field '<iothreads>' (or it's parts) of the disk"
-msgstr ""
 
 #, c-format
 msgid "cannot modify memory access from '%1$s' to '%2$s'"
@@ -24761,6 +25439,8 @@ msgstr "помилка перетворення з рядка"
 msgid ""
 "conversion of the nvram template to another target format is not supported"
 msgstr ""
+"підтримки перетворення шаблону nvram до іншого формату призначення не "
+"передбачено"
 
 msgid "convert a domain id or UUID to domain name"
 msgstr "перетворити ID домену або UUID на назву домену"
@@ -25333,7 +26013,7 @@ msgid "creation of qcow2 encrypted image is not supported"
 msgstr "підтримки створення шифрованого образу qcow2 не передбачено"
 
 msgid "creation of storage images with <dataStore> feature is not supported"
-msgstr ""
+msgstr "підтримки створення образів сховища даних з <dataStore> не передбачено"
 
 #, c-format
 msgid "crypto backend %1$s is not supported"
@@ -26771,6 +27451,10 @@ msgstr ""
 msgid "error adding fdb entry for %1$s"
 msgstr "помилка під час додавання запису fdb для %1$s"
 
+#, c-format
+msgid "error adding vlan filter to interface %1$s"
+msgstr "помилка під час спроби додавання фільтра vlan до інтерфейсу %1$s"
+
 msgid "error calling aa_change_profile()"
 msgstr "помилка виклику aa_change_profile()"
 
@@ -26852,6 +27536,10 @@ msgstr "помилка під час обробки pid lldpad"
 
 msgid "error receiving signal from container"
 msgstr "помилка під час спроби отримання сигналу з контролера"
+
+#, c-format
+msgid "error removing vlan filter from interface %1$s"
+msgstr "помилка під час спроби вилучення фільтра vlan з інтерфейсу %1$s"
 
 msgid "error sending continue signal to daemon"
 msgstr "не вдалося надіслати фоновій службі сигнал продовження"
@@ -27471,7 +28159,7 @@ msgid "failed to create (start) interface %1$s: %2$s%3$s%4$s"
 msgstr "не вдалося створити (запустити) інтерфейс %1$s: %2$s%3$s%4$s"
 
 msgid "failed to create JSON tokener"
-msgstr ""
+msgstr "не вдалося створити збірник жетонів JSON"
 
 #, c-format
 msgid "failed to create RBD snapshot %1$s@%2$s"
@@ -28020,7 +28708,7 @@ msgstr "не вдалося обробити версію %1$s"
 
 #, c-format
 msgid "failed to parse JSON: %1$s"
-msgstr ""
+msgstr "не вдалося обробити JSON: %1$s"
 
 #, c-format
 msgid "failed to parse SCSI host '%1$s'"
@@ -29276,6 +29964,12 @@ msgid "host doesn't support hyperv stimer '%1$s' feature"
 msgstr ""
 "у основній системі не передбачено підтримки можливості stimer hyperv «%1$s»"
 
+#, c-format
+msgid "host doesn't support hyperv tlbflush '%1$s' feature"
+msgstr ""
+"в основній системі не передбачено підтримки hyperv, можливість tlbflush "
+"«%1$s»"
+
 msgid "host doesn't support invariant TSC"
 msgstr "у основній системі не передбачено підтримки інваріантних TSC"
 
@@ -29542,6 +30236,7 @@ msgstr "неприпустима дія над образом"
 #, c-format
 msgid "image of disk '%1$s' does not have internal snapshot '%2$s'"
 msgstr ""
+"в образу диска «%1$s» не передбачено підтримки внутрішнього знімка «%2$s»"
 
 #, c-format
 msgid "image version is not supported (%1$d > %2$d)"
@@ -31318,7 +32013,7 @@ msgstr ""
 
 #, c-format
 msgid "load of internal snapshot '%1$s' job failed: %2$s"
-msgstr ""
+msgstr "не вдалося завантажити завдання для внутрішнього знімка «%1$s»: %2$s"
 
 #, c-format
 msgid "loadparm value '%1$s' must be between 1 and 8 characters"
@@ -32201,6 +32896,13 @@ msgid "missing 'id' attribute for mediated device's <type> element"
 msgstr "пропущено атрибут «id» для елемента проміжного пристрою <type>"
 
 msgid ""
+"missing 'name' attribute for a host CPU model deprecated property in QEMU "
+"capabilities cache"
+msgstr ""
+"пропущено атрибут «name» для застарілої властивості моделі процесора "
+"основної системи у кеші можливостей QEMU"
+
+msgid ""
 "missing 'name' attribute for a host CPU model property in QEMU capabilities "
 "cache"
 msgstr ""
@@ -32331,7 +33033,7 @@ msgid "missing TPM device backend"
 msgstr "не вказано назву модуля пристрою TPM"
 
 msgid "missing TPM source path"
-msgstr ""
+msgstr "пропущено шлях до TPM джерела"
 
 msgid "missing Xen migration stream version"
 msgstr "пропущено версію потоку перенесення Xen"
@@ -32436,7 +33138,7 @@ msgid "missing cssid value for '%1$s'"
 msgstr "не вказано значення cssid для «%1$s»"
 
 msgid "missing data file store format"
-msgstr ""
+msgstr "пропущено формат сховища даних файла даних"
 
 #, c-format
 msgid "missing decode element in CPU model %1$s"
@@ -32471,7 +33173,7 @@ msgid "missing disk backing store source"
 msgstr "не вказано джерело резервного сховища даних на диску"
 
 msgid "missing disk data file store source"
-msgstr ""
+msgstr "пропущено джерело сховища файла даних на диску"
 
 #, c-format
 msgid "missing disk device alias name for %1$s"
@@ -33042,6 +33744,8 @@ msgstr "не вистачає запису даних (data) у тезі vlan"
 #, c-format
 msgid "missing vmstate section when reverting active internal snapshot '%1$s'"
 msgstr ""
+"пропущено розділ vmstate при повернення до активного внутрішнього знімка "
+"«%1$s»"
 
 msgid "missing volume name and path for gluster volume"
 msgstr "для тому gluster не вказано назви тому і шляху"
@@ -34510,7 +35214,7 @@ msgstr ""
 "слід упорядковувати за розстанням"
 
 msgid ""
-"online non-hotpluggable vcpus need to be ordered prior to hotplugable vcpus"
+"online non-hotpluggable vcpus need to be ordered prior to hotpluggable vcpus"
 msgstr ""
 "перш ніж під'єднувати віртуальні процесори, слід упорядкувати віртуальні "
 "процесори, які працюють і не можуть бути під'єднані «вгарячу»"
@@ -34534,9 +35238,10 @@ msgstr "для пристрою virtio-pmem передбачено підтри�
 
 msgid "only 'qcow2' formatted 'block' nvram backing can be formatted"
 msgstr ""
+"форматувати можна лише форматовані у «qcow2» резервні сховища nvram «block»"
 
 msgid "only 'raw' images supported as <dataStore>"
-msgstr ""
+msgstr "для <dataStore> передбачено підтримку лише образів «raw»"
 
 msgid ""
 "only 1 graphics device of each type (sdl, vnc, spice, headless, dbus) is "
@@ -36204,6 +36909,11 @@ msgstr "повідомити про помилку, якщо процесори 
 msgid "report filesystem information"
 msgstr "вивести відомості щодо файлової системи"
 
+msgid "report host CPU model with deprecated features disabled"
+msgstr ""
+"показати звіт щодо моделі процесора основної системи із вимкненими "
+"застарілими можливостями"
+
 msgid "report hostname"
 msgstr "вивести звіт щодо назви вузла"
 
@@ -36319,6 +37029,8 @@ msgstr "відновити початковий стан домену після
 #, c-format
 msgid "resetting of nvram is not supported with nvram device backed by '%1$s'"
 msgstr ""
+"підтримки скидання nvram зі резервним копіюванням пристроїв nvram за "
+"допомогою «%1$s» не передбачено"
 
 msgid "resize a vol"
 msgstr "змінити розміри тому"
@@ -37077,7 +37789,7 @@ msgid "skipped restricted file"
 msgstr "пропущено файл з обмеженням доступу"
 
 msgid "slices are not supported for <dataStore>"
-msgstr ""
+msgstr "підтримки зрізів для <dataStore> не передбачено"
 
 msgid "slices are not supported with NVRAM"
 msgstr "підтримки зрізів, якщо використано NVRAM, не передбачено"
@@ -37550,7 +38262,7 @@ msgid "swtpm socket did not show up"
 msgstr "сокет swtpm не показався"
 
 msgid "swtpm_setup has no support for profiles"
-msgstr ""
+msgstr "у swtpm_setup не передбачено підтримки профілів"
 
 #, c-format
 msgid "syntax: %1$s DEVICE [-g]|[-p]\n"
@@ -38084,6 +38796,11 @@ msgstr "у драйвері vz не передбачено підтримки з
 msgid "tls"
 msgstr "tls"
 
+msgid "toggling deprecated features for CPU model is unsupported"
+msgstr ""
+"підтримки вмикання і вимикання застарілих можливостей для моделі процесора "
+"не передбачено"
+
 #, c-format
 msgid "too many NUMA cells: %1$d > %2$d"
 msgstr "занадто багато комірок NUMA: %1$d > %2$d"
@@ -38531,6 +39248,7 @@ msgstr "тунельоване перенесення без вимикання 
 #, c-format
 msgid "two disks images contain vm state section for internal snapshot '%1$s'"
 msgstr ""
+"два образи дисків містять розділ стану ВМ для внутрішнього знімка «%1$s»"
 
 #, c-format
 msgid "two master hugepages detected: %1$llu and %2$llu"
@@ -38734,7 +39452,7 @@ msgstr ""
 "використання"
 
 msgid "unable to find nvram template image"
-msgstr ""
+msgstr "не вдалося знайти образ шаблону nvram"
 
 #, c-format
 msgid "unable to find parent device '%1$s'"
@@ -40000,16 +40718,15 @@ msgstr ""
 "для мережі «%2$s» вказано недосяжний статичний шлюз маршрутизатора «%1$s»"
 
 #, c-format
+msgid "unrecognized command name '%1$s'"
+msgstr "нерозпізнана назва команди «%1$s»"
+
+#, c-format
 msgid ""
-"unrecognized 'firewall_backend = '%1$s' set in network driver config file "
-"%2$s"
+"unrecognized firewall_backend = '%1$s' set in network driver config file %2$s"
 msgstr ""
 "встановлено невідоме значення «firewall_backend = '%1$s'» у файлі "
 "налаштувань драйвера мережі %2$s"
-
-#, c-format
-msgid "unrecognized command name '%1$s'"
-msgstr "нерозпізнана назва команди «%1$s»"
 
 #, c-format
 msgid "unrecognized network update command code %1$d"
@@ -40041,6 +40758,10 @@ msgstr "непідтримуваний тип процесора: %1$s"
 #, c-format
 msgid "unsupported Hyper-V stimer feature: %1$s"
 msgstr "підтримки можливості stimer Hyper-V не передбачено: %1$s"
+
+#, c-format
+msgid "unsupported Hyper-V tlbflush feature: %1$s"
+msgstr "непідтримувана можливість tlbflush Hyper-V: %1$s"
 
 #, c-format
 msgid "unsupported HyperV Enlightenment feature: %1$s"
@@ -41125,14 +41846,8 @@ msgstr "virtiofs не підтримується model"
 msgid "virtiofs does not support multidevs"
 msgstr "virtiofs не пдітримується multidevs"
 
-msgid "virtiofs does not support read-only access"
-msgstr "у virtiofs не передбачено підтримки доступу лише для читання"
-
 msgid "virtiofs does not support wrpolicy"
 msgstr "virtiofs не підтримується wrpolicy"
-
-msgid "virtiofs does not yet support read-only mode"
-msgstr "у virtiofs не передбачено підтримки режиму «лише для читання»"
 
 msgid "virtiofs is not supported with this QEMU binary"
 msgstr "virtiofs не підтримуються цим двійковим компонентом QEMU"
@@ -41566,6 +42281,51 @@ msgstr "нуль-копіюванням можна скористатися ли
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 "надійшов запит щодо зони %1$s для мережі %2$s, але firewalld не задіяно"
+
+#~ msgid "Cannot set a base label with AppArmour"
+#~ msgstr "Не вдалося встановити базову мітку за допомогою AppArmour"
+
+#~ msgid "Download length it too large"
+#~ msgstr "Обсяг даних для отримання є надто великим"
+
+#~ msgid "Libvirt"
+#~ msgstr "Libvirt"
+
+#~ msgid "System lacks NETNS support"
+#~ msgstr "Відсутня підтримка NETNS"
+
+#, c-format
+#~ msgid "Target host device subsystem %1$s does not match source %2$s"
+#~ msgstr ""
+#~ "Підсистема основного пристрою призначення, %1$s, не відповідає підсистемі "
+#~ "джерела, %2$s"
+
+#~ msgid "Video adapters are not supported int containers."
+#~ msgstr "У контейнерах не передбачено підтримки відеоадаптерів."
+
+#~ msgid "Virtual machines need to be saved"
+#~ msgstr "Віртуальні машини слід зберігати"
+
+#~ msgid ""
+#~ "online non-hotpluggable vcpus need to be ordered prior to hotplugable "
+#~ "vcpus"
+#~ msgstr ""
+#~ "перш ніж під'єднувати віртуальні процесори, слід упорядкувати віртуальні "
+#~ "процесори, які працюють і не можуть бути під'єднані «вгарячу»"
+
+#, c-format
+#~ msgid ""
+#~ "unrecognized 'firewall_backend = '%1$s' set in network driver config file "
+#~ "%2$s"
+#~ msgstr ""
+#~ "встановлено невідоме значення «firewall_backend = '%1$s'» у файлі "
+#~ "налаштувань драйвера мережі %2$s"
+
+#~ msgid "virtiofs does not support read-only access"
+#~ msgstr "у virtiofs не передбачено підтримки доступу лише для читання"
+
+#~ msgid "virtiofs does not yet support read-only mode"
+#~ msgstr "у virtiofs не передбачено підтримки режиму «лише для читання»"
 
 #, c-format
 #~ msgid "Format mismatch: loader.format='%1$s' nvram.format='%2$s'"

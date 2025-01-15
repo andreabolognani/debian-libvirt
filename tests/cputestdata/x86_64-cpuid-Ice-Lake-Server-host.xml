@@ -22,7 +22,9 @@
   <feature name='pbe'/>
   <feature name='tsc_adjust'/>
   <feature name='sgx'/>
+  <feature name='fdp-excptn-only'/>
   <feature name='cmt'/>
+  <feature name='zero-fcs-fds'/>
   <feature name='mpx'/>
   <feature name='avx512ifma'/>
   <feature name='intel-pt'/>
