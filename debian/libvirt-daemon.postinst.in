@@ -16,6 +16,8 @@ set -e
 
 #FINISH_CONFFILE_TRANSFER#
 #DELETE_PROTECTIVE_DIVERSION#
+#SYSTEMD_DAEMON_RELOAD#
+#SYSTEMD_UNIT_RESTART_IF_ACTIVE#
 
 DAEMON_SYSTEM_TO_DAEMON="
     /etc/apparmor.d/usr.sbin.libvirtd
@@ -66,6 +68,11 @@ case "$1" in
                 -- \
                 "$@"
         done
+    ;;
+
+    triggered)
+        systemd_daemon_reload
+        systemd_unit_restart_if_active libvirtd.service
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

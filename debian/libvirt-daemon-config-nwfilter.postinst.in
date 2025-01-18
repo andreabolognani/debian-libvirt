@@ -16,8 +16,6 @@ set -e
 
 #CREATE_CONFIG_FROM_TEMPLATE#
 #FINISH_CONFFILE_TRANSFER#
-#SYSTEMD_DAEMON_RELOAD#
-#SYSTEMD_UNIT_RESTART_IF_ACTIVE#
 
 NWFILTERS="
     allow-arp
@@ -77,10 +75,8 @@ case "$1" in
                 "$@"
         done
 
-        # Since we might have changed the on-disk configuration for some
-        # services, restart them so that they can pick up the new settings
-        systemd_daemon_reload
-        systemd_unit_restart_if_active libvirtd.service
+        # Trigger daemon restart after installing configuration files
+        dpkg-trigger libvirt-restart-libvirtd
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
