@@ -35,6 +35,9 @@ case "$1" in
                 -- \
                 "$@"
         done
+
+        # Trigger daemon restart after installing a driver
+        dpkg-trigger libvirt-restart-libvirtd
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

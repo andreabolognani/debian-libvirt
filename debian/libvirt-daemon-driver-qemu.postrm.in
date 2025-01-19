@@ -17,6 +17,11 @@ set -e
 # the debian-policy package
 
 case "$1" in
+    remove)
+        # Trigger daemon restart after removing a driver
+        dpkg-trigger libvirt-restart-libvirtd
+    ;;
+
     purge)
         if getent passwd libvirt-qemu >/dev/null; then
             deluser libvirt-qemu >/dev/null || true
@@ -68,7 +73,7 @@ case "$1" in
         fi
     ;;
 
-    remove|upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
+    upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
     ;;
 
     *)

@@ -60,6 +60,9 @@ case "$1" in
         # Make sure the log directory doesn't get removed on package removal
         # since logrotate chokes otherwise
         touch /var/log/libvirt/lxc/.placeholder
+
+        # Trigger daemon restart after installing a driver
+        dpkg-trigger libvirt-restart-libvirtd
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

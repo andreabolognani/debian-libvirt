@@ -22,24 +22,7 @@ case "$1" in
         dpkg-trigger libvirt-restart-libvirtd
     ;;
 
-    purge)
-        # Obsolete AppArmor stuff included until 9.6.0-1
-        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
-        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
-        name="libvirt-lxc"
-
-        abstraction="$ABSTRACTIONS_DIR/$name"
-        local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
-
-        if [ ! -e "$abstraction" ]; then
-            rm -f "$local_abstraction"
-            if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
-                rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
-            fi
-        fi
-    ;;
-
-    upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
+    purge|upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
     ;;
 
     *)

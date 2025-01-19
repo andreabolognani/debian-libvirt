@@ -153,6 +153,9 @@ case "$1" in
         if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
             rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
         fi
+
+        # Trigger daemon restart after installing a driver
+        dpkg-trigger libvirt-restart-libvirtd
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
