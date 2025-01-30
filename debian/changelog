@@ -1,3 +1,17 @@
+libvirt (11.0.0-2) unstable; urgency=medium
+
+  [ Michael Biebl ]
+  * [4e3c6ef] daemon-config-*: Use dpkg triggers for daemon restart
+    - Ensures that libvirtd is only ever restarted once per apt invocation
+
+  [ Andrea Bolognani ]
+  * [06d8044] daemon-driver-*: Restart daemon on install/remove
+    - Makes newly-installed drivers usable right away
+  * [12ebaf7] patches: Add backport/virsysinfo-fix-RISC-V-detection.patch
+    - Closes: #1093823
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 30 Jan 2025 23:47:39 +0100
+
 libvirt (11.0.0-1) unstable; urgency=medium
 
   * [e2a1251] New upstream version 11.0.0
