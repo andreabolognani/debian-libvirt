@@ -1,0 +1,32 @@
+From: Heinrich Schuchardt <heinrich.schuchardt@canonical.com>
+Date: Wed, 22 Jan 2025 12:20:08 +0100
+Subject: virsysinfo: fix RISC-V detection
+
+The correct compiler define to detect the RISC-V architecture is __riscv.
+
+Fixes: b902cfece0db ("virsysinfo: Try reading DMI table")
+Signed-off-by: Heinrich Schuchardt <heinrich.schuchardt@canonical.com>
+Reviewed-by: Andrea Bolognani <abologna@redhat.com>
+(cherry picked from commit 3e9440dbcb39846c96ada55bd29ff6ae9fff6d93)
+
+Bug-Debian: https://bugs.debian.org/1093823
+
+Forwarded: not-needed
+Origin: https://gitlab.com/libvirt/libvirt/-/commit/3e9440dbcb39846c96ada55bd29ff6ae9fff6d93
+---
+ src/util/virsysinfo.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/util/virsysinfo.c b/src/util/virsysinfo.c
+index d9b2b5e..b7413c3 100644
+--- a/src/util/virsysinfo.c
++++ b/src/util/virsysinfo.c
+@@ -1254,7 +1254,7 @@ virSysinfoRead(void)
+     (defined(__x86_64__) || \
+      defined(__i386__) || \
+      defined(__amd64__) || \
+-     defined(__riscv__) || \
++     defined(__riscv) || \
+      defined(__mips__) || \
+      defined(__loongarch__))
+     return virSysinfoReadDMI();
