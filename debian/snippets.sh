@@ -248,7 +248,7 @@ delete_protective_diversion() {
 
 #BEGIN SYSTEMD_DAEMON_RELOAD
 systemd_daemon_reload() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+    if [ -z "$DPKG_ROOT" ] && [ -d /run/systemd/system ]; then
         systemctl --system daemon-reload >/dev/null || true
     fi
 }
@@ -256,7 +256,7 @@ systemd_daemon_reload() {
 
 #BEGIN SYSTEMD_UNIT_RESTART_IF_ACTIVE
 systemd_unit_restart_if_active() {
-    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+    if [ -z "$DPKG_ROOT" ] && [ -d /run/systemd/system ]; then
         for unit in "$@"; do
             if systemctl is-active -q "$unit"; then
                 deb-systemd-invoke restart "$unit" >/dev/null || true
