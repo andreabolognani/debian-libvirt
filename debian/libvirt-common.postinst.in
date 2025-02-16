@@ -14,25 +14,8 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-#FINISH_CONFFILE_TRANSFER#
-
-CLIENTS_TO_COMMON="
-    /etc/libvirt/libvirt-admin.conf
-    /etc/libvirt/libvirt.conf
-"
-
 case "$1" in
     configure)
-        for conf in $CLIENTS_TO_COMMON; do
-            finish_conffile_transfer \
-                "$conf" \
-                "6.0.0-0~" \
-                "10.6.0-2~" \
-                "libvirt-clients" \
-                "libvirt-common" \
-                -- \
-                "$@"
-        done
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

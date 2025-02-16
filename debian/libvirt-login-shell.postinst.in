@@ -14,18 +14,8 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-#FINISH_CONFFILE_TRANSFER#
-
 case "$1" in
     configure)
-        finish_conffile_transfer \
-            "/etc/libvirt/virt-login-shell.conf" \
-            "6.0.0-0~" \
-            "6.9.0-2~" \
-            "libvirt-clients" \
-            "libvirt-login-shell" \
-            -- \
-            "$@"
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

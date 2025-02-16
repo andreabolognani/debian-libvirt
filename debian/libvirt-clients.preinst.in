@@ -12,33 +12,8 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-#PREPARE_CONFFILE_TRANSFER#
-
-CLIENTS_TO_COMMON="
-    /etc/libvirt/libvirt-admin.conf
-    /etc/libvirt/libvirt.conf
-"
-
 case "$1" in
     install|upgrade)
-        prepare_conffile_transfer \
-            "/etc/libvirt/virt-login-shell.conf" \
-            "6.0.0-0~" \
-            "6.9.0-2~" \
-            "libvirt-clients" \
-            "libvirt-login-shell" \
-            -- \
-            "$@"
-        for conf in $CLIENTS_TO_COMMON; do
-            prepare_conffile_transfer \
-                "$conf" \
-                "6.0.0-0~" \
-                "10.6.0-2~" \
-                "libvirt-clients" \
-                "libvirt-common" \
-                -- \
-                "$@"
-        done
     ;;
 
     abort-upgrade)

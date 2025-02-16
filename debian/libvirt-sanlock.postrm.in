@@ -16,24 +16,8 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
-#ABORT_CONFFILE_TRANSFER#
-
-SANLOCK_TO_DAEMON_PLUGIN_SANLOCK="
-    /etc/cron.weekly/libvirt-sanlock
-"
-
 case "$1" in
     abort-install|abort-upgrade)
-        for conf in $SANLOCK_TO_DAEMON_PLUGIN_SANLOCK; do
-            abort_conffile_transfer \
-                "$conf" \
-                "6.0.0-0~" \
-                "10.6.0-2~" \
-                "libvirt-sanlock" \
-                "libvirt-daemon-plugin-sanlock" \
-                -- \
-                "$@"
-        done
     ;;
 
     remove|purge|upgrade|disappear|failed-upgrade)

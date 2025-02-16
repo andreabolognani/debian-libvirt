@@ -15,7 +15,6 @@ set -e
 # the debian-policy package
 
 #CREATE_CONFIG_FROM_TEMPLATE#
-#FINISH_CONFFILE_TRANSFER#
 
 case "$1" in
     configure)
@@ -23,14 +22,6 @@ case "$1" in
             "/etc/libvirt/qemu/networks/default.xml" \
             "/usr/share/libvirt/networks/default.xml" \
             "6.9.0-2~" \
-            -- \
-            "$@"
-        finish_conffile_transfer \
-            "/etc/libvirt/qemu/networks/default.xml" \
-            "6.0.0-0~" \
-            "6.9.0-2~" \
-            "libvirt-daemon-system" \
-            "libvirt-daemon-config-network" \
             -- \
             "$@"
 
