@@ -63,103 +63,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-#undef g_fsync
-#undef g_strdup_printf
-#undef g_strdup_vprintf
-
-
-/* Drop when min glib >= 2.63.0 */
-gint
-vir_g_fsync(gint fd)
-{
-#ifdef G_OS_WIN32
-    return _commit(fd);
-#else
-    return fsync(fd);
-#endif
-}
-
-
-/* Due to a bug in glib, g_strdup_printf() nor g_strdup_vprintf()
- * abort on OOM.  It's fixed in glib's upstream. Provide our own
- * implementation until the fix gets distributed. */
-char *
-vir_g_strdup_printf(const char *msg, ...)
-{
-    va_list args;
-    char *ret;
-    va_start(args, msg);
-    ret = g_strdup_vprintf(msg, args);
-    if (!ret)
-        abort();
-    va_end(args);
-    return ret;
-}
-
-
-char *
-vir_g_strdup_vprintf(const char *msg, va_list args)
-{
-    char *ret;
-    ret = g_strdup_vprintf(msg, args);
-    if (!ret)
-        abort();
-    return ret;
-}
-
-
-/*
- * If the last reference to a GSource is released in a non-main
- * thread we're exposed to a race condition that causes a
- * crash:
- *
- *    https://gitlab.gnome.org/GNOME/glib/-/merge_requests/1358
- *
- * Thus we're using an idle func to release our ref...
- *
- * ...but this imposes a significant performance penalty on
- * I/O intensive workloads which are sensitive to the iterations
- * of the event loop, so avoid the workaround if we know we have
- * new enough glib.
- *
- * The function below is used from a header file definition.
- *
- * Drop when min glib >= 2.64.0
- */
-#if GLIB_CHECK_VERSION(2, 64, 0)
-void vir_g_source_unref(GSource *src, GMainContext *ctx G_GNUC_UNUSED)
-{
-    g_source_unref(src);
-}
-#else
-
-static gboolean
-virEventGLibSourceUnrefIdle(gpointer data)
-{
-    GSource *src = data;
-
-    g_source_unref(src);
-
-    return FALSE;
-}
-
-void vir_g_source_unref(GSource *src, GMainContext *ctx)
-{
-    GSource *idle = g_idle_source_new();
-
-    g_source_set_callback(idle, virEventGLibSourceUnrefIdle, src, NULL);
-
-    g_source_attach(idle, ctx);
-
-    g_source_unref(idle);
-}
-
-#endif
-
-
 /**
  * Adapted (to pass syntax check) from 'g_string_replace' from
- * glib-2.81.1. Drop once minimum glib is bumped to 2.68.
+ * glib-2.83.3. Drop once minimum glib is bumped to 2.68.
  *
  * g_string_replace:
  * @string: a #GString
@@ -188,35 +94,120 @@ vir_g_string_replace(GString *string,
                      const gchar *replace,
                      guint limit)
 {
-    gsize f_len, r_len, pos;
-    gchar *cur, *next;
-    guint n = 0;
+    GString *new_string = NULL;
+    gsize f_len, r_len, new_len;
+    gchar *cur, *next, *first, *dst;
+    guint n;
 
     g_return_val_if_fail(string != NULL, 0);
     g_return_val_if_fail(find != NULL, 0);
     g_return_val_if_fail(replace != NULL, 0);
 
+    first = strstr(string->str, find);
+
+    if (first == NULL)
+        return 0;
+
+    new_len = string->len;
     f_len = strlen(find);
     r_len = strlen(replace);
-    cur = string->str;
 
-    while ((next = strstr(cur, find)) != NULL) {
-        pos = next - string->str;
-        g_string_erase(string, pos, f_len);
-        g_string_insert(string, pos, replace);
-        cur = string->str + pos + r_len;
-        n++;
-        /* Only match the empty string once at any given position, to
-         * avoid infinite loops */
-        if (f_len == 0) {
-            if (cur[0] == '\0')
-                break;
-            else
-                cur++;
+    /* It removes a lot of branches and possibility for infinite loops if we
+     * handle the case of an empty @find string separately. */
+    if (G_UNLIKELY(f_len == 0)) {
+        size_t i;
+        if (limit == 0 || limit > string->len) {
+            if (string->len > G_MAXSIZE - 1)
+                g_error("inserting in every position in string would overflow");
+
+            limit = string->len + 1;
         }
-        if (n == limit)
-            break;
+
+        if (r_len > 0 &&
+            (limit > G_MAXSIZE / r_len ||
+             limit * r_len > G_MAXSIZE - string->len))
+            g_error("inserting in every position in string would overflow");
+
+        new_len = string->len + limit * r_len;
+        new_string = g_string_sized_new(new_len);
+        for (i = 0; i < limit; i++) {
+            g_string_append_len(new_string, replace, r_len);
+            if (i < string->len)
+                g_string_append_c(new_string, string->str[i]);
+        }
+        if (limit < string->len)
+            g_string_append_len(new_string, string->str + limit, string->len - limit);
+
+        g_free(string->str);
+        string->allocated_len = new_string->allocated_len;
+        string->len = new_string->len;
+        string->str = g_string_free(g_steal_pointer(&new_string), FALSE);
+
+        return limit;
     }
+    /* Potentially do two passes: the first to calculate the length of the new string,
+     * new_len, if it’s going to be longer than the original string; and the second to
+     * do the replacements. The first pass is skipped if the new string is going to be
+     * no longer than the original.
+     *
+     * The second pass calls various g_string_insert_len() (and similar) methods
+     * which would normally potentially reallocate string->str, and hence
+     * invalidate the cur/next/first/dst pointers. Because we’ve pre-calculated
+     * the new_len and do all the string manipulations on new_string, that
+     * shouldn’t happen. This means we scan `string` while modifying
+     * `new_string`. */
+    do {
+        dst = first;
+        cur = first;
+        n = 0;
+        while ((next = strstr(cur, find)) != NULL) {
+            n++;
+
+            if (r_len <= f_len) {
+                memmove(dst, cur, next - cur);
+                dst += next - cur;
+                memcpy(dst, replace, r_len);
+                dst += r_len;
+            } else {
+                if (new_string == NULL) {
+                    new_len += r_len - f_len;
+                } else {
+                    g_string_append_len(new_string, cur, next - cur);
+                    g_string_append_len(new_string, replace, r_len);
+                }
+            }
+            cur = next + f_len;
+
+            if (n == limit)
+                break;
+        }
+
+        /* Append the trailing characters from after the final instance of @find
+         * in the input string. */
+        if (r_len <= f_len) {
+            /* First pass skipped. */
+            gchar *end = string->str + string->len;
+            memmove(dst, cur, end - cur);
+            end = dst + (end - cur);
+            *end = 0;
+            string->len = end - string->str;
+            break;
+        } else {
+            if (new_string == NULL) {
+                /* First pass. */
+                new_string = g_string_sized_new(new_len);
+                g_string_append_len(new_string, string->str, first - string->str);
+            } else {
+                /* Second pass. */
+                g_string_append_len(new_string, cur, (string->str + string->len) - cur);
+                g_free(string->str);
+                string->allocated_len = new_string->allocated_len;
+                string->len = new_string->len;
+                string->str = g_string_free(g_steal_pointer(&new_string), FALSE);
+                break;
+            }
+        }
+    } while (1);
 
     return n;
 }

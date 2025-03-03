@@ -45,7 +45,7 @@ virshCommandOptSecret(vshControl *ctl, const vshCmd *cmd, const char **name)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_DEBUG,
-             "%s: found option <%s>: %s\n", cmd->def->name, optname, n);
+             "%s: found option <%s>: %s", cmd->def->name, optname, n);
 
     if (name != NULL)
         *name = n;
@@ -235,7 +235,7 @@ cmdSecretSetValue(vshControl *ctl, const vshCmd *cmd)
 
     if (base64) {
         /* warn users that the --base64 option passed from command line is wrong */
-        vshError(ctl, _("Passing secret value as command-line argument is insecure!"));
+        vshWarn(ctl, "%s", _("Passing secret value as command-line argument is insecure!"));
         secret_val = g_strdup(base64);
         secret_len = strlen(secret_val);
     } else if (filename) {
@@ -257,7 +257,7 @@ cmdSecretSetValue(vshControl *ctl, const vshCmd *cmd)
         secret_len = strlen(secret_val);
         plain = true;
     } else {
-        vshError(ctl, _("Input secret value is missing"));
+        vshError(ctl, "%s", _("Input secret value is missing"));
         return false;
     }
 
@@ -320,7 +320,7 @@ cmdSecretGetValue(vshControl *ctl, const vshCmd *cmd)
     if (plain) {
         if (fwrite(value, 1, value_size, stdout) != value_size) {
             virSecureErase(value, value_size);
-            vshError(ctl, "failed to write secret");
+            vshError(ctl, "%s", _("failed to write secret"));
             return false;
         }
     } else {

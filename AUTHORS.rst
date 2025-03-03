@@ -134,8 +134,11 @@ Patches have also been contributed by:
 * Andrew Melnychenko <andrew@daynix.com>
 * Andrew Miloradovsky <andrew@interpretmath.pw>
 * Anirban Chakraborty <abchak@juniper.net>
+* Anirudh Rayabharam <anrayabh@linux.microsoft.com>
 * Ani Sinha <ani@anisinha.ca>
 * Ani Sinha <ani.sinha@nutanix.com>
+* Ankush Menat <ankushmenat@gmail.com>
+* Anonymous <noreply@weblate.org>
 * Ansis Atteka <aatteka@nicira.com>
 * Anthony Liguori <aliguori@us.ibm.com>
 * Anthony PERARD <anthony.perard@citrix.com>
@@ -153,6 +156,7 @@ Patches have also been contributed by:
 * Asad Saeed <asad.saeed@acidseed.com>
 * Ashish Mittal <Ashish.Mittal@veritas.com>
 * Ashish Mittal <ashmit602@gmail.com>
+* Assaf Admi <aadmi@redhat.com>
 * Ata E Husain Bohra <ata.husain@hotmail.com>
 * Atsushi Kumagai <kumagai-atsushi@mxc.nes.nec.co.jp>
 * Atsushi SAKAI <sakaia@jp.fujitsu.com>
@@ -186,6 +190,7 @@ Patches have also been contributed by:
 * Brian Candler <b.candler@pobox.com>
 * Brian Turek <brian.turek@gmail.com>
 * Brijesh Singh <brijesh.singh@amd.com>
+* Bronek Kozicki <brok@incorrekt.com>
 * Brooks Swinnerton <bswinnerton@gmail.com>
 * Bruno Haible <bruno@clisp.org>
 * Bryan Kearney <bkearney@redhat.com>
@@ -245,7 +250,6 @@ Patches have also been contributed by:
 * Daniel Berteaud <daniel@firewall-services.com>
 * Daniel Gollub <gollub@b1-systems.de>
 * Daniel Hansel <daniel.hansel@linux.vnet.ibm.com>
-* Daniel Henrique Barboza <danielhb413@gmail.com>
 * Daniel Henrique Barboza <dbarboza@ventanamicro.com>
 * Daniel J Walsh <dwalsh@redhat.com>
 * Daniel Letai <dani@letai.org.il>
@@ -333,7 +337,9 @@ Patches have also been contributed by:
 * Eugenio Pérez <eperezma@redhat.com>
 * Fabian Affolter <mail@fabian-affolter.ch>
 * Fabian Freyer <fabian.freyer@physik.tu-berlin.de>
+* Fabian Leditzky <fabian@ldsoft.dev>
 * Fabiano Fidêncio <fidencio@redhat.com>
+* Fabricio Duarte <fabricio.duarte.jr@gmail.com>
 * Fangge Jin <fjin@redhat.com>
 * Farhan Ali <alifm@linux.ibm.com>
 * Farhan Ali <alifm@linux.vnet.ibm.com>
@@ -465,6 +471,7 @@ Patches have also been contributed by:
 * jiangjiacheng <jiangjiacheng@huawei.com>
 * Jiang Jiacheng <jiangjiacheng@huawei.com>
 * Jiang Kun <jiang.kun2@zte.com.cn>
+* Jiang XueQian <jiangxueqian@gmail.com>
 * jianqing yan <yanjianqing@kylinos.cn>
 * Jianwei Hu <jiahu@redhat.com>
 * Jia Zhou <zhou.jia2@zte.com.cn>
@@ -472,6 +479,7 @@ Patches have also been contributed by:
 * Jie Wang <wangjie88@huawei.com>
 * JieWang <wangjie88@huawei.com>
 * Jim Fehlig <jfehlig@suse.com>
+* Jim Fehlig via Devel <devel@lists.libvirt.org>
 * Jim Meyering <meyering@redhat.com>
 * Jim Paris <jim@jtan.com>
 * Jincheng Miao <jmiao@redhat.com>
@@ -508,6 +516,7 @@ Patches have also been contributed by:
 * Jun Koi <junkoi2004@gmail.com>
 * Justin Clift <jclift@redhat.com>
 * Justin Gatzen <justin.gatzen@gmail.com>
+* kaihuan <jungleman759@gmail.com>
 * Kai Kang <kai.kang@windriver.com>
 * KAMEZAWA Hiroyuki <kamezawa.hiroyu@jp.fujitsu.com>
 * Kamil Szczęk <kamil@szczek.dev>
@@ -680,6 +689,7 @@ Patches have also been contributed by:
 * Nickys Music Group <nickys.music.group@gmail.com>
 * Nicolas Brignone <nmbrignone@gmail.com>
 * Nicolas Gal <nialegal@yandex.com>
+* Nicolás Gal <nialegal@yandex.com>
 * Nicolas Gal <snowcrash79@users.noreply.translate.fedoraproject.org>
 * Nicolas Lécureuil <neoclust@mageia.org>
 * Nico Pache <npache@redhat.com>
@@ -739,6 +749,7 @@ Patches have also been contributed by:
 * Peter Krempa <pkrempa@redhat.com>
 * Peter Robinson <pbrobinson@gmail.com>
 * Philipp Hahn <hahn@univention.de>
+* Philipp Schuster <philipp.schuster@cyberus-technology.de>
 * Phil Petty <phpetty@cisco.com>
 * Pierre LIBEAU <pierre.libeau@corp.ovh.com>
 * Pieter Hollants <pieter@hollants.com>
@@ -803,6 +814,7 @@ Patches have also been contributed by:
 * Sage Weil <sage@newdream.net>
 * Sahid Orentino Ferdjaoui <sahid.ferdjaoui@canonical.com>
 * Sahid Orentino Ferdjaoui <sahid.ferdjaoui@cloudwatt.com>
+* Salvatore Cocuzza <info@salvatorecocuzza.it>
 * Sam Bobroff <sam.bobroff@au1.ibm.com>
 * Sam Hartman <hartmans@debian.org>
 * Sandesh Patel <sandesh.patel@nutanix.com>

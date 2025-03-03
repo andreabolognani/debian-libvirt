@@ -315,36 +315,22 @@ libxlDomObjFromDomain(virDomainPtr dom)
     return vm;
 }
 
-static int
+static void
 libxlAutostartDomain(virDomainObj *vm,
                      void *opaque)
 {
     libxlDriverPrivate *driver = opaque;
-    int ret = -1;
-
-    virObjectRef(vm);
-    virObjectLock(vm);
-    virResetLastError();
 
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
-        goto cleanup;
+        return;
 
-    if (vm->autostart && !virDomainObjIsActive(vm) &&
-        libxlDomainStartNew(driver, vm, false) < 0) {
+    if (libxlDomainStartNew(driver, vm, false) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Failed to autostart VM '%1$s': %2$s"),
                        vm->def->name, virGetLastErrorMessage());
-        goto endjob;
     }
 
-    ret = 0;
-
- endjob:
     virDomainObjEndJob(vm);
- cleanup:
-    virDomainObjEndAPI(&vm);
-
-    return ret;
 }
 
 
@@ -654,7 +640,7 @@ libxlStateInitialize(bool privileged,
 {
     libxlDriverConfig *cfg;
     g_autofree char *driverConf = NULL;
-    bool autostart = true;
+    virDomainDriverAutoStartConfig autostartCfg;
 
     if (root != NULL) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
@@ -807,14 +793,12 @@ libxlStateInitialize(bool privileged,
                                        NULL, NULL) < 0)
         goto error;
 
-    if (virDriverShouldAutostart(cfg->stateDir, &autostart) < 0)
-        goto error;
-
-    if (autostart) {
-        virDomainObjListForEach(libxl_driver->domains, false,
-                                libxlAutostartDomain,
-                                libxl_driver);
-    }
+    autostartCfg = (virDomainDriverAutoStartConfig) {
+        .stateDir = cfg->stateDir,
+        .callback = libxlAutostartDomain,
+        .opaque = libxl_driver,
+    };
+    virDomainDriverAutoStart(libxl_driver->domains, &autostartCfg);
 
     virDomainObjListForEach(libxl_driver->domains, false,
                             libxlDomainManagedSaveLoad,
@@ -3590,8 +3574,7 @@ libxlDomainAttachDeviceConfig(virDomainDef *vmdef, virDomainDeviceDef *dev)
                 return -1;
             }
 
-            if (virDomainHostdevInsert(vmdef, hostdev) < 0)
-                return -1;
+            virDomainHostdevInsert(vmdef, hostdev);
             dev->data.hostdev = NULL;
             break;
 
@@ -5068,8 +5051,7 @@ libxlDomainGetNumaParameters(virDomainPtr dom,
                 }
             }
 
-            if (!(nodeset = virBitmapFormat(nodes)))
-                goto cleanup;
+            nodeset = virBitmapFormat(nodes);
 
             if (virTypedParameterAssign(param, VIR_DOMAIN_NUMA_NODESET,
                                         VIR_TYPED_PARAM_STRING, nodeset) < 0)
@@ -6575,10 +6557,13 @@ libxlDomainGetMessages(virDomainPtr dom,
                       char ***msgs,
                       unsigned int flags)
 {
+    g_autoptr(GPtrArray) m = g_ptr_array_new_with_free_func(g_free);
     virDomainObj *vm = NULL;
     int ret = -1;
 
-    virCheckFlags(0, -1);
+    virCheckFlags(VIR_DOMAIN_MESSAGE_DEPRECATION |
+                  VIR_DOMAIN_MESSAGE_TAINTING |
+                  VIR_DOMAIN_MESSAGE_IOERRORS, -1);
 
     if (!(vm = libxlDomObjFromDomain(dom)))
         return -1;
@@ -6586,7 +6571,13 @@ libxlDomainGetMessages(virDomainPtr dom,
     if (virDomainGetMessagesEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    ret = virDomainObjGetMessages(vm, msgs, flags);
+    virDomainObjGetMessages(vm, m, flags);
+
+    ret = m->len;
+    if (m->len > 0) {
+        g_ptr_array_add(m, NULL);
+        *msgs = (char **) g_ptr_array_steal(m, NULL);
+    }
 
  cleanup:
     virDomainObjEndAPI(&vm);

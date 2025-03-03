@@ -283,13 +283,19 @@ harddisk, cdrom, network) determining where to obtain/find the boot image.
    :since:`Since 8.5.0`,  it's possible for the element to have ``type`` attribute
    (accepts values ``file``, ``block`` and ``network``) in that case the NVRAM
    storage is described by a ``<source>`` sub-element with the same syntax as
-   ``disk``'s source. See `Hard drives, floppy disks, CDROMs`_.
+   ``disk``'s source. See `Hard drives, floppy disks, CDROMs`_. For ``block``
+   backed NVRAM images it may be necessary to ensure that the block device
+   has the correct guest visible size based on hypervisor expectations. This
+   may require use of non ``raw`` format image that allows arbitrary disk
+   size.
 
    **Note:** ``network`` backed NVRAM the variables are not instantiated from
    the ``template`` and it's user's responsibility to provide a valid NVRAM image.
 
    This element supports a ``format`` attribute, which specifies the format
-   of the NVRAM image. :since:`Since 9.2.0 (QEMU only)`
+   of the NVRAM image. :since:`Since 9.2.0 (QEMU only)` Note that hypervisors
+   may not support automatic population of the nvram if ``format`` differs from
+   ``templateFormat`` or may support only a specific ``format``.
 
    It is not valid to provide this element if the loader is marked as
    stateless.
@@ -2043,6 +2049,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      <async-teardown enabled='yes'/>
      <ras state='on'/>
      <ps2 state='on'/>
+     <aia value='aplic-imsic'/>
    </features>
    ...
 
@@ -2290,6 +2297,13 @@ are:
    disable the emulation of a PS/2 controller used by ``ps2`` bus input devices.
    If the attribute is not defined, the hypervisor default will be used.
    :since:`Since 10.7.0` (QEMU only)
+``aia``
+   Configure aia (Advanced Interrupt Architecture) for RISC-V 'virt'
+   guests. Possible values for the ``value`` attribute are ``aplic`` (one
+   emulated APLIC device present per socket), ``aplic-imsic`` (one APLIC and
+   one IMSIC device present per core), or ``none`` (no support for AIA).
+   If the attribute is not defined, the hypervisor default
+   will be used. :since:`Since 11.1.0` (QEMU/KVM and RISC-V guests only)
 
 Time keeping
 ------------
@@ -3562,12 +3576,13 @@ paravirtualized driver is specified via the ``disk`` element.
    :since:`Since 0.10.1`
 ``vendor``
    If present, this element specifies the vendor of a virtual hard disk or
-   CD-ROM device. It must not be longer than 8 printable characters.
-   :since:`Since 1.0.1`
+   CD-ROM device. It must not be longer than 8 printable characters. Only for
+   'scsi' ``bus``.:since:`Since 1.0.1`
 ``product``
    If present, this element specifies the product of a virtual hard disk or
-   CD-ROM device. It must not be longer than 16 printable characters.
-   :since:`Since 1.0.1`
+   CD-ROM device. It must not be longer than 16 printable characters for 'scsi'
+   (:since:`Since 1.0.1`). For 'sata' or 'ide' not longer than 40 printable
+   characters (:since:`Since 11.1.0`). Other ``bus`` is not supported.
 ``address``
    If present, the ``address`` element ties the disk to a given slot of a
    controller (the actual ``<controller>`` device can often be inferred by
@@ -5080,25 +5095,34 @@ to the interface.
    </devices>
    ...
 
-Userspace (SLIRP or passt) connection
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Userspace connection using SLIRP
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``user`` type connects the guest interface to the outside via a
+The ``user`` interface type connects the guest interface to the outside via a
 transparent userspace proxy that doesn't require any special system
 privileges, making it usable in cases when libvirt itself is running
 with no privileges (e.g. libvirt's "session mode" daemon, or when
 libvirt is run inside an unprivileged container).
 
-By default, this user proxy is done with QEMU's internal SLIRP driver
-which has DHCP & DNS services that give the guest IP addresses
-starting from ``10.0.2.15``, a default route of ``10.0.2.2`` and DNS
-server of ``10.0.2.3``. :since:`Since 3.8.0` it is possible to override
-the default network address by including an ``ip`` element specifying
-an IPv4 address in its one mandatory attribute,
-``address``. Optionally, a second ``ip`` element with a ``family``
-attribute set to "ipv6" can be specified to add an IPv6 address to the
-interface. ``address``. Optionally, address ``prefix`` can be
-specified.
+By default, this user proxy is done with QEMU's SLIRP driver, a
+userspace proxy built into QEMU that has DHCP & DNS services that give
+the guest an IP address of ``10.0.2.15``, a default route of
+``10.0.2.2`` and DNS server at ``10.0.2.3``.
+
+:since:`Since 3.8.0` it is possible to override the guest's default
+network address by including an ``ip`` element specifying an IPv4
+address in its one mandatory attribute, ``address``. Optionally, a
+second ``ip`` element with a ``family`` attribute set to "ipv6" can be
+specified to add an IPv6 address to the interface. ``address``.
+Optionally, an address ``prefix`` can be specified. These settings are
+surprisingly **not** used by SLIRP to set the exact IP address;
+instead they are used to determine what network/subnet the guest's IP
+address should be on, and the guest will be given an address in that
+subnet, but the host portion of the address will still be "2.15". In
+the example below, for example, the guest will be given the IP address
+172.17.2.15 (**note that the '1.1' in the host portion of the address
+has been ignored**), default route of 172.17.2.2, and DNS server
+172.17.2.3.
 
 ::
 
@@ -5108,34 +5132,74 @@ specified.
      ...
      <interface type='user'>
        <mac address="00:11:22:33:44:55"/>
-       <ip family='ipv4' address='172.17.2.0' prefix='24'/>
-       <ip family='ipv6' address='2001:db8:ac10:fd01::' prefix='64'/>
+       <ip family='ipv4' address='172.17.1.1' prefix='16'/>
+       <ip family='ipv6' address='2001:db8:ac10:fd01::1' prefix='64'/>
      </interface>
    </devices>
    ...
 
-:since:`Since 9.0.0` an alternate backend implementation of the
-``user`` interface type can be selected by setting the interface's
-``<backend>`` subelement ``type`` attribute to ``passt``. In this
-case, the passt transport (https://passt.top) is used. Similar to
-SLIRP, passt has an internal DHCP server that provides a requesting
-guest with one ipv4 and one ipv6 address; it then uses userspace
-proxies and a separate network namespace to provide outgoing
-UDP/TCP/ICMP sessions, and optionally redirect incoming traffic
-destined for the host toward the guest instead.
+Userspace connection using passt
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When the passt backend is used, the ``<backend>`` attribute
-``logFile`` can be used to tell the passt process for this interface
-where to write its message log, and the ``<source>`` attribute ``dev``
-can tell it to use a particular host interface to derive the routes
-given to the guest for forwarding traffic upstream.  Due to the design
-decisions of passt, if using SELinux, the log file is recommended to
-reside in the runtime directory of a user under which the passt
-process will run, most probably ``/run/user/$UID`` where ``$UID`` is
-the UID of the user, e.g. ``qemu``.  Beware that libvirt does not
-create this directory if it does not already exist to avoid possible,
-however unlikely, issues, especially since this logfile attribute is
-meant mostly for debugging.
+:since:`Since 9.0.0 (QEMU and KVM only)` an alternate backend
+implementation of the ``user`` interface type can be selected by
+setting the interface's ``<backend>`` subelement ``type`` attribute to
+``passt``. In this case, the passt transport `(details here)
+<https://passt.top>`__ is used. passt is run as a separate process
+from QEMU - the passt process handles the details of forwarding
+network traffic back and forth to the physical network (using
+userspace proxies and a separate network namespace to provide outgoing
+UDP/TCP/ICMP sessions, and optionally redirecting incoming traffic
+destined for the host toward the guest instead), and a socket between
+passt and QEMU forwards that traffic on to the guest (and back out,
+of course).
+
+*(:since:`Since 11.1.0 (QEMU and KVM only)` you may prefer to use the
+passt backend with the more efficient and performant type='vhostuser'
+rather than type='user'. All the options related to passt in the
+paragraphs below here also apply when using the passt backend with
+type='vhostuser'; any other details specific to vhostuser are
+described* `here
+<formatdomain.html#vhost-user-connection-with-passt-backend>`__.)
+
+
+Similar to SLIRP, passt has an internal DHCP server that provides a
+requesting guest with one ipv4 and one ipv6 address. There are default
+values for both of these, or you can use the ``<ip>`` element
+(described above, with behavioral differences as outlined below) to
+configure one IPv4 and one IPv6 address that passt's DHCP server can
+provide to the guest.
+
+Unlike SLIRP, when no ``<ip>`` address is specified, passt will by
+default provide the guest with an IP address, DNS server, etc. that
+are identical to those settings on the host itself (through the magic
+of the proxies and a separate network namespace, this doesn't create
+any conflict).
+
+Also different from SLIRP's behavior: if you do specify IP
+address(es), the exact address and netmask/prefix you specify will be
+provided to the guest (i.e. passt doesn't interpret the <ip> settings
+as a network address like SLIRP does, but as a host address). In
+example given above, the guest IP would be set to exactly 172.17.1.1.
+
+Just as with SLIRP, though, once traffic from the guest leaves the
+host towards the rest of the network, it will always appear as if it
+came from the host's IP.
+
+There are a few other options that are configurable only for the passt
+backend.  For example, the ``<backend>`` attribute ``logFile`` can be
+used to tell the passt process for this interface where to write its
+message log, and the ``<source>`` attribute ``dev`` can tell it a
+particular host interface to use when deriving the routes given to the
+guest for forwarding traffic upstream.  Due to the design decisions of
+passt, when using SELinux on the host, it is recommended that the log
+file reside in the runtime directory of the user under which the passt
+process will run, most probably ``/run/user/$UID`` (where ``$UID`` is
+the UID of that user), e.g. ``/run/user/1000``. Be aware that libvirt
+does not create this directory if it does not already exist to avoid
+possible, however unlikely, issues with orphaned directories or
+permissions, etc. The logfile attribute is meant mostly for debugging,
+so it shouldn't be set under normal circumstances.
 
 Additionally, when passt is used, multiple ``<portForward>`` elements
 can be added to forward incoming network traffic for the host to this
@@ -5172,7 +5236,7 @@ ports **with the exception of some subset**.
        <backend type='passt' logFile='/run/user/$UID/passt-domain.log'/>
        <mac address="00:11:22:33:44:55"/>
        <source dev='eth0'/>
-       <ip family='ipv4' address='172.17.2.4' prefix='24'/>
+       <ip family='ipv4' address='172.17.5.4' prefix='24'/>
        <ip family='ipv6' address='2001:db8:ac10:fd01::20'/>
        <portForward proto='tcp'>
          <range start='2022' to='22'/>
@@ -5791,7 +5855,7 @@ following attributes are available for the ``virtio`` NIC driver:
    The optional ``queues`` attribute controls the number of queues to be used
    for either `Multiqueue
    virtio-net <https://www.linux-kvm.org/page/Multiqueue>`__ or vhost-user (See
-   `vhost-user interface`_) network interfaces. Use of multiple packet
+   `vhost-user connection`_) network interfaces. Use of multiple packet
    processing queues requires the interface having the
    ``<model type='virtio'/>`` element. Each queue will potentially be handled by
    a different processor, resulting in much higher throughput.
@@ -6236,8 +6300,8 @@ similarly named elements used to configure the guest side of the interface
 (described above).
 
 
-vhost-user interface
-^^^^^^^^^^^^^^^^^^^^
+vhost-user connection
+^^^^^^^^^^^^^^^^^^^^^
 
 :since:`Since 1.2.7` the vhost-user enables the communication between a QEMU
 virtual machine and other userspace process using the Virtio transport protocol.
@@ -6264,15 +6328,62 @@ plane is based on shared memory.
    </devices>
    ...
 
-The ``<source>`` element has to be specified along with the type of char device.
-Currently, only type='unix' is supported, where the path (the directory path of
-the socket) and mode attributes are required. Both ``mode='server'`` and
-``mode='client'`` are supported. vhost-user requires the virtio model type, thus
-the ``<model>`` element is mandatory. :since:`Since 4.1.0` the element has an
-optional child element ``reconnect`` which configures reconnect timeout if the
-connection is lost. It has two attributes ``enabled`` (which accepts ``yes`` and
-``no``) and ``timeout`` which specifies the amount of seconds after which
+The ``<source>`` element has to be specified along with the type of
+char device.  Currently, only type='unix' is supported, where the path
+(the directory path of the socket) and mode attributes are
+required. Both ``mode='server'`` and ``mode='client'`` are
+supported. (:since:`Since 11.1.0` the default source type for
+vhostuser interfaces is 'unix' and default mode is 'client', so those
+two attributes are now optional).
+
+The vhost-user protocol only works with the virtio guest driver, so
+the ``<model>`` element ``type`` attribute is mandatory (:since:`Since
+11.1.0` the default model type for vhostuser interfaces is now
+'virtio' so ``<model>`` is no longer mandatory). :since:`Since 4.1.0`
+the ``<source>`` element has an optional child element ``reconnect``
+which configures reconnect timeout if the connection is lost. It has
+two attributes ``enabled`` (which accepts ``yes`` and ``no``) and
+``timeout`` which specifies the amount of seconds after which
 hypervisor tries to reconnect.
+
+Note that when ``mode='server'`` is used, the hypervisor will wait for the
+incoming connection to be established prior to actually running the VM. This is
+not possible when hotplugging an interface with such config so the VM will
+continue to run even when no connection is made. It's advised to use
+``mode='client'`` instead.
+
+vhost-user connection with passt backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:since:`Since 11.1.0 (QEMU and KVM only)` passt can be used as the
+other end of the vhost-user connection. This is a compelling
+alternative, because passt provides all of its network connectivity
+without requiring any elevated privileges or capabilities, and
+vhost-user uses shared memory to make this unprivileged connection
+very high performance as well. You can set a type='vhostuser'
+interface to use passt as the backend by adding ``<backend
+type='passt'/>``. When passt is the backend, only a single driver
+queue is supported, and the ``<source>`` path/type/mode are all
+implied to be "matching the passt process" so **must not** be
+specified. All of the passt options `described here
+<formatdomain.html#userspace-connection-using-passt>`__, are also
+supported for ``type='vhostuser'`` with the passt backend, e.g.
+setting guest-side IP addresses with ``<ip>`` and port forwarding with
+``<portForward``.
+
+::
+
+   ...
+   <devices>
+     <interface type='vhostuser'>
+       <backend type='passt'/>
+       <mac address='52:54:00:3b:83:1a'/>
+       <source dev='enp1s0'/>
+       <ip address='10.30.0.5 prefix='24'/>
+     </interface>
+   </devices>
+   ...
+
 
 Traffic filtering with NWFilter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

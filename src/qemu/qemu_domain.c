@@ -2306,13 +2306,11 @@ qemuDomainObjPrivateXMLFormatAutomaticPlacement(virBuffer *buf,
     if (!priv->autoNodeset && !priv->autoCpuset)
         return 0;
 
-    if (priv->autoNodeset &&
-        !((nodeset = virBitmapFormat(priv->autoNodeset))))
-        return -1;
+    if (priv->autoNodeset)
+        nodeset = virBitmapFormat(priv->autoNodeset);
 
-    if (priv->autoCpuset &&
-        !((cpuset = virBitmapFormat(priv->autoCpuset))))
-        return -1;
+    if (priv->autoCpuset)
+        cpuset = virBitmapFormat(priv->autoCpuset);
 
     virBufferAddLit(buf, "<numad");
     virBufferEscapeString(buf, " nodeset='%s'", nodeset);
@@ -6646,8 +6644,8 @@ qemuDomainDiskChangeSupportedIothreads(virDomainDiskDef *disk,
     GSList *new = disk->iothreads;
 
     while (true) {
-        virDomainDiskIothreadDef *old_def;
-        virDomainDiskIothreadDef *new_def;
+        virDomainIothreadMappingDef *old_def;
+        virDomainIothreadMappingDef *new_def;
         size_t i;
 
         /* match - both empty or both at the end */
@@ -7673,9 +7671,10 @@ qemuDomainDefValidateMemoryHotplugDevice(const virDomainMemoryDef *mem,
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
         if (mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI &&
+            mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW &&
             mem->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("only 'pci' addresses are supported for the %1$s device"),
+                           _("only 'pci' and 'ccw' addresses are supported for the %1$s device"),
                            virDomainMemoryModelTypeToString(mem->model));
             return -1;
         }
@@ -7761,7 +7760,8 @@ qemuDomainDefValidateMemoryHotplug(const virDomainDef *def,
         return 0;
     }
 
-    if (!ARCH_IS_PPC64(def->os.arch)) {
+    if (!ARCH_IS_PPC64(def->os.arch) &&
+        !ARCH_IS_S390(def->os.arch)) {
         /* due to guest support, qemu would silently enable NUMA with one node
          * once the memory hotplug backend is enabled. To avoid possible
          * confusion we will enforce user originated numa configuration along
@@ -9659,6 +9659,9 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
     /* qemuBlockStorageSourceSetStorageNodename steals 'nodestorage' */
     qemuBlockStorageSourceSetStorageNodename(src, nodestorage);
 
+    if (qemuDomainPrepareStorageSourceFDs(src, priv) < 0)
+        return -1;
+
     if (qemuBlockStorageSourceNeedsFormatLayer(src, priv->qemuCaps)) {
         char *nodeformat = g_strdup_printf("%s-format", nodenameprefix);
 
@@ -9697,9 +9700,6 @@ qemuDomainPrepareStorageSourceBlockdevNodename(virDomainDiskDef *disk,
         return -1;
 
     if (qemuDomainPrepareStorageSourceNFS(src) < 0)
-        return -1;
-
-    if (qemuDomainPrepareStorageSourceFDs(src, priv) < 0)
         return -1;
 
     return 0;
@@ -11428,6 +11428,7 @@ qemuDomainCheckCPU(virArch arch,
     /* Force compat check if the CPU model is not found in qemuCaps or
      * we don't have host CPU data from QEMU */
     if (!cpu->model ||
+        !hypervisorCPU ||
         hypervisorCPU->fallback != VIR_CPU_FALLBACK_FORBID ||
         virQEMUCapsGetCPUBlockers(qemuCaps, virtType,
                                   cpu->model, &blockers) < 0)

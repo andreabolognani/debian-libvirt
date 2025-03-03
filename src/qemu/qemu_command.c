@@ -959,6 +959,23 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
             break;
         }
 
+        case VIR_DOMAIN_DEVICE_MEMORY:
+            switch (device->data.memory->model) {
+            case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+                *baseName = "virtio-pmem";
+                break;
+            case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+                *baseName = "virtio-mem";
+                break;
+            case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+            case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+            case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+            case VIR_DOMAIN_MEMORY_MODEL_NONE:
+            case VIR_DOMAIN_MEMORY_MODEL_LAST:
+                break;
+            }
+            break;
+
         case VIR_DOMAIN_DEVICE_LEASE:
         case VIR_DOMAIN_DEVICE_WATCHDOG:
         case VIR_DOMAIN_DEVICE_GRAPHICS:
@@ -971,7 +988,6 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
         case VIR_DOMAIN_DEVICE_SHMEM:
         case VIR_DOMAIN_DEVICE_TPM:
         case VIR_DOMAIN_DEVICE_PANIC:
-        case VIR_DOMAIN_DEVICE_MEMORY:
         case VIR_DOMAIN_DEVICE_IOMMU:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_PSTORE:
@@ -1558,13 +1574,13 @@ qemuBuildDriveStr(virDomainDiskDef *disk)
 
 
 static virJSONValue *
-qemuBuildDiskDeviceIothreadMappingProps(GSList *iothreads)
+qemuBuildIothreadMappingProps(GSList *iothreads)
 {
     g_autoptr(virJSONValue) ret = virJSONValueNewArray();
     GSList *n;
 
     for (n = iothreads; n; n = n->next) {
-        virDomainDiskIothreadDef *ioth = n->data;
+        virDomainIothreadMappingDef *ioth = n->data;
         g_autoptr(virJSONValue) props = NULL;
         g_autoptr(virJSONValue) queues = NULL;
         g_autofree char *alias = g_strdup_printf("iothread%u", ioth->id);
@@ -1619,6 +1635,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
     const char *biosCHSTrans = NULL;
     const char *wpolicy = NULL;
     const char *rpolicy = NULL;
+    const char *model = NULL;
+    const char *product = NULL;
 
     switch (disk->bus) {
     case VIR_DOMAIN_DISK_BUS_IDE:
@@ -1627,6 +1645,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
             driver = "ide-cd";
         else
             driver = "ide-hd";
+
+        model = disk->product;
 
         break;
 
@@ -1654,6 +1674,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
             }
         }
 
+        product = disk->product;
+
         break;
 
     case VIR_DOMAIN_DISK_BUS_VIRTIO: {
@@ -1665,7 +1687,7 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
             iothread = g_strdup_printf("iothread%u", disk->iothread);
 
         if (disk->iothreads &&
-            !(iothreadMapping = qemuBuildDiskDeviceIothreadMappingProps(disk->iothreads)))
+            !(iothreadMapping = qemuBuildIothreadMappingProps(disk->iothreads)))
             return NULL;
 
         if (virStorageSourceGetActualType(disk->src) != VIR_STORAGE_TYPE_VHOST_USER &&
@@ -1803,7 +1825,8 @@ qemuBuildDiskDeviceProps(const virDomainDef *def,
                               "A:wwn", &wwn,
                               "p:rotation_rate", disk->rotation_rate,
                               "S:vendor", disk->vendor,
-                              "S:product", disk->product,
+                              "S:product", product,
+                              "S:model", model,
                               "T:removable", removable,
                               "S:write-cache", qemuOnOffAuto(writeCache),
                               "p:cyls", disk->geometry.cylinders,
@@ -3479,12 +3502,16 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-        device = "virtio-pmem-pci";
+        /* Deliberately not setting @device. */
+        if (!(props = qemuBuildVirtioDevProps(VIR_DOMAIN_DEVICE_MEMORY, mem, priv->qemuCaps)))
+            return NULL;
         address = mem->target.virtio_pmem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-        device = "virtio-mem-pci";
+        /* Deliberately not setting @device. */
+        if (!(props = qemuBuildVirtioDevProps(VIR_DOMAIN_DEVICE_MEMORY, mem, priv->qemuCaps)))
+            return NULL;
 
         if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_PREALLOC) &&
             qemuBuildMemoryGetPagesize(cfg, def, mem, NULL, NULL, NULL, &prealloc) < 0)
@@ -3506,7 +3533,7 @@ qemuBuildMemoryDeviceProps(virQEMUDriverConfig *cfg,
     }
 
     if (virJSONValueObjectAdd(&props,
-                              "s:driver", device,
+                              "S:driver", device,
                               "k:node", mem->targetNode,
                               "P:label-size", labelsize * 1024,
                               "P:block-size", blocksize * 1024,
@@ -6741,6 +6768,11 @@ qemuAppendDomainFeaturesMachineParam(virBuffer *buf,
         virBufferAsprintf(buf, ",i8042=%s", str);
     }
 
+    if (def->features[VIR_DOMAIN_FEATURE_AIA] != VIR_DOMAIN_AIA_DEFAULT) {
+        const char *str = virDomainAIATypeToString(def->features[VIR_DOMAIN_FEATURE_AIA]);
+        virBufferAsprintf(buf, ",aia=%s", str);
+    }
+
     return 0;
 }
 
@@ -7466,8 +7498,7 @@ qemuBuildNumaCPUs(virBuffer *buf,
     if (!cpu)
         return 0;
 
-    if (!(cpumask = virBitmapFormat(cpu)))
-        return -1;
+    cpumask = virBitmapFormat(cpu);
 
     for (tmpmask = cpumask; tmpmask; tmpmask = next) {
         if ((next = strchr(tmpmask, ',')))
@@ -8617,11 +8648,12 @@ qemuBuildInterfaceCommandLine(virQEMUDriver *driver,
         if (qemuInterfaceVhostuserConnect(cmd, net, qemuCaps) < 0)
             goto cleanup;
 
-        if (virNetDevOpenvswitchGetVhostuserIfname(net->data.vhostuser->data.nix.path,
+        if (net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST &&
+            virNetDevOpenvswitchGetVhostuserIfname(net->data.vhostuser->data.nix.path,
                                                    net->data.vhostuser->data.nix.listen,
-                                                   &net->ifname) < 0)
+                                                   &net->ifname) < 0) {
             goto cleanup;
-
+        }
         break;
 
     case VIR_DOMAIN_NET_TYPE_VDPA:

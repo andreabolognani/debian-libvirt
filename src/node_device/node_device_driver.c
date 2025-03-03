@@ -683,16 +683,9 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
             break;
             }
 
-        case VIR_NODE_DEV_CAP_CSS_DEV: {
-            virCCWDeviceAddress ccw_addr = {
-                .cssid = caps->data.ccw_dev.cssid,
-                .ssid = caps->data.ccw_dev.ssid,
-                .devno = caps->data.ccw_dev.devno
-            };
-
-            addr = virCCWDeviceAddressAsString(&ccw_addr);
+        case VIR_NODE_DEV_CAP_CSS_DEV:
+            addr = virCCWDeviceAddressAsString(caps->data.ccw_dev.dev_addr);
             break;
-            }
 
         case VIR_NODE_DEV_CAP_AP_MATRIX:
             addr = g_strdup(caps->data.ap_matrix.addr);
@@ -700,6 +693,10 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
 
         case VIR_NODE_DEV_CAP_MDEV_TYPES:
             addr = g_strdup(caps->data.mdev_parent.address);
+            break;
+
+        case VIR_NODE_DEV_CAP_CCWGROUP_DEV:
+            addr = virCCWDeviceAddressAsString(caps->data.ccwgroup_dev.address);
             break;
 
         case VIR_NODE_DEV_CAP_SYSTEM:
@@ -720,6 +717,7 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
         case VIR_NODE_DEV_CAP_AP_CARD:
         case VIR_NODE_DEV_CAP_AP_QUEUE:
         case VIR_NODE_DEV_CAP_VPD:
+        case VIR_NODE_DEV_CAP_CCWGROUP_MEMBER:
         case VIR_NODE_DEV_CAP_LAST:
             break;
         }
@@ -2196,6 +2194,8 @@ int nodeDeviceDefValidate(virNodeDeviceDef *def,
             case VIR_NODE_DEV_CAP_AP_QUEUE:
             case VIR_NODE_DEV_CAP_AP_MATRIX:
             case VIR_NODE_DEV_CAP_VPD:
+            case VIR_NODE_DEV_CAP_CCWGROUP_DEV:
+            case VIR_NODE_DEV_CAP_CCWGROUP_MEMBER:
             case VIR_NODE_DEV_CAP_LAST:
                 break;
         }

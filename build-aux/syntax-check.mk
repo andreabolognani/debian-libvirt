@@ -401,6 +401,8 @@ msg_gen_function += virReportError
 msg_gen_function += virReportErrorHelper
 msg_gen_function += virReportSystemError
 msg_gen_function += virLastErrorPrefixMessage
+msg_gen_function += vshError
+msg_gen_function += vshWarn
 
 # Uncomment the following and run "ninja test" to see diagnostics
 # that are not yet marked for translation, but that need to be rewritten
@@ -408,7 +410,6 @@ msg_gen_function += virLastErrorPrefixMessage
 # msg_gen_function += fprintf
 # msg_gen_function += testError
 # msg_gen_function += vshPrint
-# msg_gen_function += vshError
 
 space = $(null) $(null)
 func_re= ($(subst $(space),|,$(msg_gen_function)))
@@ -1438,7 +1439,7 @@ exclude_file_name_regexp--sc_require_config_h_first = \
 	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers\.c$$|scripts/rpcgen/tests/test_demo\.c$$)
 
 exclude_file_name_regexp--sc_trailing_blank = \
-  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo|tests/virshtestdata/.*$$
+  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo|tests/virshtestdata/.*|docs/fonts|scripts/rpcgen/tests/.*\.bin|tests/viracpidata/.*|tests/virpcitestdata/*|tests/virstoragetestdata/images/.*\.qcow2$$
 
 exclude_file_name_regexp--sc_unmarked_diagnostics = \
   ^(scripts/apibuild.py|tests/virt-aa-helper-test|docs/js/.*\.js)$$

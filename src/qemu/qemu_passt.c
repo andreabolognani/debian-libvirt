@@ -54,7 +54,7 @@ qemuPasstCreatePidFilename(virDomainObj *vm,
 }
 
 
-static char *
+char *
 qemuPasstCreateSocketPath(virDomainObj *vm,
                           virDomainNetDef *net)
 {
@@ -179,6 +179,9 @@ qemuPasstStart(virDomainObj *vm,
     cmd = virCommandNew(PASST);
 
     virCommandClearCaps(cmd);
+
+    if (virDomainNetGetActualType(net) == VIR_DOMAIN_NET_TYPE_VHOSTUSER)
+        virCommandAddArg(cmd, "--vhost-user");
 
     virCommandAddArgList(cmd,
                          "--one-off",

@@ -206,9 +206,11 @@ typedef void (*qemuMonitorDomainWatchdogCallback)(qemuMonitor *mon,
                                                   int action);
 typedef void (*qemuMonitorDomainIOErrorCallback)(qemuMonitor *mon,
                                                  virDomainObj *vm,
-                                                 const char *diskAlias,
+                                                 const char *device,
+                                                 const char *qompath,
                                                  const char *nodename,
                                                  int action,
+                                                 bool nospace,
                                                  const char *reason);
 typedef void (*qemuMonitorDomainGraphicsCallback)(qemuMonitor *mon,
                                                   virDomainObj *vm,
@@ -450,9 +452,11 @@ void qemuMonitorEmitResume(qemuMonitor *mon);
 void qemuMonitorEmitRTCChange(qemuMonitor *mon, long long offset);
 void qemuMonitorEmitWatchdog(qemuMonitor *mon, int action);
 void qemuMonitorEmitIOError(qemuMonitor *mon,
-                            const char *diskAlias,
+                            const char *device,
+                            const char *qompath,
                             const char *nodename,
                             int action,
+                            bool nospace,
                             const char *reason);
 void qemuMonitorEmitGraphics(qemuMonitor *mon,
                              int phase,
@@ -1647,3 +1651,8 @@ qemuMonitorSnapshotDelete(qemuMonitor *mon,
                           const char *jobname,
                           const char *snapshotname,
                           const char **disks);
+
+int
+qemuMonitorBlockdevSetActive(qemuMonitor *mon,
+                             const char *nodename,
+                             bool active);

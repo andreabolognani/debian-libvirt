@@ -229,6 +229,8 @@ virDiskNameParse;
 virDiskNameToBusDeviceIndex;
 virDiskNameToIndex;
 virDomainActualNetDefFree;
+virDomainAIATypeFromString;
+virDomainAIATypeToString;
 virDomainAudioDefFree;
 virDomainAudioFormatTypeFromString;
 virDomainAudioFormatTypeToString;
@@ -590,6 +592,7 @@ virDomainObjEndAPI;
 virDomainObjFormat;
 virDomainObjGetDefs;
 virDomainObjGetMessages;
+virDomainObjGetMessagesIOErrorsChain;
 virDomainObjGetMetadata;
 virDomainObjGetOneDef;
 virDomainObjGetOneDefState;
@@ -889,12 +892,16 @@ virNetDevIPRouteParseXML;
 virNodeDevCapsDefFree;
 virNodeDevCapTypeFromString;
 virNodeDevCapTypeToString;
+virNodeDevCCWGroupCapTypeFromString;
+virNodeDevCCWGroupCapTypeToString;
 virNodeDeviceCapsListExport;
 virNodeDeviceDefFormat;
 virNodeDeviceDefFree;
 virNodeDeviceDefParse;
 virNodeDeviceDefParseXML;
 virNodeDeviceGetAPMatrixDynamicCaps;
+virNodeDeviceGetCCWDynamicCaps;
+virNodeDeviceGetCCWGroupDynamicCaps;
 virNodeDeviceGetCSSDynamicCaps;
 virNodeDeviceGetMdevParentDynamicCaps;
 virNodeDeviceGetPCIDynamicCaps;
@@ -1640,6 +1647,7 @@ virDomainCgroupSetupVcpuBW;
 
 # hypervisor/domain_driver.h
 virDomainDriverAddIOThreadCheck;
+virDomainDriverAutoStart;
 virDomainDriverDelIOThreadCheck;
 virDomainDriverGenerateMachineName;
 virDomainDriverGenerateRootHash;
@@ -1877,10 +1885,6 @@ virStorageSourceUpdatePhysicalSize;
 
 
 # util/glibcompat.h
-vir_g_fsync;
-vir_g_source_unref;
-vir_g_strdup_printf;
-vir_g_strdup_vprintf;
 vir_g_string_replace;
 
 
@@ -2030,6 +2034,10 @@ virCCWDeviceAddressFromString;
 virCCWDeviceAddressIncrement;
 virCCWDeviceAddressIsValid;
 virCCWDeviceAddressParseFromString;
+virCCWDeviceGetGroupDev;
+virCCWGroupDeviceGetMembers;
+virCCWGroupMemberTypeFree;
+virCCWGroupTypeQethFree;
 
 
 # util/vircgroup.h
@@ -2488,6 +2496,7 @@ virGDBusCloseSystemBus;
 virGDBusErrorIsUnknownMethod;
 virGDBusGetSessionBus;
 virGDBusGetSystemBus;
+virGDBusHasSessionBus;
 virGDBusHasSystemBus;
 virGDBusIsServiceEnabled;
 virGDBusIsServiceRegistered;
@@ -3524,7 +3533,11 @@ virSystemdHasResolved;
 virSystemdHasResolvedResetCachedValue;
 virSystemdMakeScopeName;
 virSystemdMakeSliceName;
-virSystemdNotifyStartup;
+virSystemdNotifyExtendTimeout;
+virSystemdNotifyReady;
+virSystemdNotifyReload;
+virSystemdNotifyStatus;
+virSystemdNotifyStopping;
 virSystemdResolvedRegisterNameServer;
 virSystemdTerminateMachine;
 

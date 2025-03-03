@@ -15,17 +15,17 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-01-09 09:28+0000\n"
-"PO-Revision-Date: 2015-02-23 12:39+0000\n"
-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
-"Language-Team: Hindi (http://www.transifex.com/projects/p/fedora/language/"
-"hi/)\n"
+"POT-Creation-Date: 2025-02-24 10:18+0000\n"
+"PO-Revision-Date: 2025-02-19 18:38+0000\n"
+"Last-Translator: Anonymous <noreply@weblate.org>\n"
+"Language-Team: Hindi <https://translate.fedoraproject.org/projects/libvirt/"
+"libvirt/hi/>\n"
 "Language: hi\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Zanata 4.6.2\n"
+"X-Generator: Weblate 5.10\n"
 
 msgid ""
 "\n"
@@ -688,6 +688,22 @@ msgid ""
 msgstr ""
 
 #, c-format
+msgid "%1$s: Failed to open the event monitor FIFO(%2$s) read end!"
+msgstr ""
+
+#, c-format
+msgid "%1$s: Failed to parse and process events"
+msgstr ""
+
+#, c-format
+msgid "%1$s: Failed to process JSON event doc: %2$s"
+msgstr ""
+
+#, c-format
+msgid "%1$s: Failed to read ch events!: %2$s"
+msgstr ""
+
+#, c-format
 msgid "%1$s: File '%2$s' is too large\n"
 msgstr ""
 
@@ -700,6 +716,10 @@ msgstr "संजाल '%s' में '%s' गैर-IPv पता के ल�
 msgid ""
 "%1$s: IPv4 family specified for non-IPv4 gateway '%2$s' in route definition"
 msgstr "संजाल '%s' में '%s' गैर-IPv पता के लिए '%s' परिवार निर्दिष्ट"
+
+#, c-format
+msgid "%1$s: Invalid JSON event doc: %2$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "%1$s: Invalid netmask '%2$s' for address '%3$s' (both must be IPv4)"
@@ -1099,6 +1119,20 @@ msgid "'%1$s' starting from %2$llu has only %3$zd bytes available"
 msgstr ""
 
 msgid ""
+"'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', '--"
+"copy-storage-inc'"
+msgstr ""
+
+msgid ""
+"'--migrate-disks' requires one of '--copy-storage-all', '--copy-storage-inc'"
+msgstr ""
+
+msgid ""
+"'--migrate-disks-detect-zeroes' requires one of '--copy-storage-all', '--"
+"copy-storage-inc'"
+msgstr ""
+
+msgid ""
 "'--wipe-storage' requires '--storage <string>' or '--remove-all-storage'"
 msgstr ""
 
@@ -1270,13 +1304,16 @@ msgstr "'शिखर' और 'फट' 'औसत' विशेषता की 
 msgid "'pool' and 'volume' must be specified together for 'pool' type source"
 msgstr "'पूल' और 'मात्रा' पूल 'प्रकार के स्रोत के लिए एक साथ निर्दिष्ट किया जाना चाहिए"
 
+msgid "'queue' count must be configured for explicit iothread to queue mapping"
+msgstr ""
+
 #, fuzzy
 msgid "'queues' is only supported by virtio-scsi controller"
 msgstr "sgio केवल एससीएसआई होस्ट के युक्ति के लिए समर्थित है"
 
 msgid ""
-"'reconnect' attribute unsupported 'server' mode for <interface "
-"type='vhostuser'>"
+"'reconnect' attribute is not supported when source mode='server' for "
+"<interface type='vhostuser'>"
 msgstr ""
 
 msgid ""
@@ -1287,6 +1324,9 @@ msgstr ""
 msgid ""
 "'restrictive' mode is required in memory element when mode is 'restrictive' "
 "in memnode element"
+msgstr ""
+
+msgid "'return' member missing"
 msgstr ""
 
 #, c-format
@@ -1557,7 +1597,7 @@ msgstr ""
 msgid "<domainbackup> must specify TCP port for now"
 msgstr ""
 
-#, c-format
+#, fuzzy, c-format
 msgid ""
 "<forward dev='%1$s'> must match first <interface dev='%2$s'/> in network %3$s"
 msgstr "<forward dev='%s'> संजाल% s में पहले <interface dev='%s'/> से मेल खाना चाहिए"
@@ -1598,7 +1638,7 @@ msgstr ""
 "<virtualport type='%1$s'> संजाल '%2$s' को एक पुल युक्ति का उपयोग करता है, जिसके "
 "लिए समर्थित नहीं."
 
-#, c-format
+#, fuzzy, c-format
 msgid ""
 "<virtualport type='%1$s'> not supported for network '%2$s' which uses a "
 "macvtap device"
@@ -2761,6 +2801,9 @@ msgstr "लॉग निर्देशिका '%1$s' बना नहीं �
 #, fuzzy
 msgid "Cannot create macvlan devices on this platform"
 msgstr "इस प्लैटफॉर्म पर नोड सूचना लागू नहीं है"
+
+msgid "Cannot create monitor FIFO"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Cannot create resctrl directory '%1$s'"
@@ -4309,9 +4352,6 @@ msgstr "नाम '%1$s' के साथ डोमेन नहीं ढूँ
 msgid "Could not find host system specified in '%1$s'"
 msgstr "%1$s' में उल्लेखित होस्ट तंत्र पाया नहीं गया"
 
-msgid "Could not find matching device"
-msgstr "मेल खाता युक्ति नहीं ढूढ़ सका"
-
 #, fuzzy, c-format
 msgid "Could not find matching device '%1$s'"
 msgstr "मेल खाता युक्ति नहीं ढूढ़ सका"
@@ -4439,6 +4479,10 @@ msgstr "ACL टेक ड्राईवर '%1$s' पर पँहुच नह
 #, fuzzy
 msgid "Could not get checkpoint name"
 msgstr "मौजूदा समय पा नहीं सका"
+
+#, c-format
+msgid "Could not get count of free %1$uKiB pages, no data returned"
+msgstr ""
 
 msgid "Could not get current time"
 msgstr "मौजूदा समय पा नहीं सका"
@@ -6104,10 +6148,6 @@ msgstr ""
 msgid "Duplicate info for NUMA latencies"
 msgstr ""
 
-#, c-format
-msgid "Duplicate mapping for iothread '%1$u'"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Duplicate security driver %1$s"
 msgstr "सुरक्षा ड्राइवर '%1$s' नहीं मिला "
@@ -6743,7 +6783,7 @@ msgstr "VM '%s' ऑटोस्टार्ट में विफल: %s"
 msgid "Failed to autostart VM '%1$s': %2$s"
 msgstr "VM '%1$s' ऑटोस्टार्ट में विफल: %2$s"
 
-#, c-format
+#, fuzzy, c-format
 msgid "Failed to autostart storage pool '%1$s': %2$s"
 msgstr "भंडारण पूल को स्वतः शुरू करने में '% s' करने में असफ़ल: %s"
 
@@ -8330,6 +8370,10 @@ msgstr ""
 msgid "Failed to remove storage volume '%1$s'(%2$s)"
 msgstr "पथ '%s' से भंडार आयतन को खोलने में विफल"
 
+#, c-format
+msgid "Failed to remove the file: %1$s"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Failed to reportluns: %1$s"
 msgstr "%1$s पुल बनाने में विफल"
@@ -8661,9 +8705,8 @@ msgstr "%1$s अंतरफलक आरंभ करने में विफ
 msgid "Failed to set vcpus for domain '%1$d' with libxenlight"
 msgstr "bxenlight के साथ डोमेन '%1$d' के लिए vcpus सेट करने में विफल "
 
-#, fuzzy
-msgid "Failed to setup keepalive on connection\n"
-msgstr "स्थिति पर प्रतीक्षा करने में विफल"
+msgid "Failed to setup keepalive on connection"
+msgstr ""
 
 #, c-format
 msgid "Failed to shutdown domain '%1$d' with libxenlight"
@@ -8703,10 +8746,6 @@ msgstr ""
 #, c-format
 msgid "Failed to start interface %1$s"
 msgstr "%1$s अंतरफलक आरंभ करने में विफल"
-
-#, c-format
-msgid "Failed to start job on VM '%1$s': %2$s"
-msgstr "कार्य आरंभ करने में विफल VM '%1$s' पर: %2$s"
 
 #, c-format
 msgid "Failed to start network %1$s"
@@ -9554,6 +9593,12 @@ msgstr "I/O त्रुटि"
 msgid "I/O error"
 msgstr "I/O त्रुटि"
 
+#, c-format
+msgid ""
+"I/O error: disk='%1$s', index='%2$d', path='%3$s', timestamp='%4$s', "
+"message='%5$s'"
+msgstr ""
+
 msgid "I/O size in bytes"
 msgstr ""
 
@@ -10070,8 +10115,8 @@ msgid ""
 msgstr ""
 
 msgid ""
-"Invalid attempt to set network interface guest-side IP route and/or address "
-"info, not supported by QEMU"
+"Invalid attempt to set network interface guest-side IP address info, not "
+"supported by QEMU"
 msgstr ""
 
 msgid ""
@@ -11726,6 +11771,10 @@ msgstr "JSON के दस्तावेज़ में गुम जादु
 msgid "Missing clients data in JSON document"
 msgstr "JSON के दस्तावेज़ में गुम जादुई डेटा"
 
+#, c-format
+msgid "Missing data in ccw_device with ref '%1$s' in members for '%2$s'"
+msgstr ""
+
 msgid "Missing defaultLockspace data from JSON file"
 msgstr "JSON फ़ाइल से लापता defaultLockspace डेटा"
 
@@ -11974,6 +12023,10 @@ msgstr ""
 #, fuzzy
 msgid "Missing readonly field in JSON state document"
 msgstr "JSON के दस्तावेज़ में ownerId डेटा गुम"
+
+#, c-format
+msgid "Missing ref property on ccw_device in members for '%1$s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Missing required 'service' attribute in SRV record of network '%1$s'"
@@ -12299,6 +12352,9 @@ msgid "NUMA node %1$zu is not available"
 msgstr ""
 
 msgid "NUMA node selections to set"
+msgstr ""
+
+msgid "NUMA nodes are not supported for virtio-mem-ccw"
 msgstr ""
 
 msgid "NUMA nodes without CPUs can't be initiator"
@@ -13222,6 +13278,9 @@ msgstr ""
 msgid "Only ide and scsi disk support wwn"
 msgstr ""
 
+msgid "Only ide, sata and scsi disk supports 'product'"
+msgstr ""
+
 #, fuzzy
 msgid "Only luks encryption is supported for raw files"
 msgstr "ऑपरेशन डिवाइस के लिए समर्थित नहीं है: %s"
@@ -13297,7 +13356,7 @@ msgstr ""
 msgid "Only read-only pflash is supported."
 msgstr "केवल एक फाइल सिस्टम समर्थित"
 
-msgid "Only scsi disk supports vendor and product"
+msgid "Only scsi disk supports 'vendor'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -14773,7 +14832,7 @@ msgstr "स्रोत मैक पता सेट के साथ %1$s द�
 msgid "SVE disabled, but SVE vector lengths provided"
 msgstr ""
 
-#, c-format
+#, fuzzy, c-format
 msgid "Sanlock helper arguments are longer than %1$d: '%2$s'"
 msgstr "Sanlock सहायक तर्क% d से रह रहे हैं: '%s'"
 
@@ -15448,6 +15507,10 @@ msgstr ""
 msgid "Start"
 msgstr "आरंभ किया"
 
+#, c-format
+msgid "Start CPU %1$d is out of range (min: 0, max: %2$d)"
+msgstr ""
+
 msgid "Start a block commit operation."
 msgstr ""
 
@@ -15691,7 +15754,7 @@ msgstr "भंडारण स्रोत पूल के साथ विर�
 
 #, c-format
 msgid ""
-"Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it manually.\n"
+"Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it manually."
 msgstr ""
 
 msgid "Storage volume deletion is supported only on stopped domains"
@@ -16707,7 +16770,9 @@ msgid ""
 "'%2$s' or machine type '%3$s'"
 msgstr ""
 
-msgid "The 'passt' backend can only be used with interface type='user'"
+msgid ""
+"The 'passt' backend can only be used with interface type='user' or "
+"type='vhostuser'"
 msgstr ""
 
 msgid ""
@@ -16723,8 +16788,8 @@ msgstr ""
 "<nat> तत्व केवल <forward> 'मोड' संजाल %1$s में 'नेट' जब इस्तेमाल किया जा सकता है"
 
 msgid ""
-"The <portForward> element can only be used with <interface type='user'> and "
-"its 'passt' backend"
+"The <portForward> element can only be used with the 'passt' backend of "
+"interface type='user' or type='vhostuser'"
 msgstr ""
 
 msgid ""
@@ -18576,6 +18641,9 @@ msgstr "मौजूदा नाम पाने में असमर्थ"
 msgid "Unable to get physical function status on this platform"
 msgstr "लूप स्थिति पाने में विफल %s पर "
 
+msgid "Unable to get pointer to VirtualBox vtable"
+msgstr ""
+
 msgid "Unable to get remote socket name"
 msgstr "दूरस्थ सॉकेट नाम पाने में असमर्थ"
 
@@ -18654,6 +18722,9 @@ msgstr "mutex आरंभ करने में विफल"
 #, fuzzy
 msgid "Unable to initialize RW lock"
 msgstr "lockspace %s आरंभ करने में विफल"
+
+msgid "Unable to initialize VirtualBox C API client"
+msgstr ""
 
 #, fuzzy
 msgid "Unable to initialize audit layer"
@@ -19019,6 +19090,9 @@ msgstr "अवैध टाइमर आवृत्ति"
 msgid "Unable to process file with flags %1$d"
 msgstr "फाइल विवरक %1$d पर पहुँच में अक्षम"
 
+msgid "Unable to query NVMe disk address"
+msgstr ""
+
 msgid "Unable to query TSC scaling support"
 msgstr ""
 
@@ -19089,10 +19163,6 @@ msgstr ""
 #, fuzzy
 msgid "Unable to read TLS confirmation"
 msgstr "मोनिटर पढने में असमर्थ"
-
-#, fuzzy
-msgid "Unable to read cache data"
-msgstr "संग्राहक pty पढ़ने में अक्षम"
 
 msgid "Unable to read container pty"
 msgstr "संग्राहक pty पढ़ने में अक्षम"
@@ -21026,7 +21096,7 @@ msgid "Vol %1$s wiped\n"
 msgstr "आयतन %1$s मिटाया गया\n"
 
 #, c-format
-msgid "Volume '%1$s' was not found in domain's definition.\n"
+msgid "Volume '%1$s' was not found in domain's definition."
 msgstr ""
 
 #, c-format
@@ -21202,11 +21272,6 @@ msgstr "fdc डिस्क के लिए अप्रत्याशित �
 
 msgid "Wrong length MAC address"
 msgstr "गलत लंबाई MAC पता"
-
-msgid ""
-"Wrong or no <model> 'type' attribute specified with <interface "
-"type='vhostuser'/>. vhostuser requires the virtio-net* frontend"
-msgstr ""
 
 msgid "XBZRLE is active, but 'bytes' data was missing"
 msgstr "XBZRLE सक्रिय है, लेकिन 'बाइट्स' आँकड़ा अनुपस्थित था"
@@ -21487,9 +21552,23 @@ msgstr ""
 msgid "after reverting, change state to running"
 msgstr ""
 
+msgid "aia feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "aia feature is only supported with RISC-V Virt machines"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "algorithm=%1$d is not supported"
 msgstr "संजाल प्रकार %1$d समर्थित नहीं"
+
+#, c-format
+msgid "alias '%1$s' of command '%2$s' has mismatched alias type"
+msgstr ""
+
+#, c-format
+msgid "alias '%1$s' of command '%2$s' has missing alias option"
+msgstr ""
 
 msgid "all CPU models are accepted"
 msgstr ""
@@ -21916,6 +21995,9 @@ msgid ""
 "by this API"
 msgstr ""
 
+msgid "bandwidth (in MiB/s) available for the final phase of migration"
+msgstr ""
+
 #, c-format
 msgid "bandwidth controller id %1$zd does not exist"
 msgstr ""
@@ -22128,6 +22210,14 @@ msgstr "बाँड अंतरफलक miimon updelay अवैध"
 
 msgid "bond interface misses the bond element"
 msgstr "bond interface बाँड तत्व को अनुपस्थित रखता है"
+
+#, c-format
+msgid "bool parameter '%1$s' of command '%2$s' has completer set"
+msgstr ""
+
+#, c-format
+msgid "boolean parameter '%1$s' of command '%2$s' must not be positional"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "boot order %1$u is already used by another device"
@@ -22854,7 +22944,7 @@ msgstr "अज्ञात आलेखी युक्ति प्रकार
 msgid "cannot find existing graphics type '%1$s' device to modify"
 msgstr ""
 
-#, c-format
+#, fuzzy, c-format
 msgid "cannot find init path '%1$s' relative to container root"
 msgstr "कंटेनर रूट के सापेक्ष init पथ '% s' नहीं ढूँढ सकता"
 
@@ -23904,7 +23994,7 @@ msgstr "sndbf एक धनात्मक पूर्णांक होना
 msgid "cellNum in %1$s must be less than or equal to %2$d"
 msgstr "%1$s में eventID %2$d से कम होना चाहिए."
 
-#, c-format
+#, fuzzy, c-format
 msgid "cellNum in %1$s only accepts %2$d as a negative value"
 msgstr "% s में cellNum केवल एक नकारात्मक मान के रूप में %d स्वीकार"
 
@@ -24184,12 +24274,43 @@ msgid "command '%1$s' doesn't support option --%2$s"
 msgstr "कमांड '%1$s' विकल्प का समर्थन नहीं करता है --%2$s"
 
 #, c-format
+msgid "command '%1$s' has handler set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has info set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has multiple flags set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has options set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' lacks help"
+msgstr ""
+
+#, c-format
 msgid "command '%1$s' requires --%2$s option"
 msgstr "कमांड '%1$s' के लिये  --%2$s विकल्प जरूरी"
 
 #, c-format
 msgid "command '%1$s' requires <%2$s> option"
 msgstr "कमांड '%1$s' के लिये <%2$s> विकल्प जरूरी"
+
+msgid "command 'domblkinfo' requires <device> option"
+msgstr ""
+
+#, c-format
+msgid "command alias '%1$s' is pointing to a non-existent command '%2$s'"
+msgstr ""
+
+#, c-format
+msgid "command alias '%1$s' is pointing to another command alias '%2$s'"
+msgstr ""
 
 msgid "command groups is NULL run vshInit before reloading"
 msgstr ""
@@ -24248,6 +24369,12 @@ msgid "compatibility option only available with qcow2"
 msgstr ""
 
 msgid "completed"
+msgstr ""
+
+#, c-format
+msgid ""
+"completer_flags of argument '%1$s' of command '%2$s' must be 0 if no "
+"completer is used"
 msgstr ""
 
 msgid "compress level for multithread compression"
@@ -24757,7 +24884,7 @@ msgstr ""
 "संजाल '%1$s' के मिलान <portgroup name='%2$s'> में एक portgroup प्रवेश नहीं मिल सकता "
 "है"
 
-#, c-format
+#, fuzzy, c-format
 msgid ""
 "couldn't find an interface entry in network '%1$s' matching <interface "
 "dev='%2$s'>"
@@ -24860,7 +24987,7 @@ msgstr ""
 msgid "cpu topology results in more than %1$u cpus"
 msgstr ""
 
-#, c-format
+#, fuzzy, c-format
 msgid "cpuNum in %1$s only accepts %2$d as a negative value"
 msgstr "% s में cpuNum केवल एक नकारात्मक मान के रूप में %d स्वीकार"
 
@@ -25516,16 +25643,23 @@ msgid "disk '%1$s' not found in domain"
 msgstr "डिस्क %1$s नहीं मिला"
 
 #, c-format
+msgid ""
+"disk '%1$s' referenced by snapshot '%2$s' not found in the VM definition of "
+"the deleted snapshot"
+msgstr ""
+
+#, c-format
+msgid ""
+"disk '%1$s' referenced by snapshot '%2$s' not found in the current definition"
+msgstr ""
+
+#, c-format
 msgid "disk '%1$s' specified twice"
 msgstr "डिस्क '%1$s' दो बार निर्दिष्ट किया है"
 
 #, fuzzy, c-format
 msgid "disk '%1$s' was not found in the domain config"
 msgstr "युक्ति डोमेन विन्यास में पहले से ही है"
-
-msgid ""
-"disk 'queue' count must be configured for explicit iothread to queue mapping"
-msgstr ""
 
 msgid "disk attributes: disk[,checkpoint=type][,bitmap=name]"
 msgstr ""
@@ -25622,14 +25756,6 @@ msgstr "अभी तक डिस्क स्नैपशॉट्स सम�
 msgid "disk ioeventfd mode supported only for virtio bus"
 msgstr "डिस्क ioeventfd मोड केवल virtio बस के द्वारा समर्थित है"
 
-#, c-format
-msgid "disk iothread queue '%1$u' is already assigned"
-msgstr ""
-
-#, c-format
-msgid "disk iothread queue '%1$u' mapping out of range"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "disk iotune field '%1$s' must be an integer"
 msgstr "युक्ति प्रकार '%1$s' पूर्णांक नहीं है"
@@ -25652,7 +25778,7 @@ msgid "disk port address is not supported by tunnelled migration"
 msgstr "पाइप tunnelled प्रवास के लिए पास नहीं कर सकते है "
 
 #, c-format
-msgid "disk product is more than %1$d characters"
+msgid "disk product is more than %1$zu characters"
 msgstr ""
 
 msgid "disk product is not printable string"
@@ -26157,6 +26283,10 @@ msgstr ""
 msgid "duplicate key '%1$s'"
 msgstr ""
 
+#, c-format
+msgid "duplicate mapping for iothread '%1$u'"
+msgstr ""
+
 msgid "duplicate native vlan setting"
 msgstr "मूल vlan सेटिंग नकल"
 
@@ -26473,8 +26603,9 @@ msgstr "डोमेन वापस करने में विफल"
 msgid "error while suspending the domain"
 msgstr "एक डोमेन स्थगित करें"
 
-msgid "error: "
-msgstr "त्रुटि: "
+#, c-format
+msgid "error: %1$s\n"
+msgstr ""
 
 msgid "error_policy is not supported with vhostuser disk"
 msgstr ""
@@ -27208,6 +27339,10 @@ msgstr "stderr फाइल नियंत्रण सेट करने म�
 msgid "failed to find USB device busnum:devnum for %1$x:%2$x"
 msgstr "%s के लिए जनक युक्ति ढूँढ़ने में विफल"
 
+#, c-format
+msgid "failed to find a supported CCW group capability type '%1$s'"
+msgstr ""
+
 #, fuzzy
 msgid "failed to find an empty memory slot"
 msgstr "%s के लिए जनक युक्ति ढूँढ़ने में विफल"
@@ -27613,6 +27748,9 @@ msgstr "%1$s बनाने में विफल"
 #, fuzzy, c-format
 msgid "failed to parse %1$sversion"
 msgstr "लाइब्रेरी संस्करण पाने में विफल"
+
+msgid "failed to parse JSON returned by qemu"
+msgstr ""
 
 #, c-format
 msgid "failed to parse JSON: %1$s"
@@ -28111,6 +28249,10 @@ msgstr "फ़ाइल '%1$s' सहेजने के लिए डोमे�
 msgid "failed to write known_host file '%1$s': %2$s"
 msgstr "%1$s: लॉग फाइल लिखने में विफल: %2$s"
 
+#, c-format
+msgid "failed to write log file: %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "failed to write master key file for domain"
 msgstr "डोमेन के लिए स्मृति सीमा सेट करने में असमर्थ"
@@ -28118,6 +28260,9 @@ msgstr "डोमेन के लिए स्मृति सीमा से�
 #, fuzzy, c-format
 msgid "failed to write padding to '%1$s'"
 msgstr "'%1$s' फ़ाइल में लिखने में विफल"
+
+msgid "failed to write secret"
+msgstr ""
 
 #, fuzzy
 msgid "failed to write secret file"
@@ -29714,6 +29859,10 @@ msgid "invalid driver type for version detection"
 msgstr "TLS सत्र के लिए अवैध साइफर आकार"
 
 #, c-format
+msgid "invalid empty data-file definition in '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "invalid failure action: '%1$s'\n"
 msgstr "अमान्य क्रिया प्रकार: '%1$s'\n"
 
@@ -29849,7 +29998,7 @@ msgid "invalid mode"
 msgstr "अवैध pid"
 
 #, c-format
-msgid "invalid model for interface of type '%1$s': '%2$s'"
+msgid "invalid model for interface of type '%1$s': '%2$s' - must be 'virtio'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -30066,6 +30215,10 @@ msgstr "अवैध तर्क"
 msgid "invalid type '%1$s' for parameter '%2$s', expected '%3$s'"
 msgstr ", अप्रत्याशित प्रकार '%1$s' के लिए %2$s को कॉल की उम्मीद में '%3$s'"
 
+#, c-format
+msgid "invalid type 'NONE' of option '%1$s' of command '%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "invalid unique_id supplied for '%1$s'"
 msgstr "अवैध आकार दिया गया '%1$s' के लिए"
@@ -30187,6 +30340,10 @@ msgstr ""
 msgid "iothread %1$d not found"
 msgstr "hostdev %s नहीं पाया गया "
 
+#, c-format
+msgid "iothread '%1$u' not defined in iothreadid"
+msgstr ""
+
 msgid "iothread for the new IOThread"
 msgstr ""
 
@@ -30194,6 +30351,14 @@ msgid "iothread id of existing IOThread"
 msgstr ""
 
 msgid "iothread is not supported with vhostuser disk"
+msgstr ""
+
+#, c-format
+msgid "iothread queue '%1$u' is already assigned"
+msgstr ""
+
+#, c-format
+msgid "iothread queue '%1$u' mapping out of range"
 msgstr ""
 
 msgid ""
@@ -30206,6 +30371,9 @@ msgstr ""
 #, fuzzy, c-format
 msgid "iothreadid %1$d not found"
 msgstr "डिस्क %s नहीं मिला"
+
+msgid "iothreads are supported only by 'virtio-scsi' controllers"
+msgstr ""
 
 msgid "iotune is not supported with vhostuser disk"
 msgstr ""
@@ -31504,6 +31672,12 @@ msgstr ""
 msgid "migration canceled"
 msgstr "ऑपरेशन विफल"
 
+#, c-format
+msgid ""
+"migration failed. Message from the source host: %1$s. Message from the "
+"destination host: %2$s"
+msgstr ""
+
 msgid "migration in"
 msgstr ""
 
@@ -32033,6 +32207,10 @@ msgstr ""
 #, fuzzy, c-format
 msgid "missing gluster volume name for path '%1$s'"
 msgstr "गायब उपयोक्तानाम सत्यापन के लिए"
+
+#, c-format
+msgid "missing group_device value for '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "missing host CPU model info from QEMU capabilities for binary %1$s"
@@ -32737,6 +32915,12 @@ msgid "multiple matching interfaces found: %1$s"
 msgstr "बहुविध मिलान अंतरफलक पाया गया: %1$s"
 
 msgid "multiple memory devices found, use --alias or --node to select one"
+msgstr ""
+
+#, c-format
+msgid ""
+"multiple optional positional arguments (%1$s, %2$s) of command '%3$s' are "
+"not allowed"
 msgstr ""
 
 msgid "multiple stream callbacks not supported"
@@ -33991,14 +34175,14 @@ msgstr ""
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
 msgstr ""
 
-#, c-format
-msgid "only 'pci' addresses are supported for the %1$s device"
-msgstr ""
-
 msgid "only 'pci' addresses are supported for the shared memory device"
 msgstr ""
 
 msgid "only 'pci' addresses are supported for the virtio-pmem device"
+msgstr ""
+
+#, c-format
+msgid "only 'pci' and 'ccw' addresses are supported for the %1$s device"
 msgstr ""
 
 msgid "only 'qcow2' formatted 'block' nvram backing can be formatted"
@@ -34336,7 +34520,7 @@ msgid "output to stderr"
 msgstr ""
 
 #, c-format
-msgid "overflow in converting %1$ld MiB/s to bytes\n"
+msgid "overflow in converting %1$ld MiB/s to bytes"
 msgstr ""
 
 #, c-format
@@ -34429,6 +34613,23 @@ msgstr "स्ट्रिंग पैरामीटर '%1$s' असमर्
 #, fuzzy, c-format
 msgid "parameter '%1$s' occurs multiple times"
 msgstr "स्ट्रिंग पैरामीटर '%1$s' असमर्थित"
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' has incorrect alias option"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' misused 'required' flag"
+msgstr ""
+
+#, c-format
+msgid ""
+"parameter '%1$s' of command '%2$s' must be listed before optional parameters"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' must be listed last"
+msgstr ""
 
 msgid "parameter=value"
 msgstr "parameter=value"
@@ -35708,6 +35909,12 @@ msgstr "निवेदित vcpus अधिकतम स्वीकार य
 msgid "require atomic operation"
 msgstr "ऑपरेशन के दौरान समय समाप्त"
 
+#, c-format
+msgid ""
+"required positional argument '%1$s' declared after an optional positional "
+"argument '%2$s' of command '%3$s'"
+msgstr ""
+
 msgid "resctrl locking is not supported on this platform"
 msgstr ""
 
@@ -36886,6 +37093,11 @@ msgstr "अभी तक डिस्क स्नैपशॉट्स सम�
 msgid "supplying <cipher> for domain disk definition is unnecessary"
 msgstr ""
 
+msgid ""
+"support for offline external snapshots while checkpoint exists was not yet "
+"implemented"
+msgstr ""
+
 msgid "suspend a domain"
 msgstr "एक डोमेन स्थगित करें"
 
@@ -37241,7 +37453,7 @@ msgstr ""
 "एक बाहरी निकलता dhcp परिसर प्रविष्टि संजाल '%1$s' में है जो \"<range start='%2$s' "
 "end='%3$s'/>\" से मेल खाता है"
 
-#, c-format
+#, fuzzy, c-format
 msgid ""
 "there is an existing interface entry in network '%1$s' that matches "
 "\"<interface dev='%2$s'>\""
@@ -38231,6 +38443,9 @@ msgstr "शुरू करने के बाद स्नैपशॉट व�
 msgid "unable to poll on child"
 msgstr "बच्चे पर पोल करने में असमर्थ"
 
+msgid "unable to query block list"
+msgstr ""
+
 #, fuzzy
 msgid "unable to query cgroup BPF progs"
 msgstr "सेक्टर आकार %s क्वेरी करने में अक्षम"
@@ -38931,7 +39146,7 @@ msgstr "अज्ञात सत्यापन प्रकार %1$s"
 msgid "unknown backend source type '%1$s' for external TPM"
 msgstr ""
 
-#, c-format
+#, fuzzy, c-format
 msgid "unknown backend type '%1$s' for egd"
 msgstr "egd के लिए अज्ञात बैकएंड प्रकार '% s'"
 
@@ -39663,6 +39878,10 @@ msgstr "असमर्थित rtc टाइमर tickpolicy '%1$s'"
 msgid "unsupported rtc timer track '%1$s'"
 msgstr "असमर्थित rtc टाइमर ट्रैक '%1$s'"
 
+#, c-format
+msgid "unsupported save image format: %1$d"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "unsupported scheme %1$s in migration URI %2$s"
 msgstr "असमर्थित कान्फिगुरेशन: %s"
@@ -39719,6 +39938,12 @@ msgstr "गैर अवरूद्ध संख्या"
 
 msgid "unterminated string"
 msgstr "गैर अवरूद्ध स्ट्रिंग"
+
+#, c-format
+msgid ""
+"unwanted_positional flag of argument '%1$s' of command '%2$s' must not be "
+"used together with positional"
+msgstr ""
 
 #, fuzzy
 msgid "update device from an XML file"
@@ -39847,6 +40072,9 @@ msgstr ""
 msgid ""
 "using disk target name '%1$s' conflicts with SCSI host device address "
 "controller='%2$u' bus='%3$u' target='%4$u' unit='%5$u"
+msgstr ""
+
+msgid "using host CPU definition as input may provide incorrect results"
 msgstr ""
 
 #, fuzzy, c-format
@@ -40346,6 +40574,9 @@ msgstr ""
 msgid "virtio-mem isn't supported by this QEMU binary"
 msgstr ""
 
+msgid "virtio-mem-ccw can't use different page size than the boot memory"
+msgstr ""
+
 #, c-format
 msgid ""
 "virtio-net teaming persistent interface must be <model type='virtio'/>, not "
@@ -40799,6 +41030,24 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
+
+#~ msgid "Could not find matching device"
+#~ msgstr "मेल खाता युक्ति नहीं ढूढ़ सका"
+
+#, fuzzy
+#~ msgid "Failed to setup keepalive on connection\n"
+#~ msgstr "स्थिति पर प्रतीक्षा करने में विफल"
+
+#, c-format
+#~ msgid "Failed to start job on VM '%1$s': %2$s"
+#~ msgstr "कार्य आरंभ करने में विफल VM '%1$s' पर: %2$s"
+
+#, fuzzy
+#~ msgid "Unable to read cache data"
+#~ msgstr "संग्राहक pty पढ़ने में अक्षम"
+
+#~ msgid "error: "
+#~ msgstr "त्रुटि: "
 
 #~ msgid "Download length it too large"
 #~ msgstr "डाउनलोड लंबाई बहुत बड़ी है"

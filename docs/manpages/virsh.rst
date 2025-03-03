@@ -954,15 +954,22 @@ provide on the host. (This is different from ``cpu-compare`` which compares the
 CPU definition with the host CPU without considering any specific hypervisor
 and its abilities.)
 
-The XML *FILE* may contain either a host or guest CPU definition. The host CPU
-definition is the <cpu> element and its contents as printed by the
-``capabilities`` command. The guest CPU definition is the <cpu> element and its
-contents from the domain XML definition or the CPU definition created from the
-host CPU model found in the domain capabilities XML (printed by the
-``domcapabilities`` command). In addition to the <cpu> element itself, this
-command accepts full domain XML, capabilities XML, or domain capabilities XML
-containing the CPU definition. For more information on guest CPU definition
-see: `https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#cpu-model-and-topology>`__.
+The XML *FILE* should contain a guest CPU definition: either the ``<cpu>``
+element and its contents from a domain XML definition or a CPU definition
+created from the host CPU model found in the ``<mode name="host-model">``
+element in the domain capabilities XML (printed by the ``domcapabilities``
+command). The ``<mode name="host-model">`` element itself or even its
+``<cpu>`` parent element found in domain capabilities XML is not accepted.
+The element has to be transformed into an actual CPU definition. For more
+information on guest CPU definition see:
+`https://libvirt.org/formatdomain.html#elementsCPU <https://libvirt.org/formatdomain.html#cpu-model-and-topology>`__.
+
+Alternatively this command will automatically extract the CPU definition when
+provided with a full domain or domain capabilities XML.
+
+For historical reasons the XML *FILE* may also contain a host CPU definition,
+but such usage is strongly discouraged as it will most likely provide incorrect
+results.
 
 The *virttype* option specifies the virtualization type (usable in the 'type'
 attribute of the <domain> top level element from the domain XML). *emulator*
@@ -993,15 +1000,19 @@ As an alternative for *FILE* in case the XML would only contain a CPU model
 with no additional features the CPU model name itself can be passed as *model*.
 Exactly one of *FILE* and *model* must be used.
 
-The XML *FILE* may contain either host or guest CPU definitions describing the
-host CPU model. The host CPU definition is the <cpu> element and its contents
-as printed by ``capabilities`` command. The guest CPU definition may be created
-from the host CPU model found in domain capabilities XML (printed by
-``domcapabilities`` command). In addition to the <cpu> elements, this command
-accepts full capabilities XMLs, or domain capabilities XMLs containing the CPU
-definitions. It is recommended to use only the CPU definitions from domain
-capabilities, as on some architectures using the host CPU definition may either
-fail or provide unexpected results.
+The XML *FILE* should contain guest CPU definitions created from the host CPU
+model found in the ``<mode name="host-model">`` element domain capabilities
+XMLs (printed by the ``domcapabilities`` command on each host). The
+``<mode name="host-model">`` elements themselves or even their ``<cpu>``
+parent  elements found in domain capabilities XMLs are not accepted. The
+elements have to be transformed into actual CPU definitions.
+
+Alternatively this command will automatically extract the CPU definitions when
+provided with domain capabilities XMLs.
+
+For historical reasons the XML *FILE* may also contain host CPU definitions,
+but such usage is strongly discouraged as it will most likely provide incorrect
+results.
 
 When *FILE* contains only a single CPU definition, the command will print the
 same CPU with restrictions imposed by the capabilities of the hypervisor.
@@ -2434,14 +2445,15 @@ When selecting the *--state* group the following fields are returned:
 * ``vcpu.<num>.state`` - state of the virtual CPU <num>, as
   number from virVcpuState enum
 * ``vcpu.<num>.time`` - virtual cpu time spent by virtual
-  CPU <num> (in microseconds)
-* ``vcpu.<num>.wait`` - virtual cpu time spent by virtual
-  CPU <num> waiting on I/O (in microseconds)
+  CPU <num> (in nanoseconds)
+* ``vcpu.<num>.wait`` - time the vCPU <num> thread was waiting in the runqueue
+  as the scheduler has something else running ahead of it (in nanoseconds),
+  requires CONFIG_SCHED_INFO on Linux
 * ``vcpu.<num>.halted`` - virtual CPU <num> is halted: yes or
   no (may indicate the processor is idle or even disabled,
   depending on the architecture)
-* ``vcpu.<num>.delay`` - time the vCPU <num> thread was enqueued by the
-  host scheduler, but was waiting in the queue instead of running.
+* ``vcpu.<num>.delay`` - time the vCPU <num> thread was waiting in the runqueue
+  as the scheduler has something else running ahead of it (in nanoseconds).
   Exposed to the VM as a steal time.
 
 This group of statistics also reports additional hypervisor-originating per-vCPU
@@ -3407,6 +3419,7 @@ migrate
       [--parallel [--parallel-connections connections]]
       [--bandwidth bandwidth] [--tls-destination hostname]
       [--disks-uri URI] [--copy-storage-synchronous-writes]
+      [--available-switchover-bandwidth bandwidth]
 
 Migrate domain to another host.  Add *--live* for live migration; <--p2p>
 for peer-2-peer migration; *--direct* for direct migration; or *--tunnelled*
@@ -3662,6 +3675,17 @@ the source is accessible to libvirtd/QEMU for connection.  Libvirt cannot change
 the context of the existing socket because it is different from the file
 representation of the socket and the context is chosen by its creator (usually
 by using *setsockcreatecon{,_raw}()* functions).
+
+Optional *--available-switchover-bandwidth* overrides the automatically
+computed bandwidth (in MiB/s) available for the final phase of (pre-copy)
+migration during which CPUs are stopped and all the remaining memory and device
+state is transferred. Knowing this bandwidth is important for accurate
+estimation of the domain downtime and deciding the right moment for switching
+over. Normally this would be estimated based on the bandwidth used by
+migration, but this could be lower than the actual available bandwidth. Using
+this option may help with migration convergence when the migration would keep
+iterating over and over thinking there's not enough bandwidth to comply with
+the configured maximum downtime.
 
 
 migrate-compcache
@@ -5520,15 +5544,16 @@ List all of the devices available on the node that are known by libvirt.
 separated by comma, e.g. --cap pci,scsi. Valid capability types include
 'system', 'pci', 'usb_device', 'usb', 'net', 'scsi_host', 'scsi_target',
 'scsi', 'storage', 'fc_host', 'vports', 'scsi_generic', 'drm', 'mdev',
-'mdev_types', 'ccw', 'css', 'ap_card', 'ap_queue', 'ap_matrix'. By default,
-only active devices are listed. *--inactive* is used to list only inactive
-devices, and *--all* is used to list both active and inactive devices.
-*--persistent* is used to list only persistent devices, and *--transient* is
-used to list only transient devices. Not providing *--persistent* or
-*--transient* will list all devices unless filtered otherwise. *--transient*
-is mutually exclusive with *--persistent* and *--inactive*.
-If *--tree* is used, the output is formatted in a tree representing parents of
-each node. *--tree* is mutually exclusive with all other options but *--all*.
+'mdev_types', 'ccw', 'ccwgroup', 'ccwgroup_member', 'css', 'ap_card',
+'ap_queue', 'ap_matrix'. By default, only active devices are listed.
+*--inactive* is used to list only inactive devices, and *--all* is used to
+list both active and inactive devices. *--persistent* is used to list only
+persistent devices, and *--transient* is used to list only transient devices.
+Not providing *--persistent* or *--transient* will list all devices unless
+filtered otherwise. *--transient* is mutually exclusive with *--persistent*
+and *--inactive*. If *--tree* is used, the output is formatted in a tree
+representing parents of each node. *--tree* is mutually exclusive with all
+other options but *--all*.
 
 
 nodedev-reattach

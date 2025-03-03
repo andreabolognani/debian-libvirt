@@ -540,7 +540,7 @@ cmdAttachDiskFormatAddress(vshControl *ctl,
     struct virshAddress diskAddr;
 
     if (virshAddressParse(straddr, multifunction, &diskAddr) < 0) {
-        vshError(ctl, _("Invalid address."));
+        vshError(ctl, "%s", _("Invalid address."));
         return -1;
     }
 
@@ -689,7 +689,7 @@ cmdAttachDisk(vshControl *ctl, const vshCmd *cmd)
     }
 
     if ((type == VIRSH_ATTACH_DISK_SOURCE_TYPE_NETWORK) != !!source_protocol) {
-        vshError(ctl, _("--source-protocol option requires --sourcetype network"));
+        vshError(ctl, "%s", _("--source-protocol option requires --sourcetype network"));
         return false;
     }
 
@@ -992,7 +992,7 @@ cmdAttachInterface(vshControl *ctl, const vshCmd *cmd)
         if (virshParseRateStr(ctl, inboundStr, &inbound) < 0)
             return false;
         if (!inbound.average && !inbound.floor) {
-            vshError(ctl, _("either inbound average or floor is mandatory"));
+            vshError(ctl, "%s", _("either inbound average or floor is mandatory"));
             return false;
         }
     }
@@ -1000,11 +1000,11 @@ cmdAttachInterface(vshControl *ctl, const vshCmd *cmd)
         if (virshParseRateStr(ctl, outboundStr, &outbound) < 0)
             return false;
         if (outbound.average == 0) {
-            vshError(ctl, _("outbound average is mandatory"));
+            vshError(ctl, "%s", _("outbound average is mandatory"));
             return false;
         }
         if (outbound.floor) {
-            vshError(ctl, _("outbound floor is unsupported yet"));
+            vshError(ctl, "%s", _("outbound floor is unsupported yet"));
             return false;
         }
     }
@@ -1048,7 +1048,7 @@ cmdAttachInterface(vshControl *ctl, const vshCmd *cmd)
 
     case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
         if (sourceMode < 0) {
-            vshError(ctl, _("source-mode is mandatory"));
+            vshError(ctl, "%s", _("source-mode is mandatory"));
             return false;
         }
         virBufferAsprintf(&buf, "<source type='unix' path='%s' mode='%s'/>\n",
@@ -2648,7 +2648,7 @@ virshBlockJobInfo(vshControl *ctl,
         if (!raw) {
             speed <<= 20;
             if (speed >> 20 != info.bandwidth) {
-                vshError(ctl, _("overflow in converting %1$ld MiB/s to bytes\n"),
+                vshError(ctl, _("overflow in converting %1$ld MiB/s to bytes"),
                          info.bandwidth);
                 return false;
             }
@@ -3144,7 +3144,7 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if ((nnodes = virXPathNodeSet("/domain/devices/interface", ctxt, &nodes)) <= 0) {
-        vshError(ctl, _("Failed to extract interface information or no interfaces found"));
+        vshError(ctl, "%s", _("Failed to extract interface information or no interfaces found"));
         return false;
     }
 
@@ -3177,7 +3177,7 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
     /* try to find <link> element or create new one */
     if (!(linkNode = virXPathNode("./link", ctxt))) {
         if (!(linkNode = xmlNewChild(ifaceNode, NULL, BAD_CAST "link", NULL))) {
-            vshError(ctl, _("failed to create XML node"));
+            vshError(ctl, "%s", _("failed to create XML node"));
             return false;
         }
     }
@@ -3188,13 +3188,13 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
         stateAttr = xmlNewProp(linkNode, BAD_CAST "state", BAD_CAST state);
 
     if (!stateAttr) {
-        vshError(ctl, _("Failed to create or modify the state XML attribute"));
+        vshError(ctl, "%s", _("Failed to create or modify the state XML attribute"));
         return false;
     }
 
     if (!(xml_buf = virXMLNodeToString(xml, ifaceNode))) {
         vshSaveLibvirtError();
-        vshError(ctl, _("Failed to create XML"));
+        vshError(ctl, "%s", _("Failed to create XML"));
         return false;
     }
 
@@ -3204,7 +3204,7 @@ cmdDomIfSetLink(vshControl *ctl, const vshCmd *cmd)
     }
 
     if (virDomainUpdateDeviceFlags(dom, xml_buf, flags) < 0) {
-        vshError(ctl, _("Failed to update interface link state"));
+        vshError(ctl, "%s", _("Failed to update interface link state"));
         return false;
     }
 
@@ -3297,7 +3297,7 @@ cmdDomIftune(vshControl *ctl, const vshCmd *cmd)
 
         if ((!inbound.average && (inbound.burst || inbound.peak)) &&
             !inbound.floor) {
-            vshError(ctl, _("either inbound average or floor is mandatory"));
+            vshError(ctl, "%s", _("either inbound average or floor is mandatory"));
             goto cleanup;
         }
 
@@ -3335,12 +3335,12 @@ cmdDomIftune(vshControl *ctl, const vshCmd *cmd)
             goto cleanup;
         }
         if (outbound.average == 0 && (outbound.burst || outbound.peak)) {
-            vshError(ctl, _("outbound average is mandatory"));
+            vshError(ctl, "%s", _("outbound average is mandatory"));
             goto cleanup;
         }
 
         if (outbound.floor) {
-            vshError(ctl, _("outbound floor is unsupported yet"));
+            vshError(ctl, "%s", _("outbound floor is unsupported yet"));
             goto cleanup;
         }
 
@@ -3659,7 +3659,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
     ignore_value(vshCommandOptStringQuiet(ctl, cmd, "storage", &vol_string));
 
     if (!(vol_string || remove_all_storage) && wipe_storage) {
-        vshError(ctl,
+        vshError(ctl, "%s",
                  _("'--wipe-storage' requires '--storage <string>' or '--remove-all-storage'"));
         return false;
     }
@@ -3744,13 +3744,13 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
     /* Stash domain description for later use */
     if (vol_string || remove_all_storage) {
         if (running) {
-            vshError(ctl,
+            vshError(ctl, "%s",
                      _("Storage volume deletion is supported only on stopped domains"));
             goto cleanup;
         }
 
         if (vol_string && remove_all_storage) {
-            vshError(ctl,
+            vshError(ctl, "%s",
                      _("Specified both --storage and --remove-all-storage"));
             goto cleanup;
         }
@@ -3831,7 +3831,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
 
             if (!vol.vol) {
                 vshError(ctl,
-                         _("Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it manually.\n"),
+                         _("Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it manually."),
                          target, source);
                 vshResetLibvirtError();
                 continue;
@@ -3848,7 +3848,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
             for (i = 0; i < nvol_list; i++) {
                 if (vol_list[i]) {
                     vshError(ctl,
-                             _("Volume '%1$s' was not found in domain's definition.\n"),
+                             _("Volume '%1$s' was not found in domain's definition."),
                              vol_list[i]);
                     found = true;
                 }
@@ -3923,7 +3923,7 @@ cmdUndefine(vshControl *ctl, const vshCmd *cmd)
                               vols[i].target, vols[i].source);
                 fflush(stdout);
                 if (virStorageVolWipe(vols[i].vol, 0) < 0) {
-                    vshError(ctl, _("Failed! Volume not removed."));
+                    vshError(ctl, "%s", _("Failed! Volume not removed."));
                     ret = false;
                     continue;
                 } else {
@@ -4254,7 +4254,7 @@ virshWatchTimeout(gpointer opaque)
     struct virshWatchData *data = opaque;
 
     /* suspend the domain when migration timeouts. */
-    vshDebug(data->ctl, VSH_ERR_DEBUG, "watchJob: timeout\n");
+    vshDebug(data->ctl, VSH_ERR_DEBUG, "watchJob: timeout");
     if (data->timeout_func)
         (data->timeout_func)(data->ctl, data->dom, data->opaque);
 
@@ -4266,7 +4266,7 @@ static void
 virshWatchSetTimeout(struct virshWatchData *data)
 {
     vshDebug(data->ctl, VSH_ERR_DEBUG,
-             "watchJob: setting timeout of %d secs\n", data->timeout_secs);
+             "watchJob: setting timeout of %d secs", data->timeout_secs);
 
     data->timeout_src = g_timeout_source_new_seconds(data->timeout_secs);
     g_source_set_callback(data->timeout_src,
@@ -4291,7 +4291,7 @@ virshWatchProgress(gpointer opaque)
     pthread_sigmask(SIG_BLOCK, &sigmask, &oldsigmask);
 #endif /* !WIN32 */
     vshDebug(data->ctl, VSH_ERR_DEBUG, "%s",
-             "watchJob: progress update\n");
+             "watchJob: progress update");
     ret = virDomainGetJobInfo(data->dom, &jobinfo);
 #ifndef WIN32
     pthread_sigmask(SIG_SETMASK, &oldsigmask, NULL);
@@ -4308,7 +4308,7 @@ virshWatchProgress(gpointer opaque)
             vshTTYDisableInterrupt(data->ctl);
             data->jobStarted = true;
             vshDebug(data->ctl, VSH_ERR_DEBUG,
-                     "watchJob: job started\n");
+                     "watchJob: job started");
         }
 
         if (data->jobStarted) {
@@ -4317,7 +4317,7 @@ virshWatchProgress(gpointer opaque)
                     virshWatchSetTimeout(data);
             } else if (!data->verbose) {
                 vshDebug(data->ctl, VSH_ERR_DEBUG,
-                         "watchJob: disabling callback\n");
+                         "watchJob: disabling callback");
                 return G_SOURCE_REMOVE;
             }
         }
@@ -4339,7 +4339,7 @@ virshWatchInterrupt(GIOChannel *source G_GNUC_UNUSED,
     gsize nread = 0;
 
     vshDebug(data->ctl, VSH_ERR_DEBUG,
-             "watchJob: stdin data %d\n", condition);
+             "watchJob: stdin data %d", condition);
     if (condition & G_IO_IN) {
         g_io_channel_read_chars(data->stdin_ioc,
                                 &retchar,
@@ -4348,7 +4348,7 @@ virshWatchInterrupt(GIOChannel *source G_GNUC_UNUSED,
                                 NULL);
 
         vshDebug(data->ctl, VSH_ERR_DEBUG,
-                 "watchJob: got %zu characters\n", nread);
+                 "watchJob: got %zu characters", nread);
         if (nread == 1 &&
             vshTTYIsInterruptCharacter(data->ctl, retchar)) {
             virDomainAbortJob(data->dom);
@@ -4407,7 +4407,7 @@ virshWatchJob(vshControl *ctl,
     /* don't poll on STDIN if we are not using a terminal */
     if (vshTTYAvailable(ctl)) {
         vshDebug(ctl, VSH_ERR_DEBUG, "%s",
-                 "watchJob: on TTY, enabling Ctrl-c processing\n");
+                 "watchJob: on TTY, enabling Ctrl-c processing");
 #ifdef WIN32
         data.stdin_ioc = g_io_channel_win32_new_fd(STDIN_FILENO);
 #else
@@ -4429,7 +4429,7 @@ virshWatchJob(vshControl *ctl,
     g_main_loop_run(eventLoop);
 
     vshDebug(ctl, VSH_ERR_DEBUG,
-             "watchJob: job done, status %d\n", *job_err);
+             "watchJob: job done, status %d", *job_err);
     if (*job_err == 0 && verbose) /* print [100 %] */
         virshPrintJobProgress(label, 0, 1);
 
@@ -6118,7 +6118,7 @@ cmdDomjobinfo(vshControl *ctl, const vshCmd *cmd)
                      _("Optional flags or --rawstats are not supported by the daemon"));
             goto cleanup;
         }
-        vshDebug(ctl, VSH_ERR_DEBUG, "detailed statistics not supported\n");
+        vshDebug(ctl, VSH_ERR_DEBUG, "detailed statistics not supported");
         vshResetLibvirtError();
         rc = virDomainGetJobInfo(dom, &info);
     }
@@ -7206,7 +7206,7 @@ cmdSetvcpus(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (count == 0) {
-        vshError(ctl, _("Can't set 0 processors for a VM"));
+        vshError(ctl, "%s", _("Can't set 0 processors for a VM"));
         return false;
     }
 
@@ -7272,7 +7272,7 @@ cmdGuestvcpus(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (cpulist && !(enable || disable)) {
-        vshError(ctl, _("One of options --enable or --disable is required by option --cpulist"));
+        vshError(ctl, "%s", _("One of options --enable or --disable is required by option --cpulist"));
         return false;
     }
 
@@ -7470,7 +7470,7 @@ cmdIOThreadInfo(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if ((rc = virDomainGetIOThreadInfo(dom, &info, flags)) < 0) {
-        vshError(ctl, _("Unable to get domain IOThreads information"));
+        vshError(ctl, "%s", _("Unable to get domain IOThreads information"));
         goto cleanup;
     }
     niothreads = rc;
@@ -7751,7 +7751,7 @@ cmdIOThreadSet(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (npar == 0) {
-        vshError(ctl, _("Not enough arguments passed, nothing to set"));
+        vshError(ctl, "%s", _("Not enough arguments passed, nothing to set"));
         return false;
     }
 
@@ -7915,7 +7915,7 @@ cmdCPUStats(vshControl *ctl, const vshCmd *cmd)
         goto failed_stats;
 
     if (cpu >= max_id) {
-        vshError(ctl, "Start CPU %d is out of range (min: 0, max: %d)",
+        vshError(ctl, _("Start CPU %1$d is out of range (min: 0, max: %2$d)"),
                  cpu, max_id - 1);
         goto cleanup;
     }
@@ -8593,7 +8593,7 @@ cmdSendKey(vshControl *ctl, const vshCmd *cmd)
 
     for (opt = vshCommandOptArgv(cmd, "keycode"); opt && *opt; opt++) {
         if (count == VIR_DOMAIN_SEND_KEY_MAX_KEYS) {
-            vshError(ctl, _("too many keycodes"));
+            vshError(ctl, "%s", _("too many keycodes"));
             return false;
         }
 
@@ -8922,10 +8922,10 @@ virshGetUpdatedMemoryXML(char **updatedMemoryXML,
         vshSaveLibvirtError();
         return -1;
     } else if (nmems == 0) {
-        vshError(ctl, _("no memory device found"));
+        vshError(ctl, "%s", _("no memory device found"));
         return -1;
     } else if (nmems > 1) {
-        vshError(ctl, _("multiple memory devices found, use --alias or --node to select one"));
+        vshError(ctl, "%s", _("multiple memory devices found, use --alias or --node to select one"));
         return -1;
     }
 
@@ -8944,7 +8944,7 @@ virshGetUpdatedMemoryXML(char **updatedMemoryXML,
         requestedSizeNode = virXPathNode("./target/requested", ctxt);
 
         if (!requestedSizeNode) {
-            vshError(ctl, _("virtio-mem device is missing <requested/>"));
+            vshError(ctl, "%s", _("virtio-mem device is missing <requested/>"));
             return -1;
         }
 
@@ -9787,7 +9787,7 @@ cmdQemuMonitorCommand(vshControl *ctl, const vshCmd *cmd)
         resultjson = virJSONValueFromString(result);
 
         if (returnval && !resultjson) {
-            vshError(ctl, "failed to parse JSON returned by qemu");
+            vshError(ctl, "%s", _("failed to parse JSON returned by qemu"));
             return false;
         }
     }
@@ -9800,7 +9800,7 @@ cmdQemuMonitorCommand(vshControl *ctl, const vshCmd *cmd)
 
     if (returnval) {
         if (!(formatjson = virJSONValueObjectGet(resultjson, "return"))) {
-            vshError(ctl, "'return' member missing");
+            vshError(ctl, "%s", _("'return' member missing"));
             return false;
         }
     } else {
@@ -10788,6 +10788,10 @@ static const vshCmdOptDef opts_migrate[] = {
      .type = VSH_OT_INT,
      .help = N_("compress level for zstd compression")
     },
+    {.name = "available-switchover-bandwidth",
+     .type = VSH_OT_INT,
+     .help = N_("bandwidth (in MiB/s) available for the final phase of migration")
+    },
     {.name = NULL}
 };
 
@@ -10855,7 +10859,7 @@ doMigrate(void *opaque)
 
     if (flags & VIR_MIGRATE_NON_SHARED_SYNCHRONOUS_WRITES &&
         !(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC))) {
-        vshError(ctl, "'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', '--copy-storage-inc'");
+        vshError(ctl, "%s", _("'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', '--copy-storage-inc'"));
         goto out;
     }
 
@@ -10914,7 +10918,7 @@ doMigrate(void *opaque)
         g_autofree char **val = NULL;
 
         if (!(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC))) {
-            vshError(ctl, "'--migrate-disks' requires one of '--copy-storage-all', '--copy-storage-inc'");
+            vshError(ctl, "%s", _("'--migrate-disks' requires one of '--copy-storage-all', '--copy-storage-inc'"));
             goto out;
         }
 
@@ -10935,7 +10939,7 @@ doMigrate(void *opaque)
         g_autofree char **val = NULL;
 
         if (!(flags & (VIR_MIGRATE_NON_SHARED_DISK | VIR_MIGRATE_NON_SHARED_INC))) {
-            vshError(ctl, "'--migrate-disks-detect-zeroes' requires one of '--copy-storage-all', '--copy-storage-inc'");
+            vshError(ctl, "%s", _("'--migrate-disks-detect-zeroes' requires one of '--copy-storage-all', '--copy-storage-inc'"));
             goto out;
         }
 
@@ -11102,6 +11106,15 @@ doMigrate(void *opaque)
                                 VIR_MIGRATE_PARAM_TLS_DESTINATION, opt) < 0)
         goto save_error;
 
+    if ((rv = vshCommandOptULongLong(ctl, cmd, "available-switchover-bandwidth", &ullOpt)) < 0) {
+        goto out;
+    } else if (rv > 0) {
+        if (virTypedParamsAddULLong(&params, &nparams, &maxparams,
+                                    VIR_MIGRATE_PARAM_BANDWIDTH_AVAIL_SWITCHOVER,
+                                    ullOpt) < 0)
+            goto save_error;
+    }
+
     if (flags & VIR_MIGRATE_PEER2PEER || vshCommandOptBool(cmd, "direct")) {
         if (virDomainMigrateToURI3(dom, desturi, params, nparams, flags) == 0)
             data->ret = 0;
@@ -11145,16 +11158,16 @@ virshMigrateTimeout(vshControl *ctl,
     case VIRSH_MIGRATE_TIMEOUT_DEFAULT: /* unreachable */
     case VIRSH_MIGRATE_TIMEOUT_SUSPEND:
         vshDebug(ctl, VSH_ERR_DEBUG,
-                 "migration timed out; suspending domain\n");
+                 "migration timed out; suspending domain");
         if (virDomainSuspend(dom) < 0)
-            vshDebug(ctl, VSH_ERR_INFO, "suspending domain failed\n");
+            vshDebug(ctl, VSH_ERR_INFO, "suspending domain failed");
         break;
 
     case VIRSH_MIGRATE_TIMEOUT_POSTCOPY:
         vshDebug(ctl, VSH_ERR_DEBUG,
-                 "migration timed out; switching to post-copy\n");
+                 "migration timed out; switching to post-copy");
         if (virDomainMigrateStartPostCopy(dom, 0) < 0)
-            vshDebug(ctl, VSH_ERR_INFO, "switching to post-copy failed\n");
+            vshDebug(ctl, VSH_ERR_INFO, "switching to post-copy failed");
         break;
     }
 }
@@ -11169,10 +11182,10 @@ virshMigrateIteration(virConnectPtr conn G_GNUC_UNUSED,
 
     if (iteration == 2) {
         vshDebug(ctl, VSH_ERR_DEBUG,
-                 "iteration %d finished; switching to post-copy\n",
+                 "iteration %d finished; switching to post-copy",
                  iteration - 1);
         if (virDomainMigrateStartPostCopy(dom, 0) < 0)
-            vshDebug(ctl, VSH_ERR_INFO, "switching to post-copy failed\n");
+            vshDebug(ctl, VSH_ERR_INFO, "switching to post-copy failed");
     }
 }
 
@@ -11717,7 +11730,7 @@ cmdDomDisplay(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (!virDomainIsActive(dom)) {
-        vshError(ctl, _("Domain is not running"));
+        vshError(ctl, "%s", _("Domain is not running"));
         return false;
     }
 
@@ -11754,7 +11767,7 @@ cmdDomDisplay(vshControl *ctl, const vshCmd *cmd)
         if (type)
             vshError(ctl, _("No graphical display with type '%1$s' found"), type);
         else
-            vshError(ctl, _("No graphical display found"));
+            vshError(ctl, "%s", _("No graphical display found"));
     }
 
     return ret;
@@ -11787,7 +11800,7 @@ cmdVNCDisplay(vshControl *ctl, const vshCmd *cmd)
 
     /* Check if the domain is active and don't rely on -1 for this */
     if (!virDomainIsActive(dom)) {
-        vshError(ctl, _("Domain is not running"));
+        vshError(ctl, "%s", _("Domain is not running"));
         return false;
     }
 
@@ -11797,7 +11810,7 @@ cmdVNCDisplay(vshControl *ctl, const vshCmd *cmd)
     /* Get the VNC port */
     if (virXPathInt("string(/domain/devices/graphics[@type='vnc']/@port)",
                     ctxt, &port)) {
-        vshError(ctl, _("Failed to get VNC port. Is this domain using VNC?"));
+        vshError(ctl, "%s", _("Failed to get VNC port. Is this domain using VNC?"));
         return false;
     }
 
@@ -12294,12 +12307,13 @@ cmdDetachInterface(vshControl *ctl, const vshCmd *cmd)
         return ret;
 
  cleanup:
-    if (!ret) {
-        vshError(ctl, "%s", _("Failed to detach interface"));
-    } else {
+    if (ret) {
         vshPrintExtra(ctl, "%s", _("Interface detached successfully\n"));
+        return true;
     }
-    return ret;
+
+    vshError(ctl, "%s", _("Failed to detach interface"));
+    return false;
 }
 
 
@@ -12441,7 +12455,7 @@ virshUpdateDiskXML(xmlNodePtr disk_node,
         source_block = false;
         new_source = NULL;
     } else if (!new_source) {
-        vshError(NULL, _("New disk media source was not specified"));
+        vshError(NULL, "%s", _("New disk media source was not specified"));
         return NULL;
     }
 
@@ -12848,7 +12862,7 @@ cmdDomFSTrim(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if (virDomainFSTrim(dom, mountPoint, minimum, flags) < 0) {
-        vshError(ctl, _("Unable to invoke fstrim"));
+        vshError(ctl, "%s", _("Unable to invoke fstrim"));
         return false;
     }
 
@@ -12885,7 +12899,7 @@ cmdDomFSFreeze(vshControl *ctl, const vshCmd *cmd)
         nmountpoints = g_strv_length((GStrv) mountpoints);
 
     if ((count = virDomainFSFreeze(dom, mountpoints, nmountpoints, 0)) < 0) {
-        vshError(ctl, _("Unable to freeze filesystems"));
+        vshError(ctl, "%s", _("Unable to freeze filesystems"));
         return false;
     }
 
@@ -12923,7 +12937,7 @@ cmdDomFSThaw(vshControl *ctl, const vshCmd *cmd)
         nmountpoints = g_strv_length((GStrv) mountpoints);
 
     if ((count = virDomainFSThaw(dom, mountpoints, nmountpoints, 0)) < 0) {
-        vshError(ctl, _("Unable to thaw filesystems"));
+        vshError(ctl, "%s", _("Unable to thaw filesystems"));
         return false;
     }
 
@@ -12957,7 +12971,7 @@ cmdDomFSInfo(vshControl *ctl, const vshCmd *cmd)
 
     rc = virDomainGetFSInfo(dom, &info, 0);
     if (rc < 0) {
-        vshError(ctl, _("Unable to get filesystem information"));
+        vshError(ctl, "%s", _("Unable to get filesystem information"));
         goto cleanup;
     }
     ninfos = rc;
@@ -13239,7 +13253,7 @@ cmdSetUserSSHKeys(vshControl *ctl, const vshCmd *cmd)
             flags |= VIR_DOMAIN_AUTHORIZED_SSH_KEYS_SET_APPEND;
 
             if (!from) {
-                vshError(ctl, _("Option --file is required"));
+                vshError(ctl, "%s", _("Option --file is required"));
                 return false;
             }
         }

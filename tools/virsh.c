@@ -165,7 +165,7 @@ virshConnect(vshControl *ctl, const char *uri, bool readonly)
             goto cleanup;
         }
         vshDebug(ctl, VSH_ERR_INFO, "%s",
-                 _("Failed to setup keepalive on connection\n"));
+                 _("Failed to setup keepalive on connection"));
         vshResetLibvirtError();
     }
 
@@ -657,8 +657,8 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
             break;
         case 'd':
             if (virStrToLong_i(optarg, NULL, 10, &debug) < 0) {
-                vshError(ctl, _("option %1$s takes a numeric argument"),
-                         longindex == -1 ? "-d" : "--debug");
+                const char *optStr = longindex == -1 ? "-d" : "--debug";
+                vshError(ctl, _("option %1$s takes a numeric argument"), optStr);
                 exit(EXIT_FAILURE);
             }
             if (debug < VSH_ERR_DEBUG || debug > VSH_ERR_ERROR)
@@ -757,7 +757,7 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
                 vshError(ctl, _("unsupported option '%1$s'. See --help."), argv[optind - 1]);
             exit(EXIT_FAILURE);
         default:
-            vshError(ctl, _("unknown option"));
+            vshError(ctl, "%s", _("unknown option"));
             exit(EXIT_FAILURE);
         }
         longindex = -1;
@@ -769,7 +769,7 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
         /* parse command */
         ctl->imode = false;
         if (argc - optind == 1) {
-            vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
+            vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"", argv[optind]);
             return vshCommandStringParse(ctl, argv[optind], NULL);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);

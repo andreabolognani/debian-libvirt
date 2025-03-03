@@ -1207,6 +1207,24 @@ typedef enum {
 # define VIR_MIGRATE_PARAM_BANDWIDTH_POSTCOPY "bandwidth.postcopy"
 
 /**
+ * VIR_MIGRATE_PARAM_BANDWIDTH_AVAIL_SWITCHOVER:
+ *
+ * virDomainMigrate* params field: the bandwidth (in MiB/s) available for the
+ * final phase of (pre-copy) migration during which CPUs are stopped and all
+ * the remaining memory and device state is transferred. Knowing this bandwidth
+ * is important for accurate estimation of the domain downtime and deciding
+ * the right moment for switching over. Normally this would be estimated based
+ * on the bandwidth used by migration, but this could be lower than the actual
+ * available bandwidth. Using this parameter to override the computed value may
+ * help with migration convergence when the migration would keep iterating over
+ * and over thinking there's not enough bandwidth to comply with the configured
+ * maximum downtime.
+ *
+ * Since: 11.1.0
+ */
+# define VIR_MIGRATE_PARAM_BANDWIDTH_AVAIL_SWITCHOVER "bandwidth.avail.switchover"
+
+/**
  * VIR_MIGRATE_PARAM_GRAPHICS_URI:
  *
  * virDomainMigrate* params field: URI to use for migrating client's connection
@@ -4787,11 +4805,17 @@ typedef void (*virConnectDomainEventIOErrorCallback)(virConnectPtr conn,
  * The callback signature to use when registering for an event of type
  * VIR_DOMAIN_EVENT_ID_IO_ERROR_REASON with virConnectDomainEventRegisterAny()
  *
- * If the I/O error is known to be caused by an ENOSPC condition in
- * the host (where resizing the disk to be larger will allow the guest
- * to be resumed as if nothing happened), @reason will be "enospc".
- * Otherwise, @reason will be "", although future strings may be added
- * if determination of other error types becomes possible.
+ * Although @reason is a string, it is considered to be an enumeration of the
+ * following values:
+ *
+ * - "" (empty string): unknown I/O error reason
+ * - "enospc": The I/O error is known to be caused by an ENOSPC condition in
+ *             the host. Resizing the disk source to be larger will allow the
+ *             guest to be resumed as if nothing happened.
+ * - "message": The hypervisor reported a string description of the
+ *              I/O error. The errors are usually logged into the
+ *              domain log file or the last instance of the error
+ *              string can be queried via virDomainGetMessages().
  *
  * Since: 0.8.1
  */
@@ -6502,6 +6526,9 @@ int virDomainAuthorizedSSHKeysSet(virDomainPtr domain,
 typedef enum {
     VIR_DOMAIN_MESSAGE_DEPRECATION = (1 << 0), /* (Since: 7.1.0) */
     VIR_DOMAIN_MESSAGE_TAINTING = (1 << 1), /* (Since: 7.1.0) */
+    VIR_DOMAIN_MESSAGE_IOERRORS = (1 << 2), /* Report available stored I/O
+                                               errors messages for disk images
+                                               (Since: 11.1.0) */
 } virDomainMessageType;
 
 int virDomainGetMessages(virDomainPtr domain,

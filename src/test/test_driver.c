@@ -9522,16 +9522,24 @@ testDomainGetMessages(virDomainPtr dom,
                       char ***msgs,
                       unsigned int flags)
 {
+    g_autoptr(GPtrArray) m = g_ptr_array_new_with_free_func(g_free);
     virDomainObj *vm = NULL;
     int rv = -1;
 
     virCheckFlags(VIR_DOMAIN_MESSAGE_DEPRECATION |
-                  VIR_DOMAIN_MESSAGE_TAINTING, -1);
+                  VIR_DOMAIN_MESSAGE_TAINTING |
+                  VIR_DOMAIN_MESSAGE_IOERRORS, -1);
 
     if (!(vm = testDomObjFromDomain(dom)))
         return -1;
 
-    rv = virDomainObjGetMessages(vm, msgs, flags);
+    virDomainObjGetMessages(vm, m, flags);
+
+    rv = m->len;
+    if (m->len > 0) {
+        g_ptr_array_add(m, NULL);
+        *msgs = (char **) g_ptr_array_steal(m, NULL);
+    }
 
     virDomainObjEndAPI(&vm);
     return rv;

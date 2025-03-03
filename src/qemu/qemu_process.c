@@ -64,6 +64,7 @@
 #include "qemu_backup.h"
 #include "qemu_dbus.h"
 #include "qemu_snapshot.h"
+#include "qemu_passt.h"
 
 #include "cpu/cpu.h"
 #include "cpu/cpu_x86.h"
@@ -824,46 +825,64 @@ qemuProcessHandleWatchdog(qemuMonitor *mon G_GNUC_UNUSED,
 static void
 qemuProcessHandleIOError(qemuMonitor *mon G_GNUC_UNUSED,
                          virDomainObj *vm,
-                         const char *diskAlias,
+                         const char *device,
+                         const char *qompath,
                          const char *nodename,
                          int action,
+                         bool nospace,
                          const char *reason)
 {
-    virQEMUDriver *driver;
+    qemuDomainObjPrivate *priv;
     virObjectEvent *ioErrorEvent = NULL;
     virObjectEvent *ioErrorEvent2 = NULL;
     virObjectEvent *lifecycleEvent = NULL;
-    const char *srcPath;
-    const char *devAlias;
-    virDomainDiskDef *disk;
+    const char *eventPath = "";
+    const char *eventAlias = "";
+    const char *eventReason = "";
+    virDomainDiskDef *disk = NULL;
+    virStorageSource *src = NULL;
+    g_autofree char *timestamp = NULL;
 
     virObjectLock(vm);
-    driver = QEMU_DOMAIN_PRIVATE(vm)->driver;
+    priv = QEMU_DOMAIN_PRIVATE(vm);
 
-    if (*diskAlias == '\0')
-        diskAlias = NULL;
+    if (nodename)
+        disk = qemuDomainDiskLookupByNodename(vm->def, priv->backup, nodename, &src);
 
-    if (diskAlias)
-        disk = qemuProcessFindDomainDiskByAliasOrQOM(vm, diskAlias, NULL);
-    else if (nodename)
-        disk = qemuDomainDiskLookupByNodename(vm->def, NULL, nodename, NULL);
-    else
-        disk = NULL;
+    if (!disk)
+        disk = qemuProcessFindDomainDiskByAliasOrQOM(vm, device, qompath);
 
-    if (disk) {
-        srcPath = virDomainDiskGetSource(disk);
-        devAlias = disk->info.alias;
-    } else {
-        srcPath = "";
-        devAlias = "";
+    if (!src && disk)
+        src = disk->src;
+
+    if (disk)
+        eventAlias = disk->info.alias;
+
+    if (src && src->path)
+        eventPath = src->path;
+
+    if (nospace)
+        eventReason = "enospc";
+    else if (reason)
+        eventReason = "message";
+
+    ioErrorEvent = virDomainEventIOErrorNewFromObj(vm, eventPath, eventAlias, action);
+    ioErrorEvent2 = virDomainEventIOErrorReasonNewFromObj(vm, eventPath, eventAlias, action, eventReason);
+
+    if ((timestamp = virTimeStringNow()) != NULL) {
+        qemuDomainLogAppendMessage(priv->driver, vm, "%s: IO error device='%s' node-name='%s' reason='%s'\n",
+                                   timestamp, NULLSTR(eventAlias), NULLSTR(nodename), NULLSTR(reason));
+
+        if (src) {
+            g_free(src->ioerror_timestamp);
+            g_free(src->ioerror_message);
+            src->ioerror_timestamp = g_steal_pointer(&timestamp);
+            src->ioerror_message = g_strdup(reason);
+        }
     }
-
-    ioErrorEvent = virDomainEventIOErrorNewFromObj(vm, srcPath, devAlias, action);
-    ioErrorEvent2 = virDomainEventIOErrorReasonNewFromObj(vm, srcPath, devAlias, action, reason);
 
     if (action == VIR_DOMAIN_EVENT_IO_ERROR_PAUSE &&
         virDomainObjGetState(vm, NULL) == VIR_DOMAIN_RUNNING) {
-        qemuDomainObjPrivate *priv = vm->privateData;
         VIR_WARN("Transitioned guest %s to paused state due to IO error", vm->def->name);
 
         if (priv->signalIOError)
@@ -875,7 +894,7 @@ qemuProcessHandleIOError(qemuMonitor *mon G_GNUC_UNUSED,
                                                   VIR_DOMAIN_EVENT_SUSPENDED_IOERROR);
 
         VIR_FREE(priv->lockState);
-        if (virDomainLockProcessPause(driver->lockManager, vm, &priv->lockState) < 0)
+        if (virDomainLockProcessPause(priv->driver->lockManager, vm, &priv->lockState) < 0)
             VIR_WARN("Unable to release lease on %s", vm->def->name);
         VIR_DEBUG("Preserving lock state '%s'", NULLSTR(priv->lockState));
 
@@ -883,9 +902,9 @@ qemuProcessHandleIOError(qemuMonitor *mon G_GNUC_UNUSED,
     }
     virObjectUnlock(vm);
 
-    virObjectEventStateQueue(driver->domainEventState, ioErrorEvent);
-    virObjectEventStateQueue(driver->domainEventState, ioErrorEvent2);
-    virObjectEventStateQueue(driver->domainEventState, lifecycleEvent);
+    virObjectEventStateQueue(priv->driver->domainEventState, ioErrorEvent);
+    virObjectEventStateQueue(priv->driver->domainEventState, ioErrorEvent2);
+    virObjectEventStateQueue(priv->driver->domainEventState, lifecycleEvent);
 }
 
 
@@ -4609,10 +4628,9 @@ qemuPrepareNVRAMHelper(int dstFD,
 
 
 static int
-qemuPrepareNVRAMBlock(virDomainObj *vm,
+qemuPrepareNVRAMBlock(virDomainLoaderDef *loader,
                       bool reset_nvram)
 {
-    virDomainLoaderDef *loader = vm->def->os.loader;
     g_autoptr(virCommand) qemuimg = NULL;
     const char *templateFormatStr = "raw";
 
@@ -4673,13 +4691,12 @@ qemuPrepareNVRAMBlock(virDomainObj *vm,
 
 
 static int
-qemuPrepareNVRAMFile(virDomainObj *vm,
+qemuPrepareNVRAMFile(virQEMUDriver *driver,
+                     virDomainLoaderDef *loader,
                      bool reset_nvram)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     VIR_AUTOCLOSE srcFD = -1;
-    virDomainLoaderDef *loader = vm->def->os.loader;
     struct qemuPrepareNVRAMHelperData data;
 
     if (virFileExists(loader->nvram->path) && !reset_nvram)
@@ -4721,21 +4738,24 @@ qemuPrepareNVRAMFile(virDomainObj *vm,
 }
 
 
-static int
-qemuPrepareNVRAM(virDomainObj *vm,
+int
+qemuPrepareNVRAM(virQEMUDriver *driver,
+                 virDomainDef *def,
                  bool reset_nvram)
 {
-    virDomainLoaderDef *loader = vm->def->os.loader;
+    virDomainLoaderDef *loader = def->os.loader;
 
     if (!loader || !loader->nvram)
         return 0;
 
+    VIR_DEBUG("nvram='%s'", NULLSTR(loader->nvram->path));
+
     switch (virStorageSourceGetActualType(loader->nvram)) {
     case VIR_STORAGE_TYPE_FILE:
-        return qemuPrepareNVRAMFile(vm, reset_nvram);
+        return qemuPrepareNVRAMFile(driver, loader, reset_nvram);
 
     case VIR_STORAGE_TYPE_BLOCK:
-        return qemuPrepareNVRAMBlock(vm, reset_nvram);
+        return qemuPrepareNVRAMBlock(loader, reset_nvram);
 
     case VIR_STORAGE_TYPE_DIR:
     case VIR_STORAGE_TYPE_NETWORK:
@@ -5868,7 +5888,6 @@ qemuProcessPrepareDomainNetwork(virDomainObj *vm)
 
     for (i = 0; i < def->nnets; i++) {
         virDomainNetDef *net = def->nets[i];
-        virDomainNetType actualType;
 
         /* If appropriate, grab a physical device from the configured
          * network's pool of devices, or resolve bridge device name
@@ -5881,36 +5900,65 @@ qemuProcessPrepareDomainNetwork(virDomainObj *vm)
                 return -1;
         }
 
-        actualType = virDomainNetGetActualType(net);
-        if (actualType == VIR_DOMAIN_NET_TYPE_HOSTDEV &&
-            net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
-            /* Each type='hostdev' network device must also have a
-             * corresponding entry in the hostdevs array. For netdevs
-             * that are hardcoded as type='hostdev', this is already
-             * done by the parser, but for those allocated from a
-             * network / determined at runtime, we need to do it
-             * separately.
-             */
-            virDomainHostdevDef *hostdev = virDomainNetGetActualHostdev(net);
-            virDomainHostdevSubsysPCI *pcisrc = &hostdev->source.subsys.u.pci;
+        switch (virDomainNetGetActualType(net)) {
+        case VIR_DOMAIN_NET_TYPE_HOSTDEV:
+            if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
+                /* Each type='hostdev' network device must also have a
+                 * corresponding entry in the hostdevs array. For netdevs
+                 * that are hardcoded as type='hostdev', this is already
+                 * done by the parser, but for those allocated from a
+                 * network / determined at runtime, we need to do it
+                 * separately.
+                 */
+                virDomainHostdevDef *hostdev = virDomainNetGetActualHostdev(net);
+                virDomainHostdevSubsysPCI *pcisrc = &hostdev->source.subsys.u.pci;
 
-            if (virDomainHostdevFind(def, hostdev, NULL) >= 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("PCI device %1$04x:%2$02x:%3$02x.%4$x allocated from network %5$s is already in use by domain %6$s"),
-                               pcisrc->addr.domain, pcisrc->addr.bus,
-                               pcisrc->addr.slot, pcisrc->addr.function,
-                               net->data.network.name, def->name);
-                return -1;
+                if (virDomainHostdevFind(def, hostdev, NULL) >= 0) {
+                    virReportError(VIR_ERR_INTERNAL_ERROR,
+                                   _("PCI device %1$04x:%2$02x:%3$02x.%4$x allocated from network %5$s is already in use by domain %6$s"),
+                                   pcisrc->addr.domain, pcisrc->addr.bus,
+                                   pcisrc->addr.slot, pcisrc->addr.function,
+                                   net->data.network.name, def->name);
+                    return -1;
+                }
+
+                /* For hostdev present in qemuProcessPrepareDomain() phase this was
+                 * done already, but this code runs after that, so we have to call
+                 * it ourselves. */
+                if (qemuDomainPrepareHostdev(hostdev, priv) < 0)
+                    return -1;
+
+                virDomainHostdevInsert(def, hostdev);
             }
+            break;
 
-            /* For hostdev present in qemuProcessPrepareDomain() phase this was
-             * done already, but this code runs after that, so we have to call
-             * it ourselves. */
-            if (qemuDomainPrepareHostdev(hostdev, priv) < 0)
-                return -1;
+        case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
+            if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+                /* when using the passt backend, the path of the
+                 * unix socket is always derived from other info
+                 * *not* manually given in the config, but all the
+                 * vhostuser code looks for it there.
+                 */
+                g_free(net->data.vhostuser->data.nix.path);
+                net->data.vhostuser->data.nix.path = qemuPasstCreateSocketPath(vm, net);
+            }
+            break;
 
-            if (virDomainHostdevInsert(def, hostdev) < 0)
-                return -1;
+        case VIR_DOMAIN_NET_TYPE_DIRECT:
+        case VIR_DOMAIN_NET_TYPE_BRIDGE:
+        case VIR_DOMAIN_NET_TYPE_NETWORK:
+        case VIR_DOMAIN_NET_TYPE_ETHERNET:
+        case VIR_DOMAIN_NET_TYPE_USER:
+        case VIR_DOMAIN_NET_TYPE_SERVER:
+        case VIR_DOMAIN_NET_TYPE_CLIENT:
+        case VIR_DOMAIN_NET_TYPE_MCAST:
+        case VIR_DOMAIN_NET_TYPE_INTERNAL:
+        case VIR_DOMAIN_NET_TYPE_UDP:
+        case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
+        case VIR_DOMAIN_NET_TYPE_LAST:
+            break;
         }
     }
     return 0;
@@ -7400,7 +7448,8 @@ qemuProcessPrepareHost(virQEMUDriver *driver,
         qemuProcessMakeDir(driver, vm, priv->channelTargetDir) < 0)
         return -1;
 
-    if (qemuPrepareNVRAM(vm, !!(flags & VIR_QEMU_PROCESS_START_RESET_NVRAM)) < 0)
+    if (qemuPrepareNVRAM(driver, vm->def,
+                         !!(flags & VIR_QEMU_PROCESS_START_RESET_NVRAM)) < 0)
         return -1;
 
     if (vm->def->vsock) {
