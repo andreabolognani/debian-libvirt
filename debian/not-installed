@@ -57,7 +57,9 @@ usr/lib/systemd/system/virtxend-admin.socket
 usr/lib/systemd/system/virtxend-ro.socket
 usr/lib/systemd/system/virtxend.service
 usr/lib/systemd/system/virtxend.socket
+usr/lib/sysusers.d/libvirt-login-shell.conf
 usr/lib/sysusers.d/libvirt-qemu.conf
+usr/lib/sysusers.d/libvirt.conf
 usr/sbin/virtinterfaced
 usr/sbin/virtlxcd
 usr/sbin/virtnetworkd
