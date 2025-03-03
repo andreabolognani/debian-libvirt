@@ -12,17 +12,17 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2025-01-09 09:28+0000\n"
-"PO-Revision-Date: 2015-02-27 07:08+0000\n"
-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
-"Language-Team: Kannada (http://www.transifex.com/projects/p/libvirt/language/"
-"kn/)\n"
+"POT-Creation-Date: 2025-02-24 10:18+0000\n"
+"PO-Revision-Date: 2025-02-19 18:38+0000\n"
+"Last-Translator: Anonymous <noreply@weblate.org>\n"
+"Language-Team: Kannada <https://translate.fedoraproject.org/projects/libvirt/"
+"libvirt/kn/>\n"
 "Language: kn\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Zanata 4.6.2\n"
+"X-Generator: Weblate 5.10\n"
 
 msgid ""
 "\n"
@@ -697,6 +697,22 @@ msgid ""
 msgstr ""
 
 #, c-format
+msgid "%1$s: Failed to open the event monitor FIFO(%2$s) read end!"
+msgstr ""
+
+#, c-format
+msgid "%1$s: Failed to parse and process events"
+msgstr ""
+
+#, c-format
+msgid "%1$s: Failed to process JSON event doc: %2$s"
+msgstr ""
+
+#, c-format
+msgid "%1$s: Failed to read ch events!: %2$s"
+msgstr ""
+
+#, c-format
 msgid "%1$s: File '%2$s' is too large\n"
 msgstr ""
 
@@ -711,6 +727,10 @@ msgid ""
 "%1$s: IPv4 family specified for non-IPv4 gateway '%2$s' in route definition"
 msgstr ""
 "'%s' ಕುಟುಂಬವನ್ನು IPv4 ವಿಳಾಸವಾಗಿರದ '%s' ಗಾಗಿ ಸೂಚಿಸಲಾಗಿದೆ ('%s' ಜಾಲಬಂಧದಲ್ಲಿ)"
+
+#, c-format
+msgid "%1$s: Invalid JSON event doc: %2$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "%1$s: Invalid netmask '%2$s' for address '%3$s' (both must be IPv4)"
@@ -1133,6 +1153,20 @@ msgstr ""
 msgid "'%1$s' starting from %2$llu has only %3$zd bytes available"
 msgstr ""
 
+msgid ""
+"'--copy-storage-synchronous-writes' requires one of '--copy-storage-all', '--"
+"copy-storage-inc'"
+msgstr ""
+
+msgid ""
+"'--migrate-disks' requires one of '--copy-storage-all', '--copy-storage-inc'"
+msgstr ""
+
+msgid ""
+"'--migrate-disks-detect-zeroes' requires one of '--copy-storage-all', '--"
+"copy-storage-inc'"
+msgstr ""
+
 #, fuzzy
 msgid ""
 "'--wipe-storage' requires '--storage <string>' or '--remove-all-storage'"
@@ -1315,12 +1349,15 @@ msgid "'pool' and 'volume' must be specified together for 'pool' type source"
 msgstr ""
 "'pool' ಬಗೆಯ ಆಕರದ ಬಗೆಗಾಗಿ 'pool' ಮತ್ತು 'volume' ಅನ್ನು ಒಟ್ಟಿಗೆ ಸೂಚಿಸುವುದು ಅತ್ಯಗತ್ಯ"
 
+msgid "'queue' count must be configured for explicit iothread to queue mapping"
+msgstr ""
+
 msgid "'queues' is only supported by virtio-scsi controller"
 msgstr "'queues' ಕೇವಲ virtio-scsi ನಿಯಂತ್ರಕದಿಂದ ಮಾತ್ರ ಬೆಂಬಲಿತವಾಗಿದೆ"
 
 msgid ""
-"'reconnect' attribute unsupported 'server' mode for <interface "
-"type='vhostuser'>"
+"'reconnect' attribute is not supported when source mode='server' for "
+"<interface type='vhostuser'>"
 msgstr ""
 
 msgid ""
@@ -1331,6 +1368,9 @@ msgstr ""
 msgid ""
 "'restrictive' mode is required in memory element when mode is 'restrictive' "
 "in memnode element"
+msgstr ""
+
+msgid "'return' member missing"
 msgstr ""
 
 #, c-format
@@ -2842,6 +2882,9 @@ msgstr "ದಾಖಲೆ ಕೋಶ '%1$s' ಅನ್ನು ರಚಿಸಲು ಸ�
 
 msgid "Cannot create macvlan devices on this platform"
 msgstr "ಈ ಪ್ಲಾಟ್‌ಫಾರ್ಮಿನಲ್ಲಿ macvlan ಸಾಧನಗಳನ್ನು ರಚಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
+
+msgid "Cannot create monitor FIFO"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Cannot create resctrl directory '%1$s'"
@@ -4398,9 +4441,6 @@ msgstr "\"%1$s\" ಎಂಬ ಹೆಸರಿನ ಡೊಮೈನ್ ಕಂಡುಬ
 msgid "Could not find host system specified in '%1$s'"
 msgstr "'%1$s' ಎಂಬಲ್ಲಿ ಸೂಚಿಸಲಾದ ಯಾವುದೆ ಆತಿಥೇಯ ವ್ಯವಸ್ಥೆಯು ಕಂಡುಬಂದಿಲ್ಲ"
 
-msgid "Could not find matching device"
-msgstr "ಹೊಂದಿಕೆಯಾಗುವ ಸಾಧನವು ಕಂಡು ಬಂದಿಲ್ಲ"
-
 #, c-format
 msgid "Could not find matching device '%1$s'"
 msgstr "'%1$s' ಹೊಂದಿಕೆಯಾಗುವ ಸಾಧನವು ಕಂಡು ಬಂದಿಲ್ಲ"
@@ -4527,6 +4567,10 @@ msgstr "ACL ಟೆಕ್ ಚಾಲಕ '%1$s' ಕ್ಕಾಗಿ ಪ್ರವೇ�
 #, fuzzy
 msgid "Could not get checkpoint name"
 msgstr "ಸ್ನ್ಯಾಪ್‌ಶಾಟ್ ಹೆಸರನ್ನು ಪಡೆಯಲಾಗಿಲ್ಲ"
+
+#, c-format
+msgid "Could not get count of free %1$uKiB pages, no data returned"
+msgstr ""
 
 msgid "Could not get current time"
 msgstr "ಪ್ರಸಕ್ತ ಸಮಯವನ್ನು ಪಡೆಯಲಾಗಿಲ್ಲ"
@@ -6208,10 +6252,6 @@ msgid "Duplicate hash table key '%1$s'"
 msgstr ""
 
 msgid "Duplicate info for NUMA latencies"
-msgstr ""
-
-#, c-format
-msgid "Duplicate mapping for iothread '%1$u'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -8450,6 +8490,10 @@ msgstr ""
 msgid "Failed to remove storage volume '%1$s'(%2$s)"
 msgstr "ಶೇಖರಣಾ ಪರಿಮಾಣ '%1$s'(%2$s) ಅನ್ನು ತೆಗೆದುಹಾಕಲು ವಿಫಲಗೊಂಡಿದೆ"
 
+#, c-format
+msgid "Failed to remove the file: %1$s"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "Failed to reportluns: %1$s"
 msgstr "%1$s ಪೂಲ್‌ ಅನ್ನು ನಿರ್ಮಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
@@ -8784,9 +8828,8 @@ msgid "Failed to set vcpus for domain '%1$d' with libxenlight"
 msgstr ""
 "libxenlight ನೊಂದಿಗೆ '%1$d' ಡೊಮೇನ್‌ಗಾಗಿ vcpus ಅನ್ನು ಹೊಂದಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
 
-#, fuzzy
-msgid "Failed to setup keepalive on connection\n"
-msgstr "ಹೊಸ ಡೊಮೇನ್‌ ವಿವರಣೆಯನ್ನು ಹೊಂದಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
+msgid "Failed to setup keepalive on connection"
+msgstr ""
 
 #, c-format
 msgid "Failed to shutdown domain '%1$d' with libxenlight"
@@ -8826,10 +8869,6 @@ msgstr ""
 #, c-format
 msgid "Failed to start interface %1$s"
 msgstr "ಸಂಪರ್ಕಸಾಧನ %1$s ಅನ್ನು ಆರಂಭಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
-
-#, c-format
-msgid "Failed to start job on VM '%1$s': %2$s"
-msgstr "VM '%1$s' ನಲ್ಲಿ ಕೆಲಸವನ್ನು ಆರಂಭಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ: %2$s"
 
 #, c-format
 msgid "Failed to start network %1$s"
@@ -9682,6 +9721,12 @@ msgstr "I/O ದೋಷ"
 msgid "I/O error"
 msgstr "I/O ದೋಷ"
 
+#, c-format
+msgid ""
+"I/O error: disk='%1$s', index='%2$d', path='%3$s', timestamp='%4$s', "
+"message='%5$s'"
+msgstr ""
+
 msgid "I/O size in bytes"
 msgstr ""
 
@@ -10206,8 +10251,8 @@ msgid ""
 msgstr ""
 
 msgid ""
-"Invalid attempt to set network interface guest-side IP route and/or address "
-"info, not supported by QEMU"
+"Invalid attempt to set network interface guest-side IP address info, not "
+"supported by QEMU"
 msgstr ""
 
 msgid ""
@@ -11868,6 +11913,10 @@ msgstr "JSON ದಸ್ತಾವೇಜಿನಲ್ಲಿ ಕ್ಲೈಂಟ್ �
 msgid "Missing clients data in JSON document"
 msgstr "JSON ದಸ್ತಾವೇಜಿನಲ್ಲಿ ಕ್ಲೈಂಟ್‌ಗಳು ದತ್ತಾಂಶವು ಕಾಣಿಸುತ್ತಿಲ್ಲ"
 
+#, c-format
+msgid "Missing data in ccw_device with ref '%1$s' in members for '%2$s'"
+msgstr ""
+
 msgid "Missing defaultLockspace data from JSON file"
 msgstr "JSON ಕಡತದಿಂದ defaultLockspace ದತ್ತಾಂಶವು ಕಾಣಿಸುತ್ತಿಲ್ಲ"
 
@@ -12112,6 +12161,10 @@ msgstr ""
 
 msgid "Missing readonly field in JSON state document"
 msgstr "JSON ಸ್ಥಿತಿ ದಸ್ತಾವೇಜಿನಲ್ಲಿ ಓದಲು ಮಾತ್ರವಾದ ಸ್ಥಳವು ಕಾಣಿಸುತ್ತಿಲ್ಲ"
+
+#, c-format
+msgid "Missing ref property on ccw_device in members for '%1$s'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Missing required 'service' attribute in SRV record of network '%1$s'"
@@ -12435,6 +12488,9 @@ msgstr ""
 
 msgid "NUMA node selections to set"
 msgstr "ಹೊಂದಿಸಬೇಕಿರುವ NUMA ನೋಡ್ ಆಯ್ಕೆಗಳು"
+
+msgid "NUMA nodes are not supported for virtio-mem-ccw"
+msgstr ""
 
 msgid "NUMA nodes without CPUs can't be initiator"
 msgstr ""
@@ -13359,6 +13415,9 @@ msgstr ""
 msgid "Only ide and scsi disk support wwn"
 msgstr "ಕೇವಲ ide ಮತ್ತು scsi ಡಿಸ್ಕ್ ಮಾತ್ರ wwn ಅನ್ನು ಬೆಂಬಲಿಸುತ್ತವೆ"
 
+msgid "Only ide, sata and scsi disk supports 'product'"
+msgstr ""
+
 #, fuzzy
 msgid "Only luks encryption is supported for raw files"
 msgstr "ಸಾಧನಕ್ಕೆ ಕಾರ್ಯವು ಬೆಂಬಲಿತವಾಗಿಲ್ಲ: %s"
@@ -13440,8 +13499,8 @@ msgstr ""
 msgid "Only read-only pflash is supported."
 msgstr "ಕೇವಲ ಒಂದು ಕಡತವ್ಯವಸ್ಥೆಗೆ ಬೆಂಬಲವಿದೆ"
 
-msgid "Only scsi disk supports vendor and product"
-msgstr "ಕೇವಲ scsi ಡಿಸ್ಕ್ ಮಾತ್ರ ಮಾರಾಟಗಾರ ಮತ್ತು ಉತ್ಪನ್ನವನ್ನು ಬೆಂಬಲಿಸುತ್ತವೆ"
+msgid "Only scsi disk supports 'vendor'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -15619,6 +15678,10 @@ msgstr ""
 msgid "Start"
 msgstr "ಪ್ರಾರಂಭಗೊಂಡಿದೆ"
 
+#, c-format
+msgid "Start CPU %1$d is out of range (min: 0, max: %2$d)"
+msgstr ""
+
 msgid "Start a block commit operation."
 msgstr "ಬ್ಲಾಕ್‌ ಸಲ್ಲಿಕೆ ಕಾರ್ಯಾಚರಣೆಯನ್ನು ಆರಂಭಿಸು"
 
@@ -15871,10 +15934,8 @@ msgstr "ಈ ಪೂಲ್‌ನೊಂದಿಗೆ ಶೇಖರಣಾ ಆಕರದ
 
 #, c-format
 msgid ""
-"Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it manually.\n"
+"Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it manually."
 msgstr ""
-"'%1$s'(%2$s) ಶೇಖರಣಾ ಪರಿಮಾಣವನ್ನು libvirt ನಿಂದ ವ್ಯವಸ್ಥಾಪಿಸಲಾಗಿಲ್ಲ. ಅದನ್ನು ಕೈಯಾರೆ "
-"ತೆಗೆದುಹಾಕಿ.\n"
 
 msgid "Storage volume deletion is supported only on stopped domains"
 msgstr "ನಿಲ್ಲಿಸಲಾದ ಡೊಮೇನ್‌ಗಳಲ್ಲಿ ಮಾತ್ರ ಶೇಖರಣಾ ಪರಿಮಾಣ ಅಳಿಸುವಿಕೆಗೆ ಬೆಂಬಲಿಸಲಾಗುತ್ತದೆ"
@@ -16934,7 +16995,9 @@ msgid ""
 "'%2$s' or machine type '%3$s'"
 msgstr ""
 
-msgid "The 'passt' backend can only be used with interface type='user'"
+msgid ""
+"The 'passt' backend can only be used with interface type='user' or "
+"type='vhostuser'"
 msgstr ""
 
 msgid ""
@@ -16951,8 +17014,8 @@ msgstr ""
 "ಸಾಧ್ಯವಿರುತ್ತದೆ (%1$s ಜಾಲಬಂಧದಲ್ಲಿ)"
 
 msgid ""
-"The <portForward> element can only be used with <interface type='user'> and "
-"its 'passt' backend"
+"The <portForward> element can only be used with the 'passt' backend of "
+"interface type='user' or type='vhostuser'"
 msgstr ""
 
 msgid ""
@@ -18781,6 +18844,9 @@ msgstr "ಮೆಮೊರಿ ಅಂಕಿಅಂಶಗಳನ್ನು ಪಡೆಯ�
 msgid "Unable to get physical function status on this platform"
 msgstr "ಈ ಪ್ಲಾಟ್‌ಫಾರ್ಮಿನಲ್ಲಿ ಭೌತಿಕ ಕ್ರಿಯೆ ಸ್ಥಿತಿಯನ್ನು ಪಡೆಯಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
 
+msgid "Unable to get pointer to VirtualBox vtable"
+msgstr ""
+
 msgid "Unable to get remote socket name"
 msgstr "ದೂರಸ್ಥ ಸಾಕೆಟ್ ಹೆಸರನ್ನು ಪಡೆಯಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
 
@@ -18855,6 +18921,9 @@ msgstr "ಸಾಧನ ಸ್ಟ್ರೀಮ್ ಮ್ಯೂಟೆಕ್ಸನ್�
 #, fuzzy
 msgid "Unable to initialize RW lock"
 msgstr "%s ಲಾಕ್‌ಸ್ಪೇಸ್ ಅನ್ನು ಆರಂಭಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
+
+msgid "Unable to initialize VirtualBox C API client"
+msgstr ""
 
 msgid "Unable to initialize audit layer"
 msgstr "ಆಡಿಟ್ ಪದರವನ್ನು ಪ್ರಾರಂಭಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
@@ -19206,6 +19275,9 @@ msgstr "ಕೋಟಾವನ್ನು ಪಾರ್ಸ್ ಮಾಡಲಾಗಿಲ�
 msgid "Unable to process file with flags %1$d"
 msgstr "%1$d ಫ್ಲ್ಯಾಗ್‌ಗಳೊಂದಿಗೆ ಕಡತವನ್ನು ಸಂಸ್ಕರಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
 
+msgid "Unable to query NVMe disk address"
+msgstr ""
+
 msgid "Unable to query TSC scaling support"
 msgstr ""
 
@@ -19271,10 +19343,6 @@ msgstr ""
 
 msgid "Unable to read TLS confirmation"
 msgstr "TLS ಖಚಿತಪಡಿಕೆಯನ್ನು ಓದಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
-
-#, fuzzy
-msgid "Unable to read cache data"
-msgstr "pty ಕಂಟೇನರ್ ಅನ್ನು ಓದಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
 
 msgid "Unable to read container pty"
 msgstr "pty ಕಂಟೇನರ್ ಅನ್ನು ಓದಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
@@ -21199,8 +21267,8 @@ msgid "Vol %1$s wiped\n"
 msgstr "ಪರಿಮಾಣ %1$s ಅನ್ನು ಅಳಿಸಿ ಹಾಕಲಾಗಿದೆ\n"
 
 #, c-format
-msgid "Volume '%1$s' was not found in domain's definition.\n"
-msgstr "'%1$s' ಪರಿಮಾಣವು ಡೊಮೇನ್‌ನ ವಿವರಣೆಯಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ.\n"
+msgid "Volume '%1$s' was not found in domain's definition."
+msgstr ""
 
 #, c-format
 msgid "Volume '%1$s'(%2$s) removed.\n"
@@ -21377,11 +21445,6 @@ msgstr "fdc ಡಿಸ್ಕಿಗಾಗಿ ಅನಿರೀಕ್ಷಿತ ವಿ
 
 msgid "Wrong length MAC address"
 msgstr "MAC ವಿಳಾಸದ ಸರಿಯಲ್ಲದ ಗಾತ್ರ"
-
-msgid ""
-"Wrong or no <model> 'type' attribute specified with <interface "
-"type='vhostuser'/>. vhostuser requires the virtio-net* frontend"
-msgstr ""
 
 msgid "XBZRLE is active, but 'bytes' data was missing"
 msgstr "XBZRLE ಸಕ್ರಿಯವಾಗಿದೆ ಆದರೆ 'bytes' ದತ್ತಾಂಶವು ಕಾಣಿಸುತ್ತಿಲ್ಲ"
@@ -21661,9 +21724,23 @@ msgstr "ಮರಳಿಸಿದ ನಂತರ, ಸ್ಥಿತಿಯನ್ನು �
 msgid "after reverting, change state to running"
 msgstr "ಮರಳಿಸಿದ ನಂತರ, ಸ್ಥಿತಿಯನ್ನು ಚಾಲನೆಯಲ್ಲಿದೆ ಎನ್ನುವುದಕ್ಕೆ ಬದಲಾಯಿಸು"
 
+msgid "aia feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "aia feature is only supported with RISC-V Virt machines"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "algorithm=%1$d is not supported"
 msgstr "%1$d ಅಲ್ಗಾರಿತಮ್‌ ಅನ್ನು ಅಳಿಸುವುದಕ್ಕೆ ಬೆಂಬಲವಿಲ್ಲ"
+
+#, c-format
+msgid "alias '%1$s' of command '%2$s' has mismatched alias type"
+msgstr ""
+
+#, c-format
+msgid "alias '%1$s' of command '%2$s' has missing alias option"
+msgstr ""
 
 #, fuzzy
 msgid "all CPU models are accepted"
@@ -22102,6 +22179,9 @@ msgid ""
 "by this API"
 msgstr ""
 
+msgid "bandwidth (in MiB/s) available for the final phase of migration"
+msgstr ""
+
 #, c-format
 msgid "bandwidth controller id %1$zd does not exist"
 msgstr ""
@@ -22313,6 +22393,14 @@ msgstr "ಬಾಂಡ್ ಸಂಪರ್ಕಸಾಧನ miimon updelay ಅಮಾ�
 
 msgid "bond interface misses the bond element"
 msgstr "ಬಾಂಡ್‌ ಸಂಪರ್ಕಸಾಧನದಲ್ಲಿ ಬಾಂಡ್ ಘಟಕವು ಕಾಣಿಸುತ್ತಿಲ್ಲ"
+
+#, c-format
+msgid "bool parameter '%1$s' of command '%2$s' has completer set"
+msgstr ""
+
+#, c-format
+msgid "boolean parameter '%1$s' of command '%2$s' must not be positional"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "boot order %1$u is already used by another device"
@@ -23478,7 +23566,7 @@ msgstr "ಪರಿಮಾಣ '%1$s' ಅನ್ನು ತೆರೆಯಲು ಸಾ�
 msgid "cannot parse %1$s CPU data"
 msgstr "ಬಸ್‌ %1$s ಅನ್ನು ಪಾರ್ಸ್ ಮಾಡಲಾಗಿಲ್ಲ"
 
-#, c-format
+#, fuzzy, c-format
 msgid "cannot parse %1$s version number in '%3$.*2$s'"
 msgstr "ಆವೃತ್ತಿಯ ಸಂಖ್ಯೆಯಾದ %.s ಅನ್ನು '%.*s' ನಲ್ಲಿ ಪಾರ್ಸ್ ಮಾಡಲಾಗಿಲ್ಲ"
 
@@ -24356,12 +24444,43 @@ msgid "command '%1$s' doesn't support option --%2$s"
 msgstr "ಆದೇಶ '%1$s' ಆಯ್ಕೆಯನ್ನು ಬೆಂಬಲಿಸುವುದಿಲ್ಲ --%2$s"
 
 #, c-format
+msgid "command '%1$s' has handler set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has info set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has multiple flags set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has options set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' lacks help"
+msgstr ""
+
+#, c-format
 msgid "command '%1$s' requires --%2$s option"
 msgstr "ಆದೇಶ '%1$s' ಗೆ --%2$s ಆಯ್ಕೆಯ ಅಗತ್ಯವಿದೆ"
 
 #, c-format
 msgid "command '%1$s' requires <%2$s> option"
 msgstr "ಆದೇಶ '%1$s' ಗೆ <%2$s> ಆಯ್ಕೆಯ ಅಗತ್ಯವಿದೆ"
+
+msgid "command 'domblkinfo' requires <device> option"
+msgstr ""
+
+#, c-format
+msgid "command alias '%1$s' is pointing to a non-existent command '%2$s'"
+msgstr ""
+
+#, c-format
+msgid "command alias '%1$s' is pointing to another command alias '%2$s'"
+msgstr ""
 
 msgid "command groups is NULL run vshInit before reloading"
 msgstr ""
@@ -24422,6 +24541,12 @@ msgstr "qcow2 ನೊಂದಿಗೆ ಮಾತ್ರ ಹೊಂದಾಣಿಕೆ 
 #, fuzzy
 msgid "completed"
 msgstr "ಸೆಳೆಯುವಿಕೆ ಪೂರ್ಣಗೊಂಡಿದೆ"
+
+#, c-format
+msgid ""
+"completer_flags of argument '%1$s' of command '%2$s' must be 0 if no "
+"completer is used"
+msgstr ""
 
 msgid "compress level for multithread compression"
 msgstr ""
@@ -25695,16 +25820,23 @@ msgid "disk '%1$s' not found in domain"
 msgstr "ಡಿಸ್ಕ್‌ %1$s ಕಂಡು ಬಂದಿಲ್ಲ"
 
 #, c-format
+msgid ""
+"disk '%1$s' referenced by snapshot '%2$s' not found in the VM definition of "
+"the deleted snapshot"
+msgstr ""
+
+#, c-format
+msgid ""
+"disk '%1$s' referenced by snapshot '%2$s' not found in the current definition"
+msgstr ""
+
+#, c-format
 msgid "disk '%1$s' specified twice"
 msgstr "'%1$s' ಡಿಸ್ಕನ್ನು ಎರಡು ಬಾರಿ ಸೂಚಿಸಲಾಗಿದೆ"
 
 #, fuzzy, c-format
 msgid "disk '%1$s' was not found in the domain config"
 msgstr "'%1$s' ಪರಿಮಾಣವು ಡೊಮೇನ್‌ನ ವಿವರಣೆಯಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ.\n"
-
-msgid ""
-"disk 'queue' count must be configured for explicit iothread to queue mapping"
-msgstr ""
 
 msgid "disk attributes: disk[,checkpoint=type][,bitmap=name]"
 msgstr ""
@@ -25801,14 +25933,6 @@ msgstr "ಡಿಸ್ಕ್ ವಿನ್ಯಾಸ %1$s ಗೆ ಬೆಂಬಲವ�
 msgid "disk ioeventfd mode supported only for virtio bus"
 msgstr "ಡಿಸ್ಕ್‍ ioeventfd ಕ್ರಮವನ್ನು ಕೇವಲ virtio ಬಸ್‌ಗಾಗಿ ಮಾತ್ರ ಬೆಂಬಲಿಸಲಾಗುತ್ತದೆ"
 
-#, c-format
-msgid "disk iothread queue '%1$u' is already assigned"
-msgstr ""
-
-#, c-format
-msgid "disk iothread queue '%1$u' mapping out of range"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "disk iotune field '%1$s' must be an integer"
 msgstr "ಸಂರಚನಾ ನಮೂದು '%1$s' ಒಂದು ಪೂರ್ಣಾಂಕ ಮೌಲ್ಯವನ್ನು ಪ್ರತಿನಿಧಿಸಬೇಕು"
@@ -25831,7 +25955,7 @@ msgid "disk port address is not supported by tunnelled migration"
 msgstr "ಟನಲ್‌ ಮಾಡಲಾದ ವರ್ಗಾವಣೆಗಾಗಿ ಪೈಪ್ ಅನ್ನು ಒದಗಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
 
 #, c-format
-msgid "disk product is more than %1$d characters"
+msgid "disk product is more than %1$zu characters"
 msgstr ""
 
 msgid "disk product is not printable string"
@@ -26330,6 +26454,10 @@ msgstr ""
 msgid "duplicate key '%1$s'"
 msgstr "FD %d ಅನ್ನು ನಕಲು ಮಾಡಲು ಆಗಲಿಲ್ಲ"
 
+#, c-format
+msgid "duplicate mapping for iothread '%1$u'"
+msgstr ""
+
 msgid "duplicate native vlan setting"
 msgstr "ನಕಲು ಸ್ಥಳೀಯ vlan ಸಿದ್ಧತೆ"
 
@@ -26647,8 +26775,9 @@ msgstr "ಡೊಮೇನ್‌ ಅನ್ನು ಮರಳಿ ಆರಂಭಿಸು
 msgid "error while suspending the domain"
 msgstr "ಡೊಮೇನ್‌ ಅನ್ನು ಅಮಾನತುಗೊಳಿಸುವಾಗ ದೋಷ"
 
-msgid "error: "
-msgstr "ದೋಷ: "
+#, c-format
+msgid "error: %1$s\n"
+msgstr ""
 
 msgid "error_policy is not supported with vhostuser disk"
 msgstr ""
@@ -27390,6 +27519,10 @@ msgstr "stderr ಕಡತದ ಹ್ಯಾಂಡಲ್‌ ಅನ್ನು ಸಿ�
 msgid "failed to find USB device busnum:devnum for %1$x:%2$x"
 msgstr "USB ಸಾಧನವು ಕಂಡು ಬಂದಿಲ್ಲ:%u ಸಾಧನ:%u"
 
+#, c-format
+msgid "failed to find a supported CCW group capability type '%1$s'"
+msgstr ""
+
 #, fuzzy
 msgid "failed to find an empty memory slot"
 msgstr "%s ಕ್ಕಾಗಿ ಮೂಲ ಸಾಧನವನ್ನು ಪತ್ತೆಮಾಡಲು ವಿಫಲಗೊಂಡಿದೆ"
@@ -27798,6 +27931,9 @@ msgstr "%1$s ಅನ್ನು ಪಾರ್ಸ್ ಮಾಡುವಲ್ಲಿ ವ�
 #, fuzzy, c-format
 msgid "failed to parse %1$sversion"
 msgstr "%1$s ಅನ್ನು ಪಾರ್ಸ್ ಮಾಡುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
+
+msgid "failed to parse JSON returned by qemu"
+msgstr ""
 
 #, c-format
 msgid "failed to parse JSON: %1$s"
@@ -28292,6 +28428,10 @@ msgstr "ಡೊಮೇನ್ ಉಳಿಸು ಕಡತ '%1$s' ಕ್ಕೆ ಹೆ�
 msgid "failed to write known_host file '%1$s': %2$s"
 msgstr "known_host ಕಡತ '%1$s' ಅನ್ನು ಬರೆಯುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ: %2$s"
 
+#, c-format
+msgid "failed to write log file: %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "failed to write master key file for domain"
 msgstr "ಡೊಮೇನ್‌ಗಾಗಿ ಮೆಮೊರಿ ಮಿತಿಯನ್ನು ಹೊಂದಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
@@ -28299,6 +28439,9 @@ msgstr "ಡೊಮೇನ್‌ಗಾಗಿ ಮೆಮೊರಿ ಮಿತಿಯನ�
 #, fuzzy, c-format
 msgid "failed to write padding to '%1$s'"
 msgstr "'%1$s' ಕಡತಕ್ಕೆ ಬರೆಯುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
+
+msgid "failed to write secret"
+msgstr ""
 
 #, fuzzy
 msgid "failed to write secret file"
@@ -29904,6 +30047,10 @@ msgid "invalid driver type for version detection"
 msgstr "TLS ಅಧಿವೇಶನಕ್ಕಾಗಿ ಅಮಾನ್ಯವಾದ ಸಿಫರ್ ಗಾತ್ರ"
 
 #, c-format
+msgid "invalid empty data-file definition in '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "invalid failure action: '%1$s'\n"
 msgstr "ಅಮಾನ್ಯವಾದ ವಿಫಲತೆ ಕ್ರಿಯೆ: '%1$s'\n"
 
@@ -30038,7 +30185,7 @@ msgid "invalid mode"
 msgstr "ಅಮಾನ್ಯವಾದ ಸ್ಥಿತಿ"
 
 #, c-format
-msgid "invalid model for interface of type '%1$s': '%2$s'"
+msgid "invalid model for interface of type '%1$s': '%2$s' - must be 'virtio'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -30247,6 +30394,10 @@ msgstr "ಅಮಾನ್ಯವಾದ ಆರ್ಗ್ಯುಮೆಂಟ್"
 msgid "invalid type '%1$s' for parameter '%2$s', expected '%3$s'"
 msgstr "ಅಮಾನ್ಯವಾದ ಬಗೆ '%1$s',  '%2$s' ನಿಯತಾಂಕಕ್ಕಾಗಿ, '%3$s' ಅನ್ನು ನಿರೀಕ್ಷಿಸಲಾಗಿತ್ತು"
 
+#, c-format
+msgid "invalid type 'NONE' of option '%1$s' of command '%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "invalid unique_id supplied for '%1$s'"
 msgstr "'%1$s' ಗಾಗಿ ಅಮಾನ್ಯವಾದ ಗಾತ್ರವನ್ನು ಒದಗಿಸಲಾಗಿದೆ"
@@ -30369,6 +30520,10 @@ msgstr ""
 msgid "iothread %1$d not found"
 msgstr "hostdev %s ಕಂಡುಬಂದಿಲ್ಲ"
 
+#, c-format
+msgid "iothread '%1$u' not defined in iothreadid"
+msgstr ""
+
 msgid "iothread for the new IOThread"
 msgstr ""
 
@@ -30376,6 +30531,14 @@ msgid "iothread id of existing IOThread"
 msgstr ""
 
 msgid "iothread is not supported with vhostuser disk"
+msgstr ""
+
+#, c-format
+msgid "iothread queue '%1$u' is already assigned"
+msgstr ""
+
+#, c-format
+msgid "iothread queue '%1$u' mapping out of range"
 msgstr ""
 
 msgid ""
@@ -30388,6 +30551,9 @@ msgstr ""
 #, fuzzy, c-format
 msgid "iothreadid %1$d not found"
 msgstr "ಡಿಸ್ಕ್‌ %s ಕಂಡು ಬಂದಿಲ್ಲ"
+
+msgid "iothreads are supported only by 'virtio-scsi' controllers"
+msgstr ""
 
 msgid "iotune is not supported with vhostuser disk"
 msgstr ""
@@ -31656,6 +31822,12 @@ msgstr "MiB/s ನಲ್ಲಿ ವರ್ಗಾವಣೆ ಬ್ಯಾಂಡ್‌�
 msgid "migration canceled"
 msgstr "ವರ್ಗಾವಣೆಯು ರದ್ದುಗೊಂಡಿದೆ"
 
+#, c-format
+msgid ""
+"migration failed. Message from the source host: %1$s. Message from the "
+"destination host: %2$s"
+msgstr ""
+
 msgid "migration in"
 msgstr ""
 
@@ -32200,6 +32372,10 @@ msgstr "ವರ್ಗಾವನೆ ಸಾಮರ್ಥ್ಯದ ಹೆಸರು ಕ
 #, fuzzy, c-format
 msgid "missing gluster volume name for path '%1$s'"
 msgstr "auth ಗಾಗಿ ಬಳಕೆದಾರ ಹೆಸರುಗಳು ಕಾಣಿಸುತ್ತಿಲ್ಲ"
+
+#, c-format
+msgid "missing group_device value for '%1$s'"
+msgstr ""
 
 #, c-format
 msgid "missing host CPU model info from QEMU capabilities for binary %1$s"
@@ -32911,6 +33087,12 @@ msgid "multiple matching interfaces found: %1$s"
 msgstr "ಹೊಂದಿಕೆಯಾಗುವ ಅನೇಕ ಸಂಪರ್ಕಸಾಧನಗಳು ಕಂಡುಬಂದಿವೆ: %1$s"
 
 msgid "multiple memory devices found, use --alias or --node to select one"
+msgstr ""
+
+#, c-format
+msgid ""
+"multiple optional positional arguments (%1$s, %2$s) of command '%3$s' are "
+"not allowed"
 msgstr ""
 
 msgid "multiple stream callbacks not supported"
@@ -34171,14 +34353,14 @@ msgstr ""
 msgid "only 'dimm' addresses are supported for the pc-dimm device"
 msgstr ""
 
-#, c-format
-msgid "only 'pci' addresses are supported for the %1$s device"
-msgstr ""
-
 msgid "only 'pci' addresses are supported for the shared memory device"
 msgstr ""
 
 msgid "only 'pci' addresses are supported for the virtio-pmem device"
+msgstr ""
+
+#, c-format
+msgid "only 'pci' and 'ccw' addresses are supported for the %1$s device"
 msgstr ""
 
 msgid "only 'qcow2' formatted 'block' nvram backing can be formatted"
@@ -34513,7 +34695,7 @@ msgid "output to stderr"
 msgstr ""
 
 #, c-format
-msgid "overflow in converting %1$ld MiB/s to bytes\n"
+msgid "overflow in converting %1$ld MiB/s to bytes"
 msgstr ""
 
 #, c-format
@@ -34606,6 +34788,23 @@ msgstr "'%1$s' ನಿಯತಾಂಕಕ್ಕೆ ಬೆಂಬಲವಿಲ್ಲ"
 #, c-format
 msgid "parameter '%1$s' occurs multiple times"
 msgstr "'%1$s' ನಿಯತಾಂಕವು ಹಲವಾರು ಬಾರಿ ಕಾಣಿಸಿಕೊಳ್ಳುತ್ತದೆ"
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' has incorrect alias option"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' misused 'required' flag"
+msgstr ""
+
+#, c-format
+msgid ""
+"parameter '%1$s' of command '%2$s' must be listed before optional parameters"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' must be listed last"
+msgstr ""
 
 msgid "parameter=value"
 msgstr "parameter=value"
@@ -35902,6 +36101,12 @@ msgstr ""
 msgid "require atomic operation"
 msgstr "ಅಟಾಮಿಕ್ ಕಾರ್ಯಾಚರಣೆಯ ಅಗತ್ಯವಿದೆ"
 
+#, c-format
+msgid ""
+"required positional argument '%1$s' declared after an optional positional "
+"argument '%2$s' of command '%3$s'"
+msgstr ""
+
 msgid "resctrl locking is not supported on this platform"
 msgstr ""
 
@@ -37080,6 +37285,11 @@ msgid "summary statistics are not supported yet"
 msgstr "ಡಿಸ್ಕ್ ಸ್ನ್ಯಾಪ್‌ಶಾಟ್‌ಗಳು ಇನ್ನೂ ಸಹ ಬೆಂಬಲಿತವಾಗಿಲ್ಲ"
 
 msgid "supplying <cipher> for domain disk definition is unnecessary"
+msgstr ""
+
+msgid ""
+"support for offline external snapshots while checkpoint exists was not yet "
+"implemented"
 msgstr ""
 
 msgid "suspend a domain"
@@ -38435,6 +38645,9 @@ msgstr "ಸ್ನ್ಯಾಪ್‌ಶಾಟ್ ಫಿಲ್ಟರ್ ಅನ್�
 
 msgid "unable to poll on child"
 msgstr "ಚೈಲ್ಡಿನಲ್ಲಿ ಪೋಲ್ ಮಾಡಲಾಗಿಲ್ಲ"
+
+msgid "unable to query block list"
+msgstr ""
 
 #, fuzzy
 msgid "unable to query cgroup BPF progs"
@@ -39860,6 +40073,10 @@ msgstr "ಬೆಂಬಲವಿಲ್ಲದ rtc ಟೈಮರ್ ಟಿಕ್‌ಪ
 msgid "unsupported rtc timer track '%1$s'"
 msgstr "ಬೆಂಬಲವಿಲ್ಲದ rtc ಟೈಮರ್ ಟ್ರ್ಯಾಕ್ '%1$s'"
 
+#, c-format
+msgid "unsupported save image format: %1$d"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "unsupported scheme %1$s in migration URI %2$s"
 msgstr "ಬೆಂಬಲವಿಲ್ಲದ ಸಂರಚನೆ: %s"
@@ -39916,6 +40133,12 @@ msgstr "ಅಂತ್ಯಗೊಳಿಸದೆ ಇರುವ ಸಂಖ್ಯೆ"
 
 msgid "unterminated string"
 msgstr "ಅಂತ್ಯಗೊಳಿಸದೆ ಇರುವ ವಾಕ್ಯ"
+
+#, c-format
+msgid ""
+"unwanted_positional flag of argument '%1$s' of command '%2$s' must not be "
+"used together with positional"
+msgstr ""
 
 msgid "update device from an XML file"
 msgstr "ಒಂದು XML ಕಡತದಿಂದ ಸಾಧನವನ್ನು ಅಪ್‌ಡೇಟ್ ಮಾಡು"
@@ -40042,6 +40265,9 @@ msgstr ""
 msgid ""
 "using disk target name '%1$s' conflicts with SCSI host device address "
 "controller='%2$u' bus='%3$u' target='%4$u' unit='%5$u"
+msgstr ""
+
+msgid "using host CPU definition as input may provide incorrect results"
 msgstr ""
 
 #, c-format
@@ -40543,6 +40769,9 @@ msgstr ""
 msgid "virtio-mem isn't supported by this QEMU binary"
 msgstr ""
 
+msgid "virtio-mem-ccw can't use different page size than the boot memory"
+msgstr ""
+
 #, c-format
 msgid ""
 "virtio-net teaming persistent interface must be <model type='virtio'/>, not "
@@ -40998,6 +41227,39 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
+
+#~ msgid "Could not find matching device"
+#~ msgstr "ಹೊಂದಿಕೆಯಾಗುವ ಸಾಧನವು ಕಂಡು ಬಂದಿಲ್ಲ"
+
+#, fuzzy
+#~ msgid "Failed to setup keepalive on connection\n"
+#~ msgstr "ಹೊಸ ಡೊಮೇನ್‌ ವಿವರಣೆಯನ್ನು ಹೊಂದಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ"
+
+#, c-format
+#~ msgid "Failed to start job on VM '%1$s': %2$s"
+#~ msgstr "VM '%1$s' ನಲ್ಲಿ ಕೆಲಸವನ್ನು ಆರಂಭಿಸುವಲ್ಲಿ ವಿಫಲಗೊಂಡಿದೆ: %2$s"
+
+#~ msgid "Only scsi disk supports vendor and product"
+#~ msgstr "ಕೇವಲ scsi ಡಿಸ್ಕ್ ಮಾತ್ರ ಮಾರಾಟಗಾರ ಮತ್ತು ಉತ್ಪನ್ನವನ್ನು ಬೆಂಬಲಿಸುತ್ತವೆ"
+
+#, c-format
+#~ msgid ""
+#~ "Storage volume '%1$s'(%2$s) is not managed by libvirt. Remove it "
+#~ "manually.\n"
+#~ msgstr ""
+#~ "'%1$s'(%2$s) ಶೇಖರಣಾ ಪರಿಮಾಣವನ್ನು libvirt ನಿಂದ ವ್ಯವಸ್ಥಾಪಿಸಲಾಗಿಲ್ಲ. ಅದನ್ನು ಕೈಯಾರೆ "
+#~ "ತೆಗೆದುಹಾಕಿ.\n"
+
+#, fuzzy
+#~ msgid "Unable to read cache data"
+#~ msgstr "pty ಕಂಟೇನರ್ ಅನ್ನು ಓದಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"
+
+#, c-format
+#~ msgid "Volume '%1$s' was not found in domain's definition.\n"
+#~ msgstr "'%1$s' ಪರಿಮಾಣವು ಡೊಮೇನ್‌ನ ವಿವರಣೆಯಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ.\n"
+
+#~ msgid "error: "
+#~ msgstr "ದೋಷ: "
 
 #~ msgid "Cannot set a base label with AppArmour"
 #~ msgstr "AppArmour ನೊಂದಿಗೆ ಮೂಲ ಲೇಬಲ್ ಅನ್ನು ಹೊಂದಿಸಲು ಸಾಧ್ಯವಾಗಿಲ್ಲ"

@@ -280,34 +280,34 @@ vshCmddefCheckInternals(vshControl *ctl,
         const vshCmdDef *alias;
 
         if (!(alias = vshCmddefSearch(cmd->alias))) {
-            vshError(ctl, "command alias '%s' is pointing to a non-existent command '%s'",
+            vshError(ctl, _("command alias '%1$s' is pointing to a non-existent command '%2$s'"),
                      cmd->name, cmd->alias);
             return -1;
         }
 
         if (alias->alias) {
-            vshError(ctl, "command alias '%s' is pointing to another command alias '%s'",
+            vshError(ctl, _("command alias '%1$s' is pointing to another command alias '%2$s'"),
                      cmd->name, cmd->alias);
             return -1;
         }
 
         if (cmd->handler) {
-            vshError(ctl, "command '%s' has handler set", cmd->name);
+            vshError(ctl, _("command '%1$s' has handler set"), cmd->name);
             return -1;
         }
 
         if (cmd->opts) {
-            vshError(ctl, "command '%s' has options set", cmd->name);
+            vshError(ctl, _("command '%1$s' has options set"), cmd->name);
             return -1;
         }
 
         if (cmd->info) {
-            vshError(ctl, "command '%s' has info set", cmd->name);
+            vshError(ctl, _("command '%1$s' has info set"), cmd->name);
             return -1;
         }
 
         if (cmd->flags != 0) {
-            vshError(ctl, "command '%s' has multiple flags set", cmd->name);
+            vshError(ctl, _("command '%1$s' has multiple flags set"), cmd->name);
             return -1;
         }
 
@@ -317,7 +317,7 @@ vshCmddefCheckInternals(vshControl *ctl,
 
     /* Each command has to provide a non-empty help string. */
     if (!cmd->info || !cmd->info->help || !*cmd->info->help) {
-        vshError(ctl, "command '%s' lacks help", cmd->name);
+        vshError(ctl, _("command '%1$s' lacks help"), cmd->name);
         return -1;
     }
 
@@ -348,7 +348,7 @@ vshCmddefCheckInternals(vshControl *ctl,
         /* allow at most one optional positional option */
         if (opt->positional && !opt->required) {
             if (seenOptionalPositionalOption) {
-                vshError(ctl, "multiple optional positional arguments (%s, %s) of command '%s' are not allowed",
+                vshError(ctl, _("multiple optional positional arguments (%1$s, %2$s) of command '%3$s' are not allowed"),
                          seenOptionalPositionalOption, opt->name, cmd->name);
                 return -1;
             }
@@ -358,45 +358,45 @@ vshCmddefCheckInternals(vshControl *ctl,
 
         /* all optional positional arguments must be defined after the required ones */
         if (seenOptionalPositionalOption && opt->positional && opt->required) {
-            vshError(ctl, "required positional argument '%s' declared after an optional positional argument '%s' of command '%s'",
+            vshError(ctl, _("required positional argument '%1$s' declared after an optional positional argument '%2$s' of command '%3$s'"),
                      opt->name, seenOptionalPositionalOption, cmd->name);
             return -1;
         }
 
         /* Mandate no completer flags if no completer is specified */
         if (opt->completer_flags != 0 && !opt->completer) {
-            vshError(ctl, "completer_flags of argument '%s' of command '%s' must be 0 if no completer is used",
+            vshError(ctl, _("completer_flags of argument '%1$s' of command '%2$s' must be 0 if no completer is used"),
                      opt->name, cmd->name);
             return -1;
         }
 
         if (opt->unwanted_positional && opt->positional) {
-            vshError(ctl, "unwanted_positional flag of argument '%s' of command '%s' must not be used together with positional",
+            vshError(ctl, _("unwanted_positional flag of argument '%1$s' of command '%2$s' must not be used together with positional"),
                      opt->name, cmd->name);
             return -1;
         }
 
         switch (opt->type) {
         case VSH_OT_NONE:
-            vshError(ctl, "invalid type 'NONE' of option '%s' of command '%s'",
+            vshError(ctl, _("invalid type 'NONE' of option '%1$s' of command '%2$s'"),
                      opt->name, cmd->name);
             return -1;
 
         case VSH_OT_BOOL:
             if (opt->completer) {
-                vshError(ctl, "bool parameter '%s' of command '%s' has completer set",
+                vshError(ctl, _("bool parameter '%1$s' of command '%2$s' has completer set"),
                          opt->name, cmd->name);
                 return -1;
             }
 
             if (opt->positional || opt->unwanted_positional) {
-                vshError(ctl, "boolean parameter '%s' of command '%s' must not be positional",
+                vshError(ctl, _("boolean parameter '%1$s' of command '%2$s' must not be positional"),
                          opt->name, cmd->name);
                 return -1;
             }
 
             if (opt->required) {
-                vshError(ctl, "parameter '%s' of command '%s' misused 'required' flag",
+                vshError(ctl, _("parameter '%1$s' of command '%2$s' misused 'required' flag"),
                          opt->name, cmd->name);
                 return -1; /* bool can't be mandatory */
             }
@@ -413,7 +413,7 @@ vshCmddefCheckInternals(vshControl *ctl,
                 opt->unwanted_positional ||
                 opt->completer ||
                 !opt->help) {
-                vshError(ctl, "parameter '%s' of command '%s' has incorrect alias option",
+                vshError(ctl, _("parameter '%1$s' of command '%2$s' has incorrect alias option"),
                          opt->name, cmd->name);
                 return -1;
             }
@@ -429,13 +429,13 @@ vshCmddefCheckInternals(vshControl *ctl,
             if (p) {
                 /* If alias comes with value, replacement must not be bool */
                 if (cmd->opts[j].type == VSH_OT_BOOL) {
-                    vshError(ctl, "alias '%s' of command '%s' has mismatched alias type",
+                    vshError(ctl, _("alias '%1$s' of command '%2$s' has mismatched alias type"),
                              opt->name, cmd->name);
                     return -1;
                 }
             }
             if (!cmd->opts[j].name) {
-                vshError(ctl, "alias '%s' of command '%s' has missing alias option",
+                vshError(ctl, _("alias '%1$s' of command '%2$s' has missing alias option"),
                          opt->name, cmd->name);
                 return -1;
             }
@@ -444,7 +444,7 @@ vshCmddefCheckInternals(vshControl *ctl,
 
         case VSH_OT_ARGV:
             if (cmd->opts[i + 1].name) {
-                vshError(ctl, "parameter '%s' of command '%s' must be listed last",
+                vshError(ctl, _("parameter '%1$s' of command '%2$s' must be listed last"),
                          opt->name, cmd->name);
                 return -1;
             }
@@ -453,7 +453,7 @@ vshCmddefCheckInternals(vshControl *ctl,
         case VSH_OT_INT:
         case VSH_OT_STRING:
             if (opt->positional && seenOptionalOption) {
-                vshError(ctl, "parameter '%s' of command '%s' must be listed before optional parameters",
+                vshError(ctl, _("parameter '%1$s' of command '%2$s' must be listed before optional parameters"),
                          opt->name, cmd->name);
                 return -1;
             }
@@ -542,7 +542,7 @@ vshCmdOptAssign(vshControl *ctl,
     case VSH_OT_BOOL:
         /* nothing to do */
         if (report) {
-            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(bool)\n",
+            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(bool)",
                      cmd->def->name, opt->def->name);
         }
         break;
@@ -550,7 +550,7 @@ vshCmdOptAssign(vshControl *ctl,
     case VSH_OT_STRING:
     case VSH_OT_INT:
         if (report) {
-            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(optdata): %s\n",
+            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(optdata): %s",
                      cmd->def->name, opt->def->name, NULLSTR(val));
         }
 
@@ -559,7 +559,7 @@ vshCmdOptAssign(vshControl *ctl,
 
     case VSH_OT_ARGV:
         if (report) {
-            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(argv: %zu): %s\n",
+            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(argv: %zu): %s",
                      cmd->def->name, opt->def->name, opt->nargv, NULLSTR(val));
         }
 
@@ -1968,13 +1968,12 @@ vshDebug(vshControl *ctl, int level, const char *format, ...)
         return;
 
     va_start(ap, format);
-    vshOutputLogFile(ctl, level, format, ap);
-    va_end(ap);
-
-    va_start(ap, format);
     str = g_strdup_vprintf(format, ap);
     va_end(ap);
-    fputs(str, stdout);
+
+    vshOutputLogFile(ctl, level, str);
+
+    fprintf(stderr, "%s\n", str);
     fflush(stdout);
 }
 
@@ -2112,30 +2111,47 @@ vshTTYMakeRaw(vshControl *ctl G_GNUC_UNUSED,
 }
 
 
-void
-vshError(vshControl *ctl, const char *format, ...)
+static void G_GNUC_PRINTF(3, 0)
+vshPrintStderr(vshControl *ctl,
+               int level,
+               const char *format,
+               va_list ap)
 {
-    va_list ap;
     g_autofree char *str = NULL;
 
-    if (ctl != NULL) {
-        va_start(ap, format);
-        vshOutputLogFile(ctl, VSH_ERR_ERROR, format, ap);
-        va_end(ap);
-    }
+    str = g_strdup_vprintf(format, ap);
+
+    if (ctl)
+        vshOutputLogFile(ctl, level, str);
 
     /* Most output is to stdout, but if someone ran virsh 2>&1, then
      * printing to stderr will not interleave correctly with stdout
      * unless we flush between every transition between streams.  */
     fflush(stdout);
-    fputs(_("error: "), stderr);
+    fprintf(stderr, _("error: %1$s\n"), NULLSTR(str));
+    fflush(stderr);
+}
+
+
+void
+vshError(vshControl *ctl, const char *format, ...)
+{
+    va_list ap;
 
     va_start(ap, format);
-    str = g_strdup_vprintf(format, ap);
+    vshPrintStderr(ctl, VSH_ERR_ERROR, format, ap);
     va_end(ap);
+}
 
-    fprintf(stderr, "%s\n", NULLSTR(str));
-    fflush(stderr);
+
+void
+vshWarn(vshControl *ctl, const char *format, ...)
+{
+    va_list ap;
+
+    va_start(ap, format);
+    vshPrintStderr(ctl, VSH_ERR_WARNING, format, ap);
+    va_end(ap);
 }
 
 
@@ -2337,8 +2353,7 @@ vshOpenLogFile(vshControl *ctl)
  * Outputting an error to log file.
  */
 void
-vshOutputLogFile(vshControl *ctl, int log_level, const char *msg_format,
-                 va_list ap)
+vshOutputLogFile(vshControl *ctl, int log_level, const char *msg)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_autofree char *str = NULL;
@@ -2381,7 +2396,7 @@ vshOutputLogFile(vshControl *ctl, int log_level, const char *msg_format,
             break;
     }
     virBufferAsprintf(&buf, "%s ", lvl);
-    virBufferVasprintf(&buf, msg_format, ap);
+    virBufferAddStr(&buf, msg);
     virBufferTrim(&buf, "\n");
     virBufferAddChar(&buf, '\n');
 
@@ -2409,9 +2424,13 @@ vshCloseLogFile(vshControl *ctl)
 {
     /* log file close */
     if (VIR_CLOSE(ctl->log_fd) < 0) {
-        vshError(ctl, _("%1$s: failed to write log file: %2$s"),
-                 ctl->logfile ? ctl->logfile : "?",
-                 g_strerror(errno));
+        if (ctl->logfile) {
+            vshError(ctl, _("%1$s: failed to write log file: %2$s"),
+                     ctl->logfile, g_strerror(errno));
+        } else {
+            vshError(ctl, _("failed to write log file: %1$s"),
+                     g_strerror(errno));
+        }
     }
 
     g_clear_pointer(&ctl->logfile, g_free);
@@ -2497,7 +2516,7 @@ vshAskReedit(vshControl *ctl,
              const char *msg G_GNUC_UNUSED,
              bool relax_avail G_GNUC_UNUSED)
 {
-    vshDebug(ctl, VSH_ERR_WARNING, "%s", _("This function is not supported on WIN32 platform"));
+    vshWarn(ctl, "%s", _("This function is not supported on WIN32 platform"));
     return 0;
 }
 #endif /* WIN32 */

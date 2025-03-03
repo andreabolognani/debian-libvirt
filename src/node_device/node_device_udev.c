@@ -427,12 +427,16 @@ udevProcessPCI(virNodeDeviceDriverState *driver_state,
     virPCIEDeviceInfo *pci_express = NULL;
     virPCIDevice *pciDev = NULL;
     virPCIDeviceAddress devAddr = { 0 };
+    g_autofree char *linkpath = NULL;
     int ret = -1;
     char *p;
-    bool privileged = false;
 
-    VIR_WITH_MUTEX_LOCK_GUARD(&driver_state->lock) {
-        privileged = driver_state->privileged;
+    linkpath = g_strdup_printf("%s/config", udev_device_get_syspath(device));
+    if (virFileWaitForExists(linkpath, 10, 100) < 0) {
+        virReportSystemError(errno,
+                             _("failed to wait for file '%1$s' to appear"),
+                             linkpath);
+        goto cleanup;
     }
 
     pci_dev->klass = -1;
@@ -482,7 +486,7 @@ udevProcessPCI(virNodeDeviceDriverState *driver_state,
         goto cleanup;
 
     /* We need to be root to read PCI device configs */
-    if (privileged) {
+    if (driver_state->privileged) {
         if (virPCIGetHeaderType(pciDev, &pci_dev->hdrType) < 0)
             goto cleanup;
 
@@ -1184,17 +1188,20 @@ udevGetCCWAddress(const char *sysfs_path,
                   virNodeDevCapData *data)
 {
     char *p;
+    g_autofree virCCWDeviceAddress *ccw_addr = g_new0(virCCWDeviceAddress, 1);
 
     if ((p = strrchr(sysfs_path, '/')) == NULL ||
         virCCWDeviceAddressParseFromString(p + 1,
-                                           &data->ccw_dev.cssid,
-                                           &data->ccw_dev.ssid,
-                                           &data->ccw_dev.devno) < 0) {
+                                           &ccw_addr->cssid,
+                                           &ccw_addr->ssid,
+                                           &ccw_addr->devno) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("failed to parse the CCW address from sysfs path: '%1$s'"),
                        sysfs_path);
         return -1;
     }
+
+    data->ccw_dev.dev_addr = g_steal_pointer(&ccw_addr);
 
     return 0;
 }
@@ -1202,7 +1209,7 @@ udevGetCCWAddress(const char *sysfs_path,
 
 static int
 udevCCWGetState(struct udev_device *device,
-                virNodeDevCapData *data)
+                virNodeDevCCWStateType *state)
 {
     int online = 0;
 
@@ -1212,10 +1219,10 @@ udevCCWGetState(struct udev_device *device,
     switch (online) {
     case VIR_NODE_DEV_CCW_STATE_OFFLINE:
     case VIR_NODE_DEV_CCW_STATE_ONLINE:
-        data->ccw_dev.state = online;
+        *state = online;
         break;
     default:
-        data->ccw_dev.state = VIR_NODE_DEV_CCW_STATE_LAST;
+        *state = VIR_NODE_DEV_CCW_STATE_LAST;
         break;
     }
 
@@ -1228,13 +1235,16 @@ udevProcessCCW(struct udev_device *device,
                virNodeDeviceDef *def)
 {
     /* process only online devices to keep the list sane */
-    if (udevCCWGetState(device, &def->caps->data) < 0)
+    if (udevCCWGetState(device, &def->caps->data.ccw_dev.state) < 0)
         return -1;
 
     if (udevGetCCWAddress(def->sysfs_path, &def->caps->data) < 0)
         return -1;
 
     udevGenerateDeviceName(device, def, NULL);
+
+    if (virNodeDeviceGetCCWDynamicCaps(def->sysfs_path, &def->caps->data.ccw_dev) < 0)
+        return -1;
 
     return 0;
 }
@@ -1387,6 +1397,52 @@ udevProcessAPMatrix(struct udev_device *device,
 
 
 static int
+udevProcessCCWGroup(struct udev_device *device,
+                    virNodeDeviceDef *def)
+{
+    const char *devtype = udev_device_get_devtype(device);
+    virNodeDevCapData *data = &def->caps->data;
+    int tmp;
+
+    data->ccwgroup_dev.address = virCCWDeviceAddressFromString(udev_device_get_sysname(device));
+
+    udevCCWGetState(device, &data->ccwgroup_dev.state);
+
+    udevGenerateDeviceName(device, def, NULL);
+
+    if ((tmp = virNodeDevCCWGroupCapTypeFromString(devtype)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("failed to find a supported CCW group capability type '%1$s'"),
+                       devtype);
+        return -1;
+    }
+
+    data->ccwgroup_dev.type = tmp;
+
+    switch (data->ccwgroup_dev.type) {
+    case VIR_NODE_DEV_CAP_CCWGROUP_QETH_GENERIC:
+    case VIR_NODE_DEV_CAP_CCWGROUP_QETH_LAYER2:
+    case VIR_NODE_DEV_CAP_CCWGROUP_QETH_LAYER3:
+        {
+            virCCWGroupTypeQeth *qeth = &data->ccwgroup_dev.qeth;
+            /* process qeth device information */
+            udevGetStringSysfsAttr(device, "card_type", &qeth->card_type);
+            udevGetStringSysfsAttr(device, "chpid", &qeth->chpid);
+        }
+        break;
+    case VIR_NODE_DEV_CAP_CCWGROUP_LAST:
+        return -1;
+    }
+
+    if (virNodeDeviceGetCCWGroupDynamicCaps(def->sysfs_path,
+                                            &data->ccwgroup_dev) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 udevGetDeviceNodes(struct udev_device *device,
                    virNodeDeviceDef *def)
 {
@@ -1444,6 +1500,10 @@ udevGetDeviceType(struct udev_device *device,
             *type = VIR_NODE_DEV_CAP_AP_CARD;
         else if (STREQ(devtype, "ap_queue"))
             *type = VIR_NODE_DEV_CAP_AP_QUEUE;
+        else if (STREQ(devtype, "qeth_generic") ||
+                 STREQ(devtype, "qeth_layer2") ||
+                 STREQ(devtype, "qeth_layer3"))
+            *type = VIR_NODE_DEV_CAP_CCWGROUP_DEV;
     } else {
         /* PCI devices don't set the DEVTYPE property. */
         if (udevHasDeviceProperty(device, "PCI_CLASS"))
@@ -1531,6 +1591,9 @@ udevGetDeviceDetails(virNodeDeviceDriverState *driver_state,
         return udevProcessAPMatrix(device, def);
     case VIR_NODE_DEV_CAP_MDEV_TYPES:
         return udevProcessMdevParent(device, def);
+    case VIR_NODE_DEV_CAP_CCWGROUP_DEV:
+        return udevProcessCCWGroup(device, def);
+    case VIR_NODE_DEV_CAP_CCWGROUP_MEMBER:
     case VIR_NODE_DEV_CAP_VPD:
     case VIR_NODE_DEV_CAP_SYSTEM:
     case VIR_NODE_DEV_CAP_FC_HOST:

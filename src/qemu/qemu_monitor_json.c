@@ -693,10 +693,11 @@ static void
 qemuMonitorJSONHandleIOError(qemuMonitor *mon, virJSONValue *data)
 {
     const char *device;
+    const char *qompath;
     const char *nodename;
     const char *action;
-    const char *reason = "";
-    bool nospc = false;
+    const char *reason;
+    bool nospace = false;
     int actionID;
 
     /* Throughout here we try our best to carry on upon errors,
@@ -708,20 +709,28 @@ qemuMonitorJSONHandleIOError(qemuMonitor *mon, virJSONValue *data)
         action = "ignore";
     }
 
-    if ((device = virJSONValueObjectGetString(data, "device")) == NULL)
+    if ((device = virJSONValueObjectGetString(data, "device")) == NULL) {
         VIR_WARN("missing device in disk io error event");
+    } else {
+        /* 'device' was documented as mandatory in the qemu event, but later became
+         * optional, in which case an empty string is sent by qemu. Convert it back
+         * to NULL */
+        if (*device == '\0')
+            device = NULL;
+    }
 
+    qompath = virJSONValueObjectGetString(data, "qom-path");
     nodename = virJSONValueObjectGetString(data, "node-name");
-
-    if (virJSONValueObjectGetBoolean(data, "nospace", &nospc) == 0 && nospc)
-        reason = "enospc";
+    reason = virJSONValueObjectGetString(data, "reason");
+    /* 'nospace' flag is relevant only when true */
+    ignore_value(virJSONValueObjectGetBoolean(data, "nospace", &nospace));
 
     if ((actionID = qemuMonitorIOErrorActionTypeFromString(action)) < 0) {
         VIR_WARN("unknown disk io error action '%s'", action);
         actionID = VIR_DOMAIN_EVENT_IO_ERROR_NONE;
     }
 
-    qemuMonitorEmitIOError(mon, device, nodename, actionID, reason);
+    qemuMonitorEmitIOError(mon, device, qompath, nodename, actionID, nospace, reason);
 }
 
 
@@ -2323,9 +2332,8 @@ qemuMonitorJSONGetOneBlockStatsInfo(virJSONValue *dev,
     g_autofree char *devicename = NULL;
     virJSONValue *backing;
 
-    if (dev_name &&
-        !(devicename = qemuDomainStorageAlias(dev_name, depth)))
-        return -1;
+    if (dev_name)
+        devicename = qemuDomainStorageAlias(dev_name, depth);
 
     qdevname = virJSONValueObjectGetString(dev, "qdev");
     nodename = virJSONValueObjectGetString(dev, "node-name");
@@ -8866,6 +8874,27 @@ qemuMonitorJSONSnapshotDelete(qemuMonitor *mon,
                                            "s:job-id", jobname,
                                            "s:tag", snapshotname,
                                            "a:devices", &devices,
+                                           NULL)))
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    return qemuMonitorJSONCheckError(cmd, reply);
+}
+
+
+int
+qemuMonitorJSONBlockdevSetActive(qemuMonitor *mon,
+                                 const char *nodename,
+                                 bool active)
+{
+    g_autoptr(virJSONValue) cmd = NULL;
+    g_autoptr(virJSONValue) reply = NULL;
+
+    if (!(cmd = qemuMonitorJSONMakeCommand("blockdev-set-active",
+                                           "S:node-name", nodename,
+                                           "b:active", active,
                                            NULL)))
         return -1;
 

@@ -32,8 +32,28 @@
 
   <define name="domaincontents">
     <ref name="hvs"/>
+    <optional>
+      <attribute name="id">
+        <ref name="unsignedInt"/>
+      </attribute>
+    </optional>
     <interleave>
-      <ref name="ids"/>
+      <element name="name">
+        <ref name="objectNameWithSlash"/>
+      </element>
+      <optional>
+        <element name="uuid">
+          <ref name="UUID"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="genid">
+          <choice>
+            <ref name="UUID"/>
+            <empty/>
+          </choice>
+        </element>
+      </optional>
       <optional>
         <ref name="title"/>
       </optional>
@@ -679,37 +699,6 @@
     </element>
   </define>
 
-  <!--
-      The Identifiers can be:
-      - an optional id attribute with a number on the domain element
-      - a mandatory name
-      - an optional uuid
-    -->
-  <define name="ids">
-    <optional>
-      <attribute name="id">
-        <ref name="unsignedInt"/>
-      </attribute>
-    </optional>
-    <interleave>
-      <element name="name">
-        <ref name="objectNameWithSlash"/>
-      </element>
-      <optional>
-        <element name="uuid">
-          <ref name="UUID"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="genid">
-          <choice>
-            <ref name="UUID"/>
-            <empty/>
-          </choice>
-        </element>
-      </optional>
-    </interleave>
-  </define>
   <define name="idmap">
     <element name="idmap">
       <interleave>
@@ -1669,7 +1658,7 @@
         <element name="product">
           <data type="string">
             <!-- All printable characters -->
-            <param name="pattern">[&#x20;-&#x7E;]{0,16}</param>
+            <param name="pattern">[&#x20;-&#x7E;]{0,40}</param>
           </data>
         </element>
       </optional>
@@ -2606,7 +2595,7 @@
     </element>
   </define>
 
-  <define name="diskDriverIothreads">
+  <define name="iothreadMapping">
     <element name="iothreads">
       <oneOrMore>
         <element name="iothread">
@@ -2687,7 +2676,7 @@
           </element>
         </optional>
         <optional>
-          <ref name="diskDriverIothreads"/>
+          <ref name="iothreadMapping"/>
         </optional>
       </interleave>
     </element>
@@ -3485,7 +3474,37 @@
             <value>vhostuser</value>
           </attribute>
           <interleave>
-            <ref name="unixSocketSource"/>
+            <optional>
+              <element name="source">
+                <optional>
+                  <attribute name="type">
+                    <value>unix</value>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="path">
+                    <ref name="absFilePath"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="mode">
+                    <choice>
+                      <value>server</value>
+                      <value>client</value>
+                    </choice>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="dev">
+                    <ref name="deviceName"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <ref name="reconnect"/>
+                </optional>
+                <empty/>
+              </element>
+             </optional>
             <ref name="interface-options"/>
           </interleave>
         </group>
@@ -6996,6 +7015,9 @@
               <ref name="featurestate"/>
             </element>
           </optional>
+          <optional>
+            <ref name="aia"/>
+          </optional>
         </interleave>
       </element>
     </optional>
@@ -7291,6 +7313,18 @@
           <ref name="scaledInteger"/>
         </element>
       </optional>
+    </element>
+  </define>
+
+  <define name="aia">
+    <element name="aia">
+      <attribute name="value">
+        <choice>
+          <value>none</value>
+          <value>aplic</value>
+          <value>aplic-imsic</value>
+        </choice>
+      </attribute>
     </element>
   </define>
 

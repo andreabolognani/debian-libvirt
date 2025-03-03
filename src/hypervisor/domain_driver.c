@@ -29,8 +29,11 @@
 #include "viraccessapicheck.h"
 #include "datatypes.h"
 #include "driver.h"
+#include "virlog.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN
+
+VIR_LOG_INIT("hypervisor.domain_driver");
 
 char *
 virDomainDriverGenerateRootHash(const char *drivername,
@@ -534,6 +537,23 @@ virDomainDriverAddIOThreadCheck(virDomainDef *def,
     return 0;
 }
 
+
+static bool
+virDomainIothreadMappingDefHasIothread(GSList *iothreads,
+                                       unsigned int iothread_id)
+{
+    GSList *n;
+
+    for (n = iothreads; n; n = n->next) {
+        virDomainIothreadMappingDef *iothread = n->data;
+
+        if (iothread->id == iothread_id)
+            return true;
+    }
+
+    return false;
+}
+
 /**
  * virDomainDriverDelIOThreadCheck:
  * @def: domain definition
@@ -555,19 +575,7 @@ virDomainDriverDelIOThreadCheck(virDomainDef *def,
     }
 
     for (i = 0; i < def->ndisks; i++) {
-        GSList *n;
-        bool inuse = false;
-
-        for (n = def->disks[i]->iothreads; n; n = n->next) {
-            virDomainDiskIothreadDef *iothread = n->data;
-
-            if (iothread->id == iothread_id) {
-                inuse = true;
-                break;
-            }
-        }
-
-        if (inuse ||
+        if (virDomainIothreadMappingDefHasIothread(def->disks[i]->iothreads, iothread_id) ||
             def->disks[i]->iothread == iothread_id) {
             virReportError(VIR_ERR_INVALID_ARG,
                            _("cannot remove IOThread %1$u since it is being used by disk '%2$s'"),
@@ -651,4 +659,56 @@ virDomainDriverGetIOThreadsConfig(virDomainDef *targetDef,
     }
 
     return ret;
+}
+
+typedef struct _virDomainDriverAutoStartState {
+    virDomainDriverAutoStartConfig *cfg;
+    bool first;
+} virDomainDriverAutoStartState;
+
+static int
+virDomainDriverAutoStartOne(virDomainObj *vm,
+                            void *opaque)
+{
+    virDomainDriverAutoStartState *state = opaque;
+
+    virObjectLock(vm);
+    virObjectRef(vm);
+
+    VIR_DEBUG("Autostart %s: autostart=%d",
+              vm->def->name, vm->autostart);
+
+    if (vm->autostart && !virDomainObjIsActive(vm)) {
+        virResetLastError();
+        if (state->cfg->delayMS) {
+            if (!state->first) {
+                g_usleep(state->cfg->delayMS * 1000ull);
+            } else {
+                state->first = false;
+            }
+        }
+
+        state->cfg->callback(vm, state->cfg->opaque);
+    }
+
+    virDomainObjEndAPI(&vm);
+    virResetLastError();
+
+    return 0;
+}
+
+void
+virDomainDriverAutoStart(virDomainObjList *domains,
+                         virDomainDriverAutoStartConfig *cfg)
+{
+    virDomainDriverAutoStartState state = { .cfg = cfg, .first = true };
+    bool autostart;
+    VIR_DEBUG("Run autostart stateDir=%s", cfg->stateDir);
+    if (virDriverShouldAutostart(cfg->stateDir, &autostart) < 0 ||
+        !autostart) {
+        VIR_DEBUG("Autostart already processed");
+        return;
+    }
+
+    virDomainObjListForEach(domains, false, virDomainDriverAutoStartOne, &state);
 }

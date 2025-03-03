@@ -507,7 +507,7 @@ typedef enum {
 VIR_ENUM_DECL(virDomainSnapshotLocation);
 
 
-struct _virDomainDiskIothreadDef {
+struct _virDomainIothreadMappingDef {
     unsigned int id;
 
     /* optional list of virtqueues the iothread should handle */
@@ -515,9 +515,9 @@ struct _virDomainDiskIothreadDef {
     size_t nqueues;
 };
 
-typedef struct _virDomainDiskIothreadDef virDomainDiskIothreadDef;
-void virDomainDiskIothreadDefFree(virDomainDiskIothreadDef *def);
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainDiskIothreadDef, virDomainDiskIothreadDefFree);
+typedef struct _virDomainIothreadMappingDef virDomainIothreadMappingDef;
+void virDomainIothreadMappingDefFree(virDomainIothreadMappingDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainIothreadMappingDef, virDomainIothreadMappingDefFree);
 
 
 /* Stores the virtual disk configuration */
@@ -574,7 +574,7 @@ struct _virDomainDiskDef {
     virDomainDeviceSGIO sgio;
     virDomainDiskDiscard discard;
     unsigned int iothread; /* unused = 0, > 0 specific thread # */
-    GSList *iothreads; /* List of virDomainDiskIothreadsDef */
+    GSList *iothreads; /* List of virDomainIothreadMappingDef */
     virDomainDiskDetectZeroes detect_zeroes;
     virTristateSwitch discard_no_unref;
     char *domain_name; /* backend domain name */
@@ -2206,6 +2206,7 @@ typedef enum {
     VIR_DOMAIN_FEATURE_ASYNC_TEARDOWN,
     VIR_DOMAIN_FEATURE_RAS,
     VIR_DOMAIN_FEATURE_PS2,
+    VIR_DOMAIN_FEATURE_AIA,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -2422,6 +2423,17 @@ typedef enum {
 } virDomainIBS;
 
 VIR_ENUM_DECL(virDomainIBS);
+
+typedef enum {
+    VIR_DOMAIN_AIA_DEFAULT = 0,
+    VIR_DOMAIN_AIA_NONE,
+    VIR_DOMAIN_AIA_APLIC,
+    VIR_DOMAIN_AIA_APLIC_IMSIC,
+
+    VIR_DOMAIN_AIA_LAST
+} virDomainAIA;
+
+VIR_ENUM_DECL(virDomainAIA);
 
 typedef struct _virDomainFeatureKVM virDomainFeatureKVM;
 struct _virDomainFeatureKVM {
@@ -3982,7 +3994,7 @@ virDomainNetDef *virDomainNetRemove(virDomainDef *def, size_t i);
 virDomainNetDef *virDomainNetRemoveByObj(virDomainDef *def, virDomainNetDef *net);
 void virDomainNetRemoveHostdev(virDomainDef *def, virDomainNetDef *net);
 
-int virDomainHostdevInsert(virDomainDef *def, virDomainHostdevDef *hostdev);
+void virDomainHostdevInsert(virDomainDef *def, virDomainHostdevDef *hostdev);
 virDomainHostdevDef *
 virDomainHostdevRemove(virDomainDef *def, size_t i);
 int virDomainHostdevFind(virDomainDef *def, virDomainHostdevDef *match,
@@ -4576,9 +4588,14 @@ bool
 virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 
-int
+void
+virDomainObjGetMessagesIOErrorsChain(virStorageSource *src,
+                                     const char *diskdst,
+                                     GPtrArray *m);
+
+void
 virDomainObjGetMessages(virDomainObj *vm,
-                        char ***msgs,
+                        GPtrArray *m,
                         unsigned int flags);
 
 bool

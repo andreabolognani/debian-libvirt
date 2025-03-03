@@ -1402,8 +1402,8 @@ lxcStateInitialize(bool privileged,
                    void *opaque)
 {
     virLXCDriverConfig *cfg = NULL;
-    bool autostart = true;
     const char *defsecmodel;
+    virDomainDriverAutoStartConfig autostartCfg;
 
     if (root != NULL) {
         virReportError(VIR_ERR_INVALID_ARG, "%s",
@@ -1499,11 +1499,12 @@ lxcStateInitialize(bool privileged,
                                        NULL, NULL) < 0)
         goto cleanup;
 
-    if (virDriverShouldAutostart(cfg->stateDir, &autostart) < 0)
-        goto cleanup;
-
-    if (autostart)
-        virLXCProcessAutostartAll(lxc_driver);
+    autostartCfg = (virDomainDriverAutoStartConfig) {
+        .stateDir = cfg->stateDir,
+        .callback = virLXCProcessAutostartDomain,
+        .opaque = NULL,
+    };
+    virDomainDriverAutoStart(lxc_driver->domains, &autostartCfg);
 
     return VIR_DRV_STATE_INIT_COMPLETE;
 
@@ -2992,8 +2993,7 @@ lxcDomainAttachDeviceConfig(virDomainDef *vmdef,
                            _("device is already in the domain configuration"));
             return -1;
         }
-        if (virDomainHostdevInsert(vmdef, hostdev) < 0)
-            return -1;
+        virDomainHostdevInsert(vmdef, hostdev);
         dev->data.hostdev = NULL;
         ret = 0;
         break;

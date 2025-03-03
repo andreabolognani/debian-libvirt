@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '11.0.0',
+  version: '11.1.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -133,6 +133,11 @@ sshconfdir = get_option('sshconfdir')
 if sshconfdir == ''
   sshconfdir = sysconfdir / 'ssh' / 'ssh_config.d'
 endif
+
+connection_driver_install_dir = libdir / 'libvirt' / 'connection-driver'
+storage_backend_install_dir = libdir / 'libvirt' / 'storage-backend'
+storage_file_install_dir = libdir / 'libvirt' / 'storage-file'
+lock_driver_install_dir = libdir / 'libvirt' / 'lock-driver'
 
 
 # generate configmake.h header
@@ -1004,7 +1009,7 @@ else
   endif
 endif
 
-glib_version = '2.58.0'
+glib_version = '2.66.0'
 glib_dep = dependency('glib-2.0', version: '>=' + glib_version)
 gobject_dep = dependency('gobject-2.0', version: '>=' + glib_version)
 if host_machine.system() == 'windows'
@@ -1582,8 +1587,15 @@ elif get_option('driver_lxc').enabled()
   error('linux and remote_driver are required for LXC')
 endif
 
-if not get_option('driver_ch').disabled() and host_machine.system() == 'linux' and (host_machine.cpu_family() == 'x86_64' or host_machine.cpu_family() == 'aarch64')
-  use_ch = true
+if not get_option('driver_ch').disabled()
+  if host_machine.system() == 'linux' and (host_machine.cpu_family() == 'x86_64' or host_machine.cpu_family() == 'aarch64')
+    use_ch = true
+  else
+    use_ch = false
+    if get_option('driver_ch').enabled()
+      error('linux on x86_64 or aarch64 is required to build Cloud-Hypervisor driver')
+    endif
+  endif
 
   if not conf.has('WITH_LIBVIRTD')
     use_ch = false

@@ -83,6 +83,7 @@
         <ref name="capdrm"/>
         <ref name="capmdev"/>
         <ref name="capccwdev"/>
+        <ref name="capccwgroupdev"/>
         <ref name="capcssdev"/>
         <ref name="capvdpa"/>
         <ref name="capapcard"/>
@@ -669,6 +670,63 @@
     </interleave>
   </define>
 
+  <define name="capccwgrouptypeqeth">
+    <attribute name="type">
+      <choice>
+        <value>qeth_generic</value>
+        <value>qeth_layer2</value>
+        <value>qeth_layer3</value>
+      </choice>
+    </attribute>
+    <interleave>
+      <element name="card_type"><text/></element>
+      <element name="chpid"><text/></element>
+    </interleave>
+  </define>
+
+  <define name="capccwgroupdev">
+    <attribute name="type">
+      <value>ccwgroup</value>
+    </attribute>
+    <optional>
+      <element name="state">
+        <choice>
+          <value>online</value>
+          <value>offline</value>
+        </choice>
+      </element>
+    </optional>
+    <ref name="capccwaddress"/>
+    <optional>
+      <element name="members">
+        <oneOrMore>
+          <element name="ccw_device">
+            <attribute name="ref">
+              <data type="string"/>
+            </attribute>
+            <text/>
+          </element>
+        </oneOrMore>
+      </element>
+    </optional>
+    <element name="capability">
+      <choice>
+        <ref name="capccwgrouptypeqeth"/>
+      </choice>
+    </element>
+  </define>
+
+  <define name="capccwgroupmember">
+    <optional>
+      <element name="capability">
+        <attribute name="type">
+          <value>ccwgroup_member</value>
+        </attribute>
+        <element name="group_device"><text/></element>
+      </element>
+    </optional>
+  </define>
+
   <define name="capccwdev">
     <attribute name="type">
       <value>ccw</value>
@@ -682,6 +740,7 @@
       </element>
     </optional>
     <ref name="capccwaddress"/>
+    <ref name="capccwgroupmember"/>
   </define>
 
   <define name="capcssdev">

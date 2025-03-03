@@ -8,6 +8,89 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v11.1.0 (2025-03-03)
+====================
+
+* **Packaging changes**
+
+  * De-modularize the 'fs' storage file backend
+
+    The storage file backend for local files uses only code which we compile
+    into the internal libraries anyways so there's no point in having it
+    as a loadable module. The ``storage-file/libvirt_storage_file_fs.so`` module
+    no longer exists and its functionality is embedded directly.
+
+* **Removed features**
+
+  * vbox: removed support for version 6.1 APIs
+
+    Libvirt no longer supports use of VirtualBox 6.1 since this version reached
+    its end of life on 2024/01.
+
+* **New features**
+
+  * nodedev: Support ccwgroup based qeth devices
+
+    CCW group devices are devices that use multiple subchannels on the
+    mainframe's channel subsystem. A qeth group device maps to subchannels and
+    their corresponding device numbers and device bus-IDs. The ``ccwgroup``
+    device nodes are placed besides the subchannel nodes under computer and list
+    the group members within a new ``ccwgroup`` capability. A new capability
+    ``ccwgroup_member`` is added into capability ``ccw`` to represent a device
+    membership to a ccwgroup. Filters are added to find ccwgroups as well as
+    ccwgroup members.
+
+  * ch: Support handling events from cloud-hypervisor
+
+    The ch driver now supports handling events from the cloud-hypervisor.
+    Events include VM lifecyle operations such as  shutdown, pause, resume,
+    etc. Libvirt will now read these events and take actions such as
+    updating domain state, etc.
+
+  * Introduce virtio-mem ``<memory/>`` model for s390 guests
+
+    The virtio-mem model of ``<memory/>`` device can now be used with s390
+    guests.
+
+  * Support using passt as the backend for interface type='vhostuser'
+
+    The combination of vhostuser transport with passt as the backend
+    provides high performance, fully featured networking without the
+    need for libvirt or QEMU to have any elevated privileges or
+    capabilities. Configuration and features are identical to the
+    configuration for type='user' with the passt backend.
+
+* **Improvements**
+
+  * qemu: I/O error messages can be queried via ``virDomainGetMessages()``
+
+    The qemu hypervisor driver now preserves the last I/O error message along
+    with the timestamp when it was recorded and preserves it to be queried via
+    ``virDomainGetMessages()``.
+
+* **Bug fixes**
+
+  * tools: ssh-proxy: Check if domain is running before connecting to it
+
+    If domain is not running but has a static CID configured for its VSOCK then
+    the ssh-proxy parsed it anyways. This may have resulted in mistakenly
+    connecting to a different domain. Domain status is checked before parsing
+    its CID.
+
+  * apparmor: Allow SGX if configured
+
+    If domain has ``<memory model='sgx-epc'\>`` configured then libvirt now
+    adds corresponding devices into a per-domain profile so that AppArmor does
+    not deny QEMU access to them.
+
+  * qemu: Fix crash when starting a domain on a host with unknown host CPU
+
+    On hosts where we cannot detect a host CPU model (mostly aarch64 hosts)
+    starting a domain with a custom CPU model caused a crash of virtqemud.
+
+    The bug was introduced in libvirt-10.9.0
+
+
 v11.0.0 (2025-01-15)
 ====================
 

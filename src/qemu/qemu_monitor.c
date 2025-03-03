@@ -745,7 +745,7 @@ qemuMonitorUnregister(qemuMonitor *mon)
 {
     if (mon->watch) {
         g_source_destroy(mon->watch);
-        vir_g_source_unref(mon->watch, mon->context);
+        g_source_unref(mon->watch);
         mon->watch = NULL;
     }
 }
@@ -1127,15 +1127,17 @@ qemuMonitorEmitWatchdog(qemuMonitor *mon, int action)
 
 void
 qemuMonitorEmitIOError(qemuMonitor *mon,
-                       const char *diskAlias,
+                       const char *device,
+                       const char *qompath,
                        const char *nodename,
                        int action,
+                       bool nospace,
                        const char *reason)
 {
     VIR_DEBUG("mon=%p", mon);
 
     QEMU_MONITOR_CALLBACK(mon, domainIOError, mon->vm,
-                          diskAlias, nodename, action, reason);
+                          device, qompath, nodename, action, nospace, reason);
 }
 
 
@@ -4549,4 +4551,25 @@ qemuMonitorDisplayReload(qemuMonitor *mon,
     QEMU_CHECK_MONITOR(mon);
 
     return qemuMonitorJSONDisplayReload(mon, type, tlsCerts);
+}
+
+
+/**
+ * qemuMonitorBlockdevSetActive:
+ * @mon: monitor object
+ * @nodename: optional nodename to (de)activate
+ * @active: requested state
+ *
+ * Activate or deactivate @nodename based on @active. If @nodename is NULL,
+ * qemu will act on all block nodes.
+ */
+int
+qemuMonitorBlockdevSetActive(qemuMonitor *mon,
+                             const char *nodename,
+                             bool active)
+{
+    QEMU_CHECK_MONITOR(mon);
+    VIR_DEBUG("nodename='%s', active='%d'", NULLSTR(nodename), active);
+
+    return qemuMonitorJSONBlockdevSetActive(mon, nodename, active);
 }

@@ -452,7 +452,7 @@ cmdDomblkinfo(vshControl *ctl, const vshCmd *cmd)
 
     all = vshCommandOptBool(cmd, "all");
     if (!all && vshCommandOptStringQuiet(ctl, cmd, "device", &device) <= 0) {
-        vshError(ctl, "command 'domblkinfo' requires <device> option");
+        vshError(ctl, "%s", _("command 'domblkinfo' requires <device> option"));
         return false;
     }
 
@@ -604,7 +604,7 @@ cmdDomblklist(vshControl *ctl, const vshCmd *cmd)
 
         target = virXPathString("string(./target/@dev)", ctxt);
         if (!target) {
-            vshError(ctl, "unable to query block list");
+            vshError(ctl, "%s", _("unable to query block list"));
             return false;
         }
 
@@ -616,7 +616,7 @@ cmdDomblklist(vshControl *ctl, const vshCmd *cmd)
             if (!(namespace = virXPathString("string(./source/@namespace)", ctxt)) ||
                 !(addrNode = virXPathNode("./source/address", ctxt)) ||
                 virPCIDeviceAddressParseXML(addrNode, &addr) < 0) {
-                vshError(ctl, "Unable to query NVMe disk address");
+                vshError(ctl, "%s", _("Unable to query NVMe disk address"));
                 return false;
             }
 
@@ -783,7 +783,7 @@ cmdDomIfGetLink(vshControl *ctl, const vshCmd *cmd)
                             iface);
 
     if ((ninterfaces = virXPathNodeSet(xpath, ctxt, &interfaces)) < 0) {
-        vshError(ctl, _("Failed to extract interface information"));
+        vshError(ctl, "%s", _("Failed to extract interface information"));
         return false;
     }
 
@@ -795,7 +795,7 @@ cmdDomIfGetLink(vshControl *ctl, const vshCmd *cmd)
 
         return false;
     } else if (ninterfaces > 1) {
-        vshError(ctl, _("multiple matching interfaces found"));
+        vshError(ctl, "%s", _("multiple matching interfaces found"));
         return false;
     }
 
@@ -1224,7 +1224,7 @@ cmdDominfo(vshControl *ctl, const vshCmd *cmd)
 
     /* Check and display whether the domain is persistent or not */
     persistent = virDomainIsPersistent(dom);
-    vshDebug(ctl, VSH_ERR_DEBUG, "Domain persistent flag value: %d\n",
+    vshDebug(ctl, VSH_ERR_DEBUG, "Domain persistent flag value: %d",
              persistent);
     if (persistent < 0)
         vshPrint(ctl, "%-15s %s\n", _("Persistent:"), _("unknown"));
@@ -1386,7 +1386,7 @@ cmdDomTime(vshControl *ctl, const vshCmd *cmd)
 
     if (doSet || now || rtcSync) {
         if (now && ((seconds = time(NULL)) == (time_t) -1)) {
-            vshError(ctl, _("Unable to get current time"));
+            vshError(ctl, "%s", _("Unable to get current time"));
             return false;
         }
 
@@ -2288,7 +2288,7 @@ cmdDomIfAddr(vshControl *ctl, const vshCmd *cmd)
         return false;
 
     if ((ifaces_count = virDomainInterfaceAddresses(dom, &ifaces, source, 0)) < 0) {
-        vshError(ctl, _("Failed to query for interfaces addresses"));
+        vshError(ctl, "%s", _("Failed to query for interfaces addresses"));
         goto cleanup;
     }
 

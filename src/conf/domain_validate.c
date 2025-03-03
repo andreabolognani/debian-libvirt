@@ -603,8 +603,8 @@ virDomainDiskDefValidateSource(const virStorageSource *src)
 
 
 #define VENDOR_LEN  8
-#define PRODUCT_LEN 16
-
+#define PRODUCT_SCSI_LEN 16
+#define PRODUCT_ATA_SATA_LEN 40
 
 /**
  * virDomainDiskDefSourceLUNValidate:
@@ -874,16 +874,21 @@ virDomainDiskDefValidate(const virDomainDef *def,
     }
 
     if (disk->product) {
+        size_t len = PRODUCT_ATA_SATA_LEN;
+
+        if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI)
+            len = PRODUCT_SCSI_LEN;
+
         if (!virStringIsPrintable(disk->product)) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("disk product is not printable string"));
             return -1;
         }
 
-        if (strlen(disk->product) > PRODUCT_LEN) {
+        if (strlen(disk->product) > len) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk product is more than %1$d characters"),
-                           PRODUCT_LEN);
+                           _("disk product is more than %1$zu characters"),
+                           len);
             return -1;
         }
     }
@@ -1251,6 +1256,17 @@ virDomainControllerDefValidate(const virDomainControllerDef *controller)
         if (opts->numaNode >= 0 && controller->idx == 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("The PCI controller with index=0 can't be associated with a NUMA node"));
+            return -1;
+        }
+    }
+
+    if (controller->iothread != 0) {
+        if (controller->type != VIR_DOMAIN_CONTROLLER_TYPE_SCSI ||
+            !(controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI ||
+              controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_TRANSITIONAL ||
+              controller->model == VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_NON_TRANSITIONAL)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("iothreads are supported only by 'virtio-scsi' controllers"));
             return -1;
         }
     }
@@ -2158,81 +2174,46 @@ virDomainNetDefValidate(const virDomainNetDef *net)
         return -1;
     }
 
-    if (net->type != VIR_DOMAIN_NET_TYPE_USER) {
+    if (net->type != VIR_DOMAIN_NET_TYPE_USER &&
+        net->type != VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
         if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("The 'passt' backend can only be used with interface type='user'"));
+                           _("The 'passt' backend can only be used with interface type='user' or type='vhostuser'"));
             return -1;
         }
     }
 
-    if (net->nPortForwards > 0 &&
-        (net->type != VIR_DOMAIN_NET_TYPE_USER ||
-         (net->type == VIR_DOMAIN_NET_TYPE_USER &&
-          net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST))) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("The <portForward> element can only be used with <interface type='user'> and its 'passt' backend"));
-        return -1;
+    if (net->nPortForwards > 0) {
+        size_t p;
+
+        if ((net->type != VIR_DOMAIN_NET_TYPE_USER &&
+            net->type != VIR_DOMAIN_NET_TYPE_VHOSTUSER) ||
+            net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("The <portForward> element can only be used with the 'passt' backend of interface type='user' or type='vhostuser'"));
+            return -1;
+        }
+
+        for (p = 0; p < net->nPortForwards; p++) {
+            size_t r;
+            virDomainNetPortForward *pf = net->portForwards[p];
+
+            for (r = 0; r < pf->nRanges; r++) {
+                virDomainNetPortForwardRange *range = pf->ranges[r];
+
+                if (!range->start
+                    && (range->end || range->to
+                        || range->exclude != VIR_TRISTATE_BOOL_ABSENT)) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                                   _("The 'range' of a 'portForward' requires 'start' attribute if 'end', 'to', or 'exclude' is specified"));
+                    return -1;
+                }
+            }
+        }
     }
 
     if (!virNetDevBandwidthValidate(net->bandwidth)) {
         return -1;
-    }
-
-    switch (net->type) {
-    case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
-        if (!virDomainNetIsVirtioModel(net)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Wrong or no <model> 'type' attribute specified with <interface type='vhostuser'/>. vhostuser requires the virtio-net* frontend"));
-            return -1;
-        }
-
-        if (net->data.vhostuser->data.nix.listen &&
-            net->data.vhostuser->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_YES) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'reconnect' attribute unsupported 'server' mode for <interface type='vhostuser'>"));
-            return -1;
-        }
-        break;
-
-    case VIR_DOMAIN_NET_TYPE_USER:
-        if (net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
-            size_t p;
-
-            for (p = 0; p < net->nPortForwards; p++) {
-                size_t r;
-                virDomainNetPortForward *pf = net->portForwards[p];
-
-                for (r = 0; r < pf->nRanges; r++) {
-                    virDomainNetPortForwardRange *range = pf->ranges[r];
-
-                    if (!range->start
-                        && (range->end || range->to
-                            || range->exclude != VIR_TRISTATE_BOOL_ABSENT)) {
-                        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                                       _("The 'range' of a 'portForward' requires 'start' attribute if 'end', 'to', or 'exclude' is specified"));
-                        return -1;
-                    }
-                }
-            }
-        }
-        break;
-
-    case VIR_DOMAIN_NET_TYPE_NETWORK:
-    case VIR_DOMAIN_NET_TYPE_VDPA:
-    case VIR_DOMAIN_NET_TYPE_BRIDGE:
-    case VIR_DOMAIN_NET_TYPE_CLIENT:
-    case VIR_DOMAIN_NET_TYPE_SERVER:
-    case VIR_DOMAIN_NET_TYPE_MCAST:
-    case VIR_DOMAIN_NET_TYPE_UDP:
-    case VIR_DOMAIN_NET_TYPE_INTERNAL:
-    case VIR_DOMAIN_NET_TYPE_DIRECT:
-    case VIR_DOMAIN_NET_TYPE_HOSTDEV:
-    case VIR_DOMAIN_NET_TYPE_VDS:
-    case VIR_DOMAIN_NET_TYPE_ETHERNET:
-    case VIR_DOMAIN_NET_TYPE_NULL:
-    case VIR_DOMAIN_NET_TYPE_LAST:
-        break;
     }
 
     return 0;

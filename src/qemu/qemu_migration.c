@@ -219,57 +219,101 @@ qemuMigrationSrcStoreDomainState(virDomainObj *vm)
               priv->preMigrationState, vm);
 }
 
-/* Returns true if the domain was resumed, false otherwise */
-static bool
+
+/**
+ * qemuMigrationBlockNodesReactivate:
+ *
+ * In case when we're keeping the VM paused qemu will not re-activate the block
+ * device backend tree so blockjobs would fail. In case when qemu supports the
+ * 'blockdev-set-active' command this function will re-activate the block nodes.
+ */
+static void
+qemuMigrationBlockNodesReactivate(virDomainObj *vm,
+                                  virDomainAsyncJob asyncJob)
+{
+    virErrorPtr orig_err;
+    qemuDomainObjPrivate *priv = vm->privateData;
+    int rc;
+
+    if (!virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV_SET_ACTIVE))
+        return;
+
+    VIR_DEBUG("re-activating block nodes");
+
+    virErrorPreserveLast(&orig_err);
+
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
+        goto cleanup;
+
+    rc = qemuMonitorBlockdevSetActive(priv->mon, NULL, true);
+
+    qemuDomainObjExitMonitor(vm);
+
+    if (rc < 0)
+        VIR_WARN("failed to re-activate block nodes after migration of VM '%s'", vm->def->name);
+
+ cleanup:
+    virErrorRestore(&orig_err);
+}
+
+
+static void
 qemuMigrationSrcRestoreDomainState(virQEMUDriver *driver, virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
+    virDomainState preMigrationState = priv->preMigrationState;
     int reason;
     virDomainState state = virDomainObjGetState(vm, &reason);
-    bool ret = false;
+
+    priv->preMigrationState = VIR_DOMAIN_NOSTATE;
 
     VIR_DEBUG("driver=%p, vm=%p, pre-mig-state=%s, state=%s, reason=%s",
               driver, vm,
-              virDomainStateTypeToString(priv->preMigrationState),
+              virDomainStateTypeToString(preMigrationState),
               virDomainStateTypeToString(state),
               virDomainStateReasonToString(state, reason));
 
-    if (state != VIR_DOMAIN_PAUSED ||
+    if (state == VIR_DOMAIN_PAUSED &&
         reason == VIR_DOMAIN_PAUSED_POSTCOPY_FAILED)
-        goto cleanup;
+        return;
 
-    if (priv->preMigrationState == VIR_DOMAIN_RUNNING) {
-        /* This is basically the only restore possibility that's safe
-         * and we should attempt to do */
+    if (preMigrationState != VIR_DOMAIN_RUNNING ||
+        state != VIR_DOMAIN_PAUSED)
+        goto reactivate;
 
-        VIR_DEBUG("Restoring pre-migration state due to migration error");
-
-        /* we got here through some sort of failure; start the domain again */
-        if (qemuProcessStartCPUs(driver, vm,
-                                 VIR_DOMAIN_RUNNING_MIGRATION_CANCELED,
-                                 VIR_ASYNC_JOB_MIGRATION_OUT) < 0) {
-            /* Hm, we already know we are in error here.  We don't want to
-             * overwrite the previous error, though, so we just throw something
-             * to the logs and hope for the best */
-            VIR_ERROR(_("Failed to resume guest %1$s after failure"), vm->def->name);
-            if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
-                virObjectEvent *event;
-
-                virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
-                                     VIR_DOMAIN_PAUSED_API_ERROR);
-                event = virDomainEventLifecycleNewFromObj(vm,
-                                                          VIR_DOMAIN_EVENT_SUSPENDED,
-                                                          VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
-                virObjectEventStateQueue(driver->domainEventState, event);
-            }
-            goto cleanup;
-        }
-        ret = true;
+    if (reason == VIR_DOMAIN_PAUSED_IOERROR) {
+        VIR_DEBUG("Domain is paused due to I/O error, skipping resume");
+        goto reactivate;
     }
 
- cleanup:
-    priv->preMigrationState = VIR_DOMAIN_NOSTATE;
-    return ret;
+    VIR_DEBUG("Restoring pre-migration state due to migration error");
+
+    /* we got here through some sort of failure; start the domain again */
+    if (qemuProcessStartCPUs(driver, vm,
+                             VIR_DOMAIN_RUNNING_MIGRATION_CANCELED,
+                             VIR_ASYNC_JOB_MIGRATION_OUT) < 0) {
+        /* Hm, we already know we are in error here.  We don't want to
+         * overwrite the previous error, though, so we just throw something
+         * to the logs and hope for the best */
+        VIR_ERROR(_("Failed to resume guest %1$s after failure"), vm->def->name);
+        if (virDomainObjGetState(vm, NULL) == VIR_DOMAIN_PAUSED) {
+            virObjectEvent *event;
+
+            virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
+                                 VIR_DOMAIN_PAUSED_API_ERROR);
+            event = virDomainEventLifecycleNewFromObj(vm,
+                                                      VIR_DOMAIN_EVENT_SUSPENDED,
+                                                      VIR_DOMAIN_EVENT_SUSPENDED_API_ERROR);
+            virObjectEventStateQueue(driver->domainEventState, event);
+        }
+
+        goto reactivate;
+    }
+
+    return;
+
+ reactivate:
+    qemuMigrationBlockNodesReactivate(vm, VIR_ASYNC_JOB_MIGRATION_OUT);
 }
 
 
@@ -2171,6 +2215,13 @@ qemuMigrationSrcWaitForCompletion(virDomainObj *vm,
     }
 
     ignore_value(qemuMigrationAnyFetchStats(vm, asyncJob, jobData, NULL));
+
+    /* We need to recheck migration status here as it might have changed while
+     * we were fetching statistics. For example, the migration might have been
+     * canceled.
+     */
+    if ((rv = qemuMigrationAnyCompleted(vm, asyncJob, dconn, flags)) < 0)
+        return rv;
 
     qemuDomainJobDataUpdateTime(jobData);
     qemuDomainJobDataUpdateDowntime(jobData);
@@ -5904,26 +5955,26 @@ qemuMigrationSrcPerformPeer2Peer3(virQEMUDriver *driver,
         if (ddomain) {
             VIR_ERROR(_("finish step ignored that migration was cancelled"));
         } else {
-            /* If Finish reported a useful error, use it instead of the
-             * original "migration unexpectedly failed" error.
+            virErrorPtr err = virGetLastError();
+            /* When both Confirm and Finish reported an error in QEMU driver,
+             * we don't really know which error is the root cause. Let's report
+             * both errors to the user.
              *
              * This is ugly but we can't do better with the APIs we have. We
              * only replace the error if Finish was called with cancelled == 1
              * and reported a real error (old libvirt would report an error
-             * from RPC instead of MIGRATE_FINISH_OK), which only happens when
-             * the domain died on destination. To further reduce a possibility
-             * of false positives we also check that Perform returned
-             * VIR_ERR_OPERATION_FAILED.
+             * from RPC instead of MIGRATE_FINISH_OK).
              */
             if (orig_err &&
                 orig_err->domain == VIR_FROM_QEMU &&
-                orig_err->code == VIR_ERR_OPERATION_FAILED) {
-                virErrorPtr err = virGetLastError();
-                if (err &&
-                    err->domain == VIR_FROM_QEMU &&
-                    err->code != VIR_ERR_MIGRATE_FINISH_OK) {
-                    g_clear_pointer(&orig_err, virFreeError);
-                }
+                orig_err->code == VIR_ERR_OPERATION_FAILED &&
+                err &&
+                err->domain == VIR_FROM_QEMU &&
+                err->code != VIR_ERR_MIGRATE_FINISH_OK) {
+                virReportError(VIR_ERR_OPERATION_FAILED,
+                               _("migration failed. Message from the source host: %1$s. Message from the destination host: %2$s"),
+                               orig_err->message, err->message);
+                g_clear_pointer(&orig_err, virFreeError);
             }
         }
     }
@@ -6791,6 +6842,8 @@ qemuMigrationDstFinishFresh(virQEMUDriver *driver,
 
         if (*inPostCopy)
             *doKill = false;
+    } else {
+        qemuMigrationBlockNodesReactivate(vm, VIR_ASYNC_JOB_MIGRATION_IN);
     }
 
     if (mig->jobData) {

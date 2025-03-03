@@ -1621,9 +1621,11 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-scsi-disk-wwn");
     DO_TEST_CAPS_LATEST("disk-scsi-disk-vpd");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-disk-vpd-build-error");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-scsi-product-length");
     DO_TEST_CAPS_LATEST("controller-virtio-scsi");
     DO_TEST_CAPS_LATEST("controller-scsi-auto");
     DO_TEST_CAPS_LATEST("disk-sata-device");
+    DO_TEST_CAPS_LATEST("disk-sata-product");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("disk-target-overflow");
     DO_TEST_CAPS_LATEST("disk-aio");
     DO_TEST_CAPS_LATEST("disk-aio-io_uring");
@@ -1653,9 +1655,12 @@ mymain(void)
     DO_TEST_CAPS_LATEST("disk-backing-chains-noindex");
     DO_TEST_CAPS_LATEST("disk-qcow2-datafile-store");
     DO_TEST_CAPS_ARCH_LATEST_FULL("disk-source-fd", "x86_64",
-                                  ARG_FD_GROUP, "testgroup2", 2, 200, 205,
-                                  ARG_FD_GROUP, "testgroup5", 1, 204,
-                                  ARG_FD_GROUP, "testgroup6", 2, 247, 248);
+                                  ARG_FD_GROUP, "testgroup2", false, 2, 200, 205,
+                                  ARG_FD_GROUP, "testgroup5", false, 1, 204,
+                                  ARG_FD_GROUP, "cdimage-ro", false, 1, 207,
+                                  ARG_FD_GROUP, "cdimage-rw", true, 1, 208,
+                                  ARG_FD_GROUP, "raw-rw-base", true, 1, 209,
+                                  ARG_FD_GROUP, "testgroup6", false, 2, 247, 248);
 
     DO_TEST_CAPS_LATEST("disk-slices");
     DO_TEST_CAPS_LATEST("disk-rotation");
@@ -1788,6 +1793,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("net-user-passt");
     DO_TEST_CAPS_VER("net-user-passt", "7.2.0");
     DO_TEST_CAPS_LATEST_PARSE_ERROR("net-user-slirp-portforward");
+    DO_TEST_CAPS_LATEST("net-vhostuser-passt");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("net-vhostuser-passt-no-shmem");
     DO_TEST_CAPS_LATEST("net-virtio");
     DO_TEST_CAPS_LATEST("net-virtio-device");
     DO_TEST_CAPS_LATEST("net-virtio-disable-offloads");
@@ -2713,6 +2720,8 @@ mymain(void)
      * virDomainMemoryDefCheckConflict() works for NVDIMMs which are special
      * than other memory devices because of how they handle <labelsize/> */
     DO_TEST_CAPS_LATEST("memory-hotplug-nvdimm-overlap");
+    DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-virtio-mem-pci-s390x", "s390x");
+    DO_TEST_CAPS_ARCH_LATEST("memory-hotplug-virtio-mem-ccw-s390x", "s390x");
 
     DO_TEST_CAPS_ARCH_LATEST("machine-aeskeywrap-on-caps", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("machine-aeskeywrap-on-cap", "s390x");
@@ -2814,6 +2823,8 @@ mymain(void)
     DO_TEST_CAPS_LATEST("virtio-options-net-packed");
     DO_TEST_CAPS_LATEST("virtio-options-rng-packed");
     DO_TEST_CAPS_LATEST("virtio-options-video-packed");
+
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("controller-virtio-serial-iothread");
 
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology");
     DO_TEST_CAPS_LATEST("fd-memory-numa-topology2");
@@ -2922,8 +2933,6 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-3.1", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-kvm-pseries-4.2", "ppc64");
     DO_TEST_CAPS_ARCH_LATEST("ppc64-default-cpu-tcg-pseries-4.2", "ppc64");
-    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-2.7", "s390x");
-    DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-2.7", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-kvm-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("s390-default-cpu-tcg-ccw-virtio-4.2", "s390x");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-pc-4.2", "x86_64");
@@ -2931,6 +2940,8 @@ mymain(void)
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-kvm-q35-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-q35-4.2", "x86_64");
     DO_TEST_CAPS_ARCH_LATEST("x86_64-default-cpu-tcg-features", "x86_64");
+
+    DO_TEST_CAPS_ARCH_LATEST("riscv64-virt-features-aia", "riscv64");
 
     DO_TEST_CAPS_LATEST("virtio-9p-multidevs");
     DO_TEST_CAPS_LATEST("virtio-9p-createmode");
@@ -3008,15 +3019,17 @@ mymain(void)
     DO_TEST_CAPS_LATEST("tap-vhost-incorrect");
     DO_TEST_CAPS_LATEST("tap-vhost");
 
-    DO_TEST_CAPS_LATEST("mtp-usb-device")
-    DO_TEST_CAPS_LATEST("net-usb")
-    DO_TEST_CAPS_LATEST("sound-device-virtio")
-    DO_TEST_CAPS_LATEST("pstore-acpi-erst")
+    DO_TEST_CAPS_LATEST("mtp-usb-device");
+    DO_TEST_CAPS_LATEST("net-usb");
+    DO_TEST_CAPS_LATEST("sound-device-virtio");
+    DO_TEST_CAPS_LATEST("pstore-acpi-erst");
 
-    DO_TEST_CAPS_LATEST_FAILURE("disk-network-iscsi-zero-hosts-invalid")
-    DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-scsi-vhost-rawio-invalid")
-    DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-scsi-vhost-sgio-invalid")
-    DO_TEST_CAPS_LATEST("disk-startuppolicy-optional-drop")
+    DO_TEST_CAPS_LATEST_FAILURE("disk-network-iscsi-zero-hosts-invalid");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-scsi-vhost-rawio-invalid");
+    DO_TEST_CAPS_LATEST_PARSE_ERROR("hostdev-scsi-vhost-sgio-invalid");
+    DO_TEST_CAPS_LATEST("disk-startuppolicy-optional-drop");
+
+    DO_TEST_CAPS_LATEST("schema-reorder-domain-subelements");
 
     /* check that all input files were actually used here */
     if (testConfXMLCheck(existingTestCases) < 0)

@@ -264,6 +264,21 @@ qemuValidateDomainDefFeatures(const virDomainDef *def,
             }
             break;
 
+        case VIR_DOMAIN_FEATURE_AIA:
+            if (def->features[i] != VIR_DOMAIN_AIA_DEFAULT &&
+                !qemuDomainIsRISCVVirt(def)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("aia feature is only supported with RISC-V Virt machines"));
+                return -1;
+            }
+            if (def->features[i] != VIR_DOMAIN_AIA_DEFAULT &&
+                !virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_VIRT_AIA)) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                              _("aia feature is not available with this QEMU binary"));
+                return -1;
+            }
+            break;
+
         case VIR_DOMAIN_FEATURE_SMM:
         case VIR_DOMAIN_FEATURE_KVM:
         case VIR_DOMAIN_FEATURE_XEN:
@@ -1724,13 +1739,22 @@ qemuValidateDomainDefVhostUserRequireSharedMemory(const virDomainDef *def,
 
 static int
 qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
+                                   const virDomainDef *def,
                                    virQEMUCaps *qemuCaps)
 {
     bool hasIPv4 = false;
     bool hasIPv6 = false;
     size_t i;
 
-    if (net->type == VIR_DOMAIN_NET_TYPE_USER) {
+    if (net->guestIP.nroutes) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Invalid attempt to set network interface guest-side IP route, not supported by QEMU"));
+        return -1;
+    }
+
+    if (net->type == VIR_DOMAIN_NET_TYPE_USER ||
+        (net->type == VIR_DOMAIN_NET_TYPE_VHOSTUSER &&
+         net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST)) {
         virDomainCapsDeviceNet netCaps = { };
 
         virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, &netCaps);
@@ -1740,12 +1764,6 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("the '%1$s' network backend is not supported with this QEMU binary"),
                            virDomainNetBackendTypeToString(net->backend.type));
-            return -1;
-        }
-
-        if (net->guestIP.nroutes) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Invalid attempt to set network interface guest-side IP route, not supported by QEMU"));
             return -1;
         }
 
@@ -1796,27 +1814,53 @@ qemuValidateDomainDeviceDefNetwork(const virDomainNetDef *net,
                 }
             }
         }
-    } else if (net->type == VIR_DOMAIN_NET_TYPE_VDPA) {
+    } else if (net->guestIP.nips) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("Invalid attempt to set network interface guest-side IP address info, not supported by QEMU"));
+        return -1;
+    }
+
+    if (net->type == VIR_DOMAIN_NET_TYPE_VHOSTUSER &&
+        net->backend.type == VIR_DOMAIN_NET_BACKEND_PASST) {
+        if (qemuValidateDomainDefVhostUserRequireSharedMemory(def, "interface type=\"vhostuser\" backend type=\"passt\"") < 0)
+            return -1;
+    }
+
+    if (net->type == VIR_DOMAIN_NET_TYPE_VDPA) {
         if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_VHOST_VDPA)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("vDPA devices are not supported with this QEMU binary"));
             return -1;
         }
+    }
 
-        if (net->model != VIR_DOMAIN_NET_MODEL_VIRTIO) {
+    if (net->type == VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
+        if (!net->data.vhostuser->data.nix.path &&
+            net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST) {
+            virReportError(VIR_ERR_XML_ERROR,
+                           _("Missing required attribute '%1$s' in element '%2$s'"),
+                           "path", "source");
+            return -1;
+        }
+
+        if (net->data.vhostuser->data.nix.listen &&
+            net->data.vhostuser->data.nix.reconnect.enabled == VIR_TRISTATE_BOOL_YES) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'reconnect' attribute is not supported when source mode='server' for <interface type='vhostuser'>"));
+            return -1;
+        }
+    }
+
+    if (!virDomainNetIsVirtioModel(net)) {
+        if (net->type == VIR_DOMAIN_NET_TYPE_VDPA ||
+            net->type == VIR_DOMAIN_NET_TYPE_VHOSTUSER) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("invalid model for interface of type '%1$s': '%2$s'"),
+                           _("invalid model for interface of type '%1$s': '%2$s' - must be 'virtio'"),
                            virDomainNetTypeToString(net->type),
                            virDomainNetModelTypeToString(net->model));
             return -1;
         }
-    } else if (net->guestIP.nroutes || net->guestIP.nips) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Invalid attempt to set network interface guest-side IP route and/or address info, not supported by QEMU"));
-        return -1;
-    }
-
-    if (virDomainNetIsVirtioModel(net)) {
+    } else {
         if (net->driver.virtio.rx_queue_size) {
             if (!VIR_IS_POW2(net->driver.virtio.rx_queue_size)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -2750,6 +2794,102 @@ qemuValidateDomainDeviceDefDiskSerial(const char *value)
 
 
 static int
+qemuDomainValidateIothreadMapping(const virDomainDef *def,
+                                  GSList *iothreads,
+                                  size_t queues)
+{
+    virDomainIothreadMappingDef *first_ioth;
+    g_autoptr(virBitmap) queueMap = NULL;
+    g_autoptr(GHashTable) iothreadMap = virHashNew(NULL);
+    ssize_t unused;
+    GSList *n;
+
+    if (!iothreads)
+        return 0;
+
+    first_ioth = iothreads->data;
+
+    if (first_ioth->queues) {
+        if (queues == 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("'queue' count must be configured for explicit iothread to queue mapping"));
+            return -1;
+        }
+
+        queueMap = virBitmapNew(queues);
+    }
+
+    /* we are validating that:
+     * - there are no duplicate iothreads
+     * - there are only valid iothreads
+     * - if queue mapping is provided
+     *    - queue is in range
+     *    - it must be provided for all assigned iothreads
+     *    - it must be provided for all queues
+     *    - queue must be assigned only once
+     */
+    for (n = iothreads; n; n = n->next) {
+        virDomainIothreadMappingDef *ioth = n->data;
+        g_autofree char *alias = g_strdup_printf("iothread%u", ioth->id);
+        size_t i;
+
+        if (g_hash_table_contains(iothreadMap, alias)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("duplicate mapping for iothread '%1$u'"), ioth->id);
+            return -1;
+        }
+
+        g_hash_table_insert(iothreadMap, g_steal_pointer(&alias), NULL);
+
+        if (!virDomainIOThreadIDFind(def, ioth->id)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("iothread '%1$u' not defined in iothreadid"),
+                           ioth->id);
+            return -1;
+        }
+
+        if (!!queueMap != !!ioth->queues) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("iothread to queue mapping must be provided for all iothreads or for none"));
+            return -1;
+        }
+
+        for (i = 0; i < ioth->nqueues; i++) {
+            bool hasMapping;
+
+            if (virBitmapGetBit(queueMap, ioth->queues[i], &hasMapping) < 0) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("iothread queue '%1$u' mapping out of range"),
+                               ioth->queues[i]);
+                return -1;
+            }
+
+            if (hasMapping) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("iothread queue '%1$u' is already assigned"),
+                               ioth->queues[i]);
+                return -1;
+            }
+
+            ignore_value(virBitmapSetBit(queueMap, ioth->queues[i]));
+
+        }
+    }
+
+    if (queueMap) {
+        if ((unused = virBitmapNextClearBit(queueMap, -1)) >= 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("missing iothread mapping for queue '%1$zd'"),
+                           unused);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+static int
 qemuValidateDomainDeviceDefDiskIOThreads(const virDomainDef *def,
                                          const virDomainDiskDef *disk,
                                          virQEMUCaps *qemuCaps)
@@ -2785,95 +2925,15 @@ qemuValidateDomainDeviceDefDiskIOThreads(const virDomainDef *def,
         return -1;
     }
 
-    if (disk->iothreads) {
-        virDomainDiskIothreadDef *first_ioth = disk->iothreads->data;
-        g_autoptr(virBitmap) queueMap = NULL;
-        g_autoptr(GHashTable) iothreads = virHashNew(NULL);
-        ssize_t unused;
-        GSList *n;
+    if (qemuDomainValidateIothreadMapping(def, disk->iothreads, disk->queues) < 0)
+        return -1;
 
-        if (first_ioth->queues) {
-            if (disk->queues == 0) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("disk 'queue' count must be configured for explicit iothread to queue mapping"));
-                return -1;
-            }
-
-            queueMap = virBitmapNew(disk->queues);
-        }
-
-        /* we are validating that:
-         * - there are no duplicate iothreads
-         * - there are only valid iothreads
-         * - if queue mapping is provided
-         *    - queue is in range
-         *    - it must be provided for all assigned iothreads
-         *    - it must be provided for all queues
-         *    - queue must be assigned only once
-         */
-        for (n = disk->iothreads; n; n = n->next) {
-            virDomainDiskIothreadDef *ioth = n->data;
-            g_autofree char *alias = g_strdup_printf("iothread%u", ioth->id);
-            size_t i;
-
-            if (g_hash_table_contains(iothreads, alias)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Duplicate mapping for iothread '%1$u'"), ioth->id);
-                return -1;
-            }
-
-            g_hash_table_insert(iothreads, g_steal_pointer(&alias), NULL);
-
-            if (!virDomainIOThreadIDFind(def, ioth->id)) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Disk iothread '%1$u' not defined in iothreadid"),
-                               ioth->id);
-                return -1;
-            }
-
-            if (!!queueMap != !!ioth->queues) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("iothread to queue mapping must be provided for all iothreads or for none"));
-                return -1;
-            }
-
-            for (i = 0; i < ioth->nqueues; i++) {
-                bool hasMapping;
-
-                if (virBitmapGetBit(queueMap, ioth->queues[i], &hasMapping) < 0) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                   _("disk iothread queue '%1$u' mapping out of range"),
-                                   ioth->queues[i]);
-                    return -1;
-                }
-
-                if (hasMapping) {
-                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                   _("disk iothread queue '%1$u' is already assigned"),
-                                   ioth->queues[i]);
-                    return -1;
-                }
-
-                ignore_value(virBitmapSetBit(queueMap, ioth->queues[i]));
-
-            }
-        }
-
-        if (queueMap) {
-            if ((unused = virBitmapNextClearBit(queueMap, -1)) >= 0) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("missing iothread mapping for queue '%1$zd'"),
-                               unused);
-                return -1;
-            }
-        }
-    } else {
-        if (!virDomainIOThreadIDFind(def, disk->iothread)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Disk iothread '%1$u' not defined in iothreadid"),
-                           disk->iothread);
-            return -1;
-        }
+    if (disk->iothread != 0 &&
+        !virDomainIOThreadIDFind(def, disk->iothread)) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("Disk iothread '%1$u' not defined in iothreadid"),
+                       disk->iothread);
+        return -1;
     }
 
     return 0;
@@ -2947,10 +3007,20 @@ qemuValidateDomainDeviceDefDiskFrontend(const virDomainDiskDef *disk,
         }
     }
 
-    if (disk->vendor || disk->product) {
+    if (disk->vendor) {
         if (disk->bus != VIR_DOMAIN_DISK_BUS_SCSI) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Only scsi disk supports vendor and product"));
+                           _("Only scsi disk supports 'vendor'"));
+            return -1;
+        }
+    }
+
+    if (disk->product) {
+        if ((disk->bus != VIR_DOMAIN_DISK_BUS_IDE) &&
+            (disk->bus != VIR_DOMAIN_DISK_BUS_SATA) &&
+            (disk->bus != VIR_DOMAIN_DISK_BUS_SCSI)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only ide, sata and scsi disk supports 'product'"));
             return -1;
         }
     }
@@ -3558,19 +3628,19 @@ qemuValidateDomainDeviceDefControllerIDE(const virDomainControllerDef *controlle
  * Returns true if either supported or there are no iothreads for controller;
  * otherwise, returns false if configuration is not quite right.
  */
-static bool
+static int
 qemuValidateCheckSCSIControllerIOThreads(const virDomainControllerDef *controller,
                                          const virDomainDef *def)
 {
     if (!controller->iothread)
-        return true;
+        return 0;
 
     if (controller->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE &&
         controller->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI &&
         controller->info.type != VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW) {
        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("virtio-scsi IOThreads only available for virtio pci and virtio ccw controllers"));
-       return false;
+       return -1;
     }
 
     /* Can we find the controller iothread in the iothreadid list? */
@@ -3578,10 +3648,10 @@ qemuValidateCheckSCSIControllerIOThreads(const virDomainControllerDef *controlle
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("controller iothread '%1$u' not defined in iothreadid"),
                        controller->iothread);
-        return false;
+        return -1;
     }
 
-    return true;
+    return 0;
 }
 
 
@@ -3593,7 +3663,7 @@ qemuValidateDomainDeviceDefControllerSCSI(const virDomainControllerDef *controll
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_SCSI:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_TRANSITIONAL:
         case VIR_DOMAIN_CONTROLLER_MODEL_SCSI_VIRTIO_NON_TRANSITIONAL:
-            if (!qemuValidateCheckSCSIControllerIOThreads(controller, def))
+            if (qemuValidateCheckSCSIControllerIOThreads(controller, def) < 0)
                 return -1;
             break;
 
@@ -5199,7 +5269,8 @@ qemuValidateDomainDeviceDefHub(virDomainHubDef *hub,
 
 
 static int
-qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
+qemuValidateDomainDeviceDefMemory(const virDomainMemoryDef *mem,
+                                  const virDomainDef *def,
                                   virQEMUCaps *qemuCaps)
 {
     virSGXCapability *sgxCaps;
@@ -5238,10 +5309,38 @@ qemuValidateDomainDeviceDefMemory(virDomainMemoryDef *mem,
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-        if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI)) {
+        if ((mem->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI &&
+             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI)) ||
+            (mem->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW &&
+             !virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VIRTIO_MEM_CCW))) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("virtio-mem isn't supported by this QEMU binary"));
             return -1;
+        }
+
+        if (mem->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW) {
+            /* virtio-mem-ccw has a few differences compared to virtio-mem-pci:
+             *
+             * 1) corresponding memory-backing-* object can't have a different
+             *    page size than the boot memory (see s390_machine_device_plug()
+             *    in qemu sources).
+             * 2) Since its commit v2.12.0-rc0~41^2~6 QEMU doesn't allow NUMA
+             *    for s390.
+             */
+
+            if (mem->source.virtio_mem.pagesize != 0 &&
+                def->mem.nhugepages &&
+                mem->source.virtio_mem.pagesize != def->mem.hugepages[0].size) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("virtio-mem-ccw can't use different page size than the boot memory"));
+                return -1;
+            }
+
+            if (mem->targetNode != 0 && mem->targetNode != -1) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("NUMA nodes are not supported for virtio-mem-ccw"));
+                return -1;
+            }
         }
 
         if (mem->target.virtio_mem.dynamicMemslots == VIR_TRISTATE_BOOL_YES &&
@@ -5367,7 +5466,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
 
     switch (dev->type) {
     case VIR_DOMAIN_DEVICE_NET:
-        return qemuValidateDomainDeviceDefNetwork(dev->data.net, qemuCaps);
+        return qemuValidateDomainDeviceDefNetwork(dev->data.net, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_CHR:
         return qemuValidateDomainChrDef(dev->data.chr, def, qemuCaps);
@@ -5430,7 +5529,7 @@ qemuValidateDomainDeviceDef(const virDomainDeviceDef *dev,
         return qemuValidateDomainDeviceDefSound(dev->data.sound, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_MEMORY:
-        return qemuValidateDomainDeviceDefMemory(dev->data.memory, qemuCaps);
+        return qemuValidateDomainDeviceDefMemory(dev->data.memory, def, qemuCaps);
 
     case VIR_DOMAIN_DEVICE_SHMEM:
         return qemuValidateDomainDeviceDefShmem(dev->data.shmem, qemuCaps);
