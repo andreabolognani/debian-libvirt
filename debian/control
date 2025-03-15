@@ -117,7 +117,6 @@ Package: libvirt-login-shell
 Section: admin
 Architecture: linux-any
 Depends:
- libvirt-clients (= ${binary:Version}),
  libvirt-common (= ${binary:Version}),
  libvirt-daemon-driver-lxc (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
@@ -162,7 +161,6 @@ Recommends:
  libvirt-daemon-driver-storage-scsi (= ${binary:Version}),
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-plugin-lockd (= ${binary:Version}),
- libvirt-daemon-plugin-sanlock (= ${binary:Version}),
 Suggests:
  libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [amd64 arm64 ia64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
@@ -791,10 +789,6 @@ Depends:
  libvirt-daemon-log (= ${binary:Version}),
  libvirt0 (= ${binary:Version}),
  ${misc:Depends},
-Recommends:
- libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
- libvirt-daemon-driver-xen (= ${binary:Version}) [amd64 arm64],
- libvirt-daemon-lock (= ${binary:Version}),
 Description: Virtualization daemon typical deployment
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -826,12 +820,6 @@ Architecture: all
 Depends:
  libvirt-common (<< ${source:Version}.1~),
  libvirt-common (>= ${source:Version}),
- libvirt-daemon (<< ${source:Version}.1~),
- libvirt-daemon (>= ${source:Version}),
- libvirt-daemon-common (<< ${source:Version}.1~),
- libvirt-daemon-common (>= ${source:Version}),
- libvirt-daemon-log (<< ${source:Version}.1~),
- libvirt-daemon-log (>= ${source:Version}),
  libvirt-daemon-system (<< ${source:Version}.1~),
  libvirt-daemon-system (>= ${source:Version}),
  libvirt0 (<< ${source:Version}.1~),
