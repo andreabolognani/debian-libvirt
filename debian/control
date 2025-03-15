@@ -149,7 +149,6 @@ Depends:
  ${shlibs:Depends},
 Recommends:
  libvirt-daemon-driver-interface (= ${binary:Version}),
- libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt-daemon-driver-nodedev (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
@@ -161,16 +160,17 @@ Recommends:
  libvirt-daemon-driver-storage-logical (= ${binary:Version}),
  libvirt-daemon-driver-storage-mpath (= ${binary:Version}),
  libvirt-daemon-driver-storage-scsi (= ${binary:Version}),
- libvirt-daemon-driver-vbox (= ${binary:Version}) [amd64 i386],
- libvirt-daemon-driver-xen (= ${binary:Version}) [amd64 arm64],
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-plugin-lockd (= ${binary:Version}),
  libvirt-daemon-plugin-sanlock (= ${binary:Version}),
 Suggests:
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [amd64 arm64 ia64 loong64 mips64el ppc64 ppc64el riscv64 s390x sparc64],
  libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
  libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [amd64 arm64 loong64 mips64el ppc64el riscv64 s390x],
  libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
+ libvirt-daemon-driver-vbox (= ${binary:Version}) [amd64 i386],
+ libvirt-daemon-driver-xen (= ${binary:Version}) [amd64 arm64],
  libvirt-daemon-system (= ${binary:Version}),
 Conflicts:
  libvirt-daemon-system (<< 10.6.0-2~),

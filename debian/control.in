@@ -149,7 +149,6 @@ Depends:
  ${shlibs:Depends},
 Recommends:
  libvirt-daemon-driver-interface (= ${binary:Version}),
- libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-network (= ${binary:Version}),
  libvirt-daemon-driver-nodedev (= ${binary:Version}),
  libvirt-daemon-driver-nwfilter (= ${binary:Version}),
@@ -161,16 +160,17 @@ Recommends:
  libvirt-daemon-driver-storage-logical (= ${binary:Version}),
  libvirt-daemon-driver-storage-mpath (= ${binary:Version}),
  libvirt-daemon-driver-storage-scsi (= ${binary:Version}),
- libvirt-daemon-driver-vbox (= ${binary:Version}) [${ARCHES_VBOX}],
- libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
  libvirt-daemon-lock (= ${binary:Version}),
  libvirt-daemon-plugin-lockd (= ${binary:Version}),
  libvirt-daemon-plugin-sanlock (= ${binary:Version}),
 Suggests:
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [linux-any],
  libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [${ARCHES_GLUSTER}],
  libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
  libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [${ARCHES_CEPH}],
  libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
+ libvirt-daemon-driver-vbox (= ${binary:Version}) [${ARCHES_VBOX}],
+ libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
  libvirt-daemon-system (= ${binary:Version}),
 Conflicts:
  libvirt-daemon-system (<< 10.6.0-2~),
