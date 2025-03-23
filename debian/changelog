@@ -1,3 +1,15 @@
+libvirt (11.1.0-2) experimental; urgency=medium
+
+  * [9e2b202] snippets: Drop custom conffile transfer logic
+    - It was intended to make upgrades smoother, but unfortunately
+      it caused serious issues in certain scenarios. Let dpkg's
+      built-in logic take care of everything instead
+    - Closes: #1094583
+  * [efe5fbc] daemon: Drop Recommends on non-QEMU hypervisor drivers
+  * [904900c] control: Drop more unnecessary package relationships
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 23 Mar 2025 18:10:38 +0100
+
 libvirt (11.1.0-1) unstable; urgency=medium
 
   * [da3bd66] New upstream version 11.1.0
