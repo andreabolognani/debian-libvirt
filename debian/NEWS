@@ -1,3 +1,43 @@
+libvirt (11.1.0-2) experimental; urgency=medium
+
+  As part of the big package reorganization that has been
+  implemented in libvirt 10.6.0-2, ownership of several conffiles
+  had to be transferred between binary packages.
+
+  As an example, /etc/libvirt/qemu.conf is now owned by
+  libvirt-daemon-driver-qemu instead of libvirt-daemon-system.
+
+  Depending on the order in which packages are unpacked and
+  configured during the upgrade process, which is something that we
+  have limited control over, the old package might still list the
+  involved files as "obsolete" conffiles owned by it.
+
+  The following packages might be affected by the issue:
+
+    * libvirt-client
+    * libvirt-daemon-system
+    * libvirt-daemon-system-sysv
+    * libvirt-sanlock
+
+  To check whether a specific package is affected:
+
+    $ dpkg-query --showformat='${Conffiles}\n' \
+                 --show libvirt-daemon-system | grep obsolete
+    /etc/libvirt/qemu.conf 8da3a97d2d4fe0870a810c7433efef31 obsolete
+
+  To address the issue once detected:
+
+    $ sudo apt reinstall libvirt-daemon-system
+
+  Some files might still show up in the list even after reinstalling
+  the package: for example, /etc/libvirt/lxc.conf will end up in
+  this situation if you didn't have the libvirt-daemon-driver-lxc
+  package installed before upgrading. To finish cleaning up,
+  manually delete the remaining files from the system and reinstall
+  the package once again.
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 23 Mar 2025 18:10:38 +0100
+
 libvirt (10.10.0-4) unstable; urgency=medium
 
   nftables support is now available in the network driver.
