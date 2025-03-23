@@ -16,7 +16,6 @@ set -e
 
 case "$1" in
     configure)
-
         # Obsolete AppArmor stuff included until 9.6.0-1
         ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
         LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
